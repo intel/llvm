@@ -11,9 +11,9 @@
 //===----------------------------------------------------------------------===//
 #include "mlir/Conversion/SCFToSPIRV/SCFToSPIRV.h"
 #include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/SPIRV/SPIRVDialect.h"
-#include "mlir/Dialect/SPIRV/SPIRVLowering.h"
-#include "mlir/Dialect/SPIRV/SPIRVOps.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
+#include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
 #include "mlir/IR/BuiltinOps.h"
 
 using namespace mlir;
@@ -160,7 +160,7 @@ ForOpConversion::matchAndRewrite(scf::ForOp forOp, ArrayRef<Value> operands,
 
   // Move the blocks from the forOp into the loopOp. This is the body of the
   // loopOp.
-  rewriter.inlineRegionBefore(forOp.getOperation()->getRegion(0), loopOp.body(),
+  rewriter.inlineRegionBefore(forOp->getRegion(0), loopOp.body(),
                               std::next(loopOp.body().begin(), 2));
 
   SmallVector<Value, 8> args(1, forOperands.lowerBound());
@@ -269,11 +269,11 @@ LogicalResult TerminatorOpConversion::matchAndRewrite(
   // VariableOp created during lowering of the parent region.
   if (!operands.empty()) {
     auto loc = terminatorOp.getLoc();
-    auto &allocas = scfToSPIRVContext->outputVars[terminatorOp.getParentOp()];
+    auto &allocas = scfToSPIRVContext->outputVars[terminatorOp->getParentOp()];
     assert(allocas.size() == operands.size());
     for (unsigned i = 0, e = operands.size(); i < e; i++)
       rewriter.create<spirv::StoreOp>(loc, allocas[i], operands[i]);
-    if (isa<spirv::LoopOp>(terminatorOp.getParentOp())) {
+    if (isa<spirv::LoopOp>(terminatorOp->getParentOp())) {
       // For loops we also need to update the branch jumping back to the header.
       auto br =
           cast<spirv::BranchOp>(rewriter.getInsertionBlock()->getTerminator());

@@ -93,6 +93,9 @@ static InputKind ParseFrontendArgs(FrontendOptions &opts,
     case clang::driver::options::OPT_E:
       opts.programAction_ = PrintPreprocessedInput;
       break;
+    case clang::driver::options::OPT_fsyntax_only:
+      opts.programAction_ = ParseSyntaxOnly;
+      break;
 
       // TODO:
       // case clang::driver::options::OPT_emit_obj:
@@ -185,7 +188,7 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &res,
 }
 
 void CompilerInvocation::SetDefaultFortranOpts() {
-  auto fortranOptions = fortranOpts();
+  auto &fortranOptions = fortranOpts();
 
   // These defaults are based on the defaults in f18/f18.cpp.
   std::vector<std::string> searchDirectories{"."s};

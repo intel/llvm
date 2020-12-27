@@ -39,6 +39,8 @@ class RestrictedPtrType<Type type> : Type {
 def VarArgType : Type {}
 def VoidType : NamedType<"void">;
 def IntType : NamedType<"int">;
+def LongType : NamedType<"long">;
+def LongLongType : NamedType<"long long">;
 def FloatType : NamedType<"float">;
 def DoubleType : NamedType<"double">;
 def LongDoubleType : NamedType<"long double">;
@@ -78,6 +80,8 @@ def FloatPtr : PtrType<FloatType>;
 def DoublePtr : PtrType<DoubleType>;
 
 def SigHandlerT : NamedType<"__sighandler_t">;
+
+def TimeTType : NamedType<"time_t">;
 
 //added because __assert_fail needs it.
 def UnsignedType : NamedType<"unsigned">;

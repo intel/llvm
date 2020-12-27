@@ -1,0 +1,48 @@
+name: automatic sync main branch from llvm-project to llvm
+
+on:
+  schedule:
+  - cron: '*/10 * * * *'
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          # persist-credentials: false allows us to use our own credentials for
+          # pushing to the repository.  Otherwise, the default github actions token
+          # is used.
+          persist-credentials: false
+          fetch-depth: 0
+          path: src
+      - name: Sync
+        env:
+          BRANCH: main
+          SYNC_REPO: https://github.com/llvm/llvm-project
+          LLVMBOT_TOKEN: ${{ secrets.LLVM_MAIN_SYNC_BBSYCL_TOKEN }}
+        run: |
+          cd $GITHUB_WORKSPACE/src
+          branch_exist=`git ls-remote --heads origin $BRANCH | wc -l`
+          if [ $branch_exist -ne 0 ]; then
+              git checkout $BRANCH
+              git pull --ff --ff-only $SYNC_REPO $BRANCH
+              if [ $? -ne 0 ]; then
+                  echo "failed to pull from $SYNC_REPO $BRANCH, abort"
+                  exit 1
+              fi
+              git_status=`git rev-list --count --left-right origin/$BRANCH...$BRANCH`
+              if [ "0	0" == "$git_status" ] ; then
+                  echo "no change, skip"
+              elif [[ "$git_status" =  0* ]] ; then
+                  git push https://$LLVMBOT_TOKEN@github.com/${{ github.repository }} ${BRANCH}
+              else
+                  echo "$BRANCH branch invalid state"
+                  exit 1
+              fi
+          else
+              git remote add upstream $SYNC_REPO
+              git fetch upstream
+              git checkout -B $BRANCH upstream/$BRANCH
+              git push https://$LLVMBOT_TOKEN@github.com/${{ github.repository }} ${BRANCH}
+          fi
+          echo "sync finished"

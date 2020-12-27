@@ -75,7 +75,7 @@ static bool isPlatformEnvironment(const TargetInfo &Target, StringRef Feature) {
     return true;
 
   auto CmpPlatformEnv = [](StringRef LHS, StringRef RHS) {
-    auto Pos = LHS.find("-");
+    auto Pos = LHS.find('-');
     if (Pos == StringRef::npos)
       return false;
     SmallString<128> NewLHS = LHS.slice(0, Pos);
@@ -247,7 +247,10 @@ Module::DirectoryName Module::getUmbrellaDir() const {
   if (Header U = getUmbrellaHeader())
     return {"", U.Entry->getDir()};
 
-  return {UmbrellaAsWritten, Umbrella.dyn_cast<const DirectoryEntry *>()};
+  if (auto *ME = Umbrella.dyn_cast<const DirectoryEntryRef::MapEntry *>())
+    return {UmbrellaAsWritten, DirectoryEntryRef(*ME)};
+
+  return {"", None};
 }
 
 void Module::addTopHeader(const FileEntry *File) {

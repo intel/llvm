@@ -1,9 +1,14 @@
 # REQUIRES: x86
 # RUN: mkdir -p %t
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %s -o %t/test.o
+
 # RUN: %lld -lSystem -o %t/test %t/test.o
 # RUN: llvm-readobj --file-headers %t/test | FileCheck %s --check-prefix=HEADER
-# RUN: llvm-objdump -D %t/test | FileCheck %s
+# RUN: llvm-objdump -D --bind --rebase %t/test | FileCheck %s
+
+# RUN: %lld -lSystem -pie -o %t/test %t/test.o
+# RUN: llvm-readobj --file-headers %t/test | FileCheck %s --check-prefix=HEADER
+# RUN: llvm-objdump -D --bind --rebase %t/test | FileCheck %s
 
 # HEADER: MH_HAS_TLV_DESCRIPTORS
 
@@ -16,10 +21,13 @@
 # CHECK-EMPTY:
 # CHECK-NEXT:  Disassembly of section __DATA,__thread_data:
 # CHECK-EMPTY:
-# CHECK-NEXT:  <__thread_data>:
-# CHECK-NEXT:  ef
-# CHECK-NEXT:  be ad de be ba
-# CHECK-NEXT:  fe ca
+# CHECK-NEXT:  <_foo$tlv$init>:
+# CHECK-NEXT:  00 00
+# CHECK-NEXT:  00 00
+# CHECK-EMPTY:
+# CHECK-NEXT:  <_bar$tlv$init>:
+# CHECK-NEXT:  00 00
+# CHECK-NEXT:  00 00
 # CHECK-EMPTY:
 # CHECK-NEXT:  Disassembly of section __DATA,__thread_vars:
 # CHECK-EMPTY:
@@ -33,6 +41,13 @@
 # CHECK-NEXT:  00 00
 # CHECK-NEXT:  00 00
 
+## Make sure we don't emit rebase opcodes for relocations in __thread_vars.
+# CHECK:       Rebase table:
+# CHECK-NEXT:  segment  section            address     type
+# CHECK-NEXT:  Bind table:
+# CHECK:       __DATA  __thread_vars   0x{{[0-9a-f]*}}  pointer 0 libSystem __tlv_bootstrap
+# CHECK:       __DATA  __thread_vars   0x{{[0-9a-f]*}}  pointer 0 libSystem __tlv_bootstrap
+
 .globl _main
 _main:
   mov _foo@TLVP(%rip), %rax
@@ -41,9 +56,9 @@ _main:
 
 .section	__DATA,__thread_data,thread_local_regular
 _foo$tlv$init:
-  .long	0xdeadbeef
+  .space 4
 _bar$tlv$init:
-  .long	0xcafebabe
+  .space 4
 
 .section	__DATA,__thread_vars,thread_local_variables
 .globl	_foo, _bar

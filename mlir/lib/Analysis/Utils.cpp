@@ -829,7 +829,7 @@ void mlir::getComputationSliceState(
   for (unsigned i = 0; i < numSliceLoopIVs; ++i) {
     Value iv = getSliceLoop(i).getInductionVar();
     if (sequentialLoops.count(iv) == 0 &&
-        getSliceLoop(i).getAttr(kSliceFusionBarrierAttrName) == nullptr)
+        getSliceLoop(i)->getAttr(kSliceFusionBarrierAttrName) == nullptr)
       continue;
     for (unsigned j = i; j < numSliceLoopIVs; ++j) {
       sliceState->lbs[j] = AffineMap();
@@ -872,8 +872,7 @@ mlir::insertBackwardComputationSlice(Operation *srcOpInst, Operation *dstOpInst,
   // Find the op block positions of 'srcOpInst' within 'srcLoopIVs'.
   SmallVector<unsigned, 4> positions;
   // TODO: This code is incorrect since srcLoopIVs can be 0-d.
-  findInstPosition(srcOpInst, srcLoopIVs[0].getOperation()->getBlock(),
-                   &positions);
+  findInstPosition(srcOpInst, srcLoopIVs[0]->getBlock(), &positions);
 
   // Clone src loop nest and insert it a the beginning of the operation block
   // of the loop at 'dstLoopDepth' in 'dstLoopIVs'.
@@ -1043,7 +1042,7 @@ Optional<int64_t> mlir::getMemoryFootprintBytes(AffineForOp forOp,
 /// at 'forOp'.
 void mlir::getSequentialLoops(AffineForOp forOp,
                               llvm::SmallDenseSet<Value, 8> *sequentialLoops) {
-  forOp.getOperation()->walk([&](Operation *op) {
+  forOp->walk([&](Operation *op) {
     if (auto innerFor = dyn_cast<AffineForOp>(op))
       if (!isLoopParallel(innerFor))
         sequentialLoops->insert(innerFor.getInductionVar());

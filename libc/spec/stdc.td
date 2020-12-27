@@ -3,6 +3,8 @@ def StdC : StandardSpec<"stdc"> {
   NamedType FILE = NamedType<"FILE">;
   PtrType FILEPtr = PtrType<FILE>;
   RestrictedPtrType FILERestrictedPtr = RestrictedPtrType<FILE>;
+  NamedType StructTmType = NamedType<"struct tm">;
+  PtrType StructTmPtr = PtrType<StructTmType>;
 
   HeaderSpec Assert = HeaderSpec<
       "assert.h",
@@ -93,7 +95,53 @@ def StdC : StandardSpec<"stdc"> {
           >,
       ]
   >;
-     
+
+  HeaderSpec Fenv = HeaderSpec<
+      "fenv.h",
+      [
+          Macro<"FE_DIVBYZERO">,
+          Macro<"FE_INEXACT">,
+          Macro<"FE_INVALID">,
+          Macro<"FE_OVERFLOW">,
+          Macro<"FE_UNDERFLOW">,
+          Macro<"FE_ALL_EXCEPT">,
+
+          Macro<"FE_DOWNWARD">,
+          Macro<"FE_TONEAREST">,
+          Macro<"FE_TOWARDZERO">,
+          Macro<"FE_UPWARD">
+      ],
+      [], // Types
+      [], // Enumerations
+      [
+          FunctionSpec<
+              "feclearexcept",
+              RetValSpec<IntType>,
+              [ArgSpec<IntType>]
+          >,
+          FunctionSpec<
+              "fetestexcept",
+              RetValSpec<IntType>,
+              [ArgSpec<IntType>]
+          >,
+          FunctionSpec<
+              "feraiseexcept",
+              RetValSpec<IntType>,
+              [ArgSpec<IntType>]
+          >,
+          FunctionSpec<
+              "fesetround",
+              RetValSpec<IntType>,
+              [ArgSpec<IntType>]
+          >,
+          FunctionSpec<
+              "fegetround",
+              RetValSpec<IntType>,
+              []
+          >,
+      ]
+  >;
+ 
   HeaderSpec String = HeaderSpec<
       "string.h",
       [
@@ -278,6 +326,7 @@ def StdC : StandardSpec<"stdc"> {
           FunctionSpec<"frexpf", RetValSpec<FloatType>, [ArgSpec<FloatType>, ArgSpec<IntPtr>]>,
           FunctionSpec<"frexpl", RetValSpec<LongDoubleType>, [ArgSpec<LongDoubleType>, ArgSpec<IntPtr>]>,
 
+          FunctionSpec<"hypot", RetValSpec<DoubleType>, [ArgSpec<DoubleType>, ArgSpec<DoubleType>]>,
           FunctionSpec<"hypotf", RetValSpec<FloatType>, [ArgSpec<FloatType>, ArgSpec<FloatType>]>,
 
           FunctionSpec<"ilogb", RetValSpec<IntType>, [ArgSpec<DoubleType>]>,
@@ -313,6 +362,14 @@ def StdC : StandardSpec<"stdc"> {
           FunctionSpec<"round", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
           FunctionSpec<"roundf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
           FunctionSpec<"roundl", RetValSpec<LongDoubleType>, [ArgSpec<LongDoubleType>]>,
+
+          FunctionSpec<"lround", RetValSpec<LongType>, [ArgSpec<DoubleType>]>,
+          FunctionSpec<"lroundf", RetValSpec<LongType>, [ArgSpec<FloatType>]>,
+          FunctionSpec<"lroundl", RetValSpec<LongType>, [ArgSpec<LongDoubleType>]>,
+
+          FunctionSpec<"llround", RetValSpec<LongLongType>, [ArgSpec<DoubleType>]>,
+          FunctionSpec<"llroundf", RetValSpec<LongLongType>, [ArgSpec<FloatType>]>,
+          FunctionSpec<"llroundl", RetValSpec<LongLongType>, [ArgSpec<LongDoubleType>]>,
 
           FunctionSpec<"sqrt", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
           FunctionSpec<"sqrtf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
@@ -351,6 +408,9 @@ def StdC : StandardSpec<"stdc"> {
       [], // Enumerations
       [
           FunctionSpec<"abort", RetValSpec<NoReturn>, [ArgSpec<VoidType>]>,
+          FunctionSpec<"abs", RetValSpec<IntType>, [ArgSpec<IntType>]>,
+          FunctionSpec<"labs", RetValSpec<LongType>, [ArgSpec<LongType>]>,
+          FunctionSpec<"llabs", RetValSpec<LongLongType>, [ArgSpec<LongLongType>]>,
           FunctionSpec<"_Exit", RetValSpec<NoReturn>, [ArgSpec<IntType>]>,
       ]
   >;
@@ -467,15 +527,34 @@ def StdC : StandardSpec<"stdc"> {
       ]
   >;
 
+  HeaderSpec Time = HeaderSpec<
+      "time.h",
+      [], // Macros
+      [ // Types
+       StructTmType,
+       TimeTType,
+      ],
+      [], // Enumerations
+      [
+          FunctionSpec<
+              "mktime",
+              RetValSpec<TimeTType>,
+              [ArgSpec<StructTmPtr>]
+          >,
+      ]
+  >;
+
   let Headers = [
     Assert,
     CType,
     Errno,
+    Fenv,
     Math,
     String,
     StdIO,
     StdLib,
     Signal,
     Threads,
+    Time,
   ];
 }

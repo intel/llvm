@@ -89,14 +89,14 @@ void mlir::outlineIfOp(OpBuilder &b, scf::IfOp ifOp, FuncOp *thenFn,
 
     // Outline before current function.
     OpBuilder::InsertionGuard g(b);
-    b.setInsertionPoint(ifOp.getParentOfType<FuncOp>());
+    b.setInsertionPoint(ifOp->getParentOfType<FuncOp>());
 
     llvm::SetVector<Value> captures;
     getUsedValuesDefinedAbove(ifOrElseRegion, captures);
 
     ValueRange values(captures.getArrayRef());
     FunctionType type =
-        FunctionType::get(values.getTypes(), ifOp.getResultTypes(), ctx);
+        FunctionType::get(ctx, values.getTypes(), ifOp.getResultTypes());
     auto outlinedFunc = b.create<FuncOp>(loc, funcName, type);
     b.setInsertionPointToStart(outlinedFunc.addEntryBlock());
     BlockAndValueMapping bvm;

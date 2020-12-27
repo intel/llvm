@@ -18,9 +18,6 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/AliasAnalysis.h"
-#include "llvm/Analysis/AssumptionCache.h"
-#include "llvm/Analysis/MemoryLocation.h"
-#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include <algorithm>
@@ -128,6 +125,17 @@ private:
     bool operator!=(const VariableGEPIndex &Other) const {
       return !operator==(Other);
     }
+
+    void dump() const {
+      print(dbgs());
+      dbgs() << "\n";
+    }
+    void print(raw_ostream &OS) const {
+      OS << "(V=" << V->getName()
+	 << ", zextbits=" << ZExtBits
+	 << ", sextbits=" << SExtBits
+	 << ", scale=" << Scale << ")";
+    }
   };
 
   // Represents the internal structure of a GEP, decomposed into a base pointer,
@@ -141,6 +149,23 @@ private:
     SmallVector<VariableGEPIndex, 4> VarIndices;
     // Is GEP index scale compile-time constant.
     bool HasCompileTimeConstantScale;
+
+    void dump() const {
+      print(dbgs());
+      dbgs() << "\n";
+    }
+    void print(raw_ostream &OS) const {
+      OS << "(DecomposedGEP Base=" << Base->getName()
+	 << ", Offset=" << Offset
+	 << ", VarIndices=[";
+      for (size_t i = 0; i < VarIndices.size(); i++) {
+       if (i != 0)
+         OS << ", ";
+       VarIndices[i].print(OS);
+      }
+      OS << "], HasCompileTimeConstantScale=" << HasCompileTimeConstantScale
+	 << ")";
+    }
   };
 
   /// Tracks phi nodes we have visited.
@@ -161,10 +186,6 @@ private:
 
   /// Tracks instructions visited by pointsToConstantMemory.
   SmallPtrSet<const Value *, 16> Visited;
-
-  /// Whether to disable persistent caching in AAQI. This is used to prevent
-  /// caching of results based on temporary assumptions.
-  bool DisableCache = false;
 
   static const Value *
   GetLinearExpression(const Value *V, APInt &Scale, APInt &Offset,
@@ -220,12 +241,6 @@ private:
                          LocationSize V2Size, const AAMDNodes &V2AATag,
                          AAQueryInfo &AAQI, const Value *O1 = nullptr,
                          const Value *O2 = nullptr);
-
-  AliasResult aliasCheckRecursive(const Value *V1, LocationSize V1Size,
-                                  const AAMDNodes &V1AATag, const Value *V2,
-                                  LocationSize V2Size, const AAMDNodes &V2AATag,
-                                  AAQueryInfo &AAQI, const Value *O1,
-                                  const Value *O2);
 };
 
 /// Analysis pass providing a never-invalidated alias analysis result.

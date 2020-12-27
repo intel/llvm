@@ -131,7 +131,7 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationReferencedIndirectlyINTEL, "ReferencedIndirectlyINTEL");
   add(DecorationSideEffectsINTEL, "SideEffectsINTEL");
   add(DecorationVectorComputeVariableINTEL, "VectorComputeVariableINTEL");
-  add(DecorationFuncParamIOKind, "FuncParamIOKind");
+  add(DecorationFuncParamIOKindINTEL, "FuncParamIOKind");
   add(DecorationVectorComputeFunctionINTEL, "VectorComputeFunctionINTEL");
   add(DecorationStackCallINTEL, "StackCallINTEL");
   add(DecorationGlobalVariableOffsetINTEL, "GlobalVariableOffsetINTEL");
@@ -167,6 +167,8 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationSingleElementVectorINTEL, "SingleElementVectorINTEL");
   add(DecorationVectorComputeCallableFunctionINTEL,
       "VectorComputeCallableFunctionINTEL");
+  add(DecorationStallEnableINTEL, "StallEnableINTEL");
+  add(DecorationFuseLoopsInFunctionINTEL, "FuseLoopsInFunctionINTEL");
   add(DecorationMax, "Max");
 }
 SPIRV_DEF_NAMEMAP(Decoration, SPIRVDecorationNameMap)
@@ -480,7 +482,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityAsmINTEL, "AsmINTEL");
   add(CapabilityVectorComputeINTEL, "VectorComputeINTEL");
   add(CapabilityVectorAnyINTEL, "VectorAnyINTEL");
-  add(CapabilityOptimizationHintsINTEL, "OptimizationHintsINTEL");
+  add(internal::CapabilityOptimizationHintsINTEL, "OptimizationHintsINTEL");
   add(CapabilitySubgroupAvcMotionEstimationINTEL,
       "SubgroupAvcMotionEstimationINTEL");
   add(CapabilitySubgroupAvcMotionEstimationIntraINTEL,
@@ -506,8 +508,11 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
       "ArbitraryPrecisionFixedPointINTEL");
   add(CapabilityUSMStorageClassesINTEL, "USMStorageClassesINTEL");
   add(CapabilityFPGAMemoryAccessesINTEL, "FPGAMemoryAccessesINTEL");
-  add(CapabilityIOPipeINTEL, "IOPipeINTEL");
+  add(CapabilityIOPipesINTEL, "IOPipeINTEL");
+  add(CapabilityFPGAClusterAttributesINTEL, "FPGAClusterAttributesINTEL");
+  add(CapabilityLoopFuseINTEL, "LoopFuseINTEL");
   add(CapabilityMax, "Max");
+  add(CapabilityLongConstantCompositeINTEL, "LongConstantCompositeINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 

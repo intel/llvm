@@ -644,7 +644,7 @@ MCSectionWasm *MCContext::getWasmSection(const Twine &Section, SectionKind Kind,
 
   StringRef CachedName = Entry.first.SectionName;
 
-  MCSymbol *Begin = createSymbol(CachedName, false, false);
+  MCSymbol *Begin = createSymbol(CachedName, true, false);
   cast<MCSymbolWasm>(Begin)->setType(wasm::WASM_SYMBOL_TYPE_SECTION);
 
   MCSectionWasm *Result = new (WasmAllocator.Allocate())
@@ -825,13 +825,13 @@ void MCContext::reportError(SMLoc Loc, const Twine &Msg) {
 
   // If we have a source manager use it. Otherwise, try using the inline source
   // manager.
-  // If that fails, use the generic report_fatal_error().
+  // If that fails, construct a temporary SourceMgr.
   if (SrcMgr)
     SrcMgr->PrintMessage(Loc, SourceMgr::DK_Error, Msg);
   else if (InlineSrcMgr)
     InlineSrcMgr->PrintMessage(Loc, SourceMgr::DK_Error, Msg);
   else
-    report_fatal_error(Msg, false);
+    SourceMgr().PrintMessage(Loc, SourceMgr::DK_Error, Msg);
 }
 
 void MCContext::reportWarning(SMLoc Loc, const Twine &Msg) {

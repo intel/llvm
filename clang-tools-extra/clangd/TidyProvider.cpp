@@ -7,18 +7,146 @@
 //===----------------------------------------------------------------------===//
 
 #include "TidyProvider.h"
+#include "../clang-tidy/ClangTidyModuleRegistry.h"
 #include "Config.h"
+#include "support/FileCache.h"
 #include "support/Logger.h"
+#include "support/ThreadsafeFS.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringSet.h"
+#include "llvm/Support/Allocator.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Process.h"
+#include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include <memory>
 
 namespace clang {
 namespace clangd {
+namespace {
+
+// Access to config from a .clang-tidy file, caching IO and parsing.
+class DotClangTidyCache : private FileCache {
+  // We cache and expose shared_ptr to avoid copying the value on every lookup
+  // when we're ultimately just going to pass it to mergeWith.
+  mutable std::shared_ptr<const tidy::ClangTidyOptions> Value;
+
+public:
+  DotClangTidyCache(PathRef Path) : FileCache(Path) {}
+
+  std::shared_ptr<const tidy::ClangTidyOptions>
+  get(const ThreadsafeFS &TFS,
+      std::chrono::steady_clock::time_point FreshTime) const {
+    std::shared_ptr<const tidy::ClangTidyOptions> Result;
+    read(
+        TFS, FreshTime,
+        [this](llvm::Optional<llvm::StringRef> Data) {
+          Value.reset();
+          if (Data && !Data->empty()) {
+            tidy::DiagCallback Diagnostics = [](const llvm::SMDiagnostic &D) {
+              switch (D.getKind()) {
+              case llvm::SourceMgr::DK_Error:
+                elog("tidy-config error at {0}:{1}:{2}: {3}", D.getFilename(),
+                     D.getLineNo(), D.getColumnNo(), D.getMessage());
+                break;
+              case llvm::SourceMgr::DK_Warning:
+                log("tidy-config warning at {0}:{1}:{2}: {3}", D.getFilename(),
+                    D.getLineNo(), D.getColumnNo(), D.getMessage());
+                break;
+              case llvm::SourceMgr::DK_Note:
+              case llvm::SourceMgr::DK_Remark:
+                vlog("tidy-config note at {0}:{1}:{2}: {3}", D.getFilename(),
+                     D.getLineNo(), D.getColumnNo(), D.getMessage());
+                break;
+              }
+            };
+            if (auto Parsed = tidy::parseConfigurationWithDiags(
+                    llvm::MemoryBufferRef(*Data, path()), Diagnostics))
+              Value = std::make_shared<const tidy::ClangTidyOptions>(
+                  std::move(*Parsed));
+            else
+              elog("Error parsing clang-tidy configuration in {0}: {1}", path(),
+                   Parsed.getError().message());
+          }
+        },
+        [&]() { Result = Value; });
+    return Result;
+  }
+};
+
+// Access to combined config from .clang-tidy files governing a source file.
+// Each config file is cached and the caches are shared for affected sources.
+//
+// FIXME: largely duplicates config::Provider::fromAncestorRelativeYAMLFiles.
+// Potentially useful for compile_commands.json too. Extract?
+class DotClangTidyTree {
+  const ThreadsafeFS &FS;
+  std::string RelPath;
+  std::chrono::steady_clock::duration MaxStaleness;
+
+  mutable std::mutex Mu;
+  // Keys are the ancestor directory, not the actual config path within it.
+  // We only insert into this map, so pointers to values are stable forever.
+  // Mutex guards the map itself, not the values (which are threadsafe).
+  mutable llvm::StringMap<DotClangTidyCache> Cache;
+
+public:
+  DotClangTidyTree(const ThreadsafeFS &FS)
+      : FS(FS), RelPath(".clang-tidy"), MaxStaleness(std::chrono::seconds(5)) {}
+
+  void apply(tidy::ClangTidyOptions &Result, PathRef AbsPath) {
+    namespace path = llvm::sys::path;
+    assert(path::is_absolute(AbsPath));
+
+    // Compute absolute paths to all ancestors (substrings of P.Path).
+    // Ensure cache entries for each ancestor exist in the map.
+    llvm::StringRef Parent = path::parent_path(AbsPath);
+    llvm::SmallVector<DotClangTidyCache *> Caches;
+    {
+      std::lock_guard<std::mutex> Lock(Mu);
+      for (auto I = path::begin(Parent), E = path::end(Parent); I != E; ++I) {
+        assert(I->end() >= Parent.begin() && I->end() <= Parent.end() &&
+               "Canonical path components should be substrings");
+        llvm::StringRef Ancestor(Parent.begin(), I->end() - Parent.begin());
+#ifdef _WIN32
+        // C:\ is an ancestor, but skip its (relative!) parent C:.
+        if (Ancestor.size() == 2 && Ancestor.back() == ':')
+          continue;
+#endif
+        assert(path::is_absolute(Ancestor));
+
+        auto It = Cache.find(Ancestor);
+
+        // Assemble the actual config file path only if needed.
+        if (It == Cache.end()) {
+          llvm::SmallString<256> ConfigPath = Ancestor;
+          path::append(ConfigPath, RelPath);
+          It = Cache.try_emplace(Ancestor, ConfigPath.str()).first;
+        }
+        Caches.push_back(&It->second);
+      }
+    }
+    // Finally query each individual file.
+    // This will take a (per-file) lock for each file that actually exists.
+    std::chrono::steady_clock::time_point FreshTime =
+        std::chrono::steady_clock::now() - MaxStaleness;
+    llvm::SmallVector<std::shared_ptr<const tidy::ClangTidyOptions>>
+        OptionStack;
+    for (const DotClangTidyCache *Cache : Caches)
+      if (auto Config = Cache->get(FS, FreshTime)) {
+        OptionStack.push_back(std::move(Config));
+        if (!OptionStack.back()->InheritParentConfig.getValueOr(false))
+          break;
+      }
+    unsigned Order = 1u;
+    for (auto &Option : llvm::reverse(OptionStack))
+      Result.mergeWith(*Option, Order++);
+  }
+};
+
+} // namespace
 
 static void mergeCheckList(llvm::Optional<std::string> &Checks,
                            llvm::StringRef List) {
@@ -29,43 +157,6 @@ static void mergeCheckList(llvm::Optional<std::string> &Checks,
     return;
   }
   *Checks = llvm::join_items(",", *Checks, List);
-}
-
-static llvm::Optional<tidy::ClangTidyOptions>
-tryReadConfigFile(llvm::vfs::FileSystem *FS, llvm::StringRef Directory) {
-  assert(!Directory.empty());
-  // We guaranteed that child directories of Directory exist, so this assert
-  // should hopefully never fail.
-  assert(FS->exists(Directory));
-
-  llvm::SmallString<128> ConfigFile(Directory);
-  llvm::sys::path::append(ConfigFile, ".clang-tidy");
-
-  llvm::ErrorOr<llvm::vfs::Status> FileStatus = FS->status(ConfigFile);
-
-  if (!FileStatus || !FileStatus->isRegularFile())
-    return llvm::None;
-
-  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> Text =
-      FS->getBufferForFile(ConfigFile);
-  if (std::error_code EC = Text.getError()) {
-    elog("Can't read '{0}': {1}", ConfigFile, EC.message());
-    return llvm::None;
-  }
-
-  // Skip empty files, e.g. files opened for writing via shell output
-  // redirection.
-  if ((*Text)->getBuffer().empty())
-    return llvm::None;
-  llvm::ErrorOr<tidy::ClangTidyOptions> ParsedOptions =
-      tidy::parseConfiguration((*Text)->getBuffer());
-  if (!ParsedOptions) {
-    if (ParsedOptions.getError())
-      elog("Error parsing clang-tidy configuration in '{0}': {1}", ConfigFile,
-           ParsedOptions.getError().message());
-    return llvm::None;
-  }
-  return std::move(*ParsedOptions);
 }
 
 TidyProviderRef provideEnvironment() {
@@ -176,41 +267,9 @@ TidyProviderRef provideClangdConfig() {
 }
 
 TidyProvider provideClangTidyFiles(ThreadsafeFS &TFS) {
-  return [&TFS](tidy::ClangTidyOptions &Opts, llvm::StringRef Filename) {
-    llvm::SmallVector<tidy::ClangTidyOptions, 4> OptionStack;
-    auto FS(TFS.view(llvm::None));
-    llvm::SmallString<256> AbsolutePath(Filename);
-
-    assert(llvm::sys::path::is_absolute(AbsolutePath));
-
-    llvm::sys::path::remove_dots(AbsolutePath, true);
-    llvm::StringRef Directory = llvm::sys::path::parent_path(AbsolutePath);
-    {
-      auto Status = FS->status(Directory);
-
-      if (!Status || !Status->isDirectory()) {
-        elog("Error reading configuration from {0}: directory doesn't exist",
-             Directory);
-        return;
-      }
-    }
-
-    // FIXME: Store options in a cache that validates itself against changes
-    // during the clangd session.
-    for (llvm::StringRef CurrentDirectory = Directory;
-         !CurrentDirectory.empty();
-         CurrentDirectory = llvm::sys::path::parent_path(CurrentDirectory)) {
-      auto ConfigFile = tryReadConfigFile(FS.get(), CurrentDirectory);
-      if (!ConfigFile)
-        continue;
-      OptionStack.push_back(std::move(*ConfigFile));
-      // Should we search for a parent config to merge
-      if (!OptionStack.back().InheritParentConfig.getValueOr(false))
-        break;
-    }
-    unsigned Order = 1U;
-    for (auto &Option : llvm::reverse(OptionStack))
-      Opts.mergeWith(Option, Order++);
+  return [Tree = std::make_unique<DotClangTidyTree>(TFS)](
+             tidy::ClangTidyOptions &Opts, llvm::StringRef Filename) {
+    Tree->apply(Opts, Filename);
   };
 }
 
@@ -232,6 +291,26 @@ tidy::ClangTidyOptions getTidyOptionsForFile(TidyProviderRef Provider,
   if (Provider)
     Provider(Opts, Filename);
   return Opts;
+}
+
+bool isRegisteredTidyCheck(llvm::StringRef Check) {
+  assert(!Check.empty());
+  assert(!Check.contains('*') && !Check.contains(',') &&
+         "isRegisteredCheck doesn't support globs");
+  assert(Check.ltrim().front() != '-');
+
+  static const llvm::StringSet<llvm::BumpPtrAllocator> AllChecks = [] {
+    llvm::StringSet<llvm::BumpPtrAllocator> Result;
+    tidy::ClangTidyCheckFactories Factories;
+    for (tidy::ClangTidyModuleRegistry::entry E :
+         tidy::ClangTidyModuleRegistry::entries())
+      E.instantiate()->addCheckFactories(Factories);
+    for (const auto &Factory : Factories)
+      Result.insert(Factory.getKey());
+    return Result;
+  }();
+
+  return AllChecks.contains(Check);
 }
 } // namespace clangd
 } // namespace clang

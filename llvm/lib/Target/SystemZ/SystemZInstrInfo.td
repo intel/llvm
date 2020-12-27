@@ -110,6 +110,12 @@ let isAsmParserOnly = 1, hasNoSchedulingInfo = 1, M1 = 0, XBD2 = 0 in
 def NOPR : InstAlias<"nopr\t$R", (BCRAsm 0, GR64:$R), 0>;
 def NOPR_bare : InstAlias<"nopr", (BCRAsm 0, R0D), 0>;
 
+// An alias of BRC 0, label
+def JNOP : InstAlias<"jnop\t$RI2", (BRCAsm 0, brtarget16:$RI2), 0>;
+
+// An alias of BRCL 0, label
+def JGNOP : InstAlias<"jgnop\t$RI2", (BRCLAsm 0, brtarget32:$RI2), 0>;
+
 // Fused compare-and-branch instructions.
 //
 // These instructions do not use or clobber the condition codes.
@@ -284,33 +290,32 @@ let isCall = 1, Defs = [R14D, CC] in {
                          [(z_tls_ldcall tglobaltlsaddr:$I2)]>;
 }
 
-// Sibling calls.  Indirect sibling calls must be via R1, since R2 upwards
-// are argument registers and since branching to R0 is a no-op.
+// Sibling calls.
 let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1 in {
   def CallJG : Alias<6, (outs), (ins pcrel32:$I2),
                      [(z_sibcall pcrel32:$I2)]>;
-  let Uses = [R1D] in
-    def CallBR : Alias<2, (outs), (ins), [(z_sibcall R1D)]>;
+  def CallBR : Alias<2, (outs), (ins ADDR64:$R2),
+                     [(z_sibcall ADDR64:$R2)]>;
 }
 
 // Conditional sibling calls.
 let CCMaskFirst = 1, isCall = 1, isTerminator = 1, isReturn = 1 in {
   def CallBRCL : Alias<6, (outs), (ins cond4:$valid, cond4:$R1,
                                    pcrel32:$I2), []>;
-  let Uses = [R1D] in
-    def CallBCR : Alias<2, (outs), (ins cond4:$valid, cond4:$R1), []>;
+  def CallBCR : Alias<2, (outs), (ins cond4:$valid, cond4:$R1,
+                                  ADDR64:$R2), []>;
 }
 
 // Fused compare and conditional sibling calls.
-let isCall = 1, isTerminator = 1, isReturn = 1, Uses = [R1D] in {
-  def CRBCall : Alias<6, (outs), (ins GR32:$R1, GR32:$R2, cond4:$M3), []>;
-  def CGRBCall : Alias<6, (outs), (ins GR64:$R1, GR64:$R2, cond4:$M3), []>;
-  def CIBCall : Alias<6, (outs), (ins GR32:$R1, imm32sx8:$I2, cond4:$M3), []>;
-  def CGIBCall : Alias<6, (outs), (ins GR64:$R1, imm64sx8:$I2, cond4:$M3), []>;
-  def CLRBCall : Alias<6, (outs), (ins GR32:$R1, GR32:$R2, cond4:$M3), []>;
-  def CLGRBCall : Alias<6, (outs), (ins GR64:$R1, GR64:$R2, cond4:$M3), []>;
-  def CLIBCall : Alias<6, (outs), (ins GR32:$R1, imm32zx8:$I2, cond4:$M3), []>;
-  def CLGIBCall : Alias<6, (outs), (ins GR64:$R1, imm64zx8:$I2, cond4:$M3), []>;
+let isCall = 1, isTerminator = 1, isReturn = 1 in {
+  def CRBCall : Alias<6, (outs), (ins GR32:$R1, GR32:$R2, cond4:$M3, ADDR64:$R4), []>;
+  def CGRBCall : Alias<6, (outs), (ins GR64:$R1, GR64:$R2, cond4:$M3, ADDR64:$R4), []>;
+  def CIBCall : Alias<6, (outs), (ins GR32:$R1, imm32sx8:$I2, cond4:$M3, ADDR64:$R4), []>;
+  def CGIBCall : Alias<6, (outs), (ins GR64:$R1, imm64sx8:$I2, cond4:$M3, ADDR64:$R4), []>;
+  def CLRBCall : Alias<6, (outs), (ins GR32:$R1, GR32:$R2, cond4:$M3, ADDR64:$R4), []>;
+  def CLGRBCall : Alias<6, (outs), (ins GR64:$R1, GR64:$R2, cond4:$M3, ADDR64:$R4), []>;
+  def CLIBCall : Alias<6, (outs), (ins GR32:$R1, imm32zx8:$I2, cond4:$M3, ADDR64:$R4), []>;
+  def CLGIBCall : Alias<6, (outs), (ins GR64:$R1, imm64zx8:$I2, cond4:$M3, ADDR64:$R4), []>;
 }
 
 // A return instruction (br %r14).
@@ -2338,3 +2343,25 @@ defm : BlockLoadStore<anyextloadi32, i64, MVCSequence, NCSequence, OCSequence,
                       XCSequence, 4>;
 defm : BlockLoadStore<load, i64, MVCSequence, NCSequence, OCSequence,
                       XCSequence, 8>;
+
+//===----------------------------------------------------------------------===//
+// Mnemonic Aliases
+//===----------------------------------------------------------------------===//
+
+def JCT   : MnemonicAlias<"jct", "brct">;
+def JCTG  : MnemonicAlias<"jctg", "brctg">;
+def JAS   : MnemonicAlias<"jas", "bras">;
+def JASL  : MnemonicAlias<"jasl", "brasl">;
+def JXH   : MnemonicAlias<"jxh", "brxh">;
+def JXLE  : MnemonicAlias<"jxle", "brxle">;
+def JXHG  : MnemonicAlias<"jxhg", "brxhg">;
+def JXLEG : MnemonicAlias<"jxleg", "brxlg">;
+
+def BRU   : MnemonicAlias<"bru", "j">;
+def BRUL  : MnemonicAlias<"brul", "jg">;
+
+foreach V = [ "E", "NE", "H", "NH", "L", "NL", "HE", "NHE", "LE", "NLE",
+              "Z", "NZ", "P", "NP", "M", "NM", "LH", "NLH", "O", "NO" ] in {
+  def BRUAsm#V : MnemonicCondBranchAlias <CV<V>, "br#", "j#">;
+  def BRULAsm#V : MnemonicCondBranchAlias <CV<V>, "br#l", "jg#">;
+}

@@ -197,17 +197,18 @@ uint64_t ObjFile::calcExpectedValue(const WasmRelocation &reloc) const {
 }
 
 // Translate from the relocation's index into the final linked output value.
-uint64_t ObjFile::calcNewValue(const WasmRelocation &reloc) const {
+uint64_t ObjFile::calcNewValue(const WasmRelocation &reloc, uint64_t tombstone) const {
   const Symbol* sym = nullptr;
   if (reloc.Type != R_WASM_TYPE_INDEX_LEB) {
     sym = symbols[reloc.Index];
 
     // We can end up with relocations against non-live symbols.  For example
-    // in debug sections. We return reloc.Addend because always returning zero
-    // causes the generation of spurious range-list terminators in the
-    // .debug_ranges section.
+    // in debug sections. We return a tombstone value in debug symbol sections
+    // so this will not produce a valid range conflicting with ranges of actual
+    // code. In other sections we return reloc.Addend.
+
     if ((isa<FunctionSymbol>(sym) || isa<DataSymbol>(sym)) && !sym->isLive())
-      return reloc.Addend;
+      return tombstone ? tombstone : reloc.Addend;
   }
 
   switch (reloc.Type) {
@@ -340,6 +341,12 @@ void ObjFile::parse(bool ignoreComdats) {
     }
   }
 
+  ArrayRef<StringRef> comdats = wasmObj->linkingData().Comdats;
+  for (StringRef comdat : comdats) {
+    bool isNew = ignoreComdats || symtab->addComdat(comdat);
+    keptComdats.push_back(isNew);
+  }
+
   uint32_t sectionIndex = 0;
 
   // Bool for each symbol, true if called directly.  This allows us to implement
@@ -359,7 +366,9 @@ void ObjFile::parse(bool ignoreComdats) {
       assert(!dataSection);
       dataSection = &section;
     } else if (section.Type == WASM_SEC_CUSTOM) {
-      customSections.emplace_back(make<InputSection>(section, this));
+      auto *customSec = make<InputSection>(section, this);
+      customSec->discarded = isExcludedByComdat(customSec);
+      customSections.emplace_back(customSec);
       customSections.back()->setRelocations(section.Relocations);
       customSectionsByIndex[sectionIndex] = customSections.back();
     }
@@ -373,11 +382,6 @@ void ObjFile::parse(bool ignoreComdats) {
   typeMap.resize(getWasmObj()->types().size());
   typeIsUsed.resize(getWasmObj()->types().size(), false);
 
-  ArrayRef<StringRef> comdats = wasmObj->linkingData().Comdats;
-  for (StringRef comdat : comdats) {
-    bool isNew = ignoreComdats || symtab->addComdat(comdat);
-    keptComdats.push_back(isNew);
-  }
 
   // Populate `Segments`.
   for (const WasmSegment &s : wasmObj->dataSegments()) {
@@ -486,6 +490,10 @@ Symbol *ObjFile::createDefined(const WasmSymbol &sym) {
   case WASM_SYMBOL_TYPE_SECTION: {
     InputSection *section = customSectionsByIndex[sym.Info.ElementIndex];
     assert(sym.isBindingLocal());
+    // Need to return null if discarded here? data and func only do that when
+    // binding is not local.
+    if (section->discarded)
+      return nullptr;
     return make<SectionSymbol>(flags, section, this);
   }
   case WASM_SYMBOL_TYPE_EVENT: {

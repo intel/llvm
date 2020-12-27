@@ -3223,7 +3223,7 @@ static QualType DecodePPCMMATypeFromStr(ASTContext &Context, const char *&Str,
     Str = End;
     QualType Type;
     switch (size) {
-  #define PPC_MMA_VECTOR_TYPE(typeName, Id, size) \
+  #define PPC_VECTOR_TYPE(typeName, Id, size) \
     case size: Type = Context.Id##Ty; break;
   #include "clang/Basic/PPCTypes.def"
     default: llvm_unreachable("Invalid PowerPC MMA vector type");
@@ -3326,8 +3326,8 @@ bool Sema::CheckPPCBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
      return SemaBuiltinConstantArgRange(TheCall, 2, 0, 7);
   case PPC::BI__builtin_vsx_xxpermx:
      return SemaBuiltinConstantArgRange(TheCall, 3, 0, 7);
-#define MMA_BUILTIN(Name, Types, Acc) \
-  case PPC::BI__builtin_mma_##Name: \
+#define CUSTOM_BUILTIN(Name, Types, Acc) \
+  case PPC::BI__builtin_##Name: \
     return SemaBuiltinPPCMMACall(TheCall, Types);
 #include "clang/Basic/BuiltinsPPC.def"
   }
@@ -3341,7 +3341,7 @@ bool Sema::CheckPPCMMAType(QualType Type, SourceLocation TypeLoc) {
     return false;
 
   QualType CoreType = Type.getCanonicalType().getUnqualifiedType();
-#define PPC_MMA_VECTOR_TYPE(Name, Id, Size) || CoreType == Context.Id##Ty
+#define PPC_VECTOR_TYPE(Name, Id, Size) || CoreType == Context.Id##Ty
   if (false
 #include "clang/Basic/PPCTypes.def"
      ) {

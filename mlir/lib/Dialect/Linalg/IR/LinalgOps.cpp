@@ -551,6 +551,145 @@ static LogicalResult verify(GenericOp op) { return verifyGenericOp(op); }
 static LogicalResult verify(IndexedGenericOp op) { return verifyGenericOp(op); }
 
 //===----------------------------------------------------------------------===//
+// InitTensorOp
+//===----------------------------------------------------------------------===//
+
+static ParseResult parseInitTensorOp(OpAsmParser &parser,
+                                     OperationState &result) {
+  OpAsmParser::OperandType srcInfo;
+  Type dstType;
+  SmallVector<OpAsmParser::OperandType, 2> sizeInfo;
+  IndexType indexType = parser.getBuilder().getIndexType();
+  if (failed(parseListOfOperandsOrIntegers(
+          parser, result, InitTensorOp::getStaticSizesAttrName(),
+          ShapedType::kDynamicSize, sizeInfo)) ||
+      failed(parser.parseOptionalAttrDict(result.attributes)) ||
+      failed(parser.parseColonType(dstType)) ||
+      failed(parser.resolveOperands(sizeInfo, indexType, result.operands)))
+    return failure();
+  return parser.addTypeToList(dstType, result.types);
+}
+
+static void print(OpAsmPrinter &p, InitTensorOp op) {
+  p << op.getOperation()->getName() << ' ';
+  printListOfOperandsOrIntegers(p, op.sizes(), op.static_sizes(),
+                                ShapedType::isDynamic);
+  p.printOptionalAttrDict(op.getAttrs(),
+                          InitTensorOp::getStaticSizesAttrName());
+  p << " : " << op.getType();
+}
+
+static LogicalResult verify(InitTensorOp op) {
+  RankedTensorType resultType = op.getType();
+  SmallVector<int64_t, 4> staticSizes = llvm::to_vector<4>(llvm::map_range(
+      op.static_sizes().cast<ArrayAttr>(),
+      [](Attribute a) -> int64_t { return a.cast<IntegerAttr>().getInt(); }));
+
+  if (failed(verifyListOfOperandsOrIntegers(op, "sizes", resultType.getRank(),
+                                            op.static_sizes(), op.sizes(),
+                                            ShapedType::isDynamic)))
+    return failure();
+
+  Type expectedType =
+      InitTensorOp::inferResultType(staticSizes, resultType.getElementType());
+  if (resultType != expectedType) {
+    return op.emitError("specified type ")
+           << resultType << " does not match the inferred type "
+           << expectedType;
+  }
+  return success();
+}
+
+Type InitTensorOp::inferResultType(ArrayRef<int64_t> staticSizes,
+                                   Type elementType) {
+  return RankedTensorType::get(staticSizes, elementType);
+}
+
+namespace {
+/// Change the type of the result of a `linalg.init_tensor` by making the result
+/// type statically sized along dimension that in the original operation where
+/// defined as dynamic, but the size was defined using a `constant` op. For
+/// example
+///
+///  %c5 = constant 5: index
+///  %0 = linalg.init_tensor [%arg0, %c5] : tensor<?x?xf32>
+///
+///  to
+///
+///  %0 = linalg.init_tensor [%arg0, 5] : tensor<?x5xf32>
+struct ReplaceStaticShapeDims : OpRewritePattern<InitTensorOp> {
+  using OpRewritePattern<InitTensorOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(InitTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<Value, 4> dynamicSizes;
+    SmallVector<int64_t, 4> staticSizes;
+    for (unsigned i = 0, e = op.getType().getRank(); i != e; ++i) {
+      // If the size is already static, nothing to do.
+      if (!op.isDynamicSize(i)) {
+        staticSizes.push_back(op.getStaticSize(i));
+        continue;
+      }
+
+      // If the size is dynamic but defined using a `constant` op, get the
+      // constant value to find the static size to use.
+      unsigned operandNum = op.getIndexOfDynamicSize(i);
+      Value sizeOperand = op.getOperand(operandNum);
+      if (auto constantIndexOp = sizeOperand.getDefiningOp<ConstantIndexOp>()) {
+        staticSizes.push_back(constantIndexOp.getValue());
+        continue;
+      }
+
+      // Fallback case. Keep the size dynamic.
+      dynamicSizes.push_back(sizeOperand);
+      staticSizes.push_back(ShapedType::kDynamicSize);
+    }
+    RankedTensorType newType =
+        RankedTensorType::get(staticSizes, op.getType().getElementType());
+    if (newType == op.getType())
+      return failure();
+    auto newOp =
+        rewriter.create<InitTensorOp>(op.getLoc(), newType, dynamicSizes,
+                                      rewriter.getI64ArrayAttr(staticSizes));
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, op.getType(), newOp);
+    return success();
+  }
+};
+
+/// Canonicalize a `linalg.init_tensor` -> `dim` pattern by replacing the `dim`
+/// with
+/// - A constant value if the size is static along the dimension.
+/// - The dynamic value that defines the size of the result of
+///   `linalg.init_tensor` op.
+struct ReplaceDimOfInitTensorOp : public OpRewritePattern<DimOp> {
+  using OpRewritePattern<DimOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(DimOp dimOp,
+                                PatternRewriter &rewriter) const override {
+    auto initTensorOp = dimOp.memrefOrTensor().getDefiningOp<InitTensorOp>();
+    if (!initTensorOp)
+      return failure();
+    auto dimIndex = dimOp.index().getDefiningOp<ConstantIndexOp>();
+    if (!dimIndex)
+      return failure();
+    int64_t index = dimIndex.getValue();
+    if (!initTensorOp.isDynamicSize(index)) {
+      rewriter.replaceOpWithNewOp<ConstantIndexOp>(
+          dimOp, initTensorOp.getStaticSize(index));
+    } else {
+      rewriter.replaceOp(dimOp, initTensorOp.getDynamicSize(index));
+    }
+    return success();
+  }
+};
+} // namespace
+
+void InitTensorOp::getCanonicalizationPatterns(
+    OwningRewritePatternList &results, MLIRContext *context) {
+  results.insert<ReplaceDimOfInitTensorOp, ReplaceStaticShapeDims>(context);
+}
+
+//===----------------------------------------------------------------------===//
 // ReshapeOp
 //===----------------------------------------------------------------------===//
 
@@ -1139,7 +1278,7 @@ static LogicalResult verifyYield(linalg::YieldOp op,
 }
 
 static LogicalResult verify(linalg::YieldOp op) {
-  auto *parentOp = op.getParentOp();
+  auto *parentOp = op->getParentOp();
   if (parentOp->getNumRegions() != 1 || parentOp->getRegion(0).empty())
     return op.emitOpError("expected single non-empty parent region");
 
@@ -1676,12 +1815,12 @@ struct FoldTensorCastOp : public RewritePattern {
     if (!linalgOp)
       return failure();
 
-    // If no operand comes from a TensorCastOp and can be folded then fail.
+    // If no operand comes from a tensor::CastOp and can be folded then fail.
     bool hasTensorCastOperand =
         llvm::any_of(linalgOp.getShapedOperands(), [&](Value v) {
           if (v.isa<BlockArgument>())
             return false;
-          auto castOp = v.getDefiningOp<TensorCastOp>();
+          auto castOp = v.getDefiningOp<tensor::CastOp>();
           return castOp && canFoldIntoConsumerOp(castOp);
         });
     if (!hasTensorCastOperand)
@@ -1693,7 +1832,7 @@ struct FoldTensorCastOp : public RewritePattern {
     newOperands.reserve(op->getNumOperands());
     // Inputs may fold.
     for (Value v : linalgOp.getInputs()) {
-      auto tensorCastOp = v.getDefiningOp<TensorCastOp>();
+      auto tensorCastOp = v.getDefiningOp<tensor::CastOp>();
       newOperands.push_back(
           canFoldIntoConsumerOp(tensorCastOp) ? tensorCastOp.source() : v);
     }
@@ -1702,7 +1841,7 @@ struct FoldTensorCastOp : public RewritePattern {
                        linalgOp.getOutputBuffers().end());
     // Init tensors may fold, in which case the resultType must also change.
     for (Value v : linalgOp.getInitTensors()) {
-      auto tensorCastOp = v.getDefiningOp<TensorCastOp>();
+      auto tensorCastOp = v.getDefiningOp<tensor::CastOp>();
       bool fold = canFoldIntoConsumerOp(tensorCastOp);
       newOperands.push_back(fold ? tensorCastOp.getOperand() : v);
       newResultTypes.push_back(newOperands.back().getType());

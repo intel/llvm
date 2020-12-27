@@ -111,6 +111,7 @@ struct Configuration {
   llvm::StringRef mapFile;
   llvm::StringRef outputFile;
   llvm::StringRef optRemarksFilename;
+  llvm::Optional<uint64_t> optRemarksHotnessThreshold = 0;
   llvm::StringRef optRemarksPasses;
   llvm::StringRef optRemarksFormat;
   llvm::StringRef progName;
@@ -162,6 +163,7 @@ struct Configuration {
   bool fixCortexA53Errata843419;
   bool fixCortexA8;
   bool formatBinary = false;
+  bool fortranCommon;
   bool gcSections;
   bool gdbIndex;
   bool gnuHash = false;

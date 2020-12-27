@@ -23,6 +23,10 @@
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/Bitcode/BitcodeReader.h"
+#include "llvm/Bitcode/BitcodeWriter.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IRReader/IRReader.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/ArchiveWriter.h"
 #include "llvm/Object/Binary.h"
@@ -39,6 +43,7 @@
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/StringSaver.h"
+#include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
@@ -47,6 +52,7 @@
 #include <cstdint>
 #include <forward_list>
 #include <memory>
+#include <set>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -110,6 +116,12 @@ static cl::opt<bool> PrintExternalCommands(
              "instead of actually executing them - for testing purposes.\n"),
     cl::init(false), cl::cat(ClangOffloadBundlerCategory));
 
+static cl::opt<bool>
+    AllowMissingBundles("allow-missing-bundles",
+                        cl::desc("Create empty files if bundles are missing "
+                                 "when unbundling.\n"),
+                        cl::init(false), cl::cat(ClangOffloadBundlerCategory));
+
 static cl::opt<unsigned>
     BundleAlignment("bundle-align",
                     cl::desc("Alignment of bundle for binary files"),
@@ -120,6 +132,9 @@ static cl::opt<unsigned>
 
 /// Prefix of an added section name with bundle size.
 #define SIZE_SECTION_PREFIX "__CLANG_OFFLOAD_BUNDLE_SIZE__"
+
+/// Section name which holds target symbol names.
+#define SYMBOLS_SECTION_NAME ".tgtsym"
 
 /// The index of the host input in the list of inputs.
 static unsigned HostInputIndex = ~0u;
@@ -140,6 +155,13 @@ static bool hasHostKind(StringRef Target) {
   StringRef Triple;
   getOffloadKindAndTriple(Target, OffloadKind, Triple);
   return OffloadKind == "host";
+}
+
+static Triple getTargetTriple(StringRef Target) {
+  StringRef OffloadKind;
+  StringRef TargetTriple;
+  getOffloadKindAndTriple(Target, OffloadKind, TargetTriple);
+  return Triple(TargetTriple);
 }
 
 /// Generic file handler interface.
@@ -546,6 +568,90 @@ class ObjectFileHandler final : public FileHandler {
   /// Input sizes.
   SmallVector<uint64_t, 16u> InputSizes;
 
+  // Return a buffer with symbol names that are defined in target objects.
+  // Each symbol name is prefixed by a target name <kind>-<triple> to uniquely
+  // identify the target it belongs to, and symbol names are separated from each
+  // other by '\0' characters.
+  Expected<SmallVector<char, 0>> makeTargetSymbolTable() {
+    SmallVector<char, 0> SymbolsBuf;
+    raw_svector_ostream SymbolsOS(SymbolsBuf);
+    LLVMContext Context;
+
+    for (unsigned I = 0; I < NumberOfInputs; ++I) {
+      if (I == HostInputIndex)
+        continue;
+
+      // Get the list of symbols defined in the target object. Open file and
+      // check if it is a symbolic file.
+      ErrorOr<std::unique_ptr<MemoryBuffer>> BufOrErr =
+          MemoryBuffer::getFileOrSTDIN(InputFileNames[I]);
+      if (!BufOrErr)
+        return createFileError(InputFileNames[I], BufOrErr.getError());
+
+      std::unique_ptr<MemoryBuffer> Buf = std::move(*BufOrErr);
+
+      // Workaround for the absence of assembly parser for spir target. If this
+      // input is a bitcode for spir target we need to remove module-level
+      // inline asm from it, if there is one, and recreate the buffer with new
+      // contents.
+      // TODO: remove this workaround once spir target gets asm parser.
+      if (isBitcode((const unsigned char *)Buf->getBufferStart(),
+                    (const unsigned char *)Buf->getBufferEnd()))
+        if (getTargetTriple(TargetNames[I]).isSPIR()) {
+          SMDiagnostic Err;
+          std::unique_ptr<Module> Mod = parseIR(*Buf, Err, Context);
+          if (!Mod)
+            return createStringError(inconvertibleErrorCode(),
+                                     Err.getMessage());
+
+          if (!Mod->getModuleInlineAsm().empty()) {
+            Mod->setModuleInlineAsm("");
+
+            SmallVector<char, 0> ModuleBuf;
+            raw_svector_ostream ModuleOS(ModuleBuf);
+            WriteBitcodeToFile(*Mod, ModuleOS);
+
+            Buf = MemoryBuffer::getMemBufferCopy(ModuleOS.str(),
+                                                 Buf->getBufferIdentifier());
+          }
+        }
+
+      Expected<std::unique_ptr<Binary>> BinOrErr =
+          createBinary(Buf->getMemBufferRef(), &Context);
+
+      // If it is not a symbolic file just ignore it since we cannot do anything
+      // with it.
+      if (!BinOrErr) {
+        if (auto Err = isNotObjectErrorInvalidFileType(BinOrErr.takeError()))
+          return std::move(Err);
+        continue;
+      }
+      auto *SF = dyn_cast<SymbolicFile>(&**BinOrErr);
+      if (!SF)
+        continue;
+
+      for (BasicSymbolRef Symbol : SF->symbols()) {
+        Expected<uint32_t> FlagsOrErr = Symbol.getFlags();
+        if (!FlagsOrErr)
+          return FlagsOrErr.takeError();
+
+        // We are interested in externally visible and defined symbols only, so
+        // ignore it if this is not such a symbol.
+        bool Undefined = *FlagsOrErr & SymbolRef::SF_Undefined;
+        bool Global = *FlagsOrErr & SymbolRef::SF_Global;
+        if (Undefined || !Global)
+          continue;
+
+        // Add symbol name with the target prefix to the buffer.
+        SymbolsOS << TargetNames[I] << ".";
+        if (Error Err = Symbol.printName(SymbolsOS))
+          return std::move(Err);
+        SymbolsOS << '\0';
+      }
+    }
+    return SymbolsBuf;
+  }
+
 public:
   ObjectFileHandler(std::unique_ptr<ObjectFile> ObjIn)
       : FileHandler(), Obj(std::move(ObjIn)),
@@ -793,6 +899,25 @@ public:
                                     SIZE_SECTION_PREFIX + TargetNames[I] + "=" +
                                     *SizeFileOrErr));
     }
+
+    // Add a section with symbol names that are defined in target objects to the
+    // output fat object.
+    Expected<SmallVector<char, 0>> SymbolsOrErr = makeTargetSymbolTable();
+    if (!SymbolsOrErr)
+      return SymbolsOrErr.takeError();
+
+    if (!SymbolsOrErr->empty()) {
+      // Add section with symbols names to fat object.
+      Expected<StringRef> SymbolsFileOrErr =
+          TempFiles.Create(makeArrayRef(*SymbolsOrErr));
+      if (!SymbolsFileOrErr)
+        return SymbolsFileOrErr.takeError();
+
+      ObjcopyArgs.push_back(SS.save(Twine("--add-section=") +
+                                    SYMBOLS_SECTION_NAME + "=" +
+                                    *SymbolsFileOrErr));
+    }
+
     ObjcopyArgs.push_back(InputFileNames[HostInputIndex]);
     ObjcopyArgs.push_back(IntermediateObj);
 
@@ -1134,11 +1259,9 @@ public:
 
     if (Mode == OutputType::Archive) {
       // Determine archive kind for the offload target.
-      StringRef TargetKind;
-      StringRef TargetTriple;
-      getOffloadKindAndTriple(CurrBundle->first(), TargetKind, TargetTriple);
-      auto ArKind = Triple(TargetTriple).isOSDarwin() ? Archive::K_DARWIN
-                                                      : Archive::K_GNU;
+      auto ArKind = getTargetTriple(CurrBundle->first()).isOSDarwin()
+                        ? Archive::K_DARWIN
+                        : Archive::K_GNU;
 
       // And write archive to the output.
       Expected<std::unique_ptr<MemoryBuffer>> NewAr =
@@ -1344,6 +1467,25 @@ static Error UnbundleFiles() {
       FoundHostBundle = true;
   }
 
+  if (!AllowMissingBundles && !Worklist.empty()) {
+    std::string ErrMsg = "Can't find bundles for";
+    std::set<StringRef> Sorted;
+    for (auto &E : Worklist)
+      Sorted.insert(E.first());
+    unsigned I = 0;
+    unsigned Last = Sorted.size() - 1;
+    for (auto &E : Sorted) {
+      if (I != 0 && Last > 1)
+        ErrMsg += ",";
+      ErrMsg += " ";
+      if (I == Last && I != 0)
+        ErrMsg += "and ";
+      ErrMsg += E.str();
+      ++I;
+    }
+    return createStringError(inconvertibleErrorCode(), ErrMsg);
+  }
+
   // If no bundles were found, assume the input file is the host bundle and
   // create empty files for the remaining targets.
   if (Worklist.size() == TargetNames.size()) {
@@ -1448,6 +1590,11 @@ int main(int argc, const char **argv) {
     return 0;
   }
 
+  // These calls are needed so that we can read bitcode correctly.
+  InitializeAllTargetInfos();
+  InitializeAllTargetMCs();
+  InitializeAllAsmParsers();
+
   auto reportError = [argv](Error E) {
     logAllUnhandledErrors(std::move(E), WithColor::error(errs(), argv[0]));
   };
@@ -1516,7 +1663,15 @@ int main(int argc, const char **argv) {
   // have exactly one host target.
   unsigned Index = 0u;
   unsigned HostTargetNum = 0u;
+  llvm::DenseSet<StringRef> ParsedTargets;
   for (StringRef Target : TargetNames) {
+    if (ParsedTargets.contains(Target)) {
+      reportError(createStringError(errc::invalid_argument,
+                                    "Duplicate targets are not allowed"));
+      return 1;
+    }
+    ParsedTargets.insert(Target);
+
     StringRef Kind;
     StringRef Triple;
     getOffloadKindAndTriple(Target, Kind, Triple);

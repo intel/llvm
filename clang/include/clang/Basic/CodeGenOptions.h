@@ -30,6 +30,8 @@ namespace clang {
 /// Bitfields of CodeGenOptions, split out from CodeGenOptions to ensure
 /// that this large collection of bitfields is a trivial class type.
 class CodeGenOptionsBase {
+  friend class CompilerInvocation;
+
 public:
 #define CODEGENOPT(Name, Bits, Default) unsigned Name : Bits;
 #define ENUM_CODEGENOPT(Name, Type, Bits, Default)
@@ -345,6 +347,21 @@ public:
   /// Most of the time this will be the full -cc1 command.
   const char *Argv0 = nullptr;
   ArrayRef<const char *> CommandLineArgs;
+
+  /// The minimum hotness value a diagnostic needs in order to be included in
+  /// optimization diagnostics.
+  ///
+  /// The threshold is an Optional value, which maps to one of the 3 states:
+  /// 1. 0            => threshold disabled. All remarks will be printed.
+  /// 2. positive int => manual threshold by user. Remarks with hotness exceed
+  ///                    threshold will be printed.
+  /// 3. None         => 'auto' threshold by user. The actual value is not
+  ///                    available at command line, but will be synced with
+  ///                    hotness threshold from profile summary during
+  ///                    compilation.
+  ///
+  /// If threshold option is not specified, it is disabled by default.
+  Optional<uint64_t> DiagnosticsHotnessThreshold = 0;
 
 public:
   // Define accessors/mutators for code generation options of enumeration type.

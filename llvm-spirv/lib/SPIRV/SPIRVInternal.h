@@ -398,6 +398,9 @@ const static char MaxWGSize[] = "max_work_group_size";
 const static char NoGlobalOffset[] = "no_global_work_offset";
 const static char MaxWGDim[] = "max_global_work_dim";
 const static char NumSIMD[] = "num_simd_work_items";
+const static char StallEnable[] = "stall_enable";
+const static char FmaxMhz[] = "scheduler_target_fmax_mhz";
+const static char LoopFuse[] = "loop_fuse";
 } // namespace kSPIR2MD
 
 enum Spir2SamplerKind {

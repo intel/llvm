@@ -46,11 +46,11 @@ func @dim_of_tensor_load(%arg0: memref<?xf32>) -> index {
 }
 
 // Test case: Folding of load(tensor_to_memref(%v, %idxs))
-//            -> extract_element(%v, %idx)
+//            -> tensor.extract(%v, %idx)
 // CHECK-LABEL: func @load_from_tensor_to_memref(
 //  CHECK-SAME:     %[[IDX0:[0-9a-z]+]]: index, %[[IDX1:[0-9a-z]+]]: index
 //  CHECK-SAME:     %[[TENSOR:[0-9a-z]+]]: tensor<?x?xf32>
-//       CHECK:   %[[RES:.*]] = extract_element %[[TENSOR]][%[[IDX0]], %[[IDX1]]]
+//       CHECK:   %[[RES:.*]] = tensor.extract %[[TENSOR]][%[[IDX0]], %[[IDX1]]]
 //   CHECK-NOT:   load
 //       CHECK:   return %[[RES]] : f32
 func @load_from_tensor_to_memref(%arg0: index, %arg1: index, %arg2: tensor<?x?xf32>) -> f32 {
@@ -114,4 +114,20 @@ func @dim_of_memref_reshape(%arg0: memref<*xf32>, %arg1: memref<?xindex>)
   store %c3, %arg1[%c3] : memref<?xindex>
   %1 = dim %0, %c3 : memref<*xf32>
   return %1 : index
+}
+
+// Test case: Folding dim(tensor.cast %0, %idx) -> dim %0, %idx
+// CHECK-LABEL: func @fold_dim_of_tensor.cast
+//  CHECK-SAME:   %[[ARG0:.[a-z0-9A-Z_]+]]: tensor<4x?xf32>
+//   CHECK-DAG:   %[[C1:.+]] = constant 1 : index
+//   CHECK-DAG:   %[[C4:.+]] = constant 4 : index
+//       CHECK:   %[[T0:.+]] = dim %[[ARG0]], %[[C1]]
+//  CHECK-NEXT:   return %[[C4]], %[[T0]]
+func @fold_dim_of_tensor.cast(%arg0 : tensor<4x?xf32>) -> (index, index) {
+  %c0 = constant 0 : index
+  %c1 = constant 1 : index
+  %0 = tensor.cast %arg0 : tensor<4x?xf32> to tensor<?x?xf32>
+  %1 = dim %0, %c0 : tensor<?x?xf32>
+  %2 = dim %0, %c1 : tensor<?x?xf32>
+  return %1, %2: index, index
 }

@@ -24,12 +24,14 @@
 #include <thread>
 #include <vector>
 
-#include "llvm/Support/ThreadPool.h"
+using namespace mlir::runtime;
 
 //===----------------------------------------------------------------------===//
 // Async runtime API.
 //===----------------------------------------------------------------------===//
 
+namespace mlir {
+namespace runtime {
 namespace {
 
 // Forward declare class defined below.
@@ -45,7 +47,6 @@ public:
   AsyncRuntime() : numRefCountedObjects(0) {}
 
   ~AsyncRuntime() {
-    threadPool.wait(); // wait for the completion of all async tasks
     assert(getNumRefCountedObjects() == 0 &&
            "all ref counted objects must be destroyed");
   }
@@ -53,8 +54,6 @@ public:
   int32_t getNumRefCountedObjects() {
     return numRefCountedObjects.load(std::memory_order_relaxed);
   }
-
-  llvm::ThreadPool &getThreadPool() { return threadPool; }
 
 private:
   friend class RefCounted;
@@ -69,15 +68,7 @@ private:
   }
 
   std::atomic<int32_t> numRefCountedObjects;
-
-  llvm::ThreadPool threadPool;
 };
-
-// Returns the default per-process instance of an async runtime.
-AsyncRuntime *getDefaultAsyncRuntimeInstance() {
-  static auto runtime = std::make_unique<AsyncRuntime>();
-  return runtime.get();
-}
 
 // -------------------------------------------------------------------------- //
 // A base class for all reference counted objects created by the async runtime.
@@ -117,6 +108,12 @@ private:
 
 } // namespace
 
+// Returns the default per-process instance of an async runtime.
+static AsyncRuntime *getDefaultAsyncRuntimeInstance() {
+  static auto runtime = std::make_unique<AsyncRuntime>();
+  return runtime.get();
+}
+
 struct AsyncToken : public RefCounted {
   // AsyncToken created with a reference count of 2 because it will be returned
   // to the `async.execute` caller and also will be later on emplaced by the
@@ -146,6 +143,9 @@ struct AsyncGroup : public RefCounted {
 
   std::vector<std::function<void()>> awaiters;
 };
+
+} // namespace runtime
+} // namespace mlir
 
 // Adds references to reference counted runtime object.
 extern "C" void mlirAsyncRuntimeAddRef(RefCountedObjPtr ptr, int32_t count) {
@@ -241,8 +241,7 @@ extern "C" void mlirAsyncRuntimeAwaitAllInGroup(AsyncGroup *group) {
 }
 
 extern "C" void mlirAsyncRuntimeExecute(CoroHandle handle, CoroResume resume) {
-  auto *runtime = getDefaultAsyncRuntimeInstance();
-  runtime->getThreadPool().async([handle, resume]() { (*resume)(handle); });
+  (*resume)(handle);
 }
 
 extern "C" void mlirAsyncRuntimeAwaitTokenAndExecute(AsyncToken *token,

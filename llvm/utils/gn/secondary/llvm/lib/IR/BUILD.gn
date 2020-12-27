@@ -16,6 +16,7 @@ static_library("IR") {
   sources = [
     "AbstractCallSite.cpp",
     "AsmWriter.cpp",
+    "Assumptions.cpp",
     "Attributes.cpp",
     "AutoUpgrade.cpp",
     "BasicBlock.cpp",
@@ -59,7 +60,9 @@ static_library("IR") {
     "PassManager.cpp",
     "PassRegistry.cpp",
     "PassTimingInfo.cpp",
+    "PrintPasses.cpp",
     "ProfileSummary.cpp",
+    "PseudoProbe.cpp",
     "SafepointIRVerifier.cpp",
     "Statepoint.cpp",
     "StructuralHash.cpp",

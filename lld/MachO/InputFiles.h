@@ -14,7 +14,9 @@
 #include "lld/Common/LLVM.h"
 #include "lld/Common/Memory.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/BinaryFormat/MachO.h"
+#include "llvm/DebugInfo/DWARF/DWARFUnit.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/TextAPI/MachO/InterfaceFile.h"
@@ -27,6 +29,7 @@ namespace llvm {
 namespace lto {
 class InputFile;
 } // namespace lto
+class TarWriter;
 } // namespace llvm
 
 namespace lld {
@@ -35,6 +38,11 @@ namespace macho {
 class InputSection;
 class Symbol;
 struct Reloc;
+enum class RefState : uint8_t;
+
+// If --reproduce option is given, all input files are written
+// to this tar archive.
+extern std::unique_ptr<llvm::TarWriter> tar;
 
 // If .subsections_via_symbols is set, each InputSection will be split along
 // symbol boundaries. The keys of a SubsectionMap represent the offsets of
@@ -56,43 +64,54 @@ public:
   StringRef getName() const { return name; }
 
   MemoryBufferRef mb;
+
   std::vector<Symbol *> symbols;
-  ArrayRef<llvm::MachO::section_64> sectionHeaders;
   std::vector<SubsectionMap> subsections;
+  // Provides an easy way to sort InputFiles deterministically.
+  const int id;
+
+  // If not empty, this stores the name of the archive containing this file.
+  // We use this string for creating error messages.
+  std::string archiveName;
 
 protected:
   InputFile(Kind kind, MemoryBufferRef mb)
-      : mb(mb), fileKind(kind), name(mb.getBufferIdentifier()) {}
+      : mb(mb), id(idCount++), fileKind(kind), name(mb.getBufferIdentifier()) {}
 
   InputFile(Kind kind, const llvm::MachO::InterfaceFile &interface)
-      : fileKind(kind), name(saver.save(interface.getPath())) {}
-
-  void parseSections(ArrayRef<llvm::MachO::section_64>);
-
-  void parseSymbols(ArrayRef<lld::structs::nlist_64> nList, const char *strtab,
-                    bool subsectionsViaSymbols);
-
-  Symbol *parseNonSectionSymbol(const structs::nlist_64 &sym, StringRef name);
-
-  void parseRelocations(const llvm::MachO::section_64 &, SubsectionMap &);
+      : id(idCount++), fileKind(kind), name(saver.save(interface.getPath())) {}
 
 private:
   const Kind fileKind;
   const StringRef name;
+
+  static int idCount;
 };
 
 // .o file
 class ObjFile : public InputFile {
 public:
-  explicit ObjFile(MemoryBufferRef mb);
+  ObjFile(MemoryBufferRef mb, uint32_t modTime, StringRef archiveName);
   static bool classof(const InputFile *f) { return f->kind() == ObjKind; }
+
+  llvm::DWARFUnit *compileUnit = nullptr;
+  const uint32_t modTime;
+  ArrayRef<llvm::MachO::section_64> sectionHeaders;
+  std::vector<InputSection *> debugSections;
+
+private:
+  void parseSections(ArrayRef<llvm::MachO::section_64>);
+  void parseSymbols(ArrayRef<lld::structs::nlist_64> nList, const char *strtab,
+                    bool subsectionsViaSymbols);
+  Symbol *parseNonSectionSymbol(const structs::nlist_64 &sym, StringRef name);
+  void parseRelocations(const llvm::MachO::section_64 &, SubsectionMap &);
+  void parseDebugInfo();
 };
 
 // command-line -sectcreate file
 class OpaqueFile : public InputFile {
 public:
-  explicit OpaqueFile(MemoryBufferRef mb, StringRef segName,
-                      StringRef sectName);
+  OpaqueFile(MemoryBufferRef mb, StringRef segName, StringRef sectName);
   static bool classof(const InputFile *f) { return f->kind() == OpaqueKind; }
 };
 
@@ -114,10 +133,12 @@ public:
   static bool classof(const InputFile *f) { return f->kind() == DylibKind; }
 
   StringRef dylibName;
+  uint32_t compatibilityVersion = 0;
+  uint32_t currentVersion = 0;
   uint64_t ordinal = 0; // Ordinal numbering starts from 1, so 0 is a sentinel
+  RefState refState;
   bool reexport = false;
   bool forceWeakImport = false;
-  std::vector<DylibFile *> reexported;
 };
 
 // .a file
@@ -142,7 +163,7 @@ public:
   std::unique_ptr<llvm::lto::InputFile> obj;
 };
 
-extern std::vector<InputFile *> inputFiles;
+extern llvm::SetVector<InputFile *> inputFiles;
 
 llvm::Optional<MemoryBufferRef> readFile(StringRef path);
 

@@ -1443,8 +1443,8 @@ static DebugLoc inlineDebugLoc(DebugLoc OrigDL, DILocation *InlinedAt,
                                LLVMContext &Ctx,
                                DenseMap<const MDNode *, MDNode *> &IANodes) {
   auto IA = DebugLoc::appendInlinedAt(OrigDL, InlinedAt, Ctx, IANodes);
-  return DebugLoc::get(OrigDL.getLine(), OrigDL.getCol(), OrigDL.getScope(),
-                       IA);
+  return DILocation::get(Ctx, OrigDL.getLine(), OrigDL.getCol(),
+                         OrigDL.getScope(), IA);
 }
 
 /// Update inlined instructions' line numbers to
@@ -2194,10 +2194,9 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
     // match the callee's return type, we also need to change the return type of
     // the intrinsic.
     if (Caller->getReturnType() == CB.getType()) {
-      auto NewEnd = llvm::remove_if(Returns, [](ReturnInst *RI) {
+      llvm::erase_if(Returns, [](ReturnInst *RI) {
         return RI->getParent()->getTerminatingDeoptimizeCall() != nullptr;
       });
-      Returns.erase(NewEnd, Returns.end());
     } else {
       SmallVector<ReturnInst *, 8> NormalReturns;
       Function *NewDeoptIntrinsic = Intrinsic::getDeclaration(

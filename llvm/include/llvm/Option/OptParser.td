@@ -97,9 +97,10 @@ class Option<list<string> prefixes, string name, OptionKind kind> {
   OptionGroup Group = ?;
   Option Alias = ?;
   list<string> AliasArgs = [];
-  string MarshallingInfoKind = ?;
   code KeyPath = ?;
   code DefaultValue = ?;
+  code ImpliedValue = ?;
+  code ImpliedCheck = "false";
   bit ShouldAlwaysEmit = false;
   code NormalizerRetTy = ?;
   code NormalizedValuesScope = "";
@@ -108,8 +109,6 @@ class Option<list<string> prefixes, string name, OptionKind kind> {
   code ValueMerger = "mergeForwardValue";
   code ValueExtractor = "extractForwardValue";
   list<code> NormalizedValues = ?;
-  // Used for BooleanFlagKind
-  Option NegOption = ?;
 }
 
 // Helpers for defining options.
@@ -145,59 +144,66 @@ class ValuesCode<code valuecode> { code ValuesCode = valuecode; }
 
 // Helpers for defining marshalling information.
 
-class DefaultAnyOf<list<Option> options, string default = "false", string separator = " || "> {
-  code DefaultValue = !foldl(default, options, accumulator, option,
-                             !strconcat(accumulator, separator, !cast<string>(option.KeyPath)));
+class ImpliedByAnyOf<list<Option> options, code value = "true"> {
+  code ImpliedCheck = !foldl("false", options, accumulator, option,
+                             !strconcat(accumulator, " || ", !cast<string>(option.KeyPath)));
+  code ImpliedValue = value;
 }
 
 class MarshallingInfo<code keypath, code defaultvalue> {
-  string MarshallingInfoKind = "Default";
   code KeyPath = keypath;
   code DefaultValue = defaultvalue;
 }
 
-class MarshallingInfoString<code keypath, code defaultvalue>
-  : MarshallingInfo<keypath, defaultvalue> {}
+class MarshallingInfoString<code keypath, code defaultvalue="std::string()">
+  : MarshallingInfo<keypath, defaultvalue> {
+  code Normalizer = "normalizeString";
+  code Denormalizer = "denormalizeString";
+}
 
-class MarshallingInfoFlag<code keypath, DefaultAnyOf defaults = DefaultAnyOf<[]>>
-  : MarshallingInfo<keypath, defaults.DefaultValue> {
+class MarshallingInfoStringInt<code keypath, code defaultvalue="0", code type="unsigned">
+  : MarshallingInfo<keypath, defaultvalue> {
+  code Normalizer = "normalizeStringIntegral<"#type#">";
+  code Denormalizer = "denormalizeString";
+}
+
+class MarshallingInfoFlag<code keypath, code defaultvalue = "false">
+  : MarshallingInfo<keypath, defaultvalue> {
   code Normalizer = "normalizeSimpleFlag";
   code Denormalizer = "denormalizeSimpleFlag";
 }
 
+class MarshallingInfoNegativeFlag<code keypath, code defaultvalue = "true">
+  : MarshallingInfo<keypath, defaultvalue> {
+  code Normalizer = "normalizeSimpleNegativeFlag";
+  code Denormalizer = "denormalizeSimpleFlag";
+}
+
 class MarshallingInfoBitfieldFlag<code keypath, code value>
-  : MarshallingInfoFlag<keypath, DefaultAnyOf<[], "0u", " | ">> {
-  code Normalizer = "(normalizeFlagToValue<unsigned, "#value#">)";
+  : MarshallingInfoFlag<keypath, "0u"> {
+  code Normalizer = "makeFlagToValueNormalizer("#value#")";
   code ValueMerger = "mergeMaskValue";
   code ValueExtractor = "(extractMaskValue<unsigned, decltype("#value#"), "#value#">)";
 }
 
-class MarshallingInfoBooleanFlag<code keypath, code defaultvalue, Option negopt>
-  : MarshallingInfoFlag<keypath, DefaultAnyOf<[], defaultvalue>> {
-  bit ShouldAlwaysEmit = 1;
-  string MarshallingInfoKind = "BooleanFlag";
-  code Normalizer = "normalizeBooleanFlag";
-  code Denormalizer = "denormalizeBooleanFlag";
-  Option NegOption = negopt;
+// Marshalling info for booleans. Applied to the flag setting keypath to false.
+class MarshallingInfoBooleanFlag<code keypath, code defaultvalue, code value, code name,
+                                 code other_value, code other_name>
+  : MarshallingInfoFlag<keypath, defaultvalue> {
+  code Normalizer = "makeBooleanOptionNormalizer("#value#", "#other_value#", OPT_"#other_name#")";
+  code Denormalizer = "makeBooleanOptionDenormalizer("#value#")";
 }
 
 // Mixins for additional marshalling attributes.
 
-class IsNegative {
-  // todo: create & apply a normalizer for negative flags
-}
 class AlwaysEmit { bit ShouldAlwaysEmit = true; }
 class Normalizer<code normalizer> { code Normalizer = normalizer; }
 class Denormalizer<code denormalizer> { code Denormalizer = denormalizer; }
 class NormalizedValuesScope<code scope> { code NormalizedValuesScope = scope; }
 class NormalizedValues<list<code> definitions> { list<code> NormalizedValues = definitions; } 
-class DenormalizeString { code Denormalizer = "denormalizeString"; }
 class AutoNormalizeEnum {
   code Normalizer = "normalizeSimpleEnum";
   code Denormalizer = "denormalizeSimpleEnum";
-}
-class AutoNormalizeEnumJoined : AutoNormalizeEnum {
-  code Denormalizer = "denormalizeSimpleEnumJoined";
 }
 class ValueMerger<code merger> { code ValueMerger = merger; }
 class ValueExtractor<code extractor> { code ValueExtractor = extractor; }

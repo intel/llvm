@@ -20,6 +20,7 @@
 #include "VPlanDominatorTree.h"
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Analysis/IVDescriptors.h"
@@ -113,6 +114,8 @@ VPUser *VPRecipeBase::toVPUser() {
     return U;
   if (auto *U = dyn_cast<VPReductionRecipe>(this))
     return U;
+  if (auto *U = dyn_cast<VPPredInstPHIRecipe>(this))
+    return U;
   return nullptr;
 }
 
@@ -121,8 +124,12 @@ VPValue *VPRecipeBase::toVPValue() {
     return V;
   if (auto *V = dyn_cast<VPReductionRecipe>(this))
     return V;
-  if (auto *V = dyn_cast<VPWidenMemoryInstructionRecipe>(this))
-    return V;
+  if (auto *V = dyn_cast<VPWidenMemoryInstructionRecipe>(this)) {
+    if (!V->isStore())
+      return V->getVPValue();
+    else
+      return nullptr;
+  }
   if (auto *V = dyn_cast<VPWidenCallRecipe>(this))
     return V;
   if (auto *V = dyn_cast<VPWidenSelectRecipe>(this))
@@ -141,8 +148,12 @@ const VPValue *VPRecipeBase::toVPValue() const {
     return V;
   if (auto *V = dyn_cast<VPReductionRecipe>(this))
     return V;
-  if (auto *V = dyn_cast<VPWidenMemoryInstructionRecipe>(this))
-    return V;
+  if (auto *V = dyn_cast<VPWidenMemoryInstructionRecipe>(this)) {
+    if (!V->isStore())
+      return V->getVPValue();
+    else
+      return nullptr;
+  }
   if (auto *V = dyn_cast<VPWidenCallRecipe>(this))
     return V;
   if (auto *V = dyn_cast<VPWidenSelectRecipe>(this))
@@ -966,15 +977,23 @@ void VPReductionRecipe::print(raw_ostream &O, const Twine &Indent,
 
 void VPReplicateRecipe::print(raw_ostream &O, const Twine &Indent,
                               VPSlotTracker &SlotTracker) const {
-  O << "\"" << (IsUniform ? "CLONE " : "REPLICATE ")
-    << VPlanIngredient(getUnderlyingInstr());
+  O << "\"" << (IsUniform ? "CLONE " : "REPLICATE ");
+
+  if (!getUnderlyingInstr()->getType()->isVoidTy()) {
+    printAsOperand(O, SlotTracker);
+    O << " = ";
+  }
+  O << Instruction::getOpcodeName(getUnderlyingInstr()->getOpcode()) << " ";
+  printOperands(O, SlotTracker);
+
   if (AlsoPack)
     O << " (S->V)";
 }
 
 void VPPredInstPHIRecipe::print(raw_ostream &O, const Twine &Indent,
                                 VPSlotTracker &SlotTracker) const {
-  O << "\"PHI-PREDICATED-INSTRUCTION " << VPlanIngredient(PredInst);
+  O << "\"PHI-PREDICATED-INSTRUCTION ";
+  printOperands(O, SlotTracker);
 }
 
 void VPWidenMemoryInstructionRecipe::print(raw_ostream &O, const Twine &Indent,
@@ -982,10 +1001,10 @@ void VPWidenMemoryInstructionRecipe::print(raw_ostream &O, const Twine &Indent,
   O << "\"WIDEN ";
 
   if (!isStore()) {
-    printAsOperand(O, SlotTracker);
+    getVPValue()->printAsOperand(O, SlotTracker);
     O << " = ";
   }
-  O << Instruction::getOpcodeName(getUnderlyingInstr()->getOpcode()) << " ";
+  O << Instruction::getOpcodeName(Ingredient.getOpcode()) << " ";
 
   printOperands(O, SlotTracker);
 }
@@ -1055,13 +1074,9 @@ void VPValue::printAsOperand(raw_ostream &OS, VPSlotTracker &Tracker) const {
 }
 
 void VPUser::printOperands(raw_ostream &O, VPSlotTracker &SlotTracker) const {
-  bool First = true;
-  for (VPValue *Op : operands()) {
-    if (!First)
-      O << ", ";
+  interleaveComma(operands(), O, [&O, &SlotTracker](VPValue *Op) {
     Op->printAsOperand(O, SlotTracker);
-    First = false;
-  }
+  });
 }
 
 void VPInterleavedAccessInfo::visitRegion(VPRegionBlock *Region,

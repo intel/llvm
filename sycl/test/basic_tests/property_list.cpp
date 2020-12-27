@@ -64,6 +64,23 @@ int main() {
     }
   }
 
+  {
+    cl::sycl::property_list MemChannelProp{
+        sycl_property::buffer::mem_channel(2)};
+    if (!MemChannelProp.has_property<sycl_property::buffer::mem_channel>()) {
+      std::cerr << "Error: property list has no property while should have."
+                << std::endl;
+      Failed = true;
+    }
+    auto Prop =
+        MemChannelProp.get_property<sycl_property::buffer::mem_channel>();
+    if (Prop.get_channel() != 2) {
+      std::cerr << "Error: mem_channel property is not equal to 2."
+                << std::endl;
+      Failed = true;
+    }
+  }
+
   std::cerr << "Test status : " << (Failed ? "FAILED" : "PASSED") << std::endl;
 
   return Failed;

@@ -59,6 +59,20 @@ define float @test6(<4 x float> %X) {
   ret float %r
 }
 
+define float @testvscale6(<vscale x 4 x float> %X) {
+; CHECK-LABEL: @testvscale6(
+; CHECK-NEXT:    [[T:%.*]] = shufflevector <vscale x 4 x float> [[X:%.*]], <vscale x 4 x float> undef, <vscale x 4 x i32> zeroinitializer
+; CHECK-NEXT:    [[R:%.*]] = extractelement <vscale x 4 x float> [[T]], i32 0
+; CHECK-NEXT:    ret float [[R]]
+;
+  %X1 = bitcast <vscale x 4 x float> %X to <vscale x 4 x i32>
+  %t = shufflevector <vscale x 4 x i32> %X1, <vscale x 4 x i32> undef, <vscale x 4 x i32> zeroinitializer
+  %t2 = bitcast <vscale x 4 x i32> %t to <vscale x 4 x float>
+  %r = extractelement <vscale x 4 x float> %t2, i32 0
+  ret float %r
+}
+
+
 define <4 x float> @test7(<4 x float> %x) {
 ; CHECK-LABEL: @test7(
 ; CHECK-NEXT:    [[R:%.*]] = shufflevector <4 x float> [[X:%.*]], <4 x float> undef, <4 x i32> <i32 0, i32 1, i32 undef, i32 undef>
@@ -1466,6 +1480,20 @@ define <4 x i32> @splat_assoc_add(<4 x i32> %x, <4 x i32> %y) {
   %a = add <4 x i32> %y, <i32 317426, i32 317426, i32 317426, i32 317426>
   %r = add <4 x i32> %splatx, %a
   ret <4 x i32> %r
+}
+
+define <vscale x 4 x i32> @vsplat_assoc_add(<vscale x 4 x i32> %x, <vscale x 4 x i32> %y) {
+; CHECK-LABEL: @vsplat_assoc_add(
+; CHECK-NEXT:    [[TMP1:%.*]] = add <vscale x 4 x i32> [[X:%.*]], shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> undef, i32 317426, i32 0), <vscale x 4 x i32> undef, <vscale x 4 x i32> zeroinitializer)
+; CHECK-NEXT:    [[TMP2:%.*]] = shufflevector <vscale x 4 x i32> [[TMP1]], <vscale x 4 x i32> undef, <vscale x 4 x i32> zeroinitializer
+; CHECK-NEXT:    [[R:%.*]] = add <vscale x 4 x i32> [[TMP2]], [[Y:%.*]]
+; CHECK-NEXT:    ret <vscale x 4 x i32> [[R]]
+;
+
+  %splatx = shufflevector <vscale x 4 x i32> %x, <vscale x 4 x i32> undef, <vscale x 4 x i32> zeroinitializer
+  %a = add <vscale x 4 x i32> %y, shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> undef, i32 317426, i32 0), <vscale x 4 x i32> undef, <vscale x 4 x i32> zeroinitializer)
+  %r = add <vscale x 4 x i32> %splatx, %a
+  ret <vscale x 4 x i32> %r
 }
 
 ; Undefs in splat mask are replaced with defined splat index

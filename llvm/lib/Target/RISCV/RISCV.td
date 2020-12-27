@@ -41,6 +41,14 @@ def HasStdExtD : Predicate<"Subtarget->hasStdExtD()">,
                            AssemblerPredicate<(all_of FeatureStdExtD),
                            "'D' (Double-Precision Floating-Point)">;
 
+def FeatureExtZfh
+    : SubtargetFeature<"experimental-zfh", "HasStdExtZfh", "true",
+                       "'Zfh' (Half-Precision Floating-Point)",
+                       [FeatureStdExtF]>;
+def HasStdExtZfh : Predicate<"Subtarget->hasStdExtZfh()">,
+                             AssemblerPredicate<(all_of FeatureExtZfh),
+                             "'Zfh' (Half-Precision Floating-Point)">;
+
 def FeatureStdExtC
     : SubtargetFeature<"c", "HasStdExtC", "true",
                        "'C' (Compressed Instructions)">;
@@ -118,6 +126,7 @@ def HasStdExtZbbOrZbp
                 AssemblerPredicate<(any_of FeatureExtZbb, FeatureExtZbp)>;
 def NotHasStdExtZbbOrZbp
     : Predicate<"!(Subtarget->hasStdExtZbb() || Subtarget->hasStdExtZbp())">;
+def NotHasStdExtZbb : Predicate<"!Subtarget->hasStdExtZbb()">;
 
 def FeatureExtZbproposedc
     : SubtargetFeature<"experimental-zbproposedc", "HasStdExtZbproposedc", "true",
@@ -151,8 +160,7 @@ def HasRVCHints : Predicate<"Subtarget->enableRVCHintInstrs()">,
 
 def FeatureStdExtV
     : SubtargetFeature<"experimental-v", "HasStdExtV", "true",
-                       "'V' (Vector Instructions)",
-                       [FeatureStdExtF]>;
+                       "'V' (Vector Instructions)">;
 def HasStdExtV : Predicate<"Subtarget->hasStdExtV()">,
                            AssemblerPredicate<(all_of FeatureStdExtV),
                            "'V' (Vector Instructions)">;

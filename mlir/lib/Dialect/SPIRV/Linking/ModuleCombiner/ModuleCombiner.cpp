@@ -10,10 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/SPIRV/ModuleCombiner.h"
+#include "mlir/Dialect/SPIRV/Linking/ModuleCombiner.h"
 
-#include "mlir/Dialect/SPIRV/SPIRVDialect.h"
-#include "mlir/Dialect/SPIRV/SPIRVOps.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/SymbolTable.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -84,9 +84,9 @@ emplaceOrGetReplacementSymbol(KeyTy key, SymbolOpTy symbolOp,
 /// binding and spec_id, repectively, happen to hash to the same value.
 static llvm::hash_code computeHash(SymbolOpInterface symbolOp) {
   llvm::hash_code hashCode(0);
-  hashCode = llvm::hash_combine(symbolOp.getOperation()->getName());
+  hashCode = llvm::hash_combine(symbolOp->getName());
 
-  for (auto attr : symbolOp.getOperation()->getAttrs()) {
+  for (auto attr : symbolOp->getAttrs()) {
     if (attr.first == SymbolTable::getSymbolAttrName())
       continue;
     hashCode = llvm::hash_combine(hashCode, attr);

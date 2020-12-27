@@ -589,6 +589,12 @@ void ContinuationIndenter::addTokenOnCurrentLine(LineState &State, bool DryRun,
        State.Line->Type == LT_ImportStatement)) {
     Spaces += State.FirstIndent;
 
+    bool isPragmaLine =
+        State.Line->First->startsSequence(tok::hash, tok::pp_pragma);
+    // If indenting pragmas remove the extra space for the #.
+    if (Style.IndentPragmas && isPragmaLine)
+      Spaces--;
+
     // For preprocessor indent with tabs, State.Column will be 1 because of the
     // hash. This causes second-level indents onward to have an extra space
     // after the tabs. We avoid this misalignment by subtracting 1 from the
@@ -784,6 +790,22 @@ unsigned ContinuationIndenter::addTokenOnNewLine(LineState &State,
     Penalty += Style.PenaltyBreakFirstLessLess;
 
   State.Column = getNewLineColumn(State);
+
+  // Add Penalty proportional to amount of whitespace away from FirstColumn
+  // This tends to penalize several lines that are far-right indented,
+  // and prefers a line-break prior to such a block, e.g:
+  //
+  // Constructor() :
+  //   member(value), looooooooooooooooong_member(
+  //                      looooooooooong_call(param_1, param_2, param_3))
+  // would then become
+  // Constructor() :
+  //   member(value),
+  //   looooooooooooooooong_member(
+  //       looooooooooong_call(param_1, param_2, param_3))
+  if (State.Column > State.FirstIndent)
+    Penalty +=
+        Style.PenaltyIndentedWhitespace * (State.Column - State.FirstIndent);
 
   // Indent nested blocks relative to this column, unless in a very specific
   // JavaScript special case where:

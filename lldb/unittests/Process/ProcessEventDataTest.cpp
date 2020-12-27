@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Plugins/Platform/MacOSX/PlatformMacOSX.h"
+#include "Plugins/Platform/MacOSX/PlatformRemoteMacOSX.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/HostInfo.h"
@@ -111,15 +112,10 @@ typedef std::shared_ptr<Process::ProcessEventData> ProcessEventDataSP;
 typedef std::shared_ptr<Event> EventSP;
 
 TargetSP CreateTarget(DebuggerSP &debugger_sp, ArchSpec &arch) {
-  Status error;
   PlatformSP platform_sp;
   TargetSP target_sp;
-  error = debugger_sp->GetTargetList().CreateTarget(
+  debugger_sp->GetTargetList().CreateTarget(
       *debugger_sp, "", arch, eLoadDependentsNo, platform_sp, target_sp);
-
-  if (target_sp) {
-    debugger_sp->GetTargetList().SetSelectedTarget(target_sp.get());
-  }
 
   return target_sp;
 }
@@ -151,7 +147,7 @@ ThreadSP CreateThread(ProcessSP &process_sp, bool should_stop,
 TEST_F(ProcessEventDataTest, DoOnRemoval) {
   ArchSpec arch("x86_64-apple-macosx-");
 
-  Platform::SetHostPlatform(PlatformMacOSX::CreateInstance(true, &arch));
+  Platform::SetHostPlatform(PlatformRemoteMacOSX::CreateInstance(true, &arch));
 
   DebuggerSP debugger_sp = Debugger::CreateInstance();
   ASSERT_TRUE(debugger_sp);
@@ -191,7 +187,7 @@ TEST_F(ProcessEventDataTest, DoOnRemoval) {
 TEST_F(ProcessEventDataTest, ShouldStop) {
   ArchSpec arch("x86_64-apple-macosx-");
 
-  Platform::SetHostPlatform(PlatformMacOSX::CreateInstance(true, &arch));
+  Platform::SetHostPlatform(PlatformRemoteMacOSX::CreateInstance(true, &arch));
 
   DebuggerSP debugger_sp = Debugger::CreateInstance();
   ASSERT_TRUE(debugger_sp);

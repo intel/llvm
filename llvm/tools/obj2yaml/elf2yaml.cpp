@@ -53,7 +53,8 @@ class ELFDumper {
 
   const object::ELFFile<ELFT> &Obj;
   std::unique_ptr<DWARFContext> DWARFCtx;
-  ArrayRef<Elf_Word> ShndxTable;
+
+  DenseMap<const Elf_Shdr *, ArrayRef<Elf_Word>> ShndxTables;
 
   Expected<std::vector<ELFYAML::ProgramHeader>>
   dumpProgramHeaders(ArrayRef<std::unique_ptr<ELFYAML::Chunk>> Sections);
@@ -157,7 +158,7 @@ ELFDumper<ELFT>::getUniquedSymbolName(const Elf_Sym *Sym, StringRef StrTable,
     return SymbolNameOrErr;
   StringRef Name = *SymbolNameOrErr;
   if (Name.empty() && Sym->getType() == ELF::STT_SECTION) {
-    auto ShdrOrErr = Obj.getSection(*Sym, SymTab, ShndxTable);
+    auto ShdrOrErr = Obj.getSection(*Sym, SymTab, ShndxTables.lookup(SymTab));
     if (!ShdrOrErr)
       return ShdrOrErr.takeError();
     return getUniquedSectionName(*ShdrOrErr);
@@ -303,7 +304,6 @@ template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
   // Dump symbols. We need to do this early because other sections might want
   // to access the deduplicated symbol names that we also create here.
   const Elf_Shdr *SymTab = nullptr;
-  const Elf_Shdr *SymTabShndx = nullptr;
   const Elf_Shdr *DynSymTab = nullptr;
 
   for (const Elf_Shdr &Sec : Sections) {
@@ -312,29 +312,24 @@ template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
     } else if (Sec.sh_type == ELF::SHT_DYNSYM) {
       DynSymTab = &Sec;
     } else if (Sec.sh_type == ELF::SHT_SYMTAB_SHNDX) {
-      // ABI allows us to have one SHT_SYMTAB_SHNDX for each symbol table.
-      // We only support having the SHT_SYMTAB_SHNDX for SHT_SYMTAB now.
-      if (SymTabShndx)
-        return createStringError(
-            errc::not_supported,
-            "multiple SHT_SYMTAB_SHNDX sections are not supported");
-      SymTabShndx = &Sec;
+      // We need to locate SHT_SYMTAB_SHNDX sections early, because they
+      // might be needed for dumping symbols.
+      if (Expected<ArrayRef<Elf_Word>> TableOrErr = Obj.getSHNDXTable(Sec)) {
+        // The `getSHNDXTable` calls the `getSection` internally when validates
+        // the symbol table section linked to the SHT_SYMTAB_SHNDX section.
+        const Elf_Shdr *LinkedSymTab = cantFail(Obj.getSection(Sec.sh_link));
+        if (!ShndxTables.insert({LinkedSymTab, *TableOrErr}).second)
+          return createStringError(
+              errc::invalid_argument,
+              "multiple SHT_SYMTAB_SHNDX sections are "
+              "linked to the same symbol table with index " +
+                  Twine(Sec.sh_link));
+      } else {
+        return createStringError(errc::invalid_argument,
+                                 "unable to read extended section indexes: " +
+                                     toString(TableOrErr.takeError()));
+      }
     }
-  }
-
-  // We need to locate the SHT_SYMTAB_SHNDX section early, because it might be
-  // needed for dumping symbols.
-  if (SymTabShndx) {
-    if (!SymTab ||
-        SymTabShndx->sh_link != (unsigned)(SymTab - Sections.begin()))
-      return createStringError(
-          errc::not_supported,
-          "only SHT_SYMTAB_SHNDX associated with SHT_SYMTAB are supported");
-
-    auto TableOrErr = Obj.getSHNDXTable(*SymTabShndx);
-    if (!TableOrErr)
-      return TableOrErr.takeError();
-    ShndxTable = *TableOrErr;
   }
 
   if (SymTab) {
@@ -359,6 +354,20 @@ template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
     return ChunksOrErr.takeError();
   std::vector<std::unique_ptr<ELFYAML::Chunk>> Chunks = std::move(*ChunksOrErr);
 
+  std::vector<ELFYAML::Section *> OriginalOrder;
+  if (!Chunks.empty())
+    for (const std::unique_ptr<ELFYAML::Chunk> &C :
+         makeArrayRef(Chunks).drop_front())
+      OriginalOrder.push_back(cast<ELFYAML::Section>(C.get()));
+
+  // Sometimes the order of sections in the section header table does not match
+  // their actual order. Here we sort sections by the file offset.
+  llvm::stable_sort(Chunks, [&](const std::unique_ptr<ELFYAML::Chunk> &A,
+                                const std::unique_ptr<ELFYAML::Chunk> &B) {
+    return Sections[cast<ELFYAML::Section>(A.get())->OriginalSecNdx].sh_offset <
+           Sections[cast<ELFYAML::Section>(B.get())->OriginalSecNdx].sh_offset;
+  });
+
   // Dump program headers.
   Expected<std::vector<ELFYAML::ProgramHeader>> PhdrsOrErr =
       dumpProgramHeaders(Chunks);
@@ -371,6 +380,21 @@ template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
 
   // Dump DWARF sections.
   Y->DWARF = dumpDWARFSections(Chunks);
+
+  // We emit the "SectionHeaderTable" key when the order of sections in the
+  // sections header table doesn't match the file order.
+  const bool SectionsSorted =
+      llvm::is_sorted(Chunks, [&](const std::unique_ptr<ELFYAML::Chunk> &A,
+                                  const std::unique_ptr<ELFYAML::Chunk> &B) {
+        return cast<ELFYAML::Section>(A.get())->OriginalSecNdx <
+               cast<ELFYAML::Section>(B.get())->OriginalSecNdx;
+      });
+  if (!SectionsSorted) {
+    Y->SectionHeaders.emplace();
+    Y->SectionHeaders->Sections.emplace();
+    for (ELFYAML::Section *S : OriginalOrder)
+      Y->SectionHeaders->Sections->push_back({S->Name});
+  }
 
   llvm::erase_if(Chunks, [this, &Y](const std::unique_ptr<ELFYAML::Chunk> &C) {
     const ELFYAML::Section &S = cast<ELFYAML::Section>(*C.get());
@@ -637,8 +661,10 @@ template <class ELFT>
 Error ELFDumper<ELFT>::dumpSymbol(const Elf_Sym *Sym, const Elf_Shdr *SymTab,
                                   StringRef StrTable, ELFYAML::Symbol &S) {
   S.Type = Sym->getType();
-  S.Value = Sym->st_value;
-  S.Size = Sym->st_size;
+  if (Sym->st_value)
+    S.Value = (yaml::Hex64)Sym->st_value;
+  if (Sym->st_size)
+    S.Size = (yaml::Hex64)Sym->st_size;
   S.Other = Sym->st_other;
   S.Binding = Sym->getBinding();
 
@@ -653,7 +679,7 @@ Error ELFDumper<ELFT>::dumpSymbol(const Elf_Sym *Sym, const Elf_Shdr *SymTab,
     return Error::success();
   }
 
-  auto ShdrOrErr = Obj.getSection(*Sym, SymTab, ShndxTable);
+  auto ShdrOrErr = Obj.getSection(*Sym, SymTab, ShndxTables.lookup(SymTab));
   if (!ShdrOrErr)
     return ShdrOrErr.takeError();
   const Elf_Shdr *Shdr = *ShdrOrErr;
@@ -1537,16 +1563,16 @@ static Error elf2yaml(raw_ostream &Out, const object::ELFFile<ELFT> &Obj,
 Error elf2yaml(raw_ostream &Out, const object::ObjectFile &Obj) {
   std::unique_ptr<DWARFContext> DWARFCtx = DWARFContext::create(Obj);
   if (const auto *ELFObj = dyn_cast<object::ELF32LEObjectFile>(&Obj))
-    return elf2yaml(Out, *ELFObj->getELFFile(), std::move(DWARFCtx));
+    return elf2yaml(Out, ELFObj->getELFFile(), std::move(DWARFCtx));
 
   if (const auto *ELFObj = dyn_cast<object::ELF32BEObjectFile>(&Obj))
-    return elf2yaml(Out, *ELFObj->getELFFile(), std::move(DWARFCtx));
+    return elf2yaml(Out, ELFObj->getELFFile(), std::move(DWARFCtx));
 
   if (const auto *ELFObj = dyn_cast<object::ELF64LEObjectFile>(&Obj))
-    return elf2yaml(Out, *ELFObj->getELFFile(), std::move(DWARFCtx));
+    return elf2yaml(Out, ELFObj->getELFFile(), std::move(DWARFCtx));
 
   if (const auto *ELFObj = dyn_cast<object::ELF64BEObjectFile>(&Obj))
-    return elf2yaml(Out, *ELFObj->getELFFile(), std::move(DWARFCtx));
+    return elf2yaml(Out, ELFObj->getELFFile(), std::move(DWARFCtx));
 
   llvm_unreachable("unknown ELF file format");
 }

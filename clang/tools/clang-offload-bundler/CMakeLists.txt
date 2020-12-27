@@ -1,4 +1,13 @@
-set(LLVM_LINK_COMPONENTS Object Support)
+set(LLVM_LINK_COMPONENTS
+  AllTargetsAsmParsers
+  AllTargetsDescs
+  AllTargetsInfos
+  BitWriter
+  Core
+  IRReader
+  Object
+  Support
+  )
 
 add_clang_tool(clang-offload-bundler
   ClangOffloadBundler.cpp

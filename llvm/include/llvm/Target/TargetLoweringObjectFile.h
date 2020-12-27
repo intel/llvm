@@ -63,6 +63,8 @@ protected:
   /// This section contains the static destructor pointer list.
   MCSection *StaticDtorSection = nullptr;
 
+  const TargetMachine *TM = nullptr;
+
 public:
   TargetLoweringObjectFile() = default;
   TargetLoweringObjectFile(const TargetLoweringObjectFile &) = delete;
@@ -82,6 +84,9 @@ public:
 
   /// Emit the module-level metadata that the platform cares about.
   virtual void emitModuleMetadata(MCStreamer &Streamer, Module &M) const {}
+
+  /// Emit Call Graph Profile metadata.
+  void emitCGProfileMetadata(MCStreamer &Streamer, Module &M) const;
 
   /// Get the module-level metadata that the platform cares about.
   virtual void getModuleMetadata(Module &M) {}
@@ -157,7 +162,7 @@ public:
   unsigned getPersonalityEncoding() const { return PersonalityEncoding; }
   unsigned getLSDAEncoding() const { return LSDAEncoding; }
   unsigned getTTypeEncoding() const { return TTypeEncoding; }
-  unsigned getCallSiteEncoding() const { return CallSiteEncoding; }
+  unsigned getCallSiteEncoding() const;
 
   const MCExpr *getTTypeReference(const MCSymbolRefExpr *Sym, unsigned Encoding,
                                   MCStreamer &Streamer) const;

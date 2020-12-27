@@ -71,8 +71,8 @@ func @ops(%arg0: !llvm.i32, %arg1: !llvm.float,
 
 // CHECK: ^[[BB1]]
 ^bb1:
-// CHECK: llvm.cond_br %7, ^[[BB2:.*]], ^[[BB1]]
-  llvm.cond_br %7, ^bb2, ^bb1
+// CHECK: llvm.cond_br %7, ^[[BB2:.*]], ^[[BB3:.*]]
+  llvm.cond_br %7, ^bb2, ^bb3
 
 // CHECK: ^[[BB2]]
 ^bb2:
@@ -80,7 +80,41 @@ func @ops(%arg0: !llvm.i32, %arg1: !llvm.float,
 // CHECK: %{{.*}} = llvm.mlir.constant(42 : i64) : !llvm.i47
   %22 = llvm.mlir.undef : !llvm.struct<(i32, double, i32)>
   %23 = llvm.mlir.constant(42) : !llvm.i47
+  // CHECK:      llvm.switch %0, ^[[BB3]] [
+  // CHECK-NEXT:   1: ^[[BB4:.*]],
+  // CHECK-NEXT:   2: ^[[BB5:.*]],
+  // CHECK-NEXT:   3: ^[[BB6:.*]]
+  // CHECK-NEXT: ]
+  llvm.switch %0, ^bb3 [
+    1: ^bb4,
+    2: ^bb5,
+    3: ^bb6
+  ]
 
+// CHECK: ^[[BB3]]
+^bb3:
+// CHECK:      llvm.switch %0, ^[[BB7:.*]] [
+// CHECK-NEXT: ]
+  llvm.switch %0, ^bb7 [
+  ]
+
+// CHECK: ^[[BB4]]
+^bb4:
+  llvm.switch %0, ^bb7 [
+  ]
+
+// CHECK: ^[[BB5]]
+^bb5:
+  llvm.switch %0, ^bb7 [
+  ]
+
+// CHECK: ^[[BB6]]
+^bb6:
+  llvm.switch %0, ^bb7 [
+  ]
+
+// CHECK: ^[[BB7]]
+^bb7:
 // Misc operations.
 // CHECK: %{{.*}} = llvm.select %{{.*}}, %{{.*}}, %{{.*}} : !llvm.i1, !llvm.i32
   %24 = llvm.select %7, %0, %1 : !llvm.i1, !llvm.i32
@@ -332,4 +366,24 @@ func @useFenceInst() {
   // CHECK:  release
   llvm.fence release
   return
+}
+
+// CHECK-LABEL: @useInlineAsm
+llvm.func @useInlineAsm(%arg0: !llvm.i32) {
+  //      CHECK:  llvm.inline_asm {{.*}} (!llvm.i32) -> !llvm.i8
+  %0 = llvm.inline_asm "bswap $0", "=r,r" %arg0 : (!llvm.i32) -> !llvm.i8
+
+  // CHECK-NEXT:  llvm.inline_asm {{.*}} (!llvm.i32, !llvm.i32) -> !llvm.i8
+  %1 = llvm.inline_asm "foo", "bar" %arg0, %arg0 : (!llvm.i32, !llvm.i32) -> !llvm.i8
+
+  // CHECK-NEXT:  llvm.inline_asm has_side_effects {{.*}} (!llvm.i32, !llvm.i32) -> !llvm.i8
+  %2 = llvm.inline_asm has_side_effects "foo", "bar" %arg0, %arg0 : (!llvm.i32, !llvm.i32) -> !llvm.i8
+
+  // CHECK-NEXT:  llvm.inline_asm is_align_stack {{.*}} (!llvm.i32, !llvm.i32) -> !llvm.i8
+  %3 = llvm.inline_asm is_align_stack "foo", "bar" %arg0, %arg0 : (!llvm.i32, !llvm.i32) -> !llvm.i8
+
+  // CHECK-NEXT:  llvm.inline_asm "foo", "=r,=r,r" {{.*}} : (!llvm.i32) -> !llvm.struct<(i8, i8)>
+  %5 = llvm.inline_asm "foo", "=r,=r,r" %arg0 : (!llvm.i32) -> !llvm.struct<(i8, i8)>
+
+  llvm.return
 }

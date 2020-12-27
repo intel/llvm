@@ -111,6 +111,9 @@ static cl::opt<bool>
 cl::opt<bool> EnableHotColdSplit("hot-cold-split", cl::init(false),
     cl::ZeroOrMore, cl::desc("Enable hot-cold splitting pass"));
 
+cl::opt<bool> EnableIROutliner("ir-outliner", cl::init(false), cl::Hidden,
+    cl::desc("Enable ir outliner pass"));
+
 static cl::opt<bool> UseLoopVersioningLICM(
     "enable-loop-versioning-licm", cl::init(false), cl::Hidden,
     cl::desc("Enable the experimental Loop Versioning LICM pass"));
@@ -334,19 +337,21 @@ void PassManagerBuilder::addPGOInstrPasses(legacy::PassManagerBase &MPM,
     return;
 
   // Perform the preinline and cleanup passes for O1 and above.
-  // And avoid doing them if optimizing for size.
   // We will not do this inline for context sensitive PGO (when IsCS is true).
-  if (OptLevel > 0 && SizeLevel == 0 && !DisablePreInliner &&
-      PGOSampleUse.empty() && !IsCS) {
+  if (OptLevel > 0 && !DisablePreInliner && PGOSampleUse.empty() && !IsCS) {
     // Create preinline pass. We construct an InlineParams object and specify
     // the threshold here to avoid the command line options of the regular
     // inliner to influence pre-inlining. The only fields of InlineParams we
     // care about are DefaultThreshold and HintThreshold.
     InlineParams IP;
     IP.DefaultThreshold = PreInlineThreshold;
-    // FIXME: The hint threshold has the same value used by the regular inliner.
-    // This should probably be lowered after performance testing.
-    IP.HintThreshold = 325;
+    // FIXME: The hint threshold has the same value used by the regular inliner
+    // when not optimzing for size. This should probably be lowered after
+    // performance testing.
+    // Use PreInlineThreshold for both -Os and -Oz. Not running preinliner makes
+    // the instrumented binary unusably large. Even if PreInlineThreshold is not
+    // correct thresold for -Oz, it is better than not running preinliner.
+    IP.HintThreshold = SizeLevel > 0 ? PreInlineThreshold : 325;
 
     MPM.add(createFunctionInliningPass(IP));
     MPM.add(createSROAPass());
@@ -479,6 +484,9 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
   MPM.add(createMemCpyOptPass());             // Remove memcpy / form memset
   MPM.add(createSCCPPass());                  // Constant prop with SCCP
 
+  if (EnableConstraintElimination)
+    MPM.add(createConstraintEliminationPass());
+
   // Delete dead bit computations (instcombine runs after to fold away the dead
   // computations, and then ADCE will run later to exploit any new DCE
   // opportunities that creates).
@@ -573,6 +581,8 @@ void PassManagerBuilder::populateModulePassManager(
       // new unnamed globals.
       MPM.add(createNameAnonGlobalPass());
     }
+
+    MPM.add(createAnnotationRemarksLegacyPass());
     return;
   }
 
@@ -882,6 +892,9 @@ void PassManagerBuilder::populateModulePassManager(
   if (EnableHotColdSplit && !(PrepareForLTO || PrepareForThinLTO))
     MPM.add(createHotColdSplittingPass());
 
+  if (EnableIROutliner)
+    MPM.add(createIROutlinerPass());
+
   if (MergeFunctions)
     MPM.add(createMergeFunctionsPass());
 
@@ -1064,6 +1077,9 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
   PM.add(createLoopDeletionPass());
   if (EnableLoopInterchange)
     PM.add(createLoopInterchangePass());
+
+  if (EnableConstraintElimination)
+    PM.add(createConstraintEliminationPass());
 
   // Unroll small loops
   PM.add(createSimpleLoopUnrollPass(OptLevel, DisableUnrollLoops,

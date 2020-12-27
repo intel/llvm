@@ -15,6 +15,7 @@
 #ifndef MLIR_C_SUPPORT_H
 #define MLIR_C_SUPPORT_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -95,12 +96,12 @@ struct MlirLogicalResult {
 typedef struct MlirLogicalResult MlirLogicalResult;
 
 /// Checks if the given logical result represents a success.
-inline static int mlirLogicalResultIsSuccess(MlirLogicalResult res) {
+inline static bool mlirLogicalResultIsSuccess(MlirLogicalResult res) {
   return res.value != 0;
 }
 
 /// Checks if the given logical result represents a failure.
-inline static int mlirLogicalResultIsFailure(MlirLogicalResult res) {
+inline static bool mlirLogicalResultIsFailure(MlirLogicalResult res) {
   return res.value == 0;
 }
 

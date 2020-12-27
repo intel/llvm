@@ -18,6 +18,9 @@ function(add_fp_unittest name)
 
   add_libc_unittest(${name} ${MATH_UNITTEST_UNPARSED_ARGUMENTS})
   get_fq_target_name(${name} fq_target_name)
+  if (NOT TARGET ${fq_target_name})
+    return()
+  endif()
   if(MATH_UNITTEST_NEED_MPFR)
     target_link_libraries(${fq_target_name} PRIVATE libcMPFRWrapper -lmpfr -lgmp)
   endif()
@@ -264,6 +267,126 @@ add_fp_unittest(
   DEPENDS
     libc.include.math
     libc.src.math.roundl
+    libc.utils.FPUtil.fputil
+)
+
+add_fp_unittest(
+  lround_test
+  NEED_MPFR
+  SUITE
+    libc_math_unittests
+  SRCS
+    lround_test.cpp
+  HDRS
+    RoundToIntegerTest.h
+  DEPENDS
+    libc.include.errno
+    libc.include.math
+    libc.src.errno.__errno_location
+    libc.src.fenv.feclearexcept
+    libc.src.fenv.feraiseexcept
+    libc.src.fenv.fetestexcept
+    libc.src.math.lround
+    libc.utils.FPUtil.fputil
+)
+
+add_fp_unittest(
+  lroundf_test
+  NEED_MPFR
+  SUITE
+    libc_math_unittests
+  SRCS
+    lroundf_test.cpp
+  HDRS
+    RoundToIntegerTest.h
+  DEPENDS
+    libc.include.errno
+    libc.include.math
+    libc.src.errno.__errno_location
+    libc.src.fenv.feclearexcept
+    libc.src.fenv.feraiseexcept
+    libc.src.fenv.fetestexcept
+    libc.src.math.lroundf
+    libc.utils.FPUtil.fputil
+)
+
+add_fp_unittest(
+  lroundl_test
+  NEED_MPFR
+  SUITE
+    libc_math_unittests
+  SRCS
+    lroundl_test.cpp
+  HDRS
+    RoundToIntegerTest.h
+  DEPENDS
+    libc.include.errno
+    libc.include.math
+    libc.src.errno.__errno_location
+    libc.src.fenv.feclearexcept
+    libc.src.fenv.feraiseexcept
+    libc.src.fenv.fetestexcept
+    libc.src.math.lroundl
+    libc.utils.FPUtil.fputil
+)
+
+add_fp_unittest(
+  llround_test
+  NEED_MPFR
+  SUITE
+    libc_math_unittests
+  SRCS
+    llround_test.cpp
+  HDRS
+    RoundToIntegerTest.h
+  DEPENDS
+    libc.include.errno
+    libc.include.math
+    libc.src.errno.__errno_location
+    libc.src.fenv.feclearexcept
+    libc.src.fenv.feraiseexcept
+    libc.src.fenv.fetestexcept
+    libc.src.math.llround
+    libc.utils.FPUtil.fputil
+)
+
+add_fp_unittest(
+  llroundf_test
+  NEED_MPFR
+  SUITE
+    libc_math_unittests
+  SRCS
+    llroundf_test.cpp
+  HDRS
+    RoundToIntegerTest.h
+  DEPENDS
+    libc.include.errno
+    libc.include.math
+    libc.src.errno.__errno_location
+    libc.src.fenv.feclearexcept
+    libc.src.fenv.feraiseexcept
+    libc.src.fenv.fetestexcept
+    libc.src.math.llroundf
+    libc.utils.FPUtil.fputil
+)
+
+add_fp_unittest(
+  llroundl_test
+  NEED_MPFR
+  SUITE
+    libc_math_unittests
+  SRCS
+    llroundl_test.cpp
+  HDRS
+    RoundToIntegerTest.h
+  DEPENDS
+    libc.include.errno
+    libc.include.math
+    libc.src.errno.__errno_location
+    libc.src.fenv.feclearexcept
+    libc.src.fenv.feraiseexcept
+    libc.src.fenv.fetestexcept
+    libc.src.math.llroundl
     libc.utils.FPUtil.fputil
 )
 
@@ -686,6 +809,8 @@ add_fp_unittest(
     libc_math_unittests
   SRCS
     remquof_test.cpp
+  HDRS
+    RemQuoTest.h
   DEPENDS
     libc.include.math
     libc.src.math.remquof
@@ -699,6 +824,8 @@ add_fp_unittest(
     libc_math_unittests
   SRCS
     remquo_test.cpp
+  HDRS
+    RemQuoTest.h
   DEPENDS
     libc.include.math
     libc.src.math.remquo
@@ -712,6 +839,8 @@ add_fp_unittest(
     libc_math_unittests
   SRCS
     remquol_test.cpp
+  HDRS
+    RemQuoTest.h
   DEPENDS
     libc.include.math
     libc.src.math.remquol
@@ -728,5 +857,18 @@ add_fp_unittest(
   DEPENDS
     libc.include.math
     libc.src.math.hypotf
+    libc.utils.FPUtil.fputil
+)
+
+add_fp_unittest(
+  hypot_test
+  NEED_MPFR
+  SUITE
+    libc_math_unittests
+  SRCS
+    hypot_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.hypot
     libc.utils.FPUtil.fputil
 )

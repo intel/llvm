@@ -23,6 +23,7 @@ include "TestInterfaces.td"
 def Test_Dialect : Dialect {
   let name = "test";
   let cppNamespace = "::mlir::test";
+  let hasConstantMaterializer = 1;
   let hasOperationAttrVerify = 1;
   let hasRegionArgAttrVerify = 1;
   let hasRegionResultAttrVerify = 1;
@@ -132,6 +133,12 @@ def VariadicWithSameOperandsResult :
               [SameOperandsAndResultType]> {
   let arguments = (ins Variadic<AnySignlessInteger>:$operands);
   let results = (outs AnySignlessInteger:$result);
+}
+
+def SameOperandsResultType : TEST_Op<
+    "same_operand_result_type", [SameOperandsAndResultType]> {
+  let arguments = (ins AnyTensor:$operand);
+  let results = (outs AnyTensor:$result);
 }
 
 //===----------------------------------------------------------------------===//
@@ -315,7 +322,7 @@ def ConversionCallOp : TEST_Op<"conversion_call_op",
 
     /// Return the callee of this operation.
     CallInterfaceCallable getCallableForCallee() {
-      return getAttrOfType<SymbolRefAttr>("callee");
+      return (*this)->getAttrOfType<SymbolRefAttr>("callee");
     }
   }];
 }
@@ -660,6 +667,11 @@ def OpNorm : TEST_Op<"op_norm", [MemRefsNormalizable]> {
 def OpNonNorm : TEST_Op<"op_nonnorm"> {
   let arguments = (ins AnyMemRef:$X, AnyMemRef:$Y);
 }
+// Test for memrefs normalization of an op that has normalizable memref results.
+def OpNormRet : TEST_Op<"op_norm_ret", [MemRefsNormalizable]> {
+  let arguments = (ins AnyMemRef:$X);
+  let results = (outs AnyMemRef:$Y, AnyMemRef:$Z);
+}
 
 // Test for memrefs normalization of an op with a reference to a function
 // symbol.
@@ -810,7 +822,7 @@ def TestOpConstant : TEST_Op<"constant", [ConstantLike, NoSideEffect]> {
   let arguments = (ins AnyAttr:$value);
   let results = (outs AnyType);
   let extraClassDeclaration = [{
-    Attribute getValue() { return getAttr("value"); }
+    Attribute getValue() { return (*this)->getAttr("value"); }
   }];
 
   let hasFolder = 1;
@@ -994,7 +1006,7 @@ def ThreeResultOp : TEST_Op<"three_result"> {
   let results = (outs I32:$result1, F32:$result2, F32:$result3);
 }
 
-def AnotherThreeResultOp : TEST_Op<"another_three_result"> {
+def AnotherThreeResultOp : TEST_Op<"another_three_result", [DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
   let arguments = (ins MultiResultOpEnum:$kind);
   let results = (outs I32:$result1, F32:$result2, F32:$result3);
 }
@@ -1281,7 +1293,13 @@ def TestMergeBlocksOp : TEST_Op<"merge_blocks"> {
 // Test parser.
 //===----------------------------------------------------------------------===//
 
-def WrappedKeywordOp : TEST_Op<"wrapped_keyword"> {
+def ParseIntegerLiteralOp : TEST_Op<"parse_integer_literal"> {
+  let results = (outs Variadic<Index>:$results);
+  let parser = [{ return ::parse$cppClass(parser, result); }];
+  let printer = [{ return ::print(p, *this); }];
+}
+
+def ParseWrappedKeywordOp : TEST_Op<"parse_wrapped_keyword"> {
   let arguments = (ins StrAttr:$keyword);
   let parser = [{ return ::parse$cppClass(parser, result); }];
   let printer = [{ return ::print(p, *this); }];
@@ -1381,7 +1399,8 @@ def AsmDialectInterfaceOp : TEST_Op<"asm_dialect_interface_op"> {
 
 def FormatLiteralOp : TEST_Op<"format_literal_op"> {
   let assemblyFormat = [{
-    `keyword_$.` `->` `:` `,` `=` `<` `>` `(` `)` `[` `]` `` `(` ` ` `)` `?` `+` `*` attr-dict
+    `keyword_$.` `->` `:` `,` `=` `<` `>` `(` `)` `[` `]` `` `(` ` ` `)`
+    `?` `+` `*` `{` `\n` `}` attr-dict
   }];
 }
 
@@ -1579,6 +1598,11 @@ def FormatOptionalUnitAttrNoElide
     : TEST_Op<"format_optional_unit_attribute_no_elide"> {
   let arguments = (ins UnitAttr:$is_optional);
   let assemblyFormat = "($is_optional^)? attr-dict";
+}
+
+def FormatOptionalEnumAttr : TEST_Op<"format_optional_enum_attr"> {
+  let arguments = (ins OptionalAttr<SomeI64Enum>:$attr);
+  let assemblyFormat = "($attr^)? attr-dict";
 }
 
 //===----------------------------------------------------------------------===//

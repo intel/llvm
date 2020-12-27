@@ -324,7 +324,7 @@ RelExpr X86_64::getRelExpr(RelType type, const Symbol &s,
   case R_X86_64_DTPOFF64:
     return R_DTPREL;
   case R_X86_64_TPOFF32:
-    return R_TLS;
+    return R_TPREL;
   case R_X86_64_TLSDESC_CALL:
     return R_TLSDESC_CALL;
   case R_X86_64_TLSLD:
@@ -730,7 +730,12 @@ void X86_64::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
 
 RelExpr X86_64::adjustGotPcExpr(RelType type, int64_t addend,
                                 const uint8_t *loc) const {
-  if (type != R_X86_64_GOTPCRELX && type != R_X86_64_REX_GOTPCRELX)
+  // Only R_X86_64_[REX_]GOTPCRELX can be relaxed. GNU as may emit GOTPCRELX
+  // with addend != -4. Such an instruction does not load the full GOT entry, so
+  // we cannot relax the relocation. E.g. movl x@GOTPCREL+4(%rip), %rax
+  // (addend=0) loads the high 32 bits of the GOT entry.
+  if ((type != R_X86_64_GOTPCRELX && type != R_X86_64_REX_GOTPCRELX) ||
+      addend != -4)
     return R_GOT_PC;
   const uint8_t op = loc[-2];
   const uint8_t modRm = loc[-1];
@@ -823,7 +828,8 @@ static void relaxGotNoPic(uint8_t *loc, uint64_t val, uint8_t op,
   write32le(loc, val);
 }
 
-void X86_64::relaxGot(uint8_t *loc, const Relocation &, uint64_t val) const {
+void X86_64::relaxGot(uint8_t *loc, const Relocation &rel, uint64_t val) const {
+  checkInt(loc, val, 32, rel);
   const uint8_t op = loc[-2];
   const uint8_t modRm = loc[-1];
 

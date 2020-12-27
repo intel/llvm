@@ -19,6 +19,7 @@
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Dominance.h"
@@ -118,7 +119,7 @@ static LinalgOp cloneWithLoopRanges(OpBuilder &b, Location loc, LinalgOp op,
   // Since we do not enforce any canonicalizations on the fly, this is always
   // fully dynamic at construction time.
   SmallVector<Type, 4> resultTypes;
-  resultTypes.reserve(op.getOperation()->getNumResults());
+  resultTypes.reserve(op->getNumResults());
   for (RankedTensorType t : op.getOutputTensorTypes()) {
     unsigned rank = t.getRank();
     SmallVector<int64_t, 4> staticOffsetsVector(
@@ -288,8 +289,7 @@ static bool isStructurallyFusableProducer(LinalgOp producer, Value consumedView,
   }
   // Only fuse when the producer block dominates.
   DominanceInfo dom(producer.getOperation());
-  if (!dom.dominates(producer.getOperation()->getBlock(),
-                     consumer.getOperation()->getBlock())) {
+  if (!dom.dominates(producer->getBlock(), consumer->getBlock())) {
     LLVM_DEBUG(
         llvm::dbgs()
         << "\nNot structurally fusable (producer block does not dominate)");
@@ -435,8 +435,7 @@ mlir::linalg::fuseProducerOfBuffer(OpBuilder &b, LinalgOp consumer,
 
   LinalgOp producerOp = cast<LinalgOp>(fusableDependence->dependentOpView.op);
   // If producer is already in the same block as consumer, we are done.
-  if (consumer.getOperation()->getBlock() ==
-      producerOp.getOperation()->getBlock())
+  if (consumer->getBlock() == producerOp->getBlock())
     return {};
 
   unsigned producerIdx = fusableDependence->dependentOpView.operandIndex -
@@ -505,8 +504,7 @@ Optional<FusionInfo> mlir::linalg::fuseProducerOfTensor(OpBuilder &b,
   }
 
   // If producer is already in the same block as consumer, we are done.
-  if (consumer.getOperation()->getBlock() ==
-      producerOp.getOperation()->getBlock())
+  if (consumer->getBlock() == producerOp->getBlock())
     return {};
 
   // Insert fused `producer` just before `consumer`.
@@ -520,13 +518,13 @@ Optional<FusionInfo> mlir::linalg::fuseProducerOfTensor(OpBuilder &b,
   // Replace use.
   // Canonicalizations are not guaranteed to have happened before constructing
   // `fusedProducer`. In the tensor case this can result in temporary type
-  // mismatches. Insert a `tensor_cast` op to propagate the transformation
+  // mismatches. Insert a `tensor.cast` op to propagate the transformation
   // invariant that types are compatible.
-  Value def = fusedProducer.getOperation()->getResult(producerIdx);
-  OpOperand &use = consumer.getOperation()->getOpOperand(consumerIdx);
+  Value def = fusedProducer->getResult(producerIdx);
+  OpOperand &use = consumer->getOpOperand(consumerIdx);
   Type consumerType = use.get().getType();
   if (consumerType != def.getType())
-    def = b.create<TensorCastOp>(fusedProducer.getLoc(), consumerType, def);
+    def = b.create<tensor::CastOp>(fusedProducer.getLoc(), consumerType, def);
   use.set(def);
   return FusionInfo{producerOp, fusedProducer};
 }
@@ -746,8 +744,7 @@ FusableOpDependencesTy mlir::linalg::findAllFusableDependences(
       // Do not fuse dependences that are to operations not in the same basic
       // block. This avoid moving fused operations across loops that might
       // themselves carry dependency making the fusion illegal.
-      if (producerOp.getOperation()->getBlock() !=
-          op.getOperation()->getBlock()) {
+      if (producerOp->getBlock() != op->getBlock()) {
         op.emitRemark("unhandled fusion of ops in different basic blocks");
         return FusableOpDependencesTy{};
       }

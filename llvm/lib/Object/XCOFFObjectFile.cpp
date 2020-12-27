@@ -854,7 +854,7 @@ TBVectorExt::TBVectorExt(StringRef TBvectorStrRef) {
 #define GETVALUEWITHMASK(X) (Data & (TracebackTable::X))
 #define GETVALUEWITHMASKSHIFT(X, S)                                            \
   ((Data & (TracebackTable::X)) >> (TracebackTable::S))
-uint8_t TBVectorExt::geNumberOfVRSaved() const {
+uint8_t TBVectorExt::getNumberOfVRSaved() const {
   return GETVALUEWITHMASKSHIFT(NumberOfVRSavedMask, NumberOfVRSavedShift);
 }
 
@@ -939,29 +939,6 @@ static SmallString<32> parseParmsTypeWithVecInfo(uint32_t Value,
   assert(I == ParmsNum &&
          "The total parameters number of fixed-point or floating-point "
          "parameters not equal to the number in the parameter type!");
-  return ParmsType;
-}
-
-static SmallString<32> parseParmsType(uint32_t Value, unsigned ParmsNum) {
-  SmallString<32> ParmsType;
-  for (unsigned I = 0; I < ParmsNum; ++I) {
-    if (I != 0)
-      ParmsType += ", ";
-    if ((Value & TracebackTable::ParmTypeIsFloatingBit) == 0) {
-      // Fixed parameter type.
-      ParmsType += "i";
-      Value <<= 1;
-    } else {
-      if ((Value & TracebackTable::ParmTypeFloatingIsDoubleBit) == 0)
-        // Float parameter type.
-        ParmsType += "f";
-      else
-        // Double parameter type.
-        ParmsType += "d";
-
-      Value <<= 2;
-    }
-  }
   return ParmsType;
 }
 

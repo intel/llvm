@@ -99,6 +99,8 @@ Optional<bool> getExplicitFunctionSections();
 
 bool getIgnoreXCOFFVisibility();
 
+bool getXCOFFTracebackTable();
+
 std::string getBBSections();
 
 std::string getStackProtectorGuard();
@@ -126,6 +128,8 @@ bool getEmitCallSiteInfo();
 bool getEnableMachineFunctionSplitter();
 
 bool getEnableDebugEntryValues();
+
+bool getPseudoProbeForProfiling();
 
 bool getValueTrackingVariableLocations();
 

@@ -200,12 +200,12 @@ ESIMD_INLINE ESIMD_NODEBUG simd<T, n> block_load(AccessorTy acc,
   static_assert(Sz <= 8 * __esimd::OWORD,
                 "block size must be at most 8 owords");
 
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_EXPLICIT_SIMD__)
+#if defined(__SYCL_DEVICE_ONLY__)
   auto surf_ind = AccessorPrivateProxy::getNativeImageObj(acc);
   return __esimd_block_read<T, n>(surf_ind, offset);
 #else
   return __esimd_block_read<T, n>(acc, offset);
-#endif // __SYCL_DEVICE_ONLY__ && __SYCL_EXPLICIT_SIMD__
+#endif // __SYCL_DEVICE_ONLY__
 }
 
 /// Flat-address block-store.
@@ -240,12 +240,12 @@ ESIMD_INLINE ESIMD_NODEBUG void block_store(AccessorTy acc, uint32_t offset,
   static_assert(Sz <= 8 * __esimd::OWORD,
                 "block size must be at most 8 owords");
 
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_EXPLICIT_SIMD__)
+#if defined(__SYCL_DEVICE_ONLY__)
   auto surf_ind = AccessorPrivateProxy::getNativeImageObj(acc);
   __esimd_block_write<T, n>(surf_ind, offset >> 4, vals.data());
 #else
   __esimd_block_write<T, n>(acc, offset >> 4, vals.data());
-#endif // __SYCL_DEVICE_ONLY__ && __SYCL_EXPLICIT_SIMD__
+#endif // __SYCL_DEVICE_ONLY__
 }
 
 /// Accessor-based gather.
@@ -290,7 +290,7 @@ ESIMD_INLINE ESIMD_NODEBUG
     using PromoT =
         typename sycl::detail::conditional_t<std::is_signed<T>::value, int32_t,
                                              uint32_t>;
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_EXPLICIT_SIMD__)
+#if defined(__SYCL_DEVICE_ONLY__)
     const auto surf_ind = AccessorPrivateProxy::getNativeImageObj(acc);
     const simd<PromoT, N> promo_vals =
         __esimd_surf_read<PromoT, N, decltype(surf_ind), TypeSizeLog2, L1H,
@@ -302,7 +302,7 @@ ESIMD_INLINE ESIMD_NODEBUG
 #endif
     return sycl::INTEL::gpu::convert<T>(promo_vals);
   } else {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_EXPLICIT_SIMD__)
+#if defined(__SYCL_DEVICE_ONLY__)
     const auto surf_ind = AccessorPrivateProxy::getNativeImageObj(acc);
     return __esimd_surf_read<T, N, decltype(surf_ind), TypeSizeLog2, L1H, L3H>(
         scale, surf_ind, glob_offset, offsets);
@@ -359,7 +359,7 @@ ESIMD_INLINE ESIMD_NODEBUG
         typename sycl::detail::conditional_t<std::is_signed<T>::value, int32_t,
                                              uint32_t>;
     const simd<PromoT, N> promo_vals = sycl::INTEL::gpu::convert<PromoT>(vals);
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_EXPLICIT_SIMD__)
+#if defined(__SYCL_DEVICE_ONLY__)
     const auto surf_ind = AccessorPrivateProxy::getNativeImageObj(acc);
     __esimd_surf_write<PromoT, N, decltype(surf_ind), TypeSizeLog2, L1H, L3H>(
         pred, scale, surf_ind, glob_offset, offsets, promo_vals);
@@ -368,7 +368,7 @@ ESIMD_INLINE ESIMD_NODEBUG
         pred, scale, acc, glob_offset, offsets, promo_vals);
 #endif
   } else {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_EXPLICIT_SIMD__)
+#if defined(__SYCL_DEVICE_ONLY__)
     const auto surf_ind = AccessorPrivateProxy::getNativeImageObj(acc);
     __esimd_surf_write<T, N, decltype(surf_ind), TypeSizeLog2, L1H, L3H>(
         pred, scale, surf_ind, glob_offset, offsets, vals);
@@ -587,6 +587,11 @@ ESIMD_NODEBUG ESIMD_INLINE
 /// \ingroup sycl_esimd
 inline ESIMD_NODEBUG void esimd_barrier() { __esimd_barrier(); }
 
+/// Generic work-group split barrier
+inline ESIMD_NODEBUG void esimd_sbarrier(EsimdSbarrierType flag) {
+  __esimd_sbarrier(flag);
+}
+
 enum EsimdFenceMask {
   ESIMD_GLOBAL_COHERENT_FENCE = 0x1,
   ESIMD_L3_FLUSH_INSTRUCTIONS = 0x2,
@@ -660,10 +665,10 @@ ESIMD_INLINE ESIMD_NODEBUG simd<T, n> slm_block_load(uint32_t offset) {
                 "block size must be whole number of owords");
   static_assert(__esimd::isPowerOf2(Sz / __esimd::OWORD),
                 "block must be 1, 2, 4 or 8 owords long");
-  static_assert(Sz <= 8 * __esimd::OWORD,
-                "block size must be at most 8 owords");
+  static_assert(Sz <= 16 * __esimd::OWORD,
+                "block size must be at most 16 owords");
 
-  return __esimd_slm_block_read<T, n>(offset);
+  return __esimd_slm_block_read<T, n>(offset >> 4);
 }
 
 /// SLM block-store.
@@ -734,7 +739,7 @@ media_block_load(AccessorTy acc, unsigned x, unsigned y) {
   static_assert(Width <= 64u, "valid block width is in range [1, 64]");
   static_assert(m <= 64u, "valid block height is in range [1, 64]");
   static_assert(plane <= 3u, "valid plane index is in range [0, 3]");
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_EXPLICIT_SIMD__)
+#if defined(__SYCL_DEVICE_ONLY__)
   constexpr unsigned int RoundedWidth =
       Width < 4 ? 4 : __esimd::getNextPowerOf2<Width>();
 
@@ -751,7 +756,7 @@ media_block_load(AccessorTy acc, unsigned x, unsigned y) {
   }
 #else
   return __esimd_media_block_load<T, m, n>(0, acc, plane, sizeof(T) * n, x, y);
-#endif // __SYCL_DEVICE_ONLY__ && __SYCL_EXPLICIT_SIMD__
+#endif // __SYCL_DEVICE_ONLY__
 }
 
 /// Media block store.
@@ -776,7 +781,7 @@ media_block_store(AccessorTy acc, unsigned x, unsigned y, simd<T, m * n> vals) {
   static_assert(Width <= 64u, "valid block width is in range [1, 64]");
   static_assert(m <= 64u, "valid block height is in range [1, 64]");
   static_assert(plane <= 3u, "valid plane index is in range [0, 3]");
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_EXPLICIT_SIMD__)
+#if defined(__SYCL_DEVICE_ONLY__)
   constexpr unsigned int RoundedWidth =
       Width < 4 ? 4 : __esimd::getNextPowerOf2<Width>();
   constexpr unsigned int n1 = RoundedWidth / sizeof(T);
@@ -796,7 +801,7 @@ media_block_store(AccessorTy acc, unsigned x, unsigned y, simd<T, m * n> vals) {
   }
 #else
   __esimd_media_block_store<T, m, n>(0, acc, plane, sizeof(T) * n, x, y, vals);
-#endif // __SYCL_DEVICE_ONLY__ && __SYCL_EXPLICIT_SIMD__
+#endif // __SYCL_DEVICE_ONLY__
 }
 
 #ifndef __SYCL_DEVICE_ONLY__
@@ -813,11 +818,11 @@ SYCL_EXTERNAL void slm_init(uint32_t size) {}
 /// \ingroup sycl_esimd
 template <typename AccessorTy>
 ESIMD_INLINE ESIMD_NODEBUG uint32_t esimd_get_value(AccessorTy acc) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_EXPLICIT_SIMD__)
+#if defined(__SYCL_DEVICE_ONLY__)
   return __esimd_get_value(AccessorPrivateProxy::getNativeImageObj(acc));
 #else
   return __esimd_get_value(acc);
-#endif // __SYCL_DEVICE_ONLY__ && __SYCL_EXPLICIT_SIMD__
+#endif // __SYCL_DEVICE_ONLY__
 }
 
 /// \defgroup sycl_esimd_raw_send_api Raw send APIs

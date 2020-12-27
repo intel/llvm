@@ -4020,11 +4020,12 @@ static Value *simplifySelectWithICmpCond(Value *CondVal, Value *TrueVal,
 
     // X == 0 ? abs(X) : -abs(X) --> -abs(X)
     // X == 0 ? -abs(X) : abs(X) --> abs(X)
-    if (match(TrueVal, m_Intrinsic<Intrinsic::abs>(m_Value(X))) &&
-        match(FalseVal, m_Neg(m_Intrinsic<Intrinsic::abs>(m_Specific(X)))))
+    if (match(TrueVal, m_Intrinsic<Intrinsic::abs>(m_Specific(CmpLHS))) &&
+        match(FalseVal, m_Neg(m_Intrinsic<Intrinsic::abs>(m_Specific(CmpLHS)))))
       return FalseVal;
-    if (match(TrueVal, m_Neg(m_Intrinsic<Intrinsic::abs>(m_Value(X)))) &&
-        match(FalseVal, m_Intrinsic<Intrinsic::abs>(m_Specific(X))))
+    if (match(TrueVal,
+              m_Neg(m_Intrinsic<Intrinsic::abs>(m_Specific(CmpLHS)))) &&
+        match(FalseVal, m_Intrinsic<Intrinsic::abs>(m_Specific(CmpLHS))))
       return FalseVal;
   }
 
@@ -4669,7 +4670,7 @@ static Value *SimplifyShuffleVectorInst(Value *Op0, Value *Op1,
   // Don't fold a shuffle with undef mask elements. This may get folded in a
   // better way using demanded bits or other analysis.
   // TODO: Should we allow this?
-  if (find(Indices, -1) != Indices.end())
+  if (is_contained(Indices, -1))
     return nullptr;
 
   // Check if every element of this shuffle can be mapped back to the

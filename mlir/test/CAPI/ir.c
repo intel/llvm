@@ -13,11 +13,11 @@
 #include "mlir-c/IR.h"
 #include "mlir-c/AffineExpr.h"
 #include "mlir-c/AffineMap.h"
+#include "mlir-c/BuiltinAttributes.h"
+#include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Diagnostics.h"
 #include "mlir-c/Registration.h"
-#include "mlir-c/StandardAttributes.h"
 #include "mlir-c/StandardDialect.h"
-#include "mlir-c/StandardTypes.h"
 
 #include <assert.h>
 #include <math.h>
@@ -89,10 +89,12 @@ MlirModule makeAndDumpAdd(MlirContext ctx, MlirLocation location) {
   MlirAttribute funcNameAttr =
       mlirAttributeParseGet(ctx, mlirStringRefCreateFromCString("\"add\""));
   MlirNamedAttribute funcAttrs[] = {
-      mlirNamedAttributeGet(mlirStringRefCreateFromCString("type"),
-                            funcTypeAttr),
-      mlirNamedAttributeGet(mlirStringRefCreateFromCString("sym_name"),
-                            funcNameAttr)};
+      mlirNamedAttributeGet(
+          mlirIdentifierGet(ctx, mlirStringRefCreateFromCString("type")),
+          funcTypeAttr),
+      mlirNamedAttributeGet(
+          mlirIdentifierGet(ctx, mlirStringRefCreateFromCString("sym_name")),
+          funcNameAttr)};
   MlirOperationState funcState =
       mlirOperationStateGet(mlirStringRefCreateFromCString("func"), location);
   mlirOperationStateAddAttributes(&funcState, 2, funcAttrs);
@@ -105,7 +107,8 @@ MlirModule makeAndDumpAdd(MlirContext ctx, MlirLocation location) {
   MlirAttribute indexZeroLiteral =
       mlirAttributeParseGet(ctx, mlirStringRefCreateFromCString("0 : index"));
   MlirNamedAttribute indexZeroValueAttr = mlirNamedAttributeGet(
-      mlirStringRefCreateFromCString("value"), indexZeroLiteral);
+      mlirIdentifierGet(ctx, mlirStringRefCreateFromCString("value")),
+      indexZeroLiteral);
   MlirOperationState constZeroState = mlirOperationStateGet(
       mlirStringRefCreateFromCString("std.constant"), location);
   mlirOperationStateAddResults(&constZeroState, 1, &indexType);
@@ -130,7 +133,8 @@ MlirModule makeAndDumpAdd(MlirContext ctx, MlirLocation location) {
   MlirAttribute indexOneLiteral =
       mlirAttributeParseGet(ctx, mlirStringRefCreateFromCString("1 : index"));
   MlirNamedAttribute indexOneValueAttr = mlirNamedAttributeGet(
-      mlirStringRefCreateFromCString("value"), indexOneLiteral);
+      mlirIdentifierGet(ctx, mlirStringRefCreateFromCString("value")),
+      indexOneLiteral);
   MlirOperationState constOneState = mlirOperationStateGet(
       mlirStringRefCreateFromCString("std.constant"), location);
   mlirOperationStateAddResults(&constOneState, 1, &indexType);
@@ -375,8 +379,8 @@ static void printFirstOfEach(MlirContext ctx, MlirOperation operation) {
   // CHECK: Get attr 0: 0 : index
 
   // Now re-get the attribute by name.
-  MlirAttribute attr0ByName =
-      mlirOperationGetAttributeByName(operation, namedAttr0.name);
+  MlirAttribute attr0ByName = mlirOperationGetAttributeByName(
+      operation, mlirIdentifierStr(namedAttr0.name));
   fprintf(stderr, "Get attr 0 by name: ");
   mlirAttributePrint(attr0ByName, printToStderr, NULL);
   fprintf(stderr, "\n");
@@ -549,12 +553,12 @@ static void buildWithInsertionsAndPrint(MlirContext ctx) {
   // clang-format on
 }
 
-/// Dumps instances of all standard types to check that C API works correctly.
-/// Additionally, performs simple identity checks that a standard type
+/// Dumps instances of all builtin types to check that C API works correctly.
+/// Additionally, performs simple identity checks that a builtin type
 /// constructed with C API can be inspected and has the expected type. The
-/// latter achieves full coverage of C API for standard types. Returns 0 on
+/// latter achieves full coverage of C API for builtin types. Returns 0 on
 /// success and a non-zero error code on failure.
-static int printStandardTypes(MlirContext ctx) {
+static int printBuiltinTypes(MlirContext ctx) {
   // Integer types.
   MlirType i32 = mlirIntegerTypeGet(ctx, 32);
   MlirType si32 = mlirIntegerTypeSignedGet(ctx, 32);
@@ -732,7 +736,14 @@ void callbackSetFixedLengthString(const char *data, intptr_t len,
   strncpy(userData, data, len);
 }
 
-int printStandardAttributes(MlirContext ctx) {
+bool stringIsEqual(const char *lhs, MlirStringRef rhs) {
+  if (strlen(lhs) != rhs.length) {
+    return false;
+  }
+  return !strncmp(lhs, rhs.data, rhs.length);
+}
+
+int printBuiltinAttributes(MlirContext ctx) {
   MlirAttribute floating =
       mlirFloatAttrDoubleGet(ctx, mlirF64TypeGet(ctx), 2.0);
   if (!mlirAttributeIsAFloat(floating) ||
@@ -763,9 +774,10 @@ int printStandardAttributes(MlirContext ctx) {
 
   const char data[] = "abcdefghijklmnopqestuvwxyz";
   MlirAttribute opaque =
-      mlirOpaqueAttrGet(ctx, "std", 3, data, mlirNoneTypeGet(ctx));
+      mlirOpaqueAttrGet(ctx, mlirStringRefCreateFromCString("std"), 3, data,
+                        mlirNoneTypeGet(ctx));
   if (!mlirAttributeIsAOpaque(opaque) ||
-      strcmp("std", mlirOpaqueAttrGetDialectNamespace(opaque)))
+      !stringIsEqual("std", mlirOpaqueAttrGetDialectNamespace(opaque)))
     return 4;
 
   MlirStringRef opaqueData = mlirOpaqueAttrGetData(opaque);
@@ -775,7 +787,8 @@ int printStandardAttributes(MlirContext ctx) {
   mlirAttributeDump(opaque);
   // CHECK: #std.abc
 
-  MlirAttribute string = mlirStringAttrGet(ctx, 2, data + 3);
+  MlirAttribute string =
+      mlirStringAttrGet(ctx, mlirStringRefCreate(data + 3, 2));
   if (!mlirAttributeIsAString(string))
     return 6;
 
@@ -786,7 +799,8 @@ int printStandardAttributes(MlirContext ctx) {
   mlirAttributeDump(string);
   // CHECK: "de"
 
-  MlirAttribute flatSymbolRef = mlirFlatSymbolRefAttrGet(ctx, 3, data + 5);
+  MlirAttribute flatSymbolRef =
+      mlirFlatSymbolRefAttrGet(ctx, mlirStringRefCreate(data + 5, 3));
   if (!mlirAttributeIsAFlatSymbolRef(flatSymbolRef))
     return 8;
 
@@ -799,7 +813,8 @@ int printStandardAttributes(MlirContext ctx) {
   // CHECK: @fgh
 
   MlirAttribute symbols[] = {flatSymbolRef, flatSymbolRef};
-  MlirAttribute symbolRef = mlirSymbolRefAttrGet(ctx, 2, data + 8, 2, symbols);
+  MlirAttribute symbolRef =
+      mlirSymbolRefAttrGet(ctx, mlirStringRefCreate(data + 8, 2), 2, symbols);
   if (!mlirAttributeIsASymbolRef(symbolRef) ||
       mlirSymbolRefAttrGetNumNestedReferences(symbolRef) != 2 ||
       !mlirAttributeEqual(mlirSymbolRefAttrGetNestedReference(symbolRef, 0),
@@ -1251,26 +1266,20 @@ int registerOnlyStd() {
     return 2;
 
   mlirContextRegisterStandardDialect(ctx);
-  if (mlirContextGetNumRegisteredDialects(ctx) != 1)
-    return 3;
-  if (mlirContextGetNumLoadedDialects(ctx) != 1)
-    return 4;
 
   std = mlirContextGetOrLoadDialect(ctx, mlirStandardDialectGetNamespace());
   if (mlirDialectIsNull(std))
-    return 5;
-  if (mlirContextGetNumLoadedDialects(ctx) != 2)
-    return 6;
+    return 3;
 
   MlirDialect alsoStd = mlirContextLoadStandardDialect(ctx);
   if (!mlirDialectEqual(std, alsoStd))
-    return 7;
+    return 4;
 
   MlirStringRef stdNs = mlirDialectGetNamespace(std);
   MlirStringRef alsoStdNs = mlirStandardDialectGetNamespace();
   if (stdNs.length != alsoStdNs.length ||
       strncmp(stdNs.data, alsoStdNs.data, stdNs.length))
-    return 8;
+    return 5;
 
   fprintf(stderr, "@registration\n");
   // CHECK-LABEL: @registration
@@ -1280,34 +1289,50 @@ int registerOnlyStd() {
 
 // Wraps a diagnostic into additional text we can match against.
 MlirLogicalResult errorHandler(MlirDiagnostic diagnostic, void *userData) {
-  fprintf(stderr, "processing diagnostic (userData: %d) <<\n", (int)userData);
+  fprintf(stderr, "processing diagnostic (userData: %ld) <<\n", (long)userData);
   mlirDiagnosticPrint(diagnostic, printToStderr, NULL);
   fprintf(stderr, "\n");
   MlirLocation loc = mlirDiagnosticGetLocation(diagnostic);
   mlirLocationPrint(loc, printToStderr, NULL);
   assert(mlirDiagnosticGetNumNotes(diagnostic) == 0);
-  fprintf(stderr, ">> end of diagnostic (userData: %d)\n", (int)userData);
+  fprintf(stderr, "\n>> end of diagnostic (userData: %ld)\n", (long)userData);
   return mlirLogicalResultSuccess();
 }
 
 // Logs when the delete user data callback is called
 static void deleteUserData(void *userData) {
-  fprintf(stderr, "deleting user data (userData: %d)\n", (int)userData);
+  fprintf(stderr, "deleting user data (userData: %ld)\n", (long)userData);
 }
 
 void testDiagnostics() {
   MlirContext ctx = mlirContextCreate();
   MlirDiagnosticHandlerID id = mlirContextAttachDiagnosticHandler(
       ctx, errorHandler, (void *)42, deleteUserData);
-  MlirLocation loc = mlirLocationUnknownGet(ctx);
   fprintf(stderr, "@test_diagnostics\n");
-  mlirEmitError(loc, "test diagnostics");
+  MlirLocation unknownLoc = mlirLocationUnknownGet(ctx);
+  mlirEmitError(unknownLoc, "test diagnostics");
+  MlirLocation fileLineColLoc = mlirLocationFileLineColGet(
+      ctx, mlirStringRefCreateFromCString("file.c"), 1, 2);
+  mlirEmitError(fileLineColLoc, "test diagnostics");
+  MlirLocation callSiteLoc = mlirLocationCallSiteGet(
+      mlirLocationFileLineColGet(
+          ctx, mlirStringRefCreateFromCString("other-file.c"), 2, 3),
+      fileLineColLoc);
+  mlirEmitError(callSiteLoc, "test diagnostics");
   mlirContextDetachDiagnosticHandler(ctx, id);
-  mlirEmitError(loc, "more test diagnostics");
+  mlirEmitError(unknownLoc, "more test diagnostics");
   // CHECK-LABEL: @test_diagnostics
   // CHECK: processing diagnostic (userData: 42) <<
   // CHECK:   test diagnostics
   // CHECK:   loc(unknown)
+  // CHECK: >> end of diagnostic (userData: 42)
+  // CHECK: processing diagnostic (userData: 42) <<
+  // CHECK:   test diagnostics
+  // CHECK:   loc("file.c":1:2)
+  // CHECK: >> end of diagnostic (userData: 42)
+  // CHECK: processing diagnostic (userData: 42) <<
+  // CHECK:   test diagnostics
+  // CHECK:   loc(callsite("other-file.c":2:3 at "file.c":1:2))
   // CHECK: >> end of diagnostic (userData: 42)
   // CHECK: deleting user data (userData: 42)
   // CHECK-NOT: processing diagnostic
@@ -1321,9 +1346,9 @@ int main() {
     return 1;
   buildWithInsertionsAndPrint(ctx);
 
-  if (printStandardTypes(ctx))
+  if (printBuiltinTypes(ctx))
     return 2;
-  if (printStandardAttributes(ctx))
+  if (printBuiltinAttributes(ctx))
     return 3;
   if (printAffineMap(ctx))
     return 4;

@@ -519,7 +519,7 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
     auto ST = static_cast<SPIRVTypeStruct *>(T);
     auto Name = ST->getName();
     if (!Name.empty()) {
-      if (auto OldST = M->getTypeByName(Name))
+      if (auto OldST = StructType::getTypeByName(*Context, Name))
         OldST->setName("");
     } else {
       Name = "structtype";
@@ -529,6 +529,9 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
     SmallVector<Type *, 4> MT;
     for (size_t I = 0, E = ST->getMemberCount(); I != E; ++I)
       MT.push_back(transType(ST->getMemberType(I), true));
+    for (auto &CI : ST->getContinuedInstructions())
+      for (size_t I = 0, E = CI->getNumElements(); I != E; ++I)
+        MT.push_back(transType(CI->getMemberType(I), true));
     StructTy->setBody(MT, ST->isPacked());
     return StructTy;
   }
@@ -1127,7 +1130,7 @@ static void applyFPFastMathModeDecorations(const SPIRVValue *BV,
       FMF.setNoSignedZeros();
     if (V & FPFastMathModeAllowRecipMask)
       FMF.setAllowReciprocal();
-    if (V & FPFastMathModeAllowContractINTELMask)
+    if (V & FPFastMathModeAllowContractFastINTELMask)
       FMF.setAllowContract();
     if (V & FPFastMathModeAllowReassocINTELMask)
       FMF.setAllowReassoc();
@@ -1472,7 +1475,7 @@ Value *SPIRVToLLVM::oclTransConstantPipeStorage(
                    kSPIRVTypeName::ConstantPipeStorage;
 
   auto Int32Ty = IntegerType::getInt32Ty(*Context);
-  auto CPSTy = M->getTypeByName(CPSName);
+  auto CPSTy = StructType::getTypeByName(*Context, CPSName);
   if (!CPSTy) {
     Type *CPSElemsTy[] = {Int32Ty, Int32Ty, Int32Ty};
     CPSTy = StructType::create(*Context, CPSElemsTy, CPSName);
@@ -1618,6 +1621,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     std::vector<Constant *> CV;
     for (auto &I : BCC->getElements())
       CV.push_back(dyn_cast<Constant>(transValue(I, F, BB)));
+    for (auto &CI : BCC->getContinuedInstructions()) {
+      for (auto &I : CI->getElements())
+        CV.push_back(dyn_cast<Constant>(transValue(I, F, BB)));
+    }
     switch (BV->getType()->getOpCode()) {
     case OpTypeVector:
       return mapValue(BV, ConstantVector::get(CV));
@@ -1804,7 +1811,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   }
 
   // Translation of instructions
-  switch (BV->getOpCode()) {
+  int OpCode = BV->getOpCode();
+  switch (OpCode) {
   case OpBranch: {
     auto *BR = static_cast<SPIRVBranch *>(BV);
     auto *BI = BranchInst::Create(
@@ -2416,14 +2424,14 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     return mapValue(BV, Call);
   }
 
-  case OpAssumeTrueINTEL: {
+  case internal::OpAssumeTrueINTEL: {
     IRBuilder<> Builder(BB);
     SPIRVAssumeTrueINTEL *BC = static_cast<SPIRVAssumeTrueINTEL *>(BV);
     Value *Condition = transValue(BC->getCondition(), F, BB);
     return mapValue(BV, Builder.CreateAssumption(Condition));
   }
 
-  case OpExpectINTEL: {
+  case internal::OpExpectINTEL: {
     IRBuilder<> Builder(BB);
     SPIRVExpectINTELInstBase *BC = static_cast<SPIRVExpectINTELInstBase *>(BV);
     Type *RetTy = transType(BC->getType());
@@ -3261,6 +3269,9 @@ Instruction *SPIRVToLLVM::transBuiltinFromInst(const std::string &FuncName,
     Func->setCallingConv(CallingConv::SPIR_FUNC);
     if (isFuncNoUnwind())
       Func->addFnAttr(Attribute::NoUnwind);
+    auto OC = BI->getOpCode();
+    if (isGroupOpCode(OC) || isIntelSubgroupOpCode(OC))
+      Func->addFnAttr(Attribute::Convergent);
   }
   auto Call =
       CallInst::Create(Func, transValue(Ops, BB->getParent(), BB), "", BB);
@@ -3875,6 +3886,7 @@ bool SPIRVToLLVM::transMetadata() {
 
     transOCLMetadata(BF);
     transVectorComputeMetadata(BF);
+    transFPGAFunctionMetadata(BF, F);
 
     if (F->getCallingConv() != CallingConv::SPIR_KERNEL)
       continue;
@@ -3925,6 +3937,12 @@ bool SPIRVToLLVM::transMetadata() {
     // Generate metadata for num_simd_work_items
     if (auto EM = BF->getExecutionMode(ExecutionModeNumSIMDWorkitemsINTEL)) {
       F->setMetadata(kSPIR2MD::NumSIMD,
+                     getMDNodeStringIntVec(Context, EM->getLiterals()));
+    }
+    // Generate metadata for scheduler_target_fmax_mhz
+    if (auto EM =
+            BF->getExecutionMode(ExecutionModeSchedulerTargetFmaxMhzINTEL)) {
+      F->setMetadata(kSPIR2MD::FmaxMhz,
                      getMDNodeStringIntVec(Context, EM->getLiterals()));
     }
   }
@@ -4063,7 +4081,7 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
     auto ArgNo = I->getArgNo();
     SPIRVFunctionParameter *BA = BF->getArgument(ArgNo);
     SPIRVWord Kind;
-    if (BA->hasDecorate(DecorationFuncParamIOKind, 0, &Kind)) {
+    if (BA->hasDecorate(DecorationFuncParamIOKindINTEL, 0, &Kind)) {
       Attribute Attr = Attribute::get(*Context, kVCMetadata::VCArgumentIOKind,
                                       std::to_string(Kind));
       F->addAttribute(ArgNo + 1, Attr);
@@ -4191,6 +4209,23 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
     F->addAttribute(AttributeList::FunctionIndex, Attr);
   }
 
+  return true;
+}
+
+bool SPIRVToLLVM::transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F) {
+  if (BF->hasDecorate(DecorationStallEnableINTEL)) {
+    std::vector<Metadata *> MetadataVec;
+    MetadataVec.push_back(ConstantAsMetadata::get(getInt32(M, 1)));
+    F->setMetadata(kSPIR2MD::StallEnable, MDNode::get(*Context, MetadataVec));
+  }
+  if (BF->hasDecorate(DecorationFuseLoopsInFunctionINTEL)) {
+    std::vector<Metadata *> MetadataVec;
+    auto Literals =
+        BF->getDecorationLiterals(DecorationFuseLoopsInFunctionINTEL);
+    MetadataVec.push_back(ConstantAsMetadata::get(getUInt32(M, Literals[0])));
+    MetadataVec.push_back(ConstantAsMetadata::get(getUInt32(M, Literals[1])));
+    F->setMetadata(kSPIR2MD::LoopFuse, MDNode::get(*Context, MetadataVec));
+  }
   return true;
 }
 

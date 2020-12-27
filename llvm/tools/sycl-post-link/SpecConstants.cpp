@@ -213,26 +213,38 @@ getScalarSpecConstMetadata(const Instruction *I) {
 /// Recursively iterates over a composite type in order to collect information
 /// about its scalar elements.
 void collectCompositeElementsInfoRecursive(
-    const Type *Ty, unsigned &Index, unsigned &Offset,
+    const Module *M, Type *Ty, unsigned &Index, unsigned &Offset,
     std::vector<CompositeSpecConstElementDescriptor> &Result) {
   if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
     for (size_t I = 0; I < ArrTy->getNumElements(); ++I) {
       // TODO: this is a spot for potential optimization: for arrays we could
       // just make a single recursive call here and use it to populate Result
       // in a loop.
-      collectCompositeElementsInfoRecursive(ArrTy->getElementType(), Index,
+      collectCompositeElementsInfoRecursive(M, ArrTy->getElementType(), Index,
                                             Offset, Result);
     }
   } else if (auto *StructTy = dyn_cast<StructType>(Ty)) {
-    for (Type *ElTy : StructTy->elements()) {
-      collectCompositeElementsInfoRecursive(ElTy, Index, Offset, Result);
+    const StructLayout *SL = M->getDataLayout().getStructLayout(StructTy);
+    for (size_t I = 0, E = StructTy->getNumElements(); I < E; ++I) {
+      auto *ElTy = StructTy->getElementType(I);
+      // When handling elements of a structure, we do not use manually
+      // calculated offsets (which are sum of sizes of all previously
+      // encountered elements), but instead rely on data provided for us by
+      // DataLayout, because the structure can be unpacked, i.e. padded in
+      // order to ensure particular alignment of its elements.
+      unsigned LocalOffset = Offset + SL->getElementOffset(I);
+      collectCompositeElementsInfoRecursive(M, ElTy, Index, LocalOffset,
+                                            Result);
     }
+    // Update "global" offset according to the total size of a handled struct
+    // type.
+    Offset += SL->getSizeInBytes();
   } else if (auto *VecTy = dyn_cast<FixedVectorType>(Ty)) {
     for (size_t I = 0; I < VecTy->getNumElements(); ++I) {
       // TODO: this is a spot for potential optimization: for vectors we could
       // just make a single recursive call here and use it to populate Result
       // in a loop.
-      collectCompositeElementsInfoRecursive(VecTy->getElementType(), Index,
+      collectCompositeElementsInfoRecursive(M, VecTy->getElementType(), Index,
                                             Offset, Result);
     }
   } else { // Assume that we encountered some scalar element
@@ -256,7 +268,8 @@ getCompositeSpecConstMetadata(const Instruction *I) {
   std::vector<CompositeSpecConstElementDescriptor> Result(N->getNumOperands() -
                                                           1);
   unsigned Index = 0, Offset = 0;
-  collectCompositeElementsInfoRecursive(I->getType(), Index, Offset, Result);
+  collectCompositeElementsInfoRecursive(I->getModule(), I->getType(), Index,
+                                        Offset, Result);
 
   for (unsigned I = 1; I < N->getNumOperands(); ++I) {
     const auto *MDInt = cast<ConstantAsMetadata>(N->getOperand(I));
@@ -318,12 +331,7 @@ Instruction *emitSpecConstantComposite(Type *Ty,
 /// first ID. If  \c IsNewSpecConstant is false, this vector is expected to
 /// contain enough elements to assign ID to each scalar element encountered in
 /// the specified composite type.
-/// @param IsNewSpecConstant [in] Flag to specify whether \c IDs vector should
-/// be filled with new IDs or it should be used as-is to replicate an existing
-/// spec constant
-/// @param [in,out] IsFirstElement Flag indicating whether this function is
-/// handling the first scalar element encountered in the specified composite
-/// type \c Ty or not.
+/// @param [in,out] Index Index of scalar element within a composite type
 ///
 /// @returns Instruction* representing specialization constant in LLVM IR, which
 /// is in SPIR-V friendly LLVM IR form.
@@ -335,22 +343,20 @@ Instruction *emitSpecConstantComposite(Type *Ty,
 /// encountered scalars and assigns them IDs (or re-uses existing ones).
 Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
                                            SmallVectorImpl<unsigned> &IDs,
-                                           bool IsNewSpecConstant,
-                                           bool &IsFirstElement) {
+                                           unsigned &Index) {
   if (!Ty->isArrayTy() && !Ty->isStructTy() && !Ty->isVectorTy()) { // Scalar
-    if (IsNewSpecConstant && !IsFirstElement) {
+    if (Index >= IDs.size()) {
       // If it is a new specialization constant, we need to generate IDs for
       // scalar elements, starting with the second one.
       IDs.push_back(IDs.back() + 1);
     }
-    IsFirstElement = false;
-    return emitSpecConstant(IDs.back(), Ty, InsertBefore);
+    return emitSpecConstant(IDs[Index++], Ty, InsertBefore);
   }
 
   SmallVector<Instruction *, 8> Elements;
   auto LoopIteration = [&](Type *Ty) {
-    Elements.push_back(emitSpecConstantRecursiveImpl(
-        Ty, InsertBefore, IDs, IsNewSpecConstant, IsFirstElement));
+    Elements.push_back(
+        emitSpecConstantRecursiveImpl(Ty, InsertBefore, IDs, Index));
   };
 
   if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
@@ -374,11 +380,9 @@ Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
 
 /// Wrapper intended to hide IsFirstElement argument from the caller
 Instruction *emitSpecConstantRecursive(Type *Ty, Instruction *InsertBefore,
-                                       SmallVectorImpl<unsigned> &IDs,
-                                       bool IsNewSpecConstant) {
-  bool IsFirstElement = true;
-  return emitSpecConstantRecursiveImpl(Ty, InsertBefore, IDs, IsNewSpecConstant,
-                                       IsFirstElement);
+                                       SmallVectorImpl<unsigned> &IDs) {
+  unsigned Index = 0;
+  return emitSpecConstantRecursiveImpl(Ty, InsertBefore, IDs, Index);
 }
 
 } // namespace
@@ -446,8 +450,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
 
         //  3. Transform to spirv intrinsic _Z*__spirv_SpecConstant* or
         //  _Z*__spirv_SpecConstantComposite
-        auto *SPIRVCall =
-            emitSpecConstantRecursive(SCTy, CI, IDs, IsNewSpecConstant);
+        auto *SPIRVCall = emitSpecConstantRecursive(SCTy, CI, IDs);
         if (IsNewSpecConstant) {
           // emitSpecConstantRecursive might emit more than one spec constant
           // (because of composite types) and therefore, we need to ajudst

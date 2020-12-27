@@ -1822,15 +1822,27 @@ StmtResult Sema::ActOnForStmt(SourceLocation ForLoc, SourceLocation LParenLoc,
       // C99 6.8.5p3: The declaration part of a 'for' statement shall only
       // declare identifiers for objects having storage class 'auto' or
       // 'register'.
+      const Decl *NonVarSeen = nullptr;
+      bool VarDeclSeen = false;
       for (auto *DI : DS->decls()) {
-        VarDecl *VD = dyn_cast<VarDecl>(DI);
-        if (VD && VD->isLocalVarDecl() && !VD->hasLocalStorage())
-          VD = nullptr;
-        if (!VD) {
-          Diag(DI->getLocation(), diag::err_non_local_variable_decl_in_for);
-          DI->setInvalidDecl();
+        if (VarDecl *VD = dyn_cast<VarDecl>(DI)) {
+          VarDeclSeen = true;
+          if (VD->isLocalVarDecl() && !VD->hasLocalStorage()) {
+            Diag(DI->getLocation(), diag::err_non_local_variable_decl_in_for);
+            DI->setInvalidDecl();
+          }
+        } else if (!NonVarSeen) {
+          // Keep track of the first non-variable declaration we saw so that
+          // we can diagnose if we don't see any variable declarations. This
+          // covers a case like declaring a typedef, function, or structure
+          // type rather than a variable.
+          NonVarSeen = DI;
         }
       }
+      // Diagnose if we saw a non-variable declaration but no variable
+      // declarations.
+      if (NonVarSeen && !VarDeclSeen)
+        Diag(NonVarSeen->getLocation(), diag::err_non_variable_decl_in_for);
     }
   }
 
@@ -3327,9 +3339,14 @@ Sema::ActOnCapScopeReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
   }
 
   if (HasDeducedReturnType) {
+    FunctionDecl *FD = CurLambda->CallOperator;
+    // If we've already decided this lambda is invalid, e.g. because
+    // we saw a `return` whose expression had an error, don't keep
+    // trying to deduce its return type.
+    if (FD->isInvalidDecl())
+      return StmtError();
     // In C++1y, the return type may involve 'auto'.
     // FIXME: Blocks might have a return type of 'auto' explicitly specified.
-    FunctionDecl *FD = CurLambda->CallOperator;
     if (CurCap->ReturnType.isNull())
       CurCap->ReturnType = FD->getReturnType();
 
@@ -3624,7 +3641,8 @@ Sema::ActOnReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
                       Scope *CurScope) {
   // Correct typos, in case the containing function returns 'auto' and
   // RetValExp should determine the deduced type.
-  ExprResult RetVal = CorrectDelayedTyposInExpr(RetValExp);
+  ExprResult RetVal = CorrectDelayedTyposInExpr(
+      RetValExp, nullptr, /*RecoverUncorrectedTypos=*/true);
   if (RetVal.isInvalid())
     return StmtError();
   StmtResult R = BuildReturnStmt(ReturnLoc, RetVal.get());
@@ -3709,6 +3727,11 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
   if (getLangOpts().CPlusPlus14) {
     if (AutoType *AT = FnRetType->getContainedAutoType()) {
       FunctionDecl *FD = cast<FunctionDecl>(CurContext);
+      // If we've already decided this function is invalid, e.g. because
+      // we saw a `return` whose expression had an error, don't keep
+      // trying to deduce its return type.
+      if (FD->isInvalidDecl())
+        return StmtError();
       if (DeduceFunctionTypeFromReturnExpr(FD, ReturnLoc, RetValExp, AT)) {
         FD->setInvalidDecl();
         return StmtError();

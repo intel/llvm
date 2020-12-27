@@ -186,6 +186,9 @@ protected:
   /// alignment is supported.
   bool UseDotAlignForAlignment = false;
 
+  /// True if the target supports LEB128 directives.
+  bool HasLEB128Directives = true;
+
   //===--- Data Emission Directives -------------------------------------===//
 
   /// This should be set to the directive used to get some number of zero (and
@@ -575,6 +578,8 @@ public:
     return UseDotAlignForAlignment;
   }
 
+  bool hasLEB128Directives() const { return HasLEB128Directives; }
+
   const char *getZeroDirective() const { return ZeroDirective; }
   bool doesZeroDirectiveSupportNonZeroValue() const {
     return ZeroDirectiveSupportsNonZeroValue;
@@ -630,10 +635,6 @@ public:
   }
 
   bool doesSupportDebugInformation() const { return SupportsDebugInformation; }
-
-  bool doesSupportExceptionHandling() const {
-    return ExceptionsType != ExceptionHandling::None;
-  }
 
   ExceptionHandling getExceptionHandlingType() const { return ExceptionsType; }
   WinEH::EncodingType getWinEHEncodingType() const { return WinEHEncodingType; }

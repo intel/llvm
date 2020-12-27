@@ -130,16 +130,16 @@ namespace llvm {
           EnableFastISel(false), EnableGlobalISel(false), UseInitArray(false),
           DisableIntegratedAS(false), RelaxELFRelocations(false),
           FunctionSections(false), DataSections(false),
-          IgnoreXCOFFVisibility(false), UniqueSectionNames(true),
-          UniqueBasicBlockSectionNames(false), TrapUnreachable(false),
-          NoTrapAfterNoreturn(false), TLSSize(0), EmulatedTLS(false),
-          ExplicitEmulatedTLS(false), EnableIPRA(false),
+          IgnoreXCOFFVisibility(false), XCOFFTracebackTable(true),
+          UniqueSectionNames(true), UniqueBasicBlockSectionNames(false),
+          TrapUnreachable(false), NoTrapAfterNoreturn(false), TLSSize(0),
+          EmulatedTLS(false), ExplicitEmulatedTLS(false), EnableIPRA(false),
           EmitStackSizeSection(false), EnableMachineOutliner(false),
           EnableMachineFunctionSplitter(false), SupportsDefaultOutlining(false),
           EmitAddrsig(false), EmitCallSiteInfo(false),
           SupportsDebugEntryValues(false), EnableDebugEntryValues(false),
-          ValueTrackingVariableLocations(false), ForceDwarfFrameSection(false),
-          XRayOmitFunctionIndex(false),
+          PseudoProbeForProfiling(false), ValueTrackingVariableLocations(false),
+          ForceDwarfFrameSection(false), XRayOmitFunctionIndex(false),
           FPDenormalMode(DenormalMode::IEEE, DenormalMode::IEEE) {}
 
     /// DisableFramePointerElim - This returns true if frame pointer elimination
@@ -247,6 +247,9 @@ namespace llvm {
     /// Do not emit visibility attribute for xcoff.
     unsigned IgnoreXCOFFVisibility : 1;
 
+    /// Emit XCOFF traceback table.
+    unsigned XCOFFTracebackTable : 1;
+
     unsigned UniqueSectionNames : 1;
 
     /// Use unique names for basic block sections.
@@ -308,6 +311,9 @@ namespace llvm {
     /// NOTE: There are targets that still do not support the debug entry values
     /// production.
     bool ShouldEmitDebugEntryValues() const;
+
+    /// Emit pseudo probes into the binary for sample profiling
+    unsigned PseudoProbeForProfiling : 1;
 
     // When set to true, use experimental new debug variable location tracking,
     // which seeks to follow the values of variables rather than their location,

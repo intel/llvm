@@ -27,7 +27,7 @@ _start:
 .weak foo
 .functype foo () -> (i32)
 
-# Verify that we do not generate dynamnic relocations for the GOT entry.
+# Verify that we do not generate dynamic relocations for the GOT entry.
 
 # CHECK-NOT: __wasm_apply_relocs
 
@@ -66,9 +66,9 @@ _start:
 # CHECK-NEXT:      - Index:           0
 # CHECK-NEXT:        Name:            __stack_pointer
 # CHECK-NEXT:      - Index:           1
-# CHECK-NEXT:        Name:            'undefined_weak:foo'
+# CHECK-NEXT:        Name:            'GOT.func.internal.undefined_weak:foo'
 
-# With `-pie` or `-shared` the resolution should is defered to the dynamic
+# With `-pie` or `-shared` the resolution should be deferred to the dynamic
 # linker and the function address should be imported as GOT.func.foo.
 #
 # RUN: wasm-ld --experimental-pic -pie %t.o -o %t3.wasm

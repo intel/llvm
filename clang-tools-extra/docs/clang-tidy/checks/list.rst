@@ -31,6 +31,7 @@ Clang-Tidy Checks
    `abseil-time-subtraction <abseil-time-subtraction.html>`_, "Yes"
    `abseil-upgrade-duration-conversions <abseil-upgrade-duration-conversions.html>`_, "Yes"
    `altera-kernel-name-restriction <altera-kernel-name-restriction.html>`_,
+   `altera-single-work-item-barrier <altera-single-work-item-barrier.html>`_, "Yes"
    `altera-struct-pack-align <altera-struct-pack-align.html>`_,
    `android-cloexec-accept <android-cloexec-accept.html>`_, "Yes"
    `android-cloexec-accept4 <android-cloexec-accept4.html>`_,
@@ -138,6 +139,7 @@ Clang-Tidy Checks
    `clang-analyzer-valist.CopyToSelf <clang-analyzer-valist.CopyToSelf.html>`_,
    `clang-analyzer-valist.Uninitialized <clang-analyzer-valist.Uninitialized.html>`_,
    `clang-analyzer-valist.Unterminated <clang-analyzer-valist.Unterminated.html>`_,
+   `concurrency-mt-unsafe <concurrency-mt-unsafe.html>`_,
    `cppcoreguidelines-avoid-goto <cppcoreguidelines-avoid-goto.html>`_,
    `cppcoreguidelines-avoid-non-const-global-variables <cppcoreguidelines-avoid-non-const-global-variables.html>`_,
    `cppcoreguidelines-init-variables <cppcoreguidelines-init-variables.html>`_, "Yes"
@@ -264,6 +266,7 @@ Clang-Tidy Checks
    `performance-move-const-arg <performance-move-const-arg.html>`_, "Yes"
    `performance-move-constructor-init <performance-move-constructor-init.html>`_, "Yes"
    `performance-no-automatic-move <performance-no-automatic-move.html>`_,
+   `performance-no-int-to-ptr <performance-no-int-to-ptr.html>`_,
    `performance-noexcept-move-constructor <performance-noexcept-move-constructor.html>`_, "Yes"
    `performance-trivially-destructible <performance-trivially-destructible.html>`_, "Yes"
    `performance-type-promotion-in-math-fn <performance-type-promotion-in-math-fn.html>`_, "Yes"

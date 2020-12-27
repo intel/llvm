@@ -71,7 +71,7 @@ public:
   /// Convert a function type.  The arguments and results are converted one by
   /// one and results are packed into a wrapped LLVM IR structure type. `result`
   /// is populated with argument mapping.
-  LLVM::LLVMType convertFunctionSignature(FunctionType type, bool isVariadic,
+  LLVM::LLVMType convertFunctionSignature(FunctionType funcTy, bool isVariadic,
                                           SignatureConversion &result);
 
   /// Convert a non-empty list of types to be returned from a function into a
@@ -89,7 +89,7 @@ public:
 
   /// Promote the bare pointers in 'values' that resulted from memrefs to
   /// descriptors. 'stdTypes' holds the types of 'values' before the conversion
-  /// to the LLVM-IR dialect (i.e., MemRefType, or any other Standard type).
+  /// to the LLVM-IR dialect (i.e., MemRefType, or any other builtin type).
   void promoteBarePtrsToDescriptors(ConversionPatternRewriter &rewriter,
                                     Location loc, ArrayRef<Type> stdTypes,
                                     SmallVectorImpl<Value> &values);
@@ -485,6 +485,8 @@ protected:
   /// Returns the LLVM dialect.
   LLVM::LLVMDialect &getDialect() const;
 
+  LLVMTypeConverter *getTypeConverter() const;
+
   /// Gets the MLIR type wrapping the LLVM integer type whose bit width is
   /// defined by the used type converter.
   LLVM::LLVMType getIndexType() const;
@@ -556,22 +558,55 @@ protected:
                          Value allocatedPtr, Value alignedPtr,
                          ArrayRef<Value> sizes, ArrayRef<Value> strides,
                          ConversionPatternRewriter &rewriter) const;
-
-protected:
-  /// Reference to the type converter, with potential extensions.
-  LLVMTypeConverter &typeConverter;
 };
 
 /// Utility class for operation conversions targeting the LLVM dialect that
 /// match exactly one source operation.
-template <typename OpTy>
+template <typename SourceOp>
 class ConvertOpToLLVMPattern : public ConvertToLLVMPattern {
 public:
-  ConvertOpToLLVMPattern(LLVMTypeConverter &typeConverter,
-                         PatternBenefit benefit = 1)
-      : ConvertToLLVMPattern(OpTy::getOperationName(),
+  explicit ConvertOpToLLVMPattern(LLVMTypeConverter &typeConverter,
+                                  PatternBenefit benefit = 1)
+      : ConvertToLLVMPattern(SourceOp::getOperationName(),
                              &typeConverter.getContext(), typeConverter,
                              benefit) {}
+
+  /// Wrappers around the RewritePattern methods that pass the derived op type.
+  void rewrite(Operation *op, ArrayRef<Value> operands,
+               ConversionPatternRewriter &rewriter) const final {
+    rewrite(cast<SourceOp>(op), operands, rewriter);
+  }
+  LogicalResult match(Operation *op) const final {
+    return match(cast<SourceOp>(op));
+  }
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const final {
+    return matchAndRewrite(cast<SourceOp>(op), operands, rewriter);
+  }
+
+  /// Rewrite and Match methods that operate on the SourceOp type. These must be
+  /// overridden by the derived pattern class.
+  virtual void rewrite(SourceOp op, ArrayRef<Value> operands,
+                       ConversionPatternRewriter &rewriter) const {
+    llvm_unreachable("must override rewrite or matchAndRewrite");
+  }
+  virtual LogicalResult match(SourceOp op) const {
+    llvm_unreachable("must override match or matchAndRewrite");
+  }
+  virtual LogicalResult
+  matchAndRewrite(SourceOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const {
+    if (succeeded(match(op))) {
+      rewrite(op, operands, rewriter);
+      return success();
+    }
+    return failure();
+  }
+
+private:
+  using ConvertToLLVMPattern::match;
+  using ConvertToLLVMPattern::matchAndRewrite;
 };
 
 namespace LLVM {
@@ -604,10 +639,10 @@ public:
   /// Converts the type of the result to an LLVM type, pass operands as is,
   /// preserve attributes.
   LogicalResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+  matchAndRewrite(SourceOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     return LLVM::detail::oneToOneRewrite(op, TargetOp::getOperationName(),
-                                         operands, this->typeConverter,
+                                         operands, *this->getTypeConverter(),
                                          rewriter);
   }
 };
@@ -621,7 +656,7 @@ public:
   using Super = VectorConvertToLLVMPattern<SourceOp, TargetOp>;
 
   LogicalResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+  matchAndRewrite(SourceOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     static_assert(
         std::is_base_of<OpTrait::OneResult<SourceOp>, SourceOp>::value,
@@ -629,9 +664,9 @@ public:
     static_assert(std::is_base_of<OpTrait::SameOperandsAndResultType<SourceOp>,
                                   SourceOp>::value,
                   "expected same operands and result type");
-    return LLVM::detail::vectorOneToOneRewrite(op, TargetOp::getOperationName(),
-                                               operands, this->typeConverter,
-                                               rewriter);
+    return LLVM::detail::vectorOneToOneRewrite(
+        op, TargetOp::getOperationName(), operands, *this->getTypeConverter(),
+        rewriter);
   }
 };
 

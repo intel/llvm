@@ -63,6 +63,25 @@ bool isStructuredBindingType(const SelectionTree::Node *N) {
   return N && N->ASTNode.get<DecompositionDecl>();
 }
 
+// Returns true iff Node is a lambda, and thus should not be expanded. Loc is
+// the location of the auto type.
+bool isDeducedAsLambda(const SelectionTree::Node *Node, SourceLocation Loc) {
+  // getDeducedType() does a traversal, which we want to avoid in prepare().
+  // But at least check this isn't auto x = []{...};, which can't ever be
+  // expanded.
+  // (It would be nice if we had an efficient getDeducedType(), instead).
+  for (const auto *It = Node; It; It = It->Parent) {
+    if (const auto *DD = It->ASTNode.get<DeclaratorDecl>()) {
+      if (DD->getTypeSourceInfo() &&
+          DD->getTypeSourceInfo()->getTypeLoc().getBeginLoc() == Loc) {
+        if (auto *RD = DD->getType()->getAsRecordDecl())
+          return RD->isLambda();
+      }
+    }
+  }
+  return false;
+}
+
 bool ExpandAutoType::prepare(const Selection& Inputs) {
   CachedLocation = llvm::None;
   if (auto *Node = Inputs.ASTSelection.commonAncestor()) {
@@ -70,11 +89,13 @@ bool ExpandAutoType::prepare(const Selection& Inputs) {
       if (const AutoTypeLoc Result = TypeNode->getAs<AutoTypeLoc>()) {
         // Code in apply() does handle 'decltype(auto)' yet.
         if (!Result.getTypePtr()->isDecltypeAuto() &&
-            !isStructuredBindingType(Node))
+            !isStructuredBindingType(Node) &&
+            !isDeducedAsLambda(Node, Result.getBeginLoc()))
           CachedLocation = Result;
       }
     }
   }
+
   return (bool) CachedLocation;
 }
 
@@ -85,7 +106,7 @@ Expected<Tweak::Effect> ExpandAutoType::apply(const Selection& Inputs) {
       Inputs.AST->getASTContext(), CachedLocation->getBeginLoc());
 
   // if we can't resolve the type, return an error message
-  if (DeducedType == llvm::None)
+  if (DeducedType == llvm::None || (*DeducedType)->isUndeducedAutoType())
     return error("Could not deduce type for 'auto' type");
 
   // if it's a lambda expression, return an error message

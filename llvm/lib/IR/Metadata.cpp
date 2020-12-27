@@ -641,10 +641,7 @@ void MDNode::resolveCycles() {
 }
 
 static bool hasSelfReference(MDNode *N) {
-  for (Metadata *MD : N->operands())
-    if (MD == N)
-      return true;
-  return false;
+  return llvm::is_contained(N->operands(), N);
 }
 
 MDNode *MDNode::replaceWithPermanentImpl() {
@@ -926,7 +923,32 @@ MDNode *MDNode::getMostGenericAliasScope(MDNode *A, MDNode *B) {
   if (!A || !B)
     return nullptr;
 
-  return concatenate(A, B);
+  // Take the intersection of domains then union the scopes
+  // within those domains
+  SmallPtrSet<const MDNode *, 16> ADomains;
+  SmallPtrSet<const MDNode *, 16> IntersectDomains;
+  SmallSetVector<Metadata *, 4> MDs;
+  for (const MDOperand &MDOp : A->operands())
+    if (const MDNode *NAMD = dyn_cast<MDNode>(MDOp))
+      if (const MDNode *Domain = AliasScopeNode(NAMD).getDomain())
+        ADomains.insert(Domain);
+
+  for (const MDOperand &MDOp : B->operands())
+    if (const MDNode *NAMD = dyn_cast<MDNode>(MDOp))
+      if (const MDNode *Domain = AliasScopeNode(NAMD).getDomain())
+        if (ADomains.contains(Domain)) {
+          IntersectDomains.insert(Domain);
+          MDs.insert(MDOp);
+        }
+
+  for (const MDOperand &MDOp : A->operands())
+    if (const MDNode *NAMD = dyn_cast<MDNode>(MDOp))
+      if (const MDNode *Domain = AliasScopeNode(NAMD).getDomain())
+        if (IntersectDomains.contains(Domain))
+          MDs.insert(MDOp);
+
+  return MDs.empty() ? nullptr
+                     : getOrSelfReference(A->getContext(), MDs.getArrayRef());
 }
 
 MDNode *MDNode::getMostGenericFPMath(MDNode *A, MDNode *B) {
@@ -1147,11 +1169,10 @@ bool MDAttachments::erase(unsigned ID) {
     return true;
   }
 
-  auto I = std::remove_if(Attachments.begin(), Attachments.end(),
-                          [ID](const Attachment &A) { return A.MDKind == ID; });
-  bool Changed = I != Attachments.end();
-  Attachments.erase(I, Attachments.end());
-  return Changed;
+  auto OldSize = Attachments.size();
+  llvm::erase_if(Attachments,
+                 [ID](const Attachment &A) { return A.MDKind == ID; });
+  return OldSize != Attachments.size();
 }
 
 MDNode *Value::getMetadata(unsigned KindID) const {

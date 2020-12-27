@@ -104,18 +104,6 @@ static cl::opt<bool> SortIncludes(
              "SortIncludes style flag"),
     cl::cat(ClangFormatCategory));
 
-// using the full param name as Wno-error probably won't be a common use case in
-// clang-format
-static cl::opt<bool> AllowUnknownOptions(
-    "Wno-error=unknown",
-    cl::desc("If set, unknown format options are only warned about.\n"
-             "This can be used to enable formatting, even if the\n"
-             "configuration contains unknown (newer) options.\n"
-             "Use with caution, as this might lead to dramatically\n"
-             "differing format depending on an option being\n"
-             "supported or not."),
-    cl::init(false), cl::cat(ClangFormatCategory));
-
 static cl::opt<bool>
     Verbose("verbose", cl::desc("If set, shows the list of processed files"),
             cl::cat(ClangFormatCategory));
@@ -156,6 +144,23 @@ static cl::opt<bool>
                      cl::desc("If set, changes formatting warnings to errors"),
                      cl::cat(ClangFormatCategory));
 
+namespace {
+enum class WNoError { Unknown };
+}
+
+static cl::bits<WNoError> WNoErrorList(
+    "Wno-error",
+    cl::desc("If set don't error out on the specified warning type."),
+    cl::values(
+        clEnumValN(WNoError::Unknown, "unknown",
+                   "If set, unknown format options are only warned about.\n"
+                   "This can be used to enable formatting, even if the\n"
+                   "configuration contains unknown (newer) options.\n"
+                   "Use with caution, as this might lead to dramatically\n"
+                   "differing format depending on an option being\n"
+                   "supported or not.")),
+    cl::cat(ClangFormatCategory));
+
 static cl::opt<bool>
     ShowColors("fcolor-diagnostics",
                cl::desc("If set, and on a color-capable terminal controls "
@@ -174,11 +179,11 @@ static cl::list<std::string> FileNames(cl::Positional, cl::desc("[<file> ...]"),
 namespace clang {
 namespace format {
 
-static FileID createInMemoryFile(StringRef FileName, MemoryBuffer *Source,
+static FileID createInMemoryFile(StringRef FileName, MemoryBufferRef Source,
                                  SourceManager &Sources, FileManager &Files,
                                  llvm::vfs::InMemoryFileSystem *MemFS) {
   MemFS->addFileNoOwn(FileName, 0, Source);
-  auto File = Files.getFile(FileName);
+  auto File = Files.getOptionalFileRef(FileName);
   assert(File && "File not added to MemFS?");
   return Sources.createFileID(*File, SourceLocation(), SrcMgr::C_User);
 }
@@ -201,7 +206,7 @@ static bool fillRanges(MemoryBuffer *Code,
       IntrusiveRefCntPtr<DiagnosticIDs>(new DiagnosticIDs),
       new DiagnosticOptions);
   SourceManager Sources(Diagnostics, Files);
-  FileID ID = createInMemoryFile("<irrelevant>", Code, Sources, Files,
+  FileID ID = createInMemoryFile("<irrelevant>", *Code, Sources, Files,
                                  InMemoryFileSystem.get());
   if (!LineRanges.empty()) {
     if (!Offsets.empty() || !Lengths.empty()) {
@@ -391,7 +396,7 @@ static bool format(StringRef FileName) {
 
   llvm::Expected<FormatStyle> FormatStyle =
       getStyle(Style, AssumedFileName, FallbackStyle, Code->getBuffer(),
-               nullptr, AllowUnknownOptions.getValue());
+               nullptr, WNoErrorList.isSet(WNoError::Unknown));
   if (!FormatStyle) {
     llvm::errs() << llvm::toString(FormatStyle.takeError()) << "\n";
     return true;
@@ -427,7 +432,7 @@ static bool format(StringRef FileName) {
         IntrusiveRefCntPtr<DiagnosticIDs>(new DiagnosticIDs),
         new DiagnosticOptions);
     SourceManager Sources(Diagnostics, Files);
-    FileID ID = createInMemoryFile(AssumedFileName, Code.get(), Sources, Files,
+    FileID ID = createInMemoryFile(AssumedFileName, *Code, Sources, Files,
                                    InMemoryFileSystem.get());
     Rewriter Rewrite(Sources, LangOptions());
     tooling::applyAllReplacements(Replaces, Rewrite);

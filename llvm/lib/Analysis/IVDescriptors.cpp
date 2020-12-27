@@ -12,7 +12,6 @@
 
 #include "llvm/Analysis/IVDescriptors.h"
 #include "llvm/ADT/ScopeExit.h"
-#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/DemandedBits.h"
 #include "llvm/Analysis/DomTreeUpdater.h"
@@ -926,13 +925,6 @@ InductionDescriptor::InductionDescriptor(Value *Start, InductionKind K,
       RedundantCasts.push_back(Inst);
     }
   }
-}
-
-int InductionDescriptor::getConsecutiveDirection() const {
-  ConstantInt *ConstStep = getConstIntStepValue();
-  if (ConstStep && (ConstStep->isOne() || ConstStep->isMinusOne()))
-    return ConstStep->getSExtValue();
-  return 0;
 }
 
 ConstantInt *InductionDescriptor::getConstIntStepValue() const {

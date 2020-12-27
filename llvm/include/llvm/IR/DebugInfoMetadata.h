@@ -1698,6 +1698,18 @@ public:
 
   inline unsigned getDiscriminator() const;
 
+  // For the regular discriminator, it stands for all empty components if all
+  // the lowest 3 bits are non-zero and all higher 29 bits are unused(zero by
+  // default). Here we fully leverage the higher 29 bits for pseudo probe use.
+  // This is the format:
+  // [2:0] - 0x7
+  // [31:3] - pseudo probe fields guaranteed to be non-zero as a whole
+  // So if the lower 3 bits is non-zero and the others has at least one
+  // non-zero bit, it guarantees to be a pseudo probe discriminator
+  inline static bool isPseudoProbeDiscriminator(unsigned Discriminator) {
+    return ((Discriminator & 0x7) == 0x7) && (Discriminator & 0xFFFFFFF8);
+  }
+
   /// Returns a new DILocation with updated \p Discriminator.
   inline const DILocation *cloneWithDiscriminator(unsigned Discriminator) const;
 
@@ -2285,49 +2297,52 @@ class DIModule : public DIScope {
   friend class LLVMContextImpl;
   friend class MDNode;
   unsigned LineNo;
+  bool IsDecl;
 
   DIModule(LLVMContext &Context, StorageType Storage, unsigned LineNo,
-           ArrayRef<Metadata *> Ops)
+           bool IsDecl, ArrayRef<Metadata *> Ops)
       : DIScope(Context, DIModuleKind, Storage, dwarf::DW_TAG_module, Ops),
-        LineNo(LineNo) {}
+        LineNo(LineNo), IsDecl(IsDecl) {}
   ~DIModule() = default;
 
   static DIModule *getImpl(LLVMContext &Context, DIFile *File, DIScope *Scope,
                            StringRef Name, StringRef ConfigurationMacros,
                            StringRef IncludePath, StringRef APINotesFile,
-                           unsigned LineNo, StorageType Storage,
+                           unsigned LineNo, bool IsDecl, StorageType Storage,
                            bool ShouldCreate = true) {
     return getImpl(Context, File, Scope, getCanonicalMDString(Context, Name),
                    getCanonicalMDString(Context, ConfigurationMacros),
                    getCanonicalMDString(Context, IncludePath),
-                   getCanonicalMDString(Context, APINotesFile), LineNo, Storage,
-                   ShouldCreate);
+                   getCanonicalMDString(Context, APINotesFile), LineNo, IsDecl,
+                   Storage, ShouldCreate);
   }
   static DIModule *getImpl(LLVMContext &Context, Metadata *File,
                            Metadata *Scope, MDString *Name,
                            MDString *ConfigurationMacros, MDString *IncludePath,
-                           MDString *APINotesFile, unsigned LineNo,
+                           MDString *APINotesFile, unsigned LineNo, bool IsDecl,
                            StorageType Storage, bool ShouldCreate = true);
 
   TempDIModule cloneImpl() const {
     return getTemporary(getContext(), getFile(), getScope(), getName(),
                         getConfigurationMacros(), getIncludePath(),
-                        getAPINotesFile(), getLineNo());
+                        getAPINotesFile(), getLineNo(), getIsDecl());
   }
 
 public:
   DEFINE_MDNODE_GET(DIModule,
                     (DIFile * File, DIScope *Scope, StringRef Name,
                      StringRef ConfigurationMacros, StringRef IncludePath,
-                     StringRef APINotesFile, unsigned LineNo),
+                     StringRef APINotesFile, unsigned LineNo,
+                     bool IsDecl = false),
                     (File, Scope, Name, ConfigurationMacros, IncludePath,
-                     APINotesFile, LineNo))
+                     APINotesFile, LineNo, IsDecl))
   DEFINE_MDNODE_GET(DIModule,
                     (Metadata * File, Metadata *Scope, MDString *Name,
                      MDString *ConfigurationMacros, MDString *IncludePath,
-                     MDString *APINotesFile, unsigned LineNo),
+                     MDString *APINotesFile, unsigned LineNo,
+                     bool IsDecl = false),
                     (File, Scope, Name, ConfigurationMacros, IncludePath,
-                     APINotesFile, LineNo))
+                     APINotesFile, LineNo, IsDecl))
 
   TempDIModule clone() const { return cloneImpl(); }
 
@@ -2337,6 +2352,7 @@ public:
   StringRef getIncludePath() const { return getStringOperand(4); }
   StringRef getAPINotesFile() const { return getStringOperand(5); }
   unsigned getLineNo() const { return LineNo; }
+  bool getIsDecl() const { return IsDecl; }
 
   Metadata *getRawScope() const { return getOperand(1); }
   MDString *getRawName() const { return getOperandAs<MDString>(2); }

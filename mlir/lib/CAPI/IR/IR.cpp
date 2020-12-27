@@ -17,6 +17,7 @@
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Types.h"
+#include "mlir/IR/Verifier.h"
 #include "mlir/Parser.h"
 
 using namespace mlir;
@@ -30,17 +31,17 @@ MlirContext mlirContextCreate() {
   return wrap(context);
 }
 
-int mlirContextEqual(MlirContext ctx1, MlirContext ctx2) {
+bool mlirContextEqual(MlirContext ctx1, MlirContext ctx2) {
   return unwrap(ctx1) == unwrap(ctx2);
 }
 
 void mlirContextDestroy(MlirContext context) { delete unwrap(context); }
 
-void mlirContextSetAllowUnregisteredDialects(MlirContext context, int allow) {
+void mlirContextSetAllowUnregisteredDialects(MlirContext context, bool allow) {
   unwrap(context)->allowUnregisteredDialects(allow);
 }
 
-int mlirContextGetAllowUnregisteredDialects(MlirContext context) {
+bool mlirContextGetAllowUnregisteredDialects(MlirContext context) {
   return unwrap(context)->allowsUnregisteredDialects();
 }
 intptr_t mlirContextGetNumRegisteredDialects(MlirContext context) {
@@ -66,7 +67,7 @@ MlirContext mlirDialectGetContext(MlirDialect dialect) {
   return wrap(unwrap(dialect)->getContext());
 }
 
-int mlirDialectEqual(MlirDialect dialect1, MlirDialect dialect2) {
+bool mlirDialectEqual(MlirDialect dialect1, MlirDialect dialect2) {
   return unwrap(dialect1) == unwrap(dialect2);
 }
 
@@ -92,7 +93,7 @@ void mlirOpPrintingFlagsElideLargeElementsAttrs(MlirOpPrintingFlags flags,
 }
 
 void mlirOpPrintingFlagsEnableDebugInfo(MlirOpPrintingFlags flags,
-                                        int prettyForm) {
+                                        bool prettyForm) {
   unwrap(flags)->enableDebugInfo(/*prettyForm=*/prettyForm);
 }
 
@@ -115,8 +116,16 @@ MlirLocation mlirLocationFileLineColGet(MlirContext context,
       FileLineColLoc::get(unwrap(filename), line, col, unwrap(context)));
 }
 
+MlirLocation mlirLocationCallSiteGet(MlirLocation callee, MlirLocation caller) {
+  return wrap(CallSiteLoc::get(unwrap(callee), unwrap(caller)));
+}
+
 MlirLocation mlirLocationUnknownGet(MlirContext context) {
   return wrap(UnknownLoc::get(unwrap(context)));
+}
+
+bool mlirLocationEqual(MlirLocation l1, MlirLocation l2) {
+  return unwrap(l1) == unwrap(l2);
 }
 
 MlirContext mlirLocationGetContext(MlirLocation location) {
@@ -245,7 +254,7 @@ MlirOperation mlirOperationCreate(const MlirOperationState *state) {
 
 void mlirOperationDestroy(MlirOperation op) { unwrap(op)->erase(); }
 
-int mlirOperationEqual(MlirOperation op, MlirOperation other) {
+bool mlirOperationEqual(MlirOperation op, MlirOperation other) {
   return unwrap(op) == unwrap(other);
 }
 
@@ -303,7 +312,7 @@ intptr_t mlirOperationGetNumAttributes(MlirOperation op) {
 
 MlirNamedAttribute mlirOperationGetAttribute(MlirOperation op, intptr_t pos) {
   NamedAttribute attr = unwrap(op)->getAttrs()[pos];
-  return MlirNamedAttribute{wrap(attr.first.strref()), wrap(attr.second)};
+  return MlirNamedAttribute{wrap(attr.first), wrap(attr.second)};
 }
 
 MlirAttribute mlirOperationGetAttributeByName(MlirOperation op,
@@ -316,9 +325,8 @@ void mlirOperationSetAttributeByName(MlirOperation op, MlirStringRef name,
   unwrap(op)->setAttr(unwrap(name), unwrap(attr));
 }
 
-int mlirOperationRemoveAttributeByName(MlirOperation op, MlirStringRef name) {
-  auto removeResult = unwrap(op)->removeAttr(unwrap(name));
-  return removeResult == MutableDictionaryAttr::RemoveResult::Removed;
+bool mlirOperationRemoveAttributeByName(MlirOperation op, MlirStringRef name) {
+  return !!unwrap(op)->removeAttr(unwrap(name));
 }
 
 void mlirOperationPrint(MlirOperation op, MlirStringCallback callback,
@@ -334,6 +342,10 @@ void mlirOperationPrintWithFlags(MlirOperation op, MlirOpPrintingFlags flags,
 }
 
 void mlirOperationDump(MlirOperation op) { return unwrap(op)->dump(); }
+
+bool mlirOperationVerify(MlirOperation op) {
+  return succeeded(verify(unwrap(op)));
+}
 
 //===----------------------------------------------------------------------===//
 // Region API.
@@ -398,7 +410,7 @@ MlirBlock mlirBlockCreate(intptr_t nArgs, MlirType const *args) {
   return wrap(b);
 }
 
-int mlirBlockEqual(MlirBlock block, MlirBlock other) {
+bool mlirBlockEqual(MlirBlock block, MlirBlock other) {
   return unwrap(block) == unwrap(other);
 }
 
@@ -480,15 +492,15 @@ void mlirBlockPrint(MlirBlock block, MlirStringCallback callback,
 // Value API.
 //===----------------------------------------------------------------------===//
 
-int mlirValueEqual(MlirValue value1, MlirValue value2) {
+bool mlirValueEqual(MlirValue value1, MlirValue value2) {
   return unwrap(value1) == unwrap(value2);
 }
 
-int mlirValueIsABlockArgument(MlirValue value) {
+bool mlirValueIsABlockArgument(MlirValue value) {
   return unwrap(value).isa<BlockArgument>();
 }
 
-int mlirValueIsAOpResult(MlirValue value) {
+bool mlirValueIsAOpResult(MlirValue value) {
   return unwrap(value).isa<OpResult>();
 }
 
@@ -538,7 +550,9 @@ MlirContext mlirTypeGetContext(MlirType type) {
   return wrap(unwrap(type).getContext());
 }
 
-int mlirTypeEqual(MlirType t1, MlirType t2) { return unwrap(t1) == unwrap(t2); }
+bool mlirTypeEqual(MlirType t1, MlirType t2) {
+  return unwrap(t1) == unwrap(t2);
+}
 
 void mlirTypePrint(MlirType type, MlirStringCallback callback, void *userData) {
   detail::CallbackOstream stream(callback, userData);
@@ -563,7 +577,7 @@ MlirType mlirAttributeGetType(MlirAttribute attribute) {
   return wrap(unwrap(attribute).getType());
 }
 
-int mlirAttributeEqual(MlirAttribute a1, MlirAttribute a2) {
+bool mlirAttributeEqual(MlirAttribute a1, MlirAttribute a2) {
   return unwrap(a1) == unwrap(a2);
 }
 
@@ -575,7 +589,7 @@ void mlirAttributePrint(MlirAttribute attr, MlirStringCallback callback,
 
 void mlirAttributeDump(MlirAttribute attr) { unwrap(attr).dump(); }
 
-MlirNamedAttribute mlirNamedAttributeGet(MlirStringRef name,
+MlirNamedAttribute mlirNamedAttributeGet(MlirIdentifier name,
                                          MlirAttribute attr) {
   return MlirNamedAttribute{name, attr};
 }
@@ -588,7 +602,7 @@ MlirIdentifier mlirIdentifierGet(MlirContext context, MlirStringRef str) {
   return wrap(Identifier::get(unwrap(str), unwrap(context)));
 }
 
-int mlirIdentifierEqual(MlirIdentifier ident, MlirIdentifier other) {
+bool mlirIdentifierEqual(MlirIdentifier ident, MlirIdentifier other) {
   return unwrap(ident) == unwrap(other);
 }
 

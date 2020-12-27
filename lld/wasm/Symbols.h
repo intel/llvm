@@ -160,6 +160,9 @@ public:
   // True if this symbol is a linker-synthesized stub function (traps when
   // called) and should otherwise be treated as missing/undefined.  See
   // SymbolTable::replaceWithUndefined.
+  // These stubs never appear in the table and any table index relocations
+  // against them will produce address 0 (The table index representing
+  // the null function pointer).
   bool isStub : 1;
 
   uint32_t flags;
@@ -481,13 +484,22 @@ struct WasmSym {
   // Function that calls the libc/etc. cleanup function.
   static DefinedFunction *callDtors;
 
-  // __wasm_apply_relocs
+  // __wasm_apply_data_relocs
   // Function that applies relocations to data segment post-instantiation.
-  static DefinedFunction *applyRelocs;
+  static DefinedFunction *applyDataRelocs;
+
+  // __wasm_apply_global_relocs
+  // Function that applies relocations to data segment post-instantiation.
+  // Unlike __wasm_apply_data_relocs this needs to run on every thread.
+  static DefinedFunction *applyGlobalRelocs;
 
   // __wasm_init_tls
   // Function that allocates thread-local storage and initializes it.
   static DefinedFunction *initTLS;
+
+  // Pointer to the function that is to be used in the start section.
+  // (normally an alias of initMemory, or applyGlobalRelocs).
+  static DefinedFunction *startFunction;
 
   // __dso_handle
   // Symbol used in calls to __cxa_atexit to determine current DLL

@@ -283,11 +283,10 @@ let TargetPrefix = "x86" in {  // All intrinsics start with "llvm.x86.".
                          IntrHasSideEffects]>;
   def int_x86_sse_ldmxcsr :
               Intrinsic<[], [llvm_ptr_ty],
-                        [IntrReadMem, IntrArgMemOnly, IntrHasSideEffects,
                          // FIXME: LDMXCSR does not actually write to memory,
-                         // but Fast and DAG Isel both use writing to memory
-                         // as a proxy for having side effects.
-                         IntrWriteMem]>;
+                         // but intrinsic properties are generated incorrectly
+                         // for IntrReadMem+IntrHasSideEffects.
+                        [/*IntrReadMem,*/ IntrArgMemOnly, IntrHasSideEffects]>;
 }
 
 // Misc.
@@ -5056,4 +5055,20 @@ let TargetPrefix = "x86" in {
               Intrinsic<[llvm_i8_ty], [], []>;
   def int_x86_senduipi : GCCBuiltin<"__builtin_ia32_senduipi">,
               Intrinsic<[], [llvm_i64_ty], []>;
+// AMX - internal intrinsics
+  def int_x86_tileloadd64_internal :
+              GCCBuiltin<"__builtin_ia32_tileloadd64_internal">,
+              Intrinsic<[llvm_v256i32_ty],
+                        [llvm_i16_ty, llvm_i16_ty, llvm_ptr_ty, llvm_i64_ty],
+                        []>;
+  def int_x86_tdpbssd_internal :
+              GCCBuiltin<"__builtin_ia32_tdpbssd_internal">,
+              Intrinsic<[llvm_v256i32_ty],
+                        [llvm_i16_ty, llvm_i16_ty, llvm_i16_ty,
+                         llvm_v256i32_ty, llvm_v256i32_ty,
+                         llvm_v256i32_ty], []>;
+  def int_x86_tilestored64_internal :
+              GCCBuiltin<"__builtin_ia32_tilestored64_internal">,
+              Intrinsic<[], [llvm_i16_ty, llvm_i16_ty, llvm_ptr_ty,
+                             llvm_i64_ty, llvm_v256i32_ty], []>;
 }

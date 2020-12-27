@@ -89,7 +89,7 @@ mode requires careful consideration and testing to get the desired behavior
 from an AST matcher.
 </p>
 
-<p>In addition, because template instantations are matched in the default mode,
+<p>In addition, because template instantiations are matched in the default mode,
 transformations can be accidentally made to template declarations. Finally,
 because implicit nodes are matched by default, transformations can be made on
 entirely incorrect places in the code.</p>
@@ -1701,6 +1701,11 @@ Does not match implicit conversions such as
 Example matches 'for (;;) {}'
   for (;;) {}
   int i[] =  {1, 2, 3}; for (auto a : i);
+</pre></td></tr>
+
+
+<tr><td>Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1Stmt.html">Stmt</a>&gt;</td><td class="name" onclick="toggle('genericSelectionExpr0')"><a name="genericSelectionExpr0Anchor">genericSelectionExpr</a></td><td>Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1GenericSelectionExpr.html">GenericSelectionExpr</a>&gt;...</td></tr>
+<tr><td colspan="4" class="doc" id="genericSelectionExpr0"><pre>Matches C11 _Generic expression.
 </pre></td></tr>
 
 

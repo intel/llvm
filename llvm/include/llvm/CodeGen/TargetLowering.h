@@ -4367,6 +4367,11 @@ public:
   /// Expand fminnum/fmaxnum into fminnum_ieee/fmaxnum_ieee with quieted inputs.
   SDValue expandFMINNUM_FMAXNUM(SDNode *N, SelectionDAG &DAG) const;
 
+  /// Expand FP_TO_[US]INT_SAT into FP_TO_[US]INT and selects or min/max.
+  /// \param N Node to expand
+  /// \returns The expansion result
+  SDValue expandFP_TO_INT_SAT(SDNode *N, SelectionDAG &DAG) const;
+
   /// Expand CTPOP nodes. Expands vector/scalar CTPOP nodes,
   /// vector nodes can only succeed if all operations are legal/custom.
   /// \param N Node to expand
@@ -4393,8 +4398,10 @@ public:
   /// (ABS x) -> (XOR (ADD x, (SRA x, type_size)), (SRA x, type_size))
   /// \param N Node to expand
   /// \param Result output after conversion
+  /// \param IsNegative indicate negated abs
   /// \returns True, if the expansion was successful, false otherwise
-  bool expandABS(SDNode *N, SDValue &Result, SelectionDAG &DAG) const;
+  bool expandABS(SDNode *N, SDValue &Result, SelectionDAG &DAG,
+                 bool IsNegative = false) const;
 
   /// Turn load of vector type into a load of the individual elements.
   /// \param LD load to expand

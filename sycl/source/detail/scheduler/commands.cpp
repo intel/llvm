@@ -481,7 +481,8 @@ void Command::makeTraceEventEpilog() {
 }
 
 void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
-  const ContextImplPtr &Context = getContext();
+  const QueueImplPtr &WorkerQueue = getWorkerQueue();
+  const ContextImplPtr &WorkerContext = WorkerQueue->getContextImplPtr();
 
   // 1. Async work is not supported for host device.
   // 2. The event handle can be null in case of, for example, alloca command,
@@ -494,18 +495,25 @@ void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
     return;
   }
 
+  // Do not add redundant event dependencies for in-order queues.
+  if (Dep.MDepCommand && Dep.MDepCommand->getWorkerQueue() == WorkerQueue &&
+      WorkerQueue->has_property<property::queue::in_order>())
+    return;
+
   ContextImplPtr DepEventContext = DepEvent->getContextImpl();
   // If contexts don't match we'll connect them using host task
-  if (DepEventContext != Context && !Context->is_host()) {
+  if (DepEventContext != WorkerContext && !WorkerContext->is_host()) {
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
     GB.connectDepEvent(this, DepEvent, Dep);
   } else
     MPreparedDepsEvents.push_back(std::move(DepEvent));
 }
 
-ContextImplPtr Command::getContext() const {
-  return detail::getSyclObjImpl(MQueue->get_context());
+const ContextImplPtr &Command::getWorkerContext() const {
+  return MQueue->getContextImplPtr();
 }
+
+const QueueImplPtr &Command::getWorkerQueue() const { return MQueue; }
 
 void Command::addDep(DepDesc NewDep) {
   if (NewDep.MDepCommand) {
@@ -1127,13 +1135,15 @@ void MemCpyCommand::emitInstrumentationData() {
 #endif
 }
 
-ContextImplPtr MemCpyCommand::getContext() const {
-  const QueueImplPtr &Queue = MQueue->is_host() ? MSrcQueue : MQueue;
-  return detail::getSyclObjImpl(Queue->get_context());
+const ContextImplPtr &MemCpyCommand::getWorkerContext() const {
+  return getWorkerQueue()->getContextImplPtr();
+}
+
+const QueueImplPtr &MemCpyCommand::getWorkerQueue() const {
+  return MQueue->is_host() ? MSrcQueue : MQueue;
 }
 
 cl_int MemCpyCommand::enqueueImp() {
-  QueueImplPtr Queue = MQueue->is_host() ? MSrcQueue : MQueue;
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
 
@@ -1141,21 +1151,12 @@ cl_int MemCpyCommand::enqueueImp() {
 
   auto RawEvents = getPiEvents(EventImpls);
 
-  // Omit copying if mode is discard one.
-  // TODO: Handle this at the graph building time by, for example, creating
-  // empty node instead of memcpy.
-  if (MDstReq.MAccessMode == access::mode::discard_read_write ||
-      MDstReq.MAccessMode == access::mode::discard_write ||
-      MSrcAllocaCmd->getMemAllocation() == MDstAllocaCmd->getMemAllocation()) {
-    Command::waitForEvents(Queue, EventImpls, Event);
-  } else {
-    MemoryManager::copy(
-        MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(),
-        MSrcQueue, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
-        MSrcReq.MOffset, MSrcReq.MElemSize, MDstAllocaCmd->getMemAllocation(),
-        MQueue, MDstReq.MDims, MDstReq.MMemoryRange, MDstReq.MAccessRange,
-        MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), Event);
-  }
+  MemoryManager::copy(
+      MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(),
+      MSrcQueue, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
+      MSrcReq.MOffset, MSrcReq.MElemSize, MDstAllocaCmd->getMemAllocation(),
+      MQueue, MDstReq.MDims, MDstReq.MMemoryRange, MDstReq.MAccessRange,
+      MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), Event);
 
   return CL_SUCCESS;
 }
@@ -1274,13 +1275,16 @@ void MemCpyCommandHost::emitInstrumentationData() {
 #endif
 }
 
-ContextImplPtr MemCpyCommandHost::getContext() const {
-  const QueueImplPtr &Queue = MQueue->is_host() ? MSrcQueue : MQueue;
-  return detail::getSyclObjImpl(Queue->get_context());
+const ContextImplPtr &MemCpyCommandHost::getWorkerContext() const {
+  return getWorkerQueue()->getContextImplPtr();
+}
+
+const QueueImplPtr &MemCpyCommandHost::getWorkerQueue() const {
+  return MQueue->is_host() ? MSrcQueue : MQueue;
 }
 
 cl_int MemCpyCommandHost::enqueueImp() {
-  QueueImplPtr Queue = MQueue->is_host() ? MSrcQueue : MQueue;
+  const QueueImplPtr &Queue = getWorkerQueue();
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);

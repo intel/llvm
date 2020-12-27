@@ -239,6 +239,10 @@ public:
   __SYCL_GEN_OPT(^=)
 
 #undef __SYCL_GEN_OPT
+
+private:
+  friend class handler;
+  void set_allowed_range(range<dimensions> rnwi) { (void)rnwi[0]; }
 };
 
 namespace detail {

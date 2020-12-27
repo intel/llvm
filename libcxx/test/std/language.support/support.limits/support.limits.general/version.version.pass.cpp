@@ -42,6 +42,7 @@
     __cpp_lib_concepts                             201806L [C++2a]
     __cpp_lib_constexpr_dynamic_alloc              201907L [C++2a]
     __cpp_lib_constexpr_misc                       201811L [C++2a]
+    __cpp_lib_constexpr_numeric                    201911L [C++2a]
     __cpp_lib_constexpr_swap_algorithms            201806L [C++2a]
     __cpp_lib_constexpr_utility                    201811L [C++2a]
     __cpp_lib_destroying_delete                    201806L [C++2a]
@@ -225,6 +226,10 @@
 
 # ifdef __cpp_lib_constexpr_misc
 #   error "__cpp_lib_constexpr_misc should not be defined before c++2a"
+# endif
+
+# ifdef __cpp_lib_constexpr_numeric
+#   error "__cpp_lib_constexpr_numeric should not be defined before c++2a"
 # endif
 
 # ifdef __cpp_lib_constexpr_swap_algorithms
@@ -617,6 +622,10 @@
 
 # ifdef __cpp_lib_constexpr_misc
 #   error "__cpp_lib_constexpr_misc should not be defined before c++2a"
+# endif
+
+# ifdef __cpp_lib_constexpr_numeric
+#   error "__cpp_lib_constexpr_numeric should not be defined before c++2a"
 # endif
 
 # ifdef __cpp_lib_constexpr_swap_algorithms
@@ -1125,6 +1134,10 @@
 #   error "__cpp_lib_constexpr_misc should not be defined before c++2a"
 # endif
 
+# ifdef __cpp_lib_constexpr_numeric
+#   error "__cpp_lib_constexpr_numeric should not be defined before c++2a"
+# endif
+
 # ifdef __cpp_lib_constexpr_swap_algorithms
 #   error "__cpp_lib_constexpr_swap_algorithms should not be defined before c++2a"
 # endif
@@ -1494,17 +1507,11 @@
 #   endif
 # endif
 
-# if !defined(_LIBCPP_VERSION)
-#   ifndef __cpp_lib_shared_ptr_arrays
-#     error "__cpp_lib_shared_ptr_arrays should be defined in c++17"
-#   endif
-#   if __cpp_lib_shared_ptr_arrays != 201611L
-#     error "__cpp_lib_shared_ptr_arrays should have the value 201611L in c++17"
-#   endif
-# else // _LIBCPP_VERSION
-#   ifdef __cpp_lib_shared_ptr_arrays
-#     error "__cpp_lib_shared_ptr_arrays should not be defined because it is unimplemented in libc++!"
-#   endif
+# ifndef __cpp_lib_shared_ptr_arrays
+#   error "__cpp_lib_shared_ptr_arrays should be defined in c++17"
+# endif
+# if __cpp_lib_shared_ptr_arrays != 201611L
+#   error "__cpp_lib_shared_ptr_arrays should have the value 201611L in c++17"
 # endif
 
 # ifndef __cpp_lib_shared_ptr_weak_type
@@ -1908,6 +1915,13 @@
 #   ifdef __cpp_lib_constexpr_misc
 #     error "__cpp_lib_constexpr_misc should not be defined because it is unimplemented in libc++!"
 #   endif
+# endif
+
+# ifndef __cpp_lib_constexpr_numeric
+#   error "__cpp_lib_constexpr_numeric should be defined in c++2a"
+# endif
+# if __cpp_lib_constexpr_numeric != 201911L
+#   error "__cpp_lib_constexpr_numeric should have the value 201911L in c++2a"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
@@ -2345,17 +2359,11 @@
 #   endif
 # endif
 
-# if !defined(_LIBCPP_VERSION)
-#   ifndef __cpp_lib_shared_ptr_arrays
-#     error "__cpp_lib_shared_ptr_arrays should be defined in c++2a"
-#   endif
-#   if __cpp_lib_shared_ptr_arrays != 201611L
-#     error "__cpp_lib_shared_ptr_arrays should have the value 201611L in c++2a"
-#   endif
-# else // _LIBCPP_VERSION
-#   ifdef __cpp_lib_shared_ptr_arrays
-#     error "__cpp_lib_shared_ptr_arrays should not be defined because it is unimplemented in libc++!"
-#   endif
+# ifndef __cpp_lib_shared_ptr_arrays
+#   error "__cpp_lib_shared_ptr_arrays should be defined in c++2a"
+# endif
+# if __cpp_lib_shared_ptr_arrays != 201611L
+#   error "__cpp_lib_shared_ptr_arrays should have the value 201611L in c++2a"
 # endif
 
 # ifndef __cpp_lib_shared_ptr_weak_type

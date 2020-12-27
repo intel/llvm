@@ -68,8 +68,10 @@ namespace wasm {
 DefinedFunction *WasmSym::callCtors;
 DefinedFunction *WasmSym::callDtors;
 DefinedFunction *WasmSym::initMemory;
-DefinedFunction *WasmSym::applyRelocs;
+DefinedFunction *WasmSym::applyDataRelocs;
+DefinedFunction *WasmSym::applyGlobalRelocs;
 DefinedFunction *WasmSym::initTLS;
+DefinedFunction *WasmSym::startFunction;
 DefinedData *WasmSym::dsoHandle;
 DefinedData *WasmSym::dataEnd;
 DefinedData *WasmSym::globalBase;
@@ -135,7 +137,7 @@ bool Symbol::isLive() const {
 
 void Symbol::markLive() {
   assert(!isDiscarded());
-  if (file != NULL)
+  if (file != NULL && isDefined())
     file->markLive();
   if (auto *g = dyn_cast<DefinedGlobal>(this))
     g->global->live = true;

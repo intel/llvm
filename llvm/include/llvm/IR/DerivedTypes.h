@@ -87,12 +87,6 @@ public:
   /// Get a bit mask for this type.
   APInt getMask() const;
 
-  /// This method determines if the width of this IntegerType is a power-of-2
-  /// in terms of 8 bit bytes.
-  /// @returns true if this is a power-of-2 byte width.
-  /// Is this a power-of-2 byte-width IntegerType ?
-  bool isPowerOf2ByteWidth() const;
-
   /// Methods for support type inquiry through isa, cast, and dyn_cast.
   static bool classof(const Type *T) {
     return T->getTypeID() == IntegerTyID;
@@ -272,6 +266,10 @@ public:
     SmallVector<llvm::Type *, 8> StructFields({elt1, elts...});
     return llvm::StructType::get(Ctx, StructFields);
   }
+
+  /// Return the type with the specified name, or null if there is none by that
+  /// name.
+  static StructType *getTypeByName(LLVMContext &C, StringRef Name);
 
   bool isPacked() const { return (getSubclassData() & SCDB_Packed) != 0; }
 
