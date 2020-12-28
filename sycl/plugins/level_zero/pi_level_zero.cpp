@@ -5355,7 +5355,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
 // SYCL RT calls this api to notify the end of plugin lifetime.
 // It can include all the jobs to tear down resources before
-//   the plugin is unloaded from memory.
+// the plugin is unloaded from memory.
 pi_result piTearDown(void *PluginParameter) {
   // reclaim pi_platform objects here since we don't have piPlatformRelease.
   for (pi_platform &Platform : *PiPlatformsCache) {
