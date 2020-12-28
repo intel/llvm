@@ -14,7 +14,9 @@
 
 #include "helper.hpp"
 #include <CL/sycl.hpp>
+#include <algorithm>
 #include <complex>
+#include <vector>
 template <typename T> class pointer_kernel;
 
 using namespace cl::sycl;

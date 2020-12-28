@@ -11,6 +11,7 @@
 // RUN: env TEST_INCORRECT_VALUE=1 env SYCL_DEVICE_ALLOWLIST="IncorrectKey:{{.*}}" %t.out
 
 #include <CL/sycl.hpp>
+#include <algorithm>
 #include <cstdlib>
 #include <exception>
 #include <iostream>
