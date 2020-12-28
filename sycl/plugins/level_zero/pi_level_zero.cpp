@@ -175,9 +175,8 @@ private:
 
 // Global variables used in PI_Level_Zero
 // Note we only create a simple pointer variables such that C++ RT won't
-// deallocate them automatically
-//   at the end of the main program.
-// The heap memory allocated for these global variableare reclaimed only when
+// deallocate them automatically at the end of the main program.
+// The heap memory allocated for these global variables reclaimed only when
 // Sycl RT calls piTearDown().
 static std::vector<pi_platform> *PiPlatformsCache =
     new std::vector<pi_platform>;
