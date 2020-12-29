@@ -204,7 +204,8 @@ public:
   template <class ArgT = KernelArgType>
   typename detail::enable_if_t<std::is_same<ArgT, sycl::id<Dims>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
-    using NameT = typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     std::string KName = typeid(NameT *).name();
     using KI = detail::KernelInfo<KernelName>;
     constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
@@ -219,9 +220,9 @@ public:
     detail::NDLoop<Dims>::iterate(Range, [&](const sycl::id<Dims> &ID) {
       sycl::item<Dims, /*Offset=*/true> Item =
           IDBuilder::createItem<Dims, true>(Range, ID, Offset);
-          
-      if(StoreLocation){
-        store_id(&ID);  // <--
+
+      if (StoreLocation) {
+        store_id(&ID);
         store_item(&Item);
       }
       MKernel(ID);
@@ -232,7 +233,8 @@ public:
   typename detail::enable_if_t<
       std::is_same<ArgT, item<Dims, /*Offset=*/false>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
-    using NameT = typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     std::string KName = typeid(NameT *).name();
     using KI = detail::KernelInfo<KernelName>;
     constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
@@ -247,7 +249,7 @@ public:
           IDBuilder::createItem<Dims, false>(Range, ID);
       sycl::item<Dims, /*Offset=*/true> ItemWithOffset = Item;
 
-      if(StoreLocation){
+      if (StoreLocation) {
         store_id(&ID);
         store_item(&ItemWithOffset);
       }
@@ -259,7 +261,8 @@ public:
   typename detail::enable_if_t<
       std::is_same<ArgT, item<Dims, /*Offset=*/true>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
-    using NameT = typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     std::string KName = typeid(NameT *).name();
     using KI = detail::KernelInfo<KernelName>;
     constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
@@ -276,7 +279,7 @@ public:
       sycl::item<Dims, /*Offset=*/true> Item =
           IDBuilder::createItem<Dims, true>(Range, OffsetID, Offset);
 
-      if(StoreLocation){
+      if (StoreLocation) {
         store_id(&OffsetID);
         store_item(&Item);
       }
@@ -287,7 +290,8 @@ public:
   template <class ArgT = KernelArgType>
   typename detail::enable_if_t<std::is_same<ArgT, nd_item<Dims>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
-    using NameT = typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     std::string KName = typeid(NameT *).name();
     using KI = detail::KernelInfo<KernelName>;
     constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
@@ -325,7 +329,7 @@ public:
         const sycl::nd_item<Dims> NDItem =
             IDBuilder::createNDItem<Dims>(GlobalItem, LocalItem, Group);
 
-        if(StoreLocation){
+        if (StoreLocation) {
           store_id(&GlobalID);
           store_item(&GlobalItem);
           store_nd_item(&NDItem);
