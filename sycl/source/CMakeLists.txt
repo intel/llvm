@@ -132,6 +132,7 @@ set(SYCL_SOURCES
     "detail/program_impl.cpp"
     "detail/program_manager/program_manager.cpp"
     "detail/queue_impl.cpp"
+    "detail/online_compiler/online_compiler.cpp"
     "detail/os_util.cpp"
     "detail/platform_util.cpp"
     "detail/reduction.cpp"
