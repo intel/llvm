@@ -1819,8 +1819,7 @@ public:
   }
 
   template <typename asT>
-  typename detail::enable_if_t<asT::getNumElements() == getNumElements(), asT>
-  as() const {
+  asT as() const {
     // First materialize the swizzle to vec_t and then apply as() to it.
     vec_t Tmp = *this;
     return Tmp.template as<asT>();
