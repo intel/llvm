@@ -88,7 +88,7 @@ constructor and destructor.
 
 ## Plugins
 
-Plugin lifetime is managed by utilizing piInitializePlugins() and piTearDown().
+Plugin lifetime is managed by utilizing piPluginInit() and piTearDown().
 GlobalHandler::shutdown() will tear down all registered globals before SYCL RT
 library is unloaded. It will invoke piTearDown() and unload() for each
 plugin. piTearDown() is going to perform any necessary tear-down process at the
