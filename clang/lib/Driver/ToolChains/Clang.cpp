@@ -7676,10 +7676,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     // binaries with the appropriate file extension (.aocx/.aocr).
     if (getToolChain().getTriple().getSubArch() ==
         llvm::Triple::SPIRSubArch_fpga)
-      if (InputType == types::TY_FPGA_AOCX)
-        TypeArg = "aocx";
-      else
-        TypeArg = "aocr";
+      TypeArg = InputType == types::TY_FPGA_AOCX ? "aocx" : "aocr";
     else
       TypeArg = "aoo";
   }

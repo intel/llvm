@@ -6038,6 +6038,9 @@ InputInfo Driver::BuildJobsForActionNoCache(
             TI = types::TY_TempAOCOfilelist;
             Ext = "txt";
           }
+          if (JA->getType() == types::TY_FPGA_AOCR)
+            // AOCR files are always unbundled into a list file.
+            TI = types::TY_Tempfilelist;
         } else if (EffectiveTriple.getSubArch() !=
                    llvm::Triple::SPIRSubArch_fpga) {
           if (UI.DependentOffloadKind == Action::OFK_SYCL) {
