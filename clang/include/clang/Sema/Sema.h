@@ -346,11 +346,6 @@ public:
   /// Registers a specialization constant to emit info for it into the header.
   void addSpecConstant(StringRef IDName, QualType IDType);
 
-  // CP
-  /// Notes that this_item is called within the kernel.
-  // void setCallsThisItem(bool B);
-
-  // CP
   /// Note which free functions (this_id, this_item, etc) are called within the
   /// kernel
   void setCallsThisId(bool B);
