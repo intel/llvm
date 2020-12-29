@@ -129,14 +129,14 @@ int main() {
 
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name1
 // CHECK: ReqdWorkGroupSizeAttr {{.*}}
-// CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-// CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
 // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
+// CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+// CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name2
 // CHECK: ReqdWorkGroupSizeAttr {{.*}}
-// CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-// CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
 // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+// CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+// CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name3
 // CHECK: ReqdWorkGroupSizeAttr {{.*}}
 // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
@@ -149,10 +149,10 @@ int main() {
 // CHECK-NEXT:  IntegerLiteral{{.*}}128{{$}}
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
 // CHECK: ReqdWorkGroupSizeAttr {{.*}}
-// CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+// CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
 // CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
 // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-// CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
+// CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name6
 // CHECK: ReqdWorkGroupSizeAttr {{.*}}
 // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
