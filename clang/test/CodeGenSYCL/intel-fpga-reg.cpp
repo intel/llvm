@@ -25,7 +25,6 @@ private:
 
 typedef int myInt;
 
-
 // CHECK-LABEL: define {{.*}} @_Z3foov(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[A:%.*]] = alloca i32, align 4
