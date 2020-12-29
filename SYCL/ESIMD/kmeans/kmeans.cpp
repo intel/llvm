@@ -548,8 +548,12 @@ int main(int argc, char *argv[]) {
     std::cerr << "Usage: kmeans.exe input_file" << std::endl;
     exit(1);
   }
+
+  cl::sycl::property_list props{property::queue::enable_profiling{},
+                                property::queue::in_order()};
   queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
-          property::queue::enable_profiling{});
+          props);
+
   auto dev = q.get_device();
   auto ctxt = q.get_context();
 
@@ -662,7 +666,7 @@ int main(int argc, char *argv[]) {
                                           cmk_accum_reduction((uint *)accum, i);
                                         });
     });
-    e.wait();
+    e1.wait();
     kernel2_time_in_ns += report_time("kernel2", e1);
 #endif
 

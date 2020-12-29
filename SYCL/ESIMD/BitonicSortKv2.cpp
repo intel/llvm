@@ -599,8 +599,11 @@ int main(int argc, char *argv[]) {
   int size = 1 << LOG2_ELEMENTS;
   cout << "BitonicSort (" << size << ") Start..." << std::endl;
 
+  cl::sycl::property_list props{property::queue::enable_profiling{},
+                                property::queue::in_order()};
+
   queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
-          property::queue::enable_profiling{});
+          props);
 
   BitonicSort bitonicSort;
 
