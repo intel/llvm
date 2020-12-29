@@ -6270,9 +6270,9 @@ InputInfo Driver::BuildJobsForActionNoCache(
     // returned for the current depending action.
     std::pair<const Action *, std::string> ActionTC = {
         A, GetTriplePlusArchString(TC, BoundArch, TargetDeviceOffloadKind)};
-    assert(CachedResults.find(ActionTC) != CachedResults.end() &&
-           "Result does not exist??");
-    Result = CachedResults[ActionTC];
+    auto It = CachedResults.find(ActionTC);
+    assert(It != CachedResults.end() && "Result does not exist??");
+    Result = It->second;
   } else if (JA->getType() == types::TY_Nothing)
     Result = InputInfo(A, BaseInput);
   else {
