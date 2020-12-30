@@ -153,8 +153,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
                                               const ArgStringList &Inputs,
                                               const ArgStringList &Options) {
     ArgStringList CmdArgs;
-    copy(Options, std::back_inserter(CmdArgs));
-    copy(Inputs, std::back_inserter(CmdArgs));
+    llvm::copy(Options, std::back_inserter(CmdArgs));
+    llvm::copy(Inputs, std::back_inserter(CmdArgs));
     CmdArgs.push_back("-o");
     CmdArgs.push_back(Output);
     // TODO: temporary workaround for a problem with warnings reported by
@@ -185,7 +185,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     // Now invoke linker for the second time to link required symbols from the
     // input libraries.
     ArgStringList LinkInputs{LinkOutput};
-    copy(Libs, std::back_inserter(LinkInputs));
+    llvm::copy(Libs, std::back_inserter(LinkInputs));
     AddLinkCommand(OutputFileName, LinkInputs, {"--only-needed"});
   }
   return OutputFileName;
