@@ -80,7 +80,8 @@
 // STATIC_LIB_SRC2: ld{{(.exe)?}}" {{.*}} "-o" "[[HOSTEXE:.+\.out]]"
 // STATIC_LIB_SRC2: clang-offload-deps{{.*}} "-outputs=[[OUTDEPS:.+\.bc]]" "[[HOSTEXE]]"
 // STATIC_LIB_SRC2: clang-offload-bundler{{.*}} "-type=a" {{.*}} "-outputs=[[OUTLIB:.+\.a]]"
-// STATIC_LIB_SRC2: llvm-link{{.*}} "[[OUTDEPS]]" "[[OUTLIB]]"
+// STATIC_LIB_SRC2: llvm-link{{.*}} "[[OUTDEPS]]" "-o" "[[OUTTEMP:.+\.bc]]"
+// STATIC_LIB_SRC2: llvm-link{{.*}} "--only-needed" "[[OUTTEMP]]" "[[OUTLIB]]"
 // STATIC_LIB_SRC2: ld{{(.exe)?}}" {{.*}} "[[HOSTOBJ]]"
 
 /// ###########################################################################
