@@ -398,8 +398,7 @@ private:
     /// Descriptor of kernel actual parameters.
     SmallVector<KernelParamDesc, 8> Params;
 
-    // Whether kernel calls this_item()
-    // bool CallsThisItem;
+    // Whether kernel calls any of the SYCL free functions (this_item(), this_id(), etc)
     KernelCallsSYCLFreeFunction FreeFunctionCalls;
 
     KernelDesc() = default;
