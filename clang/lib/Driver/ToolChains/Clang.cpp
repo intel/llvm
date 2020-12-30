@@ -7988,6 +7988,71 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs, Inputs));
 }
 
+// Begin OffloadDeps
+
+void OffloadDeps::constructJob(Compilation &C, const JobAction &JA,
+                               ArrayRef<InputInfo> Outputs,
+                               ArrayRef<InputInfo> Inputs,
+                               const llvm::opt::ArgList &TCArgs,
+                               const char *LinkingOutput) const {
+  auto &DA = cast<OffloadDepsJobAction>(JA);
+
+  ArgStringList CmdArgs;
+
+  // Get the targets.
+  SmallString<128> Targets{"-targets="};
+  auto DepInfo = DA.getDependentActionsInfo();
+  for (unsigned I = 0; I < DepInfo.size(); ++I) {
+    auto &Dep = DepInfo[I];
+    if (I)
+      Targets += ',';
+    Targets += Action::GetOffloadKindName(Dep.DependentOffloadKind);
+    Targets += '-';
+    Targets += Dep.DependentToolChain->getTriple().normalize();
+    if (Dep.DependentOffloadKind == Action::OFK_HIP &&
+        !Dep.DependentBoundArch.empty()) {
+      Targets += '-';
+      Targets += Dep.DependentBoundArch;
+    }
+  }
+  CmdArgs.push_back(TCArgs.MakeArgString(Targets));
+
+  // Prepare outputs.
+  SmallString<128> Outs{"-outputs="};
+  for (unsigned I = 0; I < Outputs.size(); ++I) {
+    if (I)
+      Outs += ',';
+    Outs += DepInfo[I].DependentToolChain->getInputFilename(Outputs[I]);
+  }
+  CmdArgs.push_back(TCArgs.MakeArgString(Outs));
+
+  // Add input file.
+  CmdArgs.push_back(Inputs.front().getFilename());
+
+  // All the inputs are encoded as commands.
+  C.addCommand(std::make_unique<Command>(
+      JA, *this, ResponseFileSupport::None(),
+      TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
+      CmdArgs, None, Outputs));
+}
+
+void OffloadDeps::ConstructJob(Compilation &C, const JobAction &JA,
+                               const InputInfo &Output,
+                               const InputInfoList &Inputs,
+                               const llvm::opt::ArgList &TCArgs,
+                               const char *LinkingOutput) const {
+  constructJob(C, JA, Output, Inputs, TCArgs, LinkingOutput);
+}
+
+void OffloadDeps::ConstructJobMultipleOutputs(Compilation &C,
+                                              const JobAction &JA,
+                                              const InputInfoList &Outputs,
+                                              const InputInfoList &Inputs,
+                                              const llvm::opt::ArgList &TCArgs,
+                                              const char *LinkingOutput) const {
+  constructJob(C, JA, Outputs, Inputs, TCArgs, LinkingOutput);
+}
+
 // Begin SPIRVTranslator
 
 void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,

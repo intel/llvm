@@ -74,6 +74,7 @@ public:
     OffloadBundlingJobClass,
     OffloadUnbundlingJobClass,
     OffloadWrapperJobClass,
+    OffloadDepsJobClass,
     SPIRVTranslatorJobClass,
     SPIRCheckJobClass,
     SYCLPostLinkJobClass,
@@ -645,6 +646,60 @@ public:
 
   static bool classof(const Action *A) {
     return A->getKind() == OffloadWrapperJobClass;
+  }
+};
+
+class OffloadDepsJobAction final : public JobAction {
+  void anchor() override;
+
+public:
+  /// Type that provides information about the actions that depend on this
+  /// offload deps action.
+  struct DependentActionInfo final {
+    /// The tool chain of the dependent action.
+    const ToolChain *DependentToolChain = nullptr;
+
+    /// The bound architecture of the dependent action.
+    StringRef DependentBoundArch;
+
+    /// The offload kind of the dependent action.
+    const OffloadKind DependentOffloadKind = OFK_None;
+
+    DependentActionInfo(const ToolChain *DependentToolChain,
+                        StringRef DependentBoundArch,
+                        const OffloadKind DependentOffloadKind)
+        : DependentToolChain(DependentToolChain),
+          DependentBoundArch(DependentBoundArch),
+          DependentOffloadKind(DependentOffloadKind) {}
+  };
+
+private:
+  /// The host offloading toolchain that should be used with the action.
+  const ToolChain *HostTC = nullptr;
+
+  /// Container that keeps information about each dependence of this deps
+  /// action.
+  SmallVector<DependentActionInfo, 6> DependentActionInfoArray;
+
+public:
+  OffloadDepsJobAction(const OffloadAction::HostDependence &HDep,
+                       types::ID Type);
+
+  /// Register information about a dependent action.
+  void registerDependentActionInfo(const ToolChain *TC, StringRef BoundArch,
+                                   OffloadKind Kind) {
+    DependentActionInfoArray.push_back({TC, BoundArch, Kind});
+  }
+
+  /// Return the information about all depending actions.
+  ArrayRef<DependentActionInfo> getDependentActionsInfo() const {
+    return DependentActionInfoArray;
+  }
+
+  const ToolChain *getHostTC() const { return HostTC; }
+
+  static bool classof(const Action *A) {
+    return A->getKind() == OffloadDepsJobClass;
   }
 };
 
