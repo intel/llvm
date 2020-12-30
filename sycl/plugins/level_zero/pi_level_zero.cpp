@@ -12,6 +12,7 @@
 /// \ingroup sycl_pi_level_zero
 
 #include "pi_level_zero.hpp"
+#include <CL/sycl/detail/spinlock.hpp>
 #include <algorithm>
 #include <cstdarg>
 #include <cstdio>
@@ -171,6 +172,17 @@ private:
 };
 
 } // anonymous namespace
+
+// Global variables used in PI_Level_Zero
+// Note we only create a simple pointer variables such that C++ RT won't
+// deallocate them automatically at the end of the main program.
+// The heap memory allocated for these global variables reclaimed only when
+// Sycl RT calls piTearDown().
+static std::vector<pi_platform> *PiPlatformsCache =
+    new std::vector<pi_platform>;
+static sycl::detail::SpinLock *PiPlatformsCacheMutex =
+    new sycl::detail::SpinLock;
+static bool PiPlatformCachePopulated = false;
 
 // TODO:: In the following 4 methods we may want to distinguish read access vs.
 // write (as it is OK for multiple threads to read the map without locking it).
@@ -821,16 +833,8 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   // 1. sycl::platform equality issue; we always return the same pi_platform.
   // 2. performance; we can save time by immediately return from cache.
   //
-  // Note: The memory for "PiPlatformsCache" and "PiPlatformsCacheMutex" is
-  // intentionally leaked because the application may call into the SYCL
-  // runtime from a global destructor, and such a call could eventually
-  // access these variables. Therefore, there is no safe time when
-  // "PiPlatformsCache" and "PiPlatformsCacheMutex" could be deleted.
-  static auto PiPlatformsCache = new std::vector<pi_platform>;
-  static auto PiPlatformsCacheMutex = new std::mutex;
-  static bool PiPlatformCachePopulated = false;
 
-  std::lock_guard<std::mutex> Lock(*PiPlatformsCacheMutex);
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiPlatformsCacheMutex};
   if (!PiPlatformCachePopulated) {
     const char *CommandListCacheSize =
         std::getenv("SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE");
@@ -5345,6 +5349,20 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 #define _PI_API(api)                                                           \
   (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);
 #include <CL/sycl/detail/pi.def>
+
+  return PI_SUCCESS;
+}
+
+// SYCL RT calls this api to notify the end of plugin lifetime.
+// It can include all the jobs to tear down resources before
+// the plugin is unloaded from memory.
+pi_result piTearDown(void *PluginParameter) {
+  // reclaim pi_platform objects here since we don't have piPlatformRelease.
+  for (pi_platform &Platform : *PiPlatformsCache) {
+    delete Platform;
+  }
+  delete PiPlatformsCache;
+  delete PiPlatformsCacheMutex;
 
   return PI_SUCCESS;
 }

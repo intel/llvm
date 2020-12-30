@@ -88,7 +88,14 @@ constructor and destructor.
 
 ## Plugins
 
-TBD
+Plugin lifetime is managed by utilizing piPluginInit() and piTearDown().
+GlobalHandler::shutdown() will tear down all registered globals before SYCL RT
+library is unloaded. It will invoke piTearDown() and unload() for each
+plugin. piTearDown() is going to perform any necessary tear-down process at the
+plugin PI level. These two APIs allow on-demand plugin lifetime management. SYCL
+RT can control the beginning and the end of the plugin. 
+
+![](images/plugin-lifetime.jpg)
 
 ## Low-level runtimes
 
