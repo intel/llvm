@@ -140,14 +140,26 @@ ninja check
    host);
  * **sycl_be** - SYCL backend to be used (opencl, level_zero, cuda);
  * **dump_ir** - if IR dumping is supported for compiler (True, False);
+ * **gpu-intel-dg1** - tells LIT infra that Intel GPU DG1 is present in the
+   system. It is developer / CI infra responsibility to make sure that the device
+   is available in the system. Tests requiring DG1 to run must use proper device selector to ensure that. Use SYCL_DEVICE_ALLOWLIST or
+   SYCL_DEVICE_FILTER to get proper configuration (see [EnvironmentVariables.md](https://github.com/intel/llvm/blob/sycl/sycl/doc/EnvironmentVariables.md));
  * **extra_environment** - comma-separated list of variables with values to be
    added to test environment. Can be also set by LIT_EXTRA_ENVIRONMENT variable
    in cmake.
 
 # LIT features which can be used to configure test execution:
  * **windows**, **linux** - host OS;
- * **cpu**, **gpu**, **host**, **acc** - target devices;
+ * **cpu**, **gpu**, **host**, **accelerator** - target devices;
  * **cuda**, **opencl**, **level_zero** - target backend;
  * **sycl-ls** - sycl-ls tool is available;
+ * **cl_options** - compiler uses CL command line options;
+ * **opencl_icd** - OpenCL ICD loader is availabl, the libarary is needed for
+   OpenCL interoperability tests;
+ * **aot_tool** - Ahead-of-time compilation tools are available, enables
+   corresponding tests;
+ * **level_zero_headers** - Level_Zero headers are available, the headers are
+   needed for Level_Zero interoperability tests;
+ * **gpu-intel-dg1** - Intel GPU DG1 is available for testing;
  * **dump_ir**: is set to true if compiler supports dumping IR. Can be also
    defined by setting DUMP_IR_SUPPORTED in cmake. Default values is false.
