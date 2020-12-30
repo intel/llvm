@@ -41,8 +41,8 @@
 ; CHECK-LLVM: %1 = load <4 x float>, <4 x float>* %lhs
 ; CHECK-LLVM: %2 = load [4 x <4 x float>], [4 x <4 x float>]* %rhs
 ; CHECK-LLVM: %3 = extractelement <4 x float> %1, i32 0
-; CHECK-LLVM: %.splatinsert = insertelement <4 x float> undef, float %3, i32 0
-; CHECK-LLVM: %.splat = shufflevector <4 x float> %.splatinsert, <4 x float> undef, <4 x i32> zeroinitializer
+; CHECK-LLVM: %.splatinsert = insertelement <4 x float> poison, float %3, i32 0
+; CHECK-LLVM: %.splat = shufflevector <4 x float> %.splatinsert, <4 x float> poison, <4 x i32> zeroinitializer
 ; CHECK-LLVM: %4 = extractvalue [4 x <4 x float>] %2, 0
 ; CHECK-LLVM: %5 = extractelement <4 x float> %4, i32 0
 ; CHECK-LLVM: %6 = insertelement <4 x float> undef, float %5, i32 0
@@ -58,8 +58,8 @@
 ; CHECK-LLVM: %16 = fmul <4 x float> %.splat, %15
 ; CHECK-LLVM: %17 = fadd <4 x float> zeroinitializer, %16
 ; CHECK-LLVM: %18 = extractelement <4 x float> %1, i32 1
-; CHECK-LLVM: %.splatinsert1 = insertelement <4 x float> undef, float %18, i32 0
-; CHECK-LLVM: %.splat2 = shufflevector <4 x float> %.splatinsert1, <4 x float> undef, <4 x i32> zeroinitializer
+; CHECK-LLVM: %.splatinsert1 = insertelement <4 x float> poison, float %18, i32 0
+; CHECK-LLVM: %.splat2 = shufflevector <4 x float> %.splatinsert1, <4 x float> poison, <4 x i32> zeroinitializer
 ; CHECK-LLVM: %19 = extractvalue [4 x <4 x float>] %2, 0
 ; CHECK-LLVM: %20 = extractelement <4 x float> %19, i32 1
 ; CHECK-LLVM: %21 = insertelement <4 x float> undef, float %20, i32 0
@@ -75,8 +75,8 @@
 ; CHECK-LLVM: %31 = fmul <4 x float> %.splat2, %30
 ; CHECK-LLVM: %32 = fadd <4 x float> %17, %31
 ; CHECK-LLVM: %33 = extractelement <4 x float> %1, i32 2
-; CHECK-LLVM: %.splatinsert3 = insertelement <4 x float> undef, float %33, i32 0
-; CHECK-LLVM: %.splat4 = shufflevector <4 x float> %.splatinsert3, <4 x float> undef, <4 x i32> zeroinitializer
+; CHECK-LLVM: %.splatinsert3 = insertelement <4 x float> poison, float %33, i32 0
+; CHECK-LLVM: %.splat4 = shufflevector <4 x float> %.splatinsert3, <4 x float> poison, <4 x i32> zeroinitializer
 ; CHECK-LLVM: %34 = extractvalue [4 x <4 x float>] %2, 0
 ; CHECK-LLVM: %35 = extractelement <4 x float> %34, i32 2
 ; CHECK-LLVM: %36 = insertelement <4 x float> undef, float %35, i32 0
@@ -92,8 +92,8 @@
 ; CHECK-LLVM: %46 = fmul <4 x float> %.splat4, %45
 ; CHECK-LLVM: %47 = fadd <4 x float> %32, %46
 ; CHECK-LLVM: %48 = extractelement <4 x float> %1, i32 3
-; CHECK-LLVM: %.splatinsert5 = insertelement <4 x float> undef, float %48, i32 0
-; CHECK-LLVM: %.splat6 = shufflevector <4 x float> %.splatinsert5, <4 x float> undef, <4 x i32> zeroinitializer
+; CHECK-LLVM: %.splatinsert5 = insertelement <4 x float> poison, float %48, i32 0
+; CHECK-LLVM: %.splat6 = shufflevector <4 x float> %.splatinsert5, <4 x float> poison, <4 x i32> zeroinitializer
 ; CHECK-LLVM: %49 = extractvalue [4 x <4 x float>] %2, 0
 ; CHECK-LLVM: %50 = extractelement <4 x float> %49, i32 3
 ; CHECK-LLVM: %51 = insertelement <4 x float> undef, float %50, i32 0
