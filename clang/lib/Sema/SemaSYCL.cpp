@@ -2721,7 +2721,7 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
       if (!Visited.insert(FD).second)
         continue; // We've already seen this Decl
 
-      // Check whether this call is to free functions (  sycl::this_item(),
+      // Check whether this call is to free functions (sycl::this_item(),
       // this_id, etc.).
       if (Util::isSyclFunction(FD, "this_id")) {
         Header.setCallsThisId(true);
@@ -4001,25 +4001,25 @@ void SYCLIntegrationHeader::addSpecConstant(StringRef IDName, QualType IDType) {
 
 void SYCLIntegrationHeader::setCallsThisId(bool B) {
   KernelDesc *K = getCurKernelDesc();
-  assert(K && "no kernels");
+  assert(K && "no kernel");
   K->FreeFunctionCalls.CallsThisId = B;
 }
 
 void SYCLIntegrationHeader::setCallsThisItem(bool B) {
   KernelDesc *K = getCurKernelDesc();
-  assert(K && "no kernels");
+  assert(K && "no kernel");
   K->FreeFunctionCalls.CallsThisItem = B;
 }
 
 void SYCLIntegrationHeader::setCallsThisNDItem(bool B) {
   KernelDesc *K = getCurKernelDesc();
-  assert(K && "no kernels");
+  assert(K && "no kernel");
   K->FreeFunctionCalls.CallsThisNDItem = B;
 }
 
 void SYCLIntegrationHeader::setCallsThisGroup(bool B) {
   KernelDesc *K = getCurKernelDesc();
-  assert(K && "no kernels");
+  assert(K && "no kernel");
   K->FreeFunctionCalls.CallsThisGroup = B;
 }
 

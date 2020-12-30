@@ -370,7 +370,7 @@ private:
     KernelParamDesc() = default;
   };
 
-  // there are four free function the kernel may call (this_id, this_item,
+  // there are four free functions the kernel may call (this_id, this_item,
   // this_nd_item, this_group)
   struct KernelCallsSYCLFreeFunction {
     bool CallsThisId;
