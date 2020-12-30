@@ -7674,6 +7674,10 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   if (InputType == types::TY_FPGA_AOCX || InputType == types::TY_FPGA_AOCR) {
     // Override type with AOCX/AOCR which will unbundle to a list containing
     // binaries with the appropriate file extension (.aocx/.aocr).
+    // TODO - representation of the output file from the unbundle for these
+    // types (aocx/aocr) are always list files.  We should represent this
+    // better in the output extension and type for improved understanding
+    // of file contents and debuggability.
     if (getToolChain().getTriple().getSubArch() ==
         llvm::Triple::SPIRSubArch_fpga)
       TypeArg = InputType == types::TY_FPGA_AOCX ? "aocx" : "aocr";
