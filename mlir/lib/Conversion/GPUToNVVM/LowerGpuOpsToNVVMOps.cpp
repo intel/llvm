@@ -148,7 +148,7 @@ void mlir::configureGpuToNVVMConversionLegality(ConversionTarget &target) {
   target.addIllegalDialect<gpu::GPUDialect>();
   target.addIllegalOp<LLVM::CosOp, LLVM::ExpOp, LLVM::FAbsOp, LLVM::FCeilOp,
                       LLVM::FFloorOp, LLVM::LogOp, LLVM::Log10Op, LLVM::Log2Op,
-                      LLVM::SinOp, LLVM::SqrtOp>();
+                      LLVM::PowOp, LLVM::SinOp, LLVM::SqrtOp>();
 
   // TODO: Remove once we support replacing non-root ops.
   target.addLegalOp<gpu::YieldOp, gpu::GPUModuleOp, gpu::ModuleEndOp>();
@@ -173,6 +173,10 @@ void mlir::populateGpuToNVVMConversionPatterns(
               GPUFuncOpLowering<0>>(converter);
   patterns.insert<OpToFuncCallLowering<AbsFOp>>(converter, "__nv_fabsf",
                                                 "__nv_fabs");
+  patterns.insert<OpToFuncCallLowering<AtanOp>>(converter, "__nv_atanf",
+                                                "__nv_atan");
+  patterns.insert<OpToFuncCallLowering<Atan2Op>>(converter, "__nv_atan2f",
+                                                 "__nv_atan2");
   patterns.insert<OpToFuncCallLowering<CeilFOp>>(converter, "__nv_ceilf",
                                                  "__nv_ceil");
   patterns.insert<OpToFuncCallLowering<CosOp>>(converter, "__nv_cosf",
@@ -187,6 +191,8 @@ void mlir::populateGpuToNVVMConversionPatterns(
                                                  "__nv_log10");
   patterns.insert<OpToFuncCallLowering<Log2Op>>(converter, "__nv_log2f",
                                                 "__nv_log2");
+  patterns.insert<OpToFuncCallLowering<PowFOp>>(converter, "__nv_powf",
+                                                "__nv_pow");
   patterns.insert<OpToFuncCallLowering<RsqrtOp>>(converter, "__nv_rsqrtf",
                                                  "__nv_rsqrt");
   patterns.insert<OpToFuncCallLowering<SinOp>>(converter, "__nv_sinf",

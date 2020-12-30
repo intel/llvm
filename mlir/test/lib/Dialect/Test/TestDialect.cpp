@@ -15,7 +15,6 @@
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Transforms/FoldUtils.h"
 #include "mlir/Transforms/InliningUtils.h"
-#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringSwitch.h"
 
 using namespace mlir;
@@ -181,77 +180,6 @@ void TestDialect::initialize() {
 Operation *TestDialect::materializeConstant(OpBuilder &builder, Attribute value,
                                             Type type, Location loc) {
   return builder.create<TestOpConstant>(loc, type, value);
-}
-
-static Type parseTestType(MLIRContext *ctxt, DialectAsmParser &parser,
-                          llvm::SetVector<Type> &stack) {
-  StringRef typeTag;
-  if (failed(parser.parseKeyword(&typeTag)))
-    return Type();
-
-  auto genType = generatedTypeParser(ctxt, parser, typeTag);
-  if (genType != Type())
-    return genType;
-
-  if (typeTag == "test_type")
-    return TestType::get(parser.getBuilder().getContext());
-
-  if (typeTag != "test_rec")
-    return Type();
-
-  StringRef name;
-  if (parser.parseLess() || parser.parseKeyword(&name))
-    return Type();
-  auto rec = TestRecursiveType::get(parser.getBuilder().getContext(), name);
-
-  // If this type already has been parsed above in the stack, expect just the
-  // name.
-  if (stack.contains(rec)) {
-    if (failed(parser.parseGreater()))
-      return Type();
-    return rec;
-  }
-
-  // Otherwise, parse the body and update the type.
-  if (failed(parser.parseComma()))
-    return Type();
-  stack.insert(rec);
-  Type subtype = parseTestType(ctxt, parser, stack);
-  stack.pop_back();
-  if (!subtype || failed(parser.parseGreater()) || failed(rec.setBody(subtype)))
-    return Type();
-
-  return rec;
-}
-
-Type TestDialect::parseType(DialectAsmParser &parser) const {
-  llvm::SetVector<Type> stack;
-  return parseTestType(getContext(), parser, stack);
-}
-
-static void printTestType(Type type, DialectAsmPrinter &printer,
-                          llvm::SetVector<Type> &stack) {
-  if (succeeded(generatedTypePrinter(type, printer)))
-    return;
-  if (type.isa<TestType>()) {
-    printer << "test_type";
-    return;
-  }
-
-  auto rec = type.cast<TestRecursiveType>();
-  printer << "test_rec<" << rec.getName();
-  if (!stack.contains(rec)) {
-    printer << ", ";
-    stack.insert(rec);
-    printTestType(rec.getBody(), printer, stack);
-    stack.pop_back();
-  }
-  printer << ">";
-}
-
-void TestDialect::printType(Type type, DialectAsmPrinter &printer) const {
-  llvm::SetVector<Type> stack;
-  printTestType(type, printer, stack);
 }
 
 LogicalResult TestDialect::verifyOperationAttribute(Operation *op,
@@ -486,8 +414,8 @@ static void printCustomDirectiveAttributes(OpAsmPrinter &printer, Operation *,
 }
 
 static void printCustomDirectiveAttrDict(OpAsmPrinter &printer, Operation *op,
-                                         MutableDictionaryAttr attrs) {
-  printer.printOptionalAttrDict(attrs.getAttrs());
+                                         DictionaryAttr attrs) {
+  printer.printOptionalAttrDict(attrs.getValue());
 }
 //===----------------------------------------------------------------------===//
 // Test IsolatedRegionOp - parse passthrough region arguments.
@@ -564,8 +492,28 @@ static void print(OpAsmPrinter &p, AffineScopeOp op) {
 // Test parser.
 //===----------------------------------------------------------------------===//
 
-static ParseResult parseWrappedKeywordOp(OpAsmParser &parser,
-                                         OperationState &result) {
+static ParseResult parseParseIntegerLiteralOp(OpAsmParser &parser,
+                                              OperationState &result) {
+  if (parser.parseOptionalColon())
+    return success();
+  uint64_t numResults;
+  if (parser.parseInteger(numResults))
+    return failure();
+
+  IndexType type = parser.getBuilder().getIndexType();
+  for (unsigned i = 0; i < numResults; ++i)
+    result.addTypes(type);
+  return success();
+}
+
+static void print(OpAsmPrinter &p, ParseIntegerLiteralOp op) {
+  p << ParseIntegerLiteralOp::getOperationName();
+  if (unsigned numResults = op->getNumResults())
+    p << " : " << numResults;
+}
+
+static ParseResult parseParseWrappedKeywordOp(OpAsmParser &parser,
+                                              OperationState &result) {
   StringRef keyword;
   if (parser.parseKeyword(&keyword))
     return failure();
@@ -573,8 +521,8 @@ static ParseResult parseWrappedKeywordOp(OpAsmParser &parser,
   return success();
 }
 
-static void print(OpAsmPrinter &p, WrappedKeywordOp op) {
-  p << WrappedKeywordOp::getOperationName() << " " << op.keyword();
+static void print(OpAsmPrinter &p, ParseWrappedKeywordOp op) {
+  p << ParseWrappedKeywordOp::getOperationName() << " " << op.keyword();
 }
 
 //===----------------------------------------------------------------------===//
@@ -674,7 +622,7 @@ LogicalResult TestOpWithVariadicResultsAndFolder::fold(
 OpFoldResult TestOpInPlaceFold::fold(ArrayRef<Attribute> operands) {
   assert(operands.size() == 1);
   if (operands.front()) {
-    setAttr("attr", operands.front());
+    (*this)->setAttr("attr", operands.front());
     return getResult();
   }
   return {};
@@ -705,7 +653,7 @@ LogicalResult OpWithShapedTypeInferTypeInterfaceOp::inferReturnTypeComponents(
   }
   int64_t dim =
       sval.hasRank() ? sval.getShape().front() : ShapedType::kDynamicSize;
-  auto type = IntegerType::get(17, context);
+  auto type = IntegerType::get(context, 17);
   inferredReturnShapes.push_back(ShapedTypeComponents({dim}, type));
   return success();
 }

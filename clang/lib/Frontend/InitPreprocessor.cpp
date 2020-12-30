@@ -476,10 +476,10 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
 
   if (LangOpts.SYCL) {
     // SYCL Version is set to a value when building SYCL applications
-    if (LangOpts.SYCLVersion == 2017) {
+    if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2017) {
       Builder.defineMacro("CL_SYCL_LANGUAGE_VERSION", "121");
       Builder.defineMacro("SYCL_LANGUAGE_VERSION", "201707");
-    } else if (LangOpts.SYCLVersion == 2020) {
+    } else if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2020) {
       Builder.defineMacro("SYCL_LANGUAGE_VERSION", "202001");
     }
 
@@ -576,7 +576,7 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     Builder.defineMacro("__cpp_aggregate_bases", "201603L");
     Builder.defineMacro("__cpp_structured_bindings", "201606L");
     Builder.defineMacro("__cpp_nontype_template_args",
-                        "201411L"); // (not latest)
+                        LangOpts.CPlusPlus20 ? "201911L" : "201411L");
     Builder.defineMacro("__cpp_fold_expressions", "201603L");
     Builder.defineMacro("__cpp_guaranteed_copy_elision", "201606L");
     Builder.defineMacro("__cpp_nontype_template_parameter_auto", "201606L");
@@ -764,12 +764,12 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   if (LangOpts.GNUCVersion && LangOpts.RTTI)
     Builder.defineMacro("__GXX_RTTI");
 
-  if (LangOpts.SjLjExceptions)
+  if (LangOpts.hasSjLjExceptions())
     Builder.defineMacro("__USING_SJLJ_EXCEPTIONS__");
-  else if (LangOpts.SEHExceptions)
+  else if (LangOpts.hasSEHExceptions())
     Builder.defineMacro("__SEH__");
-  else if (LangOpts.DWARFExceptions &&
-          (TI.getTriple().isThumb() || TI.getTriple().isARM()))
+  else if (LangOpts.hasDWARFExceptions() &&
+           (TI.getTriple().isThumb() || TI.getTriple().isARM()))
     Builder.defineMacro("__ARM_DWARF_EH__");
 
   if (LangOpts.Deprecated)

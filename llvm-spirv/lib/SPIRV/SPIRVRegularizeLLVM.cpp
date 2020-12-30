@@ -367,6 +367,10 @@ bool SPIRVRegularizeLLVM::regularize() {
           // OpIEqual instruction. The OpIEqual instruction returns true if the
           // original value equals to the comparator which matches with
           // semantics of cmpxchg.
+          // In case the original value was stored as is without extraction, we
+          // create a composite type manually from OpAtomicCompareExchange and
+          // OpIEqual instructions, and replace the original value usage in
+          // Store insruction with the new composite type.
           for (User *U : Cmpxchg->users()) {
             if (auto *Extract = dyn_cast<ExtractValueInst>(U)) {
               if (Extract->getIndices()[0] == 0) {
@@ -381,6 +385,14 @@ bool SPIRVRegularizeLLVM::regularize() {
               assert(Extract->user_empty());
               Extract->dropAllReferences();
               ToErase.push_back(Extract);
+            } else if (auto *Store = dyn_cast<StoreInst>(U)) {
+              auto *Cmp = new ICmpInst(Store, CmpInst::ICMP_EQ, Res, Comparator,
+                                       "cmpxchg.success");
+              auto *Agg = InsertValueInst::Create(
+                  UndefValue::get(Cmpxchg->getType()), Res, 0, "agg0", Store);
+              auto *AggStruct =
+                  InsertValueInst::Create(Agg, Cmp, 1, "agg1", Store);
+              Store->getValueOperand()->replaceAllUsesWith(AggStruct);
             }
           }
           if (Cmpxchg->user_empty())

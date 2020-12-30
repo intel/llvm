@@ -941,6 +941,11 @@ public:
   /// applies when shouldMaximizeVectorBandwidth returns true.
   unsigned getMinimumVF(unsigned ElemWidth) const;
 
+  /// \return The maximum vectorization factor for types of given element
+  /// bit width and opcode, or 0 if there is no maximum VF.
+  /// Currently only used by the SLP vectorizer.
+  unsigned getMaximumVF(unsigned ElemWidth, unsigned Opcode) const;
+
   /// \return True if it should be considered for address type promotion.
   /// \p AllowPromotionWithoutCommonHeader Set true if promoting \p I is
   /// profitable without finding other extensions fed by the same input.
@@ -1335,6 +1340,9 @@ public:
   /// to a stack reload.
   unsigned getGISelRematGlobalCost() const;
 
+  /// \returns True if the target supports scalable vectors.
+  bool supportsScalableVectors() const;
+
   /// \name Vector Predication Information
   /// @{
   /// Whether the target supports the %evl parameter of VP intrinsic efficiently
@@ -1498,6 +1506,7 @@ public:
   virtual unsigned getMinVectorRegisterBitWidth() = 0;
   virtual bool shouldMaximizeVectorBandwidth(bool OptSize) const = 0;
   virtual unsigned getMinimumVF(unsigned ElemWidth) const = 0;
+  virtual unsigned getMaximumVF(unsigned ElemWidth, unsigned Opcode) const = 0;
   virtual bool shouldConsiderAddressTypePromotion(
       const Instruction &I, bool &AllowPromotionWithoutCommonHeader) = 0;
   virtual unsigned getCacheLineSize() const = 0;
@@ -1628,6 +1637,7 @@ public:
                                                ReductionFlags) const = 0;
   virtual bool shouldExpandReduction(const IntrinsicInst *II) const = 0;
   virtual unsigned getGISelRematGlobalCost() const = 0;
+  virtual bool supportsScalableVectors() const = 0;
   virtual bool hasActiveVectorLength() const = 0;
   virtual int getInstructionLatency(const Instruction *I) = 0;
 };
@@ -1917,6 +1927,9 @@ public:
   unsigned getMinimumVF(unsigned ElemWidth) const override {
     return Impl.getMinimumVF(ElemWidth);
   }
+  unsigned getMaximumVF(unsigned ElemWidth, unsigned Opcode) const override {
+    return Impl.getMaximumVF(ElemWidth, Opcode);
+  }
   bool shouldConsiderAddressTypePromotion(
       const Instruction &I, bool &AllowPromotionWithoutCommonHeader) override {
     return Impl.shouldConsiderAddressTypePromotion(
@@ -2152,6 +2165,10 @@ public:
 
   unsigned getGISelRematGlobalCost() const override {
     return Impl.getGISelRematGlobalCost();
+  }
+
+  bool supportsScalableVectors() const override {
+    return Impl.supportsScalableVectors();
   }
 
   bool hasActiveVectorLength() const override {

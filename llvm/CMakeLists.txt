@@ -378,13 +378,13 @@ option(LLVM_ENABLE_Z3_SOLVER
 
 if (LLVM_ENABLE_Z3_SOLVER)
   find_package(Z3 4.7.1)
-  
+
   if (LLVM_Z3_INSTALL_DIR)
     if (NOT Z3_FOUND)
       message(FATAL_ERROR "Z3 >= 4.7.1 has not been found in LLVM_Z3_INSTALL_DIR: ${LLVM_Z3_INSTALL_DIR}.")
     endif()
   endif()
-  
+
   if (NOT Z3_FOUND)
     message(FATAL_ERROR "LLVM_ENABLE_Z3_SOLVER cannot be enabled when Z3 is not available.")
   endif()
@@ -708,20 +708,7 @@ set(ENABLE_EXPERIMENTAL_NEW_PASS_MANAGER FALSE CACHE BOOL
 
 include(HandleLLVMOptions)
 
-find_package(Python3 COMPONENTS Interpreter)
-if(NOT Python3_Interpreter_FOUND)
-  message(WARNING "Python3 not found, using python2 as a fallback")
-  find_package(Python2 COMPONENTS Interpreter REQUIRED)
-  if(Python2_VERSION VERSION_LESS 2.7)
-    message(SEND_ERROR "Python 2.7 or newer is required")
-  endif()
-
-  # Treat python2 as python3
-  add_executable(Python3::Interpreter IMPORTED)
-  set_target_properties(Python3::Interpreter PROPERTIES
-    IMPORTED_LOCATION ${Python2_EXECUTABLE})
-  set(Python3_EXECUTABLE ${Python2_EXECUTABLE})
-endif()
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 ######
 

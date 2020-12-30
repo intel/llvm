@@ -1433,6 +1433,8 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::NoAlias;
   case bitc::ATTR_KIND_NO_BUILTIN:
     return Attribute::NoBuiltin;
+  case bitc::ATTR_KIND_NO_CALLBACK:
+    return Attribute::NoCallback;
   case bitc::ATTR_KIND_NO_CAPTURE:
     return Attribute::NoCapture;
   case bitc::ATTR_KIND_NO_DUPLICATE:
@@ -1537,6 +1539,8 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::ByRef;
   case bitc::ATTR_KIND_MUSTPROGRESS:
     return Attribute::MustProgress;
+  case bitc::ATTR_KIND_HOT:
+    return Attribute::Hot;
   }
 }
 

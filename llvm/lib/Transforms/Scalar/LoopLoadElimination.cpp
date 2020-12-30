@@ -27,7 +27,6 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/BlockFrequencyInfo.h"
 #include "llvm/Analysis/GlobalsModRef.h"
@@ -632,6 +631,9 @@ eliminateLoadsAcrossLoops(Function &F, LoopInfo &LI, DominatorTree &DT,
 
   // Now walk the identified inner loops.
   for (Loop *L : Worklist) {
+    // Match historical behavior
+    if (!L->isRotatedForm() || !L->getExitingBlock())
+      continue;
     // The actual work is performed by LoadEliminationForLoop.
     LoadEliminationForLoop LEL(L, &LI, GetLAI(*L), &DT, BFI, PSI);
     Changed |= LEL.processLoop();

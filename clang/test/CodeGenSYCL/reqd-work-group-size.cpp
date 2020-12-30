@@ -45,6 +45,9 @@ int main() {
     h.single_task<class kernel_name5>([]() {
       func<8, 4, 4>();
     });
+
+    h.single_task<class kernel_name6>(
+        []() [[cl::reqd_work_group_size(1, 8, 2)]]{});
   });
   return 0;
 }
@@ -54,8 +57,10 @@ int main() {
 // CHECK: define spir_kernel void @{{.*}}kernel_name3"() #0 {{.*}} !reqd_work_group_size ![[WGSIZE88:[0-9]+]]
 // CHECK: define spir_kernel void @{{.*}}kernel_name4"() #0 {{.*}} !reqd_work_group_size ![[WGSIZE22:[0-9]+]]
 // CHECK: define spir_kernel void @{{.*}}kernel_name5"() #0 {{.*}} !reqd_work_group_size ![[WGSIZE44:[0-9]+]]
+// CHECK: define spir_kernel void @{{.*}}kernel_name6"() #0 {{.*}} !reqd_work_group_size ![[WGSIZE2:[0-9]+]]
 // CHECK: ![[WGSIZE32]] = !{i32 16, i32 16, i32 32}
 // CHECK: ![[WGSIZE8]] = !{i32 1, i32 1, i32 8}
 // CHECK: ![[WGSIZE88]] = !{i32 8, i32 8, i32 8}
 // CHECK: ![[WGSIZE22]] = !{i32 2, i32 2, i32 2}
 // CHECK: ![[WGSIZE44]] = !{i32 4, i32 4, i32 8}
+// CHECK: ![[WGSIZE2]] = !{i32 2, i32 8, i32 1}

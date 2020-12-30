@@ -12,6 +12,8 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/plugin_printers.hpp>
+#include <memory>
+#include <mutex>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting traces using the trace framework
@@ -32,8 +34,9 @@ class plugin {
 public:
   plugin() = delete;
 
-  plugin(RT::PiPlugin Plugin, backend UseBackend)
-      : MPlugin(Plugin), MBackend(UseBackend) {}
+  plugin(RT::PiPlugin Plugin, backend UseBackend, void *LibraryHandle)
+      : MPlugin(Plugin), MBackend(UseBackend), MLibraryHandle(LibraryHandle),
+        TracingMutex(std::make_shared<std::mutex>()) {}
 
   plugin &operator=(const plugin &) = default;
   plugin(const plugin &) = default;
@@ -73,17 +76,19 @@ public:
     std::string PIFnName = PiCallInfo.getFuncName();
     uint64_t CorrelationID = pi::emitFunctionBeginTrace(PIFnName.c_str());
 #endif
+    RT::PiResult R;
     if (pi::trace(pi::TraceLevel::PI_TRACE_CALLS)) {
+      std::lock_guard<std::mutex> Guard(*TracingMutex);
       std::string FnName = PiCallInfo.getFuncName();
       std::cout << "---> " << FnName << "(" << std::endl;
       RT::printArgs(Args...);
-    }
-    RT::PiResult R = PiCallInfo.getFuncPtr(MPlugin)(Args...);
-    if (pi::trace(pi::TraceLevel::PI_TRACE_CALLS)) {
+      R = PiCallInfo.getFuncPtr(MPlugin)(Args...);
       std::cout << ") ---> ";
       RT::printArgs(R);
       RT::printOuts(Args...);
       std::cout << std::endl;
+    } else {
+      R = PiCallInfo.getFuncPtr(MPlugin)(Args...);
     }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     // Close the function begin with a call to function end
@@ -102,10 +107,15 @@ public:
   }
 
   backend getBackend(void) const { return MBackend; }
+  void *getLibraryHandle() const { return MLibraryHandle; }
+  void *getLibraryHandle() { return MLibraryHandle; }
+  int unload() { return RT::unloadPlugin(MLibraryHandle); }
 
 private:
   RT::PiPlugin MPlugin;
   backend MBackend;
+  void *MLibraryHandle; // the handle returned from dlopen
+  std::shared_ptr<std::mutex> TracingMutex;
 }; // class plugin
 } // namespace detail
 } // namespace sycl

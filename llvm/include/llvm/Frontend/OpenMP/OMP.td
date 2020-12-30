@@ -446,7 +446,7 @@ def OMP_TaskGroup : Directive<"taskgroup"> {
   ];
 }
 def OMP_Flush : Directive<"flush"> {
-  let allowedClauses = [
+  let allowedOnceClauses = [
     VersionedClause<OMPC_AcqRel, 50>,
     VersionedClause<OMPC_Acquire, 50>,
     VersionedClause<OMPC_Release, 50>,
@@ -468,6 +468,8 @@ def OMP_Atomic : Directive<"atomic"> {
     VersionedClause<OMPC_Write>,
     VersionedClause<OMPC_Update>,
     VersionedClause<OMPC_Capture>,
+  ];
+  let allowedOnceClauses = [
     VersionedClause<OMPC_SeqCst>,
     VersionedClause<OMPC_AcqRel, 50>,
     VersionedClause<OMPC_Acquire, 50>,
@@ -1591,6 +1593,9 @@ def OMP_Scan : Directive<"scan"> {
     VersionedClause<OMPC_Exclusive, 50>
   ];
 }
+def OMP_Assumes : Directive<"assumes"> {}
+def OMP_BeginAssumes : Directive<"begin assumes"> {}
+def OMP_EndAssumes : Directive<"end assumes"> {}
 def OMP_BeginDeclareVariant : Directive<"begin declare variant"> {}
 def OMP_EndDeclareVariant : Directive<"end declare variant"> {}
 def OMP_ParallelWorkshare : Directive<"parallel workshare"> {

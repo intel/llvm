@@ -89,7 +89,8 @@ python %DPCPP_HOME%\llvm\buildbot\configure.py
 python %DPCPP_HOME%\llvm\buildbot\compile.py
 ```
 
-You can use the following flags with `configure.py`:
+You can use the following flags with `configure.py` (full list of available
+flags can be found by launching the script with `--help`):
 
 * `--system-ocl` -> Don't download OpenCL headers and library via CMake but use the system ones
 * `--no-werror` -> Don't treat warnings as errors when compiling llvm
@@ -98,6 +99,13 @@ You can use the following flags with `configure.py`:
 * `-t` -> Build type (debug or release)
 * `-o` -> Path to build directory
 * `--cmake-gen` -> Set build system type (e.g. `--cmake-gen "Unix Makefiles"`)
+
+**Please note** that no data about flags is being shared between `configure.py` and
+`compile.py` scripts, which means that if you configured your build to be
+placed in non-default directory using `-o` flag, you must also specify this flag
+and the same path in `compile.py` options. This allows you, for example, to
+configure several different builds and then build just one of them which is
+needed at the moment.
 
 ### Build DPC++ toolchain with libc++ library
 

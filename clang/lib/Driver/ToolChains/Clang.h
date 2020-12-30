@@ -169,6 +169,29 @@ public:
                     const char *LinkingOutput) const override;
 };
 
+/// Offload deps tool.
+class LLVM_LIBRARY_VISIBILITY OffloadDeps final : public Tool {
+  void constructJob(Compilation &C, const JobAction &JA,
+                    ArrayRef<InputInfo> Outputs, ArrayRef<InputInfo> Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const;
+
+public:
+  OffloadDeps(const ToolChain &TC)
+      : Tool("offload deps", "clang-offload-deps", TC) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+  void ConstructJobMultipleOutputs(Compilation &C, const JobAction &JA,
+                                   const InputInfoList &Outputs,
+                                   const InputInfoList &Inputs,
+                                   const llvm::opt::ArgList &TCArgs,
+                                   const char *LinkingOutput) const override;
+};
+
 /// SPIR-V translator tool.
 class LLVM_LIBRARY_VISIBILITY SPIRVTranslator final : public Tool {
 public:

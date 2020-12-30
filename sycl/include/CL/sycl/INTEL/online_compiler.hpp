@@ -8,11 +8,11 @@
 
 #pragma once
 
-#include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/defines_elementary.hpp> // for __SYCL_INLINE_NAMESPACE
+#include <CL/sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <CL/sycl/device.hpp>
 
-#include <memory>
+#include <string>
 #include <vector>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -59,7 +59,9 @@ private:
 
 /// Represents an error happend during online compilation.
 class online_compile_error : public sycl::exception {
-  // TBD
+public:
+  online_compile_error() = default;
+  online_compile_error(const string_class &Msg) : sycl::exception(Msg) {}
 };
 
 /// Designates a source language for the online compiler.
@@ -70,25 +72,32 @@ enum class source_language { opencl_c, cm };
 template <source_language Lang> class online_compiler {
 public:
   /// Constructs online compiler which can target any device and produces
-  /// given compiled code format. Produces device code is 64-bit.
+  /// given compiled code format. Produces 64-bit device code.
   /// The created compiler is "optimistic" - it assumes all applicable SYCL
   /// device capabilities are supported by the target device(s).
   online_compiler(compiled_code_format fmt = compiled_code_format::spir_v)
       : OutputFormat(fmt), OutputFormatVersion({0, 0}),
-        DeviceArch(device_arch::any), Is64Bit(true), DeviceStepping("") {}
+        DeviceType(sycl::info::device_type::all), DeviceArch(device_arch::any),
+        Is64Bit(true), DeviceStepping("") {}
 
   /// Constructs online compiler which targets given architecture and produces
-  /// given compiled code format. Produces device code is 64-bit.
+  /// given compiled code format. Produces 64-bit device code.
   /// Throws online_compile_error if values of constructor arguments are
   /// contradictory or not supported - e.g. if the source language is not
   /// supported for given device type.
   online_compiler(sycl::info::device_type dev_type, device_arch arch,
                   compiled_code_format fmt = compiled_code_format::spir_v)
-      : OutputFormat(fmt), OutputFormatVersion({0, 0}), DeviceArch(arch),
-        Is64Bit(true), DeviceStepping("") {}
+      : OutputFormat(fmt), OutputFormatVersion({0, 0}), DeviceType(dev_type),
+        DeviceArch(arch), Is64Bit(true), DeviceStepping("") {}
 
   /// Constructs online compiler for the target specified by given SYCL device.
-  online_compiler(const sycl::device &dev);
+  // TODO: the initial version generates the generic code (SKL now), need
+  // to do additional device::info calls to determine the device by it's
+  // features.
+  online_compiler(const sycl::device &dev)
+      : OutputFormat(compiled_code_format::spir_v), OutputFormatVersion({0, 0}),
+        DeviceType(sycl::info::device_type::all), DeviceArch(device_arch::any),
+        Is64Bit(true), DeviceStepping("") {}
 
   /// Compiles given in-memory \c Lang source to a binary blob. Blob format,
   /// other parameters are set in the constructor by the compilation target
@@ -100,31 +109,50 @@ public:
   std::vector<byte> compile(const std::string &src, const Tys &... args);
 
   /// Sets the compiled code format of the compilation target and returns *this.
-  online_compiler<Lang> &setOutputFormat(compiled_code_format fmt);
+  online_compiler<Lang> &setOutputFormat(compiled_code_format fmt) {
+    OutputFormat = fmt;
+    return *this;
+  }
 
   /// Sets the compiled code format version of the compilation target and
   /// returns *this.
-  online_compiler<Lang> &setOutputFormatVersion(int major, int minor);
+  online_compiler<Lang> &setOutputFormatVersion(int major, int minor) {
+    OutputFormatVersion = {major, minor};
+    return *this;
+  }
 
   /// Sets the device type of the compilation target and returns *this.
-  online_compiler<Lang> &setTargetDeviceType(sycl::info::device_type type);
+  online_compiler<Lang> &setTargetDeviceType(sycl::info::device_type type) {
+    DeviceType = type;
+    return *this;
+  }
 
   /// Sets the device architecture of the compilation target and returns *this.
-  online_compiler<Lang> &setTargetDeviceArch(device_arch arch);
+  online_compiler<Lang> &setTargetDeviceArch(device_arch arch) {
+    DeviceArch = arch;
+    return *this;
+  }
 
   /// Makes the compilation target 32-bit and returns *this.
-  online_compiler<Lang> &set32bitTarget();
+  online_compiler<Lang> &set32bitTarget() {
+    Is64Bit = false;
+    return *this;
+  };
 
   /// Makes the compilation target 64-bit and returns *this.
-  online_compiler<Lang> &set64bitTarget();
+  online_compiler<Lang> &set64bitTarget() {
+    Is64Bit = true;
+    return *this;
+  };
 
   /// Sets implementation-defined target device stepping of the compilation
   /// target and returns *this.
-  online_compiler<Lang> &setTargetDeviceStepping(const std::string &id);
+  online_compiler<Lang> &setTargetDeviceStepping(const std::string &id) {
+    DeviceStepping = id;
+    return *this;
+  }
 
 private:
-  // Compilation target specification fields: {
-
   /// Compiled code format.
   compiled_code_format OutputFormat;
 
@@ -142,51 +170,48 @@ private:
 
   /// Target device stepping (implementation defined)
   std::string DeviceStepping;
-  // }
+
+  /// Handles to helper functions used by the implementation.
+  void *CompileToSPIRVHandle = nullptr;
+  void *FreeSPIRVOutputsHandle = nullptr;
 };
 
 // Specializations of the online_compiler class and 'compile' function for
 // particular languages and parameter types.
 
-/// Compiles given OpenCL source. May throw \c online_compile_error.
-/// @param src - contents of the source
+/// Compiles the given OpenCL source. May throw \c online_compile_error.
+/// @param src - contents of the source.
+/// @param options - compilation options (implementation defined); standard
+///   OpenCL JIT compiler options must be supported.
+template <>
+template <>
+__SYCL_EXPORT std::vector<byte>
+online_compiler<source_language::opencl_c>::compile(
+    const std::string &src, const std::vector<std::string> &options);
+
+/// Compiles the given OpenCL source. May throw \c online_compile_error.
+/// @param src - contents of the source.
 template <>
 template <>
 std::vector<byte>
 online_compiler<source_language::opencl_c>::compile(const std::string &src) {
-  // real implementation will call some non-templated impl function here
-  return std::vector<byte>{};
+  return compile(src, std::vector<std::string>{});
 }
 
-/// Compiles given OpenCL source. May throw \c online_compile_error.
-/// @param src - contents of the source
-/// @param options - compilation options (implementation defined); standard
-///   OpenCL JIT compiler options must be supported
+/// Compiles the given CM source \p src.
+/// @param src - contents of the source.
+/// @param options - compilation options (implementation defined).
 template <>
 template <>
-std::vector<byte> online_compiler<source_language::opencl_c>::compile(
-    const std::string &src, const std::vector<std::string> &options) {
-  // real implementation will call some non-templated impl function here
-  return std::vector<byte>{};
-}
+__SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
+    const std::string &src, const std::vector<std::string> &options);
 
-/// Compiles given CM source.
+/// Compiles the given CM source \p src.
 template <>
 template <>
 std::vector<byte>
 online_compiler<source_language::cm>::compile(const std::string &src) {
-  // real implementation will call some non-templated impl function here
-  return std::vector<byte>{};
-}
-
-/// Compiles given CM source.
-/// @param options - compilation options (implementation defined)
-template <>
-template <>
-std::vector<byte> online_compiler<source_language::cm>::compile(
-    const std::string &src, const std::vector<std::string> &options) {
-  // real implementation will call some non-templated impl function here
-  return std::vector<byte>{};
+  return compile(src, std::vector<std::string>{});
 }
 
 } // namespace INTEL
