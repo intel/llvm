@@ -7672,10 +7672,15 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   bool IsFPGADepLibUnbundle = JA.getType() == types::TY_FPGA_Dependencies_List;
 
   if (InputType == types::TY_FPGA_AOCX || InputType == types::TY_FPGA_AOCR) {
-    // Override type with archive object
+    // Override type with AOCX/AOCR which will unbundle to a list containing
+    // binaries with the appropriate file extension (.aocx/.aocr).
+    // TODO - representation of the output file from the unbundle for these
+    // types (aocx/aocr) are always list files.  We should represent this
+    // better in the output extension and type for improved understanding
+    // of file contents and debuggability.
     if (getToolChain().getTriple().getSubArch() ==
         llvm::Triple::SPIRSubArch_fpga)
-      TypeArg = "ao";
+      TypeArg = InputType == types::TY_FPGA_AOCX ? "aocx" : "aocr";
     else
       TypeArg = "aoo";
   }
@@ -7884,7 +7889,8 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     const InputInfo &I = Inputs[0];
     assert(I.isFilename() && "Invalid input.");
 
-    if (I.getType() == types::TY_Tempfiletable)
+    if (I.getType() == types::TY_Tempfiletable ||
+        I.getType() == types::TY_Tempfilelist)
       // wrapper actual input files are passed via the batch job file table:
       WrapperArgs.push_back(C.getArgs().MakeArgString("-batch"));
     WrapperArgs.push_back(C.getArgs().MakeArgString(I.getFilename()));
@@ -8296,6 +8302,15 @@ void FileTableTform::ConstructJob(Compilation &C, const JobAction &JA,
     case FileTableTformJobAction::Tform::REPLACE: {
       assert(Tf.TheArgs.size() == 2 && "from/to column names expected");
       SmallString<128> Arg("-replace=");
+      Arg += Tf.TheArgs[0];
+      Arg += ",";
+      Arg += Tf.TheArgs[1];
+      addArgs(CmdArgs, TCArgs, {Arg});
+      break;
+    }
+    case FileTableTformJobAction::Tform::RENAME: {
+      assert(Tf.TheArgs.size() == 2 && "from/to names expected");
+      SmallString<128> Arg("-rename=");
       Arg += Tf.TheArgs[0];
       Arg += ",";
       Arg += Tf.TheArgs[1];
