@@ -6297,6 +6297,7 @@ static void processSYCLKernel(Sema &S, FunctionDecl *FD, MangleContext &MC) {
     const CXXRecordDecl *CRD = (KernelParamTy->isReferenceType()
                                     ? KernelParamTy->getPointeeCXXRecordDecl()
                                     : KernelParamTy->getAsCXXRecordDecl());
+    assert(CRD && "invalid kernel caller");
     for (auto *Method : CRD->methods())
       if (Method->getOverloadedOperator() == OO_Call &&
           !Method->hasAttr<AlwaysInlineAttr>())
