@@ -68,6 +68,7 @@ struct _pi_object {
 
 struct _pi_platform {
   _pi_platform(ze_driver_handle_t Driver) : ZeDriver{Driver} {}
+  ~_pi_platform();
 
   // Level Zero lacks the notion of a platform, but there is a driver, which is
   // a pretty good fit to keep here.
@@ -142,6 +143,7 @@ struct _pi_device : _pi_object {
     // NOTE: one must additionally call initialize() to complete
     // PI device creation.
   }
+  ~_pi_device();
 
   // Keep the ordinal of a "compute" commands group, where we send all
   // commands currently.

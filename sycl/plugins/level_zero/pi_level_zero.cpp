@@ -406,6 +406,14 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *CallStr,
     return mapError(Result);
 #define ZE_CALL_NOCHECK(Call) ZeCall().doCall(Call, #Call, false)
 
+_pi_device::~_pi_device() {
+  for (ze_command_list_handle_t &ZeCommandList : ZeCommandListCache) {
+    if (ZeCommandList)
+      zeCommandListDestroy(ZeCommandList);
+  }
+  ZeCommandListCache.clear();
+}
+
 pi_result _pi_device::initialize() {
   uint32_t numQueueGroups = 0;
   ZE_CALL(zeDeviceGetCommandQueueGroupProperties(ZeDevice, &numQueueGroups,
@@ -1011,6 +1019,8 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
 
   return PI_INVALID_VALUE;
 }
+
+_pi_platform::~_pi_platform() { PiDevicesCache.clear(); }
 
 // Get the cahched PI device created for the L0 device handle.
 // Return NULL if no such PI device found.
