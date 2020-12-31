@@ -296,10 +296,9 @@ detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
     // Round toward negative infinity.
   case rounding_mode::rtn:
     return std::floor(Value);
-  default:
-    assert(!"Unsupported rounding mode!");
-    return static_cast<R>(Value);
   };
+  assert(false && "Unsupported rounding mode!");
+  return static_cast<R>(Value);
 }
 #else
 

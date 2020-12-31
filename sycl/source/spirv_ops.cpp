@@ -18,11 +18,17 @@
 __SYCL_EXPORT void __spirv_GroupWaitEvents(__spv::Scope Execution,
                                            uint32_t NumEvents,
                                            __ocl_event_t *WaitEvents) noexcept {
+  (void)Execution;
+  (void)NumEvents;
+  (void)WaitEvents;
 }
 
 __SYCL_EXPORT void __spirv_ControlBarrier(__spv::Scope Execution,
                                           __spv::Scope Memory,
                                           uint32_t Semantics) noexcept {
+  (void)Execution;
+  (void)Memory;
+  (void)Semantics;
   std::cerr << "Barrier is not supported on the host device yet.\n";
   abort();
 }
@@ -33,6 +39,8 @@ __SYCL_EXPORT void __spirv_MemoryBarrier(__spv::Scope Memory,
   //    separation to global and local there.
   // 2. The 'Semantics' parameter is ignored because there is no need
   //    to distinguish the classes of memory (workgroup/cross-workgroup/etc).
+  (void)Memory;
+  (void)Semantics;
   atomic_thread_fence(std::memory_order_seq_cst);
 }
 
