@@ -17,12 +17,6 @@ if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type (default Release)" FORCE)
 endif()
 
-foreach(flag_var
-    CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
-    CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
-string(REGEX REPLACE "/MT" "/MD" ${flag_var} "${${flag_var}}")
-endforeach()
-
 if(MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
 endif()
@@ -34,6 +28,9 @@ set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 include_directories(${CMAKE_SOURCE_DIR}/include ${XPTI_DIR}/include)
 add_subdirectory(src)
 # TODO enable samples and tests back once build problems are resolved.
+# Currently builds for unit tests and samples fail mostly with dllimport/dllexport
+# mismatch problems:
+# syclpi_collector.cpp(32): error C2491: 'xptiTraceInit': definition of dllimport function not allowed 
 if (0)
 add_subdirectory(unit_test)
 add_subdirectory(samples/basic_collector)
