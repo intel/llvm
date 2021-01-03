@@ -216,6 +216,7 @@ static bool queryCUDA(cl_device_type deviceType, cl_uint &deviceCount,
     return true;
   }
 #else
+  (void)deviceType;
   msg = "ERROR: CUDA not supported";
   deviceCount = 0u;
 
