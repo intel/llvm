@@ -179,7 +179,7 @@ private:
   static constexpr ESIMDIntrinDesc::ArgRule a(int16_t N) {
     return ESIMDIntrinDesc::ArgRule{
         ESIMDIntrinDesc::SRC_CALL_ARG,
-        {{N, ESIMDIntrinDesc::GenXArgConversion::NONE}}};
+          {{N, ESIMDIntrinDesc::GenXArgConversion::NONE}}};
   }
 
   static constexpr ESIMDIntrinDesc::ArgRule ai1(int16_t N) {
@@ -191,7 +191,7 @@ private:
   static constexpr ESIMDIntrinDesc::ArgRule aSI(int16_t N) {
     return ESIMDIntrinDesc::ArgRule{
         ESIMDIntrinDesc::SRC_CALL_ARG,
-        {{N, ESIMDIntrinDesc::GenXArgConversion::TO_SI}}};
+          {{N, ESIMDIntrinDesc::GenXArgConversion::TO_SI}}};
   }
 
   static constexpr ESIMDIntrinDesc::ArgRule c16(int16_t N) {
@@ -207,7 +207,7 @@ private:
   }
 
   static constexpr ESIMDIntrinDesc::NameRule bo(int16_t N) {
-    return ESIMDIntrinDesc::NameRule{ESIMDIntrinDesc::BIN_OP, {N}};
+    return ESIMDIntrinDesc::NameRule{ESIMDIntrinDesc::BIN_OP,{N}};
   }
 
   static constexpr ESIMDIntrinDesc::NameRule nk(int16_t N) {
