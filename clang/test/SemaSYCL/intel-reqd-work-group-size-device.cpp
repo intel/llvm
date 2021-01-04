@@ -40,8 +40,14 @@ public:
 
 class Functor33 {
 public:
-  // expected-warning@+1{{the resulting value of the 'reqd_work_group_size' attribute second parameter is always non-negative after implicit conversion}}
+  // expected-warning@+1{{implicit conversion changes signedness: 'int' to 'unsigned int'}}
   [[intel::reqd_work_group_size(32, -4)]] void operator()() const {}
+};
+
+class Functor30 {
+public:
+  // expected-warning@+1 2{{implicit conversion changes signedness: 'int' to 'unsigned int'}}
+  [[intel::reqd_work_group_size(30, -30, -30)]] void operator()() const {}
 };
 
 class Functor16 {
@@ -95,30 +101,33 @@ int main() {
     Functor33 f33;
     h.single_task<class kernel_name5>(f33);
 
-    h.single_task<class kernel_name6>([]() [[intel::reqd_work_group_size(32, 32, 32)]] {
+    Functor30 f30;
+    h.single_task<class kernel_name6>(f30);
+
+    h.single_task<class kernel_name7>([]() [[intel::reqd_work_group_size(32, 32, 32)]] {
       f32x32x32();
     });
 #ifdef TRIGGER_ERROR
     Functor8 f8;
-    h.single_task<class kernel_name7>(f8);
+    h.single_task<class kernel_name8>(f8);
 
-    h.single_task<class kernel_name8>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
+    h.single_task<class kernel_name9>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
       f4x1x1();
       f32x1x1();
     });
 
-    h.single_task<class kernel_name9>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
+    h.single_task<class kernel_name10>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
       f16x1x1();
       f16x16x1();
     });
 
-    h.single_task<class kernel_name10>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
+    h.single_task<class kernel_name11>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
       f32x32x32();
       f32x32x1();
     });
 
     // expected-error@+1 {{expected variable name or 'this' in lambda capture list}}
-    h.single_task<class kernel_name11>([[intel::reqd_work_group_size(32, 32, 32)]][]() {
+    h.single_task<class kernel_name12>([[intel::reqd_work_group_size(32, 32, 32)]][]() {
       f32x32x32();
     });
 
@@ -154,6 +163,13 @@ int main() {
 // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
 // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name6
+// CHECK: ReqdWorkGroupSizeAttr {{.*}}
+// CHECK-NEXT:  IntegerLiteral{{.*}}30{{$}}
+// CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
+// CHECK-NEXT:  IntegerLiteral{{.*}}30{{$}}
+// CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
+// CHECK-NEXT:  IntegerLiteral{{.*}}30{{$}}
+// CHECK: FunctionDecl {{.*}} {{.*}}kernel_name7
 // CHECK: ReqdWorkGroupSizeAttr {{.*}}
 // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
 // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
