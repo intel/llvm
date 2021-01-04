@@ -264,6 +264,7 @@ __CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, double, -DBL_MAX)
         result = OP(sg_x, scratch[sg_id - 1]);                                 \
       }                                                                        \
     }                                                                          \
+    __spirv_ControlBarrier(Workgroup, 0, 0);                                   \
     return result;                                                             \
   }
 
