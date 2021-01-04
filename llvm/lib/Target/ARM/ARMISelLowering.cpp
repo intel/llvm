@@ -10886,7 +10886,7 @@ ARMTargetLowering::EmitLowered__chkstk(MachineInstr &MI,
 
     BuildMI(*MBB, MI, DL, TII.get(ARM::t2MOVi32imm), Reg)
       .addExternalSymbol("__chkstk");
-    BuildMI(*MBB, MI, DL, TII.get(ARM::tBLXr))
+    BuildMI(*MBB, MI, DL, TII.get(gettBLXrOpcode(*MBB->getParent())))
         .add(predOps(ARMCC::AL))
         .addReg(Reg, RegState::Kill)
         .addReg(ARM::R4, RegState::Implicit | RegState::Kill)
@@ -13846,6 +13846,16 @@ PerformPREDICATE_CASTCombine(SDNode *N, TargetLowering::DAGCombinerInfo &DCI) {
     if (Op->getOperand(0).getValueType() == VT)
       return Op->getOperand(0);
     return DCI.DAG.getNode(ARMISD::PREDICATE_CAST, dl, VT, Op->getOperand(0));
+  }
+
+  // Turn pred_cast(xor x, -1) into xor(pred_cast x, -1), in order to produce
+  // more VPNOT which might get folded as else predicates.
+  if (Op.getValueType() == MVT::i32 && isBitwiseNot(Op)) {
+    SDValue X =
+        DCI.DAG.getNode(ARMISD::PREDICATE_CAST, dl, VT, Op->getOperand(0));
+    SDValue C = DCI.DAG.getNode(ARMISD::PREDICATE_CAST, dl, VT,
+                                DCI.DAG.getConstant(65535, dl, MVT::i32));
+    return DCI.DAG.getNode(ISD::XOR, dl, VT, X, C);
   }
 
   // Only the bottom 16 bits of the source register are used.

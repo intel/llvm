@@ -635,6 +635,11 @@ unsigned TargetTransformInfo::getMinimumVF(unsigned ElemWidth) const {
   return TTIImpl->getMinimumVF(ElemWidth);
 }
 
+unsigned TargetTransformInfo::getMaximumVF(unsigned ElemWidth,
+                                           unsigned Opcode) const {
+  return TTIImpl->getMaximumVF(ElemWidth, Opcode);
+}
+
 bool TargetTransformInfo::shouldConsiderAddressTypePromotion(
     const Instruction &I, bool &AllowPromotionWithoutCommonHeader) const {
   return TTIImpl->shouldConsiderAddressTypePromotion(
@@ -1049,6 +1054,10 @@ bool TargetTransformInfo::shouldExpandReduction(const IntrinsicInst *II) const {
 
 unsigned TargetTransformInfo::getGISelRematGlobalCost() const {
   return TTIImpl->getGISelRematGlobalCost();
+}
+
+bool TargetTransformInfo::supportsScalableVectors() const {
+  return TTIImpl->supportsScalableVectors();
 }
 
 int TargetTransformInfo::getInstructionLatency(const Instruction *I) const {

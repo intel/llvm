@@ -59,19 +59,22 @@
 # CHECK-NEXT:   }
 # CHECK-NEXT:   Symbol {
 # CHECK-NEXT:     Name: dyld_stub_binder (15)
+# CHECK-NEXT:     Extern
 # CHECK-NEXT:     Type: Undef (0x0)
 # CHECK-NEXT:     Section:  (0x0)
 # CHECK-NEXT:     RefType: UndefinedNonLazy (0x0)
-# CHECK-NEXT:     Flags [ (0x0)
+# CHECK-NEXT:     Flags [ (0x100)
 # CHECK-NEXT:     ]
 # CHECK-NEXT:     Value: 0x0
 # CHECK-NEXT:   }
 # CHECK-NEXT:   Symbol {
 # CHECK-NEXT:     Name: _dynamic (80)
+# CHECK-NEXT:     Extern
 # CHECK-NEXT:     Type: Undef (0x0)
 # CHECK-NEXT:     Section:  (0x0)
 # CHECK-NEXT:     RefType: UndefinedNonLazy (0x0)
-# CHECK-NEXT:     Flags [ (0x0)
+# CHECK-NEXT:     Flags [ (0x200)
+# CHECK-NEXT:       AltEntry (0x200)
 # CHECK-NEXT:     ]
 # CHECK-NEXT:     Value: 0x0
 # CHECK-NEXT:   }

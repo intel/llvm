@@ -264,16 +264,6 @@ namespace clang {
 
     void InitializeImportedDecl(Decl *FromD, Decl *ToD) {
       ToD->IdentifierNamespace = FromD->IdentifierNamespace;
-      if (FromD->hasAttrs())
-        for (const Attr *FromAttr : FromD->getAttrs()) {
-          // FIXME: Return of the error here is not possible until store of
-          // import errors is implemented.
-          auto ToAttrOrErr = import(FromAttr);
-          if (ToAttrOrErr)
-            ToD->addAttr(*ToAttrOrErr);
-          else
-            llvm::consumeError(ToAttrOrErr.takeError());
-        }
       if (FromD->isUsed())
         ToD->setIsUsed();
       if (FromD->isImplicit())
@@ -388,6 +378,8 @@ namespace clang {
     ExpectedType VisitObjCObjectPointerType(const ObjCObjectPointerType *T);
 
     // Importing declarations
+    Error ImportDeclParts(NamedDecl *D, DeclarationName &Name, NamedDecl *&ToD,
+                          SourceLocation &Loc);
     Error ImportDeclParts(
         NamedDecl *D, DeclContext *&DC, DeclContext *&LexicalDC,
         DeclarationName &Name, NamedDecl *&ToD, SourceLocation &Loc);
@@ -585,6 +577,7 @@ namespace clang {
     ExpectedStmt VisitVAArgExpr(VAArgExpr *E);
     ExpectedStmt VisitChooseExpr(ChooseExpr *E);
     ExpectedStmt VisitGNUNullExpr(GNUNullExpr *E);
+    ExpectedStmt VisitGenericSelectionExpr(GenericSelectionExpr *E);
     ExpectedStmt VisitPredefinedExpr(PredefinedExpr *E);
     ExpectedStmt VisitDeclRefExpr(DeclRefExpr *E);
     ExpectedStmt VisitImplicitValueInitExpr(ImplicitValueInitExpr *E);
@@ -813,6 +806,17 @@ ASTNodeImporter::import(const TemplateArgument &From) {
     if (!ToTypeOrErr)
       return ToTypeOrErr.takeError();
     return TemplateArgument(*ToTypeOrErr, /*isNullPtr*/true);
+  }
+
+  case TemplateArgument::UncommonValue: {
+    ExpectedType ToTypeOrErr = import(From.getUncommonValueType());
+    if (!ToTypeOrErr)
+      return ToTypeOrErr.takeError();
+    Expected<APValue> ToValueOrErr = import(From.getAsUncommonValue());
+    if (!ToValueOrErr)
+      return ToValueOrErr.takeError();
+    return TemplateArgument(Importer.getToContext(), *ToTypeOrErr,
+                            *ToValueOrErr);
   }
 
   case TemplateArgument::Template: {
@@ -1045,7 +1049,7 @@ ExpectedType ASTNodeImporter::VisitBuiltinType(const BuiltinType *T) {
   case BuiltinType::Id: \
     return Importer.getToContext().SingletonId;
 #include "clang/Basic/AArch64SVEACLETypes.def"
-#define PPC_MMA_VECTOR_TYPE(Name, Id, Size) \
+#define PPC_VECTOR_TYPE(Name, Id, Size) \
   case BuiltinType::Id: \
     return Importer.getToContext().Id##Ty;
 #include "clang/Basic/PPCTypes.def"
@@ -1636,6 +1640,25 @@ Error ASTNodeImporter::ImportDeclParts(
   // Import the context of this declaration.
   if (Error Err = ImportDeclContext(D, DC, LexicalDC))
     return Err;
+
+  // Import the name of this declaration.
+  if (Error Err = importInto(Name, D->getDeclName()))
+    return Err;
+
+  // Import the location of this declaration.
+  if (Error Err = importInto(Loc, D->getLocation()))
+    return Err;
+
+  ToD = cast_or_null<NamedDecl>(Importer.GetAlreadyImportedOrNull(D));
+  if (ToD)
+    if (Error Err = ASTNodeImporter(*this).ImportDefinitionIfNeeded(D, ToD))
+      return Err;
+
+  return Error::success();
+}
+
+Error ASTNodeImporter::ImportDeclParts(NamedDecl *D, DeclarationName &Name,
+                                       NamedDecl *&ToD, SourceLocation &Loc) {
 
   // Import the name of this declaration.
   if (Error Err = importInto(Name, D->getDeclName()))
@@ -2421,14 +2444,21 @@ ExpectedDecl ASTNodeImporter::VisitNamespaceAliasDecl(NamespaceAliasDecl *D) {
 ExpectedDecl
 ASTNodeImporter::VisitTypedefNameDecl(TypedefNameDecl *D, bool IsAlias) {
   // Import the major distinguishing characteristics of this typedef.
-  DeclContext *DC, *LexicalDC;
   DeclarationName Name;
   SourceLocation Loc;
   NamedDecl *ToD;
-  if (Error Err = ImportDeclParts(D, DC, LexicalDC, Name, ToD, Loc))
+  // Do not import the DeclContext, we will import it once the TypedefNameDecl
+  // is created.
+  if (Error Err = ImportDeclParts(D, Name, ToD, Loc))
     return std::move(Err);
   if (ToD)
     return ToD;
+
+  DeclContext *DC = cast_or_null<DeclContext>(
+      Importer.GetAlreadyImportedOrNull(cast<Decl>(D->getDeclContext())));
+  DeclContext *LexicalDC =
+      cast_or_null<DeclContext>(Importer.GetAlreadyImportedOrNull(
+          cast<Decl>(D->getLexicalDeclContext())));
 
   // If this typedef is not in block scope, determine whether we've
   // seen a typedef with the same name (that we can merge with) or any
@@ -2436,7 +2466,7 @@ ASTNodeImporter::VisitTypedefNameDecl(TypedefNameDecl *D, bool IsAlias) {
   // Note: Repeated typedefs are not valid in C99:
   // 'typedef int T; typedef int T;' is invalid
   // We do not care about this now.
-  if (!DC->isFunctionOrMethod()) {
+  if (DC && !DC->isFunctionOrMethod()) {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
     unsigned IDNS = Decl::IDNS_Ordinary;
     auto FoundDecls = Importer.findDeclsInToCtx(DC, Name);
@@ -2493,8 +2523,15 @@ ASTNodeImporter::VisitTypedefNameDecl(TypedefNameDecl *D, bool IsAlias) {
       Name.getAsIdentifierInfo(), ToTypeSourceInfo))
     return ToTypedef;
 
-  ToTypedef->setAccess(D->getAccess());
+  // Import the DeclContext and set it to the Typedef.
+  if ((Err = ImportDeclContext(D, DC, LexicalDC)))
+    return std::move(Err);
+  ToTypedef->setDeclContext(DC);
   ToTypedef->setLexicalDeclContext(LexicalDC);
+  // Add to the lookupTable because we could not do that in MapImported.
+  Importer.AddToLookupTable(ToTypedef);
+
+  ToTypedef->setAccess(D->getAccess());
 
   // Templated declarations should not appear in DeclContext.
   TypeAliasDecl *FromAlias = IsAlias ? cast<TypeAliasDecl>(D) : nullptr;
@@ -6507,6 +6544,40 @@ ExpectedStmt ASTNodeImporter::VisitGNUNullExpr(GNUNullExpr *E) {
   return new (Importer.getToContext()) GNUNullExpr(*TypeOrErr, *BeginLocOrErr);
 }
 
+ExpectedStmt
+ASTNodeImporter::VisitGenericSelectionExpr(GenericSelectionExpr *E) {
+  Error Err = Error::success();
+  auto ToGenericLoc = importChecked(Err, E->getGenericLoc());
+  auto *ToControllingExpr = importChecked(Err, E->getControllingExpr());
+  auto ToDefaultLoc = importChecked(Err, E->getDefaultLoc());
+  auto ToRParenLoc = importChecked(Err, E->getRParenLoc());
+  if (Err)
+    return std::move(Err);
+
+  ArrayRef<const TypeSourceInfo *> FromAssocTypes(E->getAssocTypeSourceInfos());
+  SmallVector<TypeSourceInfo *, 1> ToAssocTypes(FromAssocTypes.size());
+  if (Error Err = ImportContainerChecked(FromAssocTypes, ToAssocTypes))
+    return std::move(Err);
+
+  ArrayRef<const Expr *> FromAssocExprs(E->getAssocExprs());
+  SmallVector<Expr *, 1> ToAssocExprs(FromAssocExprs.size());
+  if (Error Err = ImportContainerChecked(FromAssocExprs, ToAssocExprs))
+    return std::move(Err);
+
+  const ASTContext &ToCtx = Importer.getToContext();
+  if (E->isResultDependent()) {
+    return GenericSelectionExpr::Create(
+        ToCtx, ToGenericLoc, ToControllingExpr,
+        llvm::makeArrayRef(ToAssocTypes), llvm::makeArrayRef(ToAssocExprs),
+        ToDefaultLoc, ToRParenLoc, E->containsUnexpandedParameterPack());
+  }
+
+  return GenericSelectionExpr::Create(
+      ToCtx, ToGenericLoc, ToControllingExpr, llvm::makeArrayRef(ToAssocTypes),
+      llvm::makeArrayRef(ToAssocExprs), ToDefaultLoc, ToRParenLoc,
+      E->containsUnexpandedParameterPack(), E->getResultIndex());
+}
+
 ExpectedStmt ASTNodeImporter::VisitPredefinedExpr(PredefinedExpr *E) {
 
   Error Err = Error::success();
@@ -8204,7 +8275,7 @@ Expected<Decl *> ASTImporter::Import(Decl *FromD) {
       return make_error<ImportError>(*Error);
     }
 
-    // If FromD has some updated flags after last import, apply it
+    // If FromD has some updated flags after last import, apply it.
     updateFlags(FromD, ToD);
     // If we encounter a cycle during an import then we save the relevant part
     // of the import path associated to the Decl.
@@ -8298,6 +8369,15 @@ Expected<Decl *> ASTImporter::Import(Decl *FromD) {
 
   // Make sure that ImportImpl registered the imported decl.
   assert(ImportedDecls.count(FromD) != 0 && "Missing call to MapImported?");
+
+  if (FromD->hasAttrs())
+    for (const Attr *FromAttr : FromD->getAttrs()) {
+      auto ToAttrOrErr = Import(FromAttr);
+      if (ToAttrOrErr)
+        ToD->addAttr(*ToAttrOrErr);
+      else
+        return ToAttrOrErr.takeError();
+    }
 
   // Notify subclasses.
   Imported(FromD, ToD);
@@ -8725,7 +8805,7 @@ Expected<FileID> ASTImporter::Import(FileID FromID, bool IsBuiltin) {
         // FIXME: We definitely want to re-use the existing MemoryBuffer, rather
         // than mmap the files several times.
         auto Entry =
-            ToFileManager.getFile(Cache->OrigEntry->getName());
+            ToFileManager.getOptionalFileRef(Cache->OrigEntry->getName());
         // FIXME: The filename may be a virtual name that does probably not
         // point to a valid file and we get no Entry here. In this case try with
         // the memory buffer below.
@@ -9006,26 +9086,23 @@ ASTNodeImporter::ImportAPValue(const APValue &FromValue) {
     Result.MakeVector();
     MutableArrayRef<APValue> Elts =
         Result.setVectorUninit(FromValue.getVectorLength());
-    ImportLoop(
-        ((const APValue::Vec *)(const char *)FromValue.Data.buffer)->Elts,
-        Elts.data(), FromValue.getVectorLength());
+    ImportLoop(((const APValue::Vec *)(const char *)&FromValue.Data)->Elts,
+               Elts.data(), FromValue.getVectorLength());
     break;
   }
   case APValue::Array:
     Result.MakeArray(FromValue.getArrayInitializedElts(),
                      FromValue.getArraySize());
-    ImportLoop(
-        ((const APValue::Arr *)(const char *)FromValue.Data.buffer)->Elts,
-        ((const APValue::Arr *)(const char *)Result.Data.buffer)->Elts,
-        FromValue.getArrayInitializedElts());
+    ImportLoop(((const APValue::Arr *)(const char *)&FromValue.Data)->Elts,
+               ((const APValue::Arr *)(const char *)&Result.Data)->Elts,
+               FromValue.getArrayInitializedElts());
     break;
   case APValue::Struct:
     Result.MakeStruct(FromValue.getStructNumBases(),
                       FromValue.getStructNumFields());
     ImportLoop(
-        ((const APValue::StructData *)(const char *)FromValue.Data.buffer)
-            ->Elts,
-        ((const APValue::StructData *)(const char *)Result.Data.buffer)->Elts,
+        ((const APValue::StructData *)(const char *)&FromValue.Data)->Elts,
+        ((const APValue::StructData *)(const char *)&Result.Data)->Elts,
         FromValue.getStructNumBases() + FromValue.getStructNumFields());
     break;
   case APValue::Union: {
@@ -9207,7 +9284,11 @@ Decl *ASTImporter::MapImported(Decl *From, Decl *To) {
   // This mapping should be maintained only in this function. Therefore do not
   // check for additional consistency.
   ImportedFromDecls[To] = From;
-  AddToLookupTable(To);
+  // In the case of TypedefNameDecl we create the Decl first and only then we
+  // import and set its DeclContext. So, the DC is still not set when we reach
+  // here from GetImportedOrCreateDecl.
+  if (To->getDeclContext())
+    AddToLookupTable(To);
   return To;
 }
 

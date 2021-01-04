@@ -2355,12 +2355,15 @@ bool SelectionDAG::MaskedValueIsAllOnes(SDValue V, const APInt &Mask,
 /// sense to specify which elements are demanded or undefined, therefore
 /// they are simply ignored.
 bool SelectionDAG::isSplatValue(SDValue V, const APInt &DemandedElts,
-                                APInt &UndefElts) {
+                                APInt &UndefElts, unsigned Depth) {
   EVT VT = V.getValueType();
   assert(VT.isVector() && "Vector type expected");
 
   if (!VT.isScalableVector() && !DemandedElts)
     return false; // No demanded elts, better to assume we don't know anything.
+
+  if (Depth >= MaxRecursionDepth)
+    return false; // Limit search depth.
 
   // Deal with some common cases here that work for both fixed and scalable
   // vector types.
@@ -2376,8 +2379,8 @@ bool SelectionDAG::isSplatValue(SDValue V, const APInt &DemandedElts,
     APInt UndefLHS, UndefRHS;
     SDValue LHS = V.getOperand(0);
     SDValue RHS = V.getOperand(1);
-    if (isSplatValue(LHS, DemandedElts, UndefLHS) &&
-        isSplatValue(RHS, DemandedElts, UndefRHS)) {
+    if (isSplatValue(LHS, DemandedElts, UndefLHS, Depth + 1) &&
+        isSplatValue(RHS, DemandedElts, UndefRHS, Depth + 1)) {
       UndefElts = UndefLHS | UndefRHS;
       return true;
     }
@@ -2386,7 +2389,7 @@ bool SelectionDAG::isSplatValue(SDValue V, const APInt &DemandedElts,
   case ISD::TRUNCATE:
   case ISD::SIGN_EXTEND:
   case ISD::ZERO_EXTEND:
-    return isSplatValue(V.getOperand(0), DemandedElts, UndefElts);
+    return isSplatValue(V.getOperand(0), DemandedElts, UndefElts, Depth + 1);
   }
 
   // We don't support other cases than those above for scalable vectors at
@@ -2441,7 +2444,7 @@ bool SelectionDAG::isSplatValue(SDValue V, const APInt &DemandedElts,
     unsigned NumSrcElts = Src.getValueType().getVectorNumElements();
     APInt UndefSrcElts;
     APInt DemandedSrcElts = DemandedElts.zextOrSelf(NumSrcElts).shl(Idx);
-    if (isSplatValue(Src, DemandedSrcElts, UndefSrcElts)) {
+    if (isSplatValue(Src, DemandedSrcElts, UndefSrcElts, Depth + 1)) {
       UndefElts = UndefSrcElts.extractBits(NumElts, Idx);
       return true;
     }
@@ -2999,38 +3002,9 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     }
     break;
   case ISD::SIGN_EXTEND_INREG: {
-    EVT EVT = cast<VTSDNode>(Op.getOperand(1))->getVT();
-    unsigned EBits = EVT.getScalarSizeInBits();
-
-    // Sign extension.  Compute the demanded bits in the result that are not
-    // present in the input.
-    APInt NewBits = APInt::getHighBitsSet(BitWidth, BitWidth - EBits);
-
-    APInt InSignMask = APInt::getSignMask(EBits);
-    APInt InputDemandedBits = APInt::getLowBitsSet(BitWidth, EBits);
-
-    // If the sign extended bits are demanded, we know that the sign
-    // bit is demanded.
-    InSignMask = InSignMask.zext(BitWidth);
-    if (NewBits.getBoolValue())
-      InputDemandedBits |= InSignMask;
-
     Known = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
-    Known.One &= InputDemandedBits;
-    Known.Zero &= InputDemandedBits;
-
-    // If the sign bit of the input is known set or clear, then we know the
-    // top bits of the result.
-    if (Known.Zero.intersects(InSignMask)) {        // Input sign bit known clear
-      Known.Zero |= NewBits;
-      Known.One  &= ~NewBits;
-    } else if (Known.One.intersects(InSignMask)) {  // Input sign bit known set
-      Known.One  |= NewBits;
-      Known.Zero &= ~NewBits;
-    } else {                              // Input sign bit unknown
-      Known.Zero &= ~NewBits;
-      Known.One  &= ~NewBits;
-    }
+    EVT EVT = cast<VTSDNode>(Op.getOperand(1))->getVT();
+    Known = Known.sextInReg(EVT.getScalarSizeInBits());
     break;
   }
   case ISD::CTTZ:
@@ -7324,14 +7298,15 @@ SDValue SelectionDAG::getIndexedMaskedStore(SDValue OrigStore, const SDLoc &dl,
 SDValue SelectionDAG::getMaskedGather(SDVTList VTs, EVT VT, const SDLoc &dl,
                                       ArrayRef<SDValue> Ops,
                                       MachineMemOperand *MMO,
-                                      ISD::MemIndexType IndexType) {
+                                      ISD::MemIndexType IndexType,
+                                      ISD::LoadExtType ExtTy) {
   assert(Ops.size() == 6 && "Incompatible number of operands");
 
   FoldingSetNodeID ID;
   AddNodeIDNode(ID, ISD::MGATHER, VTs, Ops);
   ID.AddInteger(VT.getRawBits());
   ID.AddInteger(getSyntheticNodeSubclassData<MaskedGatherSDNode>(
-      dl.getIROrder(), VTs, VT, MMO, IndexType));
+      dl.getIROrder(), VTs, VT, MMO, IndexType, ExtTy));
   ID.AddInteger(MMO->getPointerInfo().getAddrSpace());
   void *IP = nullptr;
   if (SDNode *E = FindNodeOrInsertPos(ID, dl, IP)) {
@@ -7339,17 +7314,22 @@ SDValue SelectionDAG::getMaskedGather(SDVTList VTs, EVT VT, const SDLoc &dl,
     return SDValue(E, 0);
   }
 
+  IndexType = TLI->getCanonicalIndexType(IndexType, VT, Ops[4]);
   auto *N = newSDNode<MaskedGatherSDNode>(dl.getIROrder(), dl.getDebugLoc(),
-                                          VTs, VT, MMO, IndexType);
+                                          VTs, VT, MMO, IndexType, ExtTy);
   createOperands(N, Ops);
 
   assert(N->getPassThru().getValueType() == N->getValueType(0) &&
          "Incompatible type of the PassThru value in MaskedGatherSDNode");
-  assert(N->getMask().getValueType().getVectorNumElements() ==
-             N->getValueType(0).getVectorNumElements() &&
+  assert(N->getMask().getValueType().getVectorElementCount() ==
+             N->getValueType(0).getVectorElementCount() &&
          "Vector width mismatch between mask and data");
-  assert(N->getIndex().getValueType().getVectorNumElements() >=
-             N->getValueType(0).getVectorNumElements() &&
+  assert(N->getIndex().getValueType().getVectorElementCount().isScalable() ==
+             N->getValueType(0).getVectorElementCount().isScalable() &&
+         "Scalable flags of index and data do not match");
+  assert(ElementCount::isKnownGE(
+             N->getIndex().getValueType().getVectorElementCount(),
+             N->getValueType(0).getVectorElementCount()) &&
          "Vector width mismatch between index and data");
   assert(isa<ConstantSDNode>(N->getScale()) &&
          cast<ConstantSDNode>(N->getScale())->getAPIntValue().isPowerOf2() &&
@@ -8986,23 +8966,30 @@ void SelectionDAG::AddDbgLabel(SDDbgLabel *DB) {
   DbgInfo->add(DB);
 }
 
-SDValue SelectionDAG::makeEquivalentMemoryOrdering(LoadSDNode *OldLoad,
-                                                   SDValue NewMemOp) {
-  assert(isa<MemSDNode>(NewMemOp.getNode()) && "Expected a memop node");
+SDValue SelectionDAG::makeEquivalentMemoryOrdering(SDValue OldChain,
+                                                   SDValue NewMemOpChain) {
+  assert(isa<MemSDNode>(NewMemOpChain) && "Expected a memop node");
+  assert(NewMemOpChain.getValueType() == MVT::Other && "Expected a token VT");
   // The new memory operation must have the same position as the old load in
   // terms of memory dependency. Create a TokenFactor for the old load and new
   // memory operation and update uses of the old load's output chain to use that
   // TokenFactor.
-  SDValue OldChain = SDValue(OldLoad, 1);
-  SDValue NewChain = SDValue(NewMemOp.getNode(), 1);
-  if (OldChain == NewChain || !OldLoad->hasAnyUseOfValue(1))
-    return NewChain;
+  if (OldChain == NewMemOpChain || OldChain.use_empty())
+    return NewMemOpChain;
 
-  SDValue TokenFactor =
-      getNode(ISD::TokenFactor, SDLoc(OldLoad), MVT::Other, OldChain, NewChain);
+  SDValue TokenFactor = getNode(ISD::TokenFactor, SDLoc(OldChain), MVT::Other,
+                                OldChain, NewMemOpChain);
   ReplaceAllUsesOfValueWith(OldChain, TokenFactor);
-  UpdateNodeOperands(TokenFactor.getNode(), OldChain, NewChain);
+  UpdateNodeOperands(TokenFactor.getNode(), OldChain, NewMemOpChain);
   return TokenFactor;
+}
+
+SDValue SelectionDAG::makeEquivalentMemoryOrdering(LoadSDNode *OldLoad,
+                                                   SDValue NewMemOp) {
+  assert(isa<MemSDNode>(NewMemOp.getNode()) && "Expected a memop node");
+  SDValue OldChain = SDValue(OldLoad, 1);
+  SDValue NewMemOpChain = NewMemOp.getValue(1);
+  return makeEquivalentMemoryOrdering(OldChain, NewMemOpChain);
 }
 
 SDValue SelectionDAG::getSymbolFunctionGlobalAddress(SDValue Op,

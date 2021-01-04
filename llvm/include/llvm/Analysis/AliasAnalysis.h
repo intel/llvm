@@ -42,8 +42,6 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/MemoryLocation.h"
-#include "llvm/IR/Instruction.h"
-#include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include <cstdint>
@@ -54,10 +52,17 @@
 namespace llvm {
 
 class AnalysisUsage;
+class AtomicCmpXchgInst;
 class BasicAAResult;
 class BasicBlock;
+class CatchPadInst;
+class CatchReturnInst;
 class DominatorTree;
+class FenceInst;
 class Function;
+class InvokeInst;
+class PreservedAnalyses;
+class TargetLibraryInfo;
 class Value;
 
 /// The possible results of an alias query.
@@ -540,7 +545,7 @@ public:
   /// write at most from objects pointed to by their pointer-typed arguments
   /// (with arbitrary offsets).
   static bool onlyAccessesArgPointees(FunctionModRefBehavior MRB) {
-    return !(MRB & FMRL_Anywhere & ~FMRL_ArgumentPointees);
+    return !((unsigned)MRB & FMRL_Anywhere & ~FMRL_ArgumentPointees);
   }
 
   /// Checks if functions with the specified behavior are known to potentially
@@ -548,26 +553,27 @@ public:
   /// (with arbitrary offsets).
   static bool doesAccessArgPointees(FunctionModRefBehavior MRB) {
     return isModOrRefSet(createModRefInfo(MRB)) &&
-           (MRB & FMRL_ArgumentPointees);
+           ((unsigned)MRB & FMRL_ArgumentPointees);
   }
 
   /// Checks if functions with the specified behavior are known to read and
   /// write at most from memory that is inaccessible from LLVM IR.
   static bool onlyAccessesInaccessibleMem(FunctionModRefBehavior MRB) {
-    return !(MRB & FMRL_Anywhere & ~FMRL_InaccessibleMem);
+    return !((unsigned)MRB & FMRL_Anywhere & ~FMRL_InaccessibleMem);
   }
 
   /// Checks if functions with the specified behavior are known to potentially
   /// read or write from memory that is inaccessible from LLVM IR.
   static bool doesAccessInaccessibleMem(FunctionModRefBehavior MRB) {
-    return isModOrRefSet(createModRefInfo(MRB)) && (MRB & FMRL_InaccessibleMem);
+    return isModOrRefSet(createModRefInfo(MRB)) &&
+             ((unsigned)MRB & FMRL_InaccessibleMem);
   }
 
   /// Checks if functions with the specified behavior are known to read and
   /// write at most from memory that is inaccessible from LLVM IR or objects
   /// pointed to by their pointer-typed arguments (with arbitrary offsets).
   static bool onlyAccessesInaccessibleOrArgMem(FunctionModRefBehavior MRB) {
-    return !(MRB & FMRL_Anywhere &
+    return !((unsigned)MRB & FMRL_Anywhere &
              ~(FMRL_InaccessibleMem | FMRL_ArgumentPointees));
   }
 
@@ -767,40 +773,7 @@ private:
                            AAQueryInfo &AAQI);
   ModRefInfo getModRefInfo(const Instruction *I,
                            const Optional<MemoryLocation> &OptLoc,
-                           AAQueryInfo &AAQIP) {
-    if (OptLoc == None) {
-      if (const auto *Call = dyn_cast<CallBase>(I)) {
-        return createModRefInfo(getModRefBehavior(Call));
-      }
-    }
-
-    const MemoryLocation &Loc = OptLoc.getValueOr(MemoryLocation());
-
-    switch (I->getOpcode()) {
-    case Instruction::VAArg:
-      return getModRefInfo((const VAArgInst *)I, Loc, AAQIP);
-    case Instruction::Load:
-      return getModRefInfo((const LoadInst *)I, Loc, AAQIP);
-    case Instruction::Store:
-      return getModRefInfo((const StoreInst *)I, Loc, AAQIP);
-    case Instruction::Fence:
-      return getModRefInfo((const FenceInst *)I, Loc, AAQIP);
-    case Instruction::AtomicCmpXchg:
-      return getModRefInfo((const AtomicCmpXchgInst *)I, Loc, AAQIP);
-    case Instruction::AtomicRMW:
-      return getModRefInfo((const AtomicRMWInst *)I, Loc, AAQIP);
-    case Instruction::Call:
-      return getModRefInfo((const CallInst *)I, Loc, AAQIP);
-    case Instruction::Invoke:
-      return getModRefInfo((const InvokeInst *)I, Loc, AAQIP);
-    case Instruction::CatchPad:
-      return getModRefInfo((const CatchPadInst *)I, Loc, AAQIP);
-    case Instruction::CatchRet:
-      return getModRefInfo((const CatchReturnInst *)I, Loc, AAQIP);
-    default:
-      return ModRefInfo::NoModRef;
-    }
-  }
+                           AAQueryInfo &AAQIP);
 
   class Concept;
 
@@ -813,6 +786,9 @@ private:
   std::vector<std::unique_ptr<Concept>> AAs;
 
   std::vector<AnalysisKey *> AADeps;
+
+  /// Query depth used to distinguish recursive queries.
+  unsigned Depth = 0;
 
   friend class BatchAAResults;
 };

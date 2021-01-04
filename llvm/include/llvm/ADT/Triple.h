@@ -108,6 +108,7 @@ public:
   enum SubArchType {
     NoSubArch,
 
+    ARMSubArch_v8_7a,
     ARMSubArch_v8_6a,
     ARMSubArch_v8_5a,
     ARMSubArch_v8_4a,

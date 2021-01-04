@@ -620,11 +620,27 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
   }
 
   if (const ReqdWorkGroupSizeAttr *A = FD->getAttr<ReqdWorkGroupSizeAttr>()) {
+    llvm::LLVMContext &Context = getLLVMContext();
+    Optional<llvm::APSInt> XDimVal =
+        A->getXDim()->getIntegerConstantExpr(FD->getASTContext());
+    Optional<llvm::APSInt> YDimVal =
+        A->getYDim()->getIntegerConstantExpr(FD->getASTContext());
+    Optional<llvm::APSInt> ZDimVal =
+        A->getZDim()->getIntegerConstantExpr(FD->getASTContext());
+
+    // For a SYCLDevice ReqdWorkGroupSizeAttr arguments are reversed.
+    if (getLangOpts().SYCLIsDevice)
+      std::swap(XDimVal, ZDimVal);
+
     llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getXDim())),
-        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getYDim())),
-        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getZDim()))};
-    Fn->setMetadata("reqd_work_group_size", llvm::MDNode::get(Context, AttrMDArgs));
+        llvm::ConstantAsMetadata::get(
+            Builder.getInt32(XDimVal->getZExtValue())),
+        llvm::ConstantAsMetadata::get(
+            Builder.getInt32(YDimVal->getZExtValue())),
+        llvm::ConstantAsMetadata::get(
+            Builder.getInt32(ZDimVal->getZExtValue()))};
+    Fn->setMetadata("reqd_work_group_size",
+                    llvm::MDNode::get(Context, AttrMDArgs));
   }
 
   if (const IntelReqdSubGroupSizeAttr *A =
@@ -670,16 +686,6 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 
-  if (const SYCLIntelMaxWorkGroupSizeAttr *A =
-      FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getXDim())),
-        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getYDim())),
-        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getZDim()))};
-    Fn->setMetadata("max_work_group_size",
-                    llvm::MDNode::get(Context, AttrMDArgs));
-  }
-
   if (const SYCLIntelMaxGlobalWorkDimAttr *A =
       FD->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
     llvm::LLVMContext &Context = getLLVMContext();
@@ -689,6 +695,31 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getSExtValue()))};
     Fn->setMetadata("max_global_work_dim",
+                    llvm::MDNode::get(Context, AttrMDArgs));
+  }
+
+  if (const SYCLIntelMaxWorkGroupSizeAttr *A =
+          FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
+    llvm::LLVMContext &Context = getLLVMContext();
+    Optional<llvm::APSInt> XDimVal =
+        A->getXDim()->getIntegerConstantExpr(FD->getASTContext());
+    Optional<llvm::APSInt> YDimVal =
+        A->getYDim()->getIntegerConstantExpr(FD->getASTContext());
+    Optional<llvm::APSInt> ZDimVal =
+        A->getZDim()->getIntegerConstantExpr(FD->getASTContext());
+
+    // For a SYCLDevice SYCLIntelMaxWorkGroupSizeAttr arguments are reversed.
+    if (getLangOpts().SYCLIsDevice)
+      std::swap(XDimVal, ZDimVal);
+
+    llvm::Metadata *AttrMDArgs[] = {
+        llvm::ConstantAsMetadata::get(
+            Builder.getInt32(XDimVal->getZExtValue())),
+        llvm::ConstantAsMetadata::get(
+            Builder.getInt32(YDimVal->getZExtValue())),
+        llvm::ConstantAsMetadata::get(
+            Builder.getInt32(ZDimVal->getZExtValue()))};
+    Fn->setMetadata("max_work_group_size",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 
@@ -954,6 +985,19 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
 
   if (getLangOpts().SYCLIsHost && D && D->hasAttr<SYCLKernelAttr>())
     Fn->addFnAttr("sycl_kernel");
+
+  if (getLangOpts().SYCLIsDevice && D) {
+    if (const auto *A = D->getAttr<SYCLIntelLoopFuseAttr>()) {
+      Expr *E = A->getValue();
+      llvm::Metadata *AttrMDArgs[] = {
+          llvm::ConstantAsMetadata::get(Builder.getInt32(
+              E->getIntegerConstantExpr(D->getASTContext())->getZExtValue())),
+          llvm::ConstantAsMetadata::get(
+              A->isIndependent() ? Builder.getInt32(1) : Builder.getInt32(0))};
+      Fn->setMetadata("loop_fuse",
+                      llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
+    }
+  }
 
   if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) {
     // Add metadata for a kernel function.

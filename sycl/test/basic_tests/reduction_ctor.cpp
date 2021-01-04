@@ -4,7 +4,7 @@
 // This performs basic checks such as reduction creation, getIdentity() method,
 // and the combine() method of the aux class 'reducer'.
 
-#include "../on-device/reduction/reduction_utils.hpp"
+#include "reduction_utils.hpp"
 #include <CL/sycl.hpp>
 #include <cassert>
 

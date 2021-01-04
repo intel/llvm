@@ -15,11 +15,11 @@
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/LoopAnalysisManager.h"
 #include "llvm/IR/Dominators.h"
-#include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/OptBisect.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PassTimingInfo.h"
+#include "llvm/IR/PrintPasses.h"
 #include "llvm/IR/StructuralHash.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
@@ -117,7 +117,7 @@ void LPPassManager::markLoopAsDeleted(Loop &L) {
   // there. However, we have to be careful to not remove the back of the queue
   // as that is assumed to match the current loop.
   assert(LQ.back() == CurrentLoop && "Loop queue back isn't the current loop!");
-  LQ.erase(std::remove(LQ.begin(), LQ.end(), &L), LQ.end());
+  llvm::erase_value(LQ, &L);
 
   if (&L == CurrentLoop) {
     CurrentLoopDeleted = true;

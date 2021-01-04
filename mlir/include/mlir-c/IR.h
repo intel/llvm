@@ -70,7 +70,7 @@ DEFINE_C_API_STRUCT(MlirValue, const void);
  * a string.
  */
 struct MlirNamedAttribute {
-  MlirStringRef name;
+  MlirIdentifier name;
   MlirAttribute attribute;
 };
 typedef struct MlirNamedAttribute MlirNamedAttribute;
@@ -146,6 +146,10 @@ MLIR_CAPI_EXPORTED MlirStringRef mlirDialectGetNamespace(MlirDialect dialect);
 /// Creates an File/Line/Column location owned by the given context.
 MLIR_CAPI_EXPORTED MlirLocation mlirLocationFileLineColGet(
     MlirContext context, MlirStringRef filename, unsigned line, unsigned col);
+
+/// Creates a call site location with a callee and a caller.
+MLIR_CAPI_EXPORTED MlirLocation mlirLocationCallSiteGet(MlirLocation callee,
+                                                        MlirLocation caller);
 
 /// Creates a location with unknown position owned by the given context.
 MLIR_CAPI_EXPORTED MlirLocation mlirLocationUnknownGet(MlirContext context);
@@ -600,7 +604,7 @@ MLIR_CAPI_EXPORTED void mlirAttributePrint(MlirAttribute attr,
 MLIR_CAPI_EXPORTED void mlirAttributeDump(MlirAttribute attr);
 
 /// Associates an attribute with the name. Takes ownership of neither.
-MLIR_CAPI_EXPORTED MlirNamedAttribute mlirNamedAttributeGet(MlirStringRef name,
+MLIR_CAPI_EXPORTED MlirNamedAttribute mlirNamedAttributeGet(MlirIdentifier name,
                                                             MlirAttribute attr);
 
 //===----------------------------------------------------------------------===//

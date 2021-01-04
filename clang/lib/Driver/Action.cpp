@@ -43,6 +43,8 @@ const char *Action::getClassName(ActionClass AC) {
     return "clang-offload-unbundler";
   case OffloadWrapperJobClass:
     return "clang-offload-wrapper";
+  case OffloadDepsJobClass:
+    return "clang-offload-deps";
   case SPIRVTranslatorJobClass:
     return "llvm-spirv";
   case SPIRCheckJobClass:
@@ -68,6 +70,9 @@ void Action::propagateDeviceOffloadInfo(OffloadKind OKind, const char *OArch) {
     return;
   // Unbundling actions use the host kinds.
   if (Kind == OffloadUnbundlingJobClass)
+    return;
+  // Deps job uses the host kinds.
+  if (Kind == OffloadDepsJobClass)
     return;
 
   assert((OffloadingDeviceKind == OKind || OffloadingDeviceKind == OFK_None) &&
@@ -444,6 +449,18 @@ OffloadWrapperJobAction::OffloadWrapperJobAction(Action *Input,
                                                  types::ID Type)
     : JobAction(OffloadWrapperJobClass, Input, Type) {}
 
+void OffloadDepsJobAction::anchor() {}
+
+OffloadDepsJobAction::OffloadDepsJobAction(
+    const OffloadAction::HostDependence &HDep, types::ID Type)
+    : JobAction(OffloadDepsJobClass, HDep.getAction(), Type),
+      HostTC(HDep.getToolChain()) {
+  OffloadingArch = HDep.getBoundArch();
+  ActiveOffloadKindMask = HDep.getOffloadKinds();
+  HDep.getAction()->propagateHostOffloadInfo(HDep.getOffloadKinds(),
+                                             HDep.getBoundArch());
+}
+
 void SPIRVTranslatorJobAction::anchor() {}
 
 SPIRVTranslatorJobAction::SPIRVTranslatorJobAction(Action *Input,
@@ -496,6 +513,11 @@ void FileTableTformJobAction::addExtractColumnTform(StringRef ColumnName,
 void FileTableTformJobAction::addReplaceColumnTform(StringRef From,
                                                     StringRef To) {
   Tforms.emplace_back(Tform(Tform::REPLACE, {From, To}));
+}
+
+void FileTableTformJobAction::addRenameColumnTform(StringRef From,
+                                                   StringRef To) {
+  Tforms.emplace_back(Tform(Tform::RENAME, {From, To}));
 }
 
 void StaticLibJobAction::anchor() {}

@@ -2614,6 +2614,8 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.mergeImportModuleAttr(D, *IMA);
   else if (const auto *INA = dyn_cast<WebAssemblyImportNameAttr>(Attr))
     NewAttr = S.mergeImportNameAttr(D, *INA);
+  else if (const auto *LFA = dyn_cast<SYCLIntelLoopFuseAttr>(Attr))
+    NewAttr = S.mergeSYCLIntelLoopFuseAttr(D, *LFA, LFA->getValue());
   else if (Attr->shouldInheritEvenIfAlreadyPresent() || !DeclHasAttr(D, Attr))
     NewAttr = cast<InheritableAttr>(Attr->clone(S.Context));
 
@@ -3207,9 +3209,18 @@ static void checkDimensionsAndSetDiagnostics(Sema &S, FunctionDecl *New,
   if (!NewDeclAttr || !OldDeclAttr)
     return;
 
-  if ((NewDeclAttr->getXDim() != OldDeclAttr->getXDim()) ||
-      (NewDeclAttr->getYDim() != OldDeclAttr->getYDim()) ||
-      (NewDeclAttr->getZDim() != OldDeclAttr->getZDim())) {
+  /// Returns the usigned constant integer value represented by
+  /// given expression.
+  auto getExprValue = [](const Expr *E, ASTContext &Ctx) {
+    return E->getIntegerConstantExpr(Ctx)->getZExtValue();
+  };
+
+  if ((getExprValue(NewDeclAttr->getXDim(), S.getASTContext()) !=
+       getExprValue(OldDeclAttr->getXDim(), S.getASTContext())) ||
+      (getExprValue(NewDeclAttr->getYDim(), S.getASTContext()) !=
+       getExprValue(OldDeclAttr->getYDim(), S.getASTContext())) ||
+      (getExprValue(NewDeclAttr->getZDim(), S.getASTContext()) !=
+       getExprValue(OldDeclAttr->getZDim(), S.getASTContext()))) {
     S.Diag(New->getLocation(), diag::err_conflicting_sycl_function_attributes)
         << OldDeclAttr << NewDeclAttr;
     S.Diag(New->getLocation(), diag::warn_duplicate_attribute) << OldDeclAttr;
@@ -5516,7 +5527,7 @@ static bool RebuildDeclaratorInCurrentInstantiation(Sema &S, Declarator &D,
     // Grab the type from the parser.
     TypeSourceInfo *TSI = nullptr;
     QualType T = S.GetTypeFromParser(DS.getRepAsType(), &TSI);
-    if (T.isNull() || !T->isDependentType()) break;
+    if (T.isNull() || !T->isInstantiationDependentType()) break;
 
     // Make sure there's a type source info.  This isn't really much
     // of a waste; most dependent types should have type source info
@@ -5990,8 +6001,9 @@ static QualType TryToFixInvalidVariablyModifiedType(QualType T,
     return QualType();
   }
 
-  return Context.getConstantArrayType(ElemTy, Res, VLATy->getSizeExpr(),
-                                      ArrayType::Normal, 0);
+  QualType FoldedArrayType = Context.getConstantArrayType(
+      ElemTy, Res, VLATy->getSizeExpr(), ArrayType::Normal, 0);
+  return Qs.apply(Context, FoldedArrayType);
 }
 
 static void
@@ -6046,6 +6058,31 @@ TryToFixInvalidVariablyModifiedTypeSourceInfo(TypeSourceInfo *TInfo,
   FixInvalidVariablyModifiedTypeLoc(TInfo->getTypeLoc(),
                                     FixedTInfo->getTypeLoc());
   return FixedTInfo;
+}
+
+/// Attempt to fold a variable-sized type to a constant-sized type, returning
+/// true if we were successful.
+static bool tryToFixVariablyModifiedVarType(Sema &S, TypeSourceInfo *&TInfo,
+                                            QualType &T, SourceLocation Loc,
+                                            unsigned FailedFoldDiagID) {
+  bool SizeIsNegative;
+  llvm::APSInt Oversized;
+  TypeSourceInfo *FixedTInfo = TryToFixInvalidVariablyModifiedTypeSourceInfo(
+      TInfo, S.Context, SizeIsNegative, Oversized);
+  if (FixedTInfo) {
+    S.Diag(Loc, diag::ext_vla_folded_to_constant);
+    TInfo = FixedTInfo;
+    T = FixedTInfo->getType();
+    return true;
+  }
+
+  if (SizeIsNegative)
+    S.Diag(Loc, diag::err_typecheck_negative_array_size);
+  else if (Oversized.getBoolValue())
+    S.Diag(Loc, diag::err_array_too_large) << Oversized.toString(10);
+  else if (FailedFoldDiagID)
+    S.Diag(Loc, FailedFoldDiagID);
+  return false;
 }
 
 /// Register the given locally-scoped extern "C" declaration so
@@ -6884,6 +6921,12 @@ NamedDecl *Sema::ActOnVariableDeclarator(
       D.setInvalidType();
     }
   }
+
+  // If this variable has a variable-modified type and an initializer, try to
+  // fold to a constant-sized type. This is otherwise invalid.
+  if (D.hasInitializer() && R->isVariablyModifiedType())
+    tryToFixVariablyModifiedVarType(*this, TInfo, R, D.getIdentifierLoc(),
+                                    /*DiagID=*/0);
 
   bool IsMemberSpecialization = false;
   bool IsVariableTemplateSpecialization = false;
@@ -9515,12 +9558,10 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     // that either the specialized function type or the specialized
     // template is dependent, and therefore matching will fail.  In
     // this case, don't check the specialization yet.
-    bool InstantiationDependent = false;
     if (isFunctionTemplateSpecialization && isFriend &&
         (NewFD->getType()->isDependentType() || DC->isDependentContext() ||
-         TemplateSpecializationType::anyDependentTemplateArguments(
-            TemplateArgs,
-            InstantiationDependent))) {
+         TemplateSpecializationType::anyInstantiationDependentTemplateArguments(
+             TemplateArgs.arguments()))) {
       assert(HasExplicitTemplateArgs &&
              "friend function specialization without template args");
       if (CheckDependentFunctionTemplateSpecialization(NewFD, TemplateArgs,
@@ -10837,6 +10878,9 @@ bool Sema::CheckFunctionDeclaration(Scope *S, FunctionDecl *NewFD,
       NewFD->addAttr(OverloadableAttr::CreateImplicit(Context));
     }
   }
+
+  if (LangOpts.OpenMP)
+    ActOnFinishedFunctionDefinitionInOpenMPAssumeScope(NewFD);
 
   // Semantic checking for this function declaration (in isolation).
 
@@ -12790,6 +12834,18 @@ void Sema::ActOnCXXForRangeDecl(Decl *D) {
     Error = 4;
     break;
   }
+
+  // for-range-declaration cannot be given a storage class specifier con't.
+  switch (VD->getTSCSpec()) {
+  case TSCS_thread_local:
+    Error = 6;
+    break;
+  case TSCS___thread:
+  case TSCS__Thread_local:
+  case TSCS_unspecified:
+    break;
+  }
+
   if (Error != -1) {
     Diag(VD->getOuterLocStart(), diag::err_for_range_storage_class)
         << VD << Error;
@@ -16700,27 +16756,9 @@ FieldDecl *Sema::CheckFieldDecl(DeclarationName Name, QualType T,
   // C99 6.7.2.1p8: A member of a structure or union may have any type other
   // than a variably modified type.
   if (!InvalidDecl && T->isVariablyModifiedType()) {
-    bool SizeIsNegative;
-    llvm::APSInt Oversized;
-
-    TypeSourceInfo *FixedTInfo =
-      TryToFixInvalidVariablyModifiedTypeSourceInfo(TInfo, Context,
-                                                    SizeIsNegative,
-                                                    Oversized);
-    if (FixedTInfo) {
-      Diag(Loc, diag::ext_vla_folded_to_constant);
-      TInfo = FixedTInfo;
-      T = FixedTInfo->getType();
-    } else {
-      if (SizeIsNegative)
-        Diag(Loc, diag::err_typecheck_negative_array_size);
-      else if (Oversized.getBoolValue())
-        Diag(Loc, diag::err_array_too_large)
-          << Oversized.toString(10);
-      else
-        Diag(Loc, diag::err_typecheck_field_variable_size);
+    if (!tryToFixVariablyModifiedVarType(
+            *this, TInfo, T, Loc, diag::err_typecheck_field_variable_size))
       InvalidDecl = true;
-    }
   }
 
   // Fields can not have abstract class types
@@ -16946,8 +16984,9 @@ Decl *Sema::ActOnIvar(Scope *S,
   // C99 6.7.2.1p8: A member of a structure or union may have any type other
   // than a variably modified type.
   else if (T->isVariablyModifiedType()) {
-    Diag(Loc, diag::err_typecheck_ivar_variable_size);
-    D.setInvalidType();
+    if (!tryToFixVariablyModifiedVarType(
+            *this, TInfo, T, Loc, diag::err_typecheck_ivar_variable_size))
+      D.setInvalidType();
   }
 
   // Get the visibility (access control) for this ivar.

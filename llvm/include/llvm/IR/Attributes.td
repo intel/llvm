@@ -63,6 +63,9 @@ def Cold : EnumAttr<"cold">;
 /// Can only be moved to control-equivalent blocks.
 def Convergent : EnumAttr<"convergent">;
 
+/// Marks function as being in a hot path and frequently called.
+def Hot: EnumAttr<"hot">;
+
 /// Pointer is known to be dereferenceable.
 def Dereferenceable : IntAttr<"dereferenceable">;
 
@@ -103,6 +106,9 @@ def NoAlias : EnumAttr<"noalias">;
 /// Callee isn't recognized as a builtin.
 def NoBuiltin : EnumAttr<"nobuiltin">;
 
+/// Function cannot enter into caller's translation unit.
+def NoCallback : EnumAttr<"nocallback">;
+
 /// Function creates no aliases of pointer.
 def NoCapture : EnumAttr<"nocapture">;
 
@@ -121,7 +127,7 @@ def NoInline : EnumAttr<"noinline">;
 /// Function is called early and/or often, so lazy binding isn't worthwhile.
 def NonLazyBind : EnumAttr<"nonlazybind">;
 
-/// Disable merging for call sites
+/// Disable merging for specified functions or call sites.
 def NoMerge : EnumAttr<"nomerge">;
 
 /// Pointer is known to be not null.

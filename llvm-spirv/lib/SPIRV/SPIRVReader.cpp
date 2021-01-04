@@ -529,6 +529,9 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
     SmallVector<Type *, 4> MT;
     for (size_t I = 0, E = ST->getMemberCount(); I != E; ++I)
       MT.push_back(transType(ST->getMemberType(I), true));
+    for (auto &CI : ST->getContinuedInstructions())
+      for (size_t I = 0, E = CI->getNumElements(); I != E; ++I)
+        MT.push_back(transType(CI->getMemberType(I), true));
     StructTy->setBody(MT, ST->isPacked());
     return StructTy;
   }
@@ -1127,7 +1130,7 @@ static void applyFPFastMathModeDecorations(const SPIRVValue *BV,
       FMF.setNoSignedZeros();
     if (V & FPFastMathModeAllowRecipMask)
       FMF.setAllowReciprocal();
-    if (V & FPFastMathModeAllowContractINTELMask)
+    if (V & FPFastMathModeAllowContractFastINTELMask)
       FMF.setAllowContract();
     if (V & FPFastMathModeAllowReassocINTELMask)
       FMF.setAllowReassoc();
@@ -1618,6 +1621,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     std::vector<Constant *> CV;
     for (auto &I : BCC->getElements())
       CV.push_back(dyn_cast<Constant>(transValue(I, F, BB)));
+    for (auto &CI : BCC->getContinuedInstructions()) {
+      for (auto &I : CI->getElements())
+        CV.push_back(dyn_cast<Constant>(transValue(I, F, BB)));
+    }
     switch (BV->getType()->getOpCode()) {
     case OpTypeVector:
       return mapValue(BV, ConstantVector::get(CV));
@@ -4074,7 +4081,7 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
     auto ArgNo = I->getArgNo();
     SPIRVFunctionParameter *BA = BF->getArgument(ArgNo);
     SPIRVWord Kind;
-    if (BA->hasDecorate(DecorationFuncParamIOKind, 0, &Kind)) {
+    if (BA->hasDecorate(DecorationFuncParamIOKindINTEL, 0, &Kind)) {
       Attribute Attr = Attribute::get(*Context, kVCMetadata::VCArgumentIOKind,
                                       std::to_string(Kind));
       F->addAttribute(ArgNo + 1, Attr);

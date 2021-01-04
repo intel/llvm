@@ -756,8 +756,9 @@ public:
   /// just return the builder for it.
   MachineInstrBuilder emitLoc(Optional<LocIdx> MLoc, const DebugVariable &Var,
                               const DbgValueProperties &Properties) {
-    DebugLoc DL =
-        DebugLoc::get(0, 0, Var.getVariable()->getScope(), Var.getInlinedAt());
+    DebugLoc DL = DILocation::get(Var.getVariable()->getContext(), 0, 0,
+                                  Var.getVariable()->getScope(),
+                                  const_cast<DILocation *>(Var.getInlinedAt()));
     auto MIB = BuildMI(MF, DL, TII.get(TargetOpcode::DBG_VALUE));
 
     const DIExpression *Expr = Properties.DIExpr;
@@ -1280,8 +1281,9 @@ public:
   MachineInstrBuilder emitMOLoc(const MachineOperand &MO,
                                 const DebugVariable &Var,
                                 const DbgValueProperties &Properties) {
-    DebugLoc DL =
-        DebugLoc::get(0, 0, Var.getVariable()->getScope(), Var.getInlinedAt());
+    DebugLoc DL = DILocation::get(Var.getVariable()->getContext(), 0, 0,
+                                  Var.getVariable()->getScope(),
+                                  const_cast<DILocation *>(Var.getInlinedAt()));
     auto MIB = BuildMI(MF, DL, TII->get(TargetOpcode::DBG_VALUE));
     MIB.add(MO);
     if (Properties.Indirect)
@@ -2677,7 +2679,7 @@ std::tuple<bool, bool> InstrRefBasedLDV::vlocJoin(
     for (auto p : BlockOrders) {
       // If the predecessor isn't in scope / to be explored, we'll never be
       // able to join any locations.
-      if (BlocksToExplore.find(p) == BlocksToExplore.end()) {
+      if (!BlocksToExplore.contains(p)) {
         Bail = true;
         break;
       }

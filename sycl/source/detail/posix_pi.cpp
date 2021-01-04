@@ -22,6 +22,8 @@ void *loadOsLibrary(const std::string &PluginPath) {
   return dlopen(PluginPath.c_str(), RTLD_NOW);
 }
 
+int unloadOsLibrary(void *Library) { return dlclose(Library); }
+
 void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
   return dlsym(Library, FunctionName.c_str());
 }

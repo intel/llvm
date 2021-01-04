@@ -116,6 +116,10 @@ MlirLocation mlirLocationFileLineColGet(MlirContext context,
       FileLineColLoc::get(unwrap(filename), line, col, unwrap(context)));
 }
 
+MlirLocation mlirLocationCallSiteGet(MlirLocation callee, MlirLocation caller) {
+  return wrap(CallSiteLoc::get(unwrap(callee), unwrap(caller)));
+}
+
 MlirLocation mlirLocationUnknownGet(MlirContext context) {
   return wrap(UnknownLoc::get(unwrap(context)));
 }
@@ -308,7 +312,7 @@ intptr_t mlirOperationGetNumAttributes(MlirOperation op) {
 
 MlirNamedAttribute mlirOperationGetAttribute(MlirOperation op, intptr_t pos) {
   NamedAttribute attr = unwrap(op)->getAttrs()[pos];
-  return MlirNamedAttribute{wrap(attr.first.strref()), wrap(attr.second)};
+  return MlirNamedAttribute{wrap(attr.first), wrap(attr.second)};
 }
 
 MlirAttribute mlirOperationGetAttributeByName(MlirOperation op,
@@ -322,8 +326,7 @@ void mlirOperationSetAttributeByName(MlirOperation op, MlirStringRef name,
 }
 
 bool mlirOperationRemoveAttributeByName(MlirOperation op, MlirStringRef name) {
-  auto removeResult = unwrap(op)->removeAttr(unwrap(name));
-  return removeResult == MutableDictionaryAttr::RemoveResult::Removed;
+  return !!unwrap(op)->removeAttr(unwrap(name));
 }
 
 void mlirOperationPrint(MlirOperation op, MlirStringCallback callback,
@@ -586,7 +589,7 @@ void mlirAttributePrint(MlirAttribute attr, MlirStringCallback callback,
 
 void mlirAttributeDump(MlirAttribute attr) { unwrap(attr).dump(); }
 
-MlirNamedAttribute mlirNamedAttributeGet(MlirStringRef name,
+MlirNamedAttribute mlirNamedAttributeGet(MlirIdentifier name,
                                          MlirAttribute attr) {
   return MlirNamedAttribute{name, attr};
 }

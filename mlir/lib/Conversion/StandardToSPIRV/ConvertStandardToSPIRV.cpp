@@ -10,10 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/SPIRV/LayoutUtils.h"
-#include "mlir/Dialect/SPIRV/SPIRVDialect.h"
-#include "mlir/Dialect/SPIRV/SPIRVLowering.h"
-#include "mlir/Dialect/SPIRV/SPIRVOps.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
+#include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
+#include "mlir/Dialect/SPIRV/Utils/LayoutUtils.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/Support/LogicalResult.h"
@@ -280,7 +280,7 @@ public:
 
     // Insert spv.globalVariable for this allocation.
     Operation *parent =
-        SymbolTable::getNearestSymbolTable(operation.getParentOp());
+        SymbolTable::getNearestSymbolTable(operation->getParentOp());
     if (!parent)
       return failure();
     Location loc = operation.getLoc();
@@ -647,8 +647,8 @@ LogicalResult ConstantCompositeOpPattern::matchAndRewrite(
     }
 
     // Unfortunately, we cannot use dialect-specific types for element
-    // attributes; element attributes only works with standard types. So we need
-    // to prepare another converted standard types for the destination elements
+    // attributes; element attributes only works with builtin types. So we need
+    // to prepare another converted builtin types for the destination elements
     // attribute.
     if (dstAttrType.isa<RankedTensorType>())
       dstAttrType = RankedTensorType::get(dstAttrType.getShape(), dstElemType);
@@ -868,9 +868,9 @@ IntLoadOpPattern::matchAndRewrite(LoadOp loadOp, ArrayRef<Value> operands,
                                                    srcBits, dstBits, rewriter);
   Value spvLoadOp = rewriter.create<spirv::LoadOp>(
       loc, dstType, adjustedPtr,
-      loadOp.getAttrOfType<IntegerAttr>(
+      loadOp->getAttrOfType<IntegerAttr>(
           spirv::attributeName<spirv::MemoryAccess>()),
-      loadOp.getAttrOfType<IntegerAttr>("alignment"));
+      loadOp->getAttrOfType<IntegerAttr>("alignment"));
 
   // Shift the bits to the rightmost.
   // ____XXXX________ -> ____________XXXX

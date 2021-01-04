@@ -418,8 +418,37 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
     if (Name == getSPIRVTypeName(kSPIRVTypeName::ConstantPipeStorage))
       return transType(getPipeStorageType(M));
 
-    auto *Struct = BM->openStructType(T->getStructNumElements(), Name.str());
+    constexpr size_t MaxNumElements = MaxWordCount - SPIRVTypeStruct::FixedWC;
+    const size_t NumElements = ST->getNumElements();
+    size_t SPIRVStructNumElements = NumElements;
+    // In case number of elements is greater than maximum WordCount and
+    // SPV_INTEL_long_constant_composite is not enabled, the error will be
+    // emitted by validate functionality of SPIRVTypeStruct class.
+    if (NumElements > MaxNumElements &&
+        BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_long_constant_composite)) {
+      SPIRVStructNumElements = MaxNumElements;
+    }
+
+    auto *Struct = BM->openStructType(SPIRVStructNumElements, Name.str());
     mapType(T, Struct);
+
+    if (NumElements > MaxNumElements &&
+        BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_long_constant_composite)) {
+      uint64_t NumOfContinuedInstructions = NumElements / MaxNumElements - 1;
+      for (uint64_t J = 0; J < NumOfContinuedInstructions; J++) {
+        auto *Continued = BM->addTypeStructContinuedINTEL(MaxNumElements);
+        Struct->addContinuedInstruction(
+            static_cast<SPIRVTypeStruct::ContinuedInstType>(Continued));
+      }
+      uint64_t Remains = NumElements % MaxNumElements;
+      if (Remains) {
+        auto *Continued = BM->addTypeStructContinuedINTEL(Remains);
+        Struct->addContinuedInstruction(
+            static_cast<SPIRVTypeStruct::ContinuedInstType>(Continued));
+      }
+    }
 
     SmallVector<unsigned, 4> ForwardRefs;
 
@@ -645,7 +674,7 @@ void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
       Attrs.getAttribute(ArgNo + 1, kVCMetadata::VCArgumentIOKind)
           .getValueAsString()
           .getAsInteger(0, Kind);
-      BA->addDecorate(DecorationFuncParamIOKind, Kind);
+      BA->addDecorate(DecorationFuncParamIOKindINTEL, Kind);
     }
     if (Attrs.hasAttribute(ArgNo + 1, kVCMetadata::VCSingleElementVector)) {
       auto *AT = BA->getType();
@@ -1263,19 +1292,24 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
       } else
         BVarInit = I->second;
     } else if (Init && !isa<UndefValue>(Init)) {
-      if (auto ArrTy = dyn_cast_or_null<ArrayType>(Init->getType())) {
-        // First 3 words of OpConstantComposite encode: 1) word count & opcode,
-        // 2) Result Type and 3) Result Id.
-        // Max length of SPIRV instruction = 65535 words.
-        const int MaxNumElements = 65535 - 3;
-        if (ArrTy->getNumElements() > MaxNumElements &&
-            !isa<ConstantAggregateZero>(Init)) {
-          std::stringstream SS;
-          SS << "Global variable has a constant array initializer with a number"
-             << " of elements greater than OpConstantComposite can have "
-             << "(65532). Should the array be split?\n Original LLVM value:\n"
-             << toString(GV);
-          getErrorLog().checkError(false, SPIRVEC_InvalidWordCount, SS.str());
+      if (!BM->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_long_constant_composite)) {
+        if (auto ArrTy = dyn_cast_or_null<ArrayType>(Init->getType())) {
+          // First 3 words of OpConstantComposite encode: 1) word count &
+          // opcode, 2) Result Type and 3) Result Id. Max length of SPIRV
+          // instruction = 65535 words.
+          constexpr int MaxNumElements =
+              MaxWordCount - SPIRVSpecConstantComposite::FixedWC;
+          if (ArrTy->getNumElements() > MaxNumElements &&
+              !isa<ConstantAggregateZero>(Init)) {
+            std::stringstream SS;
+            SS << "Global variable has a constant array initializer with a "
+               << "number of elements greater than OpConstantComposite can "
+               << "have (" << MaxNumElements << "). Should the array be "
+               << "split?\n Original LLVM value:\n"
+               << toString(GV);
+            getErrorLog().checkError(false, SPIRVEC_InvalidWordCount, SS.str());
+          }
         }
       }
       BVarInit = transValue(Init, nullptr);
@@ -1744,7 +1778,7 @@ bool LLVMToSPIRV::transDecoration(Value *V, SPIRVValue *BV) {
         if (BM->isAllowedToUseExtension(
                 ExtensionID::SPV_INTEL_fp_fast_math_mode)) {
           if (FMF.allowContract()) {
-            M |= FPFastMathModeAllowContractINTELMask;
+            M |= FPFastMathModeAllowContractFastINTELMask;
             BM->addCapability(CapabilityFPFastMathModeINTEL);
           }
           if (FMF.allowReassoc()) {
@@ -2067,12 +2101,33 @@ void addIntelFPGADecorationsForStructMember(SPIRVEntry *E,
 bool LLVMToSPIRV::isKnownIntrinsic(Intrinsic::ID Id) {
   // Known intrinsics usually do not need translation of their declaration
   switch (Id) {
+  case Intrinsic::abs:
   case Intrinsic::assume:
   case Intrinsic::bitreverse:
-  case Intrinsic::sqrt:
-  case Intrinsic::fabs:
-  case Intrinsic::abs:
   case Intrinsic::ceil:
+  case Intrinsic::copysign:
+  case Intrinsic::cos:
+  case Intrinsic::exp:
+  case Intrinsic::exp2:
+  case Intrinsic::fabs:
+  case Intrinsic::floor:
+  case Intrinsic::fma:
+  case Intrinsic::log:
+  case Intrinsic::log10:
+  case Intrinsic::log2:
+  case Intrinsic::maximum:
+  case Intrinsic::maxnum:
+  case Intrinsic::minimum:
+  case Intrinsic::minnum:
+  case Intrinsic::nearbyint:
+  case Intrinsic::pow:
+  case Intrinsic::powi:
+  case Intrinsic::rint:
+  case Intrinsic::round:
+  case Intrinsic::roundeven:
+  case Intrinsic::sin:
+  case Intrinsic::sqrt:
+  case Intrinsic::trunc:
   case Intrinsic::ctpop:
   case Intrinsic::ctlz:
   case Intrinsic::cttz:
@@ -2095,7 +2150,6 @@ bool LLVMToSPIRV::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::fmuladd:
   case Intrinsic::memset:
   case Intrinsic::memcpy:
-  case Intrinsic::nearbyint:
   case Intrinsic::lifetime_start:
   case Intrinsic::lifetime_end:
   case Intrinsic::dbg_declare:
@@ -2130,6 +2184,69 @@ LLVMToSPIRV::applyRoundingModeConstraint(Value *V, SPIRVInstruction *I) {
   else if (RMode.endswith("downward"))
     I->addFPRoundingMode(FPRoundingModeRTN);
   return I;
+}
+
+static SPIRVWord getBuiltinIdForIntrinsic(Intrinsic::ID IID) {
+  switch (IID) {
+  // Note: In some cases the semantics of the OpenCL builtin are not identical
+  //       to the semantics of the corresponding LLVM IR intrinsic. The LLVM
+  //       intrinsics handled here assume the default floating point environment
+  //       (no unmasked exceptions, round-to-nearest-ties-even rounding mode)
+  //       and assume that the operations have no side effects (FP status flags
+  //       aren't maintained), so the OpenCL builtin behavior should be
+  //       acceptable.
+  case Intrinsic::ceil:
+    return OpenCLLIB::Ceil;
+  case Intrinsic::copysign:
+    return OpenCLLIB::Copysign;
+  case Intrinsic::cos:
+    return OpenCLLIB::Cos;
+  case Intrinsic::exp:
+    return OpenCLLIB::Exp;
+  case Intrinsic::exp2:
+    return OpenCLLIB::Exp2;
+  case Intrinsic::fabs:
+    return OpenCLLIB::Fabs;
+  case Intrinsic::floor:
+    return OpenCLLIB::Floor;
+  case Intrinsic::fma:
+    return OpenCLLIB::Fma;
+  case Intrinsic::log:
+    return OpenCLLIB::Log;
+  case Intrinsic::log10:
+    return OpenCLLIB::Log10;
+  case Intrinsic::log2:
+    return OpenCLLIB::Log2;
+  case Intrinsic::maximum:
+    return OpenCLLIB::Fmax;
+  case Intrinsic::maxnum:
+    return OpenCLLIB::Fmax;
+  case Intrinsic::minimum:
+    return OpenCLLIB::Fmin;
+  case Intrinsic::minnum:
+    return OpenCLLIB::Fmin;
+  case Intrinsic::nearbyint:
+    return OpenCLLIB::Rint;
+  case Intrinsic::pow:
+    return OpenCLLIB::Pow;
+  case Intrinsic::powi:
+    return OpenCLLIB::Pown;
+  case Intrinsic::rint:
+    return OpenCLLIB::Rint;
+  case Intrinsic::round:
+    return OpenCLLIB::Round;
+  case Intrinsic::roundeven:
+    return OpenCLLIB::Rint;
+  case Intrinsic::sin:
+    return OpenCLLIB::Sin;
+  case Intrinsic::sqrt:
+    return OpenCLLIB::Sqrt;
+  case Intrinsic::trunc:
+    return OpenCLLIB::Trunc;
+  default:
+    assert(false && "Builtin ID requested for Unhandled intrinsic!");
+    return 0;
+  }
 }
 
 SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
@@ -2174,17 +2291,57 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     SPIRVValue *Op = transValue(II->getArgOperand(0), BB);
     return BM->addUnaryInst(OpBitReverse, Ty, Op, BB);
   }
-  case Intrinsic::sqrt: {
-    return BM->addExtInst(transType(II->getType()),
-                          BM->getExtInstSetId(SPIRVEIS_OpenCL), OpenCLLIB::Sqrt,
-                          {transValue(II->getOperand(0), BB)}, BB);
-  }
-  case Intrinsic::fabs: {
+
+  // Unary FP intrinsic
+  case Intrinsic::ceil:
+  case Intrinsic::cos:
+  case Intrinsic::exp:
+  case Intrinsic::exp2:
+  case Intrinsic::fabs:
+  case Intrinsic::floor:
+  case Intrinsic::log:
+  case Intrinsic::log10:
+  case Intrinsic::log2:
+  case Intrinsic::nearbyint:
+  case Intrinsic::rint:
+  case Intrinsic::round:
+  case Intrinsic::roundeven:
+  case Intrinsic::sin:
+  case Intrinsic::sqrt:
+  case Intrinsic::trunc: {
     if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
       break;
-    SPIRVWord ExtOp = OpenCLLIB::Fabs;
+    SPIRVWord ExtOp = getBuiltinIdForIntrinsic(II->getIntrinsicID());
     SPIRVType *STy = transType(II->getType());
     std::vector<SPIRVValue *> Ops(1, transValue(II->getArgOperand(0), BB));
+    return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
+                          BB);
+  }
+  // Binary FP intrinsics
+  case Intrinsic::copysign:
+  case Intrinsic::pow:
+  case Intrinsic::powi:
+  case Intrinsic::maximum:
+  case Intrinsic::maxnum:
+  case Intrinsic::minimum:
+  case Intrinsic::minnum: {
+    if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
+      break;
+    SPIRVWord ExtOp = getBuiltinIdForIntrinsic(II->getIntrinsicID());
+    SPIRVType *STy = transType(II->getType());
+    std::vector<SPIRVValue *> Ops{transValue(II->getArgOperand(0), BB),
+                                  transValue(II->getArgOperand(1), BB)};
+    return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
+                          BB);
+  }
+  case Intrinsic::fma: {
+    if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
+      break;
+    SPIRVWord ExtOp = OpenCLLIB::Fma;
+    SPIRVType *STy = transType(II->getType());
+    std::vector<SPIRVValue *> Ops{transValue(II->getArgOperand(0), BB),
+                                  transValue(II->getArgOperand(1), BB),
+                                  transValue(II->getArgOperand(2), BB)};
     return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
                           BB);
   }
@@ -2194,15 +2351,6 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     // LLVM has only one version of abs and it is only for signed integers. We
     // unconditionally choose SAbs here
     SPIRVWord ExtOp = OpenCLLIB::SAbs;
-    SPIRVType *STy = transType(II->getType());
-    std::vector<SPIRVValue *> Ops(1, transValue(II->getArgOperand(0), BB));
-    return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
-                          BB);
-  }
-  case Intrinsic::ceil: {
-    if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
-      break;
-    SPIRVWord ExtOp = OpenCLLIB::Ceil;
     SPIRVType *STy = transType(II->getType());
     std::vector<SPIRVValue *> Ops(1, transValue(II->getArgOperand(0), BB));
     return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
@@ -2337,22 +2485,25 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     // For llvm.fmuladd.* fusion is not guaranteed. If a fused multiply-add
     // is required the corresponding llvm.fma.* intrinsic function should be
     // used instead.
+    // If allowed, let's replace llvm.fmuladd.* with mad from OpenCL extended
+    // instruction set, as it has the same semantic for FULL_PROFILE OpenCL
+    // devices (implementation-defined for EMBEDDED_PROFILE).
+    if (BM->shouldReplaceLLVMFmulAddWithOpenCLMad()) {
+      std::vector<SPIRVValue *> Ops{transValue(II->getArgOperand(0), BB),
+                                    transValue(II->getArgOperand(1), BB),
+                                    transValue(II->getArgOperand(2), BB)};
+      return BM->addExtInst(transType(II->getType()),
+                            BM->getExtInstSetId(SPIRVEIS_OpenCL),
+                            OpenCLLIB::Mad, Ops, BB);
+    }
+
+    // Otherwise, just break llvm.fmuladd.* into a pair of fmul + fadd
     SPIRVType *Ty = transType(II->getType());
     SPIRVValue *Mul =
         BM->addBinaryInst(OpFMul, Ty, transValue(II->getArgOperand(0), BB),
                           transValue(II->getArgOperand(1), BB), BB);
     return BM->addBinaryInst(OpFAdd, Ty, Mul,
                              transValue(II->getArgOperand(2), BB), BB);
-  }
-  case Intrinsic::maxnum: {
-    if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
-      break;
-    SPIRVWord ExtOp = OpenCLLIB::Fmax;
-    SPIRVType *STy = transType(II->getType());
-    std::vector<SPIRVValue *> Ops{transValue(II->getArgOperand(0), BB),
-                                  transValue(II->getArgOperand(1), BB)};
-    return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
-                          BB);
   }
   case Intrinsic::usub_sat: {
     // usub.sat(a, b) -> (a > b) ? a - b : 0
@@ -2425,13 +2576,6 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     if (Size == -1)
       Size = 0;
     return BM->addLifetimeInst(OC, transValue(II->getOperand(1), BB), Size, BB);
-  }
-  case Intrinsic::nearbyint: {
-    if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
-      break;
-    return BM->addExtInst(transType(II->getType()),
-                          BM->getExtInstSetId(SPIRVEIS_OpenCL), OpenCLLIB::Rint,
-                          {transValue(II->getOperand(0), BB)}, BB);
   }
   // We don't want to mix translation of regular code and debug info, because
   // it creates a mess, therefore translation of debug intrinsics is
@@ -2608,7 +2752,7 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::dbg_label:
   case Intrinsic::trap:
     // llvm.trap intrinsic is not implemented. But for now don't crash. This
-    // change is pending the trap/abort intrisinc implementation.
+    // change is pending the trap/abort intrinsic implementation.
     return nullptr;
   default:
     if (BM->isSPIRVAllowUnknownIntrinsicsEnabled())
@@ -2827,7 +2971,7 @@ void LLVMToSPIRV::transGlobalIOPipeStorage(GlobalVariable *V, MDNode *IO) {
   SPIRVValue *SV = transValue(V, nullptr);
   assert(SV && "Failed to process OCL PipeStorage object");
   if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_io_pipes)) {
-    BM->addCapability(CapabilityIOPipeINTEL);
+    BM->addCapability(CapabilityIOPipesINTEL);
     unsigned ID = getMDOperandAsInt(IO, 0);
     SV->addDecorate(DecorationIOPipeStorageINTEL, ID);
   }

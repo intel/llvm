@@ -15,13 +15,12 @@ def do_configure(args):
 
     llvm_external_projects = 'sycl;llvm-spirv;opencl-aot;libdevice'
     if not args.use_libcxx:
-        llvm_external_projects += ';xpti;xptifw'
+        llvm_external_projects += ';xpti'
 
     llvm_dir = os.path.join(abs_src_dir, "llvm")
     sycl_dir = os.path.join(abs_src_dir, "sycl")
     spirv_dir = os.path.join(abs_src_dir, "llvm-spirv")
     xpti_dir = os.path.join(abs_src_dir, "xpti")
-    xptifw_dir = os.path.join(abs_src_dir, "xptifw")
     libdevice_dir = os.path.join(abs_src_dir, "libdevice")
     ocl_header_dir = os.path.join(abs_obj_dir, "OpenCL-Headers")
     icd_loader_lib = os.path.join(abs_obj_dir, "OpenCL-ICD-Loader", "build")
@@ -73,8 +72,6 @@ def do_configure(args):
         "-DLLVM_EXTERNAL_SYCL_SOURCE_DIR={}".format(sycl_dir),
         "-DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR={}".format(spirv_dir),
         "-DLLVM_EXTERNAL_XPTI_SOURCE_DIR={}".format(xpti_dir),
-        "-DXPTI_SOURCE_DIR={}".format(xpti_dir),
-        "-DLLVM_EXTERNAL_XPTIFW_SOURCE_DIR={}".format(xptifw_dir),
         "-DLLVM_EXTERNAL_LIBDEVICE_SOURCE_DIR={}".format(libdevice_dir),
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
         "-DLIBCLC_TARGETS_TO_BUILD={}".format(libclc_targets_to_build),

@@ -19,6 +19,8 @@ def Implicit : DiagGroup<"implicit", [
 def ODR : DiagGroup<"odr">;
 def : DiagGroup<"abi">;
 def AbsoluteValue : DiagGroup<"absolute-value">;
+def MisspelledAssumption : DiagGroup<"misspelled-assumption">;
+def UnknownAssumption : DiagGroup<"unknown-assumption">;
 def AddressOfTemporary : DiagGroup<"address-of-temporary">;
 def : DiagGroup<"aggregate-return">;
 def GNUAlignofExpression : DiagGroup<"gnu-alignof-expression">;
@@ -667,8 +669,10 @@ def NSReturnsMismatch : DiagGroup<"nsreturns-mismatch">;
 def IndependentClassAttribute : DiagGroup<"IndependentClass-attribute">;
 def UnknownAttributes : DiagGroup<"unknown-attributes">;
 def IgnoredAttributes : DiagGroup<"ignored-attributes">;
+def AcceptedAttributes : DiagGroup<"accepted-attributes">;
 def Attributes : DiagGroup<"attributes", [UnknownAttributes,
-                                          IgnoredAttributes]>;
+                                          IgnoredAttributes,
+                                          AcceptedAttributes]>;
 def UnknownSanitizers : DiagGroup<"unknown-sanitizers">;
 def UnnamedTypeTemplateArgs : DiagGroup<"unnamed-type-template-args",
                                         [CXX98CompatUnnamedTypeTemplateArgs]>;

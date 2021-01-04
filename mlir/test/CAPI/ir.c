@@ -13,11 +13,11 @@
 #include "mlir-c/IR.h"
 #include "mlir-c/AffineExpr.h"
 #include "mlir-c/AffineMap.h"
+#include "mlir-c/BuiltinAttributes.h"
+#include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Diagnostics.h"
 #include "mlir-c/Registration.h"
-#include "mlir-c/StandardAttributes.h"
 #include "mlir-c/StandardDialect.h"
-#include "mlir-c/StandardTypes.h"
 
 #include <assert.h>
 #include <math.h>
@@ -89,10 +89,12 @@ MlirModule makeAndDumpAdd(MlirContext ctx, MlirLocation location) {
   MlirAttribute funcNameAttr =
       mlirAttributeParseGet(ctx, mlirStringRefCreateFromCString("\"add\""));
   MlirNamedAttribute funcAttrs[] = {
-      mlirNamedAttributeGet(mlirStringRefCreateFromCString("type"),
-                            funcTypeAttr),
-      mlirNamedAttributeGet(mlirStringRefCreateFromCString("sym_name"),
-                            funcNameAttr)};
+      mlirNamedAttributeGet(
+          mlirIdentifierGet(ctx, mlirStringRefCreateFromCString("type")),
+          funcTypeAttr),
+      mlirNamedAttributeGet(
+          mlirIdentifierGet(ctx, mlirStringRefCreateFromCString("sym_name")),
+          funcNameAttr)};
   MlirOperationState funcState =
       mlirOperationStateGet(mlirStringRefCreateFromCString("func"), location);
   mlirOperationStateAddAttributes(&funcState, 2, funcAttrs);
@@ -105,7 +107,8 @@ MlirModule makeAndDumpAdd(MlirContext ctx, MlirLocation location) {
   MlirAttribute indexZeroLiteral =
       mlirAttributeParseGet(ctx, mlirStringRefCreateFromCString("0 : index"));
   MlirNamedAttribute indexZeroValueAttr = mlirNamedAttributeGet(
-      mlirStringRefCreateFromCString("value"), indexZeroLiteral);
+      mlirIdentifierGet(ctx, mlirStringRefCreateFromCString("value")),
+      indexZeroLiteral);
   MlirOperationState constZeroState = mlirOperationStateGet(
       mlirStringRefCreateFromCString("std.constant"), location);
   mlirOperationStateAddResults(&constZeroState, 1, &indexType);
@@ -130,7 +133,8 @@ MlirModule makeAndDumpAdd(MlirContext ctx, MlirLocation location) {
   MlirAttribute indexOneLiteral =
       mlirAttributeParseGet(ctx, mlirStringRefCreateFromCString("1 : index"));
   MlirNamedAttribute indexOneValueAttr = mlirNamedAttributeGet(
-      mlirStringRefCreateFromCString("value"), indexOneLiteral);
+      mlirIdentifierGet(ctx, mlirStringRefCreateFromCString("value")),
+      indexOneLiteral);
   MlirOperationState constOneState = mlirOperationStateGet(
       mlirStringRefCreateFromCString("std.constant"), location);
   mlirOperationStateAddResults(&constOneState, 1, &indexType);
@@ -375,8 +379,8 @@ static void printFirstOfEach(MlirContext ctx, MlirOperation operation) {
   // CHECK: Get attr 0: 0 : index
 
   // Now re-get the attribute by name.
-  MlirAttribute attr0ByName =
-      mlirOperationGetAttributeByName(operation, namedAttr0.name);
+  MlirAttribute attr0ByName = mlirOperationGetAttributeByName(
+      operation, mlirIdentifierStr(namedAttr0.name));
   fprintf(stderr, "Get attr 0 by name: ");
   mlirAttributePrint(attr0ByName, printToStderr, NULL);
   fprintf(stderr, "\n");
@@ -549,12 +553,12 @@ static void buildWithInsertionsAndPrint(MlirContext ctx) {
   // clang-format on
 }
 
-/// Dumps instances of all standard types to check that C API works correctly.
-/// Additionally, performs simple identity checks that a standard type
+/// Dumps instances of all builtin types to check that C API works correctly.
+/// Additionally, performs simple identity checks that a builtin type
 /// constructed with C API can be inspected and has the expected type. The
-/// latter achieves full coverage of C API for standard types. Returns 0 on
+/// latter achieves full coverage of C API for builtin types. Returns 0 on
 /// success and a non-zero error code on failure.
-static int printStandardTypes(MlirContext ctx) {
+static int printBuiltinTypes(MlirContext ctx) {
   // Integer types.
   MlirType i32 = mlirIntegerTypeGet(ctx, 32);
   MlirType si32 = mlirIntegerTypeSignedGet(ctx, 32);
@@ -739,7 +743,7 @@ bool stringIsEqual(const char *lhs, MlirStringRef rhs) {
   return !strncmp(lhs, rhs.data, rhs.length);
 }
 
-int printStandardAttributes(MlirContext ctx) {
+int printBuiltinAttributes(MlirContext ctx) {
   MlirAttribute floating =
       mlirFloatAttrDoubleGet(ctx, mlirF64TypeGet(ctx), 2.0);
   if (!mlirAttributeIsAFloat(floating) ||
@@ -1262,26 +1266,20 @@ int registerOnlyStd() {
     return 2;
 
   mlirContextRegisterStandardDialect(ctx);
-  if (mlirContextGetNumRegisteredDialects(ctx) != 1)
-    return 3;
-  if (mlirContextGetNumLoadedDialects(ctx) != 1)
-    return 4;
 
   std = mlirContextGetOrLoadDialect(ctx, mlirStandardDialectGetNamespace());
   if (mlirDialectIsNull(std))
-    return 5;
-  if (mlirContextGetNumLoadedDialects(ctx) != 2)
-    return 6;
+    return 3;
 
   MlirDialect alsoStd = mlirContextLoadStandardDialect(ctx);
   if (!mlirDialectEqual(std, alsoStd))
-    return 7;
+    return 4;
 
   MlirStringRef stdNs = mlirDialectGetNamespace(std);
   MlirStringRef alsoStdNs = mlirStandardDialectGetNamespace();
   if (stdNs.length != alsoStdNs.length ||
       strncmp(stdNs.data, alsoStdNs.data, stdNs.length))
-    return 8;
+    return 5;
 
   fprintf(stderr, "@registration\n");
   // CHECK-LABEL: @registration
@@ -1297,7 +1295,7 @@ MlirLogicalResult errorHandler(MlirDiagnostic diagnostic, void *userData) {
   MlirLocation loc = mlirDiagnosticGetLocation(diagnostic);
   mlirLocationPrint(loc, printToStderr, NULL);
   assert(mlirDiagnosticGetNumNotes(diagnostic) == 0);
-  fprintf(stderr, ">> end of diagnostic (userData: %ld)\n", (long)userData);
+  fprintf(stderr, "\n>> end of diagnostic (userData: %ld)\n", (long)userData);
   return mlirLogicalResultSuccess();
 }
 
@@ -1310,15 +1308,31 @@ void testDiagnostics() {
   MlirContext ctx = mlirContextCreate();
   MlirDiagnosticHandlerID id = mlirContextAttachDiagnosticHandler(
       ctx, errorHandler, (void *)42, deleteUserData);
-  MlirLocation loc = mlirLocationUnknownGet(ctx);
   fprintf(stderr, "@test_diagnostics\n");
-  mlirEmitError(loc, "test diagnostics");
+  MlirLocation unknownLoc = mlirLocationUnknownGet(ctx);
+  mlirEmitError(unknownLoc, "test diagnostics");
+  MlirLocation fileLineColLoc = mlirLocationFileLineColGet(
+      ctx, mlirStringRefCreateFromCString("file.c"), 1, 2);
+  mlirEmitError(fileLineColLoc, "test diagnostics");
+  MlirLocation callSiteLoc = mlirLocationCallSiteGet(
+      mlirLocationFileLineColGet(
+          ctx, mlirStringRefCreateFromCString("other-file.c"), 2, 3),
+      fileLineColLoc);
+  mlirEmitError(callSiteLoc, "test diagnostics");
   mlirContextDetachDiagnosticHandler(ctx, id);
-  mlirEmitError(loc, "more test diagnostics");
+  mlirEmitError(unknownLoc, "more test diagnostics");
   // CHECK-LABEL: @test_diagnostics
   // CHECK: processing diagnostic (userData: 42) <<
   // CHECK:   test diagnostics
   // CHECK:   loc(unknown)
+  // CHECK: >> end of diagnostic (userData: 42)
+  // CHECK: processing diagnostic (userData: 42) <<
+  // CHECK:   test diagnostics
+  // CHECK:   loc("file.c":1:2)
+  // CHECK: >> end of diagnostic (userData: 42)
+  // CHECK: processing diagnostic (userData: 42) <<
+  // CHECK:   test diagnostics
+  // CHECK:   loc(callsite("other-file.c":2:3 at "file.c":1:2))
   // CHECK: >> end of diagnostic (userData: 42)
   // CHECK: deleting user data (userData: 42)
   // CHECK-NOT: processing diagnostic
@@ -1332,9 +1346,9 @@ int main() {
     return 1;
   buildWithInsertionsAndPrint(ctx);
 
-  if (printStandardTypes(ctx))
+  if (printBuiltinTypes(ctx))
     return 2;
-  if (printStandardAttributes(ctx))
+  if (printBuiltinAttributes(ctx))
     return 3;
   if (printAffineMap(ctx))
     return 4;

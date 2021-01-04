@@ -1045,7 +1045,7 @@ Currently, only the following parameter attributes are defined:
     opposed to memory, though some targets use it to distinguish between
     two different kinds of registers). Use of this attribute is
     target-specific.
-``byval`` or ``byval(<ty>)``
+``byval(<ty>)``
     This indicates that the pointer parameter should really be passed by
     value to the function. The attribute implies that a hidden copy of
     the pointee is made between the caller and the callee, so the callee
@@ -1057,7 +1057,7 @@ Currently, only the following parameter attributes are defined:
     ``byval`` parameters). This is not a valid attribute for return
     values.
 
-    The byval attribute also supports an optional type argument, which
+    The byval type argument indicates the in-memory value type, and
     must be the same as the pointee type of the argument.
 
     The byval attribute also supports specifying an alignment with the
@@ -1144,7 +1144,7 @@ Currently, only the following parameter attributes are defined:
     See :doc:`InAlloca` for more information on how to use this
     attribute.
 
-``sret`` or ``sret(<ty>)``
+``sret(<ty>)``
     This indicates that the pointer parameter specifies the address of a
     structure that is the return value of the function in the source
     program. This pointer must be guaranteed by the caller to be valid:
@@ -1152,9 +1152,8 @@ Currently, only the following parameter attributes are defined:
     to trap and to be properly aligned. This is not a valid attribute
     for return values.
 
-    The sret attribute also supports an optional type argument, which
-    must be the same as the pointee type of the argument. In the
-    future this will be required.
+    The sret type argument specifies the in memory type, which must be
+    the same as the pointee type of the argument.
 
 .. _attr_align:
 
@@ -1497,6 +1496,15 @@ example:
     can prove that the function does not execute any convergent operations.
     Similarly, the optimizer may remove ``convergent`` on calls/invokes when it
     can prove that the call/invoke cannot call a convergent function.
+``hot``
+    This attribute indicates that this function is a hot spot of the program
+    execution. The function will be optimized more aggressively and will be
+    placed into special subsection of the text section to improving locality.
+
+    When profile feedback is enabled, this attribute has the precedence over
+    the profile information. By marking a function ``hot``, users can work
+    around the cases where the training input does not have good coverage
+    on all the hot functions.
 ``inaccessiblememonly``
     This attribute indicates that the function may only access memory that
     is not accessible by the module being compiled. This is a weaker form
@@ -1841,29 +1849,10 @@ example:
     Variables that are identified as requiring a protector will be arranged
     on the stack such that they are adjacent to the stack protector guard.
 
-    If a function that has an ``ssp`` attribute is inlined into a
-    function that doesn't have an ``ssp`` attribute, then the resulting
-    function will have an ``ssp`` attribute.
-``sspreq``
-    This attribute indicates that the function should *always* emit a
-    stack smashing protector. This overrides the ``ssp`` function
-    attribute.
-
-    Variables that are identified as requiring a protector will be arranged
-    on the stack such that they are adjacent to the stack protector guard.
-    The specific layout rules are:
-
-    #. Large arrays and structures containing large arrays
-       (``>= ssp-buffer-size``) are closest to the stack protector.
-    #. Small arrays and structures containing small arrays
-       (``< ssp-buffer-size``) are 2nd closest to the protector.
-    #. Variables that have had their address taken are 3rd closest to the
-       protector.
-
-    If a function that has an ``sspreq`` attribute is inlined into a
-    function that doesn't have an ``sspreq`` attribute or which has an
-    ``ssp`` or ``sspstrong`` attribute, then the resulting function will have
-    an ``sspreq`` attribute.
+    A function with the ``ssp`` attribute but without the ``alwaysinline``
+    attribute cannot be inlined into a function without a
+    ``ssp/sspreq/sspstrong`` attribute. If inlined, the caller will get the
+    ``ssp`` attribute.
 ``sspstrong``
     This attribute indicates that the function should emit a stack smashing
     protector. This attribute causes a strong heuristic to be used when
@@ -1888,9 +1877,31 @@ example:
 
     This overrides the ``ssp`` function attribute.
 
-    If a function that has an ``sspstrong`` attribute is inlined into a
-    function that doesn't have an ``sspstrong`` attribute, then the
-    resulting function will have an ``sspstrong`` attribute.
+    A function with the ``sspstrong`` attribute but without the
+    ``alwaysinline`` attribute cannot be inlined into a function without a
+    ``ssp/sspstrong/sspreq`` attribute. If inlined, the caller will get the
+    ``sspstrong`` attribute unless the ``sspreq`` attribute exists.
+``sspreq``
+    This attribute indicates that the function should *always* emit a stack
+    smashing protector. This overrides the ``ssp`` and ``sspstrong`` function
+    attributes.
+
+    Variables that are identified as requiring a protector will be arranged
+    on the stack such that they are adjacent to the stack protector guard.
+    The specific layout rules are:
+
+    #. Large arrays and structures containing large arrays
+       (``>= ssp-buffer-size``) are closest to the stack protector.
+    #. Small arrays and structures containing small arrays
+       (``< ssp-buffer-size``) are 2nd closest to the protector.
+    #. Variables that have had their address taken are 3rd closest to the
+       protector.
+
+    A function with the ``sspreq`` attribute but without the ``alwaysinline``
+    attribute cannot be inlined into a function without a
+    ``ssp/sspstrong/sspreq`` attribute. If inlined, the caller will get the
+    ``sspreq`` attribute.
+
 ``strictfp``
     This attribute indicates that the function was called from a scope that
     requires strict floating-point semantics.  LLVM will not attempt any
@@ -16095,6 +16106,81 @@ Arguments:
 """"""""""
 The argument to this intrinsic must be a vector of floating-point values.
 
+'``llvm.experimental.vector.insert``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic. You can use ``llvm.experimental.vector.insert``
+to insert a fixed-width vector into a scalable vector, but not the other way
+around.
+
+::
+
+      declare <vscale x 4 x float> @llvm.experimental.vector.insert.v4f32(<vscale x 4 x float> %vec, <4 x float> %subvec, i64 %idx)
+      declare <vscale x 2 x double> @llvm.experimental.vector.insert.v2f64(<vscale x 2 x double> %vec, <2 x double> %subvec, i64 %idx)
+
+Overview:
+"""""""""
+
+The '``llvm.experimental.vector.insert.*``' intrinsics insert a vector into another vector
+starting from a given index. The return type matches the type of the vector we
+insert into. Conceptually, this can be used to build a scalable vector out of
+non-scalable vectors.
+
+Arguments:
+""""""""""
+
+The ``vec`` is the vector which ``subvec`` will be inserted into.
+The ``subvec`` is the vector that will be inserted.
+
+``idx`` represents the starting element number at which ``subvec`` will be
+inserted. ``idx`` must be a constant multiple of ``subvec``'s known minimum
+vector length. If ``subvec`` is a scalable vector, ``idx`` is first scaled by
+the runtime scaling factor of ``subvec``. The elements of ``vec`` starting at
+``idx`` are overwritten with ``subvec``. Elements ``idx`` through (``idx`` +
+num_elements(``subvec``) - 1) must be valid ``vec`` indices. If this condition
+cannot be determined statically but is false at runtime, then the result vector
+is undefined.
+
+
+'``llvm.experimental.vector.extract``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic. You can use
+``llvm.experimental.vector.extract`` to extract a fixed-width vector from a
+scalable vector, but not the other way around.
+
+::
+
+      declare <4 x float> @llvm.experimental.vector.extract.v4f32(<vscale x 4 x float> %vec, i64 %idx)
+      declare <2 x double> @llvm.experimental.vector.extract.v2f64(<vscale x 2 x double> %vec, i64 %idx)
+
+Overview:
+"""""""""
+
+The '``llvm.experimental.vector.extract.*``' intrinsics extract a vector from
+within another vector starting from a given index. The return type must be
+explicitly specified. Conceptually, this can be used to decompose a scalable
+vector into non-scalable parts.
+
+Arguments:
+""""""""""
+
+The ``vec`` is the vector from which we will extract a subvector.
+
+The ``idx`` specifies the starting element number within ``vec`` from which a
+subvector is extracted. ``idx`` must be a constant multiple of the known-minimum
+vector length of the result type. If the result type is a scalable vector,
+``idx`` is first scaled by the result type's runtime scaling factor. Elements
+``idx`` through (``idx`` + num_elements(result_type) - 1) must be valid vector
+indices. If this condition cannot be determined statically but is false at
+runtime, then the result vector is undefined. The ``idx`` parameter must be a
+vector index constant type (for most targets this will be an integer pointer
+type).
+
 Matrix Intrinsics
 -----------------
 
@@ -16339,6 +16425,120 @@ Examples:
 
       %a = load i16, i16* @x, align 2
       %res = call float @llvm.convert.from.fp16(i16 %a)
+
+Saturating floating-point to integer conversions
+------------------------------------------------
+
+The ``fptoui`` and ``fptosi`` instructions return a
+:ref:`poison value <poisonvalues>` if the rounded-towards-zero value is not
+representable by the result type. These intrinsics provide an alternative
+conversion, which will saturate towards the smallest and largest representable
+integer values instead.
+
+'``llvm.fptoui.sat.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+This is an overloaded intrinsic. You can use ``llvm.fptoui.sat`` on any
+floating-point argument type and any integer result type, or vectors thereof.
+Not all targets may support all types, however.
+
+::
+
+      declare i32 @llvm.fptoui.sat.i32.f32(float %f)
+      declare i19 @llvm.fptoui.sat.i19.f64(double %f)
+      declare <4 x i100> @llvm.fptoui.sat.v4i100.v4f128(<4 x fp128> %f)
+
+Overview:
+"""""""""
+
+This intrinsic converts the argument into an unsigned integer using saturating
+semantics.
+
+Arguments:
+""""""""""
+
+The argument may be any floating-point or vector of floating-point type. The
+return value may be any integer or vector of integer type. The number of vector
+elements in argument and return must be the same.
+
+Semantics:
+""""""""""
+
+The conversion to integer is performed subject to the following rules:
+
+- If the argument is any NaN, zero is returned.
+- If the argument is smaller than zero (this includes negative infinity),
+  zero is returned.
+- If the argument is larger than the largest representable unsigned integer of
+  the result type (this includes positive infinity), the largest representable
+  unsigned integer is returned.
+- Otherwise, the result of rounding the argument towards zero is returned.
+
+Example:
+""""""""
+
+.. code-block:: text
+
+      %a = call i8 @llvm.fptoui.sat.i8.f32(float 123.9)              ; yields i8: 123
+      %b = call i8 @llvm.fptoui.sat.i8.f32(float -5.7)               ; yields i8:   0
+      %c = call i8 @llvm.fptoui.sat.i8.f32(float 377.0)              ; yields i8: 255
+      %d = call i8 @llvm.fptoui.sat.i8.f32(float 0xFFF8000000000000) ; yields i8:   0
+
+'``llvm.fptosi.sat.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+This is an overloaded intrinsic. You can use ``llvm.fptosi.sat`` on any
+floating-point argument type and any integer result type, or vectors thereof.
+Not all targets may support all types, however.
+
+::
+
+      declare i32 @llvm.fptosi.sat.i32.f32(float %f)
+      declare i19 @llvm.fptosi.sat.i19.f64(double %f)
+      declare <4 x i100> @llvm.fptosi.sat.v4i100.v4f128(<4 x fp128> %f)
+
+Overview:
+"""""""""
+
+This intrinsic converts the argument into a signed integer using saturating
+semantics.
+
+Arguments:
+""""""""""
+
+The argument may be any floating-point or vector of floating-point type. The
+return value may be any integer or vector of integer type. The number of vector
+elements in argument and return must be the same.
+
+Semantics:
+""""""""""
+
+The conversion to integer is performed subject to the following rules:
+
+- If the argument is any NaN, zero is returned.
+- If the argument is smaller than the smallest representable signed integer of
+  the result type (this includes negative infinity), the smallest
+  representable signed integer is returned.
+- If the argument is larger than the largest representable signed integer of
+  the result type (this includes positive infinity), the largest representable
+  signed integer is returned.
+- Otherwise, the result of rounding the argument towards zero is returned.
+
+Example:
+""""""""
+
+.. code-block:: text
+
+      %a = call i8 @llvm.fptosi.sat.i8.f32(float 23.9)               ; yields i8:   23
+      %b = call i8 @llvm.fptosi.sat.i8.f32(float -130.8)             ; yields i8: -128
+      %c = call i8 @llvm.fptosi.sat.i8.f32(float 999.0)              ; yields i8:  127
+      %d = call i8 @llvm.fptosi.sat.i8.f32(float 0xFFF8000000000000) ; yields i8:    0
 
 .. _dbg_intrinsics:
 
@@ -19604,6 +19804,35 @@ Semantics:
 This intrinsic is lowered to code which is intended to cause an
 execution trap with the intention of requesting the attention of a
 debugger.
+
+'``llvm.ubsantrap``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare void @llvm.ubsantrap(i8 immarg) cold noreturn nounwind
+
+Overview:
+"""""""""
+
+The '``llvm.ubsantrap``' intrinsic.
+
+Arguments:
+""""""""""
+
+An integer describing the kind of failure detected.
+
+Semantics:
+""""""""""
+
+This intrinsic is lowered to code which is intended to cause an execution trap,
+embedding the argument into encoding of that trap somehow to discriminate
+crashes if possible.
+
+Equivalent to ``@llvm.trap`` for targets that do not support this behaviour.
 
 '``llvm.stackprotector``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

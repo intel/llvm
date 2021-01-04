@@ -748,7 +748,7 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return $_op.getAttr(getSparseAttrName()).template dyn_cast_or_null<ArrayAttr>() != nullptr;
+        return $_op->getAttr(getSparseAttrName()).template dyn_cast_or_null<ArrayAttr>() != nullptr;
       }]
     >,
     InterfaceMethod<
@@ -849,7 +849,7 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       [{
         BlockAndValueMapping map;
         unsigned numRegions = $_op->getNumRegions();
-        Operation *res = create(b, loc, resultTypes, operands, $_op.getAttrs());
+        Operation *res = create(b, loc, resultTypes, operands, $_op->getAttrs());
         assert(res->getNumRegions() == numRegions && "inconsistent # regions");
         for (unsigned ridx = 0; ridx < numRegions; ++ridx)
           $_op->getRegion(ridx).cloneInto(
@@ -908,10 +908,10 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
 
     private:
     void setOperandSegmentAt(unsigned idx, unsigned val) {
-      auto attr = getOperation()->getAttr("operand_segment_sizes")
+      auto attr = (*this)->getAttr("operand_segment_sizes")
         .cast<DenseIntElementsAttr>();
       unsigned i = 0;
-      auto newAttr = attr.mapValues(IntegerType::get(32, getContext()),
+      auto newAttr = attr.mapValues(IntegerType::get(getContext(), 32),
         [&](const APInt &v) { return (i++ == idx) ? APInt(32, val) : v; });
       getOperation()->setAttr("operand_segment_sizes", newAttr);
     }

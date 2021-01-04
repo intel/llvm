@@ -19,6 +19,7 @@
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/SCF/EDSC/Builders.h"
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineExprVisitor.h"
 #include "mlir/IR/AffineMap.h"
@@ -554,6 +555,12 @@ public:
 OwningRewritePatternList
 mlir::linalg::getLinalgTilingCanonicalizationPatterns(MLIRContext *ctx) {
   OwningRewritePatternList patterns;
+  populateLinalgTilingCanonicalizationPatterns(patterns, ctx);
+  return patterns;
+}
+
+void mlir::linalg::populateLinalgTilingCanonicalizationPatterns(
+    OwningRewritePatternList &patterns, MLIRContext *ctx) {
   AffineApplyOp::getCanonicalizationPatterns(patterns, ctx);
   AffineForOp::getCanonicalizationPatterns(patterns, ctx);
   AffineMinOp::getCanonicalizationPatterns(patterns, ctx);
@@ -563,13 +570,12 @@ mlir::linalg::getLinalgTilingCanonicalizationPatterns(MLIRContext *ctx) {
   ConstantIndexOp::getCanonicalizationPatterns(patterns, ctx);
   SubTensorOp::getCanonicalizationPatterns(patterns, ctx);
   SubViewOp::getCanonicalizationPatterns(patterns, ctx);
-  TensorCastOp::getCanonicalizationPatterns(patterns, ctx);
+  tensor::CastOp::getCanonicalizationPatterns(patterns, ctx);
   ViewOp::getCanonicalizationPatterns(patterns, ctx);
   CanonicalizationPatternList<
 #define GET_OP_LIST
 #include "mlir/Dialect/Linalg/IR/LinalgStructuredOps.cpp.inc"
       >::insert(patterns, ctx);
-  return patterns;
 }
 
 /// Populate the given list with patterns that apply Linalg tiling.

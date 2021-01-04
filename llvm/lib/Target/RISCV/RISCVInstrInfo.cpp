@@ -98,20 +98,37 @@ void RISCVInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     return;
   }
 
-  // FPR->FPR copies
+  // FPR->FPR copies and VR->VR copies.
   unsigned Opc;
+  bool IsScalableVector = false;
   if (RISCV::FPR16RegClass.contains(DstReg, SrcReg))
     Opc = RISCV::FSGNJ_H;
   else if (RISCV::FPR32RegClass.contains(DstReg, SrcReg))
     Opc = RISCV::FSGNJ_S;
   else if (RISCV::FPR64RegClass.contains(DstReg, SrcReg))
     Opc = RISCV::FSGNJ_D;
-  else
+  else if (RISCV::VRRegClass.contains(DstReg, SrcReg)) {
+    Opc = RISCV::PseudoVMV1R_V;
+    IsScalableVector = true;
+  } else if (RISCV::VRM2RegClass.contains(DstReg, SrcReg)) {
+    Opc = RISCV::PseudoVMV2R_V;
+    IsScalableVector = true;
+  } else if (RISCV::VRM4RegClass.contains(DstReg, SrcReg)) {
+    Opc = RISCV::PseudoVMV4R_V;
+    IsScalableVector = true;
+  } else if (RISCV::VRM8RegClass.contains(DstReg, SrcReg)) {
+    Opc = RISCV::PseudoVMV8R_V;
+    IsScalableVector = true;
+  } else
     llvm_unreachable("Impossible reg-to-reg copy");
 
-  BuildMI(MBB, MBBI, DL, get(Opc), DstReg)
-      .addReg(SrcReg, getKillRegState(KillSrc))
-      .addReg(SrcReg, getKillRegState(KillSrc));
+  if (IsScalableVector)
+    BuildMI(MBB, MBBI, DL, get(Opc), DstReg)
+        .addReg(SrcReg, getKillRegState(KillSrc));
+  else
+    BuildMI(MBB, MBBI, DL, get(Opc), DstReg)
+        .addReg(SrcReg, getKillRegState(KillSrc))
+        .addReg(SrcReg, getKillRegState(KillSrc));
 }
 
 void RISCVInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
@@ -604,14 +621,8 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
         case RISCVOp::OPERAND_SIMM12:
           Ok = isInt<12>(Imm);
           break;
-        case RISCVOp::OPERAND_SIMM13_LSB0:
-          Ok = isShiftedInt<12, 1>(Imm);
-          break;
         case RISCVOp::OPERAND_UIMM20:
           Ok = isUInt<20>(Imm);
-          break;
-        case RISCVOp::OPERAND_SIMM21_LSB0:
-          Ok = isShiftedInt<20, 1>(Imm);
           break;
         case RISCVOp::OPERAND_UIMMLOG2XLEN:
           if (STI.getTargetTriple().isArch64Bit())
@@ -752,10 +763,7 @@ outliner::OutlinedFunction RISCVInstrInfo::getOutliningCandidateInfo(
     return !LRU.available(RISCV::X5);
   };
 
-  RepeatedSequenceLocs.erase(std::remove_if(RepeatedSequenceLocs.begin(),
-                                            RepeatedSequenceLocs.end(),
-                                            CannotInsertCall),
-                             RepeatedSequenceLocs.end());
+  llvm::erase_if(RepeatedSequenceLocs, CannotInsertCall);
 
   // If the sequence doesn't have enough candidates left, then we're done.
   if (RepeatedSequenceLocs.size() < 2)
