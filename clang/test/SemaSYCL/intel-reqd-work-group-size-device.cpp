@@ -40,13 +40,13 @@ public:
 
 class Functor33 {
 public:
-  // expected-warning@+1{{implicit conversion changes signedness: 'int' to 'unsigned int'}}
+  // expected-warning@+1{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
   [[intel::reqd_work_group_size(32, -4)]] void operator()() const {}
 };
 
 class Functor30 {
 public:
-  // expected-warning@+1 2{{implicit conversion changes signedness: 'int' to 'unsigned int'}}
+  // expected-warning@+1 2{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
   [[intel::reqd_work_group_size(30, -30, -30)]] void operator()() const {}
 };
 

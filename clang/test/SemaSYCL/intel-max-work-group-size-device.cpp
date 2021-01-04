@@ -75,7 +75,7 @@ int main() {
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
     // CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
-    // expected-warning@+2{{implicit conversion changes signedness: 'int' to 'unsigned int'}}
+    // expected-warning@+2{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
     h.single_task<class test_kernel4>(
         []() [[intel::max_work_group_size(8, 8, -8)]]{});
 
@@ -86,7 +86,7 @@ int main() {
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
     // CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
-    // expected-warning@+2 2{{implicit conversion changes signedness: 'int' to 'unsigned int'}}
+    // expected-warning@+2 2{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
     h.single_task<class test_kernel5>(
         []() [[intel::max_work_group_size(-8, 8, -8)]]{});
 #ifdef TRIGGER_ERROR
