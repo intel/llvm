@@ -12964,31 +12964,32 @@ void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
 
 template <typename AttrInfo>
 static bool handleMaxWorkSizeAttrExpr(Sema &S, const AttrInfo &AI,
-                                      const Expr *Expr, unsigned &Val,
+                                      const Expr *E, unsigned &Val,
                                       unsigned Idx) {
-  assert(Expr && "Attribute must have an argument.");
+  assert(E && "Attribute must have an argument.");
 
-  if (!Expr->isInstantiationDependent()) {
+  if (!E->isInstantiationDependent()) {
     Optional<llvm::APSInt> ArgVal =
-        Expr->getIntegerConstantExpr(S.getASTContext());
+        E->getIntegerConstantExpr(S.getASTContext());
 
     if (!ArgVal) {
       S.Diag(AI.getLocation(), diag::err_attribute_argument_type)
-          << &AI << AANT_ArgumentIntegerConstant << Expr->getSourceRange();
+          << &AI << AANT_ArgumentIntegerConstant << E->getSourceRange();
       return false;
     }
 
     if (ArgVal->isNegative()) {
-      S.Diag(Expr->getExprLoc(),
+      S.Diag(E->getExprLoc(),
              diag::warn_attribute_requires_non_negative_integer_argument)
-          << &AI << Idx << Expr->getSourceRange();
+          << E->getType() << S.Context.UnsignedLongLongTy
+          << E->getSourceRange();
       return true;
     }
 
     Val = ArgVal->getZExtValue();
     if (Val == 0) {
-      S.Diag(Expr->getExprLoc(), diag::err_attribute_argument_is_zero)
-          << &AI << Expr->getSourceRange();
+      S.Diag(E->getExprLoc(), diag::err_attribute_argument_is_zero)
+          << &AI << E->getSourceRange();
       return false;
     }
   }
