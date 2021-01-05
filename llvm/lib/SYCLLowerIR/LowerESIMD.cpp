@@ -421,7 +421,7 @@ public:
     Ptrs.resize(0);
   }
 
-  template <typename T, typename... Args> T *makeNode(Args &&...args) {
+  template <typename T, typename... Args> T *makeNode(Args &&... args) {
     void *Ptr = std::calloc(1, sizeof(T));
     Ptrs.push_back(Ptr);
     return new (Ptr) T(std::forward<Args>(args)...);
