@@ -179,6 +179,7 @@ private:
   static constexpr ESIMDIntrinDesc::ArgRule a(int16_t N) {
     return ESIMDIntrinDesc::ArgRule{
         ESIMDIntrinDesc::SRC_CALL_ARG,
+
         {{N, ESIMDIntrinDesc::GenXArgConversion::NONE}}};
   }
 
