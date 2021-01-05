@@ -954,6 +954,9 @@ pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
     // information>. Follow the same notation here.
     //
     return ReturnValue(Platform->ZeDriverApiVersion.c_str());
+  default:
+    zePrint("piPlatformGetInfo: unrecognized ParamName\n");
+    return PI_INVALID_VALUE;
   }
 
   return PI_SUCCESS;
@@ -1975,6 +1978,10 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
   case PI_QUEUE_INFO_DEVICE_DEFAULT:
     die("PI_QUEUE_INFO_DEVICE_DEFAULT in piQueueGetInfo not implemented\n");
     break;
+  default:
+    zePrint("Unsupported ParamName in piQueueGetInfo: ParamName=%d(0x%x)\n",
+            ParamName, ParamName);
+    return PI_INVALID_VALUE;
   }
 
   return PI_SUCCESS;
@@ -3199,6 +3206,10 @@ pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
     } catch (...) {
       return PI_ERROR_UNKNOWN;
     }
+  default:
+    zePrint("Unsupported ParamName in piKernelGetInfo: ParamName=%d(0x%x)\n",
+            ParamName, ParamName);
+    return PI_INVALID_VALUE;
   }
 
   return PI_SUCCESS;
@@ -3253,6 +3264,10 @@ pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,
   }
   case PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE:
     return ReturnValue(pi_uint32{ZeKernelProperties.privateMemSize});
+  default:
+    zePrint("Unknown ParamName in piKernelGetGroupInfo: ParamName=%d(0x%x)\n",
+            ParamName, ParamName);
+    return PI_INVALID_VALUE;
   }
   return PI_SUCCESS;
 }
@@ -3517,6 +3532,10 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
   }
   case PI_EVENT_INFO_REFERENCE_COUNT:
     return ReturnValue(pi_uint32{Event->RefCount});
+  default:
+    zePrint("Unsupported ParamName in piEventGetInfo: ParamName=%d(%x)\n",
+            ParamName, ParamName);
+    return PI_INVALID_VALUE;
   }
 
   return PI_SUCCESS;
@@ -3569,6 +3588,9 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   case PI_PROFILING_INFO_COMMAND_SUBMIT:
     // TODO: Support these when Level Zero supported is added.
     return ReturnValue(uint64_t{0});
+  default:
+    zePrint("piEventGetProfilingInfo: not supported ParamName\n");
+    return PI_INVALID_VALUE;
   }
 
   return PI_SUCCESS;
@@ -3785,6 +3807,11 @@ pi_result piSamplerCreate(pi_context Context,
         case PI_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT:
           ZeSamplerDesc.addressMode = ZE_SAMPLER_ADDRESS_MODE_MIRROR;
           break;
+        default:
+          zePrint("piSamplerCreate: unsupported PI_SAMPLER_ADDRESSING_MODE "
+                  "value\n");
+          zePrint("PI_SAMPLER_ADDRESSING_MODE=%d\n", CurValueAddressingMode);
+          return PI_INVALID_VALUE;
         }
       } break;
 
@@ -5328,6 +5355,9 @@ pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
     ZE_CALL(zeMemGetAddressRange(Context->ZeContext, Ptr, nullptr, &Size));
     return ReturnValue(Size);
   }
+  default:
+    zePrint("piextUSMGetMemAllocInfo: unsupported ParamName\n");
+    return PI_INVALID_VALUE;
   }
   return PI_SUCCESS;
 }
