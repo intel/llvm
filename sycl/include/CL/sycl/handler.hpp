@@ -107,11 +107,6 @@ SuggestedArgType argument_helper(...);
 template <typename F, typename SuggestedArgType>
 using lambda_arg_type = decltype(argument_helper<F, SuggestedArgType>(0));
 
-/// Specialization for the case when \c Name is undefined.
-template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
-  using name = Type;
-};
-
 // Used when parallel_for range is rounded-up.
 template <typename Type> class __pf_kernel_wrapper;
 

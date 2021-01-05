@@ -34,6 +34,11 @@ template <typename Name, typename Type> struct get_kernel_name_t {
   using name = Name;
 };
 
+/// Specialization for the case when \c Name is undefined.
+template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
+  using name = Type;
+};
+
 } // namespace detail
 
 /// Provides an abstraction of a SYCL kernel.
