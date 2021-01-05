@@ -4533,7 +4533,7 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
   ze_event_handle_t ZeEvent = nullptr;
   if (Event) {
     auto Res = createEventAndAssociateQueue(Queue, Event, CommandType,
-                                            ZeCommandList, &ZeEvent, false);
+                                            ZeCommandList, &ZeEvent, true);
     if (Res != PI_SUCCESS)
       return Res;
   }
