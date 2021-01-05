@@ -203,9 +203,6 @@ public:
   template <class ArgT = KernelArgType>
   typename detail::enable_if_t<std::is_same<ArgT, sycl::id<Dims>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    std::string KName = typeid(NameT *).name();
     using KI = detail::KernelInfo<KernelName>;
     constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
 
@@ -232,9 +229,6 @@ public:
   typename detail::enable_if_t<
       std::is_same<ArgT, item<Dims, /*Offset=*/false>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    std::string KName = typeid(NameT *).name();
     using KI = detail::KernelInfo<KernelName>;
     constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
 
@@ -260,9 +254,6 @@ public:
   typename detail::enable_if_t<
       std::is_same<ArgT, item<Dims, /*Offset=*/true>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    std::string KName = typeid(NameT *).name();
     using KI = detail::KernelInfo<KernelName>;
     constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
 
@@ -289,9 +280,6 @@ public:
   template <class ArgT = KernelArgType>
   typename detail::enable_if_t<std::is_same<ArgT, nd_item<Dims>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    std::string KName = typeid(NameT *).name();
     using KI = detail::KernelInfo<KernelName>;
     constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
 
