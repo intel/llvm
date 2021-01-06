@@ -406,7 +406,11 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *CallStr,
     return mapError(Result);
 #define ZE_CALL_NOCHECK(Call) ZeCall().doCall(Call, #Call, false)
 
-inline void piQueueRetainNoLock(pi_queue Queue) { Queue->RefCount++; }
+// This helper function increments the reference counter of the Queue
+// without guarding with a lock.
+// It is the caller's responsibility to make sure the lock is acquired
+// on the Queue that is passed in.
+inline static void piQueueRetainNoLock(pi_queue Queue) { Queue->RefCount++; }
 
 // This helper function creates a pi_event and associate a pi_queue.
 // Note that the caller of this function must have acquired lock on the Queue
@@ -416,7 +420,7 @@ inline void piQueueRetainNoLock(pi_queue Queue) { Queue->RefCount++; }
 // \param CommandType various command type determined by the caller
 // \param ZeCommandList the handle to associate with the newly created event
 // \param ZeEvent the ZeEvent handle to be associated with the event
-inline pi_result createEventAndAssociateQueue(
+inline static pi_result createEventAndAssociateQueue(
     pi_queue Queue, pi_event *Event, pi_command_type CommandType,
     ze_command_list_handle_t ZeCommandList, ze_event_handle_t *ZeEvent) {
   pi_result Res = piEventCreate(Queue->Context, Event);
@@ -429,9 +433,10 @@ inline pi_result createEventAndAssociateQueue(
 
   *ZeEvent = (*Event)->ZeEvent;
   // We need to increment the reference counter here to avoid pi_queue
-  // being release before the associated pi_event is released because
+  // being released before the associated pi_event is released because
   // piEventRelease requires access to the associated pi_queue.
-  // In piEventRelease, the reference counter is decremented to release it.
+  // In piEventRelease, the reference counter of the Queue is decremented
+  // to release it.
   piQueueRetainNoLock(Queue);
   return PI_SUCCESS;
 }
