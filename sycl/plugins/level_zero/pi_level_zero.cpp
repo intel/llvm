@@ -406,15 +406,19 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *CallStr,
     return mapError(Result);
 #define ZE_CALL_NOCHECK(Call) ZeCall().doCall(Call, #Call, false)
 
+inline void piQueueRetainNoLock(pi_queue Queue) { Queue->RefCount++; }
+
 // This helper function creates a pi_event and associate a pi_queue.
-// We need to increment the reference counter here to avoid pi_queue
-// being release before the associated pi_event is released because
-// piEventRelease requires access to the associated pi_queue.
-// In piEventRelease, the reference counter is decremented to release it.
+// Note that the caller of this function must have acquired lock on the Queue
+// that is passed in.
+// \param Queue pi_queue to associate with a new event.
+// \param Event a pointer to hold the newly created pi_event
+// \param CommandType various command type determined by the caller
+// \param ZeCommandList the handle to associate with the newly created event
+// \param ZeEvent the ZeEvent handle to be associated with the event
 inline pi_result createEventAndAssociateQueue(
     pi_queue Queue, pi_event *Event, pi_command_type CommandType,
-    ze_command_list_handle_t ZeCommandList, ze_event_handle_t *ZeEvent,
-    bool QueueLockAcquired) {
+    ze_command_list_handle_t ZeCommandList, ze_event_handle_t *ZeEvent) {
   pi_result Res = piEventCreate(Queue->Context, Event);
   if (Res != PI_SUCCESS)
     return Res;
@@ -424,10 +428,11 @@ inline pi_result createEventAndAssociateQueue(
   (*Event)->ZeCommandList = ZeCommandList;
 
   *ZeEvent = (*Event)->ZeEvent;
-  if (QueueLockAcquired)
-    Queue->RefCount++;
-  else
-    piQueueRetain(Queue);
+  // We need to increment the reference counter here to avoid pi_queue
+  // being release before the associated pi_event is released because
+  // piEventRelease requires access to the associated pi_queue.
+  // In piEventRelease, the reference counter is decremented to release it.
+  piQueueRetainNoLock(Queue);
   return PI_SUCCESS;
 }
 
@@ -2013,16 +2018,24 @@ pi_result piQueueRetain(pi_queue Queue) {
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-  ++(Queue->RefCount);
+  piQueueRetainNoLock(Queue);
   return PI_SUCCESS;
 }
 
 pi_result piQueueRelease(pi_queue Queue) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
+  // We need to use a bool variable here to check the condition that
+  // RefCount becomes zero atomically with PiQueueMutex lock.
+  // Then, we can release the lock before we remove the Queue below.
+  bool RefCountZero = false;
+  {
+    std::lock_guard<std::mutex> Lock(Queue->PiQueueMutex);
+    Queue->RefCount--;
+    if (Queue->RefCount == 0)
+      RefCountZero = true;
+  }
 
-  Queue->PiQueueMutex.lock();
-
-  if (--(Queue->RefCount) == 0) {
+  if (RefCountZero) {
     // It is possible to get to here and still have an open command list
     // if no wait or finish ever occurred for this queue.  But still need
     // to make sure commands get executed.
@@ -2041,8 +2054,6 @@ pi_result piQueueRelease(pi_queue Queue) {
             Queue->NumTimesClosedFull, Queue->NumTimesClosedEarly);
     Queue->PiQueueMutex.unlock();
     delete Queue;
-  } else {
-    Queue->PiQueueMutex.unlock();
   }
   return PI_SUCCESS;
 }
@@ -3425,9 +3436,8 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
-  pi_result Res =
-      createEventAndAssociateQueue(Queue, Event, PI_COMMAND_TYPE_NDRANGE_KERNEL,
-                                   ZeCommandList, &ZeEvent, true);
+  pi_result Res = createEventAndAssociateQueue(
+      Queue, Event, PI_COMMAND_TYPE_NDRANGE_KERNEL, ZeCommandList, &ZeEvent);
   if (Res != PI_SUCCESS)
     return Res;
 
@@ -3901,7 +3911,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   ze_event_handle_t ZeEvent = nullptr;
   if (Event) {
     auto Res = createEventAndAssociateQueue(Queue, Event, PI_COMMAND_TYPE_USER,
-                                            ZeCommandList, &ZeEvent, true);
+                                            ZeCommandList, &ZeEvent);
     if (Res != PI_SUCCESS)
       return Res;
   }
@@ -3980,7 +3990,7 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
   ze_event_handle_t ZeEvent = nullptr;
   if (Event) {
     auto Res = createEventAndAssociateQueue(Queue, Event, CommandType,
-                                            ZeCommandList, &ZeEvent, true);
+                                            ZeCommandList, &ZeEvent);
     if (Res != PI_SUCCESS)
       return Res;
   }
@@ -4036,7 +4046,7 @@ static pi_result enqueueMemCopyRectHelper(
   ze_event_handle_t ZeEvent = nullptr;
   if (Event) {
     auto Res = createEventAndAssociateQueue(Queue, Event, CommandType,
-                                            ZeCommandList, &ZeEvent, true);
+                                            ZeCommandList, &ZeEvent);
     if (Res != PI_SUCCESS)
       return Res;
   }
@@ -4213,7 +4223,7 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   ze_event_handle_t ZeEvent = nullptr;
   if (Event) {
     auto Res = createEventAndAssociateQueue(Queue, Event, CommandType,
-                                            ZeCommandList, &ZeEvent, true);
+                                            ZeCommandList, &ZeEvent);
     if (Res != PI_SUCCESS)
       return Res;
   }
@@ -4291,10 +4301,12 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
   ze_fence_handle_t ZeFence = nullptr;
   ze_event_handle_t ZeEvent = nullptr;
 
+  // Lock automatically releases when this goes out of scope.
+  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+
   if (Event) {
-    auto Res = createEventAndAssociateQueue(Queue, Event,
-                                            PI_COMMAND_TYPE_MEM_BUFFER_MAP,
-                                            ZeCommandList, &ZeEvent, false);
+    auto Res = createEventAndAssociateQueue(
+        Queue, Event, PI_COMMAND_TYPE_MEM_BUFFER_MAP, ZeCommandList, &ZeEvent);
     if (Res != PI_SUCCESS)
       return Res;
   }
@@ -4328,9 +4340,6 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
 
     return Buffer->addMapping(*RetMap, Offset, Size);
   }
-
-  // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
   // For discrete devices we need a command list
   if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
@@ -4385,10 +4394,14 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
   ze_event_handle_t ZeEvent = nullptr;
+
+  // Lock automatically releases when this goes out of scope.
+  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+
   if (Event) {
     auto Res = createEventAndAssociateQueue(Queue, Event,
                                             PI_COMMAND_TYPE_MEM_BUFFER_UNMAP,
-                                            ZeCommandList, &ZeEvent, false);
+                                            ZeCommandList, &ZeEvent);
     if (Res != PI_SUCCESS)
       return Res;
   }
@@ -4420,9 +4433,6 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
 
     return PI_SUCCESS;
   }
-
-  // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
   if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
                                                         &ZeFence))
@@ -4533,7 +4543,7 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
   ze_event_handle_t ZeEvent = nullptr;
   if (Event) {
     auto Res = createEventAndAssociateQueue(Queue, Event, CommandType,
-                                            ZeCommandList, &ZeEvent, true);
+                                            ZeCommandList, &ZeEvent);
     if (Res != PI_SUCCESS)
       return Res;
   }
@@ -5135,7 +5145,7 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   ze_event_handle_t ZeEvent = nullptr;
   if (Event) {
     auto Res = createEventAndAssociateQueue(Queue, Event, PI_COMMAND_TYPE_USER,
-                                            ZeCommandList, &ZeEvent, true);
+                                            ZeCommandList, &ZeEvent);
     if (Res != PI_SUCCESS)
       return Res;
   }
@@ -5190,7 +5200,7 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   ze_event_handle_t ZeEvent = nullptr;
   if (Event) {
     auto Res = createEventAndAssociateQueue(Queue, Event, PI_COMMAND_TYPE_USER,
-                                            ZeCommandList, &ZeEvent, true);
+                                            ZeCommandList, &ZeEvent);
     if (Res != PI_SUCCESS)
       return Res;
   }
