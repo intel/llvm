@@ -1,5 +1,7 @@
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -Wno-return-type -Wno-sycl-2017-compat -verify -fsyntax-only -std=c++20 -Werror=vla %s
 
+// This test verifies that a SYCL kernel executed on a device, cannot call a recursive function.
+
 #include "Inputs/sycl.hpp"
 
 cl::sycl::queue q;
