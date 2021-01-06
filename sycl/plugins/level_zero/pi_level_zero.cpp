@@ -4311,10 +4311,10 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
   ze_fence_handle_t ZeFence = nullptr;
   ze_event_handle_t ZeEvent = nullptr;
 
-  // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-
   if (Event) {
+    // Lock automatically releases when this goes out of scope.
+    std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+
     auto Res = createEventAndAssociateQueue(
         Queue, Event, PI_COMMAND_TYPE_MEM_BUFFER_MAP, ZeCommandList);
     if (Res != PI_SUCCESS)
@@ -4351,6 +4351,9 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
 
     return Buffer->addMapping(*RetMap, Offset, Size);
   }
+
+  // Lock automatically releases when this goes out of scope.
+  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
   // For discrete devices we need a command list
   if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
@@ -4406,10 +4409,10 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
 
   ze_event_handle_t ZeEvent = nullptr;
 
-  // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-
   if (Event) {
+    // Lock automatically releases when this goes out of scope.
+    std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+
     auto Res = createEventAndAssociateQueue(
         Queue, Event, PI_COMMAND_TYPE_MEM_BUFFER_UNMAP, ZeCommandList);
     if (Res != PI_SUCCESS)
@@ -4444,6 +4447,9 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
 
     return PI_SUCCESS;
   }
+
+  // Lock automatically releases when this goes out of scope.
+  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
   if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
                                                         &ZeFence))
