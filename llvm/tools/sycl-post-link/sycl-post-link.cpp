@@ -688,6 +688,15 @@ int main(int argc, char **argv) {
     Err.print(argv[0], errs());
     return 1;
   }
+
+  // Special "llvm.used" variable which holds references to global values in the
+  // module is known to cause problems for tools which run later in pipeline, so
+  // remove it from the module before perfroming any other actions.
+  if (GlobalVariable *GV = MPtr->getGlobalVariable("llvm.used")) {
+    assert(GV->user_empty() && "unexpected ");
+    GV->eraseFromParent();
+  }
+
   if (OutputFilename.getNumOccurrences() == 0)
     OutputFilename = (Twine(sys::path::stem(InputFilename)) + ".files").str();
 
