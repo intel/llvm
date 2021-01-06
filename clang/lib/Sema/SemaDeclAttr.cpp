@@ -2975,8 +2975,7 @@ static void handleWeakImportAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 // In case the value of 'max_global_work_dim' attribute equals to 0 we shall
 // ensure that if max_work_group_size and reqd_work_group_size attributes exist,
 // they hold equal values (1, 1, 1).
-static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL,
-                                     uint32_t WGSize[3]) {
+static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
   bool Result = true;
   auto checkZeroDim = [&S, &AL](auto &A, size_t X, size_t Y, size_t Z,
                                 bool ReverseAttrs = false) -> bool {
@@ -3026,19 +3025,19 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL,
         A->getValue()->getIntegerConstantExpr(S.Context)->getSExtValue();
     if (AttrValue == 0) {
       Result &=
-          checkZeroDim(A, getExprValue(AL.getArgAsExpr(2), S.getASTContext()),
+          checkZeroDim(A, getExprValue(AL.getArgAsExpr(0), S.getASTContext()),
                        getExprValue(AL.getArgAsExpr(1), S.getASTContext()),
-                       getExprValue(AL.getArgAsExpr(0), S.getASTContext()),
+                       getExprValue(AL.getArgAsExpr(2), S.getASTContext()),
                        /*ReverseAttrs=*/true);
     }
   }
 
   if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    if (!((getExprValue(AL.getArgAsExpr(2), S.getASTContext()) <=
+    if (!((getExprValue(AL.getArgAsExpr(0), S.getASTContext()) <=
            getExprValue(A->getXDim(), S.getASTContext())) &&
           (getExprValue(AL.getArgAsExpr(1), S.getASTContext()) <=
            getExprValue(A->getYDim(), S.getASTContext())) &&
-          (getExprValue(AL.getArgAsExpr(0), S.getASTContext()) <=
+          (getExprValue(AL.getArgAsExpr(2), S.getASTContext()) <=
            getExprValue(A->getZDim(), S.getASTContext())))) {
       S.Diag(AL.getLoc(), diag::err_conflicting_sycl_function_attributes)
           << AL << A->getSpelling();
@@ -3047,11 +3046,11 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL,
   }
 
   if (const auto *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    if (!((getExprValue(AL.getArgAsExpr(2), S.getASTContext()) >=
+    if (!((getExprValue(AL.getArgAsExpr(0), S.getASTContext()) >=
            getExprValue(A->getXDim(), S.getASTContext())) &&
           (getExprValue(AL.getArgAsExpr(1), S.getASTContext()) >=
            getExprValue(A->getYDim(), S.getASTContext())) &&
-          (getExprValue(AL.getArgAsExpr(0), S.getASTContext()) >=
+          (getExprValue(AL.getArgAsExpr(2), S.getASTContext()) >=
            getExprValue(A->getZDim(), S.getASTContext())))) {
       S.Diag(AL.getLoc(), diag::err_conflicting_sycl_function_attributes)
           << AL << A->getSpelling();
@@ -3061,87 +3060,11 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL,
   return Result;
 }
 
-template <typename AttrInfo>
-static bool handleMaxWorkSizeAttrExpr(Sema &S, const AttrInfo &AI,
-                                      const Expr *Expr, unsigned &Val,
-                                      unsigned Idx) {
-  assert(Expr && "Attribute must have an argument.");
-
-  if (!Expr->isInstantiationDependent()) {
-    Optional<llvm::APSInt> ArgVal =
-        Expr->getIntegerConstantExpr(S.getASTContext());
-
-    if (!ArgVal) {
-      S.Diag(getAttrLoc(AI), diag::err_attribute_argument_type)
-          << &AI << AANT_ArgumentIntegerConstant << Expr->getSourceRange();
-      return false;
-    }
-
-    if (ArgVal->isNegative()) {
-      S.Diag(Expr->getExprLoc(),
-             diag::warn_attribute_requires_non_negative_integer_argument)
-          << &AI << Idx << Expr->getSourceRange();
-      return true;
-    }
-
-    Val = ArgVal->getZExtValue();
-    if (Val == 0) {
-      S.Diag(Expr->getExprLoc(), diag::err_attribute_argument_is_zero)
-          << &AI << Expr->getSourceRange();
-      return false;
-    }
-  }
-  return true;
-}
-
-template <typename AttrType>
-static bool checkMaxWorkSizeAttrArguments(Sema &S, Expr *XDimExpr,
-                                          Expr *YDimExpr, Expr *ZDimExpr,
-                                          const AttrType &Attr) {
-  // Accept template arguments for now as they depend on something else.
-  // We'll get to check them when they eventually get instantiated.
-  if (XDimExpr->isValueDependent() ||
-      (YDimExpr && YDimExpr->isValueDependent()) ||
-      (ZDimExpr && ZDimExpr->isValueDependent()))
-    return false;
-
-  unsigned XDim = 0;
-  if (!handleMaxWorkSizeAttrExpr(S, Attr, XDimExpr, XDim, 0))
-    return true;
-
-  unsigned YDim = 0;
-  if (YDimExpr && !handleMaxWorkSizeAttrExpr(S, Attr, YDimExpr, YDim, 1))
-    return true;
-
-  unsigned ZDim = 0;
-  if (ZDimExpr && !handleMaxWorkSizeAttrExpr(S, Attr, ZDimExpr, ZDim, 2))
-    return true;
-
-  return false;
-}
-
-template <typename WorkGroupAttrType>
-void Sema::addIntelSYCLTripleArgFunctionAttr(Decl *D,
-                                             const AttributeCommonInfo &CI,
-                                             Expr *XDimExpr, Expr *YDimExpr,
-                                             Expr *ZDimExpr) {
-  WorkGroupAttrType TmpAttr(Context, CI, XDimExpr, YDimExpr, ZDimExpr);
-
-  if (checkMaxWorkSizeAttrArguments(*this, XDimExpr, YDimExpr, ZDimExpr,
-                                    TmpAttr))
-    return;
-
-  D->addAttr(::new (Context)
-                 WorkGroupAttrType(Context, CI, XDimExpr, YDimExpr, ZDimExpr));
-}
-
 // Handles reqd_work_group_size and max_work_group_size.
 template <typename WorkGroupAttr>
 static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (D->isInvalidDecl())
     return;
-
-  uint32_t WGSize[3];
 
   Expr *XDimExpr = AL.getArgAsExpr(0);
 
@@ -3172,10 +3095,6 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
       return;
   }
 
-  // For a SYCLDevice WorkGroupAttr arguments are reversed.
-  if (S.getLangOpts().SYCLIsDevice)
-    std::swap(XDimExpr, ZDimExpr);
-
   if (WorkGroupAttr *ExistingAttr = D->getAttr<WorkGroupAttr>()) {
     Optional<llvm::APSInt> XDimVal =
         XDimExpr->getIntegerConstantExpr(S.getASTContext());
@@ -3199,7 +3118,7 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     }
   }
 
-  if (!checkWorkGroupSizeValues(S, D, AL, WGSize))
+  if (!checkWorkGroupSizeValues(S, D, AL))
     return;
 
   S.addIntelSYCLTripleArgFunctionAttr<WorkGroupAttr>(D, AL, XDimExpr, YDimExpr,
@@ -3308,8 +3227,7 @@ static void handleMaxGlobalWorkDimAttr(Sema &S, Decl *D,
 
   Expr *E = Attr.getArgAsExpr(0);
 
-  uint32_t WGSize[3] = {1, 1, 1};
-  if (!checkWorkGroupSizeValues(S, D, Attr, WGSize)) {
+  if (!checkWorkGroupSizeValues(S, D, Attr)) {
     D->setInvalidDecl();
     return;
   }

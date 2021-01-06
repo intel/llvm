@@ -81,9 +81,10 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
     return PI_SUCCESS;
   }
 
-  size_t deviceCount;
-  cl_int ret_err = clGetContextInfo(
-      cast<cl_context>(context), CL_CONTEXT_DEVICES, 0, nullptr, &deviceCount);
+  cl_uint deviceCount;
+  cl_int ret_err =
+      clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_NUM_DEVICES,
+                       sizeof(cl_uint), &deviceCount, nullptr);
 
   if (ret_err != CL_SUCCESS || deviceCount < 1) {
     return PI_INVALID_CONTEXT;
@@ -354,11 +355,10 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
 
 pi_result piProgramCreate(pi_context context, const void *il, size_t length,
                           pi_program *res_program) {
-
-  size_t deviceCount;
-
-  cl_int ret_err = clGetContextInfo(
-      cast<cl_context>(context), CL_CONTEXT_DEVICES, 0, nullptr, &deviceCount);
+  cl_uint deviceCount;
+  cl_int ret_err =
+      clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_NUM_DEVICES,
+                       sizeof(cl_uint), &deviceCount, nullptr);
 
   std::vector<cl_device_id> devicesInCtx(deviceCount);
 
@@ -1170,6 +1170,11 @@ pi_result piextProgramGetNativeHandle(pi_program program,
   return piextGetNativeHandle(program, nativeHandle);
 }
 
+// This API is called by Sycl RT to notify the end of the plugin lifetime.
+// TODO: add a global variable lifetime management code here (see
+// pi_level_zero.cpp for reference) Currently this is just a NOOP.
+pi_result piTearDown(void *PluginParameter) { return PI_SUCCESS; }
+
 pi_result piPluginInit(pi_plugin *PluginInit) {
   int CompareVersions = strcmp(PluginInit->PiVersion, SupportedVersion);
   if (CompareVersions < 0) {
@@ -1297,6 +1302,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)
+  _PI_CL(piTearDown, piTearDown)
 
 #undef _PI_CL
 

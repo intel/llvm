@@ -94,13 +94,13 @@ int main() {
     h.single_task<class test_kernel5>(TRIFuncObjGood2());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel5
     // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
-    // // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
-    // // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
     // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
 #ifdef TRIGGER_ERROR

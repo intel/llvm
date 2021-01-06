@@ -12,6 +12,7 @@
 /// \ingroup sycl_pi_level_zero
 
 #include "pi_level_zero.hpp"
+#include <CL/sycl/detail/spinlock.hpp>
 #include <algorithm>
 #include <cstdarg>
 #include <cstdio>
@@ -171,6 +172,17 @@ private:
 };
 
 } // anonymous namespace
+
+// Global variables used in PI_Level_Zero
+// Note we only create a simple pointer variables such that C++ RT won't
+// deallocate them automatically at the end of the main program.
+// The heap memory allocated for these global variables reclaimed only when
+// Sycl RT calls piTearDown().
+static std::vector<pi_platform> *PiPlatformsCache =
+    new std::vector<pi_platform>;
+static sycl::detail::SpinLock *PiPlatformsCacheMutex =
+    new sycl::detail::SpinLock;
+static bool PiPlatformCachePopulated = false;
 
 // TODO:: In the following 4 methods we may want to distinguish read access vs.
 // write (as it is OK for multiple threads to read the map without locking it).
@@ -821,16 +833,8 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   // 1. sycl::platform equality issue; we always return the same pi_platform.
   // 2. performance; we can save time by immediately return from cache.
   //
-  // Note: The memory for "PiPlatformsCache" and "PiPlatformsCacheMutex" is
-  // intentionally leaked because the application may call into the SYCL
-  // runtime from a global destructor, and such a call could eventually
-  // access these variables. Therefore, there is no safe time when
-  // "PiPlatformsCache" and "PiPlatformsCacheMutex" could be deleted.
-  static auto PiPlatformsCache = new std::vector<pi_platform>;
-  static auto PiPlatformsCacheMutex = new std::mutex;
-  static bool PiPlatformCachePopulated = false;
 
-  std::lock_guard<std::mutex> Lock(*PiPlatformsCacheMutex);
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiPlatformsCacheMutex};
   if (!PiPlatformCachePopulated) {
     const char *CommandListCacheSize =
         std::getenv("SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE");
@@ -2088,7 +2092,20 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                             Context->Devices[0]->ZeDeviceProperties.flags &
                                 ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
 
-  if (DeviceIsIntegrated) {
+  // Having PI_MEM_FLAGS_HOST_PTR_ALLOC for buffer requires allocation of
+  // pinned host memory which then becomes automatically accessible from
+  // discrete devices through PCI. This property ensures that the memory
+  // map/unmap operations are free of cost and the buffer is optimized for
+  // frequent accesses from the host giving improved performance.
+  // see:
+  // https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/UsePinnedMemoryProperty/UsePinnedMemoryPropery.adoc
+  bool AllocHostPtr = Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC;
+
+  if (AllocHostPtr) {
+    PI_ASSERT(HostPtr == nullptr, PI_INVALID_VALUE);
+  }
+
+  if (AllocHostPtr || DeviceIsIntegrated) {
     ze_host_mem_alloc_desc_t ZeDesc = {};
     ZeDesc.flags = 0;
 
@@ -2102,6 +2119,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     ZE_CALL(
         zeMemAllocDevice(Context->ZeContext, &ZeDesc, Size, 1, ZeDevice, &Ptr));
   }
+
   if (HostPtr) {
     if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
         (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) != 0) {
@@ -2129,7 +2147,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     *RetMem = new _pi_buffer(
         Context, pi_cast<char *>(Ptr) /* Level Zero Memory Handle */,
         HostPtrOrNull, nullptr, 0, 0,
-        DeviceIsIntegrated /* Flag indicating allocation in host memory */);
+        AllocHostPtr || DeviceIsIntegrated /* allocation in host memory */);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -4268,8 +4286,8 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
                                 void **RetMap) {
 
   // TODO: we don't implement read-only or write-only, always read-write.
-  // assert((map_flags & CL_MAP_READ) != 0);
-  // assert((map_flags & CL_MAP_WRITE) != 0);
+  // assert((map_flags & PI_MAP_READ) != 0);
+  // assert((map_flags & PI_MAP_WRITE) != 0);
   PI_ASSERT(Buffer, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
@@ -4292,17 +4310,18 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
 
   // TODO: Level Zero is missing the memory "mapping" capabilities, so we are
   // left to doing new memory allocation and a copy (read) on discrete devices.
-  // On integrated devices  we have allocated the buffer in host memory
-  // so no actions are needed here except for synchronizing on incoming events
-  // and doing a host-to-host copy if a host pointer had been supplied
-  // during buffer creation.
+  // For pinned host memory and integrated devices, we have allocated the
+  // buffer in host memory so no actions are needed here except for
+  // synchronizing on incoming events. A host-to-host copy is done if a host
+  // pointer had been supplied during buffer creation on integrated devices.
   //
   // TODO: for discrete, check if the input buffer is already allocated
   // in shared memory and thus is accessible from the host as is.
   // Can we get SYCL RT to predict/allocate in shared memory
   // from the beginning?
-  //
-  // On integrated devices the buffer has been allocated in host memory.
+
+  // For pinned host memory and integrated devices the buffer has been
+  // allocated in host memory.
   if (Buffer->OnHost) {
     // Wait on incoming events before doing the copy
     piEventsWait(NumEventsInWaitList, EventWaitList);
@@ -4402,7 +4421,8 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
     (*Event)->CommandData =
         (MemObj->OnHost ? nullptr : (MemObj->MapHostPtr ? nullptr : MappedPtr));
 
-  // On integrated devices the buffer is allocated in host memory.
+  // For pinned host memory and integrated devices the buffer is allocated
+  // in host memory.
   if (MemObj->OnHost) {
     // Wait on incoming events before doing the copy
     piEventsWait(NumEventsInWaitList, EventWaitList);
@@ -5345,6 +5365,20 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 #define _PI_API(api)                                                           \
   (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);
 #include <CL/sycl/detail/pi.def>
+
+  return PI_SUCCESS;
+}
+
+// SYCL RT calls this api to notify the end of plugin lifetime.
+// It can include all the jobs to tear down resources before
+// the plugin is unloaded from memory.
+pi_result piTearDown(void *PluginParameter) {
+  // reclaim pi_platform objects here since we don't have piPlatformRelease.
+  for (pi_platform &Platform : *PiPlatformsCache) {
+    delete Platform;
+  }
+  delete PiPlatformsCache;
+  delete PiPlatformsCacheMutex;
 
   return PI_SUCCESS;
 }

@@ -12962,6 +12962,81 @@ void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
   D->addAttr(::new (Context) AttrType(Context, CI, E));
 }
 
+template <typename AttrInfo>
+static bool handleMaxWorkSizeAttrExpr(Sema &S, const AttrInfo &AI,
+                                      const Expr *E, unsigned &Val,
+                                      unsigned Idx) {
+  assert(E && "Attribute must have an argument.");
+
+  if (!E->isInstantiationDependent()) {
+    Optional<llvm::APSInt> ArgVal =
+        E->getIntegerConstantExpr(S.getASTContext());
+
+    if (!ArgVal) {
+      S.Diag(AI.getLocation(), diag::err_attribute_argument_type)
+          << &AI << AANT_ArgumentIntegerConstant << E->getSourceRange();
+      return false;
+    }
+
+    if (ArgVal->isNegative()) {
+      S.Diag(E->getExprLoc(),
+             diag::warn_attribute_requires_non_negative_integer_argument)
+          << E->getType() << S.Context.UnsignedLongLongTy
+          << E->getSourceRange();
+      return true;
+    }
+
+    Val = ArgVal->getZExtValue();
+    if (Val == 0) {
+      S.Diag(E->getExprLoc(), diag::err_attribute_argument_is_zero)
+          << &AI << E->getSourceRange();
+      return false;
+    }
+  }
+  return true;
+}
+
+template <typename AttrType>
+static bool checkMaxWorkSizeAttrArguments(Sema &S, Expr *XDimExpr,
+                                          Expr *YDimExpr, Expr *ZDimExpr,
+                                          const AttrType &Attr) {
+  // Accept template arguments for now as they depend on something else.
+  // We'll get to check them when they eventually get instantiated.
+  if (XDimExpr->isValueDependent() ||
+      (YDimExpr && YDimExpr->isValueDependent()) ||
+      (ZDimExpr && ZDimExpr->isValueDependent()))
+    return false;
+
+  unsigned XDim = 0;
+  if (!handleMaxWorkSizeAttrExpr(S, Attr, XDimExpr, XDim, 0))
+    return true;
+
+  unsigned YDim = 0;
+  if (YDimExpr && !handleMaxWorkSizeAttrExpr(S, Attr, YDimExpr, YDim, 1))
+    return true;
+
+  unsigned ZDim = 0;
+  if (ZDimExpr && !handleMaxWorkSizeAttrExpr(S, Attr, ZDimExpr, ZDim, 2))
+    return true;
+
+  return false;
+}
+
+template <typename WorkGroupAttrType>
+void Sema::addIntelSYCLTripleArgFunctionAttr(Decl *D,
+                                             const AttributeCommonInfo &CI,
+                                             Expr *XDimExpr, Expr *YDimExpr,
+                                             Expr *ZDimExpr) {
+  WorkGroupAttrType TmpAttr(Context, CI, XDimExpr, YDimExpr, ZDimExpr);
+
+  if (checkMaxWorkSizeAttrArguments(*this, XDimExpr, YDimExpr, ZDimExpr,
+                                    TmpAttr))
+    return;
+
+  D->addAttr(::new (Context)
+                 WorkGroupAttrType(Context, CI, XDimExpr, YDimExpr, ZDimExpr));
+}
+
 template <typename AttrType>
 void Sema::AddOneConstantValueAttr(Decl *D, const AttributeCommonInfo &CI,
                                    Expr *E) {
