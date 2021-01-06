@@ -17,4 +17,3 @@ define weak_odr spir_kernel void @foo() {
 define weak_odr spir_kernel void @bar() {
   ret void
 }
-

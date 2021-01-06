@@ -693,7 +693,7 @@ int main(int argc, char **argv) {
   // module is known to cause problems for tools which run later in pipeline, so
   // remove it from the module before perfroming any other actions.
   if (GlobalVariable *GV = MPtr->getGlobalVariable("llvm.used")) {
-    assert(GV->user_empty() && "unexpected ");
+    assert(GV->user_empty() && "unexpected llvm.used users");
     GV->eraseFromParent();
   }
 
