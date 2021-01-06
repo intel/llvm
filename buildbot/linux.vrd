@@ -24,3 +24,9 @@
 :eadb LD_LIBRARY_PATH={COMP_ROOT}/lib
 :eadb PATH={COMP_ROOT}/install/bin
 :eadb LD_LIBRARY_PATH={COMP_ROOT}/install/lib
+
+# For GCC
+:eade LD_LIBRARY_PATH={GCCROOT}/{GCCVER}/ubt1804/efi2/lib64
+:eade LD_LIBRARY_PATH={GCCROOT}/{GCCVER}/ubt1804/efi2/lib32
+:eade LD_LIBRARY_PATH={GCCROOT}/{GCCVER}/ubt1804/efi2/lib
+:eade PATH={GCCROOT}/{GCCVER}/ubt1804/efi2/bin
