@@ -215,10 +215,10 @@
 // CHECK-HIP-DEV: #define __HIP_DEVICE_COMPILE__ 1
 // CHECK-HIP-DEV: #define __HIP__ 1
 
-// RUN: %clang_cc1 %s -E -dM -fsycl -o - -triple spir64\
+// RUN: %clang_cc1 %s -E -dM -fsycl -o - \
 // RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-FSYCL
-// CHECK-FSYCL: #define __DPCPP_COMPILER 1
+// CHECK-FSYCL: #define __DPCPP_COMPILER__ 1
 
-// RUN: %clang_cc1 %s -E -dM -o - -triple spir64\
+// RUN: %clang_cc1 %s -E -dM -o - \
 // RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-NO-FSYCL
-// CHECK-NO-FSYCL-NOT: #define DPCPP_COMPILER 1
+// CHECK-NO-FSYCL-NOT: #define DPCPP_COMPILER__ 1
