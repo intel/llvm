@@ -118,11 +118,16 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
   // an actual object/archive.  Take that list and pass those to the linker
   // instead of the original object.
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
-    auto isSYCLDeviceLib = [](const InputInfo &II) {
+    auto isSYCLDeviceLib = [&C](const InputInfo &II) {
+      const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+      StringRef LibPostfix = ".o";
+      if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
+          C.getDriver().IsCLMode())
+        LibPostfix = ".obj";
       StringRef InputFilename =
           llvm::sys::path::filename(StringRef(II.getFilename()));
       if (!InputFilename.startswith("libsycl-") ||
-          !InputFilename.endswith(".o") || (InputFilename.count('-') < 2))
+          !InputFilename.endswith(LibPostfix) || (InputFilename.count('-') < 2))
         return false;
       size_t PureLibNameLen = InputFilename.find_last_of('-');
       // Skip the prefix "libsycl-"
