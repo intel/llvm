@@ -387,7 +387,7 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
                {CapabilityFPGAMemoryAttributesINTEL});
   ADD_VEC_INIT(DecorationReferencedIndirectlyINTEL,
                {CapabilityIndirectReferencesINTEL});
-  ADD_VEC_INIT(DecorationIOPipeStorageINTEL, {CapabilityIOPipeINTEL});
+  ADD_VEC_INIT(DecorationIOPipeStorageINTEL, {CapabilityIOPipesINTEL});
   ADD_VEC_INIT(DecorationSideEffectsINTEL, {CapabilityAsmINTEL});
   ADD_VEC_INIT(DecorationVectorComputeFunctionINTEL,
                {CapabilityVectorComputeINTEL});
@@ -395,7 +395,7 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
                {CapabilityVectorComputeINTEL});
   ADD_VEC_INIT(DecorationGlobalVariableOffsetINTEL,
                {CapabilityVectorComputeINTEL});
-  ADD_VEC_INIT(DecorationFuncParamIOKind, {CapabilityVectorComputeINTEL});
+  ADD_VEC_INIT(DecorationFuncParamIOKindINTEL, {CapabilityVectorComputeINTEL});
   ADD_VEC_INIT(DecorationStackCallINTEL, {CapabilityVectorComputeINTEL});
   ADD_VEC_INIT(DecorationSIMTCallINTEL, {CapabilityVectorComputeINTEL});
   ADD_VEC_INIT(DecorationFuncParamKindINTEL, {CapabilityVectorComputeINTEL});

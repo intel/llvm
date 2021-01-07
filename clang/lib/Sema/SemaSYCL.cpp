@@ -570,6 +570,14 @@ public:
           (KernelBody != FD) && !FD->hasAttr<SYCLSimdAttr>())
         FD->addAttr(SYCLSimdAttr::CreateImplicit(SemaRef.getASTContext()));
 
+      // Attribute "loop_fuse" can be applied explicitly on kernel function.
+      // Attribute should not be propagated from device functions to kernel.
+      if (auto *A = FD->getAttr<SYCLIntelLoopFuseAttr>()) {
+        if (ParentFD == SYCLKernel) {
+          Attrs.insert(A);
+        }
+      }
+
       // TODO: vec_len_hint should be handled here
 
       CallGraphNode *N = SYCLCG.getNode(FD);
@@ -3283,9 +3291,12 @@ void Sema::MarkDevice(void) {
         case attr::Kind::ReqdWorkGroupSize: {
           auto *Attr = cast<ReqdWorkGroupSizeAttr>(A);
           if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
-            if (Existing->getXDim() != Attr->getXDim() ||
-                Existing->getYDim() != Attr->getYDim() ||
-                Existing->getZDim() != Attr->getZDim()) {
+            if ((getIntExprValue(Existing->getXDim(), getASTContext()) !=
+                 getIntExprValue(Attr->getXDim(), getASTContext())) ||
+                (getIntExprValue(Existing->getYDim(), getASTContext()) !=
+                 getIntExprValue(Attr->getYDim(), getASTContext())) ||
+                (getIntExprValue(Existing->getZDim(), getASTContext()) !=
+                 getIntExprValue(Attr->getZDim(), getASTContext()))) {
               Diag(SYCLKernel->getLocation(),
                    diag::err_conflicting_sycl_kernel_attributes);
               Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -3294,9 +3305,12 @@ void Sema::MarkDevice(void) {
             }
           } else if (auto *Existing =
                          SYCLKernel->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-            if (Existing->getXDim() < Attr->getXDim() ||
-                Existing->getYDim() < Attr->getYDim() ||
-                Existing->getZDim() < Attr->getZDim()) {
+            if ((getIntExprValue(Existing->getXDim(), getASTContext()) <
+                 getIntExprValue(Attr->getXDim(), getASTContext())) ||
+                (getIntExprValue(Existing->getYDim(), getASTContext()) <
+                 getIntExprValue(Attr->getYDim(), getASTContext())) ||
+                (getIntExprValue(Existing->getZDim(), getASTContext()) <
+                 getIntExprValue(Attr->getZDim(), getASTContext()))) {
               Diag(SYCLKernel->getLocation(),
                    diag::err_conflicting_sycl_kernel_attributes);
               Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -3313,9 +3327,12 @@ void Sema::MarkDevice(void) {
         case attr::Kind::SYCLIntelMaxWorkGroupSize: {
           auto *Attr = cast<SYCLIntelMaxWorkGroupSizeAttr>(A);
           if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
-            if (Existing->getXDim() > Attr->getXDim() ||
-                Existing->getYDim() > Attr->getYDim() ||
-                Existing->getZDim() > Attr->getZDim()) {
+            if ((getIntExprValue(Existing->getXDim(), getASTContext()) >
+                 getIntExprValue(Attr->getXDim(), getASTContext())) ||
+                (getIntExprValue(Existing->getYDim(), getASTContext()) >
+                 getIntExprValue(Attr->getYDim(), getASTContext())) ||
+                (getIntExprValue(Existing->getZDim(), getASTContext()) >
+                 getIntExprValue(Attr->getZDim(), getASTContext()))) {
               Diag(SYCLKernel->getLocation(),
                    diag::err_conflicting_sycl_kernel_attributes);
               Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -3335,6 +3352,7 @@ void Sema::MarkDevice(void) {
         case attr::Kind::SYCLIntelMaxGlobalWorkDim:
         case attr::Kind::SYCLIntelNoGlobalWorkOffset:
         case attr::Kind::SYCLIntelUseStallEnableClusters:
+        case attr::Kind::SYCLIntelLoopFuse:
         case attr::Kind::SYCLSimd: {
           if ((A->getKind() == attr::Kind::SYCLSimd) && KernelBody &&
               !KernelBody->getAttr<SYCLSimdAttr>()) {

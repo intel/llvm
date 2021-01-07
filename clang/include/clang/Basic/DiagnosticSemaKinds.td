@@ -130,15 +130,17 @@ def err_intel_fpga_memory_arg_invalid : Error<
 def err_intel_fpga_merge_dir_invalid : Error<
   "merge direction must be 'depth' or 'width'">;
 def err_intel_fpga_reg_limitations : Error <
-  "Illegal %select{argument of type %1 |field in argument}0 to __builtin_intel_fpga_reg.">;
+  "illegal %select{argument of type %1 |field in argument}0 to "
+  "__builtin_intel_fpga_reg">;
 def illegal_type_declared_here : Note<
-  "Field with illegal type declared here">;
+  "field with illegal type declared here">;
 def err_sycl_loop_attr_duplication : Error<
   "duplicate %select{unroll|Intel FPGA}0 loop attribute '%1'">;
 def err_loop_unroll_compatibility : Error<
   "incompatible loop unroll instructions: '%0' and '%1'">;
 def err_pipe_attribute_arg_not_allowed : Error<
-  "'%0' mode for pipe attribute is not supported. Allowed modes: 'read_only', 'write_only'">;
+  "'%0' mode for pipe attribute is not supported; allowed modes are "
+  "'read_only' and 'write_only'">;
 def err_bankbits_numbanks_conflicting : Error<
   "the number of bank_bits must be equal to ceil(log2(numbanks))">;
 def err_bankbits_non_consecutive : Error<
@@ -146,7 +148,7 @@ def err_bankbits_non_consecutive : Error<
 def err_intel_fpga_mem_limitations
     : Error<
           "illegal %select{pointer argument of type %1 |field in type pointed "
-          "to by pointer argument}0 to __builtin_intel_fpga_mem. Only pointers "
+          "to by pointer argument}0 to __builtin_intel_fpga_mem; only pointers "
           "to a first class lvalue or to an rvalue are allowed">;
 def err_intel_fpga_mem_arg_mismatch
     : Error<"builtin parameter must be %select{"
@@ -2855,12 +2857,12 @@ def err_attribute_wrong_number_arguments : Error<
 def err_attribute_too_many_arguments : Error<
   "%0 attribute takes no more than %1 argument%s1">;
 def warn_attribute_too_many_arguments : Warning<
-  "%0 attribute takes no more than %1 argument%s1 - attribute ignored">,
+  "%0 attribute takes no more than %1 argument%s1; attribute ignored">,
  InGroup<IgnoredAttributes>;
 def err_attribute_too_few_arguments : Error<
   "%0 attribute takes at least %1 argument%s1">;
 def warn_attribute_too_few_arguments : Warning<
-  "%0 attribute takes at least %1 argument%s1 - attribute ignored">,
+  "%0 attribute takes at least %1 argument%s1; attribute ignored">,
  InGroup<IgnoredAttributes>;
 def err_attribute_invalid_vector_type : Error<"invalid vector element type %0">;
 def err_attribute_invalid_matrix_type : Error<"invalid matrix element type %0">;
@@ -2877,10 +2879,6 @@ def err_attribute_arm_feature_sve_bits_unsupported : Error<
 def err_attribute_requires_positive_integer : Error<
   "%0 attribute requires a %select{positive|non-negative}1 "
   "integral compile time constant expression">;
-def warn_attribute_requires_positive_integer : Warning<
-  "%0 attribute requires a %select{positive|non-negative}1 "
-  "integral compile time constant expression - attribute ignored">,
- InGroup<IgnoredAttributes>;
 def err_attribute_requires_opencl_version : Error<
   "%0 attribute requires OpenCL version %1%select{| or above}2">;
 def err_invalid_branch_protection_spec : Error<
@@ -11194,12 +11192,12 @@ def warn_sycl_restrict_recursion
     : Warning<"SYCL kernel cannot call a recursive function">,
       InGroup<SyclStrict>, DefaultError;
 def err_ivdep_duplicate_arg : Error<
-  "duplicate argument to 'ivdep'. attribute requires one or both of a safelen "
+  "duplicate argument to 'ivdep'; attribute requires one or both of a safelen "
   "and array">;
 def err_ivdep_unknown_arg : Error<
-  "unknown argument to 'ivdep'. Expected integer or array variable">;
+  "unknown argument to 'ivdep'; expected integer or array variable">;
 def err_ivdep_declrefexpr_arg : Error<
-  "invalid declaration reference argument to 'ivdep'. Expected integer or array"
+  "invalid declaration reference argument to 'ivdep'; expected integer or array"
   " variable">;
 def warn_ivdep_redundant : Warning <"ignoring redundant Intel FPGA loop "
   "attribute 'ivdep': safelen %select{INF|%1}0 >= safelen %select{INF|%3}2">,
@@ -11209,6 +11207,8 @@ def warn_attribute_spelling_deprecated : Warning<
   InGroup<DeprecatedAttributes>;
 def note_spelling_suggestion : Note<
   "did you mean to use %0 instead?">;
+def warn_attribute_requires_non_negative_integer_argument :
+  Warning<warn_impcast_integer_sign.Text>, InGroup<AcceptedAttributes>;
 
 // errors of expect.with.probability
 def err_probability_not_constant_float : Error<

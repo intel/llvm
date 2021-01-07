@@ -8108,16 +8108,22 @@ void TCETargetCodeGenInfo::setTargetAttributes(
 
         SmallVector<llvm::Metadata *, 5> Operands;
         Operands.push_back(llvm::ConstantAsMetadata::get(F));
+        unsigned XDim = Attr->getXDim()
+                            ->EvaluateKnownConstInt(M.getContext())
+                            .getZExtValue();
+        unsigned YDim = Attr->getYDim()
+                            ->EvaluateKnownConstInt(M.getContext())
+                            .getZExtValue();
+        unsigned ZDim = Attr->getZDim()
+                            ->EvaluateKnownConstInt(M.getContext())
+                            .getZExtValue();
 
-        Operands.push_back(
-            llvm::ConstantAsMetadata::get(llvm::Constant::getIntegerValue(
-                M.Int32Ty, llvm::APInt(32, Attr->getXDim()))));
-        Operands.push_back(
-            llvm::ConstantAsMetadata::get(llvm::Constant::getIntegerValue(
-                M.Int32Ty, llvm::APInt(32, Attr->getYDim()))));
-        Operands.push_back(
-            llvm::ConstantAsMetadata::get(llvm::Constant::getIntegerValue(
-                M.Int32Ty, llvm::APInt(32, Attr->getZDim()))));
+        Operands.push_back(llvm::ConstantAsMetadata::get(
+            llvm::Constant::getIntegerValue(M.Int32Ty, llvm::APInt(32, XDim))));
+        Operands.push_back(llvm::ConstantAsMetadata::get(
+            llvm::Constant::getIntegerValue(M.Int32Ty, llvm::APInt(32, YDim))));
+        Operands.push_back(llvm::ConstantAsMetadata::get(
+            llvm::Constant::getIntegerValue(M.Int32Ty, llvm::APInt(32, ZDim))));
 
         // Add a boolean constant operand for "required" (true) or "hint"
         // (false) for implementing the work_group_size_hint attr later.
@@ -8997,6 +9003,9 @@ void AMDGPUTargetCodeGenInfo::setTargetAttributes(
   if (ReqdWGS || FlatWGS) {
     unsigned Min = 0;
     unsigned Max = 0;
+    unsigned XDim = 0;
+    unsigned YDim = 0;
+    unsigned ZDim = 0;
     if (FlatWGS) {
       Min = FlatWGS->getMin()
                 ->EvaluateKnownConstInt(M.getContext())
@@ -9005,8 +9014,19 @@ void AMDGPUTargetCodeGenInfo::setTargetAttributes(
                 ->EvaluateKnownConstInt(M.getContext())
                 .getExtValue();
     }
+    if (ReqdWGS) {
+      XDim = ReqdWGS->getXDim()
+                 ->EvaluateKnownConstInt(M.getContext())
+                 .getZExtValue();
+      YDim = ReqdWGS->getYDim()
+                 ->EvaluateKnownConstInt(M.getContext())
+                 .getZExtValue();
+      ZDim = ReqdWGS->getZDim()
+                 ->EvaluateKnownConstInt(M.getContext())
+                 .getZExtValue();
+    }
     if (ReqdWGS && Min == 0 && Max == 0)
-      Min = Max = ReqdWGS->getXDim() * ReqdWGS->getYDim() * ReqdWGS->getZDim();
+      Min = Max = XDim * YDim * ZDim;
 
     if (Min != 0) {
       assert(Min <= Max && "Min must be less than or equal Max");

@@ -23,7 +23,10 @@
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/Bitcode/BitcodeReader.h"
+#include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IRReader/IRReader.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/ArchiveWriter.h"
 #include "llvm/Object/Binary.h"
@@ -40,6 +43,7 @@
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/StringSaver.h"
+#include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
@@ -93,6 +97,10 @@ static cl::opt<std::string> FilesType(
              "  ast - clang AST file\n"
              "  a   - archive of objects\n"
              "  ao  - archive with one object; output is an unbundled object\n"
+             "  aocr - AOCR archive; output file is a list of unbundled\n"
+             "         .aocr files\n"
+             "  aocx - AOCX archive; output file is a list of unbundled\n"
+             "         .aocx files\n"
              "  aoo - archive; output file is a list of unbundled objects\n"),
     cl::cat(ClangOffloadBundlerCategory));
 
@@ -151,6 +159,13 @@ static bool hasHostKind(StringRef Target) {
   StringRef Triple;
   getOffloadKindAndTriple(Target, OffloadKind, Triple);
   return OffloadKind == "host";
+}
+
+static Triple getTargetTriple(StringRef Target) {
+  StringRef OffloadKind;
+  StringRef TargetTriple;
+  getOffloadKindAndTriple(Target, OffloadKind, TargetTriple);
+  return Triple(TargetTriple);
 }
 
 /// Generic file handler interface.
@@ -564,6 +579,7 @@ class ObjectFileHandler final : public FileHandler {
   Expected<SmallVector<char, 0>> makeTargetSymbolTable() {
     SmallVector<char, 0> SymbolsBuf;
     raw_svector_ostream SymbolsOS(SymbolsBuf);
+    LLVMContext Context;
 
     for (unsigned I = 0; I < NumberOfInputs; ++I) {
       if (I == HostInputIndex)
@@ -576,9 +592,36 @@ class ObjectFileHandler final : public FileHandler {
       if (!BufOrErr)
         return createFileError(InputFileNames[I], BufOrErr.getError());
 
-      LLVMContext Context;
+      std::unique_ptr<MemoryBuffer> Buf = std::move(*BufOrErr);
+
+      // Workaround for the absence of assembly parser for spir target. If this
+      // input is a bitcode for spir target we need to remove module-level
+      // inline asm from it, if there is one, and recreate the buffer with new
+      // contents.
+      // TODO: remove this workaround once spir target gets asm parser.
+      if (isBitcode((const unsigned char *)Buf->getBufferStart(),
+                    (const unsigned char *)Buf->getBufferEnd()))
+        if (getTargetTriple(TargetNames[I]).isSPIR()) {
+          SMDiagnostic Err;
+          std::unique_ptr<Module> Mod = parseIR(*Buf, Err, Context);
+          if (!Mod)
+            return createStringError(inconvertibleErrorCode(),
+                                     Err.getMessage());
+
+          if (!Mod->getModuleInlineAsm().empty()) {
+            Mod->setModuleInlineAsm("");
+
+            SmallVector<char, 0> ModuleBuf;
+            raw_svector_ostream ModuleOS(ModuleBuf);
+            WriteBitcodeToFile(*Mod, ModuleOS);
+
+            Buf = MemoryBuffer::getMemBufferCopy(ModuleOS.str(),
+                                                 Buf->getBufferIdentifier());
+          }
+        }
+
       Expected<std::unique_ptr<Binary>> BinOrErr =
-          createBinary(BufOrErr.get()->getMemBufferRef(), &Context);
+          createBinary(Buf->getMemBufferRef(), &Context);
 
       // If it is not a symbolic file just ignore it since we cannot do anything
       // with it.
@@ -1050,11 +1093,12 @@ class ArchiveFileHandler final : public FileHandler {
     Object,   // Output is a single object file
     Archive   // Output is an archive with extracted objects
   };
-  const OutputType Mode = StringSwitch<OutputType>(FilesType)
-                              .Case("aoo", OutputType::FileList)
-                              .Case("ao", OutputType::Object)
-                              .Case("a", OutputType::Archive)
-                              .Default(OutputType::Unknown);
+  const OutputType Mode =
+      StringSwitch<OutputType>(FilesType)
+          .Cases("aoo", "aocx", "aocr", OutputType::FileList)
+          .Case("ao", OutputType::Object)
+          .Case("a", OutputType::Archive)
+          .Default(OutputType::Unknown);
 
 public:
   ArchiveFileHandler() = default;
@@ -1172,7 +1216,10 @@ public:
           if (Mode == OutputType::FileList) {
             // Create temporary file where the device part will be extracted to.
             SmallString<128u> ChildFileName;
-            auto EC = sys::fs::createTemporaryFile(TempFileNameBase, "o",
+            StringRef Ext("o");
+            if (FilesType == "aocr" || FilesType == "aocx")
+              Ext = FilesType;
+            auto EC = sys::fs::createTemporaryFile(TempFileNameBase, Ext,
                                                    ChildFileName);
             if (EC)
               return createFileError(ChildFileName, EC);
@@ -1220,11 +1267,9 @@ public:
 
     if (Mode == OutputType::Archive) {
       // Determine archive kind for the offload target.
-      StringRef TargetKind;
-      StringRef TargetTriple;
-      getOffloadKindAndTriple(CurrBundle->first(), TargetKind, TargetTriple);
-      auto ArKind = Triple(TargetTriple).isOSDarwin() ? Archive::K_DARWIN
-                                                      : Archive::K_GNU;
+      auto ArKind = getTargetTriple(CurrBundle->first()).isOSDarwin()
+                        ? Archive::K_DARWIN
+                        : Archive::K_GNU;
 
       // And write archive to the output.
       Expected<std::unique_ptr<MemoryBuffer>> NewAr =
@@ -1274,6 +1319,15 @@ CreateObjectFileHandler(MemoryBuffer &FirstInput) {
       std::unique_ptr<ObjectFile>(cast<ObjectFile>(BinaryOrErr->release())));
 }
 
+static bool FilesTypeIsArchiveToList(void) {
+  return FilesType == "ao" || FilesType == "aoo" || FilesType == "aocr" ||
+         FilesType == "aocx";
+}
+
+static bool FilesTypeIsArchive(void) {
+  return FilesType == "a" || FilesTypeIsArchiveToList();
+}
+
 /// Return an appropriate handler given the input files and options.
 static Expected<std::unique_ptr<FileHandler>>
 CreateFileHandler(MemoryBuffer &FirstInput) {
@@ -1299,7 +1353,7 @@ CreateFileHandler(MemoryBuffer &FirstInput) {
     return std::make_unique<BinaryFileHandler>();
   if (FilesType == "ast")
     return std::make_unique<BinaryFileHandler>();
-  if (FilesType == "a" || FilesType == "ao" || FilesType == "aoo")
+  if (FilesTypeIsArchive())
     return std::make_unique<ArchiveFileHandler>();
 
   return createStringError(errc::invalid_argument,
@@ -1310,7 +1364,7 @@ CreateFileHandler(MemoryBuffer &FirstInput) {
 static Error BundleFiles() {
   std::error_code EC;
 
-  if (FilesType == "a" || FilesType == "ao" || FilesType == "aoo")
+  if (FilesTypeIsArchive())
     return createStringError(errc::invalid_argument,
                              "bundling is not supported for archives");
 
@@ -1460,7 +1514,7 @@ static Error UnbundleFiles() {
 
       // If this entry has a host kind, copy the input file to the output file
       // except for the archive unbundling where output is a list file.
-      if (hasHostKind(E.first()) && FilesType != "ao" && FilesType != "aoo")
+      if (hasHostKind(E.first()) && !FilesTypeIsArchiveToList())
         OutputFile.write(Input.getBufferStart(), Input.getBufferSize());
     }
     return Error::success();
@@ -1552,6 +1606,11 @@ int main(int argc, const char **argv) {
     cl::PrintHelpMessage();
     return 0;
   }
+
+  // These calls are needed so that we can read bitcode correctly.
+  InitializeAllTargetInfos();
+  InitializeAllTargetMCs();
+  InitializeAllAsmParsers();
 
   auto reportError = [argv](Error E) {
     logAllUnhandledErrors(std::move(E), WithColor::error(errs(), argv[0]));

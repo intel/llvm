@@ -2320,11 +2320,11 @@ def fsycl_link_targets_EQ : CommaJoined<["-"], "fsycl-link-targets=">, Flags<[No
   HelpText<"Specify comma-separated list of triples SYCL offloading targets to produce linked device images">;
 def fsycl_device_code_split_EQ : Joined<["-"], "fsycl-device-code-split=">,
    Flags<[CC1Option, CoreOption]>, HelpText<"Perform SYCL device code split: per_kernel (device code module is "
-  "created for each SYCL kernel) | per_source (device code module is created for each source (translation unit)) | off (no device code split). "
-  "Default is 'off' - all kernels go into a single module`">, Values<"per_source, per_kernel, off">;
+  "created for each SYCL kernel) | per_source (device code module is created for each source (translation unit)) | off (no device code split). | auto (use heuristic to select the best way of splitting device code)"
+  "Default is 'auto' - use heuristic to distribute device code across modules">, Values<"per_source, per_kernel, off, auto">;
 def fsycl_device_code_split : Flag<["-"], "fsycl-device-code-split">, Alias<fsycl_device_code_split_EQ>,
-  AliasArgs<["per_source"]>, Flags<[CC1Option, CoreOption]>,
-  HelpText<"Perform SYCL device code split in the per_source mode i.e. create a device code module for each source (translation unit)">;
+  AliasArgs<["auto"]>, Flags<[CC1Option, CoreOption]>,
+  HelpText<"Perform SYCL device code split in the 'auto' mode, i.e. use heuristic to distribute device code across modules">;
 def fsycl_id_queries_fit_in_int : Flag<["-"], "fsycl-id-queries-fit-in-int">,
   Flags<[CC1Option, CoreOption]>, HelpText<"Assume that SYCL ID queries fit "
   "within MAX_INT.">;

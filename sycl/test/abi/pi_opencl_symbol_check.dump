@@ -7,6 +7,7 @@
 # REQUIRES: linux
 
 piContextCreate
+piDeviceGetInfo
 piDevicesGet
 piEnqueueMemBufferMap
 piEventCreate
@@ -23,6 +24,7 @@ piProgramCreateWithBinary
 piProgramLink
 piQueueCreate
 piSamplerCreate
+piTearDown
 piclProgramCreateWithSource
 piextContextCreateWithNativeHandle
 piextContextGetNativeHandle

@@ -2612,6 +2612,34 @@ loop should not be fused with any adjacent loop.
   }];
 }
 
+def SYCLIntelLoopFuseDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "loop_fuse, loop_fuse_independent";
+  let Content = [{
+``[[intel::loop_fuse(N)]]`` and ``[[intel::loop_fuse_independent(N)]]`` attributes apply
+to a function/lambda function. It is a strong request, to the extent possible, to fuse
+the loops within the function, that are contained in at most N-1 other loops within the
+function. If the optional parameter N is omitted, it is a strong request, to the extent
+possible, to fuse loops within the function that are not contained in any other loop
+within the function. ``[[intel::loop_fuse_independent(N)]]`` also guarantees that fusion
+safety analysis can ignore negative-distance dependences between these loops.
+
+.. code-block:: c++
+
+  [[intel::loop_fuse(N)]]
+  int foo() {}
+
+  [[intel::loop_fuse_independent(N)]]
+  int foo() {}
+
+
+``[[intel::loop_fuse(N)]]`` and ``[[intel::loop_fuse_independent(N)]]`` takes one optional
+parameter that is a constant unsigned integer expression. The parameter N may be a template
+parameter.
+
+  }];
+}
+
 def SYCLDeviceIndirectlyCallableDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "intel::device_indirectly_callable";

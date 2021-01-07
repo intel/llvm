@@ -1,6 +1,5 @@
 # SYCL(TM) Proposal: Intel's Extensions for Device Information
 
-**IMPORTANT**: This specification is a draft.
 
 **NOTE**: Khronos(R) is a registered trademark and SYCL(TM) is a trademark of the Khronos Group, Inc.
 
@@ -15,12 +14,13 @@ The Feature Test Macro will be defined as:
     #define SYCL_EXT_INTEL_DEVICE_INFO 1
 
 
-
 # PCI Address #
 
 A new device descriptor will be added which will provide the PCI address in BDF format.  BDF format contains the address as: `domain:bus:device.function`.
 
 This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
+
+**Note:** The environment variable SYCL\_ENABLE\_PCI must be set to 1 to obtain the PCI address.
 
 
 ## Device Information Descriptors ##

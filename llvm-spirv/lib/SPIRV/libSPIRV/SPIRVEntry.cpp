@@ -662,4 +662,21 @@ void SPIRVCapability::decode(std::istream &I) {
   Module->addCapability(Kind);
 }
 
+template <spv::Op OC> void SPIRVContinuedInstINTELBase<OC>::validate() const {
+  SPIRVEntry::validate();
+}
+
+template <spv::Op OC>
+void SPIRVContinuedInstINTELBase<OC>::encode(spv_ostream &O) const {
+  SPIRVEntry::getEncoder(O) << (Elements);
+}
+template <spv::Op OC>
+void SPIRVContinuedInstINTELBase<OC>::decode(std::istream &I) {
+  SPIRVEntry::getDecoder(I) >> (Elements);
+}
+
+SPIRVType *SPIRVTypeStructContinuedINTEL::getMemberType(size_t I) const {
+  return static_cast<SPIRVType *>(SPIRVEntry::getEntry(Elements[I]));
+}
+
 } // namespace SPIRV

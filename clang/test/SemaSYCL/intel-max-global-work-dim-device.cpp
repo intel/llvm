@@ -80,15 +80,27 @@ int main() {
 
     h.single_task<class test_kernel4>(TRIFuncObjGood1());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4
-    // CHECK:       ReqdWorkGroupSizeAttr {{.*}} 1 1 1
-    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}} 1 1 1
+    // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
     // CHECK-NEXT:  IntegerLiteral{{.*}}0{{$}}
 
     h.single_task<class test_kernel5>(TRIFuncObjGood2());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel5
-    // CHECK:       ReqdWorkGroupSizeAttr {{.*}} 1 1 4
-    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}} 1 1 8
+    // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
     // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
 #ifdef TRIGGER_ERROR

@@ -6,11 +6,14 @@ typedef __uint128_t BIGTY;
 template <class T>
 class Z {
 public:
+  // expected-error@+2 3{{'__int128' is not supported on this target}}
   // expected-note@+1 {{'field' defined here}}
   T field;
+  // expected-error@+2 3{{'__int128' is not supported on this target}}
   // expected-note@+1 2{{'field1' defined here}}
   __int128 field1;
   using BIGTYPE = __int128;
+  // expected-error@+2 3{{'__int128' is not supported on this target}}
   // expected-note@+1 {{'bigfield' defined here}}
   BIGTYPE bigfield;
 };
@@ -23,8 +26,10 @@ void host_ok(void) {
 }
 
 void usage() {
+  // expected-error@+2 {{'__int128' is not supported on this target}}
   // expected-note@+1 3{{'A' defined here}}
   __int128 A;
+  // expected-note@+1 3{{used here}}
   Z<__int128> C;
   // expected-error@+2 {{'A' requires 128 bit size '__int128' type support, but device 'spir64' does not support it}}
   // expected-error@+1 {{'field1' requires 128 bit size '__int128' type support, but device 'spir64' does not support it}}
@@ -32,9 +37,12 @@ void usage() {
   // expected-error@+1 {{'bigfield' requires 128 bit size 'Z::BIGTYPE' (aka '__int128') type support, but device 'spir64' does not support it}}
   C.bigfield += 1.0;
 
+  // expected-note@+2 1{{used here}}
   // expected-error@+1 {{'A' requires 128 bit size '__int128' type support, but device 'spir64' does not support it}}
   auto foo1 = [=]() {
+    // expected-error@+1 {{'__int128' is not supported on this target}}
     __int128 AA;
+    // expected-error@+3 2{{'__int128' is not supported on this target}}
     // expected-note@+2 {{'BB' defined here}}
     // expected-error@+1 {{'A' requires 128 bit size '__int128' type support, but device 'spir64' does not support it}}
     auto BB = A;
@@ -54,17 +62,18 @@ void foo2(){};
 // expected-note@+1 2{{'foo' defined here}}
 __int128 foo(__int128 P) { return P; }
 
-void foobar() {
+int foobar() {
   // expected-note@+1 {{'operator __int128' defined here}}
-  struct X { operator  __int128() const; } x;
+  struct X { operator  __int128() const{return 0;}; } x;
   bool a = false;
   // expected-error@+1 {{'operator __int128' requires 128 bit size '__int128' type support, but device 'spir64' does not support it}}
   a = x == __int128(0);
+  return a;
 }
 
 template <typename Name, typename Func>
 __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
-  // expected-note@+1 6{{called by 'kernel}}
+  // expected-note@+1 7{{called by 'kernel}}
   kernelFunc();
 }
 
@@ -73,9 +82,12 @@ int main() {
   __int128 CapturedToDevice = 1;
   host_ok();
   kernel<class variables>([=]() {
+    // expected-error@+1 {{'__int128' is not supported on this target}}
     decltype(CapturedToDevice) D;
+    // expected-error@+2 {{'__int128' is not supported on this target}}
     // expected-error@+1 {{'CapturedToDevice' requires 128 bit size '__int128' type support, but device 'spir64' does not support it}}
     auto C = CapturedToDevice;
+    // expected-note@+1 3{{used here}}
     Z<__int128> S;
     // expected-error@+1 {{'field1' requires 128 bit size '__int128' type support, but device 'spir64' does not support it}}
     S.field1 += 1;
@@ -86,17 +98,20 @@ int main() {
   kernel<class functions>([=]() {
     // expected-note@+1 2{{called by 'operator()'}}
     usage();
+    // expected-error@+2 {{'unsigned __int128' is not supported on this target}}
     // expected-note@+1 {{'BBBB' defined here}}
     BIGTY BBBB;
+    // expected-error@+4 {{'__int128' is not supported on this target}}
     // expected-error@+3 {{'BBBB' requires 128 bit size 'BIGTY' (aka 'unsigned __int128') type support, but device 'spir64' does not support it}}
     // expected-error@+2 2{{'foo' requires 128 bit size '__int128' type support, but device 'spir64' does not support it}}
     // expected-note@+1 1{{called by 'operator()'}}
     auto A = foo(BBBB);
     // expected-note@+1 {{called by 'operator()'}}
-    foobar();
+    auto i = foobar();
   });
 
   kernel<class ok>([=]() {
+    // expected-note@+1 3{{used here}}
     Z<__int128> S;
     foo2<__int128>();
     auto A = sizeof(CapturedToDevice);

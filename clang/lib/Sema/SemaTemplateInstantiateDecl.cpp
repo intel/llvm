@@ -550,6 +550,32 @@ static void instantiateDependentAMDGPUWavesPerEUAttr(
 }
 
 template <typename AttrName>
+static void instantiateIntelSYCTripleLFunctionAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const AttrName *Attr, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+
+  ExprResult Result = S.SubstExpr(Attr->getXDim(), TemplateArgs);
+  if (Result.isInvalid())
+    return;
+  Expr *XDimExpr = Result.getAs<Expr>();
+
+  Result = S.SubstExpr(Attr->getYDim(), TemplateArgs);
+  if (Result.isInvalid())
+    return;
+  Expr *YDimExpr = Result.getAs<Expr>();
+
+  Result = S.SubstExpr(Attr->getZDim(), TemplateArgs);
+  if (Result.isInvalid())
+    return;
+  Expr *ZDimExpr = Result.getAs<Expr>();
+
+  S.addIntelSYCLTripleArgFunctionAttr<AttrName>(New, *Attr, XDimExpr, YDimExpr,
+                                                ZDimExpr);
+}
+
+template <typename AttrName>
 static void instantiateIntelFPGAMemoryAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const AttrName *Attr, Decl *New) {
@@ -590,6 +616,16 @@ static void instantiateSYCLIntelPipeIOAttr(
   ExprResult Result = S.SubstExpr(Attr->getID(), TemplateArgs);
   if (!Result.isInvalid())
     S.addSYCLIntelPipeIOAttr(New, *Attr, Result.getAs<Expr>());
+}
+
+static void instantiateSYCLIntelLoopFuseAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLIntelLoopFuseAttr *Attr, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.addSYCLIntelLoopFuseAttr(New, *Attr, Result.getAs<Expr>());
 }
 
 template <typename AttrName>
@@ -806,10 +842,28 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
           *this, TemplateArgs, SYCLIntelMaxGlobalWorkDim, New);
       continue;
     }
+    if (const auto *SYCLIntelLoopFuse =
+            dyn_cast<SYCLIntelLoopFuseAttr>(TmplAttr)) {
+      instantiateSYCLIntelLoopFuseAttr(*this, TemplateArgs, SYCLIntelLoopFuse,
+                                       New);
+      continue;
+    }
     if (const auto *SYCLIntelNoGlobalWorkOffset =
             dyn_cast<SYCLIntelNoGlobalWorkOffsetAttr>(TmplAttr)) {
       instantiateIntelSYCLFunctionAttr<SYCLIntelNoGlobalWorkOffsetAttr>(
           *this, TemplateArgs, SYCLIntelNoGlobalWorkOffset, New);
+      continue;
+    }
+    if (const auto *ReqdWorkGroupSize =
+            dyn_cast<ReqdWorkGroupSizeAttr>(TmplAttr)) {
+      instantiateIntelSYCTripleLFunctionAttr<ReqdWorkGroupSizeAttr>(
+          *this, TemplateArgs, ReqdWorkGroupSize, New);
+      continue;
+    }
+    if (const auto *SYCLIntelMaxWorkGroupSize =
+            dyn_cast<SYCLIntelMaxWorkGroupSizeAttr>(TmplAttr)) {
+      instantiateIntelSYCTripleLFunctionAttr<SYCLIntelMaxWorkGroupSizeAttr>(
+          *this, TemplateArgs, SYCLIntelMaxWorkGroupSize, New);
       continue;
     }
     // Existing DLL attribute on the instantiation takes precedence.
@@ -6239,7 +6293,16 @@ static void processSYCLKernel(Sema &S, FunctionDecl *FD, MangleContext &MC) {
   if (S.LangOpts.SYCLIsDevice) {
     S.ConstructOpenCLKernel(FD, MC);
   } else if (S.LangOpts.SYCLIsHost) {
-    CXXRecordDecl *CRD = (*FD->param_begin())->getType()->getAsCXXRecordDecl();
+    QualType KernelParamTy = (*FD->param_begin())->getType();
+    const CXXRecordDecl *CRD = (KernelParamTy->isReferenceType()
+                                    ? KernelParamTy->getPointeeCXXRecordDecl()
+                                    : KernelParamTy->getAsCXXRecordDecl());
+    if (!CRD) {
+      S.Diag(FD->getLocation(), diag::err_sycl_kernel_not_function_object);
+      FD->setInvalidDecl();
+      return;
+    }
+
     for (auto *Method : CRD->methods())
       if (Method->getOverloadedOperator() == OO_Call &&
           !Method->hasAttr<AlwaysInlineAttr>())

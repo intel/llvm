@@ -587,6 +587,11 @@ ESIMD_NODEBUG ESIMD_INLINE
 /// \ingroup sycl_esimd
 inline ESIMD_NODEBUG void esimd_barrier() { __esimd_barrier(); }
 
+/// Generic work-group split barrier
+inline ESIMD_NODEBUG void esimd_sbarrier(EsimdSbarrierType flag) {
+  __esimd_sbarrier(flag);
+}
+
 enum EsimdFenceMask {
   ESIMD_GLOBAL_COHERENT_FENCE = 0x1,
   ESIMD_L3_FLUSH_INSTRUCTIONS = 0x2,
@@ -660,10 +665,10 @@ ESIMD_INLINE ESIMD_NODEBUG simd<T, n> slm_block_load(uint32_t offset) {
                 "block size must be whole number of owords");
   static_assert(__esimd::isPowerOf2(Sz / __esimd::OWORD),
                 "block must be 1, 2, 4 or 8 owords long");
-  static_assert(Sz <= 8 * __esimd::OWORD,
-                "block size must be at most 8 owords");
+  static_assert(Sz <= 16 * __esimd::OWORD,
+                "block size must be at most 16 owords");
 
-  return __esimd_slm_block_read<T, n>(offset);
+  return __esimd_slm_block_read<T, n>(offset >> 4);
 }
 
 /// SLM block-store.
