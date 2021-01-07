@@ -475,6 +475,8 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
   }
 
   if (LangOpts.SYCL) {
+    // DPCPP compiler identification macro
+    Builder.defineMacro("__DPCPP_COMPILER", "1");
     // SYCL Version is set to a value when building SYCL applications
     if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2017) {
       Builder.defineMacro("CL_SYCL_LANGUAGE_VERSION", "121");
