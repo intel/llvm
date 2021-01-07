@@ -690,6 +690,11 @@ pi_result _pi_queue::executeOpenCommandList() {
   return PI_SUCCESS;
 }
 
+static const bool FilterEventWaitList = [] {
+  const bool RetVal = std::getenv("SYCL_PI_LEVEL_ZERO_FILTER_EVENT_WAIT_LIST");
+  return RetVal;
+}();
+
 static pi_ze_event_list_t createZeEventList(pi_uint32 EventListLength,
                                             const pi_event *EventList) {
   pi_ze_event_list_t Ret;
@@ -702,11 +707,17 @@ static pi_ze_event_list_t createZeEventList(pi_uint32 EventListLength,
 
     for (pi_uint32 I = 0; I < EventListLength; I++) {
       auto ZeEvent = EventList[I]->ZeEvent;
-      auto Res = ZE_CALL_NOCHECK(zeEventQueryStatus(ZeEvent));
 
-      if (Res != ZE_RESULT_SUCCESS) {
-        assert(Res == ZE_RESULT_NOT_READY);
-        ZeEventList[TmpListLength++] = ZeEvent;
+      ZeEventList[TmpListLength++] = ZeEvent;
+
+      if (FilterEventWaitList) {
+        auto Res = ZE_CALL_NOCHECK(zeEventQueryStatus(ZeEvent));
+        if (Res == ZE_RESULT_SUCCESS) {
+          // Event has already completed, filter it from the list
+          // by decrementing TmpListLength, and resetting the
+          // event that was stored into the list to nullptr.
+          ZeEventList[--TmpListLength] = nullptr;
+        }
       }
     }
 
