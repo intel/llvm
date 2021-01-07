@@ -221,4 +221,4 @@
 
 // RUN: %clang_cc1 %s -E -dM -o - \
 // RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-NO-FSYCL
-// CHECK-NO-FSYCL-NOT: #define DPCPP_COMPILER__ 1
+// CHECK-NO-FSYCL-NOT: #define __DPCPP_COMPILER__ 1
