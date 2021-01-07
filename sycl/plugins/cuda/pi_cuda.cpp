@@ -3049,7 +3049,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
 }
 
 pi_result cuda_piKernelGetSubGroupInfo(
-    pi_kernel kernel, pi_device device, cl_kernel_sub_group_info param_name,
+    pi_kernel kernel, pi_device device, pi_kernel_sub_group_info param_name,
     size_t input_value_size, const void *input_value, size_t param_value_size,
     void *param_value, size_t *param_value_size_ret) {
   if (kernel != nullptr) {
