@@ -1915,6 +1915,13 @@ private:
     if (Tok.Next->isOneOf(tok::identifier, tok::kw_this))
       return true;
 
+    if (Tok.Next->is(tok::l_paren) &&
+        !(Tok.Previous && Tok.Previous->is(tok::identifier) &&
+          Tok.Previous->Previous &&
+          Tok.Previous->Previous->isOneOf(tok::arrowstar, tok::arrow,
+                                          tok::star)))
+      return true;
+
     if (!Tok.Next->Next)
       return false;
 
@@ -1964,9 +1971,9 @@ private:
 
     if (PrevToken->isOneOf(tok::l_paren, tok::l_square, tok::l_brace,
                            tok::comma, tok::semi, tok::kw_return, tok::colon,
-                           tok::kw_co_return, tok::kw_co_await, tok::kw_co_yield,
-                           tok::equal, tok::kw_delete, tok::kw_sizeof,
-                           tok::kw_throw) ||
+                           tok::kw_co_return, tok::kw_co_await,
+                           tok::kw_co_yield, tok::equal, tok::kw_delete,
+                           tok::kw_sizeof, tok::kw_throw) ||
         PrevToken->isOneOf(TT_BinaryOperator, TT_ConditionalExpr,
                            TT_UnaryOperator, TT_CastRParen))
       return TT_UnaryOperator;
