@@ -1,36 +1,33 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump -sycl-std=2020 %s | FileCheck %s
 
 // This test checks that compiler generates correct kernel wrapper for basic
 // case.
 
 #include "Inputs/sycl.hpp"
 
-template <typename Acc>
-struct AccWrapper { Acc accessor; };
-
-template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
-  kernelFunc();
-}
+sycl::queue myQueue;
 
 int main() {
-  cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write> acc;
-  kernel<class kernel_wrapper>(
-      [=]() {
-        acc.use();
-      });
+  sycl::accessor<int, 1, sycl::access::mode::read_write> readWriteAccessor;
+
+  myQueue.submit([&](sycl::handler &h) {
+    h.single_task<class kernel_wrapper>(
+        [=]() {
+          readWriteAccessor.use();
+        });
+  });
 }
 
 // Check declaration of the kernel
 
-// CHECK: FunctionDecl {{.*}}kernel_wrapper{{.*}} 'void (__global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
+// CHECK: FunctionDecl {{.*}}kernel_wrapper{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
 
 // Check parameters of the kernel
 
 // CHECK: ParmVarDecl {{.*}} used [[_arg_Mem:[0-9a-zA-Z_]+]] '__global int *'
-// CHECK: ParmVarDecl {{.*}} used [[_arg_AccessRange:[0-9a-zA-Z_]+]] 'cl::sycl::range<1>'
-// CHECK: ParmVarDecl {{.*}} used [[_arg_MemRange:[0-9a-zA-Z_]+]] 'cl::sycl::range<1>'
-// CHECK: ParmVarDecl {{.*}} used [[_arg_Offset:[0-9a-zA-Z_]+]] 'cl::sycl::id<1>'
+// CHECK: ParmVarDecl {{.*}} used [[_arg_AccessRange:[0-9a-zA-Z_]+]] 'sycl::range<1>'
+// CHECK: ParmVarDecl {{.*}} used [[_arg_MemRange:[0-9a-zA-Z_]+]] 'sycl::range<1>'
+// CHECK: ParmVarDecl {{.*}} used [[_arg_Offset:[0-9a-zA-Z_]+]] 'sycl::id<1>'
 
 // Check body of the kernel
 
@@ -43,23 +40,23 @@ int main() {
 
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} 'void ({{.*}}PtrType, range<1>, range<1>, id<1>)' lvalue .__init
-// CHECK-NEXT: MemberExpr {{.*}} 'cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write>':'cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t>' lvalue .
+// CHECK-NEXT: MemberExpr {{.*}} 'sycl::accessor<int, 1, sycl::access::mode::read_write>':'sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}basic-kernel-wrapper.cpp{{.*}})' lvalue Var
 
 // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '[[_arg_Mem]]' '__global int *'
 
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'range<1>':'cl::sycl::range<1>'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const cl::sycl::range<1>' lvalue <NoOp>
-// CHECK-NEXT: DeclRefExpr {{.*}} 'cl::sycl::range<1>' lvalue ParmVar {{.*}} '[[_arg_AccessRange]]' 'cl::sycl::range<1>'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'range<1>':'sycl::range<1>'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const sycl::range<1>' lvalue <NoOp>
+// CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::range<1>' lvalue ParmVar {{.*}} '[[_arg_AccessRange]]' 'sycl::range<1>'
 
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'range<1>':'cl::sycl::range<1>'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const cl::sycl::range<1>' lvalue <NoOp>
-// CHECK-NEXT: DeclRefExpr {{.*}} 'cl::sycl::range<1>' lvalue ParmVar {{.*}} '[[_arg_MemRange]]' 'cl::sycl::range<1>'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'range<1>':'sycl::range<1>'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const sycl::range<1>' lvalue <NoOp>
+// CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::range<1>' lvalue ParmVar {{.*}} '[[_arg_MemRange]]' 'sycl::range<1>'
 
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'id<1>':'cl::sycl::id<1>'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const cl::sycl::id<1>' lvalue <NoOp>
-// CHECK-NEXT: DeclRefExpr {{.*}} 'cl::sycl::id<1>' lvalue ParmVar {{.*}} '[[_arg_Offset]]' 'cl::sycl::id<1>'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'id<1>':'sycl::id<1>'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const sycl::id<1>' lvalue <NoOp>
+// CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::id<1>' lvalue ParmVar {{.*}} '[[_arg_Offset]]' 'sycl::id<1>'
 
 // Check that body of the kernel caller function is included into kernel
 
