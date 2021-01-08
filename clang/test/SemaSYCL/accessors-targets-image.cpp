@@ -5,16 +5,16 @@
 
 #include "Inputs/sycl.hpp"
 
-cl::sycl::queue q;
+sycl::queue q;
 
 int main() {
 
   // 1-dimensional accessor with Read-only access
-  cl::sycl::accessor<int, 1, cl::sycl::access::mode::read,
-                     cl::sycl::access::target::image, cl::sycl::access::placeholder::false_t>
+  sycl::accessor<int, 1, sycl::access::mode::read,
+                 sycl::access::target::image, sycl::access::placeholder::false_t>
       image_acc1d_read;
 
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](sycl::handler &h) {
     h.single_task<class use_image1d_r>(
         [=] {
           image_acc1d_read.use();
@@ -22,10 +22,10 @@ int main() {
   });
 
   // 2-dimensional accessor with Read-only access
-  cl::sycl::accessor<int, 2, cl::sycl::access::mode::read,
-                     cl::sycl::access::target::image, cl::sycl::access::placeholder::false_t>
+  sycl::accessor<int, 2, sycl::access::mode::read,
+                 sycl::access::target::image, sycl::access::placeholder::false_t>
       image_acc2d_read;
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](sycl::handler &h) {
     h.single_task<class use_image2d_r>(
         [=] {
           image_acc2d_read.use();
@@ -33,11 +33,11 @@ int main() {
   });
 
   // 3-dimensional accessor with Read-only access
-  cl::sycl::accessor<int, 3, cl::sycl::access::mode::read,
-                     cl::sycl::access::target::image, cl::sycl::access::placeholder::false_t>
+  sycl::accessor<int, 3, sycl::access::mode::read,
+                 sycl::access::target::image, sycl::access::placeholder::false_t>
       image_acc3d_read;
 
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](sycl::handler &h) {
     h.single_task<class use_image3d_r>(
         [=] {
           image_acc3d_read.use();
@@ -45,10 +45,10 @@ int main() {
   });
 
   // 1-dimensional accessor with Write-only access
-  cl::sycl::accessor<int, 1, cl::sycl::access::mode::write,
-                     cl::sycl::access::target::image, cl::sycl::access::placeholder::false_t>
+  sycl::accessor<int, 1, sycl::access::mode::write,
+                 sycl::access::target::image, sycl::access::placeholder::false_t>
       image_acc1d_write;
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](sycl::handler &h) {
     h.single_task<class use_image1d_w>(
         [=] {
           image_acc1d_write.use();
@@ -56,10 +56,10 @@ int main() {
   });
 
   // 2-dimensional accessor with Write-only access
-  cl::sycl::accessor<int, 2, cl::sycl::access::mode::write,
-                     cl::sycl::access::target::image, cl::sycl::access::placeholder::false_t>
+  sycl::accessor<int, 2, sycl::access::mode::write,
+                 sycl::access::target::image, sycl::access::placeholder::false_t>
       image_acc2d_write;
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](sycl::handler &h) {
     h.single_task<class use_image2d_w>(
         [=] {
           image_acc2d_write.use();
@@ -67,10 +67,10 @@ int main() {
   });
 
   // 3-dimensional accessor with Write-only access
-  cl::sycl::accessor<int, 3, cl::sycl::access::mode::write,
-                     cl::sycl::access::target::image, cl::sycl::access::placeholder::false_t>
+  sycl::accessor<int, 3, sycl::access::mode::write,
+                 sycl::access::target::image, sycl::access::placeholder::false_t>
       image_acc3d_write;
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](sycl::handler &h) {
     h.single_task<class use_image3d_w>(
         [=] {
           image_acc3d_write.use();

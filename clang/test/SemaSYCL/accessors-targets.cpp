@@ -5,43 +5,43 @@
 
 #include "Inputs/sycl.hpp"
 
-cl::sycl::queue q;
+sycl::queue q;
 
 int main() {
   // Access work-group local memory with read and write access.
-  cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
-                     cl::sycl::access::target::local>
+  sycl::accessor<int, 1, sycl::access::mode::read_write,
+                 sycl::access::target::local>
       local_acc;
   // Access buffer via global memory with read and write access.
-  cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
-                     cl::sycl::access::target::global_buffer>
+  sycl::accessor<int, 1, sycl::access::mode::read_write,
+                 sycl::access::target::global_buffer>
       global_acc;
   // Access buffer via constant memory with read and write access.
-  cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
-                     cl::sycl::access::target::constant_buffer>
+  sycl::accessor<int, 1, sycl::access::mode::read_write,
+                 sycl::access::target::constant_buffer>
       constant_acc;
 
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](sycl::handler &h) {
     h.single_task<class use_local>(
         [=] {
           local_acc.use();
         });
   });
 
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](sycl::handler &h) {
     h.single_task<class use_global>(
         [=] {
           global_acc.use();
         });
   });
 
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](sycl::handler &h) {
     h.single_task<class use_constant>(
         [=] {
           constant_acc.use();
         });
   });
 }
-// CHECK: {{.*}}use_local{{.*}} 'void (__local int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
-// CHECK: {{.*}}use_global{{.*}} 'void (__global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
-// CHECK: {{.*}}use_constant{{.*}} 'void (__constant int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
+// CHECK: {{.*}}use_local{{.*}} 'void (__local int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
+// CHECK: {{.*}}use_global{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
+// CHECK: {{.*}}use_constant{{.*}} 'void (__constant int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'

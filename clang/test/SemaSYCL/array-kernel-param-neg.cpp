@@ -6,7 +6,7 @@
 
 #include "Inputs/sycl.hpp"
 
-cl::sycl::queue q;
+sycl::queue q;
 
 struct NonTrivialCopyStruct {
   int i;
@@ -33,7 +33,7 @@ void test() {
   // expected-note@+1 {{'UnknownSizeArrayObj' declared here}}
   Array UnknownSizeArrayObj;
 
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](sycl::handler &h) {
     h.single_task<class kernel_capture_refs>([=] {
       // expected-error@+1 {{kernel parameter has non-trivially copy constructible class/struct type}}
       int b = NTCSObject[2].i;
@@ -42,7 +42,7 @@ void test() {
     });
   });
 
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](sycl::handler &h) {
     // expected-error@+1 {{variable 'UnknownSizeArrayObj' with flexible array member cannot be captured in a lambda expression}}
     h.single_task<class kernel_bad_array>(UnknownSizeArrayObj);
   });

@@ -4,7 +4,7 @@
 
 #include "Inputs/sycl.hpp"
 
-cl::sycl::queue q;
+sycl::queue q;
 
 // expected-note@+1{{function implemented using recursion declared here}}
 constexpr int constexpr_recurse1(int n);
@@ -72,11 +72,11 @@ void constexpr_recurse_test_err() {
 }
 
 int main() {
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](sycl::handler &h) {
     h.single_task<class fake_kernel>([]() { constexpr_recurse_test(); });
   });
 
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](sycl::handler &h) {
     h.single_task<class fake_kernel>([]() { constexpr_recurse_test_err(); });
   });
 }
