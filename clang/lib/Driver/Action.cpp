@@ -515,6 +515,11 @@ void FileTableTformJobAction::addReplaceColumnTform(StringRef From,
   Tforms.emplace_back(Tform(Tform::REPLACE, {From, To}));
 }
 
+void FileTableTformJobAction::addRenameColumnTform(StringRef From,
+                                                   StringRef To) {
+  Tforms.emplace_back(Tform(Tform::RENAME, {From, To}));
+}
+
 void StaticLibJobAction::anchor() {}
 
 StaticLibJobAction::StaticLibJobAction(ActionList &Inputs, types::ID Type)

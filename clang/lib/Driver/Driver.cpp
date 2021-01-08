@@ -3682,10 +3682,6 @@ class OffloadingActionBuilder final {
     /// construction. Does not track AOT binary inputs triples.
     SmallVector<llvm::Triple, 4> SYCLTripleList;
 
-    /// Running count of FPGA device binaries.
-    unsigned FPGAxCount = 0;
-    unsigned FPGArCount = 0;
-
     /// Type of output file for FPGA device compilation.
     types::ID FPGAOutType = types::TY_FPGA_AOCX;
 
@@ -3916,20 +3912,6 @@ class OffloadingActionBuilder final {
                                                   .isWindowsMSVCEnvironment()))
               FPGAObjectInputs.push_back(IA);
           }
-          // When creating FPGA device fat objects, all host objects are
-          // partially linked.  Gather that list here.
-          if (IA->getType() == types::TY_Object ||
-              IA->getType() == types::TY_FPGA_AOCX ||
-              IA->getType() == types::TY_FPGA_AOCR) {
-            // Keep track of the number of FPGA devices encountered
-            // Only one of these is allowed at a single time.
-            if (IA->getType() == types::TY_FPGA_AOCX)
-              FPGAxCount++;
-            if (IA->getType() == types::TY_FPGA_AOCR)
-              FPGArCount++;
-            if ((FPGAxCount && FPGArCount) || FPGAxCount > 1 || FPGArCount > 1)
-              C.getDriver().Diag(clang::diag::err_drv_bad_fpga_device_count);
-          }
         }
         for (unsigned I = 0; I < ToolChains.size(); ++I) {
           SYCLDeviceActions.push_back(UA);
@@ -4089,59 +4071,6 @@ class OffloadingActionBuilder final {
           // Current list is empty, nothing to process.
           continue;
 
-        // Perform a check for device kernels.  This is done for FPGA when an
-        // aocx or aocr based file is found.
-        if (FPGAxCount || FPGArCount) {
-          ActionList DeviceObjects;
-          for (const auto &I : LI) {
-            if (I->getType() == types::TY_Object) {
-              // Perform a check for SPIR kernel.
-              auto *DeviceCheckAction =
-                  C.MakeAction<SPIRCheckJobAction>(I, types::TY_Object);
-              DeviceObjects.push_back(DeviceCheckAction);
-              continue;
-            }
-            // We want to move the AOCX/AOCR binary to the front of the objects
-            // allowing it to be picked up instead of the other device objects
-            // at runtime.
-            // TODO: In the presense of existing FPGA Device binaries (AOCX)
-            // we do not need to perform/add the SPIR-V generated device
-            // binaries from sources or objects.
-            if (types::isFPGA(I->getType())) {
-              // Do not perform a device link and only pass the aocr
-              // file to the offline compilation before wrapping.  Just
-              // wrap an aocx file.
-              Action *DeviceWrappingAction;
-              if (I->getType() == types::TY_FPGA_AOCR) {
-                auto *DeviceBECompileAction =
-                    C.MakeAction<BackendCompileJobAction>(I, FPGAOutType);
-                DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
-                    DeviceBECompileAction, types::TY_Object);
-              } else
-                DeviceWrappingAction =
-                    C.MakeAction<OffloadWrapperJobAction>(I, types::TY_Object);
-              DA.add(*DeviceWrappingAction, **TC, /*BoundArch=*/nullptr,
-                     Action::OFK_SYCL);
-              continue;
-            }
-            DeviceObjects.push_back(I);
-          }
-          if (!DeviceObjects.empty()) {
-            // When aocx or aocr is found, there is an expectation that none of
-            // the other objects processed have any kernel. So, there
-            // is no need in device code split and backend compile here. Just
-            // link and wrap the device binary.
-            auto *DeviceLinkAction =
-                C.MakeAction<LinkJobAction>(DeviceObjects, types::TY_LLVM_BC);
-            auto *SPIRVTranslateAction = C.MakeAction<SPIRVTranslatorJobAction>(
-                DeviceLinkAction, types::TY_SPIRV);
-            auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
-                SPIRVTranslateAction, types::TY_Object);
-            DA.add(*DeviceWrappingAction, **TC, /*BoundArch=*/nullptr,
-                   Action::OFK_SYCL);
-          }
-          continue;
-        }
         ActionList DeviceLibObjects;
         ActionList LinkObjects;
         auto TT = SYCLTripleList[I];
@@ -4153,9 +4082,33 @@ class OffloadingActionBuilder final {
           // FPGA aoco does not go through the link, everything else does.
           if (Input->getType() == types::TY_FPGA_AOCO)
             DeviceLibObjects.push_back(Input);
-          else
+          // FPGA aocr/aocx does not go through the link and is passed
+          // directly to the backend compilation step (aocr) or wrapper (aocx)
+          else if (types::isFPGA(Input->getType())) {
+            Action *FPGAAOTAction;
+            constexpr char COL_CODE[] = "Code";
+            constexpr char COL_ZERO[] = "0";
+            if (Input->getType() == types::TY_FPGA_AOCR)
+              // Generate AOCX/AOCR
+              FPGAAOTAction =
+                  C.MakeAction<BackendCompileJobAction>(Input, FPGAOutType);
+            else if (Input->getType() == types::TY_FPGA_AOCX)
+              FPGAAOTAction = Input;
+            else
+              llvm_unreachable("Unexpected FPGA input type.");
+            auto *RenameAction = C.MakeAction<FileTableTformJobAction>(
+                FPGAAOTAction, types::TY_Tempfilelist);
+            RenameAction->addRenameColumnTform(COL_ZERO, COL_CODE);
+            auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
+                RenameAction, types::TY_Object);
+            DA.add(*DeviceWrappingAction, **TC, /*BoundArch=*/nullptr,
+                   Action::OFK_SYCL);
+          } else
             LinkObjects.push_back(Input);
         }
+        if (LinkObjects.empty())
+          continue;
+
         // The linkage actions subgraph leading to the offload wrapper.
         // [cond] Means incoming/outgoing dependence is created only when cond
         //        is true. A function of:
@@ -5145,9 +5098,10 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     // archive unbundling for Windows.
     if (!isStaticArchiveFile(LA))
       continue;
-    // FPGA AOCX files are archives, but we do not want to unbundle them here
-    // as they have already been unbundled and processed for linking.
-    if (hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCX))
+    // FPGA AOCX/AOCR files are archives, but we do not want to unbundle them
+    // here as they have already been unbundled and processed for linking.
+    if (hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCX) ||
+        hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCR))
       continue;
     // For offload-static-libs we add an unbundling action for each static
     // archive which produces list files with extracted objects. Device lists
@@ -6151,6 +6105,9 @@ InputInfo Driver::BuildJobsForActionNoCache(
             TI = types::TY_TempAOCOfilelist;
             Ext = "txt";
           }
+          if (JA->getType() == types::TY_FPGA_AOCR)
+            // AOCR files are always unbundled into a list file.
+            TI = types::TY_Tempfilelist;
         } else if (EffectiveTriple.getSubArch() !=
                    llvm::Triple::SPIRSubArch_fpga) {
           if (UI.DependentOffloadKind == Action::OFK_SYCL) {

@@ -47,6 +47,8 @@ void MemoryManager::release(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
 
 void MemoryManager::releaseImageBuffer(ContextImplPtr TargetContext,
                                        void *ImageBuf) {
+  (void)TargetContext;
+  (void)ImageBuf;
   // TODO remove when ABI breaking changes are allowed.
   throw runtime_error("Deprecated release operation", PI_INVALID_OPERATION);
 }
@@ -83,6 +85,9 @@ void *MemoryManager::allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
 
 void *MemoryManager::wrapIntoImageBuffer(ContextImplPtr TargetContext,
                                          void *MemBuf, SYCLMemObjI *MemObj) {
+  (void)TargetContext;
+  (void)MemBuf;
+  (void)MemObj;
   // TODO remove when ABI breaking changes are allowed.
   throw runtime_error("Deprecated allocation operation", PI_INVALID_OPERATION);
 }
@@ -279,6 +284,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
              sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
              unsigned int DstElemSize, std::vector<RT::PiEvent> DepEvents,
              RT::PiEvent &OutEvent) {
+  (void)SrcAccessRange;
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const RT::PiQueue Queue = TgtQueue->getHandleRef();
@@ -350,6 +356,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
              sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
              unsigned int DstElemSize, std::vector<RT::PiEvent> DepEvents,
              RT::PiEvent &OutEvent) {
+  (void)DstAccessRange;
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const RT::PiQueue Queue = SrcQueue->getHandleRef();

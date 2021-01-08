@@ -75,24 +75,34 @@ int main() {
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
     // CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
-    // expected-warning@+2{{the resulting value of the 'max_work_group_size' attribute third parameter is always non-negative after implicit conversion}}
+    // expected-warning@+2{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
     h.single_task<class test_kernel4>(
         []() [[intel::max_work_group_size(8, 8, -8)]]{});
 
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel5
+    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
+    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+    // CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
+    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+    // expected-warning@+2 2{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
+    h.single_task<class test_kernel5>(
+        []() [[intel::max_work_group_size(-8, 8, -8)]]{});
 #ifdef TRIGGER_ERROR
     [[intel::max_work_group_size(1, 1, 1)]] int Var = 0; // expected-error{{'max_work_group_size' attribute only applies to functions}}
 
-    h.single_task<class test_kernel5>(
+    h.single_task<class test_kernel6>(
         []() [[intel::max_work_group_size(0, 1, 3)]]{}); // expected-error{{'max_work_group_size' attribute must be greater than 0}}
 
-    h.single_task<class test_kernel6>(
+    h.single_task<class test_kernel7>(
         []() [[intel::max_work_group_size(1.2f, 1, 3)]]{}); // expected-error{{'max_work_group_size' attribute requires an integer constant}}
 
-    h.single_task<class test_kernel7>(
+    h.single_task<class test_kernel8>(
         []() [[intel::max_work_group_size(16, 16, 16),   // expected-note{{conflicting attribute is here}}
                intel::max_work_group_size(2, 2, 2)]]{}); // expected-warning{{attribute 'max_work_group_size' is already applied with different parameters}}
 
-    h.single_task<class test_kernel8>(
+    h.single_task<class test_kernel9>(
         DAFuncObj());
 
 #endif // TRIGGER_ERROR

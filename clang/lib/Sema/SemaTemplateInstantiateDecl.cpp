@@ -6297,6 +6297,12 @@ static void processSYCLKernel(Sema &S, FunctionDecl *FD, MangleContext &MC) {
     const CXXRecordDecl *CRD = (KernelParamTy->isReferenceType()
                                     ? KernelParamTy->getPointeeCXXRecordDecl()
                                     : KernelParamTy->getAsCXXRecordDecl());
+    if (!CRD) {
+      S.Diag(FD->getLocation(), diag::err_sycl_kernel_not_function_object);
+      FD->setInvalidDecl();
+      return;
+    }
+
     for (auto *Method : CRD->methods())
       if (Method->getOverloadedOperator() == OO_Call &&
           !Method->hasAttr<AlwaysInlineAttr>())
