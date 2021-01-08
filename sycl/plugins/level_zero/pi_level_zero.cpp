@@ -459,7 +459,7 @@ pi_result _pi_context::finalize() {
   // There could be some memory that may have not been deallocated.
   // For example, zeEventPool could be still alive.
   std::lock_guard<std::mutex> NumEventsLiveInEventPoolGuard(
-      NumEventsLiveInEventPoolMutex, std::adopt_lock);
+      NumEventsLiveInEventPoolMutex);
   if (ZeEventPool && NumEventsLiveInEventPool[ZeEventPool])
     zeEventPoolDestroy(ZeEventPool);
 
