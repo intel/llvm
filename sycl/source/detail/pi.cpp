@@ -142,10 +142,9 @@ std::string platformInfoToString(pi_platform_info info) {
     return "PI_PLATFORM_INFO_VENDOR";
   case PI_PLATFORM_INFO_EXTENSIONS:
     return "PI_PLATFORM_INFO_EXTENSIONS";
-  default:
-    die("Unknown pi_platform_info value passed to "
-        "cl::sycl::detail::pi::platformInfoToString");
   }
+  die("Unknown pi_platform_info value passed to "
+      "cl::sycl::detail::pi::platformInfoToString");
 }
 
 std::string memFlagToString(pi_mem_flags Flag) {
