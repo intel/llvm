@@ -167,15 +167,15 @@ class MarshallingInfoStringInt<code keypath, code defaultvalue="0", code type="u
   code Denormalizer = "denormalizeString";
 }
 
+class MarshallingInfoStringVector<code keypath>
+  : MarshallingInfo<keypath, "std::vector<std::string>({})"> {
+  code Normalizer = "normalizeStringVector";
+  code Denormalizer = "denormalizeStringVector";
+}
+
 class MarshallingInfoFlag<code keypath, code defaultvalue = "false">
   : MarshallingInfo<keypath, defaultvalue> {
   code Normalizer = "normalizeSimpleFlag";
-  code Denormalizer = "denormalizeSimpleFlag";
-}
-
-class MarshallingInfoNegativeFlag<code keypath, code defaultvalue = "true">
-  : MarshallingInfo<keypath, defaultvalue> {
-  code Normalizer = "normalizeSimpleNegativeFlag";
   code Denormalizer = "denormalizeSimpleFlag";
 }
 
@@ -196,6 +196,9 @@ class MarshallingInfoBooleanFlag<code keypath, code defaultvalue, code value, co
 
 // Mixins for additional marshalling attributes.
 
+class IsNegative {
+  code Normalizer = "normalizeSimpleNegativeFlag";
+}
 class AlwaysEmit { bit ShouldAlwaysEmit = true; }
 class Normalizer<code normalizer> { code Normalizer = normalizer; }
 class Denormalizer<code denormalizer> { code Denormalizer = denormalizer; }

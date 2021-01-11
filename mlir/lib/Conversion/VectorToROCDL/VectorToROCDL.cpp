@@ -78,9 +78,9 @@ public:
     auto toLLVMTy = [&](Type t) {
       return this->getTypeConverter()->convertType(t);
     };
-    LLVM::LLVMType vecTy =
-        toLLVMTy(xferOp.getVectorType()).template cast<LLVM::LLVMType>();
-    unsigned vecWidth = vecTy.getVectorNumElements();
+    auto vecTy = toLLVMTy(xferOp.getVectorType())
+                     .template cast<LLVM::LLVMFixedVectorType>();
+    unsigned vecWidth = vecTy.getNumElements();
     Location loc = xferOp->getLoc();
 
     // The backend result vector scalarization have trouble scalarize
@@ -89,7 +89,9 @@ public:
       return failure();
 
     // Obtain dataPtr and elementType from the memref.
-    MemRefType memRefType = xferOp.getMemRefType();
+    auto memRefType = xferOp.getShapedType().template dyn_cast<MemRefType>();
+    if (!memRefType)
+      return failure();
     // MUBUF instruction operate only on addresspace 0(unified) or 1(global)
     // In case of 3(LDS): fall back to vector->llvm pass
     // In case of 5(VGPR): wrong
@@ -101,7 +103,7 @@ public:
     // indices, so no need to calculate offset size in bytes again in
     // the MUBUF instruction.
     Value dataPtr = this->getStridedElementPtr(
-        loc, memRefType, adaptor.memref(), adaptor.indices(), rewriter);
+        loc, memRefType, adaptor.source(), adaptor.indices(), rewriter);
 
     // 1. Create and fill a <4 x i32> dwordConfig with:
     //    1st two elements holding the address of dataPtr.
@@ -119,7 +121,7 @@ public:
     Type i64Ty = rewriter.getIntegerType(64);
     Value i64x2Ty = rewriter.create<LLVM::BitcastOp>(
         loc,
-        LLVM::LLVMType::getVectorTy(
+        LLVM::LLVMFixedVectorType::get(
             toLLVMTy(i64Ty).template cast<LLVM::LLVMType>(), 2),
         constConfig);
     Value dataPtrAsI64 = rewriter.create<LLVM::PtrToIntOp>(
@@ -127,7 +129,7 @@ public:
     Value zero = this->createIndexConstant(rewriter, loc, 0);
     Value dwordConfig = rewriter.create<LLVM::InsertElementOp>(
         loc,
-        LLVM::LLVMType::getVectorTy(
+        LLVM::LLVMFixedVectorType::get(
             toLLVMTy(i64Ty).template cast<LLVM::LLVMType>(), 2),
         i64x2Ty, dataPtrAsI64, zero);
     dwordConfig =
