@@ -48,3 +48,15 @@ bool test_simd_view_assign2() __attribute__((sycl_device)) {
   v0.select<8, 1>(0) = v1.select<8, 1>(0);
   return v0[0] == 1;
 }
+
+bool test_simd_view_assign3() __attribute__((sycl_device)) {
+  simd<int, 64> v0 = 0;
+  simd<int, 64> v1 = 1;
+  auto mask = (v0.select<16, 1>(0) > v1.select<16, 1>(0));
+  auto mask2 = (v0 > v1);
+  simd<ushort, 64> s = 0;
+  auto g4 = s.format<ushort, 4, 16>();
+  simd<ushort, 16> val = (g4.row(2) & mask);
+  simd<ushort, 16> val1 = (g4.row(2) & mask2.format<ushort, 4, 16>().row(0));
+  return val[0] == 0 && val1[0] == 0;
+}

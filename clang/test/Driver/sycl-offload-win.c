@@ -73,15 +73,17 @@
 // FOFFLOAD_STATIC_LIB_SRC: 9: assembler, {8}, object, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 10: linker, {0, 9}, image, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 11: compiler, {4}, ir, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 12: input, "[[INPUTLIB]]", archive
-// FOFFLOAD_STATIC_LIB_SRC: 13: clang-offload-unbundler, {12}, archive
-// FOFFLOAD_STATIC_LIB_SRC: 14: linker, {11, 13}, ir, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 15: sycl-post-link, {14}, tempfiletable, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 16: file-table-tform, {15}, tempfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 17: llvm-spirv, {16}, tempfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 18: file-table-tform, {15, 17}, tempfiletable, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 19: clang-offload-wrapper, {18}, object, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 20: offload, "host-sycl (x86_64-pc-windows-msvc)" {10}, "device-sycl (spir64-unknown-unknown-sycldevice)" {19}, image
+// FOFFLOAD_STATIC_LIB_SRC: 12: linker, {0, 9}, image, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 13: clang-offload-deps, {12}, ir, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 14: input, "[[INPUTLIB]]", archive
+// FOFFLOAD_STATIC_LIB_SRC: 15: clang-offload-unbundler, {14}, archive
+// FOFFLOAD_STATIC_LIB_SRC: 16: linker, {11, 13, 15}, ir, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 17: sycl-post-link, {16}, tempfiletable, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 18: file-table-tform, {17}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 19: llvm-spirv, {18}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 20: file-table-tform, {17, 19}, tempfiletable, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 21: clang-offload-wrapper, {20}, object, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 22: offload, "host-sycl (x86_64-pc-windows-msvc)" {10}, "device-sycl (spir64-unknown-unknown-sycldevice)" {21}, image
 
 /// ###########################################################################
 

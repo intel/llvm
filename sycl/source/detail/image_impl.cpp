@@ -62,7 +62,7 @@ uint8_t getImageNumberChannels(image_channel_order Order) {
   case image_channel_order::abgr:
     return 4;
   }
-  assert(!"Unhandled image channel order");
+  assert(false && "Unhandled image channel order");
   return 0;
 }
 
@@ -95,8 +95,6 @@ uint8_t getImageElementSize(uint8_t NumChannels, image_channel_type Type) {
   case image_channel_type::unorm_int_101010:
     Retval = 4;
     break;
-  default:
-    assert(!"Unhandled image channel type");
   }
   // OpenCL states that "The number of bits per element determined by the
   // image_channel_type and image_channel_order must be a power of two"
@@ -135,11 +133,9 @@ RT::PiMemImageChannelOrder convertChannelOrder(image_channel_order Order) {
     return PI_IMAGE_CHANNEL_ORDER_LUMINANCE;
   case image_channel_order::abgr:
     return PI_IMAGE_CHANNEL_ORDER_ABGR;
-  default: {
-    assert(!"Unhandled image_channel_order");
-    return static_cast<RT::PiMemImageChannelOrder>(0);
   }
-  }
+  assert(false && "Unhandled image_channel_order");
+  return static_cast<RT::PiMemImageChannelOrder>(0);
 }
 
 image_channel_order convertChannelOrder(RT::PiMemImageChannelOrder Order) {
@@ -172,11 +168,9 @@ image_channel_order convertChannelOrder(RT::PiMemImageChannelOrder Order) {
     return image_channel_order::luminance;
   case PI_IMAGE_CHANNEL_ORDER_ABGR:
     return image_channel_order::abgr;
-  default: {
-    assert(!"Unhandled image_channel_order");
-    return static_cast<image_channel_order>(0);
   }
-  }
+  assert(false && "Unhandled image_channel_order");
+  return static_cast<image_channel_order>(0);
 }
 
 RT::PiMemImageChannelType convertChannelType(image_channel_type Type) {
@@ -211,11 +205,9 @@ RT::PiMemImageChannelType convertChannelType(image_channel_type Type) {
     return PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT;
   case image_channel_type::fp32:
     return PI_IMAGE_CHANNEL_TYPE_FLOAT;
-  default: {
-    assert(!"Unhandled image_channel_order");
-    return static_cast<RT::PiMemImageChannelType>(0);
   }
-  }
+  assert(false && "Unhandled image_channel_order");
+  return static_cast<RT::PiMemImageChannelType>(0);
 }
 
 image_channel_type convertChannelType(RT::PiMemImageChannelType Type) {
@@ -250,11 +242,9 @@ image_channel_type convertChannelType(RT::PiMemImageChannelType Type) {
     return image_channel_type::fp16;
   case PI_IMAGE_CHANNEL_TYPE_FLOAT:
     return image_channel_type::fp32;
-  default: {
-    assert(!"Unhandled image_channel_order");
-    return static_cast<image_channel_type>(0);
   }
-  }
+  assert(false && "Unhandled image_channel_order");
+  return static_cast<image_channel_type>(0);
 }
 
 template <typename T>
@@ -294,10 +284,10 @@ image_impl<Dimensions>::image_impl(
   switch (Dimensions) {
   case 3:
     getImageInfo(Context, PI_IMAGE_INFO_DEPTH, MRange[2], Mem);
-    // fall through
+    __SYCL_FALLTHROUGH;
   case 2:
     getImageInfo(Context, PI_IMAGE_INFO_HEIGHT, MRange[1], Mem);
-    // fall through
+    __SYCL_FALLTHROUGH;
   case 1:
     getImageInfo(Context, PI_IMAGE_INFO_WIDTH, MRange[0], Mem);
   }
@@ -407,6 +397,7 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
 template <int Dimensions>
 bool image_impl<Dimensions>::checkImageFormat(
     const RT::PiMemImageFormat &Format, ContextImplPtr Context) {
+  (void)Context;
   if (checkAny(Format.image_channel_order, PI_IMAGE_CHANNEL_ORDER_INTENSITY,
                PI_IMAGE_CHANNEL_ORDER_LUMINANCE) &&
       !checkAny(

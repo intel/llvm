@@ -97,6 +97,10 @@ static cl::opt<std::string> FilesType(
              "  ast - clang AST file\n"
              "  a   - archive of objects\n"
              "  ao  - archive with one object; output is an unbundled object\n"
+             "  aocr - AOCR archive; output file is a list of unbundled\n"
+             "         .aocr files\n"
+             "  aocx - AOCX archive; output file is a list of unbundled\n"
+             "         .aocx files\n"
              "  aoo - archive; output file is a list of unbundled objects\n"),
     cl::cat(ClangOffloadBundlerCategory));
 
@@ -1089,11 +1093,12 @@ class ArchiveFileHandler final : public FileHandler {
     Object,   // Output is a single object file
     Archive   // Output is an archive with extracted objects
   };
-  const OutputType Mode = StringSwitch<OutputType>(FilesType)
-                              .Case("aoo", OutputType::FileList)
-                              .Case("ao", OutputType::Object)
-                              .Case("a", OutputType::Archive)
-                              .Default(OutputType::Unknown);
+  const OutputType Mode =
+      StringSwitch<OutputType>(FilesType)
+          .Cases("aoo", "aocx", "aocr", OutputType::FileList)
+          .Case("ao", OutputType::Object)
+          .Case("a", OutputType::Archive)
+          .Default(OutputType::Unknown);
 
 public:
   ArchiveFileHandler() = default;
@@ -1211,7 +1216,10 @@ public:
           if (Mode == OutputType::FileList) {
             // Create temporary file where the device part will be extracted to.
             SmallString<128u> ChildFileName;
-            auto EC = sys::fs::createTemporaryFile(TempFileNameBase, "o",
+            StringRef Ext("o");
+            if (FilesType == "aocr" || FilesType == "aocx")
+              Ext = FilesType;
+            auto EC = sys::fs::createTemporaryFile(TempFileNameBase, Ext,
                                                    ChildFileName);
             if (EC)
               return createFileError(ChildFileName, EC);
@@ -1311,6 +1319,15 @@ CreateObjectFileHandler(MemoryBuffer &FirstInput) {
       std::unique_ptr<ObjectFile>(cast<ObjectFile>(BinaryOrErr->release())));
 }
 
+static bool FilesTypeIsArchiveToList(void) {
+  return FilesType == "ao" || FilesType == "aoo" || FilesType == "aocr" ||
+         FilesType == "aocx";
+}
+
+static bool FilesTypeIsArchive(void) {
+  return FilesType == "a" || FilesTypeIsArchiveToList();
+}
+
 /// Return an appropriate handler given the input files and options.
 static Expected<std::unique_ptr<FileHandler>>
 CreateFileHandler(MemoryBuffer &FirstInput) {
@@ -1336,7 +1353,7 @@ CreateFileHandler(MemoryBuffer &FirstInput) {
     return std::make_unique<BinaryFileHandler>();
   if (FilesType == "ast")
     return std::make_unique<BinaryFileHandler>();
-  if (FilesType == "a" || FilesType == "ao" || FilesType == "aoo")
+  if (FilesTypeIsArchive())
     return std::make_unique<ArchiveFileHandler>();
 
   return createStringError(errc::invalid_argument,
@@ -1347,7 +1364,7 @@ CreateFileHandler(MemoryBuffer &FirstInput) {
 static Error BundleFiles() {
   std::error_code EC;
 
-  if (FilesType == "a" || FilesType == "ao" || FilesType == "aoo")
+  if (FilesTypeIsArchive())
     return createStringError(errc::invalid_argument,
                              "bundling is not supported for archives");
 
@@ -1497,7 +1514,7 @@ static Error UnbundleFiles() {
 
       // If this entry has a host kind, copy the input file to the output file
       // except for the archive unbundling where output is a list file.
-      if (hasHostKind(E.first()) && FilesType != "ao" && FilesType != "aoo")
+      if (hasHostKind(E.first()) && !FilesTypeIsArchiveToList())
         OutputFile.write(Input.getBufferStart(), Input.getBufferSize());
     }
     return Error::success();
