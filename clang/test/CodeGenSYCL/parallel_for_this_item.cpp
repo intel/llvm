@@ -111,6 +111,8 @@
 // CHECK-NEXT:    static constexpr bool isESIMD() { return 0; }
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
 // CHECK-NEXT:    static constexpr bool callsThisItem() { return 1; }
+// CHECK-NEXT: __SYCL_DLL_LOCAL
+// CHECK-NEXT:    static constexpr bool callsAnyThisFreeFunction() { return 1; }
 // CHECK-NEXT:};
 
 #include "sycl.hpp"
