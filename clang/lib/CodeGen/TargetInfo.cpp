@@ -9003,12 +9003,8 @@ void AMDGPUTargetCodeGenInfo::setTargetAttributes(
     unsigned ZDim = 0;
     ASTContext &Ctx = M.getContext();
     if (FlatWGS) {
-      Min = FlatWGS->getMin()
-                ->EvaluateKnownConstInt(Ctx)
-                .getExtValue();
-      Max = FlatWGS->getMax()
-                ->EvaluateKnownConstInt(Ctx)
-                .getExtValue();
+      Min = FlatWGS->getMin()->EvaluateKnownConstInt(Ctx).getExtValue();
+      Max = FlatWGS->getMax()->EvaluateKnownConstInt(Ctx).getExtValue();
     }
     if (ReqdWGS) {
       XDim = ReqdWGS->getXDimVal(Ctx)->getZExtValue();
