@@ -247,26 +247,26 @@ public:
 
 #undef DEF_RELOP
 
-#define DEF_LOGIC_OP(LOGIC_OP, OPASSIGN)                                       \
-  ESIMD_INLINE friend auto operator LOGIC_OP(const simd_view &X,               \
-                                             const value_type &Y) {            \
+#define DEF_BITWISE_OP(BITWISE_OP, OPASSIGN)                                   \
+  ESIMD_INLINE friend auto operator BITWISE_OP(const simd_view &X,             \
+                                               const value_type &Y) {          \
     static_assert(std::is_integral<element_type>(), "not integral type");      \
-    auto V2 = X.read().data() LOGIC_OP Y.data();                               \
+    auto V2 = X.read().data() BITWISE_OP Y.data();                             \
     return simd<element_type, length>(V2);                                     \
   }                                                                            \
-  ESIMD_INLINE friend auto operator LOGIC_OP(const value_type &X,              \
-                                             const simd_view &Y) {             \
+  ESIMD_INLINE friend auto operator BITWISE_OP(const value_type &X,            \
+                                               const simd_view &Y) {           \
     static_assert(std::is_integral<element_type>(), "not integral type");      \
-    auto V2 = X.data() LOGIC_OP Y.read().data();                               \
+    auto V2 = X.data() BITWISE_OP Y.read().data();                             \
     return simd<element_type, length>(V2);                                     \
   }                                                                            \
-  ESIMD_INLINE friend auto operator LOGIC_OP(const simd_view &X,               \
-                                             const simd_view &Y) {             \
-    return (X LOGIC_OP Y.read());                                              \
+  ESIMD_INLINE friend auto operator BITWISE_OP(const simd_view &X,             \
+                                               const simd_view &Y) {           \
+    return (X BITWISE_OP Y.read());                                            \
   }                                                                            \
   simd_view &operator OPASSIGN(const value_type &RHS) {                        \
     static_assert(std::is_integral<element_type>(), "not integeral type");     \
-    auto V2 = read().data() LOGIC_OP RHS.data();                               \
+    auto V2 = read().data() BITWISE_OP RHS.data();                             \
     auto V3 = convert<vector_type>(V2);                                        \
     write(V3);                                                                 \
     return *this;                                                              \
@@ -274,11 +274,25 @@ public:
   simd_view &operator OPASSIGN(const simd_view &RHS) {                         \
     return (*this OPASSIGN RHS.read());                                        \
   }
-  DEF_LOGIC_OP(&, &=)
-  DEF_LOGIC_OP(|, |=)
-  DEF_LOGIC_OP(^, ^=)
+  DEF_BITWISE_OP(&, &=)
+  DEF_BITWISE_OP(|, |=)
+  DEF_BITWISE_OP(^, ^=)
+  DEF_BITWISE_OP(>>, >>=)
+  DEF_BITWISE_OP(<<, <<=)
 
-#undef DEF_LOGIC_OP
+#undef DEF_BITWISE_OP
+
+#define DEF_UNARY_OP(UNARY_OP)                                                 \
+  auto operator UNARY_OP() {                                                   \
+    auto V = UNARY_OP(read().data());                                          \
+    return simd<element_type, length>(V);                                      \
+  }
+  DEF_UNARY_OP(!)
+  DEF_UNARY_OP(~)
+  DEF_UNARY_OP(+)
+  DEF_UNARY_OP(-)
+
+#undef DEF_UNARY_OP
 
   // Operator ++, --
   simd_view &operator++() {
