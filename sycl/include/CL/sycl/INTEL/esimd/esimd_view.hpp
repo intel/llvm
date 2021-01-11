@@ -180,12 +180,25 @@ public:
   }
 
 #define DEF_BINOP(BINOP, OPASSIGN)                                             \
-  auto operator BINOP(const value_type &RHS) const {                           \
+  ESIMD_INLINE friend auto operator BINOP(const simd_view &X,                  \
+                                          const value_type &Y) {               \
     using ComputeTy = compute_type_t<value_type>;                              \
-    auto V0 = convert<typename ComputeTy::vector_type>(read().data());         \
-    auto V1 = convert<typename ComputeTy::vector_type>(RHS.data());            \
+    auto V0 = convert<typename ComputeTy::vector_type>(X.read().data());       \
+    auto V1 = convert<typename ComputeTy::vector_type>(Y.data());              \
     auto V2 = V0 BINOP V1;                                                     \
     return ComputeTy(V2);                                                      \
+  }                                                                            \
+  ESIMD_INLINE friend auto operator BINOP(const value_type &X,                 \
+                                          const simd_view &Y) {                \
+    using ComputeTy = compute_type_t<value_type>;                              \
+    auto V0 = convert<typename ComputeTy::vector_type>(X.data());              \
+    auto V1 = convert<typename ComputeTy::vector_type>(Y.read().data());       \
+    auto V2 = V0 BINOP V1;                                                     \
+    return ComputeTy(V2);                                                      \
+  }                                                                            \
+  ESIMD_INLINE friend auto operator BINOP(const simd_view &X,                  \
+                                          const simd_view &Y) {                \
+    return (X BINOP Y.read());                                                 \
   }                                                                            \
   simd_view &operator OPASSIGN(const value_type &RHS) {                        \
     using ComputeTy = compute_type_t<value_type>;                              \
@@ -195,6 +208,9 @@ public:
     auto V3 = convert<vector_type>(V2);                                        \
     write(V3);                                                                 \
     return *this;                                                              \
+  }                                                                            \
+  simd_view &operator OPASSIGN(const simd_view &RHS) {                         \
+    return (*this OPASSIGN RHS.read());                                        \
   }
 
   DEF_BINOP(+, +=)
@@ -205,10 +221,21 @@ public:
 #undef DEF_BINOP
 
 #define DEF_RELOP(RELOP)                                                       \
-  simd<uint16_t, length> operator RELOP(const simd_view &RHS) const {          \
-    auto R = read().data() RELOP RHS.read().data();                            \
+  ESIMD_INLINE friend simd<uint16_t, length> operator RELOP(                   \
+      const simd_view &X, const value_type &Y) {                               \
+    auto R = X.read().data() RELOP Y.data();                                   \
     mask_type_t<length> M(1);                                                  \
     return M & convert<mask_type_t<length>>(R);                                \
+  }                                                                            \
+  ESIMD_INLINE friend simd<uint16_t, length> operator RELOP(                   \
+      const value_type &X, const simd_view &Y) {                               \
+    auto R = X.data() RELOP Y.read().data();                                   \
+    mask_type_t<length> M(1);                                                  \
+    return M & convert<mask_type_t<length>>(R);                                \
+  }                                                                            \
+  ESIMD_INLINE friend simd<uint16_t, length> operator RELOP(                   \
+      const simd_view &X, const simd_view &Y) {                                \
+    return (X RELOP Y.read());                                                 \
   }
 
   DEF_RELOP(>)
@@ -221,19 +248,32 @@ public:
 #undef DEF_RELOP
 
 #define DEF_LOGIC_OP(LOGIC_OP, OPASSIGN)                                       \
-  simd_view operator LOGIC_OP(const simd_view &RHS) const {                    \
+  ESIMD_INLINE friend auto operator LOGIC_OP(const simd_view &X,               \
+                                             const value_type &Y) {            \
     static_assert(std::is_integral<element_type>(), "not integral type");      \
-    auto V2 = read().data() LOGIC_OP RHS.read().data();                        \
-    return simd_view(V2);                                                      \
+    auto V2 = X.read().data() LOGIC_OP Y.data();                               \
+    return simd<element_type, length>(V2);                                     \
   }                                                                            \
-  simd_view &operator OPASSIGN(const simd_view &RHS) {                         \
+  ESIMD_INLINE friend auto operator LOGIC_OP(const value_type &X,              \
+                                             const simd_view &Y) {             \
+    static_assert(std::is_integral<element_type>(), "not integral type");      \
+    auto V2 = X.data() LOGIC_OP Y.read().data();                               \
+    return simd<element_type, length>(V2);                                     \
+  }                                                                            \
+  ESIMD_INLINE friend auto operator LOGIC_OP(const simd_view &X,               \
+                                             const simd_view &Y) {             \
+    return (X LOGIC_OP Y.read());                                              \
+  }                                                                            \
+  simd_view &operator OPASSIGN(const value_type &RHS) {                        \
     static_assert(std::is_integral<element_type>(), "not integeral type");     \
-    auto V2 = read().data LOGIC_OP RHS.read().data();                          \
+    auto V2 = read().data() LOGIC_OP RHS.data();                               \
     auto V3 = convert<vector_type>(V2);                                        \
     write(V3);                                                                 \
     return *this;                                                              \
+  }                                                                            \
+  simd_view &operator OPASSIGN(const simd_view &RHS) {                         \
+    return (*this OPASSIGN RHS.read());                                        \
   }
-
   DEF_LOGIC_OP(&, &=)
   DEF_LOGIC_OP(|, |=)
   DEF_LOGIC_OP(^, ^=)

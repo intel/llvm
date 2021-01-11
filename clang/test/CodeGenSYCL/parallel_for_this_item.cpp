@@ -14,6 +14,7 @@
 // CHECK-NEXT:   "_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3EMU",
 // CHECK-NEXT:   "_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3OWL",
 // CHECK-NEXT:   "_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3RAT",
+// CHECK-NEXT:   "_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3FOX",
 // CHECK-NEXT:   "_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3BEE"
 // CHECK-NEXT: };
 
@@ -30,6 +31,8 @@
 // CHECK-NEXT:  static constexpr bool isESIMD() { return 0; }
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
 // CHECK-NEXT:  static constexpr bool callsThisItem() { return 0; }
+// CHECK-NEXT:  __SYCL_DLL_LOCAL
+// CHECK-NEXT:  static constexpr bool callsAnyThisFreeFunction() { return 0; }
 // CHECK-NEXT:};
 // CHECK-NEXT:template <> struct KernelInfo<class EMU> {
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
@@ -44,6 +47,8 @@
 // CHECK-NEXT:  static constexpr bool isESIMD() { return 0; }
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
 // CHECK-NEXT:    static constexpr bool callsThisItem() { return 1; }
+// CHECK-NEXT:  __SYCL_DLL_LOCAL
+// CHECK-NEXT:    static constexpr bool callsAnyThisFreeFunction() { return 1; }
 // CHECK-NEXT:};
 // CHECK-NEXT:template <> struct KernelInfo<class OWL> {
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
@@ -58,6 +63,8 @@
 // CHECK-NEXT:  static constexpr bool isESIMD() { return 0; }
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
 // CHECK-NEXT:    static constexpr bool callsThisItem() { return 0; }
+// CHECK-NEXT:  __SYCL_DLL_LOCAL
+// CHECK-NEXT:    static constexpr bool callsAnyThisFreeFunction() { return 0; }
 // CHECK-NEXT:};
 // CHECK-NEXT:template <> struct KernelInfo<class RAT> {
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
@@ -72,6 +79,24 @@
 // CHECK-NEXT:  static constexpr bool isESIMD() { return 0; }
 // CHECK-NEXT: __SYCL_DLL_LOCAL
 // CHECK-NEXT:    static constexpr bool callsThisItem() { return 1; }
+// CHECK-NEXT: __SYCL_DLL_LOCAL
+// CHECK-NEXT:    static constexpr bool callsAnyThisFreeFunction() { return 1; }
+// CHECK-NEXT:};
+// CHECK-NEXT:template <> struct KernelInfo<class FOX> {
+// CHECK-NEXT:  __SYCL_DLL_LOCAL
+// CHECK-NEXT:    static constexpr const char* getName() { return "_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3FOX"; }
+// CHECK-NEXT:  __SYCL_DLL_LOCAL
+// CHECK-NEXT:    static constexpr unsigned getNumParams() { return 0; }
+// CHECK-NEXT:  __SYCL_DLL_LOCAL
+// CHECK-NEXT:    static constexpr const kernel_param_desc_t& getParamDesc(unsigned i) {
+// CHECK-NEXT:    return kernel_signatures[i+0];
+// CHECK-NEXT: }
+// CHECK-NEXT:  __SYCL_DLL_LOCAL
+// CHECK-NEXT:  static constexpr bool isESIMD() { return 0; }
+// CHECK-NEXT: __SYCL_DLL_LOCAL
+// CHECK-NEXT:    static constexpr bool callsThisItem() { return 0; }
+// CHECK-NEXT: __SYCL_DLL_LOCAL
+// CHECK-NEXT:    static constexpr bool callsAnyThisFreeFunction() { return 1; }
 // CHECK-NEXT:};
 // CHECK-NEXT:template <> struct KernelInfo<class BEE> {
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
@@ -123,6 +148,9 @@ int main() {
 
     // This kernel calls sycl::this_item
     cgh.parallel_for<class RAT>(range<1>(1), [=](id<1> I) { f(); });
+
+    // This kernel does not call sycl::this_item, but does call this_id
+    cgh.parallel_for<class FOX>(range<1>(1), [=](id<1> I) { this_id<1>(); });
 
     // This kernel calls sycl::this_item
     cgh.parallel_for<class BEE>(range<1>(1), [=](auto I) { this_item<1>(); });

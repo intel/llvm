@@ -376,8 +376,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
     const detail::plugin &Plugin = ContextImpl->getPlugin();
     RT::PiProgram NativePrg = createPIProgram(Img, Context, Device);
     if (Prg)
-      flushSpecConstants(*Prg, getSyclObjImpl(Device)->getHandleRef(),
-                         NativePrg, &Img);
+      flushSpecConstants(*Prg, NativePrg, &Img);
     ProgramPtr ProgramManaged(
         NativePrg, Plugin.getPiPlugin().PiFunctionTable.piProgramRelease);
 
@@ -1011,7 +1010,6 @@ void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
 }
 
 void ProgramManager::flushSpecConstants(const program_impl &Prg,
-                                        RT::PiDevice Device,
                                         RT::PiProgram NativePrg,
                                         const RTDeviceBinaryImage *Img) {
   if (DbgProgMgr > 2) {
@@ -1122,5 +1120,6 @@ extern "C" void __sycl_register_lib(pi_device_binaries desc) {
 
 // Executed as a part of current module's (.exe, .dll) static initialization
 extern "C" void __sycl_unregister_lib(pi_device_binaries desc) {
+  (void)desc;
   // TODO implement the function
 }
