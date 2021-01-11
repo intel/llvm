@@ -694,7 +694,7 @@ int main(int argc, char **argv) {
   // separate kernels we may end up with having references to kernel declaration
   // originating from "llvm.used" in the IR that is passed to llvm-spirv tool,
   // and these declarations cause an assertion in llvm-spirv. To workaround this
-  // issue remove "llvm.used" from the input module before perfroming any other
+  // issue remove "llvm.used" from the input module before performing any other
   // actions.
   if (GlobalVariable *GV = MPtr->getGlobalVariable("llvm.used")) {
     assert(GV->user_empty() && "unexpected llvm.used users");
