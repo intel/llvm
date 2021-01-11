@@ -3096,23 +3096,17 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   if (WorkGroupAttr *ExistingAttr = D->getAttr<WorkGroupAttr>()) {
-    Optional<llvm::APSInt> XDimVal =
-        XDimExpr->getIntegerConstantExpr(S.getASTContext());
-    Optional<llvm::APSInt> YDimVal =
-        YDimExpr->getIntegerConstantExpr(S.getASTContext());
-    Optional<llvm::APSInt> ZDimVal =
-        ZDimExpr->getIntegerConstantExpr(S.getASTContext());
-    Optional<llvm::APSInt> ExistingXDimVal =
-        ExistingAttr->getXDim()->getIntegerConstantExpr(S.getASTContext());
-    Optional<llvm::APSInt> ExistingYDimVal =
-        ExistingAttr->getYDim()->getIntegerConstantExpr(S.getASTContext());
-    Optional<llvm::APSInt> ExistingZDimVal =
-        ExistingAttr->getZDim()->getIntegerConstantExpr(S.getASTContext());
+    ASTContext &Ctx = S.getASTContext();
+    Optional<llvm::APSInt> XDimVal = XDimExpr->getIntegerConstantExpr(Ctx);
+    Optional<llvm::APSInt> YDimVal = YDimExpr->getIntegerConstantExpr(Ctx);
+    Optional<llvm::APSInt> ZDimVal = ZDimExpr->getIntegerConstantExpr(Ctx);
+    Optional<llvm::APSInt> ExistingXDimVal = ExistingAttr->getXDimVal(Ctx);
+    Optional<llvm::APSInt> ExistingYDimVal = ExistingAttr->getYDimVal(Ctx);
+    Optional<llvm::APSInt> ExistingZDimVal = ExistingAttr->getZDimVal(Ctx);
 
     // Compare attribute arguments value and warn for a mismatch.
-    if (!((ExistingXDimVal->getZExtValue() == XDimVal->getZExtValue()) &&
-          (ExistingYDimVal->getZExtValue() == YDimVal->getZExtValue()) &&
-          (ExistingZDimVal->getZExtValue() == ZDimVal->getZExtValue()))) {
+    if (ExistingXDimVal != XDimVal || ExistingYDimVal != YDimVal ||
+        ExistingZDimVal != ZDimVal) {
       S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
       S.Diag(ExistingAttr->getLocation(), diag::note_conflicting_attribute);
     }
