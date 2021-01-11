@@ -69,6 +69,15 @@ void TargetInstrInfo::insertNoop(MachineBasicBlock &MBB,
   llvm_unreachable("Target didn't implement insertNoop!");
 }
 
+/// insertNoops - Insert noops into the instruction stream at the specified
+/// point.
+void TargetInstrInfo::insertNoops(MachineBasicBlock &MBB,
+                                  MachineBasicBlock::iterator MI,
+                                  unsigned Quantity) const {
+  for (unsigned i = 0; i < Quantity; ++i)
+    insertNoop(MBB, MI);
+}
+
 static bool isAsmComment(const char *Str, const MCAsmInfo &MAI) {
   return strncmp(Str, MAI.getCommentString().data(),
                  MAI.getCommentString().size()) == 0;
@@ -499,14 +508,14 @@ static MachineInstr *foldPatchpoint(MachineFunction &MF, MachineInstr &MI,
   // Return false if any operands requested for folding are not foldable (not
   // part of the stackmap's live values).
   for (unsigned Op : Ops) {
-    // Caller is expected to avoid passing in tied operands
-    assert(!MI.getOperand(Op).isTied());
     if (Op < NumDefs) {
       assert(DefToFoldIdx == MI.getNumOperands() && "Folding multiple defs");
       DefToFoldIdx = Op;
     } else if (Op < StartIdx) {
       return nullptr;
     }
+    if (MI.getOperand(Op).isTied())
+      return nullptr;
   }
 
   MachineInstr *NewMI =
@@ -769,8 +778,8 @@ bool TargetInstrInfo::isReassociationCandidate(const MachineInstr &Inst,
 //    instruction is known to not increase the critical path, then don't match
 //    that pattern.
 bool TargetInstrInfo::getMachineCombinerPatterns(
-    MachineInstr &Root,
-    SmallVectorImpl<MachineCombinerPattern> &Patterns) const {
+    MachineInstr &Root, SmallVectorImpl<MachineCombinerPattern> &Patterns,
+    bool DoRegPressureReduce) const {
   bool Commute;
   if (isReassociationCandidate(Root, Commute)) {
     // We found a sequence of instructions that may be suitable for a

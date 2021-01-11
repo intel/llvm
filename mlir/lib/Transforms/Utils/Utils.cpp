@@ -18,9 +18,8 @@
 #include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dominance.h"
-#include "mlir/IR/Function.h"
-#include "mlir/IR/Module.h"
 #include "mlir/Support/MathExtras.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -279,7 +278,7 @@ LogicalResult mlir::replaceAllMemRefUsesWith(
       // Currently we support the following non-dereferencing ops to be a
       // candidate for replacement: Dealloc, CallOp and ReturnOp.
       // TODO: Add support for other kinds of ops.
-      if (!isa<DeallocOp, CallOp, ReturnOp>(*op))
+      if (!op->hasTrait<OpTrait::MemRefsNormalizable>())
         return failure();
     }
 
@@ -401,7 +400,7 @@ LogicalResult mlir::normalizeMemRef(AllocOp allocOp) {
   // Fetch a new memref type after normalizing the old memref to have an
   // identity map layout.
   MemRefType newMemRefType =
-      normalizeMemRefType(memrefType, b, allocOp.getNumSymbolicOperands());
+      normalizeMemRefType(memrefType, b, allocOp.symbolOperands().size());
   if (newMemRefType == memrefType)
     // Either memrefType already had an identity map or the map couldn't be
     // transformed to an identity map.
@@ -409,9 +408,9 @@ LogicalResult mlir::normalizeMemRef(AllocOp allocOp) {
 
   Value oldMemRef = allocOp.getResult();
 
-  SmallVector<Value, 4> symbolOperands(allocOp.getSymbolicOperands());
+  SmallVector<Value, 4> symbolOperands(allocOp.symbolOperands());
   AllocOp newAlloc = b.create<AllocOp>(allocOp.getLoc(), newMemRefType,
-                                       llvm::None, allocOp.alignmentAttr());
+                                       allocOp.alignmentAttr());
   AffineMap layoutMap = memrefType.getAffineMaps().front();
   // Replace all uses of the old memref.
   if (failed(replaceAllMemRefUsesWith(oldMemRef, /*newMemRef=*/newAlloc,

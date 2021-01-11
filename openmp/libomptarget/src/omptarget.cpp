@@ -11,20 +11,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <omptarget.h>
-
 #include "device.h"
 #include "private.h"
 #include "rtl.h"
 
 #include <cassert>
 #include <vector>
-
-#ifdef OMPTARGET_DEBUG
-int DebugLevel = 0;
-#endif // OMPTARGET_DEBUG
-
-
 
 /* All begin addresses for partially mapped structs must be 8-aligned in order
  * to ensure proper alignment of members. E.g.
@@ -67,11 +59,11 @@ static int InitLibrary(DeviceTy& Device) {
   int rc = OFFLOAD_SUCCESS;
 
   Device.PendingGlobalsMtx.lock();
-  TrlTblMtx->lock();
-  for (HostEntriesBeginToTransTableTy::iterator
-      ii = HostEntriesBeginToTransTable->begin();
-      ii != HostEntriesBeginToTransTable->end(); ++ii) {
-    TranslationTable *TransTable = &ii->second;
+  PM->TrlTblMtx.lock();
+  for (HostEntriesBeginToTransTableTy::iterator entry_it =
+           PM->HostEntriesBeginToTransTable.begin();
+       entry_it != PM->HostEntriesBeginToTransTable.end(); ++entry_it) {
+    TranslationTable *TransTable = &entry_it->second;
     if (TransTable->HostTable.EntriesBegin ==
         TransTable->HostTable.EntriesEnd) {
       // No host entry so no need to proceed
@@ -87,7 +79,7 @@ static int InitLibrary(DeviceTy& Device) {
            "Not expecting a device ID outside the table's bounds!");
     __tgt_device_image *img = TransTable->TargetsImages[device_id];
     if (!img) {
-      DP("No image loaded for device id %d.\n", device_id);
+      REPORT("No image loaded for device id %d.\n", device_id);
       rc = OFFLOAD_FAIL;
       break;
     }
@@ -96,7 +88,7 @@ static int InitLibrary(DeviceTy& Device) {
         TransTable->TargetsTable[device_id] = Device.load_binary(img);
     // Unable to get table for this image: invalidate image and fail.
     if (!TargetTable) {
-      DP("Unable to generate entries table for device id %d.\n", device_id);
+      REPORT("Unable to generate entries table for device id %d.\n", device_id);
       TransTable->TargetsImages[device_id] = 0;
       rc = OFFLOAD_FAIL;
       break;
@@ -109,8 +101,8 @@ static int InitLibrary(DeviceTy& Device) {
 
     // Invalid image for these host entries!
     if (hsize != tsize) {
-      DP("Host and Target tables mismatch for device id %d [%zx != %zx].\n",
-         device_id, hsize, tsize);
+      REPORT("Host and Target tables mismatch for device id %d [%zx != %zx].\n",
+             device_id, hsize, tsize);
       TransTable->TargetsImages[device_id] = 0;
       TransTable->TargetsTable[device_id] = 0;
       rc = OFFLOAD_FAIL;
@@ -143,13 +135,13 @@ static int InitLibrary(DeviceTy& Device) {
             (uintptr_t)CurrHostEntry->addr /*HstPtrBase*/,
             (uintptr_t)CurrHostEntry->addr /*HstPtrBegin*/,
             (uintptr_t)CurrHostEntry->addr + CurrHostEntry->size /*HstPtrEnd*/,
-            (uintptr_t)CurrDeviceEntry->addr /*TgtPtrBegin*/,
+            (uintptr_t)CurrDeviceEntry->addr /*TgtPtrBegin*/, nullptr,
             true /*IsRefCountINF*/);
       }
     }
     Device.DataMapMtx.unlock();
   }
-  TrlTblMtx->unlock();
+  PM->TrlTblMtx.unlock();
 
   if (rc != OFFLOAD_SUCCESS) {
     Device.PendingGlobalsMtx.unlock();
@@ -166,10 +158,10 @@ static int InitLibrary(DeviceTy& Device) {
         DP("Has pending ctors... call now\n");
         for (auto &entry : lib.second.PendingCtors) {
           void *ctor = entry;
-          int rc = target(device_id, ctor, 0, NULL, NULL, NULL, NULL, NULL, 1,
-              1, true /*team*/);
+          int rc = target(device_id, ctor, 0, nullptr, nullptr, nullptr,
+                          nullptr, nullptr, nullptr, 1, 1, true /*team*/);
           if (rc != OFFLOAD_SUCCESS) {
-            DP("Running ctor " DPxMOD " failed.\n", DPxPTR(ctor));
+            REPORT("Running ctor " DPxMOD " failed.\n", DPxPTR(ctor));
             Device.PendingGlobalsMtx.unlock();
             return OFFLOAD_FAIL;
           }
@@ -191,19 +183,19 @@ static int InitLibrary(DeviceTy& Device) {
 int CheckDeviceAndCtors(int64_t device_id) {
   // Is device ready?
   if (!device_is_ready(device_id)) {
-    DP("Device %" PRId64 " is not ready.\n", device_id);
+    REPORT("Device %" PRId64 " is not ready.\n", device_id);
     return OFFLOAD_FAIL;
   }
 
   // Get device info.
-  DeviceTy &Device = Devices[device_id];
+  DeviceTy &Device = PM->Devices[device_id];
 
   // Check whether global data has been mapped for this device
   Device.PendingGlobalsMtx.lock();
   bool hasPendingGlobals = Device.HasPendingGlobals;
   Device.PendingGlobalsMtx.unlock();
   if (hasPendingGlobals && InitLibrary(Device) != OFFLOAD_SUCCESS) {
-    DP("Failed to init globals on device %" PRId64 "\n", device_id);
+    REPORT("Failed to init globals on device %" PRId64 "\n", device_id);
     return OFFLOAD_FAIL;
   }
 
@@ -248,7 +240,7 @@ int targetDataMapper(DeviceTy &Device, void *arg_base, void *arg,
   int rc = target_data_function(Device, MapperComponents.Components.size(),
                                 MapperArgsBase.data(), MapperArgs.data(),
                                 MapperArgSizes.data(), MapperArgTypes.data(),
-                                /*arg_mappers*/ nullptr,
+                                /*arg_names*/ nullptr, /*arg_mappers*/ nullptr,
                                 /*__tgt_async_info*/ nullptr);
 
   return rc;
@@ -257,7 +249,8 @@ int targetDataMapper(DeviceTy &Device, void *arg_base, void *arg,
 /// Internal function to do the mapping and transfer the data to the device
 int targetDataBegin(DeviceTy &Device, int32_t arg_num, void **args_base,
                     void **args, int64_t *arg_sizes, int64_t *arg_types,
-                    void **arg_mappers, __tgt_async_info *async_info_ptr) {
+                    map_var_info_t *arg_names, void **arg_mappers,
+                    __tgt_async_info *async_info_ptr) {
   // process each input.
   for (int32_t i = 0; i < arg_num; ++i) {
     // Ignore private variables and arrays - there is no mapping for them.
@@ -275,8 +268,8 @@ int targetDataBegin(DeviceTy &Device, int32_t arg_num, void **args_base,
                                 arg_types[i], arg_mappers[i], targetDataBegin);
 
       if (rc != OFFLOAD_SUCCESS) {
-        DP("Call to targetDataBegin via targetDataMapper for custom mapper"
-           " failed.\n");
+        REPORT("Call to targetDataBegin via targetDataMapper for custom mapper"
+               " failed.\n");
         return OFFLOAD_FAIL;
       }
 
@@ -287,6 +280,7 @@ int targetDataBegin(DeviceTy &Device, int32_t arg_num, void **args_base,
     void *HstPtrBegin = args[i];
     void *HstPtrBase = args_base[i];
     int64_t data_size = arg_sizes[i];
+    map_var_info_t HstPtrName = (!arg_names) ? nullptr : arg_names[i];
 
     // Adjust for proper alignment if this is a combined entry (for structs).
     // Look at the next argument - if that is MEMBER_OF this one, then this one
@@ -335,12 +329,13 @@ int targetDataBegin(DeviceTy &Device, int32_t arg_num, void **args_base,
       // PTR_AND_OBJ entry is handled below, and so the allocation might fail
       // when HasPresentModifier.
       PointerTgtPtrBegin = Device.getOrAllocTgtPtr(
-          HstPtrBase, HstPtrBase, sizeof(void *), Pointer_IsNew, IsHostPtr,
-          IsImplicit, UpdateRef, HasCloseModifier, HasPresentModifier);
+          HstPtrBase, HstPtrBase, sizeof(void *), HstPtrName, Pointer_IsNew,
+          IsHostPtr, IsImplicit, UpdateRef, HasCloseModifier,
+          HasPresentModifier);
       if (!PointerTgtPtrBegin) {
-        DP("Call to getOrAllocTgtPtr returned null pointer (%s).\n",
-           HasPresentModifier ? "'present' map type modifier"
-                              : "device failure or illegal mapping");
+        REPORT("Call to getOrAllocTgtPtr returned null pointer (%s).\n",
+               HasPresentModifier ? "'present' map type modifier"
+                                  : "device failure or illegal mapping");
         return OFFLOAD_FAIL;
       }
       DP("There are %zu bytes allocated at target address " DPxMOD " - is%s new"
@@ -353,14 +348,14 @@ int targetDataBegin(DeviceTy &Device, int32_t arg_num, void **args_base,
     }
 
     void *TgtPtrBegin = Device.getOrAllocTgtPtr(
-        HstPtrBegin, HstPtrBase, data_size, IsNew, IsHostPtr, IsImplicit,
-        UpdateRef, HasCloseModifier, HasPresentModifier);
+        HstPtrBegin, HstPtrBase, data_size, HstPtrName, IsNew, IsHostPtr,
+        IsImplicit, UpdateRef, HasCloseModifier, HasPresentModifier);
     // If data_size==0, then the argument could be a zero-length pointer to
     // NULL, so getOrAlloc() returning NULL is not an error.
     if (!TgtPtrBegin && (data_size || HasPresentModifier)) {
-      DP("Call to getOrAllocTgtPtr returned null pointer (%s).\n",
-         HasPresentModifier ? "'present' map type modifier"
-                            : "device failure or illegal mapping");
+      REPORT("Call to getOrAllocTgtPtr returned null pointer (%s).\n",
+             HasPresentModifier ? "'present' map type modifier"
+                                : "device failure or illegal mapping");
       return OFFLOAD_FAIL;
     }
     DP("There are %" PRId64 " bytes allocated at target address " DPxMOD
@@ -376,12 +371,15 @@ int targetDataBegin(DeviceTy &Device, int32_t arg_num, void **args_base,
 
     if (arg_types[i] & OMP_TGT_MAPTYPE_TO) {
       bool copy = false;
-      if (!(RTLs->RequiresFlags & OMP_REQ_UNIFIED_SHARED_MEMORY) ||
+      if (!(PM->RTLs.RequiresFlags & OMP_REQ_UNIFIED_SHARED_MEMORY) ||
           HasCloseModifier) {
         if (IsNew || (arg_types[i] & OMP_TGT_MAPTYPE_ALWAYS)) {
           copy = true;
-        } else if (arg_types[i] & OMP_TGT_MAPTYPE_MEMBER_OF) {
+        } else if ((arg_types[i] & OMP_TGT_MAPTYPE_MEMBER_OF) &&
+                   !(arg_types[i] & OMP_TGT_MAPTYPE_PTR_AND_OBJ)) {
           // Copy data only if the "parent" struct has RefCount==1.
+          // If this is a PTR_AND_OBJ entry, the OBJ is not part of the struct,
+          // so exclude it from this check.
           int32_t parent_idx = getParentIndex(arg_types[i]);
           uint64_t parent_rc = Device.getMapEntryRefCnt(args[parent_idx]);
           assert(parent_rc > 0 && "parent struct not found");
@@ -397,7 +395,7 @@ int targetDataBegin(DeviceTy &Device, int32_t arg_num, void **args_base,
         int rt = Device.submitData(TgtPtrBegin, HstPtrBegin, data_size,
                                    async_info_ptr);
         if (rt != OFFLOAD_SUCCESS) {
-          DP("Copying data to device failed.\n");
+          REPORT("Copying data to device failed.\n");
           return OFFLOAD_FAIL;
         }
       }
@@ -411,7 +409,7 @@ int targetDataBegin(DeviceTy &Device, int32_t arg_num, void **args_base,
       int rt = Device.submitData(PointerTgtPtrBegin, &TgtPtrBase,
                                  sizeof(void *), async_info_ptr);
       if (rt != OFFLOAD_SUCCESS) {
-        DP("Copying data to device failed.\n");
+        REPORT("Copying data to device failed.\n");
         return OFFLOAD_FAIL;
       }
       // create shadow pointers for this entry
@@ -448,7 +446,8 @@ struct DeallocTgtPtrInfo {
 /// Internal function to undo the mapping and retrieve the data from the device.
 int targetDataEnd(DeviceTy &Device, int32_t ArgNum, void **ArgBases,
                   void **Args, int64_t *ArgSizes, int64_t *ArgTypes,
-                  void **ArgMappers, __tgt_async_info *AsyncInfo) {
+                  map_var_info_t *ArgNames, void **ArgMappers,
+                  __tgt_async_info *AsyncInfo) {
   int Ret;
   std::vector<DeallocTgtPtrInfo> DeallocTgtPtrs;
   // process each input.
@@ -469,8 +468,8 @@ int targetDataEnd(DeviceTy &Device, int32_t ArgNum, void **ArgBases,
                              ArgTypes[I], ArgMappers[I], targetDataEnd);
 
       if (Ret != OFFLOAD_SUCCESS) {
-        DP("Call to targetDataEnd via targetDataMapper for custom mapper"
-           " failed.\n");
+        REPORT("Call to targetDataEnd via targetDataMapper for custom mapper"
+               " failed.\n");
         return OFFLOAD_FAIL;
       }
 
@@ -542,7 +541,7 @@ int targetDataEnd(DeviceTy &Device, int32_t ArgNum, void **ArgBases,
       if (ArgTypes[I] & OMP_TGT_MAPTYPE_FROM) {
         bool Always = ArgTypes[I] & OMP_TGT_MAPTYPE_ALWAYS;
         bool CopyMember = false;
-        if (!(RTLs->RequiresFlags & OMP_REQ_UNIFIED_SHARED_MEMORY) ||
+        if (!(PM->RTLs.RequiresFlags & OMP_REQ_UNIFIED_SHARED_MEMORY) ||
             HasCloseModifier) {
           if ((ArgTypes[I] & OMP_TGT_MAPTYPE_MEMBER_OF) &&
               !(ArgTypes[I] & OMP_TGT_MAPTYPE_PTR_AND_OBJ)) {
@@ -556,14 +555,14 @@ int targetDataEnd(DeviceTy &Device, int32_t ArgNum, void **ArgBases,
         }
 
         if ((DelEntry || Always || CopyMember) &&
-            !(RTLs->RequiresFlags & OMP_REQ_UNIFIED_SHARED_MEMORY &&
+            !(PM->RTLs.RequiresFlags & OMP_REQ_UNIFIED_SHARED_MEMORY &&
               TgtPtrBegin == HstPtrBegin)) {
           DP("Moving %" PRId64 " bytes (tgt:" DPxMOD ") -> (hst:" DPxMOD ")\n",
              DataSize, DPxPTR(TgtPtrBegin), DPxPTR(HstPtrBegin));
           Ret = Device.retrieveData(HstPtrBegin, TgtPtrBegin, DataSize,
                                     AsyncInfo);
           if (Ret != OFFLOAD_SUCCESS) {
-            DP("Copying data from device failed.\n");
+            REPORT("Copying data from device failed.\n");
             return OFFLOAD_FAIL;
           }
         }
@@ -622,7 +621,7 @@ int targetDataEnd(DeviceTy &Device, int32_t ArgNum, void **ArgBases,
   if (AsyncInfo && AsyncInfo->Queue) {
     Ret = Device.synchronize(AsyncInfo);
     if (Ret != OFFLOAD_SUCCESS) {
-      DP("Failed to synchronize device.\n");
+      REPORT("Failed to synchronize device.\n");
       return OFFLOAD_FAIL;
     }
   }
@@ -632,7 +631,7 @@ int targetDataEnd(DeviceTy &Device, int32_t ArgNum, void **ArgBases,
     Ret = Device.deallocTgtPtr(Info.HstPtrBegin, Info.DataSize,
                                Info.ForceDelete, Info.HasCloseModifier);
     if (Ret != OFFLOAD_SUCCESS) {
-      DP("Deallocating data from device failed.\n");
+      REPORT("Deallocating data from device failed.\n");
       return OFFLOAD_FAIL;
     }
   }
@@ -640,31 +639,158 @@ int targetDataEnd(DeviceTy &Device, int32_t ArgNum, void **ArgBases,
   return OFFLOAD_SUCCESS;
 }
 
+static int targetDataContiguous(DeviceTy &Device, void *ArgsBase,
+                                void *HstPtrBegin, int64_t ArgSize,
+                                int64_t ArgType) {
+  bool IsLast, IsHostPtr;
+  void *TgtPtrBegin = Device.getTgtPtrBegin(HstPtrBegin, ArgSize, IsLast, false,
+                                            IsHostPtr, /*MustContain=*/true);
+  if (!TgtPtrBegin) {
+    DP("hst data:" DPxMOD " not found, becomes a noop\n", DPxPTR(HstPtrBegin));
+    if (ArgType & OMP_TGT_MAPTYPE_PRESENT) {
+      MESSAGE("device mapping required by 'present' motion modifier does not "
+              "exist for host address " DPxMOD " (%" PRId64 " bytes)",
+              DPxPTR(HstPtrBegin), ArgSize);
+      return OFFLOAD_FAIL;
+    }
+    return OFFLOAD_SUCCESS;
+  }
+
+  if (PM->RTLs.RequiresFlags & OMP_REQ_UNIFIED_SHARED_MEMORY &&
+      TgtPtrBegin == HstPtrBegin) {
+    DP("hst data:" DPxMOD " unified and shared, becomes a noop\n",
+       DPxPTR(HstPtrBegin));
+    return OFFLOAD_SUCCESS;
+  }
+
+  if (ArgType & OMP_TGT_MAPTYPE_FROM) {
+    DP("Moving %" PRId64 " bytes (tgt:" DPxMOD ") -> (hst:" DPxMOD ")\n",
+       ArgSize, DPxPTR(TgtPtrBegin), DPxPTR(HstPtrBegin));
+    int Ret = Device.retrieveData(HstPtrBegin, TgtPtrBegin, ArgSize, nullptr);
+    if (Ret != OFFLOAD_SUCCESS) {
+      REPORT("Copying data from device failed.\n");
+      return OFFLOAD_FAIL;
+    }
+
+    uintptr_t LB = (uintptr_t)HstPtrBegin;
+    uintptr_t UB = (uintptr_t)HstPtrBegin + ArgSize;
+    Device.ShadowMtx.lock();
+    for (ShadowPtrListTy::iterator IT = Device.ShadowPtrMap.begin();
+         IT != Device.ShadowPtrMap.end(); ++IT) {
+      void **ShadowHstPtrAddr = (void **)IT->first;
+      if ((uintptr_t)ShadowHstPtrAddr < LB)
+        continue;
+      if ((uintptr_t)ShadowHstPtrAddr >= UB)
+        break;
+      DP("Restoring original host pointer value " DPxMOD
+         " for host pointer " DPxMOD "\n",
+         DPxPTR(IT->second.HstPtrVal), DPxPTR(ShadowHstPtrAddr));
+      *ShadowHstPtrAddr = IT->second.HstPtrVal;
+    }
+    Device.ShadowMtx.unlock();
+  }
+
+  if (ArgType & OMP_TGT_MAPTYPE_TO) {
+    DP("Moving %" PRId64 " bytes (hst:" DPxMOD ") -> (tgt:" DPxMOD ")\n",
+       ArgSize, DPxPTR(HstPtrBegin), DPxPTR(TgtPtrBegin));
+    int Ret = Device.submitData(TgtPtrBegin, HstPtrBegin, ArgSize, nullptr);
+    if (Ret != OFFLOAD_SUCCESS) {
+      REPORT("Copying data to device failed.\n");
+      return OFFLOAD_FAIL;
+    }
+
+    uintptr_t LB = (uintptr_t)HstPtrBegin;
+    uintptr_t UB = (uintptr_t)HstPtrBegin + ArgSize;
+    Device.ShadowMtx.lock();
+    for (ShadowPtrListTy::iterator IT = Device.ShadowPtrMap.begin();
+         IT != Device.ShadowPtrMap.end(); ++IT) {
+      void **ShadowHstPtrAddr = (void **)IT->first;
+      if ((uintptr_t)ShadowHstPtrAddr < LB)
+        continue;
+      if ((uintptr_t)ShadowHstPtrAddr >= UB)
+        break;
+      DP("Restoring original target pointer value " DPxMOD " for target "
+         "pointer " DPxMOD "\n",
+         DPxPTR(IT->second.TgtPtrVal), DPxPTR(IT->second.TgtPtrAddr));
+      Ret = Device.submitData(IT->second.TgtPtrAddr, &IT->second.TgtPtrVal,
+                              sizeof(void *), nullptr);
+      if (Ret != OFFLOAD_SUCCESS) {
+        REPORT("Copying data to device failed.\n");
+        Device.ShadowMtx.unlock();
+        return OFFLOAD_FAIL;
+      }
+    }
+    Device.ShadowMtx.unlock();
+  }
+  return OFFLOAD_SUCCESS;
+}
+
+static int targetDataNonContiguous(DeviceTy &Device, void *ArgsBase,
+                                   __tgt_target_non_contig *NonContig,
+                                   uint64_t Size, int64_t ArgType,
+                                   int CurrentDim, int DimSize,
+                                   uint64_t Offset) {
+  int Ret = OFFLOAD_SUCCESS;
+  if (CurrentDim < DimSize) {
+    for (unsigned int I = 0; I < NonContig[CurrentDim].Count; ++I) {
+      uint64_t CurOffset =
+          (NonContig[CurrentDim].Offset + I) * NonContig[CurrentDim].Stride;
+      // we only need to transfer the first element for the last dimension
+      // since we've already got a contiguous piece.
+      if (CurrentDim != DimSize - 1 || I == 0) {
+        Ret = targetDataNonContiguous(Device, ArgsBase, NonContig, Size,
+                                      ArgType, CurrentDim + 1, DimSize,
+                                      Offset + CurOffset);
+        // Stop the whole process if any contiguous piece returns anything
+        // other than OFFLOAD_SUCCESS.
+        if (Ret != OFFLOAD_SUCCESS)
+          return Ret;
+      }
+    }
+  } else {
+    char *Ptr = (char *)ArgsBase + Offset;
+    DP("Transfer of non-contiguous : host ptr %lx offset %ld len %ld\n",
+       (uint64_t)Ptr, Offset, Size);
+    Ret = targetDataContiguous(Device, ArgsBase, Ptr, Size, ArgType);
+  }
+  return Ret;
+}
+
+static int getNonContigMergedDimension(__tgt_target_non_contig *NonContig,
+                                       int32_t DimSize) {
+  int RemovedDim = 0;
+  for (int I = DimSize - 1; I > 0; --I) {
+    if (NonContig[I].Count * NonContig[I].Stride == NonContig[I - 1].Stride)
+      RemovedDim++;
+  }
+  return RemovedDim;
+}
+
 /// Internal function to pass data to/from the target.
-// async_info_ptr is currently unused, added here so target_data_update has the
+// async_info_ptr is currently unused, added here so targetDataUpdate has the
 // same signature as targetDataBegin and targetDataEnd.
-int target_data_update(DeviceTy &Device, int32_t arg_num,
-    void **args_base, void **args, int64_t *arg_sizes, int64_t *arg_types,
-    void **arg_mappers, __tgt_async_info *async_info_ptr) {
+int targetDataUpdate(DeviceTy &Device, int32_t ArgNum, void **ArgsBase,
+                     void **Args, int64_t *ArgSizes, int64_t *ArgTypes,
+                     map_var_info_t *ArgNames, void **ArgMappers,
+                     __tgt_async_info *AsyncInfoPtr) {
   // process each input.
-  for (int32_t i = 0; i < arg_num; ++i) {
-    if ((arg_types[i] & OMP_TGT_MAPTYPE_LITERAL) ||
-        (arg_types[i] & OMP_TGT_MAPTYPE_PRIVATE))
+  for (int32_t I = 0; I < ArgNum; ++I) {
+    if ((ArgTypes[I] & OMP_TGT_MAPTYPE_LITERAL) ||
+        (ArgTypes[I] & OMP_TGT_MAPTYPE_PRIVATE))
       continue;
 
-    if (arg_mappers && arg_mappers[i]) {
-      // Instead of executing the regular path of target_data_update, call the
-      // targetDataMapper variant which will call target_data_update again
+    if (ArgMappers && ArgMappers[I]) {
+      // Instead of executing the regular path of targetDataUpdate, call the
+      // targetDataMapper variant which will call targetDataUpdate again
       // with new arguments.
-      DP("Calling targetDataMapper for the %dth argument\n", i);
+      DP("Calling targetDataMapper for the %dth argument\n", I);
 
-      int rc =
-          targetDataMapper(Device, args_base[i], args[i], arg_sizes[i],
-                           arg_types[i], arg_mappers[i], target_data_update);
+      int Ret = targetDataMapper(Device, ArgsBase[I], Args[I], ArgSizes[I],
+                                 ArgTypes[I], ArgMappers[I], targetDataUpdate);
 
-      if (rc != OFFLOAD_SUCCESS) {
-        DP("Call to target_data_update via targetDataMapper for custom mapper"
-           " failed.\n");
+      if (Ret != OFFLOAD_SUCCESS) {
+        REPORT("Call to targetDataUpdate via targetDataMapper for custom mapper"
+               " failed.\n");
         return OFFLOAD_FAIL;
       }
 
@@ -672,88 +798,23 @@ int target_data_update(DeviceTy &Device, int32_t arg_num,
       continue;
     }
 
-    void *HstPtrBegin = args[i];
-    int64_t MapSize = arg_sizes[i];
-    bool IsLast, IsHostPtr;
-    void *TgtPtrBegin = Device.getTgtPtrBegin(
-        HstPtrBegin, MapSize, IsLast, false, IsHostPtr, /*MustContain=*/true);
-    if (!TgtPtrBegin) {
-      DP("hst data:" DPxMOD " not found, becomes a noop\n", DPxPTR(HstPtrBegin));
-      if (arg_types[i] & OMP_TGT_MAPTYPE_PRESENT) {
-        MESSAGE("device mapping required by 'present' motion modifier does not "
-                "exist for host address " DPxMOD " (%" PRId64 " bytes)",
-                DPxPTR(HstPtrBegin), MapSize);
-        return OFFLOAD_FAIL;
-      }
-      continue;
+    int Ret = OFFLOAD_SUCCESS;
+
+    if (ArgTypes[I] & OMP_TGT_MAPTYPE_NON_CONTIG) {
+      __tgt_target_non_contig *NonContig = (__tgt_target_non_contig *)Args[I];
+      int32_t DimSize = ArgSizes[I];
+      uint64_t Size =
+          NonContig[DimSize - 1].Count * NonContig[DimSize - 1].Stride;
+      int32_t MergedDim = getNonContigMergedDimension(NonContig, DimSize);
+      Ret = targetDataNonContiguous(
+          Device, ArgsBase[I], NonContig, Size, ArgTypes[I],
+          /*current_dim=*/0, DimSize - MergedDim, /*offset=*/0);
+    } else {
+      Ret = targetDataContiguous(Device, ArgsBase[I], Args[I], ArgSizes[I],
+                                 ArgTypes[I]);
     }
-
-    if (RTLs->RequiresFlags & OMP_REQ_UNIFIED_SHARED_MEMORY &&
-        TgtPtrBegin == HstPtrBegin) {
-      DP("hst data:" DPxMOD " unified and shared, becomes a noop\n",
-         DPxPTR(HstPtrBegin));
-      continue;
-    }
-
-    if (arg_types[i] & OMP_TGT_MAPTYPE_FROM) {
-      DP("Moving %" PRId64 " bytes (tgt:" DPxMOD ") -> (hst:" DPxMOD ")\n",
-          arg_sizes[i], DPxPTR(TgtPtrBegin), DPxPTR(HstPtrBegin));
-      int rt = Device.retrieveData(HstPtrBegin, TgtPtrBegin, MapSize, nullptr);
-      if (rt != OFFLOAD_SUCCESS) {
-        DP("Copying data from device failed.\n");
-        return OFFLOAD_FAIL;
-      }
-
-      uintptr_t lb = (uintptr_t) HstPtrBegin;
-      uintptr_t ub = (uintptr_t) HstPtrBegin + MapSize;
-      Device.ShadowMtx.lock();
-      for (ShadowPtrListTy::iterator it = Device.ShadowPtrMap.begin();
-          it != Device.ShadowPtrMap.end(); ++it) {
-        void **ShadowHstPtrAddr = (void**) it->first;
-        if ((uintptr_t) ShadowHstPtrAddr < lb)
-          continue;
-        if ((uintptr_t) ShadowHstPtrAddr >= ub)
-          break;
-        DP("Restoring original host pointer value " DPxMOD " for host pointer "
-            DPxMOD "\n", DPxPTR(it->second.HstPtrVal),
-            DPxPTR(ShadowHstPtrAddr));
-        *ShadowHstPtrAddr = it->second.HstPtrVal;
-      }
-      Device.ShadowMtx.unlock();
-    }
-
-    if (arg_types[i] & OMP_TGT_MAPTYPE_TO) {
-      DP("Moving %" PRId64 " bytes (hst:" DPxMOD ") -> (tgt:" DPxMOD ")\n",
-          arg_sizes[i], DPxPTR(HstPtrBegin), DPxPTR(TgtPtrBegin));
-      int rt = Device.submitData(TgtPtrBegin, HstPtrBegin, MapSize, nullptr);
-      if (rt != OFFLOAD_SUCCESS) {
-        DP("Copying data to device failed.\n");
-        return OFFLOAD_FAIL;
-      }
-
-      uintptr_t lb = (uintptr_t) HstPtrBegin;
-      uintptr_t ub = (uintptr_t) HstPtrBegin + MapSize;
-      Device.ShadowMtx.lock();
-      for (ShadowPtrListTy::iterator it = Device.ShadowPtrMap.begin();
-          it != Device.ShadowPtrMap.end(); ++it) {
-        void **ShadowHstPtrAddr = (void **)it->first;
-        if ((uintptr_t)ShadowHstPtrAddr < lb)
-          continue;
-        if ((uintptr_t)ShadowHstPtrAddr >= ub)
-          break;
-        DP("Restoring original target pointer value " DPxMOD " for target "
-           "pointer " DPxMOD "\n",
-           DPxPTR(it->second.TgtPtrVal), DPxPTR(it->second.TgtPtrAddr));
-        rt = Device.submitData(it->second.TgtPtrAddr, &it->second.TgtPtrVal,
-                               sizeof(void *), nullptr);
-        if (rt != OFFLOAD_SUCCESS) {
-          DP("Copying data to device failed.\n");
-          Device.ShadowMtx.unlock();
-          return OFFLOAD_FAIL;
-        }
-      }
-      Device.ShadowMtx.unlock();
-    }
+    if (Ret == OFFLOAD_FAIL)
+      return OFFLOAD_FAIL;
   }
   return OFFLOAD_SUCCESS;
 }
@@ -769,18 +830,19 @@ namespace {
 /// Find the table information in the map or look it up in the translation
 /// tables.
 TableMap *getTableMap(void *HostPtr) {
-  std::lock_guard<std::mutex> TblMapLock(*TblMapMtx);
-  HostPtrToTableMapTy::iterator TableMapIt = HostPtrToTableMap->find(HostPtr);
+  std::lock_guard<std::mutex> TblMapLock(PM->TblMapMtx);
+  HostPtrToTableMapTy::iterator TableMapIt =
+      PM->HostPtrToTableMap.find(HostPtr);
 
-  if (TableMapIt != HostPtrToTableMap->end())
+  if (TableMapIt != PM->HostPtrToTableMap.end())
     return &TableMapIt->second;
 
   // We don't have a map. So search all the registered libraries.
   TableMap *TM = nullptr;
-  std::lock_guard<std::mutex> TrlTblLock(*TrlTblMtx);
+  std::lock_guard<std::mutex> TrlTblLock(PM->TrlTblMtx);
   for (HostEntriesBeginToTransTableTy::iterator Itr =
-           HostEntriesBeginToTransTable->begin();
-       Itr != HostEntriesBeginToTransTable->end(); ++Itr) {
+           PM->HostEntriesBeginToTransTable.begin();
+       Itr != PM->HostEntriesBeginToTransTable.end(); ++Itr) {
     // get the translation table (which contains all the good info).
     TranslationTable *TransTable = &Itr->second;
     // iterate over all the host table entries to see if we can locate the
@@ -791,7 +853,7 @@ TableMap *getTableMap(void *HostPtr) {
         continue;
       // we got a match, now fill the HostPtrToTableMap so that we
       // may avoid this search next time.
-      TM = &(*HostPtrToTableMap)[HostPtr];
+      TM = &(PM->HostPtrToTableMap)[HostPtr];
       TM->Table = TransTable;
       TM->Index = I;
       return TM;
@@ -806,11 +868,11 @@ TableMap *getTableMap(void *HostPtr) {
 /// __kmpc_push_target_tripcount in one thread but doing offloading in another
 /// thread, which might occur when we call task yield.
 uint64_t getLoopTripCount(int64_t DeviceId) {
-  DeviceTy &Device = Devices[DeviceId];
+  DeviceTy &Device = PM->Devices[DeviceId];
   uint64_t LoopTripCount = 0;
 
   {
-    std::lock_guard<std::mutex> TblMapLock(*TblMapMtx);
+    std::lock_guard<std::mutex> TblMapLock(PM->TblMapMtx);
     auto I = Device.LoopTripCnt.find(__kmpc_global_thread_num(NULL));
     if (I != Device.LoopTripCnt.end()) {
       LoopTripCount = I->second;
@@ -822,21 +884,188 @@ uint64_t getLoopTripCount(int64_t DeviceId) {
   return LoopTripCount;
 }
 
+/// A class manages private arguments in a target region.
+class PrivateArgumentManagerTy {
+  /// A data structure for the information of first-private arguments. We can
+  /// use this information to optimize data transfer by packing all
+  /// first-private arguments and transfer them all at once.
+  struct FirstPrivateArgInfoTy {
+    /// The index of the element in \p TgtArgs corresponding to the argument
+    const int Index;
+    /// Host pointer begin
+    const char *HstPtrBegin;
+    /// Host pointer end
+    const char *HstPtrEnd;
+    /// Aligned size
+    const int64_t AlignedSize;
+    /// Host pointer name
+    const map_var_info_t HstPtrName = nullptr;
+
+    FirstPrivateArgInfoTy(int Index, const void *HstPtr, int64_t Size,
+                          const map_var_info_t HstPtrName = nullptr)
+        : Index(Index), HstPtrBegin(reinterpret_cast<const char *>(HstPtr)),
+          HstPtrEnd(HstPtrBegin + Size), AlignedSize(Size + Size % Alignment),
+          HstPtrName(HstPtrName) {}
+  };
+
+  /// A vector of target pointers for all private arguments
+  std::vector<void *> TgtPtrs;
+
+  /// A vector of information of all first-private arguments to be packed
+  std::vector<FirstPrivateArgInfoTy> FirstPrivateArgInfo;
+  /// Host buffer for all arguments to be packed
+  std::vector<char> FirstPrivateArgBuffer;
+  /// The total size of all arguments to be packed
+  int64_t FirstPrivateArgSize = 0;
+
+  /// A reference to the \p DeviceTy object
+  DeviceTy &Device;
+  /// A pointer to a \p __tgt_async_info object
+  __tgt_async_info *AsyncInfo;
+
+  // TODO: What would be the best value here? Should we make it configurable?
+  // If the size is larger than this threshold, we will allocate and transfer it
+  // immediately instead of packing it.
+  static constexpr const int64_t FirstPrivateArgSizeThreshold = 1024;
+
+public:
+  /// Constructor
+  PrivateArgumentManagerTy(DeviceTy &Dev, __tgt_async_info *AsyncInfo)
+      : Device(Dev), AsyncInfo(AsyncInfo) {}
+
+  /// Add a private argument
+  int addArg(void *HstPtr, int64_t ArgSize, int64_t ArgOffset,
+             bool IsFirstPrivate, void *&TgtPtr, int TgtArgsIndex,
+             const map_var_info_t HstPtrName = nullptr) {
+    // If the argument is not first-private, or its size is greater than a
+    // predefined threshold, we will allocate memory and issue the transfer
+    // immediately.
+    if (ArgSize > FirstPrivateArgSizeThreshold || !IsFirstPrivate) {
+      TgtPtr = Device.allocData(ArgSize, HstPtr);
+      if (!TgtPtr) {
+        DP("Data allocation for %sprivate array " DPxMOD " failed.\n",
+           (IsFirstPrivate ? "first-" : ""), DPxPTR(HstPtr));
+        return OFFLOAD_FAIL;
+      }
+#ifdef OMPTARGET_DEBUG
+      void *TgtPtrBase = (void *)((intptr_t)TgtPtr + ArgOffset);
+      DP("Allocated %" PRId64 " bytes of target memory at " DPxMOD
+         " for %sprivate array " DPxMOD " - pushing target argument " DPxMOD
+         "\n",
+         ArgSize, DPxPTR(TgtPtr), (IsFirstPrivate ? "first-" : ""),
+         DPxPTR(HstPtr), DPxPTR(TgtPtrBase));
+#endif
+      // If first-private, copy data from host
+      if (IsFirstPrivate) {
+        int Ret = Device.submitData(TgtPtr, HstPtr, ArgSize, AsyncInfo);
+        if (Ret != OFFLOAD_SUCCESS) {
+          DP("Copying data to device failed, failed.\n");
+          return OFFLOAD_FAIL;
+        }
+      }
+      TgtPtrs.push_back(TgtPtr);
+    } else {
+      DP("Firstprivate array " DPxMOD " of size %" PRId64 " will be packed\n",
+         DPxPTR(HstPtr), ArgSize);
+      // When reach this point, the argument must meet all following
+      // requirements:
+      // 1. Its size does not exceed the threshold (see the comment for
+      // FirstPrivateArgSizeThreshold);
+      // 2. It must be first-private (needs to be mapped to target device).
+      // We will pack all this kind of arguments to transfer them all at once
+      // to reduce the number of data transfer. We will not take
+      // non-first-private arguments, aka. private arguments that doesn't need
+      // to be mapped to target device, into account because data allocation
+      // can be very efficient with memory manager.
+
+      // Placeholder value
+      TgtPtr = nullptr;
+      FirstPrivateArgInfo.emplace_back(TgtArgsIndex, HstPtr, ArgSize,
+                                       HstPtrName);
+      FirstPrivateArgSize += FirstPrivateArgInfo.back().AlignedSize;
+    }
+
+    return OFFLOAD_SUCCESS;
+  }
+
+  /// Pack first-private arguments, replace place holder pointers in \p TgtArgs,
+  /// and start the transfer.
+  int packAndTransfer(std::vector<void *> &TgtArgs) {
+    if (!FirstPrivateArgInfo.empty()) {
+      assert(FirstPrivateArgSize != 0 &&
+             "FirstPrivateArgSize is 0 but FirstPrivateArgInfo is empty");
+      FirstPrivateArgBuffer.resize(FirstPrivateArgSize, 0);
+      auto Itr = FirstPrivateArgBuffer.begin();
+      // Copy all host data to this buffer
+      for (FirstPrivateArgInfoTy &Info : FirstPrivateArgInfo) {
+        std::copy(Info.HstPtrBegin, Info.HstPtrEnd, Itr);
+        Itr = std::next(Itr, Info.AlignedSize);
+      }
+      // Allocate target memory
+      void *TgtPtr =
+          Device.allocData(FirstPrivateArgSize, FirstPrivateArgBuffer.data());
+      if (TgtPtr == nullptr) {
+        DP("Failed to allocate target memory for private arguments.\n");
+        return OFFLOAD_FAIL;
+      }
+      TgtPtrs.push_back(TgtPtr);
+      DP("Allocated %" PRId64 " bytes of target memory at " DPxMOD "\n",
+         FirstPrivateArgSize, DPxPTR(TgtPtr));
+      // Transfer data to target device
+      int Ret = Device.submitData(TgtPtr, FirstPrivateArgBuffer.data(),
+                                  FirstPrivateArgSize, AsyncInfo);
+      if (Ret != OFFLOAD_SUCCESS) {
+        DP("Failed to submit data of private arguments.\n");
+        return OFFLOAD_FAIL;
+      }
+      // Fill in all placeholder pointers
+      auto TP = reinterpret_cast<uintptr_t>(TgtPtr);
+      for (FirstPrivateArgInfoTy &Info : FirstPrivateArgInfo) {
+        void *&Ptr = TgtArgs[Info.Index];
+        assert(Ptr == nullptr && "Target pointer is already set by mistaken");
+        Ptr = reinterpret_cast<void *>(TP);
+        TP += Info.AlignedSize;
+        DP("Firstprivate array " DPxMOD " of size %" PRId64 " mapped to " DPxMOD
+           "\n",
+           DPxPTR(Info.HstPtrBegin), Info.HstPtrEnd - Info.HstPtrBegin,
+           DPxPTR(Ptr));
+      }
+    }
+
+    return OFFLOAD_SUCCESS;
+  }
+
+  /// Free all target memory allocated for private arguments
+  int free() {
+    for (void *P : TgtPtrs) {
+      int Ret = Device.deleteData(P);
+      if (Ret != OFFLOAD_SUCCESS) {
+        DP("Deallocation of (first-)private arrays failed.\n");
+        return OFFLOAD_FAIL;
+      }
+    }
+
+    TgtPtrs.clear();
+
+    return OFFLOAD_SUCCESS;
+  }
+};
+
 /// Process data before launching the kernel, including calling targetDataBegin
 /// to map and transfer data to target device, transferring (first-)private
 /// variables.
 int processDataBefore(int64_t DeviceId, void *HostPtr, int32_t ArgNum,
                       void **ArgBases, void **Args, int64_t *ArgSizes,
-                      int64_t *ArgTypes, void **ArgMappers,
-                      std::vector<void *> &TgtArgs,
+                      int64_t *ArgTypes, map_var_info_t *ArgNames,
+                      void **ArgMappers, std::vector<void *> &TgtArgs,
                       std::vector<ptrdiff_t> &TgtOffsets,
-                      std::vector<void *> &FPArrays,
+                      PrivateArgumentManagerTy &PrivateArgumentManager,
                       __tgt_async_info *AsyncInfo) {
-  DeviceTy &Device = Devices[DeviceId];
+  DeviceTy &Device = PM->Devices[DeviceId];
   int Ret = targetDataBegin(Device, ArgNum, ArgBases, Args, ArgSizes, ArgTypes,
-                            ArgMappers, AsyncInfo);
+                            ArgNames, ArgMappers, AsyncInfo);
   if (Ret != OFFLOAD_SUCCESS) {
-    DP("Call to targetDataBegin failed, abort target.\n");
+    REPORT("Call to targetDataBegin failed, abort target.\n");
     return OFFLOAD_FAIL;
   }
 
@@ -871,7 +1100,7 @@ int processDataBefore(int64_t DeviceId, void *HostPtr, int32_t ArgNum,
              DPxPTR(HstPtrVal));
           continue;
         }
-        if (RTLs->RequiresFlags & OMP_REQ_UNIFIED_SHARED_MEMORY &&
+        if (PM->RTLs.RequiresFlags & OMP_REQ_UNIFIED_SHARED_MEMORY &&
             TgtPtrBegin == HstPtrBegin) {
           DP("Unified memory is active, no need to map lambda captured"
              "variable (" DPxMOD ")\n",
@@ -883,7 +1112,7 @@ int processDataBefore(int64_t DeviceId, void *HostPtr, int32_t ArgNum,
         Ret = Device.submitData(TgtPtrBegin, &PointerTgtPtrBegin,
                                 sizeof(void *), AsyncInfo);
         if (Ret != OFFLOAD_SUCCESS) {
-          DP("Copying data to device failed.\n");
+          REPORT("Copying data to device failed.\n");
           return OFFLOAD_FAIL;
         }
       }
@@ -892,6 +1121,7 @@ int processDataBefore(int64_t DeviceId, void *HostPtr, int32_t ArgNum,
     void *HstPtrBegin = Args[I];
     void *HstPtrBase = ArgBases[I];
     void *TgtPtrBegin;
+    map_var_info_t HstPtrName = (!ArgNames) ? nullptr : ArgNames[I];
     ptrdiff_t TgtBaseOffset;
     bool IsLast, IsHostPtr; // unused.
     if (ArgTypes[I] & OMP_TGT_MAPTYPE_LITERAL) {
@@ -900,33 +1130,18 @@ int processDataBefore(int64_t DeviceId, void *HostPtr, int32_t ArgNum,
       TgtPtrBegin = HstPtrBase;
       TgtBaseOffset = 0;
     } else if (ArgTypes[I] & OMP_TGT_MAPTYPE_PRIVATE) {
-      // Allocate memory for (first-)private array
-      TgtPtrBegin = Device.allocData(ArgSizes[I], HstPtrBegin);
-      if (!TgtPtrBegin) {
-        DP("Data allocation for %sprivate array " DPxMOD " failed, "
-           "abort target.\n",
-           (ArgTypes[I] & OMP_TGT_MAPTYPE_TO ? "first-" : ""),
-           DPxPTR(HstPtrBegin));
-        return OFFLOAD_FAIL;
-      }
-      FPArrays.push_back(TgtPtrBegin);
       TgtBaseOffset = (intptr_t)HstPtrBase - (intptr_t)HstPtrBegin;
-#ifdef OMPTARGET_DEBUG
-      void *TgtPtrBase = (void *)((intptr_t)TgtPtrBegin + TgtBaseOffset);
-      DP("Allocated %" PRId64 " bytes of target memory at " DPxMOD " for "
-         "%sprivate array " DPxMOD " - pushing target argument " DPxMOD "\n",
-         ArgSizes[I], DPxPTR(TgtPtrBegin),
-         (ArgTypes[I] & OMP_TGT_MAPTYPE_TO ? "first-" : ""),
-         DPxPTR(HstPtrBegin), DPxPTR(TgtPtrBase));
-#endif
-      // If first-private, copy data from host
-      if (ArgTypes[I] & OMP_TGT_MAPTYPE_TO) {
-        Ret =
-            Device.submitData(TgtPtrBegin, HstPtrBegin, ArgSizes[I], AsyncInfo);
-        if (Ret != OFFLOAD_SUCCESS) {
-          DP("Copying data to device failed, failed.\n");
-          return OFFLOAD_FAIL;
-        }
+      // Can be marked for optimization if the next argument(s) do(es) not
+      // depend on this one.
+      const bool IsFirstPrivate =
+          (I >= ArgNum - 1 || !(ArgTypes[I + 1] & OMP_TGT_MAPTYPE_MEMBER_OF));
+      Ret = PrivateArgumentManager.addArg(
+          HstPtrBegin, ArgSizes[I], TgtBaseOffset, IsFirstPrivate, TgtPtrBegin,
+          TgtArgs.size(), HstPtrName);
+      if (Ret != OFFLOAD_SUCCESS) {
+        REPORT("Failed to process %sprivate argument " DPxMOD "\n",
+               (IsFirstPrivate ? "first-" : ""), DPxPTR(HstPtrBegin));
+        return OFFLOAD_FAIL;
       }
     } else {
       if (ArgTypes[I] & OMP_TGT_MAPTYPE_PTR_AND_OBJ)
@@ -948,6 +1163,13 @@ int processDataBefore(int64_t DeviceId, void *HostPtr, int32_t ArgNum,
   assert(TgtArgs.size() == TgtOffsets.size() &&
          "Size mismatch in arguments and offsets");
 
+  // Pack and transfer first-private arguments
+  Ret = PrivateArgumentManager.packAndTransfer(TgtArgs);
+  if (Ret != OFFLOAD_SUCCESS) {
+    DP("Failed to pack and transfer first private arguments\n");
+    return OFFLOAD_FAIL;
+  }
+
   return OFFLOAD_SUCCESS;
 }
 
@@ -955,26 +1177,25 @@ int processDataBefore(int64_t DeviceId, void *HostPtr, int32_t ArgNum,
 /// host if needed and deallocating target memory of (first-)private variables.
 int processDataAfter(int64_t DeviceId, void *HostPtr, int32_t ArgNum,
                      void **ArgBases, void **Args, int64_t *ArgSizes,
-                     int64_t *ArgTypes, void **ArgMappers,
-                     std::vector<void *> &FPArrays,
+                     int64_t *ArgTypes, map_var_info_t *ArgNames,
+                     void **ArgMappers,
+                     PrivateArgumentManagerTy &PrivateArgumentManager,
                      __tgt_async_info *AsyncInfo) {
-  DeviceTy &Device = Devices[DeviceId];
+  DeviceTy &Device = PM->Devices[DeviceId];
 
   // Move data from device.
   int Ret = targetDataEnd(Device, ArgNum, ArgBases, Args, ArgSizes, ArgTypes,
-                          ArgMappers, AsyncInfo);
+                          ArgNames, ArgMappers, AsyncInfo);
   if (Ret != OFFLOAD_SUCCESS) {
-    DP("Call to targetDataEnd failed, abort targe.\n");
+    REPORT("Call to targetDataEnd failed, abort target.\n");
     return OFFLOAD_FAIL;
   }
 
-  // Deallocate (first-)private arrays
-  for (void *P : FPArrays) {
-    Ret = Device.deleteData(P);
-    if (Ret != OFFLOAD_SUCCESS) {
-      DP("Deallocation of (first-)private arrays failed.\n");
-      return OFFLOAD_FAIL;
-    }
+  // Free target memory for private arguments
+  Ret = PrivateArgumentManager.free();
+  if (Ret != OFFLOAD_SUCCESS) {
+    REPORT("Failed to deallocate target memory for private args\n");
+    return OFFLOAD_FAIL;
   }
 
   return OFFLOAD_SUCCESS;
@@ -988,22 +1209,23 @@ int processDataAfter(int64_t DeviceId, void *HostPtr, int32_t ArgNum,
 /// returns 0 if it was able to transfer the execution to a target and an
 /// integer different from zero otherwise.
 int target(int64_t DeviceId, void *HostPtr, int32_t ArgNum, void **ArgBases,
-           void **Args, int64_t *ArgSizes, int64_t *ArgTypes, void **ArgMappers,
-           int32_t TeamNum, int32_t ThreadLimit, int IsTeamConstruct) {
-  DeviceTy &Device = Devices[DeviceId];
+           void **Args, int64_t *ArgSizes, int64_t *ArgTypes,
+           map_var_info_t *ArgNames, void **ArgMappers, int32_t TeamNum,
+           int32_t ThreadLimit, int IsTeamConstruct) {
+  DeviceTy &Device = PM->Devices[DeviceId];
 
   TableMap *TM = getTableMap(HostPtr);
   // No map for this host pointer found!
   if (!TM) {
-    DP("Host ptr " DPxMOD " does not have a matching target pointer.\n",
-       DPxPTR(HostPtr));
+    REPORT("Host ptr " DPxMOD " does not have a matching target pointer.\n",
+           DPxPTR(HostPtr));
     return OFFLOAD_FAIL;
   }
 
   // get target table.
   __tgt_target_table *TargetTable = nullptr;
   {
-    std::lock_guard<std::mutex> TrlTblLock(*TrlTblMtx);
+    std::lock_guard<std::mutex> TrlTblLock(PM->TrlTblMtx);
     assert(TM->Table->TargetsTable.size() > (size_t)DeviceId &&
            "Not expecting a device ID outside the table's bounds!");
     TargetTable = TM->Table->TargetsTable[DeviceId];
@@ -1014,14 +1236,15 @@ int target(int64_t DeviceId, void *HostPtr, int32_t ArgNum, void **ArgBases,
 
   std::vector<void *> TgtArgs;
   std::vector<ptrdiff_t> TgtOffsets;
-  std::vector<void *> FPArrays;
+
+  PrivateArgumentManagerTy PrivateArgumentManager(Device, &AsyncInfo);
 
   // Process data, such as data mapping, before launching the kernel
   int Ret = processDataBefore(DeviceId, HostPtr, ArgNum, ArgBases, Args,
-                              ArgSizes, ArgTypes, ArgMappers, TgtArgs,
-                              TgtOffsets, FPArrays, &AsyncInfo);
+                              ArgSizes, ArgTypes, ArgNames, ArgMappers, TgtArgs,
+                              TgtOffsets, PrivateArgumentManager, &AsyncInfo);
   if (Ret != OFFLOAD_SUCCESS) {
-    DP("Failed to process data before launching the kernel.\n");
+    REPORT("Failed to process data before launching the kernel.\n");
     return OFFLOAD_FAIL;
   }
 
@@ -1042,16 +1265,17 @@ int target(int64_t DeviceId, void *HostPtr, int32_t ArgNum, void **ArgBases,
                            TgtArgs.size(), &AsyncInfo);
 
   if (Ret != OFFLOAD_SUCCESS) {
-    DP("Executing target region abort target.\n");
+    REPORT("Executing target region abort target.\n");
     return OFFLOAD_FAIL;
   }
 
   // Transfer data back and deallocate target memory for (first-)private
   // variables
   Ret = processDataAfter(DeviceId, HostPtr, ArgNum, ArgBases, Args, ArgSizes,
-                         ArgTypes, ArgMappers, FPArrays, &AsyncInfo);
+                         ArgTypes, ArgNames, ArgMappers, PrivateArgumentManager,
+                         &AsyncInfo);
   if (Ret != OFFLOAD_SUCCESS) {
-    DP("Failed to process data after launching the kernel.\n");
+    REPORT("Failed to process data after launching the kernel.\n");
     return OFFLOAD_FAIL;
   }
 

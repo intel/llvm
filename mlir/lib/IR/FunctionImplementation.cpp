@@ -13,11 +13,11 @@
 
 using namespace mlir;
 
-static ParseResult
-parseArgumentList(OpAsmParser &parser, bool allowVariadic,
-                  SmallVectorImpl<Type> &argTypes,
-                  SmallVectorImpl<OpAsmParser::OperandType> &argNames,
-                  SmallVectorImpl<NamedAttrList> &argAttrs, bool &isVariadic) {
+ParseResult mlir::impl::parseFunctionArgumentList(
+    OpAsmParser &parser, bool allowAttributes, bool allowVariadic,
+    SmallVectorImpl<OpAsmParser::OperandType> &argNames,
+    SmallVectorImpl<Type> &argTypes, SmallVectorImpl<NamedAttrList> &argAttrs,
+    bool &isVariadic) {
   if (parser.parseLParen())
     return failure();
 
@@ -56,6 +56,8 @@ parseArgumentList(OpAsmParser &parser, bool allowVariadic,
     NamedAttrList attrs;
     if (parser.parseOptionalAttrDict(attrs))
       return failure();
+    if (!allowAttributes && !attrs.empty())
+      return parser.emitError(loc, "expected arguments without attributes");
     argAttrs.push_back(attrs);
     return success();
   };
@@ -129,8 +131,9 @@ ParseResult mlir::impl::parseFunctionSignature(
     SmallVectorImpl<Type> &argTypes, SmallVectorImpl<NamedAttrList> &argAttrs,
     bool &isVariadic, SmallVectorImpl<Type> &resultTypes,
     SmallVectorImpl<NamedAttrList> &resultAttrs) {
-  if (parseArgumentList(parser, allowVariadic, argTypes, argNames, argAttrs,
-                        isVariadic))
+  bool allowArgAttrs = true;
+  if (parseFunctionArgumentList(parser, allowArgAttrs, allowVariadic, argNames,
+                                argTypes, argAttrs, isVariadic))
     return failure();
   if (succeeded(parser.parseOptionalArrow()))
     return parseFunctionResultList(parser, resultTypes, resultAttrs);
@@ -167,9 +170,12 @@ mlir::impl::parseFunctionLikeOp(OpAsmParser &parser, OperationState &result,
   SmallVector<Type, 4> resultTypes;
   auto &builder = parser.getBuilder();
 
+  // Parse visibility.
+  impl::parseOptionalVisibilityKeyword(parser, result.attributes);
+
   // Parse the name as a symbol.
   StringAttr nameAttr;
-  if (parser.parseSymbolName(nameAttr, ::mlir::SymbolTable::getSymbolAttrName(),
+  if (parser.parseSymbolName(nameAttr, SymbolTable::getSymbolAttrName(),
                              result.attributes))
     return failure();
 
@@ -198,10 +204,21 @@ mlir::impl::parseFunctionLikeOp(OpAsmParser &parser, OperationState &result,
   assert(resultAttrs.size() == resultTypes.size());
   addArgAndResultAttrs(builder, result, argAttrs, resultAttrs);
 
-  // Parse the optional function body.
+  // Parse the optional function body. The printer will not print the body if
+  // its empty, so disallow parsing of empty body in the parser.
   auto *body = result.addRegion();
-  return parser.parseOptionalRegion(
-      *body, entryArgs, entryArgs.empty() ? ArrayRef<Type>() : argTypes);
+  llvm::SMLoc loc = parser.getCurrentLocation();
+  OptionalParseResult parseResult = parser.parseOptionalRegion(
+      *body, entryArgs, entryArgs.empty() ? ArrayRef<Type>() : argTypes,
+      /*enableNameShadowing=*/false);
+  if (parseResult.hasValue()) {
+    if (failed(*parseResult))
+      return failure();
+    // Function body was parsed, make sure its not empty.
+    if (body->empty())
+      return parser.emitError(loc, "expected non-empty function body");
+  }
+  return success();
 }
 
 // Print a function result list.
@@ -303,14 +320,18 @@ void mlir::impl::printFunctionLikeOp(OpAsmPrinter &p, Operation *op,
                                      ArrayRef<Type> resultTypes) {
   // Print the operation and the function name.
   auto funcName =
-      op->getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName())
+      op->getAttrOfType<StringAttr>(SymbolTable::getSymbolAttrName())
           .getValue();
   p << op->getName() << ' ';
+
+  StringRef visibilityAttrName = SymbolTable::getVisibilityAttrName();
+  if (auto visibility = op->getAttrOfType<StringAttr>(visibilityAttrName))
+    p << visibility.getValue() << ' ';
   p.printSymbolName(funcName);
 
   printFunctionSignature(p, op, argTypes, isVariadic, resultTypes);
-  printFunctionAttributes(p, op, argTypes.size(), resultTypes.size());
-
+  printFunctionAttributes(p, op, argTypes.size(), resultTypes.size(),
+                          {visibilityAttrName});
   // Print the body if this is not an external function.
   Region &body = op->getRegion(0);
   if (!body.empty())

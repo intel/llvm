@@ -1901,7 +1901,7 @@ private:
   //@}
 
   /// Initialize this ScopBuilder.
-  void init(AliasAnalysis &AA, AssumptionCache &AC, DominatorTree &DT,
+  void init(AAResults &AA, AssumptionCache &AC, DominatorTree &DT,
             LoopInfo &LI);
 
   /// Add parameter constraints to @p C that imply a non-empty domain.
@@ -2319,7 +2319,7 @@ public:
   ///                      ScopBuilder::buildAccessRelations. Therefore, if this
   ///                      method is called before buildAccessRelations, false
   ///                      must be passed.
-  void removeStmts(std::function<bool(ScopStmt &)> ShouldDelete,
+  void removeStmts(function_ref<bool(ScopStmt &)> ShouldDelete,
                    bool AfterHoisting = true);
 
   /// Get an isl string representing the context.
@@ -2737,15 +2737,15 @@ private:
   ScopDetection &SD;
   ScalarEvolution &SE;
   LoopInfo &LI;
-  AliasAnalysis &AA;
+  AAResults &AA;
   DominatorTree &DT;
   AssumptionCache &AC;
   OptimizationRemarkEmitter &ORE;
 
 public:
   ScopInfo(const DataLayout &DL, ScopDetection &SD, ScalarEvolution &SE,
-           LoopInfo &LI, AliasAnalysis &AA, DominatorTree &DT,
-           AssumptionCache &AC, OptimizationRemarkEmitter &ORE);
+           LoopInfo &LI, AAResults &AA, DominatorTree &DT, AssumptionCache &AC,
+           OptimizationRemarkEmitter &ORE);
 
   /// Get the Scop object for the given Region.
   ///

@@ -71,8 +71,8 @@ TEST(VectorTypesTest, FixedLength) {
   EXPECT_EQ(V4Int64Ty->getNumElements(), 4U);
   EXPECT_EQ(V4Int64Ty->getElementType()->getScalarSizeInBits(), 64U);
 
-  auto *V2Int64Ty =
-      dyn_cast<FixedVectorType>(VectorType::get(Int64Ty, EltCnt / 2));
+  auto *V2Int64Ty = dyn_cast<FixedVectorType>(
+      VectorType::get(Int64Ty, EltCnt.divideCoefficientBy(2)));
   ASSERT_NE(nullptr, V2Int64Ty);
   EXPECT_EQ(V2Int64Ty->getNumElements(), 2U);
   EXPECT_EQ(V2Int64Ty->getElementType()->getScalarSizeInBits(), 64U);
@@ -119,8 +119,8 @@ TEST(VectorTypesTest, FixedLength) {
   EXPECT_EQ(ConvTy->getElementType()->getScalarSizeInBits(), 64U);
 
   EltCnt = V8Int64Ty->getElementCount();
-  EXPECT_EQ(EltCnt.Min, 8U);
-  ASSERT_FALSE(EltCnt.Scalable);
+  EXPECT_EQ(EltCnt.getKnownMinValue(), 8U);
+  ASSERT_FALSE(EltCnt.isScalable());
 }
 
 TEST(VectorTypesTest, Scalable) {
@@ -166,8 +166,8 @@ TEST(VectorTypesTest, Scalable) {
   EXPECT_EQ(ScV4Int64Ty->getMinNumElements(), 4U);
   EXPECT_EQ(ScV4Int64Ty->getElementType()->getScalarSizeInBits(), 64U);
 
-  auto *ScV2Int64Ty =
-      dyn_cast<ScalableVectorType>(VectorType::get(Int64Ty, EltCnt / 2));
+  auto *ScV2Int64Ty = dyn_cast<ScalableVectorType>(
+      VectorType::get(Int64Ty, EltCnt.divideCoefficientBy(2)));
   ASSERT_NE(nullptr, ScV2Int64Ty);
   EXPECT_EQ(ScV2Int64Ty->getMinNumElements(), 2U);
   EXPECT_EQ(ScV2Int64Ty->getElementType()->getScalarSizeInBits(), 64U);
@@ -215,8 +215,8 @@ TEST(VectorTypesTest, Scalable) {
   EXPECT_EQ(ConvTy->getElementType()->getScalarSizeInBits(), 64U);
 
   EltCnt = ScV8Int64Ty->getElementCount();
-  EXPECT_EQ(EltCnt.Min, 8U);
-  ASSERT_TRUE(EltCnt.Scalable);
+  EXPECT_EQ(EltCnt.getKnownMinValue(), 8U);
+  ASSERT_TRUE(EltCnt.isScalable());
 }
 
 TEST(VectorTypesTest, BaseVectorType) {
@@ -250,7 +250,7 @@ TEST(VectorTypesTest, BaseVectorType) {
     // test I == J
     VectorType *VI = VTys[I];
     ElementCount ECI = VI->getElementCount();
-    EXPECT_EQ(isa<ScalableVectorType>(VI), ECI.Scalable);
+    EXPECT_EQ(isa<ScalableVectorType>(VI), ECI.isScalable());
 
     for (size_t J = I + 1, JEnd = VTys.size(); J < JEnd; ++J) {
       // test I < J
@@ -286,10 +286,10 @@ TEST(VectorTypesTest, FixedLenComparisons) {
   EXPECT_EQ(V2I32Len.getKnownMinSize(), 64U);
   EXPECT_FALSE(V2I32Len.isScalable());
 
-  EXPECT_LT(V2Int32Ty->getPrimitiveSizeInBits(),
-            V4Int32Ty->getPrimitiveSizeInBits());
-  EXPECT_GT(V2Int64Ty->getPrimitiveSizeInBits(),
-            V2Int32Ty->getPrimitiveSizeInBits());
+  EXPECT_LT(V2Int32Ty->getPrimitiveSizeInBits().getFixedSize(),
+            V4Int32Ty->getPrimitiveSizeInBits().getFixedSize());
+  EXPECT_GT(V2Int64Ty->getPrimitiveSizeInBits().getFixedSize(),
+            V2Int32Ty->getPrimitiveSizeInBits().getFixedSize());
   EXPECT_EQ(V4Int32Ty->getPrimitiveSizeInBits(),
             V2Int64Ty->getPrimitiveSizeInBits());
   EXPECT_NE(V2Int32Ty->getPrimitiveSizeInBits(),
@@ -332,14 +332,14 @@ TEST(VectorTypesTest, ScalableComparisons) {
   EXPECT_EQ(ScV2I32Len.getKnownMinSize(), 64U);
   EXPECT_TRUE(ScV2I32Len.isScalable());
 
-  EXPECT_LT(ScV2Int32Ty->getPrimitiveSizeInBits(),
-            ScV4Int32Ty->getPrimitiveSizeInBits());
-  EXPECT_GT(ScV2Int64Ty->getPrimitiveSizeInBits(),
-            ScV2Int32Ty->getPrimitiveSizeInBits());
-  EXPECT_EQ(ScV4Int32Ty->getPrimitiveSizeInBits(),
-            ScV2Int64Ty->getPrimitiveSizeInBits());
-  EXPECT_NE(ScV2Int32Ty->getPrimitiveSizeInBits(),
-            ScV2Int64Ty->getPrimitiveSizeInBits());
+  EXPECT_LT(ScV2Int32Ty->getPrimitiveSizeInBits().getKnownMinSize(),
+            ScV4Int32Ty->getPrimitiveSizeInBits().getKnownMinSize());
+  EXPECT_GT(ScV2Int64Ty->getPrimitiveSizeInBits().getKnownMinSize(),
+            ScV2Int32Ty->getPrimitiveSizeInBits().getKnownMinSize());
+  EXPECT_EQ(ScV4Int32Ty->getPrimitiveSizeInBits().getKnownMinSize(),
+            ScV2Int64Ty->getPrimitiveSizeInBits().getKnownMinSize());
+  EXPECT_NE(ScV2Int32Ty->getPrimitiveSizeInBits().getKnownMinSize(),
+            ScV2Int64Ty->getPrimitiveSizeInBits().getKnownMinSize());
 
   // Check the DataLayout interfaces.
   EXPECT_EQ(DL.getTypeSizeInBits(ScV2Int64Ty),

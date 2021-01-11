@@ -33,14 +33,14 @@
 ; ASM:         popl    %ebx
 ; ASM: [[EPILOGUE]]:                                 # %return
 ; ASM:         retl    $8
-; ASM: Ltmp10:
+; ASM: Ltmp11:
 ; ASM:         .cv_fpo_endproc
 
 ; Note how RvaStart advances 7 bytes to skip the shrink-wrapped portion.
 ; OBJ: SubSectionType: FrameData (0xF5)
 ; OBJ:    FrameData {
 ; OBJ:      RvaStart: 0x0
-; OBJ:      CodeSize: 0x36
+; OBJ:      CodeSize: 0x34
 ; OBJ:      PrologSize: 0x9
 ; OBJ:      FrameFunc [
 ; OBJ-NEXT:   $T0 .raSearch =
@@ -50,7 +50,7 @@
 ; OBJ:    }
 ; OBJ:    FrameData {
 ; OBJ:      RvaStart: 0x7
-; OBJ:      CodeSize: 0x2F
+; OBJ:      CodeSize: 0x2D
 ; OBJ:      PrologSize: 0x2
 ; OBJ:      FrameFunc [
 ; OBJ-NEXT:   $T0 .raSearch =
@@ -61,7 +61,7 @@
 ; OBJ:    }
 ; OBJ:    FrameData {
 ; OBJ:      RvaStart: 0x8
-; OBJ:      CodeSize: 0x2E
+; OBJ:      CodeSize: 0x2C
 ; OBJ:      PrologSize: 0x1
 ; OBJ:      FrameFunc [
 ; OBJ-NEXT:   $T0 .raSearch =
@@ -73,7 +73,7 @@
 ; OBJ:    }
 ; OBJ:    FrameData {
 ; OBJ:      RvaStart: 0x9
-; OBJ:      CodeSize: 0x2D
+; OBJ:      CodeSize: 0x2B
 ; OBJ:      PrologSize: 0x0
 ; OBJ:      FrameFunc [
 ; OBJ-NEXT:   $T0 .raSearch =

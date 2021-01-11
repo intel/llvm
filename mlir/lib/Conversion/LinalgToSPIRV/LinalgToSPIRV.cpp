@@ -9,9 +9,9 @@
 #include "mlir/Conversion/LinalgToSPIRV/LinalgToSPIRV.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
-#include "mlir/Dialect/SPIRV/SPIRVDialect.h"
-#include "mlir/Dialect/SPIRV/SPIRVLowering.h"
-#include "mlir/Dialect/SPIRV/SPIRVOps.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
+#include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
 #include "mlir/IR/AffineExpr.h"
@@ -71,8 +71,7 @@ SingleWorkgroupReduction::matchAsPerformingReduction(
     return llvm::None;
 
   // Make sure this is reduction with one input and one output.
-  if (genericOp.args_in().getZExtValue() != 1 ||
-      genericOp.args_out().getZExtValue() != 1)
+  if (genericOp.getNumInputs() != 1 || genericOp.getNumOutputs() != 1)
     return llvm::None;
 
   auto originalInputType = op->getOperand(0).getType().cast<MemRefType>();

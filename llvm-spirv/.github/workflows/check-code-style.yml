@@ -1,0 +1,146 @@
+# This workflow is intended to check if PR conforms with coding standards used
+# in the project.
+#
+# Documentation for GitHub Actions:
+# [workflow-syntax]: https://docs.github.com/en/free-pro-team@latest/actions/reference/workflow-syntax-for-github-actions
+# [context-and-expression-syntax]: https://docs.github.com/en/free-pro-team@latest/actions/reference/context-and-expression-syntax-for-github-actions
+# [workflow-commands]: https://docs.github.com/en/free-pro-team@latest/actions/reference/workflow-commands-for-github-actions
+
+name: Check code style
+
+on:
+  pull_request:
+    branches:
+      - master
+      - llvm_release_*
+    paths-ignore: # no need to check formatting for:
+      - 'docs/**' # documentation
+      - 'test/**' # tests
+      - '**.md'   # README
+      - '**.txt'  # CMakeLists.txt
+      - '**/check-**-build.xml' # Other workflows
+
+env:
+  # We need compile command database in order to perform clang-tidy check. So,
+  # in order to perform configure step we need to setup llvm-dev package. This
+  # env variable used to specify desired version of it
+  LLVM_VERSION: 12
+
+jobs:
+  clang-format-and-tidy:
+    name: clang-format & clang-tidy
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout sources
+      uses: actions/checkout@v2
+      with:
+        # In order to gather diff from PR we need to fetch not only the latest
+        # commit. Depth of 2 is enough, because GitHub Actions supply us with
+        # merge commit as {{ github.sha }}, i.e. the second commit is a merge
+        # base between target branch and PR
+        fetch-depth: 2
+
+    - name: Gather list of changes
+      id: gather-list-of-changes
+      run: |
+        git diff -U0 --no-color ${{ github.sha }}^ > diff-to-inspect.txt
+        if [ -s diff-to-inspect.txt ]; then
+          # Here we set an output of our step, which is used later to either
+          # perform or skip further steps, i.e. there is no sense to install
+          # clang-format if PR hasn't changed .cpp files at all
+          # See [workflow-commands] for reference
+          echo '::set-output name=HAS_CHANGES::true'
+        fi
+
+    - name: Install dependencies
+      if: ${{ steps.gather-list-of-changes.outputs.HAS_CHANGES }}
+      run: |
+        # clang-tidy requires compile command database in order to be properly
+        # launched, so, we need to setup llvm package to perform cmake
+        # configuration step to generate that database
+        curl -L "https://apt.llvm.org/llvm-snapshot.gpg.key" | sudo apt-key add -
+        echo "deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic main" | sudo tee -a /etc/apt/sources.list
+        sudo apt-get update
+        sudo apt-get install -yqq clang-format-9 clang-tidy-9 llvm-${{ env.LLVM_VERSION }}-dev libomp-${{ env.LLVM_VERSION }}-dev
+
+    - name: Generate compile command database
+      if: ${{ steps.gather-list-of-changes.outputs.HAS_CHANGES }}
+      run: |
+        mkdir build && cd build
+        cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_BUILD_TYPE=Release -G "Unix Makefiles" ${{ github.workspace }}
+
+    - name: Run clang-format
+      if: ${{ steps.gather-list-of-changes.outputs.HAS_CHANGES }}
+      id: run-clang-format
+      run: |
+        cat diff-to-inspect.txt | /usr/share/clang/clang-format-9/clang-format-diff.py -p1 > clang-format.patch
+        if [ -s clang-format.patch ]; then
+          echo "clang-format found incorrectly formatted code:"
+          cat clang-format.patch;
+          exit 1;
+        else
+          rm clang-format.patch # to avoid uploading empty file
+        fi
+
+    - name: Run clang-tidy
+      # By some reason, GitHub Actions automatically include "success()"
+      # expression into an "if" statement if it doesn't contain any of job
+      # status check functions. This is why this and following steps has
+      # "always()" and "failure()" in "if" conditions.
+      # See "Job status check functions" in [context-and-expression-syntax]
+      if: ${{ always() && steps.gather-list-of-changes.outputs.HAS_CHANGES }}
+      id: run-clang-tidy
+      run: |
+        cat diff-to-inspect.txt | /usr/lib/llvm-9/share/clang/clang-tidy-diff.py \
+            -p1 -clang-tidy-binary clang-tidy-9 -quiet \
+            -path ${{ github.workspace}}/build > clang-tidy.log 2>/dev/null
+        # By some reason, clang-tidy log contains tons of extra empty lines,
+        # that confuse the check below
+        sed -i '/^$/d' clang-tidy.log
+        if [ -s clang-tidy.log ]; then
+          if ! grep -q "No relevant changes found." clang-tidy.log; then
+            # Emit annotations
+            while read -r line; do
+              type="error"
+              if [[ $line == *"warning:"* ]]; then
+                type="warning"
+              elif [[ $line == *"error:"* ]]; then
+                type="error"
+              else
+                continue
+              fi
+
+              absolute_path=$(echo $line | grep -Po "^[\w\d-./]+(?=:)")
+              relative_path=${absolute_path##"${{ github.workspace }}"}
+
+              line_number=$(echo $line | grep -Po "(?<=:)\d+(?=:\d)")
+
+              message=$(echo $line | grep -Po "(?<=${type}: ).*$")
+
+              # see [workflow-commands] for documentation
+              echo "::${type} file=${relative_path},line=${line_number}::${message}"
+            done < clang-tidy.log
+
+            echo "clang-tidy found incorrectly written code:"
+            cat clang-tidy.log
+            exit 1
+          else
+            rm clang-tidy.log # to avoid uploading empty file
+          fi
+        fi
+
+    - name: Upload patch with clang-format fixes
+      uses: actions/upload-artifact@v2
+      if: ${{ failure() && steps.run-clang-format.outcome == 'failure' }}
+      with:
+        name: clang-format.patch
+        path: clang-format.patch
+        if-no-files-found: ignore
+
+    - name: Upload clang-tidy log
+      uses: actions/upload-artifact@v2
+      if: ${{ failure() && steps.run-clang-tidy.outcome == 'failure' }}
+      with:
+        name: clang-tidy.log
+        path: clang-tidy.log
+        if-no-files-found: ignore

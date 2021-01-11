@@ -17,12 +17,12 @@
 # RUN: echo "_main" >> %t/order-file-2
 # RUN: echo "_qux" >> %t/order-file-2
 
-# RUN: lld -flavor darwinnew -o %t/test-1 %t/test.o -order_file %t/order-file-1
+# RUN: %lld -o %t/test-1 %t/test.o -order_file %t/order-file-1
 # RUN: llvm-objdump -d --no-show-raw-insn %t/test-1 | FileCheck %s
-# RUN: lld -flavor darwinnew -o %t/test-2 %t/test.o -order_file %t/order-file-2
+# RUN: %lld -o %t/test-2 %t/test.o -order_file %t/order-file-2
 # RUN: llvm-objdump -d --no-show-raw-insn %t/test-2 | FileCheck %s
 # CHECK-LABEL: Disassembly of section __TEXT,__text:
-# CHECK:       <_bar>:
+# CHECK:       <_ba{{r|z}}>:
 # CHECK-NEXT:    callq {{.*}} <_foo>
 # CHECK-EMPTY:
 # CHECK-NEXT:  <_qux>:
@@ -30,7 +30,7 @@
 # CHECK:       <_foo>:
 # CHECK-NEXT:    retq
 # CHECK:       <_main>:
-# CHECK-NEXT:    callq {{.*}} <_bar>
+# CHECK-NEXT:    callq {{.*}} <_ba{{r|z}}>
 # CHECK-NEXT:    movq $0, %rax
 # CHECK-NEXT:    retq
 

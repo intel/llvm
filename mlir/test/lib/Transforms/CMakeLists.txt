@@ -1,29 +1,36 @@
 # Exclude tests from libMLIR.so
 add_mlir_library(MLIRTestTransforms
-  TestAllReduceLowering.cpp
-  TestBufferPlacement.cpp
+  TestAffineLoopParametricTiling.cpp
   TestExpandTanh.cpp
   TestCallGraph.cpp
+  TestDecomposeCallGraphTypes.cpp
   TestConstantFold.cpp
+  TestConvVectorization.cpp
   TestConvertCallOp.cpp
   TestConvertGPUKernelToCubin.cpp
   TestConvertGPUKernelToHsaco.cpp
   TestDominance.cpp
+  TestDynamicPipeline.cpp
   TestLoopFusion.cpp
   TestGpuMemoryPromotion.cpp
   TestGpuParallelLoopMapping.cpp
+  TestGpuRewrite.cpp
   TestInlining.cpp
+  TestLinalgCodegenStrategy.cpp
+  TestLinalgFusionTransforms.cpp
   TestLinalgHoisting.cpp
   TestLinalgTransforms.cpp
   TestLiveness.cpp
   TestLoopMapping.cpp
   TestLoopParametricTiling.cpp
   TestLoopUnrolling.cpp
+  TestNumberOfExecutions.cpp
   TestOpaqueLoc.cpp
   TestMemRefBoundCheck.cpp
   TestMemRefDependenceCheck.cpp
   TestMemRefStrideCalculation.cpp
   TestSCFUtils.cpp
+  TestSparsification.cpp
   TestVectorTransforms.cpp
 
   EXCLUDE_FROM_LIBMLIR
@@ -35,12 +42,12 @@ add_mlir_library(MLIRTestTransforms
   MLIRStandardOpsIncGen
 
   LINK_LIBS PUBLIC
-  MLIRAffineOps
+  MLIRAffine
   MLIRAnalysis
   MLIREDSC
   MLIRGPU
   MLIRGPUToGPURuntimeTransforms
-  MLIRLinalgOps
+  MLIRLinalg
   MLIRLinalgTransforms
   MLIRNVVMIR
   MLIRSCF

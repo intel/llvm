@@ -4,7 +4,7 @@
 ; RUN: llc < %s -mtriple=x86_64-unknown -mattr=+avx                | FileCheck %s --check-prefixes=AVX,AVX-SLOW,AVX1-SLOW
 ; RUN: llc < %s -mtriple=x86_64-unknown -mattr=+avx,fast-hops      | FileCheck %s --check-prefixes=AVX,AVX-FAST,AVX1-FAST
 ; RUN: llc < %s -mtriple=x86_64-unknown -mattr=+avx512f            | FileCheck %s --check-prefixes=AVX,AVX-SLOW,AVX512,AVX512-SLOW
-; RUN: llc < %s -mtriple=x86_64-unknown -mattr=+avx512f,fast-hops  | FileCheck %s --check-prefixes=AVX,AVX-FAST,AVX512,AVX512-FAST
+; RUN: llc < %s -mtriple=x86_64-unknown -mattr=+avx512f,fast-hops  | FileCheck %s --check-prefixes=AVX,AVX-FAST,AVX512
 
 ; Verify that we correctly fold horizontal binop even in the presence of UNDEFs.
 
@@ -1051,7 +1051,7 @@ define <4 x float> @PR34724_add_v4f32_0u23(<4 x float> %0, <4 x float> %1) {
 ; SSE-SLOW-NEXT:    addps %xmm1, %xmm2
 ; SSE-SLOW-NEXT:    movsldup {{.*#+}} xmm3 = xmm1[0,0,2,2]
 ; SSE-SLOW-NEXT:    addps %xmm1, %xmm3
-; SSE-SLOW-NEXT:    shufps {{.*#+}} xmm3 = xmm3[3,0],xmm2[0,0]
+; SSE-SLOW-NEXT:    shufps {{.*#+}} xmm3 = xmm3[3,1],xmm2[0,3]
 ; SSE-SLOW-NEXT:    shufps {{.*#+}} xmm0 = xmm0[0,1],xmm3[2,0]
 ; SSE-SLOW-NEXT:    retq
 ;

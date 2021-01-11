@@ -49,7 +49,8 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
     const bool UseCUDAPrimaryContext =
         MPropList.has_property<property::context::cuda::use_primary_context>();
     const pi_context_properties Props[] = {
-        static_cast<pi_context_properties>(PI_CONTEXT_PROPERTIES_CUDA_PRIMARY),
+        static_cast<pi_context_properties>(
+            __SYCL_PI_CONTEXT_PROPERTIES_CUDA_PRIMARY),
         static_cast<pi_context_properties>(UseCUDAPrimaryContext), 0};
 
     getPlugin().call<PiApiKind::piContextCreate>(

@@ -268,6 +268,7 @@ bool MachinePipeliner::scheduleLoop(MachineLoop &L) {
 void MachinePipeliner::setPragmaPipelineOptions(MachineLoop &L) {
   // Reset the pragma for the next loop in iteration.
   disabledByPragma = false;
+  II_setByPragma = 0;
 
   MachineBasicBlock *LBLK = L.getTopBlock();
 
@@ -439,6 +440,16 @@ bool MachinePipeliner::swingModuloScheduler(MachineLoop &L) {
 
   SMS.finishBlock();
   return SMS.hasNewSchedule();
+}
+
+void MachinePipeliner::getAnalysisUsage(AnalysisUsage &AU) const {
+  AU.addRequired<AAResultsWrapperPass>();
+  AU.addPreserved<AAResultsWrapperPass>();
+  AU.addRequired<MachineLoopInfo>();
+  AU.addRequired<MachineDominatorTree>();
+  AU.addRequired<LiveIntervals>();
+  AU.addRequired<MachineOptimizationRemarkEmitterPass>();
+  MachineFunctionPass::getAnalysisUsage(AU);
 }
 
 void SwingSchedulerDAG::setMII(unsigned ResMII, unsigned RecMII) {
@@ -802,10 +813,8 @@ void SwingSchedulerDAG::addLoopCarriedDependences(AliasAnalysis *AA) {
             continue;
           }
           AliasResult AAResult = AA->alias(
-              MemoryLocation(MMO1->getValue(), LocationSize::unknown(),
-                             MMO1->getAAInfo()),
-              MemoryLocation(MMO2->getValue(), LocationSize::unknown(),
-                             MMO2->getAAInfo()));
+              MemoryLocation::getAfter(MMO1->getValue(), MMO1->getAAInfo()),
+              MemoryLocation::getAfter(MMO2->getValue(), MMO2->getAAInfo()));
 
           if (AAResult != NoAlias) {
             SDep Dep(Load, SDep::Barrier);
@@ -1631,7 +1640,8 @@ static void computeLiveOuts(MachineFunction &MF, RegPressureTracker &RPTracker,
         if (Register::isVirtualRegister(Reg))
           Uses.insert(Reg);
         else if (MRI.isAllocatable(Reg))
-          for (MCRegUnitIterator Units(Reg, TRI); Units.isValid(); ++Units)
+          for (MCRegUnitIterator Units(Reg.asMCReg(), TRI); Units.isValid();
+               ++Units)
             Uses.insert(*Units);
       }
   }
@@ -1644,7 +1654,8 @@ static void computeLiveOuts(MachineFunction &MF, RegPressureTracker &RPTracker,
             LiveOutRegs.push_back(RegisterMaskPair(Reg,
                                                    LaneBitmask::getNone()));
         } else if (MRI.isAllocatable(Reg)) {
-          for (MCRegUnitIterator Units(Reg, TRI); Units.isValid(); ++Units)
+          for (MCRegUnitIterator Units(Reg.asMCReg(), TRI); Units.isValid();
+               ++Units)
             if (!Uses.count(*Units))
               LiveOutRegs.push_back(RegisterMaskPair(*Units,
                                                      LaneBitmask::getNone()));
@@ -2269,7 +2280,7 @@ void SwingSchedulerDAG::applyInstrChange(MachineInstr *MI,
 /// Return the instruction in the loop that defines the register.
 /// If the definition is a Phi, then follow the Phi operand to
 /// the instruction in the loop.
-MachineInstr *SwingSchedulerDAG::findDefInLoop(unsigned Reg) {
+MachineInstr *SwingSchedulerDAG::findDefInLoop(Register Reg) {
   SmallPtrSet<MachineInstr *, 8> Visited;
   MachineInstr *Def = MRI.getVRegDef(Reg);
   while (Def->isPHI()) {

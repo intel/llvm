@@ -154,24 +154,31 @@ bool InstructionSelector::executeMatchTable(
       break;
     }
 
-    case GIM_CheckOpcode: {
+    case GIM_CheckOpcode:
+    case GIM_CheckOpcodeIsEither: {
       int64_t InsnID = MatchTable[CurrentIdx++];
-      int64_t Expected = MatchTable[CurrentIdx++];
+      int64_t Expected0 = MatchTable[CurrentIdx++];
+      int64_t Expected1 = -1;
+      if (MatcherOpcode == GIM_CheckOpcodeIsEither)
+        Expected1 = MatchTable[CurrentIdx++];
 
       assert(State.MIs[InsnID] != nullptr && "Used insn before defined");
       unsigned Opcode = State.MIs[InsnID]->getOpcode();
 
       DEBUG_WITH_TYPE(TgtInstructionSelector::getName(),
-                      dbgs() << CurrentIdx << ": GIM_CheckOpcode(MIs[" << InsnID
-                             << "], ExpectedOpcode=" << Expected
-                             << ") // Got=" << Opcode << "\n");
-      if (Opcode != Expected) {
+        dbgs() << CurrentIdx << ": GIM_CheckOpcode(MIs[" << InsnID
+        << "], ExpectedOpcode=" << Expected0;
+        if (MatcherOpcode == GIM_CheckOpcodeIsEither)
+          dbgs() << " || " << Expected1;
+        dbgs() << ") // Got=" << Opcode << "\n";
+      );
+
+      if (Opcode != Expected0 && Opcode != Expected1) {
         if (handleReject() == RejectAndGiveUp)
           return false;
       }
       break;
     }
-
     case GIM_SwitchOpcode: {
       int64_t InsnID = MatchTable[CurrentIdx++];
       int64_t LowerBound = MatchTable[CurrentIdx++];
@@ -360,7 +367,8 @@ bool InstructionSelector::executeMatchTable(
       assert(State.MIs[InsnID] != nullptr && "Used insn before defined");
       assert(Predicate > GIPFP_MI_Invalid && "Expected a valid predicate");
 
-      if (!testMIPredicate_MI(Predicate, *State.MIs[InsnID]))
+      if (!testMIPredicate_MI(Predicate, *State.MIs[InsnID],
+                              State.RecordedOperands))
         if (handleReject() == RejectAndGiveUp)
           return false;
       break;
@@ -608,6 +616,20 @@ bool InstructionSelector::executeMatchTable(
       } else if (handleReject() == RejectAndGiveUp)
         return false;
 
+      break;
+    }
+    case GIM_RecordNamedOperand: {
+      int64_t InsnID = MatchTable[CurrentIdx++];
+      int64_t OpIdx = MatchTable[CurrentIdx++];
+      uint64_t StoreIdx = MatchTable[CurrentIdx++];
+
+      DEBUG_WITH_TYPE(TgtInstructionSelector::getName(),
+                      dbgs() << CurrentIdx << ": GIM_RecordNamedOperand(MIs["
+                             << InsnID << "]->getOperand(" << OpIdx
+                             << "), StoreIdx=" << StoreIdx << ")\n");
+      assert(State.MIs[InsnID] != nullptr && "Used insn before defined");
+      assert(StoreIdx < State.RecordedOperands.size() && "Index out of range");
+      State.RecordedOperands[StoreIdx] = &State.MIs[InsnID]->getOperand(OpIdx);
       break;
     }
     case GIM_CheckRegBankForClass: {

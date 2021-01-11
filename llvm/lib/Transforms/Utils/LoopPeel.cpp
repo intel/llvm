@@ -227,11 +227,9 @@ static unsigned countToEliminateCompares(Loop &L, unsigned MaxPeelCount,
     // consider AddRecs of the loop we are trying to peel.
     if (!LeftAR->isAffine() || LeftAR->getLoop() != &L)
       continue;
-    bool Increasing;
     if (!(ICmpInst::isEquality(Pred) && LeftAR->hasNoSelfWrap()) &&
-        !SE.isMonotonicPredicate(LeftAR, Pred, Increasing))
+        !SE.getMonotonicPredicateType(LeftAR, Pred))
       continue;
-    (void)Increasing;
 
     // Check if extending the current DesiredPeelCount lets us evaluate Pred
     // or !Pred in the loop body statically.
@@ -304,7 +302,7 @@ void llvm::computePeelCount(Loop *L, unsigned LoopSize,
   // Only try to peel innermost loops by default.
   // The constraint can be relaxed by the target in TTI.getUnrollingPreferences
   // or by the flag -unroll-allow-loop-nests-peeling.
-  if (!PP.AllowLoopNestsPeeling && !L->empty())
+  if (!PP.AllowLoopNestsPeeling && !L->isInnermost())
     return;
 
   // If the user provided a peel count, use that.

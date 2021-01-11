@@ -71,23 +71,6 @@ define fp128 @test_quad_dump() {
   ret fp128 0xL00000000000000004000000000000000
 }
 
-; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: %2:_(p0) = G_EXTRACT_VECTOR_ELT %{{[0-9]+}}:_(<2 x p0>), %{{[0-9]+}}:_(s64) (in function: vector_of_pointers_extractelement)
-; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for vector_of_pointers_extractelement
-; FALLBACK-WITH-REPORT-OUT-LABEL: vector_of_pointers_extractelement:
-@var = global <2 x i16*> zeroinitializer
-define void @vector_of_pointers_extractelement() {
-  br label %end
-
-block:
-  %dummy = extractelement <2 x i16*> %vec, i32 0
-  store i16* %dummy, i16** undef
-  ret void
-
-end:
-  %vec = load <2 x i16*>, <2 x i16*>* undef
-  br label %block
-}
-
 ; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: %2:_(<2 x p0>) = G_INSERT_VECTOR_ELT %0:_, %{{[0-9]+}}:_(p0), %{{[0-9]+}}:_(s32) (in function: vector_of_pointers_insertelement)
 ; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for vector_of_pointers_insertelement
 ; FALLBACK-WITH-REPORT-OUT-LABEL: vector_of_pointers_insertelement:
@@ -107,8 +90,8 @@ end:
 ; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: %{{[0-9]+}}:_(s96) = G_ADD %{{[0-9]+}}:_, %{{[0-9]+}}:_ (in function: nonpow2_add_narrowing)
 ; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for nonpow2_add_narrowing
 ; FALLBACK-WITH-REPORT-OUT-LABEL: nonpow2_add_narrowing:
-define void @nonpow2_add_narrowing() {
-  %a = add i128 undef, undef
+define void @nonpow2_add_narrowing(i128 %x, i128 %y) {
+  %a = add i128 %x, %y
   %b = trunc i128 %a to i96
   %dummy = add i96 %b, %b
   store i96 %dummy, i96* undef
@@ -159,14 +142,6 @@ define i32 @fn1(i32 %p1, i128 %p2, i32 %p3, i32 %p4, i32 %p5, i128 %p6, i32 %p7)
 entry:
   call void @use_s128(i128 %p2, i128 %p6)
   ret i32 0
-}
-
-; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: cannot select: %2:fpr(<4 x s16>) = G_ZEXT %0:fpr(<4 x s8>) (in function: zext_v4s8)
-; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for zext_v4s8
-; FALLBACK-WITH-REPORT-OUT-LABEL: zext_v4s8
-define <4 x i16> @zext_v4s8(<4 x i8> %in) {
-  %ext = zext <4 x i8> %in to <4 x i16>
-  ret <4 x i16> %ext
 }
 
 ; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: cannot select: RET_ReallyLR implicit $x0 (in function: strict_align_feature)

@@ -734,6 +734,9 @@ void USRGenerator::VisitType(QualType T) {
 #define SVE_TYPE(Name, Id, SingletonId) \
         case BuiltinType::Id:
 #include "clang/Basic/AArch64SVEACLETypes.def"
+#define PPC_VECTOR_TYPE(Name, Id, Size) \
+        case BuiltinType::Id:
+#include "clang/Basic/PPCTypes.def"
         case BuiltinType::ShortAccum:
         case BuiltinType::Accum:
         case BuiltinType::LongAccum:
@@ -984,6 +987,10 @@ void USRGenerator::VisitTemplateArgument(const TemplateArgument &Arg) {
     Out << 'V';
     VisitType(Arg.getIntegralType());
     Out << Arg.getAsIntegral();
+    break;
+
+  case TemplateArgument::UncommonValue:
+    // FIXME: Visit value.
     break;
   }
 }

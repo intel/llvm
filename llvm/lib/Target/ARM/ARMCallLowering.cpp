@@ -335,8 +335,8 @@ struct ARMIncomingValueHandler : public CallLowering::IncomingValueHandler {
     assert(VA.isRegLoc() && "Value shouldn't be assigned to reg");
     assert(VA.getLocReg() == PhysReg && "Assigning to the wrong reg?");
 
-    auto ValSize = VA.getValVT().getSizeInBits();
-    auto LocSize = VA.getLocVT().getSizeInBits();
+    uint64_t ValSize = VA.getValVT().getFixedSizeInBits();
+    uint64_t LocSize = VA.getLocVT().getFixedSizeInBits();
 
     assert(ValSize <= 64 && "Unsupported value size");
     assert(LocSize <= 64 && "Unsupported location size");
@@ -480,15 +480,16 @@ struct CallReturnHandler : public ARMIncomingValueHandler {
 };
 
 // FIXME: This should move to the ARMSubtarget when it supports all the opcodes.
-unsigned getCallOpcode(const ARMSubtarget &STI, bool isDirect) {
+unsigned getCallOpcode(const MachineFunction &MF, const ARMSubtarget &STI,
+                       bool isDirect) {
   if (isDirect)
     return STI.isThumb() ? ARM::tBL : ARM::BL;
 
   if (STI.isThumb())
-    return ARM::tBLXr;
+    return gettBLXrOpcode(MF);
 
   if (STI.hasV5TOps())
-    return ARM::BLX;
+    return getBLXOpcode(MF);
 
   if (STI.hasV4TOps())
     return ARM::BX_CALL;
@@ -516,7 +517,7 @@ bool ARMCallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInfo &
   // Create the call instruction so we can add the implicit uses of arg
   // registers, but don't insert it yet.
   bool IsDirect = !Info.Callee.isReg();
-  auto CallOpcode = getCallOpcode(STI, IsDirect);
+  auto CallOpcode = getCallOpcode(MF, STI, IsDirect);
   auto MIB = MIRBuilder.buildInstrNoInsert(CallOpcode);
 
   bool IsThumb = STI.isThumb();

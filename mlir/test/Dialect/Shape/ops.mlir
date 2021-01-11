@@ -100,12 +100,14 @@ func @test_shape_of(%arg0: tensor<?xf32>) -> tensor<?xindex> {
 func @test_constraints() {
   %0 = shape.const_shape [] : !shape.shape
   %1 = shape.const_shape [1, 2, 3] : !shape.shape
+  %true = constant true
   %w0 = shape.cstr_broadcastable %0, %1 : !shape.shape, !shape.shape
   %w1 = shape.cstr_eq %0, %1
   %w2 = shape.const_witness true
   %w3 = shape.const_witness false
-  %w4 = shape.assuming_all %w0, %w1, %w2, %w3
-  shape.assuming %w4 -> !shape.shape {
+  %w4 = shape.cstr_require %true, "msg"
+  %w_all = shape.assuming_all %w0, %w1, %w2, %w3, %w4
+  shape.assuming %w_all -> !shape.shape {
     %2 = "shape.any"(%0, %1) : (!shape.shape, !shape.shape) -> !shape.shape
     shape.assuming_yield %2 : !shape.shape
   }
@@ -221,7 +223,7 @@ func @num_elements_shape(%arg : !shape.shape) -> !shape.size {
   return %result : !shape.size
 }
 
-// Testing nvoking shape function from another. shape_equal_shapes is merely
+// Testing invoking shape function from another. shape_equal_shapes is merely
 // a trivial helper function to invoke elsewhere.
 func @shape_equal_shapes(%a : !shape.value_shape, %b : !shape.value_shape) -> !shape.shape {
   %0 = shape.shape_of %a : !shape.value_shape -> !shape.shape
@@ -257,4 +259,18 @@ func @any_on_extent_tensors(%a : tensor<?xindex>,
   %result = shape.any %a, %b, %c
       : tensor<?xindex>, tensor<?xindex>, tensor<?xindex> -> tensor<?xindex>
   return %result : tensor<?xindex>
+}
+
+func @is_broadcastable_on_extent_tensors(%a : tensor<?xindex>,
+                                         %b : tensor<?xindex>) -> i1 {
+  %result = shape.is_broadcastable %a, %b
+      : tensor<?xindex>, tensor<?xindex>
+  return %result : i1
+}
+
+func @is_broadcastable_on_shapes(%a : !shape.shape,
+                                 %b : !shape.shape) -> i1 {
+  %result = shape.is_broadcastable %a, %b
+      : !shape.shape, !shape.shape
+  return %result : i1
 }

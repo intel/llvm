@@ -111,4 +111,5 @@ TYPE("fpga_aocx",                FPGA_AOCX,    INVALID,         "aocx",   phases
 TYPE("fpga_aocr",                FPGA_AOCR,    INVALID,         "aocr",   phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("fpga_aoco",                FPGA_AOCO,    INVALID,         "aoco",   phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("fpga_dependencies",        FPGA_Dependencies, INVALID,    "d",      phases::Compile, phases::Backend, phases::Assemble, phases::Link)
+TYPE("fpga_dependencies_list",   FPGA_Dependencies_List, INVALID, "txt",  phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("none",                     Nothing,      INVALID,         nullptr,  phases::Compile, phases::Backend, phases::Assemble, phases::Link)

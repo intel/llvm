@@ -1,9 +1,9 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
 
 // This test checks that compiler generates correct kernel wrapper for basic
 // case.
 
-#include <sycl.hpp>
+#include "Inputs/sycl.hpp"
 
 template <typename Acc>
 struct AccWrapper { Acc accessor; };
@@ -43,7 +43,7 @@ int main() {
 
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} 'void ({{.*}}PtrType, range<1>, range<1>, id<1>)' lvalue .__init
-// CHECK-NEXT: MemberExpr {{.*}} 'cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write>':'cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t, cl::sycl::property_list<>>' lvalue .
+// CHECK-NEXT: MemberExpr {{.*}} 'cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write>':'cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t>' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}basic-kernel-wrapper.cpp{{.*}})' lvalue Var
 
 // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>

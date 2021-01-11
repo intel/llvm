@@ -117,7 +117,7 @@ class GBRSimplex;
 ///
 /// The Simplex class supports redundancy checking via detectRedundant and
 /// isMarkedRedundant. A redundant constraint is one which is never violated as
-/// long as the other constrants are not violated, i.e., removing a redundant
+/// long as the other constraints are not violated, i.e., removing a redundant
 /// constraint does not change the set of solutions to the constraints. As a
 /// heuristic, constraints that have been marked redundant can be ignored for
 /// most operations. Therefore, these constraints are kept in rows 0 to
@@ -125,7 +125,7 @@ class GBRSimplex;
 /// of constraints that have been marked redundant.
 ///
 /// This Simplex class also supports taking snapshots of the current state
-/// and rolling back to prior snapshots. This works by maintaing an undo log
+/// and rolling back to prior snapshots. This works by maintaining an undo log
 /// of operations. Snapshots are just pointers to a particular location in the
 /// log, and rolling back to a snapshot is done by reverting each log entry's
 /// operation from the end until we reach the snapshot's location.
@@ -168,6 +168,9 @@ public:
 
   /// Rollback to a snapshot. This invalidates all later snapshots.
   void rollback(unsigned snapshot);
+
+  /// Add all the constraints from the given FlatAffineConstraints.
+  void intersectFlatAffineConstraints(const FlatAffineConstraints &fac);
 
   /// Compute the maximum or minimum value of the given row, depending on
   /// direction. The specified row is never pivoted.

@@ -253,9 +253,9 @@ public:
 
   public:
     UntiedTaskLocalDeclsRAII(
-        CodeGenModule &CGM,
-        const llvm::DenseMap<CanonicalDeclPtr<const VarDecl>, Address>
-            &LocalVars);
+        CodeGenFunction &CGF,
+        const llvm::DenseMap<CanonicalDeclPtr<const VarDecl>,
+                             std::pair<Address, Address>> &LocalVars);
     ~UntiedTaskLocalDeclsRAII();
   };
 
@@ -305,6 +305,9 @@ public:
 protected:
   CodeGenModule &CGM;
   StringRef FirstSeparator, Separator;
+
+  /// An OpenMP-IR-Builder instance.
+  llvm::OpenMPIRBuilder OMPBuilder;
 
   /// Constructor allowing to redefine the name separator for the variables.
   explicit CGOpenMPRuntime(CodeGenModule &CGM, StringRef FirstSeparator,
@@ -386,11 +389,9 @@ protected:
   llvm::Value *getCriticalRegionLock(StringRef CriticalName);
 
 private:
-  /// An OpenMP-IR-Builder instance.
-  llvm::OpenMPIRBuilder OMPBuilder;
 
   /// Map for SourceLocation and OpenMP runtime library debug locations.
-  typedef llvm::DenseMap<unsigned, llvm::Value *> OpenMPDebugLocMapTy;
+  typedef llvm::DenseMap<SourceLocation, llvm::Value *> OpenMPDebugLocMapTy;
   OpenMPDebugLocMapTy OpenMPDebugLocMap;
   /// The type for a microtask which gets passed to __kmpc_fork_call().
   /// Original representation is:
@@ -432,6 +433,8 @@ private:
                                 std::tuple<QualType, const FieldDecl *,
                                            const FieldDecl *, LValue>>>
       LastprivateConditionalToTypes;
+  /// Maps function to the position of the untied task locals stack.
+  llvm::DenseMap<llvm::Function *, unsigned> FunctionToUntiedTaskStackMap;
   /// Type kmp_critical_name, originally defined as typedef kmp_int32
   /// kmp_critical_name[8];
   llvm::ArrayType *KmpCriticalNameTy;
@@ -610,7 +613,8 @@ private:
     /// Return true if a target region entry with the provided information
     /// exists.
     bool hasTargetRegionEntryInfo(unsigned DeviceID, unsigned FileID,
-                                  StringRef ParentName, unsigned LineNum) const;
+                                  StringRef ParentName, unsigned LineNum,
+                                  bool IgnoreAddressId = false) const;
     /// brief Applies action \a Action on all registered entries.
     typedef llvm::function_ref<void(unsigned, unsigned, StringRef, unsigned,
                                     const OffloadEntryInfoTargetRegion &)>
@@ -720,7 +724,8 @@ private:
   llvm::SmallVector<NontemporalDeclsSet, 4> NontemporalDeclsStack;
 
   using UntiedLocalVarsAddressesMap =
-      llvm::DenseMap<CanonicalDeclPtr<const VarDecl>, Address>;
+      llvm::DenseMap<CanonicalDeclPtr<const VarDecl>,
+                     std::pair<Address, Address>>;
   llvm::SmallVector<UntiedLocalVarsAddressesMap, 4> UntiedLocalVarsStack;
 
   /// Stack for list of addresses of declarations in current context marked as
@@ -1643,6 +1648,9 @@ public:
     llvm::Value *MapTypesArrayEnd = nullptr;
     /// The array of user-defined mappers passed to the runtime library.
     llvm::Value *MappersArray = nullptr;
+    /// The array of original declaration names of mapped pointers sent to the
+    /// runtime library for debugging
+    llvm::Value *MapNamesArray = nullptr;
     /// Indicate whether any user-defined mapper exists.
     bool HasMapper = false;
     /// The total number of pointers passed to the runtime library.
@@ -1663,6 +1671,7 @@ public:
       SizesArray = nullptr;
       MapTypesArray = nullptr;
       MapTypesArrayEnd = nullptr;
+      MapNamesArray = nullptr;
       MappersArray = nullptr;
       HasMapper = false;
       NumberOfPtrs = 0u;
@@ -1882,6 +1891,9 @@ public:
 
   /// Destroys user defined allocators specified in the uses_allocators clause.
   void emitUsesAllocatorsFini(CodeGenFunction &CGF, const Expr *Allocator);
+
+  /// Returns true if the variable is a local variable in untied task.
+  bool isLocalVarInUntiedTask(CodeGenFunction &CGF, const VarDecl *VD) const;
 };
 
 /// Class supports emissionof SIMD-only code.

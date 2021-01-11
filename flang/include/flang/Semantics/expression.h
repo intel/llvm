@@ -12,6 +12,7 @@
 #include "semantics.h"
 #include "flang/Common/Fortran.h"
 #include "flang/Common/indirection.h"
+#include "flang/Common/restorer.h"
 #include "flang/Evaluate/characteristics.h"
 #include "flang/Evaluate/check-expression.h"
 #include "flang/Evaluate/expression.h"
@@ -139,6 +140,16 @@ public:
   // its INTEGER kind type parameter.
   std::optional<int> IsImpliedDo(parser::CharBlock) const;
 
+  // Allows a whole assumed-size array to appear for the lifetime of
+  // the returned value.
+  common::Restorer<bool> AllowWholeAssumedSizeArray() {
+    return common::ScopedSet(isWholeAssumedSizeArrayOk_, true);
+  }
+
+  common::Restorer<bool> DoNotUseSavedTypedExprs() {
+    return common::ScopedSet(useSavedTypedExprs_, false);
+  }
+
   Expr<SubscriptInteger> AnalyzeKindSelector(common::TypeCategory category,
       const std::optional<parser::KindSelector> &);
 
@@ -226,6 +237,7 @@ public:
   MaybeExpr Analyze(const parser::SignedComplexLiteralConstant &);
   MaybeExpr Analyze(const parser::StructureConstructor &);
   MaybeExpr Analyze(const parser::InitialDataTarget &);
+  MaybeExpr Analyze(const parser::NullInit &);
 
   void Analyze(const parser::CallStmt &);
   const Assignment *Analyze(const parser::AssignmentStmt &);
@@ -244,7 +256,6 @@ private:
   MaybeExpr Analyze(const parser::HollerithLiteralConstant &);
   MaybeExpr Analyze(const parser::BOZLiteralConstant &);
   MaybeExpr Analyze(const parser::NamedConstant &);
-  MaybeExpr Analyze(const parser::NullInit &);
   MaybeExpr Analyze(const parser::DataStmtConstant &);
   MaybeExpr Analyze(const parser::Substring &);
   MaybeExpr Analyze(const parser::ArrayElement &);
@@ -315,7 +326,8 @@ private:
   // Analysis subroutines
   int AnalyzeKindParam(
       const std::optional<parser::KindParam> &, int defaultKind);
-  template <typename PARSED> MaybeExpr ExprOrVariable(const PARSED &);
+  template <typename PARSED>
+  MaybeExpr ExprOrVariable(const PARSED &, parser::CharBlock source);
   template <typename PARSED> MaybeExpr IntLiteralConstant(const PARSED &);
   MaybeExpr AnalyzeString(std::string &&, int kind);
   std::optional<Expr<SubscriptInteger>> AsSubscript(MaybeExpr &&);
@@ -371,7 +383,8 @@ private:
   semantics::SemanticsContext &context_;
   FoldingContext &foldingContext_{context_.foldingContext()};
   std::map<parser::CharBlock, int> impliedDos_; // values are INTEGER kinds
-  bool fatalErrors_{false};
+  bool isWholeAssumedSizeArrayOk_{false};
+  bool useSavedTypedExprs_{true};
   friend class ArgumentAnalyzer;
 };
 

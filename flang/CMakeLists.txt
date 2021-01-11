@@ -17,6 +17,7 @@ if (POLICY CMP0077)
 endif()
 
 option(LINK_WITH_FIR "Link driver with FIR and LLVM" ON)
+option(FLANG_BUILD_NEW_DRIVER "Build the flang compiler driver" OFF)
 
 # Flang requires C++17.
 set(CMAKE_CXX_STANDARD 17)
@@ -56,13 +57,21 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 
   # We need a pre-built/installed version of LLVM.
   find_package(LLVM REQUIRED HINTS "${LLVM_CMAKE_PATH}")
-  list(APPEND CMAKE_MODULE_PATH ${LLVM_DIR})
+  # If the user specifies a relative path to LLVM_DIR, the calls to include
+  # LLVM modules fail. Append the absolute path to LLVM_DIR instead.
+  get_filename_component(LLVM_DIR_ABSOLUTE ${LLVM_DIR} REALPATH)
+  list(APPEND CMAKE_MODULE_PATH ${LLVM_DIR_ABSOLUTE})
+
+  if(FLANG_BUILD_NEW_DRIVER)
+    # TODO: Remove when libclangDriver is lifted out of Clang
+    list(APPEND CMAKE_MODULE_PATH ${CLANG_DIR})
+    find_package(Clang REQUIRED HINTS "${CLANG_DIR}")
+  endif()
 
   # If LLVM links to zlib we need the imported targets so we can too.
   if(LLVM_ENABLE_ZLIB)
     find_package(ZLIB REQUIRED)
   endif()
-  option(LLVM_ENABLE_WARNINGS "Enable compiler warnings." ON)
   option(LLVM_ENABLE_PEDANTIC "Compile with pedantic enabled." ON)
   if(CMAKE_COMPILER_IS_GNUCXX)
     set(USE_NO_MAYBE_UNINITIALIZED 1)
@@ -73,12 +82,19 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   include(HandleLLVMOptions)
   include(VersionFromVCS)
 
+  if(FLANG_BUILD_NEW_DRIVER)
+    include(AddClang)
+  endif()
+
   if(LINK_WITH_FIR)
     include(TableGen)
     find_package(MLIR REQUIRED CONFIG)
     # Use SYSTEM for the same reasons as for LLVM includes
     include_directories(SYSTEM ${MLIR_INCLUDE_DIRS})
-    list(APPEND CMAKE_MODULE_PATH ${MLIR_DIR})
+    # If the user specifies a relative path to MLIR_DIR, the calls to include
+    # MLIR modules fail. Append the absolute path to MLIR_DIR instead.
+    get_filename_component(MLIR_DIR_ABSOLUTE ${MLIR_DIR} REALPATH)
+    list(APPEND CMAKE_MODULE_PATH ${MLIR_DIR_ABSOLUTE})
     include(AddMLIR)
     find_program(MLIR_TABLEGEN_EXE "mlir-tblgen" ${LLVM_TOOLS_BINARY_DIR}
       NO_DEFAULT_PATH)
@@ -135,13 +151,7 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   if (FLANG_INCLUDE_TESTS)
     set(UNITTEST_DIR ${LLVM_BUILD_MAIN_SRC_DIR}/utils/unittest)
     if(EXISTS ${UNITTEST_DIR}/googletest/include/gtest/gtest.h)
-      if (TARGET gtest)
-        # LLVM Doesn't export gtest's include directorys, so do that here
-        set_target_properties(gtest
-          PROPERTIES INTERFACE_INCLUDE_DIRECTORIES
-          "${UNITTEST_DIR}/googletest/include;${UNITTEST_DIR}/googlemock/include"
-          )
-      else()
+      if (NOT TARGET gtest)
         add_library(gtest
           ${UNITTEST_DIR}/googletest/src/gtest-all.cc
           ${UNITTEST_DIR}/googlemock/src/gmock-all.cc
@@ -200,6 +210,21 @@ else()
   endif()
 endif()
 
+if(FLANG_BUILD_NEW_DRIVER)
+    # TODO: Remove when libclangDriver is lifted out of Clang
+    if(FLANG_STANDALONE_BUILD)
+      set(CLANG_INCLUDE_DIR ${CLANG_INCLUDE_DIRS} )
+      # No need to specify TableGen output dir as that's embedded in CLANG_DIR
+    else()
+      set(CLANG_INCLUDE_DIR ${LLVM_MAIN_SRC_DIR}/../clang/include )
+      # Specify TableGen output dir for things like DiagnosticCommonKinds.inc,
+      # DiagnosticDriverKinds.inc (required for reporting diagnostics)
+      set(CLANG_TABLEGEN_OUTPUT_DIR ${CMAKE_BINARY_DIR}/tools/clang/include)
+      include_directories(SYSTEM ${CLANG_TABLEGEN_OUTPUT_DIR})
+    endif()
+    include_directories(SYSTEM ${CLANG_INCLUDE_DIR})
+endif()
+
 if(LINK_WITH_FIR)
   # tco tool and FIR lib output directories
   if(FLANG_STANDALONE_BUILD)
@@ -208,9 +233,8 @@ if(LINK_WITH_FIR)
   endif()
   # Always build tco tool
   set(LLVM_BUILD_TOOLS ON)
-  message(STATUS "Linking driver with FIR and LLVM")
-  llvm_map_components_to_libnames(LLVM_COMMON_LIBS support)
-  message(STATUS "LLVM libraries: ${LLVM_COMMON_LIBS}")
+  set(LLVM_COMMON_COMPONENTS Support)
+  message(STATUS "Linking driver with FIR and LLVM, using LLVM components: ${LLVM_COMMON_COMPONENTS}")
 endif()
 
 # Add Flang-centric modules to cmake path.

@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
-#include <sycl.hpp>
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
+#include "Inputs/sycl.hpp"
 
 struct Base {
   int A, B;
@@ -42,8 +42,8 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_A' 'int'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_B' 'int'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read>':'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t, cl::sycl::property_list<>>' 'void () noexcept'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read>':'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t, cl::sycl::property_list<>>' 'void () noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read>':'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read>':'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t>' 'void () noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_C' 'int'
 

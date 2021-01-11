@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-unnamed-lambda -triple spir64-unknown-unknown-sycldevice -I %S/Inputs -ast-dump %s | FileCheck %s
-#include <sycl.hpp>
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-unnamed-lambda -triple spir64-unknown-unknown-sycldevice -ast-dump %s | FileCheck %s
+#include "Inputs/sycl.hpp"
 
 int main() {
   cl::sycl::queue q;

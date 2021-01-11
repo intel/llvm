@@ -21,7 +21,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 
 def AVX512_Dialect : Dialect {
   let name = "avx512";
-  let cppNamespace = "avx512";
+  let cppNamespace = "::mlir::avx512";
 }
 
 //===----------------------------------------------------------------------===//
@@ -35,8 +35,8 @@ def MaskRndScaleOp : AVX512_Op<"mask.rndscale", [NoSideEffect,
   AllTypesMatch<["src", "a", "dst"]>,
   TypesMatchWith<"imm has the same number of bits as elements in dst",
                  "dst", "imm",
-                 "IntegerType::get(($_self.cast<VectorType>().getShape()[0]),"
-                 "  $_self.getContext())">]> {
+                 "IntegerType::get($_self.getContext(), "
+                 "($_self.cast<VectorType>().getShape()[0]))">]> {
   let summary = "Masked roundscale op";
   let description = [{
     The mask.rndscale op is an AVX512 specific op that can lower to the proper
@@ -44,8 +44,8 @@ def MaskRndScaleOp : AVX512_Op<"mask.rndscale", [NoSideEffect,
     `llvm.mask.rndscale.pd.512` instruction depending on the type of vectors it
     is applied to.
 
-    From the Intel Intrinsics Guide:
-    ================================
+    #### From the Intel Intrinsics Guide:
+
     Round packed floating-point elements in `a` to the number of fraction bits
     specified by `imm`, and store the results in `dst` using writemask `k`
     (elements are copied from src when the corresponding mask bit is not set).
@@ -67,8 +67,8 @@ def MaskScaleFOp : AVX512_Op<"mask.scalef", [NoSideEffect,
   AllTypesMatch<["src", "a", "b", "dst"]>,
   TypesMatchWith<"k has the same number of bits as elements in dst",
                  "dst", "k",
-                 "IntegerType::get(($_self.cast<VectorType>().getShape()[0]),"
-                 "  $_self.getContext())">]> {
+                 "IntegerType::get($_self.getContext(), "
+                 "($_self.cast<VectorType>().getShape()[0]))">]> {
   let summary = "ScaleF op";
   let description = [{
     The `mask.scalef` op is an AVX512 specific op that can lower to the proper
@@ -76,8 +76,8 @@ def MaskScaleFOp : AVX512_Op<"mask.scalef", [NoSideEffect,
     `llvm.mask.scalef.pd.512` depending on the type of MLIR vectors it is
     applied to.
 
-    From the Intel Intrinsics Guide:
-    ================================
+    #### From the Intel Intrinsics Guide:
+
     Scale the packed floating-point elements in `a` using values from `b`, and
     store the results in `dst` using writemask `k` (elements are copied from src
     when the corresponding mask bit is not set).

@@ -14,6 +14,7 @@
 // addresses.
 
 // UNSUPPORTED: no-exceptions
+// UNSUPPORTED: no-rtti
 
 // NOTE: Link libc++abi explicitly and before libc++ so that libc++ doesn't drag
 // in the system libc++abi installation on OS X. (DYLD_LIBRARY_PATH is ignored
@@ -82,7 +83,7 @@ void ThrowNullptr() { throw nullptr; }
 
 struct IncompleteAtThrow {};
 
-int main() {
+int main(int, char**) {
   AssertIncompleteTypeInfoEquals(ReturnTypeInfoNeverDefinedMP(), typeid(int NeverDefined::*));
   try {
     ThrowNeverDefinedMP();
@@ -204,7 +205,8 @@ int main() {
     assert(!p);
   }
   catch(...) { assert(!"FAIL: Didn't catch nullptr as NeverDefined::*" ); }
-
 #endif
+
+  return 0;
 }
 #endif

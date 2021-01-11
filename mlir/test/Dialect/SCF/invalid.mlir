@@ -325,7 +325,7 @@ func @reduceReturn_not_inside_reduce(%arg0 : f32) {
 
 func @std_if_incorrect_yield(%arg0: i1, %arg1: f32)
 {
-  // expected-error@+1 {{region control flow edge from Region #0 to scf.if has 1 source operands, but target successor needs 2}}
+  // expected-error@+1 {{region control flow edge from Region #0 to parent results: source has 1 operands, but target successor needs 2}}
   %x, %y = scf.if %arg0 -> (f32, f32) {
     %0 = addf %arg1, %arg1 : f32
     scf.yield %0 : f32
@@ -401,7 +401,7 @@ func @std_for_operands_mismatch_3(%arg0 : index, %arg1 : index, %arg2 : index) {
 func @std_for_operands_mismatch_4(%arg0 : index, %arg1 : index, %arg2 : index) {
   %s0 = constant 0.0 : f32
   %t0 = constant 1.0 : f32
-  // expected-error @+1 {{along control flow edge from Region #0 to Region #0 source #1 type 'i32' should match input #1 type 'f32'}}
+  // expected-error @+1 {{along control flow edge from Region #0 to Region #0: source type #1 'i32' should match input type #1 'f32'}}
   %result1:2 = scf.for %i0 = %arg0 to %arg1 step %arg2
                     iter_args(%si = %s0, %ti = %t0) -> (f32, f32) {
     %sn = addf %si, %si : f32
@@ -425,10 +425,88 @@ func @parallel_invalid_yield(
 }
 
 // -----
+
 func @yield_invalid_parent_op() {
   "my.op"() ({
-   // expected-error@+1 {{'scf.yield' op expects parent op to be one of 'scf.if, scf.for, scf.parallel'}}
+   // expected-error@+1 {{'scf.yield' op expects parent op to be one of 'scf.if, scf.for, scf.parallel, scf.while'}}
    scf.yield
   }) : () -> ()
   return
+}
+
+// -----
+
+func @while_parser_type_mismatch() {
+  %true = constant true
+  // expected-error@+1 {{expected as many input types as operands (expected 0 got 1)}}
+  scf.while : (i32) -> () {
+    scf.condition(%true)
+  } do {
+    scf.yield
+  }
+}
+
+// -----
+
+func @while_bad_terminator() {
+  // expected-error@+1 {{expects the 'before' region to terminate with 'scf.condition'}}
+  scf.while : () -> () {
+    // expected-note@+1 {{terminator here}}
+    "some.other_terminator"() : () -> ()
+  } do {
+    scf.yield
+  }
+}
+
+// -----
+
+func @while_cross_region_type_mismatch() {
+  %true = constant true
+  // expected-error@+1 {{expects the same number of trailing operands of the 'before' block terminator and 'after' region arguments}}
+  scf.while : () -> () {
+    scf.condition(%true)
+  } do {
+  ^bb0(%arg0: i32):
+    scf.yield
+  }
+}
+
+// -----
+
+func @while_cross_region_type_mismatch() {
+  %true = constant true
+  // expected-error@+2 {{expects the same types for trailing operands of the 'before' block terminator and 'after' region arguments}}
+  // expected-note@+1 {{for argument 0, found 'i1' and 'i32}}
+  scf.while : () -> () {
+    scf.condition(%true) %true : i1
+  } do {
+  ^bb0(%arg0: i32):
+    scf.yield
+  }
+}
+
+// -----
+
+func @while_result_type_mismatch() {
+  %true = constant true
+  // expected-error@+1 {{expects the same number of trailing operands of the 'before' block terminator and op results}}
+  scf.while : () -> () {
+    scf.condition(%true) %true : i1
+  } do {
+  ^bb0(%arg0: i1):
+    scf.yield
+  }
+}
+
+// -----
+
+func @while_bad_terminator() {
+  %true = constant true
+  // expected-error@+1 {{expects the 'after' region to terminate with 'scf.yield'}}
+  scf.while : () -> () {
+    scf.condition(%true)
+  } do {
+    // expected-note@+1 {{terminator here}}
+    "some.other_terminator"() : () -> ()
+  }
 }

@@ -492,7 +492,8 @@ namespace {
                                              CastKind Kind, Expr *E) {
       TypeSourceInfo *TInfo = Ctx->getTrivialTypeSourceInfo(Ty, SourceLocation());
       return CStyleCastExpr::Create(*Ctx, Ty, VK_RValue, Kind, E, nullptr,
-                                    TInfo, SourceLocation(), SourceLocation());
+                                    FPOptionsOverride(), TInfo,
+                                    SourceLocation(), SourceLocation());
     }
 
     StringLiteral *getStringLiteral(StringRef Str) {
@@ -630,9 +631,9 @@ void RewriteObjC::InitializeCommon(ASTContext &context) {
 
   // Get the ID and start/end of the main file.
   MainFileID = SM->getMainFileID();
-  const llvm::MemoryBuffer *MainBuf = SM->getBuffer(MainFileID);
-  MainFileStart = MainBuf->getBufferStart();
-  MainFileEnd = MainBuf->getBufferEnd();
+  llvm::MemoryBufferRef MainBuf = SM->getBufferOrFake(MainFileID);
+  MainFileStart = MainBuf.getBufferStart();
+  MainFileEnd = MainBuf.getBufferEnd();
 
   Rewrite.setSourceMgr(Context->getSourceManager(), Context->getLangOpts());
 }
@@ -2022,8 +2023,8 @@ RewriteObjC::SynthesizeCallToFunctionDecl(FunctionDecl *FD,
   // Now, we cast the reference to a pointer to the objc_msgSend type.
   QualType pToFunc = Context->getPointerType(msgSendType);
   ImplicitCastExpr *ICE =
-    ImplicitCastExpr::Create(*Context, pToFunc, CK_FunctionToPointerDecay,
-                             DRE, nullptr, VK_RValue);
+      ImplicitCastExpr::Create(*Context, pToFunc, CK_FunctionToPointerDecay,
+                               DRE, nullptr, VK_RValue, FPOptionsOverride());
 
   const auto *FT = msgSendType->castAs<FunctionType>();
 
@@ -5284,9 +5285,8 @@ void RewriteObjCFragileABI::RewriteObjCClassMetaData(ObjCImplementationDecl *IDe
   }
 
   // Build _objc_ivar_list metadata for classes ivars if needed
-  unsigned NumIvars = !IDecl->ivar_empty()
-  ? IDecl->ivar_size()
-  : (CDecl ? CDecl->ivar_size() : 0);
+  unsigned NumIvars =
+      !IDecl->ivar_empty() ? IDecl->ivar_size() : CDecl->ivar_size();
   if (NumIvars > 0) {
     static bool objc_ivar = false;
     if (!objc_ivar) {

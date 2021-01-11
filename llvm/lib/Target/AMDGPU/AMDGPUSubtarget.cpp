@@ -50,6 +50,15 @@ static cl::opt<bool> EnableVGPRIndexMode(
   cl::desc("Use GPR indexing mode instead of movrel for vector indexing"),
   cl::init(false));
 
+static cl::opt<bool> EnableFlatScratch(
+  "amdgpu-enable-flat-scratch",
+  cl::desc("Use flat scratch instructions"),
+  cl::init(false));
+
+static cl::opt<bool> UseAA("amdgpu-use-aa-in-codegen",
+                           cl::desc("Enable the use of AA during codegen."),
+                           cl::init(true));
+
 GCNSubtarget::~GCNSubtarget() = default;
 
 R600Subtarget &
@@ -184,7 +193,6 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
 
     FlatForGlobal(false),
     AutoWaitcntBeforeBarrier(false),
-    CodeObjectV3(false),
     UnalignedScratchAccess(false),
     UnalignedAccessMode(false),
 
@@ -271,6 +279,8 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     HasNSAtoVMEMBug(false),
     HasOffset3fBug(false),
     HasFlatSegmentOffsetBug(false),
+    HasImageStoreD16Bug(false),
+    HasImageGather4D16Bug(false),
 
     FeatureDisable(false),
     InstrInfo(initializeSubtargetDependencies(TT, GPU, FS)),
@@ -283,6 +293,10 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
   RegBankInfo.reset(new AMDGPURegisterBankInfo(*this));
   InstSelector.reset(new AMDGPUInstructionSelector(
   *this, *static_cast<AMDGPURegisterBankInfo *>(RegBankInfo.get()), TM));
+}
+
+bool GCNSubtarget::enableFlatScratch() const {
+  return EnableFlatScratch && hasFlatScratchInsts();
 }
 
 unsigned GCNSubtarget::getConstantBusLimit(unsigned Opcode) const {
@@ -438,6 +452,21 @@ std::pair<unsigned, unsigned> AMDGPUSubtarget::getWavesPerEU(
   return Requested;
 }
 
+static unsigned getReqdWorkGroupSize(const Function &Kernel, unsigned Dim) {
+  auto Node = Kernel.getMetadata("reqd_work_group_size");
+  if (Node && Node->getNumOperands() == 3)
+    return mdconst::extract<ConstantInt>(Node->getOperand(Dim))->getZExtValue();
+  return std::numeric_limits<unsigned>::max();
+}
+
+unsigned AMDGPUSubtarget::getMaxWorkitemID(const Function &Kernel,
+                                           unsigned Dimension) const {
+  unsigned ReqdSize = getReqdWorkGroupSize(Kernel, Dimension);
+  if (ReqdSize != std::numeric_limits<unsigned>::max())
+    return ReqdSize - 1;
+  return getFlatWorkGroupSizes(Kernel).second - 1;
+}
+
 bool AMDGPUSubtarget::makeLIDRangeMetadata(Instruction *I) const {
   Function *Kernel = I->getParent()->getParent();
   unsigned MinSize = 0;
@@ -474,11 +503,11 @@ bool AMDGPUSubtarget::makeLIDRangeMetadata(Instruction *I) const {
       default:
         break;
       }
+
       if (Dim <= 3) {
-        if (auto Node = Kernel->getMetadata("reqd_work_group_size"))
-          if (Node->getNumOperands() == 3)
-            MinSize = MaxSize = mdconst::extract<ConstantInt>(
-                                  Node->getOperand(Dim))->getZExtValue();
+        unsigned ReqdSize = getReqdWorkGroupSize(*Kernel, Dim);
+        if (ReqdSize != std::numeric_limits<unsigned>::max())
+          MinSize = MaxSize = ReqdSize;
       }
     }
   }
@@ -582,6 +611,8 @@ bool GCNSubtarget::hasMadF16() const {
 bool GCNSubtarget::useVGPRIndexMode() const {
   return !hasMovrel() || (EnableVGPRIndexMode && hasVGPRIndexMode());
 }
+
+bool GCNSubtarget::useAA() const { return UseAA; }
 
 unsigned GCNSubtarget::getOccupancyWithNumSGPRs(unsigned SGPRs) const {
   if (getGeneration() >= AMDGPUSubtarget::GFX10)
@@ -792,7 +823,7 @@ struct FillMFMAShadowMutation : ScheduleDAGMutation {
     for (unsigned I = 0; I < Succs.size(); ++I) {
       for (const SDep &SI : Succs[I]->Succs) {
         const SUnit *SU = SI.getSUnit();
-        if (SU != Succs[I] && llvm::find(Succs, SU) == Succs.end())
+        if (SU != Succs[I] && !llvm::is_contained(Succs, SU))
           Succs.push_back(SU);
       }
     }
@@ -800,7 +831,7 @@ struct FillMFMAShadowMutation : ScheduleDAGMutation {
     SmallPtrSet<const SUnit*, 32> Visited;
     while (!Preds.empty()) {
       const SUnit *SU = Preds.pop_back_val();
-      if (llvm::find(Succs, SU) != Succs.end())
+      if (llvm::is_contained(Succs, SU))
         return false;
       Visited.insert(SU);
       for (const SDep &SI : SU->Preds)

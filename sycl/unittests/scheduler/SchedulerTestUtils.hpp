@@ -11,8 +11,12 @@
 #include <CL/sycl/detail/cl.h>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/stream_impl.hpp>
 
 #include <functional>
+#include <gmock/gmock.h>
+#include <vector>
+
 // This header contains a few common classes/methods used in
 // execution graph testing.
 
@@ -24,12 +28,22 @@ public:
               cl::sycl::detail::Requirement Req,
               cl::sycl::detail::Command::CommandType Type =
                   cl::sycl::detail::Command::RUN_CG)
-      : Command{Type, Queue}, MRequirement{std::move(Req)} {}
+      : Command{Type, Queue}, MRequirement{std::move(Req)} {
+    using namespace testing;
+    ON_CALL(*this, enqueue(_, _))
+        .WillByDefault(Invoke(this, &MockCommand::enqueueOrigin));
+    EXPECT_CALL(*this, enqueue(_, _)).Times(AnyNumber());
+  }
 
   MockCommand(cl::sycl::detail::QueueImplPtr Queue,
               cl::sycl::detail::Command::CommandType Type =
                   cl::sycl::detail::Command::RUN_CG)
-      : Command{Type, Queue}, MRequirement{std::move(getMockRequirement())} {}
+      : Command{Type, Queue}, MRequirement{std::move(getMockRequirement())} {
+    using namespace testing;
+    ON_CALL(*this, enqueue(_, _))
+        .WillByDefault(Invoke(this, &MockCommand::enqueueOrigin));
+    EXPECT_CALL(*this, enqueue(_, _)).Times(AnyNumber());
+  }
 
   void printDot(std::ostream &) const override {}
   void emitInstrumentationData() override {}
@@ -39,6 +53,13 @@ public:
   };
 
   cl_int enqueueImp() override { return MRetVal; }
+
+  MOCK_METHOD2(enqueue, bool(cl::sycl::detail::EnqueueResultT &,
+                             cl::sycl::detail::BlockingT));
+  bool enqueueOrigin(cl::sycl::detail::EnqueueResultT &EnqueueResult,
+                     cl::sycl::detail::BlockingT Blocking) {
+    return cl::sycl::detail::Command::enqueue(EnqueueResult, Blocking);
+  }
 
   cl_int MRetVal = CL_SUCCESS;
 
@@ -79,7 +100,9 @@ public:
   }
 
   void cleanupCommandsForRecord(cl::sycl::detail::MemObjRecord *Rec) {
-    MGraphBuilder.cleanupCommandsForRecord(Rec);
+    std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>>
+        StreamsToDeallocate;
+    MGraphBuilder.cleanupCommandsForRecord(Rec, StreamsToDeallocate);
   }
 
   void addNodeToLeaves(
@@ -99,6 +122,19 @@ public:
                           const cl::sycl::detail::Requirement *Req,
                           cl::sycl::detail::QueueImplPtr Queue) {
     return MGraphBuilder.getOrCreateAllocaForReq(Record, Req, Queue);
+  }
+
+  cl::sycl::detail::Command *
+  insertMemoryMove(cl::sycl::detail::MemObjRecord *Record,
+                   cl::sycl::detail::Requirement *Req,
+                   const cl::sycl::detail::QueueImplPtr &Queue) {
+    return MGraphBuilder.insertMemoryMove(Record, Req, Queue);
+  }
+
+  cl::sycl::detail::Command *
+  addCG(std::unique_ptr<cl::sycl::detail::CG> CommandGroup,
+        cl::sycl::detail::QueueImplPtr Queue) {
+    return MGraphBuilder.addCG(std::move(CommandGroup), Queue);
   }
 };
 

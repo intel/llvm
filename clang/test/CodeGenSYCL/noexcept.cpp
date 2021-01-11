@@ -44,7 +44,7 @@ void foo_cleanup() {
   // Regular + exception cleanup
   // CHECK-HOST-LIN: call void @_ZN1AD1Ev
   // CHECK-HOST-LIN: call void @_ZN1AD2Ev
-  // CHECK-HOST-WIN: call void @"??1A@@QEAA@XZ"(%struct.A* %a)
+  // CHECK-HOST-WIN: call void @"??1A@@QEAA@XZ"(%struct.A* {{[^,]*}} %a)
 }
 
 template <typename name, typename Func>

@@ -236,6 +236,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPUPromoteAllocaPass(*PR);
   initializeAMDGPUPromoteAllocaToVectorPass(*PR);
   initializeAMDGPUCodeGenPreparePass(*PR);
+  initializeAMDGPULateCodeGenPreparePass(*PR);
   initializeAMDGPUPropagateAttributesEarlyPass(*PR);
   initializeAMDGPUPropagateAttributesLatePass(*PR);
   initializeAMDGPURewriteOutArgumentsPass(*PR);
@@ -283,7 +284,6 @@ createGCNMaxOccupancyMachineScheduler(MachineSchedContext *C) {
   ScheduleDAGMILive *DAG =
     new GCNScheduleDAGMILive(C, std::make_unique<GCNMaxOccupancySchedStrategy>(C));
   DAG->addMutation(createLoadClusterDAGMutation(DAG->TII, DAG->TRI));
-  DAG->addMutation(createStoreClusterDAGMutation(DAG->TII, DAG->TRI));
   DAG->addMutation(createAMDGPUMacroFusionDAGMutation());
   DAG->addMutation(createAMDGPUExportClusteringDAGMutation());
   return DAG;
@@ -294,7 +294,6 @@ createIterativeGCNMaxOccupancyMachineScheduler(MachineSchedContext *C) {
   auto DAG = new GCNIterativeScheduler(C,
     GCNIterativeScheduler::SCHEDULE_LEGACYMAXOCCUPANCY);
   DAG->addMutation(createLoadClusterDAGMutation(DAG->TII, DAG->TRI));
-  DAG->addMutation(createStoreClusterDAGMutation(DAG->TII, DAG->TRI));
   return DAG;
 }
 
@@ -308,7 +307,6 @@ createIterativeILPMachineScheduler(MachineSchedContext *C) {
   auto DAG = new GCNIterativeScheduler(C,
     GCNIterativeScheduler::SCHEDULE_ILP);
   DAG->addMutation(createLoadClusterDAGMutation(DAG->TII, DAG->TRI));
-  DAG->addMutation(createStoreClusterDAGMutation(DAG->TII, DAG->TRI));
   DAG->addMutation(createAMDGPUMacroFusionDAGMutation());
   return DAG;
 }
@@ -344,15 +342,15 @@ GCNILPSchedRegistry("gcn-ilp",
 static StringRef computeDataLayout(const Triple &TT) {
   if (TT.getArch() == Triple::r600) {
     // 32-bit pointers.
-      return "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128"
-             "-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5";
+    return "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128"
+           "-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5-G1";
   }
 
   // 32-bit private, local, and region pointers. 64-bit global, constant and
   // flat, non-integral buffer fat pointers.
-    return "e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:32:32"
+  return "e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:32:32"
          "-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128"
-         "-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5"
+         "-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5-G1"
          "-ni:7";
 }
 
@@ -401,16 +399,14 @@ AMDGPUTargetMachine::~AMDGPUTargetMachine() = default;
 
 StringRef AMDGPUTargetMachine::getGPUName(const Function &F) const {
   Attribute GPUAttr = F.getFnAttribute("target-cpu");
-  return GPUAttr.hasAttribute(Attribute::None) ?
-    getTargetCPU() : GPUAttr.getValueAsString();
+  return GPUAttr.isValid() ? GPUAttr.getValueAsString() : getTargetCPU();
 }
 
 StringRef AMDGPUTargetMachine::getFeatureString(const Function &F) const {
   Attribute FSAttr = F.getFnAttribute("target-features");
 
-  return FSAttr.hasAttribute(Attribute::None) ?
-    getTargetFeatureString() :
-    FSAttr.getValueAsString();
+  return FSAttr.isValid() ? FSAttr.getValueAsString()
+                          : getTargetFeatureString();
 }
 
 /// Predicate for Internalize pass.
@@ -531,6 +527,25 @@ bool AMDGPUTargetMachine::isNoopAddrSpaceCast(unsigned SrcAS,
          AMDGPU::isFlatGlobalAddrSpace(DestAS);
 }
 
+unsigned AMDGPUTargetMachine::getAssumedAddrSpace(const Value *V) const {
+  const auto *LD = dyn_cast<LoadInst>(V);
+  if (!LD)
+    return AMDGPUAS::UNKNOWN_ADDRESS_SPACE;
+
+  // It must be a generic pointer loaded.
+  assert(V->getType()->isPointerTy() &&
+         V->getType()->getPointerAddressSpace() == AMDGPUAS::FLAT_ADDRESS);
+
+  const auto *Ptr = LD->getPointerOperand();
+  if (Ptr->getType()->getPointerAddressSpace() != AMDGPUAS::CONSTANT_ADDRESS)
+    return AMDGPUAS::UNKNOWN_ADDRESS_SPACE;
+  // For a generic pointer loaded from the constant memory, it could be assumed
+  // as a global pointer since the constant memory is only populated on the
+  // host side. As implied by the offload programming model, only global
+  // pointers could be referenced on the host side.
+  return AMDGPUAS::GLOBAL_ADDRESS;
+}
+
 TargetTransformInfo
 R600TargetMachine::getTargetTransformInfo(const Function &F) {
   return TargetTransformInfo(R600TTIImpl(this, F));
@@ -598,7 +613,6 @@ public:
   createMachineScheduler(MachineSchedContext *C) const override {
     ScheduleDAGMILive *DAG = createGenericSchedLive(C);
     DAG->addMutation(createLoadClusterDAGMutation(DAG->TII, DAG->TRI));
-    DAG->addMutation(createStoreClusterDAGMutation(DAG->TII, DAG->TRI));
     return DAG;
   }
 
@@ -871,6 +885,7 @@ ScheduleDAGInstrs *GCNPassConfig::createMachineScheduler(
 bool GCNPassConfig::addPreISel() {
   AMDGPUPassConfig::addPreISel();
 
+  addPass(createAMDGPULateCodeGenPreparePass());
   if (EnableAtomicOptimizations) {
     addPass(createAMDGPUAtomicOptimizerPass());
   }
@@ -940,7 +955,7 @@ bool GCNPassConfig::addInstSelector() {
 }
 
 bool GCNPassConfig::addIRTranslator() {
-  addPass(new IRTranslator());
+  addPass(new IRTranslator(getOptLevel()));
   return false;
 }
 
@@ -974,7 +989,6 @@ void GCNPassConfig::addPreRegAlloc() {
   if (LateCFGStructurize) {
     addPass(createAMDGPUMachineCFGStructurizerPass());
   }
-  addPass(createSIWholeQuadModePass());
 }
 
 void GCNPassConfig::addFastRegAlloc() {
@@ -986,13 +1000,18 @@ void GCNPassConfig::addFastRegAlloc() {
   // SI_ELSE will introduce a copy of the tied operand source after the else.
   insertPass(&PHIEliminationID, &SILowerControlFlowID, false);
 
-  // This must be run just after RegisterCoalescing.
-  insertPass(&RegisterCoalescerID, &SIPreAllocateWWMRegsID, false);
+  insertPass(&TwoAddressInstructionPassID, &SIWholeQuadModeID);
+  insertPass(&TwoAddressInstructionPassID, &SIPreAllocateWWMRegsID);
 
   TargetPassConfig::addFastRegAlloc();
 }
 
 void GCNPassConfig::addOptimizedRegAlloc() {
+  // Allow the scheduler to run before SIWholeQuadMode inserts exec manipulation
+  // instructions that cause scheduling barriers.
+  insertPass(&MachineSchedulerID, &SIWholeQuadModeID);
+  insertPass(&MachineSchedulerID, &SIPreAllocateWWMRegsID);
+
   if (OptExecMaskPreRA)
     insertPass(&MachineSchedulerID, &SIOptimizeExecMaskingPreRAID);
   insertPass(&MachineSchedulerID, &SIFormMemoryClausesID);
@@ -1001,9 +1020,6 @@ void GCNPassConfig::addOptimizedRegAlloc() {
   // TwoAddressInstructions, otherwise the processing of the tied operand of
   // SI_ELSE will introduce a copy of the tied operand source after the else.
   insertPass(&PHIEliminationID, &SILowerControlFlowID, false);
-
-  // This must be run just after RegisterCoalescing.
-  insertPass(&RegisterCoalescerID, &SIPreAllocateWWMRegsID, false);
 
   if (EnableDCEInRA)
     insertPass(&DetectDeadLanesID, &DeadMachineInstructionElimID);
@@ -1039,6 +1055,12 @@ void GCNPassConfig::addPreEmitPass() {
   addPass(createSIShrinkInstructionsPass());
   addPass(createSIModeRegisterPass());
 
+  if (getOptLevel() > CodeGenOpt::None)
+    addPass(&SIInsertHardClausesID);
+
+  addPass(&SIRemoveShortExecBranchesID);
+  addPass(&SIInsertSkipsPassID);
+  addPass(&SIPreEmitPeepholeID);
   // The hazard recognizer that runs as part of the post-ra scheduler does not
   // guarantee to be able handle all hazards correctly. This is because if there
   // are multiple scheduling regions in a basic block, the regions are scheduled
@@ -1047,16 +1069,7 @@ void GCNPassConfig::addPreEmitPass() {
   //
   // Here we add a stand-alone hazard recognizer pass which can handle all
   // cases.
-  //
-  // FIXME: This stand-alone pass will emit indiv. S_NOP 0, as needed. It would
-  // be better for it to emit S_NOP <N> when possible.
   addPass(&PostRAHazardRecognizerID);
-  if (getOptLevel() > CodeGenOpt::None)
-    addPass(&SIInsertHardClausesID);
-
-  addPass(&SIRemoveShortExecBranchesID);
-  addPass(&SIInsertSkipsPassID);
-  addPass(&SIPreEmitPeepholeID);
   addPass(&BranchRelaxationPassID);
 }
 

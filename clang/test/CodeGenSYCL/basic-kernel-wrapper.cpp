@@ -1,9 +1,9 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -I %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 
 // This test checks that compiler generates correct kernel wrapper for basic
 // case.
 
-#include "sycl.hpp"
+#include "Inputs/sycl.hpp"
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
@@ -48,9 +48,9 @@ int main() {
 // Check accessor __init method call
 // CHECK-OLD: call spir_func void @{{.*}}__init{{.*}}(%"class.{{.*}}.cl::sycl::accessor"* [[ACCESSOR]], i32 addrspace(1)* [[MEM_LOAD]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ARANGE]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MRANGE]], %"struct.{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OID]])
 // CHECK: [[ACCESSORCAST:%[0-9]+]] = addrspacecast %"class{{.*}}accessor"* [[ACCESSOR]] to %"class{{.*}}accessor" addrspace(4)*
-// CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class.{{.*}}.cl::sycl::accessor" addrspace(4)* [[ACCESSORCAST]], i32 addrspace(1)* [[MEM_LOAD]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ARANGE]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MRANGE]], %"struct.{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OID]])
+// CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class.{{.*}}.cl::sycl::accessor" addrspace(4)* {{[^,]*}} [[ACCESSORCAST]], i32 addrspace(1)* [[MEM_LOAD]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ARANGE]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MRANGE]], %"struct.{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OID]])
 
 // Check lambda "()" operator call
 // CHECK-OLD: call spir_func void @{{.*}}(%"class.{{.*}}.anon"* [[ANON]])
 // CHECK: [[ANONCAST:%[0-9]+]] = addrspacecast %"class{{.*}}anon"* {{.*}} to %"class{{.*}}anon" addrspace(4)*
-// CHECK: call spir_func void @{{.*}}(%"class.{{.*}}.anon" addrspace(4)* [[ANONCAST]])
+// CHECK: call spir_func void @{{.*}}(%"class.{{.*}}.anon" addrspace(4)* {{[^,]*}} [[ANONCAST]])

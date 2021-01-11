@@ -12,7 +12,7 @@
 
 #include "Parser.h"
 #include "mlir/IR/AffineMap.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 
 using namespace mlir;
 using namespace mlir::detail;
@@ -337,9 +337,8 @@ Type Parser::parseNonFunctionType() {
     if (Optional<bool> signedness = getToken().getIntTypeSignedness())
       signSemantics = *signedness ? IntegerType::Signed : IntegerType::Unsigned;
 
-    auto loc = getEncodedSourceLocation(getToken().getLoc());
     consumeToken(Token::inttype);
-    return IntegerType::getChecked(width.getValue(), signSemantics, loc);
+    return IntegerType::get(getContext(), width.getValue(), signSemantics);
   }
 
   // float-type
@@ -433,7 +432,7 @@ Type Parser::parseTupleType() {
       parseToken(Token::greater, "expected '>' in tuple type"))
     return nullptr;
 
-  return TupleType::get(types, getContext());
+  return TupleType::get(getContext(), types);
 }
 
 /// Parse a vector type.

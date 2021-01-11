@@ -446,7 +446,7 @@ Register FastISel::materializeConstant(const Value *V, MVT VT) {
             getRegForValue(ConstantInt::get(V->getContext(), SIntVal));
         if (IntegerReg)
           Reg = fastEmit_r(IntVT.getSimpleVT(), VT, ISD::SINT_TO_FP, IntegerReg,
-                           /*Kill=*/false);
+                           /*Op0IsKill=*/false);
       }
     }
   } else if (const auto *Op = dyn_cast<Operator>(V)) {
@@ -690,6 +690,12 @@ bool FastISel::selectGetElementPtr(const User *I) {
   Register N = getRegForValue(I->getOperand(0));
   if (!N) // Unhandled operand. Halt "fast" selection and bail.
     return false;
+
+  // FIXME: The code below does not handle vector GEPs. Halt "fast" selection
+  // and bail.
+  if (isa<VectorType>(I->getType()))
+    return false;
+
   bool NIsKill = hasTrivialKill(I->getOperand(0));
 
   // Keep a running tab of the total offset to coalesce multiple N = N + Offset
@@ -1509,6 +1515,20 @@ bool FastISel::selectIntrinsicCall(const IntrinsicInst *II) {
     return selectXRayCustomEvent(II);
   case Intrinsic::xray_typedevent:
     return selectXRayTypedEvent(II);
+
+  case Intrinsic::memcpy:
+  case Intrinsic::memcpy_element_unordered_atomic:
+  case Intrinsic::memcpy_inline:
+  case Intrinsic::memmove:
+  case Intrinsic::memmove_element_unordered_atomic:
+  case Intrinsic::memset:
+  case Intrinsic::memset_element_unordered_atomic:
+    // Flush the local value map just like we do for regular calls,
+    // to avoid excessive spills and reloads.
+    // These intrinsics mostly turn into library calls at O0; and
+    // even memcpy_inline should be treated like one for this purpose.
+    flushLocalValueMap();
+    break;
   }
 
   return fastLowerIntrinsicCall(II);
@@ -1783,13 +1803,13 @@ bool FastISel::selectFNeg(const User *I, const Value *In) {
     return false;
 
   Register IntResultReg = fastEmit_ri_(
-      IntVT.getSimpleVT(), ISD::XOR, IntReg, /*IsKill=*/true,
+      IntVT.getSimpleVT(), ISD::XOR, IntReg, /*Op0IsKill=*/true,
       UINT64_C(1) << (VT.getSizeInBits() - 1), IntVT.getSimpleVT());
   if (!IntResultReg)
     return false;
 
   ResultReg = fastEmit_r(IntVT.getSimpleVT(), VT.getSimpleVT(), ISD::BITCAST,
-                         IntResultReg, /*IsKill=*/true);
+                         IntResultReg, /*Op0IsKill=*/true);
   if (!ResultReg)
     return false;
 

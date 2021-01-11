@@ -4,9 +4,7 @@
 module attributes {
   gpu.container_module,
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>, {}>
 } {
   gpu.module @kernels {
     gpu.func @kernel_mul(%arg0 : memref<4x4xf32>, %arg1 : memref<4x4xf32>, %arg2 : memref<4x4xf32>)
@@ -40,13 +38,14 @@ module attributes {
 
     %cst1 = constant 1 : index
     %cst4 = constant 4 : index
-    "gpu.launch_func"(%cst4, %cst4, %cst1, %cst1, %cst1, %cst1, %arg0, %arg1, %arg2) { kernel = @kernels::@kernel_mul }
-        : (index, index, index, index, index, index, memref<4x4xf32>, memref<4x4xf32>, memref<4x4xf32>) -> ()
+    gpu.launch_func @kernels::@kernel_mul
+        blocks in (%cst4, %cst4, %cst1) threads in(%cst1, %cst1, %cst1)
+        args(%arg0 : memref<4x4xf32>, %arg1 : memref<4x4xf32>, %arg2 : memref<4x4xf32>)
     %arg6 = memref_cast %arg5 : memref<?x?xf32> to memref<*xf32>
     call @print_memref_f32(%arg6) : (memref<*xf32>) -> ()
     return
   }
-  func @fillResource2DFloat(%0 : memref<?x?xf32>, %1 : f32)
-  func @print_memref_f32(%ptr : memref<*xf32>)
+  func private @fillResource2DFloat(%0 : memref<?x?xf32>, %1 : f32)
+  func private @print_memref_f32(%ptr : memref<*xf32>)
 }
 

@@ -1880,7 +1880,8 @@ static bool isPointerValueDeadOnEntryToFunction(
           // and the number of bits loaded in L is less than or equal to
           // the number of bits stored in S.
           return DT.dominates(S, L) &&
-                 DL.getTypeStoreSize(LTy) <= DL.getTypeStoreSize(STy);
+                 DL.getTypeStoreSize(LTy).getFixedSize() <=
+                     DL.getTypeStoreSize(STy).getFixedSize();
         }))
       return false;
   }
@@ -1990,12 +1991,13 @@ processInternalGlobal(GlobalVariable *GV, const GlobalStatus &GS,
     return true;
   }
 
+  bool Changed = false;
+
   // If the global is never loaded (but may be stored to), it is dead.
   // Delete it now.
   if (!GS.IsLoaded) {
     LLVM_DEBUG(dbgs() << "GLOBAL NEVER LOADED: " << *GV << "\n");
 
-    bool Changed;
     if (isLeakCheckerRoot(GV)) {
       // Delete any constant stores to the global.
       Changed = CleanupPointerRootUsers(GV, GetTLI);
@@ -2021,11 +2023,14 @@ processInternalGlobal(GlobalVariable *GV, const GlobalStatus &GS,
     // Don't actually mark a global constant if it's atomic because atomic loads
     // are implemented by a trivial cmpxchg in some edge-cases and that usually
     // requires write access to the variable even if it's not actually changed.
-    if (GS.Ordering == AtomicOrdering::NotAtomic)
+    if (GS.Ordering == AtomicOrdering::NotAtomic) {
+      assert(!GV->isConstant() && "Expected a non-constant global");
       GV->setConstant(true);
+      Changed = true;
+    }
 
     // Clean up any obviously simplifiable users now.
-    CleanupConstantGlobalUsers(GV, GV->getInitializer(), DL, GetTLI);
+    Changed |= CleanupConstantGlobalUsers(GV, GV->getInitializer(), DL, GetTLI);
 
     // If the global is dead now, just nuke it.
     if (GV->use_empty()) {
@@ -2085,7 +2090,7 @@ processInternalGlobal(GlobalVariable *GV, const GlobalStatus &GS,
     }
   }
 
-  return false;
+  return Changed;
 }
 
 /// Analyze the specified global variable and optimize it if possible.  If we

@@ -75,16 +75,18 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
   }
 
   if (!isEntryFunction()) {
-    // Non-entry functions have no special inputs for now, other registers
-    // required for scratch access.
-    ScratchRSrcReg = AMDGPU::SGPR0_SGPR1_SGPR2_SGPR3;
-
     // TODO: Pick a high register, and shift down, similar to a kernel.
     FrameOffsetReg = AMDGPU::SGPR33;
     StackPtrOffsetReg = AMDGPU::SGPR32;
 
-    ArgInfo.PrivateSegmentBuffer =
-      ArgDescriptor::createRegister(ScratchRSrcReg);
+    if (!ST.enableFlatScratch()) {
+      // Non-entry functions have no special inputs for now, other registers
+      // required for scratch access.
+      ScratchRSrcReg = AMDGPU::SGPR0_SGPR1_SGPR2_SGPR3;
+
+      ArgInfo.PrivateSegmentBuffer =
+        ArgDescriptor::createRegister(ScratchRSrcReg);
+    }
 
     if (F.hasFnAttribute("amdgpu-implicitarg-ptr"))
       ImplicitArgPtr = true;
@@ -142,7 +144,8 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
 
   bool isAmdHsaOrMesa = ST.isAmdHsaOrMesa(F);
   if (isAmdHsaOrMesa) {
-    PrivateSegmentBuffer = true;
+    if (!ST.enableFlatScratch())
+      PrivateSegmentBuffer = true;
 
     if (UseFixedABI) {
       DispatchPtr = true;
@@ -167,11 +170,12 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
   if (UseFixedABI || F.hasFnAttribute("amdgpu-kernarg-segment-ptr"))
     KernargSegmentPtr = true;
 
-  if (ST.hasFlatAddressSpace() && isEntryFunction() && isAmdHsaOrMesa) {
+  if (ST.hasFlatAddressSpace() && isEntryFunction() &&
+      (isAmdHsaOrMesa || ST.enableFlatScratch())) {
     // TODO: This could be refined a lot. The attribute is a poor way of
     // detecting calls or stack objects that may require it before argument
     // lowering.
-    if (HasCalls || HasStackObjects)
+    if (HasCalls || HasStackObjects || ST.enableFlatScratch())
       FlatScratchInit = true;
   }
 
@@ -352,6 +356,8 @@ bool SIMachineFunctionInfo::reserveVGPRforSGPRSpills(MachineFunction &MF) {
 
   Register LaneVGPR = TRI->findUnusedRegister(
       MF.getRegInfo(), &AMDGPU::VGPR_32RegClass, MF, true);
+  if (LaneVGPR == Register())
+    return false;
   SpillVGPRs.push_back(SGPRSpillVGPRCSR(LaneVGPR, None));
   FuncInfo->VGPRReservedForSGPRSpill = LaneVGPR;
   return true;

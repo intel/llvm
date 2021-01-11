@@ -10,6 +10,7 @@
 #include "Selection.h"
 #include "SourceCode.h"
 #include "refactor/Tweak.h"
+#include "support/Logger.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclCXX.h"
@@ -37,8 +38,12 @@ public:
 
   bool prepare(const Selection &Inputs) override;
   Expected<Effect> apply(const Selection &Inputs) override;
-  std::string title() const override;
-  Intent intent() const override { return Refactor; }
+  std::string title() const override {
+    return "Remove using namespace, re-qualify names instead";
+  }
+  llvm::StringLiteral kind() const override {
+    return CodeAction::REFACTOR_KIND;
+  }
 
 private:
   const UsingDirectiveDecl *TargetDirective = nullptr;
@@ -73,8 +78,7 @@ removeUsingDirective(ASTContext &Ctx, const UsingDirectiveDecl *D) {
   llvm::Optional<Token> NextTok =
       Lexer::findNextToken(D->getEndLoc(), SM, Ctx.getLangOpts());
   if (!NextTok || NextTok->isNot(tok::semi))
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "no semicolon after using-directive");
+    return error("no semicolon after using-directive");
   // FIXME: removing the semicolon may be invalid in some obscure cases, e.g.
   //        if (x) using namespace std; else using namespace bar;
   return tooling::Replacement(
@@ -198,10 +202,6 @@ Expected<Tweak::Effect> RemoveUsingNamespace::apply(const Selection &Inputs) {
   return Effect::mainFileEdit(SM, std::move(R));
 }
 
-std::string RemoveUsingNamespace::title() const {
-  return std::string(
-      llvm::formatv("Remove using namespace, re-qualify names instead."));
-}
 } // namespace
 } // namespace clangd
 } // namespace clang

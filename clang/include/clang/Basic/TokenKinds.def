@@ -587,7 +587,7 @@ ALIAS("write_only", __write_only    , KEYOPENCLC | KEYOPENCLCXX)
 ALIAS("read_write", __read_write    , KEYOPENCLC | KEYOPENCLCXX)
 // OpenCL builtins
 KEYWORD(__builtin_astype            , KEYOPENCLC | KEYOPENCLCXX)
-UNARY_EXPR_OR_TYPE_TRAIT(vec_step, VecStep, KEYOPENCLC | KEYALTIVEC | KEYZVECTOR)
+UNARY_EXPR_OR_TYPE_TRAIT(vec_step, VecStep, KEYOPENCLC | KEYOPENCLCXX | KEYALTIVEC | KEYZVECTOR)
 #define GENERIC_IMAGE_TYPE(ImgType, Id) KEYWORD(ImgType##_t, KEYOPENCLC | KEYOPENCLCXX)
 #include "clang/Basic/OpenCLImageTypes.def"
 KEYWORD(pipe                        , KEYOPENCLC | KEYOPENCLCXX)
@@ -651,6 +651,7 @@ ALIAS("__volatile__" , volatile   , KEYALL)
 // Type nullability.
 KEYWORD(_Nonnull                 , KEYALL)
 KEYWORD(_Nullable                , KEYALL)
+KEYWORD(_Nullable_result         , KEYALL)
 KEYWORD(_Null_unspecified        , KEYALL)
 
 // Microsoft extensions which should be disabled in strict conformance mode
@@ -829,6 +830,11 @@ PRAGMA_ANNOTATION(pragma_fp_contract)
 // The lexer produces these so that they only take effect when the parser
 // handles them.
 PRAGMA_ANNOTATION(pragma_fenv_access)
+
+// Annotation for #pragma STDC FENV_ROUND
+// The lexer produces these so that they only take effect when the parser
+// handles them.
+PRAGMA_ANNOTATION(pragma_fenv_round)
 
 // Annotation for #pragma float_control
 // The lexer produces these so that they only take effect when the parser

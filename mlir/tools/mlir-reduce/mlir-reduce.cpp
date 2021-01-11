@@ -32,6 +32,12 @@
 
 using namespace mlir;
 
+namespace mlir {
+namespace test {
+void registerTestDialect(DialectRegistry &);
+} // namespace test
+} // namespace mlir
+
 static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
                                                 llvm::cl::Required,
                                                 llvm::cl::desc("<input file>"));
@@ -67,7 +73,6 @@ int main(int argc, char **argv) {
 
   llvm::InitLLVM y(argc, argv);
 
-  registerAllDialects();
   registerMLIRContextCLOptions();
   registerPassManagerCLOptions();
 
@@ -85,9 +90,12 @@ int main(int argc, char **argv) {
     llvm::report_fatal_error(errorMessage);
 
   mlir::MLIRContext context;
-  mlir::OwningModuleRef moduleRef;
-  context.allowUnregisteredDialects(true);
+  registerAllDialects(context.getDialectRegistry());
+#ifdef MLIR_INCLUDE_TESTS
+  mlir::test::registerTestDialect(context.getDialectRegistry());
+#endif
 
+  mlir::OwningModuleRef moduleRef;
   if (failed(loadModule(context, moduleRef, inputFilename)))
     llvm::report_fatal_error("Input test case can't be parsed");
 

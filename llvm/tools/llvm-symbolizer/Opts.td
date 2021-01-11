@@ -41,7 +41,7 @@ defm print_source_context_lines : Eq<"print-source-context-lines", "Print N line
 def relative_address : F<"relative-address", "Interpret addresses as addresses relative to the image base">;
 def relativenames : F<"relativenames", "Strip the compilation directory from paths">;
 defm untag_addresses : B<"untag-addresses", "", "Remove memory tags from addresses before symbolization">;
-def use_native_pdb_reader : F<"use-native-pdb-reader", "Use native PDB functionality">;
+def use_dia: F<"dia", "Use the DIA library to access symbols (Windows only)">;
 def verbose : F<"verbose", "Print verbose line info">;
 def version : F<"version", "Display the version">;
 
@@ -67,3 +67,5 @@ def : Flag<["--"], "inlining=false">, Alias<no_inlines>, HelpText<"Alias for --n
 // Compatibility aliases for pprof's symbolizer.
 def : Flag<["-"], "demangle=true">, Alias<demangle>, HelpText<"Alias for --demangle">;
 def : Flag<["-"], "demangle=false">, Alias<no_demangle>, HelpText<"Alias for --no-demangle">;
+// Compatibility no-op options.
+def : Flag<["--"], "use-symbol-table=true">;

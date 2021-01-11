@@ -17,7 +17,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/Transforms/LegalizeForExport.h"
 #include "mlir/IR/Block.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Target/LLVMIR/TypeTranslation.h"
 
@@ -91,7 +91,15 @@ protected:
                                             llvm::IRBuilder<> &builder);
   virtual LogicalResult convertOmpParallel(Operation &op,
                                            llvm::IRBuilder<> &builder);
-
+  virtual LogicalResult convertOmpMaster(Operation &op,
+                                         llvm::IRBuilder<> &builder);
+  void convertOmpOpRegions(Region &region,
+                           DenseMap<Value, llvm::Value *> &valueMapping,
+                           DenseMap<Block *, llvm::BasicBlock *> &blockMapping,
+                           llvm::Instruction *codeGenIPBBTI,
+                           llvm::BasicBlock &continuationIP,
+                           llvm::IRBuilder<> &builder,
+                           LogicalResult &bodyGenStatus);
   /// Converts the type from MLIR LLVM dialect to LLVM.
   llvm::Type *convertType(LLVMType type);
 
@@ -123,8 +131,14 @@ private:
 
   /// Builder for LLVM IR generation of OpenMP constructs.
   std::unique_ptr<llvm::OpenMPIRBuilder> ompBuilder;
-  /// Precomputed pointer to OpenMP dialect.
+  /// Precomputed pointer to OpenMP dialect. Note this can be nullptr if the
+  /// OpenMP dialect hasn't been loaded (it is always loaded if there are OpenMP
+  /// operations in the module though).
   const Dialect *ompDialect;
+  /// Stack which stores the target block to which a branch a must be added when
+  /// a terminator is seen. A stack is required to handle nested OpenMP parallel
+  /// regions.
+  SmallVector<llvm::BasicBlock *, 4> ompContinuationIPStack;
 
   /// Mappings between llvm.mlir.global definitions and corresponding globals.
   DenseMap<Operation *, llvm::GlobalValue *> globalsMapping;
@@ -137,6 +151,11 @@ protected:
   llvm::StringMap<llvm::Function *> functionMapping;
   DenseMap<Value, llvm::Value *> valueMapping;
   DenseMap<Block *, llvm::BasicBlock *> blockMapping;
+
+  /// A mapping between MLIR LLVM dialect terminators and LLVM IR terminators
+  /// they are converted to. This allows for conneting PHI nodes to the source
+  /// values after all operations are converted.
+  DenseMap<Operation *, llvm::Instruction *> branchMapping;
 };
 
 } // namespace LLVM

@@ -18,11 +18,11 @@
 #ifdef _WIN32
 #ifndef MLIR_CRUNNERUTILS_EXPORT
 #ifdef mlir_c_runner_utils_EXPORTS
-/* We are building this library */
+// We are building this library
 #define MLIR_CRUNNERUTILS_EXPORT __declspec(dllexport)
 #define MLIR_CRUNNERUTILS_DEFINE_FUNCTIONS
 #else
-/* We are using this library */
+// We are using this library
 #define MLIR_CRUNNERUTILS_EXPORT __declspec(dllimport)
 #endif // mlir_c_runner_utils_EXPORTS
 #endif // MLIR_CRUNNERUTILS_EXPORT
@@ -200,14 +200,25 @@ public:
 //===----------------------------------------------------------------------===//
 // Small runtime support "lib" for vector.print lowering during codegen.
 //===----------------------------------------------------------------------===//
-extern "C" MLIR_CRUNNERUTILS_EXPORT void print_i32(int32_t i);
-extern "C" MLIR_CRUNNERUTILS_EXPORT void print_i64(int64_t l);
-extern "C" MLIR_CRUNNERUTILS_EXPORT void print_f32(float f);
-extern "C" MLIR_CRUNNERUTILS_EXPORT void print_f64(double d);
-extern "C" MLIR_CRUNNERUTILS_EXPORT void print_open();
-extern "C" MLIR_CRUNNERUTILS_EXPORT void print_close();
-extern "C" MLIR_CRUNNERUTILS_EXPORT void print_comma();
-extern "C" MLIR_CRUNNERUTILS_EXPORT void print_newline();
+extern "C" MLIR_CRUNNERUTILS_EXPORT void printI64(int64_t i);
+extern "C" MLIR_CRUNNERUTILS_EXPORT void printU64(uint64_t u);
+extern "C" MLIR_CRUNNERUTILS_EXPORT void printF32(float f);
+extern "C" MLIR_CRUNNERUTILS_EXPORT void printF64(double d);
+extern "C" MLIR_CRUNNERUTILS_EXPORT void printOpen();
+extern "C" MLIR_CRUNNERUTILS_EXPORT void printClose();
+extern "C" MLIR_CRUNNERUTILS_EXPORT void printComma();
+extern "C" MLIR_CRUNNERUTILS_EXPORT void printNewline();
+
+//===----------------------------------------------------------------------===//
+// Small runtime support for sparse tensors.
+//===----------------------------------------------------------------------===//
+extern "C" MLIR_CRUNNERUTILS_EXPORT void openMatrixC(char *filename,
+                                                     uint64_t *mdata,
+                                                     uint64_t *ndata,
+                                                     uint64_t *nnzdata);
+extern "C" MLIR_CRUNNERUTILS_EXPORT void
+readMatrixItemC(uint64_t *idata, uint64_t *jdata, double *ddata);
+extern "C" MLIR_CRUNNERUTILS_EXPORT void closeMatrix();
+extern "C" MLIR_CRUNNERUTILS_EXPORT char *getMatrix(uint64_t id);
 
 #endif // EXECUTIONENGINE_CRUNNERUTILS_H_
-

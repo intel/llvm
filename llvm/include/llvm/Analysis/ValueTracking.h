@@ -413,10 +413,12 @@ constexpr unsigned MaxAnalysisRecursionDepth = 6;
   bool getUnderlyingObjectsForCodeGen(const Value *V,
                                       SmallVectorImpl<Value *> &Objects);
 
-  /// Finds alloca where the value comes from.
-  AllocaInst *findAllocaForValue(Value *V);
-  inline const AllocaInst *findAllocaForValue(const Value *V) {
-    return findAllocaForValue(const_cast<Value *>(V));
+  /// Returns unique alloca where the value comes from, or nullptr.
+  /// If OffsetZero is true check that V points to the begining of the alloca.
+  AllocaInst *findAllocaForValue(Value *V, bool OffsetZero = false);
+  inline const AllocaInst *findAllocaForValue(const Value *V,
+                                              bool OffsetZero = false) {
+    return findAllocaForValue(const_cast<Value *>(V), OffsetZero);
   }
 
   /// Return true if the only users of this pointer are lifetime markers.
@@ -582,25 +584,27 @@ constexpr unsigned MaxAnalysisRecursionDepth = 6;
   /// if, for all i, r is evaluated to poison or op raises UB if vi = poison.
   /// To filter out operands that raise UB on poison, you can use
   /// getGuaranteedNonPoisonOp.
-  bool propagatesPoison(const Instruction *I);
+  bool propagatesPoison(const Operator *I);
 
-  /// Return either nullptr or an operand of I such that I will trigger
-  /// undefined behavior if I is executed and that operand has a poison
-  /// value.
-  const Value *getGuaranteedNonPoisonOp(const Instruction *I);
+  /// Insert operands of I into Ops such that I will trigger undefined behavior
+  /// if I is executed and that operand has a poison value.
+  void getGuaranteedNonPoisonOps(const Instruction *I,
+                                 SmallPtrSetImpl<const Value *> &Ops);
 
-  /// Return true if the given instruction must trigger undefined behavior.
+  /// Return true if the given instruction must trigger undefined behavior
   /// when I is executed with any operands which appear in KnownPoison holding
   /// a poison value at the point of execution.
   bool mustTriggerUB(const Instruction *I,
                      const SmallSet<const Value *, 16>& KnownPoison);
 
-  /// Return true if this function can prove that if PoisonI is executed
-  /// and yields a poison value, then that will trigger undefined behavior.
+  /// Return true if this function can prove that if Inst is executed
+  /// and yields a poison value or undef bits, then that will trigger
+  /// undefined behavior.
   ///
   /// Note that this currently only considers the basic block that is
-  /// the parent of I.
-  bool programUndefinedIfPoison(const Instruction *PoisonI);
+  /// the parent of Inst.
+  bool programUndefinedIfUndefOrPoison(const Instruction *Inst);
+  bool programUndefinedIfPoison(const Instruction *Inst);
 
   /// canCreateUndefOrPoison returns true if Op can create undef or poison from
   /// non-undef & non-poison operands.
@@ -616,9 +620,9 @@ constexpr unsigned MaxAnalysisRecursionDepth = 6;
   bool canCreateUndefOrPoison(const Operator *Op);
   bool canCreatePoison(const Operator *Op);
 
-  /// Return true if this function can prove that V is never undef value
-  /// or poison value. If V is an aggregate value or vector, check whether all
-  /// elements (except padding) are not undef or poison.
+  /// Return true if this function can prove that V does not have undef bits
+  /// and is never poison. If V is an aggregate value or vector, check whether
+  /// all elements (except padding) are not undef or poison.
   /// Note that this is different from canCreateUndefOrPoison because the
   /// function assumes Op's operands are not poison/undef.
   ///
@@ -626,9 +630,14 @@ constexpr unsigned MaxAnalysisRecursionDepth = 6;
   /// and returns true if it is guaranteed to be never undef or poison
   /// immediately before the CtxI.
   bool isGuaranteedNotToBeUndefOrPoison(const Value *V,
+                                        AssumptionCache *AC = nullptr,
                                         const Instruction *CtxI = nullptr,
                                         const DominatorTree *DT = nullptr,
                                         unsigned Depth = 0);
+  bool isGuaranteedNotToBePoison(const Value *V, AssumptionCache *AC = nullptr,
+                                 const Instruction *CtxI = nullptr,
+                                 const DominatorTree *DT = nullptr,
+                                 unsigned Depth = 0);
 
   /// Specific patterns of select instructions we can match.
   enum SelectPatternFlavor {
@@ -718,6 +727,14 @@ constexpr unsigned MaxAnalysisRecursionDepth = 6;
   /// Return the canonical inverse comparison predicate for the specified
   /// minimum/maximum flavor.
   CmpInst::Predicate getInverseMinMaxPred(SelectPatternFlavor SPF);
+
+  /// Check if the values in \p VL are select instructions that can be converted
+  /// to a min or max (vector) intrinsic. Returns the intrinsic ID, if such a
+  /// conversion is possible, together with a bool indicating whether all select
+  /// conditions are only used by the selects. Otherwise return
+  /// Intrinsic::not_intrinsic.
+  std::pair<Intrinsic::ID, bool>
+  canConvertToMinOrMaxIntrinsic(ArrayRef<Value *> VL);
 
   /// Return true if RHS is known to be implied true by LHS.  Return false if
   /// RHS is known to be implied false by LHS.  Otherwise, return None if no

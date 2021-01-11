@@ -4,9 +4,7 @@
 module attributes {
   gpu.container_module,
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class, SPV_KHR_8bit_storage]>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class, SPV_KHR_8bit_storage]>, {}>
 } {
   gpu.module @kernels {
     gpu.func @kernel_addi(%arg0 : memref<8xi8>, %arg1 : memref<8x8xi8>, %arg2 : memref<8x8x8xi32>)
@@ -39,14 +37,15 @@ module attributes {
 
     %cst1 = constant 1 : index
     %cst8 = constant 8 : index
-    "gpu.launch_func"(%cst8, %cst8, %cst8, %cst1, %cst1, %cst1, %arg0, %arg1, %arg2) { kernel = @kernels::@kernel_addi }
-        : (index, index, index, index, index, index, memref<8xi8>, memref<8x8xi8>, memref<8x8x8xi32>) -> ()
+    gpu.launch_func @kernels::@kernel_addi
+        blocks in (%cst8, %cst8, %cst8) threads in (%cst1, %cst1, %cst1)
+        args(%arg0 : memref<8xi8>, %arg1 : memref<8x8xi8>, %arg2 : memref<8x8x8xi32>)
     %arg6 = memref_cast %arg5 : memref<?x?x?xi32> to memref<*xi32>
     call @print_memref_i32(%arg6) : (memref<*xi32>) -> ()
     return
   }
-  func @fillResource1DInt8(%0 : memref<?xi8>, %1 : i8)
-  func @fillResource2DInt8(%0 : memref<?x?xi8>, %1 : i8)
-  func @fillResource3DInt(%0 : memref<?x?x?xi32>, %1 : i32)
-  func @print_memref_i32(%ptr : memref<*xi32>)
+  func private @fillResource1DInt8(%0 : memref<?xi8>, %1 : i8)
+  func private @fillResource2DInt8(%0 : memref<?x?xi8>, %1 : i8)
+  func private @fillResource3DInt(%0 : memref<?x?x?xi32>, %1 : i32)
+  func private @print_memref_i32(%ptr : memref<*xi32>)
 }

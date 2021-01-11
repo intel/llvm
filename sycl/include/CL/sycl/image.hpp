@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/sycl/ONEAPI/accessor_property_list.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/image_impl.hpp>
@@ -92,7 +93,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range,
-        const typename std::enable_if<B, range<Dimensions - 1>>::type &Pitch,
+        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
         Order, Type, Range, Pitch,
@@ -104,7 +105,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range,
-        const typename std::enable_if<B, range<Dimensions - 1>>::type &Pitch,
+        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         AllocatorT Allocator, const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
         Order, Type, Range, Pitch,
@@ -154,7 +155,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(void *HostPointer, image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range,
-        typename std::enable_if<B, range<Dimensions - 1>>::type &Pitch,
+        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
         HostPointer, Order, Type, Range, Pitch,
@@ -166,7 +167,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(void *HostPointer, image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range,
-        typename std::enable_if<B, range<Dimensions - 1>>::type &Pitch,
+        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         AllocatorT Allocator, const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
         HostPointer, Order, Type, Range, Pitch,
@@ -198,7 +199,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(shared_ptr_class<void> &HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
-        const typename std::enable_if<B, range<Dimensions - 1>>::type &Pitch,
+        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
         HostPointer, Order, Type, Range, Pitch,
@@ -210,7 +211,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(shared_ptr_class<void> &HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
-        const typename std::enable_if<B, range<Dimensions - 1>>::type &Pitch,
+        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         AllocatorT Allocator, const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
         HostPointer, Order, Type, Range, Pitch,
@@ -255,7 +256,7 @@ public:
 
   /* Available only when: dimensions >1 */
   template <bool B = (Dimensions > 1)>
-  typename std::enable_if<B, range<Dimensions - 1>>::type get_pitch() const {
+  typename detail::enable_if_t<B, range<Dimensions - 1>> get_pitch() const {
     return impl->get_pitch();
   }
 
@@ -272,18 +273,23 @@ public:
 
   template <typename DataT, access::mode AccessMode>
   accessor<detail::EnableIfImgAccDataT<DataT>, Dimensions, AccessMode,
-           access::target::image, access::placeholder::false_t>
+           access::target::image, access::placeholder::false_t,
+           ONEAPI::accessor_property_list<>>
   get_access(handler &commandGroupHandler) {
     return accessor<DataT, Dimensions, AccessMode, access::target::image,
-                    access::placeholder::false_t>(*this, commandGroupHandler);
+                    access::placeholder::false_t,
+                    ONEAPI::accessor_property_list<>>(*this,
+                                                      commandGroupHandler);
   }
 
   template <typename DataT, access::mode AccessMode>
   accessor<detail::EnableIfImgAccDataT<DataT>, Dimensions, AccessMode,
-           access::target::host_image, access::placeholder::false_t>
+           access::target::host_image, access::placeholder::false_t,
+           ONEAPI::accessor_property_list<>>
   get_access() {
     return accessor<DataT, Dimensions, AccessMode, access::target::host_image,
-                    access::placeholder::false_t>(*this);
+                    access::placeholder::false_t,
+                    ONEAPI::accessor_property_list<>>(*this);
   }
 
   template <typename Destination = std::nullptr_t>

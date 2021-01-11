@@ -448,6 +448,19 @@ public:
     return ++DI == def_end();
   }
 
+  /// Returns the defining operand if there is exactly one operand defining the
+  /// specified register, otherwise nullptr.
+  MachineOperand *getOneDef(Register Reg) const {
+    def_iterator DI = def_begin(Reg);
+    if (DI == def_end()) // No defs.
+      return nullptr;
+
+    def_iterator OneDef = DI;
+    if (++DI == def_end())
+      return &*OneDef;
+    return nullptr; // Multiple defs.
+  }
+
   /// use_iterator/use_begin/use_end - Walk all uses of the specified register.
   using use_iterator =
       defusechain_iterator<true, false, false, true, false, false>;
@@ -619,7 +632,7 @@ public:
   /// Get an iterator over the pressure sets affected by the given physical or
   /// virtual register. If RegUnit is physical, it must be a register unit (from
   /// MCRegUnitIterator).
-  PSetIterator getPressureSets(unsigned RegUnit) const;
+  PSetIterator getPressureSets(Register RegUnit) const;
 
   //===--------------------------------------------------------------------===//
   // Virtual Register Info
@@ -894,7 +907,7 @@ public:
   ///
   /// Reserved registers may belong to an allocatable register class, but the
   /// target has explicitly requested that they are not used.
-  bool isReserved(Register PhysReg) const {
+  bool isReserved(MCRegister PhysReg) const {
     return getReservedRegs().test(PhysReg.id());
   }
 
@@ -1174,14 +1187,13 @@ class PSetIterator {
 public:
   PSetIterator() = default;
 
-  PSetIterator(unsigned RegUnit, const MachineRegisterInfo *MRI) {
+  PSetIterator(Register RegUnit, const MachineRegisterInfo *MRI) {
     const TargetRegisterInfo *TRI = MRI->getTargetRegisterInfo();
-    if (Register::isVirtualRegister(RegUnit)) {
+    if (RegUnit.isVirtual()) {
       const TargetRegisterClass *RC = MRI->getRegClass(RegUnit);
       PSet = TRI->getRegClassPressureSets(RC);
       Weight = TRI->getRegClassWeight(RC).RegWeight;
-    }
-    else {
+    } else {
       PSet = TRI->getRegUnitPressureSets(RegUnit);
       Weight = TRI->getRegUnitWeight(RegUnit);
     }
@@ -1203,8 +1215,8 @@ public:
   }
 };
 
-inline PSetIterator MachineRegisterInfo::
-getPressureSets(unsigned RegUnit) const {
+inline PSetIterator
+MachineRegisterInfo::getPressureSets(Register RegUnit) const {
   return PSetIterator(RegUnit, this);
 }
 

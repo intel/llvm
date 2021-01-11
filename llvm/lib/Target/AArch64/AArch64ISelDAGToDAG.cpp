@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "AArch64MachineFunctionInfo.h"
 #include "AArch64TargetMachine.h"
 #include "MCTargetDesc/AArch64AddressingModes.h"
 #include "llvm/ADT/APSInt.h"
@@ -190,6 +191,11 @@ public:
     return SelectSVELogicalImm(N, VT, Imm);
   }
 
+  template <MVT::SimpleValueType VT>
+  bool SelectSVEArithImm(SDValue N, SDValue &Imm) {
+    return SelectSVEArithImm(N, VT, Imm);
+  }
+
   template <unsigned Low, unsigned High, bool AllowSaturation = false>
   bool SelectSVEShiftImm(SDValue N, SDValue &Imm) {
     return SelectSVEShiftImm(N, Low, High, AllowSaturation, Imm);
@@ -326,7 +332,7 @@ private:
   bool SelectSVEShiftImm(SDValue N, uint64_t Low, uint64_t High,
                          bool AllowSaturation, SDValue &Imm);
 
-  bool SelectSVEArithImm(SDValue N, SDValue &Imm);
+  bool SelectSVEArithImm(SDValue N, MVT VT, SDValue &Imm);
   bool SelectSVERegRegAddrMode(SDValue N, unsigned Scale, SDValue &Base,
                                SDValue &Offset);
 };
@@ -3127,13 +3133,28 @@ bool AArch64DAGToDAGISel::SelectSVESignedArithImm(SDValue N, SDValue &Imm) {
   return false;
 }
 
-bool AArch64DAGToDAGISel::SelectSVEArithImm(SDValue N, SDValue &Imm) {
+bool AArch64DAGToDAGISel::SelectSVEArithImm(SDValue N, MVT VT, SDValue &Imm) {
   if (auto CNode = dyn_cast<ConstantSDNode>(N)) {
-    uint64_t ImmVal = CNode->getSExtValue();
-    SDLoc DL(N);
-    ImmVal = ImmVal & 0xFF;
+    uint64_t ImmVal = CNode->getZExtValue();
+
+    switch (VT.SimpleTy) {
+    case MVT::i8:
+      ImmVal &= 0xFF;
+      break;
+    case MVT::i16:
+      ImmVal &= 0xFFFF;
+      break;
+    case MVT::i32:
+      ImmVal &= 0xFFFFFFFF;
+      break;
+    case MVT::i64:
+      break;
+    default:
+      llvm_unreachable("Unexpected type");
+    }
+
     if (ImmVal < 256) {
-      Imm = CurDAG->getTargetConstant(ImmVal, DL, MVT::i32);
+      Imm = CurDAG->getTargetConstant(ImmVal, SDLoc(N), MVT::i32);
       return true;
     }
   }
@@ -4827,7 +4848,8 @@ static EVT getPackedVectorTypeFromPredicateType(LLVMContext &Ctx, EVT PredVT,
     return EVT();
 
   ElementCount EC = PredVT.getVectorElementCount();
-  EVT ScalarVT = EVT::getIntegerVT(Ctx, AArch64::SVEBitsPerBlock / EC.Min);
+  EVT ScalarVT =
+      EVT::getIntegerVT(Ctx, AArch64::SVEBitsPerBlock / EC.getKnownMinValue());
   EVT MemVT = EVT::getVectorVT(Ctx, ScalarVT, EC * NumVec);
 
   return MemVT;

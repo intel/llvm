@@ -7,8 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Identifier.h"
-#include "mlir/IR/StandardTypes.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -24,7 +25,7 @@ namespace mlir {
 /// Helper that returns an example test::TestStruct for testing its
 /// implementation.
 static test::TestStruct getTestStruct(mlir::MLIRContext *context) {
-  auto integerType = mlir::IntegerType::get(32, context);
+  auto integerType = mlir::IntegerType::get(context, 32);
   auto integerAttr = mlir::IntegerAttr::get(integerType, 127);
 
   auto floatType = mlir::FloatType::getF32(context);
@@ -34,15 +35,16 @@ static test::TestStruct getTestStruct(mlir::MLIRContext *context) {
   auto elementsAttr =
       mlir::DenseIntElementsAttr::get(elementsType, {1, 2, 3, 4, 5, 6});
   auto optionalAttr = nullptr;
+  auto defaultValuedAttr = nullptr;
 
   return test::TestStruct::get(integerAttr, floatAttr, elementsAttr,
-                               optionalAttr, context);
+                               optionalAttr, defaultValuedAttr, context);
 }
 
 /// Validates that test::TestStruct::classof correctly identifies a valid
 /// test::TestStruct.
 TEST(StructsGenTest, ClassofTrue) {
-  mlir::MLIRContext context(false);
+  mlir::MLIRContext context;
   auto structAttr = getTestStruct(&context);
   ASSERT_TRUE(test::TestStruct::classof(structAttr));
 }
@@ -103,7 +105,7 @@ TEST(StructsGenTest, ClassofBadTypeFalse) {
       expectedValues.begin(), expectedValues.end() - 1);
 
   // Add a copy of the last attribute with the wrong type.
-  auto i64Type = mlir::IntegerType::get(64, &context);
+  auto i64Type = mlir::IntegerType::get(&context, 64);
   auto elementsType = mlir::RankedTensorType::get({3}, i64Type);
   auto elementsAttr =
       mlir::DenseIntElementsAttr::get(elementsType, ArrayRef<int64_t>{1, 2, 3});
@@ -165,6 +167,14 @@ TEST(StructsGenTest, EmptyOptional) {
   mlir::MLIRContext context;
   auto structAttr = getTestStruct(&context);
   EXPECT_EQ(structAttr.sample_optional_integer(), nullptr);
+}
+
+TEST(StructsGenTest, GetDefaultValuedAttr) {
+  mlir::MLIRContext context;
+  mlir::Builder builder(&context);
+  auto structAttr = getTestStruct(&context);
+  EXPECT_EQ(structAttr.sample_default_valued_integer(),
+            builder.getI32IntegerAttr(42));
 }
 
 } // namespace mlir

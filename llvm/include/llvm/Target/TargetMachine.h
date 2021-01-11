@@ -34,6 +34,7 @@ class MCRegisterInfo;
 class MCSubtargetInfo;
 class MCSymbol;
 class raw_pwrite_stream;
+class PassBuilder;
 class PassManagerBuilder;
 struct PerFunctionMIParsingState;
 class SMDiagnostic;
@@ -111,6 +112,7 @@ public:
   const Triple &getTargetTriple() const { return TargetTriple; }
   StringRef getTargetCPU() const { return TargetCPU; }
   StringRef getTargetFeatureString() const { return TargetFS; }
+  void setTargetFeatureString(StringRef FS) { TargetFS = std::string(FS); }
 
   /// Virtual method implemented by subclasses that returns a reference to that
   /// target's TargetSubtargetInfo-derived member variable.
@@ -241,6 +243,10 @@ public:
     Options.SupportsDebugEntryValues = Enable;
   }
 
+  bool getAIXExtendedAltivecABI() const {
+    return Options.EnableAIXExtendedAltivecABI;
+  }
+
   bool getUniqueSectionNames() const { return Options.UniqueSectionNames; }
 
   /// Return true if unique basic block section names must be generated.
@@ -260,6 +266,16 @@ public:
     return Options.FunctionSections;
   }
 
+  /// Return true if visibility attribute should not be emitted in XCOFF,
+  /// corresponding to -mignore-xcoff-visibility.
+  bool getIgnoreXCOFFVisibility() const {
+    return Options.IgnoreXCOFFVisibility;
+  }
+
+  /// Return true if XCOFF traceback table should be emitted,
+  /// corresponding to -xcoff-traceback-table.
+  bool getXCOFFTracebackTable() const { return Options.XCOFFTracebackTable; }
+
   /// If basic blocks should be emitted into their own section,
   /// corresponding to -fbasic-block-sections.
   llvm::BasicBlockSection getBBSectionsType() const {
@@ -275,6 +291,14 @@ public:
   virtual bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const {
     return false;
   }
+
+  /// If the specified generic pointer could be assumed as a pointer to a
+  /// specific address space, return that address space.
+  ///
+  /// Under offloading programming, the offloading target may be passed with
+  /// values only prepared on the host side and could assume certain
+  /// properties.
+  virtual unsigned getAssumedAddrSpace(const Value *V) const { return -1; }
 
   /// Get a \c TargetIRAnalysis appropriate for the target.
   ///
@@ -292,6 +316,11 @@ public:
   /// Allow the target to modify the pass manager, e.g. by calling
   /// PassManagerBuilder::addExtension.
   virtual void adjustPassManager(PassManagerBuilder &) {}
+
+  /// Allow the target to modify the pass pipeline with New Pass Manager
+  /// (similar to adjustPassManager for Legacy Pass manager).
+  virtual void registerPassBuilderCallbacks(PassBuilder &,
+                                            bool DebugPassManager) {}
 
   /// Add passes to the specified pass manager to get the specified file
   /// emitted.  Typically this will involve several steps of code generation.

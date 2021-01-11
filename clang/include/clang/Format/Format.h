@@ -583,6 +583,24 @@ struct FormatStyle {
   /// The template declaration breaking style to use.
   BreakTemplateDeclarationsStyle AlwaysBreakTemplateDeclarations;
 
+  /// A vector of strings that should be interpreted as attributes/qualifiers
+  /// instead of identifiers. This can be useful for language extensions or
+  /// static analyzer annotations.
+  ///
+  /// For example:
+  /// \code
+  ///   x = (char *__capability)&y;
+  ///   int function(void) __ununsed;
+  ///   void only_writes_to_buffer(char *__output buffer);
+  /// \endcode
+  ///
+  /// In the .clang-format configuration file, this can be configured like:
+  /// \code{.yaml}
+  ///   AttributeMacros: ['__capability', '__output', '__ununsed']
+  /// \endcode
+  ///
+  std::vector<std::string> AttributeMacros;
+
   /// If ``false``, a function call's arguments will either be all on the
   /// same line or will have one line each.
   /// \code
@@ -702,163 +720,427 @@ struct FormatStyle {
   enum BraceBreakingStyle {
     /// Always attach braces to surrounding context.
     /// \code
-    ///   try {
-    ///     foo();
-    ///   } catch () {
+    ///   namespace N {
+    ///   enum E {
+    ///     E1,
+    ///     E2,
+    ///   };
+    ///
+    ///   class C {
+    ///   public:
+    ///     C();
+    ///   };
+    ///
+    ///   bool baz(int i) {
+    ///     try {
+    ///       do {
+    ///         switch (i) {
+    ///         case 1: {
+    ///           foobar();
+    ///           break;
+    ///         }
+    ///         default: {
+    ///           break;
+    ///         }
+    ///         }
+    ///       } while (--i);
+    ///       return true;
+    ///     } catch (...) {
+    ///       handleError();
+    ///       return false;
+    ///     }
     ///   }
-    ///   void foo() { bar(); }
-    ///   class foo {};
-    ///   if (foo()) {
-    ///   } else {
+    ///
+    ///   void foo(bool b) {
+    ///     if (b) {
+    ///       baz(2);
+    ///     } else {
+    ///       baz(5);
+    ///     }
     ///   }
-    ///   enum X : int { A, B };
+    ///
+    ///   void bar() { foo(true); }
+    ///   } // namespace N
     /// \endcode
     BS_Attach,
     /// Like ``Attach``, but break before braces on function, namespace and
     /// class definitions.
     /// \code
-    ///   try {
-    ///     foo();
-    ///   } catch () {
-    ///   }
-    ///   void foo() { bar(); }
-    ///   class foo
+    ///   namespace N
     ///   {
+    ///   enum E {
+    ///     E1,
+    ///     E2,
     ///   };
-    ///   if (foo()) {
-    ///   } else {
+    ///
+    ///   class C
+    ///   {
+    ///   public:
+    ///     C();
+    ///   };
+    ///
+    ///   bool baz(int i)
+    ///   {
+    ///     try {
+    ///       do {
+    ///         switch (i) {
+    ///         case 1: {
+    ///           foobar();
+    ///           break;
+    ///         }
+    ///         default: {
+    ///           break;
+    ///         }
+    ///         }
+    ///       } while (--i);
+    ///       return true;
+    ///     } catch (...) {
+    ///       handleError();
+    ///       return false;
+    ///     }
     ///   }
-    ///   enum X : int { A, B };
+    ///
+    ///   void foo(bool b)
+    ///   {
+    ///     if (b) {
+    ///       baz(2);
+    ///     } else {
+    ///       baz(5);
+    ///     }
+    ///   }
+    ///
+    ///   void bar() { foo(true); }
+    ///   } // namespace N
     /// \endcode
     BS_Linux,
     /// Like ``Attach``, but break before braces on enum, function, and record
     /// definitions.
     /// \code
-    ///   try {
-    ///     foo();
-    ///   } catch () {
-    ///   }
-    ///   void foo() { bar(); }
-    ///   class foo
+    ///   namespace N {
+    ///   enum E
     ///   {
+    ///     E1,
+    ///     E2,
     ///   };
-    ///   if (foo()) {
-    ///   } else {
+    ///
+    ///   class C
+    ///   {
+    ///   public:
+    ///     C();
+    ///   };
+    ///
+    ///   bool baz(int i)
+    ///   {
+    ///     try {
+    ///       do {
+    ///         switch (i) {
+    ///         case 1: {
+    ///           foobar();
+    ///           break;
+    ///         }
+    ///         default: {
+    ///           break;
+    ///         }
+    ///         }
+    ///       } while (--i);
+    ///       return true;
+    ///     } catch (...) {
+    ///       handleError();
+    ///       return false;
+    ///     }
     ///   }
-    ///   enum X : int { A, B };
+    ///
+    ///   void foo(bool b)
+    ///   {
+    ///     if (b) {
+    ///       baz(2);
+    ///     } else {
+    ///       baz(5);
+    ///     }
+    ///   }
+    ///
+    ///   void bar() { foo(true); }
+    ///   } // namespace N
     /// \endcode
     BS_Mozilla,
     /// Like ``Attach``, but break before function definitions, ``catch``, and
     /// ``else``.
     /// \code
-    ///   try {
-    ///     foo();
-    ///   }
-    ///   catch () {
-    ///   }
-    ///   void foo() { bar(); }
-    ///   class foo {
+    ///   namespace N {
+    ///   enum E {
+    ///     E1,
+    ///     E2,
     ///   };
-    ///   if (foo()) {
+    ///
+    ///   class C {
+    ///   public:
+    ///     C();
+    ///   };
+    ///
+    ///   bool baz(int i)
+    ///   {
+    ///     try {
+    ///       do {
+    ///         switch (i) {
+    ///         case 1: {
+    ///           foobar();
+    ///           break;
+    ///         }
+    ///         default: {
+    ///           break;
+    ///         }
+    ///         }
+    ///       } while (--i);
+    ///       return true;
+    ///     }
+    ///     catch (...) {
+    ///       handleError();
+    ///       return false;
+    ///     }
     ///   }
-    ///   else {
+    ///
+    ///   void foo(bool b)
+    ///   {
+    ///     if (b) {
+    ///       baz(2);
+    ///     }
+    ///     else {
+    ///       baz(5);
+    ///     }
     ///   }
-    ///   enum X : int { A, B };
+    ///
+    ///   void bar() { foo(true); }
+    ///   } // namespace N
     /// \endcode
     BS_Stroustrup,
     /// Always break before braces.
     /// \code
-    ///   try
+    ///   namespace N
     ///   {
-    ///     foo();
-    ///   }
-    ///   catch ()
+    ///   enum E
     ///   {
-    ///   }
-    ///   void foo() { bar(); }
-    ///   class foo
-    ///   {
+    ///     E1,
+    ///     E2,
     ///   };
-    ///   if (foo())
+    ///
+    ///   class C
     ///   {
-    ///   }
-    ///   else
-    ///   {
-    ///   }
-    ///   enum X : int
-    ///   {
-    ///     A,
-    ///     B
+    ///   public:
+    ///     C();
     ///   };
+    ///
+    ///   bool baz(int i)
+    ///   {
+    ///     try
+    ///     {
+    ///       do
+    ///       {
+    ///         switch (i)
+    ///         {
+    ///         case 1:
+    ///         {
+    ///           foobar();
+    ///           break;
+    ///         }
+    ///         default:
+    ///         {
+    ///           break;
+    ///         }
+    ///         }
+    ///       } while (--i);
+    ///       return true;
+    ///     }
+    ///     catch (...)
+    ///     {
+    ///       handleError();
+    ///       return false;
+    ///     }
+    ///   }
+    ///
+    ///   void foo(bool b)
+    ///   {
+    ///     if (b)
+    ///     {
+    ///       baz(2);
+    ///     }
+    ///     else
+    ///     {
+    ///       baz(5);
+    ///     }
+    ///   }
+    ///
+    ///   void bar() { foo(true); }
+    ///   } // namespace N
     /// \endcode
     BS_Allman,
     /// Like ``Allman`` but always indent braces and line up code with braces.
     /// \code
-    ///   try
+    ///   namespace N
     ///     {
-    ///     foo();
-    ///     }
-    ///   catch ()
+    ///   enum E
     ///     {
-    ///     }
-    ///   void foo() { bar(); }
-    ///   class foo
-    ///     {
+    ///     E1,
+    ///     E2,
     ///     };
-    ///   if (foo())
+    ///
+    ///   class C
     ///     {
-    ///     }
-    ///   else
-    ///     {
-    ///     }
-    ///   enum X : int
-    ///     {
-    ///     A,
-    ///     B
+    ///   public:
+    ///     C();
     ///     };
+    ///
+    ///   bool baz(int i)
+    ///     {
+    ///     try
+    ///       {
+    ///       do
+    ///         {
+    ///         switch (i)
+    ///           {
+    ///           case 1:
+    ///           {
+    ///           foobar();
+    ///           break;
+    ///           }
+    ///           default:
+    ///           {
+    ///           break;
+    ///           }
+    ///           }
+    ///         } while (--i);
+    ///       return true;
+    ///       }
+    ///     catch (...)
+    ///       {
+    ///       handleError();
+    ///       return false;
+    ///       }
+    ///     }
+    ///
+    ///   void foo(bool b)
+    ///     {
+    ///     if (b)
+    ///       {
+    ///       baz(2);
+    ///       }
+    ///     else
+    ///       {
+    ///       baz(5);
+    ///       }
+    ///     }
+    ///
+    ///   void bar() { foo(true); }
+    ///     } // namespace N
     /// \endcode
     BS_Whitesmiths,
     /// Always break before braces and add an extra level of indentation to
     /// braces of control statements, not to those of class, function
     /// or other definitions.
     /// \code
-    ///   try
-    ///     {
-    ///       foo();
-    ///     }
-    ///   catch ()
-    ///     {
-    ///     }
-    ///   void foo() { bar(); }
-    ///   class foo
+    ///   namespace N
     ///   {
-    ///   };
-    ///   if (foo())
-    ///     {
-    ///     }
-    ///   else
-    ///     {
-    ///     }
-    ///   enum X : int
+    ///   enum E
     ///   {
-    ///     A,
-    ///     B
+    ///     E1,
+    ///     E2,
     ///   };
+    ///
+    ///   class C
+    ///   {
+    ///   public:
+    ///     C();
+    ///   };
+    ///
+    ///   bool baz(int i)
+    ///   {
+    ///     try
+    ///       {
+    ///         do
+    ///           {
+    ///             switch (i)
+    ///               {
+    ///               case 1:
+    ///                 {
+    ///                   foobar();
+    ///                   break;
+    ///                 }
+    ///               default:
+    ///                 {
+    ///                   break;
+    ///                 }
+    ///               }
+    ///           }
+    ///         while (--i);
+    ///         return true;
+    ///       }
+    ///     catch (...)
+    ///       {
+    ///         handleError();
+    ///         return false;
+    ///       }
+    ///   }
+    ///
+    ///   void foo(bool b)
+    ///   {
+    ///     if (b)
+    ///       {
+    ///         baz(2);
+    ///       }
+    ///     else
+    ///       {
+    ///         baz(5);
+    ///       }
+    ///   }
+    ///
+    ///   void bar() { foo(true); }
+    ///   } // namespace N
     /// \endcode
     BS_GNU,
     /// Like ``Attach``, but break before functions.
     /// \code
-    ///   try {
-    ///     foo();
-    ///   } catch () {
-    ///   }
-    ///   void foo() { bar(); }
-    ///   class foo {
+    ///   namespace N {
+    ///   enum E {
+    ///     E1,
+    ///     E2,
     ///   };
-    ///   if (foo()) {
-    ///   } else {
+    ///
+    ///   class C {
+    ///   public:
+    ///     C();
+    ///   };
+    ///
+    ///   bool baz(int i)
+    ///   {
+    ///     try {
+    ///       do {
+    ///         switch (i) {
+    ///         case 1: {
+    ///           foobar();
+    ///           break;
+    ///         }
+    ///         default: {
+    ///           break;
+    ///         }
+    ///         }
+    ///       } while (--i);
+    ///       return true;
+    ///     } catch (...) {
+    ///       handleError();
+    ///       return false;
+    ///     }
     ///   }
-    ///   enum X : int { A, B };
+    ///
+    ///   void foo(bool b)
+    ///   {
+    ///     if (b) {
+    ///       baz(2);
+    ///     } else {
+    ///       baz(5);
+    ///     }
+    ///   }
+    ///
+    ///   void bar() { foo(true); }
+    ///   } // namespace N
     /// \endcode
     BS_WebKit,
     /// Configure each individual brace in `BraceWrapping`.
@@ -1141,6 +1423,17 @@ struct FormatStyle {
   ///     SplitEmptyFunction: false
   /// \endcode
   BraceWrappingFlags BraceWrapping;
+
+  /// If ``true``, concept will be placed on a new line.
+  /// \code
+  ///   true:
+  ///    template<typename T>
+  ///    concept ...
+  ///
+  ///   false:
+  ///    template<typename T> concept ...
+  /// \endcode
+  bool BreakBeforeConceptDeclarations;
 
   /// If ``true``, ternary operators will be placed after line breaks.
   /// \code
@@ -1499,6 +1792,29 @@ struct FormatStyle {
   /// \endcode
   bool IndentGotoLabels;
 
+  /// Indent pragmas
+  ///
+  /// When ``false``, pragmas are flushed left or follow IndentPPDirectives.
+  /// When ``true``, pragmas are indented to the current scope level.
+  /// \code
+  ///   false:                                  true:
+  ///   #pragma once                   vs       #pragma once
+  ///   void foo() {                            void foo() {
+  ///   #pragma omp simd                          #pragma omp simd
+  ///     for (int i=0;i<10;i++) {                for (int i=0;i<10;i++) {
+  ///   #pragma omp simd                            #pragma omp simd
+  ///       for (int i=0;i<10;i++) {                for (int i=0;i<10;i++) {
+  ///       }                                       }
+  ///   #if 1                                   #if 1
+  ///   #pragma omp simd                            #pragma omp simd
+  ///       for (int i=0;i<10;i++) {                for (int i=0;i<10;i++) {
+  ///       }                                       }
+  ///   #endif                                  #endif
+  ///     }                                       }
+  ///   }                                       }
+  /// \endcode
+  bool IndentPragmas;
+
   /// Options for indenting preprocessor directives.
   enum PPDirectiveIndentStyle {
     /// Does not indent any directives.
@@ -1572,6 +1888,24 @@ struct FormatStyle {
   /// IndentExternBlockStyle is the type of indenting of extern blocks.
   IndentExternBlockStyle IndentExternBlock;
 
+  /// Indent the requires clause in a template
+  /// \code
+  ///    true:
+  ///    template <typename It>
+  ///      requires Iterator<It>
+  ///    void sort(It begin, It end) {
+  ///      //....
+  ///    }
+  ///
+  ///    false:
+  ///    template <typename It>
+  ///    requires Iterator<It>
+  ///    void sort(It begin, It end) {
+  ///      //....
+  ///    }
+  /// \endcode
+  bool IndentRequires;
+
   /// The number of columns to use for indentation.
   /// \code
   ///    IndentWidth: 3
@@ -1600,10 +1934,12 @@ struct FormatStyle {
 
   /// A vector of prefixes ordered by the desired groups for Java imports.
   ///
-  /// Each group is separated by a newline. Static imports will also follow the
-  /// same grouping convention above all non-static imports. One group's prefix
-  /// can be a subset of another - the longest prefix is always matched. Within
-  /// a group, the imports are ordered lexicographically.
+  /// One group's prefix can be a subset of another - the longest prefix is
+  /// always matched. Within a group, the imports are ordered lexicographically.
+  /// Static imports are grouped separately and follow the same group rules.
+  /// By default, static imports are placed before non-static imports,
+  /// but this behavior is changed by another option,
+  /// ``SortJavaStaticImport``.
   ///
   /// In the .clang-format configuration file, this can be configured like
   /// in the following yaml example. This will result in imports being
@@ -1842,7 +2178,7 @@ struct FormatStyle {
   bool ObjCSpaceAfterProperty;
 
   /// Break parameters list into lines when there is nested block
-  /// parameters in a fuction call.
+  /// parameters in a function call.
   /// \code
   ///   false:
   ///    - (void)_aMethod
@@ -1892,6 +2228,10 @@ struct FormatStyle {
   /// Penalty for putting the return type of a function onto its own
   /// line.
   unsigned PenaltyReturnTypeOnItsOwnLine;
+
+  /// Penalty for each character of whitespace indentation
+  /// (counted relative to leading non-whitespace column).
+  unsigned PenaltyIndentedWhitespace;
 
   /// The ``&`` and ``*`` alignment style.
   enum PointerAlignmentStyle {
@@ -1998,6 +2338,29 @@ struct FormatStyle {
   /// \endcode
   bool SortIncludes;
 
+  /// Position for Java Static imports.
+  enum SortJavaStaticImportOptions {
+    /// Static imports are placed before non-static imports.
+    /// \code{.java}
+    ///   import static org.example.function1;
+    ///
+    ///   import org.example.ClassA;
+    /// \endcode
+    SJSIO_Before,
+    /// Static imports are placed after non-static imports.
+    /// \code{.java}
+    ///   import org.example.ClassA;
+    ///
+    ///   import static org.example.function1;
+    /// \endcode
+    SJSIO_After,
+  };
+
+  /// When sorting Java imports, by default static imports are placed before
+  /// non-static imports. If ``JavaStaticImportAfterImport`` is ``After``,
+  /// static imports are placed after non-static imports.
+  SortJavaStaticImportOptions SortJavaStaticImport;
+
   /// If ``true``, clang-format will sort using declarations.
   ///
   /// The order of using declarations is defined as follows:
@@ -2034,6 +2397,38 @@ struct FormatStyle {
   ///    template <int> void foo();     vs.     template<int> void foo();
   /// \endcode
   bool SpaceAfterTemplateKeyword;
+
+  /// Different ways to put a space before opening parentheses.
+  enum SpaceAroundPointerQualifiersStyle {
+    /// Don't ensure spaces around pointer qualifiers and use PointerAlignment
+    /// instead.
+    /// \code
+    ///    PointerAlignment: Left                 PointerAlignment: Right
+    ///    void* const* x = NULL;         vs.     void *const *x = NULL;
+    /// \endcode
+    SAPQ_Default,
+    /// Ensure that there is a space before pointer qualifiers.
+    /// \code
+    ///    PointerAlignment: Left                 PointerAlignment: Right
+    ///    void* const* x = NULL;         vs.     void * const *x = NULL;
+    /// \endcode
+    SAPQ_Before,
+    /// Ensure that there is a space after pointer qualifiers.
+    /// \code
+    ///    PointerAlignment: Left                 PointerAlignment: Right
+    ///    void* const * x = NULL;         vs.     void *const *x = NULL;
+    /// \endcode
+    SAPQ_After,
+    /// Ensure that there is a space both before and after pointer qualifiers.
+    /// \code
+    ///    PointerAlignment: Left                 PointerAlignment: Right
+    ///    void* const * x = NULL;         vs.     void * const *x = NULL;
+    /// \endcode
+    SAPQ_Both,
+  };
+
+  ///  Defines in which cases to put a space before or after pointer qualifiers
+  SpaceAroundPointerQualifiersStyle SpaceAroundPointerQualifiers;
 
   /// If ``false``, spaces will be removed before assignment operators.
   /// \code
@@ -2351,10 +2746,12 @@ struct FormatStyle {
                R.AlwaysBreakBeforeMultilineStrings &&
            AlwaysBreakTemplateDeclarations ==
                R.AlwaysBreakTemplateDeclarations &&
+           AttributeMacros == R.AttributeMacros &&
            BinPackArguments == R.BinPackArguments &&
            BinPackParameters == R.BinPackParameters &&
            BreakBeforeBinaryOperators == R.BreakBeforeBinaryOperators &&
            BreakBeforeBraces == R.BreakBeforeBraces &&
+           BreakBeforeConceptDeclarations == R.BreakBeforeConceptDeclarations &&
            BreakBeforeTernaryOperators == R.BreakBeforeTernaryOperators &&
            BreakConstructorInitializers == R.BreakConstructorInitializers &&
            CompactNamespaces == R.CompactNamespaces &&
@@ -2384,9 +2781,11 @@ struct FormatStyle {
            IndentCaseLabels == R.IndentCaseLabels &&
            IndentCaseBlocks == R.IndentCaseBlocks &&
            IndentGotoLabels == R.IndentGotoLabels &&
+           IndentPragmas == R.IndentPragmas &&
            IndentPPDirectives == R.IndentPPDirectives &&
            IndentExternBlock == R.IndentExternBlock &&
-           IndentWidth == R.IndentWidth && Language == R.Language &&
+           IndentRequires == R.IndentRequires && IndentWidth == R.IndentWidth &&
+           Language == R.Language &&
            IndentWrappedFunctionNames == R.IndentWrappedFunctionNames &&
            JavaImportGroups == R.JavaImportGroups &&
            JavaScriptQuotes == R.JavaScriptQuotes &&
@@ -2416,6 +2815,7 @@ struct FormatStyle {
                R.PenaltyBreakTemplateDeclaration &&
            PointerAlignment == R.PointerAlignment &&
            RawStringFormats == R.RawStringFormats &&
+           SortJavaStaticImport == R.SortJavaStaticImport &&
            SpaceAfterCStyleCast == R.SpaceAfterCStyleCast &&
            SpaceAfterLogicalNot == R.SpaceAfterLogicalNot &&
            SpaceAfterTemplateKeyword == R.SpaceAfterTemplateKeyword &&
@@ -2425,6 +2825,7 @@ struct FormatStyle {
                R.SpaceBeforeCtorInitializerColon &&
            SpaceBeforeInheritanceColon == R.SpaceBeforeInheritanceColon &&
            SpaceBeforeParens == R.SpaceBeforeParens &&
+           SpaceAroundPointerQualifiers == R.SpaceAroundPointerQualifiers &&
            SpaceBeforeRangeBasedForLoopColon ==
                R.SpaceBeforeRangeBasedForLoopColon &&
            SpaceInEmptyBlock == R.SpaceInEmptyBlock &&
@@ -2478,7 +2879,8 @@ struct FormatStyle {
 private:
   FormatStyleSet StyleSet;
 
-  friend std::error_code parseConfiguration(StringRef Text, FormatStyle *Style);
+  friend std::error_code parseConfiguration(StringRef Text, FormatStyle *Style,
+                                            bool AllowUnknownOptions);
 };
 
 /// Returns a format style complying with the LLVM coding standards:
@@ -2533,7 +2935,11 @@ bool getPredefinedStyle(StringRef Name, FormatStyle::LanguageKind Language,
 ///
 /// When ``BasedOnStyle`` is not present, options not present in the YAML
 /// document, are retained in \p Style.
-std::error_code parseConfiguration(StringRef Text, FormatStyle *Style);
+///
+/// If AllowUnknownOptions is true, no errors are emitted if unknown
+/// format options are occured.
+std::error_code parseConfiguration(StringRef Text, FormatStyle *Style,
+                                   bool AllowUnknownOptions = false);
 
 /// Gets configuration in a YAML string.
 std::string configurationAsText(const FormatStyle &Style);
@@ -2670,6 +3076,9 @@ extern const char *DefaultFallbackStyle;
 /// language if the filename isn't sufficient.
 /// \param[in] FS The underlying file system, in which the file resides. By
 /// default, the file system is the real file system.
+/// \param[in] AllowUnknownOptions If true, unknown format options only
+///             emit a warning. If false, errors are emitted on unknown format
+///             options.
 ///
 /// \returns FormatStyle as specified by ``StyleName``. If ``StyleName`` is
 /// "file" and no file is found, returns ``FallbackStyle``. If no style could be
@@ -2677,7 +3086,8 @@ extern const char *DefaultFallbackStyle;
 llvm::Expected<FormatStyle> getStyle(StringRef StyleName, StringRef FileName,
                                      StringRef FallbackStyle,
                                      StringRef Code = "",
-                                     llvm::vfs::FileSystem *FS = nullptr);
+                                     llvm::vfs::FileSystem *FS = nullptr,
+                                     bool AllowUnknownOptions = false);
 
 // Guesses the language from the ``FileName`` and ``Code`` to be formatted.
 // Defaults to FormatStyle::LK_Cpp.

@@ -60,6 +60,11 @@ if config.spirv_tools_have_spirv_as:
     config.available_features.add('spirv-as')
     using_spirv_tools = True
 
+if config.spirv_tools_have_spirv_link:
+    llvm_config.add_tool_substitutions(['spirv-link'], [config.spirv_tools_bin_dir])
+    config.available_features.add('spirv-link')
+    using_spirv_tools = True
+
 if config.spirv_tools_have_spirv_val:
     llvm_config.add_tool_substitutions(['spirv-val'], [config.spirv_tools_bin_dir])
     using_spirv_tools = True

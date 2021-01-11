@@ -1563,6 +1563,17 @@ static void emitCommonOMPParallelDirective(
                                               CapturedVars, IfCond);
 }
 
+static bool isAllocatableDecl(const VarDecl *VD) {
+  const VarDecl *CVD = VD->getCanonicalDecl();
+  if (!CVD->hasAttr<OMPAllocateDeclAttr>())
+    return false;
+  const auto *AA = CVD->getAttr<OMPAllocateDeclAttr>();
+  // Use the default allocation.
+  return !((AA->getAllocatorType() == OMPAllocateDeclAttr::OMPDefaultMemAlloc ||
+            AA->getAllocatorType() == OMPAllocateDeclAttr::OMPNullMemAlloc) &&
+           !AA->getAllocator());
+}
+
 static void emitEmptyBoundParameters(CodeGenFunction &,
                                      const OMPExecutableDirective &,
                                      llvm::SmallVectorImpl<llvm::Value *> &) {}
@@ -1575,12 +1586,7 @@ Address CodeGenFunction::OMPBuilderCBHelpers::getAddressOfLocalVariable(
   if (!VD)
     return Address::invalid();
   const VarDecl *CVD = VD->getCanonicalDecl();
-  if (!CVD->hasAttr<OMPAllocateDeclAttr>())
-    return Address::invalid();
-  const auto *AA = CVD->getAttr<OMPAllocateDeclAttr>();
-  // Use the default allocation.
-  if (AA->getAllocatorType() == OMPAllocateDeclAttr::OMPDefaultMemAlloc &&
-      !AA->getAllocator())
+  if (!isAllocatableDecl(CVD))
     return Address::invalid();
   llvm::Value *Size;
   CharUnits Align = CGM.getContext().getDeclAlign(CVD);
@@ -1596,6 +1602,7 @@ Address CodeGenFunction::OMPBuilderCBHelpers::getAddressOfLocalVariable(
     Size = CGM.getSize(Sz.alignTo(Align));
   }
 
+  const auto *AA = CVD->getAttr<OMPAllocateDeclAttr>();
   assert(AA->getAllocator() &&
          "Expected allocator expression for non-default allocator.");
   llvm::Value *Allocator = CGF.EmitScalarExpr(AA->getAllocator());
@@ -1607,11 +1614,11 @@ Address CodeGenFunction::OMPBuilderCBHelpers::getAddressOfLocalVariable(
     Allocator = CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(Allocator,
                                                                 CGM.VoidPtrTy);
 
-  llvm::Value *Addr = OMPBuilder.CreateOMPAlloc(
+  llvm::Value *Addr = OMPBuilder.createOMPAlloc(
       CGF.Builder, Size, Allocator,
       getNameWithSeparators({CVD->getName(), ".void.addr"}, ".", "."));
   llvm::CallInst *FreeCI =
-      OMPBuilder.CreateOMPFree(CGF.Builder, Addr, Allocator);
+      OMPBuilder.createOMPFree(CGF.Builder, Addr, Allocator);
 
   CGF.EHStack.pushCleanup<OMPAllocateCleanupTy>(NormalAndEHCleanup, FreeCI);
   Addr = CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(
@@ -1639,7 +1646,7 @@ Address CodeGenFunction::OMPBuilderCBHelpers::getAddrOfThreadPrivate(
   llvm::Twine CacheName = Twine(CGM.getMangledName(VD)).concat(Suffix);
 
   llvm::CallInst *ThreadPrivateCacheCall =
-      OMPBuilder.CreateCachedThreadPrivate(CGF.Builder, Data, Size, CacheName);
+      OMPBuilder.createCachedThreadPrivate(CGF.Builder, Data, Size, CacheName);
 
   return Address(ThreadPrivateCacheCall, VDAddr.getAlignment());
 }
@@ -1686,7 +1693,7 @@ void CodeGenFunction::EmitOMPParallelDirective(const OMPParallelDirective &S) {
     //
     // TODO: This defaults to shared right now.
     auto PrivCB = [](InsertPointTy AllocaIP, InsertPointTy CodeGenIP,
-                     llvm::Value &Val, llvm::Value *&ReplVal) {
+                     llvm::Value &, llvm::Value &Val, llvm::Value *&ReplVal) {
       // The next line is appropriate only for variables (Val) with the
       // data-sharing attribute "shared".
       ReplVal = &Val;
@@ -1711,7 +1718,7 @@ void CodeGenFunction::EmitOMPParallelDirective(const OMPParallelDirective &S) {
     llvm::OpenMPIRBuilder::InsertPointTy AllocaIP(
         AllocaInsertPt->getParent(), AllocaInsertPt->getIterator());
     Builder.restoreIP(
-        OMPBuilder.CreateParallel(Builder, AllocaIP, BodyGenCB, PrivCB, FiniCB,
+        OMPBuilder.createParallel(Builder, AllocaIP, BodyGenCB, PrivCB, FiniCB,
                                   IfCond, NumThreads, ProcBind, S.hasCancel()));
     return;
   }
@@ -2982,7 +2989,7 @@ bool CodeGenFunction::EmitOMPWorksharingLoop(
           ((ScheduleKind.Schedule == OMPC_SCHEDULE_static ||
             ScheduleKind.Schedule == OMPC_SCHEDULE_unknown) &&
            !(ScheduleKind.M1 == OMPC_SCHEDULE_MODIFIER_nonmonotonic ||
-             ScheduleKind.M1 == OMPC_SCHEDULE_MODIFIER_nonmonotonic)) ||
+             ScheduleKind.M2 == OMPC_SCHEDULE_MODIFIER_nonmonotonic)) ||
           ScheduleKind.M1 == OMPC_SCHEDULE_MODIFIER_monotonic ||
           ScheduleKind.M2 == OMPC_SCHEDULE_MODIFIER_monotonic;
       if ((RT.isStaticNonchunked(ScheduleKind.Schedule,
@@ -3634,7 +3641,7 @@ void CodeGenFunction::EmitOMPMasterDirective(const OMPMasterDirective &S) {
 
     LexicalScope Scope(*this, S.getSourceRange());
     EmitStopPoint(&S);
-    Builder.restoreIP(OMPBuilder.CreateMaster(Builder, BodyGenCB, FiniCB));
+    Builder.restoreIP(OMPBuilder.createMaster(Builder, BodyGenCB, FiniCB));
 
     return;
   }
@@ -3675,7 +3682,7 @@ void CodeGenFunction::EmitOMPCriticalDirective(const OMPCriticalDirective &S) {
 
     LexicalScope Scope(*this, S.getSourceRange());
     EmitStopPoint(&S);
-    Builder.restoreIP(OMPBuilder.CreateCritical(
+    Builder.restoreIP(OMPBuilder.createCritical(
         Builder, BodyGenCB, FiniCB, S.getDirectiveName().getAsString(),
         HintInst));
 
@@ -3931,7 +3938,8 @@ void CodeGenFunction::EmitOMPTaskBasedDirective(
   auto &&CodeGen = [&Data, &S, CS, &BodyGen, &LastprivateDstsOrigs,
                     CapturedRegion](CodeGenFunction &CGF,
                                     PrePostActionTy &Action) {
-    llvm::DenseMap<CanonicalDeclPtr<const VarDecl>, Address> UntiedLocalVars;
+    llvm::DenseMap<CanonicalDeclPtr<const VarDecl>, std::pair<Address, Address>>
+        UntiedLocalVars;
     // Set proper addresses for generated private copies.
     OMPPrivateScope Scope(CGF);
     llvm::SmallVector<std::pair<const VarDecl *, Address>, 16> FirstprivatePtrs;
@@ -3976,9 +3984,11 @@ void CodeGenFunction::EmitOMPTaskBasedDirective(
         QualType Ty = VD->getType().getNonReferenceType();
         if (VD->getType()->isLValueReferenceType())
           Ty = CGF.getContext().getPointerType(Ty);
+        if (isAllocatableDecl(VD))
+          Ty = CGF.getContext().getPointerType(Ty);
         Address PrivatePtr = CGF.CreateMemTemp(
             CGF.getContext().getPointerType(Ty), ".local.ptr.addr");
-        UntiedLocalVars.try_emplace(VD, PrivatePtr);
+        UntiedLocalVars.try_emplace(VD, PrivatePtr, Address::invalid());
         CallArgs.push_back(PrivatePtr.getPointer());
       }
       CGF.CGM.getOpenMPRuntime().emitOutlinedFunctionCall(
@@ -4002,9 +4012,18 @@ void CodeGenFunction::EmitOMPTaskBasedDirective(
       // Adjust mapping for internal locals by mapping actual memory instead of
       // a pointer to this memory.
       for (auto &Pair : UntiedLocalVars) {
-        Address Replacement(CGF.Builder.CreateLoad(Pair.second),
-                            CGF.getContext().getDeclAlign(Pair.first));
-        Pair.getSecond() = Replacement;
+        if (isAllocatableDecl(Pair.first)) {
+          llvm::Value *Ptr = CGF.Builder.CreateLoad(Pair.second.first);
+          Address Replacement(Ptr, CGF.getPointerAlign());
+          Pair.getSecond().first = Replacement;
+          Ptr = CGF.Builder.CreateLoad(Replacement);
+          Replacement = Address(Ptr, CGF.getContext().getDeclAlign(Pair.first));
+          Pair.getSecond().second = Replacement;
+        } else {
+          llvm::Value *Ptr = CGF.Builder.CreateLoad(Pair.second.first);
+          Address Replacement(Ptr, CGF.getContext().getDeclAlign(Pair.first));
+          Pair.getSecond().first = Replacement;
+        }
       }
     }
     if (Data.Reductions) {
@@ -4100,7 +4119,7 @@ void CodeGenFunction::EmitOMPTaskBasedDirective(
     }
     (void)InRedScope.Privatize();
 
-    CGOpenMPRuntime::UntiedTaskLocalDeclsRAII LocalVarsScope(CGF.CGM,
+    CGOpenMPRuntime::UntiedTaskLocalDeclsRAII LocalVarsScope(CGF,
                                                              UntiedLocalVars);
     Action.Enter(CGF);
     BodyGen(CGF);
@@ -4137,7 +4156,7 @@ createImplicitFirstprivateForType(ASTContext &C, OMPTaskDataTy &Data,
   PrivateVD->setInitStyle(VarDecl::CInit);
   PrivateVD->setInit(ImplicitCastExpr::Create(C, ElemType, CK_LValueToRValue,
                                               InitRef, /*BasePath=*/nullptr,
-                                              VK_RValue));
+                                              VK_RValue, FPOptionsOverride()));
   Data.FirstprivateVars.emplace_back(OrigRef);
   Data.FirstprivateCopies.emplace_back(PrivateRef);
   Data.FirstprivateInits.emplace_back(InitRef);
@@ -4191,16 +4210,21 @@ void CodeGenFunction::EmitOMPTargetTaskBasedDirective(
         /*IndexTypeQuals=*/0);
     SVD = createImplicitFirstprivateForType(getContext(), Data, SizesType, CD,
                                             S.getBeginLoc());
-    MVD = createImplicitFirstprivateForType(
-        getContext(), Data, BaseAndPointerAndMapperType, CD, S.getBeginLoc());
     TargetScope.addPrivate(
         BPVD, [&InputInfo]() { return InputInfo.BasePointersArray; });
     TargetScope.addPrivate(PVD,
                            [&InputInfo]() { return InputInfo.PointersArray; });
     TargetScope.addPrivate(SVD,
                            [&InputInfo]() { return InputInfo.SizesArray; });
-    TargetScope.addPrivate(MVD,
-                           [&InputInfo]() { return InputInfo.MappersArray; });
+    // If there is no user-defined mapper, the mapper array will be nullptr. In
+    // this case, we don't need to privatize it.
+    if (!dyn_cast_or_null<llvm::ConstantPointerNull>(
+            InputInfo.MappersArray.getPointer())) {
+      MVD = createImplicitFirstprivateForType(
+          getContext(), Data, BaseAndPointerAndMapperType, CD, S.getBeginLoc());
+      TargetScope.addPrivate(MVD,
+                             [&InputInfo]() { return InputInfo.MappersArray; });
+    }
   }
   (void)TargetScope.Privatize();
   // Build list of dependences.
@@ -4250,8 +4274,10 @@ void CodeGenFunction::EmitOMPTargetTaskBasedDirective(
           CGF.GetAddrOfLocalVar(PVD), /*Index=*/0);
       InputInfo.SizesArray = CGF.Builder.CreateConstArrayGEP(
           CGF.GetAddrOfLocalVar(SVD), /*Index=*/0);
-      InputInfo.MappersArray = CGF.Builder.CreateConstArrayGEP(
-          CGF.GetAddrOfLocalVar(MVD), /*Index=*/0);
+      // If MVD is nullptr, the mapper array is not privatized
+      if (MVD)
+        InputInfo.MappersArray = CGF.Builder.CreateConstArrayGEP(
+            CGF.GetAddrOfLocalVar(MVD), /*Index=*/0);
     }
 
     Action.Enter(CGF);
@@ -5950,7 +5976,7 @@ void CodeGenFunction::EmitOMPCancelDirective(const OMPCancelDirective &S) {
         IfCondition = EmitScalarExpr(IfCond,
                                      /*IgnoreResultAssign=*/true);
       return Builder.restoreIP(
-          OMPBuilder.CreateCancel(Builder, IfCondition, S.getCancelRegion()));
+          OMPBuilder.createCancel(Builder, IfCondition, S.getCancelRegion()));
     }
   }
 

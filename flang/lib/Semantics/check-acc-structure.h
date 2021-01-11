@@ -4,7 +4,7 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-// OpenACC structure validity check list
+// OpenACC 3.1 structure validity check list
 //    1. invalid clauses on directive
 //    2. invalid repeated clauses on directive
 //    3. invalid nesting of regions
@@ -55,6 +55,12 @@ public:
   void Leave(const parser::OpenACCStandaloneConstruct &);
   void Enter(const parser::OpenACCStandaloneDeclarativeConstruct &);
   void Leave(const parser::OpenACCStandaloneDeclarativeConstruct &);
+  void Enter(const parser::OpenACCWaitConstruct &);
+  void Leave(const parser::OpenACCWaitConstruct &);
+  void Enter(const parser::OpenACCAtomicConstruct &);
+  void Leave(const parser::OpenACCAtomicConstruct &);
+  void Enter(const parser::OpenACCCacheConstruct &);
+  void Leave(const parser::OpenACCCacheConstruct &);
 
   // Clauses
   void Leave(const parser::AccClauseList &);
@@ -107,10 +113,10 @@ public:
 
 private:
 
-  void CheckNoBranching(const parser::Block &block,
-      const llvm::acc::Directive directive,
-      const parser::CharBlock &directiveSource) const;
-
+  bool CheckAllowedModifier(llvm::acc::Clause clause);
+  bool IsComputeConstruct(llvm::acc::Directive directive) const;
+  bool IsInsideComputeConstruct() const;
+  void CheckNotInComputeConstruct();
   llvm::StringRef getClauseName(llvm::acc::Clause clause) override;
   llvm::StringRef getDirectiveName(llvm::acc::Directive directive) override;
 };

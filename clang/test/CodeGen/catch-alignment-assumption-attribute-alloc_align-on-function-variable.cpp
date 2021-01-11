@@ -30,19 +30,19 @@ char **caller(char **x, unsigned long alignment) {
   // CHECK-NEXT:                        %[[X_RELOADED:.*]] = load i8**, i8*** %[[X_ADDR]], align 8
   // CHECK-NEXT:                        %[[ALIGNMENT_RELOADED:.*]] = load i64, i64* %[[ALIGNMENT_ADDR]], align 8
   // CHECK-NEXT:                        %[[X_RETURNED:.*]] = call i8** @[[PASSTHROUGH]](i8** %[[X_RELOADED]], i64 %[[ALIGNMENT_RELOADED]])
-  // CHECK-NEXT:                        %[[MASK:.*]] = sub i64 %[[ALIGNMENT_RELOADED]], 1
-  // CHECK-NEXT:                        %[[PTRINT:.*]] = ptrtoint i8** %[[X_RETURNED]] to i64
-  // CHECK-NEXT:                        %[[MASKEDPTR:.*]] = and i64 %[[PTRINT]], %[[MASK]]
-  // CHECK-NEXT:                        %[[MASKCOND:.*]] = icmp eq i64 %[[MASKEDPTR]], 0
+  // CHECK-SANITIZE-NEXT:               %[[PTRINT:.*]] = ptrtoint i8** %[[X_RETURNED]] to i64
+  // CHECK-SANITIZE-NEXT:               %[[MASK:.*]] = sub i64 %[[ALIGNMENT_RELOADED]], 1
+  // CHECK-SANITIZE-NEXT:               %[[MASKEDPTR:.*]] = and i64 %[[PTRINT]], %[[MASK]]
+  // CHECK-SANITIZE-NEXT:               %[[MASKCOND:.*]] = icmp eq i64 %[[MASKEDPTR]], 0
   // CHECK-SANITIZE-NEXT:               %[[PTRINT_DUP:.*]] = ptrtoint i8** %[[X_RETURNED]] to i64, !nosanitize
   // CHECK-SANITIZE-NEXT:               br i1 %[[MASKCOND]], label %[[CONT:.*]], label %[[HANDLER_ALIGNMENT_ASSUMPTION:[^,]+]],{{.*}} !nosanitize
   // CHECK-SANITIZE:                  [[HANDLER_ALIGNMENT_ASSUMPTION]]:
   // CHECK-SANITIZE-NORECOVER-NEXT:     call void @__ubsan_handle_alignment_assumption_abort(i8* bitcast ({ {{{.*}}}, {{{.*}}}, {{{.*}}}* }* @[[LINE_100_ALIGNMENT_ASSUMPTION]] to i8*), i64 %[[PTRINT_DUP]], i64 %[[ALIGNMENT_RELOADED]], i64 0){{.*}}, !nosanitize
   // CHECK-SANITIZE-RECOVER-NEXT:       call void @__ubsan_handle_alignment_assumption(i8* bitcast ({ {{{.*}}}, {{{.*}}}, {{{.*}}}* }* @[[LINE_100_ALIGNMENT_ASSUMPTION]] to i8*), i64 %[[PTRINT_DUP]], i64 %[[ALIGNMENT_RELOADED]], i64 0){{.*}}, !nosanitize
-  // CHECK-SANITIZE-TRAP-NEXT:          call void @llvm.trap(){{.*}}, !nosanitize
+  // CHECK-SANITIZE-TRAP-NEXT:          call void @llvm.ubsantrap(i8 23){{.*}}, !nosanitize
   // CHECK-SANITIZE-UNREACHABLE-NEXT:   unreachable, !nosanitize
   // CHECK-SANITIZE:                  [[CONT]]:
-  // CHECK-NEXT:                        call void @llvm.assume(i1 %[[MASKCOND]])
+  // CHECK-NEXT:                        call void @llvm.assume(i1 true) [ "align"(i8** %[[X_RETURNED]], i64 %1) ]
   // CHECK-NEXT:                        ret i8** %[[X_RETURNED]]
   // CHECK-NEXT:                      }
 #line 100

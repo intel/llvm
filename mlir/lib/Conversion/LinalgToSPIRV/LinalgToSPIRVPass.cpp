@@ -9,8 +9,8 @@
 #include "mlir/Conversion/LinalgToSPIRV/LinalgToSPIRVPass.h"
 #include "../PassDetail.h"
 #include "mlir/Conversion/LinalgToSPIRV/LinalgToSPIRV.h"
-#include "mlir/Dialect/SPIRV/SPIRVDialect.h"
-#include "mlir/Dialect/SPIRV/SPIRVLowering.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
 
 using namespace mlir;
 
@@ -41,7 +41,7 @@ void LinalgToSPIRVPass::runOnOperation() {
            typeConverter.isLegal(&op.getBody());
   });
 
-  if (failed(applyFullConversion(module, *target, patterns)))
+  if (failed(applyFullConversion(module, *target, std::move(patterns))))
     return signalPassFailure();
 }
 

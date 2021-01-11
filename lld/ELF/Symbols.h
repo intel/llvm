@@ -178,6 +178,15 @@ public:
 
   void parseSymbolVersion();
 
+  // Get the NUL-terminated version suffix ("", "@...", or "@@...").
+  //
+  // For @@, the name has been truncated by insert(). For @, the name has been
+  // truncated by Symbol::parseSymbolVersion().
+  const char *getVersionSuffix() const {
+    (void)getName();
+    return nameData + nameSize;
+  }
+
   bool isInGot() const { return gotIndex != -1U; }
   bool isInPlt() const { return pltIndex != -1U; }
 
@@ -567,7 +576,9 @@ void reportBackrefs();
 
 // A mapping from a symbol to an InputFile referencing it backward. Used by
 // --warn-backrefs.
-extern llvm::DenseMap<const Symbol *, const InputFile *> backwardReferences;
+extern llvm::DenseMap<const Symbol *,
+                      std::pair<const InputFile *, const InputFile *>>
+    backwardReferences;
 
 } // namespace elf
 } // namespace lld

@@ -63,8 +63,8 @@ Some other common examples include:
   # Specify a custom compiler.
   $ <build>/bin/llvm-lit -sv libcxx/test/std --param=cxx_under_test=/opt/bin/g++
 
-  # Enable warnings in the test suite
-  $ <build>/bin/llvm-lit -sv libcxx/test --param=enable_warnings=true
+  # Disable warnings in the test suite
+  $ <build>/bin/llvm-lit -sv libcxx/test --param=enable_warnings=False
 
   # Use UBSAN when running the tests.
   $ <build>/bin/llvm-lit -sv libcxx/test --param=use_sanitizer=Undefined
@@ -74,14 +74,15 @@ Using a custom site configuration
 
 By default, the libc++ test suite will use a site configuration that matches
 the current CMake configuration. It does so by generating a ``lit.site.cfg``
-file in the build directory from the ``libcxx/test/lit.site.cfg.in`` template,
-and pointing ``llvm-lit`` (which is a wrapper around ``llvm/utils/lit/lit.py``)
-to that file. So when you're running ``<build>/bin/llvm-lit``, the generated
-``lit.site.cfg`` file is always loaded instead of ``libcxx/test/lit.cfg.py``.
-If you want to use a custom site configuration, simply point the CMake build
-to it using ``-DLIBCXX_TEST_CONFIG=<path-to-site-config>``, and that site
-configuration will be used instead. That file can use CMake variables inside
-itself to make configuration easier.
+file in the build directory from one of the configuration file templates in
+``libcxx/test/configs/``, and pointing ``llvm-lit`` (which is a wrapper around
+``llvm/utils/lit/lit.py``) to that file. So when you're running
+``<build>/bin/llvm-lit``, the generated ``lit.site.cfg`` file is always loaded
+instead of ``libcxx/test/lit.cfg.py``. If you want to use a custom site
+configuration, simply point the CMake build to it using
+``-DLIBCXX_TEST_CONFIG=<path-to-site-config>``, and that site configuration
+will be used instead. That file can use CMake variables inside it to make
+configuration easier.
 
    .. code-block:: bash
 
@@ -186,7 +187,7 @@ few requirements to the test suite. Here's some stuff you should know:
 - All tests are run in a temporary directory that is unique to that test and
   cleaned up after the test is done.
 - When a test needs data files as inputs, these data files can be saved in the
-  repository (when reasonable) and referrenced by the test as
+  repository (when reasonable) and referenced by the test as
   ``// FILE_DEPENDENCIES: <path-to-dependencies>``. Copies of these files or
   directories will be made available to the test in the temporary directory
   where it is run.

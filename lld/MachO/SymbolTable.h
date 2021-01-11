@@ -19,6 +19,7 @@ namespace macho {
 
 class ArchiveFile;
 class DylibFile;
+class InputFile;
 class InputSection;
 class MachHeaderSection;
 class Symbol;
@@ -34,7 +35,9 @@ public:
   Symbol *addDefined(StringRef name, InputSection *isec, uint32_t value,
                      bool isWeakDef);
 
-  Symbol *addUndefined(StringRef name);
+  Symbol *addUndefined(StringRef name, bool isWeakRef);
+
+  Symbol *addCommon(StringRef name, InputFile *, uint64_t size, uint32_t align);
 
   Symbol *addDylib(StringRef name, DylibFile *file, bool isWeakDef, bool isTlv);
 
@@ -51,6 +54,8 @@ private:
   llvm::DenseMap<llvm::CachedHashStringRef, int> symMap;
   std::vector<Symbol *> symVector;
 };
+
+extern void treatUndefinedSymbol(StringRef symbolName, StringRef fileName);
 
 extern SymbolTable *symtab;
 

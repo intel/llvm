@@ -40,13 +40,16 @@ static cl::opt<bool> EnableTrapUnreachable("trap-unreachable",
 
 void LLVMTargetMachine::initAsmInfo() {
   MRI.reset(TheTarget.createMCRegInfo(getTargetTriple().str()));
+  assert(MRI && "Unable to create reg info");
   MII.reset(TheTarget.createMCInstrInfo());
+  assert(MII && "Unable to create instruction info");
   // FIXME: Having an MCSubtargetInfo on the target machine is a hack due
   // to some backends having subtarget feature dependent module level
   // code generation. This is similar to the hack in the AsmPrinter for
   // module level assembly etc.
   STI.reset(TheTarget.createMCSubtargetInfo(
       getTargetTriple().str(), getTargetCPU(), getTargetFeatureString()));
+  assert(STI && "Unable to create subtarget info");
 
   MCAsmInfo *TmpAsmInfo = TheTarget.createMCAsmInfo(
       *MRI, getTargetTriple().str(), Options.MCOptions);
@@ -196,11 +199,14 @@ bool LLVMTargetMachine::addPassesToEmitFile(
   if (!PassConfig)
     return true;
 
-  if (!TargetPassConfig::willCompleteCodeGenPipeline())
-    PM.add(createPrintMIRPass(Out));
-  else if (addAsmPrinter(PM, Out, DwoOut, FileType,
-                           MMIWP->getMMI().getContext()))
-    return true;
+  if (TargetPassConfig::willCompleteCodeGenPipeline()) {
+    if (addAsmPrinter(PM, Out, DwoOut, FileType, MMIWP->getMMI().getContext()))
+      return true;
+  } else {
+    // MIR printing is redundant with -filetype=null.
+    if (FileType != CGFT_Null)
+      PM.add(createPrintMIRPass(Out));
+  }
 
   PM.add(createFreeMachineFunctionPass());
   return false;

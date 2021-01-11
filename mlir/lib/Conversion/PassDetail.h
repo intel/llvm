@@ -25,13 +25,23 @@ class GPUModuleOp;
 } // end namespace gpu
 
 namespace LLVM {
-class LLVMDialect;
+class LLVMArmNeonDialect;
+class LLVMArmSVEDialect;
 class LLVMAVX512Dialect;
+class LLVMDialect;
 } // end namespace LLVM
 
 namespace NVVM {
 class NVVMDialect;
 } // end namespace NVVM
+
+namespace omp {
+class OpenMPDialect;
+} // end namespace omp
+
+namespace pdl_interp {
+class PDLInterpDialect;
+} // end namespace pdl_interp
 
 namespace ROCDL {
 class ROCDLDialect;

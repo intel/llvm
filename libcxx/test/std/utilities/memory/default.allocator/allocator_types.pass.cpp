@@ -8,12 +8,14 @@
 
 // <memory>
 
-// check nested types:
+// Check that the nested types of std::allocator are provided:
 
 // template <class T>
 // class allocator
 // {
 // public:
+//     typedef size_t    size_type;
+//     typedef ptrdiff_t difference_type;
 //     typedef T         value_type;
 //
 //     typedef true_type propagate_on_container_move_assignment;
@@ -27,21 +29,36 @@
 
 #include "test_macros.h"
 
+template <typename T, typename U>
+TEST_CONSTEXPR_CXX20 bool test()
+{
+    static_assert((std::is_same<typename std::allocator<T>::size_type, std::size_t>::value), "");
+    static_assert((std::is_same<typename std::allocator<T>::difference_type, std::ptrdiff_t>::value), "");
+    static_assert((std::is_same<typename std::allocator<T>::value_type, T>::value), "");
+    static_assert((std::is_same<typename std::allocator<T>::propagate_on_container_move_assignment, std::true_type>::value), "");
+    static_assert((std::is_same<typename std::allocator<T>::is_always_equal, std::true_type>::value), "");
+
+    std::allocator<T> a;
+    std::allocator<T> a2 = a;
+    a2 = a;
+    std::allocator<U> a3 = a2;
+    (void)a3;
+
+    return true;
+}
+
 int main(int, char**)
 {
-    static_assert((std::is_same<std::allocator<char>::value_type, char>::value), "");
+    test<char, int>();
+#ifdef _LIBCPP_VERSION // extension
+    test<char const, int const>();
+#endif // _LIBCPP_VERSION
 
-    static_assert((std::is_same<std::allocator<char>::propagate_on_container_move_assignment, std::true_type>::value), "");
-    LIBCPP_STATIC_ASSERT((std::is_same<std::allocator<const char>::propagate_on_container_move_assignment, std::true_type>::value), "");
-
-    static_assert((std::is_same<std::allocator<char>::is_always_equal, std::true_type>::value), "");
-    LIBCPP_STATIC_ASSERT((std::is_same<std::allocator<const char>::is_always_equal, std::true_type>::value), "");
-
-    std::allocator<char> a;
-    std::allocator<char> a2 = a;
-    a2 = a;
-    std::allocator<int> a3 = a2;
-    ((void)a3);
-
-  return 0;
+#if TEST_STD_VER > 17
+    static_assert(test<char, int>());
+#ifdef _LIBCPP_VERSION // extension
+    static_assert(test<char const, int const>());
+#endif // _LIBCPP_VERSION
+#endif
+    return 0;
 }

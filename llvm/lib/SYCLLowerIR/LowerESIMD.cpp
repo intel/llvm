@@ -252,6 +252,15 @@ public:
         {"flat_write", {"svm.scatter", {ai1(3), a(2), a(0), a(1)}}},
         {"flat_write4",
          {"svm.scatter4.scaled", {ai1(2), t(2), c16(0), c64(0), a(0), a(1)}}},
+
+        // surface index-based gather/scatter:
+        // num blocks, scale, surface index, global offset, elem offsets
+        {"surf_read", {"gather.scaled2", {t(3), c16(0), aSI(1), a(2), a(3)}}},
+        // pred, num blocks, scale, surface index, global offset, elem offsets,
+        // data to write
+        {"surf_write",
+         {"scatter.scaled", {ai1(0), t(3), c16(0), aSI(2), a(3), a(4), a(5)}}},
+
         // intrinsics to query thread's coordinates:
         {"group_id_x", {"group.id.x", {}}},
         {"group_id_y", {"group.id.y", {}}},
@@ -280,10 +289,10 @@ public:
          {"media.st", {a(0), aSI(1), a(2), a(3), a(4), a(5), a(6)}}},
         {"slm_fence", {"fence", {a(0)}}},
         {"barrier", {"barrier", {}}},
+        {"sbarrier", {"sbarrier", {a(0)}}},
         {"block_read", {"oword.ld.unaligned", {c32(0), aSI(0), a(1)}}},
         {"block_write", {"oword.st", {aSI(0), a(1), a(2)}}},
-        {"slm_block_read",
-         {"oword.ld.unaligned", {c32(0), c32(SLM_BTI), a(0)}}},
+        {"slm_block_read", {"oword.ld", {c32(0), c32(SLM_BTI), a(0)}}},
         {"slm_block_write", {"oword.st", {c32(SLM_BTI), a(0), a(1)}}},
         {"slm_read",
          {"gather.scaled",
@@ -363,7 +372,14 @@ public:
         {"cos", {"cos", {a(0)}}},
         {"pow", {"pow", {a(0), a(1)}}},
         {"div_ieee", {"ieee.div", {a(0), a(1)}}},
-        {"dp4a", {"dp4a", {a(0), a(1), a(2)}}},
+        {"uudp4a", {"uudp4a", {a(0), a(1), a(2)}}},
+        {"usdp4a", {"usdp4a", {a(0), a(1), a(2)}}},
+        {"sudp4a", {"sudp4a", {a(0), a(1), a(2)}}},
+        {"ssdp4a", {"ssdp4a", {a(0), a(1), a(2)}}},
+        {"uudp4a_sat", {"uudp4a.sat", {a(0), a(1), a(2)}}},
+        {"usdp4a_sat", {"usdp4a.sat", {a(0), a(1), a(2)}}},
+        {"sudp4a_sat", {"sudp4a.sat", {a(0), a(1), a(2)}}},
+        {"ssdp4a_sat", {"ssdp4a.sat", {a(0), a(1), a(2)}}},
         {"any", {"any", {ai1(0)}}},
         {"all", {"all", {ai1(0)}}},
     };
@@ -579,6 +595,7 @@ template <typename Ty = llvm::Value> Ty *getVal(llvm::Metadata *M) {
 static llvm::MDNode *getSLMSizeMDNode(llvm::Function *F) {
   llvm::NamedMDNode *Nodes =
       F->getParent()->getNamedMetadata(GENX_KERNEL_METADATA);
+  assert(Nodes && "invalid genx.kernels metadata");
   for (auto Node : Nodes->operands()) {
     if (Node->getNumOperands() >= 4 && getVal(Node->getOperand(0)) == F)
       return Node;
@@ -626,6 +643,8 @@ static void translateSLMInit(CallInst &CI) {
 static void translatePackMask(CallInst &CI) {
   using Demangler = id::ManglingParser<SimpleAllocator>;
   Function *F = CI.getCalledFunction();
+  assert(F && "function to translate is invalid");
+
   StringRef MnglName = F->getName();
   Demangler Parser(MnglName.begin(), MnglName.end());
   id::Node *AST = Parser.parse();
@@ -665,6 +684,7 @@ static void translatePackMask(CallInst &CI) {
 static void translateUnPackMask(CallInst &CI) {
   using Demangler = id::ManglingParser<SimpleAllocator>;
   Function *F = CI.getCalledFunction();
+  assert(F && "function to translate is invalid");
   StringRef MnglName = F->getName();
   Demangler Parser(MnglName.begin(), MnglName.end());
   id::Node *AST = Parser.parse();
@@ -729,7 +749,7 @@ static void translateGetValue(CallInst &CI) {
   IRBuilder<> Builder(&CI);
   auto SV =
       Builder.CreatePtrToInt(opnd, IntegerType::getInt32Ty(CI.getContext()));
-  auto *SI = dyn_cast<CastInst>(SV);
+  auto *SI = cast<CastInst>(SV);
   SI->setDebugLoc(CI.getDebugLoc());
   CI.replaceAllUsesWith(SI);
 }
@@ -742,9 +762,6 @@ static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI) {
   Type *NITy = NewI->getType();
   Type *OITy = OldI->getType();
   if (OITy != NITy) {
-    assert(
-        CastInst::isCastable(OITy, NITy) &&
-        "Cannot add cast instruction while translating ESIMD intrinsic call");
     auto CastOpcode = CastInst::getCastOpcode(NewI, false, OITy, false);
     NewI = CastInst::Create(CastOpcode, NewI, OITy,
                             NewI->getName() + ".cast.ty", OldI);
@@ -1018,6 +1035,7 @@ static void createESIMDIntrinsicArgs(const ESIMDIntrinDesc &Desc,
 static void translateESIMDIntrinsicCall(CallInst &CI) {
   using Demangler = id::ManglingParser<SimpleAllocator>;
   Function *F = CI.getCalledFunction();
+  assert(F && "function to translate is invalid");
   StringRef MnglName = F->getName();
   Demangler Parser(MnglName.begin(), MnglName.end());
   id::Node *AST = Parser.parse();
@@ -1039,7 +1057,7 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   if (!Desc.isValid()) // TODO remove this once all intrinsics are supported
     return;
 
-  auto *FTy = CI.getCalledFunction()->getFunctionType();
+  auto *FTy = F->getFunctionType();
   std::string Suffix = getESIMDIntrinSuffix(FE, FTy, Desc.SuffixRule);
   auto ID = GenXIntrinsic::lookupGenXIntrinsicID(
       GenXIntrinsic::getGenXIntrinsicPrefix() + Desc.GenXSpelling + Suffix);
@@ -1122,6 +1140,7 @@ void SYCLLowerESIMDLegacyPass::generateKernelMetadata(Module &M) {
     SmallVector<Metadata *, 8> ArgTypeDescs;
 
     auto *KernelArgTypes = F.getMetadata("kernel_arg_type");
+    auto *KernelArgAccPtrs = F.getMetadata("kernel_arg_accessor_ptr");
     unsigned Idx = 0;
 
     // Iterate argument list to gather argument kinds and generate argument
@@ -1134,14 +1153,29 @@ void SYCLLowerESIMDLegacyPass::generateKernelMetadata(Module &M) {
 
       if (ArgType.find("image1d_t") != std::string::npos ||
           ArgType.find("image2d_t") != std::string::npos ||
-          ArgType.find("image3d_t") != std::string::npos ||
-          ArgType.find("image1d_buffer_t") != std::string::npos) {
+          ArgType.find("image3d_t") != std::string::npos) {
         Kind = AK_SURFACE;
         ArgTypeDescs.push_back(MDString::get(Ctx, ArgType));
       } else {
         StringRef ArgDesc = "";
-        if (Arg.getType()->isPointerTy())
-          ArgDesc = "svmptr_t";
+
+        if (Arg.getType()->isPointerTy()) {
+          const auto *IsAccMD =
+              KernelArgAccPtrs
+                  ? cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx))
+                  : nullptr;
+          unsigned IsAcc =
+              IsAccMD
+                  ? static_cast<unsigned>(cast<ConstantInt>(IsAccMD->getValue())
+                                              ->getValue()
+                                              .getZExtValue())
+                  : 0;
+          if (IsAcc) {
+            ArgDesc = "buffer_t";
+            Kind = AK_SURFACE;
+          } else
+            ArgDesc = "svmptr_t";
+        }
         ArgTypeDescs.push_back(MDString::get(Ctx, ArgDesc));
       }
 
@@ -1213,7 +1247,7 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
         llvm::Value *Src = CastOp->getOperand(0);
         auto TmpTy = llvm::FixedVectorType::get(
             llvm::Type::getInt32Ty(DstTy->getContext()),
-            cast<VectorType>(DstTy)->getNumElements());
+            cast<FixedVectorType>(DstTy)->getNumElements());
         Src = Builder.CreateFPToSI(Src, TmpTy);
 
         llvm::Instruction::CastOps TruncOp = llvm::Instruction::Trunc;

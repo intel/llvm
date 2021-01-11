@@ -1,7 +1,7 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -fsycl-int-header=%t.h %s -o %t.out
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-int-header=%t.h %s -o %t.out
 // RUN: FileCheck -input-file=%t.h %s
 
-#include "sycl.hpp"
+#include "Inputs/sycl.hpp"
 
 template <typename KernelName, typename KernelType>
 __attribute__((sycl_kernel)) void single_task(const KernelType &kernelFunc) {

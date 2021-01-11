@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl %s -o %t.out -fsycl-unnamed-lambda
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %RUN_ON_HOST %t.out
 
 //==----- same_unnamed_kernels.cpp - SYCL kernel naming variants test ------==//
 //

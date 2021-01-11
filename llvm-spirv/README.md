@@ -2,6 +2,9 @@
 
 [![Build Status](https://travis-ci.org/KhronosGroup/SPIRV-LLVM-Translator.svg?branch=master)](https://travis-ci.org/KhronosGroup/SPIRV-LLVM-Translator)
 
+![Out-of-tree build & tests](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/workflows/Out-of-tree%20build%20&%20tests/badge.svg?branch=master&event=schedule)
+![In-tree build & tests](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/workflows/In-tree%20build%20&%20tests/badge.svg?branch=master&event=schedule)
+
 This repository contains source code for the LLVM/SPIR-V Bi-Directional Translator, a library and tool for translation between LLVM IR and [SPIR-V](https://www.khronos.org/registry/spir-v/).
 
 The LLVM/SPIR-V Bi-Directional Translator is open source software. You may freely distribute it under the terms of the license agreement found in LICENSE.txt.
@@ -70,9 +73,27 @@ git clone https://github.com/KhronosGroup/SPIRV-LLVM-Translator.git
 Run (or re-run) cmake as usual for LLVM. After that you should have `llvm-spirv` and `check-llvm-spirv` targets available.
 ```
 mkdir llvm-project/build && cd llvm-project/build
-cmake ../llvm
+cmake ../llvm -DLLVM_ENABLE_PROJECTS="clang"
 make llvm-spirv -j`nproc`
 ```
+
+Note on enabling the `clang` project: there are tests in the translator that depend
+on `clang` binary, which makes clang a required dependency (search for
+`LLVM_SPIRV_TEST_DEPS` in [test/CMakeLists.txt](test/CMakeLists.txt)) for
+`check-llvm-spirv` target.
+
+Building clang from sources takes time and resources and it can be avoided:
+- if you are not interested in launching unit-tests for the translator after
+  build, you can disable generation of test targets by passing
+  `-DLLVM_SPIRV_INCLUDE_TESTS=OFF` option.
+- if you are interested in launching unit-tests, but don't want to build clang
+  you can pass `-DSPIRV_SKIP_CLANG_BUILD` cmake option to avoid adding `clang`
+  as dependency for `check-llvm-spirv` target. However, LIT will search for
+  `clang` binary when tests are launched and it should be available at this
+  point.
+- building and testing completely without `clang` is not supported at the
+  moment, see [KhronosGroup/SPIRV-LLVM-Translator#477](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/issues/477)
+  to track progress, discuss and contribute.
 
 ## Test instructions
 
@@ -84,12 +105,13 @@ Execute the following command inside the build directory to run translator tests
 ```
 make test
 ```
-This requires that the `-DLLVM_INCLUDE_TESTS=ON` and
-`-DLLVM_EXTERNAL_LIT="/usr/lib/llvm-12/build/utils/lit/lit.py"` arguments were
-passed to CMake during the build step.
+This requires that the `-DLLVM_SPIRV_INCLUDE_TESTS=ON` argument is
+passed to CMake during the build step. Additionally,
+`-DLLVM_EXTERNAL_LIT="/usr/lib/llvm-12/build/utils/lit/lit.py"` is
+needed when building with a pre-installed version of LLVM.
 
 The translator test suite can be disabled by passing
-`-DLLVM_SPIRV_INCLUDE_TESTS=OFF` to cmake.
+`-DLLVM_SPIRV_INCLUDE_TESTS=OFF` to CMake.
 
 ## Run Instructions for `llvm-spirv`
 

@@ -22,7 +22,7 @@
 /// and the VarLocBasedLDV class is an implementation that explicitly tracks
 /// locations, using the VarLoc class.
 ///
-/// The cannonical "available expressions" problem doesn't have expression
+/// The canonical "available expressions" problem doesn't have expression
 /// clobbering, instead when a variable is re-assigned, any expressions using
 /// that variable get invalidated. LiveDebugValues can map onto "available
 /// expressions" by having every register represented by a variable, which is
@@ -826,7 +826,7 @@ VarLocBasedLDV::VarLocBasedLDV() { }
 VarLocBasedLDV::~VarLocBasedLDV() { }
 
 /// Erase a variable from the set of open ranges, and additionally erase any
-/// fragments that may overlap it. If the VarLoc is a buckup location, erase
+/// fragments that may overlap it. If the VarLoc is a backup location, erase
 /// the variable from the EntryValuesBackupVars set, indicating we should stop
 /// tracking its backup entry location. Otherwise, if the VarLoc is primary
 /// location, erase the variable from the Vars set.
@@ -983,8 +983,10 @@ VarLocBasedLDV::extractSpillBaseRegAndOffset(const MachineInstr &MI) {
   int FI = cast<FixedStackPseudoSourceValue>(PVal)->getFrameIndex();
   const MachineBasicBlock *MBB = MI.getParent();
   Register Reg;
-  int Offset = TFI->getFrameIndexReference(*MBB->getParent(), FI, Reg);
-  return {Reg, Offset};
+  StackOffset Offset = TFI->getFrameIndexReference(*MBB->getParent(), FI, Reg);
+  assert(!Offset.getScalable() &&
+         "Frame offsets with a scalable component are not supported");
+  return {Reg, static_cast<int>(Offset.getFixed())};
 }
 
 /// Try to salvage the debug entry value if we encounter a new debug value
@@ -1837,8 +1839,8 @@ bool VarLocBasedLDV::ExtendRanges(MachineFunction &MF, TargetPassConfig *TPC) {
   MachineBasicBlock &First_MBB = *(MF.begin());
   for (auto &MI : First_MBB) {
     collectRegDefs(MI, DefinedRegs, TRI);
-      if (MI.isDebugValue())
-        recordEntryValue(MI, DefinedRegs, OpenRanges, VarLocIDs);
+    if (MI.isDebugValue())
+      recordEntryValue(MI, DefinedRegs, OpenRanges, VarLocIDs);
   }
 
   // Initialize per-block structures and scan for fragment overlaps.

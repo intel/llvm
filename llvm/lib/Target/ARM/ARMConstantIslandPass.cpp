@@ -359,6 +359,10 @@ bool ARMConstantIslands::runOnMachineFunction(MachineFunction &mf) {
   isThumb2 = AFI->isThumb2Function();
 
   bool GenerateTBB = isThumb2 || (isThumb1 && SynthesizeThumb1TBB);
+  // TBB generation code in this constant island pass has not been adapted to
+  // deal with speculation barriers.
+  if (STI->hardenSlsRetBr())
+    GenerateTBB = false;
 
   // Renumber all of the machine basic blocks in the function, guaranteeing that
   // the numbers agree with the position of the block in the function.
@@ -553,6 +557,12 @@ void ARMConstantIslands::doInitialJumpTablePlacement(
   MachineBasicBlock *LastCorrectlyNumberedBB = nullptr;
   for (MachineBasicBlock &MBB : *MF) {
     auto MI = MBB.getLastNonDebugInstr();
+    // Look past potential SpeculationBarriers at end of BB.
+    while (MI != MBB.end() &&
+           (isSpeculationBarrierEndBBOpcode(MI->getOpcode()) ||
+            MI->isDebugInstr()))
+      --MI;
+
     if (MI == MBB.end())
       continue;
 
@@ -775,15 +785,26 @@ initializeFunctionInfo(const std::vector<MachineInstr*> &CPEMIs) {
 
           // Taking the address of a CP entry.
           case ARM::LEApcrel:
-          case ARM::LEApcrelJT:
-            // This takes a SoImm, which is 8 bit immediate rotated. We'll
-            // pretend the maximum offset is 255 * 4. Since each instruction
-            // 4 byte wide, this is always correct. We'll check for other
-            // displacements that fits in a SoImm as well.
-            Bits = 8;
-            Scale = 4;
-            NegOk = true;
-            IsSoImm = true;
+          case ARM::LEApcrelJT: {
+              // This takes a SoImm, which is 8 bit immediate rotated. We'll
+              // pretend the maximum offset is 255 * 4. Since each instruction
+              // 4 byte wide, this is always correct. We'll check for other
+              // displacements that fits in a SoImm as well.
+              Bits = 8;
+              NegOk = true;
+              IsSoImm = true;
+              unsigned CPI = I.getOperand(op).getIndex();
+              assert(CPI < CPEMIs.size());
+              MachineInstr *CPEMI = CPEMIs[CPI];
+              const Align CPEAlign = getCPEAlign(CPEMI);
+              const unsigned LogCPEAlign = Log2(CPEAlign);
+              if (LogCPEAlign >= 2)
+                Scale = 4;
+              else
+                // For constants with less than 4-byte alignment,
+                // we'll pretend the maximum offset is 255 * 1.
+                Scale = 1;
+            }
             break;
           case ARM::t2LEApcrel:
           case ARM::t2LEApcrelJT:

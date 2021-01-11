@@ -328,6 +328,13 @@ const static char WriteOnly[] = "write_only";
 const static char ReadWrite[] = "read_write";
 } // namespace kAccessQualName
 
+namespace kAccessQualPostfix {
+const static char ReadOnly[] = "_ro";
+const static char WriteOnly[] = "_wo";
+const static char ReadWrite[] = "_rw";
+const static char Type[] = "_t";
+} // namespace kAccessQualPostfix
+
 namespace kMangledName {
 const static char Sampler[] = "11ocl_sampler";
 const static char AtomicPrefixIncoming[] = "U7_Atomic";
@@ -391,6 +398,9 @@ const static char MaxWGSize[] = "max_work_group_size";
 const static char NoGlobalOffset[] = "no_global_work_offset";
 const static char MaxWGDim[] = "max_global_work_dim";
 const static char NumSIMD[] = "num_simd_work_items";
+const static char StallEnable[] = "stall_enable";
+const static char FmaxMhz[] = "scheduler_target_fmax_mhz";
+const static char LoopFuse[] = "loop_fuse";
 } // namespace kSPIR2MD
 
 enum Spir2SamplerKind {
@@ -882,7 +892,13 @@ std::string mapOCLTypeNameToSPIRV(StringRef Name, StringRef Acc = "");
 bool hasAccessQualifiedName(StringRef TyName);
 
 /// Get access qualifier from the type name.
-StringRef getAccessQualifier(StringRef TyName);
+SPIRVAccessQualifierKind getAccessQualifier(StringRef TyName);
+
+/// Get access qualifier from the type name.
+StringRef getAccessQualifierPostfix(SPIRVAccessQualifierKind Access);
+
+/// Get access qualifier from the type name.
+StringRef getAccessQualifierFullName(StringRef TyName);
 
 bool eraseUselessFunctions(Module *M);
 
@@ -921,6 +937,11 @@ bool containsUnsignedAtomicType(StringRef Name);
 ///    return IA64 mangled name.
 std::string mangleBuiltin(StringRef UniqName, ArrayRef<Type *> ArgTypes,
                           BuiltinFuncMangleInfo *BtnInfo);
+
+/// Mangle a function from OpenCL extended instruction set in SPIR-V friendly IR
+/// manner
+std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
+                                           ArrayRef<Type *> ArgTys);
 
 /// Remove cast from a value.
 Value *removeCast(Value *V);

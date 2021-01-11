@@ -16,7 +16,9 @@
 #include "SyncAPI.h"
 #include "TestFS.h"
 #include "TestTU.h"
+#include "TidyProvider.h"
 #include "URI.h"
+#include "support/MemoryTree.h"
 #include "support/Path.h"
 #include "support/Threading.h"
 #include "clang/Config/config.h"
@@ -27,6 +29,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Allocator.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Regex.h"
@@ -48,6 +51,7 @@ namespace clangd {
 namespace {
 
 using ::testing::AllOf;
+using ::testing::Contains;
 using ::testing::ElementsAre;
 using ::testing::Field;
 using ::testing::Gt;
@@ -565,7 +569,9 @@ int hello;
 }
 
 MATCHER_P4(Stats, Name, UsesMemory, PreambleBuilds, ASTBuilds, "") {
-  return arg.first() == Name && (arg.second.UsedBytes != 0) == UsesMemory &&
+  return arg.first() == Name &&
+         (arg.second.UsedBytesAST + arg.second.UsedBytesPreamble != 0) ==
+             UsesMemory &&
          std::tie(arg.second.PreambleBuilds, ASTBuilds) ==
              std::tie(PreambleBuilds, ASTBuilds);
 }
@@ -1210,16 +1216,19 @@ TEST(ClangdServer, TidyOverrideTest) {
   } DiagConsumer;
 
   MockFS FS;
+  // These checks don't work well in clangd, even if configured they shouldn't
+  // run.
+  FS.Files[testPath(".clang-tidy")] = R"(
+    Checks: -*,bugprone-use-after-move,llvm-header-guard
+  )";
   MockCompilationDatabase CDB;
+  std::vector<TidyProvider> Stack;
+  Stack.push_back(provideClangTidyFiles(FS));
+  Stack.push_back(disableUnusableChecks());
+  TidyProvider Provider = combine(std::move(Stack));
   CDB.ExtraClangFlags = {"-xc++"};
   auto Opts = ClangdServer::optsForTest();
-  Opts.GetClangTidyOptions = [](llvm::vfs::FileSystem &, llvm::StringRef) {
-    auto Opts = tidy::ClangTidyOptions::getDefaults();
-    // These checks don't work well in clangd, even if configured they shouldn't
-    // run.
-    Opts.Checks = "bugprone-use-after-move,llvm-header-guard";
-    return Opts;
-  };
+  Opts.ClangTidyProvider = Provider;
   ClangdServer Server(CDB, FS, Opts, &DiagConsumer);
   const char *SourceContents = R"cpp(
     struct Foo { Foo(); Foo(Foo&); Foo(Foo&&); };
@@ -1234,6 +1243,21 @@ TEST(ClangdServer, TidyOverrideTest) {
   EXPECT_FALSE(DiagConsumer.HadDiagsInLastCallback);
 }
 
+TEST(ClangdServer, MemoryUsageTest) {
+  MockFS FS;
+  MockCompilationDatabase CDB;
+  ClangdServer Server(CDB, FS, ClangdServer::optsForTest());
+
+  auto FooCpp = testPath("foo.cpp");
+  Server.addDocument(FooCpp, "");
+  ASSERT_TRUE(Server.blockUntilIdleForTest());
+
+  llvm::BumpPtrAllocator Alloc;
+  MemoryTree MT(&Alloc);
+  Server.profile(MT);
+  ASSERT_TRUE(MT.children().count("tuscheduler"));
+  EXPECT_TRUE(MT.child("tuscheduler").children().count(FooCpp));
+}
 } // namespace
 } // namespace clangd
 } // namespace clang

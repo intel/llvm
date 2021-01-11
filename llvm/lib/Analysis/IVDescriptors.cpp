@@ -12,7 +12,6 @@
 
 #include "llvm/Analysis/IVDescriptors.h"
 #include "llvm/ADT/ScopeExit.h"
-#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/DemandedBits.h"
 #include "llvm/Analysis/DomTreeUpdater.h"
@@ -578,6 +577,7 @@ RecurrenceDescriptor::isRecurrenceInstr(Instruction *I, RecurrenceKind Kind,
     return InstDesc(Kind == RK_IntegerOr, I);
   case Instruction::Xor:
     return InstDesc(Kind == RK_IntegerXor, I);
+  case Instruction::FDiv:
   case Instruction::FMul:
     return InstDesc(Kind == RK_FloatMult, I, UAI);
   case Instruction::FSub:
@@ -748,6 +748,7 @@ bool RecurrenceDescriptor::isFirstOrderRecurrence(
 /// This function returns the identity element (or neutral element) for
 /// the operation K.
 Constant *RecurrenceDescriptor::getRecurrenceIdentity(RecurrenceKind K,
+                                                      MinMaxRecurrenceKind MK,
                                                       Type *Tp) {
   switch (K) {
   case RK_IntegerXor:
@@ -767,6 +768,26 @@ Constant *RecurrenceDescriptor::getRecurrenceIdentity(RecurrenceKind K,
   case RK_FloatAdd:
     // Adding zero to a number does not change it.
     return ConstantFP::get(Tp, 0.0L);
+  case RK_IntegerMinMax:
+  case RK_FloatMinMax:
+    switch (MK) {
+    case MRK_UIntMin:
+      return ConstantInt::get(Tp, -1);
+    case MRK_UIntMax:
+      return ConstantInt::get(Tp, 0);
+    case MRK_SIntMin:
+      return ConstantInt::get(
+          Tp, APInt::getSignedMaxValue(Tp->getIntegerBitWidth()));
+    case MRK_SIntMax:
+      return ConstantInt::get(
+          Tp, APInt::getSignedMinValue(Tp->getIntegerBitWidth()));
+    case MRK_FloatMin:
+      return ConstantFP::getInfinity(Tp, true);
+    case MRK_FloatMax:
+      return ConstantFP::getInfinity(Tp, false);
+    default:
+      llvm_unreachable("Unknown recurrence kind");
+    }
   default:
     llvm_unreachable("Unknown recurrence kind");
   }
@@ -904,13 +925,6 @@ InductionDescriptor::InductionDescriptor(Value *Start, InductionKind K,
       RedundantCasts.push_back(Inst);
     }
   }
-}
-
-int InductionDescriptor::getConsecutiveDirection() const {
-  ConstantInt *ConstStep = getConstIntStepValue();
-  if (ConstStep && (ConstStep->isOne() || ConstStep->isMinusOne()))
-    return ConstStep->getSExtValue();
-  return 0;
 }
 
 ConstantInt *InductionDescriptor::getConstIntStepValue() const {

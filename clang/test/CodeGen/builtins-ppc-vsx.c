@@ -52,6 +52,7 @@ vector unsigned long long res_vull;
 vector signed __int128 res_vslll;
 
 double res_d;
+int res_i;
 float res_af[4];
 double res_ad[2];
 signed char res_asc[16];
@@ -863,12 +864,12 @@ void test1() {
 // CHECK-LE: call <2 x double> @llvm.ppc.vsx.xvredp(<2 x double>
 
   res_vf = vec_rint(vf);
-// CHECK: call <4 x float> @llvm.nearbyint.v4f32(<4 x float> %{{[0-9]+}})
-// CHECK-LE: call <4 x float> @llvm.nearbyint.v4f32(<4 x float> %{{[0-9]+}})
+// CHECK: call <4 x float> @llvm.rint.v4f32(<4 x float> %{{[0-9]+}})
+// CHECK-LE: call <4 x float> @llvm.rint.v4f32(<4 x float> %{{[0-9]+}})
 
   res_vd = vec_rint(vd);
-// CHECK: call <2 x double> @llvm.nearbyint.v2f64(<2 x double> %{{[0-9]+}})
-// CHECK-LE: call <2 x double> @llvm.nearbyint.v2f64(<2 x double> %{{[0-9]+}})
+// CHECK: call <2 x double> @llvm.rint.v2f64(<2 x double> %{{[0-9]+}})
+// CHECK-LE: call <2 x double> @llvm.rint.v2f64(<2 x double> %{{[0-9]+}})
 
   res_vf = vec_rsqrte(vf);
 // CHECK: call <4 x float> @llvm.ppc.vsx.xvrsqrtesp(<4 x float> %{{[0-9]+}})
@@ -877,6 +878,23 @@ void test1() {
   res_vd = vec_rsqrte(vd);
 // CHECK: call <2 x double> @llvm.ppc.vsx.xvrsqrtedp(<2 x double> %{{[0-9]+}})
 // CHECK-LE: call <2 x double> @llvm.ppc.vsx.xvrsqrtedp(<2 x double> %{{[0-9]+}})
+
+  res_i = vec_test_swsqrt(vd);
+// CHECK: call i32 @llvm.ppc.vsx.xvtsqrtdp(<2 x double> %{{[0-9]+}})
+// CHECK-LE: call i32 @llvm.ppc.vsx.xvtsqrtdp(<2 x double> %{{[0-9]+}})
+
+  res_i = vec_test_swsqrts(vf);
+// CHECK: call i32 @llvm.ppc.vsx.xvtsqrtsp(<4 x float> %{{[0-9]+}})
+// CHECK-LE: call i32 @llvm.ppc.vsx.xvtsqrtsp(<4 x float> %{{[0-9]+}})
+
+  res_i = vec_test_swdiv(vd, vd);
+// CHECK: call i32 @llvm.ppc.vsx.xvtdivdp(<2 x double> %{{[0-9]+}}, <2 x double> %{{[0-9]+}})
+// CHECK-LE: call i32 @llvm.ppc.vsx.xvtdivdp(<2 x double> %{{[0-9]+}}, <2 x double> %{{[0-9]+}})
+
+  res_i = vec_test_swdivs(vf, vf);
+// CHECK: call i32 @llvm.ppc.vsx.xvtdivsp(<4 x float> %{{[0-9]+}}, <4 x float> %{{[0-9]+}})
+// CHECK-LE: call i32 @llvm.ppc.vsx.xvtdivsp(<4 x float> %{{[0-9]+}}, <4 x float> %{{[0-9]+}})
+
 
   dummy();
 // CHECK: call void @dummy()
@@ -1831,4 +1849,48 @@ void testVectorInt128Pack(){
 // CHECK-LE:  %[[V1:[0-9]+]] = bitcast <1 x i128> %{{[0-9]+}} to <2 x i64>
 // CHECK-NEXT-LE: %{{[0-9]+}} = extractelement <2 x i64> %[[V1]], i32 0
 
+}
+
+void test_vector_cpsgn_float(vector float a, vector float b) {
+// CHECK-LABEL: test_vector_cpsgn_float
+// CHECK-DAG: load{{.*}}%__a
+// CHECK-DAG: load{{.*}}%__b
+// CHECK-NOT: SEPARATOR
+// CHECK-DAG: [[RA:%[0-9]+]] = load <4 x float>, <4 x float>* %__a.addr
+// CHECK-DAG: [[RB:%[0-9]+]] = load <4 x float>, <4 x float>* %__b.addr
+// CHECK-NEXT: call <4 x float> @llvm.copysign.v4f32(<4 x float> [[RB]], <4 x float> [[RA]])
+  vec_cpsgn(a, b);
+}
+
+void test_vector_cpsgn_double(vector double a, vector double b) {
+// CHECK-LABEL: test_vector_cpsgn_double
+// CHECK-DAG: load{{.*}}%__a
+// CHECK-DAG: load{{.*}}%__b
+// CHECK-NOT: SEPARATOR
+// CHECK-DAG: [[RA:%[0-9]+]] = load <2 x double>, <2 x double>* %__a.addr
+// CHECK-DAG: [[RB:%[0-9]+]] = load <2 x double>, <2 x double>* %__b.addr
+// CHECK-NEXT: call <2 x double> @llvm.copysign.v2f64(<2 x double> [[RB]], <2 x double> [[RA]])
+  vec_cpsgn(a, b);
+}
+
+void test_builtin_xvcpsgnsp(vector float a, vector float b) {
+// CHECK-LABEL: test_builtin_xvcpsgnsp
+// CHECK-DAG: load{{.*}}%a
+// CHECK-DAG: load{{.*}}%b
+// CHECK-NOT: SEPARATOR
+// CHECK-DAG: [[RA:%[0-9]+]] = load <4 x float>, <4 x float>* %a.addr
+// CHECK-DAG: [[RB:%[0-9]+]] = load <4 x float>, <4 x float>* %b.addr
+// CHECK-NEXT: call <4 x float> @llvm.copysign.v4f32(<4 x float> [[RA]], <4 x float> [[RB]])
+  __builtin_vsx_xvcpsgnsp(a, b);
+}
+
+void test_builtin_xvcpsgndp(vector double a, vector double b) {
+// CHECK-LABEL: test_builtin_xvcpsgndp
+// CHECK-DAG: load{{.*}}%a
+// CHECK-DAG: load{{.*}}%b
+// CHECK-NOT: SEPARATOR
+// CHECK-DAG: [[RA:%[0-9]+]] = load <2 x double>, <2 x double>* %a.addr
+// CHECK-DAG: [[RB:%[0-9]+]] = load <2 x double>, <2 x double>* %b.addr
+// CHECK-NEXT: call <2 x double> @llvm.copysign.v2f64(<2 x double> [[RA]], <2 x double> [[RB]])
+  __builtin_vsx_xvcpsgndp(a, b);
 }

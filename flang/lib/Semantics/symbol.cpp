@@ -168,6 +168,10 @@ void GenericDetails::set_derivedType(Symbol &derivedType) {
   CHECK(!derivedType_);
   derivedType_ = &derivedType;
 }
+void GenericDetails::AddUse(const Symbol &use) {
+  CHECK(use.has<UseDetails>());
+  uses_.push_back(use);
+}
 
 const Symbol *GenericDetails::CheckSpecific() const {
   return const_cast<GenericDetails *>(this)->CheckSpecific();
@@ -188,10 +192,7 @@ Symbol *GenericDetails::CheckSpecific() {
 void GenericDetails::CopyFrom(const GenericDetails &from) {
   CHECK(specificProcs_.size() == bindingNames_.size());
   CHECK(from.specificProcs_.size() == from.bindingNames_.size());
-  if (from.specific_) {
-    CHECK(!specific_ || specific_ == from.specific_);
-    specific_ = from.specific_;
-  }
+  kind_ = from.kind_;
   if (from.derivedType_) {
     CHECK(!derivedType_ || derivedType_ == from.derivedType_);
     derivedType_ = from.derivedType_;
@@ -228,7 +229,6 @@ std::string DetailsToString(const Details &details) {
           [](const ProcBindingDetails &) { return "ProcBinding"; },
           [](const NamelistDetails &) { return "Namelist"; },
           [](const CommonBlockDetails &) { return "CommonBlockDetails"; },
-          [](const FinalProcDetails &) { return "FinalProc"; },
           [](const TypeParamDetails &) { return "TypeParam"; },
           [](const MiscDetails &) { return "Misc"; },
           [](const AssocEntityDetails &) { return "AssocEntity"; },
@@ -258,8 +258,12 @@ bool Symbol::CanReplaceDetails(const Details &details) const {
               return has<SubprogramNameDetails>() || has<EntityDetails>();
             },
             [&](const DerivedTypeDetails &) {
-              auto *derived{detailsIf<DerivedTypeDetails>()};
+              const auto *derived{detailsIf<DerivedTypeDetails>()};
               return derived && derived->isForwardReferenced();
+            },
+            [&](const UseDetails &x) {
+              const auto *use{detailsIf<UseDetails>()};
+              return use && use->symbol() == x.symbol();
             },
             [](const auto &) { return false; },
         },
@@ -376,6 +380,26 @@ llvm::raw_ostream &operator<<(
   return os;
 }
 
+llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const GenericDetails &x) {
+  os << ' ' << x.kind().ToString();
+  DumpBool(os, "(specific)", x.specific() != nullptr);
+  DumpBool(os, "(derivedType)", x.derivedType() != nullptr);
+  if (const auto &uses{x.uses()}; !uses.empty()) {
+    os << " (uses:";
+    char sep{' '};
+    for (const Symbol &use : uses) {
+      const Symbol &ultimate{use.GetUltimate()};
+      os << sep << ultimate.name() << "->"
+         << ultimate.owner().GetName().value();
+      sep = ',';
+    }
+    os << ')';
+  }
+  os << " procs:";
+  DumpSymbolVector(os, x.specificProcs());
+  return os;
+}
+
 llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const Details &details) {
   os << DetailsToString(details);
   std::visit( //
@@ -407,18 +431,14 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const Details &details) {
           },
           [&](const UseErrorDetails &x) {
             os << " uses:";
+            char sep{':'};
             for (const auto &[location, module] : x.occurrences()) {
-              os << " from " << module->GetName().value() << " at " << location;
+              os << sep << " from " << module->GetName().value() << " at "
+                 << location;
+              sep = ',';
             }
           },
           [](const HostAssocDetails &) {},
-          [&](const GenericDetails &x) {
-            os << ' ' << x.kind().ToString();
-            DumpBool(os, "(specific)", x.specific() != nullptr);
-            DumpBool(os, "(derivedType)", x.derivedType() != nullptr);
-            os << " procs:";
-            DumpSymbolVector(os, x.specificProcs());
-          },
           [&](const ProcBindingDetails &x) {
             os << " => " << x.symbol().name();
             DumpOptional(os, "passName", x.passName());
@@ -436,7 +456,6 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const Details &details) {
               os << ' ' << object->name();
             }
           },
-          [&](const FinalProcDetails &) {},
           [&](const TypeParamDetails &x) {
             DumpOptional(os, "type", x.type());
             os << ' ' << common::EnumToString(x.attr());
@@ -541,13 +560,11 @@ const DerivedTypeSpec *Symbol::GetParentTypeSpec(const Scope *scope) const {
 
 const Symbol *Symbol::GetParentComponent(const Scope *scope) const {
   if (const auto *dtDetails{detailsIf<DerivedTypeDetails>()}) {
-    if (!scope) {
-      scope = scope_;
+    if (const Scope * localScope{scope ? scope : scope_}) {
+      return dtDetails->GetParentComponent(DEREF(localScope));
     }
-    return dtDetails->GetParentComponent(DEREF(scope));
-  } else {
-    return nullptr;
   }
+  return nullptr;
 }
 
 void DerivedTypeDetails::add_component(const Symbol &symbol) {
@@ -563,6 +580,25 @@ const Symbol *DerivedTypeDetails::GetParentComponent(const Scope &scope) const {
       if (const Symbol & symbol{*iter->second};
           symbol.test(Symbol::Flag::ParentComp)) {
         return &symbol;
+      }
+    }
+  }
+  return nullptr;
+}
+
+const Symbol *DerivedTypeDetails::GetFinalForRank(int rank) const {
+  for (const auto &pair : finals_) {
+    const Symbol &symbol{*pair.second};
+    if (const auto *details{symbol.detailsIf<SubprogramDetails>()}) {
+      if (details->dummyArgs().size() == 1) {
+        if (const Symbol * arg{details->dummyArgs().at(0)}) {
+          if (const auto *object{arg->detailsIf<ObjectEntityDetails>()}) {
+            if (rank == object->shape().Rank() || object->IsAssumedRank() ||
+                symbol.attrs().test(Attr::ELEMENTAL)) {
+              return &symbol;
+            }
+          }
+        }
       }
     }
   }

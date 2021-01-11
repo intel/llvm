@@ -17,11 +17,24 @@
 
 using namespace llvm;
 
-static_assert(is_trivially_copyable<Optional<int>>::value,
-          "trivially copyable");
-
-static_assert(is_trivially_copyable<Optional<std::array<int, 3>>>::value,
+static_assert(std::is_trivially_copyable<Optional<int>>::value,
               "trivially copyable");
+
+static_assert(std::is_trivially_copyable<Optional<std::array<int, 3>>>::value,
+              "trivially copyable");
+
+void OptionalWorksInConstexpr() {
+  constexpr auto x1 = Optional<int>();
+  constexpr Optional<int> x2{};
+  static_assert(!x1.hasValue() && !x2.hasValue(),
+                "Default construction and hasValue() are contexpr");
+  constexpr auto y1 = Optional<int>(3);
+  constexpr Optional<int> y2{3};
+  static_assert(y1.getValue() == y2.getValue() && y1.getValue() == 3,
+                "Construction with value and getValue() are constexpr");
+  static_assert(Optional<int>{3} >= 2 && Optional<int>{1} < Optional<int>{2},
+                "Comparisons work in constexpr");
+}
 
 namespace {
 
@@ -53,19 +66,15 @@ unsigned NonDefaultConstructible::Destructions = 0;
 unsigned NonDefaultConstructible::CopyAssignments = 0;
 
 static_assert(
-      !is_trivially_copyable<Optional<NonDefaultConstructible>>::value,
-      "not trivially copyable");
+    !std::is_trivially_copyable<Optional<NonDefaultConstructible>>::value,
+    "not trivially copyable");
 
-// Test fixture
-class OptionalTest : public testing::Test {
-};
-
-TEST_F(OptionalTest, NonDefaultConstructibleTest) {
+TEST(OptionalTest, NonDefaultConstructibleTest) {
   Optional<NonDefaultConstructible> O;
   EXPECT_FALSE(O);
 }
 
-TEST_F(OptionalTest, ResetTest) {
+TEST(OptionalTest, ResetTest) {
   NonDefaultConstructible::ResetCounts();
   Optional<NonDefaultConstructible> O(NonDefaultConstructible(3));
   EXPECT_EQ(1u, NonDefaultConstructible::CopyConstructions);
@@ -78,7 +87,7 @@ TEST_F(OptionalTest, ResetTest) {
   EXPECT_EQ(1u, NonDefaultConstructible::Destructions);
 }
 
-TEST_F(OptionalTest, InitializationLeakTest) {
+TEST(OptionalTest, InitializationLeakTest) {
   NonDefaultConstructible::ResetCounts();
   Optional<NonDefaultConstructible>(NonDefaultConstructible(3));
   EXPECT_EQ(1u, NonDefaultConstructible::CopyConstructions);
@@ -86,7 +95,7 @@ TEST_F(OptionalTest, InitializationLeakTest) {
   EXPECT_EQ(2u, NonDefaultConstructible::Destructions);
 }
 
-TEST_F(OptionalTest, CopyConstructionTest) {
+TEST(OptionalTest, CopyConstructionTest) {
   NonDefaultConstructible::ResetCounts();
   {
     Optional<NonDefaultConstructible> A(NonDefaultConstructible(3));
@@ -105,7 +114,7 @@ TEST_F(OptionalTest, CopyConstructionTest) {
   EXPECT_EQ(2u, NonDefaultConstructible::Destructions);
 }
 
-TEST_F(OptionalTest, ConstructingCopyAssignmentTest) {
+TEST(OptionalTest, ConstructingCopyAssignmentTest) {
   NonDefaultConstructible::ResetCounts();
   {
     Optional<NonDefaultConstructible> A(NonDefaultConstructible(3));
@@ -125,7 +134,7 @@ TEST_F(OptionalTest, ConstructingCopyAssignmentTest) {
   EXPECT_EQ(2u, NonDefaultConstructible::Destructions);
 }
 
-TEST_F(OptionalTest, CopyingCopyAssignmentTest) {
+TEST(OptionalTest, CopyingCopyAssignmentTest) {
   NonDefaultConstructible::ResetCounts();
   {
     Optional<NonDefaultConstructible> A(NonDefaultConstructible(3));
@@ -145,7 +154,7 @@ TEST_F(OptionalTest, CopyingCopyAssignmentTest) {
   EXPECT_EQ(2u, NonDefaultConstructible::Destructions);
 }
 
-TEST_F(OptionalTest, DeletingCopyAssignmentTest) {
+TEST(OptionalTest, DeletingCopyAssignmentTest) {
   NonDefaultConstructible::ResetCounts();
   {
     Optional<NonDefaultConstructible> A;
@@ -165,7 +174,7 @@ TEST_F(OptionalTest, DeletingCopyAssignmentTest) {
   EXPECT_EQ(0u, NonDefaultConstructible::Destructions);
 }
 
-TEST_F(OptionalTest, NullCopyConstructionTest) {
+TEST(OptionalTest, NullCopyConstructionTest) {
   NonDefaultConstructible::ResetCounts();
   {
     Optional<NonDefaultConstructible> A;
@@ -185,7 +194,7 @@ TEST_F(OptionalTest, NullCopyConstructionTest) {
   EXPECT_EQ(0u, NonDefaultConstructible::Destructions);
 }
 
-TEST_F(OptionalTest, GetValueOr) {
+TEST(OptionalTest, GetValueOr) {
   Optional<int> A;
   EXPECT_EQ(42, A.getValueOr(42));
 
@@ -214,11 +223,10 @@ struct MultiArgConstructor {
 };
 unsigned MultiArgConstructor::Destructions = 0;
 
-static_assert(
-  !is_trivially_copyable<Optional<MultiArgConstructor>>::value,
-  "not trivially copyable");
+static_assert(!std::is_trivially_copyable<Optional<MultiArgConstructor>>::value,
+              "not trivially copyable");
 
-TEST_F(OptionalTest, Emplace) {
+TEST(OptionalTest, Emplace) {
   MultiArgConstructor::ResetCounts();
   Optional<MultiArgConstructor> A;
   
@@ -265,10 +273,10 @@ unsigned MoveOnly::MoveConstructions = 0;
 unsigned MoveOnly::Destructions = 0;
 unsigned MoveOnly::MoveAssignments = 0;
 
-static_assert(!is_trivially_copyable<Optional<MoveOnly>>::value,
+static_assert(!std::is_trivially_copyable<Optional<MoveOnly>>::value,
               "not trivially copyable");
 
-TEST_F(OptionalTest, MoveOnlyNull) {
+TEST(OptionalTest, MoveOnlyNull) {
   MoveOnly::ResetCounts();
   Optional<MoveOnly> O;
   EXPECT_EQ(0u, MoveOnly::MoveConstructions);
@@ -276,7 +284,7 @@ TEST_F(OptionalTest, MoveOnlyNull) {
   EXPECT_EQ(0u, MoveOnly::Destructions);
 }
 
-TEST_F(OptionalTest, MoveOnlyConstruction) {
+TEST(OptionalTest, MoveOnlyConstruction) {
   MoveOnly::ResetCounts();
   Optional<MoveOnly> O(MoveOnly(3));
   EXPECT_TRUE((bool)O);
@@ -286,7 +294,7 @@ TEST_F(OptionalTest, MoveOnlyConstruction) {
   EXPECT_EQ(1u, MoveOnly::Destructions);
 }
 
-TEST_F(OptionalTest, MoveOnlyMoveConstruction) {
+TEST(OptionalTest, MoveOnlyMoveConstruction) {
   Optional<MoveOnly> A(MoveOnly(3));
   MoveOnly::ResetCounts();
   Optional<MoveOnly> B(std::move(A));
@@ -298,7 +306,7 @@ TEST_F(OptionalTest, MoveOnlyMoveConstruction) {
   EXPECT_EQ(0u, MoveOnly::Destructions);
 }
 
-TEST_F(OptionalTest, MoveOnlyAssignment) {
+TEST(OptionalTest, MoveOnlyAssignment) {
   MoveOnly::ResetCounts();
   Optional<MoveOnly> O;
   O = MoveOnly(3);
@@ -309,7 +317,7 @@ TEST_F(OptionalTest, MoveOnlyAssignment) {
   EXPECT_EQ(1u, MoveOnly::Destructions);
 }
 
-TEST_F(OptionalTest, MoveOnlyInitializingAssignment) {
+TEST(OptionalTest, MoveOnlyInitializingAssignment) {
   Optional<MoveOnly> A(MoveOnly(3));
   Optional<MoveOnly> B;
   MoveOnly::ResetCounts();
@@ -322,7 +330,7 @@ TEST_F(OptionalTest, MoveOnlyInitializingAssignment) {
   EXPECT_EQ(0u, MoveOnly::Destructions);
 }
 
-TEST_F(OptionalTest, MoveOnlyNullingAssignment) {
+TEST(OptionalTest, MoveOnlyNullingAssignment) {
   Optional<MoveOnly> A;
   Optional<MoveOnly> B(MoveOnly(3));
   MoveOnly::ResetCounts();
@@ -334,7 +342,7 @@ TEST_F(OptionalTest, MoveOnlyNullingAssignment) {
   EXPECT_EQ(1u, MoveOnly::Destructions);
 }
 
-TEST_F(OptionalTest, MoveOnlyAssigningAssignment) {
+TEST(OptionalTest, MoveOnlyAssigningAssignment) {
   Optional<MoveOnly> A(MoveOnly(3));
   Optional<MoveOnly> B(MoveOnly(4));
   MoveOnly::ResetCounts();
@@ -369,10 +377,10 @@ private:
 unsigned Immovable::Constructions = 0;
 unsigned Immovable::Destructions = 0;
 
-static_assert(!is_trivially_copyable<Optional<Immovable>>::value,
+static_assert(!std::is_trivially_copyable<Optional<Immovable>>::value,
               "not trivially copyable");
 
-TEST_F(OptionalTest, ImmovableEmplace) {
+TEST(OptionalTest, ImmovableEmplace) {
   Optional<Immovable> A;
   Immovable::ResetCounts();
   A.emplace(4);
@@ -384,7 +392,7 @@ TEST_F(OptionalTest, ImmovableEmplace) {
 
 #if LLVM_HAS_RVALUE_REFERENCE_THIS
 
-TEST_F(OptionalTest, MoveGetValueOr) {
+TEST(OptionalTest, MoveGetValueOr) {
   Optional<MoveOnly> A;
 
   MoveOnly::ResetCounts();
@@ -466,7 +474,7 @@ bool operator==(const EqualityMock &Lhs, const EqualityMock &Rhs) {
   return IsEqual;
 }
 
-TEST_F(OptionalTest, OperatorEqual) {
+TEST(OptionalTest, OperatorEqual) {
   CheckRelation<EqualTo>(NoneEq, NoneEq, true);
   CheckRelation<EqualTo>(NoneEq, EqualityRhs, false);
   CheckRelation<EqualTo>(EqualityLhs, NoneEq, false);
@@ -477,7 +485,7 @@ TEST_F(OptionalTest, OperatorEqual) {
   CheckRelation<EqualTo>(EqualityLhs, EqualityRhs, IsEqual);
 }
 
-TEST_F(OptionalTest, OperatorNotEqual) {
+TEST(OptionalTest, OperatorNotEqual) {
   CheckRelation<NotEqualTo>(NoneEq, NoneEq, false);
   CheckRelation<NotEqualTo>(NoneEq, EqualityRhs, true);
   CheckRelation<NotEqualTo>(EqualityLhs, NoneEq, true);
@@ -499,7 +507,7 @@ bool operator<(const InequalityMock &Lhs, const InequalityMock &Rhs) {
   return IsLess;
 }
 
-TEST_F(OptionalTest, OperatorLess) {
+TEST(OptionalTest, OperatorLess) {
   CheckRelation<Less>(NoneIneq, NoneIneq, false);
   CheckRelation<Less>(NoneIneq, InequalityRhs, true);
   CheckRelation<Less>(InequalityLhs, NoneIneq, false);
@@ -510,7 +518,7 @@ TEST_F(OptionalTest, OperatorLess) {
   CheckRelation<Less>(InequalityLhs, InequalityRhs, IsLess);
 }
 
-TEST_F(OptionalTest, OperatorGreater) {
+TEST(OptionalTest, OperatorGreater) {
   CheckRelation<Greater>(NoneIneq, NoneIneq, false);
   CheckRelation<Greater>(NoneIneq, InequalityRhs, false);
   CheckRelation<Greater>(InequalityLhs, NoneIneq, true);
@@ -521,7 +529,7 @@ TEST_F(OptionalTest, OperatorGreater) {
   CheckRelation<Greater>(InequalityRhs, InequalityLhs, IsLess);
 }
 
-TEST_F(OptionalTest, OperatorLessEqual) {
+TEST(OptionalTest, OperatorLessEqual) {
   CheckRelation<LessEqual>(NoneIneq, NoneIneq, true);
   CheckRelation<LessEqual>(NoneIneq, InequalityRhs, true);
   CheckRelation<LessEqual>(InequalityLhs, NoneIneq, false);
@@ -532,7 +540,7 @@ TEST_F(OptionalTest, OperatorLessEqual) {
   CheckRelation<LessEqual>(InequalityRhs, InequalityLhs, !IsLess);
 }
 
-TEST_F(OptionalTest, OperatorGreaterEqual) {
+TEST(OptionalTest, OperatorGreaterEqual) {
   CheckRelation<GreaterEqual>(NoneIneq, NoneIneq, true);
   CheckRelation<GreaterEqual>(NoneIneq, InequalityRhs, false);
   CheckRelation<GreaterEqual>(InequalityLhs, NoneIneq, true);
@@ -558,7 +566,7 @@ struct ComparableAndStreamable {
   }
 };
 
-TEST_F(OptionalTest, StreamOperator) {
+TEST(OptionalTest, StreamOperator) {
   auto to_string = [](Optional<ComparableAndStreamable> O) {
     SmallString<16> S;
     raw_svector_ostream OS(S);
@@ -577,7 +585,7 @@ struct Comparable {
   static Optional<Comparable> get() { return Comparable(); }
 };
 
-TEST_F(OptionalTest, UseInUnitTests) {
+TEST(OptionalTest, UseInUnitTests) {
   // Test that we invoke the streaming operators when pretty-printing values in
   // EXPECT macros.
   EXPECT_NONFATAL_FAILURE(EXPECT_EQ(llvm::None, ComparableAndStreamable::get()),
@@ -589,6 +597,23 @@ TEST_F(OptionalTest, UseInUnitTests) {
   // Test that it is still possible to compare objects which do not have a
   // custom streaming operator.
   EXPECT_NONFATAL_FAILURE(EXPECT_EQ(llvm::None, Comparable::get()), "object");
+}
+
+TEST(OptionalTest, HashValue) {
+  // Check that None, false, and true all hash differently.
+  Optional<bool> B, B0 = false, B1 = true;
+  EXPECT_NE(hash_value(B0), hash_value(B));
+  EXPECT_NE(hash_value(B1), hash_value(B));
+  EXPECT_NE(hash_value(B1), hash_value(B0));
+
+  // Check that None, 0, and 1 all hash differently.
+  Optional<int> I, I0 = 0, I1 = 1;
+  EXPECT_NE(hash_value(I0), hash_value(I));
+  EXPECT_NE(hash_value(I1), hash_value(I));
+  EXPECT_NE(hash_value(I1), hash_value(I0));
+
+  // Check None hash the same way regardless of type.
+  EXPECT_EQ(hash_value(B), hash_value(I));
 }
 
 } // end anonymous namespace

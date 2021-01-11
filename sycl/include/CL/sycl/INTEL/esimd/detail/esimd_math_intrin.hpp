@@ -204,9 +204,44 @@ template <int N>
 SYCL_EXTERNAL vector_type_t<uint16_t, N> __esimd_unpack_mask(uint32_t src0);
 
 template <typename T1, typename T2, typename T3, typename T4, int N>
-SYCL_EXTERNAL vector_type_t<T1, N> __esimd_dp4a(vector_type_t<T2, N> src0,
-                                                vector_type_t<T3, N> src1,
-                                                vector_type_t<T4, N> src2);
+SYCL_EXTERNAL vector_type_t<T1, N> __esimd_uudp4a(vector_type_t<T2, N> src0,
+                                                  vector_type_t<T3, N> src1,
+                                                  vector_type_t<T4, N> src2);
+
+template <typename T1, typename T2, typename T3, typename T4, int N>
+SYCL_EXTERNAL vector_type_t<T1, N> __esimd_usdp4a(vector_type_t<T2, N> src0,
+                                                  vector_type_t<T3, N> src1,
+                                                  vector_type_t<T4, N> src2);
+
+template <typename T1, typename T2, typename T3, typename T4, int N>
+SYCL_EXTERNAL vector_type_t<T1, N> __esimd_sudp4a(vector_type_t<T2, N> src0,
+                                                  vector_type_t<T3, N> src1,
+                                                  vector_type_t<T4, N> src2);
+
+template <typename T1, typename T2, typename T3, typename T4, int N>
+SYCL_EXTERNAL vector_type_t<T1, N> __esimd_ssdp4a(vector_type_t<T2, N> src0,
+                                                  vector_type_t<T3, N> src1,
+                                                  vector_type_t<T4, N> src2);
+
+template <typename T1, typename T2, typename T3, typename T4, int N>
+SYCL_EXTERNAL vector_type_t<T1, N>
+__esimd_uudp4a_sat(vector_type_t<T2, N> src0, vector_type_t<T3, N> src1,
+                   vector_type_t<T4, N> src2);
+
+template <typename T1, typename T2, typename T3, typename T4, int N>
+SYCL_EXTERNAL vector_type_t<T1, N>
+__esimd_usdp4a_sat(vector_type_t<T2, N> src0, vector_type_t<T3, N> src1,
+                   vector_type_t<T4, N> src2);
+
+template <typename T1, typename T2, typename T3, typename T4, int N>
+SYCL_EXTERNAL vector_type_t<T1, N>
+__esimd_sudp4a_sat(vector_type_t<T2, N> src0, vector_type_t<T3, N> src1,
+                   vector_type_t<T4, N> src2);
+
+template <typename T1, typename T2, typename T3, typename T4, int N>
+SYCL_EXTERNAL vector_type_t<T1, N>
+__esimd_ssdp4a_sat(vector_type_t<T2, N> src0, vector_type_t<T3, N> src1,
+                   vector_type_t<T4, N> src2);
 
 // Reduction functions
 template <typename Ty, int N>
@@ -248,7 +283,7 @@ __esimd_dp4(sycl::INTEL::gpu::vector_type_t<Ty, N> v1,
 
 template <typename T>
 T extract(const uint32_t &width, const uint32_t &offset, uint32_t src,
-          uint32_t &sign_extend) {
+          const uint32_t &sign_extend) {
   uint32_t mask = ((1 << width) - 1) << offset;
   T ret = (src & mask) >> offset;
   if (sign_extend) {
@@ -1089,7 +1124,7 @@ SYCL_EXTERNAL vector_type_t<T1, N> __esimd_dp4a(vector_type_t<T2, N> src0,
 
     ret = src1_a * src2_a + src1_b * src2_b + src1_c * src2_c + src1_d * src2_d;
     reta = ret + src0[i];
-    retv(i) = EsimdEmulSys::satur<T1>::saturate(reta, sat1);
+    retv[i] = EsimdEmulSys::satur<T1>::saturate(reta, sat1);
   }
 
   return retv;

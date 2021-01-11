@@ -6,22 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "include/math.h"
 #include "src/math/trunc.h"
 #include "utils/FPUtil/FPBits.h"
 #include "utils/FPUtil/TestHelpers.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
 #include "utils/UnitTest/Test.h"
+#include <math.h>
 
 using FPBits = __llvm_libc::fputil::FPBits<double>;
 
 namespace mpfr = __llvm_libc::testing::mpfr;
 
-static const double zero = FPBits::zero();
-static const double negZero = FPBits::negZero();
-static const double nan = FPBits::buildNaN(1);
-static const double inf = FPBits::inf();
-static const double negInf = FPBits::negInf();
+DECLARE_SPECIAL_CONSTANTS(double)
 
 TEST(TruncTest, SpecialNumbers) {
   EXPECT_FP_EQ(zero, __llvm_libc::trunc(zero));
@@ -30,8 +26,7 @@ TEST(TruncTest, SpecialNumbers) {
   EXPECT_FP_EQ(inf, __llvm_libc::trunc(inf));
   EXPECT_FP_EQ(negInf, __llvm_libc::trunc(negInf));
 
-  ASSERT_NE(isnan(nan), 0);
-  ASSERT_NE(isnan(__llvm_libc::trunc(nan)), 0);
+  EXPECT_FP_EQ(aNaN, __llvm_libc::trunc(aNaN));
 }
 
 TEST(TruncTest, RoundedNumbers) {

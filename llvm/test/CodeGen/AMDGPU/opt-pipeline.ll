@@ -19,6 +19,7 @@
 ; GCN-O0-NEXT: Assumption Cache Tracker
 ; GCN-O0-NEXT: Profile summary info
 ; GCN-O0-NEXT:   ModulePass Manager
+; GCN-O0-NEXT:     Annotation2Metadata
 ; GCN-O0-NEXT:     Force set function attributes
 ; GCN-O0-NEXT:     CallGraph Construction
 ; GCN-O0-NEXT:     Call Graph SCC Pass Manager
@@ -59,6 +60,7 @@
 ; GCN-O1-NEXT: Assumption Cache Tracker
 ; GCN-O1-NEXT: Profile summary info
 ; GCN-O1-NEXT:   ModulePass Manager
+; GCN-O1-NEXT:     Annotation2Metadata
 ; GCN-O1-NEXT:     Force set function attributes
 ; GCN-O1-NEXT:     Infer set function attributes
 ; GCN-O1-NEXT:     Unify multiple OpenCL metadata due to linking
@@ -139,6 +141,8 @@
 ; GCN-O1-NEXT:       Loop Pass Manager
 ; GCN-O1-NEXT:         Rotate Loops
 ; GCN-O1-NEXT:       Memory SSA
+; GCN-O1-NEXT:       Lazy Branch Probability Analysis
+; GCN-O1-NEXT:       Lazy Block Frequency Analysis
 ; GCN-O1-NEXT:       Loop Pass Manager
 ; GCN-O1-NEXT:         Loop Invariant Code Motion
 ; GCN-O1-NEXT:       Post-Dominator Tree Construction
@@ -159,11 +163,13 @@
 ; GCN-O1-NEXT:       Loop-Closed SSA Form Pass
 ; GCN-O1-NEXT:       Scalar Evolution Analysis
 ; GCN-O1-NEXT:       Loop Pass Manager
-; GCN-O1-NEXT:         Induction Variable Simplification
 ; GCN-O1-NEXT:         Recognize loop idioms
+; GCN-O1-NEXT:         Induction Variable Simplification
 ; GCN-O1-NEXT:         Delete dead loops
 ; GCN-O1-NEXT:         Unroll loops
+; GCN-O1-NEXT:       SROA
 ; GCN-O1-NEXT:       Phi Values Analysis
+; GCN-O1-NEXT:       Function Alias Analysis Results
 ; GCN-O1-NEXT:       Memory Dependence Analysis
 ; GCN-O1-NEXT:       MemCpy Optimization
 ; GCN-O1-NEXT:       Sparse Conditional Constant Propagation
@@ -268,10 +274,10 @@
 ; GCN-O1-NEXT:       LCSSA Verifier
 ; GCN-O1-NEXT:       Loop-Closed SSA Form Pass
 ; GCN-O1-NEXT:       Scalar Evolution Analysis
-; GCN-O1-NEXT:       Loop Pass Manager
-; GCN-O1-NEXT:         Loop Invariant Code Motion
 ; GCN-O1-NEXT:       Lazy Branch Probability Analysis
 ; GCN-O1-NEXT:       Lazy Block Frequency Analysis
+; GCN-O1-NEXT:       Loop Pass Manager
+; GCN-O1-NEXT:         Loop Invariant Code Motion
 ; GCN-O1-NEXT:       Optimization Remark Emitter
 ; GCN-O1-NEXT:       Warn about non-applied transformations
 ; GCN-O1-NEXT:       Alignment from assumptions
@@ -303,6 +309,7 @@
 ; GCN-O1-NEXT:       Remove redundant instructions
 ; GCN-O1-NEXT:       Hoist/decompose integer division and remainder
 ; GCN-O1-NEXT:       Simplify the CFG
+; GCN-O1-NEXT:       Annotation Remarks
 
 ; GCN-O1-NEXT: Pass Arguments:
 ; GCN-O1-NEXT:   FunctionPass Manager
@@ -364,6 +371,7 @@
 ; GCN-O2-NEXT: Assumption Cache Tracker
 ; GCN-O2-NEXT: Profile summary info
 ; GCN-O2-NEXT:   ModulePass Manager
+; GCN-O2-NEXT:     Annotation2Metadata
 ; GCN-O2-NEXT:     Force set function attributes
 ; GCN-O2-NEXT:     Infer set function attributes
 ; GCN-O2-NEXT:     Unify multiple OpenCL metadata due to linking
@@ -457,6 +465,8 @@
 ; GCN-O2-NEXT:       Loop Pass Manager
 ; GCN-O2-NEXT:         Rotate Loops
 ; GCN-O2-NEXT:       Memory SSA
+; GCN-O2-NEXT:       Lazy Branch Probability Analysis
+; GCN-O2-NEXT:       Lazy Block Frequency Analysis
 ; GCN-O2-NEXT:       Loop Pass Manager
 ; GCN-O2-NEXT:         Loop Invariant Code Motion
 ; GCN-O2-NEXT:       Post-Dominator Tree Construction
@@ -477,10 +487,12 @@
 ; GCN-O2-NEXT:       Loop-Closed SSA Form Pass
 ; GCN-O2-NEXT:       Scalar Evolution Analysis
 ; GCN-O2-NEXT:       Loop Pass Manager
-; GCN-O2-NEXT:         Induction Variable Simplification
 ; GCN-O2-NEXT:         Recognize loop idioms
+; GCN-O2-NEXT:         Induction Variable Simplification
 ; GCN-O2-NEXT:         Delete dead loops
 ; GCN-O2-NEXT:         Unroll loops
+; GCN-O2-NEXT:       SROA
+; GCN-O2-NEXT:       Function Alias Analysis Results
 ; GCN-O2-NEXT:       MergedLoadStoreMotion
 ; GCN-O2-NEXT:       Phi Values Analysis
 ; GCN-O2-NEXT:       Function Alias Analysis Results
@@ -505,22 +517,22 @@
 ; GCN-O2-NEXT:       Lazy Value Information Analysis
 ; GCN-O2-NEXT:       Jump Threading
 ; GCN-O2-NEXT:       Value Propagation
+; GCN-O2-NEXT:       Post-Dominator Tree Construction
+; GCN-O2-NEXT:       Aggressive Dead Code Elimination
 ; GCN-O2-NEXT:       Basic Alias Analysis (stateless AA impl)
 ; GCN-O2-NEXT:       Function Alias Analysis Results
-; GCN-O2-NEXT:       Phi Values Analysis
-; GCN-O2-NEXT:       Memory Dependence Analysis
-; GCN-O2-NEXT:       Dead Store Elimination
-; GCN-O2-NEXT:       Function Alias Analysis Results
 ; GCN-O2-NEXT:       Memory SSA
+; GCN-O2-NEXT:       Dead Store Elimination
 ; GCN-O2-NEXT:       Natural Loop Information
 ; GCN-O2-NEXT:       Canonicalize natural loops
 ; GCN-O2-NEXT:       LCSSA Verifier
 ; GCN-O2-NEXT:       Loop-Closed SSA Form Pass
+; GCN-O2-NEXT:       Function Alias Analysis Results
 ; GCN-O2-NEXT:       Scalar Evolution Analysis
+; GCN-O2-NEXT:       Lazy Branch Probability Analysis
+; GCN-O2-NEXT:       Lazy Block Frequency Analysis
 ; GCN-O2-NEXT:       Loop Pass Manager
 ; GCN-O2-NEXT:         Loop Invariant Code Motion
-; GCN-O2-NEXT:       Post-Dominator Tree Construction
-; GCN-O2-NEXT:       Aggressive Dead Code Elimination
 ; GCN-O2-NEXT:       Simplify the CFG
 ; GCN-O2-NEXT:       Dominator Tree Construction
 ; GCN-O2-NEXT:       Basic Alias Analysis (stateless AA impl)
@@ -619,10 +631,10 @@
 ; GCN-O2-NEXT:       LCSSA Verifier
 ; GCN-O2-NEXT:       Loop-Closed SSA Form Pass
 ; GCN-O2-NEXT:       Scalar Evolution Analysis
-; GCN-O2-NEXT:       Loop Pass Manager
-; GCN-O2-NEXT:         Loop Invariant Code Motion
 ; GCN-O2-NEXT:       Lazy Branch Probability Analysis
 ; GCN-O2-NEXT:       Lazy Block Frequency Analysis
+; GCN-O2-NEXT:       Loop Pass Manager
+; GCN-O2-NEXT:         Loop Invariant Code Motion
 ; GCN-O2-NEXT:       Optimization Remark Emitter
 ; GCN-O2-NEXT:       Warn about non-applied transformations
 ; GCN-O2-NEXT:       Alignment from assumptions
@@ -656,6 +668,7 @@
 ; GCN-O2-NEXT:       Remove redundant instructions
 ; GCN-O2-NEXT:       Hoist/decompose integer division and remainder
 ; GCN-O2-NEXT:       Simplify the CFG
+; GCN-O2-NEXT:       Annotation Remarks
 
 ; GCN-O2-NEXT: Pass Arguments:
 ; GCN-O2-NEXT:   FunctionPass Manager
@@ -717,6 +730,7 @@
 ; GCN-O3-NEXT: Assumption Cache Tracker
 ; GCN-O3-NEXT: Profile summary info
 ; GCN-O3-NEXT:   ModulePass Manager
+; GCN-O3-NEXT:     Annotation2Metadata
 ; GCN-O3-NEXT:     Force set function attributes
 ; GCN-O3-NEXT:     Infer set function attributes
 ; GCN-O3-NEXT:     Unify multiple OpenCL metadata due to linking
@@ -815,6 +829,8 @@
 ; GCN-O3-NEXT:       Loop Pass Manager
 ; GCN-O3-NEXT:         Rotate Loops
 ; GCN-O3-NEXT:       Memory SSA
+; GCN-O3-NEXT:       Lazy Branch Probability Analysis
+; GCN-O3-NEXT:       Lazy Block Frequency Analysis
 ; GCN-O3-NEXT:       Loop Pass Manager
 ; GCN-O3-NEXT:         Loop Invariant Code Motion
 ; GCN-O3-NEXT:       Post-Dominator Tree Construction
@@ -835,10 +851,12 @@
 ; GCN-O3-NEXT:       Loop-Closed SSA Form Pass
 ; GCN-O3-NEXT:       Scalar Evolution Analysis
 ; GCN-O3-NEXT:       Loop Pass Manager
-; GCN-O3-NEXT:         Induction Variable Simplification
 ; GCN-O3-NEXT:         Recognize loop idioms
+; GCN-O3-NEXT:         Induction Variable Simplification
 ; GCN-O3-NEXT:         Delete dead loops
 ; GCN-O3-NEXT:         Unroll loops
+; GCN-O3-NEXT:       SROA
+; GCN-O3-NEXT:       Function Alias Analysis Results
 ; GCN-O3-NEXT:       MergedLoadStoreMotion
 ; GCN-O3-NEXT:       Phi Values Analysis
 ; GCN-O3-NEXT:       Function Alias Analysis Results
@@ -863,22 +881,22 @@
 ; GCN-O3-NEXT:       Lazy Value Information Analysis
 ; GCN-O3-NEXT:       Jump Threading
 ; GCN-O3-NEXT:       Value Propagation
+; GCN-O3-NEXT:       Post-Dominator Tree Construction
+; GCN-O3-NEXT:       Aggressive Dead Code Elimination
 ; GCN-O3-NEXT:       Basic Alias Analysis (stateless AA impl)
 ; GCN-O3-NEXT:       Function Alias Analysis Results
-; GCN-O3-NEXT:       Phi Values Analysis
-; GCN-O3-NEXT:       Memory Dependence Analysis
-; GCN-O3-NEXT:       Dead Store Elimination
-; GCN-O3-NEXT:       Function Alias Analysis Results
 ; GCN-O3-NEXT:       Memory SSA
+; GCN-O3-NEXT:       Dead Store Elimination
 ; GCN-O3-NEXT:       Natural Loop Information
 ; GCN-O3-NEXT:       Canonicalize natural loops
 ; GCN-O3-NEXT:       LCSSA Verifier
 ; GCN-O3-NEXT:       Loop-Closed SSA Form Pass
+; GCN-O3-NEXT:       Function Alias Analysis Results
 ; GCN-O3-NEXT:       Scalar Evolution Analysis
+; GCN-O3-NEXT:       Lazy Branch Probability Analysis
+; GCN-O3-NEXT:       Lazy Block Frequency Analysis
 ; GCN-O3-NEXT:       Loop Pass Manager
 ; GCN-O3-NEXT:         Loop Invariant Code Motion
-; GCN-O3-NEXT:       Post-Dominator Tree Construction
-; GCN-O3-NEXT:       Aggressive Dead Code Elimination
 ; GCN-O3-NEXT:       Simplify the CFG
 ; GCN-O3-NEXT:       Dominator Tree Construction
 ; GCN-O3-NEXT:       Basic Alias Analysis (stateless AA impl)
@@ -977,10 +995,10 @@
 ; GCN-O3-NEXT:       LCSSA Verifier
 ; GCN-O3-NEXT:       Loop-Closed SSA Form Pass
 ; GCN-O3-NEXT:       Scalar Evolution Analysis
-; GCN-O3-NEXT:       Loop Pass Manager
-; GCN-O3-NEXT:         Loop Invariant Code Motion
 ; GCN-O3-NEXT:       Lazy Branch Probability Analysis
 ; GCN-O3-NEXT:       Lazy Block Frequency Analysis
+; GCN-O3-NEXT:       Loop Pass Manager
+; GCN-O3-NEXT:         Loop Invariant Code Motion
 ; GCN-O3-NEXT:       Optimization Remark Emitter
 ; GCN-O3-NEXT:       Warn about non-applied transformations
 ; GCN-O3-NEXT:       Alignment from assumptions
@@ -1014,6 +1032,7 @@
 ; GCN-O3-NEXT:       Remove redundant instructions
 ; GCN-O3-NEXT:       Hoist/decompose integer division and remainder
 ; GCN-O3-NEXT:       Simplify the CFG
+; GCN-O3-NEXT:       Annotation Remarks
 
 ; GCN-O3-NEXT: Pass Arguments:
 ; GCN-O3-NEXT:   FunctionPass Manager

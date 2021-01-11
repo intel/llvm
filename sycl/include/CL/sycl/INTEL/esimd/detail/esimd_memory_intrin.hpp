@@ -14,6 +14,7 @@
 #include <CL/sycl/INTEL/esimd/detail/esimd_types.hpp>
 #include <CL/sycl/INTEL/esimd/detail/esimd_util.hpp>
 #include <CL/sycl/INTEL/esimd/esimd_enum.hpp>
+#include <CL/sycl/types.hpp>
 #include <cstdint>
 
 // flat_read does flat-address gather
@@ -81,6 +82,92 @@ SYCL_EXTERNAL void __esimd_flat_write4(
     sycl::INTEL::gpu::vector_type_t<Ty, N * NumChannels(Mask)> vals,
     sycl::INTEL::gpu::vector_type_t<uint16_t, N> pred = 1);
 
+// Low-level surface-based gather. Collects elements located at given offsets in
+// a surface and returns them as a single \ref simd object. Element can be
+// 1, 2 or 4-byte value, but is always returned as a 4-byte value within the
+// resulting simd object, with upper 2 or 3 bytes undefined.
+// Template (compile-time constant) parameters:
+// @tparam Ty - element type; can only be a 4-byte integer or \c float,
+// @tparam N  - the number of elements
+// @tparam SurfIndAliasTy - "surface index alias" type - internal type in the
+//   accessor used to denote the surface
+// @tparam TySizeLog2 - Log2 of the number of bytes read per element:
+//   0 - 1 byte, 1 - 2 bytes, 2 - 4 bytes
+// @tparam L1H - L1 cache hint
+// @tparam L3H - L3 cache hint
+//
+// Formal parameters:
+// @param scale - the scale; must be 0
+// @param surf_ind - the surface index, taken from the SYCL memory object
+// @param global_offset - offset added to each individual element's offset to
+//   compute actual memory access offset for that element
+// @param elem_offsets - per-element offsets
+//
+template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
+          sycl::INTEL::gpu::CacheHint L1H = sycl::INTEL::gpu::CacheHint::None,
+          sycl::INTEL::gpu::CacheHint L3H = sycl::INTEL::gpu::CacheHint::None>
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<Ty, N>
+__esimd_surf_read(int16_t scale, SurfIndAliasTy surf_ind,
+                  uint32_t global_offset,
+                  sycl::INTEL::gpu::vector_type_t<uint32_t, N> elem_offsets)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  static_assert(N == 1 || N == 8 || N == 16);
+  static_assert(TySizeLog2 <= 2);
+  static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
+  throw cl::sycl::feature_not_supported();
+}
+#endif // __SYCL_DEVICE_ONLY__
+
+// Low-level surface-based scatter. Writes elements of a \ref simd object into a
+// surface at given offsets. Element can be a 1, 2 or 4-byte value, but it is
+// always represented as a 4-byte value within the input simd object,
+// unused (not written) upper bytes are ignored.
+// Template (compile-time constant) parameters:
+// @tparam Ty - element type; can only be a 4-byte integer or \c float,
+// @tparam N  - the number of elements to write
+// @tparam SurfIndAliasTy - "surface index alias" type - internal type in the
+//   accessor used to denote the surface
+// @tparam TySizeLog2 - Log2 of the number of bytes written per element:
+//   0 - 1 byte, 1 - 2 bytes, 2 - 4 bytes
+// @tparam L1H - L1 cache hint
+// @tparam L3H - L3 cache hint
+//
+// Formal parameters:
+// @param pred - per-element predicates; elements with zero corresponding
+//   predicates are not written
+// @param scale - the scale; must be 0
+// @param surf_ind - the surface index, taken from the SYCL memory object
+// @param global_offset - offset added to each individual element's offset to
+//   compute actual memory access offset for that element
+// @param elem_offsets - per-element offsets
+// @param vals - values to write
+//
+template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
+          sycl::INTEL::gpu::CacheHint L1H = sycl::INTEL::gpu::CacheHint::None,
+          sycl::INTEL::gpu::CacheHint L3H = sycl::INTEL::gpu::CacheHint::None>
+SYCL_EXTERNAL void
+__esimd_surf_write(sycl::INTEL::gpu::vector_type_t<uint16_t, N> pred,
+                   int16_t scale, SurfIndAliasTy surf_ind,
+                   uint32_t global_offset,
+                   sycl::INTEL::gpu::vector_type_t<uint32_t, N> elem_offsets,
+                   sycl::INTEL::gpu::vector_type_t<Ty, N> vals)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  static_assert(N == 1 || N == 8 || N == 16);
+  static_assert(TySizeLog2 <= 2);
+  static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
+  throw cl::sycl::feature_not_supported();
+}
+#endif // __SYCL_DEVICE_ONLY__
+
+// TODO bring the parameter order of __esimd* intrinsics in accordance with the
+// correponsing BE intrinsicics parameter order.
+
 // flat_atomic: flat-address atomic
 template <sycl::INTEL::gpu::EsimdAtomicOpType Op, typename Ty, int N,
           sycl::INTEL::gpu::CacheHint L1H = sycl::INTEL::gpu::CacheHint::None,
@@ -108,6 +195,9 @@ __esimd_flat_atomic2(sycl::INTEL::gpu::vector_type_t<uint64_t, N> addrs,
 
 // esimd_barrier, generic group barrier
 SYCL_EXTERNAL void __esimd_barrier();
+
+// generic work-group split barrier
+SYCL_EXTERNAL void __esimd_sbarrier(sycl::INTEL::gpu::EsimdSbarrierType flag);
 
 // slm_fence sets the SLM read/write order
 SYCL_EXTERNAL void __esimd_slm_fence(uint8_t cntl);
@@ -227,6 +317,151 @@ __esimd_media_block_store(unsigned modififer, TACC handle, unsigned plane,
                           unsigned width, unsigned x, unsigned y,
                           sycl::INTEL::gpu::vector_type_t<Ty, M * N> vals);
 
+/// \brief esimd_get_value
+///
+/// @param sid the SYCL accessor.
+///
+/// Returns the binding table index value.
+///
+template <typename SurfIndAliasTy>
+SYCL_EXTERNAL uint32_t __esimd_get_value(SurfIndAliasTy sid);
+
+/// \brief Raw sends load.
+///
+/// @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
+///
+/// @param execSize the execution size, which must be a compile time constant.
+///
+/// @param pred the predicate to specify enabled channels.
+///
+/// @param numSrc0 the number of GRFs for source-0, which must be a compile time
+/// constant.
+///
+/// @param numSrc1 the number of GRFs for source-1, which must be a compile time
+/// constant.
+///
+/// @param numDst the number of GRFs for destination, which must be a compile
+/// time constant.
+///
+/// @param sfid the shared function ID, which must be a compile time constant.
+///
+/// @param exDesc the extended message descriptor.
+///
+/// @param msgDesc the message descriptor.
+///
+/// @param msgSrc0 the first source operand of send message.
+///
+/// @param msgSrc1 the second source operand of send message.
+///
+/// @param msgDst the destination operand of send message.
+///
+/// Returns a simd vector of type Ty1 and size N1.
+///
+template <typename Ty1, int N1, typename Ty2, int N2, typename Ty3, int N3,
+          int N = 16>
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<Ty1, N1>
+__esimd_raw_sends_load(uint8_t modifier, uint8_t execSize,
+                       sycl::INTEL::gpu::vector_type_t<uint16_t, N> pred,
+                       uint8_t numSrc0, uint8_t numSrc1, uint8_t numDst,
+                       uint8_t sfid, uint32_t exDesc, uint32_t msgDesc,
+                       sycl::INTEL::gpu::vector_type_t<Ty2, N2> msgSrc0,
+                       sycl::INTEL::gpu::vector_type_t<Ty3, N3> msgSrc1,
+                       sycl::INTEL::gpu::vector_type_t<Ty1, N1> msgDst);
+
+/// \brief Raw send load.
+///
+/// @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
+///
+/// @param execSize the execution size, which must be a compile time constant.
+///
+/// @param pred the predicate to specify enabled channels.
+///
+/// @param numSrc0 the number of GRFs for source-0, which must be a compile time
+/// constant.
+///
+/// @param numDst the number of GRFs for destination, which must be a compile
+/// time constant.
+///
+/// @param sfid the shared function ID, which must be a compile time constant.
+///
+/// @param exDesc the extended message descriptor.
+///
+/// @param msgDesc the message descriptor.
+///
+/// @param msgSrc0 the first source operand of send message.
+///
+/// @param msgDst the destination operand of send message.
+///
+/// Returns a simd vector of type Ty1 and size N1.
+///
+template <typename Ty1, int N1, typename Ty2, int N2, int N = 16>
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<Ty1, N1>
+__esimd_raw_send_load(uint8_t modifier, uint8_t execSize,
+                      sycl::INTEL::gpu::vector_type_t<uint16_t, N> pred,
+                      uint8_t numSrc0, uint8_t numDst, uint8_t sfid,
+                      uint32_t exDesc, uint32_t msgDesc,
+                      sycl::INTEL::gpu::vector_type_t<Ty2, N2> msgSrc0,
+                      sycl::INTEL::gpu::vector_type_t<Ty1, N1> msgDst);
+
+/// \brief Raw sends store.
+///
+/// @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
+///
+/// @param execSize the execution size, which must be a compile time constant.
+///
+/// @param pred the predicate to specify enabled channels.
+///
+/// @param numSrc0 the number of GRFs for source-0, which must be a compile time
+/// constant.
+///
+/// @param numSrc1 the number of GRFs for source-1, which must be a compile time
+/// constant.
+///
+/// @param sfid the shared function ID, which must be a compile time constant.
+///
+/// @param exDesc the extended message descriptor.
+///
+/// @param msgDesc the message descriptor.
+///
+/// @param msgSrc0 the first source operand of send message.
+///
+/// @param msgSrc1 the second source operand of send message.
+///
+template <typename Ty1, int N1, typename Ty2, int N2, int N = 16>
+SYCL_EXTERNAL void
+__esimd_raw_sends_store(uint8_t modifier, uint8_t execSize,
+                        sycl::INTEL::gpu::vector_type_t<uint16_t, N> pred,
+                        uint8_t numSrc0, uint8_t numSrc1, uint8_t sfid,
+                        uint32_t exDesc, uint32_t msgDesc,
+                        sycl::INTEL::gpu::vector_type_t<Ty1, N1> msgSrc0,
+                        sycl::INTEL::gpu::vector_type_t<Ty2, N2> msgSrc1);
+
+/// \brief Raw send store.
+///
+/// @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
+///
+/// @param execSize the execution size, which must be a compile time constant.
+///
+/// @param pred the predicate to specify enabled channels.
+///
+/// @param numSrc0 the number of GRFs for source-0, which must be a compile time
+/// constant.
+///
+/// @param sfid the shared function ID, which must be a compile time constant.
+///
+/// @param exDesc the extended message descriptor.
+///
+/// @param msgDesc the message descriptor.
+///
+/// @param msgSrc0 the first source operand of send message.
+///
+template <typename Ty1, int N1, int N = 16>
+SYCL_EXTERNAL void
+__esimd_raw_send_store(uint8_t modifier, uint8_t execSize,
+                       sycl::INTEL::gpu::vector_type_t<uint16_t, N> pred,
+                       uint8_t numSrc0, uint8_t sfid, uint32_t exDesc,
+                       uint32_t msgDesc,
+                       sycl::INTEL::gpu::vector_type_t<Ty1, N1> msgSrc0);
 #ifndef __SYCL_DEVICE_ONLY__
 
 template <typename Ty, int N, int NumBlk, sycl::INTEL::gpu::CacheHint L1H,
@@ -540,6 +775,8 @@ __esimd_dp4(sycl::INTEL::gpu::vector_type_t<Ty, N> v1,
 /// TODO
 SYCL_EXTERNAL void __esimd_barrier() {}
 
+SYCL_EXTERNAL void __esimd_sbarrier(sycl::INTEL::gpu::EsimdSbarrierType flag) {}
+
 SYCL_EXTERNAL void __esimd_slm_fence(uint8_t cntl) {}
 
 template <typename Ty, int N>
@@ -657,6 +894,165 @@ SYCL_EXTERNAL void
 __esimd_block_write(SurfIndAliasTy surf_ind, uint32_t offset,
                     sycl::INTEL::gpu::vector_type_t<Ty, N> vals) {
 
+  throw cl::sycl::feature_not_supported();
+}
+
+/// \brief esimd_get_value
+///
+/// @param acc the SYCL accessor.
+///
+/// Returns the binding table index value.
+///
+template <typename AccessorTy>
+SYCL_EXTERNAL uint32_t __esimd_get_value(AccessorTy acc) {
+  throw cl::sycl::feature_not_supported();
+  return 0;
+}
+
+/// \brief Raw sends load.
+///
+/// @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
+///
+/// @param execSize the execution size, which must be a compile time constant.
+///
+/// @param pred the predicate to specify enabled channels.
+///
+/// @param numSrc0 the number of GRFs for source-0, which must be a compile time
+/// constant.
+///
+/// @param numSrc1 the number of GRFs for source-1, which must be a compile time
+/// constant.
+///
+/// @param numDst the number of GRFs for destination, which must be a compile
+/// time constant.
+///
+/// @param sfid the shared function ID, which must be a compile time constant.
+///
+/// @param exDesc the extended message descriptor.
+///
+/// @param msgDesc the message descriptor.
+///
+/// @param msgSrc0 the first source operand of send message.
+///
+/// @param msgSrc1 the second source operand of send message.
+///
+/// @param msgDst the destination operand of send message.
+///
+/// Returns a simd vector of type Ty1 and size N1.
+///
+template <typename Ty1, int N1, typename Ty2, int N2, typename Ty3, int N3,
+          int N>
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<Ty1, N1>
+__esimd_raw_sends_load(uint8_t modifier, uint8_t execSize,
+                       sycl::INTEL::gpu::vector_type_t<uint16_t, N> pred,
+                       uint8_t numSrc0, uint8_t numSrc1, uint8_t numDst,
+                       uint8_t sfid, uint32_t exDesc, uint32_t msgDesc,
+                       sycl::INTEL::gpu::vector_type_t<Ty2, N2> msgSrc0,
+                       sycl::INTEL::gpu::vector_type_t<Ty3, N3> msgSrc1,
+                       sycl::INTEL::gpu::vector_type_t<Ty1, N1> msgDst) {
+  throw cl::sycl::feature_not_supported();
+  return 0;
+}
+
+/// \brief Raw send load.
+///
+/// @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
+///
+/// @param execSize the execution size, which must be a compile time constant.
+///
+/// @param pred the predicate to specify enabled channels.
+///
+/// @param numSrc0 the number of GRFs for source-0, which must be a compile time
+/// constant.
+///
+/// @param numDst the number of GRFs for destination, which must be a compile
+/// time constant.
+///
+/// @param sfid the shared function ID, which must be a compile time constant.
+///
+/// @param exDesc the extended message descriptor.
+///
+/// @param msgDesc the message descriptor.
+///
+/// @param msgSrc0 the first source operand of send message.
+///
+/// @param msgDst the destination operand of send message.
+///
+/// Returns a simd vector of type Ty1 and size N1.
+///
+template <typename Ty1, int N1, typename Ty2, int N2, int N>
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<Ty1, N1>
+__esimd_raw_send_load(uint8_t modifier, uint8_t execSize,
+                      sycl::INTEL::gpu::vector_type_t<uint16_t, N> pred,
+                      uint8_t numSrc0, uint8_t numDst, uint8_t sfid,
+                      uint32_t exDesc, uint32_t msgDesc,
+                      sycl::INTEL::gpu::vector_type_t<Ty2, N2> msgSrc0,
+                      sycl::INTEL::gpu::vector_type_t<Ty1, N1> msgDst) {
+  throw cl::sycl::feature_not_supported();
+  return 0;
+}
+
+/// \brief Raw sends store.
+///
+/// @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
+///
+/// @param execSize the execution size, which must be a compile time constant.
+///
+/// @param pred the predicate to specify enabled channels.
+///
+/// @param numSrc0 the number of GRFs for source-0, which must be a compile time
+/// constant.
+///
+/// @param numSrc1 the number of GRFs for source-1, which must be a compile time
+/// constant.
+///
+/// @param sfid the shared function ID, which must be a compile time constant.
+///
+/// @param exDesc the extended message descriptor.
+///
+/// @param msgDesc the message descriptor.
+///
+/// @param msgSrc0 the first source operand of send message.
+///
+/// @param msgSrc1 the second source operand of send message.
+///
+template <typename Ty1, int N1, typename Ty2, int N2, int N>
+SYCL_EXTERNAL void
+__esimd_raw_sends_store(uint8_t modifier, uint8_t execSize,
+                        sycl::INTEL::gpu::vector_type_t<uint16_t, N> pred,
+                        uint8_t numSrc0, uint8_t numSrc1, uint8_t sfid,
+                        uint32_t exDesc, uint32_t msgDesc,
+                        sycl::INTEL::gpu::vector_type_t<Ty1, N1> msgSrc0,
+                        sycl::INTEL::gpu::vector_type_t<Ty2, N2> msgSrc1) {
+  throw cl::sycl::feature_not_supported();
+}
+
+/// \brief Raw send store.
+///
+/// @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
+///
+/// @param execSize the execution size, which must be a compile time constant.
+///
+/// @param pred the predicate to specify enabled channels.
+///
+/// @param numSrc0 the number of GRFs for source-0, which must be a compile time
+/// constant.
+///
+/// @param sfid the shared function ID, which must be a compile time constant.
+///
+/// @param exDesc the extended message descriptor.
+///
+/// @param msgDesc the message descriptor.
+///
+/// @param msgSrc0 the first source operand of send message.
+///
+template <typename Ty1, int N1, int N>
+SYCL_EXTERNAL void
+__esimd_raw_send_store(uint8_t modifier, uint8_t execSize,
+                       sycl::INTEL::gpu::vector_type_t<uint16_t, N> pred,
+                       uint8_t numSrc0, uint8_t sfid, uint32_t exDesc,
+                       uint32_t msgDesc,
+                       sycl::INTEL::gpu::vector_type_t<Ty1, N1> msgSrc0) {
   throw cl::sycl::feature_not_supported();
 }
 

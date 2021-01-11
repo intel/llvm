@@ -428,6 +428,11 @@ LLVM-specific variables
   are ``Address``, ``Memory``, ``MemoryWithOrigins``, ``Undefined``, ``Thread``,
   ``DataFlow``, and ``Address;Undefined``. Defaults to empty string.
 
+**LLVM_UBSAN_FLAGS**:STRING
+  Defines the set of compile flags used to enable UBSan. Only used if
+  ``LLVM_USE_SANITIZER`` contains ``Undefined``. This can be used to override
+  the default set of UBSan flags.
+
 **LLVM_ENABLE_LTO**:STRING
   Add ``-flto`` or ``-flto=`` flags to the compile and link command
   lines, enabling link-time optimization. Possible values are ``Off``,
@@ -460,6 +465,31 @@ LLVM-specific variables
 
 **LLVM_PARALLEL_LINK_JOBS**:STRING
   Define the maximum number of concurrent link jobs.
+
+**LLVM_EXTERNALIZE_DEBUGINFO**:BOOL
+  Generate dSYM files and strip executables and libraries (Darwin Only).
+  Defaults to OFF.
+
+**LLVM_USE_CRT_{target}**:STRING
+  On Windows, tells which version of the C runtime library (CRT) should be used.
+  For example, -DLLVM_USE_CRT_RELEASE=MT would statically link the CRT into the
+  LLVM tools and library.
+
+**LLVM_INTEGRATED_CRT_ALLOC**:PATH
+  On Windows, allows embedding a different C runtime allocator into the LLVM
+  tools and libraries. Using a lock-free allocator such as the ones listed below
+  greatly decreases ThinLTO link time by about an order of magnitude. It also
+  midly improves Clang build times, by about 5-10%. At the moment, rpmalloc,
+  snmalloc and mimalloc are supported. Use the path to `git clone` to select
+  the respective allocator, for example:
+
+  .. code-block:: console
+
+    $ D:\git> git clone https://github.com/mjansson/rpmalloc
+    $ D:\llvm-project> cmake ... -DLLVM_INTEGRATED_CRT_ALLOC=D:\git\rpmalloc
+  
+  This flag needs to be used along with the static CRT, ie. if building the
+  Release target, add -DLLVM_USE_CRT_RELEASE=MT.
 
 **LLVM_BUILD_DOCS**:BOOL
   Adds all *enabled* documentation targets (i.e. Doxgyen and Sphinx targets) as
@@ -531,7 +561,7 @@ LLVM-specific variables
 **SPHINX_EXECUTABLE**:STRING
   The path to the ``sphinx-build`` executable detected by CMake.
   For installation instructions, see
-  http://www.sphinx-doc.org/en/latest/usage/installation.html
+  https://www.sphinx-doc.org/en/master/usage/installation.html
 
 **SPHINX_OUTPUT_HTML**:BOOL
   If enabled (and ``LLVM_ENABLE_SPHINX`` is enabled) then the targets for

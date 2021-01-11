@@ -1,3 +1,4 @@
+import("//clang-tools-extra/clangd/quality/gen_decision_forest.gni")
 import("//clang-tools-extra/clangd/xpc/enable.gni")
 import("//llvm/utils/gn/build/write_cmake_config.gni")
 
@@ -20,13 +21,22 @@ write_cmake_config("features") {
   public_configs = [ ":features_config" ]
 }
 
+gen_decision_forest("CompletionModel") {
+  model = "quality/model"
+  filename = "CompletionModel"
+  cpp_class = "clang::clangd::Example"
+  deps = [ "//clang/lib/Sema" ]
+}
+
 static_library("clangd") {
   output_name = "clangDaemon"
   configs += [ "//llvm/utils/gn/build:clang_code" ]
   deps = [
+    ":CompletionModel",
     ":features",
     "//clang-tools-extra/clang-tidy",
     "//clang-tools-extra/clang-tidy:all-checks",
+    "//clang-tools-extra/clang-tidy:clang-tidy-config",
     "//clang-tools-extra/clangd/support",
     "//clang/lib/AST",
     "//clang/lib/ASTMatchers",
@@ -68,6 +78,7 @@ static_library("clangd") {
     "ConfigYAML.cpp",
     "Diagnostics.cpp",
     "DraftStore.cpp",
+    "DumpAST.cpp",
     "ExpectedTypes.cpp",
     "FS.cpp",
     "FileDistance.cpp",
@@ -93,6 +104,7 @@ static_library("clangd") {
     "SemanticSelection.cpp",
     "SourceCode.cpp",
     "TUScheduler.cpp",
+    "TidyProvider.cpp",
     "URI.cpp",
     "XRefs.cpp",
     "index/Background.cpp",
@@ -106,6 +118,7 @@ static_library("clangd") {
     "index/IndexAction.cpp",
     "index/MemIndex.cpp",
     "index/Merge.cpp",
+    "index/ProjectAware.cpp",
     "index/Ref.cpp",
     "index/Relation.cpp",
     "index/Serialization.cpp",

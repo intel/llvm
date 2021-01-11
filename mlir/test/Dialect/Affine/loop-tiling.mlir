@@ -133,8 +133,8 @@ func @tile_with_symbolic_loop_upper_bounds(%arg0: memref<?x?xf32>, %arg1: memref
 // CHECK:       dim %{{.*}}, %c0 : memref<?x?xf32>
 // CHECK-NEXT:  affine.for %{{.*}} = 0 to %{{.*}} step 32 {
 // CHECK-NEXT:    affine.for %{{.*}} = 0 to %{{.*}} step 32 {
-// CHECK-NEXT:      affine.for %{{.*}} = #map3(%{{.*}}) to min [[$UBMAP]](%{{.*}})[%{{.*}}] {
-// CHECK-NEXT:        affine.for %{{.*}} = #map3(%{{.*}}) to min [[$UBMAP]](%{{.*}})[%{{.*}}] {
+// CHECK-NEXT:      affine.for %{{.*}} = #map0(%{{.*}}) to min [[$UBMAP]](%{{.*}})[%{{.*}}] {
+// CHECK-NEXT:        affine.for %{{.*}} = #map0(%{{.*}}) to min [[$UBMAP]](%{{.*}})[%{{.*}}] {
 // CHECK-NEXT:          affine.store %{{.*}}, %{{.*}}[%{{.*}}, %{{.*}}] : memref<?x?xf32>
 // CHECK-NEXT:          affine.for %{{.*}} = 0 to %{{.*}} {
 // CHECK-NEXT:            affine.load
@@ -208,7 +208,7 @@ func @trip_count_one(%arg0: memref<196608x1xf32>, %arg1: memref<196608x1xf32>)
   // CHECK: affine.load %{{.*}}[%{{.*}}, %{{.*}}] : memref<196608x1xf32>
   return %arg1 : memref<196608x1xf32>
 }
-// To make sure SEPRATE-DAGs further below do not match with something above.
+// To make sure SEPARATE-DAGs further below do not match with something above.
 // SEPARATE: return
 
 // -----

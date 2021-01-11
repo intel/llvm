@@ -8,13 +8,14 @@ add_mlir_conversion_library(MLIRSCFToSPIRV
   MLIRConversionPassIncGen
 
   LINK_LIBS PUBLIC
-  MLIRAffineOps
+  MLIRAffine
   MLIRAffineToStandard
   MLIRSPIRV
+  MLIRSPIRVConversion
   MLIRIR
-  MLIRLinalgOps
+  MLIRLinalg
   MLIRPass
-  MLIRStandardOps
+  MLIRStandard
   MLIRSupport
   MLIRTransforms
   )

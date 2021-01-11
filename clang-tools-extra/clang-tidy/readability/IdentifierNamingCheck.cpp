@@ -55,6 +55,7 @@ namespace readability {
     m(Namespace) \
     m(InlineNamespace) \
     m(EnumConstant) \
+    m(ScopedEnumConstant) \
     m(ConstexprVariable) \
     m(ConstantMember) \
     m(PrivateMember) \
@@ -121,65 +122,101 @@ static StringRef const StyleNames[] = {
 #undef NAMING_KEYS
 // clang-format on
 
-static std::vector<llvm::Optional<IdentifierNamingCheck::NamingStyle>>
-getNamingStyles(const ClangTidyCheck::OptionsView &Options) {
-  std::vector<llvm::Optional<IdentifierNamingCheck::NamingStyle>> Styles;
-  Styles.reserve(array_lengthof(StyleNames));
-  for (auto const &StyleName : StyleNames) {
-    auto CaseOptional = Options.getOptional<IdentifierNamingCheck::CaseType>(
-        (StyleName + "Case").str());
-    auto Prefix = Options.get((StyleName + "Prefix").str(), "");
-    auto Postfix = Options.get((StyleName + "Suffix").str(), "");
-
-    if (CaseOptional || !Prefix.empty() || !Postfix.empty())
-      Styles.emplace_back(IdentifierNamingCheck::NamingStyle{
-          std::move(CaseOptional), std::move(Prefix), std::move(Postfix)});
-    else
-      Styles.emplace_back(llvm::None);
+IdentifierNamingCheck::NamingStyle::NamingStyle(
+    llvm::Optional<IdentifierNamingCheck::CaseType> Case,
+    const std::string &Prefix, const std::string &Suffix,
+    const std::string &IgnoredRegexpStr)
+    : Case(Case), Prefix(Prefix), Suffix(Suffix),
+      IgnoredRegexpStr(IgnoredRegexpStr) {
+  if (!IgnoredRegexpStr.empty()) {
+    IgnoredRegexp =
+        llvm::Regex(llvm::SmallString<128>({"^", IgnoredRegexpStr, "$"}));
+    if (!IgnoredRegexp.isValid())
+      llvm::errs() << "Invalid IgnoredRegexp regular expression: "
+                   << IgnoredRegexpStr;
   }
-  return Styles;
+}
+
+static IdentifierNamingCheck::FileStyle
+getFileStyleFromOptions(const ClangTidyCheck::OptionsView &Options) {
+  SmallVector<llvm::Optional<IdentifierNamingCheck::NamingStyle>, 0> Styles;
+  Styles.resize(SK_Count);
+  SmallString<64> StyleString;
+  for (unsigned I = 0; I < SK_Count; ++I) {
+    StyleString = StyleNames[I];
+    size_t StyleSize = StyleString.size();
+    StyleString.append("IgnoredRegexp");
+    std::string IgnoredRegexpStr = Options.get(StyleString, "");
+    StyleString.resize(StyleSize);
+    StyleString.append("Prefix");
+    std::string Prefix(Options.get(StyleString, ""));
+    // Fast replacement of [Pre]fix -> [Suf]fix.
+    memcpy(&StyleString[StyleSize], "Suf", 3);
+    std::string Postfix(Options.get(StyleString, ""));
+    memcpy(&StyleString[StyleSize], "Case", 4);
+    StyleString.pop_back();
+    StyleString.pop_back();
+    auto CaseOptional =
+        Options.getOptional<IdentifierNamingCheck::CaseType>(StyleString);
+
+    if (CaseOptional || !Prefix.empty() || !Postfix.empty() ||
+        !IgnoredRegexpStr.empty())
+      Styles[I].emplace(std::move(CaseOptional), std::move(Prefix),
+                        std::move(Postfix), std::move(IgnoredRegexpStr));
+  }
+  bool IgnoreMainLike = Options.get("IgnoreMainLikeFunctions", false);
+  return {std::move(Styles), IgnoreMainLike};
 }
 
 IdentifierNamingCheck::IdentifierNamingCheck(StringRef Name,
                                              ClangTidyContext *Context)
     : RenamerClangTidyCheck(Name, Context), Context(Context), CheckName(Name),
       GetConfigPerFile(Options.get("GetConfigPerFile", true)),
-      IgnoreFailedSplit(Options.get("IgnoreFailedSplit", false)),
-      IgnoreMainLikeFunctions(Options.get("IgnoreMainLikeFunctions", false)) {
+      IgnoreFailedSplit(Options.get("IgnoreFailedSplit", false)) {
 
   auto IterAndInserted = NamingStylesCache.try_emplace(
       llvm::sys::path::parent_path(Context->getCurrentFile()),
-      getNamingStyles(Options));
+      getFileStyleFromOptions(Options));
   assert(IterAndInserted.second && "Couldn't insert Style");
   // Holding a reference to the data in the vector is safe as it should never
   // move.
-  MainFileStyle = IterAndInserted.first->getValue();
+  MainFileStyle = &IterAndInserted.first->getValue();
 }
 
 IdentifierNamingCheck::~IdentifierNamingCheck() = default;
 
 void IdentifierNamingCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   RenamerClangTidyCheck::storeOptions(Opts);
-  ArrayRef<llvm::Optional<NamingStyle>> NamingStyles =
-      getStyleForFile(Context->getCurrentFile());
+  SmallString<64> StyleString;
+  ArrayRef<llvm::Optional<NamingStyle>> Styles = MainFileStyle->getStyles();
   for (size_t I = 0; I < SK_Count; ++I) {
-    if (!NamingStyles[I])
+    if (!Styles[I])
       continue;
-    if (NamingStyles[I]->Case)
-      Options.store(Opts, (StyleNames[I] + "Case").str(),
-                    *NamingStyles[I]->Case);
-    Options.store(Opts, (StyleNames[I] + "Prefix").str(),
-                  NamingStyles[I]->Prefix);
-    Options.store(Opts, (StyleNames[I] + "Suffix").str(),
-                  NamingStyles[I]->Suffix);
+    StyleString = StyleNames[I];
+    size_t StyleSize = StyleString.size();
+    StyleString.append("IgnoredRegexp");
+    Options.store(Opts, StyleString, Styles[I]->IgnoredRegexpStr);
+    StyleString.resize(StyleSize);
+    StyleString.append("Prefix");
+    Options.store(Opts, StyleString, Styles[I]->Prefix);
+    // Fast replacement of [Pre]fix -> [Suf]fix.
+    memcpy(&StyleString[StyleSize], "Suf", 3);
+    Options.store(Opts, StyleString, Styles[I]->Suffix);
+    if (Styles[I]->Case) {
+      memcpy(&StyleString[StyleSize], "Case", 4);
+      StyleString.pop_back();
+      StyleString.pop_back();
+      Options.store(Opts, StyleString, *Styles[I]->Case);
+    }
   }
   Options.store(Opts, "GetConfigPerFile", GetConfigPerFile);
   Options.store(Opts, "IgnoreFailedSplit", IgnoreFailedSplit);
-  Options.store(Opts, "IgnoreMainLikeFunctions", IgnoreMainLikeFunctions);
+  Options.store(Opts, "IgnoreMainLikeFunctions",
+                MainFileStyle->isIgnoringMainLikeFunction());
 }
 
 static bool matchesStyle(StringRef Name,
-                         IdentifierNamingCheck::NamingStyle Style) {
+                         const IdentifierNamingCheck::NamingStyle &Style) {
   static llvm::Regex Matchers[] = {
       llvm::Regex("^.*$"),
       llvm::Regex("^[a-z][a-z0-9_]*$"),
@@ -405,7 +442,11 @@ static StyleKind findStyleKind(
   if (isa<EnumDecl>(D) && NamingStyles[SK_Enum])
     return SK_Enum;
 
-  if (isa<EnumConstantDecl>(D)) {
+  if (const auto *EnumConst = dyn_cast<EnumConstantDecl>(D)) {
+    if (cast<EnumDecl>(EnumConst->getDeclContext())->isScoped() &&
+        NamingStyles[SK_ScopedEnumConstant])
+      return SK_ScopedEnumConstant;
+
     if (NamingStyles[SK_EnumConstant])
       return SK_EnumConstant;
 
@@ -570,12 +611,10 @@ static StyleKind findStyleKind(
 
     // If this method has the same name as any base method, this is likely
     // necessary even if it's not an override. e.g. CRTP.
-    auto FindHidden = [&](const CXXBaseSpecifier *S, clang::CXXBasePath &P) {
-      return CXXRecordDecl::FindOrdinaryMember(S, P, Decl->getDeclName());
-    };
-    CXXBasePaths UnusedPaths;
-    if (Decl->getParent()->lookupInBases(FindHidden, UnusedPaths))
-      return SK_Invalid;
+    for (const CXXBaseSpecifier &Base : Decl->getParent()->bases())
+      if (const auto *RD = Base.getType()->getAsCXXRecordDecl())
+        if (RD->hasMemberName(Decl->getDeclName()))
+          return SK_Invalid;
 
     if (Decl->isConstexpr() && NamingStyles[SK_ConstexprMethod])
       return SK_ConstexprMethod;
@@ -662,6 +701,9 @@ static llvm::Optional<RenamerClangTidyCheck::FailureInfo> getFailureInfo(
     return None;
 
   const IdentifierNamingCheck::NamingStyle &Style = *NamingStyles[SK];
+  if (Style.IgnoredRegexp.isValid() && Style.IgnoredRegexp.match(Name))
+    return None;
+
   if (matchesStyle(Name, Style))
     return None;
 
@@ -687,23 +729,27 @@ llvm::Optional<RenamerClangTidyCheck::FailureInfo>
 IdentifierNamingCheck::GetDeclFailureInfo(const NamedDecl *Decl,
                                           const SourceManager &SM) const {
   SourceLocation Loc = Decl->getLocation();
-  ArrayRef<llvm::Optional<NamingStyle>> NamingStyles =
-      getStyleForFile(SM.getFilename(Loc));
+  const FileStyle &FileStyle = getStyleForFile(SM.getFilename(Loc));
+  if (!FileStyle.isActive())
+    return llvm::None;
 
-  return getFailureInfo(
-      Decl->getName(), Loc, NamingStyles,
-      findStyleKind(Decl, NamingStyles, IgnoreMainLikeFunctions), SM,
-      IgnoreFailedSplit);
+  return getFailureInfo(Decl->getName(), Loc, FileStyle.getStyles(),
+                        findStyleKind(Decl, FileStyle.getStyles(),
+                                      FileStyle.isIgnoringMainLikeFunction()),
+                        SM, IgnoreFailedSplit);
 }
 
 llvm::Optional<RenamerClangTidyCheck::FailureInfo>
 IdentifierNamingCheck::GetMacroFailureInfo(const Token &MacroNameTok,
                                            const SourceManager &SM) const {
   SourceLocation Loc = MacroNameTok.getLocation();
+  const FileStyle &Style = getStyleForFile(SM.getFilename(Loc));
+  if (!Style.isActive())
+    return llvm::None;
 
   return getFailureInfo(MacroNameTok.getIdentifierInfo()->getName(), Loc,
-                        getStyleForFile(SM.getFilename(Loc)),
-                        SK_MacroDefinition, SM, IgnoreFailedSplit);
+                        Style.getStyles(), SK_MacroDefinition, SM,
+                        IgnoreFailedSplit);
 }
 
 RenamerClangTidyCheck::DiagInfo
@@ -715,19 +761,27 @@ IdentifierNamingCheck::GetDiagInfo(const NamingCheckId &ID,
                   }};
 }
 
-ArrayRef<llvm::Optional<IdentifierNamingCheck::NamingStyle>>
+const IdentifierNamingCheck::FileStyle &
 IdentifierNamingCheck::getStyleForFile(StringRef FileName) const {
   if (!GetConfigPerFile)
-    return MainFileStyle;
-  auto &Styles = NamingStylesCache[llvm::sys::path::parent_path(FileName)];
-  if (Styles.empty()) {
-    ClangTidyOptions Options = Context->getOptionsForFile(FileName);
-    if (Options.Checks && GlobList(*Options.Checks).contains(CheckName))
-      Styles = getNamingStyles({CheckName, Options.CheckOptions});
-    else
-      Styles.resize(SK_Count, None);
+    return *MainFileStyle;
+  StringRef Parent = llvm::sys::path::parent_path(FileName);
+  auto Iter = NamingStylesCache.find(Parent);
+  if (Iter != NamingStylesCache.end())
+    return Iter->getValue();
+
+  ClangTidyOptions Options = Context->getOptionsForFile(FileName);
+  if (Options.Checks && GlobList(*Options.Checks).contains(CheckName)) {
+    auto It = NamingStylesCache.try_emplace(
+        Parent,
+        getFileStyleFromOptions({CheckName, Options.CheckOptions, Context}));
+    assert(It.second);
+    return It.first->getValue();
   }
-  return Styles;
+  // Default construction gives an empty style.
+  auto It = NamingStylesCache.try_emplace(Parent);
+  assert(It.second);
+  return It.first->getValue();
 }
 
 } // namespace readability

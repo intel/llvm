@@ -21,6 +21,7 @@ include "mlir/IR/OpBase.td"
 
 def GPU_Dialect : Dialect {
   let name = "gpu";
+  let cppNamespace = "::mlir::gpu";
   let hasOperationAttrVerify = 1;
 
   let extraClassDeclaration = [{
@@ -50,6 +51,55 @@ def GPU_Dialect : Dialect {
     /// space.
     static unsigned getPrivateAddressSpace() { return 5; }
   }];
+}
+
+def GPU_AsyncToken : DialectType<
+  GPU_Dialect, CPred<"$_self.isa<::mlir::gpu::AsyncTokenType>()">, "async token type">,
+             BuildableType<"mlir::gpu::AsyncTokenType::get($_builder.getContext())">;
+
+def GPU_AsyncOpInterface : OpInterface<"AsyncOpInterface"> {
+  let description = [{
+    Interface for GPU operations that execute asynchronously on the device.
+
+    GPU operations implementing this interface take a list of dependencies
+    as `gpu.async.token` arguments and optionally return a `gpu.async.token`.
+
+    The op doesn't start executing until all depent ops producing the async
+    dependency tokens have finished executing.
+
+    If the op returns a token, the op merely schedules the execution on the
+    device and returns immediately, without waiting for the execution to
+    complete. On the hand, if the op does not return a token, the op will wait
+    for the execution to complete.
+  }];
+  let cppNamespace = "::mlir::gpu";
+
+  let methods = [
+    InterfaceMethod<[{
+        Query the operands that represent async dependency tokens.
+      }],
+      "OperandRange", "getAsyncDependencies", (ins), [{}], [{
+        ConcreteOp op = cast<ConcreteOp>(this->getOperation());
+        return op.asyncDependencies();
+      }]
+    >,
+    InterfaceMethod<[{
+        Adds a new token to the list of async dependencies.
+      }],
+      "void", "addAsyncDependency", (ins "Value":$token),
+      [{}], [{
+        ::mlir::gpu::addAsyncDependency(this->getOperation(), token);
+      }]
+    >,
+    InterfaceMethod<[{
+        Query the result that represents the async token to depend on.
+      }],
+      "OpResult", "getAsyncToken", (ins), [{}], [{
+        ConcreteOp op = cast<ConcreteOp>(this->getOperation());
+        return op.asyncToken().template dyn_cast_or_null<OpResult>();
+      }]
+    >
+  ];
 }
 
 #endif // GPU_BASE

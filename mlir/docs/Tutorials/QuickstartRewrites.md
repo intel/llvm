@@ -16,7 +16,7 @@ table-driven manner.
 ## Adding operation
 
 An operation in MLIR is specified using a definition in
-[TableGen](https://llvm.org/docs/TableGen/LangIntro.html) file. TableGen is a
+[TableGen](https://llvm.org/docs/TableGen/index.html) file. TableGen is a
 modeling tool to specify the ops and the C++ code to interact with these
 operations are generated from. To define an operation one needs to specify:
 
@@ -155,7 +155,7 @@ add_public_tablegen_target(<name-of-the-cmake-target>)
 Then you can `#include` the generated file in any C++ implementation file you
 like. (You will also need to make sure the library depends on the CMake target
 defined in the above.) The generated file will have a `populateWithGenerated(
-MLIRContext *context, OwningRewritePatternList *patterns)` function that you can
+MLIRContext *context, OwningRewritePatternList &patterns)` function that you can
 use to collect all the generated patterns inside `patterns` and then use
 `patterns` in any pass you would like.
 

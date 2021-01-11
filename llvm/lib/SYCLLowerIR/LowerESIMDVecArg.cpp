@@ -89,9 +89,6 @@ private:
   Function *rewriteFunc(Function &F);
   Type *getSimdArgPtrTyOrNull(Value *arg);
   void fixGlobals(Module &M);
-  void replaceConstExprWithGlobals(Module &M);
-  ConstantExpr *createNewConstantExpr(GlobalVariable *newGlobalVar,
-                                      Type *oldGlobalType, Value *old);
   void removeOldGlobals();
 };
 
@@ -229,41 +226,6 @@ Function *ESIMDLowerVecArgPass::rewriteFunc(Function &F) {
   return NF;
 }
 
-// Replace ConstantExpr if it contains old global variable.
-ConstantExpr *
-ESIMDLowerVecArgPass::createNewConstantExpr(GlobalVariable *NewGlobalVar,
-                                            Type *OldGlobalType, Value *Old) {
-  ConstantExpr *NewConstantExpr = nullptr;
-
-  if (isa<GlobalVariable>(Old)) {
-    NewConstantExpr = cast<ConstantExpr>(
-        ConstantExpr::getBitCast(NewGlobalVar, OldGlobalType));
-    return NewConstantExpr;
-  }
-
-  auto InnerMost = createNewConstantExpr(
-      NewGlobalVar, OldGlobalType, cast<ConstantExpr>(Old)->getOperand(0));
-
-  NewConstantExpr = cast<ConstantExpr>(
-      cast<ConstantExpr>(Old)->getWithOperandReplaced(0, InnerMost));
-
-  return NewConstantExpr;
-}
-
-// Globals are part of ConstantExpr. This loop iterates over
-// all such instances and replaces them with a new ConstantExpr
-// consisting of new global vector* variable.
-void ESIMDLowerVecArgPass::replaceConstExprWithGlobals(Module &M) {
-  for (auto &GlobalVars : OldNewGlobal) {
-    auto &G = *GlobalVars.first;
-    for (auto UseOfG : G.users()) {
-      auto NewGlobal = GlobalVars.second;
-      auto NewConstExpr = createNewConstantExpr(NewGlobal, G.getType(), UseOfG);
-      UseOfG->replaceAllUsesWith(NewConstExpr);
-    }
-  }
-}
-
 // This function creates new global variables of type vector* type
 // when old one is of simd* type.
 void ESIMDLowerVecArgPass::fixGlobals(Module &M) {
@@ -272,10 +234,13 @@ void ESIMDLowerVecArgPass::fixGlobals(Module &M) {
     if (NewTy && !G.user_empty()) {
       // Peel off ptr type that getSimdArgPtrTyOrNull applies
       NewTy = NewTy->getPointerElementType();
-      auto ZeroInit = ConstantAggregateZero::get(NewTy);
+      auto InitVal =
+          G.hasInitializer() && isa<UndefValue>(G.getInitializer())
+              ? static_cast<ConstantData *>(UndefValue::get(NewTy))
+              : static_cast<ConstantData *>(ConstantAggregateZero::get(NewTy));
       auto NewGlobalVar =
-          new GlobalVariable(NewTy, G.isConstant(), G.getLinkage(), ZeroInit,
-                             "", G.getThreadLocalMode(), G.getAddressSpace());
+          new GlobalVariable(NewTy, G.isConstant(), G.getLinkage(), InitVal, "",
+                             G.getThreadLocalMode(), G.getAddressSpace());
       NewGlobalVar->setExternallyInitialized(G.isExternallyInitialized());
       NewGlobalVar->copyAttributesFrom(&G);
       NewGlobalVar->takeName(&G);
@@ -285,16 +250,17 @@ void ESIMDLowerVecArgPass::fixGlobals(Module &M) {
     }
   }
 
-  replaceConstExprWithGlobals(M);
-
   removeOldGlobals();
 }
 
 // Remove old global variables from the program.
 void ESIMDLowerVecArgPass::removeOldGlobals() {
   for (auto &G : OldNewGlobal) {
-    G.first->removeDeadConstantUsers();
-    G.first->eraseFromParent();
+    auto OldGlob = G.first;
+    auto NewGlobal = G.second;
+    OldGlob->replaceAllUsesWith(
+        ConstantExpr::getBitCast(NewGlobal, OldGlob->getType()));
+    OldGlob->eraseFromParent();
   }
 }
 

@@ -25,6 +25,7 @@
 #include "refactor/Tweak.h"
 #include "support/Cancellation.h"
 #include "support/Function.h"
+#include "support/MemoryTree.h"
 #include "support/ThreadsafeFS.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/Core/Replacement.h"
@@ -40,13 +41,6 @@
 
 namespace clang {
 namespace clangd {
-
-/// When set, used by ClangdServer to get clang-tidy options for each particular
-/// file. Must be thread-safe. We use this instead of ClangTidyOptionsProvider
-/// to allow reading tidy configs from the VFS used for parsing.
-using ClangTidyOptionsBuilder = std::function<tidy::ClangTidyOptions(
-    llvm::vfs::FileSystem &, llvm::StringRef /*File*/)>;
-
 /// Manages a collection of source files and derived data (ASTs, indexes),
 /// and provides language-aware features such as code completion.
 ///
@@ -112,7 +106,7 @@ public:
     bool BackgroundIndex = false;
 
     /// Store refs to main-file symbols in the index.
-    bool CollectMainFileRefs = false;
+    bool CollectMainFileRefs = true;
 
     /// If set, use this index to augment code completion results.
     SymbolIndex *StaticIndex = nullptr;
@@ -120,17 +114,16 @@ public:
     /// If set, queried to obtain the configuration to handle each request.
     config::Provider *ConfigProvider = nullptr;
 
-    /// If set, enable clang-tidy in clangd and use to it get clang-tidy
-    /// configurations for a particular file.
-    /// Clangd supports only a small subset of ClangTidyOptions, these options
-    /// (Checks, CheckOptions) are about which clang-tidy checks will be
-    /// enabled.
-    ClangTidyOptionsBuilder GetClangTidyOptions;
+    /// The Options provider to use when running clang-tidy. If null, clang-tidy
+    /// checks will be disabled.
+    TidyProviderRef ClangTidyProvider;
 
-    /// If true, turn on the `-frecovery-ast` clang flag.
-    bool BuildRecoveryAST = true;
+    /// If true, force -frecovery-ast flag.
+    /// If false, respect the value in clang.
+    bool BuildRecoveryAST = false;
 
-    /// If true, turn on the `-frecovery-ast-type` clang flag.
+    /// If true, force -frecovery-ast-type flag.
+    /// If false, respect the value in clang.
     bool PreserveRecoveryASTType = false;
 
     /// Clangd's workspace root. Relevant for "workspace" operations not bound
@@ -162,11 +155,6 @@ public:
 
     /// Enable preview of FoldingRanges feature.
     bool FoldingRanges = false;
-
-    /// Returns true if the tweak should be enabled.
-    std::function<bool(const Tweak &)> TweakFilter = [](const Tweak &T) {
-      return !T.hidden(); // only enable non-hidden tweaks.
-    };
 
     explicit operator TUScheduler::Options() const;
   };
@@ -244,6 +232,14 @@ public:
                             TypeHierarchyDirection Direction,
                             Callback<llvm::Optional<TypeHierarchyItem>> CB);
 
+  /// Get information about call hierarchy for a given position.
+  void prepareCallHierarchy(PathRef File, Position Pos,
+                            Callback<std::vector<CallHierarchyItem>> CB);
+
+  /// Resolve incoming calls for a given call hierarchy item.
+  void incomingCalls(const CallHierarchyItem &Item,
+                     Callback<std::vector<CallHierarchyIncomingCall>>);
+
   /// Retrieve the top symbols from the workspace matching a query.
   void workspaceSymbols(StringRef Query, int Limit,
                         Callback<std::vector<SymbolInformation>> CB);
@@ -254,6 +250,10 @@ public:
 
   /// Retrieve ranges that can be used to fold code within the specified file.
   void foldingRanges(StringRef File, Callback<std::vector<FoldingRange>> CB);
+
+  /// Retrieve implementations for virtual method.
+  void findImplementations(PathRef File, Position Pos,
+                           Callback<std::vector<LocatedSymbol>> CB);
 
   /// Retrieve locations for symbol references.
   void findReferences(PathRef File, Position Pos, uint32_t Limit,
@@ -273,9 +273,12 @@ public:
                     StringRef TriggerText, Callback<std::vector<TextEdit>> CB);
 
   /// Test the validity of a rename operation.
+  ///
+  /// If NewName is provided, it performs a name validation.
   void prepareRename(PathRef File, Position Pos,
+                     llvm::Optional<std::string> NewName,
                      const RenameOptions &RenameOpts,
-                     Callback<llvm::Optional<Range>> CB);
+                     Callback<RenameResult> CB);
 
   /// Rename all occurrences of the symbol at the \p Pos in \p File to
   /// \p NewName.
@@ -283,15 +286,17 @@ public:
   /// embedders could use this method to get all occurrences of the symbol (e.g.
   /// highlighting them in prepare stage).
   void rename(PathRef File, Position Pos, llvm::StringRef NewName,
-              const RenameOptions &Opts, Callback<FileEdits> CB);
+              const RenameOptions &Opts, Callback<RenameResult> CB);
 
   struct TweakRef {
     std::string ID;    /// ID to pass for applyTweak.
     std::string Title; /// A single-line message to show in the UI.
-    Tweak::Intent Intent;
+    llvm::StringLiteral Kind;
   };
   /// Enumerate the code tweaks available to the user at a specified point.
+  /// Tweaks where Filter returns false will not be checked or included.
   void enumerateTweaks(PathRef File, Range Sel,
+                       llvm::unique_function<bool(const Tweak &)> Filter,
                        Callback<std::vector<TweakRef>> CB);
 
   /// Apply the code tweak with a specified \p ID.
@@ -316,6 +321,9 @@ public:
   void semanticHighlights(PathRef File,
                           Callback<std::vector<HighlightingToken>>);
 
+  /// Describe the AST subtree for a piece of code.
+  void getAST(PathRef File, Range R, Callback<llvm::Optional<ASTNode>> CB);
+
   /// Runs an arbitrary action that has access to the AST of the specified file.
   /// The action will execute on one of ClangdServer's internal threads.
   /// The AST is only valid for the duration of the callback.
@@ -337,6 +345,9 @@ public:
   LLVM_NODISCARD bool
   blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds = 10);
 
+  /// Builds a nested representation of memory used by components.
+  void profile(MemoryTree &MT) const;
+
 private:
   void formatCode(PathRef File, llvm::StringRef Code,
                   ArrayRef<tooling::Range> Ranges,
@@ -352,6 +363,8 @@ private:
   config::Provider *ConfigProvider = nullptr;
 
   const ThreadsafeFS &TFS;
+  Callbacks *ServerCallbacks = nullptr;
+  mutable std::mutex ConfigDiagnosticsMu;
 
   Path ResourceDir;
   // The index used to look up symbols. This could be:
@@ -368,7 +381,7 @@ private:
   std::vector<std::unique_ptr<SymbolIndex>> MergedIdx;
 
   // When set, provides clang-tidy options for a specific file.
-  ClangTidyOptionsBuilder GetClangTidyOptions;
+  TidyProviderRef ClangTidyProvider;
 
   // If this is true, suggest include insertion fixes for diagnostic errors that
   // can be caused by missing includes (e.g. member access in incomplete type).
@@ -378,8 +391,6 @@ private:
   bool BuildRecoveryAST = true;
   // If true, preserve the type for recovery AST.
   bool PreserveRecoveryASTType = false;
-
-  std::function<bool(const Tweak &)> TweakFilter;
 
   // GUARDED_BY(CachedCompletionFuzzyFindRequestMutex)
   llvm::StringMap<llvm::Optional<FuzzyFindRequest>>

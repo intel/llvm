@@ -6,9 +6,7 @@
 
 module attributes {
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>, {}>
   }
 {
   func @alloc_dealloc_workgroup_mem(%arg0 : index, %arg1 : index) {
@@ -19,10 +17,10 @@ module attributes {
     return
   }
 }
-//     CHECK: spv.globalVariable @[[VAR:.+]] : !spv.ptr<!spv.struct<!spv.array<20 x f32, stride=4>>, Workgroup>
+//     CHECK: spv.globalVariable @[[VAR:.+]] : !spv.ptr<!spv.struct<(!spv.array<20 x f32, stride=4>)>, Workgroup>
 //     CHECK: func @alloc_dealloc_workgroup_mem
 // CHECK-NOT:   alloc
-//     CHECK:   %[[PTR:.+]] = spv._address_of @[[VAR]]
+//     CHECK:   %[[PTR:.+]] = spv.mlir.addressof @[[VAR]]
 //     CHECK:   %[[LOADPTR:.+]] = spv.AccessChain %[[PTR]]
 //     CHECK:   %[[VAL:.+]] = spv.Load "Workgroup" %[[LOADPTR]] : f32
 //     CHECK:   %[[STOREPTR:.+]] = spv.AccessChain %[[PTR]]
@@ -34,9 +32,7 @@ module attributes {
 
 module attributes {
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>, {}>
   }
 {
   func @alloc_dealloc_workgroup_mem(%arg0 : index, %arg1 : index) {
@@ -49,9 +45,9 @@ module attributes {
 }
 
 //       CHECK: spv.globalVariable @__workgroup_mem__{{[0-9]+}}
-//  CHECK-SAME:   !spv.ptr<!spv.struct<!spv.array<20 x i32, stride=4>>, Workgroup>
+//  CHECK-SAME:   !spv.ptr<!spv.struct<(!spv.array<20 x i32, stride=4>)>, Workgroup>
 // CHECK_LABEL: spv.func @alloc_dealloc_workgroup_mem
-//       CHECK:   %[[VAR:.+]] = spv._address_of @__workgroup_mem__0
+//       CHECK:   %[[VAR:.+]] = spv.mlir.addressof @__workgroup_mem__0
 //       CHECK:   %[[LOC:.+]] = spv.SDiv
 //       CHECK:   %[[PTR:.+]] = spv.AccessChain %[[VAR]][%{{.+}}, %[[LOC]]]
 //       CHECK:   %{{.+}} = spv.Load "Workgroup" %[[PTR]] : i32
@@ -65,9 +61,7 @@ module attributes {
 
 module attributes {
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>, {}>
   }
 {
   func @two_allocs() {
@@ -78,9 +72,9 @@ module attributes {
 }
 
 //  CHECK-DAG: spv.globalVariable @__workgroup_mem__{{[0-9]+}}
-// CHECK-SAME:   !spv.ptr<!spv.struct<!spv.array<6 x i32, stride=4>>, Workgroup>
+// CHECK-SAME:   !spv.ptr<!spv.struct<(!spv.array<6 x i32, stride=4>)>, Workgroup>
 //  CHECK-DAG: spv.globalVariable @__workgroup_mem__{{[0-9]+}}
-// CHECK-SAME:   !spv.ptr<!spv.struct<!spv.array<20 x f32, stride=4>>, Workgroup>
+// CHECK-SAME:   !spv.ptr<!spv.struct<(!spv.array<20 x f32, stride=4>)>, Workgroup>
 //      CHECK: spv.func @two_allocs()
 //      CHECK: spv.Return
 
@@ -88,9 +82,7 @@ module attributes {
 
 module attributes {
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>, {}>
   }
 {
   func @two_allocs_vector() {
@@ -101,9 +93,9 @@ module attributes {
 }
 
 //  CHECK-DAG: spv.globalVariable @__workgroup_mem__{{[0-9]+}}
-// CHECK-SAME:   !spv.ptr<!spv.struct<!spv.array<2 x vector<2xi32>, stride=8>>, Workgroup>
+// CHECK-SAME:   !spv.ptr<!spv.struct<(!spv.array<2 x vector<2xi32>, stride=8>)>, Workgroup>
 //  CHECK-DAG: spv.globalVariable @__workgroup_mem__{{[0-9]+}}
-// CHECK-SAME:   !spv.ptr<!spv.struct<!spv.array<4 x vector<4xf32>, stride=16>>, Workgroup>
+// CHECK-SAME:   !spv.ptr<!spv.struct<(!spv.array<4 x vector<4xf32>, stride=16>)>, Workgroup>
 //      CHECK: spv.func @two_allocs_vector()
 //      CHECK: spv.Return
 
@@ -112,9 +104,7 @@ module attributes {
 
 module attributes {
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>, {}>
   }
 {
   func @alloc_dealloc_dynamic_workgroup_mem(%arg0 : index) {
@@ -129,9 +119,7 @@ module attributes {
 
 module attributes {
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>, {}>
   }
 {
   func @alloc_dealloc_mem() {
@@ -146,9 +134,7 @@ module attributes {
 
 module attributes {
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>, {}>
   }
 {
   func @alloc_dealloc_dynamic_workgroup_mem(%arg0 : memref<4x?xf32, 3>) {
@@ -163,9 +149,7 @@ module attributes {
 
 module attributes {
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>, {}>
   }
 {
   func @alloc_dealloc_mem(%arg0 : memref<4x5xf32>) {

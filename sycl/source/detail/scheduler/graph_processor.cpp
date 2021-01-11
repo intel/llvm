@@ -58,32 +58,34 @@ bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
   if (!Cmd || Cmd->isSuccessfullyEnqueued())
     return true;
 
-  // Indicates whether dependency cannot be enqueued
-  bool BlockedByDep = false;
-
-  for (DepDesc &Dep : Cmd->MDeps) {
-    const bool Enqueued =
-        enqueueCommand(Dep.MDepCommand, EnqueueResult, Blocking);
-    if (!Enqueued)
-      switch (EnqueueResult.MResult) {
-      case EnqueueResultT::SyclEnqueueFailed:
-      default:
-        // Exit immediately if a command fails to avoid enqueueing commands
-        // result of which will be discarded.
-        return false;
-      case EnqueueResultT::SyclEnqueueBlocked:
-        // If some dependency is blocked from enqueueing remember that, but
-        // try to enqueue other dependencies(that can be ready for
-        // enqueueing).
-        BlockedByDep = true;
-        break;
-      }
+  // Exit early if the command is blocked and the enqueue type is non-blocking
+  if (Cmd->isEnqueueBlocked() && !Blocking) {
+    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
+    return false;
   }
 
-  // Exit if some command is blocked from enqueueing, the EnqueueResult is set
-  // by the latest dependency which was blocked.
-  if (BlockedByDep)
-    return false;
+  // Recursively enqueue all the dependencies first and
+  // exit immediately if any of the commands cannot be enqueued.
+  for (DepDesc &Dep : Cmd->MDeps) {
+    if (!enqueueCommand(Dep.MDepCommand, EnqueueResult, Blocking))
+      return false;
+  }
+
+  // Asynchronous host operations (amongst dependencies of an arbitrary command)
+  // are not supported (see Command::processDepEvent method). This impacts
+  // operation of host-task feature a lot with hangs and long-runs. Hence we
+  // have this workaround here.
+  // This workaround is safe as long as the only asynchronous host operation we
+  // have is a host task.
+  // This may iterate over some of dependencies in Cmd->MDeps. Though, the
+  // enqueue operation is idempotent and the second call will result in no-op.
+  // TODO remove the workaround when proper fix for host-task dispatching is
+  // implemented.
+  for (const EventImplPtr &Event : Cmd->getPreparedHostDepsEvents()) {
+    if (Command *DepCmd = static_cast<Command *>(Event->getCommand()))
+      if (!enqueueCommand(DepCmd, EnqueueResult, Blocking))
+        return false;
+  }
 
   return Cmd->enqueue(EnqueueResult, Blocking);
 }

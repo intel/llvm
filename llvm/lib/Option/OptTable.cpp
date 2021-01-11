@@ -196,11 +196,13 @@ static unsigned matchOption(const OptTable::Info *I, StringRef Str,
 
 // Returns true if one of the Prefixes + In.Names matches Option
 static bool optionMatches(const OptTable::Info &In, StringRef Option) {
-  if (In.Prefixes)
+  if (In.Prefixes) {
+    StringRef InName(In.Name);
     for (size_t I = 0; In.Prefixes[I]; I++)
-      if (Option.endswith(In.Name))
-        if (Option == std::string(In.Prefixes[I]) + In.Name)
+      if (Option.endswith(InName))
+        if (Option.slice(0, Option.size() - InName.size()) == In.Prefixes[I])
           return true;
+  }
   return false;
 }
 
@@ -228,7 +230,7 @@ OptTable::suggestValueCompletions(StringRef Option, StringRef Arg) const {
 }
 
 std::vector<std::string>
-OptTable::findByPrefix(StringRef Cur, unsigned short DisableFlags) const {
+OptTable::findByPrefix(StringRef Cur, unsigned int DisableFlags) const {
   std::vector<std::string> Ret;
   for (size_t I = FirstSearchableIndex, E = OptionInfos.size(); I < E; I++) {
     const Info &In = OptionInfos[I];

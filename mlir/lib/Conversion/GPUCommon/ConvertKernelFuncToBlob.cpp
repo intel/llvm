@@ -18,8 +18,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/Function.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Support/LogicalResult.h"
@@ -71,7 +70,7 @@ public:
     // attribute to the module.
     if (auto blobAttr = translateGPUModuleToBinaryAnnotation(
             *llvmModule, module.getLoc(), module.getName()))
-      module.setAttr(blobAnnotation, blobAttr);
+      module->setAttr(blobAnnotation, blobAttr);
     else
       signalPassFailure();
   }
@@ -131,6 +130,10 @@ OwnedBlob GpuKernelToBlobPass::convertModuleToBlob(llvm::Module &llvmModule,
     }
     targetMachine.reset(target->createTargetMachine(triple.str(), targetChip,
                                                     features, {}, {}));
+    if (targetMachine == nullptr) {
+      emitError(loc, "connot initialize target machine");
+      return {};
+    }
   }
 
   llvmModule.setDataLayout(targetMachine->createDataLayout());

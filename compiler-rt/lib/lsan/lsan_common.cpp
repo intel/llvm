@@ -25,8 +25,6 @@
 #include "sanitizer_common/sanitizer_thread_registry.h"
 #include "sanitizer_common/sanitizer_tls_get_addr.h"
 
-extern "C" const char *__lsan_current_stage = "unknown";
-
 #if CAN_SANITIZE_LEAKS
 namespace __lsan {
 
@@ -73,17 +71,17 @@ static const char kSuppressionLeak[] = "leak";
 static const char *kSuppressionTypes[] = { kSuppressionLeak };
 static const char kStdSuppressions[] =
 #if SANITIZER_SUPPRESS_LEAK_ON_PTHREAD_EXIT
-  // For more details refer to the SANITIZER_SUPPRESS_LEAK_ON_PTHREAD_EXIT
-  // definition.
-  "leak:*pthread_exit*\n"
+    // For more details refer to the SANITIZER_SUPPRESS_LEAK_ON_PTHREAD_EXIT
+    // definition.
+    "leak:*pthread_exit*\n"
 #endif  // SANITIZER_SUPPRESS_LEAK_ON_PTHREAD_EXIT
 #if SANITIZER_MAC
-  // For Darwin and os_log/os_trace: https://reviews.llvm.org/D35173
-  "leak:*_os_trace*\n"
+    // For Darwin and os_log/os_trace: https://reviews.llvm.org/D35173
+    "leak:*_os_trace*\n"
 #endif
-  // TLS leak in some glibc versions, described in
-  // https://sourceware.org/bugzilla/show_bug.cgi?id=12650.
-  "leak:*tls_get_addr*\n";
+    // TLS leak in some glibc versions, described in
+    // https://sourceware.org/bugzilla/show_bug.cgi?id=12650.
+    "leak:*tls_get_addr*\n";
 
 void InitializeSuppressions() {
   CHECK_EQ(nullptr, suppression_ctx);
@@ -108,10 +106,6 @@ void InitializeRootRegions() {
   CHECK(!root_regions);
   ALIGNED(64) static char placeholder[sizeof(InternalMmapVector<RootRegion>)];
   root_regions = new (placeholder) InternalMmapVector<RootRegion>();
-}
-
-const char *MaybeCallLsanDefaultOptions() {
-  return (&__lsan_default_options) ? __lsan_default_options() : "";
 }
 
 void InitCommonLsan() {
@@ -221,13 +215,16 @@ static void ProcessThreads(SuspendedThreadsList const &, Frontier *) {}
 
 #else
 
+#if SANITIZER_ANDROID
+// FIXME: Move this out into *libcdep.cpp
+extern "C" SANITIZER_WEAK_ATTRIBUTE void __libc_iterate_dynamic_tls(
+    pid_t, void (*cb)(void *, void *, uptr, void *), void *);
+#endif
+
 // Scans thread data (stacks and TLS) for heap pointers.
 static void ProcessThreads(SuspendedThreadsList const &suspended_threads,
                            Frontier *frontier) {
-  InternalMmapVector<uptr> registers(suspended_threads.RegisterCount());
-  uptr registers_begin = reinterpret_cast<uptr>(registers.data());
-  uptr registers_end =
-      reinterpret_cast<uptr>(registers.data() + registers.size());
+  InternalMmapVector<uptr> registers;
   for (uptr i = 0; i < suspended_threads.ThreadCount(); i++) {
     tid_t os_id = static_cast<tid_t>(suspended_threads.GetThreadID(i));
     LOG_THREADS("Processing thread %d.\n", os_id);
@@ -244,7 +241,7 @@ static void ProcessThreads(SuspendedThreadsList const &suspended_threads,
     }
     uptr sp;
     PtraceRegistersStatus have_registers =
-        suspended_threads.GetRegistersAndSP(i, registers.data(), &sp);
+        suspended_threads.GetRegistersAndSP(i, &registers, &sp);
     if (have_registers != REGISTERS_AVAILABLE) {
       Report("Unable to get registers from thread %d.\n", os_id);
       // If unable to get SP, consider the entire stack to be reachable unless
@@ -253,9 +250,13 @@ static void ProcessThreads(SuspendedThreadsList const &suspended_threads,
       sp = stack_begin;
     }
 
-    if (flags()->use_registers && have_registers)
+    if (flags()->use_registers && have_registers) {
+      uptr registers_begin = reinterpret_cast<uptr>(registers.data());
+      uptr registers_end =
+          reinterpret_cast<uptr>(registers.data() + registers.size());
       ScanRangeForPointers(registers_begin, registers_end, frontier,
                            "REGISTERS", kReachable);
+    }
 
     if (flags()->use_stacks) {
       LOG_THREADS("Stack at %p-%p (SP = %p).\n", stack_begin, stack_end, sp);
@@ -299,21 +300,36 @@ static void ProcessThreads(SuspendedThreadsList const &suspended_threads,
                                  kReachable);
         }
       }
+#if SANITIZER_ANDROID
+      auto *cb = +[](void *dtls_begin, void *dtls_end, uptr /*dso_idd*/,
+                     void *arg) -> void {
+        ScanRangeForPointers(reinterpret_cast<uptr>(dtls_begin),
+                             reinterpret_cast<uptr>(dtls_end),
+                             reinterpret_cast<Frontier *>(arg), "DTLS",
+                             kReachable);
+      };
+
+      // FIXME: There might be a race-condition here (and in Bionic) if the
+      // thread is suspended in the middle of updating its DTLS. IOWs, we
+      // could scan already freed memory. (probably fine for now)
+      __libc_iterate_dynamic_tls(os_id, cb, frontier);
+#else
       if (dtls && !DTLSInDestruction(dtls)) {
-        for (uptr j = 0; j < dtls->dtv_size; ++j) {
-          uptr dtls_beg = dtls->dtv[j].beg;
-          uptr dtls_end = dtls_beg + dtls->dtv[j].size;
+        ForEachDVT(dtls, [&](const DTLS::DTV &dtv, int id) {
+          uptr dtls_beg = dtv.beg;
+          uptr dtls_end = dtls_beg + dtv.size;
           if (dtls_beg < dtls_end) {
-            LOG_THREADS("DTLS %zu at %p-%p.\n", j, dtls_beg, dtls_end);
+            LOG_THREADS("DTLS %zu at %p-%p.\n", id, dtls_beg, dtls_end);
             ScanRangeForPointers(dtls_beg, dtls_end, frontier, "DTLS",
                                  kReachable);
           }
-        }
+        });
       } else {
         // We are handling a thread with DTLS under destruction. Log about
         // this and continue.
         LOG_THREADS("Thread %d has DTLS under destruction.\n", os_id);
       }
+#endif
     }
   }
 }
@@ -366,7 +382,6 @@ static void FloodFillTag(Frontier *frontier, ChunkTag tag) {
 // ForEachChunk callback. If the chunk is marked as leaked, marks all chunks
 // which are reachable from it as indirectly leaked.
 static void MarkIndirectlyLeakedCb(uptr chunk, void *arg) {
-  __lsan_current_stage = "MarkIndirectlyLeakedCb";
   chunk = GetUserBegin(chunk);
   LsanMetadata m(chunk);
   if (m.allocated() && m.tag() != kReachable) {
@@ -379,7 +394,6 @@ static void MarkIndirectlyLeakedCb(uptr chunk, void *arg) {
 // frontier.
 static void CollectIgnoredCb(uptr chunk, void *arg) {
   CHECK(arg);
-  __lsan_current_stage = "CollectIgnoredCb";
   chunk = GetUserBegin(chunk);
   LsanMetadata m(chunk);
   if (m.allocated() && m.tag() == kIgnored) {
@@ -409,7 +423,6 @@ struct InvalidPCParam {
 static void MarkInvalidPCCb(uptr chunk, void *arg) {
   CHECK(arg);
   InvalidPCParam *param = reinterpret_cast<InvalidPCParam *>(arg);
-  __lsan_current_stage = "MarkInvalidPCCb";
   chunk = GetUserBegin(chunk);
   LsanMetadata m(chunk);
   if (m.allocated() && m.tag() != kReachable && m.tag() != kIgnored) {
@@ -485,7 +498,6 @@ static void ClassifyAllChunks(SuspendedThreadsList const &suspended_threads,
 // ForEachChunk callback. Resets the tags to pre-leak-check state.
 static void ResetTagsCb(uptr chunk, void *arg) {
   (void)arg;
-  __lsan_current_stage = "ResetTagsCb";
   chunk = GetUserBegin(chunk);
   LsanMetadata m(chunk);
   if (m.allocated() && m.tag() != kIgnored)
@@ -502,7 +514,6 @@ static void PrintStackTraceById(u32 stack_trace_id) {
 static void CollectLeaksCb(uptr chunk, void *arg) {
   CHECK(arg);
   LeakReport *leak_report = reinterpret_cast<LeakReport *>(arg);
-  __lsan_current_stage = "CollectLeaksCb";
   chunk = GetUserBegin(chunk);
   LsanMetadata m(chunk);
   if (!m.allocated()) return;
@@ -586,7 +597,7 @@ static void CheckForLeaksCallback(const SuspendedThreadsList &suspended_threads,
 
 static bool CheckForLeaks() {
   if (&__lsan_is_turned_off && __lsan_is_turned_off())
-      return false;
+    return false;
   EnsureMainThreadIDIsCorrect();
   CheckForLeaksParam param;
   LockStuffAndStopTheWorld(CheckForLeaksCallback, &param);
@@ -900,12 +911,11 @@ int __lsan_do_recoverable_leak_check() {
   return 0;
 }
 
-#if !SANITIZER_SUPPORTS_WEAK_HOOKS
-SANITIZER_INTERFACE_ATTRIBUTE SANITIZER_WEAK_ATTRIBUTE
-const char * __lsan_default_options() {
+SANITIZER_INTERFACE_WEAK_DEF(const char *, __lsan_default_options, void) {
   return "";
 }
 
+#if !SANITIZER_SUPPORTS_WEAK_HOOKS
 SANITIZER_INTERFACE_ATTRIBUTE SANITIZER_WEAK_ATTRIBUTE
 int __lsan_is_turned_off() {
   return 0;

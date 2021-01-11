@@ -883,10 +883,10 @@ CXXABI *ASTContext::createCXXABI(const TargetInfo &T) {
   if (!LangOpts.CPlusPlus) return nullptr;
 
   switch (T.getCXXABI().getKind()) {
+  case TargetCXXABI::AppleARM64:
   case TargetCXXABI::Fuchsia:
   case TargetCXXABI::GenericARM: // Same as Itanium at this level
   case TargetCXXABI::iOS:
-  case TargetCXXABI::iOS64:
   case TargetCXXABI::WatchOS:
   case TargetCXXABI::GenericAArch64:
   case TargetCXXABI::GenericMIPS:
@@ -1005,9 +1005,6 @@ ASTContext::~ASTContext() {
 
   for (const auto &Value : ModuleInitializers)
     Value.second->~PerModuleInitializers();
-
-  for (APValue *Value : APValueCleanups)
-    Value->~APValue();
 }
 
 void ASTContext::setTraversalScope(const std::vector<Decl *> &TopLevelDecls) {
@@ -1431,6 +1428,18 @@ void ASTContext::InitBuiltinTypes(const TargetInfo &Target,
 #include "clang/Basic/AArch64SVEACLETypes.def"
   }
 
+  if (Target.getTriple().isPPC64() &&
+      Target.hasFeature("paired-vector-memops")) {
+    if (Target.hasFeature("mma")) {
+#define PPC_VECTOR_MMA_TYPE(Name, Id, Size) \
+      InitBuiltinType(Id##Ty, BuiltinType::Id);
+#include "clang/Basic/PPCTypes.def"
+    }
+#define PPC_VECTOR_VSX_TYPE(Name, Id, Size) \
+    InitBuiltinType(Id##Ty, BuiltinType::Id);
+#include "clang/Basic/PPCTypes.def"
+  }
+
   // Builtin type for __objc_yes and __objc_no
   ObjCBuiltinBoolTy = (Target.useSignedCharForObjCBool() ?
                        SignedCharTy : BoolTy);
@@ -1782,9 +1791,8 @@ CharUnits ASTContext::getExnObjectAlignment() const {
 // chars. If the type is a record, its data size is returned.  This is
 // the size of the memcpy that's performed when assigning this type
 // using a trivial copy/move assignment operator.
-std::pair<CharUnits, CharUnits>
-ASTContext::getTypeInfoDataSizeInChars(QualType T) const {
-  std::pair<CharUnits, CharUnits> sizeAndAlign = getTypeInfoInChars(T);
+TypeInfoChars ASTContext::getTypeInfoDataSizeInChars(QualType T) const {
+  TypeInfoChars Info = getTypeInfoInChars(T);
 
   // In C++, objects can sometimes be allocated into the tail padding
   // of a base-class subobject.  We decide whether that's possible
@@ -1792,44 +1800,43 @@ ASTContext::getTypeInfoDataSizeInChars(QualType T) const {
   if (getLangOpts().CPlusPlus) {
     if (const auto *RT = T->getAs<RecordType>()) {
       const ASTRecordLayout &layout = getASTRecordLayout(RT->getDecl());
-      sizeAndAlign.first = layout.getDataSize();
+      Info.Width = layout.getDataSize();
     }
   }
 
-  return sizeAndAlign;
+  return Info;
 }
 
 /// getConstantArrayInfoInChars - Performing the computation in CharUnits
 /// instead of in bits prevents overflowing the uint64_t for some large arrays.
-std::pair<CharUnits, CharUnits>
+TypeInfoChars
 static getConstantArrayInfoInChars(const ASTContext &Context,
                                    const ConstantArrayType *CAT) {
-  std::pair<CharUnits, CharUnits> EltInfo =
-      Context.getTypeInfoInChars(CAT->getElementType());
+  TypeInfoChars EltInfo = Context.getTypeInfoInChars(CAT->getElementType());
   uint64_t Size = CAT->getSize().getZExtValue();
-  assert((Size == 0 || static_cast<uint64_t>(EltInfo.first.getQuantity()) <=
+  assert((Size == 0 || static_cast<uint64_t>(EltInfo.Width.getQuantity()) <=
               (uint64_t)(-1)/Size) &&
          "Overflow in array type char size evaluation");
-  uint64_t Width = EltInfo.first.getQuantity() * Size;
-  unsigned Align = EltInfo.second.getQuantity();
+  uint64_t Width = EltInfo.Width.getQuantity() * Size;
+  unsigned Align = EltInfo.Align.getQuantity();
   if (!Context.getTargetInfo().getCXXABI().isMicrosoft() ||
       Context.getTargetInfo().getPointerWidth(0) == 64)
     Width = llvm::alignTo(Width, Align);
-  return std::make_pair(CharUnits::fromQuantity(Width),
-                        CharUnits::fromQuantity(Align));
+  return TypeInfoChars(CharUnits::fromQuantity(Width),
+                       CharUnits::fromQuantity(Align),
+                       EltInfo.AlignIsRequired);
 }
 
-std::pair<CharUnits, CharUnits>
-ASTContext::getTypeInfoInChars(const Type *T) const {
+TypeInfoChars ASTContext::getTypeInfoInChars(const Type *T) const {
   if (const auto *CAT = dyn_cast<ConstantArrayType>(T))
     return getConstantArrayInfoInChars(*this, CAT);
   TypeInfo Info = getTypeInfo(T);
-  return std::make_pair(toCharUnitsFromBits(Info.Width),
-                        toCharUnitsFromBits(Info.Align));
+  return TypeInfoChars(toCharUnitsFromBits(Info.Width),
+                       toCharUnitsFromBits(Info.Align),
+                       Info.AlignIsRequired);
 }
 
-std::pair<CharUnits, CharUnits>
-ASTContext::getTypeInfoInChars(QualType T) const {
+TypeInfoChars ASTContext::getTypeInfoInChars(QualType T) const {
   return getTypeInfoInChars(T.getTypePtr());
 }
 
@@ -1841,7 +1848,8 @@ bool ASTContext::isAlignmentRequired(QualType T) const {
   return isAlignmentRequired(T.getTypePtr());
 }
 
-unsigned ASTContext::getTypeAlignIfKnown(QualType T) const {
+unsigned ASTContext::getTypeAlignIfKnown(QualType T,
+                                         bool NeedsPreferredAlignment) const {
   // An alignment on a typedef overrides anything else.
   if (const auto *TT = T->getAs<TypedefType>())
     if (unsigned Align = TT->getDecl()->getMaxAlignment())
@@ -1850,7 +1858,7 @@ unsigned ASTContext::getTypeAlignIfKnown(QualType T) const {
   // If we have an (array of) complete type, we're done.
   T = getBaseElementType(T);
   if (!T->isIncompleteType())
-    return getTypeAlign(T);
+    return NeedsPreferredAlignment ? getPreferredTypeAlign(T) : getTypeAlign(T);
 
   // If we had an array type, its element type might be a typedef
   // type with an alignment attribute.
@@ -1874,50 +1882,6 @@ TypeInfo ASTContext::getTypeInfo(const Type *T) const {
   TypeInfo TI = getTypeInfoImpl(T);
   MemoizedTypeInfo[T] = TI;
   return TI;
-}
-
-static unsigned getSveVectorWidth(const Type *T) {
-  // Get the vector size from the 'arm_sve_vector_bits' attribute via the
-  // AttributedTypeLoc associated with the typedef decl.
-  if (const auto *TT = T->getAs<TypedefType>()) {
-    const TypedefNameDecl *Typedef = TT->getDecl();
-    TypeSourceInfo *TInfo = Typedef->getTypeSourceInfo();
-    TypeLoc TL = TInfo->getTypeLoc();
-    if (AttributedTypeLoc ATL = TL.getAs<AttributedTypeLoc>())
-      if (const auto *Attr = ATL.getAttrAs<ArmSveVectorBitsAttr>())
-        return Attr->getNumBits();
-  }
-
-  llvm_unreachable("bad 'arm_sve_vector_bits' attribute!");
-}
-
-static unsigned getSvePredWidth(const ASTContext &Context, const Type *T) {
-  return getSveVectorWidth(T) / Context.getCharWidth();
-}
-
-unsigned ASTContext::getBitwidthForAttributedSveType(const Type *T) const {
-  assert(T->isVLST() &&
-         "getBitwidthForAttributedSveType called for non-attributed type!");
-
-  switch (T->castAs<BuiltinType>()->getKind()) {
-  default:
-    llvm_unreachable("unknown builtin type!");
-  case BuiltinType::SveInt8:
-  case BuiltinType::SveInt16:
-  case BuiltinType::SveInt32:
-  case BuiltinType::SveInt64:
-  case BuiltinType::SveUint8:
-  case BuiltinType::SveUint16:
-  case BuiltinType::SveUint32:
-  case BuiltinType::SveUint64:
-  case BuiltinType::SveFloat16:
-  case BuiltinType::SveFloat32:
-  case BuiltinType::SveFloat64:
-  case BuiltinType::SveBFloat16:
-    return getSveVectorWidth(T);
-  case BuiltinType::SveBool:
-    return getSvePredWidth(*this, T);
-  }
 }
 
 /// getTypeInfoImpl - Return the size of the specified type, in bits.  This
@@ -1986,6 +1950,13 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     uint64_t TargetVectorAlign = Target->getMaxVectorAlign();
     if (TargetVectorAlign && TargetVectorAlign < Align)
       Align = TargetVectorAlign;
+    if (VT->getVectorKind() == VectorType::SveFixedLengthDataVector)
+      // Adjust the alignment for fixed-length SVE vectors. This is important
+      // for non-power-of-2 vector lengths.
+      Align = 128;
+    else if (VT->getVectorKind() == VectorType::SveFixedLengthPredicateVector)
+      // Adjust the alignment for fixed-length SVE predicates.
+      Align = 16;
     break;
   }
 
@@ -2201,6 +2172,12 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     Align = 16;                                                                \
     break;
 #include "clang/Basic/AArch64SVEACLETypes.def"
+#define PPC_VECTOR_TYPE(Name, Id, Size)                                        \
+  case BuiltinType::Id:                                                        \
+    Width = Size;                                                              \
+    Align = Size;                                                              \
+    break;
+#include "clang/Basic/PPCTypes.def"
     }
     break;
   case Type::ObjCObjectPointer:
@@ -2331,10 +2308,7 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
       Align = Info.Align;
       AlignIsRequired = Info.AlignIsRequired;
     }
-    if (T->isVLST())
-      Width = getBitwidthForAttributedSveType(T);
-    else
-      Width = Info.Width;
+    Width = Info.Width;
     break;
   }
 
@@ -2404,12 +2378,6 @@ unsigned ASTContext::getTypeUnadjustedAlign(const Type *T) const {
 
 unsigned ASTContext::getOpenMPDefaultSimdAlign(QualType T) const {
   unsigned SimdAlign = getTargetInfo().getSimdDefaultAlign();
-  // Target ppc64 with QPX: simd default alignment for pointer to double is 32.
-  if ((getTargetInfo().getTriple().getArch() == llvm::Triple::ppc64 ||
-       getTargetInfo().getTriple().getArch() == llvm::Triple::ppc64le) &&
-      getTargetInfo().getABI() == "elfv1-qpx" &&
-      T->isSpecificBuiltinType(BuiltinType::Double))
-    SimdAlign = 256;
   return SimdAlign;
 }
 
@@ -2426,10 +2394,10 @@ int64_t ASTContext::toBits(CharUnits CharSize) const {
 /// getTypeSizeInChars - Return the size of the specified type, in characters.
 /// This method does not work on incomplete types.
 CharUnits ASTContext::getTypeSizeInChars(QualType T) const {
-  return getTypeInfoInChars(T).first;
+  return getTypeInfoInChars(T).Width;
 }
 CharUnits ASTContext::getTypeSizeInChars(const Type *T) const {
-  return getTypeInfoInChars(T).first;
+  return getTypeInfoInChars(T).Width;
 }
 
 /// getTypeAlignInChars - Return the ABI-specified alignment of a type, in
@@ -2454,7 +2422,8 @@ CharUnits ASTContext::getTypeUnadjustedAlignInChars(const Type *T) const {
 /// getPreferredTypeAlign - Return the "preferred" alignment of the specified
 /// type for the current target in bits.  This can be different than the ABI
 /// alignment in cases where it is beneficial for performance or backwards
-/// compatibility preserving to overalign a data type.
+/// compatibility preserving to overalign a data type. (Note: despite the name,
+/// the preferred alignment is ABI-impacting, and not an optimization.)
 unsigned ASTContext::getPreferredTypeAlign(const Type *T) const {
   TypeInfo TI = getTypeInfo(T);
   unsigned ABIAlign = TI.Align;
@@ -2510,7 +2479,8 @@ unsigned ASTContext::getTargetDefaultAlignForAttributeAligned() const {
 /// to a global variable of the specified type.
 unsigned ASTContext::getAlignOfGlobalVar(QualType T) const {
   uint64_t TypeSize = getTypeSize(T.getTypePtr());
-  return std::max(getTypeAlign(T), getTargetInfo().getMinGlobalAlign(TypeSize));
+  return std::max(getPreferredTypeAlign(T),
+                  getTargetInfo().getMinGlobalAlign(TypeSize));
 }
 
 /// getAlignOfGlobalVarInChars - Return the alignment in characters that
@@ -2527,6 +2497,25 @@ CharUnits ASTContext::getOffsetOfBaseWithVBPtr(const CXXRecordDecl *RD) const {
     Layout = &getASTRecordLayout(Base);
   }
   return Offset;
+}
+
+CharUnits ASTContext::getMemberPointerPathAdjustment(const APValue &MP) const {
+  const ValueDecl *MPD = MP.getMemberPointerDecl();
+  CharUnits ThisAdjustment = CharUnits::Zero();
+  ArrayRef<const CXXRecordDecl*> Path = MP.getMemberPointerPath();
+  bool DerivedMember = MP.isMemberPointerToDerivedMember();
+  const CXXRecordDecl *RD = cast<CXXRecordDecl>(MPD->getDeclContext());
+  for (unsigned I = 0, N = Path.size(); I != N; ++I) {
+    const CXXRecordDecl *Base = RD;
+    const CXXRecordDecl *Derived = Path[I];
+    if (DerivedMember)
+      std::swap(Base, Derived);
+    ThisAdjustment += getASTRecordLayout(Derived).getBaseClassOffset(Base);
+    RD = Path[I];
+  }
+  if (DerivedMember)
+    ThisAdjustment = -ThisAdjustment;
+  return ThisAdjustment;
 }
 
 /// DeepCollectObjCIvars -
@@ -4478,15 +4467,15 @@ QualType ASTContext::getTypeDeclTypeSlow(const TypeDecl *Decl) const {
 
 /// getTypedefType - Return the unique reference to the type for the
 /// specified typedef name decl.
-QualType
-ASTContext::getTypedefType(const TypedefNameDecl *Decl,
-                           QualType Canonical) const {
+QualType ASTContext::getTypedefType(const TypedefNameDecl *Decl,
+                                    QualType Underlying) const {
   if (Decl->TypeForDecl) return QualType(Decl->TypeForDecl, 0);
 
-  if (Canonical.isNull())
-    Canonical = getCanonicalType(Decl->getUnderlyingType());
+  if (Underlying.isNull())
+    Underlying = Decl->getUnderlyingType();
+  QualType Canonical = getCanonicalType(Underlying);
   auto *newType = new (*this, TypeAlignment)
-    TypedefType(Type::Typedef, Decl, Canonical);
+      TypedefType(Type::Typedef, Decl, Underlying, Canonical);
   Decl->TypeForDecl = newType;
   Types.push_back(newType);
   return QualType(newType, 0);
@@ -4924,9 +4913,16 @@ TemplateArgument ASTContext::getInjectedTemplateArg(NamedDecl *Param) {
 
     Arg = TemplateArgument(ArgType);
   } else if (auto *NTTP = dyn_cast<NonTypeTemplateParmDecl>(Param)) {
+    QualType T =
+        NTTP->getType().getNonPackExpansionType().getNonLValueExprType(*this);
+    // For class NTTPs, ensure we include the 'const' so the type matches that
+    // of a real template argument.
+    // FIXME: It would be more faithful to model this as something like an
+    // lvalue-to-rvalue conversion applied to a const-qualified lvalue.
+    if (T->isRecordType())
+      T.addConst();
     Expr *E = new (*this) DeclRefExpr(
-        *this, NTTP, /*enclosing*/ false,
-        NTTP->getType().getNonPackExpansionType().getNonLValueExprType(*this),
+        *this, NTTP, /*enclosing*/ false, T,
         Expr::getValueKindForType(NTTP->getType()), NTTP->getLocation());
 
     if (NTTP->isParameterPack())
@@ -5399,10 +5395,10 @@ QualType ASTContext::getDecltypeType(Expr *e, QualType UnderlyingType) const {
   DecltypeType *dt;
 
   // C++11 [temp.type]p2:
-  //   If an expression e involves a template parameter, decltype(e) denotes a
-  //   unique dependent type. Two such decltype-specifiers refer to the same
-  //   type only if their expressions are equivalent (14.5.6.1).
-  if (e->isInstantiationDependent()) {
+  //   If an expression e is type-dependent, decltype(e) denotes a unique
+  //   dependent type. Two such decltype-specifiers refer to the same type only
+  //   if their expressions are equivalent (14.5.6.1).
+  if (e->isTypeDependent()) {
     llvm::FoldingSetNodeID ID;
     DependentDecltypeType::Profile(ID, *this, e);
 
@@ -5956,6 +5952,11 @@ ASTContext::getCanonicalTemplateArgument(const TemplateArgument &Arg) const {
 
     case TemplateArgument::Integral:
       return TemplateArgument(Arg, getCanonicalType(Arg.getIntegralType()));
+
+    case TemplateArgument::UncommonValue:
+      return TemplateArgument(*this,
+                              getCanonicalType(Arg.getUncommonValueType()),
+                              Arg.getAsUncommonValue());
 
     case TemplateArgument::Type:
       return TemplateArgument(getCanonicalType(Arg.getAsType()));
@@ -7265,6 +7266,9 @@ static char getObjCEncodingForPrimitiveType(const ASTContext *C,
     case BuiltinType::OCLReserveID:
     case BuiltinType::OCLSampler:
     case BuiltinType::Dependent:
+#define PPC_VECTOR_TYPE(Name, Id, Size) \
+    case BuiltinType::Id:
+#include "clang/Basic/PPCTypes.def"
 #define BUILTIN_TYPE(KIND, ID)
 #define PLACEHOLDER_TYPE(KIND, ID) \
     case BuiltinType::KIND:
@@ -7701,7 +7705,9 @@ void ASTContext::getObjCEncodingForStructureImpl(RecordDecl *RDecl,
   }
 
   unsigned i = 0;
-  for (auto *Field : RDecl->fields()) {
+  for (FieldDecl *Field : RDecl->fields()) {
+    if (!Field->isZeroLengthBitField(*this) && Field->isZeroSize(*this))
+      continue;
     uint64_t offs = layout.getFieldOffset(i);
     FieldOrBaseOffsets.insert(FieldOrBaseOffsets.upper_bound(offs),
                               std::make_pair(offs, Field));
@@ -8557,10 +8563,88 @@ bool ASTContext::areCompatibleVectorTypes(QualType FirstVec,
       First->getVectorKind() != VectorType::AltiVecPixel &&
       First->getVectorKind() != VectorType::AltiVecBool &&
       Second->getVectorKind() != VectorType::AltiVecPixel &&
-      Second->getVectorKind() != VectorType::AltiVecBool)
+      Second->getVectorKind() != VectorType::AltiVecBool &&
+      First->getVectorKind() != VectorType::SveFixedLengthDataVector &&
+      First->getVectorKind() != VectorType::SveFixedLengthPredicateVector &&
+      Second->getVectorKind() != VectorType::SveFixedLengthDataVector &&
+      Second->getVectorKind() != VectorType::SveFixedLengthPredicateVector)
     return true;
 
   return false;
+}
+
+bool ASTContext::areCompatibleSveTypes(QualType FirstType,
+                                       QualType SecondType) {
+  assert(((FirstType->isSizelessBuiltinType() && SecondType->isVectorType()) ||
+          (FirstType->isVectorType() && SecondType->isSizelessBuiltinType())) &&
+         "Expected SVE builtin type and vector type!");
+
+  auto IsValidCast = [this](QualType FirstType, QualType SecondType) {
+    if (const auto *BT = FirstType->getAs<BuiltinType>()) {
+      if (const auto *VT = SecondType->getAs<VectorType>()) {
+        // Predicates have the same representation as uint8 so we also have to
+        // check the kind to make these types incompatible.
+        if (VT->getVectorKind() == VectorType::SveFixedLengthPredicateVector)
+          return BT->getKind() == BuiltinType::SveBool;
+        else if (VT->getVectorKind() == VectorType::SveFixedLengthDataVector)
+          return VT->getElementType().getCanonicalType() ==
+                 FirstType->getSveEltType(*this);
+        else if (VT->getVectorKind() == VectorType::GenericVector)
+          return getTypeSize(SecondType) == getLangOpts().ArmSveVectorBits &&
+                 hasSameType(VT->getElementType(),
+                             getBuiltinVectorTypeInfo(BT).ElementType);
+      }
+    }
+    return false;
+  };
+
+  return IsValidCast(FirstType, SecondType) ||
+         IsValidCast(SecondType, FirstType);
+}
+
+bool ASTContext::areLaxCompatibleSveTypes(QualType FirstType,
+                                          QualType SecondType) {
+  assert(((FirstType->isSizelessBuiltinType() && SecondType->isVectorType()) ||
+          (FirstType->isVectorType() && SecondType->isSizelessBuiltinType())) &&
+         "Expected SVE builtin type and vector type!");
+
+  auto IsLaxCompatible = [this](QualType FirstType, QualType SecondType) {
+    if (!FirstType->getAs<BuiltinType>())
+      return false;
+
+    const auto *VecTy = SecondType->getAs<VectorType>();
+    if (VecTy &&
+        (VecTy->getVectorKind() == VectorType::SveFixedLengthDataVector ||
+         VecTy->getVectorKind() == VectorType::GenericVector)) {
+      const LangOptions::LaxVectorConversionKind LVCKind =
+          getLangOpts().getLaxVectorConversions();
+
+      // If __ARM_FEATURE_SVE_BITS != N do not allow GNU vector lax conversion.
+      // "Whenever __ARM_FEATURE_SVE_BITS==N, GNUT implicitly
+      // converts to VLAT and VLAT implicitly converts to GNUT."
+      // ACLE Spec Version 00bet6, 3.7.3.2. Behavior common to vectors and
+      // predicates.
+      if (VecTy->getVectorKind() == VectorType::GenericVector &&
+          getTypeSize(SecondType) != getLangOpts().ArmSveVectorBits)
+        return false;
+
+      // If -flax-vector-conversions=all is specified, the types are
+      // certainly compatible.
+      if (LVCKind == LangOptions::LaxVectorConversionKind::All)
+        return true;
+
+      // If -flax-vector-conversions=integer is specified, the types are
+      // compatible if the elements are integer types.
+      if (LVCKind == LangOptions::LaxVectorConversionKind::Integer)
+        return VecTy->getElementType().getCanonicalType()->isIntegerType() &&
+               FirstType->getSveEltType(*this)->isIntegerType();
+    }
+
+    return false;
+  };
+
+  return IsLaxCompatible(FirstType, SecondType) ||
+         IsLaxCompatible(SecondType, FirstType);
 }
 
 bool ASTContext::hasDirectOwnershipQualifier(QualType Ty) const {
@@ -9458,8 +9542,8 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
   // designates the object or function denoted by the reference, and the
   // expression is an lvalue unless the reference is an rvalue reference and
   // the expression is a function call (possibly inside parentheses).
-  assert(!LHS->getAs<ReferenceType>() && "LHS is a reference type?");
-  assert(!RHS->getAs<ReferenceType>() && "RHS is a reference type?");
+  if (LHS->getAs<ReferenceType>() || RHS->getAs<ReferenceType>())
+    return {};
 
   if (Unqualified) {
     LHS = LHS.getUnqualifiedType();
@@ -9961,6 +10045,11 @@ QualType ASTContext::getCorrespondingUnsignedType(QualType T) const {
     return UnsignedLongLongTy;
   case BuiltinType::Int128:
     return UnsignedInt128Ty;
+  // wchar_t is special. It is either signed or not, but when it's signed,
+  // there's no matching "unsigned wchar_t". Therefore we return the unsigned
+  // version of it's underlying type instead.
+  case BuiltinType::WChar_S:
+    return getUnsignedWCharType();
 
   case BuiltinType::ShortAccum:
     return UnsignedShortAccumTy;
@@ -10335,6 +10424,18 @@ static QualType DecodeTypeFromStr(const char *&Str, const ASTContext &Context,
          "Integer constant 'I' type must be an integer");
 
   return Type;
+}
+
+// On some targets such as PowerPC, some of the builtins are defined with custom
+// type decriptors for target-dependent types. These descriptors are decoded in
+// other functions, but it may be useful to be able to fall back to default
+// descriptor decoding to define builtins mixing target-dependent and target-
+// independent types. This function allows decoding one type descriptor with
+// default decoding.
+QualType ASTContext::DecodeTypeStr(const char *&Str, const ASTContext &Context,
+                                   GetBuiltinTypeError &Error, bool &RequireICE,
+                                   bool AllowTypeModifiers) const {
+  return DecodeTypeFromStr(Str, Context, Error, RequireICE, AllowTypeModifiers);
 }
 
 /// GetBuiltinType - Return the type for the specified builtin.
@@ -10816,13 +10917,13 @@ MangleContext *ASTContext::createMangleContext(const TargetInfo *T) {
   if (!T)
     T = Target;
   switch (T->getCXXABI().getKind()) {
+  case TargetCXXABI::AppleARM64:
   case TargetCXXABI::Fuchsia:
   case TargetCXXABI::GenericAArch64:
   case TargetCXXABI::GenericItanium:
   case TargetCXXABI::GenericARM:
   case TargetCXXABI::GenericMIPS:
   case TargetCXXABI::iOS:
-  case TargetCXXABI::iOS64:
   case TargetCXXABI::WebAssembly:
   case TargetCXXABI::WatchOS:
   case TargetCXXABI::XL:
@@ -11013,6 +11114,27 @@ ASTContext::getMSGuidDecl(MSGuidDecl::Parts Parts) const {
   QualType GUIDType = getMSGuidType().withConst();
   MSGuidDecl *New = MSGuidDecl::Create(*this, GUIDType, Parts);
   MSGuidDecls.InsertNode(New, InsertPos);
+  return New;
+}
+
+TemplateParamObjectDecl *
+ASTContext::getTemplateParamObjectDecl(QualType T, const APValue &V) const {
+  assert(T->isRecordType() && "template param object of unexpected type");
+
+  // C++ [temp.param]p8:
+  //   [...] a static storage duration object of type 'const T' [...]
+  T.addConst();
+
+  llvm::FoldingSetNodeID ID;
+  TemplateParamObjectDecl::Profile(ID, T, V);
+
+  void *InsertPos;
+  if (TemplateParamObjectDecl *Existing =
+          TemplateParamObjectDecls.FindNodeOrInsertPos(ID, InsertPos))
+    return Existing;
+
+  TemplateParamObjectDecl *New = TemplateParamObjectDecl::Create(*this, T, V);
+  TemplateParamObjectDecls.InsertNode(New, InsertPos);
   return New;
 }
 
@@ -11350,9 +11472,9 @@ OMPTraitInfo &ASTContext::getNewOMPTraitInfo() {
   return *OMPTraitInfoVector.back();
 }
 
-const DiagnosticBuilder &
-clang::operator<<(const DiagnosticBuilder &DB,
-                  const ASTContext::SectionInfo &Section) {
+const StreamingDiagnostic &clang::
+operator<<(const StreamingDiagnostic &DB,
+           const ASTContext::SectionInfo &Section) {
   if (Section.Decl)
     return DB << Section.Decl;
   return DB << "a prior #pragma section";

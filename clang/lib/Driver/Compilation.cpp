@@ -150,7 +150,8 @@ bool Compilation::CleanupFileList(const TempFileList &Files,
     // Temporary file lists contain files that need to be cleaned. The
     // file containing the information is also removed
     if (File.second == types::TY_Tempfilelist ||
-        File.second == types::TY_Tempfiletable) {
+        File.second == types::TY_Tempfiletable ||
+        File.second == types::TY_FPGA_Dependencies_List) {
       // These are temporary files and need to be removed.
       bool IsTable = File.second == types::TY_Tempfiletable;
 
@@ -227,6 +228,8 @@ int Compilation::ExecuteCommand(const Command &C,
   std::string Error;
   bool ExecutionFailed;
   int Res = C.Execute(Redirects, &Error, &ExecutionFailed);
+  if (PostCallback)
+    PostCallback(C, Res);
   if (!Error.empty()) {
     assert(Res && "Error string set with 0 result code!");
     getDriver().Diag(diag::err_drv_command_failure) << Error;

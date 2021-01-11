@@ -9,6 +9,11 @@
 // CHECK: clang{{.*}}" "-cc1" {{.*}} "-fcuda-is-device"
 // CHECK-SAME: "--gpu-max-threads-per-block=1024"
 
+// RUN: %clang -### -nogpuinc -nogpulib -fgpu-allow-device-init \
+// RUN:   %s 2>&1 | FileCheck -check-prefix=DEVINIT %s
+// DEVINIT: clang{{.*}}" "-cc1" {{.*}}"-fgpu-allow-device-init"
+// DEVINIT: clang{{.*}}" "-cc1" {{.*}}"-fgpu-allow-device-init"
+
 // RUN: %clang -### -x hip -target x86_64-pc-windows-msvc -fms-extensions \
 // RUN:   -mllvm -amdgpu-early-inline-all=true  %s 2>&1 | \
 // RUN:   FileCheck -check-prefix=MLLVM %s
@@ -26,3 +31,12 @@
 // HOST-NOT: clang{{.*}} "-fcuda-is-device" {{.*}} "-debug-info-kind={{.*}}"
 // HOST-NOT: clang{{.*}} "-fcuda-is-device" {{.*}} "-debug-info-kind={{.*}}"
 // HOST: clang{{.*}} "-debug-info-kind={{.*}}"
+
+// RUN: %clang -### -nogpuinc -nogpulib -munsafe-fp-atomics \
+// RUN:   --cuda-gpu-arch=gfx906  %s 2>&1 | FileCheck -check-prefix=UNSAFE-FP-ATOMICS %s
+// UNSAFE-FP-ATOMICS: clang{{.*}} "-triple" "amdgcn-amd-amdhsa" {{.*}} "-munsafe-fp-atomics"
+
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -nogpuinc -nogpulib -fgpu-exclude-wrong-side-overloads \
+// RUN:   --cuda-gpu-arch=gfx906  %s 2>&1 | FileCheck -check-prefix=FIX-OVERLOAD %s
+// FIX-OVERLOAD: clang{{.*}} "-triple" "amdgcn-amd-amdhsa" {{.*}} "-fgpu-exclude-wrong-side-overloads" "-fgpu-defer-diag"
+// FIX-OVERLOAD: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-fgpu-exclude-wrong-side-overloads" "-fgpu-defer-diag"

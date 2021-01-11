@@ -8,7 +8,7 @@
 //
 // This file defines the OpReducer class. It defines a variant generator method
 // with the purpose of producing different variants by eliminating a
-// parametarizable type of operations from the  parent module.
+// parameterizable type of operations from the  parent module.
 //
 //===----------------------------------------------------------------------===//
 #include "mlir/Reducer/Passes/OpReducer.h"
@@ -24,7 +24,7 @@ StringRef OpReducerImpl::getName() {
   return StringRef("High Level Operation Reduction");
 }
 
-/// Return the initial transformSpace cointaing the transformable indices.
+/// Return the initial transformSpace containing the transformable indices.
 std::vector<bool> OpReducerImpl::initTransformSpace(ModuleOp module) {
   auto ops = getSpecificOps(module);
   int numOps = std::distance(ops.begin(), ops.end());

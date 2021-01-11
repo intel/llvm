@@ -402,6 +402,82 @@ func @divi_unsigned_splat_tensor() -> (tensor<4xi32>, tensor<4xi32>, tensor<4xi3
 
 // -----
 
+// CHECK-LABEL: func @simple_floordivi_signed
+func @simple_floordivi_signed() -> (i32, i32, i32, i32, i32) {
+  // CHECK-DAG: [[C0:%.+]] = constant 0
+  %z = constant 0 : i32
+  // CHECK-DAG: [[C6:%.+]] = constant 7
+  %0 = constant 7 : i32
+  %1 = constant 2 : i32
+
+  // floor(7, 2) = 3
+  // CHECK-NEXT: [[C3:%.+]] = constant 3 : i32
+  %2 = floordivi_signed %0, %1 : i32
+
+  %3 = constant -2 : i32
+
+  // floor(7, -2) = -4
+  // CHECK-NEXT: [[CM3:%.+]] = constant -4 : i32
+  %4 = floordivi_signed %0, %3 : i32
+
+  %5 = constant -9 : i32
+
+  // floor(-9, 2) = -5
+  // CHECK-NEXT: [[CM4:%.+]] = constant -5 : i32
+  %6 = floordivi_signed %5, %1 : i32
+
+  %7 = constant -13 : i32
+
+  // floor(-13, -2) = 6
+  // CHECK-NEXT: [[CM5:%.+]] = constant 6 : i32
+  %8 = floordivi_signed %7, %3 : i32
+
+  // CHECK-NEXT: [[XZ:%.+]] = floordivi_signed [[C6]], [[C0]]
+  %9 = floordivi_signed %0, %z : i32
+
+  return %2, %4, %6, %8, %9 : i32, i32, i32, i32, i32
+}
+
+// -----
+
+// CHECK-LABEL: func @simple_ceildivi_signed
+func @simple_ceildivi_signed() -> (i32, i32, i32, i32, i32) {
+  // CHECK-DAG: [[C0:%.+]] = constant 0
+  %z = constant 0 : i32
+  // CHECK-DAG: [[C6:%.+]] = constant 7
+  %0 = constant 7 : i32
+  %1 = constant 2 : i32
+
+  // ceil(7, 2) = 4
+  // CHECK-NEXT: [[C3:%.+]] = constant 4 : i32
+  %2 = ceildivi_signed %0, %1 : i32
+
+  %3 = constant -2 : i32
+
+  // ceil(7, -2) = -3
+  // CHECK-NEXT: [[CM3:%.+]] = constant -3 : i32
+  %4 = ceildivi_signed %0, %3 : i32
+
+  %5 = constant -9 : i32
+
+  // ceil(-9, 2) = -4
+  // CHECK-NEXT: [[CM4:%.+]] = constant -4 : i32
+  %6 = ceildivi_signed %5, %1 : i32
+
+  %7 = constant -15 : i32
+
+  // ceil(-15, -2) = 8
+  // CHECK-NEXT: [[CM5:%.+]] = constant 8 : i32
+  %8 = ceildivi_signed %7, %3 : i32
+
+  // CHECK-NEXT: [[XZ:%.+]] = ceildivi_signed [[C6]], [[C0]]
+  %9 = ceildivi_signed %0, %z : i32
+
+  return %2, %4, %6, %8, %9 : i32, i32, i32, i32, i32
+}
+
+// -----
+
 // CHECK-LABEL: func @simple_remi_signed
 func @simple_remi_signed(%a : i32) -> (i32, i32, i32) {
   %0 = constant 5 : i32
@@ -640,38 +716,6 @@ func @cmpf_inf() -> (i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1, i1,
 
 // -----
 
-// CHECK-LABEL: func @fold_extract_element
-func @fold_extract_element(%arg0 : index) -> (f32, f16, f16, i32) {
-  %const_0 = constant 0 : index
-  %const_1 = constant 1 : index
-  %const_3 = constant 3 : index
-
-  // Fold an extract into a splat.
-  // CHECK-NEXT: [[C4:%.+]] = constant 4.{{0*}}e+00 : f32
-  %0 = constant dense<4.0> : tensor<4xf32>
-  %ext_1 = extract_element %0[%arg0] : tensor<4xf32>
-
-  // Fold an extract into a sparse with a sparse index.
-  // CHECK-NEXT: [[CM2:%.+]] = constant -2.{{0*}}e+00 : f16
-  %1 = constant sparse<[[0, 0, 0], [1, 1, 1]],  [-5.0, -2.0]> : vector<4x4x4xf16>
-  %ext_2 = extract_element %1[%const_1, %const_1, %const_1] : vector<4x4x4xf16>
-
-  // Fold an extract into a sparse with a non sparse index.
-  // CHECK-NEXT: [[C0:%.+]] = constant 0.{{0*}}e+00 : f16
-  %2 = constant sparse<[[1, 1, 1]],  [-2.0]> : vector<1x1x1xf16>
-  %ext_3 = extract_element %2[%const_0, %const_0, %const_0] : vector<1x1x1xf16>
-
-  // Fold an extract into a dense tensor.
-  // CHECK-NEXT: [[C64:%.+]] = constant 64 : i32
-  %3 = constant dense<[[[1, -2, 1, 36]], [[0, 2, -1, 64]]]> : tensor<2x1x4xi32>
-  %ext_4 = extract_element %3[%const_1, %const_0, %const_3] : tensor<2x1x4xi32>
-
-  // CHECK-NEXT: return [[C4]], [[CM2]], [[C0]], [[C64]]
-  return %ext_1, %ext_2, %ext_3, %ext_4 : f32, f16, f16, i32
-}
-
-// -----
-
 // CHECK-LABEL: func @fold_rank
 func @fold_rank() -> (index) {
   %const_0 = constant dense<[[[1, -2, 1, 36]], [[0, 2, -1, 64]]]> : tensor<2x1x4xi32>
@@ -743,4 +787,13 @@ func @splat_fold() -> (vector<4xf32>, tensor<4xf32>) {
   // CHECK-NEXT: [[V:%.*]] = constant dense<1.000000e+00> : vector<4xf32>
   // CHECK-NEXT: [[T:%.*]] = constant dense<1.000000e+00> : tensor<4xf32>
   // CHECK-NEXT: return [[V]], [[T]] : vector<4xf32>, tensor<4xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func @subview_scalar_fold
+func @subview_scalar_fold(%arg0: memref<f32>) -> memref<f32> {
+  // CHECK-NOT: subview
+  %c = subview %arg0[] [] [] : memref<f32> to memref<f32>
+  return %c : memref<f32>
 }

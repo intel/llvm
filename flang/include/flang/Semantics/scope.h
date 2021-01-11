@@ -84,18 +84,26 @@ public:
   }
   Kind kind() const { return kind_; }
   bool IsGlobal() const { return kind_ == Kind::Global; }
-  bool IsModule() const; // only module, not submodule
-  bool IsSubmodule() const;
+  bool IsModule() const {
+    return kind_ == Kind::Module &&
+        !symbol_->get<ModuleDetails>().isSubmodule();
+  }
+  bool IsSubmodule() const {
+    return kind_ == Kind::Module && symbol_->get<ModuleDetails>().isSubmodule();
+  }
   bool IsDerivedType() const { return kind_ == Kind::DerivedType; }
   bool IsStmtFunction() const;
   bool IsParameterizedDerivedType() const;
+  bool IsParameterizedDerivedTypeInstantiation() const {
+    return kind_ == Kind::DerivedType && !symbol_;
+  }
   Symbol *symbol() { return symbol_; }
   const Symbol *symbol() const { return symbol_; }
 
   inline const Symbol *GetSymbol() const;
   const Scope *GetDerivedTypeParent() const;
   const Scope &GetDerivedTypeBase() const;
-  std::optional<SourceName> GetName() const;
+  inline std::optional<SourceName> GetName() const;
   bool Contains(const Scope &) const;
   /// Make a scope nested in this one
   Scope &MakeScope(Kind kind, Symbol *symbol = nullptr);
@@ -187,14 +195,13 @@ public:
   const DeclTypeSpec &MakeTypeStarType();
   const DeclTypeSpec &MakeClassStarType();
 
-  // For modules read from module files, this is the stream of characters
-  // that are referenced by SourceName objects.
-  void set_chars(parser::CookedSource &);
-
   std::size_t size() const { return size_; }
   void set_size(std::size_t size) { size_ = size; }
-  std::size_t alignment() const { return alignment_; }
-  void set_alignment(std::size_t alignment) { alignment_ = alignment; }
+  std::optional<std::size_t> alignment() const { return alignment_; }
+
+  void SetAlignment(std::size_t n) {
+    alignment_ = std::max(alignment_.value_or(0), n);
+  }
 
   ImportKind GetImportKind() const;
   // Names appearing in IMPORT statements in this scope
@@ -206,9 +213,16 @@ public:
 
   void add_importName(const SourceName &);
 
+  // These members pertain to instantiations of parameterized derived types.
   const DerivedTypeSpec *derivedTypeSpec() const { return derivedTypeSpec_; }
   DerivedTypeSpec *derivedTypeSpec() { return derivedTypeSpec_; }
   void set_derivedTypeSpec(DerivedTypeSpec &spec) { derivedTypeSpec_ = &spec; }
+  parser::Message::Reference instantiationContext() const {
+    return instantiationContext_;
+  };
+  void set_instantiationContext(parser::Message::Reference &&mref) {
+    instantiationContext_ = std::move(mref);
+  }
 
   bool hasSAVE() const { return hasSAVE_; }
   void set_hasSAVE(bool yes = true) { hasSAVE_ = yes; }
@@ -231,11 +245,18 @@ public:
 
   void InstantiateDerivedTypes(SemanticsContext &);
 
+  const Symbol *runtimeDerivedTypeDescription() const {
+    return runtimeDerivedTypeDescription_;
+  }
+  void set_runtimeDerivedTypeDescription(const Symbol &symbol) {
+    runtimeDerivedTypeDescription_ = &symbol;
+  }
+
 private:
   Scope &parent_; // this is enclosing scope, not extended derived type base
   const Kind kind_;
   std::size_t size_{0}; // size in bytes
-  std::size_t alignment_{0}; // required alignment in bytes
+  std::optional<std::size_t> alignment_; // required alignment in bytes
   parser::CharBlock sourceRange_;
   Symbol *const symbol_; // if not null, symbol_->scope() == this
   std::list<Scope> children_;
@@ -245,11 +266,12 @@ private:
   mapType crayPointers_;
   std::map<SourceName, common::Reference<Scope>> submodules_;
   std::list<DeclTypeSpec> declTypeSpecs_;
-  std::string chars_;
   std::optional<ImportKind> importKind_;
   std::set<SourceName> importNames_;
   DerivedTypeSpec *derivedTypeSpec_{nullptr}; // dTS->scope() == this
+  parser::Message::Reference instantiationContext_;
   bool hasSAVE_{false}; // scope has a bare SAVE statement
+  const Symbol *runtimeDerivedTypeDescription_{nullptr};
   // When additional data members are added to Scope, remember to
   // copy them, if appropriate, in InstantiateDerivedType().
 
@@ -269,6 +291,14 @@ inline const Symbol *Scope::GetSymbol() const {
   return symbol_         ? symbol_
       : derivedTypeSpec_ ? &derivedTypeSpec_->typeSymbol()
                          : nullptr;
+}
+
+inline std::optional<SourceName> Scope::GetName() const {
+  if (const auto *sym{GetSymbol()}) {
+    return sym->name();
+  } else {
+    return std::nullopt;
+  }
 }
 
 } // namespace Fortran::semantics

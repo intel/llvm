@@ -3,11 +3,9 @@
 
 // Permutation maps used in vectorization.
 // CHECK-DAG: #[[$map_id1:map[0-9]+]] = affine_map<(d0) -> (d0)>
-// CHECK-DAG: #[[$map_id2:map[0-9]+]] = affine_map<(d0, d1) -> (d0, d1)>
 // CHECK-DAG: #[[$map_proj_d0d1_zerod1:map[0-9]+]] = affine_map<(d0, d1) -> (0, d1)>
 // CHECK-DAG: #[[$map_proj_d0d1_d0zero:map[0-9]+]] = affine_map<(d0, d1) -> (d0, 0)>
 // VECT-DAG: #[[$map_id1:map[0-9]+]] = affine_map<(d0) -> (d0)>
-// VECT-DAG: #[[$map_id2:map[0-9]+]] = affine_map<(d0, d1) -> (d0, d1)>
 // VECT-DAG: #[[$map_proj_d0d1_zerod1:map[0-9]+]] = affine_map<(d0, d1) -> (0, d1)>
 // VECT-DAG: #[[$map_proj_d0d1_d0zero:map[0-9]+]] = affine_map<(d0, d1) -> (d0, 0)>
 
@@ -124,7 +122,7 @@ func @vectorize_matmul(%arg0: memref<?x?xf32>, %arg1: memref<?x?xf32>, %arg2: me
   }
   //      VECT:  affine.for %[[I2:.*]] = #[[$map_id1]](%[[C0]]) to #[[$map_id1]](%[[M]]) step 4 {
   // VECT-NEXT:    affine.for %[[I3:.*]] = #[[$map_id1]](%[[C0]]) to #[[$map_id1]](%[[N]]) step 8 {
-  // VECT-NEXT:      affine.for %[[I4:.*]] = #map5(%[[C0]]) to #[[$map_id1]](%[[K]]) {
+  // VECT-NEXT:      affine.for %[[I4:.*]] = #[[$map_id1]](%[[C0]]) to #[[$map_id1]](%[[K]]) {
   //      VECT:        %[[A:.*]] = vector.transfer_read %{{.*}}[%[[I4]], %[[I3]]], %{{.*}} {permutation_map = #[[$map_proj_d0d1_zerod1]]} : memref<?x?xf32>, vector<4x8xf32>
   //      VECT:        %[[B:.*]] = vector.transfer_read %{{.*}}[%[[I2]], %[[I4]]], %{{.*}} {permutation_map = #[[$map_proj_d0d1_d0zero]]} : memref<?x?xf32>, vector<4x8xf32>
   // VECT-NEXT:        %[[C:.*]] = mulf %[[B]], %[[A]] : vector<4x8xf32>

@@ -1740,6 +1740,8 @@ implemented directly in terms of :ref:`extended vector support
 <langext-vectors>` instead of builtins, in order to reduce the number of
 builtins that we need to implement.
 
+.. _langext-__builtin_assume:
+
 ``__builtin_assume``
 ------------------------------
 
@@ -2408,20 +2410,6 @@ with ``__has_feature(cxx_constexpr_string_builtins)``.
 Memory builtins
 ---------------
 
- * ``__builtin_memcpy_inline``
-
-.. code-block:: c
-
-  void __builtin_memcpy_inline(void *dst, const void *src, size_t size);
-
-``__builtin_memcpy_inline(dst, src, size)`` is identical to
-``__builtin_memcpy(dst, src, size)`` except that the generated code is
-guaranteed not to call any external functions. See [LLVM IR ‘llvm.memcpy.inline’
-Intrinsic](https://llvm.org/docs/LangRef.html#llvm-memcpy-inline-intrinsic) for
-more information.
-
-Note that the `size` argument must be a compile time constant.
-
 Clang provides constant expression evaluation support for builtin forms of the
 following functions from the C standard library headers
 ``<string.h>`` and ``<wchar.h>``:
@@ -2439,7 +2427,27 @@ are pointers to arrays with the same trivially copyable element type, and the
 given size is an exact multiple of the element size that is no greater than
 the number of elements accessible through the source and destination operands.
 
-Constant evaluation support is not yet provided for ``__builtin_memcpy_inline``.
+Guaranteed inlined copy
+^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: c
+
+  void __builtin_memcpy_inline(void *dst, const void *src, size_t size);
+
+
+``__builtin_memcpy_inline`` has been designed as a building block for efficient
+``memcpy`` implementations. It is identical to ``__builtin_memcpy`` but also
+guarantees not to call any external functions. See LLVM IR `llvm.memcpy.inline
+<https://llvm.org/docs/LangRef.html#llvm-memcpy-inline-intrinsic>`_ intrinsic 
+for more information.
+
+This is useful to implement a custom version of ``memcpy``, implemement a
+``libc`` memcpy or work around the absence of a ``libc``.
+
+Note that the `size` argument must be a compile time constant.
+
+Note that this intrinsic cannot yet be called in a ``constexpr`` context.
+
 
 Atomic Min/Max builtins with memory ordering
 --------------------------------------------
@@ -3200,7 +3208,7 @@ The pragma can take two values: ``on`` and ``off``.
   float f(float x, float y, float z)
   {
     // Enable floating point reassociation across statements
-    #pragma fp reassociate(on)
+    #pragma clang fp reassociate(on)
     float t = x + y;
     float v = t + z;
   }
@@ -3227,7 +3235,33 @@ statements in C).
 
 The pragma can also be used with ``off`` which turns FP contraction off for a
 section of the code. This can be useful when fast contraction is otherwise
-enabled for the translation unit with the ``-ffp-contract=fast`` flag.
+enabled for the translation unit with the ``-ffp-contract=fast-honor-pragmas`` flag.
+Note that ``-ffp-contract=fast`` will override pragmas to fuse multiply and
+addition across statements regardless of any controlling pragmas.
+
+``#pragma clang fp exceptions`` specifies floating point exception behavior. It
+may take one the the values: ``ignore``, ``maytrap`` or ``strict``. Meaning of
+these values is same as for `constrained floating point intrinsics <http://llvm.org/docs/LangRef.html#constrained-floating-point-intrinsics>`_.
+
+.. code-block:: c++
+
+  {
+    // Preserve floating point exceptions
+    #pragma clang fp exceptions(strict)
+    z = x + y;
+    if (fetestexcept(FE_OVERFLOW))
+	  ...
+  }
+
+A ``#pragma clang fp`` pragma may contain any number of options:
+
+.. code-block:: c++
+
+  void func(float *dest, float a, float b) {
+    #pragma clang fp exceptions(maytrap) contract(fast) reassociate(on)
+    ...
+  }
+
 
 The ``#pragma float_control`` pragma allows precise floating-point
 semantics and floating-point exception behavior to be specified

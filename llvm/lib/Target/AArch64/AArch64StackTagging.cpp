@@ -73,6 +73,10 @@ static cl::opt<bool>
 static cl::opt<unsigned> ClScanLimit("stack-tagging-merge-init-scan-limit",
                                      cl::init(40), cl::Hidden);
 
+static cl::opt<unsigned>
+    ClMergeInitSizeLimit("stack-tagging-merge-init-size-limit", cl::init(272),
+                         cl::Hidden);
+
 static const Align kTagGranuleSize = Align(16);
 
 namespace {
@@ -434,7 +438,8 @@ void AArch64StackTagging::tagAlloca(AllocaInst *AI, Instruction *InsertBefore,
   bool LittleEndian =
       Triple(AI->getModule()->getTargetTriple()).isLittleEndian();
   // Current implementation of initializer merging assumes little endianness.
-  if (MergeInit && !F->hasOptNone() && LittleEndian) {
+  if (MergeInit && !F->hasOptNone() && LittleEndian &&
+      Size < ClMergeInitSizeLimit) {
     LLVM_DEBUG(dbgs() << "collecting initializers for " << *AI
                       << ", size = " << Size << "\n");
     InsertBefore = collectInitializers(InsertBefore, Ptr, Size, IB);
@@ -653,7 +658,7 @@ bool AArch64StackTagging::runOnFunction(Function &Fn) {
       IntrinsicInst *Start = Info.LifetimeStart[0];
       IntrinsicInst *End = Info.LifetimeEnd[0];
       uint64_t Size =
-          dyn_cast<ConstantInt>(Start->getArgOperand(0))->getZExtValue();
+          cast<ConstantInt>(Start->getArgOperand(0))->getZExtValue();
       Size = alignTo(Size, kTagGranuleSize);
       tagAlloca(AI, Start->getNextNode(), Start->getArgOperand(1), Size);
       // We need to ensure that if we tag some object, we certainly untag it

@@ -232,8 +232,11 @@ StringRef ToolChain::getDefaultUniversalArchName() const {
   // the same as the ones that appear in the triple. Roughly speaking, this is
   // an inverse of the darwin::getArchTypeForDarwinArchName() function.
   switch (Triple.getArch()) {
-  case llvm::Triple::aarch64:
+  case llvm::Triple::aarch64: {
+    if (getTriple().isArm64e())
+      return "arm64e";
     return "arm64";
+  }
   case llvm::Triple::aarch64_32:
     return "arm64_32";
   case llvm::Triple::ppc:
@@ -325,6 +328,12 @@ Tool *ToolChain::getOffloadWrapper() const {
   return OffloadWrapper.get();
 }
 
+Tool *ToolChain::getOffloadDeps() const {
+  if (!OffloadDeps)
+    OffloadDeps.reset(new tools::OffloadDeps(*this));
+  return OffloadDeps.get();
+}
+
 Tool *ToolChain::getSPIRVTranslator() const {
   if (!SPIRVTranslator)
     SPIRVTranslator.reset(new tools::SPIRVTranslator(*this));
@@ -400,6 +409,9 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
   case Action::OffloadWrapperJobClass:
     return getOffloadWrapper();
 
+  case Action::OffloadDepsJobClass:
+    return getOffloadDeps();
+
   case Action::SPIRVTranslatorJobClass:
     return getSPIRVTranslator();
 
@@ -449,6 +461,8 @@ StringRef ToolChain::getOSLibName() const {
     return "openbsd";
   case llvm::Triple::Solaris:
     return "sunos";
+  case llvm::Triple::AIX:
+    return "aix";
   default:
     return getOS();
   }
@@ -604,7 +618,13 @@ std::string ToolChain::GetProgramPath(const char *Name) const {
   return D.GetProgramPath(Name, *this);
 }
 
-std::string ToolChain::GetLinkerPath() const {
+std::string ToolChain::GetLinkerPath(bool *LinkerIsLLD,
+                                     bool *LinkerIsLLDDarwinNew) const {
+  if (LinkerIsLLD)
+    *LinkerIsLLD = false;
+  if (LinkerIsLLDDarwinNew)
+    *LinkerIsLLDDarwinNew = false;
+
   // Get -fuse-ld= first to prevent -Wunused-command-line-argument. -fuse-ld= is
   // considered as the linker flavor, e.g. "bfd", "gold", or "lld".
   const Arg* A = Args.getLastArg(options::OPT_fuse_ld_EQ);
@@ -639,7 +659,7 @@ std::string ToolChain::GetLinkerPath() const {
   // to a relative path is surprising. This is more complex due to priorities
   // among -B, COMPILER_PATH and PATH. --ld-path= should be used instead.
   if (UseLinker.find('/') != StringRef::npos)
-    getDriver().Diag(diag::warn_drv_use_ld_non_word);
+    getDriver().Diag(diag::warn_drv_fuse_ld_path);
 
   if (llvm::sys::path::is_absolute(UseLinker)) {
     // If we're passed what looks like an absolute path, don't attempt to
@@ -655,8 +675,14 @@ std::string ToolChain::GetLinkerPath() const {
     LinkerName.append(UseLinker);
 
     std::string LinkerPath(GetProgramPath(LinkerName.c_str()));
-    if (llvm::sys::fs::can_execute(LinkerPath))
+    if (llvm::sys::fs::can_execute(LinkerPath)) {
+      // FIXME: Remove lld.darwinnew here once it's the only MachO lld.
+      if (LinkerIsLLD)
+        *LinkerIsLLD = UseLinker == "lld" || UseLinker == "lld.darwinnew";
+      if (LinkerIsLLDDarwinNew)
+        *LinkerIsLLDDarwinNew = UseLinker == "lld.darwinnew";
       return LinkerPath;
+    }
   }
 
   if (A)
@@ -748,6 +774,9 @@ std::string ToolChain::ComputeLLVMTriple(const ArgList &Args,
   case llvm::Triple::aarch64: {
     llvm::Triple Triple = getTriple();
     if (!Triple.isOSBinFormatMachO())
+      return getTripleString();
+
+    if (Triple.isArm64e())
       return getTripleString();
 
     // FIXME: older versions of ld64 expect the "arm64" component in the actual
@@ -842,6 +871,37 @@ std::string ToolChain::ComputeLLVMTriple(const ArgList &Args,
         ArchName = "thumb";
     }
     Triple.setArchName(ArchName + Suffix.str());
+
+    bool isHardFloat =
+        (arm::getARMFloatABI(getDriver(), Triple, Args) == arm::FloatABI::Hard);
+    switch (Triple.getEnvironment()) {
+    case Triple::GNUEABI:
+    case Triple::GNUEABIHF:
+      Triple.setEnvironment(isHardFloat ? Triple::GNUEABIHF : Triple::GNUEABI);
+      break;
+    case Triple::EABI:
+    case Triple::EABIHF:
+      Triple.setEnvironment(isHardFloat ? Triple::EABIHF : Triple::EABI);
+      break;
+    case Triple::MuslEABI:
+    case Triple::MuslEABIHF:
+      Triple.setEnvironment(isHardFloat ? Triple::MuslEABIHF
+                                        : Triple::MuslEABI);
+      break;
+    default: {
+      arm::FloatABI DefaultABI = arm::getDefaultFloatABI(Triple);
+      if (DefaultABI != arm::FloatABI::Invalid &&
+          isHardFloat != (DefaultABI == arm::FloatABI::Hard)) {
+        Arg *ABIArg =
+            Args.getLastArg(options::OPT_msoft_float, options::OPT_mhard_float,
+                            options::OPT_mfloat_abi_EQ);
+        assert(ABIArg && "Non-default float abi expected to be from arg");
+        D.Diag(diag::err_drv_unsupported_opt_for_target)
+            << ABIArg->getAsString(Args) << Triple.getTriple();
+      }
+      break;
+    }
+    }
 
     return Triple.getTriple();
   }
@@ -1074,22 +1134,23 @@ SanitizerMask ToolChain::getSupportedSanitizers() const {
   // Return sanitizers which don't require runtime support and are not
   // platform dependent.
 
-  SanitizerMask Res = (SanitizerKind::Undefined & ~SanitizerKind::Vptr &
-                       ~SanitizerKind::Function) |
-                      (SanitizerKind::CFI & ~SanitizerKind::CFIICall) |
-                      SanitizerKind::CFICastStrict |
-                      SanitizerKind::FloatDivideByZero |
-                      SanitizerKind::UnsignedIntegerOverflow |
-                      SanitizerKind::ImplicitConversion |
-                      SanitizerKind::Nullability | SanitizerKind::LocalBounds;
+  SanitizerMask Res =
+      (SanitizerKind::Undefined & ~SanitizerKind::Vptr &
+       ~SanitizerKind::Function) |
+      (SanitizerKind::CFI & ~SanitizerKind::CFIICall) |
+      SanitizerKind::CFICastStrict | SanitizerKind::FloatDivideByZero |
+      SanitizerKind::UnsignedIntegerOverflow |
+      SanitizerKind::UnsignedShiftBase | SanitizerKind::ImplicitConversion |
+      SanitizerKind::Nullability | SanitizerKind::LocalBounds;
   if (getTriple().getArch() == llvm::Triple::x86 ||
       getTriple().getArch() == llvm::Triple::x86_64 ||
       getTriple().getArch() == llvm::Triple::arm || getTriple().isWasm() ||
       getTriple().isAArch64())
     Res |= SanitizerKind::CFIICall;
-  if (getTriple().getArch() == llvm::Triple::x86_64 || getTriple().isAArch64())
+  if (getTriple().getArch() == llvm::Triple::x86_64 ||
+      getTriple().isAArch64(64) || getTriple().isRISCV())
     Res |= SanitizerKind::ShadowCallStack;
-  if (getTriple().isAArch64())
+  if (getTriple().isAArch64(64))
     Res |= SanitizerKind::MemTag;
   return Res;
 }
@@ -1188,7 +1249,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
       continue;
     }
 
-    unsigned Index;
+    unsigned Index = 0;
     unsigned Prev;
     bool XOffloadTargetNoTriple;
 
@@ -1255,6 +1316,10 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
         continue;
       }
     }
+
+    if (!XOffloadTargetArg)
+      continue;
+
     XOffloadTargetArg->setBaseArg(A);
     A = XOffloadTargetArg.release();
     AllocatedArgs.push_back(A);
@@ -1292,15 +1357,18 @@ void ToolChain::TranslateXarchArgs(
   //
   // We also want to disallow any options which would alter the
   // driver behavior; that isn't going to work in our model. We
-  // use isDriverOption() as an approximation, although things
-  // like -O4 are going to slip through.
+  // use options::NoXarchOption to control this.
   if (!XarchArg || Index > Prev + 1) {
     getDriver().Diag(diag::err_drv_invalid_Xarch_argument_with_args)
         << A->getAsString(Args);
     return;
-  } else if (XarchArg->getOption().hasFlag(options::DriverOption)) {
-    getDriver().Diag(diag::err_drv_invalid_Xarch_argument_isdriver)
-        << A->getAsString(Args);
+  } else if (XarchArg->getOption().hasFlag(options::NoXarchOption)) {
+    auto &Diags = getDriver().getDiags();
+    unsigned DiagID =
+        Diags.getCustomDiagID(DiagnosticsEngine::Error,
+                              "invalid Xarch argument: '%0', not all driver "
+                              "options can be forwared via Xarch argument");
+    Diags.Report(DiagID) << A->getAsString(Args);
     return;
   }
   XarchArg->setBaseArg(A);

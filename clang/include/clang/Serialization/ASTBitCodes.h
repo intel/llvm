@@ -1085,6 +1085,9 @@ public:
       // \brief SVE types with auto numeration
 #define SVE_TYPE(Name, Id, SingletonId) PREDEF_TYPE_##Id##_ID,
 #include "clang/Basic/AArch64SVEACLETypes.def"
+      // \brief  PowerPC MMA types with auto numeration
+#define PPC_VECTOR_TYPE(Name, Id, Size) PREDEF_TYPE_##Id##_ID,
+#include "clang/Basic/PPCTypes.def"
     };
 
     /// The number of predefined type IDs that are reserved for
@@ -1285,6 +1288,9 @@ public:
 
       /// A MSGuidDecl record.
       DECL_MS_GUID,
+
+      /// A TemplateParamObjectDecl record.
+      DECL_TEMPLATE_PARAM_OBJECT,
 
       /// A VarDecl record.
       DECL_VAR,

@@ -146,3 +146,40 @@ define <vscale x 4 x i32> @extractelement_insertelement_diff_positions(<vscale x
   %4 = insertelement <vscale x 4 x i32> %3, i32 %vec.e3, i32 3
   ret <vscale x 4 x i32> %4
 }
+
+define i32 @bitcast_of_extractelement( <vscale x 2 x float> %d) {
+; CHECK-LABEL: @bitcast_of_extractelement(
+; CHECK-NEXT:    [[BC:%.*]] = bitcast <vscale x 2 x float> [[D:%.*]] to <vscale x 2 x i32>
+; CHECK-NEXT:    [[CAST:%.*]] = extractelement <vscale x 2 x i32> [[BC]], i32 0
+; CHECK-NEXT:    ret i32 [[CAST]]
+;
+  %ext = extractelement <vscale x 2 x float> %d, i32 0
+  %cast = bitcast float %ext to i32
+  ret i32 %cast
+}
+
+define i1 @extractelement_is_zero(<vscale x 2 x i32> %d, i1 %b, i32 %z) {
+; CHECK-LABEL: @extractelement_is_zero(
+; CHECK-NEXT:    [[EXT:%.*]] = extractelement <vscale x 2 x i32> [[D:%.*]], i32 0
+; CHECK-NEXT:    [[BB:%.*]] = icmp eq i32 [[EXT]], 0
+; CHECK-NEXT:    ret i1 [[BB]]
+;
+  %ext = extractelement <vscale x 2 x i32> %d, i32 0
+  %bb = icmp eq i32 %ext, 0
+  ret i1 %bb
+}
+
+; OSS-Fuzz #25272
+; https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=25272
+define i32 @ossfuzz_25272(float %f) {
+; CHECK-LABEL: @ossfuzz_25272(
+; CHECK-NEXT:    [[VEC_FLOAT:%.*]] = insertelement <vscale x 4 x float> undef, float [[F:%.*]], i32 0
+; CHECK-NEXT:    [[VEC_INT:%.*]] = bitcast <vscale x 4 x float> [[VEC_FLOAT]] to <vscale x 4 x i32>
+; CHECK-NEXT:    [[E:%.*]] = extractelement <vscale x 4 x i32> [[VEC_INT]], i32 2147483647
+; CHECK-NEXT:    ret i32 [[E]]
+;
+  %vec_float = insertelement <vscale x 4 x float> undef, float %f, i32 0
+  %vec_int = bitcast <vscale x 4 x float> %vec_float to <vscale x 4 x i32>
+  %E = extractelement <vscale x 4 x i32> %vec_int, i32 2147483647
+  ret i32 %E
+}

@@ -64,6 +64,8 @@ bool PPCTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       FloatABI = SoftFloat;
     } else if (Feature == "+paired-vector-memops") {
       PairedVectorMemops = true;
+    } else if (Feature == "+mma") {
+      HasMMA = true;
     }
     // TODO: Finish this list and add an assert that we've handled them
     // all.
@@ -120,6 +122,10 @@ void PPCTargetInfo::getTargetDefines(const LangOptions &Opts,
   if (LongDoubleWidth == 128) {
     Builder.defineMacro("__LONG_DOUBLE_128__");
     Builder.defineMacro("__LONGDOUBLE128");
+    if (Opts.PPCIEEELongDouble)
+      Builder.defineMacro("__LONG_DOUBLE_IEEE128__");
+    else
+      Builder.defineMacro("__LONG_DOUBLE_IBM128__");
   }
 
   // Define this for elfv2 (64-bit only) or 64-bit darwin.
@@ -184,6 +190,8 @@ void PPCTargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__FLOAT128__");
   if (HasP9Vector)
     Builder.defineMacro("__POWER9_VECTOR__");
+  if (HasMMA)
+    Builder.defineMacro("__MMA__");
   if (HasP10Vector)
     Builder.defineMacro("__POWER10_VECTOR__");
 
@@ -221,6 +229,7 @@ void PPCTargetInfo::getTargetDefines(const LangOptions &Opts,
 // - float128
 // - power9-vector
 // - paired-vector-memops
+// - mma
 // - power10-vector
 // then go ahead and error since the customer has expressed an incompatible
 // set of options.
@@ -244,6 +253,7 @@ static bool ppcUserFeaturesCheck(DiagnosticsEngine &Diags,
   Found |= FindVSXSubfeature("+float128", "-mfloat128");
   Found |= FindVSXSubfeature("+power9-vector", "-mpower9-vector");
   Found |= FindVSXSubfeature("+paired-vector-memops", "-mpaired-vector-memops");
+  Found |= FindVSXSubfeature("+mma", "-mmma");
   Found |= FindVSXSubfeature("+power10-vector", "-mpower10-vector");
 
   // Return false if any vsx subfeatures was found.
@@ -307,6 +317,9 @@ bool PPCTargetInfo::initFeatureMap(
                         .Case("pwr9", true)
                         .Case("pwr8", true)
                         .Default(false);
+  Features["float128"] = llvm::StringSwitch<bool>(CPU)
+                        .Case("pwr9", true)
+                        .Default(false);
 
   Features["spe"] = llvm::StringSwitch<bool>(CPU)
                         .Case("8548", true)
@@ -337,6 +350,13 @@ bool PPCTargetInfo::initFeatureMap(
     return false;
   }
 
+  if (!(ArchDefs & ArchDefinePwr10) &&
+      llvm::find(FeaturesVec, "+mma") != FeaturesVec.end()) {
+    // We have MMA on PPC but not power 10 and above.
+    Diags.Report(diag::err_opt_not_valid_with_opt) << "-mmma" << CPU;
+    return false;
+  }
+
   return TargetInfo::initFeatureMap(Features, Diags, CPU, FeaturesVec);
 }
 
@@ -345,6 +365,7 @@ void PPCTargetInfo::addP10SpecificFeatures(
     llvm::StringMap<bool> &Features) const {
   Features["htm"] = false; // HTM was removed for P10.
   Features["paired-vector-memops"] = true;
+  Features["mma"] = true;
   Features["power10-vector"] = true;
   Features["pcrelative-memops"] = true;
   return;
@@ -373,6 +394,7 @@ bool PPCTargetInfo::hasFeature(StringRef Feature) const {
       .Case("power10-vector", HasP10Vector)
       .Case("pcrelative-memops", HasPCRelativeMemops)
       .Case("spe", HasSPE)
+      .Case("mma", HasMMA)
       .Default(false);
 }
 
@@ -389,6 +411,7 @@ void PPCTargetInfo::setFeatureEnabled(llvm::StringMap<bool> &Features,
                              .Case("paired-vector-memops", true)
                              .Case("power10-vector", true)
                              .Case("float128", true)
+                             .Case("mma", true)
                              .Default(false);
     if (FeatureHasVSX)
       Features["vsx"] = Features["altivec"] = true;
@@ -406,13 +429,14 @@ void PPCTargetInfo::setFeatureEnabled(llvm::StringMap<bool> &Features,
     if ((Name == "altivec") || (Name == "vsx"))
       Features["vsx"] = Features["direct-move"] = Features["power8-vector"] =
           Features["float128"] = Features["power9-vector"] =
-              Features["paired-vector-memops"] = Features["power10-vector"] =
-                  false;
+              Features["paired-vector-memops"] = Features["mma"] =
+                  Features["power10-vector"] = false;
     if (Name == "power8-vector")
       Features["power9-vector"] = Features["paired-vector-memops"] =
-          Features["power10-vector"] = false;
+          Features["mma"] = Features["power10-vector"] = false;
     else if (Name == "power9-vector")
-      Features["paired-vector-memops"] = Features["power10-vector"] = false;
+      Features["paired-vector-memops"] = Features["mma"] =
+          Features["power10-vector"] = false;
     if (Name == "pcrel")
       Features["pcrelative-memops"] = false;
     else

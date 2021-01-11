@@ -21,6 +21,9 @@
 
 namespace scudo {
 
+void setRandomTag(void *Ptr, uptr Size, uptr ExcludeMask, uptr *TaggedBegin,
+                  uptr *TaggedEnd);
+
 #if defined(__aarch64__) || defined(SCUDO_FUZZ)
 
 inline constexpr bool archSupportsMemoryTagging() { return true; }
@@ -28,9 +31,7 @@ inline constexpr uptr archMemoryTagGranuleSize() { return 16; }
 
 inline uptr untagPointer(uptr Ptr) { return Ptr & ((1ULL << 56) - 1); }
 
-inline uint8_t extractTag(uptr Ptr) {
-  return (Ptr >> 56) & 0xf;
-}
+inline uint8_t extractTag(uptr Ptr) { return (Ptr >> 56) & 0xf; }
 
 #else
 
@@ -82,7 +83,7 @@ inline void enableMemoryTagChecksTestOnly() {
 class ScopedDisableMemoryTagChecks {
   size_t PrevTCO;
 
- public:
+public:
   ScopedDisableMemoryTagChecks() {
     __asm__ __volatile__(".arch_extension mte; mrs %0, tco; msr tco, #1"
                          : "=r"(PrevTCO));
@@ -93,37 +94,32 @@ class ScopedDisableMemoryTagChecks {
   }
 };
 
-inline void setRandomTag(void *Ptr, uptr Size, uptr ExcludeMask,
-                         uptr *TaggedBegin, uptr *TaggedEnd) {
-  void *End;
+inline uptr selectRandomTag(uptr Ptr, uptr ExcludeMask) {
+  uptr TaggedPtr;
   __asm__ __volatile__(
-      R"(
-    .arch_extension mte
+      ".arch_extension mte; irg %[TaggedPtr], %[Ptr], %[ExcludeMask]"
+      : [TaggedPtr] "=r"(TaggedPtr)
+      : [Ptr] "r"(Ptr), [ExcludeMask] "r"(ExcludeMask));
+  return TaggedPtr;
+}
 
-    // Set a random tag for Ptr in TaggedPtr. This needs to happen even if
-    // Size = 0 so that TaggedPtr ends up pointing at a valid address.
-    irg %[TaggedPtr], %[Ptr], %[ExcludeMask]
-    mov %[Cur], %[TaggedPtr]
+inline uptr storeTags(uptr Begin, uptr End) {
+  DCHECK(Begin % 16 == 0);
+  if (Begin != End) {
+    __asm__ __volatile__(
+        R"(
+      .arch_extension mte
 
-    // Skip the loop if Size = 0. We don't want to do any tagging in this case.
-    cbz %[Size], 2f
-
-    // Set the memory tag of the region
-    // [TaggedPtr, TaggedPtr + roundUpTo(Size, 16))
-    // to the pointer tag stored in TaggedPtr.
-    add %[End], %[TaggedPtr], %[Size]
-
-  1:
-    stzg %[Cur], [%[Cur]], #16
-    cmp %[Cur], %[End]
-    b.lt 1b
-
-  2:
-  )"
-      :
-      [TaggedPtr] "=&r"(*TaggedBegin), [Cur] "=&r"(*TaggedEnd), [End] "=&r"(End)
-      : [Ptr] "r"(Ptr), [Size] "r"(Size), [ExcludeMask] "r"(ExcludeMask)
-      : "memory");
+    1:
+      stzg %[Cur], [%[Cur]], #16
+      cmp %[Cur], %[End]
+      b.lt 1b
+    )"
+        : [Cur] "+&r"(Begin)
+        : [End] "r"(End)
+        : "memory");
+  }
+  return Begin;
 }
 
 inline void *prepareTaggedChunk(void *Ptr, uptr Size, uptr ExcludeMask,
@@ -190,8 +186,8 @@ inline void resizeTaggedChunk(uptr OldPtr, uptr NewPtr, uptr BlockEnd) {
 
   2:
   )"
-                       : [ Cur ] "+&r"(RoundOldPtr), [ End ] "+&r"(NewPtr)
-                       : [ BlockEnd ] "r"(BlockEnd)
+                       : [Cur] "+&r"(RoundOldPtr), [End] "+&r"(NewPtr)
+                       : [BlockEnd] "r"(BlockEnd)
                        : "memory");
 }
 
@@ -226,13 +222,15 @@ struct ScopedDisableMemoryTagChecks {
   ScopedDisableMemoryTagChecks() {}
 };
 
-inline void setRandomTag(void *Ptr, uptr Size, uptr ExcludeMask,
-                         uptr *TaggedBegin, uptr *TaggedEnd) {
+inline uptr selectRandomTag(uptr Ptr, uptr ExcludeMask) {
   (void)Ptr;
-  (void)Size;
   (void)ExcludeMask;
-  (void)TaggedBegin;
-  (void)TaggedEnd;
+  UNREACHABLE("memory tagging not supported");
+}
+
+inline uptr storeTags(uptr Begin, uptr End) {
+  (void)Begin;
+  (void)End;
   UNREACHABLE("memory tagging not supported");
 }
 
@@ -258,6 +256,12 @@ inline uptr loadTag(uptr Ptr) {
 }
 
 #endif
+
+inline void setRandomTag(void *Ptr, uptr Size, uptr ExcludeMask,
+                         uptr *TaggedBegin, uptr *TaggedEnd) {
+  *TaggedBegin = selectRandomTag(reinterpret_cast<uptr>(Ptr), ExcludeMask);
+  *TaggedEnd = storeTags(*TaggedBegin, *TaggedBegin + Size);
+}
 
 } // namespace scudo
 

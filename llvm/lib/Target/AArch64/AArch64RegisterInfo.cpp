@@ -15,7 +15,6 @@
 #include "AArch64FrameLowering.h"
 #include "AArch64InstrInfo.h"
 #include "AArch64MachineFunctionInfo.h"
-#include "AArch64StackOffset.h"
 #include "AArch64Subtarget.h"
 #include "MCTargetDesc/AArch64AddressingModes.h"
 #include "llvm/ADT/BitVector.h"
@@ -238,6 +237,14 @@ AArch64RegisterInfo::getCallPreservedMask(const MachineFunction &MF,
                : CSR_AArch64_RT_MostRegs_RegMask;
   else
     return SCS ? CSR_AArch64_AAPCS_SCS_RegMask : CSR_AArch64_AAPCS_RegMask;
+}
+
+const uint32_t *AArch64RegisterInfo::getCustomEHPadPreservedMask(
+    const MachineFunction &MF) const {
+  if (MF.getSubtarget<AArch64Subtarget>().isTargetLinux())
+    return CSR_AArch64_AAPCS_RegMask;
+
+  return nullptr;
 }
 
 const uint32_t *AArch64RegisterInfo::getTLSCallPreservedMask() const {
@@ -517,7 +524,7 @@ bool AArch64RegisterInfo::isFrameOffsetLegal(const MachineInstr *MI,
                                              Register BaseReg,
                                              int64_t Offset) const {
   assert(MI && "Unable to get the legal offset for nil instruction.");
-  StackOffset SaveOffset(Offset, MVT::i8);
+  StackOffset SaveOffset = StackOffset::getFixed(Offset);
   return isAArch64FrameOffsetLegal(*MI, SaveOffset) & AArch64FrameOffsetIsLegal;
 }
 
@@ -548,14 +555,14 @@ void AArch64RegisterInfo::materializeFrameBaseRegister(MachineBasicBlock *MBB,
 void AArch64RegisterInfo::resolveFrameIndex(MachineInstr &MI, Register BaseReg,
                                             int64_t Offset) const {
   // ARM doesn't need the general 64-bit offsets
-  StackOffset Off(Offset, MVT::i8);
+  StackOffset Off = StackOffset::getFixed(Offset);
 
   unsigned i = 0;
-
   while (!MI.getOperand(i).isFI()) {
     ++i;
     assert(i < MI.getNumOperands() && "Instr doesn't have FrameIndex operand!");
   }
+
   const MachineFunction *MF = MI.getParent()->getParent();
   const AArch64InstrInfo *TII =
       MF->getSubtarget<AArch64Subtarget>().getInstrInfo();
@@ -597,29 +604,31 @@ void AArch64RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   const AArch64InstrInfo *TII =
       MF.getSubtarget<AArch64Subtarget>().getInstrInfo();
   const AArch64FrameLowering *TFI = getFrameLowering(MF);
-
   int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
   bool Tagged =
       MI.getOperand(FIOperandNum).getTargetFlags() & AArch64II::MO_TAGGED;
   Register FrameReg;
 
-  // Special handling of dbg_value, stackmap and patchpoint instructions.
+  // Special handling of dbg_value, stackmap patchpoint statepoint instructions.
   if (MI.isDebugValue() || MI.getOpcode() == TargetOpcode::STACKMAP ||
-      MI.getOpcode() == TargetOpcode::PATCHPOINT) {
+      MI.getOpcode() == TargetOpcode::PATCHPOINT ||
+      MI.getOpcode() == TargetOpcode::STATEPOINT) {
     StackOffset Offset =
         TFI->resolveFrameIndexReference(MF, FrameIndex, FrameReg,
                                         /*PreferFP=*/true,
                                         /*ForSimm=*/false);
-    Offset += StackOffset(MI.getOperand(FIOperandNum + 1).getImm(), MVT::i8);
+    Offset += StackOffset::getFixed(MI.getOperand(FIOperandNum + 1).getImm());
     MI.getOperand(FIOperandNum).ChangeToRegister(FrameReg, false /*isDef*/);
-    MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset.getBytes());
+    MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset.getFixed());
     return;
   }
 
   if (MI.getOpcode() == TargetOpcode::LOCAL_ESCAPE) {
     MachineOperand &FI = MI.getOperand(FIOperandNum);
-    int Offset = TFI->getNonLocalFrameIndexReference(MF, FrameIndex);
-    FI.ChangeToImmediate(Offset);
+    StackOffset Offset = TFI->getNonLocalFrameIndexReference(MF, FrameIndex);
+    assert(!Offset.getScalable() &&
+           "Frame offsets with a scalable component are not supported");
+    FI.ChangeToImmediate(Offset.getFixed());
     return;
   }
 
@@ -628,12 +637,11 @@ void AArch64RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     // TAGPstack must use the virtual frame register in its 3rd operand.
     const AArch64FunctionInfo *AFI = MF.getInfo<AArch64FunctionInfo>();
     FrameReg = MI.getOperand(3).getReg();
-    Offset = {MFI.getObjectOffset(FrameIndex) +
-                  AFI->getTaggedBasePointerOffset(),
-              MVT::i8};
+    Offset = StackOffset::getFixed(MFI.getObjectOffset(FrameIndex) +
+                                      AFI->getTaggedBasePointerOffset());
   } else if (Tagged) {
-    StackOffset SPOffset = {
-        MFI.getObjectOffset(FrameIndex) + (int64_t)MFI.getStackSize(), MVT::i8};
+    StackOffset SPOffset = StackOffset::getFixed(
+        MFI.getObjectOffset(FrameIndex) + (int64_t)MFI.getStackSize());
     if (MFI.hasVarSizedObjects() ||
         isAArch64FrameOffsetLegal(MI, SPOffset, nullptr, nullptr, nullptr) !=
             (AArch64FrameOffsetCanUpdate | AArch64FrameOffsetIsLegal)) {
@@ -654,8 +662,8 @@ void AArch64RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
       return;
     }
     FrameReg = AArch64::SP;
-    Offset = {MFI.getObjectOffset(FrameIndex) + (int64_t)MFI.getStackSize(),
-              MVT::i8};
+    Offset = StackOffset::getFixed(MFI.getObjectOffset(FrameIndex) +
+                                   (int64_t)MFI.getStackSize());
   } else {
     Offset = TFI->resolveFrameIndexReference(
         MF, FrameIndex, FrameReg, /*PreferFP=*/false, /*ForSimm=*/true);
@@ -725,4 +733,20 @@ unsigned AArch64RegisterInfo::getLocalAddressRegister(
   else if (needsStackRealignment(MF))
     return getBaseRegister();
   return getFrameRegister(MF);
+}
+
+/// SrcRC and DstRC will be morphed into NewRC if this returns true
+bool AArch64RegisterInfo::shouldCoalesce(
+    MachineInstr *MI, const TargetRegisterClass *SrcRC, unsigned SubReg,
+    const TargetRegisterClass *DstRC, unsigned DstSubReg,
+    const TargetRegisterClass *NewRC, LiveIntervals &LIS) const {
+  if (MI->isCopy() &&
+      ((DstRC->getID() == AArch64::GPR64RegClassID) ||
+       (DstRC->getID() == AArch64::GPR64commonRegClassID)) &&
+      MI->getOperand(0).getSubReg() && MI->getOperand(1).getSubReg())
+    // Do not coalesce in the case of a 32-bit subregister copy
+    // which implements a 32 to 64 bit zero extension
+    // which relies on the upper 32 bits being zeroed.
+    return false;
+  return true;
 }

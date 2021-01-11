@@ -59,10 +59,8 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/Twine.h"
-#include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineOptimizationRemarkEmitter.h"
-#include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
@@ -656,6 +654,8 @@ MachineFunction *MachineOutliner::createOutlinedFunction(
       OriginalMF->getFrameInstructions();
   for (auto I = FirstCand.front(), E = std::next(FirstCand.back()); I != E;
        ++I) {
+    if (I->isDebugInstr())
+      continue;
     MachineInstr *NewMI = MF.CloneMachineInstr(&*I);
     if (I->isCFIInstruction()) {
       unsigned CFIIndex = NewMI->getOperand(0).getCFIIndex();

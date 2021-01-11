@@ -121,6 +121,7 @@ Linux              amd64                 GCC, Clang
 Linux              ARM                   GCC, Clang
 Linux              Mips                  GCC, Clang
 Linux              PowerPC               GCC, Clang
+Linux              SystemZ               GCC, Clang
 Solaris            V9 (Ultrasparc)       GCC
 FreeBSD            x86\ :sup:`1`         GCC, Clang
 FreeBSD            amd64                 GCC, Clang
@@ -169,7 +170,7 @@ Package                                                     Version      Notes
 =========================================================== ============ ==========================================
 `CMake <http://cmake.org/>`__                               >=3.13.4     Makefile/workspace generator
 `GCC <http://gcc.gnu.org/>`_                                >=5.1.0      C/C++ compiler\ :sup:`1`
-`python <http://www.python.org/>`_                          >=2.7        Automated test suite\ :sup:`2`
+`python <http://www.python.org/>`_                          >=3.6        Automated test suite\ :sup:`2`
 `zlib <http://zlib.net>`_                                   >=1.2.3.4    Compression library\ :sup:`3`
 `GNU Make <http://savannah.gnu.org/projects/make>`_         3.79, 3.79.1 Makefile/build processor\ :sup:`4`
 =========================================================== ============ ==========================================
@@ -527,6 +528,9 @@ not allowed. The `llvm-project` repo on github is configured to reject pushes
 that include merges, so the `git rebase` step above is required.
 
 Please ask for help if you're having trouble with your particular git workflow.
+
+
+.. _git_pre_push_hook:
 
 Git pre-push hook
 ^^^^^^^^^^^^^^^^^

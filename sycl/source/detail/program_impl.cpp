@@ -11,6 +11,7 @@
 #include <CL/sycl/detail/pi.h>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/property_list.hpp>
+#include <detail/kernel_impl.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/spec_constant_impl.hpp>
 
@@ -380,7 +381,7 @@ void program_impl::build(const string_class &Options) {
   check_device_feature_support<info::device::is_compiler_available>(MDevices);
   vector_class<RT::PiDevice> Devices(get_pi_devices());
   const detail::plugin &Plugin = getPlugin();
-  ProgramManager::getInstance().flushSpecConstants(*this, get_pi_devices()[0]);
+  ProgramManager::getInstance().flushSpecConstants(*this);
   RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
       MProgram, Devices.size(), Devices.data(), Options.c_str(), nullptr,
       nullptr);
@@ -522,25 +523,54 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
                                         RT::PiProgram NativePrg) const {
   // iterate via all specialization constants the program's image depends on,
   // and set each to current runtime value (if any)
-  const pi::DeviceBinaryImage::PropertyRange &SCRange = Img.getSpecConstants();
+  const pi::DeviceBinaryImage::PropertyRange &ScalarSCRange =
+      Img.getScalarSpecConstants();
+  const pi::DeviceBinaryImage::PropertyRange &CompositeSCRange =
+      Img.getCompositeSpecConstants();
   ContextImplPtr Ctx = getSyclObjImpl(get_context());
   using SCItTy = pi::DeviceBinaryImage::PropertyRange::ConstIterator;
 
   auto LockGuard = Ctx->getKernelProgramCache().acquireCachedPrograms();
+  NativePrg = NativePrg ? NativePrg : getHandleRef();
 
-  for (SCItTy SCIt : SCRange) {
-    const char *SCName = (*SCIt)->Name;
-    auto SCEntry = SpecConstRegistry.find(SCName);
+  for (SCItTy SCIt : ScalarSCRange) {
+    auto SCEntry = SpecConstRegistry.find((*SCIt)->Name);
     if (SCEntry == SpecConstRegistry.end())
       // spec constant has not been set in user code - SPIR-V will use default
       continue;
     const spec_constant_impl &SC = SCEntry->second;
     assert(SC.isSet() && "uninitialized spec constant");
-    pi_device_binary_property SCProp = *SCIt;
-    pi_uint32 ID = pi::DeviceBinaryProperty(SCProp).asUint32();
-    NativePrg = NativePrg ? NativePrg : getHandleRef();
+    pi_uint32 ID = pi::DeviceBinaryProperty(*SCIt).asUint32();
     Ctx->getPlugin().call<PiApiKind::piextProgramSetSpecializationConstant>(
         NativePrg, ID, SC.getSize(), SC.getValuePtr());
+  }
+
+  for (SCItTy SCIt : CompositeSCRange) {
+    auto SCEntry = SpecConstRegistry.find((*SCIt)->Name);
+    if (SCEntry == SpecConstRegistry.end())
+      // spec constant has not been set in user code - SPIR-V will use default
+      continue;
+    const spec_constant_impl &SC = SCEntry->second;
+    assert(SC.isSet() && "uninitialized spec constant");
+    pi::ByteArray Descriptors = pi::DeviceBinaryProperty(*SCIt).asByteArray();
+    // First 8 bytes are consumed by size of the property
+    assert(Descriptors.size() > 8 && "Unexpected property size");
+    // Expected layout is vector of 3-component tuples (flattened into a vector
+    // of scalars), where each tuple consists of: ID of a scalar spec constant,
+    // which is a member of the composite; offset, which is used to calculate
+    // location of scalar member within the composite; size of a scalar member
+    // of the composite.
+    assert(((Descriptors.size() - 8) / sizeof(std::uint32_t)) % 3 == 0 &&
+           "unexpected layout of composite spec const descriptors");
+    auto *It = reinterpret_cast<const std::uint32_t *>(&Descriptors[8]);
+    auto *End = reinterpret_cast<const std::uint32_t *>(&Descriptors[0] +
+                                                        Descriptors.size());
+    while (It != End) {
+      Ctx->getPlugin().call<PiApiKind::piextProgramSetSpecializationConstant>(
+          NativePrg, /* ID */ It[0], /* Size */ It[2],
+          SC.getValuePtr() + /* Offset */ It[1]);
+      It += 3;
+    }
   }
 }
 

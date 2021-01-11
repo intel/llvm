@@ -8,11 +8,9 @@
 
 #include "Annotations.h"
 #include "ClangdLSPServer.h"
-#include "CodeComplete.h"
 #include "LSPClient.h"
 #include "Protocol.h"
 #include "TestFS.h"
-#include "refactor/Rename.h"
 #include "support/Logger.h"
 #include "support/TestTracer.h"
 #include "llvm/ADT/StringRef.h"
@@ -36,13 +34,16 @@ MATCHER_P(DiagMessage, M, "") {
 
 class LSPTest : public ::testing::Test, private clangd::Logger {
 protected:
-  LSPTest() : LogSession(*this) {}
+  LSPTest() : LogSession(*this) {
+    ClangdServer::Options &Base = Opts;
+    Base = ClangdServer::optsForTest();
+    // This is needed to we can test index-based operations like call hierarchy.
+    Base.BuildDynamicSymbolIndex = true;
+  }
 
   LSPClient &start() {
     EXPECT_FALSE(Server.hasValue()) << "Already initialized";
-    Server.emplace(Client.transport(), FS, CCOpts, RenameOpts,
-                   /*CompileCommandsDir=*/llvm::None, /*UseDirBasedCDB=*/false,
-                   /*ForcedOffsetEncoding=*/llvm::None, Opts);
+    Server.emplace(Client.transport(), FS, Opts);
     ServerThread.emplace([&] { EXPECT_TRUE(Server->run()); });
     Client.call("initialize", llvm::json::Object{});
     return Client;
@@ -64,13 +65,12 @@ protected:
   }
 
   MockFS FS;
-  CodeCompleteOptions CCOpts;
-  RenameOptions RenameOpts;
-  ClangdServer::Options Opts = ClangdServer::optsForTest();
+  ClangdLSPServer::Options Opts;
 
 private:
   // Color logs so we can distinguish them from test output.
-  void log(Level L, const llvm::formatv_object_base &Message) override {
+  void log(Level L, const char *Fmt,
+           const llvm::formatv_object_base &Message) override {
     raw_ostream::Colors Color;
     switch (L) {
     case Level::Verbose:
@@ -167,6 +167,33 @@ TEST_F(LSPTest, RecordsLatencies) {
   stop();
   EXPECT_THAT(Tracer.takeMetric("lsp_latency", MethodName), testing::SizeIs(1));
 }
+
+TEST_F(LSPTest, IncomingCalls) {
+  Annotations Code(R"cpp(
+    void calle^e(int);
+    void caller1() {
+      [[callee]](42);
+    }
+  )cpp");
+  auto &Client = start();
+  Client.didOpen("foo.cpp", Code.code());
+  auto Items = Client
+                   .call("textDocument/prepareCallHierarchy",
+                         llvm::json::Object{
+                             {"textDocument", Client.documentID("foo.cpp")},
+                             {"position", Code.point()}})
+                   .takeValue();
+  auto FirstItem = (*Items.getAsArray())[0];
+  auto Calls = Client
+                   .call("callHierarchy/incomingCalls",
+                         llvm::json::Object{{"item", FirstItem}})
+                   .takeValue();
+  auto FirstCall = *(*Calls.getAsArray())[0].getAsObject();
+  EXPECT_EQ(FirstCall["fromRanges"], llvm::json::Value{Code.range()});
+  auto From = *FirstCall["from"].getAsObject();
+  EXPECT_EQ(From["name"], "caller1");
+}
+
 } // namespace
 } // namespace clangd
 } // namespace clang

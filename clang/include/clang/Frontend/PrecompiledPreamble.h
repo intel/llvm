@@ -26,6 +26,7 @@
 
 namespace llvm {
 class MemoryBuffer;
+class MemoryBufferRef;
 namespace vfs {
 class FileSystem;
 }
@@ -40,7 +41,7 @@ class PCHContainerOperations;
 
 /// Runs lexer to compute suggested preamble bounds.
 PreambleBounds ComputePreambleBounds(const LangOptions &LangOpts,
-                                     const llvm::MemoryBuffer *Buffer,
+                                     const llvm::MemoryBufferRef &Buffer,
                                      unsigned MaxLines);
 
 class PreambleCallbacks;
@@ -216,7 +217,7 @@ private:
 
     static PreambleFileHash createForFile(off_t Size, time_t ModTime);
     static PreambleFileHash
-    createForMemoryBuffer(const llvm::MemoryBuffer *Buffer);
+    createForMemoryBuffer(const llvm::MemoryBufferRef &Buffer);
 
     friend bool operator==(const PreambleFileHash &LHS,
                            const PreambleFileHash &RHS) {

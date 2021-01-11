@@ -21,4 +21,10 @@
 /// Check that -sycl-std=2017 is set if no std version is provided by user
 // RUN:   %clang -### -fsycl %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-SYCL-STD_VERSION %s
-// CHECK-SYCL-STD_VERSION: clang{{.*}} "-sycl-std=2017"
+// CHECK-SYCL-STD_VERSION: clang{{.*}} "-sycl-std=2020"
+
+/// Check that -aux-triple is set correctly
+// RUN:   %clang -### -fsycl -target aarch64-linux-gnu %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-SYCL-AUX-TRIPLE %s
+// TODO: %clang -### -fsycl -fsycl-device-only -target aarch64-linux-gnu
+// CHECK-SYCL-AUX-TRIPLE: clang{{.*}} "-aux-triple" "aarch64-unknown-linux-gnu"

@@ -18,9 +18,15 @@ set(TARGET_LIBC_ENTRYPOINTS
     # errno.h entrypoints
     libc.src.errno.__errno_location
 
+    # stdlib.h entrypoints
+    libc.src.stdlib.abs
+    libc.src.stdlib.labs
+    libc.src.stdlib.llabs
+
     # string.h entrypoints
     libc.src.string.bzero
     libc.src.string.memchr
+    libc.src.string.memcmp
     libc.src.string.memcpy
     libc.src.string.memset
     libc.src.string.memrchr
@@ -29,6 +35,7 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.string.strcpy
     libc.src.string.strcspn
     libc.src.string.strlen
+    libc.src.string.strncpy
     libc.src.string.strnlen
     libc.src.string.strpbrk
     libc.src.string.strrchr
@@ -52,6 +59,9 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.fabs
     libc.src.math.fabsf
     libc.src.math.fabsl
+    libc.src.math.fdim
+    libc.src.math.fdimf
+    libc.src.math.fdiml
     libc.src.math.floor
     libc.src.math.floorf
     libc.src.math.floorl
@@ -64,17 +74,34 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.frexp
     libc.src.math.frexpf
     libc.src.math.frexpl
+    libc.src.math.hypot
+    libc.src.math.hypotf
+    libc.src.math.ilogb
+    libc.src.math.ilogbf
+    libc.src.math.ilogbl
+    libc.src.math.ldexp
+    libc.src.math.ldexpf
+    libc.src.math.ldexpl
     libc.src.math.logb
     libc.src.math.logbf
     libc.src.math.logbl
     libc.src.math.modf
     libc.src.math.modff
     libc.src.math.modfl
+    libc.src.math.remainderf
+    libc.src.math.remainder
+    libc.src.math.remainderl
+    libc.src.math.remquof
+    libc.src.math.remquo
+    libc.src.math.remquol
     libc.src.math.round
     libc.src.math.roundf
     libc.src.math.roundl
     libc.src.math.sincosf
     libc.src.math.sinf
+    libc.src.math.sqrt
+    libc.src.math.sqrtf
+    libc.src.math.sqrtl
     libc.src.math.trunc
     libc.src.math.truncf
     libc.src.math.truncl

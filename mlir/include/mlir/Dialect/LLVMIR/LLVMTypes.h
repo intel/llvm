@@ -41,6 +41,8 @@ class LLVMBFloatType;
 class LLVMHalfType;
 class LLVMFloatType;
 class LLVMDoubleType;
+class LLVMFP128Type;
+class LLVMX86FP80Type;
 class LLVMIntegerType;
 
 //===----------------------------------------------------------------------===//
@@ -50,8 +52,8 @@ class LLVMIntegerType;
 /// Base class for LLVM dialect types.
 ///
 /// The LLVM dialect in MLIR fully reflects the LLVM IR type system, prodiving a
-/// sperate MLIR type for each LLVM IR type. All types are represted as separate
-/// subclasses and are compatible with the isa/cast infrastructure. For
+/// separate MLIR type for each LLVM IR type. All types are represented as
+/// separate subclasses and are compatible with the isa/cast infrastructure. For
 /// convenience, the base class provides most of the APIs available on
 /// llvm::Type in addition to MLIR-compatible APIs.
 ///
@@ -89,9 +91,12 @@ public:
   bool isHalfTy() { return isa<LLVMHalfType>(); }
   bool isFloatTy() { return isa<LLVMFloatType>(); }
   bool isDoubleTy() { return isa<LLVMDoubleType>(); }
+  bool isFP128Ty() { return isa<LLVMFP128Type>(); }
+  bool isX86_FP80Ty() { return isa<LLVMX86FP80Type>(); }
   bool isFloatingPointTy() {
     return isa<LLVMHalfType>() || isa<LLVMBFloatType>() ||
-           isa<LLVMFloatType>() || isa<LLVMDoubleType>();
+           isa<LLVMFloatType>() || isa<LLVMDoubleType>() ||
+           isa<LLVMFP128Type>() || isa<LLVMX86FP80Type>();
   }
 
   /// Array type utilities.
@@ -422,7 +427,7 @@ public:
 class LLVMStructType : public Type::TypeBase<LLVMStructType, LLVMType,
                                              detail::LLVMStructTypeStorage> {
 public:
-  /// Inherit base construtors.
+  /// Inherit base constructors.
   using Base::Base;
 
   /// Checks if the given type can be contained in a structure type.

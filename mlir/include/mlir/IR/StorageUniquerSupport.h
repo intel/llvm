@@ -69,7 +69,7 @@ public:
   static TypeID getTypeID() { return TypeID::get<ConcreteT>(); }
 
   /// Provide an implementation of 'classof' that compares the type id of the
-  /// provided value with that of the concerete type.
+  /// provided value with that of the concrete type.
   template <typename T> static bool classof(T val) {
     static_assert(std::is_convertible<ConcreteT, T>::value,
                   "casting from a non-convertible type");
@@ -102,6 +102,12 @@ public:
     if (failed(ConcreteT::verifyConstructionInvariants(loc, args...)))
       return ConcreteT();
     return UniquerT::template get<ConcreteT>(loc.getContext(), args...);
+  }
+
+  /// Get an instance of the concrete type from a void pointer.
+  static ConcreteT getFromOpaquePointer(const void *ptr) {
+    return ptr ? BaseT::getFromOpaquePointer(ptr).template cast<ConcreteT>()
+               : nullptr;
   }
 
 protected:

@@ -105,7 +105,6 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
     set(LLVM_SHLIB_OUTPUT_INTDIR ${LLVM_LIBRARY_OUTPUT_INTDIR})
   endif()
 
-  option(LLVM_ENABLE_WARNINGS "Enable compiler warnings." ON)
   option(LLVM_INSTALL_TOOLCHAIN_ONLY
     "Only include toolchain files in the 'install' target." OFF)
 
@@ -136,39 +135,7 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   set( CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX} )
 
   if(LLVM_INCLUDE_TESTS)
-    if(CMAKE_VERSION VERSION_LESS 3.12)
-      include(FindPythonInterp)
-      if(NOT PYTHONINTERP_FOUND)
-        message(FATAL_ERROR
-  "Unable to find Python interpreter, required for builds and testing.
-
-  Please install Python or specify the PYTHON_EXECUTABLE CMake variable.")
-      endif()
-
-      if( ${PYTHON_VERSION_STRING} VERSION_LESS 2.7 )
-        message(FATAL_ERROR "Python 2.7 or newer is required")
-      endif()
-
-      add_executable(Python3::Interpreter IMPORTED)
-      set_target_properties(Python3::Interpreter PROPERTIES
-        IMPORTED_LOCATION ${PYTHON_EXECUTABLE})
-      set(Python3_EXECUTABLE ${PYTHON_EXECUTABLE})
-    else()
-      find_package(Python3 COMPONENTS Interpreter)
-      if(NOT Python3_Interpreter_FOUND)
-        message(WARNING "Python3 not found, using python2 as a fallback")
-        find_package(Python2 COMPONENTS Interpreter REQUIRED)
-        if(Python2_VERSION VERSION_LESS 2.7)
-          message(SEND_ERROR "Python 2.7 or newer is required")
-        endif()
-
-        # Treat python2 as python3
-        add_executable(Python3::Interpreter IMPORTED)
-        set_target_properties(Python3::Interpreter PROPERTIES
-          IMPORTED_LOCATION ${Python2_EXECUTABLE})
-        set(Python3_EXECUTABLE ${Python2_EXECUTABLE})
-      endif()
-    endif()
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
     # Check prebuilt llvm/utils.
     if(EXISTS ${LLVM_TOOLS_BINARY_DIR}/FileCheck${CMAKE_EXECUTABLE_SUFFIX}
@@ -262,9 +229,6 @@ set(ENABLE_LINKER_BUILD_ID OFF CACHE BOOL "pass --build-id to ld")
 set(ENABLE_X86_RELAX_RELOCATIONS ON CACHE BOOL
     "enable x86 relax relocations by default")
 
-set(ENABLE_EXPERIMENTAL_NEW_PASS_MANAGER FALSE CACHE BOOL
-  "Enable the experimental new pass manager by default.")
-
 set(CLANG_SPAWN_CC1 OFF CACHE BOOL
     "Whether clang should use a new process for the CC1 invocation")
 
@@ -325,23 +289,32 @@ set(CLANG_DEFAULT_OPENMP_RUNTIME "libomp" CACHE STRING
 # OpenMP offloading requires at least sm_35 because we use shuffle instructions
 # to generate efficient code for reductions and the atomicMax instruction on
 # 64-bit integers in the implementation of conditional lastprivate.
-set(CLANG_OPENMP_NVPTX_DEFAULT_ARCH "sm_35" CACHE STRING
-  "Default architecture for OpenMP offloading to Nvidia GPUs.")
-string(REGEX MATCH "^sm_([0-9]+)$" MATCHED_ARCH "${CLANG_OPENMP_NVPTX_DEFAULT_ARCH}")
-if (NOT DEFINED MATCHED_ARCH OR "${CMAKE_MATCH_1}" LESS 35)
-  message(WARNING "Resetting default architecture for OpenMP offloading to Nvidia GPUs to sm_35")
+set(CUDA_ARCH_FLAGS "sm_35")
+
+# Try to find the highest Nvidia GPU architecture the system supports
+if (NOT DEFINED CLANG_OPENMP_NVPTX_DEFAULT_ARCH)
+  find_package(CUDA QUIET)
+  if (CUDA_FOUND)
+    cuda_select_nvcc_arch_flags(CUDA_ARCH_FLAGS)
+  endif()
+else()
+  set(CUDA_ARCH_FLAGS ${CLANG_OPENMP_NVPTX_DEFAULT_ARCH})
+endif()
+
+string(REGEX MATCH "sm_([0-9]+)" CUDA_ARCH_MATCH ${CUDA_ARCH_FLAGS})
+if (NOT DEFINED CUDA_ARCH_MATCH OR "${CMAKE_MATCH_1}" LESS 35)
   set(CLANG_OPENMP_NVPTX_DEFAULT_ARCH "sm_35" CACHE STRING
     "Default architecture for OpenMP offloading to Nvidia GPUs." FORCE)
+  message(WARNING "Resetting default architecture for OpenMP offloading to Nvidia GPUs to sm_35")
+else()
+  set(CLANG_OPENMP_NVPTX_DEFAULT_ARCH ${CUDA_ARCH_MATCH} CACHE STRING
+    "Default architecture for OpenMP offloading to Nvidia GPUs.")
 endif()
 
 set(CLANG_SYSTEMZ_DEFAULT_ARCH "z10" CACHE STRING "SystemZ Default Arch")
 
 set(CLANG_VENDOR ${PACKAGE_VENDOR} CACHE STRING
   "Vendor-specific text for showing with version information.")
-
-if( CLANG_VENDOR )
-  add_definitions( -DCLANG_VENDOR="${CLANG_VENDOR} " )
-endif()
 
 set(CLANG_REPOSITORY_STRING "" CACHE STRING
   "Vendor-specific text for showing the repository the source is taken from.")
@@ -456,7 +429,6 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
     PATTERN "*.def"
     PATTERN "*.h"
     PATTERN "config.h" EXCLUDE
-    PATTERN ".svn" EXCLUDE
     )
 
   install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/clang
@@ -495,7 +467,8 @@ option(CLANG_BUILD_TOOLS
   "Build the Clang tools. If OFF, just generate build targets." ON)
 
 option(CLANG_ENABLE_ARCMT "Build ARCMT." ON)
-option(CLANG_ENABLE_STATIC_ANALYZER "Build static analyzer." ON)
+option(CLANG_ENABLE_STATIC_ANALYZER
+  "Include static analyzer in clang binary." ON)
 
 option(CLANG_ENABLE_PROTO_FUZZER "Build Clang protobuf fuzzer." OFF)
 

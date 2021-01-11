@@ -502,6 +502,26 @@ public:
   /// True if the current statement has nomerge attribute.
   bool InNoMergeAttributedStmt = false;
 
+  /// True if the current function should be marked mustprogress.
+  bool FnIsMustProgress = false;
+
+  /// True if the C++ Standard Requires Progress.
+  bool CPlusPlusWithProgress() {
+    return getLangOpts().CPlusPlus11 || getLangOpts().CPlusPlus14 ||
+           getLangOpts().CPlusPlus17 || getLangOpts().CPlusPlus20;
+  }
+
+  /// True if the C Standard Requires Progress.
+  bool CWithProgress() {
+    return getLangOpts().C11 || getLangOpts().C17 || getLangOpts().C2x;
+  }
+
+  /// True if the language standard requires progress in functions or
+  /// in infinite loops with non-constant conditionals.
+  bool LanguageRequiresProgress() {
+    return CWithProgress() || CPlusPlusWithProgress();
+  }
+
   const CodeGen::CGBlockInfo *BlockInfo = nullptr;
   llvm::Value *BlockPointer = nullptr;
 
@@ -608,11 +628,15 @@ public:
   class CGFPOptionsRAII {
   public:
     CGFPOptionsRAII(CodeGenFunction &CGF, FPOptions FPFeatures);
+    CGFPOptionsRAII(CodeGenFunction &CGF, const Expr *E);
     ~CGFPOptionsRAII();
 
   private:
+    void ConstructorHelper(FPOptions FPFeatures);
     CodeGenFunction &CGF;
     FPOptions OldFPFeatures;
+    llvm::fp::ExceptionBehavior OldExcept;
+    llvm::RoundingMode OldRounding;
     Optional<CGBuilderTy::FastMathFlagGuard> FMFGuard;
   };
   FPOptions CurFPFeatures;
@@ -672,12 +696,13 @@ public:
     initFullExprCleanup();
   }
 
-  /// Queue a cleanup to be pushed after finishing the current
-  /// full-expression.
+  /// Queue a cleanup to be pushed after finishing the current full-expression,
+  /// potentially with an active flag.
   template <class T, class... As>
   void pushCleanupAfterFullExpr(CleanupKind Kind, As... A) {
     if (!isInConditionalBranch())
-      return pushCleanupAfterFullExprImpl<T>(Kind, Address::invalid(), A...);
+      return pushCleanupAfterFullExprWithActiveFlag<T>(Kind, Address::invalid(),
+                                                       A...);
 
     Address ActiveFlag = createCleanupActiveFlag();
     assert(!DominatingValue<Address>::needsSaving(ActiveFlag) &&
@@ -687,12 +712,12 @@ public:
     SavedTuple Saved{saveValueInCond(A)...};
 
     typedef EHScopeStack::ConditionalCleanup<T, As...> CleanupType;
-    pushCleanupAfterFullExprImpl<CleanupType>(Kind, ActiveFlag, Saved);
+    pushCleanupAfterFullExprWithActiveFlag<CleanupType>(Kind, ActiveFlag, Saved);
   }
 
   template <class T, class... As>
-  void pushCleanupAfterFullExprImpl(CleanupKind Kind, Address ActiveFlag,
-                                    As... A) {
+  void pushCleanupAfterFullExprWithActiveFlag(CleanupKind Kind,
+                                              Address ActiveFlag, As... A) {
     LifetimeExtendedCleanupHeader Header = {sizeof(T), Kind,
                                             ActiveFlag.isValid()};
 
@@ -1394,13 +1419,24 @@ private:
   };
   OpenMPCancelExitStack OMPCancelStack;
 
+  /// Calculate branch weights for the likelihood attribute
+  llvm::MDNode *createBranchWeights(Stmt::Likelihood LH) const;
+
   CodeGenPGO PGO;
 
   /// Calculate branch weights appropriate for PGO data
-  llvm::MDNode *createProfileWeights(uint64_t TrueCount, uint64_t FalseCount);
-  llvm::MDNode *createProfileWeights(ArrayRef<uint64_t> Weights);
+  llvm::MDNode *createProfileWeights(uint64_t TrueCount,
+                                     uint64_t FalseCount) const;
+  llvm::MDNode *createProfileWeights(ArrayRef<uint64_t> Weights) const;
   llvm::MDNode *createProfileWeightsForLoop(const Stmt *Cond,
-                                            uint64_t LoopCount);
+                                            uint64_t LoopCount) const;
+
+  /// Calculate the branch weight for PGO data or the likelihood attribute.
+  /// The function tries to get the weight of \ref createProfileWeightsForLoop.
+  /// If that fails it gets the weight of \ref createBranchWeights.
+  llvm::MDNode *createProfileOrBranchWeightsForLoop(const Stmt *Cond,
+                                                    uint64_t LoopCount,
+                                                    const Stmt *Body) const;
 
 public:
   /// Increment the profiler's counter for the given statement by \p StepV.
@@ -1437,6 +1473,9 @@ private:
   llvm::SwitchInst *SwitchInsn = nullptr;
   /// The branch weights of SwitchInsn when doing instrumentation based PGO.
   SmallVector<uint64_t, 16> *SwitchWeights = nullptr;
+
+  /// The likelihood attributes of the SwitchCase.
+  SmallVector<Stmt::Likelihood, 16> *SwitchLikelihood = nullptr;
 
   /// CaseRangeBlock - This block holds if condition check for last case
   /// statement range in current switch instruction.
@@ -1817,7 +1856,7 @@ private:
 
   llvm::BasicBlock *TerminateLandingPad = nullptr;
   llvm::BasicBlock *TerminateHandler = nullptr;
-  llvm::BasicBlock *TrapBB = nullptr;
+  llvm::SmallVector<llvm::BasicBlock *, 2> TrapBBs;
 
   /// Terminate funclets keyed by parent funclet pad.
   llvm::MapVector<llvm::Value *, llvm::BasicBlock *> TerminateFunclets;
@@ -3074,7 +3113,7 @@ public:
   /// statements.
   ///
   /// \return True if the statement was handled.
-  bool EmitSimpleStmt(const Stmt *S);
+  bool EmitSimpleStmt(const Stmt *S, ArrayRef<const Attr *> Attrs);
 
   Address EmitCompoundStmt(const CompoundStmt &S, bool GetLast = false,
                            AggValueSlot AVS = AggValueSlot::ignored());
@@ -3103,9 +3142,9 @@ public:
   void EmitBreakStmt(const BreakStmt &S);
   void EmitContinueStmt(const ContinueStmt &S);
   void EmitSwitchStmt(const SwitchStmt &S);
-  void EmitDefaultStmt(const DefaultStmt &S);
-  void EmitCaseStmt(const CaseStmt &S);
-  void EmitCaseStmtRange(const CaseStmt &S);
+  void EmitDefaultStmt(const DefaultStmt &S, ArrayRef<const Attr *> Attrs);
+  void EmitCaseStmt(const CaseStmt &S, ArrayRef<const Attr *> Attrs);
+  void EmitCaseStmtRange(const CaseStmt &S, ArrayRef<const Attr *> Attrs);
   void EmitAsmStmt(const AsmStmt &S);
 
   void EmitObjCForCollectionStmt(const ObjCForCollectionStmt &S);
@@ -3564,6 +3603,9 @@ public:
   //===--------------------------------------------------------------------===//
   //                         LValue Expression Emission
   //===--------------------------------------------------------------------===//
+
+  /// Create a check that a scalar RValue is non-null.
+  llvm::Value *EmitNonNullRValueCheck(RValue RV, QualType T);
 
   /// GetUndefRValue - Get an appropriate 'undef' rvalue for the given type.
   RValue GetUndefRValue(QualType Ty);
@@ -4082,13 +4124,10 @@ public:
                                  ReturnValueSlot ReturnValue);
   RValue EmitIntelFPGAMemBuiltin(const CallExpr *E);
 
-private:
   enum class MSVCIntrin;
-
-public:
   llvm::Value *EmitMSVCBuiltinExpr(MSVCIntrin BuiltinID, const CallExpr *E);
 
-  llvm::Value *EmitBuiltinAvailable(ArrayRef<llvm::Value *> Args);
+  llvm::Value *EmitBuiltinAvailable(const VersionTuple &Version);
 
   llvm::Value *EmitObjCProtocolExpr(const ObjCProtocolExpr *E);
   llvm::Value *EmitObjCStringLiteral(const ObjCStringLiteral *E);
@@ -4266,7 +4305,7 @@ public:
   void registerGlobalDtorWithAtExit(llvm::Constant *dtorStub);
 
   /// Call unatexit() with function dtorStub.
-  llvm::Value *unregisterGlobalDtorWithUnAtExit(llvm::Function *dtorStub);
+  llvm::Value *unregisterGlobalDtorWithUnAtExit(llvm::Constant *dtorStub);
 
   /// Emit code in this function to perform a guarded variable
   /// initialization.  Guarded initializations are used when it's not
@@ -4319,7 +4358,8 @@ public:
   llvm::Value *EmitAnnotationCall(llvm::Function *AnnotationFn,
                                   llvm::Value *AnnotatedVal,
                                   StringRef AnnotationStr,
-                                  SourceLocation Location);
+                                  SourceLocation Location,
+                                  const AnnotateAttr *Attr = nullptr);
 
   /// Emit local annotations for the local variable V, declared by D.
   void EmitVarAnnotations(const VarDecl *D, llvm::Value *V);
@@ -4371,7 +4411,8 @@ public:
   /// TrueCount should be the number of times we expect the condition to
   /// evaluate to true based on PGO data.
   void EmitBranchOnBoolExpr(const Expr *Cond, llvm::BasicBlock *TrueBlock,
-                            llvm::BasicBlock *FalseBlock, uint64_t TrueCount);
+                            llvm::BasicBlock *FalseBlock, uint64_t TrueCount,
+                            Stmt::Likelihood LH = Stmt::LH_None);
 
   /// Given an assignment `*LHS = RHS`, emit a test that checks if \p RHS is
   /// nonnull, if \p LHS is marked _Nonnull.
@@ -4435,7 +4476,7 @@ public:
 
   /// Create a basic block that will call the trap intrinsic, and emit a
   /// conditional branch to it, for the -ftrapv checks.
-  void EmitTrapCheck(llvm::Value *Checked);
+  void EmitTrapCheck(llvm::Value *Checked, SanitizerHandler CheckHandlerID);
 
   /// Emit a call to trap or debugtrap and attach function attribute
   /// "trap-func-name" if specified.
@@ -4530,26 +4571,6 @@ private:
                                        Address Loc);
 
 public:
-#ifndef NDEBUG
-  // Determine whether the given argument is an Objective-C method
-  // that may have type parameters in its signature.
-  static bool isObjCMethodWithTypeParams(const ObjCMethodDecl *method) {
-    const DeclContext *dc = method->getDeclContext();
-    if (const ObjCInterfaceDecl *classDecl= dyn_cast<ObjCInterfaceDecl>(dc)) {
-      return classDecl->getTypeParamListAsWritten();
-    }
-
-    if (const ObjCCategoryDecl *catDecl = dyn_cast<ObjCCategoryDecl>(dc)) {
-      return catDecl->getTypeParamList();
-    }
-
-    return false;
-  }
-
-  template<typename T>
-  static bool isObjCMethodWithTypeParams(const T *) { return false; }
-#endif
-
   enum class EvaluationOrder {
     ///! No language constraints on evaluation order.
     Default,
@@ -4559,56 +4580,16 @@ public:
     ForceRightToLeft
   };
 
-  /// EmitCallArgs - Emit call arguments for a function.
-  template <typename T>
-  void EmitCallArgs(CallArgList &Args, const T *CallArgTypeInfo,
-                    llvm::iterator_range<CallExpr::const_arg_iterator> ArgRange,
-                    AbstractCallee AC = AbstractCallee(),
-                    unsigned ParamsToSkip = 0,
-                    EvaluationOrder Order = EvaluationOrder::Default) {
-    SmallVector<QualType, 16> ArgTypes;
-    CallExpr::const_arg_iterator Arg = ArgRange.begin();
+  // Wrapper for function prototype sources. Wraps either a FunctionProtoType or
+  // an ObjCMethodDecl.
+  struct PrototypeWrapper {
+    llvm::PointerUnion<const FunctionProtoType *, const ObjCMethodDecl *> P;
 
-    assert((ParamsToSkip == 0 || CallArgTypeInfo) &&
-           "Can't skip parameters if type info is not provided");
-    if (CallArgTypeInfo) {
-#ifndef NDEBUG
-      bool isGenericMethod = isObjCMethodWithTypeParams(CallArgTypeInfo);
-#endif
+    PrototypeWrapper(const FunctionProtoType *FT) : P(FT) {}
+    PrototypeWrapper(const ObjCMethodDecl *MD) : P(MD) {}
+  };
 
-      // First, use the argument types that the type info knows about
-      for (auto I = CallArgTypeInfo->param_type_begin() + ParamsToSkip,
-                E = CallArgTypeInfo->param_type_end();
-           I != E; ++I, ++Arg) {
-        assert(Arg != ArgRange.end() && "Running over edge of argument list!");
-        assert((isGenericMethod ||
-                ((*I)->isVariablyModifiedType() ||
-                 (*I).getNonReferenceType()->isObjCRetainableType() ||
-                 getContext()
-                         .getCanonicalType((*I).getNonReferenceType())
-                         .getTypePtr() ==
-                     getContext()
-                         .getCanonicalType((*Arg)->getType())
-                         .getTypePtr())) &&
-               "type mismatch in call argument!");
-        ArgTypes.push_back(*I);
-      }
-    }
-
-    // Either we've emitted all the call args, or we have a call to variadic
-    // function.
-    assert((Arg == ArgRange.end() || !CallArgTypeInfo ||
-            CallArgTypeInfo->isVariadic()) &&
-           "Extra arguments in non-variadic function!");
-
-    // If we still have any arguments, emit them using the type of the argument.
-    for (auto *A : llvm::make_range(Arg, ArgRange.end()))
-      ArgTypes.push_back(CallArgTypeInfo ? getVarArgType(A) : A->getType());
-
-    EmitCallArgs(Args, ArgTypes, ArgRange, AC, ParamsToSkip, Order);
-  }
-
-  void EmitCallArgs(CallArgList &Args, ArrayRef<QualType> ArgTypes,
+  void EmitCallArgs(CallArgList &Args, PrototypeWrapper Prototype,
                     llvm::iterator_range<CallExpr::const_arg_iterator> ArgRange,
                     AbstractCallee AC = AbstractCallee(),
                     unsigned ParamsToSkip = 0,
@@ -4684,6 +4665,77 @@ private:
   llvm::Value *EmitX86CpuSupports(uint64_t Mask);
   llvm::Value *EmitX86CpuInit();
   llvm::Value *FormResolverCondition(const MultiVersionResolverOption &RO);
+};
+
+/// TargetFeatures - This class is used to check whether the builtin function
+/// has the required tagert specific features. It is able to support the
+/// combination of ','(and), '|'(or), and '()'. By default, the priority of
+/// ',' is higher than that of '|' .
+/// E.g:
+/// A,B|C means the builtin function requires both A and B, or C.
+/// If we want the builtin function requires both A and B, or both A and C,
+/// there are two ways: A,B|A,C or A,(B|C).
+/// The FeaturesList should not contain spaces, and brackets must appear in
+/// pairs.
+class TargetFeatures {
+  struct FeatureListStatus {
+    bool HasFeatures;
+    StringRef CurFeaturesList;
+  };
+
+  const llvm::StringMap<bool> &CallerFeatureMap;
+
+  FeatureListStatus getAndFeatures(StringRef FeatureList) {
+    int InParentheses = 0;
+    bool HasFeatures = true;
+    size_t SubexpressionStart = 0;
+    for (size_t i = 0, e = FeatureList.size(); i < e; ++i) {
+      char CurrentToken = FeatureList[i];
+      switch (CurrentToken) {
+      default:
+        break;
+      case '(':
+        if (InParentheses == 0)
+          SubexpressionStart = i + 1;
+        ++InParentheses;
+        break;
+      case ')':
+        --InParentheses;
+        assert(InParentheses >= 0 && "Parentheses are not in pair");
+        LLVM_FALLTHROUGH;
+      case '|':
+      case ',':
+        if (InParentheses == 0) {
+          if (HasFeatures && i != SubexpressionStart) {
+            StringRef F = FeatureList.slice(SubexpressionStart, i);
+            HasFeatures = CurrentToken == ')' ? hasRequiredFeatures(F)
+                                              : CallerFeatureMap.lookup(F);
+          }
+          SubexpressionStart = i + 1;
+          if (CurrentToken == '|') {
+            return {HasFeatures, FeatureList.substr(SubexpressionStart)};
+          }
+        }
+        break;
+      }
+    }
+    assert(InParentheses == 0 && "Parentheses are not in pair");
+    if (HasFeatures && SubexpressionStart != FeatureList.size())
+      HasFeatures =
+          CallerFeatureMap.lookup(FeatureList.substr(SubexpressionStart));
+    return {HasFeatures, StringRef()};
+  }
+
+public:
+  bool hasRequiredFeatures(StringRef FeatureList) {
+    FeatureListStatus FS = {false, FeatureList};
+    while (!FS.HasFeatures && !FS.CurFeaturesList.empty())
+      FS = getAndFeatures(FS.CurFeaturesList);
+    return FS.HasFeatures;
+  }
+
+  TargetFeatures(const llvm::StringMap<bool> &CallerFeatureMap)
+      : CallerFeatureMap(CallerFeatureMap) {}
 };
 
 inline DominatingLLVMValue::saved_type

@@ -14,14 +14,13 @@ from ObjCDataFormatterTestCase import ObjCDataFormatterTestCase
 
 class ObjCDataFormatterNSContainer(ObjCDataFormatterTestCase):
 
-    @skipUnlessDarwin
     def test_nscontainers_with_run_command(self):
         """Test formatters for  NS container classes."""
         self.appkit_tester_impl(self.nscontainers_data_formatter_commands)
 
     def nscontainers_data_formatter_commands(self):
         self.expect(
-            'frame variable newArray nsDictionary newDictionary nscfDictionary cfDictionaryRef newMutableDictionary cfarray_ref mutable_array_ref',
+            'frame variable newArray nsDictionary newDictionary nscfDictionary cfDictionaryRef newMutableDictionary newMutableDictionaryRef cfarray_ref mutable_array_ref',
             substrs=[
                 '(NSArray *) newArray = ',
                 ' @"50 elements"',
@@ -34,6 +33,8 @@ class ObjCDataFormatterNSContainer(ObjCDataFormatterTestCase):
                 '(CFDictionaryRef) cfDictionaryRef = ',
                 ' 2 key/value pairs',
                 '(NSDictionary *) newMutableDictionary = ',
+                ' 21 key/value pairs',
+                '(CFMutableDictionaryRef) newMutableDictionaryRef = ',
                 ' 21 key/value pairs',
                 '(CFArrayRef) cfarray_ref = ',
                 ' @"3 elements"',

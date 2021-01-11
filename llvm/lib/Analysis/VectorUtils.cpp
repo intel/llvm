@@ -125,7 +125,7 @@ Intrinsic::ID llvm::getVectorIntrinsicIDForCall(const CallInst *CI,
 
   if (isTriviallyVectorizable(ID) || ID == Intrinsic::lifetime_start ||
       ID == Intrinsic::lifetime_end || ID == Intrinsic::assume ||
-      ID == Intrinsic::sideeffect)
+      ID == Intrinsic::sideeffect || ID == Intrinsic::pseudoprobe)
     return ID;
   return Intrinsic::not_intrinsic;
 }
@@ -136,7 +136,7 @@ Intrinsic::ID llvm::getVectorIntrinsicIDForCall(const CallInst *CI,
 unsigned llvm::getGEPInductionOperand(const GetElementPtrInst *Gep) {
   const DataLayout &DL = Gep->getModule()->getDataLayout();
   unsigned LastOperand = Gep->getNumOperands() - 1;
-  unsigned GEPAllocSize = DL.getTypeAllocSize(Gep->getResultElementType());
+  TypeSize GEPAllocSize = DL.getTypeAllocSize(Gep->getResultElementType());
 
   // Walk backwards and try to peel off zeros.
   while (LastOperand > 1 && match(Gep->getOperand(LastOperand), m_Zero())) {
@@ -208,7 +208,7 @@ Value *llvm::getStrideFromPointer(Value *Ptr, ScalarEvolution *SE, Loop *Lp) {
 
   if (Ptr != OrigPtr)
     // Strip off casts.
-    while (const SCEVCastExpr *C = dyn_cast<SCEVCastExpr>(V))
+    while (const SCEVIntegralCastExpr *C = dyn_cast<SCEVIntegralCastExpr>(V))
       V = C->getOperand();
 
   const SCEVAddRecExpr *S = dyn_cast<SCEVAddRecExpr>(V);
@@ -241,7 +241,7 @@ Value *llvm::getStrideFromPointer(Value *Ptr, ScalarEvolution *SE, Loop *Lp) {
 
   // Strip off casts.
   Type *StripedOffRecurrenceCast = nullptr;
-  if (const SCEVCastExpr *C = dyn_cast<SCEVCastExpr>(V)) {
+  if (const SCEVIntegralCastExpr *C = dyn_cast<SCEVIntegralCastExpr>(V)) {
     StripedOffRecurrenceCast = C->getType();
     V = C->getOperand();
   }
@@ -289,6 +289,10 @@ Value *llvm::findScalarElement(Value *V, unsigned EltNo) {
     // inserted value.
     if (EltNo == IIElt)
       return III->getOperand(1);
+
+    // Guard against infinite loop on malformed, unreachable IR.
+    if (III == III->getOperand(0))
+      return nullptr;
 
     // Otherwise, the insertelement doesn't modify the value, recurse on its
     // vector input.
@@ -342,7 +346,7 @@ int llvm::getSplatIndex(ArrayRef<int> Mask) {
 /// This function is not fully general. It checks only 2 cases:
 /// the input value is (1) a splat constant vector or (2) a sequence
 /// of instructions that broadcasts a scalar at element 0.
-const llvm::Value *llvm::getSplatValue(const Value *V) {
+Value *llvm::getSplatValue(const Value *V) {
   if (isa<VectorType>(V->getType()))
     if (auto *C = dyn_cast<Constant>(V))
       return C->getSplatValue();
@@ -416,8 +420,7 @@ void llvm::narrowShuffleMaskElts(int Scale, ArrayRef<int> Mask,
   ScaledMask.clear();
   for (int MaskElt : Mask) {
     if (MaskElt >= 0) {
-      assert(((uint64_t)Scale * MaskElt + (Scale - 1)) <=
-                 std::numeric_limits<int32_t>::max() &&
+      assert(((uint64_t)Scale * MaskElt + (Scale - 1)) <= INT32_MAX &&
              "Overflowed 32-bits");
     }
     for (int SliceElt = 0; SliceElt != Scale; ++SliceElt)
@@ -863,11 +866,19 @@ Value *llvm::concatenateVectors(IRBuilderBase &Builder,
 }
 
 bool llvm::maskIsAllZeroOrUndef(Value *Mask) {
+  assert(isa<VectorType>(Mask->getType()) &&
+         isa<IntegerType>(Mask->getType()->getScalarType()) &&
+         cast<IntegerType>(Mask->getType()->getScalarType())->getBitWidth() ==
+             1 &&
+         "Mask must be a vector of i1");
+
   auto *ConstMask = dyn_cast<Constant>(Mask);
   if (!ConstMask)
     return false;
   if (ConstMask->isNullValue() || isa<UndefValue>(ConstMask))
     return true;
+  if (isa<ScalableVectorType>(ConstMask->getType()))
+    return false;
   for (unsigned
            I = 0,
            E = cast<FixedVectorType>(ConstMask->getType())->getNumElements();
@@ -882,11 +893,19 @@ bool llvm::maskIsAllZeroOrUndef(Value *Mask) {
 
 
 bool llvm::maskIsAllOneOrUndef(Value *Mask) {
+  assert(isa<VectorType>(Mask->getType()) &&
+         isa<IntegerType>(Mask->getType()->getScalarType()) &&
+         cast<IntegerType>(Mask->getType()->getScalarType())->getBitWidth() ==
+             1 &&
+         "Mask must be a vector of i1");
+
   auto *ConstMask = dyn_cast<Constant>(Mask);
   if (!ConstMask)
     return false;
   if (ConstMask->isAllOnesValue() || isa<UndefValue>(ConstMask))
     return true;
+  if (isa<ScalableVectorType>(ConstMask->getType()))
+    return false;
   for (unsigned
            I = 0,
            E = cast<FixedVectorType>(ConstMask->getType())->getNumElements();
@@ -902,6 +921,11 @@ bool llvm::maskIsAllOneOrUndef(Value *Mask) {
 /// TODO: This is a lot like known bits, but for
 /// vectors.  Is there something we can common this with?
 APInt llvm::possiblyDemandedEltsInMask(Value *Mask) {
+  assert(isa<FixedVectorType>(Mask->getType()) &&
+         isa<IntegerType>(Mask->getType()->getScalarType()) &&
+         cast<IntegerType>(Mask->getType()->getScalarType())->getBitWidth() ==
+             1 &&
+         "Mask must be a fixed width vector of i1");
 
   const unsigned VWidth =
       cast<FixedVectorType>(Mask->getType())->getNumElements();

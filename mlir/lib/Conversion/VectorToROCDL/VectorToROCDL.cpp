@@ -55,17 +55,13 @@ namespace {
 /// types. For unsupported cases, they will fall back to the vector to
 /// llvm conversion pattern.
 template <typename ConcreteOp>
-class VectorTransferConversion : public ConvertToLLVMPattern {
+class VectorTransferConversion : public ConvertOpToLLVMPattern<ConcreteOp> {
 public:
-  explicit VectorTransferConversion(MLIRContext *context,
-                                    LLVMTypeConverter &typeConv)
-      : ConvertToLLVMPattern(ConcreteOp::getOperationName(), context,
-                             typeConv) {}
+  using ConvertOpToLLVMPattern<ConcreteOp>::ConvertOpToLLVMPattern;
 
   LogicalResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+  matchAndRewrite(ConcreteOp xferOp, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    auto xferOp = cast<ConcreteOp>(op);
     typename ConcreteOp::Adaptor adaptor(operands);
 
     if (xferOp.getVectorType().getRank() > 1 ||
@@ -79,11 +75,13 @@ public:
     if (!xferOp.isMaskedDim(0))
       return failure();
 
-    auto toLLVMTy = [&](Type t) { return typeConverter.convertType(t); };
+    auto toLLVMTy = [&](Type t) {
+      return this->getTypeConverter()->convertType(t);
+    };
     LLVM::LLVMType vecTy =
         toLLVMTy(xferOp.getVectorType()).template cast<LLVM::LLVMType>();
     unsigned vecWidth = vecTy.getVectorNumElements();
-    Location loc = op->getLoc();
+    Location loc = xferOp->getLoc();
 
     // The backend result vector scalarization have trouble scalarize
     // <1 x ty> result, exclude the x1 width from the lowering.
@@ -100,10 +98,10 @@ public:
       return failure();
 
     // Note that the dataPtr starts at the offset address specified by
-    // indices, so no need to calculat offset size in bytes again in
+    // indices, so no need to calculate offset size in bytes again in
     // the MUBUF instruction.
-    Value dataPtr = getDataPtr(loc, memRefType, adaptor.memref(),
-                               adaptor.indices(), rewriter);
+    Value dataPtr = this->getStridedElementPtr(
+        loc, memRefType, adaptor.memref(), adaptor.indices(), rewriter);
 
     // 1. Create and fill a <4 x i32> dwordConfig with:
     //    1st two elements holding the address of dataPtr.
@@ -126,7 +124,7 @@ public:
         constConfig);
     Value dataPtrAsI64 = rewriter.create<LLVM::PtrToIntOp>(
         loc, toLLVMTy(i64Ty).template cast<LLVM::LLVMType>(), dataPtr);
-    Value zero = createIndexConstant(rewriter, loc, 0);
+    Value zero = this->createIndexConstant(rewriter, loc, 0);
     Value dwordConfig = rewriter.create<LLVM::InsertElementOp>(
         loc,
         LLVM::LLVMType::getVectorTy(
@@ -142,18 +140,17 @@ public:
     Value int32Zero = rewriter.create<LLVM::ConstantOp>(
         loc, toLLVMTy(i32Ty),
         rewriter.getIntegerAttr(rewriter.getIntegerType(32), 0));
-    return replaceTransferOpWithMubuf(rewriter, operands, typeConverter, loc,
-                                      xferOp, vecTy, dwordConfig, int32Zero,
-                                      int32Zero, int1False, int1False);
+    return replaceTransferOpWithMubuf(
+        rewriter, operands, *this->getTypeConverter(), loc, xferOp, vecTy,
+        dwordConfig, int32Zero, int32Zero, int1False, int1False);
   }
 };
 } // end anonymous namespace
 
 void mlir::populateVectorToROCDLConversionPatterns(
     LLVMTypeConverter &converter, OwningRewritePatternList &patterns) {
-  MLIRContext *ctx = converter.getDialect()->getContext();
   patterns.insert<VectorTransferConversion<TransferReadOp>,
-                  VectorTransferConversion<TransferWriteOp>>(ctx, converter);
+                  VectorTransferConversion<TransferWriteOp>>(converter);
 }
 
 namespace {
@@ -173,7 +170,8 @@ void LowerVectorToROCDLPass::runOnOperation() {
   LLVMConversionTarget target(getContext());
   target.addLegalDialect<ROCDL::ROCDLDialect>();
 
-  if (failed(applyPartialConversion(getOperation(), target, patterns)))
+  if (failed(
+          applyPartialConversion(getOperation(), target, std::move(patterns))))
     signalPassFailure();
 }
 

@@ -15,9 +15,9 @@ To better understand Fortran as a language
 and the specific grammar accepted by flang,
 read [Fortran For C Programmers](docs/FortranForCProgrammers.md)
 and
-flang's specifications of the [Fortran grammar](docs/f2018-grammar.txt)
+flang's specifications of the [Fortran grammar](docs/f2018-grammar.md)
 and
-the [OpenMP grammar](docs/OpenMP-4.5-grammar.txt).
+the [OpenMP grammar](docs/OpenMP-4.5-grammar.md).
 
 Treatment of language extensions is covered
 in [this document](docs/Extensions.md).
@@ -32,6 +32,9 @@ If you're interested in contributing to the compiler,
 read the [style guide](docs/C++style.md)
 and
 also review [how flang uses modern C++ features](docs/C++17.md).
+
+If you are interested in writing new documentation, follow 
+[markdown style guide from LLVM](https://github.com/llvm/llvm-project/blob/master/llvm/docs/MarkdownQuickstartTemplate.md).
 
 ## Supported C++ compilers
 
@@ -140,6 +143,21 @@ cd ~/flang/build
 cmake -DLLVM_DIR=$LLVM -DMLIR_DIR=$MLIR ~/flang/src
 make
 ```
+
+### Build The New Flang Driver
+The new Flang driver, `flang-new`, is currently under active development and
+should be considered as an experimental feature. For this reason it is disabled
+by default. This will change once the new driver replaces the _throwaway_
+driver, `flang`.
+
+In order to build the new driver, add `-DFLANG_BUILD_NEW_DRIVER=ON` to your
+CMake invocation line. Additionally, when building out-of-tree, use `CLANG_DIR`
+(similarly to `LLVM_DIR` and `MLIR_DIR`) to find the installed Clang
+components.
+
+**Note:** `CLANG_DIR` is only required when building the new Flang driver,
+which currently depends on Clang.
+
 # How to Run Tests
 
 Flang supports 2 different categories of tests
@@ -156,7 +174,7 @@ make test check-all
 
 To run individual regression tests llvm-lit needs to know the lit
 configuration for flang. The parameters in charge of this are:
-flang_site_config and flang_config. And they can be set as shown bellow:
+flang_site_config and flang_config. And they can be set as shown below:
 ```
 <path-to-llvm-lit>/llvm-lit \
  --param flang_site_config=<path-to-flang-build>/test-lit/lit.site.cfg.py \
@@ -211,8 +229,33 @@ To generate doxygen-style documentation from source code
 cd ~/llvm-project/build
 cmake -DLLVM_ENABLE_DOXYGEN=ON -DFLANG_INCLUDE_DOCS=ON ../llvm
 make doxygen-flang
+```
 
 It will generate html in
 
+```
     <build-dir>/tools/flang/docs/doxygen/html # for flang docs
+```
+## Generate Sphinx-based Documentation
+<!TODO: Add webpage once we have a website.
+!>
+Flang documentation should preferably be written in `markdown(.md)` syntax (they can be in `reStructuredText(.rst)` format as well but markdown is recommended in first place), it
+is mostly meant to be processed by the Sphinx documentation generation
+system to create HTML pages which would be hosted on the webpage of flang and
+updated periodically.
+
+If you would like to generate and view the HTML locally:
+- Install [Sphinx](http://sphinx-doc.org/), including the [sphinx-markdown-tables](https://pypi.org/project/sphinx-markdown-tables/) extension.
+- Pass `-DLLVM_ENABLE_SPHINX=ON -DSPHINX_WARNINGS_AS_ERRORS=OFF` to the cmake command.
+
+```
+cd ~/llvm-project/build
+cmake -DLLVM_ENABLE_SPHINX=ON -DSPHINX_WARNINGS_AS_ERRORS=OFF ../llvm
+make docs-flang-html
+```
+
+It will generate html in
+
+```
+   $BROWSER <build-dir>/tools/flang/docs/html/
 ```

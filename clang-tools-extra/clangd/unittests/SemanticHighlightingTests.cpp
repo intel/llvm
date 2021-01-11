@@ -503,11 +503,11 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
 
       #define $Macro[[test]]
       #undef $Macro[[test]]
-$InactiveCode[[]]      #ifdef $Macro[[test]]
-$InactiveCode[[]]      #endif
+$InactiveCode[[#ifdef test]]
+$InactiveCode[[#endif]]
 
-$InactiveCode[[]]      #if defined($Macro[[test]])
-$InactiveCode[[]]      #endif
+$InactiveCode[[#if defined(test)]]
+$InactiveCode[[#endif]]
     )cpp",
       R"cpp(
       struct $Class[[S]] {
@@ -614,8 +614,8 @@ $InactiveCode[[]]      #endif
       R"cpp(
       // Code in the preamble.
       // Inactive lines get an empty InactiveCode token at the beginning.
-$InactiveCode[[]]      #ifdef $Macro[[test]]
-$InactiveCode[[]]      #endif
+$InactiveCode[[#ifdef test]]
+$InactiveCode[[#endif]]
 
       // A declaration to cause the preamble to end.
       int $Variable[[EndPreamble]];
@@ -623,18 +623,23 @@ $InactiveCode[[]]      #endif
       // Code after the preamble.
       // Code inside inactive blocks does not get regular highlightings
       // because it's not part of the AST.
-$InactiveCode[[]]      #ifdef $Macro[[test]]
-$InactiveCode[[]]      int Inactive2;
-$InactiveCode[[]]      #endif
+      #define $Macro[[test2]]
+$InactiveCode[[#if defined(test)]]
+$InactiveCode[[int Inactive2;]]
+$InactiveCode[[#elif defined(test2)]]
+      int $Variable[[Active1]];
+$InactiveCode[[#else]]
+$InactiveCode[[int Inactive3;]]
+$InactiveCode[[#endif]]
 
       #ifndef $Macro[[test]]
-      int $Variable[[Active1]];
+      int $Variable[[Active2]];
       #endif
 
-$InactiveCode[[]]      #ifdef $Macro[[test]]
-$InactiveCode[[]]      int Inactive3;
-$InactiveCode[[]]      #else
-      int $Variable[[Active2]];
+$InactiveCode[[#ifdef test]]
+$InactiveCode[[int Inactive4;]]
+$InactiveCode[[#else]]
+      int $Variable[[Active3]];
       #endif
     )cpp",
       // Argument to 'sizeof...'

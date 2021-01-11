@@ -128,7 +128,7 @@ TypeSize Type::getPrimitiveSizeInBits() const {
     ElementCount EC = VTy->getElementCount();
     TypeSize ETS = VTy->getElementType()->getPrimitiveSizeInBits();
     assert(!ETS.isScalable() && "Vector type should have fixed-width elements");
-    return {ETS.getFixedSize() * EC.Min, EC.Scalable};
+    return {ETS.getFixedSize() * EC.getKnownMinValue(), EC.isScalable()};
   }
   default: return TypeSize::Fixed(0);
   }
@@ -273,11 +273,6 @@ IntegerType *IntegerType::get(LLVMContext &C, unsigned NumBits) {
     Entry = new (C.pImpl->Alloc) IntegerType(C, NumBits);
 
   return Entry;
-}
-
-bool IntegerType::isPowerOf2ByteWidth() const {
-  unsigned BitWidth = getBitWidth();
-  return (BitWidth > 7) && isPowerOf2_32(BitWidth);
 }
 
 APInt IntegerType::getMask() const {
@@ -533,10 +528,6 @@ bool StructType::isLayoutIdentical(StructType *Other) const {
   return elements() == Other->elements();
 }
 
-StructType *Module::getTypeByName(StringRef Name) const {
-  return getContext().pImpl->NamedStructTypes.lookup(Name);
-}
-
 Type *StructType::getTypeAtIndex(const Value *V) const {
   unsigned Idx = (unsigned)cast<Constant>(V)->getUniqueInteger().getZExtValue();
   assert(indexValid(Idx) && "Invalid structure index!");
@@ -555,6 +546,10 @@ bool StructType::indexValid(const Value *V) const {
     C = C->getSplatValue();
   const ConstantInt *CU = dyn_cast_or_null<ConstantInt>(C);
   return CU && CU->getZExtValue() < getNumElements();
+}
+
+StructType *StructType::getTypeByName(LLVMContext &C, StringRef Name) {
+  return C.pImpl->NamedStructTypes.lookup(Name);
 }
 
 //===----------------------------------------------------------------------===//
@@ -598,10 +593,10 @@ VectorType::VectorType(Type *ElType, unsigned EQ, Type::TypeID TID)
 }
 
 VectorType *VectorType::get(Type *ElementType, ElementCount EC) {
-  if (EC.Scalable)
-    return ScalableVectorType::get(ElementType, EC.Min);
+  if (EC.isScalable())
+    return ScalableVectorType::get(ElementType, EC.getKnownMinValue());
   else
-    return FixedVectorType::get(ElementType, EC.Min);
+    return FixedVectorType::get(ElementType, EC.getKnownMinValue());
 }
 
 bool VectorType::isValidElementType(Type *ElemTy) {

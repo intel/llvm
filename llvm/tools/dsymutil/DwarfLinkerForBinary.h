@@ -144,7 +144,12 @@ private:
     /// @}
 
     bool hasValidRelocationAt(uint64_t StartOffset, uint64_t EndOffset,
-                              CompileUnit::DIEInfo &Info) override;
+                              CompileUnit::DIEInfo &Info);
+
+    bool hasLiveMemoryLocation(const DWARFDie &DIE,
+                               CompileUnit::DIEInfo &Info) override;
+    bool hasLiveAddressRange(const DWARFDie &DIE,
+                             CompileUnit::DIEInfo &Info) override;
 
     bool applyValidRelocs(MutableArrayRef<char> Data, uint64_t BaseOffset,
                           bool IsLittleEndian) override;
@@ -167,7 +172,7 @@ private:
   /// Attempt to load a debug object from disk.
   ErrorOr<const object::ObjectFile &> loadObject(const DebugMapObject &Obj,
                                                  const Triple &triple);
-  ErrorOr<DwarfFile &> loadObject(const DebugMapObject &Obj,
+  ErrorOr<DWARFFile &> loadObject(const DebugMapObject &Obj,
                                   const DebugMap &DebugMap,
                                   remarks::RemarkLinker &RL);
 
@@ -175,7 +180,7 @@ private:
   BinaryHolder &BinHolder;
   LinkOptions Options;
   std::unique_ptr<DwarfStreamer> Streamer;
-  std::vector<std::unique_ptr<DwarfFile>> ObjectsForLinking;
+  std::vector<std::unique_ptr<DWARFFile>> ObjectsForLinking;
   std::vector<std::unique_ptr<DWARFContext>> ContextForLinking;
   std::vector<std::unique_ptr<AddressManager>> AddressMapForLinking;
   std::vector<std::string> EmptyWarnings;

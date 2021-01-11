@@ -42,6 +42,7 @@
 
 #include "SPIRVUtil.h"
 #include "spirv.hpp"
+#include "spirv_internal.hpp"
 #include <string>
 
 using namespace spv;
@@ -49,7 +50,10 @@ namespace SPIRV {
 
 template <> inline void SPIRVMap<Op, std::string>::init() {
 #define _SPIRV_OP(x, ...) add(Op##x, #x);
+#define _SPIRV_OP_INTERNAL(x, ...) add(internal::Op##x, #x);
 #include "SPIRVOpCodeEnum.h"
+#include "SPIRVOpCodeEnumInternal.h"
+#undef _SPIRV_OP_INTERNAL
 #undef _SPIRV_OP
 }
 SPIRV_DEF_NAMEMAP(Op, OpCodeNameMap)
@@ -196,10 +200,13 @@ inline bool isSubgroupAvcINTELEvaluateOpcode(Op OpCode) {
           OC <= OpSubgroupAvcSicEvaluateWithMultiReferenceInterlacedINTEL);
 }
 
+inline bool isVCOpCode(Op OpCode) { return OpCode == OpTypeBufferSurfaceINTEL; }
+
 inline bool isTypeOpCode(Op OpCode) {
   unsigned OC = OpCode;
   return (OpTypeVoid <= OC && OC <= OpTypePipe) || OC == OpTypePipeStorage ||
-         isSubgroupAvcINTELTypeOpCode(OpCode) || OC == OpTypeVmeImageINTEL;
+         isSubgroupAvcINTELTypeOpCode(OpCode) || OC == OpTypeVmeImageINTEL ||
+         isVCOpCode(OpCode);
 }
 
 inline bool isSpecConstantOpCode(Op OpCode) {

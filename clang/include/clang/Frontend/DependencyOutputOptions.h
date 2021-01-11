@@ -41,10 +41,6 @@ public:
   /// The file to write dependency output to.
   std::string OutputFile;
 
-  /// Dependency output which is prefixed with this string is filtered
-  /// from the dependency output.
-  std::string DependencyFilter;
-
   /// The file to write header include output to. This is orthogonal to
   /// ShowHeaderIncludes (-H) and will include headers mentioned in the
   /// predefines buffer. If the output file is "-", output will be sent to
@@ -66,6 +62,10 @@ public:
 
   /// The directory to copy module dependencies to when collecting them.
   std::string ModuleDependencyOutputDir;
+
+  /// Dependency output which is prefixed with this string is filtered from
+  /// the dependency output. 
+  std::string DependencyFilter;
 
 public:
   DependencyOutputOptions()

@@ -199,7 +199,7 @@ private:
 
   template <class T>
   friend
-      typename std::add_pointer<typename decltype(T::impl)::element_type>::type
+      typename detail::add_pointer_t<typename decltype(T::impl)::element_type>
       detail::getRawSyclObjImpl(const T &SyclObject);
 
   template <class T>

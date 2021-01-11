@@ -40,7 +40,8 @@ Non-comprehensive list of changes in this release
    functionality, or simply have a lot to talk about), see the `NOTE` below
    for adding a new subsection.
 
-* ...
+* The ConstantPropagation pass was removed. Users should use the InstSimplify
+  pass instead.
 
 
 .. NOTE
@@ -62,16 +63,34 @@ Changes to the LLVM IR
 * Added the ``byref`` attribute to better represent argument passing
   for the `amdgpu_kernel` calling convention.
 
+* Added type parameter to the ``sret`` attribute to continue work on
+  removing pointer element types.
+
+* The ``llvm.experimental.vector.reduce`` family of intrinsics have been renamed
+  to drop the "experimental" from the name, reflecting their now fully supported
+  status in the IR.
+
+
 Changes to building LLVM
 ------------------------
+
+* The internal ``llvm-build`` Python script and the associated ``LLVMBuild.txt``
+  files used to describe the LLVM component structure have been removed and
+  replaced by a pure ``CMake`` approach, where each component stores extra
+  properties in the created targets. These properties are processed once all
+  components are defined to resolve library dependencies and produce the header
+  expected by llvm-config.
 
 Changes to TableGen
 -------------------
 
+* The new "TableGen Programmer's Reference" replaces the "TableGen Language
+  Introduction" and "TableGen Language Reference" documents.
+
 * The syntax for specifying an integer range in a range list has changed.
   The old syntax used a hyphen in the range (e.g., ``{0-9}``). The new syntax
-  uses the "`...`" range punctuator (e.g., ``{0...9}``). The hyphen syntax
-  is deprecated. The "TableGen Language Reference" document has been updated.
+  uses the "`...`" range punctuation (e.g., ``{0...9}``). The hyphen syntax
+  is deprecated.
 
 Changes to the ARM Backend
 --------------------------
@@ -97,6 +116,19 @@ During this release ...
 * The 'mpx' feature was removed from the backend. It had been removed from clang
   frontend in 10.0. Mention of the 'mpx' feature in an IR file will print a
   message to stderr, but IR should still compile.
+* Support for ``-march=alderlake``, ``-march=sapphirerapids``,
+  ``-march=znver3`` and ``-march=x86-64-v[234]`` has been added.
+* The assembler now has support for {disp32} and {disp8} pseudo prefixes for
+  controlling displacement size for memory operands and jump displacements. The
+  assembler also supports the .d32 and .d8 mnemonic suffixes to do the same.
+* A new function attribute "tune-cpu" has been added to support -mtune like gcc.
+  This allows microarchitectural optimizations to be applied independent from
+  the "target-cpu" attribute or TargetMachine CPU which will be used to select
+  Instruction Set. If the attribute is not present, the tune CPU will follow
+  the target CPU.
+* Support for ``HRESET`` instructions has been added.
+* Support for ``UINTR`` instructions has been added.
+* Support for ``AVXVNNI`` instructions has been added.
 
 Changes to the AMDGPU Target
 -----------------------------
@@ -118,7 +150,6 @@ During this release ...
 
 Changes to the OCaml bindings
 -----------------------------
-
 
 
 Changes to the C API
@@ -148,11 +179,18 @@ Changes to the LLVM tools
 Changes to LLDB
 ---------------------------------
 
+Changes to Sanitizers
+---------------------
+
+The integer sanitizer `-fsanitize=integer` now has a new sanitizer:
+`-fsanitize=unsigned-shift-base`. It's not undefined behavior for an unsigned
+left shift to overflow (i.e. to shift bits out), but it has been the source of
+bugs and exploits in certain codebases in the past.
+
 External Open Source Projects Using LLVM 12
 ===========================================
 
 * A project...
-
 
 Additional Information
 ======================

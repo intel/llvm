@@ -74,6 +74,14 @@ static Attr *handleSuppressAttr(Sema &S, Stmt *St, const ParsedAttr &A,
       S.Context, A, DiagnosticIdentifiers.data(), DiagnosticIdentifiers.size());
 }
 
+static bool checkDeprecatedSYCLLoopAttributeSpelling(Sema &S,
+                                                     const ParsedAttr &A) {
+  if (A.getScopeName()->isStr("intelfpga"))
+    return S.Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated)
+           << "'" + A.getNormalizedFullName() + "'";
+  return false;
+}
+
 template <typename FPGALoopAttrT>
 static Attr *handleIntelFPGALoopAttr(Sema &S, const ParsedAttr &A) {
   if(S.LangOpts.SYCLIsHost)
@@ -95,6 +103,31 @@ static Attr *handleIntelFPGALoopAttr(Sema &S, const ParsedAttr &A) {
     }
   }
 
+  if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAII &&
+      checkDeprecatedSYCLLoopAttributeSpelling(S, A)) {
+    S.Diag(A.getLoc(), diag::note_spelling_suggestion) << "'intel::ii'";
+  } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency &&
+             checkDeprecatedSYCLLoopAttributeSpelling(S, A)) {
+    S.Diag(A.getLoc(), diag::note_spelling_suggestion)
+        << "'intel::max_concurrency'";
+  } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency &&
+             checkDeprecatedSYCLLoopAttributeSpelling(S, A)) {
+    S.Diag(A.getLoc(), diag::note_spelling_suggestion)
+        << "'intel::max_concurrency'";
+  } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAMaxInterleaving &&
+             checkDeprecatedSYCLLoopAttributeSpelling(S, A)) {
+    S.Diag(A.getLoc(), diag::note_spelling_suggestion)
+        << "'intel::max_interleaving'";
+  } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGASpeculatedIterations &&
+             checkDeprecatedSYCLLoopAttributeSpelling(S, A)) {
+    S.Diag(A.getLoc(), diag::note_spelling_suggestion)
+        << "'intel::speculated_iterations'";
+  } else if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGALoopCoalesce &&
+             checkDeprecatedSYCLLoopAttributeSpelling(S, A)) {
+    S.Diag(A.getLoc(), diag::note_spelling_suggestion)
+        << "'intel::loop_coalesce'";
+  }
+
   return S.BuildSYCLIntelFPGALoopAttr<FPGALoopAttrT>(
       A, A.getNumArgs() ? A.getArgAsExpr(0) : nullptr);
 }
@@ -110,6 +143,10 @@ Attr *handleIntelFPGALoopAttr<SYCLIntelFPGADisableLoopPipeliningAttr>(
     S.Diag(A.getLoc(), diag::warn_attribute_too_many_arguments) << A << 0;
     return nullptr;
   }
+
+  if (checkDeprecatedSYCLLoopAttributeSpelling(S, A))
+    S.Diag(A.getLoc(), diag::note_spelling_suggestion)
+        << "'intel::disable_loop_pipelining'";
 
   return new (S.Context) SYCLIntelFPGADisableLoopPipeliningAttr(S.Context, A);
 }
@@ -272,9 +309,25 @@ static Attr *handleIntelFPGAIVDepAttr(Sema &S, const ParsedAttr &A) {
     return nullptr;
   }
 
+  if (checkDeprecatedSYCLLoopAttributeSpelling(S, A))
+    S.Diag(A.getLoc(), diag::note_spelling_suggestion) << "'intel::ivdep'";
+
   return S.BuildSYCLIntelFPGAIVDepAttr(
       A, NumArgs >= 1 ? A.getArgAsExpr(0) : nullptr,
       NumArgs == 2 ? A.getArgAsExpr(1) : nullptr);
+}
+
+static Attr *handleIntelFPGANofusionAttr(Sema &S, const ParsedAttr &A) {
+  if (S.LangOpts.SYCLIsHost)
+    return nullptr;
+
+  unsigned NumArgs = A.getNumArgs();
+  if (NumArgs > 0) {
+    S.Diag(A.getLoc(), diag::warn_attribute_too_many_arguments) << A << 0;
+    return nullptr;
+  }
+
+  return new (S.Context) SYCLIntelFPGANofusionAttr(S.Context, A);
 }
 
 static Attr *handleLoopHintAttr(Sema &S, Stmt *St, const ParsedAttr &A,
@@ -413,6 +466,24 @@ static Attr *handleNoMergeAttr(Sema &S, Stmt *St, const ParsedAttr &A,
   return ::new (S.Context) NoMergeAttr(S.Context, A);
 }
 
+static Attr *handleLikely(Sema &S, Stmt *St, const ParsedAttr &A,
+                          SourceRange Range) {
+
+  if (!S.getLangOpts().CPlusPlus20 && A.isCXX11Attribute() && !A.getScopeName())
+    S.Diag(A.getLoc(), diag::ext_cxx20_attr) << A << Range;
+
+  return ::new (S.Context) LikelyAttr(S.Context, A);
+}
+
+static Attr *handleUnlikely(Sema &S, Stmt *St, const ParsedAttr &A,
+                            SourceRange Range) {
+
+  if (!S.getLangOpts().CPlusPlus20 && A.isCXX11Attribute() && !A.getScopeName())
+    S.Diag(A.getLoc(), diag::ext_cxx20_attr) << A << Range;
+
+  return ::new (S.Context) UnlikelyAttr(S.Context, A);
+}
+
 static void
 CheckForIncompatibleAttributes(Sema &S,
                                const SmallVectorImpl<const Attr *> &Attrs) {
@@ -518,6 +589,32 @@ CheckForIncompatibleAttributes(Sema &S,
           << CategoryState.NumericAttr->getDiagnosticName(Policy);
     }
   }
+
+  // C++20 [dcl.attr.likelihood]p1 The attribute-token likely shall not appear
+  // in an attribute-specifier-seq that contains the attribute-token unlikely.
+  const LikelyAttr *Likely = nullptr;
+  const UnlikelyAttr *Unlikely = nullptr;
+  for (const auto *I : Attrs) {
+    if (const auto *Attr = dyn_cast<LikelyAttr>(I)) {
+      if (Unlikely) {
+        S.Diag(Attr->getLocation(), diag::err_attributes_are_not_compatible)
+            << Attr << Unlikely << Attr->getRange();
+        S.Diag(Unlikely->getLocation(), diag::note_conflicting_attribute)
+            << Unlikely->getRange();
+        return;
+      }
+      Likely = Attr;
+    } else if (const auto *Attr = dyn_cast<UnlikelyAttr>(I)) {
+      if (Likely) {
+        S.Diag(Attr->getLocation(), diag::err_attributes_are_not_compatible)
+            << Attr << Likely << Attr->getRange();
+        S.Diag(Likely->getLocation(), diag::note_conflicting_attribute)
+            << Likely->getRange();
+        return;
+      }
+      Unlikely = Attr;
+    }
+  }
 }
 
 template <typename LoopAttrT>
@@ -591,6 +688,8 @@ static void CheckForIncompatibleSYCLLoopAttributes(
       S, Attrs, Range);
 
   CheckRedundantSYCLIntelFPGAIVDepAttrs(S, Attrs);
+  CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGANofusionAttr>(S, Attrs,
+                                                                  Range);
 }
 
 void CheckForIncompatibleUnrollHintAttributes(
@@ -687,7 +786,7 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
     S.Diag(A.getLoc(), A.isDeclspecAttribute()
                            ? (unsigned)diag::warn_unhandled_ms_attribute_ignored
                            : (unsigned)diag::warn_unknown_attribute_ignored)
-        << A;
+        << A << A.getRange();
     return nullptr;
   case ParsedAttr::AT_FallThrough:
     return handleFallThroughAttr(S, St, A, Range);
@@ -715,6 +814,12 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
     return handleSuppressAttr(S, St, A, Range);
   case ParsedAttr::AT_NoMerge:
     return handleNoMergeAttr(S, St, A, Range);
+  case ParsedAttr::AT_Likely:
+    return handleLikely(S, St, A, Range);
+  case ParsedAttr::AT_Unlikely:
+    return handleUnlikely(S, St, A, Range);
+  case ParsedAttr::AT_SYCLIntelFPGANofusion:
+    return handleIntelFPGANofusionAttr(S, A);
   default:
     // if we're here, then we parsed a known attribute, but didn't recognize
     // it as a statement attribute => it is declaration attribute

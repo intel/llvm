@@ -28,6 +28,7 @@
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/MapVector.h"
+#include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator.h"
 #include "llvm/ADT/iterator_range.h"
@@ -4738,8 +4739,9 @@ public:
   /// subscript it may not have any associated declaration. In that case the
   /// associated declaration is set to nullptr.
   class MappableComponent {
-    /// Expression associated with the component.
-    Expr *AssociatedExpression = nullptr;
+    /// Pair of Expression and Non-contiguous pair  associated with the
+    /// component.
+    llvm::PointerIntPair<Expr *, 1, bool> AssociatedExpressionNonContiguousPr;
 
     /// Declaration associated with the declaration. If the component does
     /// not have a declaration (e.g. array subscripts or section), this is set
@@ -4749,14 +4751,22 @@ public:
   public:
     explicit MappableComponent() = default;
     explicit MappableComponent(Expr *AssociatedExpression,
-                               ValueDecl *AssociatedDeclaration)
-        : AssociatedExpression(AssociatedExpression),
+                               ValueDecl *AssociatedDeclaration,
+                               bool IsNonContiguous)
+        : AssociatedExpressionNonContiguousPr(AssociatedExpression,
+                                              IsNonContiguous),
           AssociatedDeclaration(
               AssociatedDeclaration
                   ? cast<ValueDecl>(AssociatedDeclaration->getCanonicalDecl())
                   : nullptr) {}
 
-    Expr *getAssociatedExpression() const { return AssociatedExpression; }
+    Expr *getAssociatedExpression() const {
+      return AssociatedExpressionNonContiguousPr.getPointer();
+    }
+
+    bool isNonContiguous() const {
+      return AssociatedExpressionNonContiguousPr.getInt();
+    }
 
     ValueDecl *getAssociatedDeclaration() const {
       return AssociatedDeclaration;
@@ -7748,22 +7758,22 @@ public:
 #define DISPATCH(CLASS) \
   return static_cast<ImplClass*>(this)->Visit##CLASS(static_cast<PTR(CLASS)>(S))
 
-#define OMP_CLAUSE_CLASS(Enum, Str, Class) \
-  RetTy Visit ## Class (PTR(Class) S) { DISPATCH(Class); }
-#include "llvm/Frontend/OpenMP/OMPKinds.def"
+#define GEN_CLANG_CLAUSE_CLASS
+#define CLAUSE_CLASS(Enum, Str, Class)                                         \
+  RetTy Visit##Class(PTR(Class) S) { DISPATCH(Class); }
+#include "llvm/Frontend/OpenMP/OMP.inc"
 
   RetTy Visit(PTR(OMPClause) S) {
     // Top switch clause: visit each OMPClause.
     switch (S->getClauseKind()) {
-#define OMP_CLAUSE_CLASS(Enum, Str, Class)                                     \
+#define GEN_CLANG_CLAUSE_CLASS
+#define CLAUSE_CLASS(Enum, Str, Class)                                         \
   case llvm::omp::Clause::Enum:                                                \
     return Visit##Class(static_cast<PTR(Class)>(S));
-#define OMP_CLAUSE_NO_CLASS(Enum, Str)                                         \
+#define CLAUSE_NO_CLASS(Enum, Str)                                             \
   case llvm::omp::Clause::Enum:                                                \
     break;
-#include "llvm/Frontend/OpenMP/OMPKinds.def"
-    default:
-      break;
+#include "llvm/Frontend/OpenMP/OMP.inc"
     }
   }
   // Base case, ignore it. :)
@@ -7794,9 +7804,9 @@ public:
   OMPClausePrinter(raw_ostream &OS, const PrintingPolicy &Policy)
       : OS(OS), Policy(Policy) {}
 
-#define OMP_CLAUSE_CLASS(Enum, Str, Class)                                     \
-  void Visit##Class(Class *S);
-#include "llvm/Frontend/OpenMP/OMPKinds.def"
+#define GEN_CLANG_CLAUSE_CLASS
+#define CLAUSE_CLASS(Enum, Str, Class) void Visit##Class(Class *S);
+#include "llvm/Frontend/OpenMP/OMP.inc"
 };
 
 struct OMPTraitProperty {
@@ -7855,6 +7865,23 @@ public:
 
   /// Return a string representation identifying this context selector.
   std::string getMangledName() const;
+
+  /// Check the extension trait \p TP is active.
+  bool isExtensionActive(llvm::omp::TraitProperty TP) {
+    for (const OMPTraitSet &Set : Sets) {
+      if (Set.Kind != llvm::omp::TraitSet::implementation)
+        continue;
+      for (const OMPTraitSelector &Selector : Set.Selectors) {
+        if (Selector.Kind != llvm::omp::TraitSelector::implementation_extension)
+          continue;
+        for (const OMPTraitProperty &Property : Selector.Properties) {
+          if (Property.Kind == TP)
+            return true;
+        }
+      }
+    }
+    return false;
+  }
 
   /// Print a human readable representation into \p OS.
   void print(llvm::raw_ostream &OS, const PrintingPolicy &Policy) const;

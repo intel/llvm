@@ -9,8 +9,8 @@
 #ifndef MLIR_PASS_PASS_H
 #define MLIR_PASS_PASS_H
 
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dialect.h"
-#include "mlir/IR/Function.h"
 #include "mlir/Pass/AnalysisManager.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Support/LogicalResult.h"
@@ -19,11 +19,16 @@
 
 namespace mlir {
 namespace detail {
+class OpToOpPassAdaptor;
+
 /// The state for a single execution of a pass. This provides a unified
 /// interface for accessing and initializing necessary state for pass execution.
 struct PassExecutionState {
-  PassExecutionState(Operation *ir, AnalysisManager analysisManager)
-      : irAndPassFailed(ir, false), analysisManager(analysisManager) {}
+  PassExecutionState(Operation *ir, AnalysisManager analysisManager,
+                     function_ref<LogicalResult(OpPassManager &, Operation *)>
+                         pipelineExecutor)
+      : irAndPassFailed(ir, false), analysisManager(analysisManager),
+        pipelineExecutor(pipelineExecutor) {}
 
   /// The current operation being transformed and a bool for if the pass
   /// signaled a failure.
@@ -34,6 +39,10 @@ struct PassExecutionState {
 
   /// The set of preserved analyses for the current execution.
   detail::PreservedAnalyses preservedAnalyses;
+
+  /// This is a callback in the PassManager that allows to schedule dynamic
+  /// pipelines that will be rooted at the provided operation.
+  function_ref<LogicalResult(OpPassManager &, Operation *)> pipelineExecutor;
 };
 } // namespace detail
 
@@ -86,7 +95,7 @@ public:
             typename OptionParser = detail::PassOptions::OptionParser<DataType>>
   struct Option : public detail::PassOptions::Option<DataType, OptionParser> {
     template <typename... Args>
-    Option(Pass &parent, StringRef arg, Args &&... args)
+    Option(Pass &parent, StringRef arg, Args &&...args)
         : detail::PassOptions::Option<DataType, OptionParser>(
               parent.passOptions, arg, std::forward<Args>(args)...) {}
     using detail::PassOptions::Option<DataType, OptionParser>::operator=;
@@ -98,14 +107,17 @@ public:
   struct ListOption
       : public detail::PassOptions::ListOption<DataType, OptionParser> {
     template <typename... Args>
-    ListOption(Pass &parent, StringRef arg, Args &&... args)
+    ListOption(Pass &parent, StringRef arg, Args &&...args)
         : detail::PassOptions::ListOption<DataType, OptionParser>(
               parent.passOptions, arg, std::forward<Args>(args)...) {}
     using detail::PassOptions::ListOption<DataType, OptionParser>::operator=;
   };
 
   /// Attempt to initialize the options of this pass from the given string.
-  LogicalResult initializeOptions(StringRef options);
+  /// Derived classes may override this method to hook into the point at which
+  /// options are initialized, but should generally always invoke this base
+  /// class variant.
+  virtual LogicalResult initializeOptions(StringRef options);
 
   /// Prints out the pass in the textual representation of pipelines. If this is
   /// an adaptor pass, print with the op_name(sub_pass,...) format.
@@ -153,6 +165,13 @@ protected:
 
   /// The polymorphic API that runs the pass over the currently held operation.
   virtual void runOnOperation() = 0;
+
+  /// Schedule an arbitrary pass pipeline on the provided operation.
+  /// This can be invoke any time in a pass to dynamic schedule more passes.
+  /// The provided operation must be the current one or one nested below.
+  LogicalResult runPipeline(OpPassManager &pipeline, Operation *op) {
+    return passState->pipelineExecutor(pipeline, op);
+  }
 
   /// A clone method to create a copy of this pass.
   std::unique_ptr<Pass> clone() const {
@@ -249,10 +268,6 @@ protected:
   void copyOptionValuesFrom(const Pass *other);
 
 private:
-  /// Forwarding function to execute this pass on the given operation.
-  LLVM_NODISCARD
-  LogicalResult run(Operation *op, AnalysisManager am);
-
   /// Out of line virtual method to ensure vtables and metadata are emitted to a
   /// single .o file.
   virtual void anchor();
@@ -273,11 +288,11 @@ private:
   /// The pass options registered to this pass instance.
   detail::PassOptions passOptions;
 
-  /// Allow access to 'clone' and 'run'.
+  /// Allow access to 'clone'.
   friend class OpPassManager;
 
-  /// Allow access to 'run'.
-  friend class PassManager;
+  /// Allow access to 'passState'.
+  friend detail::OpToOpPassAdaptor;
 
   /// Allow access to 'passOptions'.
   friend class PassInfo;

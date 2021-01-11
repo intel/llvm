@@ -20,8 +20,10 @@ namespace sycl {
 // Forward declaration
 class device_selector;
 class device;
+enum class aspect;
 
 namespace detail {
+class device_impl;
 
 // TODO: implement extension management for host device
 // TODO: implement parameters treatment for host device
@@ -193,7 +195,7 @@ private:
   bool MHostPlatform = false;
   RT::PiPlatform MPlatform = 0;
   std::shared_ptr<plugin> MPlugin;
-  std::vector<std::shared_ptr<device_impl>> MDeviceCache;
+  std::vector<std::weak_ptr<device_impl>> MDeviceCache;
   std::mutex MDeviceMapMutex;
 };
 

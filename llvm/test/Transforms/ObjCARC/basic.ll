@@ -1,4 +1,5 @@
 ; RUN: opt -basic-aa -objc-arc -S < %s | FileCheck %s
+; RUN: opt -aa-pipeline=basic-aa -passes=objc-arc -S < %s | FileCheck %s
 
 target datalayout = "e-p:64:64:64"
 
@@ -18,6 +19,7 @@ declare i8* @llvm.objc.unretainedPointer(i8*)
 
 declare void @use_pointer(i8*)
 declare void @callee()
+declare void @callee2(i8*, i8*)
 declare void @callee_fnptr(void ()*)
 declare void @invokee()
 declare i8* @returner()
@@ -3056,6 +3058,21 @@ define void @test67(i8* %x) {
   ret void
 }
 
+; CHECK-LABEL: define void @test68(
+; CHECK-NOT:     call
+; CHECK:         call void @callee2(
+; CHECK-NOT:     call
+; CHECK:         ret void
+
+define void @test68(i8* %a, i8* %b) {
+  call i8* @llvm.objc.retain(i8* %a)
+  call i8* @llvm.objc.retain(i8* %b)
+  call void @callee2(i8* %a, i8* %b)
+  call void @llvm.objc.release(i8* %b), !clang.imprecise_release !0
+  call void @llvm.objc.release(i8* %a), !clang.imprecise_release !0
+  ret void
+}
+
 !llvm.module.flags = !{!1}
 !llvm.dbg.cu = !{!3}
 
@@ -3070,5 +3087,5 @@ define void @test67(i8* %x) {
 !5 = !{i32 2, !"Debug Info Version", i32 3}
 
 ; CHECK: attributes [[NUW]] = { nounwind }
-; CHECK: attributes #1 = { nounwind readnone speculatable willreturn }
+; CHECK: attributes #1 = { nofree nosync nounwind readnone speculatable willreturn }
 ; CHECK: ![[RELEASE]] = !{}

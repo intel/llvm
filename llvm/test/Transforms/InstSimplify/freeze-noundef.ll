@@ -69,7 +69,6 @@ define {i8, i32} @aggr({i8, i32} noundef %x) {
   ret {i8, i32} %y
 }
 
-; TODO: should look into extract operations
 define i32 @extract({i8, i32} noundef %x) {
 ; CHECK-LABEL: @extract(
 ; CHECK-NEXT:    [[Y:%.*]] = extractvalue { i8, i32 } [[X:%.*]], 1
@@ -90,4 +89,38 @@ define i32 @extract2({i8, {i8, i32}} noundef %x) {
   %z = extractvalue {i8, i32} %y, 1
   %w = freeze i32 %z
   ret i32 %w
+}
+
+declare void @use_i1(i1 noundef)
+
+define i1 @used_by_fncall(i1 %x) {
+; CHECK-LABEL: @used_by_fncall(
+; CHECK-NEXT:    [[Y:%.*]] = add nsw i1 [[X:%.*]], true
+; CHECK-NEXT:    call void @use_i1(i1 [[Y]])
+; CHECK-NEXT:    ret i1 [[Y]]
+;
+  %y = add nsw i1 %x, 1
+  call void @use_i1(i1 %y)
+  %f = freeze i1 %y
+  ret i1 %f
+}
+
+define i32 @noundef_metadata(i32* %p) {
+; CHECK-LABEL: @noundef_metadata(
+; CHECK-NEXT:    [[V:%.*]] = load i32, i32* [[P:%.*]], align 4, !noundef !0
+; CHECK-NEXT:    ret i32 [[V]]
+;
+  %v = load i32, i32* %p, !noundef !{}
+  %v.fr = freeze i32 %v
+  ret i32 %v.fr
+}
+
+define {i8, i32} @noundef_metadata2({i8, i32}* %p) {
+; CHECK-LABEL: @noundef_metadata2(
+; CHECK-NEXT:    [[V:%.*]] = load { i8, i32 }, { i8, i32 }* [[P:%.*]], align 4, !noundef !0
+; CHECK-NEXT:    ret { i8, i32 } [[V]]
+;
+  %v = load {i8, i32}, {i8, i32}* %p, !noundef !{}
+  %v.fr = freeze {i8, i32} %v
+  ret {i8, i32} %v.fr
 }

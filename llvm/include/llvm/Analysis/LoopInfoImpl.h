@@ -68,6 +68,13 @@ void LoopBase<BlockT, LoopT>::getExitBlocks(
         ExitBlocks.push_back(Succ);
 }
 
+template <class BlockT, class LoopT>
+bool LoopBase<BlockT, LoopT>::hasNoExitBlocks() const {
+  SmallVector<BlockT *, 8> ExitBlocks;
+  getExitBlocks(ExitBlocks);
+  return ExitBlocks.empty();
+}
+
 /// getExitBlock - If getExitBlocks would return exactly one block,
 /// return that block. Otherwise return null.
 template <class BlockT, class LoopT>
@@ -502,7 +509,7 @@ void PopulateLoopsDFS<BlockT, LoopT>::insertIntoLoop(BlockT *Block) {
   if (Subloop && Block == Subloop->getHeader()) {
     // We reach this point once per subloop after processing all the blocks in
     // the subloop.
-    if (Subloop->getParentLoop())
+    if (!Subloop->isOutermost())
       Subloop->getParentLoop()->getSubLoopsVector().push_back(Subloop);
     else
       LI->addTopLevelLoop(Subloop);
@@ -681,7 +688,7 @@ void LoopInfoBase<BlockT, LoopT>::verify(
     const DomTreeBase<BlockT> &DomTree) const {
   DenseSet<const LoopT *> Loops;
   for (iterator I = begin(), E = end(); I != E; ++I) {
-    assert(!(*I)->getParentLoop() && "Top-level loop has a parent!");
+    assert((*I)->isOutermost() && "Top-level loop has a parent!");
     (*I)->verifyLoopNest(&Loops);
   }
 

@@ -146,6 +146,11 @@ LLVMAttributeRef LLVMCreateEnumAttribute(LLVMContextRef C, unsigned KindID,
     return wrap(Attribute::getWithByValType(Ctx, NULL));
   }
 
+  if (AttrKind == Attribute::AttrKind::StructRet) {
+    // Same as byval.
+    return wrap(Attribute::getWithStructRetType(Ctx, NULL));
+  }
+
   return wrap(Attribute::get(Ctx, AttrKind, Val));
 }
 
@@ -734,7 +739,11 @@ LLVMBool LLVMIsLiteralStruct(LLVMTypeRef StructTy) {
 }
 
 LLVMTypeRef LLVMGetTypeByName(LLVMModuleRef M, const char *Name) {
-  return wrap(unwrap(M)->getTypeByName(Name));
+  return wrap(StructType::getTypeByName(unwrap(M)->getContext(), Name));
+}
+
+LLVMTypeRef LLVMGetTypeByName2(LLVMContextRef C, const char *Name) {
+  return wrap(StructType::getTypeByName(*unwrap(C), Name));
 }
 
 /*--.. Operations on array, pointer, and vector types (sequence types) .....--*/
@@ -759,6 +768,11 @@ LLVMTypeRef LLVMVectorType(LLVMTypeRef ElementType, unsigned ElementCount) {
   return wrap(FixedVectorType::get(unwrap(ElementType), ElementCount));
 }
 
+LLVMTypeRef LLVMScalableVectorType(LLVMTypeRef ElementType,
+                                   unsigned ElementCount) {
+  return wrap(ScalableVectorType::get(unwrap(ElementType), ElementCount));
+}
+
 LLVMTypeRef LLVMGetElementType(LLVMTypeRef WrappedTy) {
   auto *Ty = unwrap<Type>(WrappedTy);
   if (auto *PTy = dyn_cast<PointerType>(Ty))
@@ -781,7 +795,7 @@ unsigned LLVMGetPointerAddressSpace(LLVMTypeRef PointerTy) {
 }
 
 unsigned LLVMGetVectorSize(LLVMTypeRef VectorTy) {
-  return unwrap<VectorType>(VectorTy)->getNumElements();
+  return unwrap<VectorType>(VectorTy)->getElementCount().getKnownMinValue();
 }
 
 /*--.. Operations on other types ...........................................--*/
@@ -816,6 +830,7 @@ LLVMTypeRef LLVMTypeOf(LLVMValueRef Val) {
 
 LLVMValueKind LLVMGetValueKind(LLVMValueRef Val) {
     switch(unwrap(Val)->getValueID()) {
+#define LLVM_C_API 1
 #define HANDLE_VALUE(Name) \
   case Value::Name##Val: \
     return LLVM##Name##ValueKind;
@@ -925,6 +940,7 @@ LLVMValueMetadataEntry *
 LLVMInstructionGetAllMetadataOtherThanDebugLoc(LLVMValueRef Value,
                                                size_t *NumEntries) {
   return llvm_getMetadata(NumEntries, [&Value](MetadataEntries &Entries) {
+    Entries.clear();
     unwrap<Instruction>(Value)->getAllMetadata(Entries);
   });
 }
@@ -1034,6 +1050,10 @@ LLVMValueRef LLVMGetUndef(LLVMTypeRef Ty) {
   return wrap(UndefValue::get(unwrap(Ty)));
 }
 
+LLVMValueRef LLVMGetPoison(LLVMTypeRef Ty) {
+  return wrap(PoisonValue::get(unwrap(Ty)));
+}
+
 LLVMBool LLVMIsConstant(LLVMValueRef Ty) {
   return isa<Constant>(unwrap(Ty));
 }
@@ -1046,6 +1066,10 @@ LLVMBool LLVMIsNull(LLVMValueRef Val) {
 
 LLVMBool LLVMIsUndef(LLVMValueRef Val) {
   return isa<UndefValue>(unwrap(Val));
+}
+
+LLVMBool LLVMIsPoison(LLVMValueRef Val) {
+  return isa<PoisonValue>(unwrap(Val));
 }
 
 LLVMValueRef LLVMConstPointerNull(LLVMTypeRef Ty) {
@@ -2034,6 +2058,7 @@ void LLVMSetAlignment(LLVMValueRef V, unsigned Bytes) {
 LLVMValueMetadataEntry *LLVMGlobalCopyAllMetadata(LLVMValueRef Value,
                                                   size_t *NumEntries) {
   return llvm_getMetadata(NumEntries, [&Value](MetadataEntries &Entries) {
+    Entries.clear();
     if (Instruction *Instr = dyn_cast<Instruction>(unwrap(Value))) {
       Instr->getAllMetadata(Entries);
     } else {
@@ -3952,6 +3977,19 @@ LLVMValueRef LLVMBuildAtomicCmpXchg(LLVMBuilderRef B, LLVMValueRef Ptr,
                 singleThread ? SyncScope::SingleThread : SyncScope::System));
 }
 
+unsigned LLVMGetNumMaskElements(LLVMValueRef SVInst) {
+  Value *P = unwrap<Value>(SVInst);
+  ShuffleVectorInst *I = cast<ShuffleVectorInst>(P);
+  return I->getShuffleMask().size();
+}
+
+int LLVMGetMaskValue(LLVMValueRef SVInst, unsigned Elt) {
+  Value *P = unwrap<Value>(SVInst);
+  ShuffleVectorInst *I = cast<ShuffleVectorInst>(P);
+  return I->getMaskValue(Elt);
+}
+
+int LLVMGetUndefMaskElem(void) { return UndefMaskElem; }
 
 LLVMBool LLVMIsAtomicSingleThread(LLVMValueRef AtomicInst) {
   Value *P = unwrap<Value>(AtomicInst);

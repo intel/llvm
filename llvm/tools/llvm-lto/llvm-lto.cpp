@@ -181,6 +181,10 @@ static cl::opt<std::string> ThinLTOGeneratedObjectsDir(
     cl::desc("Save ThinLTO generated object files using filenames created in "
              "the given directory."));
 
+static cl::opt<bool> SaveLinkedModuleFile(
+    "save-linked-module", cl::init(false),
+    cl::desc("Write linked LTO module to file before optimize"));
+
 static cl::opt<bool>
     SaveModuleFile("save-merged-module", cl::init(false),
                    cl::desc("Write merged LTO module to file before CodeGen"));
@@ -333,7 +337,7 @@ getLocalLTOModule(StringRef Path, std::unique_ptr<MemoryBuffer> &Buffer,
 }
 
 /// Print some statistics on the index for each input files.
-void printIndexStats() {
+static void printIndexStats() {
   for (auto &Filename : InputFilenames) {
     ExitOnError ExitOnErr("llvm-lto: error loading file '" + Filename + "': ");
     std::unique_ptr<ModuleSummaryIndex> Index =
@@ -414,7 +418,7 @@ static void printMachOCPUOnly() {
   LLVMContext Context;
   Context.setDiagnosticHandler(std::make_unique<LLVMLTODiagnosticHandler>(),
                                true);
-  TargetOptions Options = codegen::InitTargetOptionsFromCodeGenFlags();
+  TargetOptions Options = codegen::InitTargetOptionsFromCodeGenFlags(Triple());
   for (auto &Filename : InputFilenames) {
     ErrorOr<std::unique_ptr<LTOModule>> ModuleOrErr =
         LTOModule::createFromFile(Context, Filename, Options);
@@ -461,7 +465,7 @@ static void createCombinedModuleSummaryIndex() {
 static void getThinLTOOldAndNewPrefix(std::string &OldPrefix,
                                       std::string &NewPrefix) {
   assert(ThinLTOPrefixReplace.empty() ||
-         ThinLTOPrefixReplace.find(";") != StringRef::npos);
+         ThinLTOPrefixReplace.find(';') != StringRef::npos);
   StringRef PrefixReplace = ThinLTOPrefixReplace;
   std::pair<StringRef, StringRef> Split = PrefixReplace.split(";");
   OldPrefix = Split.first.str();
@@ -903,7 +907,7 @@ int main(int argc, char **argv) {
   InitializeAllAsmParsers();
 
   // set up the TargetOptions for the machine
-  TargetOptions Options = codegen::InitTargetOptionsFromCodeGenFlags();
+  TargetOptions Options = codegen::InitTargetOptionsFromCodeGenFlags(Triple());
 
   if (ListSymbolsOnly) {
     listSymbols(Options);
@@ -1029,6 +1033,15 @@ int main(int argc, char **argv) {
     CodeGen.setFileType(FT.getValue());
 
   if (!OutputFilename.empty()) {
+    if (SaveLinkedModuleFile) {
+      std::string ModuleFilename = OutputFilename;
+      ModuleFilename += ".linked.bc";
+      std::string ErrMsg;
+
+      if (!CodeGen.writeMergedModules(ModuleFilename))
+        error("writing linked module failed.");
+    }
+
     if (!CodeGen.optimize(DisableVerify, DisableInline, DisableGVNLoadPRE,
                           DisableLTOVectorization)) {
       // Diagnostic messages should have been printed by the handler.

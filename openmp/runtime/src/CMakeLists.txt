@@ -195,7 +195,7 @@ if(WIN32)
   # the import library is "re-linked" to include kmp_import.cpp which prevents
   # linking of both Visual Studio OpenMP and newly built OpenMP
   set_source_files_properties(kmp_import.cpp PROPERTIES COMPILE_FLAGS "${LIBOMP_CONFIGURED_CXXFLAGS}")
-  set(LIBOMP_IMP_LIB_FILE ${LIBOMP_LIB_NAME}${CMAKE_STATIC_LIBRARY_SUFFIX})
+  set(LIBOMP_IMP_LIB_FILE ${LIBOMP_LIB_NAME}${CMAKE_IMPORT_LIBRARY_SUFFIX})
   set(LIBOMP_GENERATED_IMP_LIB_FILENAME ${LIBOMP_LIB_FILE}${CMAKE_STATIC_LIBRARY_SUFFIX})
   set_target_properties(omp PROPERTIES
     VERSION ${LIBOMP_VERSION_MAJOR}.${LIBOMP_VERSION_MINOR} # uses /version flag
@@ -239,7 +239,6 @@ endif()
 # One compilation step creates both omp_lib.mod and omp_lib_kinds.mod
 if(${LIBOMP_FORTRAN_MODULES})
   configure_file(${LIBOMP_INC_DIR}/omp_lib.h.var omp_lib.h @ONLY)
-  configure_file(${LIBOMP_INC_DIR}/omp_lib.f.var omp_lib.f @ONLY)
   configure_file(${LIBOMP_INC_DIR}/omp_lib.f90.var omp_lib.f90 @ONLY)
   # Workaround for gfortran to build modules with the
   # omp_sched_monotonic integer parameter
@@ -251,7 +250,7 @@ if(${LIBOMP_FORTRAN_MODULES})
   if(CMAKE_Fortran_COMPILER_SUPPORTS_F90)
     set(LIBOMP_FORTRAN_SOURCE_FILE omp_lib.f90)
   else()
-    set(LIBOMP_FORTRAN_SOURCE_FILE omp_lib.f)
+    message(FATAL_ERROR "Fortran module build requires Fortran 90 compiler")
   endif()
   add_custom_command(
     OUTPUT omp_lib.mod omp_lib_kinds.mod

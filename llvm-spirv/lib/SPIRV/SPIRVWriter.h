@@ -53,6 +53,7 @@
 #include "SPIRVType.h"
 #include "SPIRVValue.h"
 
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/IR/IntrinsicInst.h"
 
@@ -114,6 +115,7 @@ public:
   SPIRVWord transFunctionControlMask(Function *);
   SPIRVFunction *transFunctionDecl(Function *F);
   void transVectorComputeMetadata(Function *F);
+  void transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F);
   bool transGlobalVariables();
 
   Op transBoolOpCode(SPIRVValue *Opn, Op OC);
@@ -133,9 +135,12 @@ public:
                               FuncTransMode FuncTrans = FuncTransMode::Decl);
   void transGlobalIOPipeStorage(GlobalVariable *V, MDNode *IO);
 
+  static SPIRVInstruction *applyRoundingModeConstraint(Value *V,
+                                                       SPIRVInstruction *I);
+
   typedef DenseMap<Type *, SPIRVType *> LLVMToSPIRVTypeMap;
   typedef DenseMap<Value *, SPIRVValue *> LLVMToSPIRVValueMap;
-  typedef DenseMap<MDNode *, SPIRVId> LLVMToSPIRVMetadataMap;
+  typedef DenseMap<MDNode *, SmallSet<SPIRVId, 2>> LLVMToSPIRVMetadataMap;
 
 private:
   Module *M;
@@ -168,6 +173,9 @@ private:
   SPIRVInstruction *transCmpInst(CmpInst *Cmp, SPIRVBasicBlock *BB);
   SPIRVInstruction *transLifetimeIntrinsicInst(Op OC, IntrinsicInst *Intrinsic,
                                                SPIRVBasicBlock *BB);
+
+  SPIRVValue *transAtomicStore(StoreInst *ST, SPIRVBasicBlock *BB);
+  SPIRVValue *transAtomicLoad(LoadInst *LD, SPIRVBasicBlock *BB);
 
   void dumpUsers(Value *V);
 

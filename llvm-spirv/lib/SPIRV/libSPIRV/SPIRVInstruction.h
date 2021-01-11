@@ -48,10 +48,8 @@
 #include "SPIRVValue.h"
 
 #include <cassert>
-#include <cstdint>
 #include <functional>
 #include <iostream>
-#include <map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -879,8 +877,8 @@ public:
     return getVec(CapabilityFPGARegINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_fpga_reg);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_fpga_reg;
   }
 
 protected:
@@ -1680,8 +1678,8 @@ public:
     return getVec(CapabilityUnstructuredLoopControlsINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_unstructured_loop_controls);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_unstructured_loop_controls;
   }
 
   void setWordCount(SPIRVWord TheWordCount) override {
@@ -1772,8 +1770,8 @@ public:
   _SPIRV_DEF_ENCDEC4(Type, Id, CalledValueId, Args)
   void validate() const override;
   bool isOperandLiteral(unsigned Index) const override { return false; }
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_function_pointers);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_function_pointers;
   }
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(CapabilityFunctionPointersINTEL);
@@ -1821,7 +1819,8 @@ public:
   void setExtSetKindById() {
     assert(Module && "Invalid module");
     ExtSetKind = Module->getBuiltinSet(ExtSetId);
-    assert((ExtSetKind == SPIRVEIS_OpenCL || ExtSetKind == SPIRVEIS_Debug) &&
+    assert((ExtSetKind == SPIRVEIS_OpenCL || ExtSetKind == SPIRVEIS_Debug ||
+            ExtSetKind == SPIRVEIS_OpenCL_DebugInfo_100) &&
            "not supported");
   }
   void encode(spv_ostream &O) const override {
@@ -1831,6 +1830,7 @@ public:
       getEncoder(O) << ExtOpOCL;
       break;
     case SPIRVEIS_Debug:
+    case SPIRVEIS_OpenCL_DebugInfo_100:
       getEncoder(O) << ExtOpDebug;
       break;
     default:
@@ -1847,6 +1847,7 @@ public:
       getDecoder(I) >> ExtOpOCL;
       break;
     case SPIRVEIS_Debug:
+    case SPIRVEIS_OpenCL_DebugInfo_100:
       getDecoder(I) >> ExtOpDebug;
       break;
     default:
@@ -2476,8 +2477,11 @@ public:
 
 #define _SPIRV_OP(x, ...)                                                      \
   typedef SPIRVInstTemplate<SPIRVGroupInstBase, Op##x, __VA_ARGS__> SPIRV##x;
-// Group instructions
-_SPIRV_OP(GroupWaitEvents, false, 4)
+// Group instructions.
+// Even though GroupWaitEvents has Group in its name, it doesn't require the
+// Group capability
+typedef SPIRVInstTemplate<SPIRVInstTemplateBase, OpGroupWaitEvents, false, 4>
+    SPIRVGroupWaitEvents;
 _SPIRV_OP(GroupAll, true, 5)
 _SPIRV_OP(GroupAny, true, 5)
 _SPIRV_OP(GroupBroadcast, true, 6)
@@ -2618,8 +2622,8 @@ protected:
     return getVec(CapabilityBlockingPipesINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_blocking_pipes);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_blocking_pipes;
   }
 };
 
@@ -2636,8 +2640,8 @@ protected:
     return getVec(CapabilityArbitraryPrecisionFixedPointINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_arbitrary_precision_fixed_point);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_arbitrary_precision_fixed_point;
   }
 };
 
@@ -2663,8 +2667,8 @@ protected:
     return getVec(CapabilityArbitraryPrecisionFloatingPointINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_arbitrary_precision_floating_point);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_arbitrary_precision_floating_point;
   }
 };
 
@@ -2717,15 +2721,32 @@ _SPIRV_OP(PowN, true, 10)
 
 class SPIRVAtomicInstBase : public SPIRVInstTemplateBase {
 public:
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    if (getOpCode() == OpAtomicFAddEXT)
+      return ExtensionID::SPV_EXT_shader_atomic_float_add;
+    return {};
+  }
+
   SPIRVCapVec getRequiredCapability() const override {
     SPIRVCapVec CapVec;
-    // Most of atomic instructions do not require any capabilities
-    // ... unless they operate on 64-bit integers.
-    if (hasType() && getType()->isTypeInt(64)) {
+    if (!hasType())
+      return CapVec;
+
+    // Most atomic instructionsrequire a specific capability when
+    // operating on 64-bit integers.
+    if (getType()->isTypeInt(64)) {
       // In SPIRV 1.2 spec only 2 atomic instructions have no result type:
       // 1. OpAtomicStore - need to check type of the Value operand
       // 2. OpAtomicFlagClear - doesn't require Int64Atomics capability.
       CapVec.push_back(CapabilityInt64Atomics);
+    } else if (getOpCode() == OpAtomicFAddEXT) {
+      if (getType()->isTypeFloat(32))
+        CapVec.push_back(CapabilityAtomicFloat32AddEXT);
+      else if (getType()->isTypeFloat(64))
+        CapVec.push_back(CapabilityAtomicFloat64AddEXT);
+      else
+        llvm_unreachable(
+            "AtomicFAddEXT can only be generated for f32 or f64 types");
     }
     // Per the spec OpAtomicCompareExchangeWeak, OpAtomicFlagTestAndSet and
     // OpAtomicFlagClear instructions require kernel capability. But this
@@ -2733,14 +2754,18 @@ public:
     return CapVec;
   }
 
-  // Overriding the following method only because of OpAtomicStore.
-  // We have to declare Int64Atomics capability if the Value operand is int64.
+  // Overriding the following method because of particular OpAtomic*
+  // instructions. We may have to declare additional capabilities,
+  // e.g. based on operand types.
   void setOpWords(const std::vector<SPIRVWord> &TheOps) override {
     SPIRVInstTemplateBase::setOpWords(TheOps);
     static const unsigned ValueOperandIndex = 3;
     if (getOpCode() == OpAtomicStore &&
         getOperand(ValueOperandIndex)->getType()->isTypeInt(64))
       Module->addCapability(CapabilityInt64Atomics);
+    if (getOpCode() == OpAtomicFAddEXT)
+      for (auto RC : getRequiredCapability())
+        Module->addCapability(RC);
   }
 };
 
@@ -2765,6 +2790,7 @@ _SPIRV_OP(AtomicSMax, true, 7)
 _SPIRV_OP(AtomicAnd, true, 7)
 _SPIRV_OP(AtomicOr, true, 7)
 _SPIRV_OP(AtomicXor, true, 7)
+_SPIRV_OP(AtomicFAddEXT, true, 7)
 _SPIRV_OP(MemoryBarrier, false, 3)
 #undef _SPIRV_OP
 
@@ -2802,7 +2828,7 @@ _SPIRV_OP(GenericCastToPtrExplicit, true, 5, false, 1)
 
 class SPIRVAssumeTrueINTEL : public SPIRVInstruction {
 public:
-  static const Op OC = OpAssumeTrueINTEL;
+  static const Op OC = internal::OpAssumeTrueINTEL;
   static const SPIRVWord FixedWordCount = 2;
 
   SPIRVAssumeTrueINTEL(SPIRVId TheCondition, SPIRVBasicBlock *BB)
@@ -2819,11 +2845,11 @@ public:
   }
 
   SPIRVCapVec getRequiredCapability() const override {
-    return getVec(CapabilityOptimizationHintsINTEL);
+    return getVec(internal::CapabilityOptimizationHintsINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_optimization_hints);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_optimization_hints;
   }
 
   SPIRVValue *getCondition() const { return getValue(ConditionId); }
@@ -2840,19 +2866,20 @@ protected:
 class SPIRVExpectINTELInstBase : public SPIRVInstTemplateBase {
 protected:
   SPIRVCapVec getRequiredCapability() const override {
-    return getVec(CapabilityOptimizationHintsINTEL);
+    return getVec(internal::CapabilityOptimizationHintsINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_optimization_hints);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_optimization_hints;
   }
 };
 
-#define _SPIRV_OP(x, ...)                                                      \
-  typedef SPIRVInstTemplate<SPIRVExpectINTELInstBase, Op##x, __VA_ARGS__>      \
+#define _SPIRV_OP_INTERNAL(x, ...)                                             \
+  typedef SPIRVInstTemplate<SPIRVExpectINTELInstBase, internal::Op##x,         \
+                            __VA_ARGS__>                                       \
       SPIRV##x;
-_SPIRV_OP(ExpectINTEL, true, 5)
-#undef _SPIRV_OP
+_SPIRV_OP_INTERNAL(ExpectINTEL, true, 5)
+#undef _SPIRV_OP_INTERNAL
 
 class SPIRVSubgroupShuffleINTELInstBase : public SPIRVInstTemplateBase {
 protected:
@@ -2860,8 +2887,8 @@ protected:
     return getVec(CapabilitySubgroupShuffleINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_subgroups);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_subgroups;
   }
 };
 
@@ -2882,8 +2909,8 @@ protected:
     return getVec(CapabilitySubgroupBufferBlockIOINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_subgroups);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_subgroups;
   }
 };
 
@@ -2902,8 +2929,8 @@ protected:
     return getVec(CapabilitySubgroupImageBlockIOINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_subgroups);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_subgroups;
   }
 };
 
@@ -2922,8 +2949,8 @@ protected:
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(CapabilitySubgroupImageMediaBlockIOINTEL);
   }
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_media_block_io);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_media_block_io;
   }
 };
 
@@ -2942,8 +2969,8 @@ protected:
     return getVec(CapabilitySubgroupAvcMotionEstimationINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_device_side_avc_motion_estimation);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_device_side_avc_motion_estimation;
   }
 };
 
@@ -3092,6 +3119,24 @@ _SPIRV_OP(SicGetIpeChromaMode, true, 4)
 
 SPIRVSpecConstantOp *createSpecConstantOpInst(SPIRVInstruction *Inst);
 SPIRVInstruction *createInstFromSpecConstantOp(SPIRVSpecConstantOp *C);
+
+class SPIRVVariableLengthArrayINTELInstBase : public SPIRVInstTemplateBase {
+protected:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityVariableLengthArrayINTEL);
+  }
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_variable_length_array;
+  }
+};
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVVariableLengthArrayINTELInstBase,             \
+                            Op##x##INTEL, __VA_ARGS__>                         \
+      SPIRV##x##INTEL;
+_SPIRV_OP(VariableLengthArray, true, 4)
+_SPIRV_OP(SaveMemory, true, 3)
+_SPIRV_OP(RestoreMemory, false, 2)
+#undef _SPIRV_OP
 } // namespace SPIRV
 
 #endif // SPIRV_LIBSPIRV_SPIRVINSTRUCTION_H

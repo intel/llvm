@@ -1,6 +1,6 @@
 # REQUIRES: x86, shell
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %s -o %t.o
-# RUN: lld -flavor darwinnew -o %t %t.o
+# RUN: %lld -o %t %t.o
 # RUN: (llvm-readobj --macho-segment %t; echo "Total file size"; wc -c %t) | FileCheck %s
 
 ## These two segments must always be present at the start of an executable.
@@ -28,7 +28,7 @@
 ## dyld3 assumes that the __TEXT segment starts from the file header
 # CHECK-NEXT:   fileoff: 0
 # CHECK-NEXT:   filesize:
-# CHECK-NEXT:   maxprot: rwx
+# CHECK-NEXT:   maxprot: r-x
 # CHECK-NEXT:   initprot: r-x
 # CHECK-NEXT:   nsects: 1
 # CHECK-NEXT:   flags: 0x0
@@ -46,7 +46,7 @@
 # CHECK-NEXT: vmsize:
 # CHECK-NEXT: fileoff: [[#%u, LINKEDIT_OFF:]]
 # CHECK-NEXT: filesize: [[#%u, LINKEDIT_SIZE:]]
-# CHECK-NEXT: maxprot: rwx
+# CHECK-NEXT: maxprot: r--
 # CHECK-NEXT: initprot: r--
 # CHECK-NOT:  Cmd: LC_SEGMENT_64
 

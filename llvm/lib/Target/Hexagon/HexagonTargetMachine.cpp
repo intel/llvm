@@ -13,14 +13,17 @@
 #include "HexagonTargetMachine.h"
 #include "Hexagon.h"
 #include "HexagonISelLowering.h"
+#include "HexagonLoopIdiomRecognition.h"
 #include "HexagonMachineScheduler.h"
 #include "HexagonTargetObjectFile.h"
 #include "HexagonTargetTransformInfo.h"
+#include "HexagonVectorLoopCarriedReuse.h"
 #include "TargetInfo/HexagonTargetInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
@@ -97,6 +100,9 @@ static cl::opt<bool> EnableVectorPrint("enable-hexagon-vector-print",
 static cl::opt<bool> EnableVExtractOpt("hexagon-opt-vextract", cl::Hidden,
   cl::ZeroOrMore, cl::init(true), cl::desc("Enable vextract optimization"));
 
+static cl::opt<bool> EnableVectorCombine("hexagon-vector-combine", cl::Hidden,
+  cl::ZeroOrMore, cl::init(true), cl::desc("Enable HVX vector combining"));
+
 static cl::opt<bool> EnableInitialCFGCleanup("hexagon-initial-cfg-cleanup",
   cl::Hidden, cl::ZeroOrMore, cl::init(true),
   cl::desc("Simplify the CFG after atomic expansion pass"));
@@ -136,16 +142,17 @@ namespace llvm {
   void initializeHexagonExpandCondsetsPass(PassRegistry&);
   void initializeHexagonGenMuxPass(PassRegistry&);
   void initializeHexagonHardwareLoopsPass(PassRegistry&);
-  void initializeHexagonLoopIdiomRecognizePass(PassRegistry&);
-  void initializeHexagonVectorLoopCarriedReusePass(PassRegistry&);
+  void initializeHexagonLoopIdiomRecognizeLegacyPassPass(PassRegistry &);
   void initializeHexagonNewValueJumpPass(PassRegistry&);
   void initializeHexagonOptAddrModePass(PassRegistry&);
   void initializeHexagonPacketizerPass(PassRegistry&);
   void initializeHexagonRDFOptPass(PassRegistry&);
   void initializeHexagonSplitDoubleRegsPass(PassRegistry&);
+  void initializeHexagonVectorCombineLegacyPass(PassRegistry&);
+  void initializeHexagonVectorLoopCarriedReuseLegacyPassPass(PassRegistry &);
   void initializeHexagonVExtractPass(PassRegistry&);
   Pass *createHexagonLoopIdiomPass();
-  Pass *createHexagonVectorLoopCarriedReusePass();
+  Pass *createHexagonVectorLoopCarriedReuseLegacyPass();
 
   FunctionPass *createHexagonBitSimplify();
   FunctionPass *createHexagonBranchRelaxation();
@@ -166,14 +173,15 @@ namespace llvm {
                                      CodeGenOpt::Level OptLevel);
   FunctionPass *createHexagonLoopRescheduling();
   FunctionPass *createHexagonNewValueJump();
-  FunctionPass *createHexagonOptimizeSZextends();
   FunctionPass *createHexagonOptAddrMode();
+  FunctionPass *createHexagonOptimizeSZextends();
   FunctionPass *createHexagonPacketizer(bool Minimal);
   FunctionPass *createHexagonPeephole();
   FunctionPass *createHexagonRDFOpt();
   FunctionPass *createHexagonSplitConst32AndConst64();
   FunctionPass *createHexagonSplitDoubleRegs();
   FunctionPass *createHexagonStoreWidening();
+  FunctionPass *createHexagonVectorCombineLegacyPass();
   FunctionPass *createHexagonVectorPrint();
   FunctionPass *createHexagonVExtract();
 } // end namespace llvm;
@@ -195,13 +203,14 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeHexagonTarget() {
   initializeHexagonEarlyIfConversionPass(PR);
   initializeHexagonGenMuxPass(PR);
   initializeHexagonHardwareLoopsPass(PR);
-  initializeHexagonLoopIdiomRecognizePass(PR);
-  initializeHexagonVectorLoopCarriedReusePass(PR);
+  initializeHexagonLoopIdiomRecognizeLegacyPassPass(PR);
   initializeHexagonNewValueJumpPass(PR);
   initializeHexagonOptAddrModePass(PR);
   initializeHexagonPacketizerPass(PR);
   initializeHexagonRDFOptPass(PR);
   initializeHexagonSplitDoubleRegsPass(PR);
+  initializeHexagonVectorCombineLegacyPass(PR);
+  initializeHexagonVectorLoopCarriedReuseLegacyPassPass(PR);
   initializeHexagonVExtractPass(PR);
 }
 
@@ -235,12 +244,10 @@ HexagonTargetMachine::getSubtargetImpl(const Function &F) const {
   Attribute FSAttr =
       FnAttrs.getAttribute(AttributeList::FunctionIndex, "target-features");
 
-  std::string CPU = !CPUAttr.hasAttribute(Attribute::None)
-                        ? CPUAttr.getValueAsString().str()
-                        : TargetCPU;
-  std::string FS = !FSAttr.hasAttribute(Attribute::None)
-                       ? FSAttr.getValueAsString().str()
-                       : TargetFS;
+  std::string CPU =
+      CPUAttr.isValid() ? CPUAttr.getValueAsString().str() : TargetCPU;
+  std::string FS =
+      FSAttr.isValid() ? FSAttr.getValueAsString().str() : TargetFS;
   // Append the preexisting target features last, so that +mattr overrides
   // the "unsafe-fp-math" function attribute.
   // Creating a separate target feature is not strictly necessary, it only
@@ -268,10 +275,26 @@ void HexagonTargetMachine::adjustPassManager(PassManagerBuilder &PMB) {
       PM.add(createHexagonLoopIdiomPass());
     });
   PMB.addExtension(
-    PassManagerBuilder::EP_LoopOptimizerEnd,
-    [&](const PassManagerBuilder &, legacy::PassManagerBase &PM) {
-      PM.add(createHexagonVectorLoopCarriedReusePass());
-    });
+      PassManagerBuilder::EP_LoopOptimizerEnd,
+      [&](const PassManagerBuilder &, legacy::PassManagerBase &PM) {
+        PM.add(createHexagonVectorLoopCarriedReuseLegacyPass());
+      });
+}
+
+void HexagonTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB,
+                                                        bool DebugPassManager) {
+  PB.registerLateLoopOptimizationsEPCallback(
+      [=](LoopPassManager &LPM, PassBuilder::OptimizationLevel Level) {
+        LPM.addPass(HexagonLoopIdiomRecognitionPass());
+      });
+  PB.registerOptimizerLastEPCallback(
+      [=](ModulePassManager &MPM, PassBuilder::OptimizationLevel Level) {
+        LoopPassManager LPM(DebugPassManager);
+        FunctionPassManager FPM(DebugPassManager);
+        LPM.addPass(HexagonVectorLoopCarriedReusePass());
+        FPM.addPass(createFunctionToLoopPassAdaptor(std::move(LPM)));
+        MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
+      });
 }
 
 TargetTransformInfo
@@ -329,9 +352,12 @@ void HexagonPassConfig::addIRPasses() {
                                               .forwardSwitchCondToPhi(true)
                                               .convertSwitchToLookupTable(true)
                                               .needCanonicalLoops(false)
+                                              .hoistCommonInsts(true)
                                               .sinkCommonInsts(true)));
     if (EnableLoopPrefetch)
       addPass(createLoopDataPrefetchPass());
+    if (EnableVectorCombine)
+      addPass(createHexagonVectorCombineLegacyPass());
     if (EnableCommGEP)
       addPass(createHexagonCommonGEP());
     // Replace certain combinations of shifts and ands with extracts.

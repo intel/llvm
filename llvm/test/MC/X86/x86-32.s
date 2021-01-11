@@ -45,16 +45,16 @@
 // CHECK: encoding: [0x0f,0x01,0xf8]
 
 	vmrun %eax
-// CHECK: vmrun %eax
+// CHECK: vmrun
 // CHECK: encoding: [0x0f,0x01,0xd8]
 	vmmcall
 // CHECK: vmmcall
 // CHECK: encoding: [0x0f,0x01,0xd9]
 	vmload %eax
-// CHECK: vmload %eax
+// CHECK: vmload
 // CHECK: encoding: [0x0f,0x01,0xda]
 	vmsave %eax
-// CHECK: vmsave %eax
+// CHECK: vmsave
 // CHECK: encoding: [0x0f,0x01,0xdb]
 	stgi
 // CHECK: stgi
@@ -63,10 +63,10 @@
 // CHECK: clgi
 // CHECK: encoding: [0x0f,0x01,0xdd]
 	skinit %eax
-// CHECK: skinit %eax
+// CHECK: skinit
 // CHECK: encoding: [0x0f,0x01,0xde]
 	invlpga %eax, %ecx
-// CHECK: invlpga %eax, %ecx
+// CHECK: invlpga
 // CHECK: encoding: [0x0f,0x01,0xdf]
 
 	rdtscp
@@ -1113,13 +1113,21 @@ ptwritel %eax
 // CHECK: jmp foo
 // CHECK:  encoding: [0xe9,A,A,A,A]
 // CHECK:  fixup A - offset: 1, value: foo-4, kind: FK_PCRel_4
+// CHECK: jmp foo
+// CHECK:  encoding: [0xe9,A,A,A,A]
+// CHECK:  fixup A - offset: 1, value: foo-4, kind: FK_PCRel_4
 {disp32} jmp foo
+jmp.d32 foo
 foo:
 
 // CHECK: je foo
 // CHECK:  encoding: [0x0f,0x84,A,A,A,A]
 // CHECK:  fixup A - offset: 2, value: foo-4, kind: FK_PCRel_4
+// CHECK: je foo
+// CHECK:  encoding: [0x0f,0x84,A,A,A,A]
+// CHECK:  fixup A - offset: 2, value: foo-4, kind: FK_PCRel_4
 {disp32} je foo
+je.d32 foo
 
 // CHECK: ljmpl *%cs:305419896
 // CHECK:  encoding: [0x2e,0xff,0x2d,0x78,0x56,0x34,0x12]

@@ -12,6 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/Transforms/Scalar/LoopInterchange.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
@@ -428,9 +429,7 @@ private:
   const LoopInterchangeLegality &LIL;
 };
 
-// Main LoopInterchange Pass.
-struct LoopInterchange : public LoopPass {
-  static char ID;
+struct LoopInterchange {
   ScalarEvolution *SE = nullptr;
   LoopInfo *LI = nullptr;
   DependenceInfo *DI = nullptr;
@@ -439,26 +438,13 @@ struct LoopInterchange : public LoopPass {
   /// Interface to emit optimization remarks.
   OptimizationRemarkEmitter *ORE;
 
-  LoopInterchange() : LoopPass(ID) {
-    initializeLoopInterchangePass(*PassRegistry::getPassRegistry());
-  }
+  LoopInterchange(ScalarEvolution *SE, LoopInfo *LI, DependenceInfo *DI,
+                  DominatorTree *DT, OptimizationRemarkEmitter *ORE)
+      : SE(SE), LI(LI), DI(DI), DT(DT), ORE(ORE) {}
 
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<DependenceAnalysisWrapperPass>();
-    AU.addRequired<OptimizationRemarkEmitterWrapperPass>();
-
-    getLoopAnalysisUsage(AU);
-  }
-
-  bool runOnLoop(Loop *L, LPPassManager &LPM) override {
-    if (skipLoop(L) || L->getParentLoop())
+  bool run(Loop *L) {
+    if (L->getParentLoop())
       return false;
-
-    SE = &getAnalysis<ScalarEvolutionWrapperPass>().getSE();
-    LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
-    DI = &getAnalysis<DependenceAnalysisWrapperPass>().getDI();
-    DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-    ORE = &getAnalysis<OptimizationRemarkEmitterWrapperPass>().getORE();
 
     return processLoopList(populateWorklist(*L));
   }
@@ -466,7 +452,7 @@ struct LoopInterchange : public LoopPass {
   bool isComputableLoopNest(LoopVector LoopList) {
     for (Loop *L : LoopList) {
       const SCEV *ExitCountOuter = SE->getBackedgeTakenCount(L);
-      if (ExitCountOuter == SE->getCouldNotCompute()) {
+      if (isa<SCEVCouldNotCompute>(ExitCountOuter)) {
         LLVM_DEBUG(dbgs() << "Couldn't compute backedge count\n");
         return false;
       }
@@ -715,8 +701,7 @@ bool LoopInterchangeLegality::findInductionAndReductions(
         Value *V = followLCSSA(PHI.getIncomingValueForBlock(L->getLoopLatch()));
         PHINode *InnerRedPhi = findInnerReductionPhi(InnerLoop, V);
         if (!InnerRedPhi ||
-            !llvm::any_of(InnerRedPhi->incoming_values(),
-                          [&PHI](Value *V) { return V == &PHI; })) {
+            !llvm::is_contained(InnerRedPhi->incoming_values(), &PHI)) {
           LLVM_DEBUG(
               dbgs()
               << "Failed to recognize PHI as an induction or reduction.\n");
@@ -1053,6 +1038,10 @@ int LoopInterchangeProfitability::getInstrOrderCost() {
         bool FoundInnerInduction = false;
         bool FoundOuterInduction = false;
         for (unsigned i = 0; i < NumOp; ++i) {
+          // Skip operands that are not SCEV-able.
+          if (!SE->isSCEVable(GEP->getOperand(i)->getType()))
+            continue;
+
           const SCEV *OperandVal = SE->getSCEV(GEP->getOperand(i));
           const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(OperandVal);
           if (!AR)
@@ -1197,7 +1186,7 @@ void LoopInterchangeTransform::restructureLoops(
     removeChildLoop(NewInner, NewOuter);
     LI->changeTopLevelLoop(NewInner, NewOuter);
   }
-  while (!NewOuter->empty())
+  while (!NewOuter->isInnermost())
     NewInner->addChildLoop(NewOuter->removeChildLoop(NewOuter->begin()));
   NewOuter->addChildLoop(NewInner);
 
@@ -1645,15 +1634,58 @@ bool LoopInterchangeTransform::adjustLoopLinks() {
   return Changed;
 }
 
-char LoopInterchange::ID = 0;
+/// Main LoopInterchange Pass.
+struct LoopInterchangeLegacyPass : public LoopPass {
+  static char ID;
 
-INITIALIZE_PASS_BEGIN(LoopInterchange, "loop-interchange",
+  LoopInterchangeLegacyPass() : LoopPass(ID) {
+    initializeLoopInterchangeLegacyPassPass(*PassRegistry::getPassRegistry());
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addRequired<DependenceAnalysisWrapperPass>();
+    AU.addRequired<OptimizationRemarkEmitterWrapperPass>();
+
+    getLoopAnalysisUsage(AU);
+  }
+
+  bool runOnLoop(Loop *L, LPPassManager &LPM) override {
+    if (skipLoop(L))
+      return false;
+
+    auto *SE = &getAnalysis<ScalarEvolutionWrapperPass>().getSE();
+    auto *LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
+    auto *DI = &getAnalysis<DependenceAnalysisWrapperPass>().getDI();
+    auto *DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
+    auto *ORE = &getAnalysis<OptimizationRemarkEmitterWrapperPass>().getORE();
+
+    return LoopInterchange(SE, LI, DI, DT, ORE).run(L);
+  }
+};
+
+char LoopInterchangeLegacyPass::ID = 0;
+
+INITIALIZE_PASS_BEGIN(LoopInterchangeLegacyPass, "loop-interchange",
                       "Interchanges loops for cache reuse", false, false)
 INITIALIZE_PASS_DEPENDENCY(LoopPass)
 INITIALIZE_PASS_DEPENDENCY(DependenceAnalysisWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(OptimizationRemarkEmitterWrapperPass)
 
-INITIALIZE_PASS_END(LoopInterchange, "loop-interchange",
+INITIALIZE_PASS_END(LoopInterchangeLegacyPass, "loop-interchange",
                     "Interchanges loops for cache reuse", false, false)
 
-Pass *llvm::createLoopInterchangePass() { return new LoopInterchange(); }
+Pass *llvm::createLoopInterchangePass() {
+  return new LoopInterchangeLegacyPass();
+}
+
+PreservedAnalyses LoopInterchangePass::run(Loop &L, LoopAnalysisManager &AM,
+                                           LoopStandardAnalysisResults &AR,
+                                           LPMUpdater &U) {
+  Function &F = *L.getHeader()->getParent();
+
+  DependenceInfo DI(&F, &AR.AA, &AR.SE, &AR.LI);
+  OptimizationRemarkEmitter ORE(&F);
+  if (!LoopInterchange(&AR.SE, &AR.LI, &DI, &AR.DT, &ORE).run(&L))
+    return PreservedAnalyses::all();
+  return getLoopPassPreservedAnalyses();
+}

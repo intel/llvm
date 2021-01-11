@@ -9,11 +9,12 @@
 #include "mlir/Dialect/Shape/IR/Shape.h"
 
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Traits.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/PatternMatch.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/Transforms/InliningUtils.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -31,10 +32,9 @@ RankedTensorType shape::getExtentTensorType(MLIRContext *ctx) {
 }
 
 static bool isErrorPropagationPossible(TypeRange operandTypes) {
-  for (Type ty : operandTypes)
-    if (ty.isa<SizeType>() || ty.isa<ShapeType>() || ty.isa<ValueShapeType>())
-      return true;
-  return false;
+  return llvm::any_of(operandTypes, [](Type ty) {
+    return ty.isa<SizeType, ShapeType, ValueShapeType>();
+  });
 }
 
 static LogicalResult verifySizeOrIndexOp(Operation *op) {
@@ -72,7 +72,7 @@ struct ShapeInlinerInterface : public DialectInlinerInterface {
 
   // Returns true if the given region 'src' can be inlined into the region
   // 'dest' that is attached to an operation registered to the current dialect.
-  bool isLegalToInline(Region *dest, Region *src,
+  bool isLegalToInline(Region *dest, Region *src, bool wouldBeCloned,
                        BlockAndValueMapping &) const final {
     return true;
   }
@@ -80,7 +80,7 @@ struct ShapeInlinerInterface : public DialectInlinerInterface {
   // Returns true if the given operation 'op', that is registered to this
   // dialect, can be inlined into the region 'dest' that is attached to an
   // operation registered to the current dialect.
-  bool isLegalToInline(Operation *op, Region *dest,
+  bool isLegalToInline(Operation *op, Region *dest, bool wouldBeCloned,
                        BlockAndValueMapping &) const final {
     return true;
   }
@@ -92,8 +92,7 @@ void ShapeDialect::initialize() {
 #define GET_OP_LIST
 #include "mlir/Dialect/Shape/IR/ShapeOps.cpp.inc"
       >();
-  addTypes<ComponentType, ElementType, ShapeType, SizeType, ValueShapeType,
-           WitnessType>();
+  addTypes<ShapeType, SizeType, ValueShapeType, WitnessType>();
   addInterfaces<ShapeInlinerInterface>();
   // Allow unknown operations during prototyping and testing. As the dialect is
   // still evolving it makes it simple to start with an unregistered ops and
@@ -112,7 +111,7 @@ Operation *ShapeDialect::materializeConstant(OpBuilder &builder,
     return builder.create<ConstSizeOp>(loc, type, value.cast<IntegerAttr>());
   if (type.isa<WitnessType>())
     return builder.create<ConstWitnessOp>(loc, type, value.cast<BoolAttr>());
-  if (type.isa<IndexType>())
+  if (ConstantOp::isBuildableWith(value, type))
     return builder.create<ConstantOp>(loc, type, value);
   return nullptr;
 }
@@ -123,10 +122,6 @@ Type ShapeDialect::parseType(DialectAsmParser &parser) const {
   if (parser.parseKeyword(&keyword))
     return Type();
 
-  if (keyword == "component")
-    return ComponentType::get(getContext());
-  if (keyword == "element")
-    return ElementType::get(getContext());
   if (keyword == "shape")
     return ShapeType::get(getContext());
   if (keyword == "size")
@@ -143,8 +138,6 @@ Type ShapeDialect::parseType(DialectAsmParser &parser) const {
 /// Print a type registered to this dialect.
 void ShapeDialect::printType(Type type, DialectAsmPrinter &os) const {
   TypeSwitch<Type>(type)
-      .Case<ComponentType>([&](Type) { os << "component"; })
-      .Case<ElementType>([&](Type) { os << "element"; })
       .Case<ShapeType>([&](Type) { os << "shape"; })
       .Case<SizeType>([&](Type) { os << "size"; })
       .Case<ValueShapeType>([&](Type) { os << "value_shape"; })
@@ -233,6 +226,21 @@ void AssumingOp::getCanonicalizationPatterns(OwningRewritePatternList &patterns,
   patterns.insert<AssumingWithTrue>(context);
 }
 
+// See RegionBranchOpInterface in Interfaces/ControlFlowInterfaces.td
+void AssumingOp::getSuccessorRegions(
+    Optional<unsigned> index, ArrayRef<Attribute> operands,
+    SmallVectorImpl<RegionSuccessor> &regions) {
+  // AssumingOp has unconditional control flow into the region and back to the
+  // parent, so return the correct RegionSuccessor purely based on the index
+  // being None or 0.
+  if (index.hasValue()) {
+    regions.push_back(RegionSuccessor(getResults()));
+    return;
+  }
+
+  regions.push_back(RegionSuccessor(&doRegion()));
+}
+
 void AssumingOp::inlineRegionIntoParent(AssumingOp &op,
                                         PatternRewriter &rewriter) {
   auto *blockBeforeAssuming = rewriter.getInsertionBlock();
@@ -256,6 +264,12 @@ void AssumingOp::inlineRegionIntoParent(AssumingOp &op,
 //===----------------------------------------------------------------------===//
 // AssumingAllOp
 //===----------------------------------------------------------------------===//
+
+void AssumingAllOp::getCanonicalizationPatterns(
+    OwningRewritePatternList &patterns, MLIRContext *context) {
+  patterns.insert<AssumingAllOneOp>(context);
+}
+
 OpFoldResult AssumingAllOp::fold(ArrayRef<Attribute> operands) {
   // Iterate in reverse to first handle all constant operands. They are
   // guaranteed to be the tail of the inputs because this is commutative.
@@ -379,6 +393,11 @@ static ParseResult parseConstShapeOp(OpAsmParser &parser,
 
 OpFoldResult ConstShapeOp::fold(ArrayRef<Attribute>) { return shapeAttr(); }
 
+void ConstShapeOp::getCanonicalizationPatterns(
+    OwningRewritePatternList &patterns, MLIRContext *context) {
+  patterns.insert<TensorCastConstShape>(context);
+}
+
 //===----------------------------------------------------------------------===//
 // CstrBroadcastableOp
 //===----------------------------------------------------------------------===//
@@ -399,46 +418,6 @@ LogicalResult getShapeVec(Value input, SmallVectorImpl<int64_t> &shapeValues) {
     return failure();
   }
 }
-
-// For shapes that were created by some operations, we can obtain partial
-// information on the shapes and sometimes determine if they will be
-// broadcastable with that.
-struct CstrBroadcastablePartialInfo
-    : public OpRewritePattern<CstrBroadcastableOp> {
-  using OpRewritePattern<CstrBroadcastableOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(CstrBroadcastableOp op,
-                                PatternRewriter &rewriter) const override {
-    SmallVector<int64_t, 6> lhsShape, rhsShape;
-    if (failed(getShapeVec(op.lhs(), lhsShape)))
-      return failure();
-    if (failed(getShapeVec(op.rhs(), rhsShape)))
-      return failure();
-    if (!OpTrait::util::staticallyKnownBroadcastable(lhsShape, rhsShape))
-      return failure();
-
-    rewriter.replaceOpWithNewOp<ConstWitnessOp>(op.getOperation(), true);
-    return success();
-  }
-};
-
-// Scalars are always broadcastable.
-struct CstrBroadcastableScalar : public OpRewritePattern<CstrBroadcastableOp> {
-  using OpRewritePattern<CstrBroadcastableOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(CstrBroadcastableOp op,
-                                PatternRewriter &rewriter) const override {
-    SmallVector<int64_t, 6> shape;
-    if (failed(getShapeVec(op.lhs(), shape)) || shape.size() > 0)
-      return failure();
-    if (failed(getShapeVec(op.rhs(), shape)) || shape.size() > 0)
-      return failure();
-
-    rewriter.replaceOpWithNewOp<ConstWitnessOp>(op.getOperation(), true);
-    return success();
-  }
-};
-
 } // namespace
 
 void CstrBroadcastableOp::getCanonicalizationPatterns(
@@ -446,8 +425,7 @@ void CstrBroadcastableOp::getCanonicalizationPatterns(
   // Canonicalization patterns have overlap with the considerations during
   // folding in case additional shape information is inferred at some point that
   // does not result in folding.
-  patterns.insert<CstrBroadcastableEqOps, CstrBroadcastablePartialInfo,
-                  CstrBroadcastableScalar>(context);
+  patterns.insert<CstrBroadcastableEqOps>(context);
 }
 
 OpFoldResult CstrBroadcastableOp::fold(ArrayRef<Attribute> operands) {
@@ -532,6 +510,14 @@ void ConstSizeOp::getAsmResultNames(
 OpFoldResult ConstWitnessOp::fold(ArrayRef<Attribute>) { return passingAttr(); }
 
 //===----------------------------------------------------------------------===//
+// CstrRequireOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult CstrRequireOp::fold(ArrayRef<Attribute> operands) {
+  return operands[0];
+}
+
+//===----------------------------------------------------------------------===//
 // ShapeEqOp
 //===----------------------------------------------------------------------===//
 
@@ -574,6 +560,65 @@ OpFoldResult FromExtentsOp::fold(ArrayRef<Attribute> operands) {
     extents.push_back(attr.cast<IntegerAttr>().getInt());
   Builder builder(getContext());
   return builder.getIndexTensorAttr(extents);
+}
+
+//===----------------------------------------------------------------------===//
+// FunctionLibraryOp
+//===----------------------------------------------------------------------===//
+
+void FunctionLibraryOp::build(OpBuilder &builder, OperationState &result,
+                              StringRef name) {
+  ensureTerminator(*result.addRegion(), builder, result.location);
+  result.attributes.push_back(builder.getNamedAttr(
+      ::mlir::SymbolTable::getSymbolAttrName(), builder.getStringAttr(name)));
+}
+
+FuncOp FunctionLibraryOp::getShapeFunction(Operation *op) {
+  auto attr = mapping()
+                  .get(op->getName().getIdentifier())
+                  .dyn_cast_or_null<FlatSymbolRefAttr>();
+  if (!attr)
+    return nullptr;
+  return lookupSymbol<FuncOp>(attr);
+}
+
+ParseResult parseFunctionLibraryOp(OpAsmParser &parser,
+                                   OperationState &result) {
+  // Parse the op name.
+  StringAttr nameAttr;
+  if (parser.parseSymbolName(nameAttr, ::mlir::SymbolTable::getSymbolAttrName(),
+                             result.attributes))
+    return failure();
+
+  if (parser.parseOptionalAttrDictWithKeyword(result.attributes))
+    return failure();
+
+  auto *bodyRegion = result.addRegion();
+  if (parser.parseRegion(*bodyRegion))
+    return failure();
+
+  FunctionLibraryOp::ensureTerminator(*bodyRegion, parser.getBuilder(),
+                                      result.location);
+  if (parser.parseKeyword("mapping"))
+    return failure();
+
+  DictionaryAttr mappingAttr;
+  if (parser.parseAttribute(mappingAttr,
+                            parser.getBuilder().getType<NoneType>(), "mapping",
+                            result.attributes))
+    return failure();
+  return success();
+}
+
+void print(OpAsmPrinter &p, FunctionLibraryOp op) {
+  p << op.getOperationName() << ' ';
+  p.printSymbolName(op.getName());
+  p.printOptionalAttrDictWithKeyword(
+      op.getAttrs(), {SymbolTable::getSymbolAttrName(), "mapping"});
+  p.printRegion(op.getOperation()->getRegion(0), /*printEntryBlockArgs=*/false,
+                /*printBlockTerminators=*/false);
+  p << " mapping ";
+  p.printAttributeWithoutType(op.mappingAttr());
 }
 
 //===----------------------------------------------------------------------===//
@@ -779,8 +824,8 @@ void SizeToIndexOp::getCanonicalizationPatterns(
 // YieldOp
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verify(YieldOp op) {
-  auto *parentOp = op.getParentOp();
+static LogicalResult verify(shape::YieldOp op) {
+  auto *parentOp = op->getParentOp();
   auto results = parentOp->getResults();
   auto operands = op.getOperands();
 
@@ -938,11 +983,5 @@ static void print(OpAsmPrinter &p, ReduceOp op) {
   p.printOptionalAttrDict(op.getAttrs());
 }
 
-namespace mlir {
-namespace shape {
-
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Shape/IR/ShapeOps.cpp.inc"
-
-} // namespace shape
-} // namespace mlir

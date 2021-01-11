@@ -41,16 +41,15 @@
 #include "SPIRVInternal.h"
 #include "SPIRVMDBuilder.h"
 #include "SPIRVMDWalker.h"
+#include "libSPIRV/SPIRVDebug.h"
 
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Debug.h"
 
 #include <list>
 #include <set>
@@ -93,12 +92,8 @@ bool SPIRVLowerConstExpr::runOnModule(Module &Module) {
   LLVM_DEBUG(dbgs() << "Enter SPIRVLowerConstExpr:\n");
   visit(M);
 
-  LLVM_DEBUG(dbgs() << "After SPIRVLowerConstExpr:\n" << *M);
-  std::string Err;
-  raw_string_ostream ErrorOS(Err);
-  if (verifyModule(*M, &ErrorOS)) {
-    LLVM_DEBUG(errs() << "Fails to verify module: " << ErrorOS.str());
-  }
+  verifyRegularizationPass(*M, "SPIRVLowerConstExpr");
+
   return true;
 }
 
@@ -162,6 +157,8 @@ void SPIRVLowerConstExpr::visit(Module *M) {
                          [LowerOp](Value *V) { return LowerOp(V); });
           Value *Repl = nullptr;
           unsigned Idx = 0;
+          auto *PhiII = dyn_cast<PHINode>(II);
+          auto *InsPoint = PhiII ? &PhiII->getIncomingBlock(OI)->back() : II;
           std::list<Instruction *> ReplList;
           for (auto V : OpList) {
             if (auto *Inst = dyn_cast<Instruction>(V))
@@ -169,12 +166,25 @@ void SPIRVLowerConstExpr::visit(Module *M) {
             Repl = InsertElementInst::Create(
                 (Repl ? Repl : UndefValue::get(Vec->getType())), V,
                 ConstantInt::get(Type::getInt32Ty(M->getContext()), Idx++), "",
-                II);
+                InsPoint);
           }
           II->replaceUsesOfWith(Op, Repl);
           WorkList.splice(WorkList.begin(), ReplList);
-        } else if (auto CE = dyn_cast<ConstantExpr>(Op))
+        } else if (auto CE = dyn_cast<ConstantExpr>(Op)) {
           WorkList.push_front(cast<Instruction>(LowerOp(CE)));
+        } else if (auto MDAsVal = dyn_cast<MetadataAsValue>(Op)) {
+          Metadata *MD = MDAsVal->getMetadata();
+          if (auto ConstMD = dyn_cast<ConstantAsMetadata>(MD)) {
+            Constant *C = ConstMD->getValue();
+            if (auto CE = dyn_cast<ConstantExpr>(C)) {
+              Value *RepInst = LowerOp(CE);
+              Metadata *RepMD = ValueAsMetadata::get(RepInst);
+              Value *RepMDVal = MetadataAsValue::get(M->getContext(), RepMD);
+              II->setOperand(OI, RepMDVal);
+              WorkList.push_front(cast<Instruction>(RepInst));
+            }
+          }
+        }
       }
     }
   }

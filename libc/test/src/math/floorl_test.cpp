@@ -6,22 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "include/math.h"
 #include "src/math/floorl.h"
 #include "utils/FPUtil/FPBits.h"
 #include "utils/FPUtil/TestHelpers.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
 #include "utils/UnitTest/Test.h"
+#include <math.h>
 
 using FPBits = __llvm_libc::fputil::FPBits<long double>;
 
-namespace mpfr = __llvm_libc::testing::mpfr;
+DECLARE_SPECIAL_CONSTANTS(long double)
 
-static const long double zero = FPBits::zero();
-static const long double negZero = FPBits::negZero();
-static const long double nan = FPBits::buildNaN(1);
-static const long double inf = FPBits::inf();
-static const long double negInf = FPBits::negInf();
+namespace mpfr = __llvm_libc::testing::mpfr;
 
 TEST(FloorlTest, SpecialNumbers) {
   EXPECT_FP_EQ(zero, __llvm_libc::floorl(zero));
@@ -30,8 +26,7 @@ TEST(FloorlTest, SpecialNumbers) {
   EXPECT_FP_EQ(inf, __llvm_libc::floorl(inf));
   EXPECT_FP_EQ(negInf, __llvm_libc::floorl(negInf));
 
-  ASSERT_NE(isnan(nan), 0);
-  ASSERT_NE(isnan(__llvm_libc::floorl(nan)), 0);
+  EXPECT_FP_EQ(aNaN, __llvm_libc::floorl(aNaN));
 }
 
 TEST(FloorlTest, RoundedNumbers) {

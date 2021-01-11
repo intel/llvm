@@ -243,15 +243,13 @@ scanPreamble(llvm::StringRef Contents, const tooling::CompileCommand &Cmd) {
   IgnoringDiagConsumer IgnoreDiags;
   auto CI = buildCompilerInvocation(PI, IgnoreDiags);
   if (!CI)
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "failed to create compiler invocation");
+    return error("failed to create compiler invocation");
   CI->getDiagnosticOpts().IgnoreWarnings = true;
   auto ContentsBuffer = llvm::MemoryBuffer::getMemBuffer(Contents);
   // This means we're scanning (though not preprocessing) the preamble section
   // twice. However, it's important to precisely follow the preamble bounds used
   // elsewhere.
-  auto Bounds =
-      ComputePreambleBounds(*CI->getLangOpts(), ContentsBuffer.get(), 0);
+  auto Bounds = ComputePreambleBounds(*CI->getLangOpts(), *ContentsBuffer, 0);
   auto PreambleContents =
       llvm::MemoryBuffer::getMemBufferCopy(Contents.substr(0, Bounds.Size));
   auto Clang = prepareCompilerInstance(
@@ -260,14 +258,12 @@ scanPreamble(llvm::StringRef Contents, const tooling::CompileCommand &Cmd) {
       // also implies missing resolved paths for includes.
       FS.view(llvm::None), IgnoreDiags);
   if (Clang->getFrontendOpts().Inputs.empty())
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "compiler instance had no inputs");
+    return error("compiler instance had no inputs");
   // We are only interested in main file includes.
   Clang->getPreprocessorOpts().SingleFileParseMode = true;
   PreprocessOnlyAction Action;
   if (!Action.BeginSourceFile(*Clang, Clang->getFrontendOpts().Inputs[0]))
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "failed BeginSourceFile");
+    return error("failed BeginSourceFile");
   const auto &SM = Clang->getSourceManager();
   Preprocessor &PP = Clang->getPreprocessor();
   IncludeStructure Includes;
@@ -325,8 +321,7 @@ buildPreamble(PathRef FileName, CompilerInvocation CI,
   // without those.
   auto ContentsBuffer =
       llvm::MemoryBuffer::getMemBuffer(Inputs.Contents, FileName);
-  auto Bounds =
-      ComputePreambleBounds(*CI.getLangOpts(), ContentsBuffer.get(), 0);
+  auto Bounds = ComputePreambleBounds(*CI.getLangOpts(), *ContentsBuffer, 0);
 
   trace::Span Tracer("BuildPreamble");
   SPAN_ATTACH(Tracer, "File", FileName);
@@ -379,8 +374,7 @@ bool isPreambleCompatible(const PreambleData &Preamble,
                           const CompilerInvocation &CI) {
   auto ContentsBuffer =
       llvm::MemoryBuffer::getMemBuffer(Inputs.Contents, FileName);
-  auto Bounds =
-      ComputePreambleBounds(*CI.getLangOpts(), ContentsBuffer.get(), 0);
+  auto Bounds = ComputePreambleBounds(*CI.getLangOpts(), *ContentsBuffer, 0);
   auto VFS = Inputs.TFS->view(Inputs.CompileCommand.Directory);
   return compileCommandsAreEqual(Inputs.CompileCommand,
                                  Preamble.CompileCommand) &&

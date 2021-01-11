@@ -33,7 +33,9 @@ add_clang_library(clangTidyBugproneModule
   NotNullTerminatedResultCheck.cpp
   ParentVirtualCallCheck.cpp
   PosixReturnCheck.cpp
+  RedundantBranchConditionCheck.cpp
   ReservedIdentifierCheck.cpp
+  SignalHandlerCheck.cpp
   SignedCharMisuseCheck.cpp
   SizeofContainerCheck.cpp
   SizeofExpressionCheck.cpp

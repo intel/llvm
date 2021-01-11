@@ -43,7 +43,7 @@ namespace {
 const char *getDiagnosticCode(unsigned ID) {
   switch (ID) {
 #define DIAG(ENUM, CLASS, DEFAULT_MAPPING, DESC, GROPU, SFINAE, NOWERROR,      \
-             SHOWINSYSHEADER, CATEGORY)                                        \
+             SHOWINSYSHEADER, DEFERRABLE, CATEGORY)                            \
   case clang::diag::ENUM:                                                      \
     return #ENUM;
 #include "clang/Basic/DiagnosticASTKinds.inc"
@@ -186,7 +186,7 @@ const char *getMainFileRange(const Diag &D, const SourceManager &SM,
 
 // Place the diagnostic the main file, rather than the header, if possible:
 //   - for errors in included files, use the #include location
-//   - for errors in template instantiation, use the instantation location
+//   - for errors in template instantiation, use the instantiation location
 // In both cases, add the original header location as a note.
 bool tryMoveToMainFile(Diag &D, FullSourceLoc DiagLoc) {
   const SourceManager &SM = DiagLoc.getManager();
@@ -377,6 +377,32 @@ CodeAction toCodeAction(const Fix &F, const URIForFile &File) {
   return Action;
 }
 
+Diag toDiag(const llvm::SMDiagnostic &D, Diag::DiagSource Source) {
+  Diag Result;
+  Result.Message = D.getMessage().str();
+  switch (D.getKind()) {
+  case llvm::SourceMgr::DK_Error:
+    Result.Severity = DiagnosticsEngine::Error;
+    break;
+  case llvm::SourceMgr::DK_Warning:
+    Result.Severity = DiagnosticsEngine::Warning;
+    break;
+  default:
+    break;
+  }
+  Result.Source = Source;
+  Result.AbsFile = D.getFilename().str();
+  Result.InsideMainFile = D.getSourceMgr()->FindBufferContainingLoc(
+                              D.getLoc()) == D.getSourceMgr()->getMainFileID();
+  if (D.getRanges().empty())
+    Result.Range = {{D.getLineNo() - 1, D.getColumnNo()},
+                    {D.getLineNo() - 1, D.getColumnNo()}};
+  else
+    Result.Range = {{D.getLineNo() - 1, (int)D.getRanges().front().first},
+                    {D.getLineNo() - 1, (int)D.getRanges().front().second}};
+  return Result;
+}
+
 void toLSPDiags(
     const Diag &D, const URIForFile &File, const ClangdDiagnosticOptions &Opts,
     llvm::function_ref<void(clangd::Diagnostic, llvm::ArrayRef<Fix>)> OutFn) {
@@ -404,6 +430,9 @@ void toLSPDiags(
   case Diag::ClangTidy:
     Main.source = "clang-tidy";
     break;
+  case Diag::ClangdConfig:
+    Main.source = "clangd-config";
+    break;
   case Diag::Unknown:
     break;
   }
@@ -411,6 +440,8 @@ void toLSPDiags(
     Main.codeActions.emplace();
     for (const auto &Fix : D.Fixes)
       Main.codeActions->push_back(toCodeAction(Fix, File));
+    if (Main.codeActions->size() == 1)
+      Main.codeActions->front().isPreferred = true;
   }
   if (Opts.SendDiagnosticCategory && !D.Category.empty())
     Main.category = D.Category;

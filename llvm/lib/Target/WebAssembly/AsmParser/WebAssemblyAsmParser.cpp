@@ -324,6 +324,8 @@ public:
       return wasm::ValType::V128;
     if (Type == "exnref")
       return wasm::ValType::EXNREF;
+    if (Type == "funcref")
+      return wasm::ValType::FUNCREF;
     if (Type == "externref")
       return wasm::ValType::EXTERNREF;
     return Optional<wasm::ValType>();
@@ -337,6 +339,8 @@ public:
         .Case("f32", WebAssembly::BlockType::F32)
         .Case("f64", WebAssembly::BlockType::F64)
         .Case("v128", WebAssembly::BlockType::V128)
+        .Case("funcref", WebAssembly::BlockType::Funcref)
+        .Case("externref", WebAssembly::BlockType::Externref)
         .Case("exnref", WebAssembly::BlockType::Exnref)
         .Case("void", WebAssembly::BlockType::Void)
         .Default(WebAssembly::BlockType::Invalid);
@@ -419,6 +423,12 @@ public:
           return error("Expected integer constant");
         parseSingleInteger(false, Operands);
       } else {
+        // v128.{load,store}{8,16,32,64}_lane has both a memarg and a lane
+        // index. We need to avoid parsing an extra alignment operand for the
+        // lane index.
+        auto IsLoadStoreLane = InstName.find("_lane") != StringRef::npos;
+        if (IsLoadStoreLane && Operands.size() == 4)
+          return false;
         // Alignment not specified (or atomics, must use default alignment).
         // We can't just call WebAssembly::GetDefaultP2Align since we don't have
         // an opcode until after the assembly matcher, so set a default to fix
@@ -430,6 +440,13 @@ public:
       }
     }
     return false;
+  }
+
+  WebAssembly::HeapType parseHeapType(StringRef Id) {
+    return StringSwitch<WebAssembly::HeapType>(Id)
+        .Case("extern", WebAssembly::HeapType::Externref)
+        .Case("func", WebAssembly::HeapType::Funcref)
+        .Default(WebAssembly::HeapType::Invalid);
   }
 
   void addBlockTypeOperand(OperandVector &Operands, SMLoc NameLoc,
@@ -474,6 +491,7 @@ public:
     // proper nesting.
     bool ExpectBlockType = false;
     bool ExpectFuncType = false;
+    bool ExpectHeapType = false;
     if (Name == "block") {
       push(Block);
       ExpectBlockType = true;
@@ -513,6 +531,8 @@ public:
         return true;
     } else if (Name == "call_indirect" || Name == "return_call_indirect") {
       ExpectFuncType = true;
+    } else if (Name == "ref.null") {
+      ExpectHeapType = true;
     }
 
     if (ExpectFuncType || (ExpectBlockType && Lexer.is(AsmToken::LParen))) {
@@ -553,6 +573,15 @@ public:
           if (BT == WebAssembly::BlockType::Invalid)
             return error("Unknown block type: ", Id);
           addBlockTypeOperand(Operands, NameLoc, BT);
+          Parser.Lex();
+        } else if (ExpectHeapType) {
+          auto HeapType = parseHeapType(Id.getString());
+          if (HeapType == WebAssembly::HeapType::Invalid) {
+            return error("Expected a heap type: ", Id);
+          }
+          Operands.push_back(std::make_unique<WebAssemblyOperand>(
+              WebAssemblyOperand::Integer, Id.getLoc(), Id.getEndLoc(),
+              WebAssemblyOperand::IntOp{static_cast<int64_t>(HeapType)}));
           Parser.Lex();
         } else {
           // Assume this identifier is a label.
@@ -689,13 +718,49 @@ public:
       auto Type = parseType(TypeName);
       if (!Type)
         return error("Unknown type in .globaltype directive: ", TypeTok);
+      // Optional mutable modifier. Default to mutable for historical reasons.
+      // Ideally we would have gone with immutable as the default and used `mut`
+      // as the modifier to match the `.wat` format.
+      bool Mutable = true;
+      if (isNext(AsmToken::Comma)) {
+        TypeTok = Lexer.getTok();
+        auto Id = expectIdent();
+        if (Id == "immutable")
+          Mutable = false;
+        else
+          // Should we also allow `mutable` and `mut` here for clarity?
+          return error("Unknown type in .globaltype modifier: ", TypeTok);
+      }
       // Now set this symbol with the correct type.
       auto WasmSym = cast<MCSymbolWasm>(Ctx.getOrCreateSymbol(SymName));
       WasmSym->setType(wasm::WASM_SYMBOL_TYPE_GLOBAL);
       WasmSym->setGlobalType(
-          wasm::WasmGlobalType{uint8_t(Type.getValue()), true});
+          wasm::WasmGlobalType{uint8_t(Type.getValue()), Mutable});
       // And emit the directive again.
       TOut.emitGlobalType(WasmSym);
+      return expect(AsmToken::EndOfStatement, "EOL");
+    }
+
+    if (DirectiveID.getString() == ".tabletype") {
+      auto SymName = expectIdent();
+      if (SymName.empty())
+        return true;
+      if (expect(AsmToken::Comma, ","))
+        return true;
+      auto TypeTok = Lexer.getTok();
+      auto TypeName = expectIdent();
+      if (TypeName.empty())
+        return true;
+      auto Type = parseType(TypeName);
+      if (!Type)
+        return error("Unknown type in .tabletype directive: ", TypeTok);
+
+      // Now that we have the name and table type, we can actually create the
+      // symbol
+      auto WasmSym = cast<MCSymbolWasm>(Ctx.getOrCreateSymbol(SymName));
+      WasmSym->setType(wasm::WASM_SYMBOL_TYPE_TABLE);
+      WasmSym->setTableType(Type.getValue());
+      TOut.emitTableType(WasmSym);
       return expect(AsmToken::EndOfStatement, "EOL");
     }
 
@@ -906,12 +971,27 @@ public:
     auto SymName = Symbol->getName();
     if (SymName.startswith(".L"))
       return; // Local Symbol.
+
     // Only create a new text section if we're already in one.
+    // TODO: If the user explicitly creates a new function section, we ignore
+    // its name when we create this one. It would be nice to honor their
+    // choice, while still ensuring that we create one if they forget.
+    // (that requires coordination with WasmAsmParser::parseSectionDirective)
     auto CWS = cast<MCSectionWasm>(getStreamer().getCurrentSection().first);
     if (!CWS || !CWS->getKind().isText())
       return;
     auto SecName = ".text." + SymName;
-    auto WS = getContext().getWasmSection(SecName, SectionKind::getText());
+
+    auto *Group = CWS->getGroup();
+    // If the current section is a COMDAT, also set the flag on the symbol.
+    // TODO: Currently the only place that the symbols' comdat flag matters is
+    // for importing comdat functions. But there's no way to specify that in
+    // assembly currently.
+    if (Group)
+      cast<MCSymbolWasm>(Symbol)->setComdat(true);
+    auto *WS =
+        getContext().getWasmSection(SecName, SectionKind::getText(), Group,
+                                    MCContext::GenericSectionID, nullptr);
     getStreamer().SwitchSection(WS);
     // Also generate DWARF for this section if requested.
     if (getContext().getGenDwarfForAssembly())

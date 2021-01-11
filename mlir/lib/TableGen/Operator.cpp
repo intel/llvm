@@ -18,6 +18,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -146,7 +147,7 @@ Operator::arg_range Operator::getArgs() const {
 
 StringRef Operator::getArgName(int index) const {
   DagInit *argumentValues = def.getValueAsDag("arguments");
-  return argumentValues->getArgName(index)->getValue();
+  return argumentValues->getArgNameStr(index);
 }
 
 auto Operator::getArgDecorators(int index) const -> var_decorator_range {
@@ -278,7 +279,7 @@ void Operator::populateTypeInferenceInfo(
 
   // Skip cases currently being custom generated.
   // TODO: Remove special cases.
-  if (getTrait("OpTrait::SameOperandsAndResultType"))
+  if (getTrait("::mlir::OpTrait::SameOperandsAndResultType"))
     return;
 
   // We create equivalence classes of argument/result types where arguments
@@ -546,12 +547,12 @@ StringRef Operator::getSummary() const {
 
 bool Operator::hasAssemblyFormat() const {
   auto *valueInit = def.getValueInit("assemblyFormat");
-  return isa<llvm::CodeInit, llvm::StringInit>(valueInit);
+  return isa<llvm::StringInit>(valueInit);
 }
 
 StringRef Operator::getAssemblyFormat() const {
   return TypeSwitch<llvm::Init *, StringRef>(def.getValueInit("assemblyFormat"))
-      .Case<llvm::StringInit, llvm::CodeInit>(
+      .Case<llvm::StringInit>(
           [&](auto *init) { return init->getValue(); });
 }
 

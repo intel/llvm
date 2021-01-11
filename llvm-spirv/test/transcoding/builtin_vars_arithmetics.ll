@@ -3,7 +3,9 @@
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.spv -r -o %t.rev.bc
-; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefixes=CHECK-LLVM,CHECK-LLVM-OCL
+; RUN: llvm-spirv %t.spv -r --spirv-target-env=SPV-IR -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefixes=CHECK-LLVM,CHECK-LLVM-SPV
 
 ; The IR was generated from the following source:
 ; #include <CL/sycl.hpp>
@@ -30,16 +32,44 @@
 ; clang++ -fsycl -fsycl-device-only emit-llvm tmp.cpp -o tmp.bc
 ; llvm-spirv tmp.bc -spirv-text -o builtin_vars_arithmetics.ll
 
-; CHECK-SPIRV: Decorate [[ConstantDecoration:[0-9]+]] Constant 
-; CHECK-SPIRV: Decorate [[GlobalInvocationId:[0-9]+]] BuiltIn 28 
-; CHECK-SPIRV: Decorate [[GlobalSize:[0-9]+]] BuiltIn 31 
-; CHECK-SPIRV: Decorate [[GlobalOffset:[0-9]+]] BuiltIn 33 
-
+; CHECK-SPIRV: Decorate [[GlobalInvocationId:[0-9]+]] BuiltIn 28
+; CHECK-SPIRV: Decorate [[GlobalSize:[0-9]+]] BuiltIn 31
+; CHECK-SPIRV: Decorate [[GlobalOffset:[0-9]+]] BuiltIn 33
+; CHECK-SPIRV: Decorate [[GlobalInvocationId]] Constant
+; CHECK-SPIRV: Decorate [[GlobalSize]] Constant
+; CHECK-SPIRV: Decorate [[GlobalOffset]] Constant
 ; CHECK-SPIRV: Decorate [[GlobalOffset]] LinkageAttributes "__spirv_BuiltInGlobalOffset" Import 
 ; CHECK-SPIRV: Decorate [[GlobalSize]] LinkageAttributes "__spirv_BuiltInGlobalSize" Import 
 ; CHECK-SPIRV: Decorate [[GlobalInvocationId]] LinkageAttributes "__spirv_BuiltInGlobalInvocationId" Import 
-
-; CHECK-SPIRV: GroupDecorate [[ConstantDecoration]] [[GlobalInvocationId]] [[GlobalSize]] [[GlobalOffset]]
+;
+; CHECK-LLVM-NOT: addrspacecast <3 x 64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x 64> addrspace(4)*
+; CHECK-LLVM-NOT: load <3 x i64>
+; CHECK-LLVM-OCL:  %[[Id0:[0-9]+]] = call spir_func i64 @_Z13get_global_idj(i32 0) #1
+; CHECK-LLVM-SPV:  %[[Id0:[0-9]+]] = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 0) #1
+; CHECK-LLVM:  %[[FirstVec:[0-9]+]] = insertelement <3 x i64> undef, i64 %[[Id0]], i32 0
+; CHECK-LLVM-OCL:  %[[Id1:[0-9]+]] = call spir_func i64 @_Z13get_global_idj(i32 1) #1
+; CHECK-LLVM-SPV:  %[[Id1:[0-9]+]] = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 1) #1
+; CHECK-LLVM:  %[[SecondVec:[0-9]+]] = insertelement <3 x i64> %[[FirstVec]], i64 %[[Id1]], i32 1
+; CHECK-LLVM-OCL:  %[[Id2:[0-9]+]] = call spir_func i64 @_Z13get_global_idj(i32 2) #1
+; CHECK-LLVM-SPV:  %[[Id2:[0-9]+]] = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 2) #1
+; CHECK-LLVM:  %[[GlobIdVec:[0-9]+]] = insertelement <3 x i64> %[[SecondVec]], i64 %[[Id2]], i32 2
+; CHECK-LLVM:  %{{[0-9]+}} = extractelement <3 x i64> %[[GlobIdVec]], i32 1
+; CHECK-LLVM:  %{{[0-9]+}} = extractelement <3 x i64> %[[GlobIdVec]], i32 0
+; CHECK-LLVM-NOT: addrspacecast <3 x 64> addrspace(1)* @__spirv_BuiltInGlobalSize to <3 x 64> addrspace(4)*
+; CHECK-LLVM-NOT: load <3 x i64>
+; CHECK-LLVM-NOT: addrspacecast <3 x 64> addrspace(1)* @__spirv_BuiltInGlobalOffset to <3 x 64> addrspace(4)*
+; CHECK-LLVM-NOT: load <3 x i64>
+; CHECK-LLVM-OCL:  %[[GOffset0:[0-9]+]] = call spir_func i64 @_Z17get_global_offsetj(i32 0) #1
+; CHECK-LLVM-SPV:  %[[GOffset0:[0-9]+]] = call spir_func i64 @_Z25__spirv_BuiltInGlobalSizei(i32 0) #1
+; CHECK-LLVM:  %[[FirstVec2:[0-9]+]] = insertelement <3 x i64> undef, i64 %[[GOffset0]], i32 0
+; CHECK-LLVM-OCL:  %[[GOffset1:[0-9]+]] = call spir_func i64 @_Z17get_global_offsetj(i32 1) #1
+; CHECK-LLVM-SPV:  %[[GOffset1:[0-9]+]] = call spir_func i64 @_Z25__spirv_BuiltInGlobalSizei(i32 1) #1
+; CHECK-LLVM:  %[[SecondVec2:[0-9]+]] = insertelement <3 x i64> %[[FirstVec2]], i64 %[[GOffset1]], i32 1
+; CHECK-LLVM-OCL:  %[[GOffset2:[0-9]+]] = call spir_func i64 @_Z17get_global_offsetj(i32 2) #1
+; CHECK-LLVM-SPV:  %[[GOffset2:[0-9]+]] = call spir_func i64 @_Z25__spirv_BuiltInGlobalSizei(i32 2) #1
+; CHECK-LLVM:  %[[GOffsetVec:[0-9]+]] = insertelement <3 x i64> %[[SecondVec2]], i64 %[[GOffset2]], i32 2
+; CHECK-LLVM  %20 = sub <3 x i64> %[[GlobSizeVec]], %[[GOffsetVec]]
+; CHECK-LLVM  %21 = sub <3 x i64> %[[GlobSizeVec]], %[[GOffSetVec]]
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-linux-sycldevice"
@@ -63,33 +93,11 @@ entry:
   %agg.tmp5.sroa.0.sroa.0.0.copyload = load i64, i64* %agg.tmp5.sroa.0.sroa.0.0.agg.tmp5.sroa.0.0..sroa_cast.sroa_idx, align 8
   %agg.tmp5.sroa.0.sroa.2.0.agg.tmp5.sroa.0.0..sroa_cast.sroa_idx69 = getelementptr inbounds %"class._ZTSN2cl4sycl2idILi2EEE.cl::sycl::id", %"class._ZTSN2cl4sycl2idILi2EEE.cl::sycl::id"* %_arg_3, i64 0, i32 0, i32 0, i64 1
   %agg.tmp5.sroa.0.sroa.2.0.copyload = load i64, i64* %agg.tmp5.sroa.0.sroa.2.0.agg.tmp5.sroa.0.0..sroa_cast.sroa_idx69, align 8
-; CHECK-LLVM-NOT: addrspacecast <3 x 64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x 64> addrspace(4)*
-; CHECK-LLVM-NOT: load <3 x i64>
-; CHECK-LLVM:  %[[Id0:[0-9]+]] = call spir_func i64 @_Z13get_global_idj(i32 0) #1
-; CHECK-LLVM:  %[[FirstVec:[0-9]+]] = insertelement <3 x i64> undef, i64 %[[Id0]], i32 0
-; CHECK-LLVM:  %[[Id1:[0-9]+]] = call spir_func i64 @_Z13get_global_idj(i32 1) #1
-; CHECK-LLVM:  %[[SecondVec:[0-9]+]] = insertelement <3 x i64> %[[FirstVec]], i64 %[[Id1]], i32 1
-; CHECK-LLVM:  %[[Id2:[0-9]+]] = call spir_func i64 @_Z13get_global_idj(i32 2) #1
-; CHECK-LLVM:  %[[GlobIdVec:[0-9]+]] = insertelement <3 x i64> %[[SecondVec]], i64 %[[Id2]], i32 2
   %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*), align 32
-; CHECK-LLVM:  %{{[0-9]+}} = extractelement <3 x i64> %[[GlobIdVec]], i32 1
-; CHECK-LLVM:  %{{[0-9]+}} = extractelement <3 x i64> %[[GlobIdVec]], i32 0
   %1 = extractelement <3 x i64> %0, i64 1
   %2 = extractelement <3 x i64> %0, i64 0
-; CHECK-LLVM-NOT: addrspacecast <3 x 64> addrspace(1)* @__spirv_BuiltInGlobalSize to <3 x 64> addrspace(4)*
-; CHECK-LLVM-NOT: load <3 x i64>
   %3 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalSize to <3 x i64> addrspace(4)*), align 32
-; CHECK-LLVM-NOT: addrspacecast <3 x 64> addrspace(1)* @__spirv_BuiltInGlobalOffset to <3 x 64> addrspace(4)*
-; CHECK-LLVM-NOT: load <3 x i64>
-; CHECK-LLVM:  %[[GOffset0:[0-9]+]] = call spir_func i64 @_Z17get_global_offsetj(i32 0) #1
-; CHECK-LLVM:  %[[FirstVec2:[0-9]+]] = insertelement <3 x i64> undef, i64 %[[GOffset0]], i32 0
-; CHECK-LLVM:  %[[GOffset1:[0-9]+]] = call spir_func i64 @_Z17get_global_offsetj(i32 1) #1
-; CHECK-LLVM:  %[[SecondVec2:[0-9]+]] = insertelement <3 x i64> %[[FirstVec2]], i64 %[[GOffset1]], i32 1
-; CHECK-LLVM:  %[[GOffset2:[0-9]+]] = call spir_func i64 @_Z17get_global_offsetj(i32 2) #1
-; CHECK-LLVM:  %[[GOffsetVec:[0-9]+]] = insertelement <3 x i64> %[[SecondVec2]], i64 %[[GOffset2]], i32 2
   %4 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalOffset to <3 x i64> addrspace(4)*), align 32
-; CHECK-LLVM  %20 = sub <3 x i64> %[[GlobSizeVec]], %[[GOffsetVec]]
-; CHECK-LLVM  %21 = sub <3 x i64> %[[GlobSizeVec]], %[[GOffSetVec]]
   %5 = sub <3 x i64> %0, %4
   %6 = sub <3 x i64> %0, %4
   %7 = extractelement <3 x i64> %6, i64 0

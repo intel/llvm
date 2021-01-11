@@ -32,28 +32,25 @@ OMPClause::child_range OMPClause::children() {
   switch (getClauseKind()) {
   default:
     break;
-#define OMP_CLAUSE_CLASS(Enum, Str, Class)                                           \
+#define GEN_CLANG_CLAUSE_CLASS
+#define CLAUSE_CLASS(Enum, Str, Class)                                         \
   case Enum:                                                                   \
     return static_cast<Class *>(this)->children();
-#include "llvm/Frontend/OpenMP/OMPKinds.def"
+#include "llvm/Frontend/OpenMP/OMP.inc"
   }
   llvm_unreachable("unknown OMPClause");
 }
 
 OMPClause::child_range OMPClause::used_children() {
   switch (getClauseKind()) {
-#define OMP_CLAUSE_CLASS(Enum, Str, Class)                                           \
+#define GEN_CLANG_CLAUSE_CLASS
+#define CLAUSE_CLASS(Enum, Str, Class)                                         \
   case Enum:                                                                   \
     return static_cast<Class *>(this)->used_children();
-#include "llvm/Frontend/OpenMP/OMPKinds.def"
-  case OMPC_threadprivate:
-  case OMPC_uniform:
-  case OMPC_device_type:
-  case OMPC_match:
-  case OMPC_unknown:
+#define CLAUSE_NO_CLASS(Enum, Str)                                             \
+  case Enum:                                                                   \
     break;
-  default:
-    break;
+#include "llvm/Frontend/OpenMP/OMP.inc"
   }
   llvm_unreachable("unknown OMPClause");
 }
@@ -2201,7 +2198,10 @@ void OMPTraitInfo::print(llvm::raw_ostream &OS,
 
       OS << "(";
       if (Selector.Kind == TraitSelector::user_condition) {
-        Selector.ScoreOrCondition->printPretty(OS, nullptr, Policy);
+        if (Selector.ScoreOrCondition)
+          Selector.ScoreOrCondition->printPretty(OS, nullptr, Policy);
+        else
+          OS << "...";
       } else {
 
         if (Selector.ScoreOrCondition) {
@@ -2278,7 +2278,7 @@ OMPTraitInfo::OMPTraitInfo(StringRef MangledName) {
         Property.RawString = PropRestPair.first;
         Property.Kind = getOpenMPContextTraitPropertyKind(
             Set.Kind, Selector.Kind, PropRestPair.first);
-        MangledName = PropRestPair.second;
+        MangledName = MangledName.drop_front(PropRestPair.first.size());
       } while (true);
     } while (true);
   } while (true);

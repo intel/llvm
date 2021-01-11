@@ -1,7 +1,7 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -fsycl-int-header=%t.h %s -o %t.out
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-int-header=%t.h %s -o %t.out
 // RUN: FileCheck -input-file=%t.h %s
 
-#include "sycl.hpp"
+#include "Inputs/sycl.hpp"
 
 // This test verifies proper emission of specialization constants into the
 // integration header.
@@ -18,6 +18,10 @@ class MyUInt32Const;
 class MyFloatConst;
 class MyDoubleConst;
 
+namespace test {
+class MySpecConstantWithinANamespace;
+};
+
 int main() {
   // Create specialization constants.
   cl::sycl::ONEAPI::experimental::spec_constant<bool, MyBoolConst> i1(false);
@@ -32,13 +36,31 @@ int main() {
   cl::sycl::ONEAPI::experimental::spec_constant<unsigned int, MyUInt32Const> ui32(0);
   cl::sycl::ONEAPI::experimental::spec_constant<float, MyFloatConst> f32(0);
   cl::sycl::ONEAPI::experimental::spec_constant<double, MyDoubleConst> f64(0);
+  // Kernel name can be used as a spec constant name
+  cl::sycl::ONEAPI::experimental::spec_constant<int, SpecializedKernel> spec1(0);
+  // Spec constant name can be declared within a namespace
+  cl::sycl::ONEAPI::experimental::spec_constant<int, test::MySpecConstantWithinANamespace> spec2(0);
 
   double val;
   double *ptr = &val; // to avoid "unused" warnings
 
+  // CHECK: // Forward declarations of templated spec constant types:
+  // CHECK: class MyInt8Const;
+  // CHECK: class MyUInt8Const;
+  // CHECK: class MyInt16Const;
+  // CHECK: class MyUInt16Const;
+  // CHECK: class MyInt32Const;
+  // CHECK: class MyUInt32Const;
+  // CHECK: class MyFloatConst;
+  // CHECK: class MyDoubleConst;
+  // CHECK: class SpecializedKernel;
+  // CHECK: namespace test {
+  // CHECK: class MySpecConstantWithinANamespace;
+  // CHECK: }
+
   cl::sycl::kernel_single_task<SpecializedKernel>([=]() {
     *ptr = i1.get() +
-           // CHECK-DAG: template <> struct sycl::detail::SpecConstantInfo<class MyBoolConst> {
+           // CHECK-DAG: template <> struct sycl::detail::SpecConstantInfo<::MyBoolConst> {
            // CHECK-DAG-NEXT:   static constexpr const char* getName() {
            // CHECK-DAG-NEXT:     return "_ZTS11MyBoolConst";
            // CHECK-DAG-NEXT:   }
@@ -58,7 +80,11 @@ int main() {
            // CHECK-DAG: return "_ZTS13MyUInt32Const";
            f32.get() +
            // CHECK-DAG: return "_ZTS12MyFloatConst";
-           f64.get();
-    // CHECK-DAG: return "_ZTS13MyDoubleConst";
+           f64.get() +
+           // CHECK-DAG: return "_ZTS13MyDoubleConst";
+           spec1.get() +
+           // CHECK-DAG: return "_ZTS17SpecializedKernel"
+           spec2.get();
+    // CHECK-DAG: return "_ZTSN4test30MySpecConstantWithinANamespaceE"
   });
 }

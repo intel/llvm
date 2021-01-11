@@ -90,6 +90,12 @@ function(add_sycl_rt_library LIB_NAME)
                         VERSION ${SYCL_VERSION_STRING}
                         SOVERSION ${SYCL_MAJOR_VERSION})
 
+  check_cxx_compiler_flag(-Winstantiation-after-specialization
+    HAS_INST_AFTER_SPEC)
+  if (HAS_INST_AFTER_SPEC)
+    target_compile_options(${LIB_OBJ_NAME} PRIVATE
+      -Winstantiation-after-specialization)
+  endif()
 endfunction(add_sycl_rt_library)
 
 set(SYCL_SOURCES
@@ -108,10 +114,13 @@ set(SYCL_SOURCES
     "detail/config.cpp"
     "detail/context_impl.cpp"
     "detail/device_binary_image.cpp"
+    "detail/device_filter.cpp"
     "detail/device_impl.cpp"
     "detail/error_handling/enqueue_kernel.cpp"
     "detail/event_impl.cpp"
+    "detail/filter_selector_impl.cpp"
     "detail/force_device.cpp"
+    "detail/global_handler.cpp"
     "detail/helpers.cpp"
     "detail/handler_proxy.cpp"
     "detail/image_accessor_util.cpp"
@@ -123,6 +132,7 @@ set(SYCL_SOURCES
     "detail/program_impl.cpp"
     "detail/program_manager/program_manager.cpp"
     "detail/queue_impl.cpp"
+    "detail/online_compiler/online_compiler.cpp"
     "detail/os_util.cpp"
     "detail/platform_util.cpp"
     "detail/reduction.cpp"
@@ -131,6 +141,7 @@ set(SYCL_SOURCES
     "detail/scheduler/commands.cpp"
     "detail/scheduler/leaves_collection.cpp"
     "detail/scheduler/scheduler.cpp"
+    "detail/scheduler/scheduler_helpers.cpp"
     "detail/scheduler/graph_processor.cpp"
     "detail/scheduler/graph_builder.cpp"
     "detail/spec_constant_impl.cpp"

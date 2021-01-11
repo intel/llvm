@@ -120,6 +120,12 @@ static cl::opt<cl::boolOrDefault> DebugifyAndStripAll(
         "Debugify MIR before and Strip debug after "
         "each pass except those known to be unsafe when debug info is present"),
     cl::ZeroOrMore);
+static cl::opt<cl::boolOrDefault> DebugifyCheckAndStripAll(
+    "debugify-check-and-strip-all-safe", cl::Hidden,
+    cl::desc(
+        "Debugify MIR before, by checking and stripping the debug info after, "
+        "each pass except those known to be unsafe when debug info is present"),
+    cl::ZeroOrMore);
 enum RunOutliner { AlwaysOutline, NeverOutline, TargetDefault };
 // Enable or disable the MachineOutliner.
 static cl::opt<RunOutliner> EnableMachineOutliner(
@@ -211,6 +217,17 @@ static cl::opt<std::string>
     StopBeforeOpt(StringRef(StopBeforeOptName),
                   cl::desc("Stop compilation before a specific pass"),
                   cl::value_desc("pass-name"), cl::init(""), cl::Hidden);
+
+/// Enable the machine function splitter pass.
+static cl::opt<bool> EnableMachineFunctionSplitter(
+    "enable-split-machine-functions", cl::Hidden,
+    cl::desc("Split out cold blocks from machine functions based on profile "
+             "information."));
+
+/// Disable the expand reductions pass for testing.
+static cl::opt<bool> DisableExpandReductions(
+    "disable-expand-reductions", cl::init(false), cl::Hidden,
+    cl::desc("Disable the expand reduction intrinsics pass from running"));
 
 /// Allow standard passes to be disabled by command line options. This supports
 /// simple binary flags that either suppress the pass or do nothing.
@@ -544,7 +561,7 @@ void TargetPassConfig::addPass(Pass *P, bool verifyAfter) {
       addMachinePostPasses(Banner, /*AllowVerify*/ verifyAfter);
 
     // Add the passes after the pass P if there is any.
-    for (auto IP : Impl->InsertedPasses) {
+    for (const auto &IP : Impl->InsertedPasses) {
       if (IP.TargetPassID == PassID)
         addPass(IP.getInsertedPass(), IP.VerifyAfter);
     }
@@ -614,15 +631,26 @@ void TargetPassConfig::addStripDebugPass() {
   PM->add(createStripDebugMachineModulePass(/*OnlyDebugified=*/true));
 }
 
+void TargetPassConfig::addCheckDebugPass() {
+  PM->add(createCheckDebugMachineModulePass());
+}
+
 void TargetPassConfig::addMachinePrePasses(bool AllowDebugify) {
-  if (AllowDebugify && DebugifyAndStripAll == cl::BOU_TRUE && DebugifyIsSafe)
+  if (AllowDebugify && DebugifyIsSafe &&
+      (DebugifyAndStripAll == cl::BOU_TRUE ||
+       DebugifyCheckAndStripAll == cl::BOU_TRUE))
     addDebugifyPass();
 }
 
 void TargetPassConfig::addMachinePostPasses(const std::string &Banner,
                                             bool AllowVerify, bool AllowStrip) {
-  if (DebugifyAndStripAll == cl::BOU_TRUE && DebugifyIsSafe)
-    addStripDebugPass();
+  if (DebugifyIsSafe) {
+    if (DebugifyCheckAndStripAll == cl::BOU_TRUE) {
+      addCheckDebugPass();
+      addStripDebugPass();
+    } else if (DebugifyAndStripAll == cl::BOU_TRUE)
+      addStripDebugPass();
+  }
   if (AllowVerify)
     addVerifyPass(Banner);
 }
@@ -699,10 +727,12 @@ void TargetPassConfig::addIRPasses() {
   // Add scalarization of target's unsupported masked memory intrinsics pass.
   // the unsupported intrinsic will be replaced with a chain of basic blocks,
   // that stores/loads element one-by-one if the appropriate mask bit is set.
-  addPass(createScalarizeMaskedMemIntrinPass());
+  addPass(createScalarizeMaskedMemIntrinLegacyPass());
 
   // Expand reduction intrinsics into shuffle sequences if the target wants to.
-  addPass(createExpandReductionsPass());
+  // Allow disabling it for testing purposes.
+  if (!DisableExpandReductions)
+    addPass(createExpandReductionsPass());
 }
 
 /// Turn exception handling constructs into something the code generators can
@@ -722,6 +752,7 @@ void TargetPassConfig::addPassesToHandleExceptions() {
     LLVM_FALLTHROUGH;
   case ExceptionHandling::DwarfCFI:
   case ExceptionHandling::ARM:
+  case ExceptionHandling::AIX:
     addPass(createDwarfEHPass(getOptLevel()));
     break;
   case ExceptionHandling::WinEH:
@@ -1014,11 +1045,21 @@ void TargetPassConfig::addMachinePasses() {
       addPass(createMachineOutlinerPass(RunOnAllFunctions));
   }
 
-  if (TM->getBBSectionsType() != llvm::BasicBlockSection::None)
+  // Machine function splitter uses the basic block sections feature. Both
+  // cannot be enabled at the same time.
+  if (TM->Options.EnableMachineFunctionSplitter ||
+      EnableMachineFunctionSplitter) {
+    addPass(createMachineFunctionSplitterPass());
+  } else if (TM->getBBSectionsType() != llvm::BasicBlockSection::None) {
     addPass(llvm::createBasicBlockSectionsPass(TM->getBBSectionsFuncListBuf()));
+  }
 
   // Add passes that directly emit MI after all other MI passes.
   addPreEmitPass2();
+
+  // Insert pseudo probe annotation for callsite profiling
+  if (TM->Options.PseudoProbeForProfiling)
+    addPass(createPseudoProbeInserter());
 
   AddingMachinePasses = false;
 }

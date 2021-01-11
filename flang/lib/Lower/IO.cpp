@@ -60,12 +60,12 @@ static constexpr std::tuple<
     mkIOKey(OutputComplex64), mkIOKey(OutputComplex32), mkIOKey(OutputAscii),
     mkIOKey(InputAscii), mkIOKey(OutputLogical), mkIOKey(InputLogical),
     mkIOKey(SetAccess), mkIOKey(SetAction), mkIOKey(SetAsynchronous),
-    mkIOKey(SetEncoding), mkIOKey(SetForm), mkIOKey(SetPosition),
-    mkIOKey(SetRecl), mkIOKey(SetStatus), mkIOKey(SetFile), mkIOKey(GetNewUnit),
-    mkIOKey(GetSize), mkIOKey(GetIoLength), mkIOKey(GetIoMsg),
-    mkIOKey(InquireCharacter), mkIOKey(InquireLogical),
-    mkIOKey(InquirePendingId), mkIOKey(InquireInteger64),
-    mkIOKey(EndIoStatement)>
+    mkIOKey(SetCarriagecontrol), mkIOKey(SetEncoding), mkIOKey(SetForm),
+    mkIOKey(SetPosition), mkIOKey(SetRecl), mkIOKey(SetStatus),
+    mkIOKey(SetFile), mkIOKey(GetNewUnit), mkIOKey(GetSize),
+    mkIOKey(GetIoLength), mkIOKey(GetIoMsg), mkIOKey(InquireCharacter),
+    mkIOKey(InquireLogical), mkIOKey(InquirePendingId),
+    mkIOKey(InquireInteger64), mkIOKey(EndIoStatement)>
     newIOTable;
 } // namespace Fortran::lower
 
@@ -123,8 +123,8 @@ static mlir::FuncOp getIORuntimeFunc(mlir::Location loc,
     return func;
   auto funTy = getTypeModel<E>()(builder.getContext());
   func = builder.createFunction(loc, name, funTy);
-  func.setAttr("fir.runtime", builder.getUnitAttr());
-  func.setAttr("fir.io", builder.getUnitAttr());
+  func->setAttr("fir.runtime", builder.getUnitAttr());
+  func->setAttr("fir.io", builder.getUnitAttr());
   return func;
 }
 
@@ -598,6 +598,9 @@ mlir::Value genIOOption<Fortran::parser::ConnectSpec::CharExpr>(
     break;
   case Fortran::parser::ConnectSpec::CharExpr::Kind::Sign:
     ioFunc = getIORuntimeFunc<mkIOKey(SetSign)>(loc, builder);
+    break;
+  case Fortran::parser::ConnectSpec::CharExpr::Kind::Carriagecontrol:
+    ioFunc = getIORuntimeFunc<mkIOKey(SetCarriagecontrol)>(loc, builder);
     break;
   case Fortran::parser::ConnectSpec::CharExpr::Kind::Convert:
     llvm_unreachable("CONVERT not part of the runtime::io interface");

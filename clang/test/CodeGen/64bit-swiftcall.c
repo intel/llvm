@@ -10,6 +10,9 @@
 #define ERROR __attribute__((swift_error_result))
 #define CONTEXT __attribute__((swift_context))
 
+// CHECK-DAG: %struct.atomic_padded = type { { %struct.packed, [7 x i8] } }
+// CHECK-DAG: %struct.packed = type <{ i64, i8 }>
+//
 // CHECK: [[STRUCT2_RESULT:@.*]] = private {{.*}} constant [[STRUCT2_TYPE:%.*]] { i32 0, i8 0, i8 undef, i8 0, i32 0, i32 0 }
 
 /*****************************************************************************/
@@ -17,7 +20,7 @@
 /*****************************************************************************/
 
 SWIFTCALL void indirect_result_1(OUT int *arg0, OUT float *arg1) {}
-// CHECK-LABEL: define {{.*}} void @indirect_result_1(i32* noalias sret align 4 dereferenceable(4){{.*}}, float* noalias align 4 dereferenceable(4){{.*}})
+// CHECK-LABEL: define {{.*}} void @indirect_result_1(i32* noalias sret(i32*) align 4 dereferenceable(4){{.*}}, float* noalias align 4 dereferenceable(4){{.*}})
 
 // TODO: maybe this shouldn't suppress sret.
 SWIFTCALL int indirect_result_2(OUT int *arg0, OUT float *arg1) {  __builtin_unreachable(); }
@@ -25,7 +28,7 @@ SWIFTCALL int indirect_result_2(OUT int *arg0, OUT float *arg1) {  __builtin_unr
 
 typedef struct { char array[1024]; } struct_reallybig;
 SWIFTCALL struct_reallybig indirect_result_3(OUT int *arg0, OUT float *arg1) { __builtin_unreachable(); }
-// CHECK-LABEL: define {{.*}} void @indirect_result_3({{.*}}* noalias sret {{.*}}, i32* noalias align 4 dereferenceable(4){{.*}}, float* noalias align 4 dereferenceable(4){{.*}})
+// CHECK-LABEL: define {{.*}} void @indirect_result_3({{.*}}* noalias sret(%struct.struct_reallybig) {{.*}}, i32* noalias align 4 dereferenceable(4){{.*}}, float* noalias align 4 dereferenceable(4){{.*}})
 
 SWIFTCALL void context_1(CONTEXT void *self) {}
 // CHECK-LABEL: define {{.*}} void @context_1(i8* swiftself
@@ -544,7 +547,7 @@ typedef struct {
   double d4;
 } struct_d5;
 TEST(struct_d5)
-// CHECK: define swiftcc void @return_struct_d5([[STRUCT5:%.*]]* noalias sret
+// CHECK: define swiftcc void @return_struct_d5([[STRUCT5:%.*]]* noalias sret([[STRUCT5]])
 // CHECK: define swiftcc void @take_struct_d5([[STRUCT5]]
 
 typedef struct {
@@ -731,7 +734,7 @@ typedef struct {
   long long l4;
 } struct_l5;
 TEST(struct_l5)
-// CHECK: define swiftcc void @return_struct_l5([[STRUCT5:%.*]]* noalias sret
+// CHECK: define swiftcc void @return_struct_l5([[STRUCT5:%.*]]* noalias sret([[STRUCT5]])
 // CHECK: define swiftcc void @take_struct_l5([[STRUCT5]]*
 
 typedef struct {
@@ -776,7 +779,7 @@ typedef struct {
   char16 c4;
 } struct_vc5;
 TEST(struct_vc5)
-// CHECK: define swiftcc void @return_struct_vc5([[STRUCT:%.*]]* noalias sret
+// CHECK: define swiftcc void @return_struct_vc5([[STRUCT:%.*]]* noalias sret([[STRUCT]])
 // CHECK: define swiftcc void @take_struct_vc5([[STRUCT]]
 
 typedef struct {
@@ -821,7 +824,7 @@ typedef struct {
   short8 c4;
 } struct_vs5;
 TEST(struct_vs5)
-// CHECK: define swiftcc void @return_struct_vs5([[STRUCT:%.*]]* noalias sret
+// CHECK: define swiftcc void @return_struct_vs5([[STRUCT:%.*]]* noalias sret([[STRUCT]])
 // CHECK: define swiftcc void @take_struct_vs5([[STRUCT]]
 
 typedef struct {
@@ -866,7 +869,7 @@ typedef struct {
   int4 c4;
 } struct_vi5;
 TEST(struct_vi5)
-// CHECK: define swiftcc void @return_struct_vi5([[STRUCT:%.*]]* noalias sret
+// CHECK: define swiftcc void @return_struct_vi5([[STRUCT:%.*]]* noalias sret([[STRUCT]])
 // CHECK: define swiftcc void @take_struct_vi5([[STRUCT]]
 
 typedef struct {
@@ -894,7 +897,7 @@ typedef struct {
   long2 c4;
 } struct_vl5;
 TEST(struct_vl5)
-// CHECK: define swiftcc void @return_struct_vl5([[STRUCT:%.*]]* noalias sret
+// CHECK: define swiftcc void @return_struct_vl5([[STRUCT:%.*]]* noalias sret([[STRUCT]])
 // CHECK: define swiftcc void @take_struct_vl5([[STRUCT]]
 
 typedef struct {
@@ -922,7 +925,7 @@ typedef struct {
   double2 c4;
 } struct_vd5;
 TEST(struct_vd5)
-// CHECK: define swiftcc void @return_struct_vd5([[STRUCT:%.*]]* noalias sret
+// CHECK: define swiftcc void @return_struct_vd5([[STRUCT:%.*]]* noalias sret([[STRUCT]])
 // CHECK: define swiftcc void @take_struct_vd5([[STRUCT]]
 
 typedef struct {
@@ -946,7 +949,7 @@ typedef struct {
   double4 c2;
 } struct_vd43;
 TEST(struct_vd43)
-// CHECK: define swiftcc void @return_struct_vd43([[STRUCT:%.*]]* noalias sret
+// CHECK: define swiftcc void @return_struct_vd43([[STRUCT:%.*]]* noalias sret([[STRUCT]])
 // CHECK: define swiftcc void @take_struct_vd43([[STRUCT]]
 
 typedef struct {
@@ -982,7 +985,7 @@ typedef struct {
   float4 c4;
 } struct_vf5;
 TEST(struct_vf5)
-// CHECK: define swiftcc void @return_struct_vf5([[STRUCT:%.*]]* noalias sret
+// CHECK: define swiftcc void @return_struct_vf5([[STRUCT:%.*]]* noalias sret([[STRUCT]])
 // CHECK: define swiftcc void @take_struct_vf5([[STRUCT]]
 
 typedef struct {
@@ -1007,7 +1010,7 @@ struct {
 } s;
 } union_het_vecint;
 TEST(union_het_vecint)
-// CHECK: define swiftcc void @return_union_het_vecint([[UNION:%.*]]* noalias sret
+// CHECK: define swiftcc void @return_union_het_vecint([[UNION:%.*]]* noalias sret([[UNION]])
 // CHECK: define swiftcc void @take_union_het_vecint([[UNION]]*
 
 typedef struct {
@@ -1042,3 +1045,27 @@ void no_lifetime_markers() {
   // CHECK-NOT: call void @llvm.lifetime.
   take_int5(return_int5());
 }
+
+typedef struct {
+  unsigned long long a;
+  unsigned long long b;
+} double_word;
+
+typedef struct {
+  _Atomic(double_word) a;
+} atomic_double_word;
+
+// CHECK-LABEL: use_atomic(i64 %0, i64 %1)
+SWIFTCALL void use_atomic(atomic_double_word a) {}
+
+typedef struct {
+  unsigned long long a;
+  unsigned char b;
+} __attribute__((packed)) packed;
+
+typedef struct {
+  _Atomic(packed) a;
+} atomic_padded;
+
+// CHECK-LABEL: use_atomic_padded(i64 %0, i64 %1)
+SWIFTCALL void use_atomic_padded(atomic_padded a) {}

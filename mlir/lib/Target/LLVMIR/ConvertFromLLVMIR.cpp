@@ -12,9 +12,9 @@
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/Module.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/Target/LLVMIR.h"
 #include "mlir/Target/LLVMIR/TypeTranslation.h"
 #include "mlir/Translation.h"
@@ -22,6 +22,7 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IRReader/IRReader.h"
@@ -84,8 +85,8 @@ private:
   LogicalResult processBranchArgs(llvm::Instruction *br,
                                   llvm::BasicBlock *target,
                                   SmallVectorImpl<Value> &blockArguments);
-  /// Returns the standard type equivalent to be used in attributes for the
-  /// given LLVM IR dialect type.
+  /// Returns the builtin type equivalent to be used in attributes for the given
+  /// LLVM IR dialect type.
   Type getStdTypeForAttr(LLVMType type);
   /// Return `value` as an attribute to attach to a GlobalOp.
   Attribute getConstantAsAttr(llvm::Constant *value);
@@ -183,14 +184,14 @@ Type Importer::getStdTypeForAttr(LLVMType type) {
   // LLVM vectors can only contain scalars.
   if (type.isVectorTy()) {
     auto numElements = type.getVectorElementCount();
-    if (numElements.Scalable) {
+    if (numElements.isScalable()) {
       emitError(unknownLoc) << "scalable vectors not supported";
       return nullptr;
     }
     Type elementType = getStdTypeForAttr(type.getVectorElementType());
     if (!elementType)
       return nullptr;
-    return VectorType::get(numElements.Min, elementType);
+    return VectorType::get(numElements.getKnownMinValue(), elementType);
   }
 
   // LLVM arrays can contain other arrays or vectors.
@@ -208,11 +209,11 @@ Type Importer::getStdTypeForAttr(LLVMType type) {
     if (type.getArrayElementType().isVectorTy()) {
       LLVMType vectorType = type.getArrayElementType();
       auto numElements = vectorType.getVectorElementCount();
-      if (numElements.Scalable) {
+      if (numElements.isScalable()) {
         emitError(unknownLoc) << "scalable vectors not supported";
         return nullptr;
       }
-      shape.push_back(numElements.Min);
+      shape.push_back(numElements.getKnownMinValue());
 
       Type elementType = getStdTypeForAttr(vectorType.getVectorElementType());
       if (!elementType)
@@ -235,7 +236,7 @@ Type Importer::getStdTypeForAttr(LLVMType type) {
 Attribute Importer::getConstantAsAttr(llvm::Constant *value) {
   if (auto *ci = dyn_cast<llvm::ConstantInt>(value))
     return b.getIntegerAttr(
-        IntegerType::get(ci->getType()->getBitWidth(), context),
+        IntegerType::get(context, ci->getType()->getBitWidth()),
         ci->getValue());
   if (auto *c = dyn_cast<llvm::ConstantDataArray>(value))
     if (c->isString())
@@ -786,7 +787,7 @@ LogicalResult Importer::processFunction(llvm::Function *f) {
                            convertLinkageFromLLVM(f->getLinkage()));
 
   if (FlatSymbolRefAttr personality = getPersonalityAsAttr(f))
-    fop.setAttr(b.getIdentifier("personality"), personality);
+    fop->setAttr(b.getIdentifier("personality"), personality);
   else if (f->hasPersonalityFn())
     emitWarning(UnknownLoc::get(context),
                 "could not deduce personality, skipping it");

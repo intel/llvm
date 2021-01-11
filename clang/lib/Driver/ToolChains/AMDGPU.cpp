@@ -245,9 +245,9 @@ void RocmInstallationDetector::detectDeviceLibrary() {
     // - ${ROCM_ROOT}/lib/*
     // - ${ROCM_ROOT}/lib/bitcode/*
     // so try to detect these layouts.
-    static llvm::SmallVector<const char *, 2> SubDirsList[] = {
+    static constexpr std::array<const char *, 2> SubDirsList[] = {
         {"amdgcn", "bitcode"},
-        {"lib"},
+        {"lib", ""},
         {"lib", "bitcode"},
     };
 
@@ -351,22 +351,20 @@ void amdgpu::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   std::string Linker = getToolChain().GetProgramPath(getShortName());
   ArgStringList CmdArgs;
+  addLinkerCompressDebugSectionsOption(getToolChain(), Args, CmdArgs);
   AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs, JA);
   CmdArgs.push_back("-shared");
   CmdArgs.push_back("-o");
   CmdArgs.push_back(Output.getFilename());
-  C.addCommand(
-      std::make_unique<Command>(JA, *this, ResponseFileSupport::AtFileCurCP(),
-                                Args.MakeArgString(Linker), CmdArgs, Inputs));
+  C.addCommand(std::make_unique<Command>(
+      JA, *this, ResponseFileSupport::AtFileCurCP(), Args.MakeArgString(Linker),
+      CmdArgs, Inputs, Output));
 }
 
 void amdgpu::getAMDGPUTargetFeatures(const Driver &D,
                                      const llvm::Triple &Triple,
                                      const llvm::opt::ArgList &Args,
                                      std::vector<StringRef> &Features) {
-  if (const Arg *dAbi = Args.getLastArg(options::OPT_mamdgpu_debugger_abi))
-    D.Diag(diag::err_drv_clang_unsupported) << dAbi->getAsString(Args);
-
   // Add target ID features to -target-feature options. No diagnostics should
   // be emitted here since invalid target ID is diagnosed at other places.
   StringRef TargetID = Args.getLastArgValue(options::OPT_mcpu_EQ);
@@ -389,16 +387,9 @@ void amdgpu::getAMDGPUTargetFeatures(const Driver &D,
     }
   }
 
-  if (Args.getLastArg(options::OPT_mwavefrontsize64)) {
-    Features.push_back("-wavefrontsize16");
-    Features.push_back("-wavefrontsize32");
+  if (Args.hasFlag(options::OPT_mwavefrontsize64,
+                   options::OPT_mno_wavefrontsize64, false))
     Features.push_back("+wavefrontsize64");
-  }
-  if (Args.getLastArg(options::OPT_mno_wavefrontsize64)) {
-    Features.push_back("-wavefrontsize16");
-    Features.push_back("+wavefrontsize32");
-    Features.push_back("-wavefrontsize64");
-  }
 
   handleTargetFeaturesGroup(
     Args, Features, options::OPT_m_amdgpu_Features_Group);
@@ -408,8 +399,14 @@ void amdgpu::getAMDGPUTargetFeatures(const Driver &D,
 AMDGPUToolChain::AMDGPUToolChain(const Driver &D, const llvm::Triple &Triple,
                                  const ArgList &Args)
     : Generic_ELF(D, Triple, Args),
-      OptionsDefault({{options::OPT_O, "3"},
-                      {options::OPT_cl_std_EQ, "CL1.2"}}) {}
+      OptionsDefault(
+          {{options::OPT_O, "3"}, {options::OPT_cl_std_EQ, "CL1.2"}}) {
+  // Check code object version options. Emit warnings for legacy options
+  // and errors for the last invalid code object version options.
+  // It is done here to avoid repeated warning or error messages for
+  // each tool invocation.
+  (void)getOrCheckAMDGPUCodeObjectVersion(D, Args, /*Diagnose=*/true);
+}
 
 Tool *AMDGPUToolChain::buildLinker() const {
   return new tools::amdgpu::Linker(*this);
@@ -426,8 +423,13 @@ AMDGPUToolChain::TranslateArgs(const DerivedArgList &Args, StringRef BoundArch,
 
   if (!DAL)
     DAL = new DerivedArgList(Args.getBaseArgs());
-  for (auto *A : Args)
-    DAL->append(A);
+
+  for (Arg *A : Args) {
+    if (!shouldSkipArgument(A))
+      DAL->append(A);
+  }
+
+  checkTargetID(*DAL);
 
   if (!Args.getLastArgValue(options::OPT_x).equals("cl"))
     return DAL;
@@ -503,7 +505,7 @@ llvm::DenormalMode AMDGPUToolChain::getDefaultDenormalModeForType(
 bool AMDGPUToolChain::isWave64(const llvm::opt::ArgList &DriverArgs,
                                llvm::AMDGPU::GPUKind Kind) {
   const unsigned ArchAttr = llvm::AMDGPU::getArchAttrAMDGCN(Kind);
-  static bool HasWave32 = (ArchAttr & llvm::AMDGPU::FEATURE_WAVE32);
+  bool HasWave32 = (ArchAttr & llvm::AMDGPU::FEATURE_WAVE32);
 
   return !HasWave32 || DriverArgs.hasFlag(
     options::OPT_mwavefrontsize64, options::OPT_mno_wavefrontsize64, false);
@@ -521,8 +523,6 @@ void AMDGPUToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs,
     llvm::opt::ArgStringList &CC1Args,
     Action::OffloadKind DeviceOffloadingKind) const {
-  // Allow using target ID in -mcpu.
-  translateTargetID(DriverArgs, CC1Args);
   // Default to "hidden" visibility, as object level linking will not be
   // supported for the foreseeable future.
   if (!DriverArgs.hasArg(options::OPT_fvisibility_EQ,
@@ -539,21 +539,17 @@ AMDGPUToolChain::getGPUArch(const llvm::opt::ArgList &DriverArgs) const {
       getTriple(), DriverArgs.getLastArgValue(options::OPT_mcpu_EQ));
 }
 
-StringRef
-AMDGPUToolChain::translateTargetID(const llvm::opt::ArgList &DriverArgs,
-                                   llvm::opt::ArgStringList &CC1Args) const {
+void AMDGPUToolChain::checkTargetID(
+    const llvm::opt::ArgList &DriverArgs) const {
   StringRef TargetID = DriverArgs.getLastArgValue(options::OPT_mcpu_EQ);
   if (TargetID.empty())
-    return StringRef();
+    return;
 
   llvm::StringMap<bool> FeatureMap;
   auto OptionalGpuArch = parseTargetID(getTriple(), TargetID, &FeatureMap);
   if (!OptionalGpuArch) {
     getDriver().Diag(clang::diag::err_drv_bad_target_id) << TargetID;
-    return StringRef();
   }
-
-  return OptionalGpuArch.getValue();
 }
 
 void ROCMToolChain::addClangTargetOptions(
@@ -642,4 +638,11 @@ void RocmInstallationDetector::addCommonBitcodeLibCC1Args(
 
   CC1Args.push_back(LinkBitcodeFlag);
   CC1Args.push_back(DriverArgs.MakeArgString(LibDeviceFile));
+}
+
+bool AMDGPUToolChain::shouldSkipArgument(const llvm::opt::Arg *A) const {
+  Option O = A->getOption();
+  if (O.matches(options::OPT_fPIE) || O.matches(options::OPT_fpie))
+    return true;
+  return false;
 }

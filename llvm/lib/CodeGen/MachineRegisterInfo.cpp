@@ -630,8 +630,7 @@ void MachineRegisterInfo::disableCalleeSavedRegister(MCRegister Reg) {
 
   // Remove the register (and its aliases from the list).
   for (MCRegAliasIterator AI(Reg, TRI, true); AI.isValid(); ++AI)
-    UpdatedCSRs.erase(std::remove(UpdatedCSRs.begin(), UpdatedCSRs.end(), *AI),
-                      UpdatedCSRs.end());
+    llvm::erase_value(UpdatedCSRs, *AI);
 }
 
 const MCPhysReg *MachineRegisterInfo::getCalleeSavedRegs() const {
@@ -660,7 +659,7 @@ bool MachineRegisterInfo::isReservedRegUnit(unsigned Unit) const {
     bool IsRootReserved = true;
     for (MCSuperRegIterator Super(*Root, TRI, /*IncludeSelf=*/true);
          Super.isValid(); ++Super) {
-      unsigned Reg = *Super;
+      MCRegister Reg = *Super;
       if (!isReserved(Reg)) {
         IsRootReserved = false;
         break;

@@ -15,9 +15,8 @@
 #define MLIR_DIALECT_LLVMIR_LLVMDIALECT_H_
 
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
-#include "mlir/Dialect/OpenMP/OpenMPDialect.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dialect.h"
-#include "mlir/IR/Function.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/TypeSupport.h"
@@ -49,18 +48,23 @@ struct LLVMTypeStorage;
 struct LLVMDialectImpl;
 } // namespace detail
 
+} // namespace LLVM
+} // namespace mlir
+
 ///// Ops /////
 #define GET_OP_CLASSES
 #include "mlir/Dialect/LLVMIR/LLVMOps.h.inc"
 
 #include "mlir/Dialect/LLVMIR/LLVMOpsDialect.h.inc"
 
+namespace mlir {
+namespace LLVM {
 /// Create an LLVM global containing the string "value" at the module containing
 /// surrounding the insertion point of builder. Obtain the address of that
 /// global and use it to compute the address of the first character in the
 /// string (operations inserted at the builder insertion point).
 Value createGlobalString(Location loc, OpBuilder &builder, StringRef name,
-                         StringRef value, LLVM::Linkage linkage);
+                         StringRef value, Linkage linkage);
 
 /// LLVM requires some operations to be inside of a Module operation. This
 /// function confirms that the Operation has the desired properties.

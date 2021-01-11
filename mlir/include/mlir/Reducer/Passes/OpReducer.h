@@ -8,7 +8,7 @@
 //
 // This file defines the OpReducer class. It defines a variant generator method
 // with the purpose of producing different variants by eliminating a
-// parametarizable type of operations from the  parent module.
+// parameterizable type of operations from the  parent module.
 //
 //===----------------------------------------------------------------------===//
 
@@ -86,7 +86,7 @@ public:
   /// Return the name of this reducer class.
   StringRef getName() { return impl->getName(); }
 
-  /// Return the initial transformSpace cointaing the transformable indices.
+  /// Return the initial transformSpace containing the transformable indices.
   std::vector<bool> initTransformSpace(ModuleOp module) {
     return impl->initTransformSpace(module);
   }

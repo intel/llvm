@@ -19,7 +19,7 @@
 #endif
 #include <type_traits>
 
-#define STATIC_ASSERT_NOT_FLOAT(T)                                             \
+#define __SYCL_STATIC_ASSERT_NOT_FLOAT(T)                                      \
   static_assert(!std::is_same<T, float>::value,                                \
                 "SYCL atomic function not available for float type")
 
@@ -201,17 +201,17 @@ public:
 #ifdef __ENABLE_USM_ADDR_SPACE__
   // Create atomic in global_space with one from global_device_space
   template <access::address_space _Space = addressSpace,
-            typename = typename std::enable_if<
+            typename = typename detail::enable_if_t<
                 _Space == addressSpace &&
-                addressSpace == access::address_space::global_space>::type>
+                addressSpace == access::address_space::global_space>>
   atomic(const atomic<T, access::address_space::global_device_space> &RHS) {
     Ptr = RHS.Ptr;
   }
 
   template <access::address_space _Space = addressSpace,
-            typename = typename std::enable_if<
+            typename = typename detail::enable_if_t<
                 _Space == addressSpace &&
-                addressSpace == access::address_space::global_space>::type>
+                addressSpace == access::address_space::global_space>>
   atomic(atomic<T, access::address_space::global_device_space> &&RHS) {
     Ptr = RHS.Ptr;
   }
@@ -237,8 +237,7 @@ public:
             Ptr);
     cl_int TmpVal = __spirv_AtomicLoad(
         TmpPtr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order));
-    cl_float ResVal;
-    detail::memcpy(&ResVal, &TmpVal, sizeof(TmpVal));
+    cl_float ResVal = detail::bit_cast<cl_float>(TmpVal);
     return ResVal;
   }
 #else
@@ -257,7 +256,7 @@ public:
   compare_exchange_strong(T &Expected, T Desired,
                           memory_order SuccessOrder = memory_order::relaxed,
                           memory_order FailOrder = memory_order::relaxed) {
-    STATIC_ASSERT_NOT_FLOAT(T);
+    __SYCL_STATIC_ASSERT_NOT_FLOAT(T);
 #ifdef __SYCL_DEVICE_ONLY__
     T Value = __spirv_AtomicCompareExchange(
         Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(SuccessOrder),
@@ -276,43 +275,43 @@ public:
   }
 
   T fetch_add(T Operand, memory_order Order = memory_order::relaxed) {
-    STATIC_ASSERT_NOT_FLOAT(T);
+    __SYCL_STATIC_ASSERT_NOT_FLOAT(T);
     return __spirv_AtomicIAdd(
         Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), Operand);
   }
 
   T fetch_sub(T Operand, memory_order Order = memory_order::relaxed) {
-    STATIC_ASSERT_NOT_FLOAT(T);
+    __SYCL_STATIC_ASSERT_NOT_FLOAT(T);
     return __spirv_AtomicISub(
         Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), Operand);
   }
 
   T fetch_and(T Operand, memory_order Order = memory_order::relaxed) {
-    STATIC_ASSERT_NOT_FLOAT(T);
+    __SYCL_STATIC_ASSERT_NOT_FLOAT(T);
     return __spirv_AtomicAnd(
         Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), Operand);
   }
 
   T fetch_or(T Operand, memory_order Order = memory_order::relaxed) {
-    STATIC_ASSERT_NOT_FLOAT(T);
+    __SYCL_STATIC_ASSERT_NOT_FLOAT(T);
     return __spirv_AtomicOr(
         Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), Operand);
   }
 
   T fetch_xor(T Operand, memory_order Order = memory_order::relaxed) {
-    STATIC_ASSERT_NOT_FLOAT(T);
+    __SYCL_STATIC_ASSERT_NOT_FLOAT(T);
     return __spirv_AtomicXor(
         Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), Operand);
   }
 
   T fetch_min(T Operand, memory_order Order = memory_order::relaxed) {
-    STATIC_ASSERT_NOT_FLOAT(T);
+    __SYCL_STATIC_ASSERT_NOT_FLOAT(T);
     return __spirv_AtomicMin(
         Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), Operand);
   }
 
   T fetch_max(T Operand, memory_order Order = memory_order::relaxed) {
-    STATIC_ASSERT_NOT_FLOAT(T);
+    __SYCL_STATIC_ASSERT_NOT_FLOAT(T);
     return __spirv_AtomicMax(
         Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), Operand);
   }
@@ -397,4 +396,4 @@ T atomic_fetch_max(atomic<T, addressSpace> Object, T Operand,
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-#undef STATIC_ASSERT_NOT_FLOAT
+#undef __SYCL_STATIC_ASSERT_NOT_FLOAT

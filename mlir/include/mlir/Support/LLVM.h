@@ -23,6 +23,13 @@
 #include "llvm/ADT/None.h"
 #include "llvm/Support/Casting.h"
 
+// Workaround for clang-5 (PR41549)
+#if defined(__clang_major__)
+#if __clang_major__ <= 5
+#include "llvm/ADT/SmallVector.h"
+#endif
+#endif
+
 // Forward declarations.
 namespace llvm {
 // String types
@@ -60,6 +67,8 @@ template <typename T>
 class SmallVectorImpl;
 template <typename AllocatorTy>
 class StringSet;
+template <typename T, typename R>
+class StringSwitch;
 template <typename T>
 class TinyPtrVector;
 template <typename T, typename ResultT>
@@ -111,6 +120,8 @@ using llvm::SmallPtrSet;
 using llvm::SmallPtrSetImpl;
 using llvm::SmallVector;
 using llvm::SmallVectorImpl;
+template <typename T, typename R = T>
+using StringSwitch = llvm::StringSwitch<T, R>;
 using llvm::TinyPtrVector;
 template <typename T, typename ResultT = void>
 using TypeSwitch = llvm::TypeSwitch<T, ResultT>;

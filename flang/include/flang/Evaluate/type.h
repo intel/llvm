@@ -24,6 +24,7 @@
 #include "real.h"
 #include "flang/Common/Fortran.h"
 #include "flang/Common/idioms.h"
+#include "flang/Common/real.h"
 #include "flang/Common/template.h"
 #include <cinttypes>
 #include <optional>
@@ -102,7 +103,8 @@ public:
 
   // A rare use case used for representing the characteristics of an
   // intrinsic function like REAL() that accepts a typeless BOZ literal
-  // argument, which is something that real user Fortran can't do.
+  // argument and for typeless pointers -- things that real user Fortran can't
+  // do.
   static constexpr DynamicType TypelessIntrinsicArgument() {
     DynamicType result;
     result.category_ = TypeCategory::Integer;
@@ -139,8 +141,10 @@ public:
     return charLength_;
   }
   std::optional<Expr<SubscriptInteger>> GetCharLength() const;
+
+  std::size_t GetAlignment(const FoldingContext &) const;
   std::optional<Expr<SubscriptInteger>> MeasureSizeInBytes(
-      FoldingContext * = nullptr) const;
+      FoldingContext &, bool aligned) const;
 
   std::string AsFortran() const;
   std::string AsFortran(std::string &&charLenExpr) const;
@@ -166,11 +170,9 @@ public:
   bool HasDeferredTypeParameter() const;
 
   // 7.3.2.3 & 15.5.2.4 type compatibility.
-  // x.IsTypeCompatibleWith(y) is true if "x => y" or passing actual y to
+  // x.IsTkCompatibleWith(y) is true if "x => y" or passing actual y to
   // dummy argument x would be valid.  Be advised, this is not a reflexive
-  // relation.
-  bool IsTypeCompatibleWith(const DynamicType &) const;
-  // Type compatible and kind type parameters match
+  // relation.  Kind type parameters must match.
   bool IsTkCompatibleWith(const DynamicType &) const;
 
   // Result will be missing when a symbol is absent or
@@ -200,7 +202,8 @@ public:
 private:
   // Special kind codes are used to distinguish the following Fortran types.
   enum SpecialKind {
-    TypelessKind = -1, // BOZ actual argument to intrinsic function
+    TypelessKind = -1, // BOZ actual argument to intrinsic function or pointer
+                       // argument to ASSOCIATED
     ClassKind = -2, // CLASS(T) or CLASS(*)
     AssumedTypeKind = -3, // TYPE(*)
   };
@@ -217,6 +220,8 @@ private:
 const semantics::DerivedTypeSpec *GetDerivedTypeSpec(const DynamicType &);
 const semantics::DerivedTypeSpec *GetDerivedTypeSpec(
     const std::optional<DynamicType> &);
+const semantics::DerivedTypeSpec *GetParentTypeSpec(
+    const semantics::DerivedTypeSpec &);
 
 std::string DerivedTypeSpecAsFortran(const semantics::DerivedTypeSpec &);
 
@@ -235,51 +240,13 @@ public:
   using Scalar = value::Integer<8 * KIND>;
 };
 
-// REAL(KIND=2) is IEEE half-precision (16 bits)
-template <>
-class Type<TypeCategory::Real, 2> : public TypeBase<TypeCategory::Real, 2> {
+template <int KIND>
+class Type<TypeCategory::Real, KIND>
+    : public TypeBase<TypeCategory::Real, KIND> {
 public:
-  using Scalar =
-      value::Real<typename Type<TypeCategory::Integer, 2>::Scalar, 11>;
-};
-
-// REAL(KIND=3) identifies the "other" half-precision format, which is
-// basically REAL(4) without its least-order 16 fraction bits.
-template <>
-class Type<TypeCategory::Real, 3> : public TypeBase<TypeCategory::Real, 3> {
-public:
-  using Scalar =
-      value::Real<typename Type<TypeCategory::Integer, 2>::Scalar, 8>;
-};
-
-// REAL(KIND=4) is IEEE-754 single precision (32 bits)
-template <>
-class Type<TypeCategory::Real, 4> : public TypeBase<TypeCategory::Real, 4> {
-public:
-  using Scalar =
-      value::Real<typename Type<TypeCategory::Integer, 4>::Scalar, 24>;
-};
-
-// REAL(KIND=8) is IEEE double precision (64 bits)
-template <>
-class Type<TypeCategory::Real, 8> : public TypeBase<TypeCategory::Real, 8> {
-public:
-  using Scalar =
-      value::Real<typename Type<TypeCategory::Integer, 8>::Scalar, 53>;
-};
-
-// REAL(KIND=10) is x87 FPU extended precision (80 bits, all explicit)
-template <>
-class Type<TypeCategory::Real, 10> : public TypeBase<TypeCategory::Real, 10> {
-public:
-  using Scalar = value::Real<value::Integer<80>, 64>;
-};
-
-// REAL(KIND=16) is IEEE quad precision (128 bits)
-template <>
-class Type<TypeCategory::Real, 16> : public TypeBase<TypeCategory::Real, 16> {
-public:
-  using Scalar = value::Real<value::Integer<128>, 113>;
+  static constexpr int precision{common::PrecisionOfRealKind(KIND)};
+  static constexpr int bits{common::BitsForBinaryPrecision(precision)};
+  using Scalar = value::Real<value::Integer<bits>, precision>;
 };
 
 // The KIND type parameter on COMPLEX is the kind of each of its components.
@@ -455,9 +422,6 @@ int SelectedCharKind(const std::string &, int defaultKind);
 int SelectedIntKind(std::int64_t precision = 0);
 int SelectedRealKind(
     std::int64_t precision = 0, std::int64_t range = 0, std::int64_t radix = 2);
-
-// Utilities
-bool IsKindTypeParameter(const semantics::Symbol &);
 
 // For generating "[extern] template class", &c. boilerplate
 #define EXPAND_FOR_EACH_INTEGER_KIND(M, P, S) \

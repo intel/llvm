@@ -165,9 +165,9 @@ struct PassTiming : public PassInstrumentation {
   ~PassTiming() override { print(); }
 
   /// Setup the instrumentation hooks.
-  void runBeforePipeline(const OperationName &name,
+  void runBeforePipeline(Identifier name,
                          const PipelineParentInfo &parentInfo) override;
-  void runAfterPipeline(const OperationName &name,
+  void runAfterPipeline(Identifier name,
                         const PipelineParentInfo &parentInfo) override;
   void runBeforePass(Pass *pass, Operation *) override { startPassTimer(pass); }
   void runAfterPass(Pass *pass, Operation *) override;
@@ -242,15 +242,15 @@ struct PassTiming : public PassInstrumentation {
 };
 } // end anonymous namespace
 
-void PassTiming::runBeforePipeline(const OperationName &name,
+void PassTiming::runBeforePipeline(Identifier name,
                                    const PipelineParentInfo &parentInfo) {
   // We don't actually want to time the pipelines, they gather their total
   // from their held passes.
   getTimer(name.getAsOpaquePointer(), TimerKind::Pipeline,
-           [&] { return ("'" + name.getStringRef() + "' Pipeline").str(); });
+           [&] { return ("'" + name.strref() + "' Pipeline").str(); });
 }
 
-void PassTiming::runAfterPipeline(const OperationName &name,
+void PassTiming::runAfterPipeline(Identifier name,
                                   const PipelineParentInfo &parentInfo) {
   // Pop the timer for the pipeline.
   auto tid = llvm::get_threadid();
@@ -302,16 +302,13 @@ void PassTiming::startAnalysisTimer(StringRef name, TypeID id) {
 void PassTiming::runAfterPass(Pass *pass, Operation *) {
   Timer *timer = popLastActiveTimer();
 
-  // If this is a pass adaptor, then we need to merge in the timing data for the
-  // pipelines running on other threads.
-  if (isa<OpToOpPassAdaptor>(pass)) {
-    auto toMerge = pipelinesToMerge.find({llvm::get_threadid(), pass});
-    if (toMerge != pipelinesToMerge.end()) {
-      for (auto &it : toMerge->second)
-        timer->mergeChild(std::move(it));
-      pipelinesToMerge.erase(toMerge);
-    }
-    return;
+  // Check to see if we need to merge in the timing data for the pipelines
+  // running on other threads.
+  auto toMerge = pipelinesToMerge.find({llvm::get_threadid(), pass});
+  if (toMerge != pipelinesToMerge.end()) {
+    for (auto &it : toMerge->second)
+      timer->mergeChild(std::move(it));
+    pipelinesToMerge.erase(toMerge);
   }
 
   timer->stop();

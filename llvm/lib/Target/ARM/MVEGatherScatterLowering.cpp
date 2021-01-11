@@ -47,7 +47,7 @@ using namespace llvm;
 #define DEBUG_TYPE "arm-mve-gather-scatter-lowering"
 
 cl::opt<bool> EnableMaskedGatherScatters(
-    "enable-arm-maskedgatscat", cl::Hidden, cl::init(false),
+    "enable-arm-maskedgatscat", cl::Hidden, cl::init(true),
     cl::desc("Enable the generation of masked gathers and scatters"));
 
 namespace {
@@ -1062,6 +1062,7 @@ static Value *CheckAndCreateOffsetAdd(Value *X, Value *Y, Value *GEP,
     FixSummands(YElType, X);
     XElType = cast<FixedVectorType>(X->getType());
   }
+  assert(XElType && YElType && "Unknown vector types");
   // Check that the summands are of compatible types
   if (XElType != YElType) {
     LLVM_DEBUG(dbgs() << "masked gathers/scatters: incompatible gep offsets\n");

@@ -13,7 +13,6 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/info/info_desc.hpp>
-#include <detail/kernel_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -51,22 +50,48 @@ template <info::kernel Param> struct get_kernel_info<cl_uint, Param> {
   }
 };
 
-// OpenCL kernel work-group methods
+// Device-specific methods
 
-template <typename T, info::kernel_work_group Param>
-struct get_kernel_work_group_info {
+template <info::kernel_device_specific Param>
+struct IsWorkGroupInfo : std::false_type {};
+
+template <>
+struct IsWorkGroupInfo<info::kernel_device_specific::global_work_size>
+    : std::true_type {};
+template <>
+struct IsWorkGroupInfo<info::kernel_device_specific::work_group_size>
+    : std::true_type {};
+template <>
+struct IsWorkGroupInfo<info::kernel_device_specific::compile_work_group_size>
+    : std::true_type {};
+template <>
+struct IsWorkGroupInfo<
+    info::kernel_device_specific::preferred_work_group_size_multiple>
+    : std::true_type {};
+template <>
+struct IsWorkGroupInfo<info::kernel_device_specific::private_mem_size>
+    : std::true_type {};
+
+template <typename T, info::kernel_device_specific Param>
+struct get_kernel_device_specific_info {
   static T get(RT::PiKernel Kernel, RT::PiDevice Device, const plugin &Plugin) {
     T Result;
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin.call<PiApiKind::piKernelGetGroupInfo>(
-        Kernel, Device, pi::cast<pi_kernel_group_info>(Param), sizeof(T),
-        &Result, nullptr);
+    if (IsWorkGroupInfo<Param>::value) {
+      // TODO catch an exception and put it to list of asynchronous exceptions
+      Plugin.call<PiApiKind::piKernelGetGroupInfo>(
+          Kernel, Device, pi::cast<pi_kernel_group_info>(Param), sizeof(T),
+          &Result, nullptr);
+    } else {
+      Plugin.call<PiApiKind::piKernelGetSubGroupInfo>(
+          Kernel, Device, pi_kernel_sub_group_info(Param), 0, nullptr,
+          sizeof(T), &Result, nullptr);
+    }
     return Result;
   }
 };
 
-template <info::kernel_work_group Param>
-struct get_kernel_work_group_info<cl::sycl::range<3>, Param> {
+template <info::kernel_device_specific Param>
+struct get_kernel_device_specific_info<cl::sycl::range<3>, Param> {
   static cl::sycl::range<3> get(RT::PiKernel Kernel, RT::PiDevice Device,
                                 const plugin &Plugin) {
     size_t Result[3];
@@ -78,63 +103,72 @@ struct get_kernel_work_group_info<cl::sycl::range<3>, Param> {
   }
 };
 
-template <info::kernel_work_group Param>
-inline typename info::param_traits<info::kernel_work_group, Param>::return_type
-get_kernel_work_group_info_host(const cl::sycl::device &Device);
+template <info::kernel_device_specific Param>
+inline typename info::param_traits<info::kernel_device_specific,
+                                   Param>::return_type
+get_kernel_device_specific_info_host(const cl::sycl::device &Device);
 
 template <>
-inline cl::sycl::range<3>
-get_kernel_work_group_info_host<info::kernel_work_group::global_work_size>(
+inline cl::sycl::range<3> get_kernel_device_specific_info_host<
+    info::kernel_device_specific::global_work_size>(const cl::sycl::device &) {
+  throw invalid_object_error("This instance of kernel is a host instance",
+                             PI_INVALID_KERNEL);
+}
+
+template <>
+inline size_t get_kernel_device_specific_info_host<
+    info::kernel_device_specific::work_group_size>(
+    const cl::sycl::device &Dev) {
+  return Dev.get_info<info::device::max_work_group_size>();
+}
+
+template <>
+inline cl::sycl::range<3> get_kernel_device_specific_info_host<
+    info::kernel_device_specific::compile_work_group_size>(
+    const cl::sycl::device &) {
+  return {0, 0, 0};
+}
+
+template <>
+inline size_t get_kernel_device_specific_info_host<
+    info::kernel_device_specific::preferred_work_group_size_multiple>(
+    const cl::sycl::device &Dev) {
+  return get_kernel_device_specific_info_host<
+      info::kernel_device_specific::work_group_size>(Dev);
+}
+
+template <>
+inline cl_ulong get_kernel_device_specific_info_host<
+    info::kernel_device_specific::private_mem_size>(const cl::sycl::device &) {
+  return 0;
+}
+
+template <>
+inline uint32_t get_kernel_device_specific_info_host<
+    info::kernel_device_specific::max_num_sub_groups>(
     const cl::sycl::device &) {
   throw invalid_object_error("This instance of kernel is a host instance",
                              PI_INVALID_KERNEL);
 }
 
 template <>
-inline size_t
-get_kernel_work_group_info_host<info::kernel_work_group::work_group_size>(
-    const cl::sycl::device &Dev) {
-  return Dev.get_info<info::device::max_work_group_size>();
-}
-
-template <>
-inline cl::sycl::range<3> get_kernel_work_group_info_host<
-    info::kernel_work_group::compile_work_group_size>(
+inline uint32_t get_kernel_device_specific_info_host<
+    info::kernel_device_specific::compile_num_sub_groups>(
     const cl::sycl::device &) {
-  return {0, 0, 0};
+  throw invalid_object_error("This instance of kernel is a host instance",
+                             PI_INVALID_KERNEL);
 }
 
 template <>
-inline size_t get_kernel_work_group_info_host<
-    info::kernel_work_group::preferred_work_group_size_multiple>(
-    const cl::sycl::device &Dev) {
-  return get_kernel_work_group_info_host<
-      info::kernel_work_group::work_group_size>(Dev);
-}
-
-template <>
-inline cl_ulong
-get_kernel_work_group_info_host<info::kernel_work_group::private_mem_size>(
+inline uint32_t get_kernel_device_specific_info_host<
+    info::kernel_device_specific::compile_sub_group_size>(
     const cl::sycl::device &) {
-  return 0;
+  throw invalid_object_error("This instance of kernel is a host instance",
+                             PI_INVALID_KERNEL);
 }
-// The kernel sub-group methods
 
-template <info::kernel_sub_group Param> struct get_kernel_sub_group_info {
-  static uint32_t get(RT::PiKernel Kernel, RT::PiDevice Device,
-                      const plugin &Plugin) {
-    uint32_t Result;
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin.call<PiApiKind::piKernelGetSubGroupInfo>(
-        Kernel, Device, pi_kernel_sub_group_info(Param), 0, nullptr,
-        sizeof(uint32_t), &Result, nullptr);
-
-    return Result;
-  }
-};
-
-template <info::kernel_sub_group Param>
-struct get_kernel_sub_group_info_with_input {
+template <info::kernel_device_specific Param>
+struct get_kernel_device_specific_info_with_input {
   static uint32_t get(RT::PiKernel Kernel, RT::PiDevice Device,
                       cl::sycl::range<3> In, const plugin &Plugin) {
     size_t Input[3] = {In[0], In[1], In[2]};

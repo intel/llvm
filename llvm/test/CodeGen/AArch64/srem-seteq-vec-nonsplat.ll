@@ -15,7 +15,8 @@ define <4 x i32> @test_srem_odd_even(<4 x i32> %X) nounwind {
 ; CHECK-NEXT:    uzp2 v1.4s, v1.4s, v3.4s
 ; CHECK-NEXT:    ldr q3, [x8, :lo12:.LCPI0_2]
 ; CHECK-NEXT:    adrp x8, .LCPI0_3
-; CHECK-NEXT:    mla v1.4s, v0.4s, v2.4s
+; CHECK-NEXT:    and v2.16b, v0.16b, v2.16b
+; CHECK-NEXT:    add v1.4s, v1.4s, v2.4s
 ; CHECK-NEXT:    ldr q2, [x8, :lo12:.LCPI0_3]
 ; CHECK-NEXT:    neg v3.4s, v3.4s
 ; CHECK-NEXT:    sshl v3.4s, v1.4s, v3.4s
@@ -134,9 +135,8 @@ define <4 x i32> @test_srem_even_allones_ne(<4 x i32> %X) nounwind {
 ; CHECK-NEXT:    add v1.4s, v3.4s, v1.4s
 ; CHECK-NEXT:    mls v0.4s, v1.4s, v2.4s
 ; CHECK-NEXT:    cmeq v0.4s, v0.4s, #0
-; CHECK-NEXT:    mvn v0.16b, v0.16b
 ; CHECK-NEXT:    movi v1.4s, #1
-; CHECK-NEXT:    and v0.16b, v0.16b, v1.16b
+; CHECK-NEXT:    bic v0.16b, v1.16b, v0.16b
 ; CHECK-NEXT:    ret
   %srem = srem <4 x i32> %X, <i32 14, i32 14, i32 4294967295, i32 14>
   %cmp = icmp ne <4 x i32> %srem, <i32 0, i32 0, i32 0, i32 0>
@@ -201,9 +201,8 @@ define <4 x i32> @test_srem_odd_even_allones_ne(<4 x i32> %X) nounwind {
 ; CHECK-NEXT:    add v1.4s, v3.4s, v1.4s
 ; CHECK-NEXT:    mls v0.4s, v1.4s, v2.4s
 ; CHECK-NEXT:    cmeq v0.4s, v0.4s, #0
-; CHECK-NEXT:    mvn v0.16b, v0.16b
 ; CHECK-NEXT:    movi v1.4s, #1
-; CHECK-NEXT:    and v0.16b, v0.16b, v1.16b
+; CHECK-NEXT:    bic v0.16b, v1.16b, v0.16b
 ; CHECK-NEXT:    ret
   %srem = srem <4 x i32> %X, <i32 5, i32 14, i32 4294967295, i32 100>
   %cmp = icmp ne <4 x i32> %srem, <i32 0, i32 0, i32 0, i32 0>
@@ -227,7 +226,8 @@ define <4 x i32> @test_srem_odd_poweroftwo(<4 x i32> %X) nounwind {
 ; CHECK-NEXT:    uzp2 v1.4s, v1.4s, v3.4s
 ; CHECK-NEXT:    ldr q3, [x8, :lo12:.LCPI7_2]
 ; CHECK-NEXT:    adrp x8, .LCPI7_3
-; CHECK-NEXT:    mla v1.4s, v0.4s, v2.4s
+; CHECK-NEXT:    and v2.16b, v0.16b, v2.16b
+; CHECK-NEXT:    add v1.4s, v1.4s, v2.4s
 ; CHECK-NEXT:    ldr q2, [x8, :lo12:.LCPI7_3]
 ; CHECK-NEXT:    neg v3.4s, v3.4s
 ; CHECK-NEXT:    sshl v3.4s, v1.4s, v3.4s
@@ -282,7 +282,8 @@ define <4 x i32> @test_srem_odd_even_poweroftwo(<4 x i32> %X) nounwind {
 ; CHECK-NEXT:    uzp2 v1.4s, v1.4s, v3.4s
 ; CHECK-NEXT:    ldr q3, [x8, :lo12:.LCPI9_2]
 ; CHECK-NEXT:    adrp x8, .LCPI9_3
-; CHECK-NEXT:    mla v1.4s, v0.4s, v2.4s
+; CHECK-NEXT:    and v2.16b, v0.16b, v2.16b
+; CHECK-NEXT:    add v1.4s, v1.4s, v2.4s
 ; CHECK-NEXT:    ldr q2, [x8, :lo12:.LCPI9_3]
 ; CHECK-NEXT:    neg v3.4s, v3.4s
 ; CHECK-NEXT:    sshl v3.4s, v1.4s, v3.4s
@@ -371,7 +372,8 @@ define <4 x i32> @test_srem_odd_even_one(<4 x i32> %X) nounwind {
 ; CHECK-NEXT:    uzp2 v1.4s, v1.4s, v4.4s
 ; CHECK-NEXT:    ldr q4, [x8, :lo12:.LCPI12_3]
 ; CHECK-NEXT:    adrp x8, .LCPI12_4
-; CHECK-NEXT:    mla v1.4s, v0.4s, v2.4s
+; CHECK-NEXT:    and v2.16b, v0.16b, v2.16b
+; CHECK-NEXT:    add v1.4s, v1.4s, v2.4s
 ; CHECK-NEXT:    ldr q2, [x8, :lo12:.LCPI12_4]
 ; CHECK-NEXT:    neg v3.4s, v3.4s
 ; CHECK-NEXT:    sshl v3.4s, v1.4s, v3.4s
@@ -696,7 +698,8 @@ define <4 x i32> @test_srem_odd_poweroftwo_and_one(<4 x i32> %X) nounwind {
 ; CHECK-NEXT:    uzp2 v1.4s, v1.4s, v4.4s
 ; CHECK-NEXT:    ldr q4, [x8, :lo12:.LCPI22_3]
 ; CHECK-NEXT:    adrp x8, .LCPI22_4
-; CHECK-NEXT:    mla v1.4s, v0.4s, v2.4s
+; CHECK-NEXT:    and v2.16b, v0.16b, v2.16b
+; CHECK-NEXT:    add v1.4s, v1.4s, v2.4s
 ; CHECK-NEXT:    ldr q2, [x8, :lo12:.LCPI22_4]
 ; CHECK-NEXT:    neg v3.4s, v3.4s
 ; CHECK-NEXT:    sshl v3.4s, v1.4s, v3.4s
@@ -762,7 +765,8 @@ define <4 x i32> @test_srem_odd_even_poweroftwo_and_one(<4 x i32> %X) nounwind {
 ; CHECK-NEXT:    uzp2 v1.4s, v1.4s, v4.4s
 ; CHECK-NEXT:    ldr q4, [x8, :lo12:.LCPI24_3]
 ; CHECK-NEXT:    adrp x8, .LCPI24_4
-; CHECK-NEXT:    mla v1.4s, v0.4s, v2.4s
+; CHECK-NEXT:    and v2.16b, v0.16b, v2.16b
+; CHECK-NEXT:    add v1.4s, v1.4s, v2.4s
 ; CHECK-NEXT:    ldr q2, [x8, :lo12:.LCPI24_4]
 ; CHECK-NEXT:    neg v3.4s, v3.4s
 ; CHECK-NEXT:    sshl v3.4s, v1.4s, v3.4s

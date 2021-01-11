@@ -1,4 +1,4 @@
-//===-- crash_handler_interface.cpp -----------------------------*- C++ -*-===//
+//===-- crash_handler.cpp ---------------------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,6 +10,7 @@
 #include "gwp_asan/stack_trace_compressor.h"
 
 #include <assert.h>
+#include <stdint.h>
 #include <string.h>
 
 using AllocationMetadata = gwp_asan::AllocationMetadata;

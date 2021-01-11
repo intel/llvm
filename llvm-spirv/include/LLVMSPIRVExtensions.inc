@@ -1,8 +1,8 @@
-
 #ifndef EXT
-  #error "EXT macro must be defined"
+#define EXT(X)
 #endif
 
+EXT(SPV_EXT_shader_atomic_float_add)
 EXT(SPV_KHR_no_integer_wrap_decoration)
 EXT(SPV_KHR_float_controls)
 EXT(SPV_INTEL_subgroups)
@@ -26,3 +26,8 @@ EXT(SPV_INTEL_usm_storage_classes)
 EXT(SPV_INTEL_fpga_buffer_location)
 EXT(SPV_INTEL_arbitrary_precision_fixed_point)
 EXT(SPV_INTEL_arbitrary_precision_floating_point)
+EXT(SPV_INTEL_variable_length_array)
+EXT(SPV_INTEL_fp_fast_math_mode)
+EXT(SPV_INTEL_fpga_cluster_attributes)
+EXT(SPV_INTEL_loop_fuse)
+EXT(SPV_INTEL_long_constant_composite)

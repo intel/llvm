@@ -13,7 +13,7 @@
 #include "flang/Semantics/tools.h"
 #include "flang/Semantics/type.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 
 #undef QUOTE
 #undef TODO
@@ -49,7 +49,7 @@ mlir::Type genFIRType(mlir::MLIRContext *context) {
   if constexpr (TC == Fortran::common::TypeCategory::Integer) {
     auto bits{Fortran::evaluate::Type<Fortran::common::TypeCategory::Integer,
                                       KIND>::Scalar::bits};
-    return mlir::IntegerType::get(bits, context);
+    return mlir::IntegerType::get(context, bits);
   } else if constexpr (TC == Fortran::common::TypeCategory::Logical ||
                        TC == Fortran::common::TypeCategory::Character ||
                        TC == Fortran::common::TypeCategory::Complex) {
@@ -262,13 +262,13 @@ private:
   //===--------------------------------------------------------------------===//
 
   mlir::Type gen(const Fortran::evaluate::ImpliedDoIndex &) {
-    return genFIRType<Fortran::common::TypeCategory::Integer>(
-        context, defaultKind<Fortran::common::TypeCategory::Integer>());
+    return genFIRType<Fortran::evaluate::ImpliedDoIndex::Result::category>(
+        context, Fortran::evaluate::ImpliedDoIndex::Result::kind);
   }
 
-  template <int KIND>
-  mlir::Type gen(const Fortran::evaluate::TypeParamInquiry<KIND> &) {
-    return genFIRType<Fortran::common::TypeCategory::Integer, KIND>(context);
+  mlir::Type gen(const Fortran::evaluate::TypeParamInquiry &) {
+    return genFIRType<Fortran::evaluate::TypeParamInquiry::Result::category>(
+        context, Fortran::evaluate::TypeParamInquiry::Result::kind);
   }
 
   template <typename A>
@@ -278,7 +278,7 @@ private:
 
   // some sequence of `n` bytes
   mlir::Type gen(const Fortran::evaluate::StaticDataObject::Pointer &ptr) {
-    mlir::Type byteTy{mlir::IntegerType::get(8, context)};
+    mlir::Type byteTy{mlir::IntegerType::get(context, 8)};
     return fir::SequenceType::get(trivialShape(ptr->itemBytes()), byteTy);
   }
 

@@ -26,6 +26,8 @@
 
 #include "support/Context.h"
 #include "llvm/ADT/FunctionExtras.h"
+#include "llvm/ADT/Optional.h"
+#include "llvm/ADT/StringMap.h"
 #include <string>
 #include <vector>
 
@@ -57,14 +59,62 @@ struct Config {
   } CompileFlags;
 
   enum class BackgroundPolicy { Build, Skip };
+  /// Describes an external index configuration.
+  struct ExternalIndexSpec {
+    enum { File, Server } Kind;
+    /// This is one of:
+    /// - Address of a clangd-index-server, in the form of "ip:port".
+    /// - Absolute path to an index produced by clangd-indexer.
+    std::string Location;
+    /// Absolute path to source root this index is associated with, uses
+    /// forward-slashes.
+    std::string MountPoint;
+  };
   /// Controls background-index behavior.
   struct {
     /// Whether this TU should be indexed.
     BackgroundPolicy Background = BackgroundPolicy::Build;
+    llvm::Optional<ExternalIndexSpec> External;
   } Index;
+
+  /// Style of the codebase.
+  struct {
+    // Namespaces that should always be fully qualified, meaning no "using"
+    // declarations, always spell out the whole name (with or without leading
+    // ::). All nested namespaces are affected as well.
+    std::vector<std::string> FullyQualifiedNamespaces;
+  } Style;
+
+  /// Configures what clang-tidy checks to run and options to use with them.
+  struct {
+    // A comma-seperated list of globs to specify which clang-tidy checks to
+    // run.
+    std::string Checks;
+    llvm::StringMap<std::string> CheckOptions;
+  } ClangTidy;
 };
 
 } // namespace clangd
 } // namespace clang
+
+namespace llvm {
+template <> struct DenseMapInfo<clang::clangd::Config::ExternalIndexSpec> {
+  using ExternalIndexSpec = clang::clangd::Config::ExternalIndexSpec;
+  static inline ExternalIndexSpec getEmptyKey() {
+    return {ExternalIndexSpec::File, "", ""};
+  }
+  static inline ExternalIndexSpec getTombstoneKey() {
+    return {ExternalIndexSpec::File, "TOMB", "STONE"};
+  }
+  static unsigned getHashValue(const ExternalIndexSpec &Val) {
+    return llvm::hash_combine(Val.Kind, Val.Location, Val.MountPoint);
+  }
+  static bool isEqual(const ExternalIndexSpec &LHS,
+                      const ExternalIndexSpec &RHS) {
+    return std::tie(LHS.Kind, LHS.Location, LHS.MountPoint) ==
+           std::tie(RHS.Kind, RHS.Location, RHS.MountPoint);
+  }
+};
+} // namespace llvm
 
 #endif

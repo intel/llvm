@@ -119,7 +119,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
   getPlugin().call<PiApiKind::piEventRetain>(MEvent);
 }
 
-event_impl::event_impl(QueueImplPtr Queue) : MQueue(Queue) {
+event_impl::event_impl(QueueImplPtr Queue) {
   if (Queue->is_host()) {
     MState.store(HES_NotComplete);
 
@@ -217,9 +217,9 @@ void event_impl::wait_and_throw(
     if (Cmd)
       Cmd->getQueue()->throw_asynchronous();
   }
-  QueueImplPtr Queue = MQueue.lock();
-  if (Queue)
-    Queue->throw_asynchronous();
+  Command *Cmd = (Command *)getCommand();
+  if (Cmd)
+    Cmd->getQueue()->throw_asynchronous();
 }
 
 template <>

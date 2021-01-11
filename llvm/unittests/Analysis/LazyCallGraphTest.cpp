@@ -337,22 +337,6 @@ TEST(LazyCallGraphTest, BasicGraphFormation) {
   EXPECT_FALSE(D.isDescendantOf(D));
   EXPECT_EQ(&D, &*CG.postorder_ref_scc_begin());
 
-  LazyCallGraph::RefSCC &C = *J++;
-  ASSERT_EQ(1, C.size());
-  for (LazyCallGraph::Node &N : *C.begin())
-    Nodes.push_back(std::string(N.getFunction().getName()));
-  llvm::sort(Nodes);
-  EXPECT_EQ(3u, Nodes.size());
-  EXPECT_EQ("c1", Nodes[0]);
-  EXPECT_EQ("c2", Nodes[1]);
-  EXPECT_EQ("c3", Nodes[2]);
-  Nodes.clear();
-  EXPECT_TRUE(C.isParentOf(D));
-  EXPECT_FALSE(C.isChildOf(D));
-  EXPECT_TRUE(C.isAncestorOf(D));
-  EXPECT_FALSE(C.isDescendantOf(D));
-  EXPECT_EQ(&C, &*std::next(CG.postorder_ref_scc_begin()));
-
   LazyCallGraph::RefSCC &B = *J++;
   ASSERT_EQ(1, B.size());
   for (LazyCallGraph::Node &N : *B.begin())
@@ -367,9 +351,25 @@ TEST(LazyCallGraphTest, BasicGraphFormation) {
   EXPECT_FALSE(B.isChildOf(D));
   EXPECT_TRUE(B.isAncestorOf(D));
   EXPECT_FALSE(B.isDescendantOf(D));
+  EXPECT_EQ(&B, &*std::next(CG.postorder_ref_scc_begin()));
+
+  LazyCallGraph::RefSCC &C = *J++;
+  ASSERT_EQ(1, C.size());
+  for (LazyCallGraph::Node &N : *C.begin())
+    Nodes.push_back(std::string(N.getFunction().getName()));
+  llvm::sort(Nodes);
+  EXPECT_EQ(3u, Nodes.size());
+  EXPECT_EQ("c1", Nodes[0]);
+  EXPECT_EQ("c2", Nodes[1]);
+  EXPECT_EQ("c3", Nodes[2]);
+  Nodes.clear();
   EXPECT_FALSE(B.isAncestorOf(C));
   EXPECT_FALSE(C.isAncestorOf(B));
-  EXPECT_EQ(&B, &*std::next(CG.postorder_ref_scc_begin(), 2));
+  EXPECT_TRUE(C.isParentOf(D));
+  EXPECT_FALSE(C.isChildOf(D));
+  EXPECT_TRUE(C.isAncestorOf(D));
+  EXPECT_FALSE(C.isDescendantOf(D));
+  EXPECT_EQ(&C, &*std::next(CG.postorder_ref_scc_begin(), 2));
 
   LazyCallGraph::RefSCC &A = *J++;
   ASSERT_EQ(1, A.size());
@@ -449,47 +449,6 @@ TEST(LazyCallGraphTest, BasicGraphMutation) {
 
   CG.removeEdge(B, C);
   EXPECT_EQ(0, std::distance(B->begin(), B->end()));
-}
-
-TEST(LazyCallGraphTest, BasicGraphMutationOutlining) {
-  LLVMContext Context;
-  std::unique_ptr<Module> M = parseAssembly(Context, "define void @a() {\n"
-                                                     "entry:\n"
-                                                     "  call void @b()\n"
-                                                     "  call void @c()\n"
-                                                     "  ret void\n"
-                                                     "}\n"
-                                                     "define void @b() {\n"
-                                                     "entry:\n"
-                                                     "  ret void\n"
-                                                     "}\n"
-                                                     "define void @c() {\n"
-                                                     "entry:\n"
-                                                     "  ret void\n"
-                                                     "}\n");
-  LazyCallGraph CG = buildCG(*M);
-
-  LazyCallGraph::Node &A = CG.get(lookupFunction(*M, "a"));
-  LazyCallGraph::Node &B = CG.get(lookupFunction(*M, "b"));
-  LazyCallGraph::Node &C = CG.get(lookupFunction(*M, "c"));
-  A.populate();
-  B.populate();
-  C.populate();
-  CG.buildRefSCCs();
-
-  // Add a new function that is called from @b and verify it is in the same SCC.
-  Function &BFn = B.getFunction();
-  Function *NewFn =
-      Function::Create(BFn.getFunctionType(), BFn.getLinkage(), "NewFn", *M);
-  auto IP = BFn.getEntryBlock().getFirstInsertionPt();
-  CallInst::Create(NewFn, "", &*IP);
-  CG.addNewFunctionIntoSCC(*NewFn, *CG.lookupSCC(B));
-
-  EXPECT_EQ(CG.lookupSCC(A)->size(), 1);
-  EXPECT_EQ(CG.lookupSCC(B)->size(), 2);
-  EXPECT_EQ(CG.lookupSCC(C)->size(), 1);
-  EXPECT_EQ(CG.lookupSCC(*CG.lookup(*NewFn))->size(), 2);
-  EXPECT_EQ(CG.lookupSCC(*CG.lookup(*NewFn))->size(), CG.lookupSCC(B)->size());
 }
 
 TEST(LazyCallGraphTest, InnerSCCFormation) {
@@ -1247,9 +1206,9 @@ TEST(LazyCallGraphTest, InlineAndDeleteFunction) {
   ASSERT_NE(I, E);
   EXPECT_EQ(&NewDRC, &*I) << "Actual RefSCC: " << *I;
   ASSERT_NE(++I, E);
-  EXPECT_EQ(&CRC, &*I) << "Actual RefSCC: " << *I;
-  ASSERT_NE(++I, E);
   EXPECT_EQ(&BRC, &*I) << "Actual RefSCC: " << *I;
+  ASSERT_NE(++I, E);
+  EXPECT_EQ(&CRC, &*I) << "Actual RefSCC: " << *I;
   ASSERT_NE(++I, E);
   EXPECT_EQ(&ARC, &*I) << "Actual RefSCC: " << *I;
   EXPECT_EQ(++I, E);
@@ -2038,8 +1997,8 @@ TEST(LazyCallGraphTest, HandleBlockAddress2) {
 
   CG.buildRefSCCs();
   auto I = CG.postorder_ref_scc_begin();
-  LazyCallGraph::RefSCC &GRC = *I++;
   LazyCallGraph::RefSCC &FRC = *I++;
+  LazyCallGraph::RefSCC &GRC = *I++;
   EXPECT_EQ(CG.postorder_ref_scc_end(), I);
 
   LazyCallGraph::Node &F = *CG.lookup(lookupFunction(*M, "f"));
@@ -2210,47 +2169,5 @@ TEST(LazyCallGraphTest, RemoveFunctionWithSpurriousRef) {
   EXPECT_EQ(&RC1, &*I++);
   EXPECT_EQ(&RC2, &*I++);
   EXPECT_EQ(CG.postorder_ref_scc_end(), I);
-}
-
-TEST(LazyCallGraphTest, AddNewFunctionIntoRefSCC) {
-  LLVMContext Context;
-  // Build and populate a graph composed of a single, self-referential node.
-  std::unique_ptr<Module> M = parseAssembly(Context, "define void @f() {\n"
-                                                     "entry:\n"
-                                                     "  call void @f()\n"
-                                                     "  ret void\n"
-                                                     "}\n");
-  LazyCallGraph CG = buildCG(*M);
-  CG.buildRefSCCs();
-
-  // At this point 'f' is in the call graph.
-  auto &F = lookupFunction(*M, "f");
-  LazyCallGraph::Node *FN = CG.lookup(F);
-  EXPECT_NE(FN, nullptr);
-
-  // And it has an SCC, of course.
-  auto *FSCC = CG.lookupSCC(*FN);
-  EXPECT_NE(FSCC, nullptr);
-
-  // Now, create a new function 'g'.
-  auto *G = Function::Create(F.getFunctionType(), F.getLinkage(),
-                             F.getAddressSpace(), "g", F.getParent());
-  BasicBlock::Create(F.getParent()->getContext(), "entry", G);
-
-  // Instruct the LazyCallGraph to create a new node for 'g', within the same
-  // RefSCC as 'f', but in a separate SCC.
-  CG.addNewFunctionIntoRefSCC(*G, FSCC->getOuterRefSCC());
-
-  // 'g' should now be in the call graph.
-  LazyCallGraph::Node *GN = CG.lookup(*G);
-  EXPECT_NE(GN, nullptr);
-  // 'g' should have an SCC, composed of the singular node 'g'.
-  // ('f' should not be included in the 'g' SCC.)
-  LazyCallGraph::SCC *GSCC = CG.lookupSCC(*GN);
-  EXPECT_NE(GSCC, nullptr);
-  EXPECT_EQ(GSCC->size(), 1);
-  EXPECT_NE(GSCC, FSCC);
-  // 'g' and 'f' should be part of the same RefSCC.
-  EXPECT_EQ(&GSCC->getOuterRefSCC(), &FSCC->getOuterRefSCC());
 }
 }

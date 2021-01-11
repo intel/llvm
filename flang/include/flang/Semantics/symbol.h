@@ -155,6 +155,7 @@ private:
   MaybeExpr expr_;
   std::optional<int> rank_;
 };
+llvm::raw_ostream &operator<<(llvm::raw_ostream &, const AssocEntityDetails &);
 
 // An entity known to be an object.
 class ObjectEntityDetails : public EntityDetails {
@@ -166,8 +167,6 @@ public:
   MaybeExpr &init() { return init_; }
   const MaybeExpr &init() const { return init_; }
   void set_init(MaybeExpr &&expr) { init_ = std::move(expr); }
-  bool initWasValidated() const { return initWasValidated_; }
-  void set_initWasValidated(bool yes = true) { initWasValidated_ = yes; }
   ArraySpec &shape() { return shape_; }
   const ArraySpec &shape() const { return shape_; }
   ArraySpec &coshape() { return coshape_; }
@@ -189,7 +188,6 @@ public:
 
 private:
   MaybeExpr init_;
-  bool initWasValidated_{false};
   ArraySpec shape_;
   ArraySpec coshape_;
   const Symbol *commonBlock_{nullptr}; // common block this object is in
@@ -248,6 +246,8 @@ public:
   const std::list<SourceName> &paramNames() const { return paramNames_; }
   const SymbolVector &paramDecls() const { return paramDecls_; }
   bool sequence() const { return sequence_; }
+  std::map<SourceName, SymbolRef> &finals() { return finals_; }
+  const std::map<SourceName, SymbolRef> &finals() const { return finals_; }
   bool isForwardReferenced() const { return isForwardReferenced_; }
   void add_paramName(const SourceName &name) { paramNames_.push_back(name); }
   void add_paramDecl(const Symbol &symbol) { paramDecls_.push_back(symbol); }
@@ -269,6 +269,8 @@ public:
     }
   }
 
+  const Symbol *GetFinalForRank(int) const;
+
 private:
   // These are (1) the names of the derived type parameters in the order
   // in which they appear on the type definition statement(s), and (2) the
@@ -279,6 +281,7 @@ private:
   // These are the names of the derived type's components in component
   // order.  A parent component, if any, appears first in this list.
   std::list<SourceName> componentNames_;
+  std::map<SourceName, SymbolRef> finals_; // FINAL :: subr
   bool sequence_{false};
   bool isForwardReferenced_{false};
   friend llvm::raw_ostream &operator<<(
@@ -321,8 +324,6 @@ private:
   MaybeExpr bindName_;
   std::size_t alignment_{0}; // required alignment in bytes
 };
-
-class FinalProcDetails {}; // TODO
 
 class MiscDetails {
 public:
@@ -386,6 +387,8 @@ class HostAssocDetails {
 public:
   HostAssocDetails(const Symbol &symbol) : symbol_{symbol} {}
   const Symbol &symbol() const { return symbol_; }
+  bool implicitOrSpecExprError{false};
+  bool implicitOrExplicitTypeError{false};
 
 private:
   SymbolRef symbol_;
@@ -427,6 +430,7 @@ public:
   const SymbolVector &specificProcs() const { return specificProcs_; }
   const std::vector<SourceName> &bindingNames() const { return bindingNames_; }
   void AddSpecificProc(const Symbol &, SourceName bindingName);
+  const SymbolVector &uses() const { return uses_; }
 
   // specific and derivedType indicate a specific procedure or derived type
   // with the same name as this generic. Only one of them may be set.
@@ -436,6 +440,7 @@ public:
   Symbol *derivedType() { return derivedType_; }
   const Symbol *derivedType() const { return derivedType_; }
   void set_derivedType(Symbol &derivedType);
+  void AddUse(const Symbol &);
 
   // Copy in specificProcs, specific, and derivedType from another generic
   void CopyFrom(const GenericDetails &);
@@ -445,22 +450,19 @@ public:
   const Symbol *CheckSpecific() const;
   Symbol *CheckSpecific();
 
-  const std::optional<UseDetails> &useDetails() const { return useDetails_; }
-  void set_useDetails(const UseDetails &details) { useDetails_ = details; }
-
 private:
   GenericKind kind_;
   // all of the specific procedures for this generic
   SymbolVector specificProcs_;
   std::vector<SourceName> bindingNames_;
+  // Symbols used from other modules merged into this one
+  SymbolVector uses_;
   // a specific procedure with the same name as this generic, if any
   Symbol *specific_{nullptr};
   // a derived type with the same name as this generic, if any
   Symbol *derivedType_{nullptr};
-  // If two USEs of generics were merged to form this one, this is the
-  // UseDetails for one of them. Used for reporting USE errors.
-  std::optional<UseDetails> useDetails_;
 };
+llvm::raw_ostream &operator<<(llvm::raw_ostream &, const GenericDetails &);
 
 class UnknownDetails {};
 
@@ -469,18 +471,18 @@ using Details = std::variant<UnknownDetails, MainProgramDetails, ModuleDetails,
     ObjectEntityDetails, ProcEntityDetails, AssocEntityDetails,
     DerivedTypeDetails, UseDetails, UseErrorDetails, HostAssocDetails,
     GenericDetails, ProcBindingDetails, NamelistDetails, CommonBlockDetails,
-    FinalProcDetails, TypeParamDetails, MiscDetails>;
+    TypeParamDetails, MiscDetails>;
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Details &);
 std::string DetailsToString(const Details &);
 
 class Symbol {
 public:
   ENUM_CLASS(Flag,
-      Error, // an error has been reported on this symbol
       Function, // symbol is a function
       Subroutine, // symbol is a subroutine
       StmtFunction, // symbol is a statement function (Function is set too)
       Implicit, // symbol is implicitly typed
+      ImplicitOrError, // symbol must be implicitly typed or it's an error
       ModFile, // symbol came from .mod file
       ParentComp, // symbol is the "parent component" of an extended type
       CrayPointer, CrayPointee,
@@ -488,22 +490,23 @@ public:
       LocalityLocalInit, // named in LOCAL_INIT locality-spec
       LocalityShared, // named in SHARED locality-spec
       InDataStmt, // initialized in a DATA statement
-
+      InNamelist, // flag is set if the symbol is in Namelist statement
       // OpenACC data-sharing attribute
       AccPrivate, AccFirstPrivate, AccShared,
       // OpenACC data-mapping attribute
       AccCopyIn, AccCopyOut, AccCreate, AccDelete, AccPresent,
       // OpenACC miscellaneous flags
       AccCommonBlock, AccThreadPrivate, AccReduction, AccNone, AccPreDetermined,
-
       // OpenMP data-sharing attribute
       OmpShared, OmpPrivate, OmpLinear, OmpFirstPrivate, OmpLastPrivate,
       // OpenMP data-mapping attribute
       OmpMapTo, OmpMapFrom, OmpMapAlloc, OmpMapRelease, OmpMapDelete,
+      // OpenMP data-copying attribute
+      OmpCopyIn,
       // OpenMP miscellaneous flags
-      OmpCommonBlock, OmpReduction, OmpDeclareSimd, OmpDeclareTarget,
-      OmpThreadprivate, OmpDeclareReduction, OmpFlushed, OmpCriticalLock,
-      OmpIfSpecified, OmpNone, OmpPreDetermined);
+      OmpCommonBlock, OmpReduction, OmpAllocate, OmpDeclareSimd,
+      OmpDeclareTarget, OmpThreadprivate, OmpDeclareReduction, OmpFlushed,
+      OmpCriticalLock, OmpIfSpecified, OmpNone, OmpPreDetermined, OmpAligned);
   using Flags = common::EnumSet<Flag, Flag_enumSize>;
 
   const Scope &owner() const { return *owner_; }

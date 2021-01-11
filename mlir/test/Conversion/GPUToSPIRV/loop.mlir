@@ -3,13 +3,13 @@
 module attributes {
   gpu.container_module,
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>, {}>
 } {
   func @loop(%arg0 : memref<10xf32>, %arg1 : memref<10xf32>) {
     %c0 = constant 1 : index
-    "gpu.launch_func"(%c0, %c0, %c0, %c0, %c0, %c0, %arg0, %arg1) { kernel = @kernels::@loop_kernel} : (index, index, index, index, index, index, memref<10xf32>, memref<10xf32>) -> ()
+    gpu.launch_func @kernels::@loop_kernel
+        blocks in (%c0, %c0, %c0) threads in (%c0, %c0, %c0)
+        args(%arg0 : memref<10xf32>, %arg1 : memref<10xf32>)
     return
   }
 
@@ -43,7 +43,7 @@ module attributes {
       // CHECK:        %[[INCREMENT:.*]] = spv.IAdd %[[INDVAR]], %[[STEP]] : i32
       // CHECK:        spv.Branch ^[[HEADER]](%[[INCREMENT]] : i32)
       // CHECK:      ^[[MERGE]]
-      // CHECK:        spv._merge
+      // CHECK:        spv.mlir.merge
       // CHECK:      }
       scf.for %arg4 = %lb to %ub step %step {
         %1 = load %arg2[%arg4] : memref<10xf32>
@@ -80,7 +80,7 @@ module attributes {
       // CHECK-DAG:   spv.Store "Function" %[[VAR2]], %[[UPDATED]] : f32
       // CHECK: spv.Branch ^[[HEADER]](%[[INCREMENT]], %[[UPDATED]], %[[UPDATED]] : i32, f32, f32)
       // CHECK: ^[[MERGE]]:
-      // CHECK:   spv._merge
+      // CHECK:   spv.mlir.merge
       // CHECK: }
       %result:2 = scf.for %i0 = %lb to %ub step %step iter_args(%si = %s0, %sj = %s1) -> (f32, f32) {
         %sn = addf %si, %si : f32

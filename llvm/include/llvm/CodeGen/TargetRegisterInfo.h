@@ -87,22 +87,21 @@ public:
 
   /// Return true if the specified register is included in this register class.
   /// This does not include virtual registers.
-  bool contains(unsigned Reg) const {
+  bool contains(Register Reg) const {
     /// FIXME: Historically this function has returned false when given vregs
     ///        but it should probably only receive physical registers
-    if (!Register::isPhysicalRegister(Reg))
+    if (!Reg.isPhysical())
       return false;
-    return MC->contains(Reg);
+    return MC->contains(Reg.asMCReg());
   }
 
   /// Return true if both registers are in this class.
-  bool contains(unsigned Reg1, unsigned Reg2) const {
+  bool contains(Register Reg1, Register Reg2) const {
     /// FIXME: Historically this function has returned false when given a vregs
     ///        but it should probably only receive physical registers
-    if (!Register::isPhysicalRegister(Reg1) ||
-        !Register::isPhysicalRegister(Reg2))
+    if (!Reg1.isPhysical() || !Reg2.isPhysical())
       return false;
-    return MC->contains(Reg1, Reg2);
+    return MC->contains(Reg1.asMCReg(), Reg2.asMCReg());
   }
 
   /// Return the cost of copying a value between two registers in this class.
@@ -386,12 +385,12 @@ public:
   /// The registers may be virtual registers.
   bool regsOverlap(Register regA, Register regB) const {
     if (regA == regB) return true;
-    if (regA.isVirtual() || regB.isVirtual())
+    if (!regA.isPhysical() || !regB.isPhysical())
       return false;
 
     // Regunits are numerically ordered. Find a common unit.
-    MCRegUnitIterator RUA(regA, this);
-    MCRegUnitIterator RUB(regB, this);
+    MCRegUnitIterator RUA(regA.asMCReg(), this);
+    MCRegUnitIterator RUB(regB.asMCReg(), this);
     do {
       if (*RUA == *RUB) return true;
       if (*RUA < *RUB) ++RUA;
@@ -401,9 +400,9 @@ public:
   }
 
   /// Returns true if Reg contains RegUnit.
-  bool hasRegUnit(MCRegister Reg, unsigned RegUnit) const {
+  bool hasRegUnit(MCRegister Reg, Register RegUnit) const {
     for (MCRegUnitIterator Units(Reg, this); Units.isValid(); ++Units)
-      if (*Units == RegUnit)
+      if (Register(*Units) == RegUnit)
         return true;
     return false;
   }
@@ -446,6 +445,13 @@ public:
   virtual const uint32_t *getCallPreservedMask(const MachineFunction &MF,
                                                CallingConv::ID) const {
     // The default mask clobbers everything.  All targets should override.
+    return nullptr;
+  }
+
+  /// Return a register mask for the registers preserved by the unwinder,
+  /// or nullptr if no custom mask is needed.
+  virtual const uint32_t *
+  getCustomEHPadPreservedMask(const MachineFunction &MF) const {
     return nullptr;
   }
 
@@ -970,6 +976,36 @@ public:
   virtual bool shouldRegionSplitForVirtReg(const MachineFunction &MF,
                                            const LiveInterval &VirtReg) const;
 
+  /// Last chance recoloring has a high compile time cost especially for
+  /// targets with a lot of registers.
+  /// This method is used to decide whether or not \p VirtReg should
+  /// go through this expensive heuristic.
+  /// When this target hook is hit, by returning false, there is a high
+  /// chance that the register allocation will fail altogether (usually with
+  /// "ran out of registers").
+  /// That said, this error usually points to another problem in the
+  /// optimization pipeline.
+  virtual bool
+  shouldUseLastChanceRecoloringForVirtReg(const MachineFunction &MF,
+                                          const LiveInterval &VirtReg) const {
+    return true;
+  }
+
+  /// Deferred spilling delays the spill insertion of a virtual register
+  /// after every other allocation. By deferring the spilling, it is
+  /// sometimes possible to eliminate that spilling altogether because
+  /// something else could have been eliminated, thus leaving some space
+  /// for the virtual register.
+  /// However, this comes with a compile time impact because it adds one
+  /// more stage to the greedy register allocator.
+  /// This method is used to decide whether \p VirtReg should use the deferred
+  /// spilling stage instead of being spilled right away.
+  virtual bool
+  shouldUseDeferredSpillingForVirtReg(const MachineFunction &MF,
+                                      const LiveInterval &VirtReg) const {
+    return false;
+  }
+
   //===--------------------------------------------------------------------===//
   /// Debug information queries.
 
@@ -994,7 +1030,7 @@ public:
   /// Returns the physical register number of sub-register "Index"
   /// for physical register RegNo. Return zero if the sub-register does not
   /// exist.
-  inline Register getSubReg(MCRegister Reg, unsigned Idx) const {
+  inline MCRegister getSubReg(MCRegister Reg, unsigned Idx) const {
     return static_cast<const MCRegisterInfo *>(this)->getSubReg(Reg, Idx);
   }
 };
@@ -1146,8 +1182,8 @@ public:
 
 // This is useful when building IndexedMaps keyed on virtual registers
 struct VirtReg2IndexFunctor {
-  using argument_type = unsigned;
-  unsigned operator()(unsigned Reg) const {
+  using argument_type = Register;
+  unsigned operator()(Register Reg) const {
     return Register::virtReg2Index(Reg);
   }
 };

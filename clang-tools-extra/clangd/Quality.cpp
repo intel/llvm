@@ -8,6 +8,7 @@
 
 #include "Quality.h"
 #include "AST.h"
+#include "CompletionModel.h"
 #include "FileDistance.h"
 #include "SourceCode.h"
 #include "URI.h"
@@ -200,7 +201,7 @@ void SymbolQualitySignals::merge(const Symbol &IndexResult) {
   ReservedName = ReservedName || isReserved(IndexResult.Name);
 }
 
-float SymbolQualitySignals::evaluate() const {
+float SymbolQualitySignals::evaluateHeuristics() const {
   float Score = 1;
 
   // This avoids a sharp gradient for tail symbols, and also neatly avoids the
@@ -252,10 +253,11 @@ float SymbolQualitySignals::evaluate() const {
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
                               const SymbolQualitySignals &S) {
-  OS << llvm::formatv("=== Symbol quality: {0}\n", S.evaluate());
+  OS << llvm::formatv("=== Symbol quality: {0}\n", S.evaluateHeuristics());
   OS << llvm::formatv("\tReferences: {0}\n", S.References);
   OS << llvm::formatv("\tDeprecated: {0}\n", S.Deprecated);
   OS << llvm::formatv("\tReserved name: {0}\n", S.ReservedName);
+  OS << llvm::formatv("\tImplementation detail: {0}\n", S.ImplementationDetail);
   OS << llvm::formatv("\tCategory: {0}\n", static_cast<int>(S.Category));
   return OS;
 }
@@ -320,35 +322,51 @@ void SymbolRelevanceSignals::merge(const CodeCompletionResult &SemaCCResult) {
   NeedsFixIts = !SemaCCResult.FixIts.empty();
 }
 
-static std::pair<float, unsigned> uriProximity(llvm::StringRef SymbolURI,
-                                               URIDistance *D) {
-  if (!D || SymbolURI.empty())
-    return {0.f, 0u};
-  unsigned Distance = D->distance(SymbolURI);
+static float fileProximityScore(unsigned FileDistance) {
+  // Range: [0, 1]
+  // FileDistance = [0, 1, 2, 3, 4, .., FileDistance::Unreachable]
+  // Score = [1, 0.82, 0.67, 0.55, 0.45, .., 0]
+  if (FileDistance == FileDistance::Unreachable)
+    return 0;
   // Assume approximately default options are used for sensible scoring.
-  return {std::exp(Distance * -0.4f / FileDistanceOptions().UpCost), Distance};
+  return std::exp(FileDistance * -0.4f / FileDistanceOptions().UpCost);
 }
 
-static float scopeBoost(ScopeDistance &Distance,
-                        llvm::Optional<llvm::StringRef> SymbolScope) {
-  if (!SymbolScope)
-    return 1;
-  auto D = Distance.distance(*SymbolScope);
-  if (D == FileDistance::Unreachable)
+static float scopeProximityScore(unsigned ScopeDistance) {
+  // Range: [0.6, 2].
+  // ScopeDistance = [0, 1, 2, 3, 4, 5, 6, 7, .., FileDistance::Unreachable]
+  // Score = [2.0, 1.55, 1.2, 0.93, 0.72, 0.65, 0.65, 0.65, .., 0.6]
+  if (ScopeDistance == FileDistance::Unreachable)
     return 0.6f;
-  return std::max(0.65, 2.0 * std::pow(0.6, D / 2.0));
+  return std::max(0.65, 2.0 * std::pow(0.6, ScopeDistance / 2.0));
 }
 
 static llvm::Optional<llvm::StringRef>
 wordMatching(llvm::StringRef Name, const llvm::StringSet<> *ContextWords) {
   if (ContextWords)
-    for (const auto& Word : ContextWords->keys())
+    for (const auto &Word : ContextWords->keys())
       if (Name.contains_lower(Word))
         return Word;
   return llvm::None;
 }
 
-float SymbolRelevanceSignals::evaluate() const {
+SymbolRelevanceSignals::DerivedSignals
+SymbolRelevanceSignals::calculateDerivedSignals() const {
+  DerivedSignals Derived;
+  Derived.NameMatchesContext = wordMatching(Name, ContextWords).hasValue();
+  Derived.FileProximityDistance = !FileProximityMatch || SymbolURI.empty()
+                                      ? FileDistance::Unreachable
+                                      : FileProximityMatch->distance(SymbolURI);
+  if (ScopeProximityMatch) {
+    // For global symbol, the distance is 0.
+    Derived.ScopeProximityDistance =
+        SymbolScope ? ScopeProximityMatch->distance(*SymbolScope) : 0;
+  }
+  return Derived;
+}
+
+float SymbolRelevanceSignals::evaluateHeuristics() const {
+  DerivedSignals Derived = calculateDerivedSignals();
   float Score = 1;
 
   if (Forbidden)
@@ -358,7 +376,7 @@ float SymbolRelevanceSignals::evaluate() const {
 
   // File proximity scores are [0,1] and we translate them into a multiplier in
   // the range from 1 to 3.
-  Score *= 1 + 2 * std::max(uriProximity(SymbolURI, FileProximityMatch).first,
+  Score *= 1 + 2 * std::max(fileProximityScore(Derived.FileProximityDistance),
                             SemaFileProximityScore);
 
   if (ScopeProximityMatch)
@@ -366,10 +384,11 @@ float SymbolRelevanceSignals::evaluate() const {
     // can be tricky (e.g. class/function scope). Set to the max boost as we
     // don't load top-level symbols from the preamble and sema results are
     // always in the accessible scope.
-    Score *=
-        SemaSaysInScope ? 2.0 : scopeBoost(*ScopeProximityMatch, SymbolScope);
+    Score *= SemaSaysInScope
+                 ? 2.0
+                 : scopeProximityScore(Derived.ScopeProximityDistance);
 
-  if (wordMatching(Name, ContextWords))
+  if (Derived.NameMatchesContext)
     Score *= 1.5;
 
   // Symbols like local variables may only be referenced within their scope.
@@ -427,7 +446,7 @@ float SymbolRelevanceSignals::evaluate() const {
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
                               const SymbolRelevanceSignals &S) {
-  OS << llvm::formatv("=== Symbol relevance: {0}\n", S.evaluate());
+  OS << llvm::formatv("=== Symbol relevance: {0}\n", S.evaluateHeuristics());
   OS << llvm::formatv("\tName: {0}\n", S.Name);
   OS << llvm::formatv("\tName match: {0}\n", S.NameMatch);
   if (S.ContextWords)
@@ -437,6 +456,7 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
   OS << llvm::formatv("\tForbidden: {0}\n", S.Forbidden);
   OS << llvm::formatv("\tNeedsFixIts: {0}\n", S.NeedsFixIts);
   OS << llvm::formatv("\tIsInstanceMember: {0}\n", S.IsInstanceMember);
+  OS << llvm::formatv("\tInBaseClass: {0}\n", S.InBaseClass);
   OS << llvm::formatv("\tContext: {0}\n", getCompletionKindString(S.Context));
   OS << llvm::formatv("\tQuery type: {0}\n", static_cast<int>(S.Query));
   OS << llvm::formatv("\tScope: {0}\n", static_cast<int>(S.Scope));
@@ -445,17 +465,18 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
   OS << llvm::formatv("\tSymbol scope: {0}\n",
                       S.SymbolScope ? *S.SymbolScope : "<None>");
 
+  SymbolRelevanceSignals::DerivedSignals Derived = S.calculateDerivedSignals();
   if (S.FileProximityMatch) {
-    auto Score = uriProximity(S.SymbolURI, S.FileProximityMatch);
-    OS << llvm::formatv("\tIndex URI proximity: {0} (distance={1})\n",
-                        Score.first, Score.second);
+    unsigned Score = fileProximityScore(Derived.FileProximityDistance);
+    OS << llvm::formatv("\tIndex URI proximity: {0} (distance={1})\n", Score,
+                        Derived.FileProximityDistance);
   }
   OS << llvm::formatv("\tSema file proximity: {0}\n", S.SemaFileProximityScore);
 
   OS << llvm::formatv("\tSema says in scope: {0}\n", S.SemaSaysInScope);
   if (S.ScopeProximityMatch)
     OS << llvm::formatv("\tIndex scope boost: {0}\n",
-                        scopeBoost(*S.ScopeProximityMatch, S.SymbolScope));
+                        scopeProximityScore(Derived.ScopeProximityDistance));
 
   OS << llvm::formatv(
       "\tType matched preferred: {0} (Context type: {1}, Symbol type: {2}\n",
@@ -466,6 +487,47 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
 
 float evaluateSymbolAndRelevance(float SymbolQuality, float SymbolRelevance) {
   return SymbolQuality * SymbolRelevance;
+}
+
+DecisionForestScores
+evaluateDecisionForest(const SymbolQualitySignals &Quality,
+                       const SymbolRelevanceSignals &Relevance, float Base) {
+  Example E;
+  E.setIsDeprecated(Quality.Deprecated);
+  E.setIsReservedName(Quality.ReservedName);
+  E.setIsImplementationDetail(Quality.ImplementationDetail);
+  E.setNumReferences(Quality.References);
+  E.setSymbolCategory(Quality.Category);
+
+  SymbolRelevanceSignals::DerivedSignals Derived =
+      Relevance.calculateDerivedSignals();
+  E.setIsNameInContext(Derived.NameMatchesContext);
+  E.setIsForbidden(Relevance.Forbidden);
+  E.setIsInBaseClass(Relevance.InBaseClass);
+  E.setFileProximityDistance(Derived.FileProximityDistance);
+  E.setSemaFileProximityScore(Relevance.SemaFileProximityScore);
+  E.setSymbolScopeDistance(Derived.ScopeProximityDistance);
+  E.setSemaSaysInScope(Relevance.SemaSaysInScope);
+  E.setScope(Relevance.Scope);
+  E.setContextKind(Relevance.Context);
+  E.setIsInstanceMember(Relevance.IsInstanceMember);
+  E.setHadContextType(Relevance.HadContextType);
+  E.setHadSymbolType(Relevance.HadSymbolType);
+  E.setTypeMatchesPreferred(Relevance.TypeMatchesPreferred);
+  E.setFilterLength(Relevance.FilterLength);
+
+  DecisionForestScores Scores;
+  // Exponentiating DecisionForest prediction makes the score of each tree a
+  // multiplciative boost (like NameMatch). This allows us to weigh the
+  // prediciton score and NameMatch appropriately.
+  Scores.ExcludingName = pow(Base, Evaluate(E));
+  // NeedsFixIts is not part of the DecisionForest as generating training
+  // data that needs fixits is not-feasible.
+  if (Relevance.NeedsFixIts)
+    Scores.ExcludingName *= 0.5;
+  // NameMatch should be a multiplier on total score to support rescoring.
+  Scores.Total = Relevance.NameMatch * Scores.ExcludingName;
+  return Scores;
 }
 
 // Produces an integer that sorts in the same order as F.

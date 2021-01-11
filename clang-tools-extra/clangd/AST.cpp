@@ -258,7 +258,7 @@ std::string printTemplateSpecializationArgs(const NamedDecl &ND) {
       // TemplateArgumentTypeLocs, they only have TemplateArgumentTypes. So we
       // create a new argument location list from TypeSourceInfo.
       auto STL = TSI->getTypeLoc().getAs<TemplateSpecializationTypeLoc>();
-      llvm::SmallVector<TemplateArgumentLoc, 8> ArgLocs;
+      llvm::SmallVector<TemplateArgumentLoc> ArgLocs;
       ArgLocs.reserve(STL.getNumArgs());
       for (unsigned I = 0; I < STL.getNumArgs(); ++I)
         ArgLocs.push_back(STL.getArgLoc(I));
@@ -282,21 +282,20 @@ std::string printNamespaceScope(const DeclContext &DC) {
   return "";
 }
 
-llvm::Optional<SymbolID> getSymbolID(const Decl *D) {
+SymbolID getSymbolID(const Decl *D) {
   llvm::SmallString<128> USR;
   if (index::generateUSRForDecl(D, USR))
-    return None;
+    return {};
   return SymbolID(USR);
 }
 
-llvm::Optional<SymbolID> getSymbolID(const llvm::StringRef MacroName,
-                                     const MacroInfo *MI,
-                                     const SourceManager &SM) {
+SymbolID getSymbolID(const llvm::StringRef MacroName, const MacroInfo *MI,
+                     const SourceManager &SM) {
   if (MI == nullptr)
-    return None;
+    return {};
   llvm::SmallString<128> USR;
   if (index::generateUSRForMacro(MacroName, MI->getDefinitionLoc(), SM, USR))
-    return None;
+    return {};
   return SymbolID(USR);
 }
 
@@ -304,8 +303,8 @@ llvm::Optional<SymbolID> getSymbolID(const llvm::StringRef MacroName,
 std::string printType(const QualType QT, const DeclContext &CurContext) {
   std::string Result;
   llvm::raw_string_ostream OS(Result);
-  auto Decls = explicitReferenceTargets(
-      ast_type_traits::DynTypedNode::create(QT), DeclRelation::Alias);
+  auto Decls =
+      explicitReferenceTargets(DynTypedNode::create(QT), DeclRelation::Alias);
   if (!Decls.empty())
     OS << getQualification(CurContext.getParentASTContext(), &CurContext,
                            Decls.front(),
@@ -351,8 +350,7 @@ public:
       return true;
 
     if (auto *AT = D->getType()->getContainedAutoType()) {
-      if (!AT->getDeducedType().isNull())
-        DeducedType = AT->getDeducedType();
+      DeducedType = AT->desugar();
     }
     return true;
   }

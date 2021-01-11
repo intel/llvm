@@ -36,10 +36,22 @@ namespace llvm {
 
 class FoldingSetNodeID;
 
+// Provide PointerLikeTypeTraits for clang::Expr*, this default one requires a
+// full definition of Expr, but this file only sees a forward del because of
+// the dependency.
+template <> struct PointerLikeTypeTraits<clang::Expr *> {
+  static inline void *getAsVoidPointer(clang::Expr *P) { return P; }
+  static inline clang::Expr *getFromVoidPointer(void *P) {
+    return static_cast<clang::Expr *>(P);
+  }
+  static constexpr int NumLowBitsAvailable = 2;
+};
+
 } // namespace llvm
 
 namespace clang {
 
+class APValue;
 class ASTContext;
 class DiagnosticBuilder;
 class Expr;
@@ -70,6 +82,12 @@ public:
     /// The template argument is an integral value stored in an llvm::APSInt
     /// that was provided for an integral non-type template parameter.
     Integral,
+
+    /// The template argument is a non-type template argument that can't be
+    /// represented by the special-case Declaration, NullPtr, or Integral
+    /// forms. These values are only ever produced by constant evaluation,
+    /// so cannot be dependent.
+    UncommonValue,
 
     /// The template argument is a template name that was provided for a
     /// template template parameter.
@@ -114,6 +132,11 @@ private:
     };
     void *Type;
   };
+  struct V {
+    unsigned Kind;
+    const APValue *Value;
+    void *Type;
+  };
   struct A {
     unsigned Kind;
     unsigned NumArgs;
@@ -131,6 +154,7 @@ private:
   union {
     struct DA DeclArg;
     struct I Integer;
+    struct V Value;
     struct A Args;
     struct TA TemplateArg;
     struct TV TypeOrValue;
@@ -146,9 +170,8 @@ public:
     TypeOrValue.V = reinterpret_cast<uintptr_t>(T.getAsOpaquePtr());
   }
 
-  /// Construct a template argument that refers to a
-  /// declaration, which is either an external declaration or a
-  /// template declaration.
+  /// Construct a template argument that refers to a (non-dependent)
+  /// declaration.
   TemplateArgument(ValueDecl *D, QualType QT) {
     assert(D && "Expected decl");
     DeclArg.Kind = Declaration;
@@ -158,7 +181,11 @@ public:
 
   /// Construct an integral constant template argument. The memory to
   /// store the value is allocated with Ctx.
-  TemplateArgument(ASTContext &Ctx, const llvm::APSInt &Value, QualType Type);
+  TemplateArgument(const ASTContext &Ctx, const llvm::APSInt &Value,
+                   QualType Type);
+
+  /// Construct a template argument from an arbitrary constant value.
+  TemplateArgument(const ASTContext &Ctx, QualType Type, const APValue &Value);
 
   /// Construct an integral constant template argument with the same
   /// value as Other but a different type.
@@ -241,6 +268,12 @@ public:
   /// Whether this template argument is dependent on a template
   /// parameter such that its result can change from one instantiation to
   /// another.
+  ///
+  /// It's not always meaningful to ask whether a template argument is
+  /// dependent before it's been converted to match a template parameter;
+  /// whether a non-type template argument is dependent depends on the
+  /// corresponding parameter. For an unconverted template argument, this
+  /// returns true if the argument *might* be dependent.
   bool isDependent() const;
 
   /// Whether this template argument is dependent on a template
@@ -323,6 +356,16 @@ public:
     Integer.Type = T.getAsOpaquePtr();
   }
 
+  /// Get the value of an UncommonValue.
+  const APValue &getAsUncommonValue() const {
+    return *Value.Value;
+  }
+
+  /// Get the type of an UncommonValue.
+  QualType getUncommonValueType() const {
+    return QualType::getFromOpaquePtr(Value.Type);
+  }
+
   /// If this is a non-type template argument, get its type. Otherwise,
   /// returns a null QualType.
   QualType getNonTypeTemplateArgumentType() const;
@@ -393,7 +436,7 @@ public:
 /// Location information for a TemplateArgument.
 struct TemplateArgumentLocInfo {
 private:
-  struct T {
+  struct TemplateTemplateArgLocInfo {
     // FIXME: We'd like to just use the qualifier in the TemplateName,
     // but template arguments get canonicalized too quickly.
     NestedNameSpecifier *Qualifier;
@@ -402,47 +445,42 @@ private:
     unsigned EllipsisLoc;
   };
 
-  union {
-    struct T Template;
-    Expr *Expression;
-    TypeSourceInfo *Declarator;
-  };
+  llvm::PointerUnion<TemplateTemplateArgLocInfo *, Expr *, TypeSourceInfo *>
+      Pointer;
+
+  TemplateTemplateArgLocInfo *getTemplate() const {
+    return Pointer.get<TemplateTemplateArgLocInfo *>();
+  }
 
 public:
-  constexpr TemplateArgumentLocInfo() : Template({nullptr, nullptr, 0, 0}) {}
+  TemplateArgumentLocInfo() {}
+  TemplateArgumentLocInfo(TypeSourceInfo *Declarator) { Pointer = Declarator; }
 
-  TemplateArgumentLocInfo(TypeSourceInfo *TInfo) : Declarator(TInfo) {}
-
-  TemplateArgumentLocInfo(Expr *E) : Expression(E) {}
-
-  TemplateArgumentLocInfo(NestedNameSpecifierLoc QualifierLoc,
+  TemplateArgumentLocInfo(Expr *E) { Pointer = E; }
+  // Ctx is used for allocation -- this case is unusually large and also rare,
+  // so we store the payload out-of-line.
+  TemplateArgumentLocInfo(ASTContext &Ctx, NestedNameSpecifierLoc QualifierLoc,
                           SourceLocation TemplateNameLoc,
-                          SourceLocation EllipsisLoc) {
-    Template.Qualifier = QualifierLoc.getNestedNameSpecifier();
-    Template.QualifierLocData = QualifierLoc.getOpaqueData();
-    Template.TemplateNameLoc = TemplateNameLoc.getRawEncoding();
-    Template.EllipsisLoc = EllipsisLoc.getRawEncoding();
-  }
+                          SourceLocation EllipsisLoc);
 
   TypeSourceInfo *getAsTypeSourceInfo() const {
-    return Declarator;
+    return Pointer.get<TypeSourceInfo *>();
   }
 
-  Expr *getAsExpr() const {
-    return Expression;
-  }
+  Expr *getAsExpr() const { return Pointer.get<Expr *>(); }
 
   NestedNameSpecifierLoc getTemplateQualifierLoc() const {
-    return NestedNameSpecifierLoc(Template.Qualifier,
-                                  Template.QualifierLocData);
+    const auto *Template = getTemplate();
+    return NestedNameSpecifierLoc(Template->Qualifier,
+                                  Template->QualifierLocData);
   }
 
   SourceLocation getTemplateNameLoc() const {
-    return SourceLocation::getFromRawEncoding(Template.TemplateNameLoc);
+    return SourceLocation::getFromRawEncoding(getTemplate()->TemplateNameLoc);
   }
 
   SourceLocation getTemplateEllipsisLoc() const {
-    return SourceLocation::getFromRawEncoding(Template.EllipsisLoc);
+    return SourceLocation::getFromRawEncoding(getTemplate()->EllipsisLoc);
   }
 };
 
@@ -453,7 +491,7 @@ class TemplateArgumentLoc {
   TemplateArgumentLocInfo LocInfo;
 
 public:
-  constexpr TemplateArgumentLoc() {}
+  TemplateArgumentLoc() {}
 
   TemplateArgumentLoc(const TemplateArgument &Argument,
                       TemplateArgumentLocInfo Opaque)
@@ -472,15 +510,16 @@ public:
     assert(Argument.getKind() == TemplateArgument::NullPtr ||
            Argument.getKind() == TemplateArgument::Integral ||
            Argument.getKind() == TemplateArgument::Declaration ||
+           Argument.getKind() == TemplateArgument::UncommonValue ||
            Argument.getKind() == TemplateArgument::Expression);
   }
 
-  TemplateArgumentLoc(const TemplateArgument &Argument,
+  TemplateArgumentLoc(ASTContext &Ctx, const TemplateArgument &Argument,
                       NestedNameSpecifierLoc QualifierLoc,
                       SourceLocation TemplateNameLoc,
                       SourceLocation EllipsisLoc = SourceLocation())
       : Argument(Argument),
-        LocInfo(QualifierLoc, TemplateNameLoc, EllipsisLoc) {
+        LocInfo(Ctx, QualifierLoc, TemplateNameLoc, EllipsisLoc) {
     assert(Argument.getKind() == TemplateArgument::Template ||
            Argument.getKind() == TemplateArgument::TemplateExpansion);
   }
@@ -527,6 +566,11 @@ public:
 
   Expr *getSourceIntegralExpression() const {
     assert(Argument.getKind() == TemplateArgument::Integral);
+    return LocInfo.getAsExpr();
+  }
+
+  Expr *getSourceUncommonValueExpression() const {
+    assert(Argument.getKind() == TemplateArgument::UncommonValue);
     return LocInfo.getAsExpr();
   }
 
@@ -668,21 +712,14 @@ struct alignas(void *) ASTTemplateKWAndArgsInfo {
   void initializeFrom(SourceLocation TemplateKWLoc,
                       const TemplateArgumentListInfo &List,
                       TemplateArgumentLoc *OutArgArray);
-  // FIXME: The parameter Deps is the result populated by this method, the
-  // caller doesn't need it since it is populated by computeDependence. remove
-  // it.
-  void initializeFrom(SourceLocation TemplateKWLoc,
-                      const TemplateArgumentListInfo &List,
-                      TemplateArgumentLoc *OutArgArray,
-                      TemplateArgumentDependence &Deps);
   void initializeFrom(SourceLocation TemplateKWLoc);
 
   void copyInto(const TemplateArgumentLoc *ArgArray,
                 TemplateArgumentListInfo &List) const;
 };
 
-const DiagnosticBuilder &operator<<(const DiagnosticBuilder &DB,
-                                    const TemplateArgument &Arg);
+const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
+                                      const TemplateArgument &Arg);
 
 inline TemplateSpecializationType::iterator
     TemplateSpecializationType::end() const {

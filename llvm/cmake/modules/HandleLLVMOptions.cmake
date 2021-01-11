@@ -12,6 +12,7 @@ include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
 include(CheckSymbolExists)
 include(CMakeDependentOption)
+include(LLVMProcessSources)
 
 if(CMAKE_LINKER MATCHES "lld-link" OR (MSVC AND (LLVM_USE_LINKER STREQUAL "lld" OR LLVM_ENABLE_LLD)))
   set(LINKER_IS_LLD_LINK TRUE)
@@ -144,6 +145,10 @@ else(WIN32)
   endif(FUCHSIA OR UNIX)
 endif(WIN32)
 
+if (CMAKE_SYSTEM_NAME MATCHES "OS390")
+  set(LLVM_HAVE_LINK_VERSION_SCRIPT 0)
+endif()
+
 set(EXEEXT ${CMAKE_EXECUTABLE_SUFFIX})
 set(LTDL_SHLIB_EXT ${CMAKE_SHARED_LIBRARY_SUFFIX})
 
@@ -190,7 +195,7 @@ endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "AIX")
   # -fPIC does not enable the large code model for GCC on AIX but does for XL.
-  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     append("-mcmodel=large" CMAKE_CXX_FLAGS CMAKE_C_FLAGS)
   elseif(CMAKE_CXX_COMPILER_ID MATCHES "XL")
     # XL generates a small number of relocations not of the large model, -bbigtoc is needed.
@@ -207,7 +212,7 @@ endif()
 
 # Pass -Wl,-z,defs. This makes sure all symbols are defined. Otherwise a DSO
 # build might work on ELF but fail on MachO/COFF.
-if(NOT (${CMAKE_SYSTEM_NAME} MATCHES "Darwin|FreeBSD|OpenBSD|DragonFly|AIX|SunOS" OR
+if(NOT (CMAKE_SYSTEM_NAME MATCHES "Darwin|FreeBSD|OpenBSD|DragonFly|AIX|SunOS|OS390" OR
         WIN32 OR CYGWIN) AND
    NOT LLVM_USE_SANITIZER)
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-z,defs")
@@ -295,6 +300,15 @@ if( LLVM_ENABLE_PIC )
   if(CMAKE_COMPILER_IS_GNUCXX AND LLVM_NATIVE_ARCH STREQUAL "Mips" AND
          NOT Uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
     add_flag_or_print_warning("-fno-shrink-wrap" FNO_SHRINK_WRAP)
+  endif()
+  # gcc with -O3 -fPIC generates TLS sequences that violate the spec on
+  # Solaris/sparcv9, causing executables created with the system linker
+  # to SEGV (GCC PR target/96607).
+  # clang with -O3 -fPIC generates code that SEGVs.
+  # Both can be worked around by compiling with -O instead.
+  if(${CMAKE_SYSTEM_NAME} STREQUAL "SunOS" AND LLVM_NATIVE_ARCH STREQUAL "Sparc")
+    llvm_replace_compiler_option(CMAKE_CXX_FLAGS_RELEASE "-O[23]" "-O")
+    llvm_replace_compiler_option(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O[23]" "-O")
   endif()
 endif()
 
@@ -394,6 +408,8 @@ elseif(MINGW) # FIXME: Also cygwin?
     append("-Wa,-mbig-obj" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
   endif()
 endif()
+
+option(LLVM_ENABLE_WARNINGS "Enable compiler warnings." ON)
 
 if( MSVC )
   include(ChooseMSVCCRT)
@@ -760,8 +776,7 @@ if(LLVM_USE_SANITIZER)
       endif()
     elseif (LLVM_USE_SANITIZER STREQUAL "Undefined")
       append_common_sanitizer_flags()
-      append("-fsanitize=undefined -fno-sanitize=vptr,function -fno-sanitize-recover=all"
-              CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+      append("${LLVM_UBSAN_FLAGS}" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
     elseif (LLVM_USE_SANITIZER STREQUAL "Thread")
       append_common_sanitizer_flags()
       append("-fsanitize=thread" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
@@ -770,8 +785,8 @@ if(LLVM_USE_SANITIZER)
     elseif (LLVM_USE_SANITIZER STREQUAL "Address;Undefined" OR
             LLVM_USE_SANITIZER STREQUAL "Undefined;Address")
       append_common_sanitizer_flags()
-      append("-fsanitize=address,undefined -fno-sanitize=vptr,function -fno-sanitize-recover=all"
-              CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+      append("-fsanitize=address" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+      append("${LLVM_UBSAN_FLAGS}" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
     elseif (LLVM_USE_SANITIZER STREQUAL "Leaks")
       append_common_sanitizer_flags()
       append("-fsanitize=leak" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
@@ -889,7 +904,8 @@ option(LLVM_ENABLE_IR_PGO "Build LLVM and tools with IR PGO instrumentation (dep
 mark_as_advanced(LLVM_ENABLE_IR_PGO)
 
 set(LLVM_BUILD_INSTRUMENTED OFF CACHE STRING "Build LLVM and tools with PGO instrumentation. May be specified as IR or Frontend")
-mark_as_advanced(LLVM_BUILD_INSTRUMENTED)
+set(LLVM_VP_COUNTERS_PER_SITE "1.5" CACHE STRING "Value profile counters to use per site for IR PGO with Clang")
+mark_as_advanced(LLVM_BUILD_INSTRUMENTED LLVM_VP_COUNTERS_PER_SITE)
 string(TOUPPER "${LLVM_BUILD_INSTRUMENTED}" uppercase_LLVM_BUILD_INSTRUMENTED)
 
 if (LLVM_BUILD_INSTRUMENTED)
@@ -901,6 +917,15 @@ if (LLVM_BUILD_INSTRUMENTED)
         append("-fprofile-generate=\"${LLVM_PROFILE_DATA_DIR}\""
           CMAKE_EXE_LINKER_FLAGS
           CMAKE_SHARED_LINKER_FLAGS)
+    endif()
+    # Set this to avoid running out of the value profile node section
+    # under clang in dynamic linking mode.
+    if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND
+        CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 11 AND
+        LLVM_LINK_LLVM_DYLIB)
+      append("-Xclang -mllvm -Xclang -vp-counters-per-site=${LLVM_VP_COUNTERS_PER_SITE}"
+        CMAKE_CXX_FLAGS
+        CMAKE_C_FLAGS)
     endif()
   elseif(uppercase_LLVM_BUILD_INSTRUMENTED STREQUAL "CSIR")
     append("-fcs-profile-generate=\"${LLVM_CSPROFILE_DATA_DIR}\""

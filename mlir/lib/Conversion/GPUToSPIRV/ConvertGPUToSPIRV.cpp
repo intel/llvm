@@ -11,13 +11,15 @@
 //===----------------------------------------------------------------------===//
 #include "mlir/Conversion/GPUToSPIRV/ConvertGPUToSPIRV.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
-#include "mlir/Dialect/SPIRV/SPIRVDialect.h"
-#include "mlir/Dialect/SPIRV/SPIRVLowering.h"
-#include "mlir/Dialect/SPIRV/SPIRVOps.h"
-#include "mlir/Dialect/SPIRV/TargetAndABI.h"
-#include "mlir/IR/Module.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
+#include "mlir/Dialect/SPIRV/IR/TargetAndABI.h"
+#include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
+#include "mlir/IR/BuiltinOps.h"
 
 using namespace mlir;
+
+static constexpr const char kSPIRVModule[] = "__spv__";
 
 namespace {
 /// Pattern lowering GPU block/thread size/id to loading SPIR-V invocation
@@ -32,7 +34,7 @@ public:
                   ConversionPatternRewriter &rewriter) const override;
 };
 
-/// Pattern lowering subgoup size/id to loading SPIR-V invocation
+/// Pattern lowering subgroup size/id to loading SPIR-V invocation
 /// builtin variables.
 template <typename SourceOp, spirv::BuiltIn builtin>
 class SingleDimLaunchConfigConversion : public SPIRVOpLowering<SourceOp> {
@@ -195,7 +197,7 @@ lowerAsEntryFunction(gpu::GPUFuncOp funcOp, SPIRVTypeConverter &typeConverter,
     if (namedAttr.first == impl::getTypeAttrName() ||
         namedAttr.first == SymbolTable::getSymbolAttrName())
       continue;
-    newFuncOp.setAttr(namedAttr.first, namedAttr.second);
+    newFuncOp->setAttr(namedAttr.first, namedAttr.second);
   }
 
   rewriter.inlineRegionBefore(funcOp.getBody(), newFuncOp.getBody(),
@@ -285,8 +287,11 @@ LogicalResult GPUModuleConversion::matchAndRewrite(
     return moduleOp.emitRemark("match failure: could not selected memory model "
                                "based on 'spv.target_env'");
 
+  // Add a keyword to the module name to avoid symbolic conflict.
+  std::string spvModuleName = (kSPIRVModule + moduleOp.getName()).str();
   auto spvModule = rewriter.create<spirv::ModuleOp>(
-      moduleOp.getLoc(), addressingModel, memoryModel.getValue());
+      moduleOp.getLoc(), addressingModel, memoryModel.getValue(),
+      StringRef(spvModuleName));
 
   // Move the region from the module op into the SPIR-V module.
   Region &spvModuleRegion = spvModule.body();
@@ -325,7 +330,7 @@ namespace {
 void mlir::populateGPUToSPIRVPatterns(MLIRContext *context,
                                       SPIRVTypeConverter &typeConverter,
                                       OwningRewritePatternList &patterns) {
-  populateWithGenerated(context, &patterns);
+  populateWithGenerated(context, patterns);
   patterns.insert<
       GPUFuncOpConversion, GPUModuleConversion, GPUReturnOpConversion,
       LaunchConfigConversion<gpu::BlockIdOp, spirv::BuiltIn::WorkgroupId>,

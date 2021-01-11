@@ -1,18 +1,27 @@
 * @bader
 
-clang/ @Fznamznon @premanandrao @elizabethandrews
+# Front-end compiler
+clang/ @premanandrao @elizabethandrews
 
+# Driver
 clang/**/Driver @mdtoguchi @AGindinson
 
+# LLVM-SPIRV translator
 llvm-spirv/ @AlexeySotkin @AlexeySachkov
 
+# OpenCL "offline" compiler
 opencl-aot/ @dm-vodopyanov @AlexeySachkov @romanovvlad
 
-libdevice/ @asavonic @vzakhari
+# Device library
+libdevice/ @vzakhari
 
-sycl/ @intel/llvm-reviewers-runtime
-
+# Documentation
 sycl/ReleaseNotes.md @pvchupin
+sycl/doc/ @pvchupin @kbobrovs
+sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
+
+# DPC++ runtime library
+sycl/ @intel/llvm-reviewers-runtime
 
 # USM
 sycl/include/CL/sycl/detail/clusm.hpp @jbrodman
@@ -40,6 +49,9 @@ sycl/source/detail/pi.cpp @smaslov-intel
 sycl/source/detail/plugin.hpp @smaslov-intel
 sycl/source/detail/posix_pi.cpp @smaslov-intel
 sycl/source/detail/windows_pi.cpp @smaslov-intel
+
+# CUDA plugin
+sycl/plugins/cuda/ @intel/llvm-reviewers-cuda
 
 # Stream
 sycl/include/CL/sycl/detail/stream_impl.hpp @againull
@@ -78,11 +90,23 @@ sycl/source/half_type.cpp @AlexeySachkov
 sycl/include/CL/sycl/swizzles.def @turinevgeny
 sycl/include/CL/sycl/types.hpp @turinevgeny
 
-sycl/plugins/cuda/ @intel/llvm-reviewers-cuda
-
-sycl/doc/ @pvchupin @kbobrovs
-
-sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
-
+# XPTI instrumentation utilities
 xpti/ @tovinkere @andykaylor
 xptifw/ @tovinkere  @andykaylor
+
+# DPC++ tools
+llvm/tools/file-table-tform/ @kbobrovs @AlexeySachkov
+llvm/tools/llvm-foreach/ @AlexeySachkov  @Fznamznon
+llvm/tools/llvm-no-spir-kernel/ @AGindinson @AlexeySachkov
+llvm/tools/sycl-post-link/ @kbobrovs @AlexeySachkov
+
+# Clang offload tools
+clang/tools/clang-offload-bundler/ @kbobrovs @sndmitriev
+clang/tools/clang-offload-wrapper/ @sndmitriev @kbobrovs
+clang/tools/clang-offload-deps/ @sndmitriev
+
+# Explicit SIMD
+SYCLLowerIR/ @kbobrovs
+esimd/ @kbobrovs
+sycl/include/CL/sycl/INTEL/esimd.hpp @kbobrovs
+sycl/doc/extensions/ExplicitSIMD/ @kbobrovs

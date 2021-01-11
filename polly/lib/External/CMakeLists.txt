@@ -279,7 +279,6 @@ if (POLLY_BUNDLED_ISL)
       FILES_MATCHING
       PATTERN "*.h"
       PATTERN "CMakeFiles" EXCLUDE
-      PATTERN ".svn" EXCLUDE
       )
   endif()
 
@@ -293,8 +292,7 @@ if (POLLY_BUNDLED_ISL)
     )
 
   # ISL requires at least C99 to compile. gcc < 5.0 use -std=gnu89 as default.
-  target_enable_c99(PollyISL)
-  target_enable_c99(polly-isl-test)
+  set_property(TARGET PollyISL polly-isl-test PROPERTY C_STANDARD 99)
 endif (POLLY_BUNDLED_ISL)
 
 set(PET_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/pet")

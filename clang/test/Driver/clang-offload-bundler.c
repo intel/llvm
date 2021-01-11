@@ -33,6 +33,7 @@
 // CK-HELP: {{.*}}one. The resulting file can also be unbundled into different files by
 // CK-HELP: {{.*}}this tool if -unbundle is provided.
 // CK-HELP: {{.*}}USAGE: clang-offload-bundler [options]
+// CK-HELP: {{.*}}-allow-missing-bundles {{.*}}- Create empty files if bundles are missing when unbundling
 // CK-HELP: {{.*}}-inputs=<string>  - [<input file>,...]
 // CK-HELP: {{.*}}-outputs=<string> - [<output file>,...]
 // CK-HELP: {{.*}}-targets=<string> - [<offload kind>-<target triple>,...]
@@ -46,6 +47,7 @@
 // CK-HELP: {{.*}}o {{.*}}- object
 // CK-HELP: {{.*}}gch {{.*}}- precompiled-header
 // CK-HELP: {{.*}}ast {{.*}}- clang AST file
+// CK-HELP: {{.*}}a {{.*}}- archive of objects
 // CK-HELP: {{.*}}ao {{.*}}- archive with one object; output is an unbundled object
 // CK-HELP: {{.*}}aoo {{.*}}- archive; output file is a list of unbundled objects
 // CK-HELP: {{.*}}-unbundle {{.*}}- Unbundle bundled file into several output files.
@@ -89,7 +91,7 @@
 // RUN: not clang-offload-bundler -type=i -targets=openmp-powerpc64le-linux,openmp-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -inputs=%t.i,%t.tgt1,%t.tgt2 -outputs=%t.bundle.i 2>&1 | FileCheck %s --check-prefix CK-ERR9A
 // RUN: not clang-offload-bundler -type=i -targets=host-%itanium_abi_triple,host-%itanium_abi_triple,openmp-x86_64-pc-linux-gnu -inputs=%t.i,%t.tgt1,%t.tgt2 -outputs=%t.bundle.i 2>&1 | FileCheck %s --check-prefix CK-ERR9B
 // CK-ERR9A: error: expecting exactly one host target but got 0
-// CK-ERR9B: error: expecting exactly one host target but got 2
+// CK-ERR9B: error: Duplicate targets are not allowed
 
 // RUN: not clang-offload-bundler -type=i -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu -outputs=%t.i,%t.tgt1,%t.tgt2 -inputs=%t.bundle.i -unbundle -check-section 2>&1 | FileCheck %s --check-prefix CK-ERR10
 // CK-ERR10: error: -unbundle and -check-section are not compatible options
@@ -194,17 +196,17 @@
 // RUN: diff %t.tgt2 %t.res.tgt2
 
 // Check if we can unbundle a file with no magic strings.
-// RUN: clang-offload-bundler -type=s -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -outputs=%t.res.s,%t.res.tgt1,%t.res.tgt2 -inputs=%t.s -unbundle
+// RUN: clang-offload-bundler -type=s -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -outputs=%t.res.s,%t.res.tgt1,%t.res.tgt2 -inputs=%t.s -unbundle -allow-missing-bundles
 // RUN: diff %t.s %t.res.s
 // RUN: diff %t.empty %t.res.tgt1
 // RUN: diff %t.empty %t.res.tgt2
-// RUN: clang-offload-bundler -type=s -targets=openmp-powerpc64le-ibm-linux-gnu,host-%itanium_abi_triple,openmp-x86_64-pc-linux-gnu -outputs=%t.res.tgt1,%t.res.s,%t.res.tgt2 -inputs=%t.s -unbundle
+// RUN: clang-offload-bundler -type=s -targets=openmp-powerpc64le-ibm-linux-gnu,host-%itanium_abi_triple,openmp-x86_64-pc-linux-gnu -outputs=%t.res.tgt1,%t.res.s,%t.res.tgt2 -inputs=%t.s -unbundle -allow-missing-bundles
 // RUN: diff %t.s %t.res.s
 // RUN: diff %t.empty %t.res.tgt1
 // RUN: diff %t.empty %t.res.tgt2
 
 // Check that bindler prints an error if given host bundle does not exist in the fat binary.
-// RUN: not clang-offload-bundler -type=s -targets=host-x86_64-xxx-linux-gnu,openmp-powerpc64le-ibm-linux-gnu -outputs=%t.res.s,%t.res.tgt1 -inputs=%t.bundle3.s -unbundle 2>&1 | FileCheck %s --check-prefix CK-NO-HOST-BUNDLE
+// RUN: not clang-offload-bundler -type=s -targets=host-x86_64-xxx-linux-gnu,openmp-powerpc64le-ibm-linux-gnu -outputs=%t.res.s,%t.res.tgt1 -inputs=%t.bundle3.s -unbundle -allow-missing-bundles 2>&1 | FileCheck %s --check-prefix CK-NO-HOST-BUNDLE
 // CK-NO-HOST-BUNDLE: error: Can't find bundle for the host target
 
 //
@@ -242,11 +244,11 @@
 // RUN: diff %t.tgt1 %t.res.tgt1
 
 // Check if we can unbundle a file with no magic strings.
-// RUN: clang-offload-bundler -type=bc -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -outputs=%t.res.bc,%t.res.tgt1,%t.res.tgt2 -inputs=%t.bc -unbundle
+// RUN: clang-offload-bundler -type=bc -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -outputs=%t.res.bc,%t.res.tgt1,%t.res.tgt2 -inputs=%t.bc -unbundle -allow-missing-bundles
 // RUN: diff %t.bc %t.res.bc
 // RUN: diff %t.empty %t.res.tgt1
 // RUN: diff %t.empty %t.res.tgt2
-// RUN: clang-offload-bundler -type=bc -targets=openmp-powerpc64le-ibm-linux-gnu,host-%itanium_abi_triple,openmp-x86_64-pc-linux-gnu -outputs=%t.res.tgt1,%t.res.bc,%t.res.tgt2 -inputs=%t.bc -unbundle
+// RUN: clang-offload-bundler -type=bc -targets=openmp-powerpc64le-ibm-linux-gnu,host-%itanium_abi_triple,openmp-x86_64-pc-linux-gnu -outputs=%t.res.tgt1,%t.res.bc,%t.res.tgt2 -inputs=%t.bc -unbundle -allow-missing-bundles
 // RUN: diff %t.bc %t.res.bc
 // RUN: diff %t.empty %t.res.tgt1
 // RUN: diff %t.empty %t.res.tgt2
@@ -282,11 +284,11 @@
 // RUN: diff %t.tgt1 %t.res.tgt1
 
 // Check if we can unbundle a file with no magic strings.
-// RUN: clang-offload-bundler -type=o -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -outputs=%t.res.o,%t.res.tgt1,%t.res.tgt2 -inputs=%t.o -unbundle
+// RUN: clang-offload-bundler -type=o -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -outputs=%t.res.o,%t.res.tgt1,%t.res.tgt2 -inputs=%t.o -unbundle -allow-missing-bundles
 // RUN: diff %t.o %t.res.o
 // RUN: diff %t.empty %t.res.tgt1
 // RUN: diff %t.empty %t.res.tgt2
-// RUN: clang-offload-bundler -type=o -targets=openmp-powerpc64le-ibm-linux-gnu,host-%itanium_abi_triple,openmp-x86_64-pc-linux-gnu -outputs=%t.res.tgt1,%t.res.o,%t.res.tgt2 -inputs=%t.o -unbundle
+// RUN: clang-offload-bundler -type=o -targets=openmp-powerpc64le-ibm-linux-gnu,host-%itanium_abi_triple,openmp-x86_64-pc-linux-gnu -outputs=%t.res.tgt1,%t.res.o,%t.res.tgt2 -inputs=%t.o -unbundle -allow-missing-bundles
 // RUN: diff %t.o %t.res.o
 // RUN: diff %t.empty %t.res.tgt1
 // RUN: diff %t.empty %t.res.tgt2
@@ -332,6 +334,55 @@
 // RUN:   | FileCheck %s --check-prefix CHECK-MULTI-FILE-AR-ERROR
 
 // CHECK-MULTI-FILE-AR-ERROR: 'ao' file type is requested, but the archive contains multiple device objects; use 'aoo' instead
+// Check -bundle-align option
+//
+
+// RUN: clang-offload-bundler -bundle-align=4096 -type=bc -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -inputs=%t.bc,%t.tgt1,%t.tgt2 -outputs=%t.bundle3.bc
+// RUN: clang-offload-bundler -type=bc -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -outputs=%t.res.bc,%t.res.tgt1,%t.res.tgt2 -inputs=%t.bundle3.bc -unbundle
+// RUN: diff %t.bc %t.res.bc
+// RUN: diff %t.tgt1 %t.res.tgt1
+// RUN: diff %t.tgt2 %t.res.tgt2
+
+// Check archive mode.
+// RUN: clang-offload-bundler -type=a -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -outputs=%t.host.a,%t.tgt1.a,%t.tgt2.a -inputs=%t.a -unbundle
+// RUN: cmp %t.host.a %t.a
+// RUN: llvm-ar t %t.tgt1.a | FileCheck %s --check-prefix=CHECK-AR-TGT1-LIST
+// RUN: llvm-ar t %t.tgt2.a | FileCheck %s --check-prefix=CHECK-AR-TGT2-LIST
+
+// CHECK-AR-TGT1-LIST: openmp-powerpc64le-ibm-linux-gnu.{{.+}}.bundle3.o
+// CHECK-AR-TGT1-LIST: openmp-powerpc64le-ibm-linux-gnu.{{.+}}.bundle4.o
+// CHECK-AR-TGT2-LIST: openmp-x86_64-pc-linux-gnu.{{.+}}.bundle3.o
+// CHECK-AR-TGT2-LIST: openmp-x86_64-pc-linux-gnu.{{.+}}.bundle4.o
+
+//
+// Check error due to missing bundles
+//
+// RUN: clang-offload-bundler -type=bc -targets=host-%itanium_abi_triple,hip-amdgcn-amd-amdhsa-gfx900 -inputs=%t.bc,%t.tgt1 -outputs=%t.hip.bundle.bc
+// RUN: not clang-offload-bundler -type=bc -inputs=%t.hip.bundle.bc -outputs=%t.tmp.bc -unbundle \
+// RUN:   -targets=hip-amdgcn-amd-amdhsa-gfx906 \
+// RUN:   2>&1 | FileCheck -check-prefix=MISS1 %s
+// RUN: not clang-offload-bundler -type=bc -inputs=%t.hip.bundle.bc -outputs=%t.tmp.bc,%t.tmp2.bc -unbundle \
+// RUN:   -targets=hip-amdgcn-amd-amdhsa-gfx906,hip-amdgcn-amd-amdhsa-gfx900 \
+// RUN:   2>&1 | FileCheck -check-prefix=MISS1 %s
+// MISS1: error: Can't find bundles for hip-amdgcn-amd-amdhsa-gfx906
+// RUN: not clang-offload-bundler -type=bc -inputs=%t.hip.bundle.bc -outputs=%t.tmp.bc,%t.tmp2.bc -unbundle \
+// RUN:   -targets=hip-amdgcn-amd-amdhsa-gfx906,hip-amdgcn-amd-amdhsa-gfx803 \
+// RUN:   2>&1 | FileCheck -check-prefix=MISS2 %s
+// MISS2: error: Can't find bundles for hip-amdgcn-amd-amdhsa-gfx803 and hip-amdgcn-amd-amdhsa-gfx906
+// RUN: not clang-offload-bundler -type=bc -inputs=%t.hip.bundle.bc -outputs=%t.tmp.bc,%t.tmp2.bc,%t.tmp3.bc -unbundle \
+// RUN:   -targets=hip-amdgcn-amd-amdhsa-gfx906,hip-amdgcn-amd-amdhsa-gfx803,hip-amdgcn-amd-amdhsa-gfx1010 \
+// RUN:   2>&1 | FileCheck -check-prefix=MISS3 %s
+// MISS3: error: Can't find bundles for hip-amdgcn-amd-amdhsa-gfx1010, hip-amdgcn-amd-amdhsa-gfx803, and hip-amdgcn-amd-amdhsa-gfx906
+
+//
+// Check error due to duplicate targets
+//
+// RUN: not clang-offload-bundler -type=bc -targets=host-%itanium_abi_triple,hip-amdgcn-amd-amdhsa-gfx900,hip-amdgcn-amd-amdhsa-gfx900 \
+// RUN:   -inputs=%t.bc,%t.tgt1,%t.tgt1 -outputs=%t.hip.bundle.bc 2>&1 | FileCheck -check-prefix=DUP %s
+// RUN: not clang-offload-bundler -type=bc -inputs=%t.hip.bundle.bc -outputs=%t.tmp.bc,%t.tmp2.bc -unbundle \
+// RUN:   -targets=hip-amdgcn-amd-amdhsa-gfx906,hip-amdgcn-amd-amdhsa-gfx906 \
+// RUN:   2>&1 | FileCheck -check-prefix=DUP %s
+// DUP: error: Duplicate targets are not allowed
 
 // Some code so that we can create a binary out of this file.
 int A = 0;

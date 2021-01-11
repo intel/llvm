@@ -1,4 +1,4 @@
-// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx900 %s 2>&1 | FileCheck %s --check-prefix=NOGFX9
+// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx900 %s 2>&1 | FileCheck %s --check-prefix=NOGFX9 --implicit-check-not=error:
 
 //---------------------------------------------------------------------------//
 // lds_direct may be used only with vector ALU instructions
@@ -58,7 +58,7 @@ v_subrev_u32 v0, src_lds_direct, v0
 //---------------------------------------------------------------------------//
 
 v_writelane_b32 v0, lds_direct, s0
-// NOGFX9: error: instruction not supported on this GPU
+// NOGFX9: error: operands are not valid for this GPU or mode
 
 //---------------------------------------------------------------------------//
 // lds_direct cannot be used with 64-bit and larger operands

@@ -18,8 +18,10 @@
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/Allocator.h"
+#include <forward_list>
 
 namespace llvm {
+class CanonicalLoopInfo;
 
 /// An interface to create LLVM-IR for OpenMP directives.
 ///
@@ -56,7 +58,7 @@ public:
 
   struct FinalizationInfo {
     /// The finalization callback provided by the last in-flight invocation of
-    /// CreateXXXX for the directive of kind DK.
+    /// createXXXX for the directive of kind DK.
     FinalizeCallbackTy FiniCB;
 
     /// The directive kind of the innermost directive that has an associated
@@ -96,6 +98,17 @@ public:
       function_ref<void(InsertPointTy AllocaIP, InsertPointTy CodeGenIP,
                         BasicBlock &ContinuationBB)>;
 
+  /// Callback type for loop body code generation.
+  ///
+  /// \param CodeGenIP is the insertion point where the loop's body code must be
+  ///                  placed. This will be a dedicated BasicBlock with a
+  ///                  conditional branch from the loop condition check and
+  ///                  terminated with an unconditional branch to the loop
+  ///                  latch.
+  /// \param IndVar    is the induction variable usable at the insertion point.
+  using LoopBodyGenCallbackTy =
+      function_ref<void(InsertPointTy CodeGenIP, Value *IndVar)>;
+
   /// Callback type for variable privatization (think copy & default
   /// constructor).
   ///
@@ -103,15 +116,20 @@ public:
   ///                 should be placed.
   /// \param CodeGenIP is the insertion point at which the privatization code
   ///                  should be placed.
-  /// \param Val The value beeing copied/created.
+  /// \param Original The value being copied/created, should not be used in the
+  ///                 generated IR.
+  /// \param Inner The equivalent of \p Original that should be used in the
+  ///              generated IR; this is equal to \p Original if the value is
+  ///              a pointer and can thus be passed directly, otherwise it is
+  ///              an equivalent but different value.
   /// \param ReplVal The replacement value, thus a copy or new created version
-  ///                of \p Val.
+  ///                of \p Inner.
   ///
   /// \returns The new insertion point where code generation continues and
-  ///          \p ReplVal the replacement of \p Val.
+  ///          \p ReplVal the replacement value.
   using PrivatizeCallbackTy = function_ref<InsertPointTy(
-      InsertPointTy AllocaIP, InsertPointTy CodeGenIP, Value &Val,
-      Value *&ReplVal)>;
+      InsertPointTy AllocaIP, InsertPointTy CodeGenIP, Value &Original,
+      Value &Inner, Value *&ReplVal)>;
 
   /// Description of a LLVM-IR insertion point (IP) and a debug/source location
   /// (filename, line, column, ...).
@@ -139,7 +157,7 @@ public:
   ///                        should be checked and acted upon.
   ///
   /// \returns The insertion point after the barrier.
-  InsertPointTy CreateBarrier(const LocationDescription &Loc, omp::Directive DK,
+  InsertPointTy createBarrier(const LocationDescription &Loc, omp::Directive DK,
                               bool ForceSimpleCall = false,
                               bool CheckCancelFlag = true);
 
@@ -150,7 +168,7 @@ public:
   /// \param CanceledDirective The kind of directive that is cancled.
   ///
   /// \returns The insertion point after the barrier.
-  InsertPointTy CreateCancel(const LocationDescription &Loc, Value *IfCondition,
+  InsertPointTy createCancel(const LocationDescription &Loc, Value *IfCondition,
                              omp::Directive CanceledDirective);
 
   /// Generator for '#omp parallel'
@@ -167,26 +185,132 @@ public:
   ///
   /// \returns The insertion position *after* the parallel.
   IRBuilder<>::InsertPoint
-  CreateParallel(const LocationDescription &Loc, InsertPointTy AllocaIP,
+  createParallel(const LocationDescription &Loc, InsertPointTy AllocaIP,
                  BodyGenCallbackTy BodyGenCB, PrivatizeCallbackTy PrivCB,
                  FinalizeCallbackTy FiniCB, Value *IfCondition,
                  Value *NumThreads, omp::ProcBindKind ProcBind,
                  bool IsCancellable);
 
+  /// Generator for the control flow structure of an OpenMP canonical loop.
+  ///
+  /// This generator operates on the logical iteration space of the loop, i.e.
+  /// the caller only has to provide a loop trip count of the loop as defined by
+  /// base language semantics. The trip count is interpreted as an unsigned
+  /// integer. The induction variable passed to \p BodyGenCB will be of the same
+  /// type and run from 0 to \p TripCount - 1. It is up to the callback to
+  /// convert the logical iteration variable to the loop counter variable in the
+  /// loop body.
+  ///
+  /// \param Loc       The insert and source location description. The insert
+  ///                  location can be between two instructions or the end of a
+  ///                  degenerate block (e.g. a BB under construction).
+  /// \param BodyGenCB Callback that will generate the loop body code.
+  /// \param TripCount Number of iterations the loop body is executed.
+  /// \param Name      Base name used to derive BB and instruction names.
+  ///
+  /// \returns An object representing the created control flow structure which
+  ///          can be used for loop-associated directives.
+  CanonicalLoopInfo *createCanonicalLoop(const LocationDescription &Loc,
+                                         LoopBodyGenCallbackTy BodyGenCB,
+                                         Value *TripCount,
+                                         const Twine &Name = "loop");
+
+  /// Generator for the control flow structure of an OpenMP canonical loop.
+  ///
+  /// Instead of a logical iteration space, this allows specifying user-defined
+  /// loop counter values using increment, upper- and lower bounds. To
+  /// disambiguate the terminology when counting downwards, instead of lower
+  /// bounds we use \p Start for the loop counter value in the first body
+  /// iteration.
+  ///
+  /// Consider the following limitations:
+  ///
+  ///  * A loop counter space over all integer values of its bit-width cannot be
+  ///    represented. E.g using uint8_t, its loop trip count of 256 cannot be
+  ///    stored into an 8 bit integer):
+  ///
+  ///      DO I = 0, 255, 1
+  ///
+  ///  * Unsigned wrapping is only supported when wrapping only "once"; E.g.
+  ///    effectively counting downwards:
+  ///
+  ///      for (uint8_t i = 100u; i > 0; i += 127u)
+  ///
+  ///
+  /// TODO: May need to add additional parameters to represent:
+  ///
+  ///  * Allow representing downcounting with unsigned integers.
+  ///
+  ///  * Sign of the step and the comparison operator might disagree:
+  ///
+  ///      for (int i = 0; i < 42; --i)
+  ///
+  //
+  /// \param Loc       The insert and source location description.
+  /// \param BodyGenCB Callback that will generate the loop body code.
+  /// \param Start     Value of the loop counter for the first iterations.
+  /// \param Stop      Loop counter values past this will stop the the
+  ///                  iterations.
+  /// \param Step      Loop counter increment after each iteration; negative
+  ///                  means counting down. \param IsSigned  Whether Start, Stop
+  ///                  and Stop are signed integers.
+  /// \param InclusiveStop Whether  \p Stop itself is a valid value for the loop
+  ///                      counter.
+  /// \param ComputeIP Insertion point for instructions computing the trip
+  ///                  count. Can be used to ensure the trip count is available
+  ///                  at the outermost loop of a loop nest. If not set,
+  ///                  defaults to the preheader of the generated loop.
+  /// \param Name      Base name used to derive BB and instruction names.
+  ///
+  /// \returns An object representing the created control flow structure which
+  ///          can be used for loop-associated directives.
+  CanonicalLoopInfo *createCanonicalLoop(const LocationDescription &Loc,
+                                         LoopBodyGenCallbackTy BodyGenCB,
+                                         Value *Start, Value *Stop, Value *Step,
+                                         bool IsSigned, bool InclusiveStop,
+                                         InsertPointTy ComputeIP = {},
+                                         const Twine &Name = "loop");
+
+  /// Modifies the canonical loop to be a statically-scheduled workshare loop.
+  ///
+  /// This takes a \p LoopInfo representing a canonical loop, such as the one
+  /// created by \p createCanonicalLoop and emits additional instructions to
+  /// turn it into a workshare loop. In particular, it calls to an OpenMP
+  /// runtime function in the preheader to obtain the loop bounds to be used in
+  /// the current thread, updates the relevant instructions in the canonical
+  /// loop and calls to an OpenMP runtime finalization function after the loop.
+  ///
+  /// \param Loc      The source location description, the insertion location
+  ///                 is not used.
+  /// \param CLI      A descriptor of the canonical loop to workshare.
+  /// \param AllocaIP An insertion point for Alloca instructions usable in the
+  ///                 preheader of the loop.
+  /// \param NeedsBarrier Indicates whether a barrier must be insterted after
+  ///                     the loop.
+  /// \param Chunk    The size of loop chunk considered as a unit when
+  ///                 scheduling. If \p nullptr, defaults to 1.
+  ///
+  /// \returns Updated CanonicalLoopInfo.
+  CanonicalLoopInfo *createStaticWorkshareLoop(const LocationDescription &Loc,
+                                               CanonicalLoopInfo *CLI,
+                                               InsertPointTy AllocaIP,
+                                               bool NeedsBarrier,
+                                               Value *Chunk = nullptr);
+
   /// Generator for '#omp flush'
   ///
   /// \param Loc The location where the flush directive was encountered
-  void CreateFlush(const LocationDescription &Loc);
+  void createFlush(const LocationDescription &Loc);
 
   /// Generator for '#omp taskwait'
   ///
   /// \param Loc The location where the taskwait directive was encountered.
-  void CreateTaskwait(const LocationDescription &Loc);
+  void createTaskwait(const LocationDescription &Loc);
 
   /// Generator for '#omp taskyield'
   ///
   /// \param Loc The location where the taskyield directive was encountered.
-  void CreateTaskyield(const LocationDescription &Loc);
+  void createTaskyield(const LocationDescription &Loc);
 
   ///}
 
@@ -225,6 +349,9 @@ public:
   Value *getOrCreateIdent(Constant *SrcLocStr,
                           omp::IdentFlag Flags = omp::IdentFlag(0),
                           unsigned Reserve2Flags = 0);
+
+  // Get the type corresponding to __kmpc_impl_lanemask_t from the deviceRTL
+  Type *getLanemaskType();
 
   /// Generate control flow and cleanup for cancellation.
   ///
@@ -307,6 +434,10 @@ public:
   /// Collection of regions that need to be outlined during finalization.
   SmallVector<OutlineInfo, 16> OutlineInfos;
 
+  /// Collection of owned canonical loop objects that eventually need to be
+  /// free'd.
+  std::forward_list<CanonicalLoopInfo> LoopInfos;
+
   /// Add a new region that will be outlined later.
   void addOutlineInfo(OutlineInfo &&OI) { OutlineInfos.emplace_back(OI); }
 
@@ -328,7 +459,7 @@ public:
   ///
   /// \return The insertion position *after* the CopyPrivate call.
 
-  InsertPointTy CreateCopyPrivate(const LocationDescription &Loc,
+  InsertPointTy createCopyPrivate(const LocationDescription &Loc,
                                   llvm::Value *BufSize, llvm::Value *CpyBuf,
                                   llvm::Value *CpyFn, llvm::Value *DidIt);
 
@@ -340,7 +471,7 @@ public:
   /// \param DidIt Local variable used as a flag to indicate 'single' thread
   ///
   /// \returns The insertion position *after* the single call.
-  InsertPointTy CreateSingle(const LocationDescription &Loc,
+  InsertPointTy createSingle(const LocationDescription &Loc,
                              BodyGenCallbackTy BodyGenCB,
                              FinalizeCallbackTy FiniCB, llvm::Value *DidIt);
 
@@ -351,7 +482,7 @@ public:
   /// \param FiniCB Callback to finalize variable copies.
   ///
   /// \returns The insertion position *after* the master.
-  InsertPointTy CreateMaster(const LocationDescription &Loc,
+  InsertPointTy createMaster(const LocationDescription &Loc,
                              BodyGenCallbackTy BodyGenCB,
                              FinalizeCallbackTy FiniCB);
 
@@ -364,7 +495,7 @@ public:
   /// \param HintInst Hint Instruction for hint clause associated with critical
   ///
   /// \returns The insertion position *after* the master.
-  InsertPointTy CreateCritical(const LocationDescription &Loc,
+  InsertPointTy createCritical(const LocationDescription &Loc,
                                BodyGenCallbackTy BodyGenCB,
                                FinalizeCallbackTy FiniCB,
                                StringRef CriticalName, Value *HintInst);
@@ -381,7 +512,7 @@ public:
   //				 and copy.in.end block
   ///
   /// \returns The insertion point where copying operation to be emitted.
-  InsertPointTy CreateCopyinClauseBlocks(InsertPointTy IP, Value *MasterAddr,
+  InsertPointTy createCopyinClauseBlocks(InsertPointTy IP, Value *MasterAddr,
                                          Value *PrivateAddr,
                                          llvm::IntegerType *IntPtrTy,
                                          bool BranchtoEnd = true);
@@ -394,7 +525,7 @@ public:
   /// \param Name Name of call Instruction for OMP_alloc
   ///
   /// \returns CallInst to the OMP_Alloc call
-  CallInst *CreateOMPAlloc(const LocationDescription &Loc, Value *Size,
+  CallInst *createOMPAlloc(const LocationDescription &Loc, Value *Size,
                            Value *Allocator, std::string Name = "");
 
   /// Create a runtime call for kmpc_free
@@ -405,7 +536,7 @@ public:
   /// \param Name Name of call Instruction for OMP_Free
   ///
   /// \returns CallInst to the OMP_Free call
-  CallInst *CreateOMPFree(const LocationDescription &Loc, Value *Addr,
+  CallInst *createOMPFree(const LocationDescription &Loc, Value *Addr,
                           Value *Allocator, std::string Name = "");
 
   /// Create a runtime call for kmpc_threadprivate_cached
@@ -416,7 +547,7 @@ public:
   /// \param Name Name of call Instruction for callinst
   ///
   /// \returns CallInst to the thread private cache call.
-  CallInst *CreateCachedThreadPrivate(const LocationDescription &Loc,
+  CallInst *createCachedThreadPrivate(const LocationDescription &Loc,
                                       llvm::Value *Pointer,
                                       llvm::ConstantInt *Size,
                                       const llvm::Twine &Name = Twine(""));
@@ -524,6 +655,141 @@ private:
   /// \param CriticalName Name of the critical region.
   ///
   Value *getOMPCriticalRegionLock(StringRef CriticalName);
+
+  /// Create the control flow structure of a canonical OpenMP loop.
+  ///
+  /// The emitted loop will be disconnected, i.e. no edge to the loop's
+  /// preheader and no terminator in the AfterBB. The OpenMPIRBuilder's
+  /// IRBuilder location is not preserved.
+  ///
+  /// \param DL        DebugLoc used for the instructions in the skeleton.
+  /// \param TripCount Value to be used for the trip count.
+  /// \param F         Function in which to insert the BasicBlocks.
+  /// \param PreInsertBefore  Where to insert BBs that execute before the body,
+  ///                         typically the body itself.
+  /// \param PostInsertBefore Where to insert BBs that execute after the body.
+  /// \param Name      Base name used to derive BB
+  ///                  and instruction names.
+  ///
+  /// \returns The CanonicalLoopInfo that represents the emitted loop.
+  CanonicalLoopInfo *createLoopSkeleton(DebugLoc DL, Value *TripCount,
+                                        Function *F,
+                                        BasicBlock *PreInsertBefore,
+                                        BasicBlock *PostInsertBefore,
+                                        const Twine &Name = {});
+};
+
+/// Class to represented the control flow structure of an OpenMP canonical loop.
+///
+/// The control-flow structure is standardized for easy consumption by
+/// directives associated with loops. For instance, the worksharing-loop
+/// construct may change this control flow such that each loop iteration is
+/// executed on only one thread.
+///
+/// The control flow can be described as follows:
+///
+///     Preheader
+///        |
+///  /-> Header
+///  |     |
+///  |    Cond---\
+///  |     |     |
+///  |    Body   |
+///  |    | |    |
+///  |   <...>   |
+///  |    | |    |
+///   \--Latch   |
+///              |
+///             Exit
+///              |
+///            After
+///
+/// Code in the header, condition block, latch and exit block must not have any
+/// side-effect. The body block is the single entry point into the loop body,
+/// which may contain arbitrary control flow as long as all control paths
+/// eventually branch to the latch block.
+///
+/// Defined outside OpenMPIRBuilder because one cannot forward-declare nested
+/// classes.
+class CanonicalLoopInfo {
+  friend class OpenMPIRBuilder;
+
+private:
+  /// Whether this object currently represents a loop.
+  bool IsValid = false;
+
+  BasicBlock *Preheader;
+  BasicBlock *Header;
+  BasicBlock *Cond;
+  BasicBlock *Body;
+  BasicBlock *Latch;
+  BasicBlock *Exit;
+  BasicBlock *After;
+
+public:
+  /// The preheader ensures that there is only a single edge entering the loop.
+  /// Code that must be execute before any loop iteration can be emitted here,
+  /// such as computing the loop trip count and begin lifetime markers. Code in
+  /// the preheader is not considered part of the canonical loop.
+  BasicBlock *getPreheader() const { return Preheader; }
+
+  /// The header is the entry for each iteration. In the canonical control flow,
+  /// it only contains the PHINode for the induction variable.
+  BasicBlock *getHeader() const { return Header; }
+
+  /// The condition block computes whether there is another loop iteration. If
+  /// yes, branches to the body; otherwise to the exit block.
+  BasicBlock *getCond() const { return Cond; }
+
+  /// The body block is the single entry for a loop iteration and not controlled
+  /// by CanonicalLoopInfo. It can contain arbitrary control flow but must
+  /// eventually branch to the \p Latch block.
+  BasicBlock *getBody() const { return Body; }
+
+  /// Reaching the latch indicates the end of the loop body code. In the
+  /// canonical control flow, it only contains the increment of the induction
+  /// variable.
+  BasicBlock *getLatch() const { return Latch; }
+
+  /// Reaching the exit indicates no more iterations are being executed.
+  BasicBlock *getExit() const { return Exit; }
+
+  /// The after block is intended for clean-up code such as lifetime end
+  /// markers. It is separate from the exit block to ensure, analogous to the
+  /// preheader, it having just a single entry edge and being free from PHI
+  /// nodes should there be multiple loop exits (such as from break
+  /// statements/cancellations).
+  BasicBlock *getAfter() const { return After; }
+
+  /// Returns the llvm::Value containing the number of loop iterations. It must
+  /// be valid in the preheader and always interpreted as an unsigned integer of
+  /// any bit-width.
+  Value *getTripCount() const {
+    Instruction *CmpI = &Cond->front();
+    assert(isa<CmpInst>(CmpI) && "First inst must compare IV with TripCount");
+    return CmpI->getOperand(1);
+  }
+
+  /// Returns the instruction representing the current logical induction
+  /// variable. Always unsigned, always starting at 0 with an increment of one.
+  Instruction *getIndVar() const {
+    Instruction *IndVarPHI = &Header->front();
+    assert(isa<PHINode>(IndVarPHI) && "First inst must be the IV PHI");
+    return IndVarPHI;
+  }
+
+  /// Return the insertion point for user code in the body.
+  OpenMPIRBuilder::InsertPointTy getBodyIP() const {
+    return {Body, Body->begin()};
+  };
+
+  /// Return the insertion point for user code after the loop.
+  OpenMPIRBuilder::InsertPointTy getAfterIP() const {
+    return {After, After->begin()};
+  };
+
+  /// Consistency self-check.
+  void assertOK() const;
 };
 
 } // end namespace llvm

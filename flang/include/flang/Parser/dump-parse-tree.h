@@ -66,6 +66,7 @@ public:
   NODE(parser, AccClause)
 #define GEN_FLANG_DUMP_PARSE_TREE_CLAUSES
 #include "llvm/Frontend/OpenACC/ACC.cpp.inc"
+  NODE(parser, AccBindClause)
   NODE(parser, AccDefaultClause)
   NODE_ENUM(parser::AccDefaultClause, Arg)
   NODE(parser, AccClauseList)
@@ -82,9 +83,13 @@ public:
   NODE(parser, AccObjectListWithModifier)
   NODE(parser, AccObjectListWithReduction)
   NODE(parser, AccReductionOperator)
+  NODE_ENUM(parser::AccReductionOperator, Operator)
   NODE(parser, AccSizeExpr)
   NODE(parser, AccSizeExprList)
+  NODE(parser, AccSelfClause)
   NODE(parser, AccStandaloneDirective)
+  NODE(parser, AccTileExpr)
+  NODE(parser, AccTileExprList)
   NODE(parser, AccLoopDirective)
   NODE(parser, AccWaitArgument)
   static std::string GetNodeName(const llvm::acc::Directive &x) {
@@ -196,7 +201,6 @@ public:
   NODE_ENUM(ConnectSpec::CharExpr, Kind)
   NODE(ConnectSpec, Newunit)
   NODE(ConnectSpec, Recl)
-  NODE(parser, ConstantValue)
   NODE(parser, ContainsStmt)
   NODE(parser, Contiguous)
   NODE(parser, ContiguousStmt)
@@ -458,10 +462,9 @@ public:
   NODE_ENUM(OmpCancelType, Type)
   NODE(parser, OmpClause)
 #define GEN_FLANG_DUMP_PARSE_TREE_CLAUSES
-#include "llvm/Frontend/OpenMP/OMP.cpp.inc"
+#include "llvm/Frontend/OpenMP/OMP.inc"
   NODE(parser, OmpClauseList)
   NODE(parser, OmpCriticalDirective)
-  NODE(OmpCriticalDirective, Hint)
   NODE(parser, OmpDeclareTargetSpecifier)
   NODE(parser, OmpDeclareTargetWithClause)
   NODE(parser, OmpDeclareTargetWithList)
@@ -496,10 +499,11 @@ public:
   NODE(parser, OmpMapType)
   NODE(OmpMapType, Always)
   NODE_ENUM(OmpMapType, Type)
-  NODE(parser, OmpMemoryClause)
-  NODE_ENUM(OmpMemoryClause, MemoryOrder)
-  NODE(parser, OmpMemoryClauseList)
-  NODE(parser, OmpMemoryClausePostList)
+  static std::string GetNodeName(const llvm::omp::Clause &x) {
+    return llvm::Twine(
+        "llvm::omp::Clause = ", llvm::omp::getOpenMPClauseName(x))
+        .str();
+  }
   NODE(parser, OmpNowait)
   NODE(parser, OmpObject)
   NODE(parser, OmpObjectList)
@@ -541,14 +545,17 @@ public:
   NODE(parser, OpenMPCancellationPointConstruct)
   NODE(parser, OpenMPConstruct)
   NODE(parser, OpenMPCriticalConstruct)
+  NODE(parser, OpenMPDeclarativeAllocate)
   NODE(parser, OpenMPDeclarativeConstruct)
   NODE(parser, OpenMPDeclareReductionConstruct)
   NODE(parser, OpenMPDeclareSimdConstruct)
   NODE(parser, OpenMPDeclareTargetConstruct)
-  NODE(parser, OmpFlushMemoryClause)
-  NODE_ENUM(OmpFlushMemoryClause, FlushMemoryOrder)
+  NODE(parser, OmpMemoryOrderClause)
+  NODE(parser, OmpAtomicClause)
+  NODE(parser, OmpAtomicClauseList)
   NODE(parser, OpenMPFlushConstruct)
   NODE(parser, OpenMPLoopConstruct)
+  NODE(parser, OpenMPExecutableAllocate)
   NODE(parser, OpenMPSimpleStandaloneConstruct)
   NODE(parser, OpenMPStandaloneConstruct)
   NODE(parser, OpenMPSectionsConstruct)

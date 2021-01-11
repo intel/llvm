@@ -355,6 +355,9 @@ class X86Subtarget final : public X86GenSubtargetInfo {
   /// Processor has AVX-512 Vector Neural Network Instructions
   bool HasVNNI = false;
 
+  /// Processor has AVX Vector Neural Network Instructions
+  bool HasAVXVNNI = false;
+
   /// Processor has AVX-512 bfloat16 floating-point extensions
   bool HasBF16 = false;
 
@@ -395,6 +398,15 @@ class X86Subtarget final : public X86GenSubtargetInfo {
   /// Processor supports PCONFIG instruction
   bool HasPCONFIG = false;
 
+  /// Processor support key locker instructions
+  bool HasKL = false;
+
+  /// Processor support key locker wide instructions
+  bool HasWIDEKL = false;
+
+  /// Processor supports HRESET instruction
+  bool HasHRESET = false;
+
   /// Processor supports SERIALIZE instruction
   bool HasSERIALIZE = false;
 
@@ -405,6 +417,9 @@ class X86Subtarget final : public X86GenSubtargetInfo {
   bool HasAMXTILE = false;
   bool HasAMXBF16 = false;
   bool HasAMXINT8 = false;
+
+  /// Processor supports User Level Interrupt instructions
+  bool HasUINTR = false;
 
   /// Processor has a single uop BEXTR implementation.
   bool HasFastBEXTR = false;
@@ -456,6 +471,8 @@ class X86Subtarget final : public X86GenSubtargetInfo {
   /// The minimum alignment known to hold of the stack frame on
   /// entry to the function and which must be maintained by every function.
   Align stackAlignment = Align(4);
+
+  Align TileConfigAlignment = Align(4);
 
   /// Max. memset / memcpy size that is turned into rep/movs, rep/stos ops.
   ///
@@ -539,6 +556,9 @@ public:
   const X86RegisterInfo *getRegisterInfo() const override {
     return &getInstrInfo()->getRegisterInfo();
   }
+
+  unsigned getTileConfigSize() const { return 64; }
+  Align getTileConfigAlignment() const { return TileConfigAlignment; }
 
   /// Returns the minimum alignment known to hold of the
   /// stack frame on entry to the function and which must be maintained by every
@@ -728,12 +748,17 @@ public:
   bool hasSGX() const { return HasSGX; }
   bool hasINVPCID() const { return HasINVPCID; }
   bool hasENQCMD() const { return HasENQCMD; }
+  bool hasKL() const { return HasKL; }
+  bool hasWIDEKL() const { return HasWIDEKL; }
+  bool hasHRESET() const { return HasHRESET; }
   bool hasSERIALIZE() const { return HasSERIALIZE; }
   bool hasTSXLDTRK() const { return HasTSXLDTRK; }
+  bool hasUINTR() const { return HasUINTR; }
   bool useRetpolineIndirectCalls() const { return UseRetpolineIndirectCalls; }
   bool useRetpolineIndirectBranches() const {
     return UseRetpolineIndirectBranches;
   }
+  bool hasAVXVNNI() const { return HasAVXVNNI; }
   bool hasAMXTILE() const { return HasAMXTILE; }
   bool hasAMXBF16() const { return HasAMXBF16; }
   bool hasAMXINT8() const { return HasAMXINT8; }

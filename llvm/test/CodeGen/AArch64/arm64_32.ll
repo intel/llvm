@@ -253,7 +253,9 @@ define i8* @test_toplevel_returnaddr() {
 define i8* @test_deep_returnaddr() {
 ; CHECK-LABEL: test_deep_returnaddr:
 ; CHECK: ldr x[[FRAME_REC:[0-9]+]], [x29]
-; CHECK-OPT: ldr x0, [x[[FRAME_REC]], #8]
+; CHECK-OPT: ldr x30, [x[[FRAME_REC]], #8]
+; CHECK-OPT: hint #7
+; CHECK-OPT: mov x0, x30
 ; CHECK-FAST: ldr [[TMP:x[0-9]+]], [x[[FRAME_REC]], #8]
 ; CHECK-FAST: and x0, [[TMP]], #0xffffffff
   %val = call i8* @llvm.returnaddress(i32 1)
@@ -420,7 +422,7 @@ define void @test_bare_frameaddr(i8** %addr) {
   ret void
 }
 
-define void @test_sret_use([8 x i64]* sret %out) {
+define void @test_sret_use([8 x i64]* sret([8 x i64]) %out) {
 ; CHECK-LABEL: test_sret_use:
 ; CHECK: str xzr, [x8]
   %addr = getelementptr [8 x i64], [8 x i64]* %out, i32 0, i32 0
@@ -433,7 +435,7 @@ define i64 @test_sret_call() {
 ; CHECK: mov x8, sp
 ; CHECK: bl _test_sret_use
   %arr = alloca [8 x i64]
-  call void @test_sret_use([8 x i64]* sret %arr)
+  call void @test_sret_use([8 x i64]* sret([8 x i64]) %arr)
 
   %addr = getelementptr [8 x i64], [8 x i64]* %arr, i32 0, i32 0
   %val = load i64, i64* %addr

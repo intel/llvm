@@ -1,4 +1,5 @@
 ; RUN: opt -S -unique-internal-linkage-names < %s | FileCheck %s
+; RUN: opt -S -passes=unique-internal-linkage-names < %s | FileCheck %s
 
 source_filename = "foo.c"
 
@@ -9,5 +10,5 @@ entry:
   ret i32 0
 }
 
-; CHECK: @glob.6ae72bb15a7d1834b42ae042a58f7a4d = internal global
-; CHECK: define internal i32 @foo.6ae72bb15a7d1834b42ae042a58f7a4d()
+; CHECK: @glob.__uniq.6ae72bb15a7d1834b42ae042a58f7a4d = internal global
+; CHECK: define internal i32 @foo.__uniq.6ae72bb15a7d1834b42ae042a58f7a4d()

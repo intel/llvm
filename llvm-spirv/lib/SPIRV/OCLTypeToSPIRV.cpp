@@ -232,7 +232,7 @@ void OCLTypeToSPIRV::adaptFunctionArguments(Function *F) {
         continue;
       if (STName.startswith(kSPR2TypeName::ImagePrefix)) {
         auto Ty = STName.str();
-        auto AccStr = getAccessQualifier(Ty);
+        auto AccStr = getAccessQualifierFullName(Ty);
         addAdaptedType(&*Arg, getOrCreateOpaquePtrType(
                                   M, mapOCLTypeNameToSPIRV(Ty, AccStr)));
         Changed = true;

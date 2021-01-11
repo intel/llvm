@@ -663,7 +663,16 @@ Sema::ActOnCXXTypeid(SourceLocation OpLoc, SourceLocation LParenLoc,
   }
 
   // The operand is an expression.
-  return BuildCXXTypeId(TypeInfoType, OpLoc, (Expr*)TyOrExpr, RParenLoc);
+  ExprResult Result =
+      BuildCXXTypeId(TypeInfoType, OpLoc, (Expr *)TyOrExpr, RParenLoc);
+
+  if (!getLangOpts().RTTIData && !Result.isInvalid())
+    if (auto *CTE = dyn_cast<CXXTypeidExpr>(Result.get()))
+      if (CTE->isPotentiallyEvaluated() && !CTE->isMostDerived(Context))
+        Diag(OpLoc, diag::warn_no_typeid_with_rtti_disabled)
+            << (getDiagnostics().getDiagnosticOptions().getFormat() ==
+                DiagnosticOptions::MSVC);
+  return Result;
 }
 
 /// Grabs __declspec(uuid()) off a type, or returns 0 if we cannot resolve to
@@ -879,6 +888,10 @@ ExprResult Sema::BuildCXXThrow(SourceLocation OpLoc, Expr *Ex,
       return ExprError();
     Ex = Res.get();
   }
+
+  // PPC MMA non-pointer types are not allowed as throw expr types.
+  if (Ex && Context.getTargetInfo().getTriple().isPPC64())
+    CheckPPCMMAType(Ex->getType(), Ex->getBeginLoc());
 
   return new (Context)
       CXXThrowExpr(Ex, Context.VoidTy, OpLoc, IsThrownVarInScope);
@@ -1409,16 +1422,6 @@ Sema::BuildCXXTypeConstructExpr(TypeSourceInfo *TInfo,
   QualType Ty = TInfo->getType();
   SourceLocation TyBeginLoc = TInfo->getTypeLoc().getBeginLoc();
 
-  if (Ty->isDependentType() || CallExpr::hasAnyTypeDependentArguments(Exprs)) {
-    // FIXME: CXXUnresolvedConstructExpr does not model list-initialization
-    // directly. We work around this by dropping the locations of the braces.
-    SourceRange Locs = ListInitialization
-                           ? SourceRange()
-                           : SourceRange(LParenOrBraceLoc, RParenOrBraceLoc);
-    return CXXUnresolvedConstructExpr::Create(Context, TInfo, Locs.getBegin(),
-                                              Exprs, Locs.getEnd());
-  }
-
   assert((!ListInitialization ||
           (Exprs.size() == 1 && isa<InitListExpr>(Exprs[0]))) &&
          "List initialization must have initializer list as expression.");
@@ -1445,6 +1448,17 @@ Sema::BuildCXXTypeConstructExpr(TypeSourceInfo *TInfo,
     if (Ty.isNull())
       return ExprError();
     Entity = InitializedEntity::InitializeTemporary(TInfo, Ty);
+  }
+
+  if (Ty->isDependentType() || CallExpr::hasAnyTypeDependentArguments(Exprs)) {
+    // FIXME: CXXUnresolvedConstructExpr does not model list-initialization
+    // directly. We work around this by dropping the locations of the braces.
+    SourceRange Locs = ListInitialization
+                           ? SourceRange()
+                           : SourceRange(LParenOrBraceLoc, RParenOrBraceLoc);
+    return CXXUnresolvedConstructExpr::Create(Context, Ty.getNonReferenceType(),
+                                              TInfo, Locs.getBegin(), Exprs,
+                                              Locs.getEnd());
   }
 
   // C++ [expr.type.conv]p1:
@@ -1508,7 +1522,8 @@ Sema::BuildCXXTypeConstructExpr(TypeSourceInfo *TInfo,
                            : SourceRange(LParenOrBraceLoc, RParenOrBraceLoc);
     Result = CXXFunctionalCastExpr::Create(
         Context, ResultType, Expr::getValueKindForType(Ty), TInfo, CK_NoOp,
-        Result.get(), /*Path=*/nullptr, Locs.getBegin(), Locs.getEnd());
+        Result.get(), /*Path=*/nullptr, CurFPFeatureOverrides(),
+        Locs.getBegin(), Locs.getEnd());
   }
 
   return Result;
@@ -1761,6 +1776,8 @@ Sema::ActOnCXXNew(SourceLocation StartLoc, bool UseGlobal,
       DeclaratorChunk::ArrayTypeInfo &Array = D.getTypeObject(I).Arr;
       if (Expr *NumElts = (Expr *)Array.NumElts) {
         if (!NumElts->isTypeDependent() && !NumElts->isValueDependent()) {
+          // FIXME: GCC permits constant folding here. We should either do so consistently
+          // or not do so at all, rather than changing behavior in C++14 onwards.
           if (getLangOpts().CPlusPlus14) {
             // C++1y [expr.new]p6: Every constant-expression in a noptr-new-declarator
             //   shall be a converted constant expression (5.19) of type std::size_t
@@ -1771,10 +1788,10 @@ Sema::ActOnCXXNew(SourceLocation StartLoc, bool UseGlobal,
                                                 CCEK_ArrayBound)
                  .get();
           } else {
-            Array.NumElts
-              = VerifyIntegerConstantExpression(NumElts, nullptr,
-                                                diag::err_new_array_nonconst)
-                  .get();
+            Array.NumElts =
+                VerifyIntegerConstantExpression(
+                    NumElts, nullptr, diag::err_new_array_nonconst, AllowFold)
+                    .get();
           }
           if (!Array.NumElts)
             return ExprError();
@@ -1838,12 +1855,13 @@ void Sema::diagnoseUnavailableAlignedAllocation(const FunctionDecl &FD,
     const llvm::Triple &T = getASTContext().getTargetInfo().getTriple();
     StringRef OSName = AvailabilityAttr::getPlatformNameSourceSpelling(
         getASTContext().getTargetInfo().getPlatformName());
+    VersionTuple OSVersion = alignedAllocMinVersion(T.getOS());
 
     OverloadedOperatorKind Kind = FD.getDeclName().getCXXOverloadedOperator();
     bool IsDelete = Kind == OO_Delete || Kind == OO_Array_Delete;
     Diag(Loc, diag::err_aligned_allocation_unavailable)
         << IsDelete << FD.getType().getAsString() << OSName
-        << alignedAllocMinVersion(T.getOS()).getAsString();
+        << OSVersion.getAsString() << OSVersion.empty();
     Diag(Loc, diag::note_silence_aligned_allocation_unavailable);
   }
 }
@@ -2209,7 +2227,7 @@ Sema::BuildCXXNew(SourceRange Range, bool UseGlobal,
         SizeTy, SourceLocation());
     ImplicitCastExpr DesiredAlignment(ImplicitCastExpr::OnStack, AlignValT,
                                       CK_IntegralCast, &AlignmentLiteral,
-                                      VK_RValue);
+                                      VK_RValue, FPOptionsOverride());
 
     // Adjust placement args by prepending conjured size and alignment exprs.
     llvm::SmallVector<Expr *, 8> CallArgs;
@@ -3924,7 +3942,8 @@ static ExprResult BuildCXXCastArgument(Sema &S,
     // Record usage of conversion in an implicit cast.
     Result = ImplicitCastExpr::Create(S.Context, Result.get()->getType(),
                                       CK_UserDefinedConversion, Result.get(),
-                                      nullptr, Result.get()->getValueKind());
+                                      nullptr, Result.get()->getValueKind(),
+                                      S.CurFPFeatureOverrides());
 
     return S.MaybeBindToTemporary(Result.get());
   }
@@ -4105,7 +4124,8 @@ Sema::PerformImplicitConversion(Expr *From, QualType ToType,
     if (const AtomicType *FromAtomic = FromType->getAs<AtomicType>()) {
       FromType = FromAtomic->getValueType().getUnqualifiedType();
       From = ImplicitCastExpr::Create(Context, FromType, CK_AtomicToNonAtomic,
-                                      From, /*BasePath=*/nullptr, VK_RValue);
+                                      From, /*BasePath=*/nullptr, VK_RValue,
+                                      FPOptionsOverride());
     }
     break;
 
@@ -4330,6 +4350,12 @@ Sema::PerformImplicitConversion(Expr *From, QualType ToType,
   case ICK_Vector_Conversion:
     From = ImpCastExprToType(From, ToType, CK_BitCast,
                              VK_RValue, /*BasePath=*/nullptr, CCK).get();
+    break;
+
+  case ICK_SVE_Vector_Conversion:
+    From = ImpCastExprToType(From, ToType, CK_BitCast, VK_RValue,
+                             /*BasePath=*/nullptr, CCK)
+               .get();
     break;
 
   case ICK_Vector_Splat: {
@@ -5475,9 +5501,9 @@ static uint64_t EvaluateArrayTypeTrait(Sema &Self, ArrayTypeTrait ATT,
   case ATT_ArrayExtent: {
     llvm::APSInt Value;
     uint64_t Dim;
-    if (Self.VerifyIntegerConstantExpression(DimExpr, &Value,
-          diag::err_dimension_expr_not_constant_integer,
-          false).isInvalid())
+    if (Self.VerifyIntegerConstantExpression(
+                DimExpr, &Value, diag::err_dimension_expr_not_constant_integer)
+            .isInvalid())
       return 0;
     if (Value.isSigned() && Value.isNegative()) {
       Self.Diag(KeyLoc, diag::err_dimension_expr_not_constant_integer)
@@ -6314,6 +6340,8 @@ QualType Sema::CXXCheckConditionalOperands(ExprResult &Cond, ExprResult &LHS,
 
   // Similarly, attempt to find composite type of two objective-c pointers.
   Composite = FindCompositeObjCPointerType(LHS, RHS, QuestionLoc);
+  if (LHS.isInvalid() || RHS.isInvalid())
+    return QualType();
   if (!Composite.isNull())
     return Composite;
 
@@ -6539,12 +6567,16 @@ QualType Sema::FindCompositePointerType(SourceLocation Loc,
       // FIXME: In C, we merge __strong and none to __strong at the top level.
       if (Q1.getObjCGCAttr() == Q2.getObjCGCAttr())
         Quals.setObjCGCAttr(Q1.getObjCGCAttr());
+      else if (T1->isVoidPointerType() || T2->isVoidPointerType())
+        assert(Steps.size() == 1);
       else
         return QualType();
 
       // Mismatched lifetime qualifiers never compatibly include each other.
       if (Q1.getObjCLifetime() == Q2.getObjCLifetime())
         Quals.setObjCLifetime(Q1.getObjCLifetime());
+      else if (T1->isVoidPointerType() || T2->isVoidPointerType())
+        assert(Steps.size() == 1);
       else
         return QualType();
 
@@ -6843,7 +6875,7 @@ ExprResult Sema::MaybeBindToTemporary(Expr *E) {
     CastKind ck = (ReturnsRetained ? CK_ARCConsumeObject
                                    : CK_ARCReclaimReturnedObject);
     return ImplicitCastExpr::Create(Context, E->getType(), ck, E, nullptr,
-                                    VK_RValue);
+                                    VK_RValue, FPOptionsOverride());
   }
 
   if (E->getType().isDestructedType() == QualType::DK_nontrivial_c_struct)
@@ -7236,8 +7268,8 @@ ExprResult Sema::ActOnStartCXXMemberReference(Scope *S, Expr *Base,
   return Base;
 }
 
-static bool CheckArrow(Sema& S, QualType& ObjectType, Expr *&Base,
-                   tok::TokenKind& OpKind, SourceLocation OpLoc) {
+static bool CheckArrow(Sema &S, QualType &ObjectType, Expr *&Base,
+                       tok::TokenKind &OpKind, SourceLocation OpLoc) {
   if (Base->hasPlaceholderType()) {
     ExprResult result = S.CheckPlaceholderExpr(Base);
     if (result.isInvalid()) return true;
@@ -7252,6 +7284,18 @@ static bool CheckArrow(Sema& S, QualType& ObjectType, Expr *&Base,
   // Note that this is rather different from the normal handling for the
   // arrow operator.
   if (OpKind == tok::arrow) {
+    // The operator requires a prvalue, so perform lvalue conversions.
+    // Only do this if we might plausibly end with a pointer, as otherwise
+    // this was likely to be intended to be a '.'.
+    if (ObjectType->isPointerType() || ObjectType->isArrayType() ||
+        ObjectType->isFunctionType()) {
+      ExprResult BaseResult = S.DefaultFunctionArrayLvalueConversion(Base);
+      if (BaseResult.isInvalid())
+        return true;
+      Base = BaseResult.get();
+      ObjectType = Base->getType();
+    }
+
     if (const PointerType *Ptr = ObjectType->getAs<PointerType>()) {
       ObjectType = Ptr->getPointeeType();
     } else if (!Base->isTypeDependent()) {
@@ -7560,6 +7604,11 @@ ExprResult Sema::ActOnPseudoDestructorExpr(Scope *S, Expr *Base,
   if (CheckArrow(*this, ObjectType, Base, OpKind, OpLoc))
     return ExprError();
 
+  if (DS.getTypeSpecType() == DeclSpec::TST_decltype_auto) {
+    Diag(DS.getTypeSpecTypeLoc(), diag::err_decltype_auto_invalid);
+    return true;
+  }
+
   QualType T = BuildDecltypeType(DS.getRepAsExpr(), DS.getTypeSpecTypeLoc(),
                                  false);
 
@@ -7651,7 +7700,8 @@ ExprResult Sema::BuildCXXNoexceptExpr(SourceLocation KeyLoc, Expr *Operand,
 
   Operand = R.get();
 
-  if (!inTemplateInstantiation() && Operand->HasSideEffects(Context, false)) {
+  if (!inTemplateInstantiation() && !Operand->isInstantiationDependent() &&
+      Operand->HasSideEffects(Context, false)) {
     // The expression operand for noexcept is in an unevaluated expression
     // context, so side effects could result in unintended consequences.
     Diag(Operand->getExprLoc(), diag::warn_side_effects_unevaluated_context);

@@ -239,4 +239,111 @@ define double @getNegatedExpression_crash(double %x, double %y) {
   %fma1 = call reassoc nsz double @llvm.fma.f64(double %fma, double %y, double %add)
   ret double %fma1
 }
+
+define double @fma_flag_propagation(double %a) {
+; CHECK-FAST-LABEL: fma_flag_propagation:
+; CHECK-FAST:       # %bb.0: # %entry
+; CHECK-FAST-NEXT:    xxlxor 1, 1, 1
+; CHECK-FAST-NEXT:    blr
+;
+; CHECK-FAST-NOVSX-LABEL: fma_flag_propagation:
+; CHECK-FAST-NOVSX:       # %bb.0: # %entry
+; CHECK-FAST-NOVSX-NEXT:    addis 3, 2, .LCPI6_0@toc@ha
+; CHECK-FAST-NOVSX-NEXT:    lfs 1, .LCPI6_0@toc@l(3)
+; CHECK-FAST-NOVSX-NEXT:    blr
+;
+; CHECK-LABEL: fma_flag_propagation:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    xxlxor 1, 1, 1
+; CHECK-NEXT:    blr
+entry:
+  %0 = fneg double %a
+  %1 = call reassoc nnan double @llvm.fma.f64(double %0, double 1.0, double %a)
+  ret double %1
+}
+
+define double @neg_fma_flag_propagation(double %a) {
+; CHECK-FAST-LABEL: neg_fma_flag_propagation:
+; CHECK-FAST:       # %bb.0: # %entry
+; CHECK-FAST-NEXT:    xxlxor 1, 1, 1
+; CHECK-FAST-NEXT:    blr
+;
+; CHECK-FAST-NOVSX-LABEL: neg_fma_flag_propagation:
+; CHECK-FAST-NOVSX:       # %bb.0: # %entry
+; CHECK-FAST-NOVSX-NEXT:    addis 3, 2, .LCPI7_0@toc@ha
+; CHECK-FAST-NOVSX-NEXT:    lfs 1, .LCPI7_0@toc@l(3)
+; CHECK-FAST-NOVSX-NEXT:    blr
+;
+; CHECK-LABEL: neg_fma_flag_propagation:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    xxlxor 1, 1, 1
+; CHECK-NEXT:    blr
+entry:
+  %0 = call reassoc nnan double @llvm.fma.f64(double %a, double -1.0, double %a)
+  ret double %0
+}
+
+define <2 x double> @vec_neg_fma_flag_propagation(<2 x double> %a) {
+; CHECK-FAST-LABEL: vec_neg_fma_flag_propagation:
+; CHECK-FAST:       # %bb.0: # %entry
+; CHECK-FAST-NEXT:    addis 3, 2, .LCPI8_0@toc@ha
+; CHECK-FAST-NEXT:    addi 3, 3, .LCPI8_0@toc@l
+; CHECK-FAST-NEXT:    lxvd2x 0, 0, 3
+; CHECK-FAST-NEXT:    xxswapd 0, 0
+; CHECK-FAST-NEXT:    xvmaddadp 34, 34, 0
+; CHECK-FAST-NEXT:    blr
+;
+; CHECK-FAST-NOVSX-LABEL: vec_neg_fma_flag_propagation:
+; CHECK-FAST-NOVSX:       # %bb.0: # %entry
+; CHECK-FAST-NOVSX-NEXT:    addis 3, 2, .LCPI8_0@toc@ha
+; CHECK-FAST-NOVSX-NEXT:    lfs 1, .LCPI8_0@toc@l(3)
+; CHECK-FAST-NOVSX-NEXT:    fmr 2, 1
+; CHECK-FAST-NOVSX-NEXT:    blr
+;
+; CHECK-LABEL: vec_neg_fma_flag_propagation:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    addis 3, 2, .LCPI8_0@toc@ha
+; CHECK-NEXT:    addi 3, 3, .LCPI8_0@toc@l
+; CHECK-NEXT:    lxvd2x 0, 0, 3
+; CHECK-NEXT:    xxswapd 0, 0
+; CHECK-NEXT:    xvmaddadp 34, 34, 0
+; CHECK-NEXT:    blr
+entry:
+  %0 = call reassoc nnan <2 x double> @llvm.fma.v2f64(<2 x double> %a, <2 x double> <double -1.0, double -1.0>, <2 x double> %a)
+  ret <2 x double> %0
+}
+
+define double @fma_combine_const(double %a, double %b) {
+; CHECK-FAST-LABEL: fma_combine_const:
+; CHECK-FAST:       # %bb.0: # %entry
+; CHECK-FAST-NEXT:    addis 3, 2, .LCPI9_0@toc@ha
+; CHECK-FAST-NEXT:    lfd 0, .LCPI9_0@toc@l(3)
+; CHECK-FAST-NEXT:    xsmaddadp 2, 1, 0
+; CHECK-FAST-NEXT:    fmr 1, 2
+; CHECK-FAST-NEXT:    blr
+;
+; CHECK-FAST-NOVSX-LABEL: fma_combine_const:
+; CHECK-FAST-NOVSX:       # %bb.0: # %entry
+; CHECK-FAST-NOVSX-NEXT:    addis 3, 2, .LCPI9_0@toc@ha
+; CHECK-FAST-NOVSX-NEXT:    lfd 0, .LCPI9_0@toc@l(3)
+; CHECK-FAST-NOVSX-NEXT:    fmadd 1, 1, 0, 2
+; CHECK-FAST-NOVSX-NEXT:    blr
+;
+; CHECK-LABEL: fma_combine_const:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    addis 3, 2, .LCPI9_0@toc@ha
+; CHECK-NEXT:    lfd 0, .LCPI9_0@toc@l(3)
+; CHECK-NEXT:    addis 3, 2, .LCPI9_1@toc@ha
+; CHECK-NEXT:    lfd 3, .LCPI9_1@toc@l(3)
+; CHECK-NEXT:    xsmuldp 0, 1, 0
+; CHECK-NEXT:    fmr 1, 2
+; CHECK-NEXT:    xsmaddadp 1, 0, 3
+; CHECK-NEXT:    blr
+entry:
+  %0 = fmul double %a, 1.1
+  %1 = call contract double @llvm.fma.f64(double %0, double 2.1, double %b)
+  ret double %1
+}
+
 declare double @llvm.fma.f64(double, double, double) nounwind readnone
+declare <2 x double> @llvm.fma.v2f64(<2 x double>, <2 x double>, <2 x double>) nounwind readnone

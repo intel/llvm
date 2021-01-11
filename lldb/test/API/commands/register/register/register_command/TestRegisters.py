@@ -28,7 +28,8 @@ class RegisterCommandsTestCase(TestBase):
 
     @skipIfiOSSimulator
     @skipIf(archs=no_match(['amd64', 'arm', 'i386', 'x86_64']))
-    @expectedFailureNetBSD
+    @expectedFailureAll(oslist=["freebsd", "netbsd"],
+                        bugnumber='llvm.org/pr48371')
     def test_register_commands(self):
         """Test commands related to registers, in particular vector registers."""
         self.build()
@@ -67,11 +68,9 @@ class RegisterCommandsTestCase(TestBase):
     @skipIfiOSSimulator
     # "register read fstat" always return 0xffff
     @expectedFailureAndroid(archs=["i386"])
-    @skipIfFreeBSD  # llvm.org/pr25057
     @skipIf(archs=no_match(['amd64', 'i386', 'x86_64']))
     @skipIfOutOfTreeDebugserver
     @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr37995")
-    @expectedFailureNetBSD
     def test_fp_special_purpose_register_read(self):
         """Test commands that read fpu special purpose registers."""
         self.build()
@@ -117,7 +116,6 @@ class RegisterCommandsTestCase(TestBase):
     @skipIfiOSSimulator
     @skipIf(archs=no_match(['amd64', 'x86_64']))
     @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr37683")
-    @expectedFailureNetBSD
     def test_convenience_registers_with_process_attach(self):
         """Test convenience registers after a 'process attach'."""
         self.build()
@@ -126,7 +124,6 @@ class RegisterCommandsTestCase(TestBase):
     @skipIfiOSSimulator
     @skipIf(archs=no_match(['amd64', 'x86_64']))
     @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr37683")
-    @expectedFailureNetBSD
     def test_convenience_registers_16bit_with_process_attach(self):
         """Test convenience registers after a 'process attach'."""
         self.build()
@@ -194,6 +191,11 @@ class RegisterCommandsTestCase(TestBase):
                 ' = ',
                 new_value])
 
+    # This test relies on ftag containing the 'abridged' value.  Linux
+    # and *BSD targets have been ported to report the full value instead
+    # consistently with GDB.  They are covered by the new-style
+    # lldb/test/Shell/Register/x86*-fp-read.test.
+    @skipUnlessDarwin
     def fp_special_purpose_register_read(self):
         exe = self.getBuildArtifact("a.out")
 
@@ -403,7 +405,12 @@ class RegisterCommandsTestCase(TestBase):
             for registerSet in registerSets:
                 if 'advanced vector extensions' in registerSet.GetName().lower():
                     has_avx = True
-                if 'memory protection extension' in registerSet.GetName().lower():
+                # FreeBSD/NetBSD reports missing register sets differently
+                # at the moment and triggers false positive here.
+                # TODO: remove FreeBSD/NetBSD exception when we make unsupported
+                # register groups correctly disappear.
+                if ('memory protection extension' in registerSet.GetName().lower()
+                        and self.getPlatform() not in ["freebsd", "netbsd"]):
                     has_mpx = True
 
             if has_avx:

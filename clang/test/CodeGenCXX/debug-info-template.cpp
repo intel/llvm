@@ -1,4 +1,4 @@
-// RUN: %clang -S -emit-llvm -target x86_64-unknown_unknown -g %s -o - -std=c++11 | FileCheck %s
+// RUN: %clang -S -emit-llvm -target x86_64-unknown_unknown -g %s -o - -std=c++20 | FileCheck %s
 
 // CHECK: @tci = dso_local global %"struct.TC<unsigned int, 2, &glb, &foo::e, &foo::f, &foo::g, 1, 2, 3>::nested" zeroinitializer, align 1, !dbg [[TCI:![0-9]+]]
 // CHECK: @tcn = dso_local global %struct.TC zeroinitializer, align 1, !dbg [[TCN:![0-9]+]]
@@ -121,7 +121,7 @@ template<typename>
 struct tmpl_impl {
 };
 
-template <template <typename> class tmpl, int &lvr, int &&rvr>
+template <template <typename> class tmpl, int &lvr>
 struct NN {
 };
 
@@ -129,16 +129,14 @@ struct NN {
 // CHECK: [[NNV]] = distinct !DIGlobalVariable(name: "nn"
 // CHECK-SAME:                                 type: ![[NNT:[0-9]+]]
 
-// CHECK: ![[NNT]] ={{.*}}!DICompositeType(tag: DW_TAG_structure_type, name: "NN<tmpl_impl, glb, glb>",
+// CHECK: ![[NNT]] ={{.*}}!DICompositeType(tag: DW_TAG_structure_type, name: "NN<tmpl_impl, glb>",
 // CHECK-SAME:             templateParams: [[NNARGS:![0-9]*]]
 // CHECK-SAME:             identifier:
-// CHECK: [[NNARGS]] = !{[[NNARG1:![0-9]*]], [[NNARG2:![0-9]*]], [[NNARG3:![0-9]*]]}
+// CHECK: [[NNARGS]] = !{[[NNARG1:![0-9]*]], [[NNARG2:![0-9]*]]}
 // CHECK: [[NNARG1]] = !DITemplateValueParameter(tag: DW_TAG_GNU_template_template_param, name: "tmpl", value: !"tmpl_impl")
 // CHECK: [[NNARG2]] = !DITemplateValueParameter(name: "lvr", type: [[INTLVR:![0-9]*]], value: i32* @glb)
 // CHECK: [[INTLVR]] = !DIDerivedType(tag: DW_TAG_reference_type, baseType: [[INT]]
-// CHECK: [[NNARG3]] = !DITemplateValueParameter(name: "rvr", type: [[INTRVR:![0-9]*]], value: i32* @glb)
-// CHECK: [[INTRVR]] = !DIDerivedType(tag: DW_TAG_rvalue_reference_type, baseType: [[INT]]
-NN<tmpl_impl, glb, glb> nn;
+NN<tmpl_impl, glb> nn;
 
 // CHECK: ![[PADDINGATEND:[0-9]+]] = distinct !DICompositeType(tag: DW_TAG_structure_type, name: "PaddingAtEnd",
 struct PaddingAtEnd {
@@ -158,3 +156,26 @@ struct PaddingAtEndTemplate {
 };
 
 PaddingAtEndTemplate<&PaddedObj> PaddedTemplateObj;
+
+struct ClassTemplateArg {
+  int a;
+  float f;
+};
+template<ClassTemplateArg A> struct ClassTemplateArgTemplate {
+  static constexpr const ClassTemplateArg &Arg = A;
+};
+
+// CHECK: !DICompositeType(tag: DW_TAG_structure_type, name: "ClassTemplateArgTemplate<{1, 2.000000e+00}>", {{.*}}, templateParams: ![[CLASS_TEMP_ARGS:[0-9]*]],
+// CHECK: ![[CLASS_TEMP_ARG_CONST_REF_TYPE:[0-9]*]] = !DIDerivedType(tag: DW_TAG_reference_type, baseType: ![[CLASS_TEMP_ARG_CONST_TYPE:[0-9]*]],
+// CHECK: ![[CLASS_TEMP_ARG_CONST_TYPE]] = !DIDerivedType(tag: DW_TAG_const_type, baseType: ![[CLASS_TEMP_ARG_TYPE:[0-9]*]])
+// CHECK: ![[CLASS_TEMP_ARG_TYPE]] = distinct !DICompositeType(tag: DW_TAG_structure_type, name: "ClassTemplateArg",
+// CHECK: ![[CLASS_TEMP_ARGS]] = !{![[CLASS_TEMP_ARG:[0-9]*]]}
+// CHECK: ![[CLASS_TEMP_ARG]] = !DITemplateValueParameter(name: "A", type: ![[CLASS_TEMP_ARG_TYPE]], value: %{{[^ *]+}} { i32 1, float 2.000000e+00 })
+ClassTemplateArgTemplate<ClassTemplateArg{1, 2.0f}> ClassTemplateArgObj;
+
+template<const ClassTemplateArg&> struct ClassTemplateArgRefTemplate {};
+ClassTemplateArgRefTemplate<ClassTemplateArgObj.Arg> ClassTemplateArgRefObj;
+
+// CHECK: !DICompositeType(tag: DW_TAG_structure_type, name: "ClassTemplateArgRefTemplate<<template param ClassTemplateArg{1, 2.000000e+00}> >", {{.*}}, templateParams: ![[CLASS_TEMP_REF_ARGS:[0-9]*]],
+// CHECK: ![[CLASS_TEMP_REF_ARGS]] = !{![[CLASS_TEMP_REF_ARG:[0-9]*]]}
+// CHECK: ![[CLASS_TEMP_REF_ARG]] = !DITemplateValueParameter(type: ![[CLASS_TEMP_ARG_CONST_REF_TYPE]], value: %{{.*}}* @_ZTAXtl16ClassTemplateArgLi1ELf40000000EEE)

@@ -66,7 +66,23 @@ if (APPLE OR WIN32 OR NOT OPENMP_HAVE_STD_CPP14_FLAG)
   set(ENABLE_LIBOMPTARGET OFF)
 endif()
 
+# Attempt to locate LLVM source, required by libomptarget
+if (NOT LIBOMPTARGET_LLVM_MAIN_INCLUDE_DIR)
+  if (LLVM_MAIN_INCLUDE_DIR)
+    set(LIBOMPTARGET_LLVM_MAIN_INCLUDE_DIR ${LLVM_MAIN_INCLUDE_DIR})
+  elseif (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../llvm/include)
+    set(LIBOMPTARGET_LLVM_MAIN_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../llvm/include)
+  endif()
+endif()
+
+if (NOT LIBOMPTARGET_LLVM_MAIN_INCLUDE_DIR)
+  message(STATUS "Missing definition for LIBOMPTARGET_LLVM_MAIN_INCLUDE_DIR, disabling libomptarget")
+  set(ENABLE_LIBOMPTARGET OFF)
+endif()
+
 option(OPENMP_ENABLE_LIBOMPTARGET "Enable building libomptarget for offloading."
+       ${ENABLE_LIBOMPTARGET})
+option(OPENMP_ENABLE_LIBOMPTARGET_PROFILING "Enable time profiling for libomptarget."
        ${ENABLE_LIBOMPTARGET})
 if (OPENMP_ENABLE_LIBOMPTARGET)
   # Check that the library can actually be built.
@@ -90,6 +106,10 @@ option(OPENMP_ENABLE_OMPT_TOOLS "Enable building ompt based tools for OpenMP."
 if (OPENMP_ENABLE_OMPT_TOOLS)
   add_subdirectory(tools)
 endif()
+
+
+# Build documentation
+add_subdirectory(docs)
 
 # Now that we have seen all testsuites, create the check-openmp target.
 construct_check_openmp_target()

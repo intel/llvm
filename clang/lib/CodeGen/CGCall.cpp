@@ -31,6 +31,7 @@
 #include "clang/CodeGen/SwiftCallingConv.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Analysis/ValueTracking.h"
+#include "llvm/IR/Assumptions.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/DataLayout.h"
@@ -198,7 +199,8 @@ CodeGenTypes::arrangeFreeFunctionType(CanQual<FunctionProtoType> FTP) {
                                    FTP);
 }
 
-static CallingConv getCallingConventionForDecl(const Decl *D, bool IsWindows) {
+static CallingConv getCallingConventionForDecl(const ObjCMethodDecl *D,
+                                               bool IsWindows) {
   // Set the appropriate calling convention for the Function.
   if (D->hasAttr<StdCallAttr>())
     return CC_X86StdCall;
@@ -1125,12 +1127,13 @@ void CodeGenFunction::ExpandTypeToArgs(
 
 /// Create a temporary allocation for the purposes of coercion.
 static Address CreateTempAllocaForCoercion(CodeGenFunction &CGF, llvm::Type *Ty,
-                                           CharUnits MinAlign) {
+                                           CharUnits MinAlign,
+                                           const Twine &Name = "tmp") {
   // Don't use an alignment that's worse than what LLVM would prefer.
   auto PrefAlign = CGF.CGM.getDataLayout().getPrefTypeAlignment(Ty);
   CharUnits Align = std::max(MinAlign, CharUnits::fromQuantity(PrefAlign));
 
-  return CGF.CreateTempAlloca(Ty, Align);
+  return CGF.CreateTempAlloca(Ty, Align, Name + ".coerce");
 }
 
 /// EnterStructPointerForCoercedAccess - Given a struct pointer that we are
@@ -1236,14 +1239,15 @@ static llvm::Value *CreateCoercedLoad(Address Src, llvm::Type *Ty,
   if (SrcTy == Ty)
     return CGF.Builder.CreateLoad(Src);
 
-  uint64_t DstSize = CGF.CGM.getDataLayout().getTypeAllocSize(Ty);
+  llvm::TypeSize DstSize = CGF.CGM.getDataLayout().getTypeAllocSize(Ty);
 
   if (llvm::StructType *SrcSTy = dyn_cast<llvm::StructType>(SrcTy)) {
-    Src = EnterStructPointerForCoercedAccess(Src, SrcSTy, DstSize, CGF);
+    Src = EnterStructPointerForCoercedAccess(Src, SrcSTy,
+                                             DstSize.getFixedSize(), CGF);
     SrcTy = Src.getElementType();
   }
 
-  uint64_t SrcSize = CGF.CGM.getDataLayout().getTypeAllocSize(SrcTy);
+  llvm::TypeSize SrcSize = CGF.CGM.getDataLayout().getTypeAllocSize(SrcTy);
 
   // If the source and destination are integer or pointer types, just do an
   // extension or truncation to the desired type.
@@ -1254,7 +1258,8 @@ static llvm::Value *CreateCoercedLoad(Address Src, llvm::Type *Ty,
   }
 
   // If load is legal, just bitcast the src pointer.
-  if (SrcSize >= DstSize) {
+  if (!SrcSize.isScalable() && !DstSize.isScalable() &&
+      SrcSize.getFixedSize() >= DstSize.getFixedSize()) {
     // Generally SrcSize is never greater than DstSize, since this means we are
     // losing bits. However, this can happen in cases where the structure has
     // additional padding, for example due to a user specified alignment.
@@ -1267,10 +1272,12 @@ static llvm::Value *CreateCoercedLoad(Address Src, llvm::Type *Ty,
   }
 
   // Otherwise do coercion through memory. This is stupid, but simple.
-  Address Tmp = CreateTempAllocaForCoercion(CGF, Ty, Src.getAlignment());
-  CGF.Builder.CreateMemCpy(Tmp.getPointer(), Tmp.getAlignment().getAsAlign(),
-                           Src.getPointer(), Src.getAlignment().getAsAlign(),
-                           llvm::ConstantInt::get(CGF.IntPtrTy, SrcSize));
+  Address Tmp =
+      CreateTempAllocaForCoercion(CGF, Ty, Src.getAlignment(), Src.getName());
+  CGF.Builder.CreateMemCpy(
+      Tmp.getPointer(), Tmp.getAlignment().getAsAlign(), Src.getPointer(),
+      Src.getAlignment().getAsAlign(),
+      llvm::ConstantInt::get(CGF.IntPtrTy, SrcSize.getKnownMinSize()));
   return CGF.Builder.CreateLoad(Tmp);
 }
 
@@ -1309,10 +1316,11 @@ static void CreateCoercedStore(llvm::Value *Src,
     return;
   }
 
-  uint64_t SrcSize = CGF.CGM.getDataLayout().getTypeAllocSize(SrcTy);
+  llvm::TypeSize SrcSize = CGF.CGM.getDataLayout().getTypeAllocSize(SrcTy);
 
   if (llvm::StructType *DstSTy = dyn_cast<llvm::StructType>(DstTy)) {
-    Dst = EnterStructPointerForCoercedAccess(Dst, DstSTy, SrcSize, CGF);
+    Dst = EnterStructPointerForCoercedAccess(Dst, DstSTy,
+                                             SrcSize.getFixedSize(), CGF);
     DstTy = Dst.getElementType();
   }
 
@@ -1334,10 +1342,12 @@ static void CreateCoercedStore(llvm::Value *Src,
     return;
   }
 
-  uint64_t DstSize = CGF.CGM.getDataLayout().getTypeAllocSize(DstTy);
+  llvm::TypeSize DstSize = CGF.CGM.getDataLayout().getTypeAllocSize(DstTy);
 
   // If store is legal, just bitcast the src pointer.
-  if (SrcSize <= DstSize) {
+  if (isa<llvm::ScalableVectorType>(SrcTy) ||
+      isa<llvm::ScalableVectorType>(DstTy) ||
+      SrcSize.getFixedSize() <= DstSize.getFixedSize()) {
     Dst = CGF.Builder.CreateElementBitCast(Dst, SrcTy);
     CGF.EmitAggregateStore(Src, Dst, DstIsVolatile);
   } else {
@@ -1352,9 +1362,10 @@ static void CreateCoercedStore(llvm::Value *Src,
     // to that information.
     Address Tmp = CreateTempAllocaForCoercion(CGF, SrcTy, Dst.getAlignment());
     CGF.Builder.CreateStore(Src, Tmp);
-    CGF.Builder.CreateMemCpy(Dst.getPointer(), Dst.getAlignment().getAsAlign(),
-                             Tmp.getPointer(), Tmp.getAlignment().getAsAlign(),
-                             llvm::ConstantInt::get(CGF.IntPtrTy, DstSize));
+    CGF.Builder.CreateMemCpy(
+        Dst.getPointer(), Dst.getAlignment().getAsAlign(), Tmp.getPointer(),
+        Tmp.getAlignment().getAsAlign(),
+        llvm::ConstantInt::get(CGF.IntPtrTy, DstSize.getFixedSize()));
   }
 }
 
@@ -1791,9 +1802,6 @@ void CodeGenModule::getDefaultFunctionAttributes(StringRef Name,
                            llvm::utostr(CodeGenOpts.SSPBufferSize));
     FuncAttrs.addAttribute("no-signed-zeros-fp-math",
                            llvm::toStringRef(LangOpts.NoSignedZero));
-    FuncAttrs.addAttribute(
-        "correctly-rounded-divide-sqrt-fp-math",
-        llvm::toStringRef(CodeGenOpts.CorrectlyRoundedDivSqrt));
 
     // TODO: Reciprocal estimate codegen options should apply to instructions?
     const std::vector<std::string> &Recips = CodeGenOpts.Reciprocals;
@@ -1942,6 +1950,8 @@ void CodeGenModule::ConstructAttributeList(
       FuncAttrs.addAttribute(llvm::Attribute::NoReturn);
     if (TargetDecl->hasAttr<ColdAttr>())
       FuncAttrs.addAttribute(llvm::Attribute::Cold);
+    if (TargetDecl->hasAttr<HotAttr>())
+      FuncAttrs.addAttribute(llvm::Attribute::Hot);
     if (TargetDecl->hasAttr<NoDuplicateAttr>())
       FuncAttrs.addAttribute(llvm::Attribute::NoDuplicate);
     if (TargetDecl->hasAttr<ConvergentAttr>())
@@ -1966,6 +1976,8 @@ void CodeGenModule::ConstructAttributeList(
           FuncAttrs.addAttribute(llvm::Attribute::NoReturn);
         NBA = Fn->getAttr<NoBuiltinAttr>();
       }
+      if (!AttrOnCallSite && TargetDecl->hasAttr<NoMergeAttr>())
+        FuncAttrs.addAttribute(llvm::Attribute::NoMerge);
     }
 
     // 'const', 'pure' and 'noalias' attributed functions are also nounwind.
@@ -1988,6 +2000,8 @@ void CodeGenModule::ConstructAttributeList(
       FuncAttrs.addAttribute("no_caller_saved_registers");
     if (TargetDecl->hasAttr<AnyX86NoCfCheckAttr>())
       FuncAttrs.addAttribute(llvm::Attribute::NoCfCheck);
+    if (TargetDecl->hasAttr<LeafAttr>())
+      FuncAttrs.addAttribute(llvm::Attribute::NoCallback);
 
     HasOptnone = TargetDecl->hasAttr<OptimizeNoneAttr>();
     if (auto *AllocSize = TargetDecl->getAttr<AllocSizeAttr>()) {
@@ -2012,6 +2026,18 @@ void CodeGenModule::ConstructAttributeList(
                                llvm::toStringRef(CodeGenOpts.UniformWGSize));
       }
     }
+
+    std::string AssumptionValueStr;
+    for (AssumptionAttr *AssumptionA :
+         TargetDecl->specific_attrs<AssumptionAttr>()) {
+      std::string AS = AssumptionA->getAssumption().str();
+      if (!AS.empty() && !AssumptionValueStr.empty())
+        AssumptionValueStr += ",";
+      AssumptionValueStr += AS;
+    }
+
+    if (!AssumptionValueStr.empty())
+      FuncAttrs.addAttribute(llvm::AssumptionAttrKey, AssumptionValueStr);
   }
 
   // Attach "no-builtins" attributes to:
@@ -2139,7 +2165,7 @@ void CodeGenModule::ConstructAttributeList(
   // Attach attributes to sret.
   if (IRFunctionArgs.hasSRetArg()) {
     llvm::AttrBuilder SRETAttrs;
-    SRETAttrs.addAttribute(llvm::Attribute::StructRet);
+    SRETAttrs.addStructRetAttr(getTypes().ConvertTypeForMem(RetTy));
     hasUsedSRet = true;
     if (RetAI.getInReg())
       SRETAttrs.addAttribute(llvm::Attribute::InReg);
@@ -2154,6 +2180,36 @@ void CodeGenModule::ConstructAttributeList(
     Attrs.addAttribute(llvm::Attribute::InAlloca);
     ArgAttrs[IRFunctionArgs.getInallocaArgNo()] =
         llvm::AttributeSet::get(getLLVMContext(), Attrs);
+  }
+
+  // Apply `nonnull` and `dereferencable(N)` to the `this` argument.
+  if (FI.isInstanceMethod() && !IRFunctionArgs.hasInallocaArg() &&
+      !FI.arg_begin()->type->isVoidPointerType()) {
+    auto IRArgs = IRFunctionArgs.getIRArgs(0);
+
+    assert(IRArgs.second == 1 && "Expected only a single `this` pointer.");
+
+    llvm::AttrBuilder Attrs;
+
+    if (!CodeGenOpts.NullPointerIsValid &&
+        getContext().getTargetAddressSpace(FI.arg_begin()->type) == 0) {
+      Attrs.addAttribute(llvm::Attribute::NonNull);
+      Attrs.addDereferenceableAttr(
+          getMinimumObjectSize(
+              FI.arg_begin()->type.castAs<PointerType>()->getPointeeType())
+              .getQuantity());
+    } else {
+      // FIXME dereferenceable should be correct here, regardless of
+      // NullPointerIsValid. However, dereferenceable currently does not always
+      // respect NullPointerIsValid and may imply nonnull and break the program.
+      // See https://reviews.llvm.org/D66618 for discussions.
+      Attrs.addDereferenceableOrNullAttr(
+          getMinimumObjectSize(
+              FI.arg_begin()->type.castAs<PointerType>()->getPointeeType())
+              .getQuantity());
+    }
+
+    ArgAttrs[IRArgs.first] = llvm::AttributeSet::get(getLLVMContext(), Attrs);
   }
 
   unsigned ArgNo = 0;
@@ -2197,6 +2253,13 @@ void CodeGenModule::ConstructAttributeList(
 
       if (AI.getIndirectByVal())
         Attrs.addByValAttr(getTypes().ConvertTypeForMem(ParamType));
+
+      auto *Decl = ParamType->getAsRecordDecl();
+      if (CodeGenOpts.PassByValueIsNoAlias && Decl &&
+          Decl->getArgPassingRestrictions() == RecordDecl::APK_CanPassInRegs)
+        // When calling the function, the pointer passed in will be the only
+        // reference to the underlying object. Mark it accordingly.
+        Attrs.addAttribute(llvm::Attribute::NoAlias);
 
       // TODO: We could add the byref attribute if not byval, but it would
       // require updating many testcases.
@@ -2267,7 +2330,7 @@ void CodeGenModule::ConstructAttributeList(
       // Add 'sret' if we haven't already used it for something, but
       // only if the result is void.
       if (!hasUsedSRet && RetTy->isVoidType()) {
-        Attrs.addAttribute(llvm::Attribute::StructRet);
+        Attrs.addStructRetAttr(getTypes().ConvertTypeForMem(ParamType));
         hasUsedSRet = true;
       }
 
@@ -2278,8 +2341,8 @@ void CodeGenModule::ConstructAttributeList(
       auto PTy = ParamType->getPointeeType();
       if (!PTy->isIncompleteType() && PTy->isConstantSizeType()) {
         auto info = getContext().getTypeInfoInChars(PTy);
-        Attrs.addDereferenceableAttr(info.first.getQuantity());
-        Attrs.addAlignmentAttr(info.second.getAsAlign());
+        Attrs.addDereferenceableAttr(info.Width.getQuantity());
+        Attrs.addAlignmentAttr(info.Align.getAsAlign());
       }
       break;
     }
@@ -3127,7 +3190,7 @@ llvm::Value *CodeGenFunction::EmitCMSEClearRecord(llvm::Value *Src,
   const llvm::DataLayout &DataLayout = CGM.getDataLayout();
   int Size = DataLayout.getTypeStoreSize(ITy);
   SmallVector<uint64_t, 4> Bits(Size);
-  setUsedBits(CGM, QTy->getAs<RecordType>(), 0, Bits);
+  setUsedBits(CGM, QTy->castAs<RecordType>(), 0, Bits);
 
   int CharWidth = CGM.getContext().getCharWidth();
   uint64_t Mask =
@@ -3144,7 +3207,7 @@ llvm::Value *CodeGenFunction::EmitCMSEClearRecord(llvm::Value *Src,
   const llvm::DataLayout &DataLayout = CGM.getDataLayout();
   int Size = DataLayout.getTypeStoreSize(ATy);
   SmallVector<uint64_t, 16> Bits(Size);
-  setUsedBits(CGM, QTy->getAs<RecordType>(), 0, Bits);
+  setUsedBits(CGM, QTy->castAs<RecordType>(), 0, Bits);
 
   // Clear each element of the LLVM array.
   int CharWidth = CGM.getContext().getCharWidth();
@@ -3776,10 +3839,7 @@ void CodeGenFunction::EmitNonNullArgCheck(RValue RV, QualType ArgType,
   }
 
   SanitizerScope SanScope(this);
-  assert(RV.isScalar());
-  llvm::Value *V = RV.getScalarVal();
-  llvm::Value *Cond =
-      Builder.CreateICmpNE(V, llvm::Constant::getNullValue(V->getType()));
+  llvm::Value *Cond = EmitNonNullRValueCheck(RV, ArgType);
   llvm::Constant *StaticData[] = {
       EmitCheckSourceLocation(ArgLoc), EmitCheckSourceLocation(AttrLoc),
       llvm::ConstantInt::get(Int32Ty, ArgNo + 1),
@@ -3787,13 +3847,107 @@ void CodeGenFunction::EmitNonNullArgCheck(RValue RV, QualType ArgType,
   EmitCheck(std::make_pair(Cond, CheckKind), Handler, StaticData, None);
 }
 
+// Check if the call is going to use the inalloca convention. This needs to
+// agree with CGFunctionInfo::usesInAlloca. The CGFunctionInfo is arranged
+// later, so we can't check it directly.
+static bool hasInAllocaArgs(CodeGenModule &CGM, CallingConv ExplicitCC,
+                            ArrayRef<QualType> ArgTypes) {
+  // The Swift calling convention doesn't go through the target-specific
+  // argument classification, so it never uses inalloca.
+  // TODO: Consider limiting inalloca use to only calling conventions supported
+  // by MSVC.
+  if (ExplicitCC == CC_Swift)
+    return false;
+  if (!CGM.getTarget().getCXXABI().isMicrosoft())
+    return false;
+  return llvm::any_of(ArgTypes, [&](QualType Ty) {
+    return isInAllocaArgument(CGM.getCXXABI(), Ty);
+  });
+}
+
+#ifndef NDEBUG
+// Determine whether the given argument is an Objective-C method
+// that may have type parameters in its signature.
+static bool isObjCMethodWithTypeParams(const ObjCMethodDecl *method) {
+  const DeclContext *dc = method->getDeclContext();
+  if (const ObjCInterfaceDecl *classDecl = dyn_cast<ObjCInterfaceDecl>(dc)) {
+    return classDecl->getTypeParamListAsWritten();
+  }
+
+  if (const ObjCCategoryDecl *catDecl = dyn_cast<ObjCCategoryDecl>(dc)) {
+    return catDecl->getTypeParamList();
+  }
+
+  return false;
+}
+#endif
+
+/// EmitCallArgs - Emit call arguments for a function.
 void CodeGenFunction::EmitCallArgs(
-    CallArgList &Args, ArrayRef<QualType> ArgTypes,
+    CallArgList &Args, PrototypeWrapper Prototype,
     llvm::iterator_range<CallExpr::const_arg_iterator> ArgRange,
     AbstractCallee AC, unsigned ParamsToSkip, EvaluationOrder Order) {
+  SmallVector<QualType, 16> ArgTypes;
+
+  assert((ParamsToSkip == 0 || Prototype.P) &&
+         "Can't skip parameters if type info is not provided");
+
+  // This variable only captures *explicitly* written conventions, not those
+  // applied by default via command line flags or target defaults, such as
+  // thiscall, aapcs, stdcall via -mrtd, etc. Computing that correctly would
+  // require knowing if this is a C++ instance method or being able to see
+  // unprototyped FunctionTypes.
+  CallingConv ExplicitCC = CC_C;
+
+  // First, if a prototype was provided, use those argument types.
+  bool IsVariadic = false;
+  if (Prototype.P) {
+    const auto *MD = Prototype.P.dyn_cast<const ObjCMethodDecl *>();
+    if (MD) {
+      IsVariadic = MD->isVariadic();
+      ExplicitCC = getCallingConventionForDecl(
+          MD, CGM.getTarget().getTriple().isOSWindows());
+      ArgTypes.assign(MD->param_type_begin() + ParamsToSkip,
+                      MD->param_type_end());
+    } else {
+      const auto *FPT = Prototype.P.get<const FunctionProtoType *>();
+      IsVariadic = FPT->isVariadic();
+      ExplicitCC = FPT->getExtInfo().getCC();
+      ArgTypes.assign(FPT->param_type_begin() + ParamsToSkip,
+                      FPT->param_type_end());
+    }
+
+#ifndef NDEBUG
+    // Check that the prototyped types match the argument expression types.
+    bool isGenericMethod = MD && isObjCMethodWithTypeParams(MD);
+    CallExpr::const_arg_iterator Arg = ArgRange.begin();
+    for (QualType Ty : ArgTypes) {
+      assert(Arg != ArgRange.end() && "Running over edge of argument list!");
+      assert(
+          (isGenericMethod || Ty->isVariablyModifiedType() ||
+           Ty.getNonReferenceType()->isObjCRetainableType() ||
+           getContext()
+                   .getCanonicalType(Ty.getNonReferenceType())
+                   .getTypePtr() ==
+               getContext().getCanonicalType((*Arg)->getType()).getTypePtr()) &&
+          "type mismatch in call argument!");
+      ++Arg;
+    }
+
+    // Either we've emitted all the call args, or we have a call to variadic
+    // function.
+    assert((Arg == ArgRange.end() || IsVariadic) &&
+           "Extra arguments in non-variadic function!");
+#endif
+  }
+
+  // If we still have any arguments, emit them using the type of the argument.
+  for (auto *A : llvm::make_range(std::next(ArgRange.begin(), ArgTypes.size()),
+                                  ArgRange.end()))
+    ArgTypes.push_back(IsVariadic ? getVarArgType(A) : A->getType());
   assert((int)ArgTypes.size() == (ArgRange.end() - ArgRange.begin()));
 
-  // We *have* to evaluate arguments from right to left in the MS C++ ABI,
+  // We must evaluate arguments from right to left in the MS C++ ABI,
   // because arguments are destroyed left to right in the callee. As a special
   // case, there are certain language constructs that require left-to-right
   // evaluation, and in those cases we consider the evaluation order requirement
@@ -3826,15 +3980,10 @@ void CodeGenFunction::EmitCallArgs(
   };
 
   // Insert a stack save if we're going to need any inalloca args.
-  bool HasInAllocaArgs = false;
-  if (CGM.getTarget().getCXXABI().isMicrosoft()) {
-    for (ArrayRef<QualType>::iterator I = ArgTypes.begin(), E = ArgTypes.end();
-         I != E && !HasInAllocaArgs; ++I)
-      HasInAllocaArgs = isInAllocaArgument(CGM.getCXXABI(), *I);
-    if (HasInAllocaArgs) {
-      assert(getTarget().getTriple().getArch() == llvm::Triple::x86);
-      Args.allocateArgumentMemory(*this);
-    }
+  if (hasInAllocaArgs(CGM, ExplicitCC, ArgTypes)) {
+    assert(getTarget().getTriple().getArch() == llvm::Triple::x86 &&
+           "inalloca only supported on x86");
+    Args.allocateArgumentMemory(*this);
   }
 
   // Evaluate each argument in the appropriate order.
@@ -4861,17 +5010,19 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
                              /*AttrOnCallSite=*/true);
 
   if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(CurFuncDecl))
-    if (FD->usesFPIntrin())
+    if (FD->hasAttr<StrictFPAttr>())
       // All calls within a strictfp function are marked strictfp
       Attrs =
         Attrs.addAttribute(getLLVMContext(), llvm::AttributeList::FunctionIndex,
                            llvm::Attribute::StrictFP);
 
-  // Add call-site nomerge attribute if exists.
-  if (InNoMergeAttributedStmt)
-    Attrs =
-      Attrs.addAttribute(getLLVMContext(), llvm::AttributeList::FunctionIndex,
-                         llvm::Attribute::NoMerge);
+  // Add nomerge attribute to the call-site if the callee function doesn't have
+  // the attribute.
+  if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(TargetDecl))
+    if (!FD->hasAttr<NoMergeAttr>() && InNoMergeAttributedStmt)
+      Attrs = Attrs.addAttribute(getLLVMContext(),
+                                 llvm::AttributeList::FunctionIndex,
+                                 llvm::Attribute::NoMerge);
 
   // Apply some call-site-specific attributes.
   // TODO: work this into building the attribute set.
@@ -4926,7 +5077,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       getBundlesForFunclet(CalleePtr);
 
   if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(CurFuncDecl))
-    if (FD->usesFPIntrin())
+    if (FD->hasAttr<StrictFPAttr>())
       // All calls within a strictfp function are marked strictfp
       Attrs =
         Attrs.addAttribute(getLLVMContext(), llvm::AttributeList::FunctionIndex,

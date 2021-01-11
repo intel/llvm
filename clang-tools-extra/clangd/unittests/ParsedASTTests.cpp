@@ -24,6 +24,7 @@
 #include "SourceCode.h"
 #include "TestFS.h"
 #include "TestTU.h"
+#include "TidyProvider.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
@@ -49,6 +50,17 @@ using ::testing::ElementsAreArray;
 MATCHER_P(DeclNamed, Name, "") {
   if (NamedDecl *ND = dyn_cast<NamedDecl>(arg))
     if (ND->getName() == Name)
+      return true;
+  if (auto *Stream = result_listener->stream()) {
+    llvm::raw_os_ostream OS(*Stream);
+    arg->dump(OS);
+  }
+  return false;
+}
+
+MATCHER_P(DeclKind, Kind, "") {
+  if (NamedDecl *ND = dyn_cast<NamedDecl>(arg))
+    if (ND->getDeclKindName() == llvm::StringRef(Kind))
       return true;
   if (auto *Stream = result_listener->stream()) {
     llvm::raw_os_ostream OS(*Stream);
@@ -99,9 +111,15 @@ TEST(ParsedASTTest, TopLevelDecls) {
     int header1();
     int header2;
   )";
-  TU.Code = "int main();";
+  TU.Code = R"cpp(
+    int main();
+    template <typename> bool X = true;
+  )cpp";
   auto AST = TU.build();
-  EXPECT_THAT(AST.getLocalTopLevelDecls(), ElementsAre(DeclNamed("main")));
+  EXPECT_THAT(AST.getLocalTopLevelDecls(),
+              testing::UnorderedElementsAreArray(
+                  {AllOf(DeclNamed("main"), DeclKind("Function")),
+                   AllOf(DeclNamed("X"), DeclKind("VarTemplate"))}));
 }
 
 TEST(ParsedASTTest, DoesNotGetIncludedTopDecls) {
@@ -233,7 +251,7 @@ TEST(ParsedASTTest, NoCrashOnTokensWithTidyCheck) {
   TestTU TU;
   // this check runs the preprocessor, we need to make sure it does not break
   // our recording logic.
-  TU.ClangTidyChecks = "modernize-use-trailing-return-type";
+  TU.ClangTidyProvider = addTidyChecks("modernize-use-trailing-return-type");
   TU.Code = "inline int foo() {}";
 
   auto AST = TU.build();
@@ -389,7 +407,7 @@ TEST(ParsedASTTest, ReplayPreambleForTidyCheckers) {
       "replay-preamble-module", "");
   TestTU TU;
   // This check records inclusion directives replayed by clangd.
-  TU.ClangTidyChecks = "replay-preamble-check";
+  TU.ClangTidyProvider = addTidyChecks("replay-preamble-check");
   llvm::Annotations Test(R"cpp(
     $hash^#$include[[import]] $filebegin^"$filerange[[bar.h]]"
     $hash^#$include[[include_next]] $filebegin^"$filerange[[baz.h]]"

@@ -14,7 +14,7 @@
     br i1 %cmp11, label %for.cond.cleanup, label %vector.ph
 
   vector.ph:                                        ; preds = %entry
-    call void @llvm.set.loop.iterations.i32(i32 %5)
+    %start = call i32 @llvm.start.loop.iterations.i32(i32 %5)
     %6 = shl i32 %4, 3
     %7 = sub i32 %N, %6
     br label %vector.body
@@ -23,7 +23,7 @@
     %lsr.iv20 = phi i8* [ %scevgep21, %vector.body ], [ %c, %vector.ph ]
     %lsr.iv = phi i8* [ %scevgep, %vector.body ], [ %b, %vector.ph ]
     %vec.phi = phi <8 x i16> [ <i16 32767, i16 0, i16 0, i16 0, i16 0, i16 0, i16 0, i16 0>, %vector.ph ], [ %15, %vector.body ]
-    %8 = phi i32 [ %5, %vector.ph ], [ %16, %vector.body ]
+    %8 = phi i32 [ %start, %vector.ph ], [ %16, %vector.body ]
     %9 = phi i32 [ %N, %vector.ph ], [ %11, %vector.body ]
     %lsr.iv2022 = bitcast i8* %lsr.iv20 to <8 x i8>*
     %lsr.iv19 = bitcast i8* %lsr.iv to <8 x i8>*
@@ -46,7 +46,7 @@
     %.lcssa = phi <8 x i16> [ %15, %vector.body ]
     %18 = call <8 x i1> @llvm.arm.mve.vctp16(i32 %7)
     %19 = select <8 x i1> %18, <8 x i16> %.lcssa, <8 x i16> %vec.phi.lcssa
-    %20 = call i16 @llvm.experimental.vector.reduce.add.v8i16(<8 x i16> %19)
+    %20 = call i16 @llvm.vector.reduce.add.v8i16(<8 x i16> %19)
     br label %for.cond.cleanup
 
   for.cond.cleanup:                                 ; preds = %middle.block, %entry
@@ -54,8 +54,8 @@
     ret i16 %a.0.lcssa
   }
   declare <8 x i8> @llvm.masked.load.v8i8.p0v8i8(<8 x i8>*, i32 immarg, <8 x i1>, <8 x i8>)
-  declare i16 @llvm.experimental.vector.reduce.add.v8i16(<8 x i16>)
-  declare void @llvm.set.loop.iterations.i32(i32)
+  declare i16 @llvm.vector.reduce.add.v8i16(<8 x i16>)
+  declare i32 @llvm.start.loop.iterations.i32(i32)
   declare i32 @llvm.loop.decrement.reg.i32.i32.i32(i32, i32)
   declare <8 x i1> @llvm.arm.mve.vctp16(i32)
 
@@ -113,12 +113,15 @@ body:             |
   ; CHECK-LABEL: name: wrong_liveout_shift
   ; CHECK: bb.0.entry:
   ; CHECK:   successors: %bb.1(0x80000000)
-  ; CHECK:   liveins: $lr, $r0, $r1, $r2
+  ; CHECK:   liveins: $lr, $r0, $r1, $r2, $r7
   ; CHECK:   tCMPi8 renamable $r2, 0, 14 /* CC::al */, $noreg, implicit-def $cpsr
   ; CHECK:   t2IT 0, 2, implicit-def $itstate
   ; CHECK:   renamable $r0 = t2MOVi16 32767, 0 /* CC::eq */, $cpsr, implicit killed $r0, implicit $itstate
   ; CHECK:   renamable $r0 = tSXTH killed renamable $r0, 0 /* CC::eq */, $cpsr, implicit killed $r0, implicit $itstate
   ; CHECK:   tBX_RET 0 /* CC::eq */, killed $cpsr, implicit $r0, implicit killed $itstate
+  ; CHECK: bb.1.vector.ph:
+  ; CHECK:   successors: %bb.2(0x80000000)
+  ; CHECK:   liveins: $lr, $r0, $r1, $r2
   ; CHECK:   frame-setup tPUSH 14 /* CC::al */, $noreg, killed $lr, implicit-def $sp, implicit $sp
   ; CHECK:   frame-setup CFI_INSTRUCTION def_cfa_offset 8
   ; CHECK:   frame-setup CFI_INSTRUCTION offset $lr, -4
@@ -135,8 +138,8 @@ body:             |
   ; CHECK:   renamable $q0 = MVE_VLDRWU32 killed renamable $r3, 0, 0, $noreg :: (load 16 from constant-pool)
   ; CHECK:   renamable $r3 = t2SUBrs renamable $r2, killed renamable $r12, 26, 14 /* CC::al */, $noreg, $noreg
   ; CHECK:   $lr = t2DLS killed renamable $lr
-  ; CHECK: bb.1.vector.body:
-  ; CHECK:   successors: %bb.1(0x7c000000), %bb.2(0x04000000)
+  ; CHECK: bb.2.vector.body:
+  ; CHECK:   successors: %bb.2(0x7c000000), %bb.3(0x04000000)
   ; CHECK:   liveins: $lr, $q0, $r0, $r1, $r2, $r3
   ; CHECK:   renamable $vpr = MVE_VCTP16 renamable $r2, 0, $noreg
   ; CHECK:   $q1 = MVE_VORR killed $q0, killed $q0, 0, $noreg, undef $q1
@@ -146,8 +149,8 @@ body:             |
   ; CHECK:   renamable $r2, dead $cpsr = tSUBi8 killed renamable $r2, 8, 14 /* CC::al */, $noreg
   ; CHECK:   renamable $q0 = nuw MVE_VMULi16 killed renamable $q2, killed renamable $q0, 0, $noreg, undef renamable $q0
   ; CHECK:   renamable $q0 = MVE_VSUBi16 renamable $q1, killed renamable $q0, 0, $noreg, undef renamable $q0
-  ; CHECK:   $lr = t2LEUpdate killed renamable $lr, %bb.1
-  ; CHECK: bb.2.middle.block:
+  ; CHECK:   $lr = t2LEUpdate killed renamable $lr, %bb.2
+  ; CHECK: bb.3.middle.block:
   ; CHECK:   liveins: $q0, $q1, $r3
   ; CHECK:   renamable $vpr = MVE_VCTP16 killed renamable $r3, 0, $noreg
   ; CHECK:   renamable $q0 = MVE_VPSEL killed renamable $q0, killed renamable $q1, 0, killed renamable $vpr
@@ -155,7 +158,7 @@ body:             |
   ; CHECK:   $sp = t2LDMIA_UPD $sp, 14 /* CC::al */, $noreg, def $r7, def $lr
   ; CHECK:   renamable $r0 = tSXTH killed renamable $r0, 14 /* CC::al */, $noreg
   ; CHECK:   tBX_RET 14 /* CC::al */, $noreg, implicit killed $r0
-  ; CHECK: bb.3 (align 16):
+  ; CHECK: bb.4 (align 16):
   ; CHECK:   CONSTPOOL_ENTRY 0, %const.0, 16
   bb.0.entry:
     successors: %bb.1(0x80000000)
@@ -166,6 +169,11 @@ body:             |
     renamable $r0 = t2MOVi16 32767, 0, $cpsr, implicit killed $r0, implicit $itstate
     renamable $r0 = tSXTH killed renamable $r0, 0, $cpsr, implicit killed $r0, implicit $itstate
     tBX_RET 0, killed $cpsr, implicit $r0, implicit killed $itstate
+
+  bb.1.vector.ph:
+    successors: %bb.2(0x80000000)
+    liveins: $r0, $r1, $r2, $lr
+
     frame-setup tPUSH 14, $noreg, killed $lr, implicit-def $sp, implicit $sp
     frame-setup CFI_INSTRUCTION def_cfa_offset 8
     frame-setup CFI_INSTRUCTION offset $lr, -4
@@ -181,10 +189,10 @@ body:             |
     renamable $r12 = t2LSRri killed renamable $r12, 2, 14, $noreg, $noreg
     renamable $q0 = MVE_VLDRWU32 killed renamable $r3, 0, 0, $noreg :: (load 16 from constant-pool)
     renamable $r3 = t2SUBrs renamable $r2, killed renamable $r12, 26, 14, $noreg, $noreg
-    t2DoLoopStart renamable $lr
+    $lr = t2DoLoopStart renamable $lr
 
-  bb.1.vector.body:
-    successors: %bb.1(0x7c000000), %bb.2(0x04000000)
+  bb.2.vector.body:
+    successors: %bb.2(0x7c000000), %bb.3(0x04000000)
     liveins: $lr, $q0, $r0, $r1, $r2, $r3
 
     renamable $vpr = MVE_VCTP16 renamable $r2, 0, $noreg
@@ -196,10 +204,10 @@ body:             |
     renamable $q0 = nuw MVE_VMULi16 killed renamable $q2, killed renamable $q0, 0, $noreg, undef renamable $q0
     renamable $lr = t2LoopDec killed renamable $lr, 1
     renamable $q0 = MVE_VSUBi16 renamable $q1, killed renamable $q0, 0, $noreg, undef renamable $q0
-    t2LoopEnd renamable $lr, %bb.1, implicit-def dead $cpsr
-    tB %bb.2, 14, $noreg
+    t2LoopEnd renamable $lr, %bb.2, implicit-def dead $cpsr
+    tB %bb.3, 14, $noreg
 
-  bb.2.middle.block:
+  bb.3.middle.block:
     liveins: $q0, $q1, $r3
 
     renamable $vpr = MVE_VCTP16 killed renamable $r3, 0, $noreg
@@ -209,7 +217,7 @@ body:             |
     renamable $r0 = tSXTH killed renamable $r0, 14, $noreg
     tBX_RET 14, $noreg, implicit killed $r0
 
-  bb.3 (align 16):
+  bb.4 (align 16):
     CONSTPOOL_ENTRY 0, %const.0, 16
 
 ...

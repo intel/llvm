@@ -9,6 +9,7 @@
 #ifndef MLIR_DIALECT_LINALG_ANALYSIS_DEPENDENCEANALYSIS_H_
 #define MLIR_DIALECT_LINALG_ANALYSIS_DEPENDENCEANALYSIS_H_
 
+#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpDefinition.h"
 
@@ -43,9 +44,10 @@ private:
 /// views as SSA values.
 class LinalgDependenceGraph {
 public:
+  enum DependenceType { RAR = 0, RAW, WAR, WAW, NumTypes };
   struct LinalgOpView {
     Operation *op;
-    Value view;
+    unsigned operandIndex;
   };
   struct LinalgDependenceGraphElem {
     // dependentOpView may be either:
@@ -55,19 +57,20 @@ public:
     // View in the op that is used to index in the graph:
     //   1. src in the case of dependencesFromDstGraphs.
     //   2. dst in the case of dependencesIntoGraphs.
-    Value indexingView;
+    LinalgOpView indexingOpView;
+    // Type of the dependence.
+    DependenceType dependenceType;
   };
   using LinalgDependences = SmallVector<LinalgDependenceGraphElem, 8>;
   using DependenceGraph = DenseMap<Operation *, LinalgDependences>;
   using dependence_iterator = LinalgDependences::const_iterator;
   using dependence_range = iterator_range<dependence_iterator>;
 
-  enum DependenceType { RAR = 0, RAW, WAR, WAW, NumTypes };
   static StringRef getDependenceTypeStr(DependenceType depType);
 
   // Builds a linalg dependence graph for the ops of type LinalgOp under `f`.
   static LinalgDependenceGraph buildDependenceGraph(Aliases &aliases, FuncOp f);
-  LinalgDependenceGraph(Aliases &aliases, ArrayRef<Operation *> ops);
+  LinalgDependenceGraph(Aliases &aliases, ArrayRef<LinalgOp> ops);
 
   /// Returns the X such that op -> X is a dependence of type dt.
   dependence_range getDependencesFrom(Operation *src, DependenceType dt) const;
@@ -98,6 +101,48 @@ public:
                                                  LinalgOp dstLinalgOp,
                                                  Value view) const;
 
+  /// Returns true if the two operations have the specified dependence from
+  /// `srcLinalgOp` to `dstLinalgOp`.
+  bool hasDependenceFrom(LinalgOp srcLinalgOp, LinalgOp dstLinalgOp,
+                         ArrayRef<DependenceType> depTypes = {
+                             DependenceType::RAW, DependenceType::WAW}) const;
+
+  /// Returns true if the `linalgOp` has dependences into it.
+  bool hasDependentOperationsInto(LinalgOp linalgOp,
+                                  ArrayRef<DependenceType> depTypes = {
+                                      DependenceType::RAW,
+                                      DependenceType::WAW}) const;
+
+  /// Returns true if the `linalgOp` has dependences from it.
+  bool hasDependentOperationsFrom(LinalgOp linalgOp,
+                                  ArrayRef<DependenceType> depTypes = {
+                                      DependenceType::RAW,
+                                      DependenceType::WAW}) const;
+
+  /// Returns true if the `linalgOp` has dependences into or from it.
+  bool hasDependentOperations(LinalgOp linalgOp,
+                              ArrayRef<DependenceType> depTypes = {
+                                  DependenceType::RAW,
+                                  DependenceType::WAW}) const;
+
+  /// Returns all operations that have a dependence into `linalgOp` of types
+  /// listed in `depTypes`.
+  SmallVector<LinalgDependenceGraphElem, 2> getDependentOperationsInto(
+      LinalgOp linalgOp, ArrayRef<DependenceType> depTypes = {
+                             DependenceType::RAW, DependenceType::WAW}) const;
+
+  /// Returns all operations that have a dependence from `linalgOp` of types
+  /// listed in `depTypes`.
+  SmallVector<LinalgDependenceGraphElem, 2> getDependentOperationsFrom(
+      LinalgOp linalgOp, ArrayRef<DependenceType> depTypes = {
+                             DependenceType::RAW, DependenceType::WAW}) const;
+
+  /// Returns all dependent operations (into and from) given `operation`.
+  SmallVector<LinalgDependenceGraphElem, 2>
+  getDependentOperations(LinalgOp linalgOp,
+                         ArrayRef<DependenceType> depTypes = {
+                             DependenceType::RAW, DependenceType::WAW}) const;
+
 private:
   // Keep dependences in both directions, this is not just a performance gain
   // but it also reduces usage errors.
@@ -126,7 +171,7 @@ private:
                                         ArrayRef<DependenceType> types) const;
 
   Aliases &aliases;
-  SmallVector<Operation *, 8> linalgOps;
+  SmallVector<LinalgOp, 8> linalgOps;
   DenseMap<Operation *, unsigned> linalgOpPositions;
 };
 } // namespace linalg

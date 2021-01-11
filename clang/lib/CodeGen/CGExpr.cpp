@@ -188,6 +188,7 @@ llvm::Value *CodeGenFunction::EvaluateExprAsBool(const Expr *E) {
 
   QualType BoolTy = getContext().BoolTy;
   SourceLocation Loc = E->getExprLoc();
+  CGFPOptionsRAII FPOptsRAII(*this, E);
   if (!E->getType()->isAnyComplexType())
     return EmitScalarConversion(EmitScalarExpr(E), E->getType(), BoolTy, Loc);
 
@@ -1174,6 +1175,13 @@ Address CodeGenFunction::EmitPointerWithAlignment(const Expr *E,
   return Address(EmitScalarExpr(E), Align);
 }
 
+llvm::Value *CodeGenFunction::EmitNonNullRValueCheck(RValue RV, QualType T) {
+  llvm::Value *V = RV.getScalarVal();
+  if (auto MPT = T->getAs<MemberPointerType>())
+    return CGM.getCXXABI().EmitMemberPointerIsNotNull(*this, V, MPT);
+  return Builder.CreateICmpNE(V, llvm::Constant::getNullValue(V->getType()));
+}
+
 RValue CodeGenFunction::GetUndefRValue(QualType Ty) {
   if (Ty->isVoidType())
     return RValue::get(nullptr);
@@ -1513,6 +1521,29 @@ CodeGenFunction::tryEmitAsConstant(DeclRefExpr *refExpr) {
   if (result.HasSideEffects)
     return ConstantEmission();
 
+  // In CUDA/HIP device compilation, a lambda may capture a reference variable
+  // referencing a global host variable by copy. In this case the lambda should
+  // make a copy of the value of the global host variable. The DRE of the
+  // captured reference variable cannot be emitted as load from the host
+  // global variable as compile time constant, since the host variable is not
+  // accessible on device. The DRE of the captured reference variable has to be
+  // loaded from captures.
+  if (CGM.getLangOpts().CUDAIsDevice && result.Val.isLValue() &&
+      refExpr->refersToEnclosingVariableOrCapture()) {
+    auto *MD = dyn_cast_or_null<CXXMethodDecl>(CurCodeDecl);
+    if (MD && MD->getParent()->isLambda() &&
+        MD->getOverloadedOperator() == OO_Call) {
+      const APValue::LValueBase &base = result.Val.getLValueBase();
+      if (const ValueDecl *D = base.dyn_cast<const ValueDecl *>()) {
+        if (const VarDecl *VD = dyn_cast<const VarDecl>(D)) {
+          if (!VD->hasAttr<CUDADeviceAttr>()) {
+            return ConstantEmission();
+          }
+        }
+      }
+    }
+  }
+
   // Emit as a constant.
   auto C = ConstantEmitter(*this).emitAbstract(refExpr->getLocation(),
                                                result.Val, resultType);
@@ -1684,7 +1715,7 @@ llvm::Value *CodeGenFunction::EmitLoadOfScalar(Address Addr, bool Volatile,
     if (Ty->isVectorType()) {
       const llvm::Type *EltTy = Addr.getElementType();
 
-      const auto *VTy = cast<llvm::VectorType>(EltTy);
+      const auto *VTy = cast<llvm::FixedVectorType>(EltTy);
 
       // Handle vectors of size 3 like size 4 for better performance.
       if (VTy->getNumElements() == 3) {
@@ -1769,8 +1800,9 @@ static Address MaybeConvertMatrixAddress(Address Addr, CodeGenFunction &CGF,
   auto *VectorTy = dyn_cast<llvm::VectorType>(
       cast<llvm::PointerType>(Addr.getPointer()->getType())->getElementType());
   if (VectorTy && !IsVector) {
-    auto *ArrayTy = llvm::ArrayType::get(VectorTy->getElementType(),
-                                         VectorTy->getNumElements());
+    auto *ArrayTy = llvm::ArrayType::get(
+        VectorTy->getElementType(),
+        cast<llvm::FixedVectorType>(VectorTy)->getNumElements());
 
     return Address(CGF.Builder.CreateElementBitCast(Addr, ArrayTy));
   }
@@ -1801,7 +1833,7 @@ void CodeGenFunction::EmitStoreOfScalar(llvm::Value *Value, Address Addr,
       llvm::Type *SrcTy = Value->getType();
       auto *VecTy = dyn_cast<llvm::VectorType>(SrcTy);
       // Handle vec3 special.
-      if (VecTy && VecTy->getNumElements() == 3) {
+      if (VecTy && cast<llvm::FixedVectorType>(VecTy)->getNumElements() == 3) {
         // Our source is a vec3, do a shuffle vector to make it a vec4.
         Value = Builder.CreateShuffleVector(Value, llvm::UndefValue::get(VecTy),
                                             ArrayRef<int>{0, 1, 2, -1},
@@ -1935,22 +1967,27 @@ RValue CodeGenFunction::EmitLoadOfBitfieldLValue(LValue LV,
   llvm::Type *ResLTy = ConvertType(LV.getType());
 
   Address Ptr = LV.getBitFieldAddress();
-  llvm::Value *Val = Builder.CreateLoad(Ptr, LV.isVolatileQualified(), "bf.load");
+  llvm::Value *Val =
+      Builder.CreateLoad(Ptr, LV.isVolatileQualified(), "bf.load");
 
+  bool UseVolatile = LV.isVolatileQualified() &&
+                     Info.VolatileStorageSize != 0 && isAAPCS(CGM.getTarget());
+  const unsigned Offset = UseVolatile ? Info.VolatileOffset : Info.Offset;
+  const unsigned StorageSize =
+      UseVolatile ? Info.VolatileStorageSize : Info.StorageSize;
   if (Info.IsSigned) {
-    assert(static_cast<unsigned>(Info.Offset + Info.Size) <= Info.StorageSize);
-    unsigned HighBits = Info.StorageSize - Info.Offset - Info.Size;
+    assert(static_cast<unsigned>(Offset + Info.Size) <= StorageSize);
+    unsigned HighBits = StorageSize - Offset - Info.Size;
     if (HighBits)
       Val = Builder.CreateShl(Val, HighBits, "bf.shl");
-    if (Info.Offset + HighBits)
-      Val = Builder.CreateAShr(Val, Info.Offset + HighBits, "bf.ashr");
+    if (Offset + HighBits)
+      Val = Builder.CreateAShr(Val, Offset + HighBits, "bf.ashr");
   } else {
-    if (Info.Offset)
-      Val = Builder.CreateLShr(Val, Info.Offset, "bf.lshr");
-    if (static_cast<unsigned>(Info.Offset) + Info.Size < Info.StorageSize)
-      Val = Builder.CreateAnd(Val, llvm::APInt::getLowBitsSet(Info.StorageSize,
-                                                              Info.Size),
-                              "bf.clear");
+    if (Offset)
+      Val = Builder.CreateLShr(Val, Offset, "bf.lshr");
+    if (static_cast<unsigned>(Offset) + Info.Size < StorageSize)
+      Val = Builder.CreateAnd(
+          Val, llvm::APInt::getLowBitsSet(StorageSize, Info.Size), "bf.clear");
   }
   Val = Builder.CreateIntCast(Val, ResLTy, Info.IsSigned, "bf.cast");
   EmitScalarRangeCheck(Val, LV.getType(), Loc);
@@ -2152,39 +2189,42 @@ void CodeGenFunction::EmitStoreThroughBitfieldLValue(RValue Src, LValue Dst,
                                  /*isSigned=*/false);
   llvm::Value *MaskedVal = SrcVal;
 
+  const bool UseVolatile =
+      CGM.getCodeGenOpts().AAPCSBitfieldWidth && Dst.isVolatileQualified() &&
+      Info.VolatileStorageSize != 0 && isAAPCS(CGM.getTarget());
+  const unsigned StorageSize =
+      UseVolatile ? Info.VolatileStorageSize : Info.StorageSize;
+  const unsigned Offset = UseVolatile ? Info.VolatileOffset : Info.Offset;
   // See if there are other bits in the bitfield's storage we'll need to load
   // and mask together with source before storing.
-  if (Info.StorageSize != Info.Size) {
-    assert(Info.StorageSize > Info.Size && "Invalid bitfield size.");
+  if (StorageSize != Info.Size) {
+    assert(StorageSize > Info.Size && "Invalid bitfield size.");
     llvm::Value *Val =
-      Builder.CreateLoad(Ptr, Dst.isVolatileQualified(), "bf.load");
+        Builder.CreateLoad(Ptr, Dst.isVolatileQualified(), "bf.load");
 
     // Mask the source value as needed.
     if (!hasBooleanRepresentation(Dst.getType()))
-      SrcVal = Builder.CreateAnd(SrcVal,
-                                 llvm::APInt::getLowBitsSet(Info.StorageSize,
-                                                            Info.Size),
-                                 "bf.value");
+      SrcVal = Builder.CreateAnd(
+          SrcVal, llvm::APInt::getLowBitsSet(StorageSize, Info.Size),
+          "bf.value");
     MaskedVal = SrcVal;
-    if (Info.Offset)
-      SrcVal = Builder.CreateShl(SrcVal, Info.Offset, "bf.shl");
+    if (Offset)
+      SrcVal = Builder.CreateShl(SrcVal, Offset, "bf.shl");
 
     // Mask out the original value.
-    Val = Builder.CreateAnd(Val,
-                            ~llvm::APInt::getBitsSet(Info.StorageSize,
-                                                     Info.Offset,
-                                                     Info.Offset + Info.Size),
-                            "bf.clear");
+    Val = Builder.CreateAnd(
+        Val, ~llvm::APInt::getBitsSet(StorageSize, Offset, Offset + Info.Size),
+        "bf.clear");
 
     // Or together the unchanged values and the source value.
     SrcVal = Builder.CreateOr(Val, SrcVal, "bf.set");
   } else {
-    assert(Info.Offset == 0);
+    assert(Offset == 0);
     // According to the AACPS:
     // When a volatile bit-field is written, and its container does not overlap
-    // with any non-bit-field member, its container must be read exactly once and
-    // written exactly once using the access width appropriate to the type of the
-    // container. The two accesses are not atomic.
+    // with any non-bit-field member, its container must be read exactly once
+    // and written exactly once using the access width appropriate to the type
+    // of the container. The two accesses are not atomic.
     if (Dst.isVolatileQualified() && isAAPCS(CGM.getTarget()) &&
         CGM.getCodeGenOpts().ForceAAPCSBitfieldLoad)
       Builder.CreateLoad(Ptr, true, "bf.load");
@@ -2199,8 +2239,8 @@ void CodeGenFunction::EmitStoreThroughBitfieldLValue(RValue Src, LValue Dst,
 
     // Sign extend the value if needed.
     if (Info.IsSigned) {
-      assert(Info.Size <= Info.StorageSize);
-      unsigned HighBits = Info.StorageSize - Info.Size;
+      assert(Info.Size <= StorageSize);
+      unsigned HighBits = StorageSize - Info.Size;
       if (HighBits) {
         ResultVal = Builder.CreateShl(ResultVal, HighBits, "bf.result.shl");
         ResultVal = Builder.CreateAShr(ResultVal, HighBits, "bf.result.ashr");
@@ -2226,7 +2266,7 @@ void CodeGenFunction::EmitStoreThroughExtVectorComponentLValue(RValue Src,
   if (const VectorType *VTy = Dst.getType()->getAs<VectorType>()) {
     unsigned NumSrcElts = VTy->getNumElements();
     unsigned NumDstElts =
-        cast<llvm::VectorType>(Vec->getType())->getNumElements();
+        cast<llvm::FixedVectorType>(Vec->getType())->getNumElements();
     if (NumDstElts == NumSrcElts) {
       // Use shuffle vector is the src and destination are the same number of
       // elements and restore the vector mask since it is on the side it will be
@@ -2820,6 +2860,10 @@ LValue CodeGenFunction::EmitDeclRefLValue(const DeclRefExpr *E) {
     return MakeAddrLValue(CGM.GetAddrOfMSGuidDecl(GD), T,
                           AlignmentSource::Decl);
 
+  if (const auto *TPO = dyn_cast<TemplateParamObjectDecl>(ND))
+    return MakeAddrLValue(CGM.GetAddrOfTemplateParamObject(TPO), T,
+                          AlignmentSource::Decl);
+
   llvm_unreachable("Unhandled DeclRefExpr");
 }
 
@@ -2989,7 +3033,7 @@ llvm::Value *CodeGenFunction::EmitCheckValue(llvm::Value *V) {
   // Floating-point types which fit into intptr_t are bitcast to integers
   // and then passed directly (after zero-extension, if necessary).
   if (V->getType()->isFloatingPointTy()) {
-    unsigned Bits = V->getType()->getPrimitiveSizeInBits();
+    unsigned Bits = V->getType()->getPrimitiveSizeInBits().getFixedSize();
     if (Bits <= TargetTy->getIntegerBitWidth())
       V = Builder.CreateBitCast(V, llvm::Type::getIntNTy(getLLVMContext(),
                                                          Bits));
@@ -3178,7 +3222,7 @@ void CodeGenFunction::EmitCheck(
   }
 
   if (TrapCond)
-    EmitTrapCheck(TrapCond);
+    EmitTrapCheck(TrapCond, CheckHandler);
   if (!FatalCond && !RecoverableCond)
     return;
 
@@ -3373,7 +3417,7 @@ void CodeGenFunction::EmitCfiCheckFail() {
   // Data == nullptr means the calling module has trap behaviour for this check.
   llvm::Value *DataIsNotNullPtr =
       Builder.CreateICmpNE(Data, llvm::ConstantPointerNull::get(Int8PtrTy));
-  EmitTrapCheck(DataIsNotNullPtr);
+  EmitTrapCheck(DataIsNotNullPtr, SanitizerHandler::CFICheckFail);
 
   llvm::StructType *SourceLocationTy =
       llvm::StructType::get(VoidPtrTy, Int32Ty, Int32Ty);
@@ -3412,7 +3456,7 @@ void CodeGenFunction::EmitCfiCheckFail() {
       EmitCheck(std::make_pair(Cond, Mask), SanitizerHandler::CFICheckFail, {},
                 {Data, Addr, ValidVtable});
     else
-      EmitTrapCheck(Cond);
+      EmitTrapCheck(Cond, SanitizerHandler::CFICheckFail);
   }
 
   FinishFunction();
@@ -3432,20 +3476,39 @@ void CodeGenFunction::EmitUnreachable(SourceLocation Loc) {
   Builder.CreateUnreachable();
 }
 
-void CodeGenFunction::EmitTrapCheck(llvm::Value *Checked) {
+void CodeGenFunction::EmitTrapCheck(llvm::Value *Checked,
+                                    SanitizerHandler CheckHandlerID) {
   llvm::BasicBlock *Cont = createBasicBlock("cont");
 
   // If we're optimizing, collapse all calls to trap down to just one per
-  // function to save on code size.
+  // check-type per function to save on code size.
+  if (TrapBBs.size() <= CheckHandlerID)
+    TrapBBs.resize(CheckHandlerID + 1);
+  llvm::BasicBlock *&TrapBB = TrapBBs[CheckHandlerID];
+
   if (!CGM.getCodeGenOpts().OptimizationLevel || !TrapBB) {
     TrapBB = createBasicBlock("trap");
     Builder.CreateCondBr(Checked, Cont, TrapBB);
     EmitBlock(TrapBB);
-    llvm::CallInst *TrapCall = EmitTrapCall(llvm::Intrinsic::trap);
+
+    llvm::CallInst *TrapCall =
+        Builder.CreateCall(CGM.getIntrinsic(llvm::Intrinsic::ubsantrap),
+                           llvm::ConstantInt::get(CGM.Int8Ty, CheckHandlerID));
+
+    if (!CGM.getCodeGenOpts().TrapFuncName.empty()) {
+      auto A = llvm::Attribute::get(getLLVMContext(), "trap-func-name",
+                                    CGM.getCodeGenOpts().TrapFuncName);
+      TrapCall->addAttribute(llvm::AttributeList::FunctionIndex, A);
+    }
     TrapCall->setDoesNotReturn();
     TrapCall->setDoesNotThrow();
     Builder.CreateUnreachable();
   } else {
+    auto Call = TrapBB->begin();
+    assert(isa<llvm::CallInst>(Call) && "Expected call in trap BB");
+
+    Call->applyMergedLocation(Call->getDebugLoc(),
+                              Builder.getCurrentDebugLocation());
     Builder.CreateCondBr(Checked, Cont, TrapBB);
   }
 
@@ -3453,7 +3516,8 @@ void CodeGenFunction::EmitTrapCheck(llvm::Value *Checked) {
 }
 
 llvm::CallInst *CodeGenFunction::EmitTrapCall(llvm::Intrinsic::ID IntrID) {
-  llvm::CallInst *TrapCall = Builder.CreateCall(CGM.getIntrinsic(IntrID));
+  llvm::CallInst *TrapCall =
+      Builder.CreateCall(CGM.getIntrinsic(IntrID));
 
   if (!CGM.getCodeGenOpts().TrapFuncName.empty()) {
     auto A = llvm::Attribute::get(getLLVMContext(), "trap-func-name",
@@ -4239,32 +4303,45 @@ LValue CodeGenFunction::EmitLValueForField(LValue base,
 
   if (field->isBitField()) {
     const CGRecordLayout &RL =
-      CGM.getTypes().getCGRecordLayout(field->getParent());
+        CGM.getTypes().getCGRecordLayout(field->getParent());
     const CGBitFieldInfo &Info = RL.getBitFieldInfo(field);
+    const bool UseVolatile = isAAPCS(CGM.getTarget()) &&
+                             CGM.getCodeGenOpts().AAPCSBitfieldWidth &&
+                             Info.VolatileStorageSize != 0 &&
+                             field->getType()
+                                 .withCVRQualifiers(base.getVRQualifiers())
+                                 .isVolatileQualified();
     Address Addr = base.getAddress(*this);
     unsigned Idx = RL.getLLVMFieldNo(field);
     const RecordDecl *rec = field->getParent();
-    if (!IsInPreservedAIRegion &&
-        (!getDebugInfo() || !rec->hasAttr<BPFPreserveAccessIndexAttr>())) {
-      if (Idx != 0)
-        // For structs, we GEP to the field that the record layout suggests.
-        Addr = Builder.CreateStructGEP(Addr, Idx, field->getName());
-    } else {
-      llvm::DIType *DbgInfo = getDebugInfo()->getOrCreateRecordType(
-          getContext().getRecordType(rec), rec->getLocation());
-      Addr = Builder.CreatePreserveStructAccessIndex(Addr, Idx,
-          getDebugInfoFIndex(rec, field->getFieldIndex()),
-          DbgInfo);
+    if (!UseVolatile) {
+      if (!IsInPreservedAIRegion &&
+          (!getDebugInfo() || !rec->hasAttr<BPFPreserveAccessIndexAttr>())) {
+        if (Idx != 0)
+          // For structs, we GEP to the field that the record layout suggests.
+          Addr = Builder.CreateStructGEP(Addr, Idx, field->getName());
+      } else {
+        llvm::DIType *DbgInfo = getDebugInfo()->getOrCreateRecordType(
+            getContext().getRecordType(rec), rec->getLocation());
+        Addr = Builder.CreatePreserveStructAccessIndex(
+            Addr, Idx, getDebugInfoFIndex(rec, field->getFieldIndex()),
+            DbgInfo);
+      }
     }
-
+    const unsigned SS =
+        UseVolatile ? Info.VolatileStorageSize : Info.StorageSize;
     // Get the access type.
-    llvm::Type *FieldIntTy =
-      llvm::Type::getIntNTy(getLLVMContext(), Info.StorageSize);
+    llvm::Type *FieldIntTy = llvm::Type::getIntNTy(getLLVMContext(), SS);
     if (Addr.getElementType() != FieldIntTy)
       Addr = Builder.CreateElementBitCast(Addr, FieldIntTy);
+    if (UseVolatile) {
+      const unsigned VolatileOffset = Info.VolatileStorageOffset.getQuantity();
+      if (VolatileOffset)
+        Addr = Builder.CreateConstInBoundsGEP(Addr, VolatileOffset);
+    }
 
     QualType fieldType =
-      field->getType().withCVRQualifiers(base.getVRQualifiers());
+        field->getType().withCVRQualifiers(base.getVRQualifiers());
     // TODO: Support TBAA for bit fields.
     LValueBaseInfo FieldBaseInfo(BaseInfo.getAlignmentSource());
     return LValue::MakeBitfield(Addr, Info, fieldType, FieldBaseInfo,
@@ -4633,6 +4710,8 @@ LValue CodeGenFunction::EmitCastLValue(const CastExpr *E) {
   case CK_ARCExtendBlockObject:
   case CK_CopyAndAutoreleaseBlockObject:
   case CK_IntToOCLSampler:
+  case CK_FloatingToFixedPoint:
+  case CK_FixedPointToFloating:
   case CK_FixedPointCast:
   case CK_FixedPointToBoolean:
   case CK_FixedPointToIntegral:

@@ -51,11 +51,12 @@ SPIR-V Dialect                                | LLVM Dialect
 
 SPIR-V distinguishes between array type and run-time array type, the length of
 which is not known at compile time. In LLVM, it is possible to index beyond the
-end of the array. Therfore, runtime array can be implemented as a zero length
+end of the array. Therefore, runtime array can be implemented as a zero length
 array type.
 
-Moreover, SPIR-V supports the notion of array stride. Note that this is **not**
-supported by type conversion at the moment.
+Moreover, SPIR-V supports the notion of array stride. Currently only natural
+strides (based on [`VulkanLayoutUtils`](VulkanLayoutUtils)) are supported. They
+are also mapped to LLVM array.
 
 SPIR-V Dialect                        | LLVM Dialect
 :-----------------------------------: | :-----------------------------------:
@@ -77,14 +78,13 @@ at the moment. Hence, we adhere to the following mapping:
 
 *   Structs with natural offset (*i.e.* offset that equals to cumulative size of
     the previous struct elements or is a natural alignment) are mapped to
-    naturally padded structs. Nested structs with offset and structs with offset
-    containing arrays are **not** supported.
+    naturally padded structs.
 
 *   Structs with unnatural offset (*i.e.* offset that is not equal to cumulative
     size of the previous struct elements) are **not** supported. In this case,
     offsets can be emulated with padding fields (*e.g.* integers). However, such
     a design would require index recalculation in the conversion of ops that
-    involve memmory addressing.
+    involve memory addressing.
 
 Examples of SPIR-V struct conversion are:
 ```mlir
@@ -204,7 +204,7 @@ to note:
     be:
 
     ```mlir
-    // Zero extending offest after broadcasting
+    // Zero extending offset after broadcasting
     %res_offset = llvm.zext %vec_offset: !llvm.vec<2 x i8> to !llvm.vec<2 x i32>
     ```
 
@@ -352,20 +352,53 @@ SPIR-V Dialect op                     | LLVM Dialect op
 `spv.ULessThan`                       | `llvm.icmp "ult"`
 `spv.ULessThanEqual`                  | `llvm.icmp "ule"`
 
+### Composite ops
+
+Currently, conversion supports rewrite patterns for `spv.CompositeExtract` and
+`spv.CompositeInsert`. We distinguish two cases for these operations: when the
+composite object is a vector, and when the composite object is of a non-vector
+type (*i.e.* struct, array or runtime array).
+
+Composite type  | SPIR-V Dialect op      | LLVM Dialect op
+:-------------: | :--------------------: | :--------------------:
+vector          | `spv.CompositeExtract` | `llvm.extractelement`
+vector          | `spv.CompositeInsert`  | `llvm.insertelement`
+non-vector      | `spv.CompositeExtract` | `llvm.extractvalue`
+non-vector      | `spv.CompositeInsert`  | `llvm.insertvalue`
+
 ### `spv.EntryPoint` and `spv.ExecutionMode`
 
-**Note: these conversions are likely to be changed in the future**
-
 First of all, it is important to note that there is no direct representation of
-entry points in LLVM. At the moment, we choose to **remove these ops**, assuming
-that the module generated from SPIR-V has no other internal functions (This
-assumption is actually made in [`mlir-spirv-cpu-runner`](#`mlir-spirv-cpu-runner`)).
+entry points in LLVM. At the moment, we use the following approach:
 
-However, these ops can be used to see which functions in the module are entry
-point functions. `spv.ExecutionMode` also carries the metadata associated with
-the entry point such as `LocalSize`, which indicates the workgroup size in the
-x, y, and z dimensions. It will be useful to represent this on the LLVM side
-(TODO).
+* `spv.EntryPoint` is simply removed.
+
+* In contrast, `spv.ExecutionMode` may contain important information about the
+  entry point. For example, `LocalSize` provides information about the
+  work-group size that can be reused.
+
+  In order to preserve this inforamtion, `spv.ExecutionMode` is converted to
+  a struct global variable that stores the execution mode id and any variables
+  associated with it. In C, the struct has the structure shown below.
+
+  ```C
+  // No values are associated      // There are values that are associated
+  // with this entry point.        // with this entry point.
+  struct {                         struct {
+    int32_t executionMode;             int32_t executionMode;
+  };                                   int32_t values[];
+                                   };
+  ```
+
+  ```mlir
+  // spv.ExecutionMode @empty "ContractionOff"
+  llvm.mlir.global external constant @{{.*}}() : !llvm.struct<(i32)> {
+    %0   = llvm.mlir.undef : !llvm.struct<(i32)>
+    %1   = llvm.mlir.constant(31 : i32) : !llvm.i32
+    %ret = llvm.insertvalue %1, %0[0 : i32] : !llvm.struct<(i32)>
+    llvm.return %ret : !llvm.struct<(i32)>
+  }
+  ```
 
 ### Logical ops
 
@@ -438,14 +471,14 @@ following cases, based on the value of the attribute:
 Otherwise the conversion fails as other cases (`MakePointerAvailable`,
 `MakePointerVisible`, `NonPrivatePointer`) are not supported yet.
 
-#### `spv.globalVariable` and `spv._address_of`
+#### `spv.globalVariable` and `spv.mlir.addressof`
 
 `spv.globalVariable` is modelled with `llvm.mlir.global` op. However, there
 is a difference that has to be pointed out.
 
 In SPIR-V dialect, the global variable returns a pointer, whereas in LLVM
 dialect the global holds an actual value. This difference is handled by
-`spv._address_of` and `llvm.mlir.addressof` ops that both return a pointer and
+`spv.mlir.addressof` and `llvm.mlir.addressof` ops that both return a pointer and
 are used to reference the global.
 
 ```mlir
@@ -453,7 +486,7 @@ are used to reference the global.
 spv.module Logical GLSL450 {
   spv.globalVariable @struct : !spv.ptr<!spv.struct<f32, !spv.array<10xf32>>, Private>
   spv.func @func() -> () "None" {
-    %0 = spv._address_of @struct : !spv.ptr<!spv.struct<f32, !spv.array<10xf32>>, Private>
+    %0 = spv.mlir.addressof @struct : !spv.ptr<!spv.struct<f32, !spv.array<10xf32>>, Private>
     spv.Return
   }
 }
@@ -515,7 +548,7 @@ Also, at the moment initialization is only possible via `spv.constant`.
                                                                llvm.store %c, %res : !llvm.ptr<i64>
 ```
 
-Note that simple conversion to `alloca` may not be sufficent if the code has
+Note that simple conversion to `alloca` may not be sufficient if the code has
 some scoping. For example, if converting ops executed in a loop into `alloca`s,
 a stack overflow may occur. For this case, `stacksave`/`stackrestore` pair can
 be used (TODO).
@@ -590,35 +623,39 @@ cover all possible corner cases.
 
 There is no support of the following ops:
 
-*   All Atomic ops
+*   All atomic ops
+*   All group ops
 *   All matrix ops
-*   All GroupNonUniform ops
+*   All OCL ops
 
 As well as:
 
 *   spv.CompositeConstruct
-*   spv.CompositeExtract
-*   spv.CompositeInsert
 *   spv.ControlBarrier
 *   spv.CopyMemory
 *   spv.FMod
-*   spv.GLSL.SAbs
-*   spv.GLSL.SSign
+*   spv.GLSL.Acos
+*   spv.GLSL.Asin
+*   spv.GLSL.Atan
+*   spv.GLSL.Cosh
 *   spv.GLSL.FSign
+*   spv.GLSL.SAbs
+*   spv.GLSL.Sinh
+*   spv.GLSL.SSign
 *   spv.MemoryBarrier
-*   spv._reference_of
+*   spv.mlir.referenceof
 *   spv.SMod
 *   spv.specConstant
-*   spv.SubgroupBallotKHR
 *   spv.Unreachable
+*   spv.VectorExtractDynamic
 
 ## Control flow conversion
 
 ### Branch ops
 
 `spv.Branch` and `spv.BranchConditional` are mapped to `llvm.br` and
-`llvm.cond_br`. Branch weigths for `spv.BranchConditional` are mapped to
-coresponding `branch_weights` attribute of `llvm.cond_br`. When translated to
+`llvm.cond_br`. Branch weights for `spv.BranchConditional` are mapped to
+corresponding `branch_weights` attribute of `llvm.cond_br`. When translated to
 proper LLVM, `branch_weights` are converted into LLVM metadata associated with
 the conditional branch.
 
@@ -653,7 +690,7 @@ spv.selection {
   spv.Branch ^merge                                     llvm.br ^merge
 
 ^merge:                                               ^merge:
-  spv._merge                                            llvm.br ^continue
+  spv.mlir.merge                                            llvm.br ^continue
 }
 // Remaining code																			^continue:
                                                         // Remaining code
@@ -678,7 +715,7 @@ spv.loop {
   spv.Branch ^header                                    llvm.br ^header
 
 ^merge:                                               ^merge:
-  spv._merge                                            llvm.br ^remaining
+  spv.mlir.merge                                            llvm.br ^remaining
 }
 // Remaining code                                     ^remaining:
                                                         // Remaining code
@@ -744,7 +781,7 @@ to LLVM dialect.
 
 ### `spv.func`
 This op declares or defines a SPIR-V function and it is converted to `llvm.func`.
-This conversion handles signarture conversion, and function control attributes
+This conversion handles signature conversion, and function control attributes
 remapping to LLVM dialect function [`passthrough` attribute](Dialects/LLVM.md#Attribute-pass-through).
 
 The following mapping is used to map [SPIR-V function control](SPIRVFunctionAttributes) to
@@ -775,7 +812,7 @@ Module in SPIR-V has one region that contains one block. It is defined via
 `spv.module` is converted into `ModuleOp`. This plays a role of enclosing scope
 to LLVM ops. At the moment, SPIR-V module attributes are ignored.
 
-`spv._module_end` is mapped to an equivalent terminator `ModuleTerminatorOp`.
+`spv.mlir.endmodule` is mapped to an equivalent terminator `ModuleTerminatorOp`.
 
 ## `mlir-spirv-cpu-runner`
 
@@ -783,3 +820,4 @@ to LLVM ops. At the moment, SPIR-V module attributes are ignored.
 
 [LLVMFunctionAttributes]: https://llvm.org/docs/LangRef.html#function-attributes
 [SPIRVFunctionAttributes]: https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#_a_id_function_control_a_function_control
+[VulkanLayoutUtils]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/SPIRV/LayoutUtils.h

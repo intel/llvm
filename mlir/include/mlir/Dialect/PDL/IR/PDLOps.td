@@ -51,17 +51,18 @@ def PDL_ApplyConstraintOp
     ```
   }];
 
-  let arguments = (ins Variadic<PDL_PositionalValue>:$args,
-                       ArrayAttr:$params,
-                       StrAttr:$name);
-  let assemblyFormat = "$name $params `(` $args `:` type($args) `)` attr-dict";
+  let arguments = (ins StrAttr:$name,
+                       Variadic<PDL_PositionalValue>:$args,
+                       OptionalAttr<ArrayAttr>:$constParams);
+  let assemblyFormat = [{
+    $name ($constParams^)? `(` $args `:` type($args) `)` attr-dict
+  }];
 
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &state, "
-              "ValueRange args, ArrayRef<Attribute> params, "
-              "StringRef name", [{
-      build(builder, state, args, builder.getArrayAttr(params),
-            builder.getStringAttr(name));
+    OpBuilderDAG<(ins "StringRef":$name, CArg<"ValueRange", "{}">:$args,
+      CArg<"ArrayRef<Attribute>", "{}">:$params), [{
+      build($_builder, $_state, $_builder.getStringAttr(name), args,
+            params.empty() ? ArrayAttr() : $_builder.getArrayAttr(params));
     }]>,
   ];
 }
@@ -102,13 +103,12 @@ def PDL_AttributeOp : PDL_Op<"attribute"> {
   let assemblyFormat = "attr-dict (`:` $type^)? ($value^)?";
 
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &state, "
-              "Value type = Value()", [{
-      build(builder, state, builder.getType<AttributeType>(), type,
+    OpBuilderDAG<(ins CArg<"Value", "Value()">:$type), [{
+      build($_builder, $_state, $_builder.getType<AttributeType>(), type,
             Attribute());
     }]>,
-    OpBuilder<"OpBuilder &builder, OperationState &state, Attribute attr", [{
-      build(builder, state, builder.getType<AttributeType>(), Value(), attr);
+    OpBuilderDAG<(ins "Attribute":$attr), [{
+      build($_builder, $_state, $_builder.getType<AttributeType>(), Value(), attr);
     }]>,
   ];
 }
@@ -135,12 +135,13 @@ def PDL_CreateNativeOp
     ```
   }];
 
-  let arguments = (ins StrAttr:$name, Variadic<PDL_PositionalValue>:$arguments,
-                       ArrayAttr:$constantParams);
+  let arguments = (ins StrAttr:$name,
+                       Variadic<PDL_PositionalValue>:$args,
+                       OptionalAttr<ArrayAttr>:$constParams);
   let results = (outs PDL_PositionalValue:$result);
   let assemblyFormat = [{
-    $name $constantParams (`(` $arguments^ `:` type($arguments) `)`)?
-    `:` type($result) attr-dict
+    $name ($constParams^)? (`(` $args^ `:` type($args) `)`)? `:` type($result)
+    attr-dict
   }];
   let verifier = ?;
 }
@@ -198,8 +199,8 @@ def PDL_InputOp : PDL_Op<"input", [HasParent<"pdl::PatternOp">]> {
   let assemblyFormat = "(`:` $type^)? attr-dict";
 
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &state", [{
-      build(builder, state, builder.getType<ValueType>(), Value());
+    OpBuilderDAG<(ins), [{
+      build($_builder, $_state, $_builder.getType<ValueType>(), Value());
     }]>,
   ];
 }
@@ -222,14 +223,14 @@ def PDL_OperationOp
     `pdl.operation`s are composed of a name, and a set of attribute, operand,
     and result type values, that map to what those that would be on a
     constructed instance of that operation. The results of a `pdl.operation` are
-    a handle to the operation itself, and a handle to each of the operation 
+    a handle to the operation itself, and a handle to each of the operation
     result values.
 
     When used within a matching context, the name of the operation may be
     omitted.
 
     When used within a rewriting context, i.e. when defined within a
-    `pdl.rewrite`, all of the result types must be "inferrable". This means that
+    `pdl.rewrite`, all of the result types must be "inferable". This means that
     the type must be attributable to either a constant type value or the result
     type of another entity, such as an attribute, the result of a
     `createNative`, or the result type of another operation. If the result type
@@ -252,17 +253,16 @@ def PDL_OperationOp
   let results = (outs PDL_Operation:$op,
                       Variadic<PDL_Value>:$results);
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &state, "
-              "Optional<StringRef> name  = llvm::None, "
-              "ValueRange operandValues = llvm::None, "
-              "ArrayRef<StringRef> attrNames = llvm::None, "
-              "ValueRange attrValues  = llvm::None, "
-              "ValueRange resultTypes = llvm::None", [{
-      auto nameAttr = name ? StringAttr() : builder.getStringAttr(*name);
-      build(builder, state, builder.getType<OperationType>(), {}, nameAttr,
-            operandValues, attrValues, builder.getStrArrayAttr(attrNames),
+    OpBuilderDAG<(ins CArg<"Optional<StringRef>", "llvm::None">:$name,
+      CArg<"ValueRange", "llvm::None">:$operandValues,
+      CArg<"ArrayRef<StringRef>", "llvm::None">:$attrNames,
+      CArg<"ValueRange", "llvm::None">:$attrValues,
+      CArg<"ValueRange", "llvm::None">:$resultTypes), [{
+      auto nameAttr = name ? StringAttr() : $_builder.getStringAttr(*name);
+      build($_builder, $_state, $_builder.getType<OperationType>(), {}, nameAttr,
+            operandValues, attrValues, $_builder.getStrArrayAttr(attrNames),
             resultTypes);
-      state.types.append(resultTypes.size(), builder.getType<ValueType>());
+      $_state.types.append(resultTypes.size(), $_builder.getType<ValueType>());
     }]>,
   ];
   let extraClassDeclaration = [{
@@ -294,7 +294,7 @@ def PDL_PatternOp : PDL_Op<"pattern", [IsolatedFromAbove, Symbol]> {
       %resultType = pdl.type
       %inputOperand = pdl.input
       %root, %results = pdl.operation "foo.op"(%inputOperand) -> (%resultType)
-      pdl.rewrite(%root) {
+      pdl.rewrite %root {
         pdl.replace %root with (%inputOperand)
       }
     }
@@ -303,14 +303,17 @@ def PDL_PatternOp : PDL_Op<"pattern", [IsolatedFromAbove, Symbol]> {
 
   let arguments = (ins OptionalAttr<StrAttr>:$rootKind,
                        Confined<I16Attr, [IntNonNegative]>:$benefit,
-                       OptionalAttr<StrAttr>:$sym_name);
-
+                       OptionalAttr<SymbolNameAttr>:$sym_name);
   let regions = (region SizedRegion<1>:$body);
+  let assemblyFormat = [{
+    ($sym_name^)? `:` `benefit` `(` $benefit `)`
+    (`,` `root` `(` $rootKind^ `)`)? attr-dict-with-keyword $body
+  }];
+
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &state, "
-              "Optional<StringRef> rootKind = llvm::None, "
-              "Optional<uint16_t> benefit = 1, "
-              "Optional<StringRef> name = llvm::None">,
+    OpBuilderDAG<(ins CArg<"Optional<StringRef>", "llvm::None">:$rootKind,
+      CArg<"Optional<uint16_t>", "1">:$benefit,
+      CArg<"Optional<StringRef>", "llvm::None">:$name)>,
   ];
   let extraClassDeclaration = [{
     //===------------------------------------------------------------------===//
@@ -380,16 +383,18 @@ def PDL_RewriteOp : PDL_Op<"rewrite", [
     rewrite is specified either via a string name (`name`) to an external
     rewrite function, or via the region body. The rewrite region, if specified,
     must contain a single block and terminate via the `pdl.rewrite_end`
-    operation.
+    operation. If the rewrite is external, it also takes a set of constant
+    parameters and a set of additional positional values defined within the
+    matcher as arguments.
 
     Example:
 
     ```mlir
     // Specify an external rewrite function:
-    pdl.rewrite "myExternalRewriter"(%root)
+    pdl.rewrite %root with "myExternalRewriter"(%value : !pdl.value)
 
     // Specify the rewrite inline using PDL:
-    pdl.rewrite(%root) {
+    pdl.rewrite %root {
       %op = pdl.operation "foo.op"(%arg0, %arg1)
       pdl.replace %root with %op
     }
@@ -397,8 +402,16 @@ def PDL_RewriteOp : PDL_Op<"rewrite", [
   }];
 
   let arguments = (ins PDL_Operation:$root,
-                       OptionalAttr<StrAttr>:$name);
+                       OptionalAttr<StrAttr>:$name,
+                       Variadic<PDL_PositionalValue>:$externalArgs,
+                       OptionalAttr<ArrayAttr>:$externalConstParams);
   let regions = (region AnyRegion:$body);
+  let assemblyFormat = [{
+    $root (`with` $name^ ($externalConstParams^)?
+                         (`(` $externalArgs^ `:` type($externalArgs) `)`)?)?
+          ($body^)?
+    attr-dict-with-keyword
+  }];
 }
 
 def PDL_RewriteEndOp : PDL_Op<"rewrite_end", [Terminator,
@@ -439,8 +452,8 @@ def PDL_TypeOp : PDL_Op<"type"> {
   let assemblyFormat = "attr-dict (`:` $type^)?";
 
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &state, Type ty = Type()", [{
-      build(builder, state, builder.getType<AttributeType>(),
+    OpBuilderDAG<(ins CArg<"Type", "Type()">:$ty), [{
+      build($_builder, $_state, $_builder.getType<AttributeType>(),
             ty ? TypeAttr::get(ty) : TypeAttr());
     }]>,
   ];

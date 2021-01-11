@@ -1,3 +1,16 @@
+//===-- RISCVBaseInfo.cpp - Top level definitions for RISCV MC ------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// This file contains small standalone enum definitions for the RISCV target
+// useful for the compiler back-end and the MC libraries.
+//
+//===----------------------------------------------------------------------===//
+
 #include "RISCVBaseInfo.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Triple.h"
@@ -6,7 +19,7 @@
 namespace llvm {
 namespace RISCVSysReg {
 #define GET_SysRegsList_IMPL
-#include "RISCVGenSystemOperands.inc"
+#include "RISCVGenSearchableTables.inc"
 } // namespace RISCVSysReg
 
 namespace RISCVABI {
@@ -65,7 +78,10 @@ ABI getTargetABI(StringRef ABIName) {
 // To avoid the BP value clobbered by a function call, we need to choose a
 // callee saved register to save the value. RV32E only has X8 and X9 as callee
 // saved registers and X8 will be used as fp. So we choose X9 as bp.
-Register getBPReg() { return RISCV::X9; }
+MCRegister getBPReg() { return RISCV::X9; }
+
+// Returns the register holding shadow call stack pointer.
+MCRegister getSCSPReg() { return RISCV::X18; }
 
 } // namespace RISCVABI
 
@@ -77,5 +93,50 @@ void validate(const Triple &TT, const FeatureBitset &FeatureBits) {
 }
 
 } // namespace RISCVFeatures
+
+namespace RISCVVPseudosTable {
+
+#define GET_RISCVVPseudosTable_IMPL
+#include "RISCVGenSearchableTables.inc"
+
+} // namespace RISCVVPseudosTable
+
+void RISCVVType::printVType(unsigned VType, raw_ostream &OS) {
+  RISCVVSEW VSEW = getVSEW(VType);
+  RISCVVLMUL VLMUL = getVLMUL(VType);
+
+  unsigned Sew = 1 << (static_cast<unsigned>(VSEW) + 3);
+  OS << "e" << Sew;
+
+  switch (VLMUL) {
+  case RISCVVLMUL::LMUL_RESERVED:
+    llvm_unreachable("Unexpected LMUL value!");
+  case RISCVVLMUL::LMUL_1:
+  case RISCVVLMUL::LMUL_2:
+  case RISCVVLMUL::LMUL_4:
+  case RISCVVLMUL::LMUL_8: {
+    unsigned LMul = 1 << static_cast<unsigned>(VLMUL);
+    OS << ",m" << LMul;
+    break;
+  }
+  case RISCVVLMUL::LMUL_F2:
+  case RISCVVLMUL::LMUL_F4:
+  case RISCVVLMUL::LMUL_F8: {
+    unsigned LMul = 1 << (8 - static_cast<unsigned>(VLMUL));
+    OS << ",mf" << LMul;
+    break;
+  }
+  }
+
+  if (isTailAgnostic(VType))
+    OS << ",ta";
+  else
+    OS << ",tu";
+
+  if (isMaskAgnostic(VType))
+    OS << ",ma";
+  else
+    OS << ",mu";
+}
 
 } // namespace llvm

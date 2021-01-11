@@ -216,6 +216,8 @@ class VectorType;
       VMULLs,       // ...signed
       VMULLu,       // ...unsigned
 
+      VQDMULH,      // MVE vqdmulh instruction
+
       // MVE reductions
       VADDVs,       // sign- or zero-extend the elements of a vector to i32,
       VADDVu,       //   add them all together, and return an i32 of their sum
@@ -241,6 +243,10 @@ class VectorType;
       VMLALVAu,     //   provided as low and high halves
       VMLALVAps,    // Same as VMLALVA[su] with a v4i1 predicate mask
       VMLALVApu,
+      VMINVu,        // Find minimum unsigned value of a vector and register
+      VMINVs,        // Find minimum signed value of a vector and register
+      VMAXVu,        // Find maximum unsigned value of a vector and register
+      VMAXVs,        // Find maximum signed value of a vector and register
 
       SMULWB,       // Signed multiply word by half word, bottom
       SMULWT,       // Signed multiply word by half word, top

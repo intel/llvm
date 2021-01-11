@@ -375,6 +375,9 @@ class DwarfDebug : public DebugHandlerBase {
   /// Emit a .debug_macro section instead of .debug_macinfo.
   bool UseDebugMacroSection;
 
+  /// Avoid using DW_OP_convert due to consumer incompatibilities.
+  bool EnableOpConvert;
+
   /// DWARF5 Experimental Options
   /// @{
   AccelTableKind TheAccelTableKind;
@@ -598,10 +601,8 @@ class DwarfDebug : public DebugHandlerBase {
   /// function that describe the same variable. If the resulting 
   /// list has only one entry that is valid for entire variable's
   /// scope return true.
-  bool buildLocationList(
-      SmallVectorImpl<DebugLocEntry> &DebugLoc,
-      const DbgValueHistoryMap::Entries &Entries,
-      DenseSet<const MachineBasicBlock *> &VeryLargeBlocks);
+  bool buildLocationList(SmallVectorImpl<DebugLocEntry> &DebugLoc,
+                         const DbgValueHistoryMap::Entries &Entries);
 
   /// Collect variable information from the side table maintained by MF.
   void collectVariableInfoFromMFTable(DwarfCompileUnit &TheCU,
@@ -623,13 +624,13 @@ public:
   //===--------------------------------------------------------------------===//
   // Main entry points.
   //
-  DwarfDebug(AsmPrinter *A, Module *M);
+  DwarfDebug(AsmPrinter *A);
 
   ~DwarfDebug() override;
 
   /// Emit all Dwarf sections that should come prior to the
   /// content.
-  void beginModule();
+  void beginModule(Module *M) override;
 
   /// Emit all Dwarf sections that should come after the content.
   void endModule() override;
@@ -726,10 +727,20 @@ public:
     return EmitDebugEntryValues;
   }
 
+  bool useOpConvert() const {
+    return EnableOpConvert;
+  }
+
   bool shareAcrossDWOCUs() const;
 
   /// Returns the Dwarf Version.
   uint16_t getDwarfVersion() const;
+
+  /// Returns a suitable DWARF form to represent a section offset, i.e.
+  /// * DW_FORM_sec_offset for DWARF version >= 4;
+  /// * DW_FORM_data8 for 64-bit DWARFv3;
+  /// * DW_FORM_data4 for 32-bit DWARFv3 and DWARFv2.
+  dwarf::Form getDwarfSectionOffsetForm() const;
 
   /// Returns the previous CU that was being updated
   const DwarfCompileUnit *getPrevCU() const { return PrevCU; }
@@ -795,7 +806,6 @@ public:
   bool tuneForSCE() const { return DebuggerTuning == DebuggerKind::SCE; }
   /// @}
 
-  void addSectionLabel(const MCSymbol *Sym);
   const MCSymbol *getSectionLabel(const MCSection *S);
   void insertSectionLabel(const MCSymbol *S);
 

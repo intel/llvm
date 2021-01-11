@@ -502,9 +502,9 @@ public:
       return failure();
 
     // Build std.prefetch memref[expandedMap.results].
-    rewriter.replaceOpWithNewOp<PrefetchOp>(
-        op, op.memref(), *resultOperands, op.isWrite(),
-        op.localityHint().getZExtValue(), op.isDataCache());
+    rewriter.replaceOpWithNewOp<PrefetchOp>(op, op.memref(), *resultOperands,
+                                            op.isWrite(), op.localityHint(),
+                                            op.isDataCache());
     return success();
   }
 };
@@ -679,7 +679,8 @@ class LowerAffinePass : public ConvertAffineToStandardBase<LowerAffinePass> {
     ConversionTarget target(getContext());
     target
         .addLegalDialect<scf::SCFDialect, StandardOpsDialect, VectorDialect>();
-    if (failed(applyPartialConversion(getOperation(), target, patterns)))
+    if (failed(applyPartialConversion(getOperation(), target,
+                                      std::move(patterns))))
       signalPassFailure();
   }
 };

@@ -50,6 +50,7 @@ class SIRegisterInfo;
 class AMDGPUInstructionSelector final : public InstructionSelector {
 private:
   MachineRegisterInfo *MRI;
+  const GCNSubtarget *Subtarget;
 
 public:
   AMDGPUInstructionSelector(const GCNSubtarget &STI,
@@ -70,6 +71,8 @@ private:
     int64_t Imm;
     GEPInfo(const MachineInstr &GEP) : GEP(GEP), Imm(0) { }
   };
+
+  bool isSGPR(Register Reg) const;
 
   bool isInstrUniform(const MachineInstr &MI) const;
   bool isVCC(Register Reg, const MachineRegisterInfo &MRI) const;
@@ -118,6 +121,7 @@ private:
   bool selectDSOrderedIntrinsic(MachineInstr &MI, Intrinsic::ID IID) const;
   bool selectDSGWSIntrinsic(MachineInstr &MI, Intrinsic::ID IID) const;
   bool selectDSAppendConsume(MachineInstr &MI, bool IsAppend) const;
+  bool selectSBarrier(MachineInstr &MI) const;
 
   bool selectImageIntrinsic(MachineInstr &MI,
                             const AMDGPU::ImageDimIntrinsicInfo *Intr) const;
@@ -139,9 +143,12 @@ private:
   bool selectG_EXTRACT_VECTOR_ELT(MachineInstr &I) const;
   bool selectG_INSERT_VECTOR_ELT(MachineInstr &I) const;
   bool selectG_SHUFFLE_VECTOR(MachineInstr &I) const;
+  bool selectAMDGPU_BUFFER_ATOMIC_FADD(MachineInstr &I) const;
+  bool selectGlobalAtomicFaddIntrinsic(MachineInstr &I) const;
+  bool selectBVHIntrinsic(MachineInstr &I) const;
 
-  std::pair<Register, unsigned>
-  selectVOP3ModsImpl(MachineOperand &Root) const;
+  std::pair<Register, unsigned> selectVOP3ModsImpl(MachineOperand &Root,
+                                                   bool AllowAbs = true) const;
 
   InstructionSelector::ComplexRendererFns
   selectVCSRC(MachineOperand &Root) const;
@@ -152,9 +159,13 @@ private:
   InstructionSelector::ComplexRendererFns
   selectVOP3Mods0(MachineOperand &Root) const;
   InstructionSelector::ComplexRendererFns
+  selectVOP3BMods0(MachineOperand &Root) const;
+  InstructionSelector::ComplexRendererFns
   selectVOP3OMods(MachineOperand &Root) const;
   InstructionSelector::ComplexRendererFns
   selectVOP3Mods(MachineOperand &Root) const;
+  InstructionSelector::ComplexRendererFns
+  selectVOP3BMods(MachineOperand &Root) const;
 
   ComplexRendererFns selectVOP3NoMods(MachineOperand &Root) const;
 
@@ -178,11 +189,11 @@ private:
   selectSmrdSgpr(MachineOperand &Root) const;
 
   template <bool Signed>
-  InstructionSelector::ComplexRendererFns
+  std::pair<Register, int>
   selectFlatOffsetImpl(MachineOperand &Root) const;
+
   InstructionSelector::ComplexRendererFns
   selectFlatOffset(MachineOperand &Root) const;
-
   InstructionSelector::ComplexRendererFns
   selectFlatOffsetSigned(MachineOperand &Root) const;
 
@@ -194,8 +205,9 @@ private:
   InstructionSelector::ComplexRendererFns
   selectMUBUFScratchOffset(MachineOperand &Root) const;
 
-  bool isDSOffsetLegal(Register Base, int64_t Offset,
-                       unsigned OffsetBits) const;
+  bool isDSOffsetLegal(Register Base, int64_t Offset) const;
+  bool isDSOffset2Legal(Register Base, int64_t Offset0, int64_t Offset1,
+                        unsigned Size) const;
 
   std::pair<Register, unsigned>
   selectDS1Addr1OffsetImpl(MachineOperand &Root) const;
@@ -208,10 +220,10 @@ private:
   InstructionSelector::ComplexRendererFns
   selectDS128Bit8ByteAligned(MachineOperand &Root) const;
 
-  std::pair<Register, unsigned>
-  selectDSReadWrite2Impl(MachineOperand &Root, bool IsDS128) const;
+  std::pair<Register, unsigned> selectDSReadWrite2Impl(MachineOperand &Root,
+                                                       unsigned size) const;
   InstructionSelector::ComplexRendererFns
-  selectDSReadWrite2(MachineOperand &Root, bool IsDS128) const;
+  selectDSReadWrite2(MachineOperand &Root, unsigned size) const;
 
   std::pair<Register, int64_t>
   getPtrBaseWithConstantOffset(Register Root,

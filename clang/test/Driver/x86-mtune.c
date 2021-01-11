@@ -1,5 +1,14 @@
 // Ensure we support the -mtune flag.
-//
+
+// Default mtune should be generic.
+// RUN: %clang -target x86_64-unknown-unknown -c -### %s 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=notune
+// notune: "-tune-cpu" "generic"
+
+// RUN: %clang -target x86_64-unknown-unknown -c -### %s -mtune=generic 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=generic
+// generic: "-tune-cpu" "generic"
+
 // RUN: %clang -target x86_64-unknown-unknown -c -### %s -mtune=nocona 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=nocona
 // nocona: "-tune-cpu" "nocona"
@@ -18,3 +27,21 @@
 // RUN:   | FileCheck %s -check-prefix=athlon
 // athlon: "-tune-cpu" "athlon"
 
+// Check interaction between march and mtune.
+
+// -march should remove default mtune generic.
+// RUN: %clang -target x86_64-unknown-unknown -c -### %s -march=core2 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=marchcore2
+// marchcore2: "-target-cpu" "core2"
+// marchcore2-NOT: "-tune-cpu"
+
+// -march should remove default mtune generic.
+// RUN: %clang -target x86_64-unknown-unknown -c -### %s -march=core2 -mtune=nehalem 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=marchmtune
+// marchmtune: "-target-cpu" "core2"
+// mmarchmtune: "-tune-cpu" "nehalem"
+
+// RUN: not %clang %s -target x86_64 -E -mtune=x86-64-v2 2>&1 | FileCheck %s --check-prefix=INVALID
+// RUN: not %clang %s -target x86_64 -E -mtune=x86-64-v3 2>&1 | FileCheck %s --check-prefix=INVALID
+// RUN: not %clang %s -target x86_64 -E -mtune=x86-64-v4 2>&1 | FileCheck %s --check-prefix=INVALID
+// INVALID: error: unknown target CPU '{{.*}}'

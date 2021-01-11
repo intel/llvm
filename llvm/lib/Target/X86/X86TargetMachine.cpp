@@ -62,6 +62,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeX86Target() {
   RegisterTargetMachine<X86TargetMachine> Y(getTheX86_64Target());
 
   PassRegistry &PR = *PassRegistry::getPassRegistry();
+  initializeX86LowerAMXTypeLegacyPassPass(PR);
   initializeGlobalISel(PR);
   initializeWinEHStatePassPass(PR);
   initializeFixupBWInstPassPass(PR);
@@ -71,6 +72,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeX86Target() {
   initializeX86FixupSetCCPassPass(PR);
   initializeX86CallFrameOptimizationPass(PR);
   initializeX86CmovConverterPassPass(PR);
+  initializeX86TileConfigPass(PR);
   initializeX86ExpandPseudoPass(PR);
   initializeX86ExecutionDomainFixPass(PR);
   initializeX86DomainReassignmentPass(PR);
@@ -83,6 +85,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeX86Target() {
   initializeX86LoadValueInjectionRetHardeningPassPass(PR);
   initializeX86OptimizeLEAPassPass(PR);
   initializeX86PartialReductionPass(PR);
+  initializePseudoProbeInserterPass(PR);
 }
 
 static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
@@ -236,15 +239,12 @@ X86TargetMachine::getSubtargetImpl(const Function &F) const {
   Attribute TuneAttr = F.getFnAttribute("tune-cpu");
   Attribute FSAttr = F.getFnAttribute("target-features");
 
-  StringRef CPU = !CPUAttr.hasAttribute(Attribute::None)
-                      ? CPUAttr.getValueAsString()
-                      : (StringRef)TargetCPU;
-  StringRef TuneCPU = !TuneAttr.hasAttribute(Attribute::None)
-                      ? TuneAttr.getValueAsString()
-                      : (StringRef)CPU;
-  StringRef FS = !FSAttr.hasAttribute(Attribute::None)
-                     ? FSAttr.getValueAsString()
-                     : (StringRef)TargetFS;
+  StringRef CPU =
+      CPUAttr.isValid() ? CPUAttr.getValueAsString() : (StringRef)TargetCPU;
+  StringRef TuneCPU =
+      TuneAttr.isValid() ? TuneAttr.getValueAsString() : (StringRef)CPU;
+  StringRef FS =
+      FSAttr.isValid() ? FSAttr.getValueAsString() : (StringRef)TargetFS;
 
   SmallString<512> Key;
   // The additions here are ordered so that the definitely short strings are
@@ -254,8 +254,9 @@ X86TargetMachine::getSubtargetImpl(const Function &F) const {
 
   // Extract prefer-vector-width attribute.
   unsigned PreferVectorWidthOverride = 0;
-  if (F.hasFnAttribute("prefer-vector-width")) {
-    StringRef Val = F.getFnAttribute("prefer-vector-width").getValueAsString();
+  Attribute PreferVecWidthAttr = F.getFnAttribute("prefer-vector-width");
+  if (PreferVecWidthAttr.isValid()) {
+    StringRef Val = PreferVecWidthAttr.getValueAsString();
     unsigned Width;
     if (!Val.getAsInteger(0, Width)) {
       Key += "prefer-vector-width=";
@@ -266,9 +267,9 @@ X86TargetMachine::getSubtargetImpl(const Function &F) const {
 
   // Extract min-legal-vector-width attribute.
   unsigned RequiredVectorWidth = UINT32_MAX;
-  if (F.hasFnAttribute("min-legal-vector-width")) {
-    StringRef Val =
-        F.getFnAttribute("min-legal-vector-width").getValueAsString();
+  Attribute MinLegalVecWidthAttr = F.getFnAttribute("min-legal-vector-width");
+  if (MinLegalVecWidthAttr.isValid()) {
+    StringRef Val = MinLegalVecWidthAttr.getValueAsString();
     unsigned Width;
     if (!Val.getAsInteger(0, Width)) {
       Key += "min-legal-vector-width=";
@@ -380,6 +381,7 @@ public:
   void addPreEmitPass() override;
   void addPreEmitPass2() override;
   void addPreSched2() override;
+  bool addPreRewrite() override;
 
   std::unique_ptr<CSEConfigBase> getCSEConfig() const override;
 };
@@ -408,6 +410,7 @@ TargetPassConfig *X86TargetMachine::createPassConfig(PassManagerBase &PM) {
 
 void X86PassConfig::addIRPasses() {
   addPass(createAtomicExpandPass());
+  // addPass(createX86LowerAMXTypePass());
 
   TargetPassConfig::addIRPasses();
 
@@ -446,7 +449,7 @@ bool X86PassConfig::addInstSelector() {
 }
 
 bool X86PassConfig::addIRTranslator() {
-  addPass(new IRTranslator());
+  addPass(new IRTranslator(getOptLevel()));
   return false;
 }
 
@@ -493,7 +496,12 @@ void X86PassConfig::addPreRegAlloc() {
   addPass(createX86SpeculativeLoadHardeningPass());
   addPass(createX86FlagsCopyLoweringPass());
   addPass(createX86WinAllocaExpander());
+
+  if (getOptLevel() != CodeGenOpt::None) {
+    addPass(createX86PreTileConfigPass());
+  }
 }
+
 void X86PassConfig::addMachineSSAOptimization() {
   addPass(createX86DomainReassignmentPass());
   TargetPassConfig::addMachineSSAOptimization();
@@ -564,6 +572,11 @@ void X86PassConfig::addPreEmitPass2() {
   if (TT.isOSWindows())
     addPass(createCFGuardLongjmpPass());
   addPass(createX86LoadValueInjectionRetHardeningPass());
+}
+
+bool X86PassConfig::addPreRewrite() {
+  addPass(createX86TileConfigPass());
+  return true;
 }
 
 std::unique_ptr<CSEConfigBase> X86PassConfig::getCSEConfig() const {

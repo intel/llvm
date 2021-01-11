@@ -15,15 +15,22 @@
 #define OPENMP_OPS
 
 include "mlir/IR/OpBase.td"
+include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/Interfaces/ControlFlowInterfaces.td"
+include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 include "mlir/Dialect/OpenMP/OmpCommon.td"
 
 def OpenMP_Dialect : Dialect {
   let name = "omp";
-  let cppNamespace = "omp";
+  let cppNamespace = "::mlir::omp";
 }
 
 class OpenMP_Op<string mnemonic, list<OpTrait> traits = []> :
       Op<OpenMP_Dialect, mnemonic, traits>;
+
+// Type which can be constraint accepting standard integers, indices and
+// LLVM integer types.
+def IntLikeType : AnyTypeOf<[AnyInteger, Index, LLVM_AnyInteger]>;
 
 //===----------------------------------------------------------------------===//
 // 2.6 parallel Construct
@@ -58,12 +65,15 @@ def ParallelOp : OpenMP_Op<"parallel", [AttrSizedOperandSegments]> {
     should be used to execute the parallel region.
 
     The optional $default_val attribute specifies the default data sharing attribute
-    of variables used in the parallel region that are not passed explicitly as parameters
+    of values used in the parallel region that are not passed explicitly as parameters
     to the operation.
 
     The $private_vars, $firstprivate_vars, $shared_vars and $copyin_vars parameters
-    are a variadic list of variables that specify the data sharing attribute of
-    those variables.
+    are a variadic list of values that specify the data sharing attribute of
+    those values.
+
+    The $allocators_vars and $allocate_vars parameters are a variadic list of values
+    that specify the memory allocator to be used to obtain storage for private values.
 
     The optional $proc_bind_val attribute controls the thread affinity for the execution
     of the parallel region.
@@ -76,12 +86,18 @@ def ParallelOp : OpenMP_Op<"parallel", [AttrSizedOperandSegments]> {
              Variadic<AnyType>:$firstprivate_vars,
              Variadic<AnyType>:$shared_vars,
              Variadic<AnyType>:$copyin_vars,
+             Variadic<AnyType>:$allocate_vars,
+             Variadic<AnyType>:$allocators_vars,
              OptionalAttr<ProcBindKind>:$proc_bind_val);
 
   let regions = (region AnyRegion:$region);
 
+  let builders = [
+    OpBuilderDAG<(ins CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>
+  ];
   let parser = [{ return parseParallelOp(parser, result); }];
   let printer = [{ return printParallelOp(p, *this); }];
+  let verifier = [{ return ::verifyParallelOp(*this); }];
 }
 
 def TerminatorOp : OpenMP_Op<"terminator", [Terminator]> {
@@ -94,6 +110,97 @@ def TerminatorOp : OpenMP_Op<"terminator", [Terminator]> {
   }];
 
   let assemblyFormat = "attr-dict";
+}
+
+//===----------------------------------------------------------------------===//
+// 2.9.2 Workshare Loop Construct
+//===----------------------------------------------------------------------===//
+
+def WsLoopOp : OpenMP_Op<"wsloop", [AttrSizedOperandSegments]> {
+  let summary = "workshare loop construct";
+  let description = [{
+    The workshare loop construct specifies that the iterations of the loop(s)
+    will be executed in parallel by threads in the current context. These
+    iterations are spread across threads that already exist in the enclosing
+    parallel region.
+
+    The body region can contain any number of blocks. The region is terminated
+    by "omp.yield" instruction without operands.
+
+    ```
+      omp.wsloop (%i1, %i2) = (%c0, %c0) to (%c10, %c10) step (%c1, %c1) {
+        %a = load %arrA[%i1, %i2] : memref<?x?xf32>
+        %b = load %arrB[%i1, %i2] : memref<?x?xf32>
+        %sum = addf %a, %b : f32
+        store %sum, %arrC[%i1, %i2] : memref<?x?xf32>
+        omp.yield
+      }
+    ```
+
+    `private_vars`, `firstprivate_vars`, `lastprivate_vars` and `linear_vars`
+    arguments are variadic list of operands that specify the data sharing
+    attributes of the list of values. The `linear_step_vars` operand
+    additionally specifies the step for each associated linear operand. Note
+    that the `linear_vars` and `linear_step_vars` variadic lists should contain
+    the same number of elements.
+
+    The optional `schedule_val` attribute specifies the loop schedule for this
+    loop, determining how the loop is distributed across the parallel threads.
+    The optional `schedule_chunk_var` associated with this determines further
+    controls this distribution.
+
+    The optional `collapse_val` attribute specifies the number of loops which
+    are collapsed to form the worksharing loop.
+
+    The `nowait` attribute, when present, signifies that there should be no
+    implicit barrier at the end of the loop.
+
+    The optional `ordered_val` attribute specifies how many loops are associated
+    with the do loop construct.
+
+    The optional `order` attribute specifies which order the iterations of the
+    associate loops are executed in. Currently the only option for this
+    attribute is "concurrent".
+  }];
+
+  let arguments = (ins Variadic<IntLikeType>:$lowerBound,
+             Variadic<IntLikeType>:$upperBound,
+             Variadic<IntLikeType>:$step,
+             Variadic<AnyType>:$private_vars,
+             Variadic<AnyType>:$firstprivate_vars,
+             Variadic<AnyType>:$lastprivate_vars,
+             Variadic<AnyType>:$linear_vars,
+             Variadic<AnyType>:$linear_step_vars,
+             OptionalAttr<ScheduleKind>:$schedule_val,
+             Optional<AnyType>:$schedule_chunk_var,
+             Confined<OptionalAttr<I64Attr>, [IntMinValue<0>]>:$collapse_val,
+             OptionalAttr<UnitAttr>:$nowait,
+             Confined<OptionalAttr<I64Attr>, [IntMinValue<0>]>:$ordered_val,
+             OptionalAttr<OrderKind>:$order_val);
+
+  let builders = [
+    OpBuilderDAG<(ins "ValueRange":$lowerBound, "ValueRange":$upperBound,
+                  "ValueRange":$step,
+                  CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>
+  ];
+
+  let regions = (region AnyRegion:$region);
+}
+
+def YieldOp : OpenMP_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
+                                  HasParent<"WsLoopOp">]> {
+  let summary = "loop yield and termination operation";
+  let description = [{
+    "omp.yield" yields SSA values from the OpenMP dialect op region and
+    terminates the region. The semantics of how the values are yielded is
+    defined by the parent operation.
+    If "omp.yield" has any operands, the operands must match the parent
+    operation's results.
+  }];
+
+  let arguments = (ins Variadic<AnyType>:$results);
+
+  let assemblyFormat = [{ ( `(` $results^ `:` type($results) `)` )? attr-dict}];
 }
 
 //===----------------------------------------------------------------------===//
@@ -124,7 +231,7 @@ def FlushOp : OpenMP_Op<"flush"> {
 
   let arguments = (ins Variadic<AnyType>:$varList);
 
-  let assemblyFormat = "attr-dict ($varList^ `:` type($varList))?";
+  let assemblyFormat = [{ ( `(` $varList^ `:` type($varList) `)` )? attr-dict}];
 }
 
 //===----------------------------------------------------------------------===//
@@ -138,6 +245,8 @@ def MasterOp : OpenMP_Op<"master"> {
   }];
 
   let regions = (region AnyRegion:$region);
+
+  let assemblyFormat = "$region attr-dict";
 }
 
 //===----------------------------------------------------------------------===//

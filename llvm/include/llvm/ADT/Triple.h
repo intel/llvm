@@ -56,6 +56,7 @@ public:
     avr,        // AVR: Atmel AVR microcontroller
     bpfel,      // eBPF or extended BPF or 64-bit BPF (little endian)
     bpfeb,      // eBPF or extended BPF or 64-bit BPF (big endian)
+    csky,       // CSKY: csky
     hexagon,    // Hexagon: hexagon
     mips,       // MIPS: mips, mipsallegrex, mipsr6
     mipsel,     // MIPSEL: mipsel, mipsallegrexe, mipsr6el
@@ -107,6 +108,7 @@ public:
   enum SubArchType {
     NoSubArch,
 
+    ARMSubArch_v8_7a,
     ARMSubArch_v8_6a,
     ARMSubArch_v8_5a,
     ARMSubArch_v8_4a,
@@ -131,6 +133,8 @@ public:
     ARMSubArch_v5,
     ARMSubArch_v5te,
     ARMSubArch_v4t,
+
+    AArch64SubArch_arm64e,
 
     KalimbaSubArch_v3,
     KalimbaSubArch_v4,
@@ -499,6 +503,12 @@ public:
     return getEnvironment() == Triple::MacABI;
   }
 
+  /// Returns true for targets that run on a macOS machine.
+  bool isTargetMachineMac() const {
+    return isMacOSX() || (isOSDarwin() && (isSimulatorEnvironment() ||
+                                           isMacCatalystEnvironment()));
+  }
+
   bool isOSNetBSD() const {
     return getOS() == Triple::NetBSD;
   }
@@ -721,7 +731,17 @@ public:
 
   /// Tests whether the target is AArch64 (little and big endian).
   bool isAArch64() const {
-    return getArch() == Triple::aarch64 || getArch() == Triple::aarch64_be;
+    return getArch() == Triple::aarch64 || getArch() == Triple::aarch64_be ||
+           getArch() == Triple::aarch64_32;
+  }
+
+  /// Tests whether the target is AArch64 and pointers are the size specified by
+  /// \p PointerWidth.
+  bool isAArch64(int PointerWidth) const {
+    assert(PointerWidth == 64 || PointerWidth == 32);
+    if (!isAArch64())
+      return false;
+    return isArch64Bit() ? PointerWidth == 64 : PointerWidth == 32;
   }
 
   /// Tests whether the target is MIPS 32-bit (little and big endian).
@@ -769,6 +789,17 @@ public:
     return getArch() == Triple::wasm32 || getArch() == Triple::wasm64;
   }
 
+  // Tests whether the target is CSKY
+  bool isCSKY() const {
+    return getArch() == Triple::csky;
+  }
+
+  /// Tests whether the target is the Apple "arm64e" AArch64 subarch.
+  bool isArm64e() const {
+    return getArch() == Triple::aarch64 &&
+           getSubArch() == Triple::AArch64SubArch_arm64e;
+  }
+
   /// Tests whether the target supports comdat
   bool supportsCOMDAT() const {
     return !(isOSBinFormatMachO() || isOSBinFormatXCOFF());
@@ -778,6 +809,14 @@ public:
   bool hasDefaultEmulatedTLS() const {
     return isAndroid() || isOSOpenBSD() || isWindowsCygwinEnvironment();
   }
+
+  /// Tests whether the target uses -data-sections as default.
+  bool hasDefaultDataSections() const {
+    return isOSBinFormatXCOFF() || isWasm();
+  }
+
+  /// Tests if the environment supports dllimport/export annotations.
+  bool hasDLLImportExport() const { return isOSWindows() || isPS4CPU(); }
 
   /// @}
   /// @name Mutators

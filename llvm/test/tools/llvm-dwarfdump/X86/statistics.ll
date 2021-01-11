@@ -1,6 +1,6 @@
 ; RUN: llc -O0 %s -o - -filetype=obj \
 ; RUN:   | llvm-dwarfdump -statistics - | FileCheck %s
-; CHECK: "version": 5,
+; CHECK: "version": 6,
 
 ; namespace test {
 ;  extern int a;
@@ -56,9 +56,13 @@
 ; CHECK:      "#bytes within inlined functions": [[INLINESIZE:[0-9]+]]
 ; CHECK:      "#bytes in __debug_info": 459,
 ; CHECK-NEXT: "#bytes in __debug_loc": 35,
+; CHECK-NEXT: "#bytes in __apple_names": 348,
+; CHECK-NEXT: "#bytes in __apple_types": 133,
 ; CHECK-NEXT: "#bytes in __debug_abbrev": 384,
+; CHECK-NEXT: "#bytes in __apple_namespac": 60,
 ; CHECK-NEXT: "#bytes in __debug_line": 126,
 ; CHECK-NEXT: "#bytes in __debug_str": 231,
+; CHECK-NEXT: "#bytes in __apple_objc": 36,
 
 ; ModuleID = '/tmp/quality.cpp'
 source_filename = "/tmp/quality.cpp"

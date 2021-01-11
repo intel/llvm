@@ -37,13 +37,20 @@ enum class address_space : int {
 };
 } // namespace access
 
-namespace property {
-template <int>
-class buffer_location {};
-} // namespace property
-
-template <typename... properties>
 class property_list {};
+
+namespace INTEL {
+namespace property {
+struct buffer_location {
+  template <int> class instance {};
+};
+} // namespace property
+} // namespace INTEL
+
+namespace ONEAPI {
+template <typename... properties>
+class accessor_property_list {};
+} // namespace ONEAPI
 
 namespace detail {
 namespace half_impl {
@@ -95,7 +102,7 @@ struct DeviceValueType<dataT, access::target::local> {
 template <typename dataT, int dimensions, access::mode accessmode,
           access::target accessTarget = access::target::global_buffer,
           access::placeholder isPlaceholder = access::placeholder::false_t,
-          typename propertyListT = property_list<>>
+          typename propertyListT = ONEAPI::accessor_property_list<>>
 class accessor {
 
 public:
@@ -107,7 +114,6 @@ private:
   using PtrType = typename DeviceValueType<dataT, accessTarget>::type *;
   void __init(PtrType Ptr, range<dimensions> AccessRange,
               range<dimensions> MemRange, id<dimensions> Offset) {}
-  propertyListT prop_list;
 };
 
 template <int dimensions, access::mode accessmode, access::target accesstarget>
@@ -216,6 +222,19 @@ public:
     kernelFunc();
 #endif
   }
+};
+
+class stream {
+  accessor<int, 1, access::mode::read> acc;
+
+public:
+  stream(unsigned long BufferSize, unsigned long MaxStatementSize,
+         handler &CGH) {}
+
+  void __init() {}
+  void use() const {}
+
+  void __finalize() {}
 };
 
 namespace ONEAPI {

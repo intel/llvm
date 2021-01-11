@@ -14,8 +14,11 @@ if (NOT DEFINED CLANGD_BUILD_XPC)
   unset(CLANGD_BUILD_XPC_DEFAULT)
 endif ()
 
-llvm_canonicalize_cmake_booleans(CLANGD_BUILD_XPC)
-llvm_canonicalize_cmake_booleans(CLANGD_ENABLE_REMOTE)
+llvm_canonicalize_cmake_booleans(
+  CLANGD_BUILD_XPC
+  CLANGD_ENABLE_REMOTE
+  LLVM_ENABLE_ZLIB
+)
 
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/Features.inc.in
@@ -29,9 +32,14 @@ set(LLVM_LINK_COMPONENTS
   Option
   )
 
+include(${CMAKE_CURRENT_SOURCE_DIR}/quality/CompletionModel.cmake)
+gen_decision_forest(${CMAKE_CURRENT_SOURCE_DIR}/quality/model CompletionModel clang::clangd::Example)
+
 if(MSVC AND NOT CLANG_CL)
  set_source_files_properties(CompileCommands.cpp PROPERTIES COMPILE_FLAGS -wd4130) # disables C4130: logical operation on address of string constant
 endif()
+
+include_directories(BEFORE "${CMAKE_CURRENT_BINARY_DIR}/../clang-tidy")
 
 add_clang_library(clangDaemon
   AST.cpp
@@ -48,6 +56,7 @@ add_clang_library(clangDaemon
   ConfigYAML.cpp
   Diagnostics.cpp
   DraftStore.cpp
+  DumpAST.cpp
   ExpectedTypes.cpp
   FindSymbols.cpp
   FindTarget.cpp
@@ -72,9 +81,11 @@ add_clang_library(clangDaemon
   SemanticSelection.cpp
   SourceCode.cpp
   QueryDriverDatabase.cpp
+  TidyProvider.cpp
   TUScheduler.cpp
   URI.cpp
   XRefs.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/CompletionModel.cpp
 
   index/Background.cpp
   index/BackgroundIndexLoader.cpp
@@ -87,6 +98,7 @@ add_clang_library(clangDaemon
   index/IndexAction.cpp
   index/MemIndex.cpp
   index/Merge.cpp
+  index/ProjectAware.cpp
   index/Ref.cpp
   index/Relation.cpp
   index/Serialization.cpp
@@ -105,15 +117,14 @@ add_clang_library(clangDaemon
   refactor/Rename.cpp
   refactor/Tweak.cpp
 
-  LINK_LIBS
-  clangdSupport
-  clangTidy
-  ${LLVM_PTHREAD_LIB}
-  ${ALL_CLANG_TIDY_CHECKS}
-
   DEPENDS
   omp_gen
   )
+
+# Include generated CompletionModel headers.
+target_include_directories(clangDaemon PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+)
 
 clang_target_link_libraries(clangDaemon
   PRIVATE
@@ -130,8 +141,17 @@ clang_target_link_libraries(clangDaemon
   clangTooling
   clangToolingCore
   clangToolingInclusions
-  clangToolingRefactoring
   clangToolingSyntax
+  )
+
+target_link_libraries(clangDaemon
+  PRIVATE
+  ${LLVM_PTHREAD_LIB}
+
+  clangTidy
+  ${ALL_CLANG_TIDY_CHECKS}
+
+  clangdSupport
   )
 
 add_subdirectory(refactor/tweaks)
@@ -149,17 +169,18 @@ if ( CLANGD_BUILD_XPC )
   add_subdirectory(xpc)
 endif ()
 
+if (CLANGD_ENABLE_REMOTE)
+  include(FindGRPC)
+endif()
+
 if(CLANG_INCLUDE_TESTS)
-add_subdirectory(test)
-add_subdirectory(unittests)
+  add_subdirectory(test)
+  add_subdirectory(unittests)
 endif()
 
 # FIXME(kirillbobyrev): Document this in the LLVM docs once remote index is stable.
 option(CLANGD_ENABLE_REMOTE "Use gRPC library to enable remote index support for Clangd" OFF)
 set(GRPC_INSTALL_PATH "" CACHE PATH "Path to gRPC library manual installation.")
 
-if (CLANGD_ENABLE_REMOTE)
-  include(FindGRPC)
-endif()
 add_subdirectory(index/remote)
 add_subdirectory(index/dex/dexp)

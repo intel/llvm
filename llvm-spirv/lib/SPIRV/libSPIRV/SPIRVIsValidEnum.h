@@ -48,23 +48,11 @@
 
 #include "SPIRVEnum.h"
 #include "spirv.hpp"
+#include "spirv_internal.hpp"
 
 using namespace spv;
 
 namespace SPIRV {
-
-inline bool isValid(spv::SourceLanguage V) {
-  switch (V) {
-  case SourceLanguageUnknown:
-  case SourceLanguageESSL:
-  case SourceLanguageGLSL:
-  case SourceLanguageOpenCL_C:
-  case SourceLanguageOpenCL_CPP:
-    return true;
-  default:
-    return false;
-  }
-}
 
 inline bool isValid(spv::ExecutionModel V) {
   switch (V) {
@@ -75,6 +63,14 @@ inline bool isValid(spv::ExecutionModel V) {
   case ExecutionModelFragment:
   case ExecutionModelGLCompute:
   case ExecutionModelKernel:
+  case ExecutionModelTaskNV:
+  case ExecutionModelMeshNV:
+  case ExecutionModelRayGenerationNV:
+  case ExecutionModelIntersectionNV:
+  case ExecutionModelAnyHitNV:
+  case ExecutionModelClosestHitNV:
+  case ExecutionModelMissNV:
+  case ExecutionModelCallableNV:
     return true;
   default:
     return false;
@@ -86,6 +82,7 @@ inline bool isValid(spv::AddressingModel V) {
   case AddressingModelLogical:
   case AddressingModelPhysical32:
   case AddressingModelPhysical64:
+  case AddressingModelPhysicalStorageBuffer64:
     return true;
   default:
     return false;
@@ -97,63 +94,7 @@ inline bool isValid(spv::MemoryModel V) {
   case MemoryModelSimple:
   case MemoryModelGLSL450:
   case MemoryModelOpenCL:
-    return true;
-  default:
-    return false;
-  }
-}
-
-inline bool isValid(spv::ExecutionMode V) {
-  switch (V) {
-  case ExecutionModeInvocations:
-  case ExecutionModeSpacingEqual:
-  case ExecutionModeSpacingFractionalEven:
-  case ExecutionModeSpacingFractionalOdd:
-  case ExecutionModeVertexOrderCw:
-  case ExecutionModeVertexOrderCcw:
-  case ExecutionModePixelCenterInteger:
-  case ExecutionModeOriginUpperLeft:
-  case ExecutionModeOriginLowerLeft:
-  case ExecutionModeEarlyFragmentTests:
-  case ExecutionModePointMode:
-  case ExecutionModeXfb:
-  case ExecutionModeDepthReplacing:
-  case ExecutionModeDepthGreater:
-  case ExecutionModeDepthLess:
-  case ExecutionModeDepthUnchanged:
-  case ExecutionModeLocalSize:
-  case ExecutionModeLocalSizeHint:
-  case ExecutionModeInputPoints:
-  case ExecutionModeInputLines:
-  case ExecutionModeInputLinesAdjacency:
-  case ExecutionModeTriangles:
-  case ExecutionModeInputTrianglesAdjacency:
-  case ExecutionModeQuads:
-  case ExecutionModeIsolines:
-  case ExecutionModeOutputVertices:
-  case ExecutionModeOutputPoints:
-  case ExecutionModeOutputLineStrip:
-  case ExecutionModeOutputTriangleStrip:
-  case ExecutionModeVecTypeHint:
-  case ExecutionModeContractionOff:
-  case ExecutionModeInitializer:
-  case ExecutionModeFinalizer:
-  case ExecutionModeSubgroupSize:
-  case ExecutionModeSubgroupsPerWorkgroup:
-  case ExecutionModeMaxWorkgroupSizeINTEL:
-  case ExecutionModeNoGlobalOffsetINTEL:
-  case ExecutionModeMaxWorkDimINTEL:
-  case ExecutionModeNumSIMDWorkitemsINTEL:
-  case ExecutionModeDenormPreserve:
-  case ExecutionModeDenormFlushToZero:
-  case ExecutionModeSignedZeroInfNanPreserve:
-  case ExecutionModeRoundingModeRTE:
-  case ExecutionModeRoundingModeRTZ:
-  case ExecutionModeRoundingModeRTPINTEL:
-  case ExecutionModeRoundingModeRTNINTEL:
-  case ExecutionModeFloatingPointModeALTINTEL:
-  case ExecutionModeFloatingPointModeIEEEINTEL:
-  case ExecutionModeSharedLocalMemorySizeINTEL:
+  case MemoryModelVulkan:
     return true;
   default:
     return false;
@@ -174,6 +115,14 @@ inline bool isValid(spv::StorageClass V) {
   case StorageClassPushConstant:
   case StorageClassAtomicCounter:
   case StorageClassImage:
+  case StorageClassStorageBuffer:
+  case StorageClassCallableDataNV:
+  case StorageClassIncomingCallableDataNV:
+  case StorageClassRayPayloadNV:
+  case StorageClassHitAttributeNV:
+  case StorageClassIncomingRayPayloadNV:
+  case StorageClassShaderRecordBufferNV:
+  case StorageClassPhysicalStorageBuffer:
   case StorageClassDeviceOnlyINTEL:
   case StorageClassHostOnlyINTEL:
     return true;
@@ -182,158 +131,12 @@ inline bool isValid(spv::StorageClass V) {
   }
 }
 
-inline bool isValid(spv::Dim V) {
-  switch (V) {
-  case Dim1D:
-  case Dim2D:
-  case Dim3D:
-  case DimCube:
-  case DimRect:
-  case DimBuffer:
-  case DimSubpassData:
-    return true;
-  default:
-    return false;
-  }
-}
-
-inline bool isValid(spv::SamplerAddressingMode V) {
-  switch (V) {
-  case SamplerAddressingModeNone:
-  case SamplerAddressingModeClampToEdge:
-  case SamplerAddressingModeClamp:
-  case SamplerAddressingModeRepeat:
-  case SamplerAddressingModeRepeatMirrored:
-    return true;
-  default:
-    return false;
-  }
-}
-
-inline bool isValid(spv::SamplerFilterMode V) {
-  switch (V) {
-  case SamplerFilterModeNearest:
-  case SamplerFilterModeLinear:
-    return true;
-  default:
-    return false;
-  }
-}
-
-inline bool isValid(spv::ImageFormat V) {
-  switch (V) {
-  case ImageFormatUnknown:
-  case ImageFormatRgba32f:
-  case ImageFormatRgba16f:
-  case ImageFormatR32f:
-  case ImageFormatRgba8:
-  case ImageFormatRgba8Snorm:
-  case ImageFormatRg32f:
-  case ImageFormatRg16f:
-  case ImageFormatR11fG11fB10f:
-  case ImageFormatR16f:
-  case ImageFormatRgba16:
-  case ImageFormatRgb10A2:
-  case ImageFormatRg16:
-  case ImageFormatRg8:
-  case ImageFormatR16:
-  case ImageFormatR8:
-  case ImageFormatRgba16Snorm:
-  case ImageFormatRg16Snorm:
-  case ImageFormatRg8Snorm:
-  case ImageFormatR16Snorm:
-  case ImageFormatR8Snorm:
-  case ImageFormatRgba32i:
-  case ImageFormatRgba16i:
-  case ImageFormatRgba8i:
-  case ImageFormatR32i:
-  case ImageFormatRg32i:
-  case ImageFormatRg16i:
-  case ImageFormatRg8i:
-  case ImageFormatR16i:
-  case ImageFormatR8i:
-  case ImageFormatRgba32ui:
-  case ImageFormatRgba16ui:
-  case ImageFormatRgba8ui:
-  case ImageFormatR32ui:
-  case ImageFormatRgb10a2ui:
-  case ImageFormatRg32ui:
-  case ImageFormatRg16ui:
-  case ImageFormatRg8ui:
-  case ImageFormatR16ui:
-  case ImageFormatR8ui:
-    return true;
-  default:
-    return false;
-  }
-}
-
-inline bool isValid(spv::ImageChannelOrder V) {
-  switch (V) {
-  case ImageChannelOrderR:
-  case ImageChannelOrderA:
-  case ImageChannelOrderRG:
-  case ImageChannelOrderRA:
-  case ImageChannelOrderRGB:
-  case ImageChannelOrderRGBA:
-  case ImageChannelOrderBGRA:
-  case ImageChannelOrderARGB:
-  case ImageChannelOrderIntensity:
-  case ImageChannelOrderLuminance:
-  case ImageChannelOrderRx:
-  case ImageChannelOrderRGx:
-  case ImageChannelOrderRGBx:
-  case ImageChannelOrderDepth:
-  case ImageChannelOrderDepthStencil:
-  case ImageChannelOrderABGR:
-    return true;
-  default:
-    return false;
-  }
-}
-
-inline bool isValid(spv::ImageChannelDataType V) {
-  switch (V) {
-  case ImageChannelDataTypeSnormInt8:
-  case ImageChannelDataTypeSnormInt16:
-  case ImageChannelDataTypeUnormInt8:
-  case ImageChannelDataTypeUnormInt16:
-  case ImageChannelDataTypeUnormShort565:
-  case ImageChannelDataTypeUnormShort555:
-  case ImageChannelDataTypeUnormInt101010:
-  case ImageChannelDataTypeSignedInt8:
-  case ImageChannelDataTypeSignedInt16:
-  case ImageChannelDataTypeSignedInt32:
-  case ImageChannelDataTypeUnsignedInt8:
-  case ImageChannelDataTypeUnsignedInt16:
-  case ImageChannelDataTypeUnsignedInt32:
-  case ImageChannelDataTypeHalfFloat:
-  case ImageChannelDataTypeFloat:
-  case ImageChannelDataTypeUnormInt24:
-  case ImageChannelDataTypeUnormInt101010_2:
-    return true;
-  default:
-    return false;
-  }
-}
-
-inline bool isValid(spv::FPRoundingMode V) {
-  switch (V) {
-  case FPRoundingModeRTE:
-  case FPRoundingModeRTZ:
-  case FPRoundingModeRTP:
-  case FPRoundingModeRTN:
-    return true;
-  default:
-    return false;
-  }
-}
-
 inline bool isValid(spv::LinkageType V) {
-  switch (V) {
+  int LT = V;
+  switch (LT) {
   case LinkageTypeExport:
   case LinkageTypeImport:
-  case LinkageTypeInternal:
+  case internal::LinkageTypeInternal:
     return true;
   default:
     return false;
@@ -361,84 +164,6 @@ inline bool isValid(spv::FunctionParameterAttribute V) {
   case FunctionParameterAttributeNoCapture:
   case FunctionParameterAttributeNoWrite:
   case FunctionParameterAttributeNoReadWrite:
-    return true;
-  default:
-    return false;
-  }
-}
-
-inline bool isValid(spv::Decoration V) {
-  switch (V) {
-  case DecorationRelaxedPrecision:
-  case DecorationSpecId:
-  case DecorationBlock:
-  case DecorationBufferBlock:
-  case DecorationRowMajor:
-  case DecorationColMajor:
-  case DecorationArrayStride:
-  case DecorationMatrixStride:
-  case DecorationGLSLShared:
-  case DecorationGLSLPacked:
-  case DecorationCPacked:
-  case DecorationBuiltIn:
-  case DecorationNoPerspective:
-  case DecorationFlat:
-  case DecorationPatch:
-  case DecorationCentroid:
-  case DecorationSample:
-  case DecorationInvariant:
-  case DecorationRestrict:
-  case DecorationAliased:
-  case DecorationVolatile:
-  case DecorationConstant:
-  case DecorationCoherent:
-  case DecorationNonWritable:
-  case DecorationNonReadable:
-  case DecorationUniform:
-  case DecorationSaturatedConversion:
-  case DecorationStream:
-  case DecorationLocation:
-  case DecorationComponent:
-  case DecorationIndex:
-  case DecorationBinding:
-  case DecorationDescriptorSet:
-  case DecorationOffset:
-  case DecorationXfbBuffer:
-  case DecorationXfbStride:
-  case DecorationFuncParamAttr:
-  case DecorationFPRoundingMode:
-  case DecorationFPFastMathMode:
-  case DecorationLinkageAttributes:
-  case DecorationNoContraction:
-  case DecorationInputAttachmentIndex:
-  case DecorationAlignment:
-  case DecorationMaxByteOffset:
-  case DecorationUserSemantic:
-  case DecorationRegisterINTEL:
-  case DecorationMemoryINTEL:
-  case DecorationNumbanksINTEL:
-  case DecorationBankwidthINTEL:
-  case DecorationMaxPrivateCopiesINTEL:
-  case DecorationSinglepumpINTEL:
-  case DecorationDoublepumpINTEL:
-  case DecorationBankBitsINTEL:
-  case DecorationForcePow2DepthINTEL:
-  case DecorationBurstCoalesceINTEL:
-  case DecorationCacheSizeINTEL:
-  case DecorationDontStaticallyCoalesceINTEL:
-  case DecorationPrefetchINTEL:
-  case DecorationReferencedIndirectlyINTEL:
-  case DecorationVectorComputeFunctionINTEL:
-  case DecorationStackCallINTEL:
-  case DecorationFuncParamKindINTEL:
-  case DecorationFuncParamDescINTEL:
-  case DecorationVectorComputeVariableINTEL:
-  case DecorationGlobalVariableOffsetINTEL:
-  case DecorationFuncParamIOKind:
-  case DecorationSIMTCallINTEL:
-  case DecorationFunctionRoundingModeINTEL:
-  case DecorationFunctionDenormModeINTEL:
-  case DecorationFunctionFloatingPointModeINTEL:
     return true;
   default:
     return false;
@@ -486,198 +211,66 @@ inline bool isValid(spv::BuiltIn V) {
   case BuiltInNumEnqueuedSubgroups:
   case BuiltInSubgroupId:
   case BuiltInSubgroupLocalInvocationId:
+  case BuiltInVertexIndex:
+  case BuiltInInstanceIndex:
   case BuiltInSubgroupEqMask:
   case BuiltInSubgroupGeMask:
   case BuiltInSubgroupGtMask:
   case BuiltInSubgroupLeMask:
   case BuiltInSubgroupLtMask:
-  case BuiltInVertexIndex:
-  case BuiltInInstanceIndex:
+  case BuiltInBaseVertex:
+  case BuiltInBaseInstance:
+  case BuiltInDrawIndex:
+  case BuiltInDeviceIndex:
+  case BuiltInViewIndex:
+  case BuiltInBaryCoordNoPerspAMD:
+  case BuiltInBaryCoordNoPerspCentroidAMD:
+  case BuiltInBaryCoordNoPerspSampleAMD:
+  case BuiltInBaryCoordSmoothAMD:
+  case BuiltInBaryCoordSmoothCentroidAMD:
+  case BuiltInBaryCoordSmoothSampleAMD:
+  case BuiltInBaryCoordPullModelAMD:
+  case BuiltInFragStencilRefEXT:
+  case BuiltInViewportMaskNV:
+  case BuiltInSecondaryPositionNV:
+  case BuiltInSecondaryViewportMaskNV:
+  case BuiltInPositionPerViewNV:
+  case BuiltInViewportMaskPerViewNV:
+  case BuiltInFullyCoveredEXT:
+  case BuiltInTaskCountNV:
+  case BuiltInPrimitiveCountNV:
+  case BuiltInPrimitiveIndicesNV:
+  case BuiltInClipDistancePerViewNV:
+  case BuiltInCullDistancePerViewNV:
+  case BuiltInLayerPerViewNV:
+  case BuiltInMeshViewCountNV:
+  case BuiltInMeshViewIndicesNV:
+  case BuiltInBaryCoordNV:
+  case BuiltInBaryCoordNoPerspNV:
+  case BuiltInFragSizeEXT:
+  case BuiltInFragInvocationCountEXT:
+  case BuiltInLaunchIdNV:
+  case BuiltInLaunchSizeNV:
+  case BuiltInWorldRayOriginNV:
+  case BuiltInWorldRayDirectionNV:
+  case BuiltInObjectRayOriginNV:
+  case BuiltInObjectRayDirectionNV:
+  case BuiltInRayTminNV:
+  case BuiltInRayTmaxNV:
+  case BuiltInInstanceCustomIndexNV:
+  case BuiltInObjectToWorldNV:
+  case BuiltInWorldToObjectNV:
+  case BuiltInHitTNV:
+  case BuiltInHitKindNV:
+  case BuiltInIncomingRayFlagsNV:
+  case BuiltInWarpsPerSMNV:
+  case BuiltInSMCountNV:
+  case BuiltInWarpIDNV:
+  case BuiltInSMIDNV:
     return true;
   default:
     return false;
   }
-}
-
-inline bool isValid(spv::Scope V) {
-  switch (V) {
-  case ScopeCrossDevice:
-  case ScopeDevice:
-  case ScopeWorkgroup:
-  case ScopeSubgroup:
-  case ScopeInvocation:
-    return true;
-  default:
-    return false;
-  }
-}
-
-inline bool isValid(spv::GroupOperation V) {
-  switch (V) {
-  case GroupOperationReduce:
-  case GroupOperationInclusiveScan:
-  case GroupOperationExclusiveScan:
-    return true;
-  default:
-    return false;
-  }
-}
-
-inline bool isValid(spv::KernelEnqueueFlags V) {
-  switch (V) {
-  case KernelEnqueueFlagsNoWait:
-  case KernelEnqueueFlagsWaitKernel:
-  case KernelEnqueueFlagsWaitWorkGroup:
-    return true;
-  default:
-    return false;
-  }
-}
-
-inline bool isValid(spv::Capability V) {
-  switch (V) {
-  case CapabilityMatrix:
-  case CapabilityShader:
-  case CapabilityGeometry:
-  case CapabilityTessellation:
-  case CapabilityAddresses:
-  case CapabilityLinkage:
-  case CapabilityKernel:
-  case CapabilityVector16:
-  case CapabilityFloat16Buffer:
-  case CapabilityFloat16:
-  case CapabilityFloat64:
-  case CapabilityInt64:
-  case CapabilityInt64Atomics:
-  case CapabilityImageBasic:
-  case CapabilityImageReadWrite:
-  case CapabilityImageMipmap:
-  case CapabilityPipes:
-  case CapabilityGroups:
-  case CapabilityDeviceEnqueue:
-  case CapabilityLiteralSampler:
-  case CapabilityAtomicStorage:
-  case CapabilityInt16:
-  case CapabilityTessellationPointSize:
-  case CapabilityGeometryPointSize:
-  case CapabilityImageGatherExtended:
-  case CapabilityStorageImageMultisample:
-  case CapabilityUniformBufferArrayDynamicIndexing:
-  case CapabilitySampledImageArrayDynamicIndexing:
-  case CapabilityStorageBufferArrayDynamicIndexing:
-  case CapabilityStorageImageArrayDynamicIndexing:
-  case CapabilityClipDistance:
-  case CapabilityCullDistance:
-  case CapabilityImageCubeArray:
-  case CapabilitySampleRateShading:
-  case CapabilityImageRect:
-  case CapabilitySampledRect:
-  case CapabilityGenericPointer:
-  case CapabilityInt8:
-  case CapabilityInputAttachment:
-  case CapabilitySparseResidency:
-  case CapabilityMinLod:
-  case CapabilitySampled1D:
-  case CapabilityImage1D:
-  case CapabilitySampledCubeArray:
-  case CapabilitySampledBuffer:
-  case CapabilityImageBuffer:
-  case CapabilityImageMSArray:
-  case CapabilityStorageImageExtendedFormats:
-  case CapabilityImageQuery:
-  case CapabilityDerivativeControl:
-  case CapabilityInterpolationFunction:
-  case CapabilityTransformFeedback:
-  case CapabilityGeometryStreams:
-  case CapabilityStorageImageReadWithoutFormat:
-  case CapabilityStorageImageWriteWithoutFormat:
-  case CapabilityMultiViewport:
-  case CapabilitySubgroupDispatch:
-  case CapabilityNamedBarrier:
-  case CapabilityPipeStorage:
-  case CapabilityGroupNonUniform:
-  case CapabilityGroupNonUniformVote:
-  case CapabilityGroupNonUniformArithmetic:
-  case CapabilityGroupNonUniformBallot:
-  case CapabilityGroupNonUniformShuffle:
-  case CapabilityGroupNonUniformShuffleRelative:
-  case CapabilityGroupNonUniformClustered:
-  case CapabilityGroupNonUniformQuad:
-  case CapabilityDenormPreserve:
-  case CapabilityDenormFlushToZero:
-  case CapabilitySignedZeroInfNanPreserve:
-  case CapabilityRoundingModeRTE:
-  case CapabilityRoundingModeRTZ:
-  case CapabilityRoundToInfinityINTEL:
-  case CapabilityFloatingPointModeINTEL:
-  case CapabilityVectorComputeINTEL:
-  case CapabilityVectorAnyINTEL:
-  case CapabilityFPGAMemoryAttributesINTEL:
-  case CapabilityFPGAMemoryAccessesINTEL:
-  case CapabilityArbitraryPrecisionIntegersINTEL:
-  case CapabilityArbitraryPrecisionFixedPointINTEL:
-  case CapabilityArbitraryPrecisionFloatingPointINTEL:
-  case CapabilityFPGALoopControlsINTEL:
-  case CapabilityBlockingPipesINTEL:
-  case CapabilityUnstructuredLoopControlsINTEL:
-  case CapabilityKernelAttributesINTEL:
-  case CapabilityFPGAKernelAttributesINTEL:
-  case CapabilityFunctionFloatControlINTEL:
-    return true;
-  default:
-    return false;
-  }
-}
-
-inline bool isValidImageOperandsMask(SPIRVWord Mask) {
-  SPIRVWord ValidMask = 0u;
-  ValidMask |= ImageOperandsBiasMask;
-  ValidMask |= ImageOperandsLodMask;
-  ValidMask |= ImageOperandsGradMask;
-  ValidMask |= ImageOperandsConstOffsetMask;
-  ValidMask |= ImageOperandsOffsetMask;
-  ValidMask |= ImageOperandsConstOffsetsMask;
-  ValidMask |= ImageOperandsSampleMask;
-  ValidMask |= ImageOperandsMinLodMask;
-
-  return (Mask & ~ValidMask) == 0;
-}
-
-inline bool isValidFPFastMathModeMask(SPIRVWord Mask) {
-  SPIRVWord ValidMask = 0u;
-  ValidMask |= FPFastMathModeNotNaNMask;
-  ValidMask |= FPFastMathModeNotInfMask;
-  ValidMask |= FPFastMathModeNSZMask;
-  ValidMask |= FPFastMathModeAllowRecipMask;
-  ValidMask |= FPFastMathModeFastMask;
-
-  return (Mask & ~ValidMask) == 0;
-}
-
-inline bool isValidSelectionControlMask(SPIRVWord Mask) {
-  SPIRVWord ValidMask = 0u;
-  ValidMask |= SelectionControlFlattenMask;
-  ValidMask |= SelectionControlDontFlattenMask;
-
-  return (Mask & ~ValidMask) == 0;
-}
-
-inline bool isValidLoopControlMask(SPIRVWord Mask) {
-  SPIRVWord ValidMask = 0u;
-  ValidMask |= LoopControlUnrollMask;
-  ValidMask |= LoopControlDontUnrollMask;
-  ValidMask |= LoopControlPartialCountMask;
-  ValidMask |= LoopControlDependencyInfiniteMask;
-  ValidMask |= LoopControlDependencyLengthMask;
-  ValidMask |= LoopControlInitiationIntervalINTELMask;
-  ValidMask |= LoopControlMaxConcurrencyINTELMask;
-  ValidMask |= LoopControlDependencyArrayINTELMask;
-  ValidMask |= LoopControlPipelineEnableINTELMask;
-  ValidMask |= LoopControlLoopCoalesceINTELMask;
-  ValidMask |= LoopControlMaxInterleavingINTELMask;
-  ValidMask |= LoopControlSpeculatedIterationsINTELMask;
-
-  return (Mask & ~ValidMask) == 0;
 }
 
 inline bool isValidFunctionControlMask(SPIRVWord Mask) {
@@ -686,38 +279,6 @@ inline bool isValidFunctionControlMask(SPIRVWord Mask) {
   ValidMask |= FunctionControlDontInlineMask;
   ValidMask |= FunctionControlPureMask;
   ValidMask |= FunctionControlConstMask;
-
-  return (Mask & ~ValidMask) == 0;
-}
-
-inline bool isValidMemorySemanticsMask(SPIRVWord Mask) {
-  SPIRVWord ValidMask = 0u;
-  ValidMask |= MemorySemanticsAcquireMask;
-  ValidMask |= MemorySemanticsReleaseMask;
-  ValidMask |= MemorySemanticsAcquireReleaseMask;
-  ValidMask |= MemorySemanticsSequentiallyConsistentMask;
-  ValidMask |= MemorySemanticsUniformMemoryMask;
-  ValidMask |= MemorySemanticsSubgroupMemoryMask;
-  ValidMask |= MemorySemanticsWorkgroupMemoryMask;
-  ValidMask |= MemorySemanticsCrossWorkgroupMemoryMask;
-  ValidMask |= MemorySemanticsAtomicCounterMemoryMask;
-  ValidMask |= MemorySemanticsImageMemoryMask;
-
-  return (Mask & ~ValidMask) == 0;
-}
-
-inline bool isValidMemoryAccessMask(SPIRVWord Mask) {
-  SPIRVWord ValidMask = 0u;
-  ValidMask |= MemoryAccessVolatileMask;
-  ValidMask |= MemoryAccessAlignedMask;
-  ValidMask |= MemoryAccessNontemporalMask;
-
-  return (Mask & ~ValidMask) == 0;
-}
-
-inline bool isValidKernelProfilingInfoMask(SPIRVWord Mask) {
-  SPIRVWord ValidMask = 0u;
-  ValidMask |= KernelProfilingInfoCmdExecTimeMask;
 
   return (Mask & ~ValidMask) == 0;
 }

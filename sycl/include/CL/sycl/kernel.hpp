@@ -22,7 +22,24 @@ class program;
 class context;
 namespace detail {
 class kernel_impl;
-}
+
+/// This class is the default KernelName template parameter type for kernel
+/// invocation APIs such as single_task.
+class auto_name {};
+
+/// Helper struct to get a kernel name type based on given \c Name and \c Type
+/// types: if \c Name is undefined (is a \c auto_name) then \c Type becomes
+/// the \c Name.
+template <typename Name, typename Type> struct get_kernel_name_t {
+  using name = Name;
+};
+
+/// Specialization for the case when \c Name is undefined.
+template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
+  using name = Type;
+};
+
+} // namespace detail
 
 /// Provides an abstraction of a SYCL kernel.
 ///
@@ -92,6 +109,27 @@ public:
   typename info::param_traits<info::kernel, param>::return_type
   get_info() const;
 
+  /// Query device-specific information from the kernel object using the
+  /// info::kernel_device_specific descriptor.
+  ///
+  /// \param Device is a valid SYCL device to query info for.
+  /// \return depends on information being queried.
+  template <info::kernel_device_specific param>
+  typename info::param_traits<info::kernel_device_specific, param>::return_type
+  get_info(const device &Device) const;
+
+  /// Query device-specific information from a kernel using the
+  /// info::kernel_device_specific descriptor for a specific device and value.
+  ///
+  /// \param Device is a valid SYCL device.
+  /// \param Value depends on information being queried.
+  /// \return depends on information being queried.
+  template <info::kernel_device_specific param>
+  typename info::param_traits<info::kernel_device_specific, param>::return_type
+  get_info(const device &Device,
+           typename info::param_traits<info::kernel_device_specific,
+                                       param>::input_type Value) const;
+
   /// Query work-group information from a kernel using the
   /// info::kernel_work_group descriptor for a specific device.
   ///
@@ -107,8 +145,11 @@ public:
   /// \param Device is a valid SYCL device.
   /// \return depends on information being queried.
   template <info::kernel_sub_group param>
+  // clang-format off
   typename info::param_traits<info::kernel_sub_group, param>::return_type
+  __SYCL_DEPRECATED("Use get_info with info::kernel_device_specific instead.")
   get_sub_group_info(const device &Device) const;
+  // clang-format on
 
   /// Query sub-group information from a kernel using the
   /// info::kernel_sub_group descriptor for a specific device and value.
@@ -117,11 +158,13 @@ public:
   /// \param Value depends on information being queried.
   /// \return depends on information being queried.
   template <info::kernel_sub_group param>
+  // clang-format off
   typename info::param_traits<info::kernel_sub_group, param>::return_type
-  get_sub_group_info(
-      const device &Device,
-      typename info::param_traits<info::kernel_sub_group, param>::input_type
-          Value) const;
+  __SYCL_DEPRECATED("Use get_info with info::kernel_device_specific instead.")
+  get_sub_group_info(const device &Device,
+                     typename info::param_traits<info::kernel_sub_group,
+                     param>::input_type Value) const;
+  // clang-format on
 
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.

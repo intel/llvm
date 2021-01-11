@@ -39,8 +39,7 @@ void foo() {
 
   // no error expected
   [[clang::loop_unroll(4)]]
-  [[intelfpga::ii(2)]]
-  for (int i = 0; i < 10; ++i);
+  [[intel::ii(2)]] for (int i = 0; i < 10; ++i);
 
   // expected-error@+2 {{'loop_unroll' attribute requires an integer constant}}
   int b = 4;

@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -linalg-fusion | FileCheck %s
+// RUN: mlir-opt %s -test-linalg-greedy-fusion | FileCheck %s
 
 func @f1(%A: memref<?x?xf32, offset: ?, strides: [?, 1]>, %B: memref<?x?xf32, offset: ?, strides: [?, 1]>, %C: memref<?x?xf32, offset: ?, strides: [?, 1]>, %D: memref<?x?xf32, offset: ?, strides: [?, 1]>, %E: memref<?x?xf32, offset: ?, strides: [?, 1]>) -> memref<?x?xf32, offset: ?, strides: [?, 1]> {
   %c1 = constant 1 : index
@@ -12,7 +12,8 @@ func @f1(%A: memref<?x?xf32, offset: ?, strides: [?, 1]>, %B: memref<?x?xf32, of
   %0 = dim %C, %c0 : memref<?x?xf32, offset: ?, strides: [?, 1]>
   %1 = dim %C, %c1 : memref<?x?xf32, offset: ?, strides: [?, 1]>
   %2 = dim %D, %c1 : memref<?x?xf32, offset: ?, strides: [?, 1]>
-  linalg.matmul %A, %B, %C : (memref<?x?xf32, offset: ?, strides: [?, 1]>, memref<?x?xf32, offset: ?, strides: [?, 1]>, memref<?x?xf32, offset: ?, strides: [?, 1]>)
+  linalg.matmul ins(%A, %B: memref<?x?xf32, offset: ?, strides: [?, 1]>, memref<?x?xf32, offset: ?, strides: [?, 1]>)
+               outs(%C: memref<?x?xf32, offset: ?, strides: [?, 1]>)
   scf.for %arg5 = %c0 to %0 step %c20 {
     scf.for %arg6 = %c0 to %2 step %c30 {
       scf.for %arg7 = %c0 to %1 step %c40 {
@@ -28,7 +29,8 @@ func @f1(%A: memref<?x?xf32, offset: ?, strides: [?, 1]>, %B: memref<?x?xf32, of
               %14 = std.subview %5[%arg8, %arg10][%c2, %c4][%c1, %c1] : memref<?x?xf32, offset: ?, strides: [?, ?]> to memref<?x?xf32, offset: ?, strides: [?, ?]>
               %16 = std.subview %7[%arg10, %arg9][%c4, %c3][%c1, %c1]: memref<?x?xf32, offset: ?, strides: [?, ?]> to memref<?x?xf32, offset: ?, strides: [?, ?]>
               %17 = std.subview %8[%arg8, %arg9][%c2, %c4][%c1, %c1] : memref<?x?xf32, offset: ?, strides: [?, ?]> to memref<?x?xf32, offset: ?, strides: [?, ?]>
-              linalg.matmul %14, %16, %17 : (memref<?x?xf32, offset: ?, strides: [?, ?]>, memref<?x?xf32, offset: ?, strides: [?, ?]>, memref<?x?xf32, offset: ?, strides: [?, ?]>)
+              linalg.matmul ins(%14, %16: memref<?x?xf32, offset: ?, strides: [?, ?]>, memref<?x?xf32, offset: ?, strides: [?, ?]>)
+                           outs(%17: memref<?x?xf32, offset: ?, strides: [?, ?]>)
             }
           }
         }

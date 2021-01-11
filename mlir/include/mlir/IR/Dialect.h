@@ -27,12 +27,12 @@ class Type;
 
 using DialectAllocatorFunction = std::function<Dialect *(MLIRContext *)>;
 
-/// Dialects are groups of MLIR operations and behavior associated with the
-/// entire group.  For example, hooks into other systems for constant folding,
-/// default named types for asm printing, etc.
+/// Dialects are groups of MLIR operations, types and attributes, as well as
+/// behavior associated with the entire group.  For example, hooks into other
+/// systems for constant folding, interfaces, default named types for asm
+/// printing, etc.
 ///
-/// Instances of the dialect object are global across all MLIRContext's that may
-/// be active in the process.
+/// Instances of the dialect object are loaded in a specific MLIRContext.
 ///
 class Dialect {
 public:
@@ -151,10 +151,8 @@ protected:
   ///
   template <typename... Args> void addOperations() {
     (void)std::initializer_list<int>{
-        0, (addOperation(AbstractOperation::get<Args>(*this)), 0)...};
+        0, (AbstractOperation::insert<Args>(*this), 0)...};
   }
-
-  void addOperation(AbstractOperation opInfo);
 
   /// Register a set of type classes with this dialect.
   template <typename... Args> void addTypes() {
@@ -232,7 +230,7 @@ private:
 /// matching dialect.
 /// This allows for decoupling the list of dialects "available" from the
 /// dialects loaded in the Context. The parser in particular will lazily load
-/// dialects in in the Context as operations are encountered.
+/// dialects in the Context as operations are encountered.
 class DialectRegistry {
   using MapTy =
       std::map<std::string, std::pair<TypeID, DialectAllocatorFunction>>;
@@ -281,41 +279,6 @@ public:
 
 private:
   MapTy registry;
-};
-
-/// Deprecated: this provides a global registry for convenience, while we're
-/// transitionning the registration mechanism to a stateless approach.
-DialectRegistry &getGlobalDialectRegistry();
-
-/// Registers all dialects from the global registries with the
-/// specified MLIRContext. This won't load the dialects in the context,
-/// but only make them available for lazy loading by name.
-/// Note: This method is not thread-safe.
-void registerAllDialects(MLIRContext *context);
-
-/// Register and return the dialect with the given namespace in the provided
-/// context. Returns nullptr is there is no constructor registered for this
-/// dialect.
-inline Dialect *registerDialect(StringRef name, MLIRContext *context) {
-  return getGlobalDialectRegistry().loadByName(name, context);
-}
-
-/// Utility to register a dialect. Client can register their dialect with the
-/// global registry by calling registerDialect<MyDialect>();
-/// Note: This method is not thread-safe.
-template <typename ConcreteDialect> void registerDialect() {
-  getGlobalDialectRegistry().insert<ConcreteDialect>();
-}
-
-/// DialectRegistration provides a global initializer that registers a Dialect
-/// allocation routine.
-///
-/// Usage:
-///
-///   // At namespace scope.
-///   static DialectRegistration<MyDialect> Unused;
-template <typename ConcreteDialect> struct DialectRegistration {
-  DialectRegistration() { registerDialect<ConcreteDialect>(); }
 };
 
 } // namespace mlir

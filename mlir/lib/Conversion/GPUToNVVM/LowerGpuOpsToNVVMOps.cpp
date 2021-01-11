@@ -19,6 +19,7 @@
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/Support/FormatVariadic.h"
 
 #include "../GPUCommon/GPUOpsLowering.h"
@@ -30,10 +31,8 @@ using namespace mlir;
 
 namespace {
 
-struct GPUShuffleOpLowering : public ConvertToLLVMPattern {
-  explicit GPUShuffleOpLowering(LLVMTypeConverter &lowering_)
-      : ConvertToLLVMPattern(gpu::ShuffleOp::getOperationName(),
-                             lowering_.getDialect()->getContext(), lowering_) {}
+struct GPUShuffleOpLowering : public ConvertOpToLLVMPattern<gpu::ShuffleOp> {
+  using ConvertOpToLLVMPattern<gpu::ShuffleOp>::ConvertOpToLLVMPattern;
 
   /// Lowers a shuffle to the corresponding NVVM op.
   ///
@@ -52,7 +51,7 @@ struct GPUShuffleOpLowering : public ConvertToLLVMPattern {
   ///     %shfl_pred = llvm.extractvalue %shfl[1 : index] :
   ///         !llvm<"{ float, i1 }">
   LogicalResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+  matchAndRewrite(gpu::ShuffleOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op->getLoc();
     gpu::ShuffleOpAdaptor adaptor(operands);
@@ -123,36 +122,41 @@ struct LowerGpuOpsToNVVMOpsPass
       return converter.convertType(MemRefType::Builder(type).setMemorySpace(0));
     });
 
-    OwningRewritePatternList patterns;
+    OwningRewritePatternList patterns, llvmPatterns;
 
     // Apply in-dialect lowering first. In-dialect lowering will replace ops
     // which need to be lowered further, which is not supported by a single
     // conversion pass.
     populateGpuRewritePatterns(m.getContext(), patterns);
-    applyPatternsAndFoldGreedily(m, patterns);
-    patterns.clear();
+    applyPatternsAndFoldGreedily(m, std::move(patterns));
 
-    populateStdToLLVMConversionPatterns(converter, patterns);
-    populateGpuToNVVMConversionPatterns(converter, patterns);
+    populateStdToLLVMConversionPatterns(converter, llvmPatterns);
+    populateGpuToNVVMConversionPatterns(converter, llvmPatterns);
     LLVMConversionTarget target(getContext());
-    target.addIllegalDialect<gpu::GPUDialect>();
-    target.addIllegalOp<LLVM::CosOp, LLVM::ExpOp, LLVM::FAbsOp, LLVM::FCeilOp,
-                        LLVM::FFloorOp, LLVM::LogOp, LLVM::Log10Op,
-                        LLVM::Log2Op>();
-    target.addIllegalOp<FuncOp>();
-    target.addLegalDialect<NVVM::NVVMDialect>();
-    // TODO: Remove once we support replacing non-root ops.
-    target.addLegalOp<gpu::YieldOp, gpu::GPUModuleOp, gpu::ModuleEndOp>();
-    if (failed(applyPartialConversion(m, target, patterns)))
+    configureGpuToNVVMConversionLegality(target);
+    if (failed(applyPartialConversion(m, target, std::move(llvmPatterns))))
       signalPassFailure();
   }
 };
 
 } // anonymous namespace
 
+void mlir::configureGpuToNVVMConversionLegality(ConversionTarget &target) {
+  target.addIllegalOp<FuncOp>();
+  target.addLegalDialect<::mlir::LLVM::LLVMDialect>();
+  target.addLegalDialect<::mlir::NVVM::NVVMDialect>();
+  target.addIllegalDialect<gpu::GPUDialect>();
+  target.addIllegalOp<LLVM::CosOp, LLVM::ExpOp, LLVM::FAbsOp, LLVM::FCeilOp,
+                      LLVM::FFloorOp, LLVM::LogOp, LLVM::Log10Op, LLVM::Log2Op,
+                      LLVM::PowOp, LLVM::SinOp, LLVM::SqrtOp>();
+
+  // TODO: Remove once we support replacing non-root ops.
+  target.addLegalOp<gpu::YieldOp, gpu::GPUModuleOp, gpu::ModuleEndOp>();
+}
+
 void mlir::populateGpuToNVVMConversionPatterns(
     LLVMTypeConverter &converter, OwningRewritePatternList &patterns) {
-  populateWithGenerated(converter.getDialect()->getContext(), &patterns);
+  populateWithGenerated(converter.getDialect()->getContext(), patterns);
   patterns
       .insert<GPUIndexIntrinsicOpLowering<gpu::ThreadIdOp, NVVM::ThreadIdXOp,
                                           NVVM::ThreadIdYOp, NVVM::ThreadIdZOp>,
@@ -169,6 +173,10 @@ void mlir::populateGpuToNVVMConversionPatterns(
               GPUFuncOpLowering<0>>(converter);
   patterns.insert<OpToFuncCallLowering<AbsFOp>>(converter, "__nv_fabsf",
                                                 "__nv_fabs");
+  patterns.insert<OpToFuncCallLowering<AtanOp>>(converter, "__nv_atanf",
+                                                "__nv_atan");
+  patterns.insert<OpToFuncCallLowering<Atan2Op>>(converter, "__nv_atan2f",
+                                                 "__nv_atan2");
   patterns.insert<OpToFuncCallLowering<CeilFOp>>(converter, "__nv_ceilf",
                                                  "__nv_ceil");
   patterns.insert<OpToFuncCallLowering<CosOp>>(converter, "__nv_cosf",
@@ -183,6 +191,14 @@ void mlir::populateGpuToNVVMConversionPatterns(
                                                  "__nv_log10");
   patterns.insert<OpToFuncCallLowering<Log2Op>>(converter, "__nv_log2f",
                                                 "__nv_log2");
+  patterns.insert<OpToFuncCallLowering<PowFOp>>(converter, "__nv_powf",
+                                                "__nv_pow");
+  patterns.insert<OpToFuncCallLowering<RsqrtOp>>(converter, "__nv_rsqrtf",
+                                                 "__nv_rsqrt");
+  patterns.insert<OpToFuncCallLowering<SinOp>>(converter, "__nv_sinf",
+                                               "__nv_sin");
+  patterns.insert<OpToFuncCallLowering<SqrtOp>>(converter, "__nv_sqrtf",
+                                                "__nv_sqrt");
   patterns.insert<OpToFuncCallLowering<TanhOp>>(converter, "__nv_tanhf",
                                                 "__nv_tanh");
 }

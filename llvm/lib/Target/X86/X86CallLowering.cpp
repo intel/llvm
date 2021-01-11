@@ -95,11 +95,11 @@ bool X86CallLowering::splitToValueTypes(const ArgInfo &OrigArg,
 
 namespace {
 
-struct X86OutgoingValueHandler : public CallLowering::IncomingValueHandler {
+struct X86OutgoingValueHandler : public CallLowering::OutgoingValueHandler {
   X86OutgoingValueHandler(MachineIRBuilder &MIRBuilder,
                           MachineRegisterInfo &MRI, MachineInstrBuilder &MIB,
                           CCAssignFn *AssignFn)
-      : IncomingValueHandler(MIRBuilder, MRI, AssignFn), MIB(MIB),
+      : OutgoingValueHandler(MIRBuilder, MRI, AssignFn), MIB(MIB),
         DL(MIRBuilder.getMF().getDataLayout()),
         STI(MIRBuilder.getMF().getSubtarget<X86Subtarget>()) {}
 
@@ -134,9 +134,10 @@ struct X86OutgoingValueHandler : public CallLowering::IncomingValueHandler {
     unsigned ValSize = VA.getValVT().getSizeInBits();
     unsigned LocSize = VA.getLocVT().getSizeInBits();
     if (PhysRegSize > ValSize && LocSize == ValSize) {
-      assert((PhysRegSize == 128 || PhysRegSize == 80)  && "We expect that to be 128 bit");
-      auto MIB = MIRBuilder.buildAnyExt(LLT::scalar(PhysRegSize), ValVReg);
-      ExtReg = MIB.getReg(0);
+      assert((PhysRegSize == 128 || PhysRegSize == 80) &&
+             "We expect that to be 128 bit");
+      ExtReg =
+          MIRBuilder.buildAnyExt(LLT::scalar(PhysRegSize), ValVReg).getReg(0);
     } else
       ExtReg = extendRegister(ValVReg, VA);
 
@@ -148,9 +149,9 @@ struct X86OutgoingValueHandler : public CallLowering::IncomingValueHandler {
     MachineFunction &MF = MIRBuilder.getMF();
     Register ExtReg = extendRegister(ValVReg, VA);
 
-    auto MMO = MF.getMachineMemOperand(MPO, MachineMemOperand::MOStore,
-                                       VA.getLocVT().getStoreSize(),
-                                       inferAlignFromPtrInfo(MF, MPO));
+    auto *MMO = MF.getMachineMemOperand(MPO, MachineMemOperand::MOStore,
+                                        VA.getLocVT().getStoreSize(),
+                                        inferAlignFromPtrInfo(MF, MPO));
     MIRBuilder.buildStore(ExtReg, Addr, *MMO);
   }
 
@@ -194,7 +195,7 @@ bool X86CallLowering::lowerReturn(
     MachineFunction &MF = MIRBuilder.getMF();
     const Function &F = MF.getFunction();
     MachineRegisterInfo &MRI = MF.getRegInfo();
-    auto &DL = MF.getDataLayout();
+    const DataLayout &DL = MF.getDataLayout();
     LLVMContext &Ctx = Val->getType()->getContext();
     const X86TargetLowering &TLI = *getTLI<X86TargetLowering>();
 
@@ -245,7 +246,7 @@ struct X86IncomingValueHandler : public CallLowering::IncomingValueHandler {
   void assignValueToAddress(Register ValVReg, Register Addr, uint64_t Size,
                             MachinePointerInfo &MPO, CCValAssign &VA) override {
     MachineFunction &MF = MIRBuilder.getMF();
-    auto MMO = MF.getMachineMemOperand(
+    auto *MMO = MF.getMachineMemOperand(
         MPO, MachineMemOperand::MOLoad | MachineMemOperand::MOInvariant, Size,
         inferAlignFromPtrInfo(MF, MPO));
     MIRBuilder.buildLoad(ValVReg, Addr, *MMO);
@@ -337,8 +338,7 @@ bool X86CallLowering::lowerFormalArguments(
 
   SmallVector<ArgInfo, 8> SplitArgs;
   unsigned Idx = 0;
-  for (auto &Arg : F.args()) {
-
+  for (const auto &Arg : F.args()) {
     // TODO: handle not simple cases.
     if (Arg.hasAttribute(Attribute::ByVal) ||
         Arg.hasAttribute(Attribute::InReg) ||
@@ -377,10 +377,10 @@ bool X86CallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
   MachineFunction &MF = MIRBuilder.getMF();
   const Function &F = MF.getFunction();
   MachineRegisterInfo &MRI = MF.getRegInfo();
-  auto &DL = F.getParent()->getDataLayout();
+  const DataLayout &DL = F.getParent()->getDataLayout();
   const X86Subtarget &STI = MF.getSubtarget<X86Subtarget>();
   const TargetInstrInfo &TII = *STI.getInstrInfo();
-  auto TRI = STI.getRegisterInfo();
+  const X86RegisterInfo *TRI = STI.getRegisterInfo();
 
   // Handle only Linux C, X86_64_SysV calling conventions for now.
   if (!STI.isTargetLinux() || !(Info.CallConv == CallingConv::C ||

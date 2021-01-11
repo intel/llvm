@@ -12,9 +12,6 @@
 #include <string>
 #include <vector>
 
-#include "CommandObjectScript.h"
-#include "lldb/Interpreter/CommandObjectRegexCommand.h"
-
 #include "Commands/CommandObjectApropos.h"
 #include "Commands/CommandObjectBreakpoint.h"
 #include "Commands/CommandObjectCommands.h"
@@ -30,14 +27,17 @@
 #include "Commands/CommandObjectPlugin.h"
 #include "Commands/CommandObjectProcess.h"
 #include "Commands/CommandObjectQuit.h"
+#include "Commands/CommandObjectRegexCommand.h"
 #include "Commands/CommandObjectRegister.h"
 #include "Commands/CommandObjectReproducer.h"
+#include "Commands/CommandObjectScript.h"
 #include "Commands/CommandObjectSession.h"
 #include "Commands/CommandObjectSettings.h"
 #include "Commands/CommandObjectSource.h"
 #include "Commands/CommandObjectStats.h"
 #include "Commands/CommandObjectTarget.h"
 #include "Commands/CommandObjectThread.h"
+#include "Commands/CommandObjectTrace.h"
 #include "Commands/CommandObjectType.h"
 #include "Commands/CommandObjectVersion.h"
 #include "Commands/CommandObjectWatchpoint.h"
@@ -68,6 +68,7 @@
 #include "lldb/Interpreter/Property.h"
 #include "lldb/Utility/Args.h"
 
+#include "lldb/Target/Language.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/StopInfo.h"
 #include "lldb/Target/TargetList.h"
@@ -512,6 +513,7 @@ void CommandInterpreter::LoadCommandDictionary() {
   REGISTER_COMMAND_OBJECT("statistics", CommandObjectStats);
   REGISTER_COMMAND_OBJECT("target", CommandObjectMultiwordTarget);
   REGISTER_COMMAND_OBJECT("thread", CommandObjectMultiwordThread);
+  REGISTER_COMMAND_OBJECT("trace", CommandObjectTrace);
   REGISTER_COMMAND_OBJECT("type", CommandObjectType);
   REGISTER_COMMAND_OBJECT("version", CommandObjectVersion);
   REGISTER_COMMAND_OBJECT("watchpoint", CommandObjectMultiwordWatchpoint);
@@ -1521,16 +1523,12 @@ Status CommandInterpreter::PreprocessCommand(std::string &command) {
                          end_backtick - expr_content_start);
 
     ExecutionContext exe_ctx(GetExecutionContext());
-    Target *target = exe_ctx.GetTargetPtr();
 
     // Get a dummy target to allow for calculator mode while processing
     // backticks. This also helps break the infinite loop caused when target is
     // null.
-    if (!target)
-      target = m_debugger.GetDummyTarget();
-
-    if (!target)
-      continue;
+    Target *exe_target = exe_ctx.GetTargetPtr();
+    Target &target = exe_target ? *exe_target : m_debugger.GetDummyTarget();
 
     ValueObjectSP expr_result_valobj_sp;
 
@@ -1543,8 +1541,8 @@ Status CommandInterpreter::PreprocessCommand(std::string &command) {
     options.SetTimeout(llvm::None);
 
     ExpressionResults expr_result =
-        target->EvaluateExpression(expr_str.c_str(), exe_ctx.GetFramePtr(),
-                                   expr_result_valobj_sp, options);
+        target.EvaluateExpression(expr_str.c_str(), exe_ctx.GetFramePtr(),
+                                  expr_result_valobj_sp, options);
 
     if (expr_result == eExpressionCompleted) {
       Scalar scalar;
@@ -2091,19 +2089,21 @@ static void GetHomeInitFile(llvm::SmallVectorImpl<char> &init_file,
   FileSystem::Instance().Resolve(init_file);
 }
 
-static void GetHomeREPLInitFile(llvm::SmallVectorImpl<char> &init_file,
-                                LanguageType language) {
-  std::string init_file_name;
-
-  switch (language) {
-  // TODO: Add support for a language used with a REPL.
-  default:
+static void GetHomeREPLInitFile(llvm::SmallVectorImpl<char> &init_file) {
+  LanguageSet repl_languages = Language::GetLanguagesSupportingREPLs();
+  LanguageType language = eLanguageTypeUnknown;
+  if (auto main_repl_language = repl_languages.GetSingularLanguage())
+    language = *main_repl_language;
+  else
     return;
-  }
 
+  std::string init_file_name =
+      (llvm::Twine(".lldbinit-") +
+       llvm::Twine(Language::GetNameForLanguageType(language)) +
+       llvm::Twine("-repl"))
+          .str();
   FileSystem::Instance().GetHomeDirectory(init_file);
   llvm::sys::path::append(init_file, init_file_name);
-
   FileSystem::Instance().Resolve(init_file);
 }
 
@@ -2192,13 +2192,8 @@ void CommandInterpreter::SourceInitFileHome(CommandReturnObject &result,
 
   llvm::SmallString<128> init_file;
 
-  if (is_repl) {
-    LanguageType language = {};
-    TargetSP target_sp = GetDebugger().GetSelectedTarget();
-    if (target_sp)
-      language = target_sp->GetLanguage();
-    GetHomeREPLInitFile(init_file, language);
-  }
+  if (is_repl)
+    GetHomeREPLInitFile(init_file);
 
   if (init_file.empty())
     GetHomeInitFile(init_file);
@@ -2308,6 +2303,8 @@ void CommandInterpreter::HandleCommands(const StringList &commands,
     }
 
     CommandReturnObject tmp_result(m_debugger.GetUseColor());
+    tmp_result.SetInteractive(result.GetInteractive());
+
     // If override_context is not NULL, pass no_context_switching = true for
     // HandleCommand() since we updated our context already.
 
@@ -2555,11 +2552,15 @@ void CommandInterpreter::HandleCommandsFromFile(
     debugger.SetAsyncExecution(false);
 
   m_command_source_depth++;
+  m_command_source_dirs.push_back(cmd_file.CopyByRemovingLastPathComponent());
 
   debugger.RunIOHandlerSync(io_handler_sp);
   if (!m_command_source_flags.empty())
     m_command_source_flags.pop_back();
+
+  m_command_source_dirs.pop_back();
   m_command_source_depth--;
+
   result.SetStatus(eReturnStatusSuccessFinishNoResult);
   debugger.SetAsyncExecution(old_async_execution);
 }
@@ -2963,6 +2964,12 @@ bool CommandInterpreter::SaveTranscript(
                                  output_file->c_str());
 
   return true;
+}
+
+FileSpec CommandInterpreter::GetCurrentSourceDir() {
+  if (m_command_source_dirs.empty())
+    return {};
+  return m_command_source_dirs.back();
 }
 
 void CommandInterpreter::GetLLDBCommandsFromIOHandler(

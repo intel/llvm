@@ -17,10 +17,10 @@
 #include "mlir/EDSC/Builders.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/Module.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/Types.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
@@ -36,7 +36,7 @@ using namespace mlir::edsc;
 using namespace mlir::edsc::intrinsics;
 
 static MLIRContext &globalContext() {
-  static thread_local MLIRContext context(/*loadAllDialects=*/false);
+  static thread_local MLIRContext context;
   static thread_local bool initOnce = [&]() {
     // clang-format off
     context.loadDialect<AffineDialect,
@@ -56,7 +56,7 @@ static FuncOp makeFunction(StringRef name, ArrayRef<Type> results = {},
                            ArrayRef<Type> args = {}) {
   auto &ctx = globalContext();
   auto function = FuncOp::create(UnknownLoc::get(&ctx), name,
-                                 FunctionType::get(args, results, &ctx));
+                                 FunctionType::get(&ctx, args, results));
   function.addEntryBlock();
   return function;
 }
@@ -108,7 +108,7 @@ TEST_FUNC(builder_dynamic_for_func_args) {
   // CHECK-DAG:    [[ri4:%[0-9]+]] = muli {{.*}}, {{.*}} : i32
   //     CHECK:    {{.*}} = subi [[ri3]], [[ri4]] : i32
   // clang-format on
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
@@ -130,7 +130,7 @@ TEST_FUNC(builder_dynamic_for) {
   // CHECK-DAG:    [[r1:%[0-9]+]] = affine.apply affine_map<()[s0, s1] -> (s0 + s1)>()[%{{.*}}, %{{.*}}]
   // CHECK-NEXT:   affine.for %{{.*}} = affine_map<(d0) -> (d0)>([[r0]]) to affine_map<(d0) -> (d0)>([[r1]]) step 2 {
   // clang-format on
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
@@ -152,7 +152,7 @@ TEST_FUNC(builder_loop_for) {
   // CHECK-DAG:    [[r1:%[0-9]+]] = affine.apply affine_map<()[s0, s1] -> (s0 + s1)>()[%{{.*}}, %{{.*}}]
   // CHECK-NEXT:   scf.for %{{.*}} = [[r0]] to [[r1]] step {{.*}} {
   // clang-format on
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
@@ -173,7 +173,39 @@ TEST_FUNC(builder_max_min_for) {
   // CHECK:  affine.for %{{.*}} = max affine_map<(d0, d1) -> (d0, d1)>(%{{.*}}, %{{.*}}) to min affine_map<(d0, d1) -> (d0, d1)>(%{{.*}}, %{{.*}}) {
   // CHECK:  return
   // clang-format on
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
+  f.erase();
+}
+
+TEST_FUNC(builder_affine_for_iter_args) {
+  auto indexType = IndexType::get(&globalContext());
+  auto f = makeFunction("builder_affine_for_iter_args", {},
+                        {indexType, indexType, indexType});
+
+  OpBuilder builder(f.getBody());
+  ScopedContext scope(builder, f.getLoc());
+  Value i, lb_1(f.getArgument(0)), ub_1(f.getArgument(1)),
+      ub_2(f.getArgument(2));
+  Value c32(std_constant_int(32, 32));
+  Value c42(std_constant_int(42, 32));
+  using namespace edsc::op;
+  affineLoopBuilder(
+      lb_1, {ub_1, ub_2}, 2, {c32, c42}, [&](Value iv, ValueRange args) {
+        Value sum(args[0] + args[1]);
+        builder.create<AffineYieldOp>(f.getLoc(), ValueRange({args[1], sum}));
+      });
+
+  // clang-format off
+  // CHECK-LABEL: func @builder_affine_for_iter_args
+  // CHECK:       (%[[lb_1:.*]]: index, %[[ub_1:.*]]: index, %[[ub_2:.*]]: index) {
+  // CHECK-NEXT:    %[[c32:.*]] = constant 32 : i32
+  // CHECK-NEXT:    %[[c42:.*]] = constant 42 : i32
+  // CHECK-NEXT:    %{{.*}} = affine.for %{{.*}} = affine_map<(d0) -> (d0)>(%{{.*}}) to min affine_map<(d0, d1) -> (d0, d1)>(%[[ub_1]], %[[ub_2]]) step 2 iter_args(%[[iarg_1:.*]] = %[[c32]], %[[iarg_2:.*]] = %[[c42]]) -> (i32, i32) {
+  // CHECK-NEXT:      %[[sum:.*]] = addi %[[iarg_1]], %[[iarg_2]] : i32
+  // CHECK-NEXT:      affine.yield %[[iarg_2]], %[[sum]] : i32, i32
+  // CHECK-NEXT:    }
+  // clang-format on
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
@@ -200,7 +232,7 @@ TEST_FUNC(builder_block_append) {
   // CHECK-NEXT:   return
   // CHECK-NEXT: }
   // clang-format on
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
@@ -239,13 +271,13 @@ TEST_FUNC(builder_blocks) {
   // CHECK-NEXT:   br ^bb1(%{{.*}}, %{{.*}} : i32, i32)
   // CHECK-NEXT: }
   // clang-format on
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
 TEST_FUNC(builder_cond_branch) {
   auto f = makeFunction("builder_cond_branch", {},
-                        {IntegerType::get(1, &globalContext())});
+                        {IntegerType::get(&globalContext(), 1)});
 
   OpBuilder builder(f.getBody());
   ScopedContext scope(builder, f.getLoc());
@@ -273,7 +305,7 @@ TEST_FUNC(builder_cond_branch) {
   // CHECK-NEXT: ^bb2(%{{.*}}: i64, %{{.*}}: i32):  // pred: ^bb0
   // CHECK-NEXT:   return
   // clang-format on
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
@@ -312,6 +344,7 @@ TEST_FUNC(builder_helpers) {
     });
   });
 
+  // clang-format off
   // CHECK-LABEL: @builder_helpers
   //      CHECK:   affine.for %{{.*}} = affine_map<(d0) -> (d0)>({{.*}}) to affine_map<(d0) -> (d0)>({{.*}}) {
   // CHECK-NEXT:     affine.for %{{.*}} = affine_map<(d0) -> (d0)>({{.*}}) to affine_map<(d0) -> (d0)>({{.*}}) {
@@ -330,7 +363,7 @@ TEST_FUNC(builder_helpers) {
   //  CHECK-DAG:         [[e:%.*]] = addf [[d]], [[c]] : f32
   // CHECK-NEXT:         affine.store [[e]], %{{.*}}[%{{.*}}, %{{.*}}, %{{.*}}] : memref<?x?x?xf32>
   // clang-format on
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
@@ -351,14 +384,14 @@ TEST_FUNC(insertion_in_block) {
   // CHECK: ^bb1:   // no predecessors
   // CHECK: {{.*}} = constant 1 : i32
   // clang-format on
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
 TEST_FUNC(zero_and_std_sign_extendi_op_i1_to_i8) {
   using namespace edsc::op;
-  auto i1Type = IntegerType::get(1, &globalContext());
-  auto i8Type = IntegerType::get(8, &globalContext());
+  auto i1Type = IntegerType::get(&globalContext(), 1);
+  auto i8Type = IntegerType::get(&globalContext(), 8);
   auto memrefType = MemRefType::get({}, i1Type, {}, 0);
   auto f = makeFunction("zero_and_std_sign_extendi_op", {},
                         {memrefType, memrefType});
@@ -376,12 +409,12 @@ TEST_FUNC(zero_and_std_sign_extendi_op_i1_to_i8) {
   //      CHECK:     %[[SRC2:.*]] = affine.load
   //      CHECK:     sexti %[[SRC2]] : i1 to i8
   // clang-format on
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
 TEST_FUNC(operator_or) {
-  auto i1Type = IntegerType::get(/*width=*/1, &globalContext());
+  auto i1Type = IntegerType::get(&globalContext(), /*width=*/1);
   auto f = makeFunction("operator_or", {}, {i1Type, i1Type});
 
   OpBuilder builder(f.getBody());
@@ -392,15 +425,17 @@ TEST_FUNC(operator_or) {
   Value rhs(f.getArgument(1));
   lhs || rhs;
 
+  // clang-format off
   // CHECK-LABEL: @operator_or
   //       CHECK: [[ARG0:%.*]]: i1, [[ARG1:%.*]]: i1
   //       CHECK: or [[ARG0]], [[ARG1]]
-  f.print(llvm::outs());
+  // clang-format on
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
 TEST_FUNC(operator_and) {
-  auto i1Type = IntegerType::get(/*width=*/1, &globalContext());
+  auto i1Type = IntegerType::get(&globalContext(), /*width=*/1);
   auto f = makeFunction("operator_and", {}, {i1Type, i1Type});
 
   OpBuilder builder(f.getBody());
@@ -412,12 +447,14 @@ TEST_FUNC(operator_and) {
   Value rhs(f.getArgument(1));
   negate(lhs && rhs);
 
+  // clang-format off
   // CHECK-LABEL: @operator_and
   //       CHECK: [[ARG0:%.*]]: i1, [[ARG1:%.*]]: i1
   //       CHECK: [[AND:%.*]] = and [[ARG0]], [[ARG1]]
   //       CHECK: [[TRUE:%.*]] = constant true
   //       CHECK: subi [[TRUE]], [[AND]] : i1
-  f.print(llvm::outs());
+  // clang-format on
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
@@ -436,7 +473,7 @@ TEST_FUNC(divis_op_i32) {
   //   CHECK-DAG:     {{.*}} = constant 2
   //  CHECK-NEXT:     {{.*}} = divi_signed
   // clang-format on
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
@@ -455,7 +492,7 @@ TEST_FUNC(diviu_op_i32) {
   //   CHECK-DAG:     {{.*}} = constant 2
   //  CHECK-NEXT:     {{.*}} = divi_unsigned
   // clang-format on
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
@@ -474,7 +511,7 @@ TEST_FUNC(fpext_f32_f64) {
   //       CHECK: {{.*}} = constant 1.0
   //  CHECK-NEXT: {{.*}} = fpext
   // clang-format on
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
@@ -493,13 +530,13 @@ TEST_FUNC(fptrunc_f32_bf16) {
   //       CHECK: {{.*}} = constant 1.0
   //  CHECK-NEXT: {{.*}} = fptrunc
   // clang-format on
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
 TEST_FUNC(select_op_i32) {
   using namespace edsc::op;
-  auto i32Type = IntegerType::get(32, &globalContext());
+  auto i32Type = IntegerType::get(&globalContext(), 32);
   auto memrefType = MemRefType::get(
       {ShapedType::kDynamicSize, ShapedType::kDynamicSize}, i32Type, {}, 0);
   auto f = makeFunction("select_op", {}, {memrefType});
@@ -569,7 +606,7 @@ TEST_FUNC(select_op_i32) {
   //  CHECK-DAG:     {{.*}} = affine.load
   // CHECK-NEXT:     {{.*}} = select
   // clang-format on
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
@@ -600,6 +637,7 @@ TEST_FUNC(select_op_f32) {
     std_select(ugt(B(i, j), B(i + one, j)), A(zero, zero), A(i, j));
   });
 
+  // clang-format off
   // CHECK-LABEL: @select_op
   //      CHECK: affine.for %{{.*}} = 0 to 1 {
   // CHECK-NEXT:   affine.for %{{.*}} = 0 to 1 {
@@ -674,7 +712,7 @@ TEST_FUNC(select_op_f32) {
   //  CHECK-DAG:     affine.apply
   // CHECK-NEXT:     select
   // clang-format on
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
@@ -749,7 +787,7 @@ TEST_FUNC(tile_2d) {
   //  CHECK-NEXT:             {{.*}}= addf {{.*}}, {{.*}} : f32
   //  CHECK-NEXT:             affine.store {{.*}}, {{.*}}[%{{.*}}, %{{.*}}, %{{.*}}] : memref<?x?x?xf32>
   // clang-format on
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
@@ -783,7 +821,7 @@ TEST_FUNC(indirect_access) {
   // CHECK:  load %{{.*}}{{\[}}[[B]]{{\]}}
   // CHECK:  store %{{.*}}, %{{.*}}{{\[}}[[D]]{{\]}}
   // clang-format on
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
@@ -812,7 +850,7 @@ TEST_FUNC(empty_map_load_store) {
   // CHECK:  [[A:%.*]] = affine.load %{{.*}}[]
   // CHECK:  affine.store [[A]], %{{.*}}[]
   // clang-format on
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
@@ -848,28 +886,31 @@ TEST_FUNC(affine_if_op) {
   intrinsics::affine_if(intSet, affineIfArgs, /*withElseRegion=*/false);
   intrinsics::affine_if(intSet, affineIfArgs, /*withElseRegion=*/true);
 
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
 // clang-format off
 // CHECK-LABEL: func @linalg_generic_pointwise
-//       CHECK:   linalg.generic {args_in = 2 : i64, args_out = 1 : i64,
+//       CHECK:   linalg.generic {
 // CHECK-SAME: indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>],
 // CHECK-SAME: iterator_types = ["parallel", "parallel"]}
+// CHECK-SAME: ins({{.*}}memref<?x?xf32>, memref<?x?xf32>)
+// CHECK-SAME: outs({{.*}}memref<?x?xf32>)
 //       CHECK:       addf
-//       CHECK:     }: memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>
-//       CHECK:   linalg.generic {args_in = 2 : i64, args_out = 1 : i64,
+//       CHECK:   linalg.generic {
 // CHECK-SAME: indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>],
 // CHECK-SAME: iterator_types = ["parallel", "parallel"]}
+// CHECK-SAME: ins({{.*}}memref<?x?xf32>, memref<?x?xf32>)
+// CHECK-SAME: outs({{.*}}memref<?x?xf32>)
 //       CHECK:       cmpf "ogt"
 //       CHECK:       select
-//       CHECK:   }: memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>
-//       CHECK:   linalg.generic {args_in = 1 : i64, args_out = 1 : i64,
+//       CHECK:   linalg.generic {
 // CHECK-SAME:      indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>],
 // CHECK-SAME:      iterator_types = ["parallel", "parallel"]}
+// CHECK-SAME: ins(%{{[a-z0-9]*}} : memref<?x?xf32>)
+// CHECK-SAME: outs(%{{[a-z0-9]*}} : memref<?x?xf32>)
 //       CHECK:     tanh
-//       CHECK:   }: memref<?x?xf32>, memref<?x?xf32>
 // clang-format on
 TEST_FUNC(linalg_generic_pointwise_test) {
   using namespace edsc;
@@ -891,20 +932,22 @@ TEST_FUNC(linalg_generic_pointwise_test) {
   linalg_generic_pointwise_max(SA({i, j}), SB({i, j}), SC({i, j}));
   linalg_generic_pointwise_tanh(SA({i, j}), SC({i, j}));
 
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
 // clang-format off
 // CHECK-LABEL: func @linalg_generic_matmul
-//       CHECK:   linalg.generic {args_in = 2 : i64, args_out = 1 : i64,
+//       CHECK:   linalg.generic {
 // CHECK-SAME: indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d2, d1)>, affine_map<(d0, d1, d2) -> (d0, d1)>],
 // CHECK-SAME: iterator_types = ["parallel", "parallel", "reduction"]}
+// CHECK-SAME: ins(%{{[a-z0-9]*}}, %{{[a-z0-9]*}} : memref<?x?xf32>, memref<?x?xf32>)
+// CHECK-SAME: outs(%{{[a-z0-9]*}} : memref<?x?xf32>)
 ///      CHECK:   ^bb0(%[[a0:.*]]: f32, %[[a1:.*]]: f32, %[[a2:.*]]: f32):
 //       CHECK:     %[[a3:.*]] = mulf %[[a0]], %[[a1]] : f32
 //       CHECK:     %[[a4:.*]] = addf %[[a2]], %[[a3]] : f32
 //       CHECK:     linalg.yield %[[a4]] : f32
-//       CHECK:   }: memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>
+//       CHECK:   }
 // clang-format on
 TEST_FUNC(linalg_generic_matmul_test) {
   using namespace edsc;
@@ -920,22 +963,24 @@ TEST_FUNC(linalg_generic_matmul_test) {
   ScopedContext scope(builder, f.getLoc());
   linalg_generic_matmul(f.getArguments());
 
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
 // clang-format off
 // CHECK-LABEL: func @linalg_generic_conv_nhwc
-//       CHECK:   linalg.generic {args_in = 2 : i64, args_out = 1 : i64,
+//       CHECK:   linalg.generic {
 // CHECK-SAME: indexing_maps = [affine_map<(d0, d1, d2, d3, d4, d5, d6) -> (d0, d2 * 3 + d4 * 5, d3 * 4 + d5 * 6, d6)>,
 // CHECK-SAME: affine_map<(d0, d1, d2, d3, d4, d5, d6) -> (d4, d5, d6, d1)>,
 // CHECK-SAME: affine_map<(d0, d1, d2, d3, d4, d5, d6) -> (d0, d2, d3, d1)>],
 // CHECK-SAME: iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction", "reduction", "reduction"]}
+// CHECK-SAME: ins(%{{[a-z0-9]*}}, %{{[a-z0-9]*}} : memref<?x?x?x?xf32>, memref<?x?x?x?xf32>)
+// CHECK-SAME: outs(%{{[a-z0-9]*}} : memref<?x?x?x?xf32>)
 ///      CHECK:   ^bb0(%[[a0:.*]]: f32, %[[a1:.*]]: f32, %[[a2:.*]]: f32):
 //       CHECK:     %[[a3:.*]] = mulf %[[a0]], %[[a1]] : f32
 //       CHECK:     %[[a4:.*]] = addf %[[a2]], %[[a3]] : f32
 //       CHECK:     linalg.yield %[[a4]] : f32
-//       CHECK:   }: memref<?x?x?x?xf32>, memref<?x?x?x?xf32>, memref<?x?x?x?xf32>
+//       CHECK:   }
 // clang-format on
 TEST_FUNC(linalg_generic_conv_nhwc) {
   using namespace edsc;
@@ -954,22 +999,24 @@ TEST_FUNC(linalg_generic_conv_nhwc) {
   linalg_generic_conv_nhwc(f.getArguments(),
                            /*strides=*/{3, 4}, /*dilations=*/{5, 6});
 
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
 // clang-format off
 // CHECK-LABEL: func @linalg_generic_dilated_conv_nhwc
-//       CHECK:   linalg.generic {args_in = 2 : i64, args_out = 1 : i64,
+//       CHECK:   linalg.generic {
 // CHECK-SAME: indexing_maps = [affine_map<(d0, d1, d2, d3, d4, d5, d6) -> (d0, d3 * 3 + d5 * 5, d4 * 4 + d6 * 6, d2)>,
 // CHECK-SAME: affine_map<(d0, d1, d2, d3, d4, d5, d6) -> (d5, d6, d2, d1)>,
 // CHECK-SAME: affine_map<(d0, d1, d2, d3, d4, d5, d6) -> (d0, d3, d4, d1 + d2 * 7)>],
 // CHECK-SAME: iterator_types = ["parallel", "parallel", "parallel", "parallel", "parallel", "reduction", "reduction"]}
+// CHECK-SAME: ins(%{{[a-z0-9]*}}, %{{[a-z0-9]*}} : memref<?x?x?x?xf32>, memref<?x?x?x?xf32>)
+// CHECK-SAME: outs(%{{[a-z0-9]*}} : memref<?x?x?x?xf32>)
 //       CHECK:   ^bb0(%[[a0:.*]]: f32, %[[a1:.*]]: f32, %[[a2:.*]]: f32):
 //       CHECK:     %[[a3:.*]] = mulf %[[a0]], %[[a1]] : f32
 //       CHECK:     %[[a4:.*]] = addf %[[a2]], %[[a3]] : f32
 //       CHECK:     linalg.yield %[[a4]] : f32
-//       CHECK:   }: memref<?x?x?x?xf32>, memref<?x?x?x?xf32>, memref<?x?x?x?xf32>
+//       CHECK:   }
 // clang-format on
 TEST_FUNC(linalg_generic_dilated_conv_nhwc) {
   using namespace edsc;
@@ -989,7 +1036,7 @@ TEST_FUNC(linalg_generic_dilated_conv_nhwc) {
                                    /*depth_multiplier=*/7,
                                    /*strides=*/{3, 4}, /*dilations=*/{5, 6});
 
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
@@ -1015,44 +1062,49 @@ TEST_FUNC(linalg_metadata_ops) {
   auto reshaped = linalg_reshape(v, maps);
   linalg_reshape(memrefType, reshaped, maps);
 
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
 // clang-format off
 // CHECK-LABEL: func @linalg_tensors
-//       CHECK:   linalg.generic {args_in = 2 : i64, args_out = 1 : i64,
+//       CHECK:   linalg.generic {
 // CHECK-SAME: indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>],
 // CHECK-SAME: iterator_types = ["parallel", "parallel"]}
+// CHECK-SAME: ins(%{{[a-z0-9]*}}, %{{[a-z0-9]*}} : tensor<?x?xf32>, memref<?x?xf32>)
 //       CHECK:       addf
-//       CHECK:     }: tensor<?x?xf32>, memref<?x?xf32> -> tensor<?x?xf32>
-//       CHECK:   linalg.generic {args_in = 2 : i64, args_out = 1 : i64,
+//       CHECK:     } -> tensor<?x?xf32>
+//       CHECK:   linalg.generic {
 // CHECK-SAME: indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>],
 // CHECK-SAME: iterator_types = ["parallel", "parallel"]}
+// CHECK-SAME: ins(%{{[a-z0-9]*}}, %{{[a-z0-9]*}} : tensor<?x?xf32>, tensor<?x?xf32>)
 //       CHECK:       cmpf "ogt"
 //       CHECK:       select
-//       CHECK:   }: tensor<?x?xf32>, memref<?x?xf32> -> tensor<?x?xf32>
-//       CHECK:   linalg.generic {args_in = 1 : i64, args_out = 1 : i64,
+//       CHECK:   } -> tensor<?x?xf32>
+//       CHECK:   linalg.generic {
 // CHECK-SAME:      indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0, d1)>],
 // CHECK-SAME:      iterator_types = ["parallel", "parallel"]}
+// CHECK-SAME: ins(%{{[a-z0-9]*}} : tensor<?x?xf32>)
 //       CHECK:     tanh
-//       CHECK:   }: tensor<?x?xf32> -> tensor<?x?xf32>
-//       CHECK:   linalg.generic {args_in = 2 : i64, args_out = 1 : i64,
+//       CHECK:   } -> tensor<?x?xf32>
+//       CHECK:   linalg.generic {
 //  CHECK-SAME:     indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>,
 //  CHECK-SAME:                      affine_map<(d0, d1, d2) -> (d2, d1)>,
 //  CHECK-SAME:                      affine_map<(d0, d1, d2) -> (d0, d1)>],
 //  CHECK-SAME:     iterator_types = ["parallel", "parallel", "reduction"]}
+// CHECK-SAME: ins(%{{[a-z0-9]*}}, %{{[a-z0-9]*}} : tensor<?x?xf32>, memref<?x?xf32>)
 //       CHECK:     mulf
-//       CHECK:   }: tensor<?x?xf32>, memref<?x?xf32> -> tensor<?x?xf32>
-//       CHECK:   linalg.generic {args_in = 3 : i64, args_out = 1 : i64,
+//       CHECK:   } -> tensor<?x?xf32>
+//       CHECK:   linalg.generic {
 //  CHECK-SAME:     indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>,
 //  CHECK-SAME:                      affine_map<(d0, d1, d2) -> (d2, d1)>,
-//  CHECK-SAME:                      affine_map<(d0, d1, d2) -> (d0, d1)>,
 //  CHECK-SAME:                      affine_map<(d0, d1, d2) -> (d0, d1)>],
 //  CHECK-SAME:     iterator_types = ["parallel", "parallel", "reduction"]
+// CHECK-SAME: ins(%{{[a-z0-9]*}}, %{{[a-z0-9]*}} : tensor<?x?xf32>, memref<?x?xf32>)
+// CHECK-SAME: init(%{{[a-z0-9]*}} : tensor<?x?xf32>)
 //       CHECK:     mulf
 //       CHECK:     addf
-//       CHECK:   }: tensor<?x?xf32>, memref<?x?xf32>, tensor<?x?xf32> -> tensor<?x?xf32>
+//       CHECK:   } -> tensor<?x?xf32>
 // clang-format on
 TEST_FUNC(linalg_tensors_test) {
   using namespace edsc;
@@ -1071,13 +1123,18 @@ TEST_FUNC(linalg_tensors_test) {
   AffineExpr i, j;
   bindDims(&globalContext(), i, j);
   StructuredIndexed SA(A), SB(B), SC(tensorType);
-  linalg_generic_pointwise_add(SA({i, j}), SB({i, j}), SC({i, j}));
-  linalg_generic_pointwise_max(SA({i, j}), SB({i, j}), SC({i, j}));
-  linalg_generic_pointwise_tanh(SA({i, j}), SC({i, j}));
-  Value o1 = linalg_generic_matmul(A, B, tensorType)->getResult(0);
+  Value added = linalg_generic_pointwise_add(SA({i, j}), SB({i, j}), SC({i, j}))
+                    ->getResult(0);
+  Value maxed = linalg_generic_pointwise_max(
+                    SA({i, j}), StructuredIndexed(added)({i, j}), SC({i, j}))
+                    ->getResult(0);
+  Value tanhed = linalg_generic_pointwise_tanh(StructuredIndexed(maxed)({i, j}),
+                                               SC({i, j}))
+                     ->getResult(0);
+  Value o1 = linalg_generic_matmul(A, B, tanhed, tensorType)->getResult(0);
   linalg_generic_matmul(A, B, o1, tensorType);
 
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
@@ -1089,7 +1146,7 @@ TEST_FUNC(vector_extractelement_op_i32) {
   ScopedContext scope(builder, f.getLoc());
   auto i32Type = builder.getI32Type();
   auto vectorType = VectorType::get(/*shape=*/{8}, i32Type);
-  vector_extractelement(
+  vector_extract_element(
       i32Type, std_constant(vectorType, builder.getI32VectorAttr({10})),
       std_constant_int(0, i32Type));
 
@@ -1099,23 +1156,23 @@ TEST_FUNC(vector_extractelement_op_i32) {
   //   CHECK-DAG:     {{.*}} = constant 0
   //  CHECK-NEXT:     {{.*}} = vector.extractelement
   // clang-format on
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
+// clang-format off
 // CHECK-LABEL: func @memref_vector_matmul_test(
 //  CHECK-SAME:   %[[A:.*]]: memref<?x?xvector<4x16xf32>>,
 //  CHECK-SAME:   %[[B:.*]]: memref<?x?xvector<16x8xf32>>,
 //  CHECK-SAME:   %[[C:.*]]: memref<?x?xvector<4x8xf32>>)
-//       CHECK:   linalg.generic {{.*}} %[[A]], %[[B]], %[[C]]
-//       CHECK:     vector.contract{{.*}}[affine_map<(d0, d1, d2) -> (d0,
-//  d2)>,
+//       CHECK:   linalg.generic {{{.*}}}
+// CHECK-SAME: ins(%[[A]], %[[B]] : memref<?x?xvector<4x16xf32>>, memref<?x?xvector<16x8xf32>>)
+// CHECK-SAME: outs(%[[C]] : memref<?x?xvector<4x8xf32>>)
+//       CHECK:     vector.contract{{.*}}[affine_map<(d0, d1, d2) -> (d0, d2)>,
 //  CHECK-SAME:                       affine_map<(d0, d1, d2) -> (d2, d1)>,
 //  CHECK-SAME:                       affine_map<(d0, d1, d2) -> (d0, d1)>],
 //  CHECK-SAME:                {{.*}}["parallel", "parallel", "reduction"]
-//  CHECK-SAME:     vector<4x16xf32>, vector<16x8xf32> into vector<4x8xf32>
-//       CHECK:   memref<?x?xvector<4x16xf32>>, memref<?x?xvector<16x8xf32>>,
-//  CHECK-SAME:   memref<?x?xvector<4x8xf32>>
+// clang-format on
 TEST_FUNC(memref_vector_matmul_test) {
   using namespace edsc;
   using namespace edsc::ops;
@@ -1145,7 +1202,7 @@ TEST_FUNC(memref_vector_matmul_test) {
   };
   linalg_generic_matmul(A, B, C, contractionBuilder);
 
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 
@@ -1166,7 +1223,7 @@ TEST_FUNC(builder_loop_for_yield) {
                                  [&](Value iv, ValueRange args) {
                                    Value sum = args[0] + args[1];
                                    return scf::ValueVector{args[1], sum};
-                                 });
+                                 }).getResults();
   results[0] + results[1];
 
   // clang-format off
@@ -1181,7 +1238,7 @@ TEST_FUNC(builder_loop_for_yield) {
   // CHECK:     addf [[res]]#0, [[res]]#1 : f32
   // clang-format on
 
-  f.print(llvm::outs());
+  f.print(llvm::outs(), OpPrintingFlags().useLocalScope());
   f.erase();
 }
 

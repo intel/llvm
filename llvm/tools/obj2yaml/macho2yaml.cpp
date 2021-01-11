@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Error.h"
 #include "obj2yaml.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/Object/MachOUniversal.h"
@@ -155,10 +154,8 @@ static Error dumpDebugSection(StringRef SecName, DWARFContext &DCtx,
   }
   if (SecName == "__debug_ranges")
     return dumpDebugRanges(DCtx, DWARF);
-  if (SecName == "__debug_str") {
-    dumpDebugStrings(DCtx, DWARF);
-    return Error::success();
-  }
+  if (SecName == "__debug_str")
+    return dumpDebugStrings(DCtx, DWARF);
   return createStringError(errc::not_supported,
                            "dumping " + SecName + " section is not supported");
 }
@@ -640,19 +637,11 @@ Error macho2yaml(raw_ostream &Out, const object::MachOUniversalBinary &Obj) {
 }
 
 Error macho2yaml(raw_ostream &Out, const object::Binary &Binary) {
-  if (const auto *MachOObj = dyn_cast<object::MachOUniversalBinary>(&Binary)) {
-    if (auto Err = macho2yaml(Out, *MachOObj)) {
-      return Err;
-    }
-    return Error::success();
-  }
+  if (const auto *MachOObj = dyn_cast<object::MachOUniversalBinary>(&Binary))
+    return macho2yaml(Out, *MachOObj);
 
-  if (const auto *MachOObj = dyn_cast<object::MachOObjectFile>(&Binary)) {
-    if (auto Err = macho2yaml(Out, *MachOObj)) {
-      return Err;
-    }
-    return Error::success();
-  }
+  if (const auto *MachOObj = dyn_cast<object::MachOObjectFile>(&Binary))
+    return macho2yaml(Out, *MachOObj);
 
-  return errorCodeToError(obj2yaml_error::unsupported_obj_file_format);
+  llvm_unreachable("unexpected Mach-O file format");
 }

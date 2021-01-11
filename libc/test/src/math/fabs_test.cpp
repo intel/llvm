@@ -6,25 +6,21 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "include/math.h"
 #include "src/math/fabs.h"
 #include "utils/FPUtil/FPBits.h"
 #include "utils/FPUtil/TestHelpers.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
 #include "utils/UnitTest/Test.h"
+#include <math.h>
 
 using FPBits = __llvm_libc::fputil::FPBits<double>;
 
-static const double zero = FPBits::zero();
-static const double negZero = FPBits::negZero();
-static const double nan = FPBits::buildNaN(1);
-static const double inf = FPBits::inf();
-static const double negInf = FPBits::negInf();
+DECLARE_SPECIAL_CONSTANTS(double)
 
 namespace mpfr = __llvm_libc::testing::mpfr;
 
 TEST(FabsTest, SpecialNumbers) {
-  EXPECT_FP_EQ(nan, __llvm_libc::fabs(nan));
+  EXPECT_FP_EQ(aNaN, __llvm_libc::fabs(aNaN));
 
   EXPECT_FP_EQ(inf, __llvm_libc::fabs(inf));
   EXPECT_FP_EQ(inf, __llvm_libc::fabs(negInf));

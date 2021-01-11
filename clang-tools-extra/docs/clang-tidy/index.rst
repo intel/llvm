@@ -58,11 +58,14 @@ There are currently the following groups of checks:
 Name prefix            Description
 ====================== =========================================================
 ``abseil-``            Checks related to Abseil library.
+``altera-``            Checks related to OpenCL programming for FPGAs.
 ``android-``           Checks related to Android.
 ``boost-``             Checks related to Boost library.
 ``bugprone-``          Checks that target bugprone code constructs.
 ``cert-``              Checks related to CERT Secure Coding Guidelines.
 ``clang-analyzer-``    Clang Static Analyzer checks.
+``concurrency-``       Checks related to concurrent programming (including
+                       threads, fibers, coroutines, etc.).
 ``cppcoreguidelines-`` Checks related to C++ Core Guidelines.
 ``darwin-``            Checks related to Darwin coding conventions.
 ``fuchsia-``           Checks related to Fuchsia coding conventions.

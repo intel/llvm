@@ -97,6 +97,9 @@ public:
   /// Returns true if this value is known to be non-negative.
   bool isNonNegative() const { return Zero.isSignBitSet(); }
 
+  /// Returns true if this value is known to be non-zero.
+  bool isNonZero() const { return !One.isNullValue(); }
+
   /// Returns true if this value is known to be positive.
   bool isStrictlyPositive() const { return Zero.isSignBitSet() && !One.isNullValue(); }
 
@@ -166,12 +169,30 @@ public:
     return *this;
   }
 
+  /// Return known bits for a sign extension or truncation of the value we're
+  /// tracking.
+  KnownBits sextOrTrunc(unsigned BitWidth) const {
+    if (BitWidth > getBitWidth())
+      return sext(BitWidth);
+    if (BitWidth < getBitWidth())
+      return trunc(BitWidth);
+    return *this;
+  }
+
+  /// Return known bits for a in-register sign extension of the value we're
+  /// tracking.
+  KnownBits sextInReg(unsigned SrcBitWidth) const;
+
   /// Return a KnownBits with the extracted bits
   /// [bitPosition,bitPosition+numBits).
   KnownBits extractBits(unsigned NumBits, unsigned BitPosition) const {
     return KnownBits(Zero.extractBits(NumBits, BitPosition),
                      One.extractBits(NumBits, BitPosition));
   }
+
+  /// Return KnownBits based on this, but updated given that the underlying
+  /// value is known to be greater than or equal to Val.
+  KnownBits makeGE(const APInt &Val) const;
 
   /// Returns the minimum number of trailing zero bits.
   unsigned countMinTrailingZeros() const {
@@ -233,6 +254,16 @@ public:
     return getBitWidth() - Zero.countPopulation();
   }
 
+  /// Create known bits from a known constant.
+  static KnownBits makeConstant(const APInt &C) {
+    return KnownBits(~C, C);
+  }
+
+  /// Compute known bits common to LHS and RHS.
+  static KnownBits commonBits(const KnownBits &LHS, const KnownBits &RHS) {
+    return KnownBits(LHS.Zero & RHS.Zero, LHS.One & RHS.One);
+  }
+
   /// Compute known bits resulting from adding LHS, RHS and a 1-bit Carry.
   static KnownBits computeForAddCarry(
       const KnownBits &LHS, const KnownBits &RHS, const KnownBits &Carry);
@@ -240,6 +271,54 @@ public:
   /// Compute known bits resulting from adding LHS and RHS.
   static KnownBits computeForAddSub(bool Add, bool NSW, const KnownBits &LHS,
                                     KnownBits RHS);
+
+  /// Compute known bits resulting from multiplying LHS and RHS.
+  static KnownBits computeForMul(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Compute known bits for udiv(LHS, RHS).
+  static KnownBits udiv(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Compute known bits for urem(LHS, RHS).
+  static KnownBits urem(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Compute known bits for srem(LHS, RHS).
+  static KnownBits srem(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Compute known bits for umax(LHS, RHS).
+  static KnownBits umax(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Compute known bits for umin(LHS, RHS).
+  static KnownBits umin(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Compute known bits for smax(LHS, RHS).
+  static KnownBits smax(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Compute known bits for smin(LHS, RHS).
+  static KnownBits smin(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Compute known bits for shl(LHS, RHS).
+  /// NOTE: RHS (shift amount) bitwidth doesn't need to be the same as LHS.
+  static KnownBits shl(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Compute known bits for lshr(LHS, RHS).
+  /// NOTE: RHS (shift amount) bitwidth doesn't need to be the same as LHS.
+  static KnownBits lshr(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Compute known bits for ashr(LHS, RHS).
+  /// NOTE: RHS (shift amount) bitwidth doesn't need to be the same as LHS.
+  static KnownBits ashr(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Insert the bits from a smaller known bits starting at bitPosition.
+  void insertBits(const KnownBits &SubBits, unsigned BitPosition) {
+    Zero.insertBits(SubBits.Zero, BitPosition);
+    One.insertBits(SubBits.One, BitPosition);
+  }
+
+  /// Return a subset of the known bits from [bitPosition,bitPosition+numBits).
+  KnownBits extractBits(unsigned NumBits, unsigned BitPosition) {
+    return KnownBits(Zero.extractBits(NumBits, BitPosition),
+                     One.extractBits(NumBits, BitPosition));
+  }
 
   /// Update known bits based on ANDing with RHS.
   KnownBits &operator&=(const KnownBits &RHS);
@@ -249,6 +328,17 @@ public:
 
   /// Update known bits based on XORing with RHS.
   KnownBits &operator^=(const KnownBits &RHS);
+
+  /// Compute known bits for the absolute value.
+  KnownBits abs(bool IntMinIsPoison = false) const;
+
+  KnownBits byteSwap() {
+    return KnownBits(Zero.byteSwap(), One.byteSwap());
+  }
+
+  KnownBits reverseBits() {
+    return KnownBits(Zero.reverseBits(), One.reverseBits());
+  }
 };
 
 inline KnownBits operator&(KnownBits LHS, const KnownBits &RHS) {

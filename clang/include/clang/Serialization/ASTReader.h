@@ -900,8 +900,9 @@ private:
   /// Delete expressions to analyze at the end of translation unit.
   SmallVector<uint64_t, 8> DelayedDeleteExprs;
 
-  // A list of late parsed template function data.
-  SmallVector<uint64_t, 1> LateParsedTemplates;
+  // A list of late parsed template function data with their module files.
+  SmallVector<std::pair<ModuleFile *, SmallVector<uint64_t, 1>>, 4>
+      LateParsedTemplates;
 
   /// The IDs of all decls to be checked for deferred diags.
   ///
@@ -1449,8 +1450,6 @@ private:
   void Error(StringRef Msg) const;
   void Error(unsigned DiagID, StringRef Arg1 = StringRef(),
              StringRef Arg2 = StringRef(), StringRef Arg3 = StringRef()) const;
-  void Error(unsigned DiagID, StringRef Arg1, StringRef Arg2,
-             unsigned Select) const;
   void Error(llvm::Error &&Err) const;
 
 public:

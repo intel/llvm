@@ -14,8 +14,8 @@
 #include "mlir/Conversion/StandardToSPIRV/ConvertStandardToSPIRVPass.h"
 #include "../PassDetail.h"
 #include "mlir/Conversion/StandardToSPIRV/ConvertStandardToSPIRV.h"
-#include "mlir/Dialect/SPIRV/SPIRVDialect.h"
-#include "mlir/Dialect/SPIRV/SPIRVLowering.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
 
 using namespace mlir;
 
@@ -40,9 +40,8 @@ void ConvertStandardToSPIRVPass::runOnOperation() {
   populateStandardToSPIRVPatterns(context, typeConverter, patterns);
   populateBuiltinFuncToSPIRVPatterns(context, typeConverter, patterns);
 
-  if (failed(applyPartialConversion(module, *target, patterns))) {
+  if (failed(applyPartialConversion(module, *target, std::move(patterns))))
     return signalPassFailure();
-  }
 }
 
 std::unique_ptr<OperationPass<ModuleOp>>

@@ -9,6 +9,4 @@
 #include <clc/clc.h>
 #include <spirv/spirv.h>
 
-_CLC_DEF uint get_work_dim(void) {
-  return __spirv_WorkDim();
-}
+_CLC_DEF _CLC_OVERLOAD uint get_work_dim(void) { return __spirv_WorkDim(); }

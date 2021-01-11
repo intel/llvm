@@ -96,6 +96,9 @@ inline class_match<ConstantInt> m_ConstantInt() {
 /// Match an arbitrary undef constant.
 inline class_match<UndefValue> m_Undef() { return class_match<UndefValue>(); }
 
+/// Match an arbitrary poison constant.
+inline class_match<PoisonValue> m_Poison() { return class_match<PoisonValue>(); }
+
 /// Match an arbitrary Constant and ignore it.
 inline class_match<Constant> m_Constant() { return class_match<Constant>(); }
 
@@ -335,6 +338,33 @@ template <typename Predicate> struct api_pred_ty : public Predicate {
   }
 };
 
+/// This helper class is used to match scalar and vector constants that
+/// satisfy a specified predicate, and bind them to an APFloat.
+/// Undefs are allowed in splat vector constants.
+template <typename Predicate> struct apf_pred_ty : public Predicate {
+  const APFloat *&Res;
+
+  apf_pred_ty(const APFloat *&R) : Res(R) {}
+
+  template <typename ITy> bool match(ITy *V) {
+    if (const auto *CI = dyn_cast<ConstantFP>(V))
+      if (this->isValue(CI->getValue())) {
+        Res = &CI->getValue();
+        return true;
+      }
+    if (V->getType()->isVectorTy())
+      if (const auto *C = dyn_cast<Constant>(V))
+        if (auto *CI = dyn_cast_or_null<ConstantFP>(
+                C->getSplatValue(/* AllowUndef */ true)))
+          if (this->isValue(CI->getValue())) {
+            Res = &CI->getValue();
+            return true;
+          }
+
+    return false;
+  }
+};
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 // Encapsulate constant value queries for use in templated predicate matchers.
@@ -555,6 +585,15 @@ inline cstfp_pred_ty<is_nan> m_NaN() {
   return cstfp_pred_ty<is_nan>();
 }
 
+struct is_nonnan {
+  bool isValue(const APFloat &C) { return !C.isNaN(); }
+};
+/// Match a non-NaN FP constant.
+/// For vectors, this includes constants with undefined elements.
+inline cstfp_pred_ty<is_nonnan> m_NonNaN() {
+  return cstfp_pred_ty<is_nonnan>();
+}
+
 struct is_inf {
   bool isValue(const APFloat &C) { return C.isInfinity(); }
 };
@@ -562,6 +601,37 @@ struct is_inf {
 /// For vectors, this includes constants with undefined elements.
 inline cstfp_pred_ty<is_inf> m_Inf() {
   return cstfp_pred_ty<is_inf>();
+}
+
+struct is_noninf {
+  bool isValue(const APFloat &C) { return !C.isInfinity(); }
+};
+/// Match a non-infinity FP constant, i.e. finite or NaN.
+/// For vectors, this includes constants with undefined elements.
+inline cstfp_pred_ty<is_noninf> m_NonInf() {
+  return cstfp_pred_ty<is_noninf>();
+}
+
+struct is_finite {
+  bool isValue(const APFloat &C) { return C.isFinite(); }
+};
+/// Match a finite FP constant, i.e. not infinity or NaN.
+/// For vectors, this includes constants with undefined elements.
+inline cstfp_pred_ty<is_finite> m_Finite() {
+  return cstfp_pred_ty<is_finite>();
+}
+inline apf_pred_ty<is_finite> m_Finite(const APFloat *&V) { return V; }
+
+struct is_finitenonzero {
+  bool isValue(const APFloat &C) { return C.isFiniteNonZero(); }
+};
+/// Match a finite non-zero FP constant.
+/// For vectors, this includes constants with undefined elements.
+inline cstfp_pred_ty<is_finitenonzero> m_FiniteNonZero() {
+  return cstfp_pred_ty<is_finitenonzero>();
+}
+inline apf_pred_ty<is_finitenonzero> m_FiniteNonZero(const APFloat *&V) {
+  return V;
 }
 
 struct is_any_zero_fp {
@@ -589,6 +659,15 @@ struct is_neg_zero_fp {
 /// For vectors, this includes constants with undefined elements.
 inline cstfp_pred_ty<is_neg_zero_fp> m_NegZeroFP() {
   return cstfp_pred_ty<is_neg_zero_fp>();
+}
+
+struct is_non_zero_fp {
+  bool isValue(const APFloat &C) { return C.isNonZero(); }
+};
+/// Match a floating-point non-zero.
+/// For vectors, this includes constants with undefined elements.
+inline cstfp_pred_ty<is_non_zero_fp> m_NonZeroFP() {
+  return cstfp_pred_ty<is_non_zero_fp>();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -705,6 +784,7 @@ struct bind_const_intval_ty {
 
 /// Match a specified integer value or vector of all elements of that
 /// value.
+template <bool AllowUndefs>
 struct specific_intval {
   APInt Val;
 
@@ -714,7 +794,7 @@ struct specific_intval {
     const auto *CI = dyn_cast<ConstantInt>(V);
     if (!CI && V->getType()->isVectorTy())
       if (const auto *C = dyn_cast<Constant>(V))
-        CI = dyn_cast_or_null<ConstantInt>(C->getSplatValue());
+        CI = dyn_cast_or_null<ConstantInt>(C->getSplatValue(AllowUndefs));
 
     return CI && APInt::isSameValue(CI->getValue(), Val);
   }
@@ -722,12 +802,20 @@ struct specific_intval {
 
 /// Match a specific integer value or vector with all elements equal to
 /// the value.
-inline specific_intval m_SpecificInt(APInt V) {
-  return specific_intval(std::move(V));
+inline specific_intval<false> m_SpecificInt(APInt V) {
+  return specific_intval<false>(std::move(V));
 }
 
-inline specific_intval m_SpecificInt(uint64_t V) {
+inline specific_intval<false> m_SpecificInt(uint64_t V) {
   return m_SpecificInt(APInt(64, V));
+}
+
+inline specific_intval<true> m_SpecificIntAllowUndef(APInt V) {
+  return specific_intval<true>(std::move(V));
+}
+
+inline specific_intval<true> m_SpecificIntAllowUndef(uint64_t V) {
+  return m_SpecificIntAllowUndef(APInt(64, V));
 }
 
 /// Match a ConstantInt and bind to its value.  This does not match
@@ -2015,6 +2103,18 @@ inline typename m_Intrinsic_Ty<Opnd0, Opnd1>::Ty m_FMax(const Opnd0 &Op0,
   return m_Intrinsic<Intrinsic::maxnum>(Op0, Op1);
 }
 
+template <typename Opnd0, typename Opnd1, typename Opnd2>
+inline typename m_Intrinsic_Ty<Opnd0, Opnd1, Opnd2>::Ty
+m_FShl(const Opnd0 &Op0, const Opnd1 &Op1, const Opnd2 &Op2) {
+  return m_Intrinsic<Intrinsic::fshl>(Op0, Op1, Op2);
+}
+
+template <typename Opnd0, typename Opnd1, typename Opnd2>
+inline typename m_Intrinsic_Ty<Opnd0, Opnd1, Opnd2>::Ty
+m_FShr(const Opnd0 &Op0, const Opnd1 &Op1, const Opnd2 &Op2) {
+  return m_Intrinsic<Intrinsic::fshr>(Op0, Op1, Op2);
+}
+
 //===----------------------------------------------------------------------===//
 // Matchers for two-operands operators with the operators in either order
 //
@@ -2199,6 +2299,29 @@ template <int Ind, typename Opnd_t> struct ExtractValue_match {
 template <int Ind, typename Val_t>
 inline ExtractValue_match<Ind, Val_t> m_ExtractValue(const Val_t &V) {
   return ExtractValue_match<Ind, Val_t>(V);
+}
+
+/// Matcher for a single index InsertValue instruction.
+template <int Ind, typename T0, typename T1> struct InsertValue_match {
+  T0 Op0;
+  T1 Op1;
+
+  InsertValue_match(const T0 &Op0, const T1 &Op1) : Op0(Op0), Op1(Op1) {}
+
+  template <typename OpTy> bool match(OpTy *V) {
+    if (auto *I = dyn_cast<InsertValueInst>(V)) {
+      return Op0.match(I->getOperand(0)) && Op1.match(I->getOperand(1)) &&
+             I->getNumIndices() == 1 && Ind == I->getIndices()[0];
+    }
+    return false;
+  }
+};
+
+/// Matches a single index InsertValue instruction.
+template <int Ind, typename Val_t, typename Elt_t>
+inline InsertValue_match<Ind, Val_t, Elt_t> m_InsertValue(const Val_t &Val,
+                                                          const Elt_t &Elt) {
+  return InsertValue_match<Ind, Val_t, Elt_t>(Val, Elt);
 }
 
 /// Matches patterns for `vscale`. This can either be a call to `llvm.vscale` or

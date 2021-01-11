@@ -16,7 +16,6 @@ using myFuncDef = int(int, int);
 
 typedef __typeof__(sizeof(int)) size_t;
 
-// expected-warning@+1 {{SYCL 1.2.1 specification does not allow 'sycl_device' attribute applied to a function with a raw pointer return type}}
 SYCL_EXTERNAL
 void *operator new(size_t);
 

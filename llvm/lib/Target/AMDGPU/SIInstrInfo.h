@@ -81,8 +81,9 @@ public:
 private:
   void swapOperands(MachineInstr &Inst) const;
 
-  bool moveScalarAddSub(SetVectorType &Worklist, MachineInstr &Inst,
-                        MachineDominatorTree *MDT = nullptr) const;
+  std::pair<bool, MachineBasicBlock *>
+  moveScalarAddSub(SetVectorType &Worklist, MachineInstr &Inst,
+                   MachineDominatorTree *MDT = nullptr) const;
 
   void lowerSelect(SetVectorType &Worklist, MachineInstr &Inst,
                    MachineDominatorTree *MDT = nullptr) const;
@@ -201,10 +202,6 @@ public:
                    const DebugLoc &DL, MCRegister DestReg, MCRegister SrcReg,
                    bool KillSrc) const override;
 
-  unsigned calculateLDSSpillAddress(MachineBasicBlock &MBB, MachineInstr &MI,
-                                    RegScavenger *RS, unsigned TmpReg,
-                                    unsigned Offset, unsigned Size) const;
-
   void materializeImmediate(MachineBasicBlock &MBB,
                             MachineBasicBlock::iterator MI,
                             const DebugLoc &DL,
@@ -248,9 +245,12 @@ public:
   // DstRC, then AMDGPU::COPY is returned.
   unsigned getMovOpcode(const TargetRegisterClass *DstRC) const;
 
-  const MCInstrDesc &getIndirectRegWritePseudo(
-    unsigned VecSize, unsigned EltSize, bool IsSGPR) const;
+  const MCInstrDesc &getIndirectRegWriteMovRelPseudo(unsigned VecSize,
+                                                     unsigned EltSize,
+                                                     bool IsSGPR) const;
 
+  const MCInstrDesc &getIndirectGPRIDXPseudo(unsigned VecSize,
+                                             bool IsIndirectSrc) const;
   LLVM_READONLY
   int commuteOpcode(unsigned Opc) const;
 
@@ -508,12 +508,28 @@ public:
   // i.e. global_* or scratch_*.
   static bool isSegmentSpecificFLAT(const MachineInstr &MI) {
     auto Flags = MI.getDesc().TSFlags;
-    return (Flags & SIInstrFlags::FLAT) && !(Flags & SIInstrFlags::LGKM_CNT);
+    return Flags & (SIInstrFlags::IsFlatGlobal | SIInstrFlags::IsFlatScratch);
   }
 
-  // FIXME: Make this more precise
+  bool isSegmentSpecificFLAT(uint16_t Opcode) const {
+    auto Flags = get(Opcode).TSFlags;
+    return Flags & (SIInstrFlags::IsFlatGlobal | SIInstrFlags::IsFlatScratch);
+  }
+
+  static bool isFLATGlobal(const MachineInstr &MI) {
+    return MI.getDesc().TSFlags & SIInstrFlags::IsFlatGlobal;
+  }
+
+  bool isFLATGlobal(uint16_t Opcode) const {
+    return get(Opcode).TSFlags & SIInstrFlags::IsFlatGlobal;
+  }
+
   static bool isFLATScratch(const MachineInstr &MI) {
-    return isSegmentSpecificFLAT(MI);
+    return MI.getDesc().TSFlags & SIInstrFlags::IsFlatScratch;
+  }
+
+  bool isFLATScratch(uint16_t Opcode) const {
+    return get(Opcode).TSFlags & SIInstrFlags::IsFlatScratch;
   }
 
   // Any FLAT encoded instruction, including global_* and scratch_*.
@@ -567,6 +583,14 @@ public:
 
   bool isDPP(uint16_t Opcode) const {
     return get(Opcode).TSFlags & SIInstrFlags::DPP;
+  }
+
+  static bool isTRANS(const MachineInstr &MI) {
+    return MI.getDesc().TSFlags & SIInstrFlags::TRANS;
+  }
+
+  bool isTRANS(uint16_t Opcode) const {
+    return get(Opcode).TSFlags & SIInstrFlags::TRANS;
   }
 
   static bool isVOP3P(const MachineInstr &MI) {
@@ -894,19 +918,21 @@ public:
   /// Legalize all operands in this instruction.  This function may create new
   /// instructions and control-flow around \p MI.  If present, \p MDT is
   /// updated.
-  void legalizeOperands(MachineInstr &MI,
-                        MachineDominatorTree *MDT = nullptr) const;
+  /// \returns A new basic block that contains \p MI if new blocks were created.
+  MachineBasicBlock *
+  legalizeOperands(MachineInstr &MI, MachineDominatorTree *MDT = nullptr) const;
 
   /// Replace this instruction's opcode with the equivalent VALU
   /// opcode.  This function will also move the users of \p MI to the
   /// VALU if necessary. If present, \p MDT is updated.
-  void moveToVALU(MachineInstr &MI, MachineDominatorTree *MDT = nullptr) const;
-
-  void insertWaitStates(MachineBasicBlock &MBB,MachineBasicBlock::iterator MI,
-                        int Count) const;
+  MachineBasicBlock *moveToVALU(MachineInstr &MI,
+                                MachineDominatorTree *MDT = nullptr) const;
 
   void insertNoop(MachineBasicBlock &MBB,
                   MachineBasicBlock::iterator MI) const override;
+
+  void insertNoops(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
+                   unsigned Quantity) const override;
 
   void insertReturn(MachineBasicBlock &MBB) const;
   /// Return the number of wait states that result from executing this
@@ -1016,13 +1042,17 @@ public:
     return isUInt<12>(Imm);
   }
 
-  unsigned getNumFlatOffsetBits(unsigned AddrSpace, bool Signed) const;
-
   /// Returns if \p Offset is legal for the subtarget as the offset to a FLAT
   /// encoded instruction. If \p Signed, this is for an instruction that
   /// interprets the offset as signed.
   bool isLegalFLATOffset(int64_t Offset, unsigned AddrSpace,
                          bool Signed) const;
+
+  /// Split \p COffsetVal into {immediate offset field, remainder offset}
+  /// values.
+  std::pair<int64_t, int64_t> splitFlatOffset(int64_t COffsetVal,
+                                              unsigned AddrSpace,
+                                              bool IsSigned) const;
 
   /// \brief Return a target-specific opcode if Opcode is a pseudo instruction.
   /// Return -1 if the target-specific opcode for the pseudo instruction does
@@ -1150,6 +1180,9 @@ namespace AMDGPU {
 
   LLVM_READONLY
   int getVCMPXNoSDstOp(uint16_t Opcode);
+
+  LLVM_READONLY
+  int getFlatScratchInstSTfromSS(uint16_t Opcode);
 
   const uint64_t RSRC_DATA_FORMAT = 0xf00000000000LL;
   const uint64_t RSRC_ELEMENT_SIZE_SHIFT = (32 + 19);

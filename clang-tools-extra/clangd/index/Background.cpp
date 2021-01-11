@@ -16,6 +16,7 @@
 #include "URI.h"
 #include "index/BackgroundIndexLoader.h"
 #include "index/FileIndex.h"
+#include "index/Index.h"
 #include "index/IndexAction.h"
 #include "index/MemIndex.h"
 #include "index/Ref.h"
@@ -272,15 +273,13 @@ llvm::Error BackgroundIndex::index(tooling::CompileCommand Cmd) {
   IgnoreDiagnostics IgnoreDiags;
   auto CI = buildCompilerInvocation(Inputs, IgnoreDiags);
   if (!CI)
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "Couldn't build compiler invocation");
+    return error("Couldn't build compiler invocation");
 
   auto Clang =
       prepareCompilerInstance(std::move(CI), /*Preamble=*/nullptr,
                               std::move(*Buf), std::move(FS), IgnoreDiags);
   if (!Clang)
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "Couldn't build compiler instance");
+    return error("Couldn't build compiler instance");
 
   SymbolCollector::Options IndexOpts;
   // Creates a filter to not collect index results from files with unchanged
@@ -318,8 +317,7 @@ llvm::Error BackgroundIndex::index(tooling::CompileCommand Cmd) {
 
   const FrontendInputFile &Input = Clang->getFrontendOpts().Inputs.front();
   if (!Action->BeginSourceFile(*Clang, Input))
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "BeginSourceFile() failed");
+    return error("BeginSourceFile() failed");
   if (llvm::Error Err = Action->Execute())
     return Err;
 
@@ -417,5 +415,10 @@ BackgroundIndex::loadProject(std::vector<std::string> MainFiles) {
   return {TUsToIndex.begin(), TUsToIndex.end()};
 }
 
+void BackgroundIndex::profile(MemoryTree &MT) const {
+  IndexedSymbols.profile(MT.child("slabs"));
+  // We don't want to mix memory used by index and symbols, so call base class.
+  MT.child("index").addUsage(SwapIndex::estimateMemoryUsage());
+}
 } // namespace clangd
 } // namespace clang

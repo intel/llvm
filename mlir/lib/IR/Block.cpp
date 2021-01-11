@@ -9,6 +9,7 @@
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Operation.h"
+#include "llvm/ADT/BitVector.h"
 using namespace mlir;
 
 //===----------------------------------------------------------------------===//
@@ -176,6 +177,22 @@ void Block::eraseArgument(unsigned index) {
   arguments.erase(arguments.begin() + index);
 }
 
+void Block::eraseArguments(ArrayRef<unsigned> argIndices) {
+  llvm::BitVector eraseIndices(getNumArguments());
+  for (unsigned i : argIndices)
+    eraseIndices.set(i);
+  eraseArguments(eraseIndices);
+}
+
+void Block::eraseArguments(llvm::BitVector eraseIndices) {
+  // We do this in reverse so that we erase later indices before earlier
+  // indices, to avoid shifting the later indices.
+  unsigned originalNumArgs = getNumArguments();
+  for (unsigned i = 0; i < originalNumArgs; ++i)
+    if (eraseIndices.test(originalNumArgs - i - 1))
+      eraseArgument(originalNumArgs - i - 1);
+}
+
 /// Insert one value to the given position of the argument list. The existing
 /// arguments are shifted. The block is expected not to have predecessors.
 BlockArgument Block::insertArgument(args_iterator it, Type type) {
@@ -282,16 +299,44 @@ unsigned PredecessorIterator::getSuccessorIndex() const {
 }
 
 //===----------------------------------------------------------------------===//
-// Successors
+// SuccessorRange
 //===----------------------------------------------------------------------===//
 
-SuccessorRange::SuccessorRange(Block *block) : SuccessorRange(nullptr, 0) {
+SuccessorRange::SuccessorRange() : SuccessorRange(nullptr, 0) {}
+
+SuccessorRange::SuccessorRange(Block *block) : SuccessorRange() {
   if (Operation *term = block->getTerminator())
     if ((count = term->getNumSuccessors()))
       base = term->getBlockOperands().data();
 }
 
-SuccessorRange::SuccessorRange(Operation *term) : SuccessorRange(nullptr, 0) {
+SuccessorRange::SuccessorRange(Operation *term) : SuccessorRange() {
   if ((count = term->getNumSuccessors()))
     base = term->getBlockOperands().data();
+}
+
+//===----------------------------------------------------------------------===//
+// BlockRange
+//===----------------------------------------------------------------------===//
+
+BlockRange::BlockRange(ArrayRef<Block *> blocks) : BlockRange(nullptr, 0) {
+  if ((count = blocks.size()))
+    base = blocks.data();
+}
+
+BlockRange::BlockRange(SuccessorRange successors)
+    : BlockRange(successors.begin().getBase(), successors.size()) {}
+
+/// See `llvm::detail::indexed_accessor_range_base` for details.
+BlockRange::OwnerT BlockRange::offset_base(OwnerT object, ptrdiff_t index) {
+  if (auto *operand = object.dyn_cast<BlockOperand *>())
+    return {operand + index};
+  return {object.dyn_cast<Block *const *>() + index};
+}
+
+/// See `llvm::detail::indexed_accessor_range_base` for details.
+Block *BlockRange::dereference_iterator(OwnerT object, ptrdiff_t index) {
+  if (const auto *operand = object.dyn_cast<BlockOperand *>())
+    return operand[index].get();
+  return object.dyn_cast<Block *const *>()[index];
 }

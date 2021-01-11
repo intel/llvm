@@ -31,10 +31,24 @@
     llvm::errs() << "'" << #expr << "' failed with '" << name << "'\n";        \
   }(expr)
 
+// Static initialization of HIP context for device ordinal 0.
+static auto InitializeCtx = [] {
+  HIP_REPORT_IF_ERROR(hipInit(/*flags=*/0));
+  hipDevice_t device;
+  HIP_REPORT_IF_ERROR(hipDeviceGet(&device, /*ordinal=*/0));
+  hipContext_t context;
+  HIP_REPORT_IF_ERROR(hipCtxCreate(&context, /*flags=*/0, device));
+  return 0;
+}();
+
 extern "C" hipModule_t mgpuModuleLoad(void *data) {
   hipModule_t module = nullptr;
   HIP_REPORT_IF_ERROR(hipModuleLoadData(&module, data));
   return module;
+}
+
+extern "C" void mgpuModuleUnload(hipModule_t module) {
+  HIP_REPORT_IF_ERROR(hipModuleUnload(module));
 }
 
 extern "C" hipFunction_t mgpuModuleGetFunction(hipModule_t module,
@@ -58,14 +72,50 @@ extern "C" void mgpuLaunchKernel(hipFunction_t function, intptr_t gridX,
                                             stream, params, extra));
 }
 
-extern "C" void *mgpuStreamCreate() {
+extern "C" hipStream_t mgpuStreamCreate() {
   hipStream_t stream = nullptr;
   HIP_REPORT_IF_ERROR(hipStreamCreate(&stream));
   return stream;
 }
 
+extern "C" void mgpuStreamDestroy(hipStream_t stream) {
+  HIP_REPORT_IF_ERROR(hipStreamDestroy(stream));
+}
+
 extern "C" void mgpuStreamSynchronize(hipStream_t stream) {
   return HIP_REPORT_IF_ERROR(hipStreamSynchronize(stream));
+}
+
+extern "C" void mgpuStreamWaitEvent(hipStream_t stream, hipEvent_t event) {
+  HIP_REPORT_IF_ERROR(hipStreamWaitEvent(stream, event, /*flags=*/0));
+}
+
+extern "C" hipEvent_t mgpuEventCreate() {
+  hipEvent_t event = nullptr;
+  HIP_REPORT_IF_ERROR(hipEventCreateWithFlags(&event, hipEventDisableTiming));
+  return event;
+}
+
+extern "C" void mgpuEventDestroy(hipEvent_t event) {
+  HIP_REPORT_IF_ERROR(hipEventDestroy(event));
+}
+
+extern "C" void mgpuEventSynchronize(hipEvent_t event) {
+  HIP_REPORT_IF_ERROR(hipEventSynchronize(event));
+}
+
+extern "C" void mgpuEventRecord(hipEvent_t event, hipStream_t stream) {
+  HIP_REPORT_IF_ERROR(hipEventRecord(event, stream));
+}
+
+extern "C" void *mgpuMemAlloc(uint64_t sizeBytes, hipStream_t /*stream*/) {
+  void *ptr;
+  HIP_REPORT_IF_ERROR(hipMemAlloc(&ptr, sizeBytes));
+  return ptr;
+}
+
+extern "C" void mgpuMemFree(void *ptr, hipStream_t /*stream*/) {
+  HIP_REPORT_IF_ERROR(hipMemFree(ptr));
 }
 
 /// Helper functions for writing mlir example code

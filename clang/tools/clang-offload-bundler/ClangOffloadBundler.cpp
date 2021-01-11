@@ -23,7 +23,12 @@
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/Bitcode/BitcodeReader.h"
+#include "llvm/Bitcode/BitcodeWriter.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IRReader/IRReader.h"
 #include "llvm/Object/Archive.h"
+#include "llvm/Object/ArchiveWriter.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/Casting.h"
@@ -38,14 +43,16 @@
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/StringSaver.h"
+#include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <list>
+#include <forward_list>
 #include <memory>
+#include <set>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -88,7 +95,12 @@ static cl::opt<std::string> FilesType(
              "  oo  - object; output file is a list of unbundled objects\n"
              "  gch - precompiled-header\n"
              "  ast - clang AST file\n"
+             "  a   - archive of objects\n"
              "  ao  - archive with one object; output is an unbundled object\n"
+             "  aocr - AOCR archive; output file is a list of unbundled\n"
+             "         .aocr files\n"
+             "  aocx - AOCX archive; output file is a list of unbundled\n"
+             "         .aocx files\n"
              "  aoo - archive; output file is a list of unbundled objects\n"),
     cl::cat(ClangOffloadBundlerCategory));
 
@@ -108,11 +120,25 @@ static cl::opt<bool> PrintExternalCommands(
              "instead of actually executing them - for testing purposes.\n"),
     cl::init(false), cl::cat(ClangOffloadBundlerCategory));
 
+static cl::opt<bool>
+    AllowMissingBundles("allow-missing-bundles",
+                        cl::desc("Create empty files if bundles are missing "
+                                 "when unbundling.\n"),
+                        cl::init(false), cl::cat(ClangOffloadBundlerCategory));
+
+static cl::opt<unsigned>
+    BundleAlignment("bundle-align",
+                    cl::desc("Alignment of bundle for binary files"),
+                    cl::init(1), cl::cat(ClangOffloadBundlerCategory));
+
 /// Magic string that marks the existence of offloading data.
 #define OFFLOAD_BUNDLER_MAGIC_STR "__CLANG_OFFLOAD_BUNDLE__"
 
 /// Prefix of an added section name with bundle size.
 #define SIZE_SECTION_PREFIX "__CLANG_OFFLOAD_BUNDLE_SIZE__"
+
+/// Section name which holds target symbol names.
+#define SYMBOLS_SECTION_NAME ".tgtsym"
 
 /// The index of the host input in the list of inputs.
 static unsigned HostInputIndex = ~0u;
@@ -133,6 +159,13 @@ static bool hasHostKind(StringRef Target) {
   StringRef Triple;
   getOffloadKindAndTriple(Target, OffloadKind, Triple);
   return OffloadKind == "host";
+}
+
+static Triple getTargetTriple(StringRef Target) {
+  StringRef OffloadKind;
+  StringRef TargetTriple;
+  getOffloadKindAndTriple(Target, OffloadKind, TargetTriple);
+  return Triple(TargetTriple);
 }
 
 /// Generic file handler interface.
@@ -156,19 +189,7 @@ public:
   virtual Error ReadBundleEnd(MemoryBuffer &Input) = 0;
 
   /// Read the current bundle and write the result into the stream \a OS.
-  virtual Error ReadBundle(raw_fd_ostream &OS, MemoryBuffer &Input) = 0;
-
-  /// Read the current bundle and write the result into the file \a FileName.
-  /// The meaning of \a FileName depends on unbundling type - in some
-  /// cases (type="oo") it will contain a list of actual outputs.
-  virtual Error ReadBundle(StringRef FileName, MemoryBuffer &Input) {
-    std::error_code EC;
-    raw_fd_ostream OS(FileName, EC);
-
-    if (EC)
-      return createFileError(FileName, EC);
-    return ReadBundle(OS, Input);
-  }
+  virtual Error ReadBundle(raw_ostream &OS, MemoryBuffer &Input) = 0;
 
   /// Write the header of the bundled file to \a OS based on the information
   /// gathered from \a Inputs.
@@ -261,6 +282,9 @@ class BinaryFileHandler final : public FileHandler {
   StringMap<BundleInfo>::iterator CurBundleInfo;
   StringMap<BundleInfo>::iterator NextBundleInfo;
 
+  /// Current bundle target to be written.
+  std::string CurWriteBundleTarget;
+
 public:
   BinaryFileHandler() : FileHandler() {}
 
@@ -346,9 +370,7 @@ public:
     return Error::success();
   }
 
-  using FileHandler::ReadBundle; // to avoid hiding via the overload below
-
-  Error ReadBundle(raw_fd_ostream &OS, MemoryBuffer &Input) final {
+  Error ReadBundle(raw_ostream &OS, MemoryBuffer &Input) final {
     assert(CurBundleInfo != BundlesInfo.end() && "Invalid reader info!");
     StringRef FC = Input.getBuffer();
     OS.write(FC.data() + CurBundleInfo->second.Offset,
@@ -377,10 +399,12 @@ public:
     unsigned Idx = 0;
     for (auto &T : TargetNames) {
       MemoryBuffer &MB = *Inputs[Idx++];
+      HeaderSize = alignTo(HeaderSize, BundleAlignment);
       // Bundle offset.
       Write8byteIntegerToBuffer(OS, HeaderSize);
       // Size of the bundle (adds to the next bundle's offset)
       Write8byteIntegerToBuffer(OS, MB.getBufferSize());
+      BundlesInfo[T] = BundleInfo(MB.getBufferSize(), HeaderSize);
       HeaderSize += MB.getBufferSize();
       // Size of the triple
       Write8byteIntegerToBuffer(OS, T.size());
@@ -391,6 +415,7 @@ public:
   }
 
   Error WriteBundleStart(raw_fd_ostream &OS, StringRef TargetTriple) final {
+    CurWriteBundleTarget = TargetTriple.str();
     return Error::success();
   }
 
@@ -399,6 +424,8 @@ public:
   }
 
   Error WriteBundle(raw_fd_ostream &OS, MemoryBuffer &Input) final {
+    auto BI = BundlesInfo[CurWriteBundleTarget];
+    OS.seek(BI.Offset);
     OS.write(Input.getBufferStart(), Input.getBufferSize());
     return Error::success();
   }
@@ -421,7 +448,7 @@ public:
     if (std::error_code EC =
             sys::fs::createTemporaryFile("clang-offload-bundler", "tmp", File))
       return createFileError(File, EC);
-    Files.push_back(File);
+    Files.push_front(File);
 
     if (Contents) {
       std::error_code EC;
@@ -430,11 +457,11 @@ public:
         return createFileError(File, EC);
       OS.write(Contents->data(), Contents->size());
     }
-    return Files.back();
+    return Files.front();
   }
 
 private:
-  SmallVector<SmallString<128u>, 4u> Files;
+  std::forward_list<SmallString<128u>> Files;
 };
 
 } // end anonymous namespace
@@ -545,6 +572,90 @@ class ObjectFileHandler final : public FileHandler {
   /// Input sizes.
   SmallVector<uint64_t, 16u> InputSizes;
 
+  // Return a buffer with symbol names that are defined in target objects.
+  // Each symbol name is prefixed by a target name <kind>-<triple> to uniquely
+  // identify the target it belongs to, and symbol names are separated from each
+  // other by '\0' characters.
+  Expected<SmallVector<char, 0>> makeTargetSymbolTable() {
+    SmallVector<char, 0> SymbolsBuf;
+    raw_svector_ostream SymbolsOS(SymbolsBuf);
+    LLVMContext Context;
+
+    for (unsigned I = 0; I < NumberOfInputs; ++I) {
+      if (I == HostInputIndex)
+        continue;
+
+      // Get the list of symbols defined in the target object. Open file and
+      // check if it is a symbolic file.
+      ErrorOr<std::unique_ptr<MemoryBuffer>> BufOrErr =
+          MemoryBuffer::getFileOrSTDIN(InputFileNames[I]);
+      if (!BufOrErr)
+        return createFileError(InputFileNames[I], BufOrErr.getError());
+
+      std::unique_ptr<MemoryBuffer> Buf = std::move(*BufOrErr);
+
+      // Workaround for the absence of assembly parser for spir target. If this
+      // input is a bitcode for spir target we need to remove module-level
+      // inline asm from it, if there is one, and recreate the buffer with new
+      // contents.
+      // TODO: remove this workaround once spir target gets asm parser.
+      if (isBitcode((const unsigned char *)Buf->getBufferStart(),
+                    (const unsigned char *)Buf->getBufferEnd()))
+        if (getTargetTriple(TargetNames[I]).isSPIR()) {
+          SMDiagnostic Err;
+          std::unique_ptr<Module> Mod = parseIR(*Buf, Err, Context);
+          if (!Mod)
+            return createStringError(inconvertibleErrorCode(),
+                                     Err.getMessage());
+
+          if (!Mod->getModuleInlineAsm().empty()) {
+            Mod->setModuleInlineAsm("");
+
+            SmallVector<char, 0> ModuleBuf;
+            raw_svector_ostream ModuleOS(ModuleBuf);
+            WriteBitcodeToFile(*Mod, ModuleOS);
+
+            Buf = MemoryBuffer::getMemBufferCopy(ModuleOS.str(),
+                                                 Buf->getBufferIdentifier());
+          }
+        }
+
+      Expected<std::unique_ptr<Binary>> BinOrErr =
+          createBinary(Buf->getMemBufferRef(), &Context);
+
+      // If it is not a symbolic file just ignore it since we cannot do anything
+      // with it.
+      if (!BinOrErr) {
+        if (auto Err = isNotObjectErrorInvalidFileType(BinOrErr.takeError()))
+          return std::move(Err);
+        continue;
+      }
+      auto *SF = dyn_cast<SymbolicFile>(&**BinOrErr);
+      if (!SF)
+        continue;
+
+      for (BasicSymbolRef Symbol : SF->symbols()) {
+        Expected<uint32_t> FlagsOrErr = Symbol.getFlags();
+        if (!FlagsOrErr)
+          return FlagsOrErr.takeError();
+
+        // We are interested in externally visible and defined symbols only, so
+        // ignore it if this is not such a symbol.
+        bool Undefined = *FlagsOrErr & SymbolRef::SF_Undefined;
+        bool Global = *FlagsOrErr & SymbolRef::SF_Global;
+        if (Undefined || !Global)
+          continue;
+
+        // Add symbol name with the target prefix to the buffer.
+        SymbolsOS << TargetNames[I] << ".";
+        if (Error Err = Symbol.printName(SymbolsOS))
+          return std::move(Err);
+        SymbolsOS << '\0';
+      }
+    }
+    return SymbolsBuf;
+  }
+
 public:
   ObjectFileHandler(std::unique_ptr<ObjectFile> ObjIn)
       : FileHandler(), Obj(std::move(ObjIn)),
@@ -625,11 +736,7 @@ public:
 
   Error ReadBundleEnd(MemoryBuffer &Input) final { return Error::success(); }
 
-  Error ReadBundle(raw_fd_ostream &OS, MemoryBuffer &Input) {
-    llvm_unreachable("must not be called for the ObjectFileHandler");
-  }
-
-  Error ReadBundle(StringRef OutName, MemoryBuffer &Input) final {
+  Error ReadBundle(raw_ostream &OS, MemoryBuffer &Input) final {
     assert(CurBundle != TripleToBundleInfo.end() &&
            "all bundles have been read already");
 
@@ -637,11 +744,6 @@ public:
     // driver is fixed to correctly handle list file for the host bundle in
     // 'oo' mode.
     if (FilesType == "oo" && hasHostKind(CurBundle->getKey())) {
-      std::error_code EC;
-      raw_fd_ostream OS(OutName, EC);
-
-      if (EC)
-        return createFileError(OutName, EC);
       OS.write(Input.getBufferStart(), Input.getBufferSize());
       return Error::success();
     }
@@ -663,35 +765,13 @@ public:
           errc::invalid_argument,
           "'o' file type is requested, but the fat object contains multiple "
           "device objects; use 'oo' instead");
-    std::string FileList;
 
     // Iterate through individual objects and extract them
     for (size_t I = 0; I < NumObjects; ++I) {
       uint64_t ObjSize = SizeVec[I];
+
       // Flag for the special case used to "unbundle" host target object.
-      bool HostTriple = ObjSize == 1;
-
-      StringRef ObjFileName = OutName;
-      SmallString<128> Path;
-
-      // If not in file list mode there is no need in a temporary file - output
-      // goes directly to what was specified in -outputs. The same is true for
-      // the host triple.
-      if (FileListMode && !HostTriple) {
-        std::error_code EC =
-            sys::fs::createTemporaryFile(TempFileNameBase, "devo", Path);
-        ObjFileName = Path.data();
-
-        if (EC)
-          return createFileError(ObjFileName, EC);
-      }
-      std::error_code EC;
-      raw_fd_ostream OS(ObjFileName, EC);
-
-      if (EC)
-        return createFileError(ObjFileName, EC);
-
-      if (HostTriple) {
+      if (ObjSize == 1) {
         // Copy fat object contents to the output when extracting host bundle.
 
         // In the partially linked fat object multiple dummy host bundles were
@@ -703,25 +783,30 @@ public:
         OS.write(Input.getBufferStart(), Input.getBufferSize());
         break;
       }
-      OS.write(ObjData, ObjSize);
 
       if (FileListMode) {
+        SmallString<128> ObjFileName;
+        std::error_code EC =
+            sys::fs::createTemporaryFile(TempFileNameBase, "devo", ObjFileName);
+        if (EC)
+          return createFileError(ObjFileName, EC);
+
+        raw_fd_ostream ObjOS(ObjFileName, EC);
+        if (EC)
+          return createFileError(ObjFileName, EC);
+
+        ObjOS.write(ObjData, ObjSize);
+        if (ObjOS.has_error())
+          return createFileError(ObjFileName, ObjOS.error());
+
         // add the written file name to the output list of files
-        FileList = (Twine(FileList) + Twine(ObjFileName) + Twine("\n")).str();
-      }
+        OS << ObjFileName << "\n";
+      } else
+        OS.write(ObjData, ObjSize);
+
       // Move "object data" pointer to the next object within the concatenated
       // bundle.
       ObjData += ObjSize;
-    }
-    if (FileListMode) {
-      // dump the list of files into the file list specified in -outputs for the
-      // current target
-      std::error_code EC;
-      raw_fd_ostream OS1(OutName, EC);
-
-      if (EC)
-        return createFileError(OutName, EC);
-      OS1.write(FileList.data(), FileList.size());
     }
     return Error::success();
   }
@@ -818,6 +903,25 @@ public:
                                     SIZE_SECTION_PREFIX + TargetNames[I] + "=" +
                                     *SizeFileOrErr));
     }
+
+    // Add a section with symbol names that are defined in target objects to the
+    // output fat object.
+    Expected<SmallVector<char, 0>> SymbolsOrErr = makeTargetSymbolTable();
+    if (!SymbolsOrErr)
+      return SymbolsOrErr.takeError();
+
+    if (!SymbolsOrErr->empty()) {
+      // Add section with symbols names to fat object.
+      Expected<StringRef> SymbolsFileOrErr =
+          TempFiles.Create(makeArrayRef(*SymbolsOrErr));
+      if (!SymbolsFileOrErr)
+        return SymbolsFileOrErr.takeError();
+
+      ObjcopyArgs.push_back(SS.save(Twine("--add-section=") +
+                                    SYMBOLS_SECTION_NAME + "=" +
+                                    *SymbolsFileOrErr));
+    }
+
     ObjcopyArgs.push_back(InputFileNames[HostInputIndex]);
     ObjcopyArgs.push_back(IntermediateObj);
 
@@ -926,9 +1030,7 @@ protected:
     return Error::success();
   }
 
-  using FileHandler::ReadBundle; // to avoid hiding via the overload below
-
-  Error ReadBundle(raw_fd_ostream &OS, MemoryBuffer &Input) final {
+  Error ReadBundle(raw_ostream &OS, MemoryBuffer &Input) final {
     StringRef FC = Input.getBuffer();
     size_t BundleStart = ReadChars;
 
@@ -984,11 +1086,27 @@ class ArchiveFileHandler final : public FileHandler {
   StringMap<unsigned>::iterator CurrBundle = Bundles.end();
   StringMap<unsigned>::iterator NextBundle = Bundles.end();
 
+  /// Output mode for the archive unbundler.
+  enum class OutputType {
+    Unknown,
+    FileList, // Output is a list file with extracted object file names
+    Object,   // Output is a single object file
+    Archive   // Output is an archive with extracted objects
+  };
+  const OutputType Mode =
+      StringSwitch<OutputType>(FilesType)
+          .Cases("aoo", "aocx", "aocr", OutputType::FileList)
+          .Case("ao", OutputType::Object)
+          .Case("a", OutputType::Archive)
+          .Default(OutputType::Unknown);
+
 public:
   ArchiveFileHandler() = default;
   ~ArchiveFileHandler() = default;
 
   Error ReadHeader(MemoryBuffer &Input) override {
+    assert(Mode != OutputType::Unknown && "unknown output mode");
+
     // Create archive instance for the given input.
     auto ArOrErr = Archive::create(Input);
     if (!ArOrErr)
@@ -1043,22 +1161,26 @@ public:
 
   Error ReadBundleEnd(MemoryBuffer &Input) override { return Error::success(); }
 
-  Error ReadBundle(StringRef OutName, MemoryBuffer &Input) override {
+  Error ReadBundle(raw_ostream &OS, MemoryBuffer &Input) override {
     assert(CurrBundle->second && "attempt to extract nonexistent bundle");
 
-    bool FileListMode = FilesType == "aoo";
-
     // In single-file mode we do not expect to see bundle more than once.
-    if (!FileListMode && CurrBundle->second > 1)
+    if (Mode == OutputType::Object && CurrBundle->second > 1)
       return createStringError(
           errc::invalid_argument,
           "'ao' file type is requested, but the archive contains multiple "
           "device objects; use 'aoo' instead");
 
-    // In file-list mode archive unbundling produces multiple files, so output
-    // file is a file list where we write the unbundled object names.
-    SmallVector<char, 0u> FileListBuf;
-    raw_svector_ostream FileList{FileListBuf};
+    // For 'host' archive bundle just copy input data to the output stream.
+    if (Mode == OutputType::Archive && hasHostKind(CurrBundle->first())) {
+      OS << Input.getBuffer();
+      return Error::success();
+    }
+
+    // Extracted objects data for archive mode.
+    SmallVector<std::string, 8u> ArNames;
+    SmallVector<SmallVector<char, 0u>, 8u> ArData;
+    SmallVector<NewArchiveMember, 8u> ArMembers;
 
     // Read all children.
     Error Err = Error::success();
@@ -1077,6 +1199,10 @@ public:
       auto Obj = std::unique_ptr<ObjectFile>(cast<ObjectFile>(Bin.release()));
       auto Buf = MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
 
+      auto ChildNameOrErr = C.getName();
+      if (!ChildNameOrErr)
+        return ChildNameOrErr.takeError();
+
       ObjectFileHandler OFH(std::move(Obj));
       if (Error Err = OFH.ReadHeader(*Buf))
         return Err;
@@ -1086,28 +1212,50 @@ public:
       while (*NameOrErr) {
         auto TT = **NameOrErr;
         if (TT == CurrBundle->first()) {
-          // This is the bundle we are looking for. Create temporary file where
-          // the device part will be extracted if we are in the file-list mode,
-          // or write directly to the output file otherwise.
-          SmallString<128u> ChildFileName;
-          if (FileListMode) {
-            auto EC = sys::fs::createTemporaryFile(TempFileNameBase, "o",
+          // This is the bundle we are looking for.
+          if (Mode == OutputType::FileList) {
+            // Create temporary file where the device part will be extracted to.
+            SmallString<128u> ChildFileName;
+            StringRef Ext("o");
+            if (FilesType == "aocr" || FilesType == "aocx")
+              Ext = FilesType;
+            auto EC = sys::fs::createTemporaryFile(TempFileNameBase, Ext,
                                                    ChildFileName);
             if (EC)
               return createFileError(ChildFileName, EC);
-          } else
-            ChildFileName = OutName;
 
-          // And extract the bundle.
-          if (Error Err = OFH.ReadBundle(ChildFileName, *Buf))
-            return Err;
-          if (Error Err = OFH.ReadBundleEnd(*Buf))
-            return Err;
+            raw_fd_ostream ChildOS(ChildFileName, EC);
+            if (EC)
+              return createFileError(ChildFileName, EC);
 
-          if (FileListMode)
+            if (Error Err = OFH.ReadBundle(ChildOS, *Buf))
+              return Err;
+
+            if (ChildOS.has_error())
+              return createFileError(ChildFileName, ChildOS.error());
+
             // Add temporary file name with the device part to the output file
             // list.
-            FileList << ChildFileName << "\n";
+            OS << ChildFileName << "\n";
+          } else if (Mode == OutputType::Object) {
+            // Extract the bundle to the output file in single file mode.
+            if (Error Err = OFH.ReadBundle(OS, *Buf))
+              return Err;
+          } else if (Mode == OutputType::Archive) {
+            auto &Name =
+                ArNames.emplace_back((TT + "." + *ChildNameOrErr).str());
+            auto &Data = ArData.emplace_back();
+            raw_svector_ostream ChildOS{Data};
+
+            // Extract the bundle.
+            if (Error Err = OFH.ReadBundle(ChildOS, *Buf))
+              return Err;
+
+            ArMembers.emplace_back(
+                MemoryBufferRef{StringRef(Data.data(), Data.size()), Name});
+          }
+          if (Error Err = OFH.ReadBundleEnd(*Buf))
+            return Err;
         }
         NameOrErr = OFH.ReadBundleStart(*Buf);
         if (!NameOrErr)
@@ -1117,19 +1265,21 @@ public:
     if (Err)
       return Err;
 
-    if (FileListMode) {
-      // Dump file list to the output file.
-      std::error_code EC;
-      raw_fd_ostream OS(OutName, EC);
-      if (EC)
-        return createFileError(OutName, EC);
-      OS << FileList.str();
+    if (Mode == OutputType::Archive) {
+      // Determine archive kind for the offload target.
+      auto ArKind = getTargetTriple(CurrBundle->first()).isOSDarwin()
+                        ? Archive::K_DARWIN
+                        : Archive::K_GNU;
+
+      // And write archive to the output.
+      Expected<std::unique_ptr<MemoryBuffer>> NewAr =
+          writeArchiveToBuffer(ArMembers, /*WriteSymtab=*/true, ArKind,
+                               /*Deterministic=*/true, /*Thin=*/false);
+      if (!NewAr)
+        return NewAr.takeError();
+      OS << NewAr.get()->getBuffer();
     }
     return Error::success();
-  }
-
-  Error ReadBundle(raw_fd_ostream &OS, MemoryBuffer &Input) override {
-    llvm_unreachable("must not be called for the ArchiveFileHandler");
   }
 
   Error WriteHeader(raw_fd_ostream &OS,
@@ -1169,6 +1319,15 @@ CreateObjectFileHandler(MemoryBuffer &FirstInput) {
       std::unique_ptr<ObjectFile>(cast<ObjectFile>(BinaryOrErr->release())));
 }
 
+static bool FilesTypeIsArchiveToList(void) {
+  return FilesType == "ao" || FilesType == "aoo" || FilesType == "aocr" ||
+         FilesType == "aocx";
+}
+
+static bool FilesTypeIsArchive(void) {
+  return FilesType == "a" || FilesTypeIsArchiveToList();
+}
+
 /// Return an appropriate handler given the input files and options.
 static Expected<std::unique_ptr<FileHandler>>
 CreateFileHandler(MemoryBuffer &FirstInput) {
@@ -1194,7 +1353,7 @@ CreateFileHandler(MemoryBuffer &FirstInput) {
     return std::make_unique<BinaryFileHandler>();
   if (FilesType == "ast")
     return std::make_unique<BinaryFileHandler>();
-  if (FilesType == "ao" || FilesType == "aoo")
+  if (FilesTypeIsArchive())
     return std::make_unique<ArchiveFileHandler>();
 
   return createStringError(errc::invalid_argument,
@@ -1205,7 +1364,7 @@ CreateFileHandler(MemoryBuffer &FirstInput) {
 static Error BundleFiles() {
   std::error_code EC;
 
-  if (FilesType == "ao" || FilesType == "aoo")
+  if (FilesTypeIsArchive())
     return createStringError(errc::invalid_argument,
                              "bundling is not supported for archives");
 
@@ -1310,7 +1469,11 @@ static Error UnbundleFiles() {
       continue;
 
     // Check if the output file can be opened and copy the bundle to it.
-    if (Error Err = FH->ReadBundle(Output->second, Input))
+    std::error_code EC;
+    raw_fd_ostream OutputFile(Output->second, EC, sys::fs::OF_None);
+    if (EC)
+      return createFileError(Output->second, EC);
+    if (Error Err = FH->ReadBundle(OutputFile, Input))
       return Err;
     if (Error Err = FH->ReadBundleEnd(Input))
       return Err;
@@ -1319,6 +1482,25 @@ static Error UnbundleFiles() {
     // Record if we found the host bundle.
     if (hasHostKind(CurTriple))
       FoundHostBundle = true;
+  }
+
+  if (!AllowMissingBundles && !Worklist.empty()) {
+    std::string ErrMsg = "Can't find bundles for";
+    std::set<StringRef> Sorted;
+    for (auto &E : Worklist)
+      Sorted.insert(E.first());
+    unsigned I = 0;
+    unsigned Last = Sorted.size() - 1;
+    for (auto &E : Sorted) {
+      if (I != 0 && Last > 1)
+        ErrMsg += ",";
+      ErrMsg += " ";
+      if (I == Last && I != 0)
+        ErrMsg += "and ";
+      ErrMsg += E.str();
+      ++I;
+    }
+    return createStringError(inconvertibleErrorCode(), ErrMsg);
   }
 
   // If no bundles were found, assume the input file is the host bundle and
@@ -1332,7 +1514,7 @@ static Error UnbundleFiles() {
 
       // If this entry has a host kind, copy the input file to the output file
       // except for the archive unbundling where output is a list file.
-      if (hasHostKind(E.first()) && FilesType != "ao" && FilesType != "aoo")
+      if (hasHostKind(E.first()) && !FilesTypeIsArchiveToList())
         OutputFile.write(Input.getBufferStart(), Input.getBufferSize());
     }
     return Error::success();
@@ -1425,6 +1607,11 @@ int main(int argc, const char **argv) {
     return 0;
   }
 
+  // These calls are needed so that we can read bitcode correctly.
+  InitializeAllTargetInfos();
+  InitializeAllTargetMCs();
+  InitializeAllAsmParsers();
+
   auto reportError = [argv](Error E) {
     logAllUnhandledErrors(std::move(E), WithColor::error(errs(), argv[0]));
   };
@@ -1493,7 +1680,15 @@ int main(int argc, const char **argv) {
   // have exactly one host target.
   unsigned Index = 0u;
   unsigned HostTargetNum = 0u;
+  llvm::DenseSet<StringRef> ParsedTargets;
   for (StringRef Target : TargetNames) {
+    if (ParsedTargets.contains(Target)) {
+      reportError(createStringError(errc::invalid_argument,
+                                    "Duplicate targets are not allowed"));
+      return 1;
+    }
+    ParsedTargets.insert(Target);
+
     StringRef Kind;
     StringRef Triple;
     getOffloadKindAndTriple(Target, Kind, Triple);
@@ -1548,7 +1743,9 @@ int main(int argc, const char **argv) {
 
   // Save the current executable directory as it will be useful to find other
   // tools.
-  BundlerExecutable = sys::fs::getMainExecutable(argv[0], &BundlerExecutable);
+  BundlerExecutable = argv[0];
+  if (!llvm::sys::fs::exists(BundlerExecutable))
+    BundlerExecutable = sys::fs::getMainExecutable(argv[0], &BundlerExecutable);
 
   if (CheckSection) {
     Expected<bool> Res = CheckBundledSection();

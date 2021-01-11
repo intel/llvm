@@ -39,6 +39,8 @@ add_llvm_component_library(LLVMAnalysis
   CodeMetrics.cpp
   ConstantFolding.cpp
   DDG.cpp
+  DDGPrinter.cpp
+  ConstraintSystem.cpp
   Delinearization.cpp
   DemandedBits.cpp
   DependenceAnalysis.cpp
@@ -53,6 +55,7 @@ add_llvm_component_library(LLVMAnalysis
   GlobalsModRef.cpp
   GuardUtils.cpp
   HeatUtils.cpp
+  IRSimilarityIdentifier.cpp
   IVDescriptors.cpp
   IVUsers.cpp
   IndirectCallPromotionAnalysis.cpp
@@ -133,4 +136,11 @@ add_llvm_component_library(LLVMAnalysis
 
   LINK_LIBS
   ${MLLinkDeps}
+
+  LINK_COMPONENTS
+  BinaryFormat
+  Core
+  Object
+  ProfileData
+  Support
   )

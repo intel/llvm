@@ -60,6 +60,7 @@ class CodeGenTarget {
 
   mutable std::unique_ptr<CodeGenSchedModels> SchedModels;
 
+  mutable StringRef InstNamespace;
   mutable std::vector<const CodeGenInstruction*> InstrsByEnum;
   mutable unsigned NumPseudoInstructions = 0;
 public:
@@ -72,6 +73,9 @@ public:
   /// getInstNamespace - Return the target-specific instruction namespace.
   ///
   StringRef getInstNamespace() const;
+
+  /// getRegNamespace - Return the target-specific register namespace.
+  StringRef getRegNamespace() const;
 
   /// getInstructionSet - Return the InstructionSet object.
   ///

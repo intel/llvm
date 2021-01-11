@@ -69,7 +69,7 @@ auto IsVariableHelper::operator()(const ProcedureDesignator &x) const
   return symbol && symbol->attrs().test(semantics::Attr::POINTER);
 }
 
-// Conversions of complex component expressions to REAL.
+// Conversions of COMPLEX component expressions to REAL.
 ConvertRealOperandsResult ConvertRealOperands(
     parser::ContextualMessages &messages, Expr<SomeType> &&x,
     Expr<SomeType> &&y, int defaultRealKind) {
@@ -498,31 +498,14 @@ std::optional<Expr<LogicalResult>> Relate(parser::ContextualMessages &messages,
           },
           [&](Expr<SomeComplex> &&zx,
               Expr<SomeComplex> &&zy) -> std::optional<Expr<LogicalResult>> {
-            if (opr != RelationalOperator::EQ &&
-                opr != RelationalOperator::NE) {
+            if (opr == RelationalOperator::EQ ||
+                opr == RelationalOperator::NE) {
+              return PromoteAndRelate(opr, std::move(zx), std::move(zy));
+            } else {
               messages.Say(
                   "COMPLEX data may be compared only for equality"_err_en_US);
-            } else {
-              auto rr{Relate(messages, opr,
-                  AsGenericExpr(GetComplexPart(zx, false)),
-                  AsGenericExpr(GetComplexPart(zy, false)))};
-              auto ri{
-                  Relate(messages, opr, AsGenericExpr(GetComplexPart(zx, true)),
-                      AsGenericExpr(GetComplexPart(zy, true)))};
-              if (auto parts{
-                      common::AllPresent(std::move(rr), std::move(ri))}) {
-                // (a,b)==(c,d) -> (a==c) .AND. (b==d)
-                // (a,b)/=(c,d) -> (a/=c) .OR. (b/=d)
-                LogicalOperator combine{opr == RelationalOperator::EQ
-                        ? LogicalOperator::And
-                        : LogicalOperator::Or};
-                return Expr<LogicalResult>{
-                    LogicalOperation<LogicalResult::kind>{combine,
-                        std::get<0>(std::move(*parts)),
-                        std::get<1>(std::move(*parts))}};
-              }
+              return std::nullopt;
             }
-            return std::nullopt;
           },
           [&](Expr<SomeComplex> &&zx, Expr<SomeInteger> &&iy) {
             return Relate(messages, opr, std::move(x),
@@ -661,11 +644,6 @@ std::optional<Expr<SomeType>> ConvertToType(
 
 std::optional<Expr<SomeType>> ConvertToType(
     const Symbol &symbol, Expr<SomeType> &&x) {
-  if (int xRank{x.Rank()}; xRank > 0) {
-    if (symbol.Rank() != xRank) {
-      return std::nullopt;
-    }
-  }
   if (auto symType{DynamicType::From(symbol)}) {
     return ConvertToType(*symType, std::move(x));
   }
@@ -818,8 +796,8 @@ parser::Message *AttachDeclaration(
           unhosted->detailsIf<semantics::ProcBindingDetails>()}) {
     if (binding->symbol().name() != symbol.name()) {
       message.Attach(binding->symbol().name(),
-          "Procedure '%s' is bound to '%s'"_en_US, symbol.name(),
-          binding->symbol().name());
+          "Procedure '%s' of type '%s' is bound to '%s'"_en_US, symbol.name(),
+          symbol.owner().GetName().value(), binding->symbol().name());
       return &message;
     }
     unhosted = &binding->symbol();
@@ -837,10 +815,7 @@ parser::Message *AttachDeclaration(
 
 parser::Message *AttachDeclaration(
     parser::Message *message, const Symbol &symbol) {
-  if (message) {
-    AttachDeclaration(*message, symbol);
-  }
-  return message;
+  return message ? AttachDeclaration(*message, symbol) : nullptr;
 }
 
 class FindImpureCallHelper
@@ -849,12 +824,11 @@ class FindImpureCallHelper
   using Base = AnyTraverse<FindImpureCallHelper, Result>;
 
 public:
-  explicit FindImpureCallHelper(const IntrinsicProcTable &intrinsics)
-      : Base{*this}, intrinsics_{intrinsics} {}
+  explicit FindImpureCallHelper(FoldingContext &c) : Base{*this}, context_{c} {}
   using Base::operator();
   Result operator()(const ProcedureRef &call) const {
-    if (auto chars{characteristics::Procedure::Characterize(
-            call.proc(), intrinsics_)}) {
+    if (auto chars{
+            characteristics::Procedure::Characterize(call.proc(), context_)}) {
       if (chars->attrs.test(characteristics::Procedure::Attr::Pure)) {
         return (*this)(call.arguments());
       }
@@ -863,16 +837,72 @@ public:
   }
 
 private:
-  const IntrinsicProcTable &intrinsics_;
+  FoldingContext &context_;
 };
 
 std::optional<std::string> FindImpureCall(
-    const IntrinsicProcTable &intrinsics, const Expr<SomeType> &expr) {
-  return FindImpureCallHelper{intrinsics}(expr);
+    FoldingContext &context, const Expr<SomeType> &expr) {
+  return FindImpureCallHelper{context}(expr);
 }
 std::optional<std::string> FindImpureCall(
-    const IntrinsicProcTable &intrinsics, const ProcedureRef &proc) {
-  return FindImpureCallHelper{intrinsics}(proc);
+    FoldingContext &context, const ProcedureRef &proc) {
+  return FindImpureCallHelper{context}(proc);
+}
+
+// Compare procedure characteristics for equality except that lhs may be
+// Pure or Elemental when rhs is not.
+static bool CharacteristicsMatch(const characteristics::Procedure &lhs,
+    const characteristics::Procedure &rhs) {
+  using Attr = characteristics::Procedure::Attr;
+  auto lhsAttrs{rhs.attrs};
+  lhsAttrs.set(
+      Attr::Pure, lhs.attrs.test(Attr::Pure) | rhs.attrs.test(Attr::Pure));
+  lhsAttrs.set(Attr::Elemental,
+      lhs.attrs.test(Attr::Elemental) | rhs.attrs.test(Attr::Elemental));
+  return lhsAttrs == rhs.attrs && lhs.functionResult == rhs.functionResult &&
+      lhs.dummyArguments == rhs.dummyArguments;
+}
+
+// Common handling for procedure pointer compatibility of left- and right-hand
+// sides.  Returns nullopt if they're compatible.  Otherwise, it returns a
+// message that needs to be augmented by the names of the left and right sides
+std::optional<parser::MessageFixedText> CheckProcCompatibility(bool isCall,
+    const std::optional<characteristics::Procedure> &lhsProcedure,
+    const characteristics::Procedure *rhsProcedure) {
+  std::optional<parser::MessageFixedText> msg;
+  if (!lhsProcedure) {
+    msg = "In assignment to object %s, the target '%s' is a procedure"
+          " designator"_err_en_US;
+  } else if (!rhsProcedure) {
+    msg = "In assignment to procedure %s, the characteristics of the target"
+          " procedure '%s' could not be determined"_err_en_US;
+  } else if (CharacteristicsMatch(*lhsProcedure, *rhsProcedure)) {
+    // OK
+  } else if (isCall) {
+    msg = "Procedure %s associated with result of reference to function '%s'"
+          " that is an incompatible procedure pointer"_err_en_US;
+  } else if (lhsProcedure->IsPure() && !rhsProcedure->IsPure()) {
+    msg = "PURE procedure %s may not be associated with non-PURE"
+          " procedure designator '%s'"_err_en_US;
+  } else if (lhsProcedure->IsFunction() && !rhsProcedure->IsFunction()) {
+    msg = "Function %s may not be associated with subroutine"
+          " designator '%s'"_err_en_US;
+  } else if (!lhsProcedure->IsFunction() && rhsProcedure->IsFunction()) {
+    msg = "Subroutine %s may not be associated with function"
+          " designator '%s'"_err_en_US;
+  } else if (lhsProcedure->HasExplicitInterface() &&
+      !rhsProcedure->HasExplicitInterface()) {
+    msg = "Procedure %s with explicit interface may not be associated with"
+          " procedure designator '%s' with implicit interface"_err_en_US;
+  } else if (!lhsProcedure->HasExplicitInterface() &&
+      rhsProcedure->HasExplicitInterface()) {
+    msg = "Procedure %s with implicit interface may not be associated with"
+          " procedure designator '%s' with explicit interface"_err_en_US;
+  } else {
+    msg = "Procedure %s associated with incompatible procedure"
+          " designator '%s'"_err_en_US;
+  }
+  return msg;
 }
 
 } // namespace Fortran::evaluate
@@ -899,6 +929,11 @@ const Symbol *GetAssociationRoot(const Symbol &symbol) {
   const Symbol &ultimate{symbol.GetUltimate()};
   const auto *details{ultimate.detailsIf<semantics::AssocEntityDetails>()};
   return details ? GetAssociatedVariable(*details) : &ultimate;
+}
+
+Symbol *GetAssociationRoot(Symbol &symbol) {
+  return const_cast<Symbol *>(
+      GetAssociationRoot(const_cast<const Symbol &>(symbol)));
 }
 
 bool IsVariableName(const Symbol &symbol) {
@@ -970,7 +1005,6 @@ bool IsProcedure(const Symbol &symbol) {
           [](const GenericDetails &) { return true; },
           [](const ProcBindingDetails &) { return true; },
           [](const UseDetails &x) { return IsProcedure(x.symbol()); },
-          // TODO: FinalProcDetails?
           [](const auto &) { return false; },
       },
       symbol.details());
@@ -1009,12 +1043,8 @@ bool IsSaved(const Symbol &original) {
       return true;
     } else if (IsDummy(symbol) || IsFunctionResult(symbol)) {
       return false;
-    } else {
-      for (; !scope->IsGlobal(); scope = &scope->parent()) {
-        if (scope->hasSAVE()) {
-          return true;
-        }
-      }
+    } else if (scope->hasSAVE() ) {
+      return true;
     }
   }
   return false;
@@ -1035,6 +1065,16 @@ bool IsFunctionResult(const Symbol &symbol) {
              symbol.get<ObjectEntityDetails>().isFuncResult()) ||
       (symbol.has<ProcEntityDetails>() &&
           symbol.get<ProcEntityDetails>().isFuncResult());
+}
+
+bool IsKindTypeParameter(const Symbol &symbol) {
+  const auto *param{symbol.detailsIf<TypeParamDetails>()};
+  return param && param->attr() == common::TypeParamAttr::Kind;
+}
+
+bool IsLenTypeParameter(const Symbol &symbol) {
+  const auto *param{symbol.detailsIf<TypeParamDetails>()};
+  return param && param->attr() == common::TypeParamAttr::Len;
 }
 
 int CountLenParameters(const DerivedTypeSpec &type) {

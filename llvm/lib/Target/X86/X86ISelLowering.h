@@ -402,6 +402,7 @@ namespace llvm {
 
     // Bit field extract.
     BEXTR,
+    BEXTRI,
 
     // Zero High Bits Starting with Specified Bit Position.
     BZHI,
@@ -504,8 +505,6 @@ namespace llvm {
     VBROADCAST,
     // Broadcast mask to vector.
     VBROADCASTM,
-    // Broadcast subvector to vector.
-    SUBV_BROADCAST,
 
     /// SSE4A Extraction and Insertion.
     EXTRQI,
@@ -710,6 +709,9 @@ namespace llvm {
     // For avx512-vp2intersect
     VP2INTERSECT,
 
+    // User level interrupts - testui
+    TESTUI,
+
     /// X86 strict FP compare instructions.
     STRICT_FCMP = ISD::FIRST_TARGET_STRICTFP_OPCODE,
     STRICT_FCMPS,
@@ -749,11 +751,13 @@ namespace llvm {
     STRICT_CVTPS2PH,
     STRICT_CVTPH2PS,
 
+    // WARNING: Only add nodes here if they are stric FP nodes. Non-memory and
+    // non-strict FP nodes should be above FIRST_TARGET_STRICTFP_OPCODE.
+
     // Compare and swap.
     LCMPXCHG_DAG = ISD::FIRST_TARGET_MEMORY_OPCODE,
     LCMPXCHG8_DAG,
     LCMPXCHG16_DAG,
-    LCMPXCHG8_SAVE_EBX_DAG,
     LCMPXCHG16_SAVE_RBX_DAG,
 
     /// LOCK-prefixed arithmetic read-modify-write instructions.
@@ -770,8 +774,11 @@ namespace llvm {
     // extract_vector_elt, store.
     VEXTRACT_STORE,
 
-    // scalar broadcast from memory
+    // scalar broadcast from memory.
     VBROADCAST_LOAD,
+
+    // subvector broadcast from memory.
+    SUBV_BROADCAST_LOAD,
 
     // Store FP control world into i16 memory.
     FNSTCW16m,
@@ -808,9 +815,10 @@ namespace llvm {
     /// specifies the type to store as.
     FST,
 
-    /// This instruction grabs the address of the next argument
+    /// These instructions grab the address of the next argument
     /// from a va_list. (reads and modifies the va_list in memory)
     VAARG_64,
+    VAARG_X32,
 
     // Vector truncating store with unsigned/signed saturation
     VTRUNCSTOREUS,
@@ -822,6 +830,16 @@ namespace llvm {
     // X86 specific gather and scatter
     MGATHER,
     MSCATTER,
+
+    // Key locker nodes that produce flags.
+    AESENC128KL,
+    AESDEC128KL,
+    AESENC256KL,
+    AESDEC256KL,
+    AESENCWIDE128KL,
+    AESDECWIDE128KL,
+    AESENCWIDE256KL,
+    AESDECWIDE256KL,
 
     // WARNING: Do not add anything in the end unless you want the node to
     // have memop! In fact, starting from FIRST_TARGET_MEMORY_OPCODE all
@@ -908,14 +926,6 @@ namespace llvm {
     /// Provide custom lowering hooks for some operations.
     ///
     SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
-
-    /// Places new result values for the node in Results (their number
-    /// and types must exactly match those of the original return values of
-    /// the node), or leaves Results empty, which indicates that the node is not
-    /// to be custom lowered after all.
-    void LowerOperationWrapper(SDNode *N,
-                               SmallVectorImpl<SDValue> &Results,
-                               SelectionDAG &DAG) const override;
 
     /// Replace the results of node with an illegal result
     /// type with new values built out of custom code.
@@ -1515,9 +1525,6 @@ namespace llvm {
     SDValue LowerFP_EXTEND(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerFP_ROUND(SDValue Op, SelectionDAG &DAG) const;
 
-    SDValue LowerF128Call(SDValue Op, SelectionDAG &DAG,
-                          RTLIB::Libcall Call) const;
-
     SDValue
     LowerFormalArguments(SDValue Chain, CallingConv::ID CallConv, bool isVarArg,
                          const SmallVectorImpl<ISD::InputArg> &Ins,
@@ -1573,8 +1580,7 @@ namespace llvm {
 
     // Utility function to emit the low-level va_arg code for X86-64.
     MachineBasicBlock *
-    EmitVAARG64WithCustomInserter(MachineInstr &MI,
-                                  MachineBasicBlock *MBB) const;
+    EmitVAARGWithCustomInserter(MachineInstr &MI, MachineBasicBlock *MBB) const;
 
     /// Utility function to emit the xmm reg save portion of va_start.
     MachineBasicBlock *
@@ -1690,7 +1696,7 @@ namespace llvm {
   };
 
   /// Generate unpacklo/unpackhi shuffle mask.
-  void createUnpackShuffleMask(MVT VT, SmallVectorImpl<int> &Mask, bool Lo,
+  void createUnpackShuffleMask(EVT VT, SmallVectorImpl<int> &Mask, bool Lo,
                                bool Unary);
 
   /// Similar to unpacklo/unpackhi, but without the 128-bit lane limitation

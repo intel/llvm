@@ -7,7 +7,7 @@ struct A {
 const char *ret_char() {
   return "N";
 }
-// CHECK: ret i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str, i64 0, i64 0) to i8 addrspace(4)*)
+// CHECK: ret i8 addrspace(4)* addrspacecast (i8 addrspace(1)* getelementptr inbounds ([2 x i8], [2 x i8] addrspace(1)* @.str, i64 0, i64 0) to i8 addrspace(4)*)
 
 const char *ret_arr() {
   const static char Arr[36] = "Carrots, cabbage, radish, potatoes!";

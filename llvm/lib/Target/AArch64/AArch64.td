@@ -61,6 +61,9 @@ def FeatureRAS : SubtargetFeature<"ras", "HasRAS", "true",
 def FeatureLSE : SubtargetFeature<"lse", "HasLSE", "true",
   "Enable ARMv8.1 Large System Extension (LSE) atomic instructions">;
 
+def FeatureOutlineAtomics : SubtargetFeature<"outline-atomics", "OutlineAtomics", "true",
+  "Enable out of line atomics to support LSE instructions">;
+
 def FeatureRDM : SubtargetFeature<"rdm", "HasRDM", "true",
   "Enable ARMv8.1 Rounding Double Multiply Add/Subtract instructions">;
 
@@ -72,9 +75,11 @@ def FeatureLOR : SubtargetFeature<
     "lor", "HasLOR", "true",
     "Enables ARM v8.1 Limited Ordering Regions extension">;
 
-def FeatureVH : SubtargetFeature<
-    "vh", "HasVH", "true",
-    "Enables ARM v8.1 Virtual Host extension">;
+def FeatureCONTEXTIDREL2 : SubtargetFeature<"CONTEXTIDREL2", "HasCONTEXTIDREL2",
+    "true", "Enable RW operand CONTEXTIDR_EL2" >;
+
+def FeatureVH : SubtargetFeature<"vh", "HasVH", "true",
+    "Enables ARM v8.1 Virtual Host extension", [FeatureCONTEXTIDREL2] >;
 
 def FeaturePerfMon : SubtargetFeature<"perfmon", "HasPerfMon", "true",
   "Enable ARMv8 PMUv3 Performance Monitors extension">;
@@ -278,11 +283,6 @@ def FeatureNV : SubtargetFeature<
     "nv", "HasNV", "true",
     "Enable v8.4-A Nested Virtualization Enchancement">;
 
-def FeatureRASv8_4 : SubtargetFeature<
-    "rasv8_4", "HasRASv8_4", "true",
-    "Enable v8.4-A Reliability, Availability and Serviceability extension",
-    [FeatureRAS]>;
-
 def FeatureMPAM : SubtargetFeature<
     "mpam", "HasMPAM", "true",
     "Enable v8.4-A Memory system Partitioning and Monitoring extension">;
@@ -400,6 +400,24 @@ def FeatureMatMulFP32 : SubtargetFeature<"f32mm", "HasMatMulFP32",
 def FeatureMatMulFP64 : SubtargetFeature<"f64mm", "HasMatMulFP64",
     "true", "Enable Matrix Multiply FP64 Extension", [FeatureSVE]>;
 
+def FeatureXS : SubtargetFeature<"xs", "HasXS",
+    "true", "Enable Armv8.7-A limited-TLB-maintenance instruction">;
+
+def FeatureWFxT : SubtargetFeature<"wfxt", "HasWFxT",
+    "true", "Enable Armv8.7-A WFET and WFIT instruction">;
+
+def FeatureHCX : SubtargetFeature<
+    "hcx", "HasHCX", "true", "Enable Armv8.7-A HCRX_EL2 system register">;
+
+def FeatureLS64 : SubtargetFeature<"ls64", "HasLS64",
+    "true", "Enable Armv8.7-A LD64B/ST64B Accelerator Extension">;
+
+def FeatureBRBE : SubtargetFeature<"brbe", "HasBRBE",
+    "true", "Enable Branch Record Buffer Extension">;
+
+def FeatureSPE_EEF : SubtargetFeature<"spe-eef", "HasSPE_EEF",
+    "true", "Enable extra register in the Statistical Profiling Extension">;
+
 def FeatureFineGrainedTraps : SubtargetFeature<"fgt", "HasFineGrainedTraps",
     "true", "Enable fine grained virtualization traps extension">;
 
@@ -425,7 +443,7 @@ def HasV8_3aOps : SubtargetFeature<"v8.3a", "HasV8_3aOps", "true",
 
 def HasV8_4aOps : SubtargetFeature<"v8.4a", "HasV8_4aOps", "true",
   "Support ARM v8.4a instructions", [HasV8_3aOps, FeatureDotProd,
-  FeatureNV, FeatureRASv8_4, FeatureMPAM, FeatureDIT,
+  FeatureNV, FeatureMPAM, FeatureDIT,
   FeatureTRACEV8_4, FeatureAM, FeatureSEL2, FeaturePMU, FeatureTLB_RMI,
   FeatureFMI, FeatureRCPC_IMMO]>;
 
@@ -437,9 +455,28 @@ def HasV8_5aOps : SubtargetFeature<
 
 def HasV8_6aOps : SubtargetFeature<
   "v8.6a", "HasV8_6aOps", "true", "Support ARM v8.6a instructions",
-
   [HasV8_5aOps, FeatureAMVS, FeatureBF16, FeatureFineGrainedTraps,
    FeatureEnhancedCounterVirtualization, FeatureMatMulInt8]>;
+
+def HasV8_7aOps : SubtargetFeature<
+  "v8.7a", "HasV8_7aOps", "true", "Support ARM v8.7a instructions",
+  [HasV8_6aOps, FeatureXS, FeatureWFxT, FeatureHCX]>;
+
+def HasV8_0rOps : SubtargetFeature<
+  "v8r", "HasV8_0rOps", "true", "Support ARM v8r instructions",
+  [//v8.1
+  FeatureCRC, FeaturePAN, FeatureRDM, FeatureLSE, FeatureCONTEXTIDREL2,
+  //v8.2
+  FeaturePerfMon, FeatureRAS, FeaturePsUAO, FeatureSM4,
+  FeatureSHA3, FeatureCCPP, FeatureFullFP16, FeaturePAN_RWV,
+  //v8.3
+  FeatureComplxNum, FeatureCCIDX, FeatureJS,
+  FeaturePA, FeatureRCPC,
+  //v8.4
+  FeatureDotProd, FeatureFP16FML, FeatureTRACEV8_4,
+  FeatureTLB_RMI, FeatureFMI, FeatureDIT, FeatureSEL2, FeatureRCPC_IMMO,
+  //v8.5
+  FeatureSSBS, FeaturePredRes, FeatureSB, FeatureSpecRestrict]>;
 
 //===----------------------------------------------------------------------===//
 // Register File Description
@@ -506,6 +543,7 @@ def PAUnsupported : AArch64Unsupported {
 }
 
 include "AArch64SchedA53.td"
+include "AArch64SchedA55.td"
 include "AArch64SchedA57.td"
 include "AArch64SchedCyclone.td"
 include "AArch64SchedFalkor.td"
@@ -516,6 +554,7 @@ include "AArch64SchedExynosM5.td"
 include "AArch64SchedThunderX.td"
 include "AArch64SchedThunderX2T99.td"
 include "AArch64SchedThunderX3T110.td"
+include "AArch64SchedTSV110.td"
 
 def ProcA35     : SubtargetFeature<"a35", "ARMProcFamily", "CortexA35",
                                    "Cortex-A35 ARM processors", [
@@ -651,6 +690,15 @@ def ProcA78 : SubtargetFeature<"cortex-a78", "ARMProcFamily",
                                FeatureFullFP16,
                                FeatureSSBS,
                                FeatureDotProd]>;
+
+def ProcR82 : SubtargetFeature<"cortex-r82", "ARMProcFamily",
+                               "CortexR82",
+                               "Cortex-R82 ARM Processors", [
+                               FeaturePostRAScheduler,
+                               // TODO: crypto and FuseAES
+                               // All other features are implied by v8_0r ops:
+                               HasV8_0rOps,
+                               ]>;
 
 def ProcX1 : SubtargetFeature<"cortex-x1", "ARMProcFamily", "CortexX1",
                                   "Cortex-X1 ARM processors", [
@@ -876,6 +924,38 @@ def ProcNeoverseN1 : SubtargetFeature<"neoversen1", "ARMProcFamily",
                                       FeatureSSBS,
                                       ]>;
 
+def ProcNeoverseN2 : SubtargetFeature<"neoversen2", "ARMProcFamily",
+                                      "NeoverseN2",
+                                      "Neoverse N2 ARM processors", [
+                                      HasV8_5aOps,
+                                      FeatureBF16,
+                                      FeatureETE,
+                                      FeatureMatMulInt8,
+                                      FeatureMTE,
+                                      FeatureSVE2,
+                                      FeatureSVE2BitPerm,
+                                      FeatureTRBE]>;
+
+def ProcNeoverseV1 : SubtargetFeature<"neoversev1", "ARMProcFamily",
+                                      "NeoverseV1",
+                                      "Neoverse V1 ARM processors", [
+                                      HasV8_4aOps,
+                                      FeatureBF16,
+                                      FeatureCacheDeepPersist,
+                                      FeatureCrypto,
+                                      FeatureFPARMv8,
+                                      FeatureFP16FML,
+                                      FeatureFullFP16,
+                                      FeatureFuseAES,
+                                      FeatureMatMulInt8,
+                                      FeatureNEON,
+                                      FeaturePerfMon,
+                                      FeaturePostRAScheduler,
+                                      FeatureRandGen,
+                                      FeatureSPE,
+                                      FeatureSSBS,
+                                      FeatureSVE]>;
+
 def ProcSaphira  : SubtargetFeature<"saphira", "ARMProcFamily", "Saphira",
                                    "Qualcomm Saphira processors", [
                                    FeatureCrypto,
@@ -998,7 +1078,7 @@ def : ProcessorModel<"generic", NoSchedModel, [
 def : ProcessorModel<"cortex-a35", CortexA53Model, [ProcA35]>;
 def : ProcessorModel<"cortex-a34", CortexA53Model, [ProcA35]>;
 def : ProcessorModel<"cortex-a53", CortexA53Model, [ProcA53]>;
-def : ProcessorModel<"cortex-a55", CortexA53Model, [ProcA55]>;
+def : ProcessorModel<"cortex-a55", CortexA55Model, [ProcA55]>;
 def : ProcessorModel<"cortex-a57", CortexA57Model, [ProcA57]>;
 def : ProcessorModel<"cortex-a65", CortexA53Model, [ProcA65]>;
 def : ProcessorModel<"cortex-a65ae", CortexA53Model, [ProcA65]>;
@@ -1009,9 +1089,12 @@ def : ProcessorModel<"cortex-a76", CortexA57Model, [ProcA76]>;
 def : ProcessorModel<"cortex-a76ae", CortexA57Model, [ProcA76]>;
 def : ProcessorModel<"cortex-a77", CortexA57Model, [ProcA77]>;
 def : ProcessorModel<"cortex-a78", CortexA57Model, [ProcA78]>;
+def : ProcessorModel<"cortex-r82", CortexA55Model, [ProcR82]>;
 def : ProcessorModel<"cortex-x1", CortexA57Model, [ProcX1]>;
 def : ProcessorModel<"neoverse-e1", CortexA53Model, [ProcNeoverseE1]>;
 def : ProcessorModel<"neoverse-n1", CortexA57Model, [ProcNeoverseN1]>;
+def : ProcessorModel<"neoverse-n2", CortexA57Model, [ProcNeoverseN2]>;
+def : ProcessorModel<"neoverse-v1", CortexA57Model, [ProcNeoverseV1]>;
 def : ProcessorModel<"exynos-m3", ExynosM3Model, [ProcExynosM3]>;
 def : ProcessorModel<"exynos-m4", ExynosM4Model, [ProcExynosM4]>;
 def : ProcessorModel<"exynos-m5", ExynosM5Model, [ProcExynosM4]>;
@@ -1027,8 +1110,7 @@ def : ProcessorModel<"thunderxt83", ThunderXT8XModel,  [ProcThunderXT83]>;
 def : ProcessorModel<"thunderx2t99", ThunderX2T99Model, [ProcThunderX2T99]>;
 // Marvell ThunderX3T110 Processors.
 def : ProcessorModel<"thunderx3t110", ThunderX3T110Model, [ProcThunderX3T110]>;
-// FIXME: HiSilicon TSV110 is currently modeled as a Cortex-A57.
-def : ProcessorModel<"tsv110", CortexA57Model, [ProcTSV110]>;
+def : ProcessorModel<"tsv110", TSV110Model, [ProcTSV110]>;
 
 // Support cyclone as an alias for apple-a7 so we can still LTO old bitcode.
 def : ProcessorModel<"cyclone", CycloneModel, [ProcAppleA7]>;

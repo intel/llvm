@@ -26,12 +26,6 @@ class Pass;
 
 //===----------------------------------------------------------------------===//
 //
-// ConstantPropagation - A worklist driven constant propagation pass
-//
-FunctionPass *createConstantPropagationPass();
-
-//===----------------------------------------------------------------------===//
-//
 // AlignmentFromAssumptions - Use assume intrinsics to set load/store
 // alignments.
 //
@@ -39,16 +33,15 @@ FunctionPass *createAlignmentFromAssumptionsPass();
 
 //===----------------------------------------------------------------------===//
 //
-// SCCP - Sparse conditional constant propagation.
+// AnnotationRemarks - Emit remarks for !annotation metadata.
 //
-FunctionPass *createSCCPPass();
+FunctionPass *createAnnotationRemarksLegacyPass();
 
 //===----------------------------------------------------------------------===//
 //
-// DeadInstElimination - This pass quickly removes trivially dead instructions
-// without modifying the CFG of the function.  It is a FunctionPass.
+// SCCP - Sparse conditional constant propagation.
 //
-Pass *createDeadInstEliminationPass();
+FunctionPass *createSCCPPass();
 
 //===----------------------------------------------------------------------===//
 //
@@ -164,6 +157,12 @@ Pass *createLoopInterchangePass();
 
 //===----------------------------------------------------------------------===//
 //
+// LoopFlatten - This pass flattens nested loops into a single loop.
+//
+FunctionPass *createLoopFlattenPass();
+
+//===----------------------------------------------------------------------===//
+//
 // LoopStrengthReduce - This pass is strength reduces GEP instructions that use
 // a loop's canonical induction variable as one of their indices.
 //
@@ -246,10 +245,12 @@ FunctionPass *createReassociatePass();
 //===----------------------------------------------------------------------===//
 //
 // JumpThreading - Thread control through mult-pred/multi-succ blocks where some
-// preds always go to some succ. Thresholds other than minus one override the
-// internal BB duplication default threshold.
+// preds always go to some succ. If FreezeSelectCond is true, unfold the
+// condition of a select that unfolds to branch. Thresholds other than minus one
+// override the internal BB duplication default threshold.
 //
-FunctionPass *createJumpThreadingPass(int Threshold = -1);
+FunctionPass *createJumpThreadingPass(bool FreezeSelectCond = false,
+                                      int Threshold = -1);
 
 //===----------------------------------------------------------------------===//
 //
@@ -343,6 +344,13 @@ Pass *createLoopDeletionPass();
 // ConstantHoisting - This pass prepares a function for expensive constants.
 //
 FunctionPass *createConstantHoistingPass();
+
+//===----------------------------------------------------------------------===//
+//
+// ConstraintElimination - This pass eliminates conditions based on found
+//                         constraints.
+//
+FunctionPass *createConstraintEliminationPass();
 
 //===----------------------------------------------------------------------===//
 //
@@ -537,6 +545,14 @@ Pass *createWarnMissedTransformationsPass();
 // instruction in a function.
 //
 FunctionPass *createInstSimplifyLegacyPass();
+
+
+//===----------------------------------------------------------------------===//
+//
+// createScalarizeMaskedMemIntrinPass - Replace masked load, store, gather
+// and scatter intrinsics with scalar code when target doesn't support them.
+//
+FunctionPass *createScalarizeMaskedMemIntrinLegacyPass();
 } // End llvm namespace
 
 #endif

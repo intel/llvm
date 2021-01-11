@@ -1,11 +1,5 @@
-// TODO: Enable compilation w/o -fno-sycl-early-optimizations option.
-// See https://github.com/intel/llvm/issues/2264 for more details.
-
-// RUN: %clangxx -fsycl -fno-sycl-early-optimizations -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %RUN_ON_HOST %t.out
 
 //==-- group.cpp - Regression tests for cl::sycl::group API bug fixes. -----==//
 //

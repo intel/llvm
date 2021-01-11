@@ -58,6 +58,7 @@ class LLVM_LIBRARY_VISIBILITY PPCTargetInfo : public TargetInfo {
 
   // Target cpu features.
   bool HasAltivec = false;
+  bool HasMMA = false;
   bool HasVSX = false;
   bool HasP8Vector = false;
   bool HasP8Crypto = false;
@@ -81,6 +82,7 @@ public:
     SimdDefaultAlign = 128;
     LongDoubleWidth = LongDoubleAlign = 128;
     LongDoubleFormat = &llvm::APFloat::PPCDoubleDouble();
+    HasStrictFP = true;
   }
 
   // Set the language option for altivec based on our value.
@@ -368,7 +370,6 @@ public:
       SizeType = UnsignedLong;
       PtrDiffType = SignedLong;
       IntPtrType = SignedLong;
-      SuitableAlign = 64;
       LongDoubleWidth = 64;
       LongDoubleAlign = DoubleAlign = 32;
       LongDoubleFormat = &llvm::APFloat::IEEEdouble();
@@ -402,19 +403,19 @@ public:
     LongWidth = LongAlign = PointerWidth = PointerAlign = 64;
     IntMaxType = SignedLong;
     Int64Type = SignedLong;
+    std::string DataLayout = "";
 
     if (Triple.isOSAIX()) {
       // TODO: Set appropriate ABI for AIX platform.
-      resetDataLayout("E-m:a-i64:64-n32:64");
-      SuitableAlign = 64;
+      DataLayout = "E-m:a-i64:64-n32:64";
       LongDoubleWidth = 64;
       LongDoubleAlign = DoubleAlign = 32;
       LongDoubleFormat = &llvm::APFloat::IEEEdouble();
     } else if ((Triple.getArch() == llvm::Triple::ppc64le)) {
-      resetDataLayout("e-m:e-i64:64-n32:64");
+      DataLayout = "e-m:e-i64:64-n32:64";
       ABI = "elfv2";
     } else {
-      resetDataLayout("E-m:e-i64:64-n32:64");
+      DataLayout = "E-m:e-i64:64-n32:64";
       ABI = "elfv1";
     }
 
@@ -422,6 +423,10 @@ public:
       LongDoubleWidth = LongDoubleAlign = 64;
       LongDoubleFormat = &llvm::APFloat::IEEEdouble();
     }
+
+    if (Triple.isOSAIX() || Triple.isOSLinux())
+      DataLayout += "-v256:256:256-v512:512:512";
+    resetDataLayout(DataLayout);
 
     // PPC64 supports atomics up to 8 bytes.
     MaxAtomicPromoteWidth = MaxAtomicInlineWidth = 64;
@@ -433,7 +438,7 @@ public:
 
   // PPC64 Linux-specific ABI options.
   bool setABI(const std::string &Name) override {
-    if (Name == "elfv1" || Name == "elfv1-qpx" || Name == "elfv2") {
+    if (Name == "elfv1" || Name == "elfv2") {
       ABI = Name;
       return true;
     }

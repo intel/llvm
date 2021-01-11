@@ -91,12 +91,12 @@ namespace test0 {
 
 namespace test1 {
   template <class T> struct Base {
-    void foo(T); // expected-note {{must qualify identifier to find this declaration in dependent base class}}
+    void foo(T); // expected-note {{member is declared here}}
   };
 
   template <class T> struct Derived : Base<T> {
     void doFoo(T v) {
-      foo(v); // expected-error {{use of undeclared identifier}}
+      foo(v); // expected-error {{explicit qualification required to use member 'foo' from dependent base class}}
     }
   };
 
@@ -173,7 +173,7 @@ namespace PR10053 {
 
 
   namespace O {
-    void f(char&); // expected-note {{candidate function not viable}}
+    int f(char&); // expected-note {{candidate function not viable}}
 
     template<typename T> struct C {
       static const int n = f(T()); // expected-error {{no matching function}}

@@ -27,6 +27,7 @@ class CallOpInterface;
 struct CallInterfaceCallable;
 class Operation;
 class Region;
+class SymbolTableCollection;
 
 //===----------------------------------------------------------------------===//
 // CallGraphNode
@@ -59,13 +60,13 @@ public:
     };
 
   public:
-    /// Returns if this edge represents an `Abstract` edge.
+    /// Returns true if this edge represents an `Abstract` edge.
     bool isAbstract() const { return targetAndKind.getInt() == Kind::Abstract; }
 
-    /// Returns if this edge represents a `Call` edge.
+    /// Returns true if this edge represents a `Call` edge.
     bool isCall() const { return targetAndKind.getInt() == Kind::Call; }
 
-    /// Returns if this edge represents a `Child` edge.
+    /// Returns true if this edge represents a `Child` edge.
     bool isChild() const { return targetAndKind.getInt() == Kind::Child; }
 
     /// Returns the target node for this edge.
@@ -87,7 +88,7 @@ public:
     friend class CallGraphNode;
   };
 
-  /// Returns if this node is the external node.
+  /// Returns true if this node is an external node.
   bool isExternal() const;
 
   /// Returns the callable region this node represents. This can only be called
@@ -189,8 +190,11 @@ public:
   }
 
   /// Resolve the callable for given callee to a node in the callgraph, or the
-  /// external node if a valid node was not resolved.
-  CallGraphNode *resolveCallable(CallOpInterface call) const;
+  /// external node if a valid node was not resolved. The provided symbol table
+  /// is used when resolving calls that reference callables via a symbol
+  /// reference.
+  CallGraphNode *resolveCallable(CallOpInterface call,
+                                 SymbolTableCollection &symbolTable) const;
 
   /// Erase the given node from the callgraph.
   void eraseNode(CallGraphNode *node);

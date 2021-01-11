@@ -8,28 +8,27 @@ define arm_aapcs_vfpcc void @fast_float_mul(float* nocapture %a, float* nocaptur
 ; CHECK-NEXT:    cmp r3, #0
 ; CHECK-NEXT:    beq.w .LBB0_11
 ; CHECK-NEXT:  @ %bb.1: @ %vector.memcheck
-; CHECK-NEXT:    add.w r4, r0, r3, lsl #2
-; CHECK-NEXT:    add.w r5, r2, r3, lsl #2
-; CHECK-NEXT:    cmp r4, r2
-; CHECK-NEXT:    mov.w r12, #1
+; CHECK-NEXT:    add.w r5, r0, r3, lsl #2
+; CHECK-NEXT:    add.w r4, r2, r3, lsl #2
+; CHECK-NEXT:    cmp r5, r2
+; CHECK-NEXT:    cset r12, hi
+; CHECK-NEXT:    cmp r4, r0
 ; CHECK-NEXT:    cset lr, hi
-; CHECK-NEXT:    cmp r5, r0
-; CHECK-NEXT:    cset r6, hi
-; CHECK-NEXT:    cmp r4, r1
+; CHECK-NEXT:    cmp r5, r1
 ; CHECK-NEXT:    add.w r5, r1, r3, lsl #2
 ; CHECK-NEXT:    cset r4, hi
 ; CHECK-NEXT:    cmp r5, r0
 ; CHECK-NEXT:    cset r5, hi
-; CHECK-NEXT:    ands r5, r4
-; CHECK-NEXT:    lsls r5, r5, #31
+; CHECK-NEXT:    ands r4, r5
+; CHECK-NEXT:    lsls r4, r4, #31
 ; CHECK-NEXT:    itt eq
-; CHECK-NEXT:    andeq.w r6, r6, lr
-; CHECK-NEXT:    lslseq.w r6, r6, #31
+; CHECK-NEXT:    andeq.w r5, lr, r12
+; CHECK-NEXT:    lslseq.w r5, r5, #31
 ; CHECK-NEXT:    beq .LBB0_4
 ; CHECK-NEXT:  @ %bb.2: @ %for.body.preheader
-; CHECK-NEXT:    subs r6, r3, #1
+; CHECK-NEXT:    subs r5, r3, #1
 ; CHECK-NEXT:    and r7, r3, #3
-; CHECK-NEXT:    cmp r6, #3
+; CHECK-NEXT:    cmp r5, #3
 ; CHECK-NEXT:    bhs .LBB0_6
 ; CHECK-NEXT:  @ %bb.3:
 ; CHECK-NEXT:    mov.w r12, #0
@@ -48,10 +47,11 @@ define arm_aapcs_vfpcc void @fast_float_mul(float* nocapture %a, float* nocaptur
 ; CHECK-NEXT:    b .LBB0_11
 ; CHECK-NEXT:  .LBB0_6: @ %for.body.preheader.new
 ; CHECK-NEXT:    bic r3, r3, #3
+; CHECK-NEXT:    movs r5, #1
 ; CHECK-NEXT:    subs r3, #4
-; CHECK-NEXT:    add.w lr, r12, r3, lsr #2
-; CHECK-NEXT:    movs r3, #0
 ; CHECK-NEXT:    mov.w r12, #0
+; CHECK-NEXT:    add.w lr, r5, r3, lsr #2
+; CHECK-NEXT:    movs r3, #0
 ; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB0_7: @ %for.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
@@ -139,7 +139,7 @@ vector.body:                                      ; preds = %vector.body, %vecto
   %2 = getelementptr inbounds float, float* %b, i32 %index
 
   ; %3 = icmp ule <4 x i32> %induction, %broadcast.splat22
-  %3 = call <4 x i1> @llvm.get.active.lane.mask.v4i1.i32(i32 %index, i32 %trip.count.minus.1)
+  %3 = call <4 x i1> @llvm.get.active.lane.mask.v4i1.i32(i32 %index, i32 %N)
 
   %4 = bitcast float* %2 to <4 x float>*
   %wide.masked.load = call <4 x float> @llvm.masked.load.v4f32.p0v4f32(<4 x float>* %4, i32 4, <4 x i1> %3, <4 x float> undef)
@@ -224,11 +224,11 @@ define arm_aapcs_vfpcc float @fast_float_mac(float* nocapture readonly %b, float
 ; CHECK-NEXT:    cbz r2, .LBB1_4
 ; CHECK-NEXT:  @ %bb.1: @ %vector.ph
 ; CHECK-NEXT:    adds r3, r2, #3
-; CHECK-NEXT:    vmov.i32 q0, #0x0
+; CHECK-NEXT:    mov.w r12, #1
 ; CHECK-NEXT:    bic r3, r3, #3
-; CHECK-NEXT:    sub.w r12, r3, #4
-; CHECK-NEXT:    movs r3, #1
-; CHECK-NEXT:    add.w lr, r3, r12, lsr #2
+; CHECK-NEXT:    vmov.i32 q0, #0x0
+; CHECK-NEXT:    subs r3, #4
+; CHECK-NEXT:    add.w lr, r12, r3, lsr #2
 ; CHECK-NEXT:    movs r3, #0
 ; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB1_2: @ %vector.body
@@ -280,7 +280,7 @@ vector.body:                                      ; preds = %vector.body, %vecto
   %0 = getelementptr inbounds float, float* %b, i32 %index
 
 ;  %1 = icmp ule <4 x i32> %induction, %broadcast.splat12
-  %1 = call <4 x i1> @llvm.get.active.lane.mask.v4i1.i32(i32 %index, i32 %trip.count.minus.1)
+  %1 = call <4 x i1> @llvm.get.active.lane.mask.v4i1.i32(i32 %index, i32 %N)
 
   %2 = bitcast float* %0 to <4 x float>*
   %wide.masked.load = call <4 x float> @llvm.masked.load.v4f32.p0v4f32(<4 x float>* %2, i32 4, <4 x i1> %1, <4 x float> undef)
@@ -324,8 +324,9 @@ define arm_aapcs_vfpcc float @fast_float_half_mac(half* nocapture readonly %b, h
 ; CHECK-NEXT:    add.w lr, r3, r12, lsr #2
 ; CHECK-NEXT:    sub.w r12, r2, #1
 ; CHECK-NEXT:    adr r2, .LCPI2_1
-; CHECK-NEXT:    movs r3, #0
+; CHECK-NEXT:    mov lr, lr
 ; CHECK-NEXT:    vldrw.u32 q0, [r2]
+; CHECK-NEXT:    movs r3, #0
 ; CHECK-NEXT:    vdup.32 q1, r12
 ; CHECK-NEXT:    vdup.32 q2, r12
 ; CHECK-NEXT:    vstrw.32 q0, [sp] @ 16-byte Spill
@@ -351,9 +352,9 @@ define arm_aapcs_vfpcc float @fast_float_half_mac(half* nocapture readonly %b, h
 ; CHECK-NEXT:    vcvtb.f32.f16 s22, s1
 ; CHECK-NEXT:    adds r3, #4
 ; CHECK-NEXT:    vcvtt.f32.f16 s21, s0
-; CHECK-NEXT:    subs.w lr, lr, #1
 ; CHECK-NEXT:    vcvtb.f32.f16 s20, s0
 ; CHECK-NEXT:    vadd.f32 q5, q3, q5
+; CHECK-NEXT:    subs.w lr, lr, #1
 ; CHECK-NEXT:    bne .LBB2_4
 ; CHECK-NEXT:    b .LBB2_21
 ; CHECK-NEXT:  .LBB2_4: @ %vector.body

@@ -87,16 +87,16 @@ def X86multishift   : SDNode<"X86ISD::MULTISHIFT",
                                       SDTCisSameAs<1,2>]>>;
 def X86pextrb  : SDNode<"X86ISD::PEXTRB",
                  SDTypeProfile<1, 2, [SDTCisVT<0, i32>, SDTCisVT<1, v16i8>,
-                                      SDTCisPtrTy<2>]>>;
+                                      SDTCisVT<2, i8>]>>;
 def X86pextrw  : SDNode<"X86ISD::PEXTRW",
                  SDTypeProfile<1, 2, [SDTCisVT<0, i32>, SDTCisVT<1, v8i16>,
-                                      SDTCisPtrTy<2>]>>;
+                                      SDTCisVT<2, i8>]>>;
 def X86pinsrb  : SDNode<"X86ISD::PINSRB",
                  SDTypeProfile<1, 3, [SDTCisVT<0, v16i8>, SDTCisSameAs<0,1>,
-                                      SDTCisVT<2, i32>, SDTCisPtrTy<3>]>>;
+                                      SDTCisVT<2, i32>, SDTCisVT<3, i8>]>>;
 def X86pinsrw  : SDNode<"X86ISD::PINSRW",
                  SDTypeProfile<1, 3, [SDTCisVT<0, v8i16>, SDTCisSameAs<0,1>,
-                                      SDTCisVT<2, i32>, SDTCisPtrTy<3>]>>;
+                                      SDTCisVT<2, i32>, SDTCisVT<3, i8>]>>;
 def X86insertps : SDNode<"X86ISD::INSERTPS",
                  SDTypeProfile<1, 3, [SDTCisVT<0, v4f32>, SDTCisSameAs<0,1>,
                                       SDTCisVT<2, v4f32>, SDTCisVT<3, i8>]>>;
@@ -109,6 +109,8 @@ def X86vextractst  : SDNode<"X86ISD::VEXTRACT_STORE", SDTStore,
                      [SDNPHasChain, SDNPMayStore, SDNPMemOperand]>;
 def X86VBroadcastld  : SDNode<"X86ISD::VBROADCAST_LOAD", SDTLoad,
                       [SDNPHasChain, SDNPMayLoad, SDNPMemOperand]>;
+def X86SubVBroadcastld : SDNode<"X86ISD::SUBV_BROADCAST_LOAD", SDTLoad,
+                         [SDNPHasChain, SDNPMayLoad, SDNPMemOperand]>;
 
 def SDTVtrunc    : SDTypeProfile<1, 1, [SDTCisVec<0>, SDTCisVec<1>,
                                         SDTCisInt<0>, SDTCisInt<1>,
@@ -493,10 +495,6 @@ def X86Vfpclasss   : SDNode<"X86ISD::VFPCLASSS",
                        SDTypeProfile<1, 2, [SDTCisVT<0, v1i1>,
                                             SDTCisFP<1>, SDTCisVT<2, i32>]>,[]>;
 
-def X86SubVBroadcast : SDNode<"X86ISD::SUBV_BROADCAST",
-                    SDTypeProfile<1, 1, [SDTCisVec<0>, SDTCisVec<1>,
-                                         SDTCisSubVecOfVec<1, 0>]>, []>;
-
 def X86VBroadcast : SDNode<"X86ISD::VBROADCAST", SDTVBroadcast>;
 def X86VBroadcastm : SDNode<"X86ISD::VBROADCASTM", SDTVBroadcastm>;
 
@@ -540,9 +538,6 @@ def X86fgetexpSAEs  : SDNode<"X86ISD::FGETEXPS_SAE", SDTFPBinOp>;
 
 def X86Fmadd        : SDNode<"ISD::FMA",          SDTFPTernaryOp, [SDNPCommutative]>;
 def X86strict_Fmadd : SDNode<"ISD::STRICT_FMA",   SDTFPTernaryOp, [SDNPCommutative, SDNPHasChain]>;
-def X86any_Fmadd    : PatFrags<(ops node:$src1, node:$src2, node:$src3),
-                               [(X86strict_Fmadd node:$src1, node:$src2, node:$src3),
-                                (X86Fmadd node:$src1, node:$src2, node:$src3)]>;
 def X86Fnmadd    : SDNode<"X86ISD::FNMADD",    SDTFPTernaryOp, [SDNPCommutative]>;
 def X86strict_Fnmadd : SDNode<"X86ISD::STRICT_FNMADD", SDTFPTernaryOp, [SDNPCommutative, SDNPHasChain]>;
 def X86any_Fnmadd : PatFrags<(ops node:$src1, node:$src2, node:$src3),
@@ -966,6 +961,16 @@ def X86VBroadcastld32 : PatFrag<(ops node:$src),
 def X86VBroadcastld64 : PatFrag<(ops node:$src),
                                 (X86VBroadcastld node:$src), [{
   return cast<MemIntrinsicSDNode>(N)->getMemoryVT().getStoreSize() == 8;
+}]>;
+
+def X86SubVBroadcastld128 : PatFrag<(ops node:$src),
+                                    (X86SubVBroadcastld node:$src), [{
+  return cast<MemIntrinsicSDNode>(N)->getMemoryVT().getStoreSize() == 16;
+}]>;
+
+def X86SubVBroadcastld256 : PatFrag<(ops node:$src),
+                                    (X86SubVBroadcastld node:$src), [{
+  return cast<MemIntrinsicSDNode>(N)->getMemoryVT().getStoreSize() == 32;
 }]>;
 
 // Scalar SSE intrinsic fragments to match several different types of loads.

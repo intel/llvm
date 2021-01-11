@@ -403,7 +403,9 @@
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_arbitrary_precision_integers,+SPV_INTEL_arbitrary_precision_floating_point -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_arbitrary_precision_integers -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV-NEGATIVE
+; RUN: not llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_arbitrary_precision_integers -spirv-text -o - 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
+; CHECK-ERROR: InvalidInstruction: Can't translate llvm instruction:
+; CHECK-ERROR: Floating point instructions can't be translated correctly without enabled SPV_INTEL_arbitrary_precision_floating_point extension!
 
 ; RUN: llvm-spirv -r %t.spv -o %t.r.bc
 ; RUN: llvm-dis < %t.r.bc | FileCheck %s --check-prefix=CHECK-LLVM
@@ -413,9 +415,6 @@
 ; CHECK-SPIRV: 2 Capability ArbitraryPrecisionFloatingPointINTEL
 ; CHECK-SPIRV: 13 Extension "SPV_INTEL_arbitrary_precision_floating_point"
 ; CHECK-SPIRV: 11 Extension "SPV_INTEL_arbitrary_precision_integers"
-
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] Capability ArbitraryPrecisionFloatingPointINTEL
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] Extension "SPV_INTEL_arbitrary_precision_floating_point"
 
 ; CHECK-SPIRV: 4 TypeInt [[Ty_8:[0-9]+]] 8 0
 ; CHECK-SPIRV: 4 TypeInt [[Ty_40:[0-9]+]] 40 0
@@ -549,7 +548,6 @@ define linkonce_odr dso_local spir_func void @_Z13ap_float_castILi11ELi28ELi9ELi
   %6 = call spir_func i40 @_Z31__spirv_ArbitraryFloatCastINTELILi40ELi40EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i40 %5, i32 28, i32 30, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_40]] [[Cast_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatCastINTEL [[Ty_40]] [[#]] [[Cast_AId]] 28 30 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatCastINTEL
 ; CHECK-LLVM: call i40 @intel_arbitrary_float_cast.i40.i40(i40 %[[#]], i32 28, i32 30, i32 0, i32 2, i32 1)
   store i40 %6, i40* %2, align 8, !tbaa !9
   %7 = bitcast i40* %2 to i8*
@@ -571,7 +569,6 @@ define linkonce_odr dso_local spir_func void @_Z22ap_float_cast_from_intILi43ELi
   %6 = call spir_func signext i25 @_Z38__spirv_ArbitraryFloatCastFromIntINTELILi43ELi25EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiii(i43 %5, i32 16, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_43]] [[CastFromInt_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 8 ArbitraryFloatCastFromIntINTEL [[Ty_25]] [[#]] [[CastFromInt_AId]] 16 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatCastFromIntINTEL
 ; CHECK-LLVM: call i25 @intel_arbitrary_float_cast_from_int.i25.i43(i43 %[[#]], i32 16, i32 0, i32 2, i32 1)
   store i25 %6, i25* %2, align 4, !tbaa !13
   %7 = bitcast i25* %2 to i8*
@@ -593,7 +590,6 @@ define linkonce_odr dso_local spir_func void @_Z20ap_float_cast_to_intILi7ELi15E
   %6 = call spir_func signext i30 @_Z36__spirv_ArbitraryFloatCastToIntINTELILi23ELi30EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiii(i23 signext %5, i32 15, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_23]] [[CastToInt_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 8 ArbitraryFloatCastToIntINTEL [[Ty_30]] [[#]] [[CastToInt_AId]] 15 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatCastToIntINTEL
 ; CHECK-LLVM: call i30 @intel_arbitrary_float_cast_to_int.i30.i23(i23 %[[#]], i32 15, i32 0, i32 2, i32 1)
   store i30 %6, i30* %2, align 4, !tbaa !17
   %7 = bitcast i30* %2 to i8*
@@ -627,7 +623,6 @@ define linkonce_odr dso_local spir_func void @_Z12ap_float_addILi5ELi7ELi6ELi8EL
 ; CHECK-SPIRV: 6 Load [[Ty_13]] [[Add1_A1Id:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_15]] [[Add1_B1Id:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatAddINTEL [[Ty_14]] [[#]] [[Add1_A1Id]] 7 [[Add1_B1Id]] 8 9 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatAddINTEL
 ; CHECK-LLVM: call i14 @intel_arbitrary_float_add.i14.i13.i15(i13 %[[#]], i32 7, i15 %[[#]], i32 8, i32 9, i32 0, i32 2, i32 1)
   store i14 %14, i14* %5, align 2, !tbaa !23
   %15 = bitcast i14* %6 to i8*
@@ -638,7 +633,6 @@ define linkonce_odr dso_local spir_func void @_Z12ap_float_addILi5ELi7ELi6ELi8EL
 ; CHECK-SPIRV: 6 Load [[Ty_13]] [[Add1_A2Id:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_15]] [[Add1_B2Id:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatAddINTEL [[Ty_14]] [[#]] [[Add1_A2Id]] 7 [[Add1_B2Id]] 8 9 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatAddINTEL
 ; CHECK-LLVM: call i14 @intel_arbitrary_float_add.i14.i13.i15(i13 %[[#]], i32 7, i15 %[[#]], i32 8, i32 9, i32 0, i32 2, i32 1)
   store i14 %18, i14* %6, align 2, !tbaa !23
   %19 = bitcast i14* %6 to i8*
@@ -680,7 +674,6 @@ define linkonce_odr dso_local spir_func void @_Z12ap_float_addILi6ELi8ELi4ELi9EL
 ; CHECK-SPIRV: 6 Load [[Ty_15]] [[Add2_A1Id:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_14]] [[Add2_B1Id:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatAddINTEL [[Ty_13]] [[#]] [[Add2_A1Id]] 8 [[Add2_B1Id]] 9 7 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatAddINTEL
 ; CHECK-LLVM: call i13 @intel_arbitrary_float_add.i13.i15.i14(i15 %[[#]], i32 8, i14 %[[#]], i32 9, i32 7, i32 0, i32 2, i32 1)
   store i13 %14, i13* %5, align 2, !tbaa !19
   %15 = bitcast i13* %6 to i8*
@@ -691,7 +684,6 @@ define linkonce_odr dso_local spir_func void @_Z12ap_float_addILi6ELi8ELi4ELi9EL
 ; CHECK-SPIRV: 6 Load [[Ty_15]] [[Add2_A2Id:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_14]] [[Add2_B2Id:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatAddINTEL [[Ty_13]] [[#]] [[Add2_A2Id]] 8 [[Add2_B2Id]] 9 7 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatAddINTEL
 ; CHECK-LLVM: call i13 @intel_arbitrary_float_add.i13.i15.i14(i15 %[[#]], i32 8, i14 %[[#]], i32 9, i32 7, i32 0, i32 2, i32 1)
   store i13 %18, i13* %6, align 2, !tbaa !19
   %19 = bitcast i13* %6 to i8*
@@ -726,7 +718,6 @@ define linkonce_odr dso_local spir_func void @_Z12ap_float_subILi4ELi4ELi5ELi5EL
 ; CHECK-SPIRV: 6 Load [[Ty_9]] [[Sub_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_11]] [[Sub_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatSubINTEL [[Ty_13]] [[#]] [[Sub_AId]] 4 [[Sub_BId]] 5 6 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatSubINTEL
 ; CHECK-LLVM: call i13 @intel_arbitrary_float_sub.i13.i9.i11(i9 %[[#]], i32 4, i11 %[[#]], i32 5, i32 6, i32 0, i32 2, i32 1)
   store i13 %9, i13* %3, align 2, !tbaa !19
   %10 = bitcast i13* %3 to i8*
@@ -755,7 +746,6 @@ define linkonce_odr dso_local spir_func void @_Z12ap_float_mulILi16ELi34ELi16ELi
 ; CHECK-SPIRV: 6 Load [[Ty_51]] [[Mul_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_51]] [[Mul_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatMulINTEL [[Ty_51]] [[#]] [[Mul_AId]] 34 [[Mul_BId]] 34 34 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatMulINTEL
 ; CHECK-LLVM: call i51 @intel_arbitrary_float_mul.i51.i51.i51(i51 %[[#]], i32 34, i51 %[[#]], i32 34, i32 34, i32 0, i32 2, i32 1)
   store i51 %9, i51* %3, align 8, !tbaa !29
   %10 = bitcast i51* %3 to i8*
@@ -784,7 +774,6 @@ define linkonce_odr dso_local spir_func void @_Z12ap_float_divILi4ELi11ELi4ELi11
 ; CHECK-SPIRV: 6 Load [[Ty_16]] [[Div_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_16]] [[Div_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatDivINTEL [[Ty_18]] [[#]] [[Div_AId]] 11 [[Div_BId]] 11 12 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatDivINTEL
 ; CHECK-LLVM: call i18 @intel_arbitrary_float_div.i18.i16.i16(i16 %[[#]], i32 11, i16 %[[#]], i32 11, i32 12, i32 0, i32 2, i32 1)
   store i18 %9, i18* %3, align 4, !tbaa !33
   %10 = bitcast i18* %3 to i8*
@@ -812,7 +801,6 @@ define linkonce_odr dso_local spir_func void @_Z11ap_float_gtILi20ELi42ELi21ELi4
 ; CHECK-SPIRV: 6 Load [[Ty_63]] [[GT_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_63]] [[GT_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 7 ArbitraryFloatGTINTEL [[Ty_Bool]] [[#]] [[GT_AId]] 42 [[GT_BId]] 41
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatGTINTEL
 ; CHECK-LLVM: call i1 @intel_arbitrary_float_gt.i1.i63.i63(i63 %[[#]], i32 42, i63 %[[#]], i32 41)
   %9 = zext i1 %8 to i8
   store i8 %9, i8* %3, align 1, !tbaa !37
@@ -840,7 +828,6 @@ define linkonce_odr dso_local spir_func void @_Z11ap_float_geILi19ELi27ELi19ELi2
 ; CHECK-SPIRV: 6 Load [[Ty_47]] [[GE_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_47]] [[GE_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 7 ArbitraryFloatGEINTEL [[Ty_Bool]] [[#]] [[GE_AId]] 27 [[GE_BId]] 27
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatGEINTEL
 ; CHECK-LLVM: call i1 @intel_arbitrary_float_ge.i1.i47.i47(i47 %[[#]], i32 27, i47 %[[#]], i32 27)
   %9 = zext i1 %8 to i8
   store i8 %9, i8* %3, align 1, !tbaa !37
@@ -868,7 +855,6 @@ define linkonce_odr dso_local spir_func void @_Z11ap_float_ltILi2ELi2ELi3ELi3EEv
 ; CHECK-SPIRV: 6 Load [[Ty_5]] [[LT_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_7]] [[LT_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 7 ArbitraryFloatLTINTEL [[Ty_Bool]] [[#]] [[LT_AId]] 2 [[LT_BId]] 3
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatLTINTEL
 ; CHECK-LLVM: call i1 @intel_arbitrary_float_lt.i1.i5.i7(i5 %[[#]], i32 2, i7 %[[#]], i32 3)
   %9 = zext i1 %8 to i8
   store i8 %9, i8* %3, align 1, !tbaa !37
@@ -896,7 +882,6 @@ define linkonce_odr dso_local spir_func void @_Z11ap_float_leILi27ELi27ELi26ELi2
 ; CHECK-SPIRV: 6 Load [[Ty_55]] [[LE_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_55]] [[LE_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 7 ArbitraryFloatLEINTEL [[Ty_Bool]] [[#]] [[LE_AId]] 27 [[LE_BId]] 28
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatLEINTEL
 ; CHECK-LLVM: call i1 @intel_arbitrary_float_le.i1.i55.i55(i55 %[[#]], i32 27, i55 %[[#]], i32 28)
   %9 = zext i1 %8 to i8
   store i8 %9, i8* %3, align 1, !tbaa !37
@@ -924,7 +909,6 @@ define linkonce_odr dso_local spir_func void @_Z11ap_float_eqILi7ELi12ELi7ELi7EE
 ; CHECK-SPIRV: 6 Load [[Ty_20]] [[EQ_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_15]] [[EQ_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 7 ArbitraryFloatEQINTEL [[Ty_Bool]] [[#]] [[EQ_AId]] 12 [[EQ_BId]] 7
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatEQINTEL
 ; CHECK-LLVM: call i1 @intel_arbitrary_float_eq.i1.i20.i15(i20 %[[#]], i32 12, i15 %[[#]], i32 7)
   %9 = zext i1 %8 to i8
   store i8 %9, i8* %3, align 1, !tbaa !37
@@ -948,7 +932,6 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_recipILi9ELi29ELi9ELi
   %6 = call spir_func i39 @_Z32__spirv_ArbitraryFloatRecipINTELILi39ELi39EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i39 %5, i32 29, i32 29, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_39]] [[Recip_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatRecipINTEL [[Ty_39]] [[#]] [[Recip_AId]] 29 29 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatRecipINTEL
 ; CHECK-LLVM: call i39 @intel_arbitrary_float_recip.i39.i39(i39 %[[#]], i32 29, i32 29, i32 0, i32 2, i32 1)
   store i39 %6, i39* %2, align 8, !tbaa !49
   %7 = bitcast i39* %2 to i8*
@@ -970,7 +953,6 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_rsqrtILi12ELi19ELi13E
   %6 = call spir_func i34 @_Z32__spirv_ArbitraryFloatRSqrtINTELILi32ELi34EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i32 %5, i32 19, i32 20, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_32]] [[Rsqrt_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatRSqrtINTEL [[Ty_34]] [[#]] [[Rsqrt_AId]] 19 20 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatRSqrtINTEL
 ; CHECK-LLVM: call i34 @intel_arbitrary_float_rsqrt.i34.i32(i32 %[[#]], i32 19, i32 20, i32 0, i32 2, i32 1)
   store i34 %6, i34* %2, align 8, !tbaa !53
   %7 = bitcast i34* %2 to i8*
@@ -992,7 +974,6 @@ define linkonce_odr dso_local spir_func void @_Z13ap_float_cbrtILi0ELi1ELi0ELi1E
   %6 = call spir_func signext i2 @_Z31__spirv_ArbitraryFloatCbrtINTELILi2ELi2EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i2 signext %5, i32 1, i32 1, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_2]] [[Cbrt_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatCbrtINTEL [[Ty_2]] [[#]] [[Cbrt_AId]] 1 1 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatCbrtINTEL
 ; CHECK-LLVM: call i2 @intel_arbitrary_float_cbrt.i2.i2(i2 %[[#]], i32 1, i32 1, i32 0, i32 2, i32 1)
   store i2 %6, i2* %2, align 1, !tbaa !55
   %7 = bitcast i2* %2 to i8*
@@ -1019,7 +1000,6 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_hypotILi20ELi20ELi21E
 ; CHECK-SPIRV: 6 Load [[Ty_41]] [[Hypot_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_43]] [[Hypot_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatHypotINTEL [[Ty_42]] [[#]] [[Hypot_AId]] 20 [[Hypot_BId]] 21 22 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatHypotINTEL
 ; CHECK-LLVM: call i42 @intel_arbitrary_float_hypot.i42.i41.i43(i41 %[[#]], i32 20, i43 %[[#]], i32 21, i32 22, i32 0, i32 2, i32 1)
   store i42 %9, i42* %3, align 8, !tbaa !59
   %10 = bitcast i42* %3 to i8*
@@ -1043,7 +1023,6 @@ define linkonce_odr dso_local spir_func void @_Z13ap_float_sqrtILi7ELi7ELi8ELi8E
   %6 = call spir_func signext i17 @_Z31__spirv_ArbitraryFloatSqrtINTELILi15ELi17EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i15 signext %5, i32 7, i32 8, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_15]] [[Sqrt_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatSqrtINTEL [[Ty_17]] [[#]] [[Sqrt_AId]] 7 8 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatSqrtINTEL
 ; CHECK-LLVM: call i17 @intel_arbitrary_float_sqrt.i17.i15(i15 %[[#]], i32 7, i32 8, i32 0, i32 2, i32 1)
   store i17 %6, i17* %2, align 4, !tbaa !61
   %7 = bitcast i17* %2 to i8*
@@ -1065,7 +1044,6 @@ define linkonce_odr dso_local spir_func void @_Z12ap_float_logILi30ELi19ELi19ELi
   %6 = call spir_func i50 @_Z30__spirv_ArbitraryFloatLogINTELILi50ELi50EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i50 %5, i32 19, i32 30, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_50]] [[Log_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatLogINTEL [[Ty_50]] [[#]] [[Log_AId]] 19 30 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatLogINTEL
 ; CHECK-LLVM: call i50 @intel_arbitrary_float_log.i50.i50(i50 %[[#]], i32 19, i32 30, i32 0, i32 2, i32 1)
   store i50 %6, i50* %2, align 8, !tbaa !63
   %7 = bitcast i50* %2 to i8*
@@ -1087,7 +1065,6 @@ define linkonce_odr dso_local spir_func void @_Z13ap_float_log2ILi17ELi20ELi18EL
   %6 = call spir_func i38 @_Z31__spirv_ArbitraryFloatLog2INTELILi38ELi38EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i38 %5, i32 20, i32 19, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_38]] [[Log2_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatLog2INTEL [[Ty_38]] [[#]] [[Log2_AId]] 20 19 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatLog2INTEL
 ; CHECK-LLVM: call i38 @intel_arbitrary_float_log2.i38.i38(i38 %[[#]], i32 20, i32 19, i32 0, i32 2, i32 1)
   store i38 %6, i38* %2, align 8, !tbaa !65
   %7 = bitcast i38* %2 to i8*
@@ -1108,7 +1085,6 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_log10ILi4ELi3ELi4ELi5
   %5 = call spir_func signext i10 @_Z32__spirv_ArbitraryFloatLog10INTELILi8ELi10EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i8 signext %4, i32 3, i32 5, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_8]] [[Log10_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatLog10INTEL [[Ty_10]] [[#]] [[Log10_AId]] 3 5 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatLog10INTEL
 ; CHECK-LLVM: call i10 @intel_arbitrary_float_log10.i10.i8(i8 %[[#]], i32 3, i32 5, i32 0, i32 2, i32 1)
   store i10 %5, i10* %2, align 2, !tbaa !69
   %6 = bitcast i10* %2 to i8*
@@ -1129,7 +1105,6 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_log1pILi17ELi30ELi18E
   %6 = call spir_func i49 @_Z32__spirv_ArbitraryFloatLog1pINTELILi48ELi49EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i48 %5, i32 30, i32 30, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_48]] [[Log1p_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatLog1pINTEL [[Ty_49]] [[#]] [[Log1p_AId]] 30 30 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatLog1pINTEL
 ; CHECK-LLVM: call i49 @intel_arbitrary_float_log1p.i49.i48(i48 %[[#]], i32 30, i32 30, i32 0, i32 2, i32 1)
   store i49 %6, i49* %2, align 8, !tbaa !73
   %7 = bitcast i49* %2 to i8*
@@ -1151,7 +1126,6 @@ define linkonce_odr dso_local spir_func void @_Z12ap_float_expILi16ELi25ELi16ELi
   %6 = call spir_func i42 @_Z30__spirv_ArbitraryFloatExpINTELILi42ELi42EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i42 %5, i32 25, i32 25, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_42]] [[Exp_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatExpINTEL [[Ty_42]] [[#]] [[Exp_AId]] 25 25 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatExpINTEL
 ; CHECK-LLVM: call i42 @intel_arbitrary_float_exp.i42.i42(i42 %[[#]], i32 25, i32 25, i32 0, i32 2, i32 1)
   store i42 %6, i42* %2, align 8, !tbaa !59
   %7 = bitcast i42* %2 to i8*
@@ -1173,7 +1147,6 @@ define linkonce_odr dso_local spir_func void @_Z13ap_float_exp2ILi1ELi1ELi2ELi2E
   %6 = call spir_func signext i5 @_Z31__spirv_ArbitraryFloatExp2INTELILi3ELi5EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i3 signext %5, i32 1, i32 2, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_3]] [[Exp2_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatExp2INTEL [[Ty_5]] [[#]] [[Exp2_AId]] 1 2 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatExp2INTEL
 ; CHECK-LLVM: call i5 @intel_arbitrary_float_exp2.i5.i3(i3 %[[#]], i32 1, i32 2, i32 0, i32 2, i32 1)
   store i5 %6, i5* %2, align 1, !tbaa !41
   %7 = bitcast i5* %2 to i8*
@@ -1195,7 +1168,6 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_exp10ILi8ELi16ELi8ELi
   %6 = call spir_func signext i25 @_Z32__spirv_ArbitraryFloatExp10INTELILi25ELi25EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i25 signext %5, i32 16, i32 16, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_25]] [[Exp10_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatExp10INTEL [[Ty_25]] [[#]] [[Exp10_AId]] 16 16 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatExp10INTEL
 ; CHECK-LLVM: call i25 @intel_arbitrary_float_exp10.i25.i25(i25 %[[#]], i32 16, i32 16, i32 0, i32 2, i32 1)
   store i25 %6, i25* %2, align 4, !tbaa !13
   %7 = bitcast i25* %2 to i8*
@@ -1217,7 +1189,6 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_expm1ILi21ELi42ELi20E
   %6 = call spir_func i62 @_Z32__spirv_ArbitraryFloatExpm1INTELILi64ELi62EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i64 %5, i32 42, i32 41, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_64]] [[Expm1_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatExpm1INTEL [[Ty_62]] [[#]] [[Expm1_AId]] 42 41 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatExpm1INTEL
 ; CHECK-LLVM: call i62 @intel_arbitrary_float_expm1.i62.i64(i64 %[[#]], i32 42, i32 41, i32 0, i32 2, i32 1)
   store i62 %6, i62* %2, align 8, !tbaa !79
   %7 = bitcast i62* %2 to i8*
@@ -1239,7 +1210,6 @@ define linkonce_odr dso_local spir_func void @_Z12ap_float_sinILi14ELi15ELi16ELi
   %6 = call spir_func i34 @_Z30__spirv_ArbitraryFloatSinINTELILi30ELi34EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i30 signext %5, i32 15, i32 17, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_30]] [[Sin_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatSinINTEL [[Ty_34]] [[#]] [[Sin_AId]] 15 17 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatSinINTEL
 ; CHECK-LLVM: call i34 @intel_arbitrary_float_sin.i34.i30(i30 %[[#]], i32 15, i32 17, i32 0, i32 2, i32 1)
   store i34 %6, i34* %2, align 8, !tbaa !53
   %7 = bitcast i34* %2 to i8*
@@ -1261,7 +1231,6 @@ define linkonce_odr dso_local spir_func void @_Z12ap_float_cosILi1ELi2ELi2ELi1EE
   %6 = call spir_func signext i4 @_Z30__spirv_ArbitraryFloatCosINTELILi4ELi4EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i4 signext %5, i32 2, i32 1, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_4]] [[Cos_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatCosINTEL [[Ty_4]] [[#]] [[Cos_AId]] 2 1 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatCosINTEL
 ; CHECK-LLVM: call i4 @intel_arbitrary_float_cos.i4.i4(i4 %[[#]], i32 2, i32 1, i32 0, i32 2, i32 1)
   store i4 %6, i4* %2, align 1, !tbaa !81
   %7 = bitcast i4* %2 to i8*
@@ -1283,7 +1252,6 @@ define linkonce_odr dso_local spir_func void @_Z15ap_float_sincosILi8ELi18ELi10E
   %6 = call spir_func i62 @_Z33__spirv_ArbitraryFloatSinCosINTELILi27ELi31EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEiiiiii(i27 signext %5, i32 18, i32 20, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_27]] [[SinCos_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatSinCosINTEL [[Ty_62]] [[#]] [[SinCos_AId]] 18 20 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatSinCosINTEL
 ; CHECK-LLVM: call i62 @intel_arbitrary_float_sincos.i62.i27(i27 %[[#]], i32 18, i32 20, i32 0, i32 2, i32 1)
   store i62 %6, i62* %2, align 8, !tbaa !79
   %7 = bitcast i62* %2 to i8*
@@ -1305,7 +1273,6 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_sinpiILi3ELi6ELi6ELi6
   %6 = call spir_func signext i13 @_Z32__spirv_ArbitraryFloatSinPiINTELILi10ELi13EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i10 signext %5, i32 6, i32 6, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_10]] [[SinPi_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatSinPiINTEL [[Ty_13]] [[#]] [[SinPi_AId]] 6 6 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatSinPiINTEL
 ; CHECK-LLVM: call i13 @intel_arbitrary_float_sinpi.i13.i10(i10 %[[#]], i32 6, i32 6, i32 0, i32 2, i32 1)
   store i13 %6, i13* %2, align 2, !tbaa !19
   %7 = bitcast i13* %2 to i8*
@@ -1327,7 +1294,6 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_cospiILi18ELi40ELi18E
   %6 = call spir_func i59 @_Z32__spirv_ArbitraryFloatCosPiINTELILi59ELi59EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i59 %5, i32 40, i32 40, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_59]] [[CosPi_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatCosPiINTEL [[Ty_59]] [[#]] [[CosPi_AId]] 40 40 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatCosPiINTEL
 ; CHECK-LLVM: call i59 @intel_arbitrary_float_cospi.i59.i59(i59 %[[#]], i32 40, i32 40, i32 0, i32 2, i32 1)
   store i59 %6, i59* %2, align 8, !tbaa !85
   %7 = bitcast i59* %2 to i8*
@@ -1349,7 +1315,6 @@ define linkonce_odr dso_local spir_func void @_Z17ap_float_sincospiILi9ELi20ELi1
   %6 = call spir_func i64 @_Z35__spirv_ArbitraryFloatSinCosPiINTELILi30ELi32EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEiiiiii(i30 signext %5, i32 20, i32 20, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_30]] [[SinCosPi_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatSinCosPiINTEL [[Ty_64]] [[#]] [[SinCosPi_AId]] 20 20 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatSinCosPiINTEL
 ; CHECK-LLVM: call i64 @intel_arbitrary_float_sincospi.i64.i30(i30 %[[#]], i32 20, i32 20, i32 0, i32 2, i32 1)
   store i64 %6, i64* %2, align 8, !tbaa !77
   %7 = bitcast i64* %2 to i8*
@@ -1371,7 +1336,6 @@ define linkonce_odr dso_local spir_func void @_Z13ap_float_asinILi2ELi4ELi2ELi8E
   %6 = call spir_func signext i11 @_Z31__spirv_ArbitraryFloatASinINTELILi7ELi11EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i7 signext %5, i32 4, i32 8, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_7]] [[ASin_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatASinINTEL [[Ty_11]] [[#]] [[ASin_AId]] 4 8 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatASinINTEL
 ; CHECK-LLVM: call i11 @intel_arbitrary_float_asin.i11.i7(i7 %[[#]], i32 4, i32 8, i32 0, i32 2, i32 1)
   store i11 %6, i11* %2, align 2, !tbaa !27
   %7 = bitcast i11* %2 to i8*
@@ -1393,7 +1357,6 @@ define linkonce_odr dso_local spir_func void @_Z15ap_float_asinpiILi11ELi23ELi11
   %6 = call spir_func i35 @_Z33__spirv_ArbitraryFloatASinPiINTELILi35ELi35EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i35 %5, i32 23, i32 23, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_35]] [[ASinPi_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatASinPiINTEL [[Ty_35]] [[#]] [[ASinPi_AId]] 23 23 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatASinPiINTEL
 ; CHECK-LLVM: call i35 @intel_arbitrary_float_asinpi.i35.i35(i35 %[[#]], i32 23, i32 23, i32 0, i32 2, i32 1)
   store i35 %6, i35* %2, align 8, !tbaa !87
   %7 = bitcast i35* %2 to i8*
@@ -1415,7 +1378,6 @@ define linkonce_odr dso_local spir_func void @_Z13ap_float_acosILi4ELi9ELi3ELi10
   %6 = call spir_func signext i14 @_Z31__spirv_ArbitraryFloatACosINTELILi14ELi14EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i14 signext %5, i32 9, i32 10, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_14]] [[ACos_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatACosINTEL [[Ty_14]] [[#]] [[ACos_AId]] 9 10 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatACosINTEL
 ; CHECK-LLVM: call i14 @intel_arbitrary_float_acos.i14.i14(i14 %[[#]], i32 9, i32 10, i32 0, i32 2, i32 1)
   store i14 %6, i14* %2, align 2, !tbaa !23
   %7 = bitcast i14* %2 to i8*
@@ -1435,7 +1397,6 @@ define linkonce_odr dso_local spir_func void @_Z15ap_float_acospiILi2ELi5ELi3ELi
   %4 = call spir_func signext i8 @_Z33__spirv_ArbitraryFloatACosPiINTELILi8ELi8EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i8 signext %3, i32 5, i32 4, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_8]] [[ACosPi_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatACosPiINTEL [[Ty_8]] [[#]] [[ACosPi_AId]] 5 4 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatACosPiINTEL
 ; CHECK-LLVM: call i8 @intel_arbitrary_float_acospi.i8.i8(i8 %[[#]], i32 5, i32 4, i32 0, i32 2, i32 1)
   store i8 %4, i8* %2, align 1, !tbaa !67
   call void @llvm.lifetime.end.p0i8(i64 1, i8* %2) #5
@@ -1455,7 +1416,6 @@ define linkonce_odr dso_local spir_func void @_Z13ap_float_atanILi12ELi31ELi12EL
   %6 = call spir_func i44 @_Z31__spirv_ArbitraryFloatATanINTELILi44ELi44EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i44 %5, i32 31, i32 31, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_44]] [[ATan_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatATanINTEL [[Ty_44]] [[#]] [[ATan_AId]] 31 31 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatATanINTEL
 ; CHECK-LLVM: call i44 @intel_arbitrary_float_atan.i44.i44(i44 %[[#]], i32 31, i32 31, i32 0, i32 2, i32 1)
   store i44 %6, i44* %2, align 8, !tbaa !89
   %7 = bitcast i44* %2 to i8*
@@ -1477,7 +1437,6 @@ define linkonce_odr dso_local spir_func void @_Z15ap_float_atanpiILi1ELi38ELi1EL
   %6 = call spir_func i34 @_Z33__spirv_ArbitraryFloatATanPiINTELILi40ELi34EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i40 %5, i32 38, i32 32, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_40]] [[ATanPi_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatATanPiINTEL [[Ty_34]] [[#]] [[ATanPi_AId]] 38 32 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatATanPiINTEL
 ; CHECK-LLVM: call i34 @intel_arbitrary_float_atanpi.i34.i40(i40 %[[#]], i32 38, i32 32, i32 0, i32 2, i32 1)
   store i34 %6, i34* %2, align 8, !tbaa !53
   %7 = bitcast i34* %2 to i8*
@@ -1504,7 +1463,6 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_atan2ILi7ELi16ELi7ELi
 ; CHECK-SPIRV: 6 Load [[Ty_24]] [[ATan2_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_25]] [[ATan2_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatATan2INTEL [[Ty_27]] [[#]] [[ATan2_AId]] 16 [[ATan2_BId]] 17 18 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatATan2INTEL
 ; CHECK-LLVM: call i27 @intel_arbitrary_float_atan2.i27.i24.i25(i24 %[[#]], i32 16, i25 %[[#]], i32 17, i32 18, i32 0, i32 2, i32 1)
   store i27 %9, i27* %3, align 4, !tbaa !83
   %10 = bitcast i27* %3 to i8*
@@ -1533,7 +1491,6 @@ define linkonce_odr dso_local spir_func void @_Z12ap_float_powILi8ELi8ELi9ELi9EL
 ; CHECK-SPIRV: 6 Load [[Ty_17]] [[Pow_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_19]] [[Pow_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatPowINTEL [[Ty_21]] [[#]] [[Pow_AId]] 8 [[Pow_BId]] 9 10 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatPowINTEL
 ; CHECK-LLVM: call i21 @intel_arbitrary_float_pow.i21.i17.i19(i17 %[[#]], i32 8, i19 %[[#]], i32 9, i32 10, i32 0, i32 2, i32 1)
   store i21 %9, i21* %3, align 4, !tbaa !95
   %10 = bitcast i21* %3 to i8*
@@ -1562,7 +1519,6 @@ define linkonce_odr dso_local spir_func void @_Z13ap_float_powrILi18ELi35ELi19EL
 ; CHECK-SPIRV: 6 Load [[Ty_54]] [[PowR_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_55]] [[PowR_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatPowRINTEL [[Ty_56]] [[#]] [[PowR_AId]] 35 [[PowR_BId]] 35 35 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatPowRINTEL
 ; CHECK-LLVM: call i56 @intel_arbitrary_float_powr.i56.i54.i55(i54 %[[#]], i32 35, i55 %[[#]], i32 35, i32 35, i32 0, i32 2, i32 1)
   store i56 %9, i56* %3, align 8, !tbaa !99
   %10 = bitcast i56* %3 to i8*
@@ -1591,7 +1547,6 @@ define linkonce_odr dso_local spir_func void @_Z13ap_float_pownILi4ELi7ELi10ELi5
 ; CHECK-SPIRV: 6 Load [[Ty_12]] [[PowN_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_10]] [[PowN_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 10 ArbitraryFloatPowNINTEL [[Ty_15]] [[#]] [[PowN_AId]] 7 [[PowN_BId]] 9 0 2 1
-; CHECK-SPIRV-NEGATIVE-NOT: [[#]] ArbitraryFloatPowNINTEL
 ; CHECK-LLVM: call i15 @intel_arbitrary_float_pown.i15.i12.i10(i12 %[[#]], i32 7, i10 %[[#]], i32 9, i32 0, i32 2, i32 1)
   store i15 %9, i15* %3, align 2, !tbaa !21
   %10 = bitcast i15* %3 to i8*

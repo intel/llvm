@@ -101,6 +101,11 @@ public:
     return (!is_host() && (MType == PI_DEVICE_TYPE_ACC));
   }
 
+  /// Return device type
+  ///
+  /// \return the type of the device
+  RT::PiDeviceType get_device_type() const { return MType; }
+
   /// Get associated SYCL platform
   ///
   /// If this SYCL device is an OpenCL device then the SYCL platform

@@ -12,10 +12,10 @@ option(SYCL_ADD_DEV_VERSION_POSTFIX "Adds -V postfix to version string" ON)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AddSYCLExecutable)
 
-set(SYCL_MAJOR_VERSION 3)
+set(SYCL_MAJOR_VERSION 5)
 set(SYCL_MINOR_VERSION 0)
 set(SYCL_PATCH_VERSION 0)
-set(SYCL_DEV_ABI_VERSION 2)
+set(SYCL_DEV_ABI_VERSION 0)
 if (SYCL_ADD_DEV_VERSION_POSTFIX)
   set(SYCL_VERSION_POSTFIX "-${SYCL_DEV_ABI_VERSION}")
 endif()
@@ -144,7 +144,7 @@ if( NOT OpenCL_LIBRARIES )
   endif()
   ExternalProject_Add(ocl-icd
     GIT_REPOSITORY    https://github.com/KhronosGroup/OpenCL-ICD-Loader.git
-    GIT_TAG           origin/master
+    GIT_TAG           v2020.06.16
     UPDATE_DISCONNECTED ${SYCL_EP_OCL_ICD_SKIP_AUTO_UPDATE}
     SOURCE_DIR        ${OpenCL_ICD_LOADER_SOURCE_DIR}
     BINARY_DIR        "${CMAKE_CURRENT_BINARY_DIR}/icd_build"
@@ -280,6 +280,7 @@ add_custom_target( sycl-toolchain
           clang
           clang-offload-wrapper
           clang-offload-bundler
+          clang-offload-deps
           file-table-tform
           llc
           llvm-ar
@@ -330,8 +331,10 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      clang
      clang-offload-wrapper
      clang-offload-bundler
+     clang-offload-deps
      file-table-tform
      level-zero-loader
+     level-zero-headers
      llc
      llvm-ar
      llvm-foreach

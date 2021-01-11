@@ -29,6 +29,11 @@ include(LibomptargetUtils)
 # Get dependencies for the different components of the project.
 include(LibomptargetGetDependencies)
 
+# LLVM source tree is required at build time for libomptarget
+if (NOT LIBOMPTARGET_LLVM_MAIN_INCLUDE_DIR)
+  message(FATAL_ERROR "Missing definition for LIBOMPTARGET_LLVM_MAIN_INCLUDE_DIR")
+endif()
+
 # This is a list of all the targets that are supported/tested right now.
 set (LIBOMPTARGET_ALL_TARGETS "${LIBOMPTARGET_ALL_TARGETS} aarch64-unknown-linux-gnu")
 set (LIBOMPTARGET_ALL_TARGETS "${LIBOMPTARGET_ALL_TARGETS} powerpc64le-ibm-linux-gnu")
@@ -54,10 +59,12 @@ if(LIBOMPTARGET_ENABLE_DEBUG)
   add_definitions(-DOMPTARGET_DEBUG)
 endif()
 
-include_directories(include)
+set(LIBOMPTARGET_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
+include_directories(${LIBOMPTARGET_INCLUDE_DIR})
 
 # Build target agnostic offloading library.
-add_subdirectory(src)
+set(LIBOMPTARGET_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
+add_subdirectory(${LIBOMPTARGET_SRC_DIR})
 
 # Retrieve the path to the resulting library so that it can be used for 
 # testing.

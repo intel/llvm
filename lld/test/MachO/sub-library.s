@@ -8,10 +8,10 @@
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %p/Inputs/libgoodbye.s \
 # RUN:   -o %t/libgoodbye.o
 # RUN: echo "" | llvm-mc -filetype=obj -triple=x86_64-apple-darwin -o %t/libsuper.o
-# RUN: lld -flavor darwinnew -dylib %t/libhello.o -o %t/libhello.dylib
-# RUN: lld -flavor darwinnew -dylib -L%t -sub_library libhello -lhello \
+# RUN: %lld -dylib %t/libhello.o -o %t/libhello.dylib
+# RUN: %lld -dylib -L%t -sub_library libhello -lhello \
 # RUN:   %t/libgoodbye.o -o %t/libgoodbye.dylib
-# RUN: lld -flavor darwinnew -dylib -L%t -sub_library libgoodbye -lgoodbye -install_name \
+# RUN: %lld -dylib -L%t -sub_library libgoodbye -lgoodbye -install_name \
 # RUN:   @executable_path/libsuper.dylib %t/libsuper.o -o %t/libsuper.dylib
 
 
@@ -22,22 +22,19 @@
 # RUN:   --check-prefix=HELLO-HEADERS
 # HELLO-HEADERS: NO_REEXPORTED_DYLIBS
 
-# RUN: llvm-objdump --macho --all-headers %t/libgoodbye.dylib | FileCheck %s -DDIR=%t \
-# RUN:   --check-prefix=GOODBYE-HEADERS
-# GOODBYE-HEADERS-NOT: NO_REEXPORTED_DYLIBS
-# GOODBYE-HEADERS:     cmd     LC_REEXPORT_DYLIB
-# GOODBYE-HEADERS-NOT: Load command
-# GOODBYE-HEADERS:     name    [[DIR]]/libhello.dylib
+# RUN: llvm-objdump --macho --all-headers %t/libgoodbye.dylib | FileCheck %s \
+# RUN:   --check-prefix=REEXPORT-HEADERS -DPATH=%t/libhello.dylib
 
-# RUN: llvm-objdump --macho --all-headers %t/libsuper.dylib | FileCheck %s -DDIR=%t \
-# RUN:   --check-prefix=SUPER-HEADERS
-# SUPER-HEADERS-NOT: NO_REEXPORTED_DYLIBS
-# SUPER-HEADERS:     cmd     LC_REEXPORT_DYLIB
-# SUPER-HEADERS-NOT: Load command
-# SUPER-HEADERS:     name    [[DIR]]/libgoodbye.dylib
+# RUN: llvm-objdump --macho --all-headers %t/libsuper.dylib | FileCheck %s \
+# RUN:   --check-prefix=REEXPORT-HEADERS -DPATH=%t/libgoodbye.dylib
+
+# REEXPORT-HEADERS-NOT: NO_REEXPORTED_DYLIBS
+# REEXPORT-HEADERS:     cmd     LC_REEXPORT_DYLIB
+# REEXPORT-HEADERS-NOT: Load command
+# REEXPORT-HEADERS:     name    [[PATH]]
 
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %s -o %t/sub-library.o
-# RUN: lld -flavor darwinnew -o %t/sub-library -L%t -lsuper %t/sub-library.o
+# RUN: %lld -o %t/sub-library -L%t -lsuper %t/sub-library.o
 
 # RUN: llvm-objdump --macho --bind %t/sub-library | FileCheck %s
 # CHECK-LABEL: Bind table:
@@ -46,13 +43,31 @@
 
 
 ## Check that we fail gracefully if the sub-library is missing
-# RUN: not lld -flavor darwinnew -dylib -Z -o %t/sub-library -sub_library libmissing %t/sub-library.o 2>&1 \
+# RUN: not %lld -dylib -o %t/sub-library -sub_library libmissing %t/sub-library.o 2>&1 \
 # RUN:   | FileCheck %s --check-prefix=MISSING-SUB-LIBRARY
 # MISSING-SUB-LIBRARY: error: -sub_library libmissing does not match a supplied dylib
 # RUN: rm -f %t/libgoodbye.dylib
-# RUN: not lld -flavor darwinnew -o %t/sub-library -Z -L%t -lsuper %t/sub-library.o 2>&1 \
+# RUN: not %lld -o %t/sub-library -L%t -lsuper %t/sub-library.o 2>&1 \
 # RUN:  | FileCheck %s --check-prefix=MISSING-REEXPORT -DDIR=%t
-# MISSING-REEXPORT: error: unable to read re-exported dylib at [[DIR]]/libgoodbye.dylib
+# MISSING-REEXPORT: error: unable to locate re-export with install name [[DIR]]/libgoodbye.dylib
+
+
+## We can match dylibs without extensions too.
+# RUN: mkdir -p %t/Hello.framework/Versions
+# RUN: %lld -dylib %t/libhello.o -o %t/Hello.framework/Versions/Hello
+# RUN: %lld -dylib -o %t/libgoodbye2.dylib -sub_library Hello %t/Hello.framework/Versions/Hello %t/libgoodbye.o
+# RUN: llvm-objdump --macho --all-headers %t/libgoodbye2.dylib | FileCheck %s \
+# RUN:   --check-prefix=REEXPORT-HEADERS -DPATH=%t/Hello.framework/Versions/Hello
+
+## -sub_umbrella works almost identically...
+# RUN: %lld -dylib -o %t/libgoodbye3.dylib -sub_umbrella Hello %t/Hello.framework/Versions/Hello %t/libgoodbye.o
+# RUN: llvm-objdump --macho --all-headers %t/libgoodbye3.dylib | FileCheck %s \
+# RUN:   --check-prefix=REEXPORT-HEADERS -DPATH=%t/Hello.framework/Versions/Hello
+
+## But it doesn't match .dylib extensions:
+# RUN: not %lld -dylib -L%t -sub_umbrella libhello -lhello %t/libgoodbye.o \
+# RUN:   -o %t/libgoodbye.dylib 2>&1 | FileCheck %s --check-prefix=MISSING-FRAMEWORK
+# MISSING-FRAMEWORK: error: -sub_umbrella libhello does not match a supplied dylib
 
 .text
 .globl _main

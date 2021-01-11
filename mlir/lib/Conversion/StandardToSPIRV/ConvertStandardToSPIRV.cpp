@@ -10,10 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/SPIRV/LayoutUtils.h"
-#include "mlir/Dialect/SPIRV/SPIRVDialect.h"
-#include "mlir/Dialect/SPIRV/SPIRVLowering.h"
-#include "mlir/Dialect/SPIRV/SPIRVOps.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
+#include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
+#include "mlir/Dialect/SPIRV/Utils/LayoutUtils.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/Support/LogicalResult.h"
@@ -169,7 +169,7 @@ static Value adjustAccessChainForBitwidth(SPIRVTypeConverter &typeConverter,
   IntegerAttr attr =
       builder.getIntegerAttr(targetType, targetBits / sourceBits);
   auto idx = builder.create<spirv::ConstantOp>(loc, targetType, attr);
-  auto lastDim = op.getOperation()->getOperand(op.getNumOperands() - 1);
+  auto lastDim = op->getOperand(op.getNumOperands() - 1);
   auto indices = llvm::to_vector<4>(op.indices());
   // There are two elements if this is a 1-D tensor.
   assert(indices.size() == 2);
@@ -280,7 +280,7 @@ public:
 
     // Insert spv.globalVariable for this allocation.
     Operation *parent =
-        SymbolTable::getNearestSymbolTable(operation.getParentOp());
+        SymbolTable::getNearestSymbolTable(operation->getParentOp());
     if (!parent)
       return failure();
     Location loc = operation.getLoc();
@@ -414,7 +414,7 @@ public:
                   ConversionPatternRewriter &rewriter) const override;
 };
 
-/// Converts integer compare operation on i1 type opearnds to SPIR-V ops.
+/// Converts integer compare operation on i1 type operands to SPIR-V ops.
 class BoolCmpIOpPattern final : public SPIRVOpLowering<CmpIOp> {
 public:
   using SPIRVOpLowering<CmpIOp>::SPIRVOpLowering;
@@ -493,7 +493,8 @@ public:
                   ConversionPatternRewriter &rewriter) const override;
 };
 
-/// Converts std.zexti to spv.Select if the type of source is i1.
+/// Converts std.zexti to spv.Select if the type of source is i1 or vector of
+/// i1.
 class ZeroExtendI1Pattern final : public SPIRVOpLowering<ZeroExtendIOp> {
 public:
   using SPIRVOpLowering<ZeroExtendIOp>::SPIRVOpLowering;
@@ -502,13 +503,21 @@ public:
   matchAndRewrite(ZeroExtendIOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     auto srcType = operands.front().getType();
-    if (!srcType.isSignlessInteger() || srcType.getIntOrFloatBitWidth() != 1)
+    if (!isBoolScalarOrVector(srcType))
       return failure();
 
     auto dstType = this->typeConverter.convertType(op.getResult().getType());
     Location loc = op.getLoc();
-    Value zero = rewriter.create<ConstantIntOp>(loc, 0, dstType);
-    Value one = rewriter.create<ConstantIntOp>(loc, 1, dstType);
+    Attribute zeroAttr, oneAttr;
+    if (auto vectorType = dstType.dyn_cast<VectorType>()) {
+      zeroAttr = DenseElementsAttr::get(vectorType, 0);
+      oneAttr = DenseElementsAttr::get(vectorType, 1);
+    } else {
+      zeroAttr = IntegerAttr::get(dstType, 0);
+      oneAttr = IntegerAttr::get(dstType, 1);
+    }
+    Value zero = rewriter.create<ConstantOp>(loc, zeroAttr);
+    Value one = rewriter.create<ConstantOp>(loc, oneAttr);
     rewriter.template replaceOpWithNewOp<spirv::SelectOp>(
         op, dstType, operands.front(), one, zero);
     return success();
@@ -526,7 +535,7 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     assert(operands.size() == 1);
     auto srcType = operands.front().getType();
-    if (srcType.isSignlessInteger() && srcType.getIntOrFloatBitWidth() == 1)
+    if (isBoolScalarOrVector(srcType))
       return failure();
     auto dstType =
         this->typeConverter.convertType(operation.getResult().getType());
@@ -638,8 +647,8 @@ LogicalResult ConstantCompositeOpPattern::matchAndRewrite(
     }
 
     // Unfortunately, we cannot use dialect-specific types for element
-    // attributes; element attributes only works with standard types. So we need
-    // to prepare another converted standard types for the destination elements
+    // attributes; element attributes only works with builtin types. So we need
+    // to prepare another converted builtin types for the destination elements
     // attribute.
     if (dstAttrType.isa<RankedTensorType>())
       dstAttrType = RankedTensorType::get(dstAttrType.getShape(), dstElemType);
@@ -758,8 +767,7 @@ BoolCmpIOpPattern::matchAndRewrite(CmpIOp cmpIOp, ArrayRef<Value> operands,
   CmpIOpAdaptor cmpIOpOperands(operands);
 
   Type operandType = cmpIOp.lhs().getType();
-  if (!operandType.isa<IntegerType>() ||
-      operandType.cast<IntegerType>().getWidth() != 1)
+  if (!isBoolScalarOrVector(operandType))
     return failure();
 
   switch (cmpIOp.getPredicate()) {
@@ -785,8 +793,7 @@ CmpIOpPattern::matchAndRewrite(CmpIOp cmpIOp, ArrayRef<Value> operands,
   CmpIOpAdaptor cmpIOpOperands(operands);
 
   Type operandType = cmpIOp.lhs().getType();
-  if (operandType.isa<IntegerType>() &&
-      operandType.cast<IntegerType>().getWidth() == 1)
+  if (isBoolScalarOrVector(operandType))
     return failure();
 
   switch (cmpIOp.getPredicate()) {
@@ -861,14 +868,13 @@ IntLoadOpPattern::matchAndRewrite(LoadOp loadOp, ArrayRef<Value> operands,
                                                    srcBits, dstBits, rewriter);
   Value spvLoadOp = rewriter.create<spirv::LoadOp>(
       loc, dstType, adjustedPtr,
-      loadOp.getAttrOfType<IntegerAttr>(
+      loadOp->getAttrOfType<IntegerAttr>(
           spirv::attributeName<spirv::MemoryAccess>()),
-      loadOp.getAttrOfType<IntegerAttr>("alignment"));
+      loadOp->getAttrOfType<IntegerAttr>("alignment"));
 
   // Shift the bits to the rightmost.
   // ____XXXX________ -> ____________XXXX
-  Value lastDim = accessChainOp.getOperation()->getOperand(
-      accessChainOp.getNumOperands() - 1);
+  Value lastDim = accessChainOp->getOperand(accessChainOp.getNumOperands() - 1);
   Value offset = getOffsetForBitwidth(loc, lastDim, srcBits, dstBits, rewriter);
   Value result = rewriter.create<spirv::ShiftRightArithmeticOp>(
       loc, spvLoadOp.getType(), spvLoadOp, offset);
@@ -984,8 +990,7 @@ IntStoreOpPattern::matchAndRewrite(StoreOp storeOp, ArrayRef<Value> operands,
   // The step 1 to step 3 are done by AtomicAnd as one atomic step, and the step
   // 4 to step 6 are done by AtomicOr as another atomic step.
   assert(accessChainOp.indices().size() == 2);
-  Value lastDim = accessChainOp.getOperation()->getOperand(
-      accessChainOp.getNumOperands() - 1);
+  Value lastDim = accessChainOp->getOperand(accessChainOp.getNumOperands() - 1);
   Value offset = getOffsetForBitwidth(loc, lastDim, srcBits, dstBits, rewriter);
 
   // Create a mask to clear the destination. E.g., if it is the second i8 in

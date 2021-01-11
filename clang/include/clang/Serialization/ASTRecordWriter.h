@@ -166,6 +166,7 @@ public:
 
   /// Emit an APvalue.
   void AddAPValue(const APValue &Value);
+  void writeAPValue(const APValue &Value) { AddAPValue(Value); }
 
   /// Emit a reference to an identifier.
   void AddIdentifierRef(const IdentifierInfo *II) {
@@ -265,6 +266,9 @@ public:
   void AddCXXCtorInitializers(ArrayRef<CXXCtorInitializer *> CtorInits);
 
   void AddCXXDefinitionData(const CXXRecordDecl *D);
+
+  /// Emit information about the initializer of a VarDecl.
+  void AddVarDeclInit(const VarDecl *VD);
 
   /// Write an OMPTraitInfo object.
   void writeOMPTraitInfo(const OMPTraitInfo *TI);

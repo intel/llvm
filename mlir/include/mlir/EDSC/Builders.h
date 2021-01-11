@@ -16,7 +16,7 @@
 
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Types.h"
 
 namespace mlir {
@@ -30,6 +30,7 @@ namespace edsc {
 /// setting and restoring of insertion points.
 class ScopedContext {
 public:
+  ScopedContext(OpBuilder &b);
   ScopedContext(OpBuilder &b, Location location);
 
   /// Sets the insertion point of the builder to 'newInsertPt' for the duration
@@ -190,7 +191,7 @@ public:
   TemplatedIndexedValue operator()(Value index, Args... indices) {
     return TemplatedIndexedValue(value, index).append(indices...);
   }
-  TemplatedIndexedValue operator()(ArrayRef<Value> indices) {
+  TemplatedIndexedValue operator()(ValueRange indices) {
     return TemplatedIndexedValue(value, indices);
   }
 
@@ -319,7 +320,7 @@ public:
   }
 
 private:
-  TemplatedIndexedValue(Value value, ArrayRef<Value> indices)
+  TemplatedIndexedValue(Value value, ValueRange indices)
       : value(value), indices(indices.begin(), indices.end()) {}
 
   TemplatedIndexedValue &append() { return *this; }

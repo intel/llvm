@@ -7,6 +7,7 @@
 #define INCLUDE_ATMI_RUNTIME_H_
 
 #include "atmi.h"
+#include "hsa.h"
 #include <inttypes.h>
 #include <stdlib.h>
 #ifndef __cplusplus
@@ -154,37 +155,15 @@ atmi_status_t atmi_malloc(void **ptr, size_t size, atmi_mem_place_t place);
  */
 atmi_status_t atmi_free(void *ptr);
 
-/**
- * @brief Syncrhonously copy memory from the source to destination memory
- * locations.
- *
- * @detail This function assumes that the source and destination regions are
- * non-overlapping. The runtime determines the memory place of the source and
- * the
- * destination and executes the appropriate optimized data movement methodology.
- *
- * @param[in] dest The destination pointer previously allocated by a system
- * allocator or @p atmi_malloc.
- *
- * @param[in] src The source pointer previously allocated by a system
- * allocator or @p atmi_malloc.
- *
- * @param[in] size The size of the data to be copied in bytes.
- *
- * @retval ::ATMI_STATUS_SUCCESS The function has executed successfully.
- *
- * @retval ::ATMI_STATUS_ERROR The function encountered errors.
- *
- * @retval ::ATMI_STATUS_UNKNOWN The function encountered errors.
- *
- */
-atmi_status_t atmi_memcpy(void *dest, const void *src, size_t size);
+atmi_status_t atmi_memcpy_h2d(hsa_signal_t signal, void *deviceDest,
+                              const void *hostSrc, size_t size,
+                              hsa_agent_t agent);
+
+atmi_status_t atmi_memcpy_d2h(hsa_signal_t sig, void *hostDest,
+                              const void *deviceSrc, size_t size,
+                              hsa_agent_t agent);
 
 /** @} */
-
-/** \defgroup cpu_dev_runtime ATMI CPU Device Runtime
- * @{
- */
 
 #ifdef __cplusplus
 }

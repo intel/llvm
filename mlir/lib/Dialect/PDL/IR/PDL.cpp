@@ -8,8 +8,8 @@
 
 #include "mlir/Dialect/PDL/IR/PDL.h"
 #include "mlir/Dialect/PDL/IR/PDLTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "llvm/ADT/StringSwitch.h"
 
@@ -34,7 +34,7 @@ Type PDLDialect::parseType(DialectAsmParser &parser) const {
     return Type();
 
   Builder &builder = parser.getBuilder();
-  Type result = llvm::StringSwitch<Type>(keyword)
+  Type result = StringSwitch<Type>(keyword)
                     .Case("attribute", builder.getType<AttributeType>())
                     .Case("operation", builder.getType<OperationType>())
                     .Case("type", builder.getType<TypeType>())
@@ -97,7 +97,7 @@ static LogicalResult verify(AttributeOp op) {
   Value attrType = op.type();
   Optional<Attribute> attrValue = op.value();
 
-  if (!attrValue && isa<RewriteOp>(op.getParentOp()))
+  if (!attrValue && isa<RewriteOp>(op->getParentOp()))
     return op.emitOpError("expected constant value when specified within a "
                           "`pdl.rewrite`");
   if (attrValue && attrType)
@@ -219,7 +219,7 @@ static LogicalResult verifyResultTypesAreInferrable(OperationOp op,
                                                     ResultRange opResults,
                                                     OperandRange resultTypes) {
   // Functor that returns if the given use can be used to infer a type.
-  Block *rewriterBlock = op.getOperation()->getBlock();
+  Block *rewriterBlock = op->getBlock();
   auto canInferTypeFromUse = [&](OpOperand &use) {
     // If the use is within a ReplaceOp and isn't the operation being replaced
     // (i.e. is not the first operand of the replacement), we can infer a type.
@@ -273,7 +273,7 @@ static LogicalResult verifyResultTypesAreInferrable(OperationOp op,
 }
 
 static LogicalResult verify(OperationOp op) {
-  bool isWithinRewrite = isa<RewriteOp>(op.getParentOp());
+  bool isWithinRewrite = isa<RewriteOp>(op->getParentOp());
   if (isWithinRewrite && !op.name())
     return op.emitOpError("must have an operation name when nested within "
                           "a `pdl.rewrite`");
@@ -320,41 +320,6 @@ bool OperationOp::hasTypeInference() {
 //===----------------------------------------------------------------------===//
 // pdl::PatternOp
 //===----------------------------------------------------------------------===//
-
-static ParseResult parsePatternOp(OpAsmParser &p, OperationState &state) {
-  StringAttr name;
-  p.parseOptionalSymbolName(name, SymbolTable::getSymbolAttrName(),
-                            state.attributes);
-
-  // Parse the benefit.
-  IntegerAttr benefitAttr;
-  if (p.parseColon() || p.parseKeyword("benefit") || p.parseLParen() ||
-      p.parseAttribute(benefitAttr, p.getBuilder().getIntegerType(16),
-                       "benefit", state.attributes) ||
-      p.parseRParen())
-    return failure();
-
-  // Parse the pattern body.
-  if (p.parseOptionalAttrDictWithKeyword(state.attributes) ||
-      p.parseRegion(*state.addRegion(), None, None))
-    return failure();
-  return success();
-}
-
-static void print(OpAsmPrinter &p, PatternOp op) {
-  p << "pdl.pattern";
-  if (Optional<StringRef> name = op.sym_name()) {
-    p << ' ';
-    p.printSymbolName(*name);
-  }
-  p << " : benefit(";
-  p.printAttributeWithoutType(op.benefitAttr());
-  p << ")";
-
-  p.printOptionalAttrDictWithKeyword(
-      op.getAttrs(), {"benefit", "rootKind", SymbolTable::getSymbolAttrName()});
-  p.printRegion(op.body());
-}
 
 static LogicalResult verify(PatternOp pattern) {
   Region &body = pattern.body();
@@ -445,50 +410,34 @@ static LogicalResult verify(ReplaceOp op) {
 // pdl::RewriteOp
 //===----------------------------------------------------------------------===//
 
-static ParseResult parseRewriteOp(OpAsmParser &p, OperationState &state) {
-  // If the first token isn't a '(', this is an external rewrite.
-  StringAttr nameAttr;
-  if (failed(p.parseOptionalLParen())) {
-    if (p.parseAttribute(nameAttr, "name", state.attributes) || p.parseLParen())
-      return failure();
-  }
-
-  // Parse the root operand.
-  OpAsmParser::OperandType rootOperand;
-  if (p.parseOperand(rootOperand) || p.parseRParen() ||
-      p.resolveOperand(rootOperand, p.getBuilder().getType<OperationType>(),
-                       state.operands))
-    return failure();
-
-  // If this isn't an external rewrite, parse the region body.
-  Region &rewriteRegion = *state.addRegion();
-  if (!nameAttr) {
-    if (p.parseRegion(rewriteRegion, /*arguments=*/llvm::None,
-                      /*argTypes=*/llvm::None))
-      return failure();
-    RewriteOp::ensureTerminator(rewriteRegion, p.getBuilder(), state.location);
-  }
-  return success();
-}
-
-static void print(OpAsmPrinter &p, RewriteOp op) {
-  p << "pdl.rewrite";
-  if (Optional<StringRef> name = op.name()) {
-    p << " \"" << *name << "\"(" << op.root() << ")";
-    return;
-  }
-
-  p << "(" << op.root() << ")";
-  p.printRegion(op.body(), /*printEntryBlockArgs=*/false,
-                /*printBlockTerminators=*/false);
-}
-
 static LogicalResult verify(RewriteOp op) {
   Region &rewriteRegion = op.body();
-  if (llvm::hasNItemsOrMore(rewriteRegion, 2)) {
-    return op.emitOpError()
-           << "expected rewrite region when specified to have a single block";
+
+  // Handle the case where the rewrite is external.
+  if (op.name()) {
+    if (!rewriteRegion.empty()) {
+      return op.emitOpError()
+             << "expected rewrite region to be empty when rewrite is external";
+    }
+    return success();
   }
+
+  // Otherwise, check that the rewrite region only contains a single block.
+  if (rewriteRegion.empty()) {
+    return op.emitOpError() << "expected rewrite region to be non-empty if "
+                               "external name is not specified";
+  }
+
+  // Check that no additional arguments were provided.
+  if (!op.externalArgs().empty()) {
+    return op.emitOpError() << "expected no external arguments when the "
+                               "rewrite is specified inline";
+  }
+  if (op.externalConstParams()) {
+    return op.emitOpError() << "expected no external constant parameters when "
+                               "the rewrite is specified inline";
+  }
+
   return success();
 }
 
@@ -505,11 +454,5 @@ static LogicalResult verify(TypeOp op) {
 // TableGen'd op method definitions
 //===----------------------------------------------------------------------===//
 
-namespace mlir {
-namespace pdl {
-
 #define GET_OP_CLASSES
 #include "mlir/Dialect/PDL/IR/PDLOps.cpp.inc"
-
-} // end namespace pdl
-} // end namespace mlir

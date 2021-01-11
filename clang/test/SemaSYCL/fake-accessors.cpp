@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
 
-#include <sycl.hpp>
+#include "Inputs/sycl.hpp"
 
 namespace foo {
 namespace cl {
@@ -51,6 +51,6 @@ int main() {
         });
   return 0;
 }
-// CHECK: fake_accessors{{.*}} 'void (__global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, int, int)
-// CHECK: accessor_typedef{{.*}} 'void (__global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, int, int)
-// CHECK: accessor_alias{{.*}} 'void (__global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, int, int)
+// CHECK: fake_accessors{{.*}} 'void (__global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, foo::cl::sycl::accessor, accessor)
+// CHECK: accessor_typedef{{.*}} 'void (__global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, foo::cl::sycl::accessor, accessor)
+// CHECK: accessor_alias{{.*}} 'void (__global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, foo::cl::sycl::accessor, accessor)

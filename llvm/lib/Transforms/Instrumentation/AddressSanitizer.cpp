@@ -105,6 +105,7 @@ static const uint64_t kSystemZ_ShadowOffset64 = 1ULL << 52;
 static const uint64_t kMIPS32_ShadowOffset32 = 0x0aaa0000;
 static const uint64_t kMIPS64_ShadowOffset64 = 1ULL << 37;
 static const uint64_t kAArch64_ShadowOffset64 = 1ULL << 36;
+static const uint64_t kRISCV64_ShadowOffset64 = 0x20000000;
 static const uint64_t kFreeBSD_ShadowOffset32 = 1ULL << 30;
 static const uint64_t kFreeBSD_ShadowOffset64 = 1ULL << 46;
 static const uint64_t kNetBSD_ShadowOffset32 = 1ULL << 30;
@@ -129,56 +130,48 @@ static const size_t kMaxStackMallocSize = 1 << 16;  // 64K
 static const uintptr_t kCurrentStackFrameMagic = 0x41B58AB3;
 static const uintptr_t kRetiredStackFrameMagic = 0x45E0360E;
 
-static const char *const kAsanModuleCtorName = "asan.module_ctor";
-static const char *const kAsanModuleDtorName = "asan.module_dtor";
+const char kAsanModuleCtorName[] = "asan.module_ctor";
+const char kAsanModuleDtorName[] = "asan.module_dtor";
 static const uint64_t kAsanCtorAndDtorPriority = 1;
 // On Emscripten, the system needs more than one priorities for constructors.
 static const uint64_t kAsanEmscriptenCtorAndDtorPriority = 50;
-static const char *const kAsanReportErrorTemplate = "__asan_report_";
-static const char *const kAsanRegisterGlobalsName = "__asan_register_globals";
-static const char *const kAsanUnregisterGlobalsName =
-    "__asan_unregister_globals";
-static const char *const kAsanRegisterImageGlobalsName =
-  "__asan_register_image_globals";
-static const char *const kAsanUnregisterImageGlobalsName =
-  "__asan_unregister_image_globals";
-static const char *const kAsanRegisterElfGlobalsName =
-  "__asan_register_elf_globals";
-static const char *const kAsanUnregisterElfGlobalsName =
-  "__asan_unregister_elf_globals";
-static const char *const kAsanPoisonGlobalsName = "__asan_before_dynamic_init";
-static const char *const kAsanUnpoisonGlobalsName = "__asan_after_dynamic_init";
-static const char *const kAsanInitName = "__asan_init";
-static const char *const kAsanVersionCheckNamePrefix =
-    "__asan_version_mismatch_check_v";
-static const char *const kAsanPtrCmp = "__sanitizer_ptr_cmp";
-static const char *const kAsanPtrSub = "__sanitizer_ptr_sub";
-static const char *const kAsanHandleNoReturnName = "__asan_handle_no_return";
+const char kAsanReportErrorTemplate[] = "__asan_report_";
+const char kAsanRegisterGlobalsName[] = "__asan_register_globals";
+const char kAsanUnregisterGlobalsName[] = "__asan_unregister_globals";
+const char kAsanRegisterImageGlobalsName[] = "__asan_register_image_globals";
+const char kAsanUnregisterImageGlobalsName[] =
+    "__asan_unregister_image_globals";
+const char kAsanRegisterElfGlobalsName[] = "__asan_register_elf_globals";
+const char kAsanUnregisterElfGlobalsName[] = "__asan_unregister_elf_globals";
+const char kAsanPoisonGlobalsName[] = "__asan_before_dynamic_init";
+const char kAsanUnpoisonGlobalsName[] = "__asan_after_dynamic_init";
+const char kAsanInitName[] = "__asan_init";
+const char kAsanVersionCheckNamePrefix[] = "__asan_version_mismatch_check_v";
+const char kAsanPtrCmp[] = "__sanitizer_ptr_cmp";
+const char kAsanPtrSub[] = "__sanitizer_ptr_sub";
+const char kAsanHandleNoReturnName[] = "__asan_handle_no_return";
 static const int kMaxAsanStackMallocSizeClass = 10;
-static const char *const kAsanStackMallocNameTemplate = "__asan_stack_malloc_";
-static const char *const kAsanStackFreeNameTemplate = "__asan_stack_free_";
-static const char *const kAsanGenPrefix = "___asan_gen_";
-static const char *const kODRGenPrefix = "__odr_asan_gen_";
-static const char *const kSanCovGenPrefix = "__sancov_gen_";
-static const char *const kAsanSetShadowPrefix = "__asan_set_shadow_";
-static const char *const kAsanPoisonStackMemoryName =
-    "__asan_poison_stack_memory";
-static const char *const kAsanUnpoisonStackMemoryName =
-    "__asan_unpoison_stack_memory";
+const char kAsanStackMallocNameTemplate[] = "__asan_stack_malloc_";
+const char kAsanStackFreeNameTemplate[] = "__asan_stack_free_";
+const char kAsanGenPrefix[] = "___asan_gen_";
+const char kODRGenPrefix[] = "__odr_asan_gen_";
+const char kSanCovGenPrefix[] = "__sancov_gen_";
+const char kAsanSetShadowPrefix[] = "__asan_set_shadow_";
+const char kAsanPoisonStackMemoryName[] = "__asan_poison_stack_memory";
+const char kAsanUnpoisonStackMemoryName[] = "__asan_unpoison_stack_memory";
 
 // ASan version script has __asan_* wildcard. Triple underscore prevents a
 // linker (gold) warning about attempting to export a local symbol.
-static const char *const kAsanGlobalsRegisteredFlagName =
-    "___asan_globals_registered";
+const char kAsanGlobalsRegisteredFlagName[] = "___asan_globals_registered";
 
-static const char *const kAsanOptionDetectUseAfterReturn =
+const char kAsanOptionDetectUseAfterReturn[] =
     "__asan_option_detect_stack_use_after_return";
 
-static const char *const kAsanShadowMemoryDynamicAddress =
+const char kAsanShadowMemoryDynamicAddress[] =
     "__asan_shadow_memory_dynamic_address";
 
-static const char *const kAsanAllocaPoison = "__asan_alloca_poison";
-static const char *const kAsanAllocasUnpoison = "__asan_allocas_unpoison";
+const char kAsanAllocaPoison[] = "__asan_alloca_poison";
+const char kAsanAllocasUnpoison[] = "__asan_allocas_unpoison";
 
 // Accesses sizes are powers of two: 1, 2, 4, 8, 16.
 static const size_t kNumberOfAccessSizes = 5;
@@ -447,6 +440,7 @@ static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
   bool IsMIPS64 = TargetTriple.isMIPS64();
   bool IsArmOrThumb = TargetTriple.isARM() || TargetTriple.isThumb();
   bool IsAArch64 = TargetTriple.getArch() == Triple::aarch64;
+  bool IsRISCV64 = TargetTriple.getArch() == Triple::riscv64;
   bool IsWindows = TargetTriple.isOSWindows();
   bool IsFuchsia = TargetTriple.isOSFuchsia();
   bool IsMyriad = TargetTriple.getVendor() == llvm::Triple::Myriad;
@@ -515,6 +509,8 @@ static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
       Mapping.Offset = kDynamicShadowSentinel;
     else if (IsAArch64)
       Mapping.Offset = kAArch64_ShadowOffset64;
+    else if (IsRISCV64)
+      Mapping.Offset = kRISCV64_ShadowOffset64;
     else
       Mapping.Offset = kDefaultShadowOffset64;
   }
@@ -533,6 +529,7 @@ static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
   // we could OR the constant in a single instruction, but it's more
   // efficient to load it once and use indexed addressing.
   Mapping.OrShadowOffset = !IsAArch64 && !IsPPC64 && !IsSystemZ && !IsPS4CPU &&
+                           !IsRISCV64 &&
                            !(Mapping.Offset & (Mapping.Offset - 1)) &&
                            Mapping.Offset != kDynamicShadowSentinel;
   bool IsAndroidWithIfuncSupport =
@@ -795,7 +792,7 @@ private:
                                   StringRef InternalSuffix);
   Instruction *CreateAsanModuleDtor(Module &M);
 
-  bool canInstrumentAliasedGlobal(const GlobalAlias &GA) const;
+  const GlobalVariable *getExcludedAliasedGlobal(const GlobalAlias &GA) const;
   bool shouldInstrumentGlobal(GlobalVariable *G) const;
   bool ShouldUseMachOGlobalsSection() const;
   StringRef getGlobalMetadataSection() const;
@@ -964,8 +961,14 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
   void createDynamicAllocasInitStorage();
 
   // ----------------------- Visitors.
-  /// Collect all Ret instructions.
-  void visitReturnInst(ReturnInst &RI) { RetVec.push_back(&RI); }
+  /// Collect all Ret instructions, or the musttail call instruction if it
+  /// precedes the return instruction.
+  void visitReturnInst(ReturnInst &RI) {
+    if (CallInst *CI = RI.getParent()->getTerminatingMustTailCall())
+      RetVec.push_back(CI);
+    else
+      RetVec.push_back(&RI);
+  }
 
   /// Collect all Resume instructions.
   void visitResumeInst(ResumeInst &RI) { RetVec.push_back(&RI); }
@@ -999,10 +1002,10 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
 
   // Unpoison dynamic allocas redzones.
   void unpoisonDynamicAllocas() {
-    for (auto &Ret : RetVec)
+    for (Instruction *Ret : RetVec)
       unpoisonDynamicAllocasBeforeInst(Ret, DynamicAllocaLayout);
 
-    for (auto &StackRestoreInst : StackRestoreVec)
+    for (Instruction *StackRestoreInst : StackRestoreVec)
       unpoisonDynamicAllocasBeforeInst(StackRestoreInst,
                                        StackRestoreInst->getOperand(0));
   }
@@ -1061,7 +1064,9 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
         !ConstantInt::isValueValidForType(IntptrTy, SizeValue))
       return;
     // Find alloca instruction that corresponds to llvm.lifetime argument.
-    AllocaInst *AI = findAllocaForValue(II.getArgOperand(1));
+    // Currently we can only handle lifetime markers pointing to the
+    // beginning of the alloca.
+    AllocaInst *AI = findAllocaForValue(II.getArgOperand(1), true);
     if (!AI) {
       HasUntracedLifetimeIntrinsic = true;
       return;
@@ -1782,20 +1787,22 @@ void ModuleAddressSanitizer::createInitializerPoisonCalls(
   }
 }
 
-bool ModuleAddressSanitizer::canInstrumentAliasedGlobal(
-    const GlobalAlias &GA) const {
+const GlobalVariable *
+ModuleAddressSanitizer::getExcludedAliasedGlobal(const GlobalAlias &GA) const {
   // In case this function should be expanded to include rules that do not just
   // apply when CompileKernel is true, either guard all existing rules with an
   // 'if (CompileKernel) { ... }' or be absolutely sure that all these rules
   // should also apply to user space.
   assert(CompileKernel && "Only expecting to be called when compiling kernel");
 
+  const Constant *C = GA.getAliasee();
+
   // When compiling the kernel, globals that are aliased by symbols prefixed
   // by "__" are special and cannot be padded with a redzone.
   if (GA.getName().startswith("__"))
-    return false;
+    return dyn_cast<GlobalVariable>(C->stripPointerCastsAndAliases());
 
-  return true;
+  return nullptr;
 }
 
 bool ModuleAddressSanitizer::shouldInstrumentGlobal(GlobalVariable *G) const {
@@ -1864,6 +1871,14 @@ bool ModuleAddressSanitizer::shouldInstrumentGlobal(GlobalVariable *G) const {
         Section.startswith(".init_array") ||
         Section.startswith(".fini_array")) {
       return false;
+    }
+
+    // Do not instrument user-defined sections (with names resembling
+    // valid C identifiers)
+    if (TargetTriple.isOSBinFormatELF()) {
+      if (std::all_of(Section.begin(), Section.end(),
+                      [](char c) { return llvm::isAlnum(c) || c == '_'; }))
+        return false;
     }
 
     // On COFF, if the section name contains '$', it is highly likely that the
@@ -2239,14 +2254,12 @@ bool ModuleAddressSanitizer::InstrumentGlobals(IRBuilder<> &IRB, Module &M,
   *CtorComdat = false;
 
   // Build set of globals that are aliased by some GA, where
-  // canInstrumentAliasedGlobal(GA) returns false.
+  // getExcludedAliasedGlobal(GA) returns the relevant GlobalVariable.
   SmallPtrSet<const GlobalVariable *, 16> AliasedGlobalExclusions;
   if (CompileKernel) {
     for (auto &GA : M.aliases()) {
-      if (const auto *GV = dyn_cast<GlobalVariable>(GA.getAliasee())) {
-        if (!canInstrumentAliasedGlobal(GA))
-          AliasedGlobalExclusions.insert(GV);
-      }
+      if (const GlobalVariable *GV = getExcludedAliasedGlobal(GA))
+        AliasedGlobalExclusions.insert(GV);
     }
   }
 
@@ -2332,12 +2345,9 @@ bool ModuleAddressSanitizer::InstrumentGlobals(IRBuilder<> &IRB, Module &M,
         NewGlobal->setSection("__TEXT,__asan_cstring,regular");
     }
 
-    // Transfer the debug info.  The payload starts at offset zero so we can
-    // copy the debug info over as is.
-    SmallVector<DIGlobalVariableExpression *, 1> GVs;
-    G->getDebugInfo(GVs);
-    for (auto *GV : GVs)
-      NewGlobal->addDebugInfo(GV);
+    // Transfer the debug info and type metadata.  The payload starts at offset
+    // zero so we can copy the metadata over as is.
+    NewGlobal->copyMetadata(G, 0);
 
     Value *Indices2[2];
     Indices2[0] = IRB.getInt32(0);
@@ -3095,7 +3105,8 @@ void FunctionStackPoisoner::processStaticAllocas() {
   int StackMallocIdx = -1;
   DebugLoc EntryDebugLocation;
   if (auto SP = F.getSubprogram())
-    EntryDebugLocation = DebugLoc::get(SP->getScopeLine(), 0, SP);
+    EntryDebugLocation =
+        DILocation::get(SP->getContext(), SP->getScopeLine(), 0, SP);
 
   Instruction *InsBefore = AllocaVec[0];
   IRBuilder<> IRB(InsBefore);
@@ -3303,7 +3314,7 @@ void FunctionStackPoisoner::processStaticAllocas() {
   SmallVector<uint8_t, 64> ShadowAfterReturn;
 
   // (Un)poison the stack before all ret instructions.
-  for (auto Ret : RetVec) {
+  for (Instruction *Ret : RetVec) {
     IRBuilder<> IRBRet(Ret);
     // Mark the current frame as retired.
     IRBRet.CreateStore(ConstantInt::get(IntptrTy, kRetiredStackFrameMagic),

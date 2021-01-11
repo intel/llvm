@@ -42,7 +42,7 @@
 
 #define __SYCL_MAKE_CALL_ARG1(call, prefix)                                    \
   template <typename R, typename T1>                                           \
-  inline ALWAYS_INLINE R __invoke_##call(T1 t1) __NOEXC {                      \
+  inline __SYCL_ALWAYS_INLINE R __invoke_##call(T1 t1) __NOEXC {               \
     using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
     using Arg1 = cl::sycl::detail::ConvertToOpenCLType_t<T1>;                  \
     __SYCL_EXTERN_IT1(Ret, prefix, call, Arg1);                                \
@@ -53,7 +53,7 @@
 
 #define __SYCL_MAKE_CALL_ARG2(call, prefix)                                    \
   template <typename R, typename T1, typename T2>                              \
-  inline ALWAYS_INLINE R __invoke_##call(T1 t1, T2 t2) __NOEXC {               \
+  inline __SYCL_ALWAYS_INLINE R __invoke_##call(T1 t1, T2 t2) __NOEXC {        \
     using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
     using Arg1 = cl::sycl::detail::ConvertToOpenCLType_t<T1>;                  \
     using Arg2 = cl::sycl::detail::ConvertToOpenCLType_t<T2>;                  \
@@ -66,7 +66,7 @@
 
 #define __SYCL_MAKE_CALL_ARG2_SAME(call, prefix)                               \
   template <typename R, typename T>                                            \
-  inline ALWAYS_INLINE R __invoke_##call(T t1, T t2) __NOEXC {                 \
+  inline __SYCL_ALWAYS_INLINE R __invoke_##call(T t1, T t2) __NOEXC {          \
     using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
     using Arg = cl::sycl::detail::ConvertToOpenCLType_t<T>;                    \
     __SYCL_EXTERN_IT2_SAME(Ret, prefix, call, Arg);                            \
@@ -78,7 +78,7 @@
 
 #define __SYCL_MAKE_CALL_ARG2_SAME_RESULT(call, prefix)                        \
   template <typename T>                                                        \
-  inline ALWAYS_INLINE T __invoke_##call(T v1, T v2) __NOEXC {                 \
+  inline __SYCL_ALWAYS_INLINE T __invoke_##call(T v1, T v2) __NOEXC {          \
     using Type = cl::sycl::detail::ConvertToOpenCLType_t<T>;                   \
     __SYCL_EXTERN_IT2_SAME(Type, prefix, call, Type);                          \
     Type arg1 = cl::sycl::detail::convertDataToType<T, Type>(v1);              \
@@ -89,7 +89,7 @@
 
 #define __SYCL_MAKE_CALL_ARG3(call, prefix)                                    \
   template <typename R, typename T1, typename T2, typename T3>                 \
-  inline ALWAYS_INLINE R __invoke_##call(T1 t1, T2 t2, T3 t3) __NOEXC {        \
+  inline __SYCL_ALWAYS_INLINE R __invoke_##call(T1 t1, T2 t2, T3 t3) __NOEXC { \
     using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
     using Arg1 = cl::sycl::detail::ConvertToOpenCLType_t<T1>;                  \
     using Arg2 = cl::sycl::detail::ConvertToOpenCLType_t<T2>;                  \
@@ -286,6 +286,7 @@ __SYCL_MAKE_CALL_ARG3(select, __FUNC_PREFIX_OCL) // select
 #undef __SYCL_MAKE_CALL_ARG1
 #undef __SYCL_MAKE_CALL_ARG2
 #undef __SYCL_MAKE_CALL_ARG2_SAME
+#undef __SYCL_MAKE_CALL_ARG2_SAME_RESULT
 #undef __SYCL_MAKE_CALL_ARG3
 #undef __SYCL_PPCAT_NX
 #undef __SYCL_PPCAT

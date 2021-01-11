@@ -43,7 +43,6 @@ class HexagonTTIImpl : public BasicTTIImplBase<HexagonTTIImpl> {
   const HexagonTargetLowering *getTLI() const { return &TLI; }
 
   bool useHVX() const;
-  bool isTypeForHVX(Type *VecTy) const;
 
   // Returns the number of vector elements of Ty, if Ty is a vector type,
   // or 1 if Ty is a scalar type. It is incorrect to call this function
@@ -134,6 +133,8 @@ public:
       TTI::TargetCostKind CostKind = TTI::TCK_SizeAndLatency,
       bool UseMaskForCond = false, bool UseMaskForGaps = false);
   unsigned getCmpSelInstrCost(unsigned Opcode, Type *ValTy, Type *CondTy,
+
+                              CmpInst::Predicate VecPred,
                               TTI::TargetCostKind CostKind,
                               const Instruction *I = nullptr);
   unsigned getArithmeticInstrCost(
@@ -154,6 +155,9 @@ public:
   unsigned getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind) {
     return 1;
   }
+
+  bool isLegalMaskedStore(Type *DataType, Align Alignment);
+  bool isLegalMaskedLoad(Type *DataType, Align Alignment);
 
   /// @}
 

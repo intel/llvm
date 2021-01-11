@@ -129,6 +129,15 @@ static cl::opt<bool> EnableCyclicPath("misched-cyclicpath", cl::Hidden,
 static cl::opt<bool> EnableMemOpCluster("misched-cluster", cl::Hidden,
                                         cl::desc("Enable memop clustering."),
                                         cl::init(true));
+static cl::opt<bool>
+    ForceFastCluster("force-fast-cluster", cl::Hidden,
+                     cl::desc("Switch to fast cluster algorithm with the lost "
+                              "of some fusion opportunities"),
+                     cl::init(false));
+static cl::opt<unsigned>
+    FastClusterThreshold("fast-cluster-threshold", cl::Hidden,
+                         cl::desc("The threshold for fast cluster"),
+                         cl::init(1000));
 
 // DAG subtrees must have at least this many nodes.
 static const unsigned MinSubtreeSize = 8;
@@ -231,8 +240,13 @@ char PostMachineScheduler::ID = 0;
 
 char &llvm::PostMachineSchedulerID = PostMachineScheduler::ID;
 
-INITIALIZE_PASS(PostMachineScheduler, "postmisched",
-                "PostRA Machine Instruction Scheduler", false, false)
+INITIALIZE_PASS_BEGIN(PostMachineScheduler, "postmisched",
+                      "PostRA Machine Instruction Scheduler", false, false)
+INITIALIZE_PASS_DEPENDENCY(MachineDominatorTree)
+INITIALIZE_PASS_DEPENDENCY(MachineLoopInfo)
+INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
+INITIALIZE_PASS_END(PostMachineScheduler, "postmisched",
+                    "PostRA Machine Instruction Scheduler", false, false)
 
 PostMachineScheduler::PostMachineScheduler() : MachineSchedulerBase(ID) {
   initializePostMachineSchedulerPass(*PassRegistry::getPassRegistry());
@@ -1101,7 +1115,7 @@ updateScheduledPressure(const SUnit *SU,
 void ScheduleDAGMILive::updatePressureDiffs(
     ArrayRef<RegisterMaskPair> LiveUses) {
   for (const RegisterMaskPair &P : LiveUses) {
-    unsigned Reg = P.RegUnit;
+    Register Reg = P.RegUnit;
     /// FIXME: Currently assuming single-use physregs.
     if (!Register::isVirtualRegister(Reg))
       continue;
@@ -1326,7 +1340,7 @@ unsigned ScheduleDAGMILive::computeCyclicCriticalPath() {
   unsigned MaxCyclicLatency = 0;
   // Visit each live out vreg def to find def/use pairs that cross iterations.
   for (const RegisterMaskPair &P : RPTracker.getPressure().LiveOutRegs) {
-    unsigned Reg = P.RegUnit;
+    Register Reg = P.RegUnit;
     if (!Register::isVirtualRegister(Reg))
       continue;
     const LiveInterval &LI = LIS->getInterval(Reg);
@@ -1530,7 +1544,12 @@ public:
   void apply(ScheduleDAGInstrs *DAGInstrs) override;
 
 protected:
-  void clusterNeighboringMemOps(ArrayRef<SUnit *> MemOps, ScheduleDAGInstrs *DAG);
+  void clusterNeighboringMemOps(ArrayRef<MemOpInfo> MemOps, bool FastCluster,
+                                ScheduleDAGInstrs *DAG);
+  void collectMemOpRecords(std::vector<SUnit> &SUnits,
+                           SmallVectorImpl<MemOpInfo> &MemOpRecords);
+  bool groupMemOps(ArrayRef<MemOpInfo> MemOps, ScheduleDAGInstrs *DAG,
+                   DenseMap<unsigned, SmallVector<MemOpInfo, 32>> &Groups);
 };
 
 class StoreClusterMutation : public BaseMemOpClusterMutation {
@@ -1566,51 +1585,48 @@ createStoreClusterDAGMutation(const TargetInstrInfo *TII,
 
 } // end namespace llvm
 
+// Sorting all the loads/stores first, then for each load/store, checking the
+// following load/store one by one, until reach the first non-dependent one and
+// call target hook to see if they can cluster.
+// If FastCluster is enabled, we assume that, all the loads/stores have been
+// preprocessed and now, they didn't have dependencies on each other.
 void BaseMemOpClusterMutation::clusterNeighboringMemOps(
-    ArrayRef<SUnit *> MemOps, ScheduleDAGInstrs *DAG) {
-  SmallVector<MemOpInfo, 32> MemOpRecords;
-  for (SUnit *SU : MemOps) {
-    const MachineInstr &MI = *SU->getInstr();
-    SmallVector<const MachineOperand *, 4> BaseOps;
-    int64_t Offset;
-    bool OffsetIsScalable;
-    unsigned Width;
-    if (TII->getMemOperandsWithOffsetWidth(MI, BaseOps, Offset,
-                                           OffsetIsScalable, Width, TRI)) {
-      MemOpRecords.push_back(MemOpInfo(SU, BaseOps, Offset, Width));
-
-      LLVM_DEBUG(dbgs() << "Num BaseOps: " << BaseOps.size() << ", Offset: "
-                        << Offset << ", OffsetIsScalable: " << OffsetIsScalable
-                        << ", Width: " << Width << "\n");
-    }
-#ifndef NDEBUG
-    for (auto *Op : BaseOps)
-      assert(Op);
-#endif
-  }
-  if (MemOpRecords.size() < 2)
-    return;
-
-  llvm::sort(MemOpRecords);
+    ArrayRef<MemOpInfo> MemOpRecords, bool FastCluster,
+    ScheduleDAGInstrs *DAG) {
+  // Keep track of the current cluster length and bytes for each SUnit.
+  DenseMap<unsigned, std::pair<unsigned, unsigned>> SUnit2ClusterInfo;
 
   // At this point, `MemOpRecords` array must hold atleast two mem ops. Try to
   // cluster mem ops collected within `MemOpRecords` array.
-  unsigned ClusterLength = 1;
-  unsigned CurrentClusterBytes = MemOpRecords[0].Width;
   for (unsigned Idx = 0, End = MemOpRecords.size(); Idx < (End - 1); ++Idx) {
     // Decision to cluster mem ops is taken based on target dependent logic
     auto MemOpa = MemOpRecords[Idx];
-    auto MemOpb = MemOpRecords[Idx + 1];
-    ++ClusterLength;
-    CurrentClusterBytes += MemOpb.Width;
-    if (!TII->shouldClusterMemOps(MemOpa.BaseOps, MemOpb.BaseOps, ClusterLength,
-                                  CurrentClusterBytes)) {
-      // Current mem ops pair could not be clustered, reset cluster length, and
-      // go to next pair
-      ClusterLength = 1;
-      CurrentClusterBytes = MemOpb.Width;
+
+    // Seek for the next load/store to do the cluster.
+    unsigned NextIdx = Idx + 1;
+    for (; NextIdx < End; ++NextIdx)
+      // Skip if MemOpb has been clustered already or has dependency with
+      // MemOpa.
+      if (!SUnit2ClusterInfo.count(MemOpRecords[NextIdx].SU->NodeNum) &&
+          (FastCluster ||
+           (!DAG->IsReachable(MemOpRecords[NextIdx].SU, MemOpa.SU) &&
+            !DAG->IsReachable(MemOpa.SU, MemOpRecords[NextIdx].SU))))
+        break;
+    if (NextIdx == End)
       continue;
+
+    auto MemOpb = MemOpRecords[NextIdx];
+    unsigned ClusterLength = 2;
+    unsigned CurrentClusterBytes = MemOpa.Width + MemOpb.Width;
+    if (SUnit2ClusterInfo.count(MemOpa.SU->NodeNum)) {
+      ClusterLength = SUnit2ClusterInfo[MemOpa.SU->NodeNum].first + 1;
+      CurrentClusterBytes =
+          SUnit2ClusterInfo[MemOpa.SU->NodeNum].second + MemOpb.Width;
     }
+
+    if (!TII->shouldClusterMemOps(MemOpa.BaseOps, MemOpb.BaseOps, ClusterLength,
+                                  CurrentClusterBytes))
+      continue;
 
     SUnit *SUa = MemOpa.SU;
     SUnit *SUb = MemOpb.SU;
@@ -1618,11 +1634,8 @@ void BaseMemOpClusterMutation::clusterNeighboringMemOps(
       std::swap(SUa, SUb);
 
     // FIXME: Is this check really required?
-    if (!DAG->addEdge(SUb, SDep(SUa, SDep::Cluster))) {
-      ClusterLength = 1;
-      CurrentClusterBytes = MemOpb.Width;
+    if (!DAG->addEdge(SUb, SDep(SUa, SDep::Cluster)))
       continue;
-    }
 
     LLVM_DEBUG(dbgs() << "Cluster ld/st SU(" << SUa->NodeNum << ") - SU("
                       << SUb->NodeNum << ")\n");
@@ -1656,42 +1669,95 @@ void BaseMemOpClusterMutation::clusterNeighboringMemOps(
       }
     }
 
+    SUnit2ClusterInfo[MemOpb.SU->NodeNum] = {ClusterLength,
+                                             CurrentClusterBytes};
+
     LLVM_DEBUG(dbgs() << "  Curr cluster length: " << ClusterLength
                       << ", Curr cluster bytes: " << CurrentClusterBytes
                       << "\n");
   }
 }
 
-/// Callback from DAG postProcessing to create cluster edges for loads.
-void BaseMemOpClusterMutation::apply(ScheduleDAGInstrs *DAG) {
-  // Map DAG NodeNum to a set of dependent MemOps in store chain.
-  DenseMap<unsigned, SmallVector<SUnit *, 4>> StoreChains;
-  for (SUnit &SU : DAG->SUnits) {
+void BaseMemOpClusterMutation::collectMemOpRecords(
+    std::vector<SUnit> &SUnits, SmallVectorImpl<MemOpInfo> &MemOpRecords) {
+  for (auto &SU : SUnits) {
     if ((IsLoad && !SU.getInstr()->mayLoad()) ||
         (!IsLoad && !SU.getInstr()->mayStore()))
       continue;
 
-    unsigned ChainPredID = DAG->SUnits.size();
-    for (const SDep &Pred : SU.Preds) {
-      // We only want to cluster the mem ops that have the same ctrl(non-data)
-      // pred so that they didn't have ctrl dependency for each other. But for
-      // store instrs, we can still cluster them if the pred is load instr.
-      if ((Pred.isCtrl() &&
-           (IsLoad ||
-            (Pred.getSUnit() && Pred.getSUnit()->getInstr()->mayStore()))) &&
-          !Pred.isArtificial()) {
-        ChainPredID = Pred.getSUnit()->NodeNum;
-        break;
-      }
-    }
-    // Insert the SU to corresponding store chain.
-    auto &Chain = StoreChains.FindAndConstruct(ChainPredID).second;
-    Chain.push_back(&SU);
-  }
+    const MachineInstr &MI = *SU.getInstr();
+    SmallVector<const MachineOperand *, 4> BaseOps;
+    int64_t Offset;
+    bool OffsetIsScalable;
+    unsigned Width;
+    if (TII->getMemOperandsWithOffsetWidth(MI, BaseOps, Offset,
+                                           OffsetIsScalable, Width, TRI)) {
+      MemOpRecords.push_back(MemOpInfo(&SU, BaseOps, Offset, Width));
 
-  // Iterate over the store chains.
-  for (auto &SCD : StoreChains)
-    clusterNeighboringMemOps(SCD.second, DAG);
+      LLVM_DEBUG(dbgs() << "Num BaseOps: " << BaseOps.size() << ", Offset: "
+                        << Offset << ", OffsetIsScalable: " << OffsetIsScalable
+                        << ", Width: " << Width << "\n");
+    }
+#ifndef NDEBUG
+    for (auto *Op : BaseOps)
+      assert(Op);
+#endif
+  }
+}
+
+bool BaseMemOpClusterMutation::groupMemOps(
+    ArrayRef<MemOpInfo> MemOps, ScheduleDAGInstrs *DAG,
+    DenseMap<unsigned, SmallVector<MemOpInfo, 32>> &Groups) {
+  bool FastCluster =
+      ForceFastCluster ||
+      MemOps.size() * DAG->SUnits.size() / 1000 > FastClusterThreshold;
+
+  for (const auto &MemOp : MemOps) {
+    unsigned ChainPredID = DAG->SUnits.size();
+    if (FastCluster) {
+      for (const SDep &Pred : MemOp.SU->Preds) {
+        // We only want to cluster the mem ops that have the same ctrl(non-data)
+        // pred so that they didn't have ctrl dependency for each other. But for
+        // store instrs, we can still cluster them if the pred is load instr.
+        if ((Pred.isCtrl() &&
+             (IsLoad ||
+              (Pred.getSUnit() && Pred.getSUnit()->getInstr()->mayStore()))) &&
+            !Pred.isArtificial()) {
+          ChainPredID = Pred.getSUnit()->NodeNum;
+          break;
+        }
+      }
+    } else
+      ChainPredID = 0;
+
+    Groups[ChainPredID].push_back(MemOp);
+  }
+  return FastCluster;
+}
+
+/// Callback from DAG postProcessing to create cluster edges for loads/stores.
+void BaseMemOpClusterMutation::apply(ScheduleDAGInstrs *DAG) {
+  // Collect all the clusterable loads/stores
+  SmallVector<MemOpInfo, 32> MemOpRecords;
+  collectMemOpRecords(DAG->SUnits, MemOpRecords);
+
+  if (MemOpRecords.size() < 2)
+    return;
+
+  // Put the loads/stores without dependency into the same group with some
+  // heuristic if the DAG is too complex to avoid compiling time blow up.
+  // Notice that, some fusion pair could be lost with this.
+  DenseMap<unsigned, SmallVector<MemOpInfo, 32>> Groups;
+  bool FastCluster = groupMemOps(MemOpRecords, DAG, Groups);
+
+  for (auto &Group : Groups) {
+    // Sorting the loads/stores, so that, we can stop the cluster as early as
+    // possible.
+    llvm::sort(Group.second);
+
+    // Trying to cluster all the neighboring loads/stores.
+    clusterNeighboringMemOps(Group.second, FastCluster, DAG);
+  }
 }
 
 //===----------------------------------------------------------------------===//
@@ -3390,13 +3456,13 @@ ScheduleDAGMILive *llvm::createGenericSchedLive(MachineSchedContext *C) {
   return DAG;
 }
 
-static ScheduleDAGInstrs *createConveringSched(MachineSchedContext *C) {
+static ScheduleDAGInstrs *createConvergingSched(MachineSchedContext *C) {
   return createGenericSchedLive(C);
 }
 
 static MachineSchedRegistry
 GenericSchedRegistry("converge", "Standard converging scheduler.",
-                     createConveringSched);
+                     createConvergingSched);
 
 //===----------------------------------------------------------------------===//
 // PostGenericScheduler - Generic PostRA implementation of MachineSchedStrategy.
@@ -3770,7 +3836,7 @@ struct DOTGraphTraits<ScheduleDAGMI*> : public DefaultDOTGraphTraits {
     return true;
   }
 
-  static bool isNodeHidden(const SUnit *Node) {
+  static bool isNodeHidden(const SUnit *Node, const ScheduleDAG *G) {
     if (ViewMISchedCutoff == 0)
       return false;
     return (Node->Preds.size() > ViewMISchedCutoff

@@ -24,6 +24,7 @@
 #include "llvm/MC/MCInstPrinter.h"
 #include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCObjectWriter.h"
+#include "llvm/MC/MCPseudoProbe.h"
 #include "llvm/MC/MCRegister.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSectionMachO.h"
@@ -144,6 +145,11 @@ public:
                               const MCSymbol *Aliasee) override;
 
   void emitLOHDirective(MCLOHType Kind, const MCLOHArgs &Args) override;
+
+  StringRef getMnemonic(MCInst &MI) override {
+    return InstPrinter->getMnemonic(&MI).first;
+  }
+
   void emitLabel(MCSymbol *Symbol, SMLoc Loc = SMLoc()) override;
 
   void emitAssemblerFlag(MCAssemblerFlag Flag) override;
@@ -344,6 +350,10 @@ public:
                           const MCSymbolRefExpr *To, uint64_t Count) override;
 
   void emitInstruction(const MCInst &Inst, const MCSubtargetInfo &STI) override;
+
+  void emitPseudoProbe(uint64_t Guid, uint64_t Index, uint64_t Type,
+                       uint64_t Attr,
+                       const MCPseudoProbeInlineStack &InlineStack) override;
 
   void emitBundleAlignMode(unsigned AlignPow2) override;
   void emitBundleLock(bool AlignToEnd) override;
@@ -971,6 +981,47 @@ void MCAsmStreamer::emitTBSSSymbol(MCSection *Section, MCSymbol *Symbol,
 
 static inline char toOctal(int X) { return (X&7)+'0'; }
 
+static void PrintByteList(StringRef Data, raw_ostream &OS,
+                          MCAsmInfo::AsmCharLiteralSyntax ACLS) {
+  assert(!Data.empty() && "Cannot generate an empty list.");
+  const auto printCharacterInOctal = [&OS](unsigned char C) {
+    OS << '0';
+    OS << toOctal(C >> 6);
+    OS << toOctal(C >> 3);
+    OS << toOctal(C >> 0);
+  };
+  const auto printOneCharacterFor = [printCharacterInOctal](
+                                        auto printOnePrintingCharacter) {
+    return [printCharacterInOctal, printOnePrintingCharacter](unsigned char C) {
+      if (isPrint(C)) {
+        printOnePrintingCharacter(static_cast<char>(C));
+        return;
+      }
+      printCharacterInOctal(C);
+    };
+  };
+  const auto printCharacterList = [Data, &OS](const auto &printOneCharacter) {
+    const auto BeginPtr = Data.begin(), EndPtr = Data.end();
+    for (const unsigned char C : make_range(BeginPtr, EndPtr - 1)) {
+      printOneCharacter(C);
+      OS << ',';
+    }
+    printOneCharacter(*(EndPtr - 1));
+  };
+  switch (ACLS) {
+  case MCAsmInfo::ACLS_Unknown:
+    printCharacterList(printCharacterInOctal);
+    return;
+  case MCAsmInfo::ACLS_SingleQuotePrefix:
+    printCharacterList(printOneCharacterFor([&OS](char C) {
+      const char AsmCharLitBuf[2] = {'\'', C};
+      OS << StringRef(AsmCharLitBuf, sizeof(AsmCharLitBuf));
+    }));
+    return;
+  }
+  llvm_unreachable("Invalid AsmCharLiteralSyntax value!");
+}
+
 static void PrintQuotedString(StringRef Data, raw_ostream &OS) {
   OS << '"';
 
@@ -1009,33 +1060,42 @@ void MCAsmStreamer::emitBytes(StringRef Data) {
          "Cannot emit contents before setting section!");
   if (Data.empty()) return;
 
-  // If only single byte is provided or no ascii or asciz directives is
-  // supported, emit as vector of 8bits data.
-  if (Data.size() == 1 ||
-      !(MAI->getAscizDirective() || MAI->getAsciiDirective())) {
-    if (MCTargetStreamer *TS = getTargetStreamer()) {
-      TS->emitRawBytes(Data);
+  const auto emitAsString = [this](StringRef Data) {
+    // If the data ends with 0 and the target supports .asciz, use it, otherwise
+    // use .ascii or a byte-list directive
+    if (MAI->getAscizDirective() && Data.back() == 0) {
+      OS << MAI->getAscizDirective();
+      Data = Data.substr(0, Data.size() - 1);
+    } else if (LLVM_LIKELY(MAI->getAsciiDirective())) {
+      OS << MAI->getAsciiDirective();
+    } else if (MAI->getByteListDirective()) {
+      OS << MAI->getByteListDirective();
+      PrintByteList(Data, OS, MAI->characterLiteralSyntax());
+      EmitEOL();
+      return true;
     } else {
-      const char *Directive = MAI->getData8bitsDirective();
-      for (const unsigned char C : Data.bytes()) {
-        OS << Directive << (unsigned)C;
-        EmitEOL();
-      }
+      return false;
     }
+
+    PrintQuotedString(Data, OS);
+    EmitEOL();
+    return true;
+  };
+
+  if (Data.size() != 1 && emitAsString(Data))
+    return;
+
+  // Only single byte is provided or no ascii, asciz, or byte-list directives
+  // are applicable. Emit as vector of individual 8bits data elements.
+  if (MCTargetStreamer *TS = getTargetStreamer()) {
+    TS->emitRawBytes(Data);
     return;
   }
-
-  // If the data ends with 0 and the target supports .asciz, use it, otherwise
-  // use .ascii
-  if (MAI->getAscizDirective() && Data.back() == 0) {
-    OS << MAI->getAscizDirective();
-    Data = Data.substr(0, Data.size()-1);
-  } else {
-    OS << MAI->getAsciiDirective();
+  const char *Directive = MAI->getData8bitsDirective();
+  for (const unsigned char C : Data.bytes()) {
+    OS << Directive << (unsigned)C;
+    EmitEOL();
   }
-
-  PrintQuotedString(Data, OS);
-  EmitEOL();
 }
 
 void MCAsmStreamer::emitBinaryData(StringRef Data) {
@@ -1822,8 +1882,11 @@ void MCAsmStreamer::EmitWinCFIEndProc(SMLoc Loc) {
   EmitEOL();
 }
 
-// TODO: Implement
 void MCAsmStreamer::EmitWinCFIFuncletOrFuncEnd(SMLoc Loc) {
+  MCStreamer::EmitWinCFIFuncletOrFuncEnd(Loc);
+
+  OS << "\t.seh_endfunclet";
+  EmitEOL();
 }
 
 void MCAsmStreamer::EmitWinCFIStartChained(SMLoc Loc) {
@@ -2061,6 +2124,18 @@ void MCAsmStreamer::emitInstruction(const MCInst &Inst,
   if (Comments.size() && Comments.back() != '\n')
     GetCommentOS() << "\n";
 
+  EmitEOL();
+}
+
+void MCAsmStreamer::emitPseudoProbe(
+    uint64_t Guid, uint64_t Index, uint64_t Type, uint64_t Attr,
+    const MCPseudoProbeInlineStack &InlineStack) {
+  OS << "\t.pseudoprobe\t" << Guid << " " << Index << " " << Type << " "
+     << Attr;
+  // Emit inline stack like
+  //  @ GUIDmain:3 @ GUIDCaller:1 @ GUIDDirectCaller:11
+  for (const auto &Site : InlineStack)
+    OS << " @ " << std::get<0>(Site) << ":" << std::get<1>(Site);
   EmitEOL();
 }
 

@@ -190,13 +190,13 @@ void SPIRVToOCL::visitCallSPRIVImageQuerySize(CallInst *CI) {
           GetImageSize,
           FixedVectorType::get(
               CI->getType()->getScalarType(),
-              cast<VectorType>(GetImageSize->getType())->getNumElements()),
+              cast<FixedVectorType>(GetImageSize->getType())->getNumElements()),
           false, CI->getName(), CI);
     }
   }
 
   if (ImgArray || ImgDim == 3) {
-    auto *VecTy = cast<VectorType>(CI->getType());
+    auto *VecTy = cast<FixedVectorType>(CI->getType());
     const unsigned ImgQuerySizeRetEls = VecTy->getNumElements();
 
     if (ImgDim == 1) {
@@ -224,7 +224,7 @@ void SPIRVToOCL::visitCallSPRIVImageQuerySize(CallInst *CI) {
   if (ImgArray) {
     assert((ImgDim == 1 || ImgDim == 2) && "invalid image array type");
     // Insert get_image_array_size to the last position of the resulting vector.
-    auto *VecTy = cast<VectorType>(CI->getType());
+    auto *VecTy = cast<FixedVectorType>(CI->getType());
     Type *SizeTy =
         Type::getIntNTy(*Ctx, M->getDataLayout().getPointerSizeInBits(0));
     Instruction *GetImageArraySize = addCallInst(
@@ -482,7 +482,7 @@ void SPIRVToOCL::visitCallSPIRVImageMediaBlockBuiltin(CallInst *CI, Op OC) {
         else
           assert(0 && "Unsupported texel type!");
 
-        if (auto *VecTy = dyn_cast<VectorType>(RetType)) {
+        if (auto *VecTy = dyn_cast<FixedVectorType>(RetType)) {
           unsigned int NumEl = VecTy->getNumElements();
           assert((NumEl == 2 || NumEl == 4 || NumEl == 8 || NumEl == 16) &&
                  "Wrong function type!");

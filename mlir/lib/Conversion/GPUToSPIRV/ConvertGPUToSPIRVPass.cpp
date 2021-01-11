@@ -18,9 +18,9 @@
 #include "mlir/Conversion/StandardToSPIRV/ConvertStandardToSPIRV.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/SPIRV/SPIRVDialect.h"
-#include "mlir/Dialect/SPIRV/SPIRVLowering.h"
-#include "mlir/Dialect/SPIRV/SPIRVOps.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
+#include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
 
 using namespace mlir;
 
@@ -64,7 +64,7 @@ void GPUToSPIRVPass::runOnOperation() {
   populateSCFToSPIRVPatterns(context, typeConverter,scfContext, patterns);
   populateStandardToSPIRVPatterns(context, typeConverter, patterns);
 
-  if (failed(applyFullConversion(kernelModules, *target, patterns)))
+  if (failed(applyFullConversion(kernelModules, *target, std::move(patterns))))
     return signalPassFailure();
 }
 

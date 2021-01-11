@@ -268,6 +268,11 @@ namespace llvm {
       return SU->SchedClass;
     }
 
+    /// IsReachable - Checks if SU is reachable from TargetSU.
+    bool IsReachable(SUnit *SU, SUnit *TargetSU) {
+      return Topo.IsReachable(SU, TargetSU);
+    }
+
     /// Returns an iterator to the top of the current scheduling region.
     MachineBasicBlock::iterator begin() const { return RegionBegin; }
 
@@ -361,16 +366,6 @@ namespace llvm {
     void addPhysRegDeps(SUnit *SU, unsigned OperIdx);
     void addVRegDefDeps(SUnit *SU, unsigned OperIdx);
     void addVRegUseDeps(SUnit *SU, unsigned OperIdx);
-
-    /// Initializes register live-range state for updating kills.
-    /// PostRA helper for rewriting kill flags.
-    void startBlockForKills(MachineBasicBlock *BB);
-
-    /// Toggles a register operand kill flag.
-    ///
-    /// Other adjustments may be made to the instruction if necessary. Return
-    /// true if the operand has been deleted, false if not.
-    void toggleKillFlag(MachineInstr &MI, MachineOperand &MO);
 
     /// Returns a mask for which lanes get read/written by the given (register)
     /// machine operand.

@@ -26,6 +26,7 @@ class AAResults;
 class AliasSet;
 class AliasSetTracker;
 class BasicBlock;
+class BlockFrequencyInfo;
 class IRBuilderBase;
 class Loop;
 class LoopInfo;
@@ -38,7 +39,6 @@ class ScalarEvolution;
 class SCEV;
 class SCEVExpander;
 class TargetLibraryInfo;
-class TargetTransformInfo;
 class LPPassManager;
 class Instruction;
 struct RuntimeCheckingPtrGroup;
@@ -110,9 +110,28 @@ bool formLCSSA(Loop &L, const DominatorTree &DT, const LoopInfo *LI,
 bool formLCSSARecursively(Loop &L, const DominatorTree &DT, const LoopInfo *LI,
                           ScalarEvolution *SE);
 
-struct SinkAndHoistLICMFlags {
-  bool NoOfMemAccTooLarge;
-  unsigned LicmMssaOptCounter;
+/// Flags controlling how much is checked when sinking or hoisting
+/// instructions.  The number of memory access in the loop (and whether there
+/// are too many) is determined in the constructors when using MemorySSA.
+class SinkAndHoistLICMFlags {
+public:
+  // Explicitly set limits.
+  SinkAndHoistLICMFlags(unsigned LicmMssaOptCap,
+                        unsigned LicmMssaNoAccForPromotionCap, bool IsSink,
+                        Loop *L = nullptr, MemorySSA *MSSA = nullptr);
+  // Use default limits.
+  SinkAndHoistLICMFlags(bool IsSink, Loop *L = nullptr,
+                        MemorySSA *MSSA = nullptr);
+
+  void setIsSink(bool B) { IsSink = B; }
+  bool getIsSink() { return IsSink; }
+  bool tooManyMemoryAccesses() { return NoOfMemAccTooLarge; }
+  bool tooManyClobberingCalls() { return LicmMssaOptCounter >= LicmMssaOptCap; }
+  void incrementClobberingCalls() { ++LicmMssaOptCounter; }
+
+protected:
+  bool NoOfMemAccTooLarge = false;
+  unsigned LicmMssaOptCounter = 0;
   unsigned LicmMssaOptCap;
   unsigned LicmMssaNoAccForPromotionCap;
   bool IsSink;
@@ -123,12 +142,13 @@ struct SinkAndHoistLICMFlags {
 /// reverse depth first order w.r.t the DominatorTree. This allows us to visit
 /// uses before definitions, allowing us to sink a loop body in one pass without
 /// iteration. Takes DomTreeNode, AAResults, LoopInfo, DominatorTree,
-/// TargetLibraryInfo, Loop, AliasSet information for all
+/// BlockFrequencyInfo, TargetLibraryInfo, Loop, AliasSet information for all
 /// instructions of the loop and loop safety information as
 /// arguments. Diagnostics is emitted via \p ORE. It returns changed status.
 bool sinkRegion(DomTreeNode *, AAResults *, LoopInfo *, DominatorTree *,
-                TargetLibraryInfo *, TargetTransformInfo *, Loop *,
-                AliasSetTracker *, MemorySSAUpdater *, ICFLoopSafetyInfo *,
+                BlockFrequencyInfo *, TargetLibraryInfo *,
+                TargetTransformInfo *, Loop *, AliasSetTracker *,
+                MemorySSAUpdater *, ICFLoopSafetyInfo *,
                 SinkAndHoistLICMFlags &, OptimizationRemarkEmitter *);
 
 /// Walk the specified region of the CFG (defined by all blocks
@@ -136,13 +156,14 @@ bool sinkRegion(DomTreeNode *, AAResults *, LoopInfo *, DominatorTree *,
 /// first order w.r.t the DominatorTree.  This allows us to visit definitions
 /// before uses, allowing us to hoist a loop body in one pass without iteration.
 /// Takes DomTreeNode, AAResults, LoopInfo, DominatorTree,
-/// TargetLibraryInfo, Loop, AliasSet information for all instructions of the
-/// loop and loop safety information as arguments. Diagnostics is emitted via \p
-/// ORE. It returns changed status.
+/// BlockFrequencyInfo, TargetLibraryInfo, Loop, AliasSet information for all
+/// instructions of the loop and loop safety information as arguments.
+/// Diagnostics is emitted via \p ORE. It returns changed status.
 bool hoistRegion(DomTreeNode *, AAResults *, LoopInfo *, DominatorTree *,
-                 TargetLibraryInfo *, Loop *, AliasSetTracker *,
-                 MemorySSAUpdater *, ScalarEvolution *, ICFLoopSafetyInfo *,
-                 SinkAndHoistLICMFlags &, OptimizationRemarkEmitter *);
+                 BlockFrequencyInfo *, TargetLibraryInfo *, Loop *,
+                 AliasSetTracker *, MemorySSAUpdater *, ScalarEvolution *,
+                 ICFLoopSafetyInfo *, SinkAndHoistLICMFlags &,
+                 OptimizationRemarkEmitter *);
 
 /// This function deletes dead loops. The caller of this function needs to
 /// guarantee that the loop is infact dead.
@@ -191,6 +212,13 @@ Optional<const MDOperand *> findStringMetadataForLoop(const Loop *TheLoop,
 
 /// Find named metadata for a loop with an integer value.
 llvm::Optional<int> getOptionalIntLoopAttribute(Loop *TheLoop, StringRef Name);
+
+/// Find a combination of metadata ("llvm.loop.vectorize.width" and
+/// "llvm.loop.vectorize.scalable.enable") for a loop and use it to construct a
+/// ElementCount. If the metadata "llvm.loop.vectorize.width" cannot be found
+/// then None is returned.
+Optional<ElementCount>
+getOptionalElementCountLoopAttribute(Loop *TheLoop);
 
 /// Create a new loop identifier for a loop created from a loop transformation.
 ///
@@ -268,6 +296,9 @@ TransformationMode hasLICMVersioningTransformation(Loop *L);
 /// different.
 void addStringMetadataToLoop(Loop *TheLoop, const char *MDString,
                              unsigned V = 0);
+
+/// Returns true if Name is applied to TheLoop and enabled.
+bool getBooleanLoopAttribute(const Loop *TheLoop, StringRef Name);
 
 /// Returns a loop's estimated trip count based on branch weight metadata.
 /// In addition if \p EstimatedLoopInvocationWeight is not null it is

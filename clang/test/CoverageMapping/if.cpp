@@ -1,5 +1,4 @@
-// RUN: %strip_comments > %t.stripped.cpp
-// RUN: %clang_cc1 -fprofile-instrument=clang -fcoverage-mapping -dump-coverage-mapping -emit-llvm-only -std=c++1z -triple %itanium_abi_triple -main-file-name if.cpp %t.stripped.cpp | FileCheck %s
+// RUN: %clang_cc1 -mllvm -emptyline-comment-coverage=false -fprofile-instrument=clang -fcoverage-mapping -dump-coverage-mapping -emit-llvm-only -std=c++1z -triple %itanium_abi_triple -main-file-name if.cpp %s | FileCheck %s
 
 int nop() { return 0; }
 
@@ -43,4 +42,11 @@ int main() {                    // CHECK: File 0, [[@LINE]]:12 -> {{[0-9]+}}:2 =
   i = i == 0?i + 12:i + 10;     // CHECK-NEXT: File 0, [[@LINE]]:21 -> [[@LINE]]:27 = (#0 - #6)
 
   return 0;
+}
+
+#define FOO true
+
+// CHECK-LABEL: _Z7ternaryv:
+void ternary() {
+  true ? FOO : FOO; // CHECK-NOT: Gap,{{.*}}, [[@LINE]]:8 ->
 }

@@ -20,6 +20,8 @@
 #include "llvm/IR/LegacyPassNameParser.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassTimingInfo.h"
+#include "llvm/IR/PrintPasses.h"
+#include "llvm/IR/StructuralHash.h"
 #include "llvm/Support/Chrono.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -48,7 +50,7 @@ namespace {
 enum PassDebugLevel {
   Disabled, Arguments, Structure, Executions, Details
 };
-}
+} // namespace
 
 static cl::opt<enum PassDebugLevel>
 PassDebugging("debug-pass", cl::Hidden,
@@ -60,80 +62,6 @@ PassDebugging("debug-pass", cl::Hidden,
   clEnumVal(Executions, "print pass name before it is executed"),
   clEnumVal(Details   , "print pass details when it is executed")));
 
-namespace {
-typedef llvm::cl::list<const llvm::PassInfo *, bool, PassNameParser>
-PassOptionList;
-}
-
-// Print IR out before/after specified passes.
-static PassOptionList
-PrintBefore("print-before",
-            llvm::cl::desc("Print IR before specified passes"),
-            cl::Hidden);
-
-static PassOptionList
-PrintAfter("print-after",
-           llvm::cl::desc("Print IR after specified passes"),
-           cl::Hidden);
-
-static cl::opt<bool> PrintBeforeAll("print-before-all",
-                                    llvm::cl::desc("Print IR before each pass"),
-                                    cl::init(false), cl::Hidden);
-static cl::opt<bool> PrintAfterAll("print-after-all",
-                                   llvm::cl::desc("Print IR after each pass"),
-                                   cl::init(false), cl::Hidden);
-
-static cl::opt<bool>
-    PrintModuleScope("print-module-scope",
-                     cl::desc("When printing IR for print-[before|after]{-all} "
-                              "always print a module IR"),
-                     cl::init(false), cl::Hidden);
-
-static cl::list<std::string>
-    PrintFuncsList("filter-print-funcs", cl::value_desc("function names"),
-                   cl::desc("Only print IR for functions whose name "
-                            "match this for all print-[before|after][-all] "
-                            "options"),
-                   cl::CommaSeparated, cl::Hidden);
-
-/// This is a helper to determine whether to print IR before or
-/// after a pass.
-
-bool llvm::shouldPrintBeforePass() {
-  return PrintBeforeAll || !PrintBefore.empty();
-}
-
-bool llvm::shouldPrintAfterPass() {
-  return PrintAfterAll || !PrintAfter.empty();
-}
-
-static bool ShouldPrintBeforeOrAfterPass(StringRef PassID,
-                                         PassOptionList &PassesToPrint) {
-  for (auto *PassInf : PassesToPrint) {
-    if (PassInf)
-      if (PassInf->getPassArgument() == PassID) {
-        return true;
-      }
-  }
-  return false;
-}
-
-bool llvm::shouldPrintBeforePass(StringRef PassID) {
-  return PrintBeforeAll || ShouldPrintBeforeOrAfterPass(PassID, PrintBefore);
-}
-
-bool llvm::shouldPrintAfterPass(StringRef PassID) {
-  return PrintAfterAll || ShouldPrintBeforeOrAfterPass(PassID, PrintAfter);
-}
-
-bool llvm::forcePrintModuleIR() { return PrintModuleScope; }
-
-bool llvm::isFunctionInPrintList(StringRef FunctionName) {
-  static std::unordered_set<std::string> PrintFuncNames(PrintFuncsList.begin(),
-                                                        PrintFuncsList.end());
-  return PrintFuncNames.empty() ||
-         PrintFuncNames.count(std::string(FunctionName));
-}
 /// isPassDebuggingExecutionsOrMore - Return true if -debug-pass=Executions
 /// or higher is specified.
 bool PMDataManager::isPassDebuggingExecutionsOrMore() const {
@@ -674,11 +602,9 @@ PMTopLevelManager::setLastUser(ArrayRef<Pass*> AnalysisPasses, Pass *P) {
 
     // If AP is the last user of other passes then make P last user of
     // such passes.
-    for (auto LU : LastUser) {
+    for (auto &LU : LastUser) {
       if (LU.second == AP)
-        // DenseMap iterator is not invalidated here because
-        // this is just updating existing entries.
-        LastUser[LU.first] = P;
+        LU.second = P;
     }
   }
 }
@@ -686,16 +612,12 @@ PMTopLevelManager::setLastUser(ArrayRef<Pass*> AnalysisPasses, Pass *P) {
 /// Collect passes whose last user is P
 void PMTopLevelManager::collectLastUses(SmallVectorImpl<Pass *> &LastUses,
                                         Pass *P) {
-  DenseMap<Pass *, SmallPtrSet<Pass *, 8> >::iterator DMI =
-    InversedLastUser.find(P);
+  auto DMI = InversedLastUser.find(P);
   if (DMI == InversedLastUser.end())
     return;
 
-  SmallPtrSet<Pass *, 8> &LU = DMI->second;
-  for (Pass *LUP : LU) {
-    LastUses.push_back(LUP);
-  }
-
+  auto &LU = DMI->second;
+  LastUses.append(LU.begin(), LU.end());
 }
 
 AnalysisUsage *PMTopLevelManager::findAnalysisUsage(Pass *P) {
@@ -1391,8 +1313,8 @@ PMDataManager::~PMDataManager() {
 //===----------------------------------------------------------------------===//
 // NOTE: Is this the right place to define this method ?
 // getAnalysisIfAvailable - Return analysis result or null if it doesn't exist.
-Pass *AnalysisResolver::getAnalysisIfAvailable(AnalysisID ID, bool dir) const {
-  return PM.findAnalysisPass(ID, dir);
+Pass *AnalysisResolver::getAnalysisIfAvailable(AnalysisID ID) const {
+  return PM.findAnalysisPass(ID, true);
 }
 
 std::tuple<Pass *, bool>
@@ -1475,75 +1397,6 @@ void FPPassManager::dumpPassStructure(unsigned Offset) {
   }
 }
 
-#ifdef EXPENSIVE_CHECKS
-namespace {
-namespace details {
-
-// Basic hashing mechanism to detect structural change to the IR, used to verify
-// pass return status consistency with actual change. Loosely copied from
-// llvm/lib/Transforms/Utils/FunctionComparator.cpp
-
-class StructuralHash {
-  uint64_t Hash = 0x6acaa36bef8325c5ULL;
-
-  void update(uint64_t V) { Hash = hashing::detail::hash_16_bytes(Hash, V); }
-
-public:
-  StructuralHash() = default;
-
-  void update(Function &F) {
-    if (F.empty())
-      return;
-
-    update(F.isVarArg());
-    update(F.arg_size());
-
-    SmallVector<const BasicBlock *, 8> BBs;
-    SmallPtrSet<const BasicBlock *, 16> VisitedBBs;
-
-    BBs.push_back(&F.getEntryBlock());
-    VisitedBBs.insert(BBs[0]);
-    while (!BBs.empty()) {
-      const BasicBlock *BB = BBs.pop_back_val();
-      update(45798); // Block header
-      for (auto &Inst : *BB)
-        update(Inst.getOpcode());
-
-      const Instruction *Term = BB->getTerminator();
-      for (unsigned i = 0, e = Term->getNumSuccessors(); i != e; ++i) {
-        if (!VisitedBBs.insert(Term->getSuccessor(i)).second)
-          continue;
-        BBs.push_back(Term->getSuccessor(i));
-      }
-    }
-  }
-
-  void update(Module &M) {
-    for (Function &F : M)
-      update(F);
-  }
-
-  uint64_t getHash() const { return Hash; }
-};
-
-} // namespace details
-
-uint64_t StructuralHash(Function &F) {
-  details::StructuralHash H;
-  H.update(F);
-  return H.getHash();
-}
-
-uint64_t StructuralHash(Module &M) {
-  details::StructuralHash H;
-  H.update(M);
-  return H.getHash();
-}
-
-} // end anonymous namespace
-
-#endif
-
 /// Execute all of the passes scheduled for execution by invoking
 /// runOnFunction method.  Keep track of whether any of the passes modifies
 /// the function, and if so, return true.
@@ -1590,7 +1443,7 @@ bool FPPassManager::runOnFunction(Function &F) {
       if (!LocalChanged && (RefHash != StructuralHash(F))) {
         llvm::errs() << "Pass modifies its input and doesn't report it: "
                      << FP->getPassName() << "\n";
-        assert(false && "Pass modifies its input and doesn't report it.");
+        llvm_unreachable("Pass modifies its input and doesn't report it");
       }
 #endif
 

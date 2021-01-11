@@ -76,25 +76,25 @@ static Value allocBuffer(const LinalgPromotionOptions &options,
   IntegerAttr alignment_attr;
   if (alignment.hasValue())
     alignment_attr =
-        IntegerAttr::get(IntegerType::get(64, ctx), alignment.getValue());
+        IntegerAttr::get(IntegerType::get(ctx, 64), alignment.getValue());
   if (!dynamicBuffers)
     if (auto cst = size.getDefiningOp<ConstantIndexOp>())
       return options.useAlloca
                  ? std_alloca(MemRefType::get(width * cst.getValue(),
-                                              IntegerType::get(8, ctx)),
+                                              IntegerType::get(ctx, 8)),
                               ValueRange{}, alignment_attr)
                        .value
                  : std_alloc(MemRefType::get(width * cst.getValue(),
-                                             IntegerType::get(8, ctx)),
+                                             IntegerType::get(ctx, 8)),
                              ValueRange{}, alignment_attr)
                        .value;
   Value mul =
       folded_std_muli(folder, folded_std_constant_index(folder, width), size);
   return options.useAlloca
-             ? std_alloca(MemRefType::get(-1, IntegerType::get(8, ctx)), mul,
+             ? std_alloca(MemRefType::get(-1, IntegerType::get(ctx, 8)), mul,
                           alignment_attr)
                    .value
-             : std_alloc(MemRefType::get(-1, IntegerType::get(8, ctx)), mul,
+             : std_alloc(MemRefType::get(-1, IntegerType::get(ctx, 8)), mul,
                          alignment_attr)
                    .value;
 }
@@ -161,15 +161,10 @@ struct LinalgOpInstancePromotionOptions {
   CopyCallbackFn copyInFn;
   CopyCallbackFn copyOutFn;
 
-  /// Allow the use of dynamicaly-sized buffers.
+  /// Allow the use of dynamically-sized buffers.
   bool dynamicBuffers;
   /// Alignment of promoted buffer.
   Optional<unsigned> alignment;
-};
-
-struct PromotionInfo {
-  Value fullLocalView;
-  Value partialLocalView;
 };
 } // namespace
 
@@ -233,10 +228,10 @@ LinalgOpInstancePromotionOptions::LinalgOpInstancePromotionOptions(
 // To account for general boundary effects, padding must be performed on the
 // boundary tiles. For now this is done with an unconditional `fill` op followed
 // by a partial `copy` op.
-static Optional<PromotionInfo>
-promoteSubviewAsNewBuffer(OpBuilder &b, Location loc, SubViewOp subView,
-                          LinalgOpInstancePromotionOptions const &options,
-                          OperationFolder *folder) {
+Optional<PromotionInfo> mlir::linalg::promoteSubviewAsNewBuffer(
+    OpBuilder &b, Location loc, SubViewOp subView,
+    AllocBufferCallbackFn allocationFn, OperationFolder *folder) {
+  ScopedContext scopedContext(b, loc);
   auto viewType = subView.getType();
   auto rank = viewType.getRank();
   SmallVector<Value, 4> fullSizes, partialSizes;
@@ -254,8 +249,7 @@ promoteSubviewAsNewBuffer(OpBuilder &b, Location loc, SubViewOp subView,
   SmallVector<int64_t, 4> dynSizes(fullSizes.size(), -1);
   // If a callback is not specified, then use the default implementation for
   // allocating the promoted buffer.
-  Optional<Value> fullLocalView =
-      options.allocationFn(b, subView, fullSizes, folder);
+  Optional<Value> fullLocalView = allocationFn(b, subView, fullSizes, folder);
   if (!fullLocalView)
     return {};
   auto zero = folded_std_constant_index(folder, 0);
@@ -279,8 +273,8 @@ promoteSubViews(OpBuilder &b, Location loc,
 
   for (auto v : options.subViews) {
     SubViewOp subView = cast<SubViewOp>(v.second.getDefiningOp());
-    Optional<PromotionInfo> promotionInfo =
-        promoteSubviewAsNewBuffer(b, loc, subView, options, folder);
+    Optional<PromotionInfo> promotionInfo = promoteSubviewAsNewBuffer(
+        b, loc, subView, options.allocationFn, folder);
     if (!promotionInfo)
       return {};
     promotionInfoMap[v.first] = *promotionInfo;
@@ -351,7 +345,7 @@ promoteSubViews(OpBuilder &b, LinalgOp op,
       opViews.push_back(view.value());
     }
   }
-  op.getOperation()->setOperands(0, opViews.size(), opViews);
+  op->setOperands(0, opViews.size(), opViews);
 
   OpBuilder::InsertionGuard guard(b);
   b.setInsertionPointAfter(op);

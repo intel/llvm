@@ -77,7 +77,7 @@ constexpr unsigned int ElemsPerAddrDecoding(unsigned int ElemsPerAddrEncoded) {
   return (1 << ElemsPerAddrEncoded);
 }
 
-namespace details {
+namespace detail {
 
 /// type traits
 template <typename T> struct is_esimd_vector {
@@ -100,10 +100,10 @@ struct is_esimd_scalar
 template <typename T>
 struct is_dword_type
     : std::integral_constant<
-          bool, std::is_same<int, typename std::remove_const<T>::type>::value ||
-                    std::is_same<unsigned int,
-                                 typename std::remove_const<T>::type>::value> {
-};
+          bool,
+          std::is_same<int, typename sycl::detail::remove_const_t<T>>::value ||
+              std::is_same<unsigned int,
+                           typename sycl::detail::remove_const_t<T>>::value> {};
 
 template <typename T, int N>
 struct is_dword_type<sycl::INTEL::gpu::vector_type<T, N>> {
@@ -119,9 +119,10 @@ template <typename T>
 struct is_word_type
     : std::integral_constant<
           bool,
-          std::is_same<short, typename std::remove_const<T>::type>::value ||
+          std::is_same<short,
+                       typename sycl::detail::remove_const_t<T>>::value ||
               std::is_same<unsigned short,
-                           typename std::remove_const<T>::type>::value> {};
+                           typename sycl::detail::remove_const_t<T>>::value> {};
 
 template <typename T, int N>
 struct is_word_type<sycl::INTEL::gpu::vector_type<T, N>> {
@@ -136,9 +137,9 @@ template <typename T>
 struct is_byte_type
     : std::integral_constant<
           bool,
-          std::is_same<char, typename std::remove_const<T>::type>::value ||
+          std::is_same<char, typename sycl::detail::remove_const_t<T>>::value ||
               std::is_same<unsigned char,
-                           typename std::remove_const<T>::type>::value> {};
+                           typename sycl::detail::remove_const_t<T>>::value> {};
 
 template <typename T, int N>
 struct is_byte_type<sycl::INTEL::gpu::vector_type<T, N>> {
@@ -152,31 +153,36 @@ template <typename T, int N> struct is_byte_type<sycl::INTEL::gpu::simd<T, N>> {
 template <typename T>
 struct is_fp_type
     : std::integral_constant<
-          bool,
-          std::is_same<float, typename std::remove_const<T>::type>::value> {};
+          bool, std::is_same<float,
+                             typename sycl::detail::remove_const_t<T>>::value> {
+};
 
 template <typename T>
 struct is_df_type
     : std::integral_constant<
-          bool,
-          std::is_same<double, typename std::remove_const<T>::type>::value> {};
+          bool, std::is_same<double,
+                             typename sycl::detail::remove_const_t<T>>::value> {
+};
 
 template <typename T>
 struct is_fp_or_dword_type
     : std::integral_constant<
           bool,
-          std::is_same<float, typename std::remove_const<T>::type>::value ||
-              std::is_same<int, typename std::remove_const<T>::type>::value ||
+          std::is_same<float,
+                       typename sycl::detail::remove_const_t<T>>::value ||
+              std::is_same<int,
+                           typename sycl::detail::remove_const_t<T>>::value ||
               std::is_same<unsigned int,
-                           typename std::remove_const<T>::type>::value> {};
+                           typename sycl::detail::remove_const_t<T>>::value> {};
 
 template <typename T>
 struct is_qword_type
     : std::integral_constant<
           bool,
-          std::is_same<long long, typename std::remove_const<T>::type>::value ||
+          std::is_same<long long,
+                       typename sycl::detail::remove_const_t<T>>::value ||
               std::is_same<unsigned long long,
-                           typename std::remove_const<T>::type>::value> {};
+                           typename sycl::detail::remove_const_t<T>>::value> {};
 
 template <typename T, int N>
 struct is_qword_type<sycl::INTEL::gpu::vector_type<T, N>> {
@@ -236,7 +242,7 @@ template <> struct word_type<int> { using type = short; };
 template <> struct word_type<uchar> { using type = ushort; };
 template <> struct word_type<uint> { using type = ushort; };
 
-} // namespace details
+} // namespace detail
 } // namespace gpu
 } // namespace INTEL
 } // namespace sycl

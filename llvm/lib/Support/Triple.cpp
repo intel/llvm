@@ -41,6 +41,7 @@ StringRef Triple::getArchTypeName(ArchType Kind) {
   case fpga_aocx:      return "fpga_aocx";
   case fpga_dep:
     return "fpga_dep";
+  case csky:           return "csky";
   case hexagon:        return "hexagon";
   case hsail64:        return "hsail64";
   case hsail:          return "hsail";
@@ -162,6 +163,7 @@ StringRef Triple::getArchTypePrefix(ArchType Kind) {
     return "fpga";
 
   case ve:          return "ve";
+  case csky:        return "csky";
   }
 }
 
@@ -336,6 +338,7 @@ Triple::ArchType Triple::getArchTypeForLLVMName(StringRef Name) {
       .Case("fpga_aocx", fpga_aocx)
       .Case("fpga_dep", fpga_dep)
       .Case("ve", ve)
+      .Case("csky", csky)
       .Default(UnknownArch);
 }
 
@@ -422,6 +425,7 @@ static Triple::ArchType parseArch(StringRef ArchName) {
                 .Case("arm64", Triple::aarch64)
                 .Case("arm64_32", Triple::aarch64_32)
                 .Case("arm", Triple::arm)
+                .Case("arm64e", Triple::aarch64)
                 .Case("armeb", Triple::armeb)
                 .Case("thumb", Triple::thumb)
                 .Case("thumbeb", Triple::thumbeb)
@@ -469,6 +473,7 @@ static Triple::ArchType parseArch(StringRef ArchName) {
                 .Case("ve", Triple::ve)
                 .Case("wasm32", Triple::wasm32)
                 .Case("wasm64", Triple::wasm64)
+                .Case("csky", Triple::csky)
                 .Default(Triple::UnknownArch);
 
   // Some architectures require special parsing logic just to compute the
@@ -603,6 +608,9 @@ static Triple::SubArchType parseSubArch(StringRef SubArchName) {
   if (SubArchName == "powerpcspe")
     return Triple::PPCSubArch_spe;
 
+  if (SubArchName == "arm64e")
+    return Triple::AArch64SubArch_arm64e;
+
   StringRef ARMSubArch = ARM::getCanonicalArchName(SubArchName);
 
   // For now, this is the small part. Early return.
@@ -663,6 +671,8 @@ static Triple::SubArchType parseSubArch(StringRef SubArchName) {
     return Triple::ARMSubArch_v8_5a;
   case ARM::ArchKind::ARMV8_6A:
     return Triple::ARMSubArch_v8_6a;
+  case ARM::ArchKind::ARMV8_7A:
+    return Triple::ARMSubArch_v8_7a;
   case ARM::ArchKind::ARMV8R:
     return Triple::ARMSubArch_v8r;
   case ARM::ArchKind::ARMV8MBaseline:
@@ -717,6 +727,7 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
   case Triple::fpga_aocr:
   case Triple::fpga_aocx:
   case Triple::fpga_dep:
+  case Triple::csky:
   case Triple::hexagon:
   case Triple::hsail64:
   case Triple::hsail:
@@ -1294,6 +1305,7 @@ static unsigned getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
   case llvm::Triple::fpga_aocr:
   case llvm::Triple::fpga_aocx:
   case llvm::Triple::fpga_dep:
+  case llvm::Triple::csky:
   case llvm::Triple::hexagon:
   case llvm::Triple::hsail:
   case llvm::Triple::kalimba:
@@ -1381,6 +1393,7 @@ Triple Triple::get32BitArchVariant() const {
   case Triple::fpga_aocr:
   case Triple::fpga_aocx:
   case Triple::fpga_dep:
+  case Triple::csky:
   case Triple::hexagon:
   case Triple::hsail:
   case Triple::kalimba:
@@ -1436,6 +1449,7 @@ Triple Triple::get64BitArchVariant() const {
   case Triple::fpga_aocr:
   case Triple::fpga_aocx:
   case Triple::fpga_dep:
+  case Triple::csky:
   case Triple::hexagon:
   case Triple::kalimba:
   case Triple::lanai:
@@ -1529,6 +1543,7 @@ Triple Triple::getBigEndianArchVariant() const {
   case Triple::x86_64:
   case Triple::xcore:
   case Triple::ve:
+  case Triple::csky:
 
   // ARM is intentionally unsupported here, changing the architecture would
   // drop any arch suffixes.
@@ -1592,6 +1607,7 @@ bool Triple::isLittleEndian() const {
   case Triple::arm:
   case Triple::avr:
   case Triple::bpfel:
+  case Triple::csky:
   case Triple::hexagon:
   case Triple::hsail64:
   case Triple::hsail:
@@ -1688,6 +1704,9 @@ VersionTuple Triple::getMinimumSupportedOSVersion() const {
     // ARM64 slice is supported starting from Mac Catalyst 14 (macOS 11).
     // ARM64 simulators are supported for iOS 14+.
     if (isMacCatalystEnvironment() || isSimulatorEnvironment())
+      return VersionTuple(14, 0, 0);
+    // ARM64e slice is supported starting from iOS 14.
+    if (isArm64e())
       return VersionTuple(14, 0, 0);
     break;
   case Triple::TvOS:

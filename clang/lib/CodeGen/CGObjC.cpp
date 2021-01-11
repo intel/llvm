@@ -23,6 +23,7 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/BinaryFormat/MachO.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/InlineAsm.h"
 using namespace clang;
@@ -445,6 +446,75 @@ CodeGen::RValue CGObjCRuntime::GeneratePossiblySpecializedMessageSend(
                              Method);
 }
 
+static void AppendFirstImpliedRuntimeProtocols(
+    const ObjCProtocolDecl *PD,
+    llvm::UniqueVector<const ObjCProtocolDecl *> &PDs) {
+  if (!PD->isNonRuntimeProtocol()) {
+    const auto *Can = PD->getCanonicalDecl();
+    PDs.insert(Can);
+    return;
+  }
+
+  for (const auto *ParentPD : PD->protocols())
+    AppendFirstImpliedRuntimeProtocols(ParentPD, PDs);
+}
+
+std::vector<const ObjCProtocolDecl *>
+CGObjCRuntime::GetRuntimeProtocolList(ObjCProtocolDecl::protocol_iterator begin,
+                                      ObjCProtocolDecl::protocol_iterator end) {
+  std::vector<const ObjCProtocolDecl *> RuntimePds;
+  llvm::DenseSet<const ObjCProtocolDecl *> NonRuntimePDs;
+
+  for (; begin != end; ++begin) {
+    const auto *It = *begin;
+    const auto *Can = It->getCanonicalDecl();
+    if (Can->isNonRuntimeProtocol())
+      NonRuntimePDs.insert(Can);
+    else
+      RuntimePds.push_back(Can);
+  }
+
+  // If there are no non-runtime protocols then we can just stop now.
+  if (NonRuntimePDs.empty())
+    return RuntimePds;
+
+  // Else we have to search through the non-runtime protocol's inheritancy
+  // hierarchy DAG stopping whenever a branch either finds a runtime protocol or
+  // a non-runtime protocol without any parents. These are the "first-implied"
+  // protocols from a non-runtime protocol.
+  llvm::UniqueVector<const ObjCProtocolDecl *> FirstImpliedProtos;
+  for (const auto *PD : NonRuntimePDs)
+    AppendFirstImpliedRuntimeProtocols(PD, FirstImpliedProtos);
+
+  // Walk the Runtime list to get all protocols implied via the inclusion of
+  // this protocol, e.g. all protocols it inherits from including itself.
+  llvm::DenseSet<const ObjCProtocolDecl *> AllImpliedProtocols;
+  for (const auto *PD : RuntimePds) {
+    const auto *Can = PD->getCanonicalDecl();
+    AllImpliedProtocols.insert(Can);
+    Can->getImpliedProtocols(AllImpliedProtocols);
+  }
+
+  // Similar to above, walk the list of first-implied protocols to find the set
+  // all the protocols implied excluding the listed protocols themselves since
+  // they are not yet a part of the `RuntimePds` list.
+  for (const auto *PD : FirstImpliedProtos) {
+    PD->getImpliedProtocols(AllImpliedProtocols);
+  }
+
+  // From the first-implied list we have to finish building the final protocol
+  // list. If a protocol in the first-implied list was already implied via some
+  // inheritance path through some other protocols then it would be redundant to
+  // add it here and so we skip over it.
+  for (const auto *PD : FirstImpliedProtos) {
+    if (!AllImpliedProtocols.contains(PD)) {
+      RuntimePds.push_back(PD);
+    }
+  }
+
+  return RuntimePds;
+}
+
 /// Instead of '[[MyClass alloc] init]', try to generate
 /// 'objc_alloc_init(MyClass)'. This provides a code size improvement on the
 /// caller side, as well as the optimized objc_alloc.
@@ -850,8 +920,9 @@ PropertyImplStrategy::PropertyImplStrategy(CodeGenModule &CGM,
   // Evaluate the ivar's size and alignment.
   ObjCIvarDecl *ivar = propImpl->getPropertyIvarDecl();
   QualType ivarType = ivar->getType();
-  std::tie(IvarSize, IvarAlignment) =
-      CGM.getContext().getTypeInfoInChars(ivarType);
+  auto TInfo = CGM.getContext().getTypeInfoInChars(ivarType);
+  IvarSize = TInfo.Width;
+  IvarAlignment = TInfo.Align;
 
   // If we have a copy property, we always have to use getProperty/setProperty.
   // TODO: we could actually use setProperty and an expression for non-atomics.
@@ -1449,9 +1520,9 @@ CodeGenFunction::generateObjCSetterBody(const ObjCImplementationDecl *classImpl,
   ValueDecl *selfDecl = setterMethod->getSelfDecl();
   DeclRefExpr self(getContext(), selfDecl, false, selfDecl->getType(),
                    VK_LValue, SourceLocation());
-  ImplicitCastExpr selfLoad(ImplicitCastExpr::OnStack,
-                            selfDecl->getType(), CK_LValueToRValue, &self,
-                            VK_RValue);
+  ImplicitCastExpr selfLoad(ImplicitCastExpr::OnStack, selfDecl->getType(),
+                            CK_LValueToRValue, &self, VK_RValue,
+                            FPOptionsOverride());
   ObjCIvarRefExpr ivarRef(ivar, ivar->getType().getNonReferenceType(),
                           SourceLocation(), SourceLocation(),
                           &selfLoad, true, true);
@@ -1462,7 +1533,7 @@ CodeGenFunction::generateObjCSetterBody(const ObjCImplementationDecl *classImpl,
                   SourceLocation());
   ImplicitCastExpr argLoad(ImplicitCastExpr::OnStack,
                            argType.getUnqualifiedType(), CK_LValueToRValue,
-                           &arg, VK_RValue);
+                           &arg, VK_RValue, FPOptionsOverride());
 
   // The property type can differ from the ivar type in some situations with
   // Objective-C pointer types, we can always bit cast the RHS in these cases.
@@ -1483,9 +1554,8 @@ CodeGenFunction::generateObjCSetterBody(const ObjCImplementationDecl *classImpl,
   } else if (ivarRef.getType()->isPointerType()) {
     argCK = CK_BitCast;
   }
-  ImplicitCastExpr argCast(ImplicitCastExpr::OnStack,
-                           ivarRef.getType(), argCK, &argLoad,
-                           VK_RValue);
+  ImplicitCastExpr argCast(ImplicitCastExpr::OnStack, ivarRef.getType(), argCK,
+                           &argLoad, VK_RValue, FPOptionsOverride());
   Expr *finalArg = &argLoad;
   if (!getContext().hasSameUnqualifiedType(ivarRef.getType(),
                                            argLoad.getType()))
@@ -2150,6 +2220,12 @@ static llvm::Value *emitObjCValueOperation(CodeGenFunction &CGF,
 
   // Call the function.
   llvm::CallBase *Inst = CGF.EmitCallOrInvoke(fn, value);
+
+  // Mark calls to objc_autorelease as tail on the assumption that methods
+  // overriding autorelease do not touch anything on the stack.
+  if (fnName == "objc_autorelease")
+    if (auto *Call = dyn_cast<llvm::CallInst>(Inst))
+      Call->setTailCall();
 
   // Cast the result back to the original type.
   return CGF.Builder.CreateBitCast(Inst, origType);
@@ -3745,9 +3821,61 @@ CodeGenFunction::EmitBlockCopyAndAutorelease(llvm::Value *Block, QualType Ty) {
   return Val;
 }
 
+static unsigned getBaseMachOPlatformID(const llvm::Triple &TT) {
+  switch (TT.getOS()) {
+  case llvm::Triple::Darwin:
+  case llvm::Triple::MacOSX:
+    return llvm::MachO::PLATFORM_MACOS;
+  case llvm::Triple::IOS:
+    return llvm::MachO::PLATFORM_IOS;
+  case llvm::Triple::TvOS:
+    return llvm::MachO::PLATFORM_TVOS;
+  case llvm::Triple::WatchOS:
+    return llvm::MachO::PLATFORM_WATCHOS;
+  default:
+    return /*Unknown platform*/ 0;
+  }
+}
+
+static llvm::Value *emitIsPlatformVersionAtLeast(CodeGenFunction &CGF,
+                                                 const VersionTuple &Version) {
+  CodeGenModule &CGM = CGF.CGM;
+  // Note: we intend to support multi-platform version checks, so reserve
+  // the room for a dual platform checking invocation that will be
+  // implemented in the future.
+  llvm::SmallVector<llvm::Value *, 8> Args;
+
+  auto EmitArgs = [&](const VersionTuple &Version, const llvm::Triple &TT) {
+    Optional<unsigned> Min = Version.getMinor(), SMin = Version.getSubminor();
+    Args.push_back(
+        llvm::ConstantInt::get(CGM.Int32Ty, getBaseMachOPlatformID(TT)));
+    Args.push_back(llvm::ConstantInt::get(CGM.Int32Ty, Version.getMajor()));
+    Args.push_back(llvm::ConstantInt::get(CGM.Int32Ty, Min ? *Min : 0));
+    Args.push_back(llvm::ConstantInt::get(CGM.Int32Ty, SMin ? *SMin : 0));
+  };
+
+  assert(!Version.empty() && "unexpected empty version");
+  EmitArgs(Version, CGM.getTarget().getTriple());
+
+  if (!CGM.IsPlatformVersionAtLeastFn) {
+    llvm::FunctionType *FTy = llvm::FunctionType::get(
+        CGM.Int32Ty, {CGM.Int32Ty, CGM.Int32Ty, CGM.Int32Ty, CGM.Int32Ty},
+        false);
+    CGM.IsPlatformVersionAtLeastFn =
+        CGM.CreateRuntimeFunction(FTy, "__isPlatformVersionAtLeast");
+  }
+
+  llvm::Value *Check =
+      CGF.EmitNounwindRuntimeCall(CGM.IsPlatformVersionAtLeastFn, Args);
+  return CGF.Builder.CreateICmpNE(Check,
+                                  llvm::Constant::getNullValue(CGM.Int32Ty));
+}
+
 llvm::Value *
-CodeGenFunction::EmitBuiltinAvailable(ArrayRef<llvm::Value *> Args) {
-  assert(Args.size() == 3 && "Expected 3 argument here!");
+CodeGenFunction::EmitBuiltinAvailable(const VersionTuple &Version) {
+  // Darwin uses the new __isPlatformVersionAtLeast family of routines.
+  if (CGM.getTarget().getTriple().isOSDarwin())
+    return emitIsPlatformVersionAtLeast(*this, Version);
 
   if (!CGM.IsOSVersionAtLeastFn) {
     llvm::FunctionType *FTy =
@@ -3756,17 +3884,50 @@ CodeGenFunction::EmitBuiltinAvailable(ArrayRef<llvm::Value *> Args) {
         CGM.CreateRuntimeFunction(FTy, "__isOSVersionAtLeast");
   }
 
+  Optional<unsigned> Min = Version.getMinor(), SMin = Version.getSubminor();
+  llvm::Value *Args[] = {
+      llvm::ConstantInt::get(CGM.Int32Ty, Version.getMajor()),
+      llvm::ConstantInt::get(CGM.Int32Ty, Min ? *Min : 0),
+      llvm::ConstantInt::get(CGM.Int32Ty, SMin ? *SMin : 0),
+  };
+
   llvm::Value *CallRes =
       EmitNounwindRuntimeCall(CGM.IsOSVersionAtLeastFn, Args);
 
   return Builder.CreateICmpNE(CallRes, llvm::Constant::getNullValue(Int32Ty));
 }
 
+static bool isFoundationNeededForDarwinAvailabilityCheck(
+    const llvm::Triple &TT, const VersionTuple &TargetVersion) {
+  VersionTuple FoundationDroppedInVersion;
+  switch (TT.getOS()) {
+  case llvm::Triple::IOS:
+  case llvm::Triple::TvOS:
+    FoundationDroppedInVersion = VersionTuple(/*Major=*/13);
+    break;
+  case llvm::Triple::WatchOS:
+    FoundationDroppedInVersion = VersionTuple(/*Major=*/6);
+    break;
+  case llvm::Triple::Darwin:
+  case llvm::Triple::MacOSX:
+    FoundationDroppedInVersion = VersionTuple(/*Major=*/10, /*Minor=*/15);
+    break;
+  default:
+    llvm_unreachable("Unexpected OS");
+  }
+  return TargetVersion < FoundationDroppedInVersion;
+}
+
 void CodeGenModule::emitAtAvailableLinkGuard() {
-  if (!IsOSVersionAtLeastFn)
+  if (!IsPlatformVersionAtLeastFn)
     return;
   // @available requires CoreFoundation only on Darwin.
   if (!Target.getTriple().isOSDarwin())
+    return;
+  // @available doesn't need Foundation on macOS 10.15+, iOS/tvOS 13+, or
+  // watchOS 6+.
+  if (!isFoundationNeededForDarwinAvailabilityCheck(
+          Target.getTriple(), Target.getPlatformMinVersion()))
     return;
   // Add -framework CoreFoundation to the linker commands. We still want to
   // emit the core foundation reference down below because otherwise if

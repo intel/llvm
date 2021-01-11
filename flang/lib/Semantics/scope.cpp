@@ -49,13 +49,6 @@ std::string EquivalenceObject::AsFortran() const {
   return ss.str();
 }
 
-bool Scope::IsModule() const {
-  return kind_ == Kind::Module && !symbol_->get<ModuleDetails>().isSubmodule();
-}
-bool Scope::IsSubmodule() const {
-  return kind_ == Kind::Module && symbol_->get<ModuleDetails>().isSubmodule();
-}
-
 Scope &Scope::MakeScope(Kind kind, Symbol *symbol) {
   return children_.emplace_back(*this, kind, symbol);
 }
@@ -111,14 +104,6 @@ Symbol *Scope::FindComponent(SourceName name) const {
     return parent->FindComponent(name);
   } else {
     return nullptr;
-  }
-}
-
-std::optional<SourceName> Scope::GetName() const {
-  if (const auto *sym{GetSymbol()}) {
-    return sym->name();
-  } else {
-    return std::nullopt;
   }
 }
 
@@ -215,14 +200,6 @@ const DeclTypeSpec &Scope::MakeCharacterType(
 DeclTypeSpec &Scope::MakeDerivedType(
     DeclTypeSpec::Category category, DerivedTypeSpec &&spec) {
   return declTypeSpecs_.emplace_back(category, std::move(spec));
-}
-
-void Scope::set_chars(parser::CookedSource &cooked) {
-  CHECK(kind_ == Kind::Module);
-  CHECK(parent_.IsGlobal() || parent_.IsModuleFile());
-  CHECK(DEREF(symbol_).test(Symbol::Flag::ModFile));
-  // TODO: Preserve the CookedSource rather than acquiring its string.
-  chars_ = cooked.AcquireData();
 }
 
 Scope::ImportKind Scope::GetImportKind() const {

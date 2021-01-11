@@ -37,11 +37,22 @@ void OpenMPDialect::initialize() {
 // ParallelOp
 //===----------------------------------------------------------------------===//
 
+void ParallelOp::build(OpBuilder &builder, OperationState &state,
+                       ArrayRef<NamedAttribute> attributes) {
+  ParallelOp::build(
+      builder, state, /*if_expr_var=*/nullptr, /*num_threads_var=*/nullptr,
+      /*default_val=*/nullptr, /*private_vars=*/ValueRange(),
+      /*firstprivate_vars=*/ValueRange(), /*shared_vars=*/ValueRange(),
+      /*copyin_vars=*/ValueRange(), /*allocate_vars=*/ValueRange(),
+      /*allocators_vars=*/ValueRange(), /*proc_bind_val=*/nullptr);
+  state.addAttributes(attributes);
+}
+
 /// Parse a list of operands with types.
 ///
 /// operand-and-type-list ::= `(` ssa-id-and-type-list `)`
 /// ssa-id-and-type-list ::= ssa-id-and-type |
-///                          ssa-id-and-type ',' ssa-id-and-type-list
+///                          ssa-id-and-type `,` ssa-id-and-type-list
 /// ssa-id-and-type ::= ssa-id `:` type
 static ParseResult
 parseOperandAndTypeList(OpAsmParser &parser,
@@ -65,6 +76,52 @@ parseOperandAndTypeList(OpAsmParser &parser,
   return success();
 }
 
+/// Parse an allocate clause with allocators and a list of operands with types.
+///
+/// operand-and-type-list ::= `(` allocate-operand-list `)`
+/// allocate-operand-list :: = allocate-operand |
+///                            allocator-operand `,` allocate-operand-list
+/// allocate-operand :: = ssa-id-and-type -> ssa-id-and-type
+/// ssa-id-and-type ::= ssa-id `:` type
+static ParseResult parseAllocateAndAllocator(
+    OpAsmParser &parser,
+    SmallVectorImpl<OpAsmParser::OperandType> &operandsAllocate,
+    SmallVectorImpl<Type> &typesAllocate,
+    SmallVectorImpl<OpAsmParser::OperandType> &operandsAllocator,
+    SmallVectorImpl<Type> &typesAllocator) {
+  if (parser.parseLParen())
+    return failure();
+
+  do {
+    OpAsmParser::OperandType operand;
+    Type type;
+
+    if (parser.parseOperand(operand) || parser.parseColonType(type))
+      return failure();
+    operandsAllocator.push_back(operand);
+    typesAllocator.push_back(type);
+    if (parser.parseArrow())
+      return failure();
+    if (parser.parseOperand(operand) || parser.parseColonType(type))
+      return failure();
+
+    operandsAllocate.push_back(operand);
+    typesAllocate.push_back(type);
+  } while (succeeded(parser.parseOptionalComma()));
+
+  if (parser.parseRParen())
+    return failure();
+
+  return success();
+}
+
+static LogicalResult verifyParallelOp(ParallelOp op) {
+  if (op.allocate_vars().size() != op.allocators_vars().size())
+    return op.emitError(
+        "expected equal sizes for allocate and allocator variables");
+  return success();
+}
+
 static void printParallelOp(OpAsmPrinter &p, ParallelOp op) {
   p << "omp.parallel";
 
@@ -84,10 +141,26 @@ static void printParallelOp(OpAsmPrinter &p, ParallelOp op) {
       }
     }
   };
+
+  // Print allocator and allocate parameters
+  auto printAllocateAndAllocator = [&p](OperandRange varsAllocate,
+                                        OperandRange varsAllocator) {
+    if (varsAllocate.empty())
+      return;
+
+    p << " allocate(";
+    for (unsigned i = 0; i < varsAllocate.size(); ++i) {
+      std::string separator = i == varsAllocate.size() - 1 ? ")" : ", ";
+      p << varsAllocator[i] << " : " << varsAllocator[i].getType() << " -> ";
+      p << varsAllocate[i] << " : " << varsAllocate[i].getType() << separator;
+    }
+  };
+
   printDataVars("private", op.private_vars());
   printDataVars("firstprivate", op.firstprivate_vars());
   printDataVars("shared", op.shared_vars());
   printDataVars("copyin", op.copyin_vars());
+  printAllocateAndAllocator(op.allocate_vars(), op.allocators_vars());
 
   if (auto def = op.default_val())
     p << " default(" << def->drop_front(3) << ")";
@@ -118,6 +191,7 @@ static ParseResult allowedOnce(OpAsmParser &parser, llvm::StringRef clause,
 /// firstprivate ::= `firstprivate` operand-and-type-list
 /// shared ::= `shared` operand-and-type-list
 /// copyin ::= `copyin` operand-and-type-list
+/// allocate ::= `allocate` operand-and-type `->` operand-and-type-list
 /// default ::= `default` `(` (`private` | `firstprivate` | `shared` | `none`)
 /// procBind ::= `proc_bind` `(` (`master` | `close` | `spread`) `)`
 ///
@@ -126,15 +200,19 @@ static ParseResult parseParallelOp(OpAsmParser &parser,
                                    OperationState &result) {
   std::pair<OpAsmParser::OperandType, Type> ifCond;
   std::pair<OpAsmParser::OperandType, Type> numThreads;
-  llvm::SmallVector<OpAsmParser::OperandType, 4> privates;
-  llvm::SmallVector<Type, 4> privateTypes;
-  llvm::SmallVector<OpAsmParser::OperandType, 4> firstprivates;
-  llvm::SmallVector<Type, 4> firstprivateTypes;
-  llvm::SmallVector<OpAsmParser::OperandType, 4> shareds;
-  llvm::SmallVector<Type, 4> sharedTypes;
-  llvm::SmallVector<OpAsmParser::OperandType, 4> copyins;
-  llvm::SmallVector<Type, 4> copyinTypes;
-  std::array<int, 6> segments{0, 0, 0, 0, 0, 0};
+  SmallVector<OpAsmParser::OperandType, 4> privates;
+  SmallVector<Type, 4> privateTypes;
+  SmallVector<OpAsmParser::OperandType, 4> firstprivates;
+  SmallVector<Type, 4> firstprivateTypes;
+  SmallVector<OpAsmParser::OperandType, 4> shareds;
+  SmallVector<Type, 4> sharedTypes;
+  SmallVector<OpAsmParser::OperandType, 4> copyins;
+  SmallVector<Type, 4> copyinTypes;
+  SmallVector<OpAsmParser::OperandType, 4> allocates;
+  SmallVector<Type, 4> allocateTypes;
+  SmallVector<OpAsmParser::OperandType, 4> allocators;
+  SmallVector<Type, 4> allocatorTypes;
+  std::array<int, 8> segments{0, 0, 0, 0, 0, 0, 0, 0};
   llvm::StringRef keyword;
   bool defaultVal = false;
   bool procBind = false;
@@ -145,6 +223,8 @@ static ParseResult parseParallelOp(OpAsmParser &parser,
   const int firstprivateClausePos = 3;
   const int sharedClausePos = 4;
   const int copyinClausePos = 5;
+  const int allocateClausePos = 6;
+  const int allocatorPos = 7;
   const llvm::StringRef opName = result.name.getStringRef();
 
   while (succeeded(parser.parseOptionalKeyword(&keyword))) {
@@ -192,6 +272,15 @@ static ParseResult parseParallelOp(OpAsmParser &parser,
       if (parseOperandAndTypeList(parser, copyins, copyinTypes))
         return failure();
       segments[copyinClausePos] = copyins.size();
+    } else if (keyword == "allocate") {
+      // fail if there was already another allocate clause
+      if (segments[allocateClausePos])
+        return allowedOnce(parser, "allocate", opName);
+      if (parseAllocateAndAllocator(parser, allocates, allocateTypes,
+                                    allocators, allocatorTypes))
+        return failure();
+      segments[allocateClausePos] = allocates.size();
+      segments[allocatorPos] = allocators.size();
     } else if (keyword == "default") {
       // fail if there was already another default clause
       if (defaultVal)
@@ -227,53 +316,79 @@ static ParseResult parseParallelOp(OpAsmParser &parser,
   }
 
   // Add if parameter
-  if (segments[ifClausePos]) {
-    parser.resolveOperand(ifCond.first, ifCond.second, result.operands);
-  }
+  if (segments[ifClausePos] &&
+      parser.resolveOperand(ifCond.first, ifCond.second, result.operands))
+    return failure();
 
   // Add num_threads parameter
-  if (segments[numThreadsClausePos]) {
-    parser.resolveOperand(numThreads.first, numThreads.second, result.operands);
-  }
+  if (segments[numThreadsClausePos] &&
+      parser.resolveOperand(numThreads.first, numThreads.second,
+                            result.operands))
+    return failure();
 
   // Add private parameters
-  if (segments[privateClausePos]) {
-    parser.resolveOperands(privates, privateTypes, privates[0].location,
-                           result.operands);
-  }
+  if (segments[privateClausePos] &&
+      parser.resolveOperands(privates, privateTypes, privates[0].location,
+                             result.operands))
+    return failure();
 
   // Add firstprivate parameters
-  if (segments[firstprivateClausePos]) {
-    parser.resolveOperands(firstprivates, firstprivateTypes,
-                           firstprivates[0].location, result.operands);
-  }
+  if (segments[firstprivateClausePos] &&
+      parser.resolveOperands(firstprivates, firstprivateTypes,
+                             firstprivates[0].location, result.operands))
+    return failure();
 
   // Add shared parameters
-  if (segments[sharedClausePos]) {
-    parser.resolveOperands(shareds, sharedTypes, shareds[0].location,
-                           result.operands);
-  }
+  if (segments[sharedClausePos] &&
+      parser.resolveOperands(shareds, sharedTypes, shareds[0].location,
+                             result.operands))
+    return failure();
 
   // Add copyin parameters
-  if (segments[copyinClausePos]) {
-    parser.resolveOperands(copyins, copyinTypes, copyins[0].location,
-                           result.operands);
-  }
+  if (segments[copyinClausePos] &&
+      parser.resolveOperands(copyins, copyinTypes, copyins[0].location,
+                             result.operands))
+    return failure();
+
+  // Add allocate parameters
+  if (segments[allocateClausePos] &&
+      parser.resolveOperands(allocates, allocateTypes, allocates[0].location,
+                             result.operands))
+    return failure();
+
+  // Add allocator parameters
+  if (segments[allocatorPos] &&
+      parser.resolveOperands(allocators, allocatorTypes, allocators[0].location,
+                             result.operands))
+    return failure();
 
   result.addAttribute("operand_segment_sizes",
                       parser.getBuilder().getI32VectorAttr(segments));
 
   Region *body = result.addRegion();
-  llvm::SmallVector<OpAsmParser::OperandType, 4> regionArgs;
-  llvm::SmallVector<Type, 4> regionArgTypes;
+  SmallVector<OpAsmParser::OperandType, 4> regionArgs;
+  SmallVector<Type, 4> regionArgTypes;
   if (parser.parseRegion(*body, regionArgs, regionArgTypes))
     return failure();
   return success();
 }
 
-namespace mlir {
-namespace omp {
+//===----------------------------------------------------------------------===//
+// WsLoopOp
+//===----------------------------------------------------------------------===//
+
+void WsLoopOp::build(OpBuilder &builder, OperationState &state,
+                     ValueRange lowerBound, ValueRange upperBound,
+                     ValueRange step, ArrayRef<NamedAttribute> attributes) {
+  build(builder, state, TypeRange(), lowerBound, upperBound, step,
+        /*private_vars=*/ValueRange(),
+        /*firstprivate_vars=*/ValueRange(), /*lastprivate_vars=*/ValueRange(),
+        /*linear_vars=*/ValueRange(), /*linear_step_vars=*/ValueRange(),
+        /*schedule_val=*/nullptr, /*schedule_chunk_var=*/nullptr,
+        /*collapse_val=*/nullptr,
+        /*nowait=*/nullptr, /*ordered_val=*/nullptr, /*order_val=*/nullptr);
+  state.addAttributes(attributes);
+}
+
 #define GET_OP_CLASSES
 #include "mlir/Dialect/OpenMP/OpenMPOps.cpp.inc"
-} // namespace omp
-} // namespace mlir

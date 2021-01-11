@@ -11,8 +11,6 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
 
-#include <type_traits>
-
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {

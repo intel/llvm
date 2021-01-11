@@ -9,34 +9,32 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/property_helper.hpp>
-
-#include <bitset>
-#include <memory>
-#include <type_traits>
-#include <vector>
+#include <CL/sycl/detail/property_list_base.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ONEAPI {
+template <typename... PropsT> class accessor_property_list;
+}
 
 /// Objects of the property_list class are containers for the SYCL properties
 ///
 /// \ingroup sycl_api
-class property_list {
+class property_list : protected detail::PropertyListBase {
 
   // The structs validate that all objects passed are SYCL properties
   template <typename... Tail> struct AllProperties : std::true_type {};
   template <typename T, typename... Tail>
   struct AllProperties<T, Tail...>
-      : std::conditional<
+      : detail::conditional_t<
             std::is_base_of<detail::DataLessPropertyBase, T>::value ||
                 std::is_base_of<detail::PropertyWithDataBase, T>::value,
-            AllProperties<Tail...>, std::false_type>::type {};
+            AllProperties<Tail...>, std::false_type> {};
 
 public:
-  template <typename... PropsT, typename = typename std::enable_if<
-                                    AllProperties<PropsT...>::value>::type>
-  property_list(PropsT... Props) : MDataLessProps(false) {
+  template <typename... PropsT, typename = typename detail::enable_if_t<
+                                    AllProperties<PropsT...>::value>>
+  property_list(PropsT... Props) : detail::PropertyListBase(false) {
     ctorHelper(Props...);
   }
 
@@ -52,79 +50,10 @@ public:
     return has_property_helper<PropT>();
   }
 
-private:
-  void ctorHelper() {}
-
-  template <typename... PropsT, class PropT>
-  typename std::enable_if<
-      std::is_base_of<detail::DataLessPropertyBase, PropT>::value>::type
-  ctorHelper(PropT &, PropsT... Props) {
-    const int PropKind = static_cast<int>(PropT::getKind());
-    MDataLessProps[PropKind] = true;
-    ctorHelper(Props...);
-  }
-
-  template <typename... PropsT, class PropT>
-  typename std::enable_if<
-      std::is_base_of<detail::PropertyWithDataBase, PropT>::value>::type
-  ctorHelper(PropT &Prop, PropsT... Props) {
-    MPropsWithData.emplace_back(new PropT(Prop));
-    ctorHelper(Props...);
-  }
-
-  template <typename PropT>
-  typename std::enable_if<
-      std::is_base_of<detail::DataLessPropertyBase, PropT>::value, bool>::type
-  has_property_helper() const {
-    const int PropKind = static_cast<int>(PropT::getKind());
-    if (PropKind >= detail::DataLessPropKind::DataLessPropKindSize)
-      return false;
-    return MDataLessProps[PropKind];
-  }
-
-  template <typename PropT>
-  typename std::enable_if<
-      std::is_base_of<detail::PropertyWithDataBase, PropT>::value, bool>::type
-  has_property_helper() const {
-    const int PropKind = static_cast<int>(PropT::getKind());
-    for (const std::shared_ptr<detail::PropertyWithDataBase> &Prop :
-         MPropsWithData)
-      if (Prop->isSame(PropKind))
-        return true;
-    return false;
-  }
-
-  template <typename PropT>
-  typename std::enable_if<
-      std::is_base_of<detail::DataLessPropertyBase, PropT>::value, PropT>::type
-  get_property_helper() const {
-    // In case of simple property we can just construct it
-    return PropT{};
-  }
-
-  template <typename PropT>
-  typename std::enable_if<
-      std::is_base_of<detail::PropertyWithDataBase, PropT>::value, PropT>::type
-  get_property_helper() const {
-    const int PropKind = static_cast<int>(PropT::getKind());
-    if (PropKind >= detail::PropWithDataKind::PropWithDataKindSize)
-      throw sycl::invalid_object_error("The property is not found",
-                                       PI_INVALID_VALUE);
-
-    for (const std::shared_ptr<detail::PropertyWithDataBase> &Prop :
-         MPropsWithData)
-      if (Prop->isSame(PropKind))
-        return *static_cast<PropT *>(Prop.get());
-
-    throw sycl::invalid_object_error("The property is not found",
-                                     PI_INVALID_VALUE);
-  }
+  template <typename... T> operator ONEAPI::accessor_property_list<T...>();
 
 private:
-  // Stores enable/not enabled for simple properties
-  std::bitset<detail::DataLessPropKind::DataLessPropKindSize> MDataLessProps;
-  // Stores shared_ptrs to complex properties
-  std::vector<std::shared_ptr<detail::PropertyWithDataBase>> MPropsWithData;
+  template <typename... PropsT> friend class ONEAPI::accessor_property_list;
 };
 
 } // namespace sycl

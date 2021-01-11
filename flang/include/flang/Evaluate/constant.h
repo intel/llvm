@@ -97,8 +97,7 @@ public:
 
   template <typename A>
   ConstantBase(const A &x, Result res = Result{}) : result_{res}, values_{x} {}
-  template <typename A, typename = common::NoLvalue<A>>
-  ConstantBase(A &&x, Result res = Result{})
+  ConstantBase(ELEMENT &&x, Result res = Result{})
       : result_{res}, values_{std::move(x)} {}
   ConstantBase(
       std::vector<Element> &&, ConstantSubscripts &&, Result = Result{});
@@ -141,7 +140,8 @@ public:
     }
   }
 
-  // Apply subscripts.
+  // Apply subscripts.  An empty subscript list is allowed for
+  // a scalar constant.
   Element At(const ConstantSubscripts &) const;
 
   Constant Reshape(ConstantSubscripts &&) const;
@@ -178,7 +178,7 @@ public:
     }
   }
 
-  // Apply subscripts
+  // Apply subscripts, if any.
   Scalar<Result> At(const ConstantSubscripts &) const;
 
   Constant Reshape(ConstantSubscripts &&) const;

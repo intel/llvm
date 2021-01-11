@@ -18,7 +18,7 @@
 #include "llvm/CodeGen/Register.h"
 #include "llvm/Support/Alignment.h"
 #include "llvm/Support/LowLevelTypeImpl.h"
-#include "llvm/Support/MachineValueType.h"
+#include <cstdint>
 
 namespace llvm {
 
@@ -33,10 +33,10 @@ class MachineRegisterInfo;
 class MCInstrDesc;
 class RegisterBankInfo;
 class TargetInstrInfo;
+class TargetLowering;
 class TargetPassConfig;
 class TargetRegisterInfo;
 class TargetRegisterClass;
-class Twine;
 class ConstantFP;
 class APFloat;
 
@@ -151,6 +151,18 @@ const ConstantFP* getConstantFPVRegVal(Register VReg,
 MachineInstr *getOpcodeDef(unsigned Opcode, Register Reg,
                            const MachineRegisterInfo &MRI);
 
+/// Simple struct used to hold a Register value and the instruction which
+/// defines it.
+struct DefinitionAndSourceRegister {
+  MachineInstr *MI;
+  Register Reg;
+};
+
+/// Find the def instruction for \p Reg, and underlying value Register folding
+/// away any copies.
+Optional<DefinitionAndSourceRegister>
+getDefSrcRegIgnoringCopies(Register Reg, const MachineRegisterInfo &MRI);
+
 /// Find the def instruction for \p Reg, folding away any trivial copies. May
 /// return nullptr if \p Reg is not a generic virtual register.
 MachineInstr *getDefIgnoringCopies(Register Reg,
@@ -227,6 +239,10 @@ LLT getGCDType(LLT OrigTy, LLT TargetTy);
 /// If \p MI is not a splat, returns None.
 Optional<int> getSplatIndex(MachineInstr &MI);
 
+/// Returns a scalar constant of a G_BUILD_VECTOR splat if it exists.
+Optional<int64_t> getBuildVectorConstantSplat(const MachineInstr &MI,
+                                              const MachineRegisterInfo &MRI);
+
 /// Return true if the specified instruction is a G_BUILD_VECTOR or
 /// G_BUILD_VECTOR_TRUNC where all of the elements are 0 or undef.
 bool isBuildVectorAllZeros(const MachineInstr &MI,
@@ -237,5 +253,13 @@ bool isBuildVectorAllZeros(const MachineInstr &MI,
 bool isBuildVectorAllOnes(const MachineInstr &MI,
                           const MachineRegisterInfo &MRI);
 
+/// Returns true if given the TargetLowering's boolean contents information,
+/// the value \p Val contains a true value.
+bool isConstTrueVal(const TargetLowering &TLI, int64_t Val, bool IsVector,
+                    bool IsFP);
+
+/// Returns an integer representing true, as defined by the
+/// TargetBooleanContents.
+int64_t getICmpTrueVal(const TargetLowering &TLI, bool IsVector, bool IsFP);
 } // End namespace llvm.
 #endif

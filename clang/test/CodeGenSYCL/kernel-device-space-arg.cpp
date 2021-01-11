@@ -1,8 +1,8 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -I %S/Inputs -triple spir64-unknown-unknown-sycldevice -emit-llvm %s -disable-llvm-passes -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -emit-llvm %s -disable-llvm-passes -o - | FileCheck %s
 
 // CHECK: define {{.*}}spir_kernel void @_ZTSZ4mainE15kernel_function(i32 addrspace(5)* {{.*}} i32 addrspace(6)* {{.*}}
 
-#include "sycl.hpp"
+#include "Inputs/sycl.hpp"
 
 int main() {
   __attribute__((opencl_global_device)) int *GLOBDEV = nullptr;

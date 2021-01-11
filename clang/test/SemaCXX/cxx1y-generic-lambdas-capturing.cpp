@@ -1,5 +1,7 @@
 // RUN: %clang_cc1 -std=c++1y -verify -fsyntax-only -fblocks -emit-llvm-only %s
 // RUN: %clang_cc1 -std=c++2a -verify -fsyntax-only -fblocks -emit-llvm-only %s
+// RUN: %clang_cc1 -std=c++1y -verify -fsyntax-only -fblocks -emit-llvm-only -triple i386-windows-pc %s
+// RUN: %clang_cc1 -std=c++2a -verify -fsyntax-only -fblocks -emit-llvm-only -triple i386-windows-pc %s
 // DONTRUNYET: %clang_cc1 -std=c++1y -verify -fsyntax-only -fblocks -fdelayed-template-parsing %s -DDELAYED_TEMPLATE_PARSING
 // DONTRUNYET: %clang_cc1 -std=c++1y -verify -fsyntax-only -fblocks -fms-extensions %s -DMS_EXTENSIONS
 // DONTRUNYET: %clang_cc1 -std=c++1y -verify -fsyntax-only -fblocks -fdelayed-template-parsing -fms-extensions %s -DMS_EXTENSIONS -DDELAYED_TEMPLATE_PARSING
@@ -177,19 +179,15 @@ void doit() {
     sample::X cx{5};
     auto L = [=](auto a) { 
       const int z = 3;
-      // FIXME: The warning below is correct but for some reason doesn't show
-      // up in C++17 mode.
       return [&,a](auto b) {
-#if __cplusplus > 201702L
-        // expected-warning@-2 {{address of stack memory associated with local variable 'z' returned}}
+        // expected-warning@-1 {{address of stack memory associated with local variable 'z' returned}}
         // expected-note@#call {{in instantiation of}}
-#endif
-        const int y = 5;    
-        return [=](auto c) { 
+        const int y = 5;
+        return [=](auto c) {
           int d[sizeof(a) == sizeof(c) || sizeof(c) == sizeof(b) ? 2 : 1];
           f(x, d);
           f(y, d);
-          f(z, d);
+          f(z, d); // expected-note {{implicitly captured by reference due to use here}}
           decltype(a) A = a;
           decltype(b) B = b;
           const int &i = cx.i;
@@ -677,7 +675,7 @@ int foo()
         f(x, c);
         f(y, c);
         int i = x;
-        // This use will always be an error regardless of instantatiation
+        // This use will always be an error regardless of instantiation
         // so diagnose this early.
         const int &r = x; //expected-error{{variable}}
       };

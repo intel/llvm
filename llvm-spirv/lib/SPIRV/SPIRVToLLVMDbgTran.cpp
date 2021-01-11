@@ -78,7 +78,8 @@ SPIRVExtInst *SPIRVToLLVMDbgTran::getDbgInst(const SPIRVId Id) {
   SPIRVEntry *E = BM->getEntry(Id);
   if (isa<OpExtInst>(E)) {
     SPIRVExtInst *EI = static_cast<SPIRVExtInst *>(E);
-    if (EI->getExtSetKind() == SPIRV::SPIRVEIS_Debug)
+    if (EI->getExtSetKind() == SPIRV::SPIRVEIS_Debug ||
+        EI->getExtSetKind() == SPIRV::SPIRVEIS_OpenCL_DebugInfo_100)
       return EI;
   }
   return nullptr;
@@ -230,7 +231,9 @@ SPIRVToLLVMDbgTran::transTypeComposite(const SPIRVExtInst *DebugInst) {
 
   uint64_t Size = 0;
   SPIRVEntry *SizeEntry = BM->getEntry(Ops[SizeIdx]);
-  if (!SizeEntry->isExtInst(SPIRVEIS_Debug, SPIRVDebug::DebugInfoNone)) {
+  if (!(SizeEntry->isExtInst(SPIRVEIS_Debug, SPIRVDebug::DebugInfoNone) ||
+        SizeEntry->isExtInst(SPIRVEIS_OpenCL_DebugInfo_100,
+                             SPIRVDebug::DebugInfoNone))) {
     Size = BM->get<SPIRVConstant>(Ops[SizeIdx])->getZExtIntValue();
   }
 
@@ -883,7 +886,8 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
                                         BasicBlock *BB) {
   auto GetLocalVar = [&](SPIRVId Id) -> std::pair<DILocalVariable *, DebugLoc> {
     auto *LV = transDebugInst<DILocalVariable>(BM->get<SPIRVExtInst>(Id));
-    DebugLoc DL = DebugLoc::get(LV->getLine(), 0, LV->getScope());
+    DebugLoc DL = DILocation::get(M->getContext(), LV->getLine(),
+                                  /*Column=*/0, LV->getScope());
     return std::make_pair(LV, DL);
   };
   auto GetValue = [&](SPIRVId Id) -> Value * {
@@ -948,8 +952,9 @@ DebugLoc SPIRVToLLVMDbgTran::transDebugScope(const SPIRVInstruction *Inst) {
     Scope = getScope(BM->getEntry(Ops[ScopeIdx]));
     if (Ops.size() > InlinedAtIdx)
       InlinedAt = transDebugInst(BM->get<SPIRVExtInst>(Ops[InlinedAtIdx]));
+    return DILocation::get(M->getContext(), Line, Col, Scope, InlinedAt);
   }
-  return DebugLoc::get(Line, Col, Scope, InlinedAt);
+  return DebugLoc();
 }
 
 MDNode *SPIRVToLLVMDbgTran::transDebugInlined(const SPIRVExtInst *Inst) {

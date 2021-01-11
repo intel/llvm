@@ -37,7 +37,6 @@ class TestGdbRemoteGPacket(gdbremote_testcase.GdbRemoteTestCaseBase):
              {"direction": "send", "regex": r"^\$(.+)#[0-9a-fA-F]{2}$",
               "capture": {1: "register_bank"}}],
             True)
-        self.connect_to_debug_monitor()
         context = self.expect_gdbremote_sequence()
         register_bank = context.get("register_bank")
         self.assertNotEqual(register_bank[0], 'E')
@@ -54,7 +53,6 @@ class TestGdbRemoteGPacket(gdbremote_testcase.GdbRemoteTestCaseBase):
     @debugserver_test
     @skipIfDarwinEmbedded
     def test_g_packet_debugserver(self):
-        self.init_debugserver_test()
         self.run_test_g_packet()
 
     @skipIf(archs=no_match(["x86_64"]))
@@ -137,18 +135,18 @@ class TestGdbRemoteGPacket(gdbremote_testcase.GdbRemoteTestCaseBase):
         self.assertEqual(
             ['0x727476787a7c7e71', '0x737577797b7d7f70'], get_reg_value('xmm15'))
 
+    @expectedFailureAll(oslist=["freebsd"], bugnumber="llvm.org/pr48420")
     @expectedFailureNetBSD
     @llgs_test
     def test_g_returns_correct_data_with_suffix_llgs(self):
-        self.init_llgs_test()
         self.build()
         self.set_inferior_startup_launch()
         self.g_returns_correct_data(True)
 
+    @expectedFailureAll(oslist=["freebsd"], bugnumber="llvm.org/pr48420")
     @expectedFailureNetBSD
     @llgs_test
     def test_g_returns_correct_data_no_suffix_llgs(self):
-        self.init_llgs_test()
         self.build()
         self.set_inferior_startup_launch()
         self.g_returns_correct_data(False)

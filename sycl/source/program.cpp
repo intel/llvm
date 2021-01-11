@@ -103,30 +103,30 @@ program::get_info() const {
   return impl->get_info<param>();
 }
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
   template __SYCL_EXPORT ret_type program::get_info<info::param_type::param>() \
       const;
 
 #include <CL/sycl/info/program_traits.def>
 
-#undef PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC
 
-#define PARAM_TRAITS_SPEC(param_type)                                          \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
   template <> __SYCL_EXPORT bool program::has_property<param_type>() const {   \
     return impl->has_property<param_type>();                                   \
   }
 #include <CL/sycl/detail/properties_traits.def>
 
-#undef PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC
 
-#define PARAM_TRAITS_SPEC(param_type)                                          \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
   template <>                                                                  \
   __SYCL_EXPORT param_type program::get_property<param_type>() const {         \
     return impl->get_property<param_type>();                                   \
   }
 #include <CL/sycl/detail/properties_traits.def>
 
-#undef PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC
 
 vector_class<vector_class<char>> program::get_binaries() const {
   return impl->get_binaries();

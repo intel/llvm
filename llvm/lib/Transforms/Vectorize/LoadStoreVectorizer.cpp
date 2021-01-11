@@ -666,6 +666,10 @@ Vectorizer::getVectorizablePrefix(ArrayRef<Instruction *> Chain) {
                cast<IntrinsicInst>(&I)->getIntrinsicID() ==
                    Intrinsic::sideeffect) {
       // Ignore llvm.sideeffect calls.
+    } else if (isa<IntrinsicInst>(&I) &&
+               cast<IntrinsicInst>(&I)->getIntrinsicID() ==
+                   Intrinsic::pseudoprobe) {
+      // Ignore llvm.pseudoprobe calls.
     } else if (IsLoadChain && (I.mayWriteToMemory() || I.mayThrow())) {
       LLVM_DEBUG(dbgs() << "LSV: Found may-write/throw operation: " << I
                         << '\n');
@@ -1027,8 +1031,8 @@ bool Vectorizer::vectorizeStoreChain(
   unsigned EltSzInBytes = Sz / 8;
   unsigned SzInBytes = EltSzInBytes * ChainSize;
 
-  VectorType *VecTy;
-  VectorType *VecStoreTy = dyn_cast<VectorType>(StoreTy);
+  FixedVectorType *VecTy;
+  auto *VecStoreTy = dyn_cast<FixedVectorType>(StoreTy);
   if (VecStoreTy)
     VecTy = FixedVectorType::get(StoreTy->getScalarType(),
                                  Chain.size() * VecStoreTy->getNumElements());
@@ -1180,7 +1184,7 @@ bool Vectorizer::vectorizeLoadChain(
   unsigned EltSzInBytes = Sz / 8;
   unsigned SzInBytes = EltSzInBytes * ChainSize;
   VectorType *VecTy;
-  VectorType *VecLoadTy = dyn_cast<VectorType>(LoadTy);
+  auto *VecLoadTy = dyn_cast<FixedVectorType>(LoadTy);
   if (VecLoadTy)
     VecTy = FixedVectorType::get(LoadTy->getScalarType(),
                                  Chain.size() * VecLoadTy->getNumElements());

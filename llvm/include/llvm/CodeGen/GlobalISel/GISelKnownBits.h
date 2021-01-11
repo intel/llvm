@@ -34,10 +34,16 @@ class GISelKnownBits : public GISelChangeObserver {
   /// Cache maintained during a computeKnownBits request.
   SmallDenseMap<Register, KnownBits, 16> ComputeKnownBitsCache;
 
+  void computeKnownBitsMin(Register Src0, Register Src1, KnownBits &Known,
+                           const APInt &DemandedElts,
+                           unsigned Depth = 0);
+
+  unsigned computeNumSignBitsMin(Register Src0, Register Src1,
+                                 const APInt &DemandedElts, unsigned Depth = 0);
+
 public:
   GISelKnownBits(MachineFunction &MF, unsigned MaxDepth = 6);
   virtual ~GISelKnownBits() = default;
-  void setMF(MachineFunction &MF);
 
   const MachineFunction &getMachineFunction() const {
     return MF;

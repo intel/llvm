@@ -100,7 +100,7 @@ public:
    * conversion:
    * int a = id<1>(value); */
 
-  ALWAYS_INLINE operator EnableIfT<(dimensions == 1), size_t>() const {
+  __SYCL_ALWAYS_INLINE operator EnableIfT<(dimensions == 1), size_t>() const {
     size_t Result = this->common_array[0];
     __SYCL_ASSUME_INT(Result);
     return Result;
@@ -239,6 +239,10 @@ public:
   __SYCL_GEN_OPT(^=)
 
 #undef __SYCL_GEN_OPT
+
+private:
+  friend class handler;
+  void set_allowed_range(range<dimensions> rnwi) { (void)rnwi[0]; }
 };
 
 namespace detail {

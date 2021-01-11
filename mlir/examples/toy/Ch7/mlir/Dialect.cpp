@@ -14,9 +14,9 @@
 #include "toy/Dialect.h"
 
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/OpImplementation.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/Transforms/InliningUtils.h"
 
 using namespace mlir;
@@ -35,8 +35,14 @@ struct ToyInlinerInterface : public DialectInlinerInterface {
   // Analysis Hooks
   //===--------------------------------------------------------------------===//
 
+  /// All call operations within toy can be inlined.
+  bool isLegalToInline(Operation *call, Operation *callable,
+                       bool wouldBeCloned) const final {
+    return true;
+  }
+
   /// All operations within toy can be inlined.
-  bool isLegalToInline(Operation *, Region *,
+  bool isLegalToInline(Operation *, Region *, bool,
                        BlockAndValueMapping &) const final {
     return true;
   }
@@ -292,7 +298,7 @@ void GenericCallOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
 /// Return the callee of the generic call operation, this is required by the
 /// call interface.
 CallInterfaceCallable GenericCallOp::getCallableForCallee() {
-  return getAttrOfType<SymbolRefAttr>("callee");
+  return (*this)->getAttrOfType<SymbolRefAttr>("callee");
 }
 
 /// Get the argument operands to the called function, this is required by the
@@ -318,7 +324,7 @@ void MulOp::inferShapes() { getResult().setType(getOperand(0).getType()); }
 static mlir::LogicalResult verify(ReturnOp op) {
   // We know that the parent operation is a function, because of the 'HasParent'
   // trait attached to the operation definition.
-  auto function = cast<FuncOp>(op.getParentOp());
+  auto function = cast<FuncOp>(op->getParentOp());
 
   /// ReturnOps can only have a single optional operand.
   if (op.getNumOperands() > 1)
@@ -365,7 +371,7 @@ void StructAccessOp::build(mlir::OpBuilder &b, mlir::OperationState &state,
 
 static mlir::LogicalResult verify(StructAccessOp op) {
   StructType structTy = op.input().getType().cast<StructType>();
-  size_t index = op.index().getZExtValue();
+  size_t index = op.index();
   if (index >= structTy.getNumElementTypes())
     return op.emitOpError()
            << "index should be within the range of the input struct type";

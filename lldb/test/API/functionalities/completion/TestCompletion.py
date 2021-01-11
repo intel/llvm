@@ -5,6 +5,7 @@ Test the lldb command line completion mechanism.
 
 
 import os
+from multiprocessing import Process
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -43,9 +44,9 @@ class CommandLineCompletionTestCase(TestBase):
         (target, process, thread, bkpt) = lldbutil.run_to_source_breakpoint(self,
                                           '// Break here', self.main_source_spec)
         self.assertEquals(process.GetState(), lldb.eStateStopped)
-        
-        # Since CommandInterpreter has been corrected to update the current execution 
-        # context at the beginning of HandleCompletion, we're here explicitly testing  
+
+        # Since CommandInterpreter has been corrected to update the current execution
+        # context at the beginning of HandleCompletion, we're here explicitly testing
         # the scenario where "frame var" is completed without any preceding commands.
 
         self.complete_from_to('frame variable fo',
@@ -116,6 +117,39 @@ class CommandLineCompletionTestCase(TestBase):
         for subcommand in subcommands:
             self.complete_from_to('process ' + subcommand + ' mac',
                                   'process ' + subcommand + ' mach-o-core')
+
+    def completions_contain_str(self, input, needle):
+        interp = self.dbg.GetCommandInterpreter()
+        match_strings = lldb.SBStringList()
+        num_matches = interp.HandleCompletion(input, len(input), 0, -1, match_strings)
+        found_needle = False
+        for match in match_strings:
+          if needle in match:
+            found_needle = True
+            break
+        self.assertTrue(found_needle, "Returned completions: " + "\n".join(match_strings))
+
+
+    @skipIfRemote
+    @skipIfReproducer
+    def test_common_completion_process_pid_and_name(self):
+        # The LLDB process itself and the process already attached to are both
+        # ignored by the process discovery mechanism, thus we need a process known
+        # to us here.
+        self.build()
+        server = self.spawnSubprocess(
+            self.getBuildArtifact("a.out"),
+            ["-x"], # Arg "-x" makes the subprocess wait for input thus it won't be terminated too early
+            install_remote=False)
+        self.assertIsNotNone(server)
+        pid = server.pid
+
+        self.completions_contain('process attach -p ', [str(pid)])
+        self.completions_contain('platform process attach -p ', [str(pid)])
+        self.completions_contain('platform process info ', [str(pid)])
+
+        self.completions_contain_str('process attach -n ', "a.out")
+        self.completions_contain_str('platform process attach -n ', "a.out")
 
     def test_process_signal(self):
         # The tab completion for "process signal"  won't work without a running process.
@@ -257,6 +291,7 @@ class CommandLineCompletionTestCase(TestBase):
         """Test that 'help watchpoint s' completes to 'help watchpoint set '."""
         self.complete_from_to('help watchpoint s', 'help watchpoint set ')
 
+    @expectedFailureNetBSD
     def test_common_complete_watchpoint_ids(self):
         subcommands = ['enable', 'disable', 'delete', 'modify', 'ignore']
 
@@ -445,6 +480,12 @@ class CommandLineCompletionTestCase(TestBase):
         for subcommand in subcommands:
             self.complete_from_to('thread ' + subcommand + ' ', ['1'])
 
+    def test_common_completion_type_category_name(self):
+        subcommands = ['delete', 'list', 'enable', 'disable', 'define']
+        for subcommand in subcommands:
+            self.complete_from_to('type category ' + subcommand + ' ', ['default'])
+        self.complete_from_to('type filter add -w ', ['default'])
+
     def test_command_argument_completion(self):
         """Test completion of command arguments"""
         self.complete_from_to("watchpoint set variable -", ["-w", "-s"])
@@ -523,7 +564,7 @@ class CommandLineCompletionTestCase(TestBase):
 
         self.complete_from_to('frame select ', ['0'])
         self.complete_from_to('thread backtrace -s ', ['0'])
-    
+
     def test_frame_recognizer_delete(self):
         self.runCmd("frame recognizer add -l py_class -s module_name -n recognizer_name")
         self.check_completion_with_desc('frame recognizer delete ', [['0', 'py_class, module module_name, symbol recognizer_name']])
@@ -541,6 +582,27 @@ class CommandLineCompletionTestCase(TestBase):
         # No completion for Qu because the candidate is
         # (anonymous namespace)::Quux().
         self.complete_from_to('breakpoint set -n Qu', '')
+
+    def test_completion_type_formatter_delete(self):
+        self.runCmd('type filter add --child a Aoo')
+        self.complete_from_to('type filter delete ', ['Aoo'])
+        self.runCmd('type filter add --child b -x Boo')
+        self.complete_from_to('type filter delete ', ['Boo'])
+
+        self.runCmd('type format add -f hex Coo')
+        self.complete_from_to('type format delete ', ['Coo'])
+        self.runCmd('type format add -f hex -x Doo')
+        self.complete_from_to('type format delete ', ['Doo'])
+
+        self.runCmd('type summary add -c Eoo')
+        self.complete_from_to('type summary delete ', ['Eoo'])
+        self.runCmd('type summary add -x -c Foo')
+        self.complete_from_to('type summary delete ', ['Foo'])
+
+        self.runCmd('type synthetic add Goo -l test')
+        self.complete_from_to('type synthetic delete ', ['Goo'])
+        self.runCmd('type synthetic add -x Hoo -l test')
+        self.complete_from_to('type synthetic delete ', ['Hoo'])
 
     @skipIf(archs=no_match(['x86_64']))
     def test_register_read_and_write_on_x86(self):
@@ -654,7 +716,7 @@ class CommandLineCompletionTestCase(TestBase):
         for subcommand in subcommands:
             self.complete_from_to('breakpoint ' + subcommand + ' ',
                                   ['1'])
-        
+
         bp2 = target.BreakpointCreateByName('Bar', 'a.out')
         self.assertTrue(bp2)
         self.assertEqual(bp2.GetNumLocations(), 1)
@@ -663,7 +725,7 @@ class CommandLineCompletionTestCase(TestBase):
             self.complete_from_to('breakpoint ' + subcommand + ' ',
                                   ['1',
                                    '2'])
-        
+
         for subcommand in subcommands:
             self.complete_from_to('breakpoint ' + subcommand + ' 1 ',
                                   ['1',

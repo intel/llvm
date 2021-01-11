@@ -16,6 +16,7 @@ add_mlir_translation_library(MLIRTargetLLVMIRModuleTranslation
 
   LINK_LIBS PUBLIC
   MLIRLLVMIR
+  MLIROpenMP
   MLIRLLVMIRTransforms
   MLIRTranslation
   )
@@ -51,6 +52,44 @@ add_mlir_translation_library(MLIRTargetLLVMIR
   IRReader
 
   LINK_LIBS PUBLIC
+  MLIRTargetLLVMIRModuleTranslation
+  )
+
+add_mlir_translation_library(MLIRTargetArmNeon
+  LLVMIR/LLVMArmNeonIntr.cpp
+
+  ADDITIONAL_HEADER_DIRS
+  ${MLIR_MAIN_INCLUDE_DIR}/mlir/Target/LLVMIR
+
+  DEPENDS
+  MLIRLLVMArmNeonConversionsIncGen
+
+  LINK_COMPONENTS
+  Core
+
+  LINK_LIBS PUBLIC
+  MLIRIR
+  MLIRLLVMArmNeon
+  MLIRLLVMIR
+  MLIRTargetLLVMIRModuleTranslation
+  )
+
+add_mlir_translation_library(MLIRTargetArmSVE
+  LLVMIR/LLVMArmSVEIntr.cpp
+
+  ADDITIONAL_HEADER_DIRS
+  ${MLIR_MAIN_INCLUDE_DIR}/mlir/Target/LLVMIR
+
+  DEPENDS
+  MLIRLLVMArmSVEConversionsIncGen
+
+  LINK_COMPONENTS
+  Core
+
+  LINK_LIBS PUBLIC
+  MLIRIR
+  MLIRLLVMArmSVE
+  MLIRLLVMIR
   MLIRTargetLLVMIRModuleTranslation
   )
 
@@ -92,4 +131,53 @@ add_mlir_translation_library(MLIRTargetROCDLIR
   MLIRLLVMIR
   MLIRROCDLIR
   MLIRTargetLLVMIRModuleTranslation
+  )
+
+add_mlir_translation_library(MLIRSPIRVBinaryUtils
+  SPIRV/SPIRVBinaryUtils.cpp
+
+  LINK_LIBS PUBLIC
+  MLIRIR
+  MLIRSPIRV
+  MLIRSupport
+  )
+
+add_mlir_translation_library(MLIRSPIRVSerialization
+  SPIRV/Serialization.cpp
+
+  DEPENDS
+  MLIRSPIRVSerializationGen
+
+  LINK_LIBS PUBLIC
+  MLIRIR
+  MLIRSPIRV
+  MLIRSPIRVBinaryUtils
+  MLIRSupport
+  MLIRTranslation
+  )
+
+add_mlir_translation_library(MLIRSPIRVDeserialization
+  SPIRV/Deserialization.cpp
+
+  DEPENDS
+  MLIRSPIRVSerializationGen
+
+  LINK_LIBS PUBLIC
+  MLIRIR
+  MLIRSPIRV
+  MLIRSPIRVBinaryUtils
+  MLIRSupport
+  MLIRTranslation
+  )
+
+add_mlir_translation_library(MLIRSPIRVTranslateRegistration
+  SPIRV/TranslateRegistration.cpp
+
+  LINK_LIBS PUBLIC
+  MLIRIR
+  MLIRSPIRV
+  MLIRSPIRVSerialization
+  MLIRSPIRVDeserialization
+  MLIRSupport
+  MLIRTranslation
   )

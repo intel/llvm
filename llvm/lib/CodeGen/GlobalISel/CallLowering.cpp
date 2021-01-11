@@ -241,11 +241,19 @@ bool CallLowering::handleAssignments(CCState &CCInfo,
     // we currently support.
     unsigned NumParts = TLI->getNumRegistersForCallingConv(
         F.getContext(), F.getCallingConv(), CurVT);
-    if (NumParts > 1) {
-      // For now only handle exact splits.
-      if (NewVT.getSizeInBits() * NumParts != CurVT.getSizeInBits())
+
+    if (NumParts == 1) {
+      // Try to use the register type if we couldn't assign the VT.
+      if (Handler.assignArg(i, NewVT, NewVT, CCValAssign::Full, Args[i],
+                            Args[i].Flags[0], CCInfo))
         return false;
+      continue;
     }
+
+    assert(NumParts > 1);
+    // For now only handle exact splits.
+    if (NewVT.getSizeInBits() * NumParts != CurVT.getSizeInBits())
+      return false;
 
     // For incoming arguments (physregs to vregs), we could have values in
     // physregs (or memlocs) which we want to extract and copy to vregs.
@@ -256,47 +264,36 @@ bool CallLowering::handleAssignments(CCState &CCInfo,
     // vreg with an LLT which we want to assign to a physical location, and
     // we might have to record that the value has to be split later.
     if (Handler.isIncomingArgumentHandler()) {
-      if (NumParts == 1) {
-        // Try to use the register type if we couldn't assign the VT.
+      // We're handling an incoming arg which is split over multiple regs.
+      // E.g. passing an s128 on AArch64.
+      ISD::ArgFlagsTy OrigFlags = Args[i].Flags[0];
+      Args[i].OrigRegs.push_back(Args[i].Regs[0]);
+      Args[i].Regs.clear();
+      Args[i].Flags.clear();
+      LLT NewLLT = getLLTForMVT(NewVT);
+      // For each split register, create and assign a vreg that will store
+      // the incoming component of the larger value. These will later be
+      // merged to form the final vreg.
+      for (unsigned Part = 0; Part < NumParts; ++Part) {
+        Register Reg =
+            MIRBuilder.getMRI()->createGenericVirtualRegister(NewLLT);
+        ISD::ArgFlagsTy Flags = OrigFlags;
+        if (Part == 0) {
+          Flags.setSplit();
+        } else {
+          Flags.setOrigAlign(Align(1));
+          if (Part == NumParts - 1)
+            Flags.setSplitEnd();
+        }
+        Args[i].Regs.push_back(Reg);
+        Args[i].Flags.push_back(Flags);
         if (Handler.assignArg(i, NewVT, NewVT, CCValAssign::Full, Args[i],
-                              Args[i].Flags[0], CCInfo))
+                              Args[i].Flags[Part], CCInfo)) {
+          // Still couldn't assign this smaller part type for some reason.
           return false;
-      } else {
-        // We're handling an incoming arg which is split over multiple regs.
-        // E.g. passing an s128 on AArch64.
-        ISD::ArgFlagsTy OrigFlags = Args[i].Flags[0];
-        Args[i].OrigRegs.push_back(Args[i].Regs[0]);
-        Args[i].Regs.clear();
-        Args[i].Flags.clear();
-        LLT NewLLT = getLLTForMVT(NewVT);
-        // For each split register, create and assign a vreg that will store
-        // the incoming component of the larger value. These will later be
-        // merged to form the final vreg.
-        for (unsigned Part = 0; Part < NumParts; ++Part) {
-          Register Reg =
-              MIRBuilder.getMRI()->createGenericVirtualRegister(NewLLT);
-          ISD::ArgFlagsTy Flags = OrigFlags;
-          if (Part == 0) {
-            Flags.setSplit();
-          } else {
-            Flags.setOrigAlign(Align(1));
-            if (Part == NumParts - 1)
-              Flags.setSplitEnd();
-          }
-          Args[i].Regs.push_back(Reg);
-          Args[i].Flags.push_back(Flags);
-          if (Handler.assignArg(i + Part, NewVT, NewVT, CCValAssign::Full,
-                                Args[i], Args[i].Flags[Part], CCInfo)) {
-            // Still couldn't assign this smaller part type for some reason.
-            return false;
-          }
         }
       }
     } else {
-      // Handling an outgoing arg that might need to be split.
-      if (NumParts < 2)
-        return false; // Don't know how to deal with this type combination.
-
       // This type is passed via multiple registers in the calling convention.
       // We need to extract the individual parts.
       Register LargeReg = Args[i].Regs[0];
@@ -318,7 +315,7 @@ bool CallLowering::handleAssignments(CCState &CCInfo,
         }
         Args[i].Regs.push_back(Unmerge.getReg(PartIdx));
         Args[i].Flags.push_back(Flags);
-        if (Handler.assignArg(i + PartIdx, NewVT, NewVT, CCValAssign::Full,
+        if (Handler.assignArg(i, NewVT, NewVT, CCValAssign::Full,
                               Args[i], Args[i].Flags[PartIdx], CCInfo))
           return false;
       }
@@ -380,7 +377,8 @@ bool CallLowering::handleAssignments(CCState &CCInfo,
 
       assert(VA.isRegLoc() && "custom loc should have been handled already");
 
-      if (OrigVT.getSizeInBits() >= VAVT.getSizeInBits() ||
+      // GlobalISel does not currently work for scalable vectors.
+      if (OrigVT.getFixedSizeInBits() >= VAVT.getFixedSizeInBits() ||
           !Handler.isIncomingArgumentHandler()) {
         // This is an argument that might have been split. There should be
         // Regs.size() ArgLocs per argument.
@@ -416,7 +414,7 @@ bool CallLowering::handleAssignments(CCState &CCInfo,
     // Now that all pieces have been handled, re-pack any arguments into any
     // wider, original registers.
     if (Handler.isIncomingArgumentHandler()) {
-      if (VAVT.getSizeInBits() < OrigVT.getSizeInBits()) {
+      if (VAVT.getFixedSizeInBits() < OrigVT.getFixedSizeInBits()) {
         assert(NumArgRegs >= 2);
 
         // Merge the split registers into the expected larger result vreg

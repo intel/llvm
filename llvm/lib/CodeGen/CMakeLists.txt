@@ -74,6 +74,7 @@ add_llvm_component_library(LLVMCodeGen
   MachineCombiner.cpp
   MachineCopyPropagation.cpp
   MachineCSE.cpp
+  MachineCheckDebugify.cpp
   MachineDebugify.cpp
   MachineDominanceFrontier.cpp
   MachineDominators.cpp
@@ -81,6 +82,7 @@ add_llvm_component_library(LLVMCodeGen
   MachineFunction.cpp
   MachineFunctionPass.cpp
   MachineFunctionPrinterPass.cpp
+  MachineFunctionSplitter.cpp
   MachineInstrBundle.cpp
   MachineInstr.cpp
   MachineLICM.cpp
@@ -104,6 +106,7 @@ add_llvm_component_library(LLVMCodeGen
   MachineTraceMetrics.cpp
   MachineVerifier.cpp
   ModuloSchedule.cpp
+  MultiHazardRecognizer.cpp
   PatchableFunction.cpp
   MBFIWrapper.cpp
   MIRPrinter.cpp
@@ -120,6 +123,7 @@ add_llvm_component_library(LLVMCodeGen
   PreISelIntrinsicLowering.cpp
   ProcessImplicitDefs.cpp
   PrologEpilogInserter.cpp
+  PseudoProbeInserter.cpp
   PseudoSourceValue.cpp
   RDFGraph.cpp
   RDFLiveness.cpp
@@ -135,6 +139,7 @@ add_llvm_component_library(LLVMCodeGen
   RegisterPressure.cpp
   RegisterScavenging.cpp
   RenameIndependentSubregs.cpp
+  MachineStableHash.cpp
   MIRVRegNamerUtils.cpp
   MIRNamerPass.cpp
   MIRCanonicalizerPass.cpp
@@ -144,7 +149,6 @@ add_llvm_component_library(LLVMCodeGen
   ResetMachineFunctionPass.cpp
   SafeStack.cpp
   SafeStackLayout.cpp
-  ScalarizeMaskedMemIntrin.cpp
   ScheduleDAG.cpp
   ScheduleDAGInstrs.cpp
   ScheduleDAGPrinter.cpp
@@ -194,6 +198,18 @@ add_llvm_component_library(LLVMCodeGen
 
   DEPENDS
   intrinsics_gen
+
+  LINK_COMPONENTS
+  Analysis
+  BitReader
+  BitWriter
+  Core
+  MC
+  ProfileData
+  Scalar
+  Support
+  Target
+  TransformUtils
   )
 
 add_subdirectory(SelectionDAG)
