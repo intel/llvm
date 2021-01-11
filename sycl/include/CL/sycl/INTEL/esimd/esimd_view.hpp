@@ -70,8 +70,13 @@ public:
       : M_base(Other.M_base), M_region(Other.M_region) {}
   /// @}
 
-  /// Conversion to simd value type.
-  operator value_type() const { return read(); }
+  /// Conversion to simd type.
+  template <typename ToTy> operator simd<ToTy, length>() const {
+    if constexpr (std::is_same<element_type, ToTy>::value)
+      return read();
+    else
+      return convert<ToTy, element_type, length>(read());
+  }
 
   /// @{
   /// Assignment operators.
@@ -217,6 +222,7 @@ public:
   DEF_BINOP(-, -=)
   DEF_BINOP(*, *=)
   DEF_BINOP(/, /=)
+  DEF_BINOP(%, %=)
 
 #undef DEF_BINOP
 
