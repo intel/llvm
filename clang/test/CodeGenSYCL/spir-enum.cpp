@@ -25,7 +25,6 @@ int main() {
   // CHECK: getelementptr inbounds %"class.{{.*}}.anon", %"class.{{.*}}.anon" addrspace(4)*
   // CHECK: call spir_func void @"_ZZ4test9enum_typeENK3$_0clEv"(%"class.{{.*}}.anon" addrspace(4)* {{[^,]*}} %{{.+}})
 
-
   test( enum_type::B );
   return 0;
 }
