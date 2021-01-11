@@ -88,16 +88,16 @@ typedef int myInt;
 // CHECK-NEXT:    [[TMP2:%.*]] = bitcast i32* [[B]] to i8*
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0i8(i64 4, i8* [[TMP2]]) [[ATTR6]]
 // CHECK-NEXT:    [[TMP3:%.*]] = load i32, i32 addrspace(4)* [[A_ASCAST]], align 4, [[TBAA9]]
-// CHECK-NEXT:    [[TMP4:%.*]] = call i32 @llvm.annotation.i32(i32 [[TMP3]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.1, i32 0, i32 0), i32 266)
+// CHECK-NEXT:    [[TMP4:%.*]] = call i32 @llvm.annotation.i32(i32 [[TMP3]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([[STR1TY:\[[0-9]+ x i8\]]], [[STR1TY]]* @.str.1, i32 0, i32 0), i32 265)
 // CHECK-NEXT:    store i32 [[TMP4]], i32 addrspace(4)* [[B_ASCAST]], align 4, [[TBAA9]]
 // CHECK-NEXT:    [[TMP5:%.*]] = bitcast i32* [[MYB]] to i8*
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0i8(i64 4, i8* [[TMP5]]) [[ATTR6]]
 // CHECK-NEXT:    [[TMP6:%.*]] = load i32, i32 addrspace(4)* [[MYA_ASCAST]], align 4, [[TBAA9]]
-// CHECK-NEXT:    [[TMP7:%.*]] = call i32 @llvm.annotation.i32(i32 [[TMP6]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.1, i32 0, i32 0), i32 267)
+// CHECK-NEXT:    [[TMP7:%.*]] = call i32 @llvm.annotation.i32(i32 [[TMP6]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([[STR1TY]], [[STR1TY]]* @.str.1, i32 0, i32 0), i32 266)
 // CHECK-NEXT:    store i32 [[TMP7]], i32 addrspace(4)* [[MYB_ASCAST]], align 4, [[TBAA9]]
 // CHECK-NEXT:    [[TMP8:%.*]] = bitcast i32* [[C]] to i8*
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0i8(i64 4, i8* [[TMP8]]) [[ATTR6]]
-// CHECK-NEXT:    [[TMP9:%.*]] = call i32 @llvm.annotation.i32(i32 1073741824, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.1, i32 0, i32 0), i32 268)
+// CHECK-NEXT:    [[TMP9:%.*]] = call i32 @llvm.annotation.i32(i32 1073741824, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([[STR1TY]], [[STR1TY]]* @.str.1, i32 0, i32 0), i32 267)
 // CHECK-NEXT:    [[TMP10:%.*]] = bitcast i32 [[TMP9]] to float
 // CHECK-NEXT:    [[CONV:%.*]] = fptosi float [[TMP10]] to i32
 // CHECK-NEXT:    store i32 [[CONV]], i32 addrspace(4)* [[C_ASCAST]], align 4, [[TBAA9]]
@@ -105,21 +105,21 @@ typedef int myInt;
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0i8(i64 4, i8* [[TMP11]]) [[ATTR6]]
 // CHECK-NEXT:    [[TMP12:%.*]] = load i32, i32 addrspace(4)* [[B_ASCAST]], align 4, [[TBAA9]]
 // CHECK-NEXT:    [[ADD:%.*]] = add nsw i32 [[TMP12]], 12
-// CHECK-NEXT:    [[TMP13:%.*]] = call i32 @llvm.annotation.i32(i32 [[ADD]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.1, i32 0, i32 0), i32 269)
-// CHECK-NEXT:    [[TMP14:%.*]] = call i32 @llvm.annotation.i32(i32 [[TMP13]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.1, i32 0, i32 0), i32 269)
+// CHECK-NEXT:    [[TMP13:%.*]] = call i32 @llvm.annotation.i32(i32 [[ADD]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([[STR1TY]], [[STR1TY]]* @.str.1, i32 0, i32 0), i32 268)
+// CHECK-NEXT:    [[TMP14:%.*]] = call i32 @llvm.annotation.i32(i32 [[TMP13]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([[STR1TY]], [[STR1TY]]* @.str.1, i32 0, i32 0), i32 268)
 // CHECK-NEXT:    store i32 [[TMP14]], i32 addrspace(4)* [[D_ASCAST]], align 4, [[TBAA9]]
 // CHECK-NEXT:    [[TMP15:%.*]] = bitcast i32* [[E]] to i8*
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0i8(i64 4, i8* [[TMP15]]) [[ATTR6]]
 // CHECK-NEXT:    [[TMP16:%.*]] = load i32, i32 addrspace(4)* [[A_ASCAST]], align 4, [[TBAA9]]
 // CHECK-NEXT:    [[TMP17:%.*]] = load i32, i32 addrspace(4)* [[B_ASCAST]], align 4, [[TBAA9]]
 // CHECK-NEXT:    [[ADD1:%.*]] = add nsw i32 [[TMP16]], [[TMP17]]
-// CHECK-NEXT:    [[TMP18:%.*]] = call i32 @llvm.annotation.i32(i32 [[ADD1]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.1, i32 0, i32 0), i32 270)
-// CHECK-NEXT:    [[TMP19:%.*]] = call i32 @llvm.annotation.i32(i32 [[TMP18]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.1, i32 0, i32 0), i32 270)
+// CHECK-NEXT:    [[TMP18:%.*]] = call i32 @llvm.annotation.i32(i32 [[ADD1]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([[STR1TY]], [[STR1TY]]* @.str.1, i32 0, i32 0), i32 269)
+// CHECK-NEXT:    [[TMP19:%.*]] = call i32 @llvm.annotation.i32(i32 [[TMP18]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([[STR1TY]], [[STR1TY]]* @.str.1, i32 0, i32 0), i32 269)
 // CHECK-NEXT:    store i32 [[TMP19]], i32 addrspace(4)* [[E_ASCAST]], align 4, [[TBAA9]]
 // CHECK-NEXT:    [[TMP20:%.*]] = bitcast i32* [[F]] to i8*
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0i8(i64 4, i8* [[TMP20]]) [[ATTR6]]
 // CHECK-NEXT:    [[TMP21:%.*]] = load i32, i32 addrspace(4)* [[A_ASCAST]], align 4, [[TBAA9]]
-// CHECK-NEXT:    [[TMP22:%.*]] = call i32 @llvm.annotation.i32(i32 [[TMP21]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.1, i32 0, i32 0), i32 272)
+// CHECK-NEXT:    [[TMP22:%.*]] = call i32 @llvm.annotation.i32(i32 [[TMP21]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([[STR1TY]], [[STR1TY]]* @.str.1, i32 0, i32 0), i32 271)
 // CHECK-NEXT:    store i32 [[TMP22]], i32 addrspace(4)* [[F_ASCAST]], align 4, [[TBAA9]]
 // CHECK-NEXT:    [[TMP23:%.*]] = bitcast %struct._ZTS2st.st* [[I]] to i8*
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0i8(i64 8, i8* [[TMP23]]) [[ATTR6]]
@@ -136,7 +136,7 @@ typedef int myInt;
 // CHECK-NEXT:    [[TMP30:%.*]] = bitcast [[STRUCT__ZTS2ST_ST]] addrspace(4)* [[I_ASCAST]] to i8 addrspace(4)*
 // CHECK-NEXT:    call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 4 [[TMP29]], i8 addrspace(4)* align 4 [[TMP30]], i64 8, i1 false), !tbaa.struct !11
 // CHECK-NEXT:    [[TMP31:%.*]] = bitcast [[STRUCT__ZTS2ST_ST]] addrspace(4)* [[AGG_TEMP_ASCAST]] to i8 addrspace(4)*
-// CHECK-NEXT:    [[TMP32:%.*]] = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 addrspace(4)* [[TMP31]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.1, i32 0, i32 0), i32 276, i8* null)
+// CHECK-NEXT:    [[TMP32:%.*]] = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 addrspace(4)* [[TMP31]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([[STR1TY]], [[STR1TY]]* @.str.1, i32 0, i32 0), i32 275, i8* null)
 // CHECK-NEXT:    [[TMP33:%.*]] = bitcast i8 addrspace(4)* [[TMP32]] to [[STRUCT__ZTS2ST_ST]] addrspace(4)*
 // CHECK-NEXT:    [[TMP34:%.*]] = bitcast [[STRUCT__ZTS2ST_ST]] addrspace(4)* [[II_ASCAST]] to i8 addrspace(4)*
 // CHECK-NEXT:    [[TMP35:%.*]] = bitcast [[STRUCT__ZTS2ST_ST]] addrspace(4)* [[TMP33]] to i8 addrspace(4)*
@@ -149,7 +149,7 @@ typedef int myInt;
 // CHECK-NEXT:    [[TMP39:%.*]] = bitcast [[STRUCT__ZTS2ST_ST]] addrspace(4)* [[II_ASCAST]] to i8 addrspace(4)*
 // CHECK-NEXT:    call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 4 [[TMP38]], i8 addrspace(4)* align 4 [[TMP39]], i64 8, i1 false), !tbaa.struct !11
 // CHECK-NEXT:    [[TMP40:%.*]] = bitcast [[STRUCT__ZTS2ST_ST]] addrspace(4)* [[AGG_TEMP2_ASCAST]] to i8 addrspace(4)*
-// CHECK-NEXT:    [[TMP41:%.*]] = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 addrspace(4)* [[TMP40]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.1, i32 0, i32 0), i32 278, i8* null)
+// CHECK-NEXT:    [[TMP41:%.*]] = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 addrspace(4)* [[TMP40]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([[STR1TY]], [[STR1TY]]* @.str.1, i32 0, i32 0), i32 277, i8* null)
 // CHECK-NEXT:    [[TMP42:%.*]] = bitcast i8 addrspace(4)* [[TMP41]] to [[STRUCT__ZTS2ST_ST]] addrspace(4)*
 // CHECK-NEXT:    [[TMP43:%.*]] = bitcast [[STRUCT__ZTS2ST_ST]] addrspace(4)* [[REF_TMP_ASCAST]] to i8 addrspace(4)*
 // CHECK-NEXT:    [[TMP44:%.*]] = bitcast [[STRUCT__ZTS2ST_ST]] addrspace(4)* [[TMP42]] to i8 addrspace(4)*
@@ -162,7 +162,7 @@ typedef int myInt;
 // CHECK-NEXT:    [[TMP48:%.*]] = bitcast [[STRUCT__ZTS2ST_ST]] addrspace(4)** [[IIII]] to i8*
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0i8(i64 8, i8* [[TMP48]]) [[ATTR6]]
 // CHECK-NEXT:    [[TMP49:%.*]] = ptrtoint [[STRUCT__ZTS2ST_ST]] addrspace(4)* [[III_ASCAST]] to i64
-// CHECK-NEXT:    [[TMP50:%.*]] = call i64 @llvm.annotation.i64(i64 [[TMP49]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.1, i32 0, i32 0), i32 280)
+// CHECK-NEXT:    [[TMP50:%.*]] = call i64 @llvm.annotation.i64(i64 [[TMP49]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([[STR1TY]], [[STR1TY]]* @.str.1, i32 0, i32 0), i32 279)
 // CHECK-NEXT:    [[TMP51:%.*]] = inttoptr i64 [[TMP50]] to [[STRUCT__ZTS2ST_ST]] addrspace(4)*
 // CHECK-NEXT:    store [[STRUCT__ZTS2ST_ST]] addrspace(4)* [[TMP51]], [[STRUCT__ZTS2ST_ST]] addrspace(4)* addrspace(4)* [[IIII_ASCAST]], align 8, [[TBAA5:!tbaa !.*]]
 // CHECK-NEXT:    [[TMP52:%.*]] = bitcast %union._ZTS2un.un* [[U1]] to i8*
@@ -179,7 +179,7 @@ typedef int myInt;
 // CHECK-NEXT:    [[TMP58:%.*]] = bitcast [[UNION__ZTS2UN_UN]] addrspace(4)* [[U1_ASCAST]] to i8 addrspace(4)*
 // CHECK-NEXT:    call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 4 [[TMP57]], i8 addrspace(4)* align 4 [[TMP58]], i64 4, i1 false), !tbaa.struct !14
 // CHECK-NEXT:    [[TMP59:%.*]] = bitcast [[UNION__ZTS2UN_UN]] addrspace(4)* [[AGG_TEMP4_ASCAST]] to i8 addrspace(4)*
-// CHECK-NEXT:    [[TMP60:%.*]] = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 addrspace(4)* [[TMP59]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.1, i32 0, i32 0), i32 284, i8* null)
+// CHECK-NEXT:    [[TMP60:%.*]] = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 addrspace(4)* [[TMP59]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([[STR1TY]], [[STR1TY]]* @.str.1, i32 0, i32 0), i32 283, i8* null)
 // CHECK-NEXT:    [[TMP61:%.*]] = bitcast i8 addrspace(4)* [[TMP60]] to [[UNION__ZTS2UN_UN]] addrspace(4)*
 // CHECK-NEXT:    [[TMP62:%.*]] = bitcast [[UNION__ZTS2UN_UN]] addrspace(4)* [[REF_TMP3_ASCAST]] to i8 addrspace(4)*
 // CHECK-NEXT:    [[TMP63:%.*]] = bitcast [[UNION__ZTS2UN_UN]] addrspace(4)* [[TMP61]] to i8 addrspace(4)*
@@ -190,7 +190,7 @@ typedef int myInt;
 // CHECK-NEXT:    [[TMP66:%.*]] = bitcast %union._ZTS2un.un* [[REF_TMP3]] to i8*
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0i8(i64 4, i8* [[TMP66]]) [[ATTR6]]
 // CHECK-NEXT:    [[TMP67:%.*]] = ptrtoint [[UNION__ZTS2UN_UN]] addrspace(4)* [[U2_ASCAST]] to i64
-// CHECK-NEXT:    [[TMP68:%.*]] = call i64 @llvm.annotation.i64(i64 [[TMP67]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.1, i32 0, i32 0), i32 286)
+// CHECK-NEXT:    [[TMP68:%.*]] = call i64 @llvm.annotation.i64(i64 [[TMP67]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([[STR1TY]], [[STR1TY]]* @.str.1, i32 0, i32 0), i32 285)
 // CHECK-NEXT:    [[TMP69:%.*]] = inttoptr i64 [[TMP68]] to [[UNION__ZTS2UN_UN]] addrspace(4)*
 // CHECK-NEXT:    store [[UNION__ZTS2UN_UN]] addrspace(4)* [[TMP69]], [[UNION__ZTS2UN_UN]] addrspace(4)* addrspace(4)* [[U3_ASCAST]], align 8, [[TBAA5]]
 // CHECK-NEXT:    [[TMP70:%.*]] = bitcast %class._ZTS1A.A* [[CA]] to i8*
@@ -202,7 +202,7 @@ typedef int myInt;
 // CHECK-NEXT:    [[TMP73:%.*]] = bitcast [[CLASS__ZTS1A_A]] addrspace(4)* [[CA_ASCAST]] to i8 addrspace(4)*
 // CHECK-NEXT:    call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 4 [[TMP72]], i8 addrspace(4)* align 4 [[TMP73]], i64 4, i1 false), !tbaa.struct !16
 // CHECK-NEXT:    [[TMP74:%.*]] = bitcast [[CLASS__ZTS1A_A]] addrspace(4)* [[AGG_TEMP5_ASCAST]] to i8 addrspace(4)*
-// CHECK-NEXT:    [[TMP75:%.*]] = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 addrspace(4)* [[TMP74]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.1, i32 0, i32 0), i32 289, i8* null)
+// CHECK-NEXT:    [[TMP75:%.*]] = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 addrspace(4)* [[TMP74]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([[STR1TY]], [[STR1TY]]* @.str.1, i32 0, i32 0), i32 288, i8* null)
 // CHECK-NEXT:    [[TMP76:%.*]] = bitcast i8 addrspace(4)* [[TMP75]] to [[CLASS__ZTS1A_A]] addrspace(4)*
 // CHECK-NEXT:    [[TMP77:%.*]] = bitcast [[CLASS__ZTS1A_A]] addrspace(4)* [[CB_ASCAST]] to i8 addrspace(4)*
 // CHECK-NEXT:    [[TMP78:%.*]] = bitcast [[CLASS__ZTS1A_A]] addrspace(4)* [[TMP76]] to i8 addrspace(4)*
@@ -214,7 +214,7 @@ typedef int myInt;
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0i8(i64 8, i8* [[TMP80]]) [[ATTR6]]
 // CHECK-NEXT:    [[TMP81:%.*]] = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* [[AP_ASCAST]], align 8, [[TBAA5]]
 // CHECK-NEXT:    [[TMP82:%.*]] = ptrtoint i32 addrspace(4)* [[TMP81]] to i64
-// CHECK-NEXT:    [[TMP83:%.*]] = call i64 @llvm.annotation.i64(i64 [[TMP82]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([67 x i8], [67 x i8]* @.str.1, i32 0, i32 0), i32 292)
+// CHECK-NEXT:    [[TMP83:%.*]] = call i64 @llvm.annotation.i64(i64 [[TMP82]], i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([[STR1TY]], [[STR1TY]]* @.str.1, i32 0, i32 0), i32 291)
 // CHECK-NEXT:    [[TMP84:%.*]] = inttoptr i64 [[TMP83]] to i32 addrspace(4)*
 // CHECK-NEXT:    store i32 addrspace(4)* [[TMP84]], i32 addrspace(4)* addrspace(4)* [[BP_ASCAST]], align 8, [[TBAA5]]
 // CHECK-NEXT:    [[TMP85:%.*]] = bitcast i32 addrspace(4)** [[BP]] to i8*
