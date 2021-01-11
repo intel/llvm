@@ -157,7 +157,12 @@ template <typename BinaryOperation, typename AccumulatorT>
 struct known_identity_impl<BinaryOperation, AccumulatorT,
                            typename std::enable_if<IsZeroIdentityOp<
                                AccumulatorT, BinaryOperation>::value>::type> {
-  static constexpr AccumulatorT value = 0;
+  static constexpr AccumulatorT value =
+#ifdef __SYCL_DEVICE_ONLY__
+      0;
+#else
+      cl::sycl::detail::host_half_impl::half(static_cast<uint16_t>(0));
+#endif
 };
 
 /// Returns one as identify for MULTIPLY operations.
@@ -165,7 +170,12 @@ template <typename BinaryOperation, typename AccumulatorT>
 struct known_identity_impl<BinaryOperation, AccumulatorT,
                            typename std::enable_if<IsOneIdentityOp<
                                AccumulatorT, BinaryOperation>::value>::type> {
-  static constexpr AccumulatorT value = 1;
+  static constexpr AccumulatorT value =
+#ifdef __SYCL_DEVICE_ONLY__
+      1;
+#else
+      cl::sycl::detail::host_half_impl::half(static_cast<uint16_t>(0x3C00));
+#endif
 };
 
 /// Returns bit image consisting of all ones as identity for AND operations.

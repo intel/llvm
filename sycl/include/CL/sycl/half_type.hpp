@@ -85,10 +85,11 @@ public:
 
   template <typename Key> friend struct std::hash;
 
-private:
+  // Initialize underlying data
   constexpr explicit half(uint16_t x) : Buf(x) {}
+
+private:
   uint16_t Buf;
-  friend std::numeric_limits<class cl::sycl::detail::half_impl::half>;
 };
 
 } // namespace host_half_impl
