@@ -62,6 +62,12 @@ see [ABI Policy Guide](sycl/doc/ABIPolicyGuide.md) for more information.
 - For any DPC++-related commit, the `[SYCL]` tag should be present in the
   commit message title. To a reasonable extent, additional tags can be used
   to signify the component changed, e.g.: `[PI]`, `[CUDA]`, `[Doc]`.
+- For product changes which require modification of E2E tests
+  (see [Test DPC++ toolchain](sycl/doc/GetStartedGuide.md#test-dpc-toolchain))
+  the commit message should contain link to corresponding test PR, e.g.: E2E
+  test changes are availbale under intel/llvm-test-suite#88.
+  See [Autolinked references and URLs](https://docs.github.com/en/free-pro-team/github/writing-on-github/autolinked-references-and-urls)
+  for more details.
 
 ### Review and acceptance testing
 
