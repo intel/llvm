@@ -239,29 +239,25 @@ __CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, double, -DBL_MAX)
     }                                                                          \
     __spirv_ControlBarrier(Workgroup, 0, 0);                                   \
     /* Perform InclusiveScan over sub-group results */                         \
-    /* FIXME: Ideally, use an alternative algorithm that doesn't require two   \
-     * calls to __syncthreads() */                                             \
-    for (int o = 1; o < num_sg; o *= 2) {                                      \
-      TYPE contribution = IDENTITY;                                            \
-      if (sg_id >= o && sg_lid == 0) {                                         \
-        contribution = scratch[sg_id - o];                                     \
+    TYPE sg_prefix;                                                            \
+    TYPE sg_aggregate = scratch[0];                                            \
+    _Pragma("unroll") for (int s = 1; s < num_sg; ++s) {                       \
+      if (sg_id == s) {                                                        \
+        sg_prefix = sg_aggregate;                                              \
       }                                                                        \
-      __spirv_ControlBarrier(Workgroup, 0, 0);                                 \
-      if (sg_id >= o && sg_lid == 0) {                                         \
-        scratch[sg_id] = OP(scratch[sg_id], contribution);                     \
-      }                                                                        \
-      __spirv_ControlBarrier(Workgroup, 0, 0);                                 \
+      TYPE addend = scratch[s];                                                \
+      sg_aggregate = OP(sg_aggregate, addend);                                 \
     }                                                                          \
     /* For Reduce, broadcast result from final sub-group */                    \
     /* For Scan, combine results from previous sub-groups */                   \
     TYPE result;                                                               \
     if (op == Reduce) {                                                        \
-      result = scratch[num_sg - 1];                                            \
+      result = sg_aggregate;                                                   \
     } else if (op == InclusiveScan || op == ExclusiveScan) {                   \
       if (sg_id == 0) {                                                        \
         result = sg_x;                                                         \
       } else {                                                                 \
-        result = OP(sg_x, scratch[sg_id - 1]);                                 \
+        result = OP(sg_x, sg_prefix);                                          \
       }                                                                        \
     }                                                                          \
     return result;                                                             \
