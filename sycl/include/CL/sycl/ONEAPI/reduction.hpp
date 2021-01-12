@@ -157,7 +157,14 @@ template <typename BinaryOperation, typename AccumulatorT>
 struct known_identity_impl<BinaryOperation, AccumulatorT,
                            typename std::enable_if<IsZeroIdentityOp<
                                AccumulatorT, BinaryOperation>::value>::type> {
-  static constexpr AccumulatorT value =
+  static constexpr AccumulatorT value = 0;
+};
+
+template <typename BinaryOperation>
+struct known_identity_impl<BinaryOperation, half,
+                           typename std::enable_if<IsZeroIdentityOp<
+                               half, BinaryOperation>::value>::type> {
+  static constexpr half value =
 #ifdef __SYCL_DEVICE_ONLY__
       0;
 #else
@@ -170,7 +177,14 @@ template <typename BinaryOperation, typename AccumulatorT>
 struct known_identity_impl<BinaryOperation, AccumulatorT,
                            typename std::enable_if<IsOneIdentityOp<
                                AccumulatorT, BinaryOperation>::value>::type> {
-  static constexpr AccumulatorT value =
+  static constexpr AccumulatorT value = 1;
+};
+
+template <typename BinaryOperation>
+struct known_identity_impl<BinaryOperation, half,
+                           typename std::enable_if<IsOneIdentityOp<
+                               half, BinaryOperation>::value>::type> {
+  static constexpr half value =
 #ifdef __SYCL_DEVICE_ONLY__
       1;
 #else
