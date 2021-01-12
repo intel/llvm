@@ -32,6 +32,7 @@
 #include "llvm/Analysis/Loads.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
@@ -153,6 +154,7 @@ namespace {
       AU.addPreserved<LazyValueInfoWrapperPass>();
       AU.addPreserved<GlobalsAAWrapperPass>();
       AU.addRequired<TargetLibraryInfoWrapperPass>();
+      AU.addRequired<TargetTransformInfoWrapperPass>();
     }
 
     void releaseMemory() override { Impl.releaseMemory(); }
@@ -310,6 +312,10 @@ static void updatePredecessorProfileMetadata(PHINode *PN, BasicBlock *BB) {
 /// runOnFunction - Toplevel algorithm.
 bool JumpThreading::runOnFunction(Function &F) {
   if (skipFunction(F))
+    return false;
+  auto TTI = &getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);
+  // Jump Threading has no sense for the targets with divergent CF
+  if (TTI->hasBranchDivergence())
     return false;
   auto TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
   auto DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
@@ -1111,6 +1117,8 @@ bool JumpThreadingPass::processBlock(BasicBlock *BB) {
                       << '\n');
     ++NumFolds;
     ConstantFoldTerminator(BB, true, nullptr, DTU);
+    if (HasProfileData)
+      BPI->eraseBlock(BB);
     return true;
   }
 
@@ -1166,6 +1174,8 @@ bool JumpThreadingPass::processBlock(BasicBlock *BB) {
         }
         DTU->applyUpdatesPermissive(
             {{DominatorTree::Delete, BB, ToRemoveSucc}});
+        if (HasProfileData)
+          BPI->eraseBlock(BB);
         return true;
       }
 
@@ -1263,6 +1273,8 @@ bool JumpThreadingPass::processImpliedCondition(BasicBlock *BB) {
       UncondBI->setDebugLoc(BI->getDebugLoc());
       BI->eraseFromParent();
       DTU->applyUpdatesPermissive({{DominatorTree::Delete, BB, RemoveSucc}});
+      if (HasProfileData)
+        BPI->eraseBlock(BB);
       return true;
     }
     CurrentBB = CurrentPred;

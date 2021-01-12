@@ -513,6 +513,7 @@ BEGIN_TWO_BYTE_PACK()
   class LoadSDNodeBitfields {
     friend class LoadSDNode;
     friend class MaskedLoadSDNode;
+    friend class MaskedGatherSDNode;
 
     uint16_t : NumLSBaseSDNodeBits;
 
@@ -2452,11 +2453,17 @@ public:
 
   MaskedGatherSDNode(unsigned Order, const DebugLoc &dl, SDVTList VTs,
                      EVT MemVT, MachineMemOperand *MMO,
-                     ISD::MemIndexType IndexType)
+                     ISD::MemIndexType IndexType, ISD::LoadExtType ETy)
       : MaskedGatherScatterSDNode(ISD::MGATHER, Order, dl, VTs, MemVT, MMO,
-                                  IndexType) {}
+                                  IndexType) {
+    LoadSDNodeBits.ExtTy = ETy;
+  }
 
   const SDValue &getPassThru() const { return getOperand(1); }
+
+  ISD::LoadExtType getExtensionType() const {
+    return ISD::LoadExtType(LoadSDNodeBits.ExtTy);
+  }
 
   static bool classof(const SDNode *N) {
     return N->getOpcode() == ISD::MGATHER;

@@ -261,7 +261,7 @@ Sema::InstantiatingTemplate::InstantiatingTemplate(
 
     AlreadyInstantiating = !Inst.Entity ? false :
         !SemaRef.InstantiatingSpecializations
-             .insert(std::make_pair(Inst.Entity->getCanonicalDecl(), Inst.Kind))
+             .insert({Inst.Entity->getCanonicalDecl(), Inst.Kind})
              .second;
     atTemplateBegin(SemaRef.TemplateInstCallbacks, SemaRef, Inst);
   }
@@ -480,7 +480,7 @@ void Sema::InstantiatingTemplate::Clear() {
       auto &Active = SemaRef.CodeSynthesisContexts.back();
       if (Active.Entity)
         SemaRef.InstantiatingSpecializations.erase(
-            std::make_pair(Active.Entity, Active.Kind));
+            {Active.Entity->getCanonicalDecl(), Active.Kind});
     }
 
     atTemplateEnd(SemaRef.TemplateInstCallbacks, SemaRef,
@@ -1672,16 +1672,18 @@ ExprResult TemplateInstantiator::transformNonTypeTemplateParmRef(
       VD = nullptr;
     }
 
-    QualType paramType = VD ? arg.getParamTypeForDecl() : arg.getNullPtrType();
+    QualType paramType = arg.getNonTypeTemplateArgumentType();
     assert(!paramType.isNull() && "type substitution failed for param type");
     assert(!paramType->isDependentType() && "param type still dependent");
     result = SemaRef.BuildExpressionFromDeclTemplateArgument(arg, paramType, loc);
     refParam = paramType->isReferenceType();
   } else {
-    result = SemaRef.BuildExpressionFromIntegralTemplateArgument(arg, loc);
+    QualType paramType = arg.getNonTypeTemplateArgumentType();
+    result = SemaRef.BuildExpressionFromNonTypeTemplateArgument(arg, loc);
+    refParam = paramType->isReferenceType();
     assert(result.isInvalid() ||
            SemaRef.Context.hasSameType(result.get()->getType(),
-                                       arg.getIntegralType()));
+                                       paramType.getNonReferenceType()));
   }
 
   if (result.isInvalid())
@@ -3153,14 +3155,16 @@ bool Sema::usesPartialOrExplicitSpecialization(
 /// Get the instantiation pattern to use to instantiate the definition of a
 /// given ClassTemplateSpecializationDecl (either the pattern of the primary
 /// template or of a partial specialization).
-static CXXRecordDecl *
+static ActionResult<CXXRecordDecl *>
 getPatternForClassTemplateSpecialization(
     Sema &S, SourceLocation PointOfInstantiation,
     ClassTemplateSpecializationDecl *ClassTemplateSpec,
-    TemplateSpecializationKind TSK, bool Complain) {
+    TemplateSpecializationKind TSK) {
   Sema::InstantiatingTemplate Inst(S, PointOfInstantiation, ClassTemplateSpec);
-  if (Inst.isInvalid() || Inst.isAlreadyInstantiating())
-    return nullptr;
+  if (Inst.isInvalid())
+    return {/*Invalid=*/true};
+  if (Inst.isAlreadyInstantiating())
+    return {/*Invalid=*/false};
 
   llvm::PointerUnion<ClassTemplateDecl *,
                      ClassTemplatePartialSpecializationDecl *>
@@ -3257,7 +3261,7 @@ getPatternForClassTemplateSpecialization(
                 << S.getTemplateArgumentBindingsText(
                        P->Partial->getTemplateParameters(), *P->Args);
 
-          return nullptr;
+          return {/*Invalid=*/true};
         }
       }
 
@@ -3308,14 +3312,15 @@ bool Sema::InstantiateClassTemplateSpecialization(
   if (ClassTemplateSpec->isInvalidDecl())
     return true;
 
-  CXXRecordDecl *Pattern = getPatternForClassTemplateSpecialization(
-      *this, PointOfInstantiation, ClassTemplateSpec, TSK, Complain);
-  if (!Pattern)
-    return true;
+  ActionResult<CXXRecordDecl *> Pattern =
+      getPatternForClassTemplateSpecialization(*this, PointOfInstantiation,
+                                               ClassTemplateSpec, TSK);
+  if (!Pattern.isUsable())
+    return Pattern.isInvalid();
 
-  return InstantiateClass(PointOfInstantiation, ClassTemplateSpec, Pattern,
-                          getTemplateInstantiationArgs(ClassTemplateSpec), TSK,
-                          Complain);
+  return InstantiateClass(
+      PointOfInstantiation, ClassTemplateSpec, Pattern.get(),
+      getTemplateInstantiationArgs(ClassTemplateSpec), TSK, Complain);
 }
 
 /// Instantiates the definitions of all of the member
@@ -3340,7 +3345,8 @@ Sema::InstantiateClassMembers(SourceLocation PointOfInstantiation,
       if (FunctionDecl *Pattern =
               Function->getInstantiatedFromMemberFunction()) {
 
-        if (Function->hasAttr<ExcludeFromExplicitInstantiationAttr>())
+        if (TSK != TSK_ImplicitInstantiation &&
+            Function->hasAttr<ExcludeFromExplicitInstantiationAttr>())
           continue;
 
         MemberSpecializationInfo *MSInfo =
@@ -3385,7 +3391,8 @@ Sema::InstantiateClassMembers(SourceLocation PointOfInstantiation,
         continue;
 
       if (Var->isStaticDataMember()) {
-        if (Var->hasAttr<ExcludeFromExplicitInstantiationAttr>())
+        if (TSK != TSK_ImplicitInstantiation &&
+            Var->hasAttr<ExcludeFromExplicitInstantiationAttr>())
           continue;
 
         MemberSpecializationInfo *MSInfo = Var->getMemberSpecializationInfo();
@@ -3402,7 +3409,7 @@ Sema::InstantiateClassMembers(SourceLocation PointOfInstantiation,
             SuppressNew)
           continue;
 
-        if (TSK == TSK_ExplicitInstantiationDefinition) {
+        if (TSK != TSK_ExplicitInstantiationDeclaration) {
           // C++0x [temp.explicit]p8:
           //   An explicit instantiation definition that names a class template
           //   specialization explicitly instantiates the class template

@@ -73,6 +73,9 @@ Improvements to clang-tidy
   <clang-tidy/checks/cppcoreguidelines-init-variables>` and
   :doc:`modernize-make-unique <clang-tidy/checks/modernize-make-unique>`.
 
+- CheckOptions that take boolean values now support all spellings supported in 
+  the `YAML format <https://yaml.org/type/bool.html>`_.
+
 New modules
 ^^^^^^^^^^^
 
@@ -95,6 +98,12 @@ New checks
 
   Finds kernel files and include directives whose filename is `kernel.cl`,
   `Verilog.cl`, or `VHDL.cl`.
+
+- New :doc:`altera-single-work-item-barrier
+  <clang-tidy/checks/altera-single-work-item-barrier>` check.
+
+  Finds OpenCL kernel functions that call a barrier function but do not call
+  an ID function.
 
 - New :doc:`altera-struct-pack-align
   <clang-tidy/checks/altera-struct-pack-align>` check.
@@ -134,6 +143,11 @@ New checks
 
   Alias to the :doc:`bugprone-signal-handler
   <clang-tidy/checks/bugprone-signal-handler>` check.
+
+- New :doc:`performance-no-int-to-ptr
+  <clang-tidy/checks/performance-no-int-to-ptr>` check.
+
+  Diagnoses every integer to pointer cast.
 
 - New :doc:`readability-function-cognitive-complexity
   <clang-tidy/checks/readability-function-cognitive-complexity>` check.

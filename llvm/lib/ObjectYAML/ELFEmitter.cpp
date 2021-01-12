@@ -832,14 +832,14 @@ ELFState<ELFT>::toELFSymbols(ArrayRef<ELFYAML::Symbol> Symbols,
       Symbol.st_name = Strtab.getOffset(ELFYAML::dropUniqueSuffix(Sym.Name));
 
     Symbol.setBindingAndType(Sym.Binding, Sym.Type);
-    if (!Sym.Section.empty())
-      Symbol.st_shndx = toSectionIndex(Sym.Section, "", Sym.Name);
+    if (Sym.Section)
+      Symbol.st_shndx = toSectionIndex(*Sym.Section, "", Sym.Name);
     else if (Sym.Index)
       Symbol.st_shndx = *Sym.Index;
 
-    Symbol.st_value = Sym.Value;
+    Symbol.st_value = Sym.Value.getValueOr(yaml::Hex64(0));
     Symbol.st_other = Sym.Other ? *Sym.Other : 0;
-    Symbol.st_size = Sym.Size;
+    Symbol.st_size = Sym.Size.getValueOr(yaml::Hex64(0));
   }
 
   return Ret;

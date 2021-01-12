@@ -74,6 +74,7 @@ public:
     OffloadBundlingJobClass,
     OffloadUnbundlingJobClass,
     OffloadWrapperJobClass,
+    OffloadDepsJobClass,
     SPIRVTranslatorJobClass,
     SPIRCheckJobClass,
     SYCLPostLinkJobClass,
@@ -648,6 +649,60 @@ public:
   }
 };
 
+class OffloadDepsJobAction final : public JobAction {
+  void anchor() override;
+
+public:
+  /// Type that provides information about the actions that depend on this
+  /// offload deps action.
+  struct DependentActionInfo final {
+    /// The tool chain of the dependent action.
+    const ToolChain *DependentToolChain = nullptr;
+
+    /// The bound architecture of the dependent action.
+    StringRef DependentBoundArch;
+
+    /// The offload kind of the dependent action.
+    const OffloadKind DependentOffloadKind = OFK_None;
+
+    DependentActionInfo(const ToolChain *DependentToolChain,
+                        StringRef DependentBoundArch,
+                        const OffloadKind DependentOffloadKind)
+        : DependentToolChain(DependentToolChain),
+          DependentBoundArch(DependentBoundArch),
+          DependentOffloadKind(DependentOffloadKind) {}
+  };
+
+private:
+  /// The host offloading toolchain that should be used with the action.
+  const ToolChain *HostTC = nullptr;
+
+  /// Container that keeps information about each dependence of this deps
+  /// action.
+  SmallVector<DependentActionInfo, 6> DependentActionInfoArray;
+
+public:
+  OffloadDepsJobAction(const OffloadAction::HostDependence &HDep,
+                       types::ID Type);
+
+  /// Register information about a dependent action.
+  void registerDependentActionInfo(const ToolChain *TC, StringRef BoundArch,
+                                   OffloadKind Kind) {
+    DependentActionInfoArray.push_back({TC, BoundArch, Kind});
+  }
+
+  /// Return the information about all depending actions.
+  ArrayRef<DependentActionInfo> getDependentActionsInfo() const {
+    return DependentActionInfoArray;
+  }
+
+  const ToolChain *getHostTC() const { return HostTC; }
+
+  static bool classof(const Action *A) {
+    return A->getKind() == OffloadDepsJobClass;
+  }
+};
+
 class SPIRVTranslatorJobAction : public JobAction {
   void anchor() override;
 
@@ -662,6 +717,7 @@ public:
 // Provides a check of the given input file for the existence of SPIR kernel
 // code.  This is currently only used for FPGA specific tool chains and can
 // be expanded to perform other SPIR checks if needed.
+// TODO: No longer being used for FPGA (or elsewhere), cleanup needed.
 class SPIRCheckJobAction : public JobAction {
   void anchor() override;
 
@@ -724,7 +780,7 @@ class FileTableTformJobAction : public JobAction {
 
 public:
   struct Tform {
-    enum Kind { EXTRACT, EXTRACT_DROP_TITLE, REPLACE };
+    enum Kind { EXTRACT, EXTRACT_DROP_TITLE, REPLACE, RENAME };
 
     Tform() = default;
     Tform(Kind K, std::initializer_list<StringRef> Args) : TheKind(K) {
@@ -745,6 +801,10 @@ public:
   // Replaces a column with title <From> in this table with a column with title
   // <To> from another file table passed as input to this action.
   void addReplaceColumnTform(StringRef From, StringRef To);
+
+  // Renames a column with title <From> in this table with a column with title
+  // <To> passed as input to this action.
+  void addRenameColumnTform(StringRef From, StringRef To);
 
   static bool classof(const Action *A) {
     return A->getKind() == FileTableTformJobClass;

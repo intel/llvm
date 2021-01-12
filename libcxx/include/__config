@@ -989,6 +989,12 @@ typedef unsigned int   char32_t;
 #  define _LIBCPP_DEPRECATED_IN_CXX20
 #endif
 
+#if !defined(_LIBCPP_NO_HAS_CHAR8_T)
+#  define _LIBCPP_DEPRECATED_WITH_CHAR8_T _LIBCPP_DEPRECATED
+#else
+#  define _LIBCPP_DEPRECATED_WITH_CHAR8_T
+#endif
+
 // Macros to enter and leave a state where deprecation warnings are suppressed.
 #if !defined(_LIBCPP_SUPPRESS_DEPRECATED_PUSH) && \
     (defined(_LIBCPP_COMPILER_CLANG) || defined(_LIBCPP_COMPILER_GCC))
@@ -1076,7 +1082,7 @@ typedef unsigned int   char32_t;
 #endif
 
 #ifndef _LIBCPP_HAS_NO_ASAN
-_LIBCPP_FUNC_VIS extern "C" void __sanitizer_annotate_contiguous_container(
+extern "C" _LIBCPP_FUNC_VIS void __sanitizer_annotate_contiguous_container(
   const void *, const void *, const void *, const void *);
 #endif
 
@@ -1107,6 +1113,7 @@ _LIBCPP_FUNC_VIS extern "C" void __sanitizer_annotate_contiguous_container(
       defined(__APPLE__) || \
       defined(__CloudABI__) || \
       defined(__sun__) || \
+      defined(__MVS__) || \
       (defined(__MINGW32__) && __has_include(<pthread.h>))
 #    define _LIBCPP_HAS_THREAD_API_PTHREAD
 #  elif defined(__Fuchsia__)
@@ -1310,6 +1317,12 @@ _LIBCPP_FUNC_VIS extern "C" void __sanitizer_annotate_contiguous_container(
 #define _LIBCPP_NODEBUG_TYPE
 #endif
 #endif // !defined(_LIBCPP_NODEBUG_TYPE)
+
+#if __has_attribute(__preferred_name__)
+#define _LIBCPP_PREFERRED_NAME(x) __attribute__((__preferred_name__(x)))
+#else
+#define _LIBCPP_PREFERRED_NAME(x)
+#endif
 
 #if defined(_LIBCPP_ABI_MICROSOFT) && \
     (defined(_LIBCPP_COMPILER_MSVC) || __has_declspec_attribute(empty_bases))

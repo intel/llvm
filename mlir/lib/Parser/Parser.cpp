@@ -94,6 +94,24 @@ ParseResult Parser::parseToken(Token::Kind expectedToken,
   return emitError(message);
 }
 
+/// Parse an optional integer value from the stream.
+OptionalParseResult Parser::parseOptionalInteger(uint64_t &result) {
+  Token curToken = getToken();
+  if (curToken.isNot(Token::integer, Token::minus))
+    return llvm::None;
+
+  bool negative = consumeIf(Token::minus);
+  Token curTok = getToken();
+  if (parseToken(Token::integer, "expected integer value"))
+    return failure();
+
+  auto val = curTok.getUInt64IntegerValue();
+  if (!val)
+    return emitError(curTok.getLoc(), "integer value too large");
+  result = negative ? -*val : *val;
+  return success();
+}
+
 //===----------------------------------------------------------------------===//
 // OperationParser
 //===----------------------------------------------------------------------===//
@@ -1109,6 +1127,11 @@ public:
     return success(parser.consumeIf(Token::star));
   }
 
+  /// Parse an optional integer value from the stream.
+  OptionalParseResult parseOptionalInteger(uint64_t &result) override {
+    return parser.parseOptionalInteger(result);
+  }
+
   //===--------------------------------------------------------------------===//
   // Attribute Parsing
   //===--------------------------------------------------------------------===//
@@ -1433,12 +1456,12 @@ public:
   }
 
   /// Parses a region if present.
-  ParseResult parseOptionalRegion(Region &region,
-                                  ArrayRef<OperandType> arguments,
-                                  ArrayRef<Type> argTypes,
-                                  bool enableNameShadowing) override {
+  OptionalParseResult parseOptionalRegion(Region &region,
+                                          ArrayRef<OperandType> arguments,
+                                          ArrayRef<Type> argTypes,
+                                          bool enableNameShadowing) override {
     if (parser.getToken().isNot(Token::l_brace))
-      return success();
+      return llvm::None;
     return parseRegion(region, arguments, argTypes, enableNameShadowing);
   }
 

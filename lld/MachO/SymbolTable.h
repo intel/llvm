@@ -35,7 +35,7 @@ public:
   Symbol *addDefined(StringRef name, InputSection *isec, uint32_t value,
                      bool isWeakDef);
 
-  Symbol *addUndefined(StringRef name);
+  Symbol *addUndefined(StringRef name, bool isWeakRef);
 
   Symbol *addCommon(StringRef name, InputFile *, uint64_t size, uint32_t align);
 
@@ -54,6 +54,8 @@ private:
   llvm::DenseMap<llvm::CachedHashStringRef, int> symMap;
   std::vector<Symbol *> symVector;
 };
+
+extern void treatUndefinedSymbol(StringRef symbolName, StringRef fileName);
 
 extern SymbolTable *symtab;
 

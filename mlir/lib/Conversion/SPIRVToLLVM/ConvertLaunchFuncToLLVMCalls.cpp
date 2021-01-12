@@ -17,7 +17,7 @@
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/SPIRV/SPIRVOps.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/SymbolTable.h"
@@ -52,7 +52,7 @@ static std::string bindingName() {
 ///   i -> (0, i)
 /// which is implemented under `LowerABIAttributesPass`.
 static unsigned calculateGlobalIndex(spirv::GlobalVariableOp op) {
-  IntegerAttr binding = op.getAttrOfType<IntegerAttr>(bindingName());
+  IntegerAttr binding = op->getAttrOfType<IntegerAttr>(bindingName());
   return binding.getInt();
 }
 
@@ -75,8 +75,8 @@ static std::string
 createGlobalVariableWithBindName(spirv::GlobalVariableOp op,
                                  StringRef kernelModuleName) {
   IntegerAttr descriptorSet =
-      op.getAttrOfType<IntegerAttr>(descriptorSetName());
-  IntegerAttr binding = op.getAttrOfType<IntegerAttr>(bindingName());
+      op->getAttrOfType<IntegerAttr>(descriptorSetName());
+  IntegerAttr binding = op->getAttrOfType<IntegerAttr>(bindingName());
   return llvm::formatv("{0}_{1}_descriptor_set{2}_binding{3}",
                        kernelModuleName.str(), op.sym_name().str(),
                        std::to_string(descriptorSet.getInt()),
@@ -87,8 +87,8 @@ createGlobalVariableWithBindName(spirv::GlobalVariableOp op,
 /// and a binding number.
 static bool hasDescriptorSetAndBinding(spirv::GlobalVariableOp op) {
   IntegerAttr descriptorSet =
-      op.getAttrOfType<IntegerAttr>(descriptorSetName());
-  IntegerAttr binding = op.getAttrOfType<IntegerAttr>(bindingName());
+      op->getAttrOfType<IntegerAttr>(descriptorSetName());
+  IntegerAttr binding = op->getAttrOfType<IntegerAttr>(bindingName());
   return descriptorSet && binding;
 }
 
@@ -155,7 +155,7 @@ class GPULaunchLowering : public ConvertOpToLLVMPattern<gpu::LaunchFuncOp> {
                   ConversionPatternRewriter &rewriter) const override {
     auto *op = launchOp.getOperation();
     MLIRContext *context = rewriter.getContext();
-    auto module = launchOp.getParentOfType<ModuleOp>();
+    auto module = launchOp->getParentOfType<ModuleOp>();
 
     // Get the SPIR-V module that represents the gpu kernel module. The module
     // is named:
@@ -224,7 +224,7 @@ class GPULaunchLowering : public ConvertOpToLLVMPattern<gpu::LaunchFuncOp> {
       spirv::GlobalVariableOp spirvGlobal = globalVariableMap[operand.index()];
       auto pointeeType =
           spirvGlobal.type().cast<spirv::PointerType>().getPointeeType();
-      auto dstGlobalType = typeConverter.convertType(pointeeType);
+      auto dstGlobalType = typeConverter->convertType(pointeeType);
       if (!dstGlobalType)
         return failure();
       std::string name =

@@ -763,6 +763,9 @@ private:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
+    // FIXME Remove this ifndef once rounding of execution range works well with
+    // ESIMD compilation flow.
+#ifndef __SYCL_EXPLICIT_SIMD__
     // The work group size preferred by this device.
     // A reasonable choice for rounding up the range is 32.
     constexpr size_t GoodLocalSizeX = 32;
@@ -827,7 +830,9 @@ private:
           std::move(Wrapper));
       MCGType = detail::CG::KERNEL;
 #endif
-    } else {
+    } else
+#endif // __SYCL_EXPLICIT_SIMD__
+    {
 #ifdef __SYCL_DEVICE_ONLY__
       (void)NumWorkItems;
       kernel_parallel_for<NameT, TransformedArgType>(KernelFunc);

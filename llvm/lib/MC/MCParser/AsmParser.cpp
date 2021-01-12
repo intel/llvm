@@ -515,6 +515,7 @@ private:
     DK_PRINT,
     DK_ADDRSIG,
     DK_ADDRSIG_SYM,
+    DK_PSEUDO_PROBE,
     DK_END
   };
 
@@ -677,6 +678,9 @@ private:
 
   // .print <double-quotes-string>
   bool parseDirectivePrint(SMLoc DirectiveLoc);
+
+  // .pseudoprobe
+  bool parseDirectivePseudoProbe();
 
   // Directives to support address-significance tables.
   bool parseDirectiveAddrsig();
@@ -2202,6 +2206,8 @@ bool AsmParser::parseStatement(ParseStatementInfo &Info,
       return parseDirectiveAddrsig();
     case DK_ADDRSIG_SYM:
       return parseDirectiveAddrsigSym();
+    case DK_PSEUDO_PROBE:
+      return parseDirectivePseudoProbe();
     }
 
     return Error(IDLoc, "unknown directive");
@@ -3002,13 +3008,20 @@ bool AsmParser::parseAngleBracketString(std::string &Data) {
 }
 
 /// parseDirectiveAscii:
-///   ::= ( .ascii | .asciz | .string ) [ "string" ( , "string" )* ]
+//    ::= .ascii [ "string"+ ( , "string"+ )* ]
+///   ::= ( .asciz | .string ) [ "string" ( , "string" )* ]
 bool AsmParser::parseDirectiveAscii(StringRef IDVal, bool ZeroTerminated) {
   auto parseOp = [&]() -> bool {
     std::string Data;
-    if (checkForValidSection() || parseEscapedString(Data))
+    if (checkForValidSection())
       return true;
-    getStreamer().emitBytes(Data);
+    // Only support spaces as separators for .ascii directive for now. See the
+    // discusssion at https://reviews.llvm.org/D91460 for more details
+    do {
+      if (parseEscapedString(Data))
+        return true;
+      getStreamer().emitBytes(Data);
+    } while (!ZeroTerminated && getTok().is(AsmToken::String));
     if (ZeroTerminated)
       getStreamer().emitBytes(StringRef("\0", 1));
     return false;
@@ -3336,6 +3349,8 @@ bool AsmParser::parseDirectiveAlign(bool IsPow2, unsigned ValueSize) {
       Alignment = 1;
     if (!isPowerOf2_64(Alignment))
       ReturnVal |= Error(AlignmentLoc, "alignment must be a power of 2");
+    if (!isUInt<32>(Alignment))
+      ReturnVal |= Error(AlignmentLoc, "alignment must be smaller than 2**32");
   }
 
   // Diagnose non-sensical max bytes to align.
@@ -4077,6 +4092,9 @@ bool AsmParser::parseDirectiveCFISections() {
       Debug = true;
   }
 
+  if (parseToken(AsmToken::EndOfStatement))
+    return addErrorSuffix(" in '.cfi_sections' directive");
+
   getStreamer().emitCFISections(EH, Debug);
   return false;
 }
@@ -4104,6 +4122,8 @@ bool AsmParser::parseDirectiveCFIStartProc() {
 /// parseDirectiveCFIEndProc
 /// ::= .cfi_endproc
 bool AsmParser::parseDirectiveCFIEndProc() {
+  if (parseToken(AsmToken::EndOfStatement))
+    return addErrorSuffix(" in '.cfi_endproc' directive");
   getStreamer().emitCFIEndProc();
   return false;
 }
@@ -5515,6 +5535,7 @@ void AsmParser::initializeDirectiveKindMap() {
   DirectiveKindMap[".print"] = DK_PRINT;
   DirectiveKindMap[".addrsig"] = DK_ADDRSIG;
   DirectiveKindMap[".addrsig_sym"] = DK_ADDRSIG_SYM;
+  DirectiveKindMap[".pseudoprobe"] = DK_PSEUDO_PROBE;
 }
 
 MCAsmMacro *AsmParser::parseMacroLikeBody(SMLoc DirectiveLoc) {
@@ -5767,6 +5788,69 @@ bool AsmParser::parseDirectiveAddrsigSym() {
     return true;
   MCSymbol *Sym = getContext().getOrCreateSymbol(Name);
   getStreamer().emitAddrsigSym(Sym);
+  return false;
+}
+
+bool AsmParser::parseDirectivePseudoProbe() {
+  int64_t Guid;
+  int64_t Index;
+  int64_t Type;
+  int64_t Attr;
+
+  if (getLexer().is(AsmToken::Integer)) {
+    if (parseIntToken(Guid, "unexpected token in '.pseudoprobe' directive"))
+      return true;
+  }
+
+  if (getLexer().is(AsmToken::Integer)) {
+    if (parseIntToken(Index, "unexpected token in '.pseudoprobe' directive"))
+      return true;
+  }
+
+  if (getLexer().is(AsmToken::Integer)) {
+    if (parseIntToken(Type, "unexpected token in '.pseudoprobe' directive"))
+      return true;
+  }
+
+  if (getLexer().is(AsmToken::Integer)) {
+    if (parseIntToken(Attr, "unexpected token in '.pseudoprobe' directive"))
+      return true;
+  }
+
+  // Parse inline stack like @ GUID:11:12 @ GUID:1:11 @ GUID:3:21
+  MCPseudoProbeInlineStack InlineStack;
+
+  while (getLexer().is(AsmToken::At)) {
+    // eat @
+    Lex();
+
+    int64_t CallerGuid = 0;
+    if (getLexer().is(AsmToken::Integer)) {
+      if (parseIntToken(CallerGuid,
+                        "unexpected token in '.pseudoprobe' directive"))
+        return true;
+    }
+
+    // eat colon
+    if (getLexer().is(AsmToken::Colon))
+      Lex();
+
+    int64_t CallerProbeId = 0;
+    if (getLexer().is(AsmToken::Integer)) {
+      if (parseIntToken(CallerProbeId,
+                        "unexpected token in '.pseudoprobe' directive"))
+        return true;
+    }
+
+    InlineSite Site(CallerGuid, CallerProbeId);
+    InlineStack.push_back(Site);
+  }
+
+  if (parseToken(AsmToken::EndOfStatement,
+                 "unexpected token in '.pseudoprobe' directive"))
+    return true;
+
+  getStreamer().emitPseudoProbe(Guid, Index, Type, Attr, InlineStack);
   return false;
 }
 

@@ -9,15 +9,16 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 
 #include "mlir/Dialect/CommonFolders.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Support/MathExtras.h"
@@ -140,19 +141,8 @@ static void printStandardCastOp(Operation *op, OpAsmPrinter &p) {
     << op->getResult(0).getType();
 }
 
-/// A custom cast operation verifier.
-template <typename T>
-static LogicalResult verifyCastOp(T op) {
-  auto opType = op.getOperand().getType();
-  auto resType = op.getType();
-  if (!T::areCastCompatible(opType, resType))
-    return op.emitError("operand type ") << opType << " and result type "
-                                         << resType << " are cast incompatible";
-
-  return success();
-}
-
 void StandardOpsDialect::initialize() {
+  getContext()->loadDialect<tensor::TensorDialect>();
   addOperations<DmaStartOp, DmaWaitOp,
 #define GET_OP_LIST
 #include "mlir/Dialect/StandardOps/IR/Ops.cpp.inc"
@@ -287,7 +277,7 @@ static LogicalResult verify(AllocOp op) { return verifyAllocLikeOp(op); }
 
 static LogicalResult verify(AllocaOp op) {
   // An alloca op needs to have an ancestor with an allocation scope trait.
-  if (!op.getParentWithTrait<OpTrait::AutomaticAllocationScope>())
+  if (!op->getParentWithTrait<OpTrait::AutomaticAllocationScope>())
     return op.emitOpError(
         "requires an ancestor op with AutomaticAllocationScope trait");
 
@@ -547,7 +537,7 @@ static void print(OpAsmPrinter &p, GenericAtomicRMWOp op) {
 //===----------------------------------------------------------------------===//
 
 static LogicalResult verify(AtomicYieldOp op) {
-  Type parentType = op.getParentOp()->getResultTypes().front();
+  Type parentType = op->getParentOp()->getResultTypes().front();
   Type resultType = op.result().getType();
   if (parentType != resultType)
     return op.emitOpError() << "types mismatch between yield op: " << resultType
@@ -660,9 +650,7 @@ Block *BranchOp::getDest() { return getSuccessor(); }
 
 void BranchOp::setDest(Block *block) { return setSuccessor(block); }
 
-void BranchOp::eraseOperand(unsigned index) {
-  getOperation()->eraseOperand(index);
-}
+void BranchOp::eraseOperand(unsigned index) { (*this)->eraseOperand(index); }
 
 void BranchOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                            MLIRContext *context) {
@@ -684,7 +672,7 @@ Block *BranchOp::getSuccessorForOperands(ArrayRef<Attribute>) { return dest(); }
 
 LogicalResult CallOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
   // Check that the callee attribute was specified.
-  auto fnAttr = getAttrOfType<FlatSymbolRefAttr>("callee");
+  auto fnAttr = (*this)->getAttrOfType<FlatSymbolRefAttr>("callee");
   if (!fnAttr)
     return emitOpError("requires a 'callee' symbol reference attribute");
   FuncOp fn = symbolTable.lookupNearestSymbolFrom<FuncOp>(*this, fnAttr);
@@ -714,7 +702,7 @@ LogicalResult CallOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
 }
 
 FunctionType CallOp::getCalleeType() {
-  return FunctionType::get(getOperandTypes(), getResultTypes(), getContext());
+  return FunctionType::get(getContext(), getOperandTypes(), getResultTypes());
 }
 
 //===----------------------------------------------------------------------===//
@@ -753,7 +741,7 @@ void CallIndirectOp::getCanonicalizationPatterns(
 
 // Return the type of the same shape (scalar, vector or tensor) containing i1.
 static Type getI1SameShape(Type type) {
-  auto i1Type = IntegerType::get(1, type.getContext());
+  auto i1Type = IntegerType::get(type.getContext(), 1);
   if (auto tensorType = type.dyn_cast<RankedTensorType>())
     return RankedTensorType::get(tensorType.getShape(), i1Type);
   if (type.isa<UnrankedTensorType>())
@@ -914,7 +902,7 @@ OpFoldResult CmpFOp::fold(ArrayRef<Attribute> operands) {
     return {};
 
   auto val = applyCmpPredicate(getPredicate(), lhs.getValue(), rhs.getValue());
-  return IntegerAttr::get(IntegerType::get(1, getContext()), APInt(1, val));
+  return IntegerAttr::get(IntegerType::get(getContext(), 1), APInt(1, val));
 }
 
 //===----------------------------------------------------------------------===//
@@ -1138,7 +1126,7 @@ static LogicalResult verify(ConstantOp &op) {
   if (!value)
     return op.emitOpError("requires a 'value' attribute");
 
-  auto type = op.getType();
+  Type type = op.getType();
   if (!value.getType().isa<NoneType>() && type != value.getType())
     return op.emitOpError() << "requires attribute's type (" << value.getType()
                             << ") to match op's return type (" << type << ")";
@@ -1147,10 +1135,14 @@ static LogicalResult verify(ConstantOp &op) {
     return success();
 
   if (auto intAttr = value.dyn_cast<IntegerAttr>()) {
+    IntegerType intType = type.cast<IntegerType>();
+    if (!intType.isSignless())
+      return op.emitOpError("requires integer result types to be signless");
+
     // If the type has a known bitwidth we verify that the value can be
     // represented with the given bitwidth.
-    auto bitwidth = type.cast<IntegerType>().getWidth();
-    auto intVal = intAttr.getValue();
+    unsigned bitwidth = intType.getWidth();
+    APInt intVal = intAttr.getValue();
     if (!intVal.isSignedIntN(bitwidth) && !intVal.isIntN(bitwidth))
       return op.emitOpError("requires 'value' to be an integer within the "
                             "range of the integer result type");
@@ -1176,7 +1168,7 @@ static LogicalResult verify(ConstantOp &op) {
 
     // Try to find the referenced function.
     auto fn =
-        op.getParentOfType<ModuleOp>().lookupSymbol<FuncOp>(fnAttr.getValue());
+        op->getParentOfType<ModuleOp>().lookupSymbol<FuncOp>(fnAttr.getValue());
     if (!fn)
       return op.emitOpError()
              << "reference to undefined function '" << fnAttr.getValue() << "'";
@@ -1230,9 +1222,13 @@ bool ConstantOp::isBuildableWith(Attribute value, Type type) {
   // SymbolRefAttr can only be used with a function type.
   if (value.isa<SymbolRefAttr>())
     return type.isa<FunctionType>();
-  // Otherwise, the attribute must have the same type as 'type'.
+  // The attribute must have the same type as 'type'.
   if (value.getType() != type)
     return false;
+  // If the type is an integer type, it must be signless.
+  if (IntegerType integerTy = type.dyn_cast<IntegerType>())
+    if (!integerTy.isSignless())
+      return false;
   // Finally, check that the attribute kind is handled.
   return value.isa<IntegerAttr, FloatAttr, ElementsAttr, UnitAttr>();
 }
@@ -1464,11 +1460,29 @@ struct DimOfMemRefReshape : public OpRewritePattern<DimOp> {
     return success();
   }
 };
+
+/// Fold dim of a dim of a cast into the the dim of the source of the tensor
+/// cast.
+template <typename CastOpTy>
+struct DimOfCastOp : public OpRewritePattern<DimOp> {
+  using OpRewritePattern<DimOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(DimOp dimOp,
+                                PatternRewriter &rewriter) const override {
+    auto castOp = dimOp.memrefOrTensor().getDefiningOp<CastOpTy>();
+    if (!castOp)
+      return failure();
+    Value newSource = castOp.getOperand();
+    rewriter.replaceOpWithNewOp<DimOp>(dimOp, newSource, dimOp.index());
+    return success();
+  }
+};
+
 } // end anonymous namespace.
 
 void DimOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                         MLIRContext *context) {
-  results.insert<DimOfMemRefReshape>(context);
+  results.insert<DimOfMemRefReshape, DimOfCastOp<tensor::CastOp>>(context);
 }
 
 // ---------------------------------------------------------------------------
@@ -1844,8 +1858,8 @@ struct StaticDynamicTensorFromElements
         newOperands);
     rewriter.inlineRegionBefore(tensorFromElements.body(), newOp.body(),
                                 newOp.body().begin());
-    rewriter.replaceOpWithNewOp<TensorCastOp>(tensorFromElements, resultType,
-                                              newOp);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(tensorFromElements, resultType,
+                                                newOp);
     return success();
   }
 };
@@ -1857,18 +1871,18 @@ struct StaticDynamicTensorFromElements
 ///   <computation>
 ///   yield %1 : index
 /// } : tensor<?xindex>
-/// %extracted_element = extract_element %tensor[%c0] : tensor<?xi32>
+/// %extracted_element = tensor.extract %tensor[%c0] : tensor<?xi32>
 ///
 /// to just <computation> with %arg0 replaced by %c0. We only do this if the
 /// dynamic_tensor_from_elements operation has no side-effects.
-struct ExtractElementFromDynamicTensorFromElements
-    : public OpRewritePattern<ExtractElementOp> {
-  using OpRewritePattern<ExtractElementOp>::OpRewritePattern;
+struct ExtractFromDynamicTensorFromElements
+    : public OpRewritePattern<tensor::ExtractOp> {
+  using OpRewritePattern<tensor::ExtractOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(ExtractElementOp extract,
+  LogicalResult matchAndRewrite(tensor::ExtractOp extract,
                                 PatternRewriter &rewriter) const final {
     auto tensorFromElements =
-        extract.aggregate().getDefiningOp<DynamicTensorFromElementsOp>();
+        extract.tensor().getDefiningOp<DynamicTensorFromElementsOp>();
     if (!tensorFromElements || !wouldOpBeTriviallyDead(tensorFromElements))
       return failure();
 
@@ -1887,24 +1901,23 @@ struct ExtractElementFromDynamicTensorFromElements
 
 /// Canonicalizes the pattern of the form
 ///
-/// %val = tensor_cast %source : : tensor<?xi32> to tensor<2xi32>
-/// %extracted_element = extract_element %val[%c0] : tensor<2xi32>
+/// %val = tensor.cast %source : : tensor<?xi32> to tensor<2xi32>
+/// %extracted_element = tensor.extract %val[%c0] : tensor<2xi32>
 ///
 /// to
 ///
-/// %extracted_element = extract_element %source[%c0] : tensor<?xi32>
-struct ExtractElementFromTensorCast
-    : public OpRewritePattern<ExtractElementOp> {
-  using OpRewritePattern<ExtractElementOp>::OpRewritePattern;
+/// %extracted_element = tensor.extract %source[%c0] : tensor<?xi32>
+struct ExtractFromTensorCast : public OpRewritePattern<tensor::ExtractOp> {
+  using OpRewritePattern<tensor::ExtractOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(ExtractElementOp extract,
+  LogicalResult matchAndRewrite(tensor::ExtractOp extract,
                                 PatternRewriter &rewriter) const final {
-    auto tensorCast = extract.aggregate().getDefiningOp<TensorCastOp>();
+    auto tensorCast = extract.tensor().getDefiningOp<tensor::CastOp>();
     if (!tensorCast)
       return failure();
 
-    rewriter.replaceOpWithNewOp<ExtractElementOp>(extract, tensorCast.source(),
-                                                  extract.getIndices());
+    rewriter.replaceOpWithNewOp<tensor::ExtractOp>(extract, tensorCast.source(),
+                                                   extract.indices());
     return success();
   }
 };
@@ -1913,51 +1926,9 @@ struct ExtractElementFromTensorCast
 
 void DynamicTensorFromElementsOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
-  results.insert<ExtractElementFromDynamicTensorFromElements,
-                 ExtractElementFromTensorCast, StaticDynamicTensorFromElements>(
-      context);
-}
-
-//===----------------------------------------------------------------------===//
-// ExtractElementOp
-//===----------------------------------------------------------------------===//
-
-static LogicalResult verify(ExtractElementOp op) {
-  // Verify the # indices match if we have a ranked type.
-  auto aggregateType = op.getAggregate().getType().cast<ShapedType>();
-  if (aggregateType.hasRank() &&
-      aggregateType.getRank() != op.getNumOperands() - 1)
-    return op.emitOpError("incorrect number of indices for extract_element");
-
-  return success();
-}
-
-OpFoldResult ExtractElementOp::fold(ArrayRef<Attribute> operands) {
-  assert(!operands.empty() && "extract_element takes at least one operand");
-
-  // The aggregate operand must be a known constant.
-  Attribute aggregate = operands.front();
-  if (!aggregate)
-    return {};
-
-  // If this is a splat elements attribute, simply return the value. All of the
-  // elements of a splat attribute are the same.
-  if (auto splatAggregate = aggregate.dyn_cast<SplatElementsAttr>())
-    return splatAggregate.getSplatValue();
-
-  // Otherwise, collect the constant indices into the aggregate.
-  SmallVector<uint64_t, 8> indices;
-  for (Attribute indice : llvm::drop_begin(operands, 1)) {
-    if (!indice || !indice.isa<IntegerAttr>())
-      return {};
-    indices.push_back(indice.cast<IntegerAttr>().getInt());
-  }
-
-  // If this is an elements attribute, query the value at the given indices.
-  auto elementsAttr = aggregate.dyn_cast<ElementsAttr>();
-  if (elementsAttr && elementsAttr.isValidIndex(indices))
-    return elementsAttr.getValue(indices);
-  return {};
+  // TODO: Move extract patterns to tensor::ExtractOp.
+  results.insert<ExtractFromDynamicTensorFromElements, ExtractFromTensorCast,
+                 StaticDynamicTensorFromElements>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1983,20 +1954,20 @@ namespace {
 // Canonicalizes the pattern of the form
 //
 // %tensor = "tensor_from_elements(%element) : (i32) -> tensor<1xi32>
-// %extracted_element = extract_element %tensor[%c0] : tensor<1xi32>
+// %extracted_element = tensor.extract %tensor[%c0] : tensor<1xi32>
 //
 // to just %element.
 struct ExtractElementFromTensorFromElements
-    : public OpRewritePattern<ExtractElementOp> {
-  using OpRewritePattern<ExtractElementOp>::OpRewritePattern;
+    : public OpRewritePattern<tensor::ExtractOp> {
+  using OpRewritePattern<tensor::ExtractOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(ExtractElementOp extract,
+  LogicalResult matchAndRewrite(tensor::ExtractOp extract,
                                 PatternRewriter &rewriter) const final {
     if (extract.indices().size() != 1)
       return failure();
 
     auto tensorFromElements = dyn_cast_or_null<TensorFromElementsOp>(
-        extract.aggregate().getDefiningOp());
+        extract.tensor().getDefiningOp());
     if (tensorFromElements == nullptr)
       return failure();
 
@@ -2210,7 +2181,7 @@ OpFoldResult LoadOp::fold(ArrayRef<Attribute> cstOperands) {
 }
 
 namespace {
-/// Fold a load on a tensor_to_memref operation into an extract_element on the
+/// Fold a load on a tensor_to_memref operation into an tensor.extract on the
 /// corresponding tensor.
 struct LoadOfTensorToMemref : public OpRewritePattern<LoadOp> {
   using OpRewritePattern<LoadOp>::OpRewritePattern;
@@ -2221,8 +2192,8 @@ struct LoadOfTensorToMemref : public OpRewritePattern<LoadOp> {
     if (!tensorToMemref)
       return failure();
 
-    rewriter.replaceOpWithNewOp<ExtractElementOp>(load, tensorToMemref.tensor(),
-                                                  load.indices());
+    rewriter.replaceOpWithNewOp<tensor::ExtractOp>(
+        load, tensorToMemref.tensor(), load.indices());
     return success();
   }
 };
@@ -2626,7 +2597,7 @@ OpFoldResult RankOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 static LogicalResult verify(ReturnOp op) {
-  auto function = cast<FuncOp>(op.getParentOp());
+  auto function = cast<FuncOp>(op->getParentOp());
 
   // The operand number and types must match the function signature.
   const auto &results = function.getType().getResults();
@@ -3412,7 +3383,7 @@ static void replaceWithNewOp(PatternRewriter &rewriter, SubViewOp op,
 
 static void replaceWithNewOp(PatternRewriter &rewriter, SubTensorOp op,
                              SubTensorOp newOp) {
-  rewriter.replaceOpWithNewOp<TensorCastOp>(op, newOp, op.getType());
+  rewriter.replaceOpWithNewOp<tensor::CastOp>(op, op.getType(), newOp);
 }
 
 /// Pattern to rewrite a subview op with constant arguments.
@@ -3547,60 +3518,6 @@ bool mlir::canFoldIntoConsumerOp(MemRefCastOp castOp) {
     if (ss != st)
       if (MemRefType::isDynamicStrideOrOffset(ss) &&
           !MemRefType::isDynamicStrideOrOffset(st))
-        return false;
-  }
-
-  return true;
-}
-
-/// Counterpart of `canFoldIntoConsumerOp(MemRefCastOp castOp)` for tensors.
-/// Determines whether TensorCastOp casts to a more dynamic version of the
-/// source tensor. This is useful to fold a tensor_cast into a consuming op and
-/// implement canonicalization patterns for ops in different dialects that may
-/// consume the results of tensor_cast operations. Such foldable tensor_cast
-/// operations are typically inserted as `subtensor` ops and are canonicalized,
-/// to preserve the type compatibility of their uses.
-///
-/// Returns true when all conditions are met:
-/// 1. source and result are ranked tensors with same element type and rank.
-/// 2. the tensor type has more static information than the result
-///
-/// Example:
-/// ```mlir
-///   %1 = tensor_cast %0 : tensor<8x16xf32> to tensor<?x?xf32>
-///   %2 = consumer %1 ... : tensor<?x?xf32> ...
-/// ```
-///
-/// folds into:
-///
-/// ```mlir
-///   %2 = consumer %0 ... : tensor<8x16xf32> ...
-/// ```
-bool mlir::canFoldIntoConsumerOp(TensorCastOp castOp) {
-  if (!castOp)
-    return false;
-
-  RankedTensorType sourceType =
-      castOp.source().getType().dyn_cast<RankedTensorType>();
-  RankedTensorType resultType = castOp.getType().dyn_cast<RankedTensorType>();
-
-  // Requires RankedTensorType.
-  if (!sourceType || !resultType)
-    return false;
-
-  // Requires same elemental type.
-  if (sourceType.getElementType() != resultType.getElementType())
-    return false;
-
-  // Requires same rank.
-  if (sourceType.getRank() != resultType.getRank())
-    return false;
-
-  // If cast is towards more static sizes along any dimension, don't fold.
-  for (auto it : llvm::zip(sourceType.getShape(), resultType.getShape())) {
-    auto ss = std::get<0>(it), st = std::get<1>(it);
-    if (ss != st)
-      if (ShapedType::isDynamic(ss) && !ShapedType::isDynamic(st))
         return false;
   }
 
@@ -3872,107 +3789,6 @@ static LogicalResult verify(SubTensorInsertOp op) {
   if (op.getType() != op.dest().getType())
     return op.emitError("expected result type to be ") << op.dest().getType();
   return success();
-}
-
-//===----------------------------------------------------------------------===//
-// TensorCastOp
-//===----------------------------------------------------------------------===//
-
-bool TensorCastOp::areCastCompatible(Type a, Type b) {
-  auto aT = a.dyn_cast<TensorType>();
-  auto bT = b.dyn_cast<TensorType>();
-  if (!aT || !bT)
-    return false;
-
-  if (aT.getElementType() != bT.getElementType())
-    return false;
-
-  return succeeded(verifyCompatibleShape(aT, bT));
-}
-
-OpFoldResult TensorCastOp::fold(ArrayRef<Attribute> operands) {
-  return impl::foldCastOp(*this);
-}
-
-/// Compute a TensorType that has the joined shape knowledge of the two
-/// given TensorTypes. The element types need to match.
-static TensorType joinShapes(TensorType one, TensorType two) {
-  assert(one.getElementType() == two.getElementType());
-
-  if (!one.hasRank())
-    return two;
-  if (!two.hasRank())
-    return one;
-
-  int64_t rank = one.getRank();
-  if (rank != two.getRank())
-    return {};
-
-  SmallVector<int64_t, 4> join;
-  join.reserve(rank);
-  for (int64_t i = 0; i < rank; ++i) {
-    if (one.isDynamicDim(i)) {
-      join.push_back(two.getDimSize(i));
-      continue;
-    }
-    if (two.isDynamicDim(i)) {
-      join.push_back(one.getDimSize(i));
-      continue;
-    }
-    if (one.getDimSize(i) != two.getDimSize(i))
-      return {};
-    join.push_back(one.getDimSize(i));
-  }
-  return RankedTensorType::get(join, one.getElementType());
-}
-
-namespace {
-
-/// Replaces chains of two tensor_cast operations by a single tensor_cast
-/// operation if doing so does not remove runtime constraints.
-struct ChainedTensorCast : public OpRewritePattern<TensorCastOp> {
-  using OpRewritePattern<TensorCastOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(TensorCastOp tensorCast,
-                                PatternRewriter &rewriter) const final {
-    auto tensorCastOperand =
-        tensorCast.getOperand().getDefiningOp<TensorCastOp>();
-
-    if (!tensorCastOperand)
-      return failure();
-
-    auto sourceType =
-        tensorCastOperand.getOperand().getType().cast<TensorType>();
-    auto intermediateType = tensorCastOperand.getType().cast<TensorType>();
-    auto resultType = tensorCast.getType().cast<TensorType>();
-
-    // We can remove the intermediate cast if joining all three produces the
-    // same result as just joining the source and result shapes.
-    auto firstJoin =
-        joinShapes(joinShapes(sourceType, intermediateType), resultType);
-
-    // The join might not exist if the cast sequence would fail at runtime.
-    if (!firstJoin)
-      return failure();
-
-    // The newJoin always exists if the above join exists, it might just contain
-    // less information. If so, we cannot drop the intermediate cast, as doing
-    // so would remove runtime checks.
-    auto newJoin = joinShapes(sourceType, resultType);
-    if (firstJoin != newJoin)
-      return failure();
-
-    rewriter.replaceOpWithNewOp<TensorCastOp>(tensorCast, resultType,
-                                              tensorCastOperand.getOperand());
-    return success();
-  }
-};
-
-} // namespace
-
-void TensorCastOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &results, MLIRContext *context) {
-  results.insert<ChainedTensorCast>(context);
 }
 
 //===----------------------------------------------------------------------===//

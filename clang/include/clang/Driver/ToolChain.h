@@ -27,6 +27,7 @@
 #include "llvm/Support/VersionTuple.h"
 #include "llvm/Target/TargetOptions.h"
 #include <cassert>
+#include <climits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -143,6 +144,7 @@ private:
   mutable std::unique_ptr<Tool> IfsMerge;
   mutable std::unique_ptr<Tool> OffloadBundler;
   mutable std::unique_ptr<Tool> OffloadWrapper;
+  mutable std::unique_ptr<Tool> OffloadDeps;
   mutable std::unique_ptr<Tool> SPIRVTranslator;
   mutable std::unique_ptr<Tool> SPIRCheck;
   mutable std::unique_ptr<Tool> SYCLPostLink;
@@ -159,6 +161,7 @@ private:
   Tool *getClangAs() const;
   Tool *getOffloadBundler() const;
   Tool *getOffloadWrapper() const;
+  Tool *getOffloadDeps() const;
   Tool *getSPIRVTranslator() const;
   Tool *getSPIRCheck() const;
   Tool *getSYCLPostLink() const;
@@ -503,6 +506,11 @@ public:
   // Return the DWARF version to emit, in the absence of arguments
   // to the contrary.
   virtual unsigned GetDefaultDwarfVersion() const { return 4; }
+
+  // Some toolchains may have different restrictions on the DWARF version and
+  // may need to adjust it. E.g. NVPTX may need to enforce DWARF2 even when host
+  // compilation uses DWARF5.
+  virtual unsigned getMaxDwarfVersion() const { return UINT_MAX; }
 
   // True if the driver should assume "-fstandalone-debug"
   // in the absence of an option specifying otherwise,

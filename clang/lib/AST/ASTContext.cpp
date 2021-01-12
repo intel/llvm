@@ -1428,8 +1428,14 @@ void ASTContext::InitBuiltinTypes(const TargetInfo &Target,
 #include "clang/Basic/AArch64SVEACLETypes.def"
   }
 
-  if (Target.getTriple().isPPC64() && Target.hasFeature("mma")) {
-#define PPC_MMA_VECTOR_TYPE(Name, Id, Size) \
+  if (Target.getTriple().isPPC64() &&
+      Target.hasFeature("paired-vector-memops")) {
+    if (Target.hasFeature("mma")) {
+#define PPC_VECTOR_MMA_TYPE(Name, Id, Size) \
+      InitBuiltinType(Id##Ty, BuiltinType::Id);
+#include "clang/Basic/PPCTypes.def"
+    }
+#define PPC_VECTOR_VSX_TYPE(Name, Id, Size) \
     InitBuiltinType(Id##Ty, BuiltinType::Id);
 #include "clang/Basic/PPCTypes.def"
   }
@@ -2166,11 +2172,11 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     Align = 16;                                                                \
     break;
 #include "clang/Basic/AArch64SVEACLETypes.def"
-#define PPC_MMA_VECTOR_TYPE(Name, Id, Size)                                    \
+#define PPC_VECTOR_TYPE(Name, Id, Size)                                        \
   case BuiltinType::Id:                                                        \
-      Width = Size;                                                            \
-      Align = Size;                                                            \
-      break;
+    Width = Size;                                                              \
+    Align = Size;                                                              \
+    break;
 #include "clang/Basic/PPCTypes.def"
     }
     break;
@@ -2372,12 +2378,6 @@ unsigned ASTContext::getTypeUnadjustedAlign(const Type *T) const {
 
 unsigned ASTContext::getOpenMPDefaultSimdAlign(QualType T) const {
   unsigned SimdAlign = getTargetInfo().getSimdDefaultAlign();
-  // Target ppc64 with QPX: simd default alignment for pointer to double is 32.
-  if ((getTargetInfo().getTriple().getArch() == llvm::Triple::ppc64 ||
-       getTargetInfo().getTriple().getArch() == llvm::Triple::ppc64le) &&
-      getTargetInfo().getABI() == "elfv1-qpx" &&
-      T->isSpecificBuiltinType(BuiltinType::Double))
-    SimdAlign = 256;
   return SimdAlign;
 }
 
@@ -4467,15 +4467,15 @@ QualType ASTContext::getTypeDeclTypeSlow(const TypeDecl *Decl) const {
 
 /// getTypedefType - Return the unique reference to the type for the
 /// specified typedef name decl.
-QualType
-ASTContext::getTypedefType(const TypedefNameDecl *Decl,
-                           QualType Canonical) const {
+QualType ASTContext::getTypedefType(const TypedefNameDecl *Decl,
+                                    QualType Underlying) const {
   if (Decl->TypeForDecl) return QualType(Decl->TypeForDecl, 0);
 
-  if (Canonical.isNull())
-    Canonical = getCanonicalType(Decl->getUnderlyingType());
+  if (Underlying.isNull())
+    Underlying = Decl->getUnderlyingType();
+  QualType Canonical = getCanonicalType(Underlying);
   auto *newType = new (*this, TypeAlignment)
-    TypedefType(Type::Typedef, Decl, Canonical);
+      TypedefType(Type::Typedef, Decl, Underlying, Canonical);
   Decl->TypeForDecl = newType;
   Types.push_back(newType);
   return QualType(newType, 0);
@@ -5395,10 +5395,10 @@ QualType ASTContext::getDecltypeType(Expr *e, QualType UnderlyingType) const {
   DecltypeType *dt;
 
   // C++11 [temp.type]p2:
-  //   If an expression e involves a template parameter, decltype(e) denotes a
-  //   unique dependent type. Two such decltype-specifiers refer to the same
-  //   type only if their expressions are equivalent (14.5.6.1).
-  if (e->isInstantiationDependent()) {
+  //   If an expression e is type-dependent, decltype(e) denotes a unique
+  //   dependent type. Two such decltype-specifiers refer to the same type only
+  //   if their expressions are equivalent (14.5.6.1).
+  if (e->isTypeDependent()) {
     llvm::FoldingSetNodeID ID;
     DependentDecltypeType::Profile(ID, *this, e);
 
@@ -5952,6 +5952,11 @@ ASTContext::getCanonicalTemplateArgument(const TemplateArgument &Arg) const {
 
     case TemplateArgument::Integral:
       return TemplateArgument(Arg, getCanonicalType(Arg.getIntegralType()));
+
+    case TemplateArgument::UncommonValue:
+      return TemplateArgument(*this,
+                              getCanonicalType(Arg.getUncommonValueType()),
+                              Arg.getAsUncommonValue());
 
     case TemplateArgument::Type:
       return TemplateArgument(getCanonicalType(Arg.getAsType()));
@@ -7261,7 +7266,7 @@ static char getObjCEncodingForPrimitiveType(const ASTContext *C,
     case BuiltinType::OCLReserveID:
     case BuiltinType::OCLSampler:
     case BuiltinType::Dependent:
-#define PPC_MMA_VECTOR_TYPE(Name, Id, Size) \
+#define PPC_VECTOR_TYPE(Name, Id, Size) \
     case BuiltinType::Id:
 #include "clang/Basic/PPCTypes.def"
 #define BUILTIN_TYPE(KIND, ID)

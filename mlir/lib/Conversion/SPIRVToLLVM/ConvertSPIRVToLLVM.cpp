@@ -14,9 +14,9 @@
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/SPIRV/LayoutUtils.h"
-#include "mlir/Dialect/SPIRV/SPIRVDialect.h"
-#include "mlir/Dialect/SPIRV/SPIRVOps.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
+#include "mlir/Dialect/SPIRV/Utils/LayoutUtils.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
@@ -407,8 +407,7 @@ public:
     // cover all possible corner cases.
     if (isSignedIntegerOrVector(srcType) ||
         isUnsignedIntegerOrVector(srcType)) {
-      auto *context = rewriter.getContext();
-      auto signlessType = IntegerType::get(getBitWidth(srcType), context);
+      auto signlessType = rewriter.getIntegerType(getBitWidth(srcType));
 
       if (srcType.isa<VectorType>()) {
         auto dstElementsAttr = constOp.value().cast<DenseIntElementsAttr>();
@@ -647,7 +646,7 @@ public:
     // First, create the global struct's name that would be associated with
     // this entry point's execution mode. We set it to be:
     //   __spv__{SPIR-V module name}_{function name}_execution_mode_info
-    ModuleOp module = op.getParentOfType<ModuleOp>();
+    ModuleOp module = op->getParentOfType<ModuleOp>();
     std::string moduleName;
     if (module.getName().hasValue())
       moduleName = "_" + module.getName().getValue().str();
@@ -1302,17 +1301,17 @@ public:
     switch (funcOp.function_control()) {
 #define DISPATCH(functionControl, llvmAttr)                                    \
   case functionControl:                                                        \
-    newFuncOp.setAttr("passthrough", ArrayAttr::get({llvmAttr}, context));     \
+    newFuncOp->setAttr("passthrough", ArrayAttr::get({llvmAttr}, context));    \
     break;
 
-          DISPATCH(spirv::FunctionControl::Inline,
-                   StringAttr::get("alwaysinline", context));
-          DISPATCH(spirv::FunctionControl::DontInline,
-                   StringAttr::get("noinline", context));
-          DISPATCH(spirv::FunctionControl::Pure,
-                   StringAttr::get("readonly", context));
-          DISPATCH(spirv::FunctionControl::Const,
-                   StringAttr::get("readnone", context));
+      DISPATCH(spirv::FunctionControl::Inline,
+               StringAttr::get("alwaysinline", context));
+      DISPATCH(spirv::FunctionControl::DontInline,
+               StringAttr::get("noinline", context));
+      DISPATCH(spirv::FunctionControl::Pure,
+               StringAttr::get("readonly", context));
+      DISPATCH(spirv::FunctionControl::Const,
+               StringAttr::get("readnone", context));
 
 #undef DISPATCH
 
@@ -1530,8 +1529,9 @@ void mlir::encodeBindAttribute(ModuleOp module) {
   auto spvModules = module.getOps<spirv::ModuleOp>();
   for (auto spvModule : spvModules) {
     spvModule.walk([&](spirv::GlobalVariableOp op) {
-      IntegerAttr descriptorSet = op.getAttrOfType<IntegerAttr>(kDescriptorSet);
-      IntegerAttr binding = op.getAttrOfType<IntegerAttr>(kBinding);
+      IntegerAttr descriptorSet =
+          op->getAttrOfType<IntegerAttr>(kDescriptorSet);
+      IntegerAttr binding = op->getAttrOfType<IntegerAttr>(kBinding);
       // For every global variable in the module, get the ones with descriptor
       // set and binding numbers.
       if (descriptorSet && binding) {

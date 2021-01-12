@@ -482,9 +482,8 @@ TEST_F(TestTypeSystemClang, TemplateArguments) {
   m_ast->CompleteTagDeclarationDefinition(type);
 
   // typedef foo<int, 47> foo_def;
-  CompilerType typedef_type = m_ast->CreateTypedefType(
-      type, "foo_def",
-      m_ast->CreateDeclContext(m_ast->GetTranslationUnitDecl()), 0);
+  CompilerType typedef_type = type.CreateTypedef(
+      "foo_def", m_ast->CreateDeclContext(m_ast->GetTranslationUnitDecl()), 0);
 
   CompilerType auto_type(
       m_ast.get(),
@@ -729,4 +728,16 @@ TEST_F(TestTypeSystemClang, AddMethodToObjCObjectType) {
   EXPECT_TRUE(method->isImplicit());
   EXPECT_FALSE(method->isDirectMethod());
   EXPECT_EQ(method->getDeclName().getObjCSelector().getAsString(), "foo");
+}
+
+TEST(TestScratchTypeSystemClang, InferSubASTFromLangOpts) {
+  LangOptions lang_opts;
+  EXPECT_EQ(
+      ScratchTypeSystemClang::DefaultAST,
+      ScratchTypeSystemClang::InferIsolatedASTKindFromLangOpts(lang_opts));
+
+  lang_opts.Modules = true;
+  EXPECT_EQ(
+      ScratchTypeSystemClang::IsolatedASTKind::CppModules,
+      ScratchTypeSystemClang::InferIsolatedASTKindFromLangOpts(lang_opts));
 }

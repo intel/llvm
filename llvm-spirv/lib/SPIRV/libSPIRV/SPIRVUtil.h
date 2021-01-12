@@ -75,6 +75,8 @@ static llvm::sys::Mutex MapLock;
     return MT;                                                                 \
   }
 
+constexpr unsigned MaxWordCount = UINT16_MAX;
+
 // A bi-way map
 template <class Ty1, class Ty2, class Identifier = void> struct SPIRVMap {
 public:

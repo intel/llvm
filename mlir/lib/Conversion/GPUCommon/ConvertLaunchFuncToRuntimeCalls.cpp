@@ -22,7 +22,7 @@
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/DataLayout.h"
@@ -72,7 +72,7 @@ public:
       : ConvertOpToLLVMPattern<OpTy>(typeConverter) {}
 
 protected:
-  MLIRContext *context = &this->typeConverter.getContext();
+  MLIRContext *context = &this->getTypeConverter()->getContext();
 
   LLVM::LLVMType llvmVoidType = LLVM::LLVMType::getVoidTy(context);
   LLVM::LLVMType llvmPointerType = LLVM::LLVMType::getInt8PtrTy(context);
@@ -81,7 +81,7 @@ protected:
   LLVM::LLVMType llvmInt32Type = LLVM::LLVMType::getInt32Ty(context);
   LLVM::LLVMType llvmInt64Type = LLVM::LLVMType::getInt64Ty(context);
   LLVM::LLVMType llvmIntPtrType = LLVM::LLVMType::getIntNTy(
-      context, this->typeConverter.getPointerBitwidth(0));
+      context, this->getTypeConverter()->getPointerBitwidth(0));
 
   FunctionCallBuilder moduleLoadCallBuilder = {
       "mgpuModuleLoad",
@@ -333,8 +333,8 @@ LogicalResult ConvertHostRegisterOpToGpuRuntimeCallPattern::matchAndRewrite(
   auto elementType = memRefType.cast<UnrankedMemRefType>().getElementType();
   auto elementSize = getSizeInBytes(loc, elementType, rewriter);
 
-  auto arguments =
-      typeConverter.promoteOperands(loc, op->getOperands(), operands, rewriter);
+  auto arguments = getTypeConverter()->promoteOperands(loc, op->getOperands(),
+                                                       operands, rewriter);
   arguments.push_back(elementSize);
   hostRegisterCallBuilder.create(loc, rewriter, arguments);
 
@@ -486,7 +486,7 @@ Value ConvertLaunchFuncOpToGpuRuntimeCallPattern::generateParamsArray(
     OpBuilder &builder) const {
   auto loc = launchOp.getLoc();
   auto numKernelOperands = launchOp.getNumKernelOperands();
-  auto arguments = typeConverter.promoteOperands(
+  auto arguments = getTypeConverter()->promoteOperands(
       loc, launchOp.getOperands().take_back(numKernelOperands),
       operands.take_back(numKernelOperands), builder);
   auto numArguments = arguments.size();
@@ -587,7 +587,8 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
       launchOp, launchOp.getKernelModuleName());
   assert(kernelModule && "expected a kernel module");
 
-  auto binaryAttr = kernelModule.getAttrOfType<StringAttr>(gpuBinaryAnnotation);
+  auto binaryAttr =
+      kernelModule->getAttrOfType<StringAttr>(gpuBinaryAnnotation);
   if (!binaryAttr) {
     kernelModule.emitOpError()
         << "missing " << gpuBinaryAnnotation << " attribute";

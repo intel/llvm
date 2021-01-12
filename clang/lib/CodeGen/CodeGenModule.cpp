@@ -1010,10 +1010,8 @@ static bool shouldAssumeDSOLocal(const CodeGenModule &CGM,
   if (RM == llvm::Reloc::PIC_ && GV->hasExternalWeakLinkage())
     return false;
 
-  // PPC has no copy relocations and cannot use a plt entry as a symbol address.
-  llvm::Triple::ArchType Arch = TT.getArch();
-  if (Arch == llvm::Triple::ppc || Arch == llvm::Triple::ppc64 ||
-      Arch == llvm::Triple::ppc64le)
+  // PowerPC64 prefers TOC indirection to avoid copy relocations.
+  if (TT.isPPC64())
     return false;
 
   // If we can use copy relocations we can assume it is local.
@@ -1816,10 +1814,14 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
         B.addAttribute(llvm::Attribute::OptimizeForSize);
       B.addAttribute(llvm::Attribute::Cold);
     }
-
+    if (D->hasAttr<HotAttr>())
+      B.addAttribute(llvm::Attribute::Hot);
     if (D->hasAttr<MinSizeAttr>())
       B.addAttribute(llvm::Attribute::MinSize);
   }
+
+  if (D->hasAttr<NoMergeAttr>())
+    B.addAttribute(llvm::Attribute::NoMerge);
 
   F->addAttributes(llvm::AttributeList::FunctionIndex, B);
 

@@ -206,7 +206,7 @@
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-CPU
 // CHK-TOOLS-AOT: clang{{.*}} "-fsycl-is-device" {{.*}} "-o" "[[OUTPUT1:.+\.bc]]"
 // CHK-TOOLS-AOT: llvm-link{{.*}} "[[OUTPUT1]]" "-o" "[[OUTPUT2:.+\.bc]]"
-// CHK-TOOLS-AOT: sycl-post-link{{.*}} "-spec-const=default" "-o" "[[OUTPUT3:.+\.table]]" "[[OUTPUT2]]"
+// CHK-TOOLS-AOT: sycl-post-link{{.*}} "-split=auto" {{.*}} "-spec-const=default" "-o" "[[OUTPUT3:.+\.table]]" "[[OUTPUT2]]"
 // CHK-TOOLS-AOT: file-table-tform{{.*}} "-o" "[[OUTPUT4:.+\.txt]]" "[[OUTPUT3]]"
 // CHK-TOOLS-AOT: llvm-foreach{{.*}} "--in-file-list=[[OUTPUT4]]" "--in-replace=[[OUTPUT4]]" "--out-ext=spv" "--out-file-list=[[OUTPUT5:.+\.txt]]" "--out-replace=[[OUTPUT5]]" "--" "{{.*}}llvm-spirv{{.*}}" "-o" "[[OUTPUT5]]" {{.*}} "[[OUTPUT4]]"
 // CHK-TOOLS-FPGA: llvm-foreach{{.*}} "--out-file-list=[[OUTPUT6:.+\.txt]]{{.*}} "--" "{{.*}}aoc{{.*}} "-o" "[[OUTPUT6]]" "[[OUTPUT5]]"
@@ -271,12 +271,32 @@
 // CHK-PHASE-MULTI-TARG: 36: clang-offload-wrapper, {35}, object, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 37: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (spir64-unknown-unknown-sycldevice)" {18}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {28}, "device-sycl (spir64_gen-unknown-unknown-sycldevice)" {36}, image
 
-// Check -fsycl-one-kernel-per-module option passing.
+// Check -fsycl-device-code-split=per_kernel option passing.
 // RUN:   %clang -### -fsycl -fsycl-device-code-split=per_kernel %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-ONE-KERNEL
 // RUN:   %clang_cl -### -fsycl -fsycl-device-code-split=per_kernel %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-ONE-KERNEL
 // CHK-ONE-KERNEL: sycl-post-link{{.*}} "-split=kernel"{{.*}} "-o"{{.*}}
+
+// Check -fsycl-device-code-split=per_source option passing.
+// RUN:   %clang -### -fsycl -fsycl-device-code-split=per_source %s 2>&1 \
+// RUN:    | FileCheck %s -check-prefixes=CHK-PER-SOURCE
+// RUN:   %clang_cl -### -fsycl -fsycl-device-code-split=per_source %s 2>&1 \
+// RUN:    | FileCheck %s -check-prefixes=CHK-PER-SOURCE
+// CHK-PER-SOURCE: sycl-post-link{{.*}} "-split=source"{{.*}} "-o"{{.*}}
+
+// Check -fsycl-device-code-split option passing.
+// RUN:   %clang -### -fsycl -fsycl-device-code-split %s 2>&1 \
+// RUN:    | FileCheck %s -check-prefixes=CHK-AUTO
+// RUN:   %clang_cl -### -fsycl -fsycl-device-code-split %s 2>&1 \
+// RUN:    | FileCheck %s -check-prefixes=CHK-AUTO
+// RUN:   %clang -### -fsycl -fsycl-device-code-split=auto %s 2>&1 \
+// RUN:    | FileCheck %s -check-prefixes=CHK-AUTO
+// RUN:   %clang_cl -### -fsycl -fsycl-device-code-split=auto %s 2>&1 \
+// RUN:    | FileCheck %s -check-prefixes=CHK-AUTO
+// RUN:   %clang -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHK-AUTO
+// RUN:   %clang_cl -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHK-AUTO
+// CHK-AUTO: sycl-post-link{{.*}} "-split=auto"{{.*}} "-o"{{.*}}
 
 // Check no device code split mode.
 // RUN:   %clang -### -fsycl -fsycl-device-code-split -fsycl-device-code-split=off %s 2>&1 \
