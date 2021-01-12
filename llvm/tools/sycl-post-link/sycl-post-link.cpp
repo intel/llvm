@@ -689,9 +689,13 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  // Special "llvm.used" variable which holds references to global values in the
-  // module is known to cause problems for tools which run later in pipeline, so
-  // remove it from the module before perfroming any other actions.
+  // After linking device bitcode "llvm.used" holds references to the kernels
+  // that are defined in the device image. But after splitting device image into
+  // separate kernels we may end up with having references to kernel declaration
+  // originating from "llvm.used" in the IR that is passed to llvm-spirv tool,
+  // and these declarations cause an assertion in llvm-spirv. To workaround this
+  // issue remove "llvm.used" from the input module before performing any other
+  // actions.
   if (GlobalVariable *GV = MPtr->getGlobalVariable("llvm.used")) {
     assert(GV->user_empty() && "unexpected llvm.used users");
     GV->eraseFromParent();
