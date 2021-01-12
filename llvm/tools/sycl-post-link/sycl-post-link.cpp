@@ -602,7 +602,7 @@ static string_vector saveResultSymbolsLists(string_vector &ResSymbolsLists) {
     writeToFile(CurOutFileName, ResSymbolsLists[I]);
     Res.emplace_back(std::move(CurOutFileName));
   }
-  return std::move(Res);
+  return Res;
 }
 
 #define CHECK_AND_EXIT(E)                                                      \
