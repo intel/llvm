@@ -1817,11 +1817,16 @@ public:
     return Tmp.template convert<convertT, roundingMode>();
   }
 
-  template <typename asT>
-  typename detail::enable_if_t<asT::getNumElements() == getNumElements(), asT>
-  as() const {
+  template <typename asT> asT as() const {
     // First materialize the swizzle to vec_t and then apply as() to it.
     vec_t Tmp = *this;
+    static_assert((sizeof(Tmp) == sizeof(asT)),
+                  "The new SYCL vec type must have the same storage size in "
+                  "bytes as this SYCL swizzled vec");
+    static_assert(
+        detail::is_contained<asT, detail::gtl::vector_basic_list>::value,
+        "asT must be SYCL vec of a different element type and "
+        "number of elements specified by asT");
     return Tmp.template as<asT>();
   }
 
