@@ -442,6 +442,27 @@ private:
 /// designated name.
 ///
 /// To unbundle, we just copy the contents of the designated section.
+///
+/// The bundler produces object file in host target native format (e.g. ELF for
+/// Linux). The sections it creates are:
+///
+/// <OFFLOAD_BUNDLER_MAGIC_STR><target triple 1>
+/// |
+/// | binary data for the <target 1>'s bundle
+/// |
+/// ...
+/// <OFFLOAD_BUNDLER_MAGIC_STR><target triple N>
+/// |
+/// | binary data for the <target N>'s bundle
+/// |
+/// ...
+/// <OFFLOAD_BUNDLER_MAGIC_STR><host target>
+/// | 0 (1 byte long)
+/// ...
+///
+/// The alignment of all the added sections is set to one to avoid padding
+/// between concatenated parts.
+///
 class ObjectFileHandler final : public FileHandler {
 
   /// The object file we are currently dealing with.
