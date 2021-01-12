@@ -95,6 +95,9 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
                                          Foreach, ForeachArgs, None));
 }
 
+// The list should match pre-built SYCL device library files located in
+// compiler package. Once we add or remove any SYCL device library files,
+// the list should be updated accordingly.
 static llvm::SmallVector<StringRef, 10> SYCLDeviceLibList{
     "crt",
     "cmath",
