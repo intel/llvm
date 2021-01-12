@@ -2975,8 +2975,7 @@ static void handleWeakImportAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 // In case the value of 'max_global_work_dim' attribute equals to 0 we shall
 // ensure that if max_work_group_size and reqd_work_group_size attributes exist,
 // they hold equal values (1, 1, 1).
-static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL,
-                                     uint32_t WGSize[3]) {
+static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
   bool Result = true;
   auto checkZeroDim = [&S, &AL](auto &A, size_t X, size_t Y, size_t Z,
                                 bool ReverseAttrs = false) -> bool {
@@ -3067,8 +3066,6 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (D->isInvalidDecl())
     return;
 
-  uint32_t WGSize[3];
-
   Expr *XDimExpr = AL.getArgAsExpr(0);
 
   // If no attribute argument is specified, set to default value '1'
@@ -3121,7 +3118,7 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     }
   }
 
-  if (!checkWorkGroupSizeValues(S, D, AL, WGSize))
+  if (!checkWorkGroupSizeValues(S, D, AL))
     return;
 
   S.addIntelSYCLTripleArgFunctionAttr<WorkGroupAttr>(D, AL, XDimExpr, YDimExpr,
@@ -3230,8 +3227,7 @@ static void handleMaxGlobalWorkDimAttr(Sema &S, Decl *D,
 
   Expr *E = Attr.getArgAsExpr(0);
 
-  uint32_t WGSize[3] = {1, 1, 1};
-  if (!checkWorkGroupSizeValues(S, D, Attr, WGSize)) {
+  if (!checkWorkGroupSizeValues(S, D, Attr)) {
     D->setInvalidDecl();
     return;
   }

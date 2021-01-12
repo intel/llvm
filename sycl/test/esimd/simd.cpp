@@ -63,7 +63,7 @@ bool test_simd_bin_ops() __attribute__((sycl_device)) {
   simd<int, 8> v0 = 1;
   simd<int, 8> v1 = 2;
   v0 += v1;
-  v0 += 2;
+  v0 = 2 - v0;
   v0 -= v1;
   v0 -= 2;
   v0 *= v1;

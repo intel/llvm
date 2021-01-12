@@ -184,30 +184,26 @@ public:
   // {/quote}
   //   * if not different, then auto should not be used
 #define DEF_BINOP(BINOP, OPASSIGN)                                             \
-  auto operator BINOP(const simd &RHS) const {                                 \
+  ESIMD_INLINE friend auto operator BINOP(const simd &X, const simd &Y) {      \
     using ComputeTy = compute_type_t<simd>;                                    \
-    auto V0 = convert<typename ComputeTy::vector_type>(data());                \
-    auto V1 = convert<typename ComputeTy::vector_type>(RHS.data());            \
+    auto V0 = convert<typename ComputeTy::vector_type>(X.data());              \
+    auto V1 = convert<typename ComputeTy::vector_type>(Y.data());              \
     auto V2 = V0 BINOP V1;                                                     \
     return ComputeTy(V2);                                                      \
   }                                                                            \
-  simd &operator OPASSIGN(const simd &RHS) {                                   \
+  ESIMD_INLINE friend simd &operator OPASSIGN(simd &LHS, const simd &RHS) {    \
     using ComputeTy = compute_type_t<simd>;                                    \
-    auto V0 = convert<typename ComputeTy::vector_type>(data());                \
+    auto V0 = convert<typename ComputeTy::vector_type>(LHS.data());            \
     auto V1 = convert<typename ComputeTy::vector_type>(RHS.data());            \
     auto V2 = V0 BINOP V1;                                                     \
-    write(convert<vector_type>(V2));                                           \
-    return *this;                                                              \
+    LHS.write(convert<vector_type>(V2));                                       \
+    return LHS;                                                                \
   }                                                                            \
-  simd &operator OPASSIGN(const Ty &RHS) { return *this OPASSIGN simd(RHS); }
+  ESIMD_INLINE friend simd &operator OPASSIGN(simd &LHS, const Ty &RHS) {      \
+    LHS OPASSIGN simd(RHS);                                                    \
+    return LHS;                                                                \
+  }
 
-  // TODO @keryell
-  // {quote}
-  // Nowadays hidden friends seem to be more fashionable for these kind of
-  // operations. A nice side effect is that you have easily some scalar
-  // broadcast either on LHS & RHS.
-  // {/quote}
-  // TODO @mattkretz +1, ditto for compares
   DEF_BINOP(+, +=)
   DEF_BINOP(-, -=)
   DEF_BINOP(*, *=)
@@ -222,8 +218,9 @@ public:
   // the future revisions.
   //
 #define DEF_RELOP(RELOP)                                                       \
-  simd<uint16_t, N> operator RELOP(const simd &RHS) const {                    \
-    auto R = data() RELOP RHS.data();                                          \
+  ESIMD_INLINE friend simd<uint16_t, N> operator RELOP(const simd &X,          \
+                                                       const simd &Y) {        \
+    auto R = X.data() RELOP Y.data();                                          \
     mask_type_t<N> M(1);                                                       \
     return M & convert<mask_type_t<N>>(R);                                     \
   }
@@ -238,16 +235,20 @@ public:
 #undef DEF_RELOP
 
 #define DEF_LOGIC_OP(LOGIC_OP, OPASSIGN)                                       \
-  simd operator LOGIC_OP(const simd &RHS) const {                              \
+  ESIMD_INLINE friend simd operator LOGIC_OP(const simd &X, const simd &Y) {   \
     static_assert(std::is_integral<Ty>(), "not integeral type");               \
-    auto V2 = data() LOGIC_OP RHS.data();                                      \
+    auto V2 = X.data() LOGIC_OP Y.data();                                      \
     return simd(V2);                                                           \
   }                                                                            \
-  simd &operator OPASSIGN(const simd &RHS) {                                   \
+  ESIMD_INLINE friend simd &operator OPASSIGN(simd &LHS, const simd &RHS) {    \
     static_assert(std::is_integral<Ty>(), "not integeral type");               \
-    auto V2 = data() LOGIC_OP RHS.data();                                      \
-    write(convert<vector_type>(V2));                                           \
-    return *this;                                                              \
+    auto V2 = LHS.data() LOGIC_OP RHS.data();                                  \
+    LHS.write(convert<vector_type>(V2));                                       \
+    return LHS;                                                                \
+  }                                                                            \
+  ESIMD_INLINE friend simd &operator OPASSIGN(simd &LHS, const Ty &RHS) {      \
+    LHS OPASSIGN simd(RHS);                                                    \
+    return LHS;                                                                \
   }
 
   DEF_LOGIC_OP(&, &=)

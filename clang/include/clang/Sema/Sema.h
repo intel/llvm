@@ -346,8 +346,12 @@ public:
   /// Registers a specialization constant to emit info for it into the header.
   void addSpecConstant(StringRef IDName, QualType IDType);
 
-  /// Notes that this_item is called within the kernel.
+  /// Note which free functions (this_id, this_item, etc) are called within the
+  /// kernel
+  void setCallsThisId(bool B);
   void setCallsThisItem(bool B);
+  void setCallsThisNDItem(bool B);
+  void setCallsThisGroup(bool B);
 
 private:
   // Kernel actual parameter descriptor.
@@ -364,6 +368,15 @@ private:
     unsigned Offset = 0;
 
     KernelParamDesc() = default;
+  };
+
+  // there are four free functions the kernel may call (this_id, this_item,
+  // this_nd_item, this_group)
+  struct KernelCallsSYCLFreeFunction {
+    bool CallsThisId;
+    bool CallsThisItem;
+    bool CallsThisNDItem;
+    bool CallsThisGroup;
   };
 
   // Kernel invocation descriptor
@@ -385,8 +398,9 @@ private:
     /// Descriptor of kernel actual parameters.
     SmallVector<KernelParamDesc, 8> Params;
 
-    // Whether kernel calls this_item()
-    bool CallsThisItem;
+    // Whether kernel calls any of the SYCL free functions (this_item(),
+    // this_id(), etc)
+    KernelCallsSYCLFreeFunction FreeFunctionCalls;
 
     KernelDesc() = default;
   };
@@ -12964,31 +12978,32 @@ void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
 
 template <typename AttrInfo>
 static bool handleMaxWorkSizeAttrExpr(Sema &S, const AttrInfo &AI,
-                                      const Expr *Expr, unsigned &Val,
+                                      const Expr *E, unsigned &Val,
                                       unsigned Idx) {
-  assert(Expr && "Attribute must have an argument.");
+  assert(E && "Attribute must have an argument.");
 
-  if (!Expr->isInstantiationDependent()) {
+  if (!E->isInstantiationDependent()) {
     Optional<llvm::APSInt> ArgVal =
-        Expr->getIntegerConstantExpr(S.getASTContext());
+        E->getIntegerConstantExpr(S.getASTContext());
 
     if (!ArgVal) {
       S.Diag(AI.getLocation(), diag::err_attribute_argument_type)
-          << &AI << AANT_ArgumentIntegerConstant << Expr->getSourceRange();
+          << &AI << AANT_ArgumentIntegerConstant << E->getSourceRange();
       return false;
     }
 
     if (ArgVal->isNegative()) {
-      S.Diag(Expr->getExprLoc(),
+      S.Diag(E->getExprLoc(),
              diag::warn_attribute_requires_non_negative_integer_argument)
-          << &AI << Idx << Expr->getSourceRange();
+          << E->getType() << S.Context.UnsignedLongLongTy
+          << E->getSourceRange();
       return true;
     }
 
     Val = ArgVal->getZExtValue();
     if (Val == 0) {
-      S.Diag(Expr->getExprLoc(), diag::err_attribute_argument_is_zero)
-          << &AI << Expr->getSourceRange();
+      S.Diag(E->getExprLoc(), diag::err_attribute_argument_is_zero)
+          << &AI << E->getSourceRange();
       return false;
     }
   }

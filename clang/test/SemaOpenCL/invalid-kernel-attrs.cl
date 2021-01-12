@@ -42,7 +42,7 @@ kernel __attribute__((intel_reqd_sub_group_size(-1))) void kernel16() {} // expe
 kernel __attribute__((intel_reqd_sub_group_size(8))) __attribute__((intel_reqd_sub_group_size(16))) void kernel17() {} //expected-warning{{attribute 'intel_reqd_sub_group_size' is already applied with different parameters}}
 
 __kernel __attribute__((work_group_size_hint(8,-16,32))) void neg1() {} //expected-error{{'work_group_size_hint' attribute requires a non-negative integral compile time constant expression}}
-__kernel __attribute__((reqd_work_group_size(8, 16, -32))) void neg2() {} //expected-warning{{the resulting value of the 'reqd_work_group_size' attribute third parameter is always non-negative after implicit conversion}}
+__kernel __attribute__((reqd_work_group_size(8, 16, -32))) void neg2() {} //expected-warning{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
 
 // 4294967294 is a negative integer if treated as signed.
 // Should compile successfully, since we expect an unsigned.
