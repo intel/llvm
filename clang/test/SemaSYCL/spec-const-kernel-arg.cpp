@@ -5,6 +5,8 @@
 
 #include "Inputs/sycl.hpp"
 
+sycl::queue myQueue;
+
 struct SpecConstantsWrapper {
   sycl::ONEAPI::experimental::spec_constant<int, class sc_name1> SC1;
   sycl::ONEAPI::experimental::spec_constant<int, class sc_name2> SC2;
@@ -13,11 +15,13 @@ struct SpecConstantsWrapper {
 int main() {
   sycl::ONEAPI::experimental::spec_constant<char, class MyInt32Const> SC;
   SpecConstantsWrapper SCWrapper;
-  sycl::kernel_single_task<class kernel_sc>(
-      [=]() {
-        (void)SC;
-        (void)SCWrapper;
-      });
+  myQueue.submit([&](sycl::handler &h) {
+    h.single_task<class kernel_sc>(
+        [=] {
+          (void)SC;
+          (void)SCWrapper;
+        });
+  });
 }
 
 // CHECK: FunctionDecl {{.*}}kernel_sc{{.*}} 'void ()'
