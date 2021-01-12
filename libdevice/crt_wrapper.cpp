@@ -1,4 +1,4 @@
-//==----- crt_wrapper.cpp - wrappers for Glibc internal functions ----------==//
+//==------ crt_wrapper.cpp - wrappers for libc internal functions ----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
