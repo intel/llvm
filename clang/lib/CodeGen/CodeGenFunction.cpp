@@ -621,12 +621,10 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
 
   if (const ReqdWorkGroupSizeAttr *A = FD->getAttr<ReqdWorkGroupSizeAttr>()) {
     llvm::LLVMContext &Context = getLLVMContext();
-    Optional<llvm::APSInt> XDimVal =
-        A->getXDim()->getIntegerConstantExpr(FD->getASTContext());
-    Optional<llvm::APSInt> YDimVal =
-        A->getYDim()->getIntegerConstantExpr(FD->getASTContext());
-    Optional<llvm::APSInt> ZDimVal =
-        A->getZDim()->getIntegerConstantExpr(FD->getASTContext());
+    ASTContext &ClangCtx = FD->getASTContext();
+    Optional<llvm::APSInt> XDimVal = A->getXDimVal(ClangCtx);
+    Optional<llvm::APSInt> YDimVal = A->getYDimVal(ClangCtx);
+    Optional<llvm::APSInt> ZDimVal = A->getZDimVal(ClangCtx);
 
     // For a SYCLDevice ReqdWorkGroupSizeAttr arguments are reversed.
     if (getLangOpts().SYCLIsDevice)
@@ -701,12 +699,10 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
   if (const SYCLIntelMaxWorkGroupSizeAttr *A =
           FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
     llvm::LLVMContext &Context = getLLVMContext();
-    Optional<llvm::APSInt> XDimVal =
-        A->getXDim()->getIntegerConstantExpr(FD->getASTContext());
-    Optional<llvm::APSInt> YDimVal =
-        A->getYDim()->getIntegerConstantExpr(FD->getASTContext());
-    Optional<llvm::APSInt> ZDimVal =
-        A->getZDim()->getIntegerConstantExpr(FD->getASTContext());
+    ASTContext &ClangCtx = FD->getASTContext();
+    Optional<llvm::APSInt> XDimVal = A->getXDimVal(ClangCtx);
+    Optional<llvm::APSInt> YDimVal = A->getYDimVal(ClangCtx);
+    Optional<llvm::APSInt> ZDimVal = A->getZDimVal(ClangCtx);
 
     // For a SYCLDevice SYCLIntelMaxWorkGroupSizeAttr arguments are reversed.
     if (getLangOpts().SYCLIsDevice)
