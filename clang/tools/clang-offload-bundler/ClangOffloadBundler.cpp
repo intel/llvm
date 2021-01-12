@@ -20,7 +20,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Bitcode/BitcodeReader.h"
@@ -33,7 +32,6 @@
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Endian.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorOr.h"
@@ -92,7 +90,6 @@ static cl::opt<std::string> FilesType(
              "  bc  - llvm-bc\n"
              "  s   - assembler\n"
              "  o   - object\n"
-             "  oo  - object; output file is a list of unbundled objects\n"
              "  gch - precompiled-header\n"
              "  ast - clang AST file\n"
              "  a   - archive of objects\n"
@@ -133,9 +130,6 @@ static cl::opt<unsigned>
 
 /// Magic string that marks the existence of offloading data.
 #define OFFLOAD_BUNDLER_MAGIC_STR "__CLANG_OFFLOAD_BUNDLE__"
-
-/// Prefix of an added section name with bundle size.
-#define SIZE_SECTION_PREFIX "__CLANG_OFFLOAD_BUNDLE_SIZE__"
 
 /// Section name which holds target symbol names.
 #define SYMBOLS_SECTION_NAME ".tgtsym"
@@ -478,88 +472,40 @@ private:
 /// |
 /// | binary data for the <target 1>'s bundle
 /// |
-/// <SIZE_SECTION_PREFIX><target triple 1>
-/// | size of the <target1>'s bundle (8 bytes)
 /// ...
 /// <OFFLOAD_BUNDLER_MAGIC_STR><target triple N>
 /// |
 /// | binary data for the <target N>'s bundle
 /// |
-/// <SIZE_SECTION_PREFIX><target triple N>
-/// | size of the <target N>'s bundle (8 bytes)
 /// ...
 /// <OFFLOAD_BUNDLER_MAGIC_STR><host target>
 /// | 0 (1 byte long)
-/// <SIZE_SECTION_PREFIX><host target>
-/// | 1 (8 bytes)
-/// ...
-///
-/// Further, these fat objects can be "partially" linked by a platform linker:
-/// 1) ld -r a_fat.o b_fat.o c_fat.o -o abc_fat.o
-/// 2) ld -r a_fat.o -L. -lbc -o abc_fat.o
-///   where libbc.a is a static library created from b_fat.o and c_fat.o.
-/// This will still result in a fat object. But this object will have bundle and
-/// size sections for the same triple concatenated:
-/// ...
-/// <OFFLOAD_BUNDLER_MAGIC_STR><target triple 1>
-/// | binary data for the <target 1>'s bundle (from a_fat.o)
-/// | binary data for the <target 1>'s bundle (from b_fat.o)
-/// | binary data for the <target 1>'s bundle (from c_fat.o)
-/// <SIZE_SECTION_PREFIX><target triple 1>
-/// | size of the <target1>'s bundle (8 bytes) (from a_fat.o)
-/// | size of the <target1>'s bundle (8 bytes) (from b_fat.o)
-/// | size of the <target1>'s bundle (8 bytes) (from c_fat.o)
 /// ...
 ///
 /// The alignment of all the added sections is set to one to avoid padding
 /// between concatenated parts.
 ///
-/// The unbundler is able to unbundle both kinds of the fat objects. The first
-/// one can be handled either with -type=o or -type=oo option, the second one -
-/// with -type=oo option only. In the latter case unbundling may result in
-/// multiple files per target, and the output file in this case is a list of
-/// actual outputs.
-///
 class ObjectFileHandler final : public FileHandler {
-  /// Keeps infomation about a bundle for a particular target.
-  struct BundleInfo final {
-    /// The section that contains bundle data, can be a concatenation of a
-    /// number of individual bundles if produced via partial linkage of multiple
-    /// fat objects.
-    section_iterator BundleSection;
-    /// The sizes (in correct order) of the individual bundles constituting
-    /// bundle data.
-    SmallVector<uint64_t, 4> ObjectSizes;
 
-    BundleInfo(section_iterator S) : BundleSection(S) {}
-  };
   /// The object file we are currently dealing with.
   std::unique_ptr<ObjectFile> Obj;
-
-  /// Maps triple string to its bundle information
-  StringMap<std::unique_ptr<BundleInfo>> TripleToBundleInfo;
-  /// The two iterators below are to support the
-  /// ReadBundleStart/ReadBundle/ReadBundleEnd iteration mechanism
-  StringMap<std::unique_ptr<BundleInfo>>::iterator CurBundle;
-  StringMap<std::unique_ptr<BundleInfo>>::iterator NextBundle;
 
   /// Return the input file contents.
   StringRef getInputFileContents() const { return Obj->getData(); }
 
   /// Return bundle name (<kind>-<triple>) if the provided section is an offload
   /// section.
-  static Expected<Optional<StringRef>> IsOffloadSection(SectionRef CurSection,
-                                                        StringRef NamePrefix) {
+  static Expected<Optional<StringRef>> IsOffloadSection(SectionRef CurSection) {
     Expected<StringRef> NameOrErr = CurSection.getName();
     if (!NameOrErr)
       return NameOrErr.takeError();
 
-    // If it does not start with given prefix, just skip this section.
-    if (!NameOrErr->startswith(NamePrefix))
+    // If it does not start with the reserved suffix, just skip this section.
+    if (!NameOrErr->startswith(OFFLOAD_BUNDLER_MAGIC_STR))
       return None;
 
-    // Return the suffix.
-    return NameOrErr->substr(NamePrefix.size());
+    // Return the triple that is right after the reserved prefix.
+    return NameOrErr->substr(sizeof(OFFLOAD_BUNDLER_MAGIC_STR) - 1);
   }
 
   /// Total number of inputs.
@@ -569,8 +515,9 @@ class ObjectFileHandler final : public FileHandler {
   /// read from the buffers.
   unsigned NumberOfProcessedInputs = 0;
 
-  /// Input sizes.
-  SmallVector<uint64_t, 16u> InputSizes;
+  /// Iterator of the current and next section.
+  section_iterator CurrentSection;
+  section_iterator NextSection;
 
   // Return a buffer with symbol names that are defined in target objects.
   // Each symbol name is prefixed by a target name <kind>-<triple> to uniquely
@@ -659,155 +606,43 @@ class ObjectFileHandler final : public FileHandler {
 public:
   ObjectFileHandler(std::unique_ptr<ObjectFile> ObjIn)
       : FileHandler(), Obj(std::move(ObjIn)),
-        CurBundle(TripleToBundleInfo.end()),
-        NextBundle(TripleToBundleInfo.end()) {}
+        CurrentSection(Obj->section_begin()),
+        NextSection(Obj->section_begin()) {}
 
   ~ObjectFileHandler() final {}
 
-  // Iterate through sections and create a map from triple to relevant bundle
-  // information.
-  Error ReadHeader(MemoryBuffer &Input) final {
-    for (section_iterator Sec = Obj->section_begin(); Sec != Obj->section_end();
-         ++Sec) {
-      // Test if current section is an offload bundle section
-      Expected<Optional<StringRef>> BundleOrErr =
-          IsOffloadSection(*Sec, OFFLOAD_BUNDLER_MAGIC_STR);
-      if (!BundleOrErr)
-        return BundleOrErr.takeError();
-      if (*BundleOrErr) {
-        StringRef OffloadTriple = **BundleOrErr;
-        std::unique_ptr<BundleInfo> &BI = TripleToBundleInfo[OffloadTriple];
-        assert(!BI.get() || BI->BundleSection == Obj->section_end());
-
-        if (!BI.get()) {
-          BI.reset(new BundleInfo(Sec));
-        } else {
-          BI->BundleSection = Sec;
-        }
-        continue;
-      }
-      // Test if current section is an offload bundle size section
-      BundleOrErr = IsOffloadSection(*Sec, SIZE_SECTION_PREFIX);
-      if (!BundleOrErr)
-        return BundleOrErr.takeError();
-      if (*BundleOrErr) {
-        StringRef OffloadTriple = **BundleOrErr;
-
-        // yes, it is - parse object sizes
-        Expected<StringRef> Content = Sec->getContents();
-        if (!Content)
-          return Content.takeError();
-        unsigned int ElemSize = sizeof(uint64_t);
-
-        // the size of the size section must be a multiple of ElemSize
-        if (Content->size() % ElemSize != 0)
-          return createStringError(
-              errc::invalid_argument,
-              "invalid size of the bundle size section for triple " +
-                  OffloadTriple + ": " + Twine(Content->size()));
-        // read sizes
-        llvm::support::endianness E = Obj->isLittleEndian()
-                                          ? llvm::support::endianness::little
-                                          : llvm::support::endianness::big;
-        std::unique_ptr<BundleInfo> &BI = TripleToBundleInfo[OffloadTriple];
-        assert(!BI.get() || BI->ObjectSizes.size() == 0);
-
-        if (!BI.get()) {
-          BI.reset(new BundleInfo(Obj->section_end()));
-        }
-        for (const char *Ptr = Content->data();
-             Ptr < Content->data() + Content->size(); Ptr += ElemSize) {
-          uint64_t Size = support::endian::read64(Ptr, E);
-          BI->ObjectSizes.push_back(Size);
-        }
-      }
-    }
-    NextBundle = TripleToBundleInfo.begin();
-    return Error::success();
-  }
+  Error ReadHeader(MemoryBuffer &Input) final { return Error::success(); }
 
   Expected<Optional<StringRef>> ReadBundleStart(MemoryBuffer &Input) final {
-    if (NextBundle == TripleToBundleInfo.end())
-      return None;
-    CurBundle = NextBundle;
-    NextBundle++;
-    return CurBundle->getKey();
+    while (NextSection != Obj->section_end()) {
+      CurrentSection = NextSection;
+      ++NextSection;
+
+      // Check if the current section name starts with the reserved prefix. If
+      // so, return the triple.
+      Expected<Optional<StringRef>> TripleOrErr =
+          IsOffloadSection(*CurrentSection);
+      if (!TripleOrErr)
+        return TripleOrErr.takeError();
+      if (*TripleOrErr)
+        return **TripleOrErr;
+    }
+    return None;
   }
 
   Error ReadBundleEnd(MemoryBuffer &Input) final { return Error::success(); }
 
   Error ReadBundle(raw_ostream &OS, MemoryBuffer &Input) final {
-    assert(CurBundle != TripleToBundleInfo.end() &&
-           "all bundles have been read already");
+    Expected<StringRef> ContentOrErr = CurrentSection->getContents();
+    if (!ContentOrErr)
+      return ContentOrErr.takeError();
+    StringRef Content = *ContentOrErr;
 
-    // TODO: temporary workaround to copy fat object to the host output until
-    // driver is fixed to correctly handle list file for the host bundle in
-    // 'oo' mode.
-    if (FilesType == "oo" && hasHostKind(CurBundle->getKey())) {
-      OS.write(Input.getBufferStart(), Input.getBufferSize());
-      return Error::success();
-    }
+    // Copy fat object contents to the output when extracting host bundle.
+    if (Content.size() == 1u && Content.front() == 0)
+      Content = StringRef(Input.getBufferStart(), Input.getBufferSize());
 
-    // Read content of the section representing the bundle
-    Expected<StringRef> Content =
-        CurBundle->second->BundleSection->getContents();
-    if (!Content)
-      return Content.takeError();
-    const char *ObjData = Content->data();
-    // Determine the number of "device objects" (or individual bundles
-    // concatenated by partial linkage) in the bundle:
-    const auto &SizeVec = CurBundle->second->ObjectSizes;
-    auto NumObjects = SizeVec.size();
-    bool FileListMode = FilesType == "oo";
-
-    if (NumObjects > 1 && !FileListMode)
-      return createStringError(
-          errc::invalid_argument,
-          "'o' file type is requested, but the fat object contains multiple "
-          "device objects; use 'oo' instead");
-
-    // Iterate through individual objects and extract them
-    for (size_t I = 0; I < NumObjects; ++I) {
-      uint64_t ObjSize = SizeVec[I];
-
-      // Flag for the special case used to "unbundle" host target object.
-      if (ObjSize == 1) {
-        // Copy fat object contents to the output when extracting host bundle.
-
-        // In the partially linked fat object multiple dummy host bundles were
-        // concatenated - check all of them were of size 1
-        for (size_t II = I; II < NumObjects; ++II)
-          if (SizeVec[II] != 1)
-            return createStringError(inconvertibleErrorCode(),
-                                     "inconsistent host triple bundle");
-        OS.write(Input.getBufferStart(), Input.getBufferSize());
-        break;
-      }
-
-      if (FileListMode) {
-        SmallString<128> ObjFileName;
-        std::error_code EC =
-            sys::fs::createTemporaryFile(TempFileNameBase, "devo", ObjFileName);
-        if (EC)
-          return createFileError(ObjFileName, EC);
-
-        raw_fd_ostream ObjOS(ObjFileName, EC);
-        if (EC)
-          return createFileError(ObjFileName, EC);
-
-        ObjOS.write(ObjData, ObjSize);
-        if (ObjOS.has_error())
-          return createFileError(ObjFileName, ObjOS.error());
-
-        // add the written file name to the output list of files
-        OS << ObjFileName << "\n";
-      } else
-        OS.write(ObjData, ObjSize);
-
-      // Move "object data" pointer to the next object within the concatenated
-      // bundle.
-      ObjData += ObjSize;
-    }
+    OS.write(Content.data(), Content.size());
     return Error::success();
   }
 
@@ -817,11 +652,6 @@ public:
 
     // Record number of inputs.
     NumberOfInputs = Inputs.size();
-
-    // And input sizes.
-    for (unsigned I = 0; I < NumberOfInputs; ++I)
-      InputSizes.push_back(I == HostInputIndex ? 1u
-                                               : Inputs[I]->getBufferSize());
     return Error::success();
   }
 
@@ -891,17 +721,6 @@ public:
       ObjcopyArgs.push_back(SS.save(Twine("--add-section=") +
                                     OFFLOAD_BUNDLER_MAGIC_STR + TargetNames[I] +
                                     "=" + InputFile));
-
-      // Create temporary file with the section size contents.
-      Expected<StringRef> SizeFileOrErr = TempFiles.Create(makeArrayRef(
-          reinterpret_cast<char *>(&InputSizes[I]), sizeof(InputSizes[I])));
-      if (!SizeFileOrErr)
-        return SizeFileOrErr.takeError();
-
-      // And add one more section with target object size.
-      ObjcopyArgs.push_back(SS.save(Twine("--add-section=") +
-                                    SIZE_SECTION_PREFIX + TargetNames[I] + "=" +
-                                    *SizeFileOrErr));
     }
 
     // Add a section with symbol names that are defined in target objects to the
@@ -930,14 +749,10 @@ public:
 
     // And run llvm-objcopy for the second time to update section flags.
     ObjcopyArgs.resize(1);
-    for (unsigned I = 0; I < NumberOfInputs; ++I) {
+    for (unsigned I = 0; I < NumberOfInputs; ++I)
       ObjcopyArgs.push_back(SS.save(Twine("--set-section-flags=") +
                                     OFFLOAD_BUNDLER_MAGIC_STR + TargetNames[I] +
                                     "=readonly,exclude"));
-      ObjcopyArgs.push_back(SS.save(Twine("--set-section-flags=") +
-                                    SIZE_SECTION_PREFIX + TargetNames[I] +
-                                    "=readonly,exclude"));
-    }
     ObjcopyArgs.push_back(IntermediateObj);
     ObjcopyArgs.push_back(OutputFileNames.front());
 
@@ -1347,7 +1162,7 @@ CreateFileHandler(MemoryBuffer &FirstInput) {
     return std::make_unique<BinaryFileHandler>();
   if (FilesType == "s")
     return std::make_unique<TextFileHandler>(/*Comment=*/"#");
-  if (FilesType == "o" || FilesType == "oo")
+  if (FilesType == "o")
     return CreateObjectFileHandler(FirstInput);
   if (FilesType == "gch")
     return std::make_unique<BinaryFileHandler>();
