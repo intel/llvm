@@ -1,7 +1,4 @@
-
-// XFAIL: cuda
 // UNSUPPORTED: cpu
-// CUDA compilation and runtime do not yet support sub-groups.
 // #2252 Disable until all variants of built-ins are available in OpenCL CPU
 // runtime for every supported ISA
 //
@@ -27,9 +24,18 @@ using namespace cl::sycl;
 
 template <typename T, int N> void check(queue &Queue) {
   const int G = 1024, L = 128;
+
+  // Pad arrays based on sub-group size to ensure no out-of-bounds accesses
+  // Workaround for info::device::sub_group_sizes support on some devices
+  size_t max_sg_size = 128;
+#if 0
+  auto sg_sizes = Queue.get_device().get_info<info::device::sub_group_sizes>();
+  size_t max_sg_size = *std::max_element(sg_sizes.begin(), sg_sizes.end());
+#endif
+
   try {
     nd_range<1> NdRange(G, L);
-    buffer<T> syclbuf(G);
+    buffer<T> syclbuf(G + max_sg_size * N);
     buffer<size_t> sgsizebuf(1);
     {
       auto acc = syclbuf.template get_access<access::mode::read_write>();
@@ -42,7 +48,7 @@ template <typename T, int N> void check(queue &Queue) {
       auto acc = syclbuf.template get_access<access::mode::read_write>(cgh);
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
       accessor<T, 1, access::mode::read_write, access::target::local> LocalMem(
-          {L}, cgh);
+          {L + max_sg_size * N}, cgh);
       cgh.parallel_for<sycl_subgr<T, N>>(NdRange, [=](nd_item<1> NdItem) {
         ONEAPI::sub_group SG = NdItem.get_sub_group();
         if (SG.get_group_id().get(0) % N == 0) {
@@ -161,13 +167,14 @@ template <typename T> void check(queue &Queue) {
 
 int main() {
   queue Queue;
-  if (!Queue.get_device().has_extension("cl_intel_subgroups") &&
-      !Queue.get_device().has_extension("cl_intel_subgroups_short") &&
-      !Queue.get_device().has_extension("cl_intel_subgroups_long")) {
+  if (Queue.get_device().is_host()) {
     std::cout << "Skipping test\n";
     return 0;
   }
-  if (Queue.get_device().has_extension("cl_intel_subgroups")) {
+  std::string PlatformName =
+      Queue.get_device().get_platform().get_info<info::platform::name>();
+  if (Queue.get_device().has_extension("cl_intel_subgroups") ||
+      PlatformName.find("CUDA") != std::string::npos) {
     typedef bool aligned_char __attribute__((aligned(16)));
     check<aligned_char>(Queue);
     typedef int aligned_int __attribute__((aligned(16)));
@@ -189,14 +196,16 @@ int main() {
     check<aligned_float, 4>(Queue);
     check<aligned_float, 8>(Queue);
   }
-  if (Queue.get_device().has_extension("cl_intel_subgroups_short")) {
+  if (Queue.get_device().has_extension("cl_intel_subgroups_short") ||
+      PlatformName.find("CUDA") != std::string::npos) {
     typedef short aligned_short __attribute__((aligned(16)));
     check<aligned_short>(Queue);
     check<aligned_short, 1>(Queue);
     check<aligned_short, 2>(Queue);
     check<aligned_short, 4>(Queue);
     check<aligned_short, 8>(Queue);
-    if (Queue.get_device().has_extension("cl_khr_fp16")) {
+    if (Queue.get_device().has_extension("cl_khr_fp16") ||
+        PlatformName.find("CUDA") != std::string::npos) {
       typedef half aligned_half __attribute__((aligned(16)));
       check<aligned_half>(Queue);
       check<aligned_half, 1>(Queue);
@@ -205,7 +214,8 @@ int main() {
       check<aligned_half, 8>(Queue);
     }
   }
-  if (Queue.get_device().has_extension("cl_intel_subgroups_long")) {
+  if (Queue.get_device().has_extension("cl_intel_subgroups_long") ||
+      PlatformName.find("CUDA") != std::string::npos) {
     typedef long aligned_long __attribute__((aligned(16)));
     check<aligned_long>(Queue);
     check<aligned_long, 1>(Queue);
