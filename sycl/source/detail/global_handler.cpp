@@ -114,7 +114,9 @@ GlobalHandler::getDeviceFilterList(const std::string &InitValue) {
   return *MDeviceFilterList;
 }
 
-std::shared_ptr<std::vector<plugin>> GlobalHandler::acquirePlugins() { return MPlugins; }
+std::shared_ptr<std::vector<plugin>> GlobalHandler::acquirePlugins() {
+  return MPlugins;
+}
 
 void shutdown() {
   auto plugins = GlobalHandler::instance().acquirePlugins();
@@ -122,14 +124,14 @@ void shutdown() {
   delete &GlobalHandler::instance();
 
   if (plugins)
-  for (plugin &Plugin : *plugins) {
-    // PluginParameter is reserved for future use that can control
-    // some parameters in the plugin tear-down process.
-    // Currently, it is not used.
-    void *PluginParameter = nullptr;
-    Plugin.call_nocheck<PiApiKind::piTearDown>(PluginParameter);
-    Plugin.unload();
-  }
+    for (plugin &Plugin : *plugins) {
+      // PluginParameter is reserved for future use that can control
+      // some parameters in the plugin tear-down process.
+      // Currently, it is not used.
+      void *PluginParameter = nullptr;
+      Plugin.call_nocheck<PiApiKind::piTearDown>(PluginParameter);
+      Plugin.unload();
+    }
 }
 
 #ifdef _WIN32
