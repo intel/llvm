@@ -4252,6 +4252,16 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-sycl-opt");
     }
+
+    // If SYCL float atomics' emulation is requested, define the needed macro
+    // that will be recognized by DPC++ headers.
+    // TODO: Once all targets support SPIR-V resulting from "native"
+    // implementation, the macro support will be dropped - at that moment, drop
+    // this option's support as well.
+    if (Args.hasFlag(options::OPT_fsycl_emulate_float_atomics,
+                     options::OPT_fno_sycl_emulate_float_atomics, false))
+      CmdArgs.push_back("-D__SYCL_EMULATE_FLOAT_ATOMICS__=1");
+
     // Turn on Dead Parameter Elimination Optimization with early optimizations
     if (!RawTriple.isNVPTX() &&
         Args.hasFlag(options::OPT_fsycl_dead_args_optimization,
