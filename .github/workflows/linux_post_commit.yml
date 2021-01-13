@@ -10,7 +10,7 @@ jobs:
      strategy:
        fail-fast: false
        matrix:
-         config: ["Default", "SharedLibs", "NoAssertions", "Clang"]
+         config: ["Default", "SharedLibs", "NoAssertions"]
 
      steps:
      - uses: actions/checkout@v2
@@ -29,14 +29,11 @@ jobs:
                  export ARGS="--shared-libs"
                  ;;
              NoAssertions)
-                 export ARGS="--no-assertions"
-                 ;;
-             Clang)
                  wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
                  sudo add-apt-repository "deb http://apt.llvm.org/bionic/   llvm-toolchain-bionic main"
                  sudo apt-get update
                  apt-get install -y clang-12
-                 export ARGS=""
+                 export ARGS="--no-assertions"
                  export CC="clang-12"
                  export CXX="clang++-12"
                  ;;
