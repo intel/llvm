@@ -838,10 +838,10 @@ compiler and SYCL compiler.
 SYCL mode allows conversion from annotated pointer to unannotated pointer to
 enable integration of accelerated code with standard C++ code.
 
-> NOTE: casting unannotated pointer to address-space annotated pointer must be
-done with care. If address space of annotated pointer doesn't match the address
-space of the allocation unannotated pointer is pointing to, the behavior of cast
-operation is undefined.
+> **NOTE:** casting unannotated pointer to address-space annotated pointer must
+be done with care. If address space of annotated pointer doesn't match the
+address space of the allocation unannotated pointer is pointing to, the behavior
+of cast operation is undefined.
 
 ### Compiler/Runtime interface
 
