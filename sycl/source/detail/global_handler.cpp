@@ -98,7 +98,7 @@ std::vector<plugin> &GlobalHandler::getPlugins() {
 
   const std::lock_guard<SpinLock> Lock{MFieldsLock};
   if (!MPlugins)
-    MPlugins = std::make_unique<std::vector<plugin>>();
+    MPlugins = std::make_shared<std::vector<plugin>>();
 
   return *MPlugins;
 }
@@ -114,8 +114,15 @@ GlobalHandler::getDeviceFilterList(const std::string &InitValue) {
   return *MDeviceFilterList;
 }
 
+std::shared_ptr<std::vector<plugin>> GlobalHandler::acquirePlugins() { return MPlugins; }
+
 void shutdown() {
-  for (plugin &Plugin : GlobalHandler::instance().getPlugins()) {
+  auto plugins = GlobalHandler::instance().acquirePlugins();
+
+  delete &GlobalHandler::instance();
+
+  if (plugins)
+  for (plugin &Plugin : *plugins) {
     // PluginParameter is reserved for future use that can control
     // some parameters in the plugin tear-down process.
     // Currently, it is not used.
@@ -123,8 +130,6 @@ void shutdown() {
     Plugin.call_nocheck<PiApiKind::piTearDown>(PluginParameter);
     Plugin.unload();
   }
-
-  delete &GlobalHandler::instance();
 }
 
 #ifdef _WIN32
