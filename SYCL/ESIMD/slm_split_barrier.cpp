@@ -9,6 +9,7 @@
 // REQUIRES: linux && gpu
 // RUN: %clangxx-esimd -fsycl %s -o %t.out
 // RUN: %ESIMD_RUN_PLACEHOLDER %t.out
+// UNSUPPORTED: cuda
 
 #include "esimd_test_utils.hpp"
 
