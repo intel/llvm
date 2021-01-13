@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -10,6 +10,8 @@
 using namespace cl::sycl;
 using namespace cl::sycl::ONEAPI;
 
+class back_to_back;
+
 int main() {
   queue q;
   if (q.get_device().is_host()) {
@@ -18,7 +20,11 @@ int main() {
   }
 
   // Use max work-group size to maximize chance of race
-  int N = q.get_device().get_info<info::device::max_work_group_size>();
+  program prog(q.get_context());
+  prog.build_with_kernel_type<back_to_back>();
+  kernel k = prog.get_kernel<back_to_back>();
+  device d = q.get_device();
+  int N = k.get_info<info::kernel_device_specific::work_group_size>(d);
 
   std::vector<int> Input(N), Sum(N), EScan(N), IScan(N);
   std::iota(Input.begin(), Input.end(), 0);
@@ -36,7 +42,7 @@ int main() {
       auto Sum = SumBuf.get_access<access::mode::write>(h);
       auto EScan = EScanBuf.get_access<access::mode::write>(h);
       auto IScan = IScanBuf.get_access<access::mode::write>(h);
-      h.parallel_for(nd_range<1>(N, N), [=](nd_item<1> it) {
+      h.parallel_for<back_to_back>(nd_range<1>(N, N), [=](nd_item<1> it) {
         size_t i = it.get_global_id(0);
         auto g = it.get_group();
         // Loop to increase number of back-to-back calls
