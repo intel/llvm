@@ -1239,10 +1239,11 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
     if (auto CastOp = dyn_cast<llvm::CastInst>(&I)) {
       llvm::Type *DstTy = CastOp->getDestTy();
       auto CastOpcode = CastOp->getOpcode();
-      if ((CastOpcode == llvm::Instruction::FPToUI &&
-           DstTy->getScalarType()->getPrimitiveSizeInBits() <= 32) ||
-          (CastOpcode == llvm::Instruction::FPToSI &&
-           DstTy->getScalarType()->getPrimitiveSizeInBits() < 32)) {
+      if (isa<FixedVectorType>(DstTy) &&
+          ((CastOpcode == llvm::Instruction::FPToUI &&
+            DstTy->getScalarType()->getPrimitiveSizeInBits() <= 32) ||
+           (CastOpcode == llvm::Instruction::FPToSI &&
+            DstTy->getScalarType()->getPrimitiveSizeInBits() < 32))) {
         IRBuilder<> Builder(&I);
         llvm::Value *Src = CastOp->getOperand(0);
         auto TmpTy = llvm::FixedVectorType::get(
