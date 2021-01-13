@@ -294,9 +294,19 @@ public:
         Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), Operand);
   }
 
-  T fetch_sub(T Operand, memory_order Order = memory_order::relaxed) {
+  template <typename T2 = T>
+  detail::enable_if_t<std::is_integral<T2>::value, T>
+  fetch_sub(T Operand, memory_order Order = memory_order::relaxed) {
     __SYCL_STATIC_ASSERT_NOT_FLOAT(T);
     return __spirv_AtomicISub(
+        Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), Operand);
+  }
+
+  template <typename T2 = T>
+  detail::enable_if_t<std::is_floating_point<T2>::value, T>
+  fetch_sub(T Operand, memory_order Order = memory_order::relaxed) {
+    // Negate the float add instruction.
+    return -__spirv_AtomicFAdd(
         Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), Operand);
   }
 

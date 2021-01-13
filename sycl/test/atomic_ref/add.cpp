@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-device-only -S %s -o - \
 // RUN: | FileCheck %s --check-prefix=CHECK-LLVM
-// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %s -o %t.out \
-// RUN: %gpu_atomics_config
+// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %s \
+// RUN: -o %t.out %gpu_atomics_config
 // RUN: %RUN_ON_HOST %t.out
 
 #include <CL/sycl.hpp>
