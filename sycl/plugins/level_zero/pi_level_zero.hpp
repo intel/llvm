@@ -142,6 +142,7 @@ struct _pi_device : _pi_object {
     // NOTE: one must additionally call initialize() to complete
     // PI device creation.
   }
+  ~_pi_device();
 
   // Keep the ordinal of a "compute" commands group, where we send all
   // commands currently.

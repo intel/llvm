@@ -406,6 +406,20 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *CallStr,
     return mapError(Result);
 #define ZE_CALL_NOCHECK(Call) ZeCall().doCall(Call, #Call, false)
 
+// Destroy all the command lists associated with this device.
+// This is required when destructing the _pi_device object.
+// During the piTearDown process, platforms and root devices are
+// destroyed automatically regardless of their reference counts.
+// So, this destructor should explicitly call zeCommandListDestroy
+// to avoid memory leaks.
+_pi_device::~_pi_device() {
+  std::lock_guard<std::mutex> Lock(ZeCommandListCacheMutex);
+  for (ze_command_list_handle_t &ZeCommandList : ZeCommandListCache) {
+    if (ZeCommandList)
+      zeCommandListDestroy(ZeCommandList);
+  }
+}
+
 // This helper function increments the reference counter of the Queue
 // without guarding with a lock.
 // It is the caller's responsibility to make sure the lock is acquired
@@ -1245,17 +1259,9 @@ pi_result piDeviceRelease(pi_device Device) {
   if (Device->RefCount <= 0)
     die("piDeviceRelease: the device has been already released");
 
-  // TODO: OpenCL says root-device ref-count remains unchanged (1),
-  // but when would we free the device's data?
+  // Root devices are destroyed during the piTearDown process.
   if (Device->IsSubDevice) {
     if (--(Device->RefCount) == 0) {
-      // Destroy all the command lists associated with this device.
-      Device->ZeCommandListCacheMutex.lock();
-      for (ze_command_list_handle_t &ZeCommandList :
-           Device->ZeCommandListCache) {
-        zeCommandListDestroy(ZeCommandList);
-      }
-      Device->ZeCommandListCacheMutex.unlock();
       delete Device;
     }
   }
