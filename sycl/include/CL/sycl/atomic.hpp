@@ -305,9 +305,9 @@ public:
   template <typename T2 = T>
   detail::enable_if_t<std::is_floating_point<T2>::value, T>
   fetch_sub(T Operand, memory_order Order = memory_order::relaxed) {
-    // Negate the float add instruction.
-    return -__spirv_AtomicFAdd(
-        Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), Operand);
+    // Negate the float add instruction operand.
+    return __spirv_AtomicFAdd(
+        Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), -Operand);
   }
 
   T fetch_and(T Operand, memory_order Order = memory_order::relaxed) {
