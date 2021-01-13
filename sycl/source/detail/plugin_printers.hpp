@@ -18,7 +18,8 @@ namespace detail {
 namespace pi {
 
 template <typename T> inline void print(T val) {
-  std::cout << "<unknown> : " << val << std::endl;
+  std::cout << "<unknown> : " << reinterpret_cast<const void *>(val)
+            << std::endl;
 }
 
 template <> inline void print<>(PiPlatform val) {
