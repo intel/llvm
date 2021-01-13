@@ -1058,15 +1058,16 @@ static Instruction *canonicalizeAbsNabs(SelectInst &Sel, ICmpInst &Cmp,
       SPF != SelectPatternFlavor::SPF_NABS)
     return nullptr;
 
-  bool IntMinIsPoison = match(RHS, m_NSWNeg(m_Specific(LHS)));
+  // Note that NSW flag can only be propagated for normal, non-negated abs!
+  bool IntMinIsPoison = SPF == SelectPatternFlavor::SPF_ABS &&
+                        match(RHS, m_NSWNeg(m_Specific(LHS)));
   Constant *IntMinIsPoisonC =
       ConstantInt::get(Type::getInt1Ty(Sel.getContext()), IntMinIsPoison);
   Instruction *Abs =
       IC.Builder.CreateBinaryIntrinsic(Intrinsic::abs, LHS, IntMinIsPoisonC);
 
   if (SPF == SelectPatternFlavor::SPF_NABS)
-    return IntMinIsPoison ? BinaryOperator::CreateNSWNeg(Abs)
-                          : BinaryOperator::CreateNeg(Abs);
+    return BinaryOperator::CreateNeg(Abs); // Always without NSW flag!
 
   return IC.replaceInstUsesWith(Sel, Abs);
 }
@@ -2606,7 +2607,10 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
   // select i1 %c, <2 x i8> <1, 1>, <2 x i8> <0, 0>
   // because that may need 3 instructions to splat the condition value:
   // extend, insertelement, shufflevector.
-  if (SelType->isIntOrIntVectorTy() &&
+  //
+  // Do not handle i1 TrueVal and FalseVal otherwise would result in
+  // zext/sext i1 to i1.
+  if (SelType->isIntOrIntVectorTy() && !SelType->isIntOrIntVectorTy(1) &&
       CondVal->getType()->isVectorTy() == SelType->isVectorTy()) {
     // select C, 1, 0 -> zext C to int
     if (match(TrueVal, m_One()) && match(FalseVal, m_Zero()))

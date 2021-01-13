@@ -73,6 +73,16 @@ bool test_simd_bin_ops() __attribute__((sycl_device)) {
   return v0[0] == 1;
 }
 
+bool test_simd_unary_ops() __attribute__((sycl_device)) {
+  simd<int, 8> v0 = 1;
+  simd<int, 8> v1 = 2;
+  v0 <<= v1;
+  v1 = -v0;
+  v0 = ~v1;
+  v1 = !v0;
+  return v1[0] == 1;
+}
+
 bool test_nested_1d_select() __attribute__((sycl_device)) {
   simd<int, 8> r0(0, 1);
 

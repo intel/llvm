@@ -234,15 +234,15 @@ public:
 
 #undef DEF_RELOP
 
-#define DEF_LOGIC_OP(LOGIC_OP, OPASSIGN)                                       \
-  ESIMD_INLINE friend simd operator LOGIC_OP(const simd &X, const simd &Y) {   \
+#define DEF_BITWISE_OP(BITWISE_OP, OPASSIGN)                                   \
+  ESIMD_INLINE friend simd operator BITWISE_OP(const simd &X, const simd &Y) { \
     static_assert(std::is_integral<Ty>(), "not integeral type");               \
-    auto V2 = X.data() LOGIC_OP Y.data();                                      \
+    auto V2 = X.data() BITWISE_OP Y.data();                                    \
     return simd(V2);                                                           \
   }                                                                            \
   ESIMD_INLINE friend simd &operator OPASSIGN(simd &LHS, const simd &RHS) {    \
     static_assert(std::is_integral<Ty>(), "not integeral type");               \
-    auto V2 = LHS.data() LOGIC_OP RHS.data();                                  \
+    auto V2 = LHS.data() BITWISE_OP RHS.data();                                \
     LHS.write(convert<vector_type>(V2));                                       \
     return LHS;                                                                \
   }                                                                            \
@@ -251,11 +251,13 @@ public:
     return LHS;                                                                \
   }
 
-  DEF_LOGIC_OP(&, &=)
-  DEF_LOGIC_OP(|, |=)
-  DEF_LOGIC_OP(^, ^=)
+  DEF_BITWISE_OP(&, &=)
+  DEF_BITWISE_OP(|, |=)
+  DEF_BITWISE_OP(^, ^=)
+  DEF_BITWISE_OP(<<, <<=)
+  DEF_BITWISE_OP(>>, >>=)
 
-#undef DEF_LOGIC_OP
+#undef DEF_BITWISE_OP
 
   // Operator ++, --
   simd &operator++() {
@@ -276,6 +278,18 @@ public:
     operator--();
     return Ret;
   }
+
+#define DEF_UNARY_OP(UNARY_OP)                                                 \
+  simd operator UNARY_OP() {                                                   \
+    auto V = UNARY_OP(data());                                                 \
+    return simd(V);                                                            \
+  }
+  DEF_UNARY_OP(!)
+  DEF_UNARY_OP(~)
+  DEF_UNARY_OP(+)
+  DEF_UNARY_OP(-)
+
+#undef DEF_UNARY_OP
 
   /// \name Replicate
   /// Replicate simd instance given a region.

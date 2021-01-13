@@ -3302,32 +3302,28 @@ void Sema::MarkDevice(void) {
           break;
         }
         case attr::Kind::ReqdWorkGroupSize: {
-          auto *Attr = cast<ReqdWorkGroupSizeAttr>(A);
+          auto *RWGSA = cast<ReqdWorkGroupSizeAttr>(A);
           if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
-            if ((getIntExprValue(Existing->getXDim(), getASTContext()) !=
-                 getIntExprValue(Attr->getXDim(), getASTContext())) ||
-                (getIntExprValue(Existing->getYDim(), getASTContext()) !=
-                 getIntExprValue(Attr->getYDim(), getASTContext())) ||
-                (getIntExprValue(Existing->getZDim(), getASTContext()) !=
-                 getIntExprValue(Attr->getZDim(), getASTContext()))) {
+            ASTContext &Ctx = getASTContext();
+            if (Existing->getXDimVal(Ctx) != RWGSA->getXDimVal(Ctx) ||
+                Existing->getYDimVal(Ctx) != RWGSA->getYDimVal(Ctx) ||
+                Existing->getZDimVal(Ctx) != RWGSA->getZDimVal(Ctx)) {
               Diag(SYCLKernel->getLocation(),
                    diag::err_conflicting_sycl_kernel_attributes);
               Diag(Existing->getLocation(), diag::note_conflicting_attribute);
-              Diag(Attr->getLocation(), diag::note_conflicting_attribute);
+              Diag(RWGSA->getLocation(), diag::note_conflicting_attribute);
               SYCLKernel->setInvalidDecl();
             }
           } else if (auto *Existing =
                          SYCLKernel->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-            if ((getIntExprValue(Existing->getXDim(), getASTContext()) <
-                 getIntExprValue(Attr->getXDim(), getASTContext())) ||
-                (getIntExprValue(Existing->getYDim(), getASTContext()) <
-                 getIntExprValue(Attr->getYDim(), getASTContext())) ||
-                (getIntExprValue(Existing->getZDim(), getASTContext()) <
-                 getIntExprValue(Attr->getZDim(), getASTContext()))) {
+            ASTContext &Ctx = getASTContext();
+            if (Existing->getXDimVal(Ctx) < RWGSA->getXDimVal(Ctx) ||
+                Existing->getYDimVal(Ctx) < RWGSA->getYDimVal(Ctx) ||
+                Existing->getZDimVal(Ctx) < RWGSA->getZDimVal(Ctx)) {
               Diag(SYCLKernel->getLocation(),
                    diag::err_conflicting_sycl_kernel_attributes);
               Diag(Existing->getLocation(), diag::note_conflicting_attribute);
-              Diag(Attr->getLocation(), diag::note_conflicting_attribute);
+              Diag(RWGSA->getLocation(), diag::note_conflicting_attribute);
               SYCLKernel->setInvalidDecl();
             } else {
               SYCLKernel->addAttr(A);
@@ -3338,18 +3334,16 @@ void Sema::MarkDevice(void) {
           break;
         }
         case attr::Kind::SYCLIntelMaxWorkGroupSize: {
-          auto *Attr = cast<SYCLIntelMaxWorkGroupSizeAttr>(A);
+          auto *SIMWGSA = cast<SYCLIntelMaxWorkGroupSizeAttr>(A);
           if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
-            if ((getIntExprValue(Existing->getXDim(), getASTContext()) >
-                 getIntExprValue(Attr->getXDim(), getASTContext())) ||
-                (getIntExprValue(Existing->getYDim(), getASTContext()) >
-                 getIntExprValue(Attr->getYDim(), getASTContext())) ||
-                (getIntExprValue(Existing->getZDim(), getASTContext()) >
-                 getIntExprValue(Attr->getZDim(), getASTContext()))) {
+            ASTContext &Ctx = getASTContext();
+            if (Existing->getXDimVal(Ctx) > SIMWGSA->getXDimVal(Ctx) ||
+                Existing->getYDimVal(Ctx) > SIMWGSA->getYDimVal(Ctx) ||
+                Existing->getZDimVal(Ctx) > SIMWGSA->getZDimVal(Ctx)) {
               Diag(SYCLKernel->getLocation(),
                    diag::err_conflicting_sycl_kernel_attributes);
               Diag(Existing->getLocation(), diag::note_conflicting_attribute);
-              Diag(Attr->getLocation(), diag::note_conflicting_attribute);
+              Diag(SIMWGSA->getLocation(), diag::note_conflicting_attribute);
               SYCLKernel->setInvalidDecl();
             } else {
               SYCLKernel->addAttr(A);
