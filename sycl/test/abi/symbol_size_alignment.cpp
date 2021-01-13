@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl %s -o %t
-// UNSUPPORTED: libc++
+// UNSUPPORTED: libcxx
 
 // Changing symbol size or alignment is a breaking change. If it happens, refer
 // to the ABI Policy Guide for further instructions on breaking ABI.

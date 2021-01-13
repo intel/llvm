@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -c -fno-color-diagnostics -Xclang -fdump-record-layouts %s | FileCheck %s
 // RUN: %clangxx -fsycl -fsycl-device-only -c -fno-color-diagnostics -Xclang -fdump-record-layouts %s | FileCheck %s
 // REQUIRES: linux
-// UNSUPPORTED: libc++
+// UNSUPPORTED: libcxx
 
 // clang-format off
 
