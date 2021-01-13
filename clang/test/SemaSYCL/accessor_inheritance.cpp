@@ -21,10 +21,12 @@ int main() {
   AccessorDerived DerivedObject;
   myQueue.submit([&](sycl::handler &h) {
     h.single_task<class kernel>(
-        [=]() {
+        [=] {
           DerivedObject.use();
         });
   });
+
+  return 0;
 }
 
 // Check kernel parameters
