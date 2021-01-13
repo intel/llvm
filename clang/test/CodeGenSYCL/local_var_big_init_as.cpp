@@ -24,10 +24,7 @@ struct Test {
 
 __attribute__((sycl_device)) void bar(Test &x);
 
-__attribute__((sycl_device)) void zoo(int *y) {
-  const int vec[] = {
-      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
-      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+__attribute__((sycl_device)) void zoo() {
   Test mc;
   bar(mc);
 }
