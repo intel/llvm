@@ -614,6 +614,91 @@ static string_vector saveResultSymbolsLists(string_vector &ResSymbolsLists) {
     }                                                                          \
   }
 
+static int processOneModule(std::unique_ptr<Module> M,
+                            util::SimpleTable &Table) {
+  std::map<StringRef, std::vector<Function *>> GlobalsSet;
+
+  bool DoSplit = SplitMode.getNumOccurrences() > 0;
+  bool DoSpecConst = SpecConstLower.getNumOccurrences() > 0;
+
+  if (DoSplit || DoSymGen) {
+    KernelMapEntryScope Scope = Scope_Global;
+    if (DoSplit) {
+      if (SplitMode == SPLIT_AUTO)
+        Scope = selectDeviceCodeSplitScopeAutomatically(*M);
+      else
+        Scope =
+            SplitMode == SPLIT_PER_KERNEL ? Scope_PerKernel : Scope_PerModule;
+    }
+    collectKernelModuleMap(*M, GlobalsSet, Scope);
+  }
+
+  std::vector<std::unique_ptr<Module>> ResultModules;
+  string_vector ResultSymbolsLists;
+
+  bool SpecConstsMet = false;
+  bool SetSpecConstAtRT = DoSpecConst && (SpecConstLower == SC_USE_RT_VAL);
+
+  if (DoSpecConst) {
+    // perform the spec constant intrinsics transformation and enumeration on
+    // the whole module
+    ModulePassManager RunSpecConst;
+    ModuleAnalysisManager MAM;
+    SpecConstantsPass SCP(SetSpecConstAtRT);
+    // Register required analysis
+    MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+    RunSpecConst.addPass(SCP);
+    if (!DoSplit)
+      // This pass deletes unreachable globals. Code splitter runs it later.
+      RunSpecConst.addPass(GlobalDCEPass());
+    PreservedAnalyses Res = RunSpecConst.run(*M, MAM);
+    SpecConstsMet = !Res.areAllPreserved();
+  }
+  if (IROutputOnly) {
+    // the result is the transformed input LLVMIR file rather than a file table
+    saveModule(*M, OutputFilename);
+    return 0;
+  }
+  if (DoSplit) {
+    splitModule(*M, GlobalsSet, ResultModules);
+    // post-link always produces a code result, even if it is unmodified input
+    if (ResultModules.size() == 0)
+      ResultModules.push_back(std::move(M));
+  } else
+    ResultModules.push_back(std::move(M));
+
+  {
+    // reuse input module if there were no spec constants and no splitting
+    string_vector Files = SpecConstsMet || (ResultModules.size() > 1)
+                              ? saveResultModules(ResultModules)
+                              : string_vector{InputFilename};
+    // "Code" column is always output
+    Error Err = Table.addColumn(COL_CODE, Files);
+    CHECK_AND_EXIT(Err);
+  }
+
+  {
+    ImagePropSaveInfo ImgPSInfo = {true, DoSpecConst, SetSpecConstAtRT,
+                                   SpecConstsMet, EmitKernelParamInfo};
+    string_vector Files = saveDeviceImageProperty(ResultModules, ImgPSInfo);
+    Error Err = Table.addColumn(COL_PROPS, Files);
+    CHECK_AND_EXIT(Err);
+  }
+  if (DoSymGen) {
+    // extract symbols per each module
+    collectSymbolsLists(GlobalsSet, ResultSymbolsLists);
+    if (ResultSymbolsLists.empty()) {
+      // push empty symbols list for consistency
+      assert(ResultModules.size() == 1);
+      ResultSymbolsLists.push_back("");
+    }
+    string_vector Files = saveResultSymbolsLists(ResultSymbolsLists);
+    Error Err = Table.addColumn(COL_SYM, Files);
+    CHECK_AND_EXIT(Err);
+  }
+  return 0;
+}
+
 int main(int argc, char **argv) {
   InitLLVM X{argc, argv};
 
@@ -704,84 +789,14 @@ int main(int argc, char **argv) {
   if (OutputFilename.getNumOccurrences() == 0)
     OutputFilename = (Twine(sys::path::stem(InputFilename)) + ".files").str();
 
-  std::map<StringRef, std::vector<Function *>> GlobalsSet;
-
-  if (DoSplit || DoSymGen) {
-    KernelMapEntryScope Scope = Scope_Global;
-    if (DoSplit) {
-      if (SplitMode == SPLIT_AUTO)
-        Scope = selectDeviceCodeSplitScopeAutomatically(*MPtr);
-      else
-        Scope =
-            SplitMode == SPLIT_PER_KERNEL ? Scope_PerKernel : Scope_PerModule;
-    }
-    collectKernelModuleMap(*MPtr, GlobalsSet, Scope);
-  }
-
-  std::vector<std::unique_ptr<Module>> ResultModules;
-  string_vector ResultSymbolsLists;
-
   util::SimpleTable Table;
-  bool SpecConstsMet = false;
-  bool SetSpecConstAtRT = DoSpecConst && (SpecConstLower == SC_USE_RT_VAL);
+  int Res = processOneModule(std::move(M), Table);
+  if (Res)
+    return Res;
 
-  if (DoSpecConst) {
-    // perform the spec constant intrinsics transformation and enumeration on
-    // the whole module
-    ModulePassManager RunSpecConst;
-    ModuleAnalysisManager MAM;
-    SpecConstantsPass SCP(SetSpecConstAtRT);
-    // Register required analysis
-    MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
-    RunSpecConst.addPass(SCP);
-    if (!DoSplit)
-      // This pass deletes unreachable globals. Code splitter runs it later.
-      RunSpecConst.addPass(GlobalDCEPass());
-    PreservedAnalyses Res = RunSpecConst.run(*MPtr, MAM);
-    SpecConstsMet = !Res.areAllPreserved();
-  }
-  if (IROutputOnly) {
-    // the result is the transformed input LLVMIR file rather than a file table
-    saveModule(*MPtr, OutputFilename);
+  if (IROutputOnly)
     return 0;
-  }
-  if (DoSplit) {
-    splitModule(*MPtr, GlobalsSet, ResultModules);
-    // post-link always produces a code result, even if it is unmodified input
-    if (ResultModules.size() == 0)
-      ResultModules.push_back(std::move(M));
-  } else
-    ResultModules.push_back(std::move(M));
 
-  {
-    // reuse input module if there were no spec constants and no splitting
-    string_vector Files = SpecConstsMet || (ResultModules.size() > 1)
-                              ? saveResultModules(ResultModules)
-                              : string_vector{InputFilename};
-    // "Code" column is always output
-    Error Err = Table.addColumn(COL_CODE, Files);
-    CHECK_AND_EXIT(Err);
-  }
-
-  {
-    ImagePropSaveInfo ImgPSInfo = {true, DoSpecConst, SetSpecConstAtRT,
-                                   SpecConstsMet, EmitKernelParamInfo};
-    string_vector Files = saveDeviceImageProperty(ResultModules, ImgPSInfo);
-    Error Err = Table.addColumn(COL_PROPS, Files);
-    CHECK_AND_EXIT(Err);
-  }
-  if (DoSymGen) {
-    // extract symbols per each module
-    collectSymbolsLists(GlobalsSet, ResultSymbolsLists);
-    if (ResultSymbolsLists.empty()) {
-      // push empty symbols list for consistency
-      assert(ResultModules.size() == 1);
-      ResultSymbolsLists.push_back("");
-    }
-    string_vector Files = saveResultSymbolsLists(ResultSymbolsLists);
-    Error Err = Table.addColumn(COL_SYM, Files);
-    CHECK_AND_EXIT(Err);
-  }
   {
     std::error_code EC;
     raw_fd_ostream Out{OutputFilename, EC, sys::fs::OF_None};
