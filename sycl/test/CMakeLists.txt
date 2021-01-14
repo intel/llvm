@@ -51,18 +51,6 @@ add_lit_testsuite(check-sycl-deploy "Running the SYCL regression tests"
   )
 set_target_properties(check-sycl-deploy PROPERTIES FOLDER "SYCL tests")
 
-add_lit_testsuites(SYCL ${CMAKE_CURRENT_SOURCE_DIR}
-  DEPENDS ${SYCL_TEST_DEPS}
-  EXCLUDE_FROM_CHECK_ALL
-  )
-
-add_lit_testsuites(SYCL-DEPLOY ${CMAKE_CURRENT_SOURCE_DIR}
-  ARGS ${DEPLOY_RT_TEST_ARGS}
-  PARAMS "SYCL_PLUGIN=opencl"
-  DEPENDS ${SYCL_DEPLOY_TEST_DEPS}
-  EXCLUDE_FROM_CHECK_ALL
-  )
-
 add_lit_testsuite(check-sycl-spirv "Running device-agnostic SYCL regression tests for SPIR-V"
   ${CMAKE_CURRENT_BINARY_DIR}
   ARGS ${RT_TEST_ARGS}
