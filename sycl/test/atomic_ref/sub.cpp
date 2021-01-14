@@ -1,3 +1,7 @@
+// TODO: Once NVPTX accepts the __spirv_AtomicF*() IR, remove the unsupported
+// mark
+// UNSUPPORTED: cuda
+
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-device-only -S %s -o - \
 // RUN: | FileCheck %s --check-prefix=CHECK-LLVM
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %s -o %t.out
@@ -226,7 +230,3 @@ int main() {
 
   std::cout << "Test passed." << std::endl;
 }
-
-// TODO: Once NVPTX accepts the __spirv_AtomicF*() IR, remove the unsupported
-// mark
-// UNSUPPORTED: cuda
