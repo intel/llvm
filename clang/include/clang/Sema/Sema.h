@@ -12884,6 +12884,11 @@ public:
   void MarkDevice();
   void MarkSyclSimd();
 
+  /// Diagnoses an attribute in the 'intelfpga' namespace and suggests using
+  /// the attribute in the 'intel' namespace instead.
+  void CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &Attr,
+                                            StringRef NewName = "");
+
   /// Creates a SemaDiagnosticBuilder that emits the diagnostic if the current
   /// context is "used as device code".
   ///
