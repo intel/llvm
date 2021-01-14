@@ -1,7 +1,12 @@
-// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %s \
+// RUN: -o %t.out %gpu_atomics_config
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
+// TODO: Drop the separate "emulation" compilation once "native" OpenCL CPU
+// support is provided.
+// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %s \
+// RUN: -o %t.out.emulated -D__SYCL_EMULATE_FLOAT_ATOMICS__=1
+// RUN: %CPU_RUN_PLACEHOLDER %t.out.emulated
 
 #include <CL/sycl.hpp>
 #include <algorithm>
