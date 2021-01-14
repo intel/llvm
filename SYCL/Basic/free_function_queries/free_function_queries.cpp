@@ -6,9 +6,6 @@
 
 // TODO: Support global work offset on Level Zero.
 // UNSUPPORTED: level_zero
-//
-// The test is failing an all backends
-// XFAIL: *
 
 //==- free_function_queries.cpp - SYCL free function queries test -=//
 //
