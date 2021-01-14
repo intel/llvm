@@ -5286,7 +5286,7 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   return PI_SUCCESS;
 }
 
-/// API to query information about USM allocated pointers
+/// API to query information about USM allocated pointers.
 /// Valid Queries:
 ///   PI_MEM_ALLOC_TYPE returns host/device/shared pi_usm_type value
 ///   PI_MEM_ALLOC_BASE_PTR returns the base ptr of an allocation if
