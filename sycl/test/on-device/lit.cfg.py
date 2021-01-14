@@ -81,7 +81,7 @@ config.substitutions.append( ('%sycl_be', { 'opencl': 'PI_OPENCL',  'cuda': 'PI_
 config.substitutions.append( ('%BE_RUN_PLACEHOLDER', "env SYCL_DEVICE_FILTER={SYCL_PLUGIN} ".format(SYCL_PLUGIN=backend)) )
 config.substitutions.append( ('%RUN_ON_HOST', "env SYCL_DEVICE_FILTER=host ") )
 
-get_device_count_by_type_path = os.path.join(config.llvm_tools_dir, "get_device_count_by_type")
+get_device_count_by_type_path = lit_config.params.get('GET_DEVICE_TOOL', os.path.join(config.llvm_tools_dir, "get_device_count_by_type"))
 
 def getDeviceCount(device_type):
     is_cuda = False;
