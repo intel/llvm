@@ -330,7 +330,7 @@ void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
     Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated)
         << "'" + A.getNormalizedFullName() + "'";
 
-	FixItHint Fix = NewName.empty()
+    FixItHint Fix = NewName.empty()
                         ? FixItHint::CreateReplacement(A.getScopeLoc(), "intel")
                         : FixItHint::CreateReplacement(
                               A.getRange(), ("intel::" + NewName).str());
@@ -5521,8 +5521,7 @@ static void handleNoGlobalWorkOffsetAttr(Sema &S, Decl *D,
                 ? A.getArgAsExpr(0)
                 : IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
                                          S.Context.IntTy, A.getLoc());
-  S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelNoGlobalWorkOffsetAttr>(D, A,
-                                                                       E);
+  S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelNoGlobalWorkOffsetAttr>(D, A, E);
 }
 
 /// Handle the [[intelfpga::doublepump]] and [[intelfpga::singlepump]] attributes.
