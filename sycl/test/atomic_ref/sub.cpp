@@ -226,3 +226,7 @@ int main() {
 
   std::cout << "Test passed." << std::endl;
 }
+
+// TODO: Once NVPTX accepts the __spirv_AtomicF*() IR, remove the unsupported
+// mark
+// UNSUPPORTED: cuda
