@@ -77,26 +77,35 @@ public:
       replace(&I, Cmp);
     }
   }
-  void handleCastInstructions(Instruction &I) {
+  void handleExtInstructions(Instruction &I) {
     auto Op = I.getOperand(0);
     if (isBoolType(Op->getType())) {
       auto Opcode = I.getOpcode();
-      auto Ty = (Opcode == Instruction::ZExt || Opcode == Instruction::SExt)
-                    ? I.getType()
-                    : Type::getInt32Ty(*Context);
+      auto Ty = I.getType();
       auto Zero = getScalarOrVectorConstantInt(Ty, 0, false);
       auto One = getScalarOrVectorConstantInt(
           Ty, (Opcode == Instruction::SExt) ? ~0 : 1, false);
       assert(Zero && One && "Couldn't create constant int");
       auto Sel = SelectInst::Create(Op, One, Zero, "", &I);
-      if (Opcode == Instruction::ZExt || Opcode == Instruction::SExt)
-        replace(&I, Sel);
-      else if (Opcode == Instruction::UIToFP || Opcode == Instruction::SIToFP)
-        I.setOperand(0, Sel);
+      replace(&I, Sel);
     }
   }
-  virtual void visitZExtInst(ZExtInst &I) { handleCastInstructions(I); }
-  virtual void visitSExtInst(SExtInst &I) { handleCastInstructions(I); }
+  void handleCastInstructions(Instruction &I) {
+    auto Op = I.getOperand(0);
+    auto *OpTy = Op->getType();
+    if (isBoolType(OpTy)) {
+      Type *Ty = Type::getInt32Ty(*Context);
+      if (auto VT = dyn_cast<FixedVectorType>(OpTy))
+        Ty = llvm::FixedVectorType::get(Ty, VT->getNumElements());
+      auto Zero = getScalarOrVectorConstantInt(Ty, 0, false);
+      auto One = getScalarOrVectorConstantInt(Ty, 1, false);
+      assert(Zero && One && "Couldn't create constant int");
+      auto Sel = SelectInst::Create(Op, One, Zero, "", &I);
+      I.setOperand(0, Sel);
+    }
+  }
+  virtual void visitZExtInst(ZExtInst &I) { handleExtInstructions(I); }
+  virtual void visitSExtInst(SExtInst &I) { handleExtInstructions(I); }
   virtual void visitUIToFPInst(UIToFPInst &I) { handleCastInstructions(I); }
   virtual void visitSIToFPInst(SIToFPInst &I) { handleCastInstructions(I); }
   bool runOnModule(Module &M) override {
