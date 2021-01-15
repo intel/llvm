@@ -1,10 +1,10 @@
-SPV_INTEL_long_constant_composite
-=================================
+SPV_INTEL_long_composites
+=========================
 
 Name Strings
 ------------
 
-SPV_INTEL_long_constant_composite
+SPV_INTEL_long_composites
 
 Contact
 -------
@@ -36,8 +36,8 @@ Version
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2021-01-14
-| Revision           | 7
+| Last Modified Date | 2021-01-15
+| Revision           | 8
 |========================================
 
 Dependencies
@@ -52,7 +52,7 @@ Overview
 --------
 
 This extension adds new capability and instructions to allow to represent
-composite constants with number of Constituents greater than the maximum
+composites with number of Constituents greater than the maximum
 possible WordCount.
 
 Extension Name
@@ -62,7 +62,7 @@ To use this extension within a SPIR-V module, the following
 *OpExtension* must be present in the module:
 
 ----
-OpExtension "SPV_INTEL_long_constant_composite"
+OpExtension "SPV_INTEL_long_composites"
 ----
 
 Modifications to the SPIR-V Specification, Version 1.5
@@ -76,9 +76,9 @@ Modify Section 3.31, "Capability", adding these rows to the Capability table:
 [options="header"]
 |====
 2+^| Capability ^| Implicitly Declares
-| 6089 | *CapabilityLongConstantCompositeINTEL* +
-Allow to use *OpTypeStructContinuedINTEL*, *OpConstantCompositeContinuedINTEL*
-and *OpSpecConstantCompositeContinuedINTEL* instructions |
+| 6089 | *CapabilityLongCompositesINTEL* +
+Allow to use *OpTypeStructContinuedINTEL*, *OpConstantCompositeContinuedINTEL*,
+*OpCompositeConstructContinuedINTEL* and *OpSpecConstantCompositeContinuedINTEL* instructions |
 |====
 --
 
@@ -99,7 +99,7 @@ _Member types_ follow the same rules as defined for _Member types_ of
 *OpTypeStruct*.
 
 | Capability:
-*CapabilityLongConstantCompositeINTEL*
+*CapabilityLongCompositesINTEL*
 
 | 2 + variable | 6090 | _<id>, <id>, ... Member N type, member N + 1 type_|
 |=====
@@ -128,7 +128,7 @@ _Constituents_ follow the same rules as defined for _Constituents_ of
 elements of an array, or components of a vector, or columns of a matrix.
 
 | Capability:
-*CapabilityLongConstantCompositeINTEL*
+*CapabilityLongCompositesINTEL*
 
 | 2 + variable | 6091 | _<id>, <id>, ... Constituents_ |
 |=====
@@ -152,7 +152,7 @@ instruction.
 See <<Specialization, Specialization>>.
 
 | Capability:
-*CapabilityLongConstantCompositeINTEL*
+*CapabilityLongCompositesINTEL*
 
 | 2 + variable | 6092 | _<id>, <id>, ... Constituents_ |
 |=====
@@ -198,7 +198,7 @@ _Constituents_ follow the same rules as defined for _Constituents_ of
 elements of an array, or components of a vector, or columns of a matrix.
 
 | Capability:
-*CapabilityLongConstantCompositeINTEL*
+*CapabilityLongCompositesINTEL*
 
 | 2 + variable | 6096 | _<id>, <id>, ... Constituents_ |
 |=====
@@ -254,4 +254,5 @@ Sachkov
 |6|2020-12-07|Mariya Podchishchaeva|Apply comments from Alexey Sotkin and
 Mikhail Lychkov
 |7|2021-01-14|Mariya Podchishchaeva|Add OpCompositeConstructContinuedINTEL
+|8|2021-01-15|Mariya Podchishchaeva|Rename extension to SPV_INTEL_long_composites
 |========================================
