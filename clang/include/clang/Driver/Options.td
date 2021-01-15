@@ -1859,8 +1859,7 @@ def fsystem_module : Flag<["-"], "fsystem-module">, Flags<[CC1Option]>,
   MarshallingInfoFlag<"FrontendOpts.IsSystemModule">;
 def fmodule_map_file : Joined<["-"], "fmodule-map-file=">,
   Group<f_Group>, Flags<[NoXarchOption,CC1Option]>, MetaVarName<"<file>">,
-  HelpText<"Load this module map file">,
-  MarshallingInfoStringVector<"FrontendOpts.ModuleMapFiles">;
+  HelpText<"Load this module map file">;
 def fmodule_file : Joined<["-"], "fmodule-file=">,
   Group<i_Group>, Flags<[NoXarchOption,CC1Option]>, MetaVarName<"[<name>=]<file>">,
   HelpText<"Specify the mapping of module name to precompiled module file, or load a module file if name is omitted.">;
@@ -3862,7 +3861,7 @@ defm ipa_cp : BooleanFFlag<"ipa-cp">,
     Group<clang_ignored_gcc_optimization_f_Group>;
 defm ivopts : BooleanFFlag<"ivopts">, Group<clang_ignored_gcc_optimization_f_Group>;
 def fsemantic_interposition : Flag<["-"], "fsemantic-interposition">, Group<f_Group>, Flags<[CC1Option]>;
-def fno_semantic_interposition: Flag<["-"], "fno-semantic-interposition">, Group<f_Group>, Flags<[CC1Option]>;
+def fno_semantic_interposition: Flag<["-"], "fno-semantic-interposition">, Group<f_Group>;
 defm non_call_exceptions : BooleanFFlag<"non-call-exceptions">, Group<clang_ignored_f_Group>;
 defm peel_loops : BooleanFFlag<"peel-loops">, Group<clang_ignored_gcc_optimization_f_Group>;
 defm permissive : BooleanFFlag<"permissive">, Group<clang_ignored_f_Group>;
@@ -4720,7 +4719,7 @@ def arcmt_action_EQ : Joined<["-"], "arcmt-action=">, Flags<[CC1Option, NoDriver
   NormalizedValuesScope<"FrontendOptions">,
   NormalizedValues<["ARCMT_Check", "ARCMT_Modify", "ARCMT_Migrate"]>,
   MarshallingInfoString<"FrontendOpts.ARCMTAction", "ARCMT_None">,
-  AutoNormalizeEnum;
+  AutoNormalizeEnumJoined;
 
 def opt_record_file : Separate<["-"], "opt-record-file">,
   HelpText<"File name to use for YAML optimization record output">;
@@ -4818,6 +4817,8 @@ def pic_level : Separate<["-"], "pic-level">,
   HelpText<"Value for __PIC__">;
 def pic_is_pie : Flag<["-"], "pic-is-pie">,
   HelpText<"File is for a position independent executable">;
+def fhalf_no_semantic_interposition : Flag<["-"], "fhalf-no-semantic-interposition">,
+  HelpText<"Like -fno-semantic-interposition but don't use local aliases">;
 def fno_validate_pch : Flag<["-"], "fno-validate-pch">,
   HelpText<"Disable validation of precompiled headers">,
   MarshallingInfoFlag<"PreprocessorOpts->DisablePCHValidation">;
