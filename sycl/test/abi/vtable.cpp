@@ -1,4 +1,5 @@
 // RUN: %clangxx -fsycl -c -fno-color-diagnostics -Xclang -fdump-vtable-layouts %s | FileCheck %s
+// REQUIRES: linux
 
 #include <CL/sycl.hpp>
 
