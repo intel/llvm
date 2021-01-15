@@ -182,7 +182,7 @@ instructions together. Same is applicable in case _Base_ is an
 *OpSpecConstantComposite* instruction followed by one or more
 *OpSpecConstantCompositeContinuedINTEL* instructions.
 
-In section 3.37.11. Conversion Instructions, add the new instruction
+In section 3.37.12. Composite Instructions, add the new instruction
 [cols="3", width="100%"]
 |=====
 2+^|*OpCompositeConstructContinuedINTEL* +
