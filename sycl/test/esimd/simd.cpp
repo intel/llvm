@@ -230,3 +230,13 @@ bool test_replicate3() __attribute__((sycl_device)) {
 
   return v0_rep[0] == v0[1] && v0_rep[1] == v0[3] && v0_rep[2] == v0[5];
 }
+
+bool test_simd_iselect() __attribute__((sycl_device)) {
+  simd<int, 16> v(0, 1);
+  simd<ushort, 8> a(0, 2);
+  auto data = v.iselect(a);
+  data += 16;
+  v.iupdate(a, data, 1);
+  auto ref = v.select<8, 2>(0);
+  return ref[0] == 16 && ref[14] == 32;
+}
