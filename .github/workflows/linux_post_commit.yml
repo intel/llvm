@@ -26,16 +26,16 @@ jobs:
                  export ARGS=""
                  ;;
              SharedLibs)
-                 export ARGS="--shared-libs"
-                 ;;
-             NoAssertions)
                  wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
                  sudo add-apt-repository "deb http://apt.llvm.org/bionic/   llvm-toolchain-bionic main"
                  sudo apt-get update
                  apt-get install -y clang-12
-                 export ARGS="--no-assertions"
+                 export ARGS="--shared-libs"
                  export CC="clang-12"
                  export CXX="clang++-12"
+                 ;;
+             NoAssertions)
+                 export ARGS="--no-assertions"
                  ;;
          esac
          mkdir -p $GITHUB_WORKSPACE/build
