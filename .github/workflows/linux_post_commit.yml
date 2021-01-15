@@ -32,7 +32,7 @@ jobs:
                  wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
                  sudo add-apt-repository "deb http://apt.llvm.org/bionic/   llvm-toolchain-bionic main"
                  sudo apt-get update
-                 apt-get install -y clang-12
+                 sudo apt-get install -y clang-12
                  export ARGS="--shared-libs"
                  export CC="clang-12"
                  export CXX="clang++-12"
