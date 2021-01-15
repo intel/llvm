@@ -4,6 +4,8 @@
 
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-device-only -S %s -o - \
 // RUN: | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -D__SYCL_EMULATE_FLOAT_ATOMICS__ \
+// RUN: -fsycl-device-only -S %s -o - | FileCheck %s --check-prefix=CHECK-LLVM-EMU
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out
 
@@ -174,6 +176,10 @@ template <> void sub_test<float>(queue q, size_t N) {
   // CHECK-LLVM: declare dso_local spir_func float
   // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicFAddEXT
   // CHECK-LLVM-SAME: (float addrspace(1)*, i32, i32, float)
+  // CHECK-LLVM-EMU: declare {{.*}} i32 @{{.*}}__spirv_AtomicLoad
+  // CHECK-LLVM-EMU-SAME: (i32 addrspace(1)*, i32, i32)
+  // CHECK-LLVM-EMU: declare {{.*}} i32 @{{.*}}__spirv_AtomicCompareExchange
+  // CHECK-LLVM-EMU-SAME: (i32 addrspace(1)*, i32, i32, i32, i32, i32)
   sub_plus_equal_test<float>(q, N);
 }
 template <> void sub_test<double>(queue q, size_t N) {
@@ -181,6 +187,10 @@ template <> void sub_test<double>(queue q, size_t N) {
   // CHECK-LLVM: declare dso_local spir_func double
   // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicFAddEXT
   // CHECK-LLVM-SAME: (double addrspace(1)*, i32, i32, double)
+  // CHECK-LLVM-EMU: declare {{.*}} i64 @{{.*}}__spirv_AtomicLoad
+  // CHECK-LLVM-EMU-SAME: (i64 addrspace(1)*, i32, i32)
+  // CHECK-LLVM-EMU: declare {{.*}} i64 @{{.*}}__spirv_AtomicCompareExchange
+  // CHECK-LLVM-EMU-SAME: (i64 addrspace(1)*, i32, i32, i32, i64, i64)
   sub_plus_equal_test<double>(q, N);
 }
 
