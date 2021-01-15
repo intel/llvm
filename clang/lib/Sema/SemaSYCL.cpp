@@ -1672,7 +1672,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     auto *NewParam = ParmVarDecl::Create(
         Ctx, KernelDecl, SourceLocation(), SourceLocation(),
         std::get<1>(newParamDesc), std::get<0>(newParamDesc),
-        std::get<2>(newParamDesc), SC_None, /*DefArg*/ nullptr);
+        std::get<2>(newParamDesc), StorageClass::None, /*DefArg*/ nullptr);
     NewParam->setScopeInfo(0, Params.size());
     NewParam->setIsUsed();
 
@@ -1777,7 +1777,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
 
     FunctionDecl *FD = FunctionDecl::Create(
         Ctx, Ctx.getTranslationUnitDecl(), Loc, Loc, &Ctx.Idents.get(Name),
-        FuncType, Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), SC_None);
+        FuncType, Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), StorageClass::None);
     FD->setImplicitlyInline(IsInline);
     setKernelImplicitAttrs(Ctx, FD, Name, IsSIMDKernel);
 
@@ -2399,7 +2399,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     VarDecl *VD = VarDecl::Create(
         Ctx, DC, KernelObj->getLocation(), KernelObj->getLocation(),
         KernelObj->getIdentifier(), QualType(KernelObj->getTypeForDecl(), 0),
-        TSInfo, SC_None);
+        TSInfo, StorageClass::None);
 
     return VD;
   }

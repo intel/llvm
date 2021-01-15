@@ -1422,6 +1422,7 @@ bool Sema::CheckTSBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
   case llvm::Triple::x86_64:
     return CheckX86BuiltinFunctionCall(TI, BuiltinID, TheCall);
   case llvm::Triple::ppc:
+  case llvm::Triple::ppcle:
   case llvm::Triple::ppc64:
   case llvm::Triple::ppc64le:
     return CheckPPCBuiltinFunctionCall(TI, BuiltinID, TheCall);
@@ -5941,8 +5942,8 @@ bool Sema::SemaBuiltinVAStart(unsigned BuiltinID, CallExpr *TheCall) {
 
       Type = PV->getType();
       ParamLoc = PV->getLocation();
-      IsCRegister =
-          PV->getStorageClass() == SC_Register && !getLangOpts().CPlusPlus;
+      IsCRegister = PV->getStorageClass() == StorageClass::Register &&
+                    !getLangOpts().CPlusPlus;
     }
   }
 
@@ -10387,8 +10388,7 @@ void CheckFreeArgumentsOnLvalue(Sema &S, const std::string &CalleeName,
                                 const UnaryOperator *UnaryExpr,
                                 const VarDecl *Var) {
   StorageClass Class = Var->getStorageClass();
-  if (Class == StorageClass::SC_Extern ||
-      Class == StorageClass::SC_PrivateExtern ||
+  if (Class == StorageClass::Extern || Class == StorageClass::PrivateExtern ||
       Var->getType()->isReferenceType())
     return;
 

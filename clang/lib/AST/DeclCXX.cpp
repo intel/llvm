@@ -1508,7 +1508,7 @@ CXXMethodDecl *CXXRecordDecl::getLambdaCallOperator() const {
 
 CXXMethodDecl* CXXRecordDecl::getLambdaStaticInvoker() const {
   CXXMethodDecl *CallOp = getLambdaCallOperator();
-  CallingConv CC = CallOp->getType()->getAs<FunctionType>()->getCallConv();
+  CallingConv CC = CallOp->getType()->castAs<FunctionType>()->getCallConv();
   return getLambdaStaticInvoker(CC);
 }
 
@@ -1532,8 +1532,8 @@ CXXMethodDecl *CXXRecordDecl::getLambdaStaticInvoker(CallingConv CC) const {
   DeclContext::lookup_result Invoker = getLambdaStaticInvokers(*this);
 
   for (NamedDecl *ND : Invoker) {
-    const FunctionType *FTy =
-        cast<ValueDecl>(ND->getAsFunction())->getType()->getAs<FunctionType>();
+    const auto *FTy =
+        cast<ValueDecl>(ND->getAsFunction())->getType()->castAs<FunctionType>();
     if (FTy->getCallConv() == CC)
       return getInvokerAsMethod(ND);
   }
@@ -2085,7 +2085,7 @@ void CXXMethodDecl::anchor() {}
 bool CXXMethodDecl::isStatic() const {
   const CXXMethodDecl *MD = getCanonicalDecl();
 
-  if (MD->getStorageClass() == SC_Static)
+  if (MD->getStorageClass() == StorageClass::Static)
     return true;
 
   OverloadedOperatorKind OOK = getDeclName().getCXXOverloadedOperator();
@@ -2187,10 +2187,10 @@ CXXMethodDecl *CXXMethodDecl::Create(ASTContext &C, CXXRecordDecl *RD,
 }
 
 CXXMethodDecl *CXXMethodDecl::CreateDeserialized(ASTContext &C, unsigned ID) {
-  return new (C, ID)
-      CXXMethodDecl(CXXMethod, C, nullptr, SourceLocation(),
-                    DeclarationNameInfo(), QualType(), nullptr, SC_None, false,
-                    ConstexprSpecKind::Unspecified, SourceLocation(), nullptr);
+  return new (C, ID) CXXMethodDecl(
+      CXXMethod, C, nullptr, SourceLocation(), DeclarationNameInfo(),
+      QualType(), nullptr, StorageClass::None, false,
+      ConstexprSpecKind::Unspecified, SourceLocation(), nullptr);
 }
 
 CXXMethodDecl *CXXMethodDecl::getDevirtualizedMethod(const Expr *Base,
@@ -2567,8 +2567,8 @@ CXXConstructorDecl::CXXConstructorDecl(
     ConstexprSpecKind ConstexprKind, InheritedConstructor Inherited,
     Expr *TrailingRequiresClause)
     : CXXMethodDecl(CXXConstructor, C, RD, StartLoc, NameInfo, T, TInfo,
-                    SC_None, isInline, ConstexprKind, SourceLocation(),
-                    TrailingRequiresClause) {
+                    StorageClass::None, isInline, ConstexprKind,
+                    SourceLocation(), TrailingRequiresClause) {
   setNumCtorInitializers(0);
   setInheritingConstructor(static_cast<bool>(Inherited));
   setImplicit(isImplicitlyDeclared);

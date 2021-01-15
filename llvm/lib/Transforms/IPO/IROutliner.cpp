@@ -1027,9 +1027,7 @@ alignOutputBlockWithAggFunc(OutlinableGroup &OG, OutlinableRegion &Region,
 
     // If we have found one of the stored values for output, replace the value
     // with the corresponding one from the overall function.
-    if (GVN.hasValue() &&
-        ValuesToFind.find(GVN.getValue()) != ValuesToFind.end()) {
-      ValuesToFind.erase(GVN.getValue());
+    if (GVN.hasValue() && ValuesToFind.erase(GVN.getValue())) {
       V->replaceAllUsesWith(OverallFunctionInsts[Idx]);
       if (ValuesToFind.size() == 0)
         break;
@@ -1288,7 +1286,6 @@ unsigned IROutliner::findBenefitFromAllRegions(OutlinableGroup &CurrentGroup) {
     RegionBenefit += Region->getBenefit(TTI);
     LLVM_DEBUG(dbgs() << "Adding: " << RegionBenefit
                       << " saved instructions to overfall benefit.\n");
-    CurrentGroup.Benefit += RegionBenefit;
   }
 
   return RegionBenefit;
@@ -1407,7 +1404,8 @@ void IROutliner::findCostBenefit(Module &M, OutlinableGroup &CurrentGroup) {
   LLVM_DEBUG(dbgs() << "Adding: " << OverallArgumentNum
                     << " instructions to cost for each argument in the new"
                     << " function.\n");
-  CurrentGroup.Cost += 2 * OverallArgumentNum * TargetTransformInfo::TCC_Basic;
+  CurrentGroup.Cost +=
+      OverallArgumentNum * TargetTransformInfo::TCC_Basic;
   LLVM_DEBUG(dbgs() << "Current Cost: " << CurrentGroup.Cost << "\n");
 
   // Each argument needs to either be loaded into a register or onto the stack.

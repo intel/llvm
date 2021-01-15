@@ -1954,7 +1954,7 @@ def IntelFPGAConstVar : SubsetSubject<Var,
 def IntelFPGALocalStaticSlaveMemVar : SubsetSubject<Var,
       [{S->getKind() != Decl::ImplicitParam &&
         S->getKind() != Decl::NonTypeTemplateParm &&
-        (S->getStorageClass() == SC_Static ||
+        (S->getStorageClass() == StorageClass::Static ||
          S->hasLocalStorage())}],
          "local variables, static variables, slave memory arguments">;
 
@@ -1962,7 +1962,7 @@ def IntelFPGALocalOrStaticVar : SubsetSubject<Var,
                               [{S->getKind() != Decl::ImplicitParam &&
                                 S->getKind() != Decl::ParmVar &&
                                 S->getKind() != Decl::NonTypeTemplateParm &&
-                                (S->getStorageClass() == SC_Static ||
+                                (S->getStorageClass() == StorageClass::Static ||
                                  S->hasLocalStorage())}],
                               "local variables, static variables">;
 

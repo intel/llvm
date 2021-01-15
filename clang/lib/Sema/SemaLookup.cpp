@@ -826,7 +826,7 @@ static void InsertBuiltinDeclarationsFromTable(
     for (unsigned Index = 0; Index < GenTypeMaxCnt; Index++) {
       NewBuiltin = FunctionDecl::Create(
           Context, Parent, Loc, Loc, II, FunctionList[Index],
-          /*TInfo=*/nullptr, SC_Extern, false,
+          /*TInfo=*/nullptr, StorageClass::Extern, false,
           FunctionList[Index]->isFunctionProtoType());
       NewBuiltin->setImplicit();
 
@@ -839,7 +839,7 @@ static void InsertBuiltinDeclarationsFromTable(
           ParmVarDecl *Parm = ParmVarDecl::Create(
               Context, NewBuiltin, SourceLocation(), SourceLocation(), nullptr,
               FP->getParamType(IParm),
-              /*TInfo=*/nullptr, SC_None, nullptr);
+              /*TInfo=*/nullptr, StorageClass::None, nullptr);
           Parm->setScopeInfo(0, IParm);
           ParmList.push_back(Parm);
         }
