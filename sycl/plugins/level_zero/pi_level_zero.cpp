@@ -508,7 +508,7 @@ pi_result _pi_context::finalize() {
   // For example, zeEventPool could be still alive.
   std::lock_guard<std::mutex> NumEventsLiveInEventPoolGuard(
       NumEventsLiveInEventPoolMutex, std::adopt_lock);
-  if (ZeEventPool && NumEventsLiveInEventPool[ZeEventPool])
+  if (ZeEventPool)
     zeEventPoolDestroy(ZeEventPool);
 
   // Destroy the command list used for initializations
