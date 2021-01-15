@@ -4295,6 +4295,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // Turn on Dead Parameter Elimination Optimization with early optimizations
     if (!RawTriple.isNVPTX() &&
         Triple.getSubArch() == llvm::Triple::NoSubArch &&
+        !Args.hasArg(options::OPT_fsycl_link_EQ) &&
         Args.hasFlag(options::OPT_fsycl_dead_args_optimization,
                      options::OPT_fno_sycl_dead_args_optimization, true))
       CmdArgs.push_back("-fenable-sycl-dae");
@@ -8332,6 +8333,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // Turn on Dead Parameter Elimination Optimization with early optimizations
   if (!getToolChain().getTriple().isNVPTX() &&
       getToolChain().getTriple().getSubArch() == llvm::Triple::NoSubArch &&
+      !TCArgs.hasArg(options::OPT_fsycl_link_EQ) &&
       TCArgs.hasFlag(options::OPT_fsycl_dead_args_optimization,
                      options::OPT_fno_sycl_dead_args_optimization, true))
     addArgs(CmdArgs, TCArgs, {"-emit-param-info"});

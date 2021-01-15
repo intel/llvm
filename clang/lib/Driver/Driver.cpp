@@ -4378,7 +4378,7 @@ class OffloadingActionBuilder final {
           Args.getLastArg(options::OPT_fsycl_device_code_split_EQ);
       EnableDAE =
           Args.hasFlag(options::OPT_fsycl_dead_args_optimization,
-                       options::OPT_fno_sycl_dead_args_optimization, false);
+                       options::OPT_fno_sycl_dead_args_optimization, true);
       // -fsycl-device-code-split is an alias to
       // -fsycl-device-code-split=per_source
       DeviceCodeSplit = DeviceCodeSplitArg &&
