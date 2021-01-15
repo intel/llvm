@@ -36,8 +36,8 @@ Version
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2020-12-07
-| Revision           | 6
+| Last Modified Date | 2021-01-14
+| Revision           | 7
 |========================================
 
 Dependencies
@@ -182,6 +182,27 @@ instructions together. Same is applicable in case _Base_ is an
 *OpSpecConstantComposite* instruction followed by one or more
 *OpSpecConstantCompositeContinuedINTEL* instructions.
 
+In section 3.37.11. Conversion Instructions, add the new instruction
+[cols="3", width="100%"]
+|=====
+2+^|*OpCompositeConstructContinuedINTEL* +
+
+Continue specifying an *OpCompositeConstruct* instruction with number of
+_Constituents_ greater than the maximum possible WordCount.
+
+The previous instruction must be an *OpCompositeConstruct* or an
+*OpCompositeConstructContinuedINTEL* instruction.
+
+_Constituents_ follow the same rules as defined for _Constituents_ of
+*OpCompositeConstruct* instruction and specify members of a structure, or
+elements of an array, or components of a vector, or columns of a matrix.
+
+| Capability:
+*CapabilityLongConstantCompositeINTEL*
+
+| 2 + variable | 6096 | _<id>, <id>, ... Constituents_ |
+|=====
+
 Issues
 ------
 
@@ -232,4 +253,5 @@ Sachkov
 Sachkov
 |6|2020-12-07|Mariya Podchishchaeva|Apply comments from Alexey Sotkin and
 Mikhail Lychkov
+|7|2021-01-14|Mariya Podchishchaeva|Add OpCompositeConstructContinuedINTEL
 |========================================
