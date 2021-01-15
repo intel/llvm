@@ -12886,7 +12886,7 @@ public:
 
   /// Diagnoses an attribute in the 'intelfpga' namespace and suggests using
   /// the attribute in the 'intel' namespace instead.
-  void CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &Attr,
+  void CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
                                             StringRef NewName = "");
 
   /// Creates a SemaDiagnosticBuilder that emits the diagnostic if the current
