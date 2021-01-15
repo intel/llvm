@@ -107,14 +107,13 @@ public:
   /// \param Prg the program object to get spec constant settings from.
   ///        Passing program_impl by raw reference is OK, since it is not
   ///        captured anywhere once the function returns.
-  /// \param Device the device assosiated with the native program
   /// \param NativePrg the native program, target for spec constant setting; if
   ///        not null then overrides the native program in Prg
   /// \param Img A source of the information about which constants need
   ///        setting and symboling->integer spec constnant ID mapping. If not
   ///        null, overrides native program->binary image binding maintained by
   ///        the program manager.
-  void flushSpecConstants(const program_impl &Prg, pi::PiDevice Device,
+  void flushSpecConstants(const program_impl &Prg,
                           pi::PiProgram NativePrg = nullptr,
                           const RTDeviceBinaryImage *Img = nullptr);
   uint32_t getDeviceLibReqMask(const RTDeviceBinaryImage &Img);

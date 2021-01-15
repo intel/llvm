@@ -113,12 +113,14 @@ if(SYCL_BUILD_PI_CUDA)
   add_lit_testsuite(check-sycl-ptx "Running device-agnostic SYCL regression tests for NVidia PTX"
     ${CMAKE_CURRENT_BINARY_DIR}
     ARGS ${RT_TEST_ARGS}
-    PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda-sycldevice"
+    PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda-sycldevice;SYCL_PLUGIN=cuda"
     DEPENDS ${SYCL_TEST_DEPS}
     EXCLUDE_FROM_CHECK_ALL
   )
 
-  add_dependencies(check-sycl check-sycl-cuda check-sycl-ptx)
+  add_dependencies(check-sycl-cuda check-sycl-ptx)
+
+  add_dependencies(check-sycl check-sycl-cuda)
 
   add_lit_testsuites(SYCL-CUDA ${CMAKE_CURRENT_SOURCE_DIR}/on-device
     PARAMS "SYCL_PLUGIN=cuda"

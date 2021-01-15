@@ -2705,13 +2705,8 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
 
   // Sets a flag if the kernel is a parallel_for that calls the
   // free function API "this_item".
-  void setThisItemIsCalled(const CXXRecordDecl *KernelObj,
-                           FunctionDecl *KernelFunc) {
+  void setThisItemIsCalled(FunctionDecl *KernelFunc) {
     if (getKernelInvocationKind(KernelFunc) != InvokeParallelFor)
-      return;
-
-    const CXXMethodDecl *WGLambdaFn = getOperatorParens(KernelObj);
-    if (!WGLambdaFn)
       return;
 
     // The call graph for this translation unit.
@@ -2721,7 +2716,7 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
         std::pair<const FunctionDecl *, const FunctionDecl *>;
     llvm::SmallPtrSet<const FunctionDecl *, 16> Visited;
     llvm::SmallVector<ChildParentPair, 16> WorkList;
-    WorkList.push_back({WGLambdaFn, nullptr});
+    WorkList.push_back({KernelFunc, nullptr});
 
     while (!WorkList.empty()) {
       const FunctionDecl *FD = WorkList.back().first;
@@ -2729,9 +2724,22 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
       if (!Visited.insert(FD).second)
         continue; // We've already seen this Decl
 
-      // Check whether this call is to sycl::this_item().
+      // Check whether this call is to free functions (sycl::this_item(),
+      // this_id, etc.).
+      if (Util::isSyclFunction(FD, "this_id")) {
+        Header.setCallsThisId(true);
+        return;
+      }
       if (Util::isSyclFunction(FD, "this_item")) {
         Header.setCallsThisItem(true);
+        return;
+      }
+      if (Util::isSyclFunction(FD, "this_nd_item")) {
+        Header.setCallsThisNDItem(true);
+        return;
+      }
+      if (Util::isSyclFunction(FD, "this_group")) {
+        Header.setCallsThisGroup(true);
         return;
       }
 
@@ -2759,7 +2767,7 @@ public:
     bool IsSIMDKernel = isESIMDKernelType(KernelObj);
     Header.startKernel(Name, NameType, StableName, KernelObj->getLocation(),
                        IsSIMDKernel);
-    setThisItemIsCalled(KernelObj, KernelFunc);
+    setThisItemIsCalled(KernelFunc);
   }
 
   bool handleSyclAccessorType(const CXXRecordDecl *RD,
@@ -3289,32 +3297,28 @@ void Sema::MarkDevice(void) {
           break;
         }
         case attr::Kind::ReqdWorkGroupSize: {
-          auto *Attr = cast<ReqdWorkGroupSizeAttr>(A);
+          auto *RWGSA = cast<ReqdWorkGroupSizeAttr>(A);
           if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
-            if ((getIntExprValue(Existing->getXDim(), getASTContext()) !=
-                 getIntExprValue(Attr->getXDim(), getASTContext())) ||
-                (getIntExprValue(Existing->getYDim(), getASTContext()) !=
-                 getIntExprValue(Attr->getYDim(), getASTContext())) ||
-                (getIntExprValue(Existing->getZDim(), getASTContext()) !=
-                 getIntExprValue(Attr->getZDim(), getASTContext()))) {
+            ASTContext &Ctx = getASTContext();
+            if (Existing->getXDimVal(Ctx) != RWGSA->getXDimVal(Ctx) ||
+                Existing->getYDimVal(Ctx) != RWGSA->getYDimVal(Ctx) ||
+                Existing->getZDimVal(Ctx) != RWGSA->getZDimVal(Ctx)) {
               Diag(SYCLKernel->getLocation(),
                    diag::err_conflicting_sycl_kernel_attributes);
               Diag(Existing->getLocation(), diag::note_conflicting_attribute);
-              Diag(Attr->getLocation(), diag::note_conflicting_attribute);
+              Diag(RWGSA->getLocation(), diag::note_conflicting_attribute);
               SYCLKernel->setInvalidDecl();
             }
           } else if (auto *Existing =
                          SYCLKernel->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-            if ((getIntExprValue(Existing->getXDim(), getASTContext()) <
-                 getIntExprValue(Attr->getXDim(), getASTContext())) ||
-                (getIntExprValue(Existing->getYDim(), getASTContext()) <
-                 getIntExprValue(Attr->getYDim(), getASTContext())) ||
-                (getIntExprValue(Existing->getZDim(), getASTContext()) <
-                 getIntExprValue(Attr->getZDim(), getASTContext()))) {
+            ASTContext &Ctx = getASTContext();
+            if (Existing->getXDimVal(Ctx) < RWGSA->getXDimVal(Ctx) ||
+                Existing->getYDimVal(Ctx) < RWGSA->getYDimVal(Ctx) ||
+                Existing->getZDimVal(Ctx) < RWGSA->getZDimVal(Ctx)) {
               Diag(SYCLKernel->getLocation(),
                    diag::err_conflicting_sycl_kernel_attributes);
               Diag(Existing->getLocation(), diag::note_conflicting_attribute);
-              Diag(Attr->getLocation(), diag::note_conflicting_attribute);
+              Diag(RWGSA->getLocation(), diag::note_conflicting_attribute);
               SYCLKernel->setInvalidDecl();
             } else {
               SYCLKernel->addAttr(A);
@@ -3325,18 +3329,16 @@ void Sema::MarkDevice(void) {
           break;
         }
         case attr::Kind::SYCLIntelMaxWorkGroupSize: {
-          auto *Attr = cast<SYCLIntelMaxWorkGroupSizeAttr>(A);
+          auto *SIMWGSA = cast<SYCLIntelMaxWorkGroupSizeAttr>(A);
           if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
-            if ((getIntExprValue(Existing->getXDim(), getASTContext()) >
-                 getIntExprValue(Attr->getXDim(), getASTContext())) ||
-                (getIntExprValue(Existing->getYDim(), getASTContext()) >
-                 getIntExprValue(Attr->getYDim(), getASTContext())) ||
-                (getIntExprValue(Existing->getZDim(), getASTContext()) >
-                 getIntExprValue(Attr->getZDim(), getASTContext()))) {
+            ASTContext &Ctx = getASTContext();
+            if (Existing->getXDimVal(Ctx) > SIMWGSA->getXDimVal(Ctx) ||
+                Existing->getYDimVal(Ctx) > SIMWGSA->getYDimVal(Ctx) ||
+                Existing->getZDimVal(Ctx) > SIMWGSA->getZDimVal(Ctx)) {
               Diag(SYCLKernel->getLocation(),
                    diag::err_conflicting_sycl_kernel_attributes);
               Diag(Existing->getLocation(), diag::note_conflicting_attribute);
-              Diag(Attr->getLocation(), diag::note_conflicting_attribute);
+              Diag(SIMWGSA->getLocation(), diag::note_conflicting_attribute);
               SYCLKernel->setInvalidDecl();
             } else {
               SYCLKernel->addAttr(A);
@@ -3938,7 +3940,14 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       << "; }\n";
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr bool callsThisItem() { return ";
-    O << K.CallsThisItem << "; }\n";
+    O << K.FreeFunctionCalls.CallsThisItem << "; }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr bool callsAnyThisFreeFunction() { return ";
+    O << (K.FreeFunctionCalls.CallsThisId ||
+          K.FreeFunctionCalls.CallsThisItem ||
+          K.FreeFunctionCalls.CallsThisNDItem ||
+          K.FreeFunctionCalls.CallsThisGroup)
+      << "; }\n";
     O << "};\n";
     CurStart += N;
   }
@@ -3997,10 +4006,28 @@ void SYCLIntegrationHeader::addSpecConstant(StringRef IDName, QualType IDType) {
   SpecConsts.emplace_back(std::make_pair(IDType, IDName.str()));
 }
 
+void SYCLIntegrationHeader::setCallsThisId(bool B) {
+  KernelDesc *K = getCurKernelDesc();
+  assert(K && "no kernel");
+  K->FreeFunctionCalls.CallsThisId = B;
+}
+
 void SYCLIntegrationHeader::setCallsThisItem(bool B) {
   KernelDesc *K = getCurKernelDesc();
-  assert(K && "no kernels");
-  K->CallsThisItem = B;
+  assert(K && "no kernel");
+  K->FreeFunctionCalls.CallsThisItem = B;
+}
+
+void SYCLIntegrationHeader::setCallsThisNDItem(bool B) {
+  KernelDesc *K = getCurKernelDesc();
+  assert(K && "no kernel");
+  K->FreeFunctionCalls.CallsThisNDItem = B;
+}
+
+void SYCLIntegrationHeader::setCallsThisGroup(bool B) {
+  KernelDesc *K = getCurKernelDesc();
+  assert(K && "no kernel");
+  K->FreeFunctionCalls.CallsThisGroup = B;
 }
 
 SYCLIntegrationHeader::SYCLIntegrationHeader(DiagnosticsEngine &_Diag,

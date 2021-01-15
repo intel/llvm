@@ -381,7 +381,7 @@ void program_impl::build(const string_class &Options) {
   check_device_feature_support<info::device::is_compiler_available>(MDevices);
   vector_class<RT::PiDevice> Devices(get_pi_devices());
   const detail::plugin &Plugin = getPlugin();
-  ProgramManager::getInstance().flushSpecConstants(*this, get_pi_devices()[0]);
+  ProgramManager::getInstance().flushSpecConstants(*this);
   RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
       MProgram, Devices.size(), Devices.data(), Options.c_str(), nullptr,
       nullptr);
