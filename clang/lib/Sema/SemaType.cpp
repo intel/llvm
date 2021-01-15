@@ -5041,6 +5041,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         // We also allow here any toolchain reserved identifiers.
         if (FTI.isVariadic &&
             !LangOpts.SYCLIsDevice &&
+            !S.getOpenCLOptions().isEnabled("__cl_clang_variadic_functions") &&
             !(D.getIdentifier() &&
               ((D.getIdentifier()->getName() == "printf" &&
                 (LangOpts.OpenCLCPlusPlus || LangOpts.OpenCLVersion >= 120)) ||
