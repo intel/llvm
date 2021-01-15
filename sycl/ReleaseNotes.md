@@ -4,55 +4,57 @@ Release notes for commit 5eebd1e4bfce..4dc3b35b07ae
 
 ## New features
 ### SYCL Compiler
+ - Added template parameter support for `work_group_size` attributes
+   [ca9d816234c6] [289230c0b52c]
+ - Introduced `auto` mode for device code split feature. This mode is the
+   default one [184d258b902a]
+ - Enabled support for multiple AOCX device binaries for FPGA [6ea38f0f1f7a]
 ### SYCL Library
+ - Implemented [`online_compiler`](doc/extensions/OnlineCompilation/OnlineCompilation.asciidoc)
+   feature [91122526e74d]
 ### Documentation
+ - Added specification for [set kernel cache configuration extension](doc/extensions/IntelGPU/IntelGPUKernelCache.md)
+   [db62fe7166ec]
 
 ## Improvements
 ### SYCL Compiler
  - Updated ESIMD support for split barrier, slm load and dp4a [7f5013901874]
- - Added template parameter support for `work_group_size` attributes
-   [ca9d816234c6] [289230c0b52c]
- - Introduced `auto` mode for device code split feature [184d258b902a]
- - Disabled swapping dimension values of WorkGroupAttr for semantic checks
+ - Disabled swapping dimension values of `WorkGroupAttr` for semantic checks
    [7ef84b6fb60c]
- - Use `clang-offload-deps` tool for generating device dependencies
+ - Enabled `clang-offload-deps` tool usage for generating device dependencies
    [08a1c00028e5, 237675ba5a16, 84d2eb53e774, c8455167c2fa]
- - Link only needed symbols from fat static libraries on device side
-   [5c3e5385b35d]
- - Allow for multiple AOCX device binaries for FPGA [6ea38f0f1f7a]
+ - Switched to linking only needed symbols from fat static libraries on device
+   side [5c3e5385b35d]
 ### SYCL Library
  - Added filtering of partition properties to exclude non-SYCL ones
    [7f7006410c1d]
- - Added thread-safety to plugin interface tracing [0b4e2150f3a3]
- - Implemented feature [`online_compiler`](doc/extensions/OnlineCompilation/OnlineCompilation.asciidoc)
-   [91122526e74d]
- - Added plugin lifetime management [f58c568425b3]
- - Fixed excessive memory allocation for devices in OpenCL kernels
+ - Fixed memory leaks of global object in the Level-Zero plugins [f58c568]
+ - Fixed excessive memory allocation for device handles in the OpenCL plugin
    [8cfcdb20b06e]
- - Added support for pinned host memory in LevelZero plugin [0b9a7493a2f1]
- - Enabled host optimizations for work-item free functions [b83a1a8028a8]
- - Fixed various SYCL Library build warnings [d4e51db60a67]
- - Retain events in LevelZero event wait list until command has completed
-   [c55eb20c2f8c]
+ - Added support for
+   `syc::ext::oneapi::property::buffer::use_pinned_host_memory` buffery property
+   in LevelZero plugin [0b9a7493a2f1]
+ - Improved performance of kernels which do not use work-item free functions on
+   the host device [b83a1a8028a8]
+ - Switched to retaining events in LevelZero event wait list until command has
+   completed [c55eb20c2f8c]
  - Improved group scan/reduce algorithms performance for CUDA [bd0edfee2908]
  - Enabled sub-group loads and stores in CUDA [cfce9965c366]
 ### Documentation
- - Added notice of `-o` option in GetStartedGuide [665e4062a5ff]
- - Added specification for [set kernel cache configuration extension](doc/extensions/IntelGPU/IntelGPUKernelCache.md)
-   [db62fe7166ec]
- - Added requirement to add reference to test pull-request in commit message
-   [965b63c38ca7]
+ - Added notice of the `-o` build configuration option in GetStartedGuide
+   [665e4062a5ff]
+ - Added requirement to reference E2E tests for the pull-request in the commit
+   message [965b63c38ca7]
 
 ## Bug fixes
 ### SYCL Compiler
- - Eliminated emit if `llvm.used` global variable to output module(s) in the
-   post link tool [9b07d114f5c2] [b96e647c82b2]
+ - Eliminated emission of `llvm.used` global variables to output module(s) in
+   the post-link tool [9b07d114f5c2] [b96e647c82b2]
  - Fixed crash on scalar `fptoui` LLVM instruction [d7ca5dafcb3b]
  - Fixed detection of free function calls [6cfc3add16e3]
  - Put constant initializer list data in non-generic address space
    [0f2cf4ddc2fd]
 ### SYCL Library
- - Fixed build error for SYCL library with assertions disabled [16b3ffeac090]
  - Fixed memory leak in Level-Zero plugin
    [d98b61a7bd28] [051e1407a195] [45e1b143f0a9]
  - (ESIMD only) Fixed build error "no member named `cl_int2`" [d7f1b53dec62]
