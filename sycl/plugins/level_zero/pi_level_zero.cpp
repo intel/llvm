@@ -4102,7 +4102,9 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
                                      (*Event)->WaitList.Length,
                                      (*Event)->WaitList.ZeEventList));
 
-  return PI_SUCCESS;
+  // Execute command list asynchronously as the event will be used
+  // to track down its completion.
+  return Queue->executeCommandList(ZeCommandList, ZeFence);
 }
 
 pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
