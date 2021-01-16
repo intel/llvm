@@ -3036,6 +3036,10 @@ public:
         return;
       }
       if (!DeclCtx->isTranslationUnit() && !isa<NamespaceDecl>(DeclCtx)) {
+        // Allow Structs since they are public by default
+        if (Tag->isStruct()) {
+          return;
+        }
         const bool KernelNameIsMissing = Tag->getName().empty();
         if (KernelNameIsMissing) {
           S.Diag(KernelInvocationFuncLoc,
