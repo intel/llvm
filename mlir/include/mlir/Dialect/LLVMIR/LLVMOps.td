@@ -14,9 +14,38 @@
 #define LLVMIR_OPS
 
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
+include "mlir/Dialect/LLVMIR/LLVMOpsInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+
+def FMFnnan     : BitEnumAttrCase<"nnan", 0x1>;
+def FMFninf     : BitEnumAttrCase<"ninf", 0x2>;
+def FMFnsz      : BitEnumAttrCase<"nsz", 0x4>;
+def FMFarcp     : BitEnumAttrCase<"arcp", 0x8>;
+def FMFcontract : BitEnumAttrCase<"contract", 0x10>;
+def FMFafn      : BitEnumAttrCase<"afn", 0x20>;
+def FMFreassoc  : BitEnumAttrCase<"reassoc", 0x40>;
+def FMFfast     : BitEnumAttrCase<"fast", 0x80>;
+
+def FastmathFlags : BitEnumAttr<
+    "FastmathFlags",
+    "LLVM fastmath flags",
+    [FMFnnan, FMFninf, FMFnsz, FMFarcp, FMFcontract, FMFafn, FMFreassoc, FMFfast
+    ]> {
+  let cppNamespace = "::mlir::LLVM";
+}
+
+def LLVM_FMFAttr : DialectAttr<
+    LLVM_Dialect,
+    CPred<"$_self.isa<::mlir::LLVM::FMFAttr>()">,
+    "LLVM fastmath flags"> {
+  let storageType = "::mlir::LLVM::FMFAttr";
+  let returnType = "::mlir::LLVM::FastmathFlags";
+  let convertFromStorage = "$_self.getFlags()";
+  let constBuilderCall =
+          "::mlir::LLVM::FMFAttr::get($0, $_builder.getContext())";
+}
 
 class LLVM_Builder<string builder> {
   string llvmBuilder = builder;
@@ -77,29 +106,35 @@ class LLVM_ArithmeticOpBase<Type type, string mnemonic,
     LLVM_Op<mnemonic,
            !listconcat([NoSideEffect, SameOperandsAndResultType], traits)>,
     LLVM_Builder<"$res = builder." # builderFunc # "($lhs, $rhs);"> {
-  let arguments = (ins LLVM_ScalarOrVectorOf<type>:$lhs,
-                   LLVM_ScalarOrVectorOf<type>:$rhs);
+  dag commonArgs = (ins LLVM_ScalarOrVectorOf<type>:$lhs,
+                    LLVM_ScalarOrVectorOf<type>:$rhs);
   let results = (outs LLVM_ScalarOrVectorOf<type>:$res);
   let builders = [LLVM_OneResultOpBuilder];
-  let assemblyFormat = "$lhs `,` $rhs attr-dict `:` type($res)";
+  let assemblyFormat = "$lhs `,` $rhs custom<LLVMOpAttrs>(attr-dict) `:` type($res)";
 }
 class LLVM_IntArithmeticOp<string mnemonic, string builderFunc,
                            list<OpTrait> traits = []> :
-    LLVM_ArithmeticOpBase<LLVM_AnyInteger, mnemonic, builderFunc, traits>;
+    LLVM_ArithmeticOpBase<LLVM_AnyInteger, mnemonic, builderFunc, traits> {
+  let arguments = commonArgs;
+}
 class LLVM_FloatArithmeticOp<string mnemonic, string builderFunc,
                              list<OpTrait> traits = []> :
-    LLVM_ArithmeticOpBase<LLVM_AnyFloat, mnemonic, builderFunc, traits>;
+    LLVM_ArithmeticOpBase<LLVM_AnyFloat, mnemonic, builderFunc,
+    !listconcat([DeclareOpInterfaceMethods<FastmathFlagsInterface>], traits)> {
+  dag fmfArg = (ins DefaultValuedAttr<LLVM_FMFAttr, "{}">:$fastmathFlags);
+  let arguments = !con(commonArgs, fmfArg);
+}
 
 // Class for arithmetic unary operations.
-class LLVM_UnaryArithmeticOp<Type type, string mnemonic,
+class LLVM_UnaryFloatArithmeticOp<Type type, string mnemonic,
                              string builderFunc, list<OpTrait> traits = []> :
     LLVM_Op<mnemonic,
-           !listconcat([NoSideEffect, SameOperandsAndResultType], traits)>,
+           !listconcat([NoSideEffect, SameOperandsAndResultType, DeclareOpInterfaceMethods<FastmathFlagsInterface>], traits)>,
     LLVM_Builder<"$res = builder." # builderFunc # "($operand);"> {
-  let arguments = (ins type:$operand);
+  let arguments = (ins type:$operand, DefaultValuedAttr<LLVM_FMFAttr, "{}">:$fastmathFlags);
   let results = (outs type:$res);
   let builders = [LLVM_OneResultOpBuilder];
-  let assemblyFormat = "$operand attr-dict `:` type($res)";
+  let assemblyFormat = "$operand custom<LLVMOpAttrs>(attr-dict) `:` type($res)";
 }
 
 // Integer binary operations.
@@ -149,7 +184,7 @@ def LLVM_ICmpOp : LLVM_Op<"icmp", [NoSideEffect]> {
   let builders = [
     OpBuilderDAG<(ins "ICmpPredicate":$predicate, "Value":$lhs, "Value":$rhs),
     [{
-      build($_builder, $_state, LLVMIntegerType::get(lhs.getType().getContext(), 1),
+      build($_builder, $_state, IntegerType::get(lhs.getType().getContext(), 1),
             $_builder.getI64IntegerAttr(static_cast<int64_t>(predicate)), lhs, rhs);
     }]>];
   let parser = [{ return parseCmpOp<ICmpPredicate>(parser, result); }];
@@ -185,20 +220,24 @@ def FCmpPredicate : I64EnumAttr<
   let cppNamespace = "::mlir::LLVM";
 }
 
-// Other integer operations.
-def LLVM_FCmpOp : LLVM_Op<"fcmp", [NoSideEffect]> {
+// Other floating-point operations.
+def LLVM_FCmpOp : LLVM_Op<"fcmp", [
+    NoSideEffect, DeclareOpInterfaceMethods<FastmathFlagsInterface>]> {
   let arguments = (ins FCmpPredicate:$predicate,
                    LLVM_ScalarOrVectorOf<LLVM_AnyFloat>:$lhs,
-                   LLVM_ScalarOrVectorOf<LLVM_AnyFloat>:$rhs);
+                   LLVM_ScalarOrVectorOf<LLVM_AnyFloat>:$rhs,
+                   DefaultValuedAttr<LLVM_FMFAttr, "{}">:$fastmathFlags);
   let results = (outs LLVM_ScalarOrVectorOf<LLVM_i1>:$res);
   let llvmBuilder = [{
     $res = builder.CreateFCmp(getLLVMCmpPredicate($predicate), $lhs, $rhs);
   }];
   let builders = [
-    OpBuilderDAG<(ins "FCmpPredicate":$predicate, "Value":$lhs, "Value":$rhs),
+    OpBuilderDAG<(ins "FCmpPredicate":$predicate, "Value":$lhs, "Value":$rhs,
+                  CArg<"FastmathFlags", "{}">:$fmf),
     [{
-      build($_builder, $_state, LLVMIntegerType::get(lhs.getType().getContext(), 1),
-            $_builder.getI64IntegerAttr(static_cast<int64_t>(predicate)), lhs, rhs);
+      build($_builder, $_state, IntegerType::get(lhs.getType().getContext(), 1),
+            $_builder.getI64IntegerAttr(static_cast<int64_t>(predicate)), lhs, rhs,
+            ::mlir::LLVM::FMFAttr::get(fmf, $_builder.getContext()));
     }]>];
   let parser = [{ return parseCmpOp<FCmpPredicate>(parser, result); }];
   let printer = [{ printFCmpOp(p, *this); }];
@@ -210,8 +249,8 @@ def LLVM_FSubOp : LLVM_FloatArithmeticOp<"fsub", "CreateFSub">;
 def LLVM_FMulOp : LLVM_FloatArithmeticOp<"fmul", "CreateFMul">;
 def LLVM_FDivOp : LLVM_FloatArithmeticOp<"fdiv", "CreateFDiv">;
 def LLVM_FRemOp : LLVM_FloatArithmeticOp<"frem", "CreateFRem">;
-def LLVM_FNegOp : LLVM_UnaryArithmeticOp<LLVM_ScalarOrVectorOf<LLVM_AnyFloat>,
-                                         "fneg", "CreateFNeg">;
+def LLVM_FNegOp : LLVM_UnaryFloatArithmeticOp<
+  LLVM_ScalarOrVectorOf<LLVM_AnyFloat>, "fneg", "CreateFNeg">;
 
 // Common code definition that is used to verify and set the alignment attribute
 // of LLVM ops that accept such an attribute.
@@ -405,7 +444,8 @@ def LLVM_LandingpadOp : LLVM_Op<"landingpad"> {
   let printer = [{ printLandingpadOp(p, *this); }];
 }
 
-def LLVM_CallOp : LLVM_Op<"call"> {
+def LLVM_CallOp : LLVM_Op<"call",
+                          [DeclareOpInterfaceMethods<FastmathFlagsInterface>]> {
   let summary = "Call to an LLVM function.";
   let description = [{
 
@@ -436,7 +476,8 @@ def LLVM_CallOp : LLVM_Op<"call"> {
     ```
   }];
   let arguments = (ins OptionalAttr<FlatSymbolRefAttr>:$callee,
-                   Variadic<LLVM_Type>);
+                   Variadic<LLVM_Type>,
+                   DefaultValuedAttr<LLVM_FMFAttr, "{}">:$fastmathFlags);
   let results = (outs Variadic<LLVM_Type>);
   let builders = [
     OpBuilderDAG<(ins "LLVMFuncOp":$func, "ValueRange":$operands,
@@ -750,7 +791,7 @@ def LLVM_AddressOfOp : LLVM_Op<"mlir.addressof"> {
     }
 
     // Define the global.
-    llvm.mlir.global @const(42 : i32) : !llvm.i32
+    llvm.mlir.global @const(42 : i32) : i32
     ```
   }];
 
@@ -821,9 +862,9 @@ def LLVM_GlobalOp : LLVM_Op<"mlir.global",
     //   i32* getelementptr (i32* @g2, i32 2)
     llvm.mlir.global constant @int_gep() : !llvm.ptr<i32> {
       %0 = llvm.mlir.addressof @g2 : !llvm.ptr<i32>
-      %1 = llvm.mlir.constant(2 : i32) : !llvm.i32
+      %1 = llvm.mlir.constant(2 : i32) : i32
       %2 = llvm.getelementptr %0[%1]
-         : (!llvm.ptr<i32>, !llvm.i32) -> !llvm.ptr<i32>
+         : (!llvm.ptr<i32>, i32) -> !llvm.ptr<i32>
       // The initializer region must end with `llvm.return`.
       llvm.return %2 : !llvm.ptr<i32>
     }
@@ -839,7 +880,7 @@ def LLVM_GlobalOp : LLVM_Op<"mlir.global",
 
     ```mlir
     // Global values use @-identifiers.
-    llvm.mlir.global constant @cst(42 : i32) : !llvm.i32
+    llvm.mlir.global constant @cst(42 : i32) : i32
 
     // Non-constant values must also be initialized.
     llvm.mlir.global @variable(32.0 : f32) : !llvm.float
@@ -854,9 +895,9 @@ def LLVM_GlobalOp : LLVM_Op<"mlir.global",
     // A complex initializer is constructed with an initializer region.
     llvm.mlir.global constant @int_gep() : !llvm.ptr<i32> {
       %0 = llvm.mlir.addressof @g2 : !llvm.ptr<i32>
-      %1 = llvm.mlir.constant(2 : i32) : !llvm.i32
+      %1 = llvm.mlir.constant(2 : i32) : i32
       %2 = llvm.getelementptr %0[%1]
-         : (!llvm.ptr<i32>, !llvm.i32) -> !llvm.ptr<i32>
+         : (!llvm.ptr<i32>, i32) -> !llvm.ptr<i32>
       llvm.return %2 : !llvm.ptr<i32>
     }
     ```
@@ -870,7 +911,7 @@ def LLVM_GlobalOp : LLVM_Op<"mlir.global",
 
     ```mlir
     // A constant with internal linkage will not participate in linking.
-    llvm.mlir.global internal constant @cst(42 : i32) : !llvm.i32
+    llvm.mlir.global internal constant @cst(42 : i32) : i32
 
     // By default, "external" linkage is assumed and the global participates in
     // symbol resolution at link-time.
@@ -928,13 +969,13 @@ def LLVM_LLVMFuncOp : LLVM_Op<"func",
 
     ```mlir
     // The type of @bar is !llvm<"i64 (i64)">
-    llvm.func @bar(%arg0: !llvm.i64) -> !llvm.i64 {
-      llvm.return %arg0 : !llvm.i64
+    llvm.func @bar(%arg0: i64) -> i64 {
+      llvm.return %arg0 : i64
     }
 
     // Type type of @foo is !llvm<"void (i64)">
     // !llvm.void type is omitted
-    llvm.func @foo(%arg0: !llvm.i64) {
+    llvm.func @foo(%arg0: i64) {
       llvm.return
     }
 
@@ -1061,10 +1102,10 @@ def LLVM_ConstantOp
 
     ```mlir
     // Integer constant, internal i32 is mandatory
-    %0 = llvm.mlir.constant(42 : i32) : !llvm.i32
+    %0 = llvm.mlir.constant(42 : i32) : i32
 
     // It's okay to omit i64.
-    %1 = llvm.mlir.constant(42) : !llvm.i64
+    %1 = llvm.mlir.constant(42) : i64
 
     // Floating point constant.
     %2 = llvm.mlir.constant(42.0 : f32) : !llvm.float

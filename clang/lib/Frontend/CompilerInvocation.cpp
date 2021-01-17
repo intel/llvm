@@ -129,10 +129,9 @@ CompilerInvocationBase::~CompilerInvocationBase() = default;
 #include "clang/Driver/Options.inc"
 #undef SIMPLE_ENUM_VALUE_TABLE
 
-static llvm::Optional<bool> normalizeSimpleFlag(OptSpecifier Opt,
-                                                unsigned TableIndex,
-                                                const ArgList &Args,
-                                                DiagnosticsEngine &Diags) {
+static llvm::Optional<bool>
+normalizeSimpleFlag(OptSpecifier Opt, unsigned TableIndex, const ArgList &Args,
+                    DiagnosticsEngine &Diags, bool &Success) {
   if (Args.hasArg(Opt))
     return true;
   return None;
@@ -140,7 +139,8 @@ static llvm::Optional<bool> normalizeSimpleFlag(OptSpecifier Opt,
 
 static Optional<bool> normalizeSimpleNegativeFlag(OptSpecifier Opt, unsigned,
                                                   const ArgList &Args,
-                                                  DiagnosticsEngine &) {
+                                                  DiagnosticsEngine &,
+                                                  bool &Success) {
   if (Args.hasArg(Opt))
     return false;
   return None;
@@ -166,7 +166,7 @@ template <typename T,
           std::enable_if_t<!is_uint64_t_convertible<T>(), bool> = false>
 static auto makeFlagToValueNormalizer(T Value) {
   return [Value](OptSpecifier Opt, unsigned, const ArgList &Args,
-                 DiagnosticsEngine &) -> Optional<T> {
+                 DiagnosticsEngine &, bool &Success) -> Optional<T> {
     if (Args.hasArg(Opt))
       return Value;
     return None;
@@ -182,8 +182,8 @@ static auto makeFlagToValueNormalizer(T Value) {
 static auto makeBooleanOptionNormalizer(bool Value, bool OtherValue,
                                         OptSpecifier OtherOpt) {
   return [Value, OtherValue, OtherOpt](OptSpecifier Opt, unsigned,
-                                       const ArgList &Args,
-                                       DiagnosticsEngine &) -> Optional<bool> {
+                                       const ArgList &Args, DiagnosticsEngine &,
+                                       bool &Success) -> Optional<bool> {
     if (const Arg *A = Args.getLastArg(Opt, OtherOpt)) {
       return A->getOption().matches(Opt) ? Value : OtherValue;
     }
@@ -246,10 +246,9 @@ findValueTableByValue(const SimpleEnumValueTable &Table, unsigned Value) {
   return None;
 }
 
-static llvm::Optional<unsigned> normalizeSimpleEnum(OptSpecifier Opt,
-                                                    unsigned TableIndex,
-                                                    const ArgList &Args,
-                                                    DiagnosticsEngine &Diags) {
+static llvm::Optional<unsigned>
+normalizeSimpleEnum(OptSpecifier Opt, unsigned TableIndex, const ArgList &Args,
+                    DiagnosticsEngine &Diags, bool &Success) {
   assert(TableIndex < SimpleEnumValueTablesSize);
   const SimpleEnumValueTable &Table = SimpleEnumValueTables[TableIndex];
 
@@ -261,6 +260,7 @@ static llvm::Optional<unsigned> normalizeSimpleEnum(OptSpecifier Opt,
   if (auto MaybeEnumVal = findValueTableByName(Table, ArgValue))
     return MaybeEnumVal->Value;
 
+  Success = false;
   Diags.Report(diag::err_drv_invalid_value)
       << Arg->getAsString(Args) << ArgValue;
   return None;
@@ -294,7 +294,8 @@ static void denormalizeSimpleEnum(SmallVectorImpl<const char *> &Args,
 
 static Optional<std::string> normalizeString(OptSpecifier Opt, int TableIndex,
                                              const ArgList &Args,
-                                             DiagnosticsEngine &Diags) {
+                                             DiagnosticsEngine &Diags,
+                                             bool &Success) {
   auto *Arg = Args.getLastArg(Opt);
   if (!Arg)
     return None;
@@ -302,14 +303,15 @@ static Optional<std::string> normalizeString(OptSpecifier Opt, int TableIndex,
 }
 
 template <typename IntTy>
-static Optional<IntTy> normalizeStringIntegral(OptSpecifier Opt, int,
-                                               const ArgList &Args,
-                                               DiagnosticsEngine &Diags) {
+static Optional<IntTy>
+normalizeStringIntegral(OptSpecifier Opt, int, const ArgList &Args,
+                        DiagnosticsEngine &Diags, bool &Success) {
   auto *Arg = Args.getLastArg(Opt);
   if (!Arg)
     return None;
   IntTy Res;
   if (StringRef(Arg->getValue()).getAsInteger(0, Res)) {
+    Success = false;
     Diags.Report(diag::err_drv_invalid_int_value)
         << Arg->getAsString(Args) << Arg->getValue();
   }
@@ -318,7 +320,7 @@ static Optional<IntTy> normalizeStringIntegral(OptSpecifier Opt, int,
 
 static Optional<std::vector<std::string>>
 normalizeStringVector(OptSpecifier Opt, int, const ArgList &Args,
-                      DiagnosticsEngine &) {
+                      DiagnosticsEngine &, bool &Success) {
   return Args.getAllArgValues(Opt);
 }
 
@@ -356,7 +358,8 @@ static void denormalizeStringVector(SmallVectorImpl<const char *> &Args,
 
 static Optional<std::string> normalizeTriple(OptSpecifier Opt, int TableIndex,
                                              const ArgList &Args,
-                                             DiagnosticsEngine &Diags) {
+                                             DiagnosticsEngine &Diags,
+                                             bool &Success) {
   auto *Arg = Args.getLastArg(Opt);
   if (!Arg)
     return None;
@@ -828,7 +831,7 @@ GenerateOptimizationRemarkRegex(DiagnosticsEngine &Diags, ArgList &Args,
 
 static bool parseDiagnosticLevelMask(StringRef FlagName,
                                      const std::vector<std::string> &Levels,
-                                     DiagnosticsEngine *Diags,
+                                     DiagnosticsEngine &Diags,
                                      DiagnosticLevelMask &M) {
   bool Success = true;
   for (const auto &Level : Levels) {
@@ -841,8 +844,7 @@ static bool parseDiagnosticLevelMask(StringRef FlagName,
         .Default(DiagnosticLevelMask::None);
     if (PM == DiagnosticLevelMask::None) {
       Success = false;
-      if (Diags)
-        Diags->Report(diag::err_drv_invalid_value) << FlagName << Level;
+      Diags.Report(diag::err_drv_invalid_value) << FlagName << Level;
     }
     M = M | PM;
   }
@@ -1389,7 +1391,7 @@ static bool parseShowColorsArgs(const ArgList &Args, bool DefaultColor) {
 }
 
 static bool checkVerifyPrefixes(const std::vector<std::string> &VerifyPrefixes,
-                                DiagnosticsEngine *Diags) {
+                                DiagnosticsEngine &Diags) {
   bool Success = true;
   for (const auto &Prefix : VerifyPrefixes) {
     // Every prefix must start with a letter and contain only alphanumeric
@@ -1399,18 +1401,59 @@ static bool checkVerifyPrefixes(const std::vector<std::string> &VerifyPrefixes,
     });
     if (BadChar != Prefix.end() || !isLetter(Prefix[0])) {
       Success = false;
-      if (Diags) {
-        Diags->Report(diag::err_drv_invalid_value) << "-verify=" << Prefix;
-        Diags->Report(diag::note_drv_verify_prefix_spelling);
-      }
+      Diags.Report(diag::err_drv_invalid_value) << "-verify=" << Prefix;
+      Diags.Report(diag::note_drv_verify_prefix_spelling);
     }
   }
   return Success;
 }
 
+#define PARSE_OPTION_WITH_MARSHALLING(ARGS, DIAGS, SUCCESS, ID, FLAGS, PARAM,  \
+                                      SHOULD_PARSE, KEYPATH, DEFAULT_VALUE,    \
+                                      IMPLIED_CHECK, IMPLIED_VALUE,            \
+                                      NORMALIZER, MERGER, TABLE_INDEX)         \
+  if ((FLAGS)&options::CC1Option) {                                            \
+    this->KEYPATH = MERGER(this->KEYPATH, DEFAULT_VALUE);                      \
+    if (IMPLIED_CHECK)                                                         \
+      this->KEYPATH = MERGER(this->KEYPATH, IMPLIED_VALUE);                    \
+    if (SHOULD_PARSE)                                                          \
+      if (auto MaybeValue =                                                    \
+              NORMALIZER(OPT_##ID, TABLE_INDEX, ARGS, DIAGS, SUCCESS))         \
+        this->KEYPATH = MERGER(                                                \
+            this->KEYPATH, static_cast<decltype(this->KEYPATH)>(*MaybeValue)); \
+  }
+
+bool CompilerInvocation::parseSimpleArgs(const ArgList &Args,
+                                         DiagnosticsEngine &Diags) {
+  bool Success = true;
+
+#define OPTION_WITH_MARSHALLING(                                               \
+    PREFIX_TYPE, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,        \
+    HELPTEXT, METAVAR, VALUES, SPELLING, SHOULD_PARSE, ALWAYS_EMIT, KEYPATH,   \
+    DEFAULT_VALUE, IMPLIED_CHECK, IMPLIED_VALUE, NORMALIZER, DENORMALIZER,     \
+    MERGER, EXTRACTOR, TABLE_INDEX)                                            \
+  PARSE_OPTION_WITH_MARSHALLING(Args, Diags, Success, ID, FLAGS, PARAM,        \
+                                SHOULD_PARSE, KEYPATH, DEFAULT_VALUE,          \
+                                IMPLIED_CHECK, IMPLIED_VALUE, NORMALIZER,      \
+                                MERGER, TABLE_INDEX)
+#include "clang/Driver/Options.inc"
+#undef OPTION_WITH_MARSHALLING
+
+  return Success;
+}
+
+#undef PARSE_OPTION_WITH_MARSHALLING
+
 bool clang::ParseDiagnosticArgs(DiagnosticOptions &Opts, ArgList &Args,
                                 DiagnosticsEngine *Diags,
                                 bool DefaultDiagColor) {
+  Optional<DiagnosticsEngine> IgnoringDiags;
+  if (!Diags) {
+    IgnoringDiags.emplace(new DiagnosticIDs(), new DiagnosticOptions(),
+                          new IgnoringDiagConsumer());
+    Diags = &*IgnoringDiags;
+  }
+
   bool Success = true;
 
   Opts.DiagnosticLogFile =
@@ -1445,10 +1488,9 @@ bool clang::ParseDiagnosticArgs(DiagnosticOptions &Opts, ArgList &Args,
     Opts.setShowOverloads(Ovl_All);
   else {
     Success = false;
-    if (Diags)
-      Diags->Report(diag::err_drv_invalid_value)
-      << Args.getLastArg(OPT_fshow_overloads_EQ)->getAsString(Args)
-      << ShowOverloads;
+    Diags->Report(diag::err_drv_invalid_value)
+        << Args.getLastArg(OPT_fshow_overloads_EQ)->getAsString(Args)
+        << ShowOverloads;
   }
 
   StringRef ShowCategory =
@@ -1461,10 +1503,9 @@ bool clang::ParseDiagnosticArgs(DiagnosticOptions &Opts, ArgList &Args,
     Opts.ShowCategories = 2;
   else {
     Success = false;
-    if (Diags)
-      Diags->Report(diag::err_drv_invalid_value)
-      << Args.getLastArg(OPT_fdiagnostics_show_category)->getAsString(Args)
-      << ShowCategory;
+    Diags->Report(diag::err_drv_invalid_value)
+        << Args.getLastArg(OPT_fdiagnostics_show_category)->getAsString(Args)
+        << ShowCategory;
   }
 
   StringRef Format =
@@ -1480,10 +1521,9 @@ bool clang::ParseDiagnosticArgs(DiagnosticOptions &Opts, ArgList &Args,
     Opts.setFormat(DiagnosticOptions::Vi);
   else {
     Success = false;
-    if (Diags)
-      Diags->Report(diag::err_drv_invalid_value)
-      << Args.getLastArg(OPT_fdiagnostics_format)->getAsString(Args)
-      << Format;
+    Diags->Report(diag::err_drv_invalid_value)
+        << Args.getLastArg(OPT_fdiagnostics_format)->getAsString(Args)
+        << Format;
   }
 
   Opts.ShowSourceRanges = Args.hasArg(OPT_fdiagnostics_print_source_range_info);
@@ -1494,7 +1534,7 @@ bool clang::ParseDiagnosticArgs(DiagnosticOptions &Opts, ArgList &Args,
     Opts.VerifyPrefixes.push_back("expected");
   // Keep VerifyPrefixes in its original order for the sake of diagnostics, and
   // then sort it to prepare for fast lookup using std::binary_search.
-  if (!checkVerifyPrefixes(Opts.VerifyPrefixes, Diags)) {
+  if (!checkVerifyPrefixes(Opts.VerifyPrefixes, *Diags)) {
     Opts.VerifyDiagnostics = false;
     Success = false;
   }
@@ -1503,7 +1543,7 @@ bool clang::ParseDiagnosticArgs(DiagnosticOptions &Opts, ArgList &Args,
   DiagnosticLevelMask DiagMask = DiagnosticLevelMask::None;
   Success &= parseDiagnosticLevelMask("-verify-ignore-unexpected=",
     Args.getAllArgValues(OPT_verify_ignore_unexpected_EQ),
-    Diags, DiagMask);
+    *Diags, DiagMask);
   if (Args.hasArg(OPT_verify_ignore_unexpected))
     DiagMask = DiagnosticLevelMask::All;
   Opts.setVerifyIgnoreUnexpected(DiagMask);
@@ -1529,9 +1569,8 @@ bool clang::ParseDiagnosticArgs(DiagnosticOptions &Opts, ArgList &Args,
                                     DiagnosticOptions::DefaultTabStop, Diags);
   if (Opts.TabStop == 0 || Opts.TabStop > DiagnosticOptions::MaxTabStop) {
     Opts.TabStop = DiagnosticOptions::DefaultTabStop;
-    if (Diags)
-      Diags->Report(diag::warn_ignoring_ftabstop_value)
-      << Opts.TabStop << DiagnosticOptions::DefaultTabStop;
+    Diags->Report(diag::warn_ignoring_ftabstop_value)
+        << Opts.TabStop << DiagnosticOptions::DefaultTabStop;
   }
   Opts.MessageLength =
       getLastArgIntValue(Args, OPT_fmessage_length_EQ, 0, Diags);
@@ -3010,28 +3049,6 @@ static void ParseTargetArgs(TargetOptions &Opts, ArgList &Args,
     else
       Opts.SDKVersion = Version;
   }
-}
-
-bool CompilerInvocation::parseSimpleArgs(const ArgList &Args,
-                                         DiagnosticsEngine &Diags) {
-#define OPTION_WITH_MARSHALLING(                                               \
-    PREFIX_TYPE, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,        \
-    HELPTEXT, METAVAR, VALUES, SPELLING, SHOULD_PARSE, ALWAYS_EMIT, KEYPATH,   \
-    DEFAULT_VALUE, IMPLIED_CHECK, IMPLIED_VALUE, NORMALIZER, DENORMALIZER,     \
-    MERGER, EXTRACTOR, TABLE_INDEX)                                            \
-  if ((FLAGS)&options::CC1Option) {                                            \
-    this->KEYPATH = MERGER(this->KEYPATH, DEFAULT_VALUE);                      \
-    if (IMPLIED_CHECK)                                                         \
-      this->KEYPATH = MERGER(this->KEYPATH, IMPLIED_VALUE);                    \
-    if (SHOULD_PARSE)                                                          \
-      if (auto MaybeValue = NORMALIZER(OPT_##ID, TABLE_INDEX, Args, Diags))    \
-        this->KEYPATH = MERGER(                                                \
-            this->KEYPATH, static_cast<decltype(this->KEYPATH)>(*MaybeValue)); \
-  }
-
-#include "clang/Driver/Options.inc"
-#undef OPTION_WITH_MARSHALLING
-  return true;
 }
 
 bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Res,
