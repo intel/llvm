@@ -2,7 +2,7 @@
 
 // Accesses from the inner loop only, various global safelens for the outer and the inner loops.
 //
-// CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_inner_loop_accessv()
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_inner_loop_accessv()
 void ivdep_inner_loop_access() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
@@ -19,7 +19,7 @@ void ivdep_inner_loop_access() {
 
 // Accesses from both inner and outer loop, same global (INF) safelen for both.
 //
-// CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_embedded_global_safelenv()
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_embedded_global_safelenv()
 void ivdep_embedded_global_safelen() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
@@ -39,7 +39,7 @@ void ivdep_embedded_global_safelen() {
 
 // Accesses from both inner and outer loop, with various safelens per loop.
 //
-// CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_embedded_various_safelensv()
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_embedded_various_safelensv()
 void ivdep_embedded_various_safelens() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
@@ -61,7 +61,7 @@ void ivdep_embedded_various_safelens() {
 // Outer loop: array-specific ivdeps for all arrays with various safelens
 // Inner loop: global ivdep with its own safelen
 //
-// CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_embedded_multiple_arraysv()
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_embedded_multiple_arraysv()
 void ivdep_embedded_multiple_arrays() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
@@ -90,7 +90,7 @@ void ivdep_embedded_multiple_arrays() {
 // As the outer loop's ivdep applies to a particular, other array(s) shouldn't be marked
 // into any index group at the outer loop level
 //
-// CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_embedded_multiple_arrays_globalv()
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_embedded_multiple_arrays_globalv()
 void ivdep_embedded_multiple_arrays_global() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
@@ -114,7 +114,7 @@ void ivdep_embedded_multiple_arrays_global() {
 }
 
 // Accesses within each dimension of a multi-dimensional (n > 2) loop
-// CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_embedded_multiple_dimensionsv()
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_embedded_multiple_dimensionsv()
 void ivdep_embedded_multiple_dimensions() {
   int a[10];
   [[intel::ivdep]] for (int i = 0; i != 10; ++i) {

@@ -537,6 +537,8 @@ pi_result piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
                                              pi_uint32 num_devices,
                                              const pi_device *devices,
                                              pi_context *piContext) {
+  (void)num_devices;
+  (void)devices;
   assert(piContext != nullptr);
   *piContext = reinterpret_cast<pi_context>(nativeHandle);
   return PI_SUCCESS;
@@ -661,6 +663,7 @@ pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,
                                   const void *input_value,
                                   size_t param_value_size, void *param_value,
                                   size_t *param_value_size_ret) {
+  (void)param_value_size;
   size_t ret_val;
   cl_int ret_err;
   ret_err = cast<pi_result>(clGetKernelSubGroupInfo(
@@ -845,6 +848,7 @@ pi_result piextUSMFree(pi_context context, void *ptr) {
 /// \param arg_value is the pointer argument
 pi_result piextKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
                                    size_t arg_size, const void *arg_value) {
+  (void)arg_size;
 
   // Size is unused in CL as pointer args are passed by value.
 
@@ -966,6 +970,9 @@ pi_result piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr, size_t size,
                                   pi_uint32 num_events_in_waitlist,
                                   const pi_event *events_waitlist,
                                   pi_event *event) {
+  (void)ptr;
+  (void)size;
+  (void)flags;
 
   return cast<pi_result>(clEnqueueMarkerWithWaitList(
       cast<cl_command_queue>(queue), num_events_in_waitlist,
@@ -1008,6 +1015,9 @@ pi_result piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr, size_t size,
 pi_result piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
                                    size_t length, pi_mem_advice advice,
                                    pi_event *event) {
+  (void)ptr;
+  (void)length;
+  (void)advice;
 
   return cast<pi_result>(
       clEnqueueMarkerWithWaitList(cast<cl_command_queue>(queue), 0, nullptr,
