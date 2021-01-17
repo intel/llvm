@@ -30,8 +30,8 @@ int main() {
   return 0;
 }
 
-// CHECK: define spir_kernel void @{{.*}}kernel_name1"() #0 {{.*}} !max_global_work_dim ![[NUM1:[0-9]+]]
-// CHECK: define spir_kernel void @{{.*}}kernel_name2"() #0 {{.*}} !max_global_work_dim ![[NUM2:[0-9]+]]
-// CHECK: define spir_kernel void @{{.*}}kernel_name3"() #0 {{.*}} !max_global_work_dim ![[NUM2]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name1"() #0 {{.*}} !max_global_work_dim ![[NUM1:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name2"() #0 {{.*}} !max_global_work_dim ![[NUM2:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name3"() #0 {{.*}} !max_global_work_dim ![[NUM2]]
 // CHECK: ![[NUM1]] = !{i32 1}
 // CHECK: ![[NUM2]] = !{i32 2}
