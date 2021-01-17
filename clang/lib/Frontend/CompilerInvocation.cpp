@@ -2306,6 +2306,7 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
           llvm::StringSwitch<LangOptions::SYCLMajorVersion>(A->getValue())
               .Cases("2017", "1.2.1", "121", "sycl-1.2.1",
                      LangOptions::SYCL_2017)
+              .Case("2020", LangOptions::SYCL_2020)
               .Default(LangOptions::SYCL_None));
 
       if (Opts.getSYCLVersion() == LangOptions::SYCL_None) {
@@ -3028,16 +3029,17 @@ bool CompilerInvocation::parseSimpleArgs(const ArgList &Args,
                                          DiagnosticsEngine &Diags) {
 #define OPTION_WITH_MARSHALLING(                                               \
     PREFIX_TYPE, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,        \
-    HELPTEXT, METAVAR, VALUES, SPELLING, ALWAYS_EMIT, KEYPATH, DEFAULT_VALUE,  \
-    IMPLIED_CHECK, IMPLIED_VALUE, NORMALIZER, DENORMALIZER, MERGER, EXTRACTOR, \
-    TABLE_INDEX)                                                               \
+    HELPTEXT, METAVAR, VALUES, SPELLING, SHOULD_PARSE, ALWAYS_EMIT, KEYPATH,   \
+    DEFAULT_VALUE, IMPLIED_CHECK, IMPLIED_VALUE, NORMALIZER, DENORMALIZER,     \
+    MERGER, EXTRACTOR, TABLE_INDEX)                                            \
   if ((FLAGS)&options::CC1Option) {                                            \
     this->KEYPATH = MERGER(this->KEYPATH, DEFAULT_VALUE);                      \
     if (IMPLIED_CHECK)                                                         \
       this->KEYPATH = MERGER(this->KEYPATH, IMPLIED_VALUE);                    \
-    if (auto MaybeValue = NORMALIZER(OPT_##ID, TABLE_INDEX, Args, Diags))      \
-      this->KEYPATH = MERGER(                                                  \
-          this->KEYPATH, static_cast<decltype(this->KEYPATH)>(*MaybeValue));   \
+    if (SHOULD_PARSE)                                                          \
+      if (auto MaybeValue = NORMALIZER(OPT_##ID, TABLE_INDEX, Args, Diags))    \
+        this->KEYPATH = MERGER(                                                \
+            this->KEYPATH, static_cast<decltype(this->KEYPATH)>(*MaybeValue)); \
   }
 
 #include "clang/Driver/Options.inc"
@@ -3294,9 +3296,9 @@ void CompilerInvocation::generateCC1CommandLine(
   // with lifetime extension of the reference.
 #define OPTION_WITH_MARSHALLING(                                               \
     PREFIX_TYPE, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,        \
-    HELPTEXT, METAVAR, VALUES, SPELLING, ALWAYS_EMIT, KEYPATH, DEFAULT_VALUE,  \
-    IMPLIED_CHECK, IMPLIED_VALUE, NORMALIZER, DENORMALIZER, MERGER, EXTRACTOR, \
-    TABLE_INDEX)                                                               \
+    HELPTEXT, METAVAR, VALUES, SPELLING, SHOULD_PARSE, ALWAYS_EMIT, KEYPATH,   \
+    DEFAULT_VALUE, IMPLIED_CHECK, IMPLIED_VALUE, NORMALIZER, DENORMALIZER,     \
+    MERGER, EXTRACTOR, TABLE_INDEX)                                            \
   if ((FLAGS)&options::CC1Option) {                                            \
     [&](const auto &Extracted) {                                               \
       if (ALWAYS_EMIT ||                                                       \

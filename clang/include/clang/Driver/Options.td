@@ -4162,7 +4162,9 @@ defm sycl : BoolOption<"sycl",
   BothFlags<[CoreOption], " SYCL kernels compilation for device">, "f">,
   Group<sycl_Group>;
 def sycl_std_EQ : Joined<["-"], "sycl-std=">, Group<sycl_Group>, Flags<[CC1Option, NoArgumentUnused, CoreOption]>,
-  HelpText<"SYCL language standard to compile for.">, Values<"2017, 121, 1.2.1, sycl-1.2.1">;
+  HelpText<"SYCL language standard to compile for.">, Values<"2020,2017,121,1.2.1,sycl-1.2.1">,
+  NormalizedValues<["SYCL_2020", "SYCL_2017", "SYCL_2017", "SYCL_2017", "SYCL_2017"]>, NormalizedValuesScope<"LangOptions">,
+  MarshallingInfoString<"LangOpts->SYCLVersion", "SYCL_None">, ShouldParseIf<fsycl.KeyPath>, AutoNormalizeEnum;
 def fsycl_esimd : Flag<["-"], "fsycl-explicit-simd">, Group<sycl_Group>, Flags<[CC1Option, NoArgumentUnused, CoreOption]>,
   HelpText<"Enable SYCL explicit SIMD extension">;
 def fno_sycl_esimd : Flag<["-"], "fno-sycl-explicit-simd">, Group<sycl_Group>,
