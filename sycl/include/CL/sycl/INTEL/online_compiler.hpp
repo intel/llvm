@@ -94,7 +94,7 @@ public:
   // TODO: the initial version generates the generic code (SKL now), need
   // to do additional device::info calls to determine the device by it's
   // features.
-  online_compiler(const sycl::device &)
+  online_compiler(const sycl::device &dev)
       : OutputFormat(compiled_code_format::spir_v), OutputFormatVersion({0, 0}),
         DeviceType(sycl::info::device_type::all), DeviceArch(device_arch::any),
         Is64Bit(true), DeviceStepping("") {}

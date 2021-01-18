@@ -28,12 +28,6 @@
 
 #include "usm_allocator.hpp"
 
-#if defined(__clang__) || defined(__GNUC__)
-#define UNUSED __attribute__((unused))
-#else
-#define UNUSED
-#endif
-
 namespace {
 
 // Controls Level Zero calls serialization to w/a Level Zero driver being not MT
@@ -122,7 +116,7 @@ template <typename T>
 pi_result getInfo(size_t param_value_size, void *param_value,
                   size_t *param_value_size_ret, T value) {
 
-  auto assignment = [](void *param_value, T value, UNUSED size_t value_size) {
+  auto assignment = [](void *param_value, T value, size_t value_size) {
     *static_cast<T *>(param_value) = value;
   };
 
@@ -1094,6 +1088,9 @@ pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
     // information>. Follow the same notation here.
     //
     return ReturnValue(Platform->ZeDriverApiVersion.c_str());
+  default:
+    // TODO: implement other parameters
+    die("Unsupported ParamName in piPlatformGetInfo");
   }
 
   return PI_SUCCESS;
@@ -1909,13 +1906,12 @@ pi_result piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
   return PI_INVALID_VALUE;
 }
 
-pi_result
-piContextCreate(UNUSED const pi_context_properties *Properties,
-                pi_uint32 NumDevices, const pi_device *Devices,
-                UNUSED void (*PFnNotify)(const char *ErrInfo,
-                                         UNUSED const void *PrivateInfo,
-                                         size_t CB, void *UserData),
-                UNUSED void *UserData, pi_context *RetContext) {
+pi_result piContextCreate(const pi_context_properties *Properties,
+                          pi_uint32 NumDevices, const pi_device *Devices,
+                          void (*PFnNotify)(const char *ErrInfo,
+                                            const void *PrivateInfo, size_t CB,
+                                            void *UserData),
+                          void *UserData, pi_context *RetContext) {
   PI_ASSERT(Devices, PI_INVALID_DEVICE);
   PI_ASSERT(RetContext, PI_INVALID_VALUE);
 
@@ -1959,10 +1955,9 @@ pi_result piContextGetInfo(pi_context Context, pi_context_info ParamName,
 }
 
 // FIXME: Dummy implementation to prevent link fail
-pi_result
-piextContextSetExtendedDeleter(UNUSED pi_context Context,
-                               UNUSED pi_context_extended_deleter Function,
-                               UNUSED void *UserData) {
+pi_result piextContextSetExtendedDeleter(pi_context Context,
+                                         pi_context_extended_deleter Function,
+                                         void *UserData) {
   die("piextContextSetExtendedDeleter: not supported");
   return PI_SUCCESS;
 }
@@ -2103,6 +2098,10 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
   case PI_QUEUE_INFO_DEVICE_DEFAULT:
     die("PI_QUEUE_INFO_DEVICE_DEFAULT in piQueueGetInfo not implemented\n");
     break;
+  default:
+    zePrint("Unsupported ParamName in piQueueGetInfo: ParamName=%d(0x%x)\n",
+            ParamName, ParamName);
+    return PI_INVALID_VALUE;
   }
 
   return PI_SUCCESS;
@@ -2291,10 +2290,10 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   return PI_SUCCESS;
 }
 
-pi_result piMemGetInfo(UNUSED pi_mem Mem,
-                       UNUSED cl_mem_info ParamName, // TODO: untie from OpenCL
-                       UNUSED size_t ParamValueSize, UNUSED void *ParamValue,
-                       UNUSED size_t *ParamValueSizeRet) {
+pi_result piMemGetInfo(pi_mem Mem,
+                       cl_mem_info ParamName, // TODO: untie from OpenCL
+                       size_t ParamValueSize, void *ParamValue,
+                       size_t *ParamValueSizeRet) {
   die("piMemGetInfo: not implemented");
   return {};
 }
@@ -2496,14 +2495,13 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   return PI_SUCCESS;
 }
 
-pi_result piextMemGetNativeHandle(UNUSED pi_mem Mem,
-                                  UNUSED pi_native_handle *NativeHandle) {
+pi_result piextMemGetNativeHandle(pi_mem Mem, pi_native_handle *NativeHandle) {
   die("piextMemGetNativeHandle: not supported");
   return PI_SUCCESS;
 }
 
-pi_result piextMemCreateWithNativeHandle(UNUSED pi_native_handle NativeHandle,
-                                         UNUSED pi_mem *Mem) {
+pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
+                                         pi_mem *Mem) {
   die("piextMemCreateWithNativeHandle: not supported");
   return PI_SUCCESS;
 }
@@ -2579,11 +2577,10 @@ pi_result piProgramCreateWithBinary(pi_context Context, pi_uint32 NumDevices,
   return PI_SUCCESS;
 }
 
-pi_result piclProgramCreateWithSource(UNUSED pi_context Context,
-                                      UNUSED pi_uint32 Count,
-                                      UNUSED const char **Strings,
-                                      UNUSED const size_t *Lengths,
-                                      UNUSED pi_program *RetProgram) {
+pi_result piclProgramCreateWithSource(pi_context Context, pi_uint32 Count,
+                                      const char **Strings,
+                                      const size_t *Lengths,
+                                      pi_program *RetProgram) {
 
   zePrint("piclProgramCreateWithSource: not supported in Level Zero\n");
   return PI_INVALID_OPERATION;
@@ -2729,7 +2726,7 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
 }
 
 pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
-                        const pi_device *DeviceList, UNUSED const char *Options,
+                        const pi_device *DeviceList, const char *Options,
                         pi_uint32 NumInputPrograms,
                         const pi_program *InputPrograms,
                         void (*PFnNotify)(pi_program Program, void *UserData),
@@ -2845,9 +2842,8 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
 
 pi_result piProgramCompile(
     pi_program Program, pi_uint32 NumDevices, const pi_device *DeviceList,
-    const char *Options, UNUSED pi_uint32 NumInputHeaders,
-    UNUSED const pi_program *InputHeaders,
-    UNUSED const char **HeaderIncludeNames,
+    const char *Options, pi_uint32 NumInputHeaders,
+    const pi_program *InputHeaders, const char **HeaderIncludeNames,
     void (*PFnNotify)(pi_program Program, void *UserData), void *UserData) {
 
   // The OpenCL spec says this should return CL_INVALID_PROGRAM, but there is
@@ -2970,7 +2966,7 @@ static pi_result compileOrBuild(pi_program Program, pi_uint32 NumDevices,
   return PI_SUCCESS;
 }
 
-pi_result piProgramGetBuildInfo(pi_program Program, UNUSED pi_device Device,
+pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,
                                 cl_program_build_info ParamName,
                                 size_t ParamValueSize, void *ParamValue,
                                 size_t *ParamValueSizeRet) {
@@ -3335,6 +3331,10 @@ pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
     } catch (...) {
       return PI_ERROR_UNKNOWN;
     }
+  default:
+    zePrint("Unsupported ParamName in piKernelGetInfo: ParamName=%d(0x%x)\n",
+            ParamName, ParamName);
+    return PI_INVALID_VALUE;
   }
 
   return PI_SUCCESS;
@@ -3389,14 +3389,17 @@ pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,
   }
   case PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE:
     return ReturnValue(pi_uint32{ZeKernelProperties.privateMemSize});
+  default:
+    zePrint("Unknown ParamName in piKernelGetGroupInfo: ParamName=%d(0x%x)\n",
+            ParamName, ParamName);
+    return PI_INVALID_VALUE;
   }
   return PI_SUCCESS;
 }
 
-pi_result piKernelGetSubGroupInfo(pi_kernel Kernel, UNUSED pi_device Device,
+pi_result piKernelGetSubGroupInfo(pi_kernel Kernel, pi_device Device,
                                   pi_kernel_sub_group_info ParamName,
-                                  UNUSED size_t InputValueSize,
-                                  UNUSED const void *InputValue,
+                                  size_t InputValueSize, const void *InputValue,
                                   size_t ParamValueSize, void *ParamValue,
                                   size_t *ParamValueSizeRet) {
 
@@ -3640,6 +3643,10 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
   }
   case PI_EVENT_INFO_REFERENCE_COUNT:
     return ReturnValue(pi_uint32{Event->RefCount});
+  default:
+    zePrint("Unsupported ParamName in piEventGetInfo: ParamName=%d(%x)\n",
+            ParamName, ParamName);
+    return PI_INVALID_VALUE;
   }
 
   return PI_SUCCESS;
@@ -3692,6 +3699,9 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   case PI_PROFILING_INFO_COMMAND_SUBMIT:
     // TODO: Support these when Level Zero supported is added.
     return ReturnValue(uint64_t{0});
+  default:
+    zePrint("piEventGetProfilingInfo: not supported ParamName\n");
+    return PI_INVALID_VALUE;
   }
 
   return PI_SUCCESS;
@@ -3780,17 +3790,16 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
   return PI_SUCCESS;
 }
 
-pi_result piEventSetCallback(
-    UNUSED pi_event Event, UNUSED pi_int32 CommandExecCallbackType,
-    UNUSED void (*PFnNotify)(pi_event Event, pi_int32 EventCommandStatus,
-                             void *UserData),
-    UNUSED void *UserData) {
+pi_result piEventSetCallback(pi_event Event, pi_int32 CommandExecCallbackType,
+                             void (*PFnNotify)(pi_event Event,
+                                               pi_int32 EventCommandStatus,
+                                               void *UserData),
+                             void *UserData) {
   die("piEventSetCallback: deprecated, to be removed");
   return PI_SUCCESS;
 }
 
-pi_result piEventSetStatus(UNUSED pi_event Event,
-                           UNUSED pi_int32 ExecutionStatus) {
+pi_result piEventSetStatus(pi_event Event, pi_int32 ExecutionStatus) {
   die("piEventSetStatus: deprecated, to be removed");
   return PI_SUCCESS;
 }
@@ -3827,14 +3836,14 @@ pi_result piEventRelease(pi_event Event) {
   return PI_SUCCESS;
 }
 
-pi_result piextEventGetNativeHandle(UNUSED pi_event Event,
-                                    UNUSED pi_native_handle *NativeHandle) {
+pi_result piextEventGetNativeHandle(pi_event Event,
+                                    pi_native_handle *NativeHandle) {
   die("piextEventGetNativeHandle: not supported");
   return PI_SUCCESS;
 }
 
-pi_result piextEventCreateWithNativeHandle(UNUSED pi_native_handle NativeHandle,
-                                           UNUSED pi_event *Event) {
+pi_result piextEventCreateWithNativeHandle(pi_native_handle NativeHandle,
+                                           pi_event *Event) {
   die("piextEventCreateWithNativeHandle: not supported");
   return PI_SUCCESS;
 }
@@ -3912,6 +3921,11 @@ pi_result piSamplerCreate(pi_context Context,
         case PI_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT:
           ZeSamplerDesc.addressMode = ZE_SAMPLER_ADDRESS_MODE_MIRROR;
           break;
+        default:
+          zePrint("piSamplerCreate: unsupported PI_SAMPLER_ADDRESSING_MODE "
+                  "value\n");
+          zePrint("PI_SAMPLER_ADDRESSING_MODE=%d\n", CurValueAddressingMode);
+          return PI_INVALID_VALUE;
         }
       } break;
 
@@ -3953,11 +3967,9 @@ pi_result piSamplerCreate(pi_context Context,
   return PI_SUCCESS;
 }
 
-pi_result piSamplerGetInfo(UNUSED pi_sampler Sampler,
-                           UNUSED pi_sampler_info ParamName,
-                           UNUSED size_t ParamValueSize,
-                           UNUSED void *ParamValue,
-                           UNUSED size_t *ParamValueSizeRet) {
+pi_result piSamplerGetInfo(pi_sampler Sampler, pi_sampler_info ParamName,
+                           size_t ParamValueSize, void *ParamValue,
+                           size_t *ParamValueSizeRet) {
 
   die("piSamplerGetInfo: not implemented");
   return {};
@@ -3983,10 +3995,8 @@ pi_result piSamplerRelease(pi_sampler Sampler) {
 //
 // Queue Commands
 //
-pi_result piEnqueueEventsWait(UNUSED pi_queue Queue,
-                              UNUSED pi_uint32 NumEventsInWaitList,
-                              UNUSED const pi_event *EventWaitList,
-                              UNUSED pi_event *Event) {
+pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
+                              const pi_event *EventWaitList, pi_event *Event) {
 
   die("piEnqueueEventsWait: not implemented");
   return {};
@@ -4559,10 +4569,9 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   return PI_SUCCESS;
 }
 
-pi_result piMemImageGetInfo(UNUSED pi_mem Image, UNUSED pi_image_info ParamName,
-                            UNUSED size_t ParamValueSize,
-                            UNUSED void *ParamValue,
-                            UNUSED size_t *ParamValueSizeRet) {
+pi_result piMemImageGetInfo(pi_mem Image, pi_image_info ParamName,
+                            size_t ParamValueSize, void *ParamValue,
+                            size_t *ParamValueSizeRet) {
 
   die("piMemImageGetInfo: not implemented");
   return {};
@@ -4808,13 +4817,12 @@ piEnqueueMemImageCopy(pi_queue Queue, pi_mem SrcImage, pi_mem DstImage,
       NumEventsInWaitList, EventWaitList, Event);
 }
 
-pi_result piEnqueueMemImageFill(UNUSED pi_queue Queue, UNUSED pi_mem Image,
-                                UNUSED const void *FillColor,
-                                UNUSED const size_t *Origin,
-                                UNUSED const size_t *Region,
-                                UNUSED pi_uint32 NumEventsInWaitList,
-                                UNUSED const pi_event *EventWaitList,
-                                UNUSED pi_event *Event) {
+pi_result piEnqueueMemImageFill(pi_queue Queue, pi_mem Image,
+                                const void *FillColor, const size_t *Origin,
+                                const size_t *Region,
+                                pi_uint32 NumEventsInWaitList,
+                                const pi_event *EventWaitList,
+                                pi_event *Event) {
 
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
@@ -4865,12 +4873,13 @@ pi_result piMemBufferPartition(pi_mem Buffer, pi_mem_flags Flags,
   return PI_SUCCESS;
 }
 
-pi_result piEnqueueNativeKernel(
-    UNUSED pi_queue Queue, UNUSED void (*UserFunc)(void *), UNUSED void *Args,
-    UNUSED size_t CbArgs, UNUSED pi_uint32 NumMemObjects,
-    UNUSED const pi_mem *MemList, UNUSED const void **ArgsMemLoc,
-    UNUSED pi_uint32 NumEventsInWaitList, UNUSED const pi_event *EventWaitList,
-    UNUSED pi_event *Event) {
+pi_result piEnqueueNativeKernel(pi_queue Queue, void (*UserFunc)(void *),
+                                void *Args, size_t CbArgs,
+                                pi_uint32 NumMemObjects, const pi_mem *MemList,
+                                const void **ArgsMemLoc,
+                                pi_uint32 NumEventsInWaitList,
+                                const pi_event *EventWaitList,
+                                pi_event *Event) {
 
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
@@ -4882,8 +4891,7 @@ pi_result piEnqueueNativeKernel(
 }
 
 // TODO: Check if the function_pointer_ret type can be converted to void**.
-pi_result piextGetDeviceFunctionPointer(UNUSED pi_device Device,
-                                        pi_program Program,
+pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
                                         const char *FunctionName,
                                         pi_uint64 *FunctionPointerRet) {
   PI_ASSERT(Program, PI_INVALID_PROGRAM);
@@ -5378,13 +5386,15 @@ pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
     ZE_CALL(zeMemGetAddressRange(Context->ZeContext, Ptr, nullptr, &Size));
     return ReturnValue(Size);
   }
+  default:
+    zePrint("piextUSMGetMemAllocInfo: unsupported ParamName\n");
+    return PI_INVALID_VALUE;
   }
   return PI_SUCCESS;
 }
 
 pi_result piKernelSetExecInfo(pi_kernel Kernel, pi_kernel_exec_info ParamName,
-                              UNUSED size_t ParamValueSize,
-                              const void *ParamValue) {
+                              size_t ParamValueSize, const void *ParamValue) {
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
   PI_ASSERT(ParamValue, PI_INVALID_VALUE);
 
@@ -5443,7 +5453,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 // SYCL RT calls this api to notify the end of plugin lifetime.
 // It can include all the jobs to tear down resources before
 // the plugin is unloaded from memory.
-pi_result piTearDown(UNUSED void *PluginParameter) {
+pi_result piTearDown(void *PluginParameter) {
   // reclaim pi_platform objects here since we don't have piPlatformRelease.
   for (pi_platform &Platform : *PiPlatformsCache) {
     delete Platform;

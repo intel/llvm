@@ -279,6 +279,8 @@ static bool is_sycl_partition_property(info::partition_property PP) {
   case info::partition_property::partition_by_counts:
   case info::partition_property::partition_by_affinity_domain:
     return true;
+  default:
+    return false;
   }
 }
 
