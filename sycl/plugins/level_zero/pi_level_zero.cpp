@@ -5525,6 +5525,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 // It can include all the jobs to tear down resources before
 // the plugin is unloaded from memory.
 pi_result piTearDown(void *PluginParameter) {
+  (void)PluginParameter;
   // reclaim pi_platform objects here since we don't have piPlatformRelease.
   for (pi_platform &Platform : *PiPlatformsCache) {
     delete Platform;
