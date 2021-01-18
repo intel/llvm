@@ -945,11 +945,7 @@ public:
         loc, LLVM::LLVMPointerType::get(llvmValueType), storage.getResult(0));
 
     // Load from the async value storage.
-    auto loaded = rewriter.create<LLVM::LoadOp>(loc, castedStorage.getResult());
-
-    // Cast from LLVM type to the expected value type. This cast will become
-    // no-op after lowering to LLVM.
-    return rewriter.create<LLVM::DialectCastOp>(loc, valueType, loaded);
+    return rewriter.create<LLVM::LoadOp>(loc, castedStorage.getResult());
   }
 };
 
