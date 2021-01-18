@@ -11,9 +11,6 @@
 // RUN: %clangxx-esimd -fsycl %s -o %t.out
 // RUN: %ESIMD_RUN_PLACEHOLDER %t.out
 
-// The test is hanging on OCL RT 20.42.18209
-// UNSUPPORTED: linux && gpu && opencl
-
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
