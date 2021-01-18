@@ -27,6 +27,12 @@
 #include <string>
 #include <vector>
 
+#if defined(__clang__) || defined(__GNUC__)
+#define UNUSED __attribute__((unused))
+#else
+#define UNUSED
+#endif
+
 #define CHECK_ERR_SET_NULL_RET(err, ptr, reterr)                               \
   if (err != CL_SUCCESS) {                                                     \
     if (ptr != nullptr)                                                        \
@@ -60,8 +66,6 @@ CONSTFIX char clCreateBufferWithPropertiesName[] =
 CONSTFIX char clSetKernelArgMemPointerName[] = "clSetKernelArgMemPointerINTEL";
 CONSTFIX char clEnqueueMemsetName[] = "clEnqueueMemsetINTEL";
 CONSTFIX char clEnqueueMemcpyName[] = "clEnqueueMemcpyINTEL";
-CONSTFIX char clEnqueueMigrateMemName[] = "clEnqueueMigrateMemINTEL";
-CONSTFIX char clEnqueueMemAdviseName[] = "clEnqueueMemAdviseINTEL";
 CONSTFIX char clGetMemAllocInfoName[] = "clGetMemAllocInfoINTEL";
 CONSTFIX char clSetProgramSpecializationConstantName[] =
     "clSetProgramSpecializationConstant";
@@ -536,8 +540,8 @@ pi_result piContextCreate(const pi_context_properties *properties,
 }
 
 pi_result piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                             pi_uint32 num_devices,
-                                             const pi_device *devices,
+                                             UNUSED pi_uint32 num_devices,
+                                             UNUSED const pi_device *devices,
                                              pi_context *piContext) {
   assert(piContext != nullptr);
   *piContext = reinterpret_cast<pi_context>(nativeHandle);
@@ -661,7 +665,8 @@ pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,
                                   pi_kernel_sub_group_info param_name,
                                   size_t input_value_size,
                                   const void *input_value,
-                                  size_t param_value_size, void *param_value,
+                                  UNUSED size_t param_value_size,
+                                  void *param_value,
                                   size_t *param_value_size_ret) {
   size_t ret_val;
   cl_int ret_err;
@@ -846,7 +851,8 @@ pi_result piextUSMFree(pi_context context, void *ptr) {
 /// \param arg_size is the size in bytes of the argument (ignored in CL)
 /// \param arg_value is the pointer argument
 pi_result piextKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
-                                   size_t arg_size, const void *arg_value) {
+                                   UNUSED size_t arg_size,
+                                   const void *arg_value) {
 
   // Size is unused in CL as pointer args are passed by value.
 
@@ -963,8 +969,9 @@ pi_result piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking, void *dst_ptr,
 /// \param num_events_in_waitlist is the number of events to wait on
 /// \param events_waitlist is an array of events to wait on
 /// \param event is the event that represents this operation
-pi_result piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr, size_t size,
-                                  pi_usm_migration_flags flags,
+pi_result piextUSMEnqueuePrefetch(pi_queue queue, UNUSED const void *ptr,
+                                  UNUSED size_t size,
+                                  UNUSED pi_usm_migration_flags flags,
                                   pi_uint32 num_events_in_waitlist,
                                   const pi_event *events_waitlist,
                                   pi_event *event) {
@@ -1007,8 +1014,9 @@ pi_result piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr, size_t size,
 /// \param advice is device specific advice
 /// \param event is the event that represents this operation
 // USM memadvise API to govern behavior of automatic migration mechanisms
-pi_result piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
-                                   size_t length, pi_mem_advice advice,
+pi_result piextUSMEnqueueMemAdvise(pi_queue queue, UNUSED const void *ptr,
+                                   UNUSED size_t length,
+                                   UNUSED pi_mem_advice advice,
                                    pi_event *event) {
 
   return cast<pi_result>(
@@ -1173,7 +1181,7 @@ pi_result piextProgramGetNativeHandle(pi_program program,
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
-pi_result piTearDown(void *PluginParameter) { return PI_SUCCESS; }
+pi_result piTearDown(UNUSED void *PluginParameter) { return PI_SUCCESS; }
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
   int CompareVersions = strcmp(PluginInit->PiVersion, SupportedVersion);
