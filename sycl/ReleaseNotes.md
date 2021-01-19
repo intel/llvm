@@ -1,6 +1,6 @@
 # January'21 release notes
 
-Release notes for commit 5eebd1e4bfce..4dc3b35b07ae
+Release notes for commit 5eebd1e4bfce..2ffafb95f887
 
 ## New features
 ### SYCL Compiler
@@ -25,6 +25,7 @@ Release notes for commit 5eebd1e4bfce..4dc3b35b07ae
    [08a1c00028e5, 237675ba5a16, 84d2eb53e774, c8455167c2fa]
  - Switched to linking only needed symbols from fat static libraries on device
    side [5c3e5385b35d]
+ - Made Intel attributes consistent with clang attributes [aeb4de7e4fa5]
 ### SYCL Library
  - Added filtering of partition properties to exclude non-SYCL ones
    [7f7006410c1d]
@@ -61,6 +62,7 @@ Release notes for commit 5eebd1e4bfce..4dc3b35b07ae
  - Disabled execution range rounding for ESIMD kernels [5500262254c3]
  - Fixed argument printing when tracing plugin interface calls [30db15fac6f6]
  - Fixed `as()` function for swizzle vector [70e003acbbfe]
+ - Fixed synchronization of sub-group and group functions on CUDA [2b6f2cd7ba0a]
 
 ## API/ABI breakages
 
