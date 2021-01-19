@@ -1056,7 +1056,7 @@ public:
               return Err;
           } else if (Mode == OutputType::Archive) {
             // Extract the bundle to a buffer.
-            SmallVector<char, 0u> Data;
+            SmallVector<char> Data;
             raw_svector_ostream ChildOS{Data};
             if (Error Err = OFH.ReadBundle(ChildOS, *Buf))
               return Err;
