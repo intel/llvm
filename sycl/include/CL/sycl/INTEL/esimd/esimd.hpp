@@ -43,8 +43,18 @@ public:
   /// @{
   /// Constructors.
   constexpr simd() = default;
-  constexpr simd(const simd &other) { set(other.data()); }
-  constexpr simd(simd &&other) { set(other.data()); }
+  template <typename SrcTy> constexpr simd(const simd<SrcTy, N> &other) {
+    if constexpr (std::is_same<SrcTy, Ty>::value)
+      set(other.data());
+    else
+      set(__builtin_convertvector(other.data(), vector_type_t<Ty, N>));
+  }
+  template <typename SrcTy> constexpr simd(simd<SrcTy, N> &&other) {
+    if constexpr (std::is_same<SrcTy, Ty>::value)
+      set(other.data());
+    else
+      set(__builtin_convertvector(other.data(), vector_type_t<Ty, N>));
+  }
   constexpr simd(const vector_type &Val) { set(Val); }
 
   // TODO @rolandschulz
@@ -87,6 +97,7 @@ public:
   }
   /// @}
 
+  /// conversion operator
   operator const vector_type &() const & { return M_data; }
   operator vector_type &() & { return M_data; }
 
@@ -116,12 +127,6 @@ public:
     Val2.merge(Val1, Mask);
     set(Val2.data());
   }
-
-  /// {@
-  /// Assignment operators.
-  constexpr simd &operator=(const simd &) & = default;
-  constexpr simd &operator=(simd &&) & = default;
-  /// @}
 
   /// View this simd object in a different element type.
   template <typename EltTy> auto format() & {
@@ -208,6 +213,7 @@ public:
   DEF_BINOP(-, -=)
   DEF_BINOP(*, *=)
   DEF_BINOP(/, /=)
+  DEF_BINOP(%, %=)
 
 #undef DEF_BINOP
 
