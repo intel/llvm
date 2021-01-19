@@ -98,7 +98,7 @@ std::vector<plugin> &GlobalHandler::getPlugins() {
 
   const std::lock_guard<SpinLock> Lock{MFieldsLock};
   if (!MPlugins)
-    MPlugins = std::make_shared<std::vector<plugin>>();
+    MPlugins = std::make_unique<std::vector<plugin>>();
 
   return *MPlugins;
 }
