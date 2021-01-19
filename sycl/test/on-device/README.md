@@ -28,8 +28,9 @@ cd build
 
 # set extra environment
 export EXTCMPLRROOT=# path to deployed SYCL compiler and runtime
-export GET_DEVICE_TOOL=# Path to get full path to utility detecting available devices ([source](../../tools/get_device_count_by_type.cpp))
-
+export GET_DEVICE_TOOL=# Path to the get_device_count_by_type tool
+# The get_device_count_by_type tool should be built from sources [under](../../tools/get_device_count_by_type.cpp)
+export LEVEL_ZERO_INCLUDE_DIR=# Path to Level_Zero headers (optional)
 
 # Configure project
 cmake -DLLVM_TARGETS_TO_BUILD="X86" -DLLVM_EXTERNAL_PROJECTS=sycl-test \
@@ -38,32 +39,32 @@ cmake -DLLVM_TARGETS_TO_BUILD="X86" -DLLVM_EXTERNAL_PROJECTS=sycl-test \
       $ROOT/llvm
 
 # Build LIT tools
-make FileCheck not llvm-config
+make FileCheck
 
 # Run tests for OpenCL BE
-/usr/bin/python3.6 $ROOT/llvm/utils/lit/lit.py -v \
-                        --param SYCL_PLUGIN=opencl \
+python3 $ROOT/llvm/utils/lit/lit.py -v --param SYCL_PLUGIN=opencl \
                         --param SYCL_TOOLS_DIR="$EXTCMPLRROOT/bin" \
                         --param SYCL_INCLUDE="$EXTCMPLRROOT/include/sycl" \
                         --param SYCL_LIBS_DIR="$EXTCMPLRROOT/lib" \
                         --param GET_DEVICE_TOOL=$GET_DEVICE_TOOL \
+                        --param LEVEL_ZERO_INCLUDE_DIR=$L0_HEADER_PATH \
                         tools/sycl-test/
 
 # Run tests for Level_Zero BE
-/usr/bin/python3.6 $ROOT/llvm/utils/lit/lit.py -v \
-                        --param SYCL_PLUGIN=level_zero \
+python3 $ROOT/llvm/utils/lit/lit.py -v --param SYCL_PLUGIN=level_zero \
                         --param SYCL_TOOLS_DIR="$EXTCMPLRROOT/bin" \
                         --param SYCL_INCLUDE="$EXTCMPLRROOT/include/sycl" \
                         --param SYCL_LIBS_DIR="$EXTCMPLRROOT/lib" \
                         --param GET_DEVICE_TOOL=$GET_DEVICE_TOOL \
+                        --param LEVEL_ZERO_INCLUDE_DIR=$L0_HEADER_PATH \
                         tools/sycl-test/
 
 # Run tests for CUDA BE (if compiler build supports it)
-/usr/bin/python3.6 $ROOT/llvm/utils/lit/lit.py -v \
-                        --param SYCL_PLUGIN=cuda \
+python3 $ROOT/llvm/utils/lit/lit.py -v --param SYCL_PLUGIN=cuda \
                         --param SYCL_TOOLS_DIR="$EXTCMPLRROOT/bin" \
                         --param SYCL_INCLUDE="$EXTCMPLRROOT/include/sycl" \
                         --param SYCL_LIBS_DIR="$EXTCMPLRROOT/lib" \
                         --param GET_DEVICE_TOOL=$GET_DEVICE_TOOL \
+                        --param LEVEL_ZERO_INCLUDE_DIR=$L0_HEADER_PATH \
                         tools/sycl-test
 ```

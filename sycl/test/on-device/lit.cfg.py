@@ -66,10 +66,17 @@ config.substitutions.append( ('%sycl_include',  config.sycl_include ) )
 config.substitutions.append( ('%sycl_source_dir', config.sycl_source_dir) )
 config.substitutions.append( ('%opencl_libs_dir',  config.opencl_libs_dir) )
 config.substitutions.append( ('%opencl_include_dir',  config.opencl_include_dir) )
+config.substitutions.append( ('%level_zero_include_dir',  config.level_zero_include_dir) )
 config.substitutions.append( ('%cuda_toolkit_include',  config.cuda_toolkit_include) )
 config.substitutions.append( ('%sycl_tools_src_dir',  config.sycl_tools_src_dir ) )
 config.substitutions.append( ('%llvm_build_lib_dir',  config.llvm_build_lib_dir ) )
 config.substitutions.append( ('%llvm_build_bin_dir',  config.llvm_build_bin_dir ) )
+
+if config.level_zero_include_dir:
+    config.available_features.add("level_zero_headers")
+else:
+    lit_config.warning("Level_Zero headers path is not configured. Dependent tests are skipped.")
+
 
 llvm_config.use_clang()
 
@@ -82,6 +89,8 @@ config.substitutions.append( ('%BE_RUN_PLACEHOLDER', "env SYCL_DEVICE_FILTER={SY
 config.substitutions.append( ('%RUN_ON_HOST', "env SYCL_DEVICE_FILTER=host ") )
 
 get_device_count_by_type_path = lit_config.params.get('GET_DEVICE_TOOL', os.path.join(config.llvm_tools_dir, "get_device_count_by_type"))
+if 'GET_DEVICE_TOOL' in lit_config.params.keys():
+    lit_config.warning("The tool from none-default path is used: "+get_device_count_by_type_path)
 
 def getDeviceCount(device_type):
     is_cuda = False;
