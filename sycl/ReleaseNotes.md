@@ -1,6 +1,6 @@
 # January'21 release notes
 
-Release notes for commit 5eebd1e4bfce..2ffafb95f887
+Release notes for commit range 5eebd1e4bfce..2ffafb95f887
 
 ## New features
 ### SYCL Compiler
