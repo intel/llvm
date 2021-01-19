@@ -65,6 +65,7 @@ Release notes for commit 5eebd1e4bfce..2ffafb95f887
  - Fixed synchronization of sub-group and group functions on CUDA [2b6f2cd7ba0a]
 
 ## API/ABI breakages
+- None
 
 ## Known issues
   - GlobalWorkOffset is not supported by Level Zero backend [6f9e9a76]
