@@ -142,9 +142,9 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
   return TRUE; // Successful DLL_PROCESS_ATTACH.
 }
 #else
-// Setting maximum priority on destructor ensures it runs after all other global
-// destructors.
-__attribute__((destructor(65535))) static void syclUnload() { shutdown(); }
+// Setting minimal priority on destructor ensures it runs after all other global
+// destructors. Priorities 0-100 are reserved by the compiler.
+__attribute__((destructor(101))) static void syclUnload() { shutdown(); }
 #endif
 } // namespace detail
 } // namespace sycl
