@@ -114,17 +114,17 @@ GlobalHandler::getDeviceFilterList(const std::string &InitValue) {
   return *MDeviceFilterList;
 }
 
-std::shared_ptr<std::vector<plugin>> GlobalHandler::acquirePlugins() {
-  return MPlugins;
-}
-
 void shutdown() {
-  auto plugins = GlobalHandler::instance().acquirePlugins();
+  // First, release resources, that may access plugins.
+  GlobalHandler::instance().MScheduler.reset(nullptr);
+  GlobalHandler::instance().MProgramManager.reset(nullptr);
+  GlobalHandler::instance().MPlatformCache.reset(nullptr);
 
-  delete &GlobalHandler::instance();
-
-  if (plugins)
-    for (plugin &Plugin : *plugins) {
+  // Call to GlobalHandler::instance().getPlugins() initializes plugins. If
+  // user application has loaded SYCL runtime, and never called any APIs,
+  // there's no need to load and unload plugins.
+  if (GlobalHandler::instance().MPlugins) {
+    for (plugin &Plugin : GlobalHandler::instance().getPlugins()) {
       // PluginParameter is reserved for future use that can control
       // some parameters in the plugin tear-down process.
       // Currently, it is not used.
@@ -132,6 +132,11 @@ void shutdown() {
       Plugin.call_nocheck<PiApiKind::piTearDown>(PluginParameter);
       Plugin.unload();
     }
+    GlobalHandler::instance().MPlugins.reset(nullptr);
+  }
+
+  // Release the rest of global resources.
+  delete &GlobalHandler::instance();
 }
 
 #ifdef _WIN32

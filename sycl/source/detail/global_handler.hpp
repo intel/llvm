@@ -60,8 +60,6 @@ public:
 private:
   friend void shutdown();
 
-  std::shared_ptr<std::vector<plugin>> acquirePlugins();
-
   // Constructor and destructor are declared out-of-line to allow incomplete
   // types as template arguments to unique_ptr.
   GlobalHandler();
@@ -69,13 +67,14 @@ private:
 
   SpinLock MFieldsLock;
 
+  // Do not forget to update shutdown() function if needed.
   std::unique_ptr<Scheduler> MScheduler;
   std::unique_ptr<ProgramManager> MProgramManager;
   std::unique_ptr<Sync> MSync;
   std::unique_ptr<std::vector<PlatformImplPtr>> MPlatformCache;
   std::unique_ptr<std::mutex> MPlatformMapMutex;
   std::unique_ptr<std::mutex> MFilterMutex;
-  std::shared_ptr<std::vector<plugin>> MPlugins;
+  std::unique_ptr<std::vector<plugin>> MPlugins;
   std::unique_ptr<device_filter_list> MDeviceFilterList;
 };
 } // namespace detail
