@@ -115,15 +115,27 @@ GlobalHandler::getDeviceFilterList(const std::string &InitValue) {
 }
 
 void shutdown() {
-  for (plugin &Plugin : GlobalHandler::instance().getPlugins()) {
-    // PluginParameter is reserved for future use that can control
-    // some parameters in the plugin tear-down process.
-    // Currently, it is not used.
-    void *PluginParameter = nullptr;
-    Plugin.call_nocheck<PiApiKind::piTearDown>(PluginParameter);
-    Plugin.unload();
+  // First, release resources, that may access plugins.
+  GlobalHandler::instance().MScheduler.reset(nullptr);
+  GlobalHandler::instance().MProgramManager.reset(nullptr);
+  GlobalHandler::instance().MPlatformCache.reset(nullptr);
+
+  // Call to GlobalHandler::instance().getPlugins() initializes plugins. If
+  // user application has loaded SYCL runtime, and never called any APIs,
+  // there's no need to load and unload plugins.
+  if (GlobalHandler::instance().MPlugins) {
+    for (plugin &Plugin : GlobalHandler::instance().getPlugins()) {
+      // PluginParameter is reserved for future use that can control
+      // some parameters in the plugin tear-down process.
+      // Currently, it is not used.
+      void *PluginParameter = nullptr;
+      Plugin.call_nocheck<PiApiKind::piTearDown>(PluginParameter);
+      Plugin.unload();
+    }
+    GlobalHandler::instance().MPlugins.reset(nullptr);
   }
 
+  // Release the rest of global resources.
   delete &GlobalHandler::instance();
 }
 
