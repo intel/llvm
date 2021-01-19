@@ -10,6 +10,8 @@
 // RUN: %clangxx-esimd -fsycl %s -o %t.out
 // RUN: %ESIMD_RUN_PLACEHOLDER %t.out
 
+// UNSUPPORTED: cuda
+
 // The test checks that 2D workitem addressing works correctly with SIMD
 // kernels.
 
