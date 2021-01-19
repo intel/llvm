@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - sycl
-  pull_request:
-    branches:
-      - sycl
 jobs:
    check:
      runs-on: ubuntu-latest
