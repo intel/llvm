@@ -64,6 +64,12 @@ int main() {
   unsigned long long ull_val = ull_vec.template swizzle<cl::sycl::elem::s0>();
   assert(ull_val == ull_ref);
 
+  // Check that the function as() in swizzle vec class is working correctly
+  cl::sycl::vec<int8_t, 2> inputVec = cl::sycl::vec<int8_t, 2>(0, 1);
+  auto asVec =
+      inputVec.template swizzle<cl::sycl::elem::s0, cl::sycl::elem::s1>()
+          .template as<cl::sycl::vec<int16_t, 1>>();
+
   // Check that [u]long[n] type aliases match vec<[unsigned] long, n> types.
   assert((std::is_same<cl::sycl::vec<long, 2>, cl::sycl::long2>::value));
   assert((std::is_same<cl::sycl::vec<long, 3>, cl::sycl::long3>::value));

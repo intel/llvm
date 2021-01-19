@@ -144,7 +144,7 @@ struct ESIMDIntrinDesc {
 
   std::string GenXSpelling;
   SmallVector<ArgRule, 16> ArgRules;
-  NameRule SuffixRule = {NO_RULE, 0};
+  NameRule SuffixRule = {NO_RULE, {0}};
 
   int getNumGenXArgs() const {
     auto NRules = ArgRules.size();
@@ -169,7 +169,7 @@ private:
 
 #define DEF_ARG_RULE(Nm, Kind)                                                 \
   static constexpr ESIMDIntrinDesc::ArgRule Nm(int16_t N) {                    \
-    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::Kind, N};                 \
+    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::Kind, {{N, {}}}};         \
   }
   DEF_ARG_RULE(l, SRC_CALL_ALL)
   DEF_ARG_RULE(t, SRC_TMPL_ARG)
@@ -179,39 +179,39 @@ private:
   static constexpr ESIMDIntrinDesc::ArgRule a(int16_t N) {
     return ESIMDIntrinDesc::ArgRule{
         ESIMDIntrinDesc::SRC_CALL_ARG,
-        {N, ESIMDIntrinDesc::GenXArgConversion::NONE}};
+        {{N, ESIMDIntrinDesc::GenXArgConversion::NONE}}};
   }
 
   static constexpr ESIMDIntrinDesc::ArgRule ai1(int16_t N) {
     return ESIMDIntrinDesc::ArgRule{
         ESIMDIntrinDesc::SRC_CALL_ARG,
-        {N, ESIMDIntrinDesc::GenXArgConversion::TO_I1}};
+        {{N, ESIMDIntrinDesc::GenXArgConversion::TO_I1}}};
   }
 
   static constexpr ESIMDIntrinDesc::ArgRule aSI(int16_t N) {
     return ESIMDIntrinDesc::ArgRule{
         ESIMDIntrinDesc::SRC_CALL_ARG,
-        {N, ESIMDIntrinDesc::GenXArgConversion::TO_SI}};
+        {{N, ESIMDIntrinDesc::GenXArgConversion::TO_SI}}};
   }
 
   static constexpr ESIMDIntrinDesc::ArgRule c16(int16_t N) {
-    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::CONST_INT16, N};
+    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::CONST_INT16, {{N, {}}}};
   }
 
   static constexpr ESIMDIntrinDesc::ArgRule c32(int16_t N) {
-    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::CONST_INT32, N};
+    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::CONST_INT32, {{N, {}}}};
   }
 
   static constexpr ESIMDIntrinDesc::ArgRule c64(int16_t N) {
-    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::CONST_INT64, N};
+    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::CONST_INT64, {{N, {}}}};
   }
 
   static constexpr ESIMDIntrinDesc::NameRule bo(int16_t N) {
-    return ESIMDIntrinDesc::NameRule{ESIMDIntrinDesc::BIN_OP, N};
+    return ESIMDIntrinDesc::NameRule{ESIMDIntrinDesc::BIN_OP, {N}};
   }
 
   static constexpr ESIMDIntrinDesc::NameRule nk(int16_t N) {
-    return ESIMDIntrinDesc::NameRule{ESIMDIntrinDesc::NUM_KIND, N};
+    return ESIMDIntrinDesc::NameRule{ESIMDIntrinDesc::NUM_KIND, {N}};
   }
 
 public:
@@ -1239,10 +1239,11 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
     if (auto CastOp = dyn_cast<llvm::CastInst>(&I)) {
       llvm::Type *DstTy = CastOp->getDestTy();
       auto CastOpcode = CastOp->getOpcode();
-      if ((CastOpcode == llvm::Instruction::FPToUI &&
-           DstTy->getScalarType()->getPrimitiveSizeInBits() <= 32) ||
-          (CastOpcode == llvm::Instruction::FPToSI &&
-           DstTy->getScalarType()->getPrimitiveSizeInBits() < 32)) {
+      if (isa<FixedVectorType>(DstTy) &&
+          ((CastOpcode == llvm::Instruction::FPToUI &&
+            DstTy->getScalarType()->getPrimitiveSizeInBits() <= 32) ||
+           (CastOpcode == llvm::Instruction::FPToSI &&
+            DstTy->getScalarType()->getPrimitiveSizeInBits() < 32))) {
         IRBuilder<> Builder(&I);
         llvm::Value *Src = CastOp->getOperand(0);
         auto TmpTy = llvm::FixedVectorType::get(

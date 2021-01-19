@@ -26,5 +26,4 @@ int main() {
 }
 
 // Ensure that the SPIR-Kernel function is actually emitted.
-// CHECK: define spir_kernel void @_ZTSZN7DERIVEDIiE10initializeEvE2FF
-
+// CHECK: define {{.*}}spir_kernel void @_ZTSZN7DERIVEDIiE10initializeEvE2FF

@@ -569,6 +569,7 @@ public:
   /// BlockInMask is non-null. Use \p State to translate given VPValues to IR
   /// values in the vectorized loop.
   void vectorizeInterleaveGroup(const InterleaveGroup<Instruction> *Group,
+                                ArrayRef<VPValue *> VPDefs,
                                 VPTransformState &State, VPValue *Addr,
                                 ArrayRef<VPValue *> StoredValues,
                                 VPValue *BlockInMask = nullptr);
@@ -836,7 +837,8 @@ protected:
   /// Middle Block between the vector and the scalar.
   BasicBlock *LoopMiddleBlock;
 
-  /// The ExitBlock of the scalar loop.
+  /// The (unique) ExitBlock of the scalar loop.  Note that
+  /// there can be multiple exiting edges reaching this block.
   BasicBlock *LoopExitBlock;
 
   /// The vector loop body.
@@ -1547,11 +1549,16 @@ public:
     return InterleaveInfo.getInterleaveGroup(Instr);
   }
 
-  /// Returns true if an interleaved group requires a scalar iteration
-  /// to handle accesses with gaps, and there is nothing preventing us from
-  /// creating a scalar epilogue.
+  /// Returns true if we're required to use a scalar epilogue for at least
+  /// the final iteration of the original loop.
   bool requiresScalarEpilogue() const {
-    return isScalarEpilogueAllowed() && InterleaveInfo.requiresScalarEpilogue();
+    if (!isScalarEpilogueAllowed())
+      return false;
+    // If we might exit from anywhere but the latch, must run the exiting
+    // iteration in scalar form.
+    if (TheLoop->getExitingBlock() != TheLoop->getLoopLatch())
+      return true;
+    return InterleaveInfo.requiresScalarEpilogue();
   }
 
   /// Returns true if a scalar epilogue is not allowed due to optsize or a
@@ -2514,8 +2521,9 @@ static bool useMaskedInterleavedAccesses(const TargetTransformInfo &TTI) {
 //        <0, 4, 8, 1, 5, 9, 2, 6, 10, 3, 7, 11>    ; Interleave R,G,B elements
 //   store <12 x i32> %interleaved.vec              ; Write 4 tuples of R,G,B
 void InnerLoopVectorizer::vectorizeInterleaveGroup(
-    const InterleaveGroup<Instruction> *Group, VPTransformState &State,
-    VPValue *Addr, ArrayRef<VPValue *> StoredValues, VPValue *BlockInMask) {
+    const InterleaveGroup<Instruction> *Group, ArrayRef<VPValue *> VPDefs,
+    VPTransformState &State, VPValue *Addr, ArrayRef<VPValue *> StoredValues,
+    VPValue *BlockInMask) {
   Instruction *Instr = Group->getInsertPos();
   const DataLayout &DL = Instr->getModule()->getDataLayout();
 
@@ -2617,6 +2625,7 @@ void InnerLoopVectorizer::vectorizeInterleaveGroup(
 
     // For each member in the group, shuffle out the appropriate data from the
     // wide loads.
+    unsigned J = 0;
     for (unsigned I = 0; I < InterleaveFactor; ++I) {
       Instruction *Member = Group->getMember(I);
 
@@ -2641,8 +2650,9 @@ void InnerLoopVectorizer::vectorizeInterleaveGroup(
         if (Group->isReverse())
           StridedVec = reverseVector(StridedVec);
 
-        VectorLoopValueMap.setVectorValue(Member, Part, StridedVec);
+        State.set(VPDefs[J], Member, StridedVec, Part);
       }
+      ++J;
     }
     return;
   }
@@ -2908,7 +2918,7 @@ PHINode *InnerLoopVectorizer::createInductionVariable(Loop *L, Value *Start,
   Induction->addIncoming(Next, Latch);
   // Create the compare.
   Value *ICmp = Builder.CreateICmpEQ(Next, End);
-  Builder.CreateCondBr(ICmp, L->getExitBlock(), Header);
+  Builder.CreateCondBr(ICmp, L->getUniqueExitBlock(), Header);
 
   // Now we have two terminators. Remove the old one from the block.
   Latch->getTerminator()->eraseFromParent();
@@ -2996,13 +3006,17 @@ Value *InnerLoopVectorizer::getOrCreateVectorTripCount(Loop *L) {
   // unroll factor (number of SIMD instructions).
   Value *R = Builder.CreateURem(TC, Step, "n.mod.vf");
 
-  // If there is a non-reversed interleaved group that may speculatively access
-  // memory out-of-bounds, we need to ensure that there will be at least one
-  // iteration of the scalar epilogue loop. Thus, if the step evenly divides
+  // There are two cases where we need to ensure (at least) the last iteration
+  // runs in the scalar remainder loop. Thus, if the step evenly divides
   // the trip count, we set the remainder to be equal to the step. If the step
   // does not evenly divide the trip count, no adjustment is necessary since
   // there will already be scalar iterations. Note that the minimum iterations
-  // check ensures that N >= Step.
+  // check ensures that N >= Step. The cases are:
+  // 1) If there is a non-reversed interleaved group that may speculatively 
+  //    access memory out-of-bounds.
+  // 2) If any instruction may follow a conditionally taken exit. That is, if
+  //    the loop contains multiple exiting blocks, or a single exiting block
+  //    which is not the latch.
   if (VF.isVector() && Cost->requiresScalarEpilogue()) {
     auto *IsZero = Builder.CreateICmpEQ(R, ConstantInt::get(R->getType(), 0));
     R = Builder.CreateSelect(IsZero, Step, R);
@@ -3297,7 +3311,7 @@ Value *InnerLoopVectorizer::emitTransformedIndex(
 Loop *InnerLoopVectorizer::createVectorLoopSkeleton(StringRef Prefix) {
   LoopScalarBody = OrigLoop->getHeader();
   LoopVectorPreHeader = OrigLoop->getLoopPreheader();
-  LoopExitBlock = OrigLoop->getExitBlock();
+  LoopExitBlock = OrigLoop->getUniqueExitBlock();
   assert(LoopExitBlock && "Must have an exit block");
   assert(LoopVectorPreHeader && "Invalid loop structure");
 
@@ -3307,6 +3321,16 @@ Loop *InnerLoopVectorizer::createVectorLoopSkeleton(StringRef Prefix) {
   LoopScalarPreHeader =
       SplitBlock(LoopMiddleBlock, LoopMiddleBlock->getTerminator(), DT, LI,
                  nullptr, Twine(Prefix) + "scalar.ph");
+
+  // Set up branch from middle block to the exit and scalar preheader blocks.
+  // completeLoopSkeleton will update the condition to use an iteration check,
+  // if required to decide whether to execute the remainder.
+  BranchInst *BrInst =
+      BranchInst::Create(LoopExitBlock, LoopScalarPreHeader, Builder.getTrue());
+  auto *ScalarLatchTerm = OrigLoop->getLoopLatch()->getTerminator();
+  BrInst->setDebugLoc(ScalarLatchTerm->getDebugLoc());
+  ReplaceInstWithInst(LoopMiddleBlock->getTerminator(), BrInst);
+
   // We intentionally don't let SplitBlock to update LoopInfo since
   // LoopVectorBody should belong to another loop than LoopVectorPreHeader.
   // LoopVectorBody is explicitly added to the correct place few lines later.
@@ -3415,23 +3439,18 @@ BasicBlock *InnerLoopVectorizer::completeLoopSkeleton(Loop *L,
   // all of the iterations in the first vector loop.
   // If (N - N%VF) == N, then we *don't* need to run the remainder.
   // If tail is to be folded, we know we don't need to run the remainder.
-  Value *CmpN = Builder.getTrue();
   if (!Cost->foldTailByMasking()) {
-    CmpN = CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_EQ, Count,
-                           VectorTripCount, "cmp.n",
-                           LoopMiddleBlock->getTerminator());
+    Instruction *CmpN = CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_EQ,
+                                        Count, VectorTripCount, "cmp.n",
+                                        LoopMiddleBlock->getTerminator());
 
     // Here we use the same DebugLoc as the scalar loop latch terminator instead
     // of the corresponding compare because they may have ended up with
     // different line numbers and we want to avoid awkward line stepping while
     // debugging. Eg. if the compare has got a line number inside the loop.
-    cast<Instruction>(CmpN)->setDebugLoc(ScalarLatchTerm->getDebugLoc());
+    CmpN->setDebugLoc(ScalarLatchTerm->getDebugLoc());
+    cast<BranchInst>(LoopMiddleBlock->getTerminator())->setCondition(CmpN);
   }
-
-  BranchInst *BrInst =
-      BranchInst::Create(LoopExitBlock, LoopScalarPreHeader, CmpN);
-  BrInst->setDebugLoc(ScalarLatchTerm->getDebugLoc());
-  ReplaceInstWithInst(LoopMiddleBlock->getTerminator(), BrInst);
 
   // Get ready to start creating new instructions into the vectorized body.
   assert(LoopVectorPreHeader == L->getLoopPreheader() &&
@@ -3563,7 +3582,7 @@ void InnerLoopVectorizer::fixupIVUsers(PHINode *OrigPhi,
   // value (the value that feeds into the phi from the loop latch).
   // We allow both, but they, obviously, have different values.
 
-  assert(OrigLoop->getExitBlock() && "Expected a single exit block");
+  assert(OrigLoop->getUniqueExitBlock() && "Expected a single exit block");
 
   DenseMap<Value *, Value *> MissingVals;
 
@@ -5481,11 +5500,28 @@ LoopVectorizationCostModel::computeMaxVF(ElementCount UserVF, unsigned UserIC) {
     // for size.
     if (runtimeChecksRequired())
       return None;
+
     break;
   }
 
-  // Now try the tail folding
+  // The only loops we can vectorize without a scalar epilogue, are loops with
+  // a bottom-test and a single exiting block. We'd have to handle the fact
+  // that not every instruction executes on the last iteration.  This will
+  // require a lane mask which varies through the vector loop body.  (TODO)
+  if (TheLoop->getExitingBlock() != TheLoop->getLoopLatch()) {
+    // If there was a tail-folding hint/switch, but we can't fold the tail by
+    // masking, fallback to a vectorization with a scalar epilogue.
+    if (ScalarEpilogueStatus == CM_ScalarEpilogueNotNeededUsePredicate) {
+      LLVM_DEBUG(dbgs() << "LV: Cannot fold tail by masking: vectorize with a "
+                           "scalar epilogue instead.\n");
+      ScalarEpilogueStatus = CM_ScalarEpilogueAllowed;
+      return MaxVF;
+    }
+    return None;
+  }
 
+  // Now try the tail folding
+  
   // Invalidate interleave groups that require an epilogue if we can't mask
   // the interleave-group.
   if (!useMaskedInterleavedAccesses(TTI)) {
@@ -5502,7 +5538,15 @@ LoopVectorizationCostModel::computeMaxVF(ElementCount UserVF, unsigned UserIC) {
          "MaxVF must be a power of 2");
   unsigned MaxVFtimesIC =
       UserIC ? MaxVF.getFixedValue() * UserIC : MaxVF.getFixedValue();
-  if (TC > 0 && TC % MaxVFtimesIC == 0) {
+  // Avoid tail folding if the trip count is known to be a multiple of any VF we
+  // chose.
+  ScalarEvolution *SE = PSE.getSE();
+  const SCEV *BackedgeTakenCount = PSE.getBackedgeTakenCount();
+  const SCEV *ExitCount = SE->getAddExpr(
+      BackedgeTakenCount, SE->getOne(BackedgeTakenCount->getType()));
+  const SCEV *Rem = SE->getURemExpr(
+      ExitCount, SE->getConstant(BackedgeTakenCount->getType(), MaxVFtimesIC));
+  if (Rem->isZero()) {
     // Accept MaxVF if we do not have a tail.
     LLVM_DEBUG(dbgs() << "LV: No tail will remain for any chosen VF.\n");
     return MaxVF;
@@ -7904,6 +7948,12 @@ VPValue *VPRecipeBuilder::createEdgeMask(BasicBlock *Src, BasicBlock *Dst,
   if (!BI->isConditional() || BI->getSuccessor(0) == BI->getSuccessor(1))
     return EdgeMaskCache[Edge] = SrcMask;
 
+  // If source is an exiting block, we know the exit edge is dynamically dead
+  // in the vector loop, and thus we don't need to restrict the mask.  Avoid
+  // adding uses of an otherwise potentially dead instruction.
+  if (OrigLoop->isLoopExiting(Src))
+    return EdgeMaskCache[Edge] = SrcMask;
+
   VPValue *EdgeMask = Plan->getOrAddVPValue(BI->getCondition());
   assert(EdgeMask && "No Edge Mask found for condition");
 
@@ -7980,9 +8030,8 @@ VPValue *VPRecipeBuilder::createBlockInMask(BasicBlock *BB, VPlanPtr &Plan) {
   return BlockMaskCache[BB] = BlockMask;
 }
 
-VPWidenMemoryInstructionRecipe *
-VPRecipeBuilder::tryToWidenMemory(Instruction *I, VFRange &Range,
-                                  VPlanPtr &Plan) {
+VPRecipeBase *VPRecipeBuilder::tryToWidenMemory(Instruction *I, VFRange &Range,
+                                                VPlanPtr &Plan) {
   assert((isa<LoadInst>(I) || isa<StoreInst>(I)) &&
          "Must be called with either a load or store");
 
@@ -8417,11 +8466,10 @@ VPlanPtr LoopVectorizationPlanner::buildVPlanWithVPRecipes(
 
       if (auto Recipe =
               RecipeBuilder.tryToCreateWidenRecipe(Instr, Range, Plan)) {
-        // Check if the recipe can be converted to a VPValue. We need the extra
-        // down-casting step until VPRecipeBase inherits from VPValue.
-        VPValue *MaybeVPValue = Recipe->toVPValue();
-        if (!Instr->getType()->isVoidTy() && MaybeVPValue)
-          Plan->addVPValue(Instr, MaybeVPValue);
+        for (auto *Def : Recipe->definedValues()) {
+          auto *UV = Def->getUnderlyingValue();
+          Plan->addVPValue(UV, Def);
+        }
 
         RecipeBuilder.setRecipe(Instr, Recipe);
         VPBB->appendRecipe(Recipe);
@@ -8472,16 +8520,17 @@ VPlanPtr LoopVectorizationPlanner::buildVPlanWithVPRecipes(
       if (auto *SI = dyn_cast_or_null<StoreInst>(IG->getMember(i)))
         StoredValues.push_back(Plan->getOrAddVPValue(SI->getOperand(0)));
 
-    (new VPInterleaveRecipe(IG, Recipe->getAddr(), StoredValues,
-                            Recipe->getMask()))
-        ->insertBefore(Recipe);
-
+    auto *VPIG = new VPInterleaveRecipe(IG, Recipe->getAddr(), StoredValues,
+                                        Recipe->getMask());
+    VPIG->insertBefore(Recipe);
+    unsigned J = 0;
     for (unsigned i = 0; i < IG->getFactor(); ++i)
       if (Instruction *Member = IG->getMember(i)) {
         if (!Member->getType()->isVoidTy()) {
           VPValue *OriginalV = Plan->getVPValue(Member);
           Plan->removeVPValueFor(Member);
-          OriginalV->replaceAllUsesWith(Plan->getOrAddVPValue(Member));
+          OriginalV->replaceAllUsesWith(VPIG->getVPValue(J));
+          J++;
         }
         RecipeBuilder.getRecipe(Member)->eraseFromParent();
       }
@@ -8596,10 +8645,11 @@ void LoopVectorizationPlanner::adjustRecipesForInLoopReductions(
                          : nullptr;
       VPReductionRecipe *RedRecipe = new VPReductionRecipe(
           &RdxDesc, R, ChainOp, VecOp, CondOp, Legal->hasFunNoNaNAttr(), TTI);
-      WidenRecipe->toVPValue()->replaceAllUsesWith(RedRecipe);
+      WidenRecipe->getVPValue()->replaceAllUsesWith(RedRecipe);
       Plan->removeVPValueFor(R);
       Plan->addVPValue(R, RedRecipe);
       WidenRecipe->getParent()->insert(RedRecipe, WidenRecipe->getIterator());
+      WidenRecipe->getVPValue()->replaceAllUsesWith(RedRecipe);
       WidenRecipe->eraseFromParent();
 
       if (Kind == RecurrenceDescriptor::RK_IntegerMinMax ||
@@ -8608,7 +8658,7 @@ void LoopVectorizationPlanner::adjustRecipesForInLoopReductions(
             RecipeBuilder.getRecipe(cast<Instruction>(R->getOperand(0)));
         assert(isa<VPWidenRecipe>(CompareRecipe) &&
                "Expected to replace a VPWidenSC");
-        assert(CompareRecipe->toVPValue()->getNumUsers() == 0 &&
+        assert(cast<VPWidenRecipe>(CompareRecipe)->getNumUsers() == 0 &&
                "Expected no remaining users");
         CompareRecipe->eraseFromParent();
       }
@@ -8713,8 +8763,8 @@ void VPBlendRecipe::execute(VPTransformState &State) {
 
 void VPInterleaveRecipe::execute(VPTransformState &State) {
   assert(!State.Instance && "Interleave group being replicated.");
-  State.ILV->vectorizeInterleaveGroup(IG, State, getAddr(), getStoredValues(),
-                                      getMask());
+  State.ILV->vectorizeInterleaveGroup(IG, definedValues(), State, getAddr(),
+                                      getStoredValues(), getMask());
 }
 
 void VPReductionRecipe::execute(VPTransformState &State) {
@@ -8845,7 +8895,7 @@ void VPPredInstPHIRecipe::execute(VPTransformState &State) {
 void VPWidenMemoryInstructionRecipe::execute(VPTransformState &State) {
   VPValue *StoredValue = isStore() ? getStoredValue() : nullptr;
   State.ILV->vectorizeMemoryInstruction(&Ingredient, State,
-                                        StoredValue ? nullptr : toVPValue(),
+                                        StoredValue ? nullptr : getVPValue(),
                                         getAddr(), StoredValue, getMask());
 }
 
