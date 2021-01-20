@@ -69,7 +69,7 @@ ESIMD_INLINE void atomic_write(T *bins, simd<unsigned, n> offset,
                                simd<T, n> src0, simd<ushort, n> pred) {
   simd<T, n> oldDst;
   simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(bins));
-  simd<uintptr_t, n> vOffset = convert<uintptr_t>(offset);
+  simd<uintptr_t, n> vOffset = offset;
   vAddr += vOffset;
 
   uint32_t exDesc = 0x4C;

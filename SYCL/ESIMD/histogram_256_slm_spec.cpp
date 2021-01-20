@@ -51,7 +51,7 @@ ESIMD_INLINE void histogram_atomic(const uint32_t *input_ptr, uint32_t *output,
 #pragma unroll
     for (int j = 0; j < BLOCK_WIDTH * sizeof(int); j += 16) {
       // Accumulate local histogram for each pixel value
-      auto dataOffset = convert<uint, uchar, 16>(in.select<16, 1>(j).read());
+      simd<uint, 16> dataOffset = in.select<16, 1>(j).read();
       dataOffset *= sizeof(int);
       slm_atomic<EsimdAtomicOpType::ATOMIC_INC, uint, 16>(dataOffset, 1);
     }
