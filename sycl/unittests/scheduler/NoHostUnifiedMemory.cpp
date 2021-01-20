@@ -1,4 +1,4 @@
-//==----------- NoUnifiedHostMemory.cpp --- Scheduler unit tests -----------==//
+//==----------- NoHostUnifiedMemory.cpp --- Scheduler unit tests -----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -62,7 +62,7 @@ static pi_result redefinedEnqueueMemBufferWriteRect(
 
 static pi_result redefinedMemRelease(pi_mem mem) { return PI_SUCCESS; }
 
-TEST_F(SchedulerTest, NoUnifiedHostMemory) {
+TEST_F(SchedulerTest, NoHostUnifiedMemory) {
   platform Plt{default_selector()};
   if (Plt.is_host()) {
     std::cout << "Not run due to host-only environment\n";
@@ -143,5 +143,27 @@ TEST_F(SchedulerTest, NoUnifiedHostMemory) {
 
     detail::Command *MemoryMove = MS.insertMemoryMove(Record, &Req, QImpl);
     EXPECT_EQ(MemoryMove->getType(), detail::Command::COPY_MEMORY);
+  }
+  // Check that memory movement operations work correctly with/after discard
+  // access modes.
+  {
+    int val;
+    buffer<int, 1> Buf(&val, range<1>(1));
+    detail::Requirement Req = getMockRequirement(Buf);
+    ExpectedMemObjFlags = PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_COPY;
+
+    detail::Requirement DiscardReq = getMockRequirement(Buf);
+    DiscardReq.MAccessMode = access::mode::discard_read_write;
+
+    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
+    MS.getOrCreateAllocaForReq(Record, &Req, QImpl);
+    MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue);
+
+    // Memory movement operations should be omitted for discard access modes.
+    detail::Command *MemoryMove =
+        MS.insertMemoryMove(Record, &DiscardReq, DefaultHostQueue);
+    EXPECT_EQ(MemoryMove, nullptr);
+    // The current context for the record should still be modified.
+    EXPECT_EQ(Record->MCurContext, DefaultHostQueue->getContextImplPtr());
   }
 }
