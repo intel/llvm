@@ -1551,7 +1551,7 @@ int main(int argc, const char **argv) {
     return 0;
   }
 
-  if (OutputFileNames.getNumOccurrences() == 0) {
+  if (OutputFileNames.getNumOccurrences() == 0 && !CheckSection) {
     reportError(createStringError(
         errc::invalid_argument,
         "for the --outputs option: must be specified at least once!"));
@@ -1660,6 +1660,15 @@ int main(int argc, const char **argv) {
     }
 
     ++Index;
+  }
+
+  if (CheckSection) {
+    Expected<bool> Res = CheckBundledSection();
+    if (!Res) {
+      reportError(Res.takeError());
+      return 1;
+    }
+    return !*Res;
   }
 
   // Host triple is not really needed for unbundling operation, so do not
