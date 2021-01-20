@@ -2,9 +2,11 @@
 ; RUN: FileCheck %s -input-file=%t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-SYCL-IR
 ; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-ESIMD-IR
+; RUN: FileCheck %s -input-file=%t_0.prop --check-prefixes CHECK-SYCL-PROP
+; RUN: FileCheck %s -input-file=%t_esimd_0.prop --check-prefixes CHECK-ESIMD-PROP
 
-; This is basic test of splitting SYCL and ESIMD kernels into separate
-; modules.
+; This is basic test of splitting SYCL and ESIMD kernels into separate modules.
+; ESIMD module should have isEsimdImage=1 property set after splitting.
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-linux-sycldevice"
@@ -41,5 +43,11 @@ attributes #0 = { "sycl-module-id"="a.cpp" }
 ; CHECK-SYCL-IR-DAG: define dso_local spir_kernel void @SYCL_kernel()
 ; CHECK-SYCL-IR-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
 
+; CHECK-SYCL-PROP-NOT: [SYCL/is ESIMD image]
+; CHECK-SYCL-PROP-NOT: isEsimdImage=1|1
+
 ; CHECK-ESIMD-IR-DAG: define dso_local spir_kernel void @ESIMD_kernel()
 ; CHECK-ESIMD-IR-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
+
+; CHECK-ESIMD-PROP: [SYCL/is ESIMD image]
+; CHECK-ESIMD-PROP: isEsimdImage=1|1
