@@ -8,6 +8,8 @@ extern "C" float rintf(float);
 extern "C" float roundf(float);
 extern "C" float truncf(float);
 extern "C" float copysignf(float, float);
+extern "C" float fminf(float, float);
+extern "C" float fmaxf(float, float);
 extern "C" double sin(double);
 extern "C" double cos(double);
 extern "C" double floor(double);
@@ -17,6 +19,8 @@ extern "C" double rint(double);
 extern "C" double round(double);
 extern "C" double trunc(double);
 extern "C" double copysign(double, double);
+extern "C" double fmin(double, double);
+extern "C" double fmax(double, double);
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
@@ -38,6 +42,10 @@ int main() {
     acc[0] += (int)floor(0.5);                       // expected-no-diagnostics
     acc[0] += (int)copysignf(1.0f, -0.5f);           // expected-no-diagnostics
     acc[0] += (int)copysign(1.0, -0.5);              // expected-no-diagnostics
+    acc[0] += (int)fminf(1.5f, 0.5f);                // expected-no-diagnostics
+    acc[0] += (int)fmin(1.5, 0.5);                   // expected-no-diagnostics
+    acc[0] += (int)fmaxf(1.5f, 0.5f);                // expected-no-diagnostics
+    acc[0] += (int)fmax(1.5, 0.5);                   // expected-no-diagnostics
     acc[0] += (int)sinf(1.0f);                       // expected-no-diagnostics
     acc[0] += (int)sin(1.0);                         // expected-no-diagnostics
     acc[0] += (int)__builtin_sinf(1.0f);             // expected-no-diagnostics
@@ -57,8 +65,15 @@ int main() {
     acc[0] += (int)__builtin_floorf(0.5f);           // expected-no-diagnostics
     acc[0] += (int)__builtin_floor(0.5);             // expected-no-diagnostics
     acc[0] += (int)__builtin_copysignf(1.0f, -0.5f); // expected-no-diagnostics
+    acc[0] += (int)__builtin_fminf(1.5f, 0.5f);      // expected-no-diagnostics
+    acc[0] += (int)__builtin_fmin(1.5, 0.5);         // expected-no-diagnostics
+    acc[0] += (int)__builtin_fmaxf(1.5f, 0.5f);      // expected-no-diagnostics
+    acc[0] += (int)__builtin_fmax(1.5, 0.5);         // expected-no-diagnostics
     acc[0] += (int)__builtin_logf(1.0f);             // expected-no-diagnostics
     acc[0] += (int)__builtin_log(1.0);               // expected-no-diagnostics
+    acc[0] += __builtin_isinf(1.0);                  // expected-no-diagnostics
+    acc[0] += __builtin_isfinite(1.0);               // expected-no-diagnostics
+    acc[0] += __builtin_isnormal(1.0);               // expected-no-diagnostics
   });
   return 0;
 }
