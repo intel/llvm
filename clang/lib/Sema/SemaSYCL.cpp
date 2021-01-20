@@ -3025,23 +3025,34 @@ public:
         S.getASTContext().getLangOpts().SYCLUnnamedLambda;
     const DeclContext *DeclCtx = Tag->getDeclContext();
     if (DeclCtx && !UnnamedLambdaEnabled) {
-      auto *NameSpace = dyn_cast_or_null<NamespaceDecl>(DeclCtx);
-      if (NameSpace && NameSpace->isStdNamespace()) {
-        S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-            << KernelNameType;
-        S.Diag(KernelInvocationFuncLoc, diag::note_invalid_type_in_sycl_kernel)
-            << /* kernel name cannot be a type in the std namespace */ 2
-            << QualType(Tag->getTypeForDecl(), 0);
-        IsInvalid = true;
-        return;
-      }
-      if (!DeclCtx->isTranslationUnit() && !isa<NamespaceDecl>(DeclCtx)) {
-        // Allow Structs since they are public by default
-        if (Tag->isStruct()) {
+
+      while (!DeclCtx->isTranslationUnit()) {
+        auto *NSDecl = dyn_cast_or_null<NamespaceDecl>(DeclCtx);
+        if (NSDecl && NSDecl->isStdNamespace()) {
+          S.Diag(KernelInvocationFuncLoc,
+                 diag::err_sycl_kernel_incorrectly_named)
+              << KernelNameType;
+          S.Diag(KernelInvocationFuncLoc,
+                 diag::note_invalid_type_in_sycl_kernel)
+              << /* kernel name cannot be a type in the std namespace */ 2
+              << QualType(Tag->getTypeForDecl(), 0);
+          IsInvalid = true;
           return;
         }
-        const bool KernelNameIsMissing = Tag->getName().empty();
-        if (KernelNameIsMissing) {
+        if (NSDecl && NSDecl->isAnonymousNamespace()) {
+          S.Diag(KernelInvocationFuncLoc,
+                 diag::err_sycl_kernel_incorrectly_named)
+              << KernelNameType;
+          S.Diag(KernelInvocationFuncLoc,
+                 diag::note_invalid_type_in_sycl_kernel)
+              << /* kernel name is not globally-visible */ 0
+              << QualType(Tag->getTypeForDecl(), 0);
+          IsInvalid = true;
+          return;
+        }
+
+        const bool UnnamedTypeUsed = Tag->getName().empty();
+        if (UnnamedTypeUsed) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_sycl_kernel_incorrectly_named)
               << KernelNameType;
@@ -3051,7 +3062,7 @@ public:
           IsInvalid = true;
           return;
         }
-        if (Tag->isCompleteDefinition()) {
+        if (isa<FunctionDecl>(DeclCtx) && Tag->isCompleteDefinition()) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_sycl_kernel_incorrectly_named)
               << KernelNameType;
@@ -3060,11 +3071,16 @@ public:
               << /* kernel name is not globally-visible */ 0
               << QualType(Tag->getTypeForDecl(), 0);
           IsInvalid = true;
-        } else {
+          return;
+        }
+        if (isa<CXXMethodDecl>(DeclCtx) && !Tag->isCompleteDefinition()) {
           S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
           S.Diag(Tag->getSourceRange().getBegin(), diag::note_previous_decl)
               << Tag->getName();
         }
+
+        // Repeat the above checks for DeclCtx's in the parent-chain
+        DeclCtx = DeclCtx->getParent();
       }
     }
   }

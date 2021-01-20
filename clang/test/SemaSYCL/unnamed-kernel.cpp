@@ -52,20 +52,12 @@ public:
       h.single_task<namespace1::KernelName<InvalidKernelName2>>([] {});
     });
 
-#ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@Inputs/sycl.hpp:220 {{'MyWrapper::InvalidKernelName0' is an invalid kernel name type}}
-    // expected-note@Inputs/sycl.hpp:220 {{'MyWrapper::InvalidKernelName0' should be globally-visible}}
-    // expected-note@+3{{in instantiation of function template specialization}}
-#endif
+    // no error
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<InvalidKernelName0>([] {});
     });
 
-#ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@Inputs/sycl.hpp:220 {{'namespace1::KernelName<MyWrapper::InvalidKernelName3>' is an invalid kernel name type}}
-    // expected-note@Inputs/sycl.hpp:220 {{'MyWrapper::InvalidKernelName3' should be globally-visible}}
-    // expected-note@+3{{in instantiation of function template specialization}}
-#endif
+    //no error
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<namespace1::KernelName<InvalidKernelName3>>([] {});
     });
@@ -85,21 +77,13 @@ public:
     });
 
     using InvalidAlias = InvalidKernelName4;
-#ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@Inputs/sycl.hpp:220 {{'MyWrapper::InvalidKernelName4' is an invalid kernel name type}}
-    // expected-note@Inputs/sycl.hpp:220 {{'MyWrapper::InvalidKernelName4' should be globally-visible}}
-    // expected-note@+3{{in instantiation of function template specialization}}
-#endif
+    // no error
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<InvalidAlias>([] {});
     });
 
     using InvalidAlias1 = InvalidKernelName5;
-#ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@Inputs/sycl.hpp:220 {{'namespace1::KernelName<MyWrapper::InvalidKernelName5>' is an invalid kernel name type}}
-    // expected-note@Inputs/sycl.hpp:220 {{'MyWrapper::InvalidKernelName5' should be globally-visible}}
-    // expected-note@+3{{in instantiation of function template specialization}}
-#endif
+    // no error
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<namespace1::KernelName<InvalidAlias1>>([] {});
     });

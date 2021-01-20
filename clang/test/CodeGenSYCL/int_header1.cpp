@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-int-header=%t.h %s -o %t.out
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -sycl-std=2020 -fsycl-int-header=%t.h %s -o %t.out
 // RUN: FileCheck -input-file=%t.h %s
 
 // CHECK:template <> struct KernelInfo<class KernelName> {
@@ -11,7 +11,6 @@
 // CHECK:template <> struct KernelInfo<::nm1::KernelName3<KernelName5>> {
 // CHECK:template <> struct KernelInfo<::nm1::KernelName4<KernelName7>> {
 // CHECK:template <> struct KernelInfo<::nm1::KernelName8<::nm1::nm2::C>> {
-// CHECK:template <> struct KernelInfo<::TmplClassInAnonNS<ClassInAnonNS>> {
 // CHECK:template <> struct KernelInfo<::nm1::KernelName9<char>> {
 // CHECK:template <> struct KernelInfo<::nm1::KernelName3<const volatile ::nm1::KernelName3<const volatile char>>> {
 
@@ -48,11 +47,6 @@ namespace nm1 {
   class KernelName9;
 
 } // namespace nm1
-
-namespace {
-  class ClassInAnonNS;
-  template <typename T> class TmplClassInAnonNS;
-}
 
 struct MyWrapper {
   class KN101 {};
@@ -130,8 +124,6 @@ struct MyWrapper {
 
     // kernel name type is a templated class, both the top-level class and the
     // template argument are declared in the anonymous namespace
-    kernel_single_task<TmplClassInAnonNS<class ClassInAnonNS>>(
-      [=]() { acc.use(); });
 
     // Kernel name type is a templated specialization class with empty template pack argument
     kernel_single_task<nm1::KernelName9<char>>(
@@ -165,7 +157,7 @@ int main() {
   KernelInfo<class nm1::KernelName3<class KernelName5>>::getName();
   KernelInfo<class nm1::KernelName4<class KernelName7>>::getName();
   KernelInfo<class nm1::KernelName8<nm1::nm2::C>>::getName();
-  KernelInfo<class TmplClassInAnonNS<class ClassInAnonNS>>::getName();
+
   KernelInfo<class nm1::KernelName9<char>>::getName();
 #endif //__SYCL_DEVICE_ONLY__
 }
