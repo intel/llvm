@@ -5,7 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/pi.h>
@@ -14,6 +13,7 @@
 #include <detail/kernel_impl.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/spec_constant_impl.hpp>
+#include <detail/config.hpp>
 
 #include <algorithm>
 #include <fstream>
@@ -291,9 +291,13 @@ void program_impl::link(string_class LinkOptions) {
     check_device_feature_support<info::device::is_linker_available>(MDevices);
     vector_class<RT::PiDevice> Devices(get_pi_devices());
     const detail::plugin &Plugin = getPlugin();
+    const char *LinkOpts = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
+    if (!LinkOpts) {
+       LinkOpts = LinkOptions.c_str();
+    }
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramLink>(
         MContext->getHandleRef(), Devices.size(), Devices.data(),
-        LinkOptions.c_str(), 1, &MProgram, nullptr, nullptr, &MProgram);
+        LinkOpts, 1, &MProgram, nullptr, nullptr, &MProgram);
     Plugin.checkPiResult<compile_program_error>(Err);
     MLinkOptions = LinkOptions;
     MBuildOptions = LinkOptions;
