@@ -88,6 +88,10 @@ static cl::opt<bool> OutputAssembly{"S",
                                     cl::desc("Write output as LLVM assembly"),
                                     cl::Hidden, cl::cat(PostLinkCat)};
 
+static cl::opt<bool> SplitEsimd{"split-esimd",
+                                cl::desc("Split SYCL and ESIMD kernels"),
+                                cl::cat(PostLinkCat)};
+
 enum IRSplitMode {
   SPLIT_PER_TU,     // one module per translation unit
   SPLIT_PER_KERNEL, // one module per kernel
@@ -446,7 +450,7 @@ splitModule(Module &M,
   }
 }
 
-static std::string makeResultFileName(Twine Ext, int I, bool IsEsimd) {
+static std::string makeResultFileName(Twine Ext, int I, StringRef Suffix) {
   const StringRef Dir0 = OutputDir.getNumOccurrences() > 0
                              ? OutputDir
                              : sys::path::parent_path(OutputFilename);
@@ -454,10 +458,8 @@ static std::string makeResultFileName(Twine Ext, int I, bool IsEsimd) {
   std::string Dir = Dir0.str();
   if (!Dir0.empty() && !Dir0.endswith(Sep))
     Dir += Sep.str();
-  std::string RetStr = Dir + sys::path::stem(OutputFilename).str() + "_";
-  if (IsEsimd)
-    RetStr += "esimd_";
-  return RetStr + std::to_string(I) + Ext.str();
+  return Dir + sys::path::stem(OutputFilename).str() + "_" + Suffix.str() +
+         std::to_string(I) + Ext.str();
 }
 
 static void saveModule(Module &M, StringRef OutFilename) {
@@ -479,13 +481,13 @@ static void saveModule(Module &M, StringRef OutFilename) {
 // Saves file list if user specified corresponding filename.
 static string_vector
 saveResultModules(std::vector<std::unique_ptr<Module>> &ResModules,
-                  bool IsEsimd) {
+                  StringRef Suffix) {
   string_vector Res;
 
   for (size_t I = 0; I < ResModules.size(); ++I) {
     std::error_code EC;
     StringRef FileExt = (OutputAssembly) ? ".ll" : ".bc";
-    std::string CurOutFileName = makeResultFileName(FileExt, I, IsEsimd);
+    std::string CurOutFileName = makeResultFileName(FileExt, I, Suffix);
     saveModule(*ResModules[I].get(), CurOutFileName);
     Res.emplace_back(std::move(CurOutFileName));
   }
@@ -586,7 +588,7 @@ static string_vector saveDeviceImageProperty(
     }
     std::error_code EC;
     std::string SCFile =
-        makeResultFileName(".prop", I, ImgPSInfo.IsEsimdKernel);
+        makeResultFileName(".prop", I, ImgPSInfo.IsEsimdKernel ? "esimd_" : "");
     raw_fd_ostream SCOut(SCFile, EC);
     PropSet.write(SCOut);
     Res.emplace_back(std::move(SCFile));
@@ -598,12 +600,12 @@ static string_vector saveDeviceImageProperty(
 // Saves specified collection of symbols lists to files.
 // Saves file list if user specified corresponding filename.
 static string_vector saveResultSymbolsLists(string_vector &ResSymbolsLists,
-                                            bool IsEsimd) {
+                                            StringRef Suffix) {
   string_vector Res;
 
   std::string TxtFilesList;
   for (size_t I = 0; I < ResSymbolsLists.size(); ++I) {
-    std::string CurOutFileName = makeResultFileName(".sym", I, IsEsimd);
+    std::string CurOutFileName = makeResultFileName(".sym", I, Suffix);
     writeToFile(CurOutFileName, ResSymbolsLists[I]);
     Res.emplace_back(std::move(CurOutFileName));
   }
@@ -682,7 +684,7 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     // reuse input module if there were no spec constants and no splitting
     string_vector Files =
         SpecConstsMet || (ResultModules.size() > 1) || SyclAndEsimdKernels
-            ? saveResultModules(ResultModules, IsEsimd)
+            ? saveResultModules(ResultModules, IsEsimd ? "esimd_" : "")
             : string_vector{InputFilename};
     // "Code" column is always output
     std::copy(Files.begin(), Files.end(),
@@ -696,7 +698,6 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     string_vector Files = saveDeviceImageProperty(ResultModules, ImgPSInfo);
     std::copy(Files.begin(), Files.end(),
               std::back_inserter(TblFiles[COL_PROPS]));
-
   }
   if (DoSymGen) {
     // extract symbols per each module
@@ -706,7 +707,8 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
       assert(ResultModules.size() == 1);
       ResultSymbolsLists.push_back("");
     }
-    string_vector Files = saveResultSymbolsLists(ResultSymbolsLists, IsEsimd);
+    string_vector Files =
+        saveResultSymbolsLists(ResultSymbolsLists, IsEsimd ? "esimd_" : "");
     std::copy(Files.begin(), Files.end(),
               std::back_inserter(TblFiles[COL_SYM]));
   }
@@ -750,6 +752,36 @@ static ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
                         std::move(ResultModules[1]));
 }
 
+static TableFiles processInputModule(std::unique_ptr<Module> M) {
+  if (!SplitEsimd)
+    return processOneModule(std::move(M), false, false);
+
+  std::unique_ptr<Module> SyclModule;
+  std::unique_ptr<Module> EsimdModule;
+  std::tie(SyclModule, EsimdModule) = splitSyclEsimd(std::move(M));
+
+  // Do we have both Sycl and Esimd kernels?
+  bool SyclAndEsimdKernels = SyclModule && EsimdModule;
+
+  TableFiles SyclTblFiles =
+      processOneModule(std::move(SyclModule), false, SyclAndEsimdKernels);
+  TableFiles EsimdTblFiles =
+      processOneModule(std::move(EsimdModule), true, SyclAndEsimdKernels);
+
+  // Merge the two resulting file maps
+  TableFiles MergedTblFiles;
+  for (auto &ColumnStr : {COL_CODE, COL_PROPS, COL_SYM}) {
+    auto &SyclFiles = SyclTblFiles[ColumnStr];
+    auto &EsimdFiles = EsimdTblFiles[ColumnStr];
+    auto &MergedFiles = MergedTblFiles[ColumnStr];
+    std::copy(SyclFiles.begin(), SyclFiles.end(),
+              std::back_inserter(MergedFiles));
+    std::copy(EsimdFiles.begin(), EsimdFiles.end(),
+              std::back_inserter(MergedFiles));
+  }
+  return MergedTblFiles;
+}
+
 int main(int argc, char **argv) {
   InitLLVM X{argc, argv};
 
@@ -761,6 +793,9 @@ int main(int argc, char **argv) {
       "This is a collection of utilities run on device code's LLVM IR before\n"
       "handing off to back-end for further compilation or emitting SPIRV.\n"
       "The utilities are:\n"
+      "- SYCL and ESIMD kernels can be split into separate modules with\n"
+      "  '-split-esimd' option. The option has no effect when there is only\n"
+      "  one type of kernels in the input module.\n"
       "- Module splitter to split a big input module into smaller ones.\n"
       "  Groups kernels using function attribute 'sycl-module-id', i.e.\n"
       "  kernels with the same values of the 'sycl-module-id' attribute will\n"
@@ -768,6 +803,9 @@ int main(int argc, char **argv) {
       "  one module per kernel will be emitted.\n"
       "  '-split=auto' mode automatically selects the best way of splitting\n"
       "  kernels into modules based on some heuristic.\n"
+      "  The '-split' option is compatible with '-split-esimd'. In this case,\n"
+      "  first input module will be split into SYCL and ESIMD modules. Then\n"
+      "  both modules will be further split according to the '-split' option.\n"
       "- If -symbols options is also specified, then for each produced module\n"
       "  a text file containing names of all spir kernels in it is generated.\n"
       "- Specialization constant intrinsic transformer. Replaces symbolic\n"
@@ -792,16 +830,22 @@ int main(int argc, char **argv) {
       "than 'auto'.\n");
 
   bool DoSplit = SplitMode.getNumOccurrences() > 0;
+  bool DoSplitEsimd = SplitEsimd.getNumOccurrences() > 0;
   bool DoSpecConst = SpecConstLower.getNumOccurrences() > 0;
   bool DoParamInfo = EmitKernelParamInfo.getNumOccurrences() > 0;
 
-  if (!DoSplit && !DoSpecConst && !DoSymGen && !DoParamInfo) {
+  if (!DoSplit && !DoSpecConst && !DoSymGen && !DoParamInfo && !DoSplitEsimd) {
     errs() << "no actions specified; try --help for usage info\n";
     return 1;
   }
   if (IROutputOnly && (DoSplit && SplitMode != SPLIT_AUTO)) {
     errs() << "error: -" << SplitMode.ArgStr << "=" << SplitMode.ValueStr
            << " can't be used with -" << IROutputOnly.ArgStr << "\n";
+    return 1;
+  }
+  if (IROutputOnly && DoSplitEsimd) {
+    errs() << "error: -" << SplitEsimd.ArgStr << " can't be used with -"
+           << IROutputOnly.ArgStr << "\n";
     return 1;
   }
   if (IROutputOnly && DoSymGen) {
@@ -840,58 +884,22 @@ int main(int argc, char **argv) {
   if (OutputFilename.getNumOccurrences() == 0)
     OutputFilename = (Twine(sys::path::stem(InputFilename)) + ".files").str();
 
-  std::unique_ptr<Module> SyclModule;
-  std::unique_ptr<Module> EsimdModule;
-  std::tie(SyclModule, EsimdModule) = splitSyclEsimd(std::move(M));
+  TableFiles TblFiles = processInputModule(std::move(M));
 
-  // Do we have both Sycl and Esimd kernels?
-  bool SyclAndEsimdKernels = SyclModule && EsimdModule;
-
-  TableFiles SyclTblFiles =
-      processOneModule(std::move(SyclModule), false, SyclAndEsimdKernels);
-
-  // TODO: Currently -ir-output-only option doesn't work when there is a mix
-  // of SYCL and ESIMD kernels. The option requires a single LLVM IR output
-  // file, which we cannot provide since SYCL and ESIMD kernels should always
-  // be split.
-  // Today, -ir-output-only is an FPGA use case, while ESIMD kernels only appear
-  // in programs that run on a GPU, so they are orthogonal. But once there
-  // would be a use case for -ir-output-only on a module that has SYCL and ESIMD
-  // code, we need to address it.
+  // Input module was processed and a single output file was requested.
   if (IROutputOnly)
     return 0;
 
-  TableFiles EsimdTblFiles =
-      processOneModule(std::move(EsimdModule), true, SyclAndEsimdKernels);
-
+  // Populate and emit the resulting table
   util::SimpleTable Table;
+  for (auto &ColumnStr : {COL_CODE, COL_PROPS, COL_SYM})
+    if (!TblFiles[ColumnStr].empty())
+      CHECK_AND_EXIT(Table.addColumn(ColumnStr, TblFiles[ColumnStr]));
 
-  auto addTableColumn = [&Table, &SyclTblFiles,
-                         &EsimdTblFiles](std::string Str) {
-    auto &SyclFiles = SyclTblFiles[Str];
-    auto &EsimdFiles = EsimdTblFiles[Str];
-    string_vector Files(SyclFiles);
-    std::copy(EsimdFiles.begin(), EsimdFiles.end(), std::back_inserter(Files));
-    if (Files.empty())
-      return 0;
-    Error Err = Table.addColumn(Str, Files);
-    CHECK_AND_EXIT(Err);
-    return 0;
-  };
+  std::error_code EC;
+  raw_fd_ostream Out{OutputFilename, EC, sys::fs::OF_None};
+  checkError(EC, "error opening file '" + OutputFilename + "'");
+  Table.write(Out);
 
-  int Res;
-  if ((Res = addTableColumn(COL_CODE)) != 0)
-    return Res;
-  if ((Res = addTableColumn(COL_PROPS)) != 0)
-    return Res;
-  if ((Res = addTableColumn(COL_SYM)) != 0)
-    return Res;
-
-  {
-    std::error_code EC;
-    raw_fd_ostream Out{OutputFilename, EC, sys::fs::OF_None};
-    checkError(EC, "error opening file '" + OutputFilename + "'");
-    Table.write(Out);
-  }
   return 0;
 }

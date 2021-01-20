@@ -1,4 +1,4 @@
-; RUN: sycl-post-link -split=auto -S %s -o %t.table
+; RUN: sycl-post-link -split-esimd -S %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-SYCL-IR
 ; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-ESIMD-IR
@@ -17,14 +17,13 @@ entry:
   ret void
 }
 
-define dso_local spir_kernel void @SYCL_kernel() #1 {
+define dso_local spir_kernel void @SYCL_kernel() #0 {
 entry:
   %call = tail call spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
   ret void
 }
 
 attributes #0 = { "sycl-module-id"="a.cpp" }
-attributes #1 = { "sycl-module-id"="a.cpp" }
 
 !llvm.module.flags = !{!0}
 !opencl.spir.version = !{!1}
@@ -39,6 +38,8 @@ attributes #1 = { "sycl-module-id"="a.cpp" }
 ; CHECK: {{.*}}_0.ll|{{.*}}_0.prop
 ; CHECK: {{.*}}_esimd_0.ll|{{.*}}_esimd_0.prop
 
-; CHECK-SYCL-IR: define dso_local spir_kernel void @SYCL_kernel()
+; CHECK-SYCL-IR-DAG: define dso_local spir_kernel void @SYCL_kernel()
+; CHECK-SYCL-IR-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
 
-; CHECK-ESIMD-IR: define dso_local spir_kernel void @ESIMD_kernel()
+; CHECK-ESIMD-IR-DAG: define dso_local spir_kernel void @ESIMD_kernel()
+; CHECK-ESIMD-IR-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
