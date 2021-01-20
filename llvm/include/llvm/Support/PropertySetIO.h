@@ -187,6 +187,7 @@ public:
       "SYCL/composite specialization constants";
   static constexpr char SYCL_DEVICELIB_REQ_MASK[] = "SYCL/devicelib req mask";
   static constexpr char SYCL_KERNEL_PARAM_OPT_INFO[] = "SYCL/kernel param opt";
+  static constexpr char SYCL_IS_ESIMD_IMAGE[] = "SYCL/is ESIMD image";
 
   // Function for bulk addition of an entire property set under given category
   // (property set name).

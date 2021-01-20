@@ -320,6 +320,7 @@ public:
   const PropertyRange &getKernelParamOptInfo() const {
     return KernelParamOptInfo;
   }
+  const PropertyRange &getSyclIsEsimdImage() const { return SyclIsEsimdImage; }
   virtual ~DeviceBinaryImage() {}
 
 protected:
@@ -332,6 +333,7 @@ protected:
   DeviceBinaryImage::PropertyRange CompositeSpecConstIDMap;
   DeviceBinaryImage::PropertyRange DeviceLibReqMask;
   DeviceBinaryImage::PropertyRange KernelParamOptInfo;
+  DeviceBinaryImage::PropertyRange SyclIsEsimdImage;
 };
 
 /// Tries to determine the device binary image foramat. Returns
