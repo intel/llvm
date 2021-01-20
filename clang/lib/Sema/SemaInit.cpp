@@ -5579,9 +5579,10 @@ static bool TryOCLSamplerInitialization(Sema &S,
                                         InitializationSequence &Sequence,
                                         QualType DestType,
                                         Expr *Initializer) {
-  if (!S.getLangOpts().OpenCL || !DestType->isSamplerT() ||
+  if ((!S.getLangOpts().OpenCL && !S.getLangOpts().SYCLIsDevice) ||
+      !DestType->isSamplerT() ||
       (!Initializer->isIntegerConstantExpr(S.Context) &&
-      !Initializer->getType()->isSamplerT()))
+       !Initializer->getType()->isSamplerT()))
     return false;
 
   Sequence.AddOCLSamplerInitStep(DestType);

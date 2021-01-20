@@ -317,6 +317,17 @@ void Sema::Initialize() {
     addImplicitTypedef("size_t", Context.getSizeType());
   }
 
+  if (getLangOpts().SYCLIsDevice) {
+    addImplicitTypedef("__ocl_sampler_t", Context.OCLSamplerTy);
+    addImplicitTypedef("__ocl_event_t", Context.OCLEventTy);
+#define SEMA_STRINGIZE(s) #s
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  addImplicitTypedef(SEMA_STRINGIZE(__ocl_##ImgType##_##Suffix##_t),           \
+                     Context.SingletonId);
+#include "clang/Basic/OpenCLImageTypes.def"
+#undef SEMA_STRINGIZE
+  }
+
   // Initialize predefined OpenCL types and supported extensions and (optional)
   // core features.
   if (getLangOpts().OpenCL) {

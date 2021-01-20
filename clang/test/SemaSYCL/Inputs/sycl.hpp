@@ -1,4 +1,7 @@
-#pragma once
+#ifndef SYCL_HPP
+#define SYCL_HPP
+
+// Shared code for SYCL tests
 
 namespace cl {
 namespace sycl {
@@ -83,5 +86,115 @@ private:
               range<dimensions> MemRange, id<dimensions> Offset) {}
 };
 
+template <int dimensions, access::mode accessmode, access::target accesstarget>
+struct opencl_image_type;
+
+#define IMAGETY_DEFINE(dim, accessmode, amsuffix, Target, ifarray_) \
+  template <>                                                       \
+  struct opencl_image_type<dim, access::mode::accessmode,           \
+                           access::target::Target> {                \
+    using type = __ocl_image##dim##d_##ifarray_##amsuffix##_t;      \
+  };
+
+#define IMAGETY_READ_3_DIM_IMAGE       \
+  IMAGETY_DEFINE(1, read, ro, image, ) \
+  IMAGETY_DEFINE(2, read, ro, image, ) \
+  IMAGETY_DEFINE(3, read, ro, image, )
+
+#define IMAGETY_WRITE_3_DIM_IMAGE       \
+  IMAGETY_DEFINE(1, write, wo, image, ) \
+  IMAGETY_DEFINE(2, write, wo, image, ) \
+  IMAGETY_DEFINE(3, write, wo, image, )
+
+#define IMAGETY_READ_2_DIM_IARRAY                  \
+  IMAGETY_DEFINE(1, read, ro, image_array, array_) \
+  IMAGETY_DEFINE(2, read, ro, image_array, array_)
+
+#define IMAGETY_WRITE_2_DIM_IARRAY                  \
+  IMAGETY_DEFINE(1, write, wo, image_array, array_) \
+  IMAGETY_DEFINE(2, write, wo, image_array, array_)
+
+IMAGETY_READ_3_DIM_IMAGE
+IMAGETY_WRITE_3_DIM_IMAGE
+
+IMAGETY_READ_2_DIM_IARRAY
+IMAGETY_WRITE_2_DIM_IARRAY
+
+template <int dim, access::mode accessmode, access::target accesstarget>
+struct _ImageImplT {
+#ifdef __SYCL_DEVICE_ONLY__
+  typename opencl_image_type<dim, accessmode, accesstarget>::type MImageObj;
+#else
+  range<dim> AccessRange;
+  range<dim> MemRange;
+  id<dim> Offset;
+#endif
+};
+
+template <typename dataT, int dimensions, access::mode accessmode>
+class accessor<dataT, dimensions, accessmode, access::target::image, access::placeholder::false_t> {
+public:
+  void use(void) const {}
+  template <typename... T>
+  void use(T... args) {}
+  template <typename... T>
+  void use(T... args) const {}
+  _ImageImplT<dimensions, accessmode, access::target::image> impl;
+#ifdef __SYCL_DEVICE_ONLY__
+  void __init(typename opencl_image_type<dimensions, accessmode, access::target::image>::type ImageObj) { impl.MImageObj = ImageObj; }
+#endif
+};
+
+struct sampler_impl {
+#ifdef __SYCL_DEVICE_ONLY__
+  __ocl_sampler_t m_Sampler;
+#endif
+};
+
+class sampler {
+  struct sampler_impl impl;
+#ifdef __SYCL_DEVICE_ONLY__
+  void __init(__ocl_sampler_t Sampler) { impl.m_Sampler = Sampler; }
+#endif
+
+public:
+  void use(void) const {}
+};
+
+class event {};
+class queue {
+public:
+  template <typename T>
+  event submit(T cgf) { return event{}; }
+};
+class auto_name {};
+template <typename Name, typename Type>
+struct get_kernel_name_t {
+  using name = Name;
+};
+template <typename Type>
+struct get_kernel_name_t<auto_name, Type> {
+  using name = Type;
+};
+#define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
+template <typename KernelName = auto_name, typename KernelType>
+ATTR_SYCL_KERNEL void kernel_single_task(KernelType kernelFunc) {
+  kernelFunc();
+}
+class handler {
+public:
+  template <typename KernelName = auto_name, typename KernelType>
+  void single_task(KernelType kernelFunc) {
+    using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
+#ifdef __SYCL_DEVICE_ONLY__
+    kernel_single_task<NameT>(kernelFunc);
+#else
+    kernelFunc();
+#endif
+  }
+};
+
 } // namespace sycl
 } // namespace cl
+
+#endif

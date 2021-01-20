@@ -63,6 +63,9 @@ public:
   /// Checks whether given clang type is a full specialization of the SYCL
   /// accessor class.
   static bool isSyclAccessorType(const QualType &Ty);
+  /// Checks whether given clang type is a full specialization of the SYCL
+  /// sampler class.
+  static bool isSyclSamplerType(const QualType &Ty);
 
   /// Checks whether given clang type is declared in the given hierarchy of
   /// declaration contexts.
@@ -258,7 +261,8 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
       CXXRecordDecl *CRD = FieldType->getAsCXXRecordDecl();
       InitializedEntity Entity =
           InitializedEntity::InitializeMember(Field, &VarEntity);
-      if (Util::isSyclAccessorType(FieldType)) {
+      if (Util::isSyclAccessorType(FieldType) ||
+          Util::isSyclSamplerType(FieldType)) {
         // Initialize kernel object field with the default constructor and
         // construct a call of __init method.
         InitializationKind InitKind =
@@ -369,7 +373,7 @@ static void buildArgTys(ASTContext &Context, CXXRecordDecl *KernelObj,
   //     and add parameter decriptor for them properly.
   for (const auto *Fld : KernelObj->fields()) {
     QualType ArgTy = Fld->getType();
-    if (Util::isSyclAccessorType(ArgTy))
+    if (Util::isSyclAccessorType(ArgTy) || Util::isSyclSamplerType(ArgTy))
       createSpecialSYCLObjParamDesc(Fld, ArgTy);
     else if (ArgTy->isStructureOrClassType())
       CreateAndAddPrmDsc(Fld, ArgTy);
@@ -452,6 +456,15 @@ bool Util::isSyclAccessorType(const QualType &Ty) {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
       Util::DeclContextDesc{clang::Decl::Kind::ClassTemplateSpecialization,
                             "accessor"}};
+  return matchQualifiedTypeName(Ty, Scopes);
+}
+
+bool Util::isSyclSamplerType(const QualType &Ty) {
+  static const std::array<DeclContextDesc, 3> Scopes = {
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
+      Util::DeclContextDesc{clang::Decl::Kind::CXXRecord,
+                            "sampler"}};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
