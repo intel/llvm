@@ -10,10 +10,10 @@
 #include <CL/sycl/detail/pi.h>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/property_list.hpp>
+#include <detail/config.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/spec_constant_impl.hpp>
-#include <detail/config.hpp>
 
 #include <algorithm>
 #include <fstream>
@@ -293,11 +293,11 @@ void program_impl::link(string_class LinkOptions) {
     const detail::plugin &Plugin = getPlugin();
     const char *LinkOpts = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
     if (!LinkOpts) {
-       LinkOpts = LinkOptions.c_str();
+      LinkOpts = LinkOptions.c_str();
     }
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramLink>(
-        MContext->getHandleRef(), Devices.size(), Devices.data(),
-        LinkOpts, 1, &MProgram, nullptr, nullptr, &MProgram);
+        MContext->getHandleRef(), Devices.size(), Devices.data(), LinkOpts, 1,
+        &MProgram, nullptr, nullptr, &MProgram);
     Plugin.checkPiResult<compile_program_error>(Err);
     MLinkOptions = LinkOptions;
     MBuildOptions = LinkOptions;
