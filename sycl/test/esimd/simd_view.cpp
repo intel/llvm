@@ -26,6 +26,7 @@ bool test_simd_view_bin_ops() __attribute__((sycl_device)) {
   auto ref1 = v1.select<8, 2>(0);
   ref0 += ref1;
   ref0 += 2;
+  ref0 %= ref1;
   ref0 -= ref1;
   ref0 -= 2;
   ref0 *= ref1;

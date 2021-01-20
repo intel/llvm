@@ -626,6 +626,7 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   TableFiles TblFiles;
   if (!M)
     return TblFiles;
+
   std::map<StringRef, std::vector<Function *>> GlobalsSet;
 
   bool DoSplit = SplitMode.getNumOccurrences() > 0;
@@ -695,6 +696,7 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     string_vector Files = saveDeviceImageProperty(ResultModules, ImgPSInfo);
     std::copy(Files.begin(), Files.end(),
               std::back_inserter(TblFiles[COL_PROPS]));
+
   }
   if (DoSymGen) {
     // extract symbols per each module
@@ -852,7 +854,7 @@ int main(int argc, char **argv) {
   // of SYCL and ESIMD kernels. The option requires a single LLVM IR output
   // file, which we cannot provide since SYCL and ESIMD kernels should always
   // be split.
-  // Today, -ir-output-only is a FPGA use case, while ESIMD kernels only appear
+  // Today, -ir-output-only is an FPGA use case, while ESIMD kernels only appear
   // in programs that run on a GPU, so they are orthogonal. But once there
   // would be a use case for -ir-output-only on a module that has SYCL and ESIMD
   // code, we need to address it.
