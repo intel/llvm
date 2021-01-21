@@ -296,9 +296,13 @@ void program_impl::link(string_class LinkOptions) {
     if (!LinkOpts) {
       LinkOpts = LinkOptions.c_str();
     }
-    RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramLink>(
-        MContext->getHandleRef(), Devices.size(), Devices.data(), LinkOpts, /*
-        num_input_programs*/ 1, &MProgram, nullptr, nullptr, &MProgram);
+    RT::PiResult Err =
+        Plugin.call_nocheck<PiApiKind::piProgramLink>(MContext->getHandleRef(),
+                                                      Devices.size(),
+                                                      Devices.data(), LinkOpts, 
+                                                      /*num_input_programs*/ 1,
+                                                      &MProgram, nullptr, 
+                                                      nullptr, &MProgram);
     Plugin.checkPiResult<compile_program_error>(Err);
     MLinkOptions = LinkOptions;
     MBuildOptions = LinkOptions;
