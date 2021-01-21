@@ -390,8 +390,20 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
         !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
+    std::string CompileOpts = Img.getCompileOptions();
+    if (Img.getSyclIsEsimdImage().isAvailable()) {
+      bool IsEsimdImage =
+          pi::DeviceBinaryProperty(*(Img.getSyclIsEsimdImage().begin()))
+              .asUint32();
+      if (IsEsimdImage) {
+        if (!CompileOpts.empty())
+          CompileOpts += " ";
+        CompileOpts += "-vc-codegen";
+      }
+    }
+
     ProgramPtr BuiltProgram =
-        build(std::move(ProgramManaged), ContextImpl, Img.getCompileOptions(),
+        build(std::move(ProgramManaged), ContextImpl, CompileOpts,
               Img.getLinkOptions(), getRawSyclObjImpl(Device)->getHandleRef(),
               ContextImpl->getCachedLibPrograms(), DeviceLibReqMask);
 
