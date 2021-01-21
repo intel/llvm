@@ -1475,6 +1475,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   }
   case PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN:
     return ReturnValue(pi_device_affinity_domain{
+        PI_DEVICE_AFFINITY_DOMAIN_NUMA |
         PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE});
   case PI_DEVICE_INFO_PARTITION_TYPE: {
     if (Device->IsSubDevice) {
@@ -1767,7 +1768,8 @@ pi_result piDevicePartition(pi_device Device,
                             pi_uint32 *OutNumDevices) {
   // Other partitioning ways are not supported by Level Zero
   if (Properties[0] != PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN ||
-      Properties[1] != PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE) {
+      (Properties[1] != PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE &&
+       Properties[1] != PI_DEVICE_AFFINITY_DOMAIN_NUMA)) {
     return PI_INVALID_VALUE;
   }
 
