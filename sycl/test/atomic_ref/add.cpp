@@ -2,7 +2,7 @@
 // mark
 // UNSUPPORTED: cuda
 
-// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -D__SYCL_USE_NATIVE_FP_ATOMICS__ \
+// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -DSYCL_USE_NATIVE_FP_ATOMICS \
 // RUN:  -fsycl-device-only -S %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-device-only -S %s -o - \
 // RUN: | FileCheck %s --check-prefix=CHECK-LLVM-EMU

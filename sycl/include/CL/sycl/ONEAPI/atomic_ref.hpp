@@ -455,7 +455,7 @@ public:
               memory_scope scope = default_scope) const noexcept {
 // TODO: Remove the "native atomics" macro check once implemented for all
 // backends
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_USE_NATIVE_FP_ATOMICS__)
+#if defined(__SYCL_DEVICE_ONLY__) && defined(SYCL_USE_NATIVE_FP_ATOMICS)
     return detail::spirv::AtomicFAdd(ptr, scope, order, operand);
 #else
     auto load_order = detail::getLoadOrder(order);
@@ -478,7 +478,7 @@ public:
               memory_scope scope = default_scope) const noexcept {
 // TODO: Remove the "native atomics" macro check once implemented for all
 // backends
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_USE_NATIVE_FP_ATOMICS__)
+#if defined(__SYCL_DEVICE_ONLY__) && defined(SYCL_USE_NATIVE_FP_ATOMICS)
     return detail::spirv::AtomicFAdd(ptr, scope, order, -operand);
 #else
     auto load_order = detail::getLoadOrder(order);
