@@ -653,12 +653,13 @@ def I_ : Flag<["-"], "I-">, Group<I_Group>,
              "remove current directory from include path">;
 def I : JoinedOrSeparate<["-"], "I">, Group<I_Group>,
     Flags<[CC1Option,CC1AsOption]>, MetaVarName<"<dir>">,
-    HelpText<"Add directory to include search path. If there are multiple -I "
-             "options, these directories are searched in the order they are "
-             "given before the standard system directories are searched. "
-             "If the same directory is in the SYSTEM include search paths, for "
-             "example if also specified with -isystem, the -I option will be "
-             "ignored">;
+    HelpText<"Add directory to the end of the list of include search paths">,
+    DocBrief<[{Add directory to include search path. For C++ inputs, if
+there are multiple -I options, these directories are searched
+in the order they are given before the standard system directories
+are searched. If the same directory is in the SYSTEM include search
+paths, for example if also specified with -isystem, the -I option
+will be ignored}]>;
 def L : JoinedOrSeparate<["-"], "L">, Flags<[RenderJoined]>, Group<Link_Group>,
     MetaVarName<"<dir>">, HelpText<"Add directory to library search path">;
 def MD : Flag<["-"], "MD">, Group<M_Group>,
@@ -820,7 +821,7 @@ def Z_Flag : Flag<["-"], "Z">, Group<Link_Group>;
 def Z_Joined : Joined<["-"], "Z">;
 def all__load : Flag<["-"], "all_load">;
 def allowable__client : Separate<["-"], "allowable_client">;
-def ansi : Flag<["-", "--"], "ansi">;
+def ansi : Flag<["-", "--"], "ansi">, Group<CompileOnly_Group>;
 def arch__errors__fatal : Flag<["-"], "arch_errors_fatal">;
 def arch : Separate<["-"], "arch">, Flags<[NoXarchOption]>;
 def arch__only : Separate<["-"], "arch_only">;
@@ -1045,6 +1046,8 @@ defm apple_pragma_pack : BoolFOption<"apple-pragma-pack",
   "LangOpts->ApplePragmaPack", DefaultsToFalse,
   ChangedBy<PosFlag, [], "Enable Apple gcc-compatible #pragma pack handling">,
   ResetBy<NegFlag>>;
+def fxl_pragma_pack : Flag<["-"], "fxl-pragma-pack">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Enable IBM XL #pragma pack handling">;
 def shared_libsan : Flag<["-"], "shared-libsan">,
   HelpText<"Dynamically link the sanitizer runtime">;
 def static_libsan : Flag<["-"], "static-libsan">,
@@ -1179,12 +1182,22 @@ def fno_profile_instr_use : Flag<["-"], "fno-profile-instr-use">,
     HelpText<"Disable using instrumentation data for profile-guided optimization">;
 def fno_profile_use : Flag<["-"], "fno-profile-use">,
     Alias<fno_profile_instr_use>;
+defm profile_arcs : BoolFOption<"profile-arcs",
+  "CodeGenOpts.EmitGcovArcs", DefaultsToFalse,
+  ChangedBy<PosFlag, [LinkOption]>, ResetBy<NegFlag>>;
+defm test_coverage : BoolFOption<"test-coverage",
+  "CodeGenOpts.EmitGcovNotes", DefaultsToFalse,
+  ChangedBy<PosFlag>, ResetBy<NegFlag>>;
 def fprofile_filter_files_EQ : Joined<["-"], "fprofile-filter-files=">,
     Group<f_Group>, Flags<[CC1Option, CoreOption]>,
-    HelpText<"Instrument only functions from files where names match any regex separated by a semi-colon">;
+    HelpText<"Instrument only functions from files where names match any regex separated by a semi-colon">,
+    MarshallingInfoString<"CodeGenOpts.ProfileFilterFiles">,
+    ShouldParseIf<!strconcat(fprofile_arcs.KeyPath, "||", ftest_coverage.KeyPath)>;
 def fprofile_exclude_files_EQ : Joined<["-"], "fprofile-exclude-files=">,
     Group<f_Group>, Flags<[CC1Option, CoreOption]>,
-    HelpText<"Instrument only functions from files where names don't match all the regexes separated by a semi-colon">;
+    HelpText<"Instrument only functions from files where names don't match all the regexes separated by a semi-colon">,
+    MarshallingInfoString<"CodeGenOpts.ProfileExcludeFiles">,
+    ShouldParseIf<!strconcat(fprofile_arcs.KeyPath, "||", ftest_coverage.KeyPath)>;
 def fprofile_update_EQ : Joined<["-"], "fprofile-update=">,
     Group<f_Group>, Flags<[CC1Option, CoreOption]>, Values<"atomic,prefer-atomic,single">,
     MetaVarName<"<method>">, HelpText<"Set update method of profile counters (atomic,prefer-atomic,single)">,
@@ -1335,9 +1348,10 @@ defm eliminate_unused_debug_types : OptOutFFlag<"eliminate-unused-debug-types",
 def femit_all_decls : Flag<["-"], "femit-all-decls">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Emit all declarations, even if unused">,
   MarshallingInfoFlag<"LangOpts->EmitAllDecls">;
-def femulated_tls : Flag<["-"], "femulated-tls">, Group<f_Group>, Flags<[CC1Option]>,
-  HelpText<"Use emutls functions to access thread_local variables">;
-def fno_emulated_tls : Flag<["-"], "fno-emulated-tls">, Group<f_Group>, Flags<[CC1Option]>;
+defm emulated_tls : BoolFOption<"emulated-tls",
+  "CodeGenOpts.EmulatedTLS", DefaultsToFalse,
+  ChangedBy<PosFlag, [], "Use emutls functions to access thread_local variables">,
+  ResetBy<NegFlag>, BothFlags<[CC1Option]>>;
 def fencoding_EQ : Joined<["-"], "fencoding=">, Group<f_Group>;
 def ferror_limit_EQ : Joined<["-"], "ferror-limit=">, Group<f_Group>, Flags<[CoreOption]>;
 defm exceptions : BoolFOption<"exceptions",
@@ -1620,8 +1634,8 @@ def frounding_math : Flag<["-"], "frounding-math">, Group<f_Group>, Flags<[CC1Op
   MarshallingInfoFlag<"LangOpts->FPRoundingMode", "llvm::RoundingMode::NearestTiesToEven">,
   Normalizer<"makeFlagToValueNormalizer(llvm::RoundingMode::Dynamic)">;
 def fno_rounding_math : Flag<["-"], "fno-rounding-math">, Group<f_Group>, Flags<[CC1Option]>;
-def ftrapping_math : Flag<["-"], "ftrapping-math">, Group<f_Group>, Flags<[CC1Option]>;
-def fno_trapping_math : Flag<["-"], "fno-trapping-math">, Group<f_Group>, Flags<[CC1Option]>;
+def ftrapping_math : Flag<["-"], "ftrapping-math">, Group<f_Group>;
+def fno_trapping_math : Flag<["-"], "fno-trapping-math">, Group<f_Group>;
 def ffp_contract : Joined<["-"], "ffp-contract=">, Group<f_Group>,
   Flags<[CC1Option]>, HelpText<"Form fused FP ops (e.g. FMAs):"
   " fast (fuses across statements disregarding pragmas)"
@@ -1776,12 +1790,14 @@ def fxray_instrumentation_bundle :
 def fxray_function_groups :
   Joined<["-"], "fxray-function-groups=">,
   Group<f_Group>, Flags<[CC1Option]>,
-  HelpText<"Only instrument 1 of N groups">;
+  HelpText<"Only instrument 1 of N groups">,
+  MarshallingInfoStringInt<"CodeGenOpts.XRayTotalFunctionGroups", "1">;
 
 def fxray_selected_function_group :
   Joined<["-"], "fxray-selected-function-group=">,
   Group<f_Group>, Flags<[CC1Option]>,
-  HelpText<"When using -fxray-function-groups, select which group of functions to instrument. Valid range is 0 to fxray-function-groups - 1">;
+  HelpText<"When using -fxray-function-groups, select which group of functions to instrument. Valid range is 0 to fxray-function-groups - 1">,
+  MarshallingInfoStringInt<"CodeGenOpts.XRaySelectedFunctionGroup", "0">;
 
 
 defm fine_grained_bitfield_accesses : BoolOption<"fine-grained-bitfield-accesses",
@@ -1985,6 +2001,7 @@ def fmudflapth : Flag<["-"], "fmudflapth">, Group<f_Group>;
 def fmudflap : Flag<["-"], "fmudflap">, Group<f_Group>;
 def fnested_functions : Flag<["-"], "fnested-functions">, Group<f_Group>;
 def fnext_runtime : Flag<["-"], "fnext-runtime">, Group<f_Group>;
+def fno_xl_pragma_pack : Flag<["-"], "fno-xl-pragma-pack">, Group<f_Group>;
 def fno_asm : Flag<["-"], "fno-asm">, Group<f_Group>;
 def fno_asynchronous_unwind_tables : Flag<["-"], "fno-asynchronous-unwind-tables">, Group<f_Group>;
 def fno_assume_sane_operator_new : Flag<["-"], "fno-assume-sane-operator-new">, Group<f_Group>,
@@ -2241,9 +2258,6 @@ defm preserve_as_comments : BoolFOption<"preserve-as-comments",
   "CodeGenOpts.PreserveAsmComments", DefaultsToTrue,
   ChangedBy<NegFlag, [], "Do not preserve comments in inline assembly">,
   ResetBy<PosFlag>>;
-defm profile_arcs : BoolFOption<"profile-arcs",
-  "CodeGenOpts.EmitGcovArcs", DefaultsToFalse,
-  ChangedBy<PosFlag, [LinkOption]>, ResetBy<NegFlag>>;
 def framework : Separate<["-"], "framework">, Flags<[LinkerInput]>;
 def frandom_seed_EQ : Joined<["-"], "frandom-seed=">, Group<clang_ignored_f_Group>;
 def freg_struct_return : Flag<["-"], "freg-struct-return">, Group<f_Group>, Flags<[CC1Option]>,
@@ -2410,9 +2424,6 @@ def foptimization_record_passes_EQ : Joined<["-"], "foptimization-record-passes=
   HelpText<"Only include passes which match a specified regular expression in the generated optimization record (by default, include all passes)">,
   MetaVarName<"<regex>">;
 
-defm test_coverage : BoolFOption<"test-coverage",
-  "CodeGenOpts.EmitGcovNotes", DefaultsToFalse,
-  ChangedBy<PosFlag>, ResetBy<NegFlag>>;
 def fvectorize : Flag<["-"], "fvectorize">, Group<f_Group>,
   HelpText<"Enable the loop vectorization passes">;
 def fno_vectorize : Flag<["-"], "fno-vectorize">, Group<f_Group>;
@@ -2662,7 +2673,8 @@ def gdwarf_4 : Flag<["-"], "gdwarf-4">, Group<g_Group>,
 def gdwarf_5 : Flag<["-"], "gdwarf-5">, Group<g_Group>,
   HelpText<"Generate source-level debug information with dwarf version 5">;
 def gdwarf64 : Flag<["-"], "gdwarf64">, Group<g_Group>, Flags<[CC1Option]>,
-  HelpText<"Enables DWARF64 format for ELF binaries, if debug information emission is enabled.">;
+  HelpText<"Enables DWARF64 format for ELF binaries, if debug information emission is enabled.">,
+  MarshallingInfoFlag<"CodeGenOpts.Dwarf64">;
 def gdwarf32 : Flag<["-"], "gdwarf32">, Group<g_Group>, Flags<[CC1Option]>,
   HelpText<"Enables DWARF32 format for ELF binaries, if debug information emission is enabled.">;
 
@@ -3106,6 +3118,7 @@ def mpcrel: Flag<["-"], "mpcrel">, Group<m_ppc_Features_Group>;
 def mno_pcrel: Flag<["-"], "mno-pcrel">, Group<m_ppc_Features_Group>;
 def mspe : Flag<["-"], "mspe">, Group<m_ppc_Features_Group>;
 def mno_spe : Flag<["-"], "mno-spe">, Group<m_ppc_Features_Group>;
+def mefpu2 : Flag<["-"], "mefpu2">, Group<m_ppc_Features_Group>;
 def mabi_EQ_vec_extabi : Flag<["-"], "mabi=vec-extabi">, Group<m_Group>, Flags<[CC1Option]>,
   HelpText<"Enable the extended Altivec ABI on AIX (AIX only). Uses volatile and nonvolatile vector registers">;
 def mabi_EQ_vec_default : Flag<["-"], "mabi=vec-default">, Group<m_Group>, Flags<[CC1Option]>,
@@ -3233,11 +3246,14 @@ def mprefer_vector_width_EQ : Joined<["-"], "mprefer-vector-width=">, Group<m_Gr
   HelpText<"Specifies preferred vector width for auto-vectorization. Defaults to 'none' which allows target specific decisions.">,
   MarshallingInfoString<"CodeGenOpts.PreferVectorWidth">;
 def mstack_protector_guard_EQ : Joined<["-"], "mstack-protector-guard=">, Group<m_Group>, Flags<[CC1Option]>,
-  HelpText<"Use the given guard (global, tls) for addressing the stack-protector guard">;
+  HelpText<"Use the given guard (global, tls) for addressing the stack-protector guard">,
+  MarshallingInfoString<"CodeGenOpts.StackProtectorGuard">;
 def mstack_protector_guard_offset_EQ : Joined<["-"], "mstack-protector-guard-offset=">, Group<m_Group>, Flags<[CC1Option]>,
-  HelpText<"Use the given offset for addressing the stack-protector guard">;
+  HelpText<"Use the given offset for addressing the stack-protector guard">,
+  MarshallingInfoStringInt<"CodeGenOpts.StackProtectorGuardOffset", "(unsigned)-1">;
 def mstack_protector_guard_reg_EQ : Joined<["-"], "mstack-protector-guard-reg=">, Group<m_Group>, Flags<[CC1Option]>,
-  HelpText<"Use the given reg for addressing the stack-protector guard">;
+  HelpText<"Use the given reg for addressing the stack-protector guard">,
+  MarshallingInfoString<"CodeGenOpts.StackProtectorGuardReg", [{"none"}]>;
 def mpie_copy_relocations : Flag<["-"], "mpie-copy-relocations">,
   Alias<fdirect_access_external_data>, Group<m_Group>;
 def mno_pie_copy_relocations : Flag<["-"], "mno-pie-copy-relocations">,
@@ -4470,7 +4486,9 @@ def record_command_line : Separate<["-"], "record-command-line">,
   HelpText<"The string to embed in the .LLVM.command.line section.">,
   MarshallingInfoString<"CodeGenOpts.RecordCommandLine">;
 def compress_debug_sections_EQ : Joined<["-", "--"], "compress-debug-sections=">,
-    HelpText<"DWARF debug sections compression type">;
+    HelpText<"DWARF debug sections compression type">, Values<"none,zlib,zlib-gnu">,
+    NormalizedValuesScope<"llvm::DebugCompressionType">, NormalizedValues<["None", "Z", "GNU"]>,
+    MarshallingInfoString<"CodeGenOpts.CompressDebugSections", "None">, AutoNormalizeEnum;
 def compress_debug_sections : Flag<["-", "--"], "compress-debug-sections">,
   Alias<compress_debug_sections_EQ>, AliasArgs<["zlib"]>;
 def mno_exec_stack : Flag<["-"], "mnoexecstack">,
@@ -4547,11 +4565,15 @@ def fmerge_functions : Flag<["-"], "fmerge-functions">,
   HelpText<"Permit merging of identical functions when optimizing.">,
   MarshallingInfoFlag<"CodeGenOpts.MergeFunctions">;
 def coverage_data_file : Separate<["-"], "coverage-data-file">,
-  HelpText<"Emit coverage data to this filename.">;
+  HelpText<"Emit coverage data to this filename.">,
+  MarshallingInfoString<"CodeGenOpts.CoverageDataFile">,
+  ShouldParseIf<!strconcat(fprofile_arcs.KeyPath, "||", ftest_coverage.KeyPath)>;
 def coverage_data_file_EQ : Joined<["-"], "coverage-data-file=">,
   Alias<coverage_data_file>;
 def coverage_notes_file : Separate<["-"], "coverage-notes-file">,
-  HelpText<"Emit coverage notes to this filename.">;
+  HelpText<"Emit coverage notes to this filename.">,
+  MarshallingInfoString<"CodeGenOpts.CoverageNotesFile">,
+  ShouldParseIf<!strconcat(fprofile_arcs.KeyPath, "||", ftest_coverage.KeyPath)>;
 def coverage_notes_file_EQ : Joined<["-"], "coverage-notes-file=">,
   Alias<coverage_notes_file>;
 def coverage_version_EQ : Joined<["-"], "coverage-version=">,

@@ -405,6 +405,8 @@ static void FixupInvocation(CompilerInvocation &Invocation,
   llvm::Triple T(TargetOpts.Triple);
   llvm::Triple::ArchType Arch = T.getArch();
 
+  CodeGenOpts.CodeModel = TargetOpts.CodeModel;
+
   if (LangOpts.getExceptionHandling() != llvm::ExceptionHandling::None &&
       T.isWindowsMSVCEnvironment())
     Diags.Report(diag::err_fe_invalid_exception_model)
@@ -902,11 +904,9 @@ static void setPGOUseInstrumentor(CodeGenOptions &Opts,
 }
 
 static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
-                             DiagnosticsEngine &Diags,
-                             const TargetOptions &TargetOpts,
-                             const FrontendOptions &FrontendOpts) {
+                             DiagnosticsEngine &Diags, const llvm::Triple &T,
+                             const std::string &OutputFile) {
   bool Success = true;
-  llvm::Triple Triple = llvm::Triple(TargetOpts.Triple);
 
   unsigned OptimizationLevel = getOptimizationLevel(Args, IK, Diags);
   // TODO: This could be done in Driver
@@ -962,7 +962,7 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
 
   Opts.DisableLLVMPasses =
       Args.hasArg(OPT_disable_llvm_passes) ||
-      (Args.hasArg(OPT_fsycl_is_device) && Triple.isSPIR() &&
+      (Args.hasArg(OPT_fsycl_is_device) && T.isSPIR() &&
        Args.hasArg(OPT_fno_sycl_early_optimizations));
 
   const llvm::Triple::ArchType DebugEntryValueArchs[] = {
@@ -970,7 +970,6 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
       llvm::Triple::arm, llvm::Triple::armeb, llvm::Triple::mips,
       llvm::Triple::mipsel, llvm::Triple::mips64, llvm::Triple::mips64el};
 
-  llvm::Triple T(TargetOpts.Triple);
   if (Opts.OptimizationLevel > 0 && Opts.hasReducedDebugInfo() &&
       llvm::is_contained(DebugEntryValueArchs, T.getArch()))
     Opts.EmitCallSiteInfo = true;
@@ -995,9 +994,6 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
 
   if (!Opts.ProfileInstrumentUsePath.empty())
     setPGOUseInstrumentor(Opts, Opts.ProfileInstrumentUsePath);
-
-  Opts.CodeModel = TargetOpts.CodeModel;
-  Opts.Dwarf64 = Args.hasArg(OPT_gdwarf64);
 
   if (const Arg *A = Args.getLastArg(OPT_ftime_report, OPT_ftime_report_EQ)) {
     Opts.TimePasses = true;
@@ -1043,8 +1039,8 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
   if (Arg *A = Args.getLastArg(OPT_save_temps_EQ))
     Opts.SaveTempsFilePrefix =
         llvm::StringSwitch<std::string>(A->getValue())
-            .Case("obj", FrontendOpts.OutputFile)
-            .Default(llvm::sys::path::filename(FrontendOpts.OutputFile).str());
+            .Case("obj", OutputFile)
+            .Default(llvm::sys::path::filename(OutputFile).str());
 
   // The memory profile runtime appends the pid to make this name more unique.
   const char *MemProfileBasename = "memprof.profraw";
@@ -1057,14 +1053,6 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
     Opts.MemoryProfileOutput = MemProfileBasename;
 
   if (Opts.EmitGcovArcs || Opts.EmitGcovNotes) {
-    Opts.CoverageDataFile =
-        std::string(Args.getLastArgValue(OPT_coverage_data_file));
-    Opts.CoverageNotesFile =
-        std::string(Args.getLastArgValue(OPT_coverage_notes_file));
-    Opts.ProfileFilterFiles =
-        std::string(Args.getLastArgValue(OPT_fprofile_filter_files_EQ));
-    Opts.ProfileExcludeFiles =
-        std::string(Args.getLastArgValue(OPT_fprofile_exclude_files_EQ));
     if (Args.hasArg(OPT_coverage_version_EQ)) {
       StringRef CoverageVersion = Args.getLastArgValue(OPT_coverage_version_EQ);
       if (CoverageVersion.size() != 4) {
@@ -1097,11 +1085,6 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
     }
   }
 
-  Opts.XRayTotalFunctionGroups =
-      getLastArgIntValue(Args, OPT_fxray_function_groups, 1, Diags);
-  Opts.XRaySelectedFunctionGroup =
-      getLastArgIntValue(Args, OPT_fxray_selected_function_group, 0, Diags);
-
   auto XRayInstrBundles =
       Args.getAllArgValues(OPT_fxray_instrumentation_bundle);
   if (XRayInstrBundles.empty())
@@ -1126,15 +1109,6 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
     }
   }
 
-  if (const Arg *A = Args.getLastArg(OPT_compress_debug_sections_EQ)) {
-    auto DCT = llvm::StringSwitch<llvm::DebugCompressionType>(A->getValue())
-                   .Case("none", llvm::DebugCompressionType::None)
-                   .Case("zlib", llvm::DebugCompressionType::Z)
-                   .Case("zlib-gnu", llvm::DebugCompressionType::GNU)
-                   .Default(llvm::DebugCompressionType::None);
-    Opts.setCompressDebugSections(DCT);
-  }
-
   for (auto *A :
        Args.filtered(OPT_mlink_bitcode_file, OPT_mlink_builtin_bitcode)) {
     CodeGenOptions::BitcodeFileToLink F;
@@ -1148,29 +1122,10 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
     }
     Opts.LinkBitcodeFiles.push_back(F);
   }
-  Opts.SSPBufferSize =
-      getLastArgIntValue(Args, OPT_stack_protector_buffer_size, 8, Diags);
-
-  Opts.StackProtectorGuard =
-      std::string(Args.getLastArgValue(OPT_mstack_protector_guard_EQ));
-
-  if (Arg *A = Args.getLastArg(OPT_mstack_protector_guard_offset_EQ)) {
-    StringRef Val = A->getValue();
-    unsigned Offset = Opts.StackProtectorGuardOffset;
-    Val.getAsInteger(10, Offset);
-    Opts.StackProtectorGuardOffset = Offset;
-  }
-
-  Opts.StackProtectorGuardReg =
-      std::string(Args.getLastArgValue(OPT_mstack_protector_guard_reg_EQ,
-                                       "none"));
-
 
   if (Args.getLastArg(OPT_femulated_tls) ||
       Args.getLastArg(OPT_fno_emulated_tls)) {
     Opts.ExplicitEmulatedTLS = true;
-    Opts.EmulatedTLS =
-        Args.hasFlag(OPT_femulated_tls, OPT_fno_emulated_tls, false);
   }
 
   if (Arg *A = Args.getLastArg(OPT_fdenormal_fp_math_EQ)) {
@@ -1940,7 +1895,7 @@ static void ParseHeaderSearchArgs(HeaderSearchOptions &Opts, ArgList &Args,
 
 void CompilerInvocation::setLangDefaults(LangOptions &Opts, InputKind IK,
                                          const llvm::Triple &T,
-                                         PreprocessorOptions &PPOpts,
+                                         std::vector<std::string> &Includes,
                                          LangStandard::Kind LangStd) {
   // Set some properties which depend solely on the input kind; it would be nice
   // to move these to the language standard, and have the driver resolve the
@@ -2051,9 +2006,9 @@ void CompilerInvocation::setLangDefaults(LangOptions &Opts, InputKind IK,
     if (Opts.IncludeDefaultHeader) {
       if (Opts.DeclareOpenCLBuiltins) {
         // Only include base header file for builtin types and constants.
-        PPOpts.Includes.push_back("opencl-c-base.h");
+        Includes.push_back("opencl-c-base.h");
       } else {
-        PPOpts.Includes.push_back("opencl-c.h");
+        Includes.push_back("opencl-c.h");
       }
     }
   }
@@ -2189,8 +2144,8 @@ static const StringRef GetInputKindName(InputKind IK) {
 }
 
 static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
-                          const TargetOptions &TargetOpts,
-                          PreprocessorOptions &PPOpts,
+                          const llvm::Triple &T,
+                          std::vector<std::string> &Includes,
                           DiagnosticsEngine &Diags) {
   // FIXME: Cleanup per-file based stuff.
   LangStandard::Kind LangStd = LangStandard::lang_unspecified;
@@ -2298,8 +2253,7 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
 
   Opts.DeclareSPIRVBuiltins = Args.hasArg(OPT_fdeclare_spirv_builtins);
 
-  llvm::Triple T(TargetOpts.Triple);
-  CompilerInvocation::setLangDefaults(Opts, IK, T, PPOpts, LangStd);
+  CompilerInvocation::setLangDefaults(Opts, IK, T, Includes, LangStd);
 
   // -cl-strict-aliasing needs to emit diagnostic in the case where CL > 1.0.
   // This option should be deprecated for CL > 1.0 because
@@ -2546,6 +2500,7 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
                         || Args.hasArg(OPT_fdump_record_layouts);
   if (Opts.FastRelaxedMath)
     Opts.setDefaultFPContractMode(LangOptions::FPM_Fast);
+  Opts.XLPragmaPack = Args.hasArg(OPT_fxl_pragma_pack);
   llvm::sort(Opts.ModuleFeatures);
   Opts.NativeHalfType |= Args.hasArg(OPT_fnative_half_type);
   Opts.NativeHalfArgsAndReturns |= Args.hasArg(OPT_fnative_half_arguments_and_returns);
@@ -2575,7 +2530,6 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
       Diags.Report(diag::err_drv_argument_not_allowed_with)
           << A->getSpelling() << "-fdefault-calling-conv";
     else {
-      llvm::Triple T(TargetOpts.Triple);
       if (T.getArch() != llvm::Triple::x86)
         Diags.Report(diag::err_drv_argument_not_allowed_with)
             << A->getSpelling() << T.getTriple();
@@ -2612,8 +2566,7 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
       // Add unsupported host targets here:
       case llvm::Triple::nvptx:
       case llvm::Triple::nvptx64:
-        Diags.Report(diag::err_drv_omp_host_target_not_supported)
-            << TargetOpts.Triple;
+        Diags.Report(diag::err_drv_omp_host_target_not_supported) << T.str();
         break;
       }
     }
@@ -2726,14 +2679,6 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
       Opts.setDefaultFPContractMode(LangOptions::FPM_FastHonorPragmas);
     else
       Diags.Report(diag::err_drv_invalid_value) << A->getAsString(Args) << Val;
-  }
-
-  if (Args.hasArg(OPT_ftrapping_math)) {
-    Opts.setFPExceptionMode(LangOptions::FPE_Strict);
-  }
-
-  if (Args.hasArg(OPT_fno_trapping_math)) {
-    Opts.setFPExceptionMode(LangOptions::FPE_Ignore);
   }
 
   LangOptions::FPExceptionModeKind FPEB = LangOptions::FPE_Ignore;
@@ -3033,11 +2978,11 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Res,
   InputKind DashX = ParseFrontendArgs(Res.getFrontendOpts(), Args, Diags,
                                       LangOpts.IsHeaderFile);
   ParseTargetArgs(Res.getTargetOpts(), Args, Diags);
-  Success &= ParseCodeGenArgs(Res.getCodeGenOpts(), Args, DashX, Diags,
-                              Res.getTargetOpts(), Res.getFrontendOpts());
+  llvm::Triple T(Res.getTargetOpts().Triple);
+  Success &= ParseCodeGenArgs(Res.getCodeGenOpts(), Args, DashX, Diags, T,
+                              Res.getFrontendOpts().OutputFile);
   ParseHeaderSearchArgs(Res.getHeaderSearchOpts(), Args,
                         Res.getFileSystemOpts().WorkingDir);
-  llvm::Triple T(Res.getTargetOpts().Triple);
   if (DashX.getFormat() == InputKind::Precompiled ||
       DashX.getLanguage() == Language::LLVM_IR) {
     // ObjCAAutoRefCount and Sanitize LangOpts are used to setup the
@@ -3053,8 +2998,8 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Res,
   } else {
     // Other LangOpts are only initialized when the input is not AST or LLVM IR.
     // FIXME: Should we really be calling this for an Language::Asm input?
-    ParseLangArgs(LangOpts, Args, DashX, Res.getTargetOpts(),
-                  Res.getPreprocessorOpts(), Diags);
+    ParseLangArgs(LangOpts, Args, DashX, T, Res.getPreprocessorOpts().Includes,
+                  Diags);
     if (Res.getFrontendOpts().ProgramAction == frontend::RewriteObjC)
       LangOpts.ObjCExceptions = 1;
     if (T.isOSDarwin() && DashX.isPreprocessed()) {

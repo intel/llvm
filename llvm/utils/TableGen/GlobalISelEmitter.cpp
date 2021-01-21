@@ -201,7 +201,7 @@ static Optional<LLTCodeGen> MVTToLLT(MVT::SimpleValueType SVT) {
 }
 
 static std::string explainPredicates(const TreePatternNode *N) {
-  std::string Explanation = "";
+  std::string Explanation;
   StringRef Separator = "";
   for (const TreePredicateCall &Call : N->getPredicateCalls()) {
     const TreePredicateFn &P = Call.Fn;
@@ -305,8 +305,8 @@ static Error failedImport(const Twine &Reason) {
 }
 
 static Error isTrivialOperatorNode(const TreePatternNode *N) {
-  std::string Explanation = "";
-  std::string Separator = "";
+  std::string Explanation;
+  std::string Separator;
 
   bool HasUnsupportedPredicate = false;
   for (const TreePredicateCall &Call : N->getPredicateCalls()) {
@@ -453,9 +453,8 @@ public:
   MatchTableRecord(Optional<unsigned> LabelID_, StringRef EmitStr,
                    unsigned NumElements, unsigned Flags,
                    int64_t RawValue = std::numeric_limits<int64_t>::min())
-      : LabelID(LabelID_.hasValue() ? LabelID_.getValue() : ~0u),
-        EmitStr(EmitStr), NumElements(NumElements), Flags(Flags),
-        RawValue(RawValue) {
+      : LabelID(LabelID_.getValueOr(~0u)), EmitStr(EmitStr),
+        NumElements(NumElements), Flags(Flags), RawValue(RawValue) {
     assert((!LabelID_.hasValue() || LabelID != ~0u) &&
            "This value is reserved for non-labels");
   }
@@ -935,7 +934,7 @@ public:
     std::string ParentName(ParentSymbolicName);
     if (ComplexSubOperands.count(SymbolicName)) {
       auto RecordedParentName = ComplexSubOperandsParentName[SymbolicName];
-      if (RecordedParentName.compare(ParentName) != 0)
+      if (RecordedParentName != ParentName)
         return failedImport("Error: Complex suboperand " + SymbolicName +
                             " referenced by different operands: " +
                             RecordedParentName + " and " + ParentName + ".");
@@ -1331,7 +1330,7 @@ public:
   bool isIdentical(const PredicateMatcher &B) const override {
     return OperandPredicateMatcher::isIdentical(B) &&
            StoreIdx == cast<RecordNamedOperandMatcher>(&B)->StoreIdx &&
-           Name.compare(cast<RecordNamedOperandMatcher>(&B)->Name) == 0;
+           Name == cast<RecordNamedOperandMatcher>(&B)->Name;
   }
 
   void emitPredicateOpcodes(MatchTable &Table,
@@ -4690,6 +4689,8 @@ Expected<action_iterator> GlobalISelEmitter::importExplicitUseRenderers(
 
   // EXTRACT_SUBREG needs to use a subregister COPY.
   if (Name == "EXTRACT_SUBREG") {
+    if (!Dst->getChild(1)->isLeaf())
+      return failedImport("EXTRACT_SUBREG child #1 is not a leaf");
     DefInit *SubRegInit = dyn_cast<DefInit>(Dst->getChild(1)->getLeafValue());
     if (!SubRegInit)
       return failedImport("EXTRACT_SUBREG child #1 is not a subreg index");
@@ -5479,15 +5480,13 @@ GlobalISelEmitter::buildMatchTable(MutableArrayRef<RuleMatcher> Rules,
       OpcodeOrder[Opcode] = CurrentOrdering++;
   }
 
-  std::stable_sort(InputRules.begin(), InputRules.end(),
-                   [&OpcodeOrder](const Matcher *A, const Matcher *B) {
-                     auto *L = static_cast<const RuleMatcher *>(A);
-                     auto *R = static_cast<const RuleMatcher *>(B);
-                     return std::make_tuple(OpcodeOrder[L->getOpcode()],
-                                            L->getNumOperands()) <
-                            std::make_tuple(OpcodeOrder[R->getOpcode()],
-                                            R->getNumOperands());
-                   });
+  llvm::stable_sort(InputRules, [&OpcodeOrder](const Matcher *A,
+                                               const Matcher *B) {
+    auto *L = static_cast<const RuleMatcher *>(A);
+    auto *R = static_cast<const RuleMatcher *>(B);
+    return std::make_tuple(OpcodeOrder[L->getOpcode()], L->getNumOperands()) <
+           std::make_tuple(OpcodeOrder[R->getOpcode()], R->getNumOperands());
+  });
 
   for (Matcher *Rule : InputRules)
     Rule->optimize();
@@ -6087,11 +6086,10 @@ void SwitchMatcher::finalize() {
   if (empty())
     return;
 
-  std::stable_sort(Matchers.begin(), Matchers.end(),
-                   [](const Matcher *L, const Matcher *R) {
-                     return L->getFirstCondition().getValue() <
-                            R->getFirstCondition().getValue();
-                   });
+  llvm::stable_sort(Matchers, [](const Matcher *L, const Matcher *R) {
+    return L->getFirstCondition().getValue() <
+           R->getFirstCondition().getValue();
+  });
   Condition = Matchers[0]->popFirstCondition();
   for (unsigned I = 1, E = Values.size(); I < E; ++I)
     Matchers[I]->popFirstCondition();

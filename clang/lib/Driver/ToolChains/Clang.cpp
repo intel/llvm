@@ -776,9 +776,11 @@ static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
     D.Diag(diag::err_drv_argument_not_allowed_with)
         << ProfileGenerateArg->getSpelling() << ProfileUseArg->getSpelling();
 
-  if (CSPGOGenerateArg && PGOGenerateArg)
+  if (CSPGOGenerateArg && PGOGenerateArg) {
     D.Diag(diag::err_drv_argument_not_allowed_with)
         << CSPGOGenerateArg->getSpelling() << PGOGenerateArg->getSpelling();
+    PGOGenerateArg = nullptr;
+  }
 
   if (ProfileGenerateArg) {
     if (ProfileGenerateArg->getOption().matches(
@@ -2881,9 +2883,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   if (TrappingMath) {
     // FP Exception Behavior is also set to strict
     assert(FPExceptionBehavior.equals("strict"));
-    CmdArgs.push_back("-ftrapping-math");
-  } else if (TrappingMathPresent)
-    CmdArgs.push_back("-fno-trapping-math");
+  }
 
   // The default is IEEE.
   if (DenormalFPMath != llvm::DenormalMode::getIEEE()) {
@@ -3776,9 +3776,10 @@ static DwarfFissionKind getDebugFissionKind(const Driver &D,
   return DwarfFissionKind::None;
 }
 
-static void RenderDebugOptions(const ToolChain &TC, const Driver &D,
+static void renderDebugOptions(const ToolChain &TC, const Driver &D,
                                const llvm::Triple &T, const ArgList &Args,
-                               bool EmitCodeView, ArgStringList &CmdArgs,
+                               bool EmitCodeView, bool IRInput,
+                               ArgStringList &CmdArgs,
                                codegenoptions::DebugInfoKind &DebugInfoKind,
                                DwarfFissionKind &DwarfFission) {
   if (Args.hasFlag(options::OPT_fdebug_info_for_profiling,
@@ -3802,7 +3803,10 @@ static void RenderDebugOptions(const ToolChain &TC, const Driver &D,
       Args.hasFlag(options::OPT_fsplit_dwarf_inlining,
                    options::OPT_fno_split_dwarf_inlining, false);
 
-  if (const Arg *A = Args.getLastArg(options::OPT_g_Group)) {
+  // Normally -gsplit-dwarf is only useful with -gN. For IR input, Clang does
+  // object file generation and no IR generation, -gN should not be needed. So
+  // allow -gsplit-dwarf with either -gN or IR input.
+  if (IRInput || Args.hasArg(options::OPT_g_Group)) {
     Arg *SplitDWARFArg;
     DwarfFission = getDebugFissionKind(D, Args, SplitDWARFArg);
     if (DwarfFission != DwarfFissionKind::None &&
@@ -3810,7 +3814,8 @@ static void RenderDebugOptions(const ToolChain &TC, const Driver &D,
       DwarfFission = DwarfFissionKind::None;
       SplitDWARFInlining = false;
     }
-
+  }
+  if (const Arg *A = Args.getLastArg(options::OPT_g_Group)) {
     DebugInfoKind = codegenoptions::LimitedDebugInfo;
 
     // If the last option explicitly specified a debug-info level, use it.
@@ -5111,8 +5116,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     AddClangCLArgs(Args, InputType, CmdArgs, &DebugInfoKind, &EmitCodeView);
 
   DwarfFissionKind DwarfFission = DwarfFissionKind::None;
-  RenderDebugOptions(TC, D, RawTriple, Args, EmitCodeView, CmdArgs,
-                     DebugInfoKind, DwarfFission);
+  renderDebugOptions(TC, D, RawTriple, Args, EmitCodeView,
+                     types::isLLVMIR(InputType), CmdArgs, DebugInfoKind,
+                     DwarfFission);
 
   // Add the split debug info name to the command lines here so we
   // can propagate it to the backend.
@@ -6300,6 +6306,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Args.hasFlag(options::OPT_fapple_pragma_pack,
                    options::OPT_fno_apple_pragma_pack, false))
     CmdArgs.push_back("-fapple-pragma-pack");
+
+  if (Args.hasFlag(options::OPT_fxl_pragma_pack,
+                   options::OPT_fno_xl_pragma_pack, RawTriple.isOSAIX()))
+    CmdArgs.push_back("-fxl-pragma-pack");
 
   // Remarks can be enabled with any of the `-f.*optimization-record.*` flags.
   if (willEmitRemarks(Args) && checkRemarksOptions(D, Args, Triple))

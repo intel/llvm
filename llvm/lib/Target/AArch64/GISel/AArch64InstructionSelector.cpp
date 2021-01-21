@@ -1873,7 +1873,6 @@ void AArch64InstructionSelector::materializeLargeCMVal(
                               AArch64II::MO_G1 | AArch64II::MO_NC, 16, 0);
   DstReg = BuildMovK(DstReg, AArch64II::MO_G2 | AArch64II::MO_NC, 32, 0);
   BuildMovK(DstReg, AArch64II::MO_G3, 48, I.getOperand(0).getReg());
-  return;
 }
 
 bool AArch64InstructionSelector::preISelLower(MachineInstr &I) {
@@ -1940,6 +1939,24 @@ bool AArch64InstructionSelector::preISelLower(MachineInstr &I) {
     MRI.setRegBank(NewSrc.getReg(0), RBI.getRegBank(AArch64::GPRRegBankID));
     I.getOperand(1).setReg(NewSrc.getReg(0));
     return true;
+  }
+  case TargetOpcode::G_UITOFP:
+  case TargetOpcode::G_SITOFP: {
+    // If both source and destination regbanks are FPR, then convert the opcode
+    // to G_SITOF so that the importer can select it to an fpr variant.
+    // Otherwise, it ends up matching an fpr/gpr variant and adding a cross-bank
+    // copy.
+    Register SrcReg = I.getOperand(1).getReg();
+    if (MRI.getType(SrcReg).isVector())
+      return false;
+    if (RBI.getRegBank(SrcReg, MRI, TRI)->getID() == AArch64::FPRRegBankID) {
+      if (I.getOpcode() == TargetOpcode::G_SITOFP)
+        I.setDesc(TII.get(AArch64::G_SITOF));
+      else
+        I.setDesc(TII.get(AArch64::G_UITOF));
+      return true;
+    }
+    return false;
   }
   default:
     return false;
@@ -2289,6 +2306,7 @@ bool AArch64InstructionSelector::select(MachineInstr &I) {
     const LLT s16 = LLT::scalar(16);
     const LLT s32 = LLT::scalar(32);
     const LLT s64 = LLT::scalar(64);
+    const LLT s128 = LLT::scalar(128);
     const LLT p0 = LLT::pointer(0, 64);
 
     const Register DefReg = I.getOperand(0).getReg();
@@ -2298,10 +2316,10 @@ bool AArch64InstructionSelector::select(MachineInstr &I) {
 
     // FIXME: Redundant check, but even less readable when factored out.
     if (isFP) {
-      if (Ty != s32 && Ty != s64) {
+      if (Ty != s32 && Ty != s64 && Ty != s128) {
         LLVM_DEBUG(dbgs() << "Unable to materialize FP " << Ty
                           << " constant, expected: " << s32 << " or " << s64
-                          << '\n');
+                          << " or " << s128 << '\n');
         return false;
       }
 
@@ -2314,7 +2332,9 @@ bool AArch64InstructionSelector::select(MachineInstr &I) {
 
       // The case when we have 0.0 is covered by tablegen. Reject it here so we
       // can be sure tablegen works correctly and isn't rescued by this code.
-      if (I.getOperand(1).getFPImm()->getValueAPF().isExactlyValue(0.0))
+      // 0.0 is not covered by tablegen for FP128. So we will handle this 
+      // scenario in the code here.
+      if (DefSize != 128 && I.getOperand(1).getFPImm()->isExactlyValue(0.0))
         return false;
     } else {
       // s32 and s64 are covered by tablegen.
@@ -2341,15 +2361,17 @@ bool AArch64InstructionSelector::select(MachineInstr &I) {
       // Either emit a FMOV, or emit a copy to emit a normal mov.
       const TargetRegisterClass &GPRRC =
           DefSize == 32 ? AArch64::GPR32RegClass : AArch64::GPR64RegClass;
-      const TargetRegisterClass &FPRRC =
-          DefSize == 32 ? AArch64::FPR32RegClass : AArch64::FPR64RegClass;
+      const TargetRegisterClass &FPRRC = 
+          DefSize == 32 ? AArch64::FPR32RegClass 
+                        : (DefSize == 64 ? AArch64::FPR64RegClass 
+                                         : AArch64::FPR128RegClass);
 
       // Can we use a FMOV instruction to represent the immediate?
       if (emitFMovForFConstant(I, MRI))
         return true;
 
       // For 64b values, emit a constant pool load instead.
-      if (DefSize == 64) {
+      if (DefSize == 64 || DefSize == 128) {
         auto *FPImm = I.getOperand(1).getFPImm();
         MachineIRBuilder MIB(I);
         auto *LoadMI = emitLoadFromConstantPool(FPImm, MIB);

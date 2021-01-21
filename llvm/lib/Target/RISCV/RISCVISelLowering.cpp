@@ -12,12 +12,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "RISCVISelLowering.h"
+#include "MCTargetDesc/RISCVMatInt.h"
 #include "RISCV.h"
 #include "RISCVMachineFunctionInfo.h"
 #include "RISCVRegisterInfo.h"
 #include "RISCVSubtarget.h"
 #include "RISCVTargetMachine.h"
-#include "Utils/RISCVMatInt.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/CallingConvLower.h"
@@ -32,6 +32,7 @@
 #include "llvm/IR/IntrinsicsRISCV.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/KnownBits.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -348,6 +349,8 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   if (Subtarget.hasStdExtV()) {
     setBooleanVectorContents(ZeroOrOneBooleanContent);
 
+    setOperationAction(ISD::VSCALE, XLenVT, Custom);
+
     // RVV intrinsics may have illegal operands.
     // We also need to custom legalize vmv.x.s.
     setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::i8, Custom);
@@ -374,6 +377,48 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
     // We must custom-lower SPLAT_VECTOR vXi64 on RV32
     if (!Subtarget.is64Bit())
       setOperationAction(ISD::SPLAT_VECTOR, MVT::i64, Custom);
+
+    // Expand various CCs to best match the RVV ISA, which natively supports UNE
+    // but no other unordered comparisons, and supports all ordered comparisons
+    // except ONE. Additionally, we expand GT,OGT,GE,OGE for optimization
+    // purposes; they are expanded to their swapped-operand CCs (LT,OLT,LE,OLE),
+    // and we pattern-match those back to the "original", swapping operands once
+    // more. This way we catch both operations and both "vf" and "fv" forms with
+    // fewer patterns.
+    ISD::CondCode VFPCCToExpand[] = {
+        ISD::SETO,   ISD::SETONE, ISD::SETUEQ, ISD::SETUGT,
+        ISD::SETUGE, ISD::SETULT, ISD::SETULE, ISD::SETUO,
+        ISD::SETGT,  ISD::SETOGT, ISD::SETGE,  ISD::SETOGE,
+    };
+
+    if (Subtarget.hasStdExtZfh()) {
+      for (auto VT : {RISCVVMVTs::vfloat16mf4_t, RISCVVMVTs::vfloat16mf2_t,
+                      RISCVVMVTs::vfloat16m1_t, RISCVVMVTs::vfloat16m2_t,
+                      RISCVVMVTs::vfloat16m4_t, RISCVVMVTs::vfloat16m8_t}) {
+        setOperationAction(ISD::SPLAT_VECTOR, VT, Legal);
+        for (auto CC : VFPCCToExpand)
+          setCondCodeAction(CC, VT, Expand);
+      }
+    }
+
+    if (Subtarget.hasStdExtF()) {
+      for (auto VT : {RISCVVMVTs::vfloat32mf2_t, RISCVVMVTs::vfloat32m1_t,
+                      RISCVVMVTs::vfloat32m2_t, RISCVVMVTs::vfloat32m4_t,
+                      RISCVVMVTs::vfloat32m8_t}) {
+        setOperationAction(ISD::SPLAT_VECTOR, VT, Legal);
+        for (auto CC : VFPCCToExpand)
+          setCondCodeAction(CC, VT, Expand);
+      }
+    }
+
+    if (Subtarget.hasStdExtD()) {
+      for (auto VT : {RISCVVMVTs::vfloat64m1_t, RISCVVMVTs::vfloat64m2_t,
+                      RISCVVMVTs::vfloat64m4_t, RISCVVMVTs::vfloat64m8_t}) {
+        setOperationAction(ISD::SPLAT_VECTOR, VT, Legal);
+        for (auto CC : VFPCCToExpand)
+          setCondCodeAction(CC, VT, Expand);
+      }
+    }
   }
 
   // Function alignments.
@@ -642,6 +687,17 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
   }
   case ISD::SPLAT_VECTOR:
     return lowerSPLATVECTOR(Op, DAG);
+  case ISD::VSCALE: {
+    MVT VT = Op.getSimpleValueType();
+    SDLoc DL(Op);
+    SDValue VLENB = DAG.getNode(RISCVISD::READ_VLENB, DL, VT);
+    // We define our scalable vector types for lmul=1 to use a 64 bit known
+    // minimum size. e.g. <vscale x 2 x i32>. VLENB is in bytes so we calculate
+    // vscale as VLENB / 8.
+    SDValue VScale = DAG.getNode(ISD::SRL, DL, VT, VLENB,
+                                 DAG.getConstant(3, DL, VT));
+    return DAG.getNode(ISD::MUL, DL, VT, VScale, Op.getOperand(0));
+  }
   }
 }
 
@@ -1772,6 +1828,27 @@ SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
     if (auto GORC = combineORToGORC(SDValue(N, 0), DCI.DAG, Subtarget))
       return GORC;
     break;
+  case RISCVISD::SELECT_CC: {
+    // Transform
+    // (select_cc (xor X, 1), 0, setne, trueV, falseV) ->
+    // (select_cc X, 0, seteq, trueV, falseV) if we can prove X is 0/1.
+    // This can occur when legalizing some floating point comparisons.
+    SDValue LHS = N->getOperand(0);
+    SDValue RHS = N->getOperand(1);
+    auto CCVal = static_cast<ISD::CondCode>(N->getConstantOperandVal(2));
+    APInt Mask = APInt::getBitsSetFrom(LHS.getValueSizeInBits(), 1);
+    if ((CCVal == ISD::SETNE || CCVal == ISD::SETEQ) && isNullConstant(RHS) &&
+        LHS.getOpcode() == ISD::XOR && isOneConstant(LHS.getOperand(1)) &&
+        DAG.MaskedValueIsZero(LHS.getOperand(0), Mask)) {
+      SDLoc DL(N);
+      CCVal = ISD::getSetCCInverse(CCVal, LHS.getValueType());
+      SDValue TargetCC = DAG.getConstant(CCVal, DL, Subtarget.getXLenVT());
+      return DAG.getNode(RISCVISD::SELECT_CC, DL, N->getValueType(0),
+                         {LHS.getOperand(0), RHS, TargetCC, N->getOperand(3),
+                          N->getOperand(4)});
+    }
+    break;
+  }
   }
 
   return SDValue();
@@ -1821,6 +1898,30 @@ bool RISCVTargetLowering::isDesirableToCommuteWithShift(
     }
   }
   return true;
+}
+
+void RISCVTargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
+                                                        KnownBits &Known,
+                                                        const APInt &DemandedElts,
+                                                        const SelectionDAG &DAG,
+                                                        unsigned Depth) const {
+  unsigned Opc = Op.getOpcode();
+  assert((Opc >= ISD::BUILTIN_OP_END ||
+          Opc == ISD::INTRINSIC_WO_CHAIN ||
+          Opc == ISD::INTRINSIC_W_CHAIN ||
+          Opc == ISD::INTRINSIC_VOID) &&
+         "Should use MaskedValueIsZero if you don't know whether Op"
+         " is a target node!");
+
+  Known.resetAll();
+  switch (Opc) {
+  default: break;
+  case RISCVISD::READ_VLENB:
+    // We assume VLENB is at least 8 bytes.
+    // FIXME: The 1.0 draft spec defines minimum VLEN as 128 bits.
+    Known.Zero.setLowBits(3);
+    break;
+  }
 }
 
 unsigned RISCVTargetLowering::ComputeNumSignBitsForTargetNode(
@@ -3496,6 +3597,7 @@ const char *RISCVTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(GORCIW)
   NODE_NAME_CASE(VMV_X_S)
   NODE_NAME_CASE(SPLAT_VECTOR_I64)
+  NODE_NAME_CASE(READ_VLENB)
   }
   // clang-format on
   return nullptr;

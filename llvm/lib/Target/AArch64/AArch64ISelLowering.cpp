@@ -3955,7 +3955,6 @@ void selectGatherScatterAddrMode(SDValue &BasePtr, SDValue &Index, EVT MemVT,
   Opcode = NewOp;
   BasePtr = Index->getOperand(0);
   Index = ConstOffset;
-  return;
 }
 
 SDValue AArch64TargetLowering::LowerMGATHER(SDValue Op,
@@ -5400,7 +5399,7 @@ AArch64TargetLowering::LowerCall(CallLoweringInfo &CLI,
       Type *Ty = EVT(VA.getValVT()).getTypeForEVT(*DAG.getContext());
       Align Alignment = DAG.getDataLayout().getPrefTypeAlign(Ty);
       int FI = MFI.CreateStackObject(StoreSize, Alignment, false);
-      MFI.setStackID(FI, TargetStackID::SVEVector);
+      MFI.setStackID(FI, TargetStackID::ScalableVector);
 
       MachinePointerInfo MPI =
           MachinePointerInfo::getFixedStack(DAG.getMachineFunction(), FI);

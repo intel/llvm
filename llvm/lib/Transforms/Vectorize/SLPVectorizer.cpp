@@ -3094,6 +3094,16 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
     case Instruction::Store: {
       // Check if the stores are consecutive or if we need to swizzle them.
       llvm::Type *ScalarTy = cast<StoreInst>(VL0)->getValueOperand()->getType();
+      // Avoid types that are padded when being allocated as scalars, while
+      // being packed together in a vector (such as i1).
+      if (DL->getTypeSizeInBits(ScalarTy) !=
+          DL->getTypeAllocSizeInBits(ScalarTy)) {
+        BS.cancelScheduling(VL, VL0);
+        newTreeEntry(VL, None /*not vectorized*/, S, UserTreeIdx,
+                     ReuseShuffleIndicies);
+        LLVM_DEBUG(dbgs() << "SLP: Gathering stores of non-packed type.\n");
+        return;
+      }
       // Make sure all stores in the bundle are simple - we can't vectorize
       // atomic or volatile stores.
       SmallVector<Value *, 4> PointerOps(VL.size());
@@ -6669,9 +6679,6 @@ class HorizontalReduction {
   /// The operation data of the reduction operation.
   OperationData RdxTreeInst;
 
-  /// The operation data for the leaf values that we perform a reduction on.
-  OperationData RdxLeafVal;
-
   /// Checks if the ParentStackElem.first should be marked as a reduction
   /// operation with an extra argument or as extra argument itself.
   void markExtraArg(std::pair<Instruction *, unsigned> &ParentStackElem,
@@ -6809,14 +6816,16 @@ public:
     if (!RdxTreeInst.isVectorizable(B))
       return false;
 
+    // Analyze "regular" integer/FP types for reductions - no target-specific
+    // types or pointers.
     Type *Ty = B->getType();
-    if (!isValidElementType(Ty))
-      return false;
-    if (!Ty->isIntOrIntVectorTy() && !Ty->isFPOrFPVectorTy())
+    if (!isValidElementType(Ty) || Ty->isPointerTy())
       return false;
 
-    RdxLeafVal.clear();
     ReductionRoot = B;
+
+    // The operation data for the leaf values that we perform a reduction on.
+    OperationData RdxLeafVal;
 
     // Post order traverse the reduction tree starting at B. We only handle true
     // trees containing only binary operators.
@@ -6826,7 +6835,7 @@ public:
     while (!Stack.empty()) {
       Instruction *TreeN = Stack.back().first;
       unsigned EdgeToVisit = Stack.back().second++;
-      OperationData OpData = getOperationData(TreeN);
+      const OperationData OpData = getOperationData(TreeN);
       bool IsReducedValue = OpData != RdxTreeInst;
 
       // Postorder vist.
@@ -6857,49 +6866,38 @@ public:
 
       // Visit left or right.
       Value *NextV = TreeN->getOperand(EdgeToVisit);
-      if (NextV != Phi) {
-        auto *I = dyn_cast<Instruction>(NextV);
-        OpData = getOperationData(I);
-        // Continue analysis if the next operand is a reduction operation or
-        // (possibly) a reduced value. If the reduced value opcode is not set,
-        // the first met operation != reduction operation is considered as the
-        // reduced value class.
-        const bool IsRdxInst = OpData == RdxTreeInst;
-        if (I && (!RdxLeafVal || OpData == RdxLeafVal || IsRdxInst)) {
-          // Only handle trees in the current basic block.
-          if (!RdxTreeInst.hasSameParent(I, B->getParent(), IsRdxInst)) {
+      auto *I = dyn_cast<Instruction>(NextV);
+      const OperationData EdgeOpData = getOperationData(I);
+      // Continue analysis if the next operand is a reduction operation or
+      // (possibly) a reduced value. If the reduced value opcode is not set,
+      // the first met operation != reduction operation is considered as the
+      // reduced value class.
+      // Only handle trees in the current basic block.
+      // Each tree node needs to have minimal number of users except for the
+      // ultimate reduction.
+      const bool IsRdxInst = EdgeOpData == RdxTreeInst;
+      if (I && I != Phi && I != B &&
+          RdxTreeInst.hasSameParent(I, B->getParent(), IsRdxInst) &&
+          RdxTreeInst.hasRequiredNumberOfUses(I, IsRdxInst) &&
+          (!RdxLeafVal || EdgeOpData == RdxLeafVal || IsRdxInst)) {
+        if (IsRdxInst) {
+          // We need to be able to reassociate the reduction operations.
+          if (!EdgeOpData.isAssociative(I)) {
             // I is an extra argument for TreeN (its parent operation).
             markExtraArg(Stack.back(), I);
             continue;
           }
-
-          // Each tree node needs to have minimal number of users except for the
-          // ultimate reduction.
-          if (!RdxTreeInst.hasRequiredNumberOfUses(I, IsRdxInst) && I != B) {
-            // I is an extra argument for TreeN (its parent operation).
-            markExtraArg(Stack.back(), I);
-            continue;
-          }
-
-          if (IsRdxInst) {
-            // We need to be able to reassociate the reduction operations.
-            if (!OpData.isAssociative(I)) {
-              // I is an extra argument for TreeN (its parent operation).
-              markExtraArg(Stack.back(), I);
-              continue;
-            }
-          } else if (RdxLeafVal && RdxLeafVal != OpData) {
-            // Make sure that the opcodes of the operations that we are going to
-            // reduce match.
-            // I is an extra argument for TreeN (its parent operation).
-            markExtraArg(Stack.back(), I);
-            continue;
-          } else if (!RdxLeafVal) {
-            RdxLeafVal = OpData;
-          }
-          Stack.push_back(std::make_pair(I, OpData.getFirstOperandIndex()));
+        } else if (RdxLeafVal && RdxLeafVal != EdgeOpData) {
+          // Make sure that the opcodes of the operations that we are going to
+          // reduce match.
+          // I is an extra argument for TreeN (its parent operation).
+          markExtraArg(Stack.back(), I);
           continue;
+        } else if (!RdxLeafVal) {
+          RdxLeafVal = EdgeOpData;
         }
+        Stack.push_back(std::make_pair(I, EdgeOpData.getFirstOperandIndex()));
+        continue;
       }
       // NextV is an extra argument for TreeN (its parent operation).
       markExtraArg(Stack.back(), NextV);
