@@ -211,12 +211,12 @@ program_impl::~program_impl() {
 
 cl_program program_impl::get() const {
   throw_if_state_is(program_state::none);
-  if (is_host()) {
-    throw invalid_object_error("This instance of program is a host instance",
-                               PI_INVALID_PROGRAM);
+  if (is_host() || getPlugin().getBackend() != cl::sycl::backend::opencl) {
+    throw invalid_object_error(
+        "This instance of program doesn't support OpenCL interoperability.",
+        PI_INVALID_PROGRAM);
   }
-  const detail::plugin &Plugin = getPlugin();
-  Plugin.call<PiApiKind::piProgramRetain>(MProgram);
+  getPlugin().call<PiApiKind::piProgramRetain>(MProgram);
   return pi::cast<cl_program>(MProgram);
 }
 
