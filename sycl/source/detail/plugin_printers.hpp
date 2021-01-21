@@ -128,7 +128,7 @@ void printArgs(Arg0 arg0, Args... args) {
 }
 
 template <typename T> struct printOut {
-  printOut(T val) {}
+  printOut(T) {}
 }; // Do nothing
 
 template <> struct printOut<PiEvent *> {

@@ -1055,8 +1055,6 @@ public:
     }
 
     // Extracted objects data for archive mode.
-    SmallVector<std::string, 8u> ArNames;
-    SmallVector<SmallVector<char, 0u>, 8u> ArData;
     SmallVector<NewArchiveMember, 8u> ArMembers;
 
     // Read all children.
@@ -1119,17 +1117,17 @@ public:
             if (Error Err = OFH.ReadBundle(OS, *Buf))
               return Err;
           } else if (Mode == OutputType::Archive) {
-            auto &Name =
-                ArNames.emplace_back((TT + "." + *ChildNameOrErr).str());
-            auto &Data = ArData.emplace_back();
+            // Extract the bundle to a buffer.
+            SmallVector<char> Data;
             raw_svector_ostream ChildOS{Data};
-
-            // Extract the bundle.
             if (Error Err = OFH.ReadBundle(ChildOS, *Buf))
               return Err;
 
-            ArMembers.emplace_back(
-                MemoryBufferRef{StringRef(Data.data(), Data.size()), Name});
+            // Add new archive member.
+            NewArchiveMember &Member = ArMembers.emplace_back();
+            std::string Name = (TT + "." + *ChildNameOrErr).str();
+            Member.Buf = MemoryBuffer::getMemBufferCopy(ChildOS.str(), Name);
+            Member.MemberName = Member.Buf->getBufferIdentifier();
           }
           if (Error Err = OFH.ReadBundleEnd(*Buf))
             return Err;
@@ -1551,7 +1549,7 @@ int main(int argc, const char **argv) {
     return 0;
   }
 
-  if (OutputFileNames.getNumOccurrences() == 0) {
+  if (OutputFileNames.getNumOccurrences() == 0 && !CheckSection) {
     reportError(createStringError(
         errc::invalid_argument,
         "for the --outputs option: must be specified at least once!"));
@@ -1660,6 +1658,15 @@ int main(int argc, const char **argv) {
     }
 
     ++Index;
+  }
+
+  if (CheckSection) {
+    Expected<bool> Res = CheckBundledSection();
+    if (!Res) {
+      reportError(Res.takeError());
+      return 1;
+    }
+    return !*Res;
   }
 
   // Host triple is not really needed for unbundling operation, so do not

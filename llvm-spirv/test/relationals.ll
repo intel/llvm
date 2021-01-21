@@ -2,6 +2,8 @@
 ; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
+; RUN: llvm-spirv %t.spv -r --spirv-target-env=SPV-IR -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-LLVM
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir"
@@ -11,6 +13,18 @@ declare dso_local spir_func <4 x i8> @_Z13__spirv_IsInfIDv4_aDv4_fET_T0_(<4 x fl
 declare dso_local spir_func <4 x i8> @_Z16__spirv_IsFiniteIDv4_aDv4_fET_T0_(<4 x float>)
 declare dso_local spir_func <4 x i8> @_Z16__spirv_IsNormalIDv4_aDv4_fET_T0_(<4 x float>)
 declare dso_local spir_func <4 x i8> @_Z18__spirv_SignBitSetIDv4_aDv4_fET_T0_(<4 x float>)
+
+; CHECK-SPV-LLVM: call spir_func <4 x i32> @_Z13__spirv_IsNanDv4_f
+; CHECK-SPV-LLVM: call spir_func <4 x i32> @_Z13__spirv_IsInfDv4_f
+; CHECK-SPV-LLVM: call spir_func <4 x i32> @_Z16__spirv_IsFiniteDv4_f
+; CHECK-SPV-LLVM: call spir_func <4 x i32> @_Z16__spirv_IsNormalDv4_f
+; CHECK-SPV-LLVM: call spir_func <4 x i32> @_Z18__spirv_SignBitSetDv4_f
+
+; CHECK-SPV-LLVM: declare spir_func <4 x i32> @_Z13__spirv_IsNanDv4_f(<4 x float>)
+; CHECK-SPV-LLVM: declare spir_func <4 x i32> @_Z13__spirv_IsInfDv4_f(<4 x float>)
+; CHECK-SPV-LLVM: declare spir_func <4 x i32> @_Z16__spirv_IsFiniteDv4_f(<4 x float>)
+; CHECK-SPV-LLVM: declare spir_func <4 x i32> @_Z16__spirv_IsNormalDv4_f(<4 x float>)
+; CHECK-SPV-LLVM: declare spir_func <4 x i32> @_Z18__spirv_SignBitSetDv4_f(<4 x float>)
 
 ; CHECK-SPIRV: {{[0-9]+}} TypeBool [[TBool:[0-9]+]]
 ; CHECK-SPIRV: {{[0-9]+}} TypeVector [[TBoolVec:[0-9]+]] [[TBool]]

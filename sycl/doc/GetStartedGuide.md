@@ -661,7 +661,7 @@ class CUDASelector : public cl::sycl::device_selector {
 
 ## C++ standard
 
-* DPC++ runtime is built as C++14 library.
+* DPC++ runtime and headers require C++14 at least.
 * DPC++ compiler is building apps as C++17 apps by default.
 
 ## Known Issues and Limitations
@@ -669,6 +669,7 @@ class CUDASelector : public cl::sycl::device_selector {
 * DPC++ device compiler fails if the same kernel was used in different
   translation units.
 * SYCL host device is not fully supported.
+* SYCL 2020 support work is in progress.
 * 32-bit host/target is not supported.
 * DPC++ works only with OpenCL low level runtimes which support out-of-order
   queues.

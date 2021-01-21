@@ -380,18 +380,6 @@ def SYCLRegisterNumDocs : Documentation {
   }];
 }
 
-def SYCLSimdAccessorPtrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Content = [{
-    The ``__attribute__((esimd_acc_ptr))`` attribute is used by FE to mark ESIMD
-    kernel pointer parameters which correspond to the original
-    lambda's captured accessors. FE turns the attribute to some metadata
-    required by the ESIMD Back-End.
-    Not supposed to be used directly in the source - SYCL device compiler FE
-    automatically adds it for ESIMD kernels.
-  }];
-}
-
 def C11NoReturnDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
