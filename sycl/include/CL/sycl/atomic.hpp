@@ -122,12 +122,6 @@ extern T __spirv_AtomicISub(std::atomic<T> *Ptr, __spv::Scope::Flag,
 }
 
 template <typename T>
-extern T __spirv_AtomicFAdd(std::atomic<T> *Ptr, __spv::Scope::Flag,
-                            __spv::MemorySemanticsMask::Flag MS, T V) {
-  return Ptr->fetch_add(V, ::cl::sycl::detail::getStdMemoryOrder(MS));
-}
-
-template <typename T>
 extern T __spirv_AtomicAnd(std::atomic<T> *Ptr, __spv::Scope::Flag,
                            __spv::MemorySemanticsMask::Flag MS, T V) {
   return Ptr->fetch_and(V, ::cl::sycl::detail::getStdMemoryOrder(MS));
@@ -280,34 +274,16 @@ public:
 #endif
   }
 
-  template <typename T2 = T>
-  detail::enable_if_t<std::is_integral<T2>::value, T>
-  fetch_add(T Operand, memory_order Order = memory_order::relaxed) {
+  T fetch_add(T Operand, memory_order Order = memory_order::relaxed) {
+    __SYCL_STATIC_ASSERT_NOT_FLOAT(T);
     return __spirv_AtomicIAdd(
         Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), Operand);
   }
 
-  template <typename T2 = T>
-  detail::enable_if_t<std::is_floating_point<T2>::value, T>
-  fetch_add(T Operand, memory_order Order = memory_order::relaxed) {
-    return __spirv_AtomicFAdd(
-        Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), Operand);
-  }
-
-  template <typename T2 = T>
-  detail::enable_if_t<std::is_integral<T2>::value, T>
-  fetch_sub(T Operand, memory_order Order = memory_order::relaxed) {
+  T fetch_sub(T Operand, memory_order Order = memory_order::relaxed) {
     __SYCL_STATIC_ASSERT_NOT_FLOAT(T);
     return __spirv_AtomicISub(
         Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), Operand);
-  }
-
-  template <typename T2 = T>
-  detail::enable_if_t<std::is_floating_point<T2>::value, T>
-  fetch_sub(T Operand, memory_order Order = memory_order::relaxed) {
-    // Negate the float add instruction operand.
-    return __spirv_AtomicFAdd(
-        Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), -Operand);
   }
 
   T fetch_and(T Operand, memory_order Order = memory_order::relaxed) {
