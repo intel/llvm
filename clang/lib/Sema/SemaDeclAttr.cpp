@@ -4831,10 +4831,6 @@ static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
 
 static void handleSYCLRegisterNumAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   auto *VD = cast<VarDecl>(D);
-  if (!VD->hasGlobalStorage()) {
-    S.Diag(AL.getLoc(), diag::err_sycl_attribute_internal_function) << AL << 0;
-    return;
-  }
   if (!checkAttributeNumArgs(S, AL, 1))
     return;
   uint32_t RegNo = 0;
