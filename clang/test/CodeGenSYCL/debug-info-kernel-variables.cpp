@@ -14,7 +14,7 @@
 #define KERNEL __attribute__((sycl_kernel))
 
 template <typename KernelName, typename KernelType>
-KERNEL void parallel_for(const KernelType &KernelFunc) {
+KERNEL void parallel_for(KernelType KernelFunc) {
   KernelFunc();
 }
 

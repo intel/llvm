@@ -8,8 +8,8 @@ void foo() {
   int a = 1;
 }
 
-template <typename Name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
+template <typename KernelName, typename KernelType>
+[[clang::sycl_kernel]] void kernel_single_task(KernelType kernelFunc) {
   kernelFunc();
 }
 
