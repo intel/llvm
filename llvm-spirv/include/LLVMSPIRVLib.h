@@ -74,7 +74,7 @@ namespace SPIRV {
 class SPIRVModule;
 
 /// \brief Check if a string contains SPIR-V binary.
-bool isSpirvBinary(std::string &Img);
+bool isSpirvBinary(const std::string &Img);
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
 /// \brief Convert SPIR-V between binary and internal textual formats.

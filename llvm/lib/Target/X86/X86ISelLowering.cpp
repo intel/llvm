@@ -1898,7 +1898,7 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
   }
 
   if (Subtarget.hasAMXTILE()) {
-    addRegisterClass(MVT::v256i32, &X86::TILERegClass);
+    addRegisterClass(MVT::x86amx, &X86::TILERegClass);
   }
 
   // We want to custom lower some of our intrinsics.
@@ -3513,8 +3513,7 @@ void VarArgsLoweringHelper::createVarArgAreaAndStoreRegisters(
           DAG.getTargetConstant(FuncInfo->getRegSaveFrameIndex(), DL, MVT::i32));
       SaveXMMOps.push_back(
           DAG.getTargetConstant(FuncInfo->getVarArgsFPOffset(), DL, MVT::i32));
-      SaveXMMOps.insert(SaveXMMOps.end(), LiveXMMRegs.begin(),
-                        LiveXMMRegs.end());
+      llvm::append_range(SaveXMMOps, LiveXMMRegs);
       MemOps.push_back(DAG.getNode(X86ISD::VASTART_SAVE_XMM_REGS, DL,
                                    MVT::Other, SaveXMMOps));
     }
@@ -5344,11 +5343,6 @@ bool X86TargetLowering::canMergeStoresTo(unsigned AddressSpace, EVT MemVT,
   // Make sure we don't merge greater than our preferred vector
   // width.
   if (MemVT.getSizeInBits() > Subtarget.getPreferVectorWidth())
-    return false;
-
-  // Don't merge to x86 amx tile, as we only map MVT::v256i32
-  // to x86 amx tile on amx intrinsics.
-  if (MemVT == MVT::v256i32)
     return false;
 
   return true;
@@ -19107,9 +19101,12 @@ SDValue X86TargetLowering::LowerGlobalOrExternal(SDValue Op, SelectionDAG &DAG,
   if (GV) {
     // Create a target global address if this is a global. If possible, fold the
     // offset into the global address reference. Otherwise, ADD it on later.
+    // Suppress the folding if Offset is negative: movl foo-1, %eax is not
+    // allowed because if the address of foo is 0, the ELF R_X86_64_32
+    // relocation will compute to a negative value, which is invalid.
     int64_t GlobalOffset = 0;
-    if (OpFlags == X86II::MO_NO_FLAG &&
-        X86::isOffsetSuitableForCodeModel(Offset, M)) {
+    if (OpFlags == X86II::MO_NO_FLAG && Offset >= 0 &&
+        X86::isOffsetSuitableForCodeModel(Offset, M, true)) {
       std::swap(GlobalOffset, Offset);
     }
     Result = DAG.getTargetGlobalAddress(GV, dl, PtrVT, GlobalOffset, OpFlags);
@@ -36668,6 +36665,43 @@ static SDValue combineCommutableSHUFP(SDValue N, MVT VT, const SDLoc &DL,
   return SDValue();
 }
 
+/// Attempt to fold vpermf128(op(),op()) -> op(vpermf128(),vpermf128()).
+static SDValue canonicalizeLaneShuffleWithRepeatedOps(SDValue V,
+                                                      SelectionDAG &DAG,
+                                                      const SDLoc &DL) {
+  assert(V.getOpcode() == X86ISD::VPERM2X128 && "Unknown lane shuffle");
+
+  MVT VT = V.getSimpleValueType();
+  SDValue Src0 = peekThroughBitcasts(V.getOperand(0));
+  SDValue Src1 = peekThroughBitcasts(V.getOperand(1));
+  unsigned SrcOpc0 = Src0.getOpcode();
+  unsigned SrcOpc1 = Src1.getOpcode();
+  EVT SrcVT0 = Src0.getValueType();
+  EVT SrcVT1 = Src1.getValueType();
+
+  // TODO: Under what circumstances should we push perm2f128 up when we have one
+  // active src?
+  if (SrcOpc0 != SrcOpc1 || SrcVT0 != SrcVT1)
+    return SDValue();
+
+  switch (SrcOpc0) {
+  case X86ISD::VSHLI:
+  case X86ISD::VSRLI:
+  case X86ISD::VSRAI:
+    if (Src0.getOperand(1) == Src1.getOperand(1)) {
+      SDValue Res = DAG.getNode(
+          X86ISD::VPERM2X128, DL, VT, DAG.getBitcast(VT, Src0.getOperand(0)),
+          DAG.getBitcast(VT, Src1.getOperand(0)), V.getOperand(2));
+      Res = DAG.getNode(SrcOpc0, DL, SrcVT0, DAG.getBitcast(SrcVT0, Res),
+                        Src0.getOperand(1));
+      return DAG.getBitcast(VT, Res);
+    }
+    break;
+  }
+
+  return SDValue();
+}
+
 /// Try to combine x86 target specific shuffles.
 static SDValue combineTargetShuffle(SDValue N, SelectionDAG &DAG,
                                     TargetLowering::DAGCombinerInfo &DCI,
@@ -37048,6 +37082,9 @@ static SDValue combineTargetShuffle(SDValue N, SelectionDAG &DAG,
     return SDValue();
   }
   case X86ISD::VPERM2X128: {
+    if (SDValue Res = canonicalizeLaneShuffleWithRepeatedOps(N, DAG, DL))
+        return Res;
+
     // If both 128-bit values were inserted into high halves of 256-bit values,
     // the shuffle can be reduced to a concatenation of subvectors:
     // vperm2x128 (ins ?, X, C1), (ins ?, Y, C2), 0x31 --> concat X, Y
@@ -37056,6 +37093,7 @@ static SDValue combineTargetShuffle(SDValue N, SelectionDAG &DAG,
     SDValue Ins0 = peekThroughBitcasts(N.getOperand(0));
     SDValue Ins1 = peekThroughBitcasts(N.getOperand(1));
     unsigned Imm = N.getConstantOperandVal(2);
+
     if (!(Imm == 0x31 &&
           Ins0.getOpcode() == ISD::INSERT_SUBVECTOR &&
           Ins1.getOpcode() == ISD::INSERT_SUBVECTOR &&
@@ -37516,10 +37554,12 @@ static SDValue combineShuffleOfConcatUndef(SDNode *N, SelectionDAG &DAG,
 
 /// Eliminate a redundant shuffle of a horizontal math op.
 static SDValue foldShuffleOfHorizOp(SDNode *N, SelectionDAG &DAG) {
+  // TODO: Can we use getTargetShuffleInputs instead?
   unsigned Opcode = N->getOpcode();
   if (Opcode != X86ISD::MOVDDUP && Opcode != X86ISD::VBROADCAST)
-    if (Opcode != ISD::VECTOR_SHUFFLE || !N->getOperand(1).isUndef())
-      return SDValue();
+    if (Opcode != X86ISD::UNPCKL && Opcode != X86ISD::UNPCKH)
+      if (Opcode != ISD::VECTOR_SHUFFLE || !N->getOperand(1).isUndef())
+        return SDValue();
 
   // For a broadcast, peek through an extract element of index 0 to find the
   // horizontal op: broadcast (ext_vec_elt HOp, 0)
@@ -37537,6 +37577,28 @@ static SDValue foldShuffleOfHorizOp(SDNode *N, SelectionDAG &DAG) {
   if (HOp.getOpcode() != X86ISD::HADD && HOp.getOpcode() != X86ISD::FHADD &&
       HOp.getOpcode() != X86ISD::HSUB && HOp.getOpcode() != X86ISD::FHSUB)
     return SDValue();
+
+  // unpcklo(hop(x,y),hop(z,w)) -> permute(hop(x,z)).
+  // unpckhi(hop(x,y),hop(z,w)) -> permute(hop(y,w)).
+  // Don't fold if hop(x,y) == hop(z,w).
+  if (Opcode == X86ISD::UNPCKL || Opcode == X86ISD::UNPCKH) {
+    SDValue HOp2 = N->getOperand(1);
+    if (HOp.getOpcode() != HOp2.getOpcode() || VT.getScalarSizeInBits() != 32)
+      return SDValue();
+    if (HOp == HOp2)
+      return SDValue();
+    SDLoc DL(HOp);
+    unsigned LoHi = Opcode == X86ISD::UNPCKL ? 0 : 1;
+    SDValue Res = DAG.getNode(HOp.getOpcode(), DL, VT, HOp.getOperand(LoHi),
+                              HOp2.getOperand(LoHi));
+    // Use SHUFPS for the permute so this will work on SSE3 targets, shuffle
+    // combining and domain handling will simplify this later on.
+    EVT ShuffleVT = VT.changeVectorElementType(MVT::f32);
+    Res = DAG.getBitcast(ShuffleVT, Res);
+    Res = DAG.getNode(X86ISD::SHUFP, DL, ShuffleVT, Res, Res,
+                      getV4X86ShuffleImm8ForMask({0, 2, 1, 3}, DL, DAG));
+    return DAG.getBitcast(VT, Res);
+  }
 
   // 128-bit horizontal math instructions are defined to operate on adjacent
   // lanes of each operand as:
@@ -45709,8 +45771,13 @@ static SDValue combineVectorSignBitsTruncation(SDNode *N, const SDLoc &DL,
   // there's no harm in trying pack.
   if (Subtarget.hasAVX512() &&
       !(!Subtarget.useAVX512Regs() && VT.is256BitVector() &&
-        InVT.is512BitVector()))
-    return SDValue();
+        InVT.is512BitVector())) {
+    // PACK should still be worth it for 128/256-bit vectors if the sources were
+    // originally concatenated from subvectors.
+    SmallVector<SDValue> ConcatOps;
+    if (VT.getSizeInBits() > 256 || !collectConcatOps(In.getNode(), ConcatOps))
+      return SDValue();
+  }
 
   unsigned NumPackedSignBits = std::min<unsigned>(SVT.getSizeInBits(), 16);
   unsigned NumPackedZeroBits = Subtarget.hasSSE41() ? NumPackedSignBits : 8;

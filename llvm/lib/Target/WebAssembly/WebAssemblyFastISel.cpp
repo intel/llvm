@@ -20,12 +20,14 @@
 #include "WebAssemblyMachineFunctionInfo.h"
 #include "WebAssemblySubtarget.h"
 #include "WebAssemblyTargetMachine.h"
+#include "WebAssemblyUtilities.h"
 #include "llvm/Analysis/BranchProbabilityInfo.h"
 #include "llvm/CodeGen/FastISel.h"
 #include "llvm/CodeGen/FunctionLoweringInfo.h"
 #include "llvm/CodeGen/MachineConstantPool.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -128,7 +130,6 @@ private:
     case MVT::i64:
     case MVT::f32:
     case MVT::f64:
-    case MVT::exnref:
     case MVT::funcref:
     case MVT::externref:
       return VT;
@@ -714,10 +715,6 @@ bool WebAssemblyFastISel::fastLowerArguments() {
       Opc = WebAssembly::ARGUMENT_externref;
       RC = &WebAssembly::EXTERNREFRegClass;
       break;
-    case MVT::exnref:
-      Opc = WebAssembly::ARGUMENT_exnref;
-      RC = &WebAssembly::EXNREFRegClass;
-      break;
     default:
       return false;
     }
@@ -816,9 +813,6 @@ bool WebAssemblyFastISel::selectCall(const Instruction *I) {
     case MVT::v2f64:
       ResultReg = createResultReg(&WebAssembly::V128RegClass);
       break;
-    case MVT::exnref:
-      ResultReg = createResultReg(&WebAssembly::EXNREFRegClass);
-      break;
     case MVT::funcref:
       ResultReg = createResultReg(&WebAssembly::FUNCREFRegClass);
       break;
@@ -878,6 +872,15 @@ bool WebAssemblyFastISel::selectCall(const Instruction *I) {
     // Add placeholders for the type index and immediate flags
     MIB.addImm(0);
     MIB.addImm(0);
+
+    // Ensure that the object file has a __indirect_function_table import, as we
+    // call_indirect against it.
+    MCSymbolWasm *Sym = WebAssembly::getOrCreateFunctionTableSymbol(
+        MF->getMMI().getContext(), "__indirect_function_table");
+    // Until call_indirect emits TABLE_NUMBER relocs against this symbol, mark
+    // it as NO_STRIP so as to ensure that the indirect function table makes it
+    // to linked output.
+    Sym->setNoStrip();
   }
 
   for (unsigned ArgReg : Args)
@@ -931,10 +934,6 @@ bool WebAssemblyFastISel::selectSelect(const Instruction *I) {
   case MVT::f64:
     Opc = WebAssembly::SELECT_F64;
     RC = &WebAssembly::F64RegClass;
-    break;
-  case MVT::exnref:
-    Opc = WebAssembly::SELECT_EXNREF;
-    RC = &WebAssembly::EXNREFRegClass;
     break;
   case MVT::funcref:
     Opc = WebAssembly::SELECT_FUNCREF;
@@ -1347,7 +1346,6 @@ bool WebAssemblyFastISel::selectRet(const Instruction *I) {
   case MVT::v2f64:
   case MVT::funcref:
   case MVT::externref:
-  case MVT::exnref:
     break;
   default:
     return false;

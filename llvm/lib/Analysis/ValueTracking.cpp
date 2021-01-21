@@ -4809,6 +4809,64 @@ bool llvm::canCreatePoison(const Operator *Op) {
   return ::canCreateUndefOrPoison(Op, /*PoisonOnly=*/true);
 }
 
+bool llvm::impliesPoison(const Value *ValAssumedPoison, const Value *V) {
+  // Construct a set of values which are known to be poison from the knowledge
+  // that ValAssumedPoison is poison.
+  SmallPtrSet<const Value *, 4> PoisonValues;
+  PoisonValues.insert(ValAssumedPoison);
+  const Instruction *PoisonI = dyn_cast<Instruction>(ValAssumedPoison);
+  unsigned Depth = 0;
+  const unsigned MaxDepth = 2;
+
+  while (PoisonI && Depth < MaxDepth) {
+    // We'd like to know whether an operand of PoisonI is also poison.
+    if (canCreatePoison(cast<Operator>(PoisonI)))
+      // PoisonI can be a poison-generating instruction, so don't look further
+      break;
+
+    const Value *NextVal = nullptr;
+    bool MoreThanOneCandidate = false;
+    // See which operand can be poison
+    for (const auto &Op : PoisonI->operands()) {
+      if (!isGuaranteedNotToBeUndefOrPoison(Op.get())) {
+        // Op can be poison.
+        if (NextVal) {
+          // There is more than one operand that can make PoisonI poison.
+          MoreThanOneCandidate = true;
+          break;
+        }
+        NextVal = Op.get();
+      }
+    }
+
+    if (NextVal == nullptr) {
+      // All operands are non-poison, so PoisonI cannot be poison.
+      // Since assumption is false, return true
+      return true;
+    } else if (MoreThanOneCandidate)
+      break;
+
+    Depth++;
+    PoisonValues.insert(NextVal);
+    PoisonI = dyn_cast<Instruction>(NextVal);
+  }
+
+  if (PoisonValues.contains(V))
+    return true;
+
+  // Let's look one level further, by seeing its arguments if I was an
+  // instruction.
+  // This happens when I is e.g. 'icmp X, const' where X is in PoisonValues.
+  const auto *I = dyn_cast<Instruction>(V);
+  if (I && propagatesPoison(cast<Operator>(I))) {
+    for (const auto &Op : I->operands())
+      if (PoisonValues.count(Op.get()))
+        return true;
+  }
+
+  return false;
+}
+
 static bool programUndefinedIfUndefOrPoison(const Value *V,
                                             bool PoisonOnly);
 
@@ -4830,14 +4888,15 @@ static bool isGuaranteedNotToBeUndefOrPoison(const Value *V,
 
   if (auto *C = dyn_cast<Constant>(V)) {
     if (isa<UndefValue>(C))
-      return PoisonOnly;
+      return PoisonOnly && !isa<PoisonValue>(C);
 
     if (isa<ConstantInt>(C) || isa<GlobalVariable>(C) || isa<ConstantFP>(V) ||
         isa<ConstantPointerNull>(C) || isa<Function>(C))
       return true;
 
     if (C->getType()->isVectorTy() && !isa<ConstantExpr>(C))
-      return (PoisonOnly || !C->containsUndefElement()) &&
+      return (PoisonOnly ? !C->containsPoisonElement()
+                         : !C->containsUndefOrPoisonElement()) &&
              !C->containsConstantExpression();
   }
 
@@ -5578,10 +5637,10 @@ static SelectPatternResult matchSelectPattern(CmpInst::Predicate Pred,
     // elements because those can not be back-propagated for analysis.
     Value *OutputZeroVal = nullptr;
     if (match(TrueVal, m_AnyZeroFP()) && !match(FalseVal, m_AnyZeroFP()) &&
-        !cast<Constant>(TrueVal)->containsUndefElement())
+        !cast<Constant>(TrueVal)->containsUndefOrPoisonElement())
       OutputZeroVal = TrueVal;
     else if (match(FalseVal, m_AnyZeroFP()) && !match(TrueVal, m_AnyZeroFP()) &&
-             !cast<Constant>(FalseVal)->containsUndefElement())
+             !cast<Constant>(FalseVal)->containsUndefOrPoisonElement())
       OutputZeroVal = FalseVal;
 
     if (OutputZeroVal) {

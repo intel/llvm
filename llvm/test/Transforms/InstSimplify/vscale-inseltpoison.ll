@@ -9,7 +9,7 @@
 
 define <vscale x 4 x i32> @insertelement_idx_undef(<vscale x 4 x i32> %a) {
 ; CHECK-LABEL: @insertelement_idx_undef(
-; CHECK-NEXT:    ret <vscale x 4 x i32> undef
+; CHECK-NEXT:    ret <vscale x 4 x i32> poison
 ;
   %r = insertelement <vscale x 4 x i32> %a, i32 5, i64 undef
   ret <vscale x 4 x i32> %r
@@ -61,10 +61,10 @@ define <vscale x 4 x i32> @insertelement_inline_to_ret() {
 
 define <vscale x 4 x i32> @insertelement_shufflevector_inline_to_ret() {
 ; CHECK-LABEL: @insertelement_shufflevector_inline_to_ret(
-; CHECK-NEXT:    ret <vscale x 4 x i32> shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> poison, i32 1, i32 0), <vscale x 4 x i32> undef, <vscale x 4 x i32> zeroinitializer)
+; CHECK-NEXT:    ret <vscale x 4 x i32> shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> poison, i32 1, i32 0), <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer)
 ;
   %i = insertelement <vscale x 4 x i32> poison, i32 1, i32 0
-  %i2 = shufflevector <vscale x 4 x i32> %i, <vscale x 4 x i32> undef, <vscale x 4 x i32> zeroinitializer
+  %i2 = shufflevector <vscale x 4 x i32> %i, <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer
   ret <vscale x 4 x i32> %i2
 }
 
@@ -72,7 +72,7 @@ define <vscale x 4 x i32> @insertelement_shufflevector_inline_to_ret() {
 
 define i32 @extractelement_idx_undef(<vscale x 4 x i32> %a) {
 ; CHECK-LABEL: @extractelement_idx_undef(
-; CHECK-NEXT:    ret i32 undef
+; CHECK-NEXT:    ret i32 poison
 ;
   %r = extractelement <vscale x 4 x i32> %a, i64 undef
   ret i32 %r
@@ -140,10 +140,10 @@ define <vscale x 2 x i1> @cmp_le_smax_always_true(<vscale x 2 x i64> %x) {
 
 define <vscale x 4 x float> @bitcast() {
 ; CHECK-LABEL: @bitcast(
-; CHECK-NEXT:    ret <vscale x 4 x float> bitcast (<vscale x 4 x i32> shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> poison, i32 1, i32 0), <vscale x 4 x i32> undef, <vscale x 4 x i32> zeroinitializer) to <vscale x 4 x float>)
+; CHECK-NEXT:    ret <vscale x 4 x float> bitcast (<vscale x 4 x i32> shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> poison, i32 1, i32 0), <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer) to <vscale x 4 x float>)
 ;
   %i1 = insertelement <vscale x 4 x i32> poison, i32 1, i32 0
-  %i2 = shufflevector <vscale x 4 x i32> %i1, <vscale x 4 x i32> undef, <vscale x 4 x i32> zeroinitializer
+  %i2 = shufflevector <vscale x 4 x i32> %i1, <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer
   %i3 = bitcast <vscale x 4 x i32> %i2 to <vscale x 4 x float>
   ret <vscale x 4 x float> %i3
 }
