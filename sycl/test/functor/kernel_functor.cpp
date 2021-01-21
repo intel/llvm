@@ -81,7 +81,7 @@ int foo(int X) {
   {
     cl::sycl::queue Q;
     cl::sycl::buffer<int, 1> Buf(A, 1);
-    
+
     Q.submit([&](cl::sycl::handler &cgh) {
       auto Acc = Buf.get_access<sycl_read_write, sycl_global_buffer>(cgh);
       ns::Functor2 F(X, Acc);
