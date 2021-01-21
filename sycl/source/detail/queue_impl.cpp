@@ -115,6 +115,22 @@ void queue_impl::addEvent(const event &Event) {
 /// addSharedEvent will have the queue track the events via a shared pointer.
 void queue_impl::addSharedEvent(const event &Event) {
   std::lock_guard<mutex_class> Lock(MMutex);
+  // Events stored in MEventsShared are not released anywhere else aside from
+  // calls to queue::wait/wait_and_throw, which a user application might not
+  // make, and ~queue_impl(). If the number of events grows large enough,
+  // there's a good chance that most of them are already completed and ownership
+  // of them can be released.
+  const size_t EventThreshold = 128;
+  if (MEventsShared.size() >= EventThreshold) {
+    MEventsShared.erase(
+        std::remove_if(
+            MEventsShared.begin(), MEventsShared.end(),
+            [](const event &E) {
+              return E.get_info<info::event::command_execution_status>() ==
+                     info::event_command_status::complete;
+            }),
+        MEventsShared.end());
+  }
   MEventsShared.push_back(Event);
 }
 
