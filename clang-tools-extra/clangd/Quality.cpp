@@ -294,6 +294,38 @@ void SymbolRelevanceSignals::merge(const Symbol &IndexResult) {
   if (!(IndexResult.Flags & Symbol::VisibleOutsideFile)) {
     Scope = AccessibleScope::FileScope;
   }
+  if (MainFileSignals) {
+    MainFileRefs =
+        std::max(MainFileRefs,
+                 MainFileSignals->ReferencedSymbols.lookup(IndexResult.ID));
+    ScopeRefsInFile =
+        std::max(ScopeRefsInFile,
+                 MainFileSignals->RelatedNamespaces.lookup(IndexResult.Scope));
+  }
+}
+
+void SymbolRelevanceSignals::computeASTSignals(
+    const CodeCompletionResult &SemaResult) {
+  if (!MainFileSignals)
+    return;
+  if ((SemaResult.Kind != CodeCompletionResult::RK_Declaration) &&
+      (SemaResult.Kind != CodeCompletionResult::RK_Pattern))
+    return;
+  if (const NamedDecl *ND = SemaResult.getDeclaration()) {
+    auto ID = getSymbolID(ND);
+    if (!ID)
+      return;
+    MainFileRefs =
+        std::max(MainFileRefs, MainFileSignals->ReferencedSymbols.lookup(ID));
+    if (const auto *NSD = dyn_cast<NamespaceDecl>(ND->getDeclContext())) {
+      if (NSD->isAnonymousNamespace())
+        return;
+      std::string Scope = printNamespaceScope(*NSD);
+      if (!Scope.empty())
+        ScopeRefsInFile = std::max(
+            ScopeRefsInFile, MainFileSignals->RelatedNamespaces.lookup(Scope));
+    }
+  }
 }
 
 void SymbolRelevanceSignals::merge(const CodeCompletionResult &SemaCCResult) {
@@ -315,6 +347,7 @@ void SymbolRelevanceSignals::merge(const CodeCompletionResult &SemaCCResult) {
     InBaseClass |= SemaCCResult.InBaseClass;
   }
 
+  computeASTSignals(SemaCCResult);
   // Declarations are scoped, others (like macros) are assumed global.
   if (SemaCCResult.Declaration)
     Scope = std::min(Scope, computeScope(SemaCCResult.Declaration));
@@ -501,12 +534,24 @@ evaluateDecisionForest(const SymbolQualitySignals &Quality,
 
   SymbolRelevanceSignals::DerivedSignals Derived =
       Relevance.calculateDerivedSignals();
-  E.setIsNameInContext(Derived.NameMatchesContext);
-  E.setIsForbidden(Relevance.Forbidden);
+  int NumMatch = 0;
+  if (Relevance.ContextWords) {
+    for (const auto &Word : Relevance.ContextWords->keys()) {
+      if (Relevance.Name.contains_lower(Word)) {
+        ++NumMatch;
+      }
+    }
+  }
+  E.setIsNameInContext(NumMatch > 0);
+  E.setNumNameInContext(NumMatch);
+  E.setFractionNameInContext(
+      Relevance.ContextWords && !Relevance.ContextWords->empty()
+          ? NumMatch * 1.0 / Relevance.ContextWords->size()
+          : 0);
   E.setIsInBaseClass(Relevance.InBaseClass);
-  E.setFileProximityDistance(Derived.FileProximityDistance);
+  E.setFileProximityDistanceCost(Derived.FileProximityDistance);
   E.setSemaFileProximityScore(Relevance.SemaFileProximityScore);
-  E.setSymbolScopeDistance(Derived.ScopeProximityDistance);
+  E.setSymbolScopeDistanceCost(Derived.ScopeProximityDistance);
   E.setSemaSaysInScope(Relevance.SemaSaysInScope);
   E.setScope(Relevance.Scope);
   E.setContextKind(Relevance.Context);
@@ -514,7 +559,6 @@ evaluateDecisionForest(const SymbolQualitySignals &Quality,
   E.setHadContextType(Relevance.HadContextType);
   E.setHadSymbolType(Relevance.HadSymbolType);
   E.setTypeMatchesPreferred(Relevance.TypeMatchesPreferred);
-  E.setFilterLength(Relevance.FilterLength);
 
   DecisionForestScores Scores;
   // Exponentiating DecisionForest prediction makes the score of each tree a
@@ -525,6 +569,9 @@ evaluateDecisionForest(const SymbolQualitySignals &Quality,
   // data that needs fixits is not-feasible.
   if (Relevance.NeedsFixIts)
     Scores.ExcludingName *= 0.5;
+  if (Relevance.Forbidden)
+    Scores.ExcludingName *= 0;
+
   // NameMatch should be a multiplier on total score to support rescoring.
   Scores.Total = Relevance.NameMatch * Scores.ExcludingName;
   return Scores;

@@ -367,7 +367,8 @@ bool ARMBaseInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
     // Skip over DEBUG values, predicated nonterminators and speculation
     // barrier terminators.
     while (I->isDebugInstr() || !I->isTerminator() ||
-           isSpeculationBarrierEndBBOpcode(I->getOpcode()) ){
+           isSpeculationBarrierEndBBOpcode(I->getOpcode()) ||
+           I->getOpcode() == ARM::t2DoLoopStartTP){
       if (I == MBB.instr_begin())
         return false;
       --I;
