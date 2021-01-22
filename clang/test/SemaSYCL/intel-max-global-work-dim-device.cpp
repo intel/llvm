@@ -55,6 +55,14 @@ struct TRIFuncObjBad {
   void
   operator()() const {}
 };
+struct TRIFuncObjBad1 {
+  [[intel::max_work_group_size(8, 8, 8)]] // expected-error{{'max_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
+  [[cl::reqd_work_group_size(4, 4, 4)]]   // expected-error{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
+  [[intel::max_global_work_dim(0)]]
+  void
+  operator()() const {}
+};
+
 #endif // TRIGGER_ERROR
 
 int main() {
@@ -115,7 +123,9 @@ int main() {
 
     h.single_task<class test_kernel8>(TRIFuncObjBad());
 
-    h.single_task<class test_kernel9>(
+    h.single_task<class test_kernel9>(TRIFuncObjBad1());
+
+    h.single_task<class test_kernel10>(
         []() [[intel::max_global_work_dim(4)]]{}); // expected-error{{'max_global_work_dim' attribute requires integer constant between 0 and 3 inclusive}}
 #endif // TRIGGER_ERROR
   });

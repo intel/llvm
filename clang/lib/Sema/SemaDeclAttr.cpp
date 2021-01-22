@@ -2985,92 +2985,80 @@ static void handleWeakImportAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
 // Checks correctness of mutual usage of different work_group_size attributes:
 // reqd_work_group_size, max_work_group_size and max_global_work_dim.
-// Values of reqd_work_group_size arguments shall be equal or less than values
-// coming from max_work_group_size.
-// In case the value of 'max_global_work_dim' attribute equals to 0 we shall
-// ensure that if max_work_group_size and reqd_work_group_size attributes exist,
-// they hold equal values (1, 1, 1).
 static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
-  bool Result = true;
-  auto checkZeroDim = [&S, &AL](auto &A, size_t X, size_t Y, size_t Z,
-                                bool ReverseAttrs = false) -> bool {
-    if (X != 1 || Y != 1 || Z != 1) {
-      auto Diag =
-          S.Diag(AL.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one);
-      if (ReverseAttrs)
-        Diag << AL << A;
-      else
-        Diag << A << AL;
-      return false;
-    }
-    return true;
-  };
-
-  /// Returns the usigned constant integer value represented by
-  /// given expression.
+  // Returns the usigned constant integer value represented by
+  // given expression.
   auto getExprValue = [](const Expr *E, ASTContext &Ctx) {
     return E->getIntegerConstantExpr(Ctx)->getZExtValue();
   };
 
-  if (AL.getKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
-    ArrayRef<const Expr *> Dims;
-    Attr *B = nullptr;
-    if (const auto *B = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>())
-      Dims = B->dimensions();
-    else if (const auto *B = D->getAttr<ReqdWorkGroupSizeAttr>())
-      Dims = B->dimensions();
-    if (B) {
-      Result &= checkZeroDim(B, getExprValue(Dims[0], S.getASTContext()),
-                             getExprValue(Dims[1], S.getASTContext()),
-                             getExprValue(Dims[2], S.getASTContext()));
-    }
-    return Result;
-  }
-
   if (AL.getKind() == ParsedAttr::AT_SYCLIntelMaxWorkGroupSize)
-    S.CheckDeprecatedSYCLAttributeSpelling(AL);
+     S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
-  // For a SYCLDevice, WorkGroupAttr arguments are reversed.
-  // "XDim" gets the third argument to the attribute and
-  // "ZDim" gets the first argument of the attribute.
-  if (const auto *A = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    int64_t AttrValue =
-        A->getValue()->getIntegerConstantExpr(S.Context)->getSExtValue();
-    if (AttrValue == 0) {
-      Result &=
-          checkZeroDim(A, getExprValue(AL.getArgAsExpr(0), S.getASTContext()),
-                       getExprValue(AL.getArgAsExpr(1), S.getASTContext()),
-                       getExprValue(AL.getArgAsExpr(2), S.getASTContext()),
-                       /*ReverseAttrs=*/true);
+  if (AL.getKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
+    // in case of 'max_global_work_dim' attribute equals to 0 we should be sure
+    // that if max_work_group_size and reqd_work_group_size attributes exist,
+    // then they are equal (1, 1, 1)
+    if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
+      if (getExprValue(A->getXDim(), S.getASTContext()) != 1 ||
+          getExprValue(A->getYDim(), S.getASTContext()) != 1 ||
+          getExprValue(A->getZDim(), S.getASTContext()) != 1) {
+        S.Diag(A->getLocation(), diag::err_sycl_x_y_z_arguments_must_be_one)
+            << A << AL;
+      }
+    }
+    if (const auto *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
+      if (getExprValue(A->getXDim(), S.getASTContext()) != 1 ||
+          getExprValue(A->getYDim(), S.getASTContext()) != 1 ||
+          getExprValue(A->getZDim(), S.getASTContext()) != 1) {
+        S.Diag(A->getLocation(), diag::err_sycl_x_y_z_arguments_must_be_one)
+            << A << AL;
+      }
+    }
+  } else {
+    // in other cases we should check that attribute value
+    // >= reqd_work_group_size attribute value and
+    // <= max_work_group_size attribute value
+    if (const auto *A = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
+      int64_t AttrValue =
+      A->getValue()->getIntegerConstantExpr(S.Context)->getSExtValue();
+      if (AttrValue == 0) {
+        if (!((getExprValue(AL.getArgAsExpr(0), S.getASTContext()) == 1) &&
+             (getExprValue(AL.getArgAsExpr(1), S.getASTContext()) == 1) &&
+             (getExprValue(AL.getArgAsExpr(2), S.getASTContext()) == 1))) {
+          S.Diag(AL.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
+               << AL << A;
+        }
+      }
+    } else if (const auto *A =
+               D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
+      if (!((getExprValue(AL.getArgAsExpr(0), S.getASTContext()) <=
+             getExprValue(A->getXDim(), S.getASTContext())) &&
+            (getExprValue(AL.getArgAsExpr(1), S.getASTContext()) <=
+             getExprValue(A->getYDim(), S.getASTContext())) &&
+            (getExprValue(AL.getArgAsExpr(2), S.getASTContext()) <=
+             getExprValue(A->getZDim(), S.getASTContext())))) {
+        S.Diag(AL.getLoc(), diag::err_conflicting_sycl_function_attributes)
+            << AL << A->getSpelling();
+	D->setInvalidDecl();
+        return false;
+      }
+    }
+    if (const auto *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
+      if (!((getExprValue(AL.getArgAsExpr(0), S.getASTContext()) >=
+             getExprValue(A->getXDim(), S.getASTContext())) &&
+            (getExprValue(AL.getArgAsExpr(1), S.getASTContext()) >=
+             getExprValue(A->getYDim(), S.getASTContext())) &&
+            (getExprValue(AL.getArgAsExpr(2), S.getASTContext()) >=
+             getExprValue(A->getZDim(), S.getASTContext())))) {
+        S.Diag(AL.getLoc(), diag::err_conflicting_sycl_function_attributes)
+            << AL << A->getSpelling();
+        D->setInvalidDecl();
+        return false;
+      }
     }
   }
-
-  if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    if (!((getExprValue(AL.getArgAsExpr(0), S.getASTContext()) <=
-           getExprValue(A->getXDim(), S.getASTContext())) &&
-          (getExprValue(AL.getArgAsExpr(1), S.getASTContext()) <=
-           getExprValue(A->getYDim(), S.getASTContext())) &&
-          (getExprValue(AL.getArgAsExpr(2), S.getASTContext()) <=
-           getExprValue(A->getZDim(), S.getASTContext())))) {
-      S.Diag(AL.getLoc(), diag::err_conflicting_sycl_function_attributes)
-          << AL << A->getSpelling();
-      Result &= false;
-    }
-  }
-
-  if (const auto *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    if (!((getExprValue(AL.getArgAsExpr(0), S.getASTContext()) >=
-           getExprValue(A->getXDim(), S.getASTContext())) &&
-          (getExprValue(AL.getArgAsExpr(1), S.getASTContext()) >=
-           getExprValue(A->getYDim(), S.getASTContext())) &&
-          (getExprValue(AL.getArgAsExpr(2), S.getASTContext()) >=
-           getExprValue(A->getZDim(), S.getASTContext())))) {
-      S.Diag(AL.getLoc(), diag::err_conflicting_sycl_function_attributes)
-          << AL << A->getSpelling();
-      Result &= false;
-    }
-  }
-  return Result;
+  return true;
 }
 
 // Handles reqd_work_group_size and max_work_group_size.

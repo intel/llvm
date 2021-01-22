@@ -1288,9 +1288,6 @@ def SYCLIntelMaxWorkGroupSize : InheritableAttr {
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let AdditionalMembers = [{
-    ArrayRef<const Expr *> dimensions() const {
-      return {getXDim(), getYDim(), getZDim()};
-    }
     Optional<llvm::APSInt> getXDimVal(ASTContext &Ctx) const {
       return getXDim()->getIntegerConstantExpr(Ctx);
     }
@@ -2844,9 +2841,6 @@ def ReqdWorkGroupSize : InheritableAttr {
               ExprArgument<"ZDim", /*optional*/1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let AdditionalMembers = [{
-    ArrayRef<const Expr *> dimensions() const {
-      return {getXDim(), getYDim(), getZDim()};
-    }
     Optional<llvm::APSInt> getXDimVal(ASTContext &Ctx) const {
       return getXDim()->getIntegerConstantExpr(Ctx);
     }
