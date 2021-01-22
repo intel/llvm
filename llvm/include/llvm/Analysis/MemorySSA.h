@@ -109,6 +109,7 @@ namespace llvm {
 /// Enables memory ssa as a dependency for loop passes.
 extern cl::opt<bool> EnableMSSALoopDependency;
 
+class AllocaInst;
 class Function;
 class Instruction;
 class MemoryAccess;
@@ -841,7 +842,6 @@ private:
 
   CachingWalker<AliasAnalysis> *getWalkerImpl();
   void buildMemorySSA(BatchAAResults &BAA);
-  void optimizeUses();
 
   void prepareForMoveTo(MemoryAccess *, BasicBlock *);
   void verifyUseInDefs(MemoryAccess *, MemoryAccess *) const;
@@ -849,15 +849,12 @@ private:
   using AccessMap = DenseMap<const BasicBlock *, std::unique_ptr<AccessList>>;
   using DefsMap = DenseMap<const BasicBlock *, std::unique_ptr<DefsList>>;
 
-  void
-  determineInsertionPoint(const SmallPtrSetImpl<BasicBlock *> &DefiningBlocks);
   void markUnreachableAsLiveOnEntry(BasicBlock *BB);
   bool dominatesUse(const MemoryAccess *, const MemoryAccess *) const;
   MemoryPhi *createMemoryPhi(BasicBlock *BB);
   template <typename AliasAnalysisType>
   MemoryUseOrDef *createNewAccess(Instruction *, AliasAnalysisType *,
                                   const MemoryUseOrDef *Template = nullptr);
-  MemoryAccess *findDominatingDef(BasicBlock *, enum InsertionPlace);
   void placePHINodes(const SmallPtrSetImpl<BasicBlock *> &);
   MemoryAccess *renameBlock(BasicBlock *, MemoryAccess *, bool);
   void renameSuccessorPhis(BasicBlock *, MemoryAccess *, bool);
@@ -1221,21 +1218,7 @@ private:
   /// Returns true if \p Ptr is guaranteed to be loop invariant for any possible
   /// loop. In particular, this guarantees that it only references a single
   /// MemoryLocation during execution of the containing function.
-  bool IsGuaranteedLoopInvariant(Value *Ptr) const {
-    auto IsGuaranteedLoopInvariantBase = [](Value *Ptr) {
-      Ptr = Ptr->stripPointerCasts();
-      if (!isa<Instruction>(Ptr))
-        return true;
-      return isa<AllocaInst>(Ptr);
-    };
-
-    Ptr = Ptr->stripPointerCasts();
-    if (auto *GEP = dyn_cast<GEPOperator>(Ptr)) {
-      return IsGuaranteedLoopInvariantBase(GEP->getPointerOperand()) &&
-             GEP->hasAllConstantIndices();
-    }
-    return IsGuaranteedLoopInvariantBase(Ptr);
-  }
+  bool IsGuaranteedLoopInvariant(Value *Ptr) const;
 
   void fillInCurrentPair() {
     CurrentPair.first = *DefIterator;
@@ -1248,7 +1231,8 @@ private:
       // catch loop carried dependences.
       if (Location.Ptr &&
           !IsGuaranteedLoopInvariant(const_cast<Value *>(Location.Ptr)))
-        CurrentPair.second = Location.getWithNewSize(LocationSize::unknown());
+        CurrentPair.second =
+            Location.getWithNewSize(LocationSize::beforeOrAfterPointer());
       PHITransAddr Translator(
           const_cast<Value *>(Location.Ptr),
           OriginalAccess->getBlock()->getModule()->getDataLayout(), nullptr);
@@ -1262,8 +1246,8 @@ private:
 
           if (TransAddr &&
               !IsGuaranteedLoopInvariant(const_cast<Value *>(TransAddr)))
-            CurrentPair.second =
-                CurrentPair.second.getWithNewSize(LocationSize::unknown());
+            CurrentPair.second = CurrentPair.second.getWithNewSize(
+                LocationSize::beforeOrAfterPointer());
 
           if (PerformedPhiTranslation)
             *PerformedPhiTranslation = true;

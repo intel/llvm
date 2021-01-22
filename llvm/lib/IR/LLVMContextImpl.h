@@ -891,25 +891,28 @@ template <> struct MDNodeKeyImpl<DIModule> {
   MDString *IncludePath;
   MDString *APINotesFile;
   unsigned LineNo;
+  bool IsDecl;
 
   MDNodeKeyImpl(Metadata *File, Metadata *Scope, MDString *Name,
                 MDString *ConfigurationMacros, MDString *IncludePath,
-                MDString *APINotesFile, unsigned LineNo)
+                MDString *APINotesFile, unsigned LineNo, bool IsDecl)
       : File(File), Scope(Scope), Name(Name),
         ConfigurationMacros(ConfigurationMacros), IncludePath(IncludePath),
-        APINotesFile(APINotesFile), LineNo(LineNo) {}
+        APINotesFile(APINotesFile), LineNo(LineNo), IsDecl(IsDecl) {}
   MDNodeKeyImpl(const DIModule *N)
       : File(N->getRawFile()), Scope(N->getRawScope()), Name(N->getRawName()),
         ConfigurationMacros(N->getRawConfigurationMacros()),
         IncludePath(N->getRawIncludePath()),
-        APINotesFile(N->getRawAPINotesFile()), LineNo(N->getLineNo()) {}
+        APINotesFile(N->getRawAPINotesFile()), LineNo(N->getLineNo()),
+        IsDecl(N->getIsDecl()) {}
 
   bool isKeyOf(const DIModule *RHS) const {
     return Scope == RHS->getRawScope() && Name == RHS->getRawName() &&
            ConfigurationMacros == RHS->getRawConfigurationMacros() &&
            IncludePath == RHS->getRawIncludePath() &&
            APINotesFile == RHS->getRawAPINotesFile() &&
-           File == RHS->getRawFile() && LineNo == RHS->getLineNo();
+           File == RHS->getRawFile() && LineNo == RHS->getLineNo() &&
+           IsDecl == RHS->getIsDecl();
   }
 
   unsigned getHashValue() const {
@@ -1301,8 +1304,7 @@ public:
   ///
   /// Erases all attachments matching the \c shouldRemove predicate.
   template <class PredTy> void remove_if(PredTy shouldRemove) {
-    Attachments.erase(llvm::remove_if(Attachments, shouldRemove),
-                      Attachments.end());
+    llvm::erase_if(Attachments, shouldRemove);
   }
 };
 
@@ -1323,7 +1325,26 @@ public:
   std::unique_ptr<DiagnosticHandler> DiagHandler;
   bool RespectDiagnosticFilters = false;
   bool DiagnosticsHotnessRequested = false;
-  uint64_t DiagnosticsHotnessThreshold = 0;
+  /// The minimum hotness value a diagnostic needs in order to be included in
+  /// optimization diagnostics.
+  ///
+  /// The threshold is an Optional value, which maps to one of the 3 states:
+  /// 1). 0            => threshold disabled. All emarks will be printed.
+  /// 2). positive int => manual threshold by user. Remarks with hotness exceed
+  ///                     threshold will be printed.
+  /// 3). None         => 'auto' threshold by user. The actual value is not
+  ///                     available at command line, but will be synced with
+  ///                     hotness threhold from profile summary during
+  ///                     compilation.
+  ///
+  /// State 1 and 2 are considered as terminal states. State transition is
+  /// only allowed from 3 to 2, when the threshold is first synced with profile
+  /// summary. This ensures that the threshold is set only once and stays
+  /// constant.
+  ///
+  /// If threshold option is not specified, it is disabled (0) by default.
+  Optional<uint64_t> DiagnosticsHotnessThreshold = 0;
+
   /// The specialized remark streamer used by LLVM's OptimizationRemarkEmitter.
   std::unique_ptr<LLVMRemarkStreamer> LLVMRS;
 
@@ -1376,10 +1397,15 @@ public:
 
   DenseMap<Type *, std::unique_ptr<UndefValue>> UVConstants;
 
+  DenseMap<Type *, std::unique_ptr<PoisonValue>> PVConstants;
+
   StringMap<std::unique_ptr<ConstantDataSequential>> CDSConstants;
 
   DenseMap<std::pair<const Function *, const BasicBlock *>, BlockAddress *>
     BlockAddresses;
+
+  DenseMap<const GlobalValue *, DSOLocalEquivalent *> DSOLocalEquivalents;
+
   ConstantUniqueMap<ConstantExpr> ExprConstants;
 
   ConstantUniqueMap<InlineAsm> InlineAsms;

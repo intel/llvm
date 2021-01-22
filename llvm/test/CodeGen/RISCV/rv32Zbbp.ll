@@ -693,9 +693,8 @@ define i64 @rori_i64(i64 %a) nounwind {
 ;
 ; RV32IB-LABEL: rori_i64:
 ; RV32IB:       # %bb.0:
-; RV32IB-NEXT:    addi a3, zero, 31
-; RV32IB-NEXT:    fsl a2, a1, a0, a3
-; RV32IB-NEXT:    fsl a1, a0, a1, a3
+; RV32IB-NEXT:    fsri a2, a0, a1, 1
+; RV32IB-NEXT:    fsri a1, a1, a0, 1
 ; RV32IB-NEXT:    mv a0, a2
 ; RV32IB-NEXT:    ret
 ;
@@ -738,9 +737,8 @@ define i64 @rori_i64_fshr(i64 %a) nounwind {
 ;
 ; RV32IB-LABEL: rori_i64_fshr:
 ; RV32IB:       # %bb.0:
-; RV32IB-NEXT:    addi a3, zero, 1
-; RV32IB-NEXT:    fsl a2, a0, a1, a3
-; RV32IB-NEXT:    fsl a1, a1, a0, a3
+; RV32IB-NEXT:    fsri a2, a1, a0, 31
+; RV32IB-NEXT:    fsri a1, a0, a1, 31
 ; RV32IB-NEXT:    mv a0, a2
 ; RV32IB-NEXT:    ret
 ;
@@ -897,7 +895,7 @@ define i64 @packu_i64(i64 %a, i64 %b) nounwind {
 define i32 @packh_i32(i32 %a, i32 %b) nounwind {
 ; RV32I-LABEL: packh_i32:
 ; RV32I:       # %bb.0:
-; RV32I-NEXT:    andi a0, a0, 255
+; RV32I-NEXT:    zext.b a0, a0
 ; RV32I-NEXT:    slli a1, a1, 8
 ; RV32I-NEXT:    lui a2, 16
 ; RV32I-NEXT:    addi a2, a2, -256
@@ -929,7 +927,7 @@ define i32 @packh_i32(i32 %a, i32 %b) nounwind {
 define i64 @packh_i64(i64 %a, i64 %b) nounwind {
 ; RV32I-LABEL: packh_i64:
 ; RV32I:       # %bb.0:
-; RV32I-NEXT:    andi a0, a0, 255
+; RV32I-NEXT:    zext.b a0, a0
 ; RV32I-NEXT:    slli a1, a2, 8
 ; RV32I-NEXT:    lui a2, 16
 ; RV32I-NEXT:    addi a2, a2, -256
@@ -960,4 +958,60 @@ define i64 @packh_i64(i64 %a, i64 %b) nounwind {
   %shl = and i64 %and1, 65280
   %or = or i64 %shl, %and
   ret i64 %or
+}
+
+define i32 @zexth_i32(i32 %a) nounwind {
+; RV32I-LABEL: zexth_i32:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    lui a1, 16
+; RV32I-NEXT:    addi a1, a1, -1
+; RV32I-NEXT:    and a0, a0, a1
+; RV32I-NEXT:    ret
+;
+; RV32IB-LABEL: zexth_i32:
+; RV32IB:       # %bb.0:
+; RV32IB-NEXT:    zext.h a0, a0
+; RV32IB-NEXT:    ret
+;
+; RV32IBB-LABEL: zexth_i32:
+; RV32IBB:       # %bb.0:
+; RV32IBB-NEXT:    zext.h a0, a0
+; RV32IBB-NEXT:    ret
+;
+; RV32IBP-LABEL: zexth_i32:
+; RV32IBP:       # %bb.0:
+; RV32IBP-NEXT:    pack a0, a0, zero
+; RV32IBP-NEXT:    ret
+  %and = and i32 %a, 65535
+  ret i32 %and
+}
+
+define i64 @zexth_i64(i64 %a) nounwind {
+; RV32I-LABEL: zexth_i64:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    lui a1, 16
+; RV32I-NEXT:    addi a1, a1, -1
+; RV32I-NEXT:    and a0, a0, a1
+; RV32I-NEXT:    mv a1, zero
+; RV32I-NEXT:    ret
+;
+; RV32IB-LABEL: zexth_i64:
+; RV32IB:       # %bb.0:
+; RV32IB-NEXT:    zext.h a0, a0
+; RV32IB-NEXT:    mv a1, zero
+; RV32IB-NEXT:    ret
+;
+; RV32IBB-LABEL: zexth_i64:
+; RV32IBB:       # %bb.0:
+; RV32IBB-NEXT:    zext.h a0, a0
+; RV32IBB-NEXT:    mv a1, zero
+; RV32IBB-NEXT:    ret
+;
+; RV32IBP-LABEL: zexth_i64:
+; RV32IBP:       # %bb.0:
+; RV32IBP-NEXT:    pack a0, a0, zero
+; RV32IBP-NEXT:    mv a1, zero
+; RV32IBP-NEXT:    ret
+  %and = and i64 %a, 65535
+  ret i64 %and
 }

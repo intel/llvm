@@ -17,10 +17,10 @@
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/OperationSupport.h"
-#include "mlir/IR/StandardTypes.h"
 #include "llvm/AsmParser/Parser.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/Function.h"
@@ -57,12 +57,14 @@ static ParseResult parseNVVMShflSyncBflyOp(OpAsmParser &parser,
   for (auto &attr : result.attributes) {
     if (attr.first != "return_value_and_is_valid")
       continue;
-    if (type.isStructTy() && type.getStructNumElements() > 0)
-      type = type.getStructElementType(0);
+    auto structType = type.dyn_cast<LLVM::LLVMStructType>();
+    if (structType && !structType.getBody().empty())
+      type = structType.getBody()[0];
     break;
   }
 
-  auto int32Ty = LLVM::LLVMType::getInt32Ty(parser.getBuilder().getContext());
+  auto int32Ty =
+      LLVM::LLVMIntegerType::get(parser.getBuilder().getContext(), 32);
   return parser.resolveOperands(ops, {int32Ty, type, int32Ty, int32Ty},
                                 parser.getNameLoc(), result.operands);
 }
@@ -71,8 +73,8 @@ static ParseResult parseNVVMShflSyncBflyOp(OpAsmParser &parser,
 static ParseResult parseNVVMVoteBallotOp(OpAsmParser &parser,
                                          OperationState &result) {
   MLIRContext *context = parser.getBuilder().getContext();
-  auto int32Ty = LLVM::LLVMType::getInt32Ty(context);
-  auto int1Ty = LLVM::LLVMType::getInt1Ty(context);
+  auto int32Ty = LLVM::LLVMIntegerType::get(context, 32);
+  auto int1Ty = LLVM::LLVMIntegerType::get(context, 1);
 
   SmallVector<OpAsmParser::OperandType, 8> ops;
   Type type;
@@ -86,12 +88,12 @@ static ParseResult parseNVVMVoteBallotOp(OpAsmParser &parser,
 
 static LogicalResult verify(MmaOp op) {
   MLIRContext *context = op.getContext();
-  auto f16Ty = LLVM::LLVMType::getHalfTy(context);
-  auto f16x2Ty = LLVM::LLVMType::getVectorTy(f16Ty, 2);
-  auto f32Ty = LLVM::LLVMType::getFloatTy(context);
-  auto f16x2x4StructTy = LLVM::LLVMType::getStructTy(
+  auto f16Ty = LLVM::LLVMHalfType::get(context);
+  auto f16x2Ty = LLVM::LLVMFixedVectorType::get(f16Ty, 2);
+  auto f32Ty = LLVM::LLVMFloatType::get(context);
+  auto f16x2x4StructTy = LLVM::LLVMStructType::getLiteral(
       context, {f16x2Ty, f16x2Ty, f16x2Ty, f16x2Ty});
-  auto f32x8StructTy = LLVM::LLVMType::getStructTy(
+  auto f32x8StructTy = LLVM::LLVMStructType::getLiteral(
       context, {f32Ty, f32Ty, f32Ty, f32Ty, f32Ty, f32Ty, f32Ty, f32Ty});
 
   SmallVector<Type, 12> operand_types(op.getOperandTypes().begin(),
@@ -109,8 +111,8 @@ static LogicalResult verify(MmaOp op) {
                           "<halfx2>s or 8 floats");
   }
 
-  auto alayout = op.getAttrOfType<StringAttr>("alayout");
-  auto blayout = op.getAttrOfType<StringAttr>("blayout");
+  auto alayout = op->getAttrOfType<StringAttr>("alayout");
+  auto blayout = op->getAttrOfType<StringAttr>("blayout");
 
   if (!(alayout && blayout) ||
       !(alayout.getValue() == "row" || alayout.getValue() == "col") ||

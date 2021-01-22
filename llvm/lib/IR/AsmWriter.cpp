@@ -399,6 +399,7 @@ static void PrintCallingConv(unsigned cc, raw_ostream &Out) {
   case CallingConv::AMDGPU_PS:     Out << "amdgpu_ps"; break;
   case CallingConv::AMDGPU_CS:     Out << "amdgpu_cs"; break;
   case CallingConv::AMDGPU_KERNEL: Out << "amdgpu_kernel"; break;
+  case CallingConv::AMDGPU_Gfx:    Out << "amdgpu_gfx"; break;
   }
 }
 
@@ -1454,6 +1455,13 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
     return;
   }
 
+  if (const auto *Equiv = dyn_cast<DSOLocalEquivalent>(CV)) {
+    Out << "dso_local_equivalent ";
+    WriteAsOperandInternal(Out, Equiv->getGlobalValue(), &TypePrinter, Machine,
+                           Context);
+    return;
+  }
+
   if (const ConstantArray *CA = dyn_cast<ConstantArray>(CV)) {
     Type *ETy = CA->getType()->getElementType();
     Out << '[';
@@ -1557,6 +1565,11 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
 
   if (isa<ConstantTokenNone>(CV)) {
     Out << "none";
+    return;
+  }
+
+  if (isa<PoisonValue>(CV)) {
+    Out << "poison";
     return;
   }
 
@@ -2232,6 +2245,7 @@ static void writeDIModule(raw_ostream &Out, const DIModule *N,
   Printer.printString("apinotes", N->getAPINotesFile());
   Printer.printMetadata("file", N->getRawFile());
   Printer.printInt("line", N->getLineNo());
+  Printer.printBool("isDecl", N->getIsDecl(), /* Default */ false);
   Out << ")";
 }
 

@@ -278,6 +278,105 @@ next:
   ret void
 }
 
+define void @switch_nonzero_zext(i8 %s) {
+; CHECK-LABEL: @switch_nonzero_zext(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[CMP:%.*]] = icmp ne i8 [[S:%.*]], 0
+; CHECK-NEXT:    br i1 [[CMP]], label [[SWITCH:%.*]], label [[EXIT:%.*]]
+; CHECK:       switch:
+; CHECK-NEXT:    [[S_EXT:%.*]] = zext i8 [[S]] to i32
+; CHECK-NEXT:    br label [[EXIT]]
+; CHECK:       exit:
+; CHECK-NEXT:    ret void
+; CHECK:       unreachable:
+; CHECK-NEXT:    ret void
+;
+entry:
+  %cmp = icmp ne i8 %s, 0
+  br i1 %cmp, label %switch, label %exit
+
+switch:
+  %s.ext = zext i8 %s to i32
+  switch i32 %s.ext, label %exit [
+  i32 0, label %unreachable
+  i32 1, label %exit
+  i32 -1, label %exit
+  ]
+
+exit:
+  ret void
+
+unreachable:
+  ret void
+}
+
+define void @switch_assume_nonzero(i32 %s) {
+; CHECK-LABEL: @switch_assume_nonzero(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[CMP:%.*]] = icmp ne i32 [[S:%.*]], 0
+; CHECK-NEXT:    call void @llvm.assume(i1 [[CMP]])
+; CHECK-NEXT:    br label [[EXIT:%.*]]
+; CHECK:       exit:
+; CHECK-NEXT:    ret void
+; CHECK:       unreachable:
+; CHECK-NEXT:    ret void
+;
+entry:
+  %cmp = icmp ne i32 %s, 0
+  call void @llvm.assume(i1 %cmp)
+  switch i32 %s, label %exit [
+  i32 0, label %unreachable
+  i32 1, label %exit
+  i32 -1, label %exit
+  ]
+
+exit:
+  ret void
+
+unreachable:
+  ret void
+}
+
+define void @switch_nonzero_phi(i1 %cond) {
+; CHECK-LABEL: @switch_nonzero_phi(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    br i1 [[COND:%.*]], label [[IF:%.*]], label [[ELSE:%.*]]
+; CHECK:       if:
+; CHECK-NEXT:    br label [[SWITCH:%.*]]
+; CHECK:       else:
+; CHECK-NEXT:    br label [[SWITCH]]
+; CHECK:       switch:
+; CHECK-NEXT:    [[S:%.*]] = phi i32 [ 1, [[IF]] ], [ -1, [[ELSE]] ]
+; CHECK-NEXT:    br label [[EXIT:%.*]]
+; CHECK:       exit:
+; CHECK-NEXT:    ret void
+; CHECK:       unreachable:
+; CHECK-NEXT:    ret void
+;
+entry:
+  br i1 %cond, label %if, label %else
+
+if:
+  br label %switch
+
+else:
+  br label %switch
+
+switch:
+  %s = phi i32 [ 1, %if ], [ -1, %else ]
+  switch i32 %s, label %exit [
+  i32 0, label %unreachable
+  i32 1, label %exit
+  i32 -1, label %exit
+  ]
+
+exit:
+  ret void
+
+unreachable:
+  ret void
+}
+
 define i1 @arg_attribute(i8* nonnull %a) {
 ; CHECK-LABEL: @arg_attribute(
 ; CHECK-NEXT:    ret i1 false
@@ -962,7 +1061,202 @@ exit2:
   ret i1 %cmp2
 }
 
+define void @select_and(i32 %a, i1* %p) {
+; CHECK-LABEL: @select_and(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[CMP1:%.*]] = icmp sgt i32 [[A:%.*]], -10
+; CHECK-NEXT:    [[CMP2:%.*]] = icmp slt i32 [[A]], 10
+; CHECK-NEXT:    [[AND:%.*]] = select i1 [[CMP1]], i1 [[CMP2]], i1 false
+; CHECK-NEXT:    br i1 [[AND]], label [[GUARD:%.*]], label [[EXIT:%.*]]
+; CHECK:       guard:
+; CHECK-NEXT:    store i1 false, i1* [[P:%.*]], align 1
+; CHECK-NEXT:    store i1 false, i1* [[P]], align 1
+; CHECK-NEXT:    br label [[EXIT]]
+; CHECK:       exit:
+; CHECK-NEXT:    ret void
+;
+entry:
+  %cmp1 = icmp sgt i32 %a, -10
+  %cmp2 = icmp slt i32 %a, 10
+  %and = select i1 %cmp1, i1 %cmp2, i1 false
+  br i1 %and, label %guard, label %exit
+
+guard:
+  %c1 = icmp sgt i32 %a, 20
+  store i1 %c1, i1* %p
+  %c2 = icmp slt i32 %a, -20
+  store i1 %c2, i1* %p
+  br label %exit
+
+exit:
+  ret void
+}
+
+define void @select_and_wrong_const(i32 %a, i1* %p) {
+; CHECK-LABEL: @select_and_wrong_const(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[CMP1:%.*]] = icmp sgt i32 [[A:%.*]], -10
+; CHECK-NEXT:    [[CMP2:%.*]] = icmp slt i32 [[A]], 10
+; CHECK-NEXT:    [[AND:%.*]] = select i1 [[CMP1]], i1 [[CMP2]], i1 true
+; CHECK-NEXT:    br i1 [[AND]], label [[GUARD:%.*]], label [[EXIT:%.*]]
+; CHECK:       guard:
+; CHECK-NEXT:    [[C1:%.*]] = icmp sgt i32 [[A]], 20
+; CHECK-NEXT:    store i1 [[C1]], i1* [[P:%.*]], align 1
+; CHECK-NEXT:    [[C2:%.*]] = icmp slt i32 [[A]], -20
+; CHECK-NEXT:    store i1 [[C2]], i1* [[P]], align 1
+; CHECK-NEXT:    br label [[EXIT]]
+; CHECK:       exit:
+; CHECK-NEXT:    ret void
+;
+entry:
+  %cmp1 = icmp sgt i32 %a, -10
+  %cmp2 = icmp slt i32 %a, 10
+  %and = select i1 %cmp1, i1 %cmp2, i1 true
+  br i1 %and, label %guard, label %exit
+
+guard:
+  %c1 = icmp sgt i32 %a, 20
+  store i1 %c1, i1* %p
+  %c2 = icmp slt i32 %a, -20
+  store i1 %c2, i1* %p
+  br label %exit
+
+exit:
+  ret void
+}
+
+define void @select_and_wrong_operand(i32 %a, i1* %p) {
+; CHECK-LABEL: @select_and_wrong_operand(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[CMP1:%.*]] = icmp sgt i32 [[A:%.*]], -10
+; CHECK-NEXT:    [[CMP2:%.*]] = icmp slt i32 [[A]], 10
+; CHECK-NEXT:    [[AND:%.*]] = select i1 [[CMP1]], i1 false, i1 [[CMP2]]
+; CHECK-NEXT:    br i1 [[AND]], label [[GUARD:%.*]], label [[EXIT:%.*]]
+; CHECK:       guard:
+; CHECK-NEXT:    [[C1:%.*]] = icmp sgt i32 [[A]], 20
+; CHECK-NEXT:    store i1 [[C1]], i1* [[P:%.*]], align 1
+; CHECK-NEXT:    [[C2:%.*]] = icmp slt i32 [[A]], -20
+; CHECK-NEXT:    store i1 [[C2]], i1* [[P]], align 1
+; CHECK-NEXT:    br label [[EXIT]]
+; CHECK:       exit:
+; CHECK-NEXT:    ret void
+;
+entry:
+  %cmp1 = icmp sgt i32 %a, -10
+  %cmp2 = icmp slt i32 %a, 10
+  %and = select i1 %cmp1, i1 false, i1 %cmp2
+  br i1 %and, label %guard, label %exit
+
+guard:
+  %c1 = icmp sgt i32 %a, 20
+  store i1 %c1, i1* %p
+  %c2 = icmp slt i32 %a, -20
+  store i1 %c2, i1* %p
+  br label %exit
+
+exit:
+  ret void
+}
+
+define void @select_or(i32 %a, i1* %p) {
+; CHECK-LABEL: @select_or(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[CMP1:%.*]] = icmp slt i32 [[A:%.*]], -10
+; CHECK-NEXT:    [[CMP2:%.*]] = icmp sgt i32 [[A]], 10
+; CHECK-NEXT:    [[OR:%.*]] = select i1 [[CMP1]], i1 true, i1 [[CMP2]]
+; CHECK-NEXT:    br i1 [[OR]], label [[EXIT:%.*]], label [[GUARD:%.*]]
+; CHECK:       guard:
+; CHECK-NEXT:    store i1 false, i1* [[P:%.*]], align 1
+; CHECK-NEXT:    store i1 false, i1* [[P]], align 1
+; CHECK-NEXT:    br label [[EXIT]]
+; CHECK:       exit:
+; CHECK-NEXT:    ret void
+;
+entry:
+  %cmp1 = icmp slt i32 %a, -10
+  %cmp2 = icmp sgt i32 %a, 10
+  %or = select i1 %cmp1, i1 true, i1 %cmp2
+  br i1 %or, label %exit, label %guard
+
+guard:
+  %c1 = icmp sgt i32 %a, 20
+  store i1 %c1, i1* %p
+  %c2 = icmp slt i32 %a, -20
+  store i1 %c2, i1* %p
+  br label %exit
+
+exit:
+  ret void
+}
+
+define void @select_or_wrong_const(i32 %a, i1* %p) {
+; CHECK-LABEL: @select_or_wrong_const(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[CMP1:%.*]] = icmp slt i32 [[A:%.*]], -10
+; CHECK-NEXT:    [[CMP2:%.*]] = icmp sgt i32 [[A]], 10
+; CHECK-NEXT:    [[OR:%.*]] = select i1 [[CMP1]], i1 false, i1 [[CMP2]]
+; CHECK-NEXT:    br i1 [[OR]], label [[EXIT:%.*]], label [[GUARD:%.*]]
+; CHECK:       guard:
+; CHECK-NEXT:    [[C1:%.*]] = icmp sgt i32 [[A]], 20
+; CHECK-NEXT:    store i1 [[C1]], i1* [[P:%.*]], align 1
+; CHECK-NEXT:    [[C2:%.*]] = icmp slt i32 [[A]], -20
+; CHECK-NEXT:    store i1 [[C2]], i1* [[P]], align 1
+; CHECK-NEXT:    br label [[EXIT]]
+; CHECK:       exit:
+; CHECK-NEXT:    ret void
+;
+entry:
+  %cmp1 = icmp slt i32 %a, -10
+  %cmp2 = icmp sgt i32 %a, 10
+  %or = select i1 %cmp1, i1 false, i1 %cmp2
+  br i1 %or, label %exit, label %guard
+
+guard:
+  %c1 = icmp sgt i32 %a, 20
+  store i1 %c1, i1* %p
+  %c2 = icmp slt i32 %a, -20
+  store i1 %c2, i1* %p
+  br label %exit
+
+exit:
+  ret void
+}
+
+define void @select_or_wrong_operand(i32 %a, i1* %p) {
+; CHECK-LABEL: @select_or_wrong_operand(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[CMP1:%.*]] = icmp slt i32 [[A:%.*]], -10
+; CHECK-NEXT:    [[CMP2:%.*]] = icmp sgt i32 [[A]], 10
+; CHECK-NEXT:    [[OR:%.*]] = select i1 [[CMP1]], i1 [[CMP2]], i1 true
+; CHECK-NEXT:    br i1 [[OR]], label [[EXIT:%.*]], label [[GUARD:%.*]]
+; CHECK:       guard:
+; CHECK-NEXT:    [[C1:%.*]] = icmp sgt i32 [[A]], 20
+; CHECK-NEXT:    store i1 [[C1]], i1* [[P:%.*]], align 1
+; CHECK-NEXT:    [[C2:%.*]] = icmp slt i32 [[A]], -20
+; CHECK-NEXT:    store i1 [[C2]], i1* [[P]], align 1
+; CHECK-NEXT:    br label [[EXIT]]
+; CHECK:       exit:
+; CHECK-NEXT:    ret void
+;
+entry:
+  %cmp1 = icmp slt i32 %a, -10
+  %cmp2 = icmp sgt i32 %a, 10
+  %or = select i1 %cmp1, i1 %cmp2, i1 true
+  br i1 %or, label %exit, label %guard
+
+guard:
+  %c1 = icmp sgt i32 %a, 20
+  store i1 %c1, i1* %p
+  %c2 = icmp slt i32 %a, -20
+  store i1 %c2, i1* %p
+  br label %exit
+
+exit:
+  ret void
+}
+
 declare i32 @llvm.uadd.sat.i32(i32, i32)
 declare i32 @llvm.usub.sat.i32(i32, i32)
 declare i32 @llvm.sadd.sat.i32(i32, i32)
 declare i32 @llvm.ssub.sat.i32(i32, i32)
+declare void @llvm.assume(i1)

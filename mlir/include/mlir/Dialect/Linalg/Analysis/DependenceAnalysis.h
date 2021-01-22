@@ -9,6 +9,7 @@
 #ifndef MLIR_DIALECT_LINALG_ANALYSIS_DEPENDENCEANALYSIS_H_
 #define MLIR_DIALECT_LINALG_ANALYSIS_DEPENDENCEANALYSIS_H_
 
+#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpDefinition.h"
 
@@ -43,31 +44,31 @@ private:
 /// views as SSA values.
 class LinalgDependenceGraph {
 public:
-  struct LinalgOpView {
-    Operation *op;
-    Value view;
-  };
+  enum DependenceType { RAR = 0, RAW, WAR, WAW, NumTypes };
+  // TODO: OpOperand tracks dependencies on buffer operands. Tensor result will
+  // need an extension to use OpResult.
   struct LinalgDependenceGraphElem {
     // dependentOpView may be either:
     //   1. src in the case of dependencesIntoGraphs.
     //   2. dst in the case of dependencesFromDstGraphs.
-    LinalgOpView dependentOpView;
+    OpOperand *dependentOpView;
     // View in the op that is used to index in the graph:
     //   1. src in the case of dependencesFromDstGraphs.
     //   2. dst in the case of dependencesIntoGraphs.
-    Value indexingView;
+    OpOperand *indexingOpView;
+    // Type of the dependence.
+    DependenceType dependenceType;
   };
   using LinalgDependences = SmallVector<LinalgDependenceGraphElem, 8>;
   using DependenceGraph = DenseMap<Operation *, LinalgDependences>;
   using dependence_iterator = LinalgDependences::const_iterator;
   using dependence_range = iterator_range<dependence_iterator>;
 
-  enum DependenceType { RAR = 0, RAW, WAR, WAW, NumTypes };
   static StringRef getDependenceTypeStr(DependenceType depType);
 
   // Builds a linalg dependence graph for the ops of type LinalgOp under `f`.
   static LinalgDependenceGraph buildDependenceGraph(Aliases &aliases, FuncOp f);
-  LinalgDependenceGraph(Aliases &aliases, ArrayRef<Operation *> ops);
+  LinalgDependenceGraph(Aliases &aliases, ArrayRef<LinalgOp> ops);
 
   /// Returns the X such that op -> X is a dependence of type dt.
   dependence_range getDependencesFrom(Operation *src, DependenceType dt) const;
@@ -158,8 +159,8 @@ private:
   // Uses std::pair to keep operations and view together and avoid usage errors
   // related to src/dst and producer/consumer terminology in the context of
   // dependences.
-  void addDependenceElem(DependenceType dt, LinalgOpView indexingOpView,
-                         LinalgOpView dependentOpView);
+  void addDependenceElem(DependenceType dt, OpOperand *indexingOpView,
+                         OpOperand *dependentOpView);
 
   /// Implementation detail for findCoveringxxx.
   SmallVector<Operation *, 8>
@@ -168,7 +169,7 @@ private:
                                         ArrayRef<DependenceType> types) const;
 
   Aliases &aliases;
-  SmallVector<Operation *, 8> linalgOps;
+  SmallVector<LinalgOp, 8> linalgOps;
   DenseMap<Operation *, unsigned> linalgOpPositions;
 };
 } // namespace linalg

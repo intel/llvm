@@ -255,8 +255,8 @@ void llvm::reportGISelFailure(MachineFunction &MF, const TargetPassConfig &TPC,
   reportGISelFailure(MF, TPC, MORE, R);
 }
 
-Optional<int64_t> llvm::getConstantVRegVal(Register VReg,
-                                           const MachineRegisterInfo &MRI) {
+Optional<APInt> llvm::getConstantVRegVal(Register VReg,
+                                         const MachineRegisterInfo &MRI) {
   Optional<ValueAndVReg> ValAndVReg =
       getConstantVRegValWithLookThrough(VReg, MRI, /*LookThroughInstrs*/ false);
   assert((!ValAndVReg || ValAndVReg->VReg == VReg) &&
@@ -264,6 +264,14 @@ Optional<int64_t> llvm::getConstantVRegVal(Register VReg,
   if (!ValAndVReg)
     return None;
   return ValAndVReg->Value;
+}
+
+Optional<int64_t> llvm::getConstantVRegSExtVal(Register VReg,
+                                               const MachineRegisterInfo &MRI) {
+  Optional<APInt> Val = getConstantVRegVal(VReg, MRI);
+  if (Val && Val->getBitWidth() <= 64)
+    return Val->getSExtValue();
+  return None;
 }
 
 Optional<ValueAndVReg> llvm::getConstantVRegValWithLookThrough(
@@ -337,10 +345,7 @@ Optional<ValueAndVReg> llvm::getConstantVRegValWithLookThrough(
     }
   }
 
-  if (Val.getBitWidth() > 64)
-    return None;
-
-  return ValueAndVReg{Val.getSExtValue(), VReg};
+  return ValueAndVReg{Val, VReg};
 }
 
 const ConstantFP *
@@ -351,15 +356,8 @@ llvm::getConstantFPVRegVal(Register VReg, const MachineRegisterInfo &MRI) {
   return MI->getOperand(1).getFPImm();
 }
 
-namespace {
-struct DefinitionAndSourceRegister {
-  MachineInstr *MI;
-  Register Reg;
-};
-} // namespace
-
-static Optional<DefinitionAndSourceRegister>
-getDefSrcRegIgnoringCopies(Register Reg, const MachineRegisterInfo &MRI) {
+Optional<DefinitionAndSourceRegister>
+llvm::getDefSrcRegIgnoringCopies(Register Reg, const MachineRegisterInfo &MRI) {
   Register DefSrcReg = Reg;
   auto *DefMI = MRI.getVRegDef(Reg);
   auto DstTy = MRI.getType(DefMI->getOperand(0).getReg());
@@ -420,9 +418,8 @@ Optional<APInt> llvm::ConstantFoldBinOp(unsigned Opcode, const Register Op1,
   if (!MaybeOp1Cst)
     return None;
 
-  LLT Ty = MRI.getType(Op1);
-  APInt C1(Ty.getSizeInBits(), *MaybeOp1Cst, true);
-  APInt C2(Ty.getSizeInBits(), *MaybeOp2Cst, true);
+  const APInt &C1 = *MaybeOp1Cst;
+  const APInt &C2 = *MaybeOp2Cst;
   switch (Opcode) {
   default:
     break;
@@ -542,13 +539,13 @@ Optional<APInt> llvm::ConstantFoldExtOp(unsigned Opcode, const Register Op1,
                                         const MachineRegisterInfo &MRI) {
   auto MaybeOp1Cst = getConstantVRegVal(Op1, MRI);
   if (MaybeOp1Cst) {
-    LLT Ty = MRI.getType(Op1);
-    APInt C1(Ty.getSizeInBits(), *MaybeOp1Cst, true);
     switch (Opcode) {
     default:
       break;
-    case TargetOpcode::G_SEXT_INREG:
-      return C1.trunc(Imm).sext(C1.getBitWidth());
+    case TargetOpcode::G_SEXT_INREG: {
+      LLT Ty = MRI.getType(Op1);
+      return MaybeOp1Cst->trunc(Imm).sext(Ty.getScalarSizeInBits());
+    }
     }
   }
   return None;
@@ -689,9 +686,7 @@ static bool isBuildVectorConstantSplat(const MachineInstr &MI,
   const unsigned NumOps = MI.getNumOperands();
   for (unsigned I = 1; I != NumOps; ++I) {
     Register Element = MI.getOperand(I).getReg();
-    int64_t ElementValue;
-    if (!mi_match(Element, MRI, m_ICst(ElementValue)) ||
-        ElementValue != SplatValue)
+    if (!mi_match(Element, MRI, m_SpecificICst(SplatValue)))
       return false;
   }
 

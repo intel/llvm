@@ -62,9 +62,16 @@ class CastOp<string mnemonic, list<OpTrait> traits = []> :
   let printer = [{
     return printStandardCastOp(this->getOperation(), p);
   }];
-  let verifier = [{ return ::verifyCastOp(*this); }];
+  let verifier = [{ return impl::verifyCastOp(*this, areCastCompatible); }];
 
   let hasFolder = 1;
+}
+
+// Base class for arithmetic cast operations.
+class ArithmeticCastOp<string mnemonic, list<OpTrait> traits = []> :
+    CastOp<mnemonic,
+    !listconcat(traits, [ElementwiseMappable,
+                         DeclareOpInterfaceMethods<VectorUnrollOpInterface>])> {
 }
 
 // Base class for unary ops. Requires single operand and result. Individual
@@ -88,7 +95,8 @@ class UnaryOpSameOperandAndResultType<string mnemonic,
 class FloatUnaryOp<string mnemonic, list<OpTrait> traits = []> :
     UnaryOpSameOperandAndResultType<mnemonic,
       !listconcat(traits,
-                  [DeclareOpInterfaceMethods<VectorUnrollOpInterface>])>,
+                  [DeclareOpInterfaceMethods<VectorUnrollOpInterface>,
+                   ElementwiseMappable])>,
     Arguments<(ins FloatLike:$operand)>;
 
 // Base class for standard arithmetic operations.  Requires operands and
@@ -96,9 +104,12 @@ class FloatUnaryOp<string mnemonic, list<OpTrait> traits = []> :
 // types.  Individual classes will have `lhs` and `rhs` accessor to operands.
 class ArithmeticOp<string mnemonic, list<OpTrait> traits = []> :
     Op<StandardOps_Dialect, mnemonic,
-       !listconcat(traits, [NoSideEffect, SameOperandsAndResultType])> {
+       !listconcat(traits, [NoSideEffect,
+                            SameOperandsAndResultType,
+                            DeclareOpInterfaceMethods<VectorUnrollOpInterface>,
+                            ElementwiseMappable])> {
 
-  let results = (outs AnyType);
+  let results = (outs AnyType:$result);
 
   let parser = [{
     return impl::parseOneResultSameOperandTypeOp(parser, result);
@@ -157,20 +168,38 @@ class ComplexFloatArithmeticOp<string mnemonic, list<OpTrait> traits = []> :
 class AllocLikeOp<string mnemonic,
                   Resource resource,
                   list<OpTrait> traits = []> :
-    Std_Op<mnemonic, !listconcat([MemoryEffects<[MemAlloc<resource>]>], traits)> {
+    Std_Op<mnemonic,
+    !listconcat([
+      MemoryEffects<[MemAlloc<resource>]>,
+      AttrSizedOperandSegments
+    ], traits)> {
 
-  let arguments = (ins Variadic<Index>:$value,
+  let arguments = (ins Variadic<Index>:$dynamicSizes,
+                   // The symbolic operands (the ones in square brackets) bind
+                   // to the symbols of the memref's layout map.
+                   Variadic<Index>:$symbolOperands,
                    Confined<OptionalAttr<I64Attr>, [IntMinValue<0>]>:$alignment);
-  let results = (outs Res<AnyMemRef, "", [MemAlloc<resource>]>);
+  let results = (outs Res<AnyMemRef, "", [MemAlloc<resource>]>:$memref);
 
   let builders = [
-    OpBuilderDAG<(ins "MemRefType":$memrefType), [{
-      $_state.types.push_back(memrefType);
+    OpBuilderDAG<(ins "MemRefType":$memrefType,
+                  CArg<"IntegerAttr", "IntegerAttr()">:$alignment), [{
+      return build($_builder, $_state, memrefType, {}, alignment);
     }]>,
-    OpBuilderDAG<(ins "MemRefType":$memrefType, "ValueRange":$operands,
-      CArg<"IntegerAttr", "IntegerAttr()">:$alignment), [{
-      $_state.addOperands(operands);
+    OpBuilderDAG<(ins "MemRefType":$memrefType, "ValueRange":$dynamicSizes,
+                  CArg<"IntegerAttr", "IntegerAttr()">:$alignment), [{
+      return build($_builder, $_state, memrefType, dynamicSizes, {}, alignment);
+    }]>,
+    OpBuilderDAG<(ins "MemRefType":$memrefType, "ValueRange":$dynamicSizes,
+                  "ValueRange":$symbolOperands,
+                  CArg<"IntegerAttr", "{}">:$alignment), [{
       $_state.types.push_back(memrefType);
+      $_state.addOperands(dynamicSizes);
+      $_state.addOperands(symbolOperands);
+      $_state.addAttribute(getOperandSegmentSizeAttr(),
+          $_builder.getI32VectorAttr({
+              static_cast<int32_t>(dynamicSizes.size()),
+              static_cast<int32_t>(symbolOperands.size())}));
       if (alignment)
         $_state.addAttribute(getAlignmentAttrName(), alignment);
     }]>];
@@ -180,23 +209,13 @@ class AllocLikeOp<string mnemonic,
 
     MemRefType getType() { return getResult().getType().cast<MemRefType>(); }
 
-    /// Returns the number of symbolic operands (the ones in square brackets),
-    /// which bind to the symbols of the memref's layout map.
-    unsigned getNumSymbolicOperands() {
-      return getNumOperands() - getType().getNumDynamicDims();
-    }
-
-    /// Returns the symbolic operands (the ones in square brackets), which bind
-    /// to the symbols of the memref's layout map.
-    operand_range getSymbolicOperands() {
-      return {operand_begin() + getType().getNumDynamicDims(), operand_end()};
-    }
-
     /// Returns the dynamic sizes for this alloc operation if specified.
-    operand_range getDynamicSizes() { return getOperands(); }
+    operand_range getDynamicSizes() { return dynamicSizes(); }
   }];
 
-  let parser = [{ return ::parseAllocLikeOp(parser, result); }];
+  let assemblyFormat = [{
+    `(`$dynamicSizes`)` (`` `[` $symbolOperands^ `]`)? attr-dict `:` type($memref)
+  }];
 
   let hasCanonicalizer = 1;
 }
@@ -207,192 +226,15 @@ class BaseOpWithOffsetSizesAndStrides<string mnemonic, list<OpTrait> traits = []
     Std_Op<mnemonic,
            !listconcat(traits, [NoSideEffect, AttrSizedOperandSegments])> {
   code extraBaseClassDeclaration = [{
-    /// Returns the number of dynamic offset operands.
-    int64_t getNumOffsets() { return llvm::size(offsets()); }
-
-    /// Returns the number of dynamic size operands.
-    int64_t getNumSizes() { return llvm::size(sizes()); }
-
-    /// Returns the number of dynamic stride operands.
-    int64_t getNumStrides() { return llvm::size(strides()); }
-
     /// Returns the dynamic sizes for this subview operation if specified.
     operand_range getDynamicSizes() { return sizes(); }
-
-    /// Returns in `staticStrides` the static value of the stride
-    /// operands. Returns failure() if the static value of the stride
-    /// operands could not be retrieved.
-    LogicalResult getStaticStrides(SmallVectorImpl<int64_t> &staticStrides) {
-      if (!strides().empty())
-        return failure();
-      staticStrides.reserve(static_strides().size());
-      for (auto s : static_strides().getAsValueRange<IntegerAttr>())
-        staticStrides.push_back(s.getZExtValue());
-      return success();
-    }
 
     /// Return the list of Range (i.e. offset, size, stride). Each
     /// Range entry contains either the dynamic value or a ConstantIndexOp
     /// constructed with `b` at location `loc`.
-    SmallVector<Range, 8> getOrCreateRanges(OpBuilder &b, Location loc);
-
-    /// Return the offsets as Values. Each Value is either the dynamic
-    /// value specified in the op or a ConstantIndexOp constructed
-    /// with `b` at location `loc`
-    SmallVector<Value, 4> getOrCreateOffsets(OpBuilder &b, Location loc) {
-      unsigned dynamicIdx = 1;
-      return llvm::to_vector<4>(llvm::map_range(
-        static_offsets().cast<ArrayAttr>(), [&](Attribute a) -> Value {
-          int64_t staticOffset = a.cast<IntegerAttr>().getInt();
-          if (ShapedType::isDynamicStrideOrOffset(staticOffset))
-            return getOperand(dynamicIdx++);
-          else
-            return b.create<ConstantOp>(
-              loc, b.getIndexType(), b.getIndexAttr(staticOffset));
-        }));
+    SmallVector<Range, 8> getOrCreateRanges(OpBuilder &b, Location loc) {
+      return mlir::getOrCreateRanges(*this, b, loc);
     }
-
-    /// Return the sizes as Values. Each Value is either the dynamic
-    /// value specified in the op or a ConstantIndexOp constructed
-    /// with `b` at location `loc`
-    SmallVector<Value, 4> getOrCreateSizes(OpBuilder &b, Location loc) {
-      unsigned dynamicIdx = 1 + offsets().size();
-      return llvm::to_vector<4>(llvm::map_range(
-        static_sizes().cast<ArrayAttr>(), [&](Attribute a) -> Value {
-          int64_t staticSize = a.cast<IntegerAttr>().getInt();
-          if (ShapedType::isDynamic(staticSize))
-            return getOperand(dynamicIdx++);
-          else
-            return b.create<ConstantOp>(
-              loc, b.getIndexType(), b.getIndexAttr(staticSize));
-        }));
-    }
-
-    /// Return the strides as Values. Each Value is either the dynamic
-    /// value specified in the op or a ConstantIndexOp constructed with
-    /// `b` at location `loc`
-    SmallVector<Value, 4> getOrCreateStrides(OpBuilder &b, Location loc) {
-      unsigned dynamicIdx = 1 + offsets().size() + sizes().size();
-      return llvm::to_vector<4>(llvm::map_range(
-        static_strides().cast<ArrayAttr>(), [&](Attribute a) -> Value {
-          int64_t staticStride = a.cast<IntegerAttr>().getInt();
-          if (ShapedType::isDynamicStrideOrOffset(staticStride))
-            return getOperand(dynamicIdx++);
-          else
-            return b.create<ConstantOp>(
-              loc, b.getIndexType(), b.getIndexAttr(staticStride));
-        }));
-    }
-
-    /// Return the rank of the source ShapedType.
-    unsigned getSourceRank() {
-      return source().getType().cast<ShapedType>().getRank();
-    }
-
-    /// Return the rank of the result ShapedType.
-    unsigned getResultRank() { return getType().getRank(); }
-
-    /// Return true if the offset `idx` is a static constant.
-    bool isDynamicOffset(unsigned idx) {
-      APInt v = *(static_offsets().getAsValueRange<IntegerAttr>().begin() + idx);
-      return ShapedType::isDynamicStrideOrOffset(v.getSExtValue());
-    }
-    /// Return true if the size `idx` is a static constant.
-    bool isDynamicSize(unsigned idx) {
-      APInt v = *(static_sizes().getAsValueRange<IntegerAttr>().begin() + idx);
-      return ShapedType::isDynamic(v.getSExtValue());
-    }
-
-    /// Return true if the stride `idx` is a static constant.
-    bool isDynamicStride(unsigned idx) {
-      APInt v = *(static_strides().getAsValueRange<IntegerAttr>().begin() + idx);
-      return ShapedType::isDynamicStrideOrOffset(v.getSExtValue());
-    }
-
-    /// Assert the offset `idx` is a static constant and return its value.
-    int64_t getStaticOffset(unsigned idx) {
-      assert(!isDynamicOffset(idx) && "expected static offset");
-      APInt v = *(static_offsets().getAsValueRange<IntegerAttr>().begin() + idx);
-      return v.getSExtValue();
-    }
-    /// Assert the size `idx` is a static constant and return its value.
-    int64_t getStaticSize(unsigned idx) {
-      assert(!isDynamicSize(idx) && "expected static size");
-      APInt v = *(static_sizes().getAsValueRange<IntegerAttr>().begin() + idx);
-      return v.getSExtValue();
-    }
-    /// Assert the stride `idx` is a static constant and return its value.
-    int64_t getStaticStride(unsigned idx) {
-      assert(!isDynamicStride(idx) && "expected static stride");
-      APInt v = *(static_strides().getAsValueRange<IntegerAttr>().begin() + idx);
-      return v.getSExtValue();
-    }
-
-    unsigned getNumDynamicEntriesUpToIdx(ArrayAttr attr,
-        llvm::function_ref<bool(int64_t)> isDynamic, unsigned idx) {
-      return std::count_if(
-        attr.getValue().begin(), attr.getValue().begin() + idx,
-        [&](Attribute attr) {
-          return isDynamic(attr.cast<IntegerAttr>().getInt());
-        });
-    }
-    /// Assert the offset `idx` is dynamic and return the position of the
-    /// corresponding operand.
-    unsigned getIndexOfDynamicOffset(unsigned idx) {
-      assert(isDynamicOffset(idx) && "expected static offset");
-      auto numDynamic =
-          getNumDynamicEntriesUpToIdx(static_offsets().cast<ArrayAttr>(),
-                                      ShapedType::isDynamicStrideOrOffset, idx);
-      return 1 + numDynamic;
-    }
-    /// Assert the size `idx` is dynamic and return the position of the
-    /// corresponding operand.
-    unsigned getIndexOfDynamicSize(unsigned idx) {
-      assert(isDynamicSize(idx) && "expected static size");
-      auto numDynamic = getNumDynamicEntriesUpToIdx(
-          static_sizes().cast<ArrayAttr>(), ShapedType::isDynamic, idx);
-      return 1 + offsets().size() + numDynamic;
-    }
-    /// Assert the stride `idx` is dynamic and return the position of the
-    /// corresponding operand.
-    unsigned getIndexOfDynamicStride(unsigned idx) {
-      assert(isDynamicStride(idx) && "expected static stride");
-      auto numDynamic =
-          getNumDynamicEntriesUpToIdx(static_strides().cast<ArrayAttr>(),
-                                      ShapedType::isDynamicStrideOrOffset, idx);
-      return 1 + offsets().size() + sizes().size() + numDynamic;
-    }
-
-    /// Assert the offset `idx` is dynamic and return its value.
-    Value getDynamicOffset(unsigned idx) {
-      return getOperand(getIndexOfDynamicOffset(idx));
-    }
-    /// Assert the size `idx` is dynamic and return its value.
-    Value getDynamicSize(unsigned idx) {
-      return getOperand(getIndexOfDynamicSize(idx));
-    }
-    /// Assert the stride `idx` is dynamic and return its value.
-    Value getDynamicStride(unsigned idx) {
-      return getOperand(getIndexOfDynamicStride(idx));
-    }
-
-    static StringRef getStaticOffsetsAttrName() {
-      return "static_offsets";
-    }
-    static StringRef getStaticSizesAttrName() {
-      return "static_sizes";
-    }
-    static StringRef getStaticStridesAttrName() {
-      return "static_strides";
-    }
-    static ArrayRef<StringRef> getSpecialAttrNames() {
-      static SmallVector<StringRef, 4> names{
-        getStaticOffsetsAttrName(),
-        getStaticSizesAttrName(),
-        getStaticStridesAttrName(),
-        getOperandSegmentSizeAttr()};
-      return names;
-   }
   }];
 }
 
@@ -981,7 +823,7 @@ def CallOp : Std_Op<"call",
 
     /// Return the callee of this operation.
     CallInterfaceCallable getCallableForCallee() {
-      return getAttrOfType<SymbolRefAttr>("callee");
+      return (*this)->getAttrOfType<SymbolRefAttr>("callee");
     }
   }];
 
@@ -1152,7 +994,8 @@ def CmpFPredicateAttr : I64EnumAttr<
 }
 
 def CmpFOp : Std_Op<"cmpf",
-    [NoSideEffect, SameTypeOperands, SameOperandsAndResultShape,
+    [NoSideEffect, SameTypeOperands, ElementwiseMappable,
+     DeclareOpInterfaceMethods<VectorUnrollOpInterface>,
      TypesMatchWith<
        "result type has i1 element type and same shape as operands",
        "lhs", "result", "getI1SameShape($_self)">]> {
@@ -1201,8 +1044,8 @@ def CmpFOp : Std_Op<"cmpf",
     static CmpFPredicate getPredicateByName(StringRef name);
 
     CmpFPredicate getPredicate() {
-      return (CmpFPredicate)getAttrOfType<IntegerAttr>(getPredicateAttrName())
-          .getInt();
+      return (CmpFPredicate)(*this)->getAttrOfType<IntegerAttr>(
+          getPredicateAttrName()).getInt();
     }
   }];
 
@@ -1236,7 +1079,8 @@ def CmpIPredicateAttr : I64EnumAttr<
 }
 
 def CmpIOp : Std_Op<"cmpi",
-    [NoSideEffect, SameTypeOperands, SameOperandsAndResultShape,
+    [NoSideEffect, SameTypeOperands, ElementwiseMappable,
+     DeclareOpInterfaceMethods<VectorUnrollOpInterface>,
      TypesMatchWith<
        "result type has i1 element type and same shape as operands",
        "lhs", "result", "getI1SameShape($_self)">]> {
@@ -1323,8 +1167,8 @@ def CmpIOp : Std_Op<"cmpi",
     static CmpIPredicate getPredicateByName(StringRef name);
 
     CmpIPredicate getPredicate() {
-      return (CmpIPredicate)getAttrOfType<IntegerAttr>(getPredicateAttrName())
-          .getInt();
+      return (CmpIPredicate)(*this)->getAttrOfType<IntegerAttr>(
+          getPredicateAttrName()).getInt();
     }
   }];
 
@@ -1549,7 +1393,7 @@ def ConstantOp : Std_Op<"constant",
     [{ build($_builder, $_state, value.getType(), value); }]>];
 
   let extraClassDeclaration = [{
-    Attribute getValue() { return getAttr("value"); }
+    Attribute getValue() { return (*this)->getAttr("value"); }
 
     /// Returns true if a constant operation can be built with the given value
     /// and result type.
@@ -1737,6 +1581,7 @@ def DimOp : Std_Op<"dim", [NoSideEffect]> {
     Optional<int64_t> getConstantIndex();
   }];
 
+  let hasCanonicalizer = 1;
   let hasFolder = 1;
 }
 
@@ -1830,59 +1675,6 @@ def Exp2Op : FloatUnaryOp<"exp2"> {
 }
 
 //===----------------------------------------------------------------------===//
-// ExtractElementOp
-//===----------------------------------------------------------------------===//
-
-def ExtractElementOp : Std_Op<"extract_element",
-    [NoSideEffect,
-     TypesMatchWith<"result type matches element type of aggregate",
-                    "aggregate", "result",
-                    "$_self.cast<ShapedType>().getElementType()">]> {
-  let summary = "element extract operation";
-  let description = [{
-    The `extract_element` op reads a tensor or vector and returns one element
-    from it specified by an index list. The output of the 'extract_element' is a
-    new value with the same type as the elements of the tensor or vector. The
-    arity of indices matches the rank of the accessed value (i.e., if a tensor
-    is of rank 3, then 3 indices are required for the extract. The indices
-    should all be of `index` type.
-
-    Example:
-
-    ```mlir
-    %3 = extract_element %v[%1, %2] : vector<4x4xi32>
-    %4 = extract_element %t[%1, %2] : tensor<4x4xi32>
-    %5 = extract_element %ut[%1, %2] : tensor<*xi32>
-    ```
-  }];
-
-  let arguments = (ins AnyTypeOf<[AnyVector, AnyTensor]>:$aggregate,
-                       Variadic<Index>:$indices);
-  let results = (outs AnyType:$result);
-
-  let builders = [
-    OpBuilderDAG<(ins "Value":$aggregate, CArg<"ValueRange", "{}">:$indices), [{
-      auto resType = aggregate.getType().cast<ShapedType>()
-                                         .getElementType();
-      build($_builder, $_state, resType, aggregate, indices);
-    }]>];
-
-  let extraClassDeclaration = [{
-    Value getAggregate() { return getOperand(0); }
-
-    operand_range getIndices() {
-      return {operand_begin() + 1, operand_end()};
-    }
-  }];
-
-  let hasFolder = 1;
-
-  let assemblyFormat = [{
-    $aggregate `[` $indices `]` attr-dict `:` type($aggregate)
-  }];
-}
-
-//===----------------------------------------------------------------------===//
 // TensorFromElementsOp
 //===----------------------------------------------------------------------===//
 
@@ -1926,7 +1718,7 @@ def TensorFromElementsOp : Std_Op<"tensor_from_elements", [
 // FPExtOp
 //===----------------------------------------------------------------------===//
 
-def FPExtOp : CastOp<"fpext">, Arguments<(ins AnyType:$in)> {
+def FPExtOp : ArithmeticCastOp<"fpext">, Arguments<(ins AnyType:$in)> {
   let summary = "cast from floating-point to wider floating-point";
   let description = [{
     Cast a floating-point value to a larger floating-point-typed value.
@@ -1947,7 +1739,7 @@ def FPExtOp : CastOp<"fpext">, Arguments<(ins AnyType:$in)> {
 // FPToSIOp
 //===----------------------------------------------------------------------===//
 
-def FPToSIOp : CastOp<"fptosi">, Arguments<(ins AnyType:$in)> {
+def FPToSIOp : ArithmeticCastOp<"fptosi">, Arguments<(ins AnyType:$in)> {
   let summary = "cast from floating-point type to integer type";
   let description = [{
     Cast from a value interpreted as floating-point to the nearest (rounding
@@ -1967,7 +1759,7 @@ def FPToSIOp : CastOp<"fptosi">, Arguments<(ins AnyType:$in)> {
 // FPToUIOp
 //===----------------------------------------------------------------------===//
 
-def FPToUIOp : CastOp<"fptoui">, Arguments<(ins AnyType:$in)> {
+def FPToUIOp : ArithmeticCastOp<"fptoui">, Arguments<(ins AnyType:$in)> {
   let summary = "cast from floating-point type to integer type";
   let description = [{
     Cast from a value interpreted as floating-point to the nearest (rounding
@@ -1987,7 +1779,7 @@ def FPToUIOp : CastOp<"fptoui">, Arguments<(ins AnyType:$in)> {
 // FPTruncOp
 //===----------------------------------------------------------------------===//
 
-def FPTruncOp : CastOp<"fptrunc">, Arguments<(ins AnyType:$in)> {
+def FPTruncOp : ArithmeticCastOp<"fptrunc">, Arguments<(ins AnyType:$in)> {
   let summary = "cast from floating-point to narrower floating-point";
   let description = [{
     Truncate a floating-point value to a smaller floating-point-typed value.
@@ -2131,7 +1923,7 @@ def ImOp : Std_Op<"im",
 // IndexCastOp
 //===----------------------------------------------------------------------===//
 
-def IndexCastOp : CastOp<"index_cast">, Arguments<(ins AnyType:$in)> {
+def IndexCastOp : ArithmeticCastOp<"index_cast">, Arguments<(ins AnyType:$in)> {
   let summary = "cast between index and integer types";
   let description = [{
     Casts between integer scalars and 'index' scalars. Index is an integer of
@@ -2218,6 +2010,7 @@ def LoadOp : Std_Op<"load",
     operand_range getIndices() { return {operand_begin() + 1, operand_end()}; }
   }];
 
+  let hasCanonicalizer = 1;
   let hasFolder = 1;
 
   let assemblyFormat = "$memref `[` $indices `]` attr-dict `:` type($memref)";
@@ -2322,7 +2115,7 @@ def MemRefCastOp : CastOp<"memref_cast", [
 
 def MemRefReinterpretCastOp:
     BaseOpWithOffsetSizesAndStrides<"memref_reinterpret_cast", [
-      NoSideEffect, ViewLikeOpInterface
+      NoSideEffect, ViewLikeOpInterface, OffsetSizeAndStrideOpInterface
     ]> {
   let summary = "memref reinterpret cast operation";
   let description = [{
@@ -2372,6 +2165,18 @@ def MemRefReinterpretCastOp:
     // The result of the op is always a ranked memref.
     MemRefType getType() { return getResult().getType().cast<MemRefType>(); }
     Value getViewSource() { return source(); }
+
+    /// Return the rank of the source ShapedType.
+    unsigned getResultRank() {
+      return getResult().getType().cast<ShapedType>().getRank();
+    }
+
+    /// Return the expected rank of each of the`static_offsets`, `static_sizes`
+    /// and `static_strides` attributes.
+    std::array<unsigned, 3> getArrayAttrRanks() {
+      unsigned resultRank = getResult().getType().cast<ShapedType>().getRank();
+      return {1, resultRank, resultRank};
+    }
   }];
 }
 
@@ -2553,6 +2358,39 @@ def OrOp : IntArithmeticOp<"or", [Commutative]> {
 }
 
 //===----------------------------------------------------------------------===//
+// PowFOp
+//===----------------------------------------------------------------------===//
+
+def PowFOp : FloatArithmeticOp<"powf"> {
+  let summary = "floating point raised to the power of operation";
+  let description = [{
+    Syntax:
+
+    ```
+    operation ::= ssa-id `=` `std.powf` ssa-use `,` ssa-use `:` type
+    ```
+
+    The `powf` operation takes two operands and returns one result, each of
+    these is required to be the same type. This type may be a floating point
+    scalar type, a vector whose element type is a floating point type, or a
+    floating point tensor.
+
+    Example:
+
+    ```mlir
+    // Scalar exponentiation.
+    %a = powf %b, %c : f64
+
+    // SIMD pointwise vector exponentiation
+    %f = powf %g, %h : vector<4xf32>
+
+    // Tensor pointwise exponentiation.
+    %x = powf %y, %z : tensor<4x?xbf16>
+    ```
+  }];
+}
+
+//===----------------------------------------------------------------------===//
 // PrefetchOp
 //===----------------------------------------------------------------------===//
 
@@ -2714,7 +2552,8 @@ def RsqrtOp : FloatUnaryOp<"rsqrt"> {
 //===----------------------------------------------------------------------===//
 
 def SelectOp : Std_Op<"select", [NoSideEffect,
-     AllTypesMatch<["true_value", "false_value", "result"]>]> {
+     AllTypesMatch<["true_value", "false_value", "result"]>,
+     ElementwiseMappable, DeclareOpInterfaceMethods<VectorUnrollOpInterface>]> {
   let summary = "select operation";
   let description = [{
     The `select` operation chooses one value based on a binary condition
@@ -2945,7 +2784,8 @@ def SignedShiftRightOp : IntArithmeticOp<"shift_right_signed"> {
 //===----------------------------------------------------------------------===//
 
 def SignExtendIOp : Std_Op<"sexti",
-    [NoSideEffect, SameOperandsAndResultShape]> {
+    [NoSideEffect, ElementwiseMappable,
+    DeclareOpInterfaceMethods<VectorUnrollOpInterface>]> {
   let summary = "integer sign extension operation";
   let description = [{
     The integer sign extension operation takes an integer input of
@@ -2987,7 +2827,7 @@ def SignExtendIOp : Std_Op<"sexti",
 // SIToFPOp
 //===----------------------------------------------------------------------===//
 
-def SIToFPOp : CastOp<"sitofp">, Arguments<(ins AnyType:$in)> {
+def SIToFPOp : ArithmeticCastOp<"sitofp">, Arguments<(ins AnyType:$in)> {
   let summary = "cast from integer type to floating-point";
   let description = [{
     Cast from a value interpreted as signed or vector of signed integers to the
@@ -3191,7 +3031,7 @@ def SubIOp : IntArithmeticOp<"subi"> {
 //===----------------------------------------------------------------------===//
 
 def SubViewOp : BaseOpWithOffsetSizesAndStrides<
-    "subview", [DeclareOpInterfaceMethods<ViewLikeOpInterface>] >  {
+    "subview", [DeclareOpInterfaceMethods<ViewLikeOpInterface>, OffsetSizeAndStrideOpInterface] >  {
   let summary = "memref subview operation";
   let description = [{
     The "subview" operation converts a memref type to another memref type
@@ -3370,6 +3210,13 @@ def SubViewOp : BaseOpWithOffsetSizesAndStrides<
                                 ArrayRef<int64_t> staticOffsets,
                                 ArrayRef<int64_t> staticSizes,
                                 ArrayRef<int64_t> staticStrides);
+
+    /// Return the expected rank of each of the`static_offsets`, `static_sizes`
+    /// and `static_strides` attributes.
+    std::array<unsigned, 3> getArrayAttrRanks() {
+      unsigned rank = getSourceType().getRank();
+      return {rank, rank, rank};
+    }
   }];
 
   let hasCanonicalizer = 1;
@@ -3380,7 +3227,7 @@ def SubViewOp : BaseOpWithOffsetSizesAndStrides<
 // SubTensorOp
 //===----------------------------------------------------------------------===//
 
-def SubTensorOp : BaseOpWithOffsetSizesAndStrides<"subtensor"> {
+def SubTensorOp : BaseOpWithOffsetSizesAndStrides<"subtensor", [OffsetSizeAndStrideOpInterface]> {
   let summary = "subtensor operation";
   let description = [{
     The "subtensor" operation extract a tensor from another tensor as
@@ -3461,6 +3308,13 @@ def SubTensorOp : BaseOpWithOffsetSizesAndStrides<"subtensor"> {
                                 ArrayRef<int64_t> staticOffsets,
                                 ArrayRef<int64_t> staticSizes,
                                 ArrayRef<int64_t> staticStrides);
+
+    /// Return the expected rank of each of the`static_offsets`, `static_sizes`
+    /// and `static_strides` attributes.
+    std::array<unsigned, 3> getArrayAttrRanks() {
+      unsigned rank = getSourceType().getRank();
+      return {rank, rank, rank};
+    }
   }];
 
   let hasCanonicalizer = 1;
@@ -3470,7 +3324,7 @@ def SubTensorOp : BaseOpWithOffsetSizesAndStrides<"subtensor"> {
 // SubTensorInsertOp
 //===----------------------------------------------------------------------===//
 
-def SubTensorInsertOp : BaseOpWithOffsetSizesAndStrides<"subtensor_insert"> {
+def SubTensorInsertOp : BaseOpWithOffsetSizesAndStrides<"subtensor_insert", [OffsetSizeAndStrideOpInterface]> {
   let summary = "subtensor_insert operation";
   let description = [{
     The "subtensor_insert" operation insert a tensor `source` into another
@@ -3537,6 +3391,13 @@ def SubTensorInsertOp : BaseOpWithOffsetSizesAndStrides<"subtensor_insert"> {
     RankedTensorType getType() {
       return getResult().getType().cast<RankedTensorType>();
     }
+
+    /// Return the expected rank of each of the`static_offsets`, `static_sizes`
+    /// and `static_strides` attributes.
+    std::array<unsigned, 3> getArrayAttrRanks() {
+      unsigned rank = getSourceType().getRank();
+      return {rank, rank, rank};
+    }
   }];
 }
 
@@ -3571,56 +3432,6 @@ def TanhOp : FloatUnaryOp<"tanh"> {
     %x = tanh %y : tensor<4x?xf8>
     ```
   }];
-}
-
-//===----------------------------------------------------------------------===//
-// TensorCastOp
-//===----------------------------------------------------------------------===//
-
-def TensorCastOp : CastOp<"tensor_cast"> {
-  let summary = "tensor cast operation";
-  let description = [{
-    Syntax:
-
-    ```
-    operation ::= ssa-id `=` `std.tensor_cast` ssa-use `:` type `to` type
-    ```
-
-    Convert a tensor from one type to an equivalent type without changing any
-    data elements. The source and destination types must both be tensor types
-    with the same element type. If both are ranked, then the rank should be the
-    same and static dimensions should match. The operation is invalid if
-    converting to a mismatching constant dimension.
-
-    Example:
-
-    ```mlir
-    // Convert from unknown rank to rank 2 with unknown dimension sizes.
-    %2 = "std.tensor_cast"(%1) : (tensor<*xf32>) -> tensor<?x?xf32>
-    %2 = tensor_cast %1 : tensor<*xf32> to tensor<?x?xf32>
-
-    // Convert to a type with more known dimensions.
-    %3 = "std.tensor_cast"(%2) : (tensor<?x?xf32>) -> tensor<4x?xf32>
-
-    // Discard static dimension and rank information.
-    %4 = "std.tensor_cast"(%3) : (tensor<4x?xf32>) -> tensor<?x?xf32>
-    %5 = "std.tensor_cast"(%4) : (tensor<?x?xf32>) -> tensor<*xf32>
-    ```
-  }];
-
-  let arguments = (ins AnyTensor:$source);
-  let results = (outs AnyTensor);
-
-  let extraClassDeclaration = [{
-    /// Return true if `a` and `b` are valid operand and result pairs for
-    /// the operation.
-    static bool areCastCompatible(Type a, Type b);
-
-    /// The result of a tensor_cast is always a tensor.
-    TensorType getType() { return getResult().getType().cast<TensorType>(); }
-  }];
-
-  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -3720,13 +3531,18 @@ def TensorToMemrefOp : Std_Op<"tensor_to_memref",
                     "getTensorTypeFromMemRefType($_self)">]> {
   let summary = "tensor to memref operation";
   let description = [{
-    Create a memref from a tensor. This is equivalent to allocating a new
-    memref of the appropriate (possibly dynamic) shape, and then copying the
-    elements (as if by a tensor_store op) into the newly allocated memref.
+    Create a memref from a tensor. This is a transient op created as a
+    materialization during type conversions between tensors and memrefs.
 
     The opposite of this op is tensor_load. Together, these two ops are useful
     for source/target materializations when doing type conversions involving
     tensors and memrefs.
+
+    This op is defined by the fold
+    `tensor_to_memref(tensor_load(%memref)) -> %memref`, which is the property
+    that makes it a valid materialization in the type conversion framework.
+    This implies that one cannot assume that this op allocates a new memref for
+    its result.
 
     Note: This op takes the memref type in its pretty form because the tensor
     type can always be inferred from the memref type, but the reverse is not
@@ -3735,13 +3551,12 @@ def TensorToMemrefOp : Std_Op<"tensor_to_memref",
 
     ```mlir
     // Result type is tensor<4x?xf32>
-    %12 = tensor_to_memref %10 :  memref<4x?xf32, #map0, 42>
+    %12 = tensor_to_memref %10 : memref<4x?xf32, #map0, 42>
     ```
   }];
 
   let arguments = (ins AnyTensor:$tensor);
-  let results = (outs Res<AnyRankedOrUnrankedMemRef,
-                      "the memref to create", [MemAlloc]>:$memref);
+  let results = (outs AnyRankedOrUnrankedMemRef:$memref);
   // This op is fully verified by traits.
   let verifier = ?;
 
@@ -3786,7 +3601,9 @@ def TransposeOp : Std_Op<"transpose", [NoSideEffect]>,
 // TruncateIOp
 //===----------------------------------------------------------------------===//
 
-def TruncateIOp : Std_Op<"trunci", [NoSideEffect, SameOperandsAndResultShape]> {
+def TruncateIOp : Std_Op<"trunci",
+  [NoSideEffect, ElementwiseMappable,
+   DeclareOpInterfaceMethods<VectorUnrollOpInterface>,]> {
   let summary = "integer truncation operation";
   let description = [{
     The integer truncation operation takes an integer input of
@@ -3826,7 +3643,7 @@ def TruncateIOp : Std_Op<"trunci", [NoSideEffect, SameOperandsAndResultShape]> {
 // UIToFPOp
 //===----------------------------------------------------------------------===//
 
-def UIToFPOp : CastOp<"uitofp">, Arguments<(ins AnyType:$in)> {
+def UIToFPOp : ArithmeticCastOp<"uitofp">, Arguments<(ins AnyType:$in)> {
   let summary = "cast from unsigned integer type to floating-point";
   let description = [{
     Cast from a value interpreted as unsigned integer or vector of unsigned
@@ -4053,7 +3870,9 @@ def XOrOp : IntArithmeticOp<"xor", [Commutative]> {
 // ZeroExtendIOp
 //===----------------------------------------------------------------------===//
 
-def ZeroExtendIOp : Std_Op<"zexti", [NoSideEffect, SameOperandsAndResultShape]> {
+def ZeroExtendIOp : Std_Op<"zexti",
+  [NoSideEffect, ElementwiseMappable,
+   DeclareOpInterfaceMethods<VectorUnrollOpInterface>,]> {
   let summary = "integer zero extension operation";
   let description = [{
     The integer zero extension operation takes an integer input of

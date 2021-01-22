@@ -316,18 +316,20 @@ struct NMSymbol {
 static bool compareSymbolAddress(const NMSymbol &A, const NMSymbol &B) {
   bool ADefined;
   // Symbol flags have been checked in the caller.
-  uint32_t AFlags = cantFail(A.Sym.getFlags());
-  if (A.Sym.getRawDataRefImpl().p)
+  if (A.Sym.getRawDataRefImpl().p) {
+    uint32_t AFlags = cantFail(A.Sym.getFlags());
     ADefined = !(AFlags & SymbolRef::SF_Undefined);
-  else
+  } else {
     ADefined = A.TypeChar != 'U';
+  }
   bool BDefined;
   // Symbol flags have been checked in the caller.
-  uint32_t BFlags = cantFail(B.Sym.getFlags());
-  if (B.Sym.getRawDataRefImpl().p)
+  if (B.Sym.getRawDataRefImpl().p) {
+    uint32_t BFlags = cantFail(B.Sym.getFlags());
     BDefined = !(BFlags & SymbolRef::SF_Undefined);
-  else
+  } else {
     BDefined = B.TypeChar != 'U';
+  }
   return std::make_tuple(ADefined, A.Address, A.Name, A.Size) <
          std::make_tuple(BDefined, B.Address, B.Name, B.Size);
 }
@@ -1809,9 +1811,7 @@ static bool checkMachOAndArchFlags(SymbolicFile *O, std::string &Filename) {
                                        &McpuDefault, &ArchFlag);
   }
   const std::string ArchFlagName(ArchFlag);
-  if (none_of(ArchFlags, [&](const std::string &Name) {
-        return Name == ArchFlagName;
-      })) {
+  if (!llvm::is_contained(ArchFlags, ArchFlagName)) {
     error("No architecture specified", Filename);
     return false;
   }
@@ -2113,8 +2113,7 @@ static void dumpSymbolNamesFromFile(std::string &Filename) {
     for (const TapiUniversal::ObjectForArch &I : TU->objects()) {
       StringRef ArchName = I.getArchFlagName();
       const bool ShowArch =
-          ArchFlags.empty() ||
-          any_of(ArchFlags, [&](StringRef Name) { return Name == ArchName; });
+          ArchFlags.empty() || llvm::is_contained(ArchFlags, ArchName);
       if (!ShowArch)
         continue;
       if (!AddInlinedInfo && !I.isTopLevelLib())

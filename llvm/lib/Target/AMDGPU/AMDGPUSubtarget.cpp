@@ -89,8 +89,9 @@ GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
   // Assuming ECC is enabled is the conservative default.
   SmallString<256> FullFS("+promote-alloca,+load-store-opt,+enable-ds128,+sram-ecc,+xnack,");
 
-  if (isAmdHsaOS()) // Turn on FlatForGlobal for HSA.
-    FullFS += "+flat-for-global,+unaligned-buffer-access,+trap-handler,";
+  // Turn on features that HSA ABI requires. Also turn on FlatForGlobal by default
+  if (isAmdHsaOS())
+    FullFS += "+flat-for-global,+unaligned-access-mode,+trap-handler,";
 
   FullFS += "+enable-prt-strict-null,"; // This is overridden by a disable in FS
 
@@ -108,14 +109,35 @@ GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
 
   ParseSubtargetFeatures(GPU, /*TuneCPU*/ GPU, FullFS);
 
+  // Implement the "generic" processors, which acts as the default when no
+  // generation features are enabled (e.g for -mcpu=''). HSA OS defaults to
+  // the first amdgcn target that supports flat addressing. Other OSes defaults
+  // to the first amdgcn target.
+  if (Gen == AMDGPUSubtarget::INVALID) {
+     Gen = TT.getOS() == Triple::AMDHSA ? AMDGPUSubtarget::SEA_ISLANDS
+                                        : AMDGPUSubtarget::SOUTHERN_ISLANDS;
+  }
+
   // We don't support FP64 for EG/NI atm.
   assert(!hasFP64() || (getGeneration() >= AMDGPUSubtarget::SOUTHERN_ISLANDS));
 
-  // Unless +-flat-for-global is specified, turn on FlatForGlobal for all OS-es
-  // on VI and newer hardware to avoid assertion failures due to missing ADDR64
-  // variants of MUBUF instructions.
-  if (!hasAddr64() && !FS.contains("flat-for-global")) {
+  // Targets must either support 64-bit offsets for MUBUF instructions, and/or
+  // support flat operations, otherwise they cannot access a 64-bit global
+  // address space
+  assert(hasAddr64() || hasFlat());
+  // Unless +-flat-for-global is specified, turn on FlatForGlobal for targets
+  // that do not support ADDR64 variants of MUBUF instructions. Such targets
+  // cannot use a 64 bit offset with a MUBUF instruction to access the global
+  // address space
+  if (!hasAddr64() && !FS.contains("flat-for-global") && !FlatForGlobal) {
+    ToggleFeature(AMDGPU::FeatureFlatForGlobal);
     FlatForGlobal = true;
+  }
+  // Unless +-flat-for-global is specified, use MUBUF instructions for global
+  // address space access if flat operations are not available.
+  if (!hasFlat() && !FS.contains("flat-for-global") && FlatForGlobal) {
+    ToggleFeature(AMDGPU::FeatureFlatForGlobal);
+    FlatForGlobal = false;
   }
 
   // Set defaults if needed.
@@ -182,7 +204,7 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     AMDGPUGenSubtargetInfo(TT, GPU, /*TuneCPU*/ GPU, FS),
     AMDGPUSubtarget(TT),
     TargetTriple(TT),
-    Gen(TT.getOS() == Triple::AMDHSA ? SEA_ISLANDS : SOUTHERN_ISLANDS),
+    Gen(INVALID),
     InstrItins(getInstrItineraryForCPU(GPU)),
     LDSBankCount(0),
     MaxPrivateElementSize(0),
@@ -194,7 +216,6 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     FlatForGlobal(false),
     AutoWaitcntBeforeBarrier(false),
     UnalignedScratchAccess(false),
-    UnalignedBufferAccess(false),
     UnalignedAccessMode(false),
 
     HasApertureRegs(false),
@@ -266,6 +287,7 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     HasUnpackedD16VMem(false),
     LDSMisalignedBug(false),
     HasMFMAInlineLiteralBug(false),
+    UnalignedBufferAccess(false),
     UnalignedDSAccess(false),
 
     ScalarizeGlobal(false),
@@ -823,7 +845,7 @@ struct FillMFMAShadowMutation : ScheduleDAGMutation {
     for (unsigned I = 0; I < Succs.size(); ++I) {
       for (const SDep &SI : Succs[I]->Succs) {
         const SUnit *SU = SI.getSUnit();
-        if (SU != Succs[I] && llvm::find(Succs, SU) == Succs.end())
+        if (SU != Succs[I] && !llvm::is_contained(Succs, SU))
           Succs.push_back(SU);
       }
     }
@@ -831,7 +853,7 @@ struct FillMFMAShadowMutation : ScheduleDAGMutation {
     SmallPtrSet<const SUnit*, 32> Visited;
     while (!Preds.empty()) {
       const SUnit *SU = Preds.pop_back_val();
-      if (llvm::find(Succs, SU) != Succs.end())
+      if (llvm::is_contained(Succs, SU))
         return false;
       Visited.insert(SU);
       for (const SDep &SI : SU->Preds)

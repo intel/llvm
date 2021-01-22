@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/SPIRV/SPIRVLowering.h"
-#include "mlir/Dialect/SPIRV/SPIRVOps.h"
-#include "mlir/Dialect/SPIRV/SPIRVTypes.h"
-#include "mlir/IR/Function.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVTypes.h"
+#include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
 
 using namespace mlir;
@@ -32,7 +32,7 @@ void PrintOpAvailability::runOnFunction() {
 
   Dialect *spvDialect = getContext().getLoadedDialect("spv");
 
-  f.getOperation()->walk([&](Operation *op) {
+  f->walk([&](Operation *op) {
     if (op->getDialect() != spvDialect)
       return WalkResult::advance();
 

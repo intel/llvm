@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "include/math.h"
 #include "src/math/round.h"
 #include "utils/FPUtil/FPBits.h"
 #include "utils/FPUtil/TestHelpers.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
 #include "utils/UnitTest/Test.h"
+#include <math.h>
 
 using FPBits = __llvm_libc::fputil::FPBits<double>;
 
@@ -26,8 +26,7 @@ TEST(RoundTest, SpecialNumbers) {
   EXPECT_FP_EQ(inf, __llvm_libc::round(inf));
   EXPECT_FP_EQ(negInf, __llvm_libc::round(negInf));
 
-  ASSERT_NE(isnan(nan), 0);
-  ASSERT_NE(isnan(__llvm_libc::round(nan)), 0);
+  EXPECT_FP_EQ(aNaN, __llvm_libc::round(aNaN));
 }
 
 TEST(RoundTest, RoundedNumbers) {

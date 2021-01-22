@@ -2663,6 +2663,10 @@ Align selected branches (fused, jcc, jmp) within 32-byte boundary
 
 Legacy option to specify code object ABI V2 (-mnocode-object-v3) or V3 (-mcode-object-v3) (AMDGPU only)
 
+.. option:: -mcode-object-version=<version>
+
+Specify code object ABI version. Defaults to 4. (AMDGPU only)
+
 .. option:: -mconsole<arg>
 
 .. program:: clang1
@@ -2884,6 +2888,10 @@ Only supported on X86 and RISC-V. Otherwise accepted for compatibility with GCC.
 .. option:: -mtvos-version-min=<arg>, -mappletvos-version-min=<arg>
 
 .. option:: -municode<arg>
+
+.. option:: -mabi=vec-extabi, -mabi=vec-default
+
+Only supported on AIX. Specify usage of the extended vector ABI on AIX and of non-volatile vector registers. Defaults to '-mabi=default' when Altivec is enabled.
 
 .. option:: -mvx, -mno-vx
 
@@ -3164,8 +3172,6 @@ PowerPC
 .. option:: -mpower8-vector, -mno-power8-vector
 
 .. option:: -mpower9-vector, -mno-power9-vector
-
-.. option:: -mqpx, -mno-qpx
 
 .. option:: -msecure-plt
 

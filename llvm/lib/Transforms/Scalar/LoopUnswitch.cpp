@@ -1238,7 +1238,7 @@ void LoopUnswitch::unswitchNontrivialCondition(Value *LIC, Constant *Val,
   LoopBlocks.push_back(NewPreheader);
 
   // We want the loop to come after the preheader, but before the exit blocks.
-  LoopBlocks.insert(LoopBlocks.end(), L->block_begin(), L->block_end());
+  llvm::append_range(LoopBlocks, L->blocks());
 
   SmallVector<BasicBlock*, 8> ExitBlocks;
   L->getUniqueExitBlocks(ExitBlocks);
@@ -1252,7 +1252,7 @@ void LoopUnswitch::unswitchNontrivialCondition(Value *LIC, Constant *Val,
   L->getUniqueExitBlocks(ExitBlocks);
 
   // Add exit blocks to the loop blocks.
-  LoopBlocks.insert(LoopBlocks.end(), ExitBlocks.begin(), ExitBlocks.end());
+  llvm::append_range(LoopBlocks, ExitBlocks);
 
   // Next step, clone all of the basic blocks that make up the loop (including
   // the loop preheader and exit blocks), keeping track of the mapping between
@@ -1386,9 +1386,7 @@ void LoopUnswitch::unswitchNontrivialCondition(Value *LIC, Constant *Val,
 /// Remove all instances of I from the worklist vector specified.
 static void removeFromWorklist(Instruction *I,
                                std::vector<Instruction *> &Worklist) {
-
-  Worklist.erase(std::remove(Worklist.begin(), Worklist.end(), I),
-                 Worklist.end());
+  llvm::erase_value(Worklist, I);
 }
 
 /// When we find that I really equals V, remove I from the

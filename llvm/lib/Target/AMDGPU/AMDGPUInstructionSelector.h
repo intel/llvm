@@ -72,6 +72,8 @@ private:
     GEPInfo(const MachineInstr &GEP) : GEP(GEP), Imm(0) { }
   };
 
+  bool isSGPR(Register Reg) const;
+
   bool isInstrUniform(const MachineInstr &MI) const;
   bool isVCC(Register Reg, const MachineRegisterInfo &MRI) const;
 
@@ -197,6 +199,9 @@ private:
 
   InstructionSelector::ComplexRendererFns
   selectGlobalSAddr(MachineOperand &Root) const;
+
+  InstructionSelector::ComplexRendererFns
+  selectScratchSAddr(MachineOperand &Root) const;
 
   InstructionSelector::ComplexRendererFns
   selectMUBUFScratchOffen(MachineOperand &Root) const;

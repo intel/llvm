@@ -35,15 +35,17 @@ public:
   TestDynamicPipelinePass(const TestDynamicPipelinePass &) {}
 
   void runOnOperation() override {
+    Operation *currentOp = getOperation();
+
     llvm::errs() << "Dynamic execute '" << pipeline << "' on "
-                 << getOperation()->getName() << "\n";
+                 << currentOp->getName() << "\n";
     if (pipeline.empty()) {
       llvm::errs() << "Empty pipeline\n";
       return;
     }
-    auto symbolOp = dyn_cast<SymbolOpInterface>(getOperation());
+    auto symbolOp = dyn_cast<SymbolOpInterface>(currentOp);
     if (!symbolOp) {
-      getOperation()->emitWarning()
+      currentOp->emitWarning()
           << "Ignoring because not implementing SymbolOpInterface\n";
       return;
     }
@@ -54,24 +56,24 @@ public:
       return;
     }
     if (!pm) {
-      pm = std::make_unique<OpPassManager>(
-          getOperation()->getName().getIdentifier(),
-          OpPassManager::Nesting::Implicit);
+      pm = std::make_unique<OpPassManager>(currentOp->getName().getIdentifier(),
+                                           OpPassManager::Nesting::Implicit);
       parsePassPipeline(pipeline, *pm, llvm::errs());
     }
 
     // Check that running on the parent operation always immediately fails.
     if (runOnParent) {
-      if (getOperation()->getParentOp())
-        if (!failed(runPipeline(*pm, getOperation()->getParentOp())))
+      if (currentOp->getParentOp())
+        if (!failed(runPipeline(*pm, currentOp->getParentOp())))
           signalPassFailure();
       return;
     }
 
     if (runOnNestedOp) {
       llvm::errs() << "Run on nested op\n";
-      getOperation()->walk([&](Operation *op) {
-        if (op == getOperation() || !op->isKnownIsolatedFromAbove())
+      currentOp->walk([&](Operation *op) {
+        if (op == currentOp || !op->isKnownIsolatedFromAbove() ||
+            op->getName() != currentOp->getName())
           return;
         llvm::errs() << "Run on " << *op << "\n";
         // Run on the current operation
@@ -80,7 +82,7 @@ public:
       });
     } else {
       // Run on the current operation
-      if (failed(runPipeline(*pm, getOperation())))
+      if (failed(runPipeline(*pm, currentOp)))
         signalPassFailure();
     }
   }
@@ -103,12 +105,14 @@ public:
       *this, "op-name", llvm::cl::MiscFlags::CommaSeparated,
       llvm::cl::desc("List of function name to apply the pipeline to")};
 };
-} // end namespace
+} // namespace
 
 namespace mlir {
+namespace test {
 void registerTestDynamicPipelinePass() {
   PassRegistration<TestDynamicPipelinePass>(
       "test-dynamic-pipeline", "Tests the dynamic pipeline feature by applying "
                                "a pipeline on a selected set of functions");
 }
+} // namespace test
 } // namespace mlir

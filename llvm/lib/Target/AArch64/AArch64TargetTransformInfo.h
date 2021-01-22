@@ -147,6 +147,7 @@ public:
 
   TTI::MemCmpExpansionOptions enableMemCmpExpansion(bool OptSize,
                                                     bool IsZeroCmp) const;
+  bool useNeonVector(const Type *Ty) const;
 
   int getMemoryOpCost(unsigned Opcode, Type *Src, MaybeAlign Alignment,
                       unsigned AddressSpace,
@@ -226,6 +227,8 @@ public:
   unsigned getGISelRematGlobalCost() const {
     return 2;
   }
+
+  bool supportsScalableVectors() const { return ST->hasSVE(); }
 
   bool useReductionIntrinsic(unsigned Opcode, Type *Ty,
                              TTI::ReductionFlags Flags) const;

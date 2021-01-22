@@ -260,10 +260,9 @@ class CHRScope {
           if (TailRegionSet.count(Parent))
             return false;
 
-          assert(llvm::find_if(RegInfos,
-                               [&Parent](const RegInfo &RI) {
-                                 return Parent == RI.R;
-                               }) != RegInfos.end() &&
+          assert(llvm::any_of(
+                     RegInfos,
+                     [&Parent](const RegInfo &RI) { return Parent == RI.R; }) &&
                  "Must be in head");
           return true;
         });
@@ -950,10 +949,9 @@ void CHR::checkScopeHoistable(CHRScope *Scope) {
                 << "Dropped select due to unhoistable branch";
           });
         }
-        Selects.erase(std::remove_if(Selects.begin(), Selects.end(),
-                                     [EntryBB](SelectInst *SI) {
-                                       return SI->getParent() == EntryBB;
-                                     }), Selects.end());
+        llvm::erase_if(Selects, [EntryBB](SelectInst *SI) {
+          return SI->getParent() == EntryBB;
+        });
         Unhoistables.clear();
         InsertPoint = Branch;
       }
@@ -1249,7 +1247,7 @@ SmallVector<CHRScope *, 8> CHR::splitScope(
       SmallVector<CHRScope *, 8> SubSplits = splitScope(
           Sub, Split, &SplitConditionValues, SplitInsertPoint, Output,
           SplitUnhoistables);
-      NewSubs.insert(NewSubs.end(), SubSplits.begin(), SubSplits.end());
+      llvm::append_range(NewSubs, SubSplits);
     }
     Split->Subs = NewSubs;
   }
@@ -1609,9 +1607,7 @@ static void insertTrivialPHIs(CHRScope *Scope,
         // Insert a trivial phi for I (phi [&I, P0], [&I, P1], ...) at
         // ExitBlock. Replace I with the new phi in UI unless UI is another
         // phi at ExitBlock.
-        unsigned PredCount = std::distance(pred_begin(ExitBlock),
-                                           pred_end(ExitBlock));
-        PHINode *PN = PHINode::Create(I.getType(), PredCount, "",
+        PHINode *PN = PHINode::Create(I.getType(), pred_size(ExitBlock), "",
                                       &ExitBlock->front());
         for (BasicBlock *Pred : predecessors(ExitBlock)) {
           PN->addIncoming(&I, Pred);

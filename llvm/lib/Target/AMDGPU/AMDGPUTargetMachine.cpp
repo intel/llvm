@@ -40,8 +40,10 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
+#include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/TargetRegistry.h"
@@ -52,6 +54,7 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/Transforms/Utils.h"
+#include "llvm/Transforms/Utils/SimplifyLibCalls.h"
 #include "llvm/Transforms/Vectorize.h"
 #include <memory>
 
@@ -342,15 +345,15 @@ GCNILPSchedRegistry("gcn-ilp",
 static StringRef computeDataLayout(const Triple &TT) {
   if (TT.getArch() == Triple::r600) {
     // 32-bit pointers.
-      return "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128"
-             "-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5";
+    return "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128"
+           "-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5-G1";
   }
 
   // 32-bit private, local, and region pointers. 64-bit global, constant and
   // flat, non-integral buffer fat pointers.
-    return "e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:32:32"
+  return "e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:32:32"
          "-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128"
-         "-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5"
+         "-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5-G1"
          "-ni:7";
 }
 
@@ -482,6 +485,33 @@ void AMDGPUTargetMachine::adjustPassManager(PassManagerBuilder &Builder) {
   });
 }
 
+void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB,
+                                                       bool DebugPassManager) {
+  PB.registerPipelineParsingCallback(
+      [](StringRef PassName, FunctionPassManager &PM,
+         ArrayRef<PassBuilder::PipelineElement>) {
+        if (PassName == "amdgpu-simplifylib") {
+          PM.addPass(AMDGPUSimplifyLibCallsPass());
+          return true;
+        }
+        if (PassName == "amdgpu-usenative") {
+          PM.addPass(AMDGPUUseNativeCallsPass());
+          return true;
+        }
+        return false;
+      });
+
+  PB.registerPipelineStartEPCallback([DebugPassManager](
+                                         ModulePassManager &PM,
+                                         PassBuilder::OptimizationLevel Level) {
+    FunctionPassManager FPM(DebugPassManager);
+    FPM.addPass(AMDGPUUseNativeCallsPass());
+    if (EnableLibCallSimplify && Level != PassBuilder::OptimizationLevel::O0)
+      FPM.addPass(AMDGPUSimplifyLibCallsPass());
+    PM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
+  });
+}
+
 //===----------------------------------------------------------------------===//
 // R600 Target Machine (R600 -> Cayman)
 //===----------------------------------------------------------------------===//
@@ -525,6 +555,25 @@ bool AMDGPUTargetMachine::isNoopAddrSpaceCast(unsigned SrcAS,
                                               unsigned DestAS) const {
   return AMDGPU::isFlatGlobalAddrSpace(SrcAS) &&
          AMDGPU::isFlatGlobalAddrSpace(DestAS);
+}
+
+unsigned AMDGPUTargetMachine::getAssumedAddrSpace(const Value *V) const {
+  const auto *LD = dyn_cast<LoadInst>(V);
+  if (!LD)
+    return AMDGPUAS::UNKNOWN_ADDRESS_SPACE;
+
+  // It must be a generic pointer loaded.
+  assert(V->getType()->isPointerTy() &&
+         V->getType()->getPointerAddressSpace() == AMDGPUAS::FLAT_ADDRESS);
+
+  const auto *Ptr = LD->getPointerOperand();
+  if (Ptr->getType()->getPointerAddressSpace() != AMDGPUAS::CONSTANT_ADDRESS)
+    return AMDGPUAS::UNKNOWN_ADDRESS_SPACE;
+  // For a generic pointer loaded from the constant memory, it could be assumed
+  // as a global pointer since the constant memory is only populated on the
+  // host side. As implied by the offload programming model, only global
+  // pointers could be referenced on the host side.
+  return AMDGPUAS::GLOBAL_ADDRESS;
 }
 
 TargetTransformInfo

@@ -9,9 +9,11 @@ add_lld_library(lldMachO2
   UnwindInfoSection.cpp
   Driver.cpp
   DriverUtils.cpp
+  Dwarf.cpp
   ExportTrie.cpp
   InputFiles.cpp
   InputSection.cpp
+  LTO.cpp
   MergedOutputSection.cpp
   ObjC.cpp
   OutputSection.cpp
@@ -26,8 +28,12 @@ add_lld_library(lldMachO2
   ${LLVM_TARGETS_TO_BUILD}
   BinaryFormat
   Core
+  DebugInfoDWARF
+  LTO
+  MC
   Object
   Option
+  Passes
   Support
   TextAPI
 

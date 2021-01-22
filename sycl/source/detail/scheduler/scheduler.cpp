@@ -11,6 +11,7 @@
 #include <detail/global_handler.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/scheduler/scheduler_helpers.hpp>
 #include <detail/stream_impl.hpp>
 
 #include <chrono>
@@ -72,6 +73,19 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   const bool IsKernel = CommandGroup->getType() == CG::KERNEL;
   const bool IsHostKernel = CommandGroup->getType() == CG::RUN_ON_HOST_INTEL;
   vector_class<StreamImplPtr> Streams;
+
+  if (IsKernel) {
+    Streams = ((CGExecKernel *)CommandGroup.get())->getStreams();
+    // Stream's flush buffer memory is mainly initialized in stream's __init
+    // method. However, this method is not available on host device.
+    // Initializing stream's flush buffer on the host side in a separate task.
+    if (Queue->is_host()) {
+      for (const StreamImplPtr &Stream : Streams) {
+        initStream(Stream, Queue);
+      }
+    }
+  }
+
   {
     std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
     lockSharedTimedMutex(Lock);
@@ -101,9 +115,6 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
-
-      if (IsKernel)
-        Streams = ((ExecCGCommand *)NewCmd)->getStreams();
 
       // If there are no memory dependencies decouple and free the command.
       // Though, dismiss ownership of native kernel command group as it's
@@ -276,13 +287,13 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req) {
 void Scheduler::allocateStreamBuffers(stream_impl *Impl,
                                       size_t StreamBufferSize,
                                       size_t FlushBufferSize) {
-  std::lock_guard<std::mutex> lock(StreamBuffersPoolMutex);
+  std::lock_guard<std::recursive_mutex> lock(StreamBuffersPoolMutex);
   StreamBuffersPool.insert(
       {Impl, new StreamBuffers(StreamBufferSize, FlushBufferSize)});
 }
 
 void Scheduler::deallocateStreamBuffers(stream_impl *Impl) {
-  std::lock_guard<std::mutex> lock(StreamBuffersPoolMutex);
+  std::lock_guard<std::recursive_mutex> lock(StreamBuffersPoolMutex);
   delete StreamBuffersPool[Impl];
   StreamBuffersPool.erase(Impl);
 }
@@ -302,7 +313,7 @@ Scheduler::~Scheduler() {
   // the kernel. Otherwise resources for stream will not be released, issue a
   // warning in this case.
   if (pi::trace(pi::TraceLevel::PI_TRACE_BASIC)) {
-    std::lock_guard<std::mutex> lock(StreamBuffersPoolMutex);
+    std::lock_guard<std::recursive_mutex> lock(StreamBuffersPoolMutex);
     if (!StreamBuffersPool.empty())
       fprintf(
           stderr,

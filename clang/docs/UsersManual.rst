@@ -747,6 +747,51 @@ Current limitations
    translated from debug annotations. That translation can be lossy,
    which results in some remarks having no location information.
 
+Options to Emit Resource Consumption Reports
+--------------------------------------------
+
+These are options that report execution time and consumed memory of different
+compilations steps.
+
+.. option:: -fproc-stat-report=
+
+  This option requests driver to print used memory and execution time of each
+  compilation step. The ``clang`` driver during execution calls different tools,
+  like compiler, assembler, linker etc. With this option the driver reports
+  total execution time, the execution time spent in user mode and peak memory
+  usage of each the called tool. Value of the option specifies where the report
+  is sent to. If it specifies a regular file, the data are saved to this file in
+  CSV format:
+
+.. code-block:: console
+
+   $ clang -fproc-stat-report=abc foo.c
+   $ cat abc
+   clang-11,"/tmp/foo-123456.o",92000,84000,87536
+   ld,"a.out",900,8000,53568
+
+  The data on each row represent:
+  
+  * file name of the tool executable,
+  * output file name in quotes,
+  * total execution time in microseconds,
+  * execution time in user mode in microseconds,
+  * peak memory usage in Kb.
+  
+  It is possible to specify this option without any value. In this case statistics
+  is printed on standard output in human readable format:
+  
+.. code-block:: console
+
+  $ clang -fproc-stat-report foo.c
+  clang-11: output=/tmp/foo-855a8e.o, total=68.000 ms, user=60.000 ms, mem=86920 Kb
+  ld: output=a.out, total=8.000 ms, user=4.000 ms, mem=52320 Kb
+  
+  The report file specified in the option is locked for write, so this option
+  can be used to collect statistics in parallel builds. The report file is not
+  cleared, new data is appended to it, thus making posible to accumulate build
+  statistics.
+
 Other Options
 -------------
 Clang options that don't fit neatly into other categories.
@@ -1291,15 +1336,16 @@ are listed below.
    The C standard permits intermediate floating-point results within an
    expression to be computed with more precision than their type would
    normally allow. This permits operation fusing, and Clang takes advantage
-   of this by default. This behavior can be controlled with the
-   ``FP_CONTRACT`` pragma. Please refer to the pragma documentation for a
-   description of how the pragma interacts with this option.
+   of this by default. This behavior can be controlled with the ``FP_CONTRACT``
+   and ``clang fp contract`` pragmas. Please refer to the pragma documentation
+   for a description of how the pragmas interact with this option.
 
    Valid values are:
 
-   * ``fast`` (everywhere)
-   * ``on`` (according to FP_CONTRACT pragma, default)
+   * ``fast`` (fuse across statements disregarding pragmas, default for CUDA)
+   * ``on`` (fuse in the same statement unless dictated by pragmas, default for languages other than CUDA/HIP)
    * ``off`` (never fuse)
+   * ``fast-honor-pragmas`` (fuse across statements unless dictated by pragmas, default for HIP)
 
 .. _opt_fhonor-infinities:
 

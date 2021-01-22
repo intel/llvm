@@ -243,16 +243,16 @@ AffineMap mlir::makePermutationMap(
   return ::makePermutationMap(indices, enclosingLoopToVectorDim);
 }
 
-AffineMap mlir::getTransferMinorIdentityMap(MemRefType memRefType,
+AffineMap mlir::getTransferMinorIdentityMap(ShapedType shapedType,
                                             VectorType vectorType) {
   int64_t elementVectorRank = 0;
   VectorType elementVectorType =
-      memRefType.getElementType().dyn_cast<VectorType>();
+      shapedType.getElementType().dyn_cast<VectorType>();
   if (elementVectorType)
     elementVectorRank += elementVectorType.getRank();
   return AffineMap::getMinorIdentityMap(
-      memRefType.getRank(), vectorType.getRank() - elementVectorRank,
-      memRefType.getContext());
+      shapedType.getRank(), vectorType.getRank() - elementVectorRank,
+      shapedType.getContext());
 }
 
 bool matcher::operatesOnSuperVectorsOf(Operation &op,
@@ -312,3 +312,36 @@ bool matcher::operatesOnSuperVectorsOf(Operation &op,
   return true;
 }
 
+bool mlir::isDisjointTransferSet(VectorTransferOpInterface transferA,
+                                 VectorTransferOpInterface transferB) {
+  if (transferA.source() != transferB.source())
+    return false;
+  // For simplicity only look at transfer of same type.
+  if (transferA.getVectorType() != transferB.getVectorType())
+    return false;
+  unsigned rankOffset = transferA.getLeadingShapedRank();
+  for (unsigned i = 0, e = transferA.indices().size(); i < e; i++) {
+    auto indexA = transferA.indices()[i].getDefiningOp<ConstantOp>();
+    auto indexB = transferB.indices()[i].getDefiningOp<ConstantOp>();
+    // If any of the indices are dynamic we cannot prove anything.
+    if (!indexA || !indexB)
+      continue;
+
+    if (i < rankOffset) {
+      // For leading dimensions, if we can prove that index are different we
+      // know we are accessing disjoint slices.
+      if (indexA.getValue().cast<IntegerAttr>().getInt() !=
+          indexB.getValue().cast<IntegerAttr>().getInt())
+        return true;
+    } else {
+      // For this dimension, we slice a part of the memref we need to make sure
+      // the intervals accessed don't overlap.
+      int64_t distance =
+          std::abs(indexA.getValue().cast<IntegerAttr>().getInt() -
+                   indexB.getValue().cast<IntegerAttr>().getInt());
+      if (distance >= transferA.getVectorType().getDimSize(i - rankOffset))
+        return true;
+    }
+  }
+  return false;
+}

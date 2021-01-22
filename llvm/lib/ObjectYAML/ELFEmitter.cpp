@@ -168,15 +168,7 @@ struct Fragment {
 /// TODO: This class still has a ways to go before it is truly a "single
 /// point of truth".
 template <class ELFT> class ELFState {
-  typedef typename ELFT::Ehdr Elf_Ehdr;
-  typedef typename ELFT::Phdr Elf_Phdr;
-  typedef typename ELFT::Shdr Elf_Shdr;
-  typedef typename ELFT::Sym Elf_Sym;
-  typedef typename ELFT::Rel Elf_Rel;
-  typedef typename ELFT::Rela Elf_Rela;
-  typedef typename ELFT::Relr Elf_Relr;
-  typedef typename ELFT::Dyn Elf_Dyn;
-  typedef typename ELFT::uint uintX_t;
+  LLVM_ELF_IMPORT_TYPES_ELFT(ELFT)
 
   enum class SymtabType { Static, Dynamic };
 
@@ -271,6 +263,9 @@ template <class ELFT> class ELFState {
                            ContiguousBlobAccumulator &CBA);
   void writeSectionContent(Elf_Shdr &SHeader,
                            const ELFYAML::StackSizesSection &Section,
+                           ContiguousBlobAccumulator &CBA);
+  void writeSectionContent(Elf_Shdr &SHeader,
+                           const ELFYAML::BBAddrMapSection &Section,
                            ContiguousBlobAccumulator &CBA);
   void writeSectionContent(Elf_Shdr &SHeader,
                            const ELFYAML::HashSection &Section,
@@ -464,12 +459,16 @@ void ELFState<ELFT>::writeELFHeader(raw_ostream &OS, Optional<uint64_t> SHOff) {
 template <class ELFT>
 void ELFState<ELFT>::initProgramHeaders(std::vector<Elf_Phdr> &PHeaders) {
   DenseMap<StringRef, ELFYAML::Fill *> NameToFill;
-  for (const std::unique_ptr<ELFYAML::Chunk> &D : Doc.Chunks)
-    if (auto S = dyn_cast<ELFYAML::Fill>(D.get()))
+  DenseMap<StringRef, size_t> NameToIndex;
+  for (size_t I = 0, E = Doc.Chunks.size(); I != E; ++I) {
+    if (auto S = dyn_cast<ELFYAML::Fill>(Doc.Chunks[I].get()))
       NameToFill[S->Name] = S;
+    NameToIndex[Doc.Chunks[I]->Name] = I + 1;
+  }
 
   std::vector<ELFYAML::Section *> Sections = Doc.getSections();
-  for (ELFYAML::ProgramHeader &YamlPhdr : Doc.ProgramHeaders) {
+  for (size_t I = 0, E = Doc.ProgramHeaders.size(); I != E; ++I) {
+    ELFYAML::ProgramHeader &YamlPhdr = Doc.ProgramHeaders[I];
     Elf_Phdr Phdr;
     zero(Phdr);
     Phdr.p_type = YamlPhdr.Type;
@@ -478,22 +477,30 @@ void ELFState<ELFT>::initProgramHeaders(std::vector<Elf_Phdr> &PHeaders) {
     Phdr.p_paddr = YamlPhdr.PAddr;
     PHeaders.push_back(Phdr);
 
-    // Map Sections list to corresponding chunks.
-    for (const ELFYAML::SectionName &SecName : YamlPhdr.Sections) {
-      if (ELFYAML::Fill *Fill = NameToFill.lookup(SecName.Section)) {
-        YamlPhdr.Chunks.push_back(Fill);
-        continue;
-      }
+    if (!YamlPhdr.FirstSec && !YamlPhdr.LastSec)
+      continue;
 
-      unsigned Index;
-      if (SN2I.lookup(SecName.Section, Index)) {
-        YamlPhdr.Chunks.push_back(Sections[Index]);
-        continue;
-      }
+    // Get the index of the section, or 0 in the case when the section doesn't exist.
+    size_t First = NameToIndex[*YamlPhdr.FirstSec];
+    if (!First)
+      reportError("unknown section or fill referenced: '" + *YamlPhdr.FirstSec +
+                  "' by the 'FirstSec' key of the program header with index " +
+                  Twine(I));
+    size_t Last = NameToIndex[*YamlPhdr.LastSec];
+    if (!Last)
+      reportError("unknown section or fill referenced: '" + *YamlPhdr.LastSec +
+                  "' by the 'LastSec' key of the program header with index " +
+                  Twine(I));
+    if (!First || !Last)
+      continue;
 
-      reportError("unknown section or fill referenced: '" + SecName.Section +
-                  "' by program header");
-    }
+    if (First > Last)
+      reportError("program header with index " + Twine(I) +
+                  ": the section index of " + *YamlPhdr.FirstSec +
+                  " is greater than the index of " + *YamlPhdr.LastSec);
+
+    for (size_t I = First; I <= Last; ++I)
+      YamlPhdr.Chunks.push_back(Doc.Chunks[I - 1].get());
   }
 }
 
@@ -756,6 +763,8 @@ void ELFState<ELFT>::initSectionHeaders(std::vector<Elf_Shdr> &SHeaders,
       writeSectionContent(SHeader, *S, CBA);
     } else if (auto S = dyn_cast<ELFYAML::CallGraphProfileSection>(Sec)) {
       writeSectionContent(SHeader, *S, CBA);
+    } else if (auto S = dyn_cast<ELFYAML::BBAddrMapSection>(Sec)) {
+      writeSectionContent(SHeader, *S, CBA);
     } else {
       llvm_unreachable("Unknown section type");
     }
@@ -815,14 +824,14 @@ ELFState<ELFT>::toELFSymbols(ArrayRef<ELFYAML::Symbol> Symbols,
       Symbol.st_name = Strtab.getOffset(ELFYAML::dropUniqueSuffix(Sym.Name));
 
     Symbol.setBindingAndType(Sym.Binding, Sym.Type);
-    if (!Sym.Section.empty())
-      Symbol.st_shndx = toSectionIndex(Sym.Section, "", Sym.Name);
+    if (Sym.Section)
+      Symbol.st_shndx = toSectionIndex(*Sym.Section, "", Sym.Name);
     else if (Sym.Index)
       Symbol.st_shndx = *Sym.Index;
 
-    Symbol.st_value = Sym.Value;
+    Symbol.st_value = Sym.Value.getValueOr(yaml::Hex64(0));
     Symbol.st_other = Sym.Other ? *Sym.Other : 0;
-    Symbol.st_size = Sym.Size;
+    Symbol.st_size = Sym.Size.getValueOr(yaml::Hex64(0));
   }
 
   return Ret;
@@ -1118,8 +1127,8 @@ void ELFState<ELFT>::setProgramHeaderLayout(std::vector<Elf_Phdr> &PHeaders,
   }
 }
 
-static bool shouldAllocateFileSpace(ArrayRef<ELFYAML::ProgramHeader> Phdrs,
-                                    const ELFYAML::NoBitsSection &S) {
+bool llvm::ELFYAML::shouldAllocateFileSpace(
+    ArrayRef<ELFYAML::ProgramHeader> Phdrs, const ELFYAML::NoBitsSection &S) {
   for (const ELFYAML::ProgramHeader &PH : Phdrs) {
     auto It = llvm::find_if(
         PH.Chunks, [&](ELFYAML::Chunk *C) { return C->Name == S.Name; });
@@ -1318,6 +1327,29 @@ void ELFState<ELFT>::writeSectionContent(
 
 template <class ELFT>
 void ELFState<ELFT>::writeSectionContent(
+    Elf_Shdr &SHeader, const ELFYAML::BBAddrMapSection &Section,
+    ContiguousBlobAccumulator &CBA) {
+  if (!Section.Entries)
+    return;
+
+  for (const ELFYAML::BBAddrMapEntry &E : *Section.Entries) {
+    // Write the address of the function.
+    CBA.write<uintX_t>(E.Address, ELFT::TargetEndianness);
+    // Write number of BBEntries (number of basic blocks in the function).
+    size_t NumBlocks = E.BBEntries ? E.BBEntries->size() : 0;
+    SHeader.sh_size += sizeof(uintX_t) + CBA.writeULEB128(NumBlocks);
+    if (!NumBlocks)
+      continue;
+    // Write all BBEntries.
+    for (const ELFYAML::BBAddrMapEntry::BBEntry &BBE : *E.BBEntries)
+      SHeader.sh_size += CBA.writeULEB128(BBE.AddressOffset) +
+                         CBA.writeULEB128(BBE.Size) +
+                         CBA.writeULEB128(BBE.Metadata);
+  }
+}
+
+template <class ELFT>
+void ELFState<ELFT>::writeSectionContent(
     Elf_Shdr &SHeader, const ELFYAML::LinkerOptionsSection &Section,
     ContiguousBlobAccumulator &CBA) {
   if (!Section.Options)
@@ -1437,9 +1469,6 @@ template <class ELFT>
 void ELFState<ELFT>::writeSectionContent(Elf_Shdr &SHeader,
                                          const ELFYAML::VerdefSection &Section,
                                          ContiguousBlobAccumulator &CBA) {
-  typedef typename ELFT::Verdef Elf_Verdef;
-  typedef typename ELFT::Verdaux Elf_Verdaux;
-
   SHeader.sh_info = Section.Info;
 
   if (!Section.Entries)
@@ -1482,9 +1511,6 @@ template <class ELFT>
 void ELFState<ELFT>::writeSectionContent(Elf_Shdr &SHeader,
                                          const ELFYAML::VerneedSection &Section,
                                          ContiguousBlobAccumulator &CBA) {
-  typedef typename ELFT::Verneed Elf_Verneed;
-  typedef typename ELFT::Vernaux Elf_Vernaux;
-
   SHeader.sh_info = Section.Info;
 
   if (!Section.VerneedV)

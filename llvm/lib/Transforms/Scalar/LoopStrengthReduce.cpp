@@ -59,7 +59,6 @@
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -76,6 +75,7 @@
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/Analysis/ScalarEvolutionNormalization.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/BasicBlock.h"
@@ -2860,20 +2860,12 @@ static bool isProfitableChain(IVChain &Chain,
   unsigned NumVarIncrements = 0;
   unsigned NumReusedIncrements = 0;
 
-  // If any LSRUse in the chain is marked as profitable by target, mark this
-  // chain as profitable.
-  for (const IVInc &Inc : Chain.Incs)
-    if (TTI.isProfitableLSRChainElement(Inc.UserInst))
-      return true;
-
-  // If number of registers is not the major cost, we cannot benefit from this
-  // profitable chain which is based on number of registers.
-  // FIXME: add profitable chain optimization for other kinds major cost, for
-  // example number of instructions.
-  if (!TTI.isNumRegsMajorCostOfLSR())
-    return false;
+  if (TTI.isProfitableLSRChainElement(Chain.Incs[0].UserInst))
+    return true;
 
   for (const IVInc &Inc : Chain) {
+    if (TTI.isProfitableLSRChainElement(Inc.UserInst))
+      return true;
     if (Inc.IncExpr->isZero())
       continue;
 
@@ -5637,7 +5629,13 @@ LSRInstance::LSRInstance(Loop *L, IVUsers &IU, ScalarEvolution &SE,
   }
 
   // Start collecting data and preparing for the solver.
-  CollectChains();
+  // If number of registers is not the major cost, we cannot benefit from the
+  // current profitable chain optimization which is based on number of
+  // registers.
+  // FIXME: add profitable chain optimization for other kinds major cost, for
+  // example number of instructions.
+  if (TTI.isNumRegsMajorCostOfLSR() || StressIVChain)
+    CollectChains();
   CollectInterestingTypesAndFactors();
   CollectFixupsAndInitialFormulae();
   CollectLoopInvariantFixupsAndFormulae();
@@ -5777,6 +5775,62 @@ void LoopStrengthReduce::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addPreserved<MemorySSAWrapperPass>();
 }
 
+using EqualValues = SmallVector<std::tuple<WeakVH, int64_t, DIExpression *>, 4>;
+using EqualValuesMap = DenseMap<DbgValueInst *, EqualValues>;
+
+static void DbgGatherEqualValues(Loop *L, ScalarEvolution &SE,
+                                 EqualValuesMap &DbgValueToEqualSet) {
+  for (auto &B : L->getBlocks()) {
+    for (auto &I : *B) {
+      auto DVI = dyn_cast<DbgValueInst>(&I);
+      if (!DVI)
+        continue;
+      auto V = DVI->getVariableLocation();
+      if (!V || !SE.isSCEVable(V->getType()))
+        continue;
+      auto DbgValueSCEV = SE.getSCEV(V);
+      EqualValues EqSet;
+      for (PHINode &Phi : L->getHeader()->phis()) {
+        if (V->getType() != Phi.getType())
+          continue;
+        if (!SE.isSCEVable(Phi.getType()))
+          continue;
+        auto PhiSCEV = SE.getSCEV(&Phi);
+        if (Optional<APInt> Offset =
+                SE.computeConstantDifference(DbgValueSCEV, PhiSCEV))
+          EqSet.emplace_back(std::make_tuple(
+              &Phi, Offset.getValue().getSExtValue(), DVI->getExpression()));
+      }
+      DbgValueToEqualSet[DVI] = std::move(EqSet);
+    }
+  }
+}
+
+static void DbgApplyEqualValues(EqualValuesMap &DbgValueToEqualSet) {
+  for (auto A : DbgValueToEqualSet) {
+    auto DVI = A.first;
+    // Only update those that are now undef.
+    if (!isa_and_nonnull<UndefValue>(DVI->getVariableLocation()))
+      continue;
+    for (auto EV : A.second) {
+      auto V = std::get<WeakVH>(EV);
+      if (!V)
+        continue;
+      auto DbgDIExpr = std::get<DIExpression *>(EV);
+      auto Offset = std::get<int64_t>(EV);
+      auto &Ctx = DVI->getContext();
+      DVI->setOperand(0, MetadataAsValue::get(Ctx, ValueAsMetadata::get(V)));
+      if (Offset) {
+        SmallVector<uint64_t, 8> Ops;
+        DIExpression::appendOffset(Ops, Offset);
+        DbgDIExpr = DIExpression::prependOpcodes(DbgDIExpr, Ops, true);
+      }
+      DVI->setOperand(2, MetadataAsValue::get(Ctx, DbgDIExpr));
+      break;
+    }
+  }
+}
+
 static bool ReduceLoopStrength(Loop *L, IVUsers &IU, ScalarEvolution &SE,
                                DominatorTree &DT, LoopInfo &LI,
                                const TargetTransformInfo &TTI,
@@ -5788,30 +5842,14 @@ static bool ReduceLoopStrength(Loop *L, IVUsers &IU, ScalarEvolution &SE,
   if (MSSA)
     MSSAU = std::make_unique<MemorySSAUpdater>(MSSA);
 
-  // Debug preservation - record all llvm.dbg.value from the loop as well as
-  // the SCEV of their variable location. Since salvageDebugInfo may change the
-  // DIExpression we need to store the original here as well (i.e. it needs to
-  // be in sync with the SCEV).
-  SmallVector<
-      std::tuple<DbgValueInst *, const Type *, const SCEV *, DIExpression *>,
-      32>
-      DbgValues;
-  for (auto &B : L->getBlocks()) {
-    for (auto &I : *B) {
-      if (DbgValueInst *D = dyn_cast<DbgValueInst>(&I)) {
-        auto V = D->getVariableLocation();
-        if (!V || !SE.isSCEVable(V->getType()))
-          continue;
-        auto DS = SE.getSCEV(V);
-        DbgValues.push_back(
-            std::make_tuple(D, V->getType(), DS, D->getExpression()));
-      }
-    }
-  }
-
   // Run the main LSR transformation.
   Changed |=
       LSRInstance(L, IU, SE, DT, LI, TTI, AC, TLI, MSSAU.get()).getChanged();
+
+  // Debug preservation - before we start removing anything create equivalence
+  // sets for the llvm.dbg.value intrinsics.
+  EqualValuesMap DbgValueToEqualSet;
+  DbgGatherEqualValues(L, SE, DbgValueToEqualSet);
 
   // Remove any extra phis created by processing inner loops.
   Changed |= DeleteDeadPHIs(L->getHeader(), &TLI, MSSAU.get());
@@ -5830,40 +5868,9 @@ static bool ReduceLoopStrength(Loop *L, IVUsers &IU, ScalarEvolution &SE,
       DeleteDeadPHIs(L->getHeader(), &TLI, MSSAU.get());
     }
   }
-  // Debug preservation - go through all recorded llvm.dbg.value and for those
-  // that now have an undef variable location use the recorded SCEV to try and
-  // update it. Compare with SCEV of Phi-nodes of loop header to find a
-  // suitable update candidate. SCEV match with constant offset is allowed and
-  // will be compensated for in the DIExpression.
-  if (Changed) {
-    for (auto &D : DbgValues) {
-      auto DbgValue = std::get<DbgValueInst *>(D);
-      auto DbgValueType = std::get<const Type *>(D);
-      auto DbgValueSCEV = std::get<const SCEV *>(D);
-      auto DbgDIExpr = std::get<DIExpression *>(D);
-      if (!isa<UndefValue>(DbgValue->getVariableLocation()))
-        continue;
-      for (PHINode &Phi : L->getHeader()->phis()) {
-        if (DbgValueType != Phi.getType())
-          continue;
-        if (!SE.isSCEVable(Phi.getType()))
-          continue;
-        auto PhiSCEV = SE.getSCEV(&Phi);
-        if (Optional<APInt> Offset =
-                SE.computeConstantDifference(DbgValueSCEV, PhiSCEV)) {
-          auto &Ctx = DbgValue->getContext();
-          DbgValue->setOperand(
-              0, MetadataAsValue::get(Ctx, ValueAsMetadata::get(&Phi)));
-          if (Offset.getValue().getSExtValue()) {
-            SmallVector<uint64_t, 8> Ops;
-            DIExpression::appendOffset(Ops, Offset.getValue().getSExtValue());
-            DbgDIExpr = DIExpression::prependOpcodes(DbgDIExpr, Ops, true);
-          }
-          DbgValue->setOperand(2, MetadataAsValue::get(Ctx, DbgDIExpr));
-        }
-      }
-    }
-  }
+
+  DbgApplyEqualValues(DbgValueToEqualSet);
+
   return Changed;
 }
 

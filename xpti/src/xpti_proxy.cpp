@@ -113,7 +113,7 @@ public:
 
   void *functionByIndex(int index) {
     if (index >= XPTI_INITIALIZE && index < XPTI_FW_API_COUNT) {
-      return m_dispatch_table[index];
+      return reinterpret_cast<void *>(m_dispatch_table[index]);
     }
     return nullptr;
   }

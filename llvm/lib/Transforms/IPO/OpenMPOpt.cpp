@@ -55,7 +55,6 @@ static cl::opt<bool> HideMemoryTransferLatency(
              " transfers"),
     cl::Hidden, cl::init(false));
 
-
 STATISTIC(NumOpenMPRuntimeCallsDeduplicated,
           "Number of OpenMP runtime calls deduplicated");
 STATISTIC(NumOpenMPParallelRegionsDeleted,
@@ -415,9 +414,10 @@ struct OffloadArray {
     return true;
   }
 
-  static const unsigned BasePtrsArgNum = 2;
-  static const unsigned PtrsArgNum = 3;
-  static const unsigned SizesArgNum = 4;
+  static const unsigned DeviceIDArgNum = 1;
+  static const unsigned BasePtrsArgNum = 3;
+  static const unsigned PtrsArgNum = 4;
+  static const unsigned SizesArgNum = 5;
 
 private:
   /// Traverses the BasicBlock where \p Array is, collecting the stores made to
@@ -425,8 +425,7 @@ private:
   /// instruction \p Before is reached.
   bool getValues(AllocaInst &Array, Instruction &Before) {
     // Initialize container.
-    const uint64_t NumValues =
-        Array.getAllocatedType()->getArrayNumElements();
+    const uint64_t NumValues = Array.getAllocatedType()->getArrayNumElements();
     StoredValues.assign(NumValues, nullptr);
     LastAccesses.assign(NumValues, nullptr);
 
@@ -448,8 +447,8 @@ private:
 
       auto *S = cast<StoreInst>(&I);
       int64_t Offset = -1;
-      auto *Dst = GetPointerBaseWithConstantOffset(S->getPointerOperand(),
-                                                   Offset, DL);
+      auto *Dst =
+          GetPointerBaseWithConstantOffset(S->getPointerOperand(), Offset, DL);
       if (Dst == &Array) {
         int64_t Idx = Offset / PointerSize;
         StoredValues[Idx] = getUnderlyingObject(S->getValueOperand());
@@ -630,9 +629,9 @@ private:
       EndBB->getTerminator()->setSuccessor(0, CGEndBB);
     };
 
-    auto PrivCB = [&](InsertPointTy AllocaIP, InsertPointTy CodeGenIP,
-                      Value &VPtr, Value *&ReplacementValue) -> InsertPointTy {
-      ReplacementValue = &VPtr;
+    auto PrivCB = [&](InsertPointTy AllocaIP, InsertPointTy CodeGenIP, Value &,
+                      Value &Inner, Value *&ReplacementValue) -> InsertPointTy {
+      ReplacementValue = &Inner;
       return CodeGenIP;
     };
 
@@ -690,7 +689,7 @@ private:
           OriginalFn->getEntryBlock().getFirstInsertionPt());
       // Create the merged parallel region with default proc binding, to
       // avoid overriding binding settings, and without explicit cancellation.
-      InsertPointTy AfterIP = OMPInfoCache.OMPBuilder.CreateParallel(
+      InsertPointTy AfterIP = OMPInfoCache.OMPBuilder.createParallel(
           Loc, AllocaIP, BodyGenCB, PrivCB, FiniCB, nullptr, nullptr,
           OMP_PROC_BIND_default, /* IsCancellable */ false);
       BranchInst::Create(AfterBB, AfterIP.getBlock());
@@ -730,7 +729,7 @@ private:
         if (CI != MergableCIs.back()) {
           // TODO: Remove barrier if the merged parallel region includes the
           // 'nowait' clause.
-          OMPInfoCache.OMPBuilder.CreateBarrier(
+          OMPInfoCache.OMPBuilder.createBarrier(
               InsertPointTy(NewCI->getParent(),
                             NewCI->getNextNode()->getIterator()),
               OMPD_parallel);
@@ -1116,7 +1115,7 @@ private:
         M, OMPRTL___tgt_target_data_begin_mapper_issue);
 
     // Change RuntimeCall call site for its asynchronous version.
-    SmallVector<Value *, 8> Args;
+    SmallVector<Value *, 16> Args;
     for (auto &Arg : RuntimeCall.args())
       Args.push_back(Arg.get());
     Args.push_back(Handle);
@@ -1130,11 +1129,10 @@ private:
     FunctionCallee WaitDecl = IRBuilder.getOrCreateRuntimeFunction(
         M, OMPRTL___tgt_target_data_begin_mapper_wait);
 
-    // Add call site to WaitDecl.
-    const unsigned DeviceIDArgNum = 0;
     Value *WaitParams[2] = {
-        IssueCallsite->getArgOperand(DeviceIDArgNum), // device_id.
-        Handle                                        // handle to wait on.
+        IssueCallsite->getArgOperand(
+            OffloadArray::DeviceIDArgNum), // device_id.
+        Handle                             // handle to wait on.
     };
     CallInst::Create(WaitDecl, WaitParams, /*NameStr=*/"", &WaitMovementPoint);
 
@@ -1471,8 +1469,16 @@ Kernel OpenMPOpt::getUniqueKernelFor(Function &F) {
     }
 
     CachedKernel = nullptr;
-    if (!F.hasLocalLinkage())
+    if (!F.hasLocalLinkage()) {
+
+      // See https://openmp.llvm.org/remarks/OptimizationRemarks.html
+      auto Remark = [&](OptimizationRemark OR) {
+        return OR << "[OMP100] Potentially unknown OpenMP target region caller";
+      };
+      emitRemarkOnFunction(&F, "OMP100", Remark);
+
       return nullptr;
+    }
   }
 
   auto GetUniqueKernelForUse = [&](const Use &U) -> Kernel {
@@ -1770,7 +1776,8 @@ struct AAICVTrackerFunction : public AAICVTracker {
                                     InternalControlVar &ICV) const {
 
     const auto *CB = dyn_cast<CallBase>(I);
-    if (!CB)
+    if (!CB || CB->hasFnAttr("no_openmp") ||
+        CB->hasFnAttr("no_openmp_routines"))
       return None;
 
     auto &OMPInfoCache = static_cast<OMPInformationCache &>(A.getInfoCache());

@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "include/math.h"
 #include "src/math/truncl.h"
 #include "utils/FPUtil/FPBits.h"
 #include "utils/FPUtil/TestHelpers.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
 #include "utils/UnitTest/Test.h"
+#include <math.h>
 
 using FPBits = __llvm_libc::fputil::FPBits<long double>;
 
@@ -26,8 +26,7 @@ TEST(TrunclTest, SpecialNumbers) {
   EXPECT_FP_EQ(inf, __llvm_libc::truncl(inf));
   EXPECT_FP_EQ(negInf, __llvm_libc::truncl(negInf));
 
-  ASSERT_NE(isnan(nan), 0);
-  ASSERT_NE(isnan(__llvm_libc::truncl(nan)), 0);
+  EXPECT_FP_EQ(aNaN, __llvm_libc::truncl(aNaN));
 }
 
 TEST(TrunclTest, RoundedNumbers) {

@@ -96,7 +96,8 @@
 ; CHECK-NEXT:      Machine code sinking
 ; CHECK-NEXT:      Peephole Optimizations
 ; CHECK-NEXT:      Remove dead machine instructions
-; CHECK-NEXT:      MVE VPT Optimisation Pass
+; CHECK-NEXT:      MachineDominator Tree Construction
+; CHECK-NEXT:      MVE TailPred and VPT Optimisation Pass
 ; CHECK-NEXT:      ARM MLA / MLS expansion pass
 ; CHECK-NEXT:      MachineDominator Tree Construction
 ; CHECK-NEXT:      ARM pre- register allocation load / store optimization pass
@@ -158,7 +159,11 @@
 ; CHECK-NEXT:      Machine Natural Loop Construction
 ; CHECK-NEXT:      PostRA Machine Instruction Scheduler
 ; CHECK-NEXT:      Post RA top-down list latency scheduler
+; CHECK-NEXT:      ARM Indirect Thunks
+; CHECK-NEXT:      ARM sls hardening pass
 ; CHECK-NEXT:      Analyze Machine Code For Garbage Collection
+; CHECK-NEXT:      MachineDominator Tree Construction
+; CHECK-NEXT:      Machine Natural Loop Construction
 ; CHECK-NEXT:      Machine Block Frequency Analysis
 ; CHECK-NEXT:      MachinePostDominator Tree Construction
 ; CHECK-NEXT:      Branch Probability Basic Block Placement

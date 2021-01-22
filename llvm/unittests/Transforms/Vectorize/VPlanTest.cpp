@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "../lib/Transforms/Vectorize/VPlan.h"
+#include "llvm/Analysis/VectorUtils.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "gtest/gtest.h"
@@ -364,7 +365,7 @@ TEST(VPRecipeTest, CastVPInstructionToVPUser) {
   EXPECT_TRUE(isa<VPUser>(&Recipe));
   VPRecipeBase *BaseR = &Recipe;
   EXPECT_TRUE(isa<VPUser>(BaseR));
-  EXPECT_EQ(&Recipe, BaseR->toVPUser());
+  EXPECT_EQ(&Recipe, BaseR);
 }
 
 TEST(VPRecipeTest, CastVPWidenRecipeToVPUser) {
@@ -382,11 +383,11 @@ TEST(VPRecipeTest, CastVPWidenRecipeToVPUser) {
   EXPECT_TRUE(isa<VPUser>(&WidenR));
   VPRecipeBase *WidenRBase = &WidenR;
   EXPECT_TRUE(isa<VPUser>(WidenRBase));
-  EXPECT_EQ(&WidenR, WidenRBase->toVPUser());
+  EXPECT_EQ(&WidenR, WidenRBase);
   delete AI;
 }
 
-TEST(VPRecipeTest, CastVPWidenCallRecipeToVPUser) {
+TEST(VPRecipeTest, CastVPWidenCallRecipeToVPUserAndVPDef) {
   LLVMContext C;
 
   IntegerType *Int32 = IntegerType::get(C, 32);
@@ -401,11 +402,16 @@ TEST(VPRecipeTest, CastVPWidenCallRecipeToVPUser) {
   EXPECT_TRUE(isa<VPUser>(&Recipe));
   VPRecipeBase *BaseR = &Recipe;
   EXPECT_TRUE(isa<VPUser>(BaseR));
-  EXPECT_EQ(&Recipe, BaseR->toVPUser());
+  EXPECT_EQ(&Recipe, BaseR);
+
+  VPValue *VPV = &Recipe;
+  EXPECT_TRUE(isa<VPRecipeBase>(VPV->getDef()));
+  EXPECT_EQ(&Recipe, dyn_cast<VPRecipeBase>(VPV->getDef()));
+
   delete Call;
 }
 
-TEST(VPRecipeTest, CastVPWidenSelectRecipeToVPUser) {
+TEST(VPRecipeTest, CastVPWidenSelectRecipeToVPUserAndVPDef) {
   LLVMContext C;
 
   IntegerType *Int1 = IntegerType::get(C, 1);
@@ -424,11 +430,16 @@ TEST(VPRecipeTest, CastVPWidenSelectRecipeToVPUser) {
   EXPECT_TRUE(isa<VPUser>(&WidenSelectR));
   VPRecipeBase *BaseR = &WidenSelectR;
   EXPECT_TRUE(isa<VPUser>(BaseR));
-  EXPECT_EQ(&WidenSelectR, BaseR->toVPUser());
+  EXPECT_EQ(&WidenSelectR, BaseR);
+
+  VPValue *VPV = &WidenSelectR;
+  EXPECT_TRUE(isa<VPRecipeBase>(VPV->getDef()));
+  EXPECT_EQ(&WidenSelectR, dyn_cast<VPRecipeBase>(VPV->getDef()));
+
   delete SelectI;
 }
 
-TEST(VPRecipeTest, CastVPWidenGEPRecipeToVPUser) {
+TEST(VPRecipeTest, CastVPWidenGEPRecipeToVPUserAndVPDef) {
   LLVMContext C;
 
   IntegerType *Int32 = IntegerType::get(C, 32);
@@ -444,7 +455,12 @@ TEST(VPRecipeTest, CastVPWidenGEPRecipeToVPUser) {
   EXPECT_TRUE(isa<VPUser>(&Recipe));
   VPRecipeBase *BaseR = &Recipe;
   EXPECT_TRUE(isa<VPUser>(BaseR));
-  EXPECT_EQ(&Recipe, BaseR->toVPUser());
+  EXPECT_EQ(&Recipe, BaseR);
+
+  VPValue *VPV = &Recipe;
+  EXPECT_TRUE(isa<VPRecipeBase>(VPV->getDef()));
+  EXPECT_EQ(&Recipe, dyn_cast<VPRecipeBase>(VPV->getDef()));
+
   delete GEP;
 }
 
@@ -470,11 +486,12 @@ TEST(VPRecipeTest, CastVPInterleaveRecipeToVPUser) {
 
   VPValue Addr;
   VPValue Mask;
-  VPInterleaveRecipe Recipe(nullptr, &Addr, &Mask);
+  InterleaveGroup<Instruction> IG(4, false, Align(4));
+  VPInterleaveRecipe Recipe(&IG, &Addr, {}, &Mask);
   EXPECT_TRUE(isa<VPUser>(&Recipe));
   VPRecipeBase *BaseR = &Recipe;
   EXPECT_TRUE(isa<VPUser>(BaseR));
-  EXPECT_EQ(&Recipe, BaseR->toVPUser());
+  EXPECT_EQ(&Recipe, BaseR);
 }
 
 TEST(VPRecipeTest, CastVPReplicateRecipeToVPUser) {
@@ -501,10 +518,10 @@ TEST(VPRecipeTest, CastVPBranchOnMaskRecipeToVPUser) {
   EXPECT_TRUE(isa<VPUser>(&Recipe));
   VPRecipeBase *BaseR = &Recipe;
   EXPECT_TRUE(isa<VPUser>(BaseR));
-  EXPECT_EQ(&Recipe, BaseR->toVPUser());
+  EXPECT_EQ(&Recipe, BaseR);
 }
 
-TEST(VPRecipeTest, CastVPWidenMemoryInstructionRecipeToVPUser) {
+TEST(VPRecipeTest, CastVPWidenMemoryInstructionRecipeToVPUserAndVPDef) {
   LLVMContext C;
 
   IntegerType *Int32 = IntegerType::get(C, 32);
@@ -517,8 +534,82 @@ TEST(VPRecipeTest, CastVPWidenMemoryInstructionRecipeToVPUser) {
   EXPECT_TRUE(isa<VPUser>(&Recipe));
   VPRecipeBase *BaseR = &Recipe;
   EXPECT_TRUE(isa<VPUser>(BaseR));
-  EXPECT_EQ(&Recipe, BaseR->toVPUser());
+  EXPECT_EQ(&Recipe, BaseR);
+
+  VPValue *VPV = Recipe.getVPValue();
+  EXPECT_TRUE(isa<VPRecipeBase>(VPV->getDef()));
+  EXPECT_EQ(&Recipe, dyn_cast<VPRecipeBase>(VPV->getDef()));
+
   delete Load;
+}
+
+TEST(VPRecipeTest, CastVPReductionRecipeToVPUser) {
+  LLVMContext C;
+
+  VPValue ChainOp;
+  VPValue VecOp;
+  VPValue CondOp;
+  VPReductionRecipe Recipe(nullptr, nullptr, &ChainOp, &CondOp, &VecOp, false,
+                           nullptr);
+  EXPECT_TRUE(isa<VPUser>(&Recipe));
+  VPRecipeBase *BaseR = &Recipe;
+  EXPECT_TRUE(isa<VPUser>(BaseR));
+}
+
+struct VPDoubleValueDef : public VPRecipeBase, public VPUser {
+  VPDoubleValueDef(ArrayRef<VPValue *> Operands)
+      : VPRecipeBase(99), VPUser(Operands) {
+    new VPValue(nullptr, this);
+    new VPValue(nullptr, this);
+  }
+
+  void execute(struct VPTransformState &State) override{};
+  void print(raw_ostream &O, const Twine &Indent,
+             VPSlotTracker &SlotTracker) const override {}
+};
+
+TEST(VPDoubleValueDefTest, traverseUseLists) {
+  // Check that the def-use chains of a multi-def can be traversed in both
+  // directions.
+
+  // Create a new VPDef which defines 2 values and has 2 operands.
+  VPInstruction Op0(20, {});
+  VPInstruction Op1(30, {});
+  VPDoubleValueDef DoubleValueDef({&Op0, &Op1});
+
+  // Create a new users of the defined values.
+  VPInstruction I1(
+      1, {DoubleValueDef.getVPValue(0), DoubleValueDef.getVPValue(1)});
+  VPInstruction I2(2, {DoubleValueDef.getVPValue(0)});
+  VPInstruction I3(3, {DoubleValueDef.getVPValue(1)});
+
+  // Check operands of the VPDef (traversing upwards).
+  SmallVector<VPValue *, 4> DoubleOperands(DoubleValueDef.op_begin(),
+                                           DoubleValueDef.op_end());
+  EXPECT_EQ(2u, DoubleOperands.size());
+  EXPECT_EQ(&Op0, DoubleOperands[0]);
+  EXPECT_EQ(&Op1, DoubleOperands[1]);
+
+  // Check users of the defined values (traversing downwards).
+  SmallVector<VPUser *, 4> DoubleValueDefV0Users(
+      DoubleValueDef.getVPValue(0)->user_begin(),
+      DoubleValueDef.getVPValue(0)->user_end());
+  EXPECT_EQ(2u, DoubleValueDefV0Users.size());
+  EXPECT_EQ(&I1, DoubleValueDefV0Users[0]);
+  EXPECT_EQ(&I2, DoubleValueDefV0Users[1]);
+
+  SmallVector<VPUser *, 4> DoubleValueDefV1Users(
+      DoubleValueDef.getVPValue(1)->user_begin(),
+      DoubleValueDef.getVPValue(1)->user_end());
+  EXPECT_EQ(2u, DoubleValueDefV1Users.size());
+  EXPECT_EQ(&I1, DoubleValueDefV1Users[0]);
+  EXPECT_EQ(&I3, DoubleValueDefV1Users[1]);
+
+  // Now check that we can get the right VPDef for each defined value.
+  EXPECT_EQ(&DoubleValueDef, I1.getOperand(0)->getDef());
+  EXPECT_EQ(&DoubleValueDef, I1.getOperand(1)->getDef());
+  EXPECT_EQ(&DoubleValueDef, I2.getOperand(0)->getDef());
+  EXPECT_EQ(&DoubleValueDef, I3.getOperand(0)->getDef());
 }
 
 } // namespace

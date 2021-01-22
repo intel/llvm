@@ -64,7 +64,7 @@ using is_validImageDataT = typename detail::is_contained<
 
 template <typename DataT>
 using EnableIfImgAccDataT =
-    typename std::enable_if<is_validImageDataT<DataT>::value, DataT>::type;
+    typename detail::enable_if_t<is_validImageDataT<DataT>::value, DataT>;
 
 template <int Dimensions>
 class __SYCL_EXPORT image_impl final : public SYCLMemObjT {
@@ -73,8 +73,7 @@ class __SYCL_EXPORT image_impl final : public SYCLMemObjT {
 
 private:
   template <bool B>
-  using EnableIfPitchT =
-      typename std::enable_if<B, range<Dimensions - 1>>::type;
+  using EnableIfPitchT = typename detail::enable_if_t<B, range<Dimensions - 1>>;
   static_assert(Dimensions >= 1 || Dimensions <= 3,
                 "Dimensions of cl::sycl::image can be 1, 2 or 3");
 
@@ -192,7 +191,7 @@ public:
   // Return a range object representing the pitch of the image in bytes.
   // Available only when: Dimensions == 2.
   template <bool B = (Dimensions == 2)>
-  typename std::enable_if<B, range<1>>::type get_pitch() const {
+  typename detail::enable_if_t<B, range<1>> get_pitch() const {
     range<1> Temp = range<1>(MRowPitch);
     return Temp;
   }
@@ -200,7 +199,7 @@ public:
   // Return a range object representing the pitch of the image in bytes.
   // Available only when: Dimensions == 3.
   template <bool B = (Dimensions == 3)>
-  typename std::enable_if<B, range<2>>::type get_pitch() const {
+  typename detail::enable_if_t<B, range<2>> get_pitch() const {
     range<2> Temp = range<2>(MRowPitch, MSlicePitch);
     return Temp;
   }

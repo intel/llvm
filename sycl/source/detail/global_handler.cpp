@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/device_filter.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/spinlock.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
@@ -14,7 +15,7 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
-#ifdef WIN32
+#ifdef _WIN32
 #include <windows.h>
 #endif
 
@@ -113,9 +114,32 @@ GlobalHandler::getDeviceFilterList(const std::string &InitValue) {
   return *MDeviceFilterList;
 }
 
-void shutdown() { delete &GlobalHandler::instance(); }
+void shutdown() {
+  // First, release resources, that may access plugins.
+  GlobalHandler::instance().MScheduler.reset(nullptr);
+  GlobalHandler::instance().MProgramManager.reset(nullptr);
+  GlobalHandler::instance().MPlatformCache.reset(nullptr);
 
-#ifdef WIN32
+  // Call to GlobalHandler::instance().getPlugins() initializes plugins. If
+  // user application has loaded SYCL runtime, and never called any APIs,
+  // there's no need to load and unload plugins.
+  if (GlobalHandler::instance().MPlugins) {
+    for (plugin &Plugin : GlobalHandler::instance().getPlugins()) {
+      // PluginParameter is reserved for future use that can control
+      // some parameters in the plugin tear-down process.
+      // Currently, it is not used.
+      void *PluginParameter = nullptr;
+      Plugin.call_nocheck<PiApiKind::piTearDown>(PluginParameter);
+      Plugin.unload();
+    }
+    GlobalHandler::instance().MPlugins.reset(nullptr);
+  }
+
+  // Release the rest of global resources.
+  delete &GlobalHandler::instance();
+}
+
+#ifdef _WIN32
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
   // Perform actions based on the reason for calling.
   switch (fdwReason) {

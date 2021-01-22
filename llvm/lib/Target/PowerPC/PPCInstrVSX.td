@@ -145,6 +145,7 @@ def PPCSToV : SDNode<"PPCISD::SCALAR_TO_VECTOR_PERMUTED",
 def HasVSX : Predicate<"Subtarget->hasVSX()">;
 def IsLittleEndian : Predicate<"Subtarget->isLittleEndian()">;
 def IsBigEndian : Predicate<"!Subtarget->isLittleEndian()">;
+def IsPPC64 : Predicate<"Subtarget->isPPC64()">;
 def HasOnlySwappingMemOps : Predicate<"!Subtarget->hasP9Vector()">;
 def HasP8Vector : Predicate<"Subtarget->hasP8Vector()">;
 def HasDirectMove : Predicate<"Subtarget->hasDirectMove()">;
@@ -629,7 +630,8 @@ let hasSideEffects = 0 in {
                          "xstdivdp $crD, $XA, $XB", IIC_FPCompare, []>;
   def XSTSQRTDP : XX2Form_1<60, 106,
                           (outs crrc:$crD), (ins vsfrc:$XB),
-                          "xstsqrtdp $crD, $XB", IIC_FPCompare, []>;
+                          "xstsqrtdp $crD, $XB", IIC_FPCompare,
+                          [(set i32:$crD, (PPCftsqrt f64:$XB))]>;
   def XVTDIVDP : XX3Form_1<60, 125,
                          (outs crrc:$crD), (ins vsrc:$XA, vsrc:$XB),
                          "xvtdivdp $crD, $XA, $XB", IIC_FPCompare, []>;
@@ -639,10 +641,12 @@ let hasSideEffects = 0 in {
 
   def XVTSQRTDP : XX2Form_1<60, 234,
                           (outs crrc:$crD), (ins vsrc:$XB),
-                          "xvtsqrtdp $crD, $XB", IIC_FPCompare, []>;
+                          "xvtsqrtdp $crD, $XB", IIC_FPCompare,
+                          [(set i32:$crD, (PPCftsqrt v2f64:$XB))]>;
   def XVTSQRTSP : XX2Form_1<60, 170,
                           (outs crrc:$crD), (ins vsrc:$XB),
-                          "xvtsqrtsp $crD, $XB", IIC_FPCompare, []>;
+                          "xvtsqrtsp $crD, $XB", IIC_FPCompare,
+                          [(set i32:$crD, (PPCftsqrt v4f32:$XB))]>;
   }
 
   def XVDIVDP : XX3Form<60, 120,
@@ -2411,24 +2415,24 @@ def MrgWords {
 // [HasVSX, HasOnlySwappingMemOps]
 // [HasVSX, HasOnlySwappingMemOps, IsBigEndian]
 // [HasVSX, HasP8Vector]
-// [HasVSX, HasP8Vector, IsBigEndian]
+// [HasVSX, HasP8Vector, IsBigEndian, IsPPC64]
 // [HasVSX, HasP8Vector, IsLittleEndian]
-// [HasVSX, HasP8Vector, NoP9Vector, IsBigEndian]
+// [HasVSX, HasP8Vector, NoP9Vector, IsBigEndian, IsPPC64]
 // [HasVSX, HasP8Vector, NoP9Vector, IsLittleEndian]
 // [HasVSX, HasDirectMove]
 // [HasVSX, HasDirectMove, IsBigEndian]
 // [HasVSX, HasDirectMove, IsLittleEndian]
-// [HasVSX, HasDirectMove, NoP9Altivec, IsBigEndian]
+// [HasVSX, HasDirectMove, NoP9Altivec, IsBigEndian, IsPPC64]
+// [HasVSX, HasDirectMove, NoP9Vector, IsBigEndian, IsPPC64]
 // [HasVSX, HasDirectMove, NoP9Altivec, IsLittleEndian]
-// [HasVSX, HasDirectMove, NoP9Vector, IsBigEndian]
 // [HasVSX, HasDirectMove, NoP9Vector, IsLittleEndian]
 // [HasVSX, HasP9Vector]
-// [HasVSX, HasP9Vector, IsBigEndian]
+// [HasVSX, HasP9Vector, IsBigEndian, IsPPC64]
 // [HasVSX, HasP9Vector, IsLittleEndian]
 // [HasVSX, HasP9Altivec]
-// [HasVSX, HasP9Altivec, IsBigEndian]
+// [HasVSX, HasP9Altivec, IsBigEndian, IsPPC64]
 // [HasVSX, HasP9Altivec, IsLittleEndian]
-// [HasVSX, IsISA3_0, HasDirectMove, IsBigEndian]
+// [HasVSX, IsISA3_0, HasDirectMove, IsBigEndian, IsPPC64]
 // [HasVSX, IsISA3_0, HasDirectMove, IsLittleEndian]
 
 let AddedComplexity = 400 in {
@@ -2461,6 +2465,10 @@ def : Pat<(fneg (PPCfnmsub v4f32:$A, v4f32:$B, v4f32:$C)),
           (XVMSUBASP $C, $A, $B)>;
 def : Pat<(PPCfnmsub v4f32:$A, v4f32:$B, (fneg v4f32:$C)),
           (XVNMADDASP $C, $A, $B)>;
+
+def : Pat<(PPCfsqrt f64:$frA), (XSSQRTDP $frA)>;
+def : Pat<(PPCfsqrt v2f64:$frA), (XVSQRTDP $frA)>;
+def : Pat<(PPCfsqrt v4f32:$frA), (XVSQRTSP $frA)>;
 
 def : Pat<(v2f64 (bitconvert v4f32:$A)),
           (COPY_TO_REGCLASS $A, VSRC)>;
@@ -3008,8 +3016,8 @@ let Predicates = [HasVSX, HasOnlySwappingMemOps] in {
   def : Pat<(PPCstxvd2x v2f64:$rS, xoaddr:$dst), (STXVD2X $rS, xoaddr:$dst)>;
 } // HasVSX, HasOnlySwappingMemOps
 
-// Big endian VSX subtarget that only has loads and stores that always load
-// in big endian order. Really big endian pre-Power9 subtargets.
+// Big endian VSX subtarget that only has loads and stores that always
+// load in big endian order. Really big endian pre-Power9 subtargets.
 let Predicates = [HasVSX, HasOnlySwappingMemOps, IsBigEndian] in {
   def : Pat<(v2f64 (load xoaddr:$src)), (LXVD2X xoaddr:$src)>;
   def : Pat<(v2i64 (load xoaddr:$src)), (LXVD2X xoaddr:$src)>;
@@ -3102,7 +3110,7 @@ def : Pat<(v16i8 (bitconvert (v16i8 immAllOnesV))),
 } // HasVSX, HasP8Vector
 
 // Big endian Power8 VSX subtarget.
-let Predicates = [HasVSX, HasP8Vector, IsBigEndian] in {
+let Predicates = [HasVSX, HasP8Vector, IsBigEndian, IsPPC64] in {
 def : Pat<DWToSPExtractConv.El0SS1,
           (f32 (XSCVSXDSP (COPY_TO_REGCLASS $S1, VSFRC)))>;
 def : Pat<DWToSPExtractConv.El1SS1,
@@ -3180,7 +3188,7 @@ foreach Idx = [ [0,3], [2,1], [3,2] ] in {
             (STIWX (EXTRACT_SUBREG (XXSLDWI $A, $A, !head(!tail(Idx))),
                                    sub_64), xoaddr:$src)>;
 }
-} // HasVSX, HasP8Vector, IsBigEndian
+} // HasVSX, HasP8Vector, IsBigEndian, IsPPC64
 
 // Little endian Power8 VSX subtarget.
 let Predicates = [HasVSX, HasP8Vector, IsLittleEndian] in {
@@ -3279,7 +3287,7 @@ foreach Idx = [ [0,2], [1,1], [3,3] ] in {
 } // HasVSX, HasP8Vector, IsLittleEndian
 
 // Big endian pre-Power9 VSX subtarget.
-let Predicates = [HasVSX, HasP8Vector, NoP9Vector, IsBigEndian] in {
+let Predicates = [HasVSX, HasP8Vector, NoP9Vector, IsBigEndian, IsPPC64] in {
 def : Pat<(store (i64 (extractelt v2i64:$A, 0)), xoaddr:$src),
           (XFSTOREf64 (EXTRACT_SUBREG $A, sub_64), xoaddr:$src)>;
 def : Pat<(store (f64 (extractelt v2f64:$A, 0)), xoaddr:$src),
@@ -3290,7 +3298,7 @@ def : Pat<(store (i64 (extractelt v2i64:$A, 1)), xoaddr:$src),
 def : Pat<(store (f64 (extractelt v2f64:$A, 1)), xoaddr:$src),
           (XFSTOREf64 (EXTRACT_SUBREG (XXPERMDI $A, $A, 2), sub_64),
                       xoaddr:$src)>;
-} // HasVSX, HasP8Vector, NoP9Vector, IsBigEndian
+} // HasVSX, HasP8Vector, NoP9Vector, IsBigEndian, IsPPC64
 
 // Little endian pre-Power9 VSX subtarget.
 let Predicates = [HasVSX, HasP8Vector, NoP9Vector, IsLittleEndian] in {
@@ -3547,8 +3555,8 @@ def : Pat<(i32 (vector_extract v4i32:$S, i64:$Idx)),
           (i32 VectorExtractions.LE_VARIABLE_WORD)>;
 } // HasVSX, HasDirectMove, NoP9Altivec, IsLittleEndian
 
-// Big endian pre-Power9 VSX subtarget that has direct moves.
-let Predicates = [HasVSX, HasDirectMove, NoP9Vector, IsBigEndian] in {
+// Big endian pre-Power9 64Bit VSX subtarget that has direct moves.
+let Predicates = [HasVSX, HasDirectMove, NoP9Vector, IsBigEndian, IsPPC64] in {
 // Big endian integer vectors using direct moves.
 def : Pat<(v2i64 (build_vector i64:$A, i64:$B)),
           (v2i64 (XXPERMDI
@@ -3562,7 +3570,7 @@ def : Pat<(v4i32 (build_vector i32:$A, i32:$B, i32:$C, i32:$D)),
               (MTVSRD (RLDIMI AnyExts.D, AnyExts.C, 32, 0)), VSRC), 0)>;
 def : Pat<(v4i32 (build_vector i32:$A, i32:$A, i32:$A, i32:$A)),
           (XXSPLTW (COPY_TO_REGCLASS (MTVSRWZ $A), VSRC), 1)>;
-} // HasVSX, HasDirectMove, NoP9Vector, IsBigEndian
+} // HasVSX, HasDirectMove, NoP9Vector, IsBigEndian, IsPPC64
 
 // Little endian pre-Power9 VSX subtarget that has direct moves.
 let Predicates = [HasVSX, HasDirectMove, NoP9Vector, IsLittleEndian] in {
@@ -3915,8 +3923,8 @@ def : Pat<(v4i32 (PPCldsplat xoaddr:$A)),
           (v4i32 (LXVWSX xoaddr:$A))>;
 } // HasVSX, HasP9Vector
 
-// Big endian Power9 subtarget.
-let Predicates = [HasVSX, HasP9Vector, IsBigEndian] in {
+// Big endian 64Bit Power9 subtarget.
+let Predicates = [HasVSX, HasP9Vector, IsBigEndian, IsPPC64] in {
 def : Pat<(f32 (PPCfcfidus (f64 (PPCmtvsrz (i32 (extractelt v4i32:$A, 0)))))),
           (f32 (XSCVUXDSP (XXEXTRACTUW $A, 0)))>;
 def : Pat<(f32 (PPCfcfidus (f64 (PPCmtvsrz (i32 (extractelt v4i32:$A, 1)))))),
@@ -4089,7 +4097,7 @@ foreach Idx = 0-15 in {
 def : Pat<(f128 (uint_to_fp (i32 (PPCmfvsr f64:$src)))),
           (f128 (XSCVUDQP
                   (XXEXTRACTUW (SUBREG_TO_REG (i64 1), $src, sub_64), 4)))>;
-} // HasVSX, HasP9Vector, IsBigEndian
+} // HasVSX, HasP9Vector, IsBigEndian, IsPPC64
 
 // Little endian Power9 subtarget.
 let Predicates = [HasVSX, HasP9Vector, IsLittleEndian] in {
@@ -4314,8 +4322,8 @@ def : Pat<(v4i32 (PPCvabsd v4i32:$A, v4i32:$B, (i32 1))),
           (v4i32 (VABSDUW (XVNEGSP $A), (XVNEGSP $B)))>;
 } // HasVSX, HasP9Altivec
 
-// Big endian Power9 VSX subtargets with P9 Altivec support.
-let Predicates = [HasVSX, HasP9Altivec, IsBigEndian] in {
+// Big endian Power9 64Bit VSX subtargets with P9 Altivec support.
+let Predicates = [HasVSX, HasP9Altivec, IsBigEndian, IsPPC64] in {
 def : Pat<(i64 (anyext (i32 (vector_extract v16i8:$S, i64:$Idx)))),
           (VEXTUBLX $Idx, $S)>;
 
@@ -4448,7 +4456,7 @@ def : Pat<(v4i32 (build_vector ByteToWord.BE_A0, ByteToWord.BE_A1,
           (v4i32 (VEXTSB2W $A))>;
 def : Pat<(v2i64 (build_vector ByteToDWord.BE_A0, ByteToDWord.BE_A1)),
           (v2i64 (VEXTSB2D $A))>;
-} // HasVSX, HasP9Altivec, IsBigEndian
+} // HasVSX, HasP9Altivec, IsBigEndian, IsPPC64
 
 // Little endian Power9 VSX subtargets with P9 Altivec support.
 let Predicates = [HasVSX, HasP9Altivec, IsLittleEndian] in {
@@ -4585,8 +4593,9 @@ def : Pat<(v2i64 (build_vector ByteToDWord.LE_A0, ByteToDWord.LE_A1)),
           (v2i64 (VEXTSB2D $A))>;
 } // HasVSX, HasP9Altivec, IsLittleEndian
 
-// Big endian VSX subtarget that supports additional direct moves from ISA3.0.
-let Predicates = [HasVSX, IsISA3_0, HasDirectMove, IsBigEndian] in {
+// Big endian 64Bit VSX subtarget that supports additional direct moves from
+// ISA3.0.
+let Predicates = [HasVSX, IsISA3_0, HasDirectMove, IsBigEndian, IsPPC64] in {
 def : Pat<(i64 (extractelt v2i64:$A, 1)),
           (i64 (MFVSRLD $A))>;
 // Better way to build integer vectors if we have MTVSRDD. Big endian.
@@ -4599,7 +4608,7 @@ def : Pat<(v4i32 (build_vector i32:$A, i32:$B, i32:$C, i32:$D)),
 
 def : Pat<(f128 (PPCbuild_fp128 i64:$rB, i64:$rA)),
           (f128 (COPY_TO_REGCLASS (MTVSRDD $rB, $rA), VRRC))>;
-} // HasVSX, IsISA3_0, HasDirectMove, IsBigEndian
+} // HasVSX, IsISA3_0, HasDirectMove, IsBigEndian, IsPPC64
 
 // Little endian VSX subtarget that supports direct moves from ISA3.0.
 let Predicates = [HasVSX, IsISA3_0, HasDirectMove, IsLittleEndian] in {

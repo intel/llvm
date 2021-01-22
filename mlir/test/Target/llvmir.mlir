@@ -1311,3 +1311,107 @@ module attributes {llvm.data_layout = "E"} {
   llvm.func @module_big_endian()
 }
 
+// -----
+
+// CHECK: "CodeView", i32 1
+module attributes {llvm.target_triple = "x86_64-pc-windows-msvc"} {}
+
+// -----
+
+// CHECK-NOT: "CodeView", i32 1
+// CHECK: aarch64-linux-android
+module attributes {llvm.target_triple = "aarch64-linux-android"} {}
+
+// -----
+
+// CHECK-NOT: "CodeView", i32 1
+module attributes {} {}
+
+// -----
+
+// CHECK-LABEL: @useInlineAsm
+llvm.func @useInlineAsm(%arg0: !llvm.i32) {
+  // Constraints string is checked at LLVM InlineAsm instruction construction time.
+  // So we can't just use "bar" everywhere, number of in/out arguments has to match.
+
+  // CHECK-NEXT:  call void asm "foo", "r"(i32 {{.*}}), !dbg !7
+  llvm.inline_asm "foo", "r" %arg0 : (!llvm.i32) -> ()
+
+  // CHECK-NEXT:  call i8 asm "foo", "=r,r"(i32 {{.*}}), !dbg !9
+  %0 = llvm.inline_asm "foo", "=r,r" %arg0 : (!llvm.i32) -> !llvm.i8
+
+  // CHECK-NEXT:  call i8 asm "foo", "=r,r,r"(i32 {{.*}}, i32 {{.*}}), !dbg !10
+  %1 = llvm.inline_asm "foo", "=r,r,r" %arg0, %arg0 : (!llvm.i32, !llvm.i32) -> !llvm.i8
+
+  // CHECK-NEXT:  call i8 asm sideeffect "foo", "=r,r,r"(i32 {{.*}}, i32 {{.*}}), !dbg !11
+  %2 = llvm.inline_asm has_side_effects "foo", "=r,r,r" %arg0, %arg0 : (!llvm.i32, !llvm.i32) -> !llvm.i8
+
+  // CHECK-NEXT:  call i8 asm alignstack "foo", "=r,r,r"(i32 {{.*}}, i32 {{.*}}), !dbg !12
+  %3 = llvm.inline_asm is_align_stack "foo", "=r,r,r" %arg0, %arg0 : (!llvm.i32, !llvm.i32) -> !llvm.i8
+
+  // CHECK-NEXT:  call i8 asm inteldialect "foo", "=r,r,r"(i32 {{.*}}, i32 {{.*}}), !dbg !13
+  %4 = llvm.inline_asm asm_dialect = "intel" "foo", "=r,r,r" %arg0, %arg0 : (!llvm.i32, !llvm.i32) -> !llvm.i8
+
+  // CHECK-NEXT:  call { i8, i8 } asm "foo", "=r,=r,r"(i32 {{.*}}), !dbg !14
+  %5 = llvm.inline_asm "foo", "=r,=r,r" %arg0 : (!llvm.i32) -> !llvm.struct<(i8, i8)>
+
+  llvm.return
+}
+
+// -----
+
+// CHECK-LABEL: @switch_args
+llvm.func @switch_args(%arg0: !llvm.i32) {
+  %0 = llvm.mlir.constant(5 : i32) : !llvm.i32
+  %1 = llvm.mlir.constant(7 : i32) : !llvm.i32
+  %2 = llvm.mlir.constant(11 : i32) : !llvm.i32
+  // CHECK:      switch i32 %[[SWITCH_arg0:[0-9]+]], label %[[SWITCHDEFAULT_bb1:[0-9]+]] [
+  // CHECK-NEXT:   i32 -1, label %[[SWITCHCASE_bb2:[0-9]+]]
+  // CHECK-NEXT:   i32 1, label %[[SWITCHCASE_bb3:[0-9]+]]
+  // CHECK-NEXT: ]
+  llvm.switch %arg0, ^bb1 [
+    -1: ^bb2(%0 : !llvm.i32),
+    1: ^bb3(%1, %2 : !llvm.i32, !llvm.i32)
+  ]
+
+// CHECK:      [[SWITCHDEFAULT_bb1]]:
+// CHECK-NEXT:   ret i32 %[[SWITCH_arg0]]
+^bb1:  // pred: ^bb0
+  llvm.return %arg0 : !llvm.i32
+
+// CHECK:      [[SWITCHCASE_bb2]]:
+// CHECK-NEXT:   phi i32 [ 5, %1 ]
+// CHECK-NEXT:   ret i32
+^bb2(%3: !llvm.i32): // pred: ^bb0
+  llvm.return %1 : !llvm.i32
+
+// CHECK:      [[SWITCHCASE_bb3]]:
+// CHECK-NEXT:   phi i32 [ 7, %1 ]
+// CHECK-NEXT:   phi i32 [ 11, %1 ]
+// CHECK-NEXT:   ret i32
+^bb3(%4: !llvm.i32, %5: !llvm.i32): // pred: ^bb0
+  llvm.return %4 : !llvm.i32
+}
+
+// CHECK-LABEL: @switch_weights
+llvm.func @switch_weights(%arg0: !llvm.i32) {
+  %0 = llvm.mlir.constant(19 : i32) : !llvm.i32
+  %1 = llvm.mlir.constant(23 : i32) : !llvm.i32
+  %2 = llvm.mlir.constant(29 : i32) : !llvm.i32
+  // CHECK: !prof ![[SWITCH_WEIGHT_NODE:[0-9]+]]
+  llvm.switch %arg0, ^bb1(%0 : !llvm.i32) [
+    9: ^bb2(%1, %2 : !llvm.i32, !llvm.i32),
+    99: ^bb3
+  ] {branch_weights = dense<[13, 17, 19]> : vector<3xi32>}
+
+^bb1(%3: !llvm.i32):  // pred: ^bb0
+  llvm.return %3 : !llvm.i32
+
+^bb2(%4: !llvm.i32, %5: !llvm.i32): // pred: ^bb0
+  llvm.return %5 : !llvm.i32
+
+^bb3: // pred: ^bb0
+  llvm.return %arg0 : !llvm.i32
+}
+
+// CHECK: ![[SWITCH_WEIGHT_NODE]] = !{!"branch_weights", i32 13, i32 17, i32 19}

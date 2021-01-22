@@ -51,7 +51,7 @@ def MIMGBaseOpcodesTable : GenericTable {
   let Fields = ["BaseOpcode", "Store", "Atomic", "AtomicX2", "Sampler",
                 "Gather4", "NumExtraArgs", "Gradients", "G16", "Coordinates",
                 "LodOrClampOrMip", "HasD16"];
-  GenericEnum TypeOf_BaseOpcode = MIMGBaseOpcode;
+  string TypeOf_BaseOpcode = "MIMGBaseOpcode";
 
   let PrimaryKey = ["BaseOpcode"];
   let PrimaryKeyName = "getMIMGBaseOpcodeInfo";
@@ -65,7 +65,7 @@ def MIMGDimInfoTable : GenericTable {
   let FilterClass = "AMDGPUDimProps";
   let CppTypeName = "MIMGDimInfo";
   let Fields = ["Dim", "NumCoords", "NumGradients", "DA", "Encoding", "AsmSuffix"];
-  GenericEnum TypeOf_Dim = MIMGDim;
+  string TypeOf_Dim = "MIMGDim";
 
   let PrimaryKey = ["Dim"];
   let PrimaryKeyName = "getMIMGDimInfo";
@@ -95,8 +95,8 @@ def MIMGLZMappingTable : GenericTable {
   let FilterClass = "MIMGLZMapping";
   let CppTypeName = "MIMGLZMappingInfo";
   let Fields = ["L", "LZ"];
-  GenericEnum TypeOf_L = MIMGBaseOpcode;
-  GenericEnum TypeOf_LZ = MIMGBaseOpcode;
+  string TypeOf_L = "MIMGBaseOpcode";
+  string TypeOf_LZ = "MIMGBaseOpcode";
 
   let PrimaryKey = ["L"];
   let PrimaryKeyName = "getMIMGLZMappingInfo";
@@ -111,8 +111,8 @@ def MIMGMIPMappingTable : GenericTable {
   let FilterClass = "MIMGMIPMapping";
   let CppTypeName = "MIMGMIPMappingInfo";
   let Fields = ["MIP", "NONMIP"];
-  GenericEnum TypeOf_MIP = MIMGBaseOpcode;
-  GenericEnum TypeOf_NONMIP = MIMGBaseOpcode;
+  string TypeOf_MIP = "MIMGBaseOpcode";
+  string TypeOf_NONMIP = "MIMGBaseOpcode";
 
   let PrimaryKey = ["MIP"];
   let PrimaryKeyName = "getMIMGMIPMappingInfo";
@@ -127,8 +127,8 @@ def MIMGG16MappingTable : GenericTable {
   let FilterClass = "MIMGG16Mapping";
   let CppTypeName = "MIMGG16MappingInfo";
   let Fields = ["G", "G16"];
-  GenericEnum TypeOf_G = MIMGBaseOpcode;
-  GenericEnum TypeOf_G16 = MIMGBaseOpcode;
+  string TypeOf_G = "MIMGBaseOpcode";
+  string TypeOf_G16 = "MIMGBaseOpcode";
 
   let PrimaryKey = ["G"];
   let PrimaryKeyName = "getMIMGG16MappingInfo";
@@ -168,8 +168,8 @@ def MIMGInfoTable : GenericTable {
   let FilterClass = "MIMG";
   let CppTypeName = "MIMGInfo";
   let Fields = ["Opcode", "BaseOpcode", "MIMGEncoding", "VDataDwords", "VAddrDwords"];
-  GenericEnum TypeOf_BaseOpcode = MIMGBaseOpcode;
-  GenericEnum TypeOf_MIMGEncoding = MIMGEncoding;
+  string TypeOf_BaseOpcode = "MIMGBaseOpcode";
+  string TypeOf_MIMGEncoding = "MIMGEncoding";
 
   let PrimaryKey = ["BaseOpcode", "MIMGEncoding", "VDataDwords", "VAddrDwords"];
   let PrimaryKeyName = "getMIMGOpcodeHelper";
@@ -180,11 +180,12 @@ def getMIMGInfo : SearchIndex {
   let Key = ["Opcode"];
 }
 
-// This is a separate class so that TableGen memoizes the computations.
+// This class used to use !foldl to memoize the AddrAsmNames list.
+// It turned out that that was much slower than using !filter.
 class MIMGNSAHelper<int num_addrs> {
   list<string> AddrAsmNames =
-    !foldl([]<string>, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], lhs, i,
-           !if(!lt(i, num_addrs), !listconcat(lhs, ["vaddr"#!size(lhs)]), lhs));
+    !foreach(i, !filter(i, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+                        !lt(i, num_addrs)), "vaddr" # i);
   dag AddrIns = !dag(ins, !foreach(arg, AddrAsmNames, VGPR_32), AddrAsmNames);
   string AddrAsm = "[$" # !interleave(AddrAsmNames, ", $") # "]";
 
@@ -925,8 +926,8 @@ def ImageDimIntrinsicTable : GenericTable {
     "DMaskIndex", "VAddrStart", "GradientStart", "CoordStart", "LodIndex", "MipIndex", "VAddrEnd",
     "RsrcIndex", "SampIndex", "UnormIndex", "TexFailCtrlIndex", "CachePolicyIndex",
     "GradientTyArg", "CoordTyArg"];
-  GenericEnum TypeOf_BaseOpcode = MIMGBaseOpcode;
-  GenericEnum TypeOf_Dim = MIMGDim;
+  string TypeOf_BaseOpcode = "MIMGBaseOpcode";
+  string TypeOf_Dim = "MIMGDim";
 
   let PrimaryKey = ["Intr"];
   let PrimaryKeyName = "getImageDimIntrinsicInfo";

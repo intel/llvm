@@ -30,3 +30,4 @@ Developing oneAPI DPC++ Compiler
    SpecializationConstants
    KernelProgramCache
    GlobalObjectsInRuntime
+   LinkedAllocations

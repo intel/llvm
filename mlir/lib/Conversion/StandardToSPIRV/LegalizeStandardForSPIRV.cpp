@@ -12,15 +12,26 @@
 //===----------------------------------------------------------------------===//
 
 #include "../PassDetail.h"
-#include "mlir/Conversion/StandardToSPIRV/ConvertStandardToSPIRV.h"
-#include "mlir/Conversion/StandardToSPIRV/ConvertStandardToSPIRVPass.h"
-#include "mlir/Dialect/SPIRV/SPIRVDialect.h"
+#include "mlir/Conversion/StandardToSPIRV/StandardToSPIRV.h"
+#include "mlir/Conversion/StandardToSPIRV/StandardToSPIRVPass.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 using namespace mlir;
+
+/// Helpers to access the memref operand for each op.
+static Value getMemRefOperand(LoadOp op) { return op.memref(); }
+
+static Value getMemRefOperand(vector::TransferReadOp op) { return op.source(); }
+
+static Value getMemRefOperand(StoreOp op) { return op.memref(); }
+
+static Value getMemRefOperand(vector::TransferWriteOp op) {
+  return op.source();
+}
 
 namespace {
 /// Merges subview operation with load/transferRead operation.
@@ -114,19 +125,18 @@ resolveSourceIndices(Location loc, PatternRewriter &rewriter,
   // TODO: Aborting when the offsets are static. There might be a way to fold
   // the subview op with load even if the offsets have been canonicalized
   // away.
-  SmallVector<Value, 4> opOffsets = subViewOp.getOrCreateOffsets(rewriter, loc);
-  SmallVector<Value, 4> opStrides = subViewOp.getOrCreateStrides(rewriter, loc);
-  assert(opOffsets.size() == indices.size() &&
-         "expected as many indices as rank of subview op result type");
-  assert(opStrides.size() == indices.size() &&
+  SmallVector<Range, 4> opRanges = subViewOp.getOrCreateRanges(rewriter, loc);
+  auto opOffsets = llvm::map_range(opRanges, [](Range r) { return r.offset; });
+  auto opStrides = llvm::map_range(opRanges, [](Range r) { return r.stride; });
+  assert(opRanges.size() == indices.size() &&
          "expected as many indices as rank of subview op result type");
 
   // New indices for the load are the current indices * subview_stride +
   // subview_offset.
   sourceIndices.resize(indices.size());
   for (auto index : llvm::enumerate(indices)) {
-    auto offset = opOffsets[index.index()];
-    auto stride = opStrides[index.index()];
+    auto offset = *(opOffsets.begin() + index.index());
+    auto stride = *(opStrides.begin() + index.index());
     auto mul = rewriter.create<MulIOp>(loc, index.value(), stride);
     sourceIndices[index.index()] =
         rewriter.create<AddIOp>(loc, offset, mul).getResult();
@@ -142,7 +152,7 @@ template <typename OpTy>
 LogicalResult
 LoadOpOfSubViewFolder<OpTy>::matchAndRewrite(OpTy loadOp,
                                              PatternRewriter &rewriter) const {
-  auto subViewOp = loadOp.memref().template getDefiningOp<SubViewOp>();
+  auto subViewOp = getMemRefOperand(loadOp).template getDefiningOp<SubViewOp>();
   if (!subViewOp) {
     return failure();
   }
@@ -163,7 +173,8 @@ template <typename OpTy>
 LogicalResult
 StoreOpOfSubViewFolder<OpTy>::matchAndRewrite(OpTy storeOp,
                                               PatternRewriter &rewriter) const {
-  auto subViewOp = storeOp.memref().template getDefiningOp<SubViewOp>();
+  auto subViewOp =
+      getMemRefOperand(storeOp).template getDefiningOp<SubViewOp>();
   if (!subViewOp) {
     return failure();
   }

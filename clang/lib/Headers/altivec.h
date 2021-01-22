@@ -2996,12 +2996,12 @@ static __inline__ void __ATTRS_o_ai vec_xst_len_r(vector unsigned char __a,
 #ifdef __VSX__
 static __inline__ vector float __ATTRS_o_ai vec_cpsgn(vector float __a,
                                                       vector float __b) {
-  return __builtin_vsx_xvcpsgnsp(__a, __b);
+  return __builtin_vsx_xvcpsgnsp(__b, __a);
 }
 
 static __inline__ vector double __ATTRS_o_ai vec_cpsgn(vector double __a,
                                                        vector double __b) {
-  return __builtin_vsx_xvcpsgndp(__a, __b);
+  return __builtin_vsx_xvcpsgndp(__b, __a);
 }
 #endif
 
@@ -3502,7 +3502,7 @@ static __inline__ vector signed __int128 __ATTRS_o_ai
 vec_div(vector signed __int128 __a, vector signed __int128 __b) {
   return __a / __b;
 }
-#endif __POWER10_VECTOR__
+#endif /* __POWER10_VECTOR__ */
 
 /* vec_xvtdiv */
 

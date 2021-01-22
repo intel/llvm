@@ -1,4 +1,4 @@
-// RUN: mlir-translate -mlir-to-llvmir %s | FileCheck %s
+// RUN: mlir-translate -mlir-to-llvmir -split-input-file %s | FileCheck %s
 
 // CHECK-LABEL: define void @test_stand_alone_directives()
 llvm.func @test_stand_alone_directives() {
@@ -260,6 +260,65 @@ llvm.func @test_omp_parallel_5() -> () {
     }
 
     omp.barrier
+    omp.terminator
+  }
+  llvm.return
+}
+
+// CHECK-LABEL: define void @test_omp_master()
+llvm.func @test_omp_master() -> () {
+// CHECK: call void {{.*}}@__kmpc_fork_call{{.*}} @{{.*}} to
+// CHECK: omp.par.region1:
+  omp.parallel {
+    omp.master {
+// CHECK: [[OMP_THREAD_3_4:%.*]] = call i32 @__kmpc_global_thread_num(%struct.ident_t* @{{[0-9]+}})
+// CHECK: {{[0-9]+}} = call i32 @__kmpc_master(%struct.ident_t* @{{[0-9]+}}, i32 [[OMP_THREAD_3_4]])
+// CHECK: omp.master.region
+// CHECK: call void @__kmpc_end_master(%struct.ident_t* @{{[0-9]+}}, i32 [[OMP_THREAD_3_4]])
+// CHECK: br label %omp_region.end
+      omp.terminator
+    }
+    omp.terminator
+  }
+  omp.parallel {
+    omp.parallel {
+      omp.master {
+        omp.terminator
+      }
+      omp.terminator
+    }
+    omp.terminator
+  }
+  llvm.return
+}
+
+// -----
+
+// CHECK: %struct.ident_t = type
+// CHECK: @[[$parallel_loc:.*]] = private unnamed_addr constant {{.*}} c";LLVMDialectModule;wsloop_simple;{{[0-9]+}};{{[0-9]+}};;\00"
+// CHECK: @[[$parallel_loc_struct:.*]] = private unnamed_addr constant %struct.ident_t {{.*}} @[[$parallel_loc]], {{.*}}
+
+// CHECK: @[[$wsloop_loc:.*]] = private unnamed_addr constant {{.*}} c";LLVMDialectModule;wsloop_simple;{{[0-9]+}};{{[0-9]+}};;\00"
+// CHECK: @[[$wsloop_loc_struct:.*]] = private unnamed_addr constant %struct.ident_t {{.*}} @[[$wsloop_loc]], {{.*}}
+
+// CHECK-LABEL: @wsloop_simple
+llvm.func @wsloop_simple(%arg0: !llvm.ptr<float>) {
+  %0 = llvm.mlir.constant(42 : index) : !llvm.i64
+  %1 = llvm.mlir.constant(10 : index) : !llvm.i64
+  %2 = llvm.mlir.constant(1 : index) : !llvm.i64
+  omp.parallel {
+    "omp.wsloop"(%1, %0, %2) ( {
+    ^bb0(%arg1: !llvm.i64):
+      // The form of the emitted IR is controlled by OpenMPIRBuilder and
+      // tested there. Just check that the right functions are called.
+      // CHECK: call i32 @__kmpc_global_thread_num
+      // CHECK: call void @__kmpc_for_static_init_{{.*}}(%struct.ident_t* @[[$wsloop_loc_struct]],
+      %3 = llvm.mlir.constant(2.000000e+00 : f32) : !llvm.float
+      %4 = llvm.getelementptr %arg0[%arg1] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
+      llvm.store %3, %4 : !llvm.ptr<float>
+      omp.yield
+      // CHECK: call void @__kmpc_for_static_fini(%struct.ident_t* @[[$wsloop_loc_struct]],
+    }) {operand_segment_sizes = dense<[1, 1, 1, 0, 0, 0, 0, 0, 0]> : vector<9xi32>} : (!llvm.i64, !llvm.i64, !llvm.i64) -> ()
     omp.terminator
   }
   llvm.return

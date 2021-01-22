@@ -12,6 +12,8 @@
 
 #include "lldb/Core/Module.h"
 #include "lldb/Core/PluginManager.h"
+#include "lldb/Core/Section.h"
+#include "lldb/Target/SectionLoadList.h"
 #include "lldb/Target/Target.h"
 
 using namespace lldb;
@@ -32,7 +34,10 @@ void ProcessTrace::Terminate() {
 
 ProcessSP ProcessTrace::CreateInstance(TargetSP target_sp,
                                        ListenerSP listener_sp,
-                                       const FileSpec *crash_file) {
+                                       const FileSpec *crash_file,
+                                       bool can_connect) {
+  if (can_connect)
+    return nullptr;
   return std::make_shared<ProcessTrace>(target_sp, listener_sp);
 }
 
@@ -41,7 +46,7 @@ bool ProcessTrace::CanDebug(TargetSP target_sp, bool plugin_specified_by_name) {
 }
 
 ProcessTrace::ProcessTrace(TargetSP target_sp, ListenerSP listener_sp)
-    : Process(target_sp, listener_sp) {}
+    : PostMortemProcess(target_sp, listener_sp) {}
 
 ProcessTrace::~ProcessTrace() {
   Clear();
@@ -121,5 +126,9 @@ bool ProcessTrace::GetProcessInfo(ProcessInstanceInfo &info) {
 
 size_t ProcessTrace::DoReadMemory(addr_t addr, void *buf, size_t size,
                                   Status &error) {
-  return 0;
+  Address resolved_address;
+  GetTarget().GetSectionLoadList().ResolveLoadAddress(addr, resolved_address);
+
+  return GetTarget().ReadMemoryFromFileCache(resolved_address, buf, size,
+                                             error);
 }

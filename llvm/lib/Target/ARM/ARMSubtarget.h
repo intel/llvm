@@ -66,6 +66,7 @@ protected:
     CortexA8,
     CortexA9,
     CortexM3,
+    CortexM7,
     CortexR4,
     CortexR4F,
     CortexR5,
@@ -76,6 +77,8 @@ protected:
     Krait,
     Kryo,
     NeoverseN1,
+    NeoverseN2,
+    NeoverseV1,
     Swift
   };
   enum ARMProcClassEnum {
@@ -163,6 +166,7 @@ protected:
   bool HasV8_4aOps = false;
   bool HasV8_5aOps = false;
   bool HasV8_6aOps = false;
+  bool HasV8_7aOps = false;
   bool HasV8MBaselineOps = false;
   bool HasV8MMainlineOps = false;
   bool HasV8_1MMainlineOps = false;
@@ -461,6 +465,13 @@ protected:
   /// cannot be encoded. For example, ADD r0, r1, #FFFFFFFF -> SUB r0, r1, #1.
   bool NegativeImmediates = true;
 
+  /// Harden against Straight Line Speculation for Returns and Indirect
+  /// Branches.
+  bool HardenSlsRetBr = false;
+
+  /// Harden against Straight Line Speculation for indirect calls.
+  bool HardenSlsBlr = false;
+
   /// stackAlignment - The minimum alignment known to hold of the stack frame on
   /// entry to the function and which must be maintained by every function.
   Align stackAlignment = Align(4);
@@ -594,6 +605,7 @@ public:
   bool hasV8_4aOps() const { return HasV8_4aOps; }
   bool hasV8_5aOps() const { return HasV8_5aOps; }
   bool hasV8_6aOps() const { return HasV8_6aOps; }
+  bool hasV8_7aOps() const { return HasV8_7aOps; }
   bool hasV8MBaselineOps() const { return HasV8MBaselineOps; }
   bool hasV8MMainlineOps() const { return HasV8MMainlineOps; }
   bool hasV8_1MMainlineOps() const { return HasV8_1MMainlineOps; }
@@ -614,6 +626,7 @@ public:
   bool isCortexA15() const { return ARMProcFamily == CortexA15; }
   bool isSwift()    const { return ARMProcFamily == Swift; }
   bool isCortexM3() const { return ARMProcFamily == CortexM3; }
+  bool isCortexM7() const { return ARMProcFamily == CortexM7; }
   bool isLikeA9() const { return isCortexA9() || isCortexA15() || isKrait(); }
   bool isCortexR5() const { return ARMProcFamily == CortexR5; }
   bool isKrait() const { return ARMProcFamily == Krait; }
@@ -901,6 +914,9 @@ public:
   bool ignoreCSRForAllocationOrder(const MachineFunction &MF,
                                    unsigned PhysReg) const override;
   unsigned getGPRAllocationOrder(const MachineFunction &MF) const;
+
+  bool hardenSlsRetBr() const { return HardenSlsRetBr; }
+  bool hardenSlsBlr() const { return HardenSlsBlr; }
 };
 
 } // end namespace llvm

@@ -342,7 +342,7 @@ static bool hasValidKind(const DynTypedMatcher &M) {
 static std::vector<DynTypedMatcher> taggedMatchers(
     StringRef TagBase,
     const SmallVectorImpl<std::pair<size_t, RewriteRule::Case>> &Cases,
-    ast_type_traits::TraversalKind DefaultTraversalKind) {
+    TraversalKind DefaultTraversalKind) {
   std::vector<DynTypedMatcher> Matchers;
   Matchers.reserve(Cases.size());
   for (const auto &Case : Cases) {
@@ -439,7 +439,3 @@ transformer::detail::findSelectedCase(const MatchResult &Result,
 }
 
 const llvm::StringRef RewriteRule::RootID = ::clang::transformer::RootID;
-
-TextGenerator tooling::text(std::string M) {
-  return std::make_shared<SimpleTextGenerator>(std::move(M));
-}

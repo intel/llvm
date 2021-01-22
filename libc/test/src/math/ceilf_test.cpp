@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "include/math.h"
 #include "src/math/ceilf.h"
 #include "utils/FPUtil/FPBits.h"
 #include "utils/FPUtil/TestHelpers.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
 #include "utils/UnitTest/Test.h"
+#include <math.h>
 
 using FPBits = __llvm_libc::fputil::FPBits<float>;
 
@@ -26,8 +26,7 @@ TEST(CeilfTest, SpecialNumbers) {
   EXPECT_FP_EQ(inf, __llvm_libc::ceilf(inf));
   EXPECT_FP_EQ(negInf, __llvm_libc::ceilf(negInf));
 
-  ASSERT_NE(isnan(nan), 0);
-  ASSERT_NE(isnan(__llvm_libc::ceilf(nan)), 0);
+  EXPECT_FP_EQ(aNaN, __llvm_libc::ceilf(aNaN));
 }
 
 TEST(CeilfTest, RoundedNumbers) {

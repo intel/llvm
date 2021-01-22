@@ -1668,7 +1668,23 @@ struct __is_seed_sequence
 
 template <unsigned long long __a, unsigned long long __c,
           unsigned long long __m, unsigned long long _Mp,
-          bool _MightOverflow = (__a != 0 && __m != 0 && __m-1 > (_Mp-__c)/__a)>
+          bool _MightOverflow = (__a != 0 && __m != 0 && __m-1 > (_Mp-__c)/__a),
+          bool _OverflowOK = ((__m|__m-1) > __m), // m = 2^n
+          bool _SchrageOK = (__a != 0 && __m != 0 && __m % __a <= __m / __a)> // r <= q
+struct __lce_alg_picker
+{
+    static_assert(__a != 0 || __m != 0 || !_MightOverflow || _OverflowOK || _SchrageOK,
+                  "The current values of a, c, and m cannot generate a number "
+                  "within bounds of linear_congruential_engine.");
+
+    static _LIBCPP_CONSTEXPR const bool __use_schrage = _MightOverflow &&
+                                                        !_OverflowOK &&
+                                                        _SchrageOK;
+};
+
+template <unsigned long long __a, unsigned long long __c,
+          unsigned long long __m, unsigned long long _Mp,
+          bool _UseSchrage = __lce_alg_picker<__a, __c, __m, _Mp>::__use_schrage>
 struct __lce_ta;
 
 // 64
@@ -1842,6 +1858,7 @@ private:
 
     static_assert(__m == 0 || __a < __m, "linear_congruential_engine invalid parameters");
     static_assert(__m == 0 || __c < __m, "linear_congruential_engine invalid parameters");
+    static_assert(_VSTD::is_unsigned<_UIntType>::value, "_UIntType must be unsigned type");
 public:
     static _LIBCPP_CONSTEXPR const result_type _Min = __c == 0u ? 1u: 0u;
     static _LIBCPP_CONSTEXPR const result_type _Max = __m - 1u;
@@ -4018,12 +4035,12 @@ public:
         {return !(__x == __y);}
 };
 
-#ifndef _LIBCPP_MSVCRT
+#ifndef _LIBCPP_MSVCRT_LIKE
 extern "C" double lgamma_r(double, int *);
 #endif
 
 inline _LIBCPP_INLINE_VISIBILITY double __libcpp_lgamma(double __d) {
-#if defined(_LIBCPP_MSVCRT)
+#if defined(_LIBCPP_MSVCRT_LIKE)
   return lgamma(__d);
 #else
   int __sign;
@@ -4643,7 +4660,7 @@ poisson_distribution<_IntType>::param_type::param_type(double __mean)
     {
         __s_ = _VSTD::sqrt(__mean_);
         __d_ = 6 * __mean_ * __mean_;
-        __l_ = std::trunc(__mean_ - 1.1484);
+        __l_ = _VSTD::trunc(__mean_ - 1.1484);
         __omega_ = .3989423 / __s_;
         double __b1_ = .4166667E-1 / __mean_;
         double __b2_ = .3 * __b1_ * __b1_;
@@ -4675,13 +4692,13 @@ poisson_distribution<_IntType>::operator()(_URNG& __urng, const param_type& __pr
         double __u;
         if (__g > 0)
         {
-            __tx = std::trunc(__g);
+            __tx = _VSTD::trunc(__g);
             if (__tx >= __pr.__l_)
-                return std::__clamp_to_integral<result_type>(__tx);
+                return _VSTD::__clamp_to_integral<result_type>(__tx);
             __difmuk = __pr.__mean_ - __tx;
             __u = __urd(__urng);
             if (__pr.__d_ * __u >= __difmuk * __difmuk * __difmuk)
-                return std::__clamp_to_integral<result_type>(__tx);
+                return _VSTD::__clamp_to_integral<result_type>(__tx);
         }
         exponential_distribution<double> __edist;
         for (bool __using_exp_dist = false; true; __using_exp_dist = true)
@@ -4697,7 +4714,7 @@ poisson_distribution<_IntType>::operator()(_URNG& __urng, const param_type& __pr
                     __u += __u - 1;
                     __t = 1.8 + (__u < 0 ? -__e : __e);
                 } while (__t <= -.6744);
-                __tx = std::trunc(__pr.__mean_ + __pr.__s_ * __t);
+                __tx = _VSTD::trunc(__pr.__mean_ + __pr.__s_ * __t);
                 __difmuk = __pr.__mean_ - __tx;
                 __using_exp_dist = true;
             }
@@ -4741,7 +4758,7 @@ poisson_distribution<_IntType>::operator()(_URNG& __urng, const param_type& __pr
             }
         }
     }
-    return std::__clamp_to_integral<result_type>(__tx);
+    return _VSTD::__clamp_to_integral<result_type>(__tx);
 }
 
 template <class _CharT, class _Traits, class _IntType>

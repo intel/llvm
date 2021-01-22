@@ -20,11 +20,12 @@ class AffineApplyOp;
 class AffineForOp;
 class AffineMap;
 class Location;
-class MemRefType;
 class OpBuilder;
 class Operation;
+class ShapedType;
 class Value;
 class VectorType;
+class VectorTransferOpInterface;
 
 /// Return the number of elements of basis, `0` if empty.
 int64_t computeMaxLinearIndex(ArrayRef<int64_t> basis);
@@ -156,8 +157,13 @@ makePermutationMap(Operation *op, ArrayRef<Value> indices,
 /// Build the default minor identity map suitable for a vector transfer. This
 /// also handles the case memref<... x vector<...>> -> vector<...> in which the
 /// rank of the identity map must take the vector element type into account.
-AffineMap getTransferMinorIdentityMap(MemRefType memRefType,
+AffineMap getTransferMinorIdentityMap(ShapedType shapedType,
                                       VectorType vectorType);
+
+/// Return true if we can prove that the transfer operations access disjoint
+/// memory.
+bool isDisjointTransferSet(VectorTransferOpInterface transferA,
+                           VectorTransferOpInterface transferB);
 
 namespace matcher {
 

@@ -238,6 +238,13 @@ void AMDGPUPALMetadata::setScratchSize(CallingConv::ID CC, unsigned Val) {
   getHwStage(CC)[".scratch_memory_size"] = MsgPackDoc.getNode(Val);
 }
 
+// Set the stack frame size of a function in the metadata.
+void AMDGPUPALMetadata::setFunctionScratchSize(const MachineFunction &MF,
+                                               unsigned Val) {
+  auto Node = getShaderFunction(MF.getFunction().getName());
+  Node[".stack_frame_size_in_bytes"] = MsgPackDoc.getNode(Val);
+}
+
 // Set the hardware register bit in PAL metadata to enable wave32 on the
 // shader of the given calling convention.
 void AMDGPUPALMetadata::setWave32(unsigned CC) {
@@ -721,6 +728,30 @@ msgpack::MapDocNode AMDGPUPALMetadata::getRegisters() {
   return Registers.getMap();
 }
 
+// Reference (create if necessary) the node for the shader functions map.
+msgpack::DocNode &AMDGPUPALMetadata::refShaderFunctions() {
+  auto &N =
+      MsgPackDoc.getRoot()
+          .getMap(/*Convert=*/true)[MsgPackDoc.getNode("amdpal.pipelines")]
+          .getArray(/*Convert=*/true)[0]
+          .getMap(/*Convert=*/true)[MsgPackDoc.getNode(".shader_functions")];
+  N.getMap(/*Convert=*/true);
+  return N;
+}
+
+// Get (create if necessary) the shader functions map.
+msgpack::MapDocNode AMDGPUPALMetadata::getShaderFunctions() {
+  if (ShaderFunctions.isEmpty())
+    ShaderFunctions = refShaderFunctions();
+  return ShaderFunctions.getMap();
+}
+
+// Get (create if necessary) a function in the shader functions map.
+msgpack::MapDocNode AMDGPUPALMetadata::getShaderFunction(StringRef Name) {
+  auto Functions = getShaderFunctions();
+  return Functions[Name].getMap(/*Convert=*/true);
+}
+
 // Return the PAL metadata hardware shader stage name.
 static const char *getStageName(CallingConv::ID CC) {
   switch (CC) {
@@ -736,6 +767,8 @@ static const char *getStageName(CallingConv::ID CC) {
     return ".hs";
   case CallingConv::AMDGPU_LS:
     return ".ls";
+  case CallingConv::AMDGPU_Gfx:
+    llvm_unreachable("Callable shader has no hardware stage");
   default:
     return ".cs";
   }

@@ -207,13 +207,21 @@ def PromoteBuffersToStack : FunctionPass<"promote-buffers-to-stack"> {
   let description = [{
     This pass implements a simple algorithm to convert heap-based memory
     allocations to stack-based ones. It uses a built-in heuristic to decide
-    whether it makes sense to convert an allocation.
+    whether it makes sense to convert an allocation. Furthermore, dynamic
+    shaped buffers that are limited by the rank of the tensor can be
+    converted. They are only transformed if they are considered to be small.
   }];
   let constructor = "mlir::createPromoteBuffersToStackPass()";
   let options = [
     Option<"maxAllocSizeInBytes", "max-alloc-size-in-bytes", "unsigned",
            /*default=*/"1024",
-           "Define the maximum size in bytes to promote allocations to stack.">,
+           "Maximal size in bytes to promote allocations to stack.">,
+    Option<"bitwidthOfIndexType", "bitwidth-of-index-type", "unsigned",
+           /*default=*/"64",
+           "Bitwidth of the index type. Used for size estimation.">,
+    Option<"maxRankOfAllocatedMemRef", "max-rank-of-allocated-memref", "unsigned",
+           /*default=*/"1",
+           "Maximal memref rank to promote dynamic buffers.">,
   ];
 }
 
@@ -277,13 +285,32 @@ def Inliner : Pass<"inline"> {
   let summary = "Inline function calls";
   let constructor = "mlir::createInlinerPass()";
   let options = [
-    Option<"disableCanonicalization", "disable-simplify", "bool",
-           /*default=*/"false",
-           "Disable running simplifications during inlining">,
+    Option<"defaultPipelineStr", "default-pipeline", "std::string",
+           /*default=*/"", "The default optimizer pipeline used for callables">,
+    ListOption<"opPipelineStrs", "op-pipelines", "std::string",
+               "Callable operation specific optimizer pipelines (in the form "
+               "of `dialect.op(pipeline)`)",
+               "llvm::cl::MiscFlags::CommaSeparated">,
     Option<"maxInliningIterations", "max-iterations", "unsigned",
            /*default=*/"4",
            "Maximum number of iterations when inlining within an SCC">,
   ];
+}
+
+def FinalizingBufferize : FunctionPass<"finalizing-bufferize"> {
+  let summary = "Finalize a partial bufferization";
+  let description = [{
+    A bufferize pass that finalizes a partial bufferization by removing
+    remaining `tensor_load` and `tensor_to_memref` operations.
+
+    The removal of those operations is only possible if the operations only
+    exist in pairs, i.e., all uses of `tensor_load` operations are
+    `tensor_to_memref` operations.
+
+    This pass will fail if not all operations can be removed or if any operation
+    with tensor typed operands remains.
+  }];
+  let constructor = "mlir::createFinalizingBufferizePass()";
 }
 
 def LocationSnapshot : Pass<"snapshot-op-locations"> {
@@ -570,11 +597,11 @@ def SymbolDCE : Pass<"symbol-dce"> {
     For example, consider the following input:
 
     ```mlir
-    func @dead_private_function() attributes { sym_visibility = "private" }
-    func @live_private_function() attributes { sym_visibility = "private" }
+    func private @dead_private_function()
+    func private @live_private_function()
 
     // Note: The `public` isn't necessary here, as this is the default.
-    func @public_function() attributes { sym_visibility = "public" } {
+    func public @public_function() {
       "foo.return"() {uses = [@live_private_function]} : () -> ()
     }
     ```
@@ -586,9 +613,9 @@ def SymbolDCE : Pass<"symbol-dce"> {
     are no links to known-live operations. After running, we get the expected:
 
     ```mlir
-    func @live_private_function() attributes { sym_visibility = "private" }
+    func private @live_private_function()
 
-    func @public_function() attributes { sym_visibility = "public" } {
+    func public @public_function() {
       "foo.return"() {uses = [@live_private_function]} : () -> ()
     }
     ```

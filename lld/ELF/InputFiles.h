@@ -95,9 +95,8 @@ public:
   // Get filename to use for linker script processing.
   StringRef getNameForScript() const;
 
-  // Filename of .a which contained this file. If this file was
-  // not in an archive file, it is the empty string. We use this
-  // string for creating error messages.
+  // If not empty, this stores the name of the archive containing this file.
+  // We use this string for creating error messages.
   std::string archiveName;
 
   // If this is an architecture-specific file, the following members
@@ -130,6 +129,10 @@ public:
   // making the addressable range relative to the toc pointer
   // [.got, .got + 0xFFFC].
   bool ppc64SmallCodeModelTocRelocs = false;
+
+  // True if the file has TLSGD/TLSLD GOT relocations without R_PPC64_TLSGD or
+  // R_PPC64_TLSLD. Disable TLS relaxation to avoid bad code generation.
+  bool ppc64DisableTLSRelax = false;
 
   // groupId is used for --warn-backrefs which is an optional error
   // checking feature. All files within the same --{start,end}-group or
@@ -313,6 +316,10 @@ public:
   template <class ELFT> void parse();
   void fetch();
 
+  // Check if a non-common symbol should be fetched to override a common
+  // definition.
+  bool shouldFetchForCommon(const StringRef &name);
+
   bool fetched = false;
 
 private:
@@ -331,6 +338,10 @@ public:
   // function does nothing (so we don't instantiate the same file
   // more than once.)
   void fetch(const Archive::Symbol &sym);
+
+  // Check if a non-common symbol should be fetched to override a common
+  // definition.
+  bool shouldFetchForCommon(const Archive::Symbol &sym);
 
   size_t getMemberCount() const;
   size_t getFetchedMemberCount() const { return seen.size(); }

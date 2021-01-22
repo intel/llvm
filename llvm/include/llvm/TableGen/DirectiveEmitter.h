@@ -58,7 +58,7 @@ public:
     return Records.getAllDerivedDefinitions("Clause");
   }
 
-  bool CheckRecordsValidity() const;
+  bool HasValidityErrors() const;
 
 private:
   const llvm::Record *Def;
@@ -182,7 +182,7 @@ public:
     return Def->getValueAsString("defaultValue");
   }
 
-  bool isImplict() const { return Def->getValueAsBit("isImplicit"); }
+  bool isImplicit() const { return Def->getValueAsBit("isImplicit"); }
 };
 
 // Wrapper class that contains VersionedClause's information defined in

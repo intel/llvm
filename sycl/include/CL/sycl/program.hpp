@@ -343,8 +343,8 @@ public:
   template <typename ID, typename T>
   ONEAPI::experimental::spec_constant<T, ID> set_spec_constant(T Cst) {
     constexpr const char *Name = detail::SpecConstantInfo<ID>::getName();
-    static_assert(std::is_integral<T>::value ||
-                      std::is_floating_point<T>::value,
+    static_assert(std::is_arithmetic<T>::value ||
+                      (std::is_class<T>::value && std::is_pod<T>::value),
                   "unsupported specialization constant type");
 #ifdef __SYCL_DEVICE_ONLY__
     (void)Cst;

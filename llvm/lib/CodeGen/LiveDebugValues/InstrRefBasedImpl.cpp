@@ -756,8 +756,9 @@ public:
   /// just return the builder for it.
   MachineInstrBuilder emitLoc(Optional<LocIdx> MLoc, const DebugVariable &Var,
                               const DbgValueProperties &Properties) {
-    DebugLoc DL =
-        DebugLoc::get(0, 0, Var.getVariable()->getScope(), Var.getInlinedAt());
+    DebugLoc DL = DILocation::get(Var.getVariable()->getContext(), 0, 0,
+                                  Var.getVariable()->getScope(),
+                                  const_cast<DILocation *>(Var.getInlinedAt()));
     auto MIB = BuildMI(MF, DL, TII.get(TargetOpcode::DBG_VALUE));
 
     const DIExpression *Expr = Properties.DIExpr;
@@ -1280,8 +1281,9 @@ public:
   MachineInstrBuilder emitMOLoc(const MachineOperand &MO,
                                 const DebugVariable &Var,
                                 const DbgValueProperties &Properties) {
-    DebugLoc DL =
-        DebugLoc::get(0, 0, Var.getVariable()->getScope(), Var.getInlinedAt());
+    DebugLoc DL = DILocation::get(Var.getVariable()->getContext(), 0, 0,
+                                  Var.getVariable()->getScope(),
+                                  const_cast<DILocation *>(Var.getInlinedAt()));
     auto MIB = BuildMI(MF, DL, TII->get(TargetOpcode::DBG_VALUE));
     MIB.add(MO);
     if (Properties.Indirect)
@@ -1576,8 +1578,10 @@ InstrRefBasedLDV::extractSpillBaseRegAndOffset(const MachineInstr &MI) {
   int FI = cast<FixedStackPseudoSourceValue>(PVal)->getFrameIndex();
   const MachineBasicBlock *MBB = MI.getParent();
   Register Reg;
-  int Offset = TFI->getFrameIndexReference(*MBB->getParent(), FI, Reg);
-  return {Reg, Offset};
+  StackOffset Offset = TFI->getFrameIndexReference(*MBB->getParent(), FI, Reg);
+  assert(!Offset.getScalable() &&
+         "Frame offsets with a scalable component are not supported");
+  return {Reg, static_cast<int>(Offset.getFixed())};
 }
 
 /// End all previous ranges related to @MI and start a new range from @MI
@@ -1966,13 +1970,6 @@ bool InstrRefBasedLDV::transferSpillOrRestoreInst(MachineInstr &MI) {
     if (TTracker)
       TTracker->transferMlocs(MTracker->getRegMLoc(Reg), SpillLocIdx,
                               MI.getIterator());
-
-    // VarLocBasedImpl would, at this point, stop tracking the source
-    // register of the store.
-    if (EmulateOldLDV) {
-      for (MCRegAliasIterator RAI(Reg, TRI, true); RAI.isValid(); ++RAI)
-        MTracker->defReg(*RAI, CurBB, CurInst);
-    }
   } else {
     if (!(Loc = isRestoreInstruction(MI, MF, Reg)))
       return false;
@@ -2682,7 +2679,7 @@ std::tuple<bool, bool> InstrRefBasedLDV::vlocJoin(
     for (auto p : BlockOrders) {
       // If the predecessor isn't in scope / to be explored, we'll never be
       // able to join any locations.
-      if (BlocksToExplore.find(p) == BlocksToExplore.end()) {
+      if (!BlocksToExplore.contains(p)) {
         Bail = true;
         break;
       }

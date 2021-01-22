@@ -12,11 +12,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
-#include "mlir/Dialect/SPIRV/LayoutUtils.h"
-#include "mlir/Dialect/SPIRV/Passes.h"
-#include "mlir/Dialect/SPIRV/SPIRVDialect.h"
-#include "mlir/Dialect/SPIRV/SPIRVLowering.h"
-#include "mlir/Dialect/SPIRV/SPIRVOps.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
+#include "mlir/Dialect/SPIRV/Transforms/Passes.h"
+#include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
+#include "mlir/Dialect/SPIRV/Utils/LayoutUtils.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/ADT/SetVector.h"
 
@@ -27,7 +27,7 @@ static spirv::GlobalVariableOp
 createGlobalVarForEntryPointArgument(OpBuilder &builder, spirv::FuncOp funcOp,
                                      unsigned argIndex,
                                      spirv::InterfaceVarABIAttr abiInfo) {
-  auto spirvModule = funcOp.getParentOfType<spirv::ModuleOp>();
+  auto spirvModule = funcOp->getParentOfType<spirv::ModuleOp>();
   if (!spirvModule)
     return nullptr;
 
@@ -70,7 +70,7 @@ createGlobalVarForEntryPointArgument(OpBuilder &builder, spirv::FuncOp funcOp,
 static LogicalResult
 getInterfaceVariables(spirv::FuncOp funcOp,
                       SmallVectorImpl<Attribute> &interfaceVars) {
-  auto module = funcOp.getParentOfType<spirv::ModuleOp>();
+  auto module = funcOp->getParentOfType<spirv::ModuleOp>();
   if (!module) {
     return failure();
   }
@@ -108,13 +108,13 @@ static LogicalResult lowerEntryPointABIAttr(spirv::FuncOp funcOp,
                                             OpBuilder &builder) {
   auto entryPointAttrName = spirv::getEntryPointABIAttrName();
   auto entryPointAttr =
-      funcOp.getAttrOfType<spirv::EntryPointABIAttr>(entryPointAttrName);
+      funcOp->getAttrOfType<spirv::EntryPointABIAttr>(entryPointAttrName);
   if (!entryPointAttr) {
     return failure();
   }
 
   OpBuilder::InsertionGuard moduleInsertionGuard(builder);
-  auto spirvModule = funcOp.getParentOfType<spirv::ModuleOp>();
+  auto spirvModule = funcOp->getParentOfType<spirv::ModuleOp>();
   builder.setInsertionPoint(spirvModule.body().front().getTerminator());
 
   // Adds the spv.EntryPointOp after collecting all the interface variables
@@ -169,7 +169,7 @@ class LowerABIAttributesPass final
 LogicalResult ProcessInterfaceVarABI::matchAndRewrite(
     spirv::FuncOp funcOp, ArrayRef<Value> operands,
     ConversionPatternRewriter &rewriter) const {
-  if (!funcOp.getAttrOfType<spirv::EntryPointABIAttr>(
+  if (!funcOp->getAttrOfType<spirv::EntryPointABIAttr>(
           spirv::getEntryPointABIAttrName())) {
     // TODO: Non-entry point functions are not handled.
     return failure();
@@ -271,7 +271,7 @@ void LowerABIAttributesPass::runOnOperation() {
   SmallVector<spirv::FuncOp, 1> entryPointFns;
   auto entryPointAttrName = spirv::getEntryPointABIAttrName();
   module.walk([&](spirv::FuncOp funcOp) {
-    if (funcOp.getAttrOfType<spirv::EntryPointABIAttr>(entryPointAttrName)) {
+    if (funcOp->getAttrOfType<spirv::EntryPointABIAttr>(entryPointAttrName)) {
       entryPointFns.push_back(funcOp);
     }
   });

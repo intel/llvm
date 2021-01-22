@@ -1041,6 +1041,12 @@ class NamedOperandBit_0<string Name, AsmOperandClass MatchClass> :
   let ParserMatchClass = MatchClass;
 }
 
+class NamedOperandBit_1<string Name, AsmOperandClass MatchClass> :
+  OperandWithDefaultOps<i1, (ops (i1 1))> {
+  let PrintMethod = "print"#Name;
+  let ParserMatchClass = MatchClass;
+}
+
 class NamedOperandU8<string Name, AsmOperandClass MatchClass> : Operand<i8> {
   let PrintMethod = "print"#Name;
   let ParserMatchClass = MatchClass;
@@ -1096,6 +1102,7 @@ def DLC_0 : NamedOperandBit_0<"DLC", NamedMatchClass<"DLC">>;
 
 def GLC : NamedOperandBit<"GLC", NamedMatchClass<"GLC">>;
 def GLC_0 : NamedOperandBit_0<"GLC", NamedMatchClass<"GLC">>;
+def GLC_1 : NamedOperandBit_1<"GLC", NamedMatchClass<"GLC_1">>;
 
 def SLC : NamedOperandBit<"SLC", NamedMatchClass<"SLC">>;
 def SLC_0 : NamedOperandBit_0<"SLC", NamedMatchClass<"SLC">>;
@@ -1129,10 +1136,10 @@ def src0_sel : NamedOperandU32<"SDWASrc0Sel", NamedMatchClass<"SDWASrc0Sel">>;
 def src1_sel : NamedOperandU32<"SDWASrc1Sel", NamedMatchClass<"SDWASrc1Sel">>;
 def dst_unused : NamedOperandU32<"SDWADstUnused", NamedMatchClass<"SDWADstUnused">>;
 
-def op_sel : NamedOperandU32Default0<"OpSel", NamedMatchClass<"OpSel">>;
-def op_sel_hi : NamedOperandU32Default0<"OpSelHi", NamedMatchClass<"OpSelHi">>;
-def neg_lo : NamedOperandU32Default0<"NegLo", NamedMatchClass<"NegLo">>;
-def neg_hi : NamedOperandU32Default0<"NegHi", NamedMatchClass<"NegHi">>;
+def op_sel0 : NamedOperandU32Default0<"OpSel", NamedMatchClass<"OpSel">>;
+def op_sel_hi0 : NamedOperandU32Default0<"OpSelHi", NamedMatchClass<"OpSelHi">>;
+def neg_lo0 : NamedOperandU32Default0<"NegLo", NamedMatchClass<"NegLo">>;
+def neg_hi0 : NamedOperandU32Default0<"NegHi", NamedMatchClass<"NegHi">>;
 
 def blgp : NamedOperandU32<"BLGP", NamedMatchClass<"BLGP">>;
 def cbsz : NamedOperandU32<"CBSZ", NamedMatchClass<"CBSZ">>;
@@ -1309,7 +1316,6 @@ def DS128Bit8ByteAligned : ComplexPattern<i64, 3, "SelectDS128Bit8ByteAligned">;
 def MOVRELOffset : ComplexPattern<i32, 2, "SelectMOVRELOffset">;
 
 def VOP3Mods0 : ComplexPattern<untyped, 4, "SelectVOP3Mods0">;
-def VOP3Mods0Clamp : ComplexPattern<untyped, 3, "SelectVOP3Mods0Clamp">;
 def VOP3Mods  : ComplexPattern<untyped, 2, "SelectVOP3Mods">;
 def VOP3NoMods : ComplexPattern<untyped, 1, "SelectVOP3NoMods">;
 // VOP3Mods, but the input source is known to never be NaN.
@@ -1324,9 +1330,6 @@ def VOP3OpSel  : ComplexPattern<untyped, 2, "SelectVOP3OpSel">;
 def VOP3OpSelMods  : ComplexPattern<untyped, 2, "SelectVOP3OpSelMods">;
 
 def VOP3PMadMixMods  : ComplexPattern<untyped, 2, "SelectVOP3PMadMixMods">;
-
-
-def Hi16Elt  : ComplexPattern<untyped, 1, "SelectHi16Elt">;
 
 //===----------------------------------------------------------------------===//
 // SI assembler operands
@@ -1410,56 +1413,6 @@ class getHwRegImm<int Reg, int Offset = 0, int Size = 32> {
 class SIMCInstr <string pseudo, int subtarget> {
   string PseudoInstr = pseudo;
   int Subtarget = subtarget;
-}
-
-//===----------------------------------------------------------------------===//
-// EXP classes
-//===----------------------------------------------------------------------===//
-
-class EXP_Helper<bit done> : EXPCommon<
-  (outs),
-  (ins exp_tgt:$tgt,
-       ExpSrc0:$src0, ExpSrc1:$src1, ExpSrc2:$src2, ExpSrc3:$src3,
-       exp_vm:$vm, exp_compr:$compr, i32imm:$en),
-  "exp$tgt $src0, $src1, $src2, $src3"#!if(done, " done", "")#"$compr$vm", []> {
-  let AsmMatchConverter = "cvtExp";
-}
-
-// Split EXP instruction into EXP and EXP_DONE so we can set
-// mayLoad for done=1.
-multiclass EXP_m<bit done> {
-  let mayLoad = done, DisableWQM = 1 in {
-    let isPseudo = 1, isCodeGenOnly = 1 in {
-      def "" : EXP_Helper<done>,
-               SIMCInstr <"exp"#!if(done, "_done", ""), SIEncodingFamily.NONE>;
-    }
-
-    let done = done in {
-      def _si : EXP_Helper<done>,
-                SIMCInstr <"exp"#!if(done, "_done", ""), SIEncodingFamily.SI>,
-                EXPe {
-        let AssemblerPredicate = isGFX6GFX7;
-        let DecoderNamespace = "GFX6GFX7";
-        let DisableDecoder = DisableSIDecoder;
-      }
-
-      def _vi : EXP_Helper<done>,
-                SIMCInstr <"exp"#!if(done, "_done", ""), SIEncodingFamily.VI>,
-                EXPe_vi {
-        let AssemblerPredicate = isGFX8GFX9;
-        let DecoderNamespace = "GFX8";
-        let DisableDecoder = DisableVIDecoder;
-      }
-
-      def _gfx10 : EXP_Helper<done>,
-                SIMCInstr <"exp"#!if(done, "_done", ""), SIEncodingFamily.GFX10>,
-                EXPe {
-        let AssemblerPredicate = isGFX10Plus;
-        let DecoderNamespace = "GFX10";
-        let DisableDecoder = DisableSIDecoder;
-      }
-    }
-  }
 }
 
 //===----------------------------------------------------------------------===//
@@ -1721,25 +1674,25 @@ class getInsVOP3P <RegisterOperand Src0RC, RegisterOperand Src1RC,
       (ins Src0Mod:$src0_modifiers, Src0RC:$src0,
            Src1Mod:$src1_modifiers, Src1RC:$src1,
            clampmod0:$clamp,
-           op_sel:$op_sel, op_sel_hi:$op_sel_hi,
-           neg_lo:$neg_lo, neg_hi:$neg_hi),
+           op_sel0:$op_sel, op_sel_hi0:$op_sel_hi,
+           neg_lo0:$neg_lo, neg_hi0:$neg_hi),
       (ins Src0Mod:$src0_modifiers, Src0RC:$src0,
            Src1Mod:$src1_modifiers, Src1RC:$src1,
-           op_sel:$op_sel, op_sel_hi:$op_sel_hi,
-           neg_lo:$neg_lo, neg_hi:$neg_hi)),
+           op_sel0:$op_sel, op_sel_hi0:$op_sel_hi,
+           neg_lo0:$neg_lo, neg_hi0:$neg_hi)),
     // else NumSrcArgs == 3
     !if (HasClamp,
       (ins Src0Mod:$src0_modifiers, Src0RC:$src0,
            Src1Mod:$src1_modifiers, Src1RC:$src1,
            Src2Mod:$src2_modifiers, Src2RC:$src2,
            clampmod0:$clamp,
-           op_sel:$op_sel, op_sel_hi:$op_sel_hi,
-           neg_lo:$neg_lo, neg_hi:$neg_hi),
+           op_sel0:$op_sel, op_sel_hi0:$op_sel_hi,
+           neg_lo0:$neg_lo, neg_hi0:$neg_hi),
       (ins Src0Mod:$src0_modifiers, Src0RC:$src0,
            Src1Mod:$src1_modifiers, Src1RC:$src1,
            Src2Mod:$src2_modifiers, Src2RC:$src2,
-           op_sel:$op_sel, op_sel_hi:$op_sel_hi,
-           neg_lo:$neg_lo, neg_hi:$neg_hi))
+           op_sel0:$op_sel, op_sel_hi0:$op_sel_hi,
+           neg_lo0:$neg_lo, neg_hi0:$neg_hi))
   );
 }
 
@@ -1756,21 +1709,21 @@ class getInsVOP3OpSel <RegisterOperand Src0RC,
       (ins Src0Mod:$src0_modifiers, Src0RC:$src0,
            Src1Mod:$src1_modifiers, Src1RC:$src1,
            clampmod0:$clamp,
-           op_sel:$op_sel),
+           op_sel0:$op_sel),
       (ins Src0Mod:$src0_modifiers, Src0RC:$src0,
            Src1Mod:$src1_modifiers, Src1RC:$src1,
-           op_sel:$op_sel)),
+           op_sel0:$op_sel)),
     // else NumSrcArgs == 3
     !if (HasClamp,
       (ins Src0Mod:$src0_modifiers, Src0RC:$src0,
            Src1Mod:$src1_modifiers, Src1RC:$src1,
            Src2Mod:$src2_modifiers, Src2RC:$src2,
            clampmod0:$clamp,
-           op_sel:$op_sel),
+           op_sel0:$op_sel),
       (ins Src0Mod:$src0_modifiers, Src0RC:$src0,
            Src1Mod:$src1_modifiers, Src1RC:$src1,
            Src2Mod:$src2_modifiers, Src2RC:$src2,
-           op_sel:$op_sel))
+           op_sel0:$op_sel))
   );
 }
 
@@ -2372,7 +2325,6 @@ class VINTRP_Real_si <bits <2> op, string opName, dag outs, dag ins,
   VINTRPCommon <outs, ins, asm, []>,
   VINTRPe <op>,
   SIMCInstr<opName, encodingFamily> {
-  let DisableDecoder = DisableSIDecoder;
 }
 
 class VINTRP_Real_vi <bits <2> op, string opName, dag outs, dag ins,
@@ -2382,7 +2334,6 @@ class VINTRP_Real_vi <bits <2> op, string opName, dag outs, dag ins,
   SIMCInstr<opName, SIEncodingFamily.VI> {
   let AssemblerPredicate = VIAssemblerPredicate;
   let DecoderNamespace = "GFX8";
-  let DisableDecoder = DisableVIDecoder;
 }
 
 // FIXME-GFX10: WIP.
@@ -2573,6 +2524,13 @@ def getFlatScratchInstSTfromSS : InstrMapping {
   let ValueCols = [["ST"]];
 }
 
+def getFlatScratchInstSSfromSV : InstrMapping {
+  let FilterClass = "FlatScratchInst";
+  let RowFields = ["SVOp"];
+  let ColFields = ["Mode"];
+  let KeyCol = ["SV"];
+  let ValueCols = [["SS"]];
+}
 
 include "SIInstructions.td"
 

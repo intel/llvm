@@ -314,16 +314,15 @@ TEST_P(ASTMatchersTest, Unless) {
 TEST_P(ASTMatchersTest, HasCastKind) {
   EXPECT_TRUE(
       matches("char *p = 0;",
-              traverse(ast_type_traits::TK_AsIs,
+              traverse(TK_AsIs,
                        varDecl(has(castExpr(hasCastKind(CK_NullToPointer)))))));
   EXPECT_TRUE(notMatches(
       "char *p = 0;",
-      traverse(ast_type_traits::TK_AsIs,
+      traverse(TK_AsIs,
                varDecl(has(castExpr(hasCastKind(CK_DerivedToBase)))))));
-  EXPECT_TRUE(matches(
-      "char *p = 0;",
-      traverse(ast_type_traits::TK_AsIs,
-               varDecl(has(implicitCastExpr(hasCastKind(CK_NullToPointer)))))));
+  EXPECT_TRUE(matches("char *p = 0;",
+                      traverse(TK_AsIs, varDecl(has(implicitCastExpr(
+                                            hasCastKind(CK_NullToPointer)))))));
 }
 
 TEST_P(ASTMatchersTest, HasDescendant) {
@@ -1588,7 +1587,7 @@ TEST_P(ASTMatchersTest, HasArgument_CXXConstructorDecl) {
   }
 
   auto Constructor = traverse(
-      ast_type_traits::TK_AsIs,
+      TK_AsIs,
       cxxConstructExpr(hasArgument(0, declRefExpr(to(varDecl(hasName("y")))))));
 
   EXPECT_TRUE(matches(
@@ -1603,9 +1602,8 @@ TEST_P(ASTMatchersTest, HasArgument_CXXConstructorDecl) {
       "class X { public: X(int); }; void x() { int z; X x(z); }", Constructor));
 
   StatementMatcher WrongIndex =
-      traverse(ast_type_traits::TK_AsIs,
-               cxxConstructExpr(
-                   hasArgument(42, declRefExpr(to(varDecl(hasName("y")))))));
+      traverse(TK_AsIs, cxxConstructExpr(hasArgument(
+                            42, declRefExpr(to(varDecl(hasName("y")))))));
   EXPECT_TRUE(notMatches(
       "class X { public: X(int); }; void x() { int y; X x(y); }", WrongIndex));
 }
@@ -1616,7 +1614,7 @@ TEST_P(ASTMatchersTest, ArgumentCountIs_CXXConstructExpr) {
   }
 
   auto Constructor1Arg =
-      traverse(ast_type_traits::TK_AsIs, cxxConstructExpr(argumentCountIs(1)));
+      traverse(TK_AsIs, cxxConstructExpr(argumentCountIs(1)));
 
   EXPECT_TRUE(matches("class X { public: X(int); }; void x() { X x(0); }",
                       Constructor1Arg));
@@ -1627,6 +1625,95 @@ TEST_P(ASTMatchersTest, ArgumentCountIs_CXXConstructExpr) {
   EXPECT_TRUE(
       notMatches("class X { public: X(int, int); }; void x() { X x(0, 0); }",
                  Constructor1Arg));
+}
+
+TEST(ASTMatchersTest, NamesMember_CXXDependentScopeMemberExpr) {
+
+  // Member functions:
+  {
+    auto Code = "template <typename T> struct S{ void mem(); }; template "
+                "<typename T> void x() { S<T> s; s.mem(); }";
+
+    EXPECT_TRUE(matches(
+        Code,
+        cxxDependentScopeMemberExpr(
+            hasObjectExpression(declRefExpr(hasType(templateSpecializationType(
+                hasDeclaration(classTemplateDecl(has(cxxRecordDecl(
+                    has(cxxMethodDecl(hasName("mem")).bind("templMem")))))))))),
+            memberHasSameNameAsBoundNode("templMem"))));
+
+    EXPECT_TRUE(
+        matches(Code, cxxDependentScopeMemberExpr(hasMemberName("mem"))));
+  }
+
+  // Member variables:
+  {
+    auto Code = "template <typename T> struct S{ int mem; }; template "
+                "<typename T> void x() { S<T> s; s.mem; }";
+
+    EXPECT_TRUE(
+        matches(Code, cxxDependentScopeMemberExpr(hasMemberName("mem"))));
+
+    EXPECT_TRUE(matches(
+        Code,
+        cxxDependentScopeMemberExpr(
+            hasObjectExpression(declRefExpr(hasType(templateSpecializationType(
+                hasDeclaration(classTemplateDecl(has(cxxRecordDecl(
+                    has(fieldDecl(hasName("mem")).bind("templMem")))))))))),
+            memberHasSameNameAsBoundNode("templMem"))));
+  }
+
+  // static member variables:
+  {
+    auto Code = "template <typename T> struct S{ static int mem; }; template "
+                "<typename T> void x() { S<T> s; s.mem; }";
+
+    EXPECT_TRUE(
+        matches(Code, cxxDependentScopeMemberExpr(hasMemberName("mem"))));
+
+    EXPECT_TRUE(matches(
+        Code,
+        cxxDependentScopeMemberExpr(
+            hasObjectExpression(declRefExpr(hasType(templateSpecializationType(
+                hasDeclaration(classTemplateDecl(has(cxxRecordDecl(
+                    has(varDecl(hasName("mem")).bind("templMem")))))))))),
+            memberHasSameNameAsBoundNode("templMem"))));
+  }
+  {
+    auto Code = R"cpp(
+template <typename T>
+struct S {
+  bool operator==(int) const { return true; }
+};
+
+template <typename T>
+void func(T t) {
+  S<T> s;
+  s.operator==(1);
+}
+)cpp";
+
+    EXPECT_TRUE(matches(
+        Code, cxxDependentScopeMemberExpr(hasMemberName("operator=="))));
+  }
+
+  // other named decl:
+  {
+    auto Code = "template <typename T> struct S{ static int mem; }; struct "
+                "mem{}; template "
+                "<typename T> void x() { S<T> s; s.mem; }";
+
+    EXPECT_TRUE(matches(
+        Code,
+        translationUnitDecl(has(cxxRecordDecl(hasName("mem"))),
+                            hasDescendant(cxxDependentScopeMemberExpr()))));
+
+    EXPECT_FALSE(matches(
+        Code,
+        translationUnitDecl(has(cxxRecordDecl(hasName("mem")).bind("templMem")),
+                            hasDescendant(cxxDependentScopeMemberExpr(
+                                memberHasSameNameAsBoundNode("templMem"))))));
+  }
 }
 
 TEST(ASTMatchersTest, ArgumentCountIs_CXXUnresolvedConstructExpr) {
@@ -1655,8 +1742,7 @@ TEST_P(ASTMatchersTest, IsListInitialization) {
   }
 
   auto ConstructorListInit =
-      traverse(ast_type_traits::TK_AsIs,
-               varDecl(has(cxxConstructExpr(isListInitialization()))));
+      traverse(TK_AsIs, varDecl(has(cxxConstructExpr(isListInitialization()))));
 
   EXPECT_TRUE(matches("class X { public: X(int); }; void x() { X x{0}; }",
                       ConstructorListInit));

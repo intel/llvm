@@ -36,11 +36,6 @@ using remove_reference_t = typename std::remove_reference<T>::type;
 
 template <typename T> using add_pointer_t = typename std::add_pointer<T>::type;
 
-template <typename T> using remove_cv_t = typename std::remove_cv<T>::type;
-
-template <typename T>
-using remove_reference_t = typename std::remove_reference<T>::type;
-
 // C++17
 template <bool V> using bool_constant = std::integral_constant<bool, V>;
 

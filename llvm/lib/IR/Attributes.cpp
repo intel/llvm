@@ -371,6 +371,8 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "noalias";
   if (hasAttribute(Attribute::NoBuiltin))
     return "nobuiltin";
+  if (hasAttribute(Attribute::NoCallback))
+    return "nocallback";
   if (hasAttribute(Attribute::NoCapture))
     return "nocapture";
   if (hasAttribute(Attribute::NoDuplicate))
@@ -425,8 +427,6 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "speculative_load_hardening";
   if (hasAttribute(Attribute::Speculatable))
     return "speculatable";
-  if (hasAttribute(Attribute::NoStackProtect))
-    return "nossp";
   if (hasAttribute(Attribute::StackProtect))
     return "ssp";
   if (hasAttribute(Attribute::StackProtectReq))
@@ -449,6 +449,8 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "zeroext";
   if (hasAttribute(Attribute::Cold))
     return "cold";
+  if (hasAttribute(Attribute::Hot))
+    return "hot";
   if (hasAttribute(Attribute::ImmArg))
     return "immarg";
   if (hasAttribute(Attribute::NoUndef))
@@ -1856,7 +1858,7 @@ bool AttrBuilder::hasAlignmentAttr() const {
   return Alignment != 0;
 }
 
-bool AttrBuilder::operator==(const AttrBuilder &B) {
+bool AttrBuilder::operator==(const AttrBuilder &B) const {
   if (Attrs != B.Attrs)
     return false;
 
@@ -1941,17 +1943,19 @@ static void setOR(Function &Caller, const Function &Callee) {
 /// If the inlined function had a higher stack protection level than the
 /// calling function, then bump up the caller's stack protection level.
 static void adjustCallerSSPLevel(Function &Caller, const Function &Callee) {
-  assert(!(Callee.hasFnAttribute(Attribute::NoStackProtect) &&
-           (Caller.hasFnAttribute(Attribute::StackProtect) ||
-            Caller.hasFnAttribute(Attribute::StackProtectStrong) ||
-            Caller.hasFnAttribute(Attribute::StackProtectReq))) &&
-         "stack protected caller but callee requested no stack protector");
-  assert(!(Caller.hasFnAttribute(Attribute::NoStackProtect) &&
-           (Callee.hasFnAttribute(Attribute::StackProtect) ||
-            Callee.hasFnAttribute(Attribute::StackProtectStrong) ||
-            Callee.hasFnAttribute(Attribute::StackProtectReq))) &&
-         "stack protected callee but caller requested no stack protector");
+#ifndef NDEBUG
+  if (!Callee.hasFnAttribute(Attribute::AlwaysInline)) {
+    assert(!(!Callee.hasStackProtectorFnAttr() &&
+             Caller.hasStackProtectorFnAttr()) &&
+           "stack protected caller but callee requested no stack protector");
+    assert(!(!Caller.hasStackProtectorFnAttr() &&
+             Callee.hasStackProtectorFnAttr()) &&
+           "stack protected callee but caller requested no stack protector");
+  }
+#endif
   // If upgrading the SSP attribute, clear out the old SSP Attributes first.
+  // Having multiple SSP attributes doesn't actually hurt, but it adds useless
+  // clutter to the IR.
   AttrBuilder OldSSPAttr;
   OldSSPAttr.addAttribute(Attribute::StackProtect)
       .addAttribute(Attribute::StackProtectStrong)

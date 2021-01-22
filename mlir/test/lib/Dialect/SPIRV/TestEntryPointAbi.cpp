@@ -12,8 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/GPU/GPUDialect.h"
-#include "mlir/Dialect/SPIRV/SPIRVDialect.h"
-#include "mlir/Dialect/SPIRV/TargetAndABI.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/IR/TargetAndABI.h"
 #include "mlir/Pass/Pass.h"
 
 using namespace mlir;
@@ -44,13 +44,13 @@ void TestSpirvEntryPointABIPass::runOnOperation() {
   MLIRContext *context = &getContext();
   StringRef attrName = spirv::getEntryPointABIAttrName();
   for (gpu::GPUFuncOp gpuFunc : gpuModule.getOps<gpu::GPUFuncOp>()) {
-    if (!gpu::GPUDialect::isKernel(gpuFunc) || gpuFunc.getAttr(attrName))
+    if (!gpu::GPUDialect::isKernel(gpuFunc) || gpuFunc->getAttr(attrName))
       continue;
     SmallVector<int32_t, 3> workgroupSizeVec(workgroupSize.begin(),
                                              workgroupSize.end());
     workgroupSizeVec.resize(3, 1);
-    gpuFunc.setAttr(attrName,
-                    spirv::getEntryPointABIAttr(workgroupSizeVec, context));
+    gpuFunc->setAttr(attrName,
+                     spirv::getEntryPointABIAttr(workgroupSizeVec, context));
   }
 }
 

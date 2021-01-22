@@ -18,9 +18,9 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 
@@ -107,7 +107,7 @@ public:
   /// Returns the affine map used to access the src memref.
   AffineMap getSrcMap() { return getSrcMapAttr().getValue(); }
   AffineMapAttr getSrcMapAttr() {
-    return getAttr(getSrcMapAttrName()).cast<AffineMapAttr>();
+    return (*this)->getAttr(getSrcMapAttrName()).cast<AffineMapAttr>();
   }
 
   /// Returns the source memref affine map indices for this DMA operation.
@@ -146,7 +146,7 @@ public:
   /// Returns the affine map used to access the dst memref.
   AffineMap getDstMap() { return getDstMapAttr().getValue(); }
   AffineMapAttr getDstMapAttr() {
-    return getAttr(getDstMapAttrName()).cast<AffineMapAttr>();
+    return (*this)->getAttr(getDstMapAttrName()).cast<AffineMapAttr>();
   }
 
   /// Returns the destination memref indices for this DMA operation.
@@ -175,7 +175,7 @@ public:
   /// Returns the affine map used to access the tag memref.
   AffineMap getTagMap() { return getTagMapAttr().getValue(); }
   AffineMapAttr getTagMapAttr() {
-    return getAttr(getTagMapAttrName()).cast<AffineMapAttr>();
+    return (*this)->getAttr(getTagMapAttrName()).cast<AffineMapAttr>();
   }
 
   /// Returns the tag memref indices for this DMA operation.
@@ -289,7 +289,7 @@ public:
   /// Returns the affine map used to access the tag memref.
   AffineMap getTagMap() { return getTagMapAttr().getValue(); }
   AffineMapAttr getTagMapAttr() {
-    return getAttr(getTagMapAttrName()).cast<AffineMapAttr>();
+    return (*this)->getAttr(getTagMapAttrName()).cast<AffineMapAttr>();
   }
 
   // Returns the tag memref index for this DMA operation.
@@ -336,6 +336,11 @@ bool isValidSymbol(Value value);
 /// Returns true if the given Value can be used as a symbol for `region`, i.e.,
 /// for all its uses in `region`.
 bool isValidSymbol(Value value, Region *region);
+
+/// Parses dimension and symbol list and returns true if parsing failed.
+ParseResult parseDimAndSymbolList(OpAsmParser &parser,
+                                  SmallVectorImpl<Value> &operands,
+                                  unsigned &numDims);
 
 /// Modifies both `map` and `operands` in-place so as to:
 /// 1. drop duplicate operands

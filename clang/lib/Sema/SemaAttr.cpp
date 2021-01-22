@@ -481,9 +481,8 @@ void Sema::ActOnPragmaMSVtorDisp(PragmaMsStackAction Action,
   VtorDispStack.Act(PragmaLoc, Action, StringRef(), Mode);
 }
 
-bool Sema::UnifySection(StringRef SectionName,
-                        int SectionFlags,
-                        DeclaratorDecl *Decl) {
+bool Sema::UnifySection(StringRef SectionName, int SectionFlags,
+                        NamedDecl *Decl) {
   SourceLocation PragmaLocation;
   if (auto A = Decl->getAttr<SectionAttr>())
     if (A->isImplicit())
@@ -966,6 +965,8 @@ void Sema::ActOnPragmaFPContract(SourceLocation Loc,
   case LangOptions::FPM_Off:
     NewFPFeatures.setDisallowFPContract();
     break;
+  case LangOptions::FPM_FastHonorPragmas:
+    llvm_unreachable("Should not happen");
   }
   FpPragmaStack.Act(Loc, Sema::PSK_Set, StringRef(), NewFPFeatures);
   CurFPFeatures = NewFPFeatures.applyOverrides(getLangOpts());

@@ -23,6 +23,7 @@
 
 namespace llvm {
 
+class AAManager;
 class Function;
 class GlobalValue;
 class MachineModuleInfoWrapperPass;
@@ -243,6 +244,10 @@ public:
     Options.SupportsDebugEntryValues = Enable;
   }
 
+  bool getAIXExtendedAltivecABI() const {
+    return Options.EnableAIXExtendedAltivecABI;
+  }
+
   bool getUniqueSectionNames() const { return Options.UniqueSectionNames; }
 
   /// Return true if unique basic block section names must be generated.
@@ -262,11 +267,15 @@ public:
     return Options.FunctionSections;
   }
 
-  /// Return true if visibility attribute should not be emitted in xcoff,
+  /// Return true if visibility attribute should not be emitted in XCOFF,
   /// corresponding to -mignore-xcoff-visibility.
   bool getIgnoreXCOFFVisibility() const {
     return Options.IgnoreXCOFFVisibility;
   }
+
+  /// Return true if XCOFF traceback table should be emitted,
+  /// corresponding to -xcoff-traceback-table.
+  bool getXCOFFTracebackTable() const { return Options.XCOFFTracebackTable; }
 
   /// If basic blocks should be emitted into their own section,
   /// corresponding to -fbasic-block-sections.
@@ -283,6 +292,14 @@ public:
   virtual bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const {
     return false;
   }
+
+  /// If the specified generic pointer could be assumed as a pointer to a
+  /// specific address space, return that address space.
+  ///
+  /// Under offloading programming, the offloading target may be passed with
+  /// values only prepared on the host side and could assume certain
+  /// properties.
+  virtual unsigned getAssumedAddrSpace(const Value *V) const { return -1; }
 
   /// Get a \c TargetIRAnalysis appropriate for the target.
   ///
@@ -305,6 +322,10 @@ public:
   /// (similar to adjustPassManager for Legacy Pass manager).
   virtual void registerPassBuilderCallbacks(PassBuilder &,
                                             bool DebugPassManager) {}
+
+  /// Allow the target to register alias analyses with the AAManager for use
+  /// with the new pass manager. Only affects the "default" AAManager.
+  virtual void registerAliasAnalyses(AAManager &) {}
 
   /// Add passes to the specified pass manager to get the specified file
   /// emitted.  Typically this will involve several steps of code generation.

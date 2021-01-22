@@ -42,7 +42,6 @@
 using namespace llvm;
 
 using string_vector = std::vector<std::string>;
-using SpecIDMapTy = std::map<StringRef, unsigned>;
 
 cl::OptionCategory PostLinkCat{"sycl-post-link options"};
 
@@ -90,17 +89,18 @@ static cl::opt<bool> OutputAssembly{"S",
                                     cl::Hidden, cl::cat(PostLinkCat)};
 
 enum IRSplitMode {
-  SPLIT_PER_TU,    // one module per translation unit
-  SPLIT_PER_KERNEL // one module per kernel
+  SPLIT_PER_TU,     // one module per translation unit
+  SPLIT_PER_KERNEL, // one module per kernel
+  SPLIT_AUTO        // automatically select split mode
 };
 
 static cl::opt<IRSplitMode> SplitMode(
-    "split", cl::desc("split input module"), cl::Optional,
-    cl::init(SPLIT_PER_TU),
-    cl::values(clEnumValN(SPLIT_PER_TU, "source",
-                          "1 output module per source (translation unit)"),
-               clEnumValN(SPLIT_PER_KERNEL, "kernel",
-                          "1 output module per kernel")),
+    "split", cl::desc("split input module"), cl::Optional, cl::init(SPLIT_AUTO),
+    cl::values(
+        clEnumValN(SPLIT_PER_TU, "source",
+                   "1 output module per source (translation unit)"),
+        clEnumValN(SPLIT_PER_KERNEL, "kernel", "1 output module per kernel"),
+        clEnumValN(SPLIT_AUTO, "auto", "Choose split mode automatically")),
     cl::cat(PostLinkCat));
 
 static cl::opt<bool> DoSymGen{"symbols",
@@ -289,6 +289,40 @@ enum KernelMapEntryScope {
   Scope_PerModule, // one entry per module
   Scope_Global     // single entry in the map for all kernels
 };
+
+static KernelMapEntryScope selectDeviceCodeSplitScopeAutomatically(Module &M) {
+  if (IROutputOnly) {
+    // We allow enabling auto split mode even in presence of -ir-output-only
+    // flag, but in this case we are limited by it so we can't do any split at
+    // all.
+    return Scope_Global;
+  }
+
+  for (const auto &F : M.functions()) {
+    // There are functions marked with [[intel::device_indirectly_callable]]
+    // attribute, because it instructs us to make this function available to the
+    // whole program as it was compiled as a single module.
+    if (F.hasFnAttribute("referenced-indirectly"))
+      return Scope_Global;
+    if (F.isDeclaration())
+      continue;
+    // There are indirect calls in the module, which means that we don't know
+    // how to group functions so both caller and callee of indirect call are in
+    // the same module.
+    for (const auto &BB : F) {
+      for (const auto &I : BB) {
+        if (auto *CI = dyn_cast<CallInst>(&I)) {
+          if (!CI->getCalledFunction())
+            return Scope_Global;
+        }
+      }
+    }
+  }
+
+  // At the moment, we assume that per-source split is the best way of splitting
+  // device code and can always be used execpt for cases handled above.
+  return Scope_PerModule;
+}
 
 // This function decides how kernels of the input module M will be distributed
 // ("split") into multiple modules based on the command options and IR
@@ -509,14 +543,19 @@ static string_vector saveDeviceImageProperty(
                   RMEntry);
     }
     if (ImgPSInfo.DoSpecConst && ImgPSInfo.SetSpecConstAtRT) {
-      // extract spec constant maps per each module
-      SpecIDMapTy TmpSpecIDMap;
-      if (ImgPSInfo.SpecConstsMet)
-        SpecConstantsPass::collectSpecConstantMetadata(*ResultModules[I].get(),
-                                                       TmpSpecIDMap);
-      PropSet.add(
-          llvm::util::PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS,
-          TmpSpecIDMap);
+      if (ImgPSInfo.SpecConstsMet) {
+        // extract spec constant maps per each module
+        ScalarSpecIDMapTy TmpScalarSpecIDMap;
+        CompositeSpecIDMapTy TmpCompositeSpecIDMap;
+        SpecConstantsPass::collectSpecConstantMetadata(
+            *ResultModules[I].get(), TmpScalarSpecIDMap, TmpCompositeSpecIDMap);
+        PropSet.add(
+            llvm::util::PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS,
+            TmpScalarSpecIDMap);
+        PropSet.add(llvm::util::PropertySetRegistry::
+                        SYCL_COMPOSITE_SPECIALIZATION_CONSTANTS,
+                    TmpCompositeSpecIDMap);
+      }
     }
     if (ImgPSInfo.EmitKernelParamInfo) {
       // extract kernel parameter optimization info per module
@@ -563,7 +602,7 @@ static string_vector saveResultSymbolsLists(string_vector &ResSymbolsLists) {
     writeToFile(CurOutFileName, ResSymbolsLists[I]);
     Res.emplace_back(std::move(CurOutFileName));
   }
-  return std::move(Res);
+  return Res;
 }
 
 #define CHECK_AND_EXIT(E)                                                      \
@@ -574,6 +613,93 @@ static string_vector saveResultSymbolsLists(string_vector &ResSymbolsLists) {
       return 1;                                                                \
     }                                                                          \
   }
+
+using TableFiles = std::map<StringRef, string_vector>;
+
+static TableFiles processOneModule(std::unique_ptr<Module> M) {
+  TableFiles TblFiles;
+  std::map<StringRef, std::vector<Function *>> GlobalsSet;
+
+  bool DoSplit = SplitMode.getNumOccurrences() > 0;
+  bool DoSpecConst = SpecConstLower.getNumOccurrences() > 0;
+
+  if (DoSplit || DoSymGen) {
+    KernelMapEntryScope Scope = Scope_Global;
+    if (DoSplit) {
+      if (SplitMode == SPLIT_AUTO)
+        Scope = selectDeviceCodeSplitScopeAutomatically(*M);
+      else
+        Scope =
+            SplitMode == SPLIT_PER_KERNEL ? Scope_PerKernel : Scope_PerModule;
+    }
+    collectKernelModuleMap(*M, GlobalsSet, Scope);
+  }
+
+  std::vector<std::unique_ptr<Module>> ResultModules;
+  string_vector ResultSymbolsLists;
+
+  bool SpecConstsMet = false;
+  bool SetSpecConstAtRT = DoSpecConst && (SpecConstLower == SC_USE_RT_VAL);
+
+  if (DoSpecConst) {
+    // perform the spec constant intrinsics transformation and enumeration on
+    // the whole module
+    ModulePassManager RunSpecConst;
+    ModuleAnalysisManager MAM;
+    SpecConstantsPass SCP(SetSpecConstAtRT);
+    // Register required analysis
+    MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+    RunSpecConst.addPass(SCP);
+    if (!DoSplit)
+      // This pass deletes unreachable globals. Code splitter runs it later.
+      RunSpecConst.addPass(GlobalDCEPass());
+    PreservedAnalyses Res = RunSpecConst.run(*M, MAM);
+    SpecConstsMet = !Res.areAllPreserved();
+  }
+  if (IROutputOnly) {
+    // the result is the transformed input LLVMIR file rather than a file table
+    saveModule(*M, OutputFilename);
+    return TblFiles;
+  }
+  if (DoSplit) {
+    splitModule(*M, GlobalsSet, ResultModules);
+    // post-link always produces a code result, even if it is unmodified input
+    if (ResultModules.size() == 0)
+      ResultModules.push_back(std::move(M));
+  } else
+    ResultModules.push_back(std::move(M));
+
+  {
+    // reuse input module if there were no spec constants and no splitting
+    string_vector Files = SpecConstsMet || (ResultModules.size() > 1)
+                              ? saveResultModules(ResultModules)
+                              : string_vector{InputFilename};
+    // "Code" column is always output
+    std::copy(Files.begin(), Files.end(),
+              std::back_inserter(TblFiles[COL_CODE]));
+  }
+
+  {
+    ImagePropSaveInfo ImgPSInfo = {true, DoSpecConst, SetSpecConstAtRT,
+                                   SpecConstsMet, EmitKernelParamInfo};
+    string_vector Files = saveDeviceImageProperty(ResultModules, ImgPSInfo);
+    std::copy(Files.begin(), Files.end(),
+              std::back_inserter(TblFiles[COL_PROPS]));
+  }
+  if (DoSymGen) {
+    // extract symbols per each module
+    collectSymbolsLists(GlobalsSet, ResultSymbolsLists);
+    if (ResultSymbolsLists.empty()) {
+      // push empty symbols list for consistency
+      assert(ResultModules.size() == 1);
+      ResultSymbolsLists.push_back("");
+    }
+    string_vector Files = saveResultSymbolsLists(ResultSymbolsLists);
+    std::copy(Files.begin(), Files.end(),
+              std::back_inserter(TblFiles[COL_SYM]));
+  }
+  return TblFiles;
+}
 
 int main(int argc, char **argv) {
   InitLLVM X{argc, argv};
@@ -591,6 +717,8 @@ int main(int argc, char **argv) {
       "  kernels with the same values of the 'sycl-module-id' attribute will\n"
       "  be put into the same module. If -split=kernel option is specified,\n"
       "  one module per kernel will be emitted.\n"
+      "  '-split=auto' mode automatically selects the best way of splitting\n"
+      "  kernels into modules based on some heuristic.\n"
       "- If -symbols options is also specified, then for each produced module\n"
       "  a text file containing names of all spir kernels in it is generated.\n"
       "- Specialization constant intrinsic transformer. Replaces symbolic\n"
@@ -610,7 +738,9 @@ int main(int argc, char **argv) {
       "  $ sycl-post-link --ir-output-only --spec-const=default \\\n"
       "    -o example_p.bc example.bc\n"
       "will produce single output file example_p.bc suitable for SPIRV\n"
-      "translation.\n");
+      "translation.\n"
+      "--ir-output-only option is not not compatible with split modes other\n"
+      "than 'auto'.\n");
 
   bool DoSplit = SplitMode.getNumOccurrences() > 0;
   bool DoSpecConst = SpecConstLower.getNumOccurrences() > 0;
@@ -620,9 +750,9 @@ int main(int argc, char **argv) {
     errs() << "no actions specified; try --help for usage info\n";
     return 1;
   }
-  if (IROutputOnly && DoSplit) {
-    errs() << "error: -" << SplitMode.ArgStr << " can't be used with -"
-           << IROutputOnly.ArgStr << "\n";
+  if (IROutputOnly && (DoSplit && SplitMode != SPLIT_AUTO)) {
+    errs() << "error: -" << SplitMode.ArgStr << "=" << SplitMode.ValueStr
+           << " can't be used with -" << IROutputOnly.ArgStr << "\n";
     return 1;
   }
   if (IROutputOnly && DoSymGen) {
@@ -645,82 +775,45 @@ int main(int argc, char **argv) {
     Err.print(argv[0], errs());
     return 1;
   }
+
+  // After linking device bitcode "llvm.used" holds references to the kernels
+  // that are defined in the device image. But after splitting device image into
+  // separate kernels we may end up with having references to kernel declaration
+  // originating from "llvm.used" in the IR that is passed to llvm-spirv tool,
+  // and these declarations cause an assertion in llvm-spirv. To workaround this
+  // issue remove "llvm.used" from the input module before performing any other
+  // actions.
+  if (GlobalVariable *GV = MPtr->getGlobalVariable("llvm.used")) {
+    assert(GV->user_empty() && "unexpected llvm.used users");
+    GV->eraseFromParent();
+  }
+
   if (OutputFilename.getNumOccurrences() == 0)
     OutputFilename = (Twine(sys::path::stem(InputFilename)) + ".files").str();
 
-  std::map<StringRef, std::vector<Function *>> GlobalsSet;
+  TableFiles TblFiles = processOneModule(std::move(M));
 
-  if (DoSplit || DoSymGen) {
-    KernelMapEntryScope Scope = Scope_Global;
-    if (DoSplit)
-      Scope = SplitMode == SPLIT_PER_KERNEL ? Scope_PerKernel : Scope_PerModule;
-    collectKernelModuleMap(*MPtr, GlobalsSet, Scope);
-  }
-
-  std::vector<std::unique_ptr<Module>> ResultModules;
-  string_vector ResultSymbolsLists;
+  if (IROutputOnly)
+    return 0;
 
   util::SimpleTable Table;
-  bool SpecConstsMet = false;
-  bool SetSpecConstAtRT = DoSpecConst && (SpecConstLower == SC_USE_RT_VAL);
-
-  if (DoSpecConst) {
-    // perform the spec constant intrinsics transformation and enumeration on
-    // the whole module
-    ModulePassManager RunSpecConst;
-    ModuleAnalysisManager MAM;
-    SpecConstantsPass SCP(SetSpecConstAtRT);
-    // Register required analysis
-    MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
-    RunSpecConst.addPass(SCP);
-    if (!DoSplit)
-      // This pass deletes unreachable globals. Code splitter runs it later.
-      RunSpecConst.addPass(GlobalDCEPass());
-    PreservedAnalyses Res = RunSpecConst.run(*MPtr, MAM);
-    SpecConstsMet = !Res.areAllPreserved();
-  }
-  if (IROutputOnly) {
-    // the result is the transformed input LLVMIR file rather than a file table
-    saveModule(*MPtr, OutputFilename);
+  auto addTableColumn = [&Table, &TblFiles](std::string Str) {
+    auto &Files = TblFiles[Str];
+    if (Files.empty())
+      return 0;
+    Error Err = Table.addColumn(Str, Files);
+    CHECK_AND_EXIT(Err);
     return 0;
-  }
-  if (DoSplit) {
-    splitModule(*MPtr, GlobalsSet, ResultModules);
-    // post-link always produces a code result, even if it is unmodified input
-    if (ResultModules.size() == 0)
-      ResultModules.push_back(std::move(M));
-  } else
-    ResultModules.push_back(std::move(M));
+  };
 
-  {
-    // reuse input module if there were no spec constants and no splitting
-    string_vector Files = SpecConstsMet || (ResultModules.size() > 1)
-                              ? saveResultModules(ResultModules)
-                              : string_vector{InputFilename};
-    // "Code" column is always output
-    Error Err = Table.addColumn(COL_CODE, Files);
-    CHECK_AND_EXIT(Err);
-  }
+  int Res;
+  if ((Res = addTableColumn(COL_CODE)) != 0)
+    return Res;
+  if ((Res = addTableColumn(COL_PROPS)) != 0)
+    return Res;
+  if ((Res = addTableColumn(COL_SYM)) != 0)
+    return Res;
 
-  {
-    ImagePropSaveInfo ImgPSInfo = {true, DoSpecConst, SetSpecConstAtRT,
-                                   SpecConstsMet, EmitKernelParamInfo};
-    string_vector Files = saveDeviceImageProperty(ResultModules, ImgPSInfo);
-    Error Err = Table.addColumn(COL_PROPS, Files);
-    CHECK_AND_EXIT(Err);
-  }
-  if (DoSymGen) {
-    // extract symbols per each module
-    collectSymbolsLists(GlobalsSet, ResultSymbolsLists);
-    if (ResultSymbolsLists.empty()) {
-      // push empty symbols list for consistency
-      assert(ResultModules.size() == 1);
-      ResultSymbolsLists.push_back("");
-    }
-    string_vector Files = saveResultSymbolsLists(ResultSymbolsLists);
-    Error Err = Table.addColumn(COL_SYM, Files);
-    CHECK_AND_EXIT(Err);
-  }
   {
     std::error_code EC;
     raw_fd_ostream Out{OutputFilename, EC, sys::fs::OF_None};

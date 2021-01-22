@@ -626,8 +626,16 @@ void UnwrappedLineParser::parseBlock(bool MustBeDeclaration, bool AddLevel,
   if (MacroBlock && FormatTok->is(tok::l_paren))
     parseParens();
 
+  if (FormatTok->is(tok::arrow)) {
+    // Following the } we can find a trailing return type arrow
+    // as part of an implicit conversion constraint.
+    nextToken();
+    parseStructuralElement();
+  }
+
   if (MunchSemi && FormatTok->Tok.is(tok::semi))
     nextToken();
+
   Line->Level = InitialLevel;
 
   if (PPStartHash == PPEndHash) {
@@ -706,7 +714,7 @@ void UnwrappedLineParser::parseChildBlock() {
   nextToken();
 }
 
-void UnwrappedLineParser::parsePPDirective() {
+void UnwrappedLineParser::parsePPDirective(unsigned Level) {
   assert(FormatTok->Tok.is(tok::hash) && "'#' expected");
   ScopedMacroState MacroState(*Line, Tokens, FormatTok);
 
@@ -737,6 +745,17 @@ void UnwrappedLineParser::parsePPDirective() {
   case tok::pp_endif:
     parsePPEndIf();
     break;
+  case tok::pp_pragma: {
+    bool IndentPPDirectives =
+        Style.IndentPPDirectives != FormatStyle::PPDIS_None;
+    unsigned CurrentLevel = Line->Level;
+    Line->Level =
+        Style.IndentPragmas
+            ? (IndentPPDirectives ? (Level - (PPBranchLevel + 1)) : Level)
+            : CurrentLevel;
+    parsePPUnknown();
+    Line->Level = CurrentLevel;
+  } break;
   default:
     parsePPUnknown();
     break;
@@ -1261,6 +1280,12 @@ void UnwrappedLineParser::parseStructuralElement() {
       default:
         break;
       }
+      break;
+    case tok::kw_concept:
+      parseConcept();
+      break;
+    case tok::kw_requires:
+      parseRequires();
       break;
     case tok::kw_enum:
       // Ignore if this is part of "template <enum ...".
@@ -2025,6 +2050,13 @@ void UnwrappedLineParser::parseTryCatch() {
       nextToken();
       if (FormatTok->is(tok::l_paren))
         parseParens();
+      if (FormatTok->Previous && FormatTok->Previous->is(tok::identifier) &&
+          FormatTok->is(tok::l_brace)) {
+        do {
+          nextToken();
+        } while (!FormatTok->is(tok::r_brace));
+        nextToken();
+      }
 
       // In case identifiers were removed by clang-tidy, what might follow is
       // multiple commas in sequence - after the first identifier.
@@ -2212,18 +2244,26 @@ void UnwrappedLineParser::parseLabel(bool LeftAlignLabel) {
     --Line->Level;
   if (LeftAlignLabel)
     Line->Level = 0;
+
+  bool RemoveWhitesmithsCaseIndent =
+      (!Style.IndentCaseBlocks &&
+       Style.BreakBeforeBraces == FormatStyle::BS_Whitesmiths);
+
+  if (RemoveWhitesmithsCaseIndent)
+    --Line->Level;
+
   if (!Style.IndentCaseBlocks && CommentsBeforeNextToken.empty() &&
       FormatTok->Tok.is(tok::l_brace)) {
-    CompoundStatementIndenter Indenter(this, Line->Level,
-                                       Style.BraceWrapping.AfterCaseLabel,
-                                       Style.BraceWrapping.IndentBraces);
+
+    CompoundStatementIndenter Indenter(
+        this, Line->Level, Style.BraceWrapping.AfterCaseLabel,
+        Style.BraceWrapping.IndentBraces || RemoveWhitesmithsCaseIndent);
     parseBlock(/*MustBeDeclaration=*/false);
     if (FormatTok->Tok.is(tok::kw_break)) {
       if (Style.BraceWrapping.AfterControlStatement ==
           FormatStyle::BWACS_Always) {
         addUnwrappedLine();
-        if (!Style.IndentCaseBlocks &&
-            Style.BreakBeforeBraces == FormatStyle::BS_Whitesmiths) {
+        if (RemoveWhitesmithsCaseIndent) {
           Line->Level++;
         }
       }
@@ -2244,6 +2284,7 @@ void UnwrappedLineParser::parseLabel(bool LeftAlignLabel) {
 
 void UnwrappedLineParser::parseCaseLabel() {
   assert(FormatTok->Tok.is(tok::kw_case) && "'case' expected");
+
   // FIXME: fix handling of complex expressions here.
   do {
     nextToken();
@@ -2277,6 +2318,117 @@ void UnwrappedLineParser::parseAccessSpecifier() {
   if (FormatTok->Tok.is(tok::colon))
     nextToken();
   addUnwrappedLine();
+}
+
+void UnwrappedLineParser::parseConcept() {
+  assert(FormatTok->Tok.is(tok::kw_concept) && "'concept' expected");
+  nextToken();
+  if (!FormatTok->Tok.is(tok::identifier))
+    return;
+  nextToken();
+  if (!FormatTok->Tok.is(tok::equal))
+    return;
+  nextToken();
+  if (FormatTok->Tok.is(tok::kw_requires)) {
+    nextToken();
+    parseRequiresExpression(Line->Level);
+  } else {
+    parseConstraintExpression(Line->Level);
+  }
+}
+
+void UnwrappedLineParser::parseRequiresExpression(unsigned int OriginalLevel) {
+  // requires (R range)
+  if (FormatTok->Tok.is(tok::l_paren)) {
+    parseParens();
+    if (Style.IndentRequires && OriginalLevel != Line->Level) {
+      addUnwrappedLine();
+      --Line->Level;
+    }
+  }
+
+  if (FormatTok->Tok.is(tok::l_brace)) {
+    if (Style.BraceWrapping.AfterFunction)
+      addUnwrappedLine();
+    FormatTok->setType(TT_FunctionLBrace);
+    parseBlock(/*MustBeDeclaration=*/false);
+    addUnwrappedLine();
+  } else {
+    parseConstraintExpression(OriginalLevel);
+  }
+}
+
+void UnwrappedLineParser::parseConstraintExpression(
+    unsigned int OriginalLevel) {
+  // requires Id<T> && Id<T> || Id<T>
+  while (
+      FormatTok->isOneOf(tok::identifier, tok::kw_requires, tok::coloncolon)) {
+    nextToken();
+    while (FormatTok->isOneOf(tok::identifier, tok::coloncolon, tok::less,
+                              tok::greater, tok::comma, tok::ellipsis)) {
+      if (FormatTok->Tok.is(tok::less)) {
+        parseBracedList(/*ContinueOnSemicolons=*/false, /*IsEnum=*/false,
+                        /*ClosingBraceKind=*/tok::greater);
+        continue;
+      }
+      nextToken();
+    }
+    if (FormatTok->Tok.is(tok::kw_requires)) {
+      parseRequiresExpression(OriginalLevel);
+    }
+    if (FormatTok->Tok.is(tok::less)) {
+      parseBracedList(/*ContinueOnSemicolons=*/false, /*IsEnum=*/false,
+                      /*ClosingBraceKind=*/tok::greater);
+    }
+
+    if (FormatTok->Tok.is(tok::l_paren)) {
+      parseParens();
+    }
+    if (FormatTok->Tok.is(tok::l_brace)) {
+      if (Style.BraceWrapping.AfterFunction)
+        addUnwrappedLine();
+      FormatTok->setType(TT_FunctionLBrace);
+      parseBlock(/*MustBeDeclaration=*/false);
+    }
+    if (FormatTok->Tok.is(tok::semi)) {
+      // Eat any trailing semi.
+      nextToken();
+      addUnwrappedLine();
+    }
+    if (FormatTok->Tok.is(tok::colon)) {
+      return;
+    }
+    if (!FormatTok->Tok.isOneOf(tok::ampamp, tok::pipepipe)) {
+      if (FormatTok->Previous &&
+          !FormatTok->Previous->isOneOf(tok::identifier, tok::kw_requires,
+                                        tok::coloncolon)) {
+        addUnwrappedLine();
+      }
+      if (Style.IndentRequires && OriginalLevel != Line->Level) {
+        --Line->Level;
+      }
+      break;
+    } else {
+      FormatTok->setType(TT_ConstraintJunctions);
+    }
+
+    nextToken();
+  }
+}
+
+void UnwrappedLineParser::parseRequires() {
+  assert(FormatTok->Tok.is(tok::kw_requires) && "'requires' expected");
+
+  unsigned OriginalLevel = Line->Level;
+  if (FormatTok->Previous && FormatTok->Previous->is(tok::greater)) {
+    addUnwrappedLine();
+    if (Style.IndentRequires) {
+      Line->Level++;
+    }
+  }
+  nextToken();
+
+  parseRequiresExpression(OriginalLevel);
 }
 
 bool UnwrappedLineParser::parseEnum() {
@@ -3032,7 +3184,7 @@ void UnwrappedLineParser::readToken(int LevelDifference) {
           PPBranchLevel > 0)
         Line->Level += PPBranchLevel;
       flushComments(isOnNewLine(*FormatTok));
-      parsePPDirective();
+      parsePPDirective(Line->Level);
     }
     while (FormatTok->getType() == TT_ConflictStart ||
            FormatTok->getType() == TT_ConflictEnd ||

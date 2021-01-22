@@ -666,13 +666,12 @@ bool GuardWideningImpl::combineRangeChecks(
     };
 
     copy_if(Checks, std::back_inserter(CurrentChecks), IsCurrentCheck);
-    Checks.erase(remove_if(Checks, IsCurrentCheck), Checks.end());
+    erase_if(Checks, IsCurrentCheck);
 
     assert(CurrentChecks.size() != 0 && "We know we have at least one!");
 
     if (CurrentChecks.size() < 3) {
-      RangeChecksOut.insert(RangeChecksOut.end(), CurrentChecks.begin(),
-                            CurrentChecks.end());
+      llvm::append_range(RangeChecksOut, CurrentChecks);
       continue;
     }
 

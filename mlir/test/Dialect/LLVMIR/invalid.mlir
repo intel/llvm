@@ -98,7 +98,7 @@ func @gep_non_function_type(%pos : !llvm.i64, %base : !llvm.ptr<float>) {
 // -----
 
 func @load_non_llvm_type(%foo : memref<f32>) {
-  // expected-error@+1 {{expected LLVM IR dialect type}}
+  // expected-error@+1 {{expected LLVM pointer type}}
   llvm.load %foo : memref<f32>
 }
 
@@ -112,7 +112,7 @@ func @load_non_ptr_type(%foo : !llvm.float) {
 // -----
 
 func @store_non_llvm_type(%foo : memref<f32>, %bar : !llvm.float) {
-  // expected-error@+1 {{expected LLVM IR dialect type}}
+  // expected-error@+1 {{expected LLVM pointer type}}
   llvm.store %bar, %foo : memref<f32>
 }
 
@@ -153,7 +153,7 @@ func @call_unknown_symbol() {
 
 // -----
 
-func @standard_func_callee()
+func private @standard_func_callee()
 
 func @call_non_llvm() {
   // expected-error@+1 {{'llvm.call' op 'standard_func_callee' does not reference a valid LLVM function}}
@@ -267,7 +267,7 @@ func @insertvalue_array_out_of_bounds() {
 // -----
 
 func @insertvalue_wrong_nesting() {
-  // expected-error@+1 {{expected wrapped LLVM IR structure/array type}}
+  // expected-error@+1 {{expected LLVM IR structure/array type}}
   llvm.insertvalue %a, %b[0,0] : !llvm.struct<(i32)>
 }
 
@@ -311,7 +311,7 @@ func @extractvalue_array_out_of_bounds() {
 // -----
 
 func @extractvalue_wrong_nesting() {
-  // expected-error@+1 {{expected wrapped LLVM IR structure/array type}}
+  // expected-error@+1 {{expected LLVM IR structure/array type}}
   llvm.extractvalue %b[0,0] : !llvm.struct<(i32)>
 }
 
@@ -339,7 +339,7 @@ func @invalid_vector_type_3(%arg0: !llvm.vec<4 x float>, %arg1: !llvm.i32, %arg2
 // -----
 
 func @null_non_llvm_type() {
-  // expected-error@+1 {{expected LLVM IR pointer type}}
+  // expected-error@+1 {{must be LLVM pointer type, but got '!llvm.i32'}}
   llvm.mlir.null : !llvm.i32
 }
 
@@ -651,4 +651,19 @@ func @invalid_ordering_in_fence() {
 // expected-error @+1 {{invalid data layout descriptor}}
 module attributes {llvm.data_layout = "#vjkr32"} {
   func @invalid_data_layout()
+}
+
+// -----
+
+func @switch_wrong_number_of_weights(%arg0 : !llvm.i32) {
+  // expected-error@+1 {{expects number of branch weights to match number of successors: 3 vs 2}}
+  llvm.switch %arg0, ^bb1 [
+    42: ^bb2(%arg0, %arg0 : !llvm.i32, !llvm.i32)
+  ] {branch_weights = dense<[13, 17, 19]> : vector<3xi32>}
+
+^bb1: // pred: ^bb0
+  llvm.return
+
+^bb2(%1: !llvm.i32, %2: !llvm.i32): // pred: ^bb0
+  llvm.return
 }

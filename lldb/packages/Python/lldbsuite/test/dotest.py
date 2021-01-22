@@ -388,14 +388,6 @@ def parseOptionsAndInitTestdirs():
             usage(parser)
         configuration.regexp = args.p
 
-    if args.s:
-        configuration.sdir_name = args.s
-    else:
-        timestamp_started = datetime.datetime.now().strftime("%Y-%m-%d-%H_%M_%S")
-        configuration.sdir_name = os.path.join(os.getcwd(), timestamp_started)
-
-    configuration.session_file_format = args.session_file_format
-
     if args.t:
         os.environ['LLDB_COMMAND_TRACE'] = 'YES'
 
@@ -835,6 +827,13 @@ def checkWatchpointSupport():
     print("watchpoint tests will not be run because: " + reason)
     configuration.skip_categories.append("watchpoint")
 
+def checkObjcSupport():
+    from lldbsuite.test import lldbplatformutil
+
+    if not lldbplatformutil.platformIsDarwin():
+        print("objc tests will be skipped because of unsupported platform")
+        configuration.skip_categories.append("objc")
+
 def checkDebugInfoSupport():
     import lldb
 
@@ -850,6 +849,23 @@ def checkDebugInfoSupport():
         skipped.append(cat)
     if skipped:
         print("Skipping following debug info categories:", skipped)
+
+def checkDebugServerSupport():
+    from lldbsuite.test import lldbplatformutil
+    import lldb
+
+    skip_msg = "Skipping %s tests, as they are not compatible with remote testing on this platform"
+    if lldbplatformutil.platformIsDarwin():
+        configuration.skip_categories.append("llgs")
+        if lldb.remote_platform:
+            # <rdar://problem/34539270>
+            configuration.skip_categories.append("debugserver")
+            print(skip_msg%"debugserver");
+    else:
+        configuration.skip_categories.append("debugserver")
+        if lldb.remote_platform and lldbplatformutil.getPlatform() == "windows":
+            configuration.skip_categories.append("llgs")
+            print(skip_msg%"lldb-server");
 
 def run_suite():
     # On MacOS X, check to make sure that domain for com.apple.DebugSymbols defaults
@@ -938,25 +954,15 @@ def run_suite():
     # Note that it's not dotest's job to clean this directory.
     lldbutil.mkdir_p(configuration.test_build_dir)
 
-    target_platform = lldb.selected_platform.GetTriple().split('-')[2]
+    from . import lldbplatformutil
+    target_platform = lldbplatformutil.getPlatform()
 
     checkLibcxxSupport()
     checkLibstdcxxSupport()
     checkWatchpointSupport()
     checkDebugInfoSupport()
-
-    # Don't do debugserver tests on anything except OS X.
-    configuration.dont_do_debugserver_test = (
-            "linux" in target_platform or
-            "freebsd" in target_platform or
-            "netbsd" in target_platform or
-            "windows" in target_platform)
-
-    # Don't do lldb-server (llgs) tests on anything except Linux and Windows.
-    configuration.dont_do_llgs_test = not (
-            "linux" in target_platform or
-            "netbsd" in target_platform or
-            "windows" in target_platform)
+    checkDebugServerSupport()
+    checkObjcSupport()
 
     for testdir in configuration.testdirs:
         for (dirpath, dirnames, filenames) in os.walk(testdir):
@@ -968,14 +974,6 @@ def run_suite():
 
     # Install the control-c handler.
     unittest2.signals.installHandler()
-
-    lldbutil.mkdir_p(configuration.sdir_name)
-    os.environ["LLDB_SESSION_DIRNAME"] = configuration.sdir_name
-
-    sys.stderr.write(
-        "\nSession logs for test failures/errors/unexpected successes"
-        " will go into directory '%s'\n" %
-        configuration.sdir_name)
 
     #
     # Invoke the default TextTestRunner to run the test suite
@@ -1030,8 +1028,7 @@ def run_suite():
     if configuration.sdir_has_content and configuration.verbose:
         sys.stderr.write(
             "Session logs for test failures/errors/unexpected successes"
-            " can be found in directory '%s'\n" %
-            configuration.sdir_name)
+            " can be found in the test build directory\n")
 
     if configuration.use_categories and len(
             configuration.failures_per_category) > 0:

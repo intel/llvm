@@ -1029,8 +1029,7 @@ static Register getMemsetValue(Register Val, LLT Ty, MachineIRBuilder &MIB) {
   unsigned NumBits = Ty.getScalarSizeInBits();
   auto ValVRegAndVal = getConstantVRegValWithLookThrough(Val, MRI);
   if (!Ty.isVector() && ValVRegAndVal) {
-    unsigned KnownVal = ValVRegAndVal->Value;
-    APInt Scalar = APInt(8, KnownVal);
+    APInt Scalar = ValVRegAndVal->Value.truncOrSelf(8);
     APInt SplatVal = APInt::getSplat(NumBits, Scalar);
     return MIB.buildConstant(Ty, SplatVal).getReg(0);
   }
@@ -1411,7 +1410,7 @@ bool CombinerHelper::tryCombineMemCpyFamily(MachineInstr &MI, unsigned MaxLen) {
   auto LenVRegAndVal = getConstantVRegValWithLookThrough(Len, MRI);
   if (!LenVRegAndVal)
     return false; // Leave it to the legalizer to lower it to a libcall.
-  unsigned KnownLen = LenVRegAndVal->Value;
+  unsigned KnownLen = LenVRegAndVal->Value.getZExtValue();
 
   if (KnownLen == 0) {
     MI.eraseFromParent();
@@ -1521,7 +1520,7 @@ bool CombinerHelper::matchPtrAddImmedChain(MachineInstr &MI,
     return false;
 
   // Pass the combined immediate to the apply function.
-  MatchInfo.Imm = MaybeImmVal->Value + MaybeImm2Val->Value;
+  MatchInfo.Imm = (MaybeImmVal->Value + MaybeImm2Val->Value).getSExtValue();
   MatchInfo.Base = Base;
   return true;
 }
@@ -1539,15 +1538,211 @@ bool CombinerHelper::applyPtrAddImmedChain(MachineInstr &MI,
   return true;
 }
 
+bool CombinerHelper::matchShiftImmedChain(MachineInstr &MI,
+                                          RegisterImmPair &MatchInfo) {
+  // We're trying to match the following pattern with any of
+  // G_SHL/G_ASHR/G_LSHR/G_SSHLSAT/G_USHLSAT shift instructions:
+  //   %t1 = SHIFT %base, G_CONSTANT imm1
+  //   %root = SHIFT %t1, G_CONSTANT imm2
+  // -->
+  //   %root = SHIFT %base, G_CONSTANT (imm1 + imm2)
+
+  unsigned Opcode = MI.getOpcode();
+  assert((Opcode == TargetOpcode::G_SHL || Opcode == TargetOpcode::G_ASHR ||
+          Opcode == TargetOpcode::G_LSHR || Opcode == TargetOpcode::G_SSHLSAT ||
+          Opcode == TargetOpcode::G_USHLSAT) &&
+         "Expected G_SHL, G_ASHR, G_LSHR, G_SSHLSAT or G_USHLSAT");
+
+  Register Shl2 = MI.getOperand(1).getReg();
+  Register Imm1 = MI.getOperand(2).getReg();
+  auto MaybeImmVal = getConstantVRegValWithLookThrough(Imm1, MRI);
+  if (!MaybeImmVal)
+    return false;
+
+  MachineInstr *Shl2Def = MRI.getUniqueVRegDef(Shl2);
+  if (Shl2Def->getOpcode() != Opcode)
+    return false;
+
+  Register Base = Shl2Def->getOperand(1).getReg();
+  Register Imm2 = Shl2Def->getOperand(2).getReg();
+  auto MaybeImm2Val = getConstantVRegValWithLookThrough(Imm2, MRI);
+  if (!MaybeImm2Val)
+    return false;
+
+  // Pass the combined immediate to the apply function.
+  MatchInfo.Imm =
+      (MaybeImmVal->Value.getSExtValue() + MaybeImm2Val->Value).getSExtValue();
+  MatchInfo.Reg = Base;
+
+  // There is no simple replacement for a saturating unsigned left shift that
+  // exceeds the scalar size.
+  if (Opcode == TargetOpcode::G_USHLSAT &&
+      MatchInfo.Imm >= MRI.getType(Shl2).getScalarSizeInBits())
+    return false;
+
+  return true;
+}
+
+bool CombinerHelper::applyShiftImmedChain(MachineInstr &MI,
+                                          RegisterImmPair &MatchInfo) {
+  unsigned Opcode = MI.getOpcode();
+  assert((Opcode == TargetOpcode::G_SHL || Opcode == TargetOpcode::G_ASHR ||
+          Opcode == TargetOpcode::G_LSHR || Opcode == TargetOpcode::G_SSHLSAT ||
+          Opcode == TargetOpcode::G_USHLSAT) &&
+         "Expected G_SHL, G_ASHR, G_LSHR, G_SSHLSAT or G_USHLSAT");
+
+  Builder.setInstrAndDebugLoc(MI);
+  LLT Ty = MRI.getType(MI.getOperand(1).getReg());
+  unsigned const ScalarSizeInBits = Ty.getScalarSizeInBits();
+  auto Imm = MatchInfo.Imm;
+
+  if (Imm >= ScalarSizeInBits) {
+    // Any logical shift that exceeds scalar size will produce zero.
+    if (Opcode == TargetOpcode::G_SHL || Opcode == TargetOpcode::G_LSHR) {
+      Builder.buildConstant(MI.getOperand(0), 0);
+      MI.eraseFromParent();
+      return true;
+    }
+    // Arithmetic shift and saturating signed left shift have no effect beyond
+    // scalar size.
+    Imm = ScalarSizeInBits - 1;
+  }
+
+  LLT ImmTy = MRI.getType(MI.getOperand(2).getReg());
+  Register NewImm = Builder.buildConstant(ImmTy, Imm).getReg(0);
+  Observer.changingInstr(MI);
+  MI.getOperand(1).setReg(MatchInfo.Reg);
+  MI.getOperand(2).setReg(NewImm);
+  Observer.changedInstr(MI);
+  return true;
+}
+
+bool CombinerHelper::matchShiftOfShiftedLogic(MachineInstr &MI,
+                                              ShiftOfShiftedLogic &MatchInfo) {
+  // We're trying to match the following pattern with any of
+  // G_SHL/G_ASHR/G_LSHR/G_USHLSAT/G_SSHLSAT shift instructions in combination
+  // with any of G_AND/G_OR/G_XOR logic instructions.
+  //   %t1 = SHIFT %X, G_CONSTANT C0
+  //   %t2 = LOGIC %t1, %Y
+  //   %root = SHIFT %t2, G_CONSTANT C1
+  // -->
+  //   %t3 = SHIFT %X, G_CONSTANT (C0+C1)
+  //   %t4 = SHIFT %Y, G_CONSTANT C1
+  //   %root = LOGIC %t3, %t4
+  unsigned ShiftOpcode = MI.getOpcode();
+  assert((ShiftOpcode == TargetOpcode::G_SHL ||
+          ShiftOpcode == TargetOpcode::G_ASHR ||
+          ShiftOpcode == TargetOpcode::G_LSHR ||
+          ShiftOpcode == TargetOpcode::G_USHLSAT ||
+          ShiftOpcode == TargetOpcode::G_SSHLSAT) &&
+         "Expected G_SHL, G_ASHR, G_LSHR, G_USHLSAT and G_SSHLSAT");
+
+  // Match a one-use bitwise logic op.
+  Register LogicDest = MI.getOperand(1).getReg();
+  if (!MRI.hasOneNonDBGUse(LogicDest))
+    return false;
+
+  MachineInstr *LogicMI = MRI.getUniqueVRegDef(LogicDest);
+  unsigned LogicOpcode = LogicMI->getOpcode();
+  if (LogicOpcode != TargetOpcode::G_AND && LogicOpcode != TargetOpcode::G_OR &&
+      LogicOpcode != TargetOpcode::G_XOR)
+    return false;
+
+  // Find a matching one-use shift by constant.
+  const Register C1 = MI.getOperand(2).getReg();
+  auto MaybeImmVal = getConstantVRegValWithLookThrough(C1, MRI);
+  if (!MaybeImmVal)
+    return false;
+
+  const uint64_t C1Val = MaybeImmVal->Value.getZExtValue();
+
+  auto matchFirstShift = [&](const MachineInstr *MI, uint64_t &ShiftVal) {
+    // Shift should match previous one and should be a one-use.
+    if (MI->getOpcode() != ShiftOpcode ||
+        !MRI.hasOneNonDBGUse(MI->getOperand(0).getReg()))
+      return false;
+
+    // Must be a constant.
+    auto MaybeImmVal =
+        getConstantVRegValWithLookThrough(MI->getOperand(2).getReg(), MRI);
+    if (!MaybeImmVal)
+      return false;
+
+    ShiftVal = MaybeImmVal->Value.getSExtValue();
+    return true;
+  };
+
+  // Logic ops are commutative, so check each operand for a match.
+  Register LogicMIReg1 = LogicMI->getOperand(1).getReg();
+  MachineInstr *LogicMIOp1 = MRI.getUniqueVRegDef(LogicMIReg1);
+  Register LogicMIReg2 = LogicMI->getOperand(2).getReg();
+  MachineInstr *LogicMIOp2 = MRI.getUniqueVRegDef(LogicMIReg2);
+  uint64_t C0Val;
+
+  if (matchFirstShift(LogicMIOp1, C0Val)) {
+    MatchInfo.LogicNonShiftReg = LogicMIReg2;
+    MatchInfo.Shift2 = LogicMIOp1;
+  } else if (matchFirstShift(LogicMIOp2, C0Val)) {
+    MatchInfo.LogicNonShiftReg = LogicMIReg1;
+    MatchInfo.Shift2 = LogicMIOp2;
+  } else
+    return false;
+
+  MatchInfo.ValSum = C0Val + C1Val;
+
+  // The fold is not valid if the sum of the shift values exceeds bitwidth.
+  if (MatchInfo.ValSum >= MRI.getType(LogicDest).getScalarSizeInBits())
+    return false;
+
+  MatchInfo.Logic = LogicMI;
+  return true;
+}
+
+bool CombinerHelper::applyShiftOfShiftedLogic(MachineInstr &MI,
+                                              ShiftOfShiftedLogic &MatchInfo) {
+  unsigned Opcode = MI.getOpcode();
+  assert((Opcode == TargetOpcode::G_SHL || Opcode == TargetOpcode::G_ASHR ||
+          Opcode == TargetOpcode::G_LSHR || Opcode == TargetOpcode::G_USHLSAT ||
+          Opcode == TargetOpcode::G_SSHLSAT) &&
+         "Expected G_SHL, G_ASHR, G_LSHR, G_USHLSAT and G_SSHLSAT");
+
+  LLT ShlType = MRI.getType(MI.getOperand(2).getReg());
+  LLT DestType = MRI.getType(MI.getOperand(0).getReg());
+  Builder.setInstrAndDebugLoc(MI);
+
+  Register Const = Builder.buildConstant(ShlType, MatchInfo.ValSum).getReg(0);
+
+  Register Shift1Base = MatchInfo.Shift2->getOperand(1).getReg();
+  Register Shift1 =
+      Builder.buildInstr(Opcode, {DestType}, {Shift1Base, Const}).getReg(0);
+
+  Register Shift2Const = MI.getOperand(2).getReg();
+  Register Shift2 = Builder
+                        .buildInstr(Opcode, {DestType},
+                                    {MatchInfo.LogicNonShiftReg, Shift2Const})
+                        .getReg(0);
+
+  Register Dest = MI.getOperand(0).getReg();
+  Builder.buildInstr(MatchInfo.Logic->getOpcode(), {Dest}, {Shift1, Shift2});
+
+  // These were one use so it's safe to remove them.
+  MatchInfo.Shift2->eraseFromParent();
+  MatchInfo.Logic->eraseFromParent();
+
+  MI.eraseFromParent();
+  return true;
+}
+
 bool CombinerHelper::matchCombineMulToShl(MachineInstr &MI,
                                           unsigned &ShiftVal) {
   assert(MI.getOpcode() == TargetOpcode::G_MUL && "Expected a G_MUL");
   auto MaybeImmVal =
       getConstantVRegValWithLookThrough(MI.getOperand(2).getReg(), MRI);
-  if (!MaybeImmVal || !isPowerOf2_64(MaybeImmVal->Value))
+  if (!MaybeImmVal)
     return false;
-  ShiftVal = Log2_64(MaybeImmVal->Value);
-  return true;
+
+  ShiftVal = MaybeImmVal->Value.exactLogBase2();
+  return (static_cast<int32_t>(ShiftVal) != -1);
 }
 
 bool CombinerHelper::applyCombineMulToShl(MachineInstr &MI,
@@ -1593,7 +1788,7 @@ bool CombinerHelper::matchCombineShlOfExtend(MachineInstr &MI,
       return false;
   }
 
-  int64_t ShiftAmt = MaybeShiftAmtVal->Value;
+  int64_t ShiftAmt = MaybeShiftAmtVal->Value.getSExtValue();
   MatchData.Reg = ExtSrc;
   MatchData.Imm = ShiftAmt;
 
@@ -1832,7 +2027,7 @@ bool CombinerHelper::matchCombineShiftToUnmerge(MachineInstr &MI,
   if (!MaybeImmVal)
     return false;
 
-  ShiftVal = MaybeImmVal->Value;
+  ShiftVal = MaybeImmVal->Value.getSExtValue();
   return ShiftVal >= Size / 2 && ShiftVal < Size;
 }
 
@@ -2006,7 +2201,7 @@ bool CombinerHelper::matchCombineConstPtrAddToI2P(MachineInstr &MI,
   Register RHS = MI.getOperand(2).getReg();
   MachineRegisterInfo &MRI = Builder.getMF().getRegInfo();
 
-  if (auto RHSCst = getConstantVRegVal(RHS, MRI)) {
+  if (auto RHSCst = getConstantVRegSExtVal(RHS, MRI)) {
     int64_t Cst;
     if (mi_match(LHS, MRI, m_GIntToPtr(m_ICst(Cst)))) {
       NewCst = Cst + *RHSCst;
@@ -2247,7 +2442,7 @@ bool CombinerHelper::matchConstantSelectCmp(MachineInstr &MI, unsigned &OpIdx) {
   assert(MI.getOpcode() == TargetOpcode::G_SELECT);
   if (auto MaybeCstCmp =
           getConstantVRegValWithLookThrough(MI.getOperand(1).getReg(), MRI)) {
-    OpIdx = MaybeCstCmp->Value ? 2 : 3;
+    OpIdx = MaybeCstCmp->Value.isNullValue() ? 3 : 2;
     return true;
   }
   return false;
@@ -2420,9 +2615,7 @@ bool CombinerHelper::matchSimplifyAddToSub(
   // ((0-A) + B) -> B - A
   // (A + (0-B)) -> A - B
   auto CheckFold = [&](Register &MaybeSub, Register &MaybeNewLHS) {
-    int64_t Cst;
-    if (!mi_match(MaybeSub, MRI, m_GSub(m_ICst(Cst), m_Reg(NewRHS))) ||
-        Cst != 0)
+    if (!mi_match(MaybeSub, MRI, m_Neg(m_Reg(NewRHS))))
       return false;
     NewLHS = MaybeNewLHS;
     return true;
@@ -2639,15 +2832,15 @@ bool CombinerHelper::applyAshShlToSextInreg(
   return true;
 }
 
-bool CombinerHelper::matchAndWithTrivialMask(MachineInstr &MI,
-                                             Register &Replacement) {
+bool CombinerHelper::matchRedundantAnd(MachineInstr &MI,
+                                       Register &Replacement) {
   // Given
   //
-  // %mask:_(sN) = G_CONSTANT iN 000...0111...1
+  // %y:_(sN) = G_SOMETHING
   // %x:_(sN) = G_SOMETHING
-  // %y:_(sN) = G_AND %x, %mask
+  // %res:_(sN) = G_AND %x, %y
   //
-  // Eliminate the G_AND when it is known that x & mask == x.
+  // Eliminate the G_AND when it is known that x & y == x or x & y == y.
   //
   // Patterns like this can appear as a result of legalization. E.g.
   //
@@ -2660,29 +2853,84 @@ bool CombinerHelper::matchAndWithTrivialMask(MachineInstr &MI,
   if (!KB)
     return false;
 
-  // Replacement = %x, AndDst = %y. Check that we can replace AndDst with the
-  // LHS of the G_AND.
-  Replacement = MI.getOperand(1).getReg();
   Register AndDst = MI.getOperand(0).getReg();
   LLT DstTy = MRI.getType(AndDst);
 
   // FIXME: This should be removed once GISelKnownBits supports vectors.
   if (DstTy.isVector())
     return false;
-  if (!canReplaceReg(AndDst, Replacement, MRI))
+
+  Register LHS = MI.getOperand(1).getReg();
+  Register RHS = MI.getOperand(2).getReg();
+  KnownBits LHSBits = KB->getKnownBits(LHS);
+  KnownBits RHSBits = KB->getKnownBits(RHS);
+
+  // Check that x & Mask == x.
+  // x & 1 == x, always
+  // x & 0 == x, only if x is also 0
+  // Meaning Mask has no effect if every bit is either one in Mask or zero in x.
+  //
+  // Check if we can replace AndDst with the LHS of the G_AND
+  if (canReplaceReg(AndDst, LHS, MRI) &&
+      (LHSBits.Zero | RHSBits.One).isAllOnesValue()) {
+    Replacement = LHS;
+    return true;
+  }
+
+  // Check if we can replace AndDst with the RHS of the G_AND
+  if (canReplaceReg(AndDst, RHS, MRI) &&
+      (LHSBits.One | RHSBits.Zero).isAllOnesValue()) {
+    Replacement = RHS;
+    return true;
+  }
+
+  return false;
+}
+
+bool CombinerHelper::matchRedundantOr(MachineInstr &MI, Register &Replacement) {
+  // Given
+  //
+  // %y:_(sN) = G_SOMETHING
+  // %x:_(sN) = G_SOMETHING
+  // %res:_(sN) = G_OR %x, %y
+  //
+  // Eliminate the G_OR when it is known that x | y == x or x | y == y.
+  assert(MI.getOpcode() == TargetOpcode::G_OR);
+  if (!KB)
     return false;
 
-  // Check that we have a constant on the RHS of the G_AND, which is of the form
-  // 000...0111...1.
-  int64_t Cst;
-  if (!mi_match(MI.getOperand(2).getReg(), MRI, m_ICst(Cst)))
-    return false;
-  APInt Mask(DstTy.getSizeInBits(), Cst);
-  if (!Mask.isMask())
+  Register OrDst = MI.getOperand(0).getReg();
+  LLT DstTy = MRI.getType(OrDst);
+
+  // FIXME: This should be removed once GISelKnownBits supports vectors.
+  if (DstTy.isVector())
     return false;
 
-  // Now, let's check that x & Mask == x. If this is true, then x & ~Mask == 0.
-  return KB->maskedValueIsZero(Replacement, ~Mask);
+  Register LHS = MI.getOperand(1).getReg();
+  Register RHS = MI.getOperand(2).getReg();
+  KnownBits LHSBits = KB->getKnownBits(LHS);
+  KnownBits RHSBits = KB->getKnownBits(RHS);
+
+  // Check that x | Mask == x.
+  // x | 0 == x, always
+  // x | 1 == x, only if x is also 1
+  // Meaning Mask has no effect if every bit is either zero in Mask or one in x.
+  //
+  // Check if we can replace OrDst with the LHS of the G_OR
+  if (canReplaceReg(OrDst, LHS, MRI) &&
+      (LHSBits.One | RHSBits.Zero).isAllOnesValue()) {
+    Replacement = LHS;
+    return true;
+  }
+
+  // Check if we can replace OrDst with the RHS of the G_OR
+  if (canReplaceReg(OrDst, RHS, MRI) &&
+      (LHSBits.Zero | RHSBits.One).isAllOnesValue()) {
+    Replacement = RHS;
+    return true;
+  }
+
+  return false;
 }
 
 bool CombinerHelper::matchRedundantSExtInReg(MachineInstr &MI) {

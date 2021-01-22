@@ -50,6 +50,10 @@ static cl::opt<bool> DisableLowOverheadLoops(
   "disable-arm-loloops", cl::Hidden, cl::init(false),
   cl::desc("Disable the generation of low-overhead loops"));
 
+static cl::opt<bool>
+    AllowWLSLoops("allow-arm-wlsloops", cl::Hidden, cl::init(true),
+                  cl::desc("Enable the generation of WLS loops"));
+
 extern cl::opt<TailPredication::Mode> EnableTailPredication;
 
 extern cl::opt<bool> EnableMaskedGatherScatters;
@@ -839,12 +843,8 @@ int ARMTTIImpl::getCmpSelInstrCost(unsigned Opcode, Type *ValTy, Type *CondTy,
     return Cost;
   }
 
-  if (CostKind != TTI::TCK_RecipThroughput)
-    return BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, VecPred, CostKind,
-                                     I);
-
   // On NEON a vector select gets lowered to vbsl.
-  if (ST->hasNEON() && ValTy->isVectorTy() && ISD == ISD::SELECT) {
+  if (ST->hasNEON() && ValTy->isVectorTy() && ISD == ISD::SELECT && CondTy) {
     // Lowering of some vector selects is currently far from perfect.
     static const TypeConversionCostTblEntry NEONVectorSelectTbl[] = {
       { ISD::SELECT, MVT::v4i1, MVT::v4i64, 4*4 + 1*2 + 1 },
@@ -865,9 +865,13 @@ int ARMTTIImpl::getCmpSelInstrCost(unsigned Opcode, Type *ValTy, Type *CondTy,
     return LT.first;
   }
 
-  int BaseCost = ST->hasMVEIntegerOps() && ValTy->isVectorTy()
-                     ? ST->getMVEVectorCostFactor()
-                     : 1;
+  // Default to cheap (throughput/size of 1 instruction) but adjust throughput
+  // for "multiple beats" potentially needed by MVE instructions.
+  int BaseCost = 1;
+  if (CostKind != TTI::TCK_CodeSize && ST->hasMVEIntegerOps() &&
+      ValTy->isVectorTy())
+    BaseCost = ST->getMVEVectorCostFactor();
+
   return BaseCost *
          BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, VecPred, CostKind, I);
 }
@@ -1314,6 +1318,24 @@ int ARMTTIImpl::getMemoryOpCost(unsigned Opcode, Type *Src,
                                            CostKind, I);
 }
 
+unsigned ARMTTIImpl::getMaskedMemoryOpCost(unsigned Opcode, Type *Src,
+                                           Align Alignment,
+                                           unsigned AddressSpace,
+                                           TTI::TargetCostKind CostKind) {
+  if (ST->hasMVEIntegerOps()) {
+    if (Opcode == Instruction::Load && isLegalMaskedLoad(Src, Alignment))
+      return ST->getMVEVectorCostFactor();
+    if (Opcode == Instruction::Store && isLegalMaskedStore(Src, Alignment))
+      return ST->getMVEVectorCostFactor();
+  }
+  if (!isa<FixedVectorType>(Src))
+    return BaseT::getMaskedMemoryOpCost(Opcode, Src, Alignment, AddressSpace,
+                                        CostKind);
+  // Scalar cost, which is currently very high due to the efficiency of the
+  // generated code.
+  return cast<FixedVectorType>(Src)->getNumElements() * 8;
+}
+
 int ARMTTIImpl::getInterleavedMemoryOpCost(
     unsigned Opcode, Type *VecTy, unsigned Factor, ArrayRef<unsigned> Indices,
     Align Alignment, unsigned AddressSpace, TTI::TargetCostKind CostKind,
@@ -1679,7 +1701,7 @@ bool ARMTTIImpl::isHardwareLoopProfitable(Loop *L, ScalarEvolution &SE,
       switch (Call->getIntrinsicID()) {
       default:
         break;
-      case Intrinsic::set_loop_iterations:
+      case Intrinsic::start_loop_iterations:
       case Intrinsic::test_set_loop_iterations:
       case Intrinsic::loop_decrement:
       case Intrinsic::loop_decrement_reg:
@@ -1690,14 +1712,24 @@ bool ARMTTIImpl::isHardwareLoopProfitable(Loop *L, ScalarEvolution &SE,
   };
 
   // Scan the instructions to see if there's any that we know will turn into a
-  // call or if this loop is already a low-overhead loop.
+  // call or if this loop is already a low-overhead loop or will become a tail
+  // predicated loop.
+  bool IsTailPredLoop = false;
   auto ScanLoop = [&](Loop *L) {
     for (auto *BB : L->getBlocks()) {
       for (auto &I : *BB) {
-        if (maybeLoweredToCall(I) || IsHardwareLoopIntrinsic(I)) {
+        if (maybeLoweredToCall(I) || IsHardwareLoopIntrinsic(I) ||
+            isa<InlineAsm>(I)) {
           LLVM_DEBUG(dbgs() << "ARMHWLoops: Bad instruction: " << I << "\n");
           return false;
         }
+        if (auto *II = dyn_cast<IntrinsicInst>(&I))
+          IsTailPredLoop |=
+              II->getIntrinsicID() == Intrinsic::get_active_lane_mask ||
+              II->getIntrinsicID() == Intrinsic::arm_mve_vctp8 ||
+              II->getIntrinsicID() == Intrinsic::arm_mve_vctp16 ||
+              II->getIntrinsicID() == Intrinsic::arm_mve_vctp32 ||
+              II->getIntrinsicID() == Intrinsic::arm_mve_vctp64;
       }
     }
     return true;
@@ -1718,7 +1750,7 @@ bool ARMTTIImpl::isHardwareLoopProfitable(Loop *L, ScalarEvolution &SE,
   LLVMContext &C = L->getHeader()->getContext();
   HWLoopInfo.CounterInReg = true;
   HWLoopInfo.IsNestingLegal = false;
-  HWLoopInfo.PerformEntryTest = true;
+  HWLoopInfo.PerformEntryTest = AllowWLSLoops && !IsTailPredLoop;
   HWLoopInfo.CountType = Type::getInt32Ty(C);
   HWLoopInfo.LoopDecrement = ConstantInt::get(HWLoopInfo.CountType, 1);
   return true;
@@ -1944,6 +1976,10 @@ void ARMTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
   // Limit the CFG of the loop body for targets with a branch predictor.
   // Allowing 4 blocks permits if-then-else diamonds in the body.
   if (ST->hasBranchPredictor() && L->getNumBlocks() > 4)
+    return;
+
+  // Don't unroll vectorized loops, including the remainder loop
+  if (getBooleanLoopAttribute(L, "llvm.loop.isvectorized"))
     return;
 
   // Scan the loop: don't unroll loops with calls as this could prevent

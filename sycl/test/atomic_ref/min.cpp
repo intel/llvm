@@ -1,5 +1,7 @@
+// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-device-only -S %s -o - \
+// RUN: | FileCheck %s --check-prefix=CHECK-LLVM
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %RUN_ON_HOST %t.out
 
 #include <CL/sycl.hpp>
 #include <algorithm>
@@ -55,13 +57,43 @@ int main() {
   }
 
   constexpr int N = 32;
+  // CHECK-LLVM: declare dso_local spir_func i32
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicSMin
+  // CHECK-LLVM-SAME: (i32 addrspace(1)*, i32, i32, i32)
   min_test<int>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i32
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicUMin
+  // CHECK-LLVM-SAME: (i32 addrspace(1)*, i32, i32, i32)
   min_test<unsigned int>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i[[long:(32)|(64)]]
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicSMin
+  // CHECK-LLVM-SAME: (i[[long]] addrspace(1)*, i32, i32, i[[long]])
   min_test<long>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i[[long]]
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicUMin
+  // CHECK-LLVM-SAME: (i[[long]] addrspace(1)*, i32, i32, i[[long]])
   min_test<unsigned long>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i64
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicSMin
+  // CHECK-LLVM-SAME: (i64 addrspace(1)*, i32, i32, i64)
   min_test<long long>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i64
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicUMin
+  // CHECK-LLVM-SAME: (i64 addrspace(1)*, i32, i32, i64)
   min_test<unsigned long long>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i32
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicLoad
+  // CHECK-LLVM-SAME: (i32 addrspace(1)*, i32, i32)
+  // CHECK-LLVM: declare dso_local spir_func i32
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicCompareExchange
+  // CHECK-LLVM-SAME: (i32 addrspace(1)*, i32, i32, i32, i32, i32)
   min_test<float>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i64
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicLoad
+  // CHECK-LLVM-SAME: (i64 addrspace(1)*, i32, i32)
+  // CHECK-LLVM: declare dso_local spir_func i64
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicCompareExchange
+  // CHECK-LLVM-SAME: (i64 addrspace(1)*, i32, i32, i32, i64, i64)
   min_test<double>(q, N);
 
   std::cout << "Test passed." << std::endl;

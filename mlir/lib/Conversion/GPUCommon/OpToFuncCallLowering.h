@@ -29,16 +29,15 @@ namespace mlir {
 /// will be transformed into
 ///   llvm.call @__nv_expf(%arg_f32) : (!llvm.float) -> !llvm.float
 template <typename SourceOp>
-struct OpToFuncCallLowering : public ConvertToLLVMPattern {
+struct OpToFuncCallLowering : public ConvertOpToLLVMPattern<SourceOp> {
 public:
   explicit OpToFuncCallLowering(LLVMTypeConverter &lowering_, StringRef f32Func,
                                 StringRef f64Func)
-      : ConvertToLLVMPattern(SourceOp::getOperationName(),
-                             lowering_.getDialect()->getContext(), lowering_),
-        f32Func(f32Func), f64Func(f64Func) {}
+      : ConvertOpToLLVMPattern<SourceOp>(lowering_), f32Func(f32Func),
+        f64Func(f64Func) {}
 
   LogicalResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+  matchAndRewrite(SourceOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     using LLVM::LLVMFuncOp;
     using LLVM::LLVMType;
@@ -58,7 +57,8 @@ public:
     LLVMType resultType =
         castedOperands.front().getType().cast<LLVM::LLVMType>();
     LLVMType funcType = getFunctionType(resultType, castedOperands);
-    StringRef funcName = getFunctionName(funcType.getFunctionResultType());
+    StringRef funcName = getFunctionName(
+        funcType.cast<LLVM::LLVMFunctionType>().getReturnType());
     if (funcName.empty())
       return failure();
 
@@ -81,11 +81,11 @@ public:
 private:
   Value maybeCast(Value operand, PatternRewriter &rewriter) const {
     LLVM::LLVMType type = operand.getType().cast<LLVM::LLVMType>();
-    if (!type.isHalfTy())
+    if (!type.isa<LLVM::LLVMHalfType>())
       return operand;
 
     return rewriter.create<LLVM::FPExtOp>(
-        operand.getLoc(), LLVM::LLVMType::getFloatTy(rewriter.getContext()),
+        operand.getLoc(), LLVM::LLVMFloatType::get(rewriter.getContext()),
         operand);
   }
 
@@ -96,14 +96,13 @@ private:
     for (Value operand : operands) {
       operandTypes.push_back(operand.getType().cast<LLVMType>());
     }
-    return LLVMType::getFunctionTy(resultType, operandTypes,
-                                   /*isVarArg=*/false);
+    return LLVM::LLVMFunctionType::get(resultType, operandTypes);
   }
 
   StringRef getFunctionName(LLVM::LLVMType type) const {
-    if (type.isFloatTy())
+    if (type.isa<LLVM::LLVMFloatType>())
       return f32Func;
-    if (type.isDoubleTy())
+    if (type.isa<LLVM::LLVMDoubleType>())
       return f64Func;
     return "";
   }

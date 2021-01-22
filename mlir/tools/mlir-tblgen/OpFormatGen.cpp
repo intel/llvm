@@ -58,7 +58,8 @@ public:
     /// This element is a literal.
     Literal,
 
-    /// This element is printed as a space. It is ignored by the parser.
+    /// This element is a whitespace.
+    Newline,
     Space,
 
     /// This element is an variable value.
@@ -281,7 +282,7 @@ bool LiteralElement::isValidLiteral(StringRef value) {
   // If there is only one character, this must either be punctuation or a
   // single character bare identifier.
   if (value.size() == 1)
-    return isalpha(front) || StringRef("_:,=<>()[]{}?").contains(front);
+    return isalpha(front) || StringRef("_:,=<>()[]{}?+*").contains(front);
 
   // Check the punctuation that are larger than a single character.
   if (value == "->")
@@ -296,17 +297,45 @@ bool LiteralElement::isValidLiteral(StringRef value) {
 }
 
 //===----------------------------------------------------------------------===//
-// SpaceElement
+// WhitespaceElement
 
 namespace {
-/// This class represents an instance of a space element. It's a literal that
-/// is only printed, but ignored by the parser.
-class SpaceElement : public Element {
+/// This class represents a whitespace element, e.g. newline or space. It's a
+/// literal that is printed but never parsed.
+class WhitespaceElement : public Element {
 public:
-  SpaceElement() : Element{Kind::Space} {}
+  WhitespaceElement(Kind kind) : Element{kind} {}
+  static bool classof(const Element *element) {
+    Kind kind = element->getKind();
+    return kind == Kind::Newline || kind == Kind::Space;
+  }
+};
+
+/// This class represents an instance of a newline element. It's a literal that
+/// prints a newline. It is ignored by the parser.
+class NewlineElement : public WhitespaceElement {
+public:
+  NewlineElement() : WhitespaceElement(Kind::Newline) {}
+  static bool classof(const Element *element) {
+    return element->getKind() == Kind::Newline;
+  }
+};
+
+/// This class represents an instance of a space element. It's a literal that
+/// prints or omits printing a space. It is ignored by the parser.
+class SpaceElement : public WhitespaceElement {
+public:
+  SpaceElement(bool value) : WhitespaceElement(Kind::Space), value(value) {}
   static bool classof(const Element *element) {
     return element->getKind() == Kind::Space;
   }
+
+  /// Returns true if this element should print as a space. Otherwise, the
+  /// element should omit printing a space between the surrounding elements.
+  bool getValue() const { return value; }
+
+private:
+  bool value;
 };
 } // end anonymous namespace
 
@@ -319,9 +348,9 @@ namespace {
 class OptionalElement : public Element {
 public:
   OptionalElement(std::vector<std::unique_ptr<Element>> &&elements,
-                  unsigned anchor)
-      : Element{Kind::Optional}, elements(std::move(elements)), anchor(anchor) {
-  }
+                  unsigned anchor, unsigned parseStart)
+      : Element{Kind::Optional}, elements(std::move(elements)), anchor(anchor),
+        parseStart(parseStart) {}
   static bool classof(const Element *element) {
     return element->getKind() == Kind::Optional;
   }
@@ -332,11 +361,17 @@ public:
   /// Return the anchor of this optional group.
   Element *getAnchor() const { return elements[anchor].get(); }
 
+  /// Return the index of the first element that needs to be parsed.
+  unsigned getParseStart() const { return parseStart; }
+
 private:
   /// The child elements of this optional.
   std::vector<std::unique_ptr<Element>> elements;
   /// The index of the element that acts as the anchor for the optional group.
   unsigned anchor;
+  /// The index of the first element that is parsed (is not a
+  /// WhitespaceElement).
+  unsigned parseStart;
 };
 } // end anonymous namespace
 
@@ -450,7 +485,8 @@ struct OperationFormat {
 /// Returns true if we can format the given attribute as an EnumAttr in the
 /// parser format.
 static bool canFormatEnumAttr(const NamedAttribute *attr) {
-  const EnumAttr *enumAttr = dyn_cast<EnumAttr>(&attr->attr);
+  Attribute baseAttr = attr->attr.getBaseAttr();
+  const EnumAttr *enumAttr = dyn_cast<EnumAttr>(&baseAttr);
   if (!enumAttr)
     return false;
 
@@ -640,8 +676,11 @@ const char *regionListEnsureTerminatorParserCode = R"(
 ///
 /// {0}: The name of the region.
 const char *optionalRegionParserCode = R"(
-  if (parser.parseOptionalRegion(*{0}Region))
-    return ::mlir::failure();
+  {
+     auto parseResult = parser.parseOptionalRegion(*{0}Region);
+     if (parseResult.hasValue() && failed(*parseResult))
+       return ::mlir::failure();
+  }
 )";
 
 /// The code snippet used to generate a parser call for a region.
@@ -750,7 +789,9 @@ static void genLiteralParser(StringRef value, OpMethodBody &body) {
               .Case(")", "RParen()")
               .Case("[", "LSquare()")
               .Case("]", "RSquare()")
-              .Case("?", "Question()");
+              .Case("?", "Question()")
+              .Case("+", "Plus()")
+              .Case("*", "Star()");
 }
 
 /// Generate the storage code required for parsing the given element.
@@ -1026,7 +1067,8 @@ void OperationFormat::genElementParser(Element *element, OpMethodBody &body,
                                        FmtContext &attrTypeCtx) {
   /// Optional Group.
   if (auto *optional = dyn_cast<OptionalElement>(element)) {
-    auto elements = optional->getElements();
+    auto elements =
+        llvm::drop_begin(optional->getElements(), optional->getParseStart());
 
     // Generate a special optional parser for the first element to gate the
     // parsing of the rest of the elements.
@@ -1079,8 +1121,8 @@ void OperationFormat::genElementParser(Element *element, OpMethodBody &body,
     genLiteralParser(literal->getLiteral(), body);
     body << ")\n    return ::mlir::failure();\n";
 
-    /// Spaces.
-  } else if (isa<SpaceElement>(element)) {
+    /// Whitespaces.
+  } else if (isa<WhitespaceElement>(element)) {
     // Nothing to parse.
 
     /// Arguments.
@@ -1089,7 +1131,8 @@ void OperationFormat::genElementParser(Element *element, OpMethodBody &body,
 
     // Check to see if we can parse this as an enum attribute.
     if (canFormatEnumAttr(var)) {
-      const EnumAttr &enumAttr = cast<EnumAttr>(var->attr);
+      Attribute baseAttr = var->attr.getBaseAttr();
+      const EnumAttr &enumAttr = cast<EnumAttr>(baseAttr);
 
       // Generate the code for building an attribute for this enum.
       std::string attrBuilderStr;
@@ -1439,7 +1482,7 @@ const char *regionSingleBlockImplicitTerminatorPrinterCode = R"(
   {
     bool printTerminator = true;
     if (auto *term = {0}.empty() ? nullptr : {0}.begin()->getTerminator()) {{
-      printTerminator = !term->getMutableAttrDict().empty() ||
+      printTerminator = !term->getAttrDictionary().empty() ||
                         term->getNumOperands() != 0 ||
                         term->getNumResults() != 0;
     }
@@ -1493,11 +1536,13 @@ static void genLiteralPrinter(StringRef value, OpMethodBody &body,
 
 /// Generate the printer for a space. `shouldEmitSpace` and `lastWasPunctuation`
 /// are set to false.
-static void genSpacePrinter(OpMethodBody &body, bool &shouldEmitSpace,
-                            bool &lastWasPunctuation) {
-  body << "  p << ' ';\n";
+static void genSpacePrinter(bool value, OpMethodBody &body,
+                            bool &shouldEmitSpace, bool &lastWasPunctuation) {
+  if (value) {
+    body << "  p << ' ';\n";
+    lastWasPunctuation = false;
+  }
   shouldEmitSpace = false;
-  lastWasPunctuation = false;
 }
 
 /// Generate the printer for a custom directive.
@@ -1510,10 +1555,7 @@ static void genCustomDirectivePrinter(CustomDirective *customDir,
       body << attr->getVar()->name << "Attr()";
 
     } else if (isa<AttrDictDirective>(&param)) {
-      // Enforce the const-ness since getMutableAttrDict() returns a reference
-      // into the Operations `attr` member.
-      body << "(const "
-              "MutableDictionaryAttr&)getOperation()->getMutableAttrDict()";
+      body << "getOperation()->getAttrDictionary()";
 
     } else if (auto *operand = dyn_cast<OperandVariable>(&param)) {
       body << operand->getVar()->name << "()";
@@ -1598,8 +1640,14 @@ void OperationFormat::genElementPrinter(Element *element, OpMethodBody &body,
     return genLiteralPrinter(literal->getLiteral(), body, shouldEmitSpace,
                              lastWasPunctuation);
 
-  if (isa<SpaceElement>(element))
-    return genSpacePrinter(body, shouldEmitSpace, lastWasPunctuation);
+  // Emit a whitespace element.
+  if (NewlineElement *newline = dyn_cast<NewlineElement>(element)) {
+    body << "  p.printNewline();\n";
+    return;
+  }
+  if (SpaceElement *space = dyn_cast<SpaceElement>(element))
+    return genSpacePrinter(space->getValue(), body, shouldEmitSpace,
+                           lastWasPunctuation);
 
   // Emit an optional group.
   if (OptionalElement *optional = dyn_cast<OptionalElement>(element)) {
@@ -1617,7 +1665,7 @@ void OperationFormat::genElementPrinter(Element *element, OpMethodBody &body,
       body << "  if (!" << var->name << "().empty()) {\n";
 
     } else {
-      body << "  if (getAttr(\""
+      body << "  if ((*this)->getAttr(\""
            << cast<AttributeVariable>(anchor)->getVar()->name << "\")) {\n";
     }
 
@@ -1661,9 +1709,11 @@ void OperationFormat::genElementPrinter(Element *element, OpMethodBody &body,
 
     // If we are formatting as an enum, symbolize the attribute as a string.
     if (canFormatEnumAttr(var)) {
-      const EnumAttr &enumAttr = cast<EnumAttr>(var->attr);
+      Attribute baseAttr = var->attr.getBaseAttr();
+      const EnumAttr &enumAttr = cast<EnumAttr>(baseAttr);
       body << "  p << '\"' << " << enumAttr.getSymbolToStringFnName() << "("
-           << var->name << "()) << '\"';\n";
+           << (var->attr.isOptional() ? "*" : "") << var->name
+           << "()) << '\"';\n";
       return;
     }
 
@@ -2247,9 +2297,10 @@ LogicalResult FormatParser::verifyAttributes(
     for (auto &nextItPair : iteratorStack) {
       ElementsIterT nextIt = nextItPair.first, nextE = nextItPair.second;
       for (; nextIt != nextE; ++nextIt) {
-        // Skip any trailing spaces, attribute dictionaries, or optional groups.
-        if (isa<SpaceElement>(*nextIt) || isa<AttrDictDirective>(*nextIt) ||
-            isa<OptionalElement>(*nextIt))
+        // Skip any trailing whitespace, attribute dictionaries, or optional
+        // groups.
+        if (isa<WhitespaceElement>(*nextIt) ||
+            isa<AttrDictDirective>(*nextIt) || isa<OptionalElement>(*nextIt))
           continue;
 
         // We are only interested in `:` literals.
@@ -2570,9 +2621,14 @@ LogicalResult FormatParser::parseLiteral(std::unique_ptr<Element> &element) {
 
   StringRef value = literalTok.getSpelling().drop_front().drop_back();
 
-  // The parsed literal is a space.
-  if (value.size() == 1 && value.front() == ' ') {
-    element = std::make_unique<SpaceElement>();
+  // The parsed literal is a space element (`` or ` `).
+  if (value.empty() || (value.size() == 1 && value.front() == ' ')) {
+    element = std::make_unique<SpaceElement>(!value.empty());
+    return ::mlir::success();
+  }
+  // The parsed literal is a newline element.
+  if (value == "\\n") {
+    element = std::make_unique<NewlineElement>();
     return ::mlir::success();
   }
 
@@ -2608,14 +2664,18 @@ LogicalResult FormatParser::parseOptional(std::unique_ptr<Element> &element,
   if (!anchorIdx)
     return emitError(curLoc, "optional group specified no anchor element");
 
-  // The first element of the group must be one that can be parsed/printed in an
+  // The first parsable element of the group must be able to be parsed in an
   // optional fashion.
-  Element *firstElement = &*elements.front();
+  auto parseBegin = llvm::find_if_not(elements, [](auto &element) {
+    return isa<WhitespaceElement>(element.get());
+  });
+  Element *firstElement = parseBegin->get();
   if (!isa<AttributeVariable>(firstElement) &&
       !isa<LiteralElement>(firstElement) &&
       !isa<OperandVariable>(firstElement) && !isa<RegionVariable>(firstElement))
-    return emitError(curLoc, "first element of an operand group must be an "
-                             "attribute, literal, operand, or region");
+    return emitError(curLoc,
+                     "first parsable element of an operand group must be "
+                     "an attribute, literal, operand, or region");
 
   // After parsing all of the elements, ensure that all type directives refer
   // only to elements within the group.
@@ -2642,7 +2702,9 @@ LogicalResult FormatParser::parseOptional(std::unique_ptr<Element> &element,
   }
 
   optionalVariables.insert(seenVariables.begin(), seenVariables.end());
-  element = std::make_unique<OptionalElement>(std::move(elements), *anchorIdx);
+  auto parseStart = parseBegin - elements.begin();
+  element = std::make_unique<OptionalElement>(std::move(elements), *anchorIdx,
+                                              parseStart);
   return ::mlir::success();
 }
 
@@ -2688,9 +2750,9 @@ LogicalResult FormatParser::parseOptionalChildElement(
         // a check here.
         return ::mlir::success();
       })
-      // Literals, spaces, custom directives, and type directives may be used,
-      // but they can't anchor the group.
-      .Case<LiteralElement, SpaceElement, CustomDirective,
+      // Literals, whitespace, custom directives, and type directives may be
+      // used, but they can't anchor the group.
+      .Case<LiteralElement, WhitespaceElement, CustomDirective,
             FunctionalTypeDirective, OptionalElement, TypeRefDirective,
             TypeDirective>([&](Element *) {
         if (isAnchor)

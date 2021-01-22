@@ -303,8 +303,8 @@ bool AMDGPURewriteOutArguments::runOnFunction(Function &F) {
       for (ReturnInst *RI : Returns) {
         BasicBlock *BB = RI->getParent();
 
-        MemDepResult Q = MDA->getPointerDependencyFrom(MemoryLocation(OutArg),
-                                                       true, BB->end(), BB, RI);
+        MemDepResult Q = MDA->getPointerDependencyFrom(
+            MemoryLocation::getBeforeOrAfter(OutArg), true, BB->end(), BB, RI);
         StoreInst *SI = nullptr;
         if (Q.isDef())
           SI = dyn_cast<StoreInst>(Q.getInst());
@@ -325,9 +325,10 @@ bool AMDGPURewriteOutArguments::runOnFunction(Function &F) {
         Value *ReplVal = Store.second->getValueOperand();
 
         auto &ValVec = Replacements[Store.first];
-        if (llvm::find_if(ValVec,
-              [OutArg](const std::pair<Argument *, Value *> &Entry) {
-                 return Entry.first == OutArg;}) != ValVec.end()) {
+        if (llvm::any_of(ValVec,
+                         [OutArg](const std::pair<Argument *, Value *> &Entry) {
+                           return Entry.first == OutArg;
+                         })) {
           LLVM_DEBUG(dbgs()
                      << "Saw multiple out arg stores" << *OutArg << '\n');
           // It is possible to see stores to the same argument multiple times,

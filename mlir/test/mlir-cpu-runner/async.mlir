@@ -1,4 +1,5 @@
-// RUN:   mlir-opt %s -convert-async-to-llvm                                   \
+// RUN:   mlir-opt %s -async-ref-counting                                      \
+// RUN:               -convert-async-to-llvm                                   \
 // RUN:               -convert-linalg-to-loops                                 \
 // RUN:               -convert-linalg-to-llvm                                  \
 // RUN:               -convert-std-to-llvm                                     \
@@ -79,6 +80,6 @@ func @main() {
   return
 }
 
-func @mlirAsyncRuntimePrintCurrentThreadId() -> ()
+func private @mlirAsyncRuntimePrintCurrentThreadId() -> ()
 
-func @print_memref_f32(memref<*xf32>) attributes { llvm.emit_c_interface }
+func private @print_memref_f32(memref<*xf32>) attributes { llvm.emit_c_interface }

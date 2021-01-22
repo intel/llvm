@@ -165,9 +165,6 @@ endif()
 # Build the shared library.
 if (LIBCXXABI_ENABLE_SHARED)
   add_library(cxxabi_shared SHARED ${LIBCXXABI_SOURCES} ${LIBCXXABI_HEADERS})
-  if(COMMAND llvm_setup_rpath)
-    llvm_setup_rpath(cxxabi_shared)
-  endif()
   target_link_libraries(cxxabi_shared PRIVATE ${LIBCXXABI_SHARED_LIBRARIES} ${LIBCXXABI_LIBRARIES})
   if (TARGET pstl::ParallelSTL)
     target_link_libraries(cxxabi_shared PUBLIC pstl::ParallelSTL)
@@ -177,9 +174,9 @@ if (LIBCXXABI_ENABLE_SHARED)
                           CXX_EXTENSIONS
                             OFF
                           CXX_STANDARD
-                            17
+                            20
                           CXX_STANDARD_REQUIRED
-                            ON
+                            OFF
                           COMPILE_FLAGS
                             "${LIBCXXABI_COMPILE_FLAGS}"
                           LINK_FLAGS
@@ -244,9 +241,9 @@ if (LIBCXXABI_ENABLE_STATIC)
                           CXX_EXTENSIONS
                             OFF
                           CXX_STANDARD
-                            17
+                            20
                           CXX_STANDARD_REQUIRED
-                            ON
+                            OFF
                           COMPILE_FLAGS
                             "${LIBCXXABI_COMPILE_FLAGS}"
                           LINK_FLAGS

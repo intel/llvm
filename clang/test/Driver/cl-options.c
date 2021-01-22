@@ -311,6 +311,14 @@
 // RUN: %clang_cl -c -fno-strict-aliasing -### -- %s 2>&1 | FileCheck -check-prefix=NOSTRICT %s
 // NOSTRICT: "-relaxed-aliasing"
 
+// We recognize -f[no-]delete-null-pointer-checks.
+// RUN: %clang_cl -c -### -- %s 2>&1 | FileCheck -check-prefix=DEFAULTNULL %s
+// DEFAULTNULL-NOT: "-fno-delete-null-pointer-checks"
+// RUN: %clang_cl -c -fdelete-null-pointer-checks -### -- %s 2>&1 | FileCheck -check-prefix=NULL %s
+// NULL-NOT: "-fno-delete-null-pointer-checks"
+// RUN: %clang_cl -c -fno-delete-null-pointer-checks -### -- %s 2>&1 | FileCheck -check-prefix=NONULL %s
+// NONULL: "-fno-delete-null-pointer-checks"
+
 // We recognize -f[no-]delayed-template-parsing.
 // /Zc:twoPhase[-] has the opposite meaning.
 // RUN: %clang_cl -c -### -- %s 2>&1 | FileCheck -check-prefix=DELAYEDDEFAULT %s
@@ -529,10 +537,6 @@
 // RUN: %clang_cl /Z7 /c -### -- %s 2>&1 | FileCheck -check-prefix=Z7 %s
 // Z7: "-gcodeview"
 // Z7: "-debug-info-kind=limited"
-
-// RUN: %clang_cl /Zd /c -### -- %s 2>&1 | FileCheck -check-prefix=Z7GMLT %s
-// Z7GMLT: "-gcodeview"
-// Z7GMLT: "-debug-info-kind=line-tables-only"
 
 // RUN: %clang_cl -gline-tables-only /c -### -- %s 2>&1 | FileCheck -check-prefix=ZGMLT %s
 // ZGMLT: "-gcodeview"

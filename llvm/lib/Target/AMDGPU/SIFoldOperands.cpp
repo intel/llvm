@@ -172,9 +172,23 @@ static bool frameIndexMayFold(const SIInstrInfo *TII,
                               const MachineInstr &UseMI,
                               int OpNo,
                               const MachineOperand &OpToFold) {
-  return OpToFold.isFI() &&
-    TII->isMUBUF(UseMI) &&
-    OpNo == AMDGPU::getNamedOperandIdx(UseMI.getOpcode(), AMDGPU::OpName::vaddr);
+  if (!OpToFold.isFI())
+    return false;
+
+  if (TII->isMUBUF(UseMI))
+    return OpNo == AMDGPU::getNamedOperandIdx(UseMI.getOpcode(),
+                                              AMDGPU::OpName::vaddr);
+  if (!TII->isFLATScratch(UseMI))
+    return false;
+
+  int SIdx = AMDGPU::getNamedOperandIdx(UseMI.getOpcode(),
+                                        AMDGPU::OpName::saddr);
+  if (OpNo == SIdx)
+    return true;
+
+  int VIdx = AMDGPU::getNamedOperandIdx(UseMI.getOpcode(),
+                                        AMDGPU::OpName::vaddr);
+  return OpNo == VIdx && SIdx == -1;
 }
 
 FunctionPass *llvm::createSIFoldOperandsPass() {
@@ -546,8 +560,9 @@ static bool tryToFoldACImm(const SIInstrInfo *TII,
   if (!UseReg.isVirtual())
     return false;
 
-  if (llvm::find_if(FoldList, [UseMI](const FoldCandidate &FC) {
-        return FC.UseMI == UseMI; }) != FoldList.end())
+  if (llvm::any_of(FoldList, [UseMI](const FoldCandidate &FC) {
+        return FC.UseMI == UseMI;
+      }))
     return false;
 
   MachineRegisterInfo &MRI = UseMI->getParent()->getParent()->getRegInfo();
@@ -631,25 +646,36 @@ void SIFoldOperands::foldOperand(
     // Sanity check that this is a stack access.
     // FIXME: Should probably use stack pseudos before frame lowering.
 
-    if (TII->getNamedOperand(*UseMI, AMDGPU::OpName::srsrc)->getReg() !=
-        MFI->getScratchRSrcReg())
-      return;
+    if (TII->isMUBUF(*UseMI)) {
+      if (TII->getNamedOperand(*UseMI, AMDGPU::OpName::srsrc)->getReg() !=
+          MFI->getScratchRSrcReg())
+        return;
 
-    // Ensure this is either relative to the current frame or the current wave.
-    MachineOperand &SOff =
-        *TII->getNamedOperand(*UseMI, AMDGPU::OpName::soffset);
-    if ((!SOff.isReg() || SOff.getReg() != MFI->getStackPtrOffsetReg()) &&
-        (!SOff.isImm() || SOff.getImm() != 0))
-      return;
+      // Ensure this is either relative to the current frame or the current
+      // wave.
+      MachineOperand &SOff =
+          *TII->getNamedOperand(*UseMI, AMDGPU::OpName::soffset);
+      if ((!SOff.isReg() || SOff.getReg() != MFI->getStackPtrOffsetReg()) &&
+          (!SOff.isImm() || SOff.getImm() != 0))
+        return;
+
+      // If this is relative to the current wave, update it to be relative to
+      // the current frame.
+      if (SOff.isImm())
+        SOff.ChangeToRegister(MFI->getStackPtrOffsetReg(), false);
+    }
 
     // A frame index will resolve to a positive constant, so it should always be
     // safe to fold the addressing mode, even pre-GFX9.
     UseMI->getOperand(UseOpIdx).ChangeToFrameIndex(OpToFold.getIndex());
 
-    // If this is relative to the current wave, update it to be relative to the
-    // current frame.
-    if (SOff.isImm())
-      SOff.ChangeToRegister(MFI->getStackPtrOffsetReg(), false);
+    if (TII->isFLATScratch(*UseMI) &&
+        AMDGPU::getNamedOperandIdx(UseMI->getOpcode(),
+                                   AMDGPU::OpName::vaddr) != -1) {
+      unsigned NewOpc = AMDGPU::getFlatScratchInstSSfromSV(UseMI->getOpcode());
+      UseMI->setDesc(TII->get(NewOpc));
+    }
+
     return;
   }
 
@@ -1257,8 +1283,11 @@ void SIFoldOperands::foldInstOperand(MachineInstr &MI,
   for (MachineInstr *Copy : CopiesToReplace)
     Copy->addImplicitDefUseOperands(*MF);
 
+  SmallPtrSet<MachineInstr *, 16> Folded;
   for (FoldCandidate &Fold : FoldList) {
     assert(!Fold.isReg() || Fold.OpToFold);
+    if (Folded.count(Fold.UseMI))
+      continue;
     if (Fold.isReg() && Fold.OpToFold->getReg().isVirtual()) {
       Register Reg = Fold.OpToFold->getReg();
       MachineInstr *DefMI = Fold.OpToFold->getParent();
@@ -1278,7 +1307,8 @@ void SIFoldOperands::foldInstOperand(MachineInstr &MI,
       LLVM_DEBUG(dbgs() << "Folded source from " << MI << " into OpNo "
                         << static_cast<int>(Fold.UseOpNo) << " of "
                         << *Fold.UseMI << '\n');
-      tryFoldInst(TII, Fold.UseMI);
+      if (tryFoldInst(TII, Fold.UseMI))
+        Folded.insert(Fold.UseMI);
     } else if (Fold.isCommuted()) {
       // Restoring instruction's original operand order if fold has failed.
       TII->commuteInstruction(*Fold.UseMI, false);

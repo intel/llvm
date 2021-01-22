@@ -42,8 +42,8 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_A' 'int'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_B' 'int'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read>':'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t, cl::sycl::ONEAPI::accessor_property_list<>>' 'void () noexcept'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read>':'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t, cl::sycl::ONEAPI::accessor_property_list<>>' 'void () noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read>':'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read>':'cl::sycl::accessor<char, 1, cl::sycl::access::mode::read, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t>' 'void () noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_C' 'int'
 

@@ -68,8 +68,10 @@ namespace wasm {
 DefinedFunction *WasmSym::callCtors;
 DefinedFunction *WasmSym::callDtors;
 DefinedFunction *WasmSym::initMemory;
-DefinedFunction *WasmSym::applyRelocs;
+DefinedFunction *WasmSym::applyDataRelocs;
+DefinedFunction *WasmSym::applyGlobalRelocs;
 DefinedFunction *WasmSym::initTLS;
+DefinedFunction *WasmSym::startFunction;
 DefinedData *WasmSym::dsoHandle;
 DefinedData *WasmSym::dataEnd;
 DefinedData *WasmSym::globalBase;
@@ -109,6 +111,9 @@ const WasmSignature *Symbol::getSignature() const {
 InputChunk *Symbol::getChunk() const {
   if (auto *f = dyn_cast<DefinedFunction>(this))
     return f->function;
+  if (auto *f = dyn_cast<UndefinedFunction>(this))
+    if (f->stubFunction)
+      return f->stubFunction->function;
   if (auto *d = dyn_cast<DefinedData>(this))
     return d->segment;
   return nullptr;
@@ -132,7 +137,7 @@ bool Symbol::isLive() const {
 
 void Symbol::markLive() {
   assert(!isDiscarded());
-  if (file != NULL)
+  if (file != NULL && isDefined())
     file->markLive();
   if (auto *g = dyn_cast<DefinedGlobal>(this))
     g->global->live = true;
@@ -207,6 +212,11 @@ bool Symbol::isNoStrip() const {
 uint32_t FunctionSymbol::getFunctionIndex() const {
   if (auto *f = dyn_cast<DefinedFunction>(this))
     return f->function->getFunctionIndex();
+  if (const auto *u = dyn_cast<UndefinedFunction>(this)) {
+    if (u->stubFunction) {
+      return u->stubFunction->getFunctionIndex();
+    }
+  }
   assert(functionIndex != INVALID_INDEX);
   return functionIndex;
 }
@@ -257,14 +267,8 @@ DefinedFunction::DefinedFunction(StringRef name, uint32_t flags, InputFile *f,
 
 uint64_t DefinedData::getVirtualAddress() const {
   LLVM_DEBUG(dbgs() << "getVirtualAddress: " << getName() << "\n");
-  if (segment) {
-    // For thread local data, the symbol location is relative to the start of
-    // the .tdata section, since they are used as offsets from __tls_base.
-    // Hence, we do not add in segment->outputSeg->startVA.
-    if (segment->outputSeg->name == ".tdata")
-      return segment->outputSegmentOffset + offset;
+  if (segment)
     return segment->outputSeg->startVA + segment->outputSegmentOffset + offset;
-  }
   return offset;
 }
 

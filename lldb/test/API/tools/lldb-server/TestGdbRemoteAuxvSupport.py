@@ -10,7 +10,6 @@ class TestGdbRemoteAuxvSupport(gdbremote_testcase.GdbRemoteTestCaseBase):
 
     AUXV_SUPPORT_FEATURE_NAME = "qXfer:auxv:read"
 
-    @skipIfDarwinEmbedded # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
     def has_auxv_support(self):
         inferior_args = ["message:main entered", "sleep:5"]
         procs = self.prep_debug_monitor_and_inferior(
@@ -104,7 +103,6 @@ class TestGdbRemoteAuxvSupport(gdbremote_testcase.GdbRemoteTestCaseBase):
     @skipIfWindows # no auxv support.
     @llgs_test
     def test_supports_auxv_llgs(self):
-        self.init_llgs_test()
         self.build()
         self.set_inferior_startup_launch()
         self.supports_auxv()
@@ -120,7 +118,6 @@ class TestGdbRemoteAuxvSupport(gdbremote_testcase.GdbRemoteTestCaseBase):
 
     @debugserver_test
     def test_auxv_data_is_correct_size_debugserver(self):
-        self.init_debugserver_test()
         self.build()
         self.set_inferior_startup_launch()
         self.auxv_data_is_correct_size()
@@ -129,7 +126,6 @@ class TestGdbRemoteAuxvSupport(gdbremote_testcase.GdbRemoteTestCaseBase):
     @expectedFailureNetBSD
     @llgs_test
     def test_auxv_data_is_correct_size_llgs(self):
-        self.init_llgs_test()
         self.build()
         self.set_inferior_startup_launch()
         self.auxv_data_is_correct_size()
@@ -160,7 +156,6 @@ class TestGdbRemoteAuxvSupport(gdbremote_testcase.GdbRemoteTestCaseBase):
 
     @debugserver_test
     def test_auxv_keys_look_valid_debugserver(self):
-        self.init_debugserver_test()
         self.build()
         self.set_inferior_startup_launch()
         self.auxv_keys_look_valid()
@@ -169,7 +164,6 @@ class TestGdbRemoteAuxvSupport(gdbremote_testcase.GdbRemoteTestCaseBase):
     @expectedFailureNetBSD
     @llgs_test
     def test_auxv_keys_look_valid_llgs(self):
-        self.init_llgs_test()
         self.build()
         self.set_inferior_startup_launch()
         self.auxv_keys_look_valid()
@@ -209,7 +203,6 @@ class TestGdbRemoteAuxvSupport(gdbremote_testcase.GdbRemoteTestCaseBase):
 
     @debugserver_test
     def test_auxv_chunked_reads_work_debugserver(self):
-        self.init_debugserver_test()
         self.build()
         self.set_inferior_startup_launch()
         self.auxv_chunked_reads_work()
@@ -218,7 +211,6 @@ class TestGdbRemoteAuxvSupport(gdbremote_testcase.GdbRemoteTestCaseBase):
     @expectedFailureNetBSD
     @llgs_test
     def test_auxv_chunked_reads_work_llgs(self):
-        self.init_llgs_test()
         self.build()
         self.set_inferior_startup_launch()
         self.auxv_chunked_reads_work()

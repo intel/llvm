@@ -20,6 +20,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPU.h"
+#include "SIDefines.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -153,7 +154,7 @@ static BasicBlock *unifyReturnBlockSet(Function &F,
     Value *Undef = UndefValue::get(B.getFloatTy());
     B.CreateIntrinsic(Intrinsic::amdgcn_exp, { B.getFloatTy() },
                       {
-                        B.getInt32(9), // target, SQ_EXP_NULL
+                        B.getInt32(AMDGPU::Exp::ET_NULL),
                         B.getInt32(0), // enabled channels
                         Undef, Undef, Undef, Undef, // values
                         B.getTrue(), // done
@@ -187,7 +188,8 @@ static BasicBlock *unifyReturnBlockSet(Function &F,
 
   for (BasicBlock *BB : ReturningBlocks) {
     // Cleanup possible branch to unconditional branch to the return.
-    simplifyCFG(BB, TTI, SimplifyCFGOptions().bonusInstThreshold(2));
+    simplifyCFG(BB, TTI, /*DTU=*/nullptr,
+                SimplifyCFGOptions().bonusInstThreshold(2));
   }
 
   return NewRetBlock;

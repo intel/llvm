@@ -132,6 +132,10 @@ public:
                                const ScheduleDAG *DAG) const override;
 
   ScheduleHazardRecognizer *
+  CreateTargetMIHazardRecognizer(const InstrItineraryData *II,
+                                 const ScheduleDAGMI *DAG) const override;
+
+  ScheduleHazardRecognizer *
   CreateTargetPostRAHazardRecognizer(const InstrItineraryData *II,
                                      const ScheduleDAG *DAG) const override;
 
@@ -360,6 +364,11 @@ public:
   /// Enable outlining by default at -Oz.
   bool shouldOutlineFromFunctionByDefault(MachineFunction &MF) const override;
 
+  bool isUnspillableTerminatorImpl(const MachineInstr *MI) const override {
+    return MI->getOpcode() == ARM::t2LoopEndDec ||
+           MI->getOpcode() == ARM::t2DoLoopStartTP;
+  }
+
 private:
   /// Returns an unused general-purpose register which can be used for
   /// constructing an outlined call if one exists. Returns 0 otherwise.
@@ -368,12 +377,33 @@ private:
   // Adds an instruction which saves the link register on top of the stack into
   /// the MachineBasicBlock \p MBB at position \p It.
   void saveLROnStack(MachineBasicBlock &MBB,
-                     MachineBasicBlock::iterator &It) const;
+                     MachineBasicBlock::iterator It) const;
 
   /// Adds an instruction which restores the link register from the top the
   /// stack into the MachineBasicBlock \p MBB at position \p It.
   void restoreLRFromStack(MachineBasicBlock &MBB,
-                          MachineBasicBlock::iterator &It) const;
+                          MachineBasicBlock::iterator It) const;
+
+  /// Emit CFI instructions into the MachineBasicBlock \p MBB at position \p It,
+  /// for the case when the LR is saved on the stack.
+  void emitCFIForLRSaveOnStack(MachineBasicBlock &MBB,
+                               MachineBasicBlock::iterator It) const;
+
+  /// Emit CFI instructions into the MachineBasicBlock \p MBB at position \p It,
+  /// for the case when the LR is saved in the register \p Reg.
+  void emitCFIForLRSaveToReg(MachineBasicBlock &MBB,
+                             MachineBasicBlock::iterator It,
+                             Register Reg) const;
+
+  /// Emit CFI instructions into the MachineBasicBlock \p MBB at position \p It,
+  /// after the LR is was restored from the stack.
+  void emitCFIForLRRestoreFromStack(MachineBasicBlock &MBB,
+                                    MachineBasicBlock::iterator It) const;
+
+  /// Emit CFI instructions into the MachineBasicBlock \p MBB at position \p It,
+  /// after the LR is was restored from a register.
+  void emitCFIForLRRestoreFromReg(MachineBasicBlock &MBB,
+                                  MachineBasicBlock::iterator It) const;
 
   unsigned getInstBundleLength(const MachineInstr &MI) const;
 
@@ -594,55 +624,6 @@ unsigned VCMPOpcodeToVPT(unsigned Opcode) {
 }
 
 static inline
-unsigned VCTPOpcodeToLSTP(unsigned Opcode, bool IsDoLoop) {
-  switch (Opcode) {
-  default:
-    llvm_unreachable("unhandled vctp opcode");
-    break;
-  case ARM::MVE_VCTP8:
-    return IsDoLoop ? ARM::MVE_DLSTP_8 : ARM::MVE_WLSTP_8;
-  case ARM::MVE_VCTP16:
-    return IsDoLoop ? ARM::MVE_DLSTP_16 : ARM::MVE_WLSTP_16;
-  case ARM::MVE_VCTP32:
-    return IsDoLoop ? ARM::MVE_DLSTP_32 : ARM::MVE_WLSTP_32;
-  case ARM::MVE_VCTP64:
-    return IsDoLoop ? ARM::MVE_DLSTP_64 : ARM::MVE_WLSTP_64;
-  }
-  return 0;
-}
-
-static inline unsigned getTailPredVectorWidth(unsigned Opcode) {
-  switch (Opcode) {
-  default:
-    llvm_unreachable("unhandled vctp opcode");
-  case ARM::MVE_VCTP8:  return 16;
-  case ARM::MVE_VCTP16: return 8;
-  case ARM::MVE_VCTP32: return 4;
-  case ARM::MVE_VCTP64: return 2;
-  }
-  return 0;
-}
-
-static inline bool isVCTP(const MachineInstr *MI) {
-  switch (MI->getOpcode()) {
-  default:
-    break;
-  case ARM::MVE_VCTP8:
-  case ARM::MVE_VCTP16:
-  case ARM::MVE_VCTP32:
-  case ARM::MVE_VCTP64:
-    return true;
-  }
-  return false;
-}
-
-static inline
-bool isLoopStart(MachineInstr &MI) {
-  return MI.getOpcode() == ARM::t2DoLoopStart ||
-         MI.getOpcode() == ARM::t2WhileLoopStart;
-}
-
-static inline
 bool isCondBranchOpcode(int Opc) {
   return Opc == ARM::Bcc || Opc == ARM::tBcc || Opc == ARM::t2Bcc;
 }
@@ -656,6 +637,67 @@ static inline bool isJumpTableBranchOpcode(int Opc) {
 static inline
 bool isIndirectBranchOpcode(int Opc) {
   return Opc == ARM::BX || Opc == ARM::MOVPCRX || Opc == ARM::tBRIND;
+}
+
+static inline bool isIndirectCall(const MachineInstr &MI) {
+  int Opc = MI.getOpcode();
+  switch (Opc) {
+    // indirect calls:
+  case ARM::BLX:
+  case ARM::BLX_noip:
+  case ARM::BLX_pred:
+  case ARM::BLX_pred_noip:
+  case ARM::BX_CALL:
+  case ARM::BMOVPCRX_CALL:
+  case ARM::TCRETURNri:
+  case ARM::TAILJMPr:
+  case ARM::TAILJMPr4:
+  case ARM::tBLXr:
+  case ARM::tBLXr_noip:
+  case ARM::tBLXNSr:
+  case ARM::tBLXNS_CALL:
+  case ARM::tBX_CALL:
+  case ARM::tTAILJMPr:
+    assert(MI.isCall(MachineInstr::IgnoreBundle));
+    return true;
+    // direct calls:
+  case ARM::BL:
+  case ARM::BL_pred:
+  case ARM::BMOVPCB_CALL:
+  case ARM::BL_PUSHLR:
+  case ARM::BLXi:
+  case ARM::TCRETURNdi:
+  case ARM::TAILJMPd:
+  case ARM::SVC:
+  case ARM::HVC:
+  case ARM::TPsoft:
+  case ARM::tTAILJMPd:
+  case ARM::t2SMC:
+  case ARM::t2HVC:
+  case ARM::tBL:
+  case ARM::tBLXi:
+  case ARM::tBL_PUSHLR:
+  case ARM::tTAILJMPdND:
+  case ARM::tSVC:
+  case ARM::tTPsoft:
+    assert(MI.isCall(MachineInstr::IgnoreBundle));
+    return false;
+  }
+  assert(!MI.isCall(MachineInstr::IgnoreBundle));
+  return false;
+}
+
+static inline bool isIndirectControlFlowNotComingBack(const MachineInstr &MI) {
+  int opc = MI.getOpcode();
+  return MI.isReturn() || isIndirectBranchOpcode(MI.getOpcode()) ||
+         isJumpTableBranchOpcode(opc);
+}
+
+static inline bool isSpeculationBarrierEndBBOpcode(int Opc) {
+  return Opc == ARM::SpeculationBarrierISBDSBEndBB ||
+         Opc == ARM::SpeculationBarrierSBEndBB ||
+         Opc == ARM::t2SpeculationBarrierISBDSBEndBB ||
+         Opc == ARM::t2SpeculationBarrierSBEndBB;
 }
 
 static inline bool isPopOpcode(int Opc) {
@@ -872,6 +914,10 @@ inline bool isGatherScatter(IntrinsicInst *IntInst) {
     return false;
   return isGather(IntInst) || isScatter(IntInst);
 }
+
+unsigned getBLXOpcode(const MachineFunction &MF);
+unsigned gettBLXrOpcode(const MachineFunction &MF);
+unsigned getBLXpredOpcode(const MachineFunction &MF);
 
 } // end namespace llvm
 

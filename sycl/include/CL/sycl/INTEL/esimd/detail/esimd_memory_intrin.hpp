@@ -14,6 +14,7 @@
 #include <CL/sycl/INTEL/esimd/detail/esimd_types.hpp>
 #include <CL/sycl/INTEL/esimd/detail/esimd_util.hpp>
 #include <CL/sycl/INTEL/esimd/esimd_enum.hpp>
+#include <CL/sycl/types.hpp>
 #include <cstdint>
 
 // flat_read does flat-address gather
@@ -194,6 +195,9 @@ __esimd_flat_atomic2(sycl::INTEL::gpu::vector_type_t<uint64_t, N> addrs,
 
 // esimd_barrier, generic group barrier
 SYCL_EXTERNAL void __esimd_barrier();
+
+// generic work-group split barrier
+SYCL_EXTERNAL void __esimd_sbarrier(sycl::INTEL::gpu::EsimdSbarrierType flag);
 
 // slm_fence sets the SLM read/write order
 SYCL_EXTERNAL void __esimd_slm_fence(uint8_t cntl);
@@ -770,6 +774,8 @@ __esimd_dp4(sycl::INTEL::gpu::vector_type_t<Ty, N> v1,
 
 /// TODO
 SYCL_EXTERNAL void __esimd_barrier() {}
+
+SYCL_EXTERNAL void __esimd_sbarrier(sycl::INTEL::gpu::EsimdSbarrierType flag) {}
 
 SYCL_EXTERNAL void __esimd_slm_fence(uint8_t cntl) {}
 

@@ -175,7 +175,7 @@ bool Input::preflightKey(const char *Key, bool Required, bool, bool &UseDefault,
     return false;
   }
   MN->ValidKeys.push_back(Key);
-  HNode *Value = MN->Mapping[Key].get();
+  HNode *Value = MN->Mapping[Key].first.get();
   if (!Value) {
     if (Required)
       setError(CurrentNode, Twine("missing required key '") + Key + "'");
@@ -201,12 +201,12 @@ void Input::endMapping() {
     return;
   for (const auto &NN : MN->Mapping) {
     if (!is_contained(MN->ValidKeys, NN.first())) {
-      HNode *ReportNode = NN.second.get();
+      const SMRange &ReportLoc = NN.second.second;
       if (!AllowUnknownKeys) {
-        setError(ReportNode, Twine("unknown key '") + NN.first() + "'");
+        setError(ReportLoc, Twine("unknown key '") + NN.first() + "'");
         break;
       } else
-        reportWarning(ReportNode, Twine("unknown key '") + NN.first() + "'");
+        reportWarning(ReportLoc, Twine("unknown key '") + NN.first() + "'");
     }
   }
 }
@@ -378,9 +378,22 @@ void Input::setError(Node *node, const Twine &message) {
   EC = make_error_code(errc::invalid_argument);
 }
 
+void Input::setError(const SMRange &range, const Twine &message) {
+  Strm->printError(range, message);
+  EC = make_error_code(errc::invalid_argument);
+}
+
 void Input::reportWarning(HNode *hnode, const Twine &message) {
   assert(hnode && "HNode must not be NULL");
   Strm->printError(hnode->_node, message, SourceMgr::DK_Warning);
+}
+
+void Input::reportWarning(Node *node, const Twine &message) {
+  Strm->printError(node, message, SourceMgr::DK_Warning);
+}
+
+void Input::reportWarning(const SMRange &range, const Twine &message) {
+  Strm->printError(range, message, SourceMgr::DK_Warning);
 }
 
 std::unique_ptr<Input::HNode> Input::createHNodes(Node *N) {
@@ -426,7 +439,8 @@ std::unique_ptr<Input::HNode> Input::createHNodes(Node *N) {
       auto ValueHNode = createHNodes(Value);
       if (EC)
         break;
-      mapHNode->Mapping[KeyStr] = std::move(ValueHNode);
+      mapHNode->Mapping[KeyStr] =
+          std::make_pair(std::move(ValueHNode), KeyNode->getSourceRange());
     }
     return std::move(mapHNode);
   } else if (isa<NullNode>(N)) {
@@ -871,11 +885,8 @@ void ScalarTraits<bool>::output(const bool &Val, void *, raw_ostream &Out) {
 }
 
 StringRef ScalarTraits<bool>::input(StringRef Scalar, void *, bool &Val) {
-  if (Scalar.equals("true")) {
-    Val = true;
-    return StringRef();
-  } else if (Scalar.equals("false")) {
-    Val = false;
+  if (llvm::Optional<bool> Parsed = parseBool(Scalar)) {
+    Val = *Parsed;
     return StringRef();
   }
   return "invalid boolean";
@@ -1046,8 +1057,7 @@ StringRef ScalarTraits<float>::input(StringRef Scalar, void *, float &Val) {
 }
 
 void ScalarTraits<Hex8>::output(const Hex8 &Val, void *, raw_ostream &Out) {
-  uint8_t Num = Val;
-  Out << format("0x%02X", Num);
+  Out << format("0x%" PRIX8, (uint8_t)Val);
 }
 
 StringRef ScalarTraits<Hex8>::input(StringRef Scalar, void *, Hex8 &Val) {
@@ -1061,8 +1071,7 @@ StringRef ScalarTraits<Hex8>::input(StringRef Scalar, void *, Hex8 &Val) {
 }
 
 void ScalarTraits<Hex16>::output(const Hex16 &Val, void *, raw_ostream &Out) {
-  uint16_t Num = Val;
-  Out << format("0x%04X", Num);
+  Out << format("0x%" PRIX16, (uint16_t)Val);
 }
 
 StringRef ScalarTraits<Hex16>::input(StringRef Scalar, void *, Hex16 &Val) {
@@ -1076,8 +1085,7 @@ StringRef ScalarTraits<Hex16>::input(StringRef Scalar, void *, Hex16 &Val) {
 }
 
 void ScalarTraits<Hex32>::output(const Hex32 &Val, void *, raw_ostream &Out) {
-  uint32_t Num = Val;
-  Out << format("0x%08X", Num);
+  Out << format("0x%" PRIX32, (uint32_t)Val);
 }
 
 StringRef ScalarTraits<Hex32>::input(StringRef Scalar, void *, Hex32 &Val) {
@@ -1091,8 +1099,7 @@ StringRef ScalarTraits<Hex32>::input(StringRef Scalar, void *, Hex32 &Val) {
 }
 
 void ScalarTraits<Hex64>::output(const Hex64 &Val, void *, raw_ostream &Out) {
-  uint64_t Num = Val;
-  Out << format("0x%016llX", Num);
+  Out << format("0x%" PRIX64, (uint64_t)Val);
 }
 
 StringRef ScalarTraits<Hex64>::input(StringRef Scalar, void *, Hex64 &Val) {

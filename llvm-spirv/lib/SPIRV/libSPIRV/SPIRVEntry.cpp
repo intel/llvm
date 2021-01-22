@@ -72,7 +72,10 @@ SPIRVEntry *SPIRVEntry::create(Op OpCode) {
 
   static TableEntry Table[] = {
 #define _SPIRV_OP(x, ...) {Op##x, &SPIRV::create<SPIRV##x>},
+#define _SPIRV_OP_INTERNAL(x, ...) {internal::Op##x, &SPIRV::create<SPIRV##x>},
 #include "SPIRVOpCodeEnum.h"
+#include "SPIRVOpCodeEnumInternal.h"
+#undef _SPIRV_OP_INTERNAL
 #undef _SPIRV_OP
   };
 
@@ -508,6 +511,7 @@ void SPIRVExecutionMode::decode(std::istream &I) {
   case ExecutionModeSubgroupSize:
   case ExecutionModeMaxWorkDimINTEL:
   case ExecutionModeNumSIMDWorkitemsINTEL:
+  case ExecutionModeSchedulerTargetFmaxMhzINTEL:
     WordLiterals.resize(1);
     break;
   default:
@@ -656,6 +660,23 @@ void SPIRVCapability::encode(spv_ostream &O) const { getEncoder(O) << Kind; }
 void SPIRVCapability::decode(std::istream &I) {
   getDecoder(I) >> Kind;
   Module->addCapability(Kind);
+}
+
+template <spv::Op OC> void SPIRVContinuedInstINTELBase<OC>::validate() const {
+  SPIRVEntry::validate();
+}
+
+template <spv::Op OC>
+void SPIRVContinuedInstINTELBase<OC>::encode(spv_ostream &O) const {
+  SPIRVEntry::getEncoder(O) << (Elements);
+}
+template <spv::Op OC>
+void SPIRVContinuedInstINTELBase<OC>::decode(std::istream &I) {
+  SPIRVEntry::getDecoder(I) >> (Elements);
+}
+
+SPIRVType *SPIRVTypeStructContinuedINTEL::getMemberType(size_t I) const {
+  return static_cast<SPIRVType *>(SPIRVEntry::getEntry(Elements[I]));
 }
 
 } // namespace SPIRV

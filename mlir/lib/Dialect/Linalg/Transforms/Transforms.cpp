@@ -111,6 +111,11 @@ mlir::linalg::LinalgBaseTilingPattern::LinalgBaseTilingPattern(
     : RewritePattern(opName, {}, benefit, context), marker(marker),
       options(options) {}
 
+mlir::linalg::LinalgBaseTilingPattern::LinalgBaseTilingPattern(
+    LinalgTilingOptions options, LinalgMarker marker, PatternBenefit benefit)
+    : RewritePattern(benefit, MatchAnyOpTypeTag()), marker(marker),
+      options(options) {}
+
 LogicalResult mlir::linalg::LinalgBaseTilingPattern::matchAndRewriteBase(
     Operation *op, PatternRewriter &rewriter,
     SmallVectorImpl<Value> &tensorResults) const {
@@ -118,17 +123,6 @@ LogicalResult mlir::linalg::LinalgBaseTilingPattern::matchAndRewriteBase(
   if (!linalgOp)
     return failure();
   if (failed(marker.checkAndNotify(rewriter, linalgOp)))
-    return failure();
-
-  // If LinalgOp has results, they must all be tied to init tensors.
-  // We enforce this to ensure all tiled ops have been rewritten in
-  // "init tensor" form. This ensures tiling has anchor values into which to
-  // subtensor / subtensor_insert. Otherwise tiling would need to allocate which
-  // is not acceptable.
-  // This would not be the case with a special terminator op that generates the
-  // whole tensor (instead of inserting a subtensor). But the generator-based
-  // abstraction has other issues.
-  if (linalgOp.getNumInitTensors() != linalgOp.getOperation()->getNumResults())
     return failure();
 
   Optional<TiledLinalgOp> res = tileLinalgOp(rewriter, linalgOp, options);
@@ -165,17 +159,69 @@ LogicalResult mlir::linalg::LinalgBaseTileAndFusePattern::matchAndRewrite(
   if (!linalgOp.hasBufferSemantics())
     return failure();
 
+  DenseSet<Operation *> producers;
+  producers.insert(linalgOp);
+  for (auto dependence : dependenceGraph.getDependentOperations(linalgOp)) {
+    if (!fusionOptions.indicesToFuse.count(
+            dependence.indexingOpView->getOperandNumber()))
+      continue;
+    if (isa<LinalgOp>(dependence.dependentOpView->getOwner()))
+      producers.insert(dependence.dependentOpView->getOwner());
+  }
+
+  SmallVector<LinalgOp, 1> fusionOps;
+  for (auto it = op->getBlock()->begin(), ie = Block::iterator(op); it != ie;
+       ++it) {
+    auto producerLinalgOp = dyn_cast<LinalgOp>(&(*it));
+    if (producerLinalgOp && producers.count(producerLinalgOp))
+      fusionOps.push_back(producerLinalgOp);
+  }
+  fusionOps.push_back(linalgOp);
+
+  SmallVector<Value, 4> tileSizes =
+      tilingOptions.tileSizeComputationFunction(rewriter, op);
+  LinalgTilingOptions instanceTilingOptions = tilingOptions;
+  instanceTilingOptions.setTileSizes(tileSizes);
   Optional<TiledAndFusedLinalgOps> tiledAndFusedOps = tileAndFuseLinalgOps(
-      rewriter, op, dependenceGraph, tilingOptions, fusionOptions);
+      rewriter, fusionOps, dependenceGraph, instanceTilingOptions);
   if (!tiledAndFusedOps)
     return failure();
+
+  // Tile the unfused loops;
+  SmallVector<Value, 4> unfusedLoopTileSizes;
+  Value zero = rewriter.create<ConstantIndexOp>(op->getLoc(), 0);
+  for (auto tileSize : enumerate(tileSizes)) {
+    if (tiledAndFusedOps->fusedLoopDims.count(tileSize.index()))
+      unfusedLoopTileSizes.push_back(zero);
+    else
+      unfusedLoopTileSizes.push_back(tileSize.value());
+  }
+  // Tile the loop only if there is a non-zero tile size.
+  if (unfusedLoopTileSizes.size() > linalgOp.getNumLoops())
+    unfusedLoopTileSizes.resize(linalgOp.getNumLoops());
+  if (llvm::any_of(unfusedLoopTileSizes, [](Value val) {
+        if (auto cst = val.getDefiningOp<ConstantIndexOp>())
+          return cst.getValue() != 0;
+        return true;
+      })) {
+    LinalgTilingOptions unfusedTilingOptions = tilingOptions;
+    unfusedTilingOptions.setTileSizes(unfusedLoopTileSizes);
+    Optional<TiledLinalgOp> unfusedTiledOp =
+        tileLinalgOp(rewriter, tiledAndFusedOps->op, unfusedTilingOptions);
+    if (!unfusedTiledOp)
+      return failure();
+    rewriter.eraseOp(tiledAndFusedOps->op);
+    tiledAndFusedOps->op = unfusedTiledOp->op;
+  }
+
   marker.replaceLinalgMarker(rewriter, tiledAndFusedOps->op.getOperation());
   for (auto fusedOp : tiledAndFusedOps->fusedProducers) {
     fusedOpMarker.replaceLinalgMarker(rewriter, fusedOp.getOperation());
   }
-  for (auto origProducerOp : tiledAndFusedOps->originalProducers)
+  for (auto origProducerOp : ArrayRef<LinalgOp>(fusionOps).drop_back()) {
     originalOpMarker.replaceLinalgMarker(rewriter,
                                          origProducerOp.getOperation());
+  }
   rewriter.updateRootInPlace(
       op, [&]() { originalOpMarker.replaceLinalgMarker(rewriter, op); });
   return success();

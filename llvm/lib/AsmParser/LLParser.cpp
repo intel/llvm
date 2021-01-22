@@ -1340,6 +1340,7 @@ bool LLParser::parseFnAttributeValuePairs(AttrBuilder &B,
     case lltok::kw_argmemonly: B.addAttribute(Attribute::ArgMemOnly); break;
     case lltok::kw_builtin: B.addAttribute(Attribute::Builtin); break;
     case lltok::kw_cold: B.addAttribute(Attribute::Cold); break;
+    case lltok::kw_hot: B.addAttribute(Attribute::Hot); break;
     case lltok::kw_convergent: B.addAttribute(Attribute::Convergent); break;
     case lltok::kw_inaccessiblememonly:
       B.addAttribute(Attribute::InaccessibleMemOnly); break;
@@ -1353,6 +1354,9 @@ bool LLParser::parseFnAttributeValuePairs(AttrBuilder &B,
       break;
     case lltok::kw_naked: B.addAttribute(Attribute::Naked); break;
     case lltok::kw_nobuiltin: B.addAttribute(Attribute::NoBuiltin); break;
+    case lltok::kw_nocallback:
+      B.addAttribute(Attribute::NoCallback);
+      break;
     case lltok::kw_noduplicate: B.addAttribute(Attribute::NoDuplicate); break;
     case lltok::kw_nofree: B.addAttribute(Attribute::NoFree); break;
     case lltok::kw_noimplicitfloat:
@@ -1377,9 +1381,6 @@ bool LLParser::parseFnAttributeValuePairs(AttrBuilder &B,
     case lltok::kw_returns_twice:
       B.addAttribute(Attribute::ReturnsTwice); break;
     case lltok::kw_speculatable: B.addAttribute(Attribute::Speculatable); break;
-    case lltok::kw_nossp:
-      B.addAttribute(Attribute::NoStackProtect);
-      break;
     case lltok::kw_ssp: B.addAttribute(Attribute::StackProtect); break;
     case lltok::kw_sspreq: B.addAttribute(Attribute::StackProtectReq); break;
     case lltok::kw_sspstrong:
@@ -1702,14 +1703,14 @@ bool LLParser::parseOptionalParamAttrs(AttrBuilder &B) {
     }
     case lltok::kw_byval: {
       Type *Ty;
-      if (parseOptionalTypeAttr(Ty, lltok::kw_byval))
+      if (parseRequiredTypeAttr(Ty, lltok::kw_byval))
         return true;
       B.addByValAttr(Ty);
       continue;
     }
     case lltok::kw_sret: {
       Type *Ty;
-      if (parseOptionalTypeAttr(Ty, lltok::kw_sret))
+      if (parseRequiredTypeAttr(Ty, lltok::kw_sret))
         return true;
       B.addStructRetAttr(Ty);
       continue;
@@ -1791,7 +1792,6 @@ bool LLParser::parseOptionalParamAttrs(AttrBuilder &B) {
     case lltok::kw_sanitize_memory:
     case lltok::kw_sanitize_thread:
     case lltok::kw_speculative_load_hardening:
-    case lltok::kw_nossp:
     case lltok::kw_ssp:
     case lltok::kw_sspreq:
     case lltok::kw_sspstrong:
@@ -1900,7 +1900,6 @@ bool LLParser::parseOptionalReturnAttrs(AttrBuilder &B) {
     case lltok::kw_sanitize_memory:
     case lltok::kw_sanitize_thread:
     case lltok::kw_speculative_load_hardening:
-    case lltok::kw_nossp:
     case lltok::kw_ssp:
     case lltok::kw_sspreq:
     case lltok::kw_sspstrong:
@@ -2134,6 +2133,7 @@ bool LLParser::parseOptionalCallingConv(unsigned &CC) {
   case lltok::kw_hhvm_ccc:       CC = CallingConv::HHVM_C; break;
   case lltok::kw_cxx_fast_tlscc: CC = CallingConv::CXX_FAST_TLS; break;
   case lltok::kw_amdgpu_vs:      CC = CallingConv::AMDGPU_VS; break;
+  case lltok::kw_amdgpu_gfx:     CC = CallingConv::AMDGPU_Gfx; break;
   case lltok::kw_amdgpu_ls:      CC = CallingConv::AMDGPU_LS; break;
   case lltok::kw_amdgpu_hs:      CC = CallingConv::AMDGPU_HS; break;
   case lltok::kw_amdgpu_es:      CC = CallingConv::AMDGPU_ES; break;
@@ -2629,22 +2629,6 @@ bool LLParser::parseParameterList(SmallVectorImpl<ParamInfo> &ArgList,
                     "in varargs function");
 
   Lex.Lex();  // Lex the ')'.
-  return false;
-}
-
-/// parseByValWithOptionalType
-///   ::= byval
-///   ::= byval(<ty>)
-bool LLParser::parseOptionalTypeAttr(Type *&Result, lltok::Kind AttrName) {
-  Result = nullptr;
-  if (!EatIfPresent(AttrName))
-    return true;
-  if (!EatIfPresent(lltok::lparen))
-    return false;
-  if (parseType(Result))
-    return true;
-  if (!EatIfPresent(lltok::rparen))
-    return error(Lex.getLoc(), "expected ')'");
   return false;
 }
 
@@ -3293,6 +3277,7 @@ bool LLParser::parseValID(ValID &ID, PerFunctionState *PFS) {
     break;
   case lltok::kw_null: ID.Kind = ValID::t_Null; break;
   case lltok::kw_undef: ID.Kind = ValID::t_Undef; break;
+  case lltok::kw_poison: ID.Kind = ValID::t_Poison; break;
   case lltok::kw_zeroinitializer: ID.Kind = ValID::t_Zero; break;
   case lltok::kw_none: ID.Kind = ValID::t_None; break;
 
@@ -3491,6 +3476,39 @@ bool LLParser::parseValID(ValID &ID, PerFunctionState *PFS) {
     }
 
     ID.ConstantVal = BlockAddress::get(F, BB);
+    ID.Kind = ValID::t_Constant;
+    return false;
+  }
+
+  case lltok::kw_dso_local_equivalent: {
+    // ValID ::= 'dso_local_equivalent' @foo
+    Lex.Lex();
+
+    ValID Fn;
+
+    if (parseValID(Fn))
+      return true;
+
+    if (Fn.Kind != ValID::t_GlobalID && Fn.Kind != ValID::t_GlobalName)
+      return error(Fn.Loc,
+                   "expected global value name in dso_local_equivalent");
+
+    // Try to find the function (but skip it if it's forward-referenced).
+    GlobalValue *GV = nullptr;
+    if (Fn.Kind == ValID::t_GlobalID) {
+      if (Fn.UIntVal < NumberedVals.size())
+        GV = NumberedVals[Fn.UIntVal];
+    } else if (!ForwardRefVals.count(Fn.StrVal)) {
+      GV = M->getNamedValue(Fn.StrVal);
+    }
+
+    assert(GV && "Could not find a corresponding global variable");
+
+    if (!GV->getValueType()->isFunctionTy())
+      return error(Fn.Loc, "expected a function, alias to function, or ifunc "
+                           "in dso_local_equivalent");
+
+    ID.ConstantVal = DSOLocalEquivalent::get(GV);
     ID.Kind = ValID::t_Constant;
     return false;
   }
@@ -5101,7 +5119,7 @@ bool LLParser::parseDIMacroFile(MDNode *&Result, bool IsDistinct) {
 /// parseDIModule:
 ///   ::= !DIModule(scope: !0, name: "SomeModule", configMacros:
 ///   "-DNDEBUG", includePath: "/usr/include", apinotes: "module.apinotes",
-///   file: !1, line: 4)
+///   file: !1, line: 4, isDecl: false)
 bool LLParser::parseDIModule(MDNode *&Result, bool IsDistinct) {
 #define VISIT_MD_FIELDS(OPTIONAL, REQUIRED)                                    \
   REQUIRED(scope, MDField, );                                                  \
@@ -5110,13 +5128,14 @@ bool LLParser::parseDIModule(MDNode *&Result, bool IsDistinct) {
   OPTIONAL(includePath, MDStringField, );                                      \
   OPTIONAL(apinotes, MDStringField, );                                         \
   OPTIONAL(file, MDField, );                                                   \
-  OPTIONAL(line, LineField, );
+  OPTIONAL(line, LineField, );                                                 \
+  OPTIONAL(isDecl, MDBoolField, );
   PARSE_MD_FIELDS();
 #undef VISIT_MD_FIELDS
 
   Result = GET_OR_DISTINCT(DIModule, (Context, file.Val, scope.Val, name.Val,
                                       configMacros.Val, includePath.Val,
-                                      apinotes.Val, line.Val));
+                                      apinotes.Val, line.Val, isDecl.Val));
   return false;
 }
 
@@ -5523,10 +5542,15 @@ bool LLParser::convertValIDToValue(Type *Ty, ValID &ID, Value *&V,
       return error(ID.Loc, "invalid type for none constant");
     V = Constant::getNullValue(Ty);
     return false;
+  case ValID::t_Poison:
+    // FIXME: LabelTy should not be a first-class type.
+    if (!Ty->isFirstClassType() || Ty->isLabelTy())
+      return error(ID.Loc, "invalid type for poison constant");
+    V = PoisonValue::get(Ty);
+    return false;
   case ValID::t_Constant:
     if (ID.ConstantVal->getType() != Ty)
       return error(ID.Loc, "constant expression type mismatch");
-
     V = ID.ConstantVal;
     return false;
   case ValID::t_ConstantStruct:

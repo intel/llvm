@@ -17,6 +17,12 @@ td.name:hover {
   color: blue;
   cursor: pointer;
 }
+span.mono { font-family: monospace; }
+
+.traverse_compare, .traverse_compare td, .traverse_compare th {
+  border: 1px solid black;
+  border-collapse: collapse;
+}
 </style>
 <script type="text/javascript">
 function toggle(id) {
@@ -68,6 +74,431 @@ recordDecl(hasDescendant(
             ifStmt()))))))
 </pre>
 </p>
+
+<!-- ======================================================================= -->
+<h2 id="traverse-mode">Traverse Mode</h2>
+<!-- ======================================================================= -->
+
+<p>The default mode of operation of AST Matchers visits all nodes in the AST,
+even if they are not spelled in the source. This is
+<span class="mono">AsIs</span> mode.  This mode requires writing AST matchers
+that explicitly traverse or ignore implicit nodes, such as parentheses
+surrounding an expression or expressions with cleanups.  These implicit
+nodes are not always obvious from the syntax of the source code, and so this
+mode requires careful consideration and testing to get the desired behavior
+from an AST matcher.
+</p>
+
+<p>In addition, because template instantiations are matched in the default mode,
+transformations can be accidentally made to template declarations. Finally,
+because implicit nodes are matched by default, transformations can be made on
+entirely incorrect places in the code.</p>
+
+<p>For these reasons, it is possible to ignore AST nodes which are not spelled
+in the source using the <span class="mono">IgnoreUnlessSpelledInSource</span>
+mode. This is likely to be far less error-prone for users who are not already
+very familiar with where implicit nodes appear in the AST. It is also likely
+to be less error-prone for experienced AST users, as difficult cases do not
+need to be encountered and matcher expressions adjusted for these cases.</p>
+
+<p>In clang-query, the mode can be changed with
+<pre>
+set traversal IgnoreUnlessSpelledInSource
+</pre>
+</p>
+This affects both matchers and AST dump output in results.
+
+<p>When using the C++ API such as in clang-tidy checks, the
+<span class="mono">traverse()</span> matcher is used to set the mode:
+<pre>
+Finder->addMatcher(traverse(TK_IgnoreUnlessSpelledInSource,
+  returnStmt(hasReturnArgument(integerLiteral(equals(0))))
+  ), this);
+</pre>
+</p>
+<p>The following table compares the <span class="mono">AsIs</span> mode with
+the <span class="mono">IgnoreUnlessSpelledInSource</span> mode:</p>
+
+<table class="traverse_compare">
+<tr>
+<th></th>
+<th><span class="mono">AsIs</span></th>
+<th><span class="mono">IgnoreUnlessSpelledInSource</span></th>
+</tr>
+<tr>
+  <td>AST dump of <span class="mono">func1</span>:
+<pre>
+struct B {
+  B(int);
+};
+
+B func1() { return 42; }
+</pre>
+
+  </td>
+  <td>
+C++98 dialect:
+<pre>
+FunctionDecl
+`-CompoundStmt
+  `-ReturnStmt
+    `-ExprWithCleanups
+      `-CXXConstructExpr
+        `-MaterializeTemporaryExpr
+          `-ImplicitCastExpr
+            `-ImplicitCastExpr
+              `-CXXConstructExpr
+                `-IntegerLiteral 'int' 42
+</pre>
+C++11, C++14 dialect:
+<pre>
+FunctionDecl
+`-CompoundStmt
+  `-ReturnStmt
+    `-ExprWithCleanups
+      `-CXXConstructExpr
+        `-MaterializeTemporaryExpr
+          `-ImplicitCastExpr
+            `-CXXConstructExpr
+              `-IntegerLiteral 'int' 42
+</pre>
+C++17, C++20 dialect:
+<pre>
+FunctionDecl
+`-CompoundStmt
+  `-ReturnStmt
+    `-ImplicitCastExpr
+      `-CXXConstructExpr
+        `-IntegerLiteral 'int' 42
+</pre>
+</td>
+  <td>
+All dialects:
+    <pre>
+FunctionDecl
+`-CompoundStmt
+  `-ReturnStmt
+    `-IntegerLiteral 'int' 42
+</pre></td>
+</tr>
+
+<tr>
+<td>Matcher for returned <span class="mono">42</span>:
+<pre>
+struct B {
+  B(int);
+};
+
+B func1() { return 42; }
+</pre>
+
+  </td>
+  <td>
+All dialects:
+<pre>
+returnStmt(hasReturnValue(
+    ignoringImplicit(
+        ignoringElidableConstructorCall(
+            ignoringImplicit(
+                cxxConstructExpr(hasArgument(0,
+                    ignoringImplicit(
+                        integerLiteral().bind("returnVal")
+                        )
+                    ))
+                )
+            )
+        )
+    ))
+</pre></td>
+  <td>
+All dialects:
+<pre>
+returnStmt(hasReturnValue(
+    integerLiteral().bind("returnVal")
+))
+</pre></td>
+</tr>
+<tr>
+<td>Match result for
+<pre>implicitCastExpr()</pre>
+given:
+<pre>
+struct B {
+  B(int);
+};
+
+B func1() { return 42; }
+</pre>
+
+</td>
+<td>
+Match found.</td>
+  <td>
+No match.</td>
+</tr>
+<tr>
+  <td>Match result for:
+<pre>
+cxxConstructorDecl(
+  isCopyConstructor()
+  ).bind("prepend_explicit")
+</pre>
+given:
+<pre>
+struct Other {};
+struct Copyable {
+  Other m_o;
+  Copyable();
+};
+</pre>
+</td>
+<td>
+Match found. Insertion produces incorrect output:
+<pre>
+struct Other {};
+struct explicit Copyable {
+  Other m_o;
+  Copyable();
+};
+</pre>
+</td>
+<td>
+No match found. Incorrect replacement not possible.
+</td>
+</tr>
+<tr>
+  <td>Replacement of <span class="mono">begin()</span>
+    with <span class="mono">cbegin()</span>:
+<pre>
+cxxMemberCallExpr(
+  on(ConstContainerExpr),
+  callee(cxxMethodDecl(hasName("begin")))
+  ).bind("replace_with_cbegin")
+</pre>
+given:
+<pre>
+void foo() {
+  const Container c;
+  c.begin();
+
+  for (auto i : c) {
+  }
+}
+</pre>
+</td>
+<td>
+2 matches found. Replacement produces incorrect output:
+<pre>
+void foo() {
+  const Container c;
+  c.cbegin();
+
+  for (auto i :.cbegin() c) {
+  }
+}
+</pre>
+</td>
+<td>
+1 match found. Replacement produces correct output:
+<pre>
+void foo() {
+  const Container c;
+  c.cbegin();
+
+  for (auto i : c) {
+  }
+}
+</pre>
+</td>
+</tr>
+<tr>
+  <td>Replacement of <span class="mono">int</span> member
+    with <span class="mono">safe_int</span>:
+<pre>
+fieldDecl(
+  hasType(asString("int"))
+  ).bind("use_safe_int")
+</pre>
+given:
+<pre>
+struct S {
+  int m_i;
+};
+
+template &lt;typename T&gt; struct TemplStruct {
+  TemplStruct() {}
+  ~TemplStruct() {}
+
+private:
+  T m_t;
+};
+
+void instantiate() { TemplStruct&lt;int&gt; ti; }
+</pre>
+</td>
+<td>
+2 matches found. Replacement produces incorrect output:
+<pre>
+struct S {
+  safe_int m_i;
+};
+
+template &lt;typename T&gt; struct TemplStruct {
+  TemplStruct() {}
+  ~TemplStruct() {}
+
+private:
+  safe_int m_t;
+};
+
+void instantiate() { TemplStruct&lt;int&gt; ti; }
+</pre>
+</td>
+<td>
+1 match found. Replacement produces correct output:
+<pre>
+struct S {
+  safe_int m_i;
+};
+
+template &lt;typename T&gt; struct TemplStruct {
+  TemplStruct() {}
+  ~TemplStruct() {}
+
+private:
+  T m_t;
+};
+
+void instantiate() { TemplStruct&lt;int&gt; ti; }
+</pre>
+</td>
+</tr>
+<tr>
+  <td>Add prefix to member initializer
+<pre>
+cxxCtorInitializer(
+  forField(fieldDecl())
+  ).bind("add_prefix")
+</pre>
+given:
+<pre>
+struct Simple {};
+
+struct Record {
+  Record() : i(42) {}
+private:
+  int i;
+  Simple s;
+};
+</pre>
+</td>
+<td>
+2 matches found. Replacement produces incorrect output:
+<pre>
+struct Simple {};
+
+struct Record {
+  m_Record() : m_i(42) {}
+private:
+  int i;
+  Simple s;
+};
+</pre>
+</td>
+<td>
+1 match found. Replacement produces correct output:
+<pre>
+struct Simple {};
+
+struct Record {
+  Record() : m_i(42) {}
+private:
+  int i;
+  Simple s;
+};
+</pre>
+</td>
+</tr>
+<tr>
+  <td>Ignored default arguments
+<pre>
+callExpr(
+  callee(functionDecl(
+    hasName("hasDefaultArg")
+    )),
+  argumentCountIs(1)
+  ).bind("add_prefix")
+</pre>
+given:
+<pre>
+void hasDefaultArg(int i, int j = 0) {}
+void callDefaultArg() { hasDefaultArg(42); }
+</pre>
+</td>
+<td>
+No match.
+</td>
+<td>
+1 match found.
+</td>
+</tr>
+<tr>
+  <td>Lambda fields
+<pre>
+fieldDecl(
+  hasType(asString("int"))
+  ).bind("make_safe")
+</pre>
+given:
+<pre>
+struct S {
+  int m_i;
+};
+
+void func() {
+  int a = 0;
+  int c = 0;
+
+  auto l = [a, b = c](int d) { int e = d; };
+  l(43);
+}
+</pre>
+</td>
+<td>
+2 matches found. Replacement produces incorrect output:
+<pre>
+struct S {
+  safe_int m_i;
+};
+
+void func() {
+  int a = 0;
+  int c = 0;
+
+  auto l = [safe_a, safe_b = c](int d) { int e = d; };
+  l(43);
+}
+</pre>
+</td>
+<td>
+1 match found. Replacement produces correct output:
+<pre>
+struct S {
+  safe_int m_i;
+};
+
+void func() {
+  int a = 0;
+  int c = 0;
+
+  auto l = [a, b = c](int d) { int e = d; };
+  l(43);
+}
+</pre>
+</td>
+
+</tr>
+</table>
 
 <!-- ======================================================================= -->
 <h2 id="decl-matchers">Node Matchers</h2>
@@ -1270,6 +1701,11 @@ Does not match implicit conversions such as
 Example matches 'for (;;) {}'
   for (;;) {}
   int i[] =  {1, 2, 3}; for (auto a : i);
+</pre></td></tr>
+
+
+<tr><td>Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1Stmt.html">Stmt</a>&gt;</td><td class="name" onclick="toggle('genericSelectionExpr0')"><a name="genericSelectionExpr0Anchor">genericSelectionExpr</a></td><td>Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1GenericSelectionExpr.html">GenericSelectionExpr</a>&gt;...</td></tr>
+<tr><td colspan="4" class="doc" id="genericSelectionExpr0"><pre>Matches C11 _Generic expression.
 </pre></td></tr>
 
 
@@ -2543,6 +2979,28 @@ cxxDeductionGuideDecl(isExplicit()) will match #6, but not #5.
 </pre></td></tr>
 
 
+<tr><td>Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1CXXDependentScopeMemberExpr.html">CXXDependentScopeMemberExpr</a>&gt;</td><td class="name" onclick="toggle('hasMemberName0')"><a name="hasMemberName0Anchor">hasMemberName</a></td><td>std::string N</td></tr>
+<tr><td colspan="4" class="doc" id="hasMemberName0"><pre>Matches template-dependent, but known, member names
+
+In template declarations, dependent members are not resolved and so can
+not be matched to particular named declarations.
+
+This matcher allows to match on the known name of members.
+
+Given
+  template &lt;typename T&gt;
+  struct S {
+      void mem();
+  };
+  template &lt;typename T&gt;
+  void x() {
+      S&lt;T&gt; s;
+      s.mem();
+  }
+cxxDependentScopeMemberExpr(hasMemberName("mem")) matches `s.mem()`
+</pre></td></tr>
+
+
 <tr><td>Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1CXXDependentScopeMemberExpr.html">CXXDependentScopeMemberExpr</a>&gt;</td><td class="name" onclick="toggle('isArrow2')"><a name="isArrow2Anchor">isArrow</a></td><td></td></tr>
 <tr><td colspan="4" class="doc" id="isArrow2"><pre>Matches member expressions that are called with '-&gt;' as opposed
 to '.'.
@@ -2566,6 +3024,42 @@ cxxDependentScopeMemberExpr(isArrow())
   matches this-&gt;m
 unresolvedMemberExpr(isArrow())
   matches this-&gt;f&lt;T&gt;, f&lt;T&gt;
+</pre></td></tr>
+
+
+<tr><td>Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1CXXDependentScopeMemberExpr.html">CXXDependentScopeMemberExpr</a>&gt;</td><td class="name" onclick="toggle('memberHasSameNameAsBoundNode0')"><a name="memberHasSameNameAsBoundNode0Anchor">memberHasSameNameAsBoundNode</a></td><td>std::string BindingID</td></tr>
+<tr><td colspan="4" class="doc" id="memberHasSameNameAsBoundNode0"><pre>Matches template-dependent, but known, member names against an already-bound
+node
+
+In template declarations, dependent members are not resolved and so can
+not be matched to particular named declarations.
+
+This matcher allows to match on the name of already-bound VarDecl, FieldDecl
+and CXXMethodDecl nodes.
+
+Given
+  template &lt;typename T&gt;
+  struct S {
+      void mem();
+  };
+  template &lt;typename T&gt;
+  void x() {
+      S&lt;T&gt; s;
+      s.mem();
+  }
+The matcher
+@code
+cxxDependentScopeMemberExpr(
+  hasObjectExpression(declRefExpr(hasType(templateSpecializationType(
+      hasDeclaration(classTemplateDecl(has(cxxRecordDecl(has(
+          cxxMethodDecl(hasName("mem")).bind("templMem")
+          )))))
+      )))),
+  memberHasSameNameAsBoundNode("templMem")
+  )
+@endcode
+first matches and binds the @c mem member of the @c S template, then
+compares its name to the usage in @c s.mem() in the @c x function template
 </pre></td></tr>
 
 
@@ -2721,7 +3215,7 @@ cxxNewExpr(isArray())
 Matches overloaded operator names specified in strings without the
 "operator" prefix: e.g. "&lt;&lt;".
 
-  hasAnyOverloadesOperatorName("+", "-")
+  hasAnyOverloadedOperatorName("+", "-")
 Is equivalent to
   anyOf(hasOverloadedOperatorName("+"), hasOverloadedOperatorName("-"))
 </pre></td></tr>
@@ -2863,6 +3357,16 @@ cxxRecordDecl(hasName("::X"), isTemplateInstantiation())
   does not match, as X&lt;A&gt; is an explicit template specialization.
 
 Usable as: Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1FunctionDecl.html">FunctionDecl</a>&gt;, Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1VarDecl.html">VarDecl</a>&gt;, Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1CXXRecordDecl.html">CXXRecordDecl</a>&gt;
+</pre></td></tr>
+
+
+<tr><td>Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1CXXUnresolvedConstructExpr.html">CXXUnresolvedConstructExpr</a>&gt;</td><td class="name" onclick="toggle('argumentCountIs2')"><a name="argumentCountIs2Anchor">argumentCountIs</a></td><td>unsigned N</td></tr>
+<tr><td colspan="4" class="doc" id="argumentCountIs2"><pre>Checks that a call expression or a constructor call expression has
+a specific number of arguments (including absent default arguments).
+
+Example matches f(0, 0) (matcher = callExpr(argumentCountIs(2)))
+  void f(int x, int y);
+  f(0, 0);
 </pre></td></tr>
 
 
@@ -3332,7 +3836,7 @@ Usable as: Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1Char
 Matches overloaded operator names specified in strings without the
 "operator" prefix: e.g. "&lt;&lt;".
 
-  hasAnyOverloadesOperatorName("+", "-")
+  hasAnyOverloadedOperatorName("+", "-")
 Is equivalent to
   anyOf(hasOverloadedOperatorName("+"), hasOverloadedOperatorName("-"))
 </pre></td></tr>
@@ -3923,8 +4427,8 @@ isSameOrDerivedFrom(hasName(...)).
 </pre></td></tr>
 
 
-<tr><td>Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1ObjCMessageExpr.html">ObjCMessageExpr</a>&gt;</td><td class="name" onclick="toggle('argumentCountIs2')"><a name="argumentCountIs2Anchor">argumentCountIs</a></td><td>unsigned N</td></tr>
-<tr><td colspan="4" class="doc" id="argumentCountIs2"><pre>Checks that a call expression or a constructor call expression has
+<tr><td>Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1ObjCMessageExpr.html">ObjCMessageExpr</a>&gt;</td><td class="name" onclick="toggle('argumentCountIs3')"><a name="argumentCountIs3Anchor">argumentCountIs</a></td><td>unsigned N</td></tr>
+<tr><td colspan="4" class="doc" id="argumentCountIs3"><pre>Checks that a call expression or a constructor call expression has
 a specific number of arguments (including absent default arguments).
 
 Example matches f(0, 0) (matcher = callExpr(argumentCountIs(2)))
@@ -5068,7 +5572,7 @@ Given
       int i = 3.0;
   }
 The matcher
-  traverse(TK_IgnoreImplicitCastsAndParentheses,
+  traverse(TK_IgnoreUnlessSpelledInSource,
     varDecl(hasInitializer(floatLiteral().bind("init")))
   )
 matches the variable declaration with "init" bound to the "3.0".
@@ -5862,6 +6366,16 @@ For ObjectiveC, given
   void foo(I *i) { [i f:12]; }
 objcMessageExpr(hasAnyArgument(integerLiteral(equals(12))))
   matches [i f:12]
+</pre></td></tr>
+
+
+<tr><td>Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1CXXUnresolvedConstructExpr.html">CXXUnresolvedConstructExpr</a>&gt;</td><td class="name" onclick="toggle('hasArgument2')"><a name="hasArgument2Anchor">hasArgument</a></td><td>unsigned N, Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1Expr.html">Expr</a>&gt; InnerMatcher</td></tr>
+<tr><td colspan="4" class="doc" id="hasArgument2"><pre>Matches the n'th argument of a call expression or a constructor
+call expression.
+
+Example matches y in x(y)
+    (matcher = callExpr(hasArgument(0, declRefExpr())))
+  void x(int) { int y; x(y); }
 </pre></td></tr>
 
 
@@ -7180,8 +7694,8 @@ objcMessageExpr(hasAnyArgument(integerLiteral(equals(12))))
 </pre></td></tr>
 
 
-<tr><td>Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1ObjCMessageExpr.html">ObjCMessageExpr</a>&gt;</td><td class="name" onclick="toggle('hasArgument2')"><a name="hasArgument2Anchor">hasArgument</a></td><td>unsigned N, Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1Expr.html">Expr</a>&gt; InnerMatcher</td></tr>
-<tr><td colspan="4" class="doc" id="hasArgument2"><pre>Matches the n'th argument of a call expression or a constructor
+<tr><td>Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1ObjCMessageExpr.html">ObjCMessageExpr</a>&gt;</td><td class="name" onclick="toggle('hasArgument3')"><a name="hasArgument3Anchor">hasArgument</a></td><td>unsigned N, Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1Expr.html">Expr</a>&gt; InnerMatcher</td></tr>
+<tr><td colspan="4" class="doc" id="hasArgument3"><pre>Matches the n'th argument of a call expression or a constructor
 call expression.
 
 Example matches y in x(y)

@@ -801,12 +801,7 @@ private:
   Value *findPHIOfOpsLeader(const Expression *, const Instruction *,
                             const BasicBlock *) const;
 
-  // New instruction creation.
-  void handleNewInstruction(Instruction *) {}
-
   // Various instruction touch utilities
-  template <typename Map, typename KeyType, typename Func>
-  void for_each_found(Map &, const KeyType &, Func);
   template <typename Map, typename KeyType>
   void touchAndErase(Map &, const KeyType &);
   void markUsersTouched(Value *);
@@ -835,7 +830,6 @@ private:
   BasicBlock *getBlockForValue(Value *V) const;
   void deleteExpression(const Expression *E) const;
   MemoryUseOrDef *getMemoryAccess(const Instruction *) const;
-  MemoryAccess *getDefiningAccess(const MemoryAccess *) const;
   MemoryPhi *getMemoryAccess(const BasicBlock *) const;
   template <class T, class Range> T *getMinDFSOfRange(const Range &) const;
 
@@ -1993,16 +1987,6 @@ NewGVN::performSymbolicEvaluation(Value *V,
     }
   }
   return E;
-}
-
-// Look up a container in a map, and then call a function for each thing in the
-// found container.
-template <typename Map, typename KeyType, typename Func>
-void NewGVN::for_each_found(Map &M, const KeyType &Key, Func F) {
-  const auto Result = M.find_as(Key);
-  if (Result != M.end())
-    for (typename Map::mapped_type::value_type Mapped : Result->second)
-      F(Mapped);
 }
 
 // Look up a container of values/instructions in a map, and touch all the

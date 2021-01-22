@@ -16,6 +16,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/stl_type_traits.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/plugin.hpp>
@@ -141,10 +142,9 @@ std::string platformInfoToString(pi_platform_info info) {
     return "PI_PLATFORM_INFO_VENDOR";
   case PI_PLATFORM_INFO_EXTENSIONS:
     return "PI_PLATFORM_INFO_EXTENSIONS";
-  default:
-    die("Unknown pi_platform_info value passed to "
-        "cl::sycl::detail::pi::platformInfoToString");
   }
+  die("Unknown pi_platform_info value passed to "
+      "cl::sycl::detail::pi::platformInfoToString");
 }
 
 std::string memFlagToString(pi_mem_flags Flag) {
@@ -233,13 +233,14 @@ bool findPlugins(vector_class<std::pair<std::string, backend>> &PluginNames) {
           (Backend == backend::opencl || Backend == backend::all)) {
         PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
         OpenCLFound = true;
-      } else if (!LevelZeroFound &&
-                 (Backend == backend::level_zero || Backend == backend::all)) {
+      }
+      if (!LevelZeroFound &&
+          (Backend == backend::level_zero || Backend == backend::all)) {
         PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
                                  backend::level_zero);
         LevelZeroFound = true;
-      } else if (!CudaFound &&
-                 (Backend == backend::cuda || Backend == backend::all)) {
+      }
+      if (!CudaFound && (Backend == backend::cuda || Backend == backend::all)) {
         PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::cuda);
         CudaFound = true;
       }
@@ -253,6 +254,10 @@ bool findPlugins(vector_class<std::pair<std::string, backend>> &PluginNames) {
 void *loadPlugin(const std::string &PluginPath) {
   return loadOsLibrary(PluginPath);
 }
+
+// Unload the given plugin by calling teh OS-specific library unloading call.
+// \param Library OS-specific library handle created when loading.
+int unloadPlugin(void *Library) { return unloadOsLibrary(Library); }
 
 // Binds all the PI Interface APIs to Plugin Library Function Addresses.
 // TODO: Remove the 'OclPtr' extension to PI_API.
@@ -302,8 +307,9 @@ static void initializePlugins(vector_class<plugin> *Plugins) {
     std::cerr << "SYCL_PI_TRACE[all]: "
               << "No Plugins Found." << std::endl;
 
-  PiPlugin PluginInformation{_PI_H_VERSION_STRING, _PI_H_VERSION_STRING,
-                             nullptr};
+  PiPlugin PluginInformation{
+      _PI_H_VERSION_STRING, _PI_H_VERSION_STRING, nullptr, {}};
+  PluginInformation.PiFunctionTable = {};
 
   for (unsigned int I = 0; I < PluginNames.size(); I++) {
     void *Library = loadPlugin(PluginNames[I].first);
@@ -336,18 +342,20 @@ static void initializePlugins(vector_class<plugin> *Plugins) {
         PluginNames[I].first.find("opencl") != std::string::npos) {
       // Use the OpenCL plugin as the GlobalPlugin
       GlobalPlugin =
-          std::make_shared<plugin>(PluginInformation, backend::opencl);
+          std::make_shared<plugin>(PluginInformation, backend::opencl, Library);
     } else if (InteropBE == backend::cuda &&
                PluginNames[I].first.find("cuda") != std::string::npos) {
       // Use the CUDA plugin as the GlobalPlugin
-      GlobalPlugin = std::make_shared<plugin>(PluginInformation, backend::cuda);
+      GlobalPlugin =
+          std::make_shared<plugin>(PluginInformation, backend::cuda, Library);
     } else if (InteropBE == backend::level_zero &&
                PluginNames[I].first.find("level_zero") != std::string::npos) {
       // Use the LEVEL_ZERO plugin as the GlobalPlugin
-      GlobalPlugin =
-          std::make_shared<plugin>(PluginInformation, backend::level_zero);
+      GlobalPlugin = std::make_shared<plugin>(PluginInformation,
+                                              backend::level_zero, Library);
     }
-    Plugins->emplace_back(plugin(PluginInformation, PluginNames[I].second));
+    Plugins->emplace_back(
+        plugin(PluginInformation, PluginNames[I].second, Library));
     if (trace(TraceLevel::PI_TRACE_BASIC))
       std::cerr << "SYCL_PI_TRACE[basic]: "
                 << "Plugin found and successfully loaded: "
@@ -566,7 +574,7 @@ RT::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
               {PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE, 0xDEC04342}};
 
   if (ImgSize >= sizeof(Fmts[0].Magic)) {
-    std::remove_const<decltype(Fmts[0].Magic)>::type Hdr = 0;
+    detail::remove_const_t<decltype(Fmts[0].Magic)> Hdr = 0;
     std::copy(ImgData, ImgData + sizeof(Hdr), reinterpret_cast<char *>(&Hdr));
 
     for (const auto &Fmt : Fmts) {
@@ -590,7 +598,9 @@ void DeviceBinaryImage::init(pi_device_binary Bin) {
     // try to determine the format; may remain "NONE"
     Format = getBinaryImageFormat(Bin->BinaryStart, getSize());
 
-  SpecConstIDMap.init(Bin, __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP);
+  ScalarSpecConstIDMap.init(Bin, __SYCL_PI_PROPERTY_SET_SCALAR_SPEC_CONST_MAP);
+  CompositeSpecConstIDMap.init(Bin,
+                               __SYCL_PI_PROPERTY_SET_COMPOSITE_SPEC_CONST_MAP);
   DeviceLibReqMask.init(Bin, __SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK);
   KernelParamOptInfo.init(Bin, __SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
 }

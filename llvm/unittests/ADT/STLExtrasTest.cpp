@@ -323,6 +323,15 @@ TEST(STLExtrasTest, EraseIf) {
   EXPECT_EQ(7, V[3]);
 }
 
+TEST(STLExtrasTest, AppendRange) {
+  auto AppendVals = {3};
+  std::vector<int> V = {1, 2};
+  append_range(V, AppendVals);
+  EXPECT_EQ(1, V[0]);
+  EXPECT_EQ(2, V[1]);
+  EXPECT_EQ(3, V[2]);
+}
+
 namespace some_namespace {
 struct some_struct {
   std::vector<int> data;
@@ -463,21 +472,21 @@ TEST(STLExtrasTest, to_address) {
 
   // Check fancy pointer overload for unique_ptr
   std::unique_ptr<int> V2 = std::make_unique<int>(0);
-  EXPECT_EQ(V2.get(), to_address(V2));
+  EXPECT_EQ(V2.get(), llvm::to_address(V2));
 
   V2.reset(V1);
-  EXPECT_EQ(V1, to_address(V2));
+  EXPECT_EQ(V1, llvm::to_address(V2));
   V2.release();
 
   // Check fancy pointer overload for shared_ptr
   std::shared_ptr<int> V3 = std::make_shared<int>(0);
   std::shared_ptr<int> V4 = V3;
   EXPECT_EQ(V3.get(), V4.get());
-  EXPECT_EQ(V3.get(), to_address(V3));
-  EXPECT_EQ(V4.get(), to_address(V4));
+  EXPECT_EQ(V3.get(), llvm::to_address(V3));
+  EXPECT_EQ(V4.get(), llvm::to_address(V4));
 
   V3.reset(V1);
-  EXPECT_EQ(V1, to_address(V3));
+  EXPECT_EQ(V1, llvm::to_address(V3));
 }
 
 TEST(STLExtrasTest, partition_point) {

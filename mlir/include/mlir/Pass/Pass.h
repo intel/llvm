@@ -9,8 +9,8 @@
 #ifndef MLIR_PASS_PASS_H
 #define MLIR_PASS_PASS_H
 
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dialect.h"
-#include "mlir/IR/Function.h"
 #include "mlir/Pass/AnalysisManager.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Support/LogicalResult.h"
@@ -95,7 +95,7 @@ public:
             typename OptionParser = detail::PassOptions::OptionParser<DataType>>
   struct Option : public detail::PassOptions::Option<DataType, OptionParser> {
     template <typename... Args>
-    Option(Pass &parent, StringRef arg, Args &&... args)
+    Option(Pass &parent, StringRef arg, Args &&...args)
         : detail::PassOptions::Option<DataType, OptionParser>(
               parent.passOptions, arg, std::forward<Args>(args)...) {}
     using detail::PassOptions::Option<DataType, OptionParser>::operator=;
@@ -107,18 +107,21 @@ public:
   struct ListOption
       : public detail::PassOptions::ListOption<DataType, OptionParser> {
     template <typename... Args>
-    ListOption(Pass &parent, StringRef arg, Args &&... args)
+    ListOption(Pass &parent, StringRef arg, Args &&...args)
         : detail::PassOptions::ListOption<DataType, OptionParser>(
               parent.passOptions, arg, std::forward<Args>(args)...) {}
     using detail::PassOptions::ListOption<DataType, OptionParser>::operator=;
   };
 
   /// Attempt to initialize the options of this pass from the given string.
-  LogicalResult initializeOptions(StringRef options);
+  /// Derived classes may override this method to hook into the point at which
+  /// options are initialized, but should generally always invoke this base
+  /// class variant.
+  virtual LogicalResult initializeOptions(StringRef options);
 
   /// Prints out the pass in the textual representation of pipelines. If this is
   /// an adaptor pass, print with the op_name(sub_pass,...) format.
-  void printAsTextualPipeline(raw_ostream &os, bool filterVerifier = true);
+  void printAsTextualPipeline(raw_ostream &os);
 
   //===--------------------------------------------------------------------===//
   // Statistics
@@ -265,7 +268,6 @@ protected:
   void copyOptionValuesFrom(const Pass *other);
 
 private:
-
   /// Out of line virtual method to ensure vtables and metadata are emitted to a
   /// single .o file.
   virtual void anchor();

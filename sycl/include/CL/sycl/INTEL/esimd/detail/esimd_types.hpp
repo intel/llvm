@@ -16,7 +16,6 @@
 #include <CL/sycl/detail/stl_type_traits.hpp> // to define C++14,17 extensions
 #include <CL/sycl/half_type.hpp>
 #include <cstdint>
-#include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -208,8 +207,8 @@ template <typename T1, typename T2> struct computation_type {
 template <typename U> constexpr bool is_type() { return false; }
 
 template <typename U, typename T, typename... Ts> constexpr bool is_type() {
-  using UU = typename std::remove_const<U>::type;
-  using TT = typename std::remove_const<T>::type;
+  using UU = typename detail::remove_const_t<U>;
+  using TT = typename detail::remove_const_t<T>;
   return std::is_same<UU, TT>::value || is_type<UU, Ts...>();
 }
 
@@ -228,10 +227,10 @@ struct bitcast_helper {
 // Change the element type of a simd vector.
 template <typename ToEltTy, typename FromEltTy, int FromN,
           typename = csd::enable_if_t<is_vectorizable<ToEltTy>::value>>
-ESIMD_INLINE typename std::conditional<
+ESIMD_INLINE typename detail::conditional_t<
     std::is_same<FromEltTy, ToEltTy>::value, vector_type_t<FromEltTy, FromN>,
     vector_type_t<ToEltTy,
-                  bitcast_helper<ToEltTy, FromEltTy, FromN>::nToElems()>>::type
+                  bitcast_helper<ToEltTy, FromEltTy, FromN>::nToElems()>>
 bitcast(vector_type_t<FromEltTy, FromN> Val) {
   // Noop.
   if constexpr (std::is_same<FromEltTy, ToEltTy>::value)

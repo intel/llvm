@@ -40,7 +40,12 @@ std::string aarch64::getAArch64TargetCPU(const ArgList &Args,
   // Handle CPU name is 'native'.
   if (CPU == "native")
     return std::string(llvm::sys::getHostCPUName());
-  else if (CPU.size())
+
+  // arm64e requires v8.3a and only runs on apple-a12 and later CPUs.
+  if (Triple.isArm64e())
+    return "apple-a12";
+
+  if (CPU.size())
     return CPU;
 
   if (Triple.isTargetMachineMac() &&
@@ -74,9 +79,10 @@ static bool DecodeAArch64Features(const Driver &D, StringRef text,
     else
       return false;
 
-    // +sve implies +f32mm if the base architecture is v8.6A
+    // +sve implies +f32mm if the base architecture is v8.6A or v8.7A
     // it isn't the case in general that sve implies both f64mm and f32mm
-    if ((ArchKind == llvm::AArch64::ArchKind::ARMV8_6A) && Feature == "sve")
+    if ((ArchKind == llvm::AArch64::ArchKind::ARMV8_6A ||
+         ArchKind == llvm::AArch64::ArchKind::ARMV8_7A) && Feature == "sve")
       Features.push_back("+f32mm");
   }
   return true;
@@ -312,8 +318,7 @@ fp16_fml_fallthrough:
       NoCrypto = true;
   }
 
-  if (std::find(ItBegin, ItEnd, "+v8.4a") != ItEnd ||
-      std::find(ItBegin, ItEnd, "+v8r") != ItEnd) {
+  if (std::find(ItBegin, ItEnd, "+v8.4a") != ItEnd) {
     if (HasCrypto && !NoCrypto) {
       // Check if we have NOT disabled an algorithm with something like:
       //   +crypto, -algorithm
@@ -375,12 +380,6 @@ fp16_fml_fallthrough:
   auto V8_6Pos = llvm::find(Features, "+v8.6a");
   if (V8_6Pos != std::end(Features))
     V8_6Pos = Features.insert(std::next(V8_6Pos), {"+i8mm", "+bf16"});
-
-  bool HasSve = llvm::is_contained(Features, "+sve");
-  // -msve-vector-bits=<bits> flag is valid only if SVE is enabled.
-  if (Args.hasArg(options::OPT_msve_vector_bits_EQ))
-    if (!HasSve)
-      D.Diag(diag::err_drv_invalid_sve_vector_bits);
 
   if (Arg *A = Args.getLastArg(options::OPT_mno_unaligned_access,
                                options::OPT_munaligned_access)) {

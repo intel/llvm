@@ -6,24 +6,24 @@
 //
 //===---------------------------------------------------------------------===//
 
-#include "include/math.h"
 #include "src/math/fminf.h"
 #include "utils/FPUtil/FPBits.h"
 #include "utils/FPUtil/TestHelpers.h"
 #include "utils/UnitTest/Test.h"
+#include <math.h>
 
 using FPBits = __llvm_libc::fputil::FPBits<float>;
 
 DECLARE_SPECIAL_CONSTANTS(float)
 
 TEST(FminfTest, NaNArg) {
-  EXPECT_FP_EQ(inf, __llvm_libc::fminf(nan, inf));
-  EXPECT_FP_EQ(negInf, __llvm_libc::fminf(negInf, nan));
-  EXPECT_FP_EQ(0.0f, __llvm_libc::fminf(nan, 0.0f));
-  EXPECT_FP_EQ(-0.0f, __llvm_libc::fminf(-0.0f, nan));
-  EXPECT_FP_EQ(-1.2345f, __llvm_libc::fminf(nan, -1.2345f));
-  EXPECT_FP_EQ(1.2345f, __llvm_libc::fminf(1.2345f, nan));
-  EXPECT_NE(isnan(__llvm_libc::fminf(nan, nan)), 0);
+  EXPECT_FP_EQ(inf, __llvm_libc::fminf(aNaN, inf));
+  EXPECT_FP_EQ(negInf, __llvm_libc::fminf(negInf, aNaN));
+  EXPECT_FP_EQ(0.0f, __llvm_libc::fminf(aNaN, 0.0f));
+  EXPECT_FP_EQ(-0.0f, __llvm_libc::fminf(-0.0f, aNaN));
+  EXPECT_FP_EQ(-1.2345f, __llvm_libc::fminf(aNaN, -1.2345f));
+  EXPECT_FP_EQ(1.2345f, __llvm_libc::fminf(1.2345f, aNaN));
+  EXPECT_FP_EQ(aNaN, __llvm_libc::fminf(aNaN, aNaN));
 }
 
 TEST(FminfTest, InfArg) {

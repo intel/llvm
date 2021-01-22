@@ -50,15 +50,16 @@ class StringRef;
 class AMDGPUSubtarget {
 public:
   enum Generation {
-    R600 = 0,
-    R700 = 1,
-    EVERGREEN = 2,
-    NORTHERN_ISLANDS = 3,
-    SOUTHERN_ISLANDS = 4,
-    SEA_ISLANDS = 5,
-    VOLCANIC_ISLANDS = 6,
-    GFX9 = 7,
-    GFX10 = 8
+    INVALID = 0,
+    R600 = 1,
+    R700 = 2,
+    EVERGREEN = 3,
+    NORTHERN_ISLANDS = 4,
+    SOUTHERN_ISLANDS = 5,
+    SEA_ISLANDS = 6,
+    VOLCANIC_ISLANDS = 7,
+    GFX9 = 8,
+    GFX10 = 9
   };
 
 private:
@@ -317,7 +318,6 @@ protected:
   bool FlatForGlobal;
   bool AutoWaitcntBeforeBarrier;
   bool UnalignedScratchAccess;
-  bool UnalignedBufferAccess;
   bool UnalignedAccessMode;
   bool HasApertureRegs;
   bool EnableXNACK;
@@ -398,6 +398,7 @@ protected:
   bool HasMFMAInlineLiteralBug;
   bool HasVertexCache;
   short TexVTXClauseSize;
+  bool UnalignedBufferAccess;
   bool UnalignedDSAccess;
   bool ScalarizeGlobal;
 
@@ -493,8 +494,8 @@ public:
     return LDSBankCount;
   }
 
-  unsigned getMaxPrivateElementSize() const {
-    return MaxPrivateElementSize;
+  unsigned getMaxPrivateElementSize(bool ForBufferRSrc = false) const {
+    return (ForBufferRSrc || !enableFlatScratch()) ? MaxPrivateElementSize : 16;
   }
 
   unsigned getConstantBusLimit(unsigned Opcode) const;
@@ -525,6 +526,10 @@ public:
 
   bool hasAddr64() const {
     return (getGeneration() < AMDGPUSubtarget::VOLCANIC_ISLANDS);
+  }
+
+  bool hasFlat() const {
+    return (getGeneration() > AMDGPUSubtarget::SOUTHERN_ISLANDS);
   }
 
   // Return true if the target only has the reverse operand versions of VALU
@@ -702,16 +707,24 @@ public:
     return UnalignedBufferAccess;
   }
 
+  bool hasUnalignedBufferAccessEnabled() const {
+    return UnalignedBufferAccess && UnalignedAccessMode;
+  }
+
+  bool hasUnalignedDSAccess() const {
+    return UnalignedDSAccess;
+  }
+
+  bool hasUnalignedDSAccessEnabled() const {
+    return UnalignedDSAccess && UnalignedAccessMode;
+  }
+
   bool hasUnalignedScratchAccess() const {
     return UnalignedScratchAccess;
   }
 
   bool hasUnalignedAccessMode() const {
     return UnalignedAccessMode;
-  }
-
-  bool hasUnalignedDSAccess() const {
-    return UnalignedDSAccess;
   }
 
   bool hasApertureRegs() const {

@@ -55,22 +55,22 @@ void rethrow_in_catch(void) {
   // WEBASSEMBLY64: call void @llvm.wasm.rethrow.in.catch()
 }
 
-int atomic_wait_i32(int *addr, int expected, long long timeout) {
-  return __builtin_wasm_atomic_wait_i32(addr, expected, timeout);
-  // WEBASSEMBLY32: call i32 @llvm.wasm.atomic.wait.i32(i32* %{{.*}}, i32 %{{.*}}, i64 %{{.*}})
-  // WEBASSEMBLY64: call i32 @llvm.wasm.atomic.wait.i32(i32* %{{.*}}, i32 %{{.*}}, i64 %{{.*}})
+int memory_atomic_wait32(int *addr, int expected, long long timeout) {
+  return __builtin_wasm_memory_atomic_wait32(addr, expected, timeout);
+  // WEBASSEMBLY32: call i32 @llvm.wasm.memory.atomic.wait32(i32* %{{.*}}, i32 %{{.*}}, i64 %{{.*}})
+  // WEBASSEMBLY64: call i32 @llvm.wasm.memory.atomic.wait32(i32* %{{.*}}, i32 %{{.*}}, i64 %{{.*}})
 }
 
-int atomic_wait_i64(long long *addr, long long expected, long long timeout) {
-  return __builtin_wasm_atomic_wait_i64(addr, expected, timeout);
-  // WEBASSEMBLY32: call i32 @llvm.wasm.atomic.wait.i64(i64* %{{.*}}, i64 %{{.*}}, i64 %{{.*}})
-  // WEBASSEMBLY64: call i32 @llvm.wasm.atomic.wait.i64(i64* %{{.*}}, i64 %{{.*}}, i64 %{{.*}})
+int memory_atomic_wait64(long long *addr, long long expected, long long timeout) {
+  return __builtin_wasm_memory_atomic_wait64(addr, expected, timeout);
+  // WEBASSEMBLY32: call i32 @llvm.wasm.memory.atomic.wait64(i64* %{{.*}}, i64 %{{.*}}, i64 %{{.*}})
+  // WEBASSEMBLY64: call i32 @llvm.wasm.memory.atomic.wait64(i64* %{{.*}}, i64 %{{.*}}, i64 %{{.*}})
 }
 
-unsigned int atomic_notify(int *addr, unsigned int count) {
-  return __builtin_wasm_atomic_notify(addr, count);
-  // WEBASSEMBLY32: call i32 @llvm.wasm.atomic.notify(i32* %{{.*}}, i32 %{{.*}})
-  // WEBASSEMBLY64: call i32 @llvm.wasm.atomic.notify(i32* %{{.*}}, i32 %{{.*}})
+unsigned int memory_atomic_notify(int *addr, unsigned int count) {
+  return __builtin_wasm_memory_atomic_notify(addr, count);
+  // WEBASSEMBLY32: call i32 @llvm.wasm.memory.atomic.notify(i32* %{{.*}}, i32 %{{.*}})
+  // WEBASSEMBLY64: call i32 @llvm.wasm.memory.atomic.notify(i32* %{{.*}}, i32 %{{.*}})
 }
 
 int trunc_s_i32_f32(float f) {
@@ -384,26 +384,20 @@ u8x16 sub_saturate_u_i8x16(u8x16 x, u8x16 y) {
 
 i8x16 abs_i8x16(i8x16 v) {
   return __builtin_wasm_abs_i8x16(v);
-  // WEBASSEMBLY: %neg = sub <16 x i8> zeroinitializer, %v
-  // WEBASSEMBLY: %abscond = icmp slt <16 x i8> %v, zeroinitializer
-  // WEBASSEMBLY: %abs = select <16 x i1> %abscond, <16 x i8> %neg, <16 x i8> %v
-  // WEBASSEMBLY: ret <16 x i8> %abs
+  // WEBASSEMBLY: call <16 x i8> @llvm.abs.v16i8(<16 x i8> %v, i1 false)
+  // WEBASSEMBLY-NEXT: ret
 }
 
 i16x8 abs_i16x8(i16x8 v) {
   return __builtin_wasm_abs_i16x8(v);
-  // WEBASSEMBLY: %neg = sub <8 x i16> zeroinitializer, %v
-  // WEBASSEMBLY: %abscond = icmp slt <8 x i16> %v, zeroinitializer
-  // WEBASSEMBLY: %abs = select <8 x i1> %abscond, <8 x i16> %neg, <8 x i16> %v
-  // WEBASSEMBLY: ret <8 x i16> %abs
+  // WEBASSEMBLY: call <8 x i16> @llvm.abs.v8i16(<8 x i16> %v, i1 false)
+  // WEBASSEMBLY-NEXT: ret
 }
 
 i32x4 abs_i32x4(i32x4 v) {
   return __builtin_wasm_abs_i32x4(v);
-  // WEBASSEMBLY: %neg = sub <4 x i32> zeroinitializer, %v
-  // WEBASSEMBLY: %abscond = icmp slt <4 x i32> %v, zeroinitializer
-  // WEBASSEMBLY: %abs = select <4 x i1> %abscond, <4 x i32> %neg, <4 x i32> %v
-  // WEBASSEMBLY: ret <4 x i32> %abs
+  // WEBASSEMBLY: call <4 x i32> @llvm.abs.v4i32(<4 x i32> %v, i1 false)
+  // WEBASSEMBLY-NEXT: ret
 }
 
 i8x16 min_s_i8x16(i8x16 x, i8x16 y) {

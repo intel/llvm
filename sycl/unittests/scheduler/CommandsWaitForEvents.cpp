@@ -71,22 +71,18 @@ TEST_F(SchedulerTest, CommandsWaitForEvents) {
     return;
   }
 
-  queue Q1;
-  auto Device = Q1.get_device();
-  queue Q2(context(Device), Device);
+  platform Plt{Selector};
+  unittest::PiMock Mock{Plt};
 
-  unittest::PiMock Mock1(Q1);
-  unittest::PiMock Mock2(Q2);
+  Mock.redefine<detail::PiApiKind::piEventsWait>(waitFunc);
+  Mock.redefine<detail::PiApiKind::piEventRetain>(retainReleaseFunc);
+  Mock.redefine<detail::PiApiKind::piEventRelease>(retainReleaseFunc);
+  Mock.redefine<detail::PiApiKind::piEventGetInfo>(getEventInfoFunc);
 
-  Mock1.redefine<detail::PiApiKind::piEventsWait>(waitFunc);
-  Mock1.redefine<detail::PiApiKind::piEventRetain>(retainReleaseFunc);
-  Mock1.redefine<detail::PiApiKind::piEventRelease>(retainReleaseFunc);
-  Mock1.redefine<detail::PiApiKind::piEventGetInfo>(getEventInfoFunc);
-
-  Mock2.redefine<detail::PiApiKind::piEventsWait>(waitFunc);
-  Mock2.redefine<detail::PiApiKind::piEventRetain>(retainReleaseFunc);
-  Mock2.redefine<detail::PiApiKind::piEventRelease>(retainReleaseFunc);
-  Mock2.redefine<detail::PiApiKind::piEventGetInfo>(getEventInfoFunc);
+  context Ctx1{Plt};
+  queue Q1{Ctx1, Selector};
+  context Ctx2{Plt};
+  queue Q2{Ctx2, Selector};
 
   TestContext.reset(new TestCtx(Q1, Q2));
 

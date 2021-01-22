@@ -193,6 +193,9 @@ inline int getSPIRVElementSize(int ImageChannelType, int ImageChannelOrder) {
 }
 
 #ifdef __SYCL_EXPLICIT_SIMD__
+// TODO all the opencl_image1d_buffer* stuff below is not used anymore and is
+// left temporarily to avoid ABI breaking changes - field of this type is
+// temporarily present in the accessor class.
 template <access::mode AccessMode> struct opencl_image1d_buffer_type;
 
 // OpenCL types used only when compiling DPCPP ESIMD kernels

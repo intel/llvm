@@ -97,7 +97,6 @@ class COFFMasmParser : public MCAsmParserExtension {
     // align
     // even
     // mmword
-    // real10
     // tbyte
     // xmmword
     // ymmword
@@ -119,12 +118,7 @@ class COFFMasmParser : public MCAsmParserExtension {
     addDirectiveHandler<&COFFMasmParser::IgnoreDirective>("title");
 
     // Macro directives
-    // endm
-    // exitm
     // goto
-    // local
-    // macro
-    // purge
 
     // Miscellaneous directives
     addDirectiveHandler<&COFFMasmParser::ParseDirectiveAlias>("alias");
@@ -156,13 +150,6 @@ class COFFMasmParser : public MCAsmParserExtension {
     addDirectiveHandler<&COFFMasmParser::IgnoreDirective>(".k3d");
     addDirectiveHandler<&COFFMasmParser::IgnoreDirective>(".mmx");
     addDirectiveHandler<&COFFMasmParser::IgnoreDirective>(".xmm");
-
-    // Repeat blocks directives
-    // for
-    // forc
-    // goto
-    // repeat
-    // while
 
     // Scope directives
     // comm

@@ -8,6 +8,7 @@
 
 from libcxx.test.dsl import *
 import re
+import shutil
 import sys
 
 _isClang      = lambda cfg: '__clang__' in compilerMacros(cfg) and '__apple_build_version__' not in compilerMacros(cfg)
@@ -39,13 +40,32 @@ DEFAULT_FEATURES = [
   Feature(name='has-fobjc-arc',                 when=lambda cfg: hasCompileFlag(cfg, '-xobjective-c++ -fobjc-arc') and
                                                                  sys.platform.lower().strip() == 'darwin'), # TODO: this doesn't handle cross-compiling to Apple platforms.
   Feature(name='objective-c++',                 when=lambda cfg: hasCompileFlag(cfg, '-xobjective-c++ -fobjc-arc')),
-  Feature(name='modules-support',               when=lambda cfg: hasCompileFlag(cfg, '-fmodules')),
-  Feature(name='non-lockfree-atomics',          when=lambda cfg: sourceBuilds(cfg, """
-                                                                  #include <atomic>
-                                                                  struct Large { int storage[100]; };
-                                                                  std::atomic<Large> x;
-                                                                  int main(int, char**) { return x.load(), x.is_lock_free(); }
-                                                                """)),
+
+  # Note: We use a custom modules cache path to make sure that we don't reuse
+  #       the default one, which can be shared across builds. This is important
+  #       because we define macros in headers files, and a change in these macros
+  #       doesn't seem to invalidate modules cache entries, which means we could
+  #       build against now-invalid cached headers from a previous build.
+  Feature(name='modules-support',
+          when=lambda cfg: hasCompileFlag(cfg, '-fmodules'),
+          actions=lambda cfg: [AddCompileFlag('-fmodules-cache-path=%t/ModuleCache')]),
+
+  Feature(name='non-lockfree-atomics',
+          when=lambda cfg: sourceBuilds(cfg, """
+            #include <atomic>
+            struct Large { int storage[100]; };
+            std::atomic<Large> x;
+            int main(int, char**) { (void)x.load(); return 0; }
+          """)),
+  # TODO: Remove this feature once compiler-rt includes __atomic_is_lockfree()
+  # on all supported platforms.
+  Feature(name='is-lockfree-runtime-function',
+          when=lambda cfg: sourceBuilds(cfg, """
+            #include <atomic>
+            struct Large { int storage[100]; };
+            std::atomic<Large> x;
+            int main(int, char**) { return x.is_lock_free(); }
+          """)),
 
   Feature(name='apple-clang',                                                                                                      when=_isAppleClang),
   Feature(name=lambda cfg: 'apple-clang-{__clang_major__}'.format(**compilerMacros(cfg)),                                          when=_isAppleClang),
@@ -131,9 +151,41 @@ DEFAULT_FEATURES += [
 ]
 
 
+# Detect whether GDB is on the system, and if so add a substitution to access it.
+DEFAULT_FEATURES += [
+  Feature(name='host-has-gdb',
+    when=lambda cfg: shutil.which('gdb') is not None,
+    actions=[AddSubstitution('%{gdb}', lambda cfg: shutil.which('gdb'))]
+  )
+]
+
+
 # When vendor-specific availability annotations are enabled, add Lit features
 # with various forms of the target triple to make it easier to write XFAIL or
 # UNSUPPORTED markup for tests that are known to fail on a particular triple.
+#
+# More specifically, when the `use_system_cxx_lib` parameter is enabled, then
+# assuming the `target_triple` is set to `x86_64-apple-macosx10.12`, the
+# following features will be made available:
+#   - with_system_cxx_lib=macosx
+#   - with_system_cxx_lib=macosx10.12
+#   - with_system_cxx_lib=x86_64-apple-macosx10.12
+#
+# These features can be used to XFAIL a test that fails when deployed on (or is
+# compiled for) an older system. For example, if the test exhibits a bug in the
+# libc on a particular system version, or if the test uses a symbol that is not
+# available on an older version of the dylib, it can be marked as XFAIL with
+# one of the above features.
+#
+# It is sometimes useful to check that a test fails specifically when compiled
+# for a given deployment target. For example, this is the case when testing
+# availability markup, where we want to make sure that using the annotated
+# facility on a deployment target that doesn't support it will fail at compile
+# time, not at runtime. This can be achieved by creating a `.compile.pass.cpp`
+# and XFAILing it for the right deployment target. If the test doesn't fail at
+# compile-time like it's supposed to, the test will XPASS. Another option is to
+# create a `.verify.cpp` test that checks for the right errors, and mark that
+# test as requiring `with_system_cxx_lib=<something>`.
 #
 # TODO: This is very unclean -- we assume that the 'use_system_cxx_lib' parameter
 #       is set before this feature gets detected, and we also set a dummy name

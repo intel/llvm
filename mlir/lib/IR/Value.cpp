@@ -8,8 +8,8 @@
 
 #include "mlir/IR/Value.h"
 #include "mlir/IR/Block.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Operation.h"
-#include "mlir/IR/StandardTypes.h"
 #include "llvm/ADT/SmallPtrSet.h"
 
 using namespace mlir;
@@ -32,6 +32,11 @@ Value::Value(Operation *op, unsigned resultNo) {
 
 /// Return the type of this value.
 Type Value::getType() const {
+  // Support a null Value so the asmprinter doesn't crash on invalid IR (e.g.
+  // operations that have dropAllReferences() called on them).
+  if (!*this)
+    return Type();
+
   if (BlockArgument arg = dyn_cast<BlockArgument>())
     return arg.getType();
 
@@ -63,7 +68,7 @@ void Value::setType(Type newType) {
     return;
   auto newTypes = llvm::to_vector<4>(curTypes);
   newTypes[resultNo] = newType;
-  owner->resultType = TupleType::get(newTypes, newType.getContext());
+  owner->resultType = TupleType::get(newType.getContext(), newTypes);
 }
 
 /// If this value is the result of an Operation, return the operation that

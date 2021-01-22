@@ -97,6 +97,9 @@ public:
   /// Returns true if this value is known to be non-negative.
   bool isNonNegative() const { return Zero.isSignBitSet(); }
 
+  /// Returns true if this value is known to be non-zero.
+  bool isNonZero() const { return !One.isNullValue(); }
+
   /// Returns true if this value is known to be positive.
   bool isStrictlyPositive() const { return Zero.isSignBitSet() && !One.isNullValue(); }
 
@@ -110,16 +113,36 @@ public:
     Zero.setSignBit();
   }
 
-  /// Return the minimal value possible given these KnownBits.
+  /// Return the minimal unsigned value possible given these KnownBits.
   APInt getMinValue() const {
     // Assume that all bits that aren't known-ones are zeros.
     return One;
   }
 
-  /// Return the maximal value possible given these KnownBits.
+  /// Return the minimal signed value possible given these KnownBits.
+  APInt getSignedMinValue() const {
+    // Assume that all bits that aren't known-ones are zeros.
+    APInt Min = One;
+    // Sign bit is unknown.
+    if (Zero.isSignBitClear() && One.isSignBitClear())
+      Min.setSignBit();
+    return Min;
+  }
+
+  /// Return the maximal unsigned value possible given these KnownBits.
   APInt getMaxValue() const {
     // Assume that all bits that aren't known-zeros are ones.
     return ~Zero;
+  }
+
+  /// Return the maximal signed value possible given these KnownBits.
+  APInt getSignedMaxValue() const {
+    // Assume that all bits that aren't known-zeros are ones.
+    APInt Max = ~Zero;
+    // Sign bit is unknown.
+    if (Zero.isSignBitClear() && One.isSignBitClear())
+      Max.clearSignBit();
+    return Max;
   }
 
   /// Return known bits for a truncation of the value we're tracking.
@@ -175,6 +198,10 @@ public:
       return trunc(BitWidth);
     return *this;
   }
+
+  /// Return known bits for a in-register sign extension of the value we're
+  /// tracking.
+  KnownBits sextInReg(unsigned SrcBitWidth) const;
 
   /// Return a KnownBits with the extracted bits
   /// [bitPosition,bitPosition+numBits).
@@ -247,6 +274,16 @@ public:
     return getBitWidth() - Zero.countPopulation();
   }
 
+  /// Create known bits from a known constant.
+  static KnownBits makeConstant(const APInt &C) {
+    return KnownBits(~C, C);
+  }
+
+  /// Compute known bits common to LHS and RHS.
+  static KnownBits commonBits(const KnownBits &LHS, const KnownBits &RHS) {
+    return KnownBits(LHS.Zero & RHS.Zero, LHS.One & RHS.One);
+  }
+
   /// Compute known bits resulting from adding LHS, RHS and a 1-bit Carry.
   static KnownBits computeForAddCarry(
       const KnownBits &LHS, const KnownBits &RHS, const KnownBits &Carry);
@@ -257,6 +294,15 @@ public:
 
   /// Compute known bits resulting from multiplying LHS and RHS.
   static KnownBits computeForMul(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Compute known bits for udiv(LHS, RHS).
+  static KnownBits udiv(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Compute known bits for urem(LHS, RHS).
+  static KnownBits urem(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Compute known bits for srem(LHS, RHS).
+  static KnownBits srem(const KnownBits &LHS, const KnownBits &RHS);
 
   /// Compute known bits for umax(LHS, RHS).
   static KnownBits umax(const KnownBits &LHS, const KnownBits &RHS);
@@ -304,7 +350,7 @@ public:
   KnownBits &operator^=(const KnownBits &RHS);
 
   /// Compute known bits for the absolute value.
-  KnownBits abs() const;
+  KnownBits abs(bool IntMinIsPoison = false) const;
 
   KnownBits byteSwap() {
     return KnownBits(Zero.byteSwap(), One.byteSwap());

@@ -18,6 +18,7 @@
 
 namespace llvm {
 class StringRef;
+template <unsigned> class SmallString;
 
 namespace XCOFF {
 
@@ -28,6 +29,7 @@ constexpr size_t NameSize = 8;
 constexpr size_t SymbolTableEntrySize = 18;
 constexpr size_t RelocationSerializationSize32 = 10;
 constexpr uint16_t RelocOverflow = 65535;
+constexpr uint8_t AllocRegNo = 31;
 
 enum ReservedSectionNum : int16_t { N_DEBUG = -2, N_ABS = -1, N_UNDEF = 0 };
 
@@ -294,8 +296,27 @@ enum CFileCpuId : uint8_t {
 
 StringRef getMappingClassString(XCOFF::StorageMappingClass SMC);
 StringRef getRelocationTypeString(XCOFF::RelocationType Type);
+SmallString<32> parseParmsType(uint32_t Value, unsigned ParmsNum);
 
 struct TracebackTable {
+  enum LanguageID : uint8_t {
+    C,
+    Fortran,
+    Pascal,
+    Ada,
+    PL1,
+    Basic,
+    Lisp,
+    Cobol,
+    Modula2,
+    CPlusPlus,
+    Rpg,
+    PL8,
+    PLIX = PL8,
+    Assembly,
+    Java,
+    ObjectiveC
+  };
   // Byte 1
   static constexpr uint32_t VersionMask = 0xFF00'0000;
   static constexpr uint8_t VersionShift = 24;
@@ -331,8 +352,8 @@ struct TracebackTable {
   static constexpr uint32_t FPRSavedShift = 24;
 
   // Byte 6
-  static constexpr uint32_t HasExtensionTableMask = 0x0080'0000;
-  static constexpr uint32_t HasVectorInfoMask = 0x0040'0000;
+  static constexpr uint32_t HasVectorInfoMask = 0x0080'0000;
+  static constexpr uint32_t HasExtensionTableMask = 0x0040'0000;
   static constexpr uint32_t GPRSavedMask = 0x003F'0000;
   static constexpr uint32_t GPRSavedShift = 16;
 
@@ -346,9 +367,44 @@ struct TracebackTable {
   static constexpr uint8_t NumberOfFloatingPointParmsShift = 1;
 
   // Masks to select leftmost bits for decoding parameter type information.
+  // Bit to use when vector info is not presented.
   static constexpr uint32_t ParmTypeIsFloatingBit = 0x8000'0000;
   static constexpr uint32_t ParmTypeFloatingIsDoubleBit = 0x4000'0000;
+  // Bits to use when vector info is presented.
+  static constexpr uint32_t ParmTypeIsFixedBits = 0x0000'0000;
+  static constexpr uint32_t ParmTypeIsVectorBits = 0x4000'0000;
+  static constexpr uint32_t ParmTypeIsFloatingBits = 0x8000'0000;
+  static constexpr uint32_t ParmTypeIsDoubleBits = 0xC000'0000;
+  static constexpr uint32_t ParmTypeMask = 0xC000'0000;
+
+  // Vector extension
+  static constexpr uint16_t NumberOfVRSavedMask = 0xFC00;
+  static constexpr uint16_t IsVRSavedOnStackMask = 0x0200;
+  static constexpr uint16_t HasVarArgsMask = 0x0100;
+  static constexpr uint8_t NumberOfVRSavedShift = 10;
+
+  static constexpr uint16_t NumberOfVectorParmsMask = 0x00FE;
+  static constexpr uint16_t HasVMXInstructionMask = 0x0001;
+  static constexpr uint8_t NumberOfVectorParmsShift = 1;
+
+  static constexpr uint32_t ParmTypeIsVectorCharBit = 0x0000'0000;
+  static constexpr uint32_t ParmTypeIsVectorShortBit = 0x4000'0000;
+  static constexpr uint32_t ParmTypeIsVectorIntBit = 0x8000'0000;
+  static constexpr uint32_t ParmTypeIsVectorFloatBit = 0xC000'0000;
 };
+
+// Extended Traceback table flags.
+enum ExtendedTBTableFlag : uint8_t {
+  TB_OS1 = 0x80,         ///< Reserved for OS use.
+  TB_RESERVED = 0x40,    ///< Reserved for compiler.
+  TB_SSP_CANARY = 0x20,  ///< stack smasher canary present on stack.
+  TB_OS2 = 0x10,         ///< Reserved for OS use.
+  TB_EH_INFO = 0x08,     ///< Exception handling info present.
+  TB_LONGTBTABLE2 = 0x01 ///< Additional tbtable extension exists.
+};
+
+StringRef getNameForTracebackTableLanguageId(TracebackTable::LanguageID LangId);
+SmallString<32> getExtendedTBTableFlagString(uint8_t Flag);
 
 } // end namespace XCOFF
 } // end namespace llvm

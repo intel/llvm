@@ -1962,9 +1962,10 @@ multiclass MVE_VQxDMULH_m<string iname, MVEVectorVTInfo VTI,
                       bit rounding> {
   def "" : MVE_VQxDMULH_Base<iname, VTI.Suffix, VTI.Size, rounding>;
   defvar Inst = !cast<Instruction>(NAME);
-  defm : MVE_TwoOpPattern<VTI, Op, pred_int, (? ), Inst>;
 
   let Predicates = [HasMVEInt] in {
+    defm : MVE_TwoOpPattern<VTI, Op, pred_int, (? ), Inst>;
+
     // Extra unpredicated multiply intrinsic patterns
     def : Pat<(VTI.Vec (unpred_int (VTI.Vec MQPR:$Qm), (VTI.Vec MQPR:$Qn))),
               (VTI.Vec (Inst (VTI.Vec MQPR:$Qm), (VTI.Vec MQPR:$Qn)))>;
@@ -3683,14 +3684,8 @@ multiclass MVE_VFMA_fp_multi<string iname, bit fms, MVEVectorVTInfo VTI> {
     if fms then {
       def : Pat<(VTI.Vec (fma (fneg m1), m2, add)),
                 (Inst $add, $m1, $m2)>;
-      def : Pat<(VTI.Vec (fma m1, (fneg m2), add)),
-                (Inst $add, $m1, $m2)>;
       def : Pat<(VTI.Vec (vselect (VTI.Pred VCCR:$pred),
                                   (VTI.Vec (fma (fneg m1), m2, add)),
-                                  add)),
-                (Inst $add, $m1, $m2, ARMVCCThen, $pred)>;
-      def : Pat<(VTI.Vec (vselect (VTI.Pred VCCR:$pred),
-                                  (VTI.Vec (fma m1, (fneg m2), add)),
                                   add)),
                 (Inst $add, $m1, $m2, ARMVCCThen, $pred)>;
       def : Pat<(VTI.Vec (pred_int (fneg m1), m2, add, pred)),
@@ -5492,7 +5487,10 @@ class MVE_VxxMUL_qr<string iname, string suffix,
 multiclass MVE_VxxMUL_qr_m<string iname, MVEVectorVTInfo VTI, bit bit_28,
                            PatFrag Op, Intrinsic int_unpred, Intrinsic int_pred> {
   def "" : MVE_VxxMUL_qr<iname, VTI.Suffix, bit_28, VTI.Size>;
-  defm : MVE_TwoOpPatternDup<VTI, Op, int_pred, (? ), !cast<Instruction>(NAME)>;
+
+  let Predicates = [HasMVEInt] in {
+    defm : MVE_TwoOpPatternDup<VTI, Op, int_pred, (? ), !cast<Instruction>(NAME)>;
+  }
   defm : MVE_vec_scalar_int_pat_m<!cast<Instruction>(NAME), VTI, int_unpred, int_pred>;
 }
 
@@ -5845,6 +5843,41 @@ def MVE_VMOV_rr_q : MVE_VMOV_64bit<(outs rGPR:$Rt, rGPR:$Rt2), (ins MQPR:$Qd),
                                    0b0, "$Rt, $Rt2, $Qd$idx, $Qd$idx2", ""> {
   let DecoderMethod = "DecodeMVEVMOVQtoDReg";
   let AsmMatchConverter = "cvtMVEVMOVQtoDReg";
+}
+
+let Predicates = [HasMVEInt] in {
+  // Double lane moves. There are a number of patterns here. We know that the
+  // insertelt's will be in descending order by index, and need to match the 5
+  // patterns that might contain 2-0 or 3-1 pairs. These are:
+  // 3 2 1 0    -> vmovqrr 31; vmovqrr 20
+  // 3 2 1      -> vmovqrr 31; vmov 2
+  // 3 1        -> vmovqrr 31
+  // 2 1 0      -> vmovqrr 20; vmov 1
+  // 2 0        -> vmovqrr 20
+  // The other potential patterns will be handled by single lane inserts.
+  def : Pat<(insertelt (insertelt (insertelt (insertelt (v4i32 MQPR:$src1),
+                                                        rGPR:$srcA, (i32 0)),
+                                             rGPR:$srcB, (i32 1)),
+                                  rGPR:$srcC, (i32 2)),
+                       rGPR:$srcD, (i32 3)),
+            (MVE_VMOV_q_rr (MVE_VMOV_q_rr MQPR:$src1, rGPR:$srcA, rGPR:$srcC, (i32 2), (i32 0)),
+                           rGPR:$srcB, rGPR:$srcD, (i32 3), (i32 1))>;
+  def : Pat<(insertelt (insertelt (insertelt (v4i32 MQPR:$src1),
+                                             rGPR:$srcB, (i32 1)),
+                                  rGPR:$srcC, (i32 2)),
+                       rGPR:$srcD, (i32 3)),
+            (MVE_VMOV_q_rr (MVE_VMOV_to_lane_32 MQPR:$src1, rGPR:$srcC, (i32 2)),
+                           rGPR:$srcB, rGPR:$srcD, (i32 3), (i32 1))>;
+  def : Pat<(insertelt (insertelt (v4i32 MQPR:$src1), rGPR:$srcA, (i32 1)), rGPR:$srcB, (i32 3)),
+            (MVE_VMOV_q_rr MQPR:$src1, rGPR:$srcA, rGPR:$srcB, (i32 3), (i32 1))>;
+  def : Pat<(insertelt (insertelt (insertelt (v4i32 MQPR:$src1),
+                                             rGPR:$srcB, (i32 0)),
+                                  rGPR:$srcC, (i32 1)),
+                       rGPR:$srcD, (i32 2)),
+            (MVE_VMOV_q_rr (MVE_VMOV_to_lane_32 MQPR:$src1, rGPR:$srcC, (i32 1)),
+                           rGPR:$srcB, rGPR:$srcD, (i32 2), (i32 0))>;
+  def : Pat<(insertelt (insertelt (v4i32 MQPR:$src1), rGPR:$srcA, (i32 0)), rGPR:$srcB, (i32 2)),
+            (MVE_VMOV_q_rr MQPR:$src1, rGPR:$srcA, rGPR:$srcB, (i32 2), (i32 0))>;
 }
 
 // end of coproc mov

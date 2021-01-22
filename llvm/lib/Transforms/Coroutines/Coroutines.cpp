@@ -131,6 +131,7 @@ static bool isCoroutineIntrinsicName(StringRef Name) {
       "llvm.coro.destroy",
       "llvm.coro.done",
       "llvm.coro.end",
+      "llvm.coro.end.async",
       "llvm.coro.frame",
       "llvm.coro.free",
       "llvm.coro.id",
@@ -139,6 +140,7 @@ static bool isCoroutineIntrinsicName(StringRef Name) {
       "llvm.coro.id.retcon.once",
       "llvm.coro.noop",
       "llvm.coro.param",
+      "llvm.coro.prepare.async",
       "llvm.coro.prepare.retcon",
       "llvm.coro.promise",
       "llvm.coro.resume",
@@ -276,6 +278,7 @@ void coro::Shape::buildFrom(Function &F) {
         break;
       case Intrinsic::coro_suspend_async: {
         auto *Suspend = cast<CoroSuspendAsyncInst>(II);
+        Suspend->checkWellFormed();
         CoroSuspends.push_back(Suspend);
         break;
       }
@@ -314,11 +317,16 @@ void coro::Shape::buildFrom(Function &F) {
         CoroBegin = CB;
         break;
       }
+      case Intrinsic::coro_end_async:
       case Intrinsic::coro_end:
-        CoroEnds.push_back(cast<CoroEndInst>(II));
-        if (CoroEnds.back()->isFallthrough()) {
+        CoroEnds.push_back(cast<AnyCoroEndInst>(II));
+        if (auto *AsyncEnd = dyn_cast<CoroAsyncEndInst>(II)) {
+          AsyncEnd->checkWellFormed();
+        }
+        if (CoroEnds.back()->isFallthrough() && isa<CoroEndInst>(II)) {
           // Make sure that the fallthrough coro.end is the first element in the
           // CoroEnds vector.
+          // Note: I don't think this is neccessary anymore.
           if (CoroEnds.size() > 1) {
             if (CoroEnds.front()->isFallthrough())
               report_fatal_error(
@@ -351,7 +359,7 @@ void coro::Shape::buildFrom(Function &F) {
     }
 
     // Replace all coro.ends with unreachable instruction.
-    for (CoroEndInst *CE : CoroEnds)
+    for (AnyCoroEndInst *CE : CoroEnds)
       changeToUnreachable(CE, /*UseLLVMTrap=*/false);
 
     return;
@@ -386,6 +394,7 @@ void coro::Shape::buildFrom(Function &F) {
     AsyncId->checkWellFormed();
     this->ABI = coro::ABI::Async;
     this->AsyncLowering.Context = AsyncId->getStorage();
+    this->AsyncLowering.ContextArgNo = AsyncId->getStorageArgumentIndex();
     this->AsyncLowering.ContextHeaderSize = AsyncId->getStorageSize();
     this->AsyncLowering.ContextAlignment =
         AsyncId->getStorageAlignment().value();
@@ -680,12 +689,47 @@ static void checkAsyncFuncPointer(const Instruction *I, Value *V) {
 }
 
 void CoroIdAsyncInst::checkWellFormed() const {
-  // TODO: check that the StorageArg is a parameter of this function.
   checkConstantInt(this, getArgOperand(SizeArg),
                    "size argument to coro.id.async must be constant");
   checkConstantInt(this, getArgOperand(AlignArg),
                    "alignment argument to coro.id.async must be constant");
+  checkConstantInt(this, getArgOperand(StorageArg),
+                   "storage argument offset to coro.id.async must be constant");
   checkAsyncFuncPointer(this, getArgOperand(AsyncFuncPtrArg));
+}
+
+static void checkAsyncContextProjectFunction(const Instruction *I,
+                                             Function *F) {
+  auto *FunTy = cast<FunctionType>(F->getType()->getPointerElementType());
+  if (!FunTy->getReturnType()->isPointerTy() ||
+      !FunTy->getReturnType()->getPointerElementType()->isIntegerTy(8))
+    fail(I,
+         "llvm.coro.suspend.async resume function projection function must "
+         "return an i8* type",
+         F);
+  if (FunTy->getNumParams() != 1 || !FunTy->getParamType(0)->isPointerTy() ||
+      !FunTy->getParamType(0)->getPointerElementType()->isIntegerTy(8))
+    fail(I,
+         "llvm.coro.suspend.async resume function projection function must "
+         "take one i8* type as parameter",
+         F);
+}
+
+void CoroSuspendAsyncInst::checkWellFormed() const {
+  checkAsyncContextProjectFunction(this, getAsyncContextProjectionFunction());
+}
+
+void CoroAsyncEndInst::checkWellFormed() const {
+  auto *MustTailCallFunc = getMustTailCallFunction();
+  if (!MustTailCallFunc)
+    return;
+  auto *FnTy =
+      cast<FunctionType>(MustTailCallFunc->getType()->getPointerElementType());
+  if (FnTy->getNumParams() != (getNumArgOperands() - 3))
+    fail(this,
+         "llvm.coro.end.async must tail call function argument type must "
+         "match the tail arguments",
+         MustTailCallFunc);
 }
 
 void LLVMAddCoroEarlyPass(LLVMPassManagerRef PM) {

@@ -1,12 +1,6 @@
 // REQUIRES: webassembly-registered-target
-// https://reviews.llvm.org/D79655 temporarily added a RUN line that was missing
-// a -o flag and wrote to the source dir. The file it wrote was then interpreted
-// as a test without RUN line, breaking bots. FIXME: Remove this rm line once
-// it's been in the tree long enough to clean up everyone's build dirs.
-// Removing this June 2020 should be fine.
-// RUN: rm -f %S/wasm-eh.ll
-// RUN: %clang_cc1 %s -triple wasm32-unknown-unknown -fms-extensions -fexceptions -fcxx-exceptions -fwasm-exceptions -target-feature +exception-handling -emit-llvm -o - -std=c++11 | FileCheck %s
-// RUN: %clang_cc1 %s -triple wasm64-unknown-unknown -fms-extensions -fexceptions -fcxx-exceptions -fwasm-exceptions -target-feature +exception-handling -emit-llvm -o - -std=c++11 | FileCheck %s
+// RUN: %clang_cc1 %s -triple wasm32-unknown-unknown -fms-extensions -fexceptions -fcxx-exceptions -exception-model=wasm -target-feature +exception-handling -emit-llvm -o - -std=c++11 | FileCheck %s
+// RUN: %clang_cc1 %s -triple wasm64-unknown-unknown -fms-extensions -fexceptions -fcxx-exceptions -exception-model=wasm -target-feature +exception-handling -emit-llvm -o - -std=c++11 | FileCheck %s
 
 void may_throw();
 void dont_throw() noexcept;
@@ -130,7 +124,7 @@ void test3() {
 
 // CHECK: [[EHCLEANUP_BB]]:
 // CHECK-NEXT:   %[[CLEANUPPAD:.*]] = cleanuppad within none []
-// CHECK-NEXT:   call %struct.Cleanup* @_ZN7CleanupD1Ev(%struct.Cleanup* %{{.*}}) {{.*}} [ "funclet"(token %[[CLEANUPPAD]]) ]
+// CHECK-NEXT:   call %struct.Cleanup* @_ZN7CleanupD1Ev(%struct.Cleanup* {{[^,]*}} %{{.*}}) {{.*}} [ "funclet"(token %[[CLEANUPPAD]]) ]
 // CHECK-NEXT:   cleanupret from %[[CLEANUPPAD]] unwind to caller
 
 // Possibly throwing function call within a catch
@@ -244,7 +238,7 @@ void test6() {
 
 // CHECK: [[EHCLEANUP_BB2]]:
 // CHECK-NEXT:   %[[CLEANUPPAD2:.*]] = cleanuppad within %[[CATCHPAD]] []
-// CHECK-NEXT:   call %struct.Cleanup* @_ZN7CleanupD1Ev(%struct.Cleanup* %{{.*}}) {{.*}} [ "funclet"(token %[[CLEANUPPAD2]]) ]
+// CHECK-NEXT:   call %struct.Cleanup* @_ZN7CleanupD1Ev(%struct.Cleanup* {{[^,]*}} %{{.*}}) {{.*}} [ "funclet"(token %[[CLEANUPPAD2]]) ]
 // CHECK-NEXT:   cleanupret from %[[CLEANUPPAD2]] unwind label %[[EHCLEANUP_BB3:.*]]
 
 // CHECK: [[EHCLEANUP_BB3]]:
@@ -253,7 +247,7 @@ void test6() {
 
 // CHECK: [[EHCLEANUP_BB1]]:
 // CHECK-NEXT:   %[[CLEANUPPAD1:.*]] = cleanuppad within none []
-// CHECK-NEXT:   call %struct.Cleanup* @_ZN7CleanupD1Ev(%struct.Cleanup* %{{.*}}) {{.*}} [ "funclet"(token %[[CLEANUPPAD1]]) ]
+// CHECK-NEXT:   call %struct.Cleanup* @_ZN7CleanupD1Ev(%struct.Cleanup* {{[^,]*}} %{{.*}}) {{.*}} [ "funclet"(token %[[CLEANUPPAD1]]) ]
 // CHECK-NEXT:   cleanupret from %[[CLEANUPPAD1]] unwind to caller
 
 // CHECK: [[UNREACHABLE_BB]]:
@@ -390,9 +384,9 @@ void test8() {
 
 // CHECK:   unreachable
 
-// RUN: %clang_cc1 %s -triple wasm32-unknown-unknown -fms-extensions -fexceptions -fcxx-exceptions -fwasm-exceptions -target-feature +exception-handling -emit-llvm -o - -std=c++11 2>&1 | FileCheck %s --check-prefix=WARNING-DEFAULT
-// RUN: %clang_cc1 %s -triple wasm32-unknown-unknown -fms-extensions -fexceptions -fcxx-exceptions -fwasm-exceptions -target-feature +exception-handling -Wwasm-exception-spec -emit-llvm -o - -std=c++11 2>&1 | FileCheck %s --check-prefix=WARNING-ON
-// RUN: %clang_cc1 %s -triple wasm32-unknown-unknown -fms-extensions -fexceptions -fcxx-exceptions -fwasm-exceptions -target-feature +exception-handling -Wno-wasm-exception-spec -emit-llvm -o - -std=c++11 2>&1 | FileCheck %s --check-prefix=WARNING-OFF
+// RUN: %clang_cc1 %s -triple wasm32-unknown-unknown -fms-extensions -fexceptions -fcxx-exceptions -exception-model=wasm -target-feature +exception-handling -emit-llvm -o - -std=c++11 2>&1 | FileCheck %s --check-prefix=WARNING-DEFAULT
+// RUN: %clang_cc1 %s -triple wasm32-unknown-unknown -fms-extensions -fexceptions -fcxx-exceptions -exception-model=wasm -target-feature +exception-handling -Wwasm-exception-spec -emit-llvm -o - -std=c++11 2>&1 | FileCheck %s --check-prefix=WARNING-ON
+// RUN: %clang_cc1 %s -triple wasm32-unknown-unknown -fms-extensions -fexceptions -fcxx-exceptions -exception-model=wasm -target-feature +exception-handling -Wno-wasm-exception-spec -emit-llvm -o - -std=c++11 2>&1 | FileCheck %s --check-prefix=WARNING-OFF
 // RUN: %clang_cc1 %s -triple wasm32-unknown-unknown -fexceptions -fcxx-exceptions -emit-llvm -o - -std=c++11 2>&1 | FileCheck %s --check-prefix=NOT-WASM-EH
 
 // Wasm EH ignores dynamic exception specifications with types at the moment.
@@ -417,7 +411,7 @@ void test10() throw() {
 // Here we only check if the command enables wasm exception handling in the
 // backend so that exception handling instructions can be generated in .s file.
 
-// RUN: %clang_cc1 %s -triple wasm32-unknown-unknown -fms-extensions -fexceptions -fcxx-exceptions -fwasm-exceptions -target-feature +exception-handling -S -o - -std=c++11 | FileCheck %s --check-prefix=ASSEMBLY
+// RUN: %clang_cc1 %s -triple wasm32-unknown-unknown -fms-extensions -fexceptions -fcxx-exceptions -exception-model=wasm -target-feature +exception-handling -S -o - -std=c++11 | FileCheck %s --check-prefix=ASSEMBLY
 
 // ASSEMBLY: try
 // ASSEMBLY: catch
