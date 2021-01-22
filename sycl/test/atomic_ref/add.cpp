@@ -1,6 +1,3 @@
-// TODO: Once NVPTX accepts the __spirv_AtomicF*() IR, remove the XFAIL mark
-// XFAIL: cuda
-
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -DSYCL_USE_NATIVE_FP_ATOMICS \
 // RUN:  -fsycl-device-only -S %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-device-only -S %s -o - \
