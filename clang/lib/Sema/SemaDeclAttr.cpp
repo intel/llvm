@@ -2993,7 +2993,7 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
   };
 
   if (AL.getKind() == ParsedAttr::AT_SYCLIntelMaxWorkGroupSize)
-     S.CheckDeprecatedSYCLAttributeSpelling(AL);
+    S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
   if (AL.getKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
     // in case of 'max_global_work_dim' attribute equals to 0 we should be sure
@@ -3021,17 +3021,16 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
     // <= max_work_group_size attribute value
     if (const auto *A = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
       int64_t AttrValue =
-      A->getValue()->getIntegerConstantExpr(S.Context)->getSExtValue();
+          A->getValue()->getIntegerConstantExpr(S.Context)->getSExtValue();
       if (AttrValue == 0) {
         if (!((getExprValue(AL.getArgAsExpr(0), S.getASTContext()) == 1) &&
-             (getExprValue(AL.getArgAsExpr(1), S.getASTContext()) == 1) &&
-             (getExprValue(AL.getArgAsExpr(2), S.getASTContext()) == 1))) {
+              (getExprValue(AL.getArgAsExpr(1), S.getASTContext()) == 1) &&
+              (getExprValue(AL.getArgAsExpr(2), S.getASTContext()) == 1))) {
           S.Diag(AL.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
-               << AL << A;
+              << AL << A;
         }
       }
-    } else if (const auto *A =
-               D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
+    } else if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
       if (!((getExprValue(AL.getArgAsExpr(0), S.getASTContext()) <=
              getExprValue(A->getXDim(), S.getASTContext())) &&
             (getExprValue(AL.getArgAsExpr(1), S.getASTContext()) <=
@@ -3040,7 +3039,7 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
              getExprValue(A->getZDim(), S.getASTContext())))) {
         S.Diag(AL.getLoc(), diag::err_conflicting_sycl_function_attributes)
             << AL << A->getSpelling();
-	D->setInvalidDecl();
+        D->setInvalidDecl();
         return false;
       }
     }
