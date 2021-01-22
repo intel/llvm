@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
@@ -203,7 +204,7 @@ private:
   std::shared_ptr<plugin> MPlugin;
   std::vector<std::weak_ptr<device_impl>> MDeviceCache;
   std::mutex MDeviceMapMutex;
-  std::vector<context> MDefaultContextStack;
+  std::vector<context> MDefaultContexts;
 };
 
 } // namespace detail

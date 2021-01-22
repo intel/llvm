@@ -391,28 +391,28 @@ bool platform_impl::has(aspect Aspect) const {
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 context platform_impl::getDefaultContext() {
-  if (!MDefaultContextStack.empty())
-    return MDefaultContextStack.back();
+  if (!MDefaultContexts.empty())
+    return MDefaultContexts.back();
   else {
     auto Devices = get_devices();
     context DefaultContext(Devices);
-    MDefaultContextStack.push_back(DefaultContext);
+    MDefaultContexts.push_back(DefaultContext);
 
     return DefaultContext;
   }
 }
 
 void platform_impl::pushDefaultContext(context Context) {
-  MDefaultContextStack.push_back(Context);
+  MDefaultContexts.push_back(Context);
 }
 
 void platform_impl::popDefaultContext() {
-  if (MDefaultContextStack.size() == 1) {
+  if (MDefaultContexts.size() == 1) {
     throw runtime_error("Popping the platform default context would result in "
                         "no default context",
                         PI_INVALID_OPERATION);
   }
-  MDefaultContextStack.pop_back();
+  MDefaultContexts.pop_back();
 }
 
 } // namespace detail
