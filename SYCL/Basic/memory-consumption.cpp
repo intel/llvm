@@ -1,6 +1,8 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
+// Issue #106: Disable on Linux until flaky failures are fixed
+// REQUIRES: TEMPORARY_DISABLED
 // UNSUPPORTED: windows
 //
 //==-----memory-consumption.cpp - SYCL memory consumption basic test ------==//
