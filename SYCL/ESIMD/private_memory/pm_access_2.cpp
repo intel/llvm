@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// TODO enable on Windows and Level Zero
-// REQUIRES: linux && gpu && opencl
+// TODO enable on Windows
+// REQUIRES: linux && gpu
+// UNSUPPORTED: cuda
 // RUN: %clangxx-esimd -fsycl -I%S/.. %S/Inputs/pm_common.cpp -o %t.out
 // RUN: %ESIMD_RUN_PLACEHOLDER %t.out 2
