@@ -21,18 +21,18 @@ int main() {
 
   sycl::context NewContext(Device);
   Platform.push_default_context(NewContext);
-  
+
   sycl::queue q2;
   auto C2 = q2.get_context();
   assert(C1 != C2);
   assert(C2 == NewContext);
 
   Platform.pop_default_context();
-  
+
   sycl::queue q3;
   auto C3 = q3.get_context();
-  assert (C1 == C3);
-  assert (C2 != C3);
-  
+  assert(C1 == C3);
+  assert(C2 != C3);
+
   return 0;
 }

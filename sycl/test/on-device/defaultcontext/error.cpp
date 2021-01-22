@@ -18,12 +18,12 @@ int main() {
 
   auto Device = q.get_device();
   auto Platform = Device.get_platform();
-  
+
   try {
-    Platform.pop_default_context();  
+    Platform.pop_default_context();
   } catch (sycl::runtime_error) {
     return 0;
   }
-  
+
   return -1;
 }

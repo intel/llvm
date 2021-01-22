@@ -25,6 +25,6 @@ int main() {
 
   assert(d1 == d2);
   assert(c1 == c2);
-  
+
   return 0;
 }
