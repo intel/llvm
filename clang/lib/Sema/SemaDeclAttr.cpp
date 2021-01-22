@@ -4833,7 +4833,7 @@ static void handleOptimizeNoneAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 static void handleSYCLDeviceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   auto *FD = cast<FunctionDecl>(D);
   if (!FD->isExternallyVisible()) {
-    S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here) << AL;
+    S.Diag(AL.getLoc(), diag::err_sycl_attribute_internal_function) << AL;
     return;
   }
 
@@ -4844,7 +4844,7 @@ static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
                                                    const ParsedAttr &AL) {
   auto *FD = cast<FunctionDecl>(D);
   if (!FD->isExternallyVisible()) {
-    S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here) << AL;
+    S.Diag(AL.getLoc(), diag::err_sycl_attribute_internal_function) << AL;
     return;
   }
 
@@ -4854,11 +4854,6 @@ static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
 
 static void handleSYCLRegisterNumAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   auto *VD = cast<VarDecl>(D);
-  if (!VD->hasGlobalStorage()) {
-    S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here)
-        << AL << 0;
-    return;
-  }
   if (!checkAttributeNumArgs(S, AL, 1))
     return;
   uint32_t RegNo = 0;
