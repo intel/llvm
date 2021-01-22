@@ -326,7 +326,7 @@ void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
   // of a name in the intel vendor namespace. By default, assume the attribute
   // retains its original name but changes the namespace. However, some
   // attributes were renamed, so we support supplying a new name as well.
-  if (A.getScopeName()->isStr("intelfpga")) {
+  if (A.hasScope() && A.getScopeName()->isStr("intelfpga")) {
     Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated)
         << "'" + A.getNormalizedFullName() + "'";
 
