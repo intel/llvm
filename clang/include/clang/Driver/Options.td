@@ -680,7 +680,7 @@ def I_ : Flag<["-"], "I-">, Group<I_Group>,
     HelpText<"Restrict all prior -I flags to double-quoted inclusion and "
              "remove current directory from include path">;
 def I : JoinedOrSeparate<["-"], "I">, Group<I_Group>,
-    Flags<[CC1Option,CC1AsOption]>, MetaVarName<"<dir>">,
+    Flags<[CC1Option,CC1AsOption,FlangOption,FC1Option]>, MetaVarName<"<dir>">,
     HelpText<"Add directory to the end of the list of include search paths">,
     DocBrief<[{Add directory to include search path. For C++ inputs, if
 there are multiple -I options, these directories are searched
@@ -3137,10 +3137,10 @@ def mwavefrontsize64 : Flag<["-"], "mwavefrontsize64">, Group<m_Group>,
 def mno_wavefrontsize64 : Flag<["-"], "mno-wavefrontsize64">, Group<m_Group>,
   HelpText<"Specify wavefront size 32 mode (AMDGPU only)">;
 
-def munsafe_fp_atomics : Flag<["-"], "munsafe-fp-atomics">, Group<m_Group>,
-  HelpText<"Enable unsafe floating point atomic instructions (AMDGPU only)">,
-  Flags<[CC1Option]>;
-def mno_unsafe_fp_atomics : Flag<["-"], "mno-unsafe-fp-atomics">, Group<m_Group>;
+defm unsafe_fp_atomics : BoolCC1Option<"unsafe-fp-atomics",
+  TargetOpts<"AllowAMDGPUUnsafeFPAtomics">, DefaultsToFalse,
+  ChangedBy<PosFlag, [], "Enable unsafe floating point atomic instructions (AMDGPU only)">,
+  ResetBy<NegFlag>, BothFlags<[]>, "m">, Group<m_Group>;
 
 def faltivec : Flag<["-"], "faltivec">, Group<f_Group>, Flags<[NoXarchOption]>;
 def fno_altivec : Flag<["-"], "fno-altivec">, Group<f_Group>, Flags<[NoXarchOption]>;
@@ -4468,7 +4468,10 @@ def analyzer_checker_option_help_developer : Flag<["-"], "analyzer-checker-optio
   MarshallingInfoFlag<AnalyzerOpts<"ShowCheckerOptionDeveloperList">>;
 
 def analyzer_config_compatibility_mode : Separate<["-"], "analyzer-config-compatibility-mode">,
-  HelpText<"Don't emit errors on invalid analyzer-config inputs">;
+  HelpText<"Don't emit errors on invalid analyzer-config inputs">,
+  Values<"true,false">, NormalizedValues<[[{false}], [{true}]]>,
+  MarshallingInfoString<AnalyzerOpts<"ShouldEmitErrorsOnInvalidConfigValue">, [{true}]>,
+  AutoNormalizeEnum;
 
 def analyzer_config_compatibility_mode_EQ : Joined<["-"], "analyzer-config-compatibility-mode=">,
   Alias<analyzer_config_compatibility_mode>;
@@ -4934,7 +4937,8 @@ def plugin_arg : JoinedAndSeparate<["-"], "plugin-arg-">,
     MetaVarName<"<name> <arg>">,
     HelpText<"Pass <arg> to plugin <name>">;
 def add_plugin : Separate<["-"], "add-plugin">, MetaVarName<"<name>">,
-  HelpText<"Use the named plugin action in addition to the default action">;
+  HelpText<"Use the named plugin action in addition to the default action">,
+  MarshallingInfoStringVector<FrontendOpts<"AddPluginActions">>;
 def ast_dump_filter : Separate<["-"], "ast-dump-filter">,
   MetaVarName<"<dump_filter>">,
   HelpText<"Use with -ast-dump or -ast-print to dump/print only AST declaration"
@@ -5212,10 +5216,13 @@ def fhalf_no_semantic_interposition : Flag<["-"], "fhalf-no-semantic-interpositi
 def fno_validate_pch : Flag<["-"], "fno-validate-pch">,
   HelpText<"Disable validation of precompiled headers">,
   MarshallingInfoFlag<PreprocessorOpts<"DisablePCHValidation">>;
-def fallow_pch_with_errors : Flag<["-"], "fallow-pch-with-compiler-errors">,
-  HelpText<"Accept a PCH file that was created with compiler errors">;
 def fallow_pcm_with_errors : Flag<["-"], "fallow-pcm-with-compiler-errors">,
-  HelpText<"Accept a PCM file that was created with compiler errors">;
+  HelpText<"Accept a PCM file that was created with compiler errors">,
+  MarshallingInfoFlag<FrontendOpts<"AllowPCMWithCompilerErrors">>;
+def fallow_pch_with_errors : Flag<["-"], "fallow-pch-with-compiler-errors">,
+  HelpText<"Accept a PCH file that was created with compiler errors">,
+  MarshallingInfoFlag<PreprocessorOpts<"AllowPCHWithCompilerErrors">>,
+  ImpliedByAnyOf<[fallow_pcm_with_errors]>;
 def dump_deserialized_pch_decls : Flag<["-"], "dump-deserialized-decls">,
   HelpText<"Dump declarations that are deserialized from PCH, for testing">,
   MarshallingInfoFlag<PreprocessorOpts<"DumpDeserializedPCHDecls">>;
