@@ -2205,12 +2205,6 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
     }
   }
 
-  if (const Arg *A = Args.getLastArg(OPT_fcf_protection_EQ)) {
-    StringRef Name = A->getValue();
-    if (Name == "full" || Name == "branch") {
-      Opts.CFProtectionBranch = 1;
-    }
-  }
   // -cl-std only applies for OpenCL language standards.
   // Override the -std option in this case.
   if (const Arg *A = Args.getLastArg(OPT_cl_std_EQ)) {
@@ -2233,7 +2227,6 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
       LangStd = OpenCLLangStd;
   }
 
-  Opts.SYCLIsDevice = Opts.SYCL && Args.hasArg(options::OPT_fsycl_is_device);
   if (Opts.SYCL) {
     Opts.SYCLIsDevice = Args.hasArg(options::OPT_fsycl_is_device);
     Opts.SYCLIsHost = Args.hasArg(options::OPT_fsycl_is_host);
@@ -2275,6 +2268,15 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   Opts.DeclareOpenCLBuiltins = Args.hasArg(OPT_fdeclare_opencl_builtins);
 
   CompilerInvocation::setLangDefaults(Opts, IK, T, Includes, LangStd);
+
+  if (const Arg *A = Args.getLastArg(OPT_fcf_protection_EQ)) {
+    StringRef Name = A->getValue();
+    if (Name == "full" || Name == "branch") {
+      Opts.CFProtectionBranch = 1;
+    }
+  }
+
+  Opts.SYCLIsDevice = Opts.SYCL && Args.hasArg(options::OPT_fsycl_is_device);
 
   // -cl-strict-aliasing needs to emit diagnostic in the case where CL > 1.0.
   // This option should be deprecated for CL > 1.0 because
@@ -3014,6 +3016,7 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Res,
     // PIClevel and PIELevel are needed during code generation and this should be
     // set regardless of the input type.
     LangOpts.PICLevel = getLastArgIntValue(Args, OPT_pic_level, 0, Diags);
+    LangOpts.PIE = Args.hasArg(OPT_pic_is_pie);
     parseSanitizerKinds("-fsanitize=", Args.getAllArgValues(OPT_fsanitize_EQ),
                         Diags, LangOpts.Sanitize);
   } else {
