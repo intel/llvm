@@ -2996,9 +2996,9 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
     S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
   if (AL.getKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
-    // in case of 'max_global_work_dim' attribute equals to 0 we should be sure
-    // that if max_work_group_size and reqd_work_group_size attributes exist,
-    // then they are equal (1, 1, 1)
+    // In case the value of 'max_global_work_dim' attribute equals to 0
+    // we shall ensure that if max_work_group_size and reqd_work_group_size
+    // attributes exist, they hold equal values (1, 1, 1).
     if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
       if (getExprValue(A->getXDim(), S.getASTContext()) != 1 ||
           getExprValue(A->getYDim(), S.getASTContext()) != 1 ||
