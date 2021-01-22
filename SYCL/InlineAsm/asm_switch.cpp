@@ -21,7 +21,8 @@ template <typename T = DataType> struct KernelFunctor : WithOutputBuffer<T> {
     ](cl::sycl::id<1> wiID) [[intel::reqd_sub_group_size(8)]] {
           int Output = 0;
 #if defined(__SYCL_DEVICE_ONLY__)
-          asm volatile(".decl P1 v_type=P num_elts=1\n"
+          asm volatile("{\n"
+                       ".decl P1 v_type=P num_elts=1\n"
                        ".decl P2 v_type=P num_elts=1\n"
                        ".decl P3 v_type=P num_elts=1\n"
                        "cmp.ne (M1_NM, 8) P1 %1(0,0)<0;1,0> 0x0:d\n"
@@ -37,6 +38,7 @@ template <typename T = DataType> struct KernelFunctor : WithOutputBuffer<T> {
                        "(P3) goto (M1, 1) label2\n"
                        "mov (M1, 8) %0(0,0)<1> 0x7:d\n"
                        "label2:"
+                       "}\n"
                        : "=rw"(Output)
                        : "rw"(switchField));
 

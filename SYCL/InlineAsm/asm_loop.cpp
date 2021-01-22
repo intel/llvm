@@ -29,7 +29,8 @@ struct KernelFunctor : WithInputBuffers<T, 2>, WithOutputBuffer<T> {
         cl::sycl::range<1>{this->getOutputBufferSize()}, [=
     ](cl::sycl::id<1> wiID) [[intel::reqd_sub_group_size(8)]] {
 #if defined(__SYCL_DEVICE_ONLY__)
-          asm volatile(".decl P1 v_type=P num_elts=8\n"
+          asm volatile("{\n"
+                       ".decl P1 v_type=P num_elts=8\n"
                        ".decl P2 v_type=P num_elts=8\n"
                        ".decl temp v_type=G type=d num_elts=8 align=dword\n"
                        "mov (M1, 8) %0(0, 0)<1> 0x0:d\n"
@@ -42,6 +43,7 @@ struct KernelFunctor : WithInputBuffers<T, 2>, WithOutputBuffer<T> {
                        "cmp.lt (M1, 8) P2 temp(0,0)<0;8,1> %1(0,0)<0;8,1>\n"
                        "(P2) goto (M1, 8) label1\n"
                        "label0:"
+                       "}\n"
                        : "+rw"(C[wiID])
                        : "rw"(A[wiID]), "rw"(B[wiID]));
 #else
