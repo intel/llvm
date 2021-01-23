@@ -76,10 +76,11 @@ public:
 
   /// \return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const {
-    if (is_host())
-      throw invalid_object_error("This instance of platform is a host instance",
-                                 PI_INVALID_PLATFORM);
-
+    if (is_host() || getPlugin().getBackend() != cl::sycl::backend::opencl) {
+      throw invalid_object_error(
+          "This instance of platform doesn't support OpenCL interoperability.",
+          PI_INVALID_PLATFORM);
+    }
     return pi::cast<cl_platform_id>(MPlatform);
   }
 
