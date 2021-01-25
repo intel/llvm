@@ -149,11 +149,13 @@ define i8* @test4_helper() {
 ; NOT_CGSCC_NPM: Function Attrs: nofree noreturn nosync nounwind readnone
 ; NOT_CGSCC_NPM-LABEL: define {{[^@]+}}@test4_helper
 ; NOT_CGSCC_NPM-SAME: () [[ATTR2:#.*]] {
+; NOT_CGSCC_NPM-NEXT:    [[RET:%.*]] = call i8* @test4()
 ; NOT_CGSCC_NPM-NEXT:    unreachable
 ;
-; IS__CGSCC_NPM: Function Attrs: nofree norecurse noreturn nosync nounwind readnone willreturn
+; IS__CGSCC_NPM: Function Attrs: nofree noreturn nosync nounwind readnone
 ; IS__CGSCC_NPM-LABEL: define {{[^@]+}}@test4_helper
 ; IS__CGSCC_NPM-SAME: () [[ATTR2:#.*]] {
+; IS__CGSCC_NPM-NEXT:    [[RET:%.*]] = call i8* @test4()
 ; IS__CGSCC_NPM-NEXT:    unreachable
 ;
   %ret = call i8* @test4()
@@ -164,11 +166,13 @@ define i8* @test4() {
 ; NOT_CGSCC_NPM: Function Attrs: nofree noreturn nosync nounwind readnone
 ; NOT_CGSCC_NPM-LABEL: define {{[^@]+}}@test4
 ; NOT_CGSCC_NPM-SAME: () [[ATTR2]] {
+; NOT_CGSCC_NPM-NEXT:    [[RET:%.*]] = call i8* @test4_helper()
 ; NOT_CGSCC_NPM-NEXT:    unreachable
 ;
-; IS__CGSCC_NPM: Function Attrs: nofree norecurse noreturn nosync nounwind readnone willreturn
+; IS__CGSCC_NPM: Function Attrs: nofree noreturn nosync nounwind readnone
 ; IS__CGSCC_NPM-LABEL: define {{[^@]+}}@test4
 ; IS__CGSCC_NPM-SAME: () [[ATTR2]] {
+; IS__CGSCC_NPM-NEXT:    [[RET:%.*]] = call i8* @test4_helper()
 ; IS__CGSCC_NPM-NEXT:    unreachable
 ;
   %ret = call i8* @test4_helper()
@@ -1513,23 +1517,23 @@ define void @PR43833_simple(i32* %0, i32 %1) {
   br i1 %11, label %7, label %8
 }
 
-declare i8* @strrchr(i8* %0, i32 %1) nofree nounwind readonly
+declare i8* @strrchr(i8* %0, i32 %1) nofree nounwind readonly willreturn
 
 ; We should not mark the return of @strrchr as `nonnull`, it may well be NULL!
 define i8* @mybasename(i8* nofree readonly %str) {
-; NOT_CGSCC_OPM: Function Attrs: nofree nounwind readonly
+; NOT_CGSCC_OPM: Function Attrs: nofree nounwind readonly willreturn
 ; NOT_CGSCC_OPM-LABEL: define {{[^@]+}}@mybasename
 ; NOT_CGSCC_OPM-SAME: (i8* nofree readonly [[STR:%.*]]) [[ATTR11:#.*]] {
-; NOT_CGSCC_OPM-NEXT:    [[CALL:%.*]] = call i8* @strrchr(i8* nofree readonly [[STR]], i32 noundef 47) [[ATTR14]]
+; NOT_CGSCC_OPM-NEXT:    [[CALL:%.*]] = call i8* @strrchr(i8* nofree readonly [[STR]], i32 noundef 47) [[ATTR15:#.*]]
 ; NOT_CGSCC_OPM-NEXT:    [[TOBOOL:%.*]] = icmp ne i8* [[CALL]], null
 ; NOT_CGSCC_OPM-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds i8, i8* [[CALL]], i64 1
 ; NOT_CGSCC_OPM-NEXT:    [[COND:%.*]] = select i1 [[TOBOOL]], i8* [[ADD_PTR]], i8* [[STR]]
 ; NOT_CGSCC_OPM-NEXT:    ret i8* [[COND]]
 ;
-; IS__CGSCC_OPM: Function Attrs: nofree nounwind readonly
+; IS__CGSCC_OPM: Function Attrs: nofree nounwind readonly willreturn
 ; IS__CGSCC_OPM-LABEL: define {{[^@]+}}@mybasename
 ; IS__CGSCC_OPM-SAME: (i8* nofree readonly [[STR:%.*]]) [[ATTR12:#.*]] {
-; IS__CGSCC_OPM-NEXT:    [[CALL:%.*]] = call i8* @strrchr(i8* nofree readonly [[STR]], i32 noundef 47) [[ATTR15]]
+; IS__CGSCC_OPM-NEXT:    [[CALL:%.*]] = call i8* @strrchr(i8* nofree readonly [[STR]], i32 noundef 47) [[ATTR16:#.*]]
 ; IS__CGSCC_OPM-NEXT:    [[TOBOOL:%.*]] = icmp ne i8* [[CALL]], null
 ; IS__CGSCC_OPM-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds i8, i8* [[CALL]], i64 1
 ; IS__CGSCC_OPM-NEXT:    [[COND:%.*]] = select i1 [[TOBOOL]], i8* [[ADD_PTR]], i8* [[STR]]

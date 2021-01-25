@@ -279,14 +279,14 @@ def err_drv_expecting_fsycl_with_sycl_opt : Error<
   "The option %0 must be used in conjunction with -fsycl to enable offloading.">;
 def err_drv_fsycl_with_c_type : Error<
   "The option '%0' must not be used in conjunction with '-fsycl', which expects C++ source.">;
-def warn_drv_omp_offload_target_duplicate : Warning<
-  "The OpenMP offloading target '%0' is similar to target '%1' already specified - will be ignored.">,
-  InGroup<OpenMPTarget>;
 def warn_drv_sycl_offload_target_duplicate : Warning<
   "The SYCL offloading target '%0' is similar to target '%1' already specified - will be ignored.">,
   InGroup<SyclTarget>;
-def warn_drv_omp_offload_target_missingbcruntime : Warning<
-  "No library '%0' found in the default clang lib directory or in LIBRARY_PATH. Expect degraded performance due to no inlining of runtime functions on target devices.">,
+def err_drv_omp_offload_target_missingbcruntime : Error<
+  "No library '%0' found in the default clang lib directory or in LIBRARY_PATH. Please use --libomptarget-nvptx-bc-path to specify nvptx bitcode library.">;
+def err_drv_omp_offload_target_bcruntime_not_found : Error<"Bitcode library '%0' does not exist.">;
+def warn_drv_omp_offload_target_duplicate : Warning<
+  "The OpenMP offloading target '%0' is similar to target '%1' already specified - will be ignored.">,
   InGroup<OpenMPTarget>;
 def err_drv_unsupported_embed_bitcode
     : Error<"%0 is not supported with -fembed-bitcode">;
