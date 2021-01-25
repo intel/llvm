@@ -1,0 +1,17 @@
+= SYCL(TM) Proposals: Platform Default Contexts
+James Brodman <james.brodman@intel.com>
+v0.1
+:source-highlighter: pygments
+:icons: font
+:y: icon:check[role="green"]
+:n: icon:times[role="red"]
+
+== Platform Default Contexts
+
+This extension adds the notion of a default SYCL context per SYCL platform. The default context for each platform contains all devices in the platform.
+
+The platform class gains three new methods: `get_default_context`, `push_default_context`, and `pop_default_context`.
+
+These methods may be used to query and modify a platform's default context. Pushing a new default context replaces the existing one. Popping a default context returns either the previous context or throws a `runtime_error` if popping would result in no context.
+
+This extension also modifies the behavior of `queue` constructors. Queues will no longer create a new `context` upon consruction. Instead, they will use the default context from the device's platform.
