@@ -303,6 +303,8 @@ public:
   Float16Type f16Ty;
   Float32Type f32Ty;
   Float64Type f64Ty;
+  Float80Type f80Ty;
+  Float128Type f128Ty;
   IndexType indexTy;
   IntegerType int1Ty, int8Ty, int16Ty, int32Ty, int64Ty, int128Ty;
   NoneType noneType;
@@ -351,6 +353,8 @@ MLIRContext::MLIRContext() : impl(new MLIRContextImpl()) {
   impl->f16Ty = TypeUniquer::get<Float16Type>(this);
   impl->f32Ty = TypeUniquer::get<Float32Type>(this);
   impl->f64Ty = TypeUniquer::get<Float64Type>(this);
+  impl->f80Ty = TypeUniquer::get<Float80Type>(this);
+  impl->f128Ty = TypeUniquer::get<Float128Type>(this);
   /// Index Type.
   impl->indexTy = TypeUniquer::get<IndexType>(this);
   /// Integer Types.
@@ -739,6 +743,12 @@ Float32Type Float32Type::get(MLIRContext *context) {
 Float64Type Float64Type::get(MLIRContext *context) {
   return context->getImpl().f64Ty;
 }
+Float80Type Float80Type::get(MLIRContext *context) {
+  return context->getImpl().f80Ty;
+}
+Float128Type Float128Type::get(MLIRContext *context) {
+  return context->getImpl().f128Ty;
+}
 
 /// Get an instance of the IndexType.
 IndexType IndexType::get(MLIRContext *context) {
@@ -772,19 +782,11 @@ getCachedIntegerType(unsigned width,
   }
 }
 
-IntegerType IntegerType::get(MLIRContext *context, unsigned width) {
-  return get(context, width, IntegerType::Signless);
-}
-
 IntegerType IntegerType::get(MLIRContext *context, unsigned width,
                              IntegerType::SignednessSemantics signedness) {
   if (auto cached = getCachedIntegerType(width, signedness, context))
     return cached;
   return Base::get(context, width, signedness);
-}
-
-IntegerType IntegerType::getChecked(Location location, unsigned width) {
-  return getChecked(location, width, IntegerType::Signless);
 }
 
 IntegerType IntegerType::getChecked(Location location, unsigned width,

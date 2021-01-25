@@ -217,11 +217,13 @@ TEST(GlobalCompilationDatabaseTest, DiscoveryWithNestedCDBs) {
         });
 
     DB.getCompileCommand(testPath("build/../a.cc"));
+    ASSERT_TRUE(DB.blockUntilIdle(timeoutSeconds(10)));
     EXPECT_THAT(DiscoveredFiles, UnorderedElementsAre(AllOf(
                                      EndsWith("a.cc"), Not(HasSubstr("..")))));
     DiscoveredFiles.clear();
 
     DB.getCompileCommand(testPath("build/gen.cc"));
+    ASSERT_TRUE(DB.blockUntilIdle(timeoutSeconds(10)));
     EXPECT_THAT(DiscoveredFiles, UnorderedElementsAre(EndsWith("gen.cc")));
   }
 
@@ -237,12 +239,14 @@ TEST(GlobalCompilationDatabaseTest, DiscoveryWithNestedCDBs) {
         });
 
     DB.getCompileCommand(testPath("a.cc"));
+    ASSERT_TRUE(DB.blockUntilIdle(timeoutSeconds(10)));
     EXPECT_THAT(DiscoveredFiles,
                 UnorderedElementsAre(EndsWith("a.cc"), EndsWith("gen.cc"),
                                      EndsWith("gen2.cc")));
     DiscoveredFiles.clear();
 
     DB.getCompileCommand(testPath("build/gen.cc"));
+    ASSERT_TRUE(DB.blockUntilIdle(timeoutSeconds(10)));
     EXPECT_THAT(DiscoveredFiles, IsEmpty());
   }
 }
@@ -277,6 +281,17 @@ TEST(GlobalCompilationDatabaseTest, BuildDir) {
   EXPECT_THAT(Command("x/foo.cc"), Contains("-DXYZZY"));
   EXPECT_THAT(Command("bar.cc"), IsEmpty())
       << "x/build/compile_flags.json only applicable to x/";
+}
+
+TEST(GlobalCompilationDatabaseTest, CompileFlagsDirectory) {
+  MockFS FS;
+  FS.Files[testPath("x/compile_flags.txt")] = "-DFOO";
+  DirectoryBasedGlobalCompilationDatabase CDB(FS);
+  auto Commands = CDB.getCompileCommand(testPath("x/y.cpp"));
+  ASSERT_TRUE(Commands.hasValue());
+  EXPECT_THAT(Commands.getValue().CommandLine, Contains("-DFOO"));
+  // Make sure we pick the right working directory.
+  EXPECT_EQ(testPath("x"), Commands.getValue().Directory);
 }
 
 TEST(GlobalCompilationDatabaseTest, NonCanonicalFilenames) {

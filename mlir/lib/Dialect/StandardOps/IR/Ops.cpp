@@ -195,7 +195,8 @@ static LogicalResult foldMemRefCast(Operation *op) {
 /// Returns 'true' if the vector types are cast compatible,  and 'false'
 /// otherwise.
 static bool areVectorCastSimpleCompatible(
-    Type a, Type b, function_ref<bool(Type, Type)> areElementsCastCompatible) {
+    Type a, Type b,
+    function_ref<bool(TypeRange, TypeRange)> areElementsCastCompatible) {
   if (auto va = a.dyn_cast<VectorType>())
     if (auto vb = b.dyn_cast<VectorType>())
       return va.getShape().equals(vb.getShape()) &&
@@ -1392,9 +1393,8 @@ OpFoldResult DimOp::fold(ArrayRef<Attribute> operands) {
     return getResult();
   }
 
-  // Fold dim to the operand of dynamic_tensor_from_elements.
-  if (auto fromElements =
-          dyn_cast_or_null<DynamicTensorFromElementsOp>(definingOp)) {
+  // Fold dim to the operand of tensor.generate.
+  if (auto fromElements = dyn_cast_or_null<tensor::GenerateOp>(definingOp)) {
     auto resultType =
         fromElements.getResult().getType().cast<RankedTensorType>();
     // The case where the type encodes the size of the dimension is handled
@@ -1482,6 +1482,15 @@ void DimOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                         MLIRContext *context) {
   results.insert<DimOfMemRefReshape, DimOfCastOp<TensorToMemrefOp>,
                  DimOfCastOp<tensor::CastOp>>(context);
+}
+
+// ---------------------------------------------------------------------------
+// DivFOp
+// ---------------------------------------------------------------------------
+
+OpFoldResult DivFOp::fold(ArrayRef<Attribute> operands) {
+  return constFoldBinaryOp<FloatAttr>(
+      operands, [](APFloat a, APFloat b) { return a / b; });
 }
 
 // ---------------------------------------------------------------------------
@@ -1735,262 +1744,13 @@ LogicalResult DmaWaitOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
-// DynamicTensorFromElementsOp
-//===----------------------------------------------------------------------===//
-
-static ParseResult parseDynamicTensorFromElementsOp(OpAsmParser &parser,
-                                                    OperationState &result) {
-  // Parse operands.
-  SmallVector<OpAsmParser::OperandType, 4> dynamicExtents;
-  Type indexTy = parser.getBuilder().getIndexType();
-  if (parser.parseOperandList(dynamicExtents) ||
-      parser.resolveOperands(dynamicExtents, indexTy, result.operands))
-    return failure();
-
-  // Parse body.
-  Region *body = result.addRegion();
-  if (parser.parseRegion(*body, {}, {}))
-    return failure();
-
-  // Parse result type.
-  Type resultType;
-  if (parser.parseOptionalAttrDict(result.attributes) ||
-      parser.parseColonType(resultType))
-    return failure();
-  result.addTypes(resultType);
-
-  return success();
-}
-
-static void print(OpAsmPrinter &p, DynamicTensorFromElementsOp op) {
-  p << "dynamic_tensor_from_elements " << op.dynamicExtents();
-  p.printRegion(op.body());
-  p.printOptionalAttrDict(op.getAttrs());
-  p << " : " << op.getType();
-}
-
-static LogicalResult verify(DynamicTensorFromElementsOp op) {
-  // Ensure that the tensor type has as many dynamic dimensions as are specified
-  // by the operands.
-  RankedTensorType resultTy = op.getType().cast<RankedTensorType>();
-  if (op.getNumOperands() != resultTy.getNumDynamicDims())
-    return op.emitError("must have as many index operands as dynamic extents "
-                        "in the result type");
-
-  // Ensure that region arguments span the index space.
-  if (!llvm::all_of(op.body().getArgumentTypes(),
-                    [](Type ty) { return ty.isIndex(); }))
-    return op.emitError("all body arguments must be index");
-  if (op.body().getNumArguments() != resultTy.getRank())
-    return op.emitError("must have one body argument per input dimension");
-
-  // Ensure that the region yields an element of the right type.
-  auto yieldOp =
-      llvm::cast<YieldOp>(op.body().getBlocks().front().getTerminator());
-  if (yieldOp.value().getType() != resultTy.getElementType())
-    return op.emitOpError(
-        "body must be terminated with a `yield` operation of the tensor "
-        "element type");
-
-  return success();
-}
-
-void DynamicTensorFromElementsOp::build(
-    OpBuilder &b, OperationState &result, Type resultTy,
-    ValueRange dynamicExtents,
-    function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuilder) {
-  build(b, result, resultTy, dynamicExtents);
-
-  // Build and populate body.
-  OpBuilder::InsertionGuard guard(b);
-  Region *bodyRegion = result.regions.front().get();
-  auto rank = resultTy.cast<RankedTensorType>().getRank();
-  SmallVector<Type, 2> argumentTypes(rank, b.getIndexType());
-  Block *bodyBlock =
-      b.createBlock(bodyRegion, bodyRegion->end(), argumentTypes);
-  bodyBuilder(b, result.location, bodyBlock->getArguments());
-}
-
-namespace {
-
-/// Canonicalizes dynamic_tensor_from_elements operations with a constant
-/// operand into the equivalent operation with the operand expressed in the
-/// result type, instead. We also insert a type cast to make sure that the
-/// resulting IR is still well-typed.
-struct StaticDynamicTensorFromElements
-    : public OpRewritePattern<DynamicTensorFromElementsOp> {
-  using OpRewritePattern<DynamicTensorFromElementsOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(DynamicTensorFromElementsOp tensorFromElements,
-                                PatternRewriter &rewriter) const final {
-    auto resultType =
-        tensorFromElements.getResult().getType().cast<RankedTensorType>();
-
-    if (resultType.hasStaticShape())
-      return failure();
-
-    SmallVector<Value, 4> newOperands;
-    SmallVector<int64_t, 4> newShape;
-    auto operandsIt = tensorFromElements.dynamicExtents().begin();
-
-    for (int64_t dim : resultType.getShape()) {
-      if (dim != RankedTensorType::kDynamicSize) {
-        newShape.push_back(dim);
-        continue;
-      }
-      APInt index;
-      if (!matchPattern(*operandsIt, m_ConstantInt(&index))) {
-        newShape.push_back(RankedTensorType::kDynamicSize);
-        newOperands.push_back(*operandsIt++);
-        continue;
-      }
-      newShape.push_back(index.getSExtValue());
-      operandsIt++;
-    }
-
-    if (newOperands.size() == tensorFromElements.dynamicExtents().size())
-      return failure();
-
-    auto loc = tensorFromElements.getLoc();
-    auto newOp = rewriter.create<DynamicTensorFromElementsOp>(
-        loc, RankedTensorType::get(newShape, resultType.getElementType()),
-        newOperands);
-    rewriter.inlineRegionBefore(tensorFromElements.body(), newOp.body(),
-                                newOp.body().begin());
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(tensorFromElements, resultType,
-                                                newOp);
-    return success();
-  }
-};
-
-/// Canonicalizes the pattern of the form
-///
-/// %tensor = dynamic_tensor_from_elements %x {
-///   ^bb0(%arg0: index):  // no predecessors
-///   <computation>
-///   yield %1 : index
-/// } : tensor<?xindex>
-/// %extracted_element = tensor.extract %tensor[%c0] : tensor<?xi32>
-///
-/// to just <computation> with %arg0 replaced by %c0. We only do this if the
-/// dynamic_tensor_from_elements operation has no side-effects.
-struct ExtractFromDynamicTensorFromElements
-    : public OpRewritePattern<tensor::ExtractOp> {
-  using OpRewritePattern<tensor::ExtractOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(tensor::ExtractOp extract,
-                                PatternRewriter &rewriter) const final {
-    auto tensorFromElements =
-        extract.tensor().getDefiningOp<DynamicTensorFromElementsOp>();
-    if (!tensorFromElements || !wouldOpBeTriviallyDead(tensorFromElements))
-      return failure();
-
-    BlockAndValueMapping mapping;
-    Block *body = tensorFromElements.getBody();
-    mapping.map(body->getArguments(), extract.indices());
-    for (auto &op : body->without_terminator())
-      rewriter.clone(op, mapping);
-
-    auto yield = cast<YieldOp>(body->getTerminator());
-
-    rewriter.replaceOp(extract, mapping.lookupOrDefault(yield.value()));
-    return success();
-  }
-};
-
-/// Canonicalizes the pattern of the form
-///
-/// %val = tensor.cast %source : : tensor<?xi32> to tensor<2xi32>
-/// %extracted_element = tensor.extract %val[%c0] : tensor<2xi32>
-///
-/// to
-///
-/// %extracted_element = tensor.extract %source[%c0] : tensor<?xi32>
-struct ExtractFromTensorCast : public OpRewritePattern<tensor::ExtractOp> {
-  using OpRewritePattern<tensor::ExtractOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(tensor::ExtractOp extract,
-                                PatternRewriter &rewriter) const final {
-    auto tensorCast = extract.tensor().getDefiningOp<tensor::CastOp>();
-    if (!tensorCast)
-      return failure();
-
-    rewriter.replaceOpWithNewOp<tensor::ExtractOp>(extract, tensorCast.source(),
-                                                   extract.indices());
-    return success();
-  }
-};
-
-} // namespace
-
-void DynamicTensorFromElementsOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &results, MLIRContext *context) {
-  // TODO: Move extract patterns to tensor::ExtractOp.
-  results.insert<ExtractFromDynamicTensorFromElements, ExtractFromTensorCast,
-                 StaticDynamicTensorFromElements>(context);
-}
-
-//===----------------------------------------------------------------------===//
-// TensorFromElementsOp
-//===----------------------------------------------------------------------===//
-
-void TensorFromElementsOp::build(OpBuilder &builder, OperationState &result,
-                                 Type elementType, ValueRange elements) {
-  Type resultTy = RankedTensorType::get({static_cast<int64_t>(elements.size())},
-                                        elementType);
-  result.addOperands(elements);
-  result.addTypes(resultTy);
-}
-
-void TensorFromElementsOp::build(OpBuilder &builder, OperationState &result,
-                                 ValueRange elements) {
-  assert(!elements.empty() && "expected at least one element");
-  build(builder, result, elements.front().getType(), elements);
-}
-
-namespace {
-
-// Canonicalizes the pattern of the form
-//
-// %tensor = "tensor_from_elements(%element) : (i32) -> tensor<1xi32>
-// %extracted_element = tensor.extract %tensor[%c0] : tensor<1xi32>
-//
-// to just %element.
-struct ExtractElementFromTensorFromElements
-    : public OpRewritePattern<tensor::ExtractOp> {
-  using OpRewritePattern<tensor::ExtractOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(tensor::ExtractOp extract,
-                                PatternRewriter &rewriter) const final {
-    if (extract.indices().size() != 1)
-      return failure();
-
-    auto tensorFromElements = dyn_cast_or_null<TensorFromElementsOp>(
-        extract.tensor().getDefiningOp());
-    if (tensorFromElements == nullptr)
-      return failure();
-
-    APInt index;
-    if (!matchPattern(*extract.indices().begin(), m_ConstantInt(&index)))
-      return failure();
-    rewriter.replaceOp(extract,
-                       tensorFromElements.getOperand(index.getZExtValue()));
-    return success();
-  }
-};
-
-} // namespace
-
-void TensorFromElementsOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &results, MLIRContext *context) {
-  results.insert<ExtractElementFromTensorFromElements>(context);
-}
-
-//===----------------------------------------------------------------------===//
 // FPExtOp
 //===----------------------------------------------------------------------===//
 
-bool FPExtOp::areCastCompatible(Type a, Type b) {
+bool FPExtOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
+  if (inputs.size() != 1 || outputs.size() != 1)
+    return false;
+  Type a = inputs.front(), b = outputs.front();
   if (auto fa = a.dyn_cast<FloatType>())
     if (auto fb = b.dyn_cast<FloatType>())
       return fa.getWidth() < fb.getWidth();
@@ -2001,7 +1761,10 @@ bool FPExtOp::areCastCompatible(Type a, Type b) {
 // FPToSIOp
 //===----------------------------------------------------------------------===//
 
-bool FPToSIOp::areCastCompatible(Type a, Type b) {
+bool FPToSIOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
+  if (inputs.size() != 1 || outputs.size() != 1)
+    return false;
+  Type a = inputs.front(), b = outputs.front();
   if (a.isa<FloatType>() && b.isSignlessInteger())
     return true;
   return areVectorCastSimpleCompatible(a, b, areCastCompatible);
@@ -2011,7 +1774,10 @@ bool FPToSIOp::areCastCompatible(Type a, Type b) {
 // FPToUIOp
 //===----------------------------------------------------------------------===//
 
-bool FPToUIOp::areCastCompatible(Type a, Type b) {
+bool FPToUIOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
+  if (inputs.size() != 1 || outputs.size() != 1)
+    return false;
+  Type a = inputs.front(), b = outputs.front();
   if (a.isa<FloatType>() && b.isSignlessInteger())
     return true;
   return areVectorCastSimpleCompatible(a, b, areCastCompatible);
@@ -2021,7 +1787,10 @@ bool FPToUIOp::areCastCompatible(Type a, Type b) {
 // FPTruncOp
 //===----------------------------------------------------------------------===//
 
-bool FPTruncOp::areCastCompatible(Type a, Type b) {
+bool FPTruncOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
+  if (inputs.size() != 1 || outputs.size() != 1)
+    return false;
+  Type a = inputs.front(), b = outputs.front();
   if (auto fa = a.dyn_cast<FloatType>())
     if (auto fb = b.dyn_cast<FloatType>())
       return fa.getWidth() > fb.getWidth();
@@ -2133,7 +1902,10 @@ GetGlobalMemrefOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
 //===----------------------------------------------------------------------===//
 
 // Index cast is applicable from index to integer and backwards.
-bool IndexCastOp::areCastCompatible(Type a, Type b) {
+bool IndexCastOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
+  if (inputs.size() != 1 || outputs.size() != 1)
+    return false;
+  Type a = inputs.front(), b = outputs.front();
   if (a.isa<ShapedType>() && b.isa<ShapedType>()) {
     auto aShaped = a.cast<ShapedType>();
     auto bShaped = b.cast<ShapedType>();
@@ -2209,7 +1981,10 @@ void LoadOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 
 Value MemRefCastOp::getViewSource() { return source(); }
 
-bool MemRefCastOp::areCastCompatible(Type a, Type b) {
+bool MemRefCastOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
+  if (inputs.size() != 1 || outputs.size() != 1)
+    return false;
+  Type a = inputs.front(), b = outputs.front();
   auto aT = a.dyn_cast<MemRefType>();
   auto bT = b.dyn_cast<MemRefType>();
 
@@ -2280,8 +2055,6 @@ bool MemRefCastOp::areCastCompatible(Type a, Type b) {
 }
 
 OpFoldResult MemRefCastOp::fold(ArrayRef<Attribute> operands) {
-  if (Value folded = impl::foldCastOp(*this))
-    return folded;
   return succeeded(foldMemRefCast(*this)) ? getResult() : Value();
 }
 
@@ -2877,7 +2650,10 @@ OpFoldResult SignedRemIOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 // sitofp is applicable from integer types to float types.
-bool SIToFPOp::areCastCompatible(Type a, Type b) {
+bool SIToFPOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
+  if (inputs.size() != 1 || outputs.size() != 1)
+    return false;
+  Type a = inputs.front(), b = outputs.front();
   if (a.isSignlessInteger() && b.isa<FloatType>())
     return true;
   return areVectorCastSimpleCompatible(a, b, areCastCompatible);
@@ -2959,7 +2735,10 @@ OpFoldResult SubIOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 // uitofp is applicable from integer types to float types.
-bool UIToFPOp::areCastCompatible(Type a, Type b) {
+bool UIToFPOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
+  if (inputs.size() != 1 || outputs.size() != 1)
+    return false;
+  Type a = inputs.front(), b = outputs.front();
   if (a.isSignlessInteger() && b.isa<FloatType>())
     return true;
   return areVectorCastSimpleCompatible(a, b, areCastCompatible);
@@ -3136,12 +2915,11 @@ void mlir::SubViewOp::build(OpBuilder &b, OperationState &result,
                             ArrayRef<NamedAttribute> attrs) {
   auto sourceMemRefType = source.getType().cast<MemRefType>();
   unsigned rank = sourceMemRefType.getRank();
-  SmallVector<int64_t, 4> staticOffsetsVector;
-  staticOffsetsVector.assign(rank, ShapedType::kDynamicStrideOrOffset);
-  SmallVector<int64_t, 4> staticSizesVector;
-  staticSizesVector.assign(rank, ShapedType::kDynamicSize);
-  SmallVector<int64_t, 4> staticStridesVector;
-  staticStridesVector.assign(rank, ShapedType::kDynamicStrideOrOffset);
+  SmallVector<int64_t, 4> staticOffsetsVector(
+      rank, ShapedType::kDynamicStrideOrOffset);
+  SmallVector<int64_t, 4> staticSizesVector(rank, ShapedType::kDynamicSize);
+  SmallVector<int64_t, 4> staticStridesVector(
+      rank, ShapedType::kDynamicStrideOrOffset);
   build(b, result, resultType, source, staticOffsetsVector, staticSizesVector,
         staticStridesVector, offsets, sizes, strides, attrs);
 }
@@ -3688,6 +3466,38 @@ void mlir::SubTensorOp::build(OpBuilder &b, OperationState &result,
         staticStridesVector, offsets, sizes, strides, attrs);
 }
 
+/// Build a SubTensorOp as above but with custom result type.
+void mlir::SubTensorOp::build(OpBuilder &b, OperationState &result,
+                              RankedTensorType resultType, Value source,
+                              ArrayRef<int64_t> staticOffsets,
+                              ArrayRef<int64_t> staticSizes,
+                              ArrayRef<int64_t> staticStrides,
+                              ValueRange offsets, ValueRange sizes,
+                              ValueRange strides,
+                              ArrayRef<NamedAttribute> attrs) {
+  build(b, result, resultType, source, offsets, sizes, strides,
+        b.getI64ArrayAttr(staticOffsets), b.getI64ArrayAttr(staticSizes),
+        b.getI64ArrayAttr(staticStrides));
+  result.addAttributes(attrs);
+}
+
+/// Build a SubTensorOp as above but with custom result type.
+void mlir::SubTensorOp::build(OpBuilder &b, OperationState &result,
+                              RankedTensorType resultType, Value source,
+                              ValueRange offsets, ValueRange sizes,
+                              ValueRange strides,
+                              ArrayRef<NamedAttribute> attrs) {
+  auto sourceRankedTensorType = source.getType().cast<RankedTensorType>();
+  unsigned rank = sourceRankedTensorType.getRank();
+  SmallVector<int64_t, 4> staticOffsetsVector(
+      rank, ShapedType::kDynamicStrideOrOffset);
+  SmallVector<int64_t, 4> staticSizesVector(rank, ShapedType::kDynamicSize);
+  SmallVector<int64_t, 4> staticStridesVector(
+      rank, ShapedType::kDynamicStrideOrOffset);
+  build(b, result, resultType, source, staticOffsetsVector, staticSizesVector,
+        staticStridesVector, offsets, sizes, strides, attrs);
+}
+
 /// Verifier for SubTensorOp.
 static LogicalResult verify(SubTensorOp op) {
   // Verify result type against inferred type.
@@ -3772,8 +3582,8 @@ void mlir::SubTensorInsertOp::build(OpBuilder &b, OperationState &result,
                                     ValueRange offsets, ValueRange sizes,
                                     ValueRange strides,
                                     ArrayRef<NamedAttribute> attrs) {
-  auto sourceRankedTensorType = source.getType().cast<RankedTensorType>();
-  unsigned rank = sourceRankedTensorType.getRank();
+  auto destRankedTensorType = dest.getType().cast<RankedTensorType>();
+  unsigned rank = destRankedTensorType.getRank();
   SmallVector<int64_t, 4> staticOffsetsVector(
       rank, ShapedType::kDynamicStrideOrOffset);
   SmallVector<int64_t, 4> staticSizesVector(rank, ShapedType::kDynamicSize);

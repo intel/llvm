@@ -366,6 +366,9 @@
 ; CHECK-EXT-NEXT: Starting llvm::Function pass manager run.
 ; CHECK-EXT-NEXT: Running pass: {{.*}}Bye
 ; CHECK-EXT-NEXT: Finished llvm::Function pass manager run.
+; We don't have checks for CHECK-NOEXT here, but this simplifies the test, while
+; avoiding FileCheck complaining about the unused prefix.
+; CHECK-NOEXT: {{.*}}
 ; CHECK-O0-NEXT: Finished llvm::Module pass manager run
 
 ; RUN: opt -disable-output -disable-verify -debug-pass-manager \
@@ -442,6 +445,10 @@
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Finished llvm::Function pass manager run
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: AAManager
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: TargetLibraryAnalysis
+; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: BasicAA
+; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: ScopedNoAliasAA
+; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: TypeBasedAA
+; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: OuterAnalysisManagerProxy
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: ScalarEvolutionAnalysis
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: TargetIRAnalysis
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: InnerAnalysisManagerProxy<{{.*}}>

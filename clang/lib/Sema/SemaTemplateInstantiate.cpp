@@ -1711,7 +1711,9 @@ TemplateInstantiator::TransformSubstNonTypeTemplateParmPackExpr(
 ExprResult
 TemplateInstantiator::TransformSubstNonTypeTemplateParmExpr(
                                           SubstNonTypeTemplateParmExpr *E) {
-  ExprResult SubstReplacement = TransformExpr(E->getReplacement());
+  ExprResult SubstReplacement = E->getReplacement();
+  if (!isa<ConstantExpr>(SubstReplacement.get()))
+    SubstReplacement = TransformExpr(E->getReplacement());
   if (SubstReplacement.isInvalid())
     return true;
   QualType SubstType = TransformType(E->getParameterType(getSema().Context));
@@ -2910,7 +2912,8 @@ Sema::InstantiateClass(SourceLocation PointOfInstantiation,
 
     Attr *NewAttr =
       instantiateTemplateAttribute(I->TmplAttr, Context, *this, TemplateArgs);
-    I->NewDecl->addAttr(NewAttr);
+    if (NewAttr)
+      I->NewDecl->addAttr(NewAttr);
     LocalInstantiationScope::deleteScopes(I->Scope,
                                           Instantiator.getStartingScope());
   }
