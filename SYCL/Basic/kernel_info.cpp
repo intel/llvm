@@ -62,10 +62,4 @@ int main() {
       info::kernel_device_specific::preferred_work_group_size_multiple>(dev);
   assert(prefWGSizeMultNew > 0);
   assert(prefWGSizeMult == prefWGSizeMultNew);
-  const cl_ulong prvMemSize =
-      krn.get_work_group_info<info::kernel_work_group::private_mem_size>(dev);
-  assert(prvMemSize == 0);
-  const cl_ulong prvMemSizeNew =
-      krn.get_info<info::kernel_device_specific::private_mem_size>(dev);
-  assert(prvMemSizeNew == 0);
 }
