@@ -5,7 +5,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // TODO: Remove items from UNSUPPORTED once corresponding backends support
 // "native" implementation
-// UNSUPPORTED: cpu, cuda
+// UNSUPPORTED: level_zero, cpu, cuda
 
 #include <CL/sycl.hpp>
 #include <algorithm>
