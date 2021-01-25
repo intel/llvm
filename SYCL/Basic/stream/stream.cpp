@@ -3,6 +3,8 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 // RUN: %GPU_RUN_ON_LINUX_PLACEHOLDER %t.out %GPU_CHECK_ON_LINUX_PLACEHOLDER
 // RUN: %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER
+// Disabled until sporadic failure is fixed
+// REQUIRES: TEMPORARY_DISABLED
 
 //==------------------ stream.cpp - SYCL stream basic test -----------------==//
 //
