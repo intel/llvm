@@ -23,7 +23,7 @@ int foo();
 constexpr int bar() { return 0; }
 [[intel::max_global_work_dim(bar() + 2)]] void func2(); // OK
 
-// Test that checks template parameter suppport on member function of class template.
+// Test that checks template parameter support on member function of class template.
 template <int SIZE>
 class KernelFunctor {
 public:
