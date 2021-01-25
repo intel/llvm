@@ -786,12 +786,9 @@ def : Pat <
 
 let OtherPredicates = [UnsafeFPMath] in {
 
-//def : RcpPat<V_RCP_F64_e32, f64>;
-//defm : RsqPat<V_RSQ_F64_e32, f64>;
 //defm : RsqPat<V_RSQ_F32_e32, f32>;
 
 def : RsqPat<V_RSQ_F32_e32, f32>;
-def : RsqPat<V_RSQ_F64_e32, f64>;
 
 // Convert (x - floor(x)) to fract(x)
 def : GCNPat <

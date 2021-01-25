@@ -328,11 +328,11 @@ class LangOpt<string name, code customCode = [{}]> {
 def MicrosoftExt : LangOpt<"MicrosoftExt">;
 def Borland : LangOpt<"Borland">;
 def CUDA : LangOpt<"CUDA">;
+def HIP : LangOpt<"HIP">;
 def SYCLIsDevice : LangOpt<"SYCLIsDevice">;
 def SYCL : LangOpt<"SYCLIsDevice">;
 def SYCLIsHost : LangOpt<"SYCLIsHost">;
 def SYCLExplicitSIMD : LangOpt<"SYCLExplicitSIMD">;
-def HIP : LangOpt<"HIP">;
 def COnly : LangOpt<"", "!LangOpts.CPlusPlus">;
 def CPlusPlus : LangOpt<"CPlusPlus">;
 def OpenCL : LangOpt<"OpenCL">;
@@ -1124,6 +1124,13 @@ def CUDAHost : InheritableAttr {
   let Subjects = SubjectList<[Function]>;
   let LangOpts = [CUDA];
   let Documentation = [Undocumented];
+}
+
+def HIPManaged : InheritableAttr {
+  let Spellings = [GNU<"managed">, Declspec<"__managed__">];
+  let Subjects = SubjectList<[Var]>;
+  let LangOpts = [HIP];
+  let Documentation = [HIPManagedAttrDocs];
 }
 
 def CUDAInvalidTarget : InheritableAttr {
