@@ -15,9 +15,10 @@ using namespace sycl;
 bool privateMemSizeCalled = false;
 
 static pi_result redefinedKernelGetGroupInfo(pi_kernel kernel, pi_device device,
-                               pi_kernel_group_info param_name,
-                               size_t param_value_size, void *param_value,
-                               size_t *param_value_size_ret) {
+                                             pi_kernel_group_info param_name,
+                                             size_t param_value_size,
+                                             void *param_value,
+                                             size_t *param_value_size_ret) {
   if (param_name == PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE) {
     privateMemSizeCalled = true;
   }
@@ -63,10 +64,12 @@ TEST_F(KernelInfoTest, GetPrivateMemUsage) {
 
   sycl::queue Queue{Ctx.get_devices()[0]};
 
-  Queue.submit([](handler &CGH) { CGH.single_task<class GetPrivMemTest>([]{}); });
+  Queue.submit(
+      [](handler &CGH) { CGH.single_task<class GetPrivMemTest>([] {}); });
 
   Ker.get_info<info::kernel_device_specific::private_mem_size>(
       Ctx.get_devices()[0]);
-  EXPECT_EQ(privateMemSizeCalled, true) << "Expect piKernelGetInfo to be "
-    << "called with PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE";
+  EXPECT_EQ(privateMemSizeCalled, true)
+      << "Expect piKernelGetInfo to be "
+      << "called with PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE";
 }
