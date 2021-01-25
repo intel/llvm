@@ -694,9 +694,9 @@ def : Pat<(xor GPR:$rs1, (not GPR:$rs2)), (XNOR GPR:$rs1, GPR:$rs2)>;
 } // Predicates = [HasStdExtZbbOrZbp]
 
 let Predicates = [HasStdExtZbp] in {
-def : Pat<(not (shl (not GPR:$rs1), GPR:$rs2)),
+def : Pat<(not (shiftop<shl> (not GPR:$rs1), GPR:$rs2)),
           (SLO GPR:$rs1, GPR:$rs2)>;
-def : Pat<(not (srl (not GPR:$rs1), GPR:$rs2)),
+def : Pat<(not (shiftop<srl> (not GPR:$rs1), GPR:$rs2)),
           (SRO GPR:$rs1, GPR:$rs2)>;
 } // Predicates = [HasStdExtZbp]
 
@@ -725,6 +725,9 @@ def : Pat<(or GPR:$rs1, BSETINVMask:$mask),
           (BSETI GPR:$rs1, (BSETINVXForm imm:$mask))>;
 def : Pat<(xor GPR:$rs1, BSETINVMask:$mask),
           (BINVI GPR:$rs1, (BSETINVXForm imm:$mask))>;
+
+def : Pat<(and (srl GPR:$rs1, uimmlog2xlen:$shamt), (XLenVT 1)),
+          (BEXTI GPR:$rs1, uimmlog2xlen:$shamt)>;
 }
 
 let Predicates = [HasStdExtZbp] in {
@@ -742,12 +745,6 @@ def : Pat<(rotr GPR:$rs1, uimmlog2xlen:$shamt),
 def : Pat<(rotl GPR:$rs1, uimmlog2xlen:$shamt),
           (RORI GPR:$rs1, (ImmROTL2R uimmlog2xlen:$shamt))>;
 }
-
-// We don't pattern-match sbclri[w], sbseti[w], sbinvi[w] because they are
-// pattern-matched by simple andi, ori, and xori.
-let Predicates = [HasStdExtZbs] in
-def : Pat<(and (srl GPR:$rs1, uimmlog2xlen:$shamt), (XLenVT 1)),
-          (BEXTI GPR:$rs1, uimmlog2xlen:$shamt)>;
 
 def riscv_grevi    : SDNode<"RISCVISD::GREVI", SDTIntBinOp, []>;
 def riscv_greviw   : SDNode<"RISCVISD::GREVIW", SDTIntBinOp, []>;
@@ -960,9 +957,9 @@ def : Pat<(add (SLLIUWPat GPR:$rs1, (XLenVT 3)), GPR:$rs2),
 } // Predicates = [HasStdExtZba, IsRV64]
 
 let Predicates = [HasStdExtZbp, IsRV64] in {
-def : Pat<(not (riscv_sllw (not GPR:$rs1), GPR:$rs2)),
+def : Pat<(not (shiftopw<riscv_sllw> (not GPR:$rs1), GPR:$rs2)),
           (SLOW GPR:$rs1, GPR:$rs2)>;
-def : Pat<(not (riscv_srlw (not GPR:$rs1), GPR:$rs2)),
+def : Pat<(not (shiftopw<riscv_srlw> (not GPR:$rs1), GPR:$rs2)),
           (SROW GPR:$rs1, GPR:$rs2)>;
 } // Predicates = [HasStdExtZbp, IsRV64]
 
@@ -1049,7 +1046,6 @@ def : Pat<(sext_inreg (or (shl GPR:$rs2, (i64 16)),
                       i32),
           (PACKW GPR:$rs1, GPR:$rs2)>;
 def : Pat<(or (and (assertsexti32 GPR:$rs2), 0xFFFFFFFFFFFF0000),
-              (srl (and GPR:$rs1, 0x00000000FFFF0000),
-                   (i64 16))),
+              (SRLIWPat GPR:$rs1, (i64 16))),
           (PACKUW GPR:$rs1, GPR:$rs2)>;
 } // Predicates = [HasStdExtZbp, IsRV64]
