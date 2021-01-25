@@ -111,6 +111,10 @@ int main(int argc, char **argv) {
     std::cout << "Platforms: " << Platforms.size() << std::endl;
 
   uint32_t PlatformNum = 0;
+  // DeviceNum represents a globally unique device number.
+  // It is printed at the beginning of each line from 'sycl-ls'.
+  // For user-friendliness, this number starts at 1 instead of 0.
+  uint32_t DeviceNum = 1;
   for (const auto &Platform : Platforms) {
     ++PlatformNum;
     if (verbose) {
@@ -125,11 +129,12 @@ int main(int argc, char **argv) {
     const auto &Devices = Platform.get_devices();
     if (verbose)
       std::cout << "    Devices  : " << Devices.size() << std::endl;
-    uint32_t DeviceNum = 0;
     for (const auto &Device : Devices) {
-      ++DeviceNum;
       if (verbose)
         std::cout << "        Device [#" << DeviceNum << "]:" << std::endl;
+      else
+        std::cout << DeviceNum << ". ";
+      ++DeviceNum;
       printDeviceInfo(Device, verbose ? "        " : "");
     }
   }

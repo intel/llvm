@@ -89,7 +89,8 @@ device device_selector::select_device() const {
 
     // If SYCL_DEVICE_FILTER is set, give a bonus point for the device
     // whose index matches with desired device number.
-    int index = &dev - &devices[0];
+    // Note that device number starts at one in the sycl-ls enumeration.
+    int index = &dev - &devices[0] + 1;
     if (isForcedDevice(dev, index)) {
       dev_score += 1000;
     }
