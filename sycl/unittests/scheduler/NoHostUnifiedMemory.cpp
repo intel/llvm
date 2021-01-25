@@ -30,13 +30,11 @@ static pi_result redefinedDeviceGetInfo(pi_device Device,
   return PI_SUCCESS;
 }
 
-static RT::PiMemFlags ExpectedMemObjFlags;
-
 static pi_result
 redefinedMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
                          void *host_ptr, pi_mem *ret_mem,
                          const pi_mem_properties *properties = nullptr) {
-  EXPECT_EQ(flags, ExpectedMemObjFlags);
+  EXPECT_EQ(flags, PI_MEM_FLAGS_ACCESS_RW);
   return PI_SUCCESS;
 }
 
@@ -85,42 +83,42 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
       new detail::queue_impl(detail::getSyclObjImpl(HostDevice), {}, {})};
 
   MockScheduler MS;
-  // Check non-host -> host alloca with non-discard access mode
+  // Check non-host alloca with non-discard access mode
   {
     int val;
     buffer<int, 1> Buf(&val, range<1>(1));
     detail::Requirement Req = getMockRequirement(Buf);
-
-    // The host pointer should be copied during the non-host allocation in this
-    // case.
-    ExpectedMemObjFlags = PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_COPY;
 
     detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
     detail::AllocaCommandBase *NonHostAllocaCmd =
         MS.getOrCreateAllocaForReq(Record, &Req, QImpl);
 
-    detail::AllocaCommandBase *HostAllocaCmd =
-        MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue);
+    // Both non-host and host allocations should be created in this case in
+    // order to perform a memory move.
+    EXPECT_EQ(Record->MAllocaCommands.size(), 2U);
+    detail::AllocaCommandBase *HostAllocaCmd = Record->MAllocaCommands[0];
+    EXPECT_TRUE(HostAllocaCmd->getQueue()->is_host());
     EXPECT_TRUE(!HostAllocaCmd->MLinkedAllocaCmd);
     EXPECT_TRUE(!NonHostAllocaCmd->MLinkedAllocaCmd);
+    EXPECT_TRUE(Record->MCurContext->is_host());
 
-    detail::Command *MemoryMove =
-        MS.insertMemoryMove(Record, &Req, DefaultHostQueue);
+    detail::Command *MemoryMove = MS.insertMemoryMove(Record, &Req, QImpl);
     EXPECT_EQ(MemoryMove->getType(), detail::Command::COPY_MEMORY);
   }
-  // Check non-host -> host alloca with discard access modes
+  // Check non-host alloca with discard access modes
   {
     int val;
     buffer<int, 1> Buf(&val, range<1>(1));
     detail::Requirement Req = getMockRequirement(Buf);
-    // The host pointer should be ignored due to the discard access mode.
-    ExpectedMemObjFlags = PI_MEM_FLAGS_ACCESS_RW;
 
     detail::Requirement DiscardReq = getMockRequirement(Buf);
     DiscardReq.MAccessMode = access::mode::discard_read_write;
 
+    // No need to create a host allocation in this case since the data can be
+    // discarded.
     detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
     MS.getOrCreateAllocaForReq(Record, &DiscardReq, QImpl);
+    EXPECT_EQ(Record->MAllocaCommands.size(), 1U);
   }
   // Check host -> non-host alloca
   {
@@ -128,16 +126,16 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     buffer<int, 1> Buf(&val, range<1>(1));
     detail::Requirement Req = getMockRequirement(Buf);
 
-    // No copy expected during the second allocation, it is performed as a
-    // separate command.
-    ExpectedMemObjFlags = PI_MEM_FLAGS_ACCESS_RW;
-
+    // No special handling required: alloca commands are created one after
+    // another and the transfer is done via a write operation.
     detail::MemObjRecord *Record =
         MS.getOrInsertMemObjRecord(DefaultHostQueue, &Req);
     detail::AllocaCommandBase *HostAllocaCmd =
         MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue);
+    EXPECT_EQ(Record->MAllocaCommands.size(), 1U);
     detail::AllocaCommandBase *NonHostAllocaCmd =
         MS.getOrCreateAllocaForReq(Record, &Req, QImpl);
+    EXPECT_EQ(Record->MAllocaCommands.size(), 2U);
     EXPECT_TRUE(!HostAllocaCmd->MLinkedAllocaCmd);
     EXPECT_TRUE(!NonHostAllocaCmd->MLinkedAllocaCmd);
 
@@ -150,7 +148,6 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     int val;
     buffer<int, 1> Buf(&val, range<1>(1));
     detail::Requirement Req = getMockRequirement(Buf);
-    ExpectedMemObjFlags = PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_COPY;
 
     detail::Requirement DiscardReq = getMockRequirement(Buf);
     DiscardReq.MAccessMode = access::mode::discard_read_write;
