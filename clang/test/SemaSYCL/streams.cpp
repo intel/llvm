@@ -50,7 +50,8 @@ int main() {
 
 // Initializers:
 
-// CHECK: InitListExpr {{.*}}
+// CHECK: InitListExpr {{.*}} '(lambda at
+// 'in_lambda'
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::stream':'sycl::stream' 'void (const sycl::stream &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const sycl::stream' lvalue <NoOp>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::stream':'sycl::stream' lvalue ParmVar

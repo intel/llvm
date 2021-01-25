@@ -64,11 +64,11 @@ int main() {
 
   StructNonDecomposed SimpleStruct;
   StructNonDecomposed ArrayOfSimpleStruct[5];
-  StructWithNonDecomposedStruct d2;
-  StructWithNonDecomposedStruct d2s[5];
+  StructWithNonDecomposedStruct NonDecompStruct;
+  StructWithNonDecomposedStruct ArrayOfNonDecompStruct[5];
   // Check to ensure that these are not decomposed.
   myQueue.submit([&](sycl::handler &h) {
-    h.single_task<class NonDecomposed>([=]() { return SimpleStruct.i + ArrayOfSimpleStruct[0].i + d2.i + d2s[0].i; });
+    h.single_task<class NonDecomposed>([=]() { return SimpleStruct.i + ArrayOfSimpleStruct[0].i + NonDecompStruct.i + ArrayOfNonDecompStruct[0].i; });
   });
   // CHECK: FunctionDecl {{.*}}NonDecomposed{{.*}} 'void (StructNonDecomposed, __wrapper_class, StructWithNonDecomposedStruct, __wrapper_class)'
 

@@ -9,7 +9,6 @@ sycl::queue q;
 
 int main() {
 
-  // 1-dimensional accessor with Read-only access
   sycl::accessor<int, 1, sycl::access::mode::read,
                  sycl::access::target::image, sycl::access::placeholder::false_t>
       image_acc1d_read;
@@ -32,7 +31,6 @@ int main() {
         });
   });
 
-  // 3-dimensional accessor with Read-only access
   sycl::accessor<int, 3, sycl::access::mode::read,
                  sycl::access::target::image, sycl::access::placeholder::false_t>
       image_acc3d_read;
@@ -44,7 +42,6 @@ int main() {
         });
   });
 
-  // 1-dimensional accessor with Write-only access
   sycl::accessor<int, 1, sycl::access::mode::write,
                  sycl::access::target::image, sycl::access::placeholder::false_t>
       image_acc1d_write;
@@ -55,7 +52,6 @@ int main() {
         });
   });
 
-  // 2-dimensional accessor with Write-only access
   sycl::accessor<int, 2, sycl::access::mode::write,
                  sycl::access::target::image, sycl::access::placeholder::false_t>
       image_acc2d_write;
@@ -66,7 +62,6 @@ int main() {
         });
   });
 
-  // 3-dimensional accessor with Write-only access
   sycl::accessor<int, 3, sycl::access::mode::write,
                  sycl::access::target::image, sycl::access::placeholder::false_t>
       image_acc3d_write;
