@@ -495,19 +495,33 @@ struct _pi_ze_event_list_t {
 
   // A mutex is needed for destroying the event list.
   // Creation is already thread-safe because we only create the list
-  // when an event in initially created.  However, it might be
+  // when an event is initially created.  However, it might be
   // possible to have multiple threads racing to destroy the list,
   // so this will be used to make list destruction thread-safe.
   std::mutex PiZeEventListMutex;
 
   // Initialize this using the array of events in EventList, and retain
   // all the pi_events in the created data structure.
+  // CurQueue is the pi_queue that the command with this event wait
+  // list is going to be added to.  That is needed to flush command
+  // batches for wait events that are in other queues.
   pi_result createAndRetainPiZeEventList(pi_uint32 EventListLength,
-                                         const pi_event *EventList);
+                                         const pi_event *EventList,
+                                         pi_queue CurQueue);
 
   // Release all the events in this object's PiEventList, and destroy
   // the data structures it contains.
   pi_result releaseAndDestroyPiZeEventList();
+
+  // Had to create custom assignment operator because the mutex is
+  // not assignment copyable. Just field by field copy of the other
+  // fields.
+  _pi_ze_event_list_t &operator=(const _pi_ze_event_list_t &other) {
+    this->ZeEventList = other.ZeEventList;
+    this->PiEventList = other.PiEventList;
+    this->Length = other.Length;
+    return *this;
+  }
 };
 
 struct _pi_event : _pi_object {
