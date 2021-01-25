@@ -165,6 +165,20 @@ def testBoolAttr():
 run(testBoolAttr)
 
 
+# CHECK-LABEL: TEST: testFlatSymbolRefAttr
+def testFlatSymbolRefAttr():
+  with Context() as ctx:
+    sattr = FlatSymbolRefAttr(Attribute.parse('@symbol'))
+    # CHECK: symattr value: symbol
+    print("symattr value:", sattr.value)
+
+    # Test factory methods.
+    # CHECK: default_get: @foobar
+    print("default_get:", FlatSymbolRefAttr.get("foobar"))
+
+run(testFlatSymbolRefAttr)
+
+
 # CHECK-LABEL: TEST: testStringAttr
 def testStringAttr():
   with Context() as ctx:
@@ -357,7 +371,7 @@ def testArrayAttr():
     try:
       ArrayAttr.get([42])
     except RuntimeError as e:
-      # CHECK: Error: Invalid attribute when attempting to create an ArrayAttribute (Unable to cast Python instance of type <class 'int'> to C++ type 'mlir::python::PyAttribute')
+      # CHECK: Error: Invalid attribute when attempting to create an ArrayAttribute
       print("Error: ", e)
 run(testArrayAttr)
 

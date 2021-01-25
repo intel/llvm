@@ -280,6 +280,7 @@ class sve_int_ptrue<bits<2> sz8_64, bits<3> opc, string asm, PPRRegOp pprty,
   let Inst{3-0}   = Pd;
 
   let Defs = !if(!eq (opc{0}, 1), [NZCV], []);
+  let ElementSize = pprty.ElementSize;
   let isReMaterializable = 1;
 }
 
@@ -532,6 +533,7 @@ class sve_int_ptest<bits<6> opc, string asm>
   let Inst{4-0}   = 0b00000;
 
   let Defs = [NZCV];
+  let isCompare = 1;
 }
 
 class sve_int_pfirst_next<bits<2> sz8_64, bits<5> opc, string asm,
@@ -2268,6 +2270,8 @@ multiclass sve_int_perm_bin_perm_zz<bits<3> opc, string asm,
   def : SVE_2_Op_Pat<nxv8f16, op, nxv8f16, nxv8f16, !cast<Instruction>(NAME # _H)>;
   def : SVE_2_Op_Pat<nxv4f16, op, nxv4f16, nxv4f16, !cast<Instruction>(NAME # _S)>;
   def : SVE_2_Op_Pat<nxv4f32, op, nxv4f32, nxv4f32, !cast<Instruction>(NAME # _S)>;
+  def : SVE_2_Op_Pat<nxv2f16, op, nxv2f16, nxv2f16, !cast<Instruction>(NAME # _D)>;
+  def : SVE_2_Op_Pat<nxv2f32, op, nxv2f32, nxv2f32, !cast<Instruction>(NAME # _D)>;
   def : SVE_2_Op_Pat<nxv2f64, op, nxv2f64, nxv2f64, !cast<Instruction>(NAME # _D)>;
 
   def : SVE_2_Op_Pat<nxv8bf16, op, nxv8bf16, nxv8bf16, !cast<Instruction>(NAME # _H)>;
@@ -3773,10 +3777,10 @@ multiclass sve_int_un_pred_arit_0<bits<3> opc, string asm,
   def _S : sve_int_un_pred_arit<0b10, { opc, 0b0 }, asm, ZPR32>;
   def _D : sve_int_un_pred_arit<0b11, { opc, 0b0 }, asm, ZPR64>;
 
-  def : SVE_3_Op_Pat<nxv16i8, op, nxv16i8, nxv16i1, nxv16i8, !cast<Instruction>(NAME # _B)>;
-  def : SVE_3_Op_Pat<nxv8i16, op, nxv8i16, nxv8i1,  nxv8i16, !cast<Instruction>(NAME # _H)>;
-  def : SVE_3_Op_Pat<nxv4i32, op, nxv4i32, nxv4i1,  nxv4i32, !cast<Instruction>(NAME # _S)>;
-  def : SVE_3_Op_Pat<nxv2i64, op, nxv2i64, nxv2i1,  nxv2i64, !cast<Instruction>(NAME # _D)>;
+  def : SVE_1_Op_Passthru_Pat<nxv16i8, op, nxv16i1, nxv16i8, !cast<Instruction>(NAME # _B)>;
+  def : SVE_1_Op_Passthru_Pat<nxv8i16, op, nxv8i1,  nxv8i16, !cast<Instruction>(NAME # _H)>;
+  def : SVE_1_Op_Passthru_Pat<nxv4i32, op, nxv4i1,  nxv4i32, !cast<Instruction>(NAME # _S)>;
+  def : SVE_1_Op_Passthru_Pat<nxv2i64, op, nxv2i1,  nxv2i64, !cast<Instruction>(NAME # _D)>;
 }
 
 multiclass sve_int_un_pred_arit_0_h<bits<3> opc, string asm,
@@ -3813,16 +3817,10 @@ multiclass sve_int_un_pred_arit_1<bits<3> opc, string asm,
   def _S : sve_int_un_pred_arit<0b10, { opc, 0b1 }, asm, ZPR32>;
   def _D : sve_int_un_pred_arit<0b11, { opc, 0b1 }, asm, ZPR64>;
 
-  def : SVE_3_Op_Pat<nxv16i8, op, nxv16i8, nxv16i1, nxv16i8, !cast<Instruction>(NAME # _B)>;
-  def : SVE_3_Op_Pat<nxv8i16, op, nxv8i16, nxv8i1,  nxv8i16, !cast<Instruction>(NAME # _H)>;
-  def : SVE_3_Op_Pat<nxv4i32, op, nxv4i32, nxv4i1,  nxv4i32, !cast<Instruction>(NAME # _S)>;
-  def : SVE_3_Op_Pat<nxv2i64, op, nxv2i64, nxv2i1,  nxv2i64, !cast<Instruction>(NAME # _D)>;
-
-  def : SVE_3_Op_Pat<nxv8i16, op, nxv8i16, nxv8i1, nxv8f16, !cast<Instruction>(NAME # _H)>;
-  def : SVE_3_Op_Pat<nxv4i32, op, nxv4i32, nxv4i1, nxv4f32, !cast<Instruction>(NAME # _S)>;
-  def : SVE_3_Op_Pat<nxv2i64, op, nxv2i64, nxv2i1, nxv2f64, !cast<Instruction>(NAME # _D)>;
-
-  def : SVE_3_Op_Pat<nxv8i16, op, nxv8i16, nxv8i1, nxv8bf16, !cast<Instruction>(NAME # _H)>;
+  def : SVE_1_Op_Passthru_Pat<nxv16i8, op, nxv16i1, nxv16i8, !cast<Instruction>(NAME # _B)>;
+  def : SVE_1_Op_Passthru_Pat<nxv8i16, op, nxv8i1,  nxv8i16, !cast<Instruction>(NAME # _H)>;
+  def : SVE_1_Op_Passthru_Pat<nxv4i32, op, nxv4i1,  nxv4i32, !cast<Instruction>(NAME # _S)>;
+  def : SVE_1_Op_Passthru_Pat<nxv2i64, op, nxv2i1,  nxv2i64, !cast<Instruction>(NAME # _D)>;
 }
 
 multiclass sve_int_un_pred_arit_1_fp<bits<3> opc, string asm, SDPatternOperator op> {
@@ -4291,6 +4289,8 @@ class sve_int_cmp<bit cmp_1, bits<2> sz8_64, bits<3> opc, string asm,
   let Inst{3-0}   = Pd;
 
   let Defs = [NZCV];
+  let ElementSize = pprty.ElementSize;
+  let isPTestLike = 1;
 }
 
 multiclass SVE_SETCC_Pat<CondCode cc, CondCode invcc, ValueType predvt,
@@ -4363,6 +4363,7 @@ class sve_int_scmp_vi<bits<2> sz8_64, bits<3> opc, string asm, PPRRegOp pprty,
 
   let Defs = [NZCV];
   let ElementSize = pprty.ElementSize;
+  let isPTestLike = 1;
 }
 
 multiclass SVE_SETCC_Imm_Pat<CondCode cc, CondCode commuted_cc,
@@ -4422,6 +4423,8 @@ class sve_int_ucmp_vi<bits<2> sz8_64, bits<2> opc, string asm, PPRRegOp pprty,
   let Inst{3-0}   = Pd;
 
   let Defs = [NZCV];
+  let ElementSize = pprty.ElementSize;
+  let isPTestLike = 1;
 }
 
 multiclass sve_int_ucmp_vi<bits<2> opc, string asm, CondCode cc,
@@ -4484,6 +4487,8 @@ class sve_int_while_rr<bits<2> sz8_64, bits<4> opc, string asm,
   let Inst{3-0}   = Pd;
 
   let Defs = [NZCV];
+  let ElementSize = pprty.ElementSize;
+  let isWhile = 1;
 }
 
 multiclass sve_int_while4_rr<bits<3> opc, string asm, SDPatternOperator op> {
@@ -4528,6 +4533,8 @@ class sve2_int_while_rr<bits<2> sz8_64, bits<1> rw, string asm,
   let Inst{3-0}   = Pd;
 
   let Defs = [NZCV];
+  let ElementSize = pprty.ElementSize;
+  let isWhile = 1;
 }
 
 multiclass sve2_int_while_rr<bits<1> rw, string asm, string op> {

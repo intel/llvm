@@ -28,17 +28,10 @@
 
 #include "AMDGPU.h"
 #include "AMDGPUSubtarget.h"
-#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
-#include "Utils/AMDGPUBaseInfo.h"
 #include "llvm/ADT/SmallSet.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
-#include "llvm/IR/Function.h"
-#include "llvm/IR/Module.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/Utils/Cloning.h"
-#include <string>
-
 #define DEBUG_TYPE "amdgpu-propagate-attributes"
 
 using namespace llvm;
@@ -408,4 +401,22 @@ FunctionPass
 ModulePass
 *llvm::createAMDGPUPropagateAttributesLatePass(const TargetMachine *TM) {
   return new AMDGPUPropagateAttributesLate(TM);
+}
+
+PreservedAnalyses
+AMDGPUPropagateAttributesEarlyPass::run(Function &F,
+                                        FunctionAnalysisManager &AM) {
+  if (!AMDGPU::isEntryFunctionCC(F.getCallingConv()))
+    return PreservedAnalyses::all();
+
+  return AMDGPUPropagateAttributes(&TM, false).process(F)
+             ? PreservedAnalyses::none()
+             : PreservedAnalyses::all();
+}
+
+PreservedAnalyses
+AMDGPUPropagateAttributesLatePass::run(Module &M, ModuleAnalysisManager &AM) {
+  return AMDGPUPropagateAttributes(&TM, true).process(M)
+             ? PreservedAnalyses::none()
+             : PreservedAnalyses::all();
 }

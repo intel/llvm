@@ -326,7 +326,7 @@ void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
   // of a name in the intel vendor namespace. By default, assume the attribute
   // retains its original name but changes the namespace. However, some
   // attributes were renamed, so we support supplying a new name as well.
-  if (A.getScopeName()->isStr("intelfpga")) {
+  if (A.hasScope() && A.getScopeName()->isStr("intelfpga")) {
     Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated)
         << "'" + A.getNormalizedFullName() + "'";
 
@@ -1416,7 +1416,7 @@ static void handlePreferredName(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!TSI)
     TSI = S.Context.getTrivialTypeSourceInfo(T, AL.getLoc());
 
-  if (!T.hasQualifiers() && T->getAs<TypedefType>()) {
+  if (!T.hasQualifiers() && T->isTypedefNameType()) {
     // Find the template name, if this type names a template specialization.
     const TemplateDecl *Template = nullptr;
     if (const auto *CTSD = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
@@ -4013,6 +4013,26 @@ static void handleCallbackAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
       S.Context, AL, EncodingIndices.data(), EncodingIndices.size()));
 }
 
+static bool isFunctionLike(const Type &T) {
+  // Check for explicit function types.
+  // 'called_once' is only supported in Objective-C and it has
+  // function pointers and block pointers.
+  return T.isFunctionPointerType() || T.isBlockPointerType();
+}
+
+/// Handle 'called_once' attribute.
+static void handleCalledOnceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  // 'called_once' only applies to parameters representing functions.
+  QualType T = cast<ParmVarDecl>(D)->getType();
+
+  if (!isFunctionLike(*T)) {
+    S.Diag(AL.getLoc(), diag::err_called_once_attribute_wrong_type);
+    return;
+  }
+
+  D->addAttr(::new (S.Context) CalledOnceAttr(S.Context, AL));
+}
+
 static void handleTransparentUnionAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   // Try to find the underlying union declaration.
   RecordDecl *RD = nullptr;
@@ -4813,7 +4833,7 @@ static void handleOptimizeNoneAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 static void handleSYCLDeviceAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   auto *FD = cast<FunctionDecl>(D);
   if (!FD->isExternallyVisible()) {
-    S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here) << AL;
+    S.Diag(AL.getLoc(), diag::err_sycl_attribute_internal_function) << AL;
     return;
   }
 
@@ -4824,7 +4844,7 @@ static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
                                                    const ParsedAttr &AL) {
   auto *FD = cast<FunctionDecl>(D);
   if (!FD->isExternallyVisible()) {
-    S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here) << AL;
+    S.Diag(AL.getLoc(), diag::err_sycl_attribute_internal_function) << AL;
     return;
   }
 
@@ -4834,11 +4854,6 @@ static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
 
 static void handleSYCLRegisterNumAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   auto *VD = cast<VarDecl>(D);
-  if (!VD->hasGlobalStorage()) {
-    S.Diag(AL.getLoc(), diag::err_sycl_attibute_cannot_be_applied_here)
-        << AL << 0;
-    return;
-  }
   if (!checkAttributeNumArgs(S, AL, 1))
     return;
   uint32_t RegNo = 0;
@@ -8275,6 +8290,75 @@ static void handleCFGuardAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   D->addAttr(::new (S.Context) CFGuardAttr(S.Context, AL, Arg));
 }
 
+
+template <typename AttrTy>
+static const AttrTy *findEnforceTCBAttrByName(Decl *D, StringRef Name) {
+  auto Attrs = D->specific_attrs<AttrTy>();
+  auto I = llvm::find_if(Attrs,
+                         [Name](const AttrTy *A) {
+                           return A->getTCBName() == Name;
+                         });
+  return I == Attrs.end() ? nullptr : *I;
+}
+
+template <typename AttrTy, typename ConflictingAttrTy>
+static void handleEnforceTCBAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  StringRef Argument;
+  if (!S.checkStringLiteralArgumentAttr(AL, 0, Argument))
+    return;
+
+  // A function cannot be have both regular and leaf membership in the same TCB.
+  if (const ConflictingAttrTy *ConflictingAttr =
+      findEnforceTCBAttrByName<ConflictingAttrTy>(D, Argument)) {
+    // We could attach a note to the other attribute but in this case
+    // there's no need given how the two are very close to each other.
+    S.Diag(AL.getLoc(), diag::err_tcb_conflicting_attributes)
+      << AL.getAttrName()->getName() << ConflictingAttr->getAttrName()->getName()
+      << Argument;
+
+    // Error recovery: drop the non-leaf attribute so that to suppress
+    // all future warnings caused by erroneous attributes. The leaf attribute
+    // needs to be kept because it can only suppresses warnings, not cause them.
+    D->dropAttr<EnforceTCBAttr>();
+    return;
+  }
+
+  D->addAttr(AttrTy::Create(S.Context, Argument, AL));
+}
+
+template <typename AttrTy, typename ConflictingAttrTy>
+static AttrTy *mergeEnforceTCBAttrImpl(Sema &S, Decl *D, const AttrTy &AL) {
+  // Check if the new redeclaration has different leaf-ness in the same TCB.
+  StringRef TCBName = AL.getTCBName();
+  if (const ConflictingAttrTy *ConflictingAttr =
+      findEnforceTCBAttrByName<ConflictingAttrTy>(D, TCBName)) {
+    S.Diag(ConflictingAttr->getLoc(), diag::err_tcb_conflicting_attributes)
+      << ConflictingAttr->getAttrName()->getName()
+      << AL.getAttrName()->getName() << TCBName;
+
+    // Add a note so that the user could easily find the conflicting attribute.
+    S.Diag(AL.getLoc(), diag::note_conflicting_attribute);
+
+    // More error recovery.
+    D->dropAttr<EnforceTCBAttr>();
+    return nullptr;
+  }
+
+  ASTContext &Context = S.getASTContext();
+  return ::new(Context) AttrTy(Context, AL, AL.getTCBName());
+}
+
+EnforceTCBAttr *Sema::mergeEnforceTCBAttr(Decl *D, const EnforceTCBAttr &AL) {
+  return mergeEnforceTCBAttrImpl<EnforceTCBAttr, EnforceTCBLeafAttr>(
+      *this, D, AL);
+}
+
+EnforceTCBLeafAttr *Sema::mergeEnforceTCBLeafAttr(
+    Decl *D, const EnforceTCBLeafAttr &AL) {
+  return mergeEnforceTCBAttrImpl<EnforceTCBLeafAttr, EnforceTCBAttr>(
+      *this, D, AL);
+}
+
 //===----------------------------------------------------------------------===//
 // Top Level Sema Entry Points
 //===----------------------------------------------------------------------===//
@@ -8492,6 +8576,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_Callback:
     handleCallbackAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_CalledOnce:
+    handleCalledOnceAttr(S, D, AL);
     break;
   case ParsedAttr::AT_CUDAGlobal:
     handleGlobalAttr(S, D, AL);
@@ -9061,6 +9148,14 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
 
   case ParsedAttr::AT_UseHandle:
     handleHandleAttr<UseHandleAttr>(S, D, AL);
+    break;
+
+  case ParsedAttr::AT_EnforceTCB:
+    handleEnforceTCBAttr<EnforceTCBAttr, EnforceTCBLeafAttr>(S, D, AL);
+    break;
+
+  case ParsedAttr::AT_EnforceTCBLeaf:
+    handleEnforceTCBAttr<EnforceTCBLeafAttr, EnforceTCBAttr>(S, D, AL);
     break;
   }
 }
