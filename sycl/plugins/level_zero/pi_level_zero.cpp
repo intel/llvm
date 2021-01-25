@@ -827,7 +827,7 @@ static void printZeEventList(_pi_ze_event_list_t &PiZeEventList) {
   zePrint("\n");
 }
 
-pi_result _pi_ze_event_list_t::releaseAndDestroyPiZeEventList(
+pi_result _pi_ze_event_list_t::collectEventsForReleaseAndDestroyPiZeEventList(
     std::list<pi_event> &EventsToBeReleased) {
   // acquire a lock before reading the length and list fields.
   // Acquire the lock, copy the needed data locally, and reset
@@ -3811,13 +3811,15 @@ static void cleanupAfterEvent(pi_event Event) {
 
   std::list<pi_event> EventsToBeReleased;
 
-  Event->WaitList.releaseAndDestroyPiZeEventList(EventsToBeReleased);
+  Event->WaitList.collectEventsForReleaseAndDestroyPiZeEventList(
+      EventsToBeReleased);
 
   while (!EventsToBeReleased.empty()) {
     pi_event DepEvent = EventsToBeReleased.front();
     EventsToBeReleased.pop_front();
 
-    DepEvent->WaitList.releaseAndDestroyPiZeEventList(EventsToBeReleased);
+    DepEvent->WaitList.collectEventsForReleaseAndDestroyPiZeEventList(
+        EventsToBeReleased);
     piEventRelease(DepEvent);
   }
   zePrint("cleanupAfterEvent exit\n");

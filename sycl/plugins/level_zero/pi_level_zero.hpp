@@ -512,8 +512,8 @@ struct _pi_ze_event_list_t {
   // Add all the events in this object's PiEventList to the end
   // of the list EventsToBeReleased. Destroy pi_ze_event_list_t data
   // structure fields making it look empty.
-  pi_result
-  releaseAndDestroyPiZeEventList(std::list<pi_event> &EventsToBeReleased);
+  pi_result collectEventsForReleaseAndDestroyPiZeEventList(
+      std::list<pi_event> &EventsToBeReleased);
 
   // Had to create custom assignment operator because the mutex is
   // not assignment copyable. Just field by field copy of the other
