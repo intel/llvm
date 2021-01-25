@@ -1,9 +1,9 @@
-// RUN: %clang_cc1 -S -fsycl -fsycl-is-device -triple spir64 -ast-dump -sycl-std=2020 %s | FileCheck %s
+// RUN: %clang_cc1 -S -fsycl -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -ast-dump -sycl-std=2020 %s | FileCheck %s
 
 // This test demonstrates passing of SYCL stream instances as kernel arguments and checks if the compiler generates
 // the correct ast-dump
 
-#include "Inputs/sycl.hpp"
+#include "sycl.hpp"
 
 sycl::queue myQueue;
 

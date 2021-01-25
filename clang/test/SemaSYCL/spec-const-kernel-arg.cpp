@@ -1,9 +1,9 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump -sycl-std=2020 %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -ast-dump -sycl-std=2020 %s | FileCheck %s
 
 // This test checks that compiler generates correct initialization for spec
 // constants
 
-#include "Inputs/sycl.hpp"
+#include "sycl.hpp"
 
 sycl::queue myQueue;
 
