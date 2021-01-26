@@ -21,7 +21,7 @@
 
 #include <cstring>
 #include <type_traits>
-#include <typeinfo>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -55,9 +55,9 @@ class __SYCL_EXPORT SYCLMemObjT : public SYCLMemObjI {
       !std::is_same<iterator_value_type_t<T>, bool>::value>;
 
   template <typename T>
-  using EnableIfOutputIteratorBool = enable_if_t<
-      !std::is_pointer<T>::value &&
-      std::is_same<iterator_value_type_t<T>, bool>::value>;
+  using EnableIfOutputIteratorBool =
+      enable_if_t<!std::is_pointer<T>::value &&
+                  std::is_same<iterator_value_type_t<T>, bool>::value>;
 
   template <typename T>
   using EnableIfDefaultAllocator =
@@ -199,10 +199,9 @@ public:
       // ContiguousStorage. updateHostMemory works only with pointer to
       // continuous data.
       const size_t Size = MSizeInBytes / sizeof(DestinationValueT);
-      bool* ContiguousStorage = new bool[Size];
+      bool *ContiguousStorage = new bool[Size];
       updateHostMemory(ContiguousStorage);
-      std::copy(ContiguousStorage, ContiguousStorage + Size,
-                  FinalData);
+      std::copy(ContiguousStorage, ContiguousStorage + Size, FinalData);
     };
   }
 
