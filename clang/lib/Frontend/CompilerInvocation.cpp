@@ -991,6 +991,12 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
         {std::string(Split.first), std::string(Split.second)});
   }
 
+  for (const auto &Arg : Args.getAllArgValues(OPT_fprofile_prefix_map_EQ)) {
+    auto Split = StringRef(Arg).split('=');
+    Opts.ProfilePrefixMap.insert(
+        {std::string(Split.first), std::string(Split.second)});
+  }
+
   Opts.DisableLLVMPasses =
       Args.hasArg(OPT_disable_llvm_passes) ||
       (Args.hasArg(OPT_fsycl_is_device) && T.isSPIR() &&
