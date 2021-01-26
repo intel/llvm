@@ -447,7 +447,7 @@ public:
   static MemObjRecord *getMemObjRecord(const Requirement *const Req);
 
   Scheduler();
-  ~Scheduler();
+  ~Scheduler() = default;
 
 protected:
   /// Provides exclusive access to std::shared_timed_mutex object with deadlock

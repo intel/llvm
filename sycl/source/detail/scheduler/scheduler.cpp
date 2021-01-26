@@ -305,24 +305,6 @@ Scheduler::Scheduler() {
                      /*PropList=*/{}));
 }
 
-Scheduler::~Scheduler() {
-  // By specification there are several possible sync points: buffer
-  // destruction, wait() method of a queue or event. Stream doesn't introduce
-  // any synchronization point. It is guaranteed that stream is flushed and
-  // resources are released only if one of the listed sync points was used for
-  // the kernel. Otherwise resources for stream will not be released, issue a
-  // warning in this case.
-  if (pi::trace(pi::TraceLevel::PI_TRACE_BASIC)) {
-    std::lock_guard<std::recursive_mutex> lock(StreamBuffersPoolMutex);
-    if (!StreamBuffersPool.empty())
-      fprintf(
-          stderr,
-          "\nWARNING: Some commands may have not finished the execution and "
-          "not all resources were released. Please be sure that all kernels "
-          "have synchronization points.\n\n");
-  }
-}
-
 void Scheduler::lockSharedTimedMutex(
     std::unique_lock<std::shared_timed_mutex> &Lock) {
 #ifdef _WIN32

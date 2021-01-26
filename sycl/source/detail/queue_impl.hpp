@@ -118,7 +118,27 @@ public:
   }
 
   ~queue_impl() {
-    throw_asynchronous();
+    // Wait for all tasks, submitted to this queue. This prevents unexpected
+    // things to happen when queue is destroyed before tasks have finished.
+    // Consider this example:
+    //
+    // int main() {
+    //   queue Q;
+    //   Q.submit([&](handler &h){
+    //     stream out(1024, 256, h);
+    //     h.parallel_for(range{8}, [=](id<1> idx){
+    //       out << idx << ")\n";
+    //     });
+    //   });
+    //   return 0;
+    // }
+    //
+    // When program is exiting, the task is still running. An attempt to copy
+    // data from device to host buffer may fail, if that buffer has already been
+    // freed.
+    //
+    // This behavior contradicts SYCL specification.
+    wait_and_throw();
     if (!MHostQueue) {
       getPlugin().call<PiApiKind::piQueueRelease>(MQueues[0]);
     }
