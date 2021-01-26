@@ -21,7 +21,7 @@
 
 #include <cstring>
 #include <type_traits>
-
+#include <typeinfo>
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -51,7 +51,13 @@ class __SYCL_EXPORT SYCLMemObjT : public SYCLMemObjI {
 
   template <typename T>
   using EnableIfOutputIteratorT = enable_if_t<
-      /*is_output_iterator<T>::value &&*/ !std::is_pointer<T>::value>;
+      /*is_output_iterator<T>::value &&*/ !std::is_pointer<T>::value &&
+      !std::is_same<iterator_value_type_t<T>, bool>::value>;
+
+  template <typename T>
+  using EnableIfOutputIteratorBool = enable_if_t<
+      !std::is_pointer<T>::value &&
+      std::is_same<iterator_value_type_t<T>, bool>::value>;
 
   template <typename T>
   using EnableIfDefaultAllocator =
@@ -181,6 +187,22 @@ public:
       updateHostMemory(ContiguousStorage.data());
       std::copy(ContiguousStorage.cbegin(), ContiguousStorage.cend(),
                 FinalData);
+    };
+  }
+
+  template <typename Destination>
+  __SYCL_DLL_LOCAL EnableIfOutputIteratorBool<Destination>
+  set_final_data(Destination FinalData) {
+    MUploadDataFunctor = [this, FinalData]() {
+      using DestinationValueT = iterator_value_type_t<Destination>;
+      // TODO if Destination is ContiguousIterator then don't create
+      // ContiguousStorage. updateHostMemory works only with pointer to
+      // continuous data.
+      const size_t Size = MSizeInBytes / sizeof(DestinationValueT);
+      bool* ContiguousStorage = new bool[Size];
+      updateHostMemory(ContiguousStorage);
+      std::copy(ContiguousStorage, ContiguousStorage + Size,
+                  FinalData);
     };
   }
 
