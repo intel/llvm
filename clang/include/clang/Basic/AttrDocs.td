@@ -2321,7 +2321,7 @@ range of [0, 3]. A kernel with max_global_work_dim(0) must be invoked with a
 ``cl::reqd_work_group_size`` are applied to the kernel as well - they shall
 have arguments of (1, 1, 1).
 If ``intel::max_global_work_dim`` is applied to a function called from a
-device kernel, the attribute is not ignored and it is propagated to a kernel.
+device kernel, the attribute is not ignored and it is propagated to the kernel.
   }];
 }
 
