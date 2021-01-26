@@ -55,7 +55,8 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
     COMPONENT level-zero-loader
   )
 
-  set(LEVEL_ZERO_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/level_zero_loader_install/include/)
+  set(LEVEL_ZERO_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/level_zero_loader_install/include/
+	  CACHE INTERNAL "Path containing Level_Zero header files.")
 else()
   file(GLOB LEVEL_ZERO_LIBRARY_SRC "${LEVEL_ZERO_LIBRARY}*")
   get_filename_component(LEVEL_ZERO_LIB_NAME ${LEVEL_ZERO_LIBRARY} NAME)
@@ -131,7 +132,8 @@ if (UNIX)
   target_link_libraries(pi_level_zero PRIVATE pthread)
 endif()
 
-add_common_options(pi_level_zero)
+add_common_options(pi_level_zero 0)
+add_common_options(pi_level_zero 1)
 
 install(TARGETS pi_level_zero
     LIBRARY DESTINATION "lib" COMPONENT pi_level_zero

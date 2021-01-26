@@ -35,27 +35,36 @@ def NoX0 : SDNodeXForm<undef,
   return SDValue(N, 0);
 }]>;
 
+def DecImm : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(N->getSExtValue() - 1, SDLoc(N),
+                                   N->getValueType(0));
+}]>;
+
 //===----------------------------------------------------------------------===//
 // Utilities.
 //===----------------------------------------------------------------------===//
 
 // This class describes information associated to the LMUL.
-class LMULInfo<int lmul, VReg regclass, VReg wregclass, string mx> {
+class LMULInfo<int lmul, VReg regclass, VReg wregclass,
+               VReg f2regclass, VReg f4regclass, VReg f8regclass, string mx> {
   bits<3> value = lmul; // This is encoded as the vlmul field of vtype.
   VReg vrclass = regclass;
   VReg wvrclass = wregclass;
+  VReg f8vrclass = f8regclass;
+  VReg f4vrclass = f4regclass;
+  VReg f2vrclass = f2regclass;
   string MX = mx;
 }
 
 // Associate LMUL with tablegen records of register classes.
-def V_M1  : LMULInfo<0b000,   VR,   VRM2, "M1">;
-def V_M2  : LMULInfo<0b001, VRM2,   VRM4, "M2">;
-def V_M4  : LMULInfo<0b010, VRM4,   VRM8, "M4">;
-def V_M8  : LMULInfo<0b011, VRM8,     VR, "M8">;
+def V_M1  : LMULInfo<0b000,   VR,        VRM2,   VR,   VR, VR, "M1">;
+def V_M2  : LMULInfo<0b001, VRM2,        VRM4,   VR,   VR, VR, "M2">;
+def V_M4  : LMULInfo<0b010, VRM4,        VRM8, VRM2,   VR, VR, "M4">;
+def V_M8  : LMULInfo<0b011, VRM8,/*NoVReg*/VR, VRM4, VRM2, VR, "M8">;
 
-def V_MF8 : LMULInfo<0b101,   VR, VR, "MF8">;
-def V_MF4 : LMULInfo<0b110,   VR, VR, "MF4">;
-def V_MF2 : LMULInfo<0b111,   VR, VR, "MF2">;
+def V_MF8 : LMULInfo<0b101, VR, VR,/*NoVReg*/VR,/*NoVReg*/VR,/*NoVReg*/VR, "MF8">;
+def V_MF4 : LMULInfo<0b110, VR, VR,          VR,/*NoVReg*/VR,/*NoVReg*/VR, "MF4">;
+def V_MF2 : LMULInfo<0b111, VR, VR,          VR,          VR,/*NoVReg*/VR, "MF2">;
 
 // Used to iterate over all possible LMULs.
 def MxList {
@@ -214,6 +223,12 @@ class VTypeInfoToWide<VTypeInfo vti, VTypeInfo wti>
   VTypeInfo Wti = wti;
 }
 
+class VTypeInfoToFraction<VTypeInfo vti, VTypeInfo fti>
+{
+  VTypeInfo Vti = vti;
+  VTypeInfo Fti = fti;
+}
+
 defset list<VTypeInfoToWide> AllWidenableIntVectors = {
   def : VTypeInfoToWide<VI8MF8,  VI16MF4>;
   def : VTypeInfoToWide<VI8MF4,  VI16MF2>;
@@ -247,6 +262,63 @@ defset list<VTypeInfoToWide> AllWidenableFloatVectors = {
   def : VTypeInfoToWide<VF32M4, VF64M8>;
 }
 
+defset list<VTypeInfoToFraction> AllFractionableVF2IntVectors = {
+  def : VTypeInfoToFraction<VI16MF4, VI8MF8>;
+  def : VTypeInfoToFraction<VI16MF2, VI8MF4>;
+  def : VTypeInfoToFraction<VI16M1, VI8MF2>;
+  def : VTypeInfoToFraction<VI16M2, VI8M1>;
+  def : VTypeInfoToFraction<VI16M4, VI8M2>;
+  def : VTypeInfoToFraction<VI16M8, VI8M4>;
+  def : VTypeInfoToFraction<VI32MF2, VI16MF4>;
+  def : VTypeInfoToFraction<VI32M1, VI16MF2>;
+  def : VTypeInfoToFraction<VI32M2, VI16M1>;
+  def : VTypeInfoToFraction<VI32M4, VI16M2>;
+  def : VTypeInfoToFraction<VI32M8, VI16M4>;
+  def : VTypeInfoToFraction<VI64M1, VI32MF2>;
+  def : VTypeInfoToFraction<VI64M2, VI32M1>;
+  def : VTypeInfoToFraction<VI64M4, VI32M2>;
+  def : VTypeInfoToFraction<VI64M8, VI32M4>;
+}
+
+defset list<VTypeInfoToFraction> AllFractionableVF4IntVectors = {
+  def : VTypeInfoToFraction<VI32MF2, VI8MF8>;
+  def : VTypeInfoToFraction<VI32M1, VI8MF4>;
+  def : VTypeInfoToFraction<VI32M2, VI8MF2>;
+  def : VTypeInfoToFraction<VI32M4, VI8M1>;
+  def : VTypeInfoToFraction<VI32M8, VI8M2>;
+  def : VTypeInfoToFraction<VI64M1, VI16MF4>;
+  def : VTypeInfoToFraction<VI64M2, VI16MF2>;
+  def : VTypeInfoToFraction<VI64M4, VI16M1>;
+  def : VTypeInfoToFraction<VI64M8, VI16M2>;
+}
+
+defset list<VTypeInfoToFraction> AllFractionableVF8IntVectors = {
+  def : VTypeInfoToFraction<VI64M1, VI8MF8>;
+  def : VTypeInfoToFraction<VI64M2, VI8MF4>;
+  def : VTypeInfoToFraction<VI64M4, VI8MF2>;
+  def : VTypeInfoToFraction<VI64M8, VI8M1>;
+}
+
+defset list<VTypeInfoToWide> AllWidenableIntToFloatVectors = {
+  def : VTypeInfoToWide<VI8MF8, VF16MF4>;
+  def : VTypeInfoToWide<VI8MF4, VF16MF2>;
+  def : VTypeInfoToWide<VI8MF2, VF16M1>;
+  def : VTypeInfoToWide<VI8M1, VF16M2>;
+  def : VTypeInfoToWide<VI8M2, VF16M4>;
+  def : VTypeInfoToWide<VI8M4, VF16M8>;
+
+  def : VTypeInfoToWide<VI16MF4, VF32MF2>;
+  def : VTypeInfoToWide<VI16MF2, VF32M1>;
+  def : VTypeInfoToWide<VI16M1, VF32M2>;
+  def : VTypeInfoToWide<VI16M2, VF32M4>;
+  def : VTypeInfoToWide<VI16M4, VF32M8>;
+
+  def : VTypeInfoToWide<VI32MF2, VF64M1>;
+  def : VTypeInfoToWide<VI32M1, VF64M2>;
+  def : VTypeInfoToWide<VI32M2, VF64M4>;
+  def : VTypeInfoToWide<VI32M4, VF64M8>;
+}
+
 // This class holds the record of the RISCVVPseudoTable below.
 // This represents the information we need in codegen for each pseudo.
 // The definition should be consistent with `struct PseudoInfo` in
@@ -258,19 +330,13 @@ def InvalidIndex : CONST8b<0x80>;
 class RISCVVPseudo {
   Pseudo Pseudo = !cast<Pseudo>(NAME); // Used as a key.
   Instruction BaseInstr;
-  bits<8> VLIndex = InvalidIndex.V;
-  bits<8> SEWIndex = InvalidIndex.V;
-  bits<8> MergeOpIndex = InvalidIndex.V;
-  bits<3> VLMul;
-  bit HasDummyMask = 0;
 }
 
 // The actual table.
 def RISCVVPseudosTable : GenericTable {
   let FilterClass = "RISCVVPseudo";
   let CppTypeName = "PseudoInfo";
-  let Fields = [ "Pseudo", "BaseInstr", "VLIndex", "SEWIndex", "MergeOpIndex",
-                 "VLMul", "HasDummyMask" ];
+  let Fields = [ "Pseudo", "BaseInstr" ];
   let PrimaryKey = [ "Pseudo" ];
   let PrimaryKeyName = "getPseudoInfo";
 }
@@ -343,8 +409,8 @@ class VPseudoUSLoadNoMask<VReg RetClass>:
   let hasSideEffects = 0;
   let usesCustomInserter = 1;
   let Uses = [VL, VTYPE];
-  let VLIndex = 2;
-  let SEWIndex = 3;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
   let HasDummyMask = 1;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
@@ -361,9 +427,9 @@ class VPseudoUSLoadMask<VReg RetClass>:
   let usesCustomInserter = 1;
   let Constraints = "$rd = $merge";
   let Uses = [VL, VTYPE];
-  let VLIndex = 4;
-  let SEWIndex = 5;
-  let MergeOpIndex = 1;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
+  let HasMergeOp = 1;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
@@ -376,8 +442,8 @@ class VPseudoSLoadNoMask<VReg RetClass>:
   let hasSideEffects = 0;
   let usesCustomInserter = 1;
   let Uses = [VL, VTYPE];
-  let VLIndex = 3;
-  let SEWIndex = 4;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
   let HasDummyMask = 1;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
@@ -394,9 +460,9 @@ class VPseudoSLoadMask<VReg RetClass>:
   let usesCustomInserter = 1;
   let Constraints = "$rd = $merge";
   let Uses = [VL, VTYPE];
-  let VLIndex = 5;
-  let SEWIndex = 6;
-  let MergeOpIndex = 1;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
+  let HasMergeOp = 1;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
@@ -409,8 +475,8 @@ class VPseudoILoadNoMask<VReg RetClass, VReg IdxClass>:
   let hasSideEffects = 0;
   let usesCustomInserter = 1;
   let Uses = [VL, VTYPE];
-  let VLIndex = 3;
-  let SEWIndex = 4;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
   let HasDummyMask = 1;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
@@ -427,9 +493,9 @@ class VPseudoILoadMask<VReg RetClass, VReg IdxClass>:
   let usesCustomInserter = 1;
   let Constraints = "$rd = $merge";
   let Uses = [VL, VTYPE];
-  let VLIndex = 5;
-  let SEWIndex = 6;
-  let MergeOpIndex = 1;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
+  let HasMergeOp = 1;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
@@ -442,8 +508,8 @@ class VPseudoUSStoreNoMask<VReg StClass>:
   let hasSideEffects = 0;
   let usesCustomInserter = 1;
   let Uses = [VL, VTYPE];
-  let VLIndex = 2;
-  let SEWIndex = 3;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
   let HasDummyMask = 1;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
@@ -457,8 +523,8 @@ class VPseudoUSStoreMask<VReg StClass>:
   let hasSideEffects = 0;
   let usesCustomInserter = 1;
   let Uses = [VL, VTYPE];
-  let VLIndex = 3;
-  let SEWIndex = 4;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
@@ -471,8 +537,8 @@ class VPseudoSStoreNoMask<VReg StClass>:
   let hasSideEffects = 0;
   let usesCustomInserter = 1;
   let Uses = [VL, VTYPE];
-  let VLIndex = 3;
-  let SEWIndex = 4;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
   let HasDummyMask = 1;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
@@ -486,8 +552,8 @@ class VPseudoSStoreMask<VReg StClass>:
   let hasSideEffects = 0;
   let usesCustomInserter = 1;
   let Uses = [VL, VTYPE];
-  let VLIndex = 4;
-  let SEWIndex = 5;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
@@ -502,8 +568,8 @@ class VPseudoUnaryNoDummyMask<VReg RetClass,
   let hasSideEffects = 0;
   let usesCustomInserter = 1;
   let Uses = [VL, VTYPE];
-  let VLIndex = 2;
-  let SEWIndex = 3;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
@@ -516,8 +582,8 @@ class VPseudoNullaryNoMask<VReg RegClass>:
   let hasSideEffects = 0;
   let usesCustomInserter = 1;
   let Uses = [VL, VTYPE];
-  let VLIndex = 1;
-  let SEWIndex = 2;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
   let HasDummyMask = 1;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
@@ -532,10 +598,27 @@ class VPseudoNullaryMask<VReg RegClass>:
   let usesCustomInserter = 1;
   let Constraints ="$rd = $merge";
   let Uses = [VL, VTYPE];
-  let VLIndex = 3;
-  let SEWIndex = 4;
-  let MergeOpIndex = 1;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
+  let HasMergeOp = 1;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
+}
+
+// Nullary for pseudo instructions. They are expanded in
+// RISCVExpandPseudoInsts pass.
+class VPseudoNullaryPseudoM<string BaseInst>
+       : Pseudo<(outs VR:$rd), (ins GPR:$vl, ixlenimm:$sew), []>,
+       RISCVVPseudo {
+  let mayLoad = 0;
+  let mayStore = 0;
+  let hasSideEffects = 0;
+  let usesCustomInserter = 1;
+  let Uses = [VL, VTYPE];
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
+  // BaseInstr is not used in RISCVExpandPseudoInsts pass.
+  // Just fill a corresponding real v-inst to pass tablegen check.
+  let BaseInstr = !cast<Instruction>(BaseInst);
 }
 
 // RetClass could be GPR or VReg.
@@ -549,8 +632,8 @@ class VPseudoUnaryNoMask<DAGOperand RetClass, VReg OpClass, string Constraint = 
   let usesCustomInserter = 1;
   let Constraints = Constraint;
   let Uses = [VL, VTYPE];
-  let VLIndex = 2;
-  let SEWIndex = 3;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
   let HasDummyMask = 1;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
@@ -566,9 +649,9 @@ class VPseudoUnaryMask<VReg RetClass, VReg OpClass, string Constraint = ""> :
   let usesCustomInserter = 1;
   let Constraints = Join<[Constraint, "$rd = $merge"], ",">.ret;
   let Uses = [VL, VTYPE];
-  let VLIndex = 4;
-  let SEWIndex = 5;
-  let MergeOpIndex = 1;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
+  let HasMergeOp = 1;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
@@ -582,8 +665,8 @@ class VPseudoMaskUnarySOutMask:
   let hasSideEffects = 0;
   let usesCustomInserter = 1;
   let Uses = [VL, VTYPE];
-  let VLIndex = 3;
-  let SEWIndex = 4;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
@@ -598,9 +681,30 @@ class VPseudoUnaryMOutMask:
   let usesCustomInserter = 1;
   let Constraints = "$rd = $merge";
   let Uses = [VL, VTYPE];
-  let VLIndex = 4;
-  let SEWIndex = 5;
-  let MergeOpIndex = 1;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
+  let HasMergeOp = 1;
+  let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
+}
+
+// Mask can be V0~V31
+class VPseudoUnaryAnyMask<VReg RetClass,
+                          VReg Op1Class> :
+      Pseudo<(outs RetClass:$rd),
+             (ins RetClass:$merge,
+                  Op1Class:$rs2,
+                  VR:$vm, GPR:$vl, ixlenimm:$sew),
+             []>,
+      RISCVVPseudo {
+  let mayLoad = 0;
+  let mayStore = 0;
+  let hasSideEffects = 0;
+  let usesCustomInserter = 1;
+  let Constraints = "@earlyclobber $rd, $rd = $merge";
+  let Uses = [VL, VTYPE];
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
+  let HasMergeOp = 1;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
@@ -617,8 +721,8 @@ class VPseudoBinaryNoMask<VReg RetClass,
   let usesCustomInserter = 1;
   let Constraints = Constraint;
   let Uses = [VL, VTYPE];
-  let VLIndex = 3;
-  let SEWIndex = 4;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
   let HasDummyMask = 1;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
@@ -632,8 +736,8 @@ class VPseudoIStoreNoMask<VReg StClass, VReg IdxClass>:
   let hasSideEffects = 0;
   let usesCustomInserter = 1;
   let Uses = [VL, VTYPE];
-  let VLIndex = 3;
-  let SEWIndex = 4;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
   let HasDummyMask = 1;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
@@ -647,8 +751,8 @@ class VPseudoIStoreMask<VReg StClass, VReg IdxClass>:
   let hasSideEffects = 0;
   let usesCustomInserter = 1;
   let Uses = [VL, VTYPE];
-  let VLIndex = 4;
-  let SEWIndex = 5;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
@@ -667,9 +771,9 @@ class VPseudoBinaryMask<VReg RetClass,
   let usesCustomInserter = 1;
   let Constraints = Join<[Constraint, "$rd = $merge"], ",">.ret;
   let Uses = [VL, VTYPE];
-  let VLIndex = 5;
-  let SEWIndex = 6;
-  let MergeOpIndex = 1;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
+  let HasMergeOp = 1;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
@@ -691,9 +795,9 @@ class VPseudoBinaryCarryIn<VReg RetClass,
   let usesCustomInserter = 1;
   let Constraints = Constraint;
   let Uses = [VL, VTYPE];
-  let VLIndex = !if(CarryIn, 4, 3);
-  let SEWIndex = !if(CarryIn, 5, 4);
-  let MergeOpIndex = InvalidIndex.V;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
+  let HasMergeOp = 0;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
   let VLMul = MInfo.value;
 }
@@ -713,9 +817,9 @@ class VPseudoTernaryNoMask<VReg RetClass,
   let usesCustomInserter = 1;
   let Constraints = Join<[Constraint, "$rd = $rs3"], ",">.ret;
   let Uses = [VL, VTYPE];
-  let VLIndex = 4;
-  let SEWIndex = 5;
-  let MergeOpIndex = 1;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
+  let HasMergeOp = 1;
   let HasDummyMask = 1;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
@@ -803,11 +907,12 @@ multiclass VPseudoUnaryS_M {
 }
 
 multiclass VPseudoUnaryM_M {
+  defvar constraint = "@earlyclobber $rd";
   foreach mti = AllMasks in
   {
     let VLMul = mti.LMul.value in {
-      def "_M_" # mti.BX : VPseudoUnaryNoMask<VR, VR>;
-      def "_M_" # mti.BX # "_MASK" : VPseudoUnaryMask<VR, VR>;
+      def "_M_" # mti.BX : VPseudoUnaryNoMask<VR, VR, constraint>;
+      def "_M_" # mti.BX # "_MASK" : VPseudoUnaryMask<VR, VR, constraint>;
     }
   }
 }
@@ -821,6 +926,14 @@ multiclass VPseudoMaskNullaryV {
   }
 }
 
+multiclass VPseudoNullaryPseudoM <string BaseInst> {
+  foreach mti = AllMasks in {
+    let VLMul = mti.LMul.value in {
+      def "_M_" # mti.BX : VPseudoNullaryPseudoM<BaseInst # "_MM">;
+    }
+  }
+}
+
 multiclass VPseudoUnaryV_M {
   defvar constraint = "@earlyclobber $rd";
   foreach m = MxList.m in {
@@ -828,6 +941,13 @@ multiclass VPseudoUnaryV_M {
       def "_" # m.MX : VPseudoUnaryNoMask<m.vrclass, VR, constraint>;
       def "_" # m.MX # "_MASK" : VPseudoUnaryMask<m.vrclass, VR, constraint>;
     }
+  }
+}
+
+multiclass VPseudoUnaryV_V_AnyMask {
+  foreach m = MxList.m in {
+    let VLMul = m.value in
+      def _VM # "_" # m.MX # "_MASK" : VPseudoUnaryAnyMask<m.vrclass, m.vrclass>;
   }
 }
 
@@ -966,6 +1086,51 @@ multiclass VPseudoUnaryV_F_NoDummyMask {
   foreach m = MxList.m in {
     let VLMul = m.value in {
       def "_F_" # m.MX : VPseudoUnaryNoDummyMask<m.vrclass, FPR32>;
+    }
+  }
+}
+
+multiclass VPseudoUnaryV_V {
+  foreach m = MxList.m in {
+    let VLMul = m.value in {
+      def "_V_" # m.MX : VPseudoUnaryNoMask<m.vrclass, m.vrclass>;
+      def "_V_" # m.MX # "_MASK" : VPseudoUnaryMask<m.vrclass, m.vrclass>;
+    }
+  }
+}
+
+multiclass PseudoUnaryV_VF2 {
+  defvar constraints = "@earlyclobber $rd";
+  foreach m = MxList.m[1-6] in
+  {
+    let VLMul = m.value in {
+      def "_" # m.MX : VPseudoUnaryNoMask<m.vrclass, m.f2vrclass, constraints>;
+      def "_" # m.MX # "_MASK" : VPseudoUnaryMask<m.vrclass, m.f2vrclass,
+                                                  constraints>;
+    }
+  }
+}
+
+multiclass PseudoUnaryV_VF4 {
+  defvar constraints = "@earlyclobber $rd";
+  foreach m = MxList.m[2-6] in
+  {
+    let VLMul = m.value in {
+      def "_" # m.MX : VPseudoUnaryNoMask<m.vrclass, m.f4vrclass, constraints>;
+      def "_" # m.MX # "_MASK" : VPseudoUnaryMask<m.vrclass, m.f4vrclass,
+                                                  constraints>;
+    }
+  }
+}
+
+multiclass PseudoUnaryV_VF8 {
+  defvar constraints = "@earlyclobber $rd";
+  foreach m = MxList.m[3-6] in
+  {
+    let VLMul = m.value in {
+      def "_" # m.MX : VPseudoUnaryNoMask<m.vrclass, m.f8vrclass, constraints>;
+      def "_" # m.MX # "_MASK" : VPseudoUnaryMask<m.vrclass, m.f8vrclass,
+                                                  constraints>;
     }
   }
 }
@@ -1133,8 +1298,38 @@ multiclass VPseudoBinaryM_VX_VI {
 }
 
 multiclass VPseudoReductionV_VS {
-  foreach m = MxList.m in
+  foreach m = MxList.m in {
+    let WritesElement0 = 1 in
     defm _VS : VPseudoTernary<V_M1.vrclass, m.vrclass, V_M1.vrclass, m>;
+  }
+}
+
+multiclass VPseudoConversion<VReg RetClass,
+                             VReg Op1Class,
+                             LMULInfo MInfo,
+                             string Constraint = ""> {
+  let VLMul = MInfo.value in {
+    def "_" # MInfo.MX : VPseudoUnaryNoMask<RetClass, Op1Class, Constraint>;
+    def "_" # MInfo.MX # "_MASK" : VPseudoUnaryMask<RetClass, Op1Class,
+                                                    Constraint>;
+  }
+}
+
+multiclass VPseudoConversionV_V {
+  foreach m = MxList.m in
+    defm _V : VPseudoConversion<m.vrclass, m.vrclass, m>;
+}
+
+multiclass VPseudoConversionW_V {
+  defvar constraint = "@earlyclobber $rd";
+  foreach m = MxList.m[0-5] in
+    defm _V : VPseudoConversion<m.wvrclass, m.vrclass, m, constraint>;
+}
+
+multiclass VPseudoConversionV_W {
+  defvar constraint = "@earlyclobber $rd";
+  foreach m = MxList.m[0-5] in
+    defm _W : VPseudoConversion<m.vrclass, m.wvrclass, m, constraint>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1198,6 +1393,27 @@ class VPatMaskUnaryMask<string intrinsic_name,
                 (mti.Mask VR:$merge),
                 (mti.Mask VR:$rs2),
                 (mti.Mask V0), (NoX0 GPR:$vl), mti.SEW)>;
+
+class VPatUnaryAnyMask<string intrinsic,
+                       string inst,
+                       string kind,
+                       ValueType result_type,
+                       ValueType op1_type,
+                       ValueType mask_type,
+                       int sew,
+                       LMULInfo vlmul,
+                       VReg result_reg_class,
+                       VReg op1_reg_class> :
+  Pat<(result_type (!cast<Intrinsic>(intrinsic#"_mask")
+                   (result_type result_reg_class:$merge),
+                   (op1_type op1_reg_class:$rs1),
+                   (mask_type VR:$rs2),
+                   (XLenVT GPR:$vl))),
+                   (!cast<Instruction>(inst#"_"#kind#"_"#vlmul.MX#"_MASK")
+                   (result_type result_reg_class:$merge),
+                   (op1_type op1_reg_class:$rs1),
+                   (mask_type VR:$rs2),
+                   (NoX0 GPR:$vl), sew)>;
 
 class VPatBinaryNoMask<string intrinsic_name,
                        string inst,
@@ -1429,6 +1645,16 @@ multiclass VPatUnaryS_M<string intrinsic_name,
   }
 }
 
+multiclass VPatUnaryV_V_AnyMask<string intrinsic, string instruction,
+                                list<VTypeInfo> vtilist> {
+  foreach vti = vtilist in {
+    def : VPatUnaryAnyMask<intrinsic, instruction, "VM",
+                           vti.Vector, vti.Vector, vti.Mask,
+                           vti.SEW, vti.LMul, vti.RegClass,
+                           vti.RegClass>;
+  }
+}
+
 multiclass VPatUnaryM_M<string intrinsic,
                          string inst>
 {
@@ -1448,6 +1674,34 @@ multiclass VPatUnaryV_M<string intrinsic, string instruction>
   }
 }
 
+multiclass VPatUnaryV_VF<string intrinsic, string instruction, string suffix,
+                         list<VTypeInfoToFraction> fractionList>
+{
+  foreach vtiTofti = fractionList in
+  {
+      defvar vti = vtiTofti.Vti;
+      defvar fti = vtiTofti.Fti;
+      def : VPatUnaryNoMask<intrinsic, instruction, suffix,
+                            vti.Vector, fti.Vector,
+                            vti.SEW, vti.LMul, fti.RegClass>;
+      def : VPatUnaryMask<intrinsic, instruction, suffix,
+                          vti.Vector, fti.Vector, vti.Mask,
+                          vti.SEW, vti.LMul, vti.RegClass, fti.RegClass>;
+   }
+}
+
+multiclass VPatUnaryV_V<string intrinsic, string instruction,
+                        list<VTypeInfo> vtilist> {
+  foreach vti = vtilist in {
+    def : VPatUnaryNoMask<intrinsic, instruction, "V",
+                          vti.Vector, vti.Vector,
+                          vti.SEW, vti.LMul, vti.RegClass>;
+    def : VPatUnaryMask<intrinsic, instruction, "V",
+                        vti.Vector, vti.Vector, vti.Mask,
+                        vti.SEW, vti.LMul, vti.RegClass, vti.RegClass>;
+  }
+}
+
 multiclass VPatNullaryV<string intrinsic, string instruction>
 {
   foreach vti = AllIntegerVectors in {
@@ -1462,6 +1716,14 @@ multiclass VPatNullaryV<string intrinsic, string instruction>
                           vti.RegClass:$merge, (vti.Mask V0),
                           (NoX0 GPR:$vl), vti.SEW)>;
   }
+}
+
+multiclass VPatNullaryM<string intrinsic, string inst> {
+  foreach mti = AllMasks in
+    def : Pat<(mti.Mask (!cast<Intrinsic>(intrinsic)
+                        (XLenVT GPR:$vl))),
+                        (!cast<Instruction>(inst#"_M_"#mti.BX)
+                        (NoX0 GPR:$vl), mti.SEW)>;
 }
 
 multiclass VPatBinary<string intrinsic,
@@ -1526,6 +1788,23 @@ multiclass VPatBinaryMaskOut<string intrinsic,
                          (op1_type op1_reg_class:$rs1),
                          ToFPR32<op2_type, op2_kind, "rs2">.ret,
                          (NoX0 GPR:$vl), sew)>;
+}
+
+multiclass VPatConversion<string intrinsic,
+                          string inst,
+                          string kind,
+                          ValueType result_type,
+                          ValueType op1_type,
+                          ValueType mask_type,
+                          int sew,
+                          LMULInfo vlmul,
+                          VReg result_reg_class,
+                          VReg op1_reg_class>
+{
+  def : VPatUnaryNoMask<intrinsic, inst, kind, result_type, op1_type,
+                        sew, vlmul, op1_reg_class>;
+  def : VPatUnaryMask<intrinsic, inst, kind, result_type, op1_type,
+                      mask_type, sew, vlmul, result_reg_class, op1_reg_class>;
 }
 
 multiclass VPatBinaryV_VV<string intrinsic, string instruction,
@@ -2004,8 +2283,106 @@ multiclass VPatReductionW_VS<string intrinsic, string instruction, bit IsFloat =
   }
 }
 
+multiclass VPatConversionVI_VF<string intrinsic,
+                               string instruction>
+{
+  foreach fvti = AllFloatVectors in
+  {
+    defvar ivti = GetIntVTypeInfo<fvti>.Vti;
+
+    defm : VPatConversion<intrinsic, instruction, "V",
+                          ivti.Vector, fvti.Vector, ivti.Mask, fvti.SEW,
+                          fvti.LMul, ivti.RegClass, fvti.RegClass>;
+  }
+}
+
+multiclass VPatConversionVF_VI<string intrinsic,
+                               string instruction>
+{
+  foreach fvti = AllFloatVectors in
+  {
+    defvar ivti = GetIntVTypeInfo<fvti>.Vti;
+
+    defm : VPatConversion<intrinsic, instruction, "V",
+                          fvti.Vector, ivti.Vector, fvti.Mask, ivti.SEW,
+                          ivti.LMul, fvti.RegClass, ivti.RegClass>;
+  }
+}
+
+multiclass VPatConversionWI_VF<string intrinsic, string instruction> {
+  foreach fvtiToFWti = AllWidenableFloatVectors in
+  {
+    defvar fvti = fvtiToFWti.Vti;
+    defvar iwti = GetIntVTypeInfo<fvtiToFWti.Wti>.Vti;
+
+    defm : VPatConversion<intrinsic, instruction, "V",
+                          iwti.Vector, fvti.Vector, iwti.Mask, fvti.SEW,
+                          fvti.LMul, iwti.RegClass, fvti.RegClass>;
+  }
+}
+
+multiclass VPatConversionWF_VI<string intrinsic, string instruction> {
+  foreach vtiToWti = AllWidenableIntToFloatVectors in
+  {
+    defvar vti = vtiToWti.Vti;
+    defvar fwti = vtiToWti.Wti;
+
+    defm : VPatConversion<intrinsic, instruction, "V",
+                          fwti.Vector, vti.Vector, fwti.Mask, vti.SEW,
+                          vti.LMul, fwti.RegClass, vti.RegClass>;
+  }
+}
+
+multiclass VPatConversionWF_VF <string intrinsic, string instruction> {
+  foreach fvtiToFWti = AllWidenableFloatVectors in
+  {
+    defvar fvti = fvtiToFWti.Vti;
+    defvar fwti = fvtiToFWti.Wti;
+
+    defm : VPatConversion<intrinsic, instruction, "V",
+                          fwti.Vector, fvti.Vector, fwti.Mask, fvti.SEW,
+                          fvti.LMul, fwti.RegClass, fvti.RegClass>;
+  }
+}
+
+multiclass VPatConversionVI_WF <string intrinsic, string instruction> {
+  foreach vtiToWti = AllWidenableIntToFloatVectors in
+  {
+    defvar vti = vtiToWti.Vti;
+    defvar fwti = vtiToWti.Wti;
+
+    defm : VPatConversion<intrinsic, instruction, "W",
+                          vti.Vector, fwti.Vector, vti.Mask, vti.SEW,
+                          vti.LMul, vti.RegClass, fwti.RegClass>;
+  }
+}
+
+multiclass VPatConversionVF_WI <string intrinsic, string instruction> {
+  foreach fvtiToFWti = AllWidenableFloatVectors in
+  {
+    defvar fvti = fvtiToFWti.Vti;
+    defvar iwti = GetIntVTypeInfo<fvtiToFWti.Wti>.Vti;
+
+    defm : VPatConversion<intrinsic, instruction, "W",
+                          fvti.Vector, iwti.Vector, fvti.Mask, fvti.SEW,
+                          fvti.LMul, fvti.RegClass, iwti.RegClass>;
+  }
+}
+
+multiclass VPatConversionVF_WF <string intrinsic, string instruction> {
+  foreach fvtiToFWti = AllWidenableFloatVectors in
+  {
+    defvar fvti = fvtiToFWti.Vti;
+    defvar fwti = fvtiToFWti.Wti;
+
+    defm : VPatConversion<intrinsic, instruction, "W",
+                          fvti.Vector, fwti.Vector, fvti.Mask, fvti.SEW,
+                          fvti.LMul, fvti.RegClass, fwti.RegClass>;
+  }
+}
+
 //===----------------------------------------------------------------------===//
-// Pseudo instructions and patterns.
+// Pseudo instructions
 //===----------------------------------------------------------------------===//
 
 let Predicates = [HasStdExtV] in {
@@ -2076,10 +2453,6 @@ foreach eew = EEWList in {
 }
 
 //===----------------------------------------------------------------------===//
-// Pseudo Instructions
-//===----------------------------------------------------------------------===//
-
-//===----------------------------------------------------------------------===//
 // 12. Vector Integer Arithmetic Instructions
 //===----------------------------------------------------------------------===//
 
@@ -2101,6 +2474,16 @@ defm PseudoVWADDU    : VPseudoBinaryW_WV_WX;
 defm PseudoVWSUBU    : VPseudoBinaryW_WV_WX;
 defm PseudoVWADD     : VPseudoBinaryW_WV_WX;
 defm PseudoVWSUB     : VPseudoBinaryW_WV_WX;
+
+//===----------------------------------------------------------------------===//
+// 12.3. Vector Integer Extension
+//===----------------------------------------------------------------------===//
+defm PseudoVZEXT_VF2 : PseudoUnaryV_VF2;
+defm PseudoVZEXT_VF4 : PseudoUnaryV_VF4;
+defm PseudoVZEXT_VF8 : PseudoUnaryV_VF8;
+defm PseudoVSEXT_VF2 : PseudoUnaryV_VF2;
+defm PseudoVSEXT_VF4 : PseudoUnaryV_VF4;
+defm PseudoVSEXT_VF8 : PseudoUnaryV_VF8;
 
 //===----------------------------------------------------------------------===//
 // 12.4. Vector Integer Add-with-Carry / Subtract-with-Borrow Instructions
@@ -2193,14 +2576,13 @@ defm PseudoVWMACCSU    : VPseudoTernaryW_VV_VX;
 defm PseudoVWMACCUS    : VPseudoTernaryW_VX</*IsFloat*/false>;
 
 //===----------------------------------------------------------------------===//
-// 12.15. Vector Integer Merge Instructions
+// 12.16. Vector Integer Merge Instructions
 //===----------------------------------------------------------------------===//
 defm PseudoVMERGE      : VPseudoBinaryV_VM_XM_IM;
 
 //===----------------------------------------------------------------------===//
 // 12.17. Vector Integer Move Instructions
 //===----------------------------------------------------------------------===//
-
 defm PseudoVMV_V       : VPseudoUnaryV_V_X_I_NoDummyMask;
 
 //===----------------------------------------------------------------------===//
@@ -2297,7 +2679,12 @@ defm PseudoVFWMSAC     : VPseudoTernaryW_VV_VX</*IsFloat*/true>;
 defm PseudoVFWNMSAC    : VPseudoTernaryW_VV_VX</*IsFloat*/true>;
 
 //===----------------------------------------------------------------------===//
-// 14.9. Vector Floating-Point Min/Max Instructions
+// 14.8. Vector Floating-Point Square-Root Instruction
+//===----------------------------------------------------------------------===//
+defm PseudoVFSQRT      : VPseudoUnaryV_V;
+
+//===----------------------------------------------------------------------===//
+// 14.11. Vector Floating-Point Min/Max Instructions
 //===----------------------------------------------------------------------===//
 defm PseudoVFMIN       : VPseudoBinaryV_VV_VX</*IsFloat=*/1>;
 defm PseudoVFMAX       : VPseudoBinaryV_VV_VX</*IsFloat=*/1>;
@@ -2320,15 +2707,48 @@ defm PseudoVMFGT       : VPseudoBinaryM_VX</*IsFloat=*/1>;
 defm PseudoVMFGE       : VPseudoBinaryM_VX</*IsFloat=*/1>;
 
 //===----------------------------------------------------------------------===//
-// 14.14. Vector Floating-Point Move Instruction
-//===----------------------------------------------------------------------===//
-defm PseudoVFMV_V      : VPseudoUnaryV_F_NoDummyMask;
-
-//===----------------------------------------------------------------------===//
 // 14.15. Vector Floating-Point Merge Instruction
 //===----------------------------------------------------------------------===//
 defm PseudoVFMERGE     : VPseudoBinaryV_XM</*CarryOut =*/0,/*CarryIn =*/true,
                                            /*Constraint =*/"", /*IsFloat=*/true>;
+
+//===----------------------------------------------------------------------===//
+// 14.16. Vector Floating-Point Move Instruction
+//===----------------------------------------------------------------------===//
+defm PseudoVFMV_V      : VPseudoUnaryV_F_NoDummyMask;
+
+//===----------------------------------------------------------------------===//
+// 14.17. Single-Width Floating-Point/Integer Type-Convert Instructions
+//===----------------------------------------------------------------------===//
+defm PseudoVFCVT_XU_F : VPseudoConversionV_V;
+defm PseudoVFCVT_X_F : VPseudoConversionV_V;
+defm PseudoVFCVT_RTZ_XU_F : VPseudoConversionV_V;
+defm PseudoVFCVT_RTZ_X_F : VPseudoConversionV_V;
+defm PseudoVFCVT_F_XU : VPseudoConversionV_V;
+defm PseudoVFCVT_F_X : VPseudoConversionV_V;
+
+//===----------------------------------------------------------------------===//
+// 14.18. Widening Floating-Point/Integer Type-Convert Instructions
+//===----------------------------------------------------------------------===//
+defm PseudoVFWCVT_XU_F : VPseudoConversionW_V;
+defm PseudoVFWCVT_X_F : VPseudoConversionW_V;
+defm PseudoVFWCVT_RTZ_XU_F : VPseudoConversionW_V;
+defm PseudoVFWCVT_RTZ_X_F : VPseudoConversionW_V;
+defm PseudoVFWCVT_F_XU : VPseudoConversionW_V;
+defm PseudoVFWCVT_F_X : VPseudoConversionW_V;
+defm PseudoVFWCVT_F_F : VPseudoConversionW_V;
+
+//===----------------------------------------------------------------------===//
+// 14.19. Narrowing Floating-Point/Integer Type-Convert Instructions
+//===----------------------------------------------------------------------===//
+defm PseudoVFNCVT_XU_F : VPseudoConversionV_W;
+defm PseudoVFNCVT_X_F : VPseudoConversionV_W;
+defm PseudoVFNCVT_RTZ_XU_F : VPseudoConversionV_W;
+defm PseudoVFNCVT_RTZ_X_F : VPseudoConversionV_W;
+defm PseudoVFNCVT_F_XU : VPseudoConversionV_W;
+defm PseudoVFNCVT_F_X : VPseudoConversionV_W;
+defm PseudoVFNCVT_F_F : VPseudoConversionV_W;
+defm PseudoVFNCVT_ROD_F_F : VPseudoConversionV_W;
 } // Predicates = [HasStdExtV, HasStdExtF]
 
 let Predicates = [HasStdExtV] in {
@@ -2384,6 +2804,10 @@ defm PseudoVMNOR: VPseudoBinaryM_MM;
 defm PseudoVMORNOT: VPseudoBinaryM_MM;
 defm PseudoVMXNOR: VPseudoBinaryM_MM;
 
+// Pseudo insturctions
+defm PseudoVMCLR : VPseudoNullaryPseudoM<"VMXOR">;
+defm PseudoVMSET : VPseudoNullaryPseudoM<"VMXNOR">;
+
 //===----------------------------------------------------------------------===//
 // 16.2. Vector mask population count vpopc
 //===----------------------------------------------------------------------===//
@@ -2434,11 +2858,11 @@ let mayLoad = 0, mayStore = 0, hasSideEffects = 0, usesCustomInserter = 1,
     Uses = [VL, VTYPE] in {
   foreach m = MxList.m in {
     let VLMul = m.value in {
-      let SEWIndex = 2, BaseInstr = VMV_X_S in
+      let HasSEWOp = 1, BaseInstr = VMV_X_S in
       def PseudoVMV_X_S # "_" # m.MX: Pseudo<(outs GPR:$rd),
                                              (ins m.vrclass:$rs2, ixlenimm:$sew),
                                              []>, RISCVVPseudo;
-      let VLIndex = 3, SEWIndex = 4, BaseInstr = VMV_S_X,
+      let HasVLOp = 1, HasSEWOp = 1, BaseInstr = VMV_S_X, WritesElement0 = 1,
           Constraints = "$rd = $rs1" in
       def PseudoVMV_S_X # "_" # m.MX: Pseudo<(outs m.vrclass:$rd),
                                              (ins m.vrclass:$rs1, GPR:$rs2,
@@ -2458,12 +2882,12 @@ let mayLoad = 0, mayStore = 0, hasSideEffects = 0, usesCustomInserter = 1,
     Uses = [VL, VTYPE] in {
   foreach m = MxList.m in {
     let VLMul = m.value in {
-      let SEWIndex = 2, BaseInstr = VFMV_F_S in
+      let HasSEWOp = 1, BaseInstr = VFMV_F_S in
       def PseudoVFMV_F_S # "_" # m.MX : Pseudo<(outs FPR32:$rd),
                                                (ins m.vrclass:$rs2,
                                                     ixlenimm:$sew),
                                                []>, RISCVVPseudo;
-      let VLIndex = 3, SEWIndex = 4, BaseInstr = VFMV_S_F,
+      let HasVLOp = 1, HasSEWOp = 1, BaseInstr = VFMV_S_F, WritesElement0 = 1,
           Constraints = "$rd = $rs1" in
       def PseudoVFMV_S_F # "_" # m.MX : Pseudo<(outs m.vrclass:$rd),
                                                (ins m.vrclass:$rs1, FPR32:$rs2,
@@ -2493,6 +2917,11 @@ let Predicates = [HasStdExtV, HasStdExtF] in {
 // 17.4. Vector Register Gather Instructions
 //===----------------------------------------------------------------------===//
 defm PseudoVRGATHER    : VPseudoBinaryV_VV_VX_VI<uimm5, "@earlyclobber $rd">;
+
+//===----------------------------------------------------------------------===//
+// 17.5. Vector Compress Instruction
+//===----------------------------------------------------------------------===//
+defm PseudoVCOMPRESS : VPseudoUnaryV_V_AnyMask;
 
 //===----------------------------------------------------------------------===//
 // Patterns.
@@ -2607,6 +3036,22 @@ defm "" : VPatBinaryW_WV_WX<"int_riscv_vwadd_w", "PseudoVWADD", AllWidenableIntV
 defm "" : VPatBinaryW_WV_WX<"int_riscv_vwsub_w", "PseudoVWSUB", AllWidenableIntVectors>;
 
 //===----------------------------------------------------------------------===//
+// 12.3. Vector Integer Extension
+//===----------------------------------------------------------------------===//
+defm "" : VPatUnaryV_VF<"int_riscv_vzext", "PseudoVZEXT", "VF2",
+                        AllFractionableVF2IntVectors>;
+defm "" : VPatUnaryV_VF<"int_riscv_vzext", "PseudoVZEXT", "VF4",
+                        AllFractionableVF4IntVectors>;
+defm "" : VPatUnaryV_VF<"int_riscv_vzext", "PseudoVZEXT", "VF8",
+                        AllFractionableVF8IntVectors>;
+defm "" : VPatUnaryV_VF<"int_riscv_vsext", "PseudoVSEXT", "VF2",
+                        AllFractionableVF2IntVectors>;
+defm "" : VPatUnaryV_VF<"int_riscv_vsext", "PseudoVSEXT", "VF4",
+                        AllFractionableVF4IntVectors>;
+defm "" : VPatUnaryV_VF<"int_riscv_vsext", "PseudoVSEXT", "VF8",
+                        AllFractionableVF8IntVectors>;
+
+//===----------------------------------------------------------------------===//
 // 12.4. Vector Integer Add-with-Carry / Subtract-with-Borrow Instructions
 //===----------------------------------------------------------------------===//
 defm "" : VPatBinaryV_VM_XM_IM<"int_riscv_vadc", "PseudoVADC">;
@@ -2652,6 +3097,71 @@ defm "" : VPatBinaryM_VV_VX_VI<"int_riscv_vmsle", "PseudoVMSLE", AllIntegerVecto
 
 defm "" : VPatBinaryM_VX_VI<"int_riscv_vmsgtu", "PseudoVMSGTU", AllIntegerVectors>;
 defm "" : VPatBinaryM_VX_VI<"int_riscv_vmsgt", "PseudoVMSGT", AllIntegerVectors>;
+
+// Match vmslt(u).vx intrinsics to vmsle(u).vi if the scalar is -15 to 16. This
+// avoids the user needing to know that there is no vmslt(u).vi instruction.
+// This is limited to vmslt(u).vx as there is no vmsge().vx intrinsic or
+// instruction.
+foreach vti = AllIntegerVectors in {
+  def : Pat<(vti.Mask (int_riscv_vmslt (vti.Vector vti.RegClass:$rs1),
+                                       (vti.Scalar simm5_plus1:$rs2), GPR:$vl)),
+            (!cast<Instruction>("PseudoVMSLE_VI_"#vti.LMul.MX) vti.RegClass:$rs1,
+                                                               (DecImm simm5_plus1:$rs2),
+                                                               (NoX0 GPR:$vl),
+                                                               vti.SEW)>;
+  def : Pat<(vti.Mask (int_riscv_vmslt_mask (vti.Mask V0),
+                                            (vti.Vector vti.RegClass:$rs1),
+                                            (vti.Scalar simm5_plus1:$rs2),
+                                            (vti.Mask VR:$merge),
+                                            GPR:$vl)),
+            (!cast<Instruction>("PseudoVMSLE_VI_"#vti.LMul.MX#"_MASK")
+                                                      VR:$merge,
+                                                      vti.RegClass:$rs1,
+                                                      (DecImm simm5_plus1:$rs2),
+                                                      (vti.Mask V0),
+                                                      (NoX0 GPR:$vl),
+                                                      vti.SEW)>;
+
+  def : Pat<(vti.Mask (int_riscv_vmsltu (vti.Vector vti.RegClass:$rs1),
+                                        (vti.Scalar simm5_plus1:$rs2), GPR:$vl)),
+            (!cast<Instruction>("PseudoVMSLEU_VI_"#vti.LMul.MX) vti.RegClass:$rs1,
+                                                                (DecImm simm5_plus1:$rs2),
+                                                                (NoX0 GPR:$vl),
+                                                                vti.SEW)>;
+  def : Pat<(vti.Mask (int_riscv_vmsltu_mask (vti.Mask V0),
+                                             (vti.Vector vti.RegClass:$rs1),
+                                             (vti.Scalar simm5_plus1:$rs2),
+                                             (vti.Mask VR:$merge),
+                                             GPR:$vl)),
+            (!cast<Instruction>("PseudoVMSLEU_VI_"#vti.LMul.MX#"_MASK")
+                                                      VR:$merge,
+                                                      vti.RegClass:$rs1,
+                                                      (DecImm simm5_plus1:$rs2),
+                                                      (vti.Mask V0),
+                                                      (NoX0 GPR:$vl),
+                                                      vti.SEW)>;
+
+  // Special cases to avoid matching vmsltu.vi 0 (always false) to
+  // vmsleu.vi -1 (always true). Instead match to vmsne.vv.
+  def : Pat<(vti.Mask (int_riscv_vmsltu (vti.Vector vti.RegClass:$rs1),
+                                        (vti.Scalar 0), GPR:$vl)),
+            (!cast<Instruction>("PseudoVMSNE_VV_"#vti.LMul.MX) vti.RegClass:$rs1,
+                                                               vti.RegClass:$rs1,
+                                                               (NoX0 GPR:$vl),
+                                                               vti.SEW)>;
+  def : Pat<(vti.Mask (int_riscv_vmsltu_mask (vti.Mask V0),
+                                            (vti.Vector vti.RegClass:$rs1),
+                                            (vti.Scalar 0),
+                                            (vti.Mask VR:$merge),
+                                            GPR:$vl)),
+            (!cast<Instruction>("PseudoVMSNE_VV_"#vti.LMul.MX#"_MASK")
+                                                     VR:$merge,
+                                                     vti.RegClass:$rs1,
+                                                     vti.RegClass:$rs1,
+                                                     (vti.Mask V0),
+                                                     (NoX0 GPR:$vl),
+                                                     vti.SEW)>;
+}
 
 //===----------------------------------------------------------------------===//
 // 12.9. Vector Integer Min/Max Instructions
@@ -2701,7 +3211,7 @@ defm "" : VPatTernaryW_VV_VX<"int_riscv_vwmaccsu", "PseudoVWMACCSU", AllWidenabl
 defm "" : VPatTernaryW_VX<"int_riscv_vwmaccus", "PseudoVWMACCUS", AllWidenableIntVectors>;
 
 //===----------------------------------------------------------------------===//
-// 12.15. Vector Integer Merge Instructions
+// 12.16. Vector Integer Merge Instructions
 //===----------------------------------------------------------------------===//
 defm "" : VPatBinaryV_VM_XM_IM<"int_riscv_vmerge", "PseudoVMERGE">;
 
@@ -2810,7 +3320,12 @@ defm "" : VPatTernaryW_VV_VX<"int_riscv_vfwmsac", "PseudoVFWMSAC", AllWidenableF
 defm "" : VPatTernaryW_VV_VX<"int_riscv_vfwnmsac", "PseudoVFWNMSAC", AllWidenableFloatVectors>;
 
 //===----------------------------------------------------------------------===//
-// 14.9. Vector Floating-Point Min/Max Instructions
+// 14.8. Vector Floating-Point Square-Root Instruction
+//===----------------------------------------------------------------------===//
+defm "" : VPatUnaryV_V<"int_riscv_vfsqrt", "PseudoVFSQRT", AllFloatVectors>;
+
+//===----------------------------------------------------------------------===//
+// 14.11. Vector Floating-Point Min/Max Instructions
 //===----------------------------------------------------------------------===//
 defm "" : VPatBinaryV_VV_VX<"int_riscv_vfmin", "PseudoVFMIN", AllFloatVectors>;
 defm "" : VPatBinaryV_VV_VX<"int_riscv_vfmax", "PseudoVFMAX", AllFloatVectors>;
@@ -2833,7 +3348,16 @@ defm "" : VPatBinaryM_VX<"int_riscv_vmfgt", "PseudoVMFGT", AllFloatVectors>;
 defm "" : VPatBinaryM_VX<"int_riscv_vmfge", "PseudoVMFGE", AllFloatVectors>;
 
 //===----------------------------------------------------------------------===//
-// 14.14. Vector Floating-Point Move Instruction
+// 14.15. Vector Floating-Point Merge Instruction
+//===----------------------------------------------------------------------===//
+// We can use vmerge.vvm to support vector-vector vfmerge.
+defm "" : VPatBinaryV_VM<"int_riscv_vfmerge", "PseudoVMERGE",
+                         /*CarryOut = */0, /*vtilist=*/AllFloatVectors>;
+defm "" : VPatBinaryV_XM<"int_riscv_vfmerge", "PseudoVFMERGE",
+                         /*CarryOut = */0, /*vtilist=*/AllFloatVectors>;
+
+//===----------------------------------------------------------------------===//
+// 14.16. Vector Floating-Point Move Instruction
 //===----------------------------------------------------------------------===//
 foreach fvti = AllFloatVectors in {
   // If we're splatting fpimm0, use vmv.v.x vd, x0.
@@ -2850,14 +3374,37 @@ foreach fvti = AllFloatVectors in {
 }
 
 //===----------------------------------------------------------------------===//
-// 14.15. Vector Floating-Point Merge Instruction
+// 14.17. Single-Width Floating-Point/Integer Type-Convert Instructions
 //===----------------------------------------------------------------------===//
-// We can use vmerge.vvm to support vector-vector vfmerge.
-defm "" : VPatBinaryV_VM<"int_riscv_vfmerge", "PseudoVMERGE",
-                         /*CarryOut = */0, /*vtilist=*/AllFloatVectors>;
-defm "" : VPatBinaryV_XM<"int_riscv_vfmerge", "PseudoVFMERGE",
-                         /*CarryOut = */0, /*vtilist=*/AllFloatVectors>;
+defm "" : VPatConversionVI_VF<"int_riscv_vfcvt_xu_f_v", "PseudoVFCVT_XU_F">;
+defm "" : VPatConversionVI_VF<"int_riscv_vfcvt_rtz_xu_f_v", "PseudoVFCVT_RTZ_XU_F">;
+defm "" : VPatConversionVI_VF<"int_riscv_vfcvt_x_f_v", "PseudoVFCVT_X_F">;
+defm "" : VPatConversionVI_VF<"int_riscv_vfcvt_rtz_x_f_v", "PseudoVFCVT_RTZ_X_F">;
+defm "" : VPatConversionVF_VI<"int_riscv_vfcvt_f_x_v", "PseudoVFCVT_F_X">;
+defm "" : VPatConversionVF_VI<"int_riscv_vfcvt_f_xu_v", "PseudoVFCVT_F_XU">;
 
+//===----------------------------------------------------------------------===//
+// 14.18. Widening Floating-Point/Integer Type-Convert Instructions
+//===----------------------------------------------------------------------===//
+defm "" : VPatConversionWI_VF<"int_riscv_vfwcvt_xu_f_v", "PseudoVFWCVT_XU_F">;
+defm "" : VPatConversionWI_VF<"int_riscv_vfwcvt_x_f_v", "PseudoVFWCVT_X_F">;
+defm "" : VPatConversionWI_VF<"int_riscv_vfwcvt_rtz_xu_f_v", "PseudoVFWCVT_RTZ_XU_F">;
+defm "" : VPatConversionWI_VF<"int_riscv_vfwcvt_rtz_x_f_v", "PseudoVFWCVT_RTZ_X_F">;
+defm "" : VPatConversionWF_VI<"int_riscv_vfwcvt_f_xu_v", "PseudoVFWCVT_F_XU">;
+defm "" : VPatConversionWF_VI<"int_riscv_vfwcvt_f_x_v", "PseudoVFWCVT_F_X">;
+defm "" : VPatConversionWF_VF<"int_riscv_vfwcvt_f_f_v", "PseudoVFWCVT_F_F">;
+
+//===----------------------------------------------------------------------===//
+// 14.19. Narrowing Floating-Point/Integer Type-Convert Instructions
+//===----------------------------------------------------------------------===//
+defm "" : VPatConversionVI_WF<"int_riscv_vfncvt_xu_f_w", "PseudoVFNCVT_XU_F">;
+defm "" : VPatConversionVI_WF<"int_riscv_vfncvt_x_f_w", "PseudoVFNCVT_X_F">;
+defm "" : VPatConversionVI_WF<"int_riscv_vfncvt_rtz_xu_f_w", "PseudoVFNCVT_RTZ_XU_F">;
+defm "" : VPatConversionVI_WF<"int_riscv_vfncvt_rtz_x_f_w", "PseudoVFNCVT_RTZ_X_F">;
+defm "" : VPatConversionVF_WI <"int_riscv_vfncvt_f_xu_w", "PseudoVFNCVT_F_XU">;
+defm "" : VPatConversionVF_WI <"int_riscv_vfncvt_f_x_w", "PseudoVFNCVT_F_X">;
+defm "" : VPatConversionVF_WF<"int_riscv_vfncvt_f_f_w", "PseudoVFNCVT_F_F">;
+defm "" : VPatConversionVF_WF<"int_riscv_vfncvt_rod_f_f_w", "PseudoVFNCVT_ROD_F_F">;
 } // Predicates = [HasStdExtV, HasStdExtF]
 
 let Predicates = [HasStdExtV] in {
@@ -2912,6 +3459,10 @@ defm "" : VPatBinaryM_MM<"int_riscv_vmor", "PseudoVMOR">;
 defm "" : VPatBinaryM_MM<"int_riscv_vmnor", "PseudoVMNOR">;
 defm "" : VPatBinaryM_MM<"int_riscv_vmornot", "PseudoVMORNOT">;
 defm "" : VPatBinaryM_MM<"int_riscv_vmxnor", "PseudoVMXNOR">;
+
+// pseudo instructions
+defm "" : VPatNullaryM<"int_riscv_vmclr", "PseudoVMCLR">;
+defm "" : VPatNullaryM<"int_riscv_vmset", "PseudoVMSET">;
 
 //===----------------------------------------------------------------------===//
 // 16.2. Vector mask population count vpopc
@@ -3028,6 +3579,17 @@ let Predicates = [HasStdExtV] in {
 let Predicates = [HasStdExtV, HasStdExtF] in {
   defm "" : VPatBinaryV_VV_VX_VI_INT<"int_riscv_vrgather", "PseudoVRGATHER",
                                      AllFloatVectors, uimm5>;
+} // Predicates = [HasStdExtV, HasStdExtF]
+
+//===----------------------------------------------------------------------===//
+// 17.5. Vector Compress Instruction
+//===----------------------------------------------------------------------===//
+let Predicates = [HasStdExtV] in {
+  defm "" : VPatUnaryV_V_AnyMask<"int_riscv_vcompress", "PseudoVCOMPRESS", AllIntegerVectors>;
+} // Predicates = [HasStdExtV]
+
+let Predicates = [HasStdExtV, HasStdExtF] in {
+  defm "" : VPatUnaryV_V_AnyMask<"int_riscv_vcompress", "PseudoVCOMPRESS", AllFloatVectors>;
 } // Predicates = [HasStdExtV, HasStdExtF]
 
 // Include the non-intrinsic ISel patterns

@@ -117,8 +117,11 @@ public:
   const HexagonSubtarget &HST;
 
 private:
+#ifndef NDEBUG
+  // These two functions are only used for assertions at the moment.
   bool isByteVecTy(Type *Ty) const;
   bool isSectorTy(Type *Ty) const;
+#endif
   Value *getElementRange(IRBuilder<> &Builder, Value *Lo, Value *Hi, int Start,
                          int Length) const;
 };
@@ -585,7 +588,7 @@ auto AlignVectors::createLoadGroups(const AddrList &Group) const -> MoveList {
     if (llvm::any_of(Deps, inAddrMap))
       return false;
     Move.Main.push_back(Info.Inst);
-    Move.Deps.insert(Move.Deps.end(), Deps.begin(), Deps.end());
+    llvm::append_range(Move.Deps, Deps);
     return true;
   };
 
@@ -1104,8 +1107,7 @@ auto HexagonVectorCombine::concat(IRBuilder<> &Builder,
   SMask.resize(Vecs.size() * getSizeOf(Vecs.front()->getType()));
   std::iota(SMask.begin(), SMask.end(), 0);
   Value *Total = Work[OtherW].front();
-  return Builder.CreateShuffleVector(Total, UndefValue::get(Total->getType()),
-                                     SMask);
+  return Builder.CreateShuffleVector(Total, SMask);
 }
 
 auto HexagonVectorCombine::vresize(IRBuilder<> &Builder, Value *Val,
@@ -1407,6 +1409,7 @@ auto HexagonVectorCombine::isSafeToMoveBeforeInBB(const Instruction &In,
   return true;
 }
 
+#ifndef NDEBUG
 auto HexagonVectorCombine::isByteVecTy(Type *Ty) const -> bool {
   if (auto *VecTy = dyn_cast<VectorType>(Ty))
     return VecTy->getElementType() == getByteTy();
@@ -1421,6 +1424,7 @@ auto HexagonVectorCombine::isSectorTy(Type *Ty) const -> bool {
     return Size == static_cast<int>(HST.getVectorLength());
   return Size == 4 || Size == 8;
 }
+#endif
 
 auto HexagonVectorCombine::getElementRange(IRBuilder<> &Builder, Value *Lo,
                                            Value *Hi, int Start,

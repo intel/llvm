@@ -505,8 +505,6 @@ private:
   void verifySwiftErrorCall(CallBase &Call, const Value *SwiftErrorVal);
   void verifySwiftErrorValue(const Value *SwiftErrorVal);
   void verifyMustTailCall(CallInst &CI);
-  bool performTypeCheck(Intrinsic::ID ID, Function *F, Type *Ty, int VT,
-                        unsigned ArgNo, std::string &Suffix);
   bool verifyAttributeCount(AttributeList Attrs, unsigned Params);
   void verifyAttributeTypes(AttributeSet Attrs, bool IsFunction,
                             const Value *V);
@@ -2568,7 +2566,7 @@ void Verifier::visitBasicBlock(BasicBlock &BB) {
   // Check constraints that this basic block imposes on all of the PHI nodes in
   // it.
   if (isa<PHINode>(BB.front())) {
-    SmallVector<BasicBlock*, 8> Preds(pred_begin(&BB), pred_end(&BB));
+    SmallVector<BasicBlock *, 8> Preds(predecessors(&BB));
     SmallVector<std::pair<BasicBlock*, Value*>, 8> Values;
     llvm::sort(Preds);
     for (const PHINode &PN : BB.phis()) {
@@ -3497,7 +3495,7 @@ void Verifier::visitGetElementPtrInst(GetElementPtrInst &GEP) {
          "GEP base pointer is not a vector or a vector of pointers", &GEP);
   Assert(GEP.getSourceElementType()->isSized(), "GEP into unsized type!", &GEP);
 
-  SmallVector<Value*, 16> Idxs(GEP.idx_begin(), GEP.idx_end());
+  SmallVector<Value *, 16> Idxs(GEP.indices());
   Assert(all_of(
       Idxs, [](Value* V) { return V->getType()->isIntOrIntVectorTy(); }),
       "GEP indexes must be integers", &GEP);
@@ -4359,7 +4357,7 @@ void Verifier::visitInstruction(Instruction &I) {
               F->getIntrinsicID() == Intrinsic::experimental_patchpoint_void ||
               F->getIntrinsicID() == Intrinsic::experimental_patchpoint_i64 ||
               F->getIntrinsicID() == Intrinsic::experimental_gc_statepoint ||
-              F->getIntrinsicID() == Intrinsic::wasm_rethrow_in_catch,
+              F->getIntrinsicID() == Intrinsic::wasm_rethrow,
           "Cannot invoke an intrinsic other than donothing, patchpoint, "
           "statepoint, coro_resume or coro_destroy",
           &I);

@@ -43,8 +43,18 @@ public:
   /// @{
   /// Constructors.
   constexpr simd() = default;
-  constexpr simd(const simd &other) { set(other.data()); }
-  constexpr simd(simd &&other) { set(other.data()); }
+  template <typename SrcTy> constexpr simd(const simd<SrcTy, N> &other) {
+    if constexpr (std::is_same<SrcTy, Ty>::value)
+      set(other.data());
+    else
+      set(__builtin_convertvector(other.data(), vector_type_t<Ty, N>));
+  }
+  template <typename SrcTy> constexpr simd(simd<SrcTy, N> &&other) {
+    if constexpr (std::is_same<SrcTy, Ty>::value)
+      set(other.data());
+    else
+      set(__builtin_convertvector(other.data(), vector_type_t<Ty, N>));
+  }
   constexpr simd(const vector_type &Val) { set(Val); }
 
   // TODO @rolandschulz
@@ -87,6 +97,7 @@ public:
   }
   /// @}
 
+  /// conversion operator
   operator const vector_type &() const & { return M_data; }
   operator vector_type &() & { return M_data; }
 
@@ -116,12 +127,6 @@ public:
     Val2.merge(Val1, Mask);
     set(Val2.data());
   }
-
-  /// {@
-  /// Assignment operators.
-  constexpr simd &operator=(const simd &) & = default;
-  constexpr simd &operator=(simd &&) & = default;
-  /// @}
 
   /// View this simd object in a different element type.
   template <typename EltTy> auto format() & {
@@ -174,8 +179,31 @@ public:
   //   This would allow you to use the subscript operator to write to an
   //   element.
   // {/quote}
-  /// Read a single element, by value only.
+  /// Read single element, return value only (not reference).
   Ty operator[](int i) const { return data()[i]; }
+
+  // TODO ESIMD_EXPERIMENTAL
+  /// Read multiple elements by their indices in vector
+  template <int Size>
+  simd<Ty, Size> iselect(const simd<uint16_t, Size> &Indices) {
+    vector_type_t<uint16_t, Size> Offsets = Indices.data() * sizeof(Ty);
+    return __esimd_rdindirect<Ty, N, Size>(data(), Offsets);
+  }
+  // TODO ESIMD_EXPERIMENTAL
+  /// update single element
+  void iupdate(ushort Index, Ty V) {
+    auto Val = data();
+    Val[Index] = V;
+    set(Val);
+  }
+  // TODO ESIMD_EXPERIMENTAL
+  /// update multiple elements by their indices in vector
+  template <int Size>
+  void iupdate(const simd<uint16_t, Size> &Indices, const simd<Ty, Size> &Val,
+               mask_type_t<Size> Mask) {
+    vector_type_t<uint16_t, Size> Offsets = Indices.data() * sizeof(Ty);
+    set(__esimd_wrindirect<Ty, N, Size>(data(), Val.data(), Offsets, Mask));
+  }
 
   // TODO
   // @rolandschulz
@@ -208,6 +236,7 @@ public:
   DEF_BINOP(-, -=)
   DEF_BINOP(*, *=)
   DEF_BINOP(/, /=)
+  DEF_BINOP(%, %=)
 
 #undef DEF_BINOP
 

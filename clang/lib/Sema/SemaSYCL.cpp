@@ -178,20 +178,8 @@ static bool IsSyclMathFunc(unsigned BuiltinID) {
   case Builtin::BI__builtin_truncl:
   case Builtin::BIlroundl:
   case Builtin::BI__builtin_lroundl:
-  case Builtin::BIfmax:
-  case Builtin::BI__builtin_fmax:
-  case Builtin::BIfmin:
-  case Builtin::BI__builtin_fmin:
-  case Builtin::BIfmaxf:
-  case Builtin::BI__builtin_fmaxf:
-  case Builtin::BIfminf:
-  case Builtin::BI__builtin_fminf:
   case Builtin::BIlroundf:
   case Builtin::BI__builtin_lroundf:
-  case Builtin::BI__builtin_fpclassify:
-  case Builtin::BI__builtin_isfinite:
-  case Builtin::BI__builtin_isinf:
-  case Builtin::BI__builtin_isnormal:
     return false;
   default:
     break;
@@ -2705,13 +2693,8 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
 
   // Sets a flag if the kernel is a parallel_for that calls the
   // free function API "this_item".
-  void setThisItemIsCalled(const CXXRecordDecl *KernelObj,
-                           FunctionDecl *KernelFunc) {
+  void setThisItemIsCalled(FunctionDecl *KernelFunc) {
     if (getKernelInvocationKind(KernelFunc) != InvokeParallelFor)
-      return;
-
-    const CXXMethodDecl *WGLambdaFn = getOperatorParens(KernelObj);
-    if (!WGLambdaFn)
       return;
 
     // The call graph for this translation unit.
@@ -2721,7 +2704,7 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
         std::pair<const FunctionDecl *, const FunctionDecl *>;
     llvm::SmallPtrSet<const FunctionDecl *, 16> Visited;
     llvm::SmallVector<ChildParentPair, 16> WorkList;
-    WorkList.push_back({WGLambdaFn, nullptr});
+    WorkList.push_back({KernelFunc, nullptr});
 
     while (!WorkList.empty()) {
       const FunctionDecl *FD = WorkList.back().first;
@@ -2772,7 +2755,7 @@ public:
     bool IsSIMDKernel = isESIMDKernelType(KernelObj);
     Header.startKernel(Name, NameType, StableName, KernelObj->getLocation(),
                        IsSIMDKernel);
-    setThisItemIsCalled(KernelObj, KernelFunc);
+    setThisItemIsCalled(KernelFunc);
   }
 
   bool handleSyclAccessorType(const CXXRecordDecl *RD,

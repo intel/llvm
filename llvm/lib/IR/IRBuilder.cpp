@@ -380,24 +380,12 @@ CallInst *IRBuilderBase::CreateIntMinReduce(Value *Src, bool IsSigned) {
   return getReductionIntrinsic(this, ID, Src);
 }
 
-CallInst *IRBuilderBase::CreateFPMaxReduce(Value *Src, bool NoNaN) {
-  auto Rdx = getReductionIntrinsic(this, Intrinsic::vector_reduce_fmax, Src);
-  if (NoNaN) {
-    FastMathFlags FMF;
-    FMF.setNoNaNs();
-    Rdx->setFastMathFlags(FMF);
-  }
-  return Rdx;
+CallInst *IRBuilderBase::CreateFPMaxReduce(Value *Src) {
+  return getReductionIntrinsic(this, Intrinsic::vector_reduce_fmax, Src);
 }
 
-CallInst *IRBuilderBase::CreateFPMinReduce(Value *Src, bool NoNaN) {
-  auto Rdx = getReductionIntrinsic(this, Intrinsic::vector_reduce_fmin, Src);
-  if (NoNaN) {
-    FastMathFlags FMF;
-    FMF.setNoNaNs();
-    Rdx->setFastMathFlags(FMF);
-  }
-  return Rdx;
+CallInst *IRBuilderBase::CreateFPMinReduce(Value *Src) {
+  return getReductionIntrinsic(this, Intrinsic::vector_reduce_fmin, Src);
 }
 
 CallInst *IRBuilderBase::CreateLifetimeStart(Value *Ptr, ConstantInt *Size) {
@@ -590,7 +578,7 @@ getStatepointArgs(IRBuilderBase &B, uint64_t ID, uint32_t NumPatchBytes,
   Args.push_back(ActualCallee);
   Args.push_back(B.getInt32(CallArgs.size()));
   Args.push_back(B.getInt32(Flags));
-  Args.insert(Args.end(), CallArgs.begin(), CallArgs.end());
+  llvm::append_range(Args, CallArgs);
   // GC Transition and Deopt args are now always handled via operand bundle.
   // They will be removed from the signature of gc.statepoint shortly.
   Args.push_back(B.getInt32(0));
@@ -607,18 +595,17 @@ getStatepointBundles(Optional<ArrayRef<T1>> TransitionArgs,
   std::vector<OperandBundleDef> Rval;
   if (DeoptArgs) {
     SmallVector<Value*, 16> DeoptValues;
-    DeoptValues.insert(DeoptValues.end(), DeoptArgs->begin(), DeoptArgs->end());
+    llvm::append_range(DeoptValues, *DeoptArgs);
     Rval.emplace_back("deopt", DeoptValues);
   }
   if (TransitionArgs) {
     SmallVector<Value*, 16> TransitionValues;
-    TransitionValues.insert(TransitionValues.end(),
-                            TransitionArgs->begin(), TransitionArgs->end());
+    llvm::append_range(TransitionValues, *TransitionArgs);
     Rval.emplace_back("gc-transition", TransitionValues);
   }
   if (GCArgs.size()) {
     SmallVector<Value*, 16> LiveValues;
-    LiveValues.insert(LiveValues.end(), GCArgs.begin(), GCArgs.end());
+    llvm::append_range(LiveValues, GCArgs);
     Rval.emplace_back("gc-live", LiveValues);
   }
   return Rval;
@@ -1009,15 +996,16 @@ Value *IRBuilderBase::CreateVectorSplat(ElementCount EC, Value *V,
                                         const Twine &Name) {
   assert(EC.isNonZero() && "Cannot splat to an empty vector!");
 
-  // First insert it into an undef vector so we can shuffle it.
+  // First insert it into a poison vector so we can shuffle it.
   Type *I32Ty = getInt32Ty();
-  Value *Undef = UndefValue::get(VectorType::get(V->getType(), EC));
-  V = CreateInsertElement(Undef, V, ConstantInt::get(I32Ty, 0),
+  Value *Poison = PoisonValue::get(VectorType::get(V->getType(), EC));
+  V = CreateInsertElement(Poison, V, ConstantInt::get(I32Ty, 0),
                           Name + ".splatinsert");
 
   // Shuffle the value across the desired number of elements.
-  Value *Zeros = ConstantAggregateZero::get(VectorType::get(I32Ty, EC));
-  return CreateShuffleVector(V, Undef, Zeros, Name + ".splat");
+  SmallVector<int, 16> Zeros;
+  Zeros.resize(EC.getKnownMinValue());
+  return CreateShuffleVector(V, Zeros, Name + ".splat");
 }
 
 Value *IRBuilderBase::CreateExtractInteger(

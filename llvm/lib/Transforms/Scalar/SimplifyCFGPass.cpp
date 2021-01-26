@@ -141,8 +141,11 @@ static bool mergeEmptyReturnBlocks(Function &F, DomTreeUpdater *DTU) {
       // All predecessors of BB should now branch to RetBlock instead.
       if (DTU) {
         for (auto *Predecessor : predecessors(&BB)) {
+          // But, iff Predecessor already branches to RetBlock,
+          // don't (re-)add DomTree edge, because it already exists.
+          if (!is_contained(successors(Predecessor), RetBlock))
+            Updates.push_back({DominatorTree::Insert, Predecessor, RetBlock});
           Updates.push_back({DominatorTree::Delete, Predecessor, &BB});
-          Updates.push_back({DominatorTree::Insert, Predecessor, RetBlock});
         }
       }
       BB.replaceAllUsesWith(RetBlock);
@@ -175,7 +178,7 @@ static bool mergeEmptyReturnBlocks(Function &F, DomTreeUpdater *DTU) {
   }
 
   if (DTU) {
-    DTU->applyUpdatesPermissive(Updates);
+    DTU->applyUpdates(Updates);
     for (auto *BB : DeadBlocks)
       DTU->deleteBB(BB);
   } else {
@@ -357,6 +360,7 @@ INITIALIZE_PASS_BEGIN(CFGSimplifyPass, "simplifycfg", "Simplify the CFG", false,
                       false)
 INITIALIZE_PASS_DEPENDENCY(TargetTransformInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
+INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
 INITIALIZE_PASS_END(CFGSimplifyPass, "simplifycfg", "Simplify the CFG", false,
                     false)
 

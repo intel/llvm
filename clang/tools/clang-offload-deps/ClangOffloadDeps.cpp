@@ -73,7 +73,7 @@ static void reportError(Error E) {
 
 int main(int argc, const char **argv) {
   sys::PrintStackTraceOnErrorSignal(argv[0]);
-  ToolPath = sys::fs::getMainExecutable(argv[0], &ToolPath);
+  ToolPath = argv[0];
 
   cl::HideUnrelatedOptions(ClangOffloadDepsCategory);
   cl::SetVersionPrinter([](raw_ostream &OS) {

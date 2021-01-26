@@ -1461,8 +1461,7 @@ struct DimOfMemRefReshape : public OpRewritePattern<DimOp> {
   }
 };
 
-/// Fold dim of a dim of a cast into the the dim of the source of the tensor
-/// cast.
+/// Fold dim of a dim of a cast into the dim of the source of the tensor cast.
 template <typename CastOpTy>
 struct DimOfCastOp : public OpRewritePattern<DimOp> {
   using OpRewritePattern<DimOp>::OpRewritePattern;
@@ -3053,7 +3052,7 @@ static void print(OpAsmPrinter &p, SubViewOp op) {
   p << op->getName().getStringRef().drop_front(stdDotLen) << ' ';
   p << op.source();
   printOffsetsSizesAndStrides(p, op);
-  p << " : " << op.getSourceType() << " to " << op.getType();
+  p << " : " << op.source().getType() << " to " << op.getType();
 }
 
 /// Parse a subview op of the form:

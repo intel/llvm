@@ -99,6 +99,7 @@ void tools::gcc::Common::ConstructJob(Compilation &C, const JobAction &JA,
     break;
   case llvm::Triple::x86:
   case llvm::Triple::ppc:
+  case llvm::Triple::ppcle:
     CmdArgs.push_back("-m32");
     break;
   case llvm::Triple::x86_64:
@@ -254,7 +255,13 @@ static const char *getLDMOption(const llvm::Triple &T, const ArgList &Args) {
   case llvm::Triple::thumbeb:
     return isArmBigEndian(T, Args) ? "armelfb_linux_eabi" : "armelf_linux_eabi";
   case llvm::Triple::ppc:
-    return "elf32ppclinux";
+    if (T.isOSLinux())
+      return "elf32ppclinux";
+    return "elf32ppc";
+  case llvm::Triple::ppcle:
+    if (T.isOSLinux())
+      return "elf32lppclinux";
+    return "elf32lppc";
   case llvm::Triple::ppc64:
     return "elf64ppc";
   case llvm::Triple::ppc64le:
@@ -794,6 +801,14 @@ void tools::gnutools::Assembler::ConstructJob(Compilation &C,
     CmdArgs.push_back("-mppc");
     CmdArgs.push_back(
       ppc::getPPCAsmModeForCPU(getCPUName(Args, getToolChain().getTriple())));
+    break;
+  }
+  case llvm::Triple::ppcle: {
+    CmdArgs.push_back("-a32");
+    CmdArgs.push_back("-mppc");
+    CmdArgs.push_back("-mlittle-endian");
+    CmdArgs.push_back(
+        ppc::getPPCAsmModeForCPU(getCPUName(Args, getToolChain().getTriple())));
     break;
   }
   case llvm::Triple::ppc64: {
@@ -2102,6 +2117,7 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
   // Non-Solaris is much simpler - most systems just go with "/usr".
   if (SysRoot.empty() && TargetTriple.getOS() == llvm::Triple::Linux) {
     // Yet, still look for RHEL devtoolsets.
+    Prefixes.push_back("/opt/rh/devtoolset-10/root/usr");
     Prefixes.push_back("/opt/rh/devtoolset-9/root/usr");
     Prefixes.push_back("/opt/rh/devtoolset-8/root/usr");
     Prefixes.push_back("/opt/rh/devtoolset-7/root/usr");
@@ -2201,6 +2217,11 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
       // On 32-bit PowerPC systems running SUSE Linux, gcc is configured as a
       // 64-bit compiler which defaults to "-m32", hence "powerpc64-suse-linux".
       "powerpc64-suse-linux", "powerpc-montavista-linuxspe"};
+  static const char *const PPCLELibDirs[] = {"/lib32", "/lib"};
+  static const char *const PPCLETriples[] = {"powerpcle-linux-gnu",
+                                             "powerpcle-unknown-linux-gnu",
+                                             "powerpcle-linux-musl"};
+
   static const char *const PPC64LibDirs[] = {"/lib64", "/lib"};
   static const char *const PPC64Triples[] = {
       "powerpc64-linux-gnu", "powerpc64-unknown-linux-gnu",
@@ -2208,7 +2229,8 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
   static const char *const PPC64LELibDirs[] = {"/lib64", "/lib"};
   static const char *const PPC64LETriples[] = {
       "powerpc64le-linux-gnu", "powerpc64le-unknown-linux-gnu",
-      "powerpc64le-suse-linux", "ppc64le-redhat-linux"};
+      "powerpc64le-none-linux-gnu", "powerpc64le-suse-linux",
+      "ppc64le-redhat-linux"};
 
   static const char *const RISCV32LibDirs[] = {"/lib32", "/lib"};
   static const char *const RISCV32Triples[] = {"riscv32-unknown-linux-gnu",
@@ -2441,6 +2463,12 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
     BiarchLibDirs.append(begin(PPC64LibDirs), end(PPC64LibDirs));
     BiarchTripleAliases.append(begin(PPC64Triples), end(PPC64Triples));
     break;
+  case llvm::Triple::ppcle:
+    LibDirs.append(begin(PPCLELibDirs), end(PPCLELibDirs));
+    TripleAliases.append(begin(PPCLETriples), end(PPCLETriples));
+    BiarchLibDirs.append(begin(PPC64LELibDirs), end(PPC64LELibDirs));
+    BiarchTripleAliases.append(begin(PPC64LETriples), end(PPC64LETriples));
+    break;
   case llvm::Triple::ppc64:
     LibDirs.append(begin(PPC64LibDirs), end(PPC64LibDirs));
     TripleAliases.append(begin(PPC64Triples), end(PPC64Triples));
@@ -2450,6 +2478,8 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
   case llvm::Triple::ppc64le:
     LibDirs.append(begin(PPC64LELibDirs), end(PPC64LELibDirs));
     TripleAliases.append(begin(PPC64LETriples), end(PPC64LETriples));
+    BiarchLibDirs.append(begin(PPCLELibDirs), end(PPCLELibDirs));
+    BiarchTripleAliases.append(begin(PPCLETriples), end(PPCLETriples));
     break;
   case llvm::Triple::riscv32:
     LibDirs.append(begin(RISCV32LibDirs), end(RISCV32LibDirs));
@@ -2743,6 +2773,7 @@ bool Generic_GCC::IsUnwindTablesDefault(const ArgList &Args) const {
   switch (getArch()) {
   case llvm::Triple::aarch64:
   case llvm::Triple::ppc:
+  case llvm::Triple::ppcle:
   case llvm::Triple::ppc64:
   case llvm::Triple::ppc64le:
   case llvm::Triple::x86_64:
@@ -2784,6 +2815,7 @@ bool Generic_GCC::IsIntegratedAssemblerDefault() const {
   case llvm::Triple::thumb:
   case llvm::Triple::thumbeb:
   case llvm::Triple::ppc:
+  case llvm::Triple::ppcle:
   case llvm::Triple::ppc64:
   case llvm::Triple::ppc64le:
   case llvm::Triple::riscv32:

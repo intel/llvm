@@ -237,9 +237,15 @@ public:
         //          for integer, "f" - for floating point
         {"rdregion",
          {"rdregion", {a(0), t(3), t(4), t(5), a(1), t(6)}, nk(-1)}},
+        {"rdindirect",
+         {"rdregion", {a(0), c32(0), t(2), c32(0), a(1), t(3)}, nk(-1)}},
         {{"wrregion"},
          {{"wrregion"},
           {a(0), a(1), t(3), t(4), t(5), a(2), t(6), ai1(3)},
+          nk(-1)}},
+        {{"wrindirect"},
+         {{"wrregion"},
+          {a(0), a(1), c32(0), t(2), c32(0), a(2), t(3), ai1(3)},
           nk(-1)}},
         {"vload", {"vload", {l(0)}}},
         {"vstore", {"vstore", {a(1), a(0)}}},
@@ -1239,10 +1245,11 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
     if (auto CastOp = dyn_cast<llvm::CastInst>(&I)) {
       llvm::Type *DstTy = CastOp->getDestTy();
       auto CastOpcode = CastOp->getOpcode();
-      if ((CastOpcode == llvm::Instruction::FPToUI &&
-           DstTy->getScalarType()->getPrimitiveSizeInBits() <= 32) ||
-          (CastOpcode == llvm::Instruction::FPToSI &&
-           DstTy->getScalarType()->getPrimitiveSizeInBits() < 32)) {
+      if (isa<FixedVectorType>(DstTy) &&
+          ((CastOpcode == llvm::Instruction::FPToUI &&
+            DstTy->getScalarType()->getPrimitiveSizeInBits() <= 32) ||
+           (CastOpcode == llvm::Instruction::FPToSI &&
+            DstTy->getScalarType()->getPrimitiveSizeInBits() < 32))) {
         IRBuilder<> Builder(&I);
         llvm::Value *Src = CastOp->getOperand(0);
         auto TmpTy = llvm::FixedVectorType::get(

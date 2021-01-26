@@ -19,33 +19,21 @@
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPU.h"
-#include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/CodeGen/Passes.h"
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
-#include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/Type.h"
 #include "llvm/InitializePasses.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+
 using namespace llvm;
 
 #define DEBUG_TYPE "printfToRuntime"
 #define DWORD_ALIGN 4
 
 namespace {
-class LLVM_LIBRARY_VISIBILITY AMDGPUPrintfRuntimeBinding final
-    : public ModulePass {
+class AMDGPUPrintfRuntimeBinding final : public ModulePass {
 
 public:
   static char ID;
@@ -54,25 +42,36 @@ public:
 
 private:
   bool runOnModule(Module &M) override;
-  void getConversionSpecifiers(SmallVectorImpl<char> &OpConvSpecifiers,
-                               StringRef fmt, size_t num_ops) const;
-
-  bool shouldPrintAsStr(char Specifier, Type *OpType) const;
-  bool
-  lowerPrintfForGpu(Module &M,
-                    function_ref<const TargetLibraryInfo &(Function &)> GetTLI);
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<TargetLibraryInfoWrapperPass>();
     AU.addRequired<DominatorTreeWrapperPass>();
   }
+};
 
-  Value *simplify(Instruction *I, const TargetLibraryInfo *TLI) {
+class AMDGPUPrintfRuntimeBindingImpl {
+public:
+  AMDGPUPrintfRuntimeBindingImpl(
+      function_ref<const DominatorTree &(Function &)> GetDT,
+      function_ref<const TargetLibraryInfo &(Function &)> GetTLI)
+      : GetDT(GetDT), GetTLI(GetTLI) {}
+  bool run(Module &M);
+
+private:
+  void getConversionSpecifiers(SmallVectorImpl<char> &OpConvSpecifiers,
+                               StringRef fmt, size_t num_ops) const;
+
+  bool shouldPrintAsStr(char Specifier, Type *OpType) const;
+  bool lowerPrintfForGpu(Module &M);
+
+  Value *simplify(Instruction *I, const TargetLibraryInfo *TLI,
+                  const DominatorTree *DT) {
     return SimplifyInstruction(I, {*TD, TLI, DT});
   }
 
   const DataLayout *TD;
-  const DominatorTree *DT;
+  function_ref<const DominatorTree &(Function &)> GetDT;
+  function_ref<const TargetLibraryInfo &(Function &)> GetTLI;
   SmallVector<CallInst *, 32> Printfs;
 };
 } // namespace
@@ -95,12 +94,11 @@ ModulePass *createAMDGPUPrintfRuntimeBinding() {
 }
 } // namespace llvm
 
-AMDGPUPrintfRuntimeBinding::AMDGPUPrintfRuntimeBinding()
-    : ModulePass(ID), TD(nullptr), DT(nullptr) {
+AMDGPUPrintfRuntimeBinding::AMDGPUPrintfRuntimeBinding() : ModulePass(ID) {
   initializeAMDGPUPrintfRuntimeBindingPass(*PassRegistry::getPassRegistry());
 }
 
-void AMDGPUPrintfRuntimeBinding::getConversionSpecifiers(
+void AMDGPUPrintfRuntimeBindingImpl::getConversionSpecifiers(
     SmallVectorImpl<char> &OpConvSpecifiers, StringRef Fmt,
     size_t NumOps) const {
   // not all format characters are collected.
@@ -132,8 +130,8 @@ void AMDGPUPrintfRuntimeBinding::getConversionSpecifiers(
   }
 }
 
-bool AMDGPUPrintfRuntimeBinding::shouldPrintAsStr(char Specifier,
-                                                  Type *OpType) const {
+bool AMDGPUPrintfRuntimeBindingImpl::shouldPrintAsStr(char Specifier,
+                                                      Type *OpType) const {
   if (Specifier != 's')
     return false;
   const PointerType *PT = dyn_cast<PointerType>(OpType);
@@ -146,8 +144,7 @@ bool AMDGPUPrintfRuntimeBinding::shouldPrintAsStr(char Specifier,
   return ElemIType->getBitWidth() == 8;
 }
 
-bool AMDGPUPrintfRuntimeBinding::lowerPrintfForGpu(
-    Module &M, function_ref<const TargetLibraryInfo &(Function &)> GetTLI) {
+bool AMDGPUPrintfRuntimeBindingImpl::lowerPrintfForGpu(Module &M) {
   LLVMContext &Ctx = M.getContext();
   IRBuilder<> Builder(Ctx);
   Type *I32Ty = Type::getInt32Ty(Ctx);
@@ -172,7 +169,8 @@ bool AMDGPUPrintfRuntimeBinding::lowerPrintfForGpu(
     }
 
     if (auto I = dyn_cast<Instruction>(Op)) {
-      Value *Op_simplified = simplify(I, &GetTLI(*I->getFunction()));
+      Value *Op_simplified =
+          simplify(I, &GetTLI(*I->getFunction()), &GetDT(*I->getFunction()));
       if (Op_simplified)
         Op = Op_simplified;
     }
@@ -552,7 +550,7 @@ bool AMDGPUPrintfRuntimeBinding::lowerPrintfForGpu(
   return true;
 }
 
-bool AMDGPUPrintfRuntimeBinding::runOnModule(Module &M) {
+bool AMDGPUPrintfRuntimeBindingImpl::run(Module &M) {
   Triple TT(M.getTargetTriple());
   if (TT.getArch() == Triple::r600)
     return false;
@@ -581,11 +579,31 @@ bool AMDGPUPrintfRuntimeBinding::runOnModule(Module &M) {
   }
 
   TD = &M.getDataLayout();
-  auto DTWP = getAnalysisIfAvailable<DominatorTreeWrapperPass>();
-  DT = DTWP ? &DTWP->getDomTree() : nullptr;
+
+  return lowerPrintfForGpu(M);
+}
+
+bool AMDGPUPrintfRuntimeBinding::runOnModule(Module &M) {
+  auto GetDT = [this](Function &F) -> DominatorTree & {
+    return this->getAnalysis<DominatorTreeWrapperPass>(F).getDomTree();
+  };
   auto GetTLI = [this](Function &F) -> TargetLibraryInfo & {
     return this->getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
   };
 
-  return lowerPrintfForGpu(M, GetTLI);
+  return AMDGPUPrintfRuntimeBindingImpl(GetDT, GetTLI).run(M);
+}
+
+PreservedAnalyses
+AMDGPUPrintfRuntimeBindingPass::run(Module &M, ModuleAnalysisManager &AM) {
+  FunctionAnalysisManager &FAM =
+      AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
+  auto GetDT = [&FAM](Function &F) -> DominatorTree & {
+    return FAM.getResult<DominatorTreeAnalysis>(F);
+  };
+  auto GetTLI = [&FAM](Function &F) -> TargetLibraryInfo & {
+    return FAM.getResult<TargetLibraryAnalysis>(F);
+  };
+  bool Changed = AMDGPUPrintfRuntimeBindingImpl(GetDT, GetTLI).run(M);
+  return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }

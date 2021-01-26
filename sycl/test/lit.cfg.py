@@ -39,6 +39,9 @@ config.test_exec_root = os.path.join(config.sycl_obj_root, 'test')
 llvm_config.with_system_environment(['PATH', 'OCL_ICD_FILENAMES', 'SYCL_DEVICE_ALLOWLIST', 'SYCL_CONFIG_FILE_NAME'])
 
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
+# Add 'libcxx' feature to filter out all SYCL abi tests when SYCL runtime
+# is built with llvm libcxx. This feature is added for Linux only since MSVC
+# CL compiler doesn't support to use llvm libcxx instead of MSVC STL.
 if platform.system() == "Linux":
     config.available_features.add('linux')
     if config.sycl_use_libcxx == "ON":

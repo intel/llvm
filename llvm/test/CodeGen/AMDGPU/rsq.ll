@@ -44,7 +44,7 @@ define amdgpu_kernel void @rsq_f32_sgpr(float addrspace(1)* noalias %out, float 
 ; NOTE: c * rcp( sqrt(a) * b ) is generated when we move rcp generation to AMGGPUCogenPrepare.
 
 ; SI-LABEL: @rsqrt_fmul
-; SI-DAG: buffer_load_dword [[A:v[0-9]+]], {{v\[[0-9]+:[0-9]+\]}}, {{s\[[0-9]+:[0-9]+\]}}, 0 addr64{{$}}
+; SI-DAG: buffer_load_dword [[A:v[0-9]+]], {{v\[[0-9]+:[0-9]+\]}}, {{s\[[0-9]+:[0-9]+\]}}, 0 addr64 glc{{$}}
 ; SI-DAG: buffer_load_dword [[B:v[0-9]+]], {{v\[[0-9]+:[0-9]+\]}}, {{s\[[0-9]+:[0-9]+\]}}, 0 addr64 offset:4
 ; SI-DAG: buffer_load_dword [[C:v[0-9]+]], {{v\[[0-9]+:[0-9]+\]}}, {{s\[[0-9]+:[0-9]+\]}}, 0 addr64 offset:8
 
@@ -116,7 +116,7 @@ define amdgpu_kernel void @neg_rsq_f64(double addrspace(1)* noalias %out, double
 ; SI-UNSAFE: buffer_store_dword [[RSQ]]
 define amdgpu_kernel void @neg_rsq_neg_f32(float addrspace(1)* noalias %out, float addrspace(1)* noalias %in) #0 {
   %val = load float, float addrspace(1)* %in, align 4
-  %val.fneg = fsub float -0.0, %val
+  %val.fneg = fneg float %val
   %sqrt = call float @llvm.sqrt.f32(float %val.fneg)
   %div = fdiv float -1.0, %sqrt, !fpmath !0
   store float %div, float addrspace(1)* %out, align 4

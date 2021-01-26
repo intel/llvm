@@ -13,7 +13,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AddSYCLExecutable)
 
 set(SYCL_MAJOR_VERSION 5)
-set(SYCL_MINOR_VERSION 0)
+set(SYCL_MINOR_VERSION 1)
 set(SYCL_PATCH_VERSION 0)
 set(SYCL_DEV_ABI_VERSION 0)
 if (SYCL_ADD_DEV_VERSION_POSTFIX)
@@ -220,19 +220,12 @@ if (MSVC)
   list(APPEND SYCL_RT_LIBS sycld)
 endif()
 
-function(add_libcxx_compile_options LIB_NAME)
-  target_compile_options(${LIB_NAME} PRIVATE -nostdinc++)
-  target_include_directories(${LIB_NAME} PRIVATE "${SYCL_LIBCXX_INCLUDE_PATH}")
-endfunction(add_libcxx_include_option)
-
-function(add_libcxx_link_options LIB_NAME)
-  target_link_libraries(${LIB_NAME} PRIVATE "-L${SYCL_LIBCXX_LIBRARY_PATH}" -Wl,-rpath,${SYCL_LIBCXX_LIBRARY_PATH} -nodefaultlibs -lc++ -lc++abi -lm -lc -lgcc_s -lgcc)
-endfunction(add_libcxx_link_options)
-
 # This function allows building multiple libraries with the same options.
 # Currently used by sycl and plugins library.
 # Currently handles linking with libcxx support and gcc workaround
-function( add_common_options LIB_NAME)
+# If IS_LINK is 1, common linker options should be added for target or common
+# compile option should be added.
+function( add_common_options TAR_NAME IS_LINK)
   if (SYCL_USE_LIBCXX)
       if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
           (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
@@ -240,8 +233,12 @@ function( add_common_options LIB_NAME)
               message(FATAL_ERROR "When building with libc++ SYCL_LIBCXX_INCLUDE_PATHS and"
                                   "SYCL_LIBCXX_LIBRARY_PATH should be set")
           endif()
-          add_libcxx_compile_options(${LIB_NAME})
-          add_libcxx_link_options(${LIB_NAME})
+          if (IS_LINK)
+              target_link_libraries(${TAR_NAME} PRIVATE "-L${SYCL_LIBCXX_LIBRARY_PATH}" -Wl,-rpath,${SYCL_LIBCXX_LIBRARY_PATH} -nodefaultlibs -lc++ -lc++abi -lm -lc -lgcc_s -lgcc)
+          else()
+              target_compile_options(${TAR_NAME} PRIVATE -nostdinc++)
+              target_include_directories(${TAR_NAME} PRIVATE "${SYCL_LIBCXX_INCLUDE_PATH}")
+          endif()
       else()
           message(FATAL_ERROR "Build with libc++ is not yet supported for this compiler")
       endif()
@@ -250,8 +247,8 @@ function( add_common_options LIB_NAME)
 # Workaround for bug in GCC version 5 and higher.
 # More information https://bugs.launchpad.net/ubuntu/+source/gcc-5/+bug/1568899
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
-        CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 5.0)
-    target_link_libraries(${LIB_NAME} PRIVATE gcc_s gcc)
+        CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 5.0 AND IS_LINK)
+        target_link_libraries(${TAR_NAME} PRIVATE gcc_s gcc)
     endif()
 
   endif()
@@ -282,6 +279,10 @@ if (NOT WIN32)
       COMPONENT sycl-headers-extras)
 endif()
 
+if (SYCL_ENABLE_XPTI_TRACING)
+  set(XPTIFW_LIBS xptifw)
+endif()
+
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
 add_custom_target( sycl-toolchain
   DEPENDS ${SYCL_RT_LIBS}
@@ -299,6 +300,7 @@ add_custom_target( sycl-toolchain
           llvm-objcopy
           sycl-post-link
           sycl-ls
+          ${XPTIFW_LIBS}
   COMMENT "Building SYCL compiler toolchain..."
 )
 
@@ -360,6 +362,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      pi_opencl
      pi_level_zero
      libsycldevice
+     ${XPTIFW_LIBS}
 )
 if(OpenCL_INSTALL_KHRONOS_ICD_LOADER AND TARGET ocl-icd)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS opencl-icd)

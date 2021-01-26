@@ -2389,9 +2389,9 @@ template <typename Derived, typename Alloc> struct AbstractManglingParser {
     TemplateParamList Params;
 
   public:
-    ScopedTemplateParamList(AbstractManglingParser *Parser)
-        : Parser(Parser),
-          OldNumTemplateParamLists(Parser->TemplateParams.size()) {
+    ScopedTemplateParamList(AbstractManglingParser *TheParser)
+        : Parser(TheParser),
+          OldNumTemplateParamLists(TheParser->TemplateParams.size()) {
       Parser->TemplateParams.push_back(&Params);
     }
     ~ScopedTemplateParamList() {
@@ -5241,7 +5241,7 @@ Node *AbstractManglingParser<Derived, Alloc>::parseEncoding() {
     decltype(TemplateParams) OldParams;
 
   public:
-    SaveTemplateParams(AbstractManglingParser *Parser) : Parser(Parser) {
+    SaveTemplateParams(AbstractManglingParser *TheParser) : Parser(TheParser) {
       OldParams = std::move(Parser->TemplateParams);
       Parser->TemplateParams.clear();
     }

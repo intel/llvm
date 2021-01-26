@@ -52,12 +52,12 @@ int main() {
   return 0;
 }
 
-// CHECK: define spir_kernel void @{{.*}}kernel_name1"() #0 {{.*}} !reqd_work_group_size ![[WGSIZE32:[0-9]+]]
-// CHECK: define spir_kernel void @{{.*}}kernel_name2"() #0 {{.*}} !reqd_work_group_size ![[WGSIZE8:[0-9]+]]
-// CHECK: define spir_kernel void @{{.*}}kernel_name3"() #0 {{.*}} !reqd_work_group_size ![[WGSIZE88:[0-9]+]]
-// CHECK: define spir_kernel void @{{.*}}kernel_name4"() #0 {{.*}} !reqd_work_group_size ![[WGSIZE22:[0-9]+]]
-// CHECK: define spir_kernel void @{{.*}}kernel_name5"() #0 {{.*}} !reqd_work_group_size ![[WGSIZE44:[0-9]+]]
-// CHECK: define spir_kernel void @{{.*}}kernel_name6"() #0 {{.*}} !reqd_work_group_size ![[WGSIZE2:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name1"() #0 {{.*}} !reqd_work_group_size ![[WGSIZE32:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name2"() #0 {{.*}} !reqd_work_group_size ![[WGSIZE8:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name3"() #0 {{.*}} !reqd_work_group_size ![[WGSIZE88:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name4"() #0 {{.*}} !reqd_work_group_size ![[WGSIZE22:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name5"() #0 {{.*}} !reqd_work_group_size ![[WGSIZE44:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name6"() #0 {{.*}} !reqd_work_group_size ![[WGSIZE2:[0-9]+]]
 // CHECK: ![[WGSIZE32]] = !{i32 16, i32 16, i32 32}
 // CHECK: ![[WGSIZE8]] = !{i32 1, i32 1, i32 8}
 // CHECK: ![[WGSIZE88]] = !{i32 8, i32 8, i32 8}
