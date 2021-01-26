@@ -20,9 +20,13 @@
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/PointerUnion.h"
-#include <type_traits>
+#include "llvm/Support/AlignOf.h"
 
 namespace clang {
+namespace serialization {
+template <typename T> class BasicReaderBase;
+} // end namespace serialization
+
   class AddrLabelExpr;
   class ASTContext;
   class CharUnits;
@@ -233,12 +237,20 @@ public:
       return llvm::hash_value(A.Value);
     }
   };
+  class LValuePathSerializationHelper {
+    const void *ElemTy;
+
+  public:
+    ArrayRef<LValuePathEntry> Path;
+
+    LValuePathSerializationHelper(ArrayRef<LValuePathEntry>, QualType);
+    QualType getType();
+  };
   struct NoLValuePath {};
   struct UninitArray {};
   struct UninitStruct {};
 
-  friend class ASTRecordReader;
-  friend class ASTWriter;
+  template <typename Impl> friend class clang::serialization::BasicReaderBase;
   friend class ASTImporter;
   friend class ASTNodeImporter;
 
@@ -286,10 +298,9 @@ private:
   struct MemberPointerData;
 
   // We ensure elsewhere that Data is big enough for LV and MemberPointerData.
-  typedef std::aligned_union_t<1, void *, APSInt, APFloat, ComplexAPSInt,
-                               ComplexAPFloat, Vec, Arr, StructData, UnionData,
-                               AddrLabelDiffData>
-      DataType;
+  typedef llvm::AlignedCharArrayUnion<void *, APSInt, APFloat, ComplexAPSInt,
+                                      ComplexAPFloat, Vec, Arr, StructData,
+                                      UnionData, AddrLabelDiffData> DataType;
   static const size_t DataSize = sizeof(DataType);
 
   DataType Data;

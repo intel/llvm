@@ -73,7 +73,7 @@ static void reportError(Error E) {
 
 int main(int argc, const char **argv) {
   sys::PrintStackTraceOnErrorSignal(argv[0]);
-  ToolPath = sys::fs::getMainExecutable(argv[0], &ToolPath);
+  ToolPath = argv[0];
 
   cl::HideUnrelatedOptions(ClangOffloadDepsCategory);
   cl::SetVersionPrinter([](raw_ostream &OS) {
@@ -104,12 +104,12 @@ int main(int argc, const char **argv) {
   //     <kind>-<triple>
   // where <kind> is host, openmp, hip, sycl or fpga,
   // and <triple> is an offload target triple.
+  SmallVector<StringRef, 8u> Kinds(Targets.size());
   SmallVector<StringRef, 8u> Triples(Targets.size());
   for (unsigned I = 0; I < Targets.size(); ++I) {
-    StringRef Kind;
-    std::tie(Kind, Triples[I]) = StringRef(Targets[I]).split('-');
+    std::tie(Kinds[I], Triples[I]) = StringRef(Targets[I]).split('-');
 
-    bool KindIsValid = StringSwitch<bool>(Kind)
+    bool KindIsValid = StringSwitch<bool>(Kinds[I])
                            .Case("host", true)
                            .Case("openmp", true)
                            .Case("hip", true)
@@ -124,7 +124,7 @@ int main(int argc, const char **argv) {
       raw_svector_ostream Msg(Buf);
       Msg << "invalid target '" << Targets[I] << "'";
       if (!KindIsValid)
-        Msg << ", unknown offloading kind '" << Kind << "'";
+        Msg << ", unknown offloading kind '" << Kinds[I] << "'";
       if (!TripleIsValid)
         Msg << ", unknown target triple '" << Triples[I] << "'";
       reportError(createStringError(errc::invalid_argument, Msg.str()));
@@ -202,11 +202,11 @@ int main(int argc, const char **argv) {
     if (!Used.empty()) {
       ArrayType *ArrayTy = ArrayType::get(Int8PtrTy, Used.size());
 
-      // SPIRV linking is done on LLVM IR inputs, so we can use special
+      // SYCL/SPIRV linking is done on LLVM IR inputs, so we can use special
       // global variable llvm.used to represent a reference to a symbol. But for
       // other targets we have to create a real reference since llvm.used may
       // not be representable in the object file.
-      if (Triple(Triples[I]).isSPIR()) {
+      if (Kinds[I] == "sycl" || Triple(Triples[I]).isSPIR()) {
         auto *GV = new GlobalVariable(
             Mod, ArrayTy, false, GlobalValue::AppendingLinkage,
             ConstantArray::get(ArrayTy, Used), "llvm.used");

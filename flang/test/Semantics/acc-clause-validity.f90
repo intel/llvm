@@ -3,11 +3,10 @@
 ! Check OpenACC clause validity for the following construct and directive:
 !   2.6.5 Data
 !   2.5.1 Parallel
-!   2.5.2 Kernels
-!   2.5.3 Serial
+!   2.5.2 Serial
+!   2.5.3 Kernels
 !   2.9 Loop
 !   2.12 Atomic
-!   2.13 Declare
 !   2.14.3 Set
 !   2.14.4 Update
 !   2.15.1 Routine
@@ -16,6 +15,8 @@
 !   2.11 Kernels Loop
 !   2.11 Serial Loop
 !   2.14.3 Set
+!   2.14.1 Init
+!   2.14.2 Shutdown
 !   2.16.13 Wait
 
 program openacc_clause_validity
@@ -40,8 +41,6 @@ program openacc_clause_validity
   type(atype) :: t
   type(atype), dimension(10) :: ta
 
-  !ERROR: At least one clause is required on the DECLARE directive
-  !$acc declare
   real(8), dimension(N) :: a, f, g, h
 
   !$acc init
@@ -267,6 +266,32 @@ program openacc_clause_validity
   !$acc set device_type(i)
   !$acc set device_type(2, i, j)
   !$acc set device_num(1) default_async(2) device_type(2, i, j)
+  !ERROR: At most one IF clause can appear on the INIT directive
+  !$acc init if(.TRUE.) if(ifCondition)
+
+  !ERROR: At most one DEVICE_NUM clause can appear on the INIT directive
+  !$acc init device_num(1) device_num(i)
+
+  !ERROR: At most one DEVICE_TYPE clause can appear on the INIT directive
+  !$acc init device_type(2) device_type(i, j)
+
+  !$acc shutdown
+  !$acc shutdown if(.TRUE.)
+  !$acc shutdown if(ifCondition)
+  !$acc shutdown device_num(1)
+  !$acc shutdown device_num(i)
+  !$acc shutdown device_type(i)
+  !$acc shutdown device_type(2, i, j)
+  !$acc shutdown device_num(i) device_type(i, j) if(ifCondition)
+
+  !ERROR: At most one IF clause can appear on the SHUTDOWN directive
+  !$acc shutdown if(.TRUE.) if(ifCondition)
+
+  !ERROR: At most one DEVICE_NUM clause can appear on the SHUTDOWN directive
+  !$acc shutdown device_num(1) device_num(i)
+
+  !ERROR: At most one DEVICE_TYPE clause can appear on the SHUTDOWN directive
+  !$acc shutdown device_type(2) device_type(i, j)
 
   !ERROR: At least one of ATTACH, COPYIN, CREATE clause must appear on the ENTER DATA directive
   !$acc enter data
@@ -780,6 +805,170 @@ program openacc_clause_validity
   end do
   !$acc end parallel loop
 
+  !$acc serial
+  !$acc end serial
+
+  !$acc serial async
+  !$acc end serial
+
+  !$acc serial async(1)
+  !$acc end serial
+
+  !ERROR: At most one ASYNC clause can appear on the SERIAL directive
+  !$acc serial async(1) async(2)
+  !$acc end serial
+
+  !$acc serial async(async1)
+  !$acc end serial
+
+  !$acc serial wait
+  !$acc end serial
+
+  !$acc serial wait(1)
+  !$acc end serial
+
+  !$acc serial wait(wait1)
+  !$acc end serial
+
+  !$acc serial wait(1,2)
+  !$acc end serial
+
+  !$acc serial wait(wait1, wait2)
+  !$acc end serial
+
+  !$acc serial wait(wait1) wait(wait2)
+  !$acc end serial
+
+  !ERROR: NUM_GANGS clause is not allowed on the SERIAL directive
+  !$acc serial num_gangs(8)
+  !$acc end serial
+
+  !ERROR: NUM_WORKERS clause is not allowed on the SERIAL directive
+  !$acc serial num_workers(8)
+  !$acc end serial
+
+  !ERROR: VECTOR_LENGTH clause is not allowed on the SERIAL directive
+  !$acc serial vector_length(128)
+  !$acc end serial
+
+  !$acc serial if(.true.)
+  !$acc end serial
+
+  !ERROR: At most one IF clause can appear on the SERIAL directive
+  !$acc serial if(.true.) if(ifCondition)
+  !$acc end serial
+
+  !$acc serial if(ifCondition)
+  !$acc end serial
+
+  !$acc serial self
+  !$acc end serial
+
+  !$acc serial self(.true.)
+  !$acc end serial
+
+  !$acc serial self(ifCondition)
+  !$acc end serial
+
+  !$acc serial loop reduction(+: reduction_r)
+  do i = 1, N
+    reduction_r = a(i) + i
+  end do
+
+  !$acc serial loop reduction(*: reduction_r)
+  do i = 1, N
+    reduction_r = reduction_r * (a(i) + i)
+  end do
+
+  !$acc serial loop reduction(min: reduction_r)
+  do i = 1, N
+    reduction_r = min(reduction_r, a(i) * i)
+  end do
+
+  !$acc serial loop reduction(max: reduction_r)
+  do i = 1, N
+    reduction_r = max(reduction_r, a(i) * i)
+  end do
+
+  !$acc serial loop reduction(iand: b)
+  do i = 1, N
+    b = iand(b, c(i))
+  end do
+
+  !$acc serial loop reduction(ior: b)
+  do i = 1, N
+    b = ior(b, c(i))
+  end do
+
+  !$acc serial loop reduction(ieor: b)
+  do i = 1, N
+    b = ieor(b, c(i))
+  end do
+
+  !$acc serial loop reduction(.and.: reduction_l)
+  do i = 1, N
+    reduction_l = d(i) .and. e(i)
+  end do
+
+  !$acc serial loop reduction(.or.: reduction_l)
+  do i = 1, N
+    reduction_l = d(i) .or. e(i)
+  end do
+
+  !$acc serial loop reduction(.eqv.: reduction_l)
+  do i = 1, N
+    reduction_l = d(i) .eqv. e(i)
+  end do
+
+  !$acc serial loop reduction(.neqv.: reduction_l)
+  do i = 1, N
+    reduction_l = d(i) .neqv. e(i)
+  end do
+
+  !$acc serial reduction(.neqv.: reduction_l)
+  !$acc loop reduction(.neqv.: reduction_l)
+  do i = 1, N
+    reduction_l = d(i) .neqv. e(i)
+  end do
+  !$acc end serial
+
+  !$acc serial copy(aa) copyin(bb) copyout(cc)
+  !$acc end serial
+
+  !$acc serial copy(aa, bb) copyout(zero: cc)
+  !$acc end serial
+
+  !$acc serial present(aa, bb) create(cc)
+  !$acc end serial
+
+  !$acc serial copyin(readonly: aa, bb) create(zero: cc)
+  !$acc end serial
+
+  !$acc serial deviceptr(aa, bb) no_create(cc)
+  !$acc end serial
+
+  !$acc serial attach(aa, bb, cc)
+  !$acc end serial
+
+  !$acc serial firstprivate(bb, cc)
+  !$acc end serial
+
+  !$acc serial private(aa)
+  !$acc end serial
+
+  !$acc serial default(none)
+  !$acc end serial
+
+  !$acc serial default(present)
+  !$acc end serial
+
+  !ERROR: At most one DEFAULT clause can appear on the SERIAL directive
+  !$acc serial default(present) default(none)
+  !$acc end serial
+
+  !$acc serial device_type(*) async wait
+  !$acc end serial
+
   !$acc serial device_type(*) async
   do i = 1, N
     a(i) = 3.14
@@ -1075,19 +1264,5 @@ program openacc_clause_validity
 
   !ERROR: Only array element or subarray are allowed in CACHE directive
   !$acc cache(/i/)
-
- contains
-
-   subroutine sub1(a)
-     real :: a(:)
-     !ERROR: At least one of GANG, SEQ, VECTOR, WORKER clause must appear on the ROUTINE directive
-     !$acc routine
-   end subroutine sub1
-
-   subroutine sub2(a)
-     real :: a(:)
-     !ERROR: Clause NOHOST is not allowed after clause DEVICE_TYPE on the ROUTINE directive
-     !$acc routine seq device_type(*) nohost
-   end subroutine sub2
 
 end program openacc_clause_validity

@@ -106,12 +106,12 @@ Expected<Tweak::Effect> ExpandAutoType::apply(const Selection& Inputs) {
       Inputs.AST->getASTContext(), CachedLocation->getBeginLoc());
 
   // if we can't resolve the type, return an error message
-  if (DeducedType == llvm::None)
+  if (DeducedType == llvm::None || (*DeducedType)->isUndeducedAutoType())
     return error("Could not deduce type for 'auto' type");
 
   // if it's a lambda expression, return an error message
   if (isa<RecordType>(*DeducedType) &&
-      dyn_cast<RecordType>(*DeducedType)->getDecl()->isLambda()) {
+      cast<RecordType>(*DeducedType)->getDecl()->isLambda()) {
     return error("Could not expand type of lambda expression");
   }
 

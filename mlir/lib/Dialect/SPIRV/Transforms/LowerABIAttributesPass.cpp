@@ -12,11 +12,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
-#include "mlir/Dialect/SPIRV/LayoutUtils.h"
-#include "mlir/Dialect/SPIRV/Passes.h"
-#include "mlir/Dialect/SPIRV/SPIRVDialect.h"
-#include "mlir/Dialect/SPIRV/SPIRVLowering.h"
-#include "mlir/Dialect/SPIRV/SPIRVOps.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
+#include "mlir/Dialect/SPIRV/Transforms/Passes.h"
+#include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
+#include "mlir/Dialect/SPIRV/Utils/LayoutUtils.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/ADT/SetVector.h"
 
@@ -151,9 +151,10 @@ namespace {
 /// variable ABI attributes attached to function arguments and converts all
 /// function argument uses to those global variables. This is necessary because
 /// Vulkan requires all shader entry points to be of void(void) type.
-class ProcessInterfaceVarABI final : public SPIRVOpLowering<spirv::FuncOp> {
+class ProcessInterfaceVarABI final : public OpConversionPattern<spirv::FuncOp> {
 public:
-  using SPIRVOpLowering<spirv::FuncOp>::SPIRVOpLowering;
+  using OpConversionPattern<spirv::FuncOp>::OpConversionPattern;
+
   LogicalResult
   matchAndRewrite(spirv::FuncOp funcOp, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override;
@@ -214,7 +215,7 @@ LogicalResult ProcessInterfaceVarABI::matchAndRewrite(
     }
     signatureConverter.remapInput(argType.index(), replacement);
   }
-  if (failed(rewriter.convertRegionTypes(&funcOp.getBody(), typeConverter,
+  if (failed(rewriter.convertRegionTypes(&funcOp.getBody(), *getTypeConverter(),
                                          &signatureConverter)))
     return failure();
 
@@ -246,7 +247,7 @@ void LowerABIAttributesPass::runOnOperation() {
   });
 
   OwningRewritePatternList patterns;
-  patterns.insert<ProcessInterfaceVarABI>(context, typeConverter);
+  patterns.insert<ProcessInterfaceVarABI>(typeConverter, context);
 
   ConversionTarget target(*context);
   // "Legal" function ops should have no interface variable ABI attributes.

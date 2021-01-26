@@ -2050,6 +2050,13 @@ void UnwrappedLineParser::parseTryCatch() {
       nextToken();
       if (FormatTok->is(tok::l_paren))
         parseParens();
+      if (FormatTok->Previous && FormatTok->Previous->is(tok::identifier) &&
+          FormatTok->is(tok::l_brace)) {
+        do {
+          nextToken();
+        } while (!FormatTok->is(tok::r_brace));
+        nextToken();
+      }
 
       // In case identifiers were removed by clang-tidy, what might follow is
       // multiple commas in sequence - after the first identifier.
@@ -2237,18 +2244,26 @@ void UnwrappedLineParser::parseLabel(bool LeftAlignLabel) {
     --Line->Level;
   if (LeftAlignLabel)
     Line->Level = 0;
+
+  bool RemoveWhitesmithsCaseIndent =
+      (!Style.IndentCaseBlocks &&
+       Style.BreakBeforeBraces == FormatStyle::BS_Whitesmiths);
+
+  if (RemoveWhitesmithsCaseIndent)
+    --Line->Level;
+
   if (!Style.IndentCaseBlocks && CommentsBeforeNextToken.empty() &&
       FormatTok->Tok.is(tok::l_brace)) {
-    CompoundStatementIndenter Indenter(this, Line->Level,
-                                       Style.BraceWrapping.AfterCaseLabel,
-                                       Style.BraceWrapping.IndentBraces);
+
+    CompoundStatementIndenter Indenter(
+        this, Line->Level, Style.BraceWrapping.AfterCaseLabel,
+        Style.BraceWrapping.IndentBraces || RemoveWhitesmithsCaseIndent);
     parseBlock(/*MustBeDeclaration=*/false);
     if (FormatTok->Tok.is(tok::kw_break)) {
       if (Style.BraceWrapping.AfterControlStatement ==
           FormatStyle::BWACS_Always) {
         addUnwrappedLine();
-        if (!Style.IndentCaseBlocks &&
-            Style.BreakBeforeBraces == FormatStyle::BS_Whitesmiths) {
+        if (RemoveWhitesmithsCaseIndent) {
           Line->Level++;
         }
       }
@@ -2269,6 +2284,7 @@ void UnwrappedLineParser::parseLabel(bool LeftAlignLabel) {
 
 void UnwrappedLineParser::parseCaseLabel() {
   assert(FormatTok->Tok.is(tok::kw_case) && "'case' expected");
+
   // FIXME: fix handling of complex expressions here.
   do {
     nextToken();

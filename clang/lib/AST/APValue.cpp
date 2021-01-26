@@ -154,6 +154,14 @@ void APValue::LValuePathEntry::Profile(llvm::FoldingSetNodeID &ID) const {
   ID.AddInteger(Value);
 }
 
+APValue::LValuePathSerializationHelper::LValuePathSerializationHelper(
+    ArrayRef<LValuePathEntry> Path, QualType ElemTy)
+    : ElemTy((const void *)ElemTy.getTypePtrOrNull()), Path(Path) {}
+
+QualType APValue::LValuePathSerializationHelper::getType() {
+  return QualType::getFromOpaquePtr(ElemTy);
+}
+
 namespace {
   struct LVBase {
     APValue::LValueBase Base;
@@ -952,8 +960,10 @@ void APValue::setLValue(LValueBase B, const CharUnits &O,
                         bool IsNullPtr) {
   MutableArrayRef<APValue::LValuePathEntry> InternalPath =
       setLValueUninit(B, O, Path.size(), IsOnePastTheEnd, IsNullPtr);
-  memcpy(InternalPath.data(), Path.data(),
-         Path.size() * sizeof(LValuePathEntry));
+  if (Path.size()) {
+    memcpy(InternalPath.data(), Path.data(),
+           Path.size() * sizeof(LValuePathEntry));
+  }
 }
 
 void APValue::setUnion(const FieldDecl *Field, const APValue &Value) {

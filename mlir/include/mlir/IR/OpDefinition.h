@@ -28,10 +28,6 @@ namespace mlir {
 class Builder;
 class OpBuilder;
 
-namespace OpTrait {
-template <typename ConcreteType> class OneResult;
-}
-
 /// This class represents success/failure for operation parsing. It is
 /// essentially a simple wrapper class around LogicalResult that allows for
 /// explicit conversion to bool. This allows for the parser to chain together
@@ -109,25 +105,32 @@ public:
   Operation *getOperation() { return state; }
 
   /// Return the dialect that this refers to.
-  Dialect *getDialect() { return getOperation()->getDialect(); }
+  LLVM_ATTRIBUTE_DEPRECATED(
+      Dialect *getDialect(),
+      "Use Operation::getDialect() instead (replace '.' with '->').");
 
   /// Return the parent Region of this operation.
-  Region *getParentRegion() { return getOperation()->getParentRegion(); }
+  LLVM_ATTRIBUTE_DEPRECATED(
+      Region *getParentRegion(),
+      "Use Operation::getParentRegion() instead (replace '.' with '->').");
 
   /// Returns the closest surrounding operation that contains this operation
   /// or nullptr if this is a top-level operation.
-  Operation *getParentOp() { return getOperation()->getParentOp(); }
+  LLVM_ATTRIBUTE_DEPRECATED(
+      Operation *getParentOp(),
+      "Use Operation::getParentOp() instead (replace '.' with '->').");
 
   /// Return the closest surrounding parent operation that is of type 'OpTy'.
-  template <typename OpTy> OpTy getParentOfType() {
-    return getOperation()->getParentOfType<OpTy>();
-  }
+  template <typename OpTy>
+  LLVM_ATTRIBUTE_DEPRECATED(
+      OpTy getParentOfType(),
+      "Use Operation::getParentOfType() instead (replace '.' with '->').");
 
   /// Returns the closest surrounding parent operation with trait `Trait`.
   template <template <typename T> class Trait>
-  Operation *getParentWithTrait() {
-    return getOperation()->getParentWithTrait<Trait>();
-  }
+  LLVM_ATTRIBUTE_DEPRECATED(
+      Operation *getParentWithTrait(),
+      "Use Operation::getParentWithTrait() instead (replace '.' with '->').");
 
   /// Return the context this operation belongs to.
   MLIRContext *getContext() { return getOperation()->getContext(); }
@@ -156,46 +159,55 @@ public:
   using dialect_attr_range = Operation::dialect_attr_range;
 
   /// Return a range corresponding to the dialect attributes for this operation.
-  dialect_attr_range getDialectAttrs() { return state->getDialectAttrs(); }
-  dialect_attr_iterator dialect_attr_begin() {
-    return state->dialect_attr_begin();
-  }
-  dialect_attr_iterator dialect_attr_end() { return state->dialect_attr_end(); }
+  LLVM_ATTRIBUTE_DEPRECATED(
+      dialect_attr_range getDialectAttrs(),
+      "Use Operation::getDialectAttrs() instead (replace '.' with '->').");
+  LLVM_ATTRIBUTE_DEPRECATED(
+      dialect_attr_iterator dialect_attr_begin(),
+      "Use Operation::dialect_attr_begin() instead (replace '.' with '->').");
+  LLVM_ATTRIBUTE_DEPRECATED(
+      dialect_attr_iterator dialect_attr_end(),
+      "Use Operation::dialect_attr_end() instead (replace '.' with '->').");
 
   /// Return an attribute with the specified name.
-  Attribute getAttr(StringRef name) { return state->getAttr(name); }
+  LLVM_ATTRIBUTE_DEPRECATED(
+      Attribute getAttr(StringRef name),
+      "Use Operation::getAttr() instead (replace '.' with '->').");
 
   /// If the operation has an attribute of the specified type, return it.
-  template <typename AttrClass> AttrClass getAttrOfType(StringRef name) {
-    return getAttr(name).dyn_cast_or_null<AttrClass>();
-  }
+  template <typename AttrClass>
+  LLVM_ATTRIBUTE_DEPRECATED(
+      AttrClass getAttrOfType(StringRef name),
+      "Use Operation::getAttrOfType() instead (replace '.' with '->').");
 
   /// If the an attribute exists with the specified name, change it to the new
   /// value.  Otherwise, add a new attribute with the specified name/value.
-  void setAttr(Identifier name, Attribute value) {
-    state->setAttr(name, value);
-  }
-  void setAttr(StringRef name, Attribute value) {
-    setAttr(Identifier::get(name, getContext()), value);
-  }
+  LLVM_ATTRIBUTE_DEPRECATED(
+      void setAttr(Identifier name, Attribute value),
+      "Use Operation::setAttr() instead (replace '.' with '->').");
+  LLVM_ATTRIBUTE_DEPRECATED(
+      void setAttr(StringRef name, Attribute value),
+      "Use Operation::setAttr() instead (replace '.' with '->').");
 
   /// Set the attributes held by this operation.
-  void setAttrs(ArrayRef<NamedAttribute> attributes) {
-    state->setAttrs(attributes);
-  }
-  void setAttrs(MutableDictionaryAttr newAttrs) { state->setAttrs(newAttrs); }
+  LLVM_ATTRIBUTE_DEPRECATED(
+      void setAttrs(ArrayRef<NamedAttribute> attributes),
+      "Use Operation::setAttrs() instead (replace '.' with '->').");
+  LLVM_ATTRIBUTE_DEPRECATED(
+      void setAttrs(DictionaryAttr newAttrs),
+      "Use Operation::setAttrs() instead (replace '.' with '->').");
 
   /// Set the dialect attributes for this operation, and preserve all dependent.
-  template <typename DialectAttrs> void setDialectAttrs(DialectAttrs &&attrs) {
-    state->setDialectAttrs(std::move(attrs));
+  template <typename DialectAttrs>
+  void setDialectAttrs(DialectAttrs &&attrs) {
+    state->setDialectAttrs(std::forward<DialectAttrs>(attrs));
   }
 
-  /// Remove the attribute with the specified name if it exists.  The return
-  /// value indicates whether the attribute was present or not.
-  MutableDictionaryAttr::RemoveResult removeAttr(Identifier name) {
-    return state->removeAttr(name);
-  }
-  MutableDictionaryAttr::RemoveResult removeAttr(StringRef name) {
+  /// Remove the attribute with the specified name if it exists. Return the
+  /// attribute that was erased, or nullptr if there was no attribute with such
+  /// name.
+  Attribute removeAttr(Identifier name) { return state->removeAttr(name); }
+  Attribute removeAttr(StringRef name) {
     return state->removeAttr(Identifier::get(name, getContext()));
   }
 
@@ -259,6 +271,19 @@ private:
   /// Allow access to internal hook implementation methods.
   friend AbstractOperation;
 };
+
+template <typename OpTy>
+OpTy OpState::getParentOfType() {
+  return getOperation()->getParentOfType<OpTy>();
+}
+template <template <typename T> class Trait>
+Operation *OpState::getParentWithTrait() {
+  return getOperation()->getParentWithTrait<Trait>();
+}
+template <typename AttrClass>
+AttrClass OpState::getAttrOfType(StringRef name) {
+  return getAttr(name).dyn_cast_or_null<AttrClass>();
+}
 
 // Allow comparing operators.
 inline bool operator==(OpState lhs, OpState rhs) {
@@ -423,7 +448,8 @@ public:
 ///
 ///   class FooOp : public Op<FooOp, OpTrait::NOperands<2>::Impl> {
 ///
-template <unsigned N> class NOperands {
+template <unsigned N>
+class NOperands {
 public:
   static_assert(N > 1, "use ZeroOperands/OneOperand for N < 2");
 
@@ -442,7 +468,8 @@ public:
 ///
 ///   class FooOp : public Op<FooOp, OpTrait::AtLeastNOperands<2>::Impl> {
 ///
-template <unsigned N> class AtLeastNOperands {
+template <unsigned N>
+class AtLeastNOperands {
 public:
   template <typename ConcreteType>
   class Impl : public detail::MultiOperandTraitBase<ConcreteType,
@@ -516,7 +543,8 @@ public:
 
 /// This class provides the API for ops that are known to have a specified
 /// number of regions.
-template <unsigned N> class NRegions {
+template <unsigned N>
+class NRegions {
 public:
   static_assert(N > 1, "use ZeroRegion/OneRegion for N < 2");
 
@@ -532,7 +560,8 @@ public:
 
 /// This class provides APIs for ops that are known to have at least a specified
 /// number of regions.
-template <unsigned N> class AtLeastNRegions {
+template <unsigned N>
+class AtLeastNRegions {
 public:
   template <typename ConcreteType>
   class Impl : public detail::MultiRegionTraitBase<ConcreteType,
@@ -581,7 +610,8 @@ struct MultiResultTraitBase : public TraitBase<ConcreteType, TraitType> {
 
   /// Replace all uses of results of this operation with the provided 'values'.
   /// 'values' may correspond to an existing operation, or a range of 'Value'.
-  template <typename ValuesT> void replaceAllUsesWith(ValuesT &&values) {
+  template <typename ValuesT>
+  void replaceAllUsesWith(ValuesT &&values) {
     this->getOperation()->replaceAllUsesWith(std::forward<ValuesT>(values));
   }
 
@@ -609,20 +639,19 @@ struct MultiResultTraitBase : public TraitBase<ConcreteType, TraitType> {
 } // end namespace detail
 
 /// This class provides return value APIs for ops that are known to have a
-/// single result.
+/// single result.  ResultType is the concrete type returned by getType().
 template <typename ConcreteType>
 class OneResult : public TraitBase<ConcreteType, OneResult> {
 public:
   Value getResult() { return this->getOperation()->getResult(0); }
-  Type getType() { return getResult().getType(); }
 
   /// If the operation returns a single value, then the Op can be implicitly
   /// converted to an Value. This yields the value of the only result.
   operator Value() { return getResult(); }
 
-  /// Replace all uses of 'this' value with the new value, updating anything in
-  /// the IR that uses 'this' to use the other value instead.  When this returns
-  /// there are zero uses of 'this'.
+  /// Replace all uses of 'this' value with the new value, updating anything
+  /// in the IR that uses 'this' to use the other value instead.  When this
+  /// returns there are zero uses of 'this'.
   void replaceAllUsesWith(Value newValue) {
     getResult().replaceAllUsesWith(newValue);
   }
@@ -637,12 +666,33 @@ public:
   }
 };
 
+/// This trait is used for return value APIs for ops that are known to have a
+/// specific type other than `Type`.  This allows the "getType()" member to be
+/// more specific for an op.  This should be used in conjunction with OneResult,
+/// and occur in the trait list before OneResult.
+template <typename ResultType>
+class OneTypedResult {
+public:
+  /// This class provides return value APIs for ops that are known to have a
+  /// single result.  ResultType is the concrete type returned by getType().
+  template <typename ConcreteType>
+  class Impl
+      : public TraitBase<ConcreteType, OneTypedResult<ResultType>::Impl> {
+  public:
+    ResultType getType() {
+      auto resultTy = this->getOperation()->getResult(0).getType();
+      return resultTy.template cast<ResultType>();
+    }
+  };
+};
+
 /// This class provides the API for ops that are known to have a specified
 /// number of results.  This is used as a trait like this:
 ///
 ///   class FooOp : public Op<FooOp, OpTrait::NResults<2>::Impl> {
 ///
-template <unsigned N> class NResults {
+template <unsigned N>
+class NResults {
 public:
   static_assert(N > 1, "use ZeroResult/OneResult for N < 2");
 
@@ -661,7 +711,8 @@ public:
 ///
 ///   class FooOp : public Op<FooOp, OpTrait::AtLeastNResults<2>::Impl> {
 ///
-template <unsigned N> class AtLeastNResults {
+template <unsigned N>
+class AtLeastNResults {
 public:
   template <typename ConcreteType>
   class Impl : public detail::MultiResultTraitBase<ConcreteType,
@@ -846,7 +897,7 @@ struct SingleBlockImplicitTerminator {
 
     /// Ensure that the given region has the terminator required by this trait.
     /// If OpBuilder is provided, use it to build the terminator and notify the
-    /// OpBuilder litsteners accordingly. If only a Builder is provided, locally
+    /// OpBuilder listeners accordingly. If only a Builder is provided, locally
     /// construct an OpBuilder with no listeners; this should only be used if no
     /// OpBuilder is available at the call site, e.g., in the parser.
     static void ensureTerminator(Region &region, Builder &builder,
@@ -1572,7 +1623,8 @@ private:
   using has_fold = decltype(
       std::declval<T>().fold(std::declval<ArrayRef<Attribute>>(),
                              std::declval<SmallVectorImpl<OpFoldResult> &>()));
-  template <typename T> using detect_has_fold = llvm::is_detected<has_fold, T>;
+  template <typename T>
+  using detect_has_fold = llvm::is_detected<has_fold, T>;
   /// Trait to check if T provides a 'print' method.
   template <typename T, typename... Args>
   using has_print =
@@ -1773,11 +1825,18 @@ void printOneResultOp(Operation *op, OpAsmPrinter &p);
 // These functions are out-of-line implementations of the methods in CastOp,
 // which avoids them being template instantiated/duplicated.
 namespace impl {
+// TODO: Remove the parse/print/build here (new ODS functionality obsoletes the
+// need for them, but some older ODS code in `std` still depends on them).
 void buildCastOp(OpBuilder &builder, OperationState &result, Value source,
                  Type destType);
 ParseResult parseCastOp(OpAsmParser &parser, OperationState &result);
 void printCastOp(Operation *op, OpAsmPrinter &p);
+// TODO: Create a CastOpInterface with a method areCastCompatible.
+// Also, consider adding functionality to CastOpInterface to be able to perform
+// the ChainedTensorCast canonicalization generically.
 Value foldCastOp(Operation *op);
+LogicalResult verifyCastOp(Operation *op,
+                           function_ref<bool(Type, Type)> areCastCompatible);
 } // namespace impl
 } // end namespace mlir
 

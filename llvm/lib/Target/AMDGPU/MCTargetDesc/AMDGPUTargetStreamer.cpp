@@ -11,31 +11,21 @@
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPUTargetStreamer.h"
-#include "AMDGPU.h"
-#include "SIDefines.h"
+#include "AMDGPUPTNote.h"
+#include "AMDKernelCodeT.h"
 #include "Utils/AMDGPUBaseInfo.h"
 #include "Utils/AMDKernelCodeTUtils.h"
-#include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/AMDGPUMetadataVerifier.h"
 #include "llvm/BinaryFormat/ELF.h"
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/Function.h"
-#include "llvm/IR/Metadata.h"
-#include "llvm/IR/Module.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCELFStreamer.h"
-#include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCSectionELF.h"
+#include "llvm/Support/AMDGPUMetadata.h"
+#include "llvm/Support/AMDHSAKernelDescriptor.h"
 #include "llvm/Support/FormattedStream.h"
-#include "llvm/Support/TargetParser.h"
-
-namespace llvm {
-#include "AMDGPUPTNote.h"
-}
 
 using namespace llvm;
 using namespace llvm::AMDGPU;
-using namespace llvm::AMDGPU::HSAMD;
 
 //===----------------------------------------------------------------------===//
 // AMDGPUTargetStreamer
@@ -247,15 +237,15 @@ bool AMDGPUTargetAsmStreamer::EmitHSAMetadata(
   if (HSAMD::toString(HSAMetadata, HSAMetadataString))
     return false;
 
-  OS << '\t' << AssemblerDirectiveBegin << '\n';
+  OS << '\t' << HSAMD::AssemblerDirectiveBegin << '\n';
   OS << HSAMetadataString << '\n';
-  OS << '\t' << AssemblerDirectiveEnd << '\n';
+  OS << '\t' << HSAMD::AssemblerDirectiveEnd << '\n';
   return true;
 }
 
 bool AMDGPUTargetAsmStreamer::EmitHSAMetadata(
     msgpack::Document &HSAMetadataDoc, bool Strict) {
-  V3::MetadataVerifier Verifier(Strict);
+  HSAMD::V3::MetadataVerifier Verifier(Strict);
   if (!Verifier.verify(HSAMetadataDoc.getRoot()))
     return false;
 
@@ -263,9 +253,9 @@ bool AMDGPUTargetAsmStreamer::EmitHSAMetadata(
   raw_string_ostream StrOS(HSAMetadataString);
   HSAMetadataDoc.toYAML(StrOS);
 
-  OS << '\t' << V3::AssemblerDirectiveBegin << '\n';
+  OS << '\t' << HSAMD::V3::AssemblerDirectiveBegin << '\n';
   OS << StrOS.str() << '\n';
-  OS << '\t' << V3::AssemblerDirectiveEnd << '\n';
+  OS << '\t' << HSAMD::V3::AssemblerDirectiveEnd << '\n';
   return true;
 }
 
@@ -321,7 +311,7 @@ void AMDGPUTargetAsmStreamer::EmitAmdhsaKernelDescriptor(
   PRINT_FIELD(
       OS, ".amdhsa_system_sgpr_private_segment_wavefront_offset", KD,
       compute_pgm_rsrc2,
-      amdhsa::COMPUTE_PGM_RSRC2_ENABLE_SGPR_PRIVATE_SEGMENT_WAVEFRONT_OFFSET);
+      amdhsa::COMPUTE_PGM_RSRC2_ENABLE_PRIVATE_SEGMENT);
   PRINT_FIELD(OS, ".amdhsa_system_sgpr_workgroup_id_x", KD,
               compute_pgm_rsrc2,
               amdhsa::COMPUTE_PGM_RSRC2_ENABLE_SGPR_WORKGROUP_ID_X);
@@ -578,7 +568,7 @@ bool AMDGPUTargetELFStreamer::EmitISAVersion(StringRef IsaVersionString) {
 
 bool AMDGPUTargetELFStreamer::EmitHSAMetadata(msgpack::Document &HSAMetadataDoc,
                                               bool Strict) {
-  V3::MetadataVerifier Verifier(Strict);
+  HSAMD::V3::MetadataVerifier Verifier(Strict);
   if (!Verifier.verify(HSAMetadataDoc.getRoot()))
     return false;
 

@@ -16,6 +16,7 @@
 
 #include "Opts.inc"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Config/config.h"
 #include "llvm/DebugInfo/Symbolize/DIPrinter.h"
 #include "llvm/DebugInfo/Symbolize/Symbolize.h"
 #include "llvm/Option/Arg.h"
@@ -328,10 +329,8 @@ int main(int argc, char **argv) {
     while (fgets(InputString, sizeof(InputString), stdin)) {
       // Strip newline characters.
       std::string StrippedInputString(InputString);
-      StrippedInputString.erase(
-          std::remove_if(StrippedInputString.begin(), StrippedInputString.end(),
-                         [](char c) { return c == '\r' || c == '\n'; }),
-          StrippedInputString.end());
+      llvm::erase_if(StrippedInputString,
+                     [](char c) { return c == '\r' || c == '\n'; });
       symbolizeInput(Args, AdjustVMA, IsAddr2Line, OutputStyle,
                      StrippedInputString, Symbolizer, Printer);
       outs().flush();

@@ -6,7 +6,7 @@
 ; RUN:   -check-prefix=CHECK-P8
 
 ; Function Attrs: norecurse nounwind
-define void @qpAdd(fp128* nocapture readonly %a, fp128* nocapture %res) {
+define dso_local void @qpAdd(fp128* nocapture readonly %a, fp128* nocapture %res) {
 ; CHECK-LABEL: qpAdd:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -42,7 +42,7 @@ entry:
 }
 
 ; Function Attrs: norecurse nounwind
-define void @qpSub(fp128* nocapture readonly %a, fp128* nocapture %res) {
+define dso_local void @qpSub(fp128* nocapture readonly %a, fp128* nocapture %res) {
 ; CHECK-LABEL: qpSub:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -78,7 +78,7 @@ entry:
 }
 
 ; Function Attrs: norecurse nounwind
-define void @qpMul(fp128* nocapture readonly %a, fp128* nocapture %res) {
+define dso_local void @qpMul(fp128* nocapture readonly %a, fp128* nocapture %res) {
 ; CHECK-LABEL: qpMul:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -114,7 +114,7 @@ entry:
 }
 
 ; Function Attrs: norecurse nounwind
-define void @qpDiv(fp128* nocapture readonly %a, fp128* nocapture %res) {
+define dso_local void @qpDiv(fp128* nocapture readonly %a, fp128* nocapture %res) {
 ; CHECK-LABEL: qpDiv:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -149,7 +149,7 @@ entry:
   ret void
 }
 
-define void @testLdNSt(i8* nocapture readonly %PtrC, fp128* nocapture %PtrF) {
+define dso_local void @testLdNSt(i8* nocapture readonly %PtrC, fp128* nocapture %PtrF) {
 ; CHECK-LABEL: testLdNSt:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    addi r3, r3, 4
@@ -176,7 +176,7 @@ entry:
   ret void
 }
 
-define void @qpSqrt(fp128* nocapture readonly %a, fp128* nocapture %res) {
+define dso_local void @qpSqrt(fp128* nocapture readonly %a, fp128* nocapture %res) {
 ; CHECK-LABEL: qpSqrt:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -195,7 +195,7 @@ define void @qpSqrt(fp128* nocapture readonly %a, fp128* nocapture %res) {
 ; CHECK-P8-NEXT:    stdu r1, -48(r1)
 ; CHECK-P8-NEXT:    lvx v2, 0, r3
 ; CHECK-P8-NEXT:    mr r30, r4
-; CHECK-P8-NEXT:    bl sqrtl
+; CHECK-P8-NEXT:    bl sqrtf128
 ; CHECK-P8-NEXT:    nop
 ; CHECK-P8-NEXT:    stvx v2, 0, r30
 ; CHECK-P8-NEXT:    addi r1, r1, 48
@@ -212,7 +212,7 @@ entry:
 }
 declare fp128 @llvm.sqrt.f128(fp128 %Val)
 
-define void @qpCpsgn(fp128* nocapture readonly %a, fp128* nocapture readonly %b,
+define dso_local void @qpCpsgn(fp128* nocapture readonly %a, fp128* nocapture readonly %b,
 ; CHECK-LABEL: qpCpsgn:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -247,7 +247,7 @@ entry:
 }
 declare fp128 @llvm.copysign.f128(fp128 %Mag, fp128 %Sgn)
 
-define void @qpAbs(fp128* nocapture readonly %a, fp128* nocapture %res) {
+define dso_local void @qpAbs(fp128* nocapture readonly %a, fp128* nocapture %res) {
 ; CHECK-LABEL: qpAbs:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -275,7 +275,7 @@ entry:
 }
 declare fp128 @llvm.fabs.f128(fp128 %Val)
 
-define void @qpNAbs(fp128* nocapture readonly %a, fp128* nocapture %res) {
+define dso_local void @qpNAbs(fp128* nocapture readonly %a, fp128* nocapture %res) {
 ; CHECK-LABEL: qpNAbs:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -309,7 +309,7 @@ entry:
 
 }
 
-define void @qpNeg(fp128* nocapture readonly %a, fp128* nocapture %res) {
+define dso_local void @qpNeg(fp128* nocapture readonly %a, fp128* nocapture %res) {
 ; CHECK-LABEL: qpNeg:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -718,7 +718,7 @@ entry:
 }
 declare fp128     @llvm.exp2.f128(fp128 %Val)
 
-define void @qp_powi(fp128* nocapture readonly %a, i32* nocapture readonly %b,
+define dso_local void @qp_powi(fp128* nocapture readonly %a, i32* nocapture readonly %b,
 ; CHECK-LABEL: qp_powi:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr r0
@@ -771,8 +771,8 @@ entry:
 }
 declare fp128 @llvm.powi.f128(fp128 %Val, i32 %power)
 
-@a = common global fp128 0xL00000000000000000000000000000000, align 16
-@b = common global fp128 0xL00000000000000000000000000000000, align 16
+@a = common dso_local global fp128 0xL00000000000000000000000000000000, align 16
+@b = common dso_local global fp128 0xL00000000000000000000000000000000, align 16
 
 define fp128 @qp_frem() #0 {
 ; CHECK-LABEL: qp_frem:
@@ -821,7 +821,7 @@ entry:
   ret fp128 %rem
 }
 
-define void @qpCeil(fp128* nocapture readonly %a, fp128* nocapture %res) {
+define dso_local void @qpCeil(fp128* nocapture readonly %a, fp128* nocapture %res) {
 ; CHECK-LABEL: qpCeil:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -840,7 +840,7 @@ define void @qpCeil(fp128* nocapture readonly %a, fp128* nocapture %res) {
 ; CHECK-P8-NEXT:    stdu r1, -48(r1)
 ; CHECK-P8-NEXT:    lvx v2, 0, r3
 ; CHECK-P8-NEXT:    mr r30, r4
-; CHECK-P8-NEXT:    bl ceill
+; CHECK-P8-NEXT:    bl ceilf128
 ; CHECK-P8-NEXT:    nop
 ; CHECK-P8-NEXT:    stvx v2, 0, r30
 ; CHECK-P8-NEXT:    addi r1, r1, 48
@@ -856,7 +856,7 @@ entry:
 }
 declare fp128 @llvm.ceil.f128(fp128 %Val)
 
-define void @qpFloor(fp128* nocapture readonly %a, fp128* nocapture %res) {
+define dso_local void @qpFloor(fp128* nocapture readonly %a, fp128* nocapture %res) {
 ; CHECK-LABEL: qpFloor:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -875,7 +875,7 @@ define void @qpFloor(fp128* nocapture readonly %a, fp128* nocapture %res) {
 ; CHECK-P8-NEXT:    stdu r1, -48(r1)
 ; CHECK-P8-NEXT:    lvx v2, 0, r3
 ; CHECK-P8-NEXT:    mr r30, r4
-; CHECK-P8-NEXT:    bl floorl
+; CHECK-P8-NEXT:    bl floorf128
 ; CHECK-P8-NEXT:    nop
 ; CHECK-P8-NEXT:    stvx v2, 0, r30
 ; CHECK-P8-NEXT:    addi r1, r1, 48
@@ -891,7 +891,7 @@ entry:
 }
 declare fp128 @llvm.floor.f128(fp128 %Val)
 
-define void @qpTrunc(fp128* nocapture readonly %a, fp128* nocapture %res) {
+define dso_local void @qpTrunc(fp128* nocapture readonly %a, fp128* nocapture %res) {
 ; CHECK-LABEL: qpTrunc:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -910,7 +910,7 @@ define void @qpTrunc(fp128* nocapture readonly %a, fp128* nocapture %res) {
 ; CHECK-P8-NEXT:    stdu r1, -48(r1)
 ; CHECK-P8-NEXT:    lvx v2, 0, r3
 ; CHECK-P8-NEXT:    mr r30, r4
-; CHECK-P8-NEXT:    bl truncl
+; CHECK-P8-NEXT:    bl truncf128
 ; CHECK-P8-NEXT:    nop
 ; CHECK-P8-NEXT:    stvx v2, 0, r30
 ; CHECK-P8-NEXT:    addi r1, r1, 48
@@ -926,7 +926,7 @@ entry:
 }
 declare fp128 @llvm.trunc.f128(fp128 %Val)
 
-define void @qpRound(fp128* nocapture readonly %a, fp128* nocapture %res) {
+define dso_local void @qpRound(fp128* nocapture readonly %a, fp128* nocapture %res) {
 ; CHECK-LABEL: qpRound:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -945,7 +945,7 @@ define void @qpRound(fp128* nocapture readonly %a, fp128* nocapture %res) {
 ; CHECK-P8-NEXT:    stdu r1, -48(r1)
 ; CHECK-P8-NEXT:    lvx v2, 0, r3
 ; CHECK-P8-NEXT:    mr r30, r4
-; CHECK-P8-NEXT:    bl roundl
+; CHECK-P8-NEXT:    bl roundf128
 ; CHECK-P8-NEXT:    nop
 ; CHECK-P8-NEXT:    stvx v2, 0, r30
 ; CHECK-P8-NEXT:    addi r1, r1, 48
@@ -961,7 +961,7 @@ entry:
 }
 declare fp128 @llvm.round.f128(fp128 %Val)
 
-define void @qpLRound(fp128* nocapture readonly %a, i32* nocapture %res) {
+define dso_local void @qpLRound(fp128* nocapture readonly %a, i32* nocapture %res) {
 ; CHECK-LABEL: qpLRound:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr r0
@@ -973,7 +973,7 @@ define void @qpLRound(fp128* nocapture readonly %a, i32* nocapture %res) {
 ; CHECK-NEXT:    stdu r1, -48(r1)
 ; CHECK-NEXT:    lxv v2, 0(r3)
 ; CHECK-NEXT:    mr r30, r4
-; CHECK-NEXT:    bl lroundl
+; CHECK-NEXT:    bl lroundf128
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    stw r3, 0(r30)
 ; CHECK-NEXT:    addi r1, r1, 48
@@ -993,7 +993,7 @@ define void @qpLRound(fp128* nocapture readonly %a, i32* nocapture %res) {
 ; CHECK-P8-NEXT:    stdu r1, -48(r1)
 ; CHECK-P8-NEXT:    lvx v2, 0, r3
 ; CHECK-P8-NEXT:    mr r30, r4
-; CHECK-P8-NEXT:    bl lroundl
+; CHECK-P8-NEXT:    bl lroundf128
 ; CHECK-P8-NEXT:    nop
 ; CHECK-P8-NEXT:    stw r3, 0(r30)
 ; CHECK-P8-NEXT:    addi r1, r1, 48
@@ -1009,7 +1009,7 @@ entry:
 }
 declare i32 @llvm.lround.f128(fp128 %Val)
 
-define void @qpLLRound(fp128* nocapture readonly %a, i64* nocapture %res) {
+define dso_local void @qpLLRound(fp128* nocapture readonly %a, i64* nocapture %res) {
 ; CHECK-LABEL: qpLLRound:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr r0
@@ -1021,7 +1021,7 @@ define void @qpLLRound(fp128* nocapture readonly %a, i64* nocapture %res) {
 ; CHECK-NEXT:    stdu r1, -48(r1)
 ; CHECK-NEXT:    lxv v2, 0(r3)
 ; CHECK-NEXT:    mr r30, r4
-; CHECK-NEXT:    bl llroundl
+; CHECK-NEXT:    bl llroundf128
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    std r3, 0(r30)
 ; CHECK-NEXT:    addi r1, r1, 48
@@ -1041,7 +1041,7 @@ define void @qpLLRound(fp128* nocapture readonly %a, i64* nocapture %res) {
 ; CHECK-P8-NEXT:    stdu r1, -48(r1)
 ; CHECK-P8-NEXT:    lvx v2, 0, r3
 ; CHECK-P8-NEXT:    mr r30, r4
-; CHECK-P8-NEXT:    bl llroundl
+; CHECK-P8-NEXT:    bl llroundf128
 ; CHECK-P8-NEXT:    nop
 ; CHECK-P8-NEXT:    std r3, 0(r30)
 ; CHECK-P8-NEXT:    addi r1, r1, 48
@@ -1057,7 +1057,7 @@ entry:
 }
 declare i64 @llvm.llround.f128(fp128 %Val)
 
-define void @qpRint(fp128* nocapture readonly %a, fp128* nocapture %res) {
+define dso_local void @qpRint(fp128* nocapture readonly %a, fp128* nocapture %res) {
 ; CHECK-LABEL: qpRint:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -1076,7 +1076,7 @@ define void @qpRint(fp128* nocapture readonly %a, fp128* nocapture %res) {
 ; CHECK-P8-NEXT:    stdu r1, -48(r1)
 ; CHECK-P8-NEXT:    lvx v2, 0, r3
 ; CHECK-P8-NEXT:    mr r30, r4
-; CHECK-P8-NEXT:    bl rintl
+; CHECK-P8-NEXT:    bl rintf128
 ; CHECK-P8-NEXT:    nop
 ; CHECK-P8-NEXT:    stvx v2, 0, r30
 ; CHECK-P8-NEXT:    addi r1, r1, 48
@@ -1092,7 +1092,7 @@ entry:
 }
 declare fp128 @llvm.rint.f128(fp128 %Val)
 
-define void @qpLRint(fp128* nocapture readonly %a, i32* nocapture %res) {
+define dso_local void @qpLRint(fp128* nocapture readonly %a, i32* nocapture %res) {
 ; CHECK-LABEL: qpLRint:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr r0
@@ -1104,7 +1104,7 @@ define void @qpLRint(fp128* nocapture readonly %a, i32* nocapture %res) {
 ; CHECK-NEXT:    stdu r1, -48(r1)
 ; CHECK-NEXT:    lxv v2, 0(r3)
 ; CHECK-NEXT:    mr r30, r4
-; CHECK-NEXT:    bl lrintl
+; CHECK-NEXT:    bl lrintf128
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    stw r3, 0(r30)
 ; CHECK-NEXT:    addi r1, r1, 48
@@ -1124,7 +1124,7 @@ define void @qpLRint(fp128* nocapture readonly %a, i32* nocapture %res) {
 ; CHECK-P8-NEXT:    stdu r1, -48(r1)
 ; CHECK-P8-NEXT:    lvx v2, 0, r3
 ; CHECK-P8-NEXT:    mr r30, r4
-; CHECK-P8-NEXT:    bl lrintl
+; CHECK-P8-NEXT:    bl lrintf128
 ; CHECK-P8-NEXT:    nop
 ; CHECK-P8-NEXT:    stw r3, 0(r30)
 ; CHECK-P8-NEXT:    addi r1, r1, 48
@@ -1140,7 +1140,7 @@ entry:
 }
 declare i32 @llvm.lrint.f128(fp128 %Val)
 
-define void @qpLLRint(fp128* nocapture readonly %a, i64* nocapture %res) {
+define dso_local void @qpLLRint(fp128* nocapture readonly %a, i64* nocapture %res) {
 ; CHECK-LABEL: qpLLRint:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr r0
@@ -1152,7 +1152,7 @@ define void @qpLLRint(fp128* nocapture readonly %a, i64* nocapture %res) {
 ; CHECK-NEXT:    stdu r1, -48(r1)
 ; CHECK-NEXT:    lxv v2, 0(r3)
 ; CHECK-NEXT:    mr r30, r4
-; CHECK-NEXT:    bl llrintl
+; CHECK-NEXT:    bl llrintf128
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    std r3, 0(r30)
 ; CHECK-NEXT:    addi r1, r1, 48
@@ -1172,7 +1172,7 @@ define void @qpLLRint(fp128* nocapture readonly %a, i64* nocapture %res) {
 ; CHECK-P8-NEXT:    stdu r1, -48(r1)
 ; CHECK-P8-NEXT:    lvx v2, 0, r3
 ; CHECK-P8-NEXT:    mr r30, r4
-; CHECK-P8-NEXT:    bl llrintl
+; CHECK-P8-NEXT:    bl llrintf128
 ; CHECK-P8-NEXT:    nop
 ; CHECK-P8-NEXT:    std r3, 0(r30)
 ; CHECK-P8-NEXT:    addi r1, r1, 48
@@ -1188,7 +1188,7 @@ entry:
 }
 declare i64 @llvm.llrint.f128(fp128 %Val)
 
-define void @qpNearByInt(fp128* nocapture readonly %a, fp128* nocapture %res) {
+define dso_local void @qpNearByInt(fp128* nocapture readonly %a, fp128* nocapture %res) {
 ; CHECK-LABEL: qpNearByInt:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -1207,7 +1207,7 @@ define void @qpNearByInt(fp128* nocapture readonly %a, fp128* nocapture %res) {
 ; CHECK-P8-NEXT:    stdu r1, -48(r1)
 ; CHECK-P8-NEXT:    lvx v2, 0, r3
 ; CHECK-P8-NEXT:    mr r30, r4
-; CHECK-P8-NEXT:    bl nearbyintl
+; CHECK-P8-NEXT:    bl nearbyintf128
 ; CHECK-P8-NEXT:    nop
 ; CHECK-P8-NEXT:    stvx v2, 0, r30
 ; CHECK-P8-NEXT:    addi r1, r1, 48
@@ -1223,7 +1223,7 @@ entry:
 }
 declare fp128 @llvm.nearbyint.f128(fp128 %Val)
 
-define void @qpFMA(fp128* %a, fp128* %b, fp128* %c, fp128* %res) {
+define dso_local void @qpFMA(fp128* %a, fp128* %b, fp128* %c, fp128* %res) {
 ; CHECK-LABEL: qpFMA:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -1246,7 +1246,7 @@ define void @qpFMA(fp128* %a, fp128* %b, fp128* %c, fp128* %res) {
 ; CHECK-P8-NEXT:    lvx v3, 0, r4
 ; CHECK-P8-NEXT:    lvx v4, 0, r5
 ; CHECK-P8-NEXT:    mr r30, r6
-; CHECK-P8-NEXT:    bl fmal
+; CHECK-P8-NEXT:    bl fmaf128
 ; CHECK-P8-NEXT:    nop
 ; CHECK-P8-NEXT:    stvx v2, 0, r30
 ; CHECK-P8-NEXT:    addi r1, r1, 48

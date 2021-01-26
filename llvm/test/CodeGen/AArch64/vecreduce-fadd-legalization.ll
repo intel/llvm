@@ -51,8 +51,7 @@ define float @test_v3f32(<3 x float> %a) nounwind {
 ; CHECK-NEXT:    mov w8, #-2147483648
 ; CHECK-NEXT:    fmov s1, w8
 ; CHECK-NEXT:    mov v0.s[3], v1.s[0]
-; CHECK-NEXT:    ext v1.16b, v0.16b, v0.16b, #8
-; CHECK-NEXT:    fadd v0.2s, v0.2s, v1.2s
+; CHECK-NEXT:    faddp v0.4s, v0.4s, v0.4s
 ; CHECK-NEXT:    faddp s0, v0.2s
 ; CHECK-NEXT:    ret
   %b = call reassoc float @llvm.vector.reduce.fadd.f32.v3f32(float -0.0, <3 x float> %a)
@@ -73,8 +72,7 @@ define float @test_v5f32(<5 x float> %a) nounwind {
 ; CHECK-NEXT:    mov v0.s[3], v3.s[0]
 ; CHECK-NEXT:    mov v5.s[0], v4.s[0]
 ; CHECK-NEXT:    fadd v0.4s, v0.4s, v5.4s
-; CHECK-NEXT:    ext v1.16b, v0.16b, v0.16b, #8
-; CHECK-NEXT:    fadd v0.2s, v0.2s, v1.2s
+; CHECK-NEXT:    faddp v0.4s, v0.4s, v0.4s
 ; CHECK-NEXT:    faddp s0, v0.2s
 ; CHECK-NEXT:    ret
   %b = call reassoc float @llvm.vector.reduce.fadd.f32.v5f32(float -0.0, <5 x float> %a)
@@ -84,10 +82,7 @@ define float @test_v5f32(<5 x float> %a) nounwind {
 define fp128 @test_v2f128(<2 x fp128> %a) nounwind {
 ; CHECK-LABEL: test_v2f128:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    str x30, [sp, #-16]! // 8-byte Folded Spill
-; CHECK-NEXT:    bl __addtf3
-; CHECK-NEXT:    ldr x30, [sp], #16 // 8-byte Folded Reload
-; CHECK-NEXT:    ret
+; CHECK-NEXT:    b __addtf3
   %b = call reassoc fp128 @llvm.vector.reduce.fadd.f128.v2f128(fp128 0xL00000000000000008000000000000000, <2 x fp128> %a)
   ret fp128 %b
 }
@@ -98,8 +93,7 @@ define float @test_v16f32(<16 x float> %a) nounwind {
 ; CHECK-NEXT:    fadd v1.4s, v1.4s, v3.4s
 ; CHECK-NEXT:    fadd v0.4s, v0.4s, v2.4s
 ; CHECK-NEXT:    fadd v0.4s, v0.4s, v1.4s
-; CHECK-NEXT:    ext v1.16b, v0.16b, v0.16b, #8
-; CHECK-NEXT:    fadd v0.2s, v0.2s, v1.2s
+; CHECK-NEXT:    faddp v0.4s, v0.4s, v0.4s
 ; CHECK-NEXT:    faddp s0, v0.2s
 ; CHECK-NEXT:    ret
   %b = call reassoc float @llvm.vector.reduce.fadd.f32.v16f32(float -0.0, <16 x float> %a)

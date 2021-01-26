@@ -2362,6 +2362,10 @@ extern const internal::VariadicDynCastAllOfMatcher<Stmt, ChooseExpr>
 extern const internal::VariadicDynCastAllOfMatcher<Stmt, GNUNullExpr>
     gnuNullExpr;
 
+/// Matches C11 _Generic expression.
+extern const internal::VariadicDynCastAllOfMatcher<Stmt, GenericSelectionExpr>
+    genericSelectionExpr;
+
 /// Matches atomic builtins.
 /// Example matches __atomic_load_n(ptr, 1)
 /// \code
@@ -5486,6 +5490,9 @@ AST_MATCHER(FunctionDecl, isVariadic) {
 /// \endcode
 AST_MATCHER_P(CXXMethodDecl, ofClass,
               internal::Matcher<CXXRecordDecl>, InnerMatcher) {
+
+  ASTChildrenNotSpelledInSourceScope RAII(Finder, false);
+
   const CXXRecordDecl *Parent = Node.getParent();
   return (Parent != nullptr &&
           InnerMatcher.matches(*Parent, Finder, Builder));
@@ -7033,6 +7040,9 @@ AST_MATCHER_P(FunctionDecl, hasExplicitSpecifier, internal::Matcher<Expr>,
   ExplicitSpecifier ES = ExplicitSpecifier::getFromDecl(&Node);
   if (!ES.getExpr())
     return false;
+
+  ASTChildrenNotSpelledInSourceScope RAII(Finder, false);
+
   return InnerMatcher.matches(*ES.getExpr(), Finder, Builder);
 }
 

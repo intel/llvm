@@ -52,6 +52,8 @@ protected:
             shared_ptr_class<context> Context = nullptr)
       : MMsg(Msg + " " + detail::codeToString(CLErr)), MCLErr(CLErr),
         MContext(Context) {}
+
+  exception(const string_class &Msg) : MMsg(Msg), MContext(nullptr) {}
 };
 
 class runtime_error : public exception {

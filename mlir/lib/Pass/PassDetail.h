@@ -55,14 +55,21 @@ private:
   void runOnOperationAsyncImpl(bool verifyPasses);
 
   /// Run the given operation and analysis manager on a single pass.
+  /// `parentInitGeneration` is the initialization generation of the parent pass
+  /// manager, and is used to initialize any dynamic pass pipelines run by the
+  /// given pass.
   static LogicalResult run(Pass *pass, Operation *op, AnalysisManager am,
-                           bool verifyPasses);
+                           bool verifyPasses, unsigned parentInitGeneration);
 
   /// Run the given operation and analysis manager on a provided op pass
-  /// manager.
-  static LogicalResult
-  runPipeline(iterator_range<OpPassManager::pass_iterator> passes,
-              Operation *op, AnalysisManager am, bool verifyPasses);
+  /// manager. `parentInitGeneration` is the initialization generation of the
+  /// parent pass manager, and is used to initialize any dynamic pass pipelines
+  /// run by the given passes.
+  static LogicalResult runPipeline(
+      iterator_range<OpPassManager::pass_iterator> passes, Operation *op,
+      AnalysisManager am, bool verifyPasses, unsigned parentInitGeneration,
+      PassInstrumentor *instrumentor = nullptr,
+      const PassInstrumentation::PipelineParentInfo *parentInfo = nullptr);
 
   /// A set of adaptors to run.
   SmallVector<OpPassManager, 1> mgrs;

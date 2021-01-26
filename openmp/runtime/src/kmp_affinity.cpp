@@ -40,7 +40,8 @@ void __kmp_get_hierarchy(kmp_uint32 nproc, kmp_bstate_t *thr_bar) {
   KMP_DEBUG_ASSERT(depth > 0);
 
   thr_bar->depth = depth;
-  thr_bar->base_leaf_kids = (kmp_uint8)machine_hierarchy.numPerLevel[0] - 1;
+  __kmp_type_convert(machine_hierarchy.numPerLevel[0] - 1,
+                     &(thr_bar->base_leaf_kids));
   thr_bar->skip_per_level = machine_hierarchy.skipPerLevel;
 }
 
@@ -130,14 +131,13 @@ char *__kmp_affinity_print_mask(char *buf, int buf_len,
     }
     // Range with three or more contiguous bits in the affinity mask
     if (previous - start > 1) {
-      KMP_SNPRINTF(scan, end - scan + 1, "%d-%d", static_cast<int>(start),
-                   static_cast<int>(previous));
+      KMP_SNPRINTF(scan, end - scan + 1, "%u-%u", start, previous);
     } else {
       // Range with one or two contiguous bits in the affinity mask
-      KMP_SNPRINTF(scan, end - scan + 1, "%d", static_cast<int>(start));
+      KMP_SNPRINTF(scan, end - scan + 1, "%u", start);
       KMP_ADVANCE_SCAN(scan);
       if (previous - start > 0) {
-        KMP_SNPRINTF(scan, end - scan + 1, ",%d", static_cast<int>(previous));
+        KMP_SNPRINTF(scan, end - scan + 1, ",%u", previous);
       }
     }
     KMP_ADVANCE_SCAN(scan);
@@ -195,13 +195,12 @@ kmp_str_buf_t *__kmp_affinity_str_buf_mask(kmp_str_buf_t *buf,
     }
     // Range with three or more contiguous bits in the affinity mask
     if (previous - start > 1) {
-      __kmp_str_buf_print(buf, "%d-%d", static_cast<int>(start),
-                          static_cast<int>(previous));
+      __kmp_str_buf_print(buf, "%u-%u", start, previous);
     } else {
       // Range with one or two contiguous bits in the affinity mask
-      __kmp_str_buf_print(buf, "%d", static_cast<int>(start));
+      __kmp_str_buf_print(buf, "%u", start);
       if (previous - start > 0) {
-        __kmp_str_buf_print(buf, ",%d", static_cast<int>(previous));
+        __kmp_str_buf_print(buf, ",%u", previous);
       }
     }
     // Start over with new start point
@@ -4210,17 +4209,10 @@ static void __kmp_aux_affinity_initialize(void) {
         }
       }
 
-      FILE *f = fopen("/proc/cpuinfo", "r");
-      if (f == NULL) {
-        msg_id = kmp_i18n_str_CantOpenCpuinfo;
-      } else {
-        file_name = "/proc/cpuinfo";
-        depth =
-            __kmp_affinity_create_cpuinfo_map(&address2os, &line, &msg_id, f);
-        fclose(f);
-        if (depth == 0) {
-          KMP_EXIT_AFF_NONE;
-        }
+      kmp_safe_raii_file_t f("/proc/cpuinfo", "r");
+      depth = __kmp_affinity_create_cpuinfo_map(&address2os, &line, &msg_id, f);
+      if (depth == 0) {
+        KMP_EXIT_AFF_NONE;
       }
     }
 
@@ -4313,8 +4305,10 @@ static void __kmp_aux_affinity_initialize(void) {
 
   else if (__kmp_affinity_top_method == affinity_top_method_cpuinfo) {
     const char *filename;
+    const char *env_var = nullptr;
     if (__kmp_cpuinfo_file != NULL) {
       filename = __kmp_cpuinfo_file;
+      env_var = "KMP_CPUINFO_FILE";
     } else {
       filename = "/proc/cpuinfo";
     }
@@ -4323,20 +4317,9 @@ static void __kmp_aux_affinity_initialize(void) {
       KMP_INFORM(AffParseFilename, "KMP_AFFINITY", filename);
     }
 
-    FILE *f = fopen(filename, "r");
-    if (f == NULL) {
-      int code = errno;
-      if (__kmp_cpuinfo_file != NULL) {
-        __kmp_fatal(KMP_MSG(CantOpenFileForReading, filename), KMP_ERR(code),
-                    KMP_HNT(NameComesFrom_CPUINFO_FILE), __kmp_msg_null);
-      } else {
-        __kmp_fatal(KMP_MSG(CantOpenFileForReading, filename), KMP_ERR(code),
-                    __kmp_msg_null);
-      }
-    }
+    kmp_safe_raii_file_t f(filename, "r", env_var);
     int line = 0;
     depth = __kmp_affinity_create_cpuinfo_map(&address2os, &line, &msg_id, f);
-    fclose(f);
     if (depth < 0) {
       KMP_ASSERT(msg_id != kmp_i18n_null);
       if (line > 0) {

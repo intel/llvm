@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/device_filter.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/spinlock.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
@@ -113,7 +114,30 @@ GlobalHandler::getDeviceFilterList(const std::string &InitValue) {
   return *MDeviceFilterList;
 }
 
-void shutdown() { delete &GlobalHandler::instance(); }
+void shutdown() {
+  // First, release resources, that may access plugins.
+  GlobalHandler::instance().MScheduler.reset(nullptr);
+  GlobalHandler::instance().MProgramManager.reset(nullptr);
+  GlobalHandler::instance().MPlatformCache.reset(nullptr);
+
+  // Call to GlobalHandler::instance().getPlugins() initializes plugins. If
+  // user application has loaded SYCL runtime, and never called any APIs,
+  // there's no need to load and unload plugins.
+  if (GlobalHandler::instance().MPlugins) {
+    for (plugin &Plugin : GlobalHandler::instance().getPlugins()) {
+      // PluginParameter is reserved for future use that can control
+      // some parameters in the plugin tear-down process.
+      // Currently, it is not used.
+      void *PluginParameter = nullptr;
+      Plugin.call_nocheck<PiApiKind::piTearDown>(PluginParameter);
+      Plugin.unload();
+    }
+    GlobalHandler::instance().MPlugins.reset(nullptr);
+  }
+
+  // Release the rest of global resources.
+  delete &GlobalHandler::instance();
+}
 
 #ifdef _WIN32
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
@@ -130,9 +154,11 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
   return TRUE; // Successful DLL_PROCESS_ATTACH.
 }
 #else
-// Setting maximum priority on destructor ensures it runs after all other global
-// destructors.
-__attribute__((destructor(65535))) static void syclUnload() { shutdown(); }
+// Setting low priority on destructor ensures it runs after all other global
+// destructors. Priorities 0-100 are reserved by the compiler. The priority
+// value 110 allows SYCL users to run their destructors after runtime library
+// deinitialization.
+__attribute__((destructor(110))) static void syclUnload() { shutdown(); }
 #endif
 } // namespace detail
 } // namespace sycl

@@ -37,15 +37,15 @@ void bar() {
   });
 }
 
-// CHECK: define spir_kernel void @"{{.*}}kernel_name_1"() {{.*}} !loop_fuse ![[LF5:[0-9]+]]
-// CHECK: define spir_kernel void @"{{.*}}kernel_name_2"() {{.*}} !loop_fuse ![[LF1:[0-9]+]]
-// CHECK: define spir_kernel void @"{{.*}}kernel_name_3"() {{.*}} !loop_fuse ![[LF0:[0-9]+]]
-// CHECK: define spir_kernel void @"{{.*}}kernel_name_4"() {{.*}} !loop_fuse ![[LF1]]
-// CHECK: define spir_kernel void @"{{.*}}kernel_name_5"() {{.*}} !loop_fuse ![[LF10:[0-9]+]]
-// CHECK: define spir_kernel void @"{{.*}}kernel_name_6"()
+// CHECK: define {{.*}}spir_kernel void @"{{.*}}kernel_name_1"() {{.*}} !loop_fuse ![[LF5:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @"{{.*}}kernel_name_2"() {{.*}} !loop_fuse ![[LF1:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @"{{.*}}kernel_name_3"() {{.*}} !loop_fuse ![[LF0:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @"{{.*}}kernel_name_4"() {{.*}} !loop_fuse ![[LF1]]
+// CHECK: define {{.*}}spir_kernel void @"{{.*}}kernel_name_5"() {{.*}} !loop_fuse ![[LF10:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @"{{.*}}kernel_name_6"()
 // CHECK-NOT: !loop_fuse
 // CHECK-SAME: {
-// CHECK: define spir_func void @{{.*}}foo{{.*}} !loop_fuse ![[LF5]]
+// CHECK: define {{.*}}spir_func void @{{.*}}foo{{.*}} !loop_fuse ![[LF5]]
 // CHECK: ![[LF5]] = !{i32 5, i32 0}
 // CHECK: ![[LF1]] = !{i32 1, i32 0}
 // CHECK: ![[LF0]] = !{i32 0, i32 0}

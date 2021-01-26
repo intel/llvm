@@ -27,6 +27,39 @@ class _ConnectionRefused(IOError):
     pass
 
 
+class GdbRemoteTestCaseFactory(type):
+
+    def __new__(cls, name, bases, attrs):
+        newattrs = {}
+        for attrname, attrvalue in attrs.items():
+            if not attrname.startswith("test"):
+                newattrs[attrname] = attrvalue
+                continue
+
+            # If any debug server categories were explicitly tagged, assume
+            # that list to be authoritative. If none were specified, try
+            # all of them.
+            all_categories = set(["debugserver", "llgs"])
+            categories = set(
+                getattr(attrvalue, "categories", [])) & all_categories
+            if not categories:
+                categories = all_categories
+
+            for cat in categories:
+                @decorators.add_test_categories([cat])
+                @wraps(attrvalue)
+                def test_method(self, attrvalue=attrvalue):
+                    return attrvalue(self)
+
+                method_name = attrname + "_" + cat
+                test_method.__name__ = method_name
+                test_method.debug_server = cat
+                newattrs[method_name] = test_method
+
+        return super(GdbRemoteTestCaseFactory, cls).__new__(
+                cls, name, bases, newattrs)
+
+@add_metaclass(GdbRemoteTestCaseFactory)
 class GdbRemoteTestCaseBase(Base):
 
     # Default time out in seconds. The timeout is increased tenfold under Asan.
@@ -80,6 +113,10 @@ class GdbRemoteTestCaseBase(Base):
         return any(("gdb-remote" in channel)
                    for channel in lldbtest_config.channels)
 
+    def getDebugServer(self):
+        method = getattr(self, self.testMethodName)
+        return getattr(method, "debug_server", None)
+
     def setUp(self):
         super(GdbRemoteTestCaseBase, self).setUp()
 
@@ -89,7 +126,7 @@ class GdbRemoteTestCaseBase(Base):
         if self.isVerboseLoggingRequested():
             # If requested, full logs go to a log file
             self._verbose_log_handler = logging.FileHandler(
-                self.log_basename + "-host.log")
+                self.getLogBasenameForCurrentTest() + "-host.log")
             self._verbose_log_handler.setFormatter(self._log_formatter)
             self._verbose_log_handler.setLevel(logging.DEBUG)
             self.logger.addHandler(self._verbose_log_handler)
@@ -114,6 +151,12 @@ class GdbRemoteTestCaseBase(Base):
         else:
             self.stub_hostname = "localhost"
 
+        debug_server = self.getDebugServer()
+        if debug_server == "debugserver":
+            self._init_debugserver_test()
+        else:
+            self._init_llgs_test()
+
     def tearDown(self):
         self.logger.removeHandler(self._verbose_log_handler)
         self._verbose_log_handler = None
@@ -123,7 +166,7 @@ class GdbRemoteTestCaseBase(Base):
         self.buildDefault(*args, **kwargs)
 
     def getLocalServerLogFile(self):
-        return self.log_basename + "-server.log"
+        return self.getLogBasenameForCurrentTest() + "-server.log"
 
     def setUpServerLogging(self, is_llgs):
         if len(lldbtest_config.channels) == 0:
@@ -150,15 +193,13 @@ class GdbRemoteTestCaseBase(Base):
         self.test_sequence = GdbRemoteTestSequence(self.logger)
 
 
-    def init_llgs_test(self):
+    def _init_llgs_test(self):
         reverse_connect = True
         if lldb.remote_platform:
             # Reverse connections may be tricky due to firewalls/NATs.
             reverse_connect = False
 
-            triple = self.dbg.GetSelectedPlatform().GetTriple()
-            if re.match(".*-.*-windows", triple):
-                self.skipTest("Remotely testing is not supported on Windows yet.")
+            # FIXME: This is extremely linux-oriented
 
             # Grab the ppid from /proc/[shell pid]/stat
             err, retcode, shell_stat = self.run_platform_command(
@@ -185,10 +226,6 @@ class GdbRemoteTestCaseBase(Base):
             # Remove if it's there.
             self.debug_monitor_exe = re.sub(r' \(deleted\)$', '', exe)
         else:
-            # TODO: enable this
-            if platform.system() == 'Windows':
-                reverse_connect = False
-
             self.debug_monitor_exe = get_lldb_server_exe()
             if not self.debug_monitor_exe:
                 self.skipTest("lldb-server exe not found")
@@ -198,7 +235,7 @@ class GdbRemoteTestCaseBase(Base):
 
         self.reverse_connect = reverse_connect
 
-    def init_debugserver_test(self):
+    def _init_debugserver_test(self):
         self.debug_monitor_exe = get_debugserver_exe()
         if not self.debug_monitor_exe:
             self.skipTest("debugserver exe not found")

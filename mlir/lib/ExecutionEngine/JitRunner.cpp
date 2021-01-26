@@ -155,17 +155,59 @@ static Error compileAndExecute(Options &options, ModuleOp module,
   if (auto clOptLevel = getCommandLineOptLevel(options))
     jitCodeGenOptLevel =
         static_cast<llvm::CodeGenOpt::Level>(clOptLevel.getValue());
+
+  // If shared library implements custom mlir-runner library init and destroy
+  // functions, we'll use them to register the library with the execution
+  // engine. Otherwise we'll pass library directly to the execution engine.
   SmallVector<StringRef, 4> libs(options.clSharedLibs.begin(),
                                  options.clSharedLibs.end());
+
+  // Libraries that we'll pass to the ExecutionEngine for loading.
+  SmallVector<StringRef, 4> executionEngineLibs;
+
+  using MlirRunnerInitFn = void (*)(llvm::StringMap<void *> &);
+  using MlirRunnerDestroyFn = void (*)();
+
+  llvm::StringMap<void *> exportSymbols;
+  SmallVector<MlirRunnerDestroyFn> destroyFns;
+
+  // Handle libraries that do support mlir-runner init/destroy callbacks.
+  for (auto libPath : libs) {
+    auto lib = llvm::sys::DynamicLibrary::getPermanentLibrary(libPath.data());
+    void *initSym = lib.getAddressOfSymbol("__mlir_runner_init");
+    void *destroySim = lib.getAddressOfSymbol("__mlir_runner_destroy");
+
+    // Library does not support mlir runner, load it with ExecutionEngine.
+    if (!initSym || !destroySim) {
+      executionEngineLibs.push_back(libPath);
+      continue;
+    }
+
+    auto initFn = reinterpret_cast<MlirRunnerInitFn>(initSym);
+    initFn(exportSymbols);
+
+    auto destroyFn = reinterpret_cast<MlirRunnerDestroyFn>(destroySim);
+    destroyFns.push_back(destroyFn);
+  }
+
+  // Build a runtime symbol map from the config and exported symbols.
+  auto runtimeSymbolMap = [&](llvm::orc::MangleAndInterner interner) {
+    auto symbolMap = config.runtimeSymbolMap ? config.runtimeSymbolMap(interner)
+                                             : llvm::orc::SymbolMap();
+    for (auto &exportSymbol : exportSymbols)
+      symbolMap[interner(exportSymbol.getKey())] =
+          llvm::JITEvaluatedSymbol::fromPointer(exportSymbol.getValue());
+    return symbolMap;
+  };
+
   auto expectedEngine = mlir::ExecutionEngine::create(
       module, config.llvmModuleBuilder, config.transformer, jitCodeGenOptLevel,
-      libs);
+      executionEngineLibs);
   if (!expectedEngine)
     return expectedEngine.takeError();
 
   auto engine = std::move(*expectedEngine);
-  if (config.runtimeSymbolMap)
-    engine->registerSymbols(config.runtimeSymbolMap);
+  engine->registerSymbols(runtimeSymbolMap);
 
   auto expectedFPtr = engine->lookup(entryPoint);
   if (!expectedFPtr)
@@ -178,6 +220,9 @@ static Error compileAndExecute(Options &options, ModuleOp module,
 
   void (*fptr)(void **) = *expectedFPtr;
   (*fptr)(args);
+
+  // Run all dynamic library destroy callbacks to prepare for the shutdown.
+  llvm::for_each(destroyFns, [](MlirRunnerDestroyFn destroy) { destroy(); });
 
   return Error::success();
 }
@@ -196,20 +241,31 @@ template <typename Type>
 Error checkCompatibleReturnType(LLVM::LLVMFuncOp mainFunction);
 template <>
 Error checkCompatibleReturnType<int32_t>(LLVM::LLVMFuncOp mainFunction) {
-  if (!mainFunction.getType().getFunctionResultType().isIntegerTy(32))
-    return make_string_error("only single llvm.i32 function result supported");
+  auto resultType = mainFunction.getType()
+                        .cast<LLVM::LLVMFunctionType>()
+                        .getReturnType()
+                        .dyn_cast<IntegerType>();
+  if (!resultType || resultType.getWidth() != 32)
+    return make_string_error("only single i32 function result supported");
   return Error::success();
 }
 template <>
 Error checkCompatibleReturnType<int64_t>(LLVM::LLVMFuncOp mainFunction) {
-  if (!mainFunction.getType().getFunctionResultType().isIntegerTy(64))
-    return make_string_error("only single llvm.i64 function result supported");
+  auto resultType = mainFunction.getType()
+                        .cast<LLVM::LLVMFunctionType>()
+                        .getReturnType()
+                        .dyn_cast<IntegerType>();
+  if (!resultType || resultType.getWidth() != 64)
+    return make_string_error("only single i64 function result supported");
   return Error::success();
 }
 template <>
 Error checkCompatibleReturnType<float>(LLVM::LLVMFuncOp mainFunction) {
-  if (!mainFunction.getType().getFunctionResultType().isFloatTy())
-    return make_string_error("only single llvm.f32 function result supported");
+  if (!mainFunction.getType()
+           .cast<LLVM::LLVMFunctionType>()
+           .getReturnType()
+           .isa<Float32Type>())
+    return make_string_error("only single f32 function result supported");
   return Error::success();
 }
 template <typename Type>
@@ -220,7 +276,7 @@ Error compileAndExecuteSingleReturnFunction(Options &options, ModuleOp module,
   if (!mainFunction || mainFunction.isExternal())
     return make_string_error("entry point not found");
 
-  if (mainFunction.getType().getFunctionNumParams() != 0)
+  if (mainFunction.getType().cast<LLVM::LLVMFunctionType>().getNumParams() != 0)
     return make_string_error("function inputs not supported");
 
   if (Error error = checkCompatibleReturnType<Type>(mainFunction))

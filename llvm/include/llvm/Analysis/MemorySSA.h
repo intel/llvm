@@ -109,6 +109,7 @@ namespace llvm {
 /// Enables memory ssa as a dependency for loop passes.
 extern cl::opt<bool> EnableMSSALoopDependency;
 
+class AllocaInst;
 class Function;
 class Instruction;
 class MemoryAccess;
@@ -849,7 +850,6 @@ private:
   using DefsMap = DenseMap<const BasicBlock *, std::unique_ptr<DefsList>>;
 
   void markUnreachableAsLiveOnEntry(BasicBlock *BB);
-  bool dominatesUse(const MemoryAccess *, const MemoryAccess *) const;
   MemoryPhi *createMemoryPhi(BasicBlock *BB);
   template <typename AliasAnalysisType>
   MemoryUseOrDef *createNewAccess(Instruction *, AliasAnalysisType *,
@@ -1217,21 +1217,7 @@ private:
   /// Returns true if \p Ptr is guaranteed to be loop invariant for any possible
   /// loop. In particular, this guarantees that it only references a single
   /// MemoryLocation during execution of the containing function.
-  bool IsGuaranteedLoopInvariant(Value *Ptr) const {
-    auto IsGuaranteedLoopInvariantBase = [](Value *Ptr) {
-      Ptr = Ptr->stripPointerCasts();
-      if (!isa<Instruction>(Ptr))
-        return true;
-      return isa<AllocaInst>(Ptr);
-    };
-
-    Ptr = Ptr->stripPointerCasts();
-    if (auto *GEP = dyn_cast<GEPOperator>(Ptr)) {
-      return IsGuaranteedLoopInvariantBase(GEP->getPointerOperand()) &&
-             GEP->hasAllConstantIndices();
-    }
-    return IsGuaranteedLoopInvariantBase(Ptr);
-  }
+  bool IsGuaranteedLoopInvariant(Value *Ptr) const;
 
   void fillInCurrentPair() {
     CurrentPair.first = *DefIterator;

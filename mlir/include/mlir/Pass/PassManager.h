@@ -35,6 +35,7 @@ class PassInstrumentor;
 
 namespace detail {
 struct OpPassManagerImpl;
+class OpToOpPassAdaptor;
 struct PassExecutionState;
 } // end namespace detail
 
@@ -48,8 +49,8 @@ struct PassExecutionState;
 class OpPassManager {
 public:
   enum class Nesting { Implicit, Explicit };
-  OpPassManager(Identifier name, Nesting nesting);
-  OpPassManager(StringRef name, Nesting nesting);
+  OpPassManager(Identifier name, Nesting nesting = Nesting::Explicit);
+  OpPassManager(StringRef name, Nesting nesting = Nesting::Explicit);
   OpPassManager(OpPassManager &&rhs);
   OpPassManager(const OpPassManager &rhs);
   ~OpPassManager();
@@ -126,8 +127,16 @@ public:
   Nesting getNesting();
 
 private:
+  /// Initialize all of the passes within this pass manager with the given
+  /// initialization generation. The initialization generation is used to detect
+  /// if a pass manager has already been initialized.
+  void initialize(MLIRContext *context, unsigned newInitGeneration);
+
   /// A pointer to an internal implementation instance.
   std::unique_ptr<detail::OpPassManagerImpl> impl;
+
+  /// Allow access to initialize.
+  friend detail::OpToOpPassAdaptor;
 
   /// Allow access to the constructor.
   friend class PassManager;

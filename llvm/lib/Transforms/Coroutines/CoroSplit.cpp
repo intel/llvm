@@ -28,6 +28,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/CallGraphSCCPass.h"
+#include "llvm/Analysis/LazyCallGraph.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
@@ -173,8 +174,53 @@ static void maybeFreeRetconStorage(IRBuilder<> &Builder,
   Shape.emitDealloc(Builder, FramePtr, CG);
 }
 
+/// Replace an llvm.coro.end.async.
+/// Will inline the must tail call function call if there is one.
+/// \returns true if cleanup of the coro.end block is needed, false otherwise.
+static bool replaceCoroEndAsync(AnyCoroEndInst *End) {
+  IRBuilder<> Builder(End);
+
+  auto *EndAsync = dyn_cast<CoroAsyncEndInst>(End);
+  if (!EndAsync) {
+    Builder.CreateRetVoid();
+    return true /*needs cleanup of coro.end block*/;
+  }
+
+  auto *MustTailCallFunc = EndAsync->getMustTailCallFunction();
+  if (!MustTailCallFunc) {
+    Builder.CreateRetVoid();
+    return true /*needs cleanup of coro.end block*/;
+  }
+
+  // Move the must tail call from the predecessor block into the end block.
+  auto *CoroEndBlock = End->getParent();
+  auto *MustTailCallFuncBlock = CoroEndBlock->getSinglePredecessor();
+  assert(MustTailCallFuncBlock && "Must have a single predecessor block");
+  auto It = MustTailCallFuncBlock->getTerminator()->getIterator();
+  auto *MustTailCall = cast<CallInst>(&*std::prev(It));
+  CoroEndBlock->getInstList().splice(
+      End->getIterator(), MustTailCallFuncBlock->getInstList(), MustTailCall);
+
+  // Insert the return instruction.
+  Builder.SetInsertPoint(End);
+  Builder.CreateRetVoid();
+  InlineFunctionInfo FnInfo;
+
+  // Remove the rest of the block, by splitting it into an unreachable block.
+  auto *BB = End->getParent();
+  BB->splitBasicBlock(End);
+  BB->getTerminator()->eraseFromParent();
+
+  auto InlineRes = InlineFunction(*MustTailCall, FnInfo);
+  assert(InlineRes.isSuccess() && "Expected inlining to succeed");
+  (void)InlineRes;
+
+  // We have cleaned up the coro.end block above.
+  return false;
+}
+
 /// Replace a non-unwind call to llvm.coro.end.
-static void replaceFallthroughCoroEnd(CoroEndInst *End,
+static void replaceFallthroughCoroEnd(AnyCoroEndInst *End,
                                       const coro::Shape &Shape, Value *FramePtr,
                                       bool InResume, CallGraph *CG) {
   // Start inserting right before the coro.end.
@@ -192,9 +238,12 @@ static void replaceFallthroughCoroEnd(CoroEndInst *End,
     break;
 
   // In async lowering this returns.
-  case coro::ABI::Async:
-    Builder.CreateRetVoid();
+  case coro::ABI::Async: {
+    bool CoroEndBlockNeedsCleanup = replaceCoroEndAsync(End);
+    if (!CoroEndBlockNeedsCleanup)
+      return;
     break;
+  }
 
   // In unique continuation lowering, the continuations always return void.
   // But we may have implicitly allocated storage.
@@ -229,8 +278,9 @@ static void replaceFallthroughCoroEnd(CoroEndInst *End,
 }
 
 /// Replace an unwind call to llvm.coro.end.
-static void replaceUnwindCoroEnd(CoroEndInst *End, const coro::Shape &Shape,
-                                 Value *FramePtr, bool InResume, CallGraph *CG){
+static void replaceUnwindCoroEnd(AnyCoroEndInst *End, const coro::Shape &Shape,
+                                 Value *FramePtr, bool InResume,
+                                 CallGraph *CG) {
   IRBuilder<> Builder(End);
 
   switch (Shape.ABI) {
@@ -258,7 +308,7 @@ static void replaceUnwindCoroEnd(CoroEndInst *End, const coro::Shape &Shape,
   }
 }
 
-static void replaceCoroEnd(CoroEndInst *End, const coro::Shape &Shape,
+static void replaceCoroEnd(AnyCoroEndInst *End, const coro::Shape &Shape,
                            Value *FramePtr, bool InResume, CallGraph *CG) {
   if (End->isUnwind())
     replaceUnwindCoroEnd(End, Shape, FramePtr, InResume, CG);
@@ -511,10 +561,10 @@ void CoroCloner::replaceCoroSuspends() {
 }
 
 void CoroCloner::replaceCoroEnds() {
-  for (CoroEndInst *CE : Shape.CoroEnds) {
+  for (AnyCoroEndInst *CE : Shape.CoroEnds) {
     // We use a null call graph because there's no call graph node for
     // the cloned function yet.  We'll just be rebuilding that later.
-    auto NewCE = cast<CoroEndInst>(VMap[CE]);
+    auto *NewCE = cast<AnyCoroEndInst>(VMap[CE]);
     replaceCoroEnd(NewCE, Shape, NewFramePtr, /*in resume*/ true, nullptr);
   }
 }
@@ -1385,6 +1435,23 @@ static void coerceArguments(IRBuilder<> &Builder, FunctionType *FnTy,
   }
 }
 
+CallInst *coro::createMustTailCall(DebugLoc Loc, Function *MustTailCallFn,
+                                   ArrayRef<Value *> Arguments,
+                                   IRBuilder<> &Builder) {
+  auto *FnTy =
+      cast<FunctionType>(MustTailCallFn->getType()->getPointerElementType());
+  // Coerce the arguments, llvm optimizations seem to ignore the types in
+  // vaarg functions and throws away casts in optimized mode.
+  SmallVector<Value *, 8> CallArgs;
+  coerceArguments(Builder, FnTy, Arguments, CallArgs);
+
+  auto *TailCall = Builder.CreateCall(FnTy, MustTailCallFn, CallArgs);
+  TailCall->setTailCallKind(CallInst::TCK_MustTail);
+  TailCall->setDebugLoc(Loc);
+  TailCall->setCallingConv(MustTailCallFn->getCallingConv());
+  return TailCall;
+}
+
 static void splitAsyncCoroutine(Function &F, coro::Shape &Shape,
                                 SmallVectorImpl<Function *> &Clones) {
   assert(Shape.ABI == coro::ABI::Async);
@@ -1443,18 +1510,10 @@ static void splitAsyncCoroutine(Function &F, coro::Shape &Shape,
 
     // Insert the call to the tail call function and inline it.
     auto *Fn = Suspend->getMustTailCallFunction();
-    auto DbgLoc = Suspend->getDebugLoc();
-    SmallVector<Value *, 8> Args(Suspend->operand_values());
-    auto FnArgs = ArrayRef<Value *>(Args).drop_front(3).drop_back(1);
-    auto FnTy = cast<FunctionType>(Fn->getType()->getPointerElementType());
-    // Coerce the arguments, llvm optimizations seem to ignore the types in
-    // vaarg functions and throws away casts in optimized mode.
-    SmallVector<Value *, 8> CallArgs;
-    coerceArguments(Builder, FnTy, FnArgs, CallArgs);
-    auto *TailCall = Builder.CreateCall(FnTy, Fn, CallArgs);
-    TailCall->setDebugLoc(DbgLoc);
-    TailCall->setTailCall();
-    TailCall->setCallingConv(Fn->getCallingConv());
+    SmallVector<Value *, 8> Args(Suspend->args());
+    auto FnArgs = ArrayRef<Value *>(Args).drop_front(3);
+    auto *TailCall =
+        coro::createMustTailCall(Suspend->getDebugLoc(), Fn, FnArgs, Builder);
     Builder.CreateRetVoid();
     InlineFunctionInfo FnInfo;
     auto InlineRes = InlineFunction(*TailCall, FnInfo);
@@ -1683,27 +1742,37 @@ static void updateCallGraphAfterCoroutineSplit(
   if (!Shape.CoroBegin)
     return;
 
-  for (llvm::CoroEndInst *End : Shape.CoroEnds) {
+  for (llvm::AnyCoroEndInst *End : Shape.CoroEnds) {
     auto &Context = End->getContext();
     End->replaceAllUsesWith(ConstantInt::getFalse(Context));
     End->eraseFromParent();
   }
 
-  postSplitCleanup(N.getFunction());
+  if (!Clones.empty()) {
+    switch (Shape.ABI) {
+    case coro::ABI::Switch:
+      // Each clone in the Switch lowering is independent of the other clones.
+      // Let the LazyCallGraph know about each one separately.
+      for (Function *Clone : Clones)
+        CG.addSplitFunction(N.getFunction(), *Clone);
+      break;
+    case coro::ABI::Async:
+    case coro::ABI::Retcon:
+    case coro::ABI::RetconOnce:
+      // Each clone in the Async/Retcon lowering references of the other clones.
+      // Let the LazyCallGraph know about all of them at once.
+      CG.addSplitRefRecursiveFunctions(N.getFunction(), Clones);
+      break;
+    }
 
-  // We've inserted instructions into coroutine 'f' that reference the three new
-  // coroutine funclets. We must now update the call graph so that reference
-  // edges between 'f' and its funclets are added to it. LazyCallGraph only
-  // allows CGSCC passes to insert "trivial" reference edges. We've ensured
-  // above, by inserting the funclets into the same SCC as the corutine, that
-  // the edges are trivial.
-  //
-  // N.B.: If we didn't update the call graph here, a CGSCCToFunctionPassAdaptor
-  // later in this CGSCC pass pipeline may be run, triggering a call graph
-  // update of its own. Function passes run by the adaptor are not permitted to
-  // add new edges of any kind to the graph, and the new edges inserted by this
-  // pass would be misattributed to that unrelated function pass.
-  updateCGAndAnalysisManagerForCGSCCPass(CG, C, N, AM, UR, FAM);
+    // Let the CGSCC infra handle the changes to the original function.
+    updateCGAndAnalysisManagerForCGSCCPass(CG, C, N, AM, UR, FAM);
+  }
+
+  // Do some cleanup and let the CGSCC infra see if we've cleaned up any edges
+  // to the split functions.
+  postSplitCleanup(N.getFunction());
+  updateCGAndAnalysisManagerForFunctionPass(CG, C, N, AM, UR, FAM);
 }
 
 // When we see the coroutine the first time, we insert an indirect call to a
@@ -1948,17 +2017,7 @@ PreservedAnalyses CoroSplitPass::run(LazyCallGraph::SCC &C,
     LLVM_DEBUG(dbgs() << "CoroSplit: Processing coroutine '" << F.getName()
                       << "' state: " << Value << "\n");
     if (Value == UNPREPARED_FOR_SPLIT) {
-      // Enqueue a second iteration of the CGSCC pipeline.
-      // N.B.:
-      // The CoroSplitLegacy pass "triggers" a restart of the CGSCC pass
-      // pipeline by inserting an indirect function call that the
-      // CoroElideLegacy pass then replaces with a direct function call. The
-      // legacy CGSCC pipeline's implicit behavior was as if wrapped in the new
-      // pass manager abstraction DevirtSCCRepeatedPass.
-      //
-      // This pass does not need to "trigger" another run of the pipeline.
-      // Instead, it simply enqueues the same RefSCC onto the pipeline's
-      // worklist.
+      // Enqueue a second iteration of the CGSCC pipeline on this SCC.
       UR.CWorklist.insert(&C);
       F.addFnAttr(CORO_PRESPLIT_ATTR, PREPARED_FOR_SPLIT);
       continue;
@@ -1969,9 +2028,12 @@ PreservedAnalyses CoroSplitPass::run(LazyCallGraph::SCC &C,
     const coro::Shape Shape = splitCoroutine(F, Clones, ReuseFrameSlot);
     updateCallGraphAfterCoroutineSplit(*N, Shape, Clones, C, CG, AM, UR, FAM);
 
-    if (Shape.ABI == coro::ABI::Async && !Shape.CoroSuspends.empty()) {
-      // We want the inliner to be run on the newly inserted functions.
-      UR.CWorklist.insert(&C);
+    if ((Shape.ABI == coro::ABI::Async || Shape.ABI == coro::ABI::Retcon ||
+         Shape.ABI == coro::ABI::RetconOnce) &&
+        !Shape.CoroSuspends.empty()) {
+      // Run the CGSCC pipeline on the newly split functions.
+      // All clones will be in the same RefSCC, so choose a random clone.
+      UR.RCWorklist.insert(CG.lookupRefSCC(CG.get(*Clones[0])));
     }
   }
 

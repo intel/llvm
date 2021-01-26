@@ -31,6 +31,10 @@ StringRef TypeDef::getCppClassName() const {
   return def->getValueAsString("cppClassName");
 }
 
+StringRef TypeDef::getCppBaseClassName() const {
+  return def->getValueAsString("cppBaseClassName");
+}
+
 bool TypeDef::hasDescription() const {
   const llvm::RecordVal *s = def->getValue("description");
   return s != nullptr && isa<llvm::StringInit>(s->getValue());
@@ -105,7 +109,7 @@ bool TypeDef::operator<(const TypeDef &other) const {
 StringRef TypeParameter::getName() const {
   return def->getArgName(num)->getValue();
 }
-llvm::Optional<StringRef> TypeParameter::getAllocator() const {
+Optional<StringRef> TypeParameter::getAllocator() const {
   llvm::Init *parameterType = def->getArg(num);
   if (isa<llvm::StringInit>(parameterType))
     return llvm::Optional<StringRef>();
@@ -138,14 +142,14 @@ StringRef TypeParameter::getCppType() const {
       "Parameters DAG arguments must be either strings or defs "
       "which inherit from TypeParameter\n");
 }
-llvm::Optional<StringRef> TypeParameter::getDescription() const {
+Optional<StringRef> TypeParameter::getSummary() const {
   auto *parameterType = def->getArg(num);
   if (auto *typeParameter = dyn_cast<llvm::DefInit>(parameterType)) {
-    const auto *desc = typeParameter->getDef()->getValue("description");
+    const auto *desc = typeParameter->getDef()->getValue("summary");
     if (llvm::StringInit *ci = dyn_cast<llvm::StringInit>(desc->getValue()))
       return ci->getValue();
   }
-  return llvm::Optional<StringRef>();
+  return Optional<StringRef>();
 }
 StringRef TypeParameter::getSyntax() const {
   auto *parameterType = def->getArg(num);

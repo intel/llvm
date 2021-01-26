@@ -127,6 +127,9 @@ public:
   /// Tuning option to enable/disable function merging. Its default value is
   /// false.
   bool MergeFunctions;
+
+  /// Uniquefy function linkage name. Its default value is false.
+  bool UniqueLinkageNames;
 };
 
 /// This class provides access to building LLVM's passes.
@@ -460,6 +463,9 @@ public:
 
   /// Build the default `AAManager` with the default alias analysis pipeline
   /// registered.
+  ///
+  /// This also adds target-specific alias analyses registered via
+  /// TargetMachine::registerDefaultAliasAnalyses().
   AAManager buildDefaultAAPipeline();
 
   /// Parse a textual pass pipeline description into a \c

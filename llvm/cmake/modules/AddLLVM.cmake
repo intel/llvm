@@ -865,10 +865,13 @@ macro(add_llvm_executable name)
 
   if(NOT ARG_NO_INSTALL_RPATH)
     llvm_setup_rpath(${name})
-  elseif (LLVM_LOCAL_RPATH)
-    set_target_properties(${name} PROPERTIES
-                          BUILD_WITH_INSTALL_RPATH On
-                          INSTALL_RPATH "${LLVM_LOCAL_RPATH}")
+  elseif(NOT "${LLVM_LOCAL_RPATH}" STREQUAL "")
+    # Enable BUILD_WITH_INSTALL_RPATH unless CMAKE_BUILD_RPATH is set.
+    if("${CMAKE_BUILD_RPATH}" STREQUAL "")
+      set_property(TARGET ${name} PROPERTY BUILD_WITH_INSTALL_RPATH ON)
+    endif()
+
+    set_property(TARGET ${name} PROPERTY INSTALL_RPATH "${LLVM_LOCAL_RPATH}")
   endif()
 
   if(DEFINED windows_resource_file)
@@ -2113,8 +2116,12 @@ function(llvm_setup_rpath name)
     return()
   endif()
 
+  # Enable BUILD_WITH_INSTALL_RPATH unless CMAKE_BUILD_RPATH is set.
+  if("${CMAKE_BUILD_RPATH}" STREQUAL "")
+    set_property(TARGET ${name} PROPERTY BUILD_WITH_INSTALL_RPATH ON)
+  endif()
+
   set_target_properties(${name} PROPERTIES
-                        BUILD_WITH_INSTALL_RPATH On
                         INSTALL_RPATH "${_install_rpath}"
                         ${_install_name_dir})
 endfunction()
@@ -2135,6 +2142,13 @@ function(setup_dependency_debugging name)
   set_target_properties(${name} PROPERTIES RULE_LAUNCH_COMPILE ${sandbox_command})
 endfunction()
 
+# If the sources at the given `path` are under version control, set `out_var`
+# to the the path of a file which will be modified when the VCS revision
+# changes, attempting to create that file if it does not exist; if no such
+# file exists and one cannot be created, instead set `out_var` to the
+# empty string.
+#
+# If the sources are not under version control, do not define `out_var`.
 function(find_first_existing_vc_file path out_var)
   if(NOT EXISTS "${path}")
     return()
@@ -2156,6 +2170,7 @@ function(find_first_existing_vc_file path out_var)
           RESULT_VARIABLE touch_head_result
           ERROR_QUIET)
         if (NOT touch_head_result EQUAL 0)
+          set(${out_var} "" PARENT_SCOPE)
           return()
         endif()
       endif()

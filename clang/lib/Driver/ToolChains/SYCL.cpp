@@ -95,55 +95,130 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
                                          Foreach, ForeachArgs, None));
 }
 
+// The list should match pre-built SYCL device library files located in
+// compiler package. Once we add or remove any SYCL device library files,
+// the list should be updated accordingly.
+static llvm::SmallVector<StringRef, 10> SYCLDeviceLibList{
+    "crt",
+    "cmath",
+    "cmath-fp64",
+    "complex",
+    "complex-fp64",
+    "fallback-cassert",
+    "fallback-cmath",
+    "fallback-cmath-fp64",
+    "fallback-complex",
+    "fallback-complex-fp64"};
+
 const char *SYCL::Linker::constructLLVMLinkCommand(
     Compilation &C, const JobAction &JA, const InputInfo &Output,
     const ArgList &Args, StringRef SubArchName, StringRef OutputFilePrefix,
     const InputInfoList &InputFiles) const {
-  ArgStringList CmdArgs;
+  // Split inputs into libraries which have 'archive' type and other inputs
+  // which can be either objects or list files. Objects/list files are linked
+  // together in a usual way, but the libraries need to be linked differently.
+  // We need to fetch only required symbols from the libraries. With the current
+  // llvm-link command line interface that can be achieved with two step
+  // linking: at the first step we will link objects into an intermediate
+  // partially linked image which on the second step will be linked with the
+  // libraries with --only-needed option.
+  ArgStringList Opts;
+  ArgStringList Objs;
+  ArgStringList Libs;
   // Add the input bc's created by compile step.
   // When offloading, the input file(s) could be from unbundled partially
   // linked archives.  The unbundled information is a list of files and not
   // an actual object/archive.  Take that list and pass those to the linker
   // instead of the original object.
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
-    auto SYCLDeviceLibIter =
-        std::find_if(InputFiles.begin(), InputFiles.end(), [](const auto &II) {
-          StringRef InputFilename =
-              llvm::sys::path::filename(StringRef(II.getFilename()));
-          if (InputFilename.startswith("libsycl-") &&
-              InputFilename.endswith(".o"))
-            return true;
-          return false;
-        });
-    bool LinkSYCLDeviceLibs = (SYCLDeviceLibIter != InputFiles.end());
+    auto isSYCLDeviceLib = [&C](const InputInfo &II) {
+      const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+      StringRef LibPostfix = ".o";
+      if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
+          C.getDriver().IsCLMode())
+        LibPostfix = ".obj";
+      StringRef InputFilename =
+          llvm::sys::path::filename(StringRef(II.getFilename()));
+      if (!InputFilename.startswith("libsycl-") ||
+          !InputFilename.endswith(LibPostfix) || (InputFilename.count('-') < 2))
+        return false;
+      size_t PureLibNameLen = InputFilename.find_last_of('-');
+      // Skip the prefix "libsycl-"
+      StringRef PureLibName = InputFilename.substr(8, PureLibNameLen - 8);
+      for (const auto &L : SYCLDeviceLibList) {
+        if (PureLibName.compare(L) == 0)
+          return true;
+      }
+      return false;
+    };
+    size_t InputFileNum = InputFiles.size();
+    bool LinkSYCLDeviceLibs = (InputFileNum >= 2);
+    LinkSYCLDeviceLibs = LinkSYCLDeviceLibs && !isSYCLDeviceLib(InputFiles[0]);
+    for (size_t Idx = 1; Idx < InputFileNum; ++Idx)
+      LinkSYCLDeviceLibs =
+          LinkSYCLDeviceLibs && isSYCLDeviceLib(InputFiles[Idx]);
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
     if (LinkSYCLDeviceLibs)
-      CmdArgs.push_back("-only-needed");
+      Opts.push_back("-only-needed");
     for (const auto &II : InputFiles) {
       if (II.getType() == types::TY_Tempfilelist) {
         // Pass the unbundled list with '@' to be processed.
         std::string FileName(II.getFilename());
-        CmdArgs.push_back(C.getArgs().MakeArgString("@" + FileName));
+        Objs.push_back(C.getArgs().MakeArgString("@" + FileName));
+      } else if (II.getType() == types::TY_Archive && !LinkSYCLDeviceLibs) {
+        Libs.push_back(II.getFilename());
       } else
-        CmdArgs.push_back(II.getFilename());
+        Objs.push_back(II.getFilename());
     }
   } else
     for (const auto &II : InputFiles)
-      CmdArgs.push_back(II.getFilename());
+      Objs.push_back(II.getFilename());
 
-  // Add an intermediate output file.
-  CmdArgs.push_back("-o");
-  const char *OutputFileName = Output.getFilename();
-  CmdArgs.push_back(OutputFileName);
-  // TODO: temporary workaround for a problem with warnings reported by
-  // llvm-link when driver links LLVM modules with empty modules
-  CmdArgs.push_back("--suppress-warnings");
+  // Get llvm-link path.
   SmallString<128> ExecPath(C.getDriver().Dir);
   llvm::sys::path::append(ExecPath, "llvm-link");
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
-  C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::AtFileUTF8(), Exec, CmdArgs, None));
+
+  auto AddLinkCommand = [this, &C, &JA, Exec](const char *Output,
+                                              const ArgStringList &Inputs,
+                                              const ArgStringList &Options) {
+    ArgStringList CmdArgs;
+    llvm::copy(Options, std::back_inserter(CmdArgs));
+    llvm::copy(Inputs, std::back_inserter(CmdArgs));
+    CmdArgs.push_back("-o");
+    CmdArgs.push_back(Output);
+    // TODO: temporary workaround for a problem with warnings reported by
+    // llvm-link when driver links LLVM modules with empty modules
+    CmdArgs.push_back("--suppress-warnings");
+    C.addCommand(std::make_unique<Command>(
+        JA, *this, ResponseFileSupport::AtFileUTF8(), Exec, CmdArgs, None));
+  };
+
+  // Add an intermediate output file.
+  const char *OutputFileName = Output.getFilename();
+
+  if (Libs.empty())
+    AddLinkCommand(OutputFileName, Objs, Opts);
+  else {
+    assert(Opts.empty() && "unexpected options");
+
+    // Linker will be invoked twice if inputs contain libraries. First time we
+    // will link input objects into an intermediate temporary file, and on the
+    // second invocation intermediate temporary object will be linked with the
+    // libraries, but now only required symbols will be added to the final
+    // output.
+    std::string TempFile =
+        C.getDriver().GetTemporaryPath(OutputFilePrefix.str() + "-link", "bc");
+    const char *LinkOutput = C.addTempFile(C.getArgs().MakeArgString(TempFile));
+    AddLinkCommand(LinkOutput, Objs, {});
+
+    // Now invoke linker for the second time to link required symbols from the
+    // input libraries.
+    ArgStringList LinkInputs{LinkOutput};
+    llvm::copy(Libs, std::back_inserter(LinkInputs));
+    AddLinkCommand(OutputFileName, LinkInputs, {"--only-needed"});
+  }
   return OutputFileName;
 }
 

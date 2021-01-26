@@ -421,8 +421,8 @@ bool PPCInstrInfo::getFMAPatterns(
 }
 
 bool PPCInstrInfo::getMachineCombinerPatterns(
-    MachineInstr &Root,
-    SmallVectorImpl<MachineCombinerPattern> &Patterns) const {
+    MachineInstr &Root, SmallVectorImpl<MachineCombinerPattern> &Patterns,
+    bool DoRegPressureReduce) const {
   // Using the machine combiner in this way is potentially expensive, so
   // restrict to when aggressive optimizations are desired.
   if (Subtarget.getTargetMachine().getOptLevel() != CodeGenOpt::Aggressive)
@@ -431,7 +431,8 @@ bool PPCInstrInfo::getMachineCombinerPatterns(
   if (getFMAPatterns(Root, Patterns))
     return true;
 
-  return TargetInstrInfo::getMachineCombinerPatterns(Root, Patterns);
+  return TargetInstrInfo::getMachineCombinerPatterns(Root, Patterns,
+                                                     DoRegPressureReduce);
 }
 
 void PPCInstrInfo::genAlternativeCodeSequence(
@@ -2140,6 +2141,14 @@ bool PPCInstrInfo::optimizeCompareInstr(MachineInstr &CmpInstr, Register SrcReg,
   if (NewOpC == -1)
     return false;
 
+  // This transformation should not be performed if `nsw` is missing and is not
+  // `equalityOnly` comparison. Since if there is overflow, sub_lt, sub_gt in
+  // CRReg do not reflect correct order. If `equalityOnly` is true, sub_eq in
+  // CRReg can reflect if compared values are equal, this optz is still valid.
+  if (!equalityOnly && (NewOpC == PPC::SUBF_rec || NewOpC == PPC::SUBF8_rec) &&
+      Sub && !Sub->getFlag(MachineInstr::NoSWrap))
+    return false;
+
   // If we have SUB(r1, r2) and CMP(r2, r1), the condition code based on CMP
   // needs to be updated to be based on SUB.  Push the condition code
   // operands to OperandsToUpdate.  If it is safe to remove CmpInstr, the
@@ -3243,64 +3252,18 @@ bool PPCInstrInfo::convertToImmediateForm(MachineInstr &MI,
   return false;
 }
 
-// This function tries to combine two RLWINMs. We not only perform such
-// optimization in SSA, but also after RA, since some RLWINM is generated after
-// RA.
-bool PPCInstrInfo::simplifyRotateAndMaskInstr(MachineInstr &MI,
-                                              MachineInstr *&ToErase) const {
-  bool Is64Bit = false;
-  switch (MI.getOpcode()) {
-  case PPC::RLWINM:
-  case PPC::RLWINM_rec:
-    break;
-  case PPC::RLWINM8:
-  case PPC::RLWINM8_rec:
-    Is64Bit = true;
-    break;
-  default:
-    return false;
-  }
+bool PPCInstrInfo::combineRLWINM(MachineInstr &MI,
+                                 MachineInstr **ToErase) const {
   MachineRegisterInfo *MRI = &MI.getParent()->getParent()->getRegInfo();
-  Register FoldingReg = MI.getOperand(1).getReg();
-  MachineInstr *SrcMI = nullptr;
-  bool CanErase = false;
-  bool OtherIntermediateUse = true;
-  if (MRI->isSSA()) {
-    if (!Register::isVirtualRegister(FoldingReg))
-      return false;
-    SrcMI = MRI->getVRegDef(FoldingReg);
-  } else {
-    SrcMI = getDefMIPostRA(FoldingReg, MI, OtherIntermediateUse);
-  }
-  if (!SrcMI)
+  unsigned FoldingReg = MI.getOperand(1).getReg();
+  if (!Register::isVirtualRegister(FoldingReg))
     return false;
-  // TODO: The pairs of RLWINM8(RLWINM) or RLWINM(RLWINM8) never occur before
-  // RA, but after RA. And We can fold RLWINM8(RLWINM) -> RLWINM8, or
-  // RLWINM(RLWINM8) -> RLWINM.
-  switch (SrcMI->getOpcode()) {
-  case PPC::RLWINM:
-  case PPC::RLWINM_rec:
-    if (Is64Bit)
-      return false;
-    break;
-  case PPC::RLWINM8:
-  case PPC::RLWINM8_rec:
-    if (!Is64Bit)
-      return false;
-    break;
-  default:
+  MachineInstr *SrcMI = MRI->getVRegDef(FoldingReg);
+  if (SrcMI->getOpcode() != PPC::RLWINM &&
+      SrcMI->getOpcode() != PPC::RLWINM_rec &&
+      SrcMI->getOpcode() != PPC::RLWINM8 &&
+      SrcMI->getOpcode() != PPC::RLWINM8_rec)
     return false;
-  }
-  if (MRI->isSSA()) {
-    CanErase = !SrcMI->hasImplicitDef() && MRI->hasOneNonDBGUse(FoldingReg);
-  } else {
-    CanErase = !OtherIntermediateUse && MI.getOperand(1).isKill() &&
-               !SrcMI->hasImplicitDef();
-    // In post-RA, if SrcMI also defines the register to be forwarded, we can
-    // only do the folding if SrcMI is going to be erased.
-    if (!CanErase && SrcMI->definesRegister(SrcMI->getOperand(1).getReg()))
-      return false;
-  }
   assert((MI.getOperand(2).isImm() && MI.getOperand(3).isImm() &&
           MI.getOperand(4).isImm() && SrcMI->getOperand(2).isImm() &&
           SrcMI->getOperand(3).isImm() && SrcMI->getOperand(4).isImm()) &&
@@ -3311,6 +3274,7 @@ bool PPCInstrInfo::simplifyRotateAndMaskInstr(MachineInstr &MI,
   uint64_t MBMI = MI.getOperand(3).getImm();
   uint64_t MESrc = SrcMI->getOperand(4).getImm();
   uint64_t MEMI = MI.getOperand(4).getImm();
+
   assert((MEMI < 32 && MESrc < 32 && MBMI < 32 && MBSrc < 32) &&
          "Invalid PPC::RLWINM Instruction!");
   // If MBMI is bigger than MEMI, we always can not get run of ones.
@@ -3354,6 +3318,8 @@ bool PPCInstrInfo::simplifyRotateAndMaskInstr(MachineInstr &MI,
 
   // If final mask is 0, MI result should be 0 too.
   if (FinalMask.isNullValue()) {
+    bool Is64Bit =
+        (MI.getOpcode() == PPC::RLWINM8 || MI.getOpcode() == PPC::RLWINM8_rec);
     Simplified = true;
     LLVM_DEBUG(dbgs() << "Replace Instr: ");
     LLVM_DEBUG(MI.dump());
@@ -3411,10 +3377,12 @@ bool PPCInstrInfo::simplifyRotateAndMaskInstr(MachineInstr &MI,
     LLVM_DEBUG(dbgs() << "To: ");
     LLVM_DEBUG(MI.dump());
   }
-  if (Simplified && CanErase) {
-    // If SrcMI has no implicit def, and FoldingReg has no non-debug use or
-    // its flag is "killed", it's safe to delete SrcMI. Otherwise keep it.
-    ToErase = SrcMI;
+  if (Simplified & MRI->use_nodbg_empty(FoldingReg) &&
+      !SrcMI->hasImplicitDef()) {
+    // If FoldingReg has no non-debug use and it has no implicit def (it
+    // is not RLWINMO or RLWINM8o), it's safe to delete its def SrcMI.
+    // Otherwise keep it.
+    *ToErase = SrcMI;
     LLVM_DEBUG(dbgs() << "Delete dead instruction: ");
     LLVM_DEBUG(SrcMI->dump());
   }

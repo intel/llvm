@@ -1596,6 +1596,11 @@ __SYCL_EXPORT pi_result piextUSMGetMemAllocInfo(
     pi_context context, const void *ptr, pi_mem_info param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret);
 
+/// API to notify that the plugin should clean up its resources.
+/// No PI calls should be made until the next piPluginInit call.
+/// \param PluginParameter placeholder for future use, currenly not used.
+__SYCL_EXPORT pi_result piTearDown(void *PluginParameter);
+
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin
   // checks and writes the appropriate Function Pointers in

@@ -11,6 +11,7 @@
 #include "flang/Frontend/TextDiagnosticPrinter.h"
 #include "flang/Parser/parsing.h"
 #include "flang/Parser/provenance.h"
+#include "flang/Semantics/semantics.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
@@ -37,6 +38,17 @@ CompilerInstance::~CompilerInstance() {
 void CompilerInstance::set_invocation(
     std::shared_ptr<CompilerInvocation> value) {
   invocation_ = std::move(value);
+}
+
+void CompilerInstance::set_semaOutputStream(raw_ostream &Value) {
+  ownedSemaOutputStream_.release();
+  semaOutputStream_ = &Value;
+}
+
+void CompilerInstance::set_semaOutputStream(
+    std::unique_ptr<raw_ostream> Value) {
+  ownedSemaOutputStream_.swap(Value);
+  semaOutputStream_ = ownedSemaOutputStream_.get();
 }
 
 void CompilerInstance::AddOutputFile(OutputFile &&outFile) {
@@ -130,6 +142,8 @@ bool CompilerInstance::ExecuteAction(FrontendAction &act) {
   // TODO: Instead of defaults we should be setting these options based on the
   // user input.
   this->invocation().SetDefaultFortranOpts();
+  // Set the fortran options to user-based input.
+  this->invocation().setFortranOpts();
 
   // Connect Input to a CompileInstance
   for (const FrontendInputFile &fif : frontendOpts().inputs_) {
@@ -140,7 +154,7 @@ bool CompilerInstance::ExecuteAction(FrontendAction &act) {
       act.EndSourceFile();
     }
   }
-  return true;
+  return !diagnostics().getClient()->getNumErrors();
 }
 
 void CompilerInstance::CreateDiagnostics(

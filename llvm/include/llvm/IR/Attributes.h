@@ -938,10 +938,8 @@ public:
 
   bool td_empty() const { return TargetDepAttrs.empty(); }
 
-  bool operator==(const AttrBuilder &B);
-  bool operator!=(const AttrBuilder &B) {
-    return !(*this == B);
-  }
+  bool operator==(const AttrBuilder &B) const;
+  bool operator!=(const AttrBuilder &B) const { return !(*this == B); }
 };
 
 namespace AttributeFuncs {
@@ -953,8 +951,23 @@ AttrBuilder typeIncompatible(Type *Ty);
 /// attributes for inlining purposes.
 bool areInlineCompatible(const Function &Caller, const Function &Callee);
 
+
+/// Checks  if there are any incompatible function attributes between
+/// \p A and \p B.
+///
+/// \param [in] A - The first function to be compared with.
+/// \param [in] B - The second function to be compared with.
+/// \returns true if the functions have compatible attributes.
+bool areOutlineCompatible(const Function &A, const Function &B);
+
 /// Merge caller's and callee's attributes.
 void mergeAttributesForInlining(Function &Caller, const Function &Callee);
+
+/// Merges the functions attributes from \p ToMerge into function \p Base.
+///
+/// \param [in,out] Base - The function being merged into.
+/// \param [in] ToMerge - The function to merge attributes from.
+void mergeAttributesForOutlining(Function &Base, const Function &ToMerge);
 
 } // end namespace AttributeFuncs
 

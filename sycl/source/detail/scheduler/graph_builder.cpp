@@ -339,7 +339,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
       AllocaCmdSrc =
           static_cast<AllocaSubBufCommand *>(AllocaCmdSrc)->getParentAlloca();
     else if (AllocaCmdSrc->getSYCLMemObj() != Req->MSYCLMemObj)
-      assert(!"Inappropriate alloca command.");
+      assert(false && "Inappropriate alloca command.");
   }
 
   Command *NewCmd = nullptr;
@@ -355,6 +355,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
 
     if ((Req->MAccessMode == access::mode::discard_write) ||
         (Req->MAccessMode == access::mode::discard_read_write)) {
+      Record->MCurContext = Queue->getContextImplPtr();
       return nullptr;
     } else {
       // Full copy of buffer is needed to avoid loss of data that may be caused
@@ -728,6 +729,7 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
   case access::mode::discard_read_write:
   case access::mode::atomic:
     Record->MMemModified = true;
+    break;
   case access::mode::read:
     break;
   }

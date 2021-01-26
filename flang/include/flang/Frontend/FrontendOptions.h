@@ -1,4 +1,4 @@
-//===- FrontendOptions.h ----------------------------------------*- C -*-===//
+//===- FrontendOptions.h ----------------------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -24,7 +24,14 @@ enum ActionKind {
 
   /// -E mode.
   PrintPreprocessedInput,
-  /// TODO: RunPreprocessor, ParserSyntaxOnly, EmitLLVM, EmitLLVMOnly,
+
+  /// -fsyntax-only
+  ParseSyntaxOnly,
+
+  /// Emit a .o file.
+  EmitObj,
+
+  /// TODO: RunPreprocessor, EmitLLVM, EmitLLVMOnly,
   /// EmitCodeGenOnly, EmitAssembly, (...)
 };
 
@@ -34,6 +41,8 @@ inline const char *GetActionKindName(const ActionKind ak) {
     return "InputOutputTest";
   case PrintPreprocessedInput:
     return "PrintPreprocessedInput";
+  case ParseSyntaxOnly:
+    return "ParseSyntaxOnly";
   default:
     return "<unknown ActionKind>";
     // TODO:

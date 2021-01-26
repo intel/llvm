@@ -8,6 +8,10 @@ mlir_tablegen(LLVMOpsEnums.h.inc -gen-enum-decls)
 mlir_tablegen(LLVMOpsEnums.cpp.inc -gen-enum-defs)
 add_public_tablegen_target(MLIRLLVMOpsIncGen)
 
+add_mlir_doc(LLVMOps -gen-op-doc LLVMOps Dialects/)
+
+add_mlir_interface(LLVMOpsInterfaces)
+
 set(LLVM_TARGET_DEFINITIONS LLVMOps.td)
 mlir_tablegen(LLVMConversions.inc -gen-llvmir-conversions)
 mlir_tablegen(LLVMConversionEnumsToLLVM.inc -gen-enum-to-llvmir-conversions)
@@ -37,3 +41,9 @@ add_mlir_doc(LLVMArmNeon -gen-dialect-doc LLVMArmNeon Dialects/)
 set(LLVM_TARGET_DEFINITIONS LLVMArmNeon.td)
 mlir_tablegen(LLVMArmNeonConversions.inc -gen-llvmir-conversions)
 add_public_tablegen_target(MLIRLLVMArmNeonConversionsIncGen)
+
+add_mlir_dialect(LLVMArmSVE llvm_arm_sve LLVMArmSVE)
+add_mlir_doc(LLVMArmSVE -gen-dialect-doc LLVMArmSve Dialects/)
+set(LLVM_TARGET_DEFINITIONS LLVMArmSVE.td)
+mlir_tablegen(LLVMArmSVEConversions.inc -gen-llvmir-conversions)
+add_public_tablegen_target(MLIRLLVMArmSVEConversionsIncGen)

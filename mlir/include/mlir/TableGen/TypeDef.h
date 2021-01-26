@@ -48,6 +48,9 @@ public:
   // Returns the name of the C++ class to generate.
   StringRef getCppClassName() const;
 
+  // Returns the name of the C++ base class to use when generating this type.
+  StringRef getCppBaseClassName() const;
+
   // Returns the name of the storage class for this type.
   StringRef getStorageClassName() const;
 
@@ -116,11 +119,11 @@ public:
   // Get the parameter name.
   StringRef getName() const;
   // If specified, get the custom allocator code for this parameter.
-  llvm::Optional<StringRef> getAllocator() const;
+  Optional<StringRef> getAllocator() const;
   // Get the C++ type of this parameter.
   StringRef getCppType() const;
   // Get a description of this parameter for documentation purposes.
-  llvm::Optional<StringRef> getDescription() const;
+  Optional<StringRef> getSummary() const;
   // Get the assembly syntax documentation.
   StringRef getSyntax() const;
 

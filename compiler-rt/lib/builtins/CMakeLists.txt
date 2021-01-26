@@ -47,6 +47,9 @@ endif()
 
 include(builtin-config-ix)
 
+option(COMPILER_RT_BUILTINS_HIDE_SYMBOLS
+  "Do not export any symbols from the static library." ON)
+
 # TODO: Need to add a mechanism for logging errors when builtin source files are
 # added to a sub-directory and not this CMakeLists file.
 set(GENERIC_SOURCES
@@ -509,31 +512,24 @@ set(aarch64_SOURCES
 )
 
 # Generate outline atomics helpers from lse.S base
-set(CUSTOM_FLAGS ${CMAKE_C_FLAGS})
-if(NOT ANDROID)
-  append_list_if(COMPILER_RT_HAS_VISIBILITY_HIDDEN_FLAG -DVISIBILITY_HIDDEN CUSTOM_FLAGS)
-endif()
-append_list_if(COMPILER_RT_HAS_ASM_LSE -DHAS_ASM_LSE CUSTOM_FLAGS)
-string(REPLACE " " "\t" CUSTOM_FLAGS "${CUSTOM_FLAGS}")
 set(OA_HELPERS_DIR "${CMAKE_CURRENT_BINARY_DIR}/outline_atomic_helpers.dir")
-file(MAKE_DIRECTORY ${OA_HELPERS_DIR})
+file(MAKE_DIRECTORY "${OA_HELPERS_DIR}")
 
 foreach(pat cas swp ldadd ldclr ldeor ldset)
   foreach(size 1 2 4 8 16)
     foreach(model 1 2 3 4)
       if(pat STREQUAL "cas" OR NOT size STREQUAL "16")
-        set(helper_asm ${OA_HELPERS_DIR}/outline_atomic_${pat}${size}_${model}.S)
+        set(helper_asm "${OA_HELPERS_DIR}/outline_atomic_${pat}${size}_${model}.S")
         add_custom_command(
           OUTPUT ${helper_asm}
-          COMMAND ${CMAKE_C_COMPILER} -E ${CUSTOM_FLAGS} -DL_${pat} -DSIZE=${size} -DMODEL=${model}
-                  ${CMAKE_CURRENT_SOURCE_DIR}/aarch64/lse.S -o ${helper_asm}
-          DEPENDS aarch64/lse.S assembly.h
+          COMMAND ${CMAKE_COMMAND} -E create_symlink "${CMAKE_CURRENT_SOURCE_DIR}/aarch64/lse.S" "${helper_asm}"
         )
-        set_source_files_properties(${helper_asm} PROPERTIES GENERATED TRUE)
-        set(aarch64_SOURCES
-          ${aarch64_SOURCES}
-          ${helper_asm}
+        set_source_files_properties("${helper_asm}"
+          PROPERTIES
+          COMPILE_DEFINITIONS "L_${pat};SIZE=${size};MODEL=${model}"
+          INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}"
         )
+        list(APPEND aarch64_SOURCES "${helper_asm}")
       endif()
     endforeach(model)
   endforeach(size)
@@ -673,7 +669,7 @@ else ()
       append_list_if(COMPILER_RT_HAS_FPIC_FLAG -fPIC BUILTIN_CFLAGS)
     endif()
     append_list_if(COMPILER_RT_HAS_FNO_BUILTIN_FLAG -fno-builtin BUILTIN_CFLAGS)
-    if(NOT ANDROID)
+    if(COMPILER_RT_BUILTINS_HIDE_SYMBOLS)
       append_list_if(COMPILER_RT_HAS_VISIBILITY_HIDDEN_FLAG -fvisibility=hidden BUILTIN_CFLAGS)
     endif()
     if(NOT COMPILER_RT_DEBUG)
@@ -683,9 +679,11 @@ else ()
 
   set(BUILTIN_DEFS "")
 
-  if(NOT ANDROID)
+  if(COMPILER_RT_BUILTINS_HIDE_SYMBOLS)
     append_list_if(COMPILER_RT_HAS_VISIBILITY_HIDDEN_FLAG VISIBILITY_HIDDEN BUILTIN_DEFS)
   endif()
+
+  append_list_if(COMPILER_RT_HAS_ASM_LSE HAS_ASM_LSE BUILTIN_DEFS)
 
   foreach (arch ${BUILTIN_SUPPORTED_ARCH})
     if (CAN_TARGET_${arch})

@@ -1,4 +1,4 @@
-// RUN: mlir-opt -allow-unregistered-dialect -split-input-file -convert-std-to-spirv -verify-diagnostics %s -o - | FileCheck %s
+// RUN: mlir-opt -split-input-file -convert-std-to-spirv -verify-diagnostics %s -o - | FileCheck %s
 
 //===----------------------------------------------------------------------===//
 // std arithmetic ops
@@ -628,49 +628,59 @@ func @fptosi2(%arg0 : f16) -> i16 {
 
 // -----
 
-// Checks that cast types will be adjusted when no special capabilities for
-// non-32-bit scalar types.
+// Checks that cast types will be adjusted when missing special capabilities for
+// certain non-32-bit scalar types.
 module attributes {
-  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, {}>
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [Float64], []>, {}>
 } {
 
 // CHECK-LABEL: @fpext1
 // CHECK-SAME: %[[ARG:.*]]: f32
-func @fpext1(%arg0: f16) {
-  // CHECK-NEXT: "use"(%[[ARG]])
+func @fpext1(%arg0: f16) -> f64 {
+  // CHECK-NEXT: spv.FConvert %[[ARG]] : f32 to f64
   %0 = std.fpext %arg0 : f16 to f64
-  "use"(%0) : (f64) -> ()
+  return %0: f64
 }
 
 // CHECK-LABEL: @fpext2
 // CHECK-SAME: %[[ARG:.*]]: f32
-func @fpext2(%arg0 : f32) {
-  // CHECK-NEXT: "use"(%[[ARG]])
+func @fpext2(%arg0 : f32) -> f64 {
+  // CHECK-NEXT: spv.FConvert %[[ARG]] : f32 to f64
   %0 = std.fpext %arg0 : f32 to f64
-  "use"(%0) : (f64) -> ()
+  return %0: f64
 }
+
+} // end module
+
+// -----
+
+// Checks that cast types will be adjusted when missing special capabilities for
+// certain non-32-bit scalar types.
+module attributes {
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [Float16], []>, {}>
+} {
 
 // CHECK-LABEL: @fptrunc1
 // CHECK-SAME: %[[ARG:.*]]: f32
-func @fptrunc1(%arg0 : f64) {
-  // CHECK-NEXT: "use"(%[[ARG]])
+func @fptrunc1(%arg0 : f64) -> f16 {
+  // CHECK-NEXT: spv.FConvert %[[ARG]] : f32 to f16
   %0 = std.fptrunc %arg0 : f64 to f16
-  "use"(%0) : (f16) -> ()
+  return %0: f16
 }
 
 // CHECK-LABEL: @fptrunc2
 // CHECK-SAME: %[[ARG:.*]]: f32
-func @fptrunc2(%arg0: f32) {
-  // CHECK-NEXT: "use"(%[[ARG]])
+func @fptrunc2(%arg0: f32) -> f16 {
+  // CHECK-NEXT: spv.FConvert %[[ARG]] : f32 to f16
   %0 = std.fptrunc %arg0 : f32 to f16
-  "use"(%0) : (f16) -> ()
+  return %0: f16
 }
 
 // CHECK-LABEL: @sitofp
-func @sitofp(%arg0 : i64) {
+func @sitofp(%arg0 : i64) -> f64 {
   // CHECK: spv.ConvertSToF %{{.*}} : i32 to f32
   %0 = std.sitofp %arg0 : i64 to f64
-  "use"(%0) : (f64) -> ()
+  return %0: f64
 }
 
 } // end module
@@ -954,3 +964,29 @@ func @store_i16(%arg0: memref<10xi16>, %index: index, %value: i16) {
 }
 
 } // end module
+
+// -----
+
+//===----------------------------------------------------------------------===//
+// std.return
+//===----------------------------------------------------------------------===//
+
+module attributes {
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, {}>
+} {
+
+// CHECK-LABEL: spv.func @return_one_val
+//  CHECK-SAME: (%[[ARG:.+]]: f32)
+func @return_one_val(%arg0: f32) -> f32 {
+  // CHECK: spv.ReturnValue %[[ARG]] : f32
+  return %arg0: f32
+}
+
+// Check that multiple-return functions are not converted.
+// CHECK-LABEL: func @return_multi_val
+func @return_multi_val(%arg0: f32) -> (f32, f32) {
+  // CHECK: return
+  return %arg0, %arg0: f32, f32
+}
+
+}

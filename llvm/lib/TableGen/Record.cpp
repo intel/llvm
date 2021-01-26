@@ -232,9 +232,7 @@ bool RecordRecTy::typeIsA(const RecTy *RHS) const {
 
 static RecordRecTy *resolveRecordTypes(RecordRecTy *T1, RecordRecTy *T2) {
   SmallVector<Record *, 4> CommonSuperClasses;
-  SmallVector<Record *, 4> Stack;
-
-  Stack.insert(Stack.end(), T1->classes_begin(), T1->classes_end());
+  SmallVector<Record *, 4> Stack(T1->classes_begin(), T1->classes_end());
 
   while (!Stack.empty()) {
     Record *R = Stack.back();
@@ -856,14 +854,19 @@ static StringInit *interleaveStringList(const ListInit *List,
                                         const StringInit *Delim) {
   if (List->size() == 0)
     return StringInit::get("");
-  SmallString<80> Result(dyn_cast<StringInit>(List->getElement(0))->getValue());
+  StringInit *Element = dyn_cast<StringInit>(List->getElement(0));
+  if (!Element)
+    return nullptr;
+  SmallString<80> Result(Element->getValue());
   StringInit::StringFormat Fmt = StringInit::SF_String;
-  
+
   for (unsigned I = 1, E = List->size(); I < E; ++I) {
     Result.append(Delim->getValue());
-    auto *StrInit = dyn_cast<StringInit>(List->getElement(I));
-    Result.append(StrInit->getValue());
-    Fmt = StringInit::determineFormat(Fmt, StrInit->getFormat());
+    StringInit *Element = dyn_cast<StringInit>(List->getElement(I));
+    if (!Element)
+      return nullptr;
+    Result.append(Element->getValue());
+    Fmt = StringInit::determineFormat(Fmt, Element->getFormat());
   }
   return StringInit::get(Result, Fmt);
 }
@@ -872,13 +875,21 @@ static StringInit *interleaveIntList(const ListInit *List,
                                      const StringInit *Delim) {
   if (List->size() == 0)
     return StringInit::get("");
-  SmallString<80> Result(dyn_cast<IntInit>(List->getElement(0)->
-                             getCastTo(IntRecTy::get()))->getAsString());
-  
+  IntInit *Element =
+      dyn_cast_or_null<IntInit>(List->getElement(0)
+                                    ->convertInitializerTo(IntRecTy::get()));
+  if (!Element)
+    return nullptr;
+  SmallString<80> Result(Element->getAsString());
+
   for (unsigned I = 1, E = List->size(); I < E; ++I) {
     Result.append(Delim->getValue());
-    Result.append(dyn_cast<IntInit>(List->getElement(I)->
-                      getCastTo(IntRecTy::get()))->getAsString());
+    IntInit *Element =
+        dyn_cast_or_null<IntInit>(List->getElement(I)
+                                      ->convertInitializerTo(IntRecTy::get()));
+    if (!Element)
+      return nullptr;
+    Result.append(Element->getAsString());
   }
   return StringInit::get(Result);
 }
@@ -894,8 +905,8 @@ Init *BinOpInit::getStrConcat(Init *I0, Init *I1) {
 static ListInit *ConcatListInits(const ListInit *LHS,
                                  const ListInit *RHS) {
   SmallVector<Init *, 8> Args;
-  Args.insert(Args.end(), LHS->begin(), LHS->end());
-  Args.insert(Args.end(), RHS->begin(), RHS->end());
+  llvm::append_range(Args, *LHS);
+  llvm::append_range(Args, *RHS);
   return ListInit::get(Args, LHS->getElementType());
 }
 
@@ -948,8 +959,8 @@ Init *BinOpInit::Fold(Record *CurRec) const {
     ListInit *RHSs = dyn_cast<ListInit>(RHS);
     if (LHSs && RHSs) {
       SmallVector<Init *, 8> Args;
-      Args.insert(Args.end(), LHSs->begin(), LHSs->end());
-      Args.insert(Args.end(), RHSs->begin(), RHSs->end());
+      llvm::append_range(Args, *LHSs);
+      llvm::append_range(Args, *RHSs);
       return ListInit::get(Args, LHSs->getElementType());
     }
     break;
@@ -974,10 +985,13 @@ Init *BinOpInit::Fold(Record *CurRec) const {
     ListInit *List = dyn_cast<ListInit>(LHS);
     StringInit *Delim = dyn_cast<StringInit>(RHS);
     if (List && Delim) {
+      StringInit *Result;
       if (isa<StringRecTy>(List->getElementType()))
-        return interleaveStringList(List, Delim);
+        Result = interleaveStringList(List, Delim);
       else
-        return interleaveIntList(List, Delim);
+        Result = interleaveIntList(List, Delim);
+      if (Result)
+        return Result;
     }
     break;
   }
@@ -1324,6 +1338,27 @@ Init *TernOpInit::Fold(Record *CurRec) const {
     }
     break;
   }
+
+  case SUBSTR: {
+    StringInit *LHSs = dyn_cast<StringInit>(LHS);
+    IntInit *MHSi = dyn_cast<IntInit>(MHS);
+    IntInit *RHSi = dyn_cast<IntInit>(RHS);
+    if (LHSs && MHSi && RHSi) {
+      int64_t StringSize = LHSs->getValue().size();
+      int64_t Start = MHSi->getValue();
+      int64_t Length = RHSi->getValue();
+      if (Start < 0 || Start > StringSize)
+        PrintError(CurRec->getLoc(),
+                   Twine("!substr start position is out of range 0...") +
+                       std::to_string(StringSize) + ": " +
+                       std::to_string(Start));
+      if (Length < 0)
+        PrintError(CurRec->getLoc(), "!substr length must be nonnegative");
+      return StringInit::get(LHSs->getValue().substr(Start, Length),
+                             LHSs->getFormat());
+    }
+    break;
+  }
   }
 
   return const_cast<TernOpInit *>(this);
@@ -1363,11 +1398,12 @@ std::string TernOpInit::getAsString() const {
   std::string Result;
   bool UnquotedLHS = false;
   switch (getOpcode()) {
-  case SUBST: Result = "!subst"; break;
-  case FOREACH: Result = "!foreach"; UnquotedLHS = true; break;
-  case FILTER: Result = "!filter"; UnquotedLHS = true; break;
-  case IF: Result = "!if"; break;
   case DAG: Result = "!dag"; break;
+  case FILTER: Result = "!filter"; UnquotedLHS = true; break;
+  case FOREACH: Result = "!foreach"; UnquotedLHS = true; break;
+  case IF: Result = "!if"; break;
+  case SUBST: Result = "!subst"; break;
+  case SUBSTR: Result = "!substr"; break;
   }
   return (Result + "(" +
           (UnquotedLHS ? LHS->getAsUnquotedString() : LHS->getAsString()) +
@@ -2105,16 +2141,16 @@ std::string DagInit::getAsString() const {
 //    Other implementations
 //===----------------------------------------------------------------------===//
 
-RecordVal::RecordVal(Init *N, RecTy *T, bool P)
-  : Name(N), TyAndPrefix(T, P) {
+RecordVal::RecordVal(Init *N, RecTy *T, FieldKind K)
+    : Name(N), TyAndKind(T, K) {
   setValue(UnsetInit::get());
   assert(Value && "Cannot create unset value for current type!");
 }
 
 // This constructor accepts the same arguments as the above, but also
 // a source location.
-RecordVal::RecordVal(Init *N, SMLoc Loc, RecTy *T, bool P)
-    : Name(N), Loc(Loc), TyAndPrefix(T, P) {
+RecordVal::RecordVal(Init *N, SMLoc Loc, RecTy *T, FieldKind K)
+    : Name(N), Loc(Loc), TyAndKind(T, K) {
   setValue(UnsetInit::get());
   assert(Value && "Cannot create unset value for current type!");
 }
@@ -2134,7 +2170,7 @@ std::string RecordVal::getPrintType() const {
       return "string";
     }
   } else {
-    return TyAndPrefix.getPointer()->getAsString();
+    return TyAndKind.getPointer()->getAsString();
   }
 }
 
@@ -2191,7 +2227,7 @@ LLVM_DUMP_METHOD void RecordVal::dump() const { errs() << *this; }
 #endif
 
 void RecordVal::print(raw_ostream &OS, bool PrintSem) const {
-  if (getPrefix()) OS << "field ";
+  if (isNonconcreteOK()) OS << "field ";
   OS << getPrintType() << " " << getNameInitAsString();
 
   if (getValue())
@@ -2332,10 +2368,10 @@ raw_ostream &llvm::operator<<(raw_ostream &OS, const Record &R) {
   OS << "\n";
 
   for (const RecordVal &Val : R.getValues())
-    if (Val.getPrefix() && !R.isTemplateArg(Val.getNameInit()))
+    if (Val.isNonconcreteOK() && !R.isTemplateArg(Val.getNameInit()))
       OS << Val;
   for (const RecordVal &Val : R.getValues())
-    if (!Val.getPrefix() && !R.isTemplateArg(Val.getNameInit()))
+    if (!Val.isNonconcreteOK() && !R.isTemplateArg(Val.getNameInit()))
       OS << Val;
 
   return OS << "}\n";

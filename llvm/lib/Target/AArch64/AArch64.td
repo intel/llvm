@@ -261,8 +261,8 @@ def FeatureDotProd : SubtargetFeature<
     "dotprod", "HasDotProd", "true",
     "Enable dot product support">;
 
-def FeaturePA : SubtargetFeature<
-    "pa", "HasPA", "true",
+def FeaturePAuth : SubtargetFeature<
+    "pauth", "HasPAuth", "true",
     "Enable v8.3-A Pointer Authentication extension">;
 
 def FeatureJS : SubtargetFeature<
@@ -316,8 +316,8 @@ def FeatureTLB_RMI : SubtargetFeature<
     "tlb-rmi", "HasTLB_RMI", "true",
     "Enable v8.4-A TLB Range and Maintenance Instructions">;
 
-def FeatureFMI : SubtargetFeature<
-    "fmi", "HasFMI", "true",
+def FeatureFlagM : SubtargetFeature<
+    "flagm", "HasFlagM", "true",
     "Enable v8.4-A Flag Manipulation Instructions">;
 
 // 8.4 RCPC enchancements: LDAPR & STLR instructions with Immediate Offset
@@ -400,6 +400,24 @@ def FeatureMatMulFP32 : SubtargetFeature<"f32mm", "HasMatMulFP32",
 def FeatureMatMulFP64 : SubtargetFeature<"f64mm", "HasMatMulFP64",
     "true", "Enable Matrix Multiply FP64 Extension", [FeatureSVE]>;
 
+def FeatureXS : SubtargetFeature<"xs", "HasXS",
+    "true", "Enable Armv8.7-A limited-TLB-maintenance instruction">;
+
+def FeatureWFxT : SubtargetFeature<"wfxt", "HasWFxT",
+    "true", "Enable Armv8.7-A WFET and WFIT instruction">;
+
+def FeatureHCX : SubtargetFeature<
+    "hcx", "HasHCX", "true", "Enable Armv8.7-A HCRX_EL2 system register">;
+
+def FeatureLS64 : SubtargetFeature<"ls64", "HasLS64",
+    "true", "Enable Armv8.7-A LD64B/ST64B Accelerator Extension">;
+
+def FeatureBRBE : SubtargetFeature<"brbe", "HasBRBE",
+    "true", "Enable Branch Record Buffer Extension">;
+
+def FeatureSPE_EEF : SubtargetFeature<"spe-eef", "HasSPE_EEF",
+    "true", "Enable extra register in the Statistical Profiling Extension">;
+
 def FeatureFineGrainedTraps : SubtargetFeature<"fgt", "HasFineGrainedTraps",
     "true", "Enable fine grained virtualization traps extension">;
 
@@ -420,14 +438,14 @@ def HasV8_2aOps : SubtargetFeature<"v8.2a", "HasV8_2aOps", "true",
   FeaturePAN_RWV, FeatureRAS, FeatureCCPP]>;
 
 def HasV8_3aOps : SubtargetFeature<"v8.3a", "HasV8_3aOps", "true",
-  "Support ARM v8.3a instructions", [HasV8_2aOps, FeatureRCPC, FeaturePA,
+  "Support ARM v8.3a instructions", [HasV8_2aOps, FeatureRCPC, FeaturePAuth,
   FeatureJS, FeatureCCIDX, FeatureComplxNum]>;
 
 def HasV8_4aOps : SubtargetFeature<"v8.4a", "HasV8_4aOps", "true",
   "Support ARM v8.4a instructions", [HasV8_3aOps, FeatureDotProd,
   FeatureNV, FeatureMPAM, FeatureDIT,
   FeatureTRACEV8_4, FeatureAM, FeatureSEL2, FeaturePMU, FeatureTLB_RMI,
-  FeatureFMI, FeatureRCPC_IMMO]>;
+  FeatureFlagM, FeatureRCPC_IMMO]>;
 
 def HasV8_5aOps : SubtargetFeature<
   "v8.5a", "HasV8_5aOps", "true", "Support ARM v8.5a instructions",
@@ -437,9 +455,12 @@ def HasV8_5aOps : SubtargetFeature<
 
 def HasV8_6aOps : SubtargetFeature<
   "v8.6a", "HasV8_6aOps", "true", "Support ARM v8.6a instructions",
-
   [HasV8_5aOps, FeatureAMVS, FeatureBF16, FeatureFineGrainedTraps,
    FeatureEnhancedCounterVirtualization, FeatureMatMulInt8]>;
+
+def HasV8_7aOps : SubtargetFeature<
+  "v8.7a", "HasV8_7aOps", "true", "Support ARM v8.7a instructions",
+  [HasV8_6aOps, FeatureXS, FeatureWFxT, FeatureHCX]>;
 
 def HasV8_0rOps : SubtargetFeature<
   "v8r", "HasV8_0rOps", "true", "Support ARM v8r instructions",
@@ -450,10 +471,10 @@ def HasV8_0rOps : SubtargetFeature<
   FeatureSHA3, FeatureCCPP, FeatureFullFP16, FeaturePAN_RWV,
   //v8.3
   FeatureComplxNum, FeatureCCIDX, FeatureJS,
-  FeaturePA, FeatureRCPC,
+  FeaturePAuth, FeatureRCPC,
   //v8.4
   FeatureDotProd, FeatureFP16FML, FeatureTRACEV8_4,
-  FeatureTLB_RMI, FeatureFMI, FeatureDIT, FeatureSEL2, FeatureRCPC_IMMO,
+  FeatureTLB_RMI, FeatureFlagM, FeatureDIT, FeatureSEL2, FeatureRCPC_IMMO,
   //v8.5
   FeatureSSBS, FeaturePredRes, FeatureSB, FeatureSpecRestrict]>;
 
@@ -518,7 +539,7 @@ def SVEUnsupported : AArch64Unsupported {
 }
 
 def PAUnsupported : AArch64Unsupported {
-  let F = [HasPA];
+  let F = [HasPAuth];
 }
 
 include "AArch64SchedA53.td"
@@ -669,6 +690,25 @@ def ProcA78 : SubtargetFeature<"cortex-a78", "ARMProcFamily",
                                FeatureFullFP16,
                                FeatureSSBS,
                                FeatureDotProd]>;
+
+def ProcA78C : SubtargetFeature<"cortex-a78c", "ARMProcFamily",
+                                "CortexA78C",
+                                "Cortex-A78C ARM processors", [
+                                HasV8_2aOps,
+                                FeatureCrypto,
+                                FeatureDotProd,
+                                FeatureFlagM,
+                                FeatureFP16FML,
+                                FeatureFPARMv8,
+                                FeatureFullFP16,
+                                FeatureFuseAES,
+                                FeatureNEON,
+                                FeaturePAuth,
+                                FeaturePerfMon,
+                                FeaturePostRAScheduler,
+                                FeatureRCPC,
+                                FeatureSPE,
+                                FeatureSSBS]>;
 
 def ProcR82 : SubtargetFeature<"cortex-r82", "ARMProcFamily",
                                "CortexR82",
@@ -975,7 +1015,7 @@ def ProcThunderX3T110  : SubtargetFeature<"thunderx3t110", "ARMProcFamily",
                                           FeaturePostRAScheduler,
                                           FeaturePredictableSelectIsExpensive,
                                           FeatureLSE,
-                                          FeaturePA,
+                                          FeaturePAuth,
                                           FeatureUseAA,
                                           FeatureBalanceFPOps,
                                           FeaturePerfMon,
@@ -1068,6 +1108,7 @@ def : ProcessorModel<"cortex-a76", CortexA57Model, [ProcA76]>;
 def : ProcessorModel<"cortex-a76ae", CortexA57Model, [ProcA76]>;
 def : ProcessorModel<"cortex-a77", CortexA57Model, [ProcA77]>;
 def : ProcessorModel<"cortex-a78", CortexA57Model, [ProcA78]>;
+def : ProcessorModel<"cortex-a78c", CortexA57Model, [ProcA78C]>;
 def : ProcessorModel<"cortex-r82", CortexA55Model, [ProcR82]>;
 def : ProcessorModel<"cortex-x1", CortexA57Model, [ProcX1]>;
 def : ProcessorModel<"neoverse-e1", CortexA53Model, [ProcNeoverseE1]>;

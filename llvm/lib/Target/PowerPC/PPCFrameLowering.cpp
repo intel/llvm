@@ -375,9 +375,10 @@ bool PPCFrameLowering::needsFP(const MachineFunction &MF) const {
     return false;
 
   return MF.getTarget().Options.DisableFramePointerElim(MF) ||
-    MFI.hasVarSizedObjects() || MFI.hasStackMap() || MFI.hasPatchPoint() ||
-    (MF.getTarget().Options.GuaranteedTailCallOpt &&
-     MF.getInfo<PPCFunctionInfo>()->hasFastCall());
+         MFI.hasVarSizedObjects() || MFI.hasStackMap() || MFI.hasPatchPoint() ||
+         MF.exposesReturnsTwice() ||
+         (MF.getTarget().Options.GuaranteedTailCallOpt &&
+          MF.getInfo<PPCFunctionInfo>()->hasFastCall());
 }
 
 void PPCFrameLowering::replaceFPWithRealFP(MachineFunction &MF) const {
@@ -584,8 +585,8 @@ bool PPCFrameLowering::stackUpdateCanBeMoved(MachineFunction &MF) const {
   // Frame pointers and base pointers complicate matters so don't do anything
   // if we have them. For example having a frame pointer will sometimes require
   // a copy of r1 into r31 and that makes keeping track of updates to r1 more
-  // difficult.
-  if (hasFP(MF) || RegInfo->hasBasePointer(MF))
+  // difficult. Similar situation exists with setjmp.
+  if (hasFP(MF) || RegInfo->hasBasePointer(MF) || MF.exposesReturnsTwice())
     return false;
 
   // Calls to fast_cc functions use different rules for passing parameters on
@@ -1643,11 +1644,18 @@ void PPCFrameLowering::emitEpilogue(MachineFunction &MF,
     // offset by the STDU/STDUX/STWU/STWUX instruction. For targets with red
     // zone add this offset back now.
 
+    // If the function has a base pointer, the stack pointer has been copied
+    // to it so we can restore it by copying in the other direction.
+    if (HasRedZone && HasBP) {
+      BuildMI(MBB, MBBI, dl, OrInst, RBReg).
+        addReg(BPReg).
+        addReg(BPReg);
+    }
     // If this function contained a fastcc call and GuaranteedTailCallOpt is
     // enabled (=> hasFastCall()==true) the fastcc call might contain a tail
     // call which invalidates the stack pointer value in SP(0). So we use the
-    // value of R31 in this case.
-    if (FI->hasFastCall()) {
+    // value of R31 in this case. Similar situation exists with setjmp.
+    else if (FI->hasFastCall() || MF.exposesReturnsTwice()) {
       assert(HasFP && "Expecting a valid frame pointer.");
       if (!HasRedZone)
         RBReg = FPReg;

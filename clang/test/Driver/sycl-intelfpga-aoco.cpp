@@ -27,18 +27,20 @@
 // CHK-FPGA-AOCO-PHASES: 9: assembler, {8}, object, (host-sycl)
 // CHK-FPGA-AOCO-PHASES: 10: linker, {0, 9}, image, (host-sycl)
 // CHK-FPGA-AOCO-PHASES: 11: compiler, {4}, ir, (device-sycl)
-// CHK-FPGA-AOCO-PHASES: 12: input, "[[INPUTA]]", archive
-// CHK-FPGA-AOCO-PHASES: 13: clang-offload-unbundler, {12}, archive
-// CHK-FPGA-AOCO-PHASES: 14: linker, {11, 13}, ir, (device-sycl)
-// CHK-FPGA-AOCO-PHASES: 15: sycl-post-link, {14}, ir, (device-sycl)
-// CHK-FPGA-AOCO-PHASES: 16: llvm-spirv, {15}, spirv, (device-sycl)
-// CHK-FPGA-AOCO-PHASES: 17: input, "[[INPUTA]]", archive
-// CHK-FPGA-AOCO-PHASES: 18: clang-offload-unbundler, {17}, fpga_dependencies_list
-// CHK-FPGA-AOCO-PHASES: 19: input, "[[INPUTA]]", fpga_aoco
-// CHK-FPGA-AOCO-PHASES: 20: clang-offload-unbundler, {19}, fpga_aoco
-// CHK-FPGA-AOCO-PHASES: 21: backend-compiler, {16, 18, 20}, fpga_aocx, (device-sycl)
-// CHK-FPGA-AOCO-PHASES: 22: clang-offload-wrapper, {21}, object, (device-sycl)
-// CHK-FPGA-AOCO-PHASES: 23: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {22}, image
+// CHK-FPGA-AOCO-PHASES: 12: linker, {0, 9}, image, (host-sycl)
+// CHK-FPGA-AOCO-PHASES: 13: clang-offload-deps, {12}, ir, (host-sycl)
+// CHK-FPGA-AOCO-PHASES: 14: input, "[[INPUTA]]", archive
+// CHK-FPGA-AOCO-PHASES: 15: clang-offload-unbundler, {14}, archive
+// CHK-FPGA-AOCO-PHASES: 16: linker, {11, 13, 15}, ir, (device-sycl)
+// CHK-FPGA-AOCO-PHASES: 17: sycl-post-link, {16}, ir, (device-sycl)
+// CHK-FPGA-AOCO-PHASES: 18: llvm-spirv, {17}, spirv, (device-sycl)
+// CHK-FPGA-AOCO-PHASES: 19: input, "[[INPUTA]]", archive
+// CHK-FPGA-AOCO-PHASES: 20: clang-offload-unbundler, {19}, fpga_dependencies_list
+// CHK-FPGA-AOCO-PHASES: 21: input, "[[INPUTA]]", fpga_aoco
+// CHK-FPGA-AOCO-PHASES: 22: clang-offload-unbundler, {21}, fpga_aoco
+// CHK-FPGA-AOCO-PHASES: 23: backend-compiler, {18, 20, 22}, fpga_aocx, (device-sycl)
+// CHK-FPGA-AOCO-PHASES: 24: clang-offload-wrapper, {23}, object, (device-sycl)
+// CHK-FPGA-AOCO-PHASES: 25: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {24}, image
 
 /// FPGA AOCO Windows phases check
 // RUN:  %clang_cl -fsycl -fno-sycl-device-lib=all -fintelfpga -foffload-static-lib=%t_aoco_cl.a %s -### -ccc-print-phases 2>&1 \
@@ -55,18 +57,20 @@
 // CHK-FPGA-AOCO-PHASES-WIN: 9: assembler, {8}, object, (host-sycl)
 // CHK-FPGA-AOCO-PHASES-WIN: 10: linker, {0, 9}, image, (host-sycl)
 // CHK-FPGA-AOCO-PHASES-WIN: 11: compiler, {4}, ir, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-WIN: 12: input, "[[INPUTA:.+\.a]]", archive
-// CHK-FPGA-AOCO-PHASES-WIN: 13: clang-offload-unbundler, {12}, archive
-// CHK-FPGA-AOCO-PHASES-WIN: 14: linker, {11, 13}, ir, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-WIN: 15: sycl-post-link, {14}, ir, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-WIN: 16: llvm-spirv, {15}, spirv, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-WIN: 17: input, "[[INPUTA]]", archive
-// CHK-FPGA-AOCO-PHASES-WIN: 18: clang-offload-unbundler, {17}, fpga_dependencies_list
-// CHK-FPGA-AOCO-PHASES-WIN: 19: input, "[[INPUTA]]", fpga_aoco
-// CHK-FPGA-AOCO-PHASES-WIN: 20: clang-offload-unbundler, {19}, fpga_aoco
-// CHK-FPGA-AOCO-PHASES-WIN: 21: backend-compiler, {16, 18, 20}, fpga_aocx, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-WIN: 22: clang-offload-wrapper, {21}, object, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-WIN: 23: offload, "host-sycl (x86_64-pc-windows-msvc)" {10}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {22}, image
+// CHK-FPGA-AOCO-PHASES-WIN: 12: linker, {0, 9}, image, (host-sycl)
+// CHK-FPGA-AOCO-PHASES-WIN: 13: clang-offload-deps, {12}, ir, (host-sycl)
+// CHK-FPGA-AOCO-PHASES-WIN: 14: input, "[[INPUTA:.+\.a]]", archive
+// CHK-FPGA-AOCO-PHASES-WIN: 15: clang-offload-unbundler, {14}, archive
+// CHK-FPGA-AOCO-PHASES-WIN: 16: linker, {11, 13, 15}, ir, (device-sycl)
+// CHK-FPGA-AOCO-PHASES-WIN: 17: sycl-post-link, {16}, ir, (device-sycl)
+// CHK-FPGA-AOCO-PHASES-WIN: 18: llvm-spirv, {17}, spirv, (device-sycl)
+// CHK-FPGA-AOCO-PHASES-WIN: 19: input, "[[INPUTA]]", archive
+// CHK-FPGA-AOCO-PHASES-WIN: 20: clang-offload-unbundler, {19}, fpga_dependencies_list
+// CHK-FPGA-AOCO-PHASES-WIN: 21: input, "[[INPUTA]]", fpga_aoco
+// CHK-FPGA-AOCO-PHASES-WIN: 22: clang-offload-unbundler, {21}, fpga_aoco
+// CHK-FPGA-AOCO-PHASES-WIN: 23: backend-compiler, {18, 20, 22}, fpga_aocx, (device-sycl)
+// CHK-FPGA-AOCO-PHASES-WIN: 24: clang-offload-wrapper, {23}, object, (device-sycl)
+// CHK-FPGA-AOCO-PHASES-WIN: 25: offload, "host-sycl (x86_64-pc-windows-msvc)" {10}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {24}, image
 
 /// aoco test, checking tools
 // RUN:  %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fintelfpga -foffload-static-lib=%t_aoco.a -### %s 2>&1 \

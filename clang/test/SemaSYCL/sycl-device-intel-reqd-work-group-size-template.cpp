@@ -41,15 +41,15 @@ int main() {
 // CHECK: ReqdWorkGroupSizeAttr {{.*}}
 // CHECK: SubstNonTypeTemplateParmExpr {{.*}}
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
-// CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
-// CHECK: SubstNonTypeTemplateParmExpr {{.*}}
-// CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
-// CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
-// CHECK: SubstNonTypeTemplateParmExpr {{.*}}
-// CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}16{{$}}
+// CHECK: SubstNonTypeTemplateParmExpr {{.*}}
+// CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
+// CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
+// CHECK: SubstNonTypeTemplateParmExpr {{.*}}
+// CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
+// CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
 
-// Test that checks template parameter suppport on function.
+// Test that checks template parameter support on function.
 template <int N, int N1, int N2>
 [[intel::reqd_work_group_size(N, N1, N2)]] void func3() {}
 

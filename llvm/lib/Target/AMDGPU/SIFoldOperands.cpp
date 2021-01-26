@@ -10,17 +10,9 @@
 
 #include "AMDGPU.h"
 #include "AMDGPUSubtarget.h"
-#include "SIInstrInfo.h"
 #include "SIMachineFunctionInfo.h"
-#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "llvm/ADT/DepthFirstIterator.h"
-#include "llvm/ADT/SetVector.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
-#include "llvm/CodeGen/MachineInstrBuilder.h"
-#include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/raw_ostream.h"
-#include "llvm/Target/TargetMachine.h"
 
 #define DEBUG_TYPE "si-fold-operands"
 using namespace llvm;
@@ -129,6 +121,23 @@ char SIFoldOperands::ID = 0;
 
 char &llvm::SIFoldOperandsID = SIFoldOperands::ID;
 
+// Map multiply-accumulate opcode to corresponding multiply-add opcode if any.
+static unsigned macToMad(unsigned Opc) {
+  switch (Opc) {
+  case AMDGPU::V_MAC_F32_e64:
+    return AMDGPU::V_MAD_F32;
+  case AMDGPU::V_MAC_F16_e64:
+    return AMDGPU::V_MAD_F16;
+  case AMDGPU::V_FMAC_F32_e64:
+    return AMDGPU::V_FMA_F32;
+  case AMDGPU::V_FMAC_F16_e64:
+    return AMDGPU::V_FMA_F16_gfx9;
+  case AMDGPU::V_FMAC_LEGACY_F32_e64:
+    return AMDGPU::V_FMA_LEGACY_F32;
+  }
+  return AMDGPU::INSTRUCTION_LIST_END;
+}
+
 // Wrapper around isInlineConstant that understands special cases when
 // instruction types are replaced during operand folding.
 static bool isInlineConstantIfFolded(const SIInstrInfo *TII,
@@ -139,31 +148,18 @@ static bool isInlineConstantIfFolded(const SIInstrInfo *TII,
     return true;
 
   unsigned Opc = UseMI.getOpcode();
-  switch (Opc) {
-  case AMDGPU::V_MAC_F32_e64:
-  case AMDGPU::V_MAC_F16_e64:
-  case AMDGPU::V_FMAC_F32_e64:
-  case AMDGPU::V_FMAC_F16_e64: {
+  unsigned NewOpc = macToMad(Opc);
+  if (NewOpc != AMDGPU::INSTRUCTION_LIST_END) {
     // Special case for mac. Since this is replaced with mad when folded into
     // src2, we need to check the legality for the final instruction.
     int Src2Idx = AMDGPU::getNamedOperandIdx(Opc, AMDGPU::OpName::src2);
     if (static_cast<int>(OpNo) == Src2Idx) {
-      bool IsFMA = Opc == AMDGPU::V_FMAC_F32_e64 ||
-                   Opc == AMDGPU::V_FMAC_F16_e64;
-      bool IsF32 = Opc == AMDGPU::V_MAC_F32_e64 ||
-                   Opc == AMDGPU::V_FMAC_F32_e64;
-
-      unsigned Opc = IsFMA ?
-        (IsF32 ? AMDGPU::V_FMA_F32 : AMDGPU::V_FMA_F16_gfx9) :
-        (IsF32 ? AMDGPU::V_MAD_F32 : AMDGPU::V_MAD_F16);
-      const MCInstrDesc &MadDesc = TII->get(Opc);
+      const MCInstrDesc &MadDesc = TII->get(NewOpc);
       return TII->isInlineConstant(OpToFold, MadDesc.OpInfo[OpNo].OperandType);
     }
-    return false;
   }
-  default:
-    return false;
-  }
+
+  return false;
 }
 
 // TODO: Add heuristic that the frame index might not fit in the addressing mode
@@ -172,9 +168,23 @@ static bool frameIndexMayFold(const SIInstrInfo *TII,
                               const MachineInstr &UseMI,
                               int OpNo,
                               const MachineOperand &OpToFold) {
-  return OpToFold.isFI() &&
-    TII->isMUBUF(UseMI) &&
-    OpNo == AMDGPU::getNamedOperandIdx(UseMI.getOpcode(), AMDGPU::OpName::vaddr);
+  if (!OpToFold.isFI())
+    return false;
+
+  if (TII->isMUBUF(UseMI))
+    return OpNo == AMDGPU::getNamedOperandIdx(UseMI.getOpcode(),
+                                              AMDGPU::OpName::vaddr);
+  if (!TII->isFLATScratch(UseMI))
+    return false;
+
+  int SIdx = AMDGPU::getNamedOperandIdx(UseMI.getOpcode(),
+                                        AMDGPU::OpName::saddr);
+  if (OpNo == SIdx)
+    return true;
+
+  int VIdx = AMDGPU::getNamedOperandIdx(UseMI.getOpcode(),
+                                        AMDGPU::OpName::vaddr);
+  return OpNo == VIdx && SIdx == -1;
 }
 
 FunctionPass *llvm::createSIFoldOperandsPass() {
@@ -332,17 +342,8 @@ static bool tryAddToFoldList(SmallVectorImpl<FoldCandidate> &FoldList,
   if (!TII->isOperandLegal(*MI, OpNo, OpToFold)) {
     // Special case for v_mac_{f16, f32}_e64 if we are trying to fold into src2
     unsigned Opc = MI->getOpcode();
-    if ((Opc == AMDGPU::V_MAC_F32_e64 || Opc == AMDGPU::V_MAC_F16_e64 ||
-         Opc == AMDGPU::V_FMAC_F32_e64 || Opc == AMDGPU::V_FMAC_F16_e64) &&
-        (int)OpNo == AMDGPU::getNamedOperandIdx(Opc, AMDGPU::OpName::src2)) {
-      bool IsFMA = Opc == AMDGPU::V_FMAC_F32_e64 ||
-                   Opc == AMDGPU::V_FMAC_F16_e64;
-      bool IsF32 = Opc == AMDGPU::V_MAC_F32_e64 ||
-                   Opc == AMDGPU::V_FMAC_F32_e64;
-      unsigned NewOpc = IsFMA ?
-        (IsF32 ? AMDGPU::V_FMA_F32 : AMDGPU::V_FMA_F16_gfx9) :
-        (IsF32 ? AMDGPU::V_MAD_F32 : AMDGPU::V_MAD_F16);
-
+    unsigned NewOpc = macToMad(Opc);
+    if (NewOpc != AMDGPU::INSTRUCTION_LIST_END) {
       // Check if changing this to a v_mad_{f16, f32} instruction will allow us
       // to fold the operand.
       MI->setDesc(TII->get(NewOpc));
@@ -546,8 +547,9 @@ static bool tryToFoldACImm(const SIInstrInfo *TII,
   if (!UseReg.isVirtual())
     return false;
 
-  if (llvm::find_if(FoldList, [UseMI](const FoldCandidate &FC) {
-        return FC.UseMI == UseMI; }) != FoldList.end())
+  if (llvm::any_of(FoldList, [UseMI](const FoldCandidate &FC) {
+        return FC.UseMI == UseMI;
+      }))
     return false;
 
   MachineRegisterInfo &MRI = UseMI->getParent()->getParent()->getRegInfo();
@@ -631,25 +633,36 @@ void SIFoldOperands::foldOperand(
     // Sanity check that this is a stack access.
     // FIXME: Should probably use stack pseudos before frame lowering.
 
-    if (TII->getNamedOperand(*UseMI, AMDGPU::OpName::srsrc)->getReg() !=
-        MFI->getScratchRSrcReg())
-      return;
+    if (TII->isMUBUF(*UseMI)) {
+      if (TII->getNamedOperand(*UseMI, AMDGPU::OpName::srsrc)->getReg() !=
+          MFI->getScratchRSrcReg())
+        return;
 
-    // Ensure this is either relative to the current frame or the current wave.
-    MachineOperand &SOff =
-        *TII->getNamedOperand(*UseMI, AMDGPU::OpName::soffset);
-    if ((!SOff.isReg() || SOff.getReg() != MFI->getStackPtrOffsetReg()) &&
-        (!SOff.isImm() || SOff.getImm() != 0))
-      return;
+      // Ensure this is either relative to the current frame or the current
+      // wave.
+      MachineOperand &SOff =
+          *TII->getNamedOperand(*UseMI, AMDGPU::OpName::soffset);
+      if ((!SOff.isReg() || SOff.getReg() != MFI->getStackPtrOffsetReg()) &&
+          (!SOff.isImm() || SOff.getImm() != 0))
+        return;
+
+      // If this is relative to the current wave, update it to be relative to
+      // the current frame.
+      if (SOff.isImm())
+        SOff.ChangeToRegister(MFI->getStackPtrOffsetReg(), false);
+    }
 
     // A frame index will resolve to a positive constant, so it should always be
     // safe to fold the addressing mode, even pre-GFX9.
     UseMI->getOperand(UseOpIdx).ChangeToFrameIndex(OpToFold.getIndex());
 
-    // If this is relative to the current wave, update it to be relative to the
-    // current frame.
-    if (SOff.isImm())
-      SOff.ChangeToRegister(MFI->getStackPtrOffsetReg(), false);
+    if (TII->isFLATScratch(*UseMI) &&
+        AMDGPU::getNamedOperandIdx(UseMI->getOpcode(),
+                                   AMDGPU::OpName::vaddr) != -1) {
+      unsigned NewOpc = AMDGPU::getFlatScratchInstSSfromSV(UseMI->getOpcode());
+      UseMI->setDesc(TII->get(NewOpc));
+    }
+
     return;
   }
 
@@ -1257,8 +1270,11 @@ void SIFoldOperands::foldInstOperand(MachineInstr &MI,
   for (MachineInstr *Copy : CopiesToReplace)
     Copy->addImplicitDefUseOperands(*MF);
 
+  SmallPtrSet<MachineInstr *, 16> Folded;
   for (FoldCandidate &Fold : FoldList) {
     assert(!Fold.isReg() || Fold.OpToFold);
+    if (Folded.count(Fold.UseMI))
+      continue;
     if (Fold.isReg() && Fold.OpToFold->getReg().isVirtual()) {
       Register Reg = Fold.OpToFold->getReg();
       MachineInstr *DefMI = Fold.OpToFold->getParent();
@@ -1278,7 +1294,8 @@ void SIFoldOperands::foldInstOperand(MachineInstr &MI,
       LLVM_DEBUG(dbgs() << "Folded source from " << MI << " into OpNo "
                         << static_cast<int>(Fold.UseOpNo) << " of "
                         << *Fold.UseMI << '\n');
-      tryFoldInst(TII, Fold.UseMI);
+      if (tryFoldInst(TII, Fold.UseMI))
+        Folded.insert(Fold.UseMI);
     } else if (Fold.isCommuted()) {
       // Restoring instruction's original operand order if fold has failed.
       TII->commuteInstruction(*Fold.UseMI, false);

@@ -135,23 +135,28 @@ void TargetLoweringBase::InitLibcalls(const Triple &TT) {
     setLibcallCallingConv((RTLIB::Libcall)LC, CallingConv::C);
 
   // For IEEE quad-precision libcall names, PPC uses "kf" instead of "tf".
-  if (TT.getArch() == Triple::ppc || TT.isPPC64()) {
+  if (TT.isPPC()) {
     setLibcallName(RTLIB::ADD_F128, "__addkf3");
     setLibcallName(RTLIB::SUB_F128, "__subkf3");
     setLibcallName(RTLIB::MUL_F128, "__mulkf3");
     setLibcallName(RTLIB::DIV_F128, "__divkf3");
+    setLibcallName(RTLIB::POWI_F128, "__powikf2");
     setLibcallName(RTLIB::FPEXT_F32_F128, "__extendsfkf2");
     setLibcallName(RTLIB::FPEXT_F64_F128, "__extenddfkf2");
     setLibcallName(RTLIB::FPROUND_F128_F32, "__trunckfsf2");
     setLibcallName(RTLIB::FPROUND_F128_F64, "__trunckfdf2");
     setLibcallName(RTLIB::FPTOSINT_F128_I32, "__fixkfsi");
     setLibcallName(RTLIB::FPTOSINT_F128_I64, "__fixkfdi");
+    setLibcallName(RTLIB::FPTOSINT_F128_I128, "__fixkfti");
     setLibcallName(RTLIB::FPTOUINT_F128_I32, "__fixunskfsi");
     setLibcallName(RTLIB::FPTOUINT_F128_I64, "__fixunskfdi");
+    setLibcallName(RTLIB::FPTOUINT_F128_I128, "__fixunskfti");
     setLibcallName(RTLIB::SINTTOFP_I32_F128, "__floatsikf");
     setLibcallName(RTLIB::SINTTOFP_I64_F128, "__floatdikf");
+    setLibcallName(RTLIB::SINTTOFP_I128_F128, "__floattikf");
     setLibcallName(RTLIB::UINTTOFP_I32_F128, "__floatunsikf");
     setLibcallName(RTLIB::UINTTOFP_I64_F128, "__floatundikf");
+    setLibcallName(RTLIB::UINTTOFP_I128_F128, "__floatuntikf");
     setLibcallName(RTLIB::OEQ_F128, "__eqkf2");
     setLibcallName(RTLIB::UNE_F128, "__nekf2");
     setLibcallName(RTLIB::OGE_F128, "__gekf2");
@@ -774,6 +779,8 @@ void TargetLoweringBase::initActions() {
     setOperationAction(ISD::SDIVFIXSAT, VT, Expand);
     setOperationAction(ISD::UDIVFIX, VT, Expand);
     setOperationAction(ISD::UDIVFIXSAT, VT, Expand);
+    setOperationAction(ISD::FP_TO_SINT_SAT, VT, Expand);
+    setOperationAction(ISD::FP_TO_UINT_SAT, VT, Expand);
 
     // Overflow operations default to expand
     setOperationAction(ISD::SADDO, VT, Expand);

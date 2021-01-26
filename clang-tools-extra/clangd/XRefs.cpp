@@ -292,6 +292,47 @@ const NamedDecl *getPreferredDecl(const NamedDecl *D) {
   return D;
 }
 
+std::vector<LocatedSymbol> findImplementors(llvm::DenseSet<SymbolID> IDs,
+                                            RelationKind Predicate,
+                                            const SymbolIndex *Index,
+                                            llvm::StringRef MainFilePath) {
+  if (IDs.empty())
+    return {};
+  static constexpr trace::Metric FindImplementorsMetric(
+      "find_implementors", trace::Metric::Counter, "case");
+  switch (Predicate) {
+  case RelationKind::BaseOf:
+    FindImplementorsMetric.record(1, "find-base");
+    break;
+  case RelationKind::OverriddenBy:
+    FindImplementorsMetric.record(1, "find-override");
+    break;
+  }
+
+  RelationsRequest Req;
+  Req.Predicate = Predicate;
+  Req.Subjects = std::move(IDs);
+  std::vector<LocatedSymbol> Results;
+  Index->relations(Req, [&](const SymbolID &Subject, const Symbol &Object) {
+    auto DeclLoc =
+        indexToLSPLocation(Object.CanonicalDeclaration, MainFilePath);
+    if (!DeclLoc) {
+      elog("Find overrides: {0}", DeclLoc.takeError());
+      return;
+    }
+    Results.emplace_back();
+    Results.back().Name = Object.Name.str();
+    Results.back().PreferredDeclaration = *DeclLoc;
+    auto DefLoc = indexToLSPLocation(Object.Definition, MainFilePath);
+    if (!DefLoc) {
+      elog("Failed to convert location: {0}", DefLoc.takeError());
+      return;
+    }
+    Results.back().Definition = *DefLoc;
+  });
+  return Results;
+}
+
 // Decls are more complicated.
 // The AST contains at least a declaration, maybe a definition.
 // These are up-to-date, and so generally preferred over index results.
@@ -306,6 +347,8 @@ locateASTReferent(SourceLocation CurLoc, const syntax::Token *TouchedIdentifier,
   // Keep track of SymbolID -> index mapping, to fill in index data later.
   llvm::DenseMap<SymbolID, size_t> ResultIndex;
 
+  static constexpr trace::Metric LocateASTReferentMetric(
+      "locate_ast_referent", trace::Metric::Counter, "case");
   auto AddResultDecl = [&](const NamedDecl *D) {
     D = getPreferredDecl(D);
     auto Loc =
@@ -330,16 +373,28 @@ locateASTReferent(SourceLocation CurLoc, const syntax::Token *TouchedIdentifier,
       DeclRelation::TemplatePattern | DeclRelation::Alias;
   auto Candidates =
       getDeclAtPositionWithRelations(AST, CurLoc, Relations, NodeKind);
+  llvm::DenseSet<SymbolID> VirtualMethods;
   for (const auto &E : Candidates) {
     const NamedDecl *D = E.first;
-    // Special case: void foo() ^override: jump to the overridden method.
     if (const auto *CMD = llvm::dyn_cast<CXXMethodDecl>(D)) {
+      // Special case: virtual void ^method() = 0: jump to all overrides.
+      // FIXME: extend it to ^virtual, unfortunately, virtual location is not
+      // saved in the AST.
+      if (CMD->isPure()) {
+        if (TouchedIdentifier && SM.getSpellingLoc(CMD->getLocation()) ==
+                                     TouchedIdentifier->location()) {
+          VirtualMethods.insert(getSymbolID(CMD));
+          LocateASTReferentMetric.record(1, "method-to-override");
+        }
+      }
+      // Special case: void foo() ^override: jump to the overridden method.
       const InheritableAttr *Attr = D->getAttr<OverrideAttr>();
       if (!Attr)
         Attr = D->getAttr<FinalAttr>();
       if (Attr && TouchedIdentifier &&
           SM.getSpellingLoc(Attr->getLocation()) ==
               TouchedIdentifier->location()) {
+        LocateASTReferentMetric.record(1, "method-to-base");
         // We may be overridding multiple methods - offer them all.
         for (const NamedDecl *ND : CMD->overridden_methods())
           AddResultDecl(ND);
@@ -364,6 +419,7 @@ locateASTReferent(SourceLocation CurLoc, const syntax::Token *TouchedIdentifier,
     if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(D)) {
       if (TouchedIdentifier &&
           D->getLocation() == TouchedIdentifier->location()) {
+        LocateASTReferentMetric.record(1, "template-specialization-to-primary");
         AddResultDecl(CTSD->getSpecializedTemplate());
         continue;
       }
@@ -379,9 +435,12 @@ locateASTReferent(SourceLocation CurLoc, const syntax::Token *TouchedIdentifier,
       if (const auto *ID = CD->getClassInterface())
         if (TouchedIdentifier &&
             (CD->getLocation() == TouchedIdentifier->location() ||
-             ID->getName() == TouchedIdentifier->text(SM)))
+             ID->getName() == TouchedIdentifier->text(SM))) {
+          LocateASTReferentMetric.record(1, "objc-category-to-class");
           AddResultDecl(ID);
+        }
 
+    LocateASTReferentMetric.record(1, "regular");
     // Otherwise the target declaration is the right one.
     AddResultDecl(D);
   }
@@ -420,7 +479,46 @@ locateASTReferent(SourceLocation CurLoc, const syntax::Token *TouchedIdentifier,
     });
   }
 
+  auto Overrides = findImplementors(VirtualMethods, RelationKind::OverriddenBy,
+                                    Index, MainFilePath);
+  Result.insert(Result.end(), Overrides.begin(), Overrides.end());
   return Result;
+}
+
+std::vector<LocatedSymbol> locateSymbolForType(const ParsedAST &AST,
+                                               const QualType &Type) {
+  const auto &SM = AST.getSourceManager();
+  auto MainFilePath =
+      getCanonicalPath(SM.getFileEntryForID(SM.getMainFileID()), SM);
+  if (!MainFilePath) {
+    elog("Failed to get a path for the main file, so no symbol.");
+    return {};
+  }
+
+  auto Decls = targetDecl(DynTypedNode::create(Type.getNonReferenceType()),
+                          DeclRelation::TemplatePattern | DeclRelation::Alias);
+  if (Decls.empty())
+    return {};
+
+  std::vector<LocatedSymbol> Results;
+  const auto &ASTContext = AST.getASTContext();
+
+  for (const NamedDecl *D : Decls) {
+    D = getPreferredDecl(D);
+
+    auto Loc = makeLocation(ASTContext, nameLocation(*D, SM), *MainFilePath);
+    if (!Loc)
+      continue;
+
+    Results.emplace_back();
+    Results.back().Name = printName(ASTContext, *D);
+    Results.back().PreferredDeclaration = *Loc;
+    if (const NamedDecl *Def = getDefinition(D))
+      Results.back().Definition =
+          makeLocation(ASTContext, nameLocation(*Def, SM), *MainFilePath);
+  }
+
+  return Results;
 }
 
 bool tokenSpelledAt(SourceLocation SpellingLoc, const syntax::TokenBuffer &TB) {
@@ -667,15 +765,31 @@ std::vector<LocatedSymbol> locateSymbolAt(ParsedAST &AST, Position Pos,
     return {};
   }
 
-  const syntax::Token *TouchedIdentifier =
-      syntax::spelledIdentifierTouching(*CurLoc, AST.getTokens());
-  if (TouchedIdentifier)
-    if (auto Macro =
-            locateMacroReferent(*TouchedIdentifier, AST, *MainFilePath))
-      // Don't look at the AST or index if we have a macro result.
-      // (We'd just return declarations referenced from the macro's
-      // expansion.)
-      return {*std::move(Macro)};
+  const syntax::Token *TouchedIdentifier = nullptr;
+  auto TokensTouchingCursor =
+      syntax::spelledTokensTouching(*CurLoc, AST.getTokens());
+  for (const syntax::Token &Tok : TokensTouchingCursor) {
+    if (Tok.kind() == tok::identifier) {
+      if (auto Macro = locateMacroReferent(Tok, AST, *MainFilePath))
+        // Don't look at the AST or index if we have a macro result.
+        // (We'd just return declarations referenced from the macro's
+        // expansion.)
+        return {*std::move(Macro)};
+
+      TouchedIdentifier = &Tok;
+      break;
+    }
+
+    if (Tok.kind() == tok::kw_auto || Tok.kind() == tok::kw_decltype) {
+      // go-to-definition on auto should find the definition of the deduced
+      // type, if possible
+      if (auto Deduced = getDeducedType(AST.getASTContext(), Tok.location())) {
+        auto LocSym = locateSymbolForType(AST, *Deduced);
+        if (!LocSym.empty())
+          return LocSym;
+      }
+    }
+  }
 
   ASTNodeKind NodeKind;
   auto ASTResults = locateASTReferent(*CurLoc, TouchedIdentifier, AST,
@@ -1145,36 +1259,22 @@ std::vector<LocatedSymbol> findImplementations(ParsedAST &AST, Position Pos,
          CurLoc.takeError());
     return {};
   }
-  std::vector<LocatedSymbol> Results;
   DeclRelationSet Relations =
       DeclRelation::TemplatePattern | DeclRelation::Alias;
-  RelationsRequest Req;
-  Req.Predicate = RelationKind::OverriddenBy;
-  for (const NamedDecl *ND : getDeclAtPosition(AST, *CurLoc, Relations))
-    if (const CXXMethodDecl *CXXMD = llvm::dyn_cast<CXXMethodDecl>(ND))
-      if (CXXMD->isVirtual())
-        Req.Subjects.insert(getSymbolID(ND));
-
-  if (Req.Subjects.empty())
-    return Results;
-  Index->relations(Req, [&](const SymbolID &Subject, const Symbol &Object) {
-    auto DeclLoc =
-        indexToLSPLocation(Object.CanonicalDeclaration, *MainFilePath);
-    if (!DeclLoc) {
-      elog("Find implementation: {0}", DeclLoc.takeError());
-      return;
+  llvm::DenseSet<SymbolID> IDs;
+  RelationKind QueryKind;
+  for (const NamedDecl *ND : getDeclAtPosition(AST, *CurLoc, Relations)) {
+    if (const auto *CXXMD = llvm::dyn_cast<CXXMethodDecl>(ND)) {
+      if (CXXMD->isVirtual()) {
+        IDs.insert(getSymbolID(ND));
+        QueryKind = RelationKind::OverriddenBy;
+      }
+    } else if (const auto *RD = dyn_cast<CXXRecordDecl>(ND)) {
+      IDs.insert(getSymbolID(RD));
+      QueryKind = RelationKind::BaseOf;
     }
-    LocatedSymbol Loc;
-    Loc.Name = Object.Name.str();
-    Loc.PreferredDeclaration = *DeclLoc;
-    auto DefLoc = indexToLSPLocation(Object.Definition, *MainFilePath);
-    if (DefLoc)
-      Loc.Definition = *DefLoc;
-    else
-      llvm::consumeError(DefLoc.takeError());
-    Results.push_back(Loc);
-  });
-  return Results;
+  }
+  return findImplementors(std::move(IDs), QueryKind, Index, *MainFilePath);
 }
 
 ReferencesResult findReferences(ParsedAST &AST, Position Pos, uint32_t Limit,

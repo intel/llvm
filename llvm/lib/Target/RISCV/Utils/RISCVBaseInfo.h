@@ -47,60 +47,43 @@ enum {
 
   InstFormatMask = 31,
 
-  ConstraintOffset = 5,
-  ConstraintMask = 0b1111
+  ConstraintShift = 5,
+  ConstraintMask = 0b111 << ConstraintShift,
+
+  VLMulShift = ConstraintShift + 3,
+  VLMulMask = 0b111 << VLMulShift,
+
+  // Do we need to add a dummy mask op when converting RVV Pseudo to MCInst.
+  HasDummyMaskOpShift = VLMulShift + 3,
+  HasDummyMaskOpMask = 1 << HasDummyMaskOpShift,
+
+  // Does this instruction only update element 0 the destination register.
+  WritesElement0Shift = HasDummyMaskOpShift + 1,
+  WritesElement0Mask = 1 << WritesElement0Shift,
+
+  // Does this instruction have a merge operand that must be removed when
+  // converting to MCInst. It will be the first explicit use operand. Used by
+  // RVV Pseudos.
+  HasMergeOpShift = WritesElement0Shift + 1,
+  HasMergeOpMask = 1 << HasMergeOpShift,
+
+  // Does this instruction have a SEW operand. It will be the last explicit
+  // operand. Used by RVV Pseudos.
+  HasSEWOpShift = HasMergeOpShift + 1,
+  HasSEWOpMask = 1 << HasSEWOpShift,
+
+  // Does this instruction have a VL operand. It will be the second to last
+  // explicit operand. Used by RVV Pseudos.
+  HasVLOpShift = HasSEWOpShift + 1,
+  HasVLOpMask = 1 << HasVLOpShift,
 };
 
 // Match with the definitions in RISCVInstrFormatsV.td
 enum RVVConstraintType {
   NoConstraint = 0,
-  VS2Constraint = 0b0001,
-  VS1Constraint = 0b0010,
-  VMConstraint = 0b0100,
-  OneInput = 0b1000,
-
-  // Illegal instructions:
-  //
-  // * The destination vector register group for a masked vector instruction
-  // cannot overlap the source mask register (v0), unless the destination vector
-  // register is being written with a mask value (e.g., comparisons) or the
-  // scalar result of a reduction.
-  //
-  // * Widening: The destination vector register group cannot overlap a source
-  // vector register group of a different EEW
-  //
-  // * Narrowing: The destination vector register group cannot overlap the
-  // first source vector register group
-  //
-  // * For vadc and vsbc, an illegal instruction exception is raised if the
-  // destination vector register is v0.
-  //
-  // * For vmadc and vmsbc, an illegal instruction exception is raised if the
-  // destination vector register overlaps a source vector register group.
-  //
-  // * viota: An illegal instruction exception is raised if the destination
-  // vector register group overlaps the source vector mask register. If the
-  // instruction is masked, an illegal instruction exception is issued if the
-  // destination vector register group overlaps v0.
-  //
-  // * v[f]slide[1]up: The destination vector register group for vslideup cannot
-  // overlap the source vector register group.
-  //
-  // * vrgather: The destination vector register group cannot overlap with the
-  // source vector register groups.
-  //
-  // * vcompress: The destination vector register group cannot overlap the
-  // source vector register group or the source mask register
-  WidenV = VS2Constraint | VS1Constraint | VMConstraint,
-  WidenW = VS1Constraint | VMConstraint,
-  WidenCvt = VS2Constraint | VMConstraint | OneInput,
-  Narrow = VS2Constraint | VMConstraint,
-  NarrowCvt = VS2Constraint | VMConstraint | OneInput,
-  Vmadc = VS2Constraint | VS1Constraint,
-  Iota = VS2Constraint | VMConstraint | OneInput,
-  SlideUp = VS2Constraint | VMConstraint,
-  Vrgather = VS2Constraint | VS1Constraint | VMConstraint,
-  Vcompress = VS2Constraint | VS1Constraint,
+  VS2Constraint = 0b001,
+  VS1Constraint = 0b010,
+  VMConstraint = 0b100,
 };
 
 // RISC-V Specific Machine Operand Flags
@@ -346,7 +329,8 @@ enum class RISCVVLMUL {
   LMUL_2,
   LMUL_4,
   LMUL_8,
-  LMUL_F8 = 5,
+  LMUL_RESERVED,
+  LMUL_F8,
   LMUL_F4,
   LMUL_F2
 };
@@ -387,23 +371,35 @@ inline static unsigned encodeVTYPE(RISCVVLMUL VLMUL, RISCVVSEW VSEW,
 
   return VTypeI;
 }
+
+// TODO: This format will change for the V extensions spec v1.0.
+inline static RISCVVLMUL getVLMUL(unsigned VType) {
+  unsigned VLMUL = (VType & 0x3) | ((VType & 0x20) >> 3);
+  return static_cast<RISCVVLMUL>(VLMUL);
+}
+
+inline static RISCVVSEW getVSEW(unsigned VType) {
+  unsigned VSEW = (VType >> 2) & 0x7;
+  return static_cast<RISCVVSEW>(VSEW);
+}
+
+inline static bool isTailAgnostic(unsigned VType) { return VType & 0x40; }
+
+inline static bool isMaskAgnostic(unsigned VType) { return VType & 0x80; }
+
+void printVType(unsigned VType, raw_ostream &OS);
+
 } // namespace RISCVVType
 
 namespace RISCVVPseudosTable {
 
+// The definition should be consistent with `class RISCVVPseudo` in
+// RISCVInstrInfoVPseudos.td.
+static const uint8_t InvalidIndex = 0x80;
+
 struct PseudoInfo {
-  unsigned int Pseudo;
-  unsigned int BaseInstr;
-  uint8_t VLIndex;
-  uint8_t SEWIndex;
-  uint8_t MergeOpIndex;
-  uint8_t VLMul;
-
-  int getVLIndex() const { return static_cast<int8_t>(VLIndex); }
-
-  int getSEWIndex() const { return static_cast<int8_t>(SEWIndex); }
-
-  int getMergeOpIndex() const { return static_cast<int8_t>(MergeOpIndex); }
+  uint16_t Pseudo;
+  uint16_t BaseInstr;
 };
 
 using namespace RISCV;

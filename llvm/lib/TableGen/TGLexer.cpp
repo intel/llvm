@@ -365,6 +365,7 @@ tgtok::TokKind TGLexer::LexIdentifier() {
     .Case("if", tgtok::If)
     .Case("then", tgtok::Then)
     .Case("else", tgtok::ElseKW)
+    .Case("assert", tgtok::Assert)
     .Default(tgtok::Id);
 
   // A couple of tokens require special processing.
@@ -589,6 +590,7 @@ tgtok::TokKind TGLexer::LexExclaim() {
     .Case("listsplat", tgtok::XListSplat)
     .Case("strconcat", tgtok::XStrConcat)
     .Case("interleave", tgtok::XInterleave)
+    .Case("substr", tgtok::XSubstr)
     .Cases("setdagop", "setop", tgtok::XSetDagOp) // !setop is deprecated.
     .Cases("getdagop", "getop", tgtok::XGetDagOp) // !getop is deprecated.
     .Default(tgtok::Error);

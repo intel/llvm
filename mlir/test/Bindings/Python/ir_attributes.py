@@ -165,6 +165,20 @@ def testBoolAttr():
 run(testBoolAttr)
 
 
+# CHECK-LABEL: TEST: testFlatSymbolRefAttr
+def testFlatSymbolRefAttr():
+  with Context() as ctx:
+    sattr = FlatSymbolRefAttr(Attribute.parse('@symbol'))
+    # CHECK: symattr value: symbol
+    print("symattr value:", sattr.value)
+
+    # Test factory methods.
+    # CHECK: default_get: @foobar
+    print("default_get:", FlatSymbolRefAttr.get("foobar"))
+
+run(testFlatSymbolRefAttr)
+
+
 # CHECK-LABEL: TEST: testStringAttr
 def testStringAttr():
   with Context() as ctx:
@@ -257,6 +271,47 @@ def testDenseFPAttr():
 run(testDenseFPAttr)
 
 
+# CHECK-LABEL: TEST: testDictAttr
+def testDictAttr():
+  with Context():
+    dict_attr = {
+      'stringattr':  StringAttr.get('string'),
+      'integerattr' : IntegerAttr.get(
+        IntegerType.get_signless(32), 42)
+    }
+
+    a = DictAttr.get(dict_attr)
+
+    # CHECK attr: {integerattr = 42 : i32, stringattr = "string"}
+    print("attr:", a)
+
+    assert len(a) == 2
+
+    # CHECK: 42 : i32
+    print(a['integerattr'])
+
+    # CHECK: "string"
+    print(a['stringattr'])
+
+    # Check that exceptions are raised as expected.
+    try:
+      _ = a['does_not_exist']
+    except KeyError:
+      pass
+    else:
+      assert False, "Exception not produced"
+
+    try:
+      _ = a[42]
+    except IndexError:
+      pass
+    else:
+      assert False, "expected IndexError on accessing an out-of-bounds attribute"
+
+
+
+run(testDictAttr)
+
 # CHECK-LABEL: TEST: testTypeAttr
 def testTypeAttr():
   with Context():
@@ -316,7 +371,7 @@ def testArrayAttr():
     try:
       ArrayAttr.get([42])
     except RuntimeError as e:
-      # CHECK: Error: Invalid attribute when attempting to create an ArrayAttribute (Unable to cast Python instance of type <class 'int'> to C++ type 'mlir::python::PyAttribute')
+      # CHECK: Error: Invalid attribute when attempting to create an ArrayAttribute
       print("Error: ", e)
 run(testArrayAttr)
 

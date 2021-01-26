@@ -35,7 +35,7 @@ class VPDef;
 class VPSlotTracker;
 class VPUser;
 class VPRecipeBase;
-class VPPredInstPHIRecipe;
+class VPWidenMemoryInstructionRecipe;
 
 // This is the base class of the VPlan Def/Use graph, used for modeling the data
 // flow into, within and out of the VPlan. VPValues can stand for live-ins
@@ -44,12 +44,13 @@ class VPPredInstPHIRecipe;
 class VPValue {
   friend class VPBuilder;
   friend class VPDef;
+  friend class VPInstruction;
   friend struct VPlanTransforms;
   friend class VPBasicBlock;
   friend class VPInterleavedAccessInfo;
   friend class VPSlotTracker;
   friend class VPRecipeBase;
-  friend class VPPredInstPHIRecipe;
+  friend class VPWidenMemoryInstructionRecipe;
 
   const unsigned char SubclassID; ///< Subclass identifier (for isa/dyn_cast).
 
@@ -72,10 +73,6 @@ protected:
   // for multiple underlying IRs (Polly?) by providing a new VPlan front-end,
   // back-end and analysis information for the new IR.
 
-  /// Return the underlying Value attached to this VPValue.
-  Value *getUnderlyingValue() { return UnderlyingVal; }
-  const Value *getUnderlyingValue() const { return UnderlyingVal; }
-
   // Set \p Val as the underlying Value of this VPValue.
   void setUnderlyingValue(Value *Val) {
     assert(!UnderlyingVal && "Underlying Value is already set.");
@@ -83,6 +80,10 @@ protected:
   }
 
 public:
+  /// Return the underlying Value attached to this VPValue.
+  Value *getUnderlyingValue() { return UnderlyingVal; }
+  const Value *getUnderlyingValue() const { return UnderlyingVal; }
+
   /// An enumeration for keeping track of the concrete subclass of VPValue that
   /// are actually instantiated. Values of this enumeration are kept in the
   /// SubclassID field of the VPValue objects. They are used for concrete
@@ -165,6 +166,15 @@ public:
   void replaceAllUsesWith(VPValue *New);
 
   VPDef *getDef() { return Def; }
+
+  /// Returns the underlying IR value, if this VPValue is defined outside the
+  /// scope of VPlan. Returns nullptr if the VPValue is defined by a VPDef
+  /// inside a VPlan.
+  Value *getLiveInIRValue() {
+    assert(!getDef() &&
+           "VPValue is not a live-in; it is defined by a VPDef inside a VPlan");
+    return getUnderlyingValue();
+  }
 };
 
 typedef DenseMap<Value *, VPValue *> Value2VPValueTy;
@@ -234,7 +244,7 @@ public:
   }
 
   /// Method to support type inquiry through isa, cast, and dyn_cast.
-  static inline bool classof(const VPRecipeBase *Recipe);
+  static inline bool classof(const VPDef *Recipe);
 };
 
 /// This class augments a recipe with a set of VPValues defined by the recipe.
@@ -244,6 +254,9 @@ public:
 /// from VPDef before VPValue.
 class VPDef {
   friend class VPValue;
+
+  /// Subclass identifier (for isa/dyn_cast).
+  const unsigned char SubclassID;
 
   /// The VPValues defined by this VPDef.
   TinyPtrVector<VPValue *> DefinedValues;
@@ -267,6 +280,30 @@ class VPDef {
   }
 
 public:
+  /// An enumeration for keeping track of the concrete subclass of VPRecipeBase
+  /// that is actually instantiated. Values of this enumeration are kept in the
+  /// SubclassID field of the VPRecipeBase objects. They are used for concrete
+  /// type identification.
+  using VPRecipeTy = enum {
+    VPBlendSC,
+    VPBranchOnMaskSC,
+    VPInstructionSC,
+    VPInterleaveSC,
+    VPPredInstPHISC,
+    VPReductionSC,
+    VPReplicateSC,
+    VPWidenCallSC,
+    VPWidenCanonicalIVSC,
+    VPWidenGEPSC,
+    VPWidenIntOrFpInductionSC,
+    VPWidenMemoryInstructionSC,
+    VPWidenPHISC,
+    VPWidenSC,
+    VPWidenSelectSC
+  };
+
+  VPDef(const unsigned char SC) : SubclassID(SC) {}
+
   virtual ~VPDef() {
     for (VPValue *D : make_early_inc_range(DefinedValues)) {
       assert(D->Def == this &&
@@ -290,9 +327,23 @@ public:
 
   /// Returns an ArrayRef of the values defined by the VPDef.
   ArrayRef<VPValue *> definedValues() { return DefinedValues; }
+  /// Returns an ArrayRef of the values defined by the VPDef.
+  ArrayRef<VPValue *> definedValues() const { return DefinedValues; }
 
   /// Returns the number of values defined by the VPDef.
   unsigned getNumDefinedValues() const { return DefinedValues.size(); }
+
+  /// \return an ID for the concrete type of this object.
+  /// This is used to implement the classof checks. This should not be used
+  /// for any other purpose, as the values may change as LLVM evolves.
+  unsigned getVPDefID() const { return SubclassID; }
+
+  /// Dump the VPDef to stderr (for debugging).
+  void dump() const;
+
+  /// Each concrete VPDef prints itself.
+  virtual void print(raw_ostream &O, const Twine &Indent,
+                     VPSlotTracker &SlotTracker) const = 0;
 };
 
 class VPlan;
@@ -314,7 +365,7 @@ class VPSlotTracker {
   void assignSlots(const VPlan &Plan);
 
 public:
-  VPSlotTracker(const VPlan *Plan) {
+  VPSlotTracker(const VPlan *Plan = nullptr) {
     if (Plan)
       assignSlots(*Plan);
   }

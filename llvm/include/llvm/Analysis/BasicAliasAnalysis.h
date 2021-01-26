@@ -18,7 +18,6 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/AliasAnalysis.h"
-#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include <algorithm>
@@ -118,6 +117,9 @@ private:
 
     APInt Scale;
 
+    // Context instruction to use when querying information about this index.
+    const Instruction *CxtI;
+
     bool operator==(const VariableGEPIndex &Other) const {
       return V == Other.V && ZExtBits == Other.ZExtBits &&
              SExtBits == Other.SExtBits && Scale == Other.Scale;
@@ -188,6 +190,14 @@ private:
   /// Tracks instructions visited by pointsToConstantMemory.
   SmallPtrSet<const Value *, 16> Visited;
 
+  /// How many active NoAlias assumption uses there are.
+  int NumAssumptionUses = 0;
+
+  /// Location pairs for which an assumption based result is currently stored.
+  /// Used to remove all potentially incorrect results from the cache if an
+  /// assumption is disproven.
+  SmallVector<AAQueryInfo::LocPair, 4> AssumptionBasedResults;
+
   static const Value *
   GetLinearExpression(const Value *V, APInt &Scale, APInt &Offset,
                       unsigned &ZExtBits, unsigned &SExtBits,
@@ -242,6 +252,12 @@ private:
                          LocationSize V2Size, const AAMDNodes &V2AATag,
                          AAQueryInfo &AAQI, const Value *O1 = nullptr,
                          const Value *O2 = nullptr);
+
+  AliasResult aliasCheckRecursive(const Value *V1, LocationSize V1Size,
+                                  const AAMDNodes &V1AATag, const Value *V2,
+                                  LocationSize V2Size, const AAMDNodes &V2AATag,
+                                  AAQueryInfo &AAQI, const Value *O1,
+                                  const Value *O2);
 };
 
 /// Analysis pass providing a never-invalidated alias analysis result.

@@ -32,6 +32,11 @@ static std::unique_ptr<FrontendAction> CreateFrontendBaseAction(
   case PrintPreprocessedInput:
     return std::make_unique<PrintPreprocessedAction>();
     break;
+  case ParseSyntaxOnly:
+    return std::make_unique<ParseSyntaxOnlyAction>();
+  case EmitObj:
+    return std::make_unique<EmitObjAction>();
+    break;
   default:
     break;
     // TODO:

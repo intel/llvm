@@ -13,7 +13,7 @@ target triple = "wasm32-unknown-unknown"
 ; ==============================================================================
 ; CHECK-LABEL: swizzle_v16i8:
 ; SIMD128-NEXT: .functype swizzle_v16i8 (v128, v128) -> (v128){{$}}
-; SIMD128-NEXT: v8x16.swizzle $push[[R:[0-9]+]]=, $0, $1{{$}}
+; SIMD128-NEXT: i8x16.swizzle $push[[R:[0-9]+]]=, $0, $1{{$}}
 ; SIMD128-NEXT: return $pop[[R]]{{$}}
 declare <16 x i8> @llvm.wasm.swizzle(<16 x i8>, <16 x i8>)
 define <16 x i8> @swizzle_v16i8(<16 x i8> %x, <16 x i8> %y) {
@@ -164,9 +164,9 @@ define <16 x i8> @narrow_unsigned_v16i8(<8 x i16> %low, <8 x i16> %high) {
 }
 
 ; CHECK-LABEL: shuffle_v16i8:
-; NO-SIMD128-NOT: v8x16
+; NO-SIMD128-NOT: i8x16
 ; SIMD128-NEXT: .functype shuffle_v16i8 (v128, v128) -> (v128){{$}}
-; SIMD128-NEXT: v8x16.shuffle $push[[R:[0-9]+]]=, $0, $1,
+; SIMD128-NEXT: i8x16.shuffle $push[[R:[0-9]+]]=, $0, $1,
 ; SIMD128-SAME: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 0{{$}}
 ; SIMD128-NEXT: return $pop[[R]]{{$}}
 declare <16 x i8> @llvm.wasm.shuffle(
@@ -180,9 +180,9 @@ define <16 x i8> @shuffle_v16i8(<16 x i8> %x, <16 x i8> %y) {
 }
 
 ; CHECK-LABEL: shuffle_undef_v16i8:
-; NO-SIMD128-NOT: v8x16
+; NO-SIMD128-NOT: i8x16
 ; SIMD128-NEXT: .functype shuffle_undef_v16i8 (v128, v128) -> (v128){{$}}
-; SIMD128-NEXT: v8x16.shuffle $push[[R:[0-9]+]]=, $0, $1,
+; SIMD128-NEXT: i8x16.shuffle $push[[R:[0-9]+]]=, $0, $1,
 ; SIMD128-SAME: 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2{{$}}
 ; SIMD128-NEXT: return $pop[[R]]{{$}}
 define <16 x i8> @shuffle_undef_v16i8(<16 x i8> %x, <16 x i8> %y) {
@@ -306,6 +306,26 @@ define <8 x i16> @extmul_high_u_v8i16(<16 x i8> %x, <16 x i8> %y) {
   %a = call <8 x i16> @llvm.wasm.extmul.high.unsigned.v8i16(
     <16 x i8> %x, <16 x i8> %y
   )
+  ret <8 x i16> %a
+}
+
+; CHECK-LABEL: extadd_pairwise_s_v8i16:
+; SIMD128-NEXT: .functype extadd_pairwise_s_v8i16 (v128) -> (v128){{$}}
+; SIMD128-NEXT: i16x8.extadd_pairwise_i8x16_s $push[[R:[0-9]+]]=, $0{{$}}
+; SIMD128-NEXT: return $pop[[R]]{{$}}
+declare <8 x i16> @llvm.wasm.extadd.pairwise.signed.v8i16(<16 x i8>)
+define <8 x i16> @extadd_pairwise_s_v8i16(<16 x i8> %x) {
+  %a = call <8 x i16> @llvm.wasm.extadd.pairwise.signed.v8i16(<16 x i8> %x)
+  ret <8 x i16> %a
+}
+
+; CHECK-LABEL: extadd_pairwise_u_v8i16:
+; SIMD128-NEXT: .functype extadd_pairwise_u_v8i16 (v128) -> (v128){{$}}
+; SIMD128-NEXT: i16x8.extadd_pairwise_i8x16_u $push[[R:[0-9]+]]=, $0{{$}}
+; SIMD128-NEXT: return $pop[[R]]{{$}}
+declare <8 x i16> @llvm.wasm.extadd.pairwise.unsigned.v8i16(<16 x i8>)
+define <8 x i16> @extadd_pairwise_u_v8i16(<16 x i8> %x) {
+  %a = call <8 x i16> @llvm.wasm.extadd.pairwise.unsigned.v8i16(<16 x i8> %x)
   ret <8 x i16> %a
 }
 
@@ -448,6 +468,27 @@ define <4 x i32> @extmul_high_u_v4i32(<8 x i16> %x, <8 x i16> %y) {
   )
   ret <4 x i32> %a
 }
+
+; CHECK-LABEL: extadd_pairwise_s_v4i32:
+; SIMD128-NEXT: .functype extadd_pairwise_s_v4i32 (v128) -> (v128){{$}}
+; SIMD128-NEXT: i32x4.extadd_pairwise_i16x8_s $push[[R:[0-9]+]]=, $0{{$}}
+; SIMD128-NEXT: return $pop[[R]]{{$}}
+declare <4 x i32> @llvm.wasm.extadd.pairwise.signed.v4i32(<8 x i16>)
+define <4 x i32> @extadd_pairwise_s_v4i32(<8 x i16> %x) {
+  %a = call <4 x i32> @llvm.wasm.extadd.pairwise.signed.v4i32(<8 x i16> %x)
+  ret <4 x i32> %a
+}
+
+; CHECK-LABEL: extadd_pairwise_u_v4i32:
+; SIMD128-NEXT: .functype extadd_pairwise_u_v4i32 (v128) -> (v128){{$}}
+; SIMD128-NEXT: i32x4.extadd_pairwise_i16x8_u $push[[R:[0-9]+]]=, $0{{$}}
+; SIMD128-NEXT: return $pop[[R]]{{$}}
+declare <4 x i32> @llvm.wasm.extadd.pairwise.unsigned.v4i32(<8 x i16>)
+define <4 x i32> @extadd_pairwise_u_v4i32(<8 x i16> %x) {
+  %a = call <4 x i32> @llvm.wasm.extadd.pairwise.unsigned.v4i32(<8 x i16> %x)
+  ret <4 x i32> %a
+}
+
 
 ; CHECK-LABEL: any_v4i32:
 ; SIMD128-NEXT: .functype any_v4i32 (v128) -> (i32){{$}}

@@ -14,6 +14,7 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
+#include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
 #include "llvm/CodeGen/MachineInstr.h"
@@ -255,8 +256,8 @@ void llvm::reportGISelFailure(MachineFunction &MF, const TargetPassConfig &TPC,
   reportGISelFailure(MF, TPC, MORE, R);
 }
 
-Optional<int64_t> llvm::getConstantVRegVal(Register VReg,
-                                           const MachineRegisterInfo &MRI) {
+Optional<APInt> llvm::getConstantVRegVal(Register VReg,
+                                         const MachineRegisterInfo &MRI) {
   Optional<ValueAndVReg> ValAndVReg =
       getConstantVRegValWithLookThrough(VReg, MRI, /*LookThroughInstrs*/ false);
   assert((!ValAndVReg || ValAndVReg->VReg == VReg) &&
@@ -264,6 +265,14 @@ Optional<int64_t> llvm::getConstantVRegVal(Register VReg,
   if (!ValAndVReg)
     return None;
   return ValAndVReg->Value;
+}
+
+Optional<int64_t> llvm::getConstantVRegSExtVal(Register VReg,
+                                               const MachineRegisterInfo &MRI) {
+  Optional<APInt> Val = getConstantVRegVal(VReg, MRI);
+  if (Val && Val->getBitWidth() <= 64)
+    return Val->getSExtValue();
+  return None;
 }
 
 Optional<ValueAndVReg> llvm::getConstantVRegValWithLookThrough(
@@ -337,10 +346,7 @@ Optional<ValueAndVReg> llvm::getConstantVRegValWithLookThrough(
     }
   }
 
-  if (Val.getBitWidth() > 64)
-    return None;
-
-  return ValueAndVReg{Val.getSExtValue(), VReg};
+  return ValueAndVReg{Val, VReg};
 }
 
 const ConstantFP *
@@ -413,9 +419,8 @@ Optional<APInt> llvm::ConstantFoldBinOp(unsigned Opcode, const Register Op1,
   if (!MaybeOp1Cst)
     return None;
 
-  LLT Ty = MRI.getType(Op1);
-  APInt C1(Ty.getSizeInBits(), *MaybeOp1Cst, true);
-  APInt C2(Ty.getSizeInBits(), *MaybeOp2Cst, true);
+  const APInt &C1 = *MaybeOp1Cst;
+  const APInt &C2 = *MaybeOp2Cst;
   switch (Opcode) {
   default:
     break;
@@ -535,16 +540,68 @@ Optional<APInt> llvm::ConstantFoldExtOp(unsigned Opcode, const Register Op1,
                                         const MachineRegisterInfo &MRI) {
   auto MaybeOp1Cst = getConstantVRegVal(Op1, MRI);
   if (MaybeOp1Cst) {
-    LLT Ty = MRI.getType(Op1);
-    APInt C1(Ty.getSizeInBits(), *MaybeOp1Cst, true);
     switch (Opcode) {
     default:
       break;
-    case TargetOpcode::G_SEXT_INREG:
-      return C1.trunc(Imm).sext(C1.getBitWidth());
+    case TargetOpcode::G_SEXT_INREG: {
+      LLT Ty = MRI.getType(Op1);
+      return MaybeOp1Cst->trunc(Imm).sext(Ty.getScalarSizeInBits());
+    }
     }
   }
   return None;
+}
+
+bool llvm::isKnownToBeAPowerOfTwo(Register Reg, const MachineRegisterInfo &MRI,
+                                  GISelKnownBits *KB) {
+  Optional<DefinitionAndSourceRegister> DefSrcReg =
+      getDefSrcRegIgnoringCopies(Reg, MRI);
+  if (!DefSrcReg)
+    return false;
+
+  const MachineInstr &MI = *DefSrcReg->MI;
+  const LLT Ty = MRI.getType(Reg);
+
+  switch (MI.getOpcode()) {
+  case TargetOpcode::G_CONSTANT: {
+    unsigned BitWidth = Ty.getScalarSizeInBits();
+    const ConstantInt *CI = MI.getOperand(1).getCImm();
+    return CI->getValue().zextOrTrunc(BitWidth).isPowerOf2();
+  }
+  case TargetOpcode::G_SHL: {
+    // A left-shift of a constant one will have exactly one bit set because
+    // shifting the bit off the end is undefined.
+
+    // TODO: Constant splat
+    if (auto ConstLHS = getConstantVRegVal(MI.getOperand(1).getReg(), MRI)) {
+      if (*ConstLHS == 1)
+        return true;
+    }
+
+    break;
+  }
+  case TargetOpcode::G_LSHR: {
+    if (auto ConstLHS = getConstantVRegVal(MI.getOperand(1).getReg(), MRI)) {
+      if (ConstLHS->isSignMask())
+        return true;
+    }
+
+    break;
+  }
+  default:
+    break;
+  }
+
+  // TODO: Are all operands of a build vector constant powers of two?
+  if (!KB)
+    return false;
+
+  // More could be done here, though the above checks are enough
+  // to handle some common cases.
+
+  // Fall back to computeKnownBits to catch other known cases.
+  KnownBits Known = KB->getKnownBits(Reg);
+  return (Known.countMaxPopulation() == 1) && (Known.countMinPopulation() == 1);
 }
 
 void llvm::getSelectionDAGFallbackAnalysisUsage(AnalysisUsage &AU) {

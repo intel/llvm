@@ -535,6 +535,10 @@ def HasV8_6aOps   : SubtargetFeature<"v8.6a", "HasV8_6aOps", "true",
                                    [HasV8_5aOps, FeatureBF16,
                                     FeatureMatMulInt8]>;
 
+def HasV8_7aOps   : SubtargetFeature<"v8.7a", "HasV8_7aOps", "true",
+                                   "Support ARM v8.7a instructions",
+                                   [HasV8_6aOps]>;
+
 def HasV8_1MMainlineOps : SubtargetFeature<
                "v8.1m.main", "HasV8_1MMainlineOps", "true",
                "Support ARM v8-1M Mainline instructions",
@@ -557,6 +561,20 @@ foreach i = {0-7} in
                                               "CoprocCDE["#i#"]", "true",
                                               "Coprocessor "#i#" ISA is CDEv1",
                                               [HasCDEOps]>;
+
+//===----------------------------------------------------------------------===//
+// Control codegen mitigation against Straight Line Speculation vulnerability.
+//===----------------------------------------------------------------------===//
+
+def FeatureHardenSlsRetBr : SubtargetFeature<"harden-sls-retbr",
+  "HardenSlsRetBr", "true",
+  "Harden against straight line speculation across RETurn and BranchRegister "
+  "instructions">;
+def FeatureHardenSlsBlr : SubtargetFeature<"harden-sls-blr",
+  "HardenSlsBlr", "true",
+  "Harden against straight line speculation across indirect calls">;
+
+
 
 //===----------------------------------------------------------------------===//
 // ARM Processor subtarget features.
@@ -598,6 +616,8 @@ def ProcA77     : SubtargetFeature<"a77", "ARMProcFamily", "CortexA77",
                                    "Cortex-A77 ARM processors", []>;
 def ProcA78     : SubtargetFeature<"cortex-a78", "ARMProcFamily", "CortexA78",
                                    "Cortex-A78 ARM processors", []>;
+def ProcA78C    : SubtargetFeature<"a78c", "ARMProcFamily", "CortexA78C",
+                                   "Cortex-A78C ARM processors", []>;
 def ProcX1      : SubtargetFeature<"cortex-x1", "ARMProcFamily", "CortexX1",
                                    "Cortex-X1 ARM processors", []>;
 
@@ -642,7 +662,8 @@ def ProcR52     : SubtargetFeature<"r52", "ARMProcFamily", "CortexR52",
 
 def ProcM3      : SubtargetFeature<"m3", "ARMProcFamily", "CortexM3",
                                    "Cortex-M3 ARM processors", []>;
-
+def ProcM7      : SubtargetFeature<"m7", "ARMProcFamily", "CortexM7",
+                                   "Cortex-M7 ARM processors", []>;
 
 //===----------------------------------------------------------------------===//
 // ARM Helper classes.
@@ -819,6 +840,19 @@ def ARMv85a   : Architecture<"armv8.5-a", "ARMv85a",  [HasV8_5aOps,
                                                        FeatureRAS,
                                                        FeatureDotProd]>;
 def ARMv86a   : Architecture<"armv8.6-a", "ARMv86a",  [HasV8_6aOps,
+                                                       FeatureAClass,
+                                                       FeatureDB,
+                                                       FeatureFPARMv8,
+                                                       FeatureNEON,
+                                                       FeatureDSP,
+                                                       FeatureTrustZone,
+                                                       FeatureMP,
+                                                       FeatureVirtualization,
+                                                       FeatureCrypto,
+                                                       FeatureCRC,
+                                                       FeatureRAS,
+                                                       FeatureDotProd]>;
+def ARMv87a   : Architecture<"armv8.7-a", "ARMv86a",  [HasV8_7aOps,
                                                        FeatureAClass,
                                                        FeatureDB,
                                                        FeatureFPARMv8,
@@ -1160,6 +1194,7 @@ def : ProcessorModel<"cortex-m4", CortexM4Model,        [ARMv7em,
                                                          FeatureHasNoBranchPredictor]>;
 
 def : ProcessorModel<"cortex-m7", CortexM7Model,        [ARMv7em,
+                                                         ProcM7,
                                                          FeatureFPARMv8_D16,
                                                          FeatureUseMISched]>;
 
@@ -1274,6 +1309,14 @@ def : ProcNoItin<"cortex-a78",                          [ARMv82a, ProcA78,
                                                          FeatureCRC,
                                                          FeatureFullFP16,
                                                          FeatureDotProd]>;
+
+def : ProcNoItin<"cortex-a78c",                         [ARMv82a, ProcA78C,
+                                                         FeatureHWDivThumb,
+                                                         FeatureHWDivARM,
+                                                         FeatureCrypto,
+                                                         FeatureCRC,
+                                                         FeatureDotProd,
+                                                         FeatureFullFP16]>;
 
 def : ProcNoItin<"cortex-x1",                           [ARMv82a, ProcX1,
                                                          FeatureHWDivThumb,

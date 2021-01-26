@@ -79,6 +79,18 @@ static cl::opt<unsigned> SplitEdgeProbabilityThreshold(
         "splitted critical edge"),
     cl::init(40), cl::Hidden);
 
+static cl::opt<unsigned> SinkLoadInstsPerBlockThreshold(
+    "machine-sink-load-instrs-threshold",
+    cl::desc("Do not try to find alias store for a load if there is a in-path "
+             "block whose instruction number is higher than this threshold."),
+    cl::init(2000), cl::Hidden);
+
+static cl::opt<unsigned> SinkLoadBlocksThreshold(
+    "machine-sink-load-blocks-threshold",
+    cl::desc("Do not try to find alias store for a load if the block number in "
+             "the straight line is higher than this threshold."),
+    cl::init(20), cl::Hidden);
+
 STATISTIC(NumSunk,      "Number of machine instructions sunk");
 STATISTIC(NumSplit,     "Number of critical edges split");
 STATISTIC(NumCoalesces, "Number of copies coalesced");
@@ -450,7 +462,7 @@ void MachineSinking::ProcessDbgInst(MachineInstr &MI) {
 
   DebugVariable Var(MI.getDebugVariable(), MI.getDebugExpression(),
                     MI.getDebugLoc()->getInlinedAt());
-  bool SeenBefore = SeenDbgVars.count(Var) != 0;
+  bool SeenBefore = SeenDbgVars.contains(Var);
 
   MachineOperand &MO = MI.getDebugOperand(0);
   if (MO.isReg() && MO.getReg().isVirtual())
@@ -733,8 +745,7 @@ MachineSinking::GetAllSortedSuccessors(MachineInstr &MI, MachineBasicBlock *MBB,
   if (Succs != AllSuccessors.end())
     return Succs->second;
 
-  SmallVector<MachineBasicBlock *, 4> AllSuccs(MBB->succ_begin(),
-                                               MBB->succ_end());
+  SmallVector<MachineBasicBlock *, 4> AllSuccs(MBB->successors());
 
   // Handle cases where sinking can happen but where the sink point isn't a
   // successor. For example:
@@ -1013,13 +1024,14 @@ bool MachineSinking::hasStoreBetween(MachineBasicBlock *From,
     return HasStoreCache[BlockPair];
 
   if (StoreInstrCache.find(BlockPair) != StoreInstrCache.end())
-    return std::any_of(
-        StoreInstrCache[BlockPair].begin(), StoreInstrCache[BlockPair].end(),
-        [&](MachineInstr *I) { return I->mayAlias(AA, MI, false); });
+    return llvm::any_of(StoreInstrCache[BlockPair], [&](MachineInstr *I) {
+      return I->mayAlias(AA, MI, false);
+    });
 
   bool SawStore = false;
   bool HasAliasedStore = false;
   DenseSet<MachineBasicBlock *> HandledBlocks;
+  DenseSet<MachineBasicBlock *> HandledDomBlocks;
   // Go through all reachable blocks from From.
   for (MachineBasicBlock *BB : depth_first(From)) {
     // We insert the instruction at the start of block To, so no need to worry
@@ -1036,10 +1048,33 @@ bool MachineSinking::hasStoreBetween(MachineBasicBlock *From,
     HandledBlocks.insert(BB);
     // To post dominates BB, it must be a path from block From.
     if (PDT->dominates(To, BB)) {
+      if (!HandledDomBlocks.count(BB))
+        HandledDomBlocks.insert(BB);
+
+      // If this BB is too big or the block number in straight line between From
+      // and To is too big, stop searching to save compiling time.
+      if (BB->size() > SinkLoadInstsPerBlockThreshold ||
+          HandledDomBlocks.size() > SinkLoadBlocksThreshold) {
+        for (auto *DomBB : HandledDomBlocks) {
+          if (DomBB != BB && DT->dominates(DomBB, BB))
+            HasStoreCache[std::make_pair(DomBB, To)] = true;
+          else if(DomBB != BB && DT->dominates(BB, DomBB))
+            HasStoreCache[std::make_pair(From, DomBB)] = true;
+        }
+        HasStoreCache[BlockPair] = true;
+        return true;
+      }
+
       for (MachineInstr &I : *BB) {
         // Treat as alias conservatively for a call or an ordered memory
         // operation.
         if (I.isCall() || I.hasOrderedMemoryRef()) {
+          for (auto *DomBB : HandledDomBlocks) {
+            if (DomBB != BB && DT->dominates(DomBB, BB))
+              HasStoreCache[std::make_pair(DomBB, To)] = true;
+            else if(DomBB != BB && DT->dominates(BB, DomBB))
+              HasStoreCache[std::make_pair(From, DomBB)] = true;
+          }
           HasStoreCache[BlockPair] = true;
           return true;
         }
@@ -1553,7 +1588,6 @@ bool PostRAMachineSinking::tryToSinkCopy(MachineBasicBlock &CurBB,
     // recorded which reg units that DBG_VALUEs read, if this instruction
     // writes any of those units then the corresponding DBG_VALUEs must sink.
     SetVector<MachineInstr *> DbgValsToSinkSet;
-    SmallVector<MachineInstr *, 4> DbgValsToSink;
     for (auto &MO : MI->operands()) {
       if (!MO.isReg() || !MO.isDef())
         continue;
@@ -1563,8 +1597,8 @@ bool PostRAMachineSinking::tryToSinkCopy(MachineBasicBlock &CurBB,
         for (auto *MI : SeenDbgInstrs.lookup(Reg))
           DbgValsToSinkSet.insert(MI);
     }
-    DbgValsToSink.insert(DbgValsToSink.begin(), DbgValsToSinkSet.begin(),
-                         DbgValsToSinkSet.end());
+    SmallVector<MachineInstr *, 4> DbgValsToSink(DbgValsToSinkSet.begin(),
+                                                 DbgValsToSinkSet.end());
 
     // Clear the kill flag if SrcReg is killed between MI and the end of the
     // block.

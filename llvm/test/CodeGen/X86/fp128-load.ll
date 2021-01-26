@@ -5,7 +5,7 @@
 ; RUN:     -enable-legalize-types-checking | FileCheck %s
 
 ; __float128 myFP128 = 1.0L;  // x86_64-linux-android
-@my_fp128 = global fp128 0xL00000000000000003FFF000000000000, align 16
+@my_fp128 = dso_local global fp128 0xL00000000000000003FFF000000000000, align 16
 
 define fp128 @get_fp128() {
 ; CHECK-LABEL: get_fp128:
@@ -22,14 +22,9 @@ entry:
 define fp128 @TestLoadExtend(fp128 %x, i32 %n) {
 ; CHECK-LABEL: TestLoadExtend:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    pushq %rax
-; CHECK-NEXT:    .cfi_def_cfa_offset 16
 ; CHECK-NEXT:    movslq %edi, %rax
 ; CHECK-NEXT:    movss {{.*#+}} xmm0 = mem[0],zero,zero,zero
-; CHECK-NEXT:    callq __extendsftf2
-; CHECK-NEXT:    popq %rax
-; CHECK-NEXT:    .cfi_def_cfa_offset 8
-; CHECK-NEXT:    retq
+; CHECK-NEXT:    jmp __extendsftf2@PLT # TAILCALL
 entry:
   %idxprom = sext i32 %n to i64
   %arrayidx = getelementptr inbounds [2 x float], [2 x float]* @TestLoadExtend.data, i64 0, i64 %idxprom

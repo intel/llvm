@@ -59,24 +59,29 @@
 // STATIC_LIB_SRC: 9: assembler, {8}, object, (host-sycl)
 // STATIC_LIB_SRC: 10: linker, {0, 9}, image, (host-sycl)
 // STATIC_LIB_SRC: 11: compiler, {4}, ir, (device-sycl)
-// STATIC_LIB_SRC: 12: input, "[[INPUTA]]", archive
-// STATIC_LIB_SRC: 13: clang-offload-unbundler, {12}, archive
-// STATIC_LIB_SRC: 14: linker, {11, 13}, ir, (device-sycl)
-// STATIC_LIB_SRC: 15: sycl-post-link, {14}, tempfiletable, (device-sycl)
-// STATIC_LIB_SRC: 16: file-table-tform, {15}, tempfilelist, (device-sycl)
-// STATIC_LIB_SRC: 17: llvm-spirv, {16}, tempfilelist, (device-sycl)
-// STATIC_LIB_SRC: 18: file-table-tform, {15, 17}, tempfiletable, (device-sycl)
-// STATIC_LIB_SRC: 19: clang-offload-wrapper, {18}, object, (device-sycl)
-// STATIC_LIB_SRC: 20: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64-unknown-unknown-sycldevice)" {19}, image
+// STATIC_LIB_SRC: 12: linker, {0, 9}, image, (host-sycl)
+// STATIC_LIB_SRC: 13: clang-offload-deps, {12}, ir, (host-sycl)
+// STATIC_LIB_SRC: 14: input, "[[INPUTA]]", archive
+// STATIC_LIB_SRC: 15: clang-offload-unbundler, {14}, archive
+// STATIC_LIB_SRC: 16: linker, {11, 13, 15}, ir, (device-sycl)
+// STATIC_LIB_SRC: 17: sycl-post-link, {16}, tempfiletable, (device-sycl)
+// STATIC_LIB_SRC: 18: file-table-tform, {17}, tempfilelist, (device-sycl)
+// STATIC_LIB_SRC: 19: llvm-spirv, {18}, tempfilelist, (device-sycl)
+// STATIC_LIB_SRC: 20: file-table-tform, {17, 19}, tempfiletable, (device-sycl)
+// STATIC_LIB_SRC: 21: clang-offload-wrapper, {20}, object, (device-sycl)
+// STATIC_LIB_SRC: 22: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64-unknown-unknown-sycldevice)" {21}, image
 
 /// ###########################################################################
 
 // RUN: touch %t_lib.a
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl %t_lib.a -o output_name -lOpenCL -### %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_SRC2
-// STATIC_LIB_SRC2: clang-offload-bundler{{.*}} "-type=a"
-// STATIC_LIB_SRC2: llvm-link{{.*}} "{{.*}}"
 // STATIC_LIB_SRC2: clang{{.*}} "-emit-obj" {{.*}} "-o" "[[HOSTOBJ:.+\.o]]"
+// STATIC_LIB_SRC2: ld{{(.exe)?}}" {{.*}} "-o" "[[HOSTEXE:.+\.out]]"
+// STATIC_LIB_SRC2: clang-offload-deps{{.*}} "-outputs=[[OUTDEPS:.+\.bc]]" "[[HOSTEXE]]"
+// STATIC_LIB_SRC2: clang-offload-bundler{{.*}} "-type=a" {{.*}} "-outputs=[[OUTLIB:.+\.a]]"
+// STATIC_LIB_SRC2: llvm-link{{.*}} "[[OUTDEPS]]" "-o" "[[OUTTEMP:.+\.bc]]"
+// STATIC_LIB_SRC2: llvm-link{{.*}} "--only-needed" "[[OUTTEMP]]" "[[OUTLIB]]"
 // STATIC_LIB_SRC2: ld{{(.exe)?}}" {{.*}} "[[HOSTOBJ]]"
 
 /// ###########################################################################

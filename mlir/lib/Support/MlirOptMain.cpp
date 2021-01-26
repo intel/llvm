@@ -24,12 +24,12 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Support/ToolUtilities.h"
-#include "mlir/Transforms/Passes.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/SourceMgr.h"
+#include "llvm/Support/StringSaver.h"
 #include "llvm/Support/ToolOutputFile.h"
 
 using namespace mlir;
@@ -183,6 +183,11 @@ LogicalResult mlir::MlirOptMain(int argc, char **argv, llvm::StringRef toolName,
       "show-dialects", cl::desc("Print the list of registered dialects"),
       cl::init(false));
 
+  static cl::opt<bool> runRepro(
+      "run-reproducer",
+      cl::desc("Append the command line options of the reproducer"),
+      cl::init(false));
+
   InitLLVM y(argc, argv);
 
   // Register any command line options.
@@ -218,6 +223,23 @@ LogicalResult mlir::MlirOptMain(int argc, char **argv, llvm::StringRef toolName,
   if (!file) {
     llvm::errs() << errorMessage << "\n";
     return failure();
+  }
+
+  // Parse reproducer options.
+  BumpPtrAllocator a;
+  StringSaver saver(a);
+  if (runRepro) {
+    auto pair = file->getBuffer().split('\n');
+    if (!pair.first.consume_front("// configuration:")) {
+      llvm::errs() << "Failed to find repro configuration, expect file to "
+                      "begin with '// configuration:'\n";
+      return failure();
+    }
+    // Tokenize & parse the first line.
+    SmallVector<const char *, 4> newArgv;
+    newArgv.push_back(argv[0]);
+    llvm::cl::TokenizeGNUCommandLine(pair.first, saver, newArgv);
+    cl::ParseCommandLineOptions(newArgv.size(), &newArgv[0], helpHeader);
   }
 
   auto output = openOutputFile(outputFilename, &errorMessage);

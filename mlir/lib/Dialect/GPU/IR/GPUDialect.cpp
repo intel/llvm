@@ -22,6 +22,7 @@
 #include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/TypeUtilities.h"
 #include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
@@ -524,7 +525,8 @@ static void printLaunchFuncOperands(OpAsmPrinter &printer, Operation *,
 BlockArgument GPUFuncOp::addWorkgroupAttribution(Type type) {
   auto attrName = getNumWorkgroupAttributionsAttrName();
   auto attr = (*this)->getAttrOfType<IntegerAttr>(attrName);
-  setAttr(attrName, IntegerAttr::get(attr.getType(), attr.getValue() + 1));
+  (*this)->setAttr(attrName,
+                   IntegerAttr::get(attr.getType(), attr.getValue() + 1));
   return getBody().insertArgument(getType().getNumInputs() + attr.getInt(),
                                   type);
 }
@@ -701,7 +703,7 @@ void GPUFuncOp::setType(FunctionType newType) {
   for (int i = newType.getNumInputs(), e = oldType.getNumInputs(); i < e; i++)
     removeAttr(getArgAttrName(i, nameBuf));
 
-  setAttr(getTypeAttrName(), TypeAttr::get(newType));
+  (*this)->setAttr(getTypeAttrName(), TypeAttr::get(newType));
 }
 
 /// Hook for FunctionLike verifier.
@@ -839,6 +841,23 @@ static void print(OpAsmPrinter &p, GPUModuleOp op) {
                                      {SymbolTable::getSymbolAttrName()});
   p.printRegion(op->getRegion(0), /*printEntryBlockArgs=*/false,
                 /*printBlockTerminators=*/false);
+}
+
+//===----------------------------------------------------------------------===//
+// GPUMemcpyOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(MemcpyOp op) {
+  auto srcType = op.src().getType();
+  auto dstType = op.dst().getType();
+
+  if (getElementTypeOrSelf(srcType) != getElementTypeOrSelf(dstType))
+    return op.emitOpError("arguments have incompatible element type");
+
+  if (failed(verifyCompatibleShape(srcType, dstType)))
+    return op.emitOpError("arguments have incompatible shape");
+
+  return success();
 }
 
 static ParseResult parseAsyncDependencies(

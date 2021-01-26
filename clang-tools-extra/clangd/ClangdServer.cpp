@@ -549,8 +549,8 @@ void ClangdServer::switchSourceHeader(
   //     the same directory.
   //  2) if 1) fails, we use the AST&Index approach, it is slower but supports
   //     different code layout.
-  if (auto CorrespondingFile = getCorrespondingHeaderOrSource(
-          std::string(Path), TFS.view(llvm::None)))
+  if (auto CorrespondingFile =
+          getCorrespondingHeaderOrSource(Path, TFS.view(llvm::None)))
     return CB(std::move(CorrespondingFile));
   auto Action = [Path = Path.str(), CB = std::move(CB),
                  this](llvm::Expected<InputsAndAST> InpAST) mutable {
@@ -621,7 +621,7 @@ void ClangdServer::typeHierarchy(PathRef File, Position Pos, int Resolve,
                                 File));
   };
 
-  WorkScheduler.runWithAST("Type Hierarchy", File, std::move(Action));
+  WorkScheduler.runWithAST("TypeHierarchy", File, std::move(Action));
 }
 
 void ClangdServer::resolveTypeHierarchy(
@@ -642,7 +642,7 @@ void ClangdServer::prepareCallHierarchy(
       return CB(InpAST.takeError());
     CB(clangd::prepareCallHierarchy(InpAST->AST, Pos, File));
   };
-  WorkScheduler.runWithAST("Call Hierarchy", File, std::move(Action));
+  WorkScheduler.runWithAST("CallHierarchy", File, std::move(Action));
 }
 
 void ClangdServer::incomingCalls(
@@ -678,7 +678,7 @@ void ClangdServer::documentSymbols(llvm::StringRef File,
           return CB(InpAST.takeError());
         CB(clangd::getDocumentSymbols(InpAST->AST));
       };
-  WorkScheduler.runWithAST("documentSymbols", File, std::move(Action),
+  WorkScheduler.runWithAST("DocumentSymbols", File, std::move(Action),
                            TUScheduler::InvalidateOnUpdate);
 }
 
@@ -690,7 +690,7 @@ void ClangdServer::foldingRanges(llvm::StringRef File,
           return CB(InpAST.takeError());
         CB(clangd::getFoldingRanges(InpAST->AST));
       };
-  WorkScheduler.runWithAST("foldingRanges", File, std::move(Action),
+  WorkScheduler.runWithAST("FoldingRanges", File, std::move(Action),
                            TUScheduler::InvalidateOnUpdate);
 }
 

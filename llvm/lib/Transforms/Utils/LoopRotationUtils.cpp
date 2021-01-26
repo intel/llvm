@@ -12,7 +12,6 @@
 
 #include "llvm/Transforms/Utils/LoopRotationUtils.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/CodeMetrics.h"
@@ -499,12 +498,13 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
       Updates.push_back({DominatorTree::Insert, OrigPreheader, Exit});
       Updates.push_back({DominatorTree::Insert, OrigPreheader, NewHeader});
       Updates.push_back({DominatorTree::Delete, OrigPreheader, OrigHeader});
-      DT->applyUpdates(Updates);
 
       if (MSSAU) {
-        MSSAU->applyUpdates(Updates, *DT);
+        MSSAU->applyUpdates(Updates, *DT, /*UpdateDT=*/true);
         if (VerifyMemorySSA)
           MSSAU->getMemorySSA()->verifyMemorySSA();
+      } else {
+        DT->applyUpdates(Updates);
       }
     }
 

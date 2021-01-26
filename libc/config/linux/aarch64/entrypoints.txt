@@ -26,6 +26,7 @@ set(TARGET_LIBC_ENTRYPOINTS
     # string.h entrypoints
     libc.src.string.bzero
     libc.src.string.memchr
+    libc.src.string.memcmp
     libc.src.string.memcpy
     libc.src.string.memset
     libc.src.string.memrchr
@@ -64,6 +65,7 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.floor
     libc.src.math.floorf
     libc.src.math.floorl
+    libc.src.math.fmaf
     libc.src.math.fmax
     libc.src.math.fmaxf
     libc.src.math.fmaxl
@@ -87,6 +89,15 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.modf
     libc.src.math.modff
     libc.src.math.modfl
+    libc.src.math.nextafter
+    libc.src.math.nextafterf
+    libc.src.math.nextafterl
+    libc.src.math.remainderf
+    libc.src.math.remainder
+    libc.src.math.remainderl
+    libc.src.math.remquof
+    libc.src.math.remquo
+    libc.src.math.remquol
     libc.src.math.round
     libc.src.math.roundf
     libc.src.math.roundl

@@ -109,9 +109,10 @@ SymIndexId SymbolCache::createSimpleType(TypeIndex Index,
     return createSymbol<NativeTypePointer>(Index);
 
   const auto Kind = Index.getSimpleKind();
-  const auto It = std::find_if(
-      std::begin(BuiltinTypes), std::end(BuiltinTypes),
-      [Kind](const BuiltinTypeEntry &Builtin) { return Builtin.Kind == Kind; });
+  const auto It =
+      llvm::find_if(BuiltinTypes, [Kind](const BuiltinTypeEntry &Builtin) {
+        return Builtin.Kind == Kind;
+      });
   if (It == std::end(BuiltinTypes))
     return 0;
   return createSymbol<NativeTypeBuiltin>(Mods, It->Type, It->Size);
@@ -246,7 +247,7 @@ SymbolCache::getSymbolById(SymIndexId SymbolId) const {
     return nullptr;
 
   // Make sure to handle the case where we've inserted a placeholder symbol
-  // for types we don't yet suppport.
+  // for types we don't yet support.
   NativeRawSymbol *NRS = Cache[SymbolId].get();
   if (!NRS)
     return nullptr;
@@ -481,11 +482,19 @@ SymbolCache::findLineTable(uint16_t Modi) const {
       auto ColIt = Group.Columns.begin();
       auto ColsEnd = Group.Columns.end();
 
+      // Add a line to mark the beginning of this section.
+      uint64_t StartAddr =
+          Session.getVAFromSectOffset(RelocSegment, RelocOffset);
+      LineInfo FirstLine(Group.LineNumbers.front().Flags);
+      uint32_t ColNum =
+          (Lines.hasColumnInfo()) ? Group.Columns.front().StartColumn : 0;
+      Entries.push_back({StartAddr, FirstLine, ColNum, Group.NameIndex, false});
+
       for (const LineNumberEntry &LN : Group.LineNumbers) {
         uint64_t VA =
             Session.getVAFromSectOffset(RelocSegment, RelocOffset + LN.Offset);
         LineInfo Line(LN.Flags);
-        uint32_t ColNum = 0;
+        ColNum = 0;
 
         if (Lines.hasColumnInfo() && ColIt != ColsEnd) {
           ColNum = ColIt->StartColumn;
@@ -495,12 +504,10 @@ SymbolCache::findLineTable(uint16_t Modi) const {
       }
 
       // Add a terminal entry line to mark the end of this subsection.
-      uint64_t VA = Session.getVAFromSectOffset(
-          RelocSegment, RelocOffset + Lines.header()->CodeSize);
+      uint64_t EndAddr = StartAddr + Lines.header()->CodeSize;
       LineInfo LastLine(Group.LineNumbers.back().Flags);
-      uint32_t ColNum =
-          (Lines.hasColumnInfo()) ? Group.Columns.back().StartColumn : 0;
-      Entries.push_back({VA, LastLine, ColNum, Group.NameIndex, true});
+      ColNum = (Lines.hasColumnInfo()) ? Group.Columns.back().StartColumn : 0;
+      Entries.push_back({EndAddr, LastLine, ColNum, Group.NameIndex, true});
 
       EntryList.push_back(Entries);
     }
@@ -513,8 +520,7 @@ SymbolCache::findLineTable(uint16_t Modi) const {
               return LHS[0].Addr < RHS[0].Addr;
             });
   for (size_t I = 0; I < EntryList.size(); ++I)
-    ModuleLineTable.insert(ModuleLineTable.end(), EntryList[I].begin(),
-                           EntryList[I].end());
+    llvm::append_range(ModuleLineTable, EntryList[I]);
 
   return ModuleLineTable;
 }

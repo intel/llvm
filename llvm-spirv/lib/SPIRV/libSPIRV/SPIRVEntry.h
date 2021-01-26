@@ -861,9 +861,6 @@ template <spv::Op OC>
 class SPIRVContinuedInstINTELBase : public SPIRVEntryNoId<OC> {
 public:
   template <spv::Op _OC, class T = void>
-  using EnableIfStruct =
-      typename std::enable_if_t<_OC == OpTypeStructContinuedINTEL, T>;
-  template <spv::Op _OC, class T = void>
   using EnableIfCompositeConst =
       typename std::enable_if_t<_OC == OpConstantCompositeContinuedINTEL ||
                                     _OC ==
@@ -892,11 +889,6 @@ public:
     return SPIRVEntry::getValues(Elements);
   }
 
-  template <spv::Op OPC = OC>
-  EnableIfStruct<OPC, SPIRVType *> getMemberType(size_t I) const {
-    return static_cast<SPIRVType *>(SPIRVEntry::getEntry(Elements[I]));
-  }
-
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(CapabilityLongConstantCompositeINTEL);
   }
@@ -905,7 +897,6 @@ public:
     return ExtensionID::SPV_INTEL_long_constant_composite;
   }
 
-  void setElementId(size_t I, SPIRVId Id) { Elements[I] = Id; }
   SPIRVWord getNumElements() const { return Elements.size(); }
 
 protected:
@@ -919,8 +910,22 @@ protected:
   std::vector<SPIRVId> Elements;
 };
 
-using SPIRVTypeStructContinuedINTEL =
-    SPIRVContinuedInstINTELBase<OpTypeStructContinuedINTEL>;
+class SPIRVTypeStructContinuedINTEL
+    : public SPIRVContinuedInstINTELBase<OpTypeStructContinuedINTEL> {
+public:
+  constexpr static Op OC = OpTypeStructContinuedINTEL;
+  // Complete constructor
+  SPIRVTypeStructContinuedINTEL(SPIRVModule *M, unsigned NumOfElements)
+      : SPIRVContinuedInstINTELBase<OC>(M, NumOfElements) {}
+
+  // Incomplete constructor
+  SPIRVTypeStructContinuedINTEL() : SPIRVContinuedInstINTELBase<OC>() {}
+
+  void setElementId(size_t I, SPIRVId Id) { Elements[I] = Id; }
+
+  SPIRVType *getMemberType(size_t I) const;
+};
+
 using SPIRVConstantCompositeContinuedINTEL =
     SPIRVContinuedInstINTELBase<OpConstantCompositeContinuedINTEL>;
 using SPIRVSpecConstantCompositeContinuedINTEL =

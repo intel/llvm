@@ -30,7 +30,7 @@ void test(int val) {
   });
 
   // --- Name
-  // CHECK-LABEL: define spir_kernel void @"_ZTSZZ4testiENK3$_0clERN2cl4sycl7handlerEE12esimd_kernel"(
+  // CHECK-LABEL: define {{.*}}spir_kernel void @"_ZTSZZ4testiENK3$_0clERN2cl4sycl7handlerEE12esimd_kernel"(
   // --- Signature
   // CHECK:   i32 addrspace(1)* "VCArgumentDesc"="buffer_t" "VCArgumentIOKind"="0" "VCArgumentKind"="2" %_arg_,
   // CHECK:   i32 "VCArgumentDesc" "VCArgumentIOKind"="0" "VCArgumentKind"="0" %_arg_1,

@@ -13,18 +13,20 @@
 
 #include "AMDGPUSubtarget.h"
 #include "AMDGPU.h"
-#include "AMDGPUTargetMachine.h"
 #include "AMDGPUCallLowering.h"
 #include "AMDGPUInstructionSelector.h"
 #include "AMDGPULegalizerInfo.h"
 #include "AMDGPURegisterBankInfo.h"
+#include "AMDGPUTargetMachine.h"
 #include "SIMachineFunctionInfo.h"
-#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/CodeGen/GlobalISel/InlineAsmLowering.h"
 #include "llvm/CodeGen/MachineScheduler.h"
-#include "llvm/MC/MCSubtargetInfo.h"
-#include "llvm/IR/MDBuilder.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
+#include "llvm/IR/IntrinsicsAMDGPU.h"
+#include "llvm/IR/IntrinsicsR600.h"
+#include "llvm/IR/MDBuilder.h"
+#include "llvm/MC/MCSubtargetInfo.h"
 #include <algorithm>
 
 using namespace llvm;
@@ -89,7 +91,8 @@ GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
   // Assuming ECC is enabled is the conservative default.
   SmallString<256> FullFS("+promote-alloca,+load-store-opt,+enable-ds128,+sram-ecc,+xnack,");
 
-  if (isAmdHsaOS()) // Turn on FlatForGlobal for HSA.
+  // Turn on features that HSA ABI requires. Also turn on FlatForGlobal by default
+  if (isAmdHsaOS())
     FullFS += "+flat-for-global,+unaligned-access-mode,+trap-handler,";
 
   FullFS += "+enable-prt-strict-null,"; // This is overridden by a disable in FS
@@ -108,14 +111,35 @@ GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
 
   ParseSubtargetFeatures(GPU, /*TuneCPU*/ GPU, FullFS);
 
+  // Implement the "generic" processors, which acts as the default when no
+  // generation features are enabled (e.g for -mcpu=''). HSA OS defaults to
+  // the first amdgcn target that supports flat addressing. Other OSes defaults
+  // to the first amdgcn target.
+  if (Gen == AMDGPUSubtarget::INVALID) {
+     Gen = TT.getOS() == Triple::AMDHSA ? AMDGPUSubtarget::SEA_ISLANDS
+                                        : AMDGPUSubtarget::SOUTHERN_ISLANDS;
+  }
+
   // We don't support FP64 for EG/NI atm.
   assert(!hasFP64() || (getGeneration() >= AMDGPUSubtarget::SOUTHERN_ISLANDS));
 
-  // Unless +-flat-for-global is specified, turn on FlatForGlobal for all OS-es
-  // on VI and newer hardware to avoid assertion failures due to missing ADDR64
-  // variants of MUBUF instructions.
-  if (!hasAddr64() && !FS.contains("flat-for-global")) {
+  // Targets must either support 64-bit offsets for MUBUF instructions, and/or
+  // support flat operations, otherwise they cannot access a 64-bit global
+  // address space
+  assert(hasAddr64() || hasFlat());
+  // Unless +-flat-for-global is specified, turn on FlatForGlobal for targets
+  // that do not support ADDR64 variants of MUBUF instructions. Such targets
+  // cannot use a 64 bit offset with a MUBUF instruction to access the global
+  // address space
+  if (!hasAddr64() && !FS.contains("flat-for-global") && !FlatForGlobal) {
+    ToggleFeature(AMDGPU::FeatureFlatForGlobal);
     FlatForGlobal = true;
+  }
+  // Unless +-flat-for-global is specified, use MUBUF instructions for global
+  // address space access if flat operations are not available.
+  if (!hasFlat() && !FS.contains("flat-for-global") && FlatForGlobal) {
+    ToggleFeature(AMDGPU::FeatureFlatForGlobal);
+    FlatForGlobal = false;
   }
 
   // Set defaults if needed.
@@ -182,7 +206,7 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     AMDGPUGenSubtargetInfo(TT, GPU, /*TuneCPU*/ GPU, FS),
     AMDGPUSubtarget(TT),
     TargetTriple(TT),
-    Gen(TT.getOS() == Triple::AMDHSA ? SEA_ISLANDS : SOUTHERN_ISLANDS),
+    Gen(INVALID),
     InstrItins(getInstrItineraryForCPU(GPU)),
     LDSBankCount(0),
     MaxPrivateElementSize(0),
@@ -459,6 +483,10 @@ static unsigned getReqdWorkGroupSize(const Function &Kernel, unsigned Dim) {
   return std::numeric_limits<unsigned>::max();
 }
 
+bool AMDGPUSubtarget::isMesaKernel(const Function &F) const {
+  return isMesa3DOS() && !AMDGPU::isShader(F.getCallingConv());
+}
+
 unsigned AMDGPUSubtarget::getMaxWorkitemID(const Function &Kernel,
                                            unsigned Dimension) const {
   unsigned ReqdSize = getReqdWorkGroupSize(Kernel, Dimension);
@@ -527,6 +555,12 @@ bool AMDGPUSubtarget::makeLIDRangeMetadata(Instruction *I) const {
                                                   APInt(32, MaxSize));
   I->setMetadata(LLVMContext::MD_range, MaxWorkGroupSizeRange);
   return true;
+}
+
+unsigned AMDGPUSubtarget::getImplicitArgNumBytes(const Function &F) const {
+  if (isMesaKernel(F))
+    return 16;
+  return AMDGPU::getIntegerAttribute(F, "amdgpu-implicitarg-num-bytes", 0);
 }
 
 uint64_t AMDGPUSubtarget::getExplicitKernArgSize(const Function &F,

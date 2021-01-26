@@ -594,7 +594,7 @@ public:
   /// \return
   ///     Returns \b true if this Process has not been finalized
   ///     and \b false otherwise.
-  bool IsValid() const { return !m_finalize_called; }
+  bool IsValid() const { return !m_finalizing; }
 
   /// Return a multi-word command object that can be used to expose plug-in
   /// specific commands.
@@ -1413,35 +1413,6 @@ public:
   ///     Returns \b true if the user should be warned about detaching from
   ///     this process.
   virtual bool WarnBeforeDetach() const { return true; }
-
-  /// Actually do the reading of memory from a process.
-  ///
-  /// Subclasses must override this function and can return fewer bytes than
-  /// requested when memory requests are too large. This class will break up
-  /// the memory requests and keep advancing the arguments along as needed.
-  ///
-  /// \param[in] vm_addr
-  ///     A virtual load address that indicates where to start reading
-  ///     memory from.
-  ///
-  /// \param[in] size
-  ///     The number of bytes to read.
-  ///
-  /// \param[out] buf
-  ///     A byte buffer that is at least \a size bytes long that
-  ///     will receive the memory bytes.
-  ///
-  /// \param[out] error
-  ///     An error that indicates the success or failure of this
-  ///     operation. If error indicates success (error.Success()),
-  ///     then the value returned can be trusted, otherwise zero
-  ///     will be returned.
-  ///
-  /// \return
-  ///     The number of bytes that were actually read into \a buf.
-  ///     Zero is returned in the case of an error.
-  virtual size_t DoReadMemory(lldb::addr_t vm_addr, void *buf, size_t size,
-                              Status &error) = 0;
 
   /// Read of memory from a process.
   ///
@@ -2570,6 +2541,35 @@ void PruneThreadPlans();
                                 bool trap_exceptions = false);
 
 protected:
+  /// Actually do the reading of memory from a process.
+  ///
+  /// Subclasses must override this function and can return fewer bytes than
+  /// requested when memory requests are too large. This class will break up
+  /// the memory requests and keep advancing the arguments along as needed.
+  ///
+  /// \param[in] vm_addr
+  ///     A virtual load address that indicates where to start reading
+  ///     memory from.
+  ///
+  /// \param[in] size
+  ///     The number of bytes to read.
+  ///
+  /// \param[out] buf
+  ///     A byte buffer that is at least \a size bytes long that
+  ///     will receive the memory bytes.
+  ///
+  /// \param[out] error
+  ///     An error that indicates the success or failure of this
+  ///     operation. If error indicates success (error.Success()),
+  ///     then the value returned can be trusted, otherwise zero
+  ///     will be returned.
+  ///
+  /// \return
+  ///     The number of bytes that were actually read into \a buf.
+  ///     Zero is returned in the case of an error.
+  virtual size_t DoReadMemory(lldb::addr_t vm_addr, void *buf, size_t size,
+                              Status &error) = 0;
+
   void SetState(lldb::EventSP &event_sp);
 
   lldb::StateType GetPrivateState();
@@ -2831,10 +2831,11 @@ protected:
                            // m_currently_handling_do_on_removals are true,
                            // Resume will only request a resume, using this
                            // flag to check.
-  bool m_finalizing; // This is set at the beginning of Process::Finalize() to
-                     // stop functions from looking up or creating things
-                     // during a finalize call
-  bool m_finalize_called; // This is set at the end of Process::Finalize()
+
+  /// This is set at the beginning of Process::Finalize() to stop functions
+  /// from looking up or creating things during or after a finalize call.
+  std::atomic<bool> m_finalizing;
+
   bool m_clear_thread_plans_on_stop;
   bool m_force_next_event_delivery;
   lldb::StateType m_last_broadcast_state; /// This helps with the Public event
@@ -2938,6 +2939,8 @@ protected:
   void LoadOperatingSystemPlugin(bool flush);
 
 private:
+  Status DestroyImpl(bool force_kill);
+
   /// This is the part of the event handling that for a process event. It
   /// decides what to do with the event and returns true if the event needs to
   /// be propagated to the user, and false otherwise. If the event is not

@@ -891,25 +891,28 @@ template <> struct MDNodeKeyImpl<DIModule> {
   MDString *IncludePath;
   MDString *APINotesFile;
   unsigned LineNo;
+  bool IsDecl;
 
   MDNodeKeyImpl(Metadata *File, Metadata *Scope, MDString *Name,
                 MDString *ConfigurationMacros, MDString *IncludePath,
-                MDString *APINotesFile, unsigned LineNo)
+                MDString *APINotesFile, unsigned LineNo, bool IsDecl)
       : File(File), Scope(Scope), Name(Name),
         ConfigurationMacros(ConfigurationMacros), IncludePath(IncludePath),
-        APINotesFile(APINotesFile), LineNo(LineNo) {}
+        APINotesFile(APINotesFile), LineNo(LineNo), IsDecl(IsDecl) {}
   MDNodeKeyImpl(const DIModule *N)
       : File(N->getRawFile()), Scope(N->getRawScope()), Name(N->getRawName()),
         ConfigurationMacros(N->getRawConfigurationMacros()),
         IncludePath(N->getRawIncludePath()),
-        APINotesFile(N->getRawAPINotesFile()), LineNo(N->getLineNo()) {}
+        APINotesFile(N->getRawAPINotesFile()), LineNo(N->getLineNo()),
+        IsDecl(N->getIsDecl()) {}
 
   bool isKeyOf(const DIModule *RHS) const {
     return Scope == RHS->getRawScope() && Name == RHS->getRawName() &&
            ConfigurationMacros == RHS->getRawConfigurationMacros() &&
            IncludePath == RHS->getRawIncludePath() &&
            APINotesFile == RHS->getRawAPINotesFile() &&
-           File == RHS->getRawFile() && LineNo == RHS->getLineNo();
+           File == RHS->getRawFile() && LineNo == RHS->getLineNo() &&
+           IsDecl == RHS->getIsDecl();
   }
 
   unsigned getHashValue() const {
@@ -1301,8 +1304,7 @@ public:
   ///
   /// Erases all attachments matching the \c shouldRemove predicate.
   template <class PredTy> void remove_if(PredTy shouldRemove) {
-    Attachments.erase(llvm::remove_if(Attachments, shouldRemove),
-                      Attachments.end());
+    llvm::erase_if(Attachments, shouldRemove);
   }
 };
 
@@ -1416,7 +1418,7 @@ public:
   // Basic type instances.
   Type VoidTy, LabelTy, HalfTy, BFloatTy, FloatTy, DoubleTy, MetadataTy,
       TokenTy;
-  Type X86_FP80Ty, FP128Ty, PPC_FP128Ty, X86_MMXTy;
+  Type X86_FP80Ty, FP128Ty, PPC_FP128Ty, X86_MMXTy, X86_AMXTy;
   IntegerType Int1Ty, Int8Ty, Int16Ty, Int32Ty, Int64Ty, Int128Ty;
 
   BumpPtrAllocator Alloc;
