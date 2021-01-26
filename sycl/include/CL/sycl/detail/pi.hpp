@@ -314,9 +314,7 @@ public:
   /// And for an interger specialization constant, the list of tuples will look
   /// like:
   /// { ID5, 0, 4 }
-  const PropertyRange &getSpecConstants() const {
-    return SpecConstIDMap;
-  }
+  const PropertyRange &getSpecConstants() const { return SpecConstIDMap; }
   const PropertyRange &getDeviceLibReqMask() const { return DeviceLibReqMask; }
   const PropertyRange &getKernelParamOptInfo() const {
     return KernelParamOptInfo;

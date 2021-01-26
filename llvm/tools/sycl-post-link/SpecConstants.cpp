@@ -25,7 +25,8 @@ namespace {
 // __sycl* intrinsic names are Itanium ABI-mangled; this is common prefix for
 // all mangled names of __sycl_getSpecConstantValue intrinsics, which differ by
 // the template type parameter and the specialization constant value type.
-constexpr char SYCL_GET_SPEC_CONST_VAL[] = "_Z33__sycl_getScalarSpecConstantValue";
+constexpr char SYCL_GET_SPEC_CONST_VAL[] =
+    "_Z33__sycl_getScalarSpecConstantValue";
 constexpr char SYCL_GET_COMPOSITE_SPEC_CONST_VAL[] =
     "_Z36__sycl_getCompositeSpecConstantValue";
 
@@ -202,15 +203,14 @@ std::pair<StringRef, std::vector<SpecConstantDescriptor>>
 getScalarSpecConstMetadata(const Instruction *I) {
   const MDNode *N = I->getMetadata(SPEC_CONST_SYM_ID_MD_STRING);
   if (!N)
-    return std::make_pair("",
-                          std::vector<SpecConstantDescriptor>{});
+    return std::make_pair("", std::vector<SpecConstantDescriptor>{});
   const auto *MDSym = cast<MDString>(N->getOperand(0));
   const auto *MDInt = cast<ConstantAsMetadata>(N->getOperand(1));
   unsigned ID = static_cast<unsigned>(
       cast<ConstantInt>(MDInt->getValue())->getValue().getZExtValue());
   std::vector<SpecConstantDescriptor> Res(1);
   Res[0].ID = ID;
-  Res[0].Size = I->getType()->getPrimitiveSizeInBits() / /* bits in byte */8;
+  Res[0].Size = I->getType()->getPrimitiveSizeInBits() / /* bits in byte */ 8;
   Res[0].Offset = 0;
   return std::make_pair(MDSym->getString(), Res);
 }
@@ -266,12 +266,10 @@ std::pair<StringRef, std::vector<SpecConstantDescriptor>>
 getCompositeSpecConstMetadata(const Instruction *I) {
   const MDNode *N = I->getMetadata(SPEC_CONST_SYM_ID_MD_STRING);
   if (!N)
-    return std::make_pair("",
-                          std::vector<SpecConstantDescriptor>{});
+    return std::make_pair("", std::vector<SpecConstantDescriptor>{});
   const auto *MDSym = cast<MDString>(N->getOperand(0));
 
-  std::vector<SpecConstantDescriptor> Result(N->getNumOperands() -
-                                                          1);
+  std::vector<SpecConstantDescriptor> Result(N->getNumOperands() - 1);
   unsigned Index = 0, Offset = 0;
   collectCompositeElementsInfoRecursive(I->getModule(), I->getType(), Index,
                                         Offset, Result);
