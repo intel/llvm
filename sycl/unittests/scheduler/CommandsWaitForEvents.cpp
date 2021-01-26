@@ -109,4 +109,7 @@ TEST_F(SchedulerTest, CommandsWaitForEvents) {
   ASSERT_TRUE(TestContext->EventCtx1WasWaited &&
               TestContext->EventCtx2WasWaited)
       << "Not all events were waited for";
+  delete TestContext.release(); // explicitly delete here is important for CUDA
+                                // BE to ensure that cuda driver is still in
+                                // memory while cuda objects are being freed.
 }
