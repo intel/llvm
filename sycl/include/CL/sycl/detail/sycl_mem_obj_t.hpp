@@ -20,6 +20,7 @@
 #include <CL/sycl/stl.hpp>
 
 #include <cstring>
+#include <memory>
 #include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {
