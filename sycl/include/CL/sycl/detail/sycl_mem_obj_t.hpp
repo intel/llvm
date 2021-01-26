@@ -201,7 +201,8 @@ public:
       const size_t Size = MSizeInBytes / sizeof(DestinationValueT);
       std::unique_ptr<bool> ContiguousStorage(new bool[Size]);
       updateHostMemory(ContiguousStorage.get());
-      std::copy(ContiguousStorage.get(), ContiguousStorage.get() + Size, FinalData);
+      std::copy(ContiguousStorage.get(), ContiguousStorage.get() + Size,
+                FinalData);
     };
   }
 
