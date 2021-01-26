@@ -19,7 +19,12 @@ string_class get_type(const device &dev) {
 
 void print_queue_info(const queue &q) {
   std::cout << "ID=" << std::hex
-            << ((q.get_device().is_host()) ? nullptr : q.get()) << std::endl;
+            << ((q.get_device().is_host() ||
+                 q.get_context().get_platform().get_backend() !=
+                     cl::sycl::backend::opencl)
+                    ? nullptr
+                    : q.get())
+            << std::endl;
   std::cout << "queue wraps " << get_type(q.get_device()) << " device"
             << std::endl;
 }
@@ -43,7 +48,8 @@ int main() {
     queue MovedQueue(std::move(Queue));
     assert(hash == hash_class<queue>()(MovedQueue));
     assert(deviceA.is_host() == MovedQueue.is_host());
-    if (!deviceA.is_host()) {
+    if (!deviceA.is_host() &&
+        deviceA.get_platform().get_backend() == cl::sycl::backend::opencl) {
       assert(MovedQueue.get() != nullptr);
     }
   }
@@ -55,7 +61,8 @@ int main() {
     WillMovedQueue = std::move(Queue);
     assert(hash == hash_class<queue>()(WillMovedQueue));
     assert(deviceA.is_host() == WillMovedQueue.is_host());
-    if (!deviceA.is_host()) {
+    if (!deviceA.is_host() &&
+        deviceA.get_platform().get_backend() == cl::sycl::backend::opencl) {
       assert(WillMovedQueue.get() != nullptr);
     }
   }
