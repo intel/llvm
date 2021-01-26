@@ -5,13 +5,18 @@
 // Test that checks wrong function template instantiation and ensures that the type
 // is checked properly when instantiating from the template definition.
 template <typename Ty>
-// expected-error@+1{{'num_simd_work_items' attribute requires an integer constant}}
+// expected-error@+2{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+// expected-error@+1 2{{'num_simd_work_items' attribute requires an integer constant}}
 [[intel::num_simd_work_items(Ty{})]] void func() {}
 
 struct S {};
-void var() {
+void test() {
   //expected-note@+1{{in instantiation of function template specialization 'func<S>' requested here}}
   func<S>();
+  //expected-note@+1{{in instantiation of function template specialization 'func<float>' requested here}}
+  func<float>();
+  //expected-note@+1{{in instantiation of function template specialization 'func<int>' requested here}}
+  func<int>();
 }
 
 // Test that checks expression is not a constant expression.
@@ -36,6 +41,7 @@ int main() {
   KernelFunctor<-1>();
   // no error expected
   KernelFunctor<10>();
+  return 0;
 }
 
 // CHECK: ClassTemplateDecl {{.*}} {{.*}} KernelFunctor
@@ -48,10 +54,14 @@ int main() {
 
 // Test that checks template parameter support on function.
 template <int N>
+// expected-error@+1{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 [[intel::num_simd_work_items(N)]] void func3() {}
 
 int check() {
+  // no error expected
   func3<8>();
+  //expected-note@+1{{in instantiation of function template specialization 'func3<-1>' requested here}}
+  func3<-1>();
   return 0;
 }
 

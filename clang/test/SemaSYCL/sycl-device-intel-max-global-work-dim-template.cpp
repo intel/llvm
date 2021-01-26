@@ -5,13 +5,17 @@
 // Test that checks wrong function template instantiation and ensures that the type
 // is checked properly when instantiating from the template definition.
 template <typename Ty>
-// expected-error@+1{{'max_global_work_dim' attribute requires an integer constant}}
+// expected-error@+1 2{{'max_global_work_dim' attribute requires an integer constant}}
 [[intel::max_global_work_dim(Ty{})]] void func() {}
 
 struct S {};
-void var() {
+void test() {
   //expected-note@+1{{in instantiation of function template specialization 'func<S>' requested here}}
   func<S>();
+  //expected-note@+1{{in instantiation of function template specialization 'func<float>' requested here}}
+  func<float>();
+  // no error expected
+  func<int>(); // OK
 }
 
 // Test that checks expression is not a constant expression.
@@ -48,10 +52,14 @@ int main() {
 
 // Test that checks template parameter support on function.
 template <int N>
+// expected-error@+1{{'max_global_work_dim' attribute requires a non-negative integral compile time constant expression}}
 [[intel::max_global_work_dim(N)]] void func3() {}
 
 int check() {
+  // no error expected
   func3<2>();
+  //expected-note@+1{{in instantiation of function template specialization 'func3<-1>' requested here}}
+  func3<-1>();
   return 0;
 }
 
