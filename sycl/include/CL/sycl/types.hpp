@@ -67,7 +67,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-enum class rounding_mode { automatic, rte, rtz, rtp, rtn };
+enum class rounding_mode { automatic = 0, rte = 1, rtz = 2, rtp = 3, rtn = 4 };
 struct elem {
   static constexpr int x = 0;
   static constexpr int y = 1;
