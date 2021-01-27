@@ -1,6 +1,8 @@
 // The test checks that ESIMD headers don't break the ODR:
 // two SYCL sources including ESIMD headers can be compiled and linked into a
 // single executable w/o linker complaining about multiple symbol definitions.
+// Template functions must have the same instantiation in both sources to cause
+// ODR problems potentially - esimd_min is used for that purpose.
 //
 // RUN: %clangxx -fsycl -fsycl-explicit-simd -fsycl-targets=%sycl_triple -DSOURCE1 -c %s -o %t1.o
 // RUN: %clangxx -fsycl -fsycl-explicit-simd -fsycl-targets=%sycl_triple -DSOURCE2 -c %s -o %t2.o
@@ -12,6 +14,9 @@
 #include <iostream>
 
 using namespace cl::sycl;
+using namespace sycl::INTEL::gpu;
+
+#define VLEN 8
 
 #ifdef SOURCE1
 void run_kernel2(queue &, int *);
@@ -19,12 +24,19 @@ void run_kernel2(queue &, int *);
 int main() {
   queue q;
   int *data = static_cast<int *>(
-      malloc_shared(sizeof(int), q.get_device(), q.get_context()));
-  *data = 5;
+      malloc_shared(sizeof(int)*VLEN, q.get_device(), q.get_context()));
+  for (int i = 0; i < VLEN; i++) {
+    data[i] = 4;
+  }
 
   try {
     q.submit([&](handler &cgh) {
-      cgh.single_task<class my_kernel>([=]() SYCL_ESIMD_KERNEL { data[0]++; });
+      cgh.single_task<class my_kernel0>([=]() SYCL_ESIMD_KERNEL {
+        simd<int, VLEN> v0{0,1,2,3,4,5,6,7};
+        simd<int, VLEN> v1 = block_load<int,VLEN>(data);
+        v0 = esimd_min(v0, v1); // v0 becomes 0,1,2,3,4,4,4,4
+        block_store(data, v0);
+      });
     });
     q.wait();
     run_kernel2(q, data);
@@ -32,11 +44,16 @@ int main() {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     return 2;
   }
-  if (*data == 7) {
+  int gold[] = {0,1,2,3,3,2,1,0};
+
+  if (!std::memcmp(gold, data, sizeof(int)*VLEN)) {
     std::cout << "Passed\n";
     return 0;
   } else {
-    std::cout << "Failed: " << *data << "!= 7(gold)\n";
+    std::cout << "FAILED\n";
+    for (int i = 0; i < VLEN; i++)
+      std::cout << " " << data[i];
+    std::cout << "\n";
     return 1;
   }
 }
@@ -44,7 +61,12 @@ int main() {
 void run_kernel2(queue &q, int *data) {
   try {
     q.submit([&](handler &cgh) {
-      cgh.single_task<class my_kernel>([=]() SYCL_ESIMD_KERNEL { data[0]++; });
+      cgh.single_task<class my_kernel1>([=]() SYCL_ESIMD_KERNEL {
+        simd<int, VLEN> v0{7,6,5,4,3,2,1,0};
+        simd<int, VLEN> v1 = block_load<int,VLEN>(data); // v1 = 0,1,2,3,4,4,4,4
+        v0 = esimd_min(v0, v1); // v0 becomes 0,1,2,3,3,2,1,0
+        block_store(data, v0);
+      });
     });
     q.wait();
   } catch (cl::sycl::exception const &e) {
