@@ -290,6 +290,9 @@ public:
     return Format;
   }
 
+  /// Returns the value of a single property
+  bool isBoolPropertyTrue(const char *PropName) const;
+
   /// Gets the iterator range over scalar specialization constants in this
   /// binary image. For each property pointed to by an iterator within the
   /// range, the name of the property is the specialization constant symbolic ID
@@ -320,7 +323,6 @@ public:
   const PropertyRange &getKernelParamOptInfo() const {
     return KernelParamOptInfo;
   }
-  const PropertyRange &getSyclIsEsimdImage() const { return SyclIsEsimdImage; }
   virtual ~DeviceBinaryImage() {}
 
 protected:
@@ -333,7 +335,6 @@ protected:
   DeviceBinaryImage::PropertyRange CompositeSpecConstIDMap;
   DeviceBinaryImage::PropertyRange DeviceLibReqMask;
   DeviceBinaryImage::PropertyRange KernelParamOptInfo;
-  DeviceBinaryImage::PropertyRange SyclIsEsimdImage;
 };
 
 /// Tries to determine the device binary image foramat. Returns
