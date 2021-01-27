@@ -16,6 +16,9 @@ class Bar;
 // read-write.
 int main() {
   queue Q;
+  // Mapping is not used for devices without host unified memory support.
+  if (!Q.get_device().get_info<info::device::host_unified_memory>())
+    return 0;
 
   std::size_t Size = 64;
   range<1> Range{Size};

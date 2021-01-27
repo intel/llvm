@@ -109,21 +109,25 @@ int main() {
     {
       s::cl_float2 r{0, 0};
       s::cl_int2 i{0, 0};
-      s::buffer<s::cl_float2, 1> BufR(&r, s::range<1>(1));
-      s::cl_int2 *BufI = (s::cl_int2 *)s::malloc_shared(
-          sizeof(cl_int2) * 2, myQueue.get_device(), myQueue.get_context());
-      myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::read_write>(cgh);
-        cgh.single_task<class lgamma_rF2PF2>([=]() {
-          AccR[0] = s::lgamma_r(s::cl_float2{10.f, -2.4f}, BufI);
+      {
+        s::buffer<s::cl_float2, 1> BufR(&r, s::range<1>(1));
+        s::cl_int2 *BufI = (s::cl_int2 *)s::malloc_shared(
+            sizeof(cl_int2) * 2, myQueue.get_device(), myQueue.get_context());
+        myQueue.submit([&](s::handler &cgh) {
+          auto AccR = BufR.get_access<s::access::mode::read_write>(cgh);
+          cgh.single_task<class lgamma_rF2PF2>([=]() {
+            AccR[0] = s::lgamma_r(s::cl_float2{10.f, -2.4f}, BufI);
+          });
         });
-      });
-      myQueue.wait();
+        myQueue.wait();
+        i = *BufI;
+        s::free(BufI, myQueue.get_context());
+      }
 
       s::cl_float r1 = r.x();
       s::cl_float r2 = r.y();
-      s::cl_int i1 = BufI->x();
-      s::cl_int i2 = BufI->y();
+      s::cl_int i1 = i.x();
+      s::cl_int i2 = i.y();
 
       assert(r1 > 12.8017f && r1 < 12.8019f); // ~12.8018
       assert(r2 > 0.1024f && r2 < 0.1026f);   // ~0.102583

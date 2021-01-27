@@ -181,7 +181,7 @@ int main() {
 // CHECK: GeneratorTask
 // CHECK:---> piEnqueueKernelLaunch(
 // prepare for host task
-// CHECK:---> piEnqueueMemBufferMap(
+// CHECK:---> piEnqueueMemBuffer{{Map|Read}}(
 // launch of CopierTask kernel
 // CHECK:---> piKernelCreate(
 // CHECK: CopierTask

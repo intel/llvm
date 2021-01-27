@@ -74,7 +74,7 @@ static bool check_separate(device dev, buffer<int, 1> buf,
   // CHECK-SEPARATE: ---> piMemBufferCreate
   //
   // Verify that we have a memcpy between subdevices in this case
-  // CHECK-SEPARATE: ---> piEnqueueMemBufferMap
+  // CHECK-SEPARATE: ---> piEnqueueMemBuffer{{Map|Read}}
   // CHECK-SEPARATE: ---> piEnqueueMemBufferWrite
   //
   // CHECK-SEPARATE: ---> piEnqueueKernelLaunch
