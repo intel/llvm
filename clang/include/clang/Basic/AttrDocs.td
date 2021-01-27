@@ -2199,7 +2199,7 @@ attribute was applied. This effect is equivalent to annotating restrict on
 **all** kernel pointer arguments in an OpenCL or SPIR-V kernel.
 
 If ``intel::kernel_args_restrict`` is applied to a function called from a device
-kernel, the attribute is ignored and it is not propagated to a kernel.
+kernel, the attribute is not ignored and it is propagated to the kernel.
 
 The attribute forms an unchecked assertion, in that implementations
 do not need to check/confirm the pre-condition in any way. If a user applies
@@ -2229,7 +2229,7 @@ def SYCLIntelNumSimdWorkItemsAttrDocs : Documentation {
 Applies to a device function/lambda function. Indicates the number of work
 items that should be processed in parallel. Valid values are positive integers.
 If ``intel::num_simd_work_items`` is applied to a function called from a
-device kernel, the attribute is ignored and it is not propagated to a kernel.
+device kernel, the attribute is not ignored and it is propagated to the kernel.
   }];
 }
 
@@ -2243,7 +2243,7 @@ clusters handle stalls using a stall-enable signal to freeze computation
 within the cluster. This attribute is ignored on the host.
 
 If ``intel::use_stall_enable_clusters`` is applied to a function called from a device
-kernel, the attribute is ignored and it is not propagated to a kernel.
+kernel, the attribute is ignored and it is not propagated to the kernel.
 
 The ``intel::use_stall_enable_clusters`` attribute takes no argument and has an effect
 when applied to a function, and no effect otherwise.
@@ -2305,7 +2305,7 @@ of a work group. Values must be positive integers. This is similar to
 reqd_work_group_size, but allows work groups that are smaller or equal to the
 specified sizes.
 If ``intel::max_work_group_size`` is applied to a function called from a
-device kernel, the attribute is ignored and it is not propagated to a kernel.
+device kernel, the attribute is not ignored and it is propagated to the kernel.
   }];
 }
 
@@ -2321,7 +2321,7 @@ range of [0, 3]. A kernel with max_global_work_dim(0) must be invoked with a
 ``cl::reqd_work_group_size`` are applied to the kernel as well - they shall
 have arguments of (1, 1, 1).
 If ``intel::max_global_work_dim`` is applied to a function called from a
-device kernel, the attribute is ignored and it is not propagated to a kernel.
+device kernel, the attribute is not ignored and it is propagated to the kernel.
   }];
 }
 

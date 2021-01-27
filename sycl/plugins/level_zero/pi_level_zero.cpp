@@ -827,7 +827,8 @@ static void printZeEventList(_pi_ze_event_list_t &PiZeEventList) {
   zePrint("\n");
 }
 
-pi_result _pi_ze_event_list_t::releaseAndDestroyPiZeEventList() {
+pi_result _pi_ze_event_list_t::collectEventsForReleaseAndDestroyPiZeEventList(
+    std::list<pi_event> &EventsToBeReleased) {
   // acquire a lock before reading the length and list fields.
   // Acquire the lock, copy the needed data locally, and reset
   // the fields, then release the lock.
@@ -854,7 +855,8 @@ pi_result _pi_ze_event_list_t::releaseAndDestroyPiZeEventList() {
   }
 
   for (pi_uint32 I = 0; I < LocLength; I++) {
-    piEventRelease(LocPiEventList[I]);
+    // Add the event to be released to the list
+    EventsToBeReleased.push_back(LocPiEventList[I]);
   }
 
   if (LocZeEventList != nullptr) {
@@ -3755,6 +3757,7 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
 // This currently recycles the associate command list, and also makes
 // sure to release any kernel that may have been used by the event.
 static void cleanupAfterEvent(pi_event Event) {
+  zePrint("cleanupAfterEvent entry\n");
   // The implementation of this is slightly tricky.  The same event
   // can be referred to by multiple threads, so it is possible to
   // have a race condition between the read of fields of the event,
@@ -3798,11 +3801,27 @@ static void cleanupAfterEvent(pi_event Event) {
     }
   }
 
-  // Had to make sure lock of Event's Queue has been released before
-  // the code starts to release the event wait list, as that could
-  // potentially cause recursive calls to cleanupAfterEvent, and
-  // run into a problem trying to do multiple locks on the same Queue.
-  Event->WaitList.releaseAndDestroyPiZeEventList();
+  // Make a list of all the dependent events that must have signalled
+  // because this event was dependent on them.  This list will be appended
+  // to as we walk it so that this algorithm doesn't go recursive
+  // due to dependent events themselves being dependent on other events
+  // forming a potentially very deep tree, and deep recursion.  That
+  // turned out to be a significant problem with the recursive code
+  // that preceded this implementation.
+
+  std::list<pi_event> EventsToBeReleased;
+
+  Event->WaitList.collectEventsForReleaseAndDestroyPiZeEventList(
+      EventsToBeReleased);
+
+  while (!EventsToBeReleased.empty()) {
+    pi_event DepEvent = EventsToBeReleased.front();
+    EventsToBeReleased.pop_front();
+
+    DepEvent->WaitList.collectEventsForReleaseAndDestroyPiZeEventList(
+        EventsToBeReleased);
+    piEventRelease(DepEvent);
+  }
   zePrint("cleanupAfterEvent exit\n");
 }
 
@@ -4102,7 +4121,9 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
                                      (*Event)->WaitList.Length,
                                      (*Event)->WaitList.ZeEventList));
 
-  return PI_SUCCESS;
+  // Execute command list asynchronously as the event will be used
+  // to track down its completion.
+  return Queue->executeCommandList(ZeCommandList, ZeFence);
 }
 
 pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
