@@ -8268,8 +8268,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     // add options unconditionally
     addArgs(CmdArgs, TCArgs, {"-symbols"});
     // By default we split SYCL and ESIMD kernels into separate modules
-    if (TCArgs.hasFlag(options::OPT_fsycl_split_esimd,
-                       options::OPT_fno_sycl_split_esimd, true))
+    if (TCArgs.hasFlag(options::OPT_fsycl_device_code_split_esimd,
+                       options::OPT_fno_sycl_device_code_split_esimd, true))
       addArgs(CmdArgs, TCArgs, {"-split-esimd"});
   }
   // specialization constants processing is mandatory

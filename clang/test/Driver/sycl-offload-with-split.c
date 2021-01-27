@@ -308,10 +308,10 @@
 // Check ESIMD device code split.
 // RUN:   %clang    -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
 // RUN:   %clang_cl -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
-// RUN:   %clang    -### -fsycl -fsycl-split-esimd %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
-// RUN:   %clang_cl -### -fsycl -fsycl-split-esimd %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
-// RUN:   %clang    -### -fsycl -fno-sycl-split-esimd %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-ESIMD-SPLIT
-// RUN:   %clang_cl -### -fsycl -fno-sycl-split-esimd %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-ESIMD-SPLIT
+// RUN:   %clang    -### -fsycl -fsycl-device-code-split-esimd %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
+// RUN:   %clang_cl -### -fsycl -fsycl-device-code-split-esimd %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
+// RUN:   %clang    -### -fsycl -fno-sycl-device-code-split-esimd %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-ESIMD-SPLIT
+// RUN:   %clang_cl -### -fsycl -fno-sycl-device-code-split-esimd %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-ESIMD-SPLIT
 // RUN:   %clang    -### -fsycl -fintelfpga %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-ESIMD-SPLIT
 // RUN:   %clang_cl -### -fsycl -fintelfpga %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-ESIMD-SPLIT
 // CHK-ESIMD-SPLIT: sycl-post-link{{.*}} "-split-esimd"
