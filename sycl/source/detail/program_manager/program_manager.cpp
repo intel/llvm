@@ -391,15 +391,10 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
     std::string CompileOpts = Img.getCompileOptions();
-    if (Img.getSyclIsEsimdImage().isAvailable()) {
-      bool IsEsimdImage =
-          pi::DeviceBinaryProperty(*(Img.getSyclIsEsimdImage().begin()))
-              .asUint32();
-      if (IsEsimdImage) {
-        if (!CompileOpts.empty())
-          CompileOpts += " ";
-        CompileOpts += "-vc-codegen";
-      }
+    if (Img.isBoolPropertyTrue(__SYCL_PI_PROPERTY_SET_SYCL_IS_ESIMD_IMAGE)) {
+      if (!CompileOpts.empty())
+        CompileOpts += " ";
+      CompileOpts += "-vc-codegen";
     }
 
     ProgramPtr BuiltProgram =
