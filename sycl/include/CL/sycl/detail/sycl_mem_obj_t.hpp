@@ -200,7 +200,7 @@ public:
       // ContiguousStorage. updateHostMemory works only with pointer to
       // continuous data.
       const size_t Size = MSizeInBytes / sizeof(DestinationValueT);
-      auto ContiguousStorage = std::make_unique<bool[]>(Size);
+      std::unique_ptr<bool[]> ContiguousStorage(new bool[Size]);
       updateHostMemory(ContiguousStorage.get());
       std::copy(ContiguousStorage.get(), ContiguousStorage.get() + Size,
                 FinalData);
