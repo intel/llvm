@@ -2216,14 +2216,6 @@ void CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   }
 
   if (Opts.SYCL) {
-    Opts.SYCLIsDevice = Args.hasArg(options::OPT_fsycl_is_device);
-    Opts.SYCLIsHost = Args.hasArg(options::OPT_fsycl_is_host);
-    Opts.SYCLAllowFuncPtr =
-        Args.hasFlag(options::OPT_fsycl_allow_func_ptr,
-                     options::OPT_fno_sycl_allow_func_ptr, false);
-    Opts.SYCLStdLayoutKernelParams =
-        Args.hasArg(options::OPT_fsycl_std_layout_kernel_params);
-    Opts.SYCLUnnamedLambda = Args.hasArg(options::OPT_fsycl_unnamed_lambda);
     // -sycl-std applies to any SYCL source, not only those containing kernels,
     // but also those using the SYCL API
     if (const Arg *A = Args.getLastArg(OPT_sycl_std_EQ)) {
@@ -2240,13 +2232,6 @@ void CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
             << A->getAsString(Args) << A->getValue();
       }
     }
-    Opts.SYCLExplicitSIMD = Args.hasArg(options::OPT_fsycl_esimd);
-    Opts.EnableDAEInSpirKernels = Args.hasArg(options::OPT_fenable_sycl_dae);
-    Opts.SYCLValueFitInMaxInt =
-        Args.hasFlag(options::OPT_fsycl_id_queries_fit_in_int,
-                     options::OPT_fno_sycl_id_queries_fit_in_int, false);
-    Opts.SYCLIntHeader =
-        std::string(Args.getLastArgValue(OPT_fsycl_int_header));
   }
 
   Opts.DeclareSPIRVBuiltins = Args.hasArg(OPT_fdeclare_spirv_builtins);
