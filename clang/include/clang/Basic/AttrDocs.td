@@ -2331,12 +2331,21 @@ See section 6.7 Attributes for more details.
   template <int N, int N1, int N2>
   [[cl::reqd_work_group_size(N, N1, N2)]] void func() {}
 
-As Intel extension, ``[[intel::reqd_work_group_size(X, Y, Z)]]`` spelling is
-allowed which features optional arguments `Y` and `Z`, those simplifies its
-usage if only 1- or 2-dimensional ND-range is assumed by a programmer. These
-arguments defaults to ``1``.
+As an Intel extension, the ``[[intel::reqd_work_group_size(X, Y, Z)]]``
+spelling is supported. This spelling allows the Y and Z arguments to be
+optional. If not provided by the user, the value of Y and Z defaults to 1.
+This simplifies usage of the attribute when a 1- or 2-dimensional ND-range
+is assumed.
 
 .. code-block:: c++
+
+  [[intel::reqd_work_group_size(5)]]
+  // identical to [[intel::reqd_work_group_size(5, 1, 1)]]
+  void quux() {}
+
+  [[intel::reqd_work_group_size(5, 5)]]
+  // identical to [[intel::reqd_work_group_size(5, 5, 1)]]
+  void qux() {}
 
   [[intel::reqd_work_group_size(4, 4, 4)]] void foo() {}
 
@@ -2426,7 +2435,7 @@ device kernel, the attribute is not ignored and it is propagated to the kernel.
     [[intel::max_global_work_dim(N)]] void operator()() const {}
   };
 
-A kernel with max_global_work_dim(0) must be invoked with a
+A kernel with ``intel::max_global_work_dim(0)`` must be invoked with a
 'single_task' and if ``intel::max_work_group_size`` or
 ``cl::reqd_work_group_size`` are applied to the kernel as well - they shall
 have arguments of (1, 1, 1).
@@ -2495,11 +2504,25 @@ of 1 is set implicitly.
 
 .. code-block:: c++
 
-  [[intel::no_global_work_offset(N)]] int foo() {}
+  [[intel::no_global_work_offset]]
+  // identical to [[intel::no_global_work_offset(1)]]
+  void quux() {}
 
-``[[intel::no_global_work_offset(N)]]`` takes one optional parameter that is a
-constant unsigned integer expression. The parameter N may be a template
-parameter.
+  [[intel::no_global_work_offset(0)]] void foo() {}
+
+  class Foo {
+  public:
+    [[intel::no_global_work_offset(1)]] void operator()() const {}
+  };
+
+  template <int N>
+  class Functor {
+  public:
+    [[intel::no_global_work_offset(N)]] void operator()() const {}
+  };
+
+  template <int N>
+  [[intel::no_global_work_offset(N)]] void func() {}
 
   }];
 }
