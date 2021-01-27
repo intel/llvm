@@ -10248,6 +10248,21 @@ TEST_F(FormatTest, SplitEmptyClass) {
                "{\n"
                "};",
                Style);
+
+  verifyFormat("#include \"stdint.h\"\n"
+               "namespace rep {}",
+               Style);
+  verifyFormat("#include <stdint.h>\n"
+               "namespace rep {}",
+               Style);
+  verifyFormat("#include <stdint.h>\n"
+               "namespace rep {}",
+               "#include <stdint.h>\n"
+               "namespace rep {\n"
+               "\n"
+               "\n"
+               "}",
+               Style);
 }
 
 TEST_F(FormatTest, SplitEmptyStruct) {
@@ -15437,8 +15452,6 @@ TEST_F(FormatTest, ParsesConfigurationBools) {
   CHECK_PARSE_BOOL(DeriveLineEnding);
   CHECK_PARSE_BOOL(DerivePointerAlignment);
   CHECK_PARSE_BOOL_FIELD(DerivePointerAlignment, "DerivePointerBinding");
-  CHECK_PARSE_BOOL_FIELD(IncludeStyle.IncludeSortAlphabetically,
-                         "IncludeSortAlphabetically");
   CHECK_PARSE_BOOL(DisableFormat);
   CHECK_PARSE_BOOL(IndentCaseLabels);
   CHECK_PARSE_BOOL(IndentCaseBlocks);

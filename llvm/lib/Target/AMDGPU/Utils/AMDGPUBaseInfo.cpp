@@ -246,6 +246,94 @@ int getMCOpcode(uint16_t Opcode, unsigned Gen) {
 
 namespace IsaInfo {
 
+AMDGPUTargetID::AMDGPUTargetID(const MCSubtargetInfo &STI)
+    : XnackSetting(TargetIDSetting::Any), SramEccSetting(TargetIDSetting::Any) {
+  if (!STI.getFeatureBits().test(FeatureSupportsXNACK))
+    XnackSetting = TargetIDSetting::Unsupported;
+  if (!STI.getFeatureBits().test(FeatureSupportsSRAMECC))
+    SramEccSetting = TargetIDSetting::Unsupported;
+}
+
+void AMDGPUTargetID::setTargetIDFromFeaturesString(StringRef FS) {
+  // Check if xnack or sramecc is explicitly enabled or disabled.  In the
+  // absence of the target features we assume we must generate code that can run
+  // in any environment.
+  SubtargetFeatures Features(FS);
+  Optional<bool> XnackRequested;
+  Optional<bool> SramEccRequested;
+
+  for (const std::string &Feature : Features.getFeatures()) {
+    if (Feature == "+xnack")
+      XnackRequested = true;
+    else if (Feature == "-xnack")
+      XnackRequested = false;
+    else if (Feature == "+sramecc")
+      SramEccRequested = true;
+    else if (Feature == "-sramecc")
+      SramEccRequested = false;
+  }
+
+  bool XnackSupported = isXnackSupported();
+  bool SramEccSupported = isSramEccSupported();
+
+  if (XnackRequested) {
+    if (XnackSupported) {
+      XnackSetting =
+          *XnackRequested ? TargetIDSetting::On : TargetIDSetting::Off;
+    } else {
+      // If a specific xnack setting was requested and this GPU does not support
+      // xnack emit a warning. Setting will remain set to "Unsupported".
+      if (*XnackRequested) {
+        errs() << "warning: xnack 'On' was requested for a processor that does "
+                  "not support it!\n";
+      } else {
+        errs() << "warning: xnack 'Off' was requested for a processor that "
+                  "does not support it!\n";
+      }
+    }
+  }
+
+  if (SramEccRequested) {
+    if (SramEccSupported) {
+      SramEccSetting =
+          *SramEccRequested ? TargetIDSetting::On : TargetIDSetting::Off;
+    } else {
+      // If a specific sramecc setting was requested and this GPU does not
+      // support sramecc emit a warning. Setting will remain set to
+      // "Unsupported".
+      if (*SramEccRequested) {
+        errs() << "warning: sramecc 'On' was requested for a processor that "
+                  "does not support it!\n";
+      } else {
+        errs() << "warning: sramecc 'Off' was requested for a processor that "
+                  "does not support it!\n";
+      }
+    }
+  }
+}
+
+static TargetIDSetting
+getTargetIDSettingFromFeatureString(StringRef FeatureString) {
+  if (FeatureString.endswith("-"))
+    return TargetIDSetting::Off;
+  if (FeatureString.endswith("+"))
+    return TargetIDSetting::On;
+
+  llvm_unreachable("Malformed feature string");
+}
+
+void AMDGPUTargetID::setTargetIDFromTargetIDStream(StringRef TargetID) {
+  SmallVector<StringRef, 3> TargetIDSplit;
+  TargetID.split(TargetIDSplit, ':');
+
+  for (const auto &FeatureString : TargetIDSplit) {
+    if (FeatureString.startswith("xnack"))
+      XnackSetting = getTargetIDSettingFromFeatureString(FeatureString);
+    if (FeatureString.startswith("sramecc"))
+      SramEccSetting = getTargetIDSettingFromFeatureString(FeatureString);
+  }
+}
+
 void streamIsaVersion(const MCSubtargetInfo *STI, raw_ostream &Stream) {
   auto TargetTriple = STI->getTargetTriple();
   auto Version = getIsaVersion(STI->getCPU());
@@ -262,7 +350,7 @@ void streamIsaVersion(const MCSubtargetInfo *STI, raw_ostream &Stream) {
   if (hasXNACK(*STI))
     Stream << "+xnack";
   if (hasSRAMECC(*STI))
-    Stream << "+sram-ecc";
+    Stream << "+sramecc";
 
   Stream.flush();
 }
@@ -787,6 +875,67 @@ void decodeHwreg(unsigned Val, unsigned &Id, unsigned &Offset, unsigned &Width) 
 }
 
 } // namespace Hwreg
+
+//===----------------------------------------------------------------------===//
+// exp tgt
+//===----------------------------------------------------------------------===//
+
+namespace Exp {
+
+struct ExpTgt {
+  StringLiteral Name;
+  unsigned Tgt;
+  unsigned MaxIndex;
+};
+
+static constexpr ExpTgt ExpTgtInfo[] = {
+  {{"null"},  ET_NULL,   ET_NULL_MAX_IDX},
+  {{"mrtz"},  ET_MRTZ,   ET_MRTZ_MAX_IDX},
+  {{"prim"},  ET_PRIM,   ET_PRIM_MAX_IDX},
+  {{"mrt"},   ET_MRT0,   ET_MRT_MAX_IDX},
+  {{"pos"},   ET_POS0,   ET_POS_MAX_IDX},
+  {{"param"}, ET_PARAM0, ET_PARAM_MAX_IDX},
+};
+
+bool getTgtName(unsigned Id, StringRef &Name, int &Index) {
+  for (const ExpTgt &Val : ExpTgtInfo) {
+    if (Val.Tgt <= Id && Id <= Val.Tgt + Val.MaxIndex) {
+      Index = (Val.MaxIndex == 0) ? -1 : (Id - Val.Tgt);
+      Name = Val.Name;
+      return true;
+    }
+  }
+  return false;
+}
+
+unsigned getTgtId(const StringRef Name) {
+
+  for (const ExpTgt &Val : ExpTgtInfo) {
+    if (Val.MaxIndex == 0 && Name == Val.Name)
+      return Val.Tgt;
+
+    if (Val.MaxIndex > 0 && Name.startswith(Val.Name)) {
+      StringRef Suffix = Name.drop_front(Val.Name.size());
+
+      unsigned Id;
+      if (Suffix.getAsInteger(10, Id) || Id > Val.MaxIndex)
+        return ET_INVALID;
+
+      // Disable leading zeroes
+      if (Suffix.size() > 1 && Suffix[0] == '0')
+        return ET_INVALID;
+
+      return Val.Tgt + Id;
+    }
+  }
+  return ET_INVALID;
+}
+
+bool isSupportedTgtId(unsigned Id, const MCSubtargetInfo &STI) {
+  return (Id != ET_POS4 && Id != ET_PRIM) || isGFX10Plus(STI);
+}
+
+} // namespace Exp
 
 //===----------------------------------------------------------------------===//
 // MTBUF Format
@@ -1627,4 +1776,24 @@ const GcnBufferFormatInfo *getGcnBufferFormatInfo(uint8_t Format,
 }
 
 } // namespace AMDGPU
+
+raw_ostream &operator<<(raw_ostream &OS,
+                        const AMDGPU::IsaInfo::TargetIDSetting S) {
+  switch (S) {
+  case (AMDGPU::IsaInfo::TargetIDSetting::Unsupported):
+    OS << "Unsupported";
+    break;
+  case (AMDGPU::IsaInfo::TargetIDSetting::Any):
+    OS << "Any";
+    break;
+  case (AMDGPU::IsaInfo::TargetIDSetting::Off):
+    OS << "Off";
+    break;
+  case (AMDGPU::IsaInfo::TargetIDSetting::On):
+    OS << "On";
+    break;
+  }
+  return OS;
+}
+
 } // namespace llvm
