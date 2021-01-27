@@ -2313,18 +2313,7 @@ those device functions, such that the kernel attributes are the sum of all
 attributes of all device functions called in this kernel.
 See section 6.7 Attributes for more details.
 
-As Intel extension, ``[[intel::reqd_work_group_size(X, Y, Z)]]`` spelling is allowed
-which features optional arguments `Y` and `Z`, those simplifies its usage if
-only 1- or 2-dimensional ND-range is assumed by a programmer. These arguments
-defaults to ``1``.
-
-In OpenCL C, this attribute is available in GNU spelling
-(``__attribute__((reqd_work_group_size(X, Y, Z)))``), see section
-6.7.2 Optional Attribute Qualifiers of OpenCL 1.2 specification for details.
-
 .. code-block:: c++
-
-  __kernel __attribute__((reqd_work_group_size(8, 16, 32))) void test() {}
 
   [[cl::reqd_work_group_size(4, 4, 4)]] void foo() {}
 
@@ -2342,11 +2331,36 @@ In OpenCL C, this attribute is available in GNU spelling
   template <int N, int N1, int N2>
   [[cl::reqd_work_group_size(N, N1, N2)]] void func() {}
 
-  [[intel::reqd_work_group_size(N, N1, N2)]] void bar() {}
+As Intel extension, ``[[intel::reqd_work_group_size(X, Y, Z)]]`` spelling is
+allowed which features optional arguments `Y` and `Z`, those simplifies its
+usage if only 1- or 2-dimensional ND-range is assumed by a programmer. These
+arguments defaults to ``1``.
 
-  ``[[intel::reqd_work_group_size(N, N1, N2)]]`` takes two optional
-  arguments `N1` and `N2`that are constant unsigned integer expressions.
-  The parameter N, N1, N2 may be a template parameters.
+.. code-block:: c++
+
+  [[intel::reqd_work_group_size(4, 4, 4)]] void foo() {}
+
+  class Foo {
+  public:
+    [[intel::reqd_work_group_size(2, 2, 2)]] void operator()() const {}
+  };
+
+  template <int X, int Y, int Z>
+  class Functor {
+  public:
+    [[intel::reqd_work_group_size(X, Y, Z)]] void operator()() const {}
+  };
+
+  template <int X, int Y, int Z>
+  [[intel::reqd_work_group_size(X, Y, Z)]] void func() {}
+
+In OpenCL C, this attribute is available in GNU spelling
+(``__attribute__((reqd_work_group_size(X, Y, Z)))``), see section
+6.7.2 Optional Attribute Qualifiers of OpenCL 1.2 specification for details.
+
+.. code-block:: c++
+
+  __kernel __attribute__((reqd_work_group_size(8, 16, 32))) void test() {}
 
   }];
 }
@@ -2390,10 +2404,7 @@ def SYCLIntelMaxGlobalWorkDimAttrDocs : Documentation {
 Applies to a device function/lambda function or function call operator (of a
 function object). Indicates the largest valid global work dimension that will be
 accepted when running the kernel on a device. Valid values are integers in a
-range of [0, 3]. A kernel with max_global_work_dim(0) must be invoked with a
-'single_task' and if ``intel::max_work_group_size`` or
-``cl::reqd_work_group_size`` are applied to the kernel as well - they shall
-have arguments of (1, 1, 1).
+range of [0, 3].
 If ``intel::max_global_work_dim`` is applied to a function called from a
 device kernel, the attribute is not ignored and it is propagated to the kernel.
 
@@ -2414,6 +2425,13 @@ device kernel, the attribute is not ignored and it is propagated to the kernel.
   public:
     [[intel::max_global_work_dim(N)]] void operator()() const {}
   };
+
+A kernel with max_global_work_dim(0) must be invoked with a
+'single_task' and if ``intel::max_work_group_size`` or
+``cl::reqd_work_group_size`` are applied to the kernel as well - they shall
+have arguments of (1, 1, 1).
+
+.. code-block:: c++
 
   struct TRIFuncObjGood {
     [[intel::max_global_work_dim(0)]]
