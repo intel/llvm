@@ -282,9 +282,8 @@ __esimd_dp4(sycl::INTEL::gpu::vector_type_t<Ty, N> v1,
 #ifndef __SYCL_DEVICE_ONLY__
 
 template <typename T>
-inline
-T extract(const uint32_t &width, const uint32_t &offset, uint32_t src,
-          const uint32_t &sign_extend) {
+inline T extract(const uint32_t &width, const uint32_t &offset, uint32_t src,
+                 const uint32_t &sign_extend) {
   uint32_t mask = ((1 << width) - 1) << offset;
   T ret = (src & mask) >> offset;
   if (sign_extend) {
@@ -308,8 +307,7 @@ inline vector_type_t<T0, SZ> __esimd_satf(vector_type_t<T1, SZ> src) {
 };
 
 template <typename T0, typename T1, int SZ>
-inline vector_type_t<T0, SZ>
-__esimd_fptoui_sat(vector_type_t<T1, SZ> src) {
+inline vector_type_t<T0, SZ> __esimd_fptoui_sat(vector_type_t<T1, SZ> src) {
   vector_type_t<T0, SZ> retv;
   for (int i = 0; i < SZ; i++) {
     SIMDCF_ELEMENT_SKIP(i);
@@ -319,8 +317,7 @@ __esimd_fptoui_sat(vector_type_t<T1, SZ> src) {
 };
 
 template <typename T0, typename T1, int SZ>
-inline vector_type_t<T0, SZ>
-__esimd_fptosi_sat(vector_type_t<T1, SZ> src) {
+inline vector_type_t<T0, SZ> __esimd_fptosi_sat(vector_type_t<T1, SZ> src) {
   vector_type_t<T0, SZ> retv;
   for (int i = 0; i < SZ; i++) {
     SIMDCF_ELEMENT_SKIP(i);
@@ -330,8 +327,7 @@ __esimd_fptosi_sat(vector_type_t<T1, SZ> src) {
 };
 
 template <typename T0, typename T1, int SZ>
-inline vector_type_t<T0, SZ>
-__esimd_uutrunc_sat(vector_type_t<T1, SZ> src) {
+inline vector_type_t<T0, SZ> __esimd_uutrunc_sat(vector_type_t<T1, SZ> src) {
   vector_type_t<T0, SZ> retv;
   for (int i = 0; i < SZ; i++) {
     SIMDCF_ELEMENT_SKIP(i);
@@ -341,8 +337,7 @@ __esimd_uutrunc_sat(vector_type_t<T1, SZ> src) {
 };
 
 template <typename T0, typename T1, int SZ>
-inline vector_type_t<T0, SZ>
-__esimd_ustrunc_sat(vector_type_t<T1, SZ> src) {
+inline vector_type_t<T0, SZ> __esimd_ustrunc_sat(vector_type_t<T1, SZ> src) {
   vector_type_t<T0, SZ> retv;
   for (int i = 0; i < SZ; i++) {
     SIMDCF_ELEMENT_SKIP(i);
@@ -352,8 +347,7 @@ __esimd_ustrunc_sat(vector_type_t<T1, SZ> src) {
 };
 
 template <typename T0, typename T1, int SZ>
-inline vector_type_t<T0, SZ>
-__esimd_sutrunc_sat(vector_type_t<T1, SZ> src) {
+inline vector_type_t<T0, SZ> __esimd_sutrunc_sat(vector_type_t<T1, SZ> src) {
   vector_type_t<T0, SZ> retv;
   for (int i = 0; i < SZ; i++) {
     SIMDCF_ELEMENT_SKIP(i);
@@ -363,8 +357,7 @@ __esimd_sutrunc_sat(vector_type_t<T1, SZ> src) {
 };
 
 template <typename T0, typename T1, int SZ>
-inline vector_type_t<T0, SZ>
-__esimd_sstrunc_sat(vector_type_t<T1, SZ> src) {
+inline vector_type_t<T0, SZ> __esimd_sstrunc_sat(vector_type_t<T1, SZ> src) {
   vector_type_t<T0, SZ> retv;
   for (int i = 0; i < SZ; i++) {
     SIMDCF_ELEMENT_SKIP(i);
@@ -393,7 +386,7 @@ inline vector_type_t<T, SZ> __esimd_abs(vector_type_t<T, SZ> src0) {
 
 template <typename T0, typename T1, int SZ>
 inline vector_type_t<T0, SZ> __esimd_ssshl(vector_type_t<T1, SZ> src0,
-                                                  vector_type_t<T1, SZ> src1) {
+                                           vector_type_t<T1, SZ> src1) {
   int i;
   typename maxtype<T1>::type ret;
   vector_type_t<T0, SZ> retv;
@@ -407,7 +400,7 @@ inline vector_type_t<T0, SZ> __esimd_ssshl(vector_type_t<T1, SZ> src0,
 };
 template <typename T0, typename T1, int SZ>
 inline vector_type_t<T0, SZ> __esimd_sushl(vector_type_t<T1, SZ> src0,
-                                                  vector_type_t<T1, SZ> src1) {
+                                           vector_type_t<T1, SZ> src1) {
   int i;
   typename maxtype<T1>::type ret;
   vector_type_t<T0, SZ> retv;
@@ -421,7 +414,7 @@ inline vector_type_t<T0, SZ> __esimd_sushl(vector_type_t<T1, SZ> src0,
 };
 template <typename T0, typename T1, int SZ>
 inline vector_type_t<T0, SZ> __esimd_usshl(vector_type_t<T1, SZ> src0,
-                                                  vector_type_t<T1, SZ> src1) {
+                                           vector_type_t<T1, SZ> src1) {
   int i;
   typename maxtype<T1>::type ret;
   vector_type_t<T0, SZ> retv;
@@ -435,7 +428,7 @@ inline vector_type_t<T0, SZ> __esimd_usshl(vector_type_t<T1, SZ> src0,
 };
 template <typename T0, typename T1, int SZ>
 inline vector_type_t<T0, SZ> __esimd_uushl(vector_type_t<T1, SZ> src0,
-                                                  vector_type_t<T1, SZ> src1) {
+                                           vector_type_t<T1, SZ> src1) {
   int i;
   typename maxtype<T1>::type ret;
   vector_type_t<T0, SZ> retv;
@@ -448,8 +441,8 @@ inline vector_type_t<T0, SZ> __esimd_uushl(vector_type_t<T1, SZ> src0,
   return retv;
 };
 template <typename T0, typename T1, int SZ>
-inline vector_type_t<T0, SZ>
-__esimd_ssshl_sat(vector_type_t<T1, SZ> src0, vector_type_t<T1, SZ> src1) {
+inline vector_type_t<T0, SZ> __esimd_ssshl_sat(vector_type_t<T1, SZ> src0,
+                                               vector_type_t<T1, SZ> src1) {
   int i;
   typename maxtype<T1>::type ret;
   vector_type_t<T0, SZ> retv;
@@ -462,8 +455,8 @@ __esimd_ssshl_sat(vector_type_t<T1, SZ> src0, vector_type_t<T1, SZ> src1) {
   return retv;
 };
 template <typename T0, typename T1, int SZ>
-inline vector_type_t<T0, SZ>
-__esimd_sushl_sat(vector_type_t<T1, SZ> src0, vector_type_t<T1, SZ> src1) {
+inline vector_type_t<T0, SZ> __esimd_sushl_sat(vector_type_t<T1, SZ> src0,
+                                               vector_type_t<T1, SZ> src1) {
   int i;
   typename maxtype<T1>::type ret;
   vector_type_t<T0, SZ> retv;
@@ -476,8 +469,8 @@ __esimd_sushl_sat(vector_type_t<T1, SZ> src0, vector_type_t<T1, SZ> src1) {
   return retv;
 };
 template <typename T0, typename T1, int SZ>
-inline vector_type_t<T0, SZ>
-__esimd_usshl_sat(vector_type_t<T1, SZ> src0, vector_type_t<T1, SZ> src1) {
+inline vector_type_t<T0, SZ> __esimd_usshl_sat(vector_type_t<T1, SZ> src0,
+                                               vector_type_t<T1, SZ> src1) {
   int i;
   typename maxtype<T1>::type ret;
   vector_type_t<T0, SZ> retv;
@@ -490,8 +483,8 @@ __esimd_usshl_sat(vector_type_t<T1, SZ> src0, vector_type_t<T1, SZ> src1) {
   return retv;
 };
 template <typename T0, typename T1, int SZ>
-inline vector_type_t<T0, SZ>
-__esimd_uushl_sat(vector_type_t<T1, SZ> src0, vector_type_t<T1, SZ> src1) {
+inline vector_type_t<T0, SZ> __esimd_uushl_sat(vector_type_t<T1, SZ> src0,
+                                               vector_type_t<T1, SZ> src1) {
   int i;
   typename maxtype<T1>::type ret;
   vector_type_t<T0, SZ> retv;
@@ -506,15 +499,15 @@ __esimd_uushl_sat(vector_type_t<T1, SZ> src0, vector_type_t<T1, SZ> src1) {
 
 template <typename T0, typename T1, int SZ>
 inline vector_type_t<T0, SZ> __esimd_rol(vector_type_t<T1, SZ> src0,
-                                                vector_type_t<T1, SZ> src1){};
+                                         vector_type_t<T1, SZ> src1){};
 
 template <typename T0, typename T1, int SZ>
 inline vector_type_t<T0, SZ> __esimd_ror(vector_type_t<T1, SZ> src0,
-                                                vector_type_t<T1, SZ> src1){};
+                                         vector_type_t<T1, SZ> src1){};
 
 template <typename T, int SZ>
 inline vector_type_t<T, SZ> __esimd_umulh(vector_type_t<T, SZ> src0,
-                                                 vector_type_t<T, SZ> src1) {
+                                          vector_type_t<T, SZ> src1) {
   int i;
   vector_type_t<T, SZ> retv;
 
@@ -529,7 +522,7 @@ inline vector_type_t<T, SZ> __esimd_umulh(vector_type_t<T, SZ> src0,
 
 template <typename T, int SZ>
 inline vector_type_t<T, SZ> __esimd_smulh(vector_type_t<T, SZ> src0,
-                                                 vector_type_t<T, SZ> src1) {
+                                          vector_type_t<T, SZ> src1) {
   int i;
   vector_type_t<T, SZ> retv;
 
@@ -543,8 +536,7 @@ inline vector_type_t<T, SZ> __esimd_smulh(vector_type_t<T, SZ> src0,
 };
 
 template <int SZ>
-inline vector_type_t<float, SZ>
-__esimd_frc(vector_type_t<float, SZ> src0) {
+inline vector_type_t<float, SZ> __esimd_frc(vector_type_t<float, SZ> src0) {
   vector_type_t<float, SZ> retv;
   for (int i = 0; i < SZ; i++) {
     SIMDCF_ELEMENT_SKIP(i);
@@ -556,7 +548,7 @@ __esimd_frc(vector_type_t<float, SZ> src0) {
 /// 3 kinds of max
 template <typename T, int SZ>
 inline vector_type_t<T, SZ> __esimd_fmax(vector_type_t<T, SZ> src0,
-                                                vector_type_t<T, SZ> src1) {
+                                         vector_type_t<T, SZ> src1) {
   int i;
   vector_type_t<T, SZ> retv;
 
@@ -573,7 +565,7 @@ inline vector_type_t<T, SZ> __esimd_fmax(vector_type_t<T, SZ> src0,
 };
 template <typename T, int SZ>
 inline vector_type_t<T, SZ> __esimd_umax(vector_type_t<T, SZ> src0,
-                                                vector_type_t<T, SZ> src1) {
+                                         vector_type_t<T, SZ> src1) {
   int i;
   vector_type_t<T, SZ> retv;
 
@@ -590,7 +582,7 @@ inline vector_type_t<T, SZ> __esimd_umax(vector_type_t<T, SZ> src0,
 };
 template <typename T, int SZ>
 inline vector_type_t<T, SZ> __esimd_smax(vector_type_t<T, SZ> src0,
-                                                vector_type_t<T, SZ> src1) {
+                                         vector_type_t<T, SZ> src1) {
   int i;
   vector_type_t<T, SZ> retv;
 
@@ -629,7 +621,7 @@ inline vector_type_t<T, SZ> __esimd_lzd(vector_type_t<T, SZ> src0) {
 /// 3 kinds of min
 template <typename T, int SZ>
 inline vector_type_t<T, SZ> __esimd_fmin(vector_type_t<T, SZ> src0,
-                                                vector_type_t<T, SZ> src1) {
+                                         vector_type_t<T, SZ> src1) {
   int i;
   vector_type_t<T, SZ> retv;
 
@@ -647,7 +639,7 @@ inline vector_type_t<T, SZ> __esimd_fmin(vector_type_t<T, SZ> src0,
 
 template <typename T, int SZ>
 inline vector_type_t<T, SZ> __esimd_umin(vector_type_t<T, SZ> src0,
-                                                vector_type_t<T, SZ> src1) {
+                                         vector_type_t<T, SZ> src1) {
   int i;
   vector_type_t<T, SZ> retv;
 
@@ -665,7 +657,7 @@ inline vector_type_t<T, SZ> __esimd_umin(vector_type_t<T, SZ> src0,
 
 template <typename T, int SZ>
 inline vector_type_t<T, SZ> __esimd_smin(vector_type_t<T, SZ> src0,
-                                                vector_type_t<T, SZ> src1) {
+                                         vector_type_t<T, SZ> src1) {
   int i;
   vector_type_t<T, SZ> retv;
 
@@ -753,8 +745,8 @@ __esimd_bfins(vector_type_t<T0, SZ> width, vector_type_t<T0, SZ> offset,
 
 template <typename T0, int SZ>
 inline vector_type_t<T0, SZ> __esimd_bfext(vector_type_t<T0, SZ> width,
-                                                  vector_type_t<T0, SZ> offset,
-                                                  vector_type_t<T0, SZ> src) {
+                                           vector_type_t<T0, SZ> offset,
+                                           vector_type_t<T0, SZ> src) {
   int i;
   typename maxtype<T0>::type ret;
   vector_type_t<T0, SZ> retv;
@@ -770,7 +762,8 @@ inline vector_type_t<T0, SZ> __esimd_bfext(vector_type_t<T0, SZ> width,
 };
 
 template <int SZ>
-inline vector_type_t<uint32_t, SZ> __esimd_fbl(vector_type_t<uint32_t, SZ> src0) {
+inline vector_type_t<uint32_t, SZ>
+__esimd_fbl(vector_type_t<uint32_t, SZ> src0) {
   int i;
   uint32_t ret;
   vector_type_t<uint32_t, SZ> retv;
@@ -848,8 +841,7 @@ inline vector_type_t<uint32_t, SZ> __esimd_ufbh(vector_type_t<T0, SZ> src0) {
 };
 
 template <int SZ>
-inline vector_type_t<float, SZ>
-__esimd_inv(vector_type_t<float, SZ> src0) {
+inline vector_type_t<float, SZ> __esimd_inv(vector_type_t<float, SZ> src0) {
   vector_type_t<float, SZ> retv;
 
   for (int i = 0; i < SZ; i++) {
@@ -860,8 +852,7 @@ __esimd_inv(vector_type_t<float, SZ> src0) {
 };
 
 template <int SZ>
-inline vector_type_t<float, SZ>
-__esimd_log(vector_type_t<float, SZ> src0) {
+inline vector_type_t<float, SZ> __esimd_log(vector_type_t<float, SZ> src0) {
   vector_type_t<float, SZ> retv;
 
   for (int i = 0; i < SZ; i++) {
@@ -871,8 +862,7 @@ __esimd_log(vector_type_t<float, SZ> src0) {
   return retv;
 };
 template <int SZ>
-inline vector_type_t<float, SZ>
-__esimd_exp(vector_type_t<float, SZ> src0) {
+inline vector_type_t<float, SZ> __esimd_exp(vector_type_t<float, SZ> src0) {
   vector_type_t<float, SZ> retv;
 
   for (int i = 0; i < SZ; i++) {
@@ -882,8 +872,7 @@ __esimd_exp(vector_type_t<float, SZ> src0) {
   return retv;
 };
 template <int SZ>
-inline vector_type_t<float, SZ>
-__esimd_sqrt(vector_type_t<float, SZ> src0) {
+inline vector_type_t<float, SZ> __esimd_sqrt(vector_type_t<float, SZ> src0) {
   vector_type_t<float, SZ> retv;
 
   for (int i = 0; i < SZ; i++) {
@@ -904,8 +893,7 @@ __esimd_sqrt_ieee(vector_type_t<float, SZ> src0) {
   return retv;
 };
 template <int SZ>
-inline vector_type_t<float, SZ>
-__esimd_rsqrt(vector_type_t<float, SZ> src0) {
+inline vector_type_t<float, SZ> __esimd_rsqrt(vector_type_t<float, SZ> src0) {
   vector_type_t<float, SZ> retv;
 
   for (int i = 0; i < SZ; i++) {
@@ -915,8 +903,7 @@ __esimd_rsqrt(vector_type_t<float, SZ> src0) {
   return retv;
 };
 template <int SZ>
-inline vector_type_t<float, SZ>
-__esimd_sin(vector_type_t<float, SZ> src) {
+inline vector_type_t<float, SZ> __esimd_sin(vector_type_t<float, SZ> src) {
   vector_type_t<float, SZ> retv;
   for (int i = 0; i < SZ; i++) {
     SIMDCF_ELEMENT_SKIP(i);
@@ -925,8 +912,7 @@ __esimd_sin(vector_type_t<float, SZ> src) {
   return retv;
 };
 template <int SZ>
-inline vector_type_t<float, SZ>
-__esimd_cos(vector_type_t<float, SZ> src) {
+inline vector_type_t<float, SZ> __esimd_cos(vector_type_t<float, SZ> src) {
   vector_type_t<float, SZ> retv;
   for (int i = 0; i < SZ; i++) {
     SIMDCF_ELEMENT_SKIP(i);
@@ -935,8 +921,8 @@ __esimd_cos(vector_type_t<float, SZ> src) {
   return retv;
 };
 template <int SZ>
-inline vector_type_t<float, SZ>
-__esimd_pow(vector_type_t<float, SZ> src0, vector_type_t<float, SZ> src1) {
+inline vector_type_t<float, SZ> __esimd_pow(vector_type_t<float, SZ> src0,
+                                            vector_type_t<float, SZ> src1) {
   vector_type_t<float, SZ> retv;
 
   for (int i = 0; i < SZ; i++) {
@@ -966,8 +952,7 @@ __esimd_div_ieee(vector_type_t<float, SZ> src0, vector_type_t<float, SZ> src1) {
 };
 
 template <int SZ>
-inline vector_type_t<float, SZ>
-__esimd_rndd(vector_type_t<float, SZ> src0) {
+inline vector_type_t<float, SZ> __esimd_rndd(vector_type_t<float, SZ> src0) {
   vector_type_t<float, SZ> retv;
 
   for (int i = 0; i < SZ; i++) {
@@ -978,8 +963,7 @@ __esimd_rndd(vector_type_t<float, SZ> src0) {
 };
 
 template <int SZ>
-inline vector_type_t<float, SZ>
-__esimd_rndu(vector_type_t<float, SZ> src0) {
+inline vector_type_t<float, SZ> __esimd_rndu(vector_type_t<float, SZ> src0) {
   vector_type_t<float, SZ> retv;
   int increment;
 
@@ -998,8 +982,7 @@ __esimd_rndu(vector_type_t<float, SZ> src0) {
 };
 
 template <int SZ>
-inline vector_type_t<float, SZ>
-__esimd_rnde(vector_type_t<float, SZ> src0) {
+inline vector_type_t<float, SZ> __esimd_rnde(vector_type_t<float, SZ> src0) {
   vector_type_t<float, SZ> retv;
   int increment;
 
@@ -1020,8 +1003,7 @@ __esimd_rnde(vector_type_t<float, SZ> src0) {
 };
 
 template <int SZ>
-inline vector_type_t<float, SZ>
-__esimd_rndz(vector_type_t<float, SZ> src0) {
+inline vector_type_t<float, SZ> __esimd_rndz(vector_type_t<float, SZ> src0) {
   vector_type_t<float, SZ> retv;
   int increment;
 
@@ -1099,8 +1081,8 @@ inline vector_type_t<uint16_t, N> __esimd_unpack_mask(uint32_t src0) {
 
 template <typename T1, typename T2, typename T3, typename T4, int N>
 inline vector_type_t<T1, N> __esimd_dp4a(vector_type_t<T2, N> src0,
-                                                vector_type_t<T3, N> src1,
-                                                vector_type_t<T4, N> src2) {
+                                         vector_type_t<T3, N> src1,
+                                         vector_type_t<T4, N> src2) {
   typename restype_ex<T2, typename restype_ex<T3, T4>::type>::type reta;
   vector_type_t<T1, N> retv;
 
