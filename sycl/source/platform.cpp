@@ -67,7 +67,7 @@ context platform::get_default_context() const {
   return impl->getDefaultContext();
 }
 
-void platform::push_default_context(context Context) {
+void platform::push_default_context(const context &Context) {
   impl->pushDefaultContext(Context);
 }
 

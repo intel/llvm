@@ -195,7 +195,7 @@ public:
 
   context getDefaultContext();
 
-  void pushDefaultContext(context Context);
+  void pushDefaultContext(const context &Context);
   void popDefaultContext();
 
 private:
@@ -205,6 +205,7 @@ private:
   std::vector<std::weak_ptr<device_impl>> MDeviceCache;
   std::mutex MDeviceMapMutex;
   std::vector<context> MDefaultContexts;
+  std::mutex MContextMutex;
 };
 
 } // namespace detail

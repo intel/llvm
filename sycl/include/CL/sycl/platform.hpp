@@ -134,7 +134,7 @@ public:
   /// Pushes a new default context
   ///
   /// \param the new default context
-  void push_default_context(context Context);
+  void push_default_context(const context &Context);
 
   /// Pops the current default context, setting the default
   /// context to the previous context.

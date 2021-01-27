@@ -391,6 +391,8 @@ bool platform_impl::has(aspect Aspect) const {
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 context platform_impl::getDefaultContext() {
+  const std::lock_guard<std::mutex> Guard(MContextMutex);
+
   if (!MDefaultContexts.empty())
     return MDefaultContexts.back();
   else {
@@ -402,11 +404,15 @@ context platform_impl::getDefaultContext() {
   }
 }
 
-void platform_impl::pushDefaultContext(context Context) {
+void platform_impl::pushDefaultContext(const context &Context) {
+  const std::lock_guard<std::mutex> Guard(MContextMutex);
+
   MDefaultContexts.push_back(Context);
 }
 
 void platform_impl::popDefaultContext() {
+  const std::lock_guard<std::mutex> Guard(MContextMutex);
+
   if (MDefaultContexts.size() == 1) {
     throw runtime_error("Popping the platform default context would result in "
                         "no default context",
