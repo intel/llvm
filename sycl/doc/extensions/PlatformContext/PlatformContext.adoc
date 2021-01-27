@@ -10,8 +10,35 @@ v0.1
 
 This extension adds the notion of a default SYCL context per SYCL platform. The default context for each platform contains all devices in the platform.
 
-The platform class gains three new methods: `get_default_context`, `push_default_context`, and `pop_default_context`.
+The platform class gains three new methods:
 
-These methods may be used to query and modify a platform's default context. Pushing a new default context replaces the existing one. Popping a default context returns either the previous context or throws a `runtime_error` if popping would result in no context.
+[cols="^60a,40"]
+|===
+| Member Function | Description
+
+|
+[source,c++]
+----
+context get_default_context()
+----
+
+| Returns the current default context for this `platform`
+
+|
+[source,c++]
+----
+void push_default_context(const context &NewContext)
+----
+
+| Sets the current default context to `NewContext`. The previous default context is saved.
+
+|
+[source,c++]
+----
+void pop_default_context()
+----
+
+| Removes the current default context and restores the previous default context if applicable or throws a `runtime_error` if there is no valid context to restore.
+|===
 
 This extension also modifies the behavior of `queue` constructors. Queues will no longer create a new `context` upon consruction. Instead, they will use the default context from the device's platform.
