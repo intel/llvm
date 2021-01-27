@@ -1,4 +1,4 @@
-// UNSUPPORTED: cuda, level_zero
+// UNSUPPORTED: cuda
 // CUDA cannot support SYCL 1.2.1 images.
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
