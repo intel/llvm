@@ -22,6 +22,16 @@
 #endif
 #pragma OPENCL EXTENSION cl_clang_storage_class_specifiers : enable
 
+#ifndef __cl_clang_function_pointers
+#error "Missing __cl_clang_function_pointers define"
+#endif
+#pragma OPENCL EXTENSION __cl_clang_function_pointers : enable
+
+#ifndef __cl_clang_variadic_functions
+#error "Missing __cl_clang_variadic_functions define"
+#endif
+#pragma OPENCL EXTENSION __cl_clang_variadic_functions : enable
+
 // TODO: Temporarily disabling the following test as a work around for the
 // SYCL codepath until the cl_khr_fp16 is restricted to only the sycldevice triple.
 // link to issue https://github.com/intel/llvm/issues/1814

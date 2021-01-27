@@ -59,6 +59,7 @@ public:
 
 private:
   friend void shutdown();
+
   // Constructor and destructor are declared out-of-line to allow incomplete
   // types as template arguments to unique_ptr.
   GlobalHandler();
@@ -66,6 +67,7 @@ private:
 
   SpinLock MFieldsLock;
 
+  // Do not forget to update shutdown() function if needed.
   std::unique_ptr<Scheduler> MScheduler;
   std::unique_ptr<ProgramManager> MProgramManager;
   std::unique_ptr<Sync> MSync;

@@ -106,6 +106,7 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.floor
     libc.src.math.floorf
     libc.src.math.floorl
+    libc.src.math.fmaf
     libc.src.math.fmin
     libc.src.math.fminf
     libc.src.math.fminl
@@ -123,24 +124,39 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.ldexp
     libc.src.math.ldexpf
     libc.src.math.ldexpl
+    libc.src.math.llrint
+    libc.src.math.llrintf
+    libc.src.math.llrintl
     libc.src.math.llround
     libc.src.math.llroundf
     libc.src.math.llroundl
     libc.src.math.logb
     libc.src.math.logbf
     libc.src.math.logbl
+    libc.src.math.lrint
+    libc.src.math.lrintf
+    libc.src.math.lrintl
     libc.src.math.lround
     libc.src.math.lroundf
     libc.src.math.lroundl
     libc.src.math.modf
     libc.src.math.modff
     libc.src.math.modfl
+    libc.src.math.nearbyint
+    libc.src.math.nearbyintf
+    libc.src.math.nearbyintl
+    libc.src.math.nextafter
+    libc.src.math.nextafterf
+    libc.src.math.nextafterl
     libc.src.math.remainderf
     libc.src.math.remainder
     libc.src.math.remainderl
     libc.src.math.remquof
     libc.src.math.remquo
     libc.src.math.remquol
+    libc.src.math.rint
+    libc.src.math.rintf
+    libc.src.math.rintl
     libc.src.math.round
     libc.src.math.roundf
     libc.src.math.roundl

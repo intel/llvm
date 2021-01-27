@@ -23,12 +23,13 @@ namespace sycl {
 namespace ONEAPI {
 
 enum class memory_order : int {
-  relaxed,
-  acquire,
-  __consume_unsupported, // helps optimizer when mapping to std::memory_order
-  release,
-  acq_rel,
-  seq_cst
+  relaxed = 0,
+  acquire = 1,
+  __consume_unsupported =
+      2, // helps optimizer when mapping to std::memory_order
+  release = 3,
+  acq_rel = 4,
+  seq_cst = 5
 };
 __SYCL_INLINE_CONSTEXPR memory_order memory_order_relaxed =
     memory_order::relaxed;
@@ -42,11 +43,11 @@ __SYCL_INLINE_CONSTEXPR memory_order memory_order_seq_cst =
     memory_order::seq_cst;
 
 enum class memory_scope : int {
-  work_item,
-  sub_group,
-  work_group,
-  device,
-  system
+  work_item = 0,
+  sub_group = 1,
+  work_group = 2,
+  device = 3,
+  system = 4
 };
 __SYCL_INLINE_CONSTEXPR memory_scope memory_scope_work_item =
     memory_scope::work_item;

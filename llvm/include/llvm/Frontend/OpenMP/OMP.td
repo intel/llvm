@@ -82,7 +82,7 @@ def OMPC_Shared : Clause<"shared"> {
 }
 def OMPC_Reduction : Clause<"reduction"> {
   let clangClass = "OMPReductionClause";
-  let flangClass = "OmpReductionClause";
+  let flangClassValue = "OmpReductionClause";
 }
 def OMPC_Linear : Clause<"linear"> {
   let clangClass = "OMPLinearClause";
@@ -231,6 +231,7 @@ def OMPC_IsDevicePtr : Clause<"is_device_ptr"> {
 }
 def OMPC_TaskReduction : Clause<"task_reduction"> {
   let clangClass = "OMPTaskReductionClause";
+  let flangClassValue = "OmpReductionClause";
 }
 def OMPC_InReduction : Clause<"in_reduction"> {
   let clangClass = "OMPInReductionClause";

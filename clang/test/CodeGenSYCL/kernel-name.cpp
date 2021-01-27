@@ -13,7 +13,7 @@ __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
 }
 
-// CHECK: define spir_kernel {{.*}}2cl4sycl6kernel
+// CHECK: define {{.*}}spir_kernel {{.*}}2cl4sycl6kernel
 int main() {
   kernel_single_task<class kernel>([]() {});
   return 0;

@@ -22,7 +22,7 @@ namespace INTEL {
 using byte = unsigned char;
 
 enum class compiled_code_format {
-  spir_v // the only format supported for now
+  spir_v = 0 // the only format supported for now
 };
 
 class device_arch {
@@ -33,14 +33,14 @@ public:
 
   enum gpu {
     gpu_any = 1,
-    gpu_gen9,
+    gpu_gen9 = 2,
     gpu_skl = gpu_gen9,
-    gpu_gen9_5,
+    gpu_gen9_5 = 3,
     gpu_kbl = gpu_gen9_5,
     gpu_cfl = gpu_gen9_5,
-    gpu_gen11,
+    gpu_gen11 = 4,
     gpu_icl = gpu_gen11,
-    gpu_gen12
+    gpu_gen12 = 5
   };
 
   enum cpu {
@@ -65,7 +65,7 @@ public:
 };
 
 /// Designates a source language for the online compiler.
-enum class source_language { opencl_c, cm };
+enum class source_language { opencl_c = 0, cm = 1 };
 
 /// Represents an online compiler for the language given as template
 /// parameter.
@@ -94,7 +94,7 @@ public:
   // TODO: the initial version generates the generic code (SKL now), need
   // to do additional device::info calls to determine the device by it's
   // features.
-  online_compiler(const sycl::device &dev)
+  online_compiler(const sycl::device &)
       : OutputFormat(compiled_code_format::spir_v), OutputFormatVersion({0, 0}),
         DeviceType(sycl::info::device_type::all), DeviceArch(device_arch::any),
         Is64Bit(true), DeviceStepping("") {}

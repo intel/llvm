@@ -49,10 +49,10 @@ void throw(void *obj) {
   // WEBASSEMBLY64: call void @llvm.wasm.throw(i32 0, i8* %{{.*}})
 }
 
-void rethrow_in_catch(void) {
-  return __builtin_wasm_rethrow_in_catch();
-  // WEBASSEMBLY32: call void @llvm.wasm.rethrow.in.catch()
-  // WEBASSEMBLY64: call void @llvm.wasm.rethrow.in.catch()
+void rethrow(void) {
+  return __builtin_wasm_rethrow();
+  // WEBASSEMBLY32: call void @llvm.wasm.rethrow()
+  // WEBASSEMBLY64: call void @llvm.wasm.rethrow()
 }
 
 int memory_atomic_wait32(int *addr, int expected, long long timeout) {
@@ -603,6 +603,34 @@ u64x2 extmul_high_i32x4_u_i64x2(u32x4 x, u32x4 y) {
   // WEBASSEMBLY-NEXT: ret
 }
 
+i16x8 extadd_pairwise_i8x16_s_i16x8(i8x16 v) {
+  return __builtin_wasm_extadd_pairwise_i8x16_s_i16x8(v);
+  // WEBASSEMBLY: call <8 x i16> @llvm.wasm.extadd.pairwise.signed.v8i16(
+  // WEBASSEMBLY-SAME: <16 x i8> %v)
+  // WEBASSEMBLY-NEXT: ret
+}
+
+u16x8 extadd_pairwise_i8x16_u_i16x8(u8x16 v) {
+  return __builtin_wasm_extadd_pairwise_i8x16_u_i16x8(v);
+  // WEBASSEMBLY: call <8 x i16> @llvm.wasm.extadd.pairwise.unsigned.v8i16(
+  // WEBASSEMBLY-SAME: <16 x i8> %v)
+  // WEBASSEMBLY-NEXT: ret
+}
+
+i32x4 extadd_pairwise_i16x8_s_i32x4(i16x8 v) {
+  return __builtin_wasm_extadd_pairwise_i16x8_s_i32x4(v);
+  // WEBASSEMBLY: call <4 x i32> @llvm.wasm.extadd.pairwise.signed.v4i32(
+  // WEBASSEMBLY-SAME: <8 x i16> %v)
+  // WEBASSEMBLY-NEXT: ret
+}
+
+u32x4 extadd_pairwise_i16x8_u_i32x4(u16x8 v) {
+  return __builtin_wasm_extadd_pairwise_i16x8_u_i32x4(v);
+  // WEBASSEMBLY: call <4 x i32> @llvm.wasm.extadd.pairwise.unsigned.v4i32(
+  // WEBASSEMBLY-SAME: <8 x i16> %v)
+  // WEBASSEMBLY-NEXT: ret
+}
+
 i32x4 dot_i16x8_s(i16x8 x, i16x8 y) {
   return __builtin_wasm_dot_s_i32x4_i16x8(x, y);
   // WEBASSEMBLY: call <4 x i32> @llvm.wasm.dot(<8 x i16> %x, <8 x i16> %y)
@@ -973,4 +1001,14 @@ i8x16 shuffle(i8x16 x, i8x16 y) {
   // WEBASSEMBLY-SAME: i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14,
   // WEBASSEMBLY-SAME: i32 15
   // WEBASSEMBLY-NEXT: ret
+}
+
+void prefetch_t(void *p) {
+  return __builtin_wasm_prefetch_t(p);
+  // WEBASSEMBLY: call void @llvm.wasm.prefetch.t(i8* %p)
+}
+
+void prefetch_nt(void *p) {
+  return __builtin_wasm_prefetch_nt(p);
+  // WEBASSEMBLY: call void @llvm.wasm.prefetch.nt(i8* %p)
 }

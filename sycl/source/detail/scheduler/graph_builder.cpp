@@ -355,6 +355,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
 
     if ((Req->MAccessMode == access::mode::discard_write) ||
         (Req->MAccessMode == access::mode::discard_read_write)) {
+      Record->MCurContext = Queue->getContextImplPtr();
       return nullptr;
     } else {
       // Full copy of buffer is needed to avoid loss of data that may be caused

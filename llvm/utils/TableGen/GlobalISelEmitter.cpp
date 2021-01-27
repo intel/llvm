@@ -2249,10 +2249,10 @@ public:
   }
 
   OperandMatcher &getOperand(unsigned OpIdx) {
-    auto I = std::find_if(Operands.begin(), Operands.end(),
-                          [&OpIdx](const std::unique_ptr<OperandMatcher> &X) {
-                            return X->getOpIdx() == OpIdx;
-                          });
+    auto I = llvm::find_if(Operands,
+                           [&OpIdx](const std::unique_ptr<OperandMatcher> &X) {
+                             return X->getOpIdx() == OpIdx;
+                           });
     if (I != Operands.end())
       return **I;
     llvm_unreachable("Failed to lookup operand");
@@ -4998,7 +4998,8 @@ GlobalISelEmitter::inferSuperRegisterClass(const TypeSetByHwMode &Ty,
   // Use the information we found above to find a minimal register class which
   // supports the subregister and type we want.
   auto RC =
-      Target.getSuperRegForSubReg(Ty.getValueTypeByHwMode(), CGRegs, SubIdx);
+      Target.getSuperRegForSubReg(Ty.getValueTypeByHwMode(), CGRegs, SubIdx,
+                                  /* MustBeAllocatable */ true);
   if (!RC)
     return None;
   return *RC;

@@ -1779,8 +1779,8 @@ MemoryUseOrDef *MemorySSA::createNewAccess(Instruction *I,
 
   bool Def, Use;
   if (Template) {
-    Def = dyn_cast_or_null<MemoryDef>(Template) != nullptr;
-    Use = dyn_cast_or_null<MemoryUse>(Template) != nullptr;
+    Def = isa<MemoryDef>(Template);
+    Use = isa<MemoryUse>(Template);
 #if !defined(NDEBUG)
     ModRefInfo ModRef = AAP->getModRefInfo(I, None);
     bool DefCheck, UseCheck;
@@ -1815,23 +1815,6 @@ MemoryUseOrDef *MemorySSA::createNewAccess(Instruction *I,
     MUD = new MemoryUse(I->getContext(), nullptr, I, I->getParent());
   ValueToMemoryAccess[I] = MUD;
   return MUD;
-}
-
-/// Returns true if \p Replacer dominates \p Replacee .
-bool MemorySSA::dominatesUse(const MemoryAccess *Replacer,
-                             const MemoryAccess *Replacee) const {
-  if (isa<MemoryUseOrDef>(Replacee))
-    return DT->dominates(Replacer->getBlock(), Replacee->getBlock());
-  const auto *MP = cast<MemoryPhi>(Replacee);
-  // For a phi node, the use occurs in the predecessor block of the phi node.
-  // Since we may occur multiple times in the phi node, we have to check each
-  // operand to ensure Replacer dominates each operand where Replacee occurs.
-  for (const Use &Arg : MP->operands()) {
-    if (Arg.get() != Replacee &&
-        !DT->dominates(Replacer->getBlock(), MP->getIncomingBlock(Arg)))
-      return false;
-  }
-  return true;
 }
 
 /// Properly remove \p MA from all of MemorySSA's lookup tables.
