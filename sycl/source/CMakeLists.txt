@@ -84,8 +84,7 @@ function(add_sycl_rt_library LIB_NAME)
     PUBLIC
       $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:USE_PI_CUDA>)
 
-  add_common_options(${LIB_OBJ_NAME} 0)
-  add_common_options(${LIB_NAME} 1)
+  add_common_options(${LIB_NAME} ${LIB_OBJ_NAME})
 
   set_target_properties(${LIB_NAME} PROPERTIES
                         VERSION ${SYCL_VERSION_STRING}

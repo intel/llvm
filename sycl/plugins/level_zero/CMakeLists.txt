@@ -132,8 +132,7 @@ if (UNIX)
   target_link_libraries(pi_level_zero PRIVATE pthread)
 endif()
 
-add_common_options(pi_level_zero 0)
-add_common_options(pi_level_zero 1)
+add_common_options(pi_level_zero)
 
 install(TARGETS pi_level_zero
     LIBRARY DESTINATION "lib" COMPONENT pi_level_zero

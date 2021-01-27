@@ -223,9 +223,7 @@ endif()
 # This function allows building multiple libraries with the same options.
 # Currently used by sycl and plugins library.
 # Currently handles linking with libcxx support and gcc workaround
-# If IS_LINK is 1, common linker options should be added for target or common
-# compile option should be added.
-function( add_common_options TAR_NAME IS_LINK)
+function( add_common_options)
   if (SYCL_USE_LIBCXX)
       if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
           (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
@@ -233,12 +231,13 @@ function( add_common_options TAR_NAME IS_LINK)
               message(FATAL_ERROR "When building with libc++ SYCL_LIBCXX_INCLUDE_PATHS and"
                                   "SYCL_LIBCXX_LIBRARY_PATH should be set")
           endif()
-          if (IS_LINK)
-              target_link_libraries(${TAR_NAME} PRIVATE "-L${SYCL_LIBCXX_LIBRARY_PATH}" -Wl,-rpath,${SYCL_LIBCXX_LIBRARY_PATH} -nodefaultlibs -lc++ -lc++abi -lm -lc -lgcc_s -lgcc)
-          else()
-              target_compile_options(${TAR_NAME} PRIVATE -nostdinc++)
-              target_include_directories(${TAR_NAME} PRIVATE "${SYCL_LIBCXX_INCLUDE_PATH}")
-          endif()
+              target_link_libraries(${ARGV0} PRIVATE "-L${SYCL_LIBCXX_LIBRARY_PATH}" -Wl,-rpath,${SYCL_LIBCXX_LIBRARY_PATH} -nodefaultlibs -lc++ -lc++abi -lm -lc -lgcc_s -lgcc)
+              target_compile_options(${ARGV0} PRIVATE -nostdinc++)
+              target_include_directories(${ARGV0} PRIVATE "${SYCL_LIBCXX_INCLUDE_PATH}")
+              if (ARGC EQUAL 2)
+                target_compile_options(${ARGV1} PRIVATE -nostdinc++)
+                target_include_directories(${ARGV1} PRIVATE "${SYCL_LIBCXX_INCLUDE_PATH}")
+              endif()
       else()
           message(FATAL_ERROR "Build with libc++ is not yet supported for this compiler")
       endif()
@@ -247,8 +246,8 @@ function( add_common_options TAR_NAME IS_LINK)
 # Workaround for bug in GCC version 5 and higher.
 # More information https://bugs.launchpad.net/ubuntu/+source/gcc-5/+bug/1568899
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
-        CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 5.0 AND IS_LINK)
-        target_link_libraries(${TAR_NAME} PRIVATE gcc_s gcc)
+        CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 5.0)
+        target_link_libraries(${ARGV0} PRIVATE gcc_s gcc)
     endif()
 
   endif()

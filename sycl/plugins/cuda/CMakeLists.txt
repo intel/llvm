@@ -39,7 +39,7 @@ target_include_directories(pi_cuda
 
 target_link_libraries(pi_cuda PUBLIC OpenCL-Headers cudadrv)
 
-add_common_options(pi_cuda 1)
+add_common_options(pi_cuda)
 
 install(TARGETS pi_cuda
   LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT pi_cuda
