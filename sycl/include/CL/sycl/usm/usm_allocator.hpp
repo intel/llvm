@@ -50,8 +50,16 @@ public:
       : MContext(Q.get_context()), MDevice(Q.get_device()) {}
   usm_allocator(const usm_allocator &) noexcept = default;
   usm_allocator(usm_allocator &&) noexcept = default;
-  usm_allocator &operator=(const usm_allocator &) = delete;
-  usm_allocator &operator=(usm_allocator &&) = default;
+  usm_allocator &operator=(const usm_allocator &Other) {
+    MContext = Other.MContext;
+    MDevice = Other.MDevice;
+    return *this;
+  };
+  usm_allocator &operator=(usm_allocator &&Other) {
+    MContext = std::move(Other.MContext);
+    MDevice = std::move(Other.MDevice);
+    return *this;
+  }
 
   template <class U>
   usm_allocator(const usm_allocator<U, AllocKind, Alignment> &Other) noexcept
@@ -101,8 +109,8 @@ private:
   template <class U, usm::alloc AllocKindU, size_t AlignmentU>
   friend class usm_allocator;
 
-  const context MContext;
-  const device MDevice;
+  context MContext;
+  device MDevice;
 };
 
 } // namespace sycl
