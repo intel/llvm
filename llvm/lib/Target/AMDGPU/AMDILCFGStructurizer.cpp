@@ -7,8 +7,9 @@
 //==-----------------------------------------------------------------------===//
 
 #include "AMDGPU.h"
-#include "AMDGPUSubtarget.h"
+#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "R600RegisterInfo.h"
+#include "R600Subtarget.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -441,7 +442,7 @@ MachineInstr *AMDGPUCFGStructurizer::insertInstrBefore(MachineBasicBlock *MBB,
                                                        const DebugLoc &DL) {
   MachineInstr *MI =
       MBB->getParent()->CreateMachineInstr(TII->get(NewOpcode), DL);
-  if (MBB->begin() != MBB->end())
+  if (!MBB->empty())
     MBB->insert(MBB->begin(), MI);
   else
     MBB->push_back(MI);

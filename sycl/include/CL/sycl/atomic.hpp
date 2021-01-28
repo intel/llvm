@@ -26,7 +26,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-enum class memory_order : int { relaxed };
+enum class memory_order : int { relaxed = 0 };
 
 // Forward declaration
 template <typename pointerT, access::address_space addressSpace>

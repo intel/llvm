@@ -748,9 +748,13 @@ private:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
-    // FIXME Remove this ifndef once rounding of execution range works well with
-    // ESIMD compilation flow.
-#ifndef __SYCL_EXPLICIT_SIMD__
+    // FIXME Remove the ESIMD check once rounding of execution range works well
+    // with ESIMD compilation flow.
+    // Range rounding is supported only for newer SYCL standards.
+    // Range rounding can also be disabled by the user.
+#if !defined(__SYCL_EXPLICIT_SIMD__) &&                                        \
+    !defined(SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING) &&                      \
+    SYCL_LANGUAGE_VERSION >= 202001
     // The work group size preferred by this device.
     // A reasonable choice for rounding up the range is 32.
     constexpr size_t GoodLocalSizeX = 32;
@@ -816,7 +820,8 @@ private:
       MCGType = detail::CG::KERNEL;
 #endif
     } else
-#endif // __SYCL_EXPLICIT_SIMD__
+#endif // !__SYCL_EXPLICIT_SIMD__ && !SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING
+       // && SYCL_LANGUAGE_VERSION > 202001
     {
 #ifdef __SYCL_DEVICE_ONLY__
       (void)NumWorkItems;

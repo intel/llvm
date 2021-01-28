@@ -3029,9 +3029,17 @@ private:
 
 public:
     // constructors and reset functions
-    explicit uniform_int_distribution(result_type __a = 0,
-                                      result_type __b = numeric_limits<result_type>::max())
+#ifndef _LIBCPP_CXX03_LANG
+    uniform_int_distribution() : uniform_int_distribution(0) {}
+    explicit uniform_int_distribution(
+        result_type __a, result_type __b = numeric_limits<result_type>::max())
         : __p_(param_type(__a, __b)) {}
+#else
+    explicit uniform_int_distribution(
+        result_type __a = 0,
+        result_type __b = numeric_limits<result_type>::max())
+        : __p_(param_type(__a, __b)) {}
+#endif
     explicit uniform_int_distribution(const param_type& __p) : __p_(__p) {}
     void reset() {}
 
@@ -4483,7 +4491,7 @@ __buffered_inplace_merge(_BidirectionalIterator __first, _BidirectionalIterator 
         value_type* __p = __buff;
         for (_BidirectionalIterator __i = __first; __i != __middle; __d.template __incr<value_type>(), (void) ++__i, (void) ++__p)
             ::new ((void*)__p) value_type(_VSTD::move(*__i));
-        _VSTD::__half_inplace_merge(__buff, __p, __middle, __last, __first, __comp);
+        _VSTD::__half_inplace_merge<_Compare>(__buff, __p, __middle, __last, __first, __comp);
     }
     else
     {
@@ -4492,9 +4500,10 @@ __buffered_inplace_merge(_BidirectionalIterator __first, _BidirectionalIterator 
             ::new ((void*)__p) value_type(_VSTD::move(*__i));
         typedef reverse_iterator<_BidirectionalIterator> _RBi;
         typedef reverse_iterator<value_type*> _Rv;
-        _VSTD::__half_inplace_merge(_Rv(__p), _Rv(__buff),
+        typedef __invert<_Compare> _Inverted;
+        _VSTD::__half_inplace_merge<_Inverted>(_Rv(__p), _Rv(__buff),
                                     _RBi(__middle), _RBi(__first),
-                                    _RBi(__last), _VSTD::__invert<_Compare>(__comp));
+                                    _RBi(__last), _Inverted(__comp));
     }
 }
 

@@ -1512,9 +1512,17 @@ public:
     return detail::convertToArrayOfN<Dimensions, 0>(getOffset());
   }
 
-  template <int Dims = Dimensions,
-            typename = detail::enable_if_t<Dims == 0 && IsAccessAnyWrite>>
+  template <int Dims = Dimensions, typename RefT = RefType,
+            typename = detail::enable_if_t<Dims == 0 && IsAccessAnyWrite &&
+                                           !std::is_const<RefT>::value>>
   operator RefType() const {
+    const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
+    return *(getQualifiedPtr() + LinearIndex);
+  }
+
+  template <int Dims = Dimensions,
+            typename = detail::enable_if_t<Dims == 0 && IsAccessReadOnly>>
+  operator ConstRefType() const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
     return *(getQualifiedPtr() + LinearIndex);
   }
@@ -1524,13 +1532,6 @@ public:
   RefType operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return getQualifiedPtr()[LinearIndex];
-  }
-
-  template <int Dims = Dimensions,
-            typename = detail::enable_if_t<Dims == 0 && IsAccessReadOnly>>
-  operator DataT() const {
-    const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
-    return *(getQualifiedPtr() + LinearIndex);
   }
 
   template <int Dims = Dimensions>

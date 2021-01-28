@@ -2783,7 +2783,7 @@ bool Driver::checkForOffloadStaticLib(Compilation &C,
       !Args.hasArg(options::OPT_fopenmp_targets_EQ))
     return false;
 
-  // Right off the bat, assume the presense of -foffload-static-lib means
+  // Right off the bat, assume the presence of -foffload-static-lib means
   // the need to perform linking steps for fat static archive offloading.
   // TODO: remove when -foffload-static-lib support is dropped.
   if (Args.hasArg(options::OPT_offload_lib_Group))
@@ -6371,6 +6371,10 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   if (AtTopLevel && !isa<DsymutilJobAction>(JA) && !isa<VerifyJobAction>(JA)) {
     if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
       return C.addResultFile(FinalOutput->getValue(), &JA);
+    // Output to destination for -fsycl-device-only and Windows -o
+    if (C.getArgs().hasArg(options::OPT_fsycl_device_only))
+      if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT__SLASH_o))
+        return C.addResultFile(FinalOutput->getValue(), &JA);
   }
 
   // For /P, preprocess to file named after BaseInput.

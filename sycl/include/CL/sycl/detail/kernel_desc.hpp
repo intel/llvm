@@ -23,10 +23,10 @@ namespace detail {
 
 // kernel parameter kinds
 enum class kernel_param_kind_t {
-  kind_accessor,
-  kind_std_layout, // standard layout object parameters
-  kind_sampler,
-  kind_pointer
+  kind_accessor = 0,
+  kind_std_layout = 1, // standard layout object parameters
+  kind_sampler = 2,
+  kind_pointer = 3
 };
 
 // describes a kernel parameter

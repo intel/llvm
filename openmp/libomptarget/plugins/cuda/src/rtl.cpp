@@ -25,6 +25,8 @@
 #define TARGET_NAME CUDA
 #define DEBUG_PREFIX "Target " GETNAME(TARGET_NAME) " RTL"
 
+#include "MemoryManager.h"
+
 // Utility for retrieving and printing CUDA error string.
 #ifdef OMPTARGET_DEBUG
 #define CUDA_ERR_STRING(err)                                                   \
@@ -58,7 +60,7 @@
   } while (false)
 #endif // OMPTARGET_DEBUG
 
-#include "../../common/elf_common.c"
+#include "elf_common.h"
 
 /// Keep entries table per device.
 struct FuncOrGblEntryTy {
@@ -290,6 +292,55 @@ class DeviceRTLTy {
   std::vector<DeviceDataTy> DeviceData;
   std::vector<CUmodule> Modules;
 
+  /// A class responsible for interacting with device native runtime library to
+  /// allocate and free memory.
+  class CUDADeviceAllocatorTy : public DeviceAllocatorTy {
+    const int DeviceId;
+    const std::vector<DeviceDataTy> &DeviceData;
+
+  public:
+    CUDADeviceAllocatorTy(int DeviceId, std::vector<DeviceDataTy> &DeviceData)
+        : DeviceId(DeviceId), DeviceData(DeviceData) {}
+
+    void *allocate(size_t Size, void *) override {
+      if (Size == 0)
+        return nullptr;
+
+      CUresult Err = cuCtxSetCurrent(DeviceData[DeviceId].Context);
+      if (!checkResult(Err, "Error returned from cuCtxSetCurrent\n"))
+        return nullptr;
+
+      CUdeviceptr DevicePtr;
+      Err = cuMemAlloc(&DevicePtr, Size);
+      if (!checkResult(Err, "Error returned from cuMemAlloc\n"))
+        return nullptr;
+
+      return (void *)DevicePtr;
+    }
+
+    int free(void *TgtPtr) override {
+      CUresult Err = cuCtxSetCurrent(DeviceData[DeviceId].Context);
+      if (!checkResult(Err, "Error returned from cuCtxSetCurrent\n"))
+        return OFFLOAD_FAIL;
+
+      Err = cuMemFree((CUdeviceptr)TgtPtr);
+      if (!checkResult(Err, "Error returned from cuMemFree\n"))
+        return OFFLOAD_FAIL;
+
+      return OFFLOAD_SUCCESS;
+    }
+  };
+
+  /// A vector of device allocators
+  std::vector<CUDADeviceAllocatorTy> DeviceAllocators;
+
+  /// A vector of memory managers. Since the memory manager is non-copyable and
+  // non-removable, we wrap them into std::unique_ptr.
+  std::vector<std::unique_ptr<MemoryManagerTy>> MemoryManagers;
+
+  /// Whether use memory manager
+  bool UseMemoryManager = true;
+
   // Record entry point associated with device
   void addOffloadEntry(const int DeviceId, const __tgt_offload_entry entry) {
     FuncOrGblEntryTy &E = DeviceData[DeviceId].FuncGblEntries.back();
@@ -379,10 +430,27 @@ public:
 
     StreamManager =
         std::make_unique<StreamManagerTy>(NumberOfDevices, DeviceData);
+
+    for (int I = 0; I < NumberOfDevices; ++I)
+      DeviceAllocators.emplace_back(I, DeviceData);
+
+    // Get the size threshold from environment variable
+    std::pair<size_t, bool> Res = MemoryManagerTy::getSizeThresholdFromEnv();
+    UseMemoryManager = Res.second;
+    size_t MemoryManagerThreshold = Res.first;
+
+    if (UseMemoryManager)
+      for (int I = 0; I < NumberOfDevices; ++I)
+        MemoryManagers.emplace_back(std::make_unique<MemoryManagerTy>(
+            DeviceAllocators[I], MemoryManagerThreshold));
   }
 
   ~DeviceRTLTy() {
-    // First destruct stream manager in case of Contexts is destructed before it
+    // We first destruct memory managers in case that its dependent data are
+    // destroyed before it.
+    for (auto &M : MemoryManagers)
+      M.release();
+
     StreamManager = nullptr;
 
     for (CUmodule &M : Modules)
@@ -512,7 +580,7 @@ public:
       DeviceData[DeviceId].BlocksPerGrid = EnvTeamLimit;
     }
 
-    INFO(DeviceId,
+    INFO(OMP_INFOTYPE_PLUGIN_KERNEL, DeviceId,
          "Device supports up to %d CUDA blocks and %d threads with a "
          "warp size of %d\n",
          DeviceData[DeviceId].BlocksPerGrid,
@@ -731,20 +799,11 @@ public:
     return getOffloadEntriesTable(DeviceId);
   }
 
-  void *dataAlloc(const int DeviceId, const int64_t Size) const {
-    if (Size == 0)
-      return nullptr;
+  void *dataAlloc(const int DeviceId, const int64_t Size) {
+    if (UseMemoryManager)
+      return MemoryManagers[DeviceId]->allocate(Size, nullptr);
 
-    CUresult Err = cuCtxSetCurrent(DeviceData[DeviceId].Context);
-    if (!checkResult(Err, "Error returned from cuCtxSetCurrent\n"))
-      return nullptr;
-
-    CUdeviceptr DevicePtr;
-    Err = cuMemAlloc(&DevicePtr, Size);
-    if (!checkResult(Err, "Error returned from cuMemAlloc\n"))
-      return nullptr;
-
-    return (void *)DevicePtr;
+    return DeviceAllocators[DeviceId].allocate(Size, nullptr);
   }
 
   int dataSubmit(const int DeviceId, const void *TgtPtr, const void *HstPtr,
@@ -843,16 +902,11 @@ public:
     return memcpyDtoD(SrcPtr, DstPtr, Size, Stream);
   }
 
-  int dataDelete(const int DeviceId, void *TgtPtr) const {
-    CUresult Err = cuCtxSetCurrent(DeviceData[DeviceId].Context);
-    if (!checkResult(Err, "Error returned from cuCtxSetCurrent\n"))
-      return OFFLOAD_FAIL;
+  int dataDelete(const int DeviceId, void *TgtPtr) {
+    if (UseMemoryManager)
+      return MemoryManagers[DeviceId]->free(TgtPtr);
 
-    Err = cuMemFree((CUdeviceptr)TgtPtr);
-    if (!checkResult(Err, "Error returned from cuMemFree\n"))
-      return OFFLOAD_FAIL;
-
-    return OFFLOAD_SUCCESS;
+    return DeviceAllocators[DeviceId].free(TgtPtr);
   }
 
   int runTargetTeamRegion(const int DeviceId, void *TgtEntryPtr, void **TgtArgs,
@@ -950,7 +1004,7 @@ public:
       CudaBlocksPerGrid = TeamNum;
     }
 
-    INFO(DeviceId,
+    INFO(OMP_INFOTYPE_PLUGIN_KERNEL, DeviceId,
          "Launching kernel %s with %d blocks and %d threads in %s "
          "mode\n",
          (getOffloadEntry(DeviceId, TgtEntryPtr))

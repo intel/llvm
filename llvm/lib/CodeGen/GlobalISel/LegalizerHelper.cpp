@@ -91,17 +91,14 @@ LegalizerHelper::LegalizerHelper(MachineFunction &MF,
                                  MachineIRBuilder &Builder)
     : MIRBuilder(Builder), Observer(Observer), MRI(MF.getRegInfo()),
       LI(*MF.getSubtarget().getLegalizerInfo()),
-      TLI(*MF.getSubtarget().getTargetLowering()) {
-  MIRBuilder.setChangeObserver(Observer);
-}
+      TLI(*MF.getSubtarget().getTargetLowering()) { }
 
 LegalizerHelper::LegalizerHelper(MachineFunction &MF, const LegalizerInfo &LI,
                                  GISelChangeObserver &Observer,
                                  MachineIRBuilder &B)
   : MIRBuilder(B), Observer(Observer), MRI(MF.getRegInfo()), LI(LI),
-    TLI(*MF.getSubtarget().getTargetLowering()) {
-  MIRBuilder.setChangeObserver(Observer);
-}
+    TLI(*MF.getSubtarget().getTargetLowering()) { }
+
 LegalizerHelper::LegalizeResult
 LegalizerHelper::legalizeInstrStep(MachineInstr &MI) {
   LLVM_DEBUG(dbgs() << "Legalizing: " << MI);
@@ -1817,6 +1814,26 @@ LegalizerHelper::widenScalar(MachineInstr &MI, unsigned TypeIdx, LLT WideTy) {
     return widenScalarMergeValues(MI, TypeIdx, WideTy);
   case TargetOpcode::G_UNMERGE_VALUES:
     return widenScalarUnmergeValues(MI, TypeIdx, WideTy);
+  case TargetOpcode::G_SADDO:
+  case TargetOpcode::G_SSUBO: {
+    if (TypeIdx == 1)
+      return UnableToLegalize; // TODO
+    auto LHSExt = MIRBuilder.buildSExt(WideTy, MI.getOperand(2));
+    auto RHSExt = MIRBuilder.buildSExt(WideTy, MI.getOperand(3));
+    unsigned Opcode = MI.getOpcode() == TargetOpcode::G_SADDO
+                          ? TargetOpcode::G_ADD
+                          : TargetOpcode::G_SUB;
+    auto NewOp = MIRBuilder.buildInstr(Opcode, {WideTy}, {LHSExt, RHSExt});
+    LLT OrigTy = MRI.getType(MI.getOperand(0).getReg());
+    auto TruncOp = MIRBuilder.buildTrunc(OrigTy, NewOp);
+    auto ExtOp = MIRBuilder.buildSExt(WideTy, TruncOp);
+    // There is no overflow if the re-extended result is the same as NewOp.
+    MIRBuilder.buildICmp(CmpInst::ICMP_NE, MI.getOperand(1), NewOp, ExtOp);
+    // Now trunc the NewOp to the original result.
+    MIRBuilder.buildTrunc(MI.getOperand(0), NewOp);
+    MI.eraseFromParent();
+    return Legalized;
+  }
   case TargetOpcode::G_UADDO:
   case TargetOpcode::G_USUBO: {
     if (TypeIdx == 1)

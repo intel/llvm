@@ -16,23 +16,26 @@
 
 using namespace cl::sycl;
 
+namespace {
 struct TestCtx {
   TestCtx(context &Ctx) : Ctx{Ctx} {};
 
   context &Ctx;
   int KernelReferenceCount = 0;
 };
+} // namespace
 
-std::unique_ptr<TestCtx> TestContext;
+static std::unique_ptr<TestCtx> TestContext;
 
-pi_result redefinedProgramCreateWithSource(pi_context context, pi_uint32 count,
-                                           const char **strings,
-                                           const size_t *lengths,
-                                           pi_program *ret_program) {
+static pi_result redefinedProgramCreateWithSource(pi_context context,
+                                                  pi_uint32 count,
+                                                  const char **strings,
+                                                  const size_t *lengths,
+                                                  pi_program *ret_program) {
   return PI_SUCCESS;
 }
 
-pi_result
+static pi_result
 redefinedProgramBuild(pi_program program, pi_uint32 num_devices,
                       const pi_device *device_list, const char *options,
                       void (*pfn_notify)(pi_program program, void *user_data),
@@ -40,25 +43,28 @@ redefinedProgramBuild(pi_program program, pi_uint32 num_devices,
   return PI_SUCCESS;
 }
 
-pi_result redefinedKernelCreate(pi_program program, const char *kernel_name,
-                                pi_kernel *ret_kernel) {
+static pi_result redefinedKernelCreate(pi_program program,
+                                       const char *kernel_name,
+                                       pi_kernel *ret_kernel) {
   TestContext->KernelReferenceCount = 1;
   return PI_SUCCESS;
 }
 
-pi_result redefinedKernelRetain(pi_kernel kernel) {
+static pi_result redefinedKernelRetain(pi_kernel kernel) {
   ++TestContext->KernelReferenceCount;
   return PI_SUCCESS;
 }
 
-pi_result redefinedKernelRelease(pi_kernel kernel) {
+static pi_result redefinedKernelRelease(pi_kernel kernel) {
   --TestContext->KernelReferenceCount;
   return PI_SUCCESS;
 }
 
-pi_result redefinedKernelGetInfo(pi_kernel kernel, pi_kernel_info param_name,
-                                 size_t param_value_size, void *param_value,
-                                 size_t *param_value_size_ret) {
+static pi_result redefinedKernelGetInfo(pi_kernel kernel,
+                                        pi_kernel_info param_name,
+                                        size_t param_value_size,
+                                        void *param_value,
+                                        size_t *param_value_size_ret) {
   EXPECT_EQ(param_name, PI_KERNEL_INFO_CONTEXT)
       << "Unexpected kernel info requested";
   auto *Result = reinterpret_cast<RT::PiContext *>(param_value);
@@ -68,10 +74,10 @@ pi_result redefinedKernelGetInfo(pi_kernel kernel, pi_kernel_info param_name,
   return PI_SUCCESS;
 }
 
-pi_result redefinedKernelSetExecInfo(pi_kernel kernel,
-                                     pi_kernel_exec_info param_name,
-                                     size_t param_value_size,
-                                     const void *param_value) {
+static pi_result redefinedKernelSetExecInfo(pi_kernel kernel,
+                                            pi_kernel_exec_info param_name,
+                                            size_t param_value_size,
+                                            const void *param_value) {
   return PI_SUCCESS;
 }
 

@@ -99,6 +99,10 @@ llvm/**/file-table-tform/ @kbobrovs @AlexeySachkov
 llvm/**/llvm-foreach/ @AlexeySachkov  @Fznamznon
 llvm/**/llvm-no-spir-kernel/ @AGindinson @AlexeySachkov
 llvm/**/sycl-post-link/ @kbobrovs @AlexeySachkov
+llvm/include/llvm/Support/PropertySetIO.h @kbobrovs @AlexeySachkov
+llvm/lib/Support/PropertySetIO.cpp @kbobrovs @AlexeySachkov
+llvm/unittests/Support/PropertySetIOTest.cpp @kbobrovs @AlexeySachkov
+llvm/lib/Support/Base64.cpp @kbobrovs @AlexeySachkov
 
 # Clang offload tools
 clang/tools/clang-offload-bundler/ @kbobrovs @sndmitriev
@@ -106,7 +110,7 @@ clang/tools/clang-offload-wrapper/ @sndmitriev @kbobrovs
 clang/tools/clang-offload-deps/ @sndmitriev
 
 # Explicit SIMD
-SYCLLowerIR/ @kbobrovs
-esimd/ @kbobrovs
-sycl/include/CL/sycl/INTEL/esimd.hpp @kbobrovs
+SYCLLowerIR/ @kbobrovs @DenisBakhvalov
+esimd/ @kbobrovs @DenisBakhvalov
+sycl/include/CL/sycl/INTEL/esimd.hpp @kbobrovs @DenisBakhvalov
 sycl/doc/extensions/ExplicitSIMD/ @kbobrovs

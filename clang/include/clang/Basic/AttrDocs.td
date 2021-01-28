@@ -2199,7 +2199,7 @@ attribute was applied. This effect is equivalent to annotating restrict on
 **all** kernel pointer arguments in an OpenCL or SPIR-V kernel.
 
 If ``intel::kernel_args_restrict`` is applied to a function called from a device
-kernel, the attribute is ignored and it is not propagated to a kernel.
+kernel, the attribute is not ignored and it is propagated to the kernel.
 
 The attribute forms an unchecked assertion, in that implementations
 do not need to check/confirm the pre-condition in any way. If a user applies
@@ -2219,6 +2219,15 @@ program is ill-formed and no diagnostic is required.
 
 The ``intel::kernel_args_restrict`` attribute has an effect when applied to a
 function, and no effect otherwise.
+
+.. code-block:: c++
+
+  [[intel::kernel_args_restrict]] void func() {}
+
+  struct bar {
+    [[intel::kernel_args_restrict]] void operator()() const {}
+  };
+
   }];
 }
 
@@ -2229,7 +2238,26 @@ def SYCLIntelNumSimdWorkItemsAttrDocs : Documentation {
 Applies to a device function/lambda function. Indicates the number of work
 items that should be processed in parallel. Valid values are positive integers.
 If ``intel::num_simd_work_items`` is applied to a function called from a
-device kernel, the attribute is ignored and it is not propagated to a kernel.
+device kernel, the attribute is not ignored and it is propagated to the kernel.
+
+.. code-block:: c++
+
+  [[intel::num_simd_work_items(4)]] void foo() {}
+
+  template<int N>
+  [[intel::num_simd_work_items(N)]] void bar() {}
+
+  class Foo {
+  public:
+    [[intel::num_simd_work_items(6)]] void operator()() const {}
+  };
+
+  template <int N>
+  class Functor {
+  public:
+    [[intel::num_simd_work_items(N)]] void operator()() const {}
+  };
+
   }];
 }
 
@@ -2243,7 +2271,7 @@ clusters handle stalls using a stall-enable signal to freeze computation
 within the cluster. This attribute is ignored on the host.
 
 If ``intel::use_stall_enable_clusters`` is applied to a function called from a device
-kernel, the attribute is ignored and it is not propagated to a kernel.
+kernel, the attribute is ignored and it is not propagated to the kernel.
 
 The ``intel::use_stall_enable_clusters`` attribute takes no argument and has an effect
 when applied to a function, and no effect otherwise.
@@ -2285,14 +2313,64 @@ those device functions, such that the kernel attributes are the sum of all
 attributes of all device functions called in this kernel.
 See section 6.7 Attributes for more details.
 
-As Intel extension, ``[[intel::reqd_work_group_size(X, Y, Z)]]`` spelling is allowed
-which features optional arguments `Y` and `Z`, those simplifies its usage if
-only 1- or 2-dimensional ND-range is assumed by a programmer. These arguments
-defaults to ``1``.
+.. code-block:: c++
+
+  [[cl::reqd_work_group_size(4, 4, 4)]] void foo() {}
+
+  class Foo {
+  public:
+    [[cl::reqd_work_group_size(2, 2, 2)]] void operator()() const {}
+  };
+
+  template <int N, int N1, int N2>
+  class Functor {
+  public:
+    [[cl::reqd_work_group_size(N, N1, N2)]] void operator()() const {}
+  };
+
+  template <int N, int N1, int N2>
+  [[cl::reqd_work_group_size(N, N1, N2)]] void func() {}
+
+As an Intel extension, the ``[[intel::reqd_work_group_size(X, Y, Z)]]``
+spelling is supported. This spelling allows the Y and Z arguments to be
+optional. If not provided by the user, the value of Y and Z defaults to 1.
+This simplifies usage of the attribute when a 1- or 2-dimensional ND-range
+is assumed.
+
+.. code-block:: c++
+
+  [[intel::reqd_work_group_size(5)]]
+  // identical to [[intel::reqd_work_group_size(5, 1, 1)]]
+  void quux() {}
+
+  [[intel::reqd_work_group_size(5, 5)]]
+  // identical to [[intel::reqd_work_group_size(5, 5, 1)]]
+  void qux() {}
+
+  [[intel::reqd_work_group_size(4, 4, 4)]] void foo() {}
+
+  class Foo {
+  public:
+    [[intel::reqd_work_group_size(2, 2, 2)]] void operator()() const {}
+  };
+
+  template <int X, int Y, int Z>
+  class Functor {
+  public:
+    [[intel::reqd_work_group_size(X, Y, Z)]] void operator()() const {}
+  };
+
+  template <int X, int Y, int Z>
+  [[intel::reqd_work_group_size(X, Y, Z)]] void func() {}
 
 In OpenCL C, this attribute is available in GNU spelling
 (``__attribute__((reqd_work_group_size(X, Y, Z)))``), see section
 6.7.2 Optional Attribute Qualifiers of OpenCL 1.2 specification for details.
+
+.. code-block:: c++
+
+  __kernel __attribute__((reqd_work_group_size(8, 16, 32))) void test() {}
+
   }];
 }
 
@@ -2305,7 +2383,26 @@ of a work group. Values must be positive integers. This is similar to
 reqd_work_group_size, but allows work groups that are smaller or equal to the
 specified sizes.
 If ``intel::max_work_group_size`` is applied to a function called from a
-device kernel, the attribute is ignored and it is not propagated to a kernel.
+device kernel, the attribute is not ignored and it is propagated to the kernel.
+
+.. code-block:: c++
+
+  [[intel::max_work_group_size(4, 4, 4)]] void foo() {}
+
+  class Foo {
+  public:
+    [[intel::max_work_group_size(2, 2, 2)]] void operator()() const {}
+  };
+
+  template <int N, int N1, int N2>
+  class Functor {
+  public:
+    [[intel::max_work_group_size(N, N1, N2)]] void operator()() const {}
+  };
+
+  template <int N, int N1, int N2>
+  [[intel::max_work_group_size(N, N1, N2)]] void func() {}
+
   }];
 }
 
@@ -2316,12 +2413,42 @@ def SYCLIntelMaxGlobalWorkDimAttrDocs : Documentation {
 Applies to a device function/lambda function or function call operator (of a
 function object). Indicates the largest valid global work dimension that will be
 accepted when running the kernel on a device. Valid values are integers in a
-range of [0, 3]. A kernel with max_global_work_dim(0) must be invoked with a
+range of [0, 3].
+If ``intel::max_global_work_dim`` is applied to a function called from a
+device kernel, the attribute is not ignored and it is propagated to the kernel.
+
+.. code-block:: c++
+
+  [[intel::max_global_work_dim(1)]] void foo() {}
+
+  template<int N>
+  [[intel::max_global_work_dim(N)]] void bar() {}
+
+  class Foo {
+  public:
+    [[intel::max_global_work_dim(1)]] void operator()() const {}
+  };
+
+  template <int N>
+  class Functor {
+  public:
+    [[intel::max_global_work_dim(N)]] void operator()() const {}
+  };
+
+A kernel with ``intel::max_global_work_dim(0)`` must be invoked with a
 'single_task' and if ``intel::max_work_group_size`` or
 ``cl::reqd_work_group_size`` are applied to the kernel as well - they shall
 have arguments of (1, 1, 1).
-If ``intel::max_global_work_dim`` is applied to a function called from a
-device kernel, the attribute is ignored and it is not propagated to a kernel.
+
+.. code-block:: c++
+
+  struct TRIFuncObjGood {
+    [[intel::max_global_work_dim(0)]]
+    [[intel::max_work_group_size(1, 1, 1)]]
+    [[cl::reqd_work_group_size(1, 1, 1)]]
+    void operator()() const {}
+  };
+
   }];
 }
 
@@ -2344,6 +2471,25 @@ This attribute enables communication of the desired maximum frequency of the
 device operation, guiding the FPGA backend to insert the appropriate number of
 registers to break-up the combinational logic circuit, and thereby controlling
 the length of the longest combinational path.
+
+.. code-block:: c++
+
+  [[intel::scheduler_target_fmax_mhz(4)]] void foo() {}
+
+  template<int N>
+  [[intel::scheduler_target_fmax_mhz(N)]] void bar() {}
+
+  class Foo {
+  public:
+    [[intel::scheduler_target_fmax_mhz(6)]] void operator()() const {}
+  };
+
+  template <int N>
+  class Functor {
+  public:
+    [[intel::scheduler_target_fmax_mhz(N)]] void operator()() const {}
+  };
+
   }];
 }
 
@@ -2355,6 +2501,29 @@ Applies to a device function/lambda function or function call operator (of a
 function object). If 1, compiler doesn't use the global work offset values for
 the device function. Valid values are 0 and 1. If used without argument, value
 of 1 is set implicitly.
+
+.. code-block:: c++
+
+  [[intel::no_global_work_offset]]
+  // identical to [[intel::no_global_work_offset(1)]]
+  void quux() {}
+
+  [[intel::no_global_work_offset(0)]] void foo() {}
+
+  class Foo {
+  public:
+    [[intel::no_global_work_offset(1)]] void operator()() const {}
+  };
+
+  template <int N>
+  class Functor {
+  public:
+    [[intel::no_global_work_offset(N)]] void operator()() const {}
+  };
+
+  template <int N>
+  [[intel::no_global_work_offset(N)]] void func() {}
+
   }];
 }
 
@@ -2645,6 +2814,15 @@ optimization.
 This attribute allows to pass name and address of the function to a special
 ``cl::sycl::intel::get_device_func_ptr`` API call which extracts the device
 function pointer for the specified function.
+
+.. code-block:: c++
+
+  [[intel::device_indirectly_callable]] int func3() {}
+
+  class A {
+    [[intel::device_indirectly_callable]] A() {}
+  };
+
   }];
 }
 
@@ -6090,6 +6268,17 @@ template when declaring the texture reference. A texture reference variable
 could be accessed on the host side and, on the device side, might be translated
 into an internal texture object, which is established through texture bind and
 unbind runtime APIs.
+  }];
+}
+
+def HIPManagedAttrDocs : Documentation {
+  let Category = DocCatDecl;
+  let Content = [{
+The ``__managed__`` attribute can be applied to a global variable declaration in HIP.
+A managed variable is emitted as an undefined global symbol in the device binary and is
+registered by ``__hipRegisterManagedVariable`` in init functions. The HIP runtime allocates
+managed memory and uses it to define the symbol when loading the device binary.
+A managed variable can be accessed in both device and host code.
   }];
 }
 
