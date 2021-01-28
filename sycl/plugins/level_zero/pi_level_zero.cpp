@@ -2078,8 +2078,9 @@ pi_result piContextRelease(pi_context Context) {
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 
   if (--(Context->RefCount) == 0) {
-    ze_context_handle_t DestoryZeContext =
+    ze_context_handle_t DestroyZeContext =
         Context->OwnZeContext ? Context->ZeContext : nullptr;
+    pi_platform Platform = Context->Devices[0]->Platform;
 
     // Clean up any live memory associated with Context
     pi_result Result = Context->finalize();
@@ -2093,8 +2094,11 @@ pi_result piContextRelease(pi_context Context) {
     // and therefore it must be valid at that point.
     // Technically it should be placed to the destructor of pi_context
     // but this makes API error handling more complex.
-    if (DestoryZeContext)
-      ZE_CALL(zeContextDestroy, (DestoryZeContext));
+    if (DestroyZeContext) {
+      // Defer context destruction to piTearDown.
+      std::lock_guard<std::mutex> Lock(Platform->ContextsMutex);
+      Platform->Contexts.insert(DestroyZeContext);
+    }
 
     return Result;
   }
@@ -2394,7 +2398,11 @@ pi_result piMemRelease(pi_mem Mem) {
     } else {
       auto Buf = static_cast<_pi_buffer *>(Mem);
       if (!Buf->isSubBuffer()) {
-        ZE_CALL(zeMemFree, (Mem->Context->ZeContext, Mem->getZeHandle()));
+        pi_platform Platform = Mem->Context->Devices[0]->Platform;
+        std::lock_guard<std::mutex> lock(Platform->MemHandlesMutex);
+        Platform->MemHandles.emplace_back(
+            std::pair<ze_context_handle_t, void *>(Mem->Context->ZeContext,
+                                                   Mem->getZeHandle()));
       }
     }
     delete Mem;
@@ -3960,9 +3968,11 @@ pi_result piEventRelease(pi_event Event) {
 
     if (Event->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_UNMAP &&
         Event->CommandData) {
-      // Free the memory allocated in the piEnqueueMemBufferMap.
-      ZE_CALL(zeMemFree,
-              (Event->Queue->Context->ZeContext, Event->CommandData));
+      // Memory allocated in the piEnqueueMemBufferMap can be released.
+      pi_platform Platform = Event->Context->Devices[0]->Platform;
+      std::lock_guard<std::mutex> lock(Platform->MemHandlesMutex);
+      Platform->MemHandles.emplace_back(std::pair<ze_context_handle_t, void *>(
+          Event->Context->ZeContext, Event->CommandData));
       Event->CommandData = nullptr;
     }
     ZE_CALL(zeEventDestroy, (Event->ZeEvent));
@@ -5234,7 +5244,11 @@ pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
 }
 
 pi_result USMFreeImpl(pi_context Context, void *Ptr) {
-  ZE_CALL(zeMemFree, (Context->ZeContext, Ptr));
+  PI_ASSERT(Context, PI_INVALID_CONTEXT);
+  pi_platform Platform = Context->Devices[0]->Platform;
+  std::lock_guard<std::mutex> lock(Platform->MemHandlesMutex);
+  Platform->MemHandles.push_back(
+      std::pair<ze_context_handle_t, void *>(Context->ZeContext, Ptr));
   return PI_SUCCESS;
 }
 
@@ -5698,6 +5712,22 @@ pi_result piTearDown(void *PluginParameter) {
   (void)PluginParameter;
   // reclaim pi_platform objects here since we don't have piPlatformRelease.
   for (pi_platform &Platform : *PiPlatformsCache) {
+    {
+      std::lock_guard<std::mutex> lock(Platform->MemHandlesMutex);
+      for (std::pair<ze_context_handle_t, void *> Pair : Platform->MemHandles) {
+        ZE_CALL(zeMemFree, (Pair.first, Pair.second));
+      }
+
+      Platform->MemHandles.clear();
+    }
+    {
+      std::lock_guard<std::mutex> lock(Platform->ContextsMutex);
+      for (ze_context_handle_t ZeContext : Platform->Contexts) {
+        ZE_CALL(zeContextDestroy, (ZeContext));
+      }
+
+      Platform->Contexts.clear();
+    }
     delete Platform;
   }
   delete PiPlatformsCache;

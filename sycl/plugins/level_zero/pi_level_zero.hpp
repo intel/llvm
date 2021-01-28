@@ -28,6 +28,7 @@
 #include <memory>
 #include <mutex>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <level_zero/ze_api.h>
@@ -92,6 +93,18 @@ struct _pi_platform {
   // Current number of L0 Command Lists created on this platform.
   // this number must not exceed ZeMaxCommandListCache.
   std::atomic<int> ZeGlobalCommandListCount{0};
+
+  // Keep track of memory handles which can be released. Free them only during
+  // piTearDown because there could be kernels with indirect access enabled.
+  std::vector<std::pair<ze_context_handle_t, void *>> MemHandles;
+
+  std::unordered_set<ze_context_handle_t> Contexts;
+
+  // Mutex to control operations on MemHandles.
+  std::mutex MemHandlesMutex;
+
+  // Mutex to control operations on Contexts.
+  std::mutex ContextsMutex;
 };
 
 // Implements memory allocation via L0 RT for USM allocator interface.
