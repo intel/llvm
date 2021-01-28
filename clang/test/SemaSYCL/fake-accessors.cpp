@@ -1,8 +1,8 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -ast-dump -sycl-std=2020 %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-int-to-void-pointer-cast -internal-isystem %S/Inputs -ast-dump -sycl-std=2020 %s | FileCheck %s
 
 #include "sycl.hpp"
 
-sycl::queue myQueue;
+sycl::queue deviceQueue;
 
 namespace fake {
 namespace cl {
@@ -21,31 +21,33 @@ public:
 };
 
 int main() {
+
   fake::cl::sycl::accessor FakeAccessor = {1};
-  accessor acc1 = {1};
+  accessor AccessorClass = {1};
 
-  sycl::accessor<int, 1, sycl::access::mode::read_write> accessorA;
-  sycl::accessor<int, 1, sycl::access::mode::read_write> accessorB;
-  sycl::accessor<int, 1, sycl::access::mode::read_write> accessorC;
+  typedef sycl::accessor<int, 1, sycl::access::mode::read_write, cl::sycl::access::target::global_buffer>
+      MyAccessorTD;
+  MyAccessorTD AccessorTypeDef;
 
-  myQueue.submit([&](sycl::handler &h) {
+  using MyAccessorA = sycl::accessor<int, 1, sycl::access::mode::read_write, cl::sycl::access::target::global_buffer>;
+  MyAccessorA AccessorAlias;
+
+  cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write> AccessorRegular;
+
+  deviceQueue.submit([&](sycl::handler &h) {
     h.single_task<class fake_accessors>(
         [=] {
-          accessorA.use((void *)(FakeAccessor.field + acc1.field));
+          AccessorRegular.use((void *)(FakeAccessor.field + AccessorClass.field));
         });
-  });
 
-  myQueue.submit([&](sycl::handler &h) {
     h.single_task<class accessor_typedef>(
         [=] {
-          accessorB.use((void *)(FakeAccessor.field + acc1.field));
+          AccessorTypeDef.use((void *)(FakeAccessor.field + AccessorClass.field));
         });
-  });
 
-  myQueue.submit([&](sycl::handler &h) {
     h.single_task<class accessor_alias>(
         [=] {
-          accessorC.use((void *)(FakeAccessor.field + acc1.field));
+          AccessorAlias.use((void *)(FakeAccessor.field + AccessorClass.field));
         });
   });
 
