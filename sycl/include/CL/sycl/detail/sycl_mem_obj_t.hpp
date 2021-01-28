@@ -53,12 +53,12 @@ class __SYCL_EXPORT SYCLMemObjT : public SYCLMemObjI {
   template <typename T>
   using EnableIfOutputIteratorT = enable_if_t<
       /*is_output_iterator<T>::value &&*/ !std::is_pointer<T>::value &&
-      !std::is_same<iterator_value_type_t<T>, bool>::value>;
+      !std::is_same<typename T::value_type, bool>::value>;
 
   template <typename T>
   using EnableIfOutputIteratorBool =
       enable_if_t<!std::is_pointer<T>::value &&
-                  std::is_same<iterator_value_type_t<T>, bool>::value>;
+                  std::is_same<typename T::value_type, bool>::value>;
 
   template <typename T>
   using EnableIfDefaultAllocator =
