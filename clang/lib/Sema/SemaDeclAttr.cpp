@@ -4853,7 +4853,6 @@ static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
 }
 
 static void handleSYCLRegisterNumAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  auto *VD = cast<VarDecl>(D);
   if (!checkAttributeNumArgs(S, AL, 1))
     return;
   uint32_t RegNo = 0;
