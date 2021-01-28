@@ -20,7 +20,6 @@ int main() {
         });
   });
 
-  // 2-dimensional accessor with Read-only access
   sycl::accessor<int, 2, sycl::access::mode::read,
                  sycl::access::target::image, sycl::access::placeholder::false_t>
       image_acc2d_read;
