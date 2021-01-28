@@ -106,7 +106,7 @@ clang/tools/clang-offload-wrapper/ @sndmitriev @kbobrovs
 clang/tools/clang-offload-deps/ @sndmitriev
 
 # Explicit SIMD
-SYCLLowerIR/ @kbobrovs
-esimd/ @kbobrovs
-sycl/include/CL/sycl/INTEL/esimd.hpp @kbobrovs
+SYCLLowerIR/ @kbobrovs @DenisBakhvalov
+esimd/ @kbobrovs @DenisBakhvalov
+sycl/include/CL/sycl/INTEL/esimd.hpp @kbobrovs @DenisBakhvalov
 sycl/doc/extensions/ExplicitSIMD/ @kbobrovs
