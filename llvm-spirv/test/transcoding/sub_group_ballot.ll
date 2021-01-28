@@ -1054,8 +1054,10 @@ declare dso_local spir_func double @_Z25sub_group_broadcast_firstd(double) local
 
 ; CHECK-LLVM-LABEL: @testBallotOperations
 ; CHECK-LLVM: %[[ballot:[0-9]+]] = call spir_func <4 x i32> @_Z16sub_group_balloti(i32 {{.*}})
-; CHECK-LLVM: call spir_func i32 @_Z24sub_group_inverse_ballotDv4_j(<4 x i32> %[[ballot]])
-; CHECK-LLVM: call spir_func i32 @_Z28sub_group_ballot_bit_extractDv4_jj(<4 x i32> %[[ballot]], i32 0)
+; CHECK-LLVM: %[[inverse_ballot:[0-9]+]] = call spir_func i32 @_Z24sub_group_inverse_ballotDv4_j(<4 x i32> %[[ballot]])
+; CHECK-LLVM-NEXT: icmp ne i32 %[[inverse_ballot]], 0
+; CHECK-LLVM: %[[bit_extract:[0-9]+]] = call spir_func i32 @_Z28sub_group_ballot_bit_extractDv4_jj(<4 x i32> %[[ballot]], i32 0)
+; CHECK-LLVM-NEXT: icmp ne i32 %[[bit_extract]], 0
 ; CHECK-LLVM: call spir_func i32 @_Z26sub_group_ballot_bit_countDv4_j(<4 x i32> %[[ballot]])
 ; CHECK-LLVM: call spir_func i32 @_Z31sub_group_ballot_inclusive_scanDv4_j(<4 x i32> %[[ballot]])
 ; CHECK-LLVM: call spir_func i32 @_Z31sub_group_ballot_exclusive_scanDv4_j(<4 x i32> %[[ballot]])

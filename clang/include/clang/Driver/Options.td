@@ -2394,12 +2394,7 @@ def fsycl_device_code_split_EQ : Joined<["-"], "fsycl-device-code-split=">,
 def fsycl_device_code_split : Flag<["-"], "fsycl-device-code-split">, Alias<fsycl_device_code_split_EQ>,
   AliasArgs<["auto"]>, Flags<[CC1Option, CoreOption]>,
   HelpText<"Perform SYCL device code split in the 'auto' mode, i.e. use heuristic to distribute device code across modules">;
-def fsycl_id_queries_fit_in_int : Flag<["-"], "fsycl-id-queries-fit-in-int">,
-  Flags<[CC1Option, CoreOption]>, HelpText<"Assume that SYCL ID queries fit "
-  "within MAX_INT.">;
-def fno_sycl_id_queries_fit_in_int : Flag<["-"], "fno-sycl-id-queries-fit-in-int">,
-  Flags<[CC1Option, CoreOption]>, HelpText<"Do not assume that SYCL ID queries "
-  "fit within MAX_INT.">;
+defm sycl_id_queries_fit_in_int: OptInFFlag<"sycl-id-queries-fit-in-int", "Assume", "Do not assume", " that SYCL ID queries fit within MAX_INT.", [CC1Option,CoreOption], LangOpts<"SYCLValueFitInMaxInt">>;
 def fsycl_use_bitcode : Flag<["-"], "fsycl-use-bitcode">,
   Flags<[CC1Option, CoreOption]>, HelpText<"Use LLVM bitcode instead of SPIR-V in fat objects">;
 def fno_sycl_use_bitcode : Flag<["-"], "fno-sycl-use-bitcode">,
@@ -2410,7 +2405,8 @@ def fsycl_link : Flag<["-"], "fsycl-link">, Alias<fsycl_link_EQ>,
   AliasArgs<["early"]>, Flags<[CC1Option, CoreOption]>,
   HelpText<"Generate partially linked device object to be used with the host link">;
 def fsycl_unnamed_lambda : Flag<["-"], "fsycl-unnamed-lambda">,
-  Flags<[CC1Option, CoreOption]>, HelpText<"Allow unnamed SYCL lambda kernels">;
+  Flags<[CC1Option, CoreOption]>, HelpText<"Allow unnamed SYCL lambda kernels">,
+  MarshallingInfoFlag<LangOpts<"SYCLUnnamedLambda">>;
 def fsycl_help_EQ : Joined<["-"], "fsycl-help=">,
   Flags<[NoXarchOption, CoreOption]>, HelpText<"Emit help information from the "
   "related offline compilation tool. Valid values: all, fpga, gen, x86_64.">,
@@ -4272,10 +4268,7 @@ def sycl_std_EQ : Joined<["-"], "sycl-std=">, Group<sycl_Group>, Flags<[CC1Optio
   HelpText<"SYCL language standard to compile for.">, Values<"2020,2017,121,1.2.1,sycl-1.2.1">,
   NormalizedValues<["SYCL_2020", "SYCL_2017", "SYCL_2017", "SYCL_2017", "SYCL_2017"]>, NormalizedValuesScope<"LangOptions">,
   MarshallingInfoString<LangOpts<"SYCLVersion">, "SYCL_None">, ShouldParseIf<fsycl.KeyPath>, AutoNormalizeEnum;
-def fsycl_esimd : Flag<["-"], "fsycl-explicit-simd">, Group<sycl_Group>, Flags<[CC1Option, NoArgumentUnused, CoreOption]>,
-  HelpText<"Enable SYCL explicit SIMD extension">;
-def fno_sycl_esimd : Flag<["-"], "fno-sycl-explicit-simd">, Group<sycl_Group>,
-  HelpText<"Disable SYCL explicit SIMD extension">, Flags<[NoArgumentUnused, CoreOption]>;
+defm sycl_esimd: OptInFFlag<"sycl-explicit-simd", "Enable", "Disable", " SYCL explicit SIMD extension.", [CC1Option,CoreOption], LangOpts<"SYCLExplicitSIMD">>;
 defm sycl_early_optimizations : OptOutFFlag<"sycl-early-optimizations", "Enable", "Disable", " standard optimization pipeline for SYCL device compiler", [CoreOption]>;
 def fsycl_dead_args_optimization : Flag<["-"], "fsycl-dead-args-optimization">,
   Group<sycl_Group>, Flags<[NoArgumentUnused, CoreOption]>, HelpText<"Enables "
@@ -5480,23 +5473,24 @@ def fopenmp_host_ir_file_path : Separate<["-"], "fopenmp-host-ir-file-path">,
 // SYCL Options
 //===----------------------------------------------------------------------===//
 
+def fsycl_is_device : Flag<["-"], "fsycl-is-device">,
+  HelpText<"Generate code for SYCL device.">,
+  MarshallingInfoFlag<LangOpts<"SYCLIsDevice">>;
 def fsycl_is_host : Flag<["-"], "fsycl-is-host">,
-  HelpText<"SYCL host compilation">;
+  HelpText<"SYCL host compilation">,
+  MarshallingInfoFlag<LangOpts<"SYCLIsHost">>;
 def fsycl_int_header : Separate<["-"], "fsycl-int-header">,
-  HelpText<"Generate SYCL integration header into this file.">;
+  HelpText<"Generate SYCL integration header into this file.">,
+  MarshallingInfoString<LangOpts<"SYCLIntHeader">>;
 def fsycl_int_header_EQ : Joined<["-"], "fsycl-int-header=">,
   Alias<fsycl_int_header>;
 def fsycl_std_layout_kernel_params: Flag<["-"], "fsycl-std-layout-kernel-params">,
-  HelpText<"Enable standard layout requirement for SYCL kernel parameters.">;
-def fsycl_allow_func_ptr : Flag<["-"], "fsycl-allow-func-ptr">,
-  HelpText<"Allow function pointers in SYCL device.">;
-def fno_sycl_allow_func_ptr : Flag<["-"], "fno-sycl-allow-func-ptr">;
+  HelpText<"Enable standard layout requirement for SYCL kernel parameters.">,
+  MarshallingInfoFlag<LangOpts<"SYCLStdLayoutKernelParams">>;
+defm sycl_allow_func_ptr: OptInFFlag<"sycl-allow-func-ptr", "Allow", "Disallow", " function pointers in SYCL device.", [CC1Option,CoreOption], LangOpts<"SYCLAllowFuncPtr">>;
 def fenable_sycl_dae : Flag<["-"], "fenable-sycl-dae">,
-  HelpText<"Enable Dead Argument Elimination in SPIR kernels">;
-def fsycl_is_device : Flag<["-"], "fsycl-is-device">,
-  HelpText<"Generate code for SYCL device.">,
-  MarshallingInfoFlag<LangOpts<"SYCLIsDevice">>,
-  ShouldParseIf<fsycl.KeyPath>;
+  HelpText<"Enable Dead Argument Elimination in SPIR kernels">,
+  MarshallingInfoFlag<LangOpts<"EnableDAEInSpirKernels">>;
 
 } // let Flags = [CC1Option, NoDriverOption]
 
