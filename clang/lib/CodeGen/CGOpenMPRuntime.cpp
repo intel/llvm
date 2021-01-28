@@ -2941,16 +2941,12 @@ void CGOpenMPRuntime::OffloadEntriesInfoManagerTy::
   // If we are emitting code for a target, the entry is already initialized,
   // only has to be registered.
   if (CGM.getLangOpts().OpenMPIsDevice) {
-    if (!hasTargetRegionEntryInfo(DeviceID, FileID, ParentName, LineNum)) {
-      unsigned DiagID = CGM.getDiags().getCustomDiagID(
-          DiagnosticsEngine::Error,
-          "Unable to find target region on line '%0' in the device code.");
-      CGM.getDiags().Report(DiagID) << LineNum;
-      return;
-    }
+    // This could happen if the device compilation is invoked standalone.
+    if (!hasTargetRegionEntryInfo(DeviceID, FileID, ParentName, LineNum))
+      initializeTargetRegionEntryInfo(DeviceID, FileID, ParentName, LineNum,
+                                      OffloadingEntriesNum);
     auto &Entry =
         OffloadEntriesTargetRegion[DeviceID][FileID][ParentName][LineNum];
-    assert(Entry.isValid() && "Entry not initialized!");
     Entry.setAddress(Addr);
     Entry.setID(ID);
     Entry.setFlags(Flags);
@@ -3017,9 +3013,10 @@ void CGOpenMPRuntime::OffloadEntriesInfoManagerTy::
                                      OMPTargetGlobalVarEntryKind Flags,
                                      llvm::GlobalValue::LinkageTypes Linkage) {
   if (CGM.getLangOpts().OpenMPIsDevice) {
+    // This could happen if the device compilation is invoked standalone.
+    if (!hasDeviceGlobalVarEntryInfo(VarName))
+      initializeDeviceGlobalVarEntryInfo(VarName, Flags, OffloadingEntriesNum);
     auto &Entry = OffloadEntriesDeviceGlobalVar[VarName];
-    assert(Entry.isValid() && Entry.getFlags() == Flags &&
-           "Entry not initialized!");
     assert((!Entry.getAddress() || Entry.getAddress() == Addr) &&
            "Resetting with the new address.");
     if (Entry.getAddress() && hasDeviceGlobalVarEntryInfo(VarName)) {
@@ -8236,7 +8233,7 @@ public:
                          MapFlagsArrayTy &CurTypes,
                          const StructRangeInfoTy &PartialStruct,
                          const ValueDecl *VD = nullptr,
-                         bool NotTargetParams = false) const {
+                         bool NotTargetParams = true) const {
     if (CurTypes.size() == 1 &&
         ((CurTypes.back() & OMP_MAP_MEMBER_OF) != OMP_MAP_MEMBER_OF) &&
         !PartialStruct.IsArraySection)
@@ -8287,7 +8284,7 @@ public:
   /// pair of the relevant declaration and index where it occurs is appended to
   /// the device pointers info array.
   void generateAllInfo(
-      MapCombinedInfoTy &CombinedInfo, bool NotTargetParams = false,
+      MapCombinedInfoTy &CombinedInfo,
       const llvm::DenseSet<CanonicalDeclPtr<const Decl>> &SkipVarSet =
           llvm::DenseSet<CanonicalDeclPtr<const Decl>>()) const {
     // We have to process the component lists that relate with the same
@@ -8423,9 +8420,7 @@ public:
           UseDevicePtrCombinedInfo.Pointers.push_back(Ptr);
           UseDevicePtrCombinedInfo.Sizes.push_back(
               llvm::Constant::getNullValue(CGF.Int64Ty));
-          UseDevicePtrCombinedInfo.Types.push_back(
-              OMP_MAP_RETURN_PARAM |
-              (NotTargetParams ? OMP_MAP_NONE : OMP_MAP_TARGET_PARAM));
+          UseDevicePtrCombinedInfo.Types.push_back(OMP_MAP_RETURN_PARAM);
           UseDevicePtrCombinedInfo.Mappers.push_back(nullptr);
         }
       }
@@ -8493,19 +8488,13 @@ public:
           CombinedInfo.Pointers.push_back(Ptr);
           CombinedInfo.Sizes.push_back(
               llvm::Constant::getNullValue(CGF.Int64Ty));
-          CombinedInfo.Types.push_back(
-              OMP_MAP_RETURN_PARAM |
-              (NotTargetParams ? OMP_MAP_NONE : OMP_MAP_TARGET_PARAM));
+          CombinedInfo.Types.push_back(OMP_MAP_RETURN_PARAM);
           CombinedInfo.Mappers.push_back(nullptr);
         }
       }
     }
 
     for (const auto &M : Info) {
-      // We need to know when we generate information for the first component
-      // associated with a capture, because the mapping flags depend on it.
-      bool IsFirstComponentList = !NotTargetParams;
-
       // Underlying variable declaration used in the map clause.
       const ValueDecl *VD = std::get<0>(M);
 
@@ -8523,8 +8512,8 @@ public:
             L.Components.back().isNonContiguous();
         generateInfoForComponentList(
             L.MapType, L.MapModifiers, L.MotionModifiers, L.Components, CurInfo,
-            PartialStruct, IsFirstComponentList, L.IsImplicit, L.Mapper,
-            L.ForDeviceAddr, VD, L.VarRef);
+            PartialStruct, /*IsFirstComponentList=*/false, L.IsImplicit,
+            L.Mapper, L.ForDeviceAddr, VD, L.VarRef);
 
         // If this entry relates with a device pointer, set the relevant
         // declaration and add the 'return pointer' flag.
@@ -8541,7 +8530,6 @@ public:
               RelevantVD);
           CurInfo.Types[CurrentBasePointersIdx] |= OMP_MAP_RETURN_PARAM;
         }
-        IsFirstComponentList = false;
       }
 
       // Append any pending zero-length pointers which are struct members and
@@ -8583,8 +8571,7 @@ public:
       // If there is an entry in PartialStruct it means we have a struct with
       // individual members mapped. Emit an extra combined entry.
       if (PartialStruct.Base.isValid())
-        emitCombinedEntry(CombinedInfo, CurInfo.Types, PartialStruct, VD,
-                          NotTargetParams);
+        emitCombinedEntry(CombinedInfo, CurInfo.Types, PartialStruct, VD);
 
       // We need to append the results of this capture to what we already have.
       CombinedInfo.append(CurInfo);
@@ -9515,7 +9502,8 @@ getNestedDistributeDirective(ASTContext &Ctx, const OMPExecutableDirective &D) {
 /// \code
 /// void .omp_mapper.<type_name>.<mapper_id>.(void *rt_mapper_handle,
 ///                                           void *base, void *begin,
-///                                           int64_t size, int64_t type) {
+///                                           int64_t size, int64_t type,
+///                                           void *name = nullptr) {
 ///   // Allocate space for an array section first.
 ///   if (size > 1 && !maptype.IsDelete)
 ///     __tgt_push_mapper_component(rt_mapper_handle, base, begin,
@@ -9526,10 +9514,11 @@ getNestedDistributeDirective(ASTContext &Ctx, const OMPExecutableDirective &D) {
 ///     for (auto c : all_components) {
 ///       if (c.hasMapper())
 ///         (*c.Mapper())(rt_mapper_handle, c.arg_base, c.arg_begin, c.arg_size,
-///                       c.arg_type);
+///                       c.arg_type, c.arg_name);
 ///       else
 ///         __tgt_push_mapper_component(rt_mapper_handle, c.arg_base,
-///                                     c.arg_begin, c.arg_size, c.arg_type);
+///                                     c.arg_begin, c.arg_size, c.arg_type,
+///                                     c.arg_name);
 ///     }
 ///   }
 ///   // Delete the array section.
@@ -9562,12 +9551,15 @@ void CGOpenMPRuntime::emitUserDefinedMapper(const OMPDeclareMapperDecl *D,
                             ImplicitParamDecl::Other);
   ImplicitParamDecl TypeArg(C, /*DC=*/nullptr, Loc, /*Id=*/nullptr, Int64Ty,
                             ImplicitParamDecl::Other);
+  ImplicitParamDecl NameArg(C, /*DC=*/nullptr, Loc, /*Id=*/nullptr, C.VoidPtrTy,
+                            ImplicitParamDecl::Other);
   FunctionArgList Args;
   Args.push_back(&HandleArg);
   Args.push_back(&BaseArg);
   Args.push_back(&BeginArg);
   Args.push_back(&SizeArg);
   Args.push_back(&TypeArg);
+  Args.push_back(&NameArg);
   const CGFunctionInfo &FnInfo =
       CGM.getTypes().arrangeBuiltinFunctionDeclaration(C.VoidTy, Args);
   llvm::FunctionType *FnTy = CGM.getTypes().GetFunctionType(FnInfo);
@@ -9667,6 +9659,10 @@ void CGOpenMPRuntime::emitUserDefinedMapper(const OMPDeclareMapperDecl *D,
     llvm::Value *CurBeginArg = MapperCGF.Builder.CreateBitCast(
         Info.Pointers[I], CGM.getTypes().ConvertTypeForMem(C.VoidPtrTy));
     llvm::Value *CurSizeArg = Info.Sizes[I];
+    llvm::Value *CurNameArg =
+        (CGM.getCodeGenOpts().getDebugInfo() == codegenoptions::NoDebugInfo)
+            ? llvm::ConstantPointerNull::get(CGM.VoidPtrTy)
+            : emitMappingInformation(MapperCGF, OMPBuilder, Info.Exprs[I]);
 
     // Extract the MEMBER_OF field from the map type.
     llvm::BasicBlock *MemberBB = MapperCGF.createBasicBlock("omp.member");
@@ -9755,8 +9751,8 @@ void CGOpenMPRuntime::emitUserDefinedMapper(const OMPDeclareMapperDecl *D,
     CurMapType->addIncoming(FromMapType, FromBB);
     CurMapType->addIncoming(MemberMapType, ToElseBB);
 
-    llvm::Value *OffloadingArgs[] = {Handle, CurBaseArg, CurBeginArg,
-                                     CurSizeArg, CurMapType};
+    llvm::Value *OffloadingArgs[] = {Handle,     CurBaseArg, CurBeginArg,
+                                     CurSizeArg, CurMapType, CurNameArg};
     if (Info.Mappers[I]) {
       // Call the corresponding mapper function.
       llvm::Function *MapperFunc = getOrCreateUserDefinedMapperFunc(
@@ -9846,9 +9842,12 @@ void CGOpenMPRuntime::emitUDMapperArrayInitOrDel(
       MapType,
       MapperCGF.Builder.getInt64(~(MappableExprsHandler::OMP_MAP_TO |
                                    MappableExprsHandler::OMP_MAP_FROM)));
+  llvm::Value *MapNameArg = llvm::ConstantPointerNull::get(CGM.VoidPtrTy);
+
   // Call the runtime API __tgt_push_mapper_component to fill up the runtime
   // data structure.
-  llvm::Value *OffloadingArgs[] = {Handle, Base, Begin, ArraySize, MapTypeArg};
+  llvm::Value *OffloadingArgs[] = {Handle,    Base,       Begin,
+                                   ArraySize, MapTypeArg, MapNameArg};
   MapperCGF.EmitRuntimeCall(
       OMPBuilder.getOrCreateRuntimeFunction(CGM.getModule(),
                                             OMPRTL___tgt_push_mapper_component),
@@ -10135,7 +10134,8 @@ void CGOpenMPRuntime::emitTargetCall(
       // If there is an entry in PartialStruct it means we have a struct with
       // individual members mapped. Emit an extra combined entry.
       if (PartialStruct.Base.isValid())
-        MEHandler.emitCombinedEntry(CombinedInfo, CurInfo.Types, PartialStruct);
+        MEHandler.emitCombinedEntry(CombinedInfo, CurInfo.Types, PartialStruct,
+                                    nullptr, /*NoTargetParam=*/false);
 
       // We need to append the results of this capture to what we already have.
       CombinedInfo.append(CurInfo);
@@ -10146,8 +10146,7 @@ void CGOpenMPRuntime::emitTargetCall(
         CombinedInfo.Types);
     // Map any list items in a map clause that were not captures because they
     // weren't referenced within the construct.
-    MEHandler.generateAllInfo(CombinedInfo, /*NotTargetParams=*/true,
-                              MappedVarSet);
+    MEHandler.generateAllInfo(CombinedInfo, MappedVarSet);
 
     TargetDataInfo Info;
     // Fill up the arrays and create the arguments.

@@ -44,6 +44,7 @@
 #include "SPIRVExtInst.h"
 #include "SPIRVFunction.h"
 #include "SPIRVInstruction.h"
+#include "SPIRVNameMapEnum.h"
 #include "SPIRVStream.h"
 #include "SPIRVType.h"
 #include "SPIRVValue.h"
@@ -571,7 +572,8 @@ void SPIRVModuleImpl::addExtension(ExtensionID Ext) {
 
 void SPIRVModuleImpl::addCapability(SPIRVCapabilityKind Cap) {
   addCapabilities(SPIRV::getCapability(Cap));
-  SPIRVDBG(spvdbgs() << "addCapability: " << Cap << '\n');
+  SPIRVDBG(spvdbgs() << "addCapability: " << SPIRVCapabilityNameMap::map(Cap)
+                     << '\n');
   if (hasCapability(Cap))
     return;
 

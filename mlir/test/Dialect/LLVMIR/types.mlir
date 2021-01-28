@@ -4,18 +4,6 @@
 func @primitive() {
   // CHECK: !llvm.void
   "some.op"() : () -> !llvm.void
-  // CHECK: f16
-  "some.op"() : () -> f16
-  // CHECK: bf16
-  "some.op"() : () -> bf16
-  // CHECK: f32
-  "some.op"() : () -> f32
-  // CHECK: f64
-  "some.op"() : () -> f64
-  // CHECK: !llvm.fp128
-  "some.op"() : () -> !llvm.fp128
-  // CHECK: !llvm.x86_fp80
-  "some.op"() : () -> !llvm.x86_fp80
   // CHECK: !llvm.ppc_fp128
   "some.op"() : () -> !llvm.ppc_fp128
   // CHECK: !llvm.x86_mmx
@@ -90,10 +78,10 @@ func @ptr() {
 
 // CHECK-LABEL: @vec
 func @vec() {
-  // CHECK: !llvm.vec<4 x i32>
-  "some.op"() : () -> !llvm.vec<4 x i32>
-  // CHECK: !llvm.vec<4 x f32>
-  "some.op"() : () -> !llvm.vec<4 x f32>
+  // CHECK: vector<4xi32>
+  "some.op"() : () -> vector<4xi32>
+  // CHECK: vector<4xf32>
+  "some.op"() : () -> vector<4xf32>
   // CHECK: !llvm.vec<? x 4 x i32>
   "some.op"() : () -> !llvm.vec<? x 4 x i32>
   // CHECK: !llvm.vec<? x 8 x f16>

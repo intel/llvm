@@ -355,10 +355,10 @@ __cpp_lib_void_t                                        201411L <type_traits>
 #endif
 
 #if _LIBCPP_STD_VER > 20
-// # define __cpp_lib_is_scoped_enum                       202011L
+# define __cpp_lib_is_scoped_enum                       202011L
 // # define __cpp_lib_stacktrace                           202011L
 // # define __cpp_lib_stdatomic_h                          202011L
-// # define __cpp_lib_string_contains                      202011L
+# define __cpp_lib_string_contains                      202011L
 #endif
 
 #endif // _LIBCPP_VERSIONH

@@ -381,7 +381,9 @@ std::string SPIRVToOCL::groupOCToOCLBuiltinName(CallInst *CI, Op OC) {
   return FuncName;
 }
 
-static bool extendRetTyToi32(Op OC) {
+/// Return true if the original boolean return type needs to be changed to i32
+/// when mapping the SPIR-V op to an OpenCL builtin.
+static bool needsInt32RetTy(Op OC) {
   return OC == OpGroupAny || OC == OpGroupAll || OC == OpGroupNonUniformAny ||
          OC == OpGroupNonUniformAll || OC == OpGroupNonUniformAllEqual ||
          OC == OpGroupNonUniformElect || OC == OpGroupNonUniformInverseBallot ||
@@ -408,15 +410,17 @@ void SPIRVToOCL::visitCallSPIRVGroupBuiltin(CallInst *CI, Op OC) {
       Args[0] = CastInst::CreateZExtOrBitCast(Args[0], Int32Ty, "", CI);
 
     // Handle function return type
-    if (extendRetTyToi32(OC))
+    if (needsInt32RetTy(OC))
       RetTy = Int32Ty;
 
     return FuncName;
   };
   auto ModifyRetTy = [=](CallInst *CI) -> Instruction * {
-    if (extendRetTyToi32(OC)) {
-      Type *RetTy = Type::getInt1Ty(*Ctx);
-      return CastInst::CreateTruncOrBitCast(CI, RetTy, "", CI->getNextNode());
+    if (needsInt32RetTy(OC)) {
+      // The OpenCL builtin returns a non-zero integer value. Convert to a
+      // boolean value.
+      Constant *Zero = ConstantInt::get(CI->getType(), 0);
+      return new ICmpInst(CI->getNextNode(), CmpInst::ICMP_NE, CI, Zero);
     } else
       return CI;
   };

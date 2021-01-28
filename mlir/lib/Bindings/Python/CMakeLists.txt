@@ -10,6 +10,8 @@ set(PY_SRC_FILES
   mlir/_dlloader.py
   mlir/ir.py
   mlir/dialects/__init__.py
+  mlir/dialects/_linalg.py
+  mlir/dialects/_builtin.py
   mlir/ir.py
   mlir/passmanager.py
   mlir/transforms/__init__.py
@@ -35,10 +37,31 @@ endforeach()
 # Generate dialect-specific bindings.
 ################################################################################
 
+add_mlir_dialect_python_bindings(MLIRBindingsPythonBuiltinOps
+  TD_FILE BuiltinOps.td
+  DIALECT_NAME builtin)
+add_dependencies(MLIRBindingsPythonSources MLIRBindingsPythonBuiltinOps)
+
+add_mlir_dialect_python_bindings(MLIRBindingsPythonLinalgOps
+  TD_FILE LinalgOps.td
+  DIALECT_NAME linalg
+  DEPENDS LinalgOdsGen)
+add_dependencies(MLIRBindingsPythonSources MLIRBindingsPythonLinalgOps)
+
+add_mlir_dialect_python_bindings(MLIRBindingsPythonShapeOps
+  TD_FILE ShapeOps.td
+  DIALECT_NAME shape)
+add_dependencies(MLIRBindingsPythonSources MLIRBindingsPythonShapeOps)
+
 add_mlir_dialect_python_bindings(MLIRBindingsPythonStandardOps
-  StandardOps.td
-  std)
+  TD_FILE StandardOps.td
+  DIALECT_NAME std)
 add_dependencies(MLIRBindingsPythonSources MLIRBindingsPythonStandardOps)
+
+add_mlir_dialect_python_bindings(MLIRBindingsPythonTensorOps
+  TD_FILE TensorOps.td
+  DIALECT_NAME tensor)
+add_dependencies(MLIRBindingsPythonSources MLIRBindingsPythonTensorOps)
 
 ################################################################################
 # Build core python extension
