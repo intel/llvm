@@ -13,6 +13,10 @@ def do_configure(args):
     if not os.path.isdir(abs_obj_dir):
       os.makedirs(abs_obj_dir)
 
+    llvm_external_projects = 'sycl;llvm-spirv;opencl-aot;libdevice'
+    if not args.use_libcxx:
+        llvm_external_projects += ';xpti;xptifw'
+
     llvm_dir = os.path.join(abs_src_dir, "llvm")
     sycl_dir = os.path.join(abs_src_dir, "sycl")
     spirv_dir = os.path.join(abs_src_dir, "llvm-spirv")
@@ -22,7 +26,7 @@ def do_configure(args):
     ocl_header_dir = os.path.join(abs_obj_dir, "OpenCL-Headers")
     icd_loader_lib = os.path.join(abs_obj_dir, "OpenCL-ICD-Loader", "build")
     llvm_targets_to_build = 'X86'
-    llvm_enable_projects = 'clang;llvm-spirv;sycl;opencl-aot;xpti;xptifw;libdevice'
+    llvm_enable_projects = 'clang;' + llvm_external_projects
     libclc_targets_to_build = ''
     sycl_build_pi_cuda = 'OFF'
     sycl_werror = 'ON'
@@ -30,6 +34,7 @@ def do_configure(args):
     llvm_enable_doxygen = 'OFF'
     llvm_enable_sphinx = 'OFF'
     llvm_build_shared_libs = 'OFF'
+    sycl_enable_xpti_tracing = 'OFF' if args.use_libcxx else 'ON'
 
     icd_loader_lib = os.path.join(icd_loader_lib, "libOpenCL.so" if platform.system() == 'Linux' else "OpenCL.lib")
 
@@ -64,7 +69,7 @@ def do_configure(args):
         "-DCMAKE_BUILD_TYPE={}".format(args.build_type),
         "-DLLVM_ENABLE_ASSERTIONS={}".format(llvm_enable_assertions),
         "-DLLVM_TARGETS_TO_BUILD={}".format(llvm_targets_to_build),
-        "-DLLVM_EXTERNAL_PROJECTS=sycl;llvm-spirv;opencl-aot;xpti;xptifw;libdevice",
+        "-DLLVM_EXTERNAL_PROJECTS={}".format(llvm_external_projects),
         "-DLLVM_EXTERNAL_SYCL_SOURCE_DIR={}".format(sycl_dir),
         "-DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR={}".format(spirv_dir),
         "-DLLVM_EXTERNAL_XPTI_SOURCE_DIR={}".format(xpti_dir),
@@ -81,7 +86,7 @@ def do_configure(args):
         "-DLLVM_ENABLE_DOXYGEN={}".format(llvm_enable_doxygen),
         "-DLLVM_ENABLE_SPHINX={}".format(llvm_enable_sphinx),
         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
-        "-DSYCL_ENABLE_XPTI_TRACING=ON" # Explicitly turn on XPTI tracing
+        "-DSYCL_ENABLE_XPTI_TRACING={}".format(sycl_enable_xpti_tracing)
     ]
 
     if args.system_ocl:
@@ -103,6 +108,15 @@ def do_configure(args):
 
     # Add path to root CMakeLists.txt
     cmake_cmd.append(llvm_dir)
+
+    if args.use_libcxx:
+      if not (args.libcxx_include and args.libcxx_library):
+        sys.exit("Please specify include and library path of libc++ when building sycl "
+                 "runtime with it")
+      cmake_cmd.extend([
+            "-DSYCL_USE_LIBCXX=ON",
+            "-DSYCL_LIBCXX_INCLUDE_PATH={}".format(args.libcxx_include),
+            "-DSYCL_LIBCXX_LIBRARY_PATH={}".format(args.libcxx_library)])
 
     print("[Cmake Command]: {}".format(" ".join(cmake_cmd)))
 
@@ -143,7 +157,9 @@ def main():
     parser.add_argument("--shared-libs", action='store_true', help="Build shared libraries")
     parser.add_argument("--cmake-opt", action='append', help="Additional CMake option not configured via script parameters")
     parser.add_argument("--cmake-gen", default="Ninja", help="CMake generator")
-
+    parser.add_argument("--use-libcxx", action="store_true", help="build sycl runtime with libcxx")
+    parser.add_argument("--libcxx-include", metavar="LIBCXX_INCLUDE_PATH", help="libcxx include path")
+    parser.add_argument("--libcxx-library", metavar="LIBCXX_LIBRARY_PATH", help="libcxx library path")
     args = parser.parse_args()
 
     print("args:{}".format(args))
