@@ -723,6 +723,19 @@ private:
     return isConstOrGlobal(AccessTarget) || isImageOrImageArray(AccessTarget);
   }
 
+  constexpr static bool isValidModeForSourceAccessor(access::mode AccessMode) {
+    return AccessMode == access::mode::read ||
+           AccessMode == access::mode::read_write;
+  }
+
+  constexpr static bool
+  isValidModeForDestinationAccessor(access::mode AccessMode) {
+    return AccessMode == access::mode::write ||
+           AccessMode == access::mode::read_write ||
+           AccessMode == access::mode::discard_write ||
+           AccessMode == access::mode::discard_read_write;
+  }
+
   /// Defines and invokes a SYCL kernel function for the specified range.
   ///
   /// The SYCL kernel function is defined as a lambda function or a named
@@ -1674,6 +1687,8 @@ public:
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
+    static_assert(isValidModeForSourceAccessor(AccessMode),
+                  "Invalid accessor mode for the copy method.");
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
     MSharedPtrStorage.push_back(Dst);
@@ -1697,6 +1712,8 @@ public:
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
+    static_assert(isValidModeForDestinationAccessor(AccessMode),
+                  "Invalid accessor mode for the copy method.");
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
     MSharedPtrStorage.push_back(Src);
@@ -1719,6 +1736,8 @@ public:
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
+    static_assert(isValidModeForSourceAccessor(AccessMode),
+                  "Invalid accessor mode for the copy method.");
 #ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
       // TODO: Temporary implementation for host. Should be handled by memory
@@ -1756,6 +1775,8 @@ public:
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
+    static_assert(isValidModeForDestinationAccessor(AccessMode),
+                  "Invalid accessor mode for the copy method.");
 #ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
       // TODO: Temporary implementation for host. Should be handled by memory
@@ -1801,6 +1822,10 @@ public:
                   "Invalid source accessor target for the copy method.");
     static_assert(isValidTargetForExplicitOp(AccessTarget_Dst),
                   "Invalid destination accessor target for the copy method.");
+    static_assert(isValidModeForSourceAccessor(AccessMode_Src),
+                  "Invalid source accessor mode for the copy method.");
+    static_assert(isValidModeForDestinationAccessor(AccessMode_Dst),
+                  "Invalid destination accessor mode for the copy method.");
     assert(Dst.get_size() >= Src.get_size() &&
            "The destination accessor does not fit the copied memory.");
     if (copyAccToAccHelper(Src, Dst))
