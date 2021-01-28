@@ -55,10 +55,9 @@ int main() {
     std::cout << "\n";
     return 1;
   }
-  
+
   std::cout << "Passed\n";
   return 0;
-
 }
 #elif defined SOURCE2
 void run_kernel2(queue &q, int *data) {
