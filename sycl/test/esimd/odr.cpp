@@ -48,16 +48,17 @@ int main() {
   }
   int gold[] = {0, 1, 2, 3, 3, 2, 1, 0};
 
-  if (!std::memcmp(gold, data, sizeof(int) * VLEN)) {
-    std::cout << "Passed\n";
-    return 0;
-  } else {
+  if (std::memcmp(gold, data, sizeof(int) * VLEN)) {
     std::cout << "FAILED\n";
     for (int i = 0; i < VLEN; i++)
       std::cout << " " << data[i];
     std::cout << "\n";
     return 1;
   }
+  
+  std::cout << "Passed\n";
+  return 0;
+
 }
 #elif defined SOURCE2
 void run_kernel2(queue &q, int *data) {
