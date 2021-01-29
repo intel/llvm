@@ -237,6 +237,8 @@ static bool mayHaveSideEffects(const Instruction *I) {
   case Instruction::Call:
     assert(!isPFWICall(I) && "pfwi must have been handled separately");
     return true;
+  case Instruction::AddrSpaceCast:
+    return false;
   default:
     return true;
   }
@@ -630,6 +632,11 @@ static void fixupPrivateMemoryPFWILambdaCaptures(CallInst *PFWICall) {
   // whether it is an alloca with "work_item_scope"
   SmallVector<CaptureDesc, 4> PrivMemCaptures;
 
+  // Look through cast
+  auto *Cast = dyn_cast<AddrSpaceCastInst>(LambdaObj);
+  if (Cast)
+    LambdaObj = Cast->getOperand(0);
+
   for (auto *U : LambdaObj->users()) {
     GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(U);
 
@@ -779,13 +786,15 @@ PreservedAnalyses SYCLLowerWGScopePass::run(Function &F, const llvm::Triple &TT,
     // globals.
     Instruction *I = BB.getFirstNonPHI();
 
-    for (; I->getOpcode() == Instruction::Alloca; I = I->getNextNode()) {
+    for (; I->getOpcode() == Instruction::Alloca ||
+           I->getOpcode() == Instruction::AddrSpaceCast;
+         I = I->getNextNode()) {
       auto *AllocaI = dyn_cast<AllocaInst>(I);
       // Allocas marked with "work_item_scope" are those originating from
       // cl::sycl::private_memory<T> variables, which must be in private memory.
       // No shadows/materialization is needed for them because they can be
       // updated only within PFWIs
-      if (!AllocaI->getMetadata(WI_SCOPE_MD))
+      if (AllocaI && !AllocaI->getMetadata(WI_SCOPE_MD))
         Allocas.insert(AllocaI);
     }
     for (; I && (I != BB.getTerminator()); I = I->getNextNode()) {
