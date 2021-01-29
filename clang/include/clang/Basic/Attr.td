@@ -328,11 +328,11 @@ class LangOpt<string name, code customCode = [{}]> {
 def MicrosoftExt : LangOpt<"MicrosoftExt">;
 def Borland : LangOpt<"Borland">;
 def CUDA : LangOpt<"CUDA">;
+def HIP : LangOpt<"HIP">;
 def SYCLIsDevice : LangOpt<"SYCLIsDevice">;
 def SYCL : LangOpt<"SYCLIsDevice">;
 def SYCLIsHost : LangOpt<"SYCLIsHost">;
 def SYCLExplicitSIMD : LangOpt<"SYCLExplicitSIMD">;
-def HIP : LangOpt<"HIP">;
 def COnly : LangOpt<"", "!LangOpts.CPlusPlus">;
 def CPlusPlus : LangOpt<"CPlusPlus">;
 def OpenCL : LangOpt<"OpenCL">;
@@ -686,6 +686,13 @@ def AlignValue : Attr {
 }
 
 def AlignMac68k : InheritableAttr {
+  // This attribute has no spellings as it is only ever created implicitly.
+  let Spellings = [];
+  let SemaHandler = 0;
+  let Documentation = [Undocumented];
+}
+
+def AlignNatural : InheritableAttr {
   // This attribute has no spellings as it is only ever created implicitly.
   let Spellings = [];
   let SemaHandler = 0;
@@ -1119,6 +1126,13 @@ def CUDAHost : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+def HIPManaged : InheritableAttr {
+  let Spellings = [GNU<"managed">, Declspec<"__managed__">];
+  let Subjects = SubjectList<[Var]>;
+  let LangOpts = [HIP];
+  let Documentation = [HIPManagedAttrDocs];
+}
+
 def CUDAInvalidTarget : InheritableAttr {
   let Spellings = [];
   let Subjects = SubjectList<[Function]>;
@@ -1149,7 +1163,6 @@ def SYCLDevice : InheritableAttr {
   let Subjects = SubjectList<[Function]>;
   let LangOpts = [SYCLIsDevice];
   let Documentation = [SYCLDeviceDocs];
-  let PragmaAttributeSupport = 0;
 }
 
 def SYCLKernel : InheritableAttr {
@@ -1167,7 +1180,6 @@ def SYCLSimd : InheritableAttr {
   let Subjects = SubjectList<[Function]>;
   let LangOpts = [SYCLExplicitSIMD];
   let Documentation = [SYCLSimdDocs];
-  let PragmaAttributeSupport = 0;
 }
 
 // Available in SYCL explicit SIMD extension. Binds a file scope private
@@ -1180,17 +1192,19 @@ def SYCLRegisterNum : InheritableAttr {
   // for the host device as well
   let LangOpts = [SYCLExplicitSIMD];
   let Documentation = [SYCLRegisterNumDocs];
-  let PragmaAttributeSupport = 0;
 }
 
-// Used to mark ESIMD kernel pointer parameters originating from accessors.
+// Used by FE to mark ESIMD kernel pointer parameters which correspond to the
+// original lambda's captured accessors. FE turns the attribute to some metadata
+// required by the ESIMD Back-End.
+// Not supposed to be used directly in the source - SYCL device compiler FE
+// automatically adds it for ESIMD kernels, hence undocumented.
 def SYCLSimdAccessorPtr : InheritableAttr {
   // No spelling, as this attribute can't be created in the source code.
   let Spellings = [];
   let Subjects = SubjectList<[ParmVar]>;
   let LangOpts = [SYCLExplicitSIMD];
-  let Documentation = [SYCLSimdAccessorPtrDocs];
-  let PragmaAttributeSupport = 0;
+  let Documentation = [Undocumented];
 }
 
 def SYCLScope : Attr {
@@ -1219,7 +1233,6 @@ def SYCLDeviceIndirectlyCallable : InheritableAttr {
   let Subjects = SubjectList<[Function]>;
   let LangOpts = [SYCLIsDevice];
   let Documentation = [SYCLDeviceIndirectlyCallableDocs];
-  let PragmaAttributeSupport = 0;
 }
 
 def SYCLIntelBufferLocation : InheritableAttr {
@@ -1244,7 +1257,6 @@ def SYCLIntelKernelArgsRestrict : InheritableAttr {
   let LangOpts = [ SYCLIsDevice, SYCLIsHost ];
   let Documentation = [ SYCLIntelKernelArgsRestrictDocs ];
   let SimpleHandler = 1;
-  let PragmaAttributeSupport = 0;
 }
 
 def SYCLIntelNumSimdWorkItems : InheritableAttr {
@@ -1254,7 +1266,6 @@ def SYCLIntelNumSimdWorkItems : InheritableAttr {
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelNumSimdWorkItemsAttrDocs];
-  let PragmaAttributeSupport = 0;
 }
 
 def SYCLIntelUseStallEnableClusters : InheritableAttr {
@@ -1267,7 +1278,6 @@ def SYCLIntelUseStallEnableClusters : InheritableAttr {
     }
   }];
   let Documentation = [SYCLIntelUseStallEnableClustersAttrDocs];
-  let PragmaAttributeSupport = 0;
 }
 
 def SYCLIntelSchedulerTargetFmaxMhz : InheritableAttr {
@@ -1277,7 +1287,6 @@ def SYCLIntelSchedulerTargetFmaxMhz : InheritableAttr {
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelSchedulerTargetFmaxMhzAttrDocs];
-  let PragmaAttributeSupport = 0;
   let AdditionalMembers = [{
     static unsigned getMinValue() {
       return 0;
@@ -1286,7 +1295,6 @@ def SYCLIntelSchedulerTargetFmaxMhz : InheritableAttr {
       return 1024*1024;
     }
   }];
-
 }
 
 def SYCLIntelMaxWorkGroupSize : InheritableAttr {
@@ -1297,10 +1305,18 @@ def SYCLIntelMaxWorkGroupSize : InheritableAttr {
               ExprArgument<"ZDim">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
-  let PragmaAttributeSupport = 0;
   let AdditionalMembers = [{
     ArrayRef<const Expr *> dimensions() const {
       return {getXDim(), getYDim(), getZDim()};
+    }
+    Optional<llvm::APSInt> getXDimVal(ASTContext &Ctx) const {
+      return getXDim()->getIntegerConstantExpr(Ctx);
+    }
+    Optional<llvm::APSInt> getYDimVal(ASTContext &Ctx) const {
+      return getYDim()->getIntegerConstantExpr(Ctx);
+    }
+    Optional<llvm::APSInt> getZDimVal(ASTContext &Ctx) const {
+      return getZDim()->getIntegerConstantExpr(Ctx);
     }
   }];
   let Documentation = [SYCLIntelMaxWorkGroupSizeAttrDocs];
@@ -1313,7 +1329,6 @@ def SYCLIntelMaxGlobalWorkDim : InheritableAttr {
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelMaxGlobalWorkDimAttrDocs];
-  let PragmaAttributeSupport = 0;
 }
 
 def SYCLIntelNoGlobalWorkOffset : InheritableAttr {
@@ -1323,7 +1338,6 @@ def SYCLIntelNoGlobalWorkOffset : InheritableAttr {
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelNoGlobalWorkOffsetAttrDocs];
-  let PragmaAttributeSupport = 0;
 }
 
 def SYCLIntelLoopFuse : InheritableAttr {
@@ -1404,7 +1418,6 @@ def IntelReqdSubGroupSize: InheritableAttr {
   let Subjects = SubjectList<[Function, CXXMethod], ErrorDiag>;
   let Documentation = [IntelReqdSubGroupSizeDocs];
   let LangOpts = [OpenCL, SYCLIsDevice, SYCLIsHost];
-  let PragmaAttributeSupport = 0;
 }
 
 // This attribute is both a type attribute, and a declaration attribute (for
@@ -2124,7 +2137,6 @@ def SYCLIntelPipeIO : Attr {
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Var]>;
   let Documentation = [SYCLIntelPipeIOAttrDocs];
-  let PragmaAttributeSupport = 0;
 }
 
 // Variadic integral arguments.
@@ -2394,6 +2406,13 @@ def ReturnsNonNull : InheritableAttr {
   let Spellings = [GCC<"returns_nonnull">];
   let Subjects = SubjectList<[ObjCMethod, Function]>;
   let Documentation = [ReturnsNonNullDocs];
+}
+
+def CalledOnce : Attr {
+  let Spellings = [Clang<"called_once">];
+  let Subjects = SubjectList<[ParmVar]>;
+  let LangOpts = [ObjC];
+  let Documentation = [CalledOnceDocs];
 }
 
 // pass_object_size(N) indicates that the parameter should have
@@ -2852,6 +2871,15 @@ def ReqdWorkGroupSize : InheritableAttr {
   let AdditionalMembers = [{
     ArrayRef<const Expr *> dimensions() const {
       return {getXDim(), getYDim(), getZDim()};
+    }
+    Optional<llvm::APSInt> getXDimVal(ASTContext &Ctx) const {
+      return getXDim()->getIntegerConstantExpr(Ctx);
+    }
+    Optional<llvm::APSInt> getYDimVal(ASTContext &Ctx) const {
+      return getYDim()->getIntegerConstantExpr(Ctx);
+    }
+    Optional<llvm::APSInt> getZDimVal(ASTContext &Ctx) const {
+      return getZDim()->getIntegerConstantExpr(Ctx);
     }
   }];
   let Documentation = [ReqdWorkGroupSizeAttrDocs];
@@ -3975,8 +4003,10 @@ def LoopHint : Attr {
                            "PipelineDisabled", "PipelineInitiationInterval", "Distribute",
                            "VectorizePredicate"]>,
               EnumArgument<"State", "LoopHintState",
-                           ["enable", "disable", "numeric", "assume_safety", "full"],
-                           ["Enable", "Disable", "Numeric", "AssumeSafety", "Full"]>,
+                           ["enable", "disable", "numeric", "fixed_width",
+                            "scalable_width", "assume_safety", "full"],
+                           ["Enable", "Disable", "Numeric", "FixedWidth",
+                            "ScalableWidth", "AssumeSafety", "Full"]>,
               ExprArgument<"Value">];
 
   let AdditionalMembers = [{
@@ -4250,4 +4280,20 @@ def Builtin : InheritableAttr {
   let Subjects = SubjectList<[Function]>;
   let SemaHandler = 0;
   let Documentation = [Undocumented];
+}
+
+def EnforceTCB : InheritableAttr {
+  let Spellings = [Clang<"enforce_tcb">];
+  let Subjects = SubjectList<[Function]>;
+  let Args = [StringArgument<"TCBName">];
+  let Documentation = [EnforceTCBDocs];
+  bit InheritEvenIfAlreadyPresent = 1;
+}
+
+def EnforceTCBLeaf : InheritableAttr {
+  let Spellings = [Clang<"enforce_tcb_leaf">];
+  let Subjects = SubjectList<[Function]>;
+  let Args = [StringArgument<"TCBName">];
+  let Documentation = [EnforceTCBLeafDocs];
+  bit InheritEvenIfAlreadyPresent = 1;
 }

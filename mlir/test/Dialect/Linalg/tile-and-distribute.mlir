@@ -42,8 +42,8 @@ func @gemm2(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>)
 //  CHECK-DAG: %[[BIDX:.*]] = "gpu.block_id"() {dimension = "x"}
 //      CHECK: %[[ITERY:.*]] = affine.apply #[[MAP0]]()[%[[BIDY]]]
 //      CHECK: %[[ITERX:.*]] = affine.apply #[[MAP0]]()[%[[BIDX]]]
-//      CHECK: %[[INBOUNDSY:.*]] = cmpi "slt", %[[ITERY]], %{{.*}}
-//      CHECK: %[[INBOUNDSX:.*]] = cmpi "slt", %[[ITERX]], %{{.*}}
+//      CHECK: %[[INBOUNDSY:.*]] = cmpi slt, %[[ITERY]], %{{.*}}
+//      CHECK: %[[INBOUNDSX:.*]] = cmpi slt, %[[ITERX]], %{{.*}}
 //      CHECK: %[[INBOUNDS:.*]] = and %[[INBOUNDSY]], %[[INBOUNDSX]]
 //      CHECK: scf.if %[[INBOUNDS]]
 //      CHECK:   scf.for %[[ARG3:.*]] =
@@ -102,7 +102,7 @@ func @gemm4(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>)
 //      CHECK: %[[BIDY:.*]] = "gpu.block_id"() {dimension = "y"}
 //      CHECK: %[[BIDX:.*]] = "gpu.block_id"() {dimension = "x"}
 //      CHECK: %[[LBX:.*]] = affine.apply #[[MAP0]]()[%[[BIDX]]]
-//      CHECK: %[[INBOUNDS:.*]] = cmpi "slt", %[[LBX]], %{{.*}}
+//      CHECK: %[[INBOUNDS:.*]] = cmpi slt, %[[LBX]], %{{.*}}
 //      CHECK: scf.if %[[INBOUNDS]]
 //      CHECK:   scf.for %[[ARG3:.*]] =
 //      CHECK:     %[[OFFSETY:.*]] = affine.apply #[[MAP0]]()[%[[BIDY]]]
@@ -134,7 +134,7 @@ func @gemm5(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>)
 //      CHECK: %[[LBY:.*]] = affine.apply #[[MAP0]]()[%[[BIDY]]]
 //      CHECK: %[[LBX:.*]] = affine.apply #[[MAP0]]()[%[[BIDX]]]
 //      CHECK: %[[STEPX:.*]] = affine.apply #[[MAP0]]()[%[[NBLOCKSX]]]
-//      CHECK: %[[INBOUNDS:.*]] = cmpi "slt", %[[LBY]], %{{.*}}
+//      CHECK: %[[INBOUNDS:.*]] = cmpi slt, %[[LBY]], %{{.*}}
 //      CHECK: scf.if %[[INBOUNDS]]
 //      CHECK:   scf.parallel (%[[ARG3.*]]) = (%[[LBX]]) to (%{{.*}}) step (%[[STEPX]])
 //      CHECK:     scf.for %[[ARG4:.*]] =
@@ -198,14 +198,14 @@ func @matmul_tensors(
 //      CHECK:       %[[sTB:.*]] = subtensor %[[TB]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
 //      CHECK:       %[[sTC:.*]] = subtensor %[[TC2]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
 //      CHECK:       %[[sTD:.*]] = linalg.matmul ins(%[[sTA]], %[[sTB]] : tensor<?x?xf32>, tensor<?x?xf32>)
-// CHECK-SAME:                                  init(%[[sTC]] : tensor<?x?xf32>)  -> tensor<?x?xf32>
+// CHECK-SAME:                                  outs(%[[sTC]] : tensor<?x?xf32>)  -> tensor<?x?xf32>
 //      CHECK:       %[[TD:.*]] = subtensor_insert %[[sTD]] into %[[TC2]][{{.*}}]  : tensor<?x?xf32> into tensor<?x?xf32>
 //      CHECK:       scf.yield %[[TD]] : tensor<?x?xf32>
 //      CHECK:     scf.yield %[[TD2]] : tensor<?x?xf32>
 //      CHECK:   scf.yield %[[TD1]] : tensor<?x?xf32>
   %0 = linalg.matmul {__internal_linalg_transform__ = "tensors_distribute1"}
        ins(%arg0, %arg1: tensor<?x?xf32>, tensor<?x?xf32>)
-      init(%arg2: tensor<?x?xf32>)
+      outs(%arg2: tensor<?x?xf32>)
     -> tensor<?x?xf32>
 
 //      CHECK: return %[[TD0]] : tensor<?x?xf32>

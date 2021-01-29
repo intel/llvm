@@ -12,8 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "../PassDetail.h"
-#include "mlir/Conversion/SPIRVToLLVM/ConvertSPIRVToLLVM.h"
-#include "mlir/Conversion/SPIRVToLLVM/ConvertSPIRVToLLVMPass.h"
+#include "mlir/Conversion/SPIRVToLLVM/SPIRVToLLVM.h"
+#include "mlir/Conversion/SPIRVToLLVM/SPIRVToLLVMPass.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -60,7 +60,7 @@ static unsigned calculateGlobalIndex(spirv::GlobalVariableOp op) {
 static void copy(Location loc, Value dst, Value src, Value size,
                  OpBuilder &builder) {
   MLIRContext *context = builder.getContext();
-  auto llvmI1Type = LLVM::LLVMType::getInt1Ty(context);
+  auto llvmI1Type = IntegerType::get(context, 1);
   Value isVolatile = builder.create<LLVM::ConstantOp>(
       loc, llvmI1Type, builder.getBoolAttr(false));
   builder.create<LLVM::MemcpyOp>(loc, dst, src, size, isVolatile);
@@ -183,9 +183,8 @@ class GPULaunchLowering : public ConvertOpToLLVMPattern<gpu::LaunchFuncOp> {
       rewriter.setInsertionPointToStart(module.getBody());
       kernelFunc = rewriter.create<LLVM::LLVMFuncOp>(
           rewriter.getUnknownLoc(), newKernelFuncName,
-          LLVM::LLVMType::getFunctionTy(LLVM::LLVMType::getVoidTy(context),
-                                        ArrayRef<LLVM::LLVMType>(),
-                                        /*isVarArg=*/false));
+          LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(context),
+                                      ArrayRef<Type>()));
       rewriter.setInsertionPoint(launchOp);
     }
 
@@ -201,7 +200,7 @@ class GPULaunchLowering : public ConvertOpToLLVMPattern<gpu::LaunchFuncOp> {
     auto numKernelOperands = launchOp.getNumKernelOperands();
     auto kernelOperands = operands.take_back(numKernelOperands);
     for (auto operand : llvm::enumerate(kernelOperands)) {
-      // Check if the kernel's opernad is a ranked memref.
+      // Check if the kernel's operand is a ranked memref.
       auto memRefType = launchOp.getKernelOperand(operand.index())
                             .getType()
                             .dyn_cast<MemRefType>();
@@ -213,8 +212,8 @@ class GPULaunchLowering : public ConvertOpToLLVMPattern<gpu::LaunchFuncOp> {
       SmallVector<Value, 4> sizes;
       SmallVector<Value, 4> strides;
       Value sizeBytes;
-      getMemRefDescriptorSizes(loc, memRefType, operand.value(), rewriter,
-                               sizes, strides, sizeBytes);
+      getMemRefDescriptorSizes(loc, memRefType, {}, rewriter, sizes, strides,
+                               sizeBytes);
       MemRefDescriptor descriptor(operand.value());
       Value src = descriptor.allocatedPtr(rewriter, loc);
 
@@ -235,7 +234,7 @@ class GPULaunchLowering : public ConvertOpToLLVMPattern<gpu::LaunchFuncOp> {
         OpBuilder::InsertionGuard guard(rewriter);
         rewriter.setInsertionPointToStart(module.getBody());
         dstGlobal = rewriter.create<LLVM::GlobalOp>(
-            loc, dstGlobalType.cast<LLVM::LLVMType>(),
+            loc, dstGlobalType,
             /*isConstant=*/false, LLVM::Linkage::Linkonce, name, Attribute());
         rewriter.setInsertionPoint(launchOp);
       }

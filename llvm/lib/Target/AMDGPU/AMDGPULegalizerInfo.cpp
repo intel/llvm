@@ -15,19 +15,15 @@
 
 #include "AMDGPU.h"
 #include "AMDGPUGlobalISelUtils.h"
+#include "AMDGPUInstrInfo.h"
 #include "AMDGPUTargetMachine.h"
 #include "SIMachineFunctionInfo.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerHelper.h"
-#include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
-#include "llvm/CodeGen/TargetOpcodes.h"
-#include "llvm/CodeGen/ValueTypes.h"
-#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/DiagnosticInfo.h"
-#include "llvm/IR/Type.h"
-#include "llvm/Support/Debug.h"
+#include "llvm/IR/IntrinsicsAMDGPU.h"
 
 #define DEBUG_TYPE "amdgpu-legalinfo"
 
@@ -240,7 +236,7 @@ static unsigned maxSizeForAddrSpace(const GCNSubtarget &ST, unsigned AS,
   switch (AS) {
   case AMDGPUAS::PRIVATE_ADDRESS:
     // FIXME: Private element size.
-    return 32;
+    return ST.enableFlatScratch() ? 128 : 32;
   case AMDGPUAS::LOCAL_ADDRESS:
     return ST.useDS128() ? 128 : 64;
   case AMDGPUAS::GLOBAL_ADDRESS:
@@ -2087,10 +2083,11 @@ bool AMDGPULegalizerInfo::legalizeExtractVectorElt(
   // FIXME: Artifact combiner probably should have replaced the truncated
   // constant before this, so we shouldn't need
   // getConstantVRegValWithLookThrough.
-  Optional<ValueAndVReg> IdxVal = getConstantVRegValWithLookThrough(
-    MI.getOperand(2).getReg(), MRI);
-  if (!IdxVal) // Dynamic case will be selected to register indexing.
+  Optional<ValueAndVReg> MaybeIdxVal =
+      getConstantVRegValWithLookThrough(MI.getOperand(2).getReg(), MRI);
+  if (!MaybeIdxVal) // Dynamic case will be selected to register indexing.
     return true;
+  const int64_t IdxVal = MaybeIdxVal->Value.getSExtValue();
 
   Register Dst = MI.getOperand(0).getReg();
   Register Vec = MI.getOperand(1).getReg();
@@ -2099,8 +2096,8 @@ bool AMDGPULegalizerInfo::legalizeExtractVectorElt(
   LLT EltTy = VecTy.getElementType();
   assert(EltTy == MRI.getType(Dst));
 
-  if (IdxVal->Value < VecTy.getNumElements())
-    B.buildExtract(Dst, Vec, IdxVal->Value * EltTy.getSizeInBits());
+  if (IdxVal < VecTy.getNumElements())
+    B.buildExtract(Dst, Vec, IdxVal * EltTy.getSizeInBits());
   else
     B.buildUndef(Dst);
 
@@ -2118,11 +2115,12 @@ bool AMDGPULegalizerInfo::legalizeInsertVectorElt(
   // FIXME: Artifact combiner probably should have replaced the truncated
   // constant before this, so we shouldn't need
   // getConstantVRegValWithLookThrough.
-  Optional<ValueAndVReg> IdxVal = getConstantVRegValWithLookThrough(
-    MI.getOperand(3).getReg(), MRI);
-  if (!IdxVal) // Dynamic case will be selected to register indexing.
+  Optional<ValueAndVReg> MaybeIdxVal =
+      getConstantVRegValWithLookThrough(MI.getOperand(3).getReg(), MRI);
+  if (!MaybeIdxVal) // Dynamic case will be selected to register indexing.
     return true;
 
+  int64_t IdxVal = MaybeIdxVal->Value.getSExtValue();
   Register Dst = MI.getOperand(0).getReg();
   Register Vec = MI.getOperand(1).getReg();
   Register Ins = MI.getOperand(2).getReg();
@@ -2131,8 +2129,8 @@ bool AMDGPULegalizerInfo::legalizeInsertVectorElt(
   LLT EltTy = VecTy.getElementType();
   assert(EltTy == MRI.getType(Ins));
 
-  if (IdxVal->Value < VecTy.getNumElements())
-    B.buildInsert(Dst, Vec, Ins, IdxVal->Value * EltTy.getSizeInBits());
+  if (IdxVal < VecTy.getNumElements())
+    B.buildInsert(Dst, Vec, Ins, IdxVal * EltTy.getSizeInBits());
   else
     B.buildUndef(Dst);
 
@@ -2643,7 +2641,7 @@ bool AMDGPULegalizerInfo::legalizeBuildVector(
 static bool isNot(const MachineRegisterInfo &MRI, const MachineInstr &MI) {
   if (MI.getOpcode() != TargetOpcode::G_XOR)
     return false;
-  auto ConstVal = getConstantVRegVal(MI.getOperand(2).getReg(), MRI);
+  auto ConstVal = getConstantVRegSExtVal(MI.getOperand(2).getReg(), MRI);
   return ConstVal && *ConstVal == -1;
 }
 
@@ -2753,9 +2751,6 @@ bool AMDGPULegalizerInfo::legalizeFDIV(MachineInstr &MI,
   LLT S16 = LLT::scalar(16);
   LLT S32 = LLT::scalar(32);
   LLT S64 = LLT::scalar(64);
-
-  if (legalizeFastUnsafeFDIV(MI, MRI, B))
-    return true;
 
   if (DstTy == S16)
     return legalizeFDIV16(MI, MRI, B);
@@ -3051,22 +3046,14 @@ bool AMDGPULegalizerInfo::legalizeFastUnsafeFDIV(MachineInstr &MI,
   Register Res = MI.getOperand(0).getReg();
   Register LHS = MI.getOperand(1).getReg();
   Register RHS = MI.getOperand(2).getReg();
-
   uint16_t Flags = MI.getFlags();
-
   LLT ResTy = MRI.getType(Res);
-  LLT S32 = LLT::scalar(32);
-  LLT S64 = LLT::scalar(64);
 
   const MachineFunction &MF = B.getMF();
-  bool Unsafe =
-    MF.getTarget().Options.UnsafeFPMath || MI.getFlag(MachineInstr::FmArcp);
+  bool AllowInaccurateRcp = MF.getTarget().Options.UnsafeFPMath ||
+                            MI.getFlag(MachineInstr::FmAfn);
 
-  if (!MF.getTarget().Options.UnsafeFPMath && ResTy == S64)
-    return false;
-
-  if (!Unsafe && ResTy == S32 &&
-      MF.getInfo<SIMachineFunctionInfo>()->getMode().allFP32Denormals())
+  if (!AllowInaccurateRcp)
     return false;
 
   if (auto CLHS = getConstantFPVRegVal(LHS, MRI)) {
@@ -3093,22 +3080,58 @@ bool AMDGPULegalizerInfo::legalizeFastUnsafeFDIV(MachineInstr &MI,
   }
 
   // x / y -> x * (1.0 / y)
-  if (Unsafe) {
-    auto RCP = B.buildIntrinsic(Intrinsic::amdgcn_rcp, {ResTy}, false)
-      .addUse(RHS)
-      .setMIFlags(Flags);
-    B.buildFMul(Res, LHS, RCP, Flags);
+  auto RCP = B.buildIntrinsic(Intrinsic::amdgcn_rcp, {ResTy}, false)
+    .addUse(RHS)
+    .setMIFlags(Flags);
+  B.buildFMul(Res, LHS, RCP, Flags);
 
-    MI.eraseFromParent();
-    return true;
-  }
+  MI.eraseFromParent();
+  return true;
+}
 
-  return false;
+bool AMDGPULegalizerInfo::legalizeFastUnsafeFDIV64(MachineInstr &MI,
+                                                   MachineRegisterInfo &MRI,
+                                                   MachineIRBuilder &B) const {
+  Register Res = MI.getOperand(0).getReg();
+  Register X = MI.getOperand(1).getReg();
+  Register Y = MI.getOperand(2).getReg();
+  uint16_t Flags = MI.getFlags();
+  LLT ResTy = MRI.getType(Res);
+
+  const MachineFunction &MF = B.getMF();
+  bool AllowInaccurateRcp = MF.getTarget().Options.UnsafeFPMath ||
+                            MI.getFlag(MachineInstr::FmAfn);
+
+  if (!AllowInaccurateRcp)
+    return false;
+
+  auto NegY = B.buildFNeg(ResTy, Y);
+  auto One = B.buildFConstant(ResTy, 1.0);
+
+  auto R = B.buildIntrinsic(Intrinsic::amdgcn_rcp, {ResTy}, false)
+    .addUse(Y)
+    .setMIFlags(Flags);
+
+  auto Tmp0 = B.buildFMA(ResTy, NegY, R, One);
+  R = B.buildFMA(ResTy, Tmp0, R, R);
+
+  auto Tmp1 = B.buildFMA(ResTy, NegY, R, One);
+  R = B.buildFMA(ResTy, Tmp1, R, R);
+
+  auto Ret = B.buildFMul(ResTy, X, R);
+  auto Tmp2 = B.buildFMA(ResTy, NegY, Ret, X);
+
+  B.buildFMA(Res, Tmp2, R, Ret);
+  MI.eraseFromParent();
+  return true;
 }
 
 bool AMDGPULegalizerInfo::legalizeFDIV16(MachineInstr &MI,
                                          MachineRegisterInfo &MRI,
                                          MachineIRBuilder &B) const {
+  if (legalizeFastUnsafeFDIV(MI, MRI, B))
+    return true;
+
   Register Res = MI.getOperand(0).getReg();
   Register LHS = MI.getOperand(1).getReg();
   Register RHS = MI.getOperand(2).getReg();
@@ -3171,6 +3194,9 @@ static void toggleSPDenormMode(bool Enable,
 bool AMDGPULegalizerInfo::legalizeFDIV32(MachineInstr &MI,
                                          MachineRegisterInfo &MRI,
                                          MachineIRBuilder &B) const {
+  if (legalizeFastUnsafeFDIV(MI, MRI, B))
+    return true;
+
   Register Res = MI.getOperand(0).getReg();
   Register LHS = MI.getOperand(1).getReg();
   Register RHS = MI.getOperand(2).getReg();
@@ -3237,6 +3263,9 @@ bool AMDGPULegalizerInfo::legalizeFDIV32(MachineInstr &MI,
 bool AMDGPULegalizerInfo::legalizeFDIV64(MachineInstr &MI,
                                          MachineRegisterInfo &MRI,
                                          MachineIRBuilder &B) const {
+  if (legalizeFastUnsafeFDIV64(MI, MRI, B))
+    return true;
+
   Register Res = MI.getOperand(0).getReg();
   Register LHS = MI.getOperand(1).getReg();
   Register RHS = MI.getOperand(2).getReg();

@@ -75,7 +75,7 @@ static HeaderFileType getOutputType(const opt::InputArgList &args) {
 
 static Optional<std::string>
 findAlongPathsWithExtensions(StringRef name, ArrayRef<StringRef> extensions) {
-  llvm::SmallString<261> base;
+  SmallString<261> base;
   for (StringRef dir : config->librarySearchPaths) {
     base = dir;
     path::append(base, Twine("lib") + name);
@@ -99,7 +99,7 @@ static Optional<std::string> findLibrary(StringRef name) {
 }
 
 static Optional<std::string> findFramework(StringRef name) {
-  llvm::SmallString<260> symlink;
+  SmallString<260> symlink;
   StringRef suffix;
   std::tie(name, suffix) = name.split(",");
   for (StringRef dir : config->frameworkSearchPaths) {
@@ -109,7 +109,7 @@ static Optional<std::string> findFramework(StringRef name) {
     if (!suffix.empty()) {
       // NOTE: we must resolve the symlink before trying the suffixes, because
       // there are no symlinks for the suffixed paths.
-      llvm::SmallString<260> location;
+      SmallString<260> location;
       if (!fs::real_path(symlink, location)) {
         // only append suffix if realpath() succeeds
         Twine suffixed = location + suffix;
@@ -127,11 +127,11 @@ static Optional<std::string> findFramework(StringRef name) {
 
 static TargetInfo *createTargetInfo(opt::InputArgList &args) {
   StringRef arch = args.getLastArgValue(OPT_arch, "x86_64");
-  config->arch = llvm::MachO::getArchitectureFromName(
+  config->arch = MachO::getArchitectureFromName(
       args.getLastArgValue(OPT_arch, arch));
   switch (config->arch) {
-  case llvm::MachO::AK_x86_64:
-  case llvm::MachO::AK_x86_64h:
+  case MachO::AK_x86_64:
+  case MachO::AK_x86_64h:
     return createX86_64TargetInfo();
   default:
     fatal("missing or unsupported -arch " + arch);
@@ -524,7 +524,7 @@ static void replaceCommonSymbols() {
 
     replaceSymbol<Defined>(sym, sym->getName(), isec, /*value=*/0,
                            /*isWeakDef=*/false,
-                           /*isExternal=*/true);
+                           /*isExternal=*/true, common->privateExtern);
   }
 }
 
@@ -548,20 +548,19 @@ static void handlePlatformVersion(const opt::Arg *arg) {
 
   // TODO(compnerd) see if we can generate this case list via XMACROS
   config->platform.kind =
-      llvm::StringSwitch<llvm::MachO::PlatformKind>(lowerDash(platformStr))
-          .Cases("macos", "1", llvm::MachO::PlatformKind::macOS)
-          .Cases("ios", "2", llvm::MachO::PlatformKind::iOS)
-          .Cases("tvos", "3", llvm::MachO::PlatformKind::tvOS)
-          .Cases("watchos", "4", llvm::MachO::PlatformKind::watchOS)
-          .Cases("bridgeos", "5", llvm::MachO::PlatformKind::bridgeOS)
-          .Cases("mac-catalyst", "6", llvm::MachO::PlatformKind::macCatalyst)
-          .Cases("ios-simulator", "7", llvm::MachO::PlatformKind::iOSSimulator)
-          .Cases("tvos-simulator", "8",
-                 llvm::MachO::PlatformKind::tvOSSimulator)
-          .Cases("watchos-simulator", "9",
-                 llvm::MachO::PlatformKind::watchOSSimulator)
-          .Default(llvm::MachO::PlatformKind::unknown);
-  if (config->platform.kind == llvm::MachO::PlatformKind::unknown)
+      StringSwitch<PlatformKind>(lowerDash(platformStr))
+          .Cases("macos", "1", PlatformKind::macOS)
+          .Cases("ios", "2", PlatformKind::iOS)
+          .Cases("tvos", "3", PlatformKind::tvOS)
+          .Cases("watchos", "4", PlatformKind::watchOS)
+          .Cases("bridgeos", "5", PlatformKind::bridgeOS)
+          .Cases("mac-catalyst", "6", PlatformKind::macCatalyst)
+          .Cases("ios-simulator", "7", PlatformKind::iOSSimulator)
+          .Cases("tvos-simulator", "8", PlatformKind::tvOSSimulator)
+          .Cases("watchos-simulator", "9", PlatformKind::watchOSSimulator)
+          .Cases("driverkit", "10", PlatformKind::driverKit)
+          .Default(PlatformKind::unknown);
+  if (config->platform.kind == PlatformKind::unknown)
     error(Twine("malformed platform: ") + platformStr);
   // TODO: check validity of version strings, which varies by platform
   // NOTE: ld64 accepts version strings with 5 components
@@ -576,7 +575,7 @@ static void handlePlatformVersion(const opt::Arg *arg) {
 static void handleUndefined(const opt::Arg *arg) {
   StringRef treatmentStr = arg->getValue(0);
   config->undefinedSymbolTreatment =
-      llvm::StringSwitch<UndefinedSymbolTreatment>(treatmentStr)
+      StringSwitch<UndefinedSymbolTreatment>(treatmentStr)
           .Case("error", UndefinedSymbolTreatment::error)
           .Case("warning", UndefinedSymbolTreatment::warning)
           .Case("suppress", UndefinedSymbolTreatment::suppress)
@@ -637,8 +636,12 @@ static bool isPie(opt::InputArgList &args) {
   // to PIE from 10.7, arm64 should always be PIE, etc
   assert(config->arch == AK_x86_64 || config->arch == AK_x86_64h);
 
-  if (config->platform.kind == MachO::PlatformKind::macOS &&
+  PlatformKind kind = config->platform.kind;
+  if (kind == PlatformKind::macOS &&
       config->platform.minimum >= VersionTuple(10, 6))
+    return true;
+
+  if (kind == PlatformKind::iOSSimulator || kind == PlatformKind::driverKit)
     return true;
 
   return args.hasArg(OPT_pie);
@@ -674,7 +677,7 @@ static uint32_t parseDylibVersion(const opt::ArgList& args, unsigned id) {
   return version.rawValue();
 }
 
-bool macho::link(llvm::ArrayRef<const char *> argsArr, bool canExitEarly,
+bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
                  raw_ostream &stdoutOS, raw_ostream &stderrOS) {
   lld::stdoutOS = &stdoutOS;
   lld::stderrOS = &stderrOS;
@@ -690,8 +693,13 @@ bool macho::link(llvm::ArrayRef<const char *> argsArr, bool canExitEarly,
   if (args.hasArg(OPT_help_hidden)) {
     parser.printHelp(argsArr[0], /*showHidden=*/true);
     return true;
-  } else if (args.hasArg(OPT_help)) {
+  }
+  if (args.hasArg(OPT_help)) {
     parser.printHelp(argsArr[0], /*showHidden=*/false);
+    return true;
+  }
+  if (args.hasArg(OPT_version)) {
+    message(getLLDVersion());
     return true;
   }
 
@@ -725,6 +733,9 @@ bool macho::link(llvm::ArrayRef<const char *> argsArr, bool canExitEarly,
   config->printWhyLoad = args.hasArg(OPT_why_load);
   config->outputType = getOutputType(args);
   config->ltoObjPath = args.getLastArgValue(OPT_object_path_lto);
+  config->ltoNewPassManager =
+      args.hasFlag(OPT_no_lto_legacy_pass_manager, OPT_lto_legacy_pass_manager,
+                   LLVM_ENABLE_NEW_PASS_MANAGER);
   config->runtimePaths = args::getStrings(args, OPT_rpath);
   config->allLoad = args.hasArg(OPT_all_load);
   config->forceLoadObjC = args.hasArg(OPT_ObjC);
@@ -742,7 +753,7 @@ bool macho::link(llvm::ArrayRef<const char *> argsArr, bool canExitEarly,
   if (const opt::Arg *arg =
           args.getLastArg(OPT_search_paths_first, OPT_search_dylibs_first))
     config->searchDylibsFirst =
-        (arg && arg->getOption().getID() == OPT_search_dylibs_first);
+        arg->getOption().getID() == OPT_search_dylibs_first;
 
   config->dylibCompatibilityVersion =
       parseDylibVersion(args, OPT_compatibility_version);
@@ -754,11 +765,11 @@ bool macho::link(llvm::ArrayRef<const char *> argsArr, bool canExitEarly,
     message(getLLDVersion());
     message(StringRef("Library search paths:") +
             (config->librarySearchPaths.size()
-                 ? "\n\t" + llvm::join(config->librarySearchPaths, "\n\t")
+                 ? "\n\t" + join(config->librarySearchPaths, "\n\t")
                  : ""));
     message(StringRef("Framework search paths:") +
             (config->frameworkSearchPaths.size()
-                 ? "\n\t" + llvm::join(config->frameworkSearchPaths, "\n\t")
+                 ? "\n\t" + join(config->frameworkSearchPaths, "\n\t")
                  : ""));
     freeArena();
     return !errorCount();

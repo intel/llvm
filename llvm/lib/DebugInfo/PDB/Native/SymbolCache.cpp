@@ -109,9 +109,10 @@ SymIndexId SymbolCache::createSimpleType(TypeIndex Index,
     return createSymbol<NativeTypePointer>(Index);
 
   const auto Kind = Index.getSimpleKind();
-  const auto It = std::find_if(
-      std::begin(BuiltinTypes), std::end(BuiltinTypes),
-      [Kind](const BuiltinTypeEntry &Builtin) { return Builtin.Kind == Kind; });
+  const auto It =
+      llvm::find_if(BuiltinTypes, [Kind](const BuiltinTypeEntry &Builtin) {
+        return Builtin.Kind == Kind;
+      });
   if (It == std::end(BuiltinTypes))
     return 0;
   return createSymbol<NativeTypeBuiltin>(Mods, It->Type, It->Size);
@@ -513,14 +514,12 @@ SymbolCache::findLineTable(uint16_t Modi) const {
   }
 
   // Sort EntryList, and add flattened contents to the line table.
-  std::sort(EntryList.begin(), EntryList.end(),
-            [](const std::vector<LineTableEntry> &LHS,
-               const std::vector<LineTableEntry> &RHS) {
-              return LHS[0].Addr < RHS[0].Addr;
-            });
+  llvm::sort(EntryList, [](const std::vector<LineTableEntry> &LHS,
+                           const std::vector<LineTableEntry> &RHS) {
+    return LHS[0].Addr < RHS[0].Addr;
+  });
   for (size_t I = 0; I < EntryList.size(); ++I)
-    ModuleLineTable.insert(ModuleLineTable.end(), EntryList[I].begin(),
-                           EntryList[I].end());
+    llvm::append_range(ModuleLineTable, EntryList[I]);
 
   return ModuleLineTable;
 }

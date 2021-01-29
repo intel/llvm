@@ -218,12 +218,11 @@ FindUniqueOperandCommands(std::vector<std::string> &UniqueOperandCommands,
 
       // Otherwise, scan to see if all of the other instructions in this command
       // set share the operand.
-      if (std::any_of(Idxs.begin()+1, Idxs.end(),
-                      [&](unsigned Idx) {
-                        const AsmWriterInst &OtherInst = Instructions[Idx];
-                        return OtherInst.Operands.size() == Op ||
-                          OtherInst.Operands[Op] != FirstInst.Operands[Op];
-                      }))
+      if (any_of(drop_begin(Idxs), [&](unsigned Idx) {
+            const AsmWriterInst &OtherInst = Instructions[Idx];
+            return OtherInst.Operands.size() == Op ||
+                   OtherInst.Operands[Op] != FirstInst.Operands[Op];
+          }))
         break;
 
       // Okay, everything in this command set has the same next operand.  Add it
@@ -522,10 +521,8 @@ void AsmWriterEmitter::EmitPrintInstruction(
   }
 
   // Okay, delete instructions with no operand info left.
-  auto I = llvm::remove_if(Instructions,
-                     [](AsmWriterInst &Inst) { return Inst.Operands.empty(); });
-  Instructions.erase(I, Instructions.end());
-
+  llvm::erase_if(Instructions,
+                 [](AsmWriterInst &Inst) { return Inst.Operands.empty(); });
 
   // Because this is a vector, we want to emit from the end.  Reverse all of the
   // elements in the vector.

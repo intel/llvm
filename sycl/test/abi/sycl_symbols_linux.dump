@@ -5,6 +5,7 @@
 
 # RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %sycl_libs_dir/libsycl.so
 # REQUIRES: linux
+# UNSUPPORTED: libcxx
 
 _Z20__spirv_ocl_prefetchPKcm
 _Z21__spirv_MemoryBarrierN5__spv5ScopeEj

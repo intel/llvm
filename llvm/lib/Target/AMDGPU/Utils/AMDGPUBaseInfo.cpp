@@ -9,45 +9,24 @@
 #include "AMDGPUBaseInfo.h"
 #include "AMDGPU.h"
 #include "AMDGPUAsmUtils.h"
-#include "AMDGPUTargetTransformInfo.h"
-#include "SIDefines.h"
-#include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
+#include "AMDKernelCodeT.h"
+#include "GCNSubtarget.h"
+#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "llvm/BinaryFormat/ELF.h"
-#include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/IR/Attributes.h"
-#include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalValue.h"
-#include "llvm/IR/Instruction.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/IR/IntrinsicsR600.h"
 #include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/Module.h"
-#include "llvm/MC/MCContext.h"
-#include "llvm/MC/MCInstrDesc.h"
-#include "llvm/MC/MCInstrInfo.h"
-#include "llvm/MC/MCRegisterInfo.h"
-#include "llvm/MC/MCSectionELF.h"
 #include "llvm/MC/MCSubtargetInfo.h"
-#include "llvm/MC/SubtargetFeature.h"
-#include "llvm/Support/Casting.h"
+#include "llvm/Support/AMDHSAKernelDescriptor.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/MathExtras.h"
-#include <algorithm>
-#include <cassert>
-#include <cstdint>
-#include <cstring>
-#include <utility>
-
-#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
+#include "llvm/Support/TargetParser.h"
 
 #define GET_INSTRINFO_NAMED_OPS
 #define GET_INSTRMAP_INFO
 #include "AMDGPUGenInstrInfo.inc"
-#undef GET_INSTRMAP_INFO
-#undef GET_INSTRINFO_NAMED_OPS
 
 static llvm::cl::opt<unsigned> AmdhsaCodeObjectVersion(
   "amdhsa-code-object-version", llvm::cl::Hidden,
@@ -1160,46 +1139,46 @@ bool isRegIntersect(unsigned Reg0, unsigned Reg1, const MCRegisterInfo* TRI) {
   CASE_CI_VI(FLAT_SCR) \
   CASE_CI_VI(FLAT_SCR_LO) \
   CASE_CI_VI(FLAT_SCR_HI) \
-  CASE_VI_GFX9_GFX10(TTMP0) \
-  CASE_VI_GFX9_GFX10(TTMP1) \
-  CASE_VI_GFX9_GFX10(TTMP2) \
-  CASE_VI_GFX9_GFX10(TTMP3) \
-  CASE_VI_GFX9_GFX10(TTMP4) \
-  CASE_VI_GFX9_GFX10(TTMP5) \
-  CASE_VI_GFX9_GFX10(TTMP6) \
-  CASE_VI_GFX9_GFX10(TTMP7) \
-  CASE_VI_GFX9_GFX10(TTMP8) \
-  CASE_VI_GFX9_GFX10(TTMP9) \
-  CASE_VI_GFX9_GFX10(TTMP10) \
-  CASE_VI_GFX9_GFX10(TTMP11) \
-  CASE_VI_GFX9_GFX10(TTMP12) \
-  CASE_VI_GFX9_GFX10(TTMP13) \
-  CASE_VI_GFX9_GFX10(TTMP14) \
-  CASE_VI_GFX9_GFX10(TTMP15) \
-  CASE_VI_GFX9_GFX10(TTMP0_TTMP1) \
-  CASE_VI_GFX9_GFX10(TTMP2_TTMP3) \
-  CASE_VI_GFX9_GFX10(TTMP4_TTMP5) \
-  CASE_VI_GFX9_GFX10(TTMP6_TTMP7) \
-  CASE_VI_GFX9_GFX10(TTMP8_TTMP9) \
-  CASE_VI_GFX9_GFX10(TTMP10_TTMP11) \
-  CASE_VI_GFX9_GFX10(TTMP12_TTMP13) \
-  CASE_VI_GFX9_GFX10(TTMP14_TTMP15) \
-  CASE_VI_GFX9_GFX10(TTMP0_TTMP1_TTMP2_TTMP3) \
-  CASE_VI_GFX9_GFX10(TTMP4_TTMP5_TTMP6_TTMP7) \
-  CASE_VI_GFX9_GFX10(TTMP8_TTMP9_TTMP10_TTMP11) \
-  CASE_VI_GFX9_GFX10(TTMP12_TTMP13_TTMP14_TTMP15) \
-  CASE_VI_GFX9_GFX10(TTMP0_TTMP1_TTMP2_TTMP3_TTMP4_TTMP5_TTMP6_TTMP7) \
-  CASE_VI_GFX9_GFX10(TTMP4_TTMP5_TTMP6_TTMP7_TTMP8_TTMP9_TTMP10_TTMP11) \
-  CASE_VI_GFX9_GFX10(TTMP8_TTMP9_TTMP10_TTMP11_TTMP12_TTMP13_TTMP14_TTMP15) \
-  CASE_VI_GFX9_GFX10(TTMP0_TTMP1_TTMP2_TTMP3_TTMP4_TTMP5_TTMP6_TTMP7_TTMP8_TTMP9_TTMP10_TTMP11_TTMP12_TTMP13_TTMP14_TTMP15) \
+  CASE_VI_GFX9PLUS(TTMP0) \
+  CASE_VI_GFX9PLUS(TTMP1) \
+  CASE_VI_GFX9PLUS(TTMP2) \
+  CASE_VI_GFX9PLUS(TTMP3) \
+  CASE_VI_GFX9PLUS(TTMP4) \
+  CASE_VI_GFX9PLUS(TTMP5) \
+  CASE_VI_GFX9PLUS(TTMP6) \
+  CASE_VI_GFX9PLUS(TTMP7) \
+  CASE_VI_GFX9PLUS(TTMP8) \
+  CASE_VI_GFX9PLUS(TTMP9) \
+  CASE_VI_GFX9PLUS(TTMP10) \
+  CASE_VI_GFX9PLUS(TTMP11) \
+  CASE_VI_GFX9PLUS(TTMP12) \
+  CASE_VI_GFX9PLUS(TTMP13) \
+  CASE_VI_GFX9PLUS(TTMP14) \
+  CASE_VI_GFX9PLUS(TTMP15) \
+  CASE_VI_GFX9PLUS(TTMP0_TTMP1) \
+  CASE_VI_GFX9PLUS(TTMP2_TTMP3) \
+  CASE_VI_GFX9PLUS(TTMP4_TTMP5) \
+  CASE_VI_GFX9PLUS(TTMP6_TTMP7) \
+  CASE_VI_GFX9PLUS(TTMP8_TTMP9) \
+  CASE_VI_GFX9PLUS(TTMP10_TTMP11) \
+  CASE_VI_GFX9PLUS(TTMP12_TTMP13) \
+  CASE_VI_GFX9PLUS(TTMP14_TTMP15) \
+  CASE_VI_GFX9PLUS(TTMP0_TTMP1_TTMP2_TTMP3) \
+  CASE_VI_GFX9PLUS(TTMP4_TTMP5_TTMP6_TTMP7) \
+  CASE_VI_GFX9PLUS(TTMP8_TTMP9_TTMP10_TTMP11) \
+  CASE_VI_GFX9PLUS(TTMP12_TTMP13_TTMP14_TTMP15) \
+  CASE_VI_GFX9PLUS(TTMP0_TTMP1_TTMP2_TTMP3_TTMP4_TTMP5_TTMP6_TTMP7) \
+  CASE_VI_GFX9PLUS(TTMP4_TTMP5_TTMP6_TTMP7_TTMP8_TTMP9_TTMP10_TTMP11) \
+  CASE_VI_GFX9PLUS(TTMP8_TTMP9_TTMP10_TTMP11_TTMP12_TTMP13_TTMP14_TTMP15) \
+  CASE_VI_GFX9PLUS(TTMP0_TTMP1_TTMP2_TTMP3_TTMP4_TTMP5_TTMP6_TTMP7_TTMP8_TTMP9_TTMP10_TTMP11_TTMP12_TTMP13_TTMP14_TTMP15) \
   }
 
 #define CASE_CI_VI(node) \
   assert(!isSI(STI)); \
   case node: return isCI(STI) ? node##_ci : node##_vi;
 
-#define CASE_VI_GFX9_GFX10(node) \
-  case node: return (isGFX9(STI) || isGFX10(STI)) ? node##_gfx9_gfx10 : node##_vi;
+#define CASE_VI_GFX9PLUS(node) \
+  case node: return isGFX9Plus(STI) ? node##_gfx9plus : node##_vi;
 
 unsigned getMCReg(unsigned Reg, const MCSubtargetInfo &STI) {
   if (STI.getTargetTriple().getArch() == Triple::r600)
@@ -1208,17 +1187,17 @@ unsigned getMCReg(unsigned Reg, const MCSubtargetInfo &STI) {
 }
 
 #undef CASE_CI_VI
-#undef CASE_VI_GFX9_GFX10
+#undef CASE_VI_GFX9PLUS
 
 #define CASE_CI_VI(node)   case node##_ci: case node##_vi:   return node;
-#define CASE_VI_GFX9_GFX10(node) case node##_vi: case node##_gfx9_gfx10: return node;
+#define CASE_VI_GFX9PLUS(node) case node##_vi: case node##_gfx9plus: return node;
 
 unsigned mc2PseudoReg(unsigned Reg) {
   MAP_REG2REG
 }
 
 #undef CASE_CI_VI
-#undef CASE_VI_GFX9_GFX10
+#undef CASE_VI_GFX9PLUS
 #undef MAP_REG2REG
 
 bool isSISrcOperand(const MCInstrDesc &Desc, unsigned OpNo) {

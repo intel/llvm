@@ -220,8 +220,7 @@ LLVM_NODISCARD Value *Negator::visitImpl(Value *V, unsigned Depth) {
   }
 
   if (I->getOpcode() == Instruction::Sub &&
-      (I->hasOneUse() || (isa<Constant>(I->getOperand(0)) &&
-                          !isa<ConstantExpr>(I->getOperand(0))))) {
+      (I->hasOneUse() || match(I->getOperand(0), m_ImmConstant()))) {
     // `sub` is always negatible.
     // However, only do this either if the old `sub` doesn't stick around, or
     // it was subtracting from a constant. Otherwise, this isn't profitable.
@@ -240,8 +239,8 @@ LLVM_NODISCARD Value *Negator::visitImpl(Value *V, unsigned Depth) {
     // While this is normally not behind a use-check,
     // let's consider division to be special since it's costly.
     if (auto *Op1C = dyn_cast<Constant>(I->getOperand(1))) {
-      if (!Op1C->containsUndefElement() && Op1C->isNotMinSignedValue() &&
-          Op1C->isNotOneValue()) {
+      if (!Op1C->containsUndefOrPoisonElement() &&
+          Op1C->isNotMinSignedValue() && Op1C->isNotOneValue()) {
         Value *BO =
             Builder.CreateSDiv(I->getOperand(0), ConstantExpr::getNeg(Op1C),
                                I->getName() + ".neg");

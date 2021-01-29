@@ -27,7 +27,7 @@ int main() {
 }
 
 // CHECK kernel_C parameters
-// CHECK: define spir_kernel void @{{.*}}kernel_C
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_C
 // CHECK-SAME: i32 addrspace(1)* [[MEM_ARG1:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %"struct{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+1]],
 // CHECK-SAME: %"struct{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+2]],

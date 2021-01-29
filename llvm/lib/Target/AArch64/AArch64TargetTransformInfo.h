@@ -115,7 +115,18 @@ public:
     return ST->getMinVectorRegisterBitWidth();
   }
 
+  Optional<unsigned> getMaxVScale() const {
+    if (ST->hasSVE())
+      return AArch64::SVEMaxBitsPerVector / AArch64::SVEBitsPerBlock;
+    return BaseT::getMaxVScale();
+  }
+
   unsigned getMaxInterleaveFactor(unsigned VF);
+
+  unsigned getGatherScatterOpCost(unsigned Opcode, Type *DataTy,
+                                  const Value *Ptr, bool VariableMask,
+                                  Align Alignment, TTI::TargetCostKind CostKind,
+                                  const Instruction *I = nullptr);
 
   int getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
                        TTI::CastContextHint CCH, TTI::TargetCostKind CostKind,
@@ -127,6 +138,14 @@ public:
   unsigned getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind);
 
   int getVectorInstrCost(unsigned Opcode, Type *Val, unsigned Index);
+
+  int getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
+                             bool IsPairwise, bool IsUnsigned,
+                             TTI::TargetCostKind CostKind);
+
+  int getArithmeticReductionCostSVE(unsigned Opcode, VectorType *ValTy,
+                                    bool IsPairwiseForm,
+                                    TTI::TargetCostKind CostKind);
 
   int getArithmeticInstrCost(
       unsigned Opcode, Type *Ty,

@@ -72,3 +72,11 @@ namespace PR46791 { // also PR45782
   static_assert(trait<C>::specialization == 2); // FIXME expected-error {{failed}}
   static_assert(trait<D>::specialization == 0); // FIXME-error {{ambiguous partial specialization}}
 }
+
+namespace TypeQualifier {
+  // Ensure that we substitute into an instantiation-dependent but
+  // non-dependent qualifier.
+  template<int> struct A { using type = int; };
+  template<typename T> A<sizeof(sizeof(T::error))>::type f() {} // expected-note {{'int' cannot be used prior to '::'}}
+  int k = f<int>(); // expected-error {{no matching}}
+}

@@ -17,6 +17,7 @@ include "mlir/Dialect/StandardOps/IR/StandardOpsBase.td"
 include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/CallInterfaces.td"
+include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/VectorInterfaces.td"
@@ -45,9 +46,10 @@ class Std_Op<string mnemonic, list<OpTrait> traits = []> :
 // Base class for standard cast operations. Requires single operand and result,
 // but does not constrain them to specific types.
 class CastOp<string mnemonic, list<OpTrait> traits = []> :
-    Std_Op<mnemonic,
-           !listconcat(traits, [NoSideEffect, SameOperandsAndResultShape])> {
-
+    Std_Op<mnemonic, traits # [
+      NoSideEffect, SameOperandsAndResultShape,
+      DeclareOpInterfaceMethods<CastOpInterface>
+    ]> {
   let results = (outs AnyType);
 
   let builders = [
@@ -62,14 +64,16 @@ class CastOp<string mnemonic, list<OpTrait> traits = []> :
   let printer = [{
     return printStandardCastOp(this->getOperation(), p);
   }];
-  let verifier = [{ return impl::verifyCastOp(*this, areCastCompatible); }];
 
-  let hasFolder = 1;
+  // Cast operations are fully verified by its traits.
+  let verifier = ?;
 }
 
 // Base class for arithmetic cast operations.
 class ArithmeticCastOp<string mnemonic, list<OpTrait> traits = []> :
-    CastOp<mnemonic, !listconcat(traits, [ElementwiseMappable])> {
+    CastOp<mnemonic,
+    !listconcat(traits, [ElementwiseMappable,
+                         DeclareOpInterfaceMethods<VectorUnrollOpInterface>])> {
 }
 
 // Base class for unary ops. Requires single operand and result. Individual
@@ -104,6 +108,7 @@ class ArithmeticOp<string mnemonic, list<OpTrait> traits = []> :
     Op<StandardOps_Dialect, mnemonic,
        !listconcat(traits, [NoSideEffect,
                             SameOperandsAndResultType,
+                            DeclareOpInterfaceMethods<VectorUnrollOpInterface>,
                             ElementwiseMappable])> {
 
   let results = (outs AnyType:$result);
@@ -146,18 +151,6 @@ class FloatArithmeticOp<string mnemonic, list<OpTrait> traits = []> :
                   [DeclareOpInterfaceMethods<VectorUnrollOpInterface>])>,
     Arguments<(ins FloatLike:$lhs, FloatLike:$rhs)>;
 
-// Base class for standard arithmetic operations on complex numbers with a
-// floating-point element type.
-// These operations take two operands and return one result, all of which must
-// be complex numbers of the same type.
-// The assembly format is as follows
-//
-//     <op>cf %0, %1 : complex<f32>
-//
-class ComplexFloatArithmeticOp<string mnemonic, list<OpTrait> traits = []> :
-    ArithmeticOp<mnemonic, traits>,
-    Arguments<(ins Complex<AnyFloat>:$lhs, Complex<AnyFloat>:$rhs)>;
-
 // Base class for memref allocating ops: alloca and alloc.
 //
 //   %0 = alloclike(%m)[%s] : memref<8x?xf32, (d0, d1)[s0] -> ((d0 + s0), d1)>
@@ -167,7 +160,6 @@ class AllocLikeOp<string mnemonic,
                   list<OpTrait> traits = []> :
     Std_Op<mnemonic,
     !listconcat([
-      MemoryEffects<[MemAlloc<resource>]>,
       AttrSizedOperandSegments
     ], traits)> {
 
@@ -257,26 +249,6 @@ def AbsFOp : FloatUnaryOp<"absf"> {
 
     // Tensor element-wise absolute value.
     %x = absf %y : tensor<4x?xf8>
-    ```
-  }];
-}
-
-//===----------------------------------------------------------------------===//
-// AddCFOp
-//===----------------------------------------------------------------------===//
-
-def AddCFOp : ComplexFloatArithmeticOp<"addcf"> {
-  let summary = "complex number addition";
-  let description = [{
-    The `addcf` operation takes two complex number operands and returns their
-    sum, a single complex number.
-    All operands and result must be of the same type, a complex number with a
-    floating-point element type.
-
-    Example:
-
-    ```mlir
-    %a = addcf %b, %c : complex<f32>
     ```
   }];
 }
@@ -992,6 +964,7 @@ def CmpFPredicateAttr : I64EnumAttr<
 
 def CmpFOp : Std_Op<"cmpf",
     [NoSideEffect, SameTypeOperands, ElementwiseMappable,
+     DeclareOpInterfaceMethods<VectorUnrollOpInterface>,
      TypesMatchWith<
        "result type has i1 element type and same shape as operands",
        "lhs", "result", "getI1SameShape($_self)">]> {
@@ -1076,6 +1049,7 @@ def CmpIPredicateAttr : I64EnumAttr<
 
 def CmpIOp : Std_Op<"cmpi",
     [NoSideEffect, SameTypeOperands, ElementwiseMappable,
+     DeclareOpInterfaceMethods<VectorUnrollOpInterface>,
      TypesMatchWith<
        "result type has i1 element type and same shape as operands",
        "lhs", "result", "getI1SameShape($_self)">]> {
@@ -1172,40 +1146,6 @@ def CmpIOp : Std_Op<"cmpi",
   let hasFolder = 1;
 
   let assemblyFormat = "$predicate `,` $lhs `,` $rhs attr-dict `:` type($lhs)";
-}
-
-//===----------------------------------------------------------------------===//
-// CreateComplexOp
-//===----------------------------------------------------------------------===//
-
-def CreateComplexOp : Std_Op<"create_complex",
-    [NoSideEffect,
-     AllTypesMatch<["real", "imaginary"]>,
-     TypesMatchWith<"complex element type matches real operand type",
-                    "complex", "real",
-                    "$_self.cast<ComplexType>().getElementType()">,
-     TypesMatchWith<"complex element type matches imaginary operand type",
-                    "complex", "imaginary",
-                    "$_self.cast<ComplexType>().getElementType()">]> {
-  let summary = "creates a complex number";
-  let description = [{
-    The `create_complex` operation creates a complex number from two
-    floating-point operands, the real and the imaginary part.
-
-    Example:
-
-    ```mlir
-    %a = create_complex %b, %c : complex<f32>
-    ```
-  }];
-
-  let arguments = (ins AnyFloat:$real, AnyFloat:$imaginary);
-  let results = (outs Complex<AnyFloat>:$complex);
-
-  let assemblyFormat = "$real `,` $imaginary attr-dict `:` type($complex)";
-
-  // `CreateComplexOp` is fully verified by its traits.
-  let verifier = ?;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1502,8 +1442,7 @@ def SinOp : FloatUnaryOp<"sin"> {
 // DeallocOp
 //===----------------------------------------------------------------------===//
 
-def DeallocOp : Std_Op<"dealloc",
-    [MemoryEffects<[MemFree]>, MemRefsNormalizable]> {
+def DeallocOp : Std_Op<"dealloc", [MemRefsNormalizable]> {
   let summary = "memory deallocation operation";
   let description = [{
     The `dealloc` operation frees the region of memory referenced by a memref
@@ -1586,47 +1525,7 @@ def DimOp : Std_Op<"dim", [NoSideEffect]> {
 
 def DivFOp : FloatArithmeticOp<"divf"> {
   let summary = "floating point division operation";
-}
-
-//===----------------------------------------------------------------------===//
-// DynamicTensorFromElementsOp
-//===----------------------------------------------------------------------===//
-
-def DynamicTensorFromElementsOp : Std_Op<"dynamic_tensor_from_elements",
-    [RecursiveSideEffects, SingleBlockImplicitTerminator<"YieldOp">]> {
-  string summary = "Creates a dynamically sized tensor from elements";
-  string description = [{
-    This operation creates a dynamically sized tensor with elements of any type.
-    It expects one index operand per dynamic extent of the result tensor.
-
-    The body region defines the tensor's elements. It takes index operands as
-    its region arguments that span the index space. The element at the given
-    position is yielded with the `yield` operation (see `YieldOp`). There is
-    no defined ordering to the invocations of the body. It is conceptually
-    a "parallel map" operation.
-
-    Example:
-
-    ```mlir
-      %tnsr = dynamic_tensor_from_elements %m, %n {
-      ^bb0(%i : index, %j : index, %k : index):
-        ...
-        yield %elem : f32
-      } : tensor<?x3x?f32>
-    ```
-  }];
-
-  let arguments = (ins Variadic<Index>:$dynamicExtents);
-  let results = (outs AnyRankedTensor:$result);
-  let regions = (region SizedRegion<1>:$body);
-
-  let builders = [
-    // Build op and populate its body per callback function.
-    OpBuilderDAG<(ins "Type":$resultTy, "ValueRange":$dynamicExtents,
-      "function_ref<void(OpBuilder &, Location, ValueRange)>")>,
-  ];
-
-  let hasCanonicalizer = 1;
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1670,46 +1569,6 @@ def Exp2Op : FloatUnaryOp<"exp2"> {
 }
 
 //===----------------------------------------------------------------------===//
-// TensorFromElementsOp
-//===----------------------------------------------------------------------===//
-
-def TensorFromElementsOp : Std_Op<"tensor_from_elements", [
-    NoSideEffect,
-    TypesMatchWith<"operand types match result element type",
-                   "result", "elements", "SmallVector<Type, 2>("
-                   "$_self.cast<ShapedType>().getDimSize(0), "
-                   "$_self.cast<ShapedType>().getElementType())">
-  ]> {
-  string summary = "tensor from elements operation.";
-  string description = [{
-    Create a 1D tensor from a range of same-type arguments.
-
-    Example:
-
-    ```mlir
-    tensor_from_elements(i_1, ..., i_N) :  tensor<Nxindex>
-    ```
-  }];
-
-  let arguments = (ins Variadic<AnyType>:$elements);
-  let results = (outs 1DTensorOf<[AnyType]>:$result);
-
-  let assemblyFormat = "$elements attr-dict `:` type($result)";
-
-  // This op is fully verified by its traits.
-  let verifier = ?;
-
-  let skipDefaultBuilders = 1;
-  let builders = [
-    OpBuilderDAG<(ins "Type":$elementType, "ValueRange":$elements)>,
-    // Special case builder for when `elements` has size >=1.
-    OpBuilderDAG<(ins "ValueRange":$elements)>
-  ];
-
-  let hasCanonicalizer = 1;
-}
-
-//===----------------------------------------------------------------------===//
 // FPExtOp
 //===----------------------------------------------------------------------===//
 
@@ -1720,14 +1579,6 @@ def FPExtOp : ArithmeticCastOp<"fpext">, Arguments<(ins AnyType:$in)> {
     The destination type must to be strictly wider than the source type.
     Only scalars are currently supported.
   }];
-
-  let extraClassDeclaration = [{
-    /// Return true if `a` and `b` are valid operand and result pairs for
-    /// the operation.
-    static bool areCastCompatible(Type a, Type b);
-  }];
-
-  let hasFolder = 0;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1740,14 +1591,6 @@ def FPToSIOp : ArithmeticCastOp<"fptosi">, Arguments<(ins AnyType:$in)> {
     Cast from a value interpreted as floating-point to the nearest (rounding
     towards zero) signed integer value.
   }];
-
-  let extraClassDeclaration = [{
-    /// Return true if `a` and `b` are valid operand and result pairs for
-    /// the operation.
-    static bool areCastCompatible(Type a, Type b);
-  }];
-
-  let hasFolder = 0;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1760,14 +1603,6 @@ def FPToUIOp : ArithmeticCastOp<"fptoui">, Arguments<(ins AnyType:$in)> {
     Cast from a value interpreted as floating-point to the nearest (rounding
     towards zero) unsigned integer value.
   }];
-
-  let extraClassDeclaration = [{
-    /// Return true if `a` and `b` are valid operand and result pairs for
-    /// the operation.
-    static bool areCastCompatible(Type a, Type b);
-  }];
-
-  let hasFolder = 0;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1782,14 +1617,6 @@ def FPTruncOp : ArithmeticCastOp<"fptrunc">, Arguments<(ins AnyType:$in)> {
     If the value cannot be exactly represented, it is rounded using the default
     rounding mode. Only scalars are currently supported.
   }];
-
-  let extraClassDeclaration = [{
-    /// Return true if `a` and `b` are valid operand and result pairs for
-    /// the operation.
-    static bool areCastCompatible(Type a, Type b);
-  }];
-
-  let hasFolder = 0;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1827,7 +1654,7 @@ def GlobalMemrefOp : Std_Op<"global_memref", [Symbol]> {
     // Uninitialized externally visible variable.
     global_memref @z : memref<3xf16> = uninitialized
 
-    // Externally visibile constant variable.
+    // Externally visible constant variable.
     global_memref constant @c : memref<2xi32> = dense<1, 4>
     ```
   }];
@@ -1885,36 +1712,6 @@ def GetGlobalMemrefOp : Std_Op<"get_global_memref",
 }
 
 //===----------------------------------------------------------------------===//
-// ImOp
-//===----------------------------------------------------------------------===//
-
-def ImOp : Std_Op<"im",
-    [NoSideEffect,
-     TypesMatchWith<"complex element type matches result type",
-                    "complex", "imaginary",
-                    "$_self.cast<ComplexType>().getElementType()">]> {
-  let summary = "extracts the imaginary part of a complex number";
-  let description = [{
-    The `im` operation takes a single complex number as its operand and extracts
-    the imaginary part as a floating-point value.
-
-    Example:
-
-    ```mlir
-    %a = im %b : complex<f32>
-    ```
-  }];
-
-  let arguments = (ins Complex<AnyFloat>:$complex);
-  let results = (outs AnyFloat:$imaginary);
-
-  let assemblyFormat = "$complex attr-dict `:` type($complex)";
-
-  // `ImOp` is fully verified by its traits.
-  let verifier = ?;
-}
-
-//===----------------------------------------------------------------------===//
 // IndexCastOp
 //===----------------------------------------------------------------------===//
 
@@ -1924,12 +1721,6 @@ def IndexCastOp : ArithmeticCastOp<"index_cast">, Arguments<(ins AnyType:$in)> {
     Casts between integer scalars and 'index' scalars. Index is an integer of
     platform-specific bit width. If casting to a wider integer, the value is
     sign-extended. If casting to a narrower integer, the value is truncated.
-  }];
-
-  let extraClassDeclaration = [{
-    /// Return true if `a` and `b` are valid operand and result pairs for
-    /// the operation.
-    static bool areCastCompatible(Type a, Type b);
   }];
 
   let hasFolder = 1;
@@ -2019,9 +1810,38 @@ def LogOp : FloatUnaryOp<"log"> {
   let summary = "base-e logarithm of the specified value";
 }
 
+//===----------------------------------------------------------------------===//
+// Log10Op
+//===----------------------------------------------------------------------===//
+
 def Log10Op : FloatUnaryOp<"log10"> {
   let summary = "base-10 logarithm of the specified value";
 }
+
+//===----------------------------------------------------------------------===//
+// Log1pOp
+//===----------------------------------------------------------------------===//
+
+def Log1pOp : FloatUnaryOp<"log1p"> {
+  let summary = "Computes the natural logarithm of one plus the given value";
+
+  let description = [{
+    Computes the base-e logarithm of one plus the given value. It takes one
+    operand and returns one result of the same type.
+
+    log1p(x) := log(1 + x)
+
+    Example:
+
+    ```mlir
+    %y = log1p %x : f64
+    ```
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// Log2Op
+//===----------------------------------------------------------------------===//
 
 def Log2Op : FloatUnaryOp<"log2"> {
   let summary = "base-2 logarithm of the specified value";
@@ -2093,14 +1913,7 @@ def MemRefCastOp : CastOp<"memref_cast", [
   let arguments = (ins AnyRankedOrUnrankedMemRef:$source);
   let results = (outs AnyRankedOrUnrankedMemRef);
 
-  let extraClassDeclaration = [{
-    /// Return true if `a` and `b` are valid operand and result pairs for
-    /// the operation.
-    static bool areCastCompatible(Type a, Type b);
-
-    /// The result of a memref_cast is always a memref.
-    Type getType() { return getResult().getType(); }
-  }];
+  let hasFolder = 1;
 }
 
 
@@ -2172,6 +1985,10 @@ def MemRefReinterpretCastOp:
       unsigned resultRank = getResult().getType().cast<ShapedType>().getRank();
       return {1, resultRank, resultRank};
     }
+
+    /// Return the number of leading operands before the `offsets`, `sizes` and
+    /// and `strides` operands.
+    static unsigned getOffsetSizeAndStrideStartOperandIndex() { return 1; }
   }];
 }
 
@@ -2459,36 +2276,6 @@ def RankOp : Std_Op<"rank", [NoSideEffect]> {
 }
 
 //===----------------------------------------------------------------------===//
-// ReOp
-//===----------------------------------------------------------------------===//
-
-def ReOp : Std_Op<"re",
-    [NoSideEffect,
-     TypesMatchWith<"complex element type matches result type",
-                    "complex", "real",
-                    "$_self.cast<ComplexType>().getElementType()">]> {
-  let summary = "extracts the real part of a complex number";
-  let description = [{
-    The `re` operation takes a single complex number as its operand and extracts
-    the real part as a floating-point value.
-
-    Example:
-
-    ```mlir
-    %a = re %b : complex<f32>
-    ```
-  }];
-
-  let arguments = (ins Complex<AnyFloat>:$complex);
-  let results = (outs AnyFloat:$real);
-
-  let assemblyFormat = "$complex attr-dict `:` type($complex)";
-
-  // `ReOp` is fully verified by its traits.
-  let verifier = ?;
-}
-
-//===----------------------------------------------------------------------===//
 // RemFOp
 //===----------------------------------------------------------------------===//
 
@@ -2548,7 +2335,7 @@ def RsqrtOp : FloatUnaryOp<"rsqrt"> {
 
 def SelectOp : Std_Op<"select", [NoSideEffect,
      AllTypesMatch<["true_value", "false_value", "result"]>,
-     ElementwiseMappable]> {
+     ElementwiseMappable, DeclareOpInterfaceMethods<VectorUnrollOpInterface>]> {
   let summary = "select operation";
   let description = [{
     The `select` operation chooses one value based on a binary condition
@@ -2779,7 +2566,8 @@ def SignedShiftRightOp : IntArithmeticOp<"shift_right_signed"> {
 //===----------------------------------------------------------------------===//
 
 def SignExtendIOp : Std_Op<"sexti",
-    [NoSideEffect, ElementwiseMappable]> {
+    [NoSideEffect, ElementwiseMappable,
+    DeclareOpInterfaceMethods<VectorUnrollOpInterface>]> {
   let summary = "integer sign extension operation";
   let description = [{
     The integer sign extension operation takes an integer input of
@@ -2829,14 +2617,6 @@ def SIToFPOp : ArithmeticCastOp<"sitofp">, Arguments<(ins AnyType:$in)> {
     exactly represented, it is rounded using the default rounding mode. Scalars
     and vector types are currently supported.
   }];
-
-  let extraClassDeclaration = [{
-    /// Return true if `a` and `b` are valid operand and result pairs for
-    /// the operation.
-    static bool areCastCompatible(Type a, Type b);
-  }];
-
-  let hasFolder = 0;
 }
 
 //===----------------------------------------------------------------------===//
@@ -2983,26 +2763,6 @@ def StoreOp : Std_Op<"store",
 }
 
 //===----------------------------------------------------------------------===//
-// SubCFOp
-//===----------------------------------------------------------------------===//
-
-def SubCFOp : ComplexFloatArithmeticOp<"subcf"> {
-  let summary = "complex number subtraction";
-  let description = [{
-    The `subcf` operation takes two complex number operands and returns their
-    difference, a single complex number.
-    All operands and result must be of the same type, a complex number with a
-    floating-point element type.
-
-    Example:
-
-    ```mlir
-    %a = subcf %b, %c : complex<f32>
-    ```
-  }];
-}
-
-//===----------------------------------------------------------------------===//
 // SubFOp
 //===----------------------------------------------------------------------===//
 
@@ -3025,7 +2785,8 @@ def SubIOp : IntArithmeticOp<"subi"> {
 //===----------------------------------------------------------------------===//
 
 def SubViewOp : BaseOpWithOffsetSizesAndStrides<
-    "subview", [DeclareOpInterfaceMethods<ViewLikeOpInterface>, OffsetSizeAndStrideOpInterface] >  {
+    "subview", [DeclareOpInterfaceMethods<ViewLikeOpInterface>,
+                OffsetSizeAndStrideOpInterface] >  {
   let summary = "memref subview operation";
   let description = [{
     The "subview" operation converts a memref type to another memref type
@@ -3211,6 +2972,10 @@ def SubViewOp : BaseOpWithOffsetSizesAndStrides<
       unsigned rank = getSourceType().getRank();
       return {rank, rank, rank};
     }
+
+    /// Return the number of leading operands before the `offsets`, `sizes` and
+    /// and `strides` operands.
+    static unsigned getOffsetSizeAndStrideStartOperandIndex() { return 1; }
   }];
 
   let hasCanonicalizer = 1;
@@ -3221,7 +2986,8 @@ def SubViewOp : BaseOpWithOffsetSizesAndStrides<
 // SubTensorOp
 //===----------------------------------------------------------------------===//
 
-def SubTensorOp : BaseOpWithOffsetSizesAndStrides<"subtensor", [OffsetSizeAndStrideOpInterface]> {
+def SubTensorOp : BaseOpWithOffsetSizesAndStrides<
+    "subtensor", [OffsetSizeAndStrideOpInterface]> {
   let summary = "subtensor operation";
   let description = [{
     The "subtensor" operation extract a tensor from another tensor as
@@ -3273,14 +3039,25 @@ def SubTensorOp : BaseOpWithOffsetSizesAndStrides<"subtensor", [OffsetSizeAndStr
   let results = (outs AnyRankedTensor:$result);
 
   let builders = [
-    // Build a SubViewOp with mixed static and dynamic entries.
+    // Build a SubTensorOp with mixed static and dynamic entries.
     OpBuilderDAG<(ins "Value":$source, "ArrayRef<int64_t>":$staticOffsets,
       "ArrayRef<int64_t>":$staticSizes, "ArrayRef<int64_t>":$staticStrides,
       "ValueRange":$offsets, "ValueRange":$sizes, "ValueRange":$strides,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
-    // Build a SubViewOp with all dynamic entries.
+    // Build a SubTensorOp with all dynamic entries.
     OpBuilderDAG<(ins "Value":$source, "ValueRange":$offsets,
       "ValueRange":$sizes, "ValueRange":$strides,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
+    // Build a SubTensorOp with mixed static and dynamic entries
+    // and custom result type.
+    OpBuilderDAG<(ins "RankedTensorType":$resultType, "Value":$source,
+      "ArrayRef<int64_t>":$staticOffsets, "ArrayRef<int64_t>":$staticSizes,
+      "ArrayRef<int64_t>":$staticStrides, "ValueRange":$offsets,
+      "ValueRange":$sizes, "ValueRange":$strides,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
+    // Build a SubTensorOp with all dynamic entries and custom result type.
+    OpBuilderDAG<(ins "RankedTensorType":$resultType, "Value":$source,
+      "ValueRange":$offsets, "ValueRange":$sizes, "ValueRange":$strides,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>
   ];
 
@@ -3309,6 +3086,10 @@ def SubTensorOp : BaseOpWithOffsetSizesAndStrides<"subtensor", [OffsetSizeAndStr
       unsigned rank = getSourceType().getRank();
       return {rank, rank, rank};
     }
+
+    /// Return the number of leading operands before the `offsets`, `sizes` and
+    /// and `strides` operands.
+    static unsigned getOffsetSizeAndStrideStartOperandIndex() { return 1; }
   }];
 
   let hasCanonicalizer = 1;
@@ -3318,7 +3099,8 @@ def SubTensorOp : BaseOpWithOffsetSizesAndStrides<"subtensor", [OffsetSizeAndStr
 // SubTensorInsertOp
 //===----------------------------------------------------------------------===//
 
-def SubTensorInsertOp : BaseOpWithOffsetSizesAndStrides<"subtensor_insert", [OffsetSizeAndStrideOpInterface]> {
+def SubTensorInsertOp : BaseOpWithOffsetSizesAndStrides<
+    "subtensor_insert", [OffsetSizeAndStrideOpInterface]> {
   let summary = "subtensor_insert operation";
   let description = [{
     The "subtensor_insert" operation insert a tensor `source` into another
@@ -3363,13 +3145,13 @@ def SubTensorInsertOp : BaseOpWithOffsetSizesAndStrides<"subtensor_insert", [Off
   let results = (outs AnyRankedTensor:$result);
 
   let builders = [
-    // Build a SubViewOp with mixed static and dynamic entries.
+    // Build a SubTensorInsertOp with mixed static and dynamic entries.
     OpBuilderDAG<(ins "Value":$source, "Value":$dest,
       "ArrayRef<int64_t>":$staticOffsets, "ArrayRef<int64_t>":$staticSizes,
       "ArrayRef<int64_t>":$staticStrides, "ValueRange":$offsets,
       "ValueRange":$sizes, "ValueRange":$strides,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
-    // Build a SubViewOp with all dynamic entries.
+    // Build a SubTensorInsertOp with all dynamic entries.
     OpBuilderDAG<(ins "Value":$source, "Value":$dest, "ValueRange":$offsets,
       "ValueRange":$sizes, "ValueRange":$strides,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>
@@ -3381,7 +3163,7 @@ def SubTensorInsertOp : BaseOpWithOffsetSizesAndStrides<"subtensor_insert", [Off
       return source().getType().cast<RankedTensorType>();
     }
 
-    /// The result of a subtensor is always a tensor.
+    /// The result of a subtensor_insert is always a tensor.
     RankedTensorType getType() {
       return getResult().getType().cast<RankedTensorType>();
     }
@@ -3389,9 +3171,13 @@ def SubTensorInsertOp : BaseOpWithOffsetSizesAndStrides<"subtensor_insert", [Off
     /// Return the expected rank of each of the`static_offsets`, `static_sizes`
     /// and `static_strides` attributes.
     std::array<unsigned, 3> getArrayAttrRanks() {
-      unsigned rank = getSourceType().getRank();
+      unsigned rank = getType().getRank();
       return {rank, rank, rank};
     }
+
+    /// Return the number of leading operands before the `offsets`, `sizes` and
+    /// and `strides` operands.
+    static unsigned getOffsetSizeAndStrideStartOperandIndex() { return 2; }
   }];
 }
 
@@ -3595,7 +3381,9 @@ def TransposeOp : Std_Op<"transpose", [NoSideEffect]>,
 // TruncateIOp
 //===----------------------------------------------------------------------===//
 
-def TruncateIOp : Std_Op<"trunci", [NoSideEffect, ElementwiseMappable]> {
+def TruncateIOp : Std_Op<"trunci",
+  [NoSideEffect, ElementwiseMappable,
+   DeclareOpInterfaceMethods<VectorUnrollOpInterface>,]> {
   let summary = "integer truncation operation";
   let description = [{
     The integer truncation operation takes an integer input of
@@ -3643,14 +3431,6 @@ def UIToFPOp : ArithmeticCastOp<"uitofp">, Arguments<(ins AnyType:$in)> {
     value cannot be exactly represented, it is rounded using the default
     rounding mode. Scalars and vector types are currently supported.
   }];
-
-  let extraClassDeclaration = [{
-    /// Return true if `a` and `b` are valid operand and result pairs for
-    /// the operation.
-    static bool areCastCompatible(Type a, Type b);
-  }];
-
-  let hasFolder = 0;
 }
 
 //===----------------------------------------------------------------------===//
@@ -3813,24 +3593,6 @@ def ViewOp : Std_Op<"view", [
 }
 
 //===----------------------------------------------------------------------===//
-// YieldOp
-//===----------------------------------------------------------------------===//
-
-def YieldOp : Std_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
-                               HasParent<"DynamicTensorFromElementsOp">]> {
-  let summary = "Yield a value from a region";
-  let description = [{
-     This operation is used to yield a single value from a within a region. It
-     is used to create dynamically sized tensors
-     (see `DynamicTensorFromElementsOp`).
-  }];
-
-  let arguments = (ins AnyType:$value);
-  let assemblyFormat = "$value attr-dict `:` type($value)";
-  let verifier = ?;
-}
-
-//===----------------------------------------------------------------------===//
 // XOrOp
 //===----------------------------------------------------------------------===//
 
@@ -3862,7 +3624,9 @@ def XOrOp : IntArithmeticOp<"xor", [Commutative]> {
 // ZeroExtendIOp
 //===----------------------------------------------------------------------===//
 
-def ZeroExtendIOp : Std_Op<"zexti", [NoSideEffect, ElementwiseMappable]> {
+def ZeroExtendIOp : Std_Op<"zexti",
+  [NoSideEffect, ElementwiseMappable,
+   DeclareOpInterfaceMethods<VectorUnrollOpInterface>,]> {
   let summary = "integer zero extension operation";
   let description = [{
     The integer zero extension operation takes an integer input of

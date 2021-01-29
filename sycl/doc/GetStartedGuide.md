@@ -207,12 +207,14 @@ run the following commands
       /etc/OpenCL/vendors/intel_expcpu.icd
     ```
 
-3) Extract TBB libraries. For example, for the archive tbb-<tbb_version>-lin.tgz
+3) Extract or build TBB libraries using links in
+[the dependency configuration file](../../buildbot/dependency.conf). For example,
+for the archive oneapi-tbb-<tbb_version>-lin.tgz:
 
     ```bash
-    mkdir -p /opt/intel/tbb_<tbb_version>
-    cd /opt/intel/tbb_<tbb_version>
-    tar -zxvf tbb*lin.tgz
+    mkdir -p /opt/intel
+    cd /opt/intel
+    tar -zxvf oneapi-tbb*lin.tgz
     ```
 
 4) Copy files from or create symbolic links to TBB libraries in OpenCL RT
@@ -220,22 +222,22 @@ folder:
 
     ```bash
     # OpenCL FPGA emulation RT
-    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so
+    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so
       /opt/intel/oclfpgaemu_<fpga_version>/x64
-    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so
+    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so
       /opt/intel/oclfpgaemu_<fpga_version>/x64
-    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so.12
+    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so.12
       /opt/intel/oclfpgaemu_<fpga_version>/x64
-    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so.2
+    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so.2
       /opt/intel/oclfpgaemu_<fpga_version>/x64
     # OpenCL CPU RT
-    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so
+    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so
       /opt/intel/oclcpuexp_<cpu_version>/x64
-    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so
+    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so
       /opt/intel/oclcpuexp_<cpu_version>/x64
-    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so.12
+    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so.12
       /opt/intel/oclcpuexp_<cpu_version>/x64
-    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so.2
+    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so.2
       /opt/intel/oclcpuexp_<cpu_version>/x64
     ```
 
@@ -262,9 +264,9 @@ not working properly.
 [the dependency configuration file](../../buildbot/dependency.conf).  For
 example, to `c:\oclcpu_rt_<cpu_version>`.
 
-3) Extract the archive with TBB runtime using links in
-[the dependency configuration file](../../buildbot/dependency.conf).  For
-example, to `c:\tbb_<tbb_version>`.
+3) Extract the archive with TBB runtime or build it from sources using links
+in [the dependency configuration file](../../buildbot/dependency.conf).  For
+example, to `c:\oneapi-tbb-<tbb_version>`.
 
 4) Run `Command Prompt` as `Administrator`. To do that click `Start` button,
 type `Command Prompt`, click the Right mouse button on it, then click
@@ -278,10 +280,10 @@ command:
     ```bash
     # Install OpenCL FPGA emulation RT
     # Answer N to clean previous OCL_ICD_FILENAMES configuration
-    c:\oclfpga_rt_<fpga_version>\install.bat c:\tbb_<tbb_version>\tbb\bin\intel64\vc14
+    c:\oclfpga_rt_<fpga_version>\install.bat c:\oneapi-tbb-<tbb_version>\redist\intel64\vc14
     # Install OpenCL CPU RT
     # Answer Y to setup CPU RT side-bi-side with FPGA RT
-    c:\oclcpu_rt_<cpu_version>\install.bat c:\tbb_<tbb_version>\tbb\bin\intel64\vc14
+    c:\oclcpu_rt_<cpu_version>\install.bat c:\oneapi-tbb-<tbb_version>\redist\intel64\vc14
     ```
 
 ### Obtain prerequisites for ahead of time (AOT) compilation
@@ -661,7 +663,7 @@ class CUDASelector : public cl::sycl::device_selector {
 
 ## C++ standard
 
-* DPC++ runtime is built as C++14 library.
+* DPC++ runtime and headers require C++14 at least.
 * DPC++ compiler is building apps as C++17 apps by default.
 
 ## Known Issues and Limitations
@@ -669,6 +671,7 @@ class CUDASelector : public cl::sycl::device_selector {
 * DPC++ device compiler fails if the same kernel was used in different
   translation units.
 * SYCL host device is not fully supported.
+* SYCL 2020 support work is in progress.
 * 32-bit host/target is not supported.
 * DPC++ works only with OpenCL low level runtimes which support out-of-order
   queues.

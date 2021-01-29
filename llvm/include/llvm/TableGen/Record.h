@@ -20,6 +20,7 @@
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -829,7 +830,7 @@ public:
 /// !op (X, Y, Z) - Combine two inits.
 class TernOpInit : public OpInit, public FoldingSetNode {
 public:
-  enum TernaryOp : uint8_t { SUBST, FOREACH, FILTER, IF, DAG };
+  enum TernaryOp : uint8_t { SUBST, FOREACH, FILTER, IF, DAG, SUBSTR };
 
 private:
   Init *LHS, *MHS, *RHS;
@@ -1369,14 +1370,22 @@ public:
 class RecordVal {
   friend class Record;
 
+public:
+  enum FieldKind {
+    FK_Normal,        // A normal record field.
+    FK_NonconcreteOK, // A field that can be nonconcrete ('field' keyword).
+    FK_TemplateArg,   // A template argument.
+  };
+
+private:
   Init *Name;
   SMLoc Loc; // Source location of definition of name.
-  PointerIntPair<RecTy *, 1, bool> TyAndPrefix;
+  PointerIntPair<RecTy *, 2, FieldKind> TyAndKind;
   Init *Value;
 
 public:
-  RecordVal(Init *N, RecTy *T, bool P);
-  RecordVal(Init *N, SMLoc Loc, RecTy *T, bool P);
+  RecordVal(Init *N, RecTy *T, FieldKind K);
+  RecordVal(Init *N, SMLoc Loc, RecTy *T, FieldKind K);
 
   /// Get the name of the field as a StringRef.
   StringRef getName() const;
@@ -1392,10 +1401,18 @@ public:
   /// Get the source location of the point where the field was defined.
   const SMLoc &getLoc() const { return Loc; }
 
-  bool getPrefix() const { return TyAndPrefix.getInt(); }
+  /// Is this a field where nonconcrete values are okay?
+  bool isNonconcreteOK() const {
+    return TyAndKind.getInt() == FK_NonconcreteOK;
+  }
+
+  /// Is this a template argument?
+  bool isTemplateArg() const {
+    return TyAndKind.getInt() == FK_TemplateArg;
+  }
 
   /// Get the type of the field value as a RecTy.
-  RecTy *getType() const { return TyAndPrefix.getPointer(); }
+  RecTy *getType() const { return TyAndKind.getPointer(); }
 
   /// Get the type of the field for printing purposes.
   std::string getPrintType() const;
@@ -1429,6 +1446,8 @@ class Record {
   SmallVector<SMLoc, 4> Locs;
   SmallVector<Init *, 0> TemplateArgs;
   SmallVector<RecordVal, 0> Values;
+  // Vector of [source location, condition Init, message Init].
+  SmallVector<std::tuple<SMLoc, Init *, Init *>, 0> Assertions;
 
   // All superclasses in the inheritance forest in post-order (yes, it
   // must be a forest; diamond-shaped inheritance is not allowed).
@@ -1503,6 +1522,10 @@ public:
 
   ArrayRef<RecordVal> getValues() const { return Values; }
 
+  ArrayRef<std::tuple<SMLoc, Init *, Init *>> getAssertions() const {
+    return Assertions;
+  }
+
   ArrayRef<std::pair<Record *, SMRange>>  getSuperClasses() const {
     return SuperClasses;
   }
@@ -1558,6 +1581,10 @@ public:
 
   void removeValue(StringRef Name) {
     removeValue(StringInit::get(Name));
+  }
+
+  void addAssertion(SMLoc Loc, Init *Condition, Init *Message) {
+    Assertions.push_back(std::make_tuple(Loc, Condition, Message));
   }
 
   bool isSubClassOf(const Record *R) const {
@@ -1840,8 +1867,6 @@ struct LessRecordFieldName {
 };
 
 struct LessRecordRegister {
-  static bool ascii_isdigit(char x) { return x >= '0' && x <= '9'; }
-
   struct RecordParts {
     SmallVector<std::pair< bool, StringRef>, 4> Parts;
 
@@ -1852,18 +1877,18 @@ struct LessRecordRegister {
       size_t Len = 0;
       const char *Start = Rec.data();
       const char *Curr = Start;
-      bool isDigitPart = ascii_isdigit(Curr[0]);
+      bool IsDigitPart = isDigit(Curr[0]);
       for (size_t I = 0, E = Rec.size(); I != E; ++I, ++Len) {
-        bool isDigit = ascii_isdigit(Curr[I]);
-        if (isDigit != isDigitPart) {
-          Parts.push_back(std::make_pair(isDigitPart, StringRef(Start, Len)));
+        bool IsDigit = isDigit(Curr[I]);
+        if (IsDigit != IsDigitPart) {
+          Parts.push_back(std::make_pair(IsDigitPart, StringRef(Start, Len)));
           Len = 0;
           Start = &Curr[I];
-          isDigitPart = ascii_isdigit(Curr[I]);
+          IsDigitPart = isDigit(Curr[I]);
         }
       }
       // Push the last part.
-      Parts.push_back(std::make_pair(isDigitPart, StringRef(Start, Len)));
+      Parts.push_back(std::make_pair(IsDigitPart, StringRef(Start, Len)));
     }
 
     size_t size() { return Parts.size(); }

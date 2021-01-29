@@ -600,6 +600,8 @@ public:
   bool IsEnumerationType(lldb::opaque_compiler_type_t type,
                          bool &is_signed) override;
 
+  bool IsScopedEnumerationType(lldb::opaque_compiler_type_t type) override;
+
   static bool IsObjCClassType(const CompilerType &type);
 
   static bool IsObjCClassTypeAndHasIVars(const CompilerType &type,
@@ -675,6 +677,9 @@ public:
 
   CompilerType
   GetFullyUnqualifiedType(lldb::opaque_compiler_type_t type) override;
+
+  CompilerType
+  GetEnumerationIntegerType(lldb::opaque_compiler_type_t type) override;
 
   // Returns -1 if this isn't a function of if the function doesn't have a
   // prototype Returns a value >= 0 if there is a prototype.
@@ -1120,7 +1125,7 @@ public:
   /// These ASTs are isolated from the main scratch AST and are each
   /// dedicated to a special language option/feature that makes the contained
   /// AST nodes incompatible with other AST nodes.
-  enum class IsolatedASTKind {
+  enum IsolatedASTKind {
     /// The isolated AST for declarations/types from expressions that imported
     /// type information from a C++ module. The templates from a C++ module
     /// often conflict with the templates we generate from debug information,

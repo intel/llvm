@@ -15,6 +15,14 @@ bool test_simd_ctors() __attribute__((sycl_device)) {
   return v0[0] + v1[1] + v2[2] + v3[3] == 1 + 1 + 2 + 6;
 }
 
+void test_conversion() __attribute__((sycl_device)) {
+  simd<int, 32> v = 3;
+  simd<float, 32> f = v;
+  simd<char, 32> c = f;
+  simd<char, 16> c1 = f.select<16, 1>(0);
+  f = v + static_cast<simd<int, 32>>(c);
+}
+
 bool test_1d_select() __attribute__((sycl_device)) {
   simd<int, 32> v = 0;
   v.select<8, 1>(0) = 1;
@@ -63,6 +71,7 @@ bool test_simd_bin_ops() __attribute__((sycl_device)) {
   simd<int, 8> v0 = 1;
   simd<int, 8> v1 = 2;
   v0 += v1;
+  v0 %= v1;
   v0 = 2 - v0;
   v0 -= v1;
   v0 -= 2;
@@ -71,6 +80,16 @@ bool test_simd_bin_ops() __attribute__((sycl_device)) {
   v0 /= v1;
   v0 /= 2;
   return v0[0] == 1;
+}
+
+bool test_simd_unary_ops() __attribute__((sycl_device)) {
+  simd<int, 8> v0 = 1;
+  simd<int, 8> v1 = 2;
+  v0 <<= v1;
+  v1 = -v0;
+  v0 = ~v1;
+  v1 = !v0;
+  return v1[0] == 1;
 }
 
 bool test_nested_1d_select() __attribute__((sycl_device)) {
@@ -202,14 +221,22 @@ bool test_replicate2() __attribute__((sycl_device)) {
   simd<int, 8> v0(0, 1);
   auto v0_rep = v0.replicate<2, 4, 2>(1);
 
-  return v0_rep[0] == v0[1] && v0_rep[1] == v0[2] &&
-         v0_rep[2] == v0[5];
+  return v0_rep[0] == v0[1] && v0_rep[1] == v0[2] && v0_rep[2] == v0[5];
 }
 
 bool test_replicate3() __attribute__((sycl_device)) {
   simd<int, 8> v0(0, 1);
   auto v0_rep = v0.replicate<2, 4, 2, 2>(1);
 
-  return v0_rep[0] == v0[1] && v0_rep[1] == v0[3] &&
-         v0_rep[2] == v0[5];
+  return v0_rep[0] == v0[1] && v0_rep[1] == v0[3] && v0_rep[2] == v0[5];
+}
+
+bool test_simd_iselect() __attribute__((sycl_device)) {
+  simd<int, 16> v(0, 1);
+  simd<ushort, 8> a(0, 2);
+  auto data = v.iselect(a);
+  data += 16;
+  v.iupdate(a, data, 1);
+  auto ref = v.select<8, 2>(0);
+  return ref[0] == 16 && ref[14] == 32;
 }

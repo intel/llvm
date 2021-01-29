@@ -144,7 +144,7 @@ static bool ParseLine(const StringRef &Input, LineType &LineTy, uint32_t &Depth,
   }
 
   StringRef Rest = Input.substr(n1 + 2);
-  if (Rest[0] >= '0' && Rest[0] <= '9') {
+  if (isDigit(Rest[0])) {
     LineTy = LineType::BodyProfile;
     size_t n3 = Rest.find(' ');
     if (n3 == StringRef::npos) {
@@ -740,6 +740,10 @@ std::error_code SampleProfileReaderExtBinaryBase::readImpl() {
     if (!Entry.Size)
       continue;
 
+    // Skip sections without context when SkipFlatProf is true.
+    if (SkipFlatProf && hasSecFlag(Entry, SecCommonFlags::SecFlagFlat))
+      continue;
+
     const uint8_t *SecStart = BufStart + Entry.Offset;
     uint64_t SecSize = Entry.Size;
 
@@ -985,6 +989,9 @@ static std::string getSecFlagsStr(const SecHdrTableEntry &Entry) {
     Flags.append("{compressed,");
   else
     Flags.append("{");
+
+  if (hasSecFlag(Entry, SecCommonFlags::SecFlagFlat))
+    Flags.append("flat,");
 
   switch (Entry.Type) {
   case SecNameTable:
@@ -1349,7 +1356,7 @@ std::error_code SampleProfileReaderGCC::readOneFunctionProfile(
 
     InlineCallStack NewStack;
     NewStack.push_back(FProfile);
-    NewStack.insert(NewStack.end(), InlineStack.begin(), InlineStack.end());
+    llvm::append_range(NewStack, InlineStack);
     if (Update) {
       // Walk up the inline stack, adding the samples on this line to
       // the total sample count of the callers in the chain.
@@ -1397,7 +1404,7 @@ std::error_code SampleProfileReaderGCC::readOneFunctionProfile(
       return sampleprof_error::truncated;
     InlineCallStack NewStack;
     NewStack.push_back(FProfile);
-    NewStack.insert(NewStack.end(), InlineStack.begin(), InlineStack.end());
+    llvm::append_range(NewStack, InlineStack);
     if (std::error_code EC = readOneFunctionProfile(NewStack, Update, Offset))
       return EC;
   }

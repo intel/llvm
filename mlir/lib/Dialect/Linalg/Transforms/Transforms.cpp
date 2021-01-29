@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
+#include "mlir/Dialect/Affine/Utils.h"
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
@@ -117,23 +118,11 @@ mlir::linalg::LinalgBaseTilingPattern::LinalgBaseTilingPattern(
       options(options) {}
 
 LogicalResult mlir::linalg::LinalgBaseTilingPattern::matchAndRewriteBase(
-    Operation *op, PatternRewriter &rewriter,
-    SmallVectorImpl<Value> &tensorResults) const {
+    Operation *op, PatternRewriter &rewriter, TiledLinalgOp &result) const {
   LinalgOp linalgOp = dyn_cast<LinalgOp>(op);
   if (!linalgOp)
     return failure();
   if (failed(marker.checkAndNotify(rewriter, linalgOp)))
-    return failure();
-
-  // If LinalgOp has results, they must all be tied to init tensors.
-  // We enforce this to ensure all tiled ops have been rewritten in
-  // "init tensor" form. This ensures tiling has anchor values into which to
-  // subtensor / subtensor_insert. Otherwise tiling would need to allocate which
-  // is not acceptable.
-  // This would not be the case with a special terminator op that generates the
-  // whole tensor (instead of inserting a subtensor). But the generator-based
-  // abstraction has other issues.
-  if (linalgOp.getNumInitTensors() != linalgOp->getNumResults())
     return failure();
 
   Optional<TiledLinalgOp> res = tileLinalgOp(rewriter, linalgOp, options);
@@ -142,7 +131,7 @@ LogicalResult mlir::linalg::LinalgBaseTilingPattern::matchAndRewriteBase(
     return failure();
 
   // Return relevant information to derived pattern.
-  tensorResults = res->tensorResults;
+  result = *res;
 
   // New marker if specified.
   marker.replaceLinalgMarker(rewriter, res->op.getOperation());
@@ -174,10 +163,10 @@ LogicalResult mlir::linalg::LinalgBaseTileAndFusePattern::matchAndRewrite(
   producers.insert(linalgOp);
   for (auto dependence : dependenceGraph.getDependentOperations(linalgOp)) {
     if (!fusionOptions.indicesToFuse.count(
-            dependence.indexingOpView.operandIndex))
+            dependence.indexingOpView->getOperandNumber()))
       continue;
-    if (isa<LinalgOp>(dependence.dependentOpView.op))
-      producers.insert(dependence.dependentOpView.op);
+    if (isa<LinalgOp>(dependence.dependentOpView->getOwner()))
+      producers.insert(dependence.dependentOpView->getOwner());
   }
 
   SmallVector<LinalgOp, 1> fusionOps;
@@ -342,38 +331,6 @@ LogicalResult mlir::linalg::applyStagedPatterns(
     }
   }
   return success();
-}
-
-/// Traverse `e` and return an AffineExpr where all occurrences of `dim` have
-/// been replaced by either:
-///  - `min` if `positivePath` is true when we reach an occurrence of `dim`
-///  - `max` if `positivePath` is true when we reach an occurrence of `dim`
-/// `positivePath` is negated each time we hit a multiplicative or divisive
-/// binary op with a constant negative coefficient.
-static AffineExpr substWithMin(AffineExpr e, AffineExpr dim, AffineExpr min,
-                               AffineExpr max, bool positivePath = true) {
-  if (e == dim)
-    return positivePath ? min : max;
-  if (auto bin = e.dyn_cast<AffineBinaryOpExpr>()) {
-    AffineExpr lhs = bin.getLHS();
-    AffineExpr rhs = bin.getRHS();
-    if (bin.getKind() == mlir::AffineExprKind::Add)
-      return substWithMin(lhs, dim, min, max, positivePath) +
-             substWithMin(rhs, dim, min, max, positivePath);
-
-    auto c1 = bin.getLHS().dyn_cast<AffineConstantExpr>();
-    auto c2 = bin.getRHS().dyn_cast<AffineConstantExpr>();
-    if (c1 && c1.getValue() < 0)
-      return getAffineBinaryOpExpr(
-          bin.getKind(), c1, substWithMin(rhs, dim, min, max, !positivePath));
-    if (c2 && c2.getValue() < 0)
-      return getAffineBinaryOpExpr(
-          bin.getKind(), substWithMin(lhs, dim, min, max, !positivePath), c2);
-    return getAffineBinaryOpExpr(
-        bin.getKind(), substWithMin(lhs, dim, min, max, positivePath),
-        substWithMin(rhs, dim, min, max, positivePath));
-  }
-  return e;
 }
 
 /// Given the `lbVal`, `ubVal` and `stepVal` of a loop, append `lbVal` and

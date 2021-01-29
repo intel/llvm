@@ -53,17 +53,17 @@ static ParseResult parseNVVMShflSyncBflyOp(OpAsmParser &parser,
       parser.addTypeToList(resultType, result.types))
     return failure();
 
-  auto type = resultType.cast<LLVM::LLVMType>();
   for (auto &attr : result.attributes) {
     if (attr.first != "return_value_and_is_valid")
       continue;
-    if (type.isStructTy() && type.getStructNumElements() > 0)
-      type = type.getStructElementType(0);
+    auto structType = resultType.dyn_cast<LLVM::LLVMStructType>();
+    if (structType && !structType.getBody().empty())
+      resultType = structType.getBody()[0];
     break;
   }
 
-  auto int32Ty = LLVM::LLVMType::getInt32Ty(parser.getBuilder().getContext());
-  return parser.resolveOperands(ops, {int32Ty, type, int32Ty, int32Ty},
+  auto int32Ty = IntegerType::get(parser.getBuilder().getContext(), 32);
+  return parser.resolveOperands(ops, {int32Ty, resultType, int32Ty, int32Ty},
                                 parser.getNameLoc(), result.operands);
 }
 
@@ -71,8 +71,8 @@ static ParseResult parseNVVMShflSyncBflyOp(OpAsmParser &parser,
 static ParseResult parseNVVMVoteBallotOp(OpAsmParser &parser,
                                          OperationState &result) {
   MLIRContext *context = parser.getBuilder().getContext();
-  auto int32Ty = LLVM::LLVMType::getInt32Ty(context);
-  auto int1Ty = LLVM::LLVMType::getInt1Ty(context);
+  auto int32Ty = IntegerType::get(context, 32);
+  auto int1Ty = IntegerType::get(context, 1);
 
   SmallVector<OpAsmParser::OperandType, 8> ops;
   Type type;
@@ -86,12 +86,12 @@ static ParseResult parseNVVMVoteBallotOp(OpAsmParser &parser,
 
 static LogicalResult verify(MmaOp op) {
   MLIRContext *context = op.getContext();
-  auto f16Ty = LLVM::LLVMType::getHalfTy(context);
-  auto f16x2Ty = LLVM::LLVMType::getVectorTy(f16Ty, 2);
-  auto f32Ty = LLVM::LLVMType::getFloatTy(context);
-  auto f16x2x4StructTy = LLVM::LLVMType::getStructTy(
+  auto f16Ty = Float16Type::get(context);
+  auto f16x2Ty = LLVM::getFixedVectorType(f16Ty, 2);
+  auto f32Ty = Float32Type::get(context);
+  auto f16x2x4StructTy = LLVM::LLVMStructType::getLiteral(
       context, {f16x2Ty, f16x2Ty, f16x2Ty, f16x2Ty});
-  auto f32x8StructTy = LLVM::LLVMType::getStructTy(
+  auto f32x8StructTy = LLVM::LLVMStructType::getLiteral(
       context, {f32Ty, f32Ty, f32Ty, f32Ty, f32Ty, f32Ty, f32Ty, f32Ty});
 
   SmallVector<Type, 12> operand_types(op.getOperandTypes().begin(),

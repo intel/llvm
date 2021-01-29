@@ -802,8 +802,6 @@ private:
                             const BasicBlock *) const;
 
   // Various instruction touch utilities
-  template <typename Map, typename KeyType, typename Func>
-  void for_each_found(Map &, const KeyType &, Func);
   template <typename Map, typename KeyType>
   void touchAndErase(Map &, const KeyType &);
   void markUsersTouched(Value *);
@@ -1989,16 +1987,6 @@ NewGVN::performSymbolicEvaluation(Value *V,
     }
   }
   return E;
-}
-
-// Look up a container in a map, and then call a function for each thing in the
-// found container.
-template <typename Map, typename KeyType, typename Func>
-void NewGVN::for_each_found(Map &M, const KeyType &Key, Func F) {
-  const auto Result = M.find_as(Key);
-  if (Result != M.end())
-    for (typename Map::mapped_type::value_type Mapped : Result->second)
-      F(Mapped);
 }
 
 // Look up a container of values/instructions in a map, and touch all the
@@ -3384,10 +3372,9 @@ bool NewGVN::runGVN() {
   for (auto &B : RPOT) {
     auto *Node = DT->getNode(B);
     if (Node->getNumChildren() > 1)
-      llvm::sort(Node->begin(), Node->end(),
-                 [&](const DomTreeNode *A, const DomTreeNode *B) {
-                   return RPOOrdering[A] < RPOOrdering[B];
-                 });
+      llvm::sort(*Node, [&](const DomTreeNode *A, const DomTreeNode *B) {
+        return RPOOrdering[A] < RPOOrdering[B];
+      });
   }
 
   // Now a standard depth first ordering of the domtree is equivalent to RPO.

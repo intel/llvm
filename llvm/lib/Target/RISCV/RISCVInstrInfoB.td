@@ -59,6 +59,31 @@ def ImmROTL2RW : SDNodeXForm<imm, [{
                                    N->getValueType(0));
 }]>;
 
+// Check that it is a SLOI (Shift Left Ones Immediate).
+def SLOIPat : PatFrag<(ops node:$A, node:$B),
+                      (or (shl node:$A, node:$B), imm), [{
+  return MatchSLOI(N);
+}]>;
+
+// Check that it is a SROI (Shift Right Ones Immediate).
+def SROIPat : PatFrag<(ops node:$A, node:$B),
+                      (or (srl node:$A, node:$B), imm), [{
+  return MatchSROI(N);
+}]>;
+
+// Check that it is a SROIW (Shift Right Ones Immediate i32 on RV64).
+def SROIWPat : PatFrag<(ops node:$A, node:$B),
+                       (or (srl node:$A, node:$B), imm), [{
+  return MatchSROIW(N);
+}]>;
+
+// Check that it is a SLLIUW (Shift Logical Left Immediate Unsigned i32
+// on RV64).
+def SLLIUWPat : PatFrag<(ops node:$A, node:$B),
+                        (and (shl node:$A, node:$B), imm), [{
+  return MatchSLLIUW(N);
+}]>;
+
 // Checks if this mask has a single 0 bit and cannot be used with ANDI.
 def SBCLRMask : ImmLeaf<XLenVT, [{
   if (Subtarget->is64Bit())
@@ -489,188 +514,108 @@ def : InstAlias<"zext.w $rd, $rs", (PACK GPR:$rd, GPR:$rs, X0)>;
 } // Predicates = [HasStdExtZbb, IsRV64]
 
 let Predicates = [HasStdExtZbp] in {
-def : InstAlias<"rev.p $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b00001)>,
-      Sched<[]>;
-def : InstAlias<"rev2.n $rd, $rs", (GREVI GPR:$rd, GPR:$rs, 0b00010)>,
-      Sched<[]>;
-def : InstAlias<"rev.n $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b00011)>,
-      Sched<[]>;
-def : InstAlias<"rev4.b $rd, $rs", (GREVI GPR:$rd, GPR:$rs, 0b00100)>,
-      Sched<[]>;
-def : InstAlias<"rev2.b $rd, $rs", (GREVI GPR:$rd, GPR:$rs, 0b00110)>,
-      Sched<[]>;
-def : InstAlias<"rev.b $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b00111)>,
-      Sched<[]>;
-def : InstAlias<"rev8.h $rd, $rs", (GREVI GPR:$rd, GPR:$rs, 0b01000)>,
-      Sched<[]>;
-def : InstAlias<"rev4.h $rd, $rs", (GREVI GPR:$rd, GPR:$rs, 0b01100)>,
-      Sched<[]>;
-def : InstAlias<"rev2.h $rd, $rs", (GREVI GPR:$rd, GPR:$rs, 0b01110)>,
-      Sched<[]>;
-def : InstAlias<"rev.h $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b01111)>,
-      Sched<[]>;
+def : InstAlias<"rev.p $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b00001)>;
+def : InstAlias<"rev2.n $rd, $rs", (GREVI GPR:$rd, GPR:$rs, 0b00010)>;
+def : InstAlias<"rev.n $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b00011)>;
+def : InstAlias<"rev4.b $rd, $rs", (GREVI GPR:$rd, GPR:$rs, 0b00100)>;
+def : InstAlias<"rev2.b $rd, $rs", (GREVI GPR:$rd, GPR:$rs, 0b00110)>;
+def : InstAlias<"rev.b $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b00111)>;
+def : InstAlias<"rev8.h $rd, $rs", (GREVI GPR:$rd, GPR:$rs, 0b01000)>;
+def : InstAlias<"rev4.h $rd, $rs", (GREVI GPR:$rd, GPR:$rs, 0b01100)>;
+def : InstAlias<"rev2.h $rd, $rs", (GREVI GPR:$rd, GPR:$rs, 0b01110)>;
+def : InstAlias<"rev.h $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b01111)>;
 
-def : InstAlias<"zip.n $rd, $rs",    (SHFLI   GPR:$rd, GPR:$rs, 0b0001)>,
-      Sched<[]>;
-def : InstAlias<"unzip.n $rd, $rs",  (UNSHFLI GPR:$rd, GPR:$rs, 0b0001)>,
-      Sched<[]>;
-def : InstAlias<"zip2.b $rd, $rs",   (SHFLI   GPR:$rd, GPR:$rs, 0b0010)>,
-      Sched<[]>;
-def : InstAlias<"unzip2.b $rd, $rs", (UNSHFLI GPR:$rd, GPR:$rs, 0b0010)>,
-      Sched<[]>;
-def : InstAlias<"zip.b $rd, $rs",    (SHFLI   GPR:$rd, GPR:$rs, 0b0011)>,
-      Sched<[]>;
-def : InstAlias<"unzip.b $rd, $rs",  (UNSHFLI GPR:$rd, GPR:$rs, 0b0011)>,
-      Sched<[]>;
-def : InstAlias<"zip4.h $rd, $rs",   (SHFLI   GPR:$rd, GPR:$rs, 0b0100)>,
-      Sched<[]>;
-def : InstAlias<"unzip4.h $rd, $rs", (UNSHFLI GPR:$rd, GPR:$rs, 0b0100)>,
-      Sched<[]>;
-def : InstAlias<"zip2.h $rd, $rs",   (SHFLI   GPR:$rd, GPR:$rs, 0b0110)>,
-      Sched<[]>;
-def : InstAlias<"unzip2.h $rd, $rs", (UNSHFLI GPR:$rd, GPR:$rs, 0b0110)>,
-      Sched<[]>;
-def : InstAlias<"zip.h $rd, $rs",    (SHFLI   GPR:$rd, GPR:$rs, 0b0111)>,
-      Sched<[]>;
-def : InstAlias<"unzip.h $rd, $rs",  (UNSHFLI GPR:$rd, GPR:$rs, 0b0111)>,
-      Sched<[]>;
+def : InstAlias<"zip.n $rd, $rs",    (SHFLI   GPR:$rd, GPR:$rs, 0b0001)>;
+def : InstAlias<"unzip.n $rd, $rs",  (UNSHFLI GPR:$rd, GPR:$rs, 0b0001)>;
+def : InstAlias<"zip2.b $rd, $rs",   (SHFLI   GPR:$rd, GPR:$rs, 0b0010)>;
+def : InstAlias<"unzip2.b $rd, $rs", (UNSHFLI GPR:$rd, GPR:$rs, 0b0010)>;
+def : InstAlias<"zip.b $rd, $rs",    (SHFLI   GPR:$rd, GPR:$rs, 0b0011)>;
+def : InstAlias<"unzip.b $rd, $rs",  (UNSHFLI GPR:$rd, GPR:$rs, 0b0011)>;
+def : InstAlias<"zip4.h $rd, $rs",   (SHFLI   GPR:$rd, GPR:$rs, 0b0100)>;
+def : InstAlias<"unzip4.h $rd, $rs", (UNSHFLI GPR:$rd, GPR:$rs, 0b0100)>;
+def : InstAlias<"zip2.h $rd, $rs",   (SHFLI   GPR:$rd, GPR:$rs, 0b0110)>;
+def : InstAlias<"unzip2.h $rd, $rs", (UNSHFLI GPR:$rd, GPR:$rs, 0b0110)>;
+def : InstAlias<"zip.h $rd, $rs",    (SHFLI   GPR:$rd, GPR:$rs, 0b0111)>;
+def : InstAlias<"unzip.h $rd, $rs",  (UNSHFLI GPR:$rd, GPR:$rs, 0b0111)>;
 
-def : InstAlias<"orc.p $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b00001)>,
-      Sched<[]>;
-def : InstAlias<"orc2.n $rd, $rs", (GORCI GPR:$rd, GPR:$rs, 0b00010)>,
-      Sched<[]>;
-def : InstAlias<"orc.n $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b00011)>,
-      Sched<[]>;
-def : InstAlias<"orc4.b $rd, $rs", (GORCI GPR:$rd, GPR:$rs, 0b00100)>,
-      Sched<[]>;
-def : InstAlias<"orc2.b $rd, $rs", (GORCI GPR:$rd, GPR:$rs, 0b00110)>,
-      Sched<[]>;
-def : InstAlias<"orc.b $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b00111)>,
-      Sched<[]>;
-def : InstAlias<"orc8.h $rd, $rs", (GORCI GPR:$rd, GPR:$rs, 0b01000)>,
-      Sched<[]>;
-def : InstAlias<"orc4.h $rd, $rs", (GORCI GPR:$rd, GPR:$rs, 0b01100)>,
-      Sched<[]>;
-def : InstAlias<"orc2.h $rd, $rs", (GORCI GPR:$rd, GPR:$rs, 0b01110)>,
-      Sched<[]>;
-def : InstAlias<"orc.h $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b01111)>,
-      Sched<[]>;
+def : InstAlias<"orc.p $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b00001)>;
+def : InstAlias<"orc2.n $rd, $rs", (GORCI GPR:$rd, GPR:$rs, 0b00010)>;
+def : InstAlias<"orc.n $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b00011)>;
+def : InstAlias<"orc4.b $rd, $rs", (GORCI GPR:$rd, GPR:$rs, 0b00100)>;
+def : InstAlias<"orc2.b $rd, $rs", (GORCI GPR:$rd, GPR:$rs, 0b00110)>;
+def : InstAlias<"orc.b $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b00111)>;
+def : InstAlias<"orc8.h $rd, $rs", (GORCI GPR:$rd, GPR:$rs, 0b01000)>;
+def : InstAlias<"orc4.h $rd, $rs", (GORCI GPR:$rd, GPR:$rs, 0b01100)>;
+def : InstAlias<"orc2.h $rd, $rs", (GORCI GPR:$rd, GPR:$rs, 0b01110)>;
+def : InstAlias<"orc.h $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b01111)>;
 } // Predicates = [HasStdExtZbp]
 
 let Predicates = [HasStdExtZbp, IsRV32] in {
-def : InstAlias<"rev16 $rd, $rs", (GREVI GPR:$rd, GPR:$rs, 0b10000)>, Sched<[]>;
-def : InstAlias<"rev8 $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b11000)>, Sched<[]>;
-def : InstAlias<"rev4 $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b11100)>, Sched<[]>;
-def : InstAlias<"rev2 $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b11110)>, Sched<[]>;
-def : InstAlias<"rev $rd, $rs",   (GREVI GPR:$rd, GPR:$rs, 0b11111)>, Sched<[]>;
+def : InstAlias<"rev16 $rd, $rs", (GREVI GPR:$rd, GPR:$rs, 0b10000)>;
+def : InstAlias<"rev8 $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b11000)>;
+def : InstAlias<"rev4 $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b11100)>;
+def : InstAlias<"rev2 $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b11110)>;
+def : InstAlias<"rev $rd, $rs",   (GREVI GPR:$rd, GPR:$rs, 0b11111)>;
 
-def : InstAlias<"zip8 $rd, $rs",   (SHFLI   GPR:$rd, GPR:$rs, 0b1000)>,
-      Sched<[]>;
-def : InstAlias<"unzip8 $rd, $rs", (UNSHFLI GPR:$rd, GPR:$rs, 0b1000)>,
-      Sched<[]>;
-def : InstAlias<"zip4 $rd, $rs",   (SHFLI   GPR:$rd, GPR:$rs, 0b1100)>,
-      Sched<[]>;
-def : InstAlias<"unzip4 $rd, $rs", (UNSHFLI GPR:$rd, GPR:$rs, 0b1100)>,
-      Sched<[]>;
-def : InstAlias<"zip2 $rd, $rs",   (SHFLI   GPR:$rd, GPR:$rs, 0b1110)>,
-      Sched<[]>;
-def : InstAlias<"unzip2 $rd, $rs", (UNSHFLI GPR:$rd, GPR:$rs, 0b1110)>,
-      Sched<[]>;
-def : InstAlias<"zip $rd, $rs",    (SHFLI   GPR:$rd, GPR:$rs, 0b1111)>,
-      Sched<[]>;
-def : InstAlias<"unzip $rd, $rs",  (UNSHFLI GPR:$rd, GPR:$rs, 0b1111)>,
-      Sched<[]>;
+def : InstAlias<"zip8 $rd, $rs",   (SHFLI   GPR:$rd, GPR:$rs, 0b1000)>;
+def : InstAlias<"unzip8 $rd, $rs", (UNSHFLI GPR:$rd, GPR:$rs, 0b1000)>;
+def : InstAlias<"zip4 $rd, $rs",   (SHFLI   GPR:$rd, GPR:$rs, 0b1100)>;
+def : InstAlias<"unzip4 $rd, $rs", (UNSHFLI GPR:$rd, GPR:$rs, 0b1100)>;
+def : InstAlias<"zip2 $rd, $rs",   (SHFLI   GPR:$rd, GPR:$rs, 0b1110)>;
+def : InstAlias<"unzip2 $rd, $rs", (UNSHFLI GPR:$rd, GPR:$rs, 0b1110)>;
+def : InstAlias<"zip $rd, $rs",    (SHFLI   GPR:$rd, GPR:$rs, 0b1111)>;
+def : InstAlias<"unzip $rd, $rs",  (UNSHFLI GPR:$rd, GPR:$rs, 0b1111)>;
 
-def : InstAlias<"orc16 $rd, $rs", (GORCI GPR:$rd, GPR:$rs, 0b10000)>, Sched<[]>;
-def : InstAlias<"orc8 $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b11000)>, Sched<[]>;
-def : InstAlias<"orc4 $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b11100)>, Sched<[]>;
-def : InstAlias<"orc2 $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b11110)>, Sched<[]>;
-def : InstAlias<"orc $rd, $rs",   (GORCI GPR:$rd, GPR:$rs, 0b11111)>, Sched<[]>;
+def : InstAlias<"orc16 $rd, $rs", (GORCI GPR:$rd, GPR:$rs, 0b10000)>;
+def : InstAlias<"orc8 $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b11000)>;
+def : InstAlias<"orc4 $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b11100)>;
+def : InstAlias<"orc2 $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b11110)>;
+def : InstAlias<"orc $rd, $rs",   (GORCI GPR:$rd, GPR:$rs, 0b11111)>;
 } // Predicates = [HasStdExtZbp, IsRV32]
 
 let Predicates = [HasStdExtZbp, IsRV64] in {
-def : InstAlias<"rev16.w $rd, $rs", (GREVI GPR:$rd, GPR:$rs, 0b010000)>,
-      Sched<[]>;
-def : InstAlias<"rev8.w $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b011000)>,
-      Sched<[]>;
-def : InstAlias<"rev4.w $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b011100)>,
-      Sched<[]>;
-def : InstAlias<"rev2.w $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b011110)>,
-      Sched<[]>;
-def : InstAlias<"rev.w $rd, $rs",   (GREVI GPR:$rd, GPR:$rs, 0b011111)>,
-      Sched<[]>;
-def : InstAlias<"rev32 $rd, $rs",   (GREVI GPR:$rd, GPR:$rs, 0b100000)>,
-      Sched<[]>;
-def : InstAlias<"rev16 $rd, $rs",   (GREVI GPR:$rd, GPR:$rs, 0b110000)>,
-      Sched<[]>;
-def : InstAlias<"rev8 $rd, $rs",    (GREVI GPR:$rd, GPR:$rs, 0b111000)>,
-      Sched<[]>;
-def : InstAlias<"rev4 $rd, $rs",    (GREVI GPR:$rd, GPR:$rs, 0b111100)>,
-      Sched<[]>;
-def : InstAlias<"rev2 $rd, $rs",    (GREVI GPR:$rd, GPR:$rs, 0b111110)>,
-      Sched<[]>;
-def : InstAlias<"rev $rd, $rs",     (GREVI GPR:$rd, GPR:$rs, 0b111111)>,
-      Sched<[]>;
+def : InstAlias<"rev16.w $rd, $rs", (GREVI GPR:$rd, GPR:$rs, 0b010000)>;
+def : InstAlias<"rev8.w $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b011000)>;
+def : InstAlias<"rev4.w $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b011100)>;
+def : InstAlias<"rev2.w $rd, $rs",  (GREVI GPR:$rd, GPR:$rs, 0b011110)>;
+def : InstAlias<"rev.w $rd, $rs",   (GREVI GPR:$rd, GPR:$rs, 0b011111)>;
+def : InstAlias<"rev32 $rd, $rs",   (GREVI GPR:$rd, GPR:$rs, 0b100000)>;
+def : InstAlias<"rev16 $rd, $rs",   (GREVI GPR:$rd, GPR:$rs, 0b110000)>;
+def : InstAlias<"rev8 $rd, $rs",    (GREVI GPR:$rd, GPR:$rs, 0b111000)>;
+def : InstAlias<"rev4 $rd, $rs",    (GREVI GPR:$rd, GPR:$rs, 0b111100)>;
+def : InstAlias<"rev2 $rd, $rs",    (GREVI GPR:$rd, GPR:$rs, 0b111110)>;
+def : InstAlias<"rev $rd, $rs",     (GREVI GPR:$rd, GPR:$rs, 0b111111)>;
 
-def : InstAlias<"zip8.w $rd, $rs",   (SHFLI   GPR:$rd, GPR:$rs, 0b01000)>,
-      Sched<[]>;
-def : InstAlias<"unzip8.w $rd, $rs", (UNSHFLI GPR:$rd, GPR:$rs, 0b01000)>,
-      Sched<[]>;
-def : InstAlias<"zip4.w $rd, $rs",   (SHFLI   GPR:$rd, GPR:$rs, 0b01100)>,
-      Sched<[]>;
-def : InstAlias<"unzip4.w $rd, $rs", (UNSHFLI GPR:$rd, GPR:$rs, 0b01100)>,
-      Sched<[]>;
-def : InstAlias<"zip2.w $rd, $rs",   (SHFLI   GPR:$rd, GPR:$rs, 0b01110)>,
-      Sched<[]>;
-def : InstAlias<"unzip2.w $rd, $rs", (UNSHFLI GPR:$rd, GPR:$rs, 0b01110)>,
-      Sched<[]>;
-def : InstAlias<"zip.w $rd, $rs",    (SHFLI   GPR:$rd, GPR:$rs, 0b01111)>,
-      Sched<[]>;
-def : InstAlias<"unzip.w $rd, $rs",  (UNSHFLI GPR:$rd, GPR:$rs, 0b01111)>,
-      Sched<[]>;
-def : InstAlias<"zip16 $rd, $rs",    (SHFLI   GPR:$rd, GPR:$rs, 0b10000)>,
-      Sched<[]>;
-def : InstAlias<"unzip16 $rd, $rs",  (UNSHFLI GPR:$rd, GPR:$rs, 0b10000)>,
-      Sched<[]>;
-def : InstAlias<"zip8 $rd, $rs",     (SHFLI   GPR:$rd, GPR:$rs, 0b11000)>,
-      Sched<[]>;
-def : InstAlias<"unzip8 $rd, $rs",   (UNSHFLI GPR:$rd, GPR:$rs, 0b11000)>,
-      Sched<[]>;
-def : InstAlias<"zip4 $rd, $rs",     (SHFLI   GPR:$rd, GPR:$rs, 0b11100)>,
-      Sched<[]>;
-def : InstAlias<"unzip4 $rd, $rs",   (UNSHFLI GPR:$rd, GPR:$rs, 0b11100)>,
-      Sched<[]>;
-def : InstAlias<"zip2 $rd, $rs",     (SHFLI   GPR:$rd, GPR:$rs, 0b11110)>,
-      Sched<[]>;
-def : InstAlias<"unzip2 $rd, $rs",   (UNSHFLI GPR:$rd, GPR:$rs, 0b11110)>,
-      Sched<[]>;
-def : InstAlias<"zip $rd, $rs",      (SHFLI   GPR:$rd, GPR:$rs, 0b11111)>,
-      Sched<[]>;
-def : InstAlias<"unzip $rd, $rs",    (UNSHFLI GPR:$rd, GPR:$rs, 0b11111)>,
-      Sched<[]>;
+def : InstAlias<"zip8.w $rd, $rs",   (SHFLI   GPR:$rd, GPR:$rs, 0b01000)>;
+def : InstAlias<"unzip8.w $rd, $rs", (UNSHFLI GPR:$rd, GPR:$rs, 0b01000)>;
+def : InstAlias<"zip4.w $rd, $rs",   (SHFLI   GPR:$rd, GPR:$rs, 0b01100)>;
+def : InstAlias<"unzip4.w $rd, $rs", (UNSHFLI GPR:$rd, GPR:$rs, 0b01100)>;
+def : InstAlias<"zip2.w $rd, $rs",   (SHFLI   GPR:$rd, GPR:$rs, 0b01110)>;
+def : InstAlias<"unzip2.w $rd, $rs", (UNSHFLI GPR:$rd, GPR:$rs, 0b01110)>;
+def : InstAlias<"zip.w $rd, $rs",    (SHFLI   GPR:$rd, GPR:$rs, 0b01111)>;
+def : InstAlias<"unzip.w $rd, $rs",  (UNSHFLI GPR:$rd, GPR:$rs, 0b01111)>;
+def : InstAlias<"zip16 $rd, $rs",    (SHFLI   GPR:$rd, GPR:$rs, 0b10000)>;
+def : InstAlias<"unzip16 $rd, $rs",  (UNSHFLI GPR:$rd, GPR:$rs, 0b10000)>;
+def : InstAlias<"zip8 $rd, $rs",     (SHFLI   GPR:$rd, GPR:$rs, 0b11000)>;
+def : InstAlias<"unzip8 $rd, $rs",   (UNSHFLI GPR:$rd, GPR:$rs, 0b11000)>;
+def : InstAlias<"zip4 $rd, $rs",     (SHFLI   GPR:$rd, GPR:$rs, 0b11100)>;
+def : InstAlias<"unzip4 $rd, $rs",   (UNSHFLI GPR:$rd, GPR:$rs, 0b11100)>;
+def : InstAlias<"zip2 $rd, $rs",     (SHFLI   GPR:$rd, GPR:$rs, 0b11110)>;
+def : InstAlias<"unzip2 $rd, $rs",   (UNSHFLI GPR:$rd, GPR:$rs, 0b11110)>;
+def : InstAlias<"zip $rd, $rs",      (SHFLI   GPR:$rd, GPR:$rs, 0b11111)>;
+def : InstAlias<"unzip $rd, $rs",    (UNSHFLI GPR:$rd, GPR:$rs, 0b11111)>;
 
-def : InstAlias<"orc16.w $rd, $rs", (GORCI GPR:$rd, GPR:$rs, 0b010000)>,
-      Sched<[]>;
-def : InstAlias<"orc8.w $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b011000)>,
-      Sched<[]>;
-def : InstAlias<"orc4.w $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b011100)>,
-      Sched<[]>;
-def : InstAlias<"orc2.w $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b011110)>,
-      Sched<[]>;
-def : InstAlias<"orc.w $rd, $rs",   (GORCI GPR:$rd, GPR:$rs, 0b011111)>,
-      Sched<[]>;
-def : InstAlias<"orc32 $rd, $rs",   (GORCI GPR:$rd, GPR:$rs, 0b100000)>,
-      Sched<[]>;
-def : InstAlias<"orc16 $rd, $rs",   (GORCI GPR:$rd, GPR:$rs, 0b110000)>,
-      Sched<[]>;
-def : InstAlias<"orc8 $rd, $rs",    (GORCI GPR:$rd, GPR:$rs, 0b111000)>,
-      Sched<[]>;
-def : InstAlias<"orc4 $rd, $rs",    (GORCI GPR:$rd, GPR:$rs, 0b111100)>,
-      Sched<[]>;
-def : InstAlias<"orc2 $rd, $rs",    (GORCI GPR:$rd, GPR:$rs, 0b111110)>,
-      Sched<[]>;
-def : InstAlias<"orc $rd, $rs",     (GORCI GPR:$rd, GPR:$rs, 0b111111)>,
-      Sched<[]>;
+def : InstAlias<"orc16.w $rd, $rs", (GORCI GPR:$rd, GPR:$rs, 0b010000)>;
+def : InstAlias<"orc8.w $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b011000)>;
+def : InstAlias<"orc4.w $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b011100)>;
+def : InstAlias<"orc2.w $rd, $rs",  (GORCI GPR:$rd, GPR:$rs, 0b011110)>;
+def : InstAlias<"orc.w $rd, $rs",   (GORCI GPR:$rd, GPR:$rs, 0b011111)>;
+def : InstAlias<"orc32 $rd, $rs",   (GORCI GPR:$rd, GPR:$rs, 0b100000)>;
+def : InstAlias<"orc16 $rd, $rs",   (GORCI GPR:$rd, GPR:$rs, 0b110000)>;
+def : InstAlias<"orc8 $rd, $rs",    (GORCI GPR:$rd, GPR:$rs, 0b111000)>;
+def : InstAlias<"orc4 $rd, $rs",    (GORCI GPR:$rd, GPR:$rs, 0b111100)>;
+def : InstAlias<"orc2 $rd, $rs",    (GORCI GPR:$rd, GPR:$rs, 0b111110)>;
+def : InstAlias<"orc $rd, $rs",     (GORCI GPR:$rd, GPR:$rs, 0b111111)>;
 } // Predicates = [HasStdExtZbp, IsRV64]
 
 //===----------------------------------------------------------------------===//
@@ -691,11 +636,6 @@ def : CompressPat<(PACK GPRC:$rs1, GPRC:$rs1, X0),
 //===----------------------------------------------------------------------===//
 // Codegen patterns
 //===----------------------------------------------------------------------===//
-def SLOIPat   : ComplexPattern<XLenVT, 2, "SelectSLOI", [or]>;
-def SROIPat   : ComplexPattern<XLenVT, 2, "SelectSROI", [or]>;
-def SLLIUWPat : ComplexPattern<i64, 2, "SelectSLLIUW", [and]>;
-def SLOIWPat  : ComplexPattern<i64, 2, "SelectSLOIW", [sext_inreg]>;
-def SROIWPat  : ComplexPattern<i64, 2, "SelectSROIW", [or]>;
 
 let Predicates = [HasStdExtZbbOrZbp] in {
 def : Pat<(and GPR:$rs1, (not GPR:$rs2)), (ANDN GPR:$rs1, GPR:$rs2)>;
@@ -777,7 +717,23 @@ def : Pat<(rotl (riscv_grevi GPR:$rs1, (i32 24)), (i32 16)), (GREVI GPR:$rs1, 8)
 let Predicates = [HasStdExtZbt] in {
 def : Pat<(or (and (not GPR:$rs2), GPR:$rs3), (and GPR:$rs2, GPR:$rs1)),
           (CMIX GPR:$rs1, GPR:$rs2, GPR:$rs3)>;
-def : Pat<(riscv_selectcc GPR:$rs2, (XLenVT 0), (XLenVT 17), GPR:$rs3, GPR:$rs1),
+def : Pat<(select (XLenVT (setne GPR:$rs2, 0)), GPR:$rs1, GPR:$rs3),
+          (CMOV GPR:$rs1, GPR:$rs2, GPR:$rs3)>;
+def : Pat<(select (XLenVT (seteq GPR:$rs2, 0)), GPR:$rs3, GPR:$rs1),
+          (CMOV GPR:$rs1, GPR:$rs2, GPR:$rs3)>;
+def : Pat<(select (XLenVT (setne GPR:$x, GPR:$y)), GPR:$rs1, GPR:$rs3),
+          (CMOV GPR:$rs1, (XOR GPR:$x, GPR:$y), GPR:$rs3)>;
+def : Pat<(select (XLenVT (seteq GPR:$x, GPR:$y)), GPR:$rs3, GPR:$rs1),
+          (CMOV GPR:$rs1, (XOR GPR:$x, GPR:$y), GPR:$rs3)>;
+def : Pat<(select (XLenVT (setuge GPR:$x, GPR:$y)), GPR:$rs3, GPR:$rs1),
+          (CMOV GPR:$rs1, (SLTU GPR:$x, GPR:$y), GPR:$rs3)>;
+def : Pat<(select (XLenVT (setule GPR:$y, GPR:$x)), GPR:$rs3, GPR:$rs1),
+          (CMOV GPR:$rs1, (SLTU GPR:$x, GPR:$y), GPR:$rs3)>;
+def : Pat<(select (XLenVT (setge GPR:$x, GPR:$y)), GPR:$rs3, GPR:$rs1),
+          (CMOV GPR:$rs1, (SLT GPR:$x, GPR:$y), GPR:$rs3)>;
+def : Pat<(select (XLenVT (setle GPR:$y, GPR:$x)), GPR:$rs3, GPR:$rs1),
+          (CMOV GPR:$rs1, (SLT GPR:$x, GPR:$y), GPR:$rs3)>;
+def : Pat<(select GPR:$rs2, GPR:$rs1, GPR:$rs3),
           (CMOV GPR:$rs1, GPR:$rs2, GPR:$rs3)>;
 } // Predicates = [HasStdExtZbt]
 
@@ -900,8 +856,10 @@ def : Pat<(or (or (and (shl GPR:$rs1, (i64 1)), (i64 0x4444444444444444)),
 let Predicates = [HasStdExtZbb, IsRV64] in {
 def : Pat<(and (add GPR:$rs, simm12:$simm12), (i64 0xFFFFFFFF)),
           (ADDIWU GPR:$rs, simm12:$simm12)>;
-def : Pat<(SLLIUWPat GPR:$rs1, uimmlog2xlen:$shamt),
-          (SLLIUW GPR:$rs1, uimmlog2xlen:$shamt)>;
+def : Pat<(SLLIUWPat GPR:$rs1, uimm5:$shamt),
+          (SLLIUW GPR:$rs1, uimm5:$shamt)>;
+def : Pat<(shl (and GPR:$rs1, 0xFFFFFFFF), uimm5:$shamt),
+          (SLLIUW GPR:$rs1, uimm5:$shamt)>;
 def : Pat<(and (add GPR:$rs1, GPR:$rs2), (i64 0xFFFFFFFF)),
           (ADDWU GPR:$rs1, GPR:$rs2)>;
 def : Pat<(and (sub GPR:$rs1, GPR:$rs2), (i64 0xFFFFFFFF)),
@@ -956,10 +914,10 @@ def : Pat<(xor (assertsexti32 GPR:$rs1), SBSETINVWMask:$mask),
 } // Predicates = [HasStdExtZbs, IsRV64]
 
 let Predicates = [HasStdExtZbb, IsRV64] in {
-def : Pat<(SLOIWPat GPR:$rs1, uimmlog2xlen:$shamt),
-          (SLOIW GPR:$rs1, uimmlog2xlen:$shamt)>;
-def : Pat<(SROIWPat GPR:$rs1, uimmlog2xlen:$shamt),
-          (SROIW GPR:$rs1, uimmlog2xlen:$shamt)>;
+def : Pat<(sext_inreg (SLOIPat GPR:$rs1, uimm5:$shamt), i32),
+          (SLOIW GPR:$rs1, uimm5:$shamt)>;
+def : Pat<(SROIWPat GPR:$rs1, uimm5:$shamt),
+          (SROIW GPR:$rs1, uimm5:$shamt)>;
 } // Predicates = [HasStdExtZbb, IsRV64]
 
 let Predicates = [HasStdExtZbp, IsRV64] in {

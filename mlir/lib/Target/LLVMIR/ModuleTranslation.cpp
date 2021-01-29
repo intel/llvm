@@ -412,25 +412,12 @@ ModuleTranslation::convertOmpParallel(Operation &opInst,
   LogicalResult bodyGenStatus = success();
 
   auto bodyGenCB = [&](InsertPointTy allocaIP, InsertPointTy codeGenIP,
-                       llvm::BasicBlock &continuationIP) {
-    llvm::LLVMContext &llvmContext = llvmModule->getContext();
-
-    llvm::BasicBlock *codeGenIPBB = codeGenIP.getBlock();
-    llvm::Instruction *codeGenIPBBTI = codeGenIPBB->getTerminator();
-    ompContinuationIPStack.push_back(&continuationIP);
-
-    // ParallelOp has only `1` region associated with it.
+                       llvm::BasicBlock &continuationBlock) {
+    // ParallelOp has only one region associated with it.
     auto &region = cast<omp::ParallelOp>(opInst).getRegion();
-    for (auto &bb : region) {
-      auto *llvmBB = llvm::BasicBlock::Create(
-          llvmContext, "omp.par.region", codeGenIP.getBlock()->getParent());
-      blockMapping[&bb] = llvmBB;
-    }
-
-    convertOmpOpRegions(region, valueMapping, blockMapping, codeGenIPBBTI,
-                        continuationIP, builder, bodyGenStatus);
-    ompContinuationIPStack.pop_back();
-
+    convertOmpOpRegions(region, "omp.par.region", valueMapping, blockMapping,
+                        *codeGenIP.getBlock(), continuationBlock, builder,
+                        bodyGenStatus);
   };
 
   // TODO: Perform appropriate actions according to the data-sharing
@@ -472,29 +459,50 @@ ModuleTranslation::convertOmpParallel(Operation &opInst,
 }
 
 void ModuleTranslation::convertOmpOpRegions(
-    Region &region, DenseMap<Value, llvm::Value *> &valueMapping,
+    Region &region, StringRef blockName,
+    DenseMap<Value, llvm::Value *> &valueMapping,
     DenseMap<Block *, llvm::BasicBlock *> &blockMapping,
-    llvm::Instruction *codeGenIPBBTI, llvm::BasicBlock &continuationIP,
+    llvm::BasicBlock &sourceBlock, llvm::BasicBlock &continuationBlock,
     llvm::IRBuilder<> &builder, LogicalResult &bodyGenStatus) {
+  llvm::LLVMContext &llvmContext = builder.getContext();
+  for (Block &bb : region) {
+    llvm::BasicBlock *llvmBB = llvm::BasicBlock::Create(
+        llvmContext, blockName, builder.GetInsertBlock()->getParent());
+    blockMapping[&bb] = llvmBB;
+  }
+
+  llvm::Instruction *sourceTerminator = sourceBlock.getTerminator();
+
   // Convert blocks one by one in topological order to ensure
   // defs are converted before uses.
   llvm::SetVector<Block *> blocks = topologicalSort(region);
-  for (auto indexedBB : llvm::enumerate(blocks)) {
-    Block *bb = indexedBB.value();
-    llvm::BasicBlock *curLLVMBB = blockMapping[bb];
+  for (Block *bb : blocks) {
+    llvm::BasicBlock *llvmBB = blockMapping[bb];
+    // Retarget the branch of the entry block to the entry block of the
+    // converted region (regions are single-entry).
     if (bb->isEntryBlock()) {
-      assert(codeGenIPBBTI->getNumSuccessors() == 1 &&
-             "OpenMPIRBuilder provided entry block has multiple successors");
-      assert(codeGenIPBBTI->getSuccessor(0) == &continuationIP &&
-             "ContinuationIP is not the successor of OpenMPIRBuilder "
-             "provided entry block");
-      codeGenIPBBTI->setSuccessor(0, curLLVMBB);
+      assert(sourceTerminator->getNumSuccessors() == 1 &&
+             "provided entry block has multiple successors");
+      assert(sourceTerminator->getSuccessor(0) == &continuationBlock &&
+             "ContinuationBlock is not the successor of the entry block");
+      sourceTerminator->setSuccessor(0, llvmBB);
     }
 
-    if (failed(convertBlock(*bb, /*ignoreArguments=*/indexedBB.index() == 0))) {
+    llvm::IRBuilder<>::InsertPointGuard guard(builder);
+    if (failed(convertBlock(*bb, bb->isEntryBlock(), builder))) {
       bodyGenStatus = failure();
       return;
     }
+
+    // Special handling for `omp.yield` and `omp.terminator` (we may have more
+    // than one): they return the control to the parent OpenMP dialect operation
+    // so replace them with the branch to the continuation block. We handle this
+    // here to avoid relying inter-function communication through the
+    // ModuleTranslation class to set up the correct insertion point. This is
+    // also consistent with MLIR's idiom of handling special region terminators
+    // in the same code that handles the region-owning operation.
+    if (isa<omp::TerminatorOp, omp::YieldOp>(bb->getTerminator()))
+      builder.CreateBr(&continuationBlock);
   }
   // Finally, after all blocks have been traversed and values mapped,
   // connect the PHI nodes to the results of preceding blocks.
@@ -509,23 +517,12 @@ LogicalResult ModuleTranslation::convertOmpMaster(Operation &opInst,
   LogicalResult bodyGenStatus = success();
 
   auto bodyGenCB = [&](InsertPointTy allocaIP, InsertPointTy codeGenIP,
-                       llvm::BasicBlock &continuationIP) {
-    llvm::LLVMContext &llvmContext = llvmModule->getContext();
-
-    llvm::BasicBlock *codeGenIPBB = codeGenIP.getBlock();
-    llvm::Instruction *codeGenIPBBTI = codeGenIPBB->getTerminator();
-    ompContinuationIPStack.push_back(&continuationIP);
-
-    // MasterOp has only `1` region associated with it.
+                       llvm::BasicBlock &continuationBlock) {
+    // MasterOp has only one region associated with it.
     auto &region = cast<omp::MasterOp>(opInst).getRegion();
-    for (auto &bb : region) {
-      auto *llvmBB = llvm::BasicBlock::Create(
-          llvmContext, "omp.master.region", codeGenIP.getBlock()->getParent());
-      blockMapping[&bb] = llvmBB;
-    }
-    convertOmpOpRegions(region, valueMapping, blockMapping, codeGenIPBBTI,
-                        continuationIP, builder, bodyGenStatus);
-    ompContinuationIPStack.pop_back();
+    convertOmpOpRegions(region, "omp.master.region", valueMapping, blockMapping,
+                        *codeGenIP.getBlock(), continuationBlock, builder,
+                        bodyGenStatus);
   };
 
   // TODO: Perform finalization actions for variables. This has to be
@@ -533,6 +530,86 @@ LogicalResult ModuleTranslation::convertOmpMaster(Operation &opInst,
   auto finiCB = [&](InsertPointTy codeGenIP) {};
 
   builder.restoreIP(ompBuilder->createMaster(builder, bodyGenCB, finiCB));
+  return success();
+}
+
+/// Converts an OpenMP workshare loop into LLVM IR using OpenMPIRBuilder.
+LogicalResult ModuleTranslation::convertOmpWsLoop(Operation &opInst,
+                                                  llvm::IRBuilder<> &builder) {
+  auto loop = cast<omp::WsLoopOp>(opInst);
+  // TODO: this should be in the op verifier instead.
+  if (loop.lowerBound().empty())
+    return failure();
+
+  if (loop.getNumLoops() != 1)
+    return opInst.emitOpError("collapsed loops not yet supported");
+
+  if (loop.schedule_val().hasValue() &&
+      omp::symbolizeClauseScheduleKind(loop.schedule_val().getValue()) !=
+          omp::ClauseScheduleKind::Static)
+    return opInst.emitOpError(
+        "only static (default) loop schedule is currently supported");
+
+  // Find the loop configuration.
+  llvm::Value *lowerBound = valueMapping.lookup(loop.lowerBound()[0]);
+  llvm::Value *upperBound = valueMapping.lookup(loop.upperBound()[0]);
+  llvm::Value *step = valueMapping.lookup(loop.step()[0]);
+  llvm::Type *ivType = step->getType();
+  llvm::Value *chunk = loop.schedule_chunk_var()
+                           ? valueMapping[loop.schedule_chunk_var()]
+                           : llvm::ConstantInt::get(ivType, 1);
+
+  // Set up the source location value for OpenMP runtime.
+  llvm::DISubprogram *subprogram =
+      builder.GetInsertBlock()->getParent()->getSubprogram();
+  const llvm::DILocation *diLoc =
+      debugTranslation->translateLoc(opInst.getLoc(), subprogram);
+  llvm::OpenMPIRBuilder::LocationDescription ompLoc(builder.saveIP(),
+                                                    llvm::DebugLoc(diLoc));
+
+  // Generator of the canonical loop body. Produces an SESE region of basic
+  // blocks.
+  // TODO: support error propagation in OpenMPIRBuilder and use it instead of
+  // relying on captured variables.
+  LogicalResult bodyGenStatus = success();
+  auto bodyGen = [&](llvm::OpenMPIRBuilder::InsertPointTy ip, llvm::Value *iv) {
+    llvm::IRBuilder<>::InsertPointGuard guard(builder);
+
+    // Make sure further conversions know about the induction variable.
+    valueMapping[loop.getRegion().front().getArgument(0)] = iv;
+
+    llvm::BasicBlock *entryBlock = ip.getBlock();
+    llvm::BasicBlock *exitBlock =
+        entryBlock->splitBasicBlock(ip.getPoint(), "omp.wsloop.exit");
+
+    // Convert the body of the loop.
+    convertOmpOpRegions(loop.region(), "omp.wsloop.region", valueMapping,
+                        blockMapping, *entryBlock, *exitBlock, builder,
+                        bodyGenStatus);
+  };
+
+  // Delegate actual loop construction to the OpenMP IRBuilder.
+  // TODO: this currently assumes WsLoop is semantically similar to SCF loop,
+  // i.e. it has a positive step, uses signed integer semantics. Reconsider
+  // this code when WsLoop clearly supports more cases.
+  llvm::BasicBlock *insertBlock = builder.GetInsertBlock();
+  llvm::CanonicalLoopInfo *loopInfo = ompBuilder->createCanonicalLoop(
+      ompLoc, bodyGen, lowerBound, upperBound, step, /*IsSigned=*/true,
+      /*InclusiveStop=*/loop.inclusive());
+  if (failed(bodyGenStatus))
+    return failure();
+
+  // TODO: get the alloca insertion point from the parallel operation builder.
+  // If we insert the at the top of the current function, they will be passed as
+  // extra arguments into the function the parallel operation builder outlines.
+  // Put them at the start of the current block for now.
+  llvm::OpenMPIRBuilder::InsertPointTy allocaIP(
+      insertBlock, insertBlock->getFirstInsertionPt());
+  loopInfo = ompBuilder->createStaticWorkshareLoop(ompLoc, loopInfo, allocaIP,
+                                                   !loop.nowait(), chunk);
+
+  // Continue building IR after the loop.
+  builder.restoreIP(loopInfo->getAfterIP());
   return success();
 }
 
@@ -570,17 +647,44 @@ ModuleTranslation::convertOmpOperation(Operation &opInst,
         ompBuilder->createFlush(builder.saveIP());
         return success();
       })
-      .Case([&](omp::TerminatorOp) {
-        builder.CreateBr(ompContinuationIPStack.back());
-        return success();
-      })
       .Case(
           [&](omp::ParallelOp) { return convertOmpParallel(opInst, builder); })
       .Case([&](omp::MasterOp) { return convertOmpMaster(opInst, builder); })
+      .Case([&](omp::WsLoopOp) { return convertOmpWsLoop(opInst, builder); })
+      .Case<omp::YieldOp, omp::TerminatorOp>([](auto op) {
+        // `yield` and `terminator` can be just omitted. The block structure was
+        // created in the function that handles their parent operation.
+        assert(op->getNumOperands() == 0 &&
+               "unexpected OpenMP terminator with operands");
+        return success();
+      })
       .Default([&](Operation *inst) {
         return inst->emitError("unsupported OpenMP operation: ")
                << inst->getName();
       });
+}
+
+static llvm::FastMathFlags getFastmathFlags(FastmathFlagsInterface &op) {
+  using llvmFMF = llvm::FastMathFlags;
+  using FuncT = void (llvmFMF::*)(bool);
+  const std::pair<FastmathFlags, FuncT> handlers[] = {
+      // clang-format off
+      {FastmathFlags::nnan,     &llvmFMF::setNoNaNs},
+      {FastmathFlags::ninf,     &llvmFMF::setNoInfs},
+      {FastmathFlags::nsz,      &llvmFMF::setNoSignedZeros},
+      {FastmathFlags::arcp,     &llvmFMF::setAllowReciprocal},
+      {FastmathFlags::contract, &llvmFMF::setAllowContract},
+      {FastmathFlags::afn,      &llvmFMF::setApproxFunc},
+      {FastmathFlags::reassoc,  &llvmFMF::setAllowReassoc},
+      {FastmathFlags::fast,     &llvmFMF::setFast},
+      // clang-format on
+  };
+  llvm::FastMathFlags ret;
+  auto fmf = op.fastmathFlags();
+  for (auto it : handlers)
+    if (bitEnumContains(fmf, it.first))
+      (ret.*(it.second))(true);
+  return ret;
 }
 
 /// Given a single MLIR operation, create the corresponding LLVM IR operation
@@ -596,6 +700,10 @@ LogicalResult ModuleTranslation::convertOperation(Operation &opInst,
       position.push_back(v.cast<IntegerAttr>().getValue().getZExtValue());
     return position;
   };
+
+  llvm::IRBuilder<>::FastMathFlagGuard fmfGuard(builder);
+  if (auto fmf = dyn_cast<FastmathFlagsInterface>(opInst))
+    builder.setFastMathFlags(getFastmathFlags(fmf));
 
 #include "mlir/Dialect/LLVMIR/LLVMConversions.inc"
 
@@ -635,20 +743,19 @@ LogicalResult ModuleTranslation::convertOperation(Operation &opInst,
   if (auto inlineAsmOp = dyn_cast<LLVM::InlineAsmOp>(opInst)) {
     // TODO: refactor function type creation which usually occurs in std-LLVM
     // conversion.
-    SmallVector<LLVM::LLVMType, 8> operandTypes;
+    SmallVector<Type, 8> operandTypes;
     operandTypes.reserve(inlineAsmOp.operands().size());
     for (auto t : inlineAsmOp.operands().getTypes())
-      operandTypes.push_back(t.cast<LLVM::LLVMType>());
+      operandTypes.push_back(t);
 
-    LLVM::LLVMType resultType;
+    Type resultType;
     if (inlineAsmOp.getNumResults() == 0) {
-      resultType = LLVM::LLVMType::getVoidTy(mlirModule->getContext());
+      resultType = LLVM::LLVMVoidType::get(mlirModule->getContext());
     } else {
       assert(inlineAsmOp.getNumResults() == 1);
-      resultType = inlineAsmOp.getResultTypes()[0].cast<LLVM::LLVMType>();
+      resultType = inlineAsmOp.getResultTypes()[0];
     }
-    auto ft = LLVM::LLVMType::getFunctionTy(resultType, operandTypes,
-                                            /*isVarArg=*/false);
+    auto ft = LLVM::LLVMFunctionType::get(resultType, operandTypes);
     llvm::InlineAsm *inlineAsmInst =
         inlineAsmOp.asm_dialect().hasValue()
             ? llvm::InlineAsm::get(
@@ -687,7 +794,7 @@ LogicalResult ModuleTranslation::convertOperation(Operation &opInst,
   }
 
   if (auto lpOp = dyn_cast<LLVM::LandingpadOp>(opInst)) {
-    llvm::Type *ty = convertType(lpOp.getType().cast<LLVMType>());
+    llvm::Type *ty = convertType(lpOp.getType());
     llvm::LandingPadInst *lpi =
         builder.CreateLandingPad(ty, lpOp.getNumOperands());
 
@@ -746,8 +853,8 @@ LogicalResult ModuleTranslation::convertOperation(Operation &opInst,
                              blockMapping[switchOp.defaultDestination()],
                              switchOp.caseDestinations().size(), branchWeights);
 
-    auto *ty = llvm::cast<llvm::IntegerType>(
-        convertType(switchOp.value().getType().cast<LLVMType>()));
+    auto *ty =
+        llvm::cast<llvm::IntegerType>(convertType(switchOp.value().getType()));
     for (auto i :
          llvm::zip(switchOp.case_values()->cast<DenseIntElementsAttr>(),
                    switchOp.caseDestinations()))
@@ -785,9 +892,14 @@ LogicalResult ModuleTranslation::convertOperation(Operation &opInst,
 
 /// Convert block to LLVM IR.  Unless `ignoreArguments` is set, emit PHI nodes
 /// to define values corresponding to the MLIR block arguments.  These nodes
-/// are not connected to the source basic blocks, which may not exist yet.
-LogicalResult ModuleTranslation::convertBlock(Block &bb, bool ignoreArguments) {
-  llvm::IRBuilder<> builder(blockMapping[&bb]);
+/// are not connected to the source basic blocks, which may not exist yet.  Uses
+/// `builder` to construct the LLVM IR. Expects the LLVM IR basic block to have
+/// been created for `bb` and included in the block mapping.  Inserts new
+/// instructions at the end of the block and leaves `builder` in a state
+/// suitable for further insertion into the end of the block.
+LogicalResult ModuleTranslation::convertBlock(Block &bb, bool ignoreArguments,
+                                              llvm::IRBuilder<> &builder) {
+  builder.SetInsertPoint(blockMapping[&bb]);
   auto *subprogram = builder.GetInsertBlock()->getParent()->getSubprogram();
 
   // Before traversing operations, make block arguments available through
@@ -801,8 +913,8 @@ LogicalResult ModuleTranslation::convertBlock(Block &bb, bool ignoreArguments) {
     unsigned numPredecessors =
         std::distance(predecessors.begin(), predecessors.end());
     for (auto arg : bb.getArguments()) {
-      auto wrappedType = arg.getType().dyn_cast<LLVM::LLVMType>();
-      if (!wrappedType)
+      auto wrappedType = arg.getType();
+      if (!isCompatibleType(wrappedType))
         return emitError(bb.front().getLoc(),
                          "block argument does not have an LLVM type");
       llvm::Type *type = convertType(wrappedType);
@@ -968,8 +1080,8 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
             argIdx, LLVMDialect::getNoAliasAttrName())) {
       // NB: Attribute already verified to be boolean, so check if we can indeed
       // attach the attribute to this argument, based on its type.
-      auto argTy = mlirArg.getType().dyn_cast<LLVM::LLVMType>();
-      if (!argTy.isPointerTy())
+      auto argTy = mlirArg.getType();
+      if (!argTy.isa<LLVM::LLVMPointerType>())
         return func.emitError(
             "llvm.noalias attribute attached to LLVM non-pointer argument");
       if (attr.getValue())
@@ -980,12 +1092,28 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
             argIdx, LLVMDialect::getAlignAttrName())) {
       // NB: Attribute already verified to be int, so check if we can indeed
       // attach the attribute to this argument, based on its type.
-      auto argTy = mlirArg.getType().dyn_cast<LLVM::LLVMType>();
-      if (!argTy.isPointerTy())
+      auto argTy = mlirArg.getType();
+      if (!argTy.isa<LLVM::LLVMPointerType>())
         return func.emitError(
             "llvm.align attribute attached to LLVM non-pointer argument");
       llvmArg.addAttrs(
           llvm::AttrBuilder().addAlignmentAttr(llvm::Align(attr.getInt())));
+    }
+
+    if (auto attr = func.getArgAttrOfType<UnitAttr>(argIdx, "llvm.sret")) {
+      auto argTy = mlirArg.getType();
+      if (!argTy.isa<LLVM::LLVMPointerType>())
+        return func.emitError(
+            "llvm.sret attribute attached to LLVM non-pointer argument");
+      llvmArg.addAttr(llvm::Attribute::AttrKind::StructRet);
+    }
+
+    if (auto attr = func.getArgAttrOfType<UnitAttr>(argIdx, "llvm.byval")) {
+      auto argTy = mlirArg.getType();
+      if (!argTy.isa<LLVM::LLVMPointerType>())
+        return func.emitError(
+            "llvm.byval attribute attached to LLVM non-pointer argument");
+      llvmArg.addAttr(llvm::Attribute::AttrKind::ByVal);
     }
 
     valueMapping[mlirArg] = &llvmArg;
@@ -1011,9 +1139,9 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
   // Then, convert blocks one by one in topological order to ensure defs are
   // converted before uses.
   auto blocks = topologicalSort(func);
-  for (auto indexedBB : llvm::enumerate(blocks)) {
-    auto *bb = indexedBB.value();
-    if (failed(convertBlock(*bb, /*ignoreArguments=*/indexedBB.index() == 0)))
+  for (Block *bb : blocks) {
+    llvm::IRBuilder<> builder(llvmContext);
+    if (failed(convertBlock(*bb, bb->isEntryBlock(), builder)))
       return failure();
   }
 
@@ -1064,7 +1192,7 @@ LogicalResult ModuleTranslation::convertFunctions() {
   return success();
 }
 
-llvm::Type *ModuleTranslation::convertType(LLVMType type) {
+llvm::Type *ModuleTranslation::convertType(Type type) {
   return typeTranslator.translateType(type);
 }
 

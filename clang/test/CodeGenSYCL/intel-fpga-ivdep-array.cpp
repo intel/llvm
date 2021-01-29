@@ -2,7 +2,7 @@
 
 // Array-specific ivdep - annotate the correspondent GEPs only
 //
-// CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_array_no_safelenv()
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_array_no_safelenv()
 void ivdep_array_no_safelen() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
@@ -18,7 +18,7 @@ void ivdep_array_no_safelen() {
 }
 
 // Array-specific ivdep w/ safelen - annotate the correspondent GEPs only
-// CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_array_with_safelenv()
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_array_with_safelenv()
 void ivdep_array_with_safelen() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
@@ -35,7 +35,7 @@ void ivdep_array_with_safelen() {
 
 // Multiple array-specific ivdeps - annotate the correspondent GEPs
 //
-// CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_multiple_arraysv()
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_multiple_arraysv()
 void ivdep_multiple_arrays() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
@@ -63,7 +63,7 @@ void ivdep_multiple_arrays() {
 
 // Global ivdep with INF safelen & array-specific ivdep with the same safelen
 //
-// CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_array_and_globalv()
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_array_and_globalv()
 void ivdep_array_and_global() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
@@ -81,7 +81,7 @@ void ivdep_array_and_global() {
 
 // Global ivdep with INF safelen & array-specific ivdep with lesser safelen
 //
-// CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_array_and_inf_globalv()
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_array_and_inf_globalv()
 void ivdep_array_and_inf_global() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
@@ -99,7 +99,7 @@ void ivdep_array_and_inf_global() {
 
 // Global ivdep with specified safelen & array-specific ivdep with lesser safelen
 //
-// CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_array_and_greater_globalv()
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_array_and_greater_globalv()
 void ivdep_array_and_greater_global() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
@@ -117,7 +117,7 @@ void ivdep_array_and_greater_global() {
 
 // Global safelen, array-specific safelens
 //
-// CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_mul_arrays_and_globalv()
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_mul_arrays_and_globalv()
 void ivdep_mul_arrays_and_global() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
@@ -138,7 +138,7 @@ void ivdep_mul_arrays_and_global() {
   }
 }
 
-// CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_ptrv()
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_ptrv()
 void ivdep_ptr() {
   int *ptr;
   // CHECK: %[[PTR:[0-9a-z]+]] = alloca i32 addrspace(4)*
@@ -149,7 +149,7 @@ void ivdep_ptr() {
   // CHECK: br label %for.cond, !llvm.loop ![[MD_LOOP_PTR:[0-9]+]]
 }
 
-// CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_structv()
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_structv()
 void ivdep_struct() {
   struct S {
     int *ptr;

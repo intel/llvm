@@ -2,7 +2,7 @@
 
 // Global ivdep - annotate all GEPs
 //
-// CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_no_paramv()
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_no_paramv()
 void ivdep_no_param() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
@@ -20,7 +20,7 @@ void ivdep_no_param() {
 // Global ivdep - annotate all GEPs
 // Make sure that ALL of the relevant GEPs for an array are marked into the array's index groups
 //
-// CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_no_param_multiple_gepsv()
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_no_param_multiple_gepsv()
 void ivdep_no_param_multiple_geps() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
@@ -42,7 +42,7 @@ void ivdep_no_param_multiple_geps() {
 
 // Global ivdep w/ safelen specified - annotate all GEPs
 //
-// CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_safelenv()
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_safelenv()
 void ivdep_safelen() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
@@ -59,7 +59,7 @@ void ivdep_safelen() {
 
 // Global ivdep, albeit conflicting safelens - annotate all GEPs
 //
-// CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_conflicting_safelenv()
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_conflicting_safelenv()
 void ivdep_conflicting_safelen() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];

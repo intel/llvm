@@ -1,9 +1,9 @@
 ; This test checks that the post-link tool does not add "llvm.used" global to
 ; the output modules when splitting kernels.
 ;
-; RUN: sycl-post-link -split=kernel -S %s -o %T/files.table
-; RUN: FileCheck %s -input-file=%T/files_0.ll
-; RUN: FileCheck %s -input-file=%T/files_1.ll
+; RUN: sycl-post-link -split=kernel -S %s -o %t.files.table
+; RUN: FileCheck %s -input-file=%t.files_0.ll
+; RUN: FileCheck %s -input-file=%t.files_1.ll
 
 target triple = "spir64-unknown-unknown-sycldevice"
 

@@ -809,7 +809,10 @@ def : MnemonicAlias<"move", "mv">;
 def : MnemonicAlias<"scall", "ecall">;
 def : MnemonicAlias<"sbreak", "ebreak">;
 
-def : InstAlias<"zext.b $rd, $rs", (ANDI GPR:$rd, GPR:$rs, 0xFF)>;
+// This alias was added to the spec in December 2020. Don't print it by default
+// to allow assembly we print to be compatible with versions of GNU assembler
+// that don't support this alias.
+def : InstAlias<"zext.b $rd, $rs", (ANDI GPR:$rd, GPR:$rs, 0xFF), 0>;
 
 //===----------------------------------------------------------------------===//
 // Pseudo-instructions and codegen patterns
@@ -846,6 +849,11 @@ def assertzexti32 : PatFrag<(ops node:$src), (assertzext node:$src), [{
 def zexti32 : PatFrags<(ops node:$src),
                        [(and node:$src, 0xffffffff),
                         (assertzexti32 node:$src)]>;
+
+def SRLIWPat : PatFrag<(ops node:$A, node:$B),
+                       (srl (and node:$A, imm), node:$B), [{
+  return MatchSRLIW(N);
+}]>;
 
 /// Immediates
 
@@ -893,10 +901,10 @@ def PseudoAddTPRel : Pseudo<(outs GPR:$rd),
 
 /// FrameIndex calculations
 
-def : Pat<(add (i32 AddrFI:$Rs), simm12:$imm12),
-          (ADDI (i32 AddrFI:$Rs), simm12:$imm12)>;
-def : Pat<(IsOrAdd (i32 AddrFI:$Rs), simm12:$imm12),
-          (ADDI (i32 AddrFI:$Rs), simm12:$imm12)>;
+def : Pat<(add (XLenVT AddrFI:$Rs), simm12:$imm12),
+          (ADDI (XLenVT AddrFI:$Rs), simm12:$imm12)>;
+def : Pat<(IsOrAdd (XLenVT AddrFI:$Rs), simm12:$imm12),
+          (ADDI (XLenVT AddrFI:$Rs), simm12:$imm12)>;
 
 /// Setcc
 
@@ -958,9 +966,13 @@ def : BccSwapPat<setle, BGE>;
 def : BccSwapPat<setugt, BLTU>;
 def : BccSwapPat<setule, BGEU>;
 
-// An extra pattern is needed for a brcond without a setcc (i.e. where the
+// Extra patterns are needed for a brcond without a setcc (i.e. where the
 // condition was calculated elsewhere).
 def : Pat<(brcond GPR:$cond, bb:$imm12), (BNE GPR:$cond, X0, bb:$imm12)>;
+// In this pattern, the `(xor $cond, 1)` functions like (boolean) `not`, as the
+// `brcond` only uses the lowest bit.
+def : Pat<(brcond (XLenVT (xor GPR:$cond, 1)), bb:$imm12),
+          (BEQ GPR:$cond, X0, bb:$imm12)>;
 
 let isBarrier = 1, isBranch = 1, isTerminator = 1 in
 def PseudoBR : Pseudo<(outs), (ins simm21_lsb0_jal:$imm20), [(br bb:$imm20)]>,
@@ -1062,19 +1074,19 @@ def PseudoLA_TLS_GD : Pseudo<(outs GPR:$dst), (ins bare_symbol:$src), [],
 
 // There are single-instruction versions of these in Zbb, so disable these
 // Pseudos if that extension is present.
-let Predicates = [NotHasStdExtZbb], hasSideEffects = 0, mayLoad = 0,
+let hasSideEffects = 0, mayLoad = 0,
     mayStore = 0, isCodeGenOnly = 0, isAsmParserOnly = 1 in {
 def PseudoSEXT_B : Pseudo<(outs GPR:$rd), (ins GPR:$rs), [], "sext.b", "$rd, $rs">;
 def PseudoSEXT_H : Pseudo<(outs GPR:$rd), (ins GPR:$rs), [], "sext.h", "$rd, $rs">;
 // rv64's sext.w is defined above, using InstAlias<"sext.w ...
 // zext.b is defined above, using InstAlias<"zext.b ...
 def PseudoZEXT_H : Pseudo<(outs GPR:$rd), (ins GPR:$rs), [], "zext.h", "$rd, $rs">;
-} // Predicates = [NotHasStdExtZbb], ...
+} // hasSideEffects = 0, ...
 
-let Predicates = [NotHasStdExtZbb, IsRV64], hasSideEffects = 0, mayLoad = 0, mayStore = 0,
+let Predicates = [IsRV64], hasSideEffects = 0, mayLoad = 0, mayStore = 0,
   isCodeGenOnly = 0, isAsmParserOnly = 1 in {
 def PseudoZEXT_W : Pseudo<(outs GPR:$rd), (ins GPR:$rs), [], "zext.w", "$rd, $rs">;
-} // Predicates = [NotHasStdExtZbb, IsRV64], ...
+} // Predicates = [IsRV64], ...
 
 /// Loads
 
@@ -1165,8 +1177,8 @@ def : Pat<(sext_inreg (sub GPR:$rs1, GPR:$rs2), i32),
           (SUBW GPR:$rs1, GPR:$rs2)>;
 def : Pat<(sext_inreg (shl GPR:$rs1, uimm5:$shamt), i32),
           (SLLIW GPR:$rs1, uimm5:$shamt)>;
-// (srl (zexti32 ...), uimm5:$shamt) is matched with custom code due to the
-// need to undo manipulation of the mask value performed by DAGCombine.
+def : Pat<(SRLIWPat GPR:$rs1, uimm5:$shamt),
+          (SRLIW GPR:$rs1, uimm5:$shamt)>;
 def : Pat<(srl (shl GPR:$rs1, (i64 32)), uimm6gt32:$shamt),
           (SRLIW GPR:$rs1, (ImmSub32 uimm6gt32:$shamt))>;
 def : Pat<(sra (sext_inreg GPR:$rs1, i32), uimm5:$shamt),

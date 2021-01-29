@@ -2721,51 +2721,55 @@ _SPIRV_OP(PowN, true, 10)
 
 class SPIRVAtomicInstBase : public SPIRVInstTemplateBase {
 public:
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
-    if (getOpCode() == OpAtomicFAddEXT)
-      return ExtensionID::SPV_EXT_shader_atomic_float_add;
+  SPIRVCapVec getRequiredCapability() const override {
+    // Most of the atomic instructions require a specific capability when
+    // operating on 64-bit integers.
+    // In SPIRV 1.2 spec, only 2 atomic instructions have no result type:
+    // 1. OpAtomicStore - need to check type of the Value operand
+    // 2. OpAtomicFlagClear - doesn't require Int64Atomics capability.
+    // Besides, OpAtomicCompareExchangeWeak, OpAtomicFlagTestAndSet and
+    // OpAtomicFlagClear instructions require the "kernel" capability. But this
+    // capability should be added by setting the OpenCL memory model.
+    if (hasType() && getType()->isTypeInt(64))
+      return {CapabilityInt64Atomics};
     return {};
   }
 
-  SPIRVCapVec getRequiredCapability() const override {
-    SPIRVCapVec CapVec;
-    if (!hasType())
-      return CapVec;
-
-    // Most atomic instructionsrequire a specific capability when
-    // operating on 64-bit integers.
-    if (getType()->isTypeInt(64)) {
-      // In SPIRV 1.2 spec only 2 atomic instructions have no result type:
-      // 1. OpAtomicStore - need to check type of the Value operand
-      // 2. OpAtomicFlagClear - doesn't require Int64Atomics capability.
-      CapVec.push_back(CapabilityInt64Atomics);
-    } else if (getOpCode() == OpAtomicFAddEXT) {
-      if (getType()->isTypeFloat(32))
-        CapVec.push_back(CapabilityAtomicFloat32AddEXT);
-      else if (getType()->isTypeFloat(64))
-        CapVec.push_back(CapabilityAtomicFloat64AddEXT);
-      else
-        llvm_unreachable(
-            "AtomicFAddEXT can only be generated for f32 or f64 types");
-    }
-    // Per the spec OpAtomicCompareExchangeWeak, OpAtomicFlagTestAndSet and
-    // OpAtomicFlagClear instructions require kernel capability. But this
-    // capability should be added by setting OpenCL memory model.
-    return CapVec;
-  }
-
   // Overriding the following method because of particular OpAtomic*
-  // instructions. We may have to declare additional capabilities,
-  // e.g. based on operand types.
+  // instructions that declare additional capabilities, e.g. based on operand
+  // types.
+  void setOpWords(const std::vector<SPIRVWord> &TheOps) override {
+    SPIRVInstTemplateBase::setOpWords(TheOps);
+    for (auto RC : getRequiredCapability())
+      Module->addCapability(RC);
+  }
+};
+
+class SPIRVAtomicStoreInst : public SPIRVAtomicInstBase {
+public:
+  // Overriding the following method because of 'const'-related
+  // issues with overriding getRequiredCapability(). TODO: Resolve.
   void setOpWords(const std::vector<SPIRVWord> &TheOps) override {
     SPIRVInstTemplateBase::setOpWords(TheOps);
     static const unsigned ValueOperandIndex = 3;
-    if (getOpCode() == OpAtomicStore &&
-        getOperand(ValueOperandIndex)->getType()->isTypeInt(64))
+    if (getOperand(ValueOperandIndex)->getType()->isTypeInt(64))
       Module->addCapability(CapabilityInt64Atomics);
-    if (getOpCode() == OpAtomicFAddEXT)
-      for (auto RC : getRequiredCapability())
-        Module->addCapability(RC);
+  }
+};
+
+class SPIRVAtomicFAddEXTInst : public SPIRVAtomicInstBase {
+public:
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_EXT_shader_atomic_float_add;
+  }
+
+  SPIRVCapVec getRequiredCapability() const override {
+    assert(hasType());
+    if (getType()->isTypeFloat(32))
+      return {CapabilityAtomicFloat32AddEXT};
+    assert(getType()->isTypeFloat(64) &&
+           "AtomicFAddEXT can only be generated for f32 or f64 types");
+    return {CapabilityAtomicFloat64AddEXT};
   }
 };
 
@@ -2775,7 +2779,6 @@ public:
 _SPIRV_OP(AtomicFlagTestAndSet, true, 6)
 _SPIRV_OP(AtomicFlagClear, false, 4)
 _SPIRV_OP(AtomicLoad, true, 6)
-_SPIRV_OP(AtomicStore, false, 5)
 _SPIRV_OP(AtomicExchange, true, 7)
 _SPIRV_OP(AtomicCompareExchange, true, 9)
 _SPIRV_OP(AtomicCompareExchangeWeak, true, 9)
@@ -2790,8 +2793,13 @@ _SPIRV_OP(AtomicSMax, true, 7)
 _SPIRV_OP(AtomicAnd, true, 7)
 _SPIRV_OP(AtomicOr, true, 7)
 _SPIRV_OP(AtomicXor, true, 7)
-_SPIRV_OP(AtomicFAddEXT, true, 7)
 _SPIRV_OP(MemoryBarrier, false, 3)
+#undef _SPIRV_OP
+#define _SPIRV_OP(x, BaseClass, ...)                                           \
+  typedef SPIRVInstTemplate<SPIRV##BaseClass, Op##x, __VA_ARGS__> SPIRV##x;
+// Specialized atomic builtins
+_SPIRV_OP(AtomicStore, AtomicStoreInst, false, 5)
+_SPIRV_OP(AtomicFAddEXT, AtomicFAddEXTInst, true, 7)
 #undef _SPIRV_OP
 
 class SPIRVImageInstBase : public SPIRVInstTemplateBase {

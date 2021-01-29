@@ -116,6 +116,7 @@ getQualification(ASTContext &Context, const DeclContext *DestContext,
     if (auto *TD = llvm::dyn_cast<TagDecl>(CurContext)) {
       // There can't be any more tag parents after hitting a namespace.
       assert(!ReachedNS);
+      (void)ReachedNS;
       NNS = NestedNameSpecifier::Create(Context, nullptr, false,
                                         TD->getTypeForDecl());
     } else {
@@ -299,19 +300,27 @@ SymbolID getSymbolID(const llvm::StringRef MacroName, const MacroInfo *MI,
   return SymbolID(USR);
 }
 
-// FIXME: This should be handled while printing underlying decls instead.
 std::string printType(const QualType QT, const DeclContext &CurContext) {
   std::string Result;
   llvm::raw_string_ostream OS(Result);
-  auto Decls =
-      explicitReferenceTargets(DynTypedNode::create(QT), DeclRelation::Alias);
-  if (!Decls.empty())
-    OS << getQualification(CurContext.getParentASTContext(), &CurContext,
-                           Decls.front(),
-                           /*VisibleNamespaces=*/llvm::ArrayRef<std::string>{});
   PrintingPolicy PP(CurContext.getParentASTContext().getPrintingPolicy());
-  PP.SuppressScope = true;
   PP.SuppressTagKeyword = true;
+  PP.SuppressUnwrittenScope = true;
+
+  class PrintCB : public PrintingCallbacks {
+  public:
+    PrintCB(const DeclContext *CurContext) : CurContext(CurContext) {}
+    virtual ~PrintCB() {}
+    virtual bool isScopeVisible(const DeclContext *DC) const override {
+      return DC->Encloses(CurContext);
+    }
+
+  private:
+    const DeclContext *CurContext;
+  };
+  PrintCB PCB(&CurContext);
+  PP.Callbacks = &PCB;
+
   QT.print(OS, PP);
   return OS.str();
 }
@@ -367,7 +376,7 @@ public:
     // Loc of auto in return type (c++14).
     auto CurLoc = D->getReturnTypeSourceRange().getBegin();
     // Loc of "auto" in operator auto()
-    if (CurLoc.isInvalid() && dyn_cast<CXXConversionDecl>(D))
+    if (CurLoc.isInvalid() && isa<CXXConversionDecl>(D))
       CurLoc = D->getTypeSourceInfo()->getTypeLoc().getBeginLoc();
     // Loc of "auto" in function with trailing return type (c++11).
     if (CurLoc.isInvalid())

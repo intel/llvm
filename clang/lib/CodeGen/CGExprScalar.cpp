@@ -1212,13 +1212,14 @@ Value *ScalarExprEmitter::EmitScalarConversion(Value *Src, QualType SrcType,
       // padding is enabled because overflow into this bit is undefined
       // behavior.
       return Builder.CreateIsNotNull(Src, "tobool");
-    if (DstType->isFixedPointType() || DstType->isIntegerType())
+    if (DstType->isFixedPointType() || DstType->isIntegerType() ||
+        DstType->isRealFloatingType())
       return EmitFixedPointConversion(Src, SrcType, DstType, Loc);
 
     llvm_unreachable(
         "Unhandled scalar conversion from a fixed point type to another type.");
   } else if (DstType->isFixedPointType()) {
-    if (SrcType->isIntegerType())
+    if (SrcType->isIntegerType() || SrcType->isRealFloatingType())
       // This also includes converting booleans and enums to fixed point types.
       return EmitFixedPointConversion(Src, SrcType, DstType, Loc);
 
@@ -1434,19 +1435,29 @@ Value *ScalarExprEmitter::EmitScalarConversion(Value *Src, QualType SrcType,
 Value *ScalarExprEmitter::EmitFixedPointConversion(Value *Src, QualType SrcTy,
                                                    QualType DstTy,
                                                    SourceLocation Loc) {
-  auto SrcFPSema = CGF.getContext().getFixedPointSemantics(SrcTy);
-  auto DstFPSema = CGF.getContext().getFixedPointSemantics(DstTy);
   llvm::FixedPointBuilder<CGBuilderTy> FPBuilder(Builder);
   llvm::Value *Result;
-  if (DstTy->isIntegerType())
-    Result = FPBuilder.CreateFixedToInteger(Src, SrcFPSema,
-                                            DstFPSema.getWidth(),
-                                            DstFPSema.isSigned());
-  else if (SrcTy->isIntegerType())
-    Result =  FPBuilder.CreateIntegerToFixed(Src, SrcFPSema.isSigned(),
-                                             DstFPSema);
-  else
-    Result = FPBuilder.CreateFixedToFixed(Src, SrcFPSema, DstFPSema);
+  if (SrcTy->isRealFloatingType())
+    Result = FPBuilder.CreateFloatingToFixed(Src,
+        CGF.getContext().getFixedPointSemantics(DstTy));
+  else if (DstTy->isRealFloatingType())
+    Result = FPBuilder.CreateFixedToFloating(Src,
+        CGF.getContext().getFixedPointSemantics(SrcTy),
+        ConvertType(DstTy));
+  else {
+    auto SrcFPSema = CGF.getContext().getFixedPointSemantics(SrcTy);
+    auto DstFPSema = CGF.getContext().getFixedPointSemantics(DstTy);
+
+    if (DstTy->isIntegerType())
+      Result = FPBuilder.CreateFixedToInteger(Src, SrcFPSema,
+                                              DstFPSema.getWidth(),
+                                              DstFPSema.isSigned());
+    else if (SrcTy->isIntegerType())
+      Result =  FPBuilder.CreateIntegerToFixed(Src, SrcFPSema.isSigned(),
+                                               DstFPSema);
+    else
+      Result = FPBuilder.CreateFixedToFixed(Src, SrcFPSema, DstFPSema);
+  }
   return Result;
 }
 
@@ -1857,8 +1868,7 @@ Value *ScalarExprEmitter::VisitInitListExpr(InitListExpr *E) {
       for (unsigned j = 0; j != InitElts; ++j)
         Args.push_back(j);
       Args.resize(ResElts, -1);
-      Init = Builder.CreateShuffleVector(Init, llvm::UndefValue::get(VVT), Args,
-                                         "vext");
+      Init = Builder.CreateShuffleVector(Init, Args, "vext");
 
       Args.clear();
       for (unsigned j = 0; j != CurIdx; ++j)
@@ -4192,6 +4202,7 @@ Value *ScalarExprEmitter::VisitBinLAnd(const BinaryOperator *E) {
     return Builder.CreateSExt(And, ConvertType(E->getType()), "sext");
   }
 
+  bool InstrumentRegions = CGF.CGM.getCodeGenOpts().hasProfileClangInstr();
   llvm::Type *ResTy = ConvertType(E->getType());
 
   // If we have 0 && RHS, see if we can elide RHS, if so, just return 0.
@@ -4202,6 +4213,22 @@ Value *ScalarExprEmitter::VisitBinLAnd(const BinaryOperator *E) {
       CGF.incrementProfileCounter(E);
 
       Value *RHSCond = CGF.EvaluateExprAsBool(E->getRHS());
+
+      // If we're generating for profiling or coverage, generate a branch to a
+      // block that increments the RHS counter needed to track branch condition
+      // coverage. In this case, use "FBlock" as both the final "TrueBlock" and
+      // "FalseBlock" after the increment is done.
+      if (InstrumentRegions &&
+          CodeGenFunction::isInstrumentedCondition(E->getRHS())) {
+        llvm::BasicBlock *FBlock = CGF.createBasicBlock("land.end");
+        llvm::BasicBlock *RHSBlockCnt = CGF.createBasicBlock("land.rhscnt");
+        Builder.CreateCondBr(RHSCond, RHSBlockCnt, FBlock);
+        CGF.EmitBlock(RHSBlockCnt);
+        CGF.incrementProfileCounter(E->getRHS());
+        CGF.EmitBranch(FBlock);
+        CGF.EmitBlock(FBlock);
+      }
+
       // ZExt result to int or bool.
       return Builder.CreateZExtOrBitCast(RHSCond, ResTy, "land.ext");
     }
@@ -4237,6 +4264,19 @@ Value *ScalarExprEmitter::VisitBinLAnd(const BinaryOperator *E) {
 
   // Reaquire the RHS block, as there may be subblocks inserted.
   RHSBlock = Builder.GetInsertBlock();
+
+  // If we're generating for profiling or coverage, generate a branch on the
+  // RHS to a block that increments the RHS true counter needed to track branch
+  // condition coverage.
+  if (InstrumentRegions &&
+      CodeGenFunction::isInstrumentedCondition(E->getRHS())) {
+    llvm::BasicBlock *RHSBlockCnt = CGF.createBasicBlock("land.rhscnt");
+    Builder.CreateCondBr(RHSCond, RHSBlockCnt, ContBlock);
+    CGF.EmitBlock(RHSBlockCnt);
+    CGF.incrementProfileCounter(E->getRHS());
+    CGF.EmitBranch(ContBlock);
+    PN->addIncoming(RHSCond, RHSBlockCnt);
+  }
 
   // Emit an unconditional branch from this block to ContBlock.
   {
@@ -4278,6 +4318,7 @@ Value *ScalarExprEmitter::VisitBinLOr(const BinaryOperator *E) {
     return Builder.CreateSExt(Or, ConvertType(E->getType()), "sext");
   }
 
+  bool InstrumentRegions = CGF.CGM.getCodeGenOpts().hasProfileClangInstr();
   llvm::Type *ResTy = ConvertType(E->getType());
 
   // If we have 1 || RHS, see if we can elide RHS, if so, just return 1.
@@ -4288,6 +4329,22 @@ Value *ScalarExprEmitter::VisitBinLOr(const BinaryOperator *E) {
       CGF.incrementProfileCounter(E);
 
       Value *RHSCond = CGF.EvaluateExprAsBool(E->getRHS());
+
+      // If we're generating for profiling or coverage, generate a branch to a
+      // block that increments the RHS counter need to track branch condition
+      // coverage. In this case, use "FBlock" as both the final "TrueBlock" and
+      // "FalseBlock" after the increment is done.
+      if (InstrumentRegions &&
+          CodeGenFunction::isInstrumentedCondition(E->getRHS())) {
+        llvm::BasicBlock *FBlock = CGF.createBasicBlock("lor.end");
+        llvm::BasicBlock *RHSBlockCnt = CGF.createBasicBlock("lor.rhscnt");
+        Builder.CreateCondBr(RHSCond, FBlock, RHSBlockCnt);
+        CGF.EmitBlock(RHSBlockCnt);
+        CGF.incrementProfileCounter(E->getRHS());
+        CGF.EmitBranch(FBlock);
+        CGF.EmitBlock(FBlock);
+      }
+
       // ZExt result to int or bool.
       return Builder.CreateZExtOrBitCast(RHSCond, ResTy, "lor.ext");
     }
@@ -4327,6 +4384,19 @@ Value *ScalarExprEmitter::VisitBinLOr(const BinaryOperator *E) {
 
   // Reaquire the RHS block, as there may be subblocks inserted.
   RHSBlock = Builder.GetInsertBlock();
+
+  // If we're generating for profiling or coverage, generate a branch on the
+  // RHS to a block that increments the RHS true counter needed to track branch
+  // condition coverage.
+  if (InstrumentRegions &&
+      CodeGenFunction::isInstrumentedCondition(E->getRHS())) {
+    llvm::BasicBlock *RHSBlockCnt = CGF.createBasicBlock("lor.rhscnt");
+    Builder.CreateCondBr(RHSCond, ContBlock, RHSBlockCnt);
+    CGF.EmitBlock(RHSBlockCnt);
+    CGF.incrementProfileCounter(E->getRHS());
+    CGF.EmitBranch(ContBlock);
+    PN->addIncoming(RHSCond, RHSBlockCnt);
+  }
 
   // Emit an unconditional branch from this block to ContBlock.  Insert an entry
   // into the phi node for the edge with the value of RHSCond.
@@ -4556,9 +4626,8 @@ Value *ScalarExprEmitter::VisitBlockExpr(const BlockExpr *block) {
 // Convert a vec3 to vec4, or vice versa.
 static Value *ConvertVec3AndVec4(CGBuilderTy &Builder, CodeGenFunction &CGF,
                                  Value *Src, unsigned NumElementsDst) {
-  llvm::Value *UnV = llvm::UndefValue::get(Src->getType());
   static constexpr int Mask[] = {0, 1, 2, -1};
-  return Builder.CreateShuffleVector(Src, UnV,
+  return Builder.CreateShuffleVector(Src,
                                      llvm::makeArrayRef(Mask, NumElementsDst));
 }
 

@@ -169,12 +169,22 @@ Changes to the Debug Info
 
 During this release ...
 
+* The DIModule metadata is extended with a field to indicate if it is a
+  module declaration. This extension enables the emission of debug info
+  for a Fortran 'use <external module>' statement. For more information
+  on what the debug info entries should look like and how the debugger
+  can use them, please see test/DebugInfo/X86/dimodule-external-fortran.ll.
+
 Changes to the LLVM tools
 ---------------------------------
 
 * llvm-readobj and llvm-readelf behavior has changed to report an error when
   executed with no input files instead of reading an input from stdin.
   Reading from stdin can still be achieved by specifying `-` as an input file.
+
+* llvm-mca supports serialization of the timeline and summary views.
+  The `--json` command line option prints a JSON representation of
+  these views to stdout.
 
 Changes to LLDB
 ---------------------------------
@@ -186,6 +196,9 @@ The integer sanitizer `-fsanitize=integer` now has a new sanitizer:
 `-fsanitize=unsigned-shift-base`. It's not undefined behavior for an unsigned
 left shift to overflow (i.e. to shift bits out), but it has been the source of
 bugs and exploits in certain codebases in the past.
+
+Many Sanitizers (asan, cfi, lsan, msan, tsan, ubsan) have support for
+musl-based Linux distributions. Some of them may be rudimentary.
 
 External Open Source Projects Using LLVM 12
 ===========================================

@@ -12,13 +12,24 @@
 
 #include <CL/sycl/detail/pi.hpp>
 
+#include <type_traits>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 namespace pi {
 
-template <typename T> inline void print(T val) {
+template <typename T>
+inline typename std::enable_if<!std::is_pointer<T>::value, void>::type
+print(T val) {
   std::cout << "<unknown> : " << val << std::endl;
+}
+
+template <typename T>
+inline typename std::enable_if<std::is_pointer<T>::value, void>::type
+print(T val) {
+  std::cout << "<unknown> : " << reinterpret_cast<const void *>(val)
+            << std::endl;
 }
 
 template <> inline void print<>(PiPlatform val) {
@@ -117,7 +128,7 @@ void printArgs(Arg0 arg0, Args... args) {
 }
 
 template <typename T> struct printOut {
-  printOut(T val) {}
+  printOut(T) {}
 }; // Do nothing
 
 template <> struct printOut<PiEvent *> {

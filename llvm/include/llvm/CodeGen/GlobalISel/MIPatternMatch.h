@@ -39,11 +39,25 @@ inline OneUse_match<SubPat> m_OneUse(const SubPat &SP) {
   return SP;
 }
 
+template <typename SubPatternT> struct OneNonDBGUse_match {
+  SubPatternT SubPat;
+  OneNonDBGUse_match(const SubPatternT &SP) : SubPat(SP) {}
+
+  bool match(const MachineRegisterInfo &MRI, Register Reg) {
+    return MRI.hasOneNonDBGUse(Reg) && SubPat.match(MRI, Reg);
+  }
+};
+
+template <typename SubPat>
+inline OneNonDBGUse_match<SubPat> m_OneNonDBGUse(const SubPat &SP) {
+  return SP;
+}
+
 struct ConstantMatch {
   int64_t &CR;
   ConstantMatch(int64_t &C) : CR(C) {}
   bool match(const MachineRegisterInfo &MRI, Register Reg) {
-    if (auto MaybeCst = getConstantVRegVal(Reg, MRI)) {
+    if (auto MaybeCst = getConstantVRegSExtVal(Reg, MRI)) {
       CR = *MaybeCst;
       return true;
     }
@@ -218,6 +232,12 @@ template <typename LHS, typename RHS>
 inline BinaryOp_match<LHS, RHS, TargetOpcode::G_ADD, true>
 m_GAdd(const LHS &L, const RHS &R) {
   return BinaryOp_match<LHS, RHS, TargetOpcode::G_ADD, true>(L, R);
+}
+
+template <typename LHS, typename RHS>
+inline BinaryOp_match<LHS, RHS, TargetOpcode::G_PTR_ADD, true>
+m_GPtrAdd(const LHS &L, const RHS &R) {
+  return BinaryOp_match<LHS, RHS, TargetOpcode::G_PTR_ADD, true>(L, R);
 }
 
 template <typename LHS, typename RHS>

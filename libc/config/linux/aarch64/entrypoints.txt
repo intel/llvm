@@ -2,6 +2,7 @@ set(TARGET_LIBC_ENTRYPOINTS
     # ctype.h entrypoints
     libc.src.ctype.isalnum
     libc.src.ctype.isalpha
+    libc.src.ctype.isascii
     libc.src.ctype.isblank
     libc.src.ctype.iscntrl
     libc.src.ctype.isdigit
@@ -12,11 +13,19 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.ctype.isspace
     libc.src.ctype.isupper
     libc.src.ctype.isxdigit
+    libc.src.ctype.toascii
     libc.src.ctype.tolower
     libc.src.ctype.toupper
     
     # errno.h entrypoints
     libc.src.errno.__errno_location
+
+    # fenv.h entrypoints
+    libc.src.fenv.feclearexcept
+    libc.src.fenv.fegetround
+    libc.src.fenv.fesetround
+    libc.src.fenv.feraiseexcept
+    libc.src.fenv.fetestexcept
 
     # stdlib.h entrypoints
     libc.src.stdlib.abs
@@ -28,6 +37,7 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.string.memchr
     libc.src.string.memcmp
     libc.src.string.memcpy
+    libc.src.string.memmove
     libc.src.string.memset
     libc.src.string.memrchr
     libc.src.string.strcat
@@ -65,6 +75,7 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.floor
     libc.src.math.floorf
     libc.src.math.floorl
+    libc.src.math.fmaf
     libc.src.math.fmax
     libc.src.math.fmaxf
     libc.src.math.fmaxl
@@ -88,6 +99,9 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.modf
     libc.src.math.modff
     libc.src.math.modfl
+    libc.src.math.nextafter
+    libc.src.math.nextafterf
+    libc.src.math.nextafterl
     libc.src.math.remainderf
     libc.src.math.remainder
     libc.src.math.remainderl

@@ -13,6 +13,7 @@
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
+#include "mlir/Transforms/DialectConversion.h"
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Debug.h"
@@ -459,9 +460,9 @@ SPIRVTypeConverter::SPIRVTypeConverter(spirv::TargetEnvAttr targetAttr)
 namespace {
 /// A pattern for rewriting function signature to convert arguments of functions
 /// to be of valid SPIR-V types.
-class FuncOpConversion final : public SPIRVOpLowering<FuncOp> {
+class FuncOpConversion final : public OpConversionPattern<FuncOp> {
 public:
-  using SPIRVOpLowering<FuncOp>::SPIRVOpLowering;
+  using OpConversionPattern<FuncOp>::OpConversionPattern;
 
   LogicalResult
   matchAndRewrite(FuncOp funcOp, ArrayRef<Value> operands,
@@ -473,23 +474,27 @@ LogicalResult
 FuncOpConversion::matchAndRewrite(FuncOp funcOp, ArrayRef<Value> operands,
                                   ConversionPatternRewriter &rewriter) const {
   auto fnType = funcOp.getType();
-  // TODO: support converting functions with one result.
-  if (fnType.getNumResults())
+  if (fnType.getNumResults() > 1)
     return failure();
 
   TypeConverter::SignatureConversion signatureConverter(fnType.getNumInputs());
-  for (auto argType : enumerate(funcOp.getType().getInputs())) {
-    auto convertedType = typeConverter.convertType(argType.value());
+  for (auto argType : enumerate(fnType.getInputs())) {
+    auto convertedType = getTypeConverter()->convertType(argType.value());
     if (!convertedType)
       return failure();
     signatureConverter.addInputs(argType.index(), convertedType);
   }
 
+  Type resultType;
+  if (fnType.getNumResults() == 1)
+    resultType = getTypeConverter()->convertType(fnType.getResult(0));
+
   // Create the converted spv.func op.
   auto newFuncOp = rewriter.create<spirv::FuncOp>(
       funcOp.getLoc(), funcOp.getName(),
       rewriter.getFunctionType(signatureConverter.getConvertedTypes(),
-                               llvm::None));
+                               resultType ? TypeRange(resultType)
+                                          : TypeRange()));
 
   // Copy over all attributes other than the function name and type.
   for (const auto &namedAttr : funcOp.getAttrs()) {
@@ -500,8 +505,8 @@ FuncOpConversion::matchAndRewrite(FuncOp funcOp, ArrayRef<Value> operands,
 
   rewriter.inlineRegionBefore(funcOp.getBody(), newFuncOp.getBody(),
                               newFuncOp.end());
-  if (failed(rewriter.convertRegionTypes(&newFuncOp.getBody(), typeConverter,
-                                         &signatureConverter)))
+  if (failed(rewriter.convertRegionTypes(
+          &newFuncOp.getBody(), *getTypeConverter(), &signatureConverter)))
     return failure();
   rewriter.eraseOp(funcOp);
   return success();
@@ -510,7 +515,7 @@ FuncOpConversion::matchAndRewrite(FuncOp funcOp, ArrayRef<Value> operands,
 void mlir::populateBuiltinFuncToSPIRVPatterns(
     MLIRContext *context, SPIRVTypeConverter &typeConverter,
     OwningRewritePatternList &patterns) {
-  patterns.insert<FuncOpConversion>(context, typeConverter);
+  patterns.insert<FuncOpConversion>(typeConverter, context);
 }
 
 //===----------------------------------------------------------------------===//

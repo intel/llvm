@@ -15,6 +15,7 @@
 #define LLVM_SUPPORT_KNOWNBITS_H
 
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/Optional.h"
 
 namespace llvm {
 
@@ -113,16 +114,36 @@ public:
     Zero.setSignBit();
   }
 
-  /// Return the minimal value possible given these KnownBits.
+  /// Return the minimal unsigned value possible given these KnownBits.
   APInt getMinValue() const {
     // Assume that all bits that aren't known-ones are zeros.
     return One;
   }
 
-  /// Return the maximal value possible given these KnownBits.
+  /// Return the minimal signed value possible given these KnownBits.
+  APInt getSignedMinValue() const {
+    // Assume that all bits that aren't known-ones are zeros.
+    APInt Min = One;
+    // Sign bit is unknown.
+    if (Zero.isSignBitClear())
+      Min.setSignBit();
+    return Min;
+  }
+
+  /// Return the maximal unsigned value possible given these KnownBits.
   APInt getMaxValue() const {
     // Assume that all bits that aren't known-zeros are ones.
     return ~Zero;
+  }
+
+  /// Return the maximal signed value possible given these KnownBits.
+  APInt getSignedMaxValue() const {
+    // Assume that all bits that aren't known-zeros are ones.
+    APInt Max = ~Zero;
+    // Sign bit is unknown.
+    if (One.isSignBitClear())
+      Max.clearSignBit();
+    return Max;
   }
 
   /// Return known bits for a truncation of the value we're tracking.
@@ -307,6 +328,36 @@ public:
   /// Compute known bits for ashr(LHS, RHS).
   /// NOTE: RHS (shift amount) bitwidth doesn't need to be the same as LHS.
   static KnownBits ashr(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Determine if these known bits always give the same ICMP_EQ result.
+  static Optional<bool> eq(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Determine if these known bits always give the same ICMP_NE result.
+  static Optional<bool> ne(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Determine if these known bits always give the same ICMP_UGT result.
+  static Optional<bool> ugt(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Determine if these known bits always give the same ICMP_UGE result.
+  static Optional<bool> uge(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Determine if these known bits always give the same ICMP_ULT result.
+  static Optional<bool> ult(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Determine if these known bits always give the same ICMP_ULE result.
+  static Optional<bool> ule(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Determine if these known bits always give the same ICMP_SGT result.
+  static Optional<bool> sgt(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Determine if these known bits always give the same ICMP_SGE result.
+  static Optional<bool> sge(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Determine if these known bits always give the same ICMP_SLT result.
+  static Optional<bool> slt(const KnownBits &LHS, const KnownBits &RHS);
+
+  /// Determine if these known bits always give the same ICMP_SLE result.
+  static Optional<bool> sle(const KnownBits &LHS, const KnownBits &RHS);
 
   /// Insert the bits from a smaller known bits starting at bitPosition.
   void insertBits(const KnownBits &SubBits, unsigned BitPosition) {

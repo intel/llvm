@@ -1,20 +1,20 @@
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 void bar(int & Data) {}
-// CHECK-DAG: define spir_func void @[[RAW_REF:[a-zA-Z0-9_]+]](i32 addrspace(4)* align 4 dereferenceable(4) %
+// CHECK-DAG: define {{.*}}spir_func void @[[RAW_REF:[a-zA-Z0-9_]+]](i32 addrspace(4)* align 4 dereferenceable(4) %
 void bar2(int & Data) {}
-// CHECK-DAG: define spir_func void @[[RAW_REF2:[a-zA-Z0-9_]+]](i32 addrspace(4)* align 4 dereferenceable(4) %
+// CHECK-DAG: define {{.*}}spir_func void @[[RAW_REF2:[a-zA-Z0-9_]+]](i32 addrspace(4)* align 4 dereferenceable(4) %
 void bar(__attribute__((opencl_local)) int &Data) {}
-// CHECK-DAG: define spir_func void [[LOC_REF:@[a-zA-Z0-9_]+]](i32 addrspace(3)* align 4 dereferenceable(4) %
+// CHECK-DAG: define {{.*}}spir_func void [[LOC_REF:@[a-zA-Z0-9_]+]](i32 addrspace(3)* align 4 dereferenceable(4) %
 void bar3(__attribute__((opencl_global)) int &Data) {}
-// CHECK-DAG: define spir_func void @[[GLOB_REF:[a-zA-Z0-9_]+]](i32 addrspace(1)* align 4 dereferenceable(4) %
+// CHECK-DAG: define {{.*}}spir_func void @[[GLOB_REF:[a-zA-Z0-9_]+]](i32 addrspace(1)* align 4 dereferenceable(4) %
 void foo(int * Data) {}
-// CHECK-DAG: define spir_func void @[[RAW_PTR:[a-zA-Z0-9_]+]](i32 addrspace(4)* %
+// CHECK-DAG: define {{.*}}spir_func void @[[RAW_PTR:[a-zA-Z0-9_]+]](i32 addrspace(4)* %
 void foo2(int * Data) {}
-// CHECK-DAG: define spir_func void @[[RAW_PTR2:[a-zA-Z0-9_]+]](i32 addrspace(4)* %
+// CHECK-DAG: define {{.*}}spir_func void @[[RAW_PTR2:[a-zA-Z0-9_]+]](i32 addrspace(4)* %
 void foo(__attribute__((opencl_local)) int *Data) {}
-// CHECK-DAG: define spir_func void [[LOC_PTR:@[a-zA-Z0-9_]+]](i32 addrspace(3)* %
+// CHECK-DAG: define {{.*}}spir_func void [[LOC_PTR:@[a-zA-Z0-9_]+]](i32 addrspace(3)* %
 void foo3(__attribute__((opencl_global)) int *Data) {}
-// CHECK-DAG: define spir_func void @[[GLOB_PTR:[a-zA-Z0-9_]+]](i32 addrspace(1)* %
+// CHECK-DAG: define {{.*}}spir_func void @[[GLOB_PTR:[a-zA-Z0-9_]+]](i32 addrspace(1)* %
 
 template<typename T>
 void tmpl(T t){}

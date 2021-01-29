@@ -23,7 +23,7 @@ int main() {
 // Check kernel parameters
 // CHECK: %[[RANGE_TYPE:"struct.*cl::sycl::range"]]
 // CHECK: %[[ID_TYPE:"struct.*cl::sycl::id"]]
-// CHECK: define spir_kernel void @_ZTSZ4mainE6kernel
+// CHECK: define {{.*}}spir_kernel void @_ZTSZ4mainE6kernel
 // CHECK-SAME: i32 [[ARG_A:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: i32 [[ARG_B:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: i8 addrspace(1)* [[ACC1_DATA:%[a-zA-Z0-9_]+]],

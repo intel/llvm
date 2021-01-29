@@ -617,6 +617,108 @@ public:
     PSK_Pop_Set   = PSK_Pop | PSK_Set,  // #pragma (pop[, id], value)
   };
 
+  // #pragma pack and align.
+  class AlignPackInfo {
+  public:
+    // `Native` represents default align mode, which may vary based on the
+    // platform.
+    enum Mode : unsigned char { Native, Natural, Packed, Mac68k };
+
+    // #pragma pack info constructor
+    AlignPackInfo(AlignPackInfo::Mode M, unsigned Num, bool IsXL)
+        : PackAttr(true), AlignMode(M), PackNumber(Num), XLStack(IsXL) {
+      assert(Num == PackNumber && "The pack number has been truncated.");
+    }
+
+    // #pragma align info constructor
+    AlignPackInfo(AlignPackInfo::Mode M, bool IsXL)
+        : PackAttr(false), AlignMode(M),
+          PackNumber(M == Packed ? 1 : UninitPackVal), XLStack(IsXL) {}
+
+    explicit AlignPackInfo(bool IsXL) : AlignPackInfo(Native, IsXL) {}
+
+    AlignPackInfo() : AlignPackInfo(Native, false) {}
+
+    // When a AlignPackInfo itself cannot be used, this returns an 32-bit
+    // integer encoding for it. This should only be passed to
+    // AlignPackInfo::getFromRawEncoding, it should not be inspected directly.
+    static uint32_t getRawEncoding(const AlignPackInfo &Info) {
+      std::uint32_t Encoding{};
+      if (Info.IsXLStack())
+        Encoding |= IsXLMask;
+
+      Encoding |= static_cast<uint32_t>(Info.getAlignMode()) << 1;
+
+      if (Info.IsPackAttr())
+        Encoding |= PackAttrMask;
+
+      Encoding |= static_cast<uint32_t>(Info.getPackNumber()) << 4;
+
+      return Encoding;
+    }
+
+    static AlignPackInfo getFromRawEncoding(unsigned Encoding) {
+      bool IsXL = static_cast<bool>(Encoding & IsXLMask);
+      AlignPackInfo::Mode M =
+          static_cast<AlignPackInfo::Mode>((Encoding & AlignModeMask) >> 1);
+      int PackNumber = (Encoding & PackNumMask) >> 4;
+
+      if (Encoding & PackAttrMask)
+        return AlignPackInfo(M, PackNumber, IsXL);
+
+      return AlignPackInfo(M, IsXL);
+    }
+
+    bool IsPackAttr() const { return PackAttr; }
+
+    bool IsAlignAttr() const { return !PackAttr; }
+
+    Mode getAlignMode() const { return AlignMode; }
+
+    unsigned getPackNumber() const { return PackNumber; }
+
+    bool IsPackSet() const {
+      // #pragma align, #pragma pack(), and #pragma pack(0) do not set the pack
+      // attriute on a decl.
+      return PackNumber != UninitPackVal && PackNumber != 0;
+    }
+
+    bool IsXLStack() const { return XLStack; }
+
+    bool operator==(const AlignPackInfo &Info) const {
+      return std::tie(AlignMode, PackNumber, PackAttr, XLStack) ==
+             std::tie(Info.AlignMode, Info.PackNumber, Info.PackAttr,
+                      Info.XLStack);
+    }
+
+    bool operator!=(const AlignPackInfo &Info) const {
+      return !(*this == Info);
+    }
+
+  private:
+    /// \brief True if this is a pragma pack attribute,
+    ///         not a pragma align attribute.
+    bool PackAttr;
+
+    /// \brief The alignment mode that is in effect.
+    Mode AlignMode;
+
+    /// \brief The pack number of the stack.
+    unsigned char PackNumber;
+
+    /// \brief True if it is a XL #pragma align/pack stack.
+    bool XLStack;
+
+    /// \brief Uninitialized pack value.
+    static constexpr unsigned char UninitPackVal = -1;
+
+    // Masks to encode and decode an AlignPackInfo.
+    static constexpr uint32_t IsXLMask{0x0000'0001};
+    static constexpr uint32_t AlignModeMask{0x0000'0006};
+    static constexpr uint32_t PackAttrMask{0x00000'0008};
+    static constexpr uint32_t PackNumMask{0x0000'01F0};
+  };
+
   template<typename ValueType>
   struct PragmaStack {
     struct Slot {
@@ -709,17 +811,14 @@ public:
   /// 2: Always insert vtordisps to support RTTI on partially constructed
   ///    objects
   PragmaStack<MSVtorDispMode> VtorDispStack;
-  // #pragma pack.
-  // Sentinel to represent when the stack is set to mac68k alignment.
-  static const unsigned kMac68kAlignmentSentinel = ~0U;
-  PragmaStack<unsigned> PackStack;
-  // The current #pragma pack values and locations at each #include.
-  struct PackIncludeState {
-    unsigned CurrentValue;
+  PragmaStack<AlignPackInfo> AlignPackStack;
+  // The current #pragma align/pack values and locations at each #include.
+  struct AlignPackIncludeState {
+    AlignPackInfo CurrentValue;
     SourceLocation CurrentPragmaLocation;
     bool HasNonDefaultValue, ShouldWarnOnInclude;
   };
-  SmallVector<PackIncludeState, 8> PackIncludeStack;
+  SmallVector<AlignPackIncludeState, 8> AlignPackIncludeStack;
   // Segment #pragmas.
   PragmaStack<StringLiteral *> DataSegStack;
   PragmaStack<StringLiteral *> BSSSegStack;
@@ -2294,6 +2393,16 @@ public:
     return RequireCompleteType(Loc, T, CompleteTypeKind::Normal, Diagnoser);
   }
 
+  /// Get the type of expression E, triggering instantiation to complete the
+  /// type if necessary -- that is, if the expression refers to a templated
+  /// static data member of incomplete array type.
+  ///
+  /// May still return an incomplete type if instantiation was not possible or
+  /// if the type is incomplete for a different reason. Use
+  /// RequireCompleteExprType instead if a diagnostic is expected for an
+  /// incomplete expression type.
+  QualType getCompletedType(Expr *E);
+
   void completeExprArrayBound(Expr *E);
   bool RequireCompleteExprType(Expr *E, CompleteTypeKind Kind,
                                TypeDiagnoser &Diagnoser);
@@ -3355,6 +3464,9 @@ public:
       Decl *D, const WebAssemblyImportNameAttr &AL);
   WebAssemblyImportModuleAttr *mergeImportModuleAttr(
       Decl *D, const WebAssemblyImportModuleAttr &AL);
+  EnforceTCBAttr *mergeEnforceTCBAttr(Decl *D, const EnforceTCBAttr &AL);
+  EnforceTCBLeafAttr *mergeEnforceTCBLeafAttr(Decl *D,
+                                              const EnforceTCBLeafAttr &AL);
 
   SYCLIntelLoopFuseAttr *
   mergeSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E);
@@ -3510,8 +3622,7 @@ public:
                                               llvm::APSInt &Value, CCEKind CCE);
   ExprResult CheckConvertedConstantExpression(Expr *From, QualType T,
                                               APValue &Value, CCEKind CCE,
-                                              NamedDecl *Dest = nullptr,
-                                              bool *ValueDependent = nullptr);
+                                              NamedDecl *Dest = nullptr);
 
   /// Abstract base class used to perform a contextual implicit
   /// conversion from an expression to any type passing a filter.
@@ -7790,8 +7901,8 @@ public:
                                           QualType ParamType,
                                           SourceLocation Loc);
   ExprResult
-  BuildExpressionFromNonTypeTemplateArgument(const TemplateArgument &Arg,
-                                             SourceLocation Loc);
+  BuildExpressionFromIntegralTemplateArgument(const TemplateArgument &Arg,
+                                              SourceLocation Loc);
 
   /// Enumeration describing how template parameter lists are compared
   /// for equality.
@@ -9889,14 +10000,14 @@ public:
   void ActOnPragmaPack(SourceLocation PragmaLoc, PragmaMsStackAction Action,
                        StringRef SlotLabel, Expr *Alignment);
 
-  enum class PragmaPackDiagnoseKind {
+  enum class PragmaAlignPackDiagnoseKind {
     NonDefaultStateAtInclude,
     ChangedStateAtExit
   };
 
-  void DiagnoseNonDefaultPragmaPack(PragmaPackDiagnoseKind Kind,
-                                    SourceLocation IncludeLoc);
-  void DiagnoseUnterminatedPragmaPack();
+  void DiagnoseNonDefaultPragmaAlignPack(PragmaAlignPackDiagnoseKind Kind,
+                                         SourceLocation IncludeLoc);
+  void DiagnoseUnterminatedPragmaAlignPack();
 
   /// ActOnPragmaMSStruct - Called on well formed \#pragma ms_struct [on|off].
   void ActOnPragmaMSStruct(PragmaMSStructKind Kind);
@@ -12616,6 +12727,8 @@ private:
   /// attempts to add itself into the container
   void CheckObjCCircularContainer(ObjCMessageExpr *Message);
 
+  void CheckTCBEnforcement(const CallExpr *TheCall, const FunctionDecl *Callee);
+
   void AnalyzeDeleteExprMismatch(const CXXDeleteExpr *DE);
   void AnalyzeDeleteExprMismatch(FieldDecl *Field, SourceLocation DeleteLoc,
                                  bool DeleteWasArrayForm);
@@ -12884,6 +12997,11 @@ public:
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void MarkDevice();
   void MarkSyclSimd();
+
+  /// Diagnoses an attribute in the 'intelfpga' namespace and suggests using
+  /// the attribute in the 'intel' namespace instead.
+  void CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
+                                            StringRef NewName = "");
 
   /// Creates a SemaDiagnosticBuilder that emits the diagnostic if the current
   /// context is "used as device code".
@@ -13220,6 +13338,13 @@ struct LateParsedTemplate {
   /// The template function declaration to be late parsed.
   Decl *D;
 };
+
+template <>
+void Sema::PragmaStack<Sema::AlignPackInfo>::Act(SourceLocation PragmaLocation,
+                                                 PragmaMsStackAction Action,
+                                                 llvm::StringRef StackSlotLabel,
+                                                 AlignPackInfo Value);
+
 } // end namespace clang
 
 namespace llvm {

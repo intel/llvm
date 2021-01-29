@@ -165,7 +165,8 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
 
   getActionDefinitionsBuilder({G_SMULH, G_UMULH}).legalFor({s32, s64});
 
-  getActionDefinitionsBuilder({G_UADDE, G_USUBE, G_SADDO, G_SSUBO, G_UADDO})
+  getActionDefinitionsBuilder(
+      {G_UADDE, G_USUBE, G_SADDO, G_SSUBO, G_UADDO, G_USUBO})
       .legalFor({{s32, s1}, {s64, s1}})
       .minScalar(0, s32);
 
@@ -332,9 +333,9 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
         const auto &Ty = Query.Types[0];
         if (HasFP16 && Ty == s16)
           return true;
-        return Ty == s32 || Ty == s64;
+        return Ty == s32 || Ty == s64 || Ty == s128;
       })
-      .clampScalar(0, MinFPScalar, s64);
+      .clampScalar(0, MinFPScalar, s128);
 
   getActionDefinitionsBuilder({G_ICMP, G_FCMP})
       .legalFor({{s32, s32},
@@ -837,11 +838,13 @@ bool AArch64LegalizerInfo::legalizeShlAshrLshr(
   if (!VRegAndVal)
     return true;
   // Check the shift amount is in range for an immediate form.
-  int64_t Amount = VRegAndVal->Value;
+  int64_t Amount = VRegAndVal->Value.getSExtValue();
   if (Amount > 31)
     return true; // This will have to remain a register variant.
   auto ExtCst = MIRBuilder.buildConstant(LLT::scalar(64), Amount);
+  Observer.changingInstr(MI);
   MI.getOperand(2).setReg(ExtCst.getReg(0));
+  Observer.changedInstr(MI);
   return true;
 }
 

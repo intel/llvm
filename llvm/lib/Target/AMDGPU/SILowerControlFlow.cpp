@@ -48,28 +48,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPU.h"
-#include "AMDGPUSubtarget.h"
-#include "SIInstrInfo.h"
+#include "GCNSubtarget.h"
 #include "MCTargetDesc/AMDGPUMCTargetDesc.h"
-#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallSet.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/LiveIntervals.h"
-#include "llvm/CodeGen/MachineBasicBlock.h"
-#include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
-#include "llvm/CodeGen/MachineInstr.h"
-#include "llvm/CodeGen/MachineInstrBuilder.h"
-#include "llvm/CodeGen/MachineOperand.h"
-#include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/CodeGen/Passes.h"
-#include "llvm/CodeGen/SlotIndexes.h"
-#include "llvm/CodeGen/TargetRegisterInfo.h"
-#include "llvm/MC/MCRegisterInfo.h"
-#include "llvm/Pass.h"
-#include <cassert>
-#include <iterator>
 
 using namespace llvm;
 
@@ -181,8 +164,7 @@ char &llvm::SILowerControlFlowID = SILowerControlFlow::ID;
 static bool hasKill(const MachineBasicBlock *Begin,
                     const MachineBasicBlock *End, const SIInstrInfo *TII) {
   DenseSet<const MachineBasicBlock*> Visited;
-  SmallVector<MachineBasicBlock *, 4> Worklist(Begin->succ_begin(),
-                                               Begin->succ_end());
+  SmallVector<MachineBasicBlock *, 4> Worklist(Begin->successors());
 
   while (!Worklist.empty()) {
     MachineBasicBlock *MBB = Worklist.pop_back_val();

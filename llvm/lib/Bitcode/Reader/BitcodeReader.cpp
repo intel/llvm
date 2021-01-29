@@ -1763,6 +1763,9 @@ Error BitcodeReader::parseTypeTableBody() {
     case bitc::TYPE_CODE_X86_MMX:   // X86_MMX
       ResultTy = Type::getX86_MMXTy(Context);
       break;
+    case bitc::TYPE_CODE_X86_AMX:   // X86_AMX
+      ResultTy = Type::getX86_AMXTy(Context);
+      break;
     case bitc::TYPE_CODE_TOKEN:     // TOKEN
       ResultTy = Type::getTokenTy(Context);
       break;
@@ -6355,8 +6358,7 @@ Error ModuleSummaryIndexBitcodeReader::parseEntireSummary(unsigned ID) {
     }
     case bitc::FS_TYPE_TESTS:
       assert(PendingTypeTests.empty());
-      PendingTypeTests.insert(PendingTypeTests.end(), Record.begin(),
-                              Record.end());
+      llvm::append_range(PendingTypeTests, Record);
       break;
 
     case bitc::FS_TYPE_TEST_ASSUME_VCALLS:

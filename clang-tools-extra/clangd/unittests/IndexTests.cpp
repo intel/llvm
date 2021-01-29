@@ -290,6 +290,40 @@ TEST(MergeIndexTest, Lookup) {
   EXPECT_THAT(lookup(M, {}), UnorderedElementsAre());
 }
 
+TEST(MergeIndexTest, LookupRemovedDefinition) {
+  FileIndex DynamicIndex, StaticIndex;
+  MergedIndex Merge(&DynamicIndex, &StaticIndex);
+
+  const char *HeaderCode = "class Foo;";
+  auto HeaderSymbols = TestTU::withHeaderCode(HeaderCode).headerSymbols();
+  auto Foo = findSymbol(HeaderSymbols, "Foo");
+
+  // Build static index for test.cc with Foo definition
+  TestTU Test;
+  Test.HeaderCode = HeaderCode;
+  Test.Code = "class Foo {};";
+  Test.Filename = "test.cc";
+  auto AST = Test.build();
+  StaticIndex.updateMain(testPath(Test.Filename), AST);
+
+  // Remove Foo definition from test.cc, i.e. build dynamic index for test.cc
+  // without Foo definition.
+  Test.Code = "class Foo;";
+  AST = Test.build();
+  DynamicIndex.updateMain(testPath(Test.Filename), AST);
+
+  // Merged index should not return the symbol definition if this definition
+  // location is inside a file from the dynamic index.
+  LookupRequest LookupReq;
+  LookupReq.IDs = {Foo.ID};
+  unsigned SymbolCounter = 0;
+  Merge.lookup(LookupReq, [&](const Symbol &Sym) {
+    ++SymbolCounter;
+    EXPECT_FALSE(Sym.Definition);
+  });
+  EXPECT_EQ(SymbolCounter, 1u);
+}
+
 TEST(MergeIndexTest, FuzzyFind) {
   auto I = MemIndex::build(generateSymbols({"ns::A", "ns::B"}), RefSlab(),
                            RelationSlab()),
@@ -299,6 +333,39 @@ TEST(MergeIndexTest, FuzzyFind) {
   Req.Scopes = {"ns::"};
   EXPECT_THAT(match(MergedIndex(I.get(), J.get()), Req),
               UnorderedElementsAre("ns::A", "ns::B", "ns::C"));
+}
+
+TEST(MergeIndexTest, FuzzyFindRemovedSymbol) {
+  FileIndex DynamicIndex, StaticIndex;
+  MergedIndex Merge(&DynamicIndex, &StaticIndex);
+
+  const char *HeaderCode = "class Foo;";
+  auto HeaderSymbols = TestTU::withHeaderCode(HeaderCode).headerSymbols();
+  auto Foo = findSymbol(HeaderSymbols, "Foo");
+
+  // Build static index for test.cc with Foo symbol
+  TestTU Test;
+  Test.HeaderCode = HeaderCode;
+  Test.Code = "class Foo {};";
+  Test.Filename = "test.cc";
+  auto AST = Test.build();
+  StaticIndex.updateMain(testPath(Test.Filename), AST);
+
+  // Remove Foo symbol, i.e. build dynamic index for test.cc, which is empty.
+  Test.HeaderCode = "";
+  Test.Code = "";
+  AST = Test.build();
+  DynamicIndex.updateMain(testPath(Test.Filename), AST);
+
+  // Merged index should not return removed symbol.
+  FuzzyFindRequest Req;
+  Req.AnyScope = true;
+  Req.Query = "Foo";
+  unsigned SymbolCounter = 0;
+  bool IsIncomplete =
+      Merge.fuzzyFind(Req, [&](const Symbol &) { ++SymbolCounter; });
+  EXPECT_FALSE(IsIncomplete);
+  EXPECT_EQ(SymbolCounter, 0u);
 }
 
 TEST(MergeTest, Merge) {

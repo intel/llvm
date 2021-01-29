@@ -573,6 +573,7 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
   Options.MCOptions.MCFatalWarnings = CodeGenOpts.FatalWarnings;
   Options.MCOptions.MCNoWarn = CodeGenOpts.NoWarn;
   Options.MCOptions.AsmVerbose = CodeGenOpts.AsmVerbose;
+  Options.MCOptions.Dwarf64 = CodeGenOpts.Dwarf64;
   Options.MCOptions.PreserveAsmComments = CodeGenOpts.PreserveAsmComments;
   Options.MCOptions.ABIName = TargetOpts.ABI;
   for (const auto &Entry : HSOpts.UserEntries)
@@ -1183,6 +1184,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
   // non-integrated assemblers don't recognize .cgprofile section.
   PTO.CallGraphProfile = !CodeGenOpts.DisableIntegratedAS;
   PTO.Coroutines = LangOpts.Coroutines;
+  PTO.UniqueLinkageNames = CodeGenOpts.UniqueInternalLinkageNames;
 
   PassInstrumentationCallbacks PIC;
   StandardInstrumentations SI(CodeGenOpts.DebugPassManager);
@@ -1234,6 +1236,25 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
 
     bool IsThinLTO = CodeGenOpts.PrepareForThinLTO;
     bool IsLTO = CodeGenOpts.PrepareForLTO;
+
+    if (LangOpts.ObjCAutoRefCount) {
+      PB.registerPipelineStartEPCallback(
+          [](ModulePassManager &MPM, PassBuilder::OptimizationLevel Level) {
+            if (Level != PassBuilder::OptimizationLevel::O0)
+              MPM.addPass(
+                  createModuleToFunctionPassAdaptor(ObjCARCExpandPass()));
+          });
+      PB.registerPipelineEarlySimplificationEPCallback(
+          [](ModulePassManager &MPM, PassBuilder::OptimizationLevel Level) {
+            if (Level != PassBuilder::OptimizationLevel::O0)
+              MPM.addPass(ObjCARCAPElimPass());
+          });
+      PB.registerScalarOptimizerLateEPCallback(
+          [](FunctionPassManager &FPM, PassBuilder::OptimizationLevel Level) {
+            if (Level != PassBuilder::OptimizationLevel::O0)
+              FPM.addPass(ObjCARCOptPass());
+          });
+    }
 
     // If we reached here with a non-empty index file name, then the index
     // file was empty and we are not performing ThinLTO backend compilation
@@ -1363,11 +1384,6 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
     } else {
       MPM = PB.buildPerModuleDefaultPipeline(Level);
     }
-
-    // Add UniqueInternalLinkageNames Pass which renames internal linkage
-    // symbols with unique names.
-    if (CodeGenOpts.UniqueInternalLinkageNames)
-      MPM.addPass(UniqueInternalLinkageNamesPass());
 
     if (!CodeGenOpts.MemoryProfileOutput.empty()) {
       MPM.addPass(createModuleToFunctionPassAdaptor(MemProfilerPass()));
