@@ -16,66 +16,296 @@
 
 steps:
   - label: "C++03"
-    command: "set -o pipefail && libcxx/utils/ci/run-buildbot.sh x86_64-ubuntu-cxx03"
+    command: "libcxx/utils/ci/run-buildbot generic-cxx03"
+    artifact_paths:
+      - "**/test-results.xml"
+      - "**/*.abilist"
     agents:
       queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
 
   - label: "C++11"
-    command: "set -o pipefail && libcxx/utils/ci/run-buildbot.sh x86_64-ubuntu-cxx11"
+    command: "libcxx/utils/ci/run-buildbot generic-cxx11"
+    artifact_paths:
+      - "**/test-results.xml"
+      - "**/*.abilist"
     agents:
       queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
 
   - label: "C++14"
-    command: "set -o pipefail && libcxx/utils/ci/run-buildbot.sh x86_64-ubuntu-cxx14"
+    command: "libcxx/utils/ci/run-buildbot generic-cxx14"
+    artifact_paths:
+      - "**/test-results.xml"
+      - "**/*.abilist"
     agents:
       queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
 
   - label: "C++17"
-    command: "set -o pipefail && libcxx/utils/ci/run-buildbot.sh x86_64-ubuntu-cxx17"
+    command: "libcxx/utils/ci/run-buildbot generic-cxx17"
+    artifact_paths:
+      - "**/test-results.xml"
+      - "**/*.abilist"
     agents:
       queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
 
   - label: "C++20"
-    command: "set -o pipefail && libcxx/utils/ci/run-buildbot.sh x86_64-ubuntu-cxx2a"
+    command: "libcxx/utils/ci/run-buildbot generic-cxx20"
+    artifact_paths:
+      - "**/test-results.xml"
+      - "**/*.abilist"
     agents:
       queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  - label: "C++2b"
+    command: "libcxx/utils/ci/run-buildbot generic-cxx2b"
+    artifact_paths:
+      - "**/test-results.xml"
+      - "**/*.abilist"
+    agents:
+      queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
 
   - label: "-fno-exceptions"
-    command: "set -o pipefail && libcxx/utils/ci/run-buildbot.sh x86_64-ubuntu-noexceptions"
+    command: "libcxx/utils/ci/run-buildbot generic-noexceptions"
+    artifact_paths:
+      - "**/test-results.xml"
     agents:
       queue: "libcxx-builders"
-
-  - label: "32 bits"
-    command: "set -o pipefail && libcxx/utils/ci/run-buildbot.sh x86_64-ubuntu-32bit"
-    agents:
-      queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
 
   - label: "GCC/C++20"
-    command: "set -o pipefail && libcxx/utils/ci/run-buildbot.sh x86_64-ubuntu-gcc"
+    command: "libcxx/utils/ci/run-buildbot generic-gcc"
+    artifact_paths:
+      - "**/test-results.xml"
     agents:
       queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
 
   - label: "ASAN"
-    command: "set -o pipefail && libcxx/utils/ci/run-buildbot.sh x86_64-ubuntu-asan"
+    command: "libcxx/utils/ci/run-buildbot generic-asan"
+    artifact_paths:
+      - "**/test-results.xml"
     agents:
       queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
 
   - label: "TSAN"
-    command: "set -o pipefail && libcxx/utils/ci/run-buildbot.sh x86_64-ubuntu-tsan"
+    command: "libcxx/utils/ci/run-buildbot generic-tsan"
+    artifact_paths:
+      - "**/test-results.xml"
     agents:
       queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
 
   - label: "UBSAN"
-    command: "set -o pipefail && libcxx/utils/ci/run-buildbot.sh x86_64-ubuntu-ubsan"
+    command: "libcxx/utils/ci/run-buildbot generic-ubsan"
+    artifact_paths:
+      - "**/test-results.xml"
     agents:
       queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
 
   - label: "With LLVM's libunwind"
-    command: "set -o pipefail && libcxx/utils/ci/run-buildbot.sh x86_64-ubuntu-with_llvm_unwinder"
+    command: "libcxx/utils/ci/run-buildbot generic-with_llvm_unwinder"
+    artifact_paths:
+      - "**/test-results.xml"
     agents:
       queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
 
   - label: "Single-threaded"
-    command: "set -o pipefail && libcxx/utils/ci/run-buildbot.sh x86_64-ubuntu-singlethreaded"
+    command: "libcxx/utils/ci/run-buildbot generic-singlethreaded"
+    artifact_paths:
+      - "**/test-results.xml"
     agents:
       queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  - label: "No debug mode"
+    command: "libcxx/utils/ci/run-buildbot generic-nodebug"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  - label: "No Filesystem"
+    command: "libcxx/utils/ci/run-buildbot generic-no-filesystem"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  - label: "No random device"
+    command: "libcxx/utils/ci/run-buildbot generic-no-random_device"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  - label: "No locale"
+    command: "libcxx/utils/ci/run-buildbot generic-no-localization"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  - label: "MacOS C++20"
+    command: "libcxx/utils/ci/run-buildbot generic-cxx20"
+    artifact_paths:
+      - "**/test-results.xml"
+      - "**/*.abilist"
+    agents:
+      queue: "libcxx-macos-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  - label: "Benchmarks"
+    command: "libcxx/utils/ci/run-buildbot benchmarks"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  - label: "Documentation"
+    command: "libcxx/utils/ci/run-buildbot documentation"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  - label: "Legacy standalone build"
+    command: "libcxx/utils/ci/run-buildbot legacy-standalone"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  - label: "Unified standalone build"
+    command: "libcxx/utils/ci/run-buildbot unified-standalone"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  # Build with the configuration we use to generate libc++.dylib on Apple platforms
+  - label: "Apple system"
+    command: "libcxx/utils/ci/run-buildbot x86_64-apple-system"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-macos-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  - label: "Apple system -fno-exceptions"
+    command: "libcxx/utils/ci/run-buildbot x86_64-apple-system-noexceptions"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-macos-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  # Test back-deployment to older Apple platforms
+  - label: "Apple back-deployment macosx10.9"
+    command: "libcxx/utils/ci/run-buildbot x86_64-apple-system-backdeployment-10.9"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-macos-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+
+  - label: "Apple back-deployment macosx10.15"
+    command: "libcxx/utils/ci/run-buildbot x86_64-apple-system-backdeployment-10.15"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-macos-builders"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2

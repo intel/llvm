@@ -12,7 +12,7 @@
 
 // template<class T, class U> shared_ptr<T> dynamic_pointer_cast(const shared_ptr<U>& r);
 
-// UNSUPPORTED: -fno-rtti
+// UNSUPPORTED: no-rtti
 
 #include <memory>
 #include <type_traits>
@@ -37,7 +37,7 @@ struct A
     static int count;
 
     A() {++count;}
-    A(const A&) {++count;}
+    A(const A& other) : B(other) {++count;}
     ~A() {--count;}
 };
 

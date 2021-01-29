@@ -26,31 +26,32 @@
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/xxhash.h"
 
 #include <algorithm>
 
 using namespace llvm;
 using namespace llvm::MachO;
+using namespace llvm::sys;
 using namespace lld;
 using namespace lld::macho;
 
 namespace {
-class LCLinkEdit;
-class LCDyldInfo;
-class LCSymtab;
+class LCUuid;
 
 class Writer {
 public:
   Writer() : buffer(errorHandler().outputBuffer) {}
 
   void scanRelocations();
+  void scanSymbols();
   void createOutputSections();
   void createLoadCommands();
   void assignAddresses(OutputSegment *);
-  void createSymtabContents();
 
   void openFile();
   void writeSections();
+  void writeUuid();
 
   void run();
 
@@ -62,6 +63,7 @@ public:
   SymtabSection *symtabSection = nullptr;
   IndirectSymtabSection *indirectSymtabSection = nullptr;
   UnwindInfoSection *unwindInfoSection = nullptr;
+  LCUuid *uuidCommand = nullptr;
 };
 
 // LC_DYLD_INFO_ONLY stores the offsets of symbol import/export information.
@@ -112,8 +114,10 @@ public:
 
 class LCDysymtab : public LoadCommand {
 public:
-  LCDysymtab(IndirectSymtabSection *indirectSymtabSection)
-      : indirectSymtabSection(indirectSymtabSection) {}
+  LCDysymtab(SymtabSection *symtabSection,
+             IndirectSymtabSection *indirectSymtabSection)
+      : symtabSection(symtabSection),
+        indirectSymtabSection(indirectSymtabSection) {}
 
   uint32_t getSize() const override { return sizeof(dysymtab_command); }
 
@@ -121,11 +125,19 @@ public:
     auto *c = reinterpret_cast<dysymtab_command *>(buf);
     c->cmd = LC_DYSYMTAB;
     c->cmdsize = getSize();
+
+    c->ilocalsym = 0;
+    c->iextdefsym = c->nlocalsym = symtabSection->getNumLocalSymbols();
+    c->nextdefsym = symtabSection->getNumExternalSymbols();
+    c->iundefsym = c->iextdefsym + c->nextdefsym;
+    c->nundefsym = symtabSection->getNumUndefinedSymbols();
+
     c->indirectsymoff = indirectSymtabSection->fileOff;
     c->nindirectsyms = indirectSymtabSection->getNumSymbols();
   }
 
-  IndirectSymtabSection *indirectSymtabSection = nullptr;
+  SymtabSection *symtabSection;
+  IndirectSymtabSection *indirectSymtabSection;
 };
 
 class LCSegment : public LoadCommand {
@@ -232,7 +244,10 @@ public:
 //   * LC_REEXPORT_DYLIB
 class LCDylib : public LoadCommand {
 public:
-  LCDylib(LoadCommandType type, StringRef path) : type(type), path(path) {
+  LCDylib(LoadCommandType type, StringRef path,
+          uint32_t compatibilityVersion = 0, uint32_t currentVersion = 0)
+      : type(type), path(path), compatibilityVersion(compatibilityVersion),
+        currentVersion(currentVersion) {
     instanceCount++;
   }
 
@@ -247,6 +262,9 @@ public:
     c->cmd = type;
     c->cmdsize = getSize();
     c->dylib.name = sizeof(dylib_command);
+    c->dylib.timestamp = 0;
+    c->dylib.compatibility_version = compatibilityVersion;
+    c->dylib.current_version = currentVersion;
 
     memcpy(buf, path.data(), path.size());
     buf[path.size()] = '\0';
@@ -257,6 +275,8 @@ public:
 private:
   LoadCommandType type;
   StringRef path;
+  uint32_t compatibilityVersion;
+  uint32_t currentVersion;
   static uint32_t instanceCount;
 };
 
@@ -341,6 +361,45 @@ public:
   const PlatformInfo &platform;
 };
 
+// Stores a unique identifier for the output file based on an MD5 hash of its
+// contents. In order to hash the contents, we must first write them, but
+// LC_UUID itself must be part of the written contents in order for all the
+// offsets to be calculated correctly. We resolve this circular paradox by
+// first writing an LC_UUID with an all-zero UUID, then updating the UUID with
+// its real value later.
+class LCUuid : public LoadCommand {
+public:
+  uint32_t getSize() const override { return sizeof(uuid_command); }
+
+  void writeTo(uint8_t *buf) const override {
+    auto *c = reinterpret_cast<uuid_command *>(buf);
+    c->cmd = LC_UUID;
+    c->cmdsize = getSize();
+    uuidBuf = c->uuid;
+  }
+
+  void writeUuid(uint64_t digest) const {
+    // xxhash only gives us 8 bytes, so put some fixed data in the other half.
+    static_assert(sizeof(uuid_command::uuid) == 16, "unexpected uuid size");
+    memcpy(uuidBuf, "LLD\xa1UU1D", 8);
+    memcpy(uuidBuf + 8, &digest, 8);
+
+    // RFC 4122 conformance. We need to fix 4 bits in byte 6 and 2 bits in
+    // byte 8. Byte 6 is already fine due to the fixed data we put in. We don't
+    // want to lose bits of the digest in byte 8, so swap that with a byte of
+    // fixed data that happens to have the right bits set.
+    std::swap(uuidBuf[3], uuidBuf[8]);
+
+    // Claim that this is an MD5-based hash. It isn't, but this signals that
+    // this is not a time-based and not a random hash. MD5 seems like the least
+    // bad lie we can put here.
+    assert((uuidBuf[6] & 0xf0) == 0x30 && "See RFC 4122 Sections 4.2.2, 4.1.3");
+    assert((uuidBuf[8] & 0xc0) == 0x80 && "See RFC 4122 Section 4.2.2");
+  }
+
+  mutable uint8_t *uuidBuf;
+};
+
 } // namespace
 
 void Writer::scanRelocations() {
@@ -354,8 +413,7 @@ void Writer::scanRelocations() {
     for (Reloc &r : isec->relocs) {
       if (auto *s = r.referent.dyn_cast<lld::macho::Symbol *>()) {
         if (isa<Undefined>(s))
-          error("undefined symbol " + s->getName() + ", referenced from " +
-                sys::path::filename(isec->file->getName()));
+          treatUndefinedSymbol(toString(*s), toString(isec->file));
         else
           target->prepareSymbolRelocation(s, isec, r);
       } else {
@@ -367,11 +425,23 @@ void Writer::scanRelocations() {
   }
 }
 
+void Writer::scanSymbols() {
+  for (const macho::Symbol *sym : symtab->getSymbols()) {
+    if (const auto *defined = dyn_cast<Defined>(sym)) {
+      if (defined->overridesWeakDef)
+        in.weakBinding->addNonWeakDefinition(defined);
+    } else if (const auto *dysym = dyn_cast<DylibSymbol>(sym)) {
+      dysym->file->refState = std::max(dysym->file->refState, dysym->refState);
+    }
+  }
+}
+
 void Writer::createLoadCommands() {
   in.header->addLoadCommand(make<LCDyldInfo>(
       in.rebase, in.binding, in.weakBinding, in.lazyBinding, in.exports));
   in.header->addLoadCommand(make<LCSymtab>(symtabSection, stringTableSection));
-  in.header->addLoadCommand(make<LCDysymtab>(indirectSymtabSection));
+  in.header->addLoadCommand(
+      make<LCDysymtab>(symtabSection, indirectSymtabSection));
   for (StringRef path : config->runtimePaths)
     in.header->addLoadCommand(make<LCRPath>(path));
 
@@ -381,7 +451,9 @@ void Writer::createLoadCommands() {
     in.header->addLoadCommand(make<LCLoadDylinker>());
     break;
   case MH_DYLIB:
-    in.header->addLoadCommand(make<LCDylib>(LC_ID_DYLIB, config->installName));
+    in.header->addLoadCommand(make<LCDylib>(LC_ID_DYLIB, config->installName,
+                                            config->dylibCompatibilityVersion,
+                                            config->dylibCurrentVersion));
     break;
   case MH_BUNDLE:
     break;
@@ -390,6 +462,9 @@ void Writer::createLoadCommands() {
   }
 
   in.header->addLoadCommand(make<LCBuildVersion>(config->platform));
+
+  uuidCommand = make<LCUuid>();
+  in.header->addLoadCommand(uuidCommand);
 
   uint8_t segIndex = 0;
   for (OutputSegment *seg : outputSegments) {
@@ -400,11 +475,13 @@ void Writer::createLoadCommands() {
   uint64_t dylibOrdinal = 1;
   for (InputFile *file : inputFiles) {
     if (auto *dylibFile = dyn_cast<DylibFile>(file)) {
-      // TODO: dylibs that are only referenced by weak refs should also be
-      // loaded via LC_LOAD_WEAK_DYLIB.
       LoadCommandType lcType =
-          dylibFile->forceWeakImport ? LC_LOAD_WEAK_DYLIB : LC_LOAD_DYLIB;
-      in.header->addLoadCommand(make<LCDylib>(lcType, dylibFile->dylibName));
+          dylibFile->forceWeakImport || dylibFile->refState == RefState::Weak
+              ? LC_LOAD_WEAK_DYLIB
+              : LC_LOAD_DYLIB;
+      in.header->addLoadCommand(make<LCDylib>(lcType, dylibFile->dylibName,
+                                              dylibFile->compatibilityVersion,
+                                              dylibFile->currentVersion));
       dylibFile->ordinal = dylibOrdinal++;
 
       if (dylibFile->reexport)
@@ -421,9 +498,16 @@ void Writer::createLoadCommands() {
 }
 
 static size_t getSymbolPriority(const SymbolPriorityEntry &entry,
-                                const InputFile &file) {
-  return std::max(entry.objectFiles.lookup(sys::path::filename(file.getName())),
-                  entry.anyObjectFile);
+                                const InputFile *f) {
+  // We don't use toString(InputFile *) here because it returns the full path
+  // for object files, and we only want the basename.
+  StringRef filename;
+  if (f->archiveName.empty())
+    filename = path::filename(f->getName());
+  else
+    filename = saver.save(path::filename(f->archiveName) + "(" +
+                          path::filename(f->getName()) + ")");
+  return std::max(entry.objectFiles.lookup(filename), entry.anyObjectFile);
 }
 
 // Each section gets assigned the priority of the highest-priority symbol it
@@ -441,12 +525,12 @@ static DenseMap<const InputSection *, size_t> buildInputSectionPriorities() {
 
     SymbolPriorityEntry &entry = it->second;
     size_t &priority = sectionPriorities[sym.isec];
-    priority = std::max(priority, getSymbolPriority(entry, *sym.isec->file));
+    priority = std::max(priority, getSymbolPriority(entry, sym.isec->file));
   };
 
   // TODO: Make sure this handles weak symbols correctly.
   for (InputFile *file : inputFiles)
-    if (isa<ObjFile>(file) || isa<ArchiveFile>(file))
+    if (isa<ObjFile>(file))
       for (lld::macho::Symbol *sym : file->symbols)
         if (auto *d = dyn_cast<Defined>(sym))
           addSym(*d);
@@ -473,7 +557,27 @@ static int sectionOrder(OutputSection *osec) {
         .Case(section_names::unwindInfo, std::numeric_limits<int>::max() - 1)
         .Case(section_names::ehFrame, std::numeric_limits<int>::max())
         .Default(0);
-  } else if (segname == segment_names::linkEdit) {
+  }
+  if (segname == segment_names::data) {
+    // For each thread spawned, dyld will initialize its TLVs by copying the
+    // address range from the start of the first thread-local data section to
+    // the end of the last one. We therefore arrange these sections contiguously
+    // to minimize the amount of memory used. Additionally, since zerofill
+    // sections must be at the end of their segments, and since TLV data
+    // sections can be zerofills, we end up putting all TLV data sections at the
+    // end of the segment.
+    switch (sectionType(osec->flags)) {
+    case S_THREAD_LOCAL_REGULAR:
+      return std::numeric_limits<int>::max() - 2;
+    case S_THREAD_LOCAL_ZEROFILL:
+      return std::numeric_limits<int>::max() - 1;
+    case S_ZEROFILL:
+      return std::numeric_limits<int>::max();
+    default:
+      return 0;
+    }
+  }
+  if (segname == segment_names::linkEdit) {
     return StringSwitch<int>(osec->name)
         .Case(section_names::rebase, -8)
         .Case(section_names::binding, -7)
@@ -487,7 +591,7 @@ static int sectionOrder(OutputSection *osec) {
   }
   // ZeroFill sections must always be the at the end of their segments,
   // otherwise subsequent sections may get overwritten with zeroes at runtime.
-  if (isZeroFill(osec->flags))
+  if (sectionType(osec->flags) == S_ZEROFILL)
     return std::numeric_limits<int>::max();
   return 0;
 }
@@ -515,6 +619,9 @@ static void sortSegmentsAndSections() {
       // output section indices.
       if (!osec->isHidden())
         osec->index = ++sectionIndex;
+
+      if (!firstTLVDataSection && isThreadLocalData(osec->flags))
+        firstTLVDataSection = osec;
 
       if (!isecPriorities.empty()) {
         if (auto *merged = dyn_cast<MergedOutputSection>(osec)) {
@@ -563,8 +670,9 @@ void Writer::createOutputSections() {
     if (unwindInfoSection && segname == segment_names::ld) {
       assert(osec->name == section_names::compactUnwind);
       unwindInfoSection->setCompactUnwindSection(osec);
-    } else
+    } else {
       getOrCreateOutputSegment(segname)->addOutputSection(osec);
+    }
   }
 
   for (SyntheticSection *ssec : syntheticSections) {
@@ -573,7 +681,7 @@ void Writer::createOutputSections() {
       if (ssec->isNeeded())
         getOrCreateOutputSegment(ssec->segname)->addOutputSection(ssec);
     } else {
-      error("section from " + it->second->firstSection()->file->getName() +
+      error("section from " + toString(it->second->firstSection()->file) +
             " conflicts with synthetic section " + ssec->segname + "," +
             ssec->name);
     }
@@ -618,6 +726,12 @@ void Writer::writeSections() {
       osec->writeTo(buf + osec->fileOff);
 }
 
+void Writer::writeUuid() {
+  uint64_t digest =
+      xxHash64({buffer->getBufferStart(), buffer->getBufferEnd()});
+  uuidCommand->writeUuid(digest);
+}
+
 void Writer::run() {
   // dyld requires __LINKEDIT segment to always exist (even if empty).
   OutputSegment *linkEditSegment =
@@ -627,11 +741,7 @@ void Writer::run() {
   scanRelocations();
   if (in.stubHelper->isNeeded())
     in.stubHelper->setup();
-
-  for (const macho::Symbol *sym : symtab->getSymbols())
-    if (const auto *defined = dyn_cast<Defined>(sym))
-      if (defined->overridesWeakDef)
-        in.weakBinding->addNonWeakDefinition(defined);
+  scanSymbols();
 
   // Sort and assign sections to their respective segments. No more sections nor
   // segments may be created after these methods run.
@@ -668,6 +778,7 @@ void Writer::run() {
     return;
 
   writeSections();
+  writeUuid();
 
   if (auto e = buffer->commit())
     error("failed to write to the output file: " + toString(std::move(e)));
@@ -689,3 +800,5 @@ void macho::createSyntheticSections() {
   in.stubHelper = make<StubHelperSection>();
   in.imageLoaderCache = make<ImageLoaderCacheSection>();
 }
+
+OutputSection *macho::firstTLVDataSection = nullptr;

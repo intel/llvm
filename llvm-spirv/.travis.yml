@@ -31,9 +31,8 @@ before_install:
       sudo apt-get update
       sudo apt-get -yq --no-install-suggests --no-install-recommends install \
         llvm-${LLVM_VERSION}-dev \
+        libomp-${LLVM_VERSION}-dev \
         clang-${LLVM_VERSION} \
-        clang-format-${LLVM_VERSION} \
-        clang-tidy-${LLVM_VERSION} \
         spirv-tools \
         cmake
     fi
@@ -44,8 +43,6 @@ compiler:
 env:
   global:
     - MAKEFLAGS="-j2"
-    - CHECK_FORMAT=0
-    - CHECK_TIDY=0
     - LLVM_VERSION=12
   matrix:
     - BUILD_TYPE=Release BUILD_EXTERNAL=1 SHARED_LIBS=ON  MAKE_TARGETS=""           MAKE_TEST_TARGET="test"
@@ -75,10 +72,6 @@ matrix:
 
     - compiler: clang
       env: BUILD_TYPE=Release BUILD_EXTERNAL=0 SHARED_LIBS=ON   MAKE_TARGETS="llvm-spirv" MAKE_TEST_TARGET="check-llvm-spirv"
-
-    - env: BUILD_EXTERNAL=1 CHECK_FORMAT=1
-
-    - env: BUILD_EXTERNAL=1 CHECK_TIDY=1
   allow_failures:
     - os: osx
   fast_finish: true
@@ -89,6 +82,7 @@ script:
       mkdir llvm-spirv
       mv * llvm-spirv
       git clone https://github.com/llvm/llvm-project --depth 1
+      git -C llvm-project log --oneline -1
       mv llvm-spirv llvm-project/llvm-spirv
     fi
   - |
@@ -102,17 +96,15 @@ script:
   - PATH=/usr/bin:$PATH
   - |
     if [ $BUILD_EXTERNAL == "1" ]; then
-      if [ $CHECK_FORMAT != "1" ]; then
-        cmake .. \
-          -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
-          -DBUILD_SHARED_LIBS=${SHARED_LIBS} \
-          -DLLVM_BUILD_TOOLS=ON \
-          -DLLVM_EXTERNAL_LIT="/usr/lib/llvm-${LLVM_VERSION}/build/utils/lit/lit.py" \
-          -DLLVM_INCLUDE_TESTS=ON \
-          -DCMAKE_INSTALL_PREFIX=../install/ \
-          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-          -G "Unix Makefiles"
-      fi
+      cmake .. \
+        -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+        -DBUILD_SHARED_LIBS=${SHARED_LIBS} \
+        -DLLVM_BUILD_TOOLS=ON \
+        -DLLVM_EXTERNAL_LIT="/usr/lib/llvm-${LLVM_VERSION}/build/utils/lit/lit.py" \
+        -DLLVM_INCLUDE_TESTS=ON \
+        -DCMAKE_INSTALL_PREFIX=../install/ \
+        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+        -G "Unix Makefiles"
     else
       BUILDDIR=$(pwd)
       cmake ../llvm-project/llvm/ \
@@ -130,17 +122,8 @@ script:
         -G "Unix Makefiles"
       ln -s /usr/lib/llvm-${LLVM_VERSION}/bin/clang bin/
     fi
-  - if [ $CHECK_FORMAT == "1" ]; then
-      cd ..;
-      ln -s /usr/share/clang/clang-format-${LLVM_VERSION}/clang-format-diff.py utils/;
-      ./utils/check_code_format.sh;
-    elif [ $CHECK_TIDY == "1" ]; then
-      cd ..;
-      ln -s build/compile_commands.json;
-      ./utils/check_code_tidyness.sh;
-    else
-      make $MAKE_TARGETS && make $MAKE_TEST_TARGET && if [ $BUILD_EXTERNAL == "1" ]; then make install; fi
-    fi
+
+  - make $MAKE_TARGETS && make $MAKE_TEST_TARGET && if [ $BUILD_EXTERNAL == "1" ]; then make install; fi
 
 before_deploy:
   # Travis CI relies on the tag name to push to the correct release.

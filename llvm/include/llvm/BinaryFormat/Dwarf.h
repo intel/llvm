@@ -27,6 +27,8 @@
 #include "llvm/Support/FormatVariadicDetails.h"
 #include "llvm/ADT/Triple.h"
 
+#include <limits>
+
 namespace llvm {
 class StringRef;
 
@@ -118,10 +120,11 @@ enum LocationAtom {
 #include "llvm/BinaryFormat/Dwarf.def"
   DW_OP_lo_user = 0xe0,
   DW_OP_hi_user = 0xff,
-  DW_OP_LLVM_fragment = 0x1000,    ///< Only used in LLVM metadata.
-  DW_OP_LLVM_convert = 0x1001,     ///< Only used in LLVM metadata.
-  DW_OP_LLVM_tag_offset = 0x1002,  ///< Only used in LLVM metadata.
-  DW_OP_LLVM_entry_value = 0x1003, ///< Only used in LLVM metadata.
+  DW_OP_LLVM_fragment = 0x1000,         ///< Only used in LLVM metadata.
+  DW_OP_LLVM_convert = 0x1001,          ///< Only used in LLVM metadata.
+  DW_OP_LLVM_tag_offset = 0x1002,       ///< Only used in LLVM metadata.
+  DW_OP_LLVM_entry_value = 0x1003,      ///< Only used in LLVM metadata.
+  DW_OP_LLVM_implicit_pointer = 0x1004, ///< Only used in LLVM metadata.
 };
 
 enum TypeKind : uint8_t {
@@ -745,6 +748,11 @@ template <> struct EnumTraits<LocationAtom> : public std::true_type {
   static constexpr char Type[3] = "OP";
   static constexpr StringRef (*StringFn)(unsigned) = &OperationEncodingString;
 };
+
+inline uint64_t computeTombstoneAddress(uint8_t AddressByteSize) {
+  return std::numeric_limits<uint64_t>::max() >> (8 - AddressByteSize) * 8;
+}
+
 } // End of namespace dwarf
 
 /// Dwarf constants format_provider

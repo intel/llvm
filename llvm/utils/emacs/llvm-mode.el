@@ -23,7 +23,7 @@
    ;; Attributes
    `(,(regexp-opt
        '("alwaysinline" "argmemonly" "builtin" "cold" "convergent" "inaccessiblememonly"
-         "inaccessiblemem_or_argmemonly" "inlinehint" "jumptable" "minsize" "naked" "nobuiltin"
+         "inaccessiblemem_or_argmemonly" "inlinehint" "jumptable" "minsize" "mustprogress" "naked" "nobuiltin"
          "noduplicate" "nofree" "noimplicitfloat" "noinline" "nonlazybind" "noredzone" "noreturn"
          "norecurse" "noundef" "nounwind" "optnone" "optsize" "readnone" "readonly" "returns_twice"
          "speculatable" "ssp" "sspreq" "sspstrong" "safestack" "sanitize_address" "sanitize_hwaddress" "sanitize_memtag"
@@ -66,7 +66,7 @@
    ;; Special instructions
    `(,(regexp-opt '("phi" "tail" "call" "select" "to" "shl" "lshr" "ashr" "fcmp" "icmp" "va_arg" "landingpad" "freeze") 'symbols) . font-lock-keyword-face)
    ;; Control instructions
-   `(,(regexp-opt '("ret" "br" "switch" "invoke" "resume" "unwind" "unreachable" "indirectbr") 'symbols) . font-lock-keyword-face)
+   `(,(regexp-opt '("ret" "br" "switch" "invoke" "resume" "unwind" "unreachable" "indirectbr" "callbr") 'symbols) . font-lock-keyword-face)
    ;; Memory operators
    `(,(regexp-opt '("malloc" "alloca" "free" "load" "store" "getelementptr" "fence" "cmpxchg" "atomicrmw") 'symbols) . font-lock-keyword-face)
    ;; Casts

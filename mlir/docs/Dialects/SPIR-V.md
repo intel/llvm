@@ -90,10 +90,10 @@ The SPIR-V dialect adopts the following conventions for IR:
     ops are mostly for defining the SPIR-V structure. For example, `spv.module`
     and `spv.constant`. They may correspond to one or more instructions during
     (de)serialization.
-*   Ops with `_snake_case` names are those that have no corresponding
+*   Ops with `mlir.snake_case` names are those that have no corresponding
     instructions (or concepts) in the binary format. They are introduced to
-    satisfy MLIR structural requirements. For example, `spv._module_end` and
-    `spv._merge`. They map to no instructions during (de)serialization.
+    satisfy MLIR structural requirements. For example, `spv.mlir.endmodule` and
+    `spv.mlir.merge`. They map to no instructions during (de)serialization.
 
 (TODO: consider merging the last two cases and adopting `spv.mlir.` prefix for
 them.)
@@ -159,7 +159,7 @@ instructions are represented in the SPIR-V dialect:
 
 #### Model types with MLIR custom types
 
-*   Types are represented using MLIR standard types and SPIR-V dialect specific
+*   Types are represented using MLIR builtin types and SPIR-V dialect specific
     types. There are no type declaration ops in the SPIR-V dialect. More
     discussions can be found in the [Types](#types) section later.
 
@@ -178,11 +178,11 @@ instructions are represented in the SPIR-V dialect:
 
 *   Global variables are defined with the `spv.globalVariable` op. They do not
     generate SSA values. Instead they have symbols and should be referenced via
-    symbols. To use global variables in a function block, `spv._address_of` is
+    symbols. To use global variables in a function block, `spv.mlir.addressof` is
     needed to turn the symbol into an SSA value.
 *   Specialization constants are defined with the `spv.specConstant` op. Similar
     to global variables, they do not generate SSA values and have symbols for
-    reference, too. `spv._reference_of` is needed to turn the symbol into an SSA
+    reference, too. `spv.mlir.referenceof` is needed to turn the symbol into an SSA
     value for use in a function block.
 
 The above choices enables functions in the SPIR-V dialect to be isolated and
@@ -247,9 +247,9 @@ encode them directly in the dialect-specific type.
 Theoretically we can define all SPIR-V types using MLIR extensible type system,
 but other than representational purity, it does not buy us more. Instead, we
 need to maintain the code and invest in pretty printing them. So we prefer to
-use builtin/standard types if possible.
+use builtin types if possible.
 
-The SPIR-V dialect reuses standard integer, float, and vector types:
+The SPIR-V dialect reuses builtin integer, float, and vector types:
 
 Specification                        | Dialect
 :----------------------------------: | :-------------------------------:
@@ -510,7 +510,7 @@ MLIR system.
 
 We introduce a `spv.selection` and `spv.loop` op for structured selections and
 loops, respectively. The merge targets are the next ops following them. Inside
-their regions, a special terminator, `spv._merge` is introduced for branching to
+their regions, a special terminator, `spv.mlir.merge` is introduced for branching to
 the merge target.
 
 ### Selection
@@ -522,7 +522,7 @@ merge block.
 *   The selection header block should be the first block. It should contain the
     `spv.BranchConditional` or `spv.Switch` op.
 *   The merge block should be the last block. The merge block should only
-    contain a `spv._merge` op. Any block can branch to the merge block for early
+    contain a `spv.mlir.merge` op. Any block can branch to the merge block for early
     exit.
 
 ```
@@ -581,7 +581,7 @@ func @selection(%cond: i1) -> () {
     spv.Branch ^merge
 
   ^merge:
-    spv._merge
+    spv.mlir.merge
   }
 
   // ...
@@ -598,7 +598,7 @@ continue block, one merge block.
 *   The entry block should be the first block and it should jump to the loop
     header block, which is the second block.
 *   The merge block should be the last block. The merge block should only
-    contain a `spv._merge` op. Any block except the entry block can branch to
+    contain a `spv.mlir.merge` op. Any block except the entry block can branch to
     the merge block for early exit.
 *   The continue block should be the second to last block and it should have a
     branch to the loop header block.
@@ -675,7 +675,7 @@ func @loop(%count : i32) -> () {
     spv.Branch ^header
 
   ^merge:
-    spv._merge
+    spv.mlir.merge
   }
   return
 }
@@ -731,7 +731,7 @@ func @foo() -> () {
     spv.Return
 
   ^merge:
-    spv._merge
+    spv.mlir.merge
   }
   spv.Return
 }
@@ -968,10 +968,10 @@ Similarly, a few transformations are performed during deserialization:
 *   `OpVariable` instructions will be converted to `spv.globalVariable` ops if
     in module-level; otherwise they will be converted into `spv.Variable` ops.
 *   Every use of a module-level `OpVariable` instruction will materialize a
-    `spv._address_of` op to turn the symbol of the corresponding
+    `spv.mlir.addressof` op to turn the symbol of the corresponding
     `spv.globalVariable` into an SSA value.
 *   Every use of a `OpSpecConstant` instruction will materialize a
-    `spv._reference_of` op to turn the symbol of the corresponding
+    `spv.mlir.referenceof` op to turn the symbol of the corresponding
     `spv.specConstant` into an SSA value.
 *   `OpPhi` instructions are converted to block arguments.
 *   Structured control flow are placed inside `spv.selection` and `spv.loop`.
@@ -1005,10 +1005,10 @@ register other legality constraints into the returned `SPIRVConversionTarget`.
 ### `SPIRVTypeConverter`
 
 The `mlir::SPIRVTypeConverter` derives from `mlir::TypeConverter` and provides
-type conversion for standard types to SPIR-V types conforming to the [target
-environment](#target-environment) it is constructed with. If the required
-extension/capability for the resultant type is not available in the given
-target environment, `convertType()` will return a null type.
+type conversion for builtin types to SPIR-V types conforming to the
+[target environment](#target-environment) it is constructed with. If the
+required extension/capability for the resultant type is not available in the
+given target environment, `convertType()` will return a null type.
 
 Standard scalar types are converted to their corresponding SPIR-V scalar types.
 
@@ -1054,7 +1054,7 @@ rules. Specifically,
 
 *   Creates `spv.globalVariable`s for the arguments, and replaces all uses of
     the argument with this variable. The SSA value used for replacement is
-    obtained using the `spv._address_of` operation.
+    obtained using the `spv.mlir.addressof` operation.
 *   Adds the `spv.EntryPoint` and `spv.ExecutionMode` operations into the
     `spv.module` for the entry function.
 
@@ -1068,10 +1068,10 @@ the [Vulkan shader requirements][VulkanShaderInterface].
 #### Creating builtin variables
 
 In SPIR-V dialect, builtins are represented using `spv.globalVariable`s, with
-`spv._address_of` used to get a handle to the builtin as an SSA value.  The
+`spv.mlir.addressof` used to get a handle to the builtin as an SSA value.  The
 method `mlir::spirv::getBuiltinVariableValue` creates a `spv.globalVariable` for
 the builtin in the current `spv.module` if it does not exist already, and
-returns an SSA value generated from an `spv._address_of` operation.
+returns an SSA value generated from an `spv.mlir.addressof` operation.
 
 ### Current conversions to SPIR-V
 
@@ -1145,16 +1145,17 @@ in a few places:
     are at [lib/Conversion/StandardToSPIRV][MlirStdToSpirvLibs].
 
 These dialect to dialect conversions have their dedicated libraries,
-`MLIRGPUToSPIRVTransforms` and `MLIRStandardToSPIRVTransforms`, respectively.
+`MLIRGPUToSPIRV` and `MLIRStandardToSPIRV`, respectively.
 
 There are also common utilities when targeting SPIR-V from any dialect:
 
-*   [include/mlir/Dialect/SPIRV/Passes.h][MlirSpirvPasses] contains SPIR-V
-    specific analyses and transformations.
-*   [include/mlir/Dialect/SPIRV/SPIRVLowering.h][MlirSpirvLowering] contains
-    type converters and other utility functions.
+*   [include/mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h][MlirSpirvConversion]
+    contains type converters and other utility functions.
+*   [include/mlir/Dialect/SPIRV/Transforms/Passes.h][MlirSpirvPasses] contains
+    SPIR-V specific analyses and transformations.
 
-These common utilities are implemented in the `MLIRSPIRVTransforms` library.
+These common utilities are implemented in the `MLIRSPIRVConversion` and
+`MLIRSPIRVTransforms` library, respectively.
 
 ## Rationale
 
@@ -1406,15 +1407,15 @@ dialect.
 [MlirGpuToSpirvLibs]: https://github.com/llvm/llvm-project/tree/master/mlir/lib/Conversion/GPUToSPIRV
 [MlirStdToSpirvHeaders]: https://github.com/llvm/llvm-project/tree/master/mlir/include/mlir/Conversion/StandardToSPIRV
 [MlirStdToSpirvLibs]: https://github.com/llvm/llvm-project/tree/master/mlir/lib/Conversion/StandardToSPIRV
-[MlirSpirvDialect]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/SPIRV/SPIRVDialect.h
-[MlirSpirvTypes]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/SPIRV/SPIRVTypes.h
-[MlirSpirvOpsH]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/SPIRV/SPIRVOps.h
-[MlirSpirvSerialization]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/SPIRV/Serialization.h
-[MlirSpirvBase]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/SPIRV/SPIRVBase.td
-[MlirSpirvPasses]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/SPIRV/Passes.h
-[MlirSpirvLowering]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/SPIRV/SPIRVLowering.h
-[MlirSpirvAbi]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/SPIRV/TargetAndABI.h
-[MlirSpirvOpsCpp]: https://github.com/llvm/llvm-project/blob/master/mlir/lib/Dialect/SPIRV/SPIRVOps.cpp
+[MlirSpirvDialect]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVDialect.h
+[MlirSpirvTypes]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVTypes.h
+[MlirSpirvOpsH]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVOps.h
+[MlirSpirvSerialization]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Target/SPIRV/Serialization.h
+[MlirSpirvBase]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVBase.td
+[MlirSpirvPasses]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/SPIRV/Transforms/Passes.h
+[MlirSpirvConversion]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h
+[MlirSpirvAbi]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/SPIRV/IR/TargetAndABI.h
+[MlirSpirvOpsCpp]: https://github.com/llvm/llvm-project/blob/master/mlir/lib/Dialect/SPIRV/IR/SPIRVOps.cpp
 [GitHubDialectTracking]: https://github.com/tensorflow/mlir/issues/302
 [GitHubLoweringTracking]: https://github.com/tensorflow/mlir/issues/303
 [GenSpirvUtilsPy]: https://github.com/llvm/llvm-project/blob/master/mlir/utils/spirv/gen_spirv_dialect.py

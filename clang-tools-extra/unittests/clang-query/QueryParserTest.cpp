@@ -112,11 +112,9 @@ TEST_F(QueryParserTest, Set) {
   EXPECT_EQ(true, cast<SetQuery<bool> >(Q)->Value);
 
   Q = parse("set traversal AsIs");
-  ASSERT_TRUE(isa<SetQuery<ast_type_traits::TraversalKind>>(Q));
-  EXPECT_EQ(&QuerySession::TK,
-            cast<SetQuery<ast_type_traits::TraversalKind>>(Q)->Var);
-  EXPECT_EQ(ast_type_traits::TK_AsIs,
-            cast<SetQuery<ast_type_traits::TraversalKind>>(Q)->Value);
+  ASSERT_TRUE(isa<SetQuery<TraversalKind>>(Q));
+  EXPECT_EQ(&QuerySession::TK, cast<SetQuery<TraversalKind>>(Q)->Var);
+  EXPECT_EQ(TK_AsIs, cast<SetQuery<TraversalKind>>(Q)->Value);
 
   Q = parse("set traversal NotATraversal");
   ASSERT_TRUE(isa<InvalidQuery>(Q));
@@ -232,14 +230,12 @@ TEST_F(QueryParserTest, Complete) {
   EXPECT_EQ("dump", Comps[3].DisplayText);
 
   Comps = QueryParser::complete("set traversal ", 14, QS);
-  ASSERT_EQ(3u, Comps.size());
+  ASSERT_EQ(2u, Comps.size());
 
   EXPECT_EQ("AsIs ", Comps[0].TypedText);
   EXPECT_EQ("AsIs", Comps[0].DisplayText);
-  EXPECT_EQ("IgnoreImplicitCastsAndParentheses ", Comps[1].TypedText);
-  EXPECT_EQ("IgnoreImplicitCastsAndParentheses", Comps[1].DisplayText);
-  EXPECT_EQ("IgnoreUnlessSpelledInSource ", Comps[2].TypedText);
-  EXPECT_EQ("IgnoreUnlessSpelledInSource", Comps[2].DisplayText);
+  EXPECT_EQ("IgnoreUnlessSpelledInSource ", Comps[1].TypedText);
+  EXPECT_EQ("IgnoreUnlessSpelledInSource", Comps[1].DisplayText);
 
   Comps = QueryParser::complete("match while", 11, QS);
   ASSERT_EQ(1u, Comps.size());

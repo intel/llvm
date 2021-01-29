@@ -133,7 +133,18 @@ endif()
 # Add the OpenMP library
 libomp_get_ldflags(LIBOMP_CONFIGURED_LDFLAGS)
 
-add_library(omp ${LIBOMP_LIBRARY_KIND} ${LIBOMP_SOURCE_FILES})
+libomp_get_libflags(LIBOMP_CONFIGURED_LIBFLAGS)
+# Build libomp library. Add LLVMSupport dependency if building in-tree with libomptarget profiling enabled.
+if(OPENMP_STANDALONE_BUILD OR (NOT OPENMP_ENABLE_LIBOMPTARGET_PROFILING))
+  add_library(omp ${LIBOMP_LIBRARY_KIND} ${LIBOMP_SOURCE_FILES})
+  # Linking command will include libraries in LIBOMP_CONFIGURED_LIBFLAGS
+  target_link_libraries(omp ${LIBOMP_CONFIGURED_LIBFLAGS} ${CMAKE_DL_LIBS})
+else()
+  add_llvm_library(omp ${LIBOMP_LIBRARY_KIND} ${LIBOMP_SOURCE_FILES} PARTIAL_SOURCES_INTENDED
+    LINK_LIBS ${LIBOMP_CONFIGURED_LIBFLAGS} ${CMAKE_DL_LIBS}
+    LINK_COMPONENTS Support
+    )
+endif()
 
 set_target_properties(omp PROPERTIES
   PREFIX "" SUFFIX "" OUTPUT_NAME "${LIBOMP_LIB_FILE}"
@@ -165,10 +176,6 @@ if(NOT WIN32)
     WORKING_DIRECTORY ${LIBOMP_LIBRARY_DIR}
   )
 endif()
-
-# Linking command will include libraries in LIBOMP_CONFIGURED_LIBFLAGS
-libomp_get_libflags(LIBOMP_CONFIGURED_LIBFLAGS)
-target_link_libraries(omp ${LIBOMP_CONFIGURED_LIBFLAGS} ${CMAKE_DL_LIBS})
 
 # Create *.inc before compiling any sources
 # objects depend on : .inc files
@@ -239,7 +246,6 @@ endif()
 # One compilation step creates both omp_lib.mod and omp_lib_kinds.mod
 if(${LIBOMP_FORTRAN_MODULES})
   configure_file(${LIBOMP_INC_DIR}/omp_lib.h.var omp_lib.h @ONLY)
-  configure_file(${LIBOMP_INC_DIR}/omp_lib.f.var omp_lib.f @ONLY)
   configure_file(${LIBOMP_INC_DIR}/omp_lib.f90.var omp_lib.f90 @ONLY)
   # Workaround for gfortran to build modules with the
   # omp_sched_monotonic integer parameter
@@ -251,7 +257,7 @@ if(${LIBOMP_FORTRAN_MODULES})
   if(CMAKE_Fortran_COMPILER_SUPPORTS_F90)
     set(LIBOMP_FORTRAN_SOURCE_FILE omp_lib.f90)
   else()
-    set(LIBOMP_FORTRAN_SOURCE_FILE omp_lib.f)
+    message(FATAL_ERROR "Fortran module build requires Fortran 90 compiler")
   endif()
   add_custom_command(
     OUTPUT omp_lib.mod omp_lib_kinds.mod

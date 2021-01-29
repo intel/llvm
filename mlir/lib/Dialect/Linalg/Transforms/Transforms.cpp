@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
+#include "mlir/Dialect/Affine/Utils.h"
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
@@ -21,9 +22,9 @@
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/Matchers.h"
-#include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/LLVM.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include <type_traits>
@@ -111,8 +112,13 @@ mlir::linalg::LinalgBaseTilingPattern::LinalgBaseTilingPattern(
     : RewritePattern(opName, {}, benefit, context), marker(marker),
       options(options) {}
 
-LogicalResult mlir::linalg::LinalgBaseTilingPattern::matchAndRewrite(
-    Operation *op, PatternRewriter &rewriter) const {
+mlir::linalg::LinalgBaseTilingPattern::LinalgBaseTilingPattern(
+    LinalgTilingOptions options, LinalgMarker marker, PatternBenefit benefit)
+    : RewritePattern(benefit, MatchAnyOpTypeTag()), marker(marker),
+      options(options) {}
+
+LogicalResult mlir::linalg::LinalgBaseTilingPattern::matchAndRewriteBase(
+    Operation *op, PatternRewriter &rewriter, TiledLinalgOp &result) const {
   LinalgOp linalgOp = dyn_cast<LinalgOp>(op);
   if (!linalgOp)
     return failure();
@@ -124,8 +130,100 @@ LogicalResult mlir::linalg::LinalgBaseTilingPattern::matchAndRewrite(
   if (!res)
     return failure();
 
+  // Return relevant information to derived pattern.
+  result = *res;
+
   // New marker if specified.
   marker.replaceLinalgMarker(rewriter, res->op.getOperation());
+  return success();
+}
+
+mlir::linalg::LinalgBaseTileAndFusePattern::LinalgBaseTileAndFusePattern(
+    StringRef opName, MLIRContext *context,
+    const LinalgDependenceGraph &dependenceGraph,
+    LinalgTilingOptions tilingOptions, LinalgFusionOptions fusionOptions,
+    LinalgMarker marker, LinalgMarker fusedOpMarker,
+    LinalgMarker originalOpMarker, PatternBenefit benefit)
+    : RewritePattern(opName, {}, benefit, context),
+      dependenceGraph(dependenceGraph), tilingOptions(tilingOptions),
+      fusionOptions(fusionOptions), marker(marker),
+      fusedOpMarker(fusedOpMarker), originalOpMarker(originalOpMarker) {}
+
+LogicalResult mlir::linalg::LinalgBaseTileAndFusePattern::matchAndRewrite(
+    Operation *op, PatternRewriter &rewriter) const {
+  LinalgOp linalgOp = dyn_cast<LinalgOp>(op);
+  if (!linalgOp)
+    return failure();
+  if (failed(marker.checkAndNotify(rewriter, linalgOp)))
+    return failure();
+  if (!linalgOp.hasBufferSemantics())
+    return failure();
+
+  DenseSet<Operation *> producers;
+  producers.insert(linalgOp);
+  for (auto dependence : dependenceGraph.getDependentOperations(linalgOp)) {
+    if (!fusionOptions.indicesToFuse.count(
+            dependence.indexingOpView->getOperandNumber()))
+      continue;
+    if (isa<LinalgOp>(dependence.dependentOpView->getOwner()))
+      producers.insert(dependence.dependentOpView->getOwner());
+  }
+
+  SmallVector<LinalgOp, 1> fusionOps;
+  for (auto it = op->getBlock()->begin(), ie = Block::iterator(op); it != ie;
+       ++it) {
+    auto producerLinalgOp = dyn_cast<LinalgOp>(&(*it));
+    if (producerLinalgOp && producers.count(producerLinalgOp))
+      fusionOps.push_back(producerLinalgOp);
+  }
+  fusionOps.push_back(linalgOp);
+
+  SmallVector<Value, 4> tileSizes =
+      tilingOptions.tileSizeComputationFunction(rewriter, op);
+  LinalgTilingOptions instanceTilingOptions = tilingOptions;
+  instanceTilingOptions.setTileSizes(tileSizes);
+  Optional<TiledAndFusedLinalgOps> tiledAndFusedOps = tileAndFuseLinalgOps(
+      rewriter, fusionOps, dependenceGraph, instanceTilingOptions);
+  if (!tiledAndFusedOps)
+    return failure();
+
+  // Tile the unfused loops;
+  SmallVector<Value, 4> unfusedLoopTileSizes;
+  Value zero = rewriter.create<ConstantIndexOp>(op->getLoc(), 0);
+  for (auto tileSize : enumerate(tileSizes)) {
+    if (tiledAndFusedOps->fusedLoopDims.count(tileSize.index()))
+      unfusedLoopTileSizes.push_back(zero);
+    else
+      unfusedLoopTileSizes.push_back(tileSize.value());
+  }
+  // Tile the loop only if there is a non-zero tile size.
+  if (unfusedLoopTileSizes.size() > linalgOp.getNumLoops())
+    unfusedLoopTileSizes.resize(linalgOp.getNumLoops());
+  if (llvm::any_of(unfusedLoopTileSizes, [](Value val) {
+        if (auto cst = val.getDefiningOp<ConstantIndexOp>())
+          return cst.getValue() != 0;
+        return true;
+      })) {
+    LinalgTilingOptions unfusedTilingOptions = tilingOptions;
+    unfusedTilingOptions.setTileSizes(unfusedLoopTileSizes);
+    Optional<TiledLinalgOp> unfusedTiledOp =
+        tileLinalgOp(rewriter, tiledAndFusedOps->op, unfusedTilingOptions);
+    if (!unfusedTiledOp)
+      return failure();
+    rewriter.eraseOp(tiledAndFusedOps->op);
+    tiledAndFusedOps->op = unfusedTiledOp->op;
+  }
+
+  marker.replaceLinalgMarker(rewriter, tiledAndFusedOps->op.getOperation());
+  for (auto fusedOp : tiledAndFusedOps->fusedProducers) {
+    fusedOpMarker.replaceLinalgMarker(rewriter, fusedOp.getOperation());
+  }
+  for (auto origProducerOp : ArrayRef<LinalgOp>(fusionOps).drop_back()) {
+    originalOpMarker.replaceLinalgMarker(rewriter,
+                                         origProducerOp.getOperation());
+  }
+  rewriter.updateRootInPlace(
+      op, [&]() { originalOpMarker.replaceLinalgMarker(rewriter, op); });
   return success();
 }
 
@@ -205,8 +303,8 @@ LogicalResult mlir::linalg::LinalgBaseVectorizationPattern::matchAndRewrite(
 }
 
 LogicalResult mlir::linalg::applyStagedPatterns(
-    Operation *op, ArrayRef<OwningRewritePatternList> stage1Patterns,
-    const OwningRewritePatternList &stage2Patterns,
+    Operation *op, ArrayRef<FrozenRewritePatternList> stage1Patterns,
+    const FrozenRewritePatternList &stage2Patterns,
     function_ref<LogicalResult(Operation *)> stage3Lambda) {
   unsigned iteration = 0;
   (void)iteration;
@@ -233,38 +331,6 @@ LogicalResult mlir::linalg::applyStagedPatterns(
     }
   }
   return success();
-}
-
-/// Traverse `e` and return an AffineExpr where all occurrences of `dim` have
-/// been replaced by either:
-///  - `min` if `positivePath` is true when we reach an occurrence of `dim`
-///  - `max` if `positivePath` is true when we reach an occurrence of `dim`
-/// `positivePath` is negated each time we hit a multiplicative or divisive
-/// binary op with a constant negative coefficient.
-static AffineExpr substWithMin(AffineExpr e, AffineExpr dim, AffineExpr min,
-                               AffineExpr max, bool positivePath = true) {
-  if (e == dim)
-    return positivePath ? min : max;
-  if (auto bin = e.dyn_cast<AffineBinaryOpExpr>()) {
-    AffineExpr lhs = bin.getLHS();
-    AffineExpr rhs = bin.getRHS();
-    if (bin.getKind() == mlir::AffineExprKind::Add)
-      return substWithMin(lhs, dim, min, max, positivePath) +
-             substWithMin(rhs, dim, min, max, positivePath);
-
-    auto c1 = bin.getLHS().dyn_cast<AffineConstantExpr>();
-    auto c2 = bin.getRHS().dyn_cast<AffineConstantExpr>();
-    if (c1 && c1.getValue() < 0)
-      return getAffineBinaryOpExpr(
-          bin.getKind(), c1, substWithMin(rhs, dim, min, max, !positivePath));
-    if (c2 && c2.getValue() < 0)
-      return getAffineBinaryOpExpr(
-          bin.getKind(), substWithMin(lhs, dim, min, max, !positivePath), c2);
-    return getAffineBinaryOpExpr(
-        bin.getKind(), substWithMin(lhs, dim, min, max, positivePath),
-        substWithMin(rhs, dim, min, max, positivePath));
-  }
-  return e;
 }
 
 /// Given the `lbVal`, `ubVal` and `stepVal` of a loop, append `lbVal` and

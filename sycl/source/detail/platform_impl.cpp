@@ -10,6 +10,7 @@
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/force_device.hpp>
+#include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_info.hpp>
 
@@ -17,6 +18,7 @@
 #include <cstring>
 #include <regex>
 #include <string>
+#include <vector>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -32,12 +34,13 @@ PlatformImplPtr platform_impl::getHostPlatformImpl() {
 
 PlatformImplPtr platform_impl::getOrMakePlatformImpl(RT::PiPlatform PiPlatform,
                                                      const plugin &Plugin) {
-  static std::vector<PlatformImplPtr> PlatformCache;
-  static std::mutex PlatformMapMutex;
-
   PlatformImplPtr Result;
   {
-    const std::lock_guard<std::mutex> Guard(PlatformMapMutex);
+    const std::lock_guard<std::mutex> Guard(
+        GlobalHandler::instance().getPlatformMapMutex());
+
+    std::vector<PlatformImplPtr> &PlatformCache =
+        GlobalHandler::instance().getPlatformCache();
 
     // If we've already seen this platform, return the impl
     for (const auto &PlatImpl : PlatformCache) {
@@ -208,7 +211,7 @@ static std::vector<DevDescT> getAllowListDesc() {
   return DecDescs;
 }
 
-enum MatchState { UNKNOWN, MATCH, NOMATCH };
+enum class FilterState { DENIED, ALLOWED };
 
 static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
                             RT::PiPlatform PiPlatform, const plugin &Plugin) {
@@ -216,10 +219,10 @@ static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
   if (AllowList.empty())
     return;
 
-  MatchState DevNameState = UNKNOWN;
-  MatchState DevVerState = UNKNOWN;
-  MatchState PlatNameState = UNKNOWN;
-  MatchState PlatVerState = UNKNOWN;
+  FilterState DevNameState = FilterState::ALLOWED;
+  FilterState DevVerState = FilterState::ALLOWED;
+  FilterState PlatNameState = FilterState::ALLOWED;
+  FilterState PlatVerState = FilterState::ALLOWED;
 
   const string_class PlatformName =
       sycl::detail::get_platform_info<string_class, info::platform::name>::get(
@@ -242,52 +245,39 @@ static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
     for (const DevDescT &Desc : AllowList) {
       if (!Desc.PlatName.empty()) {
         if (!std::regex_match(PlatformName, std::regex(Desc.PlatName))) {
-          PlatNameState = MatchState::NOMATCH;
+          PlatNameState = FilterState::DENIED;
           continue;
-        } else {
-          PlatNameState = MatchState::MATCH;
         }
       }
 
       if (!Desc.PlatVer.empty()) {
         if (!std::regex_match(PlatformVer, std::regex(Desc.PlatVer))) {
-          PlatVerState = MatchState::NOMATCH;
+          PlatVerState = FilterState::DENIED;
           continue;
-        } else {
-          PlatVerState = MatchState::MATCH;
         }
       }
 
       if (!Desc.DevName.empty()) {
         if (!std::regex_match(DeviceName, std::regex(Desc.DevName))) {
-          DevNameState = MatchState::NOMATCH;
+          DevNameState = FilterState::DENIED;
           continue;
-        } else {
-          DevNameState = MatchState::MATCH;
         }
       }
 
       if (!Desc.DevDriverVer.empty()) {
         if (!std::regex_match(DeviceDriverVer, std::regex(Desc.DevDriverVer))) {
-          DevVerState = MatchState::NOMATCH;
+          DevVerState = FilterState::DENIED;
           continue;
-        } else {
-          DevVerState = MatchState::MATCH;
         }
       }
 
-      PiDevices[InsertIDx++] = Device;
+      if (DevNameState == FilterState::ALLOWED &&
+          DevVerState == FilterState::ALLOWED &&
+          PlatNameState == FilterState::ALLOWED &&
+          PlatVerState == FilterState::ALLOWED)
+        PiDevices[InsertIDx++] = Device;
       break;
     }
-  }
-  if (DevNameState == MatchState::MATCH && DevVerState == MatchState::NOMATCH) {
-    throw sycl::runtime_error("Requested SYCL device not found",
-                              PI_DEVICE_NOT_FOUND);
-  }
-  if (PlatNameState == MatchState::MATCH &&
-      PlatVerState == MatchState::NOMATCH) {
-    throw sycl::runtime_error("Requested SYCL platform not found",
-                              PI_DEVICE_NOT_FOUND);
   }
   PiDevices.resize(InsertIDx);
 }
@@ -297,9 +287,11 @@ std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
 
   // If we've already seen this device, return the impl
-  for (const std::shared_ptr<device_impl> &Device : MDeviceCache) {
-    if (Device->getHandleRef() == PiDevice)
-      return Device;
+  for (const std::weak_ptr<device_impl> &DeviceWP : MDeviceCache) {
+    if (std::shared_ptr<device_impl> Device = DeviceWP.lock()) {
+      if (Device->getHandleRef() == PiDevice)
+        return Device;
+    }
   }
 
   // Otherwise make the impl
@@ -323,7 +315,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   if (is_host() || DeviceType == info::device_type::host)
     return Res;
 
-  pi_uint32 NumDevices;
+  pi_uint32 NumDevices = 0;
   const detail::plugin &Plugin = getPlugin();
   Plugin.call<PiApiKind::piDevicesGet>(
       MPlatform, pi::cast<RT::PiDeviceType>(DeviceType), 0,
@@ -345,7 +337,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   PlatformImplPtr PlatformImpl = getOrMakePlatformImpl(MPlatform, *MPlugin);
   std::transform(
       PiDevices.begin(), PiDevices.end(), std::back_inserter(Res),
-      [this, PlatformImpl](const RT::PiDevice &PiDevice) -> device {
+      [PlatformImpl](const RT::PiDevice &PiDevice) -> device {
         return detail::createSyclObjFromImpl<device>(
             PlatformImpl->getOrMakeDeviceImpl(PiDevice, PlatformImpl));
       });
@@ -391,11 +383,11 @@ bool platform_impl::has(aspect Aspect) const {
   return true;
 }
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
   template ret_type platform_impl::get_info<info::param_type::param>() const;
 
 #include <CL/sycl/info/platform_traits.def>
-#undef PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace detail
 } // namespace sycl

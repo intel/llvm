@@ -33,6 +33,12 @@ class Target;
 
 namespace lto {
 
+/// Runs middle-end LTO optimizations on \p Mod.
+bool opt(const Config &Conf, TargetMachine *TM, unsigned Task, Module &Mod,
+         bool IsThinLTO, ModuleSummaryIndex *ExportSummary,
+         const ModuleSummaryIndex *ImportSummary,
+         const std::vector<uint8_t> &CmdArgs);
+
 /// Runs a regular LTO backend. The regular LTO backend can also act as the
 /// regular LTO phase of ThinLTO, which may need to access the combined index.
 Error backend(const Config &C, AddStreamFn AddStream,
@@ -45,7 +51,7 @@ Error thinBackend(const Config &C, unsigned Task, AddStreamFn AddStream,
                   const FunctionImporter::ImportMapTy &ImportList,
                   const GVSummaryMapTy &DefinedGlobals,
                   MapVector<StringRef, BitcodeModule> &ModuleMap,
-                  const std::vector<uint8_t> *CmdArgs = nullptr);
+                  const std::vector<uint8_t> &CmdArgs = std::vector<uint8_t>());
 
 Error finalizeOptimizationRemarks(
     std::unique_ptr<ToolOutputFile> DiagOutputFile);

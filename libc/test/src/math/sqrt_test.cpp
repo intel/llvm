@@ -6,11 +6,11 @@
 //
 //===---------------------------------------------------------------------===//
 
-#include "include/math.h"
 #include "src/math/sqrt.h"
 #include "utils/FPUtil/FPBits.h"
 #include "utils/FPUtil/TestHelpers.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
+#include <math.h>
 
 using FPBits = __llvm_libc::fputil::FPBits<double>;
 using UIntType = typename FPBits::UIntType;
@@ -20,23 +20,21 @@ namespace mpfr = __llvm_libc::testing::mpfr;
 constexpr UIntType HiddenBit =
     UIntType(1) << __llvm_libc::fputil::MantissaWidth<double>::value;
 
-double nan = FPBits::buildNaN(1);
-double inf = FPBits::inf();
-double negInf = FPBits::negInf();
+DECLARE_SPECIAL_CONSTANTS(double)
 
-TEST(SqrtTest, SpecialValues) {
-  ASSERT_FP_EQ(nan, __llvm_libc::sqrt(nan));
+TEST(LlvmLibcSqrtTest, SpecialValues) {
+  ASSERT_FP_EQ(aNaN, __llvm_libc::sqrt(aNaN));
   ASSERT_FP_EQ(inf, __llvm_libc::sqrt(inf));
-  ASSERT_FP_EQ(nan, __llvm_libc::sqrt(negInf));
+  ASSERT_FP_EQ(aNaN, __llvm_libc::sqrt(negInf));
   ASSERT_FP_EQ(0.0, __llvm_libc::sqrt(0.0));
   ASSERT_FP_EQ(-0.0, __llvm_libc::sqrt(-0.0));
-  ASSERT_FP_EQ(nan, __llvm_libc::sqrt(-1.0));
+  ASSERT_FP_EQ(aNaN, __llvm_libc::sqrt(-1.0));
   ASSERT_FP_EQ(1.0, __llvm_libc::sqrt(1.0));
   ASSERT_FP_EQ(2.0, __llvm_libc::sqrt(4.0));
   ASSERT_FP_EQ(3.0, __llvm_libc::sqrt(9.0));
 }
 
-TEST(SqrtTest, DenormalValues) {
+TEST(LlvmLibcSqrtTest, DenormalValues) {
   for (UIntType mant = 1; mant < HiddenBit; mant <<= 1) {
     FPBits denormal(0.0);
     denormal.mantissa = mant;
@@ -53,7 +51,7 @@ TEST(SqrtTest, DenormalValues) {
   }
 }
 
-TEST(SqrtTest, InDoubleRange) {
+TEST(LlvmLibcSqrtTest, InDoubleRange) {
   constexpr UIntType count = 10'000'001;
   constexpr UIntType step = UIntType(-1) / count;
   for (UIntType i = 0, v = 0; i <= count; ++i, v += step) {

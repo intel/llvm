@@ -267,7 +267,7 @@ SBProcess SBTarget::LoadCore(const char *core_file, lldb::SBError &error) {
     FileSpec filespec(core_file);
     FileSystem::Instance().Resolve(filespec);
     ProcessSP process_sp(target_sp->CreateProcess(
-        target_sp->GetDebugger().GetListener(), "", &filespec));
+        target_sp->GetDebugger().GetListener(), "", &filespec, false));
     if (process_sp) {
       error.SetError(process_sp->LoadCore());
       if (error.Success())
@@ -567,10 +567,11 @@ lldb::SBProcess SBTarget::ConnectRemote(SBListener &listener, const char *url,
     std::lock_guard<std::recursive_mutex> guard(target_sp->GetAPIMutex());
     if (listener.IsValid())
       process_sp =
-          target_sp->CreateProcess(listener.m_opaque_sp, plugin_name, nullptr);
+          target_sp->CreateProcess(listener.m_opaque_sp, plugin_name, nullptr,
+                                   true);
     else
       process_sp = target_sp->CreateProcess(
-          target_sp->GetDebugger().GetListener(), plugin_name, nullptr);
+          target_sp->GetDebugger().GetListener(), plugin_name, nullptr, true);
 
     if (process_sp) {
       sb_process.SetSP(process_sp);
@@ -781,6 +782,38 @@ SBBreakpoint SBTarget::BreakpointCreateByLocation(
     sb_bp = target_sp->CreateBreakpoint(
         module_list, *sb_file_spec, line, column, offset, check_inlines,
         skip_prologue, internal, hardware, move_to_nearest_code);
+  }
+
+  return LLDB_RECORD_RESULT(sb_bp);
+}
+
+SBBreakpoint SBTarget::BreakpointCreateByLocation(
+    const SBFileSpec &sb_file_spec, uint32_t line, uint32_t column,
+    lldb::addr_t offset, SBFileSpecList &sb_module_list,
+    bool move_to_nearest_code) {
+  LLDB_RECORD_METHOD(lldb::SBBreakpoint, SBTarget, BreakpointCreateByLocation,
+                     (const lldb::SBFileSpec &, uint32_t, uint32_t,
+                      lldb::addr_t, lldb::SBFileSpecList &, bool),
+                     sb_file_spec, line, column, offset, sb_module_list,
+                     move_to_nearest_code);
+
+  SBBreakpoint sb_bp;
+  TargetSP target_sp(GetSP());
+  if (target_sp && line != 0) {
+    std::lock_guard<std::recursive_mutex> guard(target_sp->GetAPIMutex());
+
+    const LazyBool check_inlines = eLazyBoolCalculate;
+    const LazyBool skip_prologue = eLazyBoolCalculate;
+    const bool internal = false;
+    const bool hardware = false;
+    const FileSpecList *module_list = nullptr;
+    if (sb_module_list.GetSize() > 0) {
+      module_list = sb_module_list.get();
+    }
+    sb_bp = target_sp->CreateBreakpoint(
+        module_list, *sb_file_spec, line, column, offset, check_inlines,
+        skip_prologue, internal, hardware,
+        move_to_nearest_code ? eLazyBoolYes : eLazyBoolNo);
   }
 
   return LLDB_RECORD_RESULT(sb_bp);
@@ -2488,6 +2521,9 @@ void RegisterMethods<SBTarget>(Registry &R) {
                        BreakpointCreateByLocation,
                        (const lldb::SBFileSpec &, uint32_t, uint32_t,
                         lldb::addr_t, lldb::SBFileSpecList &));
+  LLDB_REGISTER_METHOD(lldb::SBBreakpoint, SBTarget, BreakpointCreateByLocation,
+                       (const lldb::SBFileSpec &, uint32_t, uint32_t,
+                        lldb::addr_t, lldb::SBFileSpecList &, bool));
   LLDB_REGISTER_METHOD(lldb::SBBreakpoint, SBTarget, BreakpointCreateByName,
                        (const char *, const char *));
   LLDB_REGISTER_METHOD(lldb::SBBreakpoint, SBTarget, BreakpointCreateByName,

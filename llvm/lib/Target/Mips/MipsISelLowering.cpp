@@ -134,7 +134,7 @@ unsigned MipsTargetLowering::getVectorTypeBreakdownForCallingConv(
   // Break down vector types to either 2 i64s or 4 i32s.
   RegisterVT = getRegisterTypeForCallingConv(Context, CC, VT);
   IntermediateVT = RegisterVT;
-  NumIntermediates = VT.getSizeInBits() < RegisterVT.getSizeInBits()
+  NumIntermediates = VT.getFixedSizeInBits() < RegisterVT.getFixedSizeInBits()
                          ? VT.getVectorNumElements()
                          : VT.getSizeInBits() / RegisterVT.getSizeInBits();
 
@@ -1195,17 +1195,6 @@ bool MipsTargetLowering::shouldFoldConstantShiftPairToMask(
   if (N->getOperand(0).getValueType().isVector())
     return false;
   return true;
-}
-
-void
-MipsTargetLowering::LowerOperationWrapper(SDNode *N,
-                                          SmallVectorImpl<SDValue> &Results,
-                                          SelectionDAG &DAG) const {
-  SDValue Res = LowerOperation(SDValue(N, 0), DAG);
-
-  if (Res)
-    for (unsigned I = 0, E = Res->getNumValues(); I != E; ++I)
-      Results.push_back(Res.getValue(I));
 }
 
 void

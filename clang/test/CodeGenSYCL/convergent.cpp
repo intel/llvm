@@ -15,6 +15,6 @@ __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
 }
 
 int main() {
-  kernel_single_task<class fake_kernel>([]() { foo(); });
+  kernel_single_task<class fake_kernel>([] { foo(); });
   return 0;
 }

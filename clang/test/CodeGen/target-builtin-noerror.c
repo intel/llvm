@@ -85,6 +85,7 @@ void verifyfeaturestrings() {
 }
 
 void verifycpustrings() {
+  (void)__builtin_cpu_is("alderlake");
   (void)__builtin_cpu_is("amd");
   (void)__builtin_cpu_is("amdfam10h");
   (void)__builtin_cpu_is("amdfam15h");
@@ -127,4 +128,5 @@ void verifycpustrings() {
   (void)__builtin_cpu_is("westmere");
   (void)__builtin_cpu_is("znver1");
   (void)__builtin_cpu_is("znver2");
+  (void)__builtin_cpu_is("znver3");
 }

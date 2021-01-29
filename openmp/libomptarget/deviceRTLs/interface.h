@@ -421,8 +421,8 @@ EXTERN int32_t __kmpc_cancel(kmp_Ident *loc, int32_t global_tid,
 // non standard
 EXTERN void __kmpc_kernel_init(int ThreadLimit, int16_t RequiresOMPRuntime);
 EXTERN void __kmpc_kernel_deinit(int16_t IsOMPRuntimeInitialized);
-EXTERN void __kmpc_spmd_kernel_init(int ThreadLimit, int16_t RequiresOMPRuntime,
-                                    int16_t RequiresDataSharing);
+EXTERN void __kmpc_spmd_kernel_init(int ThreadLimit,
+                                    int16_t RequiresOMPRuntime);
 EXTERN void __kmpc_spmd_kernel_deinit_v2(int16_t RequiresOMPRuntime);
 EXTERN void __kmpc_kernel_prepare_parallel(void *WorkFn);
 EXTERN bool __kmpc_kernel_parallel(void **WorkFn);
@@ -437,17 +437,6 @@ EXTERN void __kmpc_data_sharing_pop_stack(void *a);
 EXTERN void __kmpc_begin_sharing_variables(void ***GlobalArgs, size_t nArgs);
 EXTERN void __kmpc_end_sharing_variables();
 EXTERN void __kmpc_get_shared_variables(void ***GlobalArgs);
-
-// The slot used for data sharing by the master and worker threads. We use a
-// complete (default size version and an incomplete one so that we allow sizes
-// greater than the default).
-struct __kmpc_data_sharing_slot {
-  __kmpc_data_sharing_slot *Next;
-  __kmpc_data_sharing_slot *Prev;
-  void *PrevSlotStackPtr;
-  void *DataEnd;
-  char Data[];
-};
 
 // SPMD execution mode interrogation function.
 EXTERN int8_t __kmpc_is_spmd_exec_mode();

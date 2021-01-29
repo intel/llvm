@@ -307,179 +307,11 @@ void ProcessProperties::SetOSPluginReportsAllThreads(bool does_report) {
         nullptr, ePropertyOSPluginReportsAllThreads, does_report);
 }
 
-Status ProcessLaunchCommandOptions::SetOptionValue(
-    uint32_t option_idx, llvm::StringRef option_arg,
-    ExecutionContext *execution_context) {
-  Status error;
-  const int short_option = m_getopt_table[option_idx].val;
-
-  switch (short_option) {
-  case 's': // Stop at program entry point
-    launch_info.GetFlags().Set(eLaunchFlagStopAtEntry);
-    break;
-
-  case 'i': // STDIN for read only
-  {
-    FileAction action;
-    if (action.Open(STDIN_FILENO, FileSpec(option_arg), true, false))
-      launch_info.AppendFileAction(action);
-    break;
-  }
-
-  case 'o': // Open STDOUT for write only
-  {
-    FileAction action;
-    if (action.Open(STDOUT_FILENO, FileSpec(option_arg), false, true))
-      launch_info.AppendFileAction(action);
-    break;
-  }
-
-  case 'e': // STDERR for write only
-  {
-    FileAction action;
-    if (action.Open(STDERR_FILENO, FileSpec(option_arg), false, true))
-      launch_info.AppendFileAction(action);
-    break;
-  }
-
-  case 'p': // Process plug-in name
-    launch_info.SetProcessPluginName(option_arg);
-    break;
-
-  case 'n': // Disable STDIO
-  {
-    FileAction action;
-    const FileSpec dev_null(FileSystem::DEV_NULL);
-    if (action.Open(STDIN_FILENO, dev_null, true, false))
-      launch_info.AppendFileAction(action);
-    if (action.Open(STDOUT_FILENO, dev_null, false, true))
-      launch_info.AppendFileAction(action);
-    if (action.Open(STDERR_FILENO, dev_null, false, true))
-      launch_info.AppendFileAction(action);
-    break;
-  }
-
-  case 'w':
-    launch_info.SetWorkingDirectory(FileSpec(option_arg));
-    break;
-
-  case 't': // Open process in new terminal window
-    launch_info.GetFlags().Set(eLaunchFlagLaunchInTTY);
-    break;
-
-  case 'a': {
-    TargetSP target_sp =
-        execution_context ? execution_context->GetTargetSP() : TargetSP();
-    PlatformSP platform_sp =
-        target_sp ? target_sp->GetPlatform() : PlatformSP();
-    launch_info.GetArchitecture() =
-        Platform::GetAugmentedArchSpec(platform_sp.get(), option_arg);
-  } break;
-
-  case 'A': // Disable ASLR.
-  {
-    bool success;
-    const bool disable_aslr_arg =
-        OptionArgParser::ToBoolean(option_arg, true, &success);
-    if (success)
-      disable_aslr = disable_aslr_arg ? eLazyBoolYes : eLazyBoolNo;
-    else
-      error.SetErrorStringWithFormat(
-          "Invalid boolean value for disable-aslr option: '%s'",
-          option_arg.empty() ? "<null>" : option_arg.str().c_str());
-    break;
-  }
-
-  case 'X': // shell expand args.
-  {
-    bool success;
-    const bool expand_args =
-        OptionArgParser::ToBoolean(option_arg, true, &success);
-    if (success)
-      launch_info.SetShellExpandArguments(expand_args);
-    else
-      error.SetErrorStringWithFormat(
-          "Invalid boolean value for shell-expand-args option: '%s'",
-          option_arg.empty() ? "<null>" : option_arg.str().c_str());
-    break;
-  }
-
-  case 'c':
-    if (!option_arg.empty())
-      launch_info.SetShell(FileSpec(option_arg));
-    else
-      launch_info.SetShell(HostInfo::GetDefaultShell());
-    break;
-
-  case 'v':
-    launch_info.GetEnvironment().insert(option_arg);
-    break;
-
-  default:
-    error.SetErrorStringWithFormat("unrecognized short option character '%c'",
-                                   short_option);
-    break;
-  }
-  return error;
-}
-
-static constexpr OptionDefinition g_process_launch_options[] = {
-    {LLDB_OPT_SET_ALL, false, "stop-at-entry", 's', OptionParser::eNoArgument,
-     nullptr, {}, 0, eArgTypeNone,
-     "Stop at the entry point of the program when launching a process."},
-    {LLDB_OPT_SET_ALL, false, "disable-aslr", 'A',
-     OptionParser::eRequiredArgument, nullptr, {}, 0, eArgTypeBoolean,
-     "Set whether to disable address space layout randomization when launching "
-     "a process."},
-    {LLDB_OPT_SET_ALL, false, "plugin", 'p', OptionParser::eRequiredArgument,
-     nullptr, {}, 0, eArgTypePlugin,
-     "Name of the process plugin you want to use."},
-    {LLDB_OPT_SET_ALL, false, "working-dir", 'w',
-     OptionParser::eRequiredArgument, nullptr, {}, 0,
-     eArgTypeDirectoryName,
-     "Set the current working directory to <path> when running the inferior."},
-    {LLDB_OPT_SET_ALL, false, "arch", 'a', OptionParser::eRequiredArgument,
-     nullptr, {}, 0, eArgTypeArchitecture,
-     "Set the architecture for the process to launch when ambiguous."},
-    {LLDB_OPT_SET_ALL, false, "environment", 'v',
-     OptionParser::eRequiredArgument, nullptr, {}, 0, eArgTypeNone,
-     "Specify an environment variable name/value string (--environment "
-     "NAME=VALUE). Can be specified multiple times for subsequent environment "
-     "entries."},
-    {LLDB_OPT_SET_1 | LLDB_OPT_SET_2 | LLDB_OPT_SET_3, false, "shell", 'c',
-     OptionParser::eOptionalArgument, nullptr, {}, 0, eArgTypeFilename,
-     "Run the process in a shell (not supported on all platforms)."},
-
-    {LLDB_OPT_SET_1, false, "stdin", 'i', OptionParser::eRequiredArgument,
-     nullptr, {}, 0, eArgTypeFilename,
-     "Redirect stdin for the process to <filename>."},
-    {LLDB_OPT_SET_1, false, "stdout", 'o', OptionParser::eRequiredArgument,
-     nullptr, {}, 0, eArgTypeFilename,
-     "Redirect stdout for the process to <filename>."},
-    {LLDB_OPT_SET_1, false, "stderr", 'e', OptionParser::eRequiredArgument,
-     nullptr, {}, 0, eArgTypeFilename,
-     "Redirect stderr for the process to <filename>."},
-
-    {LLDB_OPT_SET_2, false, "tty", 't', OptionParser::eNoArgument, nullptr,
-     {}, 0, eArgTypeNone,
-     "Start the process in a terminal (not supported on all platforms)."},
-
-    {LLDB_OPT_SET_3, false, "no-stdio", 'n', OptionParser::eNoArgument, nullptr,
-     {}, 0, eArgTypeNone,
-     "Do not set up for terminal I/O to go to running process."},
-    {LLDB_OPT_SET_4, false, "shell-expand-args", 'X',
-     OptionParser::eRequiredArgument, nullptr, {}, 0, eArgTypeBoolean,
-     "Set whether to shell expand arguments to the process when launching."},
-};
-
-llvm::ArrayRef<OptionDefinition> ProcessLaunchCommandOptions::GetDefinitions() {
-  return llvm::makeArrayRef(g_process_launch_options);
-}
-
 ProcessSP Process::FindPlugin(lldb::TargetSP target_sp,
                               llvm::StringRef plugin_name,
                               ListenerSP listener_sp,
-                              const FileSpec *crash_file_path) {
+                              const FileSpec *crash_file_path,
+                              bool can_connect) {
   static uint32_t g_process_unique_id = 0;
 
   ProcessSP process_sp;
@@ -489,7 +321,8 @@ ProcessSP Process::FindPlugin(lldb::TargetSP target_sp,
     create_callback =
         PluginManager::GetProcessCreateCallbackForPluginName(const_plugin_name);
     if (create_callback) {
-      process_sp = create_callback(target_sp, listener_sp, crash_file_path);
+      process_sp = create_callback(target_sp, listener_sp, crash_file_path,
+                                   can_connect);
       if (process_sp) {
         if (process_sp->CanDebug(target_sp, true)) {
           process_sp->m_process_unique_id = ++g_process_unique_id;
@@ -502,7 +335,8 @@ ProcessSP Process::FindPlugin(lldb::TargetSP target_sp,
          (create_callback =
               PluginManager::GetProcessCreateCallbackAtIndex(idx)) != nullptr;
          ++idx) {
-      process_sp = create_callback(target_sp, listener_sp, crash_file_path);
+      process_sp = create_callback(target_sp, listener_sp, crash_file_path,
+                                   can_connect);
       if (process_sp) {
         if (process_sp->CanDebug(target_sp, false)) {
           process_sp->m_process_unique_id = ++g_process_unique_id;
@@ -529,7 +363,7 @@ Process::Process(lldb::TargetSP target_sp, ListenerSP listener_sp)
 
 Process::Process(lldb::TargetSP target_sp, ListenerSP listener_sp,
                  const UnixSignalsSP &unix_signals_sp)
-    : ProcessProperties(this), UserID(LLDB_INVALID_PROCESS_ID),
+    : ProcessProperties(this),
       Broadcaster((target_sp->GetDebugger().GetBroadcasterManager()),
                   Process::GetStaticBroadcasterClass().AsCString()),
       m_target_wp(target_sp), m_public_state(eStateUnloaded),
@@ -553,7 +387,7 @@ Process::Process(lldb::TargetSP target_sp, ListenerSP listener_sp,
       m_profile_data_comm_mutex(), m_profile_data(), m_iohandler_sync(0),
       m_memory_cache(*this), m_allocated_memory_cache(*this),
       m_should_detach(false), m_next_event_action_up(), m_public_run_lock(),
-      m_private_run_lock(), m_finalizing(false), m_finalize_called(false),
+      m_private_run_lock(), m_finalizing(false),
       m_clear_thread_plans_on_stop(false), m_force_next_event_delivery(false),
       m_last_broadcast_state(eStateInvalid), m_destroy_in_process(false),
       m_can_interpret_function_calls(false), m_warnings_issued(),
@@ -629,7 +463,8 @@ const ProcessPropertiesSP &Process::GetGlobalProperties() {
 }
 
 void Process::Finalize() {
-  m_finalizing = true;
+  if (m_finalizing.exchange(true))
+    return;
 
   // Destroy this process if needed
   switch (GetPrivateState()) {
@@ -641,7 +476,7 @@ void Process::Finalize() {
   case eStateStepping:
   case eStateCrashed:
   case eStateSuspended:
-    Destroy(false);
+    DestroyImpl(false);
     break;
 
   case eStateInvalid:
@@ -704,7 +539,6 @@ void Process::Finalize() {
   m_private_run_lock.TrySetRunning(); // This will do nothing if already locked
   m_private_run_lock.SetStopped();
   m_structured_data_plugin_map.clear();
-  m_finalize_called = true;
 }
 
 void Process::RegisterNotificationCallbacks(const Notifications &callbacks) {
@@ -1513,7 +1347,7 @@ bool Process::StateChangedIsHijackedForSynchronousResume() {
 StateType Process::GetPrivateState() { return m_private_state.GetValue(); }
 
 void Process::SetPrivateState(StateType new_state) {
-  if (m_finalize_called)
+  if (m_finalizing)
     return;
 
   Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_STATE |
@@ -1563,11 +1397,7 @@ void Process::SetPrivateState(StateType new_state) {
                 StateAsCString(new_state), m_mod_id.GetStopID());
     }
 
-    // Use our target to get a shared pointer to ourselves...
-    if (m_finalize_called && !PrivateStateThreadIsValid())
-      BroadcastEvent(event_sp);
-    else
-      m_private_state_broadcaster.BroadcastEvent(event_sp);
+    m_private_state_broadcaster.BroadcastEvent(event_sp);
   } else {
     LLDB_LOGF(log,
               "Process::SetPrivateState (%s) state didn't change. Ignoring...",
@@ -3077,13 +2907,8 @@ void Process::CompleteAttach() {
     }
   }
   // Figure out which one is the executable, and set that in our target:
-  const ModuleList &target_modules = GetTarget().GetImages();
-  std::lock_guard<std::recursive_mutex> guard(target_modules.GetMutex());
-  size_t num_modules = target_modules.GetSize();
   ModuleSP new_executable_module_sp;
-
-  for (size_t i = 0; i < num_modules; i++) {
-    ModuleSP module_sp(target_modules.GetModuleAtIndexUnlocked(i));
+  for (ModuleSP module_sp : GetTarget().GetImages().Modules()) {
     if (module_sp && module_sp->IsExecutable()) {
       if (GetTarget().GetExecutableModulePointer() != module_sp.get())
         new_executable_module_sp = module_sp;
@@ -3342,9 +3167,12 @@ Status Process::Detach(bool keep_stopped) {
 Status Process::Destroy(bool force_kill) {
   // If we've already called Process::Finalize then there's nothing useful to
   // be done here.  Finalize has actually called Destroy already.
-  if (m_finalize_called)
+  if (m_finalizing)
     return {};
+  return DestroyImpl(force_kill);
+}
 
+Status Process::DestroyImpl(bool force_kill) {
   // Tell ourselves we are in the process of destroying the process, so that we
   // don't do any unnecessary work that might hinder the destruction.  Remember
   // to set this back to false when we are done.  That way if the attempt
@@ -4178,8 +4006,7 @@ void Process::ProcessEventData::DoOnRemoval(Event *event_ptr) {
       // public (or SyncResume) broadcasters.  StopHooks are just for
       // real public stops.  They might also restart the target,
       // so watch for that.
-      process_sp->GetTarget().RunStopHooks();
-      if (process_sp->GetPrivateState() == eStateRunning)
+      if (process_sp->GetTarget().RunStopHooks())
         SetRestarted(true);
     }
   }
@@ -6127,6 +5954,13 @@ UtilityFunction *Process::GetLoadImageUtilityFunction(
   llvm::call_once(m_dlopen_utility_func_flag_once,
                   [&] { m_dlopen_utility_func_up = factory(); });
   return m_dlopen_utility_func_up.get();
+}
+
+llvm::Expected<TraceTypeInfo> Process::GetSupportedTraceType() {
+  if (!IsLiveDebugSession())
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "Can't trace a non-live process.");
+  return llvm::make_error<UnimplementedError>();
 }
 
 bool Process::CallVoidArgVoidPtrReturn(const Address *address,

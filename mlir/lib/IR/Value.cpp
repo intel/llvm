@@ -8,8 +8,8 @@
 
 #include "mlir/IR/Value.h"
 #include "mlir/IR/Block.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Operation.h"
-#include "mlir/IR/StandardTypes.h"
 #include "llvm/ADT/SmallPtrSet.h"
 
 using namespace mlir;
@@ -63,7 +63,7 @@ void Value::setType(Type newType) {
     return;
   auto newTypes = llvm::to_vector<4>(curTypes);
   newTypes[resultNo] = newType;
-  owner->resultType = TupleType::get(newTypes, newType.getContext());
+  owner->resultType = TupleType::get(newType.getContext(), newTypes);
 }
 
 /// If this value is the result of an Operation, return the operation that

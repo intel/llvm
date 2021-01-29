@@ -167,12 +167,9 @@ public:
   void flush();
 
 private:
-  void mapGlobalInitializer(GlobalVariable &GV, Constant &Init);
   void mapAppendingVariable(GlobalVariable &GV, Constant *InitPrefix,
                             bool IsOldCtorDtor,
                             ArrayRef<Constant *> NewMembers);
-  void mapGlobalIndirectSymbol(GlobalIndirectSymbol &GIS, Constant &Target);
-  void remapFunction(Function &F, ValueToValueMapTy &VM);
 
   ValueToValueMapTy &getVM() { return *MCs[CurrentMCID].VM; }
   ValueMaterializer *getMaterializer() { return MCs[CurrentMCID].Materializer; }
@@ -900,14 +897,13 @@ void Mapper::remapInstruction(Instruction *I) {
     LLVMContext &C = CB->getContext();
     AttributeList Attrs = CB->getAttributes();
     for (unsigned i = 0; i < Attrs.getNumAttrSets(); ++i) {
-      if (Attrs.hasAttribute(i, Attribute::ByVal)) {
-        Type *Ty = Attrs.getAttribute(i, Attribute::ByVal).getValueAsType();
-        if (!Ty)
-          continue;
-
-        Attrs = Attrs.removeAttribute(C, i, Attribute::ByVal);
-        Attrs = Attrs.addAttribute(
-            C, i, Attribute::getWithByValType(C, TypeMapper->remapType(Ty)));
+      for (Attribute::AttrKind TypedAttr :
+           {Attribute::ByVal, Attribute::StructRet, Attribute::ByRef}) {
+        if (Type *Ty = Attrs.getAttribute(i, TypedAttr).getValueAsType()) {
+          Attrs = Attrs.replaceAttributeType(C, i, TypedAttr,
+                                             TypeMapper->remapType(Ty));
+          break;
+        }
       }
     }
     CB->setAttributes(Attrs);

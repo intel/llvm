@@ -335,6 +335,29 @@ PPCTTIImpl::getUserCost(const User *U, ArrayRef<const Value *> Operands,
   return BaseT::getUserCost(U, Operands, CostKind);
 }
 
+// Determining the address of a TLS variable results in a function call in
+// certain TLS models.
+static bool memAddrUsesCTR(const Value *MemAddr, const PPCTargetMachine &TM,
+                           SmallPtrSetImpl<const Value *> &Visited) {
+  // No need to traverse again if we already checked this operand.
+  if (!Visited.insert(MemAddr).second)
+    return false;
+  const auto *GV = dyn_cast<GlobalValue>(MemAddr);
+  if (!GV) {
+    // Recurse to check for constants that refer to TLS global variables.
+    if (const auto *CV = dyn_cast<Constant>(MemAddr))
+      for (const auto &CO : CV->operands())
+        if (memAddrUsesCTR(CO, TM, Visited))
+          return true;
+    return false;
+  }
+
+  if (!GV->isThreadLocal())
+    return false;
+  TLSModel::Model Model = TM.getTLSModel(GV);
+  return Model == TLSModel::GeneralDynamic || Model == TLSModel::LocalDynamic;
+}
+
 bool PPCTTIImpl::mightUseCTR(BasicBlock *BB, TargetLibraryInfo *LibInfo,
                              SmallPtrSetImpl<const Value *> &Visited) {
   const PPCTargetMachine &TM = ST->getTargetMachine();
@@ -351,31 +374,6 @@ bool PPCTTIImpl::mightUseCTR(BasicBlock *BB, TargetLibraryInfo *LibInfo,
             return true;
     }
     return false;
-  };
-
-  // Determining the address of a TLS variable results in a function call in
-  // certain TLS models.
-  std::function<bool(const Value *)> memAddrUsesCTR =
-      [&memAddrUsesCTR, &TM, &Visited](const Value *MemAddr) -> bool {
-    // No need to traverse again if we already checked this operand.
-    if (!Visited.insert(MemAddr).second)
-      return false;
-    const auto *GV = dyn_cast<GlobalValue>(MemAddr);
-    if (!GV) {
-      // Recurse to check for constants that refer to TLS global variables.
-      if (const auto *CV = dyn_cast<Constant>(MemAddr))
-        for (const auto &CO : CV->operands())
-          if (memAddrUsesCTR(CO))
-            return true;
-
-      return false;
-    }
-
-    if (!GV->isThreadLocal())
-      return false;
-    TLSModel::Model Model = TM.getTLSModel(GV);
-    return Model == TLSModel::GeneralDynamic ||
-      Model == TLSModel::LocalDynamic;
   };
 
   auto isLargeIntegerTy = [](bool Is32Bit, Type *Ty) {
@@ -631,6 +629,10 @@ bool PPCTTIImpl::mightUseCTR(BasicBlock *BB, TargetLibraryInfo *LibInfo,
           isLargeIntegerTy(!TM.isPPC64(), CI->getSrcTy()->getScalarType()) ||
           isLargeIntegerTy(!TM.isPPC64(), CI->getDestTy()->getScalarType()))
         return true;
+      if (!ST->isISA3_0() &&
+          (CI->getSrcTy()->getScalarType()->isHalfTy() ||
+           CI->getDestTy()->getScalarType()->isHalfTy()))
+        return true;
     } else if (isLargeIntegerTy(!TM.isPPC64(),
                                 J->getType()->getScalarType()) &&
                (J->getOpcode() == Instruction::UDiv ||
@@ -676,7 +678,7 @@ bool PPCTTIImpl::mightUseCTR(BasicBlock *BB, TargetLibraryInfo *LibInfo,
     }
 
     for (Value *Operand : J->operands())
-      if (memAddrUsesCTR(Operand))
+      if (memAddrUsesCTR(Operand, TM, Visited))
         return true;
   }
 
@@ -733,6 +735,24 @@ bool PPCTTIImpl::isHardwareLoopProfitable(Loop *L, ScalarEvolution &SE,
       if (( TrueIsExit && FalseWeight < TrueWeight) ||
           (!TrueIsExit && FalseWeight > TrueWeight))
         return false;
+    }
+  }
+
+  // If an exit block has a PHI that accesses a TLS variable as one of the
+  // incoming values from the loop, we cannot produce a CTR loop because the
+  // address for that value will be computed in the loop.
+  SmallVector<BasicBlock *, 4> ExitBlocks;
+  L->getExitBlocks(ExitBlocks);
+  for (auto &BB : ExitBlocks) {
+    for (auto &PHI : BB->phis()) {
+      for (int Idx = 0, EndIdx = PHI.getNumIncomingValues(); Idx < EndIdx;
+           Idx++) {
+        const BasicBlock *IncomingBB = PHI.getIncomingBlock(Idx);
+        const Value *IncomingValue = PHI.getIncomingValue(Idx);
+        if (L->contains(IncomingBB) &&
+            memAddrUsesCTR(IncomingValue, TM, Visited))
+          return false;
+      }
     }
   }
 
@@ -978,9 +998,11 @@ int PPCTTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
 }
 
 int PPCTTIImpl::getCmpSelInstrCost(unsigned Opcode, Type *ValTy, Type *CondTy,
+                                   CmpInst::Predicate VecPred,
                                    TTI::TargetCostKind CostKind,
                                    const Instruction *I) {
-  int Cost = BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, CostKind, I);
+  int Cost =
+      BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, VecPred, CostKind, I);
   // TODO: Handle other cost kinds.
   if (CostKind != TTI::TCK_RecipThroughput)
     return Cost;
@@ -1202,4 +1224,52 @@ bool PPCTTIImpl::isLSRCostLess(TargetTransformInfo::LSRCost &C1,
                     C2.NumBaseAdds, C2.ScaleCost, C2.ImmCost, C2.SetupCost);
   else
     return TargetTransformInfoImplBase::isLSRCostLess(C1, C2);
+}
+
+bool PPCTTIImpl::isNumRegsMajorCostOfLSR() {
+  return false;
+}
+
+bool PPCTTIImpl::getTgtMemIntrinsic(IntrinsicInst *Inst,
+                                    MemIntrinsicInfo &Info) {
+  switch (Inst->getIntrinsicID()) {
+  case Intrinsic::ppc_altivec_lvx:
+  case Intrinsic::ppc_altivec_lvxl:
+  case Intrinsic::ppc_altivec_lvebx:
+  case Intrinsic::ppc_altivec_lvehx:
+  case Intrinsic::ppc_altivec_lvewx:
+  case Intrinsic::ppc_vsx_lxvd2x:
+  case Intrinsic::ppc_vsx_lxvw4x:
+  case Intrinsic::ppc_vsx_lxvd2x_be:
+  case Intrinsic::ppc_vsx_lxvw4x_be:
+  case Intrinsic::ppc_vsx_lxvl:
+  case Intrinsic::ppc_vsx_lxvll:
+  case Intrinsic::ppc_vsx_lxvp: {
+    Info.PtrVal = Inst->getArgOperand(0);
+    Info.ReadMem = true;
+    Info.WriteMem = false;
+    return true;
+  }
+  case Intrinsic::ppc_altivec_stvx:
+  case Intrinsic::ppc_altivec_stvxl:
+  case Intrinsic::ppc_altivec_stvebx:
+  case Intrinsic::ppc_altivec_stvehx:
+  case Intrinsic::ppc_altivec_stvewx:
+  case Intrinsic::ppc_vsx_stxvd2x:
+  case Intrinsic::ppc_vsx_stxvw4x:
+  case Intrinsic::ppc_vsx_stxvd2x_be:
+  case Intrinsic::ppc_vsx_stxvw4x_be:
+  case Intrinsic::ppc_vsx_stxvl:
+  case Intrinsic::ppc_vsx_stxvll:
+  case Intrinsic::ppc_vsx_stxvp: {
+    Info.PtrVal = Inst->getArgOperand(1);
+    Info.ReadMem = false;
+    Info.WriteMem = true;
+    return true;
+  }
+  default:
+    break;
+  }
+
+  return false;
 }

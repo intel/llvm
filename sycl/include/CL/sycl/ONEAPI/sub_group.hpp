@@ -109,7 +109,7 @@ struct sub_group {
 
   id_type get_local_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_BuiltInSubgroupLocalInvocationId;
+    return __spirv_SubgroupLocalInvocationId();
 #else
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -127,7 +127,7 @@ struct sub_group {
 
   range_type get_local_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_BuiltInSubgroupSize;
+    return __spirv_SubgroupSize();
 #else
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -136,7 +136,7 @@ struct sub_group {
 
   range_type get_max_local_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_BuiltInSubgroupMaxSize;
+    return __spirv_SubgroupMaxSize();
 #else
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -145,7 +145,7 @@ struct sub_group {
 
   id_type get_group_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_BuiltInSubgroupId;
+    return __spirv_SubgroupId();
 #else
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -163,7 +163,7 @@ struct sub_group {
 
   range_type get_group_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_BuiltInNumSubgroups;
+    return __spirv_NumSubgroups();
 #else
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -191,7 +191,7 @@ struct sub_group {
 
   template <typename T> T shuffle_down(T x, uint32_t delta) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::SubgroupShuffleDown(x, x, delta);
+    return sycl::detail::spirv::SubgroupShuffleDown(x, delta);
 #else
     (void)x;
     (void)delta;
@@ -202,7 +202,7 @@ struct sub_group {
 
   template <typename T> T shuffle_up(T x, uint32_t delta) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::SubgroupShuffleUp(x, x, delta);
+    return sycl::detail::spirv::SubgroupShuffleUp(x, delta);
 #else
     (void)x;
     (void)delta;
@@ -222,52 +222,6 @@ struct sub_group {
 #endif
   }
 
-  /* --- two-input shuffles --- */
-  /* indices in [0 , 2 * sub_group size) */
-
-  template <typename T>
-  __SYCL_DEPRECATED("Two-input sub-group shuffles are deprecated.")
-  T shuffle(T x, T y, id_type local_id) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::SubgroupShuffleDown(
-        x, y, (local_id - get_local_id()).get(0));
-#else
-    (void)x;
-    (void)y;
-    (void)local_id;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif
-  }
-
-  template <typename T>
-  __SYCL_DEPRECATED("Two-input sub-group shuffles are deprecated.")
-  T shuffle_down(T current, T next, uint32_t delta) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::SubgroupShuffleDown(current, next, delta);
-#else
-    (void)current;
-    (void)next;
-    (void)delta;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif
-  }
-
-  template <typename T>
-  __SYCL_DEPRECATED("Two-input sub-group shuffles are deprecated.")
-  T shuffle_up(T previous, T current, uint32_t delta) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::SubgroupShuffleUp(previous, current, delta);
-#else
-    (void)previous;
-    (void)current;
-    (void)delta;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif
-  }
-
   /* --- sub_group load/stores --- */
   /* these can map to SIMD or block read/write hardware where available */
 
@@ -276,7 +230,11 @@ struct sub_group {
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value, T>
   load(const multi_ptr<T, Space> src) const {
 #ifdef __SYCL_DEVICE_ONLY__
+#ifdef __NVPTX__
+    return src.get()[get_local_id()[0]];
+#else
     return sycl::detail::sub_group::load(src);
+#endif // __NVPTX__
 #else
     (void)src;
     throw runtime_error("Sub-groups are not supported on host device.",
@@ -304,7 +262,15 @@ struct sub_group {
       vec<T, N>>
   load(const multi_ptr<T, Space> src) const {
 #ifdef __SYCL_DEVICE_ONLY__
+#ifdef __NVPTX__
+    vec<T, N> res;
+    for (int i = 0; i < N; ++i) {
+      res[i] = *(src.get() + i * get_max_local_range()[0] + get_local_id()[0]);
+    }
+    return res;
+#else
     return sycl::detail::sub_group::load<N, T>(src);
+#endif // __NVPTX__
 #else
     (void)src;
     throw runtime_error("Sub-groups are not supported on host device.",
@@ -337,7 +303,11 @@ struct sub_group {
       vec<T, 1>>
   load(const multi_ptr<T, Space> src) const {
 #ifdef __SYCL_DEVICE_ONLY__
+#ifdef __NVPTX__
+    return src.get()[get_local_id()[0]];
+#else
     return sycl::detail::sub_group::load(src);
+#endif // __NVPTX__
 #else
     (void)src;
     throw runtime_error("Sub-groups are not supported on host device.",
@@ -350,7 +320,11 @@ struct sub_group {
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space> dst, const T &x) const {
 #ifdef __SYCL_DEVICE_ONLY__
+#ifdef __NVPTX__
+    dst.get()[get_local_id()[0]] = x;
+#else
     sycl::detail::sub_group::store(dst, x);
+#endif // __NVPTX__
 #else
     (void)dst;
     (void)x;
@@ -379,7 +353,11 @@ struct sub_group {
       N == 1>
   store(multi_ptr<T, Space> dst, const vec<T, 1> &x) const {
 #ifdef __SYCL_DEVICE_ONLY__
+#ifdef __NVPTX__
+    dst.get()[get_local_id()[0]] = x[0];
+#else
     store<T, Space>(dst, x);
+#endif // __NVPTX__
 #else
     (void)dst;
     (void)x;
@@ -394,7 +372,13 @@ struct sub_group {
       N != 1>
   store(multi_ptr<T, Space> dst, const vec<T, N> &x) const {
 #ifdef __SYCL_DEVICE_ONLY__
+#ifdef __NVPTX__
+    for (int i = 0; i < N; ++i) {
+      *(dst.get() + i * get_max_local_range()[0] + get_local_id()[0]) = x[i];
+    }
+#else
     sycl::detail::sub_group::store(dst, x);
+#endif // __NVPTX__
 #else
     (void)dst;
     (void)x;

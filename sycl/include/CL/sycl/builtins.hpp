@@ -950,8 +950,8 @@ mul24(T x, T y) __NOEXC {
 // half3 cross (half3 p0, half3 p1)
 // half4 cross (half4 p0, half4 p1)
 template <typename T>
-detail::enable_if_t<detail::is_gencrossfloat<T>::value, T> cross(T p0,
-                                                                 T p1) __NOEXC {
+detail::enable_if_t<detail::is_gencross<T>::value, T> cross(T p0,
+                                                            T p1) __NOEXC {
   return __sycl_std::__invoke_cross<T>(p0, p1);
 }
 
@@ -1551,11 +1551,23 @@ extern SYCL_EXTERNAL void __assert_fail(const char *expr, const char *file,
 }
 #elif defined(_WIN32)
 extern "C" {
+// TODO: documented C runtime library APIs must be recognized as
+//       builtins by FE. This includes _dpcomp, _dsign, _dtest,
+//       _fdpcomp, _fdsign, _fdtest, _hypotf, _wassert.
+//       APIs used by STL, such as _Cosh, are undocumented, even though
+//       they are open-sourced. Recognizing them as builtins is not
+//       straightforward currently.
 extern SYCL_EXTERNAL double _Cosh(double x, double y);
+extern SYCL_EXTERNAL int _dpcomp(double x, double y);
+extern SYCL_EXTERNAL int _dsign(double x);
 extern SYCL_EXTERNAL short _Dtest(double *px);
+extern SYCL_EXTERNAL short _dtest(double *px);
 extern SYCL_EXTERNAL short _Exp(double *px, double y, short eoff);
 extern SYCL_EXTERNAL float _FCosh(float x, float y);
+extern SYCL_EXTERNAL int _fdpcomp(float x, float y);
+extern SYCL_EXTERNAL int _fdsign(float x);
 extern SYCL_EXTERNAL short _FDtest(float *px);
+extern SYCL_EXTERNAL short _fdtest(float *px);
 extern SYCL_EXTERNAL short _FExp(float *px, float y, short eoff);
 extern SYCL_EXTERNAL float _FSinh(float x, float y);
 extern SYCL_EXTERNAL double _Sinh(double x, double y);

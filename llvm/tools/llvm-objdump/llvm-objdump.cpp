@@ -29,6 +29,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/ADT/Twine.h"
 #include "llvm/CodeGen/FaultMaps.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/DebugInfo/Symbolize/Symbolize.h"
@@ -101,7 +102,7 @@ static cl::alias AllHeadersShort("x", cl::desc("Alias for --all-headers"),
 static cl::opt<std::string>
     ArchName("arch-name",
              cl::desc("Target arch to disassemble for, "
-                      "see -version for available targets"),
+                      "see --version for available targets"),
              cl::cat(ObjdumpCat));
 
 cl::opt<bool>
@@ -226,13 +227,13 @@ static cl::alias MachOm("m", cl::desc("Alias for --macho"), cl::NotHidden,
                         cl::Grouping, cl::aliasopt(MachOOpt));
 
 cl::opt<std::string> objdump::MCPU(
-    "mcpu", cl::desc("Target a specific cpu type (-mcpu=help for details)"),
+    "mcpu", cl::desc("Target a specific cpu type (--mcpu=help for details)"),
     cl::value_desc("cpu-name"), cl::init(""), cl::cat(ObjdumpCat));
 
-cl::list<std::string> objdump::MAttrs("mattr", cl::CommaSeparated,
-                                      cl::desc("Target specific attributes"),
-                                      cl::value_desc("a1,+a2,-a3,..."),
-                                      cl::cat(ObjdumpCat));
+cl::list<std::string> objdump::MAttrs(
+    "mattr", cl::CommaSeparated,
+    cl::desc("Target specific attributes (--mattr=help for details)"),
+    cl::value_desc("a1,+a2,-a3,..."), cl::cat(ObjdumpCat));
 
 cl::opt<bool> objdump::NoShowRawInsn(
     "no-show-raw-insn",
@@ -274,7 +275,7 @@ static cl::alias PrivateHeadersShort("p",
 cl::list<std::string>
     objdump::FilterSections("section",
                             cl::desc("Operate on the specified sections only. "
-                                     "With -macho dump segment,section"),
+                                     "With --macho dump segment,section"),
                             cl::cat(ObjdumpCat));
 static cl::alias FilterSectionsj("j", cl::desc("Alias for --section"),
                                  cl::NotHidden, cl::Grouping, cl::Prefix,
@@ -303,7 +304,7 @@ static cl::opt<bool> PrintSource(
     cl::desc(
         "Display source inlined with disassembly. Implies disassemble object"),
     cl::cat(ObjdumpCat));
-static cl::alias PrintSourceShort("S", cl::desc("Alias for -source"),
+static cl::alias PrintSourceShort("S", cl::desc("Alias for --source"),
                                   cl::NotHidden, cl::Grouping,
                                   cl::aliasopt(PrintSource));
 
@@ -335,11 +336,11 @@ static cl::alias DynamicSymbolTableShort("T",
                                          cl::NotHidden, cl::Grouping,
                                          cl::aliasopt(DynamicSymbolTable));
 
-cl::opt<std::string> objdump::TripleName(
-    "triple",
-    cl::desc(
-        "Target triple to disassemble for, see -version for available targets"),
-    cl::cat(ObjdumpCat));
+cl::opt<std::string>
+    objdump::TripleName("triple",
+                        cl::desc("Target triple to disassemble for, see "
+                                 "--version for available targets"),
+                        cl::cat(ObjdumpCat));
 
 cl::opt<bool> objdump::UnwindInfo("unwind-info",
                                   cl::desc("Display unwind information"),
@@ -352,6 +353,10 @@ static cl::opt<bool>
     Wide("wide", cl::desc("Ignored for compatibility with GNU objdump"),
          cl::cat(ObjdumpCat));
 static cl::alias WideShort("w", cl::Grouping, cl::aliasopt(Wide));
+
+cl::opt<std::string> objdump::Prefix("prefix",
+                                     cl::desc("Add prefix to absolute paths"),
+                                     cl::cat(ObjdumpCat));
 
 enum DebugVarsFormat {
   DVDisabled,
@@ -444,7 +449,7 @@ std::string objdump::getFileNameForError(const object::Archive::Child &C,
   return "<file index: " + std::to_string(Index) + ">";
 }
 
-void objdump::reportWarning(Twine Message, StringRef File) {
+void objdump::reportWarning(const Twine &Message, StringRef File) {
   // Output order between errs() and outs() matters especially for archive
   // files where the output is per member object.
   outs().flush();
@@ -453,7 +458,7 @@ void objdump::reportWarning(Twine Message, StringRef File) {
 }
 
 LLVM_ATTRIBUTE_NORETURN void objdump::reportError(StringRef File,
-                                                  Twine Message) {
+                                                  const Twine &Message) {
   outs().flush();
   WithColor::error(errs(), ToolName) << "'" << File << "': " << Message << "\n";
   exit(1);
@@ -476,11 +481,11 @@ LLVM_ATTRIBUTE_NORETURN void objdump::reportError(Error E, StringRef FileName,
   exit(1);
 }
 
-static void reportCmdLineWarning(Twine Message) {
+static void reportCmdLineWarning(const Twine &Message) {
   WithColor::warning(errs(), ToolName) << Message << "\n";
 }
 
-LLVM_ATTRIBUTE_NORETURN static void reportCmdLineError(Twine Message) {
+LLVM_ATTRIBUTE_NORETURN static void reportCmdLineError(const Twine &Message) {
   WithColor::error(errs(), ToolName) << Message << "\n";
   exit(1);
 }
@@ -802,19 +807,19 @@ public:
     bool IsASCII = DbgVariables == DVASCII;
     switch (C) {
     case LineChar::RangeStart:
-      return IsASCII ? "^" : u8"\u2548";
+      return IsASCII ? "^" : (const char *)u8"\u2548";
     case LineChar::RangeMid:
-      return IsASCII ? "|" : u8"\u2503";
+      return IsASCII ? "|" : (const char *)u8"\u2503";
     case LineChar::RangeEnd:
-      return IsASCII ? "v" : u8"\u253b";
+      return IsASCII ? "v" : (const char *)u8"\u253b";
     case LineChar::LabelVert:
-      return IsASCII ? "|" : u8"\u2502";
+      return IsASCII ? "|" : (const char *)u8"\u2502";
     case LineChar::LabelCornerNew:
-      return IsASCII ? "/" : u8"\u250c";
+      return IsASCII ? "/" : (const char *)u8"\u250c";
     case LineChar::LabelCornerActive:
-      return IsASCII ? "|" : u8"\u2520";
+      return IsASCII ? "|" : (const char *)u8"\u2520";
     case LineChar::LabelHoriz:
-      return IsASCII ? "-" : u8"\u2500";
+      return IsASCII ? "-" : (const char *)u8"\u2500";
     }
     llvm_unreachable("Unhandled LineChar enum");
   }
@@ -1029,6 +1034,13 @@ void SourcePrinter::printSourceLine(formatted_raw_ostream &OS,
       reportWarning(Warning, ObjectFilename);
       WarnedNoDebugInfo = true;
     }
+  }
+
+  if (!Prefix.empty() && sys::path::is_absolute_gnu(LineInfo.FileName)) {
+    SmallString<128> FilePath;
+    sys::path::append(FilePath, Prefix, LineInfo.FileName);
+
+    LineInfo.FileName = std::string(FilePath);
   }
 
   if (PrintLines)
@@ -1329,13 +1341,21 @@ PrettyPrinter &selectPrettyPrinter(Triple const &Triple) {
 static uint8_t getElfSymbolType(const ObjectFile *Obj, const SymbolRef &Sym) {
   assert(Obj->isELF());
   if (auto *Elf32LEObj = dyn_cast<ELF32LEObjectFile>(Obj))
-    return Elf32LEObj->getSymbol(Sym.getRawDataRefImpl())->getType();
+    return unwrapOrError(Elf32LEObj->getSymbol(Sym.getRawDataRefImpl()),
+                         Obj->getFileName())
+        ->getType();
   if (auto *Elf64LEObj = dyn_cast<ELF64LEObjectFile>(Obj))
-    return Elf64LEObj->getSymbol(Sym.getRawDataRefImpl())->getType();
+    return unwrapOrError(Elf64LEObj->getSymbol(Sym.getRawDataRefImpl()),
+                         Obj->getFileName())
+        ->getType();
   if (auto *Elf32BEObj = dyn_cast<ELF32BEObjectFile>(Obj))
-    return Elf32BEObj->getSymbol(Sym.getRawDataRefImpl())->getType();
+    return unwrapOrError(Elf32BEObj->getSymbol(Sym.getRawDataRefImpl()),
+                         Obj->getFileName())
+        ->getType();
   if (auto *Elf64BEObj = cast<ELF64BEObjectFile>(Obj))
-    return Elf64BEObj->getSymbol(Sym.getRawDataRefImpl())->getType();
+    return unwrapOrError(Elf64BEObj->getSymbol(Sym.getRawDataRefImpl()),
+                         Obj->getFileName())
+        ->getType();
   llvm_unreachable("Unsupported binary format");
 }
 
@@ -1351,7 +1371,9 @@ addDynamicElfSymbols(const ELFObjectFile<ELFT> *Obj,
     // ELFSymbolRef::getAddress() returns size instead of value for common
     // symbols which is not desirable for disassembly output. Overriding.
     if (SymbolType == ELF::STT_COMMON)
-      Address = Obj->getSymbol(Symbol.getRawDataRefImpl())->st_value;
+      Address = unwrapOrError(Obj->getSymbol(Symbol.getRawDataRefImpl()),
+                              Obj->getFileName())
+                    ->st_value;
 
     StringRef Name = unwrapOrError(Symbol.getName(), Obj->getFileName());
     if (Name.empty())
@@ -1737,8 +1759,8 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
   // the output.
   StringSet<> FoundDisasmSymbolSet;
   for (std::pair<const SectionRef, SectionSymbolsTy> &SecSyms : AllSymbols)
-    stable_sort(SecSyms.second);
-  stable_sort(AbsoluteSymbols);
+    llvm::stable_sort(SecSyms.second);
+  llvm::stable_sort(AbsoluteSymbols);
 
   std::unique_ptr<DWARFContext> DICtx;
   LiveVariablePrinter LVP(*Ctx.getRegisterInfo(), *STI);
@@ -1852,23 +1874,6 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
         if (!SegmentName.empty())
           outs() << SegmentName << ",";
         outs() << SectionName << ":\n";
-      }
-
-      if (Obj->isELF() && Obj->getArch() == Triple::amdgcn) {
-        if (Symbols[SI].Type == ELF::STT_AMDGPU_HSA_KERNEL) {
-          // skip amd_kernel_code_t at the begining of kernel symbol (256 bytes)
-          Start += 256;
-        }
-        if (SI == SE - 1 ||
-            Symbols[SI + 1].Type == ELF::STT_AMDGPU_HSA_KERNEL) {
-          // cut trailing zeroes at the end of kernel
-          // cut up to 256 bytes
-          const uint64_t EndAlign = 256;
-          const auto Limit = End - (std::min)(EndAlign, End - Start);
-          while (End > Limit &&
-            *reinterpret_cast<const support::ulittle32_t*>(&Bytes[End - 4]) == 0)
-            End -= 4;
-        }
       }
 
       outs() << '\n';
@@ -2977,6 +2982,10 @@ int main(int argc, char **argv) {
   // Defaults to a.out if no filenames specified.
   if (InputFilenames.empty())
     InputFilenames.push_back("a.out");
+
+  // Removes trailing separators from prefix.
+  while (!Prefix.empty() && sys::path::is_separator(Prefix.back()))
+    Prefix.pop_back();
 
   if (AllHeaders)
     ArchiveHeaders = FileHeaders = PrivateHeaders = Relocations =

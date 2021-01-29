@@ -13,8 +13,10 @@
 
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/ADT/SetVector.h"
+#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/InlineCost.h"
+#include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/DataLayout.h"
@@ -39,12 +41,19 @@ PreservedAnalyses AlwaysInlinerPass::run(Module &M,
   auto GetAssumptionCache = [&](Function &F) -> AssumptionCache & {
     return FAM.getResult<AssumptionAnalysis>(F);
   };
-  InlineFunctionInfo IFI(/*cg=*/nullptr, GetAssumptionCache);
+  auto &PSI = MAM.getResult<ProfileSummaryAnalysis>(M);
 
   SmallSetVector<CallBase *, 16> Calls;
   bool Changed = false;
   SmallVector<Function *, 16> InlinedFunctions;
-  for (Function &F : M)
+  for (Function &F : M) {
+    // When callee coroutine function is inlined into caller coroutine function
+    // before coro-split pass,
+    // coro-early pass can not handle this quiet well.
+    // So we won't inline the coroutine function if it have not been unsplited
+    if (F.isPresplitCoroutine())
+      continue;
+
     if (!F.isDeclaration() && F.hasFnAttribute(Attribute::AlwaysInline) &&
         isInlineViable(F).isSuccess()) {
       Calls.clear();
@@ -67,10 +76,19 @@ PreservedAnalyses AlwaysInlinerPass::run(Module &M,
         emitInlinedInto(ORE, CB->getDebugLoc(), CB->getParent(), F, *Caller,
                         *OIC, false, DEBUG_TYPE);
 
-        InlineResult Res =
-            InlineFunction(*CB, IFI, /*CalleeAAR=*/nullptr, InsertLifetime);
+        InlineFunctionInfo IFI(
+            /*cg=*/nullptr, GetAssumptionCache, &PSI,
+            &FAM.getResult<BlockFrequencyAnalysis>(*(CB->getCaller())),
+            &FAM.getResult<BlockFrequencyAnalysis>(F));
+
+        InlineResult Res = InlineFunction(
+            *CB, IFI, &FAM.getResult<AAManager>(F), InsertLifetime);
         assert(Res.isSuccess() && "unexpected failure to inline");
         (void)Res;
+
+        // Merge the attributes based on the inlining.
+        AttributeFuncs::mergeAttributesForInlining(*Caller, F);
+
         Changed = true;
       }
 
@@ -79,6 +97,7 @@ PreservedAnalyses AlwaysInlinerPass::run(Module &M,
       // invalidation issues while deleting functions.
       InlinedFunctions.push_back(&F);
     }
+  }
 
   // Remove any live functions.
   erase_if(InlinedFunctions, [&](Function *F) {
@@ -170,6 +189,13 @@ InlineCost AlwaysInlinerLegacyPass::getInlineCost(CallBase &CB) {
   // that are viable for inlining.
   if (!Callee)
     return InlineCost::getNever("indirect call");
+
+  // When callee coroutine function is inlined into caller coroutine function
+  // before coro-split pass,
+  // coro-early pass can not handle this quiet well.
+  // So we won't inline the coroutine function if it have not been unsplited
+  if (Callee->isPresplitCoroutine())
+    return InlineCost::getNever("unsplited coroutine call");
 
   // FIXME: We shouldn't even get here for declarations.
   if (Callee->isDeclaration())

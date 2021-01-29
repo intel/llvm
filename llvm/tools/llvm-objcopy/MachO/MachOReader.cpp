@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "MachOReader.h"
-#include "../llvm-objcopy.h"
 #include "Object.h"
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/Object/MachO.h"
@@ -36,7 +35,7 @@ Section constructSectionCommon(SectionType Sec, uint32_t Index) {
   S.Index = Index;
   S.Addr = Sec.addr;
   S.Size = Sec.size;
-  S.Offset = Sec.offset;
+  S.OriginalOffset = Sec.offset;
   S.Align = Sec.align;
   S.RelOff = Sec.reloff;
   S.NReloc = Sec.nreloc;

@@ -1,11 +1,11 @@
-// RUN: not llvm-mc -arch=amdgcn -show-encoding %s | FileCheck --check-prefix=GCN --check-prefix=SICI %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=fiji -show-encoding %s | FileCheck --check-prefix=GCN --check-prefix=VI --check-prefix=GFX89 %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx900 -show-encoding %s | FileCheck --check-prefix=GCN --check-prefix=GFX89 --check-prefix=GFX9 %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx1010 -show-encoding %s | FileCheck --check-prefix=GCN --check-prefix=GFX10 %s
+// RUN: not llvm-mc -arch=amdgcn -show-encoding %s | FileCheck --check-prefix=SICI %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=fiji -show-encoding %s | FileCheck --check-prefix=GFX89 %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx900 -show-encoding %s | FileCheck --check-prefixes=GFX89,GFX9 %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx1010 -show-encoding %s | FileCheck --check-prefix=GFX10 %s
 
-// RUN: not llvm-mc -arch=amdgcn %s 2>&1 | FileCheck --check-prefix=NOSICI --check-prefix=NOSICIVI --implicit-check-not=error: %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=fiji %s 2>&1 | FileCheck --check-prefix=NOVI --check-prefix=NOSICIVI --check-prefix=NOGFX89 --implicit-check-not=error: %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx900 %s 2>&1 | FileCheck --check-prefix=NOGFX9 --check-prefix=NOGFX89 --implicit-check-not=error: %s
+// RUN: not llvm-mc -arch=amdgcn %s 2>&1 | FileCheck --check-prefixes=NOSICI,NOSICIVI --implicit-check-not=error: %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=fiji %s 2>&1 | FileCheck --check-prefixes=NOSICIVI,NOGFX89 --implicit-check-not=error: %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx900 %s 2>&1 | FileCheck --check-prefixes=NOGFX9,NOGFX89 --implicit-check-not=error: %s
 // RUN: not llvm-mc -arch=amdgcn -mcpu=gfx1010 2>&1 %s | FileCheck --check-prefix=GFX10-ERR --implicit-check-not=error: %s
 
 s_mov_b32 s1, s2
@@ -306,12 +306,12 @@ s_cbranch_join s4
 s_cbranch_join 1
 // NOSICI: error: invalid operand for instruction
 // NOGFX89: error: invalid operand for instruction
-// GFX10-ERR: error: invalid operand for instruction
+// GFX10-ERR: error: instruction not supported on this GPU
 
 s_cbranch_join 100
 // NOSICI: error: invalid operand for instruction
 // NOGFX89: error: invalid operand for instruction
-// GFX10-ERR: error: invalid operand for instruction
+// GFX10-ERR: error: instruction not supported on this GPU
 
 s_abs_i32 s1, s2
 // SICI: s_abs_i32 s1, s2 ; encoding: [0x02,0x34,0x81,0xbe]

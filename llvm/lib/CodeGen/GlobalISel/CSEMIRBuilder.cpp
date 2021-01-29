@@ -42,8 +42,14 @@ CSEMIRBuilder::getDominatingInstrForID(FoldingSetNodeID &ID,
   if (MI) {
     CSEInfo->countOpcodeHit(MI->getOpcode());
     auto CurrPos = getInsertPt();
-    if (!dominates(MI, CurrPos))
+    auto MII = MachineBasicBlock::iterator(MI);
+    if (MII == CurrPos) {
+      // Move the insert point ahead of the instruction so any future uses of
+      // this builder will have the def ready.
+      setInsertPt(*CurMBB, std::next(MII));
+    } else if (!dominates(MI, CurrPos)) {
       CurMBB->splice(CurrPos, CurMBB, MI);
+    }
     return MachineInstrBuilder(getMF(), MI);
   }
   return MachineInstrBuilder();
@@ -124,7 +130,7 @@ bool CSEMIRBuilder::checkCopyToDefsPossible(ArrayRef<DstOp> DstOps) {
   if (DstOps.size() == 1)
     return true; // always possible to emit copy to just 1 vreg.
 
-  return std::all_of(DstOps.begin(), DstOps.end(), [](const DstOp &Op) {
+  return llvm::all_of(DstOps, [](const DstOp &Op) {
     DstOp::DstType DT = Op.getDstOpKind();
     return DT == DstOp::DstType::Ty_LLT || DT == DstOp::DstType::Ty_RC;
   });

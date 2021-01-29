@@ -835,6 +835,7 @@ unsigned Decl::getIdentifierNamespaceForKind(Kind DeclKind) {
     case ExternCContext:
     case Decomposition:
     case MSGuid:
+    case TemplateParamObject:
 
     case UsingDirective:
     case BuiltinTemplate:
@@ -970,21 +971,19 @@ bool Decl::AccessDeclContextSanity() const {
   // 5. it's invalid
   // 6. it's a C++0x static_assert.
   // 7. it's a block literal declaration
-  if (isa<TranslationUnitDecl>(this) ||
-      isa<TemplateTypeParmDecl>(this) ||
-      isa<NonTypeTemplateParmDecl>(this) ||
-      !getDeclContext() ||
-      !isa<CXXRecordDecl>(getDeclContext()) ||
-      isInvalidDecl() ||
-      isa<StaticAssertDecl>(this) ||
-      isa<BlockDecl>(this) ||
+  // 8. it's a temporary with lifetime extended due to being default value.
+  if (isa<TranslationUnitDecl>(this) || isa<TemplateTypeParmDecl>(this) ||
+      isa<NonTypeTemplateParmDecl>(this) || !getDeclContext() ||
+      !isa<CXXRecordDecl>(getDeclContext()) || isInvalidDecl() ||
+      isa<StaticAssertDecl>(this) || isa<BlockDecl>(this) ||
       // FIXME: a ParmVarDecl can have ClassTemplateSpecialization
       // as DeclContext (?).
       isa<ParmVarDecl>(this) ||
       // FIXME: a ClassTemplateSpecialization or CXXRecordDecl can have
       // AS_none as access specifier.
       isa<CXXRecordDecl>(this) ||
-      isa<ClassScopeFunctionSpecializationDecl>(this))
+      isa<ClassScopeFunctionSpecializationDecl>(this) ||
+      isa<LifetimeExtendedTemporaryDecl>(this))
     return true;
 
   assert(Access != AS_none &&
@@ -2027,9 +2026,9 @@ DependentDiagnostic *DependentDiagnostic::Create(ASTContext &C,
 
   // Allocate the copy of the PartialDiagnostic via the ASTContext's
   // BumpPtrAllocator, rather than the ASTContext itself.
-  PartialDiagnostic::Storage *DiagStorage = nullptr;
+  DiagnosticStorage *DiagStorage = nullptr;
   if (PDiag.hasStorage())
-    DiagStorage = new (C) PartialDiagnostic::Storage;
+    DiagStorage = new (C) DiagnosticStorage;
 
   auto *DD = new (C) DependentDiagnostic(PDiag, DiagStorage);
 

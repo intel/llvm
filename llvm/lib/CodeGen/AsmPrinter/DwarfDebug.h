@@ -375,6 +375,12 @@ class DwarfDebug : public DebugHandlerBase {
   /// Emit a .debug_macro section instead of .debug_macinfo.
   bool UseDebugMacroSection;
 
+  /// Avoid using DW_OP_convert due to consumer incompatibilities.
+  bool EnableOpConvert;
+
+  /// Force the use of DW_AT_ranges even for single-entry range lists.
+  bool AlwaysUseRanges = false;
+
   /// DWARF5 Experimental Options
   /// @{
   AccelTableKind TheAccelTableKind;
@@ -621,13 +627,13 @@ public:
   //===--------------------------------------------------------------------===//
   // Main entry points.
   //
-  DwarfDebug(AsmPrinter *A, Module *M);
+  DwarfDebug(AsmPrinter *A);
 
   ~DwarfDebug() override;
 
   /// Emit all Dwarf sections that should come prior to the
   /// content.
-  void beginModule();
+  void beginModule(Module *M) override;
 
   /// Emit all Dwarf sections that should come after the content.
   void endModule() override;
@@ -686,6 +692,10 @@ public:
   /// Returns whether ranges section should be emitted.
   bool useRangesSection() const { return UseRangesSection; }
 
+  /// Returns whether range encodings should be used for single entry range
+  /// lists.
+  bool alwaysUseRanges() const { return AlwaysUseRanges; }
+
   /// Returns whether to use sections as labels rather than temp symbols.
   bool useSectionsAsReferences() const {
     return UseSectionsAsReferences;
@@ -722,6 +732,10 @@ public:
 
   bool emitDebugEntryValues() const {
     return EmitDebugEntryValues;
+  }
+
+  bool useOpConvert() const {
+    return EnableOpConvert;
   }
 
   bool shareAcrossDWOCUs() const;
@@ -780,8 +794,7 @@ public:
   }
 
   unsigned getStringTypeLoc(const DIStringType *ST) const {
-    auto I = StringTypeLocMap.find(ST);
-    return I != StringTypeLocMap.end() ? I->second : 0;
+    return StringTypeLocMap.lookup(ST);
   }
 
   void addStringTypeLoc(const DIStringType *ST, unsigned Loc) {
@@ -799,7 +812,6 @@ public:
   bool tuneForSCE() const { return DebuggerTuning == DebuggerKind::SCE; }
   /// @}
 
-  void addSectionLabel(const MCSymbol *Sym);
   const MCSymbol *getSectionLabel(const MCSection *S);
   void insertSectionLabel(const MCSymbol *S);
 

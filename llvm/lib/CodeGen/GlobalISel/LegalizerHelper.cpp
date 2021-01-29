@@ -91,17 +91,14 @@ LegalizerHelper::LegalizerHelper(MachineFunction &MF,
                                  MachineIRBuilder &Builder)
     : MIRBuilder(Builder), Observer(Observer), MRI(MF.getRegInfo()),
       LI(*MF.getSubtarget().getLegalizerInfo()),
-      TLI(*MF.getSubtarget().getTargetLowering()) {
-  MIRBuilder.setChangeObserver(Observer);
-}
+      TLI(*MF.getSubtarget().getTargetLowering()) { }
 
 LegalizerHelper::LegalizerHelper(MachineFunction &MF, const LegalizerInfo &LI,
                                  GISelChangeObserver &Observer,
                                  MachineIRBuilder &B)
   : MIRBuilder(B), Observer(Observer), MRI(MF.getRegInfo()), LI(LI),
-    TLI(*MF.getSubtarget().getTargetLowering()) {
-  MIRBuilder.setChangeObserver(Observer);
-}
+    TLI(*MF.getSubtarget().getTargetLowering()) { }
+
 LegalizerHelper::LegalizeResult
 LegalizerHelper::legalizeInstrStep(MachineInstr &MI) {
   LLVM_DEBUG(dbgs() << "Legalizing: " << MI);
@@ -962,10 +959,15 @@ LegalizerHelper::LegalizeResult LegalizerHelper::narrowScalar(MachineInstr &MI,
 
     Register TmpReg = MRI.createGenericVirtualRegister(NarrowTy);
     auto &MMO = **MI.memoperands_begin();
-    if (MMO.getSizeInBits() == NarrowSize) {
+    unsigned MemSize = MMO.getSizeInBits();
+
+    if (MemSize == NarrowSize) {
       MIRBuilder.buildLoad(TmpReg, PtrReg, MMO);
-    } else {
+    } else if (MemSize < NarrowSize) {
       MIRBuilder.buildLoadInstr(MI.getOpcode(), TmpReg, PtrReg, MMO);
+    } else if (MemSize > NarrowSize) {
+      // FIXME: Need to split the load.
+      return UnableToLegalize;
     }
 
     if (ZExt)
@@ -1605,35 +1607,60 @@ LegalizerHelper::widenScalarUnmergeValues(MachineInstr &MI, unsigned TypeIdx,
 
   auto Unmerge = MIRBuilder.buildUnmerge(WideTy, WideSrc);
 
-  // Create a sequence of unmerges to the original results. since we may have
-  // widened the source, we will need to pad the results with dead defs to cover
-  // the source register.
-  // e.g. widen s16 to s32:
-  // %1:_(s16), %2:_(s16), %3:_(s16) = G_UNMERGE_VALUES %0:_(s48)
+  // Create a sequence of unmerges and merges to the original results. Since we
+  // may have widened the source, we will need to pad the results with dead defs
+  // to cover the source register.
+  // e.g. widen s48 to s64:
+  // %1:_(s48), %2:_(s48) = G_UNMERGE_VALUES %0:_(s96)
   //
   // =>
-  //  %4:_(s64) = G_ANYEXT %0:_(s48)
-  //  %5:_(s32), %6:_(s32) = G_UNMERGE_VALUES %4 ; Requested unmerge
-  //  %1:_(s16), %2:_(s16) = G_UNMERGE_VALUES %5 ; unpack to original regs
-  //  %3:_(s16), dead %7 = G_UNMERGE_VALUES %6 ; original reg + extra dead def
-
+  //  %4:_(s192) = G_ANYEXT %0:_(s96)
+  //  %5:_(s64), %6, %7 = G_UNMERGE_VALUES %4 ; Requested unmerge
+  //  ; unpack to GCD type, with extra dead defs
+  //  %8:_(s16), %9, %10, %11 = G_UNMERGE_VALUES %5:_(s64)
+  //  %12:_(s16), %13, dead %14, dead %15 = G_UNMERGE_VALUES %6:_(s64)
+  //  dead %16:_(s16), dead %17, dead %18, dead %18 = G_UNMERGE_VALUES %7:_(s64)
+  //  %1:_(s48) = G_MERGE_VALUES %8:_(s16), %9, %10   ; Remerge to destination
+  //  %2:_(s48) = G_MERGE_VALUES %11:_(s16), %12, %13 ; Remerge to destination
+  const LLT GCDTy = getGCDType(WideTy, DstTy);
   const int NumUnmerge = Unmerge->getNumOperands() - 1;
-  const int PartsPerUnmerge = WideTy.getSizeInBits() / DstTy.getSizeInBits();
+  const int PartsPerRemerge = DstTy.getSizeInBits() / GCDTy.getSizeInBits();
 
-  for (int I = 0; I != NumUnmerge; ++I) {
-    auto MIB = MIRBuilder.buildInstr(TargetOpcode::G_UNMERGE_VALUES);
+  // Directly unmerge to the destination without going through a GCD type
+  // if possible
+  if (PartsPerRemerge == 1) {
+    const int PartsPerUnmerge = WideTy.getSizeInBits() / DstTy.getSizeInBits();
 
-    for (int J = 0; J != PartsPerUnmerge; ++J) {
-      int Idx = I * PartsPerUnmerge + J;
-      if (Idx < NumDst)
-        MIB.addDef(MI.getOperand(Idx).getReg());
-      else {
-        // Create dead def for excess components.
-        MIB.addDef(MRI.createGenericVirtualRegister(DstTy));
+    for (int I = 0; I != NumUnmerge; ++I) {
+      auto MIB = MIRBuilder.buildInstr(TargetOpcode::G_UNMERGE_VALUES);
+
+      for (int J = 0; J != PartsPerUnmerge; ++J) {
+        int Idx = I * PartsPerUnmerge + J;
+        if (Idx < NumDst)
+          MIB.addDef(MI.getOperand(Idx).getReg());
+        else {
+          // Create dead def for excess components.
+          MIB.addDef(MRI.createGenericVirtualRegister(DstTy));
+        }
       }
-    }
 
-    MIB.addUse(Unmerge.getReg(I));
+      MIB.addUse(Unmerge.getReg(I));
+    }
+  } else {
+    SmallVector<Register, 16> Parts;
+    for (int J = 0; J != NumUnmerge; ++J)
+      extractGCDType(Parts, GCDTy, Unmerge.getReg(J));
+
+    SmallVector<Register, 8> RemergeParts;
+    for (int I = 0; I != NumDst; ++I) {
+      for (int J = 0; J < PartsPerRemerge; ++J) {
+        const int Idx = I * PartsPerRemerge + J;
+        RemergeParts.emplace_back(Parts[Idx]);
+      }
+
+      MIRBuilder.buildMerge(MI.getOperand(I).getReg(), RemergeParts);
+      RemergeParts.clear();
+    }
   }
 
   MI.eraseFromParent();
@@ -1787,6 +1814,26 @@ LegalizerHelper::widenScalar(MachineInstr &MI, unsigned TypeIdx, LLT WideTy) {
     return widenScalarMergeValues(MI, TypeIdx, WideTy);
   case TargetOpcode::G_UNMERGE_VALUES:
     return widenScalarUnmergeValues(MI, TypeIdx, WideTy);
+  case TargetOpcode::G_SADDO:
+  case TargetOpcode::G_SSUBO: {
+    if (TypeIdx == 1)
+      return UnableToLegalize; // TODO
+    auto LHSExt = MIRBuilder.buildSExt(WideTy, MI.getOperand(2));
+    auto RHSExt = MIRBuilder.buildSExt(WideTy, MI.getOperand(3));
+    unsigned Opcode = MI.getOpcode() == TargetOpcode::G_SADDO
+                          ? TargetOpcode::G_ADD
+                          : TargetOpcode::G_SUB;
+    auto NewOp = MIRBuilder.buildInstr(Opcode, {WideTy}, {LHSExt, RHSExt});
+    LLT OrigTy = MRI.getType(MI.getOperand(0).getReg());
+    auto TruncOp = MIRBuilder.buildTrunc(OrigTy, NewOp);
+    auto ExtOp = MIRBuilder.buildSExt(WideTy, TruncOp);
+    // There is no overflow if the re-extended result is the same as NewOp.
+    MIRBuilder.buildICmp(CmpInst::ICMP_NE, MI.getOperand(1), NewOp, ExtOp);
+    // Now trunc the NewOp to the original result.
+    MIRBuilder.buildTrunc(MI.getOperand(0), NewOp);
+    MI.eraseFromParent();
+    return Legalized;
+  }
   case TargetOpcode::G_UADDO:
   case TargetOpcode::G_USUBO: {
     if (TypeIdx == 1)
@@ -2867,10 +2914,11 @@ LegalizerHelper::lower(MachineInstr &MI, unsigned TypeIdx, LLT LowerHintTy) {
     MI.RemoveOperand(1);
     Observer.changedInstr(MI);
 
-    MIRBuilder.setInsertPt(MIRBuilder.getMBB(), ++MIRBuilder.getInsertPt());
-
     auto HiPart = MIRBuilder.buildInstr(Opcode, {Ty}, {LHS, RHS});
     auto Zero = MIRBuilder.buildConstant(Ty, 0);
+
+    // Move insert point forward so we can use the Res register if needed.
+    MIRBuilder.setInsertPt(MIRBuilder.getMBB(), ++MIRBuilder.getInsertPt());
 
     // For *signed* multiply, overflow is detected by checking:
     // (hi != (lo >> bitwidth-1))
@@ -6047,7 +6095,7 @@ LegalizerHelper::lowerShlSat(MachineInstr &MI) {
   } else {
     SatVal = MIRBuilder.buildConstant(Ty, APInt::getMaxValue(BW));
   }
-  auto Ov = MIRBuilder.buildICmp(CmpInst::ICMP_NE, Ty, LHS, Orig);
+  auto Ov = MIRBuilder.buildICmp(CmpInst::ICMP_NE, BoolTy, LHS, Orig);
   MIRBuilder.buildSelect(Res, Ov, SatVal, Result);
 
   MI.eraseFromParent();
@@ -6191,8 +6239,23 @@ LegalizerHelper::LegalizeResult LegalizerHelper::lowerSelect(MachineInstr &MI) {
   if (!DstTy.isVector())
     return UnableToLegalize;
 
-  if (MaskTy.getSizeInBits() != Op1Ty.getSizeInBits())
+  // Vector selects can have a scalar predicate. If so, splat into a vector and
+  // finish for later legalization attempts to try again.
+  if (MaskTy.isScalar()) {
+    Register MaskElt = MaskReg;
+    if (MaskTy.getSizeInBits() < DstTy.getScalarSizeInBits())
+      MaskElt = MIRBuilder.buildSExt(DstTy.getElementType(), MaskElt).getReg(0);
+    // Generate a vector splat idiom to be pattern matched later.
+    auto ShufSplat = MIRBuilder.buildShuffleSplat(DstTy, MaskElt);
+    Observer.changingInstr(MI);
+    MI.getOperand(1).setReg(ShufSplat.getReg(0));
+    Observer.changedInstr(MI);
+    return Legalized;
+  }
+
+  if (MaskTy.getSizeInBits() != Op1Ty.getSizeInBits()) {
     return UnableToLegalize;
+  }
 
   auto NotMask = MIRBuilder.buildNot(MaskTy, MaskReg);
   auto NewOp1 = MIRBuilder.buildAnd(MaskTy, Op1Reg, MaskReg);

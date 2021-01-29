@@ -3,9 +3,7 @@
 // CHECK-DAG: #[[$map0:.*]] = affine_map<(d0)[s0] -> (d0 + s0)>
 // CHECK-DAG: #[[$map1:.*]] = affine_map<(d0, d1, d2)[s0, s1, s2] -> (d0 * s1 + s0 + d1 * s2 + d2)>
 // CHECK-DAG: #[[$map2:.*]] = affine_map<(d0, d1, d2)[s0, s1, s2] -> (d0 * s1 + s0 + d2 * s2 + d1)>
-// CHECK-DAG: #[[$map3:.*]] = affine_map<(d0, d1, d2) -> (d0, d2, d1)>
 // CHECK-DAG: #[[$map4:.*]] = affine_map<(d0, d1, d2)[s0, s1, s2] -> (d2 * s1 + s0 + d1 * s2 + d0)>
-// CHECK-DAG: #[[$map5:.*]] = affine_map<(d0, d1, d2) -> (d2, d1, d0)>
 // CHECK-DAG: #[[$map6:.*]] = affine_map<(d0)[s0, s1] -> (d0 * s1 + s0)>
 // CHECK-DAG: #[[$map7:.*]] = affine_map<()[s0] -> (s0)>
 // CHECK-DAG: #[[$map8:.*]] = affine_map<(d0, d1, d2)[s0, s1, s2, s3] -> (d0 * s1 + s0 + d1 * s2 + d2 * s3)>
@@ -55,9 +53,9 @@ func @copy_transpose(%arg0: memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>, %a
 // CHECK-LABEL: func @copy_transpose(
 //  CHECK-SAME: %[[arg0:[a-zA-z0-9]*]]: memref<?x?x?xf32, #[[$map1]]>,
 //  CHECK-SAME: %[[arg1:[a-zA-z0-9]*]]: memref<?x?x?xf32, #[[$map1]]>) {
-//       CHECK:   %[[t0:.*]] = linalg.transpose %[[arg0]]
+//       CHECK:   %[[t0:.*]] = transpose %[[arg0]]
 //  CHECK-SAME:     (d0, d1, d2) -> (d0, d2, d1) : memref<?x?x?xf32, #[[$map1]]>
-//       CHECK:   %[[t1:.*]] = linalg.transpose %[[arg1]]
+//       CHECK:   %[[t1:.*]] = transpose %[[arg1]]
 //  CHECK-SAME:     (d0, d1, d2) -> (d2, d1, d0) : memref<?x?x?xf32, #[[$map1]]>
 //       CHECK:   %[[o0:.*]] = memref_cast %[[t0]] :
 //  CHECK-SAME:     memref<?x?x?xf32, #[[$map2]]> to memref<?x?x?xf32, #[[$map8]]>

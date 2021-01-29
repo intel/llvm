@@ -56,7 +56,7 @@ instance, setting new values and rebuilding it via
 `sc0.get()` and  `sc1.get()` within thhe device code with the corresponding
 constant values (`sc_vals[i][0]` and `sc_vals[i][1]`). Full runnable example
 can be found on
-[github](https://github.com/intel/llvm/blob/sycl/sycl/test/spec_const/spec_const_redefine.cpp).
+[github](https://github.com/intel/llvm/blob/sycl/sycl/test/on-device/spec_const/spec_const_redefine.cpp).
 
 Specialization constants can be used in programs compiled Ahead-Of-Time, in this
 case a specialization constant takes default value for its type (as specified by

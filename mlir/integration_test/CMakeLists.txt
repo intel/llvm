@@ -28,3 +28,8 @@ add_dependencies(check-mlir check-mlir-integration)
 add_lit_testsuites(MLIR_INTEGRATION ${CMAKE_CURRENT_SOURCE_DIR}
   DEPENDS ${MLIR_INTEGRATION_TEST_DEPENDS}
   )
+
+# Copy test data over.
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data/test.mtx
+          ${CMAKE_CURRENT_SOURCE_DIR}/data/test.tns
+        DESTINATION ${MLIR_INTEGRATION_TEST_DIR}/data/)

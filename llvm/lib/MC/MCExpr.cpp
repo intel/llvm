@@ -85,8 +85,13 @@ void MCExpr::print(raw_ostream &OS, const MCAsmInfo *MAI, bool InParens) const {
     } else
       Sym.print(OS, MAI);
 
-    if (SRE.getKind() != MCSymbolRefExpr::VK_None)
-      SRE.printVariantKind(OS);
+    const MCSymbolRefExpr::VariantKind Kind = SRE.getKind();
+    if (Kind != MCSymbolRefExpr::VK_None) {
+      if (MAI && MAI->useParensForSymbolVariant()) // ARM
+        OS << '(' << MCSymbolRefExpr::getVariantKindName(Kind) << ')';
+      else
+        OS << '@' << MCSymbolRefExpr::getVariantKindName(Kind);
+    }
 
     return;
   }
@@ -197,8 +202,7 @@ const MCConstantExpr *MCConstantExpr::create(int64_t Value, MCContext &Ctx,
 MCSymbolRefExpr::MCSymbolRefExpr(const MCSymbol *Symbol, VariantKind Kind,
                                  const MCAsmInfo *MAI, SMLoc Loc)
     : MCExpr(MCExpr::SymbolRef, Loc,
-             encodeSubclassData(Kind, MAI->useParensForSymbolVariant(),
-                                MAI->hasSubsectionsViaSymbols())),
+             encodeSubclassData(Kind, MAI->hasSubsectionsViaSymbols())),
       Symbol(Symbol) {
   assert(Symbol);
 }
@@ -249,6 +253,7 @@ StringRef MCSymbolRefExpr::getVariantKindName(VariantKind Kind) {
   case VK_SIZE: return "SIZE";
   case VK_WEAKREF: return "WEAKREF";
   case VK_X86_ABS8: return "ABS8";
+  case VK_X86_PLTOFF: return "PLTOFF";
   case VK_ARM_NONE: return "none";
   case VK_ARM_GOT_PREL: return "GOT_PREL";
   case VK_ARM_TARGET1: return "target1";
@@ -346,6 +351,7 @@ StringRef MCSymbolRefExpr::getVariantKindName(VariantKind Kind) {
   case VK_Hexagon_IE_GOT: return "IEGOT";
   case VK_WASM_TYPEINDEX: return "TYPEINDEX";
   case VK_WASM_MBREL: return "MBREL";
+  case VK_WASM_TLSREL: return "TLSREL";
   case VK_WASM_TBREL: return "TBREL";
   case VK_AMDGPU_GOTPCREL32_LO: return "gotpcrel32@lo";
   case VK_AMDGPU_GOTPCREL32_HI: return "gotpcrel32@hi";
@@ -405,6 +411,7 @@ MCSymbolRefExpr::getVariantKindForName(StringRef Name) {
     .Case("secrel32", VK_SECREL)
     .Case("size", VK_SIZE)
     .Case("abs8", VK_X86_ABS8)
+    .Case("pltoff", VK_X86_PLTOFF)
     .Case("l", VK_PPC_LO)
     .Case("h", VK_PPC_HI)
     .Case("ha", VK_PPC_HA)
@@ -486,6 +493,7 @@ MCSymbolRefExpr::getVariantKindForName(StringRef Name) {
     .Case("typeindex", VK_WASM_TYPEINDEX)
     .Case("tbrel", VK_WASM_TBREL)
     .Case("mbrel", VK_WASM_MBREL)
+    .Case("tlsrel", VK_WASM_TLSREL)
     .Case("gotpcrel32@lo", VK_AMDGPU_GOTPCREL32_LO)
     .Case("gotpcrel32@hi", VK_AMDGPU_GOTPCREL32_HI)
     .Case("rel32@lo", VK_AMDGPU_REL32_LO)
@@ -508,13 +516,6 @@ MCSymbolRefExpr::getVariantKindForName(StringRef Name) {
     .Case("tpoff_hi", VK_VE_TPOFF_HI32)
     .Case("tpoff_lo", VK_VE_TPOFF_LO32)
     .Default(VK_Invalid);
-}
-
-void MCSymbolRefExpr::printVariantKind(raw_ostream &OS) const {
-  if (useParensForSymbolVariant())
-    OS << '(' << MCSymbolRefExpr::getVariantKindName(getKind()) << ')';
-  else
-    OS << '@' << MCSymbolRefExpr::getVariantKindName(getKind());
 }
 
 /* *** */
@@ -803,13 +804,30 @@ bool MCExpr::evaluateAsRelocatableImpl(MCValue &Res, const MCAssembler *Asm,
   case SymbolRef: {
     const MCSymbolRefExpr *SRE = cast<MCSymbolRefExpr>(this);
     const MCSymbol &Sym = SRE->getSymbol();
+    const auto Kind = SRE->getKind();
 
     // Evaluate recursively if this is a variable.
-    if (Sym.isVariable() && SRE->getKind() == MCSymbolRefExpr::VK_None &&
+    if (Sym.isVariable() && (Kind == MCSymbolRefExpr::VK_None || Layout) &&
         canExpand(Sym, InSet)) {
       bool IsMachO = SRE->hasSubsectionsViaSymbols();
       if (Sym.getVariableValue()->evaluateAsRelocatableImpl(
               Res, Asm, Layout, Fixup, Addrs, InSet || IsMachO)) {
+        if (Kind != MCSymbolRefExpr::VK_None) {
+          if (Res.isAbsolute()) {
+            Res = MCValue::get(SRE, nullptr, 0);
+            return true;
+          }
+          // If the reference has a variant kind, we can only handle expressions
+          // which evaluate exactly to a single unadorned symbol. Attach the
+          // original VariantKind to SymA of the result.
+          if (Res.getRefKind() != MCSymbolRefExpr::VK_None || !Res.getSymA() ||
+              Res.getSymB() || Res.getConstant())
+            return false;
+          Res =
+              MCValue::get(MCSymbolRefExpr::create(&Res.getSymA()->getSymbol(),
+                                                   Kind, Asm->getContext()),
+                           Res.getSymB(), Res.getConstant(), Res.getRefKind());
+        }
         if (!IsMachO)
           return true;
 

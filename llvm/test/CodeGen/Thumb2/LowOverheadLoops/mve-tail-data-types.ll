@@ -69,7 +69,7 @@ vector.body:                                      ; preds = %vector.body, %vecto
 
 middle.block:                                     ; preds = %vector.body
   %7 = select <4 x i1> %1, <4 x i32> %5, <4 x i32> %vec.phi
-  %8 = call i32 @llvm.experimental.vector.reduce.add.v4i32(<4 x i32> %7)
+  %8 = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %7)
   br label %for.cond.cleanup
 
 for.cond.cleanup:                                 ; preds = %middle.block, %entry
@@ -145,7 +145,7 @@ vector.body:                                      ; preds = %vector.body, %vecto
 
 middle.block:                                     ; preds = %vector.body
   %7 = select <4 x i1> %1, <4 x i32> %5, <4 x i32> %vec.phi
-  %8 = call i32 @llvm.experimental.vector.reduce.add.v4i32(<4 x i32> %7)
+  %8 = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %7)
   br label %for.cond.cleanup
 
 for.cond.cleanup:                                 ; preds = %middle.block, %entry
@@ -221,7 +221,7 @@ vector.body:                                      ; preds = %vector.body, %vecto
 
 middle.block:                                     ; preds = %vector.body
   %7 = select <4 x i1> %1, <4 x i32> %5, <4 x i32> %vec.phi
-  %8 = call i32 @llvm.experimental.vector.reduce.add.v4i32(<4 x i32> %7)
+  %8 = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %7)
   br label %for.cond.cleanup
 
 for.cond.cleanup:                                 ; preds = %middle.block, %entry
@@ -297,7 +297,7 @@ vector.body:                                      ; preds = %vector.body, %vecto
 
 middle.block:                                     ; preds = %vector.body
   %7 = select <4 x i1> %1, <4 x i32> %5, <4 x i32> %vec.phi
-  %8 = call i32 @llvm.experimental.vector.reduce.add.v4i32(<4 x i32> %7)
+  %8 = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %7)
   br label %for.cond.cleanup
 
 for.cond.cleanup:                                 ; preds = %middle.block, %entry
@@ -371,7 +371,7 @@ vector.body:                                      ; preds = %vector.body, %vecto
 
 middle.block:                                     ; preds = %vector.body
   %6 = select <4 x i1> %1, <4 x i32> %4, <4 x i32> %vec.phi
-  %7 = call i32 @llvm.experimental.vector.reduce.add.v4i32(<4 x i32> %6)
+  %7 = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %6)
   br label %for.cond.cleanup
 
 for.cond.cleanup:                                 ; preds = %middle.block, %entry
@@ -387,38 +387,37 @@ define arm_aapcs_vfpcc void @test_vec_mul_scalar_add_char(i8* nocapture readonly
 ; CHECK-NEXT:    cmp.w r12, #0
 ; CHECK-NEXT:    beq.w .LBB5_11
 ; CHECK-NEXT:  @ %bb.1: @ %for.body.lr.ph
-; CHECK-NEXT:    add.w r6, r3, r12, lsl #2
-; CHECK-NEXT:    add.w r4, r1, r12
-; CHECK-NEXT:    cmp r6, r1
-; CHECK-NEXT:    add.w r5, r0, r12
+; CHECK-NEXT:    add.w r4, r3, r12, lsl #2
+; CHECK-NEXT:    add.w r5, r1, r12
+; CHECK-NEXT:    cmp r4, r1
+; CHECK-NEXT:    add.w r6, r0, r12
 ; CHECK-NEXT:    cset lr, hi
-; CHECK-NEXT:    cmp r4, r3
-; CHECK-NEXT:    cset r4, hi
-; CHECK-NEXT:    cmp r6, r0
-; CHECK-NEXT:    cset r6, hi
 ; CHECK-NEXT:    cmp r5, r3
 ; CHECK-NEXT:    cset r5, hi
-; CHECK-NEXT:    ands r5, r6
-; CHECK-NEXT:    movs r6, #1
-; CHECK-NEXT:    lsls r5, r5, #31
+; CHECK-NEXT:    cmp r4, r0
+; CHECK-NEXT:    cset r4, hi
+; CHECK-NEXT:    cmp r6, r3
+; CHECK-NEXT:    cset r6, hi
+; CHECK-NEXT:    ands r4, r6
+; CHECK-NEXT:    lsls r4, r4, #31
 ; CHECK-NEXT:    itt eq
-; CHECK-NEXT:    andeq.w r5, r4, lr
-; CHECK-NEXT:    lslseq.w r5, r5, #31
+; CHECK-NEXT:    andeq.w r6, r5, lr
+; CHECK-NEXT:    lslseq.w r6, r6, #31
 ; CHECK-NEXT:    beq .LBB5_4
 ; CHECK-NEXT:  @ %bb.2: @ %for.body.preheader
-; CHECK-NEXT:    sub.w r5, r12, #1
+; CHECK-NEXT:    sub.w r6, r12, #1
 ; CHECK-NEXT:    and r9, r12, #3
-; CHECK-NEXT:    cmp r5, #3
+; CHECK-NEXT:    cmp r6, #3
 ; CHECK-NEXT:    bhs .LBB5_6
 ; CHECK-NEXT:  @ %bb.3:
 ; CHECK-NEXT:    mov.w r12, #0
 ; CHECK-NEXT:    b .LBB5_8
 ; CHECK-NEXT:  .LBB5_4: @ %vector.ph
-; CHECK-NEXT:    movs r4, #0
+; CHECK-NEXT:    movs r6, #0
 ; CHECK-NEXT:    dlstp.32 lr, r12
 ; CHECK-NEXT:  .LBB5_5: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    adds r4, #4
+; CHECK-NEXT:    adds r6, #4
 ; CHECK-NEXT:    vldrb.u32 q0, [r0], #4
 ; CHECK-NEXT:    vldrb.u32 q1, [r1], #4
 ; CHECK-NEXT:    vmlas.u32 q1, q0, r2
@@ -426,14 +425,15 @@ define arm_aapcs_vfpcc void @test_vec_mul_scalar_add_char(i8* nocapture readonly
 ; CHECK-NEXT:    letp lr, .LBB5_5
 ; CHECK-NEXT:    b .LBB5_11
 ; CHECK-NEXT:  .LBB5_6: @ %for.body.preheader.new
-; CHECK-NEXT:    bic r5, r12, #3
+; CHECK-NEXT:    bic r6, r12, #3
+; CHECK-NEXT:    movs r5, #1
+; CHECK-NEXT:    subs r6, #4
 ; CHECK-NEXT:    add.w r4, r3, #8
-; CHECK-NEXT:    subs r5, #4
 ; CHECK-NEXT:    mov.w r12, #0
-; CHECK-NEXT:    add.w lr, r6, r5, lsr #2
+; CHECK-NEXT:    add.w lr, r5, r6, lsr #2
 ; CHECK-NEXT:    adds r5, r0, #3
-; CHECK-NEXT:    adds r6, r1, #1
 ; CHECK-NEXT:    dls lr, lr
+; CHECK-NEXT:    adds r6, r1, #1
 ; CHECK-NEXT:  .LBB5_7: @ %for.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    ldrb r8, [r5, #-3]
@@ -689,38 +689,37 @@ define arm_aapcs_vfpcc void @test_vec_mul_scalar_add_uchar(i8* nocapture readonl
 ; CHECK-NEXT:    cmp.w r12, #0
 ; CHECK-NEXT:    beq.w .LBB7_11
 ; CHECK-NEXT:  @ %bb.1: @ %for.body.lr.ph
-; CHECK-NEXT:    add.w r6, r3, r12, lsl #2
-; CHECK-NEXT:    add.w r4, r1, r12
-; CHECK-NEXT:    cmp r6, r1
-; CHECK-NEXT:    add.w r5, r0, r12
+; CHECK-NEXT:    add.w r4, r3, r12, lsl #2
+; CHECK-NEXT:    add.w r5, r1, r12
+; CHECK-NEXT:    cmp r4, r1
+; CHECK-NEXT:    add.w r6, r0, r12
 ; CHECK-NEXT:    cset lr, hi
-; CHECK-NEXT:    cmp r4, r3
-; CHECK-NEXT:    cset r4, hi
-; CHECK-NEXT:    cmp r6, r0
-; CHECK-NEXT:    cset r6, hi
 ; CHECK-NEXT:    cmp r5, r3
 ; CHECK-NEXT:    cset r5, hi
-; CHECK-NEXT:    ands r5, r6
-; CHECK-NEXT:    movs r6, #1
-; CHECK-NEXT:    lsls r5, r5, #31
+; CHECK-NEXT:    cmp r4, r0
+; CHECK-NEXT:    cset r4, hi
+; CHECK-NEXT:    cmp r6, r3
+; CHECK-NEXT:    cset r6, hi
+; CHECK-NEXT:    ands r4, r6
+; CHECK-NEXT:    lsls r4, r4, #31
 ; CHECK-NEXT:    itt eq
-; CHECK-NEXT:    andeq.w r5, r4, lr
-; CHECK-NEXT:    lslseq.w r5, r5, #31
+; CHECK-NEXT:    andeq.w r6, r5, lr
+; CHECK-NEXT:    lslseq.w r6, r6, #31
 ; CHECK-NEXT:    beq .LBB7_4
 ; CHECK-NEXT:  @ %bb.2: @ %for.body.preheader
-; CHECK-NEXT:    sub.w r5, r12, #1
+; CHECK-NEXT:    sub.w r6, r12, #1
 ; CHECK-NEXT:    and r9, r12, #3
-; CHECK-NEXT:    cmp r5, #3
+; CHECK-NEXT:    cmp r6, #3
 ; CHECK-NEXT:    bhs .LBB7_6
 ; CHECK-NEXT:  @ %bb.3:
 ; CHECK-NEXT:    mov.w r12, #0
 ; CHECK-NEXT:    b .LBB7_8
 ; CHECK-NEXT:  .LBB7_4: @ %vector.ph
-; CHECK-NEXT:    movs r4, #0
+; CHECK-NEXT:    movs r6, #0
 ; CHECK-NEXT:    dlstp.32 lr, r12
 ; CHECK-NEXT:  .LBB7_5: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    adds r4, #4
+; CHECK-NEXT:    adds r6, #4
 ; CHECK-NEXT:    vldrb.u32 q0, [r0], #4
 ; CHECK-NEXT:    vldrb.u32 q1, [r1], #4
 ; CHECK-NEXT:    vmlas.u32 q1, q0, r2
@@ -728,14 +727,15 @@ define arm_aapcs_vfpcc void @test_vec_mul_scalar_add_uchar(i8* nocapture readonl
 ; CHECK-NEXT:    letp lr, .LBB7_5
 ; CHECK-NEXT:    b .LBB7_11
 ; CHECK-NEXT:  .LBB7_6: @ %for.body.preheader.new
-; CHECK-NEXT:    bic r5, r12, #3
+; CHECK-NEXT:    bic r6, r12, #3
+; CHECK-NEXT:    movs r5, #1
+; CHECK-NEXT:    subs r6, #4
 ; CHECK-NEXT:    add.w r4, r3, #8
-; CHECK-NEXT:    subs r5, #4
 ; CHECK-NEXT:    mov.w r12, #0
-; CHECK-NEXT:    add.w lr, r6, r5, lsr #2
+; CHECK-NEXT:    add.w lr, r5, r6, lsr #2
 ; CHECK-NEXT:    adds r5, r0, #3
-; CHECK-NEXT:    adds r6, r1, #1
 ; CHECK-NEXT:    dls lr, lr
+; CHECK-NEXT:    adds r6, r1, #1
 ; CHECK-NEXT:  .LBB7_7: @ %for.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    ldrb r8, [r5, #-3]
@@ -991,38 +991,37 @@ define arm_aapcs_vfpcc void @test_vec_mul_scalar_add_int(i32* nocapture readonly
 ; CHECK-NEXT:    cmp.w r12, #0
 ; CHECK-NEXT:    beq.w .LBB9_11
 ; CHECK-NEXT:  @ %bb.1: @ %vector.memcheck
-; CHECK-NEXT:    add.w r6, r3, r12, lsl #2
-; CHECK-NEXT:    add.w r4, r1, r12, lsl #2
-; CHECK-NEXT:    cmp r6, r1
-; CHECK-NEXT:    add.w r5, r0, r12, lsl #2
+; CHECK-NEXT:    add.w r4, r3, r12, lsl #2
+; CHECK-NEXT:    add.w r5, r1, r12, lsl #2
+; CHECK-NEXT:    cmp r4, r1
+; CHECK-NEXT:    add.w r6, r0, r12, lsl #2
 ; CHECK-NEXT:    cset lr, hi
-; CHECK-NEXT:    cmp r4, r3
-; CHECK-NEXT:    cset r4, hi
-; CHECK-NEXT:    cmp r6, r0
-; CHECK-NEXT:    cset r6, hi
 ; CHECK-NEXT:    cmp r5, r3
 ; CHECK-NEXT:    cset r5, hi
-; CHECK-NEXT:    ands r5, r6
-; CHECK-NEXT:    movs r6, #1
-; CHECK-NEXT:    lsls r5, r5, #31
+; CHECK-NEXT:    cmp r4, r0
+; CHECK-NEXT:    cset r4, hi
+; CHECK-NEXT:    cmp r6, r3
+; CHECK-NEXT:    cset r6, hi
+; CHECK-NEXT:    ands r4, r6
+; CHECK-NEXT:    lsls r4, r4, #31
 ; CHECK-NEXT:    itt eq
-; CHECK-NEXT:    andeq.w r5, r4, lr
-; CHECK-NEXT:    lslseq.w r5, r5, #31
+; CHECK-NEXT:    andeq.w r6, r5, lr
+; CHECK-NEXT:    lslseq.w r6, r6, #31
 ; CHECK-NEXT:    beq .LBB9_4
 ; CHECK-NEXT:  @ %bb.2: @ %for.body.preheader
-; CHECK-NEXT:    sub.w r5, r12, #1
+; CHECK-NEXT:    sub.w r6, r12, #1
 ; CHECK-NEXT:    and r9, r12, #3
-; CHECK-NEXT:    cmp r5, #3
+; CHECK-NEXT:    cmp r6, #3
 ; CHECK-NEXT:    bhs .LBB9_6
 ; CHECK-NEXT:  @ %bb.3:
 ; CHECK-NEXT:    mov.w r12, #0
 ; CHECK-NEXT:    b .LBB9_8
 ; CHECK-NEXT:  .LBB9_4: @ %vector.ph
-; CHECK-NEXT:    movs r4, #0
+; CHECK-NEXT:    movs r6, #0
 ; CHECK-NEXT:    dlstp.32 lr, r12
 ; CHECK-NEXT:  .LBB9_5: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    adds r4, #4
+; CHECK-NEXT:    adds r6, #4
 ; CHECK-NEXT:    vldrw.u32 q0, [r0], #16
 ; CHECK-NEXT:    vldrw.u32 q1, [r1], #16
 ; CHECK-NEXT:    vmlas.u32 q1, q0, r2
@@ -1030,14 +1029,15 @@ define arm_aapcs_vfpcc void @test_vec_mul_scalar_add_int(i32* nocapture readonly
 ; CHECK-NEXT:    letp lr, .LBB9_5
 ; CHECK-NEXT:    b .LBB9_11
 ; CHECK-NEXT:  .LBB9_6: @ %for.body.preheader.new
-; CHECK-NEXT:    bic r5, r12, #3
+; CHECK-NEXT:    bic r6, r12, #3
+; CHECK-NEXT:    movs r5, #1
+; CHECK-NEXT:    subs r6, #4
 ; CHECK-NEXT:    add.w r4, r3, #8
-; CHECK-NEXT:    subs r5, #4
 ; CHECK-NEXT:    mov.w r12, #0
-; CHECK-NEXT:    add.w lr, r6, r5, lsr #2
+; CHECK-NEXT:    add.w lr, r5, r6, lsr #2
 ; CHECK-NEXT:    add.w r5, r0, #8
-; CHECK-NEXT:    add.w r6, r1, #8
 ; CHECK-NEXT:    dls lr, lr
+; CHECK-NEXT:    add.w r6, r1, #8
 ; CHECK-NEXT:  .LBB9_7: @ %for.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    ldr r8, [r5, #-8]
@@ -1273,6 +1273,6 @@ declare <4 x i16> @llvm.masked.load.v4i16.p0v4i16(<4 x i16>*, i32 immarg, <4 x i
 declare <4 x i32> @llvm.masked.load.v4i32.p0v4i32(<4 x i32>*, i32 immarg, <4 x i1>, <4 x i32>)
 declare void @llvm.masked.store.v8i16.p0v8i16(<8 x i16>, <8 x i16>*, i32 immarg, <8 x i1>)
 declare void @llvm.masked.store.v4i32.p0v4i32(<4 x i32>, <4 x i32>*, i32 immarg, <4 x i1>)
-declare i32 @llvm.experimental.vector.reduce.add.v4i32(<4 x i32>)
+declare i32 @llvm.vector.reduce.add.v4i32(<4 x i32>)
 declare <4 x i1> @llvm.get.active.lane.mask.v4i1.i32(i32, i32)
 declare <8 x i1> @llvm.get.active.lane.mask.v8i1.i32(i32, i32)

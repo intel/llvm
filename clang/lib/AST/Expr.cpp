@@ -360,7 +360,6 @@ llvm::APSInt ConstantExpr::getResultAsAPSInt() const {
 }
 
 APValue ConstantExpr::getAPValueResult() const {
-  assert(hasAPValueResult());
 
   switch (ConstantExprBits.ResultKind) {
   case ConstantExpr::RSK_APValue:
@@ -370,6 +369,8 @@ APValue ConstantExpr::getAPValueResult() const {
         llvm::APSInt(llvm::APInt(ConstantExprBits.BitWidth, Int64Result()),
                      ConstantExprBits.IsUnsigned));
   case ConstantExpr::RSK_None:
+    if (ConstantExprBits.APValueKind == APValue::Indeterminate)
+      return APValue::IndeterminateValue();
     return APValue();
   }
   llvm_unreachable("invalid ResultKind");
@@ -483,6 +484,11 @@ DeclRefExpr *DeclRefExpr::CreateEmpty(const ASTContext &Context,
           NumTemplateArgs);
   void *Mem = Context.Allocate(Size, alignof(DeclRefExpr));
   return new (Mem) DeclRefExpr(EmptyShell());
+}
+
+void DeclRefExpr::setDecl(ValueDecl *NewD) {
+  D = NewD;
+  setDependence(computeDependence(this, NewD->getASTContext()));
 }
 
 SourceLocation DeclRefExpr::getBeginLoc() const {
@@ -1644,6 +1650,11 @@ MemberExpr *MemberExpr::CreateEmpty(const ASTContext &Context,
   return new (Mem) MemberExpr(EmptyShell());
 }
 
+void MemberExpr::setMemberDecl(ValueDecl *D) {
+  MemberDecl = D;
+  setDependence(computeDependence(this));
+}
+
 SourceLocation MemberExpr::getBeginLoc() const {
   if (isImplicitAccess()) {
     if (hasQualifier())
@@ -1764,6 +1775,8 @@ bool CastExpr::CastConsistency() const {
   case CK_ARCExtendBlockObject:
   case CK_ZeroToOCLOpaqueType:
   case CK_IntToOCLSampler:
+  case CK_FloatingToFixedPoint:
+  case CK_FixedPointToFloating:
   case CK_FixedPointCast:
   case CK_FixedPointToIntegral:
   case CK_IntegralToFixedPoint:
@@ -1825,7 +1838,7 @@ Expr *CastExpr::getSubExprAsWritten() {
     // subexpression describing the call; strip it off.
     if (E->getCastKind() == CK_ConstructorConversion)
       SubExpr =
-        skipImplicitTemporary(cast<CXXConstructExpr>(SubExpr)->getArg(0));
+        skipImplicitTemporary(cast<CXXConstructExpr>(SubExpr->IgnoreImplicit())->getArg(0));
     else if (E->getCastKind() == CK_UserDefinedConversion) {
       assert((isa<CXXMemberCallExpr>(SubExpr) ||
               isa<BlockExpr>(SubExpr)) &&
@@ -2886,13 +2899,18 @@ Expr *Expr::IgnoreParenNoopCasts(const ASTContext &Ctx) {
 
 Expr *Expr::IgnoreUnlessSpelledInSource() {
   auto IgnoreImplicitConstructorSingleStep = [](Expr *E) {
+    if (auto *Cast = dyn_cast<CXXFunctionalCastExpr>(E)) {
+      auto *SE = Cast->getSubExpr();
+      if (SE->getSourceRange() == E->getSourceRange())
+        return SE;
+    }
+
     if (auto *C = dyn_cast<CXXConstructExpr>(E)) {
       auto NumArgs = C->getNumArgs();
       if (NumArgs == 1 ||
           (NumArgs > 1 && isa<CXXDefaultArgExpr>(C->getArg(1)))) {
         Expr *A = C->getArg(0);
-        if (A->getSourceRange() == E->getSourceRange() ||
-            !isa<CXXTemporaryObjectExpr>(C))
+        if (A->getSourceRange() == E->getSourceRange() || C->isElidable())
           return A;
       }
     }
@@ -3298,9 +3316,6 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   if (!IncludePossibleEffects && getExprLoc().isMacroID())
     return false;
 
-  if (isInstantiationDependent())
-    return IncludePossibleEffects;
-
   switch (getStmtClass()) {
   case NoStmtClass:
   #define ABSTRACT_STMT(Type)
@@ -3320,7 +3335,8 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case TypoExprClass:
   case RecoveryExprClass:
   case CXXFoldExprClass:
-    llvm_unreachable("shouldn't see dependent / unresolved nodes here");
+    // Make a conservative assumption for dependent nodes.
+    return IncludePossibleEffects;
 
   case DeclRefExprClass:
   case ObjCIvarRefExprClass:
@@ -4266,14 +4282,10 @@ SourceLocation DesignatedInitExpr::getBeginLoc() const {
   SourceLocation StartLoc;
   auto *DIE = const_cast<DesignatedInitExpr *>(this);
   Designator &First = *DIE->getDesignator(0);
-  if (First.isFieldDesignator()) {
-    if (GNUSyntax)
-      StartLoc = SourceLocation::getFromRawEncoding(First.Field.FieldLoc);
-    else
-      StartLoc = SourceLocation::getFromRawEncoding(First.Field.DotLoc);
-  } else
-    StartLoc =
-      SourceLocation::getFromRawEncoding(First.ArrayOrRange.LBracketLoc);
+  if (First.isFieldDesignator())
+    StartLoc = GNUSyntax ? First.Field.FieldLoc : First.Field.DotLoc;
+  else
+    StartLoc = First.ArrayOrRange.LBracketLoc;
   return StartLoc;
 }
 
@@ -4477,7 +4489,7 @@ UnaryOperator::UnaryOperator(const ASTContext &Ctx, Expr *input, Opcode opc,
   UnaryOperatorBits.HasFPFeatures = FPFeatures.requiresTrailingStorage();
   if (hasStoredFPFeatures())
     setStoredFPFeatures(FPFeatures);
-  setDependence(computeDependence(this));
+  setDependence(computeDependence(this, Ctx));
 }
 
 UnaryOperator *UnaryOperator::Create(const ASTContext &C, Expr *input,

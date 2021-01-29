@@ -35,6 +35,7 @@ class InputFunction;
 class InputGlobal;
 class InputEvent;
 class InputSection;
+class InputTable;
 class OutputSection;
 
 #define INVALID_INDEX UINT32_MAX
@@ -47,11 +48,13 @@ public:
     DefinedDataKind,
     DefinedGlobalKind,
     DefinedEventKind,
+    DefinedTableKind,
     SectionKind,
     OutputSectionKind,
     UndefinedFunctionKind,
     UndefinedDataKind,
     UndefinedGlobalKind,
+    UndefinedTableKind,
     LazyKind,
   };
 
@@ -61,7 +64,9 @@ public:
 
   bool isUndefined() const {
     return symbolKind == UndefinedFunctionKind ||
-           symbolKind == UndefinedDataKind || symbolKind == UndefinedGlobalKind;
+           symbolKind == UndefinedDataKind ||
+           symbolKind == UndefinedGlobalKind ||
+           symbolKind == UndefinedTableKind;
   }
 
   bool isLazy() const { return symbolKind == LazyKind; }
@@ -124,7 +129,7 @@ protected:
   Symbol(StringRef name, Kind k, uint32_t flags, InputFile *f)
       : name(name), file(f), symbolKind(k), referenced(!config->gcSections),
         requiresGOT(false), isUsedInRegularObj(false), forceExport(false),
-        canInline(false), traced(false), flags(flags) {}
+        canInline(false), traced(false), isStub(false), flags(flags) {}
 
   StringRef name;
   InputFile *file;
@@ -156,6 +161,14 @@ public:
 
   // True if this symbol is specified by --trace-symbol option.
   bool traced : 1;
+
+  // True if this symbol is a linker-synthesized stub function (traps when
+  // called) and should otherwise be treated as missing/undefined.  See
+  // SymbolTable::replaceWithUndefined.
+  // These stubs never appear in the table and any table index relocations
+  // against them will produce address 0 (The table index representing
+  // the null function pointer).
+  bool isStub : 1;
 
   uint32_t flags;
 };
@@ -217,6 +230,7 @@ public:
 
   llvm::Optional<StringRef> importName;
   llvm::Optional<StringRef> importModule;
+  DefinedFunction *stubFunction = nullptr;
   bool isCalledDirectly;
 };
 
@@ -350,6 +364,55 @@ public:
   llvm::Optional<StringRef> importModule;
 };
 
+class TableSymbol : public Symbol {
+public:
+  static bool classof(const Symbol *s) {
+    return s->kind() == DefinedTableKind || s->kind() == UndefinedTableKind;
+  }
+
+  const WasmTableType *getTableType() const { return tableType; }
+  void setLimits(const WasmLimits &limits);
+
+  // Get/set the table number
+  uint32_t getTableNumber() const;
+  void setTableNumber(uint32_t number);
+  bool hasTableNumber() const;
+
+protected:
+  TableSymbol(StringRef name, Kind k, uint32_t flags, InputFile *f,
+              const WasmTableType *type)
+      : Symbol(name, k, flags, f), tableType(type) {}
+
+  const WasmTableType *tableType;
+  uint32_t tableNumber = INVALID_INDEX;
+};
+
+class DefinedTable : public TableSymbol {
+public:
+  DefinedTable(StringRef name, uint32_t flags, InputFile *file,
+               InputTable *table);
+
+  static bool classof(const Symbol *s) { return s->kind() == DefinedTableKind; }
+
+  InputTable *table;
+};
+
+class UndefinedTable : public TableSymbol {
+public:
+  UndefinedTable(StringRef name, llvm::Optional<StringRef> importName,
+                 llvm::Optional<StringRef> importModule, uint32_t flags,
+                 InputFile *file, const WasmTableType *type)
+      : TableSymbol(name, UndefinedTableKind, flags, file, type),
+        importName(importName), importModule(importModule) {}
+
+  static bool classof(const Symbol *s) {
+    return s->kind() == UndefinedTableKind;
+  }
+
+  llvm::Optional<StringRef> importName;
+  llvm::Optional<StringRef> importModule;
+};
+
 // Wasm events are features that suspend the current execution and transfer the
 // control flow to a corresponding handler. Currently the only supported event
 // kind is exceptions.
@@ -471,13 +534,26 @@ struct WasmSym {
   // Function that directly calls all ctors in priority order.
   static DefinedFunction *callCtors;
 
-  // __wasm_apply_relocs
+  // __wasm_call_dtors
+  // Function that calls the libc/etc. cleanup function.
+  static DefinedFunction *callDtors;
+
+  // __wasm_apply_data_relocs
   // Function that applies relocations to data segment post-instantiation.
-  static DefinedFunction *applyRelocs;
+  static DefinedFunction *applyDataRelocs;
+
+  // __wasm_apply_global_relocs
+  // Function that applies relocations to data segment post-instantiation.
+  // Unlike __wasm_apply_data_relocs this needs to run on every thread.
+  static DefinedFunction *applyGlobalRelocs;
 
   // __wasm_init_tls
   // Function that allocates thread-local storage and initializes it.
   static DefinedFunction *initTLS;
+
+  // Pointer to the function that is to be used in the start section.
+  // (normally an alias of initMemory, or applyGlobalRelocs).
+  static DefinedFunction *startFunction;
 
   // __dso_handle
   // Symbol used in calls to __cxa_atexit to determine current DLL
@@ -492,6 +568,11 @@ struct WasmSym {
   // Used in PIC code for offset of global data
   static UndefinedGlobal *memoryBase;
   static DefinedData *definedMemoryBase;
+
+  // __indirect_function_table
+  // Used as an address space for function pointers, with each function that is
+  // used as a function pointer being allocated a slot.
+  static TableSymbol *indirectFunctionTable;
 };
 
 // A buffer class that is large enough to hold any Symbol-derived
@@ -502,17 +583,19 @@ union SymbolUnion {
   alignas(DefinedData) char b[sizeof(DefinedData)];
   alignas(DefinedGlobal) char c[sizeof(DefinedGlobal)];
   alignas(DefinedEvent) char d[sizeof(DefinedEvent)];
-  alignas(LazySymbol) char e[sizeof(LazySymbol)];
-  alignas(UndefinedFunction) char f[sizeof(UndefinedFunction)];
-  alignas(UndefinedData) char g[sizeof(UndefinedData)];
-  alignas(UndefinedGlobal) char h[sizeof(UndefinedGlobal)];
-  alignas(SectionSymbol) char i[sizeof(SectionSymbol)];
+  alignas(DefinedTable) char e[sizeof(DefinedTable)];
+  alignas(LazySymbol) char f[sizeof(LazySymbol)];
+  alignas(UndefinedFunction) char g[sizeof(UndefinedFunction)];
+  alignas(UndefinedData) char h[sizeof(UndefinedData)];
+  alignas(UndefinedGlobal) char i[sizeof(UndefinedGlobal)];
+  alignas(UndefinedTable) char j[sizeof(UndefinedTable)];
+  alignas(SectionSymbol) char k[sizeof(SectionSymbol)];
 };
 
 // It is important to keep the size of SymbolUnion small for performance and
 // memory usage reasons. 96 bytes is a soft limit based on the size of
 // UndefinedFunction on a 64-bit system.
-static_assert(sizeof(SymbolUnion) <= 112, "SymbolUnion too large");
+static_assert(sizeof(SymbolUnion) <= 120, "SymbolUnion too large");
 
 void printTraceSymbol(Symbol *sym);
 void printTraceSymbolUndefined(StringRef name, const InputFile* file);

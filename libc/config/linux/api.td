@@ -20,6 +20,28 @@ def SSizeT : TypeDecl<"ssize_t"> {
   }];
 }
 
+def StructTm: TypeDecl<"struct tm"> {
+  let Decl = [{
+    struct tm {
+      int tm_sec; // seconds after the minute
+      int tm_min; // minutes after the hour
+      int tm_hour; // hours since midnight
+      int tm_mday; // day of the month
+      int tm_mon; // months since January
+      int tm_year; // years since 1900
+      int tm_wday; // days since Sunday
+      int tm_yday; // days since January
+      int tm_isdst; // Daylight Saving Time flag
+    };
+  }];
+}
+
+def TimeT: TypeDecl<"time_t"> {
+   let Decl = [{
+   typedef long time_t;
+  }];
+}
+
 def OffT : TypeDecl<"off_t"> {
   let Decl = [{
     #define __need_off_t
@@ -87,22 +109,6 @@ def AssertAPI : PublicAPI<"assert.h"> {
 }
 
 def CTypeAPI : PublicAPI<"ctype.h"> {
-  let Functions = [
-    "isalnum",
-    "isalpha",
-    "isblank",
-    "iscntrl",
-    "isdigit",
-    "isgraph",
-    "islower",
-    "isprint",
-    "ispunct",
-    "isspace",
-    "isupper",
-    "isxdigit",
-    "tolower",
-    "toupper",
-  ];
 }
 
 def MathErrHandlingMacro : MacroDef<"math_errhandling"> {
@@ -160,6 +166,9 @@ def MathAPI : PublicAPI<"math.h"> {
     SimpleMacroDef<"INFINITY", "__builtin_inff()">,
     SimpleMacroDef<"NAN", "__builtin_nanf(\"\")">,
 
+    SimpleMacroDef<"FP_ILOGB0", "(-__INT_MAX__ - 1)">, // INT_MIN
+    SimpleMacroDef<"FP_ILOGBNAN", "__INT_MAX__">,
+
     IsFiniteMacro,
     IsInfMacro,
     IsNanMacro,
@@ -168,88 +177,25 @@ def MathAPI : PublicAPI<"math.h"> {
     DoubleT,
     FloatT,
   ];
-  let Functions = [
-   "copysign",
-   "copysignf",
-   "copysignl",
-   "ceil",
-   "ceilf",
-   "ceill",
-   "cosf",
-   "fabs",
-   "fabsf",
-   "fabsl",
-   "floor",
-   "floorf",
-   "floorl",
-   "fmax",
-   "fmaxf",
-   "fmaxl",
-   "fmin",
-   "fminf",
-   "fminl",
-   "frexp",
-   "frexpf",
-   "frexpl",
-   "hypotf",
-   "logb",
-   "logbf",
-   "logbl",
-   "modf",
-   "modff",
-   "modfl",
-   "expf",
-   "exp2f",
-   "remainderf",
-   "remainder",
-   "remainderl",
-   "remquof",
-   "remquo",
-   "remquol",
-   "round",
-   "roundf",
-   "roundl",
-   "sincosf",
-   "sinf",
-   "sqrt",
-   "sqrtf",
-   "sqrtl",
-   "trunc",
-   "truncf",
-   "truncl",
+}
+
+def FenvAPI: PublicAPI<"fenv.h"> {
+  let Macros = [
+    SimpleMacroDef<"FE_DIVBYZERO", "1">,
+    SimpleMacroDef<"FE_INEXACT", "2">,
+    SimpleMacroDef<"FE_INVALID", "4">,
+    SimpleMacroDef<"FE_OVERFLOW", "8">,
+    SimpleMacroDef<"FE_UNDERFLOW", "16">,
+    SimpleMacroDef<"FE_ALL_EXCEPT", "(FE_DIVBYZERO|FE_INEXACT|FE_INVALID|FE_OVERFLOW|FE_UNDERFLOW)">,
+
+    SimpleMacroDef<"FE_DOWNWARD", "1">,
+    SimpleMacroDef<"FE_TONEAREST", "2">,
+    SimpleMacroDef<"FE_TOWARDZERO", "4">,
+    SimpleMacroDef<"FE_UPWARD", "8">,
   ];
 }
 
 def StringAPI : PublicAPI<"string.h"> {
-  let Functions = [
-    "bzero",
-    "memchr",
-    "memcmp",
-    "memcpy",
-    "memmove",
-    "memrchr",
-    "memset",
-    "strcat",
-    "strchr",
-    "strcmp",
-    "strcoll",
-    "strcpy",
-    "strcspn",  
-    "strerror",
-    "strlen",
-    "strncat",
-    "strncmp",
-    "strncpy",
-    "strnlen",
-    "strpbrk",
-    "strrchr",
-    "strspn",
-    "strstr",
-    "strtok",
-    "strtok_r",
-    "strxfrm",   
-  ];
-
   let TypeDeclarations = [
     SizeT,
   ];
@@ -264,16 +210,19 @@ def StdIOAPI : PublicAPI<"stdio.h"> {
     SizeT,
     FILE,
   ];
-
-  let Functions = [
-    "fwrite",
-  ];
 }
 
 def StdlibAPI : PublicAPI<"stdlib.h"> {
+}
+
+def TimeAPI : PublicAPI<"time.h"> {
+  let TypeDeclarations = [
+    StructTm,
+    TimeT,
+  ];
+
   let Functions = [
-    "_Exit",
-    "abort",
+    "mktime",
   ];
 }
 
@@ -320,11 +269,6 @@ def SysMManAPI : PublicAPI<"sys/mman.h"> {
     SizeT,
     OffT,
   ];
-
-  let Functions = [
-    "mmap",
-    "munmap",
-  ];
 }
 
 def StructSigactionDefn : TypeDecl<"struct sigaction"> {
@@ -351,17 +295,6 @@ def SignalAPI : PublicAPI<"signal.h"> {
   let TypeDeclarations = [
     StructSigactionDefn,
     SighandlerTDefn,
-  ];
-
-  let Functions = [
-    "raise",
-    "sigaction",
-    "sigdelset",
-    "sigprocmask",
-    "sigemptyset",
-    "sigaddset",
-    "sigfillset",
-    "signal",
   ];
 }
 
@@ -412,24 +345,11 @@ def ThreadsAPI : PublicAPI<"threads.h"> {
     "thrd_error",
     "thrd_nomem",
   ];
-
-  let Functions = [
-    "call_once",
-    "mtx_init",
-    "mtx_lock",
-    "mtx_unlock",
-    "thrd_create",
-    "thrd_join",
-  ];
 }
 
 def UniStdAPI : PublicAPI<"unistd.h"> {
   let TypeDeclarations = [
     SSizeT,
     SizeT,
-  ];
-
-  let Functions = [
-    "write",
   ];
 }

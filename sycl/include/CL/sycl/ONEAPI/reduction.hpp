@@ -12,6 +12,7 @@
 #include <CL/sycl/ONEAPI/group_algorithm.hpp>
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/handler.hpp>
+#include <CL/sycl/kernel.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -619,24 +620,19 @@ struct get_reduction_aux_kernel_name_t {
 ///
 /// Briefly: calls user's lambda, ONEAPI::reduce() + atomic, INT + ADD/MIN/MAX.
 template <typename KernelName, typename KernelType, int Dims, class Reduction,
-          bool UniformWG, typename OutputT>
+          bool IsPow2WG, typename OutputT>
 enable_if_t<Reduction::has_fast_reduce && Reduction::has_fast_atomics>
 reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
                Reduction &, OutputT Out) {
-  size_t NWorkItems = Range.get_global_range().size();
   using Name = typename get_reduction_main_kernel_name_t<
-      KernelName, KernelType, Reduction::is_usm, UniformWG, OutputT>::name;
+      KernelName, KernelType, Reduction::is_usm, IsPow2WG, OutputT>::name;
   CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
     // Call user's function. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
     KernelFunc(NDIt, Reducer);
 
     typename Reduction::binary_operation BOp;
-    typename Reduction::result_type Val =
-        (UniformWG || NDIt.get_global_linear_id() < NWorkItems)
-            ? Reducer.MValue
-            : Reducer.getIdentity();
-    Reducer.MValue = ONEAPI::reduce(NDIt.get_group(), Val, BOp);
+    Reducer.MValue = ONEAPI::reduce(NDIt.get_group(), Reducer.MValue, BOp);
     if (NDIt.get_local_linear_id() == 0)
       Reducer.atomic_combine(Reduction::getOutPointer(Out));
   });
@@ -651,22 +647,21 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
 ///
 /// Briefly: calls user's lambda, tree-reduction + atomic, INT + AND/OR/XOR.
 template <typename KernelName, typename KernelType, int Dims, class Reduction,
-          bool UniformPow2WG, typename OutputT>
+          bool IsPow2WG, typename OutputT>
 enable_if_t<!Reduction::has_fast_reduce && Reduction::has_fast_atomics>
 reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
                Reduction &Redu, OutputT Out) {
-  size_t NWorkItems = Range.get_global_range().size();
   size_t WGSize = Range.get_local_range().size();
 
   // Use local memory to reduce elements in work-groups into zero-th element.
   // If WGSize is not power of two, then WGSize+1 elements are allocated.
   // The additional last element is used to catch reduce elements that could
   // otherwise be lost in the tree-reduction algorithm used in the kernel.
-  size_t NLocalElements = WGSize + (UniformPow2WG ? 0 : 1);
+  size_t NLocalElements = WGSize + (IsPow2WG ? 0 : 1);
   auto LocalReds = Redu.getReadWriteLocalAcc(NLocalElements, CGH);
 
   using Name = typename get_reduction_main_kernel_name_t<
-      KernelName, KernelType, Reduction::is_usm, UniformPow2WG, OutputT>::name;
+      KernelName, KernelType, Reduction::is_usm, IsPow2WG, OutputT>::name;
   CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
@@ -676,12 +671,9 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
     size_t LID = NDIt.get_local_linear_id();
 
     // Copy the element to local memory to prepare it for tree-reduction.
-    typename Reduction::result_type ReduIdentity = Reducer.getIdentity();
-    LocalReds[LID] = (UniformPow2WG || NDIt.get_global_linear_id() < NWorkItems)
-                         ? Reducer.MValue
-                         : ReduIdentity;
-    if (!UniformPow2WG)
-      LocalReds[WGSize] = ReduIdentity;
+    LocalReds[LID] = Reducer.MValue;
+    if (!IsPow2WG)
+      LocalReds[WGSize] = Reducer.getIdentity();
     NDIt.barrier();
 
     // Tree-reduction: reduce the local array LocalReds[:] to LocalReds[0].
@@ -692,7 +684,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
     for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
       if (LID < CurStep)
         LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
-      else if (!UniformPow2WG && LID == CurStep && (PrevStep & 0x1))
+      else if (!IsPow2WG && LID == CurStep && (PrevStep & 0x1))
         LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
       NDIt.barrier();
       PrevStep = CurStep;
@@ -700,7 +692,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
 
     if (LID == 0) {
       Reducer.MValue =
-          UniformPow2WG ? LocalReds[0] : BOp(LocalReds[0], LocalReds[WGSize]);
+          IsPow2WG ? LocalReds[0] : BOp(LocalReds[0], LocalReds[WGSize]);
       Reducer.atomic_combine(Reduction::getOutPointer(Out));
     }
   });
@@ -712,14 +704,14 @@ enable_if_t<Reduction::has_fast_atomics>
 reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
            Reduction &Redu, OutputT Out) {
 
-  size_t NWorkItems = Range.get_global_range().size();
   size_t WGSize = Range.get_local_range().size();
-  size_t NWorkGroups = Range.get_group_range().size();
 
-  bool HasUniformWG = NWorkGroups * WGSize == NWorkItems;
-  if (!Reduction::has_fast_reduce)
-    HasUniformWG = HasUniformWG && (WGSize & (WGSize - 1)) == 0;
-  if (HasUniformWG)
+  // If the work group size is not pow of 2, then the kernel runs some
+  // additional code and checks in it.
+  // If the reduction has fast reduce then the kernel does not care if the work
+  // group size is pow of 2 or not, assume true for such cases.
+  bool IsPow2WG = Reduction::has_fast_reduce || ((WGSize & (WGSize - 1)) == 0);
+  if (IsPow2WG)
     reduCGFuncImpl<KernelName, KernelType, Dims, Reduction, true>(
         CGH, KernelFunc, Range, Redu, Out);
   else
@@ -736,14 +728,12 @@ reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
 ///
 /// Briefly: user's lambda, ONEAPI:reduce(), FP + ADD/MIN/MAX.
 template <typename KernelName, typename KernelType, int Dims, class Reduction,
-          bool UniformWG, typename OutputT>
+          bool IsPow2WG, typename OutputT>
 enable_if_t<Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
 reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
                Reduction &, OutputT Out) {
 
-  size_t NWorkItems = Range.get_global_range().size();
   size_t NWorkGroups = Range.get_group_range().size();
-
   // This additional check is needed for 'read_write' accessor case only.
   // It does not slow-down the kernel writing to 'discard_write' accessor as
   // the condition seems to be resolved at compile time for 'discard_write'.
@@ -751,7 +741,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
       Reduction::accessor_mode == access::mode::read_write && NWorkGroups == 1;
 
   using Name = typename get_reduction_main_kernel_name_t<
-      KernelName, KernelType, Reduction::is_usm, UniformWG, OutputT>::name;
+      KernelName, KernelType, Reduction::is_usm, IsPow2WG, OutputT>::name;
   CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
@@ -759,10 +749,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
 
     // Compute the partial sum/reduction for the work-group.
     size_t WGID = NDIt.get_group_linear_id();
-    typename Reduction::result_type PSum =
-        (UniformWG || (NDIt.get_group_linear_id() < NWorkItems))
-            ? Reducer.MValue
-            : Reducer.getIdentity();
+    typename Reduction::result_type PSum = Reducer.MValue;
     typename Reduction::binary_operation BOp;
     PSum = ONEAPI::reduce(NDIt.get_group(), PSum, BOp);
     if (NDIt.get_local_linear_id() == 0) {
@@ -782,11 +769,10 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
 ///
 /// Briefly: user's lambda, tree-reduction, CUSTOM types/ops.
 template <typename KernelName, typename KernelType, int Dims, class Reduction,
-          bool UniformPow2WG, typename OutputT>
+          bool IsPow2WG, typename OutputT>
 enable_if_t<!Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
 reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
                Reduction &Redu, OutputT Out) {
-  size_t NWorkItems = Range.get_global_range().size();
   size_t WGSize = Range.get_local_range().size();
   size_t NWorkGroups = Range.get_group_range().size();
 
@@ -797,11 +783,11 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
   // If WGSize is not power of two, then WGSize+1 elements are allocated.
   // The additional last element is used to catch elements that could
   // otherwise be lost in the tree-reduction algorithm.
-  size_t NumLocalElements = WGSize + (UniformPow2WG ? 0 : 1);
+  size_t NumLocalElements = WGSize + (IsPow2WG ? 0 : 1);
   auto LocalReds = Redu.getReadWriteLocalAcc(NumLocalElements, CGH);
   typename Reduction::result_type ReduIdentity = Redu.getIdentity();
   using Name = typename get_reduction_main_kernel_name_t<
-      KernelName, KernelType, Reduction::is_usm, UniformPow2WG, OutputT>::name;
+      KernelName, KernelType, Reduction::is_usm, IsPow2WG, OutputT>::name;
   auto BOp = Redu.getBinaryOperation();
   CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
     // Call user's functions. Reducer.MValue gets initialized there.
@@ -810,10 +796,9 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
 
     size_t WGSize = NDIt.get_local_range().size();
     size_t LID = NDIt.get_local_linear_id();
-    size_t GID = NDIt.get_global_linear_id();
     // Copy the element to local memory to prepare it for tree-reduction.
-    LocalReds[LID] = (GID < NWorkItems) ? Reducer.MValue : ReduIdentity;
-    if (!UniformPow2WG)
+    LocalReds[LID] = Reducer.MValue;
+    if (!IsPow2WG)
       LocalReds[WGSize] = ReduIdentity;
     NDIt.barrier();
 
@@ -824,7 +809,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
     for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
       if (LID < CurStep)
         LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
-      else if (!UniformPow2WG && LID == CurStep && (PrevStep & 0x1))
+      else if (!IsPow2WG && LID == CurStep && (PrevStep & 0x1))
         LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
       NDIt.barrier();
       PrevStep = CurStep;
@@ -834,7 +819,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
     if (LID == 0) {
       size_t GrID = NDIt.get_group_linear_id();
       typename Reduction::result_type PSum =
-          UniformPow2WG ? LocalReds[0] : BOp(LocalReds[0], LocalReds[WGSize]);
+          IsPow2WG ? LocalReds[0] : BOp(LocalReds[0], LocalReds[WGSize]);
       if (IsUpdateOfUserVar)
         PSum = BOp(*(Reduction::getOutPointer(Out)), PSum);
       Reduction::getOutPointer(Out)[GrID] = PSum;
@@ -846,19 +831,17 @@ template <typename KernelName, typename KernelType, int Dims, class Reduction>
 enable_if_t<!Reduction::has_fast_atomics>
 reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
            Reduction &Redu) {
-  size_t NWorkItems = Range.get_global_range().size();
   size_t WGSize = Range.get_local_range().size();
   size_t NWorkGroups = Range.get_group_range().size();
 
-  // The last work-group may be not fully loaded with work, or the work group
-  // size may be not power of two. Those two cases considered inefficient
-  // as they require additional code and checks in the kernel.
-  bool HasUniformWG = NWorkGroups * WGSize == NWorkItems;
-  if (!Reduction::has_fast_reduce)
-    HasUniformWG = HasUniformWG && ((WGSize & (WGSize - 1)) == 0);
+  // If the work group size is not pow of 2, then the kernel runs some
+  // additional code and checks in it.
+  // If the reduction has fast reduce then the kernel does not care if the work
+  // group size is pow of 2 or not, assume true for such cases.
+  bool IsPow2WG = Reduction::has_fast_reduce || ((WGSize & (WGSize - 1)) == 0);
 
   if (Reduction::is_usm && NWorkGroups == 1) {
-    if (HasUniformWG)
+    if (IsPow2WG)
       reduCGFuncImpl<KernelName, KernelType, Dims, Reduction, true>(
           CGH, KernelFunc, Range, Redu, Redu.getUSMPointer());
     else
@@ -866,7 +849,7 @@ reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
           CGH, KernelFunc, Range, Redu, Redu.getUSMPointer());
   } else {
     auto Out = Redu.getWriteAccForPartialReds(NWorkGroups, CGH);
-    if (HasUniformWG)
+    if (IsPow2WG)
       reduCGFuncImpl<KernelName, KernelType, Dims, Reduction, true>(
           CGH, KernelFunc, Range, Redu, Out);
     else
@@ -889,10 +872,10 @@ reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
                   size_t WGSize, Reduction &, InputT In, OutputT Out) {
   using Name = typename get_reduction_aux_kernel_name_t<
       KernelName, KernelType, Reduction::is_usm, UniformWG, OutputT>::name;
-
   bool IsUpdateOfUserVar =
       Reduction::accessor_mode == access::mode::read_write && NWorkGroups == 1;
-  nd_range<1> Range{range<1>(NWorkItems), range<1>(WGSize)};
+  range<1> GlobalRange = {UniformWG ? NWorkItems : NWorkGroups * WGSize};
+  nd_range<1> Range{GlobalRange, range<1>(WGSize)};
   CGH.parallel_for<Name>(Range, [=](nd_item<1> NDIt) {
     typename Reduction::binary_operation BOp;
     size_t WGID = NDIt.get_group_linear_id();
@@ -936,7 +919,8 @@ reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
   auto BOp = Redu.getBinaryOperation();
   using Name = typename get_reduction_aux_kernel_name_t<
       KernelName, KernelType, Reduction::is_usm, UniformPow2WG, OutputT>::name;
-  nd_range<1> Range{range<1>(NWorkItems), range<1>(WGSize)};
+  range<1> GlobalRange = {UniformPow2WG ? NWorkItems : NWorkGroups * WGSize};
+  nd_range<1> Range{GlobalRange, range<1>(WGSize)};
   CGH.parallel_for<Name>(Range, [=](nd_item<1> NDIt) {
     size_t WGSize = NDIt.get_local_range().size();
     size_t LID = NDIt.get_local_linear_id();

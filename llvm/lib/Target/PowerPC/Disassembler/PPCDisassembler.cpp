@@ -54,6 +54,8 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializePowerPCDisassembler() {
   // Register the disassembler for each target.
   TargetRegistry::RegisterMCDisassembler(getThePPC32Target(),
                                          createPPCDisassembler);
+  TargetRegistry::RegisterMCDisassembler(getThePPC32LETarget(),
+                                         createPPCLEDisassembler);
   TargetRegistry::RegisterMCDisassembler(getThePPC64Target(),
                                          createPPCDisassembler);
   TargetRegistry::RegisterMCDisassembler(getThePPC64LETarget(),
@@ -209,6 +211,15 @@ static DecodeStatus decodeImmZeroOperand(MCInst &Inst, uint64_t Imm,
   if (Imm != 0)
     return MCDisassembler::Fail;
   Inst.addOperand(MCOperand::createImm(Imm));
+  return MCDisassembler::Success;
+}
+
+static DecodeStatus decodeVSRpEvenOperands(MCInst &Inst, uint64_t RegNo,
+                                           uint64_t Address,
+                                           const void *Decoder) {
+  if (RegNo & 1)
+    return MCDisassembler::Fail;
+  Inst.addOperand(MCOperand::createReg(VSRpRegs[RegNo >> 1]));
   return MCDisassembler::Success;
 }
 

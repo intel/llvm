@@ -17,7 +17,17 @@
 #ifndef cl_clang_storage_class_specifiers
 #error "Missing cl_clang_storage_class_specifiers define"
 #endif
-#pragma OPENCL EXTENSION cl_clang_storage_class_specifiers: enable
+#pragma OPENCL EXTENSION cl_clang_storage_class_specifiers : enable
+
+#ifndef __cl_clang_function_pointers
+#error "Missing __cl_clang_function_pointers define"
+#endif
+#pragma OPENCL EXTENSION __cl_clang_function_pointers : enable
+
+#ifndef __cl_clang_variadic_functions
+#error "Missing __cl_clang_variadic_functions define"
+#endif
+#pragma OPENCL EXTENSION __cl_clang_variadic_functions : enable
 
 #ifndef cl_khr_fp16
 #error "Missing cl_khr_fp16 define"
@@ -33,16 +43,6 @@
 #error "Missing cl_khr_int64_extended_atomics define"
 #endif
 #pragma OPENCL EXTENSION cl_khr_int64_extended_atomics: enable
-
-#ifndef cl_khr_gl_sharing
-#error "Missing cl_khr_gl_sharing define"
-#endif
-#pragma OPENCL EXTENSION cl_khr_gl_sharing: enable
-
-#ifndef cl_khr_icd
-#error "Missing cl_khr_icd define"
-#endif
-#pragma OPENCL EXTENSION cl_khr_icd: enable
 
 // Core features in CL 1.1
 
@@ -86,15 +86,6 @@
 // expected-warning@-2{{OpenCL extension 'cl_khr_local_int32_extended_atomics' is core feature or supported optional core feature - ignoring}}
 #endif
 
-#if (defined(__OPENCL_C_VERSION__) && __OPENCL_C_VERSION__ < 110)
-// Deprecated abvoe 1.0
-#ifndef cl_khr_select_fprounding_mode
-#error "Missing cl_khr_select_fp_rounding_mode define"
-#endif
-#pragma OPENCL EXTENSION cl_khr_select_fprounding_mode: enable
-#endif
-
-
 // Core feature in CL 1.2
 #ifndef cl_khr_fp64
 #error "Missing cl_khr_fp64 define"
@@ -114,24 +105,6 @@
 #endif
 
 #if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 110)
-#ifndef cl_khr_gl_event
-#error "Missing cl_khr_gl_event define"
-#endif
-#else
-// expected-warning@+2{{unsupported OpenCL extension 'cl_khr_gl_event' - ignoring}}
-#endif
-#pragma OPENCL EXTENSION cl_khr_gl_event : enable
-
-#if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 110)
-#ifndef cl_khr_d3d10_sharing
-#error "Missing cl_khr_d3d10_sharing define"
-#endif
-#else
-// expected-warning@+2{{unsupported OpenCL extension 'cl_khr_d3d10_sharing' - ignoring}}
-#endif
-#pragma OPENCL EXTENSION cl_khr_d3d10_sharing : enable
-
-#if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 110)
 #ifndef cles_khr_int64
 #error "Missing cles_khr_int64 define"
 #endif
@@ -141,60 +114,6 @@
 #pragma OPENCL EXTENSION cles_khr_int64 : enable
 
 #if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 120)
-#ifndef cl_khr_context_abort
-#error "Missing cl_context_abort define"
-#endif
-#else
-// expected-warning@+2{{unsupported OpenCL extension 'cl_khr_context_abort' - ignoring}}
-#endif
-#pragma OPENCL EXTENSION cl_khr_context_abort : enable
-
-#if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 120)
-#ifndef cl_khr_d3d11_sharing
-#error "Missing cl_khr_d3d11_sharing define"
-#endif
-#else
-// expected-warning@+2{{unsupported OpenCL extension 'cl_khr_d3d11_sharing' - ignoring}}
-#endif
-#pragma OPENCL EXTENSION cl_khr_d3d11_sharing : enable
-
-#if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 120)
-#ifndef cl_khr_dx9_media_sharing
-#error "Missing cl_khr_dx9_media_sharing define"
-#endif
-#else
-// expected-warning@+2{{unsupported OpenCL extension 'cl_khr_dx9_media_sharing' - ignoring}}
-#endif
-#pragma OPENCL EXTENSION cl_khr_dx9_media_sharing : enable
-
-#if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 120)
-#ifndef cl_khr_image2d_from_buffer
-#error "Missing cl_khr_image2d_from_buffer define"
-#endif
-#else
-// expected-warning@+2{{unsupported OpenCL extension 'cl_khr_image2d_from_buffer' - ignoring}}
-#endif
-#pragma OPENCL EXTENSION cl_khr_image2d_from_buffer : enable
-
-#if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 120)
-#ifndef cl_khr_initialize_memory
-#error "Missing cl_khr_initialize_memory define"
-#endif
-#else
-// expected-warning@+2{{unsupported OpenCL extension 'cl_khr_initialize_memory' - ignoring}}
-#endif
-#pragma OPENCL EXTENSION cl_khr_initialize_memory : enable
-
-#if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 120)
-#ifndef cl_khr_gl_depth_images
-#error "Missing cl_khr_gl_depth_images define"
-#endif
-#else
-// expected-warning@+2{{unsupported OpenCL extension 'cl_khr_gl_depth_images' - ignoring}}
-#endif
-#pragma OPENCL EXTENSION cl_khr_gl_depth_images : enable
-
-#if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 120)
 #ifndef cl_khr_gl_msaa_sharing
 #error "Missing cl_khr_gl_msaa_sharing define"
 #endif
@@ -202,33 +121,6 @@
 // expected-warning@+2{{unsupported OpenCL extension 'cl_khr_gl_msaa_sharing' - ignoring}}
 #endif
 #pragma OPENCL EXTENSION cl_khr_gl_msaa_sharing : enable
-
-#if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 120)
-#ifndef cl_khr_spir
-#error "Missing cl_khr_spir define"
-#endif
-#else
-// expected-warning@+2{{unsupported OpenCL extension 'cl_khr_spir' - ignoring}}
-#endif
-#pragma OPENCL EXTENSION cl_khr_spir : enable
-
-#if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 200)
-#ifndef cl_khr_egl_event
-#error "Missing cl_khr_egl_event define"
-#endif
-#else
-// expected-warning@+2{{unsupported OpenCL extension 'cl_khr_egl_event' - ignoring}}
-#endif
-#pragma OPENCL EXTENSION cl_khr_egl_event : enable
-
-#if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 200)
-#ifndef cl_khr_egl_image
-#error "Missing cl_khr_egl_image define"
-#endif
-#else
-// expected-warning@+2{{unsupported OpenCL extension 'cl_khr_egl_image' - ignoring}}
-#endif
-#pragma OPENCL EXTENSION cl_khr_egl_image : enable
 
 #if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 200)
 #ifndef cl_khr_mipmap_image
@@ -274,15 +166,6 @@
 // expected-warning@+2{{unsupported OpenCL extension 'cl_khr_subgroups' - ignoring}}
 #endif
 #pragma OPENCL EXTENSION cl_khr_subgroups : enable
-
-#if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 200)
-#ifndef cl_khr_terminate_context
-#error "Missing cl_khr_terminate_context define"
-#endif
-#else
-// expected-warning@+2{{unsupported OpenCL extension 'cl_khr_terminate_context' - ignoring}}
-#endif
-#pragma OPENCL EXTENSION cl_khr_terminate_context: enable
 
 #ifndef cl_amd_media_ops
 #error "Missing cl_amd_media_ops define"
@@ -332,88 +215,3 @@
 // expected-warning@+2{{unsupported OpenCL extension 'cl_intel_device_side_avc_motion_estimation' - ignoring}}
 #endif
 #pragma OPENCL EXTENSION cl_intel_device_side_avc_motion_estimation : enable
-
-#if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 200)
-#ifndef cl_khr_subgroup_extended_types
-#error "Missing cl_khr_subgroup_extended_types"
-#endif
-#else
-#ifdef cl_khr_subgroup_extended_types
-#error "Incorrect cl_khr_subgroup_extended_types define"
-#endif
-// expected-warning@+2{{unsupported OpenCL extension 'cl_khr_subgroup_extended_types' - ignoring}}
-#endif
-#pragma OPENCL EXTENSION cl_khr_subgroup_extended_types : enable
-
-#if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 200)
-#ifndef cl_khr_subgroup_non_uniform_vote
-#error "Missing cl_khr_subgroup_non_uniform_vote"
-#endif
-#else
-#ifdef cl_khr_subgroup_non_uniform_vote
-#error "Incorrect cl_khr_subgroup_non_uniform_vote define"
-#endif
-// expected-warning@+2{{unsupported OpenCL extension 'cl_khr_subgroup_non_uniform_vote' - ignoring}}
-#endif
-#pragma OPENCL EXTENSION cl_khr_subgroup_non_uniform_vote : enable
-
-#if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 200)
-#ifndef cl_khr_subgroup_ballot
-#error "Missing cl_khr_subgroup_ballot"
-#endif
-#else
-#ifdef cl_khr_subgroup_ballot
-#error "Incorrect cl_khr_subgroup_ballot define"
-#endif
-// expected-warning@+2{{unsupported OpenCL extension 'cl_khr_subgroup_ballot' - ignoring}}
-#endif
-#pragma OPENCL EXTENSION cl_khr_subgroup_ballot : enable
-
-#if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 200)
-#ifndef cl_khr_subgroup_non_uniform_arithmetic
-#error "Missing cl_khr_subgroup_non_uniform_arithmetic"
-#endif
-#else
-#ifdef cl_khr_subgroup_non_uniform_arithmetic
-#error "Incorrect cl_khr_subgroup_non_uniform_arithmetic define"
-#endif
-// expected-warning@+2{{unsupported OpenCL extension 'cl_khr_subgroup_non_uniform_arithmetic' - ignoring}}
-#endif
-#pragma OPENCL EXTENSION cl_khr_subgroup_non_uniform_arithmetic : enable
-
-#if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 200)
-#ifndef cl_khr_subgroup_shuffle
-#error "Missing cl_khr_subgroup_shuffle"
-#endif
-#else
-#ifdef cl_khr_subgroup_shuffle
-#error "Incorrect cl_khr_subgroup_shuffle define"
-#endif
-// expected-warning@+2{{unsupported OpenCL extension 'cl_khr_subgroup_shuffle' - ignoring}}
-#endif
-#pragma OPENCL EXTENSION cl_khr_subgroup_shuffle : enable
-
-#if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 200)
-#ifndef cl_khr_subgroup_shuffle_relative
-#error "Missing cl_khr_subgroup_shuffle_relative"
-#endif
-#else
-#ifdef cl_khr_subgroup_shuffle_relative
-#error "Incorrect cl_khr_subgroup_shuffle_relative define"
-#endif
-// expected-warning@+2{{unsupported OpenCL extension 'cl_khr_subgroup_shuffle_relative' - ignoring}}
-#endif
-#pragma OPENCL EXTENSION cl_khr_subgroup_shuffle_relative : enable
-
-#if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 200)
-#ifndef cl_khr_subgroup_clustered_reduce
-#error "Missing cl_khr_subgroup_clustered_reduce"
-#endif
-#else
-#ifdef cl_khr_subgroup_clustered_reduce
-#error "Incorrect cl_khr_subgroup_clustered_reduce define"
-#endif
-// expected-warning@+2{{unsupported OpenCL extension 'cl_khr_subgroup_clustered_reduce' - ignoring}}
-#endif
-#pragma OPENCL EXTENSION cl_khr_subgroup_clustered_reduce : enable
-

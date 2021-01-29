@@ -37,6 +37,7 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/MC/SubtargetFeature.h"
 #include "llvm/Pass.h"
+#include "llvm/Remarks/HotnessThresholdParser.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FileSystem.h"
@@ -142,11 +143,13 @@ static cl::opt<bool> RemarksWithHotness(
     cl::desc("With PGO, include profile count in optimization remarks"),
     cl::Hidden);
 
-static cl::opt<unsigned>
-    RemarksHotnessThreshold("pass-remarks-hotness-threshold",
-                            cl::desc("Minimum profile count required for "
-                                     "an optimization remark to be output"),
-                            cl::Hidden);
+static cl::opt<Optional<uint64_t>, false, remarks::HotnessThresholdParser>
+    RemarksHotnessThreshold(
+        "pass-remarks-hotness-threshold",
+        cl::desc("Minimum profile count required for "
+                 "an optimization remark to be output. "
+                 "Use 'auto' to apply the threshold from profile summary."),
+        cl::value_desc("N or 'auto'"), cl::init(0), cl::Hidden);
 
 static cl::opt<std::string>
     RemarksFilename("pass-remarks-output",
@@ -224,7 +227,7 @@ static std::unique_ptr<ToolOutputFile> GetOutputStream(const char *TargetName,
           OutputFilename += ".o";
         break;
       case CGFT_Null:
-        OutputFilename += ".null";
+        OutputFilename = "-";
         break;
       }
     }
@@ -316,7 +319,7 @@ int main(int argc, char **argv) {
   initializeConstantHoistingLegacyPassPass(*Registry);
   initializeScalarOpts(*Registry);
   initializeVectorization(*Registry);
-  initializeScalarizeMaskedMemIntrinPass(*Registry);
+  initializeScalarizeMaskedMemIntrinLegacyPassPass(*Registry);
   initializeExpandReductionsPass(*Registry);
   initializeHardwareLoopsPass(*Registry);
   initializeTransformUtils(*Registry);
@@ -424,14 +427,17 @@ static int compileModule(char **argv, LLVMContext &Context) {
   case '3': OLvl = CodeGenOpt::Aggressive; break;
   }
 
-  TargetOptions Options = codegen::InitTargetOptionsFromCodeGenFlags();
-  Options.DisableIntegratedAS = NoIntegratedAssembler;
-  Options.MCOptions.ShowMCEncoding = ShowMCEncoding;
-  Options.MCOptions.MCUseDwarfDirectory = EnableDwarfDirectory;
-  Options.MCOptions.AsmVerbose = AsmVerbose;
-  Options.MCOptions.PreserveAsmComments = PreserveComments;
-  Options.MCOptions.IASSearchPaths = IncludeDirs;
-  Options.MCOptions.SplitDwarfFile = SplitDwarfFile;
+  TargetOptions Options;
+  auto InitializeOptions = [&](const Triple &TheTriple) {
+    Options = codegen::InitTargetOptionsFromCodeGenFlags(TheTriple);
+    Options.DisableIntegratedAS = NoIntegratedAssembler;
+    Options.MCOptions.ShowMCEncoding = ShowMCEncoding;
+    Options.MCOptions.MCUseDwarfDirectory = EnableDwarfDirectory;
+    Options.MCOptions.AsmVerbose = AsmVerbose;
+    Options.MCOptions.PreserveAsmComments = PreserveComments;
+    Options.MCOptions.IASSearchPaths = IncludeDirs;
+    Options.MCOptions.SplitDwarfFile = SplitDwarfFile;
+  };
 
   Optional<Reloc::Model> RM = codegen::getExplicitRelocModel();
 
@@ -466,6 +472,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
         exit(1);
       }
 
+      InitializeOptions(TheTriple);
       Target = std::unique_ptr<TargetMachine>(TheTarget->createTargetMachine(
           TheTriple.getTriple(), CPUStr, FeaturesStr, Options, RM,
           codegen::getExplicitCodeModel(), OLvl));
@@ -510,6 +517,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
       return 1;
     }
 
+    InitializeOptions(TheTriple);
     Target = std::unique_ptr<TargetMachine>(TheTarget->createTargetMachine(
         TheTriple.getTriple(), CPUStr, FeaturesStr, Options, RM,
         codegen::getExplicitCodeModel(), OLvl));

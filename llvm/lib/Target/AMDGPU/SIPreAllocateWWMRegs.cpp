@@ -12,19 +12,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPU.h"
-#include "AMDGPUSubtarget.h"
+#include "GCNSubtarget.h"
 #include "MCTargetDesc/AMDGPUMCTargetDesc.h"
-#include "SIInstrInfo.h"
 #include "SIMachineFunctionInfo.h"
-#include "SIRegisterInfo.h"
 #include "llvm/ADT/PostOrderIterator.h"
-#include "llvm/CodeGen/LiveInterval.h"
 #include "llvm/CodeGen/LiveIntervals.h"
 #include "llvm/CodeGen/LiveRegMatrix.h"
-#include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
-#include "llvm/CodeGen/RegisterClassInfo.h"
-#include "llvm/CodeGen/VirtRegMap.h"
 #include "llvm/InitializePasses.h"
 
 using namespace llvm;
@@ -92,11 +86,10 @@ bool SIPreAllocateWWMRegs::processDef(MachineOperand &MO) {
     return false;
 
   Register Reg = MO.getReg();
-
-  if (!TRI->isVGPR(*MRI, Reg))
+  if (Reg.isPhysical())
     return false;
 
-  if (Reg.isPhysical())
+  if (!TRI->isVGPR(*MRI, Reg))
     return false;
 
   if (VRM->hasPhys(Reg))
@@ -104,7 +97,7 @@ bool SIPreAllocateWWMRegs::processDef(MachineOperand &MO) {
 
   LiveInterval &LI = LIS->getInterval(Reg);
 
-  for (unsigned PhysReg : RegClassInfo.getOrder(MRI->getRegClass(Reg))) {
+  for (MCRegister PhysReg : RegClassInfo.getOrder(MRI->getRegClass(Reg))) {
     if (!MRI->isPhysRegUsed(PhysReg) &&
         Matrix->checkInterference(LI, PhysReg) == LiveRegMatrix::IK_Free) {
       Matrix->assign(LI, PhysReg);

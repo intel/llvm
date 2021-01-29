@@ -626,8 +626,16 @@ void UnwrappedLineParser::parseBlock(bool MustBeDeclaration, bool AddLevel,
   if (MacroBlock && FormatTok->is(tok::l_paren))
     parseParens();
 
+  if (FormatTok->is(tok::arrow)) {
+    // Following the } we can find a trailing return type arrow
+    // as part of an implicit conversion constraint.
+    nextToken();
+    parseStructuralElement();
+  }
+
   if (MunchSemi && FormatTok->Tok.is(tok::semi))
     nextToken();
+
   Line->Level = InitialLevel;
 
   if (PPStartHash == PPEndHash) {
@@ -1261,6 +1269,12 @@ void UnwrappedLineParser::parseStructuralElement() {
       default:
         break;
       }
+      break;
+    case tok::kw_concept:
+      parseConcept();
+      break;
+    case tok::kw_requires:
+      parseRequires();
       break;
     case tok::kw_enum:
       // Ignore if this is part of "template <enum ...".
@@ -2025,6 +2039,13 @@ void UnwrappedLineParser::parseTryCatch() {
       nextToken();
       if (FormatTok->is(tok::l_paren))
         parseParens();
+      if (FormatTok->Previous && FormatTok->Previous->is(tok::identifier) &&
+          FormatTok->is(tok::l_brace)) {
+        do {
+          nextToken();
+        } while (!FormatTok->is(tok::r_brace));
+        nextToken();
+      }
 
       // In case identifiers were removed by clang-tidy, what might follow is
       // multiple commas in sequence - after the first identifier.
@@ -2212,18 +2233,26 @@ void UnwrappedLineParser::parseLabel(bool LeftAlignLabel) {
     --Line->Level;
   if (LeftAlignLabel)
     Line->Level = 0;
+
+  bool RemoveWhitesmithsCaseIndent =
+      (!Style.IndentCaseBlocks &&
+       Style.BreakBeforeBraces == FormatStyle::BS_Whitesmiths);
+
+  if (RemoveWhitesmithsCaseIndent)
+    --Line->Level;
+
   if (!Style.IndentCaseBlocks && CommentsBeforeNextToken.empty() &&
       FormatTok->Tok.is(tok::l_brace)) {
-    CompoundStatementIndenter Indenter(this, Line->Level,
-                                       Style.BraceWrapping.AfterCaseLabel,
-                                       Style.BraceWrapping.IndentBraces);
+
+    CompoundStatementIndenter Indenter(
+        this, Line->Level, Style.BraceWrapping.AfterCaseLabel,
+        Style.BraceWrapping.IndentBraces || RemoveWhitesmithsCaseIndent);
     parseBlock(/*MustBeDeclaration=*/false);
     if (FormatTok->Tok.is(tok::kw_break)) {
       if (Style.BraceWrapping.AfterControlStatement ==
           FormatStyle::BWACS_Always) {
         addUnwrappedLine();
-        if (!Style.IndentCaseBlocks &&
-            Style.BreakBeforeBraces == FormatStyle::BS_Whitesmiths) {
+        if (RemoveWhitesmithsCaseIndent) {
           Line->Level++;
         }
       }
@@ -2244,6 +2273,7 @@ void UnwrappedLineParser::parseLabel(bool LeftAlignLabel) {
 
 void UnwrappedLineParser::parseCaseLabel() {
   assert(FormatTok->Tok.is(tok::kw_case) && "'case' expected");
+
   // FIXME: fix handling of complex expressions here.
   do {
     nextToken();
@@ -2277,6 +2307,117 @@ void UnwrappedLineParser::parseAccessSpecifier() {
   if (FormatTok->Tok.is(tok::colon))
     nextToken();
   addUnwrappedLine();
+}
+
+void UnwrappedLineParser::parseConcept() {
+  assert(FormatTok->Tok.is(tok::kw_concept) && "'concept' expected");
+  nextToken();
+  if (!FormatTok->Tok.is(tok::identifier))
+    return;
+  nextToken();
+  if (!FormatTok->Tok.is(tok::equal))
+    return;
+  nextToken();
+  if (FormatTok->Tok.is(tok::kw_requires)) {
+    nextToken();
+    parseRequiresExpression(Line->Level);
+  } else {
+    parseConstraintExpression(Line->Level);
+  }
+}
+
+void UnwrappedLineParser::parseRequiresExpression(unsigned int OriginalLevel) {
+  // requires (R range)
+  if (FormatTok->Tok.is(tok::l_paren)) {
+    parseParens();
+    if (Style.IndentRequires && OriginalLevel != Line->Level) {
+      addUnwrappedLine();
+      --Line->Level;
+    }
+  }
+
+  if (FormatTok->Tok.is(tok::l_brace)) {
+    if (Style.BraceWrapping.AfterFunction)
+      addUnwrappedLine();
+    FormatTok->setType(TT_FunctionLBrace);
+    parseBlock(/*MustBeDeclaration=*/false);
+    addUnwrappedLine();
+  } else {
+    parseConstraintExpression(OriginalLevel);
+  }
+}
+
+void UnwrappedLineParser::parseConstraintExpression(
+    unsigned int OriginalLevel) {
+  // requires Id<T> && Id<T> || Id<T>
+  while (
+      FormatTok->isOneOf(tok::identifier, tok::kw_requires, tok::coloncolon)) {
+    nextToken();
+    while (FormatTok->isOneOf(tok::identifier, tok::coloncolon, tok::less,
+                              tok::greater, tok::comma, tok::ellipsis)) {
+      if (FormatTok->Tok.is(tok::less)) {
+        parseBracedList(/*ContinueOnSemicolons=*/false, /*IsEnum=*/false,
+                        /*ClosingBraceKind=*/tok::greater);
+        continue;
+      }
+      nextToken();
+    }
+    if (FormatTok->Tok.is(tok::kw_requires)) {
+      parseRequiresExpression(OriginalLevel);
+    }
+    if (FormatTok->Tok.is(tok::less)) {
+      parseBracedList(/*ContinueOnSemicolons=*/false, /*IsEnum=*/false,
+                      /*ClosingBraceKind=*/tok::greater);
+    }
+
+    if (FormatTok->Tok.is(tok::l_paren)) {
+      parseParens();
+    }
+    if (FormatTok->Tok.is(tok::l_brace)) {
+      if (Style.BraceWrapping.AfterFunction)
+        addUnwrappedLine();
+      FormatTok->setType(TT_FunctionLBrace);
+      parseBlock(/*MustBeDeclaration=*/false);
+    }
+    if (FormatTok->Tok.is(tok::semi)) {
+      // Eat any trailing semi.
+      nextToken();
+      addUnwrappedLine();
+    }
+    if (FormatTok->Tok.is(tok::colon)) {
+      return;
+    }
+    if (!FormatTok->Tok.isOneOf(tok::ampamp, tok::pipepipe)) {
+      if (FormatTok->Previous &&
+          !FormatTok->Previous->isOneOf(tok::identifier, tok::kw_requires,
+                                        tok::coloncolon)) {
+        addUnwrappedLine();
+      }
+      if (Style.IndentRequires && OriginalLevel != Line->Level) {
+        --Line->Level;
+      }
+      break;
+    } else {
+      FormatTok->setType(TT_ConstraintJunctions);
+    }
+
+    nextToken();
+  }
+}
+
+void UnwrappedLineParser::parseRequires() {
+  assert(FormatTok->Tok.is(tok::kw_requires) && "'requires' expected");
+
+  unsigned OriginalLevel = Line->Level;
+  if (FormatTok->Previous && FormatTok->Previous->is(tok::greater)) {
+    addUnwrappedLine();
+    if (Style.IndentRequires) {
+      Line->Level++;
+    }
+  }
+  nextToken();
+
+  parseRequiresExpression(OriginalLevel);
 }
 
 bool UnwrappedLineParser::parseEnum() {
@@ -2612,32 +2753,15 @@ void UnwrappedLineParser::parseObjCInterfaceOrImplementation() {
   // @interface can be followed by a lightweight generic
   // specialization list, then either a base class or a category.
   if (FormatTok->Tok.is(tok::less)) {
-    // Unlike protocol lists, generic parameterizations support
-    // nested angles:
-    //
-    // @interface Foo<ValueType : id <NSCopying, NSSecureCoding>> :
-    //     NSObject <NSCopying, NSSecureCoding>
-    //
-    // so we need to count how many open angles we have left.
-    unsigned NumOpenAngles = 1;
-    do {
-      nextToken();
-      // Early exit in case someone forgot a close angle.
-      if (FormatTok->isOneOf(tok::semi, tok::l_brace) ||
-          FormatTok->Tok.isObjCAtKeyword(tok::objc_end))
-        break;
-      if (FormatTok->Tok.is(tok::less))
-        ++NumOpenAngles;
-      else if (FormatTok->Tok.is(tok::greater)) {
-        assert(NumOpenAngles > 0 && "'>' makes NumOpenAngles negative");
-        --NumOpenAngles;
-      }
-    } while (!eof() && NumOpenAngles != 0);
-    nextToken(); // Skip '>'.
+    parseObjCLightweightGenerics();
   }
   if (FormatTok->Tok.is(tok::colon)) {
     nextToken();
     nextToken(); // base class name
+    // The base class can also have lightweight generics applied to it.
+    if (FormatTok->Tok.is(tok::less)) {
+      parseObjCLightweightGenerics();
+    }
   } else if (FormatTok->Tok.is(tok::l_paren))
     // Skip category, if present.
     parseParens();
@@ -2656,6 +2780,32 @@ void UnwrappedLineParser::parseObjCInterfaceOrImplementation() {
   addUnwrappedLine();
 
   parseObjCUntilAtEnd();
+}
+
+void UnwrappedLineParser::parseObjCLightweightGenerics() {
+  assert(FormatTok->Tok.is(tok::less));
+  // Unlike protocol lists, generic parameterizations support
+  // nested angles:
+  //
+  // @interface Foo<ValueType : id <NSCopying, NSSecureCoding>> :
+  //     NSObject <NSCopying, NSSecureCoding>
+  //
+  // so we need to count how many open angles we have left.
+  unsigned NumOpenAngles = 1;
+  do {
+    nextToken();
+    // Early exit in case someone forgot a close angle.
+    if (FormatTok->isOneOf(tok::semi, tok::l_brace) ||
+        FormatTok->Tok.isObjCAtKeyword(tok::objc_end))
+      break;
+    if (FormatTok->Tok.is(tok::less))
+      ++NumOpenAngles;
+    else if (FormatTok->Tok.is(tok::greater)) {
+      assert(NumOpenAngles > 0 && "'>' makes NumOpenAngles negative");
+      --NumOpenAngles;
+    }
+  } while (!eof() && NumOpenAngles != 0);
+  nextToken(); // Skip '>'.
 }
 
 // Returns true for the declaration/definition form of @protocol,
@@ -2753,7 +2903,7 @@ LLVM_ATTRIBUTE_UNUSED static void printDebugInfo(const UnwrappedLine &Line,
                                                     E = Line.Tokens.end();
        I != E; ++I) {
     llvm::dbgs() << I->Tok->Tok.getName() << "["
-                 << "T=" << I->Tok->getType()
+                 << "T=" << (unsigned)I->Tok->getType()
                  << ", OC=" << I->Tok->OriginalColumn << "] ";
   }
   for (std::list<UnwrappedLineNode>::const_iterator I = Line.Tokens.begin(),
@@ -3037,7 +3187,6 @@ void UnwrappedLineParser::readToken(int LevelDifference) {
       }
       FormatTok = Tokens->getNextToken();
       FormatTok->MustBreakBefore = true;
-      FormatTok->MustBreakAlignBefore = true;
     }
 
     if (!PPStack.empty() && (PPStack.back().Kind == PP_Unreachable) &&
@@ -3062,7 +3211,6 @@ void UnwrappedLineParser::pushToken(FormatToken *Tok) {
   Line->Tokens.push_back(UnwrappedLineNode(Tok));
   if (MustBreakBeforeNextToken) {
     Line->Tokens.back().Tok->MustBreakBefore = true;
-    Line->Tokens.back().Tok->MustBreakAlignBefore = true;
     MustBreakBeforeNextToken = false;
   }
 }

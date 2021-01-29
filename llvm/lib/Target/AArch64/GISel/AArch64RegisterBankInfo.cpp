@@ -680,11 +680,18 @@ AArch64RegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     break;
   }
   case TargetOpcode::G_SITOFP:
-  case TargetOpcode::G_UITOFP:
+  case TargetOpcode::G_UITOFP: {
     if (MRI.getType(MI.getOperand(0).getReg()).isVector())
       break;
-    OpRegBankIdx = {PMI_FirstFPR, PMI_FirstGPR};
+    // Integer to FP conversions don't necessarily happen between GPR -> FPR
+    // regbanks. They can also be done within an FPR register.
+    Register SrcReg = MI.getOperand(1).getReg();
+    if (getRegBank(SrcReg, MRI, TRI) == &AArch64::FPRRegBank)
+      OpRegBankIdx = {PMI_FirstFPR, PMI_FirstFPR};
+    else
+      OpRegBankIdx = {PMI_FirstFPR, PMI_FirstGPR};
     break;
+  }
   case TargetOpcode::G_FPTOSI:
   case TargetOpcode::G_FPTOUI:
     if (MRI.getType(MI.getOperand(0).getReg()).isVector())
@@ -722,7 +729,8 @@ AArch64RegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
         // assume this was a floating point load in the IR.
         // If it was not, we would have had a bitcast before
         // reaching that instruction.
-        if (onlyUsesFP(UseMI, MRI, TRI)) {
+        // Int->FP conversion operations are also captured in onlyDefinesFP().
+        if (onlyUsesFP(UseMI, MRI, TRI) || onlyDefinesFP(UseMI, MRI, TRI)) {
           OpRegBankIdx[0] = PMI_FirstFPR;
           break;
         }
@@ -845,7 +853,7 @@ AArch64RegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     }
     break;
   }
-  case TargetOpcode::G_BUILD_VECTOR:
+  case TargetOpcode::G_BUILD_VECTOR: {
     // If the first source operand belongs to a FPR register bank, then make
     // sure that we preserve that.
     if (OpRegBankIdx[1] != PMI_FirstGPR)
@@ -875,6 +883,30 @@ AArch64RegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       for (unsigned Idx = 0; Idx < NumOperands; ++Idx)
         OpRegBankIdx[Idx] = PMI_FirstFPR;
     }
+    break;
+  }
+  case TargetOpcode::G_VECREDUCE_FADD:
+  case TargetOpcode::G_VECREDUCE_FMUL:
+  case TargetOpcode::G_VECREDUCE_FMAX:
+  case TargetOpcode::G_VECREDUCE_FMIN:
+  case TargetOpcode::G_VECREDUCE_ADD:
+  case TargetOpcode::G_VECREDUCE_MUL:
+  case TargetOpcode::G_VECREDUCE_AND:
+  case TargetOpcode::G_VECREDUCE_OR:
+  case TargetOpcode::G_VECREDUCE_XOR:
+  case TargetOpcode::G_VECREDUCE_SMAX:
+  case TargetOpcode::G_VECREDUCE_SMIN:
+  case TargetOpcode::G_VECREDUCE_UMAX:
+  case TargetOpcode::G_VECREDUCE_UMIN:
+    // Reductions produce a scalar value from a vector, the scalar should be on
+    // FPR bank.
+    OpRegBankIdx = {PMI_FirstFPR, PMI_FirstFPR};
+    break;
+  case TargetOpcode::G_VECREDUCE_SEQ_FADD:
+  case TargetOpcode::G_VECREDUCE_SEQ_FMUL:
+    // These reductions also take a scalar accumulator input.
+    // Assign them FPR for now.
+    OpRegBankIdx = {PMI_FirstFPR, PMI_FirstFPR, PMI_FirstFPR};
     break;
   }
 

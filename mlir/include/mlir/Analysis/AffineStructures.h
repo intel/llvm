@@ -13,6 +13,7 @@
 #ifndef MLIR_ANALYSIS_AFFINE_STRUCTURES_H
 #define MLIR_ANALYSIS_AFFINE_STRUCTURES_H
 
+#include "mlir/Analysis/Presburger/Matrix.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Support/LogicalResult.h"
@@ -97,6 +98,13 @@ public:
       ids.append(idArgs.begin(), idArgs.end());
   }
 
+  /// Return a system with no constraints, i.e., one which is satisfied by all
+  /// points.
+  static FlatAffineConstraints getUniverse(unsigned numDims = 0,
+                                           unsigned numSymbols = 0) {
+    return FlatAffineConstraints(numDims, numSymbols);
+  }
+
   /// Create a flat affine constraint system from an AffineValueMap or a list of
   /// these. The constructed system will only include equalities.
   explicit FlatAffineConstraints(const AffineValueMap &avm);
@@ -146,12 +154,22 @@ public:
   /// false if a solution exists or all tests were inconclusive.
   bool isIntegerEmpty() const;
 
+  // Returns a matrix where each row is a vector along which the polytope is
+  // bounded. The span of the returned vectors is guaranteed to contain all
+  // such vectors. The returned vectors are NOT guaranteed to be linearly
+  // independent. This function should not be called on empty sets.
+  Matrix getBoundedDirections() const;
+
   /// Find a sample point satisfying the constraints. This uses a branch and
   /// bound algorithm with generalized basis reduction, which always works if
   /// the set is bounded. This should not be called for unbounded sets.
   ///
   /// Returns such a point if one exists, or an empty Optional otherwise.
   Optional<SmallVector<int64_t, 8>> findIntegerSample() const;
+
+  /// Returns true if the given point satisfies the constraints, or false
+  /// otherwise.
+  bool containsPoint(ArrayRef<int64_t> point) const;
 
   // Clones this object.
   std::unique_ptr<FlatAffineConstraints> clone() const;

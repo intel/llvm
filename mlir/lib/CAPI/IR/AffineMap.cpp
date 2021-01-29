@@ -8,6 +8,7 @@
 
 #include "mlir-c/AffineMap.h"
 #include "mlir-c/IR.h"
+#include "mlir/CAPI/AffineExpr.h"
 #include "mlir/CAPI/AffineMap.h"
 #include "mlir/CAPI/IR.h"
 #include "mlir/CAPI/Utils.h"
@@ -21,7 +22,7 @@ MlirContext mlirAffineMapGetContext(MlirAffineMap affineMap) {
   return wrap(unwrap(affineMap).getContext());
 }
 
-int mlirAffineMapEqual(MlirAffineMap a1, MlirAffineMap a2) {
+bool mlirAffineMapEqual(MlirAffineMap a1, MlirAffineMap a2) {
   return unwrap(a1) == unwrap(a2);
 }
 
@@ -29,7 +30,6 @@ void mlirAffineMapPrint(MlirAffineMap affineMap, MlirStringCallback callback,
                         void *userData) {
   mlir::detail::CallbackOstream stream(callback, userData);
   unwrap(affineMap).print(stream);
-  stream.flush();
 }
 
 void mlirAffineMapDump(MlirAffineMap affineMap) { unwrap(affineMap).dump(); }
@@ -38,9 +38,17 @@ MlirAffineMap mlirAffineMapEmptyGet(MlirContext ctx) {
   return wrap(AffineMap::get(unwrap(ctx)));
 }
 
-MlirAffineMap mlirAffineMapGet(MlirContext ctx, intptr_t dimCount,
-                               intptr_t symbolCount) {
+MlirAffineMap mlirAffineMapZeroResultGet(MlirContext ctx, intptr_t dimCount,
+                                         intptr_t symbolCount) {
   return wrap(AffineMap::get(dimCount, symbolCount, unwrap(ctx)));
+}
+
+MlirAffineMap mlirAffineMapGet(MlirContext ctx, intptr_t dimCount,
+                               intptr_t symbolCount, intptr_t nAffineExprs,
+                               MlirAffineExpr *affineExprs) {
+  SmallVector<AffineExpr, 4> exprs;
+  ArrayRef<AffineExpr> exprList = unwrapList(nAffineExprs, affineExprs, exprs);
+  return wrap(AffineMap::get(dimCount, symbolCount, exprList, unwrap(ctx)));
 }
 
 MlirAffineMap mlirAffineMapConstantGet(MlirContext ctx, int64_t val) {
@@ -63,19 +71,19 @@ MlirAffineMap mlirAffineMapPermutationGet(MlirContext ctx, intptr_t size,
       llvm::makeArrayRef(permutation, static_cast<size_t>(size)), unwrap(ctx)));
 }
 
-int mlirAffineMapIsIdentity(MlirAffineMap affineMap) {
+bool mlirAffineMapIsIdentity(MlirAffineMap affineMap) {
   return unwrap(affineMap).isIdentity();
 }
 
-int mlirAffineMapIsMinorIdentity(MlirAffineMap affineMap) {
+bool mlirAffineMapIsMinorIdentity(MlirAffineMap affineMap) {
   return unwrap(affineMap).isMinorIdentity();
 }
 
-int mlirAffineMapIsEmpty(MlirAffineMap affineMap) {
+bool mlirAffineMapIsEmpty(MlirAffineMap affineMap) {
   return unwrap(affineMap).isEmpty();
 }
 
-int mlirAffineMapIsSingleConstant(MlirAffineMap affineMap) {
+bool mlirAffineMapIsSingleConstant(MlirAffineMap affineMap) {
   return unwrap(affineMap).isSingleConstant();
 }
 
@@ -95,15 +103,19 @@ intptr_t mlirAffineMapGetNumResults(MlirAffineMap affineMap) {
   return unwrap(affineMap).getNumResults();
 }
 
+MlirAffineExpr mlirAffineMapGetResult(MlirAffineMap affineMap, intptr_t pos) {
+  return wrap(unwrap(affineMap).getResult(static_cast<unsigned>(pos)));
+}
+
 intptr_t mlirAffineMapGetNumInputs(MlirAffineMap affineMap) {
   return unwrap(affineMap).getNumInputs();
 }
 
-int mlirAffineMapIsProjectedPermutation(MlirAffineMap affineMap) {
+bool mlirAffineMapIsProjectedPermutation(MlirAffineMap affineMap) {
   return unwrap(affineMap).isProjectedPermutation();
 }
 
-int mlirAffineMapIsPermutation(MlirAffineMap affineMap) {
+bool mlirAffineMapIsPermutation(MlirAffineMap affineMap) {
   return unwrap(affineMap).isPermutation();
 }
 

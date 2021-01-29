@@ -19,7 +19,7 @@
 #include <list>
 #include <vector>
 
-#include "lldb/Target/Process.h"
+#include "lldb/Target/PostMortemProcess.h"
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/Status.h"
 
@@ -28,12 +28,13 @@
 
 struct ThreadData;
 
-class ProcessElfCore : public lldb_private::Process {
+class ProcessElfCore : public lldb_private::PostMortemProcess {
 public:
   // Constructors and Destructors
   static lldb::ProcessSP
   CreateInstance(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp,
-                 const lldb_private::FileSpec *crash_file_path);
+                 const lldb_private::FileSpec *crash_file_path,
+                 bool can_connect);
 
   static void Initialize();
 
@@ -125,8 +126,6 @@ private:
   lldb::ModuleSP m_core_module_sp;
   lldb_private::FileSpec m_core_file;
   std::string m_dyld_plugin_name;
-  ProcessElfCore(const ProcessElfCore &) = delete;
-  const ProcessElfCore &operator=(const ProcessElfCore &) = delete;
 
   // True if m_thread_contexts contains valid entries
   bool m_thread_data_valid = false;

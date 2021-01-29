@@ -1205,16 +1205,47 @@ the configuration (without a prefix: ``Auto``).
 
     .. code-block:: c++
 
-      try {
-        foo();
-      } catch () {
+      namespace N {
+      enum E {
+        E1,
+        E2,
+      };
+
+      class C {
+      public:
+        C();
+      };
+
+      bool baz(int i) {
+        try {
+          do {
+            switch (i) {
+            case 1: {
+              foobar();
+              break;
+            }
+            default: {
+              break;
+            }
+            }
+          } while (--i);
+          return true;
+        } catch (...) {
+          handleError();
+          return false;
+        }
       }
-      void foo() { bar(); }
-      class foo {};
-      if (foo()) {
-      } else {
+
+      void foo(bool b) {
+        if (b) {
+          baz(2);
+        } else {
+          baz(5);
+        }
       }
-      enum X : int { A, B };
+
+      void bar() { foo(true); }
+      } // namespace N
 
   * ``BS_Linux`` (in configuration: ``Linux``)
     Like ``Attach``, but break before braces on function, namespace and
@@ -1222,18 +1253,51 @@ the configuration (without a prefix: ``Auto``).
 
     .. code-block:: c++
 
-      try {
-        foo();
-      } catch () {
-      }
-      void foo() { bar(); }
-      class foo
+      namespace N
       {
+      enum E {
+        E1,
+        E2,
       };
-      if (foo()) {
-      } else {
+
+      class C
+      {
+      public:
+        C();
+      };
+
+      bool baz(int i)
+      {
+        try {
+          do {
+            switch (i) {
+            case 1: {
+              foobar();
+              break;
+            }
+            default: {
+              break;
+            }
+            }
+          } while (--i);
+          return true;
+        } catch (...) {
+          handleError();
+          return false;
+        }
       }
-      enum X : int { A, B };
+
+      void foo(bool b)
+      {
+        if (b) {
+          baz(2);
+        } else {
+          baz(5);
+        }
+      }
+
+      void bar() { foo(true); }
+      } // namespace N
 
   * ``BS_Mozilla`` (in configuration: ``Mozilla``)
     Like ``Attach``, but break before braces on enum, function, and record
@@ -1241,18 +1305,51 @@ the configuration (without a prefix: ``Auto``).
 
     .. code-block:: c++
 
-      try {
-        foo();
-      } catch () {
-      }
-      void foo() { bar(); }
-      class foo
+      namespace N {
+      enum E
       {
+        E1,
+        E2,
       };
-      if (foo()) {
-      } else {
+
+      class C
+      {
+      public:
+        C();
+      };
+
+      bool baz(int i)
+      {
+        try {
+          do {
+            switch (i) {
+            case 1: {
+              foobar();
+              break;
+            }
+            default: {
+              break;
+            }
+            }
+          } while (--i);
+          return true;
+        } catch (...) {
+          handleError();
+          return false;
+        }
       }
-      enum X : int { A, B };
+
+      void foo(bool b)
+      {
+        if (b) {
+          baz(2);
+        } else {
+          baz(5);
+        }
+      }
+
+      void bar() { foo(true); }
+      } // namespace N
 
   * ``BS_Stroustrup`` (in configuration: ``Stroustrup``)
     Like ``Attach``, but break before function definitions, ``catch``, and
@@ -1260,75 +1357,175 @@ the configuration (without a prefix: ``Auto``).
 
     .. code-block:: c++
 
-      try {
-        foo();
-      }
-      catch () {
-      }
-      void foo() { bar(); }
-      class foo {
+      namespace N {
+      enum E {
+        E1,
+        E2,
       };
-      if (foo()) {
+
+      class C {
+      public:
+        C();
+      };
+
+      bool baz(int i)
+      {
+        try {
+          do {
+            switch (i) {
+            case 1: {
+              foobar();
+              break;
+            }
+            default: {
+              break;
+            }
+            }
+          } while (--i);
+          return true;
+        }
+        catch (...) {
+          handleError();
+          return false;
+        }
       }
-      else {
+
+      void foo(bool b)
+      {
+        if (b) {
+          baz(2);
+        }
+        else {
+          baz(5);
+        }
       }
-      enum X : int { A, B };
+
+      void bar() { foo(true); }
+      } // namespace N
 
   * ``BS_Allman`` (in configuration: ``Allman``)
     Always break before braces.
 
     .. code-block:: c++
 
-      try
+      namespace N
       {
-        foo();
-      }
-      catch ()
+      enum E
       {
-      }
-      void foo() { bar(); }
-      class foo
-      {
+        E1,
+        E2,
       };
-      if (foo())
+
+      class C
       {
-      }
-      else
-      {
-      }
-      enum X : int
-      {
-        A,
-        B
+      public:
+        C();
       };
+
+      bool baz(int i)
+      {
+        try
+        {
+          do
+          {
+            switch (i)
+            {
+            case 1:
+            {
+              foobar();
+              break;
+            }
+            default:
+            {
+              break;
+            }
+            }
+          } while (--i);
+          return true;
+        }
+        catch (...)
+        {
+          handleError();
+          return false;
+        }
+      }
+
+      void foo(bool b)
+      {
+        if (b)
+        {
+          baz(2);
+        }
+        else
+        {
+          baz(5);
+        }
+      }
+
+      void bar() { foo(true); }
+      } // namespace N
 
   * ``BS_Whitesmiths`` (in configuration: ``Whitesmiths``)
     Like ``Allman`` but always indent braces and line up code with braces.
 
     .. code-block:: c++
 
-      try
+      namespace N
         {
-        foo();
-        }
-      catch ()
+      enum E
         {
-        }
-      void foo() { bar(); }
-      class foo
-        {
+        E1,
+        E2,
         };
-      if (foo())
+
+      class C
         {
-        }
-      else
-        {
-        }
-      enum X : int
-        {
-        A,
-        B
+      public:
+        C();
         };
+
+      bool baz(int i)
+        {
+        try
+          {
+          do
+            {
+            switch (i)
+              {
+              case 1:
+              {
+              foobar();
+              break;
+              }
+              default:
+              {
+              break;
+              }
+              }
+            } while (--i);
+          return true;
+          }
+        catch (...)
+          {
+          handleError();
+          return false;
+          }
+        }
+
+      void foo(bool b)
+        {
+        if (b)
+          {
+          baz(2);
+          }
+        else
+          {
+          baz(5);
+          }
+        }
+
+      void bar() { foo(true); }
+        } // namespace N
 
   * ``BS_GNU`` (in configuration: ``GNU``)
     Always break before braces and add an extra level of indentation to
@@ -1337,50 +1534,129 @@ the configuration (without a prefix: ``Auto``).
 
     .. code-block:: c++
 
-      try
-        {
-          foo();
-        }
-      catch ()
-        {
-        }
-      void foo() { bar(); }
-      class foo
+      namespace N
       {
-      };
-      if (foo())
-        {
-        }
-      else
-        {
-        }
-      enum X : int
+      enum E
       {
-        A,
-        B
+        E1,
+        E2,
       };
+
+      class C
+      {
+      public:
+        C();
+      };
+
+      bool baz(int i)
+      {
+        try
+          {
+            do
+              {
+                switch (i)
+                  {
+                  case 1:
+                    {
+                      foobar();
+                      break;
+                    }
+                  default:
+                    {
+                      break;
+                    }
+                  }
+              }
+            while (--i);
+            return true;
+          }
+        catch (...)
+          {
+            handleError();
+            return false;
+          }
+      }
+
+      void foo(bool b)
+      {
+        if (b)
+          {
+            baz(2);
+          }
+        else
+          {
+            baz(5);
+          }
+      }
+
+      void bar() { foo(true); }
+      } // namespace N
 
   * ``BS_WebKit`` (in configuration: ``WebKit``)
     Like ``Attach``, but break before functions.
 
     .. code-block:: c++
 
-      try {
-        foo();
-      } catch () {
-      }
-      void foo() { bar(); }
-      class foo {
+      namespace N {
+      enum E {
+        E1,
+        E2,
       };
-      if (foo()) {
-      } else {
+
+      class C {
+      public:
+        C();
+      };
+
+      bool baz(int i)
+      {
+        try {
+          do {
+            switch (i) {
+            case 1: {
+              foobar();
+              break;
+            }
+            default: {
+              break;
+            }
+            }
+          } while (--i);
+          return true;
+        } catch (...) {
+          handleError();
+          return false;
+        }
       }
-      enum X : int { A, B };
+
+      void foo(bool b)
+      {
+        if (b) {
+          baz(2);
+        } else {
+          baz(5);
+        }
+      }
+
+      void bar() { foo(true); }
+      } // namespace N
 
   * ``BS_Custom`` (in configuration: ``Custom``)
     Configure each individual brace in `BraceWrapping`.
 
 
+
+**BreakBeforeConceptDeclarations** (``bool``)
+  If ``true``, concept will be placed on a new line.
+
+  .. code-block:: c++
+
+    true:
+     template<typename T>
+     concept ...
+
+    false:
+     template<typename T> concept ...
 
 **BreakBeforeTernaryOperators** (``bool``)
   If ``true``, ternary operators will be placed after line breaks.
@@ -1701,11 +1977,14 @@ the configuration (without a prefix: ``Auto``).
   always need to be first.
 
   There is a third and optional field ``SortPriority`` which can used while
-  ``IncludeBloks = IBS_Regroup`` to define the priority in which ``#includes``
-  should be ordered, and value of ``Priority`` defines the order of
-  ``#include blocks`` and also enables to group ``#includes`` of different
-  priority for order.``SortPriority`` is set to the value of ``Priority``
-  as default if it is not assigned.
+  ``IncludeBlocks = IBS_Regroup`` to define the priority in which
+  ``#includes`` should be ordered. The value of ``Priority`` defines the
+  order of ``#include blocks`` and also allows the grouping of ``#includes``
+  of different priority. ``SortPriority`` is set to the value of
+  ``Priority`` as default if it is not assigned.
+
+  Each regular expression can be marked as case sensitive with the field
+  ``CaseSensitive``, per default it is not.
 
   To configure this in the .clang-format file, use:
 
@@ -1715,6 +1994,7 @@ the configuration (without a prefix: ``Auto``).
       - Regex:           '^"(llvm|llvm-c|clang|clang-c)/'
         Priority:        2
         SortPriority:    2
+        CaseSensitive:   true
       - Regex:           '^(<|"(gtest|gmock|isl|json)/)'
         Priority:        3
       - Regex:           '<[[:alnum:].]+>'
@@ -1900,6 +2180,25 @@ the configuration (without a prefix: ``Auto``).
        #endif
 
 
+
+**IndentRequires** (``bool``)
+  Indent the requires clause in a template
+
+  .. code-block:: c++
+
+     true:
+     template <typename It>
+       requires Iterator<It>
+     void sort(It begin, It end) {
+       //....
+     }
+
+     false:
+     template <typename It>
+     requires Iterator<It>
+     void sort(It begin, It end) {
+       //....
+     }
 
 **IndentWidth** (``unsigned``)
   The number of columns to use for indentation.
@@ -2301,6 +2600,10 @@ the configuration (without a prefix: ``Auto``).
 **PenaltyExcessCharacter** (``unsigned``)
   The penalty for each character outside of the column limit.
 
+**PenaltyIndentedWhitespace** (``unsigned``)
+  Penalty for each character of whitespace indentation
+  (counted relative to leading non-whitespace column).
+
 **PenaltyReturnTypeOnItsOwnLine** (``unsigned``)
   Penalty for putting the return type of a function onto its own
   line.
@@ -2463,6 +2766,46 @@ the configuration (without a prefix: ``Auto``).
      true:                                  false:
      template <int> void foo();     vs.     template<int> void foo();
 
+**SpaceAroundPointerQualifiers** (``SpaceAroundPointerQualifiersStyle``)
+  Defines in which cases to put a space before or after pointer qualifiers
+
+  Possible values:
+
+  * ``SAPQ_Default`` (in configuration: ``Default``)
+    Don't ensure spaces around pointer qualifiers and use PointerAlignment
+    instead.
+
+    .. code-block:: c++
+
+       PointerAlignment: Left                 PointerAlignment: Right
+       void* const* x = NULL;         vs.     void *const *x = NULL;
+
+  * ``SAPQ_Before`` (in configuration: ``Before``)
+    Ensure that there is a space before pointer qualifiers.
+
+    .. code-block:: c++
+
+       PointerAlignment: Left                 PointerAlignment: Right
+       void* const* x = NULL;         vs.     void * const *x = NULL;
+
+  * ``SAPQ_After`` (in configuration: ``After``)
+    Ensure that there is a space after pointer qualifiers.
+
+    .. code-block:: c++
+
+       PointerAlignment: Left                 PointerAlignment: Right
+       void* const * x = NULL;         vs.     void *const *x = NULL;
+
+  * ``SAPQ_Both`` (in configuration: ``Both``)
+    Ensure that there is a space both before and after pointer qualifiers.
+
+    .. code-block:: c++
+
+       PointerAlignment: Left                 PointerAlignment: Right
+       void* const * x = NULL;         vs.     void * const *x = NULL;
+
+
+
 **SpaceBeforeAssignmentOperators** (``bool``)
   If ``false``, spaces will be removed before assignment operators.
 
@@ -2471,6 +2814,16 @@ the configuration (without a prefix: ``Auto``).
      true:                                  false:
      int a = 5;                     vs.     int a= 5;
      a += 42;                               a+= 42;
+
+**SpaceBeforeCaseColon** (``bool``)
+  If ``false``, spaces will be removed before case colon.
+
+  .. code-block:: c++
+
+    true:                                   false
+    switch (x) {                    vs.     switch (x) {
+      case 1 : break;                         case 1: break;
+    }                                       }
 
 **SpaceBeforeCpp11BracedList** (``bool``)
   If ``true``, a space will be inserted before a C++11 braced list
@@ -2720,6 +3073,23 @@ the configuration (without a prefix: ``Auto``).
     Automatic detection based on the input.
 
 
+
+**StatementAttributeLikeMacros** (``std::vector<std::string>``)
+  Macros which are ignored in front of a statement, as if they were an
+  attribute. So that they are not parsed as identifier, for example for Qts
+  emit.
+
+  .. code-block:: c++
+
+    AlignConsecutiveDeclarations: true
+    StatementAttributeLikeMacros: []
+    unsigned char data = 'x';
+    emit          signal(data); // This is parsed as variable declaration.
+
+    AlignConsecutiveDeclarations: true
+    StatementAttributeLikeMacros: [emit]
+    unsigned char data = 'x';
+    emit signal(data); // Now it's fine again.
 
 **StatementMacros** (``std::vector<std::string>``)
   A vector of macros that should be interpreted as complete

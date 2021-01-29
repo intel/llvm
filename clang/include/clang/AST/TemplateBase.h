@@ -409,8 +409,8 @@ private:
     // but template arguments get canonicalized too quickly.
     NestedNameSpecifier *Qualifier;
     void *QualifierLocData;
-    unsigned TemplateNameLoc;
-    unsigned EllipsisLoc;
+    SourceLocation TemplateNameLoc;
+    SourceLocation EllipsisLoc;
   };
 
   llvm::PointerUnion<TemplateTemplateArgLocInfo *, Expr *, TypeSourceInfo *>
@@ -444,11 +444,11 @@ public:
   }
 
   SourceLocation getTemplateNameLoc() const {
-    return SourceLocation::getFromRawEncoding(getTemplate()->TemplateNameLoc);
+    return getTemplate()->TemplateNameLoc;
   }
 
   SourceLocation getTemplateEllipsisLoc() const {
-    return SourceLocation::getFromRawEncoding(getTemplate()->EllipsisLoc);
+    return getTemplate()->EllipsisLoc;
   }
 };
 
@@ -687,8 +687,8 @@ struct alignas(void *) ASTTemplateKWAndArgsInfo {
                 TemplateArgumentListInfo &List) const;
 };
 
-const DiagnosticBuilder &operator<<(const DiagnosticBuilder &DB,
-                                    const TemplateArgument &Arg);
+const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
+                                      const TemplateArgument &Arg);
 
 inline TemplateSpecializationType::iterator
     TemplateSpecializationType::end() const {

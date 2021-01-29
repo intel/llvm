@@ -162,9 +162,12 @@ public:
         (ParsedAttr == AT_ReqdWorkGroupSize && isCXX11Attribute()) ||
         (ParsedAttr == AT_IntelReqdSubGroupSize && isCXX11Attribute()) ||
         ParsedAttr == AT_SYCLIntelNumSimdWorkItems ||
+        ParsedAttr == AT_SYCLIntelSchedulerTargetFmaxMhz ||
         ParsedAttr == AT_SYCLIntelMaxWorkGroupSize ||
         ParsedAttr == AT_SYCLIntelMaxGlobalWorkDim ||
-        ParsedAttr == AT_SYCLIntelNoGlobalWorkOffset)
+        ParsedAttr == AT_SYCLIntelNoGlobalWorkOffset ||
+        ParsedAttr == AT_SYCLIntelUseStallEnableClusters ||
+        ParsedAttr == AT_SYCLIntelLoopFuse)
       return true;
 
     return false;

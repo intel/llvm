@@ -144,7 +144,7 @@ struct ESIMDIntrinDesc {
 
   std::string GenXSpelling;
   SmallVector<ArgRule, 16> ArgRules;
-  NameRule SuffixRule = {NO_RULE, 0};
+  NameRule SuffixRule = {NO_RULE, {0}};
 
   int getNumGenXArgs() const {
     auto NRules = ArgRules.size();
@@ -169,7 +169,7 @@ private:
 
 #define DEF_ARG_RULE(Nm, Kind)                                                 \
   static constexpr ESIMDIntrinDesc::ArgRule Nm(int16_t N) {                    \
-    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::Kind, N};                 \
+    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::Kind, {{N, {}}}};         \
   }
   DEF_ARG_RULE(l, SRC_CALL_ALL)
   DEF_ARG_RULE(t, SRC_TMPL_ARG)
@@ -179,39 +179,39 @@ private:
   static constexpr ESIMDIntrinDesc::ArgRule a(int16_t N) {
     return ESIMDIntrinDesc::ArgRule{
         ESIMDIntrinDesc::SRC_CALL_ARG,
-        {N, ESIMDIntrinDesc::GenXArgConversion::NONE}};
+        {{N, ESIMDIntrinDesc::GenXArgConversion::NONE}}};
   }
 
   static constexpr ESIMDIntrinDesc::ArgRule ai1(int16_t N) {
     return ESIMDIntrinDesc::ArgRule{
         ESIMDIntrinDesc::SRC_CALL_ARG,
-        {N, ESIMDIntrinDesc::GenXArgConversion::TO_I1}};
+        {{N, ESIMDIntrinDesc::GenXArgConversion::TO_I1}}};
   }
 
   static constexpr ESIMDIntrinDesc::ArgRule aSI(int16_t N) {
     return ESIMDIntrinDesc::ArgRule{
         ESIMDIntrinDesc::SRC_CALL_ARG,
-        {N, ESIMDIntrinDesc::GenXArgConversion::TO_SI}};
+        {{N, ESIMDIntrinDesc::GenXArgConversion::TO_SI}}};
   }
 
   static constexpr ESIMDIntrinDesc::ArgRule c16(int16_t N) {
-    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::CONST_INT16, N};
+    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::CONST_INT16, {{N, {}}}};
   }
 
   static constexpr ESIMDIntrinDesc::ArgRule c32(int16_t N) {
-    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::CONST_INT32, N};
+    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::CONST_INT32, {{N, {}}}};
   }
 
   static constexpr ESIMDIntrinDesc::ArgRule c64(int16_t N) {
-    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::CONST_INT64, N};
+    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::CONST_INT64, {{N, {}}}};
   }
 
   static constexpr ESIMDIntrinDesc::NameRule bo(int16_t N) {
-    return ESIMDIntrinDesc::NameRule{ESIMDIntrinDesc::BIN_OP, N};
+    return ESIMDIntrinDesc::NameRule{ESIMDIntrinDesc::BIN_OP, {N}};
   }
 
   static constexpr ESIMDIntrinDesc::NameRule nk(int16_t N) {
-    return ESIMDIntrinDesc::NameRule{ESIMDIntrinDesc::NUM_KIND, N};
+    return ESIMDIntrinDesc::NameRule{ESIMDIntrinDesc::NUM_KIND, {N}};
   }
 
 public:
@@ -237,9 +237,15 @@ public:
         //          for integer, "f" - for floating point
         {"rdregion",
          {"rdregion", {a(0), t(3), t(4), t(5), a(1), t(6)}, nk(-1)}},
+        {"rdindirect",
+         {"rdregion", {a(0), c32(0), t(2), c32(0), a(1), t(3)}, nk(-1)}},
         {{"wrregion"},
          {{"wrregion"},
           {a(0), a(1), t(3), t(4), t(5), a(2), t(6), ai1(3)},
+          nk(-1)}},
+        {{"wrindirect"},
+         {{"wrregion"},
+          {a(0), a(1), c32(0), t(2), c32(0), a(2), t(3), ai1(3)},
           nk(-1)}},
         {"vload", {"vload", {l(0)}}},
         {"vstore", {"vstore", {a(1), a(0)}}},
@@ -252,6 +258,15 @@ public:
         {"flat_write", {"svm.scatter", {ai1(3), a(2), a(0), a(1)}}},
         {"flat_write4",
          {"svm.scatter4.scaled", {ai1(2), t(2), c16(0), c64(0), a(0), a(1)}}},
+
+        // surface index-based gather/scatter:
+        // num blocks, scale, surface index, global offset, elem offsets
+        {"surf_read", {"gather.scaled2", {t(3), c16(0), aSI(1), a(2), a(3)}}},
+        // pred, num blocks, scale, surface index, global offset, elem offsets,
+        // data to write
+        {"surf_write",
+         {"scatter.scaled", {ai1(0), t(3), c16(0), aSI(2), a(3), a(4), a(5)}}},
+
         // intrinsics to query thread's coordinates:
         {"group_id_x", {"group.id.x", {}}},
         {"group_id_y", {"group.id.y", {}}},
@@ -280,10 +295,10 @@ public:
          {"media.st", {a(0), aSI(1), a(2), a(3), a(4), a(5), a(6)}}},
         {"slm_fence", {"fence", {a(0)}}},
         {"barrier", {"barrier", {}}},
+        {"sbarrier", {"sbarrier", {a(0)}}},
         {"block_read", {"oword.ld.unaligned", {c32(0), aSI(0), a(1)}}},
         {"block_write", {"oword.st", {aSI(0), a(1), a(2)}}},
-        {"slm_block_read",
-         {"oword.ld.unaligned", {c32(0), c32(SLM_BTI), a(0)}}},
+        {"slm_block_read", {"oword.ld", {c32(0), c32(SLM_BTI), a(0)}}},
         {"slm_block_write", {"oword.st", {c32(SLM_BTI), a(0), a(1)}}},
         {"slm_read",
          {"gather.scaled",
@@ -363,7 +378,14 @@ public:
         {"cos", {"cos", {a(0)}}},
         {"pow", {"pow", {a(0), a(1)}}},
         {"div_ieee", {"ieee.div", {a(0), a(1)}}},
-        {"dp4a", {"dp4a", {a(0), a(1), a(2)}}},
+        {"uudp4a", {"uudp4a", {a(0), a(1), a(2)}}},
+        {"usdp4a", {"usdp4a", {a(0), a(1), a(2)}}},
+        {"sudp4a", {"sudp4a", {a(0), a(1), a(2)}}},
+        {"ssdp4a", {"ssdp4a", {a(0), a(1), a(2)}}},
+        {"uudp4a_sat", {"uudp4a.sat", {a(0), a(1), a(2)}}},
+        {"usdp4a_sat", {"usdp4a.sat", {a(0), a(1), a(2)}}},
+        {"sudp4a_sat", {"sudp4a.sat", {a(0), a(1), a(2)}}},
+        {"ssdp4a_sat", {"ssdp4a.sat", {a(0), a(1), a(2)}}},
         {"any", {"any", {ai1(0)}}},
         {"all", {"all", {ai1(0)}}},
     };
@@ -746,9 +768,6 @@ static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI) {
   Type *NITy = NewI->getType();
   Type *OITy = OldI->getType();
   if (OITy != NITy) {
-    assert(
-        CastInst::isCastable(OITy, NITy) &&
-        "Cannot add cast instruction while translating ESIMD intrinsic call");
     auto CastOpcode = CastInst::getCastOpcode(NewI, false, OITy, false);
     NewI = CastInst::Create(CastOpcode, NewI, OITy,
                             NewI->getName() + ".cast.ty", OldI);
@@ -1127,6 +1146,7 @@ void SYCLLowerESIMDLegacyPass::generateKernelMetadata(Module &M) {
     SmallVector<Metadata *, 8> ArgTypeDescs;
 
     auto *KernelArgTypes = F.getMetadata("kernel_arg_type");
+    auto *KernelArgAccPtrs = F.getMetadata("kernel_arg_accessor_ptr");
     unsigned Idx = 0;
 
     // Iterate argument list to gather argument kinds and generate argument
@@ -1139,14 +1159,29 @@ void SYCLLowerESIMDLegacyPass::generateKernelMetadata(Module &M) {
 
       if (ArgType.find("image1d_t") != std::string::npos ||
           ArgType.find("image2d_t") != std::string::npos ||
-          ArgType.find("image3d_t") != std::string::npos ||
-          ArgType.find("image1d_buffer_t") != std::string::npos) {
+          ArgType.find("image3d_t") != std::string::npos) {
         Kind = AK_SURFACE;
         ArgTypeDescs.push_back(MDString::get(Ctx, ArgType));
       } else {
         StringRef ArgDesc = "";
-        if (Arg.getType()->isPointerTy())
-          ArgDesc = "svmptr_t";
+
+        if (Arg.getType()->isPointerTy()) {
+          const auto *IsAccMD =
+              KernelArgAccPtrs
+                  ? cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx))
+                  : nullptr;
+          unsigned IsAcc =
+              IsAccMD
+                  ? static_cast<unsigned>(cast<ConstantInt>(IsAccMD->getValue())
+                                              ->getValue()
+                                              .getZExtValue())
+                  : 0;
+          if (IsAcc) {
+            ArgDesc = "buffer_t";
+            Kind = AK_SURFACE;
+          } else
+            ArgDesc = "svmptr_t";
+        }
         ArgTypeDescs.push_back(MDString::get(Ctx, ArgDesc));
       }
 
@@ -1210,10 +1245,11 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
     if (auto CastOp = dyn_cast<llvm::CastInst>(&I)) {
       llvm::Type *DstTy = CastOp->getDestTy();
       auto CastOpcode = CastOp->getOpcode();
-      if ((CastOpcode == llvm::Instruction::FPToUI &&
-           DstTy->getScalarType()->getPrimitiveSizeInBits() <= 32) ||
-          (CastOpcode == llvm::Instruction::FPToSI &&
-           DstTy->getScalarType()->getPrimitiveSizeInBits() < 32)) {
+      if (isa<FixedVectorType>(DstTy) &&
+          ((CastOpcode == llvm::Instruction::FPToUI &&
+            DstTy->getScalarType()->getPrimitiveSizeInBits() <= 32) ||
+           (CastOpcode == llvm::Instruction::FPToSI &&
+            DstTy->getScalarType()->getPrimitiveSizeInBits() < 32))) {
         IRBuilder<> Builder(&I);
         llvm::Value *Src = CastOp->getOperand(0);
         auto TmpTy = llvm::FixedVectorType::get(

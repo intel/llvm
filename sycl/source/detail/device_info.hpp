@@ -122,8 +122,9 @@ template <info::device param> struct get_device_info<platform, param> {
   }
 };
 
-// Specialization for string return type, variable return size
-template <info::device param> struct get_device_info<string_class, param> {
+// Helper struct to allow using the specialization of get_device_info
+// for string return type in other specializations.
+template <info::device param> struct get_device_info_string {
   static string_class get(RT::PiDevice dev, const plugin &Plugin) {
     size_t resultSize;
     Plugin.call<PiApiKind::piDeviceGetInfo>(
@@ -137,6 +138,13 @@ template <info::device param> struct get_device_info<string_class, param> {
                                             resultSize, result.get(), nullptr);
 
     return string_class(result.get());
+  }
+};
+
+// Specialization for string return type, variable return size
+template <info::device param> struct get_device_info<string_class, param> {
+  static string_class get(RT::PiDevice dev, const plugin &Plugin) {
+    return get_device_info_string<param>::get(dev, Plugin);
   }
 };
 
@@ -173,6 +181,30 @@ struct get_device_info<vector_class<info::fp_config>, param> {
                                             pi::cast<RT::PiDeviceInfo>(param),
                                             sizeof(result), &result, nullptr);
     return read_fp_bitfield(result);
+  }
+};
+
+// Specialization for OpenCL version, splits the string returned by OpenCL
+template <> struct get_device_info<string_class, info::device::version> {
+  static string_class get(RT::PiDevice dev, const plugin &Plugin) {
+    string_class result =
+        get_device_info_string<info::device::version>::get(dev, Plugin);
+
+    // Extract OpenCL version from the returned string.
+    // For example, for the string "OpenCL 2.1 (Build 0)"
+    // return '2.1'.
+    auto dotPos = result.find('.');
+    if (dotPos == std::string::npos)
+      return result;
+
+    auto leftPos = result.rfind(' ', dotPos);
+    if (leftPos == std::string::npos)
+      leftPos = 0;
+    else
+      leftPos++;
+
+    auto rightPos = result.find(' ', dotPos);
+    return result.substr(leftPos, rightPos - leftPos);
   }
 };
 
@@ -240,6 +272,17 @@ struct get_device_info<vector_class<string_class>, info::device::extensions> {
   }
 };
 
+static bool is_sycl_partition_property(info::partition_property PP) {
+  switch (PP) {
+  case info::partition_property::no_partition:
+  case info::partition_property::partition_equally:
+  case info::partition_property::partition_by_counts:
+  case info::partition_property::partition_by_affinity_domain:
+    return true;
+  }
+  return false;
+}
+
 // Specialization for partition properties, variable OpenCL return size
 template <>
 struct get_device_info<vector_class<info::partition_property>,
@@ -264,7 +307,12 @@ struct get_device_info<vector_class<info::partition_property>,
 
     vector_class<info::partition_property> result;
     for (size_t i = 0; i < arrayLength; ++i) {
-      result.push_back(info::partition_property(arrayResult[i]));
+      // OpenCL extensions may have partition_properties that
+      // are not yet defined for SYCL (eg. CL_DEVICE_PARTITION_BY_NAMES_INTEL)
+      info::partition_property pp(
+          static_cast<info::partition_property>(arrayResult[i]));
+      if (is_sycl_partition_property(pp))
+        result.push_back(pp);
     }
     return result;
   }
@@ -904,6 +952,11 @@ inline bool get_device_info_host<info::device::usm_system_allocator>() {
   return true;
 }
 
+template <>
+inline bool get_device_info_host<info::device::ext_intel_mem_channel>() {
+  return false;
+}
+
 cl_uint get_native_vector_width(size_t idx);
 
 // USM
@@ -970,6 +1023,66 @@ template <> struct get_device_info<bool, info::device::usm_system_allocator> {
     return (Err != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
   }
 };
+
+// Specialization for memory channel query
+template <> struct get_device_info<bool, info::device::ext_intel_mem_channel> {
+  static bool get(RT::PiDevice dev, const plugin &Plugin) {
+    pi_mem_properties caps;
+    pi_result Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
+        dev, pi::cast<RT::PiDeviceInfo>(info::device::ext_intel_mem_channel),
+        sizeof(pi_mem_properties), &caps, nullptr);
+    return (Err != PI_SUCCESS) ? false : (caps & PI_MEM_PROPERTIES_CHANNEL);
+  }
+};
+
+// Specializations for intel extensions for Level Zero low-level
+// detail device descriptors (not support on host).
+template <>
+inline string_class
+get_device_info_host<info::device::ext_intel_pci_address>() {
+  throw runtime_error(
+      "Obtaining the PCI address is not supported on HOST device",
+      PI_INVALID_DEVICE);
+}
+template <>
+inline cl_uint get_device_info_host<info::device::ext_intel_gpu_eu_count>() {
+  throw runtime_error("Obtaining the EU count is not supported on HOST device",
+                      PI_INVALID_DEVICE);
+}
+template <>
+inline cl_uint
+get_device_info_host<info::device::ext_intel_gpu_eu_simd_width>() {
+  throw runtime_error(
+      "Obtaining the EU SIMD width is not supported on HOST device",
+      PI_INVALID_DEVICE);
+}
+template <>
+inline cl_uint get_device_info_host<info::device::ext_intel_gpu_slices>() {
+  throw runtime_error(
+      "Obtaining the number of slices is not supported on HOST device",
+      PI_INVALID_DEVICE);
+}
+template <>
+inline cl_uint
+get_device_info_host<info::device::ext_intel_gpu_subslices_per_slice>() {
+  throw runtime_error("Obtaining the number of subslices per slice is not "
+                      "supported on HOST device",
+                      PI_INVALID_DEVICE);
+}
+template <>
+inline cl_uint
+get_device_info_host<info::device::ext_intel_gpu_eu_count_per_subslice>() {
+  throw runtime_error(
+      "Obtaining the EU count per subslice is not supported on HOST device",
+      PI_INVALID_DEVICE);
+}
+template <>
+inline cl_ulong
+get_device_info_host<info::device::ext_intel_max_mem_bandwidth>() {
+  throw runtime_error(
+      "Obtaining the maximum memory bandwidth is not supported on HOST device",
+      PI_INVALID_DEVICE);
+}
 
 } // namespace detail
 } // namespace sycl

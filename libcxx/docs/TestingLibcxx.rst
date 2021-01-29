@@ -27,12 +27,12 @@ Usage
 After building libc++, you can run parts of the libc++ test suite by simply
 running ``llvm-lit`` on a specified test or directory. If you're unsure
 whether the required libraries have been built, you can use the
-`check-cxx-deps` target. For example:
+`cxx-test-depends` target. For example:
 
 .. code-block:: bash
 
   $ cd <monorepo-root>
-  $ make -C <build> check-cxx-deps # If you want to make sure the targets get rebuilt
+  $ make -C <build> cxx-test-depends # If you want to make sure the targets get rebuilt
   $ <build>/bin/llvm-lit -sv libcxx/test/std/re # Run all of the std::regex tests
   $ <build>/bin/llvm-lit -sv libcxx/test/std/depr/depr.c.headers/stdlib_h.pass.cpp # Run a single test
   $ <build>/bin/llvm-lit -sv libcxx/test/std/atomics libcxx/test/std/threads # Test std::thread and std::atomic
@@ -63,8 +63,8 @@ Some other common examples include:
   # Specify a custom compiler.
   $ <build>/bin/llvm-lit -sv libcxx/test/std --param=cxx_under_test=/opt/bin/g++
 
-  # Enable warnings in the test suite
-  $ <build>/bin/llvm-lit -sv libcxx/test --param=enable_warnings=true
+  # Disable warnings in the test suite
+  $ <build>/bin/llvm-lit -sv libcxx/test --param=enable_warnings=False
 
   # Use UBSAN when running the tests.
   $ <build>/bin/llvm-lit -sv libcxx/test --param=use_sanitizer=Undefined
@@ -87,7 +87,7 @@ configuration easier.
    .. code-block:: bash
 
      $ cmake <options> -DLIBCXX_TEST_CONFIG=<path-to-site-config>
-     $ make -C <build> check-cxx-deps
+     $ make -C <build> cxx-test-depends
      $ <build>/bin/llvm-lit -sv libcxx/test # will use your custom config file
 
 
@@ -120,7 +120,7 @@ default.
 
 .. option:: std=<standard version>
 
-  **Values**: c++03, c++11, c++14, c++17, c++2a
+  **Values**: c++03, c++11, c++14, c++17, c++2a, c++2b
 
   Change the standard version used when building the tests.
 
@@ -187,7 +187,7 @@ few requirements to the test suite. Here's some stuff you should know:
 - All tests are run in a temporary directory that is unique to that test and
   cleaned up after the test is done.
 - When a test needs data files as inputs, these data files can be saved in the
-  repository (when reasonable) and referrenced by the test as
+  repository (when reasonable) and referenced by the test as
   ``// FILE_DEPENDENCIES: <path-to-dependencies>``. Copies of these files or
   directories will be made available to the test in the temporary directory
   where it is run.

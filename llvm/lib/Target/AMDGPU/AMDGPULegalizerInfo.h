@@ -24,6 +24,9 @@ class GCNTargetMachine;
 class LLVMContext;
 class GCNSubtarget;
 
+namespace AMDGPU {
+struct ImageDimIntrinsicInfo;
+}
 /// This class provides the information for the target register banks.
 class AMDGPULegalizerInfo final : public LegalizerInfo {
   const GCNSubtarget &ST;
@@ -125,6 +128,8 @@ public:
                       MachineIRBuilder &B) const;
   bool legalizeFastUnsafeFDIV(MachineInstr &MI, MachineRegisterInfo &MRI,
                               MachineIRBuilder &B) const;
+  bool legalizeFastUnsafeFDIV64(MachineInstr &MI, MachineRegisterInfo &MRI,
+                                MachineIRBuilder &B) const;
   bool legalizeFDIVFastIntrin(MachineInstr &MI, MachineRegisterInfo &MRI,
                               MachineIRBuilder &B) const;
 
@@ -146,7 +151,7 @@ public:
   splitBufferOffsets(MachineIRBuilder &B, Register OrigOffset) const;
 
   Register handleD16VData(MachineIRBuilder &B, MachineRegisterInfo &MRI,
-                          Register Reg) const;
+                          Register Reg, bool ImageStore = false) const;
   bool legalizeRawBufferStore(MachineInstr &MI, MachineRegisterInfo &MRI,
                               MachineIRBuilder &B, bool IsFormat) const;
   bool legalizeRawBufferLoad(MachineInstr &MI, MachineRegisterInfo &MRI,

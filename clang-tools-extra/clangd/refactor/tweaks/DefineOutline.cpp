@@ -51,7 +51,7 @@ namespace {
 const FunctionDecl *getSelectedFunction(const SelectionTree::Node *SelNode) {
   if (!SelNode)
     return nullptr;
-  const ast_type_traits::DynTypedNode &AstNode = SelNode->ASTNode;
+  const DynTypedNode &AstNode = SelNode->ASTNode;
   if (const FunctionDecl *FD = AstNode.get<FunctionDecl>())
     return FD;
   if (AstNode.get<CompoundStmt>() &&
@@ -65,11 +65,10 @@ const FunctionDecl *getSelectedFunction(const SelectionTree::Node *SelNode) {
 llvm::Optional<Path> getSourceFile(llvm::StringRef FileName,
                                    const Tweak::Selection &Sel) {
   if (auto Source = getCorrespondingHeaderOrSource(
-          std::string(FileName),
+          FileName,
           &Sel.AST->getSourceManager().getFileManager().getVirtualFileSystem()))
     return *Source;
-  return getCorrespondingHeaderOrSource(std::string(FileName), *Sel.AST,
-                                        Sel.Index);
+  return getCorrespondingHeaderOrSource(FileName, *Sel.AST, Sel.Index);
 }
 
 // Synthesize a DeclContext for TargetNS from CurContext. TargetNS must be empty
@@ -356,9 +355,11 @@ public:
   const char *id() const override;
 
   bool hidden() const override { return false; }
-  Intent intent() const override { return Intent::Refactor; }
+  llvm::StringLiteral kind() const override {
+    return CodeAction::REFACTOR_KIND;
+  }
   std::string title() const override {
-    return "Move function body to out-of-line.";
+    return "Move function body to out-of-line";
   }
 
   bool prepare(const Selection &Sel) override {

@@ -32,6 +32,7 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/UniqueVector.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -1079,8 +1080,8 @@ protected:
   void EmitImageInfo();
 
 public:
-  CGObjCCommonMac(CodeGen::CodeGenModule &cgm) :
-    CGObjCRuntime(cgm), VMContext(cgm.getLLVMContext()) { }
+  CGObjCCommonMac(CodeGen::CodeGenModule &cgm)
+      : CGObjCRuntime(cgm), VMContext(cgm.getLLVMContext()) {}
 
   bool isNonFragileABI() const {
     return ObjCABI == 2;
@@ -1764,6 +1765,24 @@ struct NullReturnState {
           assert(RV.isScalar() &&
                  "NullReturnState::complete - arg not on object");
           CGF.EmitARCRelease(RV.getScalarVal(), ARCImpreciseLifetime);
+        } else {
+          QualType QT = ParamDecl->getType();
+          auto *RT = QT->getAs<RecordType>();
+          if (RT && RT->getDecl()->isParamDestroyedInCallee()) {
+            RValue RV = I->getRValue(CGF);
+            QualType::DestructionKind DtorKind = QT.isDestructedType();
+            switch (DtorKind) {
+            case QualType::DK_cxx_destructor:
+              CGF.destroyCXXObject(CGF, RV.getAggregateAddress(), QT);
+              break;
+            case QualType::DK_nontrivial_c_struct:
+              CGF.destroyNonTrivialCStruct(CGF, RV.getAggregateAddress(), QT);
+              break;
+            default:
+              llvm_unreachable("unexpected dtor kind");
+              break;
+            }
+          }
         }
       }
     }
@@ -1781,7 +1800,8 @@ struct NullReturnState {
     // If we've got a scalar return, build a phi.
     if (result.isScalar()) {
       // Derive the null-initialization value.
-      llvm::Constant *null = CGF.CGM.EmitNullConstant(resultType);
+      llvm::Value *null =
+          CGF.EmitFromMemory(CGF.CGM.EmitNullConstant(resultType), resultType);
 
       // If no join is necessary, just flow out.
       if (!contBB) return RValue::get(null);
@@ -2240,7 +2260,7 @@ CGObjCCommonMac::EmitMessageSend(CodeGen::CodeGenFunction &CGF,
   // Emit a null-check if there's a consumed argument other than the receiver.
   if (!RequiresNullCheck && CGM.getLangOpts().ObjCAutoRefCount && Method) {
     for (const auto *ParamDecl : Method->parameters()) {
-      if (ParamDecl->hasAttr<NSConsumedAttr>()) {
+      if (ParamDecl->isDestroyedInCallee()) {
         RequiresNullCheck = true;
         break;
       }
@@ -3196,7 +3216,8 @@ CGObjCMac::EmitProtocolList(Twine name,
                             ObjCProtocolDecl::protocol_iterator begin,
                             ObjCProtocolDecl::protocol_iterator end) {
   // Just return null for empty protocol lists
-  if (begin == end)
+  auto PDs = GetRuntimeProtocolList(begin, end);
+  if (PDs.empty())
     return llvm::Constant::getNullValue(ObjCTypes.ProtocolListPtrTy);
 
   ConstantInitBuilder builder(CGM);
@@ -3209,9 +3230,9 @@ CGObjCMac::EmitProtocolList(Twine name,
   auto countSlot = values.addPlaceholder();
 
   auto refsArray = values.beginArray(ObjCTypes.ProtocolPtrTy);
-  for (; begin != end; ++begin) {
-    refsArray.add(GetProtocolRef(*begin));
-  }
+  for (const auto *Proto : PDs)
+    refsArray.add(GetProtocolRef(Proto));
+
   auto count = refsArray.size();
 
   // This list is null terminated.
@@ -4001,18 +4022,14 @@ llvm::Function *CGObjCCommonMac::GenerateMethod(const ObjCMethodDecl *OMD,
   if (OMD->isDirectMethod()) {
     Method = GenerateDirectMethod(OMD, CD);
   } else {
-    SmallString<256> Name;
-    llvm::raw_svector_ostream OS(Name);
-    const auto &MC = CGM.getContext().createMangleContext();
-    MC->mangleObjCMethodName(OMD, OS, /*includePrefixByte=*/true,
-                             /*includeCategoryNamespace=*/true);
+    auto Name = getSymbolNameForMethod(OMD);
 
     CodeGenTypes &Types = CGM.getTypes();
     llvm::FunctionType *MethodTy =
         Types.GetFunctionType(Types.arrangeObjCMethodDeclaration(OMD));
     Method =
         llvm::Function::Create(MethodTy, llvm::GlobalValue::InternalLinkage,
-                               Name.str(), &CGM.getModule());
+                               Name, &CGM.getModule());
   }
 
   MethodDefinitions.insert(std::make_pair(OMD, Method));
@@ -4057,14 +4074,10 @@ CGObjCCommonMac::GenerateDirectMethod(const ObjCMethodDecl *OMD,
     // Replace the cached function in the map.
     I->second = Fn;
   } else {
-    SmallString<256> Name;
-    llvm::raw_svector_ostream OS(Name);
-    const auto &MC = CGM.getContext().createMangleContext();
-    MC->mangleObjCMethodName(OMD, OS, /*includePrefixByte=*/true,
-                             /*includeCategoryNamespace=*/false);
+    auto Name = getSymbolNameForMethod(OMD, /*include category*/ false);
 
     Fn = llvm::Function::Create(MethodTy, llvm::GlobalValue::ExternalLinkage,
-                                Name.str(), &CGM.getModule());
+                                Name, &CGM.getModule());
     DirectMethodDefinitions.insert(std::make_pair(COMD, Fn));
   }
 
@@ -6656,7 +6669,8 @@ llvm::Value *CGObjCNonFragileABIMac::GenerateProtocolRef(CodeGenFunction &CGF,
 
   // This routine is called for @protocol only. So, we must build definition
   // of protocol's meta-data (not a reference to it!)
-  //
+  assert(!PD->isNonRuntimeProtocol() &&
+         "attempting to get a protocol ref to a static protocol.");
   llvm::Constant *Init =
     llvm::ConstantExpr::getBitCast(GetOrEmitProtocol(PD),
                                    ObjCTypes.getExternalProtocolPtrTy());
@@ -7013,6 +7027,8 @@ llvm::Constant *CGObjCNonFragileABIMac::GetOrEmitProtocolRef(
   const ObjCProtocolDecl *PD) {
   llvm::GlobalVariable *&Entry = Protocols[PD->getIdentifier()];
 
+  assert(!PD->isNonRuntimeProtocol() &&
+         "attempting to GetOrEmit a non-runtime protocol");
   if (!Entry) {
     // We use the initializer as a marker of whether this is a forward
     // reference or not. At module finalization we add the empty
@@ -7156,10 +7172,20 @@ llvm::Constant *
 CGObjCNonFragileABIMac::EmitProtocolList(Twine Name,
                                       ObjCProtocolDecl::protocol_iterator begin,
                                       ObjCProtocolDecl::protocol_iterator end) {
-  SmallVector<llvm::Constant *, 16> ProtocolRefs;
-
   // Just return null for empty protocol lists
-  if (begin == end)
+  auto Protocols = GetRuntimeProtocolList(begin, end);
+  if (Protocols.empty())
+    return llvm::Constant::getNullValue(ObjCTypes.ProtocolListnfABIPtrTy);
+
+  SmallVector<llvm::Constant *, 16> ProtocolRefs;
+  ProtocolRefs.reserve(Protocols.size());
+
+  for (const auto *PD : Protocols)
+    ProtocolRefs.push_back(GetProtocolRef(PD));
+
+  // If all of the protocols in the protocol list are objc_non_runtime_protocol
+  // just return null
+  if (ProtocolRefs.size() == 0)
     return llvm::Constant::getNullValue(ObjCTypes.ProtocolListnfABIPtrTy);
 
   // FIXME: We shouldn't need to do this lookup here, should we?
@@ -7176,8 +7202,8 @@ CGObjCNonFragileABIMac::EmitProtocolList(Twine Name,
 
   // A null-terminated array of protocols.
   auto array = values.beginArray(ObjCTypes.ProtocolnfABIPtrTy);
-  for (; begin != end; ++begin)
-    array.add(GetProtocolRef(*begin));  // Implemented???
+  for (auto const &proto : ProtocolRefs)
+    array.add(proto);
   auto count = array.size();
   array.addNullPointer(ObjCTypes.ProtocolnfABIPtrTy);
 
@@ -7343,7 +7369,7 @@ CGObjCNonFragileABIMac::EmitVTableMessageSend(CodeGenFunction &CGF,
   bool requiresnullCheck = false;
   if (CGM.getLangOpts().ObjCAutoRefCount && method)
     for (const auto *ParamDecl : method->parameters()) {
-      if (ParamDecl->hasAttr<NSConsumedAttr>()) {
+      if (ParamDecl->isDestroyedInCallee()) {
         if (!nullReturn.NullBB)
           nullReturn.init(CGF, arg0);
         requiresnullCheck = true;

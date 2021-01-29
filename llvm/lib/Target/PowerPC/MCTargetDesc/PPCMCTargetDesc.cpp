@@ -78,7 +78,17 @@ static MCRegisterInfo *createPPCMCRegisterInfo(const Triple &TT) {
 
 static MCSubtargetInfo *createPPCMCSubtargetInfo(const Triple &TT,
                                                  StringRef CPU, StringRef FS) {
-  return createPPCMCSubtargetInfoImpl(TT, CPU, /*TuneCPU*/ CPU, FS);
+  // Set some default feature to MC layer.
+  std::string FullFS = std::string(FS);
+
+  if (TT.isOSAIX()) {
+    if (!FullFS.empty())
+      FullFS = "+aix," + FullFS;
+    else
+      FullFS = "+aix";
+  }
+
+  return createPPCMCSubtargetInfoImpl(TT, CPU, /*TuneCPU*/ CPU, FullFS);
 }
 
 static MCAsmInfo *createPPCMCAsmInfo(const MCRegisterInfo &MRI,
@@ -336,8 +346,8 @@ static MCInstPrinter *createPPCMCInstPrinter(const Triple &T,
 }
 
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializePowerPCTargetMC() {
-  for (Target *T :
-       {&getThePPC32Target(), &getThePPC64Target(), &getThePPC64LETarget()}) {
+  for (Target *T : {&getThePPC32Target(), &getThePPC32LETarget(),
+                    &getThePPC64Target(), &getThePPC64LETarget()}) {
     // Register the MC asm info.
     RegisterMCAsmInfoFn C(*T, createPPCMCAsmInfo);
 

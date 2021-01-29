@@ -45,7 +45,7 @@ vector.body:                                      ; preds = %vector.body, %vecto
   %wide.masked.load16 = call <16 x i8> @llvm.masked.load.v16i8.p0v16i8(<16 x i8>* %i3, i32 1, <16 x i1> %active.lane.mask, <16 x i8> undef)
   %i4 = add <16 x i8> %wide.masked.load, %wide.masked.load16
   %i5 = select <16 x i1> %active.lane.mask, <16 x i8> %i4, <16 x i8> %vec.phi
-  %i6 = call i8 @llvm.experimental.vector.reduce.add.v16i8(<16 x i8> %i5)
+  %i6 = call i8 @llvm.vector.reduce.add.v16i8(<16 x i8> %i5)
   %index.next = add i32 %index, 16
   %i7 = icmp eq i32 %index.next, %n.vec
   br i1 %i7, label %middle.block, label %vector.body
@@ -123,7 +123,7 @@ vector.body:                                      ; preds = %vector.body, %vecto
 
 middle.block:                                     ; preds = %vector.body
   %i9 = select <8 x i1> %active.lane.mask, <8 x i16> %i7, <8 x i16> %vec.phi
-  %i10 = call i16 @llvm.experimental.vector.reduce.add.v8i16(<8 x i16> %i9)
+  %i10 = call i16 @llvm.vector.reduce.add.v8i16(<8 x i16> %i9)
   br label %for.cond.cleanup
 
 for.cond.cleanup:                                 ; preds = %middle.block, %entry
@@ -193,7 +193,7 @@ vector.body:                                      ; preds = %vector.body, %vecto
 
 middle.block:                                     ; preds = %vector.body
   %i7 = select <16 x i1> %active.lane.mask, <16 x i8> %i5, <16 x i8> %vec.phi
-  %i8 = call i8 @llvm.experimental.vector.reduce.add.v16i8(<16 x i8> %i7)
+  %i8 = call i8 @llvm.vector.reduce.add.v16i8(<16 x i8> %i7)
   br label %for.cond.cleanup
 
 for.cond.cleanup:                                 ; preds = %middle.block, %entry
@@ -265,7 +265,7 @@ vector.body:                                      ; preds = %vector.body, %vecto
 
 middle.block:                                     ; preds = %vector.body
   %i9 = select <8 x i1> %active.lane.mask, <8 x i16> %i7, <8 x i16> %vec.phi
-  %i10 = call i16 @llvm.experimental.vector.reduce.add.v8i16(<8 x i16> %i9)
+  %i10 = call i16 @llvm.vector.reduce.add.v8i16(<8 x i16> %i9)
   br label %for.cond.cleanup
 
 for.cond.cleanup:                                 ; preds = %middle.block, %entry
@@ -335,7 +335,7 @@ vector.body:                                      ; preds = %vector.body, %vecto
 
 middle.block:                                     ; preds = %vector.body
   %i7 = select <16 x i1> %active.lane.mask, <16 x i8> %i5, <16 x i8> %vec.phi
-  %i8 = call i8 @llvm.experimental.vector.reduce.add.v16i8(<16 x i8> %i7)
+  %i8 = call i8 @llvm.vector.reduce.add.v16i8(<16 x i8> %i7)
   br label %for.cond.cleanup
 
 for.cond.cleanup:                                 ; preds = %middle.block, %entry
@@ -407,7 +407,7 @@ vector.body:                                      ; preds = %vector.body, %vecto
 
 middle.block:                                     ; preds = %vector.body
   %i9 = select <8 x i1> %active.lane.mask, <8 x i16> %i7, <8 x i16> %vec.phi
-  %i10 = call i16 @llvm.experimental.vector.reduce.add.v8i16(<8 x i16> %i9)
+  %i10 = call i16 @llvm.vector.reduce.add.v8i16(<8 x i16> %i9)
   br label %for.cond.cleanup
 
 for.cond.cleanup:                                 ; preds = %middle.block, %entry
@@ -448,12 +448,12 @@ define dso_local arm_aapcs_vfpcc i32 @two_loops_mul_add_v4i32(i8* nocapture read
 ; CHECK-NEXT:    vaddv.u32 r12, q0
 ; CHECK-NEXT:    cbz r2, .LBB6_7
 ; CHECK-NEXT:  @ %bb.4: @ %vector.ph47
+; CHECK-NEXT:    movs r3, #0
+; CHECK-NEXT:    vdup.32 q0, r3
 ; CHECK-NEXT:    movs r3, #1
 ; CHECK-NEXT:    add.w lr, r3, r6, lsr #2
-; CHECK-NEXT:    movs r3, #0
-; CHECK-NEXT:    dls lr, lr
-; CHECK-NEXT:    vdup.32 q0, r3
 ; CHECK-NEXT:    vmov.32 q0[0], r12
+; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB6_5: @ %vector.body46
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vctp.32 r2
@@ -504,7 +504,7 @@ vector.body:                                      ; preds = %vector.body, %vecto
 
 middle.block:                                     ; preds = %vector.body
   %i9 = select <4 x i1> %active.lane.mask, <4 x i32> %i7, <4 x i32> %vec.phi
-  %i10 = call i32 @llvm.experimental.vector.reduce.add.v4i32(<4 x i32> %i9)
+  %i10 = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %i9)
   br i1 %cmp35, label %for.cond.cleanup7, label %vector.ph47
 
 vector.ph47:                                      ; preds = %middle.block
@@ -534,7 +534,7 @@ vector.body46:                                    ; preds = %vector.body46, %vec
 
 middle.block44:                                   ; preds = %vector.body46
   %i21 = select <4 x i1> %active.lane.mask61, <4 x i32> %i19, <4 x i32> %vec.phi60
-  %i22 = call i32 @llvm.experimental.vector.reduce.add.v4i32(<4 x i32> %i21)
+  %i22 = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %i21)
   br label %for.cond.cleanup7
 
 for.cond.cleanup7:                                ; preds = %middle.block44, %middle.block, %entry
@@ -620,9 +620,9 @@ vector.body:                                      ; preds = %vector.body, %vecto
 
 middle.block:                                     ; preds = %vector.body
   %i11 = select <8 x i1> %active.lane.mask, <8 x i16> %i8, <8 x i16> %vec.phi
-  %i12 = call i16 @llvm.experimental.vector.reduce.add.v8i16(<8 x i16> %i11)
+  %i12 = call i16 @llvm.vector.reduce.add.v8i16(<8 x i16> %i11)
   %i13 = select <8 x i1> %active.lane.mask, <8 x i16> %i9, <8 x i16> %vec.phi.1
-  %i14 = call i16 @llvm.experimental.vector.reduce.add.v8i16(<8 x i16> %i13)
+  %i14 = call i16 @llvm.vector.reduce.add.v8i16(<8 x i16> %i13)
   br label %for.cond.cleanup
 
 for.cond.cleanup:                                 ; preds = %middle.block, %entry
@@ -641,63 +641,53 @@ define i32 @wrongop(%struct.date* nocapture readonly %pd) {
 ; CHECK-LABEL: wrongop:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    push {r4, lr}
-; CHECK-NEXT:    mov r12, r0
-; CHECK-NEXT:    ldr r0, [r0]
-; CHECK-NEXT:    ldr.w r2, [r12, #8]
-; CHECK-NEXT:    lsls r3, r2, #30
-; CHECK-NEXT:    bne .LBB8_3
-; CHECK-NEXT:  @ %bb.1: @ %entry
-; CHECK-NEXT:    movw r3, #34079
-; CHECK-NEXT:    movt r3, #20971
-; CHECK-NEXT:    smmul r3, r2, r3
-; CHECK-NEXT:    asrs r1, r3, #5
-; CHECK-NEXT:    add.w r1, r1, r3, lsr #31
-; CHECK-NEXT:    movs r3, #100
-; CHECK-NEXT:    mls r1, r1, r3, r2
-; CHECK-NEXT:    cbz r1, .LBB8_3
-; CHECK-NEXT:  @ %bb.2:
-; CHECK-NEXT:    movs r4, #1
-; CHECK-NEXT:    b .LBB8_4
-; CHECK-NEXT:  .LBB8_3: @ %lor.rhs
-; CHECK-NEXT:    movw r1, #47184
+; CHECK-NEXT:    mov r1, r0
+; CHECK-NEXT:    movw r12, #47184
 ; CHECK-NEXT:    movw r3, #23593
-; CHECK-NEXT:    movt r1, #1310
+; CHECK-NEXT:    ldrd r2, lr, [r1, #4]
+; CHECK-NEXT:    movt r12, #1310
 ; CHECK-NEXT:    movt r3, #49807
-; CHECK-NEXT:    mla r1, r2, r3, r1
-; CHECK-NEXT:    movw r2, #55051
-; CHECK-NEXT:    movt r2, #163
-; CHECK-NEXT:    ror.w r1, r1, #4
-; CHECK-NEXT:    cmp r1, r2
-; CHECK-NEXT:    cset r4, lo
-; CHECK-NEXT:  .LBB8_4: @ %lor.end
-; CHECK-NEXT:    ldr.w r1, [r12, #4]
-; CHECK-NEXT:    cmp r1, #1
+; CHECK-NEXT:    mla r3, lr, r3, r12
+; CHECK-NEXT:    movw r1, #55051
+; CHECK-NEXT:    movw r4, #23593
+; CHECK-NEXT:    movt r1, #163
+; CHECK-NEXT:    ldr r0, [r0]
+; CHECK-NEXT:    movt r4, #655
+; CHECK-NEXT:    ror.w r12, r3, #4
+; CHECK-NEXT:    cmp r12, r1
+; CHECK-NEXT:    cset r1, lo
+; CHECK-NEXT:    ror.w r3, r3, #2
+; CHECK-NEXT:    mov.w r12, #1
+; CHECK-NEXT:    cmp r3, r4
+; CHECK-NEXT:    csel r3, r1, r12, lo
+; CHECK-NEXT:    lsls.w r4, lr, #30
+; CHECK-NEXT:    csel r1, r1, r3, ne
+; CHECK-NEXT:    cmp r2, #1
 ; CHECK-NEXT:    it lt
 ; CHECK-NEXT:    poplt {r4, pc}
-; CHECK-NEXT:  .LBB8_5: @ %vector.ph
-; CHECK-NEXT:    adds r3, r1, #3
-; CHECK-NEXT:    movs r2, #1
-; CHECK-NEXT:    bic r3, r3, #3
-; CHECK-NEXT:    subs r3, #4
-; CHECK-NEXT:    add.w lr, r2, r3, lsr #2
-; CHECK-NEXT:    movw r2, :lower16:days
-; CHECK-NEXT:    movt r2, :upper16:days
-; CHECK-NEXT:    movs r3, #52
-; CHECK-NEXT:    mla r2, r4, r3, r2
+; CHECK-NEXT:  .LBB8_1: @ %vector.ph
+; CHECK-NEXT:    movw r3, :lower16:days
+; CHECK-NEXT:    movs r4, #52
+; CHECK-NEXT:    movt r3, :upper16:days
+; CHECK-NEXT:    mla r1, r1, r4, r3
 ; CHECK-NEXT:    movs r3, #0
 ; CHECK-NEXT:    vdup.32 q0, r3
-; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:    vmov.32 q0[0], r0
-; CHECK-NEXT:  .LBB8_6: @ %vector.body
+; CHECK-NEXT:    adds r0, r2, #3
+; CHECK-NEXT:    bic r0, r0, #3
+; CHECK-NEXT:    subs r0, #4
+; CHECK-NEXT:    add.w lr, r12, r0, lsr #2
+; CHECK-NEXT:    dls lr, lr
+; CHECK-NEXT:  .LBB8_2: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    vctp.32 r1
+; CHECK-NEXT:    vctp.32 r2
 ; CHECK-NEXT:    vmov q1, q0
 ; CHECK-NEXT:    vpst
-; CHECK-NEXT:    vldrwt.u32 q0, [r2], #16
-; CHECK-NEXT:    subs r1, #4
+; CHECK-NEXT:    vldrwt.u32 q0, [r1], #16
+; CHECK-NEXT:    subs r2, #4
 ; CHECK-NEXT:    vadd.i32 q0, q0, q1
-; CHECK-NEXT:    le lr, .LBB8_6
-; CHECK-NEXT:  @ %bb.7: @ %middle.block
+; CHECK-NEXT:    le lr, .LBB8_2
+; CHECK-NEXT:  @ %bb.3: @ %middle.block
 ; CHECK-NEXT:    vpsel q0, q0, q1
 ; CHECK-NEXT:    vaddv.u32 r0, q0
 ; CHECK-NEXT:    pop {r4, pc}
@@ -747,7 +737,7 @@ vector.body:                                      ; preds = %vector.body, %vecto
 
 middle.block:                                     ; preds = %vector.body
   %10 = select <4 x i1> %active.lane.mask, <4 x i32> %8, <4 x i32> %vec.phi
-  %11 = call i32 @llvm.experimental.vector.reduce.add.v4i32(<4 x i32> %10)
+  %11 = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %10)
   br label %for.end
 
 for.end:                                          ; preds = %middle.block, %lor.end
@@ -758,10 +748,10 @@ for.end:                                          ; preds = %middle.block, %lor.
 declare <4 x i32> @llvm.masked.load.v4i32.p0v4i32(<4 x i32>*, i32 immarg, <4 x i1>, <4 x i32>)
 declare <16 x i1> @llvm.get.active.lane.mask.v16i1.i32(i32, i32)
 declare <16 x i8> @llvm.masked.load.v16i8.p0v16i8(<16 x i8>*, i32 immarg, <16 x i1>, <16 x i8>)
-declare i8 @llvm.experimental.vector.reduce.add.v16i8(<16 x i8>)
+declare i8 @llvm.vector.reduce.add.v16i8(<16 x i8>)
 declare <8 x i1> @llvm.get.active.lane.mask.v8i1.i32(i32, i32)
 declare <8 x i8> @llvm.masked.load.v8i8.p0v8i8(<8 x i8>*, i32 immarg, <8 x i1>, <8 x i8>)
-declare i16 @llvm.experimental.vector.reduce.add.v8i16(<8 x i16>)
+declare i16 @llvm.vector.reduce.add.v8i16(<8 x i16>)
 declare <4 x i1> @llvm.get.active.lane.mask.v4i1.i32(i32, i32)
 declare <4 x i8> @llvm.masked.load.v4i8.p0v4i8(<4 x i8>*, i32 immarg, <4 x i1>, <4 x i8>)
-declare i32 @llvm.experimental.vector.reduce.add.v4i32(<4 x i32>)
+declare i32 @llvm.vector.reduce.add.v4i32(<4 x i32>)

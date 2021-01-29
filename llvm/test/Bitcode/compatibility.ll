@@ -41,10 +41,10 @@ $comdat.samesize = comdat samesize
 ; CHECK: @const.float = constant double 0.0
 @const.null = constant i8* null
 ; CHECK: @const.null = constant i8* null
-%const.struct.type = type { i32, i8 }
+%const.struct.type = type { i32, i8, i64 }
 %const.struct.type.packed = type <{ i32, i8 }>
-@const.struct = constant %const.struct.type { i32 -1, i8 undef }
-; CHECK: @const.struct = constant %const.struct.type { i32 -1, i8 undef }
+@const.struct = constant %const.struct.type { i32 -1, i8 undef, i64 poison }
+; CHECK: @const.struct = constant %const.struct.type { i32 -1, i8 undef, i64 poison }
 @const.struct.packed = constant %const.struct.type.packed <{ i32 -1, i8 1 }>
 ; CHECK: @const.struct.packed = constant %const.struct.type.packed <{ i32 -1, i8 1 }>
 
@@ -450,10 +450,10 @@ declare cc82 void @f.cc82()
 ; CHECK: declare hhvm_ccc void @f.cc82()
 declare hhvm_ccc void @f.hhvm_ccc()
 ; CHECK: declare hhvm_ccc void @f.hhvm_ccc()
-declare cc83 void @f.cc83()
-; CHECK: declare x86_intrcc void @f.cc83()
-declare x86_intrcc void @f.x86_intrcc()
-; CHECK: declare x86_intrcc void @f.x86_intrcc()
+declare cc83 void @f.cc83(i8* byval(i8))
+; CHECK: declare x86_intrcc void @f.cc83(i8* byval(i8))
+declare x86_intrcc void @f.x86_intrcc(i8* byval(i8))
+; CHECK: declare x86_intrcc void @f.x86_intrcc(i8* byval(i8))
 declare cc84 void @f.cc84()
 ; CHECK: declare avr_intrcc void @f.cc84()
 declare avr_intrcc void @f.avr_intrcc()
@@ -478,6 +478,8 @@ declare cc90 void @f.cc90()
 ; CHECK: declare amdgpu_cs void @f.cc90()
 declare amdgpu_cs void @f.amdgpu_cs()
 ; CHECK: declare amdgpu_cs void @f.amdgpu_cs()
+declare amdgpu_gfx void @f.amdgpu_gfx()
+; CHECK: declare amdgpu_gfx void @f.amdgpu_gfx()
 declare cc91 void @f.cc91()
 ; CHECK: declare amdgpu_kernel void @f.cc91()
 declare amdgpu_kernel void @f.amdgpu_kernel()
@@ -528,12 +530,12 @@ declare void @f.param.signext(i8 signext)
 ; CHECK: declare void @f.param.signext(i8 signext)
 declare void @f.param.inreg(i8 inreg)
 ; CHECK: declare void @f.param.inreg(i8 inreg)
-declare void @f.param.byval({ i8, i8 }* byval)
+declare void @f.param.byval({ i8, i8 }* byval({ i8, i8 }))
 ; CHECK: declare void @f.param.byval({ i8, i8 }* byval({ i8, i8 }))
 declare void @f.param.inalloca(i8* inalloca)
 ; CHECK: declare void @f.param.inalloca(i8* inalloca)
-declare void @f.param.sret(i8* sret)
-; CHECK: declare void @f.param.sret(i8* sret)
+declare void @f.param.sret(i8* sret(i8))
+; CHECK: declare void @f.param.sret(i8* sret(i8))
 declare void @f.param.noalias(i8* noalias)
 ; CHECK: declare void @f.param.noalias(i8* noalias)
 declare void @f.param.nocapture(i8* nocapture)
@@ -1073,6 +1075,8 @@ exc:
 
   resume i32 undef
   ; CHECK: resume i32 undef
+  resume i32 poison
+  ; CHECK: resume i32 poison
   unreachable
   ; CHECK: unreachable
 
@@ -1352,6 +1356,14 @@ define void @instructions.conversions() {
   ; CHECK: fptoui float undef to i32
   fptosi float undef to i32
   ; CHECK: fptosi float undef to i32
+  fptrunc float poison to half
+  ; CHECK: fptrunc float poison to half
+  fpext half poison to float
+  ; CHECK: fpext half poison to float
+  fptoui float poison to i32
+  ; CHECK: fptoui float poison to i32
+  fptosi float poison to i32
+  ; CHECK: fptosi float poison to i32
   uitofp i32 1 to float
   ; CHECK: uitofp i32 1 to float
   sitofp i32 -1 to float
@@ -1884,12 +1896,12 @@ declare void @byval_named_type(%named_type* byval(%named_type))
 ; CHECK: attributes #32 = { norecurse }
 ; CHECK: attributes #33 = { inaccessiblememonly }
 ; CHECK: attributes #34 = { inaccessiblemem_or_argmemonly }
-; CHECK: attributes #35 = { nounwind readnone willreturn }
-; CHECK: attributes #36 = { argmemonly nounwind readonly }
-; CHECK: attributes #37 = { argmemonly nounwind }
-; CHECK: attributes #38 = { nounwind readnone }
+; CHECK: attributes #35 = { nofree nosync nounwind readnone willreturn }
+; CHECK: attributes #36 = { nofree nosync nounwind willreturn }
+; CHECK: attributes #37 = { argmemonly nounwind readonly }
+; CHECK: attributes #38 = { argmemonly nounwind }
 ; CHECK: attributes #39 = { nounwind readonly }
-; CHECK: attributes #40 = { inaccessiblemem_or_argmemonly nounwind willreturn }
+; CHECK: attributes #40 = { inaccessiblemem_or_argmemonly nofree nosync nounwind willreturn }
 ; CHECK: attributes #41 = { writeonly }
 ; CHECK: attributes #42 = { speculatable }
 ; CHECK: attributes #43 = { strictfp }

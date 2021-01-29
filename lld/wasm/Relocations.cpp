@@ -9,6 +9,8 @@
 #include "Relocations.h"
 
 #include "InputChunks.h"
+#include "OutputSegment.h"
+#include "SymbolTable.h"
 #include "SyntheticSections.h"
 
 using namespace llvm;
@@ -16,8 +18,17 @@ using namespace llvm::wasm;
 
 namespace lld {
 namespace wasm {
+
 static bool requiresGOTAccess(const Symbol *sym) {
-  return config->isPic && !sym->isHidden() && !sym->isLocal();
+  if (!config->isPic)
+    return false;
+  if (sym->isHidden() || sym->isLocal())
+    return false;
+  // With `-Bsymbolic` (or when building an executable) as don't need to use
+  // the GOT for symbols that are defined within the current module.
+  if (sym->isDefined() && (!config->shared || config->bsymbolic))
+    return false;
+  return true;
 }
 
 static bool allowUndefined(const Symbol* sym) {
@@ -29,29 +40,45 @@ static bool allowUndefined(const Symbol* sym) {
   if (auto *g = dyn_cast<UndefinedGlobal>(sym))
     if (g->importName)
       return true;
-  return (config->allowUndefined ||
-          config->allowUndefinedSymbols.count(sym->getName()) != 0);
+  if (auto *g = dyn_cast<UndefinedGlobal>(sym))
+    if (g->importName)
+      return true;
+  return config->allowUndefinedSymbols.count(sym->getName()) != 0;
 }
 
-static void reportUndefined(const Symbol* sym) {
-  assert(sym->isUndefined());
-  assert(!sym->isWeak());
-  if (!allowUndefined(sym))
-    error(toString(sym->getFile()) + ": undefined symbol: " + toString(*sym));
+static void reportUndefined(Symbol *sym) {
+  if (!allowUndefined(sym)) {
+    switch (config->unresolvedSymbols) {
+    case UnresolvedPolicy::ReportError:
+      error(toString(sym->getFile()) + ": undefined symbol: " + toString(*sym));
+      break;
+    case UnresolvedPolicy::Warn:
+      warn(toString(sym->getFile()) + ": undefined symbol: " + toString(*sym));
+      break;
+    case UnresolvedPolicy::Ignore:
+      if (auto *f = dyn_cast<UndefinedFunction>(sym)) {
+        if (!f->stubFunction) {
+          LLVM_DEBUG(dbgs()
+                     << "ignoring undefined symbol: " + toString(*sym) + "\n");
+          f->stubFunction = symtab->createUndefinedStub(*f->getSignature());
+          f->stubFunction->markLive();
+          // Mark the function itself as a stub which prevents it from being
+          // assigned a table entry.
+          f->isStub = true;
+        }
+      }
+      break;
+    case UnresolvedPolicy::ImportFuncs:
+      break;
+    }
+  }
 }
 
 static void addGOTEntry(Symbol *sym) {
-  // In PIC mode a GOT entry is an imported global that the dynamic linker
-  // will assign.
-  // In non-PIC mode (i.e. when code compiled as fPIC is linked into a static
-  // binary) we create an internal wasm global with a fixed value that takes the
-  // place of th GOT entry and effectivly acts as an i32 const. This can
-  // potentially be optimized away at runtime or with a post-link tool.
-  // TODO(sbc): Linker relaxation might also be able to optimize this away.
-  if (config->isPic)
+  if (requiresGOTAccess(sym))
     out.importSec->addGOTEntry(sym);
   else
-    out.globalSec->addStaticGOTEntry(sym);
+    out.globalSec->addInternalGOTEntry(sym);
 }
 
 void scanRelocations(InputChunk *chunk) {
@@ -86,6 +113,16 @@ void scanRelocations(InputChunk *chunk) {
       if (!isa<GlobalSymbol>(sym))
         addGOTEntry(sym);
       break;
+    case R_WASM_MEMORY_ADDR_TLS_SLEB:
+      if (auto *D = dyn_cast<DefinedData>(sym)) {
+        if (D->segment->outputSeg->name != ".tdata") {
+          error(toString(file) + ": relocation " +
+                relocTypeToString(reloc.Type) + " cannot be used against `" +
+                toString(*sym) +
+                "` in non-TLS section: " + D->segment->outputSeg->name);
+        }
+      }
+      break;
     }
 
     if (config->isPic) {
@@ -118,7 +155,6 @@ void scanRelocations(InputChunk *chunk) {
       if (sym->isUndefined() && !config->relocatable && !sym->isWeak())
         reportUndefined(sym);
     }
-
   }
 }
 

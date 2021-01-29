@@ -77,7 +77,7 @@ device_impl::~device_impl() {
     // TODO catch an exception and put it to list of asynchronous exceptions
     const detail::plugin &Plugin = getPlugin();
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piDeviceRelease>(MDevice);
-    CHECK_OCL_CODE_NO_EXC(Err);
+    __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
   }
 }
 
@@ -89,14 +89,13 @@ bool device_impl::is_affinity_supported(
 }
 
 cl_device_id device_impl::get() const {
-  if (MIsHostDevice)
-    throw invalid_object_error("This instance of device is a host instance",
-                               PI_INVALID_DEVICE);
-
-  const detail::plugin &Plugin = getPlugin();
-
+  if (MIsHostDevice || getPlugin().getBackend() != cl::sycl::backend::opencl) {
+    throw invalid_object_error(
+        "This instance of device doesn't support OpenCL interoperability.",
+        PI_INVALID_DEVICE);
+  }
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin.call<PiApiKind::piDeviceRetain>(MDevice);
+  getPlugin().call<PiApiKind::piDeviceRetain>(MDevice);
   return pi::cast<cl_device_id>(getNative());
 }
 
@@ -216,6 +215,9 @@ pi_native_handle device_impl::getNative() const {
 }
 
 bool device_impl::has(aspect Aspect) const {
+  size_t return_size = 0;
+  pi_device_type device_type;
+
   switch (Aspect) {
   case aspect::host:
     return is_host();
@@ -225,6 +227,8 @@ bool device_impl::has(aspect Aspect) const {
     return is_gpu();
   case aspect::accelerator:
     return is_accelerator();
+  case aspect::custom:
+    return false;
   case aspect::fp16:
     return has_extension("cl_khr_fp16");
   case aspect::fp64:
@@ -241,6 +245,47 @@ bool device_impl::has(aspect Aspect) const {
     return get_info<info::device::is_linker_available>();
   case aspect::queue_profiling:
     return get_info<info::device::queue_profiling>();
+  case aspect::usm_device_allocations:
+    return get_info<info::device::usm_device_allocations>();
+  case aspect::usm_host_allocations:
+    return get_info<info::device::usm_host_allocations>();
+  case aspect::usm_shared_allocations:
+    return get_info<info::device::usm_shared_allocations>();
+  case aspect::usm_restricted_shared_allocations:
+    return get_info<info::device::usm_restricted_shared_allocations>();
+  case aspect::usm_system_allocator:
+    return get_info<info::device::usm_system_allocator>();
+  case aspect::ext_intel_pci_address:
+    return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+               MDevice, PI_DEVICE_INFO_PCI_ADDRESS, sizeof(pi_device_type),
+               &device_type, &return_size) == PI_SUCCESS;
+  case aspect::ext_intel_gpu_eu_count:
+    return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+               MDevice, PI_DEVICE_INFO_GPU_EU_COUNT, sizeof(pi_device_type),
+               &device_type, &return_size) == PI_SUCCESS;
+  case aspect::ext_intel_gpu_eu_simd_width:
+    return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+               MDevice, PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH,
+               sizeof(pi_device_type), &device_type,
+               &return_size) == PI_SUCCESS;
+  case aspect::ext_intel_gpu_slices:
+    return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+               MDevice, PI_DEVICE_INFO_GPU_SLICES, sizeof(pi_device_type),
+               &device_type, &return_size) == PI_SUCCESS;
+  case aspect::ext_intel_gpu_subslices_per_slice:
+    return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+               MDevice, PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE,
+               sizeof(pi_device_type), &device_type,
+               &return_size) == PI_SUCCESS;
+  case aspect::ext_intel_gpu_eu_count_per_subslice:
+    return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+               MDevice, PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
+               sizeof(pi_device_type), &device_type,
+               &return_size) == PI_SUCCESS;
+  case aspect::ext_intel_max_mem_bandwidth:
+    // currently not supported
+    return false;
+
   default:
     throw runtime_error("This device aspect has not been implemented yet.",
                         PI_INVALID_DEVICE);

@@ -306,6 +306,9 @@ protected:
   CodeGenModule &CGM;
   StringRef FirstSeparator, Separator;
 
+  /// An OpenMP-IR-Builder instance.
+  llvm::OpenMPIRBuilder OMPBuilder;
+
   /// Constructor allowing to redefine the name separator for the variables.
   explicit CGOpenMPRuntime(CodeGenModule &CGM, StringRef FirstSeparator,
                            StringRef Separator);
@@ -386,11 +389,9 @@ protected:
   llvm::Value *getCriticalRegionLock(StringRef CriticalName);
 
 private:
-  /// An OpenMP-IR-Builder instance.
-  llvm::OpenMPIRBuilder OMPBuilder;
 
   /// Map for SourceLocation and OpenMP runtime library debug locations.
-  typedef llvm::DenseMap<unsigned, llvm::Value *> OpenMPDebugLocMapTy;
+  typedef llvm::DenseMap<SourceLocation, llvm::Value *> OpenMPDebugLocMapTy;
   OpenMPDebugLocMapTy OpenMPDebugLocMap;
   /// The type for a microtask which gets passed to __kmpc_fork_call().
   /// Original representation is:
@@ -612,7 +613,8 @@ private:
     /// Return true if a target region entry with the provided information
     /// exists.
     bool hasTargetRegionEntryInfo(unsigned DeviceID, unsigned FileID,
-                                  StringRef ParentName, unsigned LineNum) const;
+                                  StringRef ParentName, unsigned LineNum,
+                                  bool IgnoreAddressId = false) const;
     /// brief Applies action \a Action on all registered entries.
     typedef llvm::function_ref<void(unsigned, unsigned, StringRef, unsigned,
                                     const OffloadEntryInfoTargetRegion &)>
@@ -1646,6 +1648,9 @@ public:
     llvm::Value *MapTypesArrayEnd = nullptr;
     /// The array of user-defined mappers passed to the runtime library.
     llvm::Value *MappersArray = nullptr;
+    /// The array of original declaration names of mapped pointers sent to the
+    /// runtime library for debugging
+    llvm::Value *MapNamesArray = nullptr;
     /// Indicate whether any user-defined mapper exists.
     bool HasMapper = false;
     /// The total number of pointers passed to the runtime library.
@@ -1666,6 +1671,7 @@ public:
       SizesArray = nullptr;
       MapTypesArray = nullptr;
       MapTypesArrayEnd = nullptr;
+      MapNamesArray = nullptr;
       MappersArray = nullptr;
       HasMapper = false;
       NumberOfPtrs = 0u;

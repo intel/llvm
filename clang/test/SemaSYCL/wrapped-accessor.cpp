@@ -35,14 +35,14 @@ int main() {
 // argument
 // CHECK: VarDecl {{.*}}'(lambda at {{.*}}wrapped-accessor.cpp{{.*}})'
 // CHECK-NEXT: InitListExpr {{.*}}'(lambda at {{.*}}wrapped-accessor.cpp{{.*}})'
-// CHECK-NEXT: InitListExpr {{.*}}'AccWrapper<cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t, cl::sycl::ONEAPI::accessor_property_list<>>>'
-// CHECK-NEXT: CXXConstructExpr {{.*}}'cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t, cl::sycl::ONEAPI::accessor_property_list<>>':'cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t,  cl::sycl::ONEAPI::accessor_property_list<>>' 'void () noexcept'
+// CHECK-NEXT: InitListExpr {{.*}}'AccWrapper<cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t>>'
+// CHECK-NEXT: CXXConstructExpr {{.*}}'cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t>':'cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t>' 'void () noexcept'
 
 // Check that accessor field of the wrapper object is initialized using __init method
 // CHECK-NEXT: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} 'void ({{.*}}PtrType, range<1>, range<1>, id<1>)' lvalue .__init
-// CHECK-NEXT: MemberExpr {{.*}} 'cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t, cl::sycl::ONEAPI::accessor_property_list<>>':'cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t, cl::sycl::ONEAPI::accessor_property_list<>>' lvalue .accessor {{.*}}
-// CHECK-NEXT: MemberExpr {{.*}} 'AccWrapper<cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t, cl::sycl::ONEAPI::accessor_property_list<>>>':'AccWrapper<cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t, cl::sycl::ONEAPI::accessor_property_list<>>>' lvalue .
+// CHECK-NEXT: MemberExpr {{.*}} 'cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t>':'cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t>' lvalue .accessor {{.*}}
+// CHECK-NEXT: MemberExpr {{.*}} 'AccWrapper<cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t>>':'AccWrapper<cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t>>' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}wrapped-accessor.cpp{{.*}})' lvalue Var {{.*}} '(lambda at {{.*}}wrapped-accessor.cpp{{.*}})'
 
 // Parameters of the _init method

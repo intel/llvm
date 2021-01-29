@@ -1,7 +1,9 @@
+// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -DSYCL_USE_NATIVE_FP_ATOMICS \
+// RUN:  -fsycl-device-only -S %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-device-only -S %s -o - \
+// RUN: | FileCheck %s --check-prefix=CHECK-LLVM-EMU
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %RUN_ON_HOST %t.out
 
 #include <CL/sycl.hpp>
 #include <algorithm>
@@ -167,10 +169,24 @@ void add_test(queue q, size_t N) {
 // Floating-point types do not support pre- or post-increment
 template <> void add_test<float>(queue q, size_t N) {
   add_fetch_test<float>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func float
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicFAddEXT
+  // CHECK-LLVM-SAME: (float addrspace(1)*, i32, i32, float)
+  // CHECK-LLVM-EMU: declare {{.*}} i32 @{{.*}}__spirv_AtomicLoad
+  // CHECK-LLVM-EMU-SAME: (i32 addrspace(1)*, i32, i32)
+  // CHECK-LLVM-EMU: declare {{.*}} i32 @{{.*}}__spirv_AtomicCompareExchange
+  // CHECK-LLVM-EMU-SAME: (i32 addrspace(1)*, i32, i32, i32, i32, i32)
   add_plus_equal_test<float>(q, N);
 }
 template <> void add_test<double>(queue q, size_t N) {
   add_fetch_test<double>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func double
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicFAddEXT
+  // CHECK-LLVM-SAME: double addrspace(1)*, i32, i32, double)
+  // CHECK-LLVM-EMU: declare {{.*}} i64 @{{.*}}__spirv_AtomicLoad
+  // CHECK-LLVM-EMU-SAME: (i64 addrspace(1)*, i32, i32)
+  // CHECK-LLVM-EMU: declare {{.*}} i64 @{{.*}}__spirv_AtomicCompareExchange
+  // CHECK-LLVM-EMU-SAME: (i64 addrspace(1)*, i32, i32, i32, i64, i64)
   add_plus_equal_test<double>(q, N);
 }
 
@@ -183,14 +199,39 @@ int main() {
   }
 
   constexpr int N = 32;
+  // CHECK-LLVM: declare dso_local spir_func i32
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicIAdd
+  // CHECK-LLVM-SAME: (i32 addrspace(1)*, i32, i32, i32)
   add_test<int>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i32
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicIAdd
+  // CHECK-LLVM-SAME: (i32 addrspace(1)*, i32, i32, i32)
   add_test<unsigned int>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i[[long:(32)|(64)]]
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicIAdd
+  // CHECK-LLVM-SAME: (i[[long]] addrspace(1)*, i32, i32, i[[long]])
   add_test<long>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i[[long]]
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicIAdd
+  // CHECK-LLVM-SAME: (i[[long]] addrspace(1)*, i32, i32, i[[long]])
   add_test<unsigned long>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i64
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicIAdd
+  // CHECK-LLVM-SAME: (i64 addrspace(1)*, i32, i32, i64)
   add_test<long long>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i64
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicIAdd
+  // CHECK-LLVM-SAME: (i64 addrspace(1)*, i32, i32, i64)
   add_test<unsigned long long>(q, N);
+  // Floating point-typed functions have been instantiated earlier
   add_test<float>(q, N);
   add_test<double>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i64
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicLoad
+  // CHECK-LLVM-SAME: i64 addrspace(1)*, i32, i32)
+  // CHECK-LLVM: declare dso_local spir_func i64
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicCompareExchange
+  // CHECK-LLVM-SAME: i64 addrspace(1)*, i32, i32, i32, i64, i64)
   add_test<char *, ptrdiff_t>(q, N);
 
   std::cout << "Test passed." << std::endl;

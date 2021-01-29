@@ -167,7 +167,7 @@ void fuchsia::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   C.addCommand(std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
-                                         Exec, CmdArgs, Inputs));
+                                         Exec, CmdArgs, Inputs, Output));
 }
 
 /// Fuchsia - Fuchsia tool chain which can call as(1) and ld(1) directly.
@@ -210,6 +210,13 @@ Fuchsia::Fuchsia(const Driver &D, const llvm::Triple &Triple,
                           .flag("+fsanitize=address")
                           .flag("-fexceptions")
                           .flag("+fno-exceptions"));
+  // Use the relative vtables ABI.
+  Multilibs.push_back(Multilib("relative-vtables", {}, {}, 4)
+                          .flag("+fexperimental-relative-c++-abi-vtables"));
+  Multilibs.push_back(Multilib("relative-vtables+noexcept", {}, {}, 5)
+                          .flag("+fexperimental-relative-c++-abi-vtables")
+                          .flag("-fexceptions")
+                          .flag("+fno-exceptions"));
   Multilibs.FilterOut([&](const Multilib &M) {
     std::vector<std::string> RD = FilePaths(M);
     return std::all_of(RD.begin(), RD.end(), [&](std::string P) {
@@ -222,6 +229,13 @@ Fuchsia::Fuchsia(const Driver &D, const llvm::Triple &Triple,
       Args.hasFlag(options::OPT_fexceptions, options::OPT_fno_exceptions, true),
       "fexceptions", Flags);
   addMultilibFlag(getSanitizerArgs().needsAsanRt(), "fsanitize=address", Flags);
+
+  addMultilibFlag(
+      Args.hasFlag(options::OPT_fexperimental_relative_cxx_abi_vtables,
+                   options::OPT_fno_experimental_relative_cxx_abi_vtables,
+                   /*default=*/false),
+      "fexperimental-relative-c++-abi-vtables", Flags);
+
   Multilibs.setFilePathsCallback(FilePaths);
 
   if (Multilibs.select(Flags, SelectedMultilib))

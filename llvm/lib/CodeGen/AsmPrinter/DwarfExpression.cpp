@@ -97,7 +97,8 @@ void DwarfExpression::addAnd(unsigned Mask) {
 }
 
 bool DwarfExpression::addMachineReg(const TargetRegisterInfo &TRI,
-                                    unsigned MachineReg, unsigned MaxSize) {
+                                    llvm::Register MachineReg,
+                                    unsigned MaxSize) {
   if (!llvm::Register::isPhysicalRegister(MachineReg)) {
     if (isFrameRegister(TRI, MachineReg)) {
       DwarfRegs.push_back(Register::createRegister(-1, nullptr));
@@ -248,7 +249,7 @@ void DwarfExpression::addConstantFP(const APFloat &APF, const AsmPrinter &AP) {
 
 bool DwarfExpression::addMachineRegExpression(const TargetRegisterInfo &TRI,
                                               DIExpressionCursor &ExprCursor,
-                                              unsigned MachineReg,
+                                              llvm::Register MachineReg,
                                               unsigned FragmentOffsetInBits) {
   auto Fragment = ExprCursor.getFragmentInfo();
   if (!addMachineReg(TRI, MachineReg, Fragment ? Fragment->SizeInBits : ~1U)) {
@@ -525,6 +526,7 @@ void DwarfExpression::addExpression(DIExpressionCursor &&ExprCursor,
     case dwarf::DW_OP_not:
     case dwarf::DW_OP_dup:
     case dwarf::DW_OP_push_object_address:
+    case dwarf::DW_OP_over:
       emitOp(OpNum);
       break;
     case dwarf::DW_OP_deref:
@@ -540,10 +542,15 @@ void DwarfExpression::addExpression(DIExpressionCursor &&ExprCursor,
       assert(!isRegisterLocation());
       emitConstu(Op->getArg(0));
       break;
+    case dwarf::DW_OP_consts:
+      assert(!isRegisterLocation());
+      emitOp(dwarf::DW_OP_consts);
+      emitSigned(Op->getArg(0));
+      break;
     case dwarf::DW_OP_LLVM_convert: {
       unsigned BitSize = Op->getArg(0);
       dwarf::TypeKind Encoding = static_cast<dwarf::TypeKind>(Op->getArg(1));
-      if (DwarfVersion >= 5) {
+      if (DwarfVersion >= 5 && CU.getDwarfDebug().useOpConvert()) {
         emitOp(dwarf::DW_OP_convert);
         // If targeting a location-list; simply emit the index into the raw
         // byte stream as ULEB128, DwarfDebug::emitDebugLocEntry has been

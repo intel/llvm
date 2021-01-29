@@ -457,7 +457,7 @@ void DWARFContext::dump(
           shouldDump(Explicit, ".debug_frame", DIDT_ID_DebugFrame,
                      DObj->getFrameSection().Data)) {
     if (Expected<const DWARFDebugFrame *> DF = getDebugFrame())
-      (*DF)->dump(OS, getRegisterInfo(), *Off);
+      (*DF)->dump(OS, DumpOpts, getRegisterInfo(), *Off);
     else
       RecoverableErrorHandler(DF.takeError());
   }
@@ -466,7 +466,7 @@ void DWARFContext::dump(
           shouldDump(Explicit, ".eh_frame", DIDT_ID_DebugFrame,
                      DObj->getEHFrameSection().Data)) {
     if (Expected<const DWARFDebugFrame *> DF = getEHFrame())
-      (*DF)->dump(OS, getRegisterInfo(), *Off);
+      (*DF)->dump(OS, DumpOpts, getRegisterInfo(), *Off);
     else
       RecoverableErrorHandler(DF.takeError());
   }
@@ -1780,7 +1780,7 @@ public:
 
       // Symbol to [address, section index] cache mapping.
       std::map<SymbolRef, SymInfo> AddrCache;
-      bool (*Supports)(uint64_t);
+      SupportsRelocation Supports;
       RelocationResolver Resolver;
       std::tie(Supports, Resolver) = getRelocationResolver(Obj);
       for (const RelocationRef &Reloc : Section.relocations()) {

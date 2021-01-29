@@ -14,7 +14,7 @@ struct ac_struct {
 // CHECK-SANITIZE-ANYRECOVER: @[[LINE_100_ALIGNMENT_ASSUMPTION:.*]] = {{.*}}, i32 100, i32 13 }, {{.*}}* @[[ALIGNED_CHAR]] }
 
 char **load_from_ac_struct(struct ac_struct *x) {
-  // CHECK:                           define i8** @{{.*}}(%[[STRUCT_AC_STRUCT]]* %[[X:.*]])
+  // CHECK:                           define{{.*}} i8** @{{.*}}(%[[STRUCT_AC_STRUCT]]* %[[X:.*]])
   // CHECK-NEXT:                      [[ENTRY:.*]]:
   // CHECK-NEXT:                        %[[STRUCT_AC_STRUCT_ADDR:.*]] = alloca %[[STRUCT_AC_STRUCT]]*, align 8
   // CHECK-NEXT:                        store %[[STRUCT_AC_STRUCT]]* %[[X]], %[[STRUCT_AC_STRUCT]]** %[[STRUCT_AC_STRUCT_ADDR]], align 8
@@ -29,7 +29,7 @@ char **load_from_ac_struct(struct ac_struct *x) {
   // CHECK-SANITIZE:                  [[HANDLER_ALIGNMENT_ASSUMPTION]]:
   // CHECK-SANITIZE-NORECOVER-NEXT:     call void @__ubsan_handle_alignment_assumption_abort(i8* bitcast ({ {{{.*}}}, {{{.*}}}, {{{.*}}}* }* @[[LINE_100_ALIGNMENT_ASSUMPTION]] to i8*), i64 %[[PTRINT_DUP]], i64 2147483648, i64 0){{.*}}, !nosanitize
   // CHECK-SANITIZE-RECOVER-NEXT:       call void @__ubsan_handle_alignment_assumption(i8* bitcast ({ {{{.*}}}, {{{.*}}}, {{{.*}}}* }* @[[LINE_100_ALIGNMENT_ASSUMPTION]] to i8*), i64 %[[PTRINT_DUP]], i64 2147483648, i64 0){{.*}}, !nosanitize
-  // CHECK-SANITIZE-TRAP-NEXT:          call void @llvm.trap(){{.*}}, !nosanitize
+  // CHECK-SANITIZE-TRAP-NEXT:          call void @llvm.ubsantrap(i8 23){{.*}}, !nosanitize
   // CHECK-SANITIZE-UNREACHABLE-NEXT:   unreachable, !nosanitize
   // CHECK-SANITIZE:                  [[CONT]]:
   // CHECK-NEXT:                        call void @llvm.assume(i1 true) [ "align"(i8** %[[A]], i64 2147483648) ]

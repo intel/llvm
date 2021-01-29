@@ -181,6 +181,8 @@ public:
 
   int getMemcpyCost(const Instruction *I);
 
+  int getNumMemOps(const IntrinsicInst *I) const;
+
   int getShuffleCost(TTI::ShuffleKind Kind, VectorType *Tp, int Index,
                      VectorType *SubTp);
 
@@ -193,17 +195,7 @@ public:
   bool preferPredicatedReductionSelect(unsigned Opcode, Type *Ty,
                                        TTI::ReductionFlags Flags) const;
 
-  bool shouldExpandReduction(const IntrinsicInst *II) const {
-    switch (II->getIntrinsicID()) {
-    case Intrinsic::experimental_vector_reduce_v2_fadd:
-    case Intrinsic::experimental_vector_reduce_v2_fmul:
-      // We don't have legalization support for ordered FP reductions.
-      return !II->getFastMathFlags().allowReassoc();
-    default:
-      // Don't expand anything else, let legalization deal with it.
-      return false;
-    }
-  }
+  bool shouldExpandReduction(const IntrinsicInst *II) const { return false; }
 
   int getCFInstrCost(unsigned Opcode,
                      TTI::TargetCostKind CostKind);
@@ -213,6 +205,7 @@ public:
                        const Instruction *I = nullptr);
 
   int getCmpSelInstrCost(unsigned Opcode, Type *ValTy, Type *CondTy,
+                         CmpInst::Predicate VecPred,
                          TTI::TargetCostKind CostKind,
                          const Instruction *I = nullptr);
 
@@ -236,6 +229,10 @@ public:
                       TTI::TargetCostKind CostKind,
                       const Instruction *I = nullptr);
 
+  unsigned getMaskedMemoryOpCost(unsigned Opcode, Type *Src, Align Alignment,
+                                 unsigned AddressSpace,
+                                 TTI::TargetCostKind CostKind);
+
   int getInterleavedMemoryOpCost(
       unsigned Opcode, Type *VecTy, unsigned Factor, ArrayRef<unsigned> Indices,
       Align Alignment, unsigned AddressSpace,
@@ -246,6 +243,16 @@ public:
                                   const Value *Ptr, bool VariableMask,
                                   Align Alignment, TTI::TargetCostKind CostKind,
                                   const Instruction *I = nullptr);
+
+  int getArithmeticReductionCost(unsigned Opcode, VectorType *ValTy,
+                                 bool IsPairwiseForm,
+                                 TTI::TargetCostKind CostKind);
+  InstructionCost getExtendedAddReductionCost(bool IsMLA, bool IsUnsigned,
+                                              Type *ResTy, VectorType *ValTy,
+                                              TTI::TargetCostKind CostKind);
+
+  int getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
+                            TTI::TargetCostKind CostKind);
 
   bool maybeLoweredToCall(Instruction &I);
   bool isLoweredToCall(const Function *F);

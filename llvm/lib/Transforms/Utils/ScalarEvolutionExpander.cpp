@@ -126,19 +126,21 @@ Value *SCEVExpander::InsertNoopCastOfTo(Value *V, Type *Ty) {
   assert(SE.getTypeSizeInBits(V->getType()) == SE.getTypeSizeInBits(Ty) &&
          "InsertNoopCastOfTo cannot change sizes!");
 
-  auto *PtrTy = dyn_cast<PointerType>(Ty);
   // inttoptr only works for integral pointers. For non-integral pointers, we
   // can create a GEP on i8* null  with the integral value as index. Note that
   // it is safe to use GEP of null instead of inttoptr here, because only
   // expressions already based on a GEP of null should be converted to pointers
   // during expansion.
-  if (Op == Instruction::IntToPtr && DL.isNonIntegralPointerType(PtrTy)) {
-    auto *Int8PtrTy = Builder.getInt8PtrTy(PtrTy->getAddressSpace());
-    assert(DL.getTypeAllocSize(Int8PtrTy->getElementType()) == 1 &&
-           "alloc size of i8 must by 1 byte for the GEP to be correct");
-    auto *GEP = Builder.CreateGEP(
-        Builder.getInt8Ty(), Constant::getNullValue(Int8PtrTy), V, "uglygep");
-    return Builder.CreateBitCast(GEP, Ty);
+  if (Op == Instruction::IntToPtr) {
+    auto *PtrTy = cast<PointerType>(Ty);
+    if (DL.isNonIntegralPointerType(PtrTy)) {
+      auto *Int8PtrTy = Builder.getInt8PtrTy(PtrTy->getAddressSpace());
+      assert(DL.getTypeAllocSize(Int8PtrTy->getElementType()) == 1 &&
+             "alloc size of i8 must by 1 byte for the GEP to be correct");
+      auto *GEP = Builder.CreateGEP(
+          Builder.getInt8Ty(), Constant::getNullValue(Int8PtrTy), V, "uglygep");
+      return Builder.CreateBitCast(GEP, Ty);
+    }
   }
   // Short-circuit unnecessary bitcasts.
   if (Op == Instruction::BitCast) {
@@ -307,7 +309,7 @@ static bool FactorOutConstant(const SCEV *&S, const SCEV *&Remainder,
     if (const SCEVConstant *FC = dyn_cast<SCEVConstant>(Factor))
       if (const SCEVConstant *C = dyn_cast<SCEVConstant>(M->getOperand(0)))
         if (!C->getAPInt().srem(FC->getAPInt())) {
-          SmallVector<const SCEV *, 4> NewMulOps(M->op_begin(), M->op_end());
+          SmallVector<const SCEV *, 4> NewMulOps(M->operands());
           NewMulOps[0] = SE.getConstant(C->getAPInt().sdiv(FC->getAPInt()));
           S = SE.getMulExpr(NewMulOps);
           return true;
@@ -909,7 +911,7 @@ static void ExposePointerBase(const SCEV *&Base, const SCEV *&Rest,
   }
   if (const SCEVAddExpr *A = dyn_cast<SCEVAddExpr>(Base)) {
     Base = A->getOperand(A->getNumOperands()-1);
-    SmallVector<const SCEV *, 8> NewAddOps(A->op_begin(), A->op_end());
+    SmallVector<const SCEV *, 8> NewAddOps(A->operands());
     NewAddOps.back() = Rest;
     Rest = SE.getAddExpr(NewAddOps);
     ExposePointerBase(Base, Rest, SE);
@@ -1554,7 +1556,7 @@ Value *SCEVExpander::visitAddRecExpr(const SCEVAddRecExpr *S) {
 
   // {X,+,F} --> X + {0,+,F}
   if (!S->getStart()->isZero()) {
-    SmallVector<const SCEV *, 4> NewOps(S->op_begin(), S->op_end());
+    SmallVector<const SCEV *, 4> NewOps(S->operands());
     NewOps[0] = SE.getConstant(Ty, 0);
     const SCEV *Rest = SE.getAddRecExpr(NewOps, L,
                                         S->getNoWrapFlags(SCEV::FlagNW));
@@ -1659,6 +1661,12 @@ Value *SCEVExpander::visitAddRecExpr(const SCEVAddRecExpr *S) {
   // Truncate the result down to the original type, if needed.
   const SCEV *T = SE.getTruncateOrNoop(V, Ty);
   return expand(T);
+}
+
+Value *SCEVExpander::visitPtrToIntExpr(const SCEVPtrToIntExpr *S) {
+  Value *V =
+      expandCodeForImpl(S->getOperand(), S->getOperand()->getType(), false);
+  return Builder.CreatePtrToInt(V, S->getType());
 }
 
 Value *SCEVExpander::visitTruncateExpr(const SCEVTruncateExpr *S) {
@@ -1978,28 +1986,6 @@ void SCEVExpander::rememberInstruction(Value *I) {
   }
 }
 
-/// getOrInsertCanonicalInductionVariable - This method returns the
-/// canonical induction variable of the specified type for the specified
-/// loop (inserting one if there is none).  A canonical induction variable
-/// starts at zero and steps by one on each iteration.
-PHINode *
-SCEVExpander::getOrInsertCanonicalInductionVariable(const Loop *L,
-                                                    Type *Ty) {
-  assert(Ty->isIntegerTy() && "Can only insert integer induction variables!");
-
-  // Build a SCEV for {0,+,1}<L>.
-  // Conservatively use FlagAnyWrap for now.
-  const SCEV *H = SE.getAddRecExpr(SE.getConstant(Ty, 0),
-                                   SE.getConstant(Ty, 1), L, SCEV::FlagAnyWrap);
-
-  // Emit code for it.
-  SCEVInsertPointGuard Guard(Builder, this);
-  PHINode *V = cast<PHINode>(expandCodeForImpl(
-      H, nullptr, &*L->getHeader()->getFirstInsertionPt(), false));
-
-  return V;
-}
-
 /// replaceCongruentIVs - Check for congruent phis in this loop header and
 /// replace them with their most canonical representative. Return the number of
 /// phis eliminated.
@@ -2020,8 +2006,8 @@ SCEVExpander::replaceCongruentIVs(Loop *L, const DominatorTree *DT,
       // Put pointers at the back and make sure pointer < pointer = false.
       if (!LHS->getType()->isIntegerTy() || !RHS->getType()->isIntegerTy())
         return RHS->getType()->isIntegerTy() && !LHS->getType()->isIntegerTy();
-      return RHS->getType()->getPrimitiveSizeInBits() <
-             LHS->getType()->getPrimitiveSizeInBits();
+      return RHS->getType()->getPrimitiveSizeInBits().getFixedSize() <
+             LHS->getType()->getPrimitiveSizeInBits().getFixedSize();
     });
 
   unsigned NumElim = 0;
@@ -2144,15 +2130,6 @@ SCEVExpander::replaceCongruentIVs(Loop *L, const DominatorTree *DT,
   return NumElim;
 }
 
-Value *SCEVExpander::getExactExistingExpansion(const SCEV *S,
-                                               const Instruction *At, Loop *L) {
-  Optional<ScalarEvolution::ValueOffsetPair> VO =
-      getRelatedExistingExpansion(S, At, L);
-  if (VO && VO.getValue().second == nullptr)
-    return VO.getValue().first;
-  return nullptr;
-}
-
 Optional<ScalarEvolution::ValueOffsetPair>
 SCEVExpander::getRelatedExistingExpansion(const SCEV *S, const Instruction *At,
                                           Loop *L) {
@@ -2230,17 +2207,20 @@ template<typename T> static int costAndCollectOperands(
                         unsigned MinIdx, unsigned MaxIdx) {
     Operations.emplace_back(Opcode, MinIdx, MaxIdx);
     Type *OpType = S->getOperand(0)->getType();
-    return NumRequired *
-      TTI.getCmpSelInstrCost(Opcode, OpType,
-                             CmpInst::makeCmpResultType(OpType), CostKind);
+    return NumRequired * TTI.getCmpSelInstrCost(
+                             Opcode, OpType, CmpInst::makeCmpResultType(OpType),
+                             CmpInst::BAD_ICMP_PREDICATE, CostKind);
   };
 
   switch (S->getSCEVType()) {
-  default:
-    llvm_unreachable("No other scev expressions possible.");
+  case scCouldNotCompute:
+    llvm_unreachable("Attempt to use a SCEVCouldNotCompute object!");
   case scUnknown:
   case scConstant:
     return 0;
+  case scPtrToInt:
+    Cost = CastCost(Instruction::PtrToInt);
+    break;
   case scTruncate:
     Cost = CastCost(Instruction::Trunc);
     break;
@@ -2345,31 +2325,37 @@ bool SCEVExpander::isHighCostExpansionHelper(
   if (getRelatedExistingExpansion(S, &At, L))
     return false; // Consider the expression to be free.
 
-  // Assume to be zero-cost.
-  if (isa<SCEVUnknown>(S))
-    return false;
-
   TargetTransformInfo::TargetCostKind CostKind =
-    L->getHeader()->getParent()->hasMinSize()
-    ? TargetTransformInfo::TCK_CodeSize
-    : TargetTransformInfo::TCK_RecipThroughput;
+      L->getHeader()->getParent()->hasMinSize()
+          ? TargetTransformInfo::TCK_CodeSize
+          : TargetTransformInfo::TCK_RecipThroughput;
 
-  if (auto *Constant = dyn_cast<SCEVConstant>(S)) {
+  switch (S->getSCEVType()) {
+  case scCouldNotCompute:
+    llvm_unreachable("Attempt to use a SCEVCouldNotCompute object!");
+  case scUnknown:
+    // Assume to be zero-cost.
+    return false;
+  case scConstant: {
     // Only evalulate the costs of constants when optimizing for size.
     if (CostKind != TargetTransformInfo::TCK_CodeSize)
       return 0;
-    const APInt &Imm = Constant->getAPInt();
+    const APInt &Imm = cast<SCEVConstant>(S)->getAPInt();
     Type *Ty = S->getType();
-    BudgetRemaining -=
-      TTI.getIntImmCostInst(WorkItem.ParentOpcode, WorkItem.OperandIdx,
-                            Imm, Ty, CostKind);
+    BudgetRemaining -= TTI.getIntImmCostInst(
+        WorkItem.ParentOpcode, WorkItem.OperandIdx, Imm, Ty, CostKind);
     return BudgetRemaining < 0;
-  } else if (isa<SCEVCastExpr>(S)) {
+  }
+  case scTruncate:
+  case scPtrToInt:
+  case scZeroExtend:
+  case scSignExtend: {
     int Cost =
-      costAndCollectOperands<SCEVCastExpr>(WorkItem, TTI, CostKind, Worklist);
+        costAndCollectOperands<SCEVCastExpr>(WorkItem, TTI, CostKind, Worklist);
     BudgetRemaining -= Cost;
     return false; // Will answer upon next entry into this function.
-  } else if (isa<SCEVUDivExpr>(S)) {
+  }
+  case scUDivExpr: {
     // UDivExpr is very likely a UDiv that ScalarEvolution's HowFarToZero or
     // HowManyLessThans produced to compute a precise expression, rather than a
     // UDiv from the user's code. If we can't find a UDiv in the code with some
@@ -2383,27 +2369,35 @@ bool SCEVExpander::isHighCostExpansionHelper(
       return false; // Consider it to be free.
 
     int Cost =
-      costAndCollectOperands<SCEVUDivExpr>(WorkItem, TTI, CostKind, Worklist);
+        costAndCollectOperands<SCEVUDivExpr>(WorkItem, TTI, CostKind, Worklist);
     // Need to count the cost of this UDiv.
     BudgetRemaining -= Cost;
     return false; // Will answer upon next entry into this function.
-  } else if (const SCEVNAryExpr *NAry = dyn_cast<SCEVNAryExpr>(S)) {
-    assert(NAry->getNumOperands() > 1 &&
+  }
+  case scAddExpr:
+  case scMulExpr:
+  case scUMaxExpr:
+  case scSMaxExpr:
+  case scUMinExpr:
+  case scSMinExpr: {
+    assert(cast<SCEVNAryExpr>(S)->getNumOperands() > 1 &&
            "Nary expr should have more than 1 operand.");
     // The simple nary expr will require one less op (or pair of ops)
     // than the number of it's terms.
     int Cost =
-      costAndCollectOperands<SCEVNAryExpr>(WorkItem, TTI, CostKind, Worklist);
+        costAndCollectOperands<SCEVNAryExpr>(WorkItem, TTI, CostKind, Worklist);
     BudgetRemaining -= Cost;
     return BudgetRemaining < 0;
-  } else if (isa<SCEVAddRecExpr>(S)) {
+  }
+  case scAddRecExpr: {
     assert(cast<SCEVAddRecExpr>(S)->getNumOperands() >= 2 &&
            "Polynomial should be at least linear");
     BudgetRemaining -= costAndCollectOperands<SCEVAddRecExpr>(
-      WorkItem, TTI, CostKind, Worklist);
+        WorkItem, TTI, CostKind, Worklist);
     return BudgetRemaining < 0;
-  } else
-    llvm_unreachable("No other scev expressions possible.");
+  }
+  }
+  llvm_unreachable("Unknown SCEV kind!");
 }
 
 Value *SCEVExpander::expandCodeForPredicate(const SCEVPredicate *Pred,
@@ -2443,7 +2437,7 @@ Value *SCEVExpander::generateOverflowCheck(const SCEVAddRecExpr *AR,
   const SCEV *ExitCount =
       SE.getPredicatedBackedgeTakenCount(AR->getLoop(), Pred);
 
-  assert(ExitCount != SE.getCouldNotCompute() && "Invalid loop count");
+  assert(!isa<SCEVCouldNotCompute>(ExitCount) && "Invalid loop count");
 
   const SCEV *Step = AR->getStepRecurrence(SE);
   const SCEV *Start = AR->getStart();

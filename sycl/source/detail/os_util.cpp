@@ -11,11 +11,7 @@
 
 #include <cassert>
 
-#ifdef SYCL_RT_OS_POSIX_SUPPORT
-#include <cstdlib>
-#endif
-
-#if defined(SYCL_RT_OS_LINUX)
+#if defined(__SYCL_RT_OS_LINUX)
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -30,25 +26,25 @@
 #include <linux/limits.h> // for PATH_MAX
 #include <sys/sysinfo.h>
 
-#elif defined(SYCL_RT_OS_WINDOWS)
+#elif defined(__SYCL_RT_OS_WINDOWS)
 
 #include <Windows.h>
 #include <malloc.h>
 #include <shlwapi.h>
 
-#elif defined(SYCL_RT_OS_DARWIN)
+#elif defined(__SYCL_RT_OS_DARWIN)
 
 #include <dlfcn.h>
 #include <sys/sysctl.h>
 #include <sys/types.h>
 
-#endif // SYCL_RT_OS
+#endif // __SYCL_RT_OS
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-#if defined(SYCL_RT_OS_LINUX)
+#if defined(__SYCL_RT_OS_LINUX)
 
 struct ModuleInfo {
   const void *VirtAddr; // in
@@ -174,12 +170,12 @@ std::string OSUtil::getDirName(const char* Path) {
   std::string Tmp(Path);
   // dirname(3) needs a writable C string: a null-terminator is written where a
   // path should split.
-  size_t TruncatedSize = strlen(dirname(const_cast<char*>(Tmp.c_str())));
+  size_t TruncatedSize = strlen(dirname(const_cast<char *>(Tmp.c_str())));
   Tmp.resize(TruncatedSize);
   return Tmp;
 }
 
-#elif defined(SYCL_RT_OS_WINDOWS)
+#elif defined(__SYCL_RT_OS_WINDOWS)
 OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
   HMODULE PhModule;
   DWORD Flag = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
@@ -200,7 +196,7 @@ std::string OSUtil::getCurrentDSODir() {
   char Path[MAX_PATH];
   Path[0] = '\0';
   Path[sizeof(Path) - 1] = '\0';
-  auto Handle = getOSModuleHandle(&getCurrentDSODir);
+  auto Handle = getOSModuleHandle(reinterpret_cast<void *>(&getCurrentDSODir));
   DWORD Ret = GetModuleFileNameA(
       reinterpret_cast<HMODULE>(OSUtil::ExeModuleHandle == Handle ? 0 : Handle),
       reinterpret_cast<LPSTR>(&Path), sizeof(Path));
@@ -215,48 +211,49 @@ std::string OSUtil::getCurrentDSODir() {
   return Path;
 }
 
-#elif defined(SYCL_RT_OS_DARWIN)
+#elif defined(__SYCL_RT_OS_DARWIN)
 OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
   Dl_info Res;
   dladdr(VirtAddr, &Res);
   return reinterpret_cast<OSModuleHandle>(Res.dli_fbase);
 }
 
-#endif // SYCL_RT_OS
+#endif // __SYCL_RT_OS
 
 size_t OSUtil::getOSMemSize() {
-#if defined(SYCL_RT_OS_LINUX)
+#if defined(__SYCL_RT_OS_LINUX)
   struct sysinfo MemInfo;
   sysinfo(&MemInfo);
   return static_cast<size_t>(MemInfo.totalram * MemInfo.mem_unit);
-#elif defined(SYCL_RT_OS_WINDOWS)
+#elif defined(__SYCL_RT_OS_WINDOWS)
   MEMORYSTATUSEX MemInfo;
   MemInfo.dwLength = sizeof(MemInfo);
   GlobalMemoryStatusEx(&MemInfo);
   return static_cast<size_t>(MemInfo.ullTotalPhys);
-#elif defined(SYCL_RT_OS_DARWIN)
+#elif defined(__SYCL_RT_OS_DARWIN)
   int64_t Size = 0;
   sysctlbyname("hw.memsize", &Size, nullptr, nullptr, 0);
   return static_cast<size_t>(Size);
-#endif // SYCL_RT_OS
+#endif // __SYCL_RT_OS
 }
 
 void *OSUtil::alignedAlloc(size_t Alignment, size_t NumBytes) {
-#if defined(SYCL_RT_OS_LINUX)
+#if defined(__SYCL_RT_OS_LINUX) && (defined(_GLIBCXX_HAVE_ALIGNED_ALLOC) ||    \
+                                    defined(_LIBCPP_HAS_C11_FEATURES))
   return aligned_alloc(Alignment, NumBytes);
-#elif defined(SYCL_RT_OS_POSIX_SUPPORT)
+#elif defined(__SYCL_RT_OS_POSIX_SUPPORT)
   void *Addr = nullptr;
   int ReturnCode = posix_memalign(&Addr, Alignment, NumBytes);
   return (ReturnCode == 0) ? Addr : nullptr;
-#elif defined(SYCL_RT_OS_WINDOWS)
+#elif defined(__SYCL_RT_OS_WINDOWS)
   return _aligned_malloc(NumBytes, Alignment);
 #endif
 }
 
 void OSUtil::alignedFree(void *Ptr) {
-#if defined(SYCL_RT_OS_LINUX) || defined(SYCL_RT_OS_POSIX_SUPPORT)
+#if defined(__SYCL_RT_OS_LINUX) || defined(__SYCL_RT_OS_POSIX_SUPPORT)
   free(Ptr);
-#elif defined(SYCL_RT_OS_WINDOWS)
+#elif defined(__SYCL_RT_OS_WINDOWS)
   _aligned_free(Ptr);
 #endif
 }

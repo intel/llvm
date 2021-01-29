@@ -286,7 +286,7 @@ static bool CleanupConstantGlobalUsers(
   // we delete a constant array, we may also be holding pointer to one of its
   // elements (or an element of one of its elements if we're dealing with an
   // array of arrays) in the worklist.
-  SmallVector<WeakTrackingVH, 8> WorkList(V->user_begin(), V->user_end());
+  SmallVector<WeakTrackingVH, 8> WorkList(V->users());
   while (!WorkList.empty()) {
     Value *UV = WorkList.pop_back_val();
     if (!UV)
@@ -1880,7 +1880,8 @@ static bool isPointerValueDeadOnEntryToFunction(
           // and the number of bits loaded in L is less than or equal to
           // the number of bits stored in S.
           return DT.dominates(S, L) &&
-                 DL.getTypeStoreSize(LTy) <= DL.getTypeStoreSize(STy);
+                 DL.getTypeStoreSize(LTy).getFixedSize() <=
+                     DL.getTypeStoreSize(STy).getFixedSize();
         }))
       return false;
   }
@@ -1932,8 +1933,7 @@ static void makeAllConstantUsesInstructions(Constant *C) {
   SmallVector<Value*,4> UUsers;
   for (auto *U : Users) {
     UUsers.clear();
-    for (auto *UU : U->users())
-      UUsers.push_back(UU);
+    append_range(UUsers, U->users());
     for (auto *UU : UUsers) {
       Instruction *UI = cast<Instruction>(UU);
       Instruction *NewU = U->getAsInstruction();

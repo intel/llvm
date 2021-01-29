@@ -91,19 +91,28 @@ HexagonTargetLowering::initializeHVXLowering() {
     setOperationAction(ISD::XOR,            T, Legal);
     setOperationAction(ISD::ADD,            T, Legal);
     setOperationAction(ISD::SUB,            T, Legal);
+    setOperationAction(ISD::MUL,            T, Legal);
     setOperationAction(ISD::CTPOP,          T, Legal);
     setOperationAction(ISD::CTLZ,           T, Legal);
+    setOperationAction(ISD::SELECT,         T, Legal);
+    setOperationAction(ISD::SPLAT_VECTOR,   T, Legal);
     if (T != ByteV) {
       setOperationAction(ISD::SIGN_EXTEND_VECTOR_INREG, T, Legal);
       setOperationAction(ISD::ZERO_EXTEND_VECTOR_INREG, T, Legal);
       setOperationAction(ISD::BSWAP,                    T, Legal);
     }
 
+    setOperationAction(ISD::SMIN,           T, Legal);
+    setOperationAction(ISD::SMAX,           T, Legal);
+    if (T.getScalarType() != MVT::i32) {
+      setOperationAction(ISD::UMIN,         T, Legal);
+      setOperationAction(ISD::UMAX,         T, Legal);
+    }
+
     setOperationAction(ISD::CTTZ,               T, Custom);
     setOperationAction(ISD::LOAD,               T, Custom);
     setOperationAction(ISD::MLOAD,              T, Custom);
     setOperationAction(ISD::MSTORE,             T, Custom);
-    setOperationAction(ISD::MUL,                T, Custom);
     setOperationAction(ISD::MULHS,              T, Custom);
     setOperationAction(ISD::MULHU,              T, Custom);
     setOperationAction(ISD::BUILD_VECTOR,       T, Custom);
@@ -153,6 +162,7 @@ HexagonTargetLowering::initializeHVXLowering() {
     setOperationAction(ISD::ANY_EXTEND_VECTOR_INREG,  T, Custom);
     setOperationAction(ISD::SIGN_EXTEND_VECTOR_INREG, T, Legal);
     setOperationAction(ISD::ZERO_EXTEND_VECTOR_INREG, T, Legal);
+    setOperationAction(ISD::SPLAT_VECTOR,             T, Custom);
 
     setOperationAction(ISD::LOAD,     T, Custom);
     setOperationAction(ISD::STORE,    T, Custom);
@@ -179,6 +189,13 @@ HexagonTargetLowering::initializeHVXLowering() {
 
       // Promote all shuffles to operate on vectors of bytes.
       setPromoteTo(ISD::VECTOR_SHUFFLE, T, ByteW);
+    }
+
+    setOperationAction(ISD::SMIN,     T, Custom);
+    setOperationAction(ISD::SMAX,     T, Custom);
+    if (T.getScalarType() != MVT::i32) {
+      setOperationAction(ISD::UMIN,   T, Custom);
+      setOperationAction(ISD::UMAX,   T, Custom);
     }
   }
 
@@ -209,6 +226,7 @@ HexagonTargetLowering::initializeHVXLowering() {
     setOperationAction(ISD::INSERT_VECTOR_ELT,  BoolV, Custom);
     setOperationAction(ISD::EXTRACT_SUBVECTOR,  BoolV, Custom);
     setOperationAction(ISD::EXTRACT_VECTOR_ELT, BoolV, Custom);
+    setOperationAction(ISD::SELECT,             BoolV, Custom);
     setOperationAction(ISD::AND,                BoolV, Legal);
     setOperationAction(ISD::OR,                 BoolV, Legal);
     setOperationAction(ISD::XOR,                BoolV, Legal);
@@ -223,12 +241,11 @@ HexagonTargetLowering::initializeHVXLowering() {
   }
 
   // Handle store widening for short vectors.
-  std::vector<MVT> ShortTys;
   unsigned HwLen = Subtarget.getVectorLength();
   for (MVT ElemTy : Subtarget.getHVXElementTypes()) {
     if (ElemTy == MVT::i1)
       continue;
-    int ElemWidth = ElemTy.getSizeInBits().getFixedSize();
+    int ElemWidth = ElemTy.getFixedSizeInBits();
     int MaxElems = (8*HwLen) / ElemWidth;
     for (int N = 2; N < MaxElems; N *= 2) {
       MVT VecTy = MVT::getVectorVT(ElemTy, N);
@@ -236,14 +253,20 @@ HexagonTargetLowering::initializeHVXLowering() {
       if (Action == TargetLoweringBase::TypeWidenVector) {
         setOperationAction(ISD::LOAD,         VecTy, Custom);
         setOperationAction(ISD::STORE,        VecTy, Custom);
+        setOperationAction(ISD::SETCC,        VecTy, Custom);
         setOperationAction(ISD::TRUNCATE,     VecTy, Custom);
         setOperationAction(ISD::ANY_EXTEND,   VecTy, Custom);
         setOperationAction(ISD::SIGN_EXTEND,  VecTy, Custom);
         setOperationAction(ISD::ZERO_EXTEND,  VecTy, Custom);
+
+        MVT BoolTy = MVT::getVectorVT(MVT::i1, N);
+        if (!isTypeLegal(BoolTy))
+          setOperationAction(ISD::SETCC, BoolTy, Custom);
       }
     }
   }
 
+  setTargetDAGCombine(ISD::SPLAT_VECTOR);
   setTargetDAGCombine(ISD::VSELECT);
 }
 
@@ -253,18 +276,27 @@ HexagonTargetLowering::getPreferredHvxVectorAction(MVT VecTy) const {
   unsigned VecLen = VecTy.getVectorNumElements();
   unsigned HwLen = Subtarget.getVectorLength();
 
-  // Split vectors of i1 that correspond to (byte) vector pairs.
-  if (ElemTy == MVT::i1 && VecLen == 2*HwLen)
+  // Split vectors of i1 that exceed byte vector length.
+  if (ElemTy == MVT::i1 && VecLen > HwLen)
     return TargetLoweringBase::TypeSplitVector;
-  // Treat i1 as i8 from now on.
-  if (ElemTy == MVT::i1)
-    ElemTy = MVT::i8;
+
+  ArrayRef<MVT> Tys = Subtarget.getHVXElementTypes();
+  // For shorter vectors of i1, widen them if any of the corresponding
+  // vectors of integers needs to be widened.
+  if (ElemTy == MVT::i1) {
+    for (MVT T : Tys) {
+      assert(T != MVT::i1);
+      auto A = getPreferredHvxVectorAction(MVT::getVectorVT(T, VecLen));
+      if (A != ~0u)
+        return A;
+    }
+    return ~0u;
+  }
 
   // If the size of VecTy is at least half of the vector length,
   // widen the vector. Note: the threshold was not selected in
   // any scientific way.
-  ArrayRef<MVT> Tys = Subtarget.getHVXElementTypes();
-  if (llvm::find(Tys, ElemTy) != Tys.end()) {
+  if (llvm::is_contained(Tys, ElemTy)) {
     unsigned VecWidth = VecTy.getSizeInBits();
     bool HaveThreshold = HvxWidenThreshold.getNumOccurrences() > 0;
     if (HaveThreshold && 8*HvxWidenThreshold <= VecWidth)
@@ -496,7 +528,9 @@ HexagonTargetLowering::buildHvxVectorReg(ArrayRef<SDValue> Values,
     auto *IdxN = dyn_cast<ConstantSDNode>(SplatV.getNode());
     if (IdxN && IdxN->isNullValue())
       return getZero(dl, VecTy, DAG);
-    return DAG.getNode(HexagonISD::VSPLATW, dl, VecTy, SplatV);
+    MVT WordTy = MVT::getVectorVT(MVT::i32, HwLen/4);
+    SDValue S = DAG.getNode(ISD::SPLAT_VECTOR, dl, WordTy, SplatV);
+    return DAG.getBitcast(VecTy, S);
   }
 
   // Delay recognizing constant vectors until here, so that we can generate
@@ -1126,7 +1160,7 @@ HexagonTargetLowering::extendHvxVectorPred(SDValue VecV, const SDLoc &dl,
     return DAG.getNode(HexagonISD::Q2V, dl, ResTy, VecV);
 
   assert(ty(VecV).getVectorNumElements() == ResTy.getVectorNumElements());
-  SDValue True = DAG.getNode(HexagonISD::VSPLAT, dl, ResTy,
+  SDValue True = DAG.getNode(ISD::SPLAT_VECTOR, dl, ResTy,
                              DAG.getConstant(1, dl, MVT::i32));
   SDValue False = getZero(dl, ResTy, DAG);
   return DAG.getSelect(dl, ResTy, VecV, True, False);
@@ -1421,19 +1455,14 @@ HexagonTargetLowering::LowerHvxCttz(SDValue Op, SelectionDAG &DAG) const {
   // Calculate the vectors of 1 and bitwidth(x).
   MVT ElemTy = ty(InpV).getVectorElementType();
   unsigned ElemWidth = ElemTy.getSizeInBits();
-  // Using uint64_t because a shift by 32 can happen.
-  uint64_t Splat1 = 0, SplatW = 0;
-  assert(isPowerOf2_32(ElemWidth) && ElemWidth <= 32);
-  for (unsigned i = 0; i != 32/ElemWidth; ++i) {
-    Splat1 = (Splat1 << ElemWidth) | 1;
-    SplatW = (SplatW << ElemWidth) | ElemWidth;
-  }
-  SDValue Vec1 = DAG.getNode(HexagonISD::VSPLATW, dl, ResTy,
-                             DAG.getConstant(uint32_t(Splat1), dl, MVT::i32));
-  SDValue VecW = DAG.getNode(HexagonISD::VSPLATW, dl, ResTy,
-                             DAG.getConstant(uint32_t(SplatW), dl, MVT::i32));
-  SDValue VecN1 = DAG.getNode(HexagonISD::VSPLATW, dl, ResTy,
+
+  SDValue Vec1 = DAG.getNode(ISD::SPLAT_VECTOR, dl, ResTy,
+                             DAG.getConstant(1, dl, MVT::i32));
+  SDValue VecW = DAG.getNode(ISD::SPLAT_VECTOR, dl, ResTy,
+                             DAG.getConstant(ElemWidth, dl, MVT::i32));
+  SDValue VecN1 = DAG.getNode(ISD::SPLAT_VECTOR, dl, ResTy,
                               DAG.getConstant(-1, dl, MVT::i32));
+
   // Do not use DAG.getNOT, because that would create BUILD_VECTOR with
   // a BITCAST. Here we can skip the BITCAST (so we don't have to handle
   // it separately in custom combine or selection).
@@ -1442,73 +1471,6 @@ HexagonTargetLowering::LowerHvxCttz(SDValue Op, SelectionDAG &DAG) const {
                            DAG.getNode(ISD::SUB, dl, ResTy, {InpV, Vec1})});
   return DAG.getNode(ISD::SUB, dl, ResTy,
                      {VecW, DAG.getNode(ISD::CTLZ, dl, ResTy, A)});
-}
-
-SDValue
-HexagonTargetLowering::LowerHvxMul(SDValue Op, SelectionDAG &DAG) const {
-  MVT ResTy = ty(Op);
-  assert(ResTy.isVector() && isHvxSingleTy(ResTy));
-  const SDLoc &dl(Op);
-  SmallVector<int,256> ShuffMask;
-
-  MVT ElemTy = ResTy.getVectorElementType();
-  unsigned VecLen = ResTy.getVectorNumElements();
-  SDValue Vs = Op.getOperand(0);
-  SDValue Vt = Op.getOperand(1);
-
-  switch (ElemTy.SimpleTy) {
-    case MVT::i8: {
-      // For i8 vectors Vs = (a0, a1, ...), Vt = (b0, b1, ...),
-      // V6_vmpybv Vs, Vt produces a pair of i16 vectors Hi:Lo,
-      // where Lo = (a0*b0, a2*b2, ...), Hi = (a1*b1, a3*b3, ...).
-      MVT ExtTy = typeExtElem(ResTy, 2);
-      unsigned MpyOpc = ElemTy == MVT::i8 ? Hexagon::V6_vmpybv
-                                          : Hexagon::V6_vmpyhv;
-      SDValue M = getInstr(MpyOpc, dl, ExtTy, {Vs, Vt}, DAG);
-
-      // Discard high halves of the resulting values, collect the low halves.
-      for (unsigned I = 0; I < VecLen; I += 2) {
-        ShuffMask.push_back(I);         // Pick even element.
-        ShuffMask.push_back(I+VecLen);  // Pick odd element.
-      }
-      VectorPair P = opSplit(opCastElem(M, ElemTy, DAG), dl, DAG);
-      SDValue BS = getByteShuffle(dl, P.first, P.second, ShuffMask, DAG);
-      return DAG.getBitcast(ResTy, BS);
-    }
-    case MVT::i16:
-      // For i16 there is V6_vmpyih, which acts exactly like the MUL opcode.
-      // (There is also V6_vmpyhv, which behaves in an analogous way to
-      // V6_vmpybv.)
-      return getInstr(Hexagon::V6_vmpyih, dl, ResTy, {Vs, Vt}, DAG);
-    case MVT::i32: {
-      auto MulL_V60 = [&](SDValue Vs, SDValue Vt) {
-        // Use the following sequence for signed word multiply:
-        // T0 = V6_vmpyiowh Vs, Vt
-        // T1 = V6_vaslw T0, 16
-        // T2 = V6_vmpyiewuh_acc T1, Vs, Vt
-        SDValue S16 = DAG.getConstant(16, dl, MVT::i32);
-        SDValue T0 = getInstr(Hexagon::V6_vmpyiowh, dl, ResTy, {Vs, Vt}, DAG);
-        SDValue T1 = getInstr(Hexagon::V6_vaslw, dl, ResTy, {T0, S16}, DAG);
-        SDValue T2 = getInstr(Hexagon::V6_vmpyiewuh_acc, dl, ResTy,
-                              {T1, Vs, Vt}, DAG);
-        return T2;
-      };
-      auto MulL_V62 = [&](SDValue Vs, SDValue Vt) {
-        MVT PairTy = typeJoin({ResTy, ResTy});
-        SDValue T0 = getInstr(Hexagon::V6_vmpyewuh_64, dl, PairTy,
-                              {Vs, Vt}, DAG);
-        SDValue T1 = getInstr(Hexagon::V6_vmpyowh_64_acc, dl, PairTy,
-                              {T0, Vs, Vt}, DAG);
-        return opSplit(T1, dl, DAG).first;
-      };
-      if (Subtarget.useHVXV62Ops())
-        return MulL_V62(Vs, Vt);
-      return MulL_V60(Vs, Vt);
-    }
-    default:
-      break;
-  }
-  return SDValue();
 }
 
 SDValue
@@ -1684,6 +1646,26 @@ HexagonTargetLowering::LowerHvxExtend(SDValue Op, SelectionDAG &DAG) const {
   assert(Op.getOpcode() == ISD::ANY_EXTEND_VECTOR_INREG);
   return DAG.getNode(ISD::ZERO_EXTEND_VECTOR_INREG, SDLoc(Op), ty(Op),
                      Op.getOperand(0));
+}
+
+SDValue
+HexagonTargetLowering::LowerHvxSelect(SDValue Op, SelectionDAG &DAG) const {
+  MVT ResTy = ty(Op);
+  if (ResTy.getVectorElementType() != MVT::i1)
+    return Op;
+
+  const SDLoc &dl(Op);
+  unsigned HwLen = Subtarget.getVectorLength();
+  unsigned VecLen = ResTy.getVectorNumElements();
+  assert(HwLen % VecLen == 0);
+  unsigned ElemSize = HwLen / VecLen;
+
+  MVT VecTy = MVT::getVectorVT(MVT::getIntegerVT(ElemSize * 8), VecLen);
+  SDValue S =
+      DAG.getNode(ISD::SELECT, dl, VecTy, Op.getOperand(0),
+                  DAG.getNode(HexagonISD::Q2V, dl, VecTy, Op.getOperand(1)),
+                  DAG.getNode(HexagonISD::Q2V, dl, VecTy, Op.getOperand(2)));
+  return DAG.getNode(HexagonISD::V2Q, dl, ResTy, S);
 }
 
 SDValue
@@ -1964,6 +1946,29 @@ HexagonTargetLowering::WidenHvxStore(SDValue Op, SelectionDAG &DAG) const {
 }
 
 SDValue
+HexagonTargetLowering::WidenHvxSetCC(SDValue Op, SelectionDAG &DAG) const {
+  const SDLoc &dl(Op);
+  SDValue Op0 = Op.getOperand(0), Op1 = Op.getOperand(1);
+  MVT ElemTy = ty(Op0).getVectorElementType();
+  unsigned HwLen = Subtarget.getVectorLength();
+
+  unsigned WideOpLen = (8 * HwLen) / ElemTy.getSizeInBits();
+  assert(WideOpLen * ElemTy.getSizeInBits() == 8 * HwLen);
+  MVT WideOpTy = MVT::getVectorVT(ElemTy, WideOpLen);
+
+  SDValue WideOp0 = appendUndef(Op0, WideOpTy, DAG);
+  SDValue WideOp1 = appendUndef(Op1, WideOpTy, DAG);
+  EVT ResTy =
+      getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), WideOpTy);
+  SDValue SetCC = DAG.getNode(ISD::SETCC, dl, ResTy,
+                              {WideOp0, WideOp1, Op.getOperand(2)});
+
+  EVT RetTy = getTypeToTransformTo(*DAG.getContext(), ty(Op));
+  return DAG.getNode(ISD::EXTRACT_SUBVECTOR, dl, RetTy,
+                     {SetCC, getZero(dl, MVT::i32, DAG)});
+}
+
+SDValue
 HexagonTargetLowering::WidenHvxExtend(SDValue Op, SelectionDAG &DAG) const {
   const SDLoc &dl(Op);
   unsigned HwWidth = 8*Subtarget.getVectorLength();
@@ -2074,11 +2079,16 @@ HexagonTargetLowering::LowerHvxOperation(SDValue Op, SelectionDAG &DAG) const {
       case ISD::SRA:
       case ISD::SHL:
       case ISD::SRL:
+      case ISD::SMIN:
+      case ISD::SMAX:
+      case ISD::UMIN:
+      case ISD::UMAX:
       case ISD::SETCC:
       case ISD::VSELECT:
       case ISD::SIGN_EXTEND:
       case ISD::ZERO_EXTEND:
       case ISD::SIGN_EXTEND_INREG:
+      case ISD::SPLAT_VECTOR:
         return SplitHvxPairOp(Op, DAG);
     }
   }
@@ -2097,10 +2107,10 @@ HexagonTargetLowering::LowerHvxOperation(SDValue Op, SelectionDAG &DAG) const {
     case ISD::SIGN_EXTEND:             return LowerHvxSignExt(Op, DAG);
     case ISD::ZERO_EXTEND:             return LowerHvxZeroExt(Op, DAG);
     case ISD::CTTZ:                    return LowerHvxCttz(Op, DAG);
+    case ISD::SELECT:                  return LowerHvxSelect(Op, DAG);
     case ISD::SRA:
     case ISD::SHL:
     case ISD::SRL:                     return LowerHvxShift(Op, DAG);
-    case ISD::MUL:                     return LowerHvxMul(Op, DAG);
     case ISD::MULHS:
     case ISD::MULHU:                   return LowerHvxMulh(Op, DAG);
     case ISD::ANY_EXTEND_VECTOR_INREG: return LowerHvxExtend(Op, DAG);
@@ -2128,20 +2138,28 @@ HexagonTargetLowering::LowerHvxOperationWrapper(SDNode *N,
     case ISD::ANY_EXTEND:
     case ISD::SIGN_EXTEND:
     case ISD::ZERO_EXTEND:
-      assert(shouldWidenToHvx(ty(Op.getOperand(0)), DAG) && "Not widening?");
-      if (SDValue T = WidenHvxExtend(Op, DAG))
-        Results.push_back(T);
+      if (shouldWidenToHvx(ty(Op.getOperand(0)), DAG)) {
+        if (SDValue T = WidenHvxExtend(Op, DAG))
+          Results.push_back(T);
+      }
+      break;
+    case ISD::SETCC:
+      if (shouldWidenToHvx(ty(Op.getOperand(0)), DAG)) {
+        if (SDValue T = WidenHvxSetCC(Op, DAG))
+          Results.push_back(T);
+      }
       break;
     case ISD::TRUNCATE:
-      assert(shouldWidenToHvx(ty(Op.getOperand(0)), DAG) && "Not widening?");
-      if (SDValue T = WidenHvxTruncate(Op, DAG))
-        Results.push_back(T);
+      if (shouldWidenToHvx(ty(Op.getOperand(0)), DAG)) {
+        if (SDValue T = WidenHvxTruncate(Op, DAG))
+          Results.push_back(T);
+      }
       break;
     case ISD::STORE: {
-      assert(shouldWidenToHvx(ty(cast<StoreSDNode>(N)->getValue()), DAG) &&
-             "Not widening?");
-      SDValue Store = WidenHvxStore(SDValue(N, 0), DAG);
-      Results.push_back(Store);
+      if (shouldWidenToHvx(ty(cast<StoreSDNode>(N)->getValue()), DAG)) {
+        SDValue Store = WidenHvxStore(Op, DAG);
+        Results.push_back(Store);
+      }
       break;
     }
     case ISD::MLOAD:
@@ -2158,6 +2176,8 @@ HexagonTargetLowering::LowerHvxOperationWrapper(SDNode *N,
         Results.push_back(S);
       }
       break;
+    default:
+      break;
   }
 }
 
@@ -2170,21 +2190,30 @@ HexagonTargetLowering::ReplaceHvxNodeResults(SDNode *N,
     case ISD::ANY_EXTEND:
     case ISD::SIGN_EXTEND:
     case ISD::ZERO_EXTEND:
-      assert(shouldWidenToHvx(ty(Op), DAG) && "Not widening?");
-      if (SDValue T = WidenHvxExtend(Op, DAG))
-        Results.push_back(T);
+      if (shouldWidenToHvx(ty(Op), DAG)) {
+        if (SDValue T = WidenHvxExtend(Op, DAG))
+          Results.push_back(T);
+      }
+      break;
+    case ISD::SETCC:
+      if (shouldWidenToHvx(ty(Op), DAG)) {
+        if (SDValue T = WidenHvxSetCC(Op, DAG))
+          Results.push_back(T);
+      }
       break;
     case ISD::TRUNCATE:
-      assert(shouldWidenToHvx(ty(Op), DAG) && "Not widening?");
-      if (SDValue T = WidenHvxTruncate(Op, DAG))
-        Results.push_back(T);
+      if (shouldWidenToHvx(ty(Op), DAG)) {
+        if (SDValue T = WidenHvxTruncate(Op, DAG))
+          Results.push_back(T);
+      }
       break;
     case ISD::LOAD: {
-      assert(shouldWidenToHvx(ty(Op), DAG) && "Not widening?");
-      SDValue Load = WidenHvxLoad(Op, DAG);
-      assert(Load->getOpcode() == ISD::MERGE_VALUES);
-      Results.push_back(Load.getOperand(0));
-      Results.push_back(Load.getOperand(1));
+      if (shouldWidenToHvx(ty(Op), DAG)) {
+        SDValue Load = WidenHvxLoad(Op, DAG);
+        assert(Load->getOpcode() == ISD::MERGE_VALUES);
+        Results.push_back(Load.getOperand(0));
+        Results.push_back(Load.getOperand(1));
+      }
       break;
     }
     case ISD::BITCAST:
@@ -2202,35 +2231,48 @@ HexagonTargetLowering::ReplaceHvxNodeResults(SDNode *N,
 SDValue
 HexagonTargetLowering::PerformHvxDAGCombine(SDNode *N, DAGCombinerInfo &DCI)
       const {
-  if (DCI.isBeforeLegalizeOps())
-    return SDValue();
-
   const SDLoc &dl(N);
   SelectionDAG &DAG = DCI.DAG;
   SDValue Op(N, 0);
-
   unsigned Opc = Op.getOpcode();
+  if (DCI.isBeforeLegalizeOps())
+    return SDValue();
+
+  SmallVector<SDValue, 4> Ops(N->ops().begin(), N->ops().end());
+
   switch (Opc) {
     case ISD::VSELECT: {
       // (vselect (xor x, qtrue), v0, v1) -> (vselect x, v1, v0)
-      SDValue Cond = Op.getOperand(0);
+      SDValue Cond = Ops[0];
       if (Cond->getOpcode() == ISD::XOR) {
         SDValue C0 = Cond.getOperand(0), C1 = Cond.getOperand(1);
         if (C1->getOpcode() == HexagonISD::QTRUE)
-          return DAG.getNode(ISD::VSELECT, dl, ty(Op), C0,
-                             Op.getOperand(2), Op.getOperand(1));
+          return DAG.getNode(ISD::VSELECT, dl, ty(Op), C0, Ops[2], Ops[1]);
       }
       break;
     }
+    case HexagonISD::V2Q:
+      if (Ops[0].getOpcode() == ISD::SPLAT_VECTOR) {
+        if (const auto *C = dyn_cast<ConstantSDNode>(Ops[0].getOperand(0)))
+          return C->isNullValue() ? DAG.getNode(HexagonISD::QFALSE, dl, ty(Op))
+                                  : DAG.getNode(HexagonISD::QTRUE, dl, ty(Op));
+      }
+      break;
+    case HexagonISD::Q2V:
+      if (Ops[0].getOpcode() == HexagonISD::QTRUE)
+        return DAG.getNode(ISD::SPLAT_VECTOR, dl, ty(Op),
+                           DAG.getConstant(-1, dl, MVT::i32));
+      if (Ops[0].getOpcode() == HexagonISD::QFALSE)
+        return getZero(dl, ty(Op), DAG);
+      break;
     case HexagonISD::VINSERTW0:
-      if (isUndef(Op.getOperand(1)))
-        return Op.getOperand(0);
+      if (isUndef(Ops[1]))
+        return Ops[0];;
       break;
     case HexagonISD::VROR: {
-      SDValue Op0 = Op.getOperand(0);
-      if (Op0.getOpcode() == HexagonISD::VROR) {
-        SDValue Vec = Op0.getOperand(0);
-        SDValue Rot0 = Op.getOperand(1), Rot1 = Op0.getOperand(1);
+      if (Ops[0].getOpcode() == HexagonISD::VROR) {
+        SDValue Vec = Ops[0].getOperand(0);
+        SDValue Rot0 = Ops[1], Rot1 = Ops[0].getOperand(1);
         SDValue Rot = DAG.getNode(ISD::ADD, dl, ty(Rot0), {Rot0, Rot1});
         return DAG.getNode(HexagonISD::VROR, dl, ty(Op), {Vec, Rot});
       }
@@ -2243,7 +2285,6 @@ HexagonTargetLowering::PerformHvxDAGCombine(SDNode *N, DAGCombinerInfo &DCI)
 
 bool
 HexagonTargetLowering::shouldWidenToHvx(MVT Ty, SelectionDAG &DAG) const {
-  assert(!Subtarget.isHVXVectorType(Ty, true));
   auto Action = getPreferredHvxVectorAction(Ty);
   if (Action == TargetLoweringBase::TypeWidenVector) {
     EVT WideTy = getTypeToTransformTo(*DAG.getContext(), Ty);

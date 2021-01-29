@@ -110,6 +110,9 @@ public:
   /// Return true if the affine expression involves AffineDimExpr `position`.
   bool isFunctionOfDim(unsigned position) const;
 
+  /// Return true if the affine expression involves AffineSymbolExpr `position`.
+  bool isFunctionOfSymbol(unsigned position) const;
+
   /// Walk all of the AffineExpr's in this expression in postorder.
   void walk(std::function<void(AffineExpr)> callback) const;
 
@@ -129,8 +132,11 @@ public:
   /// `*this` and apply replace with `map` on its subexpressions.
   AffineExpr replace(const DenseMap<AffineExpr, AffineExpr> &map) const;
 
-  /// Replace symbols[0 .. numDims - 1] by
-  /// symbols[shift .. shift + numDims - 1].
+  /// Replace dims[0 .. numDims - 1] by dims[shift .. shift + numDims - 1].
+  AffineExpr shiftDims(unsigned numDims, unsigned shift) const;
+
+  /// Replace symbols[0 .. numSymbols - 1] by
+  ///         symbols[shift .. shift + numSymbols - 1].
   AffineExpr shiftSymbols(unsigned numSymbols, unsigned shift) const;
 
   AffineExpr operator+(int64_t v) const;
@@ -163,6 +169,15 @@ public:
   AffineExpr compose(AffineMap map) const;
 
   friend ::llvm::hash_code hash_value(AffineExpr arg);
+
+  /// Methods supporting C API.
+  const void *getAsOpaquePointer() const {
+    return static_cast<const void *>(expr);
+  }
+  static AffineExpr getFromOpaquePointer(const void *pointer) {
+    return AffineExpr(
+        reinterpret_cast<ImplType *>(const_cast<void *>(pointer)));
+  }
 
 protected:
   ImplType *expr;

@@ -9,6 +9,7 @@
 #include "mlir/Analysis/Presburger/Simplex.h"
 #include "mlir/Analysis/Presburger/Matrix.h"
 #include "mlir/Support/MathExtras.h"
+#include "llvm/ADT/Optional.h"
 
 namespace mlir {
 using Direction = Simplex::Direction;
@@ -351,7 +352,7 @@ void Simplex::markEmpty() {
 }
 
 /// Add an inequality to the tableau. If coeffs is c_0, c_1, ... c_n, where n
-/// is the curent number of variables, then the corresponding inequality is
+/// is the current number of variables, then the corresponding inequality is
 /// c_n + c_0*x_0 + c_1*x_1 + ... + c_{n-1}*x_{n-1} >= 0.
 ///
 /// We add the inequality and mark it as restricted. We then try to make its
@@ -367,7 +368,7 @@ void Simplex::addInequality(ArrayRef<int64_t> coeffs) {
 }
 
 /// Add an equality to the tableau. If coeffs is c_0, c_1, ... c_n, where n
-/// is the curent number of variables, then the corresponding equality is
+/// is the current number of variables, then the corresponding equality is
 /// c_n + c_0*x_0 + c_1*x_1 + ... + c_{n-1}*x_{n-1} == 0.
 ///
 /// We simply add two opposing inequalities, which force the expression to
@@ -383,7 +384,7 @@ void Simplex::addEquality(ArrayRef<int64_t> coeffs) {
 unsigned Simplex::numVariables() const { return var.size(); }
 unsigned Simplex::numConstraints() const { return con.size(); }
 
-/// Return a snapshot of the curent state. This is just the current size of the
+/// Return a snapshot of the current state. This is just the current size of the
 /// undo log.
 unsigned Simplex::getSnapshot() const { return undoLog.size(); }
 
@@ -451,6 +452,16 @@ void Simplex::rollback(unsigned snapshot) {
   }
 }
 
+/// Add all the constraints from the given FlatAffineConstraints.
+void Simplex::intersectFlatAffineConstraints(const FlatAffineConstraints &fac) {
+  assert(fac.getNumIds() == numVariables() &&
+         "FlatAffineConstraints must have same dimensionality as simplex");
+  for (unsigned i = 0, e = fac.getNumInequalities(); i < e; ++i)
+    addInequality(fac.getInequality(i));
+  for (unsigned i = 0, e = fac.getNumEqualities(); i < e; ++i)
+    addEquality(fac.getEquality(i));
+}
+
 Optional<Fraction> Simplex::computeRowOptimum(Direction direction,
                                               unsigned row) {
   // Keep trying to find a pivot for the row in the specified direction.
@@ -472,7 +483,7 @@ Optional<Fraction> Simplex::computeRowOptimum(Direction direction,
 /// or None if it is unbounded.
 Optional<Fraction> Simplex::computeOptimum(Direction direction,
                                            ArrayRef<int64_t> coeffs) {
-  assert(!empty && "Tableau should not be empty");
+  assert(!empty && "Simplex should not be empty");
 
   unsigned snapshot = getSnapshot();
   unsigned conIndex = addRow(coeffs);
@@ -480,6 +491,34 @@ Optional<Fraction> Simplex::computeOptimum(Direction direction,
   Optional<Fraction> optimum = computeRowOptimum(direction, row);
   rollback(snapshot);
   return optimum;
+}
+
+Optional<Fraction> Simplex::computeOptimum(Direction direction, Unknown &u) {
+  assert(!empty && "Simplex should not be empty!");
+  if (u.orientation == Orientation::Column) {
+    unsigned column = u.pos;
+    Optional<unsigned> pivotRow = findPivotRow({}, direction, column);
+    // If no pivot is returned, the constraint is unbounded in the specified
+    // direction.
+    if (!pivotRow)
+      return {};
+    pivot(*pivotRow, column);
+  }
+
+  unsigned row = u.pos;
+  Optional<Fraction> optimum = computeRowOptimum(direction, row);
+  if (u.restricted && direction == Direction::Down &&
+      (!optimum || *optimum < Fraction(0, 1)))
+    restoreRow(u);
+  return optimum;
+}
+
+bool Simplex::isBoundedAlongConstraint(unsigned constraintIndex) {
+  assert(!empty && "It is not meaningful to ask whether a direction is bounded "
+                   "in an empty set.");
+  // The constraint's perpendicular is already bounded below, since it is a
+  // constraint. If it is also bounded above, we can return true.
+  return computeOptimum(Direction::Up, con[constraintIndex]).hasValue();
 }
 
 /// Redundant constraints are those that are in row orientation and lie in

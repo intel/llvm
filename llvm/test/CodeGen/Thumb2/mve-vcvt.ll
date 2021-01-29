@@ -43,18 +43,16 @@ entry:
 define arm_aapcs_vfpcc <4 x i32> @foo_int32_float(<4 x float> %src) {
 ; CHECK-MVE-LABEL: foo_int32_float:
 ; CHECK-MVE:       @ %bb.0: @ %entry
-; CHECK-MVE-NEXT:    vcvt.s32.f32 s4, s0
-; CHECK-MVE-NEXT:    vcvt.s32.f32 s6, s1
-; CHECK-MVE-NEXT:    vcvt.s32.f32 s10, s2
+; CHECK-MVE-NEXT:    vcvt.s32.f32 s4, s2
+; CHECK-MVE-NEXT:    vcvt.s32.f32 s6, s0
 ; CHECK-MVE-NEXT:    vcvt.s32.f32 s8, s3
+; CHECK-MVE-NEXT:    vcvt.s32.f32 s10, s1
 ; CHECK-MVE-NEXT:    vmov r0, s4
-; CHECK-MVE-NEXT:    vmov.32 q0[0], r0
-; CHECK-MVE-NEXT:    vmov r0, s6
-; CHECK-MVE-NEXT:    vmov.32 q0[1], r0
-; CHECK-MVE-NEXT:    vmov r0, s10
-; CHECK-MVE-NEXT:    vmov.32 q0[2], r0
+; CHECK-MVE-NEXT:    vmov r1, s6
+; CHECK-MVE-NEXT:    vmov q0[2], q0[0], r1, r0
 ; CHECK-MVE-NEXT:    vmov r0, s8
-; CHECK-MVE-NEXT:    vmov.32 q0[3], r0
+; CHECK-MVE-NEXT:    vmov r1, s10
+; CHECK-MVE-NEXT:    vmov q0[3], q0[1], r1, r0
 ; CHECK-MVE-NEXT:    bx lr
 ;
 ; CHECK-MVEFP-LABEL: foo_int32_float:
@@ -69,18 +67,16 @@ entry:
 define arm_aapcs_vfpcc <4 x i32> @foo_uint32_float(<4 x float> %src) {
 ; CHECK-MVE-LABEL: foo_uint32_float:
 ; CHECK-MVE:       @ %bb.0: @ %entry
-; CHECK-MVE-NEXT:    vcvt.u32.f32 s4, s0
-; CHECK-MVE-NEXT:    vcvt.u32.f32 s6, s1
-; CHECK-MVE-NEXT:    vcvt.u32.f32 s10, s2
+; CHECK-MVE-NEXT:    vcvt.u32.f32 s4, s2
+; CHECK-MVE-NEXT:    vcvt.u32.f32 s6, s0
 ; CHECK-MVE-NEXT:    vcvt.u32.f32 s8, s3
+; CHECK-MVE-NEXT:    vcvt.u32.f32 s10, s1
 ; CHECK-MVE-NEXT:    vmov r0, s4
-; CHECK-MVE-NEXT:    vmov.32 q0[0], r0
-; CHECK-MVE-NEXT:    vmov r0, s6
-; CHECK-MVE-NEXT:    vmov.32 q0[1], r0
-; CHECK-MVE-NEXT:    vmov r0, s10
-; CHECK-MVE-NEXT:    vmov.32 q0[2], r0
+; CHECK-MVE-NEXT:    vmov r1, s6
+; CHECK-MVE-NEXT:    vmov q0[2], q0[0], r1, r0
 ; CHECK-MVE-NEXT:    vmov r0, s8
-; CHECK-MVE-NEXT:    vmov.32 q0[3], r0
+; CHECK-MVE-NEXT:    vmov r1, s10
+; CHECK-MVE-NEXT:    vmov q0[3], q0[1], r1, r0
 ; CHECK-MVE-NEXT:    bx lr
 ;
 ; CHECK-MVEFP-LABEL: foo_uint32_float:
@@ -349,24 +345,21 @@ entry:
 define arm_aapcs_vfpcc <2 x i64> @foo_int64_float(<2 x double> %src) {
 ; CHECK-LABEL: foo_int64_float:
 ; CHECK:       @ %bb.0: @ %entry
-; CHECK-NEXT:    .save {r7, lr}
-; CHECK-NEXT:    push {r7, lr}
+; CHECK-NEXT:    .save {r4, r5, r7, lr}
+; CHECK-NEXT:    push {r4, r5, r7, lr}
 ; CHECK-NEXT:    .vsave {d8, d9}
 ; CHECK-NEXT:    vpush {d8, d9}
 ; CHECK-NEXT:    vmov q4, q0
+; CHECK-NEXT:    vmov r0, r1, d9
+; CHECK-NEXT:    bl __aeabi_d2lz
+; CHECK-NEXT:    mov r4, r0
+; CHECK-NEXT:    mov r5, r1
 ; CHECK-NEXT:    vmov r0, r1, d8
 ; CHECK-NEXT:    bl __aeabi_d2lz
-; CHECK-NEXT:    vmov r2, r3, d9
-; CHECK-NEXT:    vmov.32 q4[0], r0
-; CHECK-NEXT:    vmov.32 q4[1], r1
-; CHECK-NEXT:    mov r0, r2
-; CHECK-NEXT:    mov r1, r3
-; CHECK-NEXT:    bl __aeabi_d2lz
-; CHECK-NEXT:    vmov.32 q4[2], r0
-; CHECK-NEXT:    vmov.32 q4[3], r1
-; CHECK-NEXT:    vmov q0, q4
+; CHECK-NEXT:    vmov q0[2], q0[0], r0, r4
+; CHECK-NEXT:    vmov q0[3], q0[1], r1, r5
 ; CHECK-NEXT:    vpop {d8, d9}
-; CHECK-NEXT:    pop {r7, pc}
+; CHECK-NEXT:    pop {r4, r5, r7, pc}
 entry:
   %out = fptosi <2 x double> %src to <2 x i64>
   ret <2 x i64> %out
@@ -375,25 +368,73 @@ entry:
 define arm_aapcs_vfpcc <2 x i64> @foo_uint64_float(<2 x double> %src) {
 ; CHECK-LABEL: foo_uint64_float:
 ; CHECK:       @ %bb.0: @ %entry
-; CHECK-NEXT:    .save {r7, lr}
-; CHECK-NEXT:    push {r7, lr}
+; CHECK-NEXT:    .save {r4, r5, r7, lr}
+; CHECK-NEXT:    push {r4, r5, r7, lr}
 ; CHECK-NEXT:    .vsave {d8, d9}
 ; CHECK-NEXT:    vpush {d8, d9}
 ; CHECK-NEXT:    vmov q4, q0
+; CHECK-NEXT:    vmov r0, r1, d9
+; CHECK-NEXT:    bl __aeabi_d2ulz
+; CHECK-NEXT:    mov r4, r0
+; CHECK-NEXT:    mov r5, r1
 ; CHECK-NEXT:    vmov r0, r1, d8
 ; CHECK-NEXT:    bl __aeabi_d2ulz
-; CHECK-NEXT:    vmov r2, r3, d9
-; CHECK-NEXT:    vmov.32 q4[0], r0
-; CHECK-NEXT:    vmov.32 q4[1], r1
-; CHECK-NEXT:    mov r0, r2
-; CHECK-NEXT:    mov r1, r3
-; CHECK-NEXT:    bl __aeabi_d2ulz
-; CHECK-NEXT:    vmov.32 q4[2], r0
-; CHECK-NEXT:    vmov.32 q4[3], r1
-; CHECK-NEXT:    vmov q0, q4
+; CHECK-NEXT:    vmov q0[2], q0[0], r0, r4
+; CHECK-NEXT:    vmov q0[3], q0[1], r1, r5
 ; CHECK-NEXT:    vpop {d8, d9}
-; CHECK-NEXT:    pop {r7, pc}
+; CHECK-NEXT:    pop {r4, r5, r7, pc}
 entry:
   %out = fptoui <2 x double> %src to <2 x i64>
   ret <2 x i64> %out
+}
+
+define arm_aapcs_vfpcc <8 x half> @vmovn32_trunc1(<4 x float> %src1, <4 x float> %src2) {
+; CHECK-MVE-LABEL: vmovn32_trunc1:
+; CHECK-MVE:       @ %bb.0: @ %entry
+; CHECK-MVE-NEXT:    vmov q2, q0
+; CHECK-MVE-NEXT:    vcvtb.f16.f32 s0, s8
+; CHECK-MVE-NEXT:    vcvtt.f16.f32 s0, s4
+; CHECK-MVE-NEXT:    vcvtb.f16.f32 s1, s9
+; CHECK-MVE-NEXT:    vcvtt.f16.f32 s1, s5
+; CHECK-MVE-NEXT:    vcvtb.f16.f32 s2, s10
+; CHECK-MVE-NEXT:    vcvtt.f16.f32 s2, s6
+; CHECK-MVE-NEXT:    vcvtb.f16.f32 s3, s11
+; CHECK-MVE-NEXT:    vcvtt.f16.f32 s3, s7
+; CHECK-MVE-NEXT:    bx lr
+;
+; CHECK-MVEFP-LABEL: vmovn32_trunc1:
+; CHECK-MVEFP:       @ %bb.0: @ %entry
+; CHECK-MVEFP-NEXT:    vcvtb.f16.f32 q0, q0
+; CHECK-MVEFP-NEXT:    vcvtt.f16.f32 q0, q1
+; CHECK-MVEFP-NEXT:    bx lr
+entry:
+  %strided.vec = shufflevector <4 x float> %src1, <4 x float> %src2, <8 x i32> <i32 0, i32 4, i32 1, i32 5, i32 2, i32 6, i32 3, i32 7>
+  %out = fptrunc <8 x float> %strided.vec to <8 x half>
+  ret <8 x half> %out
+}
+
+define arm_aapcs_vfpcc <8 x half> @vmovn32_trunc2(<4 x float> %src1, <4 x float> %src2) {
+; CHECK-MVE-LABEL: vmovn32_trunc2:
+; CHECK-MVE:       @ %bb.0: @ %entry
+; CHECK-MVE-NEXT:    vmov q2, q0
+; CHECK-MVE-NEXT:    vcvtb.f16.f32 s0, s4
+; CHECK-MVE-NEXT:    vcvtt.f16.f32 s0, s8
+; CHECK-MVE-NEXT:    vcvtb.f16.f32 s1, s5
+; CHECK-MVE-NEXT:    vcvtt.f16.f32 s1, s9
+; CHECK-MVE-NEXT:    vcvtb.f16.f32 s2, s6
+; CHECK-MVE-NEXT:    vcvtt.f16.f32 s2, s10
+; CHECK-MVE-NEXT:    vcvtb.f16.f32 s3, s7
+; CHECK-MVE-NEXT:    vcvtt.f16.f32 s3, s11
+; CHECK-MVE-NEXT:    bx lr
+;
+; CHECK-MVEFP-LABEL: vmovn32_trunc2:
+; CHECK-MVEFP:       @ %bb.0: @ %entry
+; CHECK-MVEFP-NEXT:    vcvtb.f16.f32 q1, q1
+; CHECK-MVEFP-NEXT:    vcvtt.f16.f32 q1, q0
+; CHECK-MVEFP-NEXT:    vmov q0, q1
+; CHECK-MVEFP-NEXT:    bx lr
+entry:
+  %strided.vec = shufflevector <4 x float> %src1, <4 x float> %src2, <8 x i32> <i32 4, i32 0, i32 5, i32 1, i32 6, i32 2, i32 7, i32 3>
+  %out = fptrunc <8 x float> %strided.vec to <8 x half>
+  ret <8 x half> %out
 }

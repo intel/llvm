@@ -12,8 +12,8 @@ target triple = "nvptx64-nvidia-cuda"
 @__omp_offloading_801_3022563__Z6maini1v_l17_exec_mode = weak constant i8 0
 @llvm.compiler.used = appending global [1 x i8*] [i8* @__omp_offloading_801_3022563__Z6maini1v_l17_exec_mode], section "llvm.metadata"
 
-; CHECK: remark: declare_target_codegen_globalization.cpp:10:1: Found thread data sharing on the GPU. Expect degraded performance due to data globalization.
 ; CHECK: remark: declare_target_codegen_globalization.cpp:17:1: Found thread data sharing on the GPU. Expect degraded performance due to data globalization.
+; CHECK: remark: declare_target_codegen_globalization.cpp:10:1: Found thread data sharing on the GPU. Expect degraded performance due to data globalization.
 
 ; Function Attrs: norecurse nounwind
 define weak void @__omp_offloading_801_3022563__Z6maini1v_l17(i32* nonnull align 4 dereferenceable(4) %a) local_unnamed_addr #0 !dbg !10 {
@@ -59,7 +59,7 @@ entry:
   br i1 %.not, label %.non-spmd, label %.exit
 
 .non-spmd:                                        ; preds = %entry
-  %1 = tail call i8* @__kmpc_data_sharing_coalesced_push_stack(i64 128, i16 0) #4, !dbg !31
+  %1 = tail call i8* @__kmpc_data_sharing_push_stack(i64 128, i16 0) #4, !dbg !31
   %2 = bitcast i8* %1 to %struct._globalized_locals_ty*
   br label %.exit
 
@@ -85,6 +85,8 @@ entry:
 declare i8 @__kmpc_is_spmd_exec_mode() local_unnamed_addr
 
 declare i8* @__kmpc_data_sharing_coalesced_push_stack(i64, i16) local_unnamed_addr
+
+declare i8* @__kmpc_data_sharing_push_stack(i64, i16) local_unnamed_addr
 
 ; Function Attrs: nounwind readnone
 declare i32 @llvm.nvvm.read.ptx.sreg.tid.x() #1

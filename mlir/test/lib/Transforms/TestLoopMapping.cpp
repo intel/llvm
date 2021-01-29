@@ -43,18 +43,20 @@ public:
 
     func.walk([&processorIds, &numProcessors](scf::ForOp op) {
       // Ignore nested loops.
-      if (op.getParentRegion()->getParentOfType<scf::ForOp>())
+      if (op->getParentRegion()->getParentOfType<scf::ForOp>())
         return;
       mapLoopToProcessorIds(op, processorIds, numProcessors);
     });
   }
 };
-} // end namespace
+} // namespace
 
 namespace mlir {
+namespace test {
 void registerTestLoopMappingPass() {
   PassRegistration<TestLoopMappingPass>(
       "test-mapping-to-processing-elements",
       "test mapping a single loop on a virtual processor grid");
 }
+} // namespace test
 } // namespace mlir

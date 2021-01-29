@@ -63,7 +63,8 @@ config.substitutions.append(('%PATH%', config.environment['PATH']))
 tool_dirs = [config.clang_tools_dir, config.llvm_tools_dir]
 
 tools = [
-    'c-index-test', 'clang-diff', 'clang-format', 'clang-tblgen', 'opt', 'llvm-ifs',
+    'apinotes-test', 'c-index-test', 'clang-diff', 'clang-format',
+    'clang-tblgen', 'opt', 'llvm-ifs', 'yaml2obj',
     ToolSubst('%clang_extdef_map', command=FindTool(
         'clang-extdef-mapping'), unresolved='ignore'),
 ]
@@ -166,6 +167,12 @@ if re.match(r'^arm64(e)?-apple-(macos|darwin)', config.target_triple):
 # only if all handles were closed.
 if platform.system() not in ['Windows']:
     config.available_features.add('can-remove-opened-file')
+
+# Features
+known_arches = ["x86_64", "mips64", "ppc64", "aarch64"]
+if (any(config.target_triple.startswith(x) for x in known_arches)):
+  config.available_features.add("clang-target-64-bits")
+
 
 
 def calculate_arch_features(arch_string):

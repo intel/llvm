@@ -212,6 +212,7 @@ define amdgpu_kernel void @loop_land_info_assert(i32 %c0, i32 %c1, i32 %c2, i32 
 ; SI-NEXT:    ; in Loop: Header=BB3_4 Depth=1
 ; SI-NEXT:    s_mov_b64 s[12:13], 0
 ; SI-NEXT:    buffer_store_dword v0, off, s[4:7], 0
+; SI-NEXT:    s_waitcnt vmcnt(0)
 ; SI-NEXT:    s_branch BB3_1
 ; SI-NEXT:  BB3_8: ; %loop.exit.guard4
 ; SI-NEXT:    ; in Loop: Header=BB3_4 Depth=1
@@ -227,6 +228,7 @@ define amdgpu_kernel void @loop_land_info_assert(i32 %c0, i32 %c1, i32 %c2, i32 
 ; SI-NEXT:    s_and_b64 vcc, exec, 0
 ; SI-NEXT:  BB3_12: ; %self.loop
 ; SI-NEXT:    ; =>This Inner Loop Header: Depth=1
+; SI-NEXT:    s_mov_b64 vcc, vcc
 ; SI-NEXT:    s_cbranch_vccz BB3_12
 ; SI-NEXT:  BB3_13: ; %DummyReturnBlock
 ; SI-NEXT:    s_endpgm
@@ -283,6 +285,7 @@ define amdgpu_kernel void @loop_land_info_assert(i32 %c0, i32 %c1, i32 %c2, i32 
 ; FLAT-NEXT:    ; in Loop: Header=BB3_4 Depth=1
 ; FLAT-NEXT:    s_mov_b64 s[12:13], 0
 ; FLAT-NEXT:    buffer_store_dword v0, off, s[4:7], 0
+; FLAT-NEXT:    s_waitcnt vmcnt(0)
 ; FLAT-NEXT:    s_branch BB3_1
 ; FLAT-NEXT:  BB3_8: ; %loop.exit.guard4
 ; FLAT-NEXT:    ; in Loop: Header=BB3_4 Depth=1
@@ -298,6 +301,7 @@ define amdgpu_kernel void @loop_land_info_assert(i32 %c0, i32 %c1, i32 %c2, i32 
 ; FLAT-NEXT:    s_and_b64 vcc, exec, 0
 ; FLAT-NEXT:  BB3_12: ; %self.loop
 ; FLAT-NEXT:    ; =>This Inner Loop Header: Depth=1
+; FLAT-NEXT:    s_mov_b64 vcc, vcc
 ; FLAT-NEXT:    s_cbranch_vccz BB3_12
 ; FLAT-NEXT:  BB3_13: ; %DummyReturnBlock
 ; FLAT-NEXT:    s_endpgm

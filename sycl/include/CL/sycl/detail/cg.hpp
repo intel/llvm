@@ -48,21 +48,21 @@ class CG {
 public:
   /// Type of the command group.
   enum CGTYPE {
-    NONE,
-    KERNEL,
-    COPY_ACC_TO_PTR,
-    COPY_PTR_TO_ACC,
-    COPY_ACC_TO_ACC,
-    BARRIER,
-    BARRIER_WAITLIST,
-    FILL,
-    UPDATE_HOST,
-    RUN_ON_HOST_INTEL,
-    COPY_USM,
-    FILL_USM,
-    PREFETCH_USM,
-    CODEPLAY_INTEROP_TASK,
-    CODEPLAY_HOST_TASK
+    NONE = 0,
+    KERNEL = 1,
+    COPY_ACC_TO_PTR = 2,
+    COPY_PTR_TO_ACC = 3,
+    COPY_ACC_TO_ACC = 4,
+    BARRIER = 5,
+    BARRIER_WAITLIST = 6,
+    FILL = 7,
+    UPDATE_HOST = 8,
+    RUN_ON_HOST_INTEL = 9,
+    COPY_USM = 10,
+    FILL_USM = 11,
+    PREFETCH_USM = 12,
+    CODEPLAY_INTEROP_TASK = 13,
+    CODEPLAY_HOST_TASK = 14
   };
 
   CG(CGTYPE Type, vector_class<vector_class<char>> ArgsStorage,
@@ -155,6 +155,7 @@ public:
   vector_class<shared_ptr_class<detail::stream_impl>> getStreams() const {
     return MStreams;
   }
+  void clearStreams() { MStreams.clear(); }
 };
 
 /// "Copy memory" command group class.

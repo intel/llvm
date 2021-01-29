@@ -2,20 +2,27 @@
 
 Current status: Under development and not enabled by default
 
-
 ## Building
 
 ### Pre-requisites
 
-* [`pybind11`](https://github.com/pybind/pybind11) must be installed and able to
-  be located by CMake.
 * A relatively recent Python3 installation
+* [`pybind11`](https://github.com/pybind/pybind11) must be installed and able to
+  be located by CMake (auto-detected if installed via
+  `python -m pip install pybind11`). Note: minimum version required: :2.6.0.
 
 ### CMake variables
 
 * **`MLIR_BINDINGS_PYTHON_ENABLED`**`:BOOL`
 
   Enables building the Python bindings. Defaults to `OFF`.
+
+* **`Python3_EXECUTABLE`**:`STRING`
+
+  Specifies the `python` executable used for the LLVM build, including for
+  determining header/link flags for the Python bindings. On systems with
+  multiple Python implementations, setting this explicitly to the preferred
+  `python3` executable is strongly recommended.
 
 * **`MLIR_PYTHON_BINDINGS_VERSION_LOCKED`**`:BOOL`
 
@@ -25,13 +32,32 @@ Current status: Under development and not enabled by default
   compile time errors for unresolved symbols on all platforms, which makes for a
   smoother development workflow. Defaults to `ON`.
 
-* **`PYTHON_EXECUTABLE`**:`STRING`
+### Recommended development practices
 
-  Specifies the `python` executable used for the LLVM build, including for
-  determining header/link flags for the Python bindings. On systems with
-  multiple Python implementations, setting this explicitly to the preferred
-  `python3` executable is strongly recommended.
+It is recommended to use a python virtual environment. Many ways exist for this,
+but the following is the simplest:
 
+```shell
+# Make sure your 'python' is what you expect. Note that on multi-python
+# systems, this may have a version suffix, and on many Linuxes and MacOS where
+# python2 and python3 co-exist, you may also want to use `python3`.
+which python
+python -m venv ~/.venv/mlirdev
+source ~/.venv/mlirdev/bin/activate
+
+# Now the `python` command will resolve to your virtual environment and
+# packages will be installed there.
+python -m pip install pybind11 numpy
+
+# Now run `cmake`, `ninja`, et al.
+```
+
+For interactive use, it is sufficient to add the `python` directory in your
+`build/` directory to the `PYTHONPATH`. Typically:
+
+```shell
+export PYTHONPATH=$(cd build && pwd)/python
+```
 
 ## Design
 
@@ -42,14 +68,13 @@ There are likely two primary use cases for the MLIR python bindings:
 1. Support users who expect that an installed version of LLVM/MLIR will yield
    the ability to `import mlir` and use the API in a pure way out of the box.
 
-2. Downstream integrations will likely want to include parts of the API in their
+1. Downstream integrations will likely want to include parts of the API in their
    private namespace or specially built libraries, probably mixing it with other
    python native bits.
 
-
 ### Composable modules
 
-In order to support use case #2, the Python bindings are organized into
+In order to support use case \#2, the Python bindings are organized into
 composable modules that downstream integrators can include and re-export into
 their own namespace if desired. This forces several design points:
 
@@ -110,47 +135,6 @@ future need:
 from _mlir import *
 ```
 
-### Limited use of globals
-
-For normal operations, parent-child constructor relationships are realized with
-constructor methods on a parent class as opposed to requiring
-invocation/creation from a global symbol.
-
-For example, consider two code fragments:
-
-```python
-
-op = build_my_op()
-
-region = mlir.Region(op)
-
-```
-
-vs
-
-```python
-
-op = build_my_op()
-
-region = op.new_region()
-
-```
-
-For tightly coupled data structures like `Operation`, the latter is generally
-preferred because:
-
-* It is syntactically less possible to create something that is going to access
-  illegal memory (less error handling in the bindings, less testing, etc).
-
-* It reduces the global-API surface area for creating related entities. This
-  makes it more likely that if constructing IR based on an Operation instance of
-  unknown providence, receiving code can just call methods on it to do what they
-  want versus needing to reach back into the global namespace and find the right
-  `Region` class.
-
-* It leaks fewer things that are in place for C++ convenience (i.e. default
-  constructors to invalid instances).
-
 ### Use the C-API
 
 The Python APIs should seek to layer on top of the C-API to the degree possible.
@@ -160,7 +144,6 @@ boundary. In addition, factoring in this way side-steps some very difficult
 issues that arise when combining RTTI-based modules (which pybind derived things
 are) with non-RTTI polymorphic C++ code (the default compilation mode of LLVM).
 
-
 ### Ownership in the Core IR
 
 There are several top-level types in the core IR that are strongly owned by their python-side reference:
@@ -169,19 +152,81 @@ There are several top-level types in the core IR that are strongly owned by thei
 * `PyModule` (`mlir.ir.Module`)
 * `PyOperation` (`mlir.ir.Operation`) - but with caveats
 
-All other objects are dependent. All objects maintain a back-reference (keep-alive) to their closest containing top-level object. Further, dependent objects fall into two categories: a) uniqued (which live for the life-time of the context) and b) mutable. Mutable objects need additional machinery for keeping track of when the C++ instance that backs their Python object is no longer valid (typically due to some specific mutation of the IR, deletion, or bulk operation).
+All other objects are dependent. All objects maintain a back-reference
+(keep-alive) to their closest containing top-level object. Further, dependent
+objects fall into two categories: a) uniqued (which live for the life-time of
+the context) and b) mutable. Mutable objects need additional machinery for
+keeping track of when the C++ instance that backs their Python object is no
+longer valid (typically due to some specific mutation of the IR, deletion, or
+bulk operation).
+
+### Optionality and argument ordering in the Core IR
+
+The following types support being bound to the current thread as a context manager:
+
+* `PyLocation` (`loc: mlir.ir.Location = None`)
+* `PyInsertionPoint` (`ip: mlir.ir.InsertionPoint = None`)
+* `PyMlirContext` (`context: mlir.ir.Context = None`)
+
+In order to support composability of function arguments, when these types appear
+as arguments, they should always be the last and appear in the above order and
+with the given names (which is generally the order in which they are expected to
+need to be expressed explicitly in special cases) as necessary. Each should
+carry a default value of `py::none()` and use either a manual or automatic
+conversion for resolving either with the explicit value or a value from the
+thread context manager (i.e. `DefaultingPyMlirContext` or
+`DefaultingPyLocation`).
+
+The rationale for this is that in Python, trailing keyword arguments to the
+*right* are the most composable, enabling a variety of strategies such as kwarg
+passthrough, default values, etc. Keeping function signatures composable
+increases the chances that interesting DSLs and higher level APIs can be
+constructed without a lot of exotic boilerplate.
+
+Used consistently, this enables a style of IR construction that rarely needs to
+use explicit contexts, locations, or insertion points but is free to do so when
+extra control is needed.
 
 #### Operation hierarchy
 
-As mentioned above, `PyOperation` is special because it can exist in either a top-level or dependent state. The life-cycle is unidirectional: operations can be created detached (top-level) and once added to another operation, they are then dependent for the remainder of their lifetime. The situation is more complicated when considering construction scenarios where an operation is added to a transitive parent that is still detached, necessitating further accounting at such transition points (i.e. all such added children are initially added to the IR with a parent of their outer-most detached operation, but then once it is added to an attached operation, they need to be re-parented to the containing module).
+As mentioned above, `PyOperation` is special because it can exist in either a
+top-level or dependent state. The life-cycle is unidirectional: operations can
+be created detached (top-level) and once added to another operation, they are
+then dependent for the remainder of their lifetime. The situation is more
+complicated when considering construction scenarios where an operation is added
+to a transitive parent that is still detached, necessitating further accounting
+at such transition points (i.e. all such added children are initially added to
+the IR with a parent of their outer-most detached operation, but then once it is
+added to an attached operation, they need to be re-parented to the containing
+module).
 
-Due to the validity and parenting accounting needs, `PyOperation` is the owner for regions and blocks and needs to be a top-level type that we can count on not aliasing. This let's us do things like selectively invalidating instances when mutations occur without worrying that there is some alias to the same operation in the hierarchy. Operations are also the only entity that are allowed to be in a detached state, and they are interned at the context level so that there is never more than one Python `mlir.ir.Operation` object for a unique `MlirOperation`, regardless of how it is obtained.
+Due to the validity and parenting accounting needs, `PyOperation` is the owner
+for regions and blocks and needs to be a top-level type that we can count on not
+aliasing. This let's us do things like selectively invalidating instances when
+mutations occur without worrying that there is some alias to the same operation
+in the hierarchy. Operations are also the only entity that are allowed to be in
+a detached state, and they are interned at the context level so that there is
+never more than one Python `mlir.ir.Operation` object for a unique
+`MlirOperation`, regardless of how it is obtained.
 
-The C/C++ API allows for Region/Block to also be detached, but it simplifies the ownership model a lot to eliminate that possibility in this API, allowing the Region/Block to be completely dependent on its owning operation for accounting. The aliasing of Python `Region`/`Block` instances to underlying `MlirRegion`/`MlirBlock` is considered benign and these objects are not interned in the context (unlike operations).
+The C/C++ API allows for Region/Block to also be detached, but it simplifies the
+ownership model a lot to eliminate that possibility in this API, allowing the
+Region/Block to be completely dependent on its owning operation for accounting.
+The aliasing of Python `Region`/`Block` instances to underlying
+`MlirRegion`/`MlirBlock` is considered benign and these objects are not interned
+in the context (unlike operations).
 
-If we ever want to re-introduce detached regions/blocks, we could do so with new "DetachedRegion" class or similar and also avoid the complexity of accounting. With the way it is now, we can avoid having a global live list for regions and blocks. We may end up needing an op-local one at some point TBD, depending on how hard it is to guarantee how mutations interact with their Python peer objects. We can cross that bridge easily when we get there.
+If we ever want to re-introduce detached regions/blocks, we could do so with new
+"DetachedRegion" class or similar and also avoid the complexity of accounting.
+With the way it is now, we can avoid having a global live list for regions and
+blocks. We may end up needing an op-local one at some point TBD, depending on
+how hard it is to guarantee how mutations interact with their Python peer
+objects. We can cross that bridge easily when we get there.
 
-Module, when used purely from the Python API, can't alias anyway, so we can use it as a top-level ref type without a live-list for interning. If the API ever changes such that this cannot be guaranteed (i.e. by letting you marshal a native-defined Module in), then there would need to be a live table for it too.
+Module, when used purely from the Python API, can't alias anyway, so we can use
+it as a top-level ref type without a live-list for interning. If the API ever
+changes such that this cannot be guaranteed (i.e. by letting you marshal a
+native-defined Module in), then there would need to be a live table for it too.
 
 ## Style
 
@@ -190,7 +235,7 @@ isomorphic with the underlying C++ structures. However, concessions are made
 either for practicality or to give the resulting library an appropriately
 "Pythonic" flavor.
 
-### Properties vs get*() methods
+### Properties vs get\*() methods
 
 Generally favor converting trivial methods like `getContext()`, `getName()`,
 `isEntryBlock()`, etc to read-only Python properties (i.e. `context`). It is
@@ -215,7 +260,7 @@ Things that have nice printed representations are really great :)  If there is a
 reasonable printed form, it can be a significant productivity boost to wire that
 to the `__repr__` method (and verify it with a [doctest](#sample-doctest)).
 
-### CamelCase vs snake_case
+### CamelCase vs snake\_case
 
 Name functions/methods/properties in `snake_case` and classes in `CamelCase`. As
 a mechanical concession to Python style, this can go a long way to making the
@@ -274,57 +319,16 @@ mutually exclusive with a more complete mapping of the backing constructs.
 Tests should be added in the `test/Bindings/Python` directory and should
 typically be `.py` files that have a lit run line.
 
-While lit can run any python module, prefer to lay tests out according to these
-rules:
+We use `lit` and `FileCheck` based tests:
 
-* For tests of the API surface area, prefer
-  [`doctest`](https://docs.python.org/3/library/doctest.html).
 * For generative tests (those that produce IR), define a Python module that
   constructs/prints the IR and pipe it through `FileCheck`.
 * Parsing should be kept self-contained within the module under test by use of
   raw constants and an appropriate `parse_asm` call.
 * Any file I/O code should be staged through a tempfile vs relying on file
   artifacts/paths outside of the test module.
-
-### Sample Doctest
-
-```python
-# RUN: %PYTHON %s
-
-"""
-  >>> m = load_test_module()
-Test basics:
-  >>> m.operation.name
-  "module"
-  >>> m.operation.is_registered
-  True
-  >>> ... etc ...
-
-Verify that repr prints:
-  >>> m.operation
-  <operation 'module'>
-"""
-
-import mlir
-
-TEST_MLIR_ASM = r"""
-func @test_operation_correct_regions() {
-  // ...
-}
-"""
-
-# TODO: Move to a test utility class once any of this actually exists.
-def load_test_module():
-  ctx = mlir.ir.Context()
-  ctx.allow_unregistered_dialects = True
-  module = ctx.parse_asm(TEST_MLIR_ASM)
-  return module
-
-
-if __name__ == "__main__":
-  import doctest
-  doctest.testmod()
-```
+* For convenience, we also test non-generative API interactions with the same
+  mechanisms, printing and `CHECK`ing as needed.
 
 ### Sample FileCheck test
 
@@ -348,3 +352,108 @@ def create_my_op():
   builder.my_op()
   return m
 ```
+
+## Integration with ODS
+
+The MLIR Python bindings integrate with the tablegen-based ODS system for
+providing user-friendly wrappers around MLIR dialects and operations. There
+are multiple parts to this integration, outlined below. Most details have
+been elided: refer to the build rules and python sources under `mlir.dialects`
+for the canonical way to use this facility.
+
+### Generating `{DIALECT_NAMESPACE}.py` wrapper modules
+
+Each dialect with a mapping to python requires that an appropriate
+`{DIALECT_NAMESPACE}.py` wrapper module is created. This is done by invoking
+`mlir-tblgen` on a python-bindings specific tablegen wrapper that includes
+the boilerplate and actual dialect specific `td` file. An example, for the
+`StandardOps` (which is assigned the namespace `std` as a special case):
+
+```tablegen
+#ifndef PYTHON_BINDINGS_STANDARD_OPS
+#define PYTHON_BINDINGS_STANDARD_OPS
+
+include "mlir/Bindings/Python/Attributes.td"
+include "mlir/Dialect/StandardOps/IR/Ops.td"
+
+#endif
+```
+
+In the main repository, building the wrapper is done via the CMake function
+`add_mlir_dialect_python_bindings`, which invokes:
+
+```
+mlir-tblgen -gen-python-op-bindings -bind-dialect={DIALECT_NAMESPACE} \
+    {PYTHON_BINDING_TD_FILE}
+```
+
+### Extending the search path for wrapper modules
+
+When the python bindings need to locate a wrapper module, they consult the
+`dialect_search_path` and use it to find an appropriately named module. For
+the main repository, this search path is hard-coded to include the
+`mlir.dialects` module, which is where wrappers are emitted by the abobe build
+rule. Out of tree dialects and add their modules to the search path by calling:
+
+```python
+mlir._cext.append_dialect_search_prefix("myproject.mlir.dialects")
+```
+
+### Wrapper module code organization
+
+The wrapper module tablegen emitter outputs:
+
+* A `_Dialect` class (extending `mlir.ir.Dialect`) with a `DIALECT_NAMESPACE`
+  attribute.
+* An `{OpName}` class for each operation (extending `mlir.ir.OpView`).
+* Decorators for each of the above to register with the system.
+
+Note: In order to avoid naming conflicts, all internal names used by the wrapper
+module are prefixed by `_ods_`.
+
+Each concrete `OpView` subclass further defines several public-intended
+attributes:
+
+* `OPERATION_NAME` attribute with the `str` fully qualified operation name
+  (i.e. `std.absf`).
+* An `__init__` method for the *default builder* if one is defined or inferred
+  for the operation.
+* `@property` getter for each operand or result (using an auto-generated name
+  for unnamed of each).
+* `@property` getter, setter and deleter for each declared attribute.
+
+It further emits additional private-intended attributes meant for subclassing
+and customization (default cases omit these attributes in favor of the
+defaults on `OpView`):
+
+* `_ODS_REGIONS`: A specification on the number and types of regions.
+  Currently a tuple of (min_region_count, has_no_variadic_regions). Note that
+  the API does some light validation on this but the primary purpose is to
+  capture sufficient information to perform other default building and region
+  accessor generation.
+* `_ODS_OPERAND_SEGMENTS` and `_ODS_RESULT_SEGMENTS`: Black-box value which
+  indicates the structure of either the operand or results with respect to
+  variadics. Used by `OpView._ods_build_default` to decode operand and result
+  lists that contain lists.
+
+#### Builders
+
+Presently, only a single, default builder is mapped to the `__init__` method.
+Generalizing this facility is under active development. It currently accepts
+arguments:
+
+* One argument for each declared result:
+  * For single-valued results: Each will accept an `mlir.ir.Type`.
+  * For variadic results: Each will accept a `List[mlir.ir.Type]`.
+* One argument for each declared operand or attribute:
+  * For single-valued operands: Each will accept an `mlir.ir.Value`.
+  * For variadic operands: Each will accept a `List[mlir.ir.Value]`.
+  * For attributes, it will accept an `mlir.ir.Attribute`.
+* Trailing usage-specific, optional keyword arguments:
+  * `loc`: An explicit `mlir.ir.Location` to use. Defaults to the location
+    bound to the thread (i.e. `with Location.unknown():`) or an error if none
+    is bound nor specified.
+  * `context`: An explicit `mlir.ir.Context` to use. Default to the context
+    bound to the thread (i.e. `with Context():` or implicitly via `Location` or
+    `InsertionPoint` context managers) or an error if none is bound nor
+    specified.

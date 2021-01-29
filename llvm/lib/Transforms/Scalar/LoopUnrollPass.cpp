@@ -76,7 +76,7 @@ using namespace llvm;
 cl::opt<bool> llvm::ForgetSCEVInLoopUnroll(
     "forget-scev-loop-unroll", cl::init(false), cl::Hidden,
     cl::desc("Forget everything in SCEV when doing LoopUnroll, instead of just"
-             " the current top-most loop. This is somtimes preferred to reduce"
+             " the current top-most loop. This is sometimes preferred to reduce"
              " compile time."));
 
 static cl::opt<unsigned>
@@ -218,8 +218,10 @@ TargetTransformInfo::UnrollingPreferences llvm::gatherUnrollingPreferences(
 
   // Apply size attributes
   bool OptForSize = L->getHeader()->getParent()->hasOptSize() ||
-                    llvm::shouldOptimizeForSize(L->getHeader(), PSI, BFI,
-                                                PGSOQueryType::IRPass);
+                    // Let unroll hints / pragmas take precedence over PGSO.
+                    (hasUnrollTransformation(L) != TM_ForcedByUser &&
+                     llvm::shouldOptimizeForSize(L->getHeader(), PSI, BFI,
+                                                 PGSOQueryType::IRPass));
   if (OptForSize) {
     UP.Threshold = UP.OptSizeThreshold;
     UP.PartialThreshold = UP.PartialOptSizeThreshold;
@@ -1041,7 +1043,7 @@ static LoopUnrollResult tryToUnrollLoop(
     return LoopUnrollResult::Unmodified;
   }
 
-  // When automtatic unrolling is disabled, do not unroll unless overridden for
+  // When automatic unrolling is disabled, do not unroll unless overridden for
   // this loop.
   if (OnlyWhenForced && !(TM & TM_Enable))
     return LoopUnrollResult::Unmodified;
@@ -1103,7 +1105,7 @@ static LoopUnrollResult tryToUnrollLoop(
   // If the loop contains a convergent operation, the prelude we'd add
   // to do the first few instructions before we hit the unrolled loop
   // is unsafe -- it adds a control-flow dependency to the convergent
-  // operation.  Therefore restrict remainder loop (try unrollig without).
+  // operation.  Therefore restrict remainder loop (try unrolling without).
   //
   // TODO: This is quite conservative.  In practice, convergent_op()
   // is likely to be called unconditionally in the loop.  In this
@@ -1369,7 +1371,7 @@ PreservedAnalyses LoopFullUnrollPass::run(Loop &L, LoopAnalysisManager &AM,
     }
 
     // Otherwise erase the loop from the list if it was in the old loops.
-    return OldLoops.count(SibLoop) != 0;
+    return OldLoops.contains(SibLoop);
   });
   Updater.addSiblingLoops(SibLoops);
 

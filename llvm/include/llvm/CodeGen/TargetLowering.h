@@ -427,7 +427,7 @@ public:
   virtual TargetLoweringBase::LegalizeTypeAction
   getPreferredVectorAction(MVT VT) const {
     // The default action for one element vectors is to scalarize
-    if (VT.getVectorElementCount() == 1)
+    if (VT.getVectorElementCount().isScalar())
       return TypeScalarizeVector;
     // The default action for an odd-width vector is to widen.
     if (!VT.isPow2VectorType())
@@ -603,6 +603,12 @@ public:
   /// Return true if ctlz instruction is fast.
   virtual bool isCtlzFast() const {
     return false;
+  }
+
+  /// Return the maximum number of "x & (x - 1)" operations that can be done
+  /// instead of deferring to a custom CTPOP.
+  virtual unsigned getCustomCtpopCost(EVT VT, ISD::CondCode Cond) const {
+    return 1;
   }
 
   /// Return true if instruction generated for equality comparison is folded
@@ -1312,6 +1318,10 @@ public:
             getIndexedMaskedStoreAction(IdxMode, VT.getSimpleVT()) == Custom);
   }
 
+  // Returns true if VT is a legal index type for masked gathers/scatters
+  // on this target
+  virtual bool shouldRemoveExtendFromGSIndex(EVT VT) const { return false; }
+
   /// Return how the condition code should be treated: either it is legal, needs
   /// to be expanded to some other code sequence, or the target has a custom
   /// expander for it.
@@ -1648,6 +1658,11 @@ public:
                           const MachineMemOperand &MMO,
                           bool *Fast = nullptr) const;
 
+  /// LLT handling variant.
+  bool allowsMemoryAccess(LLVMContext &Context, const DataLayout &DL, LLT Ty,
+                          const MachineMemOperand &MMO,
+                          bool *Fast = nullptr) const;
+
   /// Returns the target specific optimal type for load and store operations as
   /// a result of memset, memcpy, and memmove lowering.
   /// It returns EVT::Other if the type should be determined using generic
@@ -1686,13 +1701,9 @@ public:
 
   virtual bool isJumpTableRelative() const;
 
-  /// Return true if a mulh[s|u] node for a specific type is cheaper than
-  /// a multiply followed by a shift. This is false by default.
-  virtual bool isMulhCheaperThanMulShift(EVT Type) const { return false; }
-
   /// If a physical register, this specifies the register that
   /// llvm.savestack/llvm.restorestack should save and restore.
-  unsigned getStackPointerRegisterToSaveRestore() const {
+  Register getStackPointerRegisterToSaveRestore() const {
     return StackPointerRegisterToSaveRestore;
   }
 
@@ -4271,6 +4282,22 @@ public:
     return SDValue();
   }
 
+  /// Return a target-dependent comparison result if the input operand is
+  /// suitable for use with a square root estimate calculation. For example, the
+  /// comparison may check if the operand is NAN, INF, zero, normal, etc. The
+  /// result should be used as the condition operand for a select or branch.
+  virtual SDValue getSqrtInputTest(SDValue Operand, SelectionDAG &DAG,
+                                   const DenormalMode &Mode) const {
+    return SDValue();
+  }
+
+  /// Return a target-dependent result if the input operand is not suitable for
+  /// use with a square root estimate calculation.
+  virtual SDValue getSqrtResultForDenormInput(SDValue Operand,
+                                              SelectionDAG &DAG) const {
+    return DAG.getConstantFP(0.0, SDLoc(Operand), Operand.getValueType());
+  }
+
   //===--------------------------------------------------------------------===//
   // Legalization utility functions
   //
@@ -4313,9 +4340,12 @@ public:
 
   /// Expand rotations.
   /// \param N Node to expand
+  /// \param AllowVectorOps expand vector rotate, this should only be performed
+  ///        if the legalization is happening outside of LegalizeVectorOps
   /// \param Result output after conversion
   /// \returns True, if the expansion was successful, false otherwise
-  bool expandROT(SDNode *N, SDValue &Result, SelectionDAG &DAG) const;
+  bool expandROT(SDNode *N, bool AllowVectorOps, SDValue &Result,
+                 SelectionDAG &DAG) const;
 
   /// Expand float(f32) to SINT(i64) conversion
   /// \param N Node to expand
@@ -4341,6 +4371,11 @@ public:
 
   /// Expand fminnum/fmaxnum into fminnum_ieee/fmaxnum_ieee with quieted inputs.
   SDValue expandFMINNUM_FMAXNUM(SDNode *N, SelectionDAG &DAG) const;
+
+  /// Expand FP_TO_[US]INT_SAT into FP_TO_[US]INT and selects or min/max.
+  /// \param N Node to expand
+  /// \returns The expansion result
+  SDValue expandFP_TO_INT_SAT(SDNode *N, SelectionDAG &DAG) const;
 
   /// Expand CTPOP nodes. Expands vector/scalar CTPOP nodes,
   /// vector nodes can only succeed if all operations are legal/custom.
@@ -4368,8 +4403,10 @@ public:
   /// (ABS x) -> (XOR (ADD x, (SRA x, type_size)), (SRA x, type_size))
   /// \param N Node to expand
   /// \param Result output after conversion
+  /// \param IsNegative indicate negated abs
   /// \returns True, if the expansion was successful, false otherwise
-  bool expandABS(SDNode *N, SDValue &Result, SelectionDAG &DAG) const;
+  bool expandABS(SDNode *N, SDValue &Result, SelectionDAG &DAG,
+                 bool IsNegative = false) const;
 
   /// Turn load of vector type into a load of the individual elements.
   /// \param LD load to expand
@@ -4409,6 +4446,10 @@ public:
   SDValue getVectorElementPointer(SelectionDAG &DAG, SDValue VecPtr, EVT VecVT,
                                   SDValue Index) const;
 
+  /// Method for building the DAG expansion of ISD::[US][MIN|MAX]. This
+  /// method accepts integers as its arguments.
+  SDValue expandIntMINMAX(SDNode *Node, SelectionDAG &DAG) const;
+
   /// Method for building the DAG expansion of ISD::[US][ADD|SUB]SAT. This
   /// method accepts integers as its arguments.
   SDValue expandAddSubSat(SDNode *Node, SelectionDAG &DAG) const;
@@ -4447,6 +4488,9 @@ public:
   /// Expand a VECREDUCE_* into an explicit calculation. If Count is specified,
   /// only the first Count elements of the vector are used.
   SDValue expandVecReduce(SDNode *Node, SelectionDAG &DAG) const;
+
+  /// Expand a VECREDUCE_SEQ_* into an explicit ordered calculation.
+  SDValue expandVecReduceSeq(SDNode *Node, SelectionDAG &DAG) const;
 
   /// Expand an SREM or UREM using SDIV/UDIV or SDIVREM/UDIVREM, if legal.
   /// Returns true if the expansion was successful.
@@ -4501,6 +4545,10 @@ public:
   // fact that this can be implemented as a ctlz/srl pair, so that the dag
   // combiner can fold the new nodes.
   SDValue lowerCmpEqZeroToCtlzSrl(SDValue Op, SelectionDAG &DAG) const;
+
+  /// Give targets the chance to reduce the number of distinct addresing modes.
+  ISD::MemIndexType getCanonicalIndexType(ISD::MemIndexType IndexType,
+                                          EVT MemVT, SDValue Offsets) const;
 
 private:
   SDValue foldSetCCWithAnd(EVT VT, SDValue N0, SDValue N1, ISD::CondCode Cond,

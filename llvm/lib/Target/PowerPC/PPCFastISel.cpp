@@ -86,7 +86,6 @@ typedef struct Address {
 class PPCFastISel final : public FastISel {
 
   const TargetMachine &TM;
-  const PPCSubtarget *PPCSubTarget;
   const PPCSubtarget *Subtarget;
   PPCFunctionInfo *PPCFuncInfo;
   const TargetInstrInfo &TII;
@@ -97,7 +96,6 @@ class PPCFastISel final : public FastISel {
     explicit PPCFastISel(FunctionLoweringInfo &FuncInfo,
                          const TargetLibraryInfo *LibInfo)
         : FastISel(FuncInfo, LibInfo), TM(FuncInfo.MF->getTarget()),
-          PPCSubTarget(&FuncInfo.MF->getSubtarget<PPCSubtarget>()),
           Subtarget(&FuncInfo.MF->getSubtarget<PPCSubtarget>()),
           PPCFuncInfo(FuncInfo.MF->getInfo<PPCFunctionInfo>()),
           TII(*Subtarget->getInstrInfo()), TLI(*Subtarget->getTargetLowering()),
@@ -1626,7 +1624,10 @@ bool PPCFastISel::fastLowerCall(CallLoweringInfo &CLI) {
     if (!isTypeLegal(ArgTy, ArgVT) && ArgVT != MVT::i16 && ArgVT != MVT::i8)
       return false;
 
-    if (ArgVT.isVector())
+    // FIXME: FastISel cannot handle non-simple types yet, including 128-bit FP
+    // types, which is passed through vector register. Skip these types and
+    // fallback to default SelectionDAG based selection.
+    if (ArgVT.isVector() || ArgVT == MVT::f128)
       return false;
 
     unsigned Arg = getRegForValue(ArgValue);

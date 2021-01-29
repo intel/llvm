@@ -1,3 +1,4 @@
+// XFAIL: *
 // RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -fms-extensions \
 // RUN: -aux-triple x86_64-unknown-linux-gnu -fsycl -fsycl-is-device \
 // RUN: -fsyntax-only -Wno-sycl-2017-compat -DWARNCHECK %s -o /dev/null 2>&1 | FileCheck %s

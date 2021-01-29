@@ -355,6 +355,8 @@ public:
       : PPCTargetInfo(Triple, Opts) {
     if (Triple.isOSAIX())
       resetDataLayout("E-m:a-p:32:32-i64:64-n32");
+    else if (Triple.getArch() == llvm::Triple::ppcle)
+      resetDataLayout("e-m:e-p:32:32-i64:64-n32");
     else
       resetDataLayout("E-m:e-p:32:32-i64:64-n32");
 
@@ -370,7 +372,6 @@ public:
       SizeType = UnsignedLong;
       PtrDiffType = SignedLong;
       IntPtrType = SignedLong;
-      SuitableAlign = 64;
       LongDoubleWidth = 64;
       LongDoubleAlign = DoubleAlign = 32;
       LongDoubleFormat = &llvm::APFloat::IEEEdouble();
@@ -409,7 +410,6 @@ public:
     if (Triple.isOSAIX()) {
       // TODO: Set appropriate ABI for AIX platform.
       DataLayout = "E-m:a-i64:64-n32:64";
-      SuitableAlign = 64;
       LongDoubleWidth = 64;
       LongDoubleAlign = DoubleAlign = 32;
       LongDoubleFormat = &llvm::APFloat::IEEEdouble();
@@ -440,7 +440,7 @@ public:
 
   // PPC64 Linux-specific ABI options.
   bool setABI(const std::string &Name) override {
-    if (Name == "elfv1" || Name == "elfv1-qpx" || Name == "elfv2") {
+    if (Name == "elfv1" || Name == "elfv2") {
       ABI = Name;
       return true;
     }

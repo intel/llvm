@@ -25,6 +25,8 @@
 #include <cassert>
 #include <thread>
 
+#include "make_test_thread.h"
+
 int seq = 0;
 
 class OrderChecker {
@@ -56,10 +58,10 @@ void thread_fn() {
   thread_local CreatesThreadLocalInDestructor<0> creates_tl0;
 }
 
-int main() {
+int main(int, char**) {
   static OrderChecker fn_static{6};
 
-  std::thread{thread_fn}.join();
+  support::make_test_thread(thread_fn).join();
   assert(seq == 3);
 
   thread_local OrderChecker fn_thread_local{4};

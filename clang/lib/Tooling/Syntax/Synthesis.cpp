@@ -21,6 +21,10 @@ public:
                                    syntax::NodeRole R) {
     T->prependChildLowLevel(Child, R);
   }
+  static void appendChildLowLevel(syntax::Tree *T, syntax::Node *Child,
+                                  syntax::NodeRole R) {
+    T->appendChildLowLevel(Child, R);
+  }
 
   static std::pair<FileID, ArrayRef<Token>>
   lexBuffer(syntax::Arena &A, std::unique_ptr<llvm::MemoryBuffer> Buffer) {
@@ -183,6 +187,8 @@ syntax::Tree *allocateTree(syntax::Arena &A, syntax::NodeKind Kind) {
     return new (A.getAllocator()) syntax::CallArguments;
   case syntax::NodeKind::ParameterDeclarationList:
     return new (A.getAllocator()) syntax::ParameterDeclarationList;
+  case syntax::NodeKind::DeclaratorList:
+    return new (A.getAllocator()) syntax::DeclaratorList;
   }
   llvm_unreachable("unknown node kind");
 }
@@ -194,8 +200,8 @@ syntax::Tree *clang::syntax::createTree(
     syntax::NodeKind K) {
   auto *T = allocateTree(A, K);
   FactoryImpl::setCanModify(T);
-  for (auto ChildIt = Children.rbegin(); ChildIt != Children.rend(); ++ChildIt)
-    FactoryImpl::prependChildLowLevel(T, ChildIt->first, ChildIt->second);
+  for (const auto &Child : Children)
+    FactoryImpl::appendChildLowLevel(T, Child.first, Child.second);
 
   T->assertInvariants();
   return T;

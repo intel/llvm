@@ -1,20 +1,6 @@
 cmake_minimum_required(VERSION 3.13.4)
 
-# RPATH settings on macOS do not affect INSTALL_NAME.
-if (POLICY CMP0068)
-  cmake_policy(SET CMP0068 NEW)
-  set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
-endif()
-
-# Include file check macros honor CMAKE_REQUIRED_LIBRARIES.
-if(POLICY CMP0075)
-  cmake_policy(SET CMP0075 NEW)
-endif()
-
-# option() honors normal variables.
-if (POLICY CMP0077)
-  cmake_policy(SET CMP0077 NEW)
-endif()
+set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
 
 option(LINK_WITH_FIR "Link driver with FIR and LLVM" ON)
 option(FLANG_BUILD_NEW_DRIVER "Build the flang compiler driver" OFF)
@@ -81,6 +67,10 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   include(AddLLVM)
   include(HandleLLVMOptions)
   include(VersionFromVCS)
+
+  if(FLANG_BUILD_NEW_DRIVER)
+    include(AddClang)
+  endif()
 
   if(LINK_WITH_FIR)
     include(TableGen)
@@ -229,9 +219,8 @@ if(LINK_WITH_FIR)
   endif()
   # Always build tco tool
   set(LLVM_BUILD_TOOLS ON)
-  message(STATUS "Linking driver with FIR and LLVM")
-  llvm_map_components_to_libnames(LLVM_COMMON_LIBS support)
-  message(STATUS "LLVM libraries: ${LLVM_COMMON_LIBS}")
+  set(LLVM_COMMON_COMPONENTS Support)
+  message(STATUS "Linking driver with FIR and LLVM, using LLVM components: ${LLVM_COMMON_COMPONENTS}")
 endif()
 
 # Add Flang-centric modules to cmake path.
@@ -265,10 +254,6 @@ endif()
 
 
 set(PACKAGE_VERSION "${LLVM_PACKAGE_VERSION}")
-# Override LLVM versioning for now...
-set(FLANG_VERSION_MAJOR      "0")
-set(FLANG_VERSION_MINOR      "1")
-set(FLANG_VERSION_PATCHLEVEL "0")
 
 
 if (NOT DEFINED FLANG_VERSION_MAJOR)

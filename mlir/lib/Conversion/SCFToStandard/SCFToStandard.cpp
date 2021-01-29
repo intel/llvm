@@ -17,8 +17,8 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/Module.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
@@ -200,6 +200,83 @@ struct ParallelLowering : public OpRewritePattern<mlir::scf::ParallelOp> {
   LogicalResult matchAndRewrite(mlir::scf::ParallelOp parallelOp,
                                 PatternRewriter &rewriter) const override;
 };
+
+/// Create a CFG subgraph for this loop construct. The regions of the loop need
+/// not be a single block anymore (for example, if other SCF constructs that
+/// they contain have been already converted to CFG), but need to be single-exit
+/// from the last block of each region. The operations following the original
+/// WhileOp are split into a new continuation block. Both regions of the WhileOp
+/// are inlined, and their terminators are rewritten to organize the control
+/// flow implementing the loop as follows.
+///
+///      +---------------------------------+
+///      |   <code before the WhileOp>     |
+///      |   br ^before(%operands...)      |
+///      +---------------------------------+
+///             |
+///  -------|   |
+///  |      v   v
+///  |   +--------------------------------+
+///  |   | ^before(%bargs...):            |
+///  |   |   %vals... = <some payload>    |
+///  |   +--------------------------------+
+///  |                   |
+///  |                  ...
+///  |                   |
+///  |   +--------------------------------+
+///  |   | ^before-last:
+///  |   |   %cond = <compute condition>  |
+///  |   |   cond_br %cond,               |
+///  |   |        ^after(%vals...), ^cont |
+///  |   +--------------------------------+
+///  |          |               |
+///  |          |               -------------|
+///  |          v                            |
+///  |   +--------------------------------+  |
+///  |   | ^after(%aargs...):             |  |
+///  |   |   <body contents>              |  |
+///  |   +--------------------------------+  |
+///  |                   |                   |
+///  |                  ...                  |
+///  |                   |                   |
+///  |   +--------------------------------+  |
+///  |   | ^after-last:                   |  |
+///  |   |   %yields... = <some payload>  |  |
+///  |   |   br ^before(%yields...)       |  |
+///  |   +--------------------------------+  |
+///  |          |                            |
+///  |-----------        |--------------------
+///                      v
+///      +--------------------------------+
+///      | ^cont:                         |
+///      |   <code after the WhileOp>     |
+///      |   <%vals from 'before' region  |
+///      |          visible by dominance> |
+///      +--------------------------------+
+///
+/// Values are communicated between ex-regions (the groups of blocks that used
+/// to form a region before inlining) through block arguments of their
+/// entry blocks, which are visible in all other dominated blocks. Similarly,
+/// the results of the WhileOp are defined in the 'before' region, which is
+/// required to have a single existing block, and are therefore accessible in
+/// the continuation block due to dominance.
+struct WhileLowering : public OpRewritePattern<WhileOp> {
+  using OpRewritePattern<WhileOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(WhileOp whileOp,
+                                PatternRewriter &rewriter) const override;
+};
+
+/// Optimized version of the above for the case of the "after" region merely
+/// forwarding its arguments back to the "before" region (i.e., a "do-while"
+/// loop). This avoid inlining the "after" region completely and branches back
+/// to the "before" entry instead.
+struct DoWhileLowering : public OpRewritePattern<WhileOp> {
+  using OpRewritePattern<WhileOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(WhileOp whileOp,
+                                PatternRewriter &rewriter) const override;
+};
 } // namespace
 
 LogicalResult ForLowering::matchAndRewrite(ForOp forOp,
@@ -327,7 +404,6 @@ LogicalResult
 ParallelLowering::matchAndRewrite(ParallelOp parallelOp,
                                   PatternRewriter &rewriter) const {
   Location loc = parallelOp.getLoc();
-  BlockAndValueMapping mapping;
 
   // For a parallel loop, we essentially need to create an n-dimensional loop
   // nest. We do this by translating to scf.for ops and have those lowered in
@@ -335,6 +411,8 @@ ParallelLowering::matchAndRewrite(ParallelOp parallelOp,
   // values), forward the initial values for the reductions down the loop
   // hierarchy and bubble up the results by modifying the "yield" terminator.
   SmallVector<Value, 4> iterArgs = llvm::to_vector<4>(parallelOp.initVals());
+  SmallVector<Value, 4> ivs;
+  ivs.reserve(parallelOp.getNumLoops());
   bool first = true;
   SmallVector<Value, 4> loopResults(iterArgs);
   for (auto loop_operands :
@@ -343,7 +421,7 @@ ParallelLowering::matchAndRewrite(ParallelOp parallelOp,
     Value iv, lower, upper, step;
     std::tie(iv, lower, upper, step) = loop_operands;
     ForOp forOp = rewriter.create<ForOp>(loc, lower, upper, step, iterArgs);
-    mapping.map(iv, forOp.getInductionVar());
+    ivs.push_back(forOp.getInductionVar());
     auto iterRange = forOp.getRegionIterArgs();
     iterArgs.assign(iterRange.begin(), iterRange.end());
 
@@ -362,33 +440,33 @@ ParallelLowering::matchAndRewrite(ParallelOp parallelOp,
     rewriter.setInsertionPointToStart(forOp.getBody());
   }
 
-  // Now copy over the contents of the body.
+  // First, merge reduction blocks into the main region.
   SmallVector<Value, 4> yieldOperands;
   yieldOperands.reserve(parallelOp.getNumResults());
-  for (auto &op : parallelOp.getBody()->without_terminator()) {
-    // Reduction blocks are handled differently.
+  for (auto &op : *parallelOp.getBody()) {
     auto reduce = dyn_cast<ReduceOp>(op);
-    if (!reduce) {
-      rewriter.clone(op, mapping);
+    if (!reduce)
       continue;
-    }
 
-    // Clone the body of the reduction operation into the body of the loop,
-    // using operands of "scf.reduce" and iteration arguments corresponding
-    // to the reduction value to replace arguments of the reduction block.
-    // Collect operands of "scf.reduce.return" to be returned by a final
-    // "scf.yield" instead.
-    Value arg = iterArgs[yieldOperands.size()];
     Block &reduceBlock = reduce.reductionOperator().front();
-    mapping.map(reduceBlock.getArgument(0), mapping.lookupOrDefault(arg));
-    mapping.map(reduceBlock.getArgument(1),
-                mapping.lookupOrDefault(reduce.operand()));
-    for (auto &nested : reduceBlock.without_terminator())
-      rewriter.clone(nested, mapping);
-    yieldOperands.push_back(
-        mapping.lookup(reduceBlock.getTerminator()->getOperand(0)));
+    Value arg = iterArgs[yieldOperands.size()];
+    yieldOperands.push_back(reduceBlock.getTerminator()->getOperand(0));
+    rewriter.eraseOp(reduceBlock.getTerminator());
+    rewriter.mergeBlockBefore(&reduceBlock, &op, {arg, reduce.operand()});
+    rewriter.eraseOp(reduce);
   }
 
+  // Then merge the loop body without the terminator.
+  rewriter.eraseOp(parallelOp.getBody()->getTerminator());
+  Block *newBody = rewriter.getInsertionBlock();
+  if (newBody->empty())
+    rewriter.mergeBlocks(parallelOp.getBody(), newBody, ivs);
+  else
+    rewriter.mergeBlockBefore(parallelOp.getBody(), newBody->getTerminator(),
+                              ivs);
+
+  // Finally, create the terminator if required (for loops with no results, it
+  // has been already created in loop construction).
   if (!yieldOperands.empty()) {
     rewriter.setInsertionPointToEnd(rewriter.getInsertionBlock());
     rewriter.create<scf::YieldOp>(loc, yieldOperands);
@@ -399,20 +477,114 @@ ParallelLowering::matchAndRewrite(ParallelOp parallelOp,
   return success();
 }
 
+LogicalResult WhileLowering::matchAndRewrite(WhileOp whileOp,
+                                             PatternRewriter &rewriter) const {
+  OpBuilder::InsertionGuard guard(rewriter);
+  Location loc = whileOp.getLoc();
+
+  // Split the current block before the WhileOp to create the inlining point.
+  Block *currentBlock = rewriter.getInsertionBlock();
+  Block *continuation =
+      rewriter.splitBlock(currentBlock, rewriter.getInsertionPoint());
+
+  // Inline both regions.
+  Block *after = &whileOp.after().front();
+  Block *afterLast = &whileOp.after().back();
+  Block *before = &whileOp.before().front();
+  Block *beforeLast = &whileOp.before().back();
+  rewriter.inlineRegionBefore(whileOp.after(), continuation);
+  rewriter.inlineRegionBefore(whileOp.before(), after);
+
+  // Branch to the "before" region.
+  rewriter.setInsertionPointToEnd(currentBlock);
+  rewriter.create<BranchOp>(loc, before, whileOp.inits());
+
+  // Replace terminators with branches. Assuming bodies are SESE, which holds
+  // given only the patterns from this file, we only need to look at the last
+  // block. This should be reconsidered if we allow break/continue in SCF.
+  rewriter.setInsertionPointToEnd(beforeLast);
+  auto condOp = cast<ConditionOp>(beforeLast->getTerminator());
+  rewriter.replaceOpWithNewOp<CondBranchOp>(condOp, condOp.condition(), after,
+                                            condOp.args(), continuation,
+                                            ValueRange());
+
+  rewriter.setInsertionPointToEnd(afterLast);
+  auto yieldOp = cast<scf::YieldOp>(afterLast->getTerminator());
+  rewriter.replaceOpWithNewOp<BranchOp>(yieldOp, before, yieldOp.results());
+
+  // Replace the op with values "yielded" from the "before" region, which are
+  // visible by dominance.
+  rewriter.replaceOp(whileOp, condOp.args());
+
+  return success();
+}
+
+LogicalResult
+DoWhileLowering::matchAndRewrite(WhileOp whileOp,
+                                 PatternRewriter &rewriter) const {
+  if (!llvm::hasSingleElement(whileOp.after()))
+    return rewriter.notifyMatchFailure(whileOp,
+                                       "do-while simplification applicable to "
+                                       "single-block 'after' region only");
+
+  Block &afterBlock = whileOp.after().front();
+  if (!llvm::hasSingleElement(afterBlock))
+    return rewriter.notifyMatchFailure(whileOp,
+                                       "do-while simplification applicable "
+                                       "only if 'after' region has no payload");
+
+  auto yield = dyn_cast<scf::YieldOp>(&afterBlock.front());
+  if (!yield || yield.results() != afterBlock.getArguments())
+    return rewriter.notifyMatchFailure(whileOp,
+                                       "do-while simplification applicable "
+                                       "only to forwarding 'after' regions");
+
+  // Split the current block before the WhileOp to create the inlining point.
+  OpBuilder::InsertionGuard guard(rewriter);
+  Block *currentBlock = rewriter.getInsertionBlock();
+  Block *continuation =
+      rewriter.splitBlock(currentBlock, rewriter.getInsertionPoint());
+
+  // Only the "before" region should be inlined.
+  Block *before = &whileOp.before().front();
+  Block *beforeLast = &whileOp.before().back();
+  rewriter.inlineRegionBefore(whileOp.before(), continuation);
+
+  // Branch to the "before" region.
+  rewriter.setInsertionPointToEnd(currentBlock);
+  rewriter.create<BranchOp>(whileOp.getLoc(), before, whileOp.inits());
+
+  // Loop around the "before" region based on condition.
+  rewriter.setInsertionPointToEnd(beforeLast);
+  auto condOp = cast<ConditionOp>(beforeLast->getTerminator());
+  rewriter.replaceOpWithNewOp<CondBranchOp>(condOp, condOp.condition(), before,
+                                            condOp.args(), continuation,
+                                            ValueRange());
+
+  // Replace the op with values "yielded" from the "before" region, which are
+  // visible by dominance.
+  rewriter.replaceOp(whileOp, condOp.args());
+
+  return success();
+}
+
 void mlir::populateLoopToStdConversionPatterns(
     OwningRewritePatternList &patterns, MLIRContext *ctx) {
-  patterns.insert<ForLowering, IfLowering, ParallelLowering>(ctx);
+  patterns.insert<ForLowering, IfLowering, ParallelLowering, WhileLowering>(
+      ctx);
+  patterns.insert<DoWhileLowering>(ctx, /*benefit=*/2);
 }
 
 void SCFToStandardPass::runOnOperation() {
   OwningRewritePatternList patterns;
   populateLoopToStdConversionPatterns(patterns, &getContext());
-  // Configure conversion to lower out scf.for, scf.if and scf.parallel.
-  // Anything else is fine.
+  // Configure conversion to lower out scf.for, scf.if, scf.parallel and
+  // scf.while. Anything else is fine.
   ConversionTarget target(getContext());
-  target.addIllegalOp<scf::ForOp, scf::IfOp, scf::ParallelOp>();
+  target.addIllegalOp<scf::ForOp, scf::IfOp, scf::ParallelOp, scf::WhileOp>();
   target.markUnknownOpDynamicallyLegal([](Operation *) { return true; });
-  if (failed(applyPartialConversion(getOperation(), target, patterns)))
+  if (failed(
+          applyPartialConversion(getOperation(), target, std::move(patterns))))
     signalPassFailure();
 }
 

@@ -32,10 +32,10 @@ struct PassManagerOptions {
   //===--------------------------------------------------------------------===//
   // IR Printing
   //===--------------------------------------------------------------------===//
-  PassPipelineCLParser printBefore{"print-ir-before",
-                                   "Print IR before specified passes"};
-  PassPipelineCLParser printAfter{"print-ir-after",
-                                  "Print IR after specified passes"};
+  PassNameCLParser printBefore{"print-ir-before",
+                               "Print IR before specified passes"};
+  PassNameCLParser printAfter{"print-ir-after",
+                              "Print IR after specified passes"};
   llvm::cl::opt<bool> printBeforeAll{
       "print-ir-before-all", llvm::cl::desc("Print IR before each pass"),
       llvm::cl::init(false)};
@@ -50,7 +50,7 @@ struct PassManagerOptions {
   llvm::cl::opt<bool> printModuleScope{
       "print-ir-module-scope",
       llvm::cl::desc("When printing IR for print-ir-[before|after]{-all} "
-                     "always print the top-level module operation"),
+                     "always print the top-level operation"),
       llvm::cl::init(false)};
 
   /// Add an IR printing instrumentation if enabled by any 'print-ir' flags.

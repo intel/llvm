@@ -34,13 +34,13 @@ using namespace llvm;
 #define DEBUG_TYPE "wasm"
 
 // Emscripten's asm.js-style exception handling
-static cl::opt<bool> EnableEmException(
+cl::opt<bool> EnableEmException(
     "enable-emscripten-cxx-exceptions",
     cl::desc("WebAssembly Emscripten-style exception handling"),
     cl::init(false));
 
 // Emscripten's asm.js-style setjmp/longjmp handling
-static cl::opt<bool> EnableEmSjLj(
+cl::opt<bool> EnableEmSjLj(
     "enable-emscripten-sjlj",
     cl::desc("WebAssembly Emscripten-style setjmp/longjmp handling"),
     cl::init(false));
@@ -277,10 +277,9 @@ private:
   bool stripThreadLocals(Module &M) {
     bool Stripped = false;
     for (auto &GV : M.globals()) {
-      if (GV.getThreadLocalMode() !=
-          GlobalValue::ThreadLocalMode::NotThreadLocal) {
+      if (GV.isThreadLocal()) {
         Stripped = true;
-        GV.setThreadLocalMode(GlobalValue::ThreadLocalMode::NotThreadLocal);
+        GV.setThreadLocal(false);
       }
     }
     return Stripped;
@@ -327,10 +326,10 @@ public:
   void addPreEmitPass() override;
 
   // No reg alloc
-  bool addRegAssignmentFast() override { return false; }
+  bool addRegAssignAndRewriteFast() override { return false; }
 
   // No reg alloc
-  bool addRegAssignmentOptimized() override { return false; }
+  bool addRegAssignAndRewriteOptimized() override { return false; }
 };
 } // end anonymous namespace
 
@@ -447,7 +446,8 @@ void WebAssemblyPassConfig::addPreEmitPass() {
 
   // Do various transformations for exception handling.
   // Every CFG-changing optimizations should come before this.
-  addPass(createWebAssemblyLateEHPrepare());
+  if (TM->Options.ExceptionModel == ExceptionHandling::Wasm)
+    addPass(createWebAssemblyLateEHPrepare());
 
   // Now that we have a prologue and epilogue and all frame indices are
   // rewritten, eliminate SP and FP. This allows them to be stackified,

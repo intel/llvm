@@ -256,13 +256,11 @@ public:
   //===--------------------------------------------------------------------===//
 
   /// Return true if this instruction has any metadata attached to it.
-  bool hasMetadata() const { return DbgLoc || hasMetadataHashEntry(); }
+  bool hasMetadata() const { return DbgLoc || Value::hasMetadata(); }
 
   /// Return true if this instruction has metadata attached to it other than a
   /// debug location.
-  bool hasMetadataOtherThanDebugLoc() const {
-    return hasMetadataHashEntry();
-  }
+  bool hasMetadataOtherThanDebugLoc() const { return Value::hasMetadata(); }
 
   /// Return true if this instruction has the given type of metadata attached.
   bool hasMetadata(unsigned KindID) const {
@@ -301,8 +299,7 @@ public:
   /// debug location.
   void getAllMetadataOtherThanDebugLoc(
       SmallVectorImpl<std::pair<unsigned, MDNode *>> &MDs) const {
-    if (hasMetadataOtherThanDebugLoc())
-      getAllMetadataOtherThanDebugLocImpl(MDs);
+    Value::getAllMetadata(MDs);
   }
 
   /// Fills the AAMDNodes structure with AA metadata from this instruction.
@@ -342,6 +339,11 @@ public:
     return dropUnknownNonDebugMetadata(IDs);
   }
   /// @}
+
+  /// Adds an !annotation metadata node with \p Annotation to this instruction.
+  /// If this instruction already has !annotation metadata, append \p Annotation
+  /// to the existing node.
+  void addAnnotationMetadata(StringRef Annotation);
 
   /// Sets the metadata on this instruction from the AAMDNodes structure.
   void setAAMetadata(const AAMDNodes &N);
@@ -507,20 +509,11 @@ public:
   void dropLocation();
 
 private:
-  /// Return true if we have an entry in the on-the-side metadata hash.
-  bool hasMetadataHashEntry() const {
-    return Bitfield::test<HasMetadataField>(getSubclassDataFromValue());
-  }
-
   // These are all implemented in Metadata.cpp.
   MDNode *getMetadataImpl(unsigned KindID) const;
   MDNode *getMetadataImpl(StringRef Kind) const;
   void
   getAllMetadataImpl(SmallVectorImpl<std::pair<unsigned, MDNode *>> &) const;
-  void getAllMetadataOtherThanDebugLocImpl(
-      SmallVectorImpl<std::pair<unsigned, MDNode *>> &) const;
-  /// Clear all hashtable-based metadata from this instruction.
-  void clearMetadataHashEntries();
 
 public:
   //===--------------------------------------------------------------------===//
@@ -658,19 +651,25 @@ public:
   bool isLifetimeStartOrEnd() const;
 
   /// Return a pointer to the next non-debug instruction in the same basic
-  /// block as 'this', or nullptr if no such instruction exists.
-  const Instruction *getNextNonDebugInstruction() const;
-  Instruction *getNextNonDebugInstruction() {
+  /// block as 'this', or nullptr if no such instruction exists. Skip any pseudo
+  /// operations if \c SkipPseudoOp is true.
+  const Instruction *
+  getNextNonDebugInstruction(bool SkipPseudoOp = false) const;
+  Instruction *getNextNonDebugInstruction(bool SkipPseudoOp = false) {
     return const_cast<Instruction *>(
-        static_cast<const Instruction *>(this)->getNextNonDebugInstruction());
+        static_cast<const Instruction *>(this)->getNextNonDebugInstruction(
+            SkipPseudoOp));
   }
 
   /// Return a pointer to the previous non-debug instruction in the same basic
-  /// block as 'this', or nullptr if no such instruction exists.
-  const Instruction *getPrevNonDebugInstruction() const;
-  Instruction *getPrevNonDebugInstruction() {
+  /// block as 'this', or nullptr if no such instruction exists. Skip any pseudo
+  /// operations if \c SkipPseudoOp is true.
+  const Instruction *
+  getPrevNonDebugInstruction(bool SkipPseudoOp = false) const;
+  Instruction *getPrevNonDebugInstruction(bool SkipPseudoOp = false) {
     return const_cast<Instruction *>(
-        static_cast<const Instruction *>(this)->getPrevNonDebugInstruction());
+        static_cast<const Instruction *>(this)->getPrevNonDebugInstruction(
+            SkipPseudoOp));
   }
 
   /// Create a copy of 'this' instruction that is identical in all ways except
@@ -800,8 +799,6 @@ private:
   unsigned short getSubclassDataFromValue() const {
     return Value::getSubclassDataFromValue();
   }
-
-  void setHasMetadataHashEntry(bool V) { setSubclassData<HasMetadataField>(V); }
 
   void setParent(BasicBlock *P);
 

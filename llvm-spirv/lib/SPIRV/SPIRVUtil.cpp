@@ -205,7 +205,7 @@ std::string mapSPIRVTypeToOCLType(SPIRVType *Ty, bool Signed) {
 
 PointerType *getOrCreateOpaquePtrType(Module *M, const std::string &Name,
                                       unsigned AddrSpace) {
-  auto OpaqueType = M->getTypeByName(Name);
+  auto OpaqueType = StructType::getTypeByName(M->getContext(), Name);
   if (!OpaqueType)
     OpaqueType = StructType::create(M->getContext(), Name);
   return PointerType::get(OpaqueType, AddrSpace);
@@ -1531,9 +1531,34 @@ bool hasLoopMetadata(const Module *M) {
 // Returns true if type(s) and number of elements (if vector) is valid
 bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
   switch (II->getIntrinsicID()) {
-  case Intrinsic::fabs:
   case Intrinsic::ceil:
-  case Intrinsic::maxnum: {
+  case Intrinsic::copysign:
+  case Intrinsic::cos:
+  case Intrinsic::exp:
+  case Intrinsic::exp2:
+  case Intrinsic::fabs:
+  case Intrinsic::floor:
+  case Intrinsic::fma:
+  case Intrinsic::log:
+  case Intrinsic::log10:
+  case Intrinsic::log2:
+  case Intrinsic::maximum:
+  case Intrinsic::maxnum:
+  case Intrinsic::minimum:
+  case Intrinsic::minnum:
+  case Intrinsic::nearbyint:
+  case Intrinsic::pow:
+  case Intrinsic::powi:
+  case Intrinsic::rint:
+  case Intrinsic::round:
+  case Intrinsic::roundeven:
+  case Intrinsic::sin:
+  case Intrinsic::sqrt:
+  case Intrinsic::trunc: {
+    // Although some of the intrinsics above take multiple arguments, it is
+    // sufficient to check arg 0 because the LLVM Verifier will have checked
+    // that all floating point operands have the same type and the second
+    // argument of powi is i32.
     Type *Ty = II->getType();
     if (II->getArgOperand(0)->getType() != Ty)
       return false;
@@ -1542,7 +1567,7 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
       NumElems = VecTy->getNumElements();
       Ty = VecTy->getElementType();
     }
-    if ((!Ty->isFloatTy() && !Ty->isDoubleTy()) ||
+    if ((!Ty->isFloatTy() && !Ty->isDoubleTy() && !Ty->isHalfTy()) ||
         ((NumElems > 4) && (NumElems != 8) && (NumElems != 16))) {
       BM->getErrorLog().checkError(false, SPIRVEC_InvalidFunctionCall,
                                    II->getCalledOperand()->getName().str(), "",
@@ -1551,10 +1576,90 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
     }
     break;
   }
+  case Intrinsic::abs: {
+    Type *Ty = II->getType();
+    int NumElems = 1;
+    if (auto *VecTy = dyn_cast<FixedVectorType>(Ty)) {
+      NumElems = VecTy->getNumElements();
+      Ty = VecTy->getElementType();
+    }
+    if ((!Ty->isIntegerTy()) ||
+        ((NumElems > 4) && (NumElems != 8) && (NumElems != 16))) {
+      BM->getErrorLog().checkError(false, SPIRVEC_InvalidFunctionCall,
+                                   II->getCalledOperand()->getName().str(), "",
+                                   __FILE__, __LINE__);
+    }
+    break;
+  }
   default:
     break;
   }
   return true;
+}
+} // namespace SPIRV
+
+namespace {
+class OpenCLStdToSPIRVFriendlyIRMangleInfo : public BuiltinFuncMangleInfo {
+public:
+  OpenCLStdToSPIRVFriendlyIRMangleInfo(OCLExtOpKind ExtOpId,
+                                       ArrayRef<Type *> ArgTys)
+      : ExtOpId(ExtOpId), ArgTys(ArgTys) {
+    UnmangledName = getSPIRVExtFuncName(SPIRVEIS_OpenCL, ExtOpId);
+  }
+
+  void init(StringRef) override {
+    switch (ExtOpId) {
+    case OpenCLLIB::UAbs:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UAbs_diff:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UAdd_sat:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UHadd:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::URhadd:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UClamp:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UMad_hi:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UMad_sat:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UMax:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UMin:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UMul_hi:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::USub_sat:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::U_Upsample:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UMad24:
+      LLVM_FALLTHROUGH;
+    case OpenCLLIB::UMul24:
+      // Treat all arguments as unsigned
+      addUnsignedArg(-1);
+      break;
+    case OpenCLLIB::S_Upsample:
+      addUnsignedArg(1);
+      break;
+    default:;
+      // No special handling is needed
+    }
+  }
+
+private:
+  OCLExtOpKind ExtOpId;
+  ArrayRef<Type *> ArgTys;
+};
+} // namespace
+
+namespace SPIRV {
+std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
+                                           ArrayRef<Type *> ArgTys) {
+  OpenCLStdToSPIRVFriendlyIRMangleInfo MangleInfo(ExtOpId, ArgTys);
+  return mangleBuiltin(MangleInfo.getUnmangledName(), ArgTys, &MangleInfo);
 }
 
 } // namespace SPIRV

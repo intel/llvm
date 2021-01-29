@@ -445,9 +445,8 @@ llvm::Optional<SourceRange> toHalfOpenFileRange(const SourceManager &SM,
 
 llvm::StringRef toSourceCode(const SourceManager &SM, SourceRange R) {
   assert(isValidFileRange(SM, R));
-  bool Invalid = false;
-  auto *Buf = SM.getBuffer(SM.getFileID(R.getBegin()), &Invalid);
-  assert(!Invalid);
+  auto Buf = SM.getBufferOrNone(SM.getFileID(R.getBegin()));
+  assert(Buf);
 
   size_t BeginOffset = SM.getFileOffset(R.getBegin());
   size_t EndOffset = SM.getFileOffset(R.getEnd());
@@ -456,7 +455,7 @@ llvm::StringRef toSourceCode(const SourceManager &SM, SourceRange R) {
 
 llvm::Expected<SourceLocation> sourceLocationInMainFile(const SourceManager &SM,
                                                         Position P) {
-  llvm::StringRef Code = SM.getBuffer(SM.getMainFileID())->getBuffer();
+  llvm::StringRef Code = SM.getBufferOrFake(SM.getMainFileID()).getBuffer();
   auto Offset =
       positionToOffset(Code, P, /*AllowColumnBeyondLineLength=*/false);
   if (!Offset)
@@ -633,6 +632,12 @@ std::vector<Range> collectIdentifierRanges(llvm::StringRef Identifier,
   return Ranges;
 }
 
+bool isKeyword(llvm::StringRef NewName, const LangOptions &LangOpts) {
+  // Keywords are initialized in constructor.
+  clang::IdentifierTable KeywordsTable(LangOpts);
+  return KeywordsTable.find(NewName) != KeywordsTable.end();
+}
+
 namespace {
 struct NamespaceEvent {
   enum {
@@ -774,8 +779,8 @@ void parseNamespaceEvents(llvm::StringRef Code, const LangOptions &LangOpts,
 }
 
 // Returns the prefix namespaces of NS: {"" ... NS}.
-llvm::SmallVector<llvm::StringRef, 8> ancestorNamespaces(llvm::StringRef NS) {
-  llvm::SmallVector<llvm::StringRef, 8> Results;
+llvm::SmallVector<llvm::StringRef> ancestorNamespaces(llvm::StringRef NS) {
+  llvm::SmallVector<llvm::StringRef> Results;
   Results.push_back(NS.take_front(0));
   NS.split(Results, "::", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
   for (llvm::StringRef &R : Results)
@@ -970,17 +975,30 @@ llvm::Optional<DefinedMacro> locateMacroAt(const syntax::Token &SpelledTok,
   if (!IdentifierInfo || !IdentifierInfo->hadMacroDefinition())
     return None;
 
-  // Get the definition just before the searched location so that a macro
-  // referenced in a '#undef MACRO' can still be found. Note that we only do
-  // that if Loc is not pointing at start of file.
-  if (SM.getLocForStartOfFile(SM.getFileID(Loc)) != Loc)
-    Loc = Loc.getLocWithOffset(-1);
-  MacroDefinition MacroDef = PP.getMacroDefinitionAtLoc(IdentifierInfo, Loc);
-  if (auto *MI = MacroDef.getMacroInfo())
-    return DefinedMacro{
-        IdentifierInfo->getName(), MI,
-        translatePreamblePatchLocation(MI->getDefinitionLoc(), SM)};
-  return None;
+  // We need to take special case to handle #define and #undef.
+  // Preprocessor::getMacroDefinitionAtLoc() only considers a macro
+  // definition to be in scope *after* the location of the macro name in a
+  // #define that introduces it, and *before* the location of the macro name
+  // in an #undef that undefines it. To handle these cases, we check for
+  // the macro being in scope either just after or just before the location
+  // of the token. In getting the location before, we also take care to check
+  // for start-of-file.
+  FileID FID = SM.getFileID(Loc);
+  assert(Loc != SM.getLocForEndOfFile(FID));
+  SourceLocation JustAfterToken = Loc.getLocWithOffset(1);
+  auto *MacroInfo =
+      PP.getMacroDefinitionAtLoc(IdentifierInfo, JustAfterToken).getMacroInfo();
+  if (!MacroInfo && SM.getLocForStartOfFile(FID) != Loc) {
+    SourceLocation JustBeforeToken = Loc.getLocWithOffset(-1);
+    MacroInfo = PP.getMacroDefinitionAtLoc(IdentifierInfo, JustBeforeToken)
+                    .getMacroInfo();
+  }
+  if (!MacroInfo) {
+    return None;
+  }
+  return DefinedMacro{
+      IdentifierInfo->getName(), MacroInfo,
+      translatePreamblePatchLocation(MacroInfo->getDefinitionLoc(), SM)};
 }
 
 llvm::Expected<std::string> Edit::apply() const {

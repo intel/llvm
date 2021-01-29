@@ -1436,6 +1436,13 @@ template <class ELFT> void DynamicSection<ELFT>::finalizeContents() {
     case EM_SPARCV9:
       addInSec(DT_PLTGOT, in.plt);
       break;
+    case EM_AARCH64:
+      if (llvm::find_if(in.relaPlt->relocs, [](const DynamicReloc &r) {
+           return r.type == target->pltRel &&
+                  r.sym->stOther & STO_AARCH64_VARIANT_PCS;
+          }) != in.relaPlt->relocs.end())
+        addInt(DT_AARCH64_VARIANT_PCS, 0);
+      LLVM_FALLTHROUGH;
     default:
       addInSec(DT_PLTGOT, in.gotPlt);
       break;
@@ -1610,10 +1617,14 @@ void RelocationBaseSection::finalizeContents() {
   else
     getParent()->link = 0;
 
-  if (in.relaPlt == this)
+  if (in.relaPlt == this) {
+    getParent()->flags |= ELF::SHF_INFO_LINK;
     getParent()->info = in.gotPlt->getParent()->sectionIndex;
-  if (in.relaIplt == this)
+  }
+  if (in.relaIplt == this) {
+    getParent()->flags |= ELF::SHF_INFO_LINK;
     getParent()->info = in.igotPlt->getParent()->sectionIndex;
+  }
 }
 
 RelrBaseSection::RelrBaseSection()
@@ -2177,6 +2188,10 @@ template <class ELFT> void SymbolTableSection<ELFT>::writeTo(uint8_t *buf) {
     // See getPPC64GlobalEntryToLocalEntryOffset() for more details.
     if (config->emachine == EM_PPC64)
       eSym->st_other |= sym->stOther & 0xe0;
+    // The most significant bit of st_other is used by AArch64 ABI for the
+    // variant PCS.
+    else if (config->emachine == EM_AARCH64)
+      eSym->st_other |= sym->stOther & STO_AARCH64_VARIANT_PCS;
 
     eSym->st_name = ent.strTabOffset;
     if (isDefinedHere)
@@ -2194,9 +2209,8 @@ template <class ELFT> void SymbolTableSection<ELFT>::writeTo(uint8_t *buf) {
     else
       eSym->st_size = sym->getSize();
 
-    // st_value is usually an address of a symbol, but that has a
-    // special meaning for uninstantiated common symbols (this can
-    // occur if -r is given).
+    // st_value is usually an address of a symbol, but that has a special
+    // meaning for uninstantiated common symbols (--no-define-common).
     if (BssSection *commonSec = getCommonSec(ent.sym))
       eSym->st_value = commonSec->alignment;
     else if (isDefinedHere)
@@ -2865,6 +2879,13 @@ template <class ELFT> GdbIndexSection *GdbIndexSection::create() {
     else if (isec->name == ".debug_info")
       files.insert(isec->file);
   }
+  // Drop .rel[a].debug_gnu_pub{names,types} for --emit-relocs.
+  llvm::erase_if(inputSections, [](InputSectionBase *s) {
+    if (auto *isec = dyn_cast<InputSection>(s))
+      if (InputSectionBase *rel = isec->getRelocatedSection())
+        return !rel->isLive();
+    return !s->isLive();
+  });
 
   std::vector<GdbChunk> chunks(files.size());
   std::vector<std::vector<NameAttrEntry>> nameAttrs(files.size());
@@ -2914,7 +2935,8 @@ void GdbIndexSection::writeTo(uint8_t *buf) {
   uint32_t cuOff = 0;
   for (GdbChunk &chunk : chunks) {
     for (AddressEntry &e : chunk.addressAreas) {
-      uint64_t baseAddr = e.section->getVA(0);
+      // In the case of ICF there may be duplicate address range entries.
+      const uint64_t baseAddr = e.section->repl->getVA(0);
       write64le(buf, baseAddr + e.lowAddress);
       write64le(buf + 8, baseAddr + e.highAddress);
       write32le(buf + 16, e.cuIndex + cuOff);

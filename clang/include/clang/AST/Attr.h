@@ -163,6 +163,21 @@ public:
   }
 };
 
+class DeclOrStmtAttr : public InheritableAttr {
+protected:
+  DeclOrStmtAttr(ASTContext &Context, const AttributeCommonInfo &CommonInfo,
+                 attr::Kind AK, bool IsLateParsed,
+                 bool InheritEvenIfAlreadyPresent)
+      : InheritableAttr(Context, CommonInfo, AK, IsLateParsed,
+                        InheritEvenIfAlreadyPresent) {}
+
+public:
+  static bool classof(const Attr *A) {
+    return A->getKind() >= attr::FirstDeclOrStmtAttr &&
+           A->getKind() <= attr::LastDeclOrStmtAttr;
+  }
+};
+
 class InheritableParamAttr : public InheritableAttr {
 protected:
   InheritableParamAttr(ASTContext &Context,
@@ -260,7 +275,10 @@ public:
 
   /// Construct from a result from \c serialize.
   static ParamIdx deserialize(SerialType S) {
-    ParamIdx P(*reinterpret_cast<ParamIdx *>(&S));
+    // Using this two-step static_cast via void * instead of reinterpret_cast
+    // silences a -Wstrict-aliasing false positive from GCC7 and earlier.
+    void *ParamIdxPtr = static_cast<void *>(&S);
+    ParamIdx P(*static_cast<ParamIdx *>(ParamIdxPtr));
     assert((!P.IsValid || P.Idx >= 1) && "valid Idx must be one-origin");
     return P;
   }
@@ -351,18 +369,11 @@ struct ParsedTargetAttr {
 
 #include "clang/AST/Attrs.inc"
 
-inline const DiagnosticBuilder &operator<<(const DiagnosticBuilder &DB,
-                                           const Attr *At) {
+inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
+                                             const Attr *At) {
   DB.AddTaggedVal(reinterpret_cast<intptr_t>(At),
                   DiagnosticsEngine::ak_attr);
   return DB;
-}
-
-inline const PartialDiagnostic &operator<<(const PartialDiagnostic &PD,
-                                           const Attr *At) {
-  PD.AddTaggedVal(reinterpret_cast<intptr_t>(At),
-                  DiagnosticsEngine::ak_attr);
-  return PD;
 }
 }  // end namespace clang
 

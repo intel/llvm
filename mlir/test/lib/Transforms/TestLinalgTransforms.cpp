@@ -17,8 +17,8 @@
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
-#include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 #include "llvm/ADT/SetVector.h"
 
@@ -71,7 +71,7 @@ struct TestLinalgTransforms
           "Test a fused pass that forwards linalg.copy to vector.transfer"),
       llvm::cl::init(false)};
   Option<bool> testGenericToVectorPattern{
-      *this, "test-contraction-to-vector-patterns",
+      *this, "test-linalg-to-vector-patterns",
       llvm::cl::desc("Test a set of patterns that rewrite a linalg contraction "
                      "in vector.contract form"),
       llvm::cl::init(false)};
@@ -208,7 +208,7 @@ static void applyPatterns(FuncOp funcOp) {
       LinalgMarker(Identifier::get("_promote_views_aligned_", ctx),
                    Identifier::get("_views_aligned_promoted_", ctx)));
 
-  applyPatternsAndFoldGreedily(funcOp, patterns);
+  applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
 
   // Drop the marker.
   funcOp.walk([](LinalgOp op) {
@@ -220,18 +220,21 @@ static void fillL1TilingAndMatmulToVectorPatterns(
     FuncOp funcOp, StringRef startMarker,
     SmallVectorImpl<OwningRewritePatternList> &patternsVector) {
   MLIRContext *ctx = funcOp.getContext();
-  patternsVector.emplace_back(LinalgTilingPattern<MatmulOp>(
+  patternsVector.emplace_back(std::make_unique<LinalgTilingPattern<MatmulOp>>(
       ctx,
       LinalgTilingOptions().setTileSizes({8, 12, 16}).setInterchange({1, 0, 2}),
       LinalgMarker(Identifier::get(startMarker, ctx),
                    Identifier::get("L1", ctx))));
 
-  patternsVector.emplace_back(LinalgPromotionPattern<MatmulOp>(
-      ctx, LinalgPromotionOptions().setUseFullTileBuffersByDefault(true),
-      LinalgMarker(Identifier::get("L1", ctx), Identifier::get("VEC", ctx))));
+  patternsVector.emplace_back(
+      std::make_unique<LinalgPromotionPattern<MatmulOp>>(
+          ctx, LinalgPromotionOptions().setUseFullTileBuffersByDefault(true),
+          LinalgMarker(Identifier::get("L1", ctx),
+                       Identifier::get("VEC", ctx))));
 
-  patternsVector.emplace_back(LinalgVectorizationPattern<MatmulOp>(
-      ctx, LinalgMarker(Identifier::get("VEC", ctx))));
+  patternsVector.emplace_back(
+      std::make_unique<LinalgVectorizationPattern<MatmulOp>>(
+          ctx, LinalgMarker(Identifier::get("VEC", ctx))));
   patternsVector.back()
       .insert<LinalgVectorizationPattern<FillOp>,
               LinalgVectorizationPattern<CopyOp>>(ctx);
@@ -301,8 +304,7 @@ static void fillPromotionCallBackPatterns(MLIRContext *ctx,
 
 template <typename IdOp, typename NProcsOp>
 static SmallVector<ProcInfo, 2>
-getGpuProcIds(OpBuilder &b, Location loc,
-              ArrayRef<SubViewOp::Range> parallelLoopRanges) {
+getGpuProcIds(OpBuilder &b, Location loc, ArrayRef<Range> parallelLoopRanges) {
   Type indexType = b.getIndexType();
   SmallVector<ProcInfo, 2> procInfo(2);
   procInfo[0] = {b.create<IdOp>(loc, indexType, b.getStringAttr("y")),
@@ -410,6 +412,22 @@ static void fillTileAndDistributePatterns(MLIRContext *context,
         LinalgMarker(Identifier::get("distribute6", context),
                      Identifier::get("after_distribute6", context)));
   }
+
+  {
+    LinalgLoopDistributionOptions cyclicNprocsEqNiters;
+    cyclicNprocsEqNiters.distributionMethod.resize(2,
+                                                   DistributionMethod::Cyclic);
+    cyclicNprocsEqNiters.procInfo =
+        getGpuProcIds<gpu::BlockIdOp, gpu::GridDimOp>;
+    patterns.insert<LinalgTilingPattern<MatmulOp>>(
+        context,
+        LinalgTilingOptions()
+            .setTileSizes({8, 8, 4})
+            .setLoopType(LinalgTilingLoopType::Loops)
+            .setDistributionOptions(cyclicNprocsEqNiters),
+        LinalgMarker(Identifier::get("tensors_distribute1", context),
+                     Identifier::get("tensors_after_distribute1", context)));
+  }
 }
 
 static void
@@ -422,7 +440,7 @@ applyMatmulToVectorPatterns(FuncOp funcOp,
     fillL1TilingAndMatmulToVectorPatterns(funcOp, Identifier::get("START", ctx),
                                           stage1Patterns);
   } else if (testMatmulToVectorPatterns2dTiling) {
-    stage1Patterns.emplace_back(LinalgTilingPattern<MatmulOp>(
+    stage1Patterns.emplace_back(std::make_unique<LinalgTilingPattern<MatmulOp>>(
         ctx,
         LinalgTilingOptions()
             .setTileSizes({768, 264, 768})
@@ -432,36 +450,41 @@ applyMatmulToVectorPatterns(FuncOp funcOp,
     fillL1TilingAndMatmulToVectorPatterns(funcOp, Identifier::get("L2", ctx),
                                           stage1Patterns);
   }
-  OwningRewritePatternList stage2Patterns =
+  SmallVector<FrozenRewritePatternList, 4> frozenStage1Patterns;
+  llvm::move(stage1Patterns, std::back_inserter(frozenStage1Patterns));
+  FrozenRewritePatternList stage2Patterns =
       getLinalgTilingCanonicalizationPatterns(ctx);
-  applyStagedPatterns(funcOp, stage1Patterns, stage2Patterns);
+  applyStagedPatterns(funcOp, frozenStage1Patterns, std::move(stage2Patterns));
 }
 
 static void applyVectorTransferForwardingPatterns(FuncOp funcOp) {
   OwningRewritePatternList forwardPattern;
   forwardPattern.insert<LinalgCopyVTRForwardingPattern>(funcOp.getContext());
   forwardPattern.insert<LinalgCopyVTWForwardingPattern>(funcOp.getContext());
-  applyPatternsAndFoldGreedily(funcOp, forwardPattern);
+  applyPatternsAndFoldGreedily(funcOp, std::move(forwardPattern));
 }
 
-static void applyContractionToVectorPatterns(FuncOp funcOp) {
+static void applyLinalgToVectorPatterns(FuncOp funcOp) {
   OwningRewritePatternList patterns;
-  patterns.insert<LinalgVectorizationPattern<BatchMatmulOp>,
-                  LinalgVectorizationPattern<MatmulOp>,
-                  LinalgVectorizationPattern<MatvecOp>,
-                  LinalgVectorizationPattern<VecmatOp>,
-                  LinalgVectorizationPattern<DotOp>,
-                  LinalgVectorizationPattern<GenericOp>>(funcOp.getContext());
-  applyPatternsAndFoldGreedily(funcOp, patterns);
+  patterns.insert<
+      LinalgVectorizationPattern<BatchMatmulOp>,
+      LinalgVectorizationPattern<MatmulOp>,
+      LinalgVectorizationPattern<MatvecOp>,
+      LinalgVectorizationPattern<VecmatOp>, LinalgVectorizationPattern<DotOp>,
+      LinalgVectorizationPattern<FillOp>, LinalgVectorizationPattern<CopyOp>,
+      LinalgVectorizationPattern<GenericOp>>(funcOp.getContext());
+  applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
 }
 
 static void applyAffineMinSCFCanonicalizationPatterns(FuncOp funcOp) {
   OwningRewritePatternList foldPattern;
   foldPattern.insert<AffineMinSCFCanonicalizationPattern>(funcOp.getContext());
+  FrozenRewritePatternList frozenPatterns(std::move(foldPattern));
+
   // Explicitly walk and apply the pattern locally to avoid more general folding
   // on the rest of the IR.
-  funcOp.walk([&foldPattern](AffineMinOp minOp) {
-    applyOpPatternsAndFold(minOp, foldPattern);
+  funcOp.walk([&frozenPatterns](AffineMinOp minOp) {
+    applyOpPatternsAndFold(minOp, frozenPatterns);
   });
 }
 /// Apply transformations specified as patterns.
@@ -476,13 +499,13 @@ void TestLinalgTransforms::runOnFunction() {
   if (testPromotionOptions) {
     OwningRewritePatternList patterns;
     fillPromotionCallBackPatterns(&getContext(), patterns);
-    applyPatternsAndFoldGreedily(getFunction(), patterns);
+    applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
     return;
   }
   if (testTileAndDistributionOptions) {
     OwningRewritePatternList patterns;
     fillTileAndDistributePatterns(&getContext(), patterns);
-    applyPatternsAndFoldGreedily(getFunction(), patterns);
+    applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
     return;
   }
   if (testPatterns)
@@ -494,15 +517,17 @@ void TestLinalgTransforms::runOnFunction() {
   if (testVectorTransferForwardingPatterns)
     return applyVectorTransferForwardingPatterns(getFunction());
   if (testGenericToVectorPattern)
-    return applyContractionToVectorPatterns(getFunction());
+    return applyLinalgToVectorPatterns(getFunction());
   if (testAffineMinSCFCanonicalizationPatterns)
     return applyAffineMinSCFCanonicalizationPatterns(getFunction());
 }
 
 namespace mlir {
+namespace test {
 void registerTestLinalgTransforms() {
   PassRegistration<TestLinalgTransforms> testTransformPatternsPass(
       "test-linalg-transform-patterns",
       "Test Linalg transformation patterns by applying them greedily.");
 }
+} // namespace test
 } // namespace mlir

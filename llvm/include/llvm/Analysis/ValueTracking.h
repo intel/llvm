@@ -620,6 +620,11 @@ constexpr unsigned MaxAnalysisRecursionDepth = 6;
   bool canCreateUndefOrPoison(const Operator *Op);
   bool canCreatePoison(const Operator *Op);
 
+  /// Return true if V is poison given that ValAssumedPoison is already poison.
+  /// For example, if ValAssumedPoison is `icmp X, 10` and V is `icmp X, 5`,
+  /// impliesPoison returns true.
+  bool impliesPoison(const Value *ValAssumedPoison, const Value *V);
+
   /// Return true if this function can prove that V does not have undef bits
   /// and is never poison. If V is an aggregate value or vector, check whether
   /// all elements (except padding) are not undef or poison.
@@ -630,10 +635,11 @@ constexpr unsigned MaxAnalysisRecursionDepth = 6;
   /// and returns true if it is guaranteed to be never undef or poison
   /// immediately before the CtxI.
   bool isGuaranteedNotToBeUndefOrPoison(const Value *V,
+                                        AssumptionCache *AC = nullptr,
                                         const Instruction *CtxI = nullptr,
                                         const DominatorTree *DT = nullptr,
                                         unsigned Depth = 0);
-  bool isGuaranteedNotToBePoison(const Value *V,
+  bool isGuaranteedNotToBePoison(const Value *V, AssumptionCache *AC = nullptr,
                                  const Instruction *CtxI = nullptr,
                                  const DominatorTree *DT = nullptr,
                                  unsigned Depth = 0);
@@ -726,6 +732,14 @@ constexpr unsigned MaxAnalysisRecursionDepth = 6;
   /// Return the canonical inverse comparison predicate for the specified
   /// minimum/maximum flavor.
   CmpInst::Predicate getInverseMinMaxPred(SelectPatternFlavor SPF);
+
+  /// Check if the values in \p VL are select instructions that can be converted
+  /// to a min or max (vector) intrinsic. Returns the intrinsic ID, if such a
+  /// conversion is possible, together with a bool indicating whether all select
+  /// conditions are only used by the selects. Otherwise return
+  /// Intrinsic::not_intrinsic.
+  std::pair<Intrinsic::ID, bool>
+  canConvertToMinOrMaxIntrinsic(ArrayRef<Value *> VL);
 
   /// Return true if RHS is known to be implied true by LHS.  Return false if
   /// RHS is known to be implied false by LHS.  Otherwise, return None if no

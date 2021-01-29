@@ -983,7 +983,8 @@ Error LTO::runRegularLTO(AddStreamFn AddStream) {
   // Setup optimization remarks.
   auto DiagFileOrErr = lto::setupLLVMOptimizationRemarks(
       RegularLTO.CombinedModule->getContext(), Conf.RemarksFilename,
-      Conf.RemarksPasses, Conf.RemarksFormat, Conf.RemarksWithHotness);
+      Conf.RemarksPasses, Conf.RemarksFormat, Conf.RemarksWithHotness,
+      Conf.RemarksHotnessThreshold);
   if (!DiagFileOrErr)
     return DiagFileOrErr.takeError();
 
@@ -1107,6 +1108,7 @@ public:
       const std::map<GlobalValue::GUID, GlobalValue::LinkageTypes> &ResolvedODR,
       MapVector<StringRef, BitcodeModule> &ModuleMap) = 0;
   virtual Error wait() = 0;
+  virtual unsigned getThreadCount() = 0;
 };
 
 namespace {
@@ -1221,6 +1223,10 @@ public:
     else
       return Error::success();
   }
+
+  unsigned getThreadCount() override {
+    return BackendThreadPool.getThreadCount();
+  }
 };
 } // end anonymous namespace
 
@@ -1309,6 +1315,10 @@ public:
   }
 
   Error wait() override { return Error::success(); }
+
+  // WriteIndexesThinBackend should always return 1 to prevent module
+  // re-ordering and avoid non-determinism in the final link.
+  unsigned getThreadCount() override { return 1; }
 };
 } // end anonymous namespace
 
@@ -1443,29 +1453,44 @@ Error LTO::runThinLTO(AddStreamFn AddStream, NativeObjectCache Cache,
   auto &ModuleMap =
       ThinLTO.ModulesToCompile ? *ThinLTO.ModulesToCompile : ThinLTO.ModuleMap;
 
-  std::vector<BitcodeModule *> ModulesVec;
-  ModulesVec.reserve(ModuleMap.size());
-  for (auto &Mod : ModuleMap)
-    ModulesVec.push_back(&Mod.second);
-  std::vector<int> ModulesOrdering = generateModulesOrdering(ModulesVec);
+  auto ProcessOneModule = [&](int I) -> Error {
+    auto &Mod = *(ModuleMap.begin() + I);
+    // Tasks 0 through ParallelCodeGenParallelismLevel-1 are reserved for
+    // combined module and parallel code generation partitions.
+    return BackendProc->start(RegularLTO.ParallelCodeGenParallelismLevel + I,
+                              Mod.second, ImportLists[Mod.first],
+                              ExportLists[Mod.first], ResolvedODR[Mod.first],
+                              ThinLTO.ModuleMap);
+  };
 
-  // Tasks 0 through ParallelCodeGenParallelismLevel-1 are reserved for combined
-  // module and parallel code generation partitions.
-  for (auto IndexCount : ModulesOrdering) {
-    auto &Mod = *(ModuleMap.begin() + IndexCount);
-    if (Error E = BackendProc->start(
-            RegularLTO.ParallelCodeGenParallelismLevel + IndexCount, Mod.second,
-            ImportLists[Mod.first], ExportLists[Mod.first],
-            ResolvedODR[Mod.first], ThinLTO.ModuleMap))
-      return E;
+  if (BackendProc->getThreadCount() == 1) {
+    // Process the modules in the order they were provided on the command-line.
+    // It is important for this codepath to be used for WriteIndexesThinBackend,
+    // to ensure the emitted LinkedObjectsFile lists ThinLTO objects in the same
+    // order as the inputs, which otherwise would affect the final link order.
+    for (int I = 0, E = ModuleMap.size(); I != E; ++I)
+      if (Error E = ProcessOneModule(I))
+        return E;
+  } else {
+    // When executing in parallel, process largest bitsize modules first to
+    // improve parallelism, and avoid starving the thread pool near the end.
+    // This saves about 15 sec on a 36-core machine while link `clang.exe` (out
+    // of 100 sec).
+    std::vector<BitcodeModule *> ModulesVec;
+    ModulesVec.reserve(ModuleMap.size());
+    for (auto &Mod : ModuleMap)
+      ModulesVec.push_back(&Mod.second);
+    for (int I : generateModulesOrdering(ModulesVec))
+      if (Error E = ProcessOneModule(I))
+        return E;
   }
-
   return BackendProc->wait();
 }
 
 Expected<std::unique_ptr<ToolOutputFile>> lto::setupLLVMOptimizationRemarks(
     LLVMContext &Context, StringRef RemarksFilename, StringRef RemarksPasses,
-    StringRef RemarksFormat, bool RemarksWithHotness, int Count) {
+    StringRef RemarksFormat, bool RemarksWithHotness,
+    Optional<uint64_t> RemarksHotnessThreshold, int Count) {
   std::string Filename = std::string(RemarksFilename);
   // For ThinLTO, file.opt.<format> becomes
   // file.opt.<format>.thin.<num>.<format>.
@@ -1475,7 +1500,8 @@ Expected<std::unique_ptr<ToolOutputFile>> lto::setupLLVMOptimizationRemarks(
             .str();
 
   auto ResultOrErr = llvm::setupLLVMOptimizationRemarks(
-      Context, Filename, RemarksPasses, RemarksFormat, RemarksWithHotness);
+      Context, Filename, RemarksPasses, RemarksFormat, RemarksWithHotness,
+      RemarksHotnessThreshold);
   if (Error E = ResultOrErr.takeError())
     return std::move(E);
 

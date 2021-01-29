@@ -78,17 +78,6 @@ static cl::opt<bool> DisableVerify(
     "disable-verify", cl::init(false),
     cl::desc("Do not run the verifier during the optimization pipeline"));
 
-static cl::opt<bool> DisableInline("disable-inlining", cl::init(false),
-                                   cl::desc("Do not run the inliner pass"));
-
-static cl::opt<bool>
-    DisableGVNLoadPRE("disable-gvn-loadpre", cl::init(false),
-                      cl::desc("Do not run the GVN load PRE pass"));
-
-static cl::opt<bool> DisableLTOVectorization(
-    "disable-lto-vectorization", cl::init(false),
-    cl::desc("Do not run loop or slp vectorization during LTO"));
-
 static cl::opt<bool> EnableFreestanding(
     "lto-freestanding", cl::init(false),
     cl::desc("Enable Freestanding (disable builtins / TLI) during LTO"));
@@ -418,7 +407,7 @@ static void printMachOCPUOnly() {
   LLVMContext Context;
   Context.setDiagnosticHandler(std::make_unique<LLVMLTODiagnosticHandler>(),
                                true);
-  TargetOptions Options = codegen::InitTargetOptionsFromCodeGenFlags();
+  TargetOptions Options = codegen::InitTargetOptionsFromCodeGenFlags(Triple());
   for (auto &Filename : InputFilenames) {
     ErrorOr<std::unique_ptr<LTOModule>> ModuleOrErr =
         LTOModule::createFromFile(Context, Filename, Options);
@@ -465,7 +454,7 @@ static void createCombinedModuleSummaryIndex() {
 static void getThinLTOOldAndNewPrefix(std::string &OldPrefix,
                                       std::string &NewPrefix) {
   assert(ThinLTOPrefixReplace.empty() ||
-         ThinLTOPrefixReplace.find(";") != StringRef::npos);
+         ThinLTOPrefixReplace.find(';') != StringRef::npos);
   StringRef PrefixReplace = ThinLTOPrefixReplace;
   std::pair<StringRef, StringRef> Split = PrefixReplace.split(";");
   OldPrefix = Split.first.str();
@@ -907,7 +896,7 @@ int main(int argc, char **argv) {
   InitializeAllAsmParsers();
 
   // set up the TargetOptions for the machine
-  TargetOptions Options = codegen::InitTargetOptionsFromCodeGenFlags();
+  TargetOptions Options = codegen::InitTargetOptionsFromCodeGenFlags(Triple());
 
   if (ListSymbolsOnly) {
     listSymbols(Options);
@@ -1042,8 +1031,7 @@ int main(int argc, char **argv) {
         error("writing linked module failed.");
     }
 
-    if (!CodeGen.optimize(DisableVerify, DisableInline, DisableGVNLoadPRE,
-                          DisableLTOVectorization)) {
+    if (!CodeGen.optimize(DisableVerify)) {
       // Diagnostic messages should have been printed by the handler.
       error("error optimizing the code");
     }
@@ -1084,8 +1072,7 @@ int main(int argc, char **argv) {
       error(": -save-merged-module must be specified with -o");
 
     const char *OutputName = nullptr;
-    if (!CodeGen.compile_to_file(&OutputName, DisableVerify, DisableInline,
-                                 DisableGVNLoadPRE, DisableLTOVectorization))
+    if (!CodeGen.compile_to_file(&OutputName, DisableVerify))
       error("error compiling the code");
       // Diagnostic messages should have been printed by the handler.
 

@@ -18,8 +18,7 @@ config.name = 'lld'
 
 # testFormat: The test format to use to interpret tests.
 #
-# For now we require '&&' between commands, until they get globally killed and
-# the test runner updated.
+# For now we require '&&' between commands, until they get globally killed and the test runner updated.
 config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
 
 # suffixes: A list of file extensions to treat as test files.
@@ -110,3 +109,7 @@ if tar_executable:
     sout, _ = tar_version.communicate()
     if 'GNU tar' in sout.decode():
         config.available_features.add('gnutar')
+
+# ELF tests expect the default target for ld.lld to be ELF.
+if config.ld_lld_default_mingw:
+    config.excludes.append('ELF')

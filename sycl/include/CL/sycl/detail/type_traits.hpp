@@ -207,6 +207,19 @@ template <typename T>
 struct is_vector_arithmetic
     : bool_constant<is_vec<T>::value && is_arithmetic<T>::value> {};
 
+// is_bool
+template <typename T>
+struct is_scalar_bool
+    : bool_constant<std::is_same<remove_cv_t<T>, bool>::value> {};
+
+template <typename T>
+struct is_vector_bool
+    : bool_constant<is_vec<T>::value &&
+                    is_scalar_bool<vector_element_t<T>>::value> {};
+
+template <typename T>
+struct is_bool : bool_constant<is_scalar_bool<vector_element_t<T>>::value> {};
+
 // is_pointer
 template <typename T> struct is_pointer_impl : std::false_type {};
 

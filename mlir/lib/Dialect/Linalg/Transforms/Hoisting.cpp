@@ -18,8 +18,9 @@
 #include "mlir/Dialect/SCF/Utils.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
+#include "mlir/Dialect/Vector/VectorUtils.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dominance.h"
-#include "mlir/IR/Function.h"
 #include "mlir/Transforms/LoopUtils.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Debug.h"
@@ -80,40 +81,140 @@ void mlir::linalg::hoistViewAllocOps(FuncOp func) {
   }
 }
 
-/// Return true if we can prove that the transfer operations access dijoint
-/// memory.
-static bool isDisjoint(VectorTransferOpInterface transferA,
-                       VectorTransferOpInterface transferB) {
-  if (transferA.memref() != transferB.memref())
-    return false;
-  // For simplicity only look at transfer of same type.
-  if (transferA.getVectorType() != transferB.getVectorType())
-    return false;
-  unsigned rankOffset = transferA.getLeadingMemRefRank();
-  for (unsigned i = 0, e = transferA.indices().size(); i < e; i++) {
-    auto indexA = transferA.indices()[i].getDefiningOp<ConstantOp>();
-    auto indexB = transferB.indices()[i].getDefiningOp<ConstantOp>();
-    // If any of the indices are dynamic we cannot prove anything.
-    if (!indexA || !indexB)
-      continue;
+/// Look for a transfer_read, in the given tensor uses, accessing the same
+/// offset as the transfer_write.
+static vector::TransferReadOp
+findMatchingTransferRead(vector::TransferWriteOp write, Value srcTensor) {
+  for (Operation *user : srcTensor.getUsers()) {
+    auto read = dyn_cast<vector::TransferReadOp>(user);
+    if (read && read.indices() == write.indices() &&
+        read.getVectorType() == write.getVectorType()) {
+      return read;
+    }
+  }
+  return nullptr;
+}
 
-    if (i < rankOffset) {
-      // For dimension used as index if we can prove that index are different we
-      // know we are accessing disjoint slices.
-      if (indexA.getValue().cast<IntegerAttr>().getInt() !=
-          indexB.getValue().cast<IntegerAttr>().getInt())
+/// Check if the chunk of data inserted by the transfer_write in the given
+/// tensor are read by any other op than the read candidate.
+static bool tensorChunkAccessedByUnknownOp(vector::TransferWriteOp write,
+                                           vector::TransferReadOp candidateRead,
+                                           Value srcTensor) {
+  // Make sure none of the other uses read the part of the tensor modified
+  // by the transfer_write.
+  llvm::SmallVector<Value::use_range, 1> uses;
+  uses.push_back(srcTensor.getUses());
+  while (!uses.empty()) {
+    for (OpOperand &use : uses.pop_back_val()) {
+      Operation *user = use.getOwner();
+      // Skip the candidate use, only inspect the "other" uses.
+      if (user == candidateRead.getOperation() || user == write.getOperation())
+        continue;
+      // Consider all transitive uses through a vector.transfer_write.
+      if (auto writeUser = dyn_cast<vector::TransferWriteOp>(user)) {
+        uses.push_back(writeUser->getResult(0).getUses());
+        continue;
+      }
+      // Consider all nested uses through an scf::ForOp. We may have
+      // pass-through tensor arguments left from previous level of
+      // hoisting.
+      if (auto forUser = dyn_cast<scf::ForOp>(user)) {
+        Value arg = forUser.getLoopBody().getArgument(
+            use.getOperandNumber() - forUser.getNumControlOperands() +
+            /*iv value*/ 1);
+        uses.push_back(arg.getUses());
+        continue;
+      }
+      // Follow the use yield as long as it doesn't escape the original
+      // region.
+      scf::YieldOp yieldUser = dyn_cast<scf::YieldOp>(user);
+      if (yieldUser &&
+          write->getParentOp()->isAncestor(yieldUser->getParentOp())) {
+        Value ret = yieldUser->getParentOp()->getResult(use.getOperandNumber());
+        uses.push_back(ret.getUses());
+        continue;
+      }
+      auto read = dyn_cast<vector::TransferReadOp>(user);
+      if (!read || !isDisjointTransferIndices(
+                       cast<VectorTransferOpInterface>(read.getOperation()),
+                       cast<VectorTransferOpInterface>(write.getOperation()))) {
         return true;
-    } else {
-      // For this dimension, we slice a part of the memref we need to make sure
-      // the intervals accessed don't overlap.
-      int64_t distance =
-          std::abs(indexA.getValue().cast<IntegerAttr>().getInt() -
-                   indexB.getValue().cast<IntegerAttr>().getInt());
-      if (distance >= transferA.getVectorType().getDimSize(i - rankOffset))
-        return true;
+      }
     }
   }
   return false;
+}
+
+// To hoist transfer op on tensor the logic can be significantly simplified
+// compared to the case on buffer. The transformation follows this logic:
+// 1. Look for transfer_write with a single use from ForOp yield
+// 2. Check the uses of the matching block argument and look for a transfer_read
+// with the same indices.
+// 3. Check that all the other uses of the tensor argument are either disjoint
+// tensor_read or transfer_write. For transfer_write uses recurse to make sure
+// the new tensor has the same restrictions on its uses.
+// 4. Hoist the tensor_read/tensor_write and update the tensor SSA links.
+// After this transformation the scf.forOp may have unused arguments that can be
+// remove by the canonicalization pass.
+void mlir::linalg::hoistRedundantVectorTransfersOnTensor(FuncOp func) {
+  bool changed = true;
+  while (changed) {
+    changed = false;
+    func.walk([&](scf::ForOp forOp) {
+      Operation *yield = forOp.getBody()->getTerminator();
+      for (auto it : llvm::enumerate(forOp.getRegionIterArgs())) {
+        Value ret = yield->getOperand(it.index());
+        auto write = ret.getDefiningOp<vector::TransferWriteOp>();
+        if (!write || !write->hasOneUse())
+          continue;
+        LLVM_DEBUG(DBGS() << "Candidate write for hoisting: "
+                          << *write.getOperation() << "\n");
+        if (llvm::any_of(write.indices(), [&forOp](Value index) {
+              return !forOp.isDefinedOutsideOfLoop(index);
+            }))
+          continue;
+        // Find a read with the same type and indices.
+        vector::TransferReadOp matchingRead =
+            findMatchingTransferRead(write, it.value());
+        // Make sure none of the other uses read the part of the tensor modified
+        // by the transfer_write.
+        if (!matchingRead ||
+            tensorChunkAccessedByUnknownOp(write, matchingRead, it.value()))
+          continue;
+
+        // Hoist read before.
+        if (failed(forOp.moveOutOfLoop({matchingRead})))
+          llvm_unreachable(
+              "Unexpected failure to move transfer read out of loop");
+        // Update the source tensor.
+        matchingRead.sourceMutable().assign(forOp.initArgs()[it.index()]);
+
+        // Hoist write after.
+        write->moveAfter(forOp);
+        yield->setOperand(it.index(), write.source());
+
+        // Rewrite `loop` with new yields by cloning and erase the original
+        // loop.
+        OpBuilder b(matchingRead);
+        auto newForOp =
+            cloneWithNewYields(b, forOp, matchingRead.vector(), write.vector());
+
+        // Transfer write has been hoisted, need to update the vector and tensor
+        // source. Replace the result of the loop to use the new tensor created
+        // outside the loop.
+        newForOp.getResult(it.index()).replaceAllUsesWith(write.getResult(0));
+        write.vectorMutable().assign(newForOp.getResults().back());
+        write.sourceMutable().assign(newForOp.getResult(it.index()));
+
+        changed = true;
+        forOp.erase();
+        // Need to interrupt and restart because erasing the loop messes up the
+        // walk.
+        return WalkResult::interrupt();
+      }
+      return WalkResult::advance();
+    });
+  }
 }
 
 void mlir::linalg::hoistRedundantVectorTransfers(FuncOp func) {
@@ -122,10 +223,13 @@ void mlir::linalg::hoistRedundantVectorTransfers(FuncOp func) {
     changed = false;
 
     func.walk([&](vector::TransferReadOp transferRead) {
+      if (!transferRead.getShapedType().isa<MemRefType>())
+        return WalkResult::advance();
+
       LLVM_DEBUG(DBGS() << "Candidate for hoisting: "
                         << *transferRead.getOperation() << "\n");
-      auto loop = dyn_cast<scf::ForOp>(transferRead.getParentOp());
-      LLVM_DEBUG(DBGS() << "Parent op: " << *transferRead.getParentOp()
+      auto loop = dyn_cast<scf::ForOp>(transferRead->getParentOp());
+      LLVM_DEBUG(DBGS() << "Parent op: " << *transferRead->getParentOp()
                         << "\n");
       if (!loop)
         return WalkResult::advance();
@@ -146,7 +250,7 @@ void mlir::linalg::hoistRedundantVectorTransfers(FuncOp func) {
       vector::TransferWriteOp transferWrite;
       for (auto *sliceOp : llvm::reverse(forwardSlice)) {
         auto candidateWrite = dyn_cast<vector::TransferWriteOp>(sliceOp);
-        if (!candidateWrite || candidateWrite.memref() != transferRead.memref())
+        if (!candidateWrite || candidateWrite.source() != transferRead.source())
           continue;
         transferWrite = candidateWrite;
       }
@@ -177,7 +281,7 @@ void mlir::linalg::hoistRedundantVectorTransfers(FuncOp func) {
       DominanceInfo dom(loop);
       if (!dom.properlyDominates(transferRead.getOperation(), transferWrite))
         return WalkResult::advance();
-      for (auto &use : transferRead.memref().getUses()) {
+      for (auto &use : transferRead.source().getUses()) {
         if (!dom.properlyDominates(loop, use.getOwner()))
           continue;
         if (use.getOwner() == transferRead.getOperation() ||
@@ -185,14 +289,14 @@ void mlir::linalg::hoistRedundantVectorTransfers(FuncOp func) {
           continue;
         if (auto transferWriteUse =
                 dyn_cast<vector::TransferWriteOp>(use.getOwner())) {
-          if (!isDisjoint(
+          if (!isDisjointTransferSet(
                   cast<VectorTransferOpInterface>(transferWrite.getOperation()),
                   cast<VectorTransferOpInterface>(
                       transferWriteUse.getOperation())))
             return WalkResult::advance();
         } else if (auto transferReadUse =
                        dyn_cast<vector::TransferReadOp>(use.getOwner())) {
-          if (!isDisjoint(
+          if (!isDisjointTransferSet(
                   cast<VectorTransferOpInterface>(transferWrite.getOperation()),
                   cast<VectorTransferOpInterface>(
                       transferReadUse.getOperation())))
@@ -210,7 +314,7 @@ void mlir::linalg::hoistRedundantVectorTransfers(FuncOp func) {
             "Unexpected failure to move transfer read out of loop");
 
       // Hoist write after.
-      transferWrite.getOperation()->moveAfter(loop);
+      transferWrite->moveAfter(loop);
 
       // Rewrite `loop` with new yields by cloning and erase the original loop.
       OpBuilder b(transferRead);

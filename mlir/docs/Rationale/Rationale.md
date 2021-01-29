@@ -427,32 +427,6 @@ arguments to explicitly break the use-def chains in the current proposal. This
 can be combined with an attribute-imposed semantic requirement disallowing the
 body of the region to refer to any value from outside it.
 
-### Quantized integer operations
-
-We haven't designed integer quantized operations in MLIR, but experience from
-TensorFlow suggests that it is better to put information about the quantization
-range/scale into the type itself, rather than have a single type like "qint8"
-and put these on attributes of the operation.
-
-There are a few ways to do this with MLIR, including at least:
-
-*   We could do the same thing TensorFlow does - and we will _have_ to support
-    that model to some extent for compatibility.
-*   We can encode the fp range of quantized integers directly into the types
-    when they are constants. The best practice on this seems to be to encode the
-    zero point as well as a scale factor. This ensures that 0.0 is always
-    exactly representable, e.g. `qi8<-1.42, 31.23x>`.
-*   We could theoretically encode dynamically determined ranges into the types
-    using something like `qi8<?,?>` with the bounds being determined through the
-    SSA dataflow graph dynamically - similar to how dynamic shapes are handled.
-
-We will definitely need to do #1 for compatibility, we probably want to do #2,
-and we should investigate #3 over time. That said, our short term plan is to get
-more implementation experience with the rest of the system first, then come back
-to re-examine the representation for quantized arithmetic when we have that
-experience. When we do, we should chat with benoitjacob@ and
-[read the paper](https://arxiv.org/abs/1712.05877).
-
 ### Dialect type extensions
 
 This section describes the design decisions that shaped the dialect extensible
@@ -465,23 +439,23 @@ understand. When types of a dialect are:
 
 *   In operations of other dialects
 
-    -   For standard/builtin operations, only standard/builtin types are
-        allowed. This restriction allows for operations to clearly understand
-        the invariants that they are working under.
+    -   For standard/builtin operations, only builtin types are allowed. This
+        restriction allows for operations to clearly understand the invariants
+        that they are working under.
     -   Outside of standard/builtin operations, dialects are expected to verify
         the allowable operation types per operation.
 
 *   In types of other dialects
 
-    -   For standard/builtin types, these types are allowed to contain types
-        from other dialects. This simplifies the type system and removes the
-        need for dialects to redefine all of the standard aggregate types, e.g.
-        tensor, as well as the memref type. Dialects are expected to verify that
-        a specific type is valid within a standard type, e.g. if a type can be
-        an element of a tensor.
+    -   For builtin types, these types are allowed to contain types from other
+        dialects. This simplifies the type system and removes the need for
+        dialects to redefine all of the builtin aggregate types, e.g. tensor, as
+        well as the memref type. Dialects are expected to verify that a specific
+        type is valid within a builtin type, e.g. if a type can be an element of
+        a tensor.
     -   For dialect types, the dialect is expected to verify any type
-        invariants, e.g. if the standard tensor type can contain a specific type
-        of that dialect.
+        invariants, e.g. if the tensor type can contain a specific type of that
+        dialect.
 
 #### Separating builtin and standard types
 
@@ -596,10 +570,10 @@ for (i = 0; i < N; i++) {
 ```
 
 The presence of dynamic control flow leads to an inner non-affine function
-nested in an outer function that using affine loops.
+nested in an outer function that uses affine loops.
 
 ```mlir
-func @search(%A: memref<?x?xi32, %S: <?xi32>, %key : i32) {
+func @search(%A: memref<?x?xi32>, %S: <?xi32>, %key : i32) {
   %ni = dim %A, 0 : memref<?x?xi32>
   // This loop can be parallelized
   affine.for %i = 0 to %ni {

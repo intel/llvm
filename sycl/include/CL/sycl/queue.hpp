@@ -719,6 +719,27 @@ public:
         CodeLoc);
   }
 
+  /// parallel_for version with a kernel represented as a lambda + nd_range that
+  /// specifies global, local sizes and offset.
+  ///
+  /// \param ExecutionRange is a range that specifies the work space of the
+  /// kernel
+  /// \param Redu is a reduction operation
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims, typename Reduction>
+  event parallel_for(nd_range<Dims> ExecutionRange, Reduction Redu,
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.template parallel_for<KernelName, KernelType, Dims, Reduction>(
+              ExecutionRange, Redu, KernelFunc);
+        },
+        CodeLoc);
+  }
+
 // Clean up CODELOC and KERNELFUNC macros.
 #undef _CODELOCPARAM
 #undef _CODELOCARG

@@ -1,4 +1,4 @@
-// RUN: mlir-opt -allow-unregistered-dialect -split-input-file -convert-std-to-spirv -verify-diagnostics %s -o - | FileCheck %s
+// RUN: mlir-opt -split-input-file -convert-std-to-spirv -verify-diagnostics %s -o - | FileCheck %s
 
 //===----------------------------------------------------------------------===//
 // std arithmetic ops
@@ -263,29 +263,33 @@ func @shift_vector(%arg0 : vector<4xi32>, %arg1 : vector<4xi32>) {
 // CHECK-LABEL: @cmpf
 func @cmpf(%arg0 : f32, %arg1 : f32) {
   // CHECK: spv.FOrdEqual
-  %1 = cmpf "oeq", %arg0, %arg1 : f32
+  %1 = cmpf oeq, %arg0, %arg1 : f32
   // CHECK: spv.FOrdGreaterThan
-  %2 = cmpf "ogt", %arg0, %arg1 : f32
+  %2 = cmpf ogt, %arg0, %arg1 : f32
   // CHECK: spv.FOrdGreaterThanEqual
-  %3 = cmpf "oge", %arg0, %arg1 : f32
+  %3 = cmpf oge, %arg0, %arg1 : f32
   // CHECK: spv.FOrdLessThan
-  %4 = cmpf "olt", %arg0, %arg1 : f32
+  %4 = cmpf olt, %arg0, %arg1 : f32
   // CHECK: spv.FOrdLessThanEqual
-  %5 = cmpf "ole", %arg0, %arg1 : f32
+  %5 = cmpf ole, %arg0, %arg1 : f32
   // CHECK: spv.FOrdNotEqual
-  %6 = cmpf "one", %arg0, %arg1 : f32
+  %6 = cmpf one, %arg0, %arg1 : f32
   // CHECK: spv.FUnordEqual
-  %7 = cmpf "ueq", %arg0, %arg1 : f32
+  %7 = cmpf ueq, %arg0, %arg1 : f32
   // CHECK: spv.FUnordGreaterThan
-  %8 = cmpf "ugt", %arg0, %arg1 : f32
+  %8 = cmpf ugt, %arg0, %arg1 : f32
   // CHECK: spv.FUnordGreaterThanEqual
-  %9 = cmpf "uge", %arg0, %arg1 : f32
+  %9 = cmpf uge, %arg0, %arg1 : f32
   // CHECK: spv.FUnordLessThan
-  %10 = cmpf "ult", %arg0, %arg1 : f32
+  %10 = cmpf ult, %arg0, %arg1 : f32
   // CHECK: FUnordLessThanEqual
-  %11 = cmpf "ule", %arg0, %arg1 : f32
+  %11 = cmpf ule, %arg0, %arg1 : f32
   // CHECK: spv.FUnordNotEqual
-  %12 = cmpf "une", %arg0, %arg1 : f32
+  %12 = cmpf une, %arg0, %arg1 : f32
+  // CHECK: spv.Ordered
+  %13 = cmpf ord, %arg0, %arg1 : f32
+  // CHECK: spv.Unordered
+  %14 = cmpf uno, %arg0, %arg1 : f32
   return
 }
 
@@ -296,34 +300,43 @@ func @cmpf(%arg0 : f32, %arg1 : f32) {
 // CHECK-LABEL: @cmpi
 func @cmpi(%arg0 : i32, %arg1 : i32) {
   // CHECK: spv.IEqual
-  %0 = cmpi "eq", %arg0, %arg1 : i32
+  %0 = cmpi eq, %arg0, %arg1 : i32
   // CHECK: spv.INotEqual
-  %1 = cmpi "ne", %arg0, %arg1 : i32
+  %1 = cmpi ne, %arg0, %arg1 : i32
   // CHECK: spv.SLessThan
-  %2 = cmpi "slt", %arg0, %arg1 : i32
+  %2 = cmpi slt, %arg0, %arg1 : i32
   // CHECK: spv.SLessThanEqual
-  %3 = cmpi "sle", %arg0, %arg1 : i32
+  %3 = cmpi sle, %arg0, %arg1 : i32
   // CHECK: spv.SGreaterThan
-  %4 = cmpi "sgt", %arg0, %arg1 : i32
+  %4 = cmpi sgt, %arg0, %arg1 : i32
   // CHECK: spv.SGreaterThanEqual
-  %5 = cmpi "sge", %arg0, %arg1 : i32
+  %5 = cmpi sge, %arg0, %arg1 : i32
   // CHECK: spv.ULessThan
-  %6 = cmpi "ult", %arg0, %arg1 : i32
+  %6 = cmpi ult, %arg0, %arg1 : i32
   // CHECK: spv.ULessThanEqual
-  %7 = cmpi "ule", %arg0, %arg1 : i32
+  %7 = cmpi ule, %arg0, %arg1 : i32
   // CHECK: spv.UGreaterThan
-  %8 = cmpi "ugt", %arg0, %arg1 : i32
+  %8 = cmpi ugt, %arg0, %arg1 : i32
   // CHECK: spv.UGreaterThanEqual
-  %9 = cmpi "uge", %arg0, %arg1 : i32
+  %9 = cmpi uge, %arg0, %arg1 : i32
   return
 }
 
 // CHECK-LABEL: @boolcmpi
 func @boolcmpi(%arg0 : i1, %arg1 : i1) {
   // CHECK: spv.LogicalEqual
-  %0 = cmpi "eq", %arg0, %arg1 : i1
+  %0 = cmpi eq, %arg0, %arg1 : i1
   // CHECK: spv.LogicalNotEqual
-  %1 = cmpi "ne", %arg0, %arg1 : i1
+  %1 = cmpi ne, %arg0, %arg1 : i1
+  return
+}
+
+// CHECK-LABEL: @vecboolcmpi
+func @vecboolcmpi(%arg0 : vector<4xi1>, %arg1 : vector<4xi1>) {
+  // CHECK: spv.LogicalEqual
+  %0 = cmpi eq, %arg0, %arg1 : vector<4xi1>
+  // CHECK: spv.LogicalNotEqual
+  %1 = cmpi ne, %arg0, %arg1 : vector<4xi1>
   return
 }
 
@@ -555,6 +568,58 @@ func @sitofp2(%arg0 : i64) -> f64 {
   return %0 : f64
 }
 
+// CHECK-LABEL: @uitofp_i16_f32
+func @uitofp_i16_f32(%arg0: i16) -> f32 {
+  // CHECK: spv.ConvertUToF %{{.*}} : i16 to f32
+  %0 = std.uitofp %arg0 : i16 to f32
+  return %0 : f32
+}
+
+// CHECK-LABEL: @uitofp_i32_f32
+func @uitofp_i32_f32(%arg0 : i32) -> f32 {
+  // CHECK: spv.ConvertUToF %{{.*}} : i32 to f32
+  %0 = std.uitofp %arg0 : i32 to f32
+  return %0 : f32
+}
+
+// CHECK-LABEL: @uitofp_i1_f32
+func @uitofp_i1_f32(%arg0 : i1) -> f32 {
+  // CHECK: %[[ZERO:.+]] = spv.constant 0.000000e+00 : f32
+  // CHECK: %[[ONE:.+]] = spv.constant 1.000000e+00 : f32
+  // CHECK: spv.Select %{{.*}}, %[[ONE]], %[[ZERO]] : i1, f32
+  %0 = std.uitofp %arg0 : i1 to f32
+  return %0 : f32
+}
+
+// CHECK-LABEL: @uitofp_i1_f64
+func @uitofp_i1_f64(%arg0 : i1) -> f64 {
+  // CHECK: %[[ZERO:.+]] = spv.constant 0.000000e+00 : f64
+  // CHECK: %[[ONE:.+]] = spv.constant 1.000000e+00 : f64
+  // CHECK: spv.Select %{{.*}}, %[[ONE]], %[[ZERO]] : i1, f64
+  %0 = std.uitofp %arg0 : i1 to f64
+  return %0 : f64
+}
+
+// CHECK-LABEL: @uitofp_vec_i1_f32
+func @uitofp_vec_i1_f32(%arg0 : vector<4xi1>) -> vector<4xf32> {
+  // CHECK: %[[ZERO:.+]] = spv.constant dense<0.000000e+00> : vector<4xf32>
+  // CHECK: %[[ONE:.+]] = spv.constant dense<1.000000e+00> : vector<4xf32>
+  // CHECK: spv.Select %{{.*}}, %[[ONE]], %[[ZERO]] : vector<4xi1>, vector<4xf32>
+  %0 = std.uitofp %arg0 : vector<4xi1> to vector<4xf32>
+  return %0 : vector<4xf32>
+}
+
+// CHECK-LABEL: @uitofp_vec_i1_f64
+spv.func @uitofp_vec_i1_f64(%arg0: vector<4xi1>) -> vector<4xf64> "None" {
+  // CHECK: %[[ZERO:.+]] = spv.constant dense<0.000000e+00> : vector<4xf64>
+  // CHECK: %[[ONE:.+]] = spv.constant dense<1.000000e+00> : vector<4xf64>
+  // CHECK: spv.Select %{{.*}}, %[[ONE]], %[[ZERO]] : vector<4xi1>, vector<4xf64>
+  %0 = spv.constant dense<0.000000e+00> : vector<4xf64>
+  %1 = spv.constant dense<1.000000e+00> : vector<4xf64>
+  %2 = spv.Select %arg0, %1, %0 : vector<4xi1>, vector<4xf64>
+  spv.ReturnValue %2 : vector<4xf64>
+}
+
 // CHECK-LABEL: @zexti1
 func @zexti1(%arg0: i16) -> i64 {
   // CHECK: spv.UConvert %{{.*}} : i16 to i64
@@ -585,6 +650,15 @@ func @zexti4(%arg0 : vector<4xi1>) -> vector<4xi32> {
   // CHECK: spv.Select %{{.*}}, %[[ONE]], %[[ZERO]] : vector<4xi1>, vector<4xi32>
   %0 = std.zexti %arg0 : vector<4xi1> to vector<4xi32>
   return %0 : vector<4xi32>
+}
+
+// CHECK-LABEL: @zexti5
+func @zexti5(%arg0 : vector<4xi1>) -> vector<4xi64> {
+  // CHECK: %[[ZERO:.+]] = spv.constant dense<0> : vector<4xi64>
+  // CHECK: %[[ONE:.+]] = spv.constant dense<1> : vector<4xi64>
+  // CHECK: spv.Select %{{.*}}, %[[ONE]], %[[ZERO]] : vector<4xi1>, vector<4xi64>
+  %0 = std.zexti %arg0 : vector<4xi1> to vector<4xi64>
+  return %0 : vector<4xi64>
 }
 
 // CHECK-LABEL: @trunci1
@@ -619,49 +693,59 @@ func @fptosi2(%arg0 : f16) -> i16 {
 
 // -----
 
-// Checks that cast types will be adjusted when no special capabilities for
-// non-32-bit scalar types.
+// Checks that cast types will be adjusted when missing special capabilities for
+// certain non-32-bit scalar types.
 module attributes {
-  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, {}>
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [Float64], []>, {}>
 } {
 
 // CHECK-LABEL: @fpext1
 // CHECK-SAME: %[[ARG:.*]]: f32
-func @fpext1(%arg0: f16) {
-  // CHECK-NEXT: "use"(%[[ARG]])
+func @fpext1(%arg0: f16) -> f64 {
+  // CHECK-NEXT: spv.FConvert %[[ARG]] : f32 to f64
   %0 = std.fpext %arg0 : f16 to f64
-  "use"(%0) : (f64) -> ()
+  return %0: f64
 }
 
 // CHECK-LABEL: @fpext2
 // CHECK-SAME: %[[ARG:.*]]: f32
-func @fpext2(%arg0 : f32) {
-  // CHECK-NEXT: "use"(%[[ARG]])
+func @fpext2(%arg0 : f32) -> f64 {
+  // CHECK-NEXT: spv.FConvert %[[ARG]] : f32 to f64
   %0 = std.fpext %arg0 : f32 to f64
-  "use"(%0) : (f64) -> ()
+  return %0: f64
 }
+
+} // end module
+
+// -----
+
+// Checks that cast types will be adjusted when missing special capabilities for
+// certain non-32-bit scalar types.
+module attributes {
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [Float16], []>, {}>
+} {
 
 // CHECK-LABEL: @fptrunc1
 // CHECK-SAME: %[[ARG:.*]]: f32
-func @fptrunc1(%arg0 : f64) {
-  // CHECK-NEXT: "use"(%[[ARG]])
+func @fptrunc1(%arg0 : f64) -> f16 {
+  // CHECK-NEXT: spv.FConvert %[[ARG]] : f32 to f16
   %0 = std.fptrunc %arg0 : f64 to f16
-  "use"(%0) : (f16) -> ()
+  return %0: f16
 }
 
 // CHECK-LABEL: @fptrunc2
 // CHECK-SAME: %[[ARG:.*]]: f32
-func @fptrunc2(%arg0: f32) {
-  // CHECK-NEXT: "use"(%[[ARG]])
+func @fptrunc2(%arg0: f32) -> f16 {
+  // CHECK-NEXT: spv.FConvert %[[ARG]] : f32 to f16
   %0 = std.fptrunc %arg0 : f32 to f16
-  "use"(%0) : (f16) -> ()
+  return %0: f16
 }
 
 // CHECK-LABEL: @sitofp
-func @sitofp(%arg0 : i64) {
+func @sitofp(%arg0 : i64) -> f64 {
   // CHECK: spv.ConvertSToF %{{.*}} : i32 to f32
   %0 = std.sitofp %arg0 : i64 to f64
-  "use"(%0) : (f64) -> ()
+  return %0: f64
 }
 
 } // end module
@@ -680,7 +764,7 @@ module attributes {
 
 // CHECK-LABEL: @select
 func @select(%arg0 : i32, %arg1 : i32) {
-  %0 = cmpi "sle", %arg0, %arg1 : i32
+  %0 = cmpi sle, %arg0, %arg1 : i32
   // CHECK: spv.Select
   %1 = select %0, %arg0, %arg1 : i32
   return
@@ -691,8 +775,8 @@ func @select(%arg0 : i32, %arg1 : i32) {
 //===----------------------------------------------------------------------===//
 
 // CHECK-LABEL: @load_store_zero_rank_float
-// CHECK: [[ARG0:%.*]]: !spv.ptr<!spv.struct<!spv.array<1 x f32, stride=4> [0]>, StorageBuffer>,
-// CHECK: [[ARG1:%.*]]: !spv.ptr<!spv.struct<!spv.array<1 x f32, stride=4> [0]>, StorageBuffer>)
+// CHECK: [[ARG0:%.*]]: !spv.ptr<!spv.struct<(!spv.array<1 x f32, stride=4> [0])>, StorageBuffer>,
+// CHECK: [[ARG1:%.*]]: !spv.ptr<!spv.struct<(!spv.array<1 x f32, stride=4> [0])>, StorageBuffer>)
 func @load_store_zero_rank_float(%arg0: memref<f32>, %arg1: memref<f32>) {
   //      CHECK: [[ZERO1:%.*]] = spv.constant 0 : i32
   //      CHECK: spv.AccessChain [[ARG0]][
@@ -710,8 +794,8 @@ func @load_store_zero_rank_float(%arg0: memref<f32>, %arg1: memref<f32>) {
 }
 
 // CHECK-LABEL: @load_store_zero_rank_int
-// CHECK: [[ARG0:%.*]]: !spv.ptr<!spv.struct<!spv.array<1 x i32, stride=4> [0]>, StorageBuffer>,
-// CHECK: [[ARG1:%.*]]: !spv.ptr<!spv.struct<!spv.array<1 x i32, stride=4> [0]>, StorageBuffer>)
+// CHECK: [[ARG0:%.*]]: !spv.ptr<!spv.struct<(!spv.array<1 x i32, stride=4> [0])>, StorageBuffer>,
+// CHECK: [[ARG1:%.*]]: !spv.ptr<!spv.struct<(!spv.array<1 x i32, stride=4> [0])>, StorageBuffer>)
 func @load_store_zero_rank_int(%arg0: memref<i32>, %arg1: memref<i32>) {
   //      CHECK: [[ZERO1:%.*]] = spv.constant 0 : i32
   //      CHECK: spv.AccessChain [[ARG0]][
@@ -945,3 +1029,29 @@ func @store_i16(%arg0: memref<10xi16>, %index: index, %value: i16) {
 }
 
 } // end module
+
+// -----
+
+//===----------------------------------------------------------------------===//
+// std.return
+//===----------------------------------------------------------------------===//
+
+module attributes {
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, {}>
+} {
+
+// CHECK-LABEL: spv.func @return_one_val
+//  CHECK-SAME: (%[[ARG:.+]]: f32)
+func @return_one_val(%arg0: f32) -> f32 {
+  // CHECK: spv.ReturnValue %[[ARG]] : f32
+  return %arg0: f32
+}
+
+// Check that multiple-return functions are not converted.
+// CHECK-LABEL: func @return_multi_val
+func @return_multi_val(%arg0: f32) -> (f32, f32) {
+  // CHECK: return
+  return %arg0, %arg0: f32, f32
+}
+
+}

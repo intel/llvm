@@ -400,7 +400,7 @@ DynamicLoaderDarwinKernel::ReadMachHeader(addr_t addr, Process *process, llvm::M
     *read_error = false;
 
   // Read the mach header and see whether it looks like a kernel
-  if (process->DoReadMemory (addr, &header, sizeof(header), error) !=
+  if (process->ReadMemory(addr, &header, sizeof(header), error) !=
       sizeof(header)) {
     if (read_error)
       *read_error = true;
@@ -517,12 +517,8 @@ DynamicLoaderDarwinKernel::DynamicLoaderDarwinKernel(Process *process,
   Status error;
   PlatformSP platform_sp(
       Platform::Create(PlatformDarwinKernel::GetPluginNameStatic(), error));
-  // Only select the darwin-kernel Platform if we've been asked to load kexts.
-  // It can take some time to scan over all of the kext info.plists and that
-  // shouldn't be done if kext loading is explicitly disabled.
-  if (platform_sp.get() && GetGlobalProperties()->GetLoadKexts()) {
+  if (platform_sp.get())
     process->GetTarget().SetPlatform(platform_sp);
-  }
 }
 
 // Destructor
@@ -794,7 +790,7 @@ bool DynamicLoaderDarwinKernel::KextImageInfo::LoadImageUsingMemoryModule(
 
       // For the kernel, we really do need an on-disk file copy of the binary
       // to do anything useful. This will force a call to dsymForUUID if it
-      // exists, instead of depending on the DebugSymbols preferences being 
+      // exists, instead of depending on the DebugSymbols preferences being
       // set.
       if (IsKernel()) {
         if (Symbols::DownloadObjectAndSymbolFile(module_spec, true)) {

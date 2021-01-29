@@ -37,19 +37,23 @@ add_llvm_unittest(SupportTests
   FileOutputBufferTest.cpp
   FileUtilitiesTest.cpp
   FormatVariadicTest.cpp
+  FSUniqueIDTest.cpp
   GlobPatternTest.cpp
   Host.cpp
   IndexedAccessorTest.cpp
+  InstructionCostTest.cpp
   ItaniumManglingCanonicalizerTest.cpp
   JSONTest.cpp
   KnownBitsTest.cpp
   LEB128Test.cpp
+  LinearPolyBaseTest.cpp
   LineIteratorTest.cpp
   LockFileManagerTest.cpp
   MatchersTest.cpp
   MD5Test.cpp
   ManagedStatic.cpp
   MathExtrasTest.cpp
+  MemoryBufferRefTest.cpp
   MemoryBufferTest.cpp
   MemoryTest.cpp
   NativeFormatTests.cpp
@@ -120,4 +124,7 @@ endif()
 # ManagedStatic.cpp uses <pthread>.
 target_link_libraries(SupportTests PRIVATE LLVMTestingSupport ${LLVM_PTHREAD_LIB})
 
-add_subdirectory(DynamicLibrary)
+if(NOT LLVM_INTEGRATED_CRT_ALLOC)
+  # The test doesn't pass when using a custom allocator, PR47881.
+  add_subdirectory(DynamicLibrary)
+endif()

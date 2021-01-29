@@ -367,7 +367,7 @@ class syntax::TreeBuilder {
 public:
   TreeBuilder(syntax::Arena &Arena) : Arena(Arena), Pending(Arena) {
     for (const auto &T : Arena.getTokenBuffer().expandedTokens())
-      LocationToToken.insert({T.location().getRawEncoding(), &T});
+      LocationToToken.insert({T.location(), &T});
   }
 
   llvm::BumpPtrAllocator &allocator() { return Arena.getAllocator(); }
@@ -393,6 +393,17 @@ public:
                 NestedNameSpecifierLoc From) {
     assert(New);
     Pending.foldChildren(Arena, Range, New);
+    if (From)
+      Mapping.add(From, New);
+  }
+
+  /// Populate children for \p New list, assuming it covers tokens from a
+  /// subrange of \p SuperRange.
+  void foldList(ArrayRef<syntax::Token> SuperRange, syntax::List *New,
+                ASTPtr From) {
+    assert(New);
+    auto ListRange = Pending.shrinkToFitList(SuperRange);
+    Pending.foldChildren(Arena, ListRange, New);
     if (From)
       Mapping.add(From, New);
   }
@@ -579,6 +590,35 @@ private:
       It->second->setRole(Role);
     }
 
+    /// Shrink \p Range to a subrange that only contains tokens of a list.
+    /// List elements and delimiters should already have correct roles.
+    ArrayRef<syntax::Token> shrinkToFitList(ArrayRef<syntax::Token> Range) {
+      auto BeginChildren = Trees.lower_bound(Range.begin());
+      assert((BeginChildren == Trees.end() ||
+              BeginChildren->first == Range.begin()) &&
+             "Range crosses boundaries of existing subtrees");
+
+      auto EndChildren = Trees.lower_bound(Range.end());
+      assert(
+          (EndChildren == Trees.end() || EndChildren->first == Range.end()) &&
+          "Range crosses boundaries of existing subtrees");
+
+      auto BelongsToList = [](decltype(Trees)::value_type KV) {
+        auto Role = KV.second->getRole();
+        return Role == syntax::NodeRole::ListElement ||
+               Role == syntax::NodeRole::ListDelimiter;
+      };
+
+      auto BeginListChildren =
+          std::find_if(BeginChildren, EndChildren, BelongsToList);
+
+      auto EndListChildren =
+          std::find_if_not(BeginListChildren, EndChildren, BelongsToList);
+
+      return ArrayRef<syntax::Token>(BeginListChildren->first,
+                                     EndListChildren->first);
+    }
+
     /// Add \p Node to the forest and attach child nodes based on \p Tokens.
     void foldChildren(const syntax::Arena &A, ArrayRef<syntax::Token> Tokens,
                       syntax::Tree *Node) {
@@ -596,12 +636,11 @@ private:
           (EndChildren == Trees.end() || EndChildren->first == Tokens.end()) &&
           "fold crosses boundaries of existing subtrees");
 
-      // We need to go in reverse order, because we can only prepend.
-      for (auto It = EndChildren; It != BeginChildren; --It) {
-        auto *C = std::prev(It)->second;
+      for (auto It = BeginChildren; It != EndChildren; ++It) {
+        auto *C = It->second;
         if (C->getRole() == NodeRole::Detached)
           C->setRole(NodeRole::Unknown);
-        Node->prependChildLowLevel(C);
+        Node->appendChildLowLevel(C);
       }
 
       // Mark that this node came from the AST and is backed by the source code.
@@ -649,8 +688,7 @@ private:
 
   syntax::Arena &Arena;
   /// To quickly find tokens by their start location.
-  llvm::DenseMap</*SourceLocation*/ unsigned, const syntax::Token *>
-      LocationToToken;
+  llvm::DenseMap<SourceLocation, const syntax::Token *> LocationToToken;
   Forest Pending;
   llvm::DenseSet<Decl *> DeclsWithoutSemicolons;
   ASTToSyntaxMapping Mapping;
@@ -1513,14 +1551,31 @@ private:
 
     // There doesn't have to be a declarator (e.g. `void foo(int)` only has
     // declaration, but no declarator).
-    if (Range.getBegin().isValid()) {
-      auto *N = new (allocator()) syntax::SimpleDeclarator;
-      Builder.foldNode(Builder.getRange(Range), N, nullptr);
-      Builder.markChild(N, syntax::NodeRole::Declarator);
+    if (!Range.getBegin().isValid()) {
+      Builder.markChild(new (allocator()) syntax::DeclaratorList,
+                        syntax::NodeRole::Declarators);
+      Builder.foldNode(Builder.getDeclarationRange(D),
+                       new (allocator()) syntax::SimpleDeclaration, D);
+      return true;
     }
 
-    if (Builder.isResponsibleForCreatingDeclaration(D)) {
-      Builder.foldNode(Builder.getDeclarationRange(D),
+    auto *N = new (allocator()) syntax::SimpleDeclarator;
+    Builder.foldNode(Builder.getRange(Range), N, nullptr);
+    Builder.markChild(N, syntax::NodeRole::ListElement);
+
+    if (!Builder.isResponsibleForCreatingDeclaration(D)) {
+      // If this is not the last declarator in the declaration we expect a
+      // delimiter after it.
+      const auto *DelimiterToken = std::next(Builder.findToken(Range.getEnd()));
+      if (DelimiterToken->kind() == clang::tok::TokenKind::comma)
+        Builder.markChildToken(DelimiterToken, syntax::NodeRole::ListDelimiter);
+    } else {
+      auto *DL = new (allocator()) syntax::DeclaratorList;
+      auto DeclarationRange = Builder.getDeclarationRange(D);
+      Builder.foldList(DeclarationRange, DL, nullptr);
+
+      Builder.markChild(DL, syntax::NodeRole::Declarators);
+      Builder.foldNode(DeclarationRange,
                        new (allocator()) syntax::SimpleDeclaration, D);
     }
     return true;
@@ -1651,14 +1706,14 @@ void syntax::TreeBuilder::markExprChild(Expr *Child, NodeRole Role) {
 const syntax::Token *syntax::TreeBuilder::findToken(SourceLocation L) const {
   if (L.isInvalid())
     return nullptr;
-  auto It = LocationToToken.find(L.getRawEncoding());
+  auto It = LocationToToken.find(L);
   assert(It != LocationToToken.end());
   return It->second;
 }
 
-syntax::TranslationUnit *
-syntax::buildSyntaxTree(Arena &A, const TranslationUnitDecl &TU) {
+syntax::TranslationUnit *syntax::buildSyntaxTree(Arena &A,
+                                                 ASTContext &Context) {
   TreeBuilder Builder(A);
-  BuildTreeVisitor(TU.getASTContext(), Builder).TraverseAST(TU.getASTContext());
+  BuildTreeVisitor(Context, Builder).TraverseAST(Context);
   return std::move(Builder).finalize();
 }

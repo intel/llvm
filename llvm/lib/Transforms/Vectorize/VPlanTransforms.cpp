@@ -35,6 +35,7 @@ void VPlanTransforms::VPInstructionsToVPRecipes(
       Plan->addCBV(NCondBit);
     }
   }
+  VPValue DummyValue;
   for (VPBlockBase *Base : RPOT) {
     // Do not widen instructions in pre-header and exit blocks.
     if (Base->getNumPredecessors() == 0 || Base->getNumSuccessors() == 0)
@@ -48,6 +49,7 @@ void VPlanTransforms::VPInstructionsToVPRecipes(
       VPInstruction *VPInst = cast<VPInstruction>(Ingredient);
       Instruction *Inst = cast<Instruction>(VPInst->getUnderlyingValue());
       if (DeadInstructions.count(Inst)) {
+        VPInst->replaceAllUsesWith(&DummyValue);
         Ingredient->eraseFromParent();
         continue;
       }
@@ -66,7 +68,8 @@ void VPlanTransforms::VPInstructionsToVPRecipes(
         InductionDescriptor II = Inductions.lookup(Phi);
         if (II.getKind() == InductionDescriptor::IK_IntInduction ||
             II.getKind() == InductionDescriptor::IK_FpInduction) {
-          NewRecipe = new VPWidenIntOrFpInductionRecipe(Phi);
+          VPValue *Start = Plan->getOrAddVPValue(II.getStartValue());
+          NewRecipe = new VPWidenIntOrFpInductionRecipe(Phi, Start);
         } else
           NewRecipe = new VPWidenPHIRecipe(Phi);
       } else if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(Inst)) {
@@ -77,6 +80,7 @@ void VPlanTransforms::VPInstructionsToVPRecipes(
             new VPWidenRecipe(*Inst, Plan->mapToVPValues(Inst->operands()));
 
       NewRecipe->insertBefore(Ingredient);
+      VPInst->replaceAllUsesWith(&DummyValue);
       Ingredient->eraseFromParent();
     }
   }

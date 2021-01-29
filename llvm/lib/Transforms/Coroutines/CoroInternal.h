@@ -34,10 +34,12 @@ void initializeCoroCleanupLegacyPass(PassRegistry &);
 // CoroElide pass that triggers a restart of the pipeline by CGPassManager.
 // When CoroSplit pass sees the same coroutine the second time, it splits it up,
 // adds coroutine subfunctions to the SCC to be processed by IPO pipeline.
-
+// Async lowering similarily triggers a restart of the pipeline after it has
+// split the coroutine.
 #define CORO_PRESPLIT_ATTR "coroutine.presplit"
 #define UNPREPARED_FOR_SPLIT "0"
 #define PREPARED_FOR_SPLIT "1"
+#define ASYNC_RESTART_AFTER_SPLIT "2"
 
 #define CORO_DEVIRT_TRIGGER_FN "coro.devirt.trigger"
 
@@ -45,8 +47,6 @@ namespace coro {
 
 bool declaresIntrinsics(const Module &M,
                         const std::initializer_list<StringRef>);
-void replaceAllCoroAllocs(CoroBeginInst *CB, bool Replacement);
-void replaceAllCoroFrees(CoroBeginInst *CB, Value *Replacement);
 void replaceCoroFree(CoroIdInst *CoroId, bool Elide);
 void updateCallGraph(Function &Caller, ArrayRef<Function *> Funcs,
                      CallGraph &CG, CallGraphSCC &SCC);
@@ -81,13 +81,18 @@ enum class ABI {
   /// suspend at most once during its execution, and the return value of
   /// the continuation is void.
   RetconOnce,
+
+  /// The "async continuation" lowering, where each suspend point creates a
+  /// single continuation function. The continuation function is available as an
+  /// intrinsic.
+  Async,
 };
 
 // Holds structural Coroutine Intrinsics for a particular function and other
 // values used during CoroSplit pass.
 struct LLVM_LIBRARY_VISIBILITY Shape {
   CoroBeginInst *CoroBegin;
-  SmallVector<CoroEndInst *, 4> CoroEnds;
+  SmallVector<AnyCoroEndInst *, 4> CoroEnds;
   SmallVector<CoroSizeInst *, 2> CoroSizes;
   SmallVector<AnyCoroSuspendInst *, 4> CoroSuspends;
   SmallVector<CallInst*, 2> SwiftErrorOps;
@@ -122,7 +127,6 @@ struct LLVM_LIBRARY_VISIBILITY Shape {
     AllocaInst *PromiseAlloca;
     BasicBlock *ResumeEntryBlock;
     unsigned IndexField;
-    unsigned PromiseField;
     bool HasFinalSuspend;
   };
 
@@ -134,9 +138,23 @@ struct LLVM_LIBRARY_VISIBILITY Shape {
     bool IsFrameInlineInStorage;
   };
 
+  struct AsyncLoweringStorage {
+    FunctionType *AsyncFuncTy;
+    Value *Context;
+    unsigned ContextArgNo;
+    uint64_t ContextHeaderSize;
+    uint64_t ContextAlignment;
+    uint64_t FrameOffset; // Start of the frame.
+    uint64_t ContextSize; // Includes frame size.
+    GlobalVariable *AsyncFuncPointer;
+
+    Align getContextAlignment() const { return Align(ContextAlignment); }
+  };
+
   union {
     SwitchLoweringStorage SwitchLowering;
     RetconLoweringStorage RetconLowering;
+    AsyncLoweringStorage AsyncLowering;
   };
 
   CoroIdInst *getSwitchCoroId() const {
@@ -148,6 +166,11 @@ struct LLVM_LIBRARY_VISIBILITY Shape {
     assert(ABI == coro::ABI::Retcon ||
            ABI == coro::ABI::RetconOnce);
     return cast<AnyCoroIdRetconInst>(CoroBegin->getId());
+  }
+
+  CoroIdAsyncInst *getAsyncCoroId() const {
+    assert(ABI == coro::ABI::Async);
+    return cast<CoroIdAsyncInst>(CoroBegin->getId());
   }
 
   unsigned getSwitchIndexField() const {
@@ -179,7 +202,10 @@ struct LLVM_LIBRARY_VISIBILITY Shape {
     case coro::ABI::Retcon:
     case coro::ABI::RetconOnce:
       return RetconLowering.ResumePrototype->getFunctionType();
+    case coro::ABI::Async:
+      return AsyncLowering.AsyncFuncTy;
     }
+
     llvm_unreachable("Unknown coro::ABI enum");
   }
 
@@ -213,6 +239,8 @@ struct LLVM_LIBRARY_VISIBILITY Shape {
     case coro::ABI::Retcon:
     case coro::ABI::RetconOnce:
       return RetconLowering.ResumePrototype->getCallingConv();
+    case coro::ABI::Async:
+      return CallingConv::Swift;
     }
     llvm_unreachable("Unknown coro::ABI enum");
   }
@@ -221,12 +249,6 @@ struct LLVM_LIBRARY_VISIBILITY Shape {
     if (ABI == coro::ABI::Switch)
       return SwitchLowering.PromiseAlloca;
     return nullptr;
-  }
-  unsigned getPromiseField() const {
-    assert(ABI == coro::ABI::Switch);
-    assert(FrameTy && "frame type not assigned");
-    assert(SwitchLowering.PromiseAlloca && "no promise alloca");
-    return SwitchLowering.PromiseField;
   }
 
   /// Allocate memory according to the rules of the active lowering.
@@ -248,6 +270,8 @@ struct LLVM_LIBRARY_VISIBILITY Shape {
 };
 
 void buildCoroutineFrame(Function &F, Shape &Shape);
+CallInst *createMustTailCall(DebugLoc Loc, Function *MustTailCallFn,
+                             ArrayRef<Value *> Arguments, IRBuilder<> &);
 } // End namespace coro.
 } // End namespace llvm
 

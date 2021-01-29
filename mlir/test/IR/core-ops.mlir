@@ -19,6 +19,9 @@
 // CHECK-DAG: #[[$SUBVIEW_MAP3:map[0-9]+]] = affine_map<(d0, d1, d2) -> (d0 * 64 + d1 * 4 + d2 + 8)>
 // CHECK-DAG: #[[$SUBVIEW_MAP4:map[0-9]+]] = affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>
 // CHECK-DAG: #[[$SUBVIEW_MAP5:map[0-9]+]] = affine_map<(d0, d1)[s0] -> (d0 * 8 + s0 + d1 * 2)>
+// CHECK-DAG: #[[$SUBVIEW_MAP6:map[0-9]+]] = affine_map<(d0, d1, d2, d3, d4) -> (d0 * 36 + d1 * 36 + d2 * 4 + d3 * 4 + d4)>
+// CHECK-DAG: #[[$SUBVIEW_MAP7:map[0-9]+]] = affine_map<(d0, d1, d2, d3, d4, d5)[s0, s1, s2, s3, s4, s5, s6] -> (d0 * s1 + s0 + d1 * s2 + d2 * s3 + d3 * s4 + d4 * s5 + d5 * s6)>
+// CHECK-DAG: #[[$SUBVIEW_MAP8:map[0-9]+]] = affine_map<(d0, d1, d2, d3)[s0, s1, s2, s3, s4] -> (d0 * s1 + s0 + d1 * s2 + d2 * s3 + d3 * s4)>
 
 // CHECK-LABEL: func @func_with_ops
 // CHECK-SAME: %[[ARG:.*]]: f32
@@ -83,23 +86,8 @@ func @standard_instrs(tensor<4x4x?xf32>, f32, i32, index, i64, f16) {
   // CHECK: %[[I6:.*]] = muli %[[I2]], %[[I2]] : i32
   %i6 = muli %i2, %i2 : i32
 
-  // CHECK: %[[C0:.*]] = create_complex %[[F2]], %[[F2]] : complex<f32>
-  %c0 = "std.create_complex"(%f2, %f2) : (f32, f32) -> complex<f32>
-
-  // CHECK: %[[C1:.*]] = create_complex %[[F2]], %[[F2]] : complex<f32>
-  %c1 = create_complex %f2, %f2 : complex<f32>
-
-  // CHECK: %[[REAL0:.*]] = re %[[CPLX0:.*]] : complex<f32>
-  %real0 = "std.re"(%c0) : (complex<f32>) -> f32
-
-  // CHECK: %[[REAL1:.*]] = re %[[CPLX0]] : complex<f32>
-  %real1 = re %c0 : complex<f32>
-
-  // CHECK: %[[IMAG0:.*]] = im %[[CPLX0]] : complex<f32>
-  %imag0 = "std.im"(%c0) : (complex<f32>) -> f32
-
-  // CHECK: %[[IMAG1:.*]] = im %[[CPLX0]] : complex<f32>
-  %imag1 = im %c0 : complex<f32>
+  // CHECK: %[[F7:.*]] = powf %[[F2]], %[[F2]] : f32
+  %f7 = powf %f2, %f2 : f32
 
   // CHECK: %c42_i32 = constant 42 : i32
   %x = "std.constant"(){value = 42 : i32} : () -> i32
@@ -131,27 +119,27 @@ func @standard_instrs(tensor<4x4x?xf32>, f32, i32, index, i64, f16) {
   // CHECK: %cst_5 = constant dense<0> : vector<42xi32>
   %vci32 = constant dense<0> : vector<42 x i32>
 
-  // CHECK: %{{[0-9]+}} = cmpi "eq", %{{[0-9]+}}, %{{[0-9]+}} : i32
-  %14 = cmpi "eq", %i3, %i4 : i32
+  // CHECK: %{{[0-9]+}} = cmpi eq, %{{[0-9]+}}, %{{[0-9]+}} : i32
+  %14 = cmpi eq, %i3, %i4 : i32
 
   // Predicate 1 means inequality comparison.
-  // CHECK: %{{[0-9]+}} = cmpi "ne", %{{[0-9]+}}, %{{[0-9]+}} : i32
+  // CHECK: %{{[0-9]+}} = cmpi ne, %{{[0-9]+}}, %{{[0-9]+}} : i32
   %15 = "std.cmpi"(%i3, %i4) {predicate = 1} : (i32, i32) -> i1
 
-  // CHECK: %{{[0-9]+}} = cmpi "slt", %cst_3, %cst_3 : vector<4xi32>
-  %16 = cmpi "slt", %13, %13 : vector<4 x i32>
+  // CHECK: %{{[0-9]+}} = cmpi slt, %cst_3, %cst_3 : vector<4xi32>
+  %16 = cmpi slt, %13, %13 : vector<4 x i32>
 
-  // CHECK: %{{[0-9]+}} = cmpi "ne", %cst_3, %cst_3 : vector<4xi32>
+  // CHECK: %{{[0-9]+}} = cmpi ne, %cst_3, %cst_3 : vector<4xi32>
   %17 = "std.cmpi"(%13, %13) {predicate = 1} : (vector<4 x i32>, vector<4 x i32>) -> vector<4 x i1>
 
-  // CHECK: %{{[0-9]+}} = cmpi "slt", %arg3, %arg3 : index
-  %18 = cmpi "slt", %idx, %idx : index
+  // CHECK: %{{[0-9]+}} = cmpi slt, %arg3, %arg3 : index
+  %18 = cmpi slt, %idx, %idx : index
 
-  // CHECK: %{{[0-9]+}} = cmpi "eq", %cst_4, %cst_4 : tensor<42xi32>
-  %19 = cmpi "eq", %tci32, %tci32 : tensor<42 x i32>
+  // CHECK: %{{[0-9]+}} = cmpi eq, %cst_4, %cst_4 : tensor<42xi32>
+  %19 = cmpi eq, %tci32, %tci32 : tensor<42 x i32>
 
-  // CHECK: %{{[0-9]+}} = cmpi "eq", %cst_5, %cst_5 : vector<42xi32>
-  %20 = cmpi "eq", %vci32, %vci32 : vector<42 x i32>
+  // CHECK: %{{[0-9]+}} = cmpi eq, %cst_5, %cst_5 : vector<42xi32>
+  %20 = cmpi eq, %vci32, %vci32 : vector<42 x i32>
 
   // CHECK: %{{[0-9]+}} = select %{{[0-9]+}}, %arg3, %arg3 : index
   %21 = select %18, %idx, %idx : index
@@ -286,24 +274,24 @@ func @standard_instrs(tensor<4x4x?xf32>, f32, i32, index, i64, f16) {
   %tcf32 = constant dense<0.> : tensor<42 x f32>
   %vcf32 = constant dense<0.> : vector<4 x f32>
 
-  // CHECK: %{{[0-9]+}} = cmpf "ogt", %{{[0-9]+}}, %{{[0-9]+}} : f32
-  %65 = cmpf "ogt", %f3, %f4 : f32
+  // CHECK: %{{[0-9]+}} = cmpf ogt, %{{[0-9]+}}, %{{[0-9]+}} : f32
+  %65 = cmpf ogt, %f3, %f4 : f32
 
   // Predicate 0 means ordered equality comparison.
-  // CHECK: %{{[0-9]+}} = cmpf "oeq", %{{[0-9]+}}, %{{[0-9]+}} : f32
+  // CHECK: %{{[0-9]+}} = cmpf oeq, %{{[0-9]+}}, %{{[0-9]+}} : f32
   %66 = "std.cmpf"(%f3, %f4) {predicate = 1} : (f32, f32) -> i1
 
-  // CHECK: %{{[0-9]+}} = cmpf "olt", %cst_8, %cst_8 : vector<4xf32>
-  %67 = cmpf "olt", %vcf32, %vcf32 : vector<4 x f32>
+  // CHECK: %{{[0-9]+}} = cmpf olt, %cst_8, %cst_8 : vector<4xf32>
+  %67 = cmpf olt, %vcf32, %vcf32 : vector<4 x f32>
 
-  // CHECK: %{{[0-9]+}} = cmpf "oeq", %cst_8, %cst_8 : vector<4xf32>
+  // CHECK: %{{[0-9]+}} = cmpf oeq, %cst_8, %cst_8 : vector<4xf32>
   %68 = "std.cmpf"(%vcf32, %vcf32) {predicate = 1} : (vector<4 x f32>, vector<4 x f32>) -> vector<4 x i1>
 
-  // CHECK: %{{[0-9]+}} = cmpf "oeq", %cst_7, %cst_7 : tensor<42xf32>
-  %69 = cmpf "oeq", %tcf32, %tcf32 : tensor<42 x f32>
+  // CHECK: %{{[0-9]+}} = cmpf oeq, %cst_7, %cst_7 : tensor<42xf32>
+  %69 = cmpf oeq, %tcf32, %tcf32 : tensor<42 x f32>
 
-  // CHECK: %{{[0-9]+}} = cmpf "oeq", %cst_8, %cst_8 : vector<4xf32>
-  %70 = cmpf "oeq", %vcf32, %vcf32 : vector<4 x f32>
+  // CHECK: %{{[0-9]+}} = cmpf oeq, %cst_8, %cst_8 : vector<4xf32>
+  %70 = cmpf oeq, %vcf32, %vcf32 : vector<4 x f32>
 
   // CHECK: %{{[0-9]+}} = rank %arg0 : tensor<4x4x?xf32>
   %71 = "std.rank"(%t) : (tensor<4x4x?xf32>) -> index
@@ -566,6 +554,33 @@ func @standard_instrs(tensor<4x4x?xf32>, f32, i32, index, i64, f16) {
   // CHECK: %{{[0-9]+}} = floorf %arg0 : tensor<4x4x?xf32>
   %166 = floorf %t : tensor<4x4x?xf32>
 
+  // CHECK: %{{[0-9]+}} = floordivi_signed %arg2, %arg2 : i32
+  %167 = floordivi_signed %i, %i : i32
+
+  // CHECK: %{{[0-9]+}} = floordivi_signed %arg3, %arg3 : index
+  %168 = floordivi_signed %idx, %idx : index
+
+  // CHECK: %{{[0-9]+}} = floordivi_signed %cst_5, %cst_5 : vector<42xi32>
+  %169 = floordivi_signed %vci32, %vci32 : vector<42 x i32>
+
+  // CHECK: %{{[0-9]+}} = floordivi_signed %cst_4, %cst_4 : tensor<42xi32>
+  %170 = floordivi_signed %tci32, %tci32 : tensor<42 x i32>
+
+  // CHECK: %{{[0-9]+}} = ceildivi_signed %arg2, %arg2 : i32
+  %171 = ceildivi_signed %i, %i : i32
+
+  // CHECK: %{{[0-9]+}} = ceildivi_signed %arg3, %arg3 : index
+  %172 = ceildivi_signed %idx, %idx : index
+
+  // CHECK: %{{[0-9]+}} = ceildivi_signed %cst_5, %cst_5 : vector<42xi32>
+  %173 = ceildivi_signed %vci32, %vci32 : vector<42 x i32>
+
+  // CHECK: %{{[0-9]+}} = ceildivi_signed %cst_4, %cst_4 : tensor<42xi32>
+  %174 = ceildivi_signed %tci32, %tci32 : tensor<42 x i32>
+
+  // CHECK: %{{[0-9]+}} = log1p %arg1 : f32
+  %175 = log1p %f : f32
+
   return
 }
 
@@ -645,57 +660,6 @@ func @calls(%arg0: i32) {
   return
 }
 
-// CHECK-LABEL: func @extract_element(%arg0: tensor<*xi32>, %arg1: tensor<4x4xf32>) -> i32 {
-func @extract_element(%arg0: tensor<*xi32>, %arg1 : tensor<4x4xf32>) -> i32 {
-  %c0 = "std.constant"() {value = 0: index} : () -> index
-
-  // CHECK: %0 = extract_element %arg0[%c0, %c0, %c0, %c0] : tensor<*xi32>
-  %0 = extract_element %arg0[%c0, %c0, %c0, %c0] : tensor<*xi32>
-
-  // CHECK: %1 = extract_element %arg1[%c0, %c0] : tensor<4x4xf32>
-  %1 = extract_element %arg1[%c0, %c0] : tensor<4x4xf32>
-
-  return %0 : i32
-}
-
-// CHECK-LABEL: func @tensor_from_elements() {
-func @tensor_from_elements() {
-  %c0 = "std.constant"() {value = 0: index} : () -> index
-  // CHECK: %0 = tensor_from_elements %c0 : tensor<1xindex>
-  %0 = tensor_from_elements %c0 : tensor<1xindex>
-
-  %c1 = "std.constant"() {value = 1: index} : () -> index
-  // CHECK: %1 = tensor_from_elements %c0, %c1 : tensor<2xindex>
-  %1 = tensor_from_elements %c0, %c1 : tensor<2xindex>
-
-  %c0_f32 = "std.constant"() {value = 0.0: f32} : () -> f32
-  // CHECK: [[C0_F32:%.*]] = constant
-  // CHECK: %2 = tensor_from_elements [[C0_F32]] : tensor<1xf32>
-  %2 = tensor_from_elements %c0_f32 : tensor<1xf32>
-
-  // CHECK: tensor_from_elements : tensor<0xindex>
-  %3 = tensor_from_elements : tensor<0xindex>
-
-  return
-}
-
-// CHECK-LABEL: func @tensor_cast(%arg0
-func @tensor_cast(%arg0: tensor<*xf32>, %arg1 : tensor<4x4xf32>, %arg2: tensor<?x?xf32>) {
-  // CHECK: %0 = tensor_cast %arg0 : tensor<*xf32> to tensor<?x?xf32>
-  %0 = tensor_cast %arg0 : tensor<*xf32> to tensor<?x?xf32>
-
-  // CHECK: %1 = tensor_cast %arg1 : tensor<4x4xf32> to tensor<*xf32>
-  %1 = tensor_cast %arg1 : tensor<4x4xf32> to tensor<*xf32>
-
-  // CHECK: %2 = tensor_cast %arg2 : tensor<?x?xf32> to tensor<4x?xf32>
-  %2 = tensor_cast %arg2 : tensor<?x?xf32> to tensor<4x?xf32>
-
-  // CHECK: %3 = tensor_cast %2 : tensor<4x?xf32> to tensor<?x?xf32>
-  %3 = tensor_cast %2 : tensor<4x?xf32> to tensor<?x?xf32>
-
-  return
-}
-
 // CHECK-LABEL: func @memref_cast(%arg0
 func @memref_cast(%arg0: memref<4xf32>, %arg1 : memref<?xf32>, %arg2 : memref<64x16x4xf32, offset: 0, strides: [64, 4, 1]>) {
   // CHECK: %0 = memref_cast %arg0 : memref<4xf32> to memref<?xf32>
@@ -721,7 +685,7 @@ func @memref_cast(%arg0: memref<4xf32>, %arg1 : memref<?xf32>, %arg2 : memref<64
 // Check that unranked memrefs with non-default memory space roundtrip
 // properly.
 // CHECK-LABEL: @unranked_memref_roundtrip(memref<*xf32, 4>)
-func @unranked_memref_roundtrip(memref<*xf32, 4>)
+func private @unranked_memref_roundtrip(memref<*xf32, 4>)
 
 // CHECK-LABEL: func @memref_view(%arg0
 func @memref_view(%arg0 : index, %arg1 : index, %arg2 : index) {
@@ -797,6 +761,36 @@ func @memref_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
   %11 = subview %9[%arg1, %arg2][4, 4][2, 2]
     : memref<16x4xf32> to memref<4x4xf32, offset: ?, strides:[8, 2]>
 
+  %12 = alloc() : memref<1x9x1x4x1xf32, affine_map<(d0, d1, d2, d3, d4) -> (36 * d0 + 36 * d1 + 4 * d2 + 4 * d3 + d4)>>
+  // CHECK: subview %12[%arg1, %arg1, %arg1, %arg1, %arg1]
+  // CHECK-SAME: [1, 9, 1, 4, 1] [%arg2, %arg2, %arg2, %arg2, %arg2] :
+  // CHECK-SAME: memref<1x9x1x4x1xf32, #[[$SUBVIEW_MAP6]]> to memref<9x4xf32, #[[$SUBVIEW_MAP2]]>
+  %13 = subview %12[%arg1, %arg1, %arg1, %arg1, %arg1][1, 9, 1, 4, 1][%arg2, %arg2, %arg2, %arg2, %arg2] : memref<1x9x1x4x1xf32, offset: 0, strides: [36, 36, 4, 4, 1]> to memref<9x4xf32, offset: ?, strides: [?, ?]>
+  // CHECK: subview %12[%arg1, %arg1, %arg1, %arg1, %arg1]
+  // CHECK-SAME: [1, 9, 1, 4, 1] [%arg2, %arg2, %arg2, %arg2, %arg2] :
+  // CHECK-SAME: memref<1x9x1x4x1xf32, #[[$SUBVIEW_MAP6]]> to memref<1x9x4xf32, #[[$BASE_MAP3]]>
+  %14 = subview %12[%arg1, %arg1, %arg1, %arg1, %arg1][1, 9, 1, 4, 1][%arg2, %arg2, %arg2, %arg2, %arg2] : memref<1x9x1x4x1xf32, offset: 0, strides: [36, 36, 4, 4, 1]> to memref<1x9x4xf32, offset: ?, strides: [?, ?, ?]>
+
+  %15 = alloc(%arg1, %arg2)[%c0, %c1, %arg1, %arg0, %arg0, %arg2, %arg2] : memref<1x?x5x1x?x1xf32, affine_map<(d0, d1, d2, d3, d4, d5)[s0, s1, s2, s3, s4, s5, s6] -> (s0 + s1 * d0 + s2 * d1 + s3 * d2 + s4 * d3 + s5 * d4 + s6 * d5)>>
+  // CHECK: subview %15[0, 0, 0, 0, 0, 0] [1, %arg1, 5, 1, %arg2, 1] [1, 1, 1, 1, 1, 1]  :
+  // CHECK-SAME: memref<1x?x5x1x?x1xf32,  #[[$SUBVIEW_MAP7]]> to memref<?x5x?xf32, #[[$BASE_MAP3]]>
+  %16 = subview %15[0, 0, 0, 0, 0, 0][1, %arg1, 5, 1, %arg2, 1][1, 1, 1, 1, 1, 1] : memref<1x?x5x1x?x1xf32, offset: ?, strides: [?, ?, ?, ?, ?, ?]> to memref<?x5x?xf32, offset: ?, strides: [?, ?, ?]>
+  // CHECK: subview %15[%arg1, %arg1, %arg1, %arg1, %arg1, %arg1] [1, %arg1, 5, 1, %arg2, 1] [1, 1, 1, 1, 1, 1]  :
+  // CHECK-SAME: memref<1x?x5x1x?x1xf32, #[[$SUBVIEW_MAP7]]> to memref<?x5x?x1xf32, #[[$SUBVIEW_MAP8]]>
+  %17 = subview %15[%arg1, %arg1, %arg1, %arg1, %arg1, %arg1][1, %arg1, 5, 1, %arg2, 1][1, 1, 1, 1, 1, 1] :  memref<1x?x5x1x?x1xf32, offset: ?, strides: [?, ?, ?, ?, ?, ?]> to memref<?x5x?x1xf32, offset: ?, strides: [?, ?, ?, ?]>
+
+  %18 = alloc() : memref<1x8xf32>
+  // CHECK: subview %18[0, 0] [1, 8] [1, 1]  : memref<1x8xf32> to memref<8xf32>
+  %19 = subview %18[0, 0][1, 8][1, 1] : memref<1x8xf32> to memref<8xf32>
+
+  %20 = alloc() : memref<8x16x4xf32>
+  // CHECK: subview %20[0, 0, 0] [1, 16, 4] [1, 1, 1]  : memref<8x16x4xf32> to memref<16x4xf32>
+  %21 = subview %20[0, 0, 0][1, 16, 4][1, 1, 1] : memref<8x16x4xf32> to memref<16x4xf32>
+
+  %22 = subview %20[3, 4, 2][1, 6, 3][1, 1, 1] : memref<8x16x4xf32> to memref<6x3xf32, offset: 210, strides: [4, 1]>
+
+  %23 = alloc() : memref<f32>
+  %78 = subview %23[] [] []  : memref<f32> to memref<f32>
   return
 }
 
@@ -845,8 +839,8 @@ func @unranked_tensor_load_store(%0 : memref<*xi32>) {
 // CHECK-LABEL: func @atomic_rmw
 // CHECK-SAME: ([[BUF:%.*]]: memref<10xf32>, [[VAL:%.*]]: f32, [[I:%.*]]: index)
 func @atomic_rmw(%I: memref<10xf32>, %val: f32, %i : index) {
-  %x = atomic_rmw "addf" %val, %I[%i] : (f32, memref<10xf32>) -> f32
-  // CHECK: atomic_rmw "addf" [[VAL]], [[BUF]]{{\[}}[[I]]]
+  %x = atomic_rmw addf %val, %I[%i] : (f32, memref<10xf32>) -> f32
+  // CHECK: atomic_rmw addf [[VAL]], [[BUF]]{{\[}}[[I]]]
   return
 }
 
@@ -869,5 +863,55 @@ func @generic_atomic_rmw(%I: memref<1x2xf32>, %i : index, %j : index) {
 func @assume_alignment(%0: memref<4x4xf16>) {
   // CHECK: assume_alignment %[[MEMREF]], 16 : memref<4x4xf16>
   assume_alignment %0, 16 : memref<4x4xf16>
+  return
+}
+
+// CHECK-LABEL: func @subtensor({{.*}}) {
+func @subtensor(%t: tensor<8x16x4xf32>, %idx : index) {
+  %c0 = constant 0 : index
+  %c1 = constant 1 : index
+
+  // CHECK: subtensor
+  // CHECK-SAME: tensor<8x16x4xf32> to tensor<?x?x?xf32>
+  %1 = subtensor %t[%c0, %c0, %c0][%idx, %idx, %idx][%c1, %c1, %c1]
+    : tensor<8x16x4xf32> to tensor<?x?x?xf32>
+
+  // CHECK: subtensor
+  // CHECK-SAME: tensor<8x16x4xf32> to tensor<4x4x4xf32>
+  %2 = subtensor %t[0, 2, 0][4, 4, 4][1, 1, 1]
+    : tensor<8x16x4xf32> to tensor<4x4x4xf32>
+
+  // CHECK: subtensor
+  // CHECK-SAME: tensor<8x16x4xf32> to tensor<4x4xf32>
+  %3 = subtensor %t[0, 2, 0][4, 1, 4][1, 1, 1]
+    : tensor<8x16x4xf32> to tensor<4x4xf32>
+
+  return
+}
+
+// CHECK-LABEL: func @subtensor_insert({{.*}}) {
+func @subtensor_insert(
+    %t: tensor<8x16x4xf32>, 
+    %t2: tensor<16x32x8xf32>, 
+    %t3: tensor<4x4xf32>, 
+    %idx : index) {
+  %c0 = constant 0 : index
+  %c1 = constant 1 : index
+
+  // CHECK: subtensor_insert
+  // CHECK-SAME: tensor<8x16x4xf32> into tensor<16x32x8xf32>
+  %1 = subtensor_insert %t into %t2[%c0, %c0, %c0][%idx, %idx, %idx][%c1, %c1, %c1]
+    : tensor<8x16x4xf32> into tensor<16x32x8xf32>
+
+  // CHECK: subtensor_insert
+  // CHECK-SAME: tensor<8x16x4xf32> into tensor<16x32x8xf32>
+  %2 = subtensor_insert %t into %t2[%c0, %idx, %c0][%idx, 4, %idx][%c1, 1, %c1]
+    : tensor<8x16x4xf32> into tensor<16x32x8xf32>
+
+  // CHECK: subtensor_insert
+  // CHECK-SAME: tensor<4x4xf32> into tensor<8x16x4xf32>
+  %3 = subtensor_insert %t3 into %t[0, 2, 0][4, 1, 4][1, 1, 1]
+    : tensor<4x4xf32> into tensor<8x16x4xf32>
+
   return
 }

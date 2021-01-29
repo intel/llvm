@@ -33,7 +33,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/ADT/iterator_range.h"
-#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/LoopAccessAnalysis.h"
@@ -670,15 +669,17 @@ public:
                       << L->getHeader()->getParent()->getName()
                       << "\" checking " << *L << "\n");
 
+    // Having a single exit block implies there's also one exiting block.
     if (!L->getExitBlock())
       return fail("MultipleExitBlocks", "multiple exit blocks");
     if (!L->isLoopSimplifyForm())
       return fail("NotLoopSimplifyForm",
                   "loop is not in loop-simplify form");
+    if (!L->isRotatedForm())
+      return fail("NotBottomTested", "loop is not bottom tested");
 
     BasicBlock *PH = L->getLoopPreheader();
 
-    // LAA will check that we only have a single exiting block.
     LAI = &GetLAA(*L);
 
     // Currently, we only distribute to isolate the part of the loop with
@@ -814,9 +815,7 @@ public:
 
       LLVM_DEBUG(dbgs() << "\nPointers:\n");
       LLVM_DEBUG(LAI->getRuntimePointerChecking()->printChecks(dbgs(), Checks));
-      LoopVersioning LVer(*LAI, L, LI, DT, SE, false);
-      LVer.setAliasChecks(std::move(Checks));
-      LVer.setSCEVChecks(LAI->getPSE().getUnionPredicate());
+      LoopVersioning LVer(*LAI, Checks, L, LI, DT, SE);
       LVer.versionLoop(DefsUsedOutside);
       LVer.annotateLoopWithNoAlias();
 

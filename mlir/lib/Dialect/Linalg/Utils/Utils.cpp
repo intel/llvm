@@ -24,7 +24,7 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Transforms/FoldUtils.h"
+#include "mlir/Transforms/LoopUtils.h"
 
 using namespace mlir;
 using namespace mlir::linalg;
@@ -57,54 +57,6 @@ RegionMatcher::matchAsScalarBinaryOp(GenericOp op) {
   return llvm::None;
 }
 
-static Value emitOrFoldComposedAffineApply(OpBuilder &b, Location loc,
-                                           AffineMap map,
-                                           ValueRange operandsRef,
-                                           OperationFolder *folder) {
-  SmallVector<Value, 4> operands(operandsRef.begin(), operandsRef.end());
-  fullyComposeAffineMapAndOperands(&map, &operands);
-  canonicalizeMapAndOperands(&map, &operands);
-  return folder ? folder->create<AffineApplyOp>(b, loc, map, operands)
-                : b.create<AffineApplyOp>(loc, map, operands);
-}
-
-SmallVector<Value, 4> mlir::linalg::applyMapToValues(OpBuilder &b, Location loc,
-                                                     AffineMap map,
-                                                     ValueRange values,
-                                                     OperationFolder *folder) {
-  SmallVector<Value, 4> res;
-  res.reserve(map.getNumResults());
-  unsigned numDims = map.getNumDims(), numSym = map.getNumSymbols();
-  // For each `expr` in `map`, applies the `expr` to the values extracted from
-  // ranges. If the resulting application can be folded into a Value, the
-  // folding occurs eagerly. Otherwise, an affine.apply operation is emitted.
-  for (auto expr : map.getResults()) {
-    AffineMap map = AffineMap::get(numDims, numSym, expr);
-    res.push_back(emitOrFoldComposedAffineApply(b, loc, map, values, folder));
-  }
-  return res;
-}
-
-/// Returns all the operands of `linalgOp` that are not views.
-/// Asserts that these operands are value types to allow transformations like
-/// tiling to just use the values when cloning `linalgOp`.
-SmallVector<Value, 4>
-mlir::linalg::getAssumedNonViewOperands(LinalgOp linalgOp) {
-  auto *op = linalgOp.getOperation();
-  unsigned numViews = linalgOp.getNumInputsAndOutputs();
-  unsigned nOperands = op->getNumOperands() - numViews;
-  SmallVector<Value, 4> res;
-  res.reserve(nOperands);
-  for (unsigned i = 0; i < nOperands; ++i) {
-    res.push_back(op->getOperand(numViews + i));
-    auto t = res.back().getType();
-    (void)t;
-    assert((t.isSignlessIntOrIndexOrFloat() || t.isa<VectorType>()) &&
-           "expected scalar or vector type");
-  }
-  return res;
-}
-
 bool mlir::linalg::isParallelIteratorType(Attribute attr) {
   if (auto strAttr = attr.dyn_cast<StringAttr>()) {
     return strAttr.getValue() == getParallelIteratorTypeName();
@@ -133,11 +85,10 @@ template struct mlir::linalg::GenerateLoopNest<AffineForOp>;
 
 /// Given a list of subview ranges, extract individual values for lower, upper
 /// bounds and steps and put them into the corresponding vectors.
-static void unpackRanges(ArrayRef<SubViewOp::Range> ranges,
-                         SmallVectorImpl<Value> &lbs,
+static void unpackRanges(ArrayRef<Range> ranges, SmallVectorImpl<Value> &lbs,
                          SmallVectorImpl<Value> &ubs,
                          SmallVectorImpl<Value> &steps) {
-  for (SubViewOp::Range range : ranges) {
+  for (Range range : ranges) {
     lbs.emplace_back(range.offset);
     ubs.emplace_back(range.size);
     steps.emplace_back(range.stride);
@@ -147,67 +98,86 @@ static void unpackRanges(ArrayRef<SubViewOp::Range> ranges,
 namespace mlir {
 namespace linalg {
 
-/// Return the linearized list of all view dimensions in a linalgOp.
-SmallVector<Value, 8> getViewSizes(OpBuilder &builder, LinalgOp linalgOp) {
-  auto loc = linalgOp.getLoc();
-  SmallVector<Value, 8> res;
-  SmallVector<unsigned, 4> ranks;
-  for (auto v : linalgOp.getInputsAndOutputBuffers()) {
-    MemRefType t = v.getType().template cast<MemRefType>();
-    ranks.push_back(t.getRank());
-    for (unsigned i = 0; i < t.getRank(); ++i)
-      res.push_back(builder.create<DimOp>(loc, v, i));
-  }
-
-  auto attr = linalgOp.template getAttrOfType<IntegerAttr>("symbol_source");
-  if (attr) {
-    // Find the correct position for inserting values for symbols.
-    unsigned numSymb = ranks[attr.getInt()], symbolsPos = 0;
-    for (unsigned idx = 0; idx < attr.getInt(); idx++)
-      symbolsPos += ranks[idx];
-
-    // Append the end of the value list that corresponds to the
-    // values mapping to symbols. Since inside concatinated map symbols are
-    // repeated we have to repeat the sizes as well.
-
-    // Reserve is mandatory to avoid a potential undefined behavior with
-    // pushing back to smallvector from itself.
-    res.reserve(res.size() + ranks.size() * numSymb);
-    for (unsigned idx = 0, s = ranks.size(); idx < s; ++idx)
-      for (unsigned idx2 = 0; idx2 < numSymb; ++idx2)
-        res.push_back(res[symbolsPos + idx2]);
+SmallVector<int64_t, 8> getStaticShape(LinalgOp linalgOp) {
+  SmallVector<int64_t, 8> res;
+  for (Value v : linalgOp.getShapedOperands()) {
+    auto shape = v.getType().cast<ShapedType>().getShape();
+    res.append(shape.begin(), shape.end());
   }
   return res;
 }
 
-Optional<SmallVector<Value, 4>>
-getLoopRanges(OpBuilder &builder, LinalgOp linalgOp, OperationFolder *folder) {
-  SmallVector<Value, 8> viewSizes = getViewSizes(builder, linalgOp);
-  AffineMap invertedMap =
-      inversePermutation(concatAffineMaps(linalgOp.getIndexingMaps()));
+Optional<SmallVector<int64_t, 4>> getStaticLoopRanges(LinalgOp linalgOp) {
+  SmallVector<int64_t, 8> viewSizes = getStaticShape(linalgOp);
+  AffineMap invertedMap = linalgOp.getShapesToLoopsMap();
   if (!invertedMap)
     return {};
-  return applyMapToValues(builder, linalgOp.getLoc(), invertedMap, viewSizes,
-                          folder);
+  return invertedMap.compose(viewSizes);
+}
+
+/// If `size` comes from an AffineMinOp and one of the values of AffineMinOp
+/// is a constant then return a new value set to the smallest such constant.
+/// Otherwise returngetSmallestBoundingIndex nullptr.
+IntegerAttr getSmallestBoundingIndex(Value size) {
+  Optional<int64_t> boundingConst = {};
+  if (auto affineMinOp = size.getDefiningOp<AffineMinOp>()) {
+    for (auto e : affineMinOp.getAffineMap().getResults())
+      if (auto cst = e.dyn_cast<AffineConstantExpr>())
+        boundingConst = boundingConst
+                            ? std::min(boundingConst.getValue(), cst.getValue())
+                            : cst.getValue();
+  } else if (auto constIndexOp = size.getDefiningOp<ConstantOp>()) {
+    if (constIndexOp.getType().isa<IndexType>())
+      boundingConst = constIndexOp.value().cast<IntegerAttr>().getInt();
+  } else if (auto affineApplyOp = size.getDefiningOp<AffineApplyOp>()) {
+    if (auto cExpr = affineApplyOp.getAffineMap()
+                         .getResult(0)
+                         .dyn_cast<AffineConstantExpr>())
+      boundingConst = cExpr.getValue();
+  }
+  if (boundingConst && *boundingConst >= 0)
+    return Builder(size.getContext()).getIndexAttr(*boundingConst);
+  return nullptr;
 }
 
 /// Specialization to build an scf "for" nest.
 template <>
 void GenerateLoopNest<scf::ForOp>::doit(
-    ArrayRef<SubViewOp::Range> loopRanges, ArrayRef<Attribute> iteratorTypes,
-    function_ref<void(ValueRange)> bodyBuilderFn,
-    Optional<LinalgLoopDistributionOptions>) {
+    ArrayRef<Range> loopRanges, ValueRange iterArgInitValues,
+    ArrayRef<Attribute> iteratorTypes,
+    function_ref<scf::ValueVector(ValueRange, ValueRange)> bodyBuilderFn,
+    Optional<LinalgLoopDistributionOptions> distributionOptions) {
+  // Create procInfo so it dominates loops, if appropriate.
+  OpBuilder &builder = edsc::ScopedContext::getBuilderRef();
+  Location loc = edsc::ScopedContext::getLocation();
+  SmallVector<ProcInfo, 2> procInfo;
+  if (distributionOptions.hasValue())
+    procInfo = distributionOptions->procInfo(builder, loc, loopRanges);
+
   SmallVector<Value, 4> lbs, ubs, steps;
   unpackRanges(loopRanges, lbs, ubs, steps);
-  edsc::loopNestBuilder(lbs, ubs, steps, bodyBuilderFn);
+  LoopNest loopNest =
+      edsc::loopNestBuilder(lbs, ubs, steps, iterArgInitValues, bodyBuilderFn);
+
+  if (!distributionOptions.hasValue() || loopNest.loops.empty())
+    return;
+
+  // Only supports cyclic distribution for now.
+  for (auto it : llvm::zip(loopNest.loops, procInfo,
+                           distributionOptions->distributionMethod))
+    if (std::get<2>(it) == DistributionMethod::Cyclic)
+      mapLoopToProcessorIds(std::get<0>(it), std::get<1>(it).procId,
+                            std::get<1>(it).nprocs);
 }
 
 /// Specialization to build affine "for" nest.
 template <>
 void GenerateLoopNest<AffineForOp>::doit(
-    ArrayRef<SubViewOp::Range> loopRanges, ArrayRef<Attribute> iteratorTypes,
-    function_ref<void(ValueRange)> bodyBuilderFn,
+    ArrayRef<Range> loopRanges, ValueRange iterArgInitValues,
+    ArrayRef<Attribute> iteratorTypes,
+    function_ref<scf::ValueVector(ValueRange, ValueRange)> bodyBuilderFn,
     Optional<LinalgLoopDistributionOptions>) {
+  assert(iterArgInitValues.empty() && "unexpected AffineForOp init values");
   SmallVector<Value, 4> lbs, ubs, steps;
   unpackRanges(loopRanges, lbs, ubs, steps);
 
@@ -220,7 +190,11 @@ void GenerateLoopNest<AffineForOp>::doit(
     constantSteps.push_back(op.getValue());
   }
 
-  edsc::affineLoopNestBuilder(lbs, ubs, constantSteps, bodyBuilderFn);
+  auto bodyBuilderWithoutIterArgsFn = [&](ValueRange ivs) {
+    bodyBuilderFn(ivs, {});
+  };
+  edsc::affineLoopNestBuilder(lbs, ubs, constantSteps,
+                              bodyBuilderWithoutIterArgsFn);
 }
 
 /// Update the `lb`, `ub` and `step` to get per processor `lb`, `ub` and `step`.
@@ -357,9 +331,11 @@ generateParallelLoopNest(ValueRange lbs, ValueRange ubs, ValueRange steps,
 /// Specialization for generating a mix of parallel and sequential scf loops.
 template <>
 void GenerateLoopNest<scf::ParallelOp>::doit(
-    ArrayRef<SubViewOp::Range> loopRanges, ArrayRef<Attribute> iteratorTypes,
-    function_ref<void(ValueRange)> bodyBuilderFn,
+    ArrayRef<Range> loopRanges, ValueRange iterArgInitValues,
+    ArrayRef<Attribute> iteratorTypes,
+    function_ref<scf::ValueVector(ValueRange, ValueRange)> bodyBuilderFn,
     Optional<LinalgLoopDistributionOptions> distributionOptions) {
+  assert(iterArgInitValues.empty() && "unexpected ParallelOp init values");
   // This function may be passed more iterator types than ranges.
   assert(iteratorTypes.size() >= loopRanges.size() &&
          "expected iterator type for all ranges");
@@ -382,7 +358,7 @@ void GenerateLoopNest<scf::ParallelOp>::doit(
     Location loc = edsc::ScopedContext::getLocation();
     distributionMethod.assign(distributionOptions->distributionMethod.begin(),
                               distributionOptions->distributionMethod.end());
-    SmallVector<SubViewOp::Range, 2> parallelLoopRanges;
+    SmallVector<Range, 2> parallelLoopRanges;
     for (auto iteratorType : enumerate(iteratorTypes)) {
       if (isParallelIteratorType(iteratorType.value()))
         parallelLoopRanges.push_back(loopRanges[iteratorType.index()]);
@@ -405,7 +381,11 @@ void GenerateLoopNest<scf::ParallelOp>::doit(
     }
   }
   ValueRange lbs(lbsStorage), ubs(ubsStorage), steps(stepsStorage);
-  generateParallelLoopNest(lbs, ubs, steps, iteratorTypes, bodyBuilderFn, ivs,
+  auto bodyBuilderWithoutIterArgsFn = [&](ValueRange ivs) {
+    bodyBuilderFn(ivs, {});
+  };
+  generateParallelLoopNest(lbs, ubs, steps, iteratorTypes,
+                           bodyBuilderWithoutIterArgsFn, ivs,
                            distributionMethod);
 
   assert(ivs.size() == iteratorTypes.size() && "did not generate enough loops");

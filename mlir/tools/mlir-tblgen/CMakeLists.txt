@@ -2,10 +2,11 @@ set(LLVM_LINK_COMPONENTS
   Demangle
   Support
   TableGen
-  )
+)
 
 add_tablegen(mlir-tblgen MLIR
   DialectGen.cpp
+  DirectiveCommonGen.cpp
   EnumsGen.cpp
   LLVMIRConversionGen.cpp
   LLVMIRIntrinsicGen.cpp
@@ -14,17 +15,20 @@ add_tablegen(mlir-tblgen MLIR
   OpDocGen.cpp
   OpFormatGen.cpp
   OpInterfacesGen.cpp
-  OpenMPCommonGen.cpp
-  PassGen.cpp
+  OpPythonBindingGen.cpp
+  PassCAPIGen.cpp
   PassDocGen.cpp
+  PassGen.cpp
   RewriterGen.cpp
   SPIRVUtilsGen.cpp
   StructsGen.cpp
+  TypeDefGen.cpp
   )
 
 set_target_properties(mlir-tblgen PROPERTIES FOLDER "Tablegenning")
 target_link_libraries(mlir-tblgen
   PRIVATE
+  MLIRSupportIndentedOstream
   MLIRTableGen)
 
 mlir_check_all_link_libraries(mlir-tblgen)

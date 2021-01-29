@@ -17,7 +17,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/Transforms/LegalizeForExport.h"
 #include "mlir/IR/Block.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Target/LLVMIR/TypeTranslation.h"
 
@@ -91,9 +91,20 @@ protected:
                                             llvm::IRBuilder<> &builder);
   virtual LogicalResult convertOmpParallel(Operation &op,
                                            llvm::IRBuilder<> &builder);
+  virtual LogicalResult convertOmpMaster(Operation &op,
+                                         llvm::IRBuilder<> &builder);
+  void convertOmpOpRegions(Region &region, StringRef blockName,
+                           DenseMap<Value, llvm::Value *> &valueMapping,
+                           DenseMap<Block *, llvm::BasicBlock *> &blockMapping,
+                           llvm::BasicBlock &sourceBlock,
+                           llvm::BasicBlock &continuationBlock,
+                           llvm::IRBuilder<> &builder,
+                           LogicalResult &bodyGenStatus);
+  virtual LogicalResult convertOmpWsLoop(Operation &opInst,
+                                         llvm::IRBuilder<> &builder);
 
   /// Converts the type from MLIR LLVM dialect to LLVM.
-  llvm::Type *convertType(LLVMType type);
+  llvm::Type *convertType(Type type);
 
   static std::unique_ptr<llvm::Module>
   prepareLLVMModule(Operation *m, llvm::LLVMContext &llvmContext,
@@ -110,7 +121,8 @@ private:
   LogicalResult convertFunctions();
   LogicalResult convertGlobals();
   LogicalResult convertOneFunction(LLVMFuncOp func);
-  LogicalResult convertBlock(Block &bb, bool ignoreArguments);
+  LogicalResult convertBlock(Block &bb, bool ignoreArguments,
+                             llvm::IRBuilder<> &builder);
 
   llvm::Constant *getLLVMConstant(llvm::Type *llvmType, Attribute attr,
                                   Location loc);
@@ -123,6 +135,7 @@ private:
 
   /// Builder for LLVM IR generation of OpenMP constructs.
   std::unique_ptr<llvm::OpenMPIRBuilder> ompBuilder;
+
   /// Precomputed pointer to OpenMP dialect. Note this can be nullptr if the
   /// OpenMP dialect hasn't been loaded (it is always loaded if there are OpenMP
   /// operations in the module though).
@@ -139,6 +152,11 @@ protected:
   llvm::StringMap<llvm::Function *> functionMapping;
   DenseMap<Value, llvm::Value *> valueMapping;
   DenseMap<Block *, llvm::BasicBlock *> blockMapping;
+
+  /// A mapping between MLIR LLVM dialect terminators and LLVM IR terminators
+  /// they are converted to. This allows for connecting PHI nodes to the source
+  /// values after all operations are converted.
+  DenseMap<Operation *, llvm::Instruction *> branchMapping;
 };
 
 } // namespace LLVM

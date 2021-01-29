@@ -35,6 +35,15 @@ static llvm::cl::opt<bool> formatErrorIsFatal(
     llvm::cl::desc("Emit a fatal error if format parsing fails"),
     llvm::cl::init(true));
 
+/// Returns true if the given string can be formatted as a keyword.
+static bool canFormatStringAsKeyword(StringRef value) {
+  if (!isalpha(value.front()) && value.front() != '_')
+    return false;
+  return llvm::all_of(value.drop_front(), [](char c) {
+    return isalnum(c) || c == '_' || c == '$' || c == '.';
+  });
+}
+
 //===----------------------------------------------------------------------===//
 // Element
 //===----------------------------------------------------------------------===//
@@ -57,6 +66,10 @@ public:
 
     /// This element is a literal.
     Literal,
+
+    /// This element is a whitespace.
+    Newline,
+    Space,
 
     /// This element is an variable value.
     AttributeVariable,
@@ -153,7 +166,7 @@ using OperandsDirective = DirectiveElement<Element::Kind::OperandsDirective>;
 
 /// This class represents the `regions` directive. This directive represents
 /// all of the regions of an operation.
-using RegionsDirective = DirectiveElement<Element::Kind::ResultsDirective>;
+using RegionsDirective = DirectiveElement<Element::Kind::RegionsDirective>;
 
 /// This class represents the `results` directive. This directive represents
 /// all of the results of an operation.
@@ -278,19 +291,58 @@ bool LiteralElement::isValidLiteral(StringRef value) {
   // If there is only one character, this must either be punctuation or a
   // single character bare identifier.
   if (value.size() == 1)
-    return isalpha(front) || StringRef("_:,=<>()[]{}?").contains(front);
+    return isalpha(front) || StringRef("_:,=<>()[]{}?+*").contains(front);
 
   // Check the punctuation that are larger than a single character.
   if (value == "->")
     return true;
 
   // Otherwise, this must be an identifier.
-  if (!isalpha(front) && front != '_')
-    return false;
-  return llvm::all_of(value.drop_front(), [](char c) {
-    return isalnum(c) || c == '_' || c == '$' || c == '.';
-  });
+  return canFormatStringAsKeyword(value);
 }
+
+//===----------------------------------------------------------------------===//
+// WhitespaceElement
+
+namespace {
+/// This class represents a whitespace element, e.g. newline or space. It's a
+/// literal that is printed but never parsed.
+class WhitespaceElement : public Element {
+public:
+  WhitespaceElement(Kind kind) : Element{kind} {}
+  static bool classof(const Element *element) {
+    Kind kind = element->getKind();
+    return kind == Kind::Newline || kind == Kind::Space;
+  }
+};
+
+/// This class represents an instance of a newline element. It's a literal that
+/// prints a newline. It is ignored by the parser.
+class NewlineElement : public WhitespaceElement {
+public:
+  NewlineElement() : WhitespaceElement(Kind::Newline) {}
+  static bool classof(const Element *element) {
+    return element->getKind() == Kind::Newline;
+  }
+};
+
+/// This class represents an instance of a space element. It's a literal that
+/// prints or omits printing a space. It is ignored by the parser.
+class SpaceElement : public WhitespaceElement {
+public:
+  SpaceElement(bool value) : WhitespaceElement(Kind::Space), value(value) {}
+  static bool classof(const Element *element) {
+    return element->getKind() == Kind::Space;
+  }
+
+  /// Returns true if this element should print as a space. Otherwise, the
+  /// element should omit printing a space between the surrounding elements.
+  bool getValue() const { return value; }
+
+private:
+  bool value;
+};
+} // end anonymous namespace
 
 //===----------------------------------------------------------------------===//
 // OptionalElement
@@ -301,9 +353,9 @@ namespace {
 class OptionalElement : public Element {
 public:
   OptionalElement(std::vector<std::unique_ptr<Element>> &&elements,
-                  unsigned anchor)
-      : Element{Kind::Optional}, elements(std::move(elements)), anchor(anchor) {
-  }
+                  unsigned anchor, unsigned parseStart)
+      : Element{Kind::Optional}, elements(std::move(elements)), anchor(anchor),
+        parseStart(parseStart) {}
   static bool classof(const Element *element) {
     return element->getKind() == Kind::Optional;
   }
@@ -314,11 +366,17 @@ public:
   /// Return the anchor of this optional group.
   Element *getAnchor() const { return elements[anchor].get(); }
 
+  /// Return the index of the first element that needs to be parsed.
+  unsigned getParseStart() const { return parseStart; }
+
 private:
   /// The child elements of this optional.
   std::vector<std::unique_ptr<Element>> elements;
   /// The index of the element that acts as the anchor for the optional group.
   unsigned anchor;
+  /// The index of the first element that is parsed (is not a
+  /// WhitespaceElement).
+  unsigned parseStart;
 };
 } // end anonymous namespace
 
@@ -432,7 +490,8 @@ struct OperationFormat {
 /// Returns true if we can format the given attribute as an EnumAttr in the
 /// parser format.
 static bool canFormatEnumAttr(const NamedAttribute *attr) {
-  const EnumAttr *enumAttr = dyn_cast<EnumAttr>(&attr->attr);
+  Attribute baseAttr = attr->attr.getBaseAttr();
+  const EnumAttr *enumAttr = dyn_cast<EnumAttr>(&baseAttr);
   if (!enumAttr)
     return false;
 
@@ -482,41 +541,32 @@ const char *const optionalSymbolNameAttrParserCode = R"(
 /// {1}: The c++ namespace for the enum symbolize functions.
 /// {2}: The function to symbolize a string of the enum.
 /// {3}: The constant builder call to create an attribute of the enum type.
+/// {4}: The set of allowed enum keywords.
+/// {5}: The error message on failure when the enum isn't present.
 const char *const enumAttrParserCode = R"(
   {
-    ::mlir::StringAttr attrVal;
+    ::llvm::StringRef attrStr;
     ::mlir::NamedAttrList attrStorage;
     auto loc = parser.getCurrentLocation();
-    if (parser.parseAttribute(attrVal, parser.getBuilder().getNoneType(),
-                              "{0}", attrStorage))
-      return ::mlir::failure();
-
-    auto attrOptional = {1}::{2}(attrVal.getValue());
-    if (!attrOptional)
-      return parser.emitError(loc, "invalid ")
-             << "{0} attribute specification: " << attrVal;
-
-    {0}Attr = {3};
-    result.addAttribute("{0}", {0}Attr);
-  }
-)";
-const char *const optionalEnumAttrParserCode = R"(
-  {
-    ::mlir::StringAttr attrVal;
-    ::mlir::NamedAttrList attrStorage;
-    auto loc = parser.getCurrentLocation();
-
-    ::mlir::OptionalParseResult parseResult =
-      parser.parseOptionalAttribute(attrVal, parser.getBuilder().getNoneType(),
-                                    "{0}", attrStorage);
-    if (parseResult.hasValue()) {
-      if (failed(*parseResult))
-        return ::mlir::failure();
-
-      auto attrOptional = {1}::{2}(attrVal.getValue());
+    if (parser.parseOptionalKeyword(&attrStr, {4})) {
+      ::mlir::StringAttr attrVal;
+      ::mlir::OptionalParseResult parseResult =
+        parser.parseOptionalAttribute(attrVal,
+                                      parser.getBuilder().getNoneType(),
+                                      "{0}", attrStorage);
+      if (parseResult.hasValue()) {{
+        if (failed(*parseResult))
+          return ::mlir::failure();
+        attrStr = attrVal.getValue();
+      } else {
+        {5}
+      }
+    }
+    if (!attrStr.empty()) {
+      auto attrOptional = {1}::{2}(attrStr);
       if (!attrOptional)
         return parser.emitError(loc, "invalid ")
-               << "{0} attribute specification: " << attrVal;
+               << "{0} attribute specification: \"" << attrStr << '"';;
 
       {0}Attr = {3};
       result.addAttribute("{0}", {0}Attr);
@@ -622,8 +672,11 @@ const char *regionListEnsureTerminatorParserCode = R"(
 ///
 /// {0}: The name of the region.
 const char *optionalRegionParserCode = R"(
-  if (parser.parseOptionalRegion(*{0}Region))
-    return ::mlir::failure();
+  {
+     auto parseResult = parser.parseOptionalRegion(*{0}Region);
+     if (parseResult.hasValue() && failed(*parseResult))
+       return ::mlir::failure();
+  }
 )";
 
 /// The code snippet used to generate a parser call for a region.
@@ -719,7 +772,7 @@ static void genLiteralParser(StringRef value, OpMethodBody &body) {
     body << "Keyword(\"" << value << "\")";
     return;
   }
-  body << (StringRef)llvm::StringSwitch<StringRef>(value)
+  body << (StringRef)StringSwitch<StringRef>(value)
               .Case("->", "Arrow()")
               .Case(":", "Colon()")
               .Case(",", "Comma()")
@@ -732,7 +785,9 @@ static void genLiteralParser(StringRef value, OpMethodBody &body) {
               .Case(")", "RParen()")
               .Case("[", "LSquare()")
               .Case("]", "RSquare()")
-              .Case("?", "Question()");
+              .Case("?", "Question()")
+              .Case("+", "Plus()")
+              .Case("*", "Star()");
 }
 
 /// Generate the storage code required for parsing the given element.
@@ -845,7 +900,8 @@ static void genCustomParameterParser(Element &param, OpMethodBody &body) {
   body << ", ";
   if (auto *attr = dyn_cast<AttributeVariable>(&param)) {
     body << attr->getVar()->name << "Attr";
-
+  } else if (isa<AttrDictDirective>(&param)) {
+    body << "result.attributes";
   } else if (auto *operand = dyn_cast<OperandVariable>(&param)) {
     StringRef name = operand->getVar()->name;
     ArgumentLengthKind lengthKind = getArgumentLengthKind(operand->getVar());
@@ -969,6 +1025,49 @@ static void genCustomDirectiveParser(CustomDirective *dir, OpMethodBody &body) {
   body << "  }\n";
 }
 
+/// Generate the parser for a enum attribute.
+static void genEnumAttrParser(const NamedAttribute *var, OpMethodBody &body,
+                              FmtContext &attrTypeCtx) {
+  Attribute baseAttr = var->attr.getBaseAttr();
+  const EnumAttr &enumAttr = cast<EnumAttr>(baseAttr);
+  std::vector<EnumAttrCase> cases = enumAttr.getAllCases();
+
+  // Generate the code for building an attribute for this enum.
+  std::string attrBuilderStr;
+  {
+    llvm::raw_string_ostream os(attrBuilderStr);
+    os << tgfmt(enumAttr.getConstBuilderTemplate(), &attrTypeCtx,
+                "attrOptional.getValue()");
+  }
+
+  // Build a string containing the cases that can be formatted as a keyword.
+  std::string validCaseKeywordsStr = "{";
+  llvm::raw_string_ostream validCaseKeywordsOS(validCaseKeywordsStr);
+  for (const EnumAttrCase &attrCase : cases)
+    if (canFormatStringAsKeyword(attrCase.getStr()))
+      validCaseKeywordsOS << '"' << attrCase.getStr() << "\",";
+  validCaseKeywordsOS.str().back() = '}';
+
+  // If the attribute is not optional, build an error message for the missing
+  // attribute.
+  std::string errorMessage;
+  if (!var->attr.isOptional()) {
+    llvm::raw_string_ostream errorMessageOS(errorMessage);
+    errorMessageOS
+        << "return parser.emitError(loc, \"expected string or "
+           "keyword containing one of the following enum values for attribute '"
+        << var->name << "' [";
+    llvm::interleaveComma(cases, errorMessageOS, [&](const auto &attrCase) {
+      errorMessageOS << attrCase.getStr();
+    });
+    errorMessageOS << "]\");";
+  }
+
+  body << formatv(enumAttrParserCode, var->name, enumAttr.getCppNamespace(),
+                  enumAttr.getStringToSymbolFnName(), attrBuilderStr,
+                  validCaseKeywordsStr, errorMessage);
+}
+
 void OperationFormat::genParser(Operator &op, OpClass &opClass) {
   llvm::SmallVector<OpMethodParameter, 4> paramList;
   paramList.emplace_back("::mlir::OpAsmParser &", "parser");
@@ -1007,7 +1106,8 @@ void OperationFormat::genElementParser(Element *element, OpMethodBody &body,
                                        FmtContext &attrTypeCtx) {
   /// Optional Group.
   if (auto *optional = dyn_cast<OptionalElement>(element)) {
-    auto elements = optional->getElements();
+    auto elements =
+        llvm::drop_begin(optional->getElements(), optional->getParseStart());
 
     // Generate a special optional parser for the first element to gate the
     // parsing of the rest of the elements.
@@ -1060,28 +1160,17 @@ void OperationFormat::genElementParser(Element *element, OpMethodBody &body,
     genLiteralParser(literal->getLiteral(), body);
     body << ")\n    return ::mlir::failure();\n";
 
+    /// Whitespaces.
+  } else if (isa<WhitespaceElement>(element)) {
+    // Nothing to parse.
+
     /// Arguments.
   } else if (auto *attr = dyn_cast<AttributeVariable>(element)) {
     const NamedAttribute *var = attr->getVar();
 
     // Check to see if we can parse this as an enum attribute.
-    if (canFormatEnumAttr(var)) {
-      const EnumAttr &enumAttr = cast<EnumAttr>(var->attr);
-
-      // Generate the code for building an attribute for this enum.
-      std::string attrBuilderStr;
-      {
-        llvm::raw_string_ostream os(attrBuilderStr);
-        os << tgfmt(enumAttr.getConstBuilderTemplate(), &attrTypeCtx,
-                    "attrOptional.getValue()");
-      }
-
-      body << formatv(var->attr.isOptional() ? optionalEnumAttrParserCode
-                                             : enumAttrParserCode,
-                      var->name, enumAttr.getCppNamespace(),
-                      enumAttr.getStringToSymbolFnName(), attrBuilderStr);
-      return;
-    }
+    if (canFormatEnumAttr(var))
+      return genEnumAttrParser(var, body, attrTypeCtx);
 
     // Check to see if we should parse this as a symbol name attribute.
     if (shouldFormatSymbolNameAttr(var)) {
@@ -1202,7 +1291,7 @@ void OperationFormat::genParserTypeResolution(Operator &op,
          << ")) {\n"
          << formatv("      return parser.emitError(parser.getNameLoc()) << "
                     "\"'{0}' must be {1}, but got \" << type;\n",
-                    variable->name, constraint.getDescription())
+                    variable->name, constraint.getSummary())
          << "    }\n"
          << "  }\n";
   }
@@ -1221,10 +1310,16 @@ void OperationFormat::genParserTypeResolution(Operator &op,
     if (Optional<int> val = resolver.getBuilderIdx()) {
       body << "odsBuildableType" << *val;
     } else if (const NamedTypeConstraint *var = resolver.getVariable()) {
-      if (Optional<StringRef> tform = resolver.getVarTransformer())
-        body << tgfmt(*tform, &FmtContext().withSelf(var->name + "Types[0]"));
-      else
+      if (Optional<StringRef> tform = resolver.getVarTransformer()) {
+        FmtContext fmtContext;
+        if (var->isVariadic())
+          fmtContext.withSelf(var->name + "Types");
+        else
+          fmtContext.withSelf(var->name + "Types[0]");
+        body << tgfmt(*tform, &fmtContext);
+      } else {
         body << var->name << "Types";
+      }
     } else if (const NamedAttribute *attr = resolver.getAttribute()) {
       if (Optional<StringRef> tform = resolver.getVarTransformer())
         body << tgfmt(*tform,
@@ -1416,13 +1511,24 @@ const char *regionSingleBlockImplicitTerminatorPrinterCode = R"(
   {
     bool printTerminator = true;
     if (auto *term = {0}.empty() ? nullptr : {0}.begin()->getTerminator()) {{
-      printTerminator = !term->getMutableAttrDict().empty() ||
+      printTerminator = !term->getAttrDictionary().empty() ||
                         term->getNumOperands() != 0 ||
                         term->getNumResults() != 0;
     }
     p.printRegion({0}, /*printEntryBlockArgs=*/true,
                   /*printBlockTerminators=*/printTerminator);
   }
+)";
+
+/// The code snippet used to generate a printer call for an enum that has cases
+/// that can't be represented with a keyword.
+///
+/// {0}: The name of the enum attribute.
+/// {1}: The name of the enum attributes symbolToString function.
+const char *enumAttrBeginPrinterCode = R"(
+  {
+    auto caseValue = {0}();
+    auto caseValueStr = {1}(caseValue);
 )";
 
 /// Generate the printer for the 'attr-dict' directive.
@@ -1459,7 +1565,7 @@ static void genLiteralPrinter(StringRef value, OpMethodBody &body,
     return !StringRef("<>(){}[],").contains(value.front());
   };
   if (shouldEmitSpace && shouldPrintSpaceBeforeLiteral())
-    body << " << \" \"";
+    body << " << ' '";
   body << " << \"" << value << "\";\n";
 
   // Insert a space after certain literals.
@@ -1468,16 +1574,28 @@ static void genLiteralPrinter(StringRef value, OpMethodBody &body,
   lastWasPunctuation = !(value.front() == '_' || isalpha(value.front()));
 }
 
-/// Generate the printer for a literal value. `shouldEmitSpace` is true if a
-/// space should be emitted before this element. `lastWasPunctuation` is true if
-/// the previous element was a punctuation literal.
+/// Generate the printer for a space. `shouldEmitSpace` and `lastWasPunctuation`
+/// are set to false.
+static void genSpacePrinter(bool value, OpMethodBody &body,
+                            bool &shouldEmitSpace, bool &lastWasPunctuation) {
+  if (value) {
+    body << "  p << ' ';\n";
+    lastWasPunctuation = false;
+  }
+  shouldEmitSpace = false;
+}
+
+/// Generate the printer for a custom directive.
 static void genCustomDirectivePrinter(CustomDirective *customDir,
                                       OpMethodBody &body) {
-  body << "  print" << customDir->getName() << "(p";
+  body << "  print" << customDir->getName() << "(p, *this";
   for (Element &param : customDir->getArguments()) {
     body << ", ";
     if (auto *attr = dyn_cast<AttributeVariable>(&param)) {
       body << attr->getVar()->name << "Attr()";
+
+    } else if (isa<AttrDictDirective>(&param)) {
+      body << "getOperation()->getAttrDictionary()";
 
     } else if (auto *operand = dyn_cast<OperandVariable>(&param)) {
       body << operand->getVar()->name << "()";
@@ -1555,12 +1673,97 @@ static OpMethodBody &genTypeOperandPrinter(Element *arg, OpMethodBody &body) {
               << "().getType())";
 }
 
+/// Generate the printer for an enum attribute.
+static void genEnumAttrPrinter(const NamedAttribute *var, OpMethodBody &body) {
+  Attribute baseAttr = var->attr.getBaseAttr();
+  const EnumAttr &enumAttr = cast<EnumAttr>(baseAttr);
+  std::vector<EnumAttrCase> cases = enumAttr.getAllCases();
+
+  body << llvm::formatv(enumAttrBeginPrinterCode,
+                        (var->attr.isOptional() ? "*" : "") + var->name,
+                        enumAttr.getSymbolToStringFnName());
+
+  // Get a string containing all of the cases that can't be represented with a
+  // keyword.
+  llvm::BitVector nonKeywordCases(cases.size());
+  bool hasStrCase = false;
+  for (auto it : llvm::enumerate(cases)) {
+    hasStrCase = it.value().isStrCase();
+    if (!canFormatStringAsKeyword(it.value().getStr()))
+      nonKeywordCases.set(it.index());
+  }
+
+  // If this is a string enum, use the case string to determine which cases
+  // need to use the string form.
+  if (hasStrCase) {
+    if (nonKeywordCases.any()) {
+      body << "    if (llvm::is_contained(llvm::ArrayRef<llvm::StringRef>(";
+      llvm::interleaveComma(nonKeywordCases.set_bits(), body, [&](unsigned it) {
+        body << '"' << cases[it].getStr() << '"';
+      });
+      body << ")))\n"
+              "      p << '\"' << caseValueStr << '\"';\n"
+              "    else\n  ";
+    }
+    body << "    p << caseValueStr;\n"
+            "  }\n";
+    return;
+  }
+
+  // Otherwise if this is a bit enum attribute, don't allow cases that may
+  // overlap with other cases. For simplicity sake, only allow cases with a
+  // single bit value.
+  if (enumAttr.isBitEnum()) {
+    for (auto it : llvm::enumerate(cases)) {
+      int64_t value = it.value().getValue();
+      if (value < 0 || !llvm::isPowerOf2_64(value))
+        nonKeywordCases.set(it.index());
+    }
+  }
+
+  // If there are any cases that can't be used with a keyword, switch on the
+  // case value to determine when to print in the string form.
+  if (nonKeywordCases.any()) {
+    body << "    switch (caseValue) {\n";
+    StringRef cppNamespace = enumAttr.getCppNamespace();
+    StringRef enumName = enumAttr.getEnumClassName();
+    for (auto it : llvm::enumerate(cases)) {
+      if (nonKeywordCases.test(it.index()))
+        continue;
+      StringRef symbol = it.value().getSymbol();
+      body << llvm::formatv("    case {0}::{1}::{2}:\n", cppNamespace, enumName,
+                            llvm::isDigit(symbol.front()) ? ("_" + symbol)
+                                                          : symbol);
+    }
+    body << "      p << caseValueStr;\n"
+            "      break;\n"
+            "    default:\n"
+            "      p << '\"' << caseValueStr << '\"';\n"
+            "      break;\n"
+            "    }\n"
+            "  }\n";
+    return;
+  }
+
+  body << "    p << caseValueStr;\n"
+          "  }\n";
+}
+
 void OperationFormat::genElementPrinter(Element *element, OpMethodBody &body,
                                         Operator &op, bool &shouldEmitSpace,
                                         bool &lastWasPunctuation) {
   if (LiteralElement *literal = dyn_cast<LiteralElement>(element))
     return genLiteralPrinter(literal->getLiteral(), body, shouldEmitSpace,
                              lastWasPunctuation);
+
+  // Emit a whitespace element.
+  if (isa<NewlineElement>(element)) {
+    body << "  p.printNewline();\n";
+    return;
+  }
+  if (SpaceElement *space = dyn_cast<SpaceElement>(element))
+    return genSpacePrinter(space->getValue(), body, shouldEmitSpace,
+                           lastWasPunctuation);
 
   // Emit an optional group.
   if (OptionalElement *optional = dyn_cast<OptionalElement>(element)) {
@@ -1578,7 +1781,7 @@ void OperationFormat::genElementPrinter(Element *element, OpMethodBody &body,
       body << "  if (!" << var->name << "().empty()) {\n";
 
     } else {
-      body << "  if (getAttr(\""
+      body << "  if ((*this)->getAttr(\""
            << cast<AttributeVariable>(anchor)->getVar()->name << "\")) {\n";
     }
 
@@ -1613,7 +1816,7 @@ void OperationFormat::genElementPrinter(Element *element, OpMethodBody &body,
   // Optionally insert a space before the next element. The AttrDict printer
   // already adds a space as necessary.
   if (shouldEmitSpace || !lastWasPunctuation)
-    body << "  p << \" \";\n";
+    body << "  p << ' ';\n";
   lastWasPunctuation = false;
   shouldEmitSpace = true;
 
@@ -1621,12 +1824,8 @@ void OperationFormat::genElementPrinter(Element *element, OpMethodBody &body,
     const NamedAttribute *var = attr->getVar();
 
     // If we are formatting as an enum, symbolize the attribute as a string.
-    if (canFormatEnumAttr(var)) {
-      const EnumAttr &enumAttr = cast<EnumAttr>(var->attr);
-      body << "  p << \"\\\"\" << " << enumAttr.getSymbolToStringFnName() << "("
-           << var->name << "()) << \"\\\"\";\n";
-      return;
-    }
+    if (canFormatEnumAttr(var))
+      return genEnumAttrPrinter(var, body);
 
     // If we are formatting as a symbol name, handle it as a symbol name.
     if (shouldFormatSymbolNameAttr(var)) {
@@ -1936,7 +2135,7 @@ Token FormatLexer::lexIdentifier(const char *tokStart) {
   // Check to see if this identifier is a keyword.
   StringRef str(tokStart, curPtr - tokStart);
   Token::Kind kind =
-      llvm::StringSwitch<Token::Kind>(str)
+      StringSwitch<Token::Kind>(str)
           .Case("attr-dict", Token::kw_attr_dict)
           .Case("attr-dict-with-keyword", Token::kw_attr_dict_w_keyword)
           .Case("custom", Token::kw_custom)
@@ -2208,8 +2407,10 @@ LogicalResult FormatParser::verifyAttributes(
     for (auto &nextItPair : iteratorStack) {
       ElementsIterT nextIt = nextItPair.first, nextE = nextItPair.second;
       for (; nextIt != nextE; ++nextIt) {
-        // Skip any trailing optional groups or attribute dictionaries.
-        if (isa<AttrDictDirective>(*nextIt) || isa<OptionalElement>(*nextIt))
+        // Skip any trailing whitespace, attribute dictionaries, or optional
+        // groups.
+        if (isa<WhitespaceElement>(*nextIt) ||
+            isa<AttrDictDirective>(*nextIt) || isa<OptionalElement>(*nextIt))
           continue;
 
         // We are only interested in `:` literals.
@@ -2528,8 +2729,20 @@ LogicalResult FormatParser::parseLiteral(std::unique_ptr<Element> &element) {
   Token literalTok = curToken;
   consumeToken();
 
-  // Check that the parsed literal is valid.
   StringRef value = literalTok.getSpelling().drop_front().drop_back();
+
+  // The parsed literal is a space element (`` or ` `).
+  if (value.empty() || (value.size() == 1 && value.front() == ' ')) {
+    element = std::make_unique<SpaceElement>(!value.empty());
+    return ::mlir::success();
+  }
+  // The parsed literal is a newline element.
+  if (value == "\\n") {
+    element = std::make_unique<NewlineElement>();
+    return ::mlir::success();
+  }
+
+  // Check that the parsed literal is valid.
   if (!LiteralElement::isValidLiteral(value))
     return emitError(literalTok.getLoc(), "expected valid literal");
 
@@ -2561,14 +2774,18 @@ LogicalResult FormatParser::parseOptional(std::unique_ptr<Element> &element,
   if (!anchorIdx)
     return emitError(curLoc, "optional group specified no anchor element");
 
-  // The first element of the group must be one that can be parsed/printed in an
+  // The first parsable element of the group must be able to be parsed in an
   // optional fashion.
-  Element *firstElement = &*elements.front();
+  auto parseBegin = llvm::find_if_not(elements, [](auto &element) {
+    return isa<WhitespaceElement>(element.get());
+  });
+  Element *firstElement = parseBegin->get();
   if (!isa<AttributeVariable>(firstElement) &&
       !isa<LiteralElement>(firstElement) &&
       !isa<OperandVariable>(firstElement) && !isa<RegionVariable>(firstElement))
-    return emitError(curLoc, "first element of an operand group must be an "
-                             "attribute, literal, operand, or region");
+    return emitError(curLoc,
+                     "first parsable element of an operand group must be "
+                     "an attribute, literal, operand, or region");
 
   // After parsing all of the elements, ensure that all type directives refer
   // only to elements within the group.
@@ -2595,7 +2812,9 @@ LogicalResult FormatParser::parseOptional(std::unique_ptr<Element> &element,
   }
 
   optionalVariables.insert(seenVariables.begin(), seenVariables.end());
-  element = std::make_unique<OptionalElement>(std::move(elements), *anchorIdx);
+  auto parseStart = parseBegin - elements.begin();
+  element = std::make_unique<OptionalElement>(std::move(elements), *anchorIdx,
+                                              parseStart);
   return ::mlir::success();
 }
 
@@ -2641,10 +2860,11 @@ LogicalResult FormatParser::parseOptionalChildElement(
         // a check here.
         return ::mlir::success();
       })
-      // Literals, custom directives, and type directives may be used,
-      // but they can't anchor the group.
-      .Case<LiteralElement, CustomDirective, FunctionalTypeDirective,
-            OptionalElement, TypeRefDirective, TypeDirective>([&](Element *) {
+      // Literals, whitespace, custom directives, and type directives may be
+      // used, but they can't anchor the group.
+      .Case<LiteralElement, WhitespaceElement, CustomDirective,
+            FunctionalTypeDirective, OptionalElement, TypeRefDirective,
+            TypeDirective>([&](Element *) {
         if (isAnchor)
           return emitError(childLoc, "only variables can be used to anchor "
                                      "an optional group");
@@ -2735,8 +2955,9 @@ LogicalResult FormatParser::parseCustomDirectiveParameter(
     return ::mlir::failure();
 
   // Verify that the element can be placed within a custom directive.
-  if (!isa<TypeRefDirective, TypeDirective, AttributeVariable, OperandVariable,
-           RegionVariable, SuccessorVariable>(parameters.back().get())) {
+  if (!isa<TypeRefDirective, TypeDirective, AttrDictDirective,
+           AttributeVariable, OperandVariable, RegionVariable,
+           SuccessorVariable>(parameters.back().get())) {
     return emitError(childLoc, "only variables and types may be used as "
                                "parameters to a custom directive");
   }

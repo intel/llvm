@@ -1,7 +1,6 @@
 // RUN: mlir-opt %s -allow-unregistered-dialect -affine-parallelize| FileCheck %s
+// RUN: mlir-opt %s -allow-unregistered-dialect -affine-parallelize='max-nested=1' | FileCheck --check-prefix=MAX-NESTED %s
 
-// For multiple nested for-loops.
-// CHECK-DAG: [[MAP5:#map[0-9]+]] = affine_map<(d0, d1, d2, d3, d4, d5, d6, d7) -> (d0 + d1, d2 * 2 + d3, d4 * 2 + d5, d6 + d7)>
 // CHECK-LABEL:    func @reduce_window_max() {
 func @reduce_window_max() {
   %cst = constant 0.000000e+00 : f32
@@ -26,7 +25,7 @@ func @reduce_window_max() {
                 affine.for %arg7 = 0 to 1 {
                   %2 = affine.load %0[%arg0, %arg1, %arg2, %arg3] : memref<1x8x8x64xf32>
                   %3 = affine.load %1[%arg0 + %arg4, %arg1 * 2 + %arg5, %arg2 * 2 + %arg6, %arg3 + %arg7] : memref<1x18x18x64xf32>
-                  %4 = cmpf "ogt", %2, %3 : f32
+                  %4 = cmpf ogt, %2, %3 : f32
                   %5 = select %4, %2, %3 : f32
                   affine.store %5, %0[%arg0, %arg1, %arg2, %arg3] : memref<1x8x8x64xf32>
                 }
@@ -62,7 +61,7 @@ func @reduce_window_max() {
 // CHECK:                      affine.parallel (%[[a7:.*]]) = (0) to (1) {
 // CHECK:                        %[[lhs:.*]] = affine.load %[[v0]][%[[a0]], %[[a1]], %[[a2]], %[[a3]]] : memref<1x8x8x64xf32>
 // CHECK:                        %[[rhs:.*]] = affine.load %[[v1]][%[[a0]] + %[[a4]], %[[a1]] * 2 + %[[a5]], %[[a2]] * 2 + %[[a6]], %[[a3]] + %[[a7]]] : memref<1x18x18x64xf32>
-// CHECK:                        %[[res:.*]] = cmpf "ogt", %[[lhs]], %[[rhs]] : f32
+// CHECK:                        %[[res:.*]] = cmpf ogt, %[[lhs]], %[[rhs]] : f32
 // CHECK:                        %[[sel:.*]] = select %[[res]], %[[lhs]], %[[rhs]] : f32
 // CHECK:                        affine.store %[[sel]], %[[v0]][%[[a0]], %[[a1]], %[[a2]], %[[a3]]] : memref<1x8x8x64xf32>
 // CHECK:                      }
@@ -116,3 +115,48 @@ func @non_affine_load() {
   }
   return
 }
+
+// CHECK-LABEL: for_with_minmax
+func @for_with_minmax(%m: memref<?xf32>, %lb0: index, %lb1: index,
+                      %ub0: index, %ub1: index) {
+  // CHECK: %[[lb:.*]] = affine.max
+  // CHECK: %[[ub:.*]] = affine.min
+  // CHECK: affine.parallel (%{{.*}}) = (%[[lb]]) to (%[[ub]])
+  affine.for %i = max affine_map<(d0, d1) -> (d0, d1)>(%lb0, %lb1)
+          to min affine_map<(d0, d1) -> (d0, d1)>(%ub0, %ub1) {
+    affine.load %m[%i] : memref<?xf32>
+  }
+  return
+}
+
+// CHECK-LABEL: nested_for_with_minmax
+func @nested_for_with_minmax(%m: memref<?xf32>, %lb0: index,
+                             %ub0: index, %ub1: index) {
+  // CHECK: affine.parallel
+  affine.for %j = 0 to 10 {
+    // Cannot parallelize the inner loop because we would need to compute
+    // affine.max for its lower bound inside the loop, and that is not (yet)
+    // considered as a valid affine dimension.
+    // CHECK: affine.for
+    affine.for %i = max affine_map<(d0, d1) -> (d0, d1)>(%lb0, %j)
+            to min affine_map<(d0, d1) -> (d0, d1)>(%ub0, %ub1) {
+      affine.load %m[%i] : memref<?xf32>
+    }
+  }
+  return
+}
+
+// MAX-NESTED-LABEL: @max_nested
+func @max_nested(%m: memref<?x?xf32>, %lb0: index, %lb1: index,
+                 %ub0: index, %ub1: index) {
+  // MAX-NESTED: affine.parallel
+  affine.for %i = affine_map<(d0) -> (d0)>(%lb0) to affine_map<(d0) -> (d0)>(%ub0) {
+    // MAX-NESTED: affine.for
+    affine.for %j = affine_map<(d0) -> (d0)>(%lb1) to affine_map<(d0) -> (d0)>(%ub1) {
+      affine.load %m[%i, %j] : memref<?x?xf32>
+    }
+  }
+  return
+}
+
+

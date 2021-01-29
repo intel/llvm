@@ -44,6 +44,7 @@
 #include "SPIRVModule.h"
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/IR/GlobalValue.h" // llvm::GlobalValue::LinkageTypes
 
 namespace llvm {
@@ -76,6 +77,7 @@ class SPIRVToLLVM {
 public:
   SPIRVToLLVM(Module *LLVMModule, SPIRVModule *TheSPIRVModule);
 
+  static const StringSet<> BuiltInConstFunc;
   std::string getOCLBuiltinName(SPIRVInstruction *BI);
   std::string getOCLConvertBuiltinName(SPIRVInstruction *BI);
   std::string getOCLGenericCastToPtrName(SPIRVInstruction *BI);
@@ -105,6 +107,7 @@ public:
   bool transMetadata();
   bool transOCLMetadata(SPIRVFunction *BF);
   bool transVectorComputeMetadata(SPIRVFunction *BF);
+  bool transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F);
   Value *transAsmINTEL(SPIRVAsmINTEL *BA);
   CallInst *transAsmCallINTEL(SPIRVAsmCallINTEL *BI, Function *F,
                               BasicBlock *BB);
@@ -119,7 +122,8 @@ public:
   Instruction *transBuiltinFromInst(const std::string &FuncName,
                                     SPIRVInstruction *BI, BasicBlock *BB);
   Instruction *transOCLBuiltinFromInst(SPIRVInstruction *BI, BasicBlock *BB);
-  Instruction *transSPIRVBuiltinFromInst(SPIRVInstruction *BI, BasicBlock *BB);
+  Instruction *transSPIRVBuiltinFromInst(SPIRVInstruction *BI, BasicBlock *BB,
+                                         bool AddRetTypePostfix = false);
   void transOCLVectorLoadStore(std::string &UnmangledName,
                                std::vector<SPIRVWord> &BArgs);
 
@@ -220,6 +224,11 @@ private:
   // OpenCL function always has NoUnwind attribute.
   // Change this if it is no longer true.
   bool isFuncNoUnwind() const { return true; }
+
+  bool isFuncReadNone(const std::string &Name) const {
+    return BuiltInConstFunc.count(Name);
+  }
+
   bool isSPIRVCmpInstTransToLLVMInst(SPIRVInstruction *BI) const;
   bool isDirectlyTranslatedToOCL(Op OpCode) const;
   bool transOCLBuiltinsFromVariables();
@@ -271,6 +280,8 @@ private:
   void transUserSemantic(SPIRV::SPIRVFunction *Fun);
   void transGlobalAnnotations();
   void transGlobalCtorDtors(SPIRVVariable *BV);
+  void createCXXStructor(const char *ListName,
+                         SmallVectorImpl<Function *> &Funcs);
   void transIntelFPGADecorations(SPIRVValue *BV, Value *V);
 }; // class SPIRVToLLVM
 

@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "include/errno.h"
-#include "include/math.h"
 #include "src/errno/llvmlibc_errno.h"
 #include "src/math/sincosf.h"
 #include "test/src/math/sdcomp26094.h"
@@ -18,6 +17,7 @@
 #include "utils/FPUtil/FloatProperties.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
 #include "utils/UnitTest/Test.h"
+#include <math.h>
 
 #include <stdint.h>
 
@@ -32,7 +32,7 @@ using __llvm_libc::testing::sdcomp26094Values;
 
 namespace mpfr = __llvm_libc::testing::mpfr;
 
-TEST(SinCosfTest, SpecialNumbers) {
+TEST(LlvmLibcSinCosfTest, SpecialNumbers) {
   llvmlibc_errno = 0;
   float sin, cos;
 
@@ -81,7 +81,7 @@ TEST(SinCosfTest, SpecialNumbers) {
   EXPECT_EQ(llvmlibc_errno, EDOM);
 }
 
-TEST(SinCosfTest, InFloatRange) {
+TEST(LlvmLibcSinCosfTest, InFloatRange) {
   constexpr uint32_t count = 1000000;
   constexpr uint32_t step = UINT32_MAX / count;
   for (uint32_t i = 0, v = 0; i <= count; ++i, v += step) {
@@ -97,7 +97,7 @@ TEST(SinCosfTest, InFloatRange) {
 }
 
 // For small values, cos(x) is 1 and sin(x) is x.
-TEST(SinCosfTest, SmallValues) {
+TEST(LlvmLibcSinCosfTest, SmallValues) {
   uint32_t bits = 0x17800000;
   float x = valueFromBits(bits);
   float result_cos, result_sin;
@@ -118,7 +118,7 @@ TEST(SinCosfTest, SmallValues) {
 
 // SDCOMP-26094: check sinf in the cases for which the range reducer
 // returns values furthest beyond its nominal upper bound of pi/4.
-TEST(SinCosfTest, SDCOMP_26094) {
+TEST(LlvmLibcSinCosfTest, SDCOMP_26094) {
   for (uint32_t v : sdcomp26094Values) {
     float x = valueFromBits(v);
     float sin, cos;

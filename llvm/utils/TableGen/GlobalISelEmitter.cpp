@@ -187,17 +187,21 @@ class InstructionMatcher;
 static Optional<LLTCodeGen> MVTToLLT(MVT::SimpleValueType SVT) {
   MVT VT(SVT);
 
-  if (VT.isVector() && VT.getVectorNumElements() != 1)
+  if (VT.isScalableVector())
+    return None;
+
+  if (VT.isFixedLengthVector() && VT.getVectorNumElements() != 1)
     return LLTCodeGen(
         LLT::vector(VT.getVectorNumElements(), VT.getScalarSizeInBits()));
 
   if (VT.isInteger() || VT.isFloatingPoint())
     return LLTCodeGen(LLT::scalar(VT.getSizeInBits()));
+
   return None;
 }
 
 static std::string explainPredicates(const TreePatternNode *N) {
-  std::string Explanation = "";
+  std::string Explanation;
   StringRef Separator = "";
   for (const TreePredicateCall &Call : N->getPredicateCalls()) {
     const TreePredicateFn &P = Call.Fn;
@@ -301,8 +305,8 @@ static Error failedImport(const Twine &Reason) {
 }
 
 static Error isTrivialOperatorNode(const TreePatternNode *N) {
-  std::string Explanation = "";
-  std::string Separator = "";
+  std::string Explanation;
+  std::string Separator;
 
   bool HasUnsupportedPredicate = false;
   for (const TreePredicateCall &Call : N->getPredicateCalls()) {
@@ -449,9 +453,8 @@ public:
   MatchTableRecord(Optional<unsigned> LabelID_, StringRef EmitStr,
                    unsigned NumElements, unsigned Flags,
                    int64_t RawValue = std::numeric_limits<int64_t>::min())
-      : LabelID(LabelID_.hasValue() ? LabelID_.getValue() : ~0u),
-        EmitStr(EmitStr), NumElements(NumElements), Flags(Flags),
-        RawValue(RawValue) {
+      : LabelID(LabelID_.getValueOr(~0u)), EmitStr(EmitStr),
+        NumElements(NumElements), Flags(Flags), RawValue(RawValue) {
     assert((!LabelID_.hasValue() || LabelID != ~0u) &&
            "This value is reserved for non-labels");
   }
@@ -931,7 +934,7 @@ public:
     std::string ParentName(ParentSymbolicName);
     if (ComplexSubOperands.count(SymbolicName)) {
       auto RecordedParentName = ComplexSubOperandsParentName[SymbolicName];
-      if (RecordedParentName.compare(ParentName) != 0)
+      if (RecordedParentName != ParentName)
         return failedImport("Error: Complex suboperand " + SymbolicName +
                             " referenced by different operands: " +
                             RecordedParentName + " and " + ParentName + ".");
@@ -1011,10 +1014,6 @@ protected:
   bool Optimized = false;
 
 public:
-  /// Construct a new predicate and add it to the matcher.
-  template <class Kind, class... Args>
-  Optional<Kind *> addPredicate(Args &&... args);
-
   typename PredicatesTy::iterator predicates_begin() {
     return Predicates.begin();
   }
@@ -1331,7 +1330,7 @@ public:
   bool isIdentical(const PredicateMatcher &B) const override {
     return OperandPredicateMatcher::isIdentical(B) &&
            StoreIdx == cast<RecordNamedOperandMatcher>(&B)->StoreIdx &&
-           Name.compare(cast<RecordNamedOperandMatcher>(&B)->Name) == 0;
+           Name == cast<RecordNamedOperandMatcher>(&B)->Name;
   }
 
   void emitPredicateOpcodes(MatchTable &Table,
@@ -1583,7 +1582,7 @@ public:
         AllocatedTemporariesBaseID(AllocatedTemporariesBaseID) {}
 
   bool hasSymbolicName() const { return !SymbolicName.empty(); }
-  const StringRef getSymbolicName() const { return SymbolicName; }
+  StringRef getSymbolicName() const { return SymbolicName; }
   void setSymbolicName(StringRef Name) {
     assert(SymbolicName.empty() && "Operand already has a symbolic name");
     SymbolicName = std::string(Name);
@@ -2249,10 +2248,10 @@ public:
   }
 
   OperandMatcher &getOperand(unsigned OpIdx) {
-    auto I = std::find_if(Operands.begin(), Operands.end(),
-                          [&OpIdx](const std::unique_ptr<OperandMatcher> &X) {
-                            return X->getOpIdx() == OpIdx;
-                          });
+    auto I = llvm::find_if(Operands,
+                           [&OpIdx](const std::unique_ptr<OperandMatcher> &X) {
+                             return X->getOpIdx() == OpIdx;
+                           });
     if (I != Operands.end())
       return **I;
     llvm_unreachable("Failed to lookup operand");
@@ -2537,7 +2536,7 @@ public:
     return R->getKind() == OR_Copy;
   }
 
-  const StringRef getSymbolicName() const { return SymbolicName; }
+  StringRef getSymbolicName() const { return SymbolicName; }
 
   void emitRenderOpcodes(MatchTable &Table, RuleMatcher &Rule) const override {
     const OperandMatcher &Operand = Rule.getOperandMatcher(SymbolicName);
@@ -2604,7 +2603,7 @@ public:
     return R->getKind() == OR_CopyOrAddZeroReg;
   }
 
-  const StringRef getSymbolicName() const { return SymbolicName; }
+  StringRef getSymbolicName() const { return SymbolicName; }
 
   void emitRenderOpcodes(MatchTable &Table, RuleMatcher &Rule) const override {
     const OperandMatcher &Operand = Rule.getOperandMatcher(SymbolicName);
@@ -2641,7 +2640,7 @@ public:
     return R->getKind() == OR_CopyConstantAsImm;
   }
 
-  const StringRef getSymbolicName() const { return SymbolicName; }
+  StringRef getSymbolicName() const { return SymbolicName; }
 
   void emitRenderOpcodes(MatchTable &Table, RuleMatcher &Rule) const override {
     InstructionMatcher &InsnMatcher = Rule.getInstructionMatcher(SymbolicName);
@@ -2672,7 +2671,7 @@ public:
     return R->getKind() == OR_CopyFConstantAsFPImm;
   }
 
-  const StringRef getSymbolicName() const { return SymbolicName; }
+  StringRef getSymbolicName() const { return SymbolicName; }
 
   void emitRenderOpcodes(MatchTable &Table, RuleMatcher &Rule) const override {
     InstructionMatcher &InsnMatcher = Rule.getInstructionMatcher(SymbolicName);
@@ -2706,7 +2705,7 @@ public:
     return R->getKind() == OR_CopySubReg;
   }
 
-  const StringRef getSymbolicName() const { return SymbolicName; }
+  StringRef getSymbolicName() const { return SymbolicName; }
 
   void emitRenderOpcodes(MatchTable &Table, RuleMatcher &Rule) const override {
     const OperandMatcher &Operand = Rule.getOperandMatcher(SymbolicName);
@@ -4690,6 +4689,8 @@ Expected<action_iterator> GlobalISelEmitter::importExplicitUseRenderers(
 
   // EXTRACT_SUBREG needs to use a subregister COPY.
   if (Name == "EXTRACT_SUBREG") {
+    if (!Dst->getChild(1)->isLeaf())
+      return failedImport("EXTRACT_SUBREG child #1 is not a leaf");
     DefInit *SubRegInit = dyn_cast<DefInit>(Dst->getChild(1)->getLeafValue());
     if (!SubRegInit)
       return failedImport("EXTRACT_SUBREG child #1 is not a subreg index");
@@ -4951,6 +4952,17 @@ GlobalISelEmitter::inferRegClassFromPattern(TreePatternNode *N) {
       return None;
     return getRegClassFromLeaf(RCChild);
   }
+  if (InstName == "INSERT_SUBREG") {
+    TreePatternNode *Child0 = N->getChild(0);
+    assert(Child0->getNumTypes() == 1 && "Unexpected number of types!");
+    const TypeSetByHwMode &VTy = Child0->getExtType(0);
+    return inferSuperRegisterClassForNode(VTy, Child0, N->getChild(2));
+  }
+  if (InstName == "EXTRACT_SUBREG") {
+    assert(N->getNumTypes() == 1 && "Unexpected number of types!");
+    const TypeSetByHwMode &VTy = N->getExtType(0);
+    return inferSuperRegisterClass(VTy, N->getChild(1));
+  }
 
   // Handle destination record types that we can safely infer a register class
   // from.
@@ -4987,7 +4999,8 @@ GlobalISelEmitter::inferSuperRegisterClass(const TypeSetByHwMode &Ty,
   // Use the information we found above to find a minimal register class which
   // supports the subregister and type we want.
   auto RC =
-      Target.getSuperRegForSubReg(Ty.getValueTypeByHwMode(), CGRegs, SubIdx);
+      Target.getSuperRegForSubReg(Ty.getValueTypeByHwMode(), CGRegs, SubIdx,
+                                  /* MustBeAllocatable */ true);
   if (!RC)
     return None;
   return *RC;
@@ -5075,9 +5088,9 @@ Expected<RuleMatcher> GlobalISelEmitter::runOnPattern(const PatternToMatch &P) {
 
   if (Dst->isLeaf()) {
     Record *RCDef = getInitValueAsRegClass(Dst->getLeafValue());
-
-    const CodeGenRegisterClass &RC = Target.getRegisterClass(RCDef);
     if (RCDef) {
+      const CodeGenRegisterClass &RC = Target.getRegisterClass(RCDef);
+
       // We need to replace the def and all its uses with the specified
       // operand. However, we must also insert COPY's wherever needed.
       // For now, emit a copy and let the register allocator clean up.
@@ -5467,15 +5480,13 @@ GlobalISelEmitter::buildMatchTable(MutableArrayRef<RuleMatcher> Rules,
       OpcodeOrder[Opcode] = CurrentOrdering++;
   }
 
-  std::stable_sort(InputRules.begin(), InputRules.end(),
-                   [&OpcodeOrder](const Matcher *A, const Matcher *B) {
-                     auto *L = static_cast<const RuleMatcher *>(A);
-                     auto *R = static_cast<const RuleMatcher *>(B);
-                     return std::make_tuple(OpcodeOrder[L->getOpcode()],
-                                            L->getNumOperands()) <
-                            std::make_tuple(OpcodeOrder[R->getOpcode()],
-                                            R->getNumOperands());
-                   });
+  llvm::stable_sort(InputRules, [&OpcodeOrder](const Matcher *A,
+                                               const Matcher *B) {
+    auto *L = static_cast<const RuleMatcher *>(A);
+    auto *R = static_cast<const RuleMatcher *>(B);
+    return std::make_tuple(OpcodeOrder[L->getOpcode()], L->getNumOperands()) <
+           std::make_tuple(OpcodeOrder[R->getOpcode()], R->getNumOperands());
+  });
 
   for (Matcher *Rule : InputRules)
     Rule->optimize();
@@ -5608,7 +5619,7 @@ void GlobalISelEmitter::run(raw_ostream &OS) {
 
      << "  typedef void(" << Target.getName()
      << "InstructionSelector::*CustomRendererFn)(MachineInstrBuilder &, const "
-        "MachineInstr&, int) "
+        "MachineInstr &, int) "
         "const;\n"
      << "  const ISelInfoTy<PredicateBitset, ComplexMatcherMemFn, "
         "CustomRendererFn> "
@@ -5661,7 +5672,7 @@ void GlobalISelEmitter::run(raw_ostream &OS) {
   OS << "void " << Target.getName() << "InstructionSelector"
     "::setupGeneratedPerFunctionState(MachineFunction &MF) {\n"
     "  AvailableFunctionFeatures = computeAvailableFunctionFeatures("
-    "(const " << Target.getName() << "Subtarget*)&MF.getSubtarget(), &MF);\n"
+    "(const " << Target.getName() << "Subtarget *)&MF.getSubtarget(), &MF);\n"
     "}\n";
 
   if (Target.getName() == "X86" || Target.getName() == "AArch64") {
@@ -5782,7 +5793,7 @@ void GlobalISelEmitter::run(raw_ostream &OS) {
      << "enum {\n"
      << "  GICR_Invalid,\n";
   for (const auto &Record : CustomRendererFns)
-    OS << "  GICR_" << Record->getValueAsString("RendererFn") << ", \n";
+    OS << "  GICR_" << Record->getValueAsString("RendererFn") << ",\n";
   OS << "};\n";
 
   OS << Target.getName() << "InstructionSelector::CustomRendererFn\n"
@@ -6075,11 +6086,10 @@ void SwitchMatcher::finalize() {
   if (empty())
     return;
 
-  std::stable_sort(Matchers.begin(), Matchers.end(),
-                   [](const Matcher *L, const Matcher *R) {
-                     return L->getFirstCondition().getValue() <
-                            R->getFirstCondition().getValue();
-                   });
+  llvm::stable_sort(Matchers, [](const Matcher *L, const Matcher *R) {
+    return L->getFirstCondition().getValue() <
+           R->getFirstCondition().getValue();
+  });
   Condition = Matchers[0]->popFirstCondition();
   for (unsigned I = 1, E = Values.size(); I < E; ++I)
     Matchers[I]->popFirstCondition();

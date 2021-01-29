@@ -191,6 +191,11 @@ public:
     return SelectSVELogicalImm(N, VT, Imm);
   }
 
+  template <MVT::SimpleValueType VT>
+  bool SelectSVEArithImm(SDValue N, SDValue &Imm) {
+    return SelectSVEArithImm(N, VT, Imm);
+  }
+
   template <unsigned Low, unsigned High, bool AllowSaturation = false>
   bool SelectSVEShiftImm(SDValue N, SDValue &Imm) {
     return SelectSVEShiftImm(N, Low, High, AllowSaturation, Imm);
@@ -327,7 +332,7 @@ private:
   bool SelectSVEShiftImm(SDValue N, uint64_t Low, uint64_t High,
                          bool AllowSaturation, SDValue &Imm);
 
-  bool SelectSVEArithImm(SDValue N, SDValue &Imm);
+  bool SelectSVEArithImm(SDValue N, MVT VT, SDValue &Imm);
   bool SelectSVERegRegAddrMode(SDValue N, unsigned Scale, SDValue &Base,
                                SDValue &Offset);
 };
@@ -1372,9 +1377,12 @@ void AArch64DAGToDAGISel::SelectLoad(SDNode *N, unsigned NumVecs, unsigned Opc,
 
   ReplaceUses(SDValue(N, NumVecs), SDValue(Ld, 1));
 
-  // Transfer memoperands.
-  MachineMemOperand *MemOp = cast<MemIntrinsicSDNode>(N)->getMemOperand();
-  CurDAG->setNodeMemRefs(cast<MachineSDNode>(Ld), {MemOp});
+  // Transfer memoperands. In the case of AArch64::LD64B, there won't be one,
+  // because it's too simple to have needed special treatment during lowering.
+  if (auto *MemIntr = dyn_cast<MemIntrinsicSDNode>(N)) {
+    MachineMemOperand *MemOp = MemIntr->getMemOperand();
+    CurDAG->setNodeMemRefs(cast<MachineSDNode>(Ld), {MemOp});
+  }
 
   CurDAG->RemoveDeadNode(N);
 }
@@ -3128,13 +3136,28 @@ bool AArch64DAGToDAGISel::SelectSVESignedArithImm(SDValue N, SDValue &Imm) {
   return false;
 }
 
-bool AArch64DAGToDAGISel::SelectSVEArithImm(SDValue N, SDValue &Imm) {
+bool AArch64DAGToDAGISel::SelectSVEArithImm(SDValue N, MVT VT, SDValue &Imm) {
   if (auto CNode = dyn_cast<ConstantSDNode>(N)) {
-    uint64_t ImmVal = CNode->getSExtValue();
-    SDLoc DL(N);
-    ImmVal = ImmVal & 0xFF;
+    uint64_t ImmVal = CNode->getZExtValue();
+
+    switch (VT.SimpleTy) {
+    case MVT::i8:
+      ImmVal &= 0xFF;
+      break;
+    case MVT::i16:
+      ImmVal &= 0xFFFF;
+      break;
+    case MVT::i32:
+      ImmVal &= 0xFFFFFFFF;
+      break;
+    case MVT::i64:
+      break;
+    default:
+      llvm_unreachable("Unexpected type");
+    }
+
     if (ImmVal < 256) {
-      Imm = CurDAG->getTargetConstant(ImmVal, DL, MVT::i32);
+      Imm = CurDAG->getTargetConstant(ImmVal, SDLoc(N), MVT::i32);
       return true;
     }
   }
@@ -3810,6 +3833,9 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
         return;
       }
       break;
+    case Intrinsic::aarch64_ld64b:
+      SelectLoad(Node, 8, AArch64::LD64B, AArch64::x8sub_0);
+      return;
     }
   } break;
   case ISD::INTRINSIC_WO_CHAIN: {

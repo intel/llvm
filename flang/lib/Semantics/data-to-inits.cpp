@@ -229,9 +229,9 @@ DataInitializationCompiler::ConvertElement(
     // (most) other Fortran compilers do.  Pad on the right with spaces
     // when short, truncate the right if long.
     // TODO: big-endian targets
-    std::size_t bytes{static_cast<std::size_t>(evaluate::ToInt64(
-        type.MeasureSizeInBytes(&exprAnalyzer_.GetFoldingContext()))
-                                                   .value())};
+    auto bytes{static_cast<std::size_t>(evaluate::ToInt64(
+        type.MeasureSizeInBytes(exprAnalyzer_.GetFoldingContext(), false))
+                                            .value())};
     evaluate::BOZLiteralConstant bits{0};
     for (std::size_t j{0}; j < bytes; ++j) {
       char ch{j >= chValue->size() ? ' ' : chValue->at(j)};
@@ -252,6 +252,7 @@ bool DataInitializationCompiler::InitElement(
   bool isPointer{lastSymbol && IsPointer(*lastSymbol)};
   bool isProcPointer{lastSymbol && IsProcedurePointer(*lastSymbol)};
   evaluate::FoldingContext &context{exprAnalyzer_.GetFoldingContext()};
+  auto restorer{context.messages().SetLocation(values_.LocateSource())};
 
   const auto DescribeElement{[&]() {
     if (auto badDesignator{
@@ -302,39 +303,44 @@ bool DataInitializationCompiler::InitElement(
     } else if (evaluate::IsNullPointer(*expr)) {
       // nothing to do; rely on zero initialization
       return true;
-    } else if (evaluate::IsProcedure(*expr)) {
-      if (isProcPointer) {
+    } else if (isProcPointer) {
+      if (evaluate::IsProcedure(*expr)) {
         if (CheckPointerAssignment(context, designator, *expr)) {
           GetImage().AddPointer(offsetSymbol.offset(), *expr);
           return true;
         }
       } else {
-        exprAnalyzer_.Say(values_.LocateSource(),
-            "Procedure '%s' may not be used to initialize '%s', which is not a procedure pointer"_err_en_US,
+        exprAnalyzer_.Say(
+            "Data object '%s' may not be used to initialize '%s', which is a procedure pointer"_err_en_US,
             expr->AsFortran(), DescribeElement());
       }
-    } else if (isProcPointer) {
-      exprAnalyzer_.Say(values_.LocateSource(),
-          "Data object '%s' may not be used to initialize '%s', which is a procedure pointer"_err_en_US,
+    } else if (evaluate::IsProcedure(*expr)) {
+      exprAnalyzer_.Say(
+          "Procedure '%s' may not be used to initialize '%s', which is not a procedure pointer"_err_en_US,
           expr->AsFortran(), DescribeElement());
     } else if (CheckInitialTarget(context, designator, *expr)) {
       GetImage().AddPointer(offsetSymbol.offset(), *expr);
       return true;
     }
   } else if (evaluate::IsNullPointer(*expr)) {
-    exprAnalyzer_.Say(values_.LocateSource(),
-        "Initializer for '%s' must not be a pointer"_err_en_US,
+    exprAnalyzer_.Say("Initializer for '%s' must not be a pointer"_err_en_US,
         DescribeElement());
   } else if (evaluate::IsProcedure(*expr)) {
-    exprAnalyzer_.Say(values_.LocateSource(),
-        "Initializer for '%s' must not be a procedure"_err_en_US,
+    exprAnalyzer_.Say("Initializer for '%s' must not be a procedure"_err_en_US,
         DescribeElement());
   } else if (auto designatorType{designator.GetType()}) {
-    if (auto converted{ConvertElement(*expr, *designatorType)}) {
+    if (expr->Rank() > 0) {
+      // Because initial-data-target is ambiguous with scalar-constant and
+      // scalar-constant-subobject at parse time, enforcement of scalar-*
+      // must be deferred to here.
+      exprAnalyzer_.Say(
+          "DATA statement value initializes '%s' with an array"_err_en_US,
+          DescribeElement());
+    } else if (auto converted{ConvertElement(*expr, *designatorType)}) {
       // value non-pointer initialization
       if (std::holds_alternative<evaluate::BOZLiteralConstant>(expr->u) &&
           designatorType->category() != TypeCategory::Integer) { // 8.6.7(11)
-        exprAnalyzer_.Say(values_.LocateSource(),
+        exprAnalyzer_.Say(
             "BOZ literal should appear in a DATA statement only as a value for an integer object, but '%s' is '%s'"_en_US,
             DescribeElement(), designatorType->AsFortran());
       } else if (converted->second) {
@@ -343,12 +349,12 @@ bool DataInitializationCompiler::InitElement(
             DescribeElement(), designatorType->AsFortran());
       }
       auto folded{evaluate::Fold(context, std::move(converted->first))};
-      switch (
-          GetImage().Add(offsetSymbol.offset(), offsetSymbol.size(), folded)) {
+      switch (GetImage().Add(
+          offsetSymbol.offset(), offsetSymbol.size(), folded, context)) {
       case evaluate::InitialImage::Ok:
         return true;
       case evaluate::InitialImage::NotAConstant:
-        exprAnalyzer_.Say(values_.LocateSource(),
+        exprAnalyzer_.Say(
             "DATA statement value '%s' for '%s' is not a constant"_err_en_US,
             folded.AsFortran(), DescribeElement());
         break;
@@ -428,15 +434,15 @@ static bool CombineSomeEquivalencedInits(
     // Compute the minimum common granularity
     if (auto dyType{evaluate::DynamicType::From(symbol)}) {
       minElementBytes = evaluate::ToInt64(
-          dyType->MeasureSizeInBytes(&exprAnalyzer.GetFoldingContext()))
+          dyType->MeasureSizeInBytes(exprAnalyzer.GetFoldingContext(), true))
                             .value_or(1);
     }
     for (const Symbol *s : conflicts) {
       if (auto dyType{evaluate::DynamicType::From(*s)}) {
-        minElementBytes = std::min(minElementBytes,
-            static_cast<std::size_t>(evaluate::ToInt64(
-                dyType->MeasureSizeInBytes(&exprAnalyzer.GetFoldingContext()))
-                                         .value_or(1)));
+        minElementBytes = std::min<std::size_t>(minElementBytes,
+            evaluate::ToInt64(dyType->MeasureSizeInBytes(
+                                  exprAnalyzer.GetFoldingContext(), true))
+                .value_or(1));
       } else {
         minElementBytes = 1;
       }
@@ -516,12 +522,10 @@ void ConstructInitializer(const Symbol &symbol,
       if (IsPointer(symbol)) {
         mutableObject.set_init(
             initialization.image.AsConstantDataPointer(*symbolType));
-        mutableObject.set_initWasValidated();
       } else {
         if (auto extents{evaluate::GetConstantExtents(context, symbol)}) {
           mutableObject.set_init(
               initialization.image.AsConstant(context, *symbolType, *extents));
-          mutableObject.set_initWasValidated();
         } else {
           exprAnalyzer.Say(symbol.name(),
               "internal: unknown shape for '%s' while constructing initializer from DATA"_err_en_US,

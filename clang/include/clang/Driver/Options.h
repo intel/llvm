@@ -24,7 +24,7 @@ namespace options {
 /// Flags specifically for clang options.  Must not overlap with
 /// llvm::opt::DriverFlag.
 enum ClangFlags {
-  DriverOption = (1 << 4),
+  NoXarchOption = (1 << 4),
   LinkerInput = (1 << 5),
   NoArgumentUnused = (1 << 6),
   Unsupported = (1 << 7),
@@ -36,7 +36,8 @@ enum ClangFlags {
   LinkOption = (1 << 13),
   FlangOption = (1 << 14),
   FC1Option = (1 << 15),
-  Ignored = (1 << 16),
+  FlangOnlyOption = (1 << 16),
+  Ignored = (1 << 17),
 };
 
 enum ID {

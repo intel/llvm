@@ -75,11 +75,13 @@
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/Analysis/ScalarEvolutionNormalization.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/GlobalValue.h"
@@ -422,7 +424,7 @@ static void DoInitialMatch(const SCEV *S, Loop *L,
   // Handle a multiplication by -1 (negation) if it didn't fold.
   if (const SCEVMulExpr *Mul = dyn_cast<SCEVMulExpr>(S))
     if (Mul->getOperand(0)->isAllOnesValue()) {
-      SmallVector<const SCEV *, 4> Ops(Mul->op_begin()+1, Mul->op_end());
+      SmallVector<const SCEV *, 4> Ops(drop_begin(Mul->operands()));
       const SCEV *NewMul = SE.getMulExpr(Ops);
 
       SmallVector<const SCEV *, 4> MyGood;
@@ -483,11 +485,10 @@ bool Formula::isCanonical(const Loop &L) const {
   // If ScaledReg is not a recurrent expr, or it is but its loop is not current
   // loop, meanwhile BaseRegs contains a recurrent expr reg related with current
   // loop, we want to swap the reg in BaseRegs with ScaledReg.
-  auto I =
-      find_if(make_range(BaseRegs.begin(), BaseRegs.end()), [&](const SCEV *S) {
-        return isa<const SCEVAddRecExpr>(S) &&
-               (cast<SCEVAddRecExpr>(S)->getLoop() == &L);
-      });
+  auto I = find_if(BaseRegs, [&](const SCEV *S) {
+    return isa<const SCEVAddRecExpr>(S) &&
+           (cast<SCEVAddRecExpr>(S)->getLoop() == &L);
+  });
   return I == BaseRegs.end();
 }
 
@@ -516,11 +517,10 @@ void Formula::canonicalize(const Loop &L) {
   // reg with ScaledReg.
   const SCEVAddRecExpr *SAR = dyn_cast<const SCEVAddRecExpr>(ScaledReg);
   if (!SAR || SAR->getLoop() != &L) {
-    auto I = find_if(make_range(BaseRegs.begin(), BaseRegs.end()),
-                     [&](const SCEV *S) {
-                       return isa<const SCEVAddRecExpr>(S) &&
-                              (cast<SCEVAddRecExpr>(S)->getLoop() == &L);
-                     });
+    auto I = find_if(BaseRegs, [&](const SCEV *S) {
+      return isa<const SCEVAddRecExpr>(S) &&
+             (cast<SCEVAddRecExpr>(S)->getLoop() == &L);
+    });
     if (I != BaseRegs.end())
       std::swap(ScaledReg, *I);
   }
@@ -753,13 +753,13 @@ static int64_t ExtractImmediate(const SCEV *&S, ScalarEvolution &SE) {
       return C->getValue()->getSExtValue();
     }
   } else if (const SCEVAddExpr *Add = dyn_cast<SCEVAddExpr>(S)) {
-    SmallVector<const SCEV *, 8> NewOps(Add->op_begin(), Add->op_end());
+    SmallVector<const SCEV *, 8> NewOps(Add->operands());
     int64_t Result = ExtractImmediate(NewOps.front(), SE);
     if (Result != 0)
       S = SE.getAddExpr(NewOps);
     return Result;
   } else if (const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(S)) {
-    SmallVector<const SCEV *, 8> NewOps(AR->op_begin(), AR->op_end());
+    SmallVector<const SCEV *, 8> NewOps(AR->operands());
     int64_t Result = ExtractImmediate(NewOps.front(), SE);
     if (Result != 0)
       S = SE.getAddRecExpr(NewOps, AR->getLoop(),
@@ -779,13 +779,13 @@ static GlobalValue *ExtractSymbol(const SCEV *&S, ScalarEvolution &SE) {
       return GV;
     }
   } else if (const SCEVAddExpr *Add = dyn_cast<SCEVAddExpr>(S)) {
-    SmallVector<const SCEV *, 8> NewOps(Add->op_begin(), Add->op_end());
+    SmallVector<const SCEV *, 8> NewOps(Add->operands());
     GlobalValue *Result = ExtractSymbol(NewOps.back(), SE);
     if (Result)
       S = SE.getAddExpr(NewOps);
     return Result;
   } else if (const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(S)) {
-    SmallVector<const SCEV *, 8> NewOps(AR->op_begin(), AR->op_end());
+    SmallVector<const SCEV *, 8> NewOps(AR->operands());
     GlobalValue *Result = ExtractSymbol(NewOps.front(), SE);
     if (Result)
       S = SE.getAddRecExpr(NewOps, AR->getLoop(),
@@ -935,6 +935,8 @@ static bool isHighCostExpansion(const SCEV *S,
   case scSignExtend:
     return isHighCostExpansion(cast<SCEVSignExtendExpr>(S)->getOperand(),
                                Processed, SE);
+  default:
+    break;
   }
 
   if (!Processed.insert(S).second)
@@ -1210,7 +1212,7 @@ static unsigned getSetupCost(const SCEV *Reg, unsigned Depth) {
     return 0;
   if (const auto *S = dyn_cast<SCEVAddRecExpr>(Reg))
     return getSetupCost(S->getStart(), Depth - 1);
-  if (auto S = dyn_cast<SCEVCastExpr>(Reg))
+  if (auto S = dyn_cast<SCEVIntegralCastExpr>(Reg))
     return getSetupCost(S->getOperand(), Depth - 1);
   if (auto S = dyn_cast<SCEVNAryExpr>(Reg))
     return std::accumulate(S->op_begin(), S->op_end(), 0,
@@ -2786,6 +2788,7 @@ static const SCEV *getExprBase(const SCEV *S) {
   case scAddRecExpr:
     return getExprBase(cast<SCEVAddRecExpr>(S)->getStart());
   }
+  llvm_unreachable("Unknown SCEV kind!");
 }
 
 /// Return true if the chain increment is profitable to expand into a loop
@@ -2861,7 +2864,6 @@ static bool isProfitableChain(IVChain &Chain,
   for (const IVInc &Inc : Chain) {
     if (TTI.isProfitableLSRChainElement(Inc.UserInst))
       return true;
-
     if (Inc.IncExpr->isZero())
       continue;
 
@@ -3401,7 +3403,7 @@ LSRInstance::CollectLoopInvariantFixupsAndFormulae() {
 
     if (const SCEVNAryExpr *N = dyn_cast<SCEVNAryExpr>(S))
       Worklist.append(N->op_begin(), N->op_end());
-    else if (const SCEVCastExpr *C = dyn_cast<SCEVCastExpr>(S))
+    else if (const SCEVIntegralCastExpr *C = dyn_cast<SCEVIntegralCastExpr>(S))
       Worklist.push_back(C->getOperand());
     else if (const SCEVUDivExpr *D = dyn_cast<SCEVUDivExpr>(S)) {
       Worklist.push_back(D->getLHS());
@@ -5625,7 +5627,13 @@ LSRInstance::LSRInstance(Loop *L, IVUsers &IU, ScalarEvolution &SE,
   }
 
   // Start collecting data and preparing for the solver.
-  CollectChains();
+  // If number of registers is not the major cost, we cannot benefit from the
+  // current profitable chain optimization which is based on number of
+  // registers.
+  // FIXME: add profitable chain optimization for other kinds major cost, for
+  // example number of instructions.
+  if (TTI.isNumRegsMajorCostOfLSR() || StressIVChain)
+    CollectChains();
   CollectInterestingTypesAndFactors();
   CollectFixupsAndInitialFormulae();
   CollectLoopInvariantFixupsAndFormulae();
@@ -5765,6 +5773,63 @@ void LoopStrengthReduce::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addPreserved<MemorySSAWrapperPass>();
 }
 
+using EqualValues = SmallVector<std::tuple<WeakVH, int64_t, DIExpression *>, 4>;
+using EqualValuesMap = DenseMap<DbgValueInst *, EqualValues>;
+
+static void DbgGatherEqualValues(Loop *L, ScalarEvolution &SE,
+                                 EqualValuesMap &DbgValueToEqualSet) {
+  for (auto &B : L->getBlocks()) {
+    for (auto &I : *B) {
+      auto DVI = dyn_cast<DbgValueInst>(&I);
+      if (!DVI)
+        continue;
+      auto V = DVI->getVariableLocation();
+      if (!V || !SE.isSCEVable(V->getType()))
+        continue;
+      auto DbgValueSCEV = SE.getSCEV(V);
+      EqualValues EqSet;
+      for (PHINode &Phi : L->getHeader()->phis()) {
+        if (V->getType() != Phi.getType())
+          continue;
+        if (!SE.isSCEVable(Phi.getType()))
+          continue;
+        auto PhiSCEV = SE.getSCEV(&Phi);
+        Optional<APInt> Offset =
+                SE.computeConstantDifference(DbgValueSCEV, PhiSCEV);
+        if (Offset && Offset->getMinSignedBits() <= 64)
+          EqSet.emplace_back(std::make_tuple(
+              &Phi, Offset.getValue().getSExtValue(), DVI->getExpression()));
+      }
+      DbgValueToEqualSet[DVI] = std::move(EqSet);
+    }
+  }
+}
+
+static void DbgApplyEqualValues(EqualValuesMap &DbgValueToEqualSet) {
+  for (auto A : DbgValueToEqualSet) {
+    auto DVI = A.first;
+    // Only update those that are now undef.
+    if (!isa_and_nonnull<UndefValue>(DVI->getVariableLocation()))
+      continue;
+    for (auto EV : A.second) {
+      auto V = std::get<WeakVH>(EV);
+      if (!V)
+        continue;
+      auto DbgDIExpr = std::get<DIExpression *>(EV);
+      auto Offset = std::get<int64_t>(EV);
+      auto &Ctx = DVI->getContext();
+      DVI->setOperand(0, MetadataAsValue::get(Ctx, ValueAsMetadata::get(V)));
+      if (Offset) {
+        SmallVector<uint64_t, 8> Ops;
+        DIExpression::appendOffset(Ops, Offset);
+        DbgDIExpr = DIExpression::prependOpcodes(DbgDIExpr, Ops, true);
+      }
+      DVI->setOperand(2, MetadataAsValue::get(Ctx, DbgDIExpr));
+      break;
+    }
+  }
+}
+
 static bool ReduceLoopStrength(Loop *L, IVUsers &IU, ScalarEvolution &SE,
                                DominatorTree &DT, LoopInfo &LI,
                                const TargetTransformInfo &TTI,
@@ -5779,6 +5844,11 @@ static bool ReduceLoopStrength(Loop *L, IVUsers &IU, ScalarEvolution &SE,
   // Run the main LSR transformation.
   Changed |=
       LSRInstance(L, IU, SE, DT, LI, TTI, AC, TLI, MSSAU.get()).getChanged();
+
+  // Debug preservation - before we start removing anything create equivalence
+  // sets for the llvm.dbg.value intrinsics.
+  EqualValuesMap DbgValueToEqualSet;
+  DbgGatherEqualValues(L, SE, DbgValueToEqualSet);
 
   // Remove any extra phis created by processing inner loops.
   Changed |= DeleteDeadPHIs(L->getHeader(), &TLI, MSSAU.get());
@@ -5797,6 +5867,9 @@ static bool ReduceLoopStrength(Loop *L, IVUsers &IU, ScalarEvolution &SE,
       DeleteDeadPHIs(L->getHeader(), &TLI, MSSAU.get());
     }
   }
+
+  DbgApplyEqualValues(DbgValueToEqualSet);
+
   return Changed;
 }
 

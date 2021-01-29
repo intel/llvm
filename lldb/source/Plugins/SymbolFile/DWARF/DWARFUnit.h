@@ -65,6 +65,7 @@ public:
   }
   uint64_t GetTypeHash() const { return m_type_hash; }
   dw_offset_t GetTypeOffset() const { return m_type_offset; }
+  uint64_t GetDWOId() const { return m_dwo_id; }
   bool IsTypeUnit() const {
     return m_unit_type == DW_UT_type || m_unit_type == DW_UT_split_type;
   }
@@ -88,6 +89,7 @@ public:
   virtual ~DWARFUnit();
 
   bool IsDWOUnit() { return m_is_dwo; }
+  uint64_t GetDWOId();
 
   void ExtractUnitDIEIfNeeded();
   void ExtractDIEsIfNeeded();
@@ -105,7 +107,6 @@ public:
   };
   ScopedExtractDIEs ExtractDIEsScoped();
 
-  DWARFDIE LookupAddress(const dw_addr_t address);
   bool Verify(lldb_private::Stream *s) const;
   virtual void Dump(lldb_private::Stream *s) const = 0;
   /// Get the data that contains the DIE information for this unit.
@@ -167,7 +168,7 @@ public:
 
   void SetBaseAddress(dw_addr_t base_addr);
 
-  DWARFBaseDIE GetUnitDIEOnly() { return DWARFDIE(this, GetUnitDIEPtrOnly()); }
+  DWARFBaseDIE GetUnitDIEOnly() { return {this, GetUnitDIEPtrOnly()}; }
 
   DWARFDIE DIE() { return DWARFDIE(this, DIEPtr()); }
 
@@ -334,6 +335,8 @@ protected:
 
   const DIERef::Section m_section;
   bool m_is_dwo;
+  /// Value of DW_AT_GNU_dwo_id (v4) or dwo_id from CU header (v5).
+  uint64_t m_dwo_id;
 
 private:
   void ParseProducerInfo();

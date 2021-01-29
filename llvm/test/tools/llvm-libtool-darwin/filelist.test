@@ -2,10 +2,12 @@
 
 # RUN: yaml2obj %S/Inputs/input1.yaml -o %t-input1.o
 # RUN: yaml2obj %S/Inputs/input2.yaml -o %t-input2.o
+# RUN: llvm-as %S/Inputs/x86_64-osx.ll -o %t-x86_64.bc
 
 ## Passing files in a listfile:
 # RUN: echo %t-input1.o >  %t.files.txt
 # RUN: echo %t-input2.o >> %t.files.txt
+# RUN: echo %t-x86_64.bc >> %t.files.txt
 # RUN: llvm-libtool-darwin -static -o %t.lib -filelist %t.files.txt
 
 ## Check that binaries are present:
@@ -14,6 +16,7 @@
 
 # CHECK-NAMES:      [[PREFIX]]-input1.o
 # CHECK-NAMES-NEXT: [[PREFIX]]-input2.o
+# CHECK-NAMES-NEXT: [[PREFIX]]-x86_64.bc
 
 ## Check that symbols are present:
 # RUN: llvm-nm --print-armap %t.lib | \
@@ -22,6 +25,7 @@
 # CHECK-SYMBOLS:      Archive map
 # CHECK-SYMBOLS-NEXT: _symbol1 in [[PREFIX]]-input1.o
 # CHECK-SYMBOLS-NEXT: _symbol2 in [[PREFIX]]-input2.o
+# CHECK-SYMBOLS-NEXT: _x86_64 in [[PREFIX]]-x86_64.bc
 # CHECK-SYMBOLS-EMPTY:
 
 # RUN: rm -rf %t/dirname && mkdir -p %t/dirname
@@ -61,13 +65,13 @@
 # RUN: not llvm-libtool-darwin -static -o %t.lib -filelist %t.invalid-list.txt 2>&1 | \
 # RUN:   FileCheck %s --check-prefix=FILE-ERROR -DFILE=no-such-file
 
-# FILE-ERROR: error: '[[FILE]]': {{[nN]}}o such file or directory
+# FILE-ERROR: error: '[[FILE]]': {{.*}}{{[nN]}}o such file or directory
 
 ## Check that an error is thrown when the directory exists but does not contain the requested file:
 # RUN: not llvm-libtool-darwin -static -o %t.lib -filelist %t.invalid-list.txt,%t/dirname 2>&1 | \
 # RUN:   FileCheck %s --check-prefix=DIR-ERROR -DDIR=%t/dirname -DFILE=no-such-file
 
-# DIR-ERROR: error: '[[DIR]]{{[/\\]}}[[FILE]]': {{[nN]}}o such file or directory
+# DIR-ERROR: error: '[[DIR]]{{[/\\]}}[[FILE]]': {{.*}}{{[nN]}}o such file or directory
 
 ## Check that an error is thrown when a file is in the cwd but dirname is specified:
 # RUN: yaml2obj %S/Inputs/input2.yaml -o %basename_t.tmp-input2.o

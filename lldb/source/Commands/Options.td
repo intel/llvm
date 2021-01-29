@@ -372,7 +372,7 @@ let Command = "expression" in {
     "top-level entities without a $ prefix.">;
   def expression_options_allow_jit : Option<"allow-jit", "j">, Groups<[1,2]>,
     Arg<"Boolean">,
-    Desc<"Controls whether the expression can fall back to being JITted if it's"
+    Desc<"Controls whether the expression can fall back to being JITted if it's "
     "not supported by the interpreter (defaults to true).">;
 }
 
@@ -644,6 +644,37 @@ let Command = "platform shell" in {
     Desc<"Shell interpreter path. This is the binary used to run the command.">;
 }
 
+let Command = "process launch" in {
+  def process_launch_stop_at_entry : Option<"stop-at-entry", "s">,
+    Desc<"Stop at the entry point of the program when launching a process.">;
+  def process_launch_disable_aslr : Option<"disable-aslr", "A">, Arg<"Boolean">,
+    Desc<"Set whether to disable address space layout randomization when launching a process.">;
+  def process_launch_plugin : Option<"plugin", "P">, Arg<"Plugin">,
+    Desc<"Name of the process plugin you want to use.">;
+  def process_launch_working_dir : Option<"working-dir", "w">, Arg<"DirectoryName">,
+    Desc<"Set the current working directory to <path> when running the inferior.">;
+  def process_launch_arch : Option<"arch", "a">, Arg<"Architecture">,
+    Desc<"Set the architecture for the process to launch when ambiguous.">;
+  def process_launch_environment : Option<"environment", "v">,
+    Arg<"None">, Desc<"Specify an environment variable name/value string "
+    "(--environment NAME=VALUE). Can be specified multiple times for subsequent "
+    "environment entries.">;
+  def process_launch_shell : Option<"shell", "c">, GroupRange<1,3>,
+    OptionalArg<"Filename">, Desc<"Run the process in a shell (not supported on all platforms).">;
+  def process_launch_stdin : Option<"stdin", "i">, Group<1>,
+    Arg<"Filename">, Desc<"Redirect stdin for the process to <filename>.">;
+  def process_launch_stdout : Option<"stdout", "o">, Group<1>,
+    Arg<"Filename">, Desc<"Redirect stdout for the process to <filename>.">;
+  def process_launch_stderr : Option<"stderr", "e">, Group<1>,
+    Arg<"Filename">, Desc<"Redirect stderr for the process to <filename>.">;
+  def process_launch_tty : Option<"tty", "t">, Group<2>,
+    Desc<"Start the process in a terminal (not supported on all platforms).">;
+  def process_launch_no_stdio : Option<"no-stdio", "n">, Group<3>,
+    Desc<"Do not set up for terminal I/O to go to running process.">;
+  def process_launch_shell_expand_args : Option<"shell-expand-args", "X">, Group<4>,
+    Arg<"Boolean">, Desc<"Set whether to shell expand arguments to the process when launching.">;
+}
+
 let Command = "process attach" in {
   def process_attach_continue : Option<"continue", "c">,
     Desc<"Immediately continue the process once attached.">;
@@ -704,6 +735,10 @@ let Command = "script import" in {
     Desc<"Allow the script to be loaded even if it was already loaded before. "
     "This argument exists for backwards compatibility, but reloading is always "
     "allowed, whether you specify it or not.">;
+  def relative_to_command_file : Option<"relative-to-command-file", "c">,
+    Group<1>, Desc<"Resolve non-absolute paths relative to the location of the "
+    "current command file. This argument can only be used when the command is "
+    "being sourced from a file.">;
 }
 
 let Command = "script add" in {
@@ -879,7 +914,7 @@ let Command = "target modules lookup" in {
 }
 
 let Command = "target stop hook add" in {
-  def target_stop_hook_add_one_liner : Option<"one-liner", "o">,
+  def target_stop_hook_add_one_liner : Option<"one-liner", "o">, GroupRange<1,3>,
     Arg<"OneLiner">, Desc<"Add a command for the stop hook.  Can be specified "
     "more than once, and commands will be run in the order they appear.">;
   def target_stop_hook_add_shlib : Option<"shlib", "s">, Arg<"ShlibName">,
@@ -897,19 +932,19 @@ let Command = "target stop hook add" in {
   def target_stop_hook_add_queue_name : Option<"queue-name", "q">,
     Arg<"QueueName">, Desc<"The stop hook is run only for threads in the queue "
     "whose name is given by this argument.">;
-  def target_stop_hook_add_file : Option<"file", "f">, Group<1>,
+  def target_stop_hook_add_file : Option<"file", "f">, Groups<[1,4]>,
     Arg<"Filename">, Desc<"Specify the source file within which the stop-hook "
     "is to be run.">, Completion<"SourceFile">;
-  def target_stop_hook_add_start_line : Option<"start-line", "l">, Group<1>,
+  def target_stop_hook_add_start_line : Option<"start-line", "l">, Groups<[1,4]>,
     Arg<"LineNum">, Desc<"Set the start of the line range for which the "
     "stop-hook is to be run.">;
-  def target_stop_hook_add_end_line : Option<"end-line", "e">, Group<1>,
+  def target_stop_hook_add_end_line : Option<"end-line", "e">, Groups<[1,4]>,
     Arg<"LineNum">, Desc<"Set the end of the line range for which the stop-hook"
     " is to be run.">;
-  def target_stop_hook_add_classname : Option<"classname", "c">, Group<2>,
+  def target_stop_hook_add_classname : Option<"classname", "c">, Groups<[2,5]>,
     Arg<"ClassName">,
     Desc<"Specify the class within which the stop-hook is to be run.">;
-  def target_stop_hook_add_name : Option<"name", "n">, Group<3>,
+  def target_stop_hook_add_name : Option<"name", "n">, Groups<[3,6]>,
     Arg<"FunctionName">, Desc<"Set the function name within which the stop hook"
     " will be run.">, Completion<"Symbol">;
   def target_stop_hook_add_auto_continue : Option<"auto-continue", "G">,
@@ -948,7 +983,7 @@ let Command = "thread step scope" in {
     EnumArg<"RunMode", "TriRunningModes()">, Desc<"Determine how to run other "
     "threads while stepping the current thread.">;
   def thread_step_scope_step_over_regexp : Option<"step-over-regexp", "r">,
-    Group<1>, Arg<"RegularExpression">, Desc<"A regular expression that defines"
+    Group<1>, Arg<"RegularExpression">, Desc<"A regular expression that defines "
     "function names to not to stop at when stepping in.">;
   def thread_step_scope_step_in_target : Option<"step-in-target", "t">,
     Group<1>, Arg<"FunctionName">, Desc<"The name of the directly called "
@@ -961,10 +996,10 @@ let Command = "thread until" in {
   def thread_until_thread : Option<"thread", "t">, Group<1>, Arg<"ThreadIndex">,
     Desc<"Thread index for the thread for until operation">;
   def thread_until_run_mode : Option<"run-mode", "m">, Group<1>,
-    EnumArg<"RunMode", "DuoRunningModes()">, Desc<"Determine how to run other"
+    EnumArg<"RunMode", "DuoRunningModes()">, Desc<"Determine how to run other "
     "threads while stepping this one">;
   def thread_until_address : Option<"address", "a">, Group<1>,
-    Arg<"AddressOrExpression">, Desc<"Run until we reach the specified address,"
+    Arg<"AddressOrExpression">, Desc<"Run until we reach the specified address, "
     "or leave the function - can be specified multiple times.">;
 }
 
@@ -1003,6 +1038,19 @@ let Command = "thread plan list" in {
     "specified more than once.">;
   def thread_plan_list_unreported : Option<"unreported", "u">, Group<1>,
     Desc<"Display thread plans for unreported threads">;
+}
+
+let Command = "thread trace dump instructions" in {
+  def thread_trace_dump_instructions_count : Option<"count", "c">, Group<1>,
+    Arg<"Count">,
+    Desc<"The number of instructions to display ending at the current position.">;
+  def thread_trace_dump_instructions_position : Option<"position", "p">,
+    Group<1>,
+    Arg<"Index">,
+    Desc<"The position to use instead of the current position of the trace.">;
+  def thread_trace_dump_instructions_raw : Option<"raw", "r">,
+    Group<1>,
+    Desc<"Dump only instruction address without disassembly nor symbol information.">;
 }
 
 let Command = "type summary add" in {
@@ -1141,7 +1189,7 @@ let Command = "watchpoint list" in {
     "brief description of the watchpoint (no location info).">;
   def watchpoint_list_full : Option<"full", "f">, Group<2>, Desc<"Give a full "
     "description of the watchpoint and its locations.">;
-  def watchpoint_list_verbose : Option<"verbose", "v">, Group<3>, Desc<"Explain"
+  def watchpoint_list_verbose : Option<"verbose", "v">, Group<3>, Desc<"Explain "
     "everything we know about the watchpoint (for debugging debugger bugs).">;
 }
 

@@ -26,14 +26,14 @@ class property_list : protected detail::PropertyListBase {
   template <typename... Tail> struct AllProperties : std::true_type {};
   template <typename T, typename... Tail>
   struct AllProperties<T, Tail...>
-      : std::conditional<
+      : detail::conditional_t<
             std::is_base_of<detail::DataLessPropertyBase, T>::value ||
                 std::is_base_of<detail::PropertyWithDataBase, T>::value,
-            AllProperties<Tail...>, std::false_type>::type {};
+            AllProperties<Tail...>, std::false_type> {};
 
 public:
-  template <typename... PropsT, typename = typename std::enable_if<
-                                    AllProperties<PropsT...>::value>::type>
+  template <typename... PropsT, typename = typename detail::enable_if_t<
+                                    AllProperties<PropsT...>::value>>
   property_list(PropsT... Props) : detail::PropertyListBase(false) {
     ctorHelper(Props...);
   }

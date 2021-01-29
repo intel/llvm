@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "include/math.h"
 #include "src/math/modf.h"
 #include "utils/FPUtil/BasicOperations.h"
 #include "utils/FPUtil/BitPatterns.h"
@@ -14,6 +13,7 @@
 #include "utils/FPUtil/FloatProperties.h"
 #include "utils/FPUtil/NearestIntegerOperations.h"
 #include "utils/UnitTest/Test.h"
+#include <math.h>
 
 using __llvm_libc::fputil::valueAsBits;
 using __llvm_libc::fputil::valueFromBits;
@@ -21,7 +21,7 @@ using __llvm_libc::fputil::valueFromBits;
 using BitPatterns = __llvm_libc::fputil::BitPatterns<double>;
 using Properties = __llvm_libc::fputil::FloatProperties<double>;
 
-TEST(ModfTest, SpecialNumbers) {
+TEST(LlvmLibcModfTest, SpecialNumbers) {
   double integral;
 
   EXPECT_EQ(BitPatterns::aQuietNaN,
@@ -60,7 +60,7 @@ TEST(ModfTest, SpecialNumbers) {
   EXPECT_EQ(valueAsBits(integral), BitPatterns::negZero);
 }
 
-TEST(ModfTest, Integers) {
+TEST(LlvmLibcModfTest, Integers) {
   double integral;
 
   EXPECT_EQ(BitPatterns::zero, valueAsBits(__llvm_libc::modf(1.0, &integral)));
@@ -86,7 +86,7 @@ TEST(ModfTest, Integers) {
   EXPECT_EQ(valueAsBits(integral), valueAsBits(-12345.0));
 }
 
-TEST(ModfTest, Fractions) {
+TEST(LlvmLibcModfTest, Fractions) {
   double integral;
 
   EXPECT_EQ(valueAsBits(0.5), valueAsBits(__llvm_libc::modf(1.5, &integral)));
@@ -112,7 +112,7 @@ TEST(ModfTest, Fractions) {
   EXPECT_EQ(valueAsBits(integral), valueAsBits(-100.0));
 }
 
-TEST(ModfTest, InDoubleRange) {
+TEST(LlvmLibcModfTest, InDoubleRange) {
   using BitsType = Properties::BitsType;
   constexpr BitsType count = 10000000;
   constexpr BitsType step = UINT64_MAX / count;

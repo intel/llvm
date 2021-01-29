@@ -1,9 +1,5 @@
 cmake_minimum_required(VERSION 3.13.4)
 
-if(POLICY CMP0075)
-  cmake_policy(SET CMP0075 NEW)
-endif()
-
 # If we are not building as a part of LLVM, build Clang as an
 # standalone project, using LLVM as an external library:
 if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
@@ -135,20 +131,7 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   set( CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX} )
 
   if(LLVM_INCLUDE_TESTS)
-    find_package(Python3 COMPONENTS Interpreter)
-    if(NOT Python3_Interpreter_FOUND)
-      message(WARNING "Python3 not found, using python2 as a fallback")
-      find_package(Python2 COMPONENTS Interpreter REQUIRED)
-      if(Python2_VERSION VERSION_LESS 2.7)
-        message(SEND_ERROR "Python 2.7 or newer is required")
-      endif()
-
-      # Treat python2 as python3
-      add_executable(Python3::Interpreter IMPORTED)
-      set_target_properties(Python3::Interpreter PROPERTIES
-        IMPORTED_LOCATION ${Python2_EXECUTABLE})
-      set(Python3_EXECUTABLE ${Python2_EXECUTABLE})
-    endif()
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
     # Check prebuilt llvm/utils.
     if(EXISTS ${LLVM_TOOLS_BINARY_DIR}/FileCheck${CMAKE_EXECUTABLE_SUFFIX}
@@ -242,9 +225,6 @@ set(ENABLE_LINKER_BUILD_ID OFF CACHE BOOL "pass --build-id to ld")
 set(ENABLE_X86_RELAX_RELOCATIONS ON CACHE BOOL
     "enable x86 relax relocations by default")
 
-set(ENABLE_EXPERIMENTAL_NEW_PASS_MANAGER FALSE CACHE BOOL
-  "Enable the experimental new pass manager by default.")
-
 set(CLANG_SPAWN_CC1 OFF CACHE BOOL
     "Whether clang should use a new process for the CC1 invocation")
 
@@ -305,23 +285,32 @@ set(CLANG_DEFAULT_OPENMP_RUNTIME "libomp" CACHE STRING
 # OpenMP offloading requires at least sm_35 because we use shuffle instructions
 # to generate efficient code for reductions and the atomicMax instruction on
 # 64-bit integers in the implementation of conditional lastprivate.
-set(CLANG_OPENMP_NVPTX_DEFAULT_ARCH "sm_35" CACHE STRING
-  "Default architecture for OpenMP offloading to Nvidia GPUs.")
-string(REGEX MATCH "^sm_([0-9]+)$" MATCHED_ARCH "${CLANG_OPENMP_NVPTX_DEFAULT_ARCH}")
-if (NOT DEFINED MATCHED_ARCH OR "${CMAKE_MATCH_1}" LESS 35)
-  message(WARNING "Resetting default architecture for OpenMP offloading to Nvidia GPUs to sm_35")
+set(CUDA_ARCH_FLAGS "sm_35")
+
+# Try to find the highest Nvidia GPU architecture the system supports
+if (NOT DEFINED CLANG_OPENMP_NVPTX_DEFAULT_ARCH)
+  find_package(CUDA QUIET)
+  if (CUDA_FOUND)
+    cuda_select_nvcc_arch_flags(CUDA_ARCH_FLAGS)
+  endif()
+else()
+  set(CUDA_ARCH_FLAGS ${CLANG_OPENMP_NVPTX_DEFAULT_ARCH})
+endif()
+
+string(REGEX MATCH "sm_([0-9]+)" CUDA_ARCH_MATCH ${CUDA_ARCH_FLAGS})
+if (NOT DEFINED CUDA_ARCH_MATCH OR "${CMAKE_MATCH_1}" LESS 35)
   set(CLANG_OPENMP_NVPTX_DEFAULT_ARCH "sm_35" CACHE STRING
     "Default architecture for OpenMP offloading to Nvidia GPUs." FORCE)
+  message(WARNING "Resetting default architecture for OpenMP offloading to Nvidia GPUs to sm_35")
+else()
+  set(CLANG_OPENMP_NVPTX_DEFAULT_ARCH ${CUDA_ARCH_MATCH} CACHE STRING
+    "Default architecture for OpenMP offloading to Nvidia GPUs.")
 endif()
 
 set(CLANG_SYSTEMZ_DEFAULT_ARCH "z10" CACHE STRING "SystemZ Default Arch")
 
 set(CLANG_VENDOR ${PACKAGE_VENDOR} CACHE STRING
   "Vendor-specific text for showing with version information.")
-
-if( CLANG_VENDOR )
-  add_definitions( -DCLANG_VENDOR="${CLANG_VENDOR} " )
-endif()
 
 set(CLANG_REPOSITORY_STRING "" CACHE STRING
   "Vendor-specific text for showing the repository the source is taken from.")
@@ -436,7 +425,6 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
     PATTERN "*.def"
     PATTERN "*.h"
     PATTERN "config.h" EXCLUDE
-    PATTERN ".svn" EXCLUDE
     )
 
   install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/clang

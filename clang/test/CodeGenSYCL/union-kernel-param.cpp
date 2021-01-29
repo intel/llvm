@@ -28,7 +28,7 @@ int main() {
 }
 
 // CHECK kernel_A parameters
-// CHECK: define spir_kernel void @{{.*}}kernel_A(%union.{{.*}}.MyUnion* byval(%union.{{.*}}.MyUnion) align 4 [[MEM_ARG:%[a-zA-Z0-9_]+]])
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_A(%union.{{.*}}.MyUnion* byval(%union.{{.*}}.MyUnion) align 4 [[MEM_ARG:%[a-zA-Z0-9_]+]])
 
 // Check lambda object alloca
 // CHECK: [[LOCAL_OBJECT:%0]] = alloca %"class.{{.*}}.anon", align 4
@@ -38,4 +38,4 @@ int main() {
 // CHECK: [[MEMCPY_SRC:%[0-9a-zA-Z_]+]] = bitcast %union.{{.*}}MyUnion* [[MEM_ARG]] to i8*
 // CHECK: call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 4 [[MEMCPY_DST]], i8* align 4 [[MEMCPY_SRC]], i64 12, i1 false)
 // CHECK: [[ACC_CAST1:%[0-9]+]] = addrspacecast %"class.{{.*}}.anon"* [[LOCAL_OBJECT]] to %"class.{{.*}}.anon" addrspace(4)*
-// CHECK: call spir_func void @{{.*}}(%"class.{{.*}}.anon" addrspace(4)* [[ACC_CAST1]])
+// CHECK: call spir_func void @{{.*}}(%"class.{{.*}}.anon" addrspace(4)* {{[^,]*}} [[ACC_CAST1]])

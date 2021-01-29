@@ -146,6 +146,20 @@ if lldb_repro_mode:
   elif lldb_repro_mode == 'replay':
     config.available_features.add('lldb-repro-replay')
 
+lldb_use_simulator = lit_config.params.get('lldb-run-with-simulator', None)
+if lldb_use_simulator:
+  if lldb_use_simulator == "ios":
+    lit_config.note("Running API tests on iOS simulator")
+    config.available_features.add('lldb-simulator-ios')
+  elif lldb_use_simulator == "watchos":
+    lit_config.note("Running API tests on watchOS simulator")
+    config.available_features.add('lldb-simulator-watchos')
+  elif lldb_use_simulator == "tvos":
+    lit_config.note("Running API tests on tvOS simulator")
+    config.available_features.add('lldb-simulator-tvos')
+  else:
+    lit_config.error("Unknown simulator id '{}'".format(lldb_use_simulator))
+
 # Set a default per-test timeout of 10 minutes. Setting a timeout per test
 # requires that killProcessAndChildren() is supported on the platform and
 # lit complains if the value is set but it is not supported.
@@ -200,6 +214,9 @@ if is_configured('filecheck'):
 if is_configured('yaml2obj'):
   dotest_cmd += ['--yaml2obj', config.yaml2obj]
 
+if is_configured('server'):
+  dotest_cmd += ['--server', config.server]
+
 if is_configured('lldb_libs_dir'):
   dotest_cmd += ['--lldb-libs-dir', config.lldb_libs_dir]
 
@@ -209,6 +226,16 @@ if is_configured('lldb_framework_dir'):
 if 'lldb-repro-capture' in config.available_features or \
     'lldb-repro-replay' in config.available_features:
   dotest_cmd += ['--skip-category=lldb-vscode', '--skip-category=std-module']
+
+if 'lldb-simulator-ios' in config.available_features:
+  dotest_cmd += ['--apple-sdk', 'iphonesimulator',
+                 '--platform-name', 'ios-simulator']
+elif 'lldb-simulator-watchos' in config.available_features:
+  dotest_cmd += ['--apple-sdk', 'watchsimulator',
+                 '--platform-name', 'watchos-simulator']
+elif 'lldb-simulator-tvos' in config.available_features:
+  dotest_cmd += ['--apple-sdk', 'appletvsimulator',
+                 '--platform-name', 'tvos-simulator']
 
 if is_configured('enabled_plugins'):
   for plugin in config.enabled_plugins:
@@ -227,3 +254,8 @@ import lldbtest
 
 # testFormat: The test format to use to interpret tests.
 config.test_format = lldbtest.LLDBTest(dotest_cmd)
+
+# Propagate FREEBSD_LEGACY_PLUGIN
+if 'FREEBSD_LEGACY_PLUGIN' in os.environ:
+  config.environment['FREEBSD_LEGACY_PLUGIN'] = os.environ[
+      'FREEBSD_LEGACY_PLUGIN']

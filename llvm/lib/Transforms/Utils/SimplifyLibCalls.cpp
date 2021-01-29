@@ -1150,7 +1150,12 @@ Value *LibCallSimplifier::optimizeMemPCpy(CallInst *CI, IRBuilderBase &B) {
   // mempcpy(x, y, n) -> llvm.memcpy(align 1 x, align 1 y, n), x + n
   CallInst *NewCI =
       B.CreateMemCpy(Dst, Align(1), CI->getArgOperand(1), Align(1), N);
+  // Propagate attributes, but memcpy has no return value, so make sure that
+  // any return attributes are compliant.
+  // TODO: Attach return value attributes to the 1st operand to preserve them?
   NewCI->setAttributes(CI->getAttributes());
+  NewCI->removeAttributes(AttributeList::ReturnIndex,
+                          AttributeFuncs::typeIncompatible(NewCI->getType()));
   return B.CreateInBoundsGEP(B.getInt8Ty(), Dst, N);
 }
 
@@ -3292,6 +3297,19 @@ Value *FortifiedLibCallSimplifier::optimizeMemSetChk(CallInst *CI,
   return nullptr;
 }
 
+Value *FortifiedLibCallSimplifier::optimizeMemPCpyChk(CallInst *CI,
+                                                      IRBuilderBase &B) {
+  const DataLayout &DL = CI->getModule()->getDataLayout();
+  if (isFortifiedCallFoldable(CI, 3, 2))
+    if (Value *Call = emitMemPCpy(CI->getArgOperand(0), CI->getArgOperand(1),
+                                  CI->getArgOperand(2), B, DL, TLI)) {
+      CallInst *NewCI = cast<CallInst>(Call);
+      NewCI->setAttributes(CI->getAttributes());
+      return NewCI;
+    }
+  return nullptr;
+}
+
 Value *FortifiedLibCallSimplifier::optimizeStrpCpyChk(CallInst *CI,
                                                       IRBuilderBase &B,
                                                       LibFunc Func) {
@@ -3372,7 +3390,7 @@ Value *FortifiedLibCallSimplifier::optimizeMemCCpyChk(CallInst *CI,
 Value *FortifiedLibCallSimplifier::optimizeSNPrintfChk(CallInst *CI,
                                                        IRBuilderBase &B) {
   if (isFortifiedCallFoldable(CI, 3, 1, None, 2)) {
-    SmallVector<Value *, 8> VariadicArgs(CI->arg_begin() + 5, CI->arg_end());
+    SmallVector<Value *, 8> VariadicArgs(drop_begin(CI->args(), 5));
     return emitSNPrintf(CI->getArgOperand(0), CI->getArgOperand(1),
                         CI->getArgOperand(4), VariadicArgs, B, TLI);
   }
@@ -3383,7 +3401,7 @@ Value *FortifiedLibCallSimplifier::optimizeSNPrintfChk(CallInst *CI,
 Value *FortifiedLibCallSimplifier::optimizeSPrintfChk(CallInst *CI,
                                                       IRBuilderBase &B) {
   if (isFortifiedCallFoldable(CI, 2, None, None, 1)) {
-    SmallVector<Value *, 8> VariadicArgs(CI->arg_begin() + 4, CI->arg_end());
+    SmallVector<Value *, 8> VariadicArgs(drop_begin(CI->args(), 4));
     return emitSPrintf(CI->getArgOperand(0), CI->getArgOperand(3), VariadicArgs,
                        B, TLI);
   }
@@ -3481,6 +3499,8 @@ Value *FortifiedLibCallSimplifier::optimizeCall(CallInst *CI,
   switch (Func) {
   case LibFunc_memcpy_chk:
     return optimizeMemCpyChk(CI, Builder);
+  case LibFunc_mempcpy_chk:
+    return optimizeMemPCpyChk(CI, Builder);
   case LibFunc_memmove_chk:
     return optimizeMemMoveChk(CI, Builder);
   case LibFunc_memset_chk:

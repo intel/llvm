@@ -456,8 +456,7 @@ public:
     int Level = 0;
     OS << formatv("{0,-5} {1,-60} {2,+12} {3,+16}\n", "lvl", "function",
                   "count", "sum");
-    for (auto *F :
-         reverse(make_range(CurrentStack.begin() + 1, CurrentStack.end()))) {
+    for (auto *F : reverse(drop_begin(CurrentStack))) {
       auto Sum = std::accumulate(F->ExtraData.IntermediateDurations.begin(),
                                  F->ExtraData.IntermediateDurations.end(), 0LL);
       auto FuncId = FN.SymbolOrNumber(F->FuncId);
@@ -640,10 +639,8 @@ public:
           {
             auto E =
                 std::make_pair(Top, Top->ExtraData.TerminalDurations.size());
-            TopStacksByCount.insert(std::lower_bound(TopStacksByCount.begin(),
-                                                     TopStacksByCount.end(), E,
-                                                     greater_second),
-                                    E);
+            TopStacksByCount.insert(
+                llvm::lower_bound(TopStacksByCount, E, greater_second), E);
             if (TopStacksByCount.size() == 11)
               TopStacksByCount.pop_back();
           }

@@ -51,9 +51,9 @@ static inline Type *checkType(Type *Ty) {
 }
 
 Value::Value(Type *ty, unsigned scid)
-    : VTy(checkType(ty)), UseList(nullptr), SubclassID(scid),
-      HasValueHandle(0), SubclassOptionalData(0), SubclassData(0),
-      NumUserOperands(0), IsUsedByMD(false), HasName(false) {
+    : VTy(checkType(ty)), UseList(nullptr), SubclassID(scid), HasValueHandle(0),
+      SubclassOptionalData(0), SubclassData(0), NumUserOperands(0),
+      IsUsedByMD(false), HasName(false), HasMetadata(false) {
   static_assert(ConstantFirstVal == 0, "!(SubclassID < ConstantFirstVal)");
   // FIXME: Why isn't this in the subclass gunk??
   // Note, we cannot call isa<CallInst> before the CallInst has been
@@ -76,6 +76,10 @@ Value::~Value() {
     ValueHandleBase::ValueIsDeleted(this);
   if (isUsedByMetadata())
     ValueAsMetadata::handleDeletion(this);
+
+  // Remove associated metadata from context.
+  if (HasMetadata)
+    clearMetadata();
 
 #ifndef NDEBUG      // Only in -g mode...
   // Check to make sure that there are no uses of this value that are still
@@ -425,6 +429,18 @@ void Value::takeName(Value *V) {
   if (ST)
     ST->reinsertValue(this);
 }
+
+#ifndef NDEBUG
+std::string Value::getNameOrAsOperand() const {
+  if (!getName().empty())
+    return std::string(getName());
+
+  std::string BBName;
+  raw_string_ostream OS(BBName);
+  printAsOperand(OS, false);
+  return OS.str();
+}
+#endif
 
 void Value::assertModuleIsMaterializedImpl() const {
 #ifndef NDEBUG

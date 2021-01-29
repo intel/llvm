@@ -95,11 +95,11 @@ bool X86CallLowering::splitToValueTypes(const ArgInfo &OrigArg,
 
 namespace {
 
-struct X86OutgoingValueHandler : public CallLowering::IncomingValueHandler {
+struct X86OutgoingValueHandler : public CallLowering::OutgoingValueHandler {
   X86OutgoingValueHandler(MachineIRBuilder &MIRBuilder,
                           MachineRegisterInfo &MRI, MachineInstrBuilder &MIB,
                           CCAssignFn *AssignFn)
-      : IncomingValueHandler(MIRBuilder, MRI, AssignFn), MIB(MIB),
+      : OutgoingValueHandler(MIRBuilder, MRI, AssignFn), MIB(MIB),
         DL(MIRBuilder.getMF().getDataLayout()),
         STI(MIRBuilder.getMF().getSubtarget<X86Subtarget>()) {}
 
@@ -134,9 +134,10 @@ struct X86OutgoingValueHandler : public CallLowering::IncomingValueHandler {
     unsigned ValSize = VA.getValVT().getSizeInBits();
     unsigned LocSize = VA.getLocVT().getSizeInBits();
     if (PhysRegSize > ValSize && LocSize == ValSize) {
-      assert((PhysRegSize == 128 || PhysRegSize == 80)  && "We expect that to be 128 bit");
-      auto MIB = MIRBuilder.buildAnyExt(LLT::scalar(PhysRegSize), ValVReg);
-      ExtReg = MIB.getReg(0);
+      assert((PhysRegSize == 128 || PhysRegSize == 80) &&
+             "We expect that to be 128 bit");
+      ExtReg =
+          MIRBuilder.buildAnyExt(LLT::scalar(PhysRegSize), ValVReg).getReg(0);
     } else
       ExtReg = extendRegister(ValVReg, VA);
 
@@ -183,9 +184,9 @@ protected:
 
 } // end anonymous namespace
 
-bool X86CallLowering::lowerReturn(
-    MachineIRBuilder &MIRBuilder, const Value *Val,
-    ArrayRef<Register> VRegs) const {
+bool X86CallLowering::lowerReturn(MachineIRBuilder &MIRBuilder,
+                                  const Value *Val, ArrayRef<Register> VRegs,
+                                  FunctionLoweringInfo &FLI) const {
   assert(((Val && !VRegs.empty()) || (!Val && VRegs.empty())) &&
          "Return value without a vreg");
   auto MIB = MIRBuilder.buildInstrNoInsert(X86::RET).addImm(0);
@@ -321,9 +322,10 @@ protected:
 
 } // end anonymous namespace
 
-bool X86CallLowering::lowerFormalArguments(
-    MachineIRBuilder &MIRBuilder, const Function &F,
-    ArrayRef<ArrayRef<Register>> VRegs) const {
+bool X86CallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
+                                           const Function &F,
+                                           ArrayRef<ArrayRef<Register>> VRegs,
+                                           FunctionLoweringInfo &FLI) const {
   if (F.arg_empty())
     return true;
 

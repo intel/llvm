@@ -1246,12 +1246,6 @@ void ASTReader::Error(unsigned DiagID, StringRef Arg1, StringRef Arg2,
     Diag(DiagID) << Arg1 << Arg2 << Arg3;
 }
 
-void ASTReader::Error(unsigned DiagID, StringRef Arg1, StringRef Arg2,
-                      unsigned Select) const {
-  if (!Diags.isDiagnosticInFlight())
-    Diag(DiagID) << Arg1 << Arg2 << Select;
-}
-
 void ASTReader::Error(llvm::Error &&Err) const {
   Error(toString(std::move(Err)));
 }
@@ -1538,11 +1532,11 @@ bool ASTReader::ReadSLocEntry(int ID) {
                                                              NumFileDecls));
     }
 
-    const SrcMgr::ContentCache *ContentCache
-      = SourceMgr.getOrCreateContentCache(File, isSystem(FileCharacter));
-    if (OverriddenBuffer && !ContentCache->BufferOverridden &&
-        ContentCache->ContentsEntry == ContentCache->OrigEntry &&
-        !ContentCache->getRawBuffer()) {
+    const SrcMgr::ContentCache &ContentCache =
+        SourceMgr.getOrCreateContentCache(File, isSystem(FileCharacter));
+    if (OverriddenBuffer && !ContentCache.BufferOverridden &&
+        ContentCache.ContentsEntry == ContentCache.OrigEntry &&
+        !ContentCache.getBufferIfLoaded()) {
       auto Buffer = ReadBuffer(SLocEntryCursor, File->getName());
       if (!Buffer)
         return true;
@@ -1921,7 +1915,8 @@ HeaderFileInfoTrait::ReadData(internal_key_ref key, const unsigned char *d,
     // FIXME: This is not always the right filename-as-written, but we're not
     // going to use this information to rebuild the module, so it doesn't make
     // a lot of difference.
-    Module::Header H = {std::string(key.Filename), *FileMgr.getFile(Filename)};
+    Module::Header H = {std::string(key.Filename),
+                        *FileMgr.getOptionalFileRef(Filename)};
     ModMap.addHeader(Mod, H, HeaderRole, /*Imported*/true);
     HFI.isModuleHeader |= !(HeaderRole & ModuleMap::TextualHeader);
   }
@@ -2216,6 +2211,29 @@ void ASTReader::resolvePendingMacro(IdentifierInfo *II,
     PP.setLoadedMacroDirective(II, Earliest, Latest);
 }
 
+bool ASTReader::shouldDisableValidationForFile(
+    const serialization::ModuleFile &M) const {
+  if (DisableValidationKind == DisableValidationForModuleKind::None)
+    return false;
+
+  // If a PCH is loaded and validation is disabled for PCH then disable
+  // validation for the PCH and the modules it loads.
+  ModuleKind K = CurrentDeserializingModuleKind.getValueOr(M.Kind);
+
+  switch (K) {
+  case MK_MainFile:
+  case MK_Preamble:
+  case MK_PCH:
+    return bool(DisableValidationKind & DisableValidationForModuleKind::PCH);
+  case MK_ImplicitModule:
+  case MK_ExplicitModule:
+  case MK_PrebuiltModule:
+    return bool(DisableValidationKind & DisableValidationForModuleKind::Module);
+  }
+
+  return false;
+}
+
 ASTReader::InputFileInfo
 ASTReader::readInputFileInfo(ModuleFile &F, unsigned ID) {
   // Go find this input file.
@@ -2302,27 +2320,25 @@ InputFile ASTReader::getInputFile(ModuleFile &F, unsigned ID, bool Complain) {
   StringRef Filename = FI.Filename;
   uint64_t StoredContentHash = FI.ContentHash;
 
-  const FileEntry *File = nullptr;
-  if (auto FE = FileMgr.getFile(Filename, /*OpenFile=*/false))
-    File = *FE;
+  OptionalFileEntryRefDegradesToFileEntryPtr File =
+      expectedToOptional(FileMgr.getFileRef(Filename, /*OpenFile=*/false));
 
   // If we didn't find the file, resolve it relative to the
   // original directory from which this AST file was created.
-  if (File == nullptr && !F.OriginalDir.empty() && !F.BaseDirectory.empty() &&
+  if (!File && !F.OriginalDir.empty() && !F.BaseDirectory.empty() &&
       F.OriginalDir != F.BaseDirectory) {
     std::string Resolved = resolveFileRelativeToOriginalDir(
         std::string(Filename), F.OriginalDir, F.BaseDirectory);
     if (!Resolved.empty())
-      if (auto FE = FileMgr.getFile(Resolved))
-        File = *FE;
+      File = expectedToOptional(FileMgr.getFileRef(Resolved));
   }
 
   // For an overridden file, create a virtual file with the stored
   // size/timestamp.
-  if ((Overridden || Transient) && File == nullptr)
-    File = FileMgr.getVirtualFile(Filename, StoredSize, StoredTime);
+  if ((Overridden || Transient) && !File)
+    File = FileMgr.getVirtualFileRef(Filename, StoredSize, StoredTime);
 
-  if (File == nullptr) {
+  if (!File) {
     if (Complain) {
       std::string ErrorStr = "could not find file '";
       ErrorStr += Filename;
@@ -2364,7 +2380,7 @@ InputFile ASTReader::getInputFile(ModuleFile &F, unsigned ID, bool Complain) {
   auto HasInputFileChanged = [&]() {
     if (StoredSize != File->getSize())
       return ModificationType::Size;
-    if (!DisableValidation && StoredTime &&
+    if (!shouldDisableValidationForFile(F) && StoredTime &&
         StoredTime != File->getModificationTime()) {
       // In case the modification time changes but not the content,
       // accept the cached file as legit.
@@ -2395,7 +2411,7 @@ InputFile ASTReader::getInputFile(ModuleFile &F, unsigned ID, bool Complain) {
   auto FileChange = HasInputFileChanged();
   // For an overridden file, there is nothing to validate.
   if (!Overridden && FileChange != ModificationType::None) {
-    if (Complain) {
+    if (Complain && !Diags.isDiagnosticInFlight()) {
       // Build a list of the PCH imports that got us here (in reverse).
       SmallVector<ModuleFile *, 4> ImportStack(1, &F);
       while (!ImportStack.back()->ImportedBy.empty())
@@ -2403,20 +2419,12 @@ InputFile ASTReader::getInputFile(ModuleFile &F, unsigned ID, bool Complain) {
 
       // The top-level PCH is stale.
       StringRef TopLevelPCHName(ImportStack.back()->FileName);
-      unsigned DiagnosticKind =
-          moduleKindForDiagnostic(ImportStack.back()->Kind);
-      if (DiagnosticKind == 0)
-        Error(diag::err_fe_pch_file_modified, Filename, TopLevelPCHName,
-              (unsigned)FileChange);
-      else if (DiagnosticKind == 1)
-        Error(diag::err_fe_module_file_modified, Filename, TopLevelPCHName,
-              (unsigned)FileChange);
-      else
-        Error(diag::err_fe_ast_file_modified, Filename, TopLevelPCHName,
-              (unsigned)FileChange);
+      Diag(diag::err_fe_ast_file_modified)
+          << Filename << moduleKindForDiagnostic(ImportStack.back()->Kind)
+          << TopLevelPCHName << FileChange;
 
       // Print the import stack.
-      if (ImportStack.size() > 1 && !Diags.isDiagnosticInFlight()) {
+      if (ImportStack.size() > 1) {
         Diag(diag::note_pch_required_by)
           << Filename << ImportStack[0]->FileName;
         for (unsigned I = 1; I < ImportStack.size(); ++I)
@@ -2424,8 +2432,7 @@ InputFile ASTReader::getInputFile(ModuleFile &F, unsigned ID, bool Complain) {
             << ImportStack[I-1]->FileName << ImportStack[I]->FileName;
       }
 
-      if (!Diags.isDiagnosticInFlight())
-        Diag(diag::note_pch_rebuild_required) << TopLevelPCHName;
+      Diag(diag::note_pch_rebuild_required) << TopLevelPCHName;
     }
 
     IsOutOfDate = true;
@@ -2433,7 +2440,7 @@ InputFile ASTReader::getInputFile(ModuleFile &F, unsigned ID, bool Complain) {
   // FIXME: If the file is overridden and we've already opened it,
   // issue an error (or split it into a separate FileEntry).
 
-  InputFile IF = InputFile(File, Overridden || Transient, IsOutOfDate);
+  InputFile IF = InputFile(*File, Overridden || Transient, IsOutOfDate);
 
   // Note that we've loaded this input file.
   F.InputFilesLoaded[ID-1] = IF;
@@ -2588,6 +2595,8 @@ ASTReader::ReadControlBlock(ModuleFile &F,
     }
     return Success;
   };
+
+  bool DisableValidation = shouldDisableValidationForFile(F);
 
   // Read all of the records and blocks in the control block.
   RecordData Record;
@@ -2887,7 +2896,8 @@ ASTReader::ReadControlBlock(ModuleFile &F,
         // If we're implicitly loading a module, the base directory can't
         // change between the build and use.
         // Don't emit module relocation error if we have -fno-validate-pch
-        if (!PP.getPreprocessorOpts().DisablePCHValidation &&
+        if (!bool(PP.getPreprocessorOpts().DisablePCHOrModuleValidation &
+                  DisableValidationForModuleKind::Module) &&
             F.Kind != MK_ExplicitModule && F.Kind != MK_PrebuiltModule) {
           auto BuildDir = PP.getFileManager().getDirectory(Blob);
           if (!BuildDir || *BuildDir != M->Directory) {
@@ -3758,25 +3768,25 @@ ASTReader::ReadASTBlock(ModuleFile &F, unsigned ClientLoadCapabilities) {
       ForceCUDAHostDeviceDepth = Record[0];
       break;
 
-    case PACK_PRAGMA_OPTIONS: {
+    case ALIGN_PACK_PRAGMA_OPTIONS: {
       if (Record.size() < 3) {
         Error("invalid pragma pack record");
         return Failure;
       }
-      PragmaPackCurrentValue = Record[0];
-      PragmaPackCurrentLocation = ReadSourceLocation(F, Record[1]);
+      PragmaAlignPackCurrentValue = ReadAlignPackInfo(Record[0]);
+      PragmaAlignPackCurrentLocation = ReadSourceLocation(F, Record[1]);
       unsigned NumStackEntries = Record[2];
       unsigned Idx = 3;
       // Reset the stack when importing a new module.
-      PragmaPackStack.clear();
+      PragmaAlignPackStack.clear();
       for (unsigned I = 0; I < NumStackEntries; ++I) {
-        PragmaPackStackEntry Entry;
-        Entry.Value = Record[Idx++];
+        PragmaAlignPackStackEntry Entry;
+        Entry.Value = ReadAlignPackInfo(Record[Idx++]);
         Entry.Location = ReadSourceLocation(F, Record[Idx++]);
         Entry.PushLocation = ReadSourceLocation(F, Record[Idx++]);
-        PragmaPackStrings.push_back(ReadString(Record, Idx));
-        Entry.SlotLabel = PragmaPackStrings.back();
-        PragmaPackStack.push_back(Entry);
+        PragmaAlignPackStrings.push_back(ReadString(Record, Idx));
+        Entry.SlotLabel = PragmaAlignPackStrings.back();
+        PragmaAlignPackStack.push_back(Entry);
       }
       break;
     }
@@ -3919,9 +3929,11 @@ ASTReader::ReadModuleMapFileBlock(RecordData &Record, ModuleFile &F,
     auto &Map = PP.getHeaderSearchInfo().getModuleMap();
     const FileEntry *ModMap = M ? Map.getModuleMapFileForUniquing(M) : nullptr;
     // Don't emit module relocation error if we have -fno-validate-pch
-    if (!PP.getPreprocessorOpts().DisablePCHValidation && !ModMap) {
+    if (!bool(PP.getPreprocessorOpts().DisablePCHOrModuleValidation &
+              DisableValidationForModuleKind::Module) &&
+        !ModMap) {
       if ((ClientLoadCapabilities & ARR_OutOfDate) == 0) {
-        if (auto *ASTFE = M ? M->getASTFile() : nullptr) {
+        if (auto ASTFE = M ? M->getASTFile() : None) {
           // This module was defined by an imported (explicit) module.
           Diag(diag::err_module_file_conflict) << F.ModuleName << F.FileName
                                                << ASTFE->getName();
@@ -4205,6 +4217,8 @@ ASTReader::ASTReadResult ASTReader::ReadAST(StringRef FileName,
                                             SmallVectorImpl<ImportedSubmodule> *Imported) {
   llvm::SaveAndRestore<SourceLocation>
     SetCurImportLocRAII(CurrentImportLoc, ImportLoc);
+  llvm::SaveAndRestore<Optional<ModuleKind>> SetCurModuleKindRAII(
+      CurrentDeserializingModuleKind, Type);
 
   // Defer any pending actions until we get to the end of reading the AST file.
   Deserializing AnASTFile(this);
@@ -4512,9 +4526,9 @@ ASTReader::ReadASTCore(StringRef FileName,
       return Missing;
 
     // Otherwise, return an error.
-    Diag(diag::err_module_file_not_found) << moduleKindForDiagnostic(Type)
-                                          << FileName << !ErrorStr.empty()
-                                          << ErrorStr;
+    Diag(diag::err_ast_file_not_found)
+        << moduleKindForDiagnostic(Type) << FileName << !ErrorStr.empty()
+        << ErrorStr;
     return Failure;
 
   case ModuleManager::OutOfDate:
@@ -4524,9 +4538,9 @@ ASTReader::ReadASTCore(StringRef FileName,
       return OutOfDate;
 
     // Otherwise, return an error.
-    Diag(diag::err_module_file_out_of_date) << moduleKindForDiagnostic(Type)
-                                            << FileName << !ErrorStr.empty()
-                                            << ErrorStr;
+    Diag(diag::err_ast_file_out_of_date)
+        << moduleKindForDiagnostic(Type) << FileName << !ErrorStr.empty()
+        << ErrorStr;
     return Failure;
   }
 
@@ -4547,7 +4561,7 @@ ASTReader::ReadASTCore(StringRef FileName,
 
   // Sniff for the signature.
   if (llvm::Error Err = doesntStartWithASTFileMagic(Stream)) {
-    Diag(diag::err_module_file_invalid)
+    Diag(diag::err_ast_file_invalid)
         << moduleKindForDiagnostic(Type) << FileName << std::move(Err);
     return Failure;
   }
@@ -4639,6 +4653,7 @@ ASTReader::readUnhashedControlBlock(ModuleFile &F, bool WasImportedBy,
       PP.getHeaderSearchInfo().getHeaderSearchOpts();
   bool AllowCompatibleConfigurationMismatch =
       F.Kind == MK_ExplicitModule || F.Kind == MK_PrebuiltModule;
+  bool DisableValidation = shouldDisableValidationForFile(F);
 
   ASTReadResult Result = readUnhashedControlBlockImpl(
       &F, F.Data, ClientLoadCapabilities, AllowCompatibleConfigurationMismatch,
@@ -5530,7 +5545,8 @@ ASTReader::ReadSubmoduleBlock(ModuleFile &F, unsigned ClientLoadCapabilities) {
       if (!ParentModule) {
         if (const FileEntry *CurFile = CurrentModule->getASTFile()) {
           // Don't emit module relocation error if we have -fno-validate-pch
-          if (!PP.getPreprocessorOpts().DisablePCHValidation &&
+          if (!bool(PP.getPreprocessorOpts().DisablePCHOrModuleValidation &
+                    DisableValidationForModuleKind::Module) &&
               CurFile != F.File) {
             Error(diag::err_module_file_conflict,
                   CurrentModule->getTopLevelModuleName(), CurFile->getName(),
@@ -5581,7 +5597,7 @@ ASTReader::ReadSubmoduleBlock(ModuleFile &F, unsigned ClientLoadCapabilities) {
     case SUBMODULE_UMBRELLA_HEADER: {
       std::string Filename = std::string(Blob);
       ResolveImportedPath(F, Filename);
-      if (auto Umbrella = PP.getFileManager().getFile(Filename)) {
+      if (auto Umbrella = PP.getFileManager().getOptionalFileRef(Filename)) {
         if (!CurrentModule->getUmbrellaHeader())
           ModMap.setUmbrellaHeader(CurrentModule, *Umbrella, Blob);
         else if (CurrentModule->getUmbrellaHeader().Entry != *Umbrella) {
@@ -5614,7 +5630,8 @@ ASTReader::ReadSubmoduleBlock(ModuleFile &F, unsigned ClientLoadCapabilities) {
     case SUBMODULE_UMBRELLA_DIR: {
       std::string Dirname = std::string(Blob);
       ResolveImportedPath(F, Dirname);
-      if (auto Umbrella = PP.getFileManager().getDirectory(Dirname)) {
+      if (auto Umbrella =
+              PP.getFileManager().getOptionalDirectoryRef(Dirname)) {
         if (!CurrentModule->getUmbrellaDir())
           ModMap.setUmbrellaDir(CurrentModule, *Umbrella, Blob);
         else if (CurrentModule->getUmbrellaDir().Entry != *Umbrella) {
@@ -5844,6 +5861,7 @@ bool ASTReader::ParseHeaderSearchOptions(const RecordData &Record,
   HSOpts.DisableModuleHash = Record[Idx++];
   HSOpts.ImplicitModuleMaps = Record[Idx++];
   HSOpts.ModuleMapFileHomeIsCwd = Record[Idx++];
+  HSOpts.EnablePrebuiltImplicitModules = Record[Idx++];
   HSOpts.UseBuiltinIncludes = Record[Idx++];
   HSOpts.UseStandardSystemIncludes = Record[Idx++];
   HSOpts.UseStandardCXXIncludes = Record[Idx++];
@@ -6471,8 +6489,8 @@ void TypeLocReader::VisitBuiltinTypeLoc(BuiltinTypeLoc TL) {
   TL.setBuiltinLoc(readSourceLocation());
   if (TL.needsExtraLocalData()) {
     TL.setWrittenTypeSpec(static_cast<DeclSpec::TST>(Reader.readInt()));
-    TL.setWrittenSignSpec(static_cast<DeclSpec::TSS>(Reader.readInt()));
-    TL.setWrittenWidthSpec(static_cast<DeclSpec::TSW>(Reader.readInt()));
+    TL.setWrittenSignSpec(static_cast<TypeSpecifierSign>(Reader.readInt()));
+    TL.setWrittenWidthSpec(static_cast<TypeSpecifierWidth>(Reader.readInt()));
     TL.setModeAttr(Reader.readInt());
   }
 }
@@ -7046,6 +7064,11 @@ QualType ASTReader::GetType(TypeID ID) {
       T = Context.SingletonId; \
       break;
 #include "clang/Basic/AArch64SVEACLETypes.def"
+#define PPC_VECTOR_TYPE(Name, Id, Size) \
+    case PREDEF_TYPE_##Id##_ID: \
+      T = Context.Id##Ty; \
+      break;
+#include "clang/Basic/PPCTypes.def"
     }
 
     assert(!T.isNull() && "Unknown predefined type");
@@ -7891,32 +7914,37 @@ void ASTReader::UpdateSema() {
   }
   SemaObj->ForceCUDAHostDeviceDepth = ForceCUDAHostDeviceDepth;
 
-  if (PragmaPackCurrentValue) {
+  if (PragmaAlignPackCurrentValue) {
     // The bottom of the stack might have a default value. It must be adjusted
     // to the current value to ensure that the packing state is preserved after
     // popping entries that were included/imported from a PCH/module.
     bool DropFirst = false;
-    if (!PragmaPackStack.empty() &&
-        PragmaPackStack.front().Location.isInvalid()) {
-      assert(PragmaPackStack.front().Value == SemaObj->PackStack.DefaultValue &&
+    if (!PragmaAlignPackStack.empty() &&
+        PragmaAlignPackStack.front().Location.isInvalid()) {
+      assert(PragmaAlignPackStack.front().Value ==
+                 SemaObj->AlignPackStack.DefaultValue &&
              "Expected a default alignment value");
-      SemaObj->PackStack.Stack.emplace_back(
-          PragmaPackStack.front().SlotLabel, SemaObj->PackStack.CurrentValue,
-          SemaObj->PackStack.CurrentPragmaLocation,
-          PragmaPackStack.front().PushLocation);
+      SemaObj->AlignPackStack.Stack.emplace_back(
+          PragmaAlignPackStack.front().SlotLabel,
+          SemaObj->AlignPackStack.CurrentValue,
+          SemaObj->AlignPackStack.CurrentPragmaLocation,
+          PragmaAlignPackStack.front().PushLocation);
       DropFirst = true;
     }
-    for (const auto &Entry :
-         llvm::makeArrayRef(PragmaPackStack).drop_front(DropFirst ? 1 : 0))
-      SemaObj->PackStack.Stack.emplace_back(Entry.SlotLabel, Entry.Value,
-                                            Entry.Location, Entry.PushLocation);
-    if (PragmaPackCurrentLocation.isInvalid()) {
-      assert(*PragmaPackCurrentValue == SemaObj->PackStack.DefaultValue &&
-             "Expected a default alignment value");
+    for (const auto &Entry : llvm::makeArrayRef(PragmaAlignPackStack)
+                                 .drop_front(DropFirst ? 1 : 0)) {
+      SemaObj->AlignPackStack.Stack.emplace_back(
+          Entry.SlotLabel, Entry.Value, Entry.Location, Entry.PushLocation);
+    }
+    if (PragmaAlignPackCurrentLocation.isInvalid()) {
+      assert(*PragmaAlignPackCurrentValue ==
+                 SemaObj->AlignPackStack.DefaultValue &&
+             "Expected a default align and pack value");
       // Keep the current values.
     } else {
-      SemaObj->PackStack.CurrentValue = *PragmaPackCurrentValue;
-      SemaObj->PackStack.CurrentPragmaLocation = PragmaPackCurrentLocation;
+      SemaObj->AlignPackStack.CurrentValue = *PragmaAlignPackCurrentValue;
+      SemaObj->AlignPackStack.CurrentPragmaLocation =
+          PragmaAlignPackCurrentLocation;
     }
   }
   if (FpPragmaCurrentValue) {
@@ -8957,65 +8985,6 @@ ASTReader::ReadSourceRange(ModuleFile &F, const RecordData &Record,
   return SourceRange(beg, end);
 }
 
-static llvm::FixedPointSemantics
-ReadFixedPointSemantics(const SmallVectorImpl<uint64_t> &Record,
-                        unsigned &Idx) {
-  unsigned Width = Record[Idx++];
-  unsigned Scale = Record[Idx++];
-  uint64_t Tmp = Record[Idx++];
-  bool IsSigned = Tmp & 0x1;
-  bool IsSaturated = Tmp & 0x2;
-  bool HasUnsignedPadding = Tmp & 0x4;
-  return llvm::FixedPointSemantics(Width, Scale, IsSigned, IsSaturated,
-                                   HasUnsignedPadding);
-}
-
-static const llvm::fltSemantics &
-readAPFloatSemantics(ASTRecordReader &reader) {
-  return llvm::APFloatBase::EnumToSemantics(
-    static_cast<llvm::APFloatBase::Semantics>(reader.readInt()));
-}
-
-APValue ASTRecordReader::readAPValue() {
-  unsigned Kind = readInt();
-  switch ((APValue::ValueKind) Kind) {
-  case APValue::None:
-    return APValue();
-  case APValue::Indeterminate:
-    return APValue::IndeterminateValue();
-  case APValue::Int:
-    return APValue(readAPSInt());
-  case APValue::Float: {
-    const llvm::fltSemantics &FloatSema = readAPFloatSemantics(*this);
-    return APValue(readAPFloat(FloatSema));
-  }
-  case APValue::FixedPoint: {
-    llvm::FixedPointSemantics FPSema = ReadFixedPointSemantics(Record, Idx);
-    return APValue(llvm::APFixedPoint(readAPInt(), FPSema));
-  }
-  case APValue::ComplexInt: {
-    llvm::APSInt First = readAPSInt();
-    return APValue(std::move(First), readAPSInt());
-  }
-  case APValue::ComplexFloat: {
-    const llvm::fltSemantics &FloatSema1 = readAPFloatSemantics(*this);
-    llvm::APFloat First = readAPFloat(FloatSema1);
-    const llvm::fltSemantics &FloatSema2 = readAPFloatSemantics(*this);
-    return APValue(std::move(First), readAPFloat(FloatSema2));
-  }
-  case APValue::LValue:
-  case APValue::Vector:
-  case APValue::Array:
-  case APValue::Struct:
-  case APValue::Union:
-  case APValue::MemberPointer:
-  case APValue::AddrLabelDiff:
-    // TODO : Handle all these APValue::ValueKind.
-    return APValue();
-  }
-  llvm_unreachable("Invalid APValue::ValueKind");
-}
-
 /// Read a floating-point value
 llvm::APFloat ASTRecordReader::readAPFloat(const llvm::fltSemantics &Sem) {
   return llvm::APFloat(Sem, readAPInt());
@@ -9190,7 +9159,7 @@ void ASTReader::visitTopLevelModuleMaps(
     InputFileInfo IFI = readInputFileInfo(MF, I + 1);
     if (IFI.TopLevelModuleMap)
       // FIXME: This unnecessarily re-reads the InputFileInfo.
-      if (auto *FE = getInputFile(MF, I + 1).getFile())
+      if (auto FE = getInputFile(MF, I + 1).getFile())
         Visitor(FE);
   }
 }
@@ -11671,12 +11640,13 @@ ASTReader::ASTReader(Preprocessor &PP, InMemoryModuleCache &ModuleCache,
                      ASTContext *Context,
                      const PCHContainerReader &PCHContainerRdr,
                      ArrayRef<std::shared_ptr<ModuleFileExtension>> Extensions,
-                     StringRef isysroot, bool DisableValidation,
+                     StringRef isysroot,
+                     DisableValidationForModuleKind DisableValidationKind,
                      bool AllowASTWithCompilerErrors,
                      bool AllowConfigurationMismatch, bool ValidateSystemInputs,
                      bool ValidateASTInputFilesContent, bool UseGlobalIndex,
                      std::unique_ptr<llvm::Timer> ReadTimer)
-    : Listener(DisableValidation
+    : Listener(bool(DisableValidationKind &DisableValidationForModuleKind::PCH)
                    ? cast<ASTReaderListener>(new SimpleASTReaderListener(PP))
                    : cast<ASTReaderListener>(new PCHValidator(PP, *this))),
       SourceMgr(PP.getSourceManager()), FileMgr(PP.getFileManager()),
@@ -11684,7 +11654,7 @@ ASTReader::ASTReader(Preprocessor &PP, InMemoryModuleCache &ModuleCache,
       ContextObj(Context), ModuleMgr(PP.getFileManager(), ModuleCache,
                                      PCHContainerRdr, PP.getHeaderSearchInfo()),
       DummyIdResolver(PP), ReadTimer(std::move(ReadTimer)), isysroot(isysroot),
-      DisableValidation(DisableValidation),
+      DisableValidationKind(DisableValidationKind),
       AllowASTWithCompilerErrors(AllowASTWithCompilerErrors),
       AllowConfigurationMismatch(AllowConfigurationMismatch),
       ValidateSystemInputs(ValidateSystemInputs),
@@ -11735,9 +11705,9 @@ class OMPClauseReader : public OMPClauseVisitor<OMPClauseReader> {
 public:
   OMPClauseReader(ASTRecordReader &Record)
       : Record(Record), Context(Record.getContext()) {}
-
-#define OMP_CLAUSE_CLASS(Enum, Str, Class) void Visit##Class(Class *C);
-#include "llvm/Frontend/OpenMP/OMPKinds.def"
+#define GEN_CLANG_CLAUSE_CLASS
+#define CLAUSE_CLASS(Enum, Str, Class) void Visit##Class(Class *C);
+#include "llvm/Frontend/OpenMP/OMP.inc"
   OMPClause *readClause();
   void VisitOMPClauseWithPreInit(OMPClauseWithPreInit *C);
   void VisitOMPClauseWithPostUpdate(OMPClauseWithPostUpdate *C);
@@ -12541,10 +12511,10 @@ void OMPClauseReader::VisitOMPMapClause(OMPMapClause *C) {
   SmallVector<OMPClauseMappableExprCommon::MappableComponent, 32> Components;
   Components.reserve(TotalComponents);
   for (unsigned i = 0; i < TotalComponents; ++i) {
-    Expr *AssociatedExpr = Record.readExpr();
+    Expr *AssociatedExprPr = Record.readExpr();
     auto *AssociatedDecl = Record.readDeclAs<ValueDecl>();
-    Components.push_back(OMPClauseMappableExprCommon::MappableComponent(
-        AssociatedExpr, AssociatedDecl));
+    Components.emplace_back(AssociatedExprPr, AssociatedDecl,
+                            /*IsNonContiguous=*/false);
   }
   C->setComponents(Components, ListSizes);
 }
@@ -12664,10 +12634,10 @@ void OMPClauseReader::VisitOMPToClause(OMPToClause *C) {
   SmallVector<OMPClauseMappableExprCommon::MappableComponent, 32> Components;
   Components.reserve(TotalComponents);
   for (unsigned i = 0; i < TotalComponents; ++i) {
-    Expr *AssociatedExpr = Record.readSubExpr();
+    Expr *AssociatedExprPr = Record.readSubExpr();
+    bool IsNonContiguous = Record.readBool();
     auto *AssociatedDecl = Record.readDeclAs<ValueDecl>();
-    Components.push_back(OMPClauseMappableExprCommon::MappableComponent(
-        AssociatedExpr, AssociatedDecl));
+    Components.emplace_back(AssociatedExprPr, AssociatedDecl, IsNonContiguous);
   }
   C->setComponents(Components, ListSizes);
 }
@@ -12720,10 +12690,10 @@ void OMPClauseReader::VisitOMPFromClause(OMPFromClause *C) {
   SmallVector<OMPClauseMappableExprCommon::MappableComponent, 32> Components;
   Components.reserve(TotalComponents);
   for (unsigned i = 0; i < TotalComponents; ++i) {
-    Expr *AssociatedExpr = Record.readSubExpr();
+    Expr *AssociatedExprPr = Record.readSubExpr();
+    bool IsNonContiguous = Record.readBool();
     auto *AssociatedDecl = Record.readDeclAs<ValueDecl>();
-    Components.push_back(OMPClauseMappableExprCommon::MappableComponent(
-        AssociatedExpr, AssociatedDecl));
+    Components.emplace_back(AssociatedExprPr, AssociatedDecl, IsNonContiguous);
   }
   C->setComponents(Components, ListSizes);
 }
@@ -12770,10 +12740,10 @@ void OMPClauseReader::VisitOMPUseDevicePtrClause(OMPUseDevicePtrClause *C) {
   SmallVector<OMPClauseMappableExprCommon::MappableComponent, 32> Components;
   Components.reserve(TotalComponents);
   for (unsigned i = 0; i < TotalComponents; ++i) {
-    Expr *AssociatedExpr = Record.readSubExpr();
+    auto *AssociatedExprPr = Record.readSubExpr();
     auto *AssociatedDecl = Record.readDeclAs<ValueDecl>();
-    Components.push_back(OMPClauseMappableExprCommon::MappableComponent(
-        AssociatedExpr, AssociatedDecl));
+    Components.emplace_back(AssociatedExprPr, AssociatedDecl,
+                            /*IsNonContiguous=*/false);
   }
   C->setComponents(Components, ListSizes);
 }
@@ -12814,8 +12784,8 @@ void OMPClauseReader::VisitOMPUseDeviceAddrClause(OMPUseDeviceAddrClause *C) {
   for (unsigned i = 0; i < TotalComponents; ++i) {
     Expr *AssociatedExpr = Record.readSubExpr();
     auto *AssociatedDecl = Record.readDeclAs<ValueDecl>();
-    Components.push_back(OMPClauseMappableExprCommon::MappableComponent(
-        AssociatedExpr, AssociatedDecl));
+    Components.emplace_back(AssociatedExpr, AssociatedDecl,
+                            /*IsNonContiguous*/ false);
   }
   C->setComponents(Components, ListSizes);
 }
@@ -12857,8 +12827,8 @@ void OMPClauseReader::VisitOMPIsDevicePtrClause(OMPIsDevicePtrClause *C) {
   for (unsigned i = 0; i < TotalComponents; ++i) {
     Expr *AssociatedExpr = Record.readSubExpr();
     auto *AssociatedDecl = Record.readDeclAs<ValueDecl>();
-    Components.push_back(OMPClauseMappableExprCommon::MappableComponent(
-        AssociatedExpr, AssociatedDecl));
+    Components.emplace_back(AssociatedExpr, AssociatedDecl,
+                            /*IsNonContiguous=*/false);
   }
   C->setComponents(Components, ListSizes);
 }

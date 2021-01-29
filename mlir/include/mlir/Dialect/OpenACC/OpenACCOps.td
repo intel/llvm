@@ -14,6 +14,7 @@
 #define OPENACC_OPS
 
 include "mlir/IR/OpBase.td"
+include "mlir/Dialect/OpenACC/AccCommon.td"
 
 def OpenACC_Dialect : Dialect {
   let name = "acc";
@@ -21,7 +22,7 @@ def OpenACC_Dialect : Dialect {
   let summary = "An OpenACC dialect for MLIR.";
 
   let description = [{
-    This dialect models the construct from the OpenACC 3.0 directive language.
+    This dialect models the construct from the OpenACC 3.1 directive language.
   }];
 
   let cppNamespace = "::mlir::acc";
@@ -62,15 +63,6 @@ def OpenACC_ReductionOpAttr : StrEnumAttr<"ReductionOpAttr",
 
 // Type used in operation below.
 def IntOrIndex : AnyTypeOf<[AnyInteger, Index]>;
-
-// Parallel and data op default enumeration
-def OpenACC_DefaultNone : StrEnumAttrCase<"none">;
-def OpenACC_DefaultPresent : StrEnumAttrCase<"present">;
-def OpenACC_DefaultAttr : StrEnumAttr<"DefaultAttr",
-    "default attribute values",
-    [OpenACC_DefaultNone, OpenACC_DefaultPresent]> {
-  let cppNamespace = "::mlir::acc";
-}
 
 //===----------------------------------------------------------------------===//
 // 2.5.1 parallel Construct
@@ -118,7 +110,7 @@ def OpenACC_ParallelOp : OpenACC_Op<"parallel",
                        Variadic<AnyType>:$attachOperands,
                        Variadic<AnyType>:$gangPrivateOperands,
                        Variadic<AnyType>:$gangFirstPrivateOperands,
-                       OptionalAttr<OpenACC_DefaultAttr>:$defaultAttr);
+                       OptionalAttr<DefaultValue>:$defaultAttr);
 
   let regions = (region AnyRegion:$region);
 
@@ -190,7 +182,7 @@ def OpenACC_DataOp : OpenACC_Op<"data",
                        Variadic<AnyType>:$presentOperands,
                        Variadic<AnyType>:$deviceptrOperands,
                        Variadic<AnyType>:$attachOperands,
-                       OptionalAttr<OpenACC_DefaultAttr>:$defaultAttr);
+                       OptionalAttr<DefaultValue>:$defaultAttr);
 
   let regions = (region AnyRegion:$region);
 
@@ -227,6 +219,88 @@ def OpenACC_TerminatorOp : OpenACC_Op<"terminator", [Terminator]> {
   let verifier = ?;
 
   let assemblyFormat = "attr-dict";
+}
+
+//===----------------------------------------------------------------------===//
+// 2.6.6 Enter Data Directive
+//===----------------------------------------------------------------------===//
+
+def OpenACC_EnterDataOp : OpenACC_Op<"enter_data", [AttrSizedOperandSegments]> {
+  let summary = "enter data operation";
+
+  let description = [{
+    The "acc.enter_data" operation represents the OpenACC enter data directive.
+
+    Example:
+
+    ```mlir
+    acc.enter_data create(%d1 : memref<10xf32>) attributes {async}
+    ```
+  }];
+
+  let arguments = (ins Optional<I1>:$ifCond,
+                       Optional<IntOrIndex>:$asyncOperand,
+                       UnitAttr:$async,
+                       Optional<IntOrIndex>:$waitDevnum,
+                       Variadic<IntOrIndex>:$waitOperands,
+                       UnitAttr:$wait,
+                       Variadic<AnyType>:$copyinOperands,
+                       Variadic<AnyType>:$createOperands,
+                       Variadic<AnyType>:$createZeroOperands,
+                       Variadic<AnyType>:$attachOperands);
+
+  let assemblyFormat = [{
+    ( `if` `(` $ifCond^ `)` )?
+    ( `async` `(` $asyncOperand^ `:` type($asyncOperand) `)` )?
+    ( `wait_devnum` `(` $waitDevnum^ `:` type($waitDevnum) `)` )?
+    ( `wait` `(` $waitOperands^ `:` type($waitOperands) `)` )?
+    ( `copyin` `(` $copyinOperands^ `:` type($copyinOperands) `)` )?
+    ( `create` `(` $createOperands^ `:` type($createOperands) `)` )?
+    ( `create_zero` `(` $createZeroOperands^ `:`
+        type($createZeroOperands) `)` )?
+    ( `attach` `(` $attachOperands^ `:` type($attachOperands) `)` )?
+    attr-dict-with-keyword
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// 2.6.6 Exit Data Directive
+//===----------------------------------------------------------------------===//
+
+def OpenACC_ExitDataOp : OpenACC_Op<"exit_data", [AttrSizedOperandSegments]> {
+  let summary = "exit data operation";
+
+  let description = [{
+    The "acc.exit_data" operation represents the OpenACC exit data directive.
+
+    Example:
+
+    ```mlir
+    acc.exit_data delete(%d1 : memref<10xf32>) attributes {async}
+    ```
+  }];
+
+  let arguments = (ins Optional<I1>:$ifCond,
+                       Optional<IntOrIndex>:$asyncOperand,
+                       UnitAttr:$async,
+                       Optional<IntOrIndex>:$waitDevnum,
+                       Variadic<IntOrIndex>:$waitOperands,
+                       UnitAttr:$wait,
+                       Variadic<AnyType>:$copyoutOperands,
+                       Variadic<AnyType>:$deleteOperands,
+                       Variadic<AnyType>:$detachOperands,
+                       UnitAttr:$finalize);
+
+  let assemblyFormat = [{
+    ( `if` `(` $ifCond^ `)` )?
+    ( `async` `(` $asyncOperand^ `:` type($asyncOperand) `)` )?
+    ( `wait_devnum` `(` $waitDevnum^ `:` type($waitDevnum) `)` )?
+    ( `wait` `(` $waitOperands^ `:` type($waitOperands) `)` )?
+    ( `copyout` `(` $copyoutOperands^ `:` type($copyoutOperands) `)` )?
+    ( `delete` `(` $deleteOperands^ `:` type($deleteOperands) `)` )?
+    ( `detach` `(` $detachOperands^ `:` type($detachOperands) `)` )?
+    attr-dict-with-keyword
+  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -308,14 +382,148 @@ def OpenACC_YieldOp : OpenACC_Op<"yield", [Terminator,
 
   let arguments = (ins Variadic<AnyType>:$operands);
 
-  let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &result",
-              [{ /* nothing to do */ }]>
-  ];
+  let builders = [OpBuilderDAG<(ins), [{ /* nothing to do */ }]>];
 
   let verifier = ?;
 
   let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
+}
+
+//===----------------------------------------------------------------------===//
+// 2.14.1. Init Directive
+//===----------------------------------------------------------------------===//
+
+def OpenACC_InitOp : OpenACC_Op<"init", [AttrSizedOperandSegments]> {
+  let summary = "init operation";
+
+  let description = [{
+    The "acc.init" operation represents the OpenACC init executable
+    directive.
+
+    Example:
+
+    ```mlir
+    acc.init
+    acc.init device_num(%dev1 : i32)
+    ```
+  }];
+
+  let arguments = (ins Variadic<AnyInteger>:$deviceTypeOperands,
+                       Optional<IntOrIndex>:$deviceNumOperand,
+                       Optional<I1>:$ifCond);
+
+  let assemblyFormat = [{
+    ( `device_type` `(` $deviceTypeOperands^ `:` type($deviceTypeOperands) `)` )?
+    ( `device_num` `(` $deviceNumOperand^ `:` type($deviceNumOperand) `)` )?
+    ( `if` `(` $ifCond^ `)` )? attr-dict-with-keyword
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// 2.14.2. Shutdown
+//===----------------------------------------------------------------------===//
+
+def OpenACC_ShutdownOp : OpenACC_Op<"shutdown", [AttrSizedOperandSegments]> {
+  let summary = "shutdown operation";
+
+  let description = [{
+    The "acc.shutdown" operation represents the OpenACC shutdown executable
+    directive.
+
+    Example:
+
+    ```mlir
+    acc.shutdown
+    acc.shutdown device_num(%dev1 : i32)
+    ```
+  }];
+
+  let arguments = (ins Variadic<AnyInteger>:$deviceTypeOperands,
+                       Optional<IntOrIndex>:$deviceNumOperand,
+                       Optional<I1>:$ifCond);
+
+  let assemblyFormat = [{
+    ( `device_type` `(` $deviceTypeOperands^ `:` type($deviceTypeOperands) `)` )?
+    ( `device_num` `(` $deviceNumOperand^ `:` type($deviceNumOperand) `)` )?
+    ( `if` `(` $ifCond^ `)` )? attr-dict-with-keyword
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// 2.14.4. Update Directive
+//===----------------------------------------------------------------------===//
+
+def OpenACC_UpdateOp : OpenACC_Op<"update", [AttrSizedOperandSegments]> {
+  let summary = "update operation";
+
+  let description = [{
+    The "acc.udpate" operation represents the OpenACC update executable
+    directive.
+    As host and self clauses are synonyms, any operands for host and self are
+    add to $hostOperands.
+
+    Example:
+
+    ```mlir
+    acc.update device(%d1 : memref<10xf32>) attributes {async}
+    ```
+  }];
+
+  let arguments = (ins Optional<IntOrIndex>:$asyncOperand,
+                       Optional<IntOrIndex>:$waitDevnum,
+                       Variadic<IntOrIndex>:$waitOperands,
+                       UnitAttr:$async,
+                       UnitAttr:$wait,
+                       Variadic<IntOrIndex>:$deviceTypeOperands,
+                       Optional<I1>:$ifCond,
+                       Variadic<AnyType>:$hostOperands,
+                       Variadic<AnyType>:$deviceOperands,
+                       UnitAttr:$ifPresent);
+
+  let assemblyFormat = [{
+    ( `if` `(` $ifCond^ `)` )?
+    ( `async` `(` $asyncOperand^ `:` type($asyncOperand) `)` )?
+    ( `wait_devnum` `(` $waitDevnum^ `:` type($waitDevnum) `)` )?
+    ( `device_type` `(` $deviceTypeOperands^ `:`
+        type($deviceTypeOperands) `)` )?
+    ( `wait` `(` $waitOperands^ `:` type($waitOperands) `)` )?
+    ( `host` `(` $hostOperands^ `:` type($hostOperands) `)` )?
+    ( `device` `(` $deviceOperands^ `:` type($deviceOperands) `)` )?
+    attr-dict-with-keyword
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// 2.16.3. Wait Directive
+//===----------------------------------------------------------------------===//
+
+def OpenACC_WaitOp : OpenACC_Op<"wait", [AttrSizedOperandSegments]> {
+  let summary = "wait operation";
+
+  let description = [{
+    The "acc.wait" operation represents the OpenACC wait executable
+    directive.
+
+    Example:
+
+    ```mlir
+    acc.wait(%value1: index)
+    acc.wait() async(%async1: i32)
+    ```
+  }];
+
+  let arguments = (ins Variadic<IntOrIndex>:$waitOperands,
+                       Optional<IntOrIndex>:$asyncOperand,
+                       Optional<IntOrIndex>:$waitDevnum,
+                       UnitAttr:$async,
+                       Optional<I1>:$ifCond);
+
+  let assemblyFormat = [{
+    ( `(` $waitOperands^ `:` type($waitOperands) `)` )?
+    ( `async` `(` $asyncOperand^ `:` type($asyncOperand) `)` )?
+    ( `wait_devnum` `(` $waitDevnum^ `:` type($waitDevnum) `)` )?
+    ( `if` `(` $ifCond^ `)` )? attr-dict-with-keyword
+  }];
 }
 
 #endif // OPENACC_OPS

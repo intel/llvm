@@ -115,8 +115,14 @@ void RISCVTargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__riscv_muldiv");
   }
 
-  if (HasA)
+  if (HasA) {
     Builder.defineMacro("__riscv_atomic");
+    Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_1");
+    Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2");
+    Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4");
+    if (Is64Bit)
+      Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_8");
+  }
 
   if (HasF || HasD) {
     Builder.defineMacro("__riscv_flen", HasD ? "64" : "32");
@@ -129,6 +135,12 @@ void RISCVTargetInfo::getTargetDefines(const LangOptions &Opts,
 
   if (HasB)
     Builder.defineMacro("__riscv_bitmanip");
+
+  if (HasV)
+    Builder.defineMacro("__riscv_vector");
+
+  if (HasZfh)
+    Builder.defineMacro("__riscv_zfh");
 }
 
 /// Return true if has this feature, need to sync with handleTargetFeatures.
@@ -144,6 +156,8 @@ bool RISCVTargetInfo::hasFeature(StringRef Feature) const {
       .Case("d", HasD)
       .Case("c", HasC)
       .Case("experimental-b", HasB)
+      .Case("experimental-v", HasV)
+      .Case("experimental-zfh", HasZfh)
       .Default(false);
 }
 
@@ -163,6 +177,10 @@ bool RISCVTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasC = true;
     else if (Feature == "+experimental-b")
       HasB = true;
+    else if (Feature == "+experimental-v")
+      HasV = true;
+    else if (Feature == "+experimental-zfh")
+      HasZfh = true;
   }
 
   return true;
@@ -178,6 +196,17 @@ void RISCV32TargetInfo::fillValidCPUList(
   llvm::RISCV::fillValidCPUArchList(Values, false);
 }
 
+bool RISCV32TargetInfo::isValidTuneCPUName(StringRef Name) const {
+  return llvm::RISCV::checkTuneCPUKind(
+      llvm::RISCV::parseTuneCPUKind(Name, false),
+      /*Is64Bit=*/false);
+}
+
+void RISCV32TargetInfo::fillValidTuneCPUList(
+    SmallVectorImpl<StringRef> &Values) const {
+  llvm::RISCV::fillValidTuneCPUArchList(Values, false);
+}
+
 bool RISCV64TargetInfo::isValidCPUName(StringRef Name) const {
   return llvm::RISCV::checkCPUKind(llvm::RISCV::parseCPUKind(Name),
                                    /*Is64Bit=*/true);
@@ -186,4 +215,15 @@ bool RISCV64TargetInfo::isValidCPUName(StringRef Name) const {
 void RISCV64TargetInfo::fillValidCPUList(
     SmallVectorImpl<StringRef> &Values) const {
   llvm::RISCV::fillValidCPUArchList(Values, true);
+}
+
+bool RISCV64TargetInfo::isValidTuneCPUName(StringRef Name) const {
+  return llvm::RISCV::checkTuneCPUKind(
+      llvm::RISCV::parseTuneCPUKind(Name, true),
+      /*Is64Bit=*/true);
+}
+
+void RISCV64TargetInfo::fillValidTuneCPUList(
+    SmallVectorImpl<StringRef> &Values) const {
+  llvm::RISCV::fillValidTuneCPUArchList(Values, true);
 }

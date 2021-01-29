@@ -16,9 +16,16 @@
 
 #include "AMDGPUISelLowering.h"
 #include "AMDGPUArgumentUsageInfo.h"
-#include "SIInstrInfo.h"
 
 namespace llvm {
+
+class GCNSubtarget;
+class SIMachineFunctionInfo;
+class SIRegisterInfo;
+
+namespace AMDGPU {
+struct ImageDimIntrinsicInfo;
+}
 
 class SITargetLowering final : public AMDGPUTargetLowering {
 private:
@@ -59,7 +66,7 @@ private:
   SDValue lowerImplicitZextParam(SelectionDAG &DAG, SDValue Op,
                                  MVT VT, unsigned Offset) const;
   SDValue lowerImage(SDValue Op, const AMDGPU::ImageDimIntrinsicInfo *Intr,
-                     SelectionDAG &DAG) const;
+                     SelectionDAG &DAG, bool WithChain) const;
   SDValue lowerSBuffer(EVT VT, SDLoc DL, SDValue Rsrc, SDValue Offset,
                        SDValue CachePolicy, SelectionDAG &DAG) const;
 
@@ -85,6 +92,7 @@ private:
   SDValue LowerLOAD(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSELECT(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerFastUnsafeFDIV(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerFastUnsafeFDIV64(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerFDIV_FAST(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFDIV16(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFDIV32(SDValue Op, SelectionDAG &DAG) const;
@@ -108,7 +116,8 @@ private:
                               ArrayRef<SDValue> Ops, EVT MemVT,
                               MachineMemOperand *MMO, SelectionDAG &DAG) const;
 
-  SDValue handleD16VData(SDValue VData, SelectionDAG &DAG) const;
+  SDValue handleD16VData(SDValue VData, SelectionDAG &DAG,
+                         bool ImageStore = false) const;
 
   /// Converts \p Op, which must be of floating point type, to the
   /// floating point type \p VT, by either extending or truncating it.
@@ -284,10 +293,7 @@ public:
   bool isMemOpUniform(const SDNode *N) const;
   bool isMemOpHasNoClobberedMemOperand(const SDNode *N) const;
 
-  static bool isNonGlobalAddrSpace(unsigned AS) {
-    return AS == AMDGPUAS::LOCAL_ADDRESS || AS == AMDGPUAS::REGION_ADDRESS ||
-           AS == AMDGPUAS::PRIVATE_ADDRESS;
-  }
+  static bool isNonGlobalAddrSpace(unsigned AS);
 
   bool isFreeAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override;
 

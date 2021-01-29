@@ -12,6 +12,7 @@
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/Transforms/DialectConversion.h"
 
@@ -99,52 +100,59 @@ LogicalResult BroadcastOpConverter::matchAndRewrite(
       rewriter.create<SelectOp>(loc, lhsRankULE, lhsRank, rhsRank);
   Value greaterRank =
       rewriter.create<SelectOp>(loc, lhsRankULE, rhsRank, lhsRank);
+  auto erasedRankType =
+      RankedTensorType::get({ShapedType::kDynamicSize}, indexTy);
+  Value rankErasedLhs =
+      rewriter.create<tensor::CastOp>(loc, erasedRankType, transformed.lhs());
+  Value rankErasedRhs =
+      rewriter.create<tensor::CastOp>(loc, erasedRankType, transformed.rhs());
   Value lesserRankOperand =
-      rewriter.create<SelectOp>(loc, lhsRankULE, op.lhs(), op.rhs());
+      rewriter.create<SelectOp>(loc, lhsRankULE, rankErasedLhs, rankErasedRhs);
   Value greaterRankOperand =
-      rewriter.create<SelectOp>(loc, lhsRankULE, op.rhs(), op.lhs());
+      rewriter.create<SelectOp>(loc, lhsRankULE, rankErasedRhs, rankErasedLhs);
 
-  // Allocate stack memory for the broadcasted extent tensor.
-  Type memTy = MemRefType::get({ShapedType::kDynamicSize}, indexTy);
-  Value mem = rewriter.create<AllocaOp>(loc, memTy, ValueRange{greaterRank});
-
-  // Copy extents from greater operand that are not challenged.
   Value rankDiff =
       rewriter.create<SubIOp>(loc, indexTy, greaterRank, lesserRank);
-  rewriter.create<ForOp>(loc, zero, rankDiff, one, llvm::None,
-                         [&](OpBuilder &b, Location loc, Value iv, ValueRange) {
-                           Value extent = b.create<ExtractElementOp>(
-                               loc, greaterRankOperand, ValueRange{iv});
-                           b.create<StoreOp>(loc, extent, mem, ValueRange{iv});
-                           b.create<scf::YieldOp>(loc);
-                         });
-
-  // Determine remaining broadcasted extents.
-  rewriter.create<ForOp>(
-      loc, rankDiff, greaterRank, one, llvm::None,
-      [&](OpBuilder &b, Location loc, Value iv, ValueRange) {
-        Value greaterOperandExtent =
-            b.create<ExtractElementOp>(loc, greaterRankOperand, ValueRange{iv});
-        Value greaterOperandExtentIsOne =
-            b.create<CmpIOp>(loc, CmpIPredicate::eq, greaterOperandExtent, one);
+  rewriter.replaceOpWithNewOp<tensor::GenerateOp>(
+      op, getExtentTensorType(op.getContext()), ValueRange{greaterRank},
+      [&](OpBuilder &b, Location loc, ValueRange args) {
+        Value outputDimension = args[0];
+        Value isUnchallengedDimension = b.create<CmpIOp>(
+            loc, CmpIPredicate::ult, outputDimension, rankDiff);
+        Value greaterRankOperandExtent = b.create<tensor::ExtractOp>(
+            loc, greaterRankOperand, outputDimension);
+        // The initial dimensions of the greater-rank operand are unchallenged,
+        // so we can take them as-is. Otherwise, we need to do a comparison.
+        // We need an actual branch here (instead of a select) because the
+        // lesser-rank operand might be rank 0, so any tensor.extract would be
+        // invalid.
         auto ifOp = b.create<IfOp>(
-            loc, TypeRange{indexTy}, greaterOperandExtentIsOne,
+            loc, TypeRange{indexTy}, isUnchallengedDimension,
             [&](OpBuilder &b, Location loc) {
-              Value ivShifted = b.create<SubIOp>(loc, indexTy, iv, rankDiff);
-              Value lesserRankOperandExtent = b.create<ExtractElementOp>(
-                  loc, lesserRankOperand, ValueRange{ivShifted});
-              b.create<scf::YieldOp>(loc, lesserRankOperandExtent);
+              b.create<scf::YieldOp>(loc, greaterRankOperandExtent);
             },
             [&](OpBuilder &b, Location loc) {
-              b.create<scf::YieldOp>(loc, greaterOperandExtent);
+              // The broadcasting logic is:
+              // - if one extent (here we arbitrarily choose the extent from
+              // the greater-rank operand) is equal to 1, then take the extent
+              // from the other operand
+              // - otherwise, take the extent as-is.
+              // Note that this logic remains correct in the presence of
+              // dimensions of zero extent.
+              Value lesserRankOperandDimension =
+                  b.create<SubIOp>(loc, indexTy, outputDimension, rankDiff);
+              Value lesserRankOperandExtent = b.create<tensor::ExtractOp>(
+                  loc, lesserRankOperand,
+                  ValueRange{lesserRankOperandDimension});
+              Value greaterRankOperandExtentIsOne = b.create<CmpIOp>(
+                  loc, CmpIPredicate::eq, greaterRankOperandExtent, one);
+              Value broadcastedExtent = b.create<SelectOp>(
+                  loc, greaterRankOperandExtentIsOne, lesserRankOperandExtent,
+                  greaterRankOperandExtent);
+              b.create<scf::YieldOp>(loc, broadcastedExtent);
             });
-        Value extent = ifOp.getResult(0);
-        b.create<StoreOp>(loc, extent, mem, ValueRange{iv});
-        b.create<scf::YieldOp>(loc);
+        b.create<tensor::YieldOp>(loc, ifOp.getResult(0));
       });
-
-  // Load broadcasted shape as an extent tensor.
-  rewriter.replaceOpWithNewOp<TensorLoadOp>(op, mem);
   return success();
 }
 
@@ -176,9 +184,9 @@ LogicalResult ConstShapeOpConverter::matchAndRewrite(
   }
   Type indexTy = rewriter.getIndexType();
   Value tensor =
-      rewriter.create<TensorFromElementsOp>(loc, indexTy, extentOperands);
+      rewriter.create<tensor::FromElementsOp>(loc, indexTy, extentOperands);
   Type resultTy = RankedTensorType::get({ShapedType::kDynamicSize}, indexTy);
-  rewriter.replaceOpWithNewOp<TensorCastOp>(op, tensor, resultTy);
+  rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultTy, tensor);
   return success();
 }
 
@@ -197,6 +205,86 @@ LogicalResult ConstSizeOpConversion::matchAndRewrite(
     ConstSizeOp op, ArrayRef<Value> operands,
     ConversionPatternRewriter &rewriter) const {
   rewriter.replaceOpWithNewOp<ConstantIndexOp>(op, op.value().getSExtValue());
+  return success();
+}
+
+namespace {
+struct IsBroadcastableOpConverter
+    : public OpConversionPattern<IsBroadcastableOp> {
+  using OpConversionPattern<IsBroadcastableOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(IsBroadcastableOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override;
+};
+} // namespace
+
+LogicalResult IsBroadcastableOpConverter::matchAndRewrite(
+    IsBroadcastableOp op, ArrayRef<Value> operands,
+    ConversionPatternRewriter &rewriter) const {
+  // For now, this lowering is only defined on `tensor<?xindex>` operands, not
+  // on shapes.
+  IsBroadcastableOp::Adaptor transformed(operands);
+  if (transformed.lhs().getType().isa<ShapeType>() ||
+      transformed.rhs().getType().isa<ShapeType>())
+    return failure();
+
+  auto loc = op.getLoc();
+  Value zero = rewriter.create<ConstantIndexOp>(loc, 0);
+  Value one = rewriter.create<ConstantIndexOp>(loc, 1);
+
+  // Find smaller and greater rank and extent tensor.
+  Value lhsRank = rewriter.create<DimOp>(loc, transformed.lhs(), zero);
+  Value rhsRank = rewriter.create<DimOp>(loc, transformed.rhs(), zero);
+  Value lhsRankULE =
+      rewriter.create<CmpIOp>(loc, CmpIPredicate::ule, lhsRank, rhsRank);
+  Type indexTy = rewriter.getIndexType();
+  Value lesserRank =
+      rewriter.create<SelectOp>(loc, lhsRankULE, lhsRank, rhsRank);
+  Value greaterRank =
+      rewriter.create<SelectOp>(loc, lhsRankULE, rhsRank, lhsRank);
+  auto erasedRankType =
+      RankedTensorType::get({ShapedType::kDynamicSize}, indexTy);
+  Value rankErasedLhs =
+      rewriter.create<tensor::CastOp>(loc, erasedRankType, transformed.lhs());
+  Value rankErasedRhs =
+      rewriter.create<tensor::CastOp>(loc, erasedRankType, transformed.rhs());
+  Value lesserRankOperand =
+      rewriter.create<SelectOp>(loc, lhsRankULE, rankErasedLhs, rankErasedRhs);
+  Value greaterRankOperand =
+      rewriter.create<SelectOp>(loc, lhsRankULE, rankErasedRhs, rankErasedLhs);
+  Value rankDiff =
+      rewriter.create<SubIOp>(loc, indexTy, greaterRank, lesserRank);
+  Type i1Ty = rewriter.getI1Type();
+  Value init =
+      rewriter.create<ConstantOp>(loc, i1Ty, rewriter.getBoolAttr(true));
+
+  // Determine if all overlapping extents are broadcastable.
+  auto reduceResult = rewriter.create<ForOp>(
+      loc, rankDiff, greaterRank, one, ValueRange{init},
+      [&](OpBuilder &b, Location loc, Value iv, ValueRange iterArgs) {
+        Value greaterRankOperandExtent = b.create<tensor::ExtractOp>(
+            loc, greaterRankOperand, ValueRange{iv});
+        Value greaterRankOperandExtentIsOne = b.create<CmpIOp>(
+            loc, CmpIPredicate::eq, greaterRankOperandExtent, one);
+        Value ivShifted = b.create<SubIOp>(loc, indexTy, iv, rankDiff);
+        Value lesserRankOperandExtent = b.create<tensor::ExtractOp>(
+            loc, lesserRankOperand, ValueRange{ivShifted});
+        Value lesserRankOperandExtentIsOne = b.create<CmpIOp>(
+            loc, CmpIPredicate::eq, lesserRankOperandExtent, one);
+        Value extentsAreEqual =
+            b.create<CmpIOp>(loc, CmpIPredicate::eq, greaterRankOperandExtent,
+                             lesserRankOperandExtent);
+        Value broadcastableExtents = b.create<AndOp>(
+            loc, iterArgs[0],
+            b.create<OrOp>(loc,
+                           b.create<OrOp>(loc, greaterRankOperandExtentIsOne,
+                                          lesserRankOperandExtentIsOne),
+                           extentsAreEqual));
+        b.create<scf::YieldOp>(loc, broadcastableExtents);
+      });
+
+  rewriter.replaceOp(op, reduceResult.results().front());
   return success();
 }
 
@@ -229,9 +317,9 @@ LogicalResult GetExtentOpConverter::matchAndRewrite(
     }
   }
 
-  rewriter.replaceOpWithNewOp<ExtractElementOp>(op, rewriter.getIndexType(),
-                                                transformed.shape(),
-                                                ValueRange{transformed.dim()});
+  rewriter.replaceOpWithNewOp<tensor::ExtractOp>(op, rewriter.getIndexType(),
+                                                 transformed.shape(),
+                                                 ValueRange{transformed.dim()});
   return success();
 }
 
@@ -288,7 +376,8 @@ ReduceOpConverter::matchAndRewrite(shape::ReduceOp op, ArrayRef<Value> operands,
   auto loop = rewriter.create<scf::ForOp>(
       loc, zero, rank, one, op.initVals(),
       [&](OpBuilder &b, Location loc, Value iv, ValueRange args) {
-        Value extent = b.create<ExtractElementOp>(loc, transformed.shape(), iv);
+        Value extent =
+            b.create<tensor::ExtractOp>(loc, transformed.shape(), iv);
 
         SmallVector<Value, 2> mappedValues{iv, extent};
         mappedValues.append(args.begin(), args.end());
@@ -328,8 +417,8 @@ namespace {
 ///   %c1 = constant 1 : index
 ///   %true = constant true
 ///   %4 = scf.for %arg2 = %c0 to %0 step %c1 iter_args(%arg3 = %true) -> (i1) {
-///     %5 = extract_element %arg0[%arg2] : tensor<?xindex>
-///     %6 = extract_element %arg1[%arg2] : tensor<?xindex>
+///     %5 = tensor.extract %arg0[%arg2] : tensor<?xindex>
+///     %6 = tensor.extract %arg1[%arg2] : tensor<?xindex>
 ///     %7 = cmpi "eq", %5, %6 : index
 ///     %8 = and %arg3, %7 : i1
 ///     scf.yield %8 : i1
@@ -378,9 +467,9 @@ ShapeEqOpConverter::matchAndRewrite(ShapeEqOp op, ArrayRef<Value> operands,
             [&](OpBuilder &b, Location nestedLoc, Value iv, ValueRange args) {
               Value conj = args[0];
               Value lhsExtent =
-                  b.create<ExtractElementOp>(loc, transformed.lhs(), iv);
+                  b.create<tensor::ExtractOp>(loc, transformed.lhs(), iv);
               Value rhsExtent =
-                  b.create<ExtractElementOp>(loc, transformed.rhs(), iv);
+                  b.create<tensor::ExtractOp>(loc, transformed.rhs(), iv);
               Value eqExtent = b.create<CmpIOp>(loc, CmpIPredicate::eq,
                                                 lhsExtent, rhsExtent);
               Value conjNext = b.create<AndOp>(loc, conj, eqExtent);
@@ -414,7 +503,7 @@ LogicalResult ShapeOfOpConversion::matchAndRewrite(
   if (op.getType().isa<ShapeType>())
     return failure();
 
-  // For ranked tensor arguments, lower to `tensor_from_elements`.
+  // For ranked tensor arguments, lower to `tensor.from_elements`.
   auto loc = op.getLoc();
   ShapeOfOp::Adaptor transformed(operands);
   Value tensor = transformed.arg();
@@ -437,22 +526,22 @@ LogicalResult ShapeOfOpConversion::matchAndRewrite(
     }
 
     // Materialize extent tensor.
-    Value staticExtentTensor = rewriter.create<TensorFromElementsOp>(
+    Value staticExtentTensor = rewriter.create<tensor::FromElementsOp>(
         loc, rewriter.getIndexType(), extentValues);
-    rewriter.replaceOpWithNewOp<TensorCastOp>(op, staticExtentTensor,
-                                              op.getType());
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, op.getType(),
+                                                staticExtentTensor);
     return success();
   }
 
-  // Lower to `dynamic_tensor_from_elements` otherwise.
+  // Lower to `tensor.generate` otherwise.
   auto *ctx = rewriter.getContext();
   Value rank = rewriter.create<mlir::RankOp>(loc, tensor);
-  rewriter.replaceOpWithNewOp<DynamicTensorFromElementsOp>(
+  rewriter.replaceOpWithNewOp<tensor::GenerateOp>(
       op, getExtentTensorType(ctx), ValueRange{rank},
       [&](OpBuilder &b, Location loc, ValueRange args) {
         Value dim = args.front();
         Value extent = b.create<DimOp>(loc, tensor, dim);
-        b.create<mlir::YieldOp>(loc, extent);
+        b.create<tensor::YieldOp>(loc, extent);
       });
 
   return success();
@@ -472,11 +561,16 @@ public:
     if (!adaptor.input().getType().isa<RankedTensorType>())
       return rewriter.notifyMatchFailure(op, "input needs to be a tensor");
 
-    rewriter.replaceOpWithNewOp<TensorCastOp>(op, adaptor.input(),
-                                              op.getType());
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, op.getType(),
+                                                adaptor.input());
     return success();
   }
 };
+} // namespace
+
+namespace {
+/// Import the Shape Ops to Std Patterns.
+#include "ShapeToStandard.cpp.inc"
 } // namespace
 
 namespace {
@@ -492,8 +586,9 @@ void ConvertShapeToStandardPass::runOnOperation() {
   // Setup target legality.
   MLIRContext &ctx = getContext();
   ConversionTarget target(ctx);
-  target.addLegalDialect<StandardOpsDialect, SCFDialect>();
-  target.addLegalOp<FuncOp, ModuleOp, ModuleTerminatorOp>();
+  target
+      .addLegalDialect<StandardOpsDialect, SCFDialect, tensor::TensorDialect>();
+  target.addLegalOp<CstrRequireOp, FuncOp, ModuleOp, ModuleTerminatorOp>();
 
   // Setup conversion patterns.
   OwningRewritePatternList patterns;
@@ -501,13 +596,14 @@ void ConvertShapeToStandardPass::runOnOperation() {
 
   // Apply conversion.
   auto module = getOperation();
-  if (failed(applyPartialConversion(module, target, patterns)))
+  if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
 }
 
 void mlir::populateShapeToStandardConversionPatterns(
     OwningRewritePatternList &patterns, MLIRContext *ctx) {
   // clang-format off
+  populateWithGenerated(ctx, patterns);
   patterns.insert<
       AnyOpConversion,
       BinaryOpConversion<AddOp, AddIOp>,
@@ -515,6 +611,7 @@ void mlir::populateShapeToStandardConversionPatterns(
       BroadcastOpConverter,
       ConstShapeOpConverter,
       ConstSizeOpConversion,
+      IsBroadcastableOpConverter,
       GetExtentOpConverter,
       RankOpConverter,
       ReduceOpConverter,

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "CommandObjectProcess.h"
+#include "CommandOptionsProcessLaunch.h"
 #include "lldb/Breakpoint/Breakpoint.h"
 #include "lldb/Breakpoint/BreakpointLocation.h"
 #include "lldb/Breakpoint/BreakpointSite.h"
@@ -251,7 +252,7 @@ protected:
     return result.Succeeded();
   }
 
-  ProcessLaunchCommandOptions m_options;
+  CommandOptionsProcessLaunch m_options;
 };
 
 #define LLDB_OPTIONS_process_attach
@@ -364,7 +365,6 @@ protected:
         result.AppendError(error.AsCString("Error creating target"));
         return false;
       }
-      GetDebugger().GetTargetList().SetSelectedTarget(target);
     }
 
     // Record the old executable module, we want to issue a warning if the

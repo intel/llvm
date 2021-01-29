@@ -1,6 +1,6 @@
-// RUN: not llvm-mc -arch=amdgcn -show-encoding %s | FileCheck -check-prefixes=SICI %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti -show-encoding %s | FileCheck -check-prefixes=SI,SICI %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=tonga -show-encoding %s | FileCheck -check-prefixes=VI %s
+// RUN: not llvm-mc -arch=amdgcn -show-encoding %s | FileCheck --check-prefix=SICI %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti -show-encoding %s | FileCheck --check-prefix=SICI %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=tonga -show-encoding %s | FileCheck --check-prefix=VI %s
 // RUN: not llvm-mc -arch=amdgcn -mcpu=gfx900 -show-encoding %s | FileCheck -check-prefix=GFX9 %s
 // RUN: not llvm-mc -arch=amdgcn -mcpu=gfx1010 -show-encoding %s | FileCheck -check-prefix=GFX10 %s
 
@@ -14,13 +14,13 @@ s_setreg_b32  0x1f803, s2
 // GCN: error: invalid immediate: only 16-bit values are legal
 
 s_setreg_b32  typo(0x40), s2
-// GCN: error: expected absolute expression
+// GCN: error: expected a hwreg macro or an absolute expression
 
 s_setreg_b32  hwreg(0x40), s2
 // GCN: error: invalid code of hardware register: only 6-bit values are legal
 
 s_setreg_b32  hwreg(HW_REG_WRONG), s2
-// GCN: error: expected absolute expression
+// GCN: error: expected a register name or an absolute expression
 
 s_setreg_b32  hwreg(1 2,3), s2
 // GCN: error: expected a comma or a closing parenthesis

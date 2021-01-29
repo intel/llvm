@@ -14,18 +14,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPU.h"
-#include "AMDGPUSubtarget.h"
-#include "SIInstrInfo.h"
+#include "GCNSubtarget.h"
 #include "SIMachineFunctionInfo.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/CodeGen/LiveInterval.h"
 #include "llvm/CodeGen/LiveIntervals.h"
 #include "llvm/CodeGen/LiveRegMatrix.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
-#include "llvm/CodeGen/VirtRegMap.h"
 #include "llvm/InitializePasses.h"
-#include "llvm/Support/MathExtras.h"
-#include <algorithm>
 
 using namespace llvm;
 
@@ -118,11 +113,11 @@ GCNNSAReassign::tryAssignRegisters(SmallVectorImpl<LiveInterval *> &Intervals,
       LRM->unassign(*Intervals[N]);
 
   for (unsigned N = 0; N < NumRegs; ++N)
-    if (LRM->checkInterference(*Intervals[N], StartReg + N))
+    if (LRM->checkInterference(*Intervals[N], MCRegister::from(StartReg + N)))
       return false;
 
   for (unsigned N = 0; N < NumRegs; ++N)
-    LRM->assign(*Intervals[N], StartReg + N);
+    LRM->assign(*Intervals[N], MCRegister::from(StartReg + N));
 
   return true;
 }
@@ -273,13 +268,13 @@ bool GCNNSAReassign::runOnMachineFunction(MachineFunction &MF) {
       AMDGPU::getNamedOperandIdx(MI->getOpcode(), AMDGPU::OpName::vaddr0);
 
     SmallVector<LiveInterval *, 16> Intervals;
-    SmallVector<unsigned, 16> OrigRegs;
+    SmallVector<MCRegister, 16> OrigRegs;
     SlotIndex MinInd, MaxInd;
     for (unsigned I = 0; I < Info->VAddrDwords; ++I) {
       const MachineOperand &Op = MI->getOperand(VAddr0Idx + I);
       Register Reg = Op.getReg();
       LiveInterval *LI = &LIS->getInterval(Reg);
-      if (llvm::find(Intervals, LI) != Intervals.end()) {
+      if (llvm::is_contained(Intervals, LI)) {
         // Same register used, unable to make sequential
         Intervals.clear();
         break;

@@ -159,27 +159,16 @@ AppleGetQueuesHandler::SetupGetQueuesFunction(Thread &thread,
 
     if (!m_get_queues_impl_code_up) {
       if (g_get_current_queues_function_code != nullptr) {
-        Status error;
-        m_get_queues_impl_code_up.reset(
-            exe_ctx.GetTargetRef().GetUtilityFunctionForLanguage(
-                g_get_current_queues_function_code, eLanguageTypeC,
-                g_get_current_queues_function_name, error));
-        if (error.Fail()) {
-          LLDB_LOGF(
-              log,
-              "Failed to get UtilityFunction for queues introspection: %s.",
-              error.AsCString());
+        auto utility_fn_or_error = exe_ctx.GetTargetRef().CreateUtilityFunction(
+            g_get_current_queues_function_code,
+            g_get_current_queues_function_name, eLanguageTypeC, exe_ctx);
+        if (!utility_fn_or_error) {
+          LLDB_LOG_ERROR(log, utility_fn_or_error.takeError(),
+                         "Failed to create UtilityFunction for queues "
+                         "introspection: {0}.");
           return args_addr;
         }
-
-        if (!m_get_queues_impl_code_up->Install(diagnostics, exe_ctx)) {
-          if (log) {
-            LLDB_LOGF(log, "Failed to install queues introspection");
-            diagnostics.Dump(log);
-          }
-          m_get_queues_impl_code_up.reset();
-          return args_addr;
-        }
+        m_get_queues_impl_code_up = std::move(*utility_fn_or_error);
       } else {
         if (log) {
           LLDB_LOGF(log, "No queues introspection code found.");
@@ -191,7 +180,7 @@ AppleGetQueuesHandler::SetupGetQueuesFunction(Thread &thread,
 
     // Next make the runner function for our implementation utility function.
     TypeSystemClang *clang_ast_context =
-        TypeSystemClang::GetScratch(thread.GetProcess()->GetTarget());
+        ScratchTypeSystemClang::GetForTarget(thread.GetProcess()->GetTarget());
     CompilerType get_queues_return_type =
         clang_ast_context->GetBasicType(eBasicTypeVoid).GetPointerType();
     Status error;
@@ -231,7 +220,8 @@ AppleGetQueuesHandler::GetCurrentQueues(Thread &thread, addr_t page_to_free,
   lldb::StackFrameSP thread_cur_frame = thread.GetStackFrameAtIndex(0);
   ProcessSP process_sp(thread.CalculateProcess());
   TargetSP target_sp(thread.CalculateTarget());
-  TypeSystemClang *clang_ast_context = TypeSystemClang::GetScratch(*target_sp);
+  TypeSystemClang *clang_ast_context =
+      ScratchTypeSystemClang::GetForTarget(*target_sp);
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_SYSTEM_RUNTIME));
 
   GetQueuesReturnInfo return_value;

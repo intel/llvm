@@ -15,13 +15,14 @@ namespace mlir {
 
 class AffineExpr;
 class BlockAndValueMapping;
-class ModuleOp;
 class UnknownLoc;
 class FileLineColLoc;
 class Type;
 class PrimitiveType;
 class IntegerType;
+class FloatType;
 class FunctionType;
+class IndexType;
 class MemRefType;
 class VectorType;
 class RankedTensorType;
@@ -47,7 +48,7 @@ class UnitAttr;
 class Builder {
 public:
   explicit Builder(MLIRContext *context) : context(context) {}
-  explicit Builder(ModuleOp module);
+  explicit Builder(Operation *op) : Builder(op->getContext()) {}
 
   MLIRContext *getContext() const { return context; }
 
@@ -65,6 +66,8 @@ public:
   FloatType getF16Type();
   FloatType getF32Type();
   FloatType getF64Type();
+  FloatType getF80Type();
+  FloatType getF128Type();
 
   IndexType getIndexType();
 
@@ -458,10 +461,8 @@ public:
   /// ( leaving them alone if no entry is present).  Replaces references to
   /// cloned sub-operations to the corresponding operation that is copied,
   /// and adds those mappings to the map.
-  Operation *clone(Operation &op, BlockAndValueMapping &mapper) {
-    return insert(op.clone(mapper));
-  }
-  Operation *clone(Operation &op) { return insert(op.clone()); }
+  Operation *clone(Operation &op, BlockAndValueMapping &mapper);
+  Operation *clone(Operation &op);
 
   /// Creates a deep copy of this operation but keep the operation regions
   /// empty. Operands are remapped using `mapper` (if present), and `mapper` is

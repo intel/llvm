@@ -62,7 +62,7 @@ use omp_lib
      a = 3.14
   enddo
   !$omp end parallel
-  
+
   !$omp task private(b) allocate(b)
   do i = 1, N
      z = 2
@@ -80,7 +80,7 @@ use omp_lib
      z = 2
   end do
   !$omp end target
- 
+
   !ERROR: ALLOCATE clause is not allowed on the TARGET DATA directive
   !$omp target data map(from: b) allocate(b)
   do i = 1, N
@@ -163,6 +163,22 @@ use omp_lib
   !ERROR: Unmatched END TARGET directive
   !$omp end target
 
+  ! OMP 5.0 - 2.6 Restriction point 1
+  outofparallel: do k =1, 10
+  !$omp parallel
+  !$omp do
+  outer: do i=0, 10
+    inner: do j=1, 10
+      exit
+      exit outer
+      !ERROR: EXIT to construct 'outofparallel' outside of PARALLEL construct is not allowed
+      exit outofparallel
+    end do inner
+  end do outer
+  !$end omp do
+  !$omp end parallel
+  end do outofparallel
+
 ! 2.7.1  do-clause -> private-clause |
 !                     firstprivate-clause |
 !                     lastprivate-clause |
@@ -181,7 +197,6 @@ use omp_lib
   enddo
 
   !ERROR: A modifier may not be specified in a LINEAR clause on the DO directive
-  !ERROR: Internal: no symbol found for 'b'
   !$omp do linear(ref(b))
   do i = 1, N
      a = 3.14
@@ -199,10 +214,9 @@ use omp_lib
      a = 3.14
   enddo
 
+  !ERROR: Clause LINEAR is not allowed if clause ORDERED appears on the DO directive
+  !ERROR: Clause LINEAR is not allowed if clause ORDERED appears on the DO directive
   !ERROR: The parameter of the ORDERED clause must be a constant positive integer expression
-  !ERROR: A loop directive may not have both a LINEAR clause and an ORDERED clause with a parameter
-  !ERROR: Internal: no symbol found for 'b'
-  !ERROR: Internal: no symbol found for 'a'
   !$omp do ordered(1-1) private(b) linear(b) linear(a)
   do i = 1, N
      a = 3.14
@@ -261,6 +275,17 @@ use omp_lib
   d = 2
   !ERROR: NUM_THREADS clause is not allowed on the END SECTIONS directive
   !$omp end sections num_threads(4)
+
+  !$omp parallel
+  !$omp sections
+    b = 1
+  !$omp section
+    c = 1
+    d = 2
+  !ERROR: At most one NOWAIT clause can appear on the END SECTIONS directive
+  !$omp end sections nowait nowait
+  !$omp end parallel
+
   !$omp end parallel
 
 ! 2.11.2 parallel-sections-clause -> parallel-clause |
@@ -295,7 +320,7 @@ use omp_lib
   !ERROR: LASTPRIVATE clause is not allowed on the SINGLE directive
   !$omp single private(a) lastprivate(c)
   a = 3.14
-  !ERROR: The COPYPRIVATE clause must not be used with the NOWAIT clause
+  !ERROR: Clause NOWAIT is not allowed if clause COPYPRIVATE appears on the END SINGLE directive
   !ERROR: At most one NOWAIT clause can appear on the END SINGLE directive
   !$omp end single copyprivate(a) nowait nowait
   c = 2
@@ -324,7 +349,8 @@ use omp_lib
 !                      collapse-clause
 
   a = 0.0
-  !$omp simd private(b) reduction(+:a)
+  !ERROR: TASK_REDUCTION clause is not allowed on the SIMD directive
+  !$omp simd private(b) reduction(+:a) task_reduction(+:a)
   do i = 1, N
      a = a + b + 3.14
   enddo
@@ -341,8 +367,7 @@ use omp_lib
      a = 3.14
   enddo
 
-  !ERROR: The ALIGNMENT parameter of the ALIGNED clause must be a constant positive integer expression
-  !ERROR: Internal: no symbol found for 'b'
+  !ERROR: The parameter of the ALIGNED clause must be a constant positive integer expression
   !$omp simd aligned(b:-2)
   do i = 1, N
      a = 3.14
@@ -361,7 +386,6 @@ use omp_lib
 
   !ERROR: At most one PROC_BIND clause can appear on the PARALLEL DO directive
   !ERROR: A modifier may not be specified in a LINEAR clause on the PARALLEL DO directive
-  !ERROR: Internal: no symbol found for 'b'
   !$omp parallel do proc_bind(master) proc_bind(close) linear(val(b))
   do i = 1, N
      a = 3.14
@@ -426,7 +450,8 @@ use omp_lib
   enddo
 
   !ERROR: At most one NUM_TASKS clause can appear on the TASKLOOP directive
-  !$omp taskloop num_tasks(3) num_tasks(2)
+  !ERROR: TASK_REDUCTION clause is not allowed on the TASKLOOP directive
+  !$omp taskloop num_tasks(3) num_tasks(2) task_reduction(*:a)
   do i = 1,N
     a = 3.14
   enddo
@@ -464,7 +489,13 @@ use omp_lib
   !$omp flush acq_rel
   !$omp flush release
   !$omp flush acquire
+  !ERROR: If memory-order-clause is RELEASE, ACQUIRE, or ACQ_REL, list items must not be specified on the FLUSH directive
   !$omp flush release (c)
+  !ERROR: SEQ_CST clause is not allowed on the FLUSH directive
+  !$omp flush seq_cst
+  !ERROR: RELAXED clause is not allowed on the FLUSH directive
+  !$omp flush relaxed
+
   !$omp cancel DO
   !$omp cancellation point parallel
 
@@ -530,8 +561,7 @@ use omp_lib
   enddo
 
   !ERROR: The parameter of the SIMDLEN clause must be a constant positive integer expression
-  !ERROR: The ALIGNMENT parameter of the ALIGNED clause must be a constant positive integer expression
-  !ERROR: Internal: no symbol found for 'a'
+  !ERROR: The parameter of the ALIGNED clause must be a constant positive integer expression
   !$omp taskloop simd simdlen(-1) aligned(a:-2)
   do i = 1, N
      a = 3.14

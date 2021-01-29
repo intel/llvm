@@ -71,7 +71,10 @@ MCSymbol *MachineBasicBlock::getSymbol() const {
       } else if (SectionID == MBBSectionID::ExceptionSectionID) {
         Suffix += ".eh";
       } else {
-        Suffix += "." + std::to_string(SectionID.Number);
+        // For symbols that represent basic block sections, we add ".__part." to
+        // allow tools like symbolizers to know that this represents a part of
+        // the original function.
+        Suffix = (Suffix + Twine(".__part.") + Twine(SectionID.Number)).str();
       }
       CachedMCSymbol = Ctx.getOrCreateSymbol(MF->getName() + Suffix);
     } else {
@@ -266,6 +269,10 @@ bool MachineBasicBlock::hasEHPadSuccessor() const {
   return false;
 }
 
+bool MachineBasicBlock::isEntryBlock() const {
+  return getParent()->begin() == getIterator();
+}
+
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
 LLVM_DUMP_METHOD void MachineBasicBlock::dump() const {
   print(dbgs());
@@ -346,11 +353,9 @@ void MachineBasicBlock::print(raw_ostream &OS, ModuleSlotTracker &MST,
     if (Indexes) OS << '\t';
     // Don't indent(2), align with previous line attributes.
     OS << "; predecessors: ";
-    for (auto I = pred_begin(), E = pred_end(); I != E; ++I) {
-      if (I != pred_begin())
-        OS << ", ";
-      OS << printMBBReference(**I);
-    }
+    ListSeparator LS;
+    for (auto *Pred : predecessors())
+      OS << LS << printMBBReference(*Pred);
     OS << '\n';
     HasLineAttributes = true;
   }
@@ -359,10 +364,9 @@ void MachineBasicBlock::print(raw_ostream &OS, ModuleSlotTracker &MST,
     if (Indexes) OS << '\t';
     // Print the successors
     OS.indent(2) << "successors: ";
+    ListSeparator LS;
     for (auto I = succ_begin(), E = succ_end(); I != E; ++I) {
-      if (I != succ_begin())
-        OS << ", ";
-      OS << printMBBReference(**I);
+      OS << LS << printMBBReference(**I);
       if (!Probs.empty())
         OS << '('
            << format("0x%08" PRIx32, getSuccProbability(I).getNumerator())
@@ -371,11 +375,10 @@ void MachineBasicBlock::print(raw_ostream &OS, ModuleSlotTracker &MST,
     if (!Probs.empty() && IsStandalone) {
       // Print human readable probabilities as comments.
       OS << "; ";
+      ListSeparator LS;
       for (auto I = succ_begin(), E = succ_end(); I != E; ++I) {
         const BranchProbability &BP = getSuccProbability(I);
-        if (I != succ_begin())
-          OS << ", ";
-        OS << printMBBReference(**I) << '('
+        OS << LS << printMBBReference(**I) << '('
            << format("%.2f%%",
                      rint(((double)BP.getNumerator() / BP.getDenominator()) *
                           100.0 * 100.0) /
@@ -392,12 +395,9 @@ void MachineBasicBlock::print(raw_ostream &OS, ModuleSlotTracker &MST,
     if (Indexes) OS << '\t';
     OS.indent(2) << "liveins: ";
 
-    bool First = true;
+    ListSeparator LS;
     for (const auto &LI : liveins()) {
-      if (!First)
-        OS << ", ";
-      First = false;
-      OS << printReg(LI.PhysReg, TRI);
+      OS << LS << printReg(LI.PhysReg, TRI);
       if (!LI.LaneMask.all())
         OS << ":0x" << PrintLaneMask(LI.LaneMask);
     }
@@ -583,7 +583,7 @@ void MachineBasicBlock::sortUniqueLiveIns() {
 Register
 MachineBasicBlock::addLiveIn(MCRegister PhysReg, const TargetRegisterClass *RC) {
   assert(getParent() && "MBB must be inserted in function");
-  assert(PhysReg.isPhysical() && "Expected physreg");
+  assert(Register::isPhysicalRegister(PhysReg) && "Expected physreg");
   assert(RC && "Register class is required");
   assert((isEHPad() || this == &getParent()->front()) &&
          "Only the entry block and landing pads can have physreg live ins");
@@ -749,7 +749,7 @@ void MachineBasicBlock::splitSuccessor(MachineBasicBlock *Old,
                                        bool NormalizeSuccProbs) {
   succ_iterator OldI = llvm::find(successors(), Old);
   assert(OldI != succ_end() && "Old is not a successor of this block!");
-  assert(llvm::find(successors(), New) == succ_end() &&
+  assert(!llvm::is_contained(successors(), New) &&
          "New is already a successor of this block!");
 
   // Add a new successor with equal probability as the original one. Note
@@ -961,9 +961,10 @@ MachineBasicBlock *MachineBasicBlock::splitAt(MachineInstr &MI,
   if (UpdateLiveIns) {
     // Make sure we add any physregs we define in the block as liveins to the
     // new block.
+    MachineBasicBlock::iterator Prev(&MI);
     LiveRegs.init(*MF->getSubtarget().getRegisterInfo());
     LiveRegs.addLiveOuts(*this);
-    for (auto I = rbegin(), E = SplitPoint.getReverse(); I != E; ++I)
+    for (auto I = rbegin(), E = Prev.getReverse(); I != E; ++I)
       LiveRegs.stepBackward(*I);
   }
 
@@ -979,7 +980,7 @@ MachineBasicBlock *MachineBasicBlock::splitAt(MachineInstr &MI,
     addLiveIns(*SplitBB, LiveRegs);
 
   if (LIS)
-    LIS->insertMBBInMaps(SplitBB, &MI);
+    LIS->insertMBBInMaps(SplitBB);
 
   return SplitBB;
 }

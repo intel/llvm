@@ -12,10 +12,8 @@ class TestGdbRemoteTargetXmlPacket(gdbremote_testcase.GdbRemoteTestCaseBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @expectedFailureNetBSD
     @llgs_test
     def test_g_target_xml_returns_correct_data(self):
-        self.init_llgs_test()
         self.build()
         self.set_inferior_startup_launch()
 
@@ -65,5 +63,8 @@ class TestGdbRemoteTargetXmlPacket(gdbremote_testcase.GdbRemoteTestCaseBase):
             self.assertEqual(q_info_reg["set"], xml_info_reg.get("group"))
             self.assertEqual(q_info_reg["format"], xml_info_reg.get("format"))
             self.assertEqual(q_info_reg["bitsize"], xml_info_reg.get("bitsize"))
-            self.assertEqual(q_info_reg["offset"], xml_info_reg.get("offset"))
+
+            if not self.getArchitecture() == 'aarch64':
+                self.assertEqual(q_info_reg["offset"], xml_info_reg.get("offset"))
+
             self.assertEqual(q_info_reg["encoding"], xml_info_reg.get("encoding"))

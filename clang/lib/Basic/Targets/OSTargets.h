@@ -154,7 +154,8 @@ public:
       MinVersion = llvm::VersionTuple(5U);
       break;
     default:
-      llvm_unreachable("Unexpected OS");
+      // Conservatively return 8 bytes if OS is unknown.
+      return 64;
     }
 
     unsigned Major, Minor, Micro;
@@ -252,6 +253,7 @@ public:
     case llvm::Triple::mips:
     case llvm::Triple::mipsel:
     case llvm::Triple::ppc:
+    case llvm::Triple::ppcle:
     case llvm::Triple::ppc64:
     case llvm::Triple::ppc64le:
       this->MCountName = "_mcount";
@@ -382,8 +384,12 @@ protected:
       Triple.getEnvironmentVersion(Maj, Min, Rev);
       this->PlatformName = "android";
       this->PlatformMinVersion = VersionTuple(Maj, Min, Rev);
-      if (Maj)
-        Builder.defineMacro("__ANDROID_API__", Twine(Maj));
+      if (Maj) {
+        Builder.defineMacro("__ANDROID_MIN_SDK_VERSION__", Twine(Maj));
+        // This historical but ambiguous name for the minSdkVersion macro. Keep
+        // defined for compatibility.
+        Builder.defineMacro("__ANDROID_API__", "__ANDROID_MIN_SDK_VERSION__");
+      }
     } else {
         Builder.defineMacro("__gnu_linux__");
     }
@@ -408,6 +414,7 @@ public:
     case llvm::Triple::mips64:
     case llvm::Triple::mips64el:
     case llvm::Triple::ppc:
+    case llvm::Triple::ppcle:
     case llvm::Triple::ppc64:
     case llvm::Triple::ppc64le:
       this->MCountName = "_mcount";
@@ -673,6 +680,9 @@ protected:
 
     Builder.defineMacro("_AIX");
 
+    if (Opts.EnableAIXExtendedAltivecABI)
+      Builder.defineMacro("__EXTABI__");
+
     unsigned Major, Minor, Micro;
     Triple.getOSVersion(Major, Minor, Micro);
 
@@ -778,6 +788,11 @@ public:
   ZOSTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
       : OSTargetInfo<Target>(Triple, Opts) {
     this->WCharType = TargetInfo::UnsignedInt;
+    this->UseBitFieldTypeAlignment = false;
+    this->UseZeroLengthBitfieldAlignment = true;
+    this->ZeroLengthBitfieldBoundary = 32;
+    this->MinGlobalAlign = 0;
+    this->DefaultAlignForAttributeAligned = 128;
   }
 };
 

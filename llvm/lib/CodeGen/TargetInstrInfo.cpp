@@ -69,6 +69,15 @@ void TargetInstrInfo::insertNoop(MachineBasicBlock &MBB,
   llvm_unreachable("Target didn't implement insertNoop!");
 }
 
+/// insertNoops - Insert noops into the instruction stream at the specified
+/// point.
+void TargetInstrInfo::insertNoops(MachineBasicBlock &MBB,
+                                  MachineBasicBlock::iterator MI,
+                                  unsigned Quantity) const {
+  for (unsigned i = 0; i < Quantity; ++i)
+    insertNoop(MBB, MI);
+}
+
 static bool isAsmComment(const char *Str, const MCAsmInfo &MAI) {
   return strncmp(Str, MAI.getCommentString().data(),
                  MAI.getCommentString().size()) == 0;
@@ -769,8 +778,8 @@ bool TargetInstrInfo::isReassociationCandidate(const MachineInstr &Inst,
 //    instruction is known to not increase the critical path, then don't match
 //    that pattern.
 bool TargetInstrInfo::getMachineCombinerPatterns(
-    MachineInstr &Root,
-    SmallVectorImpl<MachineCombinerPattern> &Patterns) const {
+    MachineInstr &Root, SmallVectorImpl<MachineCombinerPattern> &Patterns,
+    bool DoRegPressureReduce) const {
   bool Commute;
   if (isReassociationCandidate(Root, Commute)) {
     // We found a sequence of instructions that may be suitable for a

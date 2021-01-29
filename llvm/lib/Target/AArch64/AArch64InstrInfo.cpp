@@ -1119,6 +1119,13 @@ bool AArch64InstrInfo::analyzeCompare(const MachineInstr &MI, Register &SrcReg,
   switch (MI.getOpcode()) {
   default:
     break;
+  case AArch64::PTEST_PP:
+    SrcReg = MI.getOperand(0).getReg();
+    SrcReg2 = MI.getOperand(1).getReg();
+    // Not sure about the mask and value for now...
+    CmpMask = ~0;
+    CmpValue = 0;
+    return true;
   case AArch64::SUBSWrr:
   case AArch64::SUBSWrs:
   case AArch64::SUBSWrx:
@@ -1274,10 +1281,9 @@ static bool areCFlagsAccessedBetweenInstrs(
     return true;
 
   // From must be above To.
-  assert(std::find_if(++To.getReverse(), To->getParent()->rend(),
-                      [From](MachineInstr &MI) {
-                        return MI.getIterator() == From;
-                      }) != To->getParent()->rend());
+  assert(std::any_of(
+      ++To.getReverse(), To->getParent()->rend(),
+      [From](MachineInstr &MI) { return MI.getIterator() == From; }));
 
   // We iterate backward starting at \p To until we hit \p From.
   for (const MachineInstr &Instr :
@@ -1288,6 +1294,127 @@ static bool areCFlagsAccessedBetweenInstrs(
       return true;
   }
   return false;
+}
+
+/// optimizePTestInstr - Attempt to remove a ptest of a predicate-generating
+/// operation which could set the flags in an identical manner
+bool AArch64InstrInfo::optimizePTestInstr(
+    MachineInstr *PTest, unsigned MaskReg, unsigned PredReg,
+    const MachineRegisterInfo *MRI) const {
+  auto *Mask = MRI->getUniqueVRegDef(MaskReg);
+  auto *Pred = MRI->getUniqueVRegDef(PredReg);
+  auto NewOp = Pred->getOpcode();
+  bool OpChanged = false;
+
+  unsigned MaskOpcode = Mask->getOpcode();
+  unsigned PredOpcode = Pred->getOpcode();
+  bool PredIsPTestLike = isPTestLikeOpcode(PredOpcode);
+  bool PredIsWhileLike = isWhileOpcode(PredOpcode);
+
+  if (isPTrueOpcode(MaskOpcode) && (PredIsPTestLike || PredIsWhileLike)) {
+    // For PTEST(PTRUE, OTHER_INST), PTEST is redundant when PTRUE doesn't
+    // deactivate any lanes OTHER_INST might set.
+    uint64_t MaskElementSize = getElementSizeForOpcode(MaskOpcode);
+    uint64_t PredElementSize = getElementSizeForOpcode(PredOpcode);
+
+    // Must be an all active predicate of matching element size.
+    if ((PredElementSize != MaskElementSize) ||
+        (Mask->getOperand(1).getImm() != 31))
+      return false;
+
+    // Fallthough to simply remove the PTEST.
+  } else if ((Mask == Pred) && (PredIsPTestLike || PredIsWhileLike)) {
+    // For PTEST(PG, PG), PTEST is redundant when PG is the result of an
+    // instruction that sets the flags as PTEST would.
+
+    // Fallthough to simply remove the PTEST.
+  } else if (PredIsPTestLike) {
+    // For PTEST(PG_1, PTEST_LIKE(PG2, ...)), PTEST is redundant when both
+    // instructions use the same predicate.
+    auto PTestLikeMask = MRI->getUniqueVRegDef(Pred->getOperand(1).getReg());
+    if (Mask != PTestLikeMask)
+      return false;
+
+    // Fallthough to simply remove the PTEST.
+  } else {
+    switch (Pred->getOpcode()) {
+    case AArch64::BRKB_PPzP:
+    case AArch64::BRKPB_PPzPP: {
+      // Op 0 is chain, 1 is the mask, 2 the previous predicate to
+      // propagate, 3 the new predicate.
+
+      // Check to see if our mask is the same as the brkpb's. If
+      // not the resulting flag bits may be different and we
+      // can't remove the ptest.
+      auto *PredMask = MRI->getUniqueVRegDef(Pred->getOperand(1).getReg());
+      if (Mask != PredMask)
+        return false;
+
+      // Switch to the new opcode
+      NewOp = Pred->getOpcode() == AArch64::BRKB_PPzP ? AArch64::BRKBS_PPzP
+                                                      : AArch64::BRKPBS_PPzPP;
+      OpChanged = true;
+      break;
+    }
+    case AArch64::BRKN_PPzP: {
+      auto *PredMask = MRI->getUniqueVRegDef(Pred->getOperand(1).getReg());
+      if (Mask != PredMask)
+        return false;
+
+      NewOp = AArch64::BRKNS_PPzP;
+      OpChanged = true;
+      break;
+    }
+    default:
+      // Bail out if we don't recognize the input
+      return false;
+    }
+  }
+
+  const TargetRegisterInfo *TRI = &getRegisterInfo();
+
+  // If the predicate is in a different block (possibly because its been
+  // hoisted out), then assume the flags are set in between statements.
+  if (Pred->getParent() != PTest->getParent())
+    return false;
+
+  // If another instruction between the propagation and test sets the
+  // flags, don't remove the ptest.
+  MachineBasicBlock::iterator I = Pred, E = PTest;
+  ++I; // Skip past the predicate op itself.
+  for (; I != E; ++I) {
+    const MachineInstr &Inst = *I;
+
+    // TODO: If the ptest flags are unused, we could still remove it.
+    if (Inst.modifiesRegister(AArch64::NZCV, TRI))
+      return false;
+  }
+
+  // If we pass all the checks, it's safe to remove the PTEST and use the flags
+  // as they are prior to PTEST. Sometimes this requires the tested PTEST
+  // operand to be replaced with an equivalent instruction that also sets the
+  // flags.
+  Pred->setDesc(get(NewOp));
+  PTest->eraseFromParent();
+  if (OpChanged) {
+    bool succeeded = UpdateOperandRegClass(*Pred);
+    (void)succeeded;
+    assert(succeeded && "Operands have incompatible register classes!");
+    Pred->addRegisterDefined(AArch64::NZCV, TRI);
+  }
+
+  // Ensure that the flags def is live.
+  if (Pred->registerDefIsDead(AArch64::NZCV, TRI)) {
+    unsigned i = 0, e = Pred->getNumOperands();
+    for (; i != e; ++i) {
+      MachineOperand &MO = Pred->getOperand(i);
+      if (MO.isReg() && MO.isDef() && MO.getReg() == AArch64::NZCV) {
+        MO.setIsDead(false);
+        break;
+      }
+    }
+  }
+  return true;
 }
 
 /// Try to optimize a compare instruction. A compare instruction is an
@@ -1327,6 +1454,9 @@ bool AArch64InstrInfo::optimizeCompareInstr(
     assert(succeeded && "Some operands reg class are incompatible!");
     return true;
   }
+
+  if (CmpInstr.getOpcode() == AArch64::PTEST_PP)
+    return optimizePTestInstr(&CmpInstr, SrcReg, SrcReg2, MRI);
 
   // Continue only if we have a "ri" where immediate is zero.
   // FIXME:CmpValue has already been converted to 0 or 1 in analyzeCompare
@@ -2142,6 +2272,24 @@ bool AArch64InstrInfo::getMemOperandsWithOffsetWidth(
     return false;
   BaseOps.push_back(BaseOp);
   return true;
+}
+
+Optional<ExtAddrMode>
+AArch64InstrInfo::getAddrModeFromMemoryOp(const MachineInstr &MemI,
+                                          const TargetRegisterInfo *TRI) const {
+  const MachineOperand *Base; // Filled with the base operand of MI.
+  int64_t Offset;             // Filled with the offset of MI.
+  bool OffsetIsScalable;
+  if (!getMemOperandWithOffset(MemI, Base, Offset, OffsetIsScalable, TRI))
+    return None;
+
+  if (!Base->isReg())
+    return None;
+  ExtAddrMode AM;
+  AM.BaseReg = Base->getReg();
+  AM.Displacement = Offset;
+  AM.ScaledReg = 0;
+  return AM;
 }
 
 bool AArch64InstrInfo::getMemOperandWithOffsetWidth(
@@ -3142,7 +3290,7 @@ void AArch64InstrInfo::storeRegToStackSlot(
     else if (AArch64::PPRRegClass.hasSubClassEq(RC)) {
       assert(Subtarget.hasSVE() && "Unexpected register store without SVE");
       Opc = AArch64::STR_PXI;
-      StackID = TargetStackID::SVEVector;
+      StackID = TargetStackID::ScalableVector;
     }
     break;
   case 4:
@@ -3186,7 +3334,7 @@ void AArch64InstrInfo::storeRegToStackSlot(
     } else if (AArch64::ZPRRegClass.hasSubClassEq(RC)) {
       assert(Subtarget.hasSVE() && "Unexpected register store without SVE");
       Opc = AArch64::STR_ZXI;
-      StackID = TargetStackID::SVEVector;
+      StackID = TargetStackID::ScalableVector;
     }
     break;
   case 24:
@@ -3208,7 +3356,7 @@ void AArch64InstrInfo::storeRegToStackSlot(
     } else if (AArch64::ZPR2RegClass.hasSubClassEq(RC)) {
       assert(Subtarget.hasSVE() && "Unexpected register store without SVE");
       Opc = AArch64::STR_ZZXI;
-      StackID = TargetStackID::SVEVector;
+      StackID = TargetStackID::ScalableVector;
     }
     break;
   case 48:
@@ -3219,7 +3367,7 @@ void AArch64InstrInfo::storeRegToStackSlot(
     } else if (AArch64::ZPR3RegClass.hasSubClassEq(RC)) {
       assert(Subtarget.hasSVE() && "Unexpected register store without SVE");
       Opc = AArch64::STR_ZZZXI;
-      StackID = TargetStackID::SVEVector;
+      StackID = TargetStackID::ScalableVector;
     }
     break;
   case 64:
@@ -3230,7 +3378,7 @@ void AArch64InstrInfo::storeRegToStackSlot(
     } else if (AArch64::ZPR4RegClass.hasSubClassEq(RC)) {
       assert(Subtarget.hasSVE() && "Unexpected register store without SVE");
       Opc = AArch64::STR_ZZZZXI;
-      StackID = TargetStackID::SVEVector;
+      StackID = TargetStackID::ScalableVector;
     }
     break;
   }
@@ -3296,7 +3444,7 @@ void AArch64InstrInfo::loadRegFromStackSlot(
     else if (AArch64::PPRRegClass.hasSubClassEq(RC)) {
       assert(Subtarget.hasSVE() && "Unexpected register load without SVE");
       Opc = AArch64::LDR_PXI;
-      StackID = TargetStackID::SVEVector;
+      StackID = TargetStackID::ScalableVector;
     }
     break;
   case 4:
@@ -3340,7 +3488,7 @@ void AArch64InstrInfo::loadRegFromStackSlot(
     } else if (AArch64::ZPRRegClass.hasSubClassEq(RC)) {
       assert(Subtarget.hasSVE() && "Unexpected register load without SVE");
       Opc = AArch64::LDR_ZXI;
-      StackID = TargetStackID::SVEVector;
+      StackID = TargetStackID::ScalableVector;
     }
     break;
   case 24:
@@ -3362,7 +3510,7 @@ void AArch64InstrInfo::loadRegFromStackSlot(
     } else if (AArch64::ZPR2RegClass.hasSubClassEq(RC)) {
       assert(Subtarget.hasSVE() && "Unexpected register load without SVE");
       Opc = AArch64::LDR_ZZXI;
-      StackID = TargetStackID::SVEVector;
+      StackID = TargetStackID::ScalableVector;
     }
     break;
   case 48:
@@ -3373,7 +3521,7 @@ void AArch64InstrInfo::loadRegFromStackSlot(
     } else if (AArch64::ZPR3RegClass.hasSubClassEq(RC)) {
       assert(Subtarget.hasSVE() && "Unexpected register load without SVE");
       Opc = AArch64::LDR_ZZZXI;
-      StackID = TargetStackID::SVEVector;
+      StackID = TargetStackID::ScalableVector;
     }
     break;
   case 64:
@@ -3384,7 +3532,7 @@ void AArch64InstrInfo::loadRegFromStackSlot(
     } else if (AArch64::ZPR4RegClass.hasSubClassEq(RC)) {
       assert(Subtarget.hasSVE() && "Unexpected register load without SVE");
       Opc = AArch64::LDR_ZZZZXI;
-      StackID = TargetStackID::SVEVector;
+      StackID = TargetStackID::ScalableVector;
     }
     break;
   }
@@ -3409,6 +3557,47 @@ bool llvm::isNZCVTouchedInInstructionRange(const MachineInstr &DefMI,
                   return I.modifiesRegister(AArch64::NZCV, TRI) ||
                          I.readsRegister(AArch64::NZCV, TRI);
                 });
+}
+
+void AArch64InstrInfo::decomposeStackOffsetForDwarfOffsets(
+    const StackOffset &Offset, int64_t &ByteSized, int64_t &VGSized) {
+  // The smallest scalable element supported by scaled SVE addressing
+  // modes are predicates, which are 2 scalable bytes in size. So the scalable
+  // byte offset must always be a multiple of 2.
+  assert(Offset.getScalable() % 2 == 0 && "Invalid frame offset");
+
+  // VGSized offsets are divided by '2', because the VG register is the
+  // the number of 64bit granules as opposed to 128bit vector chunks,
+  // which is how the 'n' in e.g. MVT::nxv1i8 is modelled.
+  // So, for a stack offset of 16 MVT::nxv1i8's, the size is n x 16 bytes.
+  // VG = n * 2 and the dwarf offset must be VG * 8 bytes.
+  ByteSized = Offset.getFixed();
+  VGSized = Offset.getScalable() / 2;
+}
+
+/// Returns the offset in parts to which this frame offset can be
+/// decomposed for the purpose of describing a frame offset.
+/// For non-scalable offsets this is simply its byte size.
+void AArch64InstrInfo::decomposeStackOffsetForFrameOffsets(
+    const StackOffset &Offset, int64_t &NumBytes, int64_t &NumPredicateVectors,
+    int64_t &NumDataVectors) {
+  // The smallest scalable element supported by scaled SVE addressing
+  // modes are predicates, which are 2 scalable bytes in size. So the scalable
+  // byte offset must always be a multiple of 2.
+  assert(Offset.getScalable() % 2 == 0 && "Invalid frame offset");
+
+  NumBytes = Offset.getFixed();
+  NumDataVectors = 0;
+  NumPredicateVectors = Offset.getScalable() / 2;
+  // This method is used to get the offsets to adjust the frame offset.
+  // If the function requires ADDPL to be used and needs more than two ADDPL
+  // instructions, part of the offset is folded into NumDataVectors so that it
+  // uses ADDVL for part of it, reducing the number of ADDPL instructions.
+  if (NumPredicateVectors % 8 == 0 || NumPredicateVectors < -64 ||
+      NumPredicateVectors > 62) {
+    NumDataVectors = NumPredicateVectors / 8;
+    NumPredicateVectors -= NumDataVectors * 8;
+  }
 }
 
 // Helper function to emit a frame offset adjustment from a given
@@ -3520,7 +3709,8 @@ void llvm::emitFrameOffset(MachineBasicBlock &MBB,
                            MachineInstr::MIFlag Flag, bool SetNZCV,
                            bool NeedsWinCFI, bool *HasWinCFI) {
   int64_t Bytes, NumPredicateVectors, NumDataVectors;
-  Offset.getForFrameOffset(Bytes, NumPredicateVectors, NumDataVectors);
+  AArch64InstrInfo::decomposeStackOffsetForFrameOffsets(
+      Offset, Bytes, NumPredicateVectors, NumDataVectors);
 
   // First emit non-scalable frame offsets, or a simple 'mov'.
   if (Bytes || (!Offset && SrcReg != DestReg)) {
@@ -3780,7 +3970,7 @@ int llvm::isAArch64FrameOffsetLegal(const MachineInstr &MI,
   // Construct the complete offset.
   bool IsMulVL = ScaleValue.isScalable();
   unsigned Scale = ScaleValue.getKnownMinSize();
-  int64_t Offset = IsMulVL ? SOffset.getScalableBytes() : SOffset.getBytes();
+  int64_t Offset = IsMulVL ? SOffset.getScalable() : SOffset.getFixed();
 
   const MachineOperand &ImmOpnd =
       MI.getOperand(AArch64InstrInfo::getLoadStoreImmIdx(MI.getOpcode()));
@@ -3822,11 +4012,9 @@ int llvm::isAArch64FrameOffsetLegal(const MachineInstr &MI,
     *OutUnscaledOp = *UnscaledOp;
 
   if (IsMulVL)
-    SOffset = StackOffset(Offset, MVT::nxv1i8) +
-              StackOffset(SOffset.getBytes(), MVT::i8);
+    SOffset = StackOffset::get(SOffset.getFixed(), Offset);
   else
-    SOffset = StackOffset(Offset, MVT::i8) +
-              StackOffset(SOffset.getScalableBytes(), MVT::nxv1i8);
+    SOffset = StackOffset::get(Offset, SOffset.getScalable());
   return AArch64FrameOffsetCanUpdate |
          (SOffset ? 0 : AArch64FrameOffsetIsLegal);
 }
@@ -3838,7 +4026,7 @@ bool llvm::rewriteAArch64FrameIndex(MachineInstr &MI, unsigned FrameRegIdx,
   unsigned ImmIdx = FrameRegIdx + 1;
 
   if (Opcode == AArch64::ADDSXri || Opcode == AArch64::ADDXri) {
-    Offset += StackOffset(MI.getOperand(ImmIdx).getImm(), MVT::i8);
+    Offset += StackOffset::getFixed(MI.getOperand(ImmIdx).getImm());
     emitFrameOffset(*MI.getParent(), MI, MI.getDebugLoc(),
                     MI.getOperand(0).getReg(), FrameReg, Offset, TII,
                     MachineInstr::NoFlags, (Opcode == AArch64::ADDSXri));
@@ -4450,8 +4638,8 @@ bool AArch64InstrInfo::isThroughputPattern(
 /// pattern evaluator stops checking as soon as it finds a faster sequence.
 
 bool AArch64InstrInfo::getMachineCombinerPatterns(
-    MachineInstr &Root,
-    SmallVectorImpl<MachineCombinerPattern> &Patterns) const {
+    MachineInstr &Root, SmallVectorImpl<MachineCombinerPattern> &Patterns,
+    bool DoRegPressureReduce) const {
   // Integer patterns
   if (getMaddPatterns(Root, Patterns))
     return true;
@@ -4459,7 +4647,8 @@ bool AArch64InstrInfo::getMachineCombinerPatterns(
   if (getFMAPatterns(Root, Patterns))
     return true;
 
-  return TargetInstrInfo::getMachineCombinerPatterns(Root, Patterns);
+  return TargetInstrInfo::getMachineCombinerPatterns(Root, Patterns,
+                                                     DoRegPressureReduce);
 }
 
 enum class FMAInstKind { Default, Indexed, Accumulator };
@@ -4682,7 +4871,7 @@ void AArch64InstrInfo::genAlternativeCodeSequence(
   MachineFunction &MF = *MBB.getParent();
   const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
 
-  MachineInstr *MUL;
+  MachineInstr *MUL = nullptr;
   const TargetRegisterClass *RC;
   unsigned Opc;
   switch (Pattern) {
@@ -5503,6 +5692,9 @@ void AArch64InstrInfo::genAlternativeCodeSequence(
   }
   } // end switch (Pattern)
   // Record MUL and ADD/SUB for deletion
+  // FIXME: This assertion fails in CodeGen/AArch64/tailmerging_in_mbp.ll and
+  // CodeGen/AArch64/urem-seteq-nonzero.ll.
+  // assert(MUL && "MUL was never set");
   DelInstrs.push_back(MUL);
   DelInstrs.push_back(&Root);
 }
@@ -5971,10 +6163,7 @@ outliner::OutlinedFunction AArch64InstrInfo::getOutliningCandidateInfo(
       return false;
     };
     // Remove candidates with illegal stack modifying instructions
-    RepeatedSequenceLocs.erase(std::remove_if(RepeatedSequenceLocs.begin(),
-                                              RepeatedSequenceLocs.end(),
-                                              hasIllegalSPModification),
-                               RepeatedSequenceLocs.end());
+    llvm::erase_if(RepeatedSequenceLocs, hasIllegalSPModification);
 
     // If the sequence doesn't have enough candidates left, then we're done.
     if (RepeatedSequenceLocs.size() < 2)
@@ -6017,10 +6206,7 @@ outliner::OutlinedFunction AArch64InstrInfo::getOutliningCandidateInfo(
     // Erase every candidate that violates the restrictions above. (It could be
     // true that we have viable candidates, so it's not worth bailing out in
     // the case that, say, 1 out of 20 candidates violate the restructions.)
-    RepeatedSequenceLocs.erase(std::remove_if(RepeatedSequenceLocs.begin(),
-                                              RepeatedSequenceLocs.end(),
-                                              CantGuaranteeValueAcrossCall),
-                               RepeatedSequenceLocs.end());
+    llvm::erase_if(RepeatedSequenceLocs, CantGuaranteeValueAcrossCall);
 
     // If the sequence doesn't have enough candidates left, then we're done.
     if (RepeatedSequenceLocs.size() < 2)
@@ -6634,7 +6820,7 @@ static void signOutlinedFunction(MachineFunction &MF, MachineBasicBlock &MBB,
 
     // If v8.3a features are available we can replace a RET instruction by
     // RETAA or RETAB and omit the AUT instructions
-    if (Subtarget.hasV8_3aOps() && MBBAUT != MBB.end() &&
+    if (Subtarget.hasPAuth() && MBBAUT != MBB.end() &&
         MBBAUT->getOpcode() == AArch64::RET) {
       BuildMI(MBB, MBBAUT, DL,
               TII->get(ShouldSignReturnAddrWithAKey ? AArch64::RETAA
@@ -6686,7 +6872,7 @@ void AArch64InstrInfo::buildOutlinedFrame(
     return MI.isCall() && !MI.isReturn();
   };
 
-  if (std::any_of(MBB.instr_begin(), MBB.instr_end(), IsNonTailCall)) {
+  if (llvm::any_of(MBB.instrs(), IsNonTailCall)) {
     // Fix up the instructions in the range, since we're going to modify the
     // stack.
 
@@ -6987,6 +7173,14 @@ AArch64InstrInfo::describeLoadedValue(const MachineInstr &MI,
 
 uint64_t AArch64InstrInfo::getElementSizeForOpcode(unsigned Opc) const {
   return get(Opc).TSFlags & AArch64::ElementSizeMask;
+}
+
+bool AArch64InstrInfo::isPTestLikeOpcode(unsigned Opc) const {
+  return get(Opc).TSFlags & AArch64::InstrFlagIsPTestLike;
+}
+
+bool AArch64InstrInfo::isWhileOpcode(unsigned Opc) const {
+  return get(Opc).TSFlags & AArch64::InstrFlagIsWhile;
 }
 
 unsigned llvm::getBLRCallOpcode(const MachineFunction &MF) {

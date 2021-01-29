@@ -55,9 +55,6 @@ Instruction::~Instruction() {
   //   instructions in a BasicBlock are deleted).
   if (isUsedByMetadata())
     ValueAsMetadata::handleRAUW(this, UndefValue::get(getType()));
-
-  if (hasMetadataHashEntry())
-    clearMetadataHashEntries();
 }
 
 
@@ -644,16 +641,18 @@ bool Instruction::isLifetimeStartOrEnd() const {
   return ID == Intrinsic::lifetime_start || ID == Intrinsic::lifetime_end;
 }
 
-const Instruction *Instruction::getNextNonDebugInstruction() const {
+const Instruction *
+Instruction::getNextNonDebugInstruction(bool SkipPseudoOp) const {
   for (const Instruction *I = getNextNode(); I; I = I->getNextNode())
-    if (!isa<DbgInfoIntrinsic>(I))
+    if (!isa<DbgInfoIntrinsic>(I) && !(SkipPseudoOp && isa<PseudoProbeInst>(I)))
       return I;
   return nullptr;
 }
 
-const Instruction *Instruction::getPrevNonDebugInstruction() const {
+const Instruction *
+Instruction::getPrevNonDebugInstruction(bool SkipPseudoOp) const {
   for (const Instruction *I = getPrevNode(); I; I = I->getPrevNode())
-    if (!isa<DbgInfoIntrinsic>(I))
+    if (!isa<DbgInfoIntrinsic>(I) && !(SkipPseudoOp && isa<PseudoProbeInst>(I)))
       return I;
   return nullptr;
 }

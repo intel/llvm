@@ -19,6 +19,8 @@ def Implicit : DiagGroup<"implicit", [
 def ODR : DiagGroup<"odr">;
 def : DiagGroup<"abi">;
 def AbsoluteValue : DiagGroup<"absolute-value">;
+def MisspelledAssumption : DiagGroup<"misspelled-assumption">;
+def UnknownAssumption : DiagGroup<"unknown-assumption">;
 def AddressOfTemporary : DiagGroup<"address-of-temporary">;
 def : DiagGroup<"aggregate-return">;
 def GNUAlignofExpression : DiagGroup<"gnu-alignof-expression">;
@@ -108,6 +110,7 @@ def FloatConversion :
                                  FloatZeroConversion]>;
 
 def FrameAddress : DiagGroup<"frame-address">;
+def FreeNonHeapObject : DiagGroup<"free-nonheap-object">;
 def DoublePromotion : DiagGroup<"double-promotion">;
 def EnumTooLarge : DiagGroup<"enum-too-large">;
 def UnsupportedNan : DiagGroup<"unsupported-nan">;
@@ -485,6 +488,8 @@ def ObjCPointerIntrospect : DiagGroup<"deprecated-objc-pointer-introspection", [
 def ObjCMultipleMethodNames : DiagGroup<"objc-multiple-method-names">;
 def ObjCFlexibleArray : DiagGroup<"objc-flexible-array">;
 def ObjCBoxing : DiagGroup<"objc-boxing">;
+def CompletionHandler : DiagGroup<"completion-handler">;
+def CalledOnceParameter : DiagGroup<"called-once-parameter", [CompletionHandler]>;
 def OpenCLUnsupportedRGBA: DiagGroup<"opencl-unsupported-rgba">;
 def UnderalignedExceptionObject : DiagGroup<"underaligned-exception-object">;
 def DeprecatedObjCIsaUsage : DiagGroup<"deprecated-objc-isa-usage">;
@@ -667,10 +672,10 @@ def NSReturnsMismatch : DiagGroup<"nsreturns-mismatch">;
 def IndependentClassAttribute : DiagGroup<"IndependentClass-attribute">;
 def UnknownAttributes : DiagGroup<"unknown-attributes">;
 def IgnoredAttributes : DiagGroup<"ignored-attributes">;
-def AdjustedAttributes : DiagGroup<"adjusted-attributes">;
+def AcceptedAttributes : DiagGroup<"accepted-attributes">;
 def Attributes : DiagGroup<"attributes", [UnknownAttributes,
                                           IgnoredAttributes,
-                                          AdjustedAttributes]>;
+                                          AcceptedAttributes]>;
 def UnknownSanitizers : DiagGroup<"unknown-sanitizers">;
 def UnnamedTypeTemplateArgs : DiagGroup<"unnamed-type-template-args",
                                         [CXX98CompatUnnamedTypeTemplateArgs]>;
@@ -1164,7 +1169,6 @@ def BackendOptimizationFailure : DiagGroup<"pass-failed">;
 def ProfileInstrMissing : DiagGroup<"profile-instr-missing">;
 def ProfileInstrOutOfDate : DiagGroup<"profile-instr-out-of-date">;
 def ProfileInstrUnprofiled : DiagGroup<"profile-instr-unprofiled">;
-def MisExpect : DiagGroup<"misexpect">;
 
 // AddressSanitizer frontend instrumentation remarks.
 def SanitizeAddressRemarks : DiagGroup<"sanitize-address">;

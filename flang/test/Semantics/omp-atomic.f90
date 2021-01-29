@@ -34,8 +34,26 @@ use omp_lib
 
   !$omp atomic
   a = a + 1
+  !ERROR: expected 'UPDATE'
+  !ERROR: expected 'WRITE'
+  !ERROR: expected 'CAPTURE'
+  !ERROR: expected 'READ'
+  !$omp atomic num_threads(4)
+  a = a + 1
+
+  !ERROR: expected end of line
+  !ERROR: expected end of line
+  !$omp atomic capture num_threads(4)
+  a = a + 1
 
   !$omp atomic relaxed
+  a = a + 1
+
+  !ERROR: expected 'UPDATE'
+  !ERROR: expected 'WRITE'
+  !ERROR: expected 'CAPTURE'
+  !ERROR: expected 'READ'
+  !$omp atomic num_threads write
   a = a + 1
 
   !$omp end parallel

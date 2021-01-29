@@ -300,6 +300,9 @@ private:
                           SmallVectorImpl<uint64_t> &Record, unsigned &Abbrev);
   void writeDISubrange(const DISubrange *N, SmallVectorImpl<uint64_t> &Record,
                        unsigned Abbrev);
+  void writeDIGenericSubrange(const DIGenericSubrange *N,
+                              SmallVectorImpl<uint64_t> &Record,
+                              unsigned Abbrev);
   void writeDIEnumerator(const DIEnumerator *N,
                          SmallVectorImpl<uint64_t> &Record, unsigned Abbrev);
   void writeDIBasicType(const DIBasicType *N, SmallVectorImpl<uint64_t> &Record,
@@ -623,6 +626,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_IN_ALLOCA;
   case Attribute::Cold:
     return bitc::ATTR_KIND_COLD;
+  case Attribute::Hot:
+    return bitc::ATTR_KIND_HOT;
   case Attribute::InaccessibleMemOnly:
     return bitc::ATTR_KIND_INACCESSIBLEMEM_ONLY;
   case Attribute::InaccessibleMemOrArgMemOnly:
@@ -643,6 +648,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_NO_ALIAS;
   case Attribute::NoBuiltin:
     return bitc::ATTR_KIND_NO_BUILTIN;
+  case Attribute::NoCallback:
+    return bitc::ATTR_KIND_NO_CALLBACK;
   case Attribute::NoCapture:
     return bitc::ATTR_KIND_NO_CAPTURE;
   case Attribute::NoDuplicate:
@@ -743,6 +750,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_NOUNDEF;
   case Attribute::ByRef:
     return bitc::ATTR_KIND_BYREF;
+  case Attribute::MustProgress:
+    return bitc::ATTR_KIND_MUSTPROGRESS;
   case Attribute::EndAttrKinds:
     llvm_unreachable("Can not encode end-attribute kinds marker.");
   case Attribute::None:
@@ -904,6 +913,7 @@ void ModuleBitcodeWriter::writeTypeTable() {
     case Type::LabelTyID:     Code = bitc::TYPE_CODE_LABEL;     break;
     case Type::MetadataTyID:  Code = bitc::TYPE_CODE_METADATA;  break;
     case Type::X86_MMXTyID:   Code = bitc::TYPE_CODE_X86_MMX;   break;
+    case Type::X86_AMXTyID:   Code = bitc::TYPE_CODE_X86_AMX;   break;
     case Type::TokenTyID:     Code = bitc::TYPE_CODE_TOKEN;     break;
     case Type::IntegerTyID:
       // INTEGER: [width]
@@ -1549,6 +1559,19 @@ void ModuleBitcodeWriter::writeDISubrange(const DISubrange *N,
   Record.clear();
 }
 
+void ModuleBitcodeWriter::writeDIGenericSubrange(
+    const DIGenericSubrange *N, SmallVectorImpl<uint64_t> &Record,
+    unsigned Abbrev) {
+  Record.push_back((uint64_t)N->isDistinct());
+  Record.push_back(VE.getMetadataOrNullID(N->getRawCountNode()));
+  Record.push_back(VE.getMetadataOrNullID(N->getRawLowerBound()));
+  Record.push_back(VE.getMetadataOrNullID(N->getRawUpperBound()));
+  Record.push_back(VE.getMetadataOrNullID(N->getRawStride()));
+
+  Stream.EmitRecord(bitc::METADATA_GENERIC_SUBRANGE, Record, Abbrev);
+  Record.clear();
+}
+
 static void emitSignedInt64(SmallVectorImpl<uint64_t> &Vals, uint64_t V) {
   if ((int64_t)V >= 0)
     Vals.push_back(V << 1);
@@ -1662,6 +1685,7 @@ void ModuleBitcodeWriter::writeDICompositeType(
   Record.push_back(VE.getMetadataOrNullID(N->getRawDataLocation()));
   Record.push_back(VE.getMetadataOrNullID(N->getRawAssociated()));
   Record.push_back(VE.getMetadataOrNullID(N->getRawAllocated()));
+  Record.push_back(VE.getMetadataOrNullID(N->getRawRank()));
 
   Stream.EmitRecord(bitc::METADATA_COMPOSITE_TYPE, Record, Abbrev);
   Record.clear();
@@ -1845,6 +1869,7 @@ void ModuleBitcodeWriter::writeDIModule(const DIModule *N,
   for (auto &I : N->operands())
     Record.push_back(VE.getMetadataOrNullID(I));
   Record.push_back(N->getLineNo());
+  Record.push_back(N->getIsDecl());
 
   Stream.EmitRecord(bitc::METADATA_MODULE, Record, Abbrev);
   Record.clear();
@@ -2406,6 +2431,8 @@ void ModuleBitcodeWriter::writeConstants(unsigned FirstVal, unsigned LastVal,
     unsigned AbbrevToUse = 0;
     if (C->isNullValue()) {
       Code = bitc::CST_CODE_NULL;
+    } else if (isa<PoisonValue>(C)) {
+      Code = bitc::CST_CODE_POISON;
     } else if (isa<UndefValue>(C)) {
       Code = bitc::CST_CODE_UNDEF;
     } else if (const ConstantInt *IV = dyn_cast<ConstantInt>(C)) {
@@ -3602,7 +3629,7 @@ static void writeFunctionTypeMetadataRecords(BitstreamWriter &Stream,
       Record.clear();
       Record.push_back(VC.VFunc.GUID);
       Record.push_back(VC.VFunc.Offset);
-      Record.insert(Record.end(), VC.Args.begin(), VC.Args.end());
+      llvm::append_range(Record, VC.Args);
       Stream.EmitRecord(Ty, Record);
     }
   };
@@ -3676,7 +3703,7 @@ static void writeWholeProgramDevirtResolutionByArg(
     SmallVector<uint64_t, 64> &NameVals, const std::vector<uint64_t> &args,
     const WholeProgramDevirtResolution::ByArg &ByArg) {
   NameVals.push_back(args.size());
-  NameVals.insert(NameVals.end(), args.begin(), args.end());
+  llvm::append_range(NameVals, args);
 
   NameVals.push_back(ByArg.TheKind);
   NameVals.push_back(ByArg.Info);
@@ -3803,7 +3830,7 @@ void ModuleBitcodeWriterBase::writeModuleLevelReferences(
     NameVals.push_back(VE.getValueID(RI.getValue()));
   // Sort the refs for determinism output, the vector returned by FS->refs() has
   // been initialized from a DenseSet.
-  llvm::sort(NameVals.begin() + SizeBeforeRefs, NameVals.end());
+  llvm::sort(drop_begin(NameVals, SizeBeforeRefs));
 
   if (VTableFuncs.empty())
     Stream.EmitRecord(bitc::FS_PERMODULE_GLOBALVAR_INIT_REFS, NameVals,
@@ -4813,8 +4840,8 @@ static const char *getSectionNameForCommandline(const Triple &T) {
 }
 
 void llvm::EmbedBitcodeInModule(llvm::Module &M, llvm::MemoryBufferRef Buf,
-                                bool EmbedBitcode, bool EmbedMarker,
-                                const std::vector<uint8_t> *CmdArgs) {
+                                bool EmbedBitcode, bool EmbedCmdline,
+                                const std::vector<uint8_t> &CmdArgs) {
   // Save llvm.compiler.used and remove it.
   SmallVector<Constant *, 2> UsedArray;
   SmallPtrSet<GlobalValue *, 4> UsedGlobals;
@@ -4871,10 +4898,10 @@ void llvm::EmbedBitcodeInModule(llvm::Module &M, llvm::MemoryBufferRef Buf,
   }
 
   // Skip if only bitcode needs to be embedded.
-  if (EmbedMarker) {
+  if (EmbedCmdline) {
     // Embed command-line options.
-    ArrayRef<uint8_t> CmdData(const_cast<uint8_t *>(CmdArgs->data()),
-                              CmdArgs->size());
+    ArrayRef<uint8_t> CmdData(const_cast<uint8_t *>(CmdArgs.data()),
+                              CmdArgs.size());
     llvm::Constant *CmdConstant =
         llvm::ConstantDataArray::get(M.getContext(), CmdData);
     GV = new llvm::GlobalVariable(M, CmdConstant->getType(), true,

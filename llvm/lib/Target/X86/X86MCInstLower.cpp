@@ -977,20 +977,24 @@ void X86MCInstLower::Lower(const MachineInstr *MI, MCInst &OutMI) const {
 void X86AsmPrinter::LowerTlsAddr(X86MCInstLower &MCInstLowering,
                                  const MachineInstr &MI) {
   NoAutoPaddingScope NoPadScope(*OutStreamer);
-  bool Is64Bits = MI.getOpcode() == X86::TLS_addr64 ||
-                  MI.getOpcode() == X86::TLS_base_addr64;
+  bool Is64Bits = MI.getOpcode() != X86::TLS_addr32 &&
+                  MI.getOpcode() != X86::TLS_base_addr32;
+  bool Is64BitsLP64 = MI.getOpcode() == X86::TLS_addr64 ||
+                      MI.getOpcode() == X86::TLS_base_addr64;
   MCContext &Ctx = OutStreamer->getContext();
 
   MCSymbolRefExpr::VariantKind SRVK;
   switch (MI.getOpcode()) {
   case X86::TLS_addr32:
   case X86::TLS_addr64:
+  case X86::TLS_addrX32:
     SRVK = MCSymbolRefExpr::VK_TLSGD;
     break;
   case X86::TLS_base_addr32:
     SRVK = MCSymbolRefExpr::VK_TLSLDM;
     break;
   case X86::TLS_base_addr64:
+  case X86::TLS_base_addrX32:
     SRVK = MCSymbolRefExpr::VK_TLSLD;
     break;
   default:
@@ -1010,7 +1014,7 @@ void X86AsmPrinter::LowerTlsAddr(X86MCInstLower &MCInstLowering,
 
   if (Is64Bits) {
     bool NeedsPadding = SRVK == MCSymbolRefExpr::VK_TLSGD;
-    if (NeedsPadding)
+    if (NeedsPadding && Is64BitsLP64)
       EmitAndCountInstruction(MCInstBuilder(X86::DATA16_PREFIX));
     EmitAndCountInstruction(MCInstBuilder(X86::LEA64r)
                                 .addReg(X86::RDI)
@@ -1330,7 +1334,7 @@ void X86AsmPrinter::LowerPATCHABLE_OP(const MachineInstr &MI,
 
   MCInst MCI;
   MCI.setOpcode(Opcode);
-  for (auto &MO : make_range(MI.operands_begin() + 2, MI.operands_end()))
+  for (auto &MO : drop_begin(MI.operands(), 2))
     if (auto MaybeOperand = MCIL.LowerMachineOperand(&MI, MO))
       MCI.addOperand(MaybeOperand.getValue());
 
@@ -1706,7 +1710,7 @@ void X86AsmPrinter::LowerPATCHABLE_RET(const MachineInstr &MI,
   unsigned OpCode = MI.getOperand(0).getImm();
   MCInst Ret;
   Ret.setOpcode(OpCode);
-  for (auto &MO : make_range(MI.operands_begin() + 1, MI.operands_end()))
+  for (auto &MO : drop_begin(MI.operands()))
     if (auto MaybeOperand = MCIL.LowerMachineOperand(&MI, MO))
       Ret.addOperand(MaybeOperand.getValue());
   OutStreamer->emitInstruction(Ret, getSubtargetInfo());
@@ -1745,7 +1749,7 @@ void X86AsmPrinter::LowerPATCHABLE_TAIL_CALL(const MachineInstr &MI,
   // Before emitting the instruction, add a comment to indicate that this is
   // indeed a tail call.
   OutStreamer->AddComment("TAILCALL");
-  for (auto &MO : make_range(MI.operands_begin() + 1, MI.operands_end()))
+  for (auto &MO : drop_begin(MI.operands()))
     if (auto MaybeOperand = MCIL.LowerMachineOperand(&MI, MO))
       TC.addOperand(MaybeOperand.getValue());
   OutStreamer->emitInstruction(TC, getSubtargetInfo());
@@ -1780,10 +1784,7 @@ static const Constant *getConstantFromPool(const MachineInstr &MI,
   if (ConstantEntry.isMachineConstantPoolEntry())
     return nullptr;
 
-  const Constant *C = ConstantEntry.Val.ConstVal;
-  assert((!C || ConstantEntry.getType() == C->getType()) &&
-         "Expected a constant of the same type!");
-  return C;
+  return ConstantEntry.Val.ConstVal;
 }
 
 static std::string getShuffleComment(const MachineInstr *MI, unsigned SrcOp1Idx,
@@ -2445,8 +2446,10 @@ void X86AsmPrinter::emitInstruction(const MachineInstr *MI) {
 
   case X86::TLS_addr32:
   case X86::TLS_addr64:
+  case X86::TLS_addrX32:
   case X86::TLS_base_addr32:
   case X86::TLS_base_addr64:
+  case X86::TLS_base_addrX32:
     return LowerTlsAddr(MCInstLowering, *MI);
 
   case X86::MOVPC32r: {
@@ -2595,6 +2598,15 @@ void X86AsmPrinter::emitInstruction(const MachineInstr *MI) {
     }
     return;
   }
+  case X86::UBSAN_UD1:
+    EmitAndCountInstruction(MCInstBuilder(X86::UD1Lm)
+                                .addReg(X86::EAX)
+                                .addReg(X86::EAX)
+                                .addImm(1)
+                                .addReg(X86::NoRegister)
+                                .addImm(MI->getOperand(0).getImm())
+                                .addReg(X86::NoRegister));
+    return;
   }
 
   MCInst TmpInst;

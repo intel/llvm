@@ -130,7 +130,18 @@ enum class device : cl_device_info {
   usm_host_allocations = PI_USM_HOST_SUPPORT,
   usm_shared_allocations = PI_USM_SINGLE_SHARED_SUPPORT,
   usm_restricted_shared_allocations = PI_USM_CROSS_SHARED_SUPPORT,
-  usm_system_allocator = PI_USM_SYSTEM_SHARED_SUPPORT
+  usm_system_allocator = PI_USM_SYSTEM_SHARED_SUPPORT,
+
+  // intel extensions
+  ext_intel_pci_address = PI_DEVICE_INFO_PCI_ADDRESS,
+  ext_intel_gpu_eu_count = PI_DEVICE_INFO_GPU_EU_COUNT,
+  ext_intel_gpu_eu_simd_width = PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH,
+  ext_intel_gpu_slices = PI_DEVICE_INFO_GPU_SLICES,
+  ext_intel_gpu_subslices_per_slice = PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE,
+  ext_intel_gpu_eu_count_per_subslice =
+      PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
+  ext_intel_max_mem_bandwidth = PI_DEVICE_INFO_MAX_MEM_BANDWIDTH,
+  ext_intel_mem_channel = PI_MEM_PROPERTIES_CHANNEL
 };
 
 enum class device_type : pi_uint64 {
@@ -257,13 +268,14 @@ template <typename T, T param> class param_traits {};
 
 template <typename T, T param> struct compatibility_param_traits {};
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
   template <> class param_traits<param_type, param_type::param> {              \
   public:                                                                      \
     using return_type = ret_type;                                              \
   };
 
-#define PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type, in_type)     \
+#define __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type,       \
+                                            in_type)                           \
   template <> class param_traits<param_type, param_type::param> {              \
   public:                                                                      \
     using return_type = ret_type;                                              \
@@ -289,16 +301,17 @@ template <typename T, T param> struct compatibility_param_traits {};
 
 #include <CL/sycl/info/queue_traits.def>
 
-#undef PARAM_TRAITS_SPEC
-#undef PARAM_TRAITS_SPEC_WITH_INPUT
+#undef __SYCL_PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
   template <>                                                                  \
   struct compatibility_param_traits<param_type, param_type::param> {           \
     static constexpr auto value = kernel_device_specific::param;               \
   };
 
-#define PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type, in_type)     \
+#define __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type,       \
+                                            in_type)                           \
   template <>                                                                  \
   struct compatibility_param_traits<param_type, param_type::param> {           \
     static constexpr auto value = kernel_device_specific::param;               \
@@ -307,8 +320,8 @@ template <typename T, T param> struct compatibility_param_traits {};
 #include <CL/sycl/info/kernel_sub_group_traits.def>
 #include <CL/sycl/info/kernel_work_group_traits.def>
 
-#undef PARAM_TRAITS_SPEC
-#undef PARAM_TRAITS_SPEC_WITH_INPUT
+#undef __SYCL_PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
 
 } // namespace info
 } // namespace sycl

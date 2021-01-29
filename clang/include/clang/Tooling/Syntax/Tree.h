@@ -28,8 +28,10 @@
 #include "clang/Tooling/Syntax/Tokens.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/iterator.h"
 #include "llvm/Support/Allocator.h"
 #include <cstdint>
+#include <iterator>
 
 namespace clang {
 namespace syntax {
@@ -76,10 +78,20 @@ enum class NodeRole : uint8_t;
 /// A node in a syntax tree. Each node is either a Leaf (representing tokens) or
 /// a Tree (representing language constructrs).
 class Node {
-public:
+protected:
   /// Newly created nodes are detached from a tree, parent and sibling links are
   /// set when the node is added as a child to another one.
   Node(NodeKind Kind);
+  /// Nodes are allocated on Arenas; the destructor is never called.
+  ~Node() = default;
+
+public:
+  /// Nodes cannot simply be copied without violating tree invariants.
+  Node(const Node &) = delete;
+  Node &operator=(const Node &) = delete;
+  /// Idiomatically, nodes are allocated on an Arena and never moved.
+  Node(Node &&) = delete;
+  Node &operator=(Node &&) = delete;
 
   NodeKind getKind() const { return static_cast<NodeKind>(Kind); }
   NodeRole getRole() const { return static_cast<NodeRole>(Role); }
@@ -106,6 +118,8 @@ public:
 
   const Node *getNextSibling() const { return NextSibling; }
   Node *getNextSibling() { return NextSibling; }
+  const Node *getPreviousSibling() const { return PreviousSibling; }
+  Node *getPreviousSibling() { return PreviousSibling; }
 
   /// Dumps the structure of a subtree. For debugging and testing purposes.
   std::string dump(const SourceManager &SM) const;
@@ -132,6 +146,7 @@ private:
 
   Tree *Parent;
   Node *NextSibling;
+  Node *PreviousSibling;
   unsigned Kind : 16;
   unsigned Role : 8;
   unsigned Original : 1;
@@ -152,48 +167,115 @@ private:
 
 /// A node that has children and represents a syntactic language construct.
 class Tree : public Node {
+  /// Iterator over children (common base for const/non-const).
+  /// Not invalidated by tree mutations (holds a stable node pointer).
+  template <typename DerivedT, typename NodeT>
+  class ChildIteratorBase
+      : public llvm::iterator_facade_base<DerivedT, std::forward_iterator_tag,
+                                          NodeT> {
+  protected:
+    NodeT *N = nullptr;
+    using Base = ChildIteratorBase;
+
+  public:
+    ChildIteratorBase() = default;
+    explicit ChildIteratorBase(NodeT *N) : N(N) {}
+
+    bool operator==(const DerivedT &O) const { return O.N == N; }
+    NodeT &operator*() const { return *N; }
+    DerivedT &operator++() {
+      N = N->getNextSibling();
+      return *static_cast<DerivedT *>(this);
+    }
+
+    /// Truthy if valid (not past-the-end).
+    /// This allows: if (auto It = find_if(N.children(), ...) )
+    explicit operator bool() const { return N != nullptr; }
+    /// The element, or nullptr if past-the-end.
+    NodeT *asPointer() const { return N; }
+  };
+
 public:
-  using Node::Node;
   static bool classof(const Node *N);
 
   Node *getFirstChild() { return FirstChild; }
   const Node *getFirstChild() const { return FirstChild; }
+  Node *getLastChild() { return LastChild; }
+  const Node *getLastChild() const { return LastChild; }
 
-  Leaf *findFirstLeaf();
-  const Leaf *findFirstLeaf() const {
-    return const_cast<Tree *>(this)->findFirstLeaf();
+  const Leaf *findFirstLeaf() const;
+  Leaf *findFirstLeaf() {
+    return const_cast<Leaf *>(const_cast<const Tree *>(this)->findFirstLeaf());
   }
 
-  Leaf *findLastLeaf();
-  const Leaf *findLastLeaf() const {
-    return const_cast<Tree *>(this)->findLastLeaf();
+  const Leaf *findLastLeaf() const;
+  Leaf *findLastLeaf() {
+    return const_cast<Leaf *>(const_cast<const Tree *>(this)->findLastLeaf());
+  }
+
+  /// child_iterator is not invalidated by mutations.
+  struct ChildIterator : ChildIteratorBase<ChildIterator, Node> {
+    using Base::ChildIteratorBase;
+  };
+  struct ConstChildIterator
+      : ChildIteratorBase<ConstChildIterator, const Node> {
+    using Base::ChildIteratorBase;
+    ConstChildIterator() = default;
+    ConstChildIterator(const ChildIterator &I) : Base(I.asPointer()) {}
+  };
+
+  llvm::iterator_range<ChildIterator> getChildren() {
+    return {ChildIterator(getFirstChild()), ChildIterator()};
+  }
+  llvm::iterator_range<ConstChildIterator> getChildren() const {
+    return {ConstChildIterator(getFirstChild()), ConstChildIterator()};
+  }
+
+  /// Find the first node with a corresponding role.
+  const Node *findChild(NodeRole R) const;
+  Node *findChild(NodeRole R) {
+    return const_cast<Node *>(const_cast<const Tree *>(this)->findChild(R));
   }
 
 protected:
-  /// Find the first node with a corresponding role.
-  Node *findChild(NodeRole R);
+  using Node::Node;
 
 private:
-  /// Prepend \p Child to the list of children and and sets the parent pointer.
+  /// Append \p Child to the list of children and sets the parent pointer.
   /// A very low-level operation that does not check any invariants, only used
   /// by TreeBuilder and FactoryImpl.
   /// EXPECTS: Role != Detached.
+  void appendChildLowLevel(Node *Child, NodeRole Role);
+  /// Similar but prepends.
   void prependChildLowLevel(Node *Child, NodeRole Role);
-  /// Like the previous overload, but does not set role for \p Child.
+
+  /// Like the previous overloads, but does not set role for \p Child.
   /// EXPECTS: Child->Role != Detached
+  void appendChildLowLevel(Node *Child);
   void prependChildLowLevel(Node *Child);
   friend class TreeBuilder;
   friend class FactoryImpl;
 
-  /// Replace a range of children [BeforeBegin->NextSibling, End) with a list of
+  /// Replace a range of children [Begin, End) with a list of
   /// new nodes starting at \p New.
   /// Only used by MutationsImpl to implement higher-level mutation operations.
   /// (!) \p New can be null to model removal of the child range.
-  void replaceChildRangeLowLevel(Node *BeforeBegin, Node *End, Node *New);
+  /// (!) \p End can be null to model one past the end.
+  /// (!) \p Begin can be null to model an append.
+  void replaceChildRangeLowLevel(Node *Begin, Node *End, Node *New);
   friend class MutationsImpl;
 
   Node *FirstChild = nullptr;
+  Node *LastChild = nullptr;
 };
+
+// Provide missing non_const == const overload.
+// iterator_facade_base requires == to be a member, but implicit conversions
+// don't work on the LHS of a member operator.
+inline bool operator==(const Tree::ConstChildIterator &A,
+                       const Tree::ConstChildIterator &B) {
+  return A.operator==(B);
+}
 
 /// A list of Elements separated or terminated by a fixed token.
 ///

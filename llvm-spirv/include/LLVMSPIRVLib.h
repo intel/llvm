@@ -51,8 +51,7 @@ namespace llvm {
 // PassSupport.h.
 class PassRegistry;
 void initializeLLVMToSPIRVPass(PassRegistry &);
-void initializeOCL20ToSPIRVPass(PassRegistry &);
-void initializeOCL21ToSPIRVPass(PassRegistry &);
+void initializeOCLToSPIRVPass(PassRegistry &);
 void initializeOCLTypeToSPIRVPass(PassRegistry &);
 void initializeSPIRVLowerBoolPass(PassRegistry &);
 void initializeSPIRVLowerConstExprPass(PassRegistry &);
@@ -75,7 +74,7 @@ namespace SPIRV {
 class SPIRVModule;
 
 /// \brief Check if a string contains SPIR-V binary.
-bool isSpirvBinary(std::string &Img);
+bool isSpirvBinary(const std::string &Img);
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
 /// \brief Convert SPIR-V between binary and internal textual formats.
@@ -162,13 +161,9 @@ void mangleOpenClBuiltin(const std::string &UnmangledName,
 /// Create a pass for translating LLVM to SPIR-V.
 ModulePass *createLLVMToSPIRV(SPIRV::SPIRVModule *);
 
-/// Create a pass for translating OCL 2.0 builtin functions to SPIR-V builtin
+/// Create a pass for translating OCL C builtin functions to SPIR-V builtin
 /// functions.
-ModulePass *createOCL20ToSPIRV();
-
-/// Create a pass for translating OCL 2.1 builtin functions to SPIR-V builtin
-/// functions.
-ModulePass *createOCL21ToSPIRV();
+ModulePass *createOCLToSPIRV();
 
 /// Create a pass for adapting OCL types for SPIRV.
 ModulePass *createOCLTypeToSPIRV();

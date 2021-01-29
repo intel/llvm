@@ -68,6 +68,8 @@ public:
 
   bool runOnModule(Module &M) override;
   void visit(Module *M);
+  void preprocessCXXStructorList(SPIRVMDBuilder::NamedMDWrapper &EM,
+                                 GlobalVariable *V, ExecutionMode EMode);
   void preprocessOCLMetadata(Module *M, SPIRVMDBuilder *B, SPIRVMDWalker *W);
   void preprocessVectorComputeMetadata(Module *M, SPIRVMDBuilder *B,
                                        SPIRVMDWalker *W);
@@ -94,6 +96,24 @@ bool PreprocessMetadata::runOnModule(Module &Module) {
   return true;
 }
 
+void PreprocessMetadata::preprocessCXXStructorList(
+    SPIRVMDBuilder::NamedMDWrapper &EM, GlobalVariable *V,
+    ExecutionMode EMode) {
+  auto *List = dyn_cast_or_null<ConstantArray>(V->getInitializer());
+  if (!List)
+    return;
+
+  for (Value *V : List->operands()) {
+    auto *Structor = cast<ConstantStruct>(V);
+
+    // Each entry in the list is a struct containing 3 members:
+    // (priority, function, data), with function being the entry point.
+    auto *Kernel = cast<Function>(Structor->getOperand(1));
+
+    EM.addOp().add(Kernel).add(EMode).done();
+  }
+}
+
 void PreprocessMetadata::visit(Module *M) {
   SPIRVMDBuilder B(*M);
   SPIRVMDWalker W(*M);
@@ -104,6 +124,10 @@ void PreprocessMetadata::visit(Module *M) {
   // Create metadata representing (empty so far) list
   // of OpExecutionMode instructions
   auto EM = B.addNamedMD(kSPIRVMD::ExecutionMode); // !spirv.ExecutionMode = {}
+
+  // Process special variables in LLVM IR module.
+  if (auto *GV = M->getGlobalVariable("llvm.global_ctors"))
+    preprocessCXXStructorList(EM, GV, spv::ExecutionModeInitializer);
 
   // Add execution modes for kernels. We take it from metadata attached to
   // the kernel functions.
@@ -193,6 +217,17 @@ void PreprocessMetadata::visit(Module *M) {
           .add(&Kernel)
           .add(spv::ExecutionModeNumSIMDWorkitemsINTEL)
           .add(getMDOperandAsInt(NumSIMDWorkitemsINTEL, 0))
+          .done();
+    }
+
+    // !{void (i32 addrspace(1)*)* @kernel, i32 scheduler_target_fmax_mhz,
+    //   i32 num}
+    if (MDNode *SchedulerTargetFmaxMhzINTEL =
+            Kernel.getMetadata(kSPIR2MD::FmaxMhz)) {
+      EM.addOp()
+          .add(&Kernel)
+          .add(spv::ExecutionModeSchedulerTargetFmaxMhzINTEL)
+          .add(getMDOperandAsInt(SchedulerTargetFmaxMhzINTEL, 0))
           .done();
     }
   }
@@ -290,6 +325,12 @@ void PreprocessMetadata::preprocessVectorComputeMetadata(Module *M,
           .add(&F)
           .add(spv::ExecutionModeSharedLocalMemorySizeINTEL)
           .add(SLMSize)
+          .done();
+    }
+    if (Attrs.hasFnAttribute(kVCMetadata::VCFCEntry)) {
+      EM.addOp()
+          .add(&F)
+          .add(spv::ExecutionModeVectorComputeFastCompositeKernelINTEL)
           .done();
     }
   }

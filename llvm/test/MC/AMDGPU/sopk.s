@@ -1,12 +1,12 @@
-// RUN: not llvm-mc -arch=amdgcn -show-encoding %s | FileCheck --check-prefix=GCN --check-prefix=SICI %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti -show-encoding %s | FileCheck --check-prefix=GCN --check-prefix=SICI %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=fiji -show-encoding %s | FileCheck --check-prefix=GCN --check-prefix=VI9 --check-prefix=VI %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx900 -show-encoding %s | FileCheck --check-prefix=GCN --check-prefix=VI9 --check-prefix=GFX9 %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx1010 -show-encoding %s | FileCheck --check-prefix=GCN --check-prefix=GFX10 %s
+// RUN: not llvm-mc -arch=amdgcn -show-encoding %s | FileCheck --check-prefixes=GCN,SICI %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti -show-encoding %s | FileCheck --check-prefixes=GCN,SICI %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=fiji -show-encoding %s | FileCheck --check-prefixes=GCN,VI9,VI %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx900 -show-encoding %s | FileCheck --check-prefixes=GCN,VI9,GFX9 %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx1010 -show-encoding %s | FileCheck --check-prefixes=GCN,GFX10 %s
 
 // RUN: not llvm-mc -arch=amdgcn %s 2>&1 | FileCheck -check-prefix=NOSICIVI --implicit-check-not=error: %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti %s 2>&1 | FileCheck -check-prefix=NOSICIVI -check-prefix=NOSI --implicit-check-not=error: %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=fiji %s 2>&1 | FileCheck -check-prefix=NOSICIVI -check-prefix=NOVI --implicit-check-not=error: %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti %s 2>&1 | FileCheck -check-prefix=NOSICIVI --implicit-check-not=error: %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=fiji %s 2>&1 | FileCheck -check-prefix=NOSICIVI --implicit-check-not=error: %s
 // RUN: not llvm-mc -arch=amdgcn -mcpu=gfx900 %s 2>&1 | FileCheck --check-prefix=NOGFX9 --implicit-check-not=error: %s
 
 //===----------------------------------------------------------------------===//
@@ -360,7 +360,7 @@ s_endpgm_ordered_ps_done
 
 s_call_b64 null, 12609
 // GFX10: s_call_b64 null, 12609 ; encoding: [0x41,0x31,0x7d,0xbb]
-// NOSICIVI: error: 'null' operand is not supported on this GPU
+// NOSICIVI: error: instruction not supported on this GPU
 // NOGFX9: error: 'null' operand is not supported on this GPU
 
 s_call_b64 s[12:13], 12609

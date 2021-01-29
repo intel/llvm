@@ -820,3 +820,4 @@ __SYCL_ACCESS(N == 16, even, 0, 2, 4, 6, 8, 10, 12, 14)
 #undef __SYCL_EXPAND
 #undef __SYCL_INDEXER
 #undef __SYCL_ACCESS
+#undef __SYCL_SCALAR_ACCESS

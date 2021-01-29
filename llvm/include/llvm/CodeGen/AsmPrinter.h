@@ -66,6 +66,7 @@ class MCSymbol;
 class MCTargetOptions;
 class MDNode;
 class Module;
+class PseudoProbeHandler;
 class raw_ostream;
 class StackMaps;
 class StringRef;
@@ -139,9 +140,30 @@ public:
   using GOTEquivUsePair = std::pair<const GlobalVariable *, unsigned>;
   MapVector<const MCSymbol *, GOTEquivUsePair> GlobalGOTEquivs;
 
+  /// struct HandlerInfo and Handlers permit users or target extended
+  /// AsmPrinter to add their own handlers.
+  struct HandlerInfo {
+    std::unique_ptr<AsmPrinterHandler> Handler;
+    const char *TimerName;
+    const char *TimerDescription;
+    const char *TimerGroupName;
+    const char *TimerGroupDescription;
+
+    HandlerInfo(std::unique_ptr<AsmPrinterHandler> Handler,
+                const char *TimerName, const char *TimerDescription,
+                const char *TimerGroupName, const char *TimerGroupDescription)
+        : Handler(std::move(Handler)), TimerName(TimerName),
+          TimerDescription(TimerDescription), TimerGroupName(TimerGroupName),
+          TimerGroupDescription(TimerGroupDescription) {}
+  };
+
 private:
   MCSymbol *CurrentFnEnd = nullptr;
-  MCSymbol *CurExceptionSym = nullptr;
+
+  /// Map a basic block section ID to the exception symbol associated with that
+  /// section. Map entries are assigned and looked up via
+  /// AsmPrinter::getMBBExceptionSym.
+  DenseMap<unsigned, MCSymbol *> MBBSectionExceptionSyms;
 
   // The symbol used to represent the start of the current BB section of the
   // function. This is used to calculate the size of the BB section.
@@ -158,26 +180,10 @@ private:
 protected:
   MCSymbol *CurrentFnBegin = nullptr;
 
-  /// Protected struct HandlerInfo and Handlers permit target extended
-  /// AsmPrinter adds their own handlers.
-  struct HandlerInfo {
-    std::unique_ptr<AsmPrinterHandler> Handler;
-    const char *TimerName;
-    const char *TimerDescription;
-    const char *TimerGroupName;
-    const char *TimerGroupDescription;
-
-    HandlerInfo(std::unique_ptr<AsmPrinterHandler> Handler,
-                const char *TimerName, const char *TimerDescription,
-                const char *TimerGroupName, const char *TimerGroupDescription)
-        : Handler(std::move(Handler)), TimerName(TimerName),
-          TimerDescription(TimerDescription), TimerGroupName(TimerGroupName),
-          TimerGroupDescription(TimerGroupDescription) {}
-  };
-
   /// A vector of all debug/EH info emitters we should use. This vector
   /// maintains ownership of the emitters.
-  SmallVector<HandlerInfo, 1> Handlers;
+  std::vector<HandlerInfo> Handlers;
+  size_t NumUserHandlers = 0;
 
 public:
   struct SrcMgrDiagInfo {
@@ -200,6 +206,10 @@ private:
 
   /// If the target supports dwarf debug info, this pointer is non-null.
   DwarfDebug *DD = nullptr;
+
+  /// A handler that supports pseudo probe emission with embedded inline
+  /// context.
+  PseudoProbeHandler *PP = nullptr;
 
   /// If the current module uses dwarf CFI annotations strictly for debugging.
   bool isCFIMoveForDebugging = false;
@@ -238,7 +248,10 @@ public:
 
   MCSymbol *getFunctionBegin() const { return CurrentFnBegin; }
   MCSymbol *getFunctionEnd() const { return CurrentFnEnd; }
-  MCSymbol *getCurExceptionSym();
+
+  // Return the exception symbol associated with the MBB section containing a
+  // given basic block.
+  MCSymbol *getMBBExceptionSym(const MachineBasicBlock &MBB);
 
   /// Return information about object file lowering.
   const TargetLoweringObjectFile &getObjFileLowering() const;
@@ -352,6 +365,8 @@ public:
 
   void emitBBAddrMapSection(const MachineFunction &MF);
 
+  void emitPseudoProbe(const MachineInstr &MI);
+
   void emitRemarksSection(remarks::RemarkStreamer &RS);
 
   enum CFIMoveType { CFI_M_None, CFI_M_EH, CFI_M_Debug };
@@ -438,6 +453,11 @@ public:
   //===------------------------------------------------------------------===//
   // Overridable Hooks
   //===------------------------------------------------------------------===//
+
+  void addAsmPrinterHandler(HandlerInfo Handler) {
+    Handlers.insert(Handlers.begin(), std::move(Handler));
+    NumUserHandlers++;
+  }
 
   // Targets can, or in the case of EmitInstruction, must implement these to
   // customize output.
@@ -590,7 +610,7 @@ public:
   unsigned GetSizeOfEncodedValue(unsigned Encoding) const;
 
   /// Emit reference to a ttype global with a specified encoding.
-  void emitTTypeReference(const GlobalValue *GV, unsigned Encoding) const;
+  virtual void emitTTypeReference(const GlobalValue *GV, unsigned Encoding);
 
   /// Emit a reference to a symbol for use in dwarf. Different object formats
   /// represent this in different ways. Some use a relocation others encode
@@ -771,6 +791,9 @@ private:
   GCMetadataPrinter *GetOrCreateGCPrinter(GCStrategy &S);
   /// Emit GlobalAlias or GlobalIFunc.
   void emitGlobalIndirectSymbol(Module &M, const GlobalIndirectSymbol &GIS);
+
+  /// This method decides whether the specified basic block requires a label.
+  bool shouldEmitLabelForBasicBlock(const MachineBasicBlock &MBB) const;
 };
 
 } // end namespace llvm

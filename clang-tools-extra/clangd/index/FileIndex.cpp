@@ -22,6 +22,7 @@
 #include "index/SymbolOrigin.h"
 #include "index/dex/Dex.h"
 #include "support/Logger.h"
+#include "support/MemoryTree.h"
 #include "support/Path.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/Index/IndexingAction.h"
@@ -34,6 +35,7 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
+#include <algorithm>
 #include <memory>
 #include <tuple>
 #include <utility>
@@ -59,7 +61,8 @@ SlabTuple indexSymbols(ASTContext &AST, std::shared_ptr<Preprocessor> PP,
   // We only need declarations, because we don't count references.
   IndexOpts.SystemSymbolFilter =
       index::IndexingOptions::SystemSymbolFilterKind::DeclarationsOnly;
-  IndexOpts.IndexFunctionLocals = false;
+  // We index function-local classes and its member functions only.
+  IndexOpts.IndexFunctionLocals = true;
   if (IsIndexMainAST) {
     // We only collect refs when indexing main AST.
     CollectorOpts.RefFilter = RefKind::All;
@@ -147,13 +150,21 @@ FileShardedIndex::FileShardedIndex(IndexFileIn Input)
       }
     }
   }
-  // Attribute relations to the file declaraing their Subject as Object might
-  // not have been indexed, see SymbolCollector::processRelations for details.
+  // The Subject and/or Object shards might be part of multiple TUs. In
+  // such cases there will be a race and the last TU to write the shard
+  // will win and all the other relations will be lost. To avoid this,
+  // we store relations in both shards. A race might still happen if the
+  // same translation unit produces different relations under different
+  // configurations, but that's something clangd doesn't handle in general.
   if (Index.Relations) {
     for (const auto &R : *Index.Relations) {
       // FIXME: RelationSlab shouldn't contain dangling relations.
-      if (auto *File = SymbolIDToFile.lookup(R.Subject))
-        File->Relations.insert(&R);
+      FileShard *SubjectFile = SymbolIDToFile.lookup(R.Subject);
+      FileShard *ObjectFile = SymbolIDToFile.lookup(R.Object);
+      if (SubjectFile)
+        SubjectFile->Relations.insert(&R);
+      if (ObjectFile && ObjectFile != SubjectFile)
+        ObjectFile->Relations.insert(&R);
     }
   }
   // Store only the direct includes of a file in a shard.
@@ -256,11 +267,14 @@ FileSymbols::buildIndex(IndexType Type, DuplicateHandling DuplicateHandle,
   std::vector<std::shared_ptr<SymbolSlab>> SymbolSlabs;
   std::vector<std::shared_ptr<RefSlab>> RefSlabs;
   std::vector<std::shared_ptr<RelationSlab>> RelationSlabs;
+  llvm::StringSet<> Files;
   std::vector<RefSlab *> MainFileRefs;
   {
     std::lock_guard<std::mutex> Lock(Mutex);
-    for (const auto &FileAndSymbols : SymbolsSnapshot)
+    for (const auto &FileAndSymbols : SymbolsSnapshot) {
       SymbolSlabs.push_back(FileAndSymbols.second);
+      Files.insert(FileAndSymbols.first());
+    }
     for (const auto &FileAndRefs : RefsSnapshot) {
       RefSlabs.push_back(FileAndRefs.second.Slab);
       if (FileAndRefs.second.CountReferences)
@@ -343,6 +357,12 @@ FileSymbols::buildIndex(IndexType Type, DuplicateHandling DuplicateHandle,
     for (const auto &R : *RelationSlab)
       AllRelations.push_back(R);
   }
+  // Sort relations and remove duplicates that could arise due to
+  // relations being stored in both the shards containing their
+  // subject and object.
+  llvm::sort(AllRelations);
+  AllRelations.erase(std::unique(AllRelations.begin(), AllRelations.end()),
+                     AllRelations.end());
 
   size_t StorageSize =
       RefsStorage.size() * sizeof(Ref) + SymsStorage.size() * sizeof(Symbol);
@@ -350,27 +370,44 @@ FileSymbols::buildIndex(IndexType Type, DuplicateHandling DuplicateHandle,
     StorageSize += Slab->bytes();
   for (const auto &RefSlab : RefSlabs)
     StorageSize += RefSlab->bytes();
-  for (const auto &RelationSlab : RelationSlabs)
-    StorageSize += RelationSlab->bytes();
 
   // Index must keep the slabs and contiguous ranges alive.
   switch (Type) {
   case IndexType::Light:
     return std::make_unique<MemIndex>(
         llvm::make_pointee_range(AllSymbols), std::move(AllRefs),
-        std::move(AllRelations),
+        std::move(AllRelations), std::move(Files),
         std::make_tuple(std::move(SymbolSlabs), std::move(RefSlabs),
                         std::move(RefsStorage), std::move(SymsStorage)),
         StorageSize);
   case IndexType::Heavy:
     return std::make_unique<dex::Dex>(
         llvm::make_pointee_range(AllSymbols), std::move(AllRefs),
-        std::move(AllRelations),
+        std::move(AllRelations), std::move(Files),
         std::make_tuple(std::move(SymbolSlabs), std::move(RefSlabs),
                         std::move(RefsStorage), std::move(SymsStorage)),
         StorageSize);
   }
   llvm_unreachable("Unknown clangd::IndexType");
+}
+
+void FileSymbols::profile(MemoryTree &MT) const {
+  std::lock_guard<std::mutex> Lock(Mutex);
+  for (const auto &SymSlab : SymbolsSnapshot) {
+    MT.detail(SymSlab.first())
+        .child("symbols")
+        .addUsage(SymSlab.second->bytes());
+  }
+  for (const auto &RefSlab : RefsSnapshot) {
+    MT.detail(RefSlab.first())
+        .child("references")
+        .addUsage(RefSlab.second.Slab->bytes());
+  }
+  for (const auto &RelSlab : RelationsSnapshot) {
+    MT.detail(RelSlab.first())
+        .child("relations")
+        .addUsage(RelSlab.second->bytes());
+  }
 }
 
 FileIndex::FileIndex(bool UseDex, bool CollectMainFileRefs)
@@ -442,5 +479,15 @@ void FileIndex::updateMain(PathRef Path, ParsedAST &AST) {
   }
 }
 
+void FileIndex::profile(MemoryTree &MT) const {
+  PreambleSymbols.profile(MT.child("preamble").child("slabs"));
+  MT.child("preamble")
+      .child("index")
+      .addUsage(PreambleIndex.estimateMemoryUsage());
+  MainFileSymbols.profile(MT.child("main_file").child("slabs"));
+  MT.child("main_file")
+      .child("index")
+      .addUsage(MainFileIndex.estimateMemoryUsage());
+}
 } // namespace clangd
 } // namespace clang

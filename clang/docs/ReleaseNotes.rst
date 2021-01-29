@@ -114,6 +114,22 @@ Modified Compiler Flags
   It produces ``SHF_COMPRESSED`` style compression of debug information. GNU
   binutils 2.26 or newer, or lld is required to link produced object files. Use
   ``-gz=zlib-gnu`` to get the old behavior.
+- Now that `this` pointers are tagged with `nonnull` and `dereferenceable(N)`,
+  `-fno-delete-null-pointer-checks` has gained the power to remove the
+  `nonnull` attribute on `this` for configurations that need it to be nullable.
+- ``-gsplit-dwarf`` no longer implies ``-g2``.
+- ``-fasynchronous-unwind-tables`` is now the default on Linux AArch64/PowerPC.
+  This behavior matches newer GCC.
+  (`D91760 <https://reviews.llvm.org/D91760>`_)
+  (`D92054 <https://reviews.llvm.org/D92054>`_)
+
+Removed Compiler Flags
+-------------------------
+
+The following options no longer exist.
+
+- clang-cl's ``/Zd`` flag no longer exist. But ``-gline-tables-only`` still
+  exists and does the same thing.
 
 New Pragmas in Clang
 --------------------
@@ -123,7 +139,9 @@ New Pragmas in Clang
 Attribute Changes in Clang
 --------------------------
 
-- ...
+- Added support for the C++20 likelihood attributes ``[[likely]]`` and
+  ``[[unlikely]]``. As an extension they can be used in C++11 and newer.
+  This extension is enabled by default.
 
 Windows Support
 ---------------
@@ -188,12 +206,22 @@ X86 Support in Clang
 - The x86 intrinsics ``__rorb``, ``__rorw``, ``__rord``, ``__rorq`, ``_rotr``,
   ``_rotwr`` and ``_lrotr`` may now be used within constant expressions.
 
-- Support for -march=sapphirerapids was added.
+- Support for ``-march=alderlake``, ``-march=sapphirerapids`` and
+  ``-march=znver3`` was added.
+
+- Support for ``-march=x86-64-v[234]`` has been added.
+  See :doc:`UsersManual` for details about these micro-architecture levels.
 
 - The -mtune command line option is no longer ignored for X86. This can be used
   to request microarchitectural optimizations independent on -march. -march=<cpu>
   implies -mtune=<cpu>. -mtune=generic is the default with no -march or -mtune
   specified.
+
+- Support for ``HRESET`` instructions has been added.
+
+- Support for ``UINTR`` instructions has been added.
+
+- Support for ``AVXVNNI`` instructions has been added.
 
 Internal API Changes
 --------------------
@@ -215,7 +243,15 @@ release of Clang. Users of the build system should adjust accordingly.
 AST Matchers
 ------------
 
-- ...
+- The behavior of TK_IgnoreUnlessSpelledInSource with the traverse() matcher
+  has been changed to no longer match on template instantiations or on
+  implicit nodes which are not spelled in the source.
+
+- The TK_IgnoreImplicitCastsAndParentheses traversal kind was removed. It
+  is recommended to use TK_IgnoreUnlessSpelledInSource instead.
+
+- The behavior of the forEach() matcher was changed to not internally ignore
+  implicit and parenthesis nodes.
 
 clang-format
 ------------
@@ -246,6 +282,23 @@ clang-format
       unsigned dscp: 6;
       unsigned ecn : 2;
     };
+
+
+- Experimental Support in clang-format for concepts has been improved, to
+  aid this the follow options have been added
+
+- Option ``IndentRequires`` has been added to indent the ``requires`` keyword
+  in templates.
+- Option ``BreakBeforeConceptDeclarations`` has been added to aid the formatting of concepts.
+
+- Option ``IndentPragmas`` has been added to allow #pragma to indented with the current scope level. This is especially useful when using #pragma to mark OpenMP sections of code.
+
+- Option ``SpaceBeforeCaseColon`` has been added to add a space before the
+  colon in a case or default statement.
+
+- Option ``StatementAttributeLikeMacros`` has been added to declare
+  macros which are not parsed as a type in front of a statement. See
+  the documentation for an example.
 
 
 libclang

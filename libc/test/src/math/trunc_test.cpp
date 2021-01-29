@@ -6,35 +6,30 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "include/math.h"
 #include "src/math/trunc.h"
 #include "utils/FPUtil/FPBits.h"
 #include "utils/FPUtil/TestHelpers.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
 #include "utils/UnitTest/Test.h"
+#include <math.h>
 
 using FPBits = __llvm_libc::fputil::FPBits<double>;
 
 namespace mpfr = __llvm_libc::testing::mpfr;
 
-static const double zero = FPBits::zero();
-static const double negZero = FPBits::negZero();
-static const double nan = FPBits::buildNaN(1);
-static const double inf = FPBits::inf();
-static const double negInf = FPBits::negInf();
+DECLARE_SPECIAL_CONSTANTS(double)
 
-TEST(TruncTest, SpecialNumbers) {
+TEST(LlvmLibcTruncTest, SpecialNumbers) {
   EXPECT_FP_EQ(zero, __llvm_libc::trunc(zero));
   EXPECT_FP_EQ(negZero, __llvm_libc::trunc(negZero));
 
   EXPECT_FP_EQ(inf, __llvm_libc::trunc(inf));
   EXPECT_FP_EQ(negInf, __llvm_libc::trunc(negInf));
 
-  ASSERT_NE(isnan(nan), 0);
-  ASSERT_NE(isnan(__llvm_libc::trunc(nan)), 0);
+  EXPECT_FP_EQ(aNaN, __llvm_libc::trunc(aNaN));
 }
 
-TEST(TruncTest, RoundedNumbers) {
+TEST(LlvmLibcTruncTest, RoundedNumbers) {
   EXPECT_FP_EQ(1.0, __llvm_libc::trunc(1.0));
   EXPECT_FP_EQ(-1.0, __llvm_libc::trunc(-1.0));
   EXPECT_FP_EQ(10.0, __llvm_libc::trunc(10.0));
@@ -43,7 +38,7 @@ TEST(TruncTest, RoundedNumbers) {
   EXPECT_FP_EQ(-1234.0, __llvm_libc::trunc(-1234.0));
 }
 
-TEST(TruncTest, Fractions) {
+TEST(LlvmLibcTruncTest, Fractions) {
   EXPECT_FP_EQ(0.0, __llvm_libc::trunc(0.5));
   EXPECT_FP_EQ(-0.0, __llvm_libc::trunc(-0.5));
   EXPECT_FP_EQ(0.0, __llvm_libc::trunc(0.115));
@@ -66,7 +61,7 @@ TEST(TruncTest, Fractions) {
   EXPECT_FP_EQ(-1234.0, __llvm_libc::trunc(-1234.96));
 }
 
-TEST(TruncTest, InDoubleRange) {
+TEST(LlvmLibcTruncTest, InDoubleRange) {
   using UIntType = FPBits::UIntType;
   constexpr UIntType count = 10000000;
   constexpr UIntType step = UIntType(-1) / count;

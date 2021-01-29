@@ -43,9 +43,9 @@ public:
   size_t Mutate_InsertByte(uint8_t *Data, size_t Size, size_t MaxSize);
   /// Mutates data by inserting several repeated bytes.
   size_t Mutate_InsertRepeatedBytes(uint8_t *Data, size_t Size, size_t MaxSize);
-  /// Mutates data by chanding one byte.
+  /// Mutates data by changing one byte.
   size_t Mutate_ChangeByte(uint8_t *Data, size_t Size, size_t MaxSize);
-  /// Mutates data by chanding one bit.
+  /// Mutates data by changing one bit.
   size_t Mutate_ChangeBit(uint8_t *Data, size_t Size, size_t MaxSize);
   /// Mutates data by copying/inserting a part of data into a different place.
   size_t Mutate_CopyPart(uint8_t *Data, size_t Size, size_t MaxSize);
@@ -129,9 +129,6 @@ public:
 
   // Dictionary provided by the user via -dict=DICT_FILE.
   Dictionary ManualDictionary;
-  // Temporary dictionary modified by the fuzzer itself,
-  // recreated periodically.
-  Dictionary TempAutoDictionary;
   // Persistent dictionary modified by the fuzzer, consists of
   // entries that led to successful discoveries in the past mutations.
   Dictionary PersistentAutoDictionary;

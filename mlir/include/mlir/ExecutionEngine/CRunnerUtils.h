@@ -18,15 +18,15 @@
 #ifdef _WIN32
 #ifndef MLIR_CRUNNERUTILS_EXPORT
 #ifdef mlir_c_runner_utils_EXPORTS
-/* We are building this library */
+// We are building this library
 #define MLIR_CRUNNERUTILS_EXPORT __declspec(dllexport)
 #define MLIR_CRUNNERUTILS_DEFINE_FUNCTIONS
 #else
-/* We are using this library */
+// We are using this library
 #define MLIR_CRUNNERUTILS_EXPORT __declspec(dllimport)
 #endif // mlir_c_runner_utils_EXPORTS
 #endif // MLIR_CRUNNERUTILS_EXPORT
-#else
+#else  // _WIN32
 #define MLIR_CRUNNERUTILS_EXPORT
 #define MLIR_CRUNNERUTILS_DEFINE_FUNCTIONS
 #endif // _WIN32
@@ -198,7 +198,7 @@ public:
 };
 
 //===----------------------------------------------------------------------===//
-// Small runtime support "lib" for vector.print lowering during codegen.
+// Small runtime support library for vector.print lowering during codegen.
 //===----------------------------------------------------------------------===//
 extern "C" MLIR_CRUNNERUTILS_EXPORT void printI64(int64_t i);
 extern "C" MLIR_CRUNNERUTILS_EXPORT void printU64(uint64_t u);
@@ -209,5 +209,14 @@ extern "C" MLIR_CRUNNERUTILS_EXPORT void printClose();
 extern "C" MLIR_CRUNNERUTILS_EXPORT void printComma();
 extern "C" MLIR_CRUNNERUTILS_EXPORT void printNewline();
 
-#endif // EXECUTIONENGINE_CRUNNERUTILS_H_
+//===----------------------------------------------------------------------===//
+// Small runtime support library for sparse tensors.
+//===----------------------------------------------------------------------===//
+extern "C" MLIR_CRUNNERUTILS_EXPORT void *openTensorC(char *filename,
+                                                      uint64_t *idata);
+extern "C" MLIR_CRUNNERUTILS_EXPORT void
+readTensorItemC(void *tensor, uint64_t *idata, double *ddata);
+extern "C" MLIR_CRUNNERUTILS_EXPORT void closeTensor(void *tensor);
+extern "C" MLIR_CRUNNERUTILS_EXPORT char *getTensorFilename(uint64_t id);
 
+#endif // EXECUTIONENGINE_CRUNNERUTILS_H_

@@ -38,7 +38,7 @@ public:
   GetSharedModule(const lldb_private::ModuleSpec &module_spec,
                   lldb_private::Process *process, lldb::ModuleSP &module_sp,
                   const lldb_private::FileSpecList *module_search_paths_ptr,
-                  lldb::ModuleSP *old_module_sp_ptr,
+                  llvm::SmallVectorImpl<lldb::ModuleSP> *old_modules,
                   bool *did_create_ptr) override;
 
   void
@@ -97,10 +97,8 @@ protected:
   // UINT32_MAX if that SDK not found.
   uint32_t GetSDKIndexBySDKDirectoryInfo(const SDKDirectoryInfo *sdk_info);
 
-
-  virtual void GetDeviceSupportDirectoryNames (std::vector<std::string> &dirnames) = 0;
-
-  virtual std::string GetPlatformName () = 0;
+  virtual llvm::StringRef GetDeviceSupportDirectoryName() = 0;
+  virtual llvm::StringRef GetPlatformName() = 0;
 
 private:
   PlatformRemoteDarwinDevice(const PlatformRemoteDarwinDevice &) = delete;

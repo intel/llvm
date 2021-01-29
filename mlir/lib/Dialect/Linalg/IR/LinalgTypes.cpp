@@ -12,9 +12,9 @@
 
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/DialectImplementation.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/Parser.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/InliningUtils.h"
@@ -36,12 +36,12 @@ struct LinalgInlinerInterface : public DialectInlinerInterface {
 
   // We don't have any special restrictions on what can be inlined into
   // destination regions (e.g. while/conditional bodies). Always allow it.
-  bool isLegalToInline(Region *dest, Region *src,
+  bool isLegalToInline(Region *dest, Region *src, bool wouldBeCloned,
                        BlockAndValueMapping &valueMapping) const final {
     return true;
   }
   // Operations in Linalg dialect are always legal to inline.
-  bool isLegalToInline(Operation *, Region *,
+  bool isLegalToInline(Operation *, Region *, bool,
                        BlockAndValueMapping &) const final {
     return true;
   }
@@ -58,8 +58,6 @@ struct LinalgInlinerInterface : public DialectInlinerInterface {
 //===----------------------------------------------------------------------===//
 
 void mlir::linalg::LinalgDialect::initialize() {
-  getContext()->getOrLoadDialect("std");
-
   addTypes<RangeType>();
   addOperations<
 #define GET_OP_LIST

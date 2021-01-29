@@ -1551,6 +1551,8 @@ bool CursorVisitor::VisitBuiltinTypeLoc(BuiltinTypeLoc TL) {
   case BuiltinType::OCLReserveID:
 #define SVE_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
 #include "clang/Basic/AArch64SVEACLETypes.def"
+#define PPC_VECTOR_TYPE(Name, Id, Size) case BuiltinType::Id:
+#include "clang/Basic/PPCTypes.def"
 #define BUILTIN_TYPE(Id, SingletonId)
 #define SIGNED_TYPE(Id, SingletonId) case BuiltinType::Id:
 #define UNSIGNED_TYPE(Id, SingletonId) case BuiltinType::Id:
@@ -2177,8 +2179,9 @@ class OMPClauseEnqueue : public ConstOMPClauseVisitor<OMPClauseEnqueue> {
 
 public:
   OMPClauseEnqueue(EnqueueVisitor *Visitor) : Visitor(Visitor) {}
-#define OMP_CLAUSE_CLASS(Enum, Str, Class) void Visit##Class(const Class *C);
-#include "llvm/Frontend/OpenMP/OMPKinds.def"
+#define GEN_CLANG_CLAUSE_CLASS
+#define CLAUSE_CLASS(Enum, Str, Class) void Visit##Class(const Class *C);
+#include "llvm/Frontend/OpenMP/OMP.inc"
   void VisitOMPClauseWithPreInit(const OMPClauseWithPreInit *C);
   void VisitOMPClauseWithPostUpdate(const OMPClauseWithPostUpdate *C);
 };
@@ -3478,8 +3481,8 @@ enum CXErrorCode clang_createTranslationUnit2(CXIndex CIdx,
   std::unique_ptr<ASTUnit> AU = ASTUnit::LoadFromASTFile(
       ast_filename, CXXIdx->getPCHContainerOperations()->getRawReader(),
       ASTUnit::LoadEverything, Diags, FileSystemOpts, /*UseDebugInfo=*/false,
-      CXXIdx->getOnlyLocalDecls(), None, CaptureDiagsKind::All,
-      /*AllowPCHWithCompilerErrors=*/true,
+      CXXIdx->getOnlyLocalDecls(), CaptureDiagsKind::All,
+      /*AllowASTWithCompilerErrors=*/true,
       /*UserFilesAreVolatile=*/true);
   *out_TU = MakeCXTranslationUnit(CXXIdx, std::move(AU));
   return *out_TU ? CXError_Success : CXError_Failure;
@@ -4367,9 +4370,8 @@ const char *clang_getFileContents(CXTranslationUnit TU, CXFile file,
 
   const SourceManager &SM = cxtu::getASTUnit(TU)->getSourceManager();
   FileID fid = SM.translateFile(static_cast<FileEntry *>(file));
-  bool Invalid = true;
-  const llvm::MemoryBuffer *buf = SM.getBuffer(fid, &Invalid);
-  if (Invalid) {
+  llvm::Optional<llvm::MemoryBufferRef> buf = SM.getBufferOrNone(fid);
+  if (!buf) {
     if (size)
       *size = 0;
     return nullptr;
@@ -6382,6 +6384,7 @@ CXCursor clang_getCursorDefinition(CXCursor C) {
   case Decl::Binding:
   case Decl::MSProperty:
   case Decl::MSGuid:
+  case Decl::TemplateParamObject:
   case Decl::IndirectField:
   case Decl::ObjCIvar:
   case Decl::ObjCAtDefsField:
@@ -8403,7 +8406,9 @@ CXFile clang_Module_getASTFile(CXModule CXMod) {
   if (!CXMod)
     return nullptr;
   Module *Mod = static_cast<Module *>(CXMod);
-  return const_cast<FileEntry *>(Mod->getASTFile());
+  if (auto File = Mod->getASTFile())
+    return const_cast<FileEntry *>(&File->getFileEntry());
+  return nullptr;
 }
 
 CXModule clang_Module_getParent(CXModule CXMod) {

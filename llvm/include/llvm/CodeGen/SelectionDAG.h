@@ -339,11 +339,13 @@ public:
     FlagInserter *LastInserter;
 
   public:
-    FlagInserter(SelectionDAG &SDAG, SDNode *N)
-        : DAG(SDAG), Flags(N->getFlags()),
+    FlagInserter(SelectionDAG &SDAG, SDNodeFlags Flags)
+        : DAG(SDAG), Flags(Flags),
           LastInserter(SDAG.getFlagInserter()) {
       SDAG.setFlagInserter(this);
     }
+    FlagInserter(SelectionDAG &SDAG, SDNode *N)
+        : FlagInserter(SDAG, N->getFlags()) {}
 
     FlagInserter(const FlagInserter &) = delete;
     FlagInserter &operator=(const FlagInserter &) = delete;
@@ -719,9 +721,7 @@ public:
   // When generating a branch to a BB, we don't in general know enough
   // to provide debug info for the BB at that time, so keep this one around.
   SDValue getBasicBlock(MachineBasicBlock *MBB);
-  SDValue getBasicBlock(MachineBasicBlock *MBB, SDLoc dl);
   SDValue getExternalSymbol(const char *Sym, EVT VT);
-  SDValue getExternalSymbol(const char *Sym, const SDLoc &dl, EVT VT);
   SDValue getTargetExternalSymbol(const char *Sym, EVT VT,
                                   unsigned TargetFlags = 0);
   SDValue getMCSymbol(MCSymbol *Sym, EVT VT);
@@ -1083,8 +1083,8 @@ public:
   /// Helper function to make it easier to build SetCC's if you just have an
   /// ISD::CondCode instead of an SDValue.
   SDValue getSetCC(const SDLoc &DL, EVT VT, SDValue LHS, SDValue RHS,
-                   ISD::CondCode Cond, SDNodeFlags Flags = SDNodeFlags(),
-                   SDValue Chain = SDValue(), bool IsSignaling = false) {
+                   ISD::CondCode Cond, SDValue Chain = SDValue(),
+                   bool IsSignaling = false) {
     assert(LHS.getValueType().isVector() == RHS.getValueType().isVector() &&
            "Cannot compare scalars to vectors");
     assert(LHS.getValueType().isVector() == VT.isVector() &&
@@ -1094,7 +1094,7 @@ public:
     if (Chain)
       return getNode(IsSignaling ? ISD::STRICT_FSETCCS : ISD::STRICT_FSETCC, DL,
                      {VT, MVT::Other}, {Chain, LHS, RHS, getCondCode(Cond)});
-    return getNode(ISD::SETCC, DL, VT, LHS, RHS, getCondCode(Cond), Flags);
+    return getNode(ISD::SETCC, DL, VT, LHS, RHS, getCondCode(Cond));
   }
 
   /// Helper function to make it easier to build Select's if you just have
@@ -1202,6 +1202,12 @@ public:
   /// offsets `Offset` and `Offset + Size`.
   SDValue getLifetimeNode(bool IsStart, const SDLoc &dl, SDValue Chain,
                           int FrameIndex, int64_t Size, int64_t Offset = -1);
+
+  /// Creates a PseudoProbeSDNode with function GUID `Guid` and
+  /// the index of the block `Index` it is probing, as well as the attributes
+  /// `attr` of the probe.
+  SDValue getPseudoProbeNode(const SDLoc &Dl, SDValue Chain, uint64_t Guid,
+                             uint64_t Index, uint32_t Attr);
 
   /// Create a MERGE_VALUES node from the given operands.
   SDValue getMergeValues(ArrayRef<SDValue> Ops, const SDLoc &dl);
@@ -1356,10 +1362,11 @@ public:
                                 ISD::MemIndexedMode AM);
   SDValue getMaskedGather(SDVTList VTs, EVT VT, const SDLoc &dl,
                           ArrayRef<SDValue> Ops, MachineMemOperand *MMO,
-                          ISD::MemIndexType IndexType);
+                          ISD::MemIndexType IndexType, ISD::LoadExtType ExtTy);
   SDValue getMaskedScatter(SDVTList VTs, EVT VT, const SDLoc &dl,
                            ArrayRef<SDValue> Ops, MachineMemOperand *MMO,
-                           ISD::MemIndexType IndexType);
+                           ISD::MemIndexType IndexType,
+                           bool IsTruncating = false);
 
   /// Construct a node to track a Value* through the backend.
   SDValue getSrcValue(const Value *v);
@@ -1424,6 +1431,9 @@ public:
   void setNodeMemRefs(MachineSDNode *N,
                       ArrayRef<MachineMemOperand *> NewMemRefs);
 
+  // Calculate divergence of node \p N based on its operands.
+  bool calculateDivergence(SDNode *N);
+
   // Propagates the change in divergence to users
   void updateDivergence(SDNode * N);
 
@@ -1444,8 +1454,6 @@ public:
                        EVT VT2, ArrayRef<SDValue> Ops);
   SDNode *SelectNodeTo(SDNode *N, unsigned MachineOpc, EVT VT1,
                        EVT VT2, EVT VT3, ArrayRef<SDValue> Ops);
-  SDNode *SelectNodeTo(SDNode *N, unsigned TargetOpc, EVT VT1,
-                       EVT VT2, SDValue Op1);
   SDNode *SelectNodeTo(SDNode *N, unsigned MachineOpc, EVT VT1,
                        EVT VT2, SDValue Op1, SDValue Op2);
   SDNode *SelectNodeTo(SDNode *N, unsigned MachineOpc, SDVTList VTs,
@@ -1507,6 +1515,9 @@ public:
                           ArrayRef<SDValue> Ops, const SDNodeFlags Flags);
   SDNode *getNodeIfExists(unsigned Opcode, SDVTList VTList,
                           ArrayRef<SDValue> Ops);
+
+  /// Check if a node exists without modifying its flags.
+  bool doesNodeExist(unsigned Opcode, SDVTList VTList, ArrayRef<SDValue> Ops);
 
   /// Creates a SDDbgValue node.
   SDDbgValue *getDbgValue(DIVariable *Var, DIExpression *Expr, SDNode *N,
@@ -1580,7 +1591,14 @@ public:
   /// chain to the token factor. This ensures that the new memory node will have
   /// the same relative memory dependency position as the old load. Returns the
   /// new merged load chain.
-  SDValue makeEquivalentMemoryOrdering(LoadSDNode *Old, SDValue New);
+  SDValue makeEquivalentMemoryOrdering(SDValue OldChain, SDValue NewMemOpChain);
+
+  /// If an existing load has uses of its chain, create a token factor node with
+  /// that chain and the new memory node's chain and update users of the old
+  /// chain to the token factor. This ensures that the new memory node will have
+  /// the same relative memory dependency position as the old load. Returns the
+  /// new merged load chain.
+  SDValue makeEquivalentMemoryOrdering(LoadSDNode *OldLoad, SDValue NewMemOp);
 
   /// Topological-sort the AllNodes list and a
   /// assign a unique node id for each node in the DAG based on their
@@ -1818,7 +1836,8 @@ public:
   /// for \p DemandedElts.
   ///
   /// NOTE: The function will return true for a demanded splat of UNDEF values.
-  bool isSplatValue(SDValue V, const APInt &DemandedElts, APInt &UndefElts);
+  bool isSplatValue(SDValue V, const APInt &DemandedElts, APInt &UndefElts,
+                    unsigned Depth = 0);
 
   /// Test whether \p V has a splatted value.
   bool isSplatValue(SDValue V, bool AllowUndefs = false);
@@ -1940,14 +1959,14 @@ public:
   }
 
   /// Test whether the given value is a constant int or similar node.
-  SDNode *isConstantIntBuildVectorOrConstantInt(SDValue N);
+  SDNode *isConstantIntBuildVectorOrConstantInt(SDValue N) const;
 
   /// Test whether the given value is a constant FP or similar node.
-  SDNode *isConstantFPBuildVectorOrConstantFP(SDValue N);
+  SDNode *isConstantFPBuildVectorOrConstantFP(SDValue N) const ;
 
   /// \returns true if \p N is any kind of constant or build_vector of
   /// constants, int or float. If a vector, it may not necessarily be a splat.
-  inline bool isConstantValueOfAnyType(SDValue N) {
+  inline bool isConstantValueOfAnyType(SDValue N) const {
     return isConstantIntBuildVectorOrConstantInt(N) ||
            isConstantFPBuildVectorOrConstantFP(N);
   }
@@ -1994,6 +2013,10 @@ public:
   }
 
   bool shouldOptForSize() const;
+
+  /// Get the (commutative) neutral element for the given opcode, if it exists.
+  SDValue getNeutralElement(unsigned Opcode, const SDLoc &DL, EVT VT,
+                            SDNodeFlags Flags);
 
 private:
   void InsertNode(SDNode *N);

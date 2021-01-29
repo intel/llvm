@@ -16,10 +16,12 @@
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
+std::unique_ptr<OperationPass<FuncOp>> createConvertElementwiseToLinalgPass();
+
 std::unique_ptr<OperationPass<FuncOp>> createLinalgFoldUnitExtentDimsPass();
 
-std::unique_ptr<OperationPass<FuncOp>> createLinalgFusionPass();
 std::unique_ptr<Pass> createLinalgFusionOfTensorOpsPass();
+std::unique_ptr<Pass> createFoldReshapeOpsByLinearizationPass();
 
 std::unique_ptr<OperationPass<FuncOp>>
 createLinalgTilingPass(ArrayRef<int64_t> tileSizes = {});
@@ -46,8 +48,29 @@ std::unique_ptr<OperationPass<FuncOp>> createConvertLinalgToAffineLoopsPass();
 
 /// Create a pass to convert Linalg operations which work on tensors to use
 /// buffers instead.
-std::unique_ptr<OperationPass<ModuleOp>>
-createConvertLinalgOnTensorsToBuffersPass();
+std::unique_ptr<OperationPass<FuncOp>> createLinalgBufferizePass();
+
+/// Populate patterns that convert `ElementwiseMappable` ops to linalg
+/// parallel loops.
+void populateElementwiseToLinalgConversionPatterns(
+    OwningRewritePatternList &patterns, MLIRContext *ctx);
+
+/// Create a pass to conver named Linalg operations to Linalg generic
+/// operations.
+std::unique_ptr<OperationPass<FuncOp>> createLinalgGeneralizationPass();
+
+/// Patterns to fold an expanding (collapsing) tensor_reshape operation with its
+/// producer (consumer) generic operation by expanding the dimensionality of the
+/// loop in the generic op.
+void populateFoldReshapeOpsByExpansionPatterns(
+    MLIRContext *context, OwningRewritePatternList &patterns);
+
+/// Patterns to fold a collapsing (expanding) tensor_reshape operation with its
+/// producer (consumer) generic/indexed_generic operation by linearizing the
+/// indexing map used to access the source (target) of the reshape operation in
+/// the generic/indexed_generic operation.
+void populateFoldReshapeOpsByLinearizationPatterns(
+    MLIRContext *context, OwningRewritePatternList &patterns);
 
 /// Patterns for fusing linalg operation on tensors.
 void populateLinalgTensorOpsFusionPatterns(MLIRContext *context,

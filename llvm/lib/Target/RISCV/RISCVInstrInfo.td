@@ -25,6 +25,8 @@ def SDT_RISCVCall     : SDTypeProfile<0, -1, [SDTCisVT<0, XLenVT>]>;
 def SDT_RISCVSelectCC : SDTypeProfile<1, 5, [SDTCisSameAs<1, 2>,
                                              SDTCisSameAs<0, 4>,
                                              SDTCisSameAs<4, 5>]>;
+def SDT_RISCVReadCycleWide : SDTypeProfile<2, 0, [SDTCisVT<0, i32>,
+                                                  SDTCisVT<1, i32>]>;
 
 // Target-independent nodes, but with target-specific formats.
 def callseq_start : SDNode<"ISD::CALLSEQ_START", SDT_CallSeqStart,
@@ -44,14 +46,17 @@ def riscv_sret_flag : SDNode<"RISCVISD::SRET_FLAG", SDTNone,
                              [SDNPHasChain, SDNPOptInGlue]>;
 def riscv_mret_flag : SDNode<"RISCVISD::MRET_FLAG", SDTNone,
                              [SDNPHasChain, SDNPOptInGlue]>;
-def riscv_selectcc  : SDNode<"RISCVISD::SELECT_CC", SDT_RISCVSelectCC,
-                             [SDNPInGlue]>;
+def riscv_selectcc  : SDNode<"RISCVISD::SELECT_CC", SDT_RISCVSelectCC>;
 def riscv_tail      : SDNode<"RISCVISD::TAIL", SDT_RISCVCall,
                              [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue,
                               SDNPVariadic]>;
 def riscv_sllw      : SDNode<"RISCVISD::SLLW", SDTIntShiftOp>;
 def riscv_sraw      : SDNode<"RISCVISD::SRAW", SDTIntShiftOp>;
 def riscv_srlw      : SDNode<"RISCVISD::SRLW", SDTIntShiftOp>;
+
+def riscv_read_cycle_wide : SDNode<"RISCVISD::READ_CYCLE_WIDE",
+                                   SDT_RISCVReadCycleWide,
+                                   [SDNPHasChain, SDNPSideEffect]>;
 
 //===----------------------------------------------------------------------===//
 // Operand and SDNode transformation definitions.
@@ -161,6 +166,7 @@ def simm12_plus1 : Operand<XLenVT>, ImmLeaf<XLenVT,
 // A 13-bit signed immediate where the least significant bit is zero.
 def simm13_lsb0 : Operand<OtherVT> {
   let ParserMatchClass = SImmAsmOperand<13, "Lsb0">;
+  let PrintMethod = "printBranchOperand";
   let EncoderMethod = "getImmOpValueAsr1";
   let DecoderMethod = "decodeSImmOperandAndLsl1<13>";
   let MCOperandPredicate = [{
@@ -169,8 +175,7 @@ def simm13_lsb0 : Operand<OtherVT> {
       return isShiftedInt<12, 1>(Imm);
     return MCOp.isBareSymbolRef();
   }];
-  let OperandType = "OPERAND_SIMM13_LSB0";
-  let OperandNamespace = "RISCVOp";
+  let OperandType = "OPERAND_PCREL";
 }
 
 class UImm20Operand : Operand<XLenVT> {
@@ -200,6 +205,7 @@ def Simm21Lsb0JALAsmOperand : SImmAsmOperand<21, "Lsb0JAL"> {
 // A 21-bit signed immediate where the least significant bit is zero.
 def simm21_lsb0_jal : Operand<OtherVT> {
   let ParserMatchClass = Simm21Lsb0JALAsmOperand;
+  let PrintMethod = "printBranchOperand";
   let EncoderMethod = "getImmOpValueAsr1";
   let DecoderMethod = "decodeSImmOperandAndLsl1<21>";
   let MCOperandPredicate = [{
@@ -208,8 +214,7 @@ def simm21_lsb0_jal : Operand<OtherVT> {
       return isShiftedInt<20, 1>(Imm);
     return MCOp.isBareSymbolRef();
   }];
-  let OperandType = "OPERAND_SIMM21_LSB0";
-  let OperandNamespace = "RISCVOp";
+  let OperandType = "OPERAND_PCREL";
 }
 
 def BareSymbol : AsmOperandClass {
@@ -291,6 +296,11 @@ def immbottomxlenset : ImmLeaf<XLenVT, [{
   return countTrailingOnes<uint64_t>(Imm) >= 5;
 }]>;
 
+// A 6-bit constant greater than 32.
+def uimm6gt32 : ImmLeaf<XLenVT, [{
+  return isUInt<6>(Imm) && Imm > 32;
+}]>;
+
 // Addressing modes.
 // Necessary because a frameindex can't be matched directly in a pattern.
 def AddrFI : ComplexPattern<iPTR, 1, "SelectAddrFI", [frameindex], []>;
@@ -313,6 +323,12 @@ def HI20 : SDNodeXForm<imm, [{
 // Return the negation of an immediate value.
 def NegImm : SDNodeXForm<imm, [{
   return CurDAG->getTargetConstant(-N->getSExtValue(), SDLoc(N),
+                                   N->getValueType(0));
+}]>;
+
+// Return an immediate value minus 32.
+def ImmSub32 : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(N->getSExtValue() - 32, SDLoc(N),
                                    N->getValueType(0));
 }]>;
 
@@ -793,6 +809,11 @@ def : MnemonicAlias<"move", "mv">;
 def : MnemonicAlias<"scall", "ecall">;
 def : MnemonicAlias<"sbreak", "ebreak">;
 
+// This alias was added to the spec in December 2020. Don't print it by default
+// to allow assembly we print to be compatible with versions of GNU assembler
+// that don't support this alias.
+def : InstAlias<"zext.b $rd, $rs", (ANDI GPR:$rd, GPR:$rs, 0xFF), 0>;
+
 //===----------------------------------------------------------------------===//
 // Pseudo-instructions and codegen patterns
 //
@@ -828,6 +849,11 @@ def assertzexti32 : PatFrag<(ops node:$src), (assertzext node:$src), [{
 def zexti32 : PatFrags<(ops node:$src),
                        [(and node:$src, 0xffffffff),
                         (assertzexti32 node:$src)]>;
+
+def SRLIWPat : PatFrag<(ops node:$A, node:$B),
+                       (srl (and node:$A, imm), node:$B), [{
+  return MatchSRLIW(N);
+}]>;
 
 /// Immediates
 
@@ -875,10 +901,10 @@ def PseudoAddTPRel : Pseudo<(outs GPR:$rd),
 
 /// FrameIndex calculations
 
-def : Pat<(add (i32 AddrFI:$Rs), simm12:$imm12),
-          (ADDI (i32 AddrFI:$Rs), simm12:$imm12)>;
-def : Pat<(IsOrAdd (i32 AddrFI:$Rs), simm12:$imm12),
-          (ADDI (i32 AddrFI:$Rs), simm12:$imm12)>;
+def : Pat<(add (XLenVT AddrFI:$Rs), simm12:$imm12),
+          (ADDI (XLenVT AddrFI:$Rs), simm12:$imm12)>;
+def : Pat<(IsOrAdd (XLenVT AddrFI:$Rs), simm12:$imm12),
+          (ADDI (XLenVT AddrFI:$Rs), simm12:$imm12)>;
 
 /// Setcc
 
@@ -940,9 +966,13 @@ def : BccSwapPat<setle, BGE>;
 def : BccSwapPat<setugt, BLTU>;
 def : BccSwapPat<setule, BGEU>;
 
-// An extra pattern is needed for a brcond without a setcc (i.e. where the
+// Extra patterns are needed for a brcond without a setcc (i.e. where the
 // condition was calculated elsewhere).
 def : Pat<(brcond GPR:$cond, bb:$imm12), (BNE GPR:$cond, X0, bb:$imm12)>;
+// In this pattern, the `(xor $cond, 1)` functions like (boolean) `not`, as the
+// `brcond` only uses the lowest bit.
+def : Pat<(brcond (XLenVT (xor GPR:$cond, 1)), bb:$imm12),
+          (BEQ GPR:$cond, X0, bb:$imm12)>;
 
 let isBarrier = 1, isBranch = 1, isTerminator = 1 in
 def PseudoBR : Pseudo<(outs), (ins simm21_lsb0_jal:$imm20), [(br bb:$imm20)]>,
@@ -1039,6 +1069,25 @@ let hasSideEffects = 0, mayLoad = 1, mayStore = 0, isCodeGenOnly = 0,
 def PseudoLA_TLS_GD : Pseudo<(outs GPR:$dst), (ins bare_symbol:$src), [],
                              "la.tls.gd", "$dst, $src">;
 
+
+/// Sign/Zero Extends
+
+// There are single-instruction versions of these in Zbb, so disable these
+// Pseudos if that extension is present.
+let hasSideEffects = 0, mayLoad = 0,
+    mayStore = 0, isCodeGenOnly = 0, isAsmParserOnly = 1 in {
+def PseudoSEXT_B : Pseudo<(outs GPR:$rd), (ins GPR:$rs), [], "sext.b", "$rd, $rs">;
+def PseudoSEXT_H : Pseudo<(outs GPR:$rd), (ins GPR:$rs), [], "sext.h", "$rd, $rs">;
+// rv64's sext.w is defined above, using InstAlias<"sext.w ...
+// zext.b is defined above, using InstAlias<"zext.b ...
+def PseudoZEXT_H : Pseudo<(outs GPR:$rd), (ins GPR:$rs), [], "zext.h", "$rd, $rs">;
+} // hasSideEffects = 0, ...
+
+let Predicates = [IsRV64], hasSideEffects = 0, mayLoad = 0, mayStore = 0,
+  isCodeGenOnly = 0, isAsmParserOnly = 1 in {
+def PseudoZEXT_W : Pseudo<(outs GPR:$rd), (ins GPR:$rs), [], "zext.w", "$rd, $rs">;
+} // Predicates = [IsRV64], ...
+
 /// Loads
 
 multiclass LdPat<PatFrag LoadOp, RVInst Inst> {
@@ -1109,12 +1158,14 @@ def ADJCALLSTACKUP   : Pseudo<(outs), (ins i32imm:$amt1, i32imm:$amt2),
 
 /// RV64 patterns
 
+let Predicates = [IsRV64, NotHasStdExtZbbOrZbp] in
+def : Pat<(and GPR:$rs1, 0xffffffff), (SRLI (SLLI GPR:$rs1, 32), 32)>;
+
 let Predicates = [IsRV64] in {
 
 /// sext and zext
 
 def : Pat<(sext_inreg GPR:$rs1, i32), (ADDIW GPR:$rs1, 0)>;
-def : Pat<(and GPR:$rs1, 0xffffffff), (SRLI (SLLI GPR:$rs1, 32), 32)>;
 
 /// ALU operations
 
@@ -1126,10 +1177,14 @@ def : Pat<(sext_inreg (sub GPR:$rs1, GPR:$rs2), i32),
           (SUBW GPR:$rs1, GPR:$rs2)>;
 def : Pat<(sext_inreg (shl GPR:$rs1, uimm5:$shamt), i32),
           (SLLIW GPR:$rs1, uimm5:$shamt)>;
-// (srl (zexti32 ...), uimm5:$shamt) is matched with custom code due to the
-// need to undo manipulation of the mask value performed by DAGCombine.
+def : Pat<(SRLIWPat GPR:$rs1, uimm5:$shamt),
+          (SRLIW GPR:$rs1, uimm5:$shamt)>;
+def : Pat<(srl (shl GPR:$rs1, (i64 32)), uimm6gt32:$shamt),
+          (SRLIW GPR:$rs1, (ImmSub32 uimm6gt32:$shamt))>;
 def : Pat<(sra (sext_inreg GPR:$rs1, i32), uimm5:$shamt),
           (SRAIW GPR:$rs1, uimm5:$shamt)>;
+def : Pat<(sra (shl GPR:$rs1, (i64 32)), uimm6gt32:$shamt),
+          (SRAIW GPR:$rs1, (ImmSub32 uimm6gt32:$shamt))>;
 
 def : PatGprGpr<riscv_sllw, SLLW>;
 def : PatGprGpr<riscv_srlw, SRLW>;
@@ -1154,9 +1209,10 @@ let Predicates = [IsRV64] in
 def : Pat<(readcyclecounter), (CSRRS CYCLE.Encoding, X0)>;
 // On RV32, ReadCycleWide will be expanded to the suggested loop reading both
 // halves of the 64-bit "cycle" CSR.
-let Predicates = [IsRV32], usesCustomInserter = 1, hasSideEffects = 0,
-mayLoad = 0, mayStore = 0, hasNoSchedulingInfo = 1 in
-def ReadCycleWide : Pseudo<(outs GPR:$lo, GPR:$hi), (ins), [], "", "">;
+let Predicates = [IsRV32], usesCustomInserter = 1, hasNoSchedulingInfo = 1 in
+def ReadCycleWide : Pseudo<(outs GPR:$lo, GPR:$hi), (ins),
+                           [(set GPR:$lo, GPR:$hi, (riscv_read_cycle_wide))],
+                           "", "">;
 
 /// traps
 
@@ -1179,3 +1235,4 @@ include "RISCVInstrInfoD.td"
 include "RISCVInstrInfoC.td"
 include "RISCVInstrInfoB.td"
 include "RISCVInstrInfoV.td"
+include "RISCVInstrInfoZfh.td"

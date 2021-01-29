@@ -338,6 +338,32 @@ LLVM_DUMP_METHOD void ARMConstantIslands::dumpBBs() {
 }
 #endif
 
+// Align blocks where the previous block does not fall through. This may add
+// extra NOP's but they will not be executed. It uses the PrefLoopAlignment as a
+// measure of how much to align, and only runs at CodeGenOpt::Aggressive.
+static bool AlignBlocks(MachineFunction *MF) {
+  if (MF->getTarget().getOptLevel() != CodeGenOpt::Aggressive ||
+      MF->getFunction().hasOptSize())
+    return false;
+
+  auto *TLI = MF->getSubtarget().getTargetLowering();
+  const Align Alignment = TLI->getPrefLoopAlignment();
+  if (Alignment < 4)
+    return false;
+
+  bool Changed = false;
+  bool PrevCanFallthough = true;
+  for (auto &MBB : *MF) {
+    if (!PrevCanFallthough) {
+      Changed = true;
+      MBB.setAlignment(Alignment);
+    }
+    PrevCanFallthough = MBB.canFallThrough();
+  }
+
+  return Changed;
+}
+
 bool ARMConstantIslands::runOnMachineFunction(MachineFunction &mf) {
   MF = &mf;
   MCP = mf.getConstantPool();
@@ -359,6 +385,10 @@ bool ARMConstantIslands::runOnMachineFunction(MachineFunction &mf) {
   isThumb2 = AFI->isThumb2Function();
 
   bool GenerateTBB = isThumb2 || (isThumb1 && SynthesizeThumb1TBB);
+  // TBB generation code in this constant island pass has not been adapted to
+  // deal with speculation barriers.
+  if (STI->hardenSlsRetBr())
+    GenerateTBB = false;
 
   // Renumber all of the machine basic blocks in the function, guaranteeing that
   // the numbers agree with the position of the block in the function.
@@ -375,6 +405,9 @@ bool ARMConstantIslands::runOnMachineFunction(MachineFunction &mf) {
     // Blocks may have shifted around. Keep the numbering up to date.
     MF->RenumberBlocks();
   }
+
+  // Align any non-fallthrough blocks
+  MadeChange |= AlignBlocks(MF);
 
   // Perform the initial placement of the constant pool entries.  To start with,
   // we put them all at the end of the function.
@@ -510,7 +543,7 @@ ARMConstantIslands::doInitialConstPlacement(std::vector<MachineInstr*> &CPEMIs) 
 
   const DataLayout &TD = MF->getDataLayout();
   for (unsigned i = 0, e = CPs.size(); i != e; ++i) {
-    unsigned Size = TD.getTypeAllocSize(CPs[i].getType());
+    unsigned Size = CPs[i].getSizeInBytes(TD);
     Align Alignment = CPs[i].getAlign();
     // Verify that all constant pool entries are a multiple of their alignment.
     // If not, we would have to pad them out so that instructions stay aligned.
@@ -553,6 +586,12 @@ void ARMConstantIslands::doInitialJumpTablePlacement(
   MachineBasicBlock *LastCorrectlyNumberedBB = nullptr;
   for (MachineBasicBlock &MBB : *MF) {
     auto MI = MBB.getLastNonDebugInstr();
+    // Look past potential SpeculationBarriers at end of BB.
+    while (MI != MBB.end() &&
+           (isSpeculationBarrierEndBBOpcode(MI->getOpcode()) ||
+            MI->isDebugInstr()))
+      --MI;
+
     if (MI == MBB.end())
       continue;
 
@@ -784,6 +823,7 @@ initializeFunctionInfo(const std::vector<MachineInstr*> &CPEMIs) {
               NegOk = true;
               IsSoImm = true;
               unsigned CPI = I.getOperand(op).getIndex();
+              assert(CPI < CPEMIs.size());
               MachineInstr *CPEMI = CPEMIs[CPI];
               const Align CPEAlign = getCPEAlign(CPEMI);
               const unsigned LogCPEAlign = Log2(CPEAlign);
@@ -2084,8 +2124,7 @@ static bool jumpTableFollowsTB(MachineInstr *JTMI, MachineInstr *CPEMI) {
   MachineFunction *MF = MBB->getParent();
   ++MBB;
 
-  return MBB != MF->end() && MBB->begin() != MBB->end() &&
-         &*MBB->begin() == CPEMI;
+  return MBB != MF->end() && !MBB->empty() && &*MBB->begin() == CPEMI;
 }
 
 static void RemoveDeadAddBetweenLEAAndJT(MachineInstr *LEAMI,

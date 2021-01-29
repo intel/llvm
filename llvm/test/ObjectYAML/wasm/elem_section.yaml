@@ -5,7 +5,8 @@ FileHeader:
 Sections:
   - Type:            TABLE
     Tables:         
-      - ElemType:          FUNCREF
+      - Index:             0
+        ElemType:          FUNCREF
         Limits:
           Flags:           [ HAS_MAX ]
           Initial:         0x00000010
@@ -25,7 +26,7 @@ Sections:
 ...
 # CHECK: --- !WASM
 # CHECK: FileHeader:
-# CHECK:   Version:           0x00000001
+# CHECK:   Version:           0x1
 # CHECK: Sections:
 # CHECK:   - Type:            ELEM
 # CHECK:     Segments:

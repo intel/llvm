@@ -1,19 +1,20 @@
 # RUN: %PYTHON %s | FileCheck %s
 
 import gc
-import mlir
+from mlir.ir import *
 
 def run(f):
   print("\nTEST:", f.__name__)
   f()
   gc.collect()
-  assert mlir.ir.Context._get_live_count() == 0
+  assert Context._get_live_count() == 0
 
 
 # CHECK-LABEL: TEST: testUnknown
 def testUnknown():
-  ctx = mlir.ir.Context()
-  loc = ctx.get_unknown_location()
+  with Context() as ctx:
+    loc = Location.unknown()
+  assert loc.context is ctx
   ctx = None
   gc.collect()
   # CHECK: unknown str: loc(unknown)
@@ -26,8 +27,8 @@ run(testUnknown)
 
 # CHECK-LABEL: TEST: testFileLineCol
 def testFileLineCol():
-  ctx = mlir.ir.Context()
-  loc = ctx.get_file_location("foo.txt", 123, 56)
+  with Context() as ctx:
+    loc = Location.file("foo.txt", 123, 56)
   ctx = None
   gc.collect()
   # CHECK: file str: loc("foo.txt":123:56)
@@ -37,3 +38,16 @@ def testFileLineCol():
 
 run(testFileLineCol)
 
+
+# CHECK-LABEL: TEST: testLocationCapsule
+def testLocationCapsule():
+  with Context() as ctx:
+    loc1 = Location.file("foo.txt", 123, 56)
+  # CHECK: mlir.ir.Location._CAPIPtr
+  loc_capsule = loc1._CAPIPtr
+  print(loc_capsule)
+  loc2 = Location._CAPICreate(loc_capsule)
+  assert loc2 == loc1
+  assert loc2.context is ctx
+
+run(testLocationCapsule)

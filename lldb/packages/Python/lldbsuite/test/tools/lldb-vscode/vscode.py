@@ -113,7 +113,6 @@ class DebugCommunication(object):
         self.initialize_body = None
         self.thread_stop_reasons = {}
         self.breakpoint_events = []
-        self.module_events = {}
         self.sequence = 1
         self.threads = None
         self.recv_thread.start()
@@ -134,8 +133,12 @@ class DebugCommunication(object):
         if command['seq'] != response['request_seq']:
             raise ValueError('seq mismatch in response')
 
-    def get_active_modules(self):
-        return self.module_events
+    def get_modules(self):
+        module_list = self.request_modules()['body']['modules']
+        modules = {}
+        for module in module_list:
+            modules[module['name']] = module
+        return modules
         
     def get_output(self, category, timeout=0.0, clear=True):
         self.output_condition.acquire()
@@ -221,14 +224,6 @@ class DebugCommunication(object):
                 # in tests.
                 self.breakpoint_events.append(packet)
                 # no need to add 'breakpoint' event packets to our packets list
-                return keepGoing
-            elif event == 'module':
-                reason = body['reason']
-                if (reason == 'new' or reason == 'changed'):
-                    self.module_events[body['module']['name']] = body['module']
-                elif reason == 'removed':
-                    if body['module']['name'] in self.module_events:
-                        self.module_events.pop(body['module']['name'])
                 return keepGoing
 
         elif packet_type == 'response':
@@ -728,24 +723,26 @@ class DebugCommunication(object):
     def request_setBreakpoints(self, file_path, line_array, condition=None,
                                hitCondition=None):
         (dir, base) = os.path.split(file_path)
-        breakpoints = []
-        for line in line_array:
-            bp = {'line': line}
-            if condition is not None:
-                bp['condition'] = condition
-            if hitCondition is not None:
-                bp['hitCondition'] = hitCondition
-            breakpoints.append(bp)
         source_dict = {
             'name': base,
             'path': file_path
         }
         args_dict = {
             'source': source_dict,
-            'breakpoints': breakpoints,
-            'lines': '%s' % (line_array),
             'sourceModified': False,
         }
+        if line_array is not None:
+            args_dict['lines'] = '%s' % line_array
+            breakpoints = []
+            for line in line_array:
+                bp = {'line': line}
+                if condition is not None:
+                    bp['condition'] = condition
+                if hitCondition is not None:
+                    bp['hitCondition'] = hitCondition
+                breakpoints.append(bp)
+            args_dict['breakpoints'] = breakpoints
+
         command_dict = {
             'command': 'setBreakpoints',
             'type': 'request',
@@ -780,10 +777,10 @@ class DebugCommunication(object):
         }
         return self.send_recv(command_dict)
 
-    def request_getCompileUnits(self, moduleId):
+    def request_compileUnits(self, moduleId):
         args_dict = {'moduleId': moduleId}
         command_dict = {
-            'command': 'getCompileUnits',
+            'command': 'compileUnits',
             'type': 'request',
             'arguments': args_dict
         }
@@ -801,6 +798,12 @@ class DebugCommunication(object):
             'arguments': args_dict
         }
         return self.send_recv(command_dict)
+
+    def request_modules(self):
+        return self.send_recv({
+            'command': 'modules',
+            'type': 'request'
+        })
 
     def request_stackTrace(self, threadId=None, startFrame=None, levels=None,
                            dump=False):

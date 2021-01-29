@@ -20,6 +20,16 @@ is strongly encouraged that you submit the patch to https://llvm.org/ directly.
 See [LLVM contribution guidelines](https://llvm.org/docs/Contributing.html)
 for more information.
 
+**NB**: A change in compiler and runtime should be accompanied with
+corresponding test changes.
+See [Test DPC++ toolchain](sycl/doc/GetStartedGuide.md#test-dpc-toolchain)
+section of Get Started guide for more information.
+
+**Note (October, 2020)**: DPC++ runtime and compiler ABI is currently in frozen
+state. This means that no ABI-breaking changes will be accepted by default.
+Project maintainers may still approve breaking changes in some cases. Please,
+see [ABI Policy Guide](sycl/doc/ABIPolicyGuide.md) for more information.
+
 - Create a personal fork of the project on GitHub
   - For the DPC++ Compiler project, use **sycl** branch as baseline for your
     changes. See [Get Started Guide](sycl/doc/GetStartedGuide.md).
@@ -52,6 +62,14 @@ for more information.
 - For any DPC++-related commit, the `[SYCL]` tag should be present in the
   commit message title. To a reasonable extent, additional tags can be used
   to signify the component changed, e.g.: `[PI]`, `[CUDA]`, `[Doc]`.
+- For product changes which require modification in tests outside of the current repository
+  (see [Test DPC++ toolchain](sycl/doc/GetStartedGuide.md#test-dpc-toolchain)),
+  the commit message should contain the link to corresponding test PR, e.g.: E2E
+  test changes are available under intel/llvm-test-suite#88 or SYCL
+  conformance test changes are available under KhronosGroup/SYCL-CTS#65 (see
+  [Autolinked references and URLs](https://docs.github.com/en/free-pro-team/github/writing-on-github/autolinked-references-and-urls)
+  for more details). The same message should be present both in commit
+  message and in PR description.
 
 ### Review and acceptance testing
 

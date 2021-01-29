@@ -213,15 +213,16 @@ public:
   void initInstrItins(InstrItineraryData &InstrItins) const;
 
   /// Resolve a variant scheduling class for the given MCInst and CPU.
-  virtual unsigned
-  resolveVariantSchedClass(unsigned SchedClass, const MCInst *MI,
-                           unsigned CPUID) const {
+  virtual unsigned resolveVariantSchedClass(unsigned SchedClass,
+                                            const MCInst *MI,
+                                            const MCInstrInfo *MCII,
+                                            unsigned CPUID) const {
     return 0;
   }
 
   /// Check whether the CPU string is valid.
   bool isCPUStringValid(StringRef CPU) const {
-    auto Found = std::lower_bound(ProcDesc.begin(), ProcDesc.end(), CPU);
+    auto Found = llvm::lower_bound(ProcDesc, CPU);
     return Found != ProcDesc.end() && StringRef(Found->Key) == CPU;
   }
 

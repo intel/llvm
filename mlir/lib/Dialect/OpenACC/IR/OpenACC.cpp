@@ -9,8 +9,8 @@
 #include "mlir/Dialect/OpenACC/OpenACC.h"
 #include "mlir/Dialect/OpenACC/OpenACCOpsEnums.cpp.inc"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/OpImplementation.h"
-#include "mlir/IR/StandardTypes.h"
 
 using namespace mlir;
 using namespace acc;
@@ -147,6 +147,10 @@ static OptionalParseResult parserOptionalOperandAndTypeWithPrefix(
     return parseOperandAndType(parser, result);
   }
   return llvm::None;
+}
+
+static bool isComputeOperation(Operation *op) {
+  return isa<acc::ParallelOp>(op) || isa<acc::LoopOp>(op);
 }
 
 //===----------------------------------------------------------------------===//
@@ -645,6 +649,135 @@ static LogicalResult verify(acc::DataOp dataOp) {
   if (dataOp.getOperands().size() == 0 && !dataOp.defaultAttr())
     return dataOp.emitError("at least one operand or the default attribute "
                             "must appear on the data operation");
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// ExitDataOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(acc::ExitDataOp op) {
+  // 2.6.6. Data Exit Directive restriction
+  // At least one copyout, delete, or detach clause must appear on an exit data
+  // directive.
+  if (op.copyoutOperands().empty() && op.deleteOperands().empty() &&
+      op.detachOperands().empty())
+    return op.emitError(
+        "at least one operand in copyout, delete or detach must appear on the "
+        "exit data operation");
+
+  // The async attribute represent the async clause without value. Therefore the
+  // attribute and operand cannot appear at the same time.
+  if (op.asyncOperand() && op.async())
+    return op.emitError("async attribute cannot appear with asyncOperand");
+
+  // The wait attribute represent the wait clause without values. Therefore the
+  // attribute and operands cannot appear at the same time.
+  if (!op.waitOperands().empty() && op.wait())
+    return op.emitError("wait attribute cannot appear with waitOperands");
+
+  if (op.waitDevnum() && op.waitOperands().empty())
+    return op.emitError("wait_devnum cannot appear without waitOperands");
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// DataEnterOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(acc::EnterDataOp op) {
+  // 2.6.6. Data Enter Directive restriction
+  // At least one copyin, create, or attach clause must appear on an enter data
+  // directive.
+  if (op.copyinOperands().empty() && op.createOperands().empty() &&
+      op.createZeroOperands().empty() && op.attachOperands().empty())
+    return op.emitError(
+        "at least one operand in copyin, create, "
+        "create_zero or attach must appear on the enter data operation");
+
+  // The async attribute represent the async clause without value. Therefore the
+  // attribute and operand cannot appear at the same time.
+  if (op.asyncOperand() && op.async())
+    return op.emitError("async attribute cannot appear with asyncOperand");
+
+  // The wait attribute represent the wait clause without values. Therefore the
+  // attribute and operands cannot appear at the same time.
+  if (!op.waitOperands().empty() && op.wait())
+    return op.emitError("wait attribute cannot appear with waitOperands");
+
+  if (op.waitDevnum() && op.waitOperands().empty())
+    return op.emitError("wait_devnum cannot appear without waitOperands");
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// InitOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(acc::InitOp initOp) {
+  Operation *currOp = initOp;
+  while ((currOp = currOp->getParentOp())) {
+    if (isComputeOperation(currOp))
+      return initOp.emitOpError("cannot be nested in a compute operation");
+  }
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// ShutdownOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(acc::ShutdownOp op) {
+  Operation *currOp = op;
+  while ((currOp = currOp->getParentOp())) {
+    if (isComputeOperation(currOp))
+      return op.emitOpError("cannot be nested in a compute operation");
+  }
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// UpdateOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(acc::UpdateOp updateOp) {
+  // At least one of host or device should have a value.
+  if (updateOp.hostOperands().size() == 0 &&
+      updateOp.deviceOperands().size() == 0)
+    return updateOp.emitError("at least one value must be present in"
+                              " hostOperands or deviceOperands");
+
+  // The async attribute represent the async clause without value. Therefore the
+  // attribute and operand cannot appear at the same time.
+  if (updateOp.asyncOperand() && updateOp.async())
+    return updateOp.emitError("async attribute cannot appear with "
+                              " asyncOperand");
+
+  // The wait attribute represent the wait clause without values. Therefore the
+  // attribute and operands cannot appear at the same time.
+  if (updateOp.waitOperands().size() > 0 && updateOp.wait())
+    return updateOp.emitError("wait attribute cannot appear with waitOperands");
+
+  if (updateOp.waitDevnum() && updateOp.waitOperands().size() == 0)
+    return updateOp.emitError("wait_devnum cannot appear without waitOperands");
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// WaitOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(acc::WaitOp waitOp) {
+  // The async attribute represent the async clause without value. Therefore the
+  // attribute and operand cannot appear at the same time.
+  if (waitOp.asyncOperand() && waitOp.async())
+    return waitOp.emitError("async attribute cannot appear with asyncOperand");
+
+  if (waitOp.waitDevnum() && waitOp.waitOperands().empty())
+    return waitOp.emitError("wait_devnum cannot appear without waitOperands");
 
   return success();
 }

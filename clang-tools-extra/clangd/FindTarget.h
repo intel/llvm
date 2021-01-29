@@ -80,15 +80,15 @@ class DeclRelationSet;
 /// If callers want to support such decls, they should cast the node directly.
 ///
 /// FIXME: some AST nodes cannot be DynTypedNodes, these cannot be specified.
-llvm::SmallVector<const NamedDecl *, 1>
-targetDecl(const ast_type_traits::DynTypedNode &, DeclRelationSet Mask);
+llvm::SmallVector<const NamedDecl *, 1> targetDecl(const DynTypedNode &,
+                                                   DeclRelationSet Mask);
 
 /// Similar to targetDecl(), however instead of applying a filter, all possible
 /// decls are returned along with their DeclRelationSets.
 /// This is suitable for indexing, where everything is recorded and filtering
 /// is applied later.
 llvm::SmallVector<std::pair<const NamedDecl *, DeclRelationSet>, 1>
-allTargetDecls(const ast_type_traits::DynTypedNode &);
+allTargetDecls(const DynTypedNode &);
 
 enum class DeclRelation : unsigned {
   // Template options apply when the declaration is an instantiated template.
@@ -102,13 +102,20 @@ enum class DeclRelation : unsigned {
   TemplatePattern,
 
   // Alias options apply when the declaration is an alias.
-  // e.g. namespace clang { [[StringRef]] S; }
+  // e.g. namespace client { [[X]] x; }
 
   /// This declaration is an alias that was referred to.
-  /// e.g. using llvm::StringRef (the UsingDecl directly referenced).
+  /// e.g. using ns::X (the UsingDecl directly referenced),
+  ///      using Z = ns::Y (the TypeAliasDecl directly referenced)
   Alias,
-  /// This is the underlying declaration for an alias, decltype etc.
-  /// e.g. class llvm::StringRef (the underlying declaration referenced).
+  /// This is the underlying declaration for a renaming-alias, decltype etc.
+  /// e.g. class ns::Y (the underlying declaration referenced).
+  ///
+  /// Note that we don't treat `using ns::X` as a first-class declaration like
+  /// `using Z = ns::Y`. Therefore reference to X that goes through this
+  /// using-decl is considered a direct reference (without the Underlying bit).
+  /// Nevertheless, we report `using ns::X` as an Alias, so that some features
+  /// like go-to-definition can still target it.
   Underlying,
 };
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, DeclRelation);
@@ -155,8 +162,7 @@ void findExplicitReferences(const ASTContext &AST,
 ///    ^~~ there is no Decl for 'Ptr<int>', so we return the template pattern.
 /// \p Mask should not contain TemplatePattern or TemplateInstantiation.
 llvm::SmallVector<const NamedDecl *, 1>
-explicitReferenceTargets(ast_type_traits::DynTypedNode N,
-                         DeclRelationSet Mask);
+explicitReferenceTargets(DynTypedNode N, DeclRelationSet Mask);
 
 // Boring implementation details of bitfield.
 
@@ -187,6 +193,9 @@ public:
   DeclRelationSet &operator&=(DeclRelationSet Other) {
     S &= Other.S;
     return *this;
+  }
+  bool contains(DeclRelationSet Other) const {
+    return (S & Other.S) == Other.S;
   }
   friend llvm::raw_ostream &operator<<(llvm::raw_ostream &, DeclRelationSet);
 };

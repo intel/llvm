@@ -24,6 +24,7 @@
 #include "llvm/ADT/iterator.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/Analysis/CFGPrinter.h"
 #include "llvm/Analysis/IteratedDominanceFrontier.h"
 #include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/Config/llvm-config.h"
@@ -58,6 +59,11 @@
 using namespace llvm;
 
 #define DEBUG_TYPE "memoryssa"
+
+static cl::opt<std::string>
+    DotCFGMSSA("dot-cfg-mssa",
+               cl::value_desc("file name for generated dot file"),
+               cl::desc("file name for generated dot file"), cl::init(""));
 
 INITIALIZE_PASS_BEGIN(MemorySSAWrapperPass, "memoryssa", "Memory SSA", false,
                       true)
@@ -264,7 +270,6 @@ instructionClobbersQuery(const MemoryDef *MD, const MemoryLocation &UseLoc,
                          const Instruction *UseInst, AliasAnalysisType &AA) {
   Instruction *DefInst = MD->getMemoryInst();
   assert(DefInst && "Defining instruction not actually an instruction");
-  const auto *UseCall = dyn_cast<CallBase>(UseInst);
   Optional<AliasResult> AR;
 
   if (const IntrinsicInst *II = dyn_cast<IntrinsicInst>(DefInst)) {
@@ -276,15 +281,11 @@ instructionClobbersQuery(const MemoryDef *MD, const MemoryLocation &UseLoc,
     // clobbers where they don't really exist at all. Please see D43269 for
     // context.
     switch (II->getIntrinsicID()) {
-    case Intrinsic::lifetime_start:
-      if (UseCall)
-        return {false, NoAlias};
-      AR = AA.alias(MemoryLocation(II->getArgOperand(1)), UseLoc);
-      return {AR != NoAlias, AR};
     case Intrinsic::lifetime_end:
     case Intrinsic::invariant_start:
     case Intrinsic::invariant_end:
     case Intrinsic::assume:
+    case Intrinsic::experimental_noalias_scope_decl:
       return {false, NoAlias};
     case Intrinsic::dbg_addr:
     case Intrinsic::dbg_declare:
@@ -296,14 +297,14 @@ instructionClobbersQuery(const MemoryDef *MD, const MemoryLocation &UseLoc,
     }
   }
 
-  if (UseCall) {
-    ModRefInfo I = AA.getModRefInfo(DefInst, UseCall);
+  if (auto *CB = dyn_cast_or_null<CallBase>(UseInst)) {
+    ModRefInfo I = AA.getModRefInfo(DefInst, CB);
     AR = isMustSet(I) ? MustAlias : MayAlias;
     return {isModOrRefSet(I), AR};
   }
 
   if (auto *DefLoad = dyn_cast<LoadInst>(DefInst))
-    if (auto *UseLoad = dyn_cast<LoadInst>(UseInst))
+    if (auto *UseLoad = dyn_cast_or_null<LoadInst>(UseInst))
       return {!areLoadsReorderable(UseLoad, DefLoad), MayAlias};
 
   ModRefInfo I = AA.getModRefInfo(DefInst, UseLoc);
@@ -362,8 +363,10 @@ static bool lifetimeEndsAt(MemoryDef *MD, const MemoryLocation &Loc,
   Instruction *Inst = MD->getMemoryInst();
   if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(Inst)) {
     switch (II->getIntrinsicID()) {
-    case Intrinsic::lifetime_end:
-      return AA.alias(MemoryLocation(II->getArgOperand(1)), Loc) == MustAlias;
+    case Intrinsic::lifetime_end: {
+      MemoryLocation ArgLoc = MemoryLocation::getAfter(II->getArgOperand(1));
+      return AA.alias(ArgLoc, Loc) == MustAlias;
+    }
     default:
       return false;
     }
@@ -376,9 +379,10 @@ static bool isUseTriviallyOptimizableToLiveOnEntry(AliasAnalysisType &AA,
                                                    const Instruction *I) {
   // If the memory can't be changed, then loads of the memory can't be
   // clobbered.
-  return isa<LoadInst>(I) && (I->hasMetadata(LLVMContext::MD_invariant_load) ||
-                              AA.pointsToConstantMemory(MemoryLocation(
-                                  cast<LoadInst>(I)->getPointerOperand())));
+  if (auto *LI = dyn_cast<LoadInst>(I))
+    return I->hasMetadata(LLVMContext::MD_invariant_load) ||
+           AA.pointsToConstantMemory(MemoryLocation::get(LI));
+  return false;
 }
 
 /// Verifies that `Start` is clobbered by `ClobberAt`, and that nothing
@@ -465,10 +469,15 @@ checkClobberSanity(const MemoryAccess *Start, MemoryAccess *ClobberAt,
       }
 
       assert(isa<MemoryPhi>(MA));
-      Worklist.append(
-          upward_defs_begin({const_cast<MemoryAccess *>(MA), MAP.second},
-                            MSSA.getDomTree()),
-          upward_defs_end());
+
+      // Add reachable phi predecessors
+      for (auto ItB = upward_defs_begin(
+                    {const_cast<MemoryAccess *>(MA), MAP.second},
+                    MSSA.getDomTree()),
+                ItE = upward_defs_end();
+           ItB != ItE; ++ItB)
+        if (MSSA.getDomTree().isReachableFromEntry(ItB.getPhiArgBlock()))
+          Worklist.emplace_back(*ItB);
     }
   }
 
@@ -1759,9 +1768,15 @@ MemoryUseOrDef *MemorySSA::createNewAccess(Instruction *I,
   // dependencies here.
   // FIXME: Replace this special casing with a more accurate modelling of
   // assume's control dependency.
-  if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(I))
-    if (II->getIntrinsicID() == Intrinsic::assume)
+  if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(I)) {
+    switch (II->getIntrinsicID()) {
+    default:
+      break;
+    case Intrinsic::assume:
+    case Intrinsic::experimental_noalias_scope_decl:
       return nullptr;
+    }
+  }
 
   // Using a nonstandard AA pipelines might leave us with unexpected modref
   // results for I, so add a check to not model instructions that may not read
@@ -1771,8 +1786,8 @@ MemoryUseOrDef *MemorySSA::createNewAccess(Instruction *I,
 
   bool Def, Use;
   if (Template) {
-    Def = dyn_cast_or_null<MemoryDef>(Template) != nullptr;
-    Use = dyn_cast_or_null<MemoryUse>(Template) != nullptr;
+    Def = isa<MemoryDef>(Template);
+    Use = isa<MemoryUse>(Template);
 #if !defined(NDEBUG)
     ModRefInfo ModRef = AAP->getModRefInfo(I, None);
     bool DefCheck, UseCheck;
@@ -1807,23 +1822,6 @@ MemoryUseOrDef *MemorySSA::createNewAccess(Instruction *I,
     MUD = new MemoryUse(I->getContext(), nullptr, I, I->getParent());
   ValueToMemoryAccess[I] = MUD;
   return MUD;
-}
-
-/// Returns true if \p Replacer dominates \p Replacee .
-bool MemorySSA::dominatesUse(const MemoryAccess *Replacer,
-                             const MemoryAccess *Replacee) const {
-  if (isa<MemoryUseOrDef>(Replacee))
-    return DT->dominates(Replacer->getBlock(), Replacee->getBlock());
-  const auto *MP = cast<MemoryPhi>(Replacee);
-  // For a phi node, the use occurs in the predecessor block of the phi node.
-  // Since we may occur multiple times in the phi node, we have to check each
-  // operand to ensure Replacer dominates each operand where Replacee occurs.
-  for (const Use &Arg : MP->operands()) {
-    if (Arg.get() != Replacee &&
-        !DT->dominates(Replacer->getBlock(), MP->getIncomingBlock(Arg)))
-      return false;
-  }
-  return true;
 }
 
 /// Properly remove \p MA from all of MemorySSA's lookup tables.
@@ -2009,8 +2007,7 @@ void MemorySSA::verifyOrderingDominationAndDefUses(Function &F) const {
              "Incomplete MemoryPhi Node");
       for (unsigned I = 0, E = Phi->getNumIncomingValues(); I != E; ++I) {
         verifyUseInDefs(Phi->getIncomingValue(I), Phi);
-        assert(find(predecessors(&B), Phi->getIncomingBlock(I)) !=
-                   pred_end(&B) &&
+        assert(is_contained(predecessors(&B), Phi->getIncomingBlock(I)) &&
                "Incoming phi block not a block predecessor");
       }
 #endif
@@ -2257,9 +2254,98 @@ void MemorySSAPrinterLegacyPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<MemorySSAWrapperPass>();
 }
 
+class DOTFuncMSSAInfo {
+private:
+  const Function &F;
+  MemorySSAAnnotatedWriter MSSAWriter;
+
+public:
+  DOTFuncMSSAInfo(const Function &F, MemorySSA &MSSA)
+      : F(F), MSSAWriter(&MSSA) {}
+
+  const Function *getFunction() { return &F; }
+  MemorySSAAnnotatedWriter &getWriter() { return MSSAWriter; }
+};
+
+namespace llvm {
+
+template <>
+struct GraphTraits<DOTFuncMSSAInfo *> : public GraphTraits<const BasicBlock *> {
+  static NodeRef getEntryNode(DOTFuncMSSAInfo *CFGInfo) {
+    return &(CFGInfo->getFunction()->getEntryBlock());
+  }
+
+  // nodes_iterator/begin/end - Allow iteration over all nodes in the graph
+  using nodes_iterator = pointer_iterator<Function::const_iterator>;
+
+  static nodes_iterator nodes_begin(DOTFuncMSSAInfo *CFGInfo) {
+    return nodes_iterator(CFGInfo->getFunction()->begin());
+  }
+
+  static nodes_iterator nodes_end(DOTFuncMSSAInfo *CFGInfo) {
+    return nodes_iterator(CFGInfo->getFunction()->end());
+  }
+
+  static size_t size(DOTFuncMSSAInfo *CFGInfo) {
+    return CFGInfo->getFunction()->size();
+  }
+};
+
+template <>
+struct DOTGraphTraits<DOTFuncMSSAInfo *> : public DefaultDOTGraphTraits {
+
+  DOTGraphTraits(bool IsSimple = false) : DefaultDOTGraphTraits(IsSimple) {}
+
+  static std::string getGraphName(DOTFuncMSSAInfo *CFGInfo) {
+    return "MSSA CFG for '" + CFGInfo->getFunction()->getName().str() +
+           "' function";
+  }
+
+  std::string getNodeLabel(const BasicBlock *Node, DOTFuncMSSAInfo *CFGInfo) {
+    return DOTGraphTraits<DOTFuncInfo *>::getCompleteNodeLabel(
+        Node, nullptr,
+        [CFGInfo](raw_string_ostream &OS, const BasicBlock &BB) -> void {
+          BB.print(OS, &CFGInfo->getWriter(), true, true);
+        },
+        [](std::string &S, unsigned &I, unsigned Idx) -> void {
+          std::string Str = S.substr(I, Idx - I);
+          StringRef SR = Str;
+          if (SR.count(" = MemoryDef(") || SR.count(" = MemoryPhi(") ||
+              SR.count("MemoryUse("))
+            return;
+          DOTGraphTraits<DOTFuncInfo *>::eraseComment(S, I, Idx);
+        });
+  }
+
+  static std::string getEdgeSourceLabel(const BasicBlock *Node,
+                                        const_succ_iterator I) {
+    return DOTGraphTraits<DOTFuncInfo *>::getEdgeSourceLabel(Node, I);
+  }
+
+  /// Display the raw branch weights from PGO.
+  std::string getEdgeAttributes(const BasicBlock *Node, const_succ_iterator I,
+                                DOTFuncMSSAInfo *CFGInfo) {
+    return "";
+  }
+
+  std::string getNodeAttributes(const BasicBlock *Node,
+                                DOTFuncMSSAInfo *CFGInfo) {
+    return getNodeLabel(Node, CFGInfo).find(';') != std::string::npos
+               ? "style=filled, fillcolor=lightpink"
+               : "";
+  }
+};
+
+} // namespace llvm
+
 bool MemorySSAPrinterLegacyPass::runOnFunction(Function &F) {
   auto &MSSA = getAnalysis<MemorySSAWrapperPass>().getMSSA();
-  MSSA.print(dbgs());
+  if (DotCFGMSSA != "") {
+    DOTFuncMSSAInfo CFGInfo(F, MSSA);
+    WriteGraph(&CFGInfo, "", false, "MSSA", DotCFGMSSA);
+  } else
+    MSSA.print(dbgs());
+
   if (VerifyMemorySSA)
     MSSA.verifyMemorySSA();
   return false;
@@ -2285,8 +2371,14 @@ bool MemorySSAAnalysis::Result::invalidate(
 
 PreservedAnalyses MemorySSAPrinterPass::run(Function &F,
                                             FunctionAnalysisManager &AM) {
-  OS << "MemorySSA for function: " << F.getName() << "\n";
-  AM.getResult<MemorySSAAnalysis>(F).getMSSA().print(OS);
+  auto &MSSA = AM.getResult<MemorySSAAnalysis>(F).getMSSA();
+  if (DotCFGMSSA != "") {
+    DOTFuncMSSAInfo CFGInfo(F, MSSA);
+    WriteGraph(&CFGInfo, "", false, "MSSA", DotCFGMSSA);
+  } else {
+    OS << "MemorySSA for function: " << F.getName() << "\n";
+    MSSA.print(OS);
+  }
 
   return PreservedAnalyses::all();
 }
@@ -2356,7 +2448,7 @@ MemorySSA::ClobberWalkerBase<AliasAnalysisType>::getClobberingMemoryAccessBase(
   UpwardsMemoryQuery Q;
   Q.OriginalAccess = StartingUseOrDef;
   Q.StartingLoc = Loc;
-  Q.Inst = I;
+  Q.Inst = nullptr;
   Q.IsCall = false;
 
   // Unlike the other function, do not walk to the def of a def, because we are
@@ -2477,4 +2569,20 @@ void MemoryDef::deleteMe(DerivedUser *Self) {
 
 void MemoryUse::deleteMe(DerivedUser *Self) {
   delete static_cast<MemoryUse *>(Self);
+}
+
+bool upward_defs_iterator::IsGuaranteedLoopInvariant(Value *Ptr) const {
+  auto IsGuaranteedLoopInvariantBase = [](Value *Ptr) {
+    Ptr = Ptr->stripPointerCasts();
+    if (!isa<Instruction>(Ptr))
+      return true;
+    return isa<AllocaInst>(Ptr);
+  };
+
+  Ptr = Ptr->stripPointerCasts();
+  if (auto *GEP = dyn_cast<GEPOperator>(Ptr)) {
+    return IsGuaranteedLoopInvariantBase(GEP->getPointerOperand()) &&
+           GEP->hasAllConstantIndices();
+  }
+  return IsGuaranteedLoopInvariantBase(Ptr);
 }

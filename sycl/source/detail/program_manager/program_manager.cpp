@@ -19,6 +19,7 @@
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/global_handler.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/spec_constant_impl.hpp>
@@ -47,9 +48,7 @@ enum BuildState { BS_InProgress, BS_Done, BS_Failed };
 static constexpr char UseSpvEnv[]("SYCL_USE_KERNEL_SPV");
 
 ProgramManager &ProgramManager::getInstance() {
-  // The singleton ProgramManager instance, uses the "magic static" idiom.
-  static ProgramManager Instance;
-  return Instance;
+  return GlobalHandler::instance().getProgramManager();
 }
 
 static RT::PiProgram createBinaryProgram(const ContextImplPtr Context,
@@ -377,8 +376,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
     const detail::plugin &Plugin = ContextImpl->getPlugin();
     RT::PiProgram NativePrg = createPIProgram(Img, Context, Device);
     if (Prg)
-      flushSpecConstants(*Prg, getSyclObjImpl(Device)->getHandleRef(),
-                         NativePrg, &Img);
+      flushSpecConstants(*Prg, NativePrg, &Img);
     ProgramPtr ProgramManaged(
         NativePrg, Plugin.getPiPlugin().PiFunctionTable.piProgramRelease);
 
@@ -442,7 +440,7 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
       [&Program](const Locked<KernelCacheT> &LockedCache) -> KernelByNameT & {
     return LockedCache.get()[Program];
   };
-  auto BuildF = [this, &Program, &KernelName, &Ctx] {
+  auto BuildF = [&Program, &KernelName, &Ctx] {
     PiKernelT *Result = nullptr;
 
     // TODO need some user-friendly error/exception
@@ -478,30 +476,43 @@ ProgramManager::getPiProgramFromPiKernel(RT::PiKernel Kernel,
 
 string_class ProgramManager::getProgramBuildLog(const RT::PiProgram &Program,
                                                 const ContextImplPtr Context) {
-  size_t Size = 0;
+  size_t PIDevicesSize = 0;
   const detail::plugin &Plugin = Context->getPlugin();
   Plugin.call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_DEVICES, 0,
-                                           nullptr, &Size);
-  vector_class<RT::PiDevice> PIDevices(Size / sizeof(RT::PiDevice));
+                                           nullptr, &PIDevicesSize);
+  vector_class<RT::PiDevice> PIDevices(PIDevicesSize / sizeof(RT::PiDevice));
   Plugin.call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_DEVICES,
-                                           Size, PIDevices.data(), nullptr);
+                                           PIDevicesSize, PIDevices.data(),
+                                           nullptr);
   string_class Log = "The program was built for " +
                      std::to_string(PIDevices.size()) + " devices";
   for (RT::PiDevice &Device : PIDevices) {
+    std::string DeviceBuildInfoString;
+    size_t DeviceBuildInfoStrSize = 0;
     Plugin.call<PiApiKind::piProgramGetBuildInfo>(
-        Program, Device, CL_PROGRAM_BUILD_LOG, 0, nullptr, &Size);
-    vector_class<char> DeviceBuildInfo(Size);
-    Plugin.call<PiApiKind::piProgramGetBuildInfo>(
-        Program, Device, CL_PROGRAM_BUILD_LOG, Size, DeviceBuildInfo.data(),
-        nullptr);
-    Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_NAME, 0,
-                                            nullptr, &Size);
-    vector_class<char> DeviceName(Size);
-    Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_NAME, Size,
-                                            DeviceName.data(), nullptr);
+        Program, Device, CL_PROGRAM_BUILD_LOG, 0, nullptr,
+        &DeviceBuildInfoStrSize);
+    if (DeviceBuildInfoStrSize > 0) {
+      vector_class<char> DeviceBuildInfo(DeviceBuildInfoStrSize);
+      Plugin.call<PiApiKind::piProgramGetBuildInfo>(
+          Program, Device, CL_PROGRAM_BUILD_LOG, DeviceBuildInfoStrSize,
+          DeviceBuildInfo.data(), nullptr);
+      DeviceBuildInfoString = std::string(DeviceBuildInfo.data());
+    }
 
-    Log += "\nBuild program log for '" + string_class(DeviceName.data()) +
-           "':\n" + string_class(DeviceBuildInfo.data());
+    std::string DeviceNameString;
+    size_t DeviceNameStrSize = 0;
+    Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_NAME, 0,
+                                            nullptr, &DeviceNameStrSize);
+    if (DeviceNameStrSize > 0) {
+      vector_class<char> DeviceName(DeviceNameStrSize);
+      Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_NAME,
+                                              DeviceNameStrSize,
+                                              DeviceName.data(), nullptr);
+      DeviceNameString = std::string(DeviceName.data());
+    }
+    Log += "\nBuild program log for '" + DeviceNameString + "':\n" +
+           DeviceBuildInfoString;
   }
   return Log;
 }
@@ -682,11 +693,11 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
     // If the image is already compiled with AOT, throw an exception.
     const pi_device_binary_struct &RawImg = Imgs[ImgInd]->getRawData();
     if ((strcmp(RawImg.DeviceTargetSpec,
-                PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
-        (strcmp(RawImg.DeviceTargetSpec, PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) ==
-         0) ||
+                __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
         (strcmp(RawImg.DeviceTargetSpec,
-                PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)) {
+                __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
+        (strcmp(RawImg.DeviceTargetSpec,
+                __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)) {
       throw feature_not_supported("Recompiling AOT image is not supported",
                                   PI_INVALID_OPERATION);
     }
@@ -999,7 +1010,6 @@ void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
 }
 
 void ProgramManager::flushSpecConstants(const program_impl &Prg,
-                                        RT::PiDevice Device,
                                         RT::PiProgram NativePrg,
                                         const RTDeviceBinaryImage *Img) {
   if (DbgProgMgr > 2) {
@@ -1110,5 +1120,6 @@ extern "C" void __sycl_register_lib(pi_device_binaries desc) {
 
 // Executed as a part of current module's (.exe, .dll) static initialization
 extern "C" void __sycl_unregister_lib(pi_device_binaries desc) {
+  (void)desc;
   // TODO implement the function
 }

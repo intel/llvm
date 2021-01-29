@@ -120,6 +120,9 @@ if config.lldb_enable_lzma:
 if find_executable('xz') != None:
     config.available_features.add('xz')
 
+if config.lldb_system_debugserver:
+    config.available_features.add('system-debugserver')
+
 # NetBSD permits setting dbregs either if one is root
 # or if user_set_dbregs is enabled
 can_set_dbregs = True
@@ -133,3 +136,6 @@ if platform.system() == 'NetBSD' and os.geteuid() != 0:
         can_set_dbregs = False
 if can_set_dbregs:
     config.available_features.add('dbregs-set')
+
+# pass control variable through
+llvm_config.with_system_environment('FREEBSD_LEGACY_PLUGIN')

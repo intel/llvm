@@ -283,6 +283,16 @@ enum NodeType {
   ADDCARRY,
   SUBCARRY,
 
+  /// Carry-using overflow-aware nodes for multiple precision addition and
+  /// subtraction. These nodes take three operands: The first two are normal lhs
+  /// and rhs to the add or sub, and the third is a boolean indicating if there
+  /// is an incoming carry. They produce two results: the normal result of the
+  /// add or sub, and a boolean that indicates if an overflow occured (*not*
+  /// flag, because it may be a store to memory, etc.). If the type of the
+  /// boolean is not i1 then the high bits conform to getBooleanContents.
+  SADDO_CARRY,
+  SSUBO_CARRY,
+
   /// RESULT, BOOL = [SU]ADDO(LHS, RHS) - Overflow-aware nodes for addition.
   /// These nodes take two operands: the normal LHS and RHS to the add. They
   /// produce two results: the normal result of the add, and a boolean that
@@ -724,6 +734,21 @@ enum NodeType {
   FP_TO_SINT,
   FP_TO_UINT,
 
+  /// FP_TO_[US]INT_SAT - Convert floating point value in operand 0 to a
+  /// signed or unsigned integer type with the bit width given in operand 1 with
+  /// the following semantics:
+  ///
+  ///  * If the value is NaN, zero is returned.
+  ///  * If the value is larger/smaller than the largest/smallest integer,
+  ///    the largest/smallest integer is returned (saturation).
+  ///  * Otherwise the result of rounding the value towards zero is returned.
+  ///
+  /// The width given in operand 1 must be equal to, or smaller than, the scalar
+  /// result type width. It may end up being smaller than the result witdh as a
+  /// result of integer type legalization.
+  FP_TO_SINT_SAT,
+  FP_TO_UINT_SAT,
+
   /// X = FP_ROUND(Y, TRUNC) - Rounding 'Y' from a larger floating point type
   /// down to the precision of the destination VT.  TRUNC is a flag, which is
   /// always an integer that is zero or one.  If TRUNC is 0, this is a
@@ -865,13 +890,18 @@ enum NodeType {
   /// BRCOND - Conditional branch.  The first operand is the chain, the
   /// second is the condition, the third is the block to branch to if the
   /// condition is true.  If the type of the condition is not i1, then the
-  /// high bits must conform to getBooleanContents.
+  /// high bits must conform to getBooleanContents. If the condition is undef,
+  /// it nondeterministically jumps to the block.
+  /// TODO: Its semantics w.r.t undef requires further discussion; we need to
+  /// make it sure that it is consistent with optimizations in MIR & the
+  /// meaning of IMPLICIT_DEF. See https://reviews.llvm.org/D92015
   BRCOND,
 
   /// BR_CC - Conditional branch.  The behavior is like that of SELECT_CC, in
   /// that the condition is represented as condition code, and two nodes to
   /// compare, rather than as a combined SetCC node.  The operands in order
-  /// are chain, cc, lhs, rhs, block to branch to if condition is true.
+  /// are chain, cc, lhs, rhs, block to branch to if condition is true. If
+  /// condition is undef, it nondeterministically jumps to the block.
   BR_CC,
 
   /// INLINEASM - Represents an inline asm block.  This node always has two
@@ -1002,6 +1032,9 @@ enum NodeType {
   /// DEBUGTRAP - Trap intended to get the attention of a debugger.
   DEBUGTRAP,
 
+  /// UBSANTRAP - Trap with an immediate describing the kind of sanitizer failure.
+  UBSANTRAP,
+
   /// PREFETCH - This corresponds to a prefetch intrinsic. The first operand
   /// is the chain.  The other operands are the address to prefetch,
   /// read / write specifier, locality specifier and instruction / data cache
@@ -1096,6 +1129,10 @@ enum NodeType {
   /// known nonzero constant. The only operand here is the chain.
   GET_DYNAMIC_AREA_OFFSET,
 
+  /// Pseudo probe for AutoFDO, as a place holder in a basic block to improve
+  /// the sample counts quality.
+  PSEUDO_PROBE,
+
   /// VSCALE(IMM) - Returns the runtime scaling factor used to calculate the
   /// number of elements within a scalable vector. IMM is a constant integer
   /// multiplier that is applied to the runtime value.
@@ -1103,12 +1140,25 @@ enum NodeType {
 
   /// Generic reduction nodes. These nodes represent horizontal vector
   /// reduction operations, producing a scalar result.
-  /// The STRICT variants perform reductions in sequential order. The first
+  /// The SEQ variants perform reductions in sequential order. The first
   /// operand is an initial scalar accumulator value, and the second operand
   /// is the vector to reduce.
-  VECREDUCE_STRICT_FADD,
-  VECREDUCE_STRICT_FMUL,
-  /// These reductions are non-strict, and have a single vector operand.
+  /// E.g. RES = VECREDUCE_SEQ_FADD f32 ACC, <4 x f32> SRC_VEC
+  ///  ... is equivalent to
+  /// RES = (((ACC + SRC_VEC[0]) + SRC_VEC[1]) + SRC_VEC[2]) + SRC_VEC[3]
+  VECREDUCE_SEQ_FADD,
+  VECREDUCE_SEQ_FMUL,
+
+  /// These reductions have relaxed evaluation order semantics, and have a
+  /// single vector operand. The order of evaluation is unspecified. For
+  /// pow-of-2 vectors, one valid legalizer expansion is to use a tree
+  /// reduction, i.e.:
+  /// For RES = VECREDUCE_FADD <8 x f16> SRC_VEC
+  ///   PART_RDX = FADD SRC_VEC[0:3], SRC_VEC[4:7]
+  ///   PART_RDX2 = FADD PART_RDX[0:1], PART_RDX[2:3]
+  ///   RES = FADD PART_RDX2[0], PART_RDX2[1]
+  /// For non-pow-2 vectors, this can be computed by extracting each element
+  /// and performing the operation as if it were scalarized.
   VECREDUCE_FADD,
   VECREDUCE_FMUL,
   /// FMIN/FMAX nodes can have flags, for NaN/NoNaN variants.
@@ -1127,6 +1177,10 @@ enum NodeType {
   VECREDUCE_UMAX,
   VECREDUCE_UMIN,
 
+// Vector Predication
+#define BEGIN_REGISTER_VP_SDNODE(VPSDID, ...) VPSDID,
+#include "llvm/IR/VPIntrinsics.def"
+
   /// BUILTIN_OP_END - This must be the last enum value in this list.
   /// The target-specific pre-isel opcode values start here.
   BUILTIN_OP_END
@@ -1142,6 +1196,19 @@ static const int FIRST_TARGET_STRICTFP_OPCODE = BUILTIN_OP_END + 400;
 /// this value. Those that do must not be less than this value, and can
 /// be used with SelectionDAG::getMemIntrinsicNode.
 static const int FIRST_TARGET_MEMORY_OPCODE = BUILTIN_OP_END + 500;
+
+/// Get underlying scalar opcode for VECREDUCE opcode.
+/// For example ISD::AND for ISD::VECREDUCE_AND.
+NodeType getVecReduceBaseOpcode(unsigned VecReduceOpcode);
+
+/// Whether this is a vector-predicated Opcode.
+bool isVPOpcode(unsigned Opcode);
+
+/// The operand position of the vector mask.
+Optional<unsigned> getVPMaskIdx(unsigned Opcode);
+
+/// The operand position of the explicit vector length parameter.
+Optional<unsigned> getVPExplicitVectorLengthIdx(unsigned Opcode);
 
 //===--------------------------------------------------------------------===//
 /// MemIndexedMode enum - This enum defines the load / store indexed
@@ -1263,6 +1330,12 @@ inline bool isSignedIntSetCC(CondCode Code) {
 /// comparison when used with integer operands.
 inline bool isUnsignedIntSetCC(CondCode Code) {
   return Code == SETUGT || Code == SETUGE || Code == SETULT || Code == SETULE;
+}
+
+/// Return true if this is a setcc instruction that performs an equality
+/// comparison when used with integer operands.
+inline bool isIntEqualitySetCC(CondCode Code) {
+  return Code == SETEQ || Code == SETNE;
 }
 
 /// Return true if the specified condition returns true if the two operands to

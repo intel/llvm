@@ -37,13 +37,14 @@ module attributes {
 
     %cst1 = constant 1 : index
     %cst8 = constant 8 : index
-    "gpu.launch_func"(%cst8, %cst1, %cst1, %cst1, %cst1, %cst1, %arg0, %arg1, %arg2) { kernel = @kernels::@kernel_add }
-        : (index, index, index, index, index, index, memref<8xf32>, memref<8xf32>, memref<8xf32>) -> ()
+    gpu.launch_func @kernels::@kernel_add
+        blocks in (%cst8, %cst1, %cst1) threads in (%cst1, %cst1, %cst1)
+        args(%arg0 : memref<8xf32>, %arg1 : memref<8xf32>, %arg2 : memref<8xf32>)
     %arg6 = memref_cast %arg5 : memref<?xf32> to memref<*xf32>
     call @print_memref_f32(%arg6) : (memref<*xf32>) -> ()
     return
   }
-  func @fillResource1DFloat(%0 : memref<?xf32>, %1 : f32)
-  func @print_memref_f32(%ptr : memref<*xf32>)
+  func private @fillResource1DFloat(%0 : memref<?xf32>, %1 : f32)
+  func private @print_memref_f32(%ptr : memref<*xf32>)
 }
 

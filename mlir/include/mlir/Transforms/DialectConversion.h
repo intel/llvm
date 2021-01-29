@@ -13,9 +13,7 @@
 #ifndef MLIR_TRANSFORMS_DIALECTCONVERSION_H_
 #define MLIR_TRANSFORMS_DIALECTCONVERSION_H_
 
-#include "mlir/IR/PatternMatch.h"
-#include "mlir/Support/LLVM.h"
-#include "mlir/Support/LogicalResult.h"
+#include "mlir/Rewrite/FrozenRewritePatternList.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/StringMap.h"
 
@@ -343,6 +341,13 @@ public:
   /// does not require type conversion.
   TypeConverter *getTypeConverter() const { return typeConverter; }
 
+  template <typename ConverterTy>
+  std::enable_if_t<std::is_base_of<TypeConverter, ConverterTy>::value,
+                   ConverterTy *>
+  getTypeConverter() const {
+    return static_cast<ConverterTy *>(typeConverter);
+  }
+
 protected:
   /// See `RewritePattern::RewritePattern` for information on the other
   /// available constructors.
@@ -416,6 +421,21 @@ private:
   using ConversionPattern::matchAndRewrite;
 };
 
+/// Add a pattern to the given pattern list to convert the signature of a
+/// FunctionLike op with the given type converter. This only supports
+/// FunctionLike ops which use FunctionType to represent their type.
+void populateFunctionLikeTypeConversionPattern(
+    StringRef functionLikeOpName, OwningRewritePatternList &patterns,
+    MLIRContext *ctx, TypeConverter &converter);
+
+template <typename FuncOpT>
+void populateFunctionLikeTypeConversionPattern(
+    OwningRewritePatternList &patterns, MLIRContext *ctx,
+    TypeConverter &converter) {
+  populateFunctionLikeTypeConversionPattern(FuncOpT::getOperationName(),
+                                            patterns, ctx, converter);
+}
+
 /// Add a pattern to the given pattern list to convert the signature of a FuncOp
 /// with the given type converter.
 void populateFuncOpTypeConversionPattern(OwningRewritePatternList &patterns,
@@ -464,6 +484,12 @@ public:
   //===--------------------------------------------------------------------===//
   // PatternRewriter Hooks
   //===--------------------------------------------------------------------===//
+
+  /// PatternRewriter hook for replacing the results of an operation when the
+  /// given functor returns true.
+  void replaceOpWithIf(
+      Operation *op, ValueRange newValues, bool *allUsesReplaced,
+      llvm::unique_function<bool(OpOperand &) const> functor) override;
 
   /// PatternRewriter hook for replacing the results of an operation.
   void replaceOp(Operation *op, ValueRange newValues) override;
@@ -805,11 +831,11 @@ private:
 /// the `unconvertedOps` set will not necessarily be complete.)
 LLVM_NODISCARD LogicalResult
 applyPartialConversion(ArrayRef<Operation *> ops, ConversionTarget &target,
-                       const OwningRewritePatternList &patterns,
+                       const FrozenRewritePatternList &patterns,
                        DenseSet<Operation *> *unconvertedOps = nullptr);
 LLVM_NODISCARD LogicalResult
 applyPartialConversion(Operation *op, ConversionTarget &target,
-                       const OwningRewritePatternList &patterns,
+                       const FrozenRewritePatternList &patterns,
                        DenseSet<Operation *> *unconvertedOps = nullptr);
 
 /// Apply a complete conversion on the given operations, and all nested
@@ -818,10 +844,10 @@ applyPartialConversion(Operation *op, ConversionTarget &target,
 /// within 'ops'.
 LLVM_NODISCARD LogicalResult
 applyFullConversion(ArrayRef<Operation *> ops, ConversionTarget &target,
-                    const OwningRewritePatternList &patterns);
+                    const FrozenRewritePatternList &patterns);
 LLVM_NODISCARD LogicalResult
 applyFullConversion(Operation *op, ConversionTarget &target,
-                    const OwningRewritePatternList &patterns);
+                    const FrozenRewritePatternList &patterns);
 
 /// Apply an analysis conversion on the given operations, and all nested
 /// operations. This method analyzes which operations would be successfully
@@ -833,11 +859,11 @@ applyFullConversion(Operation *op, ConversionTarget &target,
 /// the regions nested within 'ops'.
 LLVM_NODISCARD LogicalResult
 applyAnalysisConversion(ArrayRef<Operation *> ops, ConversionTarget &target,
-                        const OwningRewritePatternList &patterns,
+                        const FrozenRewritePatternList &patterns,
                         DenseSet<Operation *> &convertedOps);
 LLVM_NODISCARD LogicalResult
 applyAnalysisConversion(Operation *op, ConversionTarget &target,
-                        const OwningRewritePatternList &patterns,
+                        const FrozenRewritePatternList &patterns,
                         DenseSet<Operation *> &convertedOps);
 } // end namespace mlir
 

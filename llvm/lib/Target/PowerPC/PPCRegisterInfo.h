@@ -119,10 +119,14 @@ public:
                           unsigned FrameIndex) const;
   void lowerCRBitRestore(MachineBasicBlock::iterator II,
                          unsigned FrameIndex) const;
-  void lowerVRSAVESpilling(MachineBasicBlock::iterator II,
-                           unsigned FrameIndex) const;
-  void lowerVRSAVERestore(MachineBasicBlock::iterator II,
-                          unsigned FrameIndex) const;
+
+  void lowerACCSpilling(MachineBasicBlock::iterator II,
+                        unsigned FrameIndex) const;
+  void lowerACCRestore(MachineBasicBlock::iterator II,
+                       unsigned FrameIndex) const;
+
+  static void emitAccCopyInfo(MachineBasicBlock &MBB, MCRegister DestReg,
+                              MCRegister SrcReg);
 
   bool hasReservedSpillSlot(const MachineFunction &MF, Register Reg,
                             int &FrameIdx) const override;

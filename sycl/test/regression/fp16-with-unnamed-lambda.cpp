@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %RUN_ON_HOST %t.out
 #include <CL/sycl.hpp>
 
 #include <iostream>

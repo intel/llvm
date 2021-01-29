@@ -248,7 +248,7 @@ void MCObjectStreamer::emitValueImpl(const MCExpr *Value, unsigned Size,
 }
 
 MCSymbol *MCObjectStreamer::emitCFILabel() {
-  MCSymbol *Label = getContext().createTempSymbol("cfi", true);
+  MCSymbol *Label = getContext().createTempSymbol("cfi");
   emitLabel(Label);
   return Label;
 }
@@ -851,6 +851,9 @@ void MCObjectStreamer::finishImpl() {
 
   // Dump out the dwarf file & directory tables and line tables.
   MCDwarfLineTable::Emit(this, getAssembler().getDWARFLinetableParams());
+
+  // Emit pseudo probes for the current module.
+  MCPseudoProbeTable::emit(this);
 
   // Update any remaining pending labels with empty data fragments.
   flushPendingLabels();

@@ -112,6 +112,9 @@ int main(int, char**)
     test<unsigned long>      ();
     test<long long>          ();
     test<unsigned long long> ();
+#if TEST_STD_VER > 17 && defined(__cpp_char8_t)
+    test<char8_t>            ();
+#endif
     test<char16_t>           ();
     test<char32_t>           ();
     test<wchar_t>            ();
@@ -169,8 +172,8 @@ int main(int, char**)
     test<float>();
 
 #if TEST_STD_VER >= 20
-    test<std::atomic_signed_lock_free>();
-    test<std::atomic_unsigned_lock_free>();
+    test<std::atomic_signed_lock_free::value_type>();
+    test<std::atomic_unsigned_lock_free::value_type>();
 /*
     test<std::shared_ptr<int>>();
 */

@@ -24,9 +24,8 @@ class InFlightDiagnostic;
 class Location;
 class MLIRContextImpl;
 class StorageUniquer;
-DialectRegistry &getGlobalDialectRegistry();
 
-/// MLIRContext is the top-level object for a collection of MLIR modules.  It
+/// MLIRContext is the top-level object for a collection of MLIR operations. It
 /// holds immortal uniqued objects like types, and the tables used to unique
 /// them.
 ///
@@ -40,7 +39,7 @@ public:
   /// The loadAllDialects parameters allows to load all dialects from the global
   /// registry on Context construction. It is deprecated and will be removed
   /// soon.
-  explicit MLIRContext(bool loadAllDialects = true);
+  explicit MLIRContext();
   ~MLIRContext();
 
   /// Return information about all IR dialects loaded in the context.
@@ -87,11 +86,6 @@ public:
     getOrLoadDialect<Dialect>();
     loadDialect<OtherDialect, MoreDialects...>();
   }
-
-  /// Deprecated: load all globally registered dialects into this context.
-  /// This method will be removed soon, it can be used temporarily as we're
-  /// phasing out the global registry.
-  void loadAllGloballyRegisteredDialects();
 
   /// Get (or create) a dialect for the given derived dialect name.
   /// The dialect will be loaded from the registry if no dialect is found.
@@ -162,16 +156,18 @@ public:
   void enterMultiThreadedExecution();
   void exitMultiThreadedExecution();
 
-private:
-  const std::unique_ptr<MLIRContextImpl> impl;
-
   /// Get a dialect for the provided namespace and TypeID: abort the program if
   /// a dialect exist for this namespace with different TypeID. If a dialect has
   /// not been loaded for this namespace/TypeID yet, use the provided ctor to
   /// create one on the fly and load it. Returns a pointer to the dialect owned
   /// by the context.
+  /// The use of this method is in general discouraged in favor of
+  /// 'getOrLoadDialect<DialectClass>()'.
   Dialect *getOrLoadDialect(StringRef dialectNamespace, TypeID dialectID,
                             function_ref<std::unique_ptr<Dialect>()> ctor);
+
+private:
+  const std::unique_ptr<MLIRContextImpl> impl;
 
   MLIRContext(const MLIRContext &) = delete;
   void operator=(const MLIRContext &) = delete;

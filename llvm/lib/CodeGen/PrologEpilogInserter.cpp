@@ -620,12 +620,12 @@ void PEI::spillCalleeSavedRegs(MachineFunction &MF) {
       if (!MFI.hasCalls())
         NumLeafFuncWithSpills++;
 
-      for (MachineBasicBlock *SaveBlock : SaveBlocks) {
+      for (MachineBasicBlock *SaveBlock : SaveBlocks)
         insertCSRSaves(*SaveBlock, CSI);
-        // Update the live-in information of all the blocks up to the save
-        // point.
-        updateLiveness(MF);
-      }
+
+      // Update the live-in information of all the blocks up to the save point.
+      updateLiveness(MF);
+
       for (MachineBasicBlock *RestoreBlock : RestoreBlocks)
         insertCSRRestores(*RestoreBlock, CSI);
     }
@@ -1209,7 +1209,7 @@ void PEI::replaceFrameIndices(MachineBasicBlock *BB, MachineFunction &MF,
         unsigned FrameIdx = MI.getOperand(0).getIndex();
         unsigned Size = MF.getFrameInfo().getObjectSize(FrameIdx);
 
-        int64_t Offset =
+        StackOffset Offset =
             TFI->getFrameIndexReference(MF, FrameIdx, Reg);
         MI.getOperand(0).ChangeToRegister(Reg, false /*isDef*/);
         MI.getOperand(0).setIsDebug();
@@ -1236,7 +1236,8 @@ void PEI::replaceFrameIndices(MachineBasicBlock *BB, MachineFunction &MF,
           // Make the DBG_VALUE direct.
           MI.getDebugOffset().ChangeToRegister(0, false);
         }
-        DIExpr = DIExpression::prepend(DIExpr, PrependFlags, Offset);
+
+        DIExpr = TRI.prependOffsetExpression(DIExpr, PrependFlags, Offset);
         MI.getDebugExpressionOp().setMetadata(DIExpr);
         continue;
       }
@@ -1252,9 +1253,11 @@ void PEI::replaceFrameIndices(MachineBasicBlock *BB, MachineFunction &MF,
                "DBG_VALUE machine instruction");
         Register Reg;
         MachineOperand &Offset = MI.getOperand(i + 1);
-        int refOffset = TFI->getFrameIndexReferencePreferSP(
+        StackOffset refOffset = TFI->getFrameIndexReferencePreferSP(
             MF, MI.getOperand(i).getIndex(), Reg, /*IgnoreSPUpdates*/ false);
-        Offset.setImm(Offset.getImm() + refOffset + SPAdj);
+        assert(!refOffset.getScalable() &&
+               "Frame offsets with a scalable component are not supported");
+        Offset.setImm(Offset.getImm() + refOffset.getFixed() + SPAdj);
         MI.getOperand(i).ChangeToRegister(Reg, false /*isDef*/);
         continue;
       }

@@ -1,6 +1,6 @@
-// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti -show-encoding %s | FileCheck -check-prefix=GCN -check-prefix=SI -check-prefix=SICI %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=bonaire -show-encoding %s | FileCheck -check-prefix=GCN -check-prefix=CI -check-prefix=SICI %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=tonga -show-encoding %s | FileCheck -check-prefix=GCN -check-prefix=VI %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti -show-encoding %s | FileCheck -check-prefix=SICI %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=bonaire -show-encoding %s | FileCheck -check-prefix=SICI %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=tonga -show-encoding %s | FileCheck -check-prefix=VI %s
 
 // RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti %s  2>&1 | FileCheck -check-prefixes=GCN-ERR,SICI-ERR --implicit-check-not=error: %s
 // RUN: not llvm-mc -arch=amdgcn -mcpu=bonaire %s 2>&1 | FileCheck -check-prefixes=GCN-ERR,SICI-ERR --implicit-check-not=error: %s
@@ -277,7 +277,7 @@ tbuffer_store_format_xyzw v[1:4], v[1:2], ttmp[4:7], s0, format:[BUF_DATA_FORMAT
 // Check addr64
 tbuffer_store_format_xyzw v[1:4], v[1:2], ttmp[4:7], s0, format:[BUF_DATA_FORMAT_32,BUF_NUM_FORMAT_FLOAT] addr64
 // SICI: tbuffer_store_format_xyzw v[1:4], v[1:2], ttmp[4:7], s0 format:[BUF_DATA_FORMAT_32,BUF_NUM_FORMAT_FLOAT] addr64 ; encoding: [0x00,0x80,0xa7,0xeb,0x01,0x01,0x1d,0x00]
-// VI-ERR: error: instruction not supported on this GPU
+// VI-ERR: error: operands are not valid for this GPU or mode
 
 //===----------------------------------------------------------------------===//
 // Tests for symbolic format errors handling

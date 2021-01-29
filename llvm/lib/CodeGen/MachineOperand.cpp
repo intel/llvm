@@ -85,7 +85,7 @@ void MachineOperand::substVirtReg(Register Reg, unsigned SubIdx,
 }
 
 void MachineOperand::substPhysReg(MCRegister Reg, const TargetRegisterInfo &TRI) {
-  assert(Reg.isPhysical());
+  assert(Register::isPhysicalRegister(Reg));
   if (getSubReg()) {
     Reg = TRI.getSubReg(Reg, getSubReg());
     // Note that getSubReg() may return 0 if the sub-register doesn't exist.
@@ -1162,8 +1162,10 @@ void MachineMemOperand::print(raw_ostream &OS, ModuleSlotTracker &MST,
     }
   }
   MachineOperand::printOperandOffset(OS, getOffset());
-  if (getBaseAlign() != getSize())
-    OS << ", align " << getBaseAlign().value();
+  if (getAlign() != getSize())
+    OS << ", align " << getAlign().value();
+  if (getAlign() != getBaseAlign())
+    OS << ", basealign " << getBaseAlign().value();
   auto AAInfo = getAAInfo();
   if (AAInfo.TBAA) {
     OS << ", !tbaa ";

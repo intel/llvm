@@ -372,24 +372,23 @@ void SymbolFileDWARF::GetTypes(SymbolContextScope *sc_scope,
   TypeSet type_set;
 
   CompileUnit *comp_unit = nullptr;
-  DWARFUnit *dwarf_cu = nullptr;
   if (sc_scope)
     comp_unit = sc_scope->CalculateSymbolContextCompileUnit();
 
-  if (comp_unit) {
-    dwarf_cu = GetDWARFCompileUnit(comp_unit);
-    if (!dwarf_cu)
+  const auto &get = [&](DWARFUnit *unit) {
+    if (!unit)
       return;
-    GetTypes(dwarf_cu->DIE(), dwarf_cu->GetOffset(),
-             dwarf_cu->GetNextUnitOffset(), type_mask, type_set);
+    unit = &unit->GetNonSkeletonUnit();
+    GetTypes(unit->DIE(), unit->GetOffset(), unit->GetNextUnitOffset(),
+             type_mask, type_set);
+  };
+  if (comp_unit) {
+    get(GetDWARFCompileUnit(comp_unit));
   } else {
     DWARFDebugInfo &info = DebugInfo();
     const size_t num_cus = info.GetNumUnits();
-    for (size_t cu_idx = 0; cu_idx < num_cus; ++cu_idx) {
-      dwarf_cu = info.GetUnitAtIndex(cu_idx);
-      if (dwarf_cu)
-        GetTypes(dwarf_cu->DIE(), 0, UINT32_MAX, type_mask, type_set);
-    }
+    for (size_t cu_idx = 0; cu_idx < num_cus; ++cu_idx)
+      get(info.GetUnitAtIndex(cu_idx));
   }
 
   std::set<CompilerType> compiler_type_set;
@@ -624,16 +623,14 @@ DWARFDebugAbbrev *SymbolFileDWARF::DebugAbbrev() {
 
 DWARFDebugInfo &SymbolFileDWARF::DebugInfo() {
   llvm::call_once(m_info_once_flag, [&] {
-    static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-    Timer scoped_timer(func_cat, "%s this = %p", LLVM_PRETTY_FUNCTION,
+    LLDB_SCOPED_TIMERF("%s this = %p", LLVM_PRETTY_FUNCTION,
                        static_cast<void *>(this));
     m_info = std::make_unique<DWARFDebugInfo>(*this, m_context);
   });
   return *m_info;
 }
 
-DWARFUnit *
-SymbolFileDWARF::GetDWARFCompileUnit(lldb_private::CompileUnit *comp_unit) {
+DWARFCompileUnit *SymbolFileDWARF::GetDWARFCompileUnit(CompileUnit *comp_unit) {
   if (!comp_unit)
     return nullptr;
 
@@ -641,13 +638,14 @@ SymbolFileDWARF::GetDWARFCompileUnit(lldb_private::CompileUnit *comp_unit) {
   DWARFUnit *dwarf_cu = DebugInfo().GetUnitAtIndex(comp_unit->GetID());
   if (dwarf_cu && dwarf_cu->GetUserData() == nullptr)
     dwarf_cu->SetUserData(comp_unit);
-  return dwarf_cu;
+
+  // It must be DWARFCompileUnit when it created a CompileUnit.
+  return llvm::cast_or_null<DWARFCompileUnit>(dwarf_cu);
 }
 
 DWARFDebugRanges *SymbolFileDWARF::GetDebugRanges() {
   if (!m_ranges) {
-    static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-    Timer scoped_timer(func_cat, "%s this = %p", LLVM_PRETTY_FUNCTION,
+    LLDB_SCOPED_TIMERF("%s this = %p", LLVM_PRETTY_FUNCTION,
                        static_cast<void *>(this));
 
     if (m_context.getOrLoadRangesData().GetByteSize() > 0)
@@ -829,8 +827,7 @@ XcodeSDK SymbolFileDWARF::ParseXcodeSDK(CompileUnit &comp_unit) {
 }
 
 size_t SymbolFileDWARF::ParseFunctions(CompileUnit &comp_unit) {
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat, "SymbolFileDWARF::ParseFunctions");
+  LLDB_SCOPED_TIMER();
   std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   DWARFUnit *dwarf_cu = GetDWARFCompileUnit(&comp_unit);
   if (!dwarf_cu)
@@ -1267,9 +1264,10 @@ user_id_t SymbolFileDWARF::GetUID(DIERef ref) {
   if (GetDebugMapSymfile())
     return GetID() | ref.die_offset();
 
-  return user_id_t(GetDwoNum().getValueOr(0x7fffffff)) << 32 |
-         ref.die_offset() |
-         (lldb::user_id_t(ref.section() == DIERef::Section::DebugTypes) << 63);
+  lldbassert(GetDwoNum().getValueOr(0) <= 0x3fffffff);
+  return user_id_t(GetDwoNum().getValueOr(0)) << 32 | ref.die_offset() |
+         lldb::user_id_t(GetDwoNum().hasValue()) << 62 |
+         lldb::user_id_t(ref.section() == DIERef::Section::DebugTypes) << 63;
 }
 
 llvm::Optional<SymbolFileDWARF::DecodedUID>
@@ -1297,9 +1295,10 @@ SymbolFileDWARF::DecodeUID(lldb::user_id_t uid) {
   DIERef::Section section =
       uid >> 63 ? DIERef::Section::DebugTypes : DIERef::Section::DebugInfo;
 
-  llvm::Optional<uint32_t> dwo_num = uid >> 32 & 0x7fffffff;
-  if (*dwo_num == 0x7fffffff)
-    dwo_num = llvm::None;
+  llvm::Optional<uint32_t> dwo_num;
+  bool dwo_valid = uid >> 62 & 1;
+  if (dwo_valid)
+    dwo_num = uid >> 32 & 0x3fffffff;
 
   return DecodedUID{*this, {dwo_num, section, die_offset}};
 }
@@ -1599,8 +1598,7 @@ static uint64_t GetDWOId(DWARFCompileUnit &dwarf_cu,
 llvm::Optional<uint64_t> SymbolFileDWARF::GetDWOId() {
   if (GetNumCompileUnits() == 1) {
     if (auto comp_unit = GetCompileUnitAtIndex(0))
-      if (DWARFCompileUnit *cu = llvm::dyn_cast_or_null<DWARFCompileUnit>(
-              GetDWARFCompileUnit(comp_unit.get())))
+      if (DWARFCompileUnit *cu = GetDWARFCompileUnit(comp_unit.get()))
         if (DWARFDebugInfoEntry *cu_die = cu->DIE().GetDIE())
           if (uint64_t dwo_id = ::GetDWOId(*cu, *cu_die))
             return dwo_id;
@@ -1811,7 +1809,8 @@ void SymbolFileDWARF::ResolveFunctionAndBlock(lldb::addr_t file_vm_addr,
                                               bool lookup_block,
                                               SymbolContext &sc) {
   assert(sc.comp_unit);
-  DWARFUnit &cu = GetDWARFCompileUnit(sc.comp_unit)->GetNonSkeletonUnit();
+  DWARFCompileUnit &cu =
+      GetDWARFCompileUnit(sc.comp_unit)->GetNonSkeletonUnit();
   DWARFDIE function_die = cu.LookupAddress(file_vm_addr);
   DWARFDIE block_die;
   if (function_die) {
@@ -1837,9 +1836,7 @@ uint32_t SymbolFileDWARF::ResolveSymbolContext(const Address &so_addr,
                                                SymbolContextItem resolve_scope,
                                                SymbolContext &sc) {
   std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat,
-                     "SymbolFileDWARF::"
+  LLDB_SCOPED_TIMERF("SymbolFileDWARF::"
                      "ResolveSymbolContext (so_addr = { "
                      "section = %p, offset = 0x%" PRIx64
                      " }, resolve_scope = 0x%8.8x)",
@@ -2275,8 +2272,7 @@ void SymbolFileDWARF::FindFunctions(ConstString name,
                                     bool include_inlines,
                                     SymbolContextList &sc_list) {
   std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat, "SymbolFileDWARF::FindFunctions (name = '%s')",
+  LLDB_SCOPED_TIMERF("SymbolFileDWARF::FindFunctions (name = '%s')",
                      name.AsCString());
 
   // eFunctionNameTypeAuto should be pre-resolved by a call to
@@ -2330,8 +2326,7 @@ void SymbolFileDWARF::FindFunctions(const RegularExpression &regex,
                                     bool include_inlines,
                                     SymbolContextList &sc_list) {
   std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat, "SymbolFileDWARF::FindFunctions (regex = '%s')",
+  LLDB_SCOPED_TIMERF("SymbolFileDWARF::FindFunctions (regex = '%s')",
                      regex.GetText().str().c_str());
 
   Log *log(LogChannelDWARF::GetLogIfAll(DWARF_LOG_LOOKUPS));
@@ -3418,9 +3413,7 @@ VariableSP SymbolFileDWARF::ParseVariableDIE(const SymbolContext &sc,
     var_sp = std::make_shared<Variable>(
         die.GetID(), name, mangled, type_sp, scope, symbol_context_scope,
         scope_ranges, &decl, location, is_external, is_artificial,
-        is_static_member);
-
-    var_sp->SetLocationIsConstantValueData(location_is_const_value_data);
+        location_is_const_value_data, is_static_member);
   } else {
     // Not ready to parse this variable yet. It might be a global or static
     // variable that is in a function scope and the function in the symbol

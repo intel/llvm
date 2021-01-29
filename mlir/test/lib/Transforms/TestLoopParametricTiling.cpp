@@ -35,7 +35,7 @@ public:
     FuncOp func = getFunction();
     func.walk([this](scf::ForOp op) {
       // Ignore nested loops.
-      if (op.getParentRegion()->getParentOfType<scf::ForOp>())
+      if (op->getParentRegion()->getParentOfType<scf::ForOp>())
         return;
       extractFixedOuterLoops(op, sizes);
     });
@@ -46,13 +46,15 @@ public:
       llvm::cl::desc(
           "fixed number of iterations that the outer loops should have")};
 };
-} // end namespace
+} // namespace
 
 namespace mlir {
+namespace test {
 void registerSimpleParametricTilingPass() {
   PassRegistration<SimpleParametricLoopTilingPass>(
       "test-extract-fixed-outer-loops",
       "test application of parametric tiling to the outer loops so that the "
       "ranges of outer loops become static");
 }
+} // namespace test
 } // namespace mlir

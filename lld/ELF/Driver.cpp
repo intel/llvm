@@ -47,7 +47,9 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/Config/llvm-config.h"
 #include "llvm/LTO/LTO.h"
+#include "llvm/Remarks/HotnessThresholdParser.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compression.h"
 #include "llvm/Support/GlobPattern.h"
@@ -117,7 +119,7 @@ bool elf::link(ArrayRef<const char *> args, bool canExitEarly,
 
   config->progName = args[0];
 
-  driver->main(args);
+  driver->linkerMain(args);
 
   // Exit immediately if we don't need to return to the caller.
   // This saves time because the overhead of calling destructors
@@ -150,6 +152,7 @@ static std::tuple<ELFKind, uint16_t, uint8_t> parseEmulation(StringRef emul) {
           .Cases("elf32ltsmip", "elf32ltsmipn32", {ELF32LEKind, EM_MIPS})
           .Case("elf32lriscv", {ELF32LEKind, EM_RISCV})
           .Cases("elf32ppc", "elf32ppclinux", {ELF32BEKind, EM_PPC})
+          .Cases("elf32lppc", "elf32lppclinux", {ELF32LEKind, EM_PPC})
           .Case("elf64btsmip", {ELF64BEKind, EM_MIPS})
           .Case("elf64ltsmip", {ELF64LEKind, EM_MIPS})
           .Case("elf64lriscv", {ELF64LEKind, EM_RISCV})
@@ -159,10 +162,13 @@ static std::tuple<ELFKind, uint16_t, uint8_t> parseEmulation(StringRef emul) {
           .Case("elf_i386", {ELF32LEKind, EM_386})
           .Case("elf_iamcu", {ELF32LEKind, EM_IAMCU})
           .Case("elf64_sparc", {ELF64BEKind, EM_SPARCV9})
+          .Case("msp430elf", {ELF32LEKind, EM_MSP430})
           .Default({ELFNoneKind, EM_NONE});
 
   if (ret.first == ELFNoneKind)
     error("unknown emulation: " + emul);
+  if (ret.second == EM_MSP430)
+    osabi = ELFOSABI_STANDALONE;
   return std::make_tuple(ret.first, ret.second, osabi);
 }
 
@@ -286,7 +292,7 @@ void LinkerDriver::addLibrary(StringRef name) {
   if (Optional<std::string> path = searchLibrary(name))
     addFile(*path, /*withLOption=*/true);
   else
-    error("unable to find library -l" + name);
+    error("unable to find library -l" + name, ErrorTag::LibNotFound, {name});
 }
 
 // This function is called on startup. We need this for LTO since
@@ -315,10 +321,10 @@ static void checkOptions() {
     error("--fix-cortex-a8 is only supported on ARM targets");
 
   if (config->tocOptimize && config->emachine != EM_PPC64)
-    error("--toc-optimize is only supported on the PowerPC64 target");
+    error("--toc-optimize is only supported on PowerPC64 targets");
 
   if (config->pcRelOptimize && config->emachine != EM_PPC64)
-    error("--pcrel--optimize is only supported on the PowerPC64 target");
+    error("--pcrel-optimize is only supported on PowerPC64 targets");
 
   if (config->pie && config->shared)
     error("-shared and -pie may not be used together");
@@ -465,7 +471,7 @@ static void checkZOptions(opt::InputArgList &args) {
       error("unknown -z value: " + StringRef(arg->getValue()));
 }
 
-void LinkerDriver::main(ArrayRef<const char *> argsArr) {
+void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   ELFOptTable parser;
   opt::InputArgList args = parser.parse(argsArr.slice(1));
 
@@ -584,40 +590,58 @@ static std::string getRpath(opt::InputArgList &args) {
 
 // Determines what we should do if there are remaining unresolved
 // symbols after the name resolution.
-static UnresolvedPolicy getUnresolvedSymbolPolicy(opt::InputArgList &args) {
+static void setUnresolvedSymbolPolicy(opt::InputArgList &args) {
   UnresolvedPolicy errorOrWarn = args.hasFlag(OPT_error_unresolved_symbols,
                                               OPT_warn_unresolved_symbols, true)
                                      ? UnresolvedPolicy::ReportError
                                      : UnresolvedPolicy::Warn;
+  // -shared implies -unresolved-symbols=ignore-all because missing
+  // symbols are likely to be resolved at runtime.
+  bool diagRegular = !config->shared, diagShlib = !config->shared;
 
-  // Process the last of -unresolved-symbols, -no-undefined or -z defs.
-  for (auto *arg : llvm::reverse(args)) {
+  for (const opt::Arg *arg : args) {
     switch (arg->getOption().getID()) {
     case OPT_unresolved_symbols: {
       StringRef s = arg->getValue();
-      if (s == "ignore-all" || s == "ignore-in-object-files")
-        return UnresolvedPolicy::Ignore;
-      if (s == "ignore-in-shared-libs" || s == "report-all")
-        return errorOrWarn;
-      error("unknown --unresolved-symbols value: " + s);
-      continue;
+      if (s == "ignore-all") {
+        diagRegular = false;
+        diagShlib = false;
+      } else if (s == "ignore-in-object-files") {
+        diagRegular = false;
+        diagShlib = true;
+      } else if (s == "ignore-in-shared-libs") {
+        diagRegular = true;
+        diagShlib = false;
+      } else if (s == "report-all") {
+        diagRegular = true;
+        diagShlib = true;
+      } else {
+        error("unknown --unresolved-symbols value: " + s);
+      }
+      break;
     }
     case OPT_no_undefined:
-      return errorOrWarn;
+      diagRegular = true;
+      break;
     case OPT_z:
       if (StringRef(arg->getValue()) == "defs")
-        return errorOrWarn;
-      if (StringRef(arg->getValue()) == "undefs")
-        return UnresolvedPolicy::Ignore;
-      continue;
+        diagRegular = true;
+      else if (StringRef(arg->getValue()) == "undefs")
+        diagRegular = false;
+      break;
+    case OPT_allow_shlib_undefined:
+      diagShlib = false;
+      break;
+    case OPT_no_allow_shlib_undefined:
+      diagShlib = true;
+      break;
     }
   }
 
-  // -shared implies -unresolved-symbols=ignore-all because missing
-  // symbols are likely to be resolved at runtime using other DSOs.
-  if (config->shared)
-    return UnresolvedPolicy::Ignore;
-  return errorOrWarn;
+  config->unresolvedSymbols =
+      diagRegular ? errorOrWarn : UnresolvedPolicy::Ignore;
+  config->unresolvedSymbolsInShlib =
+      diagShlib ? errorOrWarn : UnresolvedPolicy::Ignore;
 }
 
 static Target2Policy getTarget2(opt::InputArgList &args) {
@@ -895,7 +919,6 @@ static void parseClangOption(StringRef opt, const Twine &msg) {
   raw_string_ostream os(err);
 
   const char *argv[] = {config->progName.data(), opt.data()};
-  cl::ResetAllOptionOccurrences();
   if (cl::ParseCommandLineOptions(2, argv, "", &os))
     return;
   os.flush();
@@ -914,9 +937,6 @@ static void readConfigs(opt::InputArgList &args) {
       args.hasFlag(OPT_allow_multiple_definition,
                    OPT_no_allow_multiple_definition, false) ||
       hasZOption(args, "muldefs");
-  config->allowShlibUndefined =
-      args.hasFlag(OPT_allow_shlib_undefined, OPT_no_allow_shlib_undefined,
-                   args.hasArg(OPT_shared));
   config->auxiliaryList = args::getStrings(args, OPT_auxiliary);
   config->bsymbolic = args.hasArg(OPT_Bsymbolic);
   config->bsymbolicFunctions = args.hasArg(OPT_Bsymbolic_functions);
@@ -945,6 +965,10 @@ static void readConfigs(opt::InputArgList &args) {
   config->enableNewDtags =
       args.hasFlag(OPT_enable_new_dtags, OPT_disable_new_dtags, true);
   config->entry = args.getLastArgValue(OPT_entry);
+
+  errorHandler().errorHandlingScript =
+      args.getLastArgValue(OPT_error_handling_script);
+
   config->executeOnly =
       args.hasFlag(OPT_execute_only, OPT_no_execute_only, false);
   config->exportDynamic =
@@ -955,6 +979,8 @@ static void readConfigs(opt::InputArgList &args) {
                                      !args.hasArg(OPT_relocatable);
   config->fixCortexA8 =
       args.hasArg(OPT_fix_cortex_a8) && !args.hasArg(OPT_relocatable);
+  config->fortranCommon =
+      args.hasFlag(OPT_fortran_common, OPT_no_fortran_common, true);
   config->gcSections = args.hasFlag(OPT_gc_sections, OPT_no_gc_sections, false);
   config->gnuUnique = args.hasFlag(OPT_gnu_unique, OPT_no_gnu_unique, true);
   config->gdbIndex = args.hasFlag(OPT_gdb_index, OPT_no_gdb_index, false);
@@ -969,10 +995,13 @@ static void readConfigs(opt::InputArgList &args) {
   config->ltoCSProfileFile = args.getLastArgValue(OPT_lto_cs_profile_file);
   config->ltoDebugPassManager = args.hasArg(OPT_lto_debug_pass_manager);
   config->ltoEmitAsm = args.hasArg(OPT_lto_emit_asm);
-  config->ltoNewPassManager = args.hasArg(OPT_lto_new_pass_manager);
+  config->ltoNewPassManager =
+      args.hasFlag(OPT_no_lto_legacy_pass_manager, OPT_lto_legacy_pass_manager,
+                   LLVM_ENABLE_NEW_PASS_MANAGER);
   config->ltoNewPmPasses = args.getLastArgValue(OPT_lto_newpm_passes);
   config->ltoWholeProgramVisibility =
-      args.hasArg(OPT_lto_whole_program_visibility);
+      args.hasFlag(OPT_lto_whole_program_visibility,
+                   OPT_no_lto_whole_program_visibility, false);
   config->ltoo = args::getInteger(args, OPT_lto_O, 2);
   config->ltoObjPath = args.getLastArgValue(OPT_lto_obj_path_eq);
   config->ltoPartitions = args::getInteger(args, OPT_lto_partitions, 1);
@@ -994,6 +1023,17 @@ static void readConfigs(opt::InputArgList &args) {
   config->oFormatBinary = isOutputFormatBinary(args);
   config->omagic = args.hasFlag(OPT_omagic, OPT_no_omagic, false);
   config->optRemarksFilename = args.getLastArgValue(OPT_opt_remarks_filename);
+
+  // Parse remarks hotness threshold. Valid value is either integer or 'auto'.
+  if (auto *arg = args.getLastArg(OPT_opt_remarks_hotness_threshold)) {
+    auto resultOrErr = remarks::parseHotnessThresholdOption(arg->getValue());
+    if (!resultOrErr)
+      error(arg->getSpelling() + ": invalid argument '" + arg->getValue() +
+            "', only integer or 'auto' is supported");
+    else
+      config->optRemarksHotnessThreshold = *resultOrErr;
+  }
+
   config->optRemarksPasses = args.getLastArgValue(OPT_opt_remarks_passes);
   config->optRemarksWithHotness = args.hasArg(OPT_opt_remarks_with_hotness);
   config->optRemarksFormat = args.getLastArgValue(OPT_opt_remarks_format);
@@ -1048,7 +1088,6 @@ static void readConfigs(opt::InputArgList &args) {
   config->unique = args.hasArg(OPT_unique);
   config->useAndroidRelrTags = args.hasFlag(
       OPT_use_android_relr_tags, OPT_no_use_android_relr_tags, false);
-  config->unresolvedSymbols = getUnresolvedSymbolPolicy(args);
   config->warnBackrefs =
       args.hasFlag(OPT_warn_backrefs, OPT_no_warn_backrefs, false);
   config->warnCommon = args.hasFlag(OPT_warn_common, OPT_no_warn_common, false);
@@ -1083,6 +1122,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->zStartStopVisibility = getZStartStopVisibility(args);
   config->zText = getZFlag(args, "text", "notext", true);
   config->zWxneeded = hasZOption(args, "wxneeded");
+  setUnresolvedSymbolPolicy(args);
 
   for (opt::Arg *arg : args.filtered(OPT_z)) {
     std::pair<StringRef, StringRef> option =
@@ -1104,6 +1144,8 @@ static void readConfigs(opt::InputArgList &args) {
     else
       error(errPrefix + toString(pat.takeError()));
   }
+
+  cl::ResetAllOptionOccurrences();
 
   // Parse LTO options.
   if (auto *arg = args.getLastArg(OPT_plugin_opt_mcpu_eq))
@@ -1316,6 +1358,7 @@ static bool isFormatBinary(StringRef s) {
 }
 
 void LinkerDriver::createFiles(opt::InputArgList &args) {
+  llvm::TimeTraceScope timeScope("Load input files");
   // For --{push,pop}-state.
   std::vector<std::tuple<bool, bool, bool>> stack;
 
@@ -1654,6 +1697,7 @@ static void writeDependencyFile() {
 // result, the passes after the symbol resolution won't see any
 // symbols of type CommonSymbol.
 static void replaceCommonSymbols() {
+  llvm::TimeTraceScope timeScope("Replace common symbols");
   for (Symbol *sym : symtab->symbols()) {
     auto *s = dyn_cast<CommonSymbol>(sym);
     if (!s)
@@ -1673,6 +1717,7 @@ static void replaceCommonSymbols() {
 // created from the DSO. Otherwise, they become dangling references
 // that point to a non-existent DSO.
 static void demoteSharedSymbols() {
+  llvm::TimeTraceScope timeScope("Demote shared symbols");
   for (Symbol *sym : symtab->symbols()) {
     auto *s = dyn_cast<SharedSymbol>(sym);
     if (!s || s->getFile().isNeeded)
@@ -1836,9 +1881,9 @@ template <class ELFT> void LinkerDriver::compileBitcodeFiles() {
 
 // The --wrap option is a feature to rename symbols so that you can write
 // wrappers for existing functions. If you pass `-wrap=foo`, all
-// occurrences of symbol `foo` are resolved to `wrap_foo` (so, you are
-// expected to write `wrap_foo` function as a wrapper). The original
-// symbol becomes accessible as `real_foo`, so you can call that from your
+// occurrences of symbol `foo` are resolved to `__wrap_foo` (so, you are
+// expected to write `__wrap_foo` function as a wrapper). The original
+// symbol becomes accessible as `__real_foo`, so you can call that from your
 // wrapper.
 //
 // This data structure is instantiated for each -wrap option.
@@ -1866,7 +1911,7 @@ static std::vector<WrappedSymbol> addWrappedSymbols(opt::InputArgList &args) {
     if (!sym)
       continue;
 
-    Symbol *real = addUndefined(saver.save("__real_" + name));
+    Symbol *real = addUnusedUndefined(saver.save("__real_" + name));
     Symbol *wrap = addUnusedUndefined(saver.save("__wrap_" + name));
     v.push_back({sym, real, wrap});
 
@@ -1877,23 +1922,52 @@ static std::vector<WrappedSymbol> addWrappedSymbols(opt::InputArgList &args) {
 
     // Tell LTO not to eliminate these symbols.
     sym->isUsedInRegularObj = true;
-    if (!wrap->isUndefined())
+    if (sym->referenced)
       wrap->isUsedInRegularObj = true;
   }
   return v;
 }
 
-// Do renaming for -wrap by updating pointers to symbols.
+// Do renaming for -wrap and foo@v1 by updating pointers to symbols.
 //
 // When this function is executed, only InputFiles and symbol table
 // contain pointers to symbol objects. We visit them to replace pointers,
 // so that wrapped symbols are swapped as instructed by the command line.
-static void wrapSymbols(ArrayRef<WrappedSymbol> wrapped) {
+static void redirectSymbols(ArrayRef<WrappedSymbol> wrapped) {
+  llvm::TimeTraceScope timeScope("Redirect symbols");
   DenseMap<Symbol *, Symbol *> map;
   for (const WrappedSymbol &w : wrapped) {
     map[w.sym] = w.wrap;
     map[w.real] = w.sym;
   }
+  for (Symbol *sym : symtab->symbols()) {
+    // Enumerate symbols with a non-default version (foo@v1).
+    StringRef name = sym->getName();
+    const char *suffix1 = sym->getVersionSuffix();
+    if (suffix1[0] != '@' || suffix1[1] == '@')
+      continue;
+
+    // Check whether the default version foo@@v1 exists. If it exists, the
+    // symbol can be found by the name "foo" in the symbol table.
+    Symbol *maybeDefault = symtab->find(name);
+    if (!maybeDefault)
+      continue;
+    const char *suffix2 = maybeDefault->getVersionSuffix();
+    if (suffix2[0] != '@' || suffix2[1] != '@' ||
+        strcmp(suffix1 + 1, suffix2 + 2) != 0)
+      continue;
+
+    // foo@v1 and foo@@v1 should be merged, so redirect foo@v1 to foo@@v1.
+    map.try_emplace(sym, maybeDefault);
+    // If both foo@v1 and foo@@v1 are defined and non-weak, report a duplicate
+    // definition error.
+    maybeDefault->resolve(*sym);
+    // Eliminate foo@v1 from the symbol table.
+    sym->symbolKind = Symbol::PlaceholderKind;
+  }
+
+  if (map.empty())
+    return;
 
   // Update pointers in input files.
   parallelForEach(objectFiles, [&](InputFile *file) {
@@ -1969,10 +2043,14 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
   // Fail early if the output file or map file is not writable. If a user has a
   // long link, e.g. due to a large LTO link, they do not wish to run it and
   // find that it failed because there was a mistake in their command-line.
-  if (auto e = tryCreateFile(config->outputFile))
-    error("cannot open output file " + config->outputFile + ": " + e.message());
-  if (auto e = tryCreateFile(config->mapFile))
-    error("cannot open map file " + config->mapFile + ": " + e.message());
+  {
+    llvm::TimeTraceScope timeScope("Create output files");
+    if (auto e = tryCreateFile(config->outputFile))
+      error("cannot open output file " + config->outputFile + ": " +
+            e.message());
+    if (auto e = tryCreateFile(config->mapFile))
+      error("cannot open map file " + config->mapFile + ": " + e.message());
+  }
   if (errorCount())
     return;
 
@@ -1991,7 +2069,7 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
   // Handle -u/--undefined before input files. If both a.a and b.so define foo,
   // -u foo a.a b.so will fetch a.a.
   for (StringRef name : config->undefined)
-    addUnusedUndefined(name);
+    addUnusedUndefined(name)->referenced = true;
 
   // Add all files to the symbol table. This will add almost all
   // symbols that we need to the symbol table. This process might
@@ -1999,8 +2077,10 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
   // appended to the Files vector.
   {
     llvm::TimeTraceScope timeScope("Parse input files");
-    for (size_t i = 0; i < files.size(); ++i)
+    for (size_t i = 0; i < files.size(); ++i) {
+      llvm::TimeTraceScope timeScope("Parse input files", files[i]->getName());
       parseFile(files[i]);
+    }
   }
 
   // Now that we have every file, we can decide if we will need a
@@ -2066,7 +2146,11 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
   // They also might be exported if referenced by DSOs.
   script->declareSymbols();
 
-  // Handle the -exclude-libs option.
+  // Handle --exclude-libs. This is before scanVersionScript() due to a
+  // workaround for Android ndk: for a defined versioned symbol in an archive
+  // without a version node in the version script, Android does not expect a
+  // 'has undefined version' error in -shared --exclude-libs=ALL mode (PR36295).
+  // GNU ld errors in this case.
   if (args.hasArg(OPT_exclude_libs))
     excludeLibs(args);
 
@@ -2087,8 +2171,10 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
   // For a relocatable output, version scripts don't make sense, and
   // parsing a symbol version string (e.g. dropping "@ver1" from a symbol
   // name "foo@ver1") rather do harm, so we don't call this if -r is given.
-  if (!config->relocatable)
+  if (!config->relocatable) {
+    llvm::TimeTraceScope timeScope("Process symbol versions");
     symtab->scanVersionScript();
+  }
 
   // Do link-time optimization if given files are LLVM bitcode files.
   // This compiles bitcode files into real object files.
@@ -2096,6 +2182,11 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
   // With this the symbol table should be complete. After this, no new names
   // except a few linker-synthesized ones will be added to the symbol table.
   compileBitcodeFiles<ELFT>();
+
+  // Handle --exclude-libs again because lto.tmp may reference additional
+  // libcalls symbols defined in an excluded archive.
+  if (args.hasArg(OPT_exclude_libs))
+    excludeLibs(args);
 
   // Symbol resolution finished. Report backward reference problems.
   reportBackrefs();
@@ -2114,41 +2205,46 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
       !config->thinLTOModulesToCompile.empty())
     return;
 
-  // Apply symbol renames for -wrap.
-  if (!wrapped.empty())
-    wrapSymbols(wrapped);
+  // Apply symbol renames for -wrap and combine foo@v1 and foo@@v1.
+  redirectSymbols(wrapped);
 
-  // Now that we have a complete list of input files.
-  // Beyond this point, no new files are added.
-  // Aggregate all input sections into one place.
-  for (InputFile *f : objectFiles)
-    for (InputSectionBase *s : f->getSections())
-      if (s && s != &InputSection::discarded)
-        inputSections.push_back(s);
-  for (BinaryFile *f : binaryFiles)
-    for (InputSectionBase *s : f->getSections())
-      inputSections.push_back(cast<InputSection>(s));
+  {
+    llvm::TimeTraceScope timeScope("Aggregate sections");
+    // Now that we have a complete list of input files.
+    // Beyond this point, no new files are added.
+    // Aggregate all input sections into one place.
+    for (InputFile *f : objectFiles)
+      for (InputSectionBase *s : f->getSections())
+        if (s && s != &InputSection::discarded)
+          inputSections.push_back(s);
+    for (BinaryFile *f : binaryFiles)
+      for (InputSectionBase *s : f->getSections())
+        inputSections.push_back(cast<InputSection>(s));
+  }
 
-  llvm::erase_if(inputSections, [](InputSectionBase *s) {
-    if (s->type == SHT_LLVM_SYMPART) {
-      readSymbolPartitionSection<ELFT>(s);
-      return true;
-    }
+  {
+    llvm::TimeTraceScope timeScope("Strip sections");
+    llvm::erase_if(inputSections, [](InputSectionBase *s) {
+      if (s->type == SHT_LLVM_SYMPART) {
+        readSymbolPartitionSection<ELFT>(s);
+        return true;
+      }
 
-    // We do not want to emit debug sections if --strip-all
-    // or -strip-debug are given.
-    if (config->strip == StripPolicy::None)
+      // We do not want to emit debug sections if --strip-all
+      // or -strip-debug are given.
+      if (config->strip == StripPolicy::None)
+        return false;
+
+      if (isDebugSection(*s))
+        return true;
+      if (auto *isec = dyn_cast<InputSection>(s))
+        if (InputSectionBase *rel = isec->getRelocatedSection())
+          if (isDebugSection(*rel))
+            return true;
+
       return false;
-
-    if (isDebugSection(*s))
-      return true;
-    if (auto *isec = dyn_cast<InputSection>(s))
-      if (InputSectionBase *rel = isec->getRelocatedSection())
-        if (isDebugSection(*rel))
-          return true;
-
-    return false;
-  });
+    });
+  }
 
   // Since we now have a complete set of input files, we can create
   // a .d file to record build dependencies.
@@ -2220,23 +2316,33 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
   if (!config->relocatable)
     combineEhSections();
 
-  // Create output sections described by SECTIONS commands.
-  script->processSectionCommands();
+  {
+    llvm::TimeTraceScope timeScope("Assign sections");
 
-  // Linker scripts control how input sections are assigned to output sections.
-  // Input sections that were not handled by scripts are called "orphans", and
-  // they are assigned to output sections by the default rule. Process that.
-  script->addOrphanSections();
+    // Create output sections described by SECTIONS commands.
+    script->processSectionCommands();
 
-  // Migrate InputSectionDescription::sectionBases to sections. This includes
-  // merging MergeInputSections into a single MergeSyntheticSection. From this
-  // point onwards InputSectionDescription::sections should be used instead of
-  // sectionBases.
-  for (BaseCommand *base : script->sectionCommands)
-    if (auto *sec = dyn_cast<OutputSection>(base))
-      sec->finalizeInputSections();
-  llvm::erase_if(inputSections,
-                 [](InputSectionBase *s) { return isa<MergeInputSection>(s); });
+    // Linker scripts control how input sections are assigned to output
+    // sections. Input sections that were not handled by scripts are called
+    // "orphans", and they are assigned to output sections by the default rule.
+    // Process that.
+    script->addOrphanSections();
+  }
+
+  {
+    llvm::TimeTraceScope timeScope("Merge/finalize input sections");
+
+    // Migrate InputSectionDescription::sectionBases to sections. This includes
+    // merging MergeInputSections into a single MergeSyntheticSection. From this
+    // point onwards InputSectionDescription::sections should be used instead of
+    // sectionBases.
+    for (BaseCommand *base : script->sectionCommands)
+      if (auto *sec = dyn_cast<OutputSection>(base))
+        sec->finalizeInputSections();
+    llvm::erase_if(inputSections, [](InputSectionBase *s) {
+      return isa<MergeInputSection>(s);
+    });
+  }
 
   // Two input sections with different output sections should not be folded.
   // ICF runs after processSectionCommands() so that we know the output sections.

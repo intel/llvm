@@ -218,6 +218,8 @@ protected:
 
   unsigned HasAArch64SVETypes : 1;
 
+  unsigned AllowAMDGPUUnsafeFPAtomics : 1;
+
   unsigned ARMCDECoprocMask : 8;
 
   unsigned MaxOpenCLWorkGroupSize;
@@ -581,8 +583,9 @@ public:
   /// Determine whether constrained floating point is supported on this target.
   virtual bool hasStrictFP() const { return HasStrictFP; }
 
-  /// Return the alignment that is suitable for storing any
-  /// object with a fundamental alignment requirement.
+  /// Return the alignment that is the largest alignment ever used for any
+  /// scalar/SIMD data type on the target machine you are compiling for
+  /// (including types with an extended alignment requirement).
   unsigned getSuitableAlign() const { return SuitableAlign; }
 
   /// Return the default alignment for __attribute__((aligned)) on
@@ -856,6 +859,10 @@ public:
   /// available on this target.
   bool hasAArch64SVETypes() const { return HasAArch64SVETypes; }
 
+  /// Returns whether or not the AMDGPU unsafe floating point atomics are
+  /// allowed.
+  bool allowAMDGPUUnsafeFPAtomics() const { return AllowAMDGPUUnsafeFPAtomics; }
+
   /// For ARM targets returns a mask defining which coprocessors are configured
   /// as Custom Datapath.
   uint32_t getARMCDECoprocMask() const { return ARMCDECoprocMask; }
@@ -1090,6 +1097,13 @@ public:
   /// consistent target-independent semantics for "default" visibility
   /// either; the entire thing is pretty badly mangled.
   virtual bool hasProtectedVisibility() const { return true; }
+
+  /// Does this target aim for semantic compatibility with
+  /// Microsoft C++ code using dllimport/export attributes?
+  virtual bool shouldDLLImportComdatSymbols() const {
+    return getTriple().isWindowsMSVCEnvironment() ||
+           getTriple().isWindowsItaniumEnvironment() || getTriple().isPS4CPU();
+  }
 
   /// An optional hook that targets can implement to perform semantic
   /// checking on attribute((section("foo"))) specifiers.

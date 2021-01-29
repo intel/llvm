@@ -44,9 +44,12 @@
 #include "SPIRVExtInst.h"
 #include "SPIRVFunction.h"
 #include "SPIRVInstruction.h"
+#include "SPIRVNameMapEnum.h"
 #include "SPIRVStream.h"
 #include "SPIRVType.h"
 #include "SPIRVValue.h"
+
+#include "llvm/ADT/APInt.h"
 
 #include <set>
 #include <unordered_map>
@@ -237,6 +240,7 @@ public:
   SPIRVTypePipeStorage *addPipeStorageType() override;
   SPIRVTypeSampledImage *addSampledImageType(SPIRVTypeImage *T) override;
   SPIRVTypeStruct *openStructType(unsigned, const std::string &) override;
+  SPIRVEntry *addTypeStructContinuedINTEL(unsigned NumMembers) override;
   void closeStructType(SPIRVTypeStruct *T, bool) override;
   SPIRVTypeVector *addVectorType(SPIRVType *, SPIRVWord) override;
   SPIRVType *addOpaqueGenericType(Op) override;
@@ -257,10 +261,18 @@ public:
                                              SPIRVBasicBlock *) override;
   SPIRVValue *addCompositeConstant(SPIRVType *,
                                    const std::vector<SPIRVValue *> &) override;
+  SPIRVEntry *addCompositeConstantContinuedINTEL(
+      const std::vector<SPIRVValue *> &) override;
+  SPIRVValue *
+  addSpecConstantComposite(SPIRVType *Ty,
+                           const std::vector<SPIRVValue *> &Elements) override;
+  SPIRVEntry *addSpecConstantCompositeContinuedINTEL(
+      const std::vector<SPIRVValue *> &) override;
   SPIRVValue *addConstFunctionPointerINTEL(SPIRVType *Ty,
                                            SPIRVFunction *F) override;
   SPIRVValue *addConstant(SPIRVValue *) override;
   SPIRVValue *addConstant(SPIRVType *, uint64_t) override;
+  SPIRVValue *addConstant(SPIRVType *, llvm::APInt) override;
   SPIRVValue *addSpecConstant(SPIRVType *, uint64_t) override;
   SPIRVValue *addDoubleConstant(SPIRVTypeFloat *, double) override;
   SPIRVValue *addFloatConstant(SPIRVTypeFloat *, float) override;
@@ -560,7 +572,8 @@ void SPIRVModuleImpl::addExtension(ExtensionID Ext) {
 
 void SPIRVModuleImpl::addCapability(SPIRVCapabilityKind Cap) {
   addCapabilities(SPIRV::getCapability(Cap));
-  SPIRVDBG(spvdbgs() << "addCapability: " << Cap << '\n');
+  SPIRVDBG(spvdbgs() << "addCapability: " << SPIRVCapabilityNameMap::map(Cap)
+                     << '\n');
   if (hasCapability(Cap))
     return;
 
@@ -650,7 +663,7 @@ SPIRVEntry *SPIRVModuleImpl::addEntry(SPIRVEntry *Entry) {
     assert(Entry->getId() != SPIRVID_INVALID && "Invalid id");
     SPIRVEntry *Mapped = nullptr;
     if (exist(Id, &Mapped)) {
-      if (Mapped->getOpCode() == OpForward) {
+      if (Mapped->getOpCode() == internal::OpForward) {
         replaceForward(static_cast<SPIRVForward *>(Mapped), Entry);
       } else {
         assert(Mapped == Entry && "Id used twice");
@@ -840,6 +853,10 @@ SPIRVTypeStruct *SPIRVModuleImpl::openStructType(unsigned NumMembers,
   return T;
 }
 
+SPIRVEntry *SPIRVModuleImpl::addTypeStructContinuedINTEL(unsigned NumMembers) {
+  return add(new SPIRVTypeStructContinuedINTEL(this, NumMembers));
+}
+
 void SPIRVModuleImpl::closeStructType(SPIRVTypeStruct *T, bool Packed) {
   addType(T);
   T->setPacked(Packed);
@@ -1021,6 +1038,25 @@ SPIRVValue *SPIRVModuleImpl::addConstant(SPIRVType *Ty, uint64_t V) {
   return addConstant(new SPIRVConstant(this, Ty, getId(), V));
 }
 
+// Complete constructor for AP integer constant
+template <spv::Op OC>
+SPIRVConstantBase<OC>::SPIRVConstantBase(SPIRVModule *M, SPIRVType *TheType,
+                                         SPIRVId TheId, llvm::APInt &TheValue)
+    : SPIRVValue(M, 0, OC, TheType, TheId) {
+  const uint64_t *BigValArr = TheValue.getRawData();
+  for (size_t I = 0; I != TheValue.getNumWords(); ++I) {
+    Union.Words[I * 2 + 1] =
+        (uint32_t)((BigValArr[I] & 0xFFFFFFFF00000000LL) >> 32);
+    Union.Words[I * 2] = (uint32_t)(BigValArr[I] & 0xFFFFFFFFLL);
+  }
+  recalculateWordCount();
+  validate();
+}
+
+SPIRVValue *SPIRVModuleImpl::addConstant(SPIRVType *Ty, llvm::APInt V) {
+  return addConstant(new SPIRVConstant(this, Ty, getId(), V));
+}
+
 SPIRVValue *SPIRVModuleImpl::addIntegerConstant(SPIRVTypeInt *Ty, uint64_t V) {
   if (Ty->getBitWidth() == 32) {
     unsigned I32 = static_cast<unsigned>(V);
@@ -1044,7 +1080,72 @@ SPIRVValue *SPIRVModuleImpl::addNullConstant(SPIRVType *Ty) {
 
 SPIRVValue *SPIRVModuleImpl::addCompositeConstant(
     SPIRVType *Ty, const std::vector<SPIRVValue *> &Elements) {
-  return addConstant(new SPIRVConstantComposite(this, Ty, getId(), Elements));
+  constexpr int MaxNumElements = MaxWordCount - SPIRVConstantComposite::FixedWC;
+  const int NumElements = Elements.size();
+
+  // In case number of elements is greater than maximum WordCount and
+  // SPV_INTEL_long_constant_composite is not enabled, the error will be emitted
+  // by validate functionality of SPIRVCompositeConstant class.
+  if (NumElements <= MaxNumElements ||
+      !isAllowedToUseExtension(ExtensionID::SPV_INTEL_long_constant_composite))
+    return addConstant(new SPIRVConstantComposite(this, Ty, getId(), Elements));
+
+  auto Start = Elements.begin();
+  auto End = Start + MaxNumElements;
+  std::vector<SPIRVValue *> Slice(Start, End);
+  auto *Res =
+      static_cast<SPIRVConstantComposite *>(addCompositeConstant(Ty, Slice));
+  for (; End != Elements.end();) {
+    Start = End;
+    End = ((Elements.end() - End) > MaxNumElements) ? End + MaxNumElements
+                                                    : Elements.end();
+    Slice.assign(Start, End);
+    auto Continued = static_cast<SPIRVConstantComposite::ContinuedInstType>(
+        addCompositeConstantContinuedINTEL(Slice));
+    Res->addContinuedInstruction(Continued);
+  }
+  return Res;
+}
+
+SPIRVEntry *SPIRVModuleImpl::addCompositeConstantContinuedINTEL(
+    const std::vector<SPIRVValue *> &Elements) {
+  return add(new SPIRVConstantCompositeContinuedINTEL(this, Elements));
+}
+
+SPIRVValue *SPIRVModuleImpl::addSpecConstantComposite(
+    SPIRVType *Ty, const std::vector<SPIRVValue *> &Elements) {
+  constexpr int MaxNumElements =
+      MaxWordCount - SPIRVSpecConstantComposite::FixedWC;
+  const int NumElements = Elements.size();
+
+  // In case number of elements is greater than maximum WordCount and
+  // SPV_INTEL_long_constant_composite is not enabled, the error will be emitted
+  // by validate functionality of SPIRVSpecConstantComposite class.
+  if (NumElements <= MaxNumElements ||
+      !isAllowedToUseExtension(ExtensionID::SPV_INTEL_long_constant_composite))
+    return addConstant(
+        new SPIRVSpecConstantComposite(this, Ty, getId(), Elements));
+
+  auto Start = Elements.begin();
+  auto End = Start + MaxNumElements;
+  std::vector<SPIRVValue *> Slice(Start, End);
+  auto *Res = static_cast<SPIRVSpecConstantComposite *>(
+      addSpecConstantComposite(Ty, Slice));
+  for (; End != Elements.end();) {
+    Start = End;
+    End = ((Elements.end() - End) > MaxNumElements) ? End + MaxNumElements
+                                                    : Elements.end();
+    Slice.assign(Start, End);
+    auto Continued = static_cast<SPIRVSpecConstantComposite::ContinuedInstType>(
+        addSpecConstantCompositeContinuedINTEL(Slice));
+    Res->addContinuedInstruction(Continued);
+  }
+  return Res;
+}
+
+SPIRVEntry *SPIRVModuleImpl::addSpecConstantCompositeContinuedINTEL(
+    const std::vector<SPIRVValue *> &Elements) {
+  return add(new SPIRVSpecConstantCompositeContinuedINTEL(this, Elements));
 }
 
 SPIRVValue *SPIRVModuleImpl::addConstFunctionPointerINTEL(SPIRVType *Ty,
@@ -1494,14 +1595,14 @@ SPIRVInstruction *SPIRVModuleImpl::addExpectINTELInst(SPIRVType *ResultTy,
                                                       SPIRVValue *ExpectedValue,
                                                       SPIRVBasicBlock *BB) {
   return addInstruction(SPIRVInstTemplateBase::create(
-                            OpExpectINTEL, ResultTy, getId(),
+                            internal::OpExpectINTEL, ResultTy, getId(),
                             getVec(Value->getId(), ExpectedValue->getId()), BB,
                             this),
                         BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addVariable(
-    SPIRVType *Type, bool IsConstant, SPIRVLinkageTypeKind LinkageType,
+    SPIRVType *Type, bool IsConstant, SPIRVLinkageTypeKind LinkageTy,
     SPIRVValue *Initializer, const std::string &Name,
     SPIRVStorageClassKind StorageClass, SPIRVBasicBlock *BB) {
   SPIRVVariable *Variable = new SPIRVVariable(Type, getId(), Initializer, Name,
@@ -1510,8 +1611,8 @@ SPIRVInstruction *SPIRVModuleImpl::addVariable(
     return addInstruction(Variable, BB);
 
   add(Variable);
-  if (LinkageType != LinkageTypeInternal)
-    Variable->setLinkageType(LinkageType);
+  if (LinkageTy != internal::LinkageTypeInternal)
+    Variable->setLinkageType(LinkageTy);
   Variable->setIsConstant(IsConstant);
   return Variable;
 }
