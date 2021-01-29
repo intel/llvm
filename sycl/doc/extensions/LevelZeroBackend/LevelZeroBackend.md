@@ -114,10 +114,12 @@ the last host copy of the SYCL object is destroyed (as described in the core SYC
 
 #### 4.4.3 Considerations for multi-threaded environment
 
-The Level-Zero API is not thread-safe, but it is free-threaded meaning that only the access to its global/shared state is guarded for thread-safety.
+The Level-Zero API is not thread-safe, but it is free-threaded meaning that the access to its shared state is guarded for thread-safety.
 Applications must make sure that the Level-Zero handles themselves aren't used simultaneously from different threads.
 Practically speaking, and taking into account that SYCL runtime takes ownership of the Level-Zero handles,
 the application should not attempt further direct use of those handles.
+
+Refer to Level-Zero API specification for furhter details: <https://spec.oneapi.com/level-zero/latest/core/INTRO.html#multithreading-and-concurrency>.
 
 ## Revision History
 |Rev|Date|Author|Changes|
