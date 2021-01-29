@@ -817,7 +817,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
   return PI_SUCCESS;
 }
 
-static void printZeEventList(_pi_ze_event_list_t &PiZeEventList) {
+static void printZeEventList(const _pi_ze_event_list_t &PiZeEventList) {
   zePrint("  NumEventsInWaitList %d:", PiZeEventList.Length);
 
   for (pi_uint32 I = 0; I < PiZeEventList.Length; I++) {
@@ -4194,9 +4194,11 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
 
-  ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList,
-                                          (*Event)->WaitList.Length,
-                                          (*Event)->WaitList.ZeEventList));
+  const auto &WaitList = (*Event)->WaitList;
+  if (WaitList.Length) {
+    ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, WaitList.Length,
+                                            WaitList.ZeEventList));
+  }
 
   ZE_CALL(zeCommandListAppendMemoryCopy(ZeCommandList, Dst, Src, Size, ZeEvent,
                                         0, nullptr));
@@ -4208,7 +4210,7 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
   zePrint("calling zeCommandListAppendMemoryCopy() with\n"
           "  ZeEvent %#lx\n",
           pi_cast<std::uintptr_t>(ZeEvent));
-  printZeEventList((*Event)->WaitList);
+  printZeEventList(WaitList);
 
   return PI_SUCCESS;
 }
@@ -4249,14 +4251,15 @@ static pi_result enqueueMemCopyRectHelper(
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
 
-  ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList,
-                                          (*Event)->WaitList.Length,
-                                          (*Event)->WaitList.ZeEventList));
-
+  const auto &WaitList = (*Event)->WaitList;
+  if (WaitList.Length) {
+    ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, WaitList.Length,
+                                            WaitList.ZeEventList));
+  }
   zePrint("calling zeCommandListAppendMemoryCopy() with\n"
           "  ZeEvent %#lx\n",
           pi_cast<std::uintptr_t>(ZeEvent));
-  printZeEventList((*Event)->WaitList);
+  printZeEventList(WaitList);
 
   uint32_t SrcOriginX = pi_cast<uint32_t>(SrcOrigin->x_bytes);
   uint32_t SrcOriginY = pi_cast<uint32_t>(SrcOrigin->y_scalar);
@@ -4415,10 +4418,11 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
 
-  ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList,
-                                          (*Event)->WaitList.Length,
-                                          (*Event)->WaitList.ZeEventList));
-
+  const auto &WaitList = (*Event)->WaitList;
+  if (WaitList.Length) {
+    ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, WaitList.Length,
+                                            WaitList.ZeEventList));
+  }
   // Pattern size must be a power of two
   PI_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
             PI_INVALID_VALUE);
@@ -4429,7 +4433,7 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   zePrint("calling zeCommandListAppendMemoryFill() with\n"
           "  ZeEvent %#lx\n",
           pi_cast<pi_uint64>(ZeEvent));
-  printZeEventList((*Event)->WaitList);
+  printZeEventList(WaitList);
 
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
@@ -4547,10 +4551,11 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
         zeMemAllocHost(Queue->Context->ZeContext, &ZeDesc, Size, 1, RetMap));
   }
 
-  ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList,
-                                          (*Event)->WaitList.Length,
-                                          (*Event)->WaitList.ZeEventList));
-
+  const auto &WaitList = (*Event)->WaitList;
+  if (WaitList.Length) {
+    ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, WaitList.Length,
+                                            WaitList.ZeEventList));
+  }
   ZE_CALL(zeCommandListAppendMemoryCopy(
       ZeCommandList, *RetMap, pi_cast<char *>(Buffer->getZeHandle()) + Offset,
       Size, ZeEvent, 0, nullptr));
@@ -4634,10 +4639,11 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   // Set the commandlist in the event
   (*Event)->ZeCommandList = ZeCommandList;
 
-  ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList,
-                                          (*Event)->WaitList.Length,
-                                          (*Event)->WaitList.ZeEventList));
-
+  if ((*Event)->WaitList.Length) {
+    ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList,
+                                            (*Event)->WaitList.Length,
+                                            (*Event)->WaitList.ZeEventList));
+  }
   // TODO: Level Zero is missing the memory "mapping" capabilities, so we are
   // left to doing copy (write back to the device).
   //
@@ -4750,10 +4756,11 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
 
-  ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList,
-                                          (*Event)->WaitList.Length,
-                                          (*Event)->WaitList.ZeEventList));
-
+  const auto &WaitList = (*Event)->WaitList;
+  if (WaitList.Length) {
+    ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, WaitList.Length,
+                                            WaitList.ZeEventList));
+  }
   if (CommandType == PI_COMMAND_TYPE_IMAGE_READ) {
     pi_mem SrcMem = pi_cast<pi_mem>(const_cast<void *>(Src));
 
@@ -5359,10 +5366,11 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
           NumEventsInWaitList, EventWaitList, Queue))
     return Res;
 
-  ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList,
-                                          (*Event)->WaitList.Length,
-                                          (*Event)->WaitList.ZeEventList));
-
+  const auto &WaitList = (*Event)->WaitList;
+  if (WaitList.Length) {
+    ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, WaitList.Length,
+                                            WaitList.ZeEventList));
+  }
   // TODO: figure out how to translate "flags"
   ZE_CALL(zeCommandListAppendMemoryPrefetch(ZeCommandList, Ptr, Size));
 
