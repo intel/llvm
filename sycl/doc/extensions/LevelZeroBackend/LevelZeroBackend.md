@@ -112,7 +112,7 @@ however, the SYCL runtime continues to retain ownership of this handle. The appl
 the last host copy of the SYCL object is destroyed (as described in the core SYCL specification under
 "Common reference semantics"), and the application must not destroy the Level-Zero handle.
 
-#### 4.4.3 Considerations for multi-threaded envoronment
+#### 4.4.3 Considerations for multi-threaded environment
 
 The Level-Zero API is not thread-safe, but it is free-threaded meaning that only the access to its global/shared state is guarded for thread-safety.
 Applications must make sure that the Level-Zero handles themselves aren't used simultaneously from different threads.
