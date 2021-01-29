@@ -156,9 +156,11 @@ int main() {
       }
       for (int i = 0; i < 2; i++) {
         for (int j = 0; j < 3; j++) {
-          std::cout << "array[" << i << "][" << j << "]=" << array[i][j]
-                    << std::endl;
-          assert(array[i][j] == i * 3 + j);
+          if (array[i][j] != i * 3 + j) {
+            std::cerr << array[i][j] << " != " << (i * 3 + j) << std::endl;
+            assert(0);
+            return 1;
+          }
         }
       }
     }
@@ -186,9 +188,12 @@ int main() {
       for (int i = 0; i < 2; i++) {
         for (int j = 0; j < 3; j++) {
           for (int k = 0; k < 4; k++) {
-            std::cout << "array[" << i << "][" << j << "][" << k
-                      << "]=" << array[i][j][k] << std::endl;
-            assert(array[i][j][k] == k + 4 * (j + 3 * i));
+            int expected = k + 4 * (j + 3 * i);
+            if (array[i][j][k] != expected) {
+              std::cerr << array[i][j][k] << " != " << expected << std::endl;
+              assert(0);
+              return 1;
+            }
           }
         }
       }
@@ -258,8 +263,11 @@ int main() {
         queue.wait();
       }
       for (int i = 0; i < 10; i++) {
-        std::cout << "array[" << i << "]=" << array[i] << std::endl;
-        assert(array[i] == 333);
+        if (array[i] != 333) {
+          std::cerr << array[i] << " != 333" << std::endl;
+          assert(0);
+          return 1;
+        }
       }
     }
   }
@@ -285,16 +293,24 @@ int main() {
               sycl::range<1>(10), [=](sycl::item<1> it) {
                 auto idx = it.get_linear_id();
                 acc_wrapped.accessor1[idx] = 333;
-                acc_wrapped.accessor2[idx] = 666;
+                acc_wrapped.accessor2[idx] = 777;
               });
         });
         queue.wait();
       }
       for (int i = 0; i < 10; i++) {
-        std::cout << "array1[" << i << "]=" << array1[i] << std::endl;
-        std::cout << "array2[" << i << "]=" << array2[i] << std::endl;
-        assert(array1[i] == 333);
-        assert(array2[i] == 666);
+        for (int i = 0; i < 10; i++) {
+          if (array1[i] != 333) {
+            std::cerr << array1[i] << " != 333" << std::endl;
+            assert(0);
+            return 1;
+          }
+          if (array2[i] != 777) {
+            std::cerr << array2[i] << " != 777" << std::endl;
+            assert(0);
+            return 1;
+          }
+        }
       }
     }
   }
@@ -322,8 +338,11 @@ int main() {
         queue.wait();
       }
       for (int i = 0; i < 10; i++) {
-        std::cout << "array[" << i << "]=" << array[i] << std::endl;
-        assert(array[i] == 333);
+        if (array[i] != 333) {
+          std::cerr << array[i] << " != 333" << std::endl;
+          assert(0);
+          return 1;
+        }
       }
     }
   }
@@ -557,4 +576,42 @@ int main() {
       return 1;
     }
   }
+
+  // Accessor to fixed size array type.
+  {
+    try {
+      using array_t = int[3];
+
+      array_t *array = (array_t *)malloc(3 * sizeof(array_t));
+      sycl::queue q;
+      static_assert(std::is_trivially_copyable<array_t>::value);
+      {
+        sycl::buffer buf(array, sycl::range<1>(3));
+        q.submit([&](sycl::handler &h) {
+          auto acc = buf.get_access<sycl::access::mode::write>(h);
+          h.parallel_for<class A>(3, [=](sycl::id<1> i) {
+            for (int j = 0; j < 3; ++j) {
+              acc[i][j] = j + i * 10;
+            }
+          });
+        });
+      }
+      for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 3; ++j) {
+          int expected = j + i * 10;
+          if (array[i][j] != expected) {
+            std::cerr << "Accessor to array fail: expected = " << expected
+                      << ", computed = " << array[i][j] << std::endl;
+            assert(0);
+            return 1;
+          }
+        }
+      }
+      free(array);
+    } catch (sycl::exception e) {
+      std::cout << "SYCL exception caught: " << e.what();
+      return 1;
+    }
+  }
+  std::cout << "Test passed" << std::endl;
 }
