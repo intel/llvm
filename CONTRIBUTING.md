@@ -54,6 +54,20 @@ see [ABI Policy Guide](sycl/doc/ABIPolicyGuide.md) for more information.
 - Run regression tests -
 [instructions](sycl/doc/GetStartedGuide.md#test-dpc-toolchain).
 
+**Guidelines for adding Clang FE tests**:
+- Use `sycl::` namespace instead of `cl::sycl::`
+
+- Include sycl mock headers as system headers.
+Example: `-internal-isystem %S/Inputs`
+`#include "sycl.hpp"`
+
+- Use SYCL functions for invoking kernels from the mock header `(single_task, parallel_for)`
+
+- Add a helpful comment describing what the test does at the beginning and other comments throughout the test as necessary.
+
+- Try to follow descriptive naming convention for variables, functions as much as possible.
+Please refer [LLVM naming convention](https://llvm.org/docs/CodingStandards.html#id43)
+
 ### Commit message
 
 - When writing your commit message, please make sure to follow
