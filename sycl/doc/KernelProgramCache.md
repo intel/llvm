@@ -70,40 +70,83 @@ In order to eliminate this waste of run-time we introduce a kernel and program
 caching. The cache is per-context and it caches underlying objects of non
 interop kernels and programs which are built with no options.
 
+Also JIT compilation for cases when an application contains huge amount of
+device code (big kernels or multiple kernels) may take significant time. The
+kernels and programs are rebuild on every program restart. AOT compilation
+can be used to avoid that but it ties application to specific backend runtime
+version(s) and predefined HW configuration(s). As general solution it is
+reasonable to have kernel/program cache which works between application
+restarts (e.g. cache on disk for devices code build for specific HW/SW
+configuration).
+
 <a name="what-is-program">1</a>: Here "program" means an internal SYCL runtime
 object corresponding to a SPIRV module or native binary defining a set of SYCL
 kernels and/or device functions.
 
 
 ## Data structure of cache
+The cache is split into two levels:
+ -  in-memory cache which is used during application runtime for device code
+ which has been already loaded and built for target device.
+ - on-disk cache which is used to store device binaries between application
+ executions.
 
+### In-memory cache
 The cache stores underlying PI objects behind `cl::sycl::program` and
 `cl::sycl::kernel` user-level objects in a per-context data storage. The storage
 consists of two maps: one is for programs and the other is for kernels.
 
-The programs map's key consists of three components: kernel set id<sup>[1](#what-is-ksid)</sup>,
-specialized constants, device this program is built for.
+The programs map's key consists of four components: kernel set id<sup>[1](#what-is-ksid)</sup>,
+specialized constants, device this program is built for, build options id <sup>[2](#what-is-bopts)</sup>.
 
-The krnels map's key consists of three components too: program the kernel
-belongs to, kernel name<sup>[2](#what-is-kname)</sup>, device the program is
-built for.
+The kernels map's key consists of four components too: program the kernel
+belongs to, kernel name<sup>[3](#what-is-kname)</sup>, device the program is
+built for, build options id<sup>[2](#what-is-bopts)</sup>.
 
 <a name="what-is-ksid">1</a>: Kernel set id is an ordinal number of the device
 binary image the kernel is contained in.
-
-<a name="what-is-kname">2</a>: Kernel name is a kernel ID mangled class' name
+<a name="what-is-bopts">2</a>: Hash for the string representation of build
+options set in application or environment variables (e.g.
+SYCL_PROGRAM_COMPILE_OPTIONS, SYCL_PROGRAM_LINK_OPTIONS)
+<a name="what-is-kname">3</a>: Kernel name is a kernel ID mangled class' name
 which is provided to methods of `cl::sycl::handler` (e.g. `parallel_for` or
 `single_task`).
 
+### On-disk cache
+The cache is hidden behind in-memory cache and stores the same underlying PI
+object behind `cl::sycl::program` user-level objects in a per-context data
+storage.
+The storage consists of the map for storing programs. It uses different keys to
+address difference in SYCL objects ids between applications runs as well as the
+fact that the same kernel name can be used in different SYCL applications.
+
+The programs map's key consists of four components: device image id<sup>[1](#what-is-diid)</sup>,
+specialized constants, device id<sup>[2](#what-is-did)</sup> this program is
+built for, build options id<sup>[3](#what-is-bopts)</sup>.
+<a name="what-is-diid">1</a>: Hash out of  first 10 kB (for performance reasons) of SPIRV image (?and/or source code?) used as input for the build.
+<a name="what-is-did">2</a>: Hash out of the string which is concatenation of values for
+`info::platform::name`, `info::device::name`, `info::device::version`,
+`info::device::driver_version` parameters to differentiate different HW and SW
+installed on the same host as well as SW/HW upgrades.
+
+## Environment variables
+The following environment variables affect cache mechanism:
+`DPCPP_CACHE_DIR`=/path/to/cache/location
+`DPCPP_CACHE_ENABLED`=switching on-disc cache ON/OFF (default value is ON to expose possible issue ASAP, may be switch to OFF before the release)
+`DPCPP_CACHE_THRESHOLD`=cache clean up threshold (TBD: cleanup strategy)
+`DPCPP_CACHE_MIN_KERNEL_SIZE`=min size of kernel which is reasonable to cache on
+disk because disk access operation may take more time than do JIT compilation
+for it (default - TBD).
+`DPCPP_CACHE_MAX_KERNEL_SIZE`=too big kernels may overload disk too fast
+(default - TBD)
 
 ## Points of improvement (things to do)
 
  - Implement LRU policy on cached objects. See [issue](https://github.com/intel/llvm/issues/2517).
- - Allow for caching of objects built with some build options.
  - Employ the same built object for multiple devices of the same ISA,
    capabilities and so on. *NOTE:* It's not really known if it's possible to
    check if two distinct devices are *exactly* the same. Probably this should be
-   an improvement request for plugins.
+   an improvement request for plugins. By now it is assumed that two devices with the same device id <a name="what-is-did">2</a> are the same.
  - Improve testing: cover real use-cases. See currently covered cases [here](https://github.com/intel/llvm/blob/sycl/sycl/unittests/kernel-and-program/Cache.cpp).
 
 
@@ -117,11 +160,10 @@ representing a context).
 
 The `KernelProgramCache` is essentially a pair of maps as described above.
 
-
 ### When does the cache come at work?
 
-The cache is used when one submits a kernel for execution or builds program or
-with SYCL API. That means that the cache works when either user explicitly calls
+The cache is used when one submits a kernel for execution or builds program with
+SYCL API. That means that the cache works when either user explicitly calls
 `program::build_with_kernel_type<>()`/`program::get_kernel<>()` methods or SYCL
 RT builds a program or gets the required kernel as needed during application
 execution. Cacheability of an object can be tested with
@@ -129,11 +171,9 @@ execution. Cacheability of an object can be tested with
 programs or kernels into the cache. This is done as a part of
 `ProgramManager::getOrCreateKernel()` method.
 
-
 *NOTE:* a kernel is only cacheable if and only if the program it belongs to is
 cacheable. On the other hand if the program is cacheable, then each and every
 kernel of this program will be cached also.
-
 
 All requests to build a program or to create a kernel - whether they originate
 from explicit user API calls or from internal SYCL runtime execution logic - end
@@ -157,7 +197,7 @@ instance of cache. We will see rationale behind it a bit later.
 Caching isn't done:
  - when program is built out of source with `program::build_with_source()` or
    `program::compile_with_source()` method;
- - when program is a result of linking multiple programs.
+ - when program is a result of linking multiple programs (?to be changed if possible?).
 
 
 ### Thread-safety
@@ -214,6 +254,26 @@ name, device as well as any specialization constants. These get added to
 `BuildResult` and are cached. The `BuildResult` structure is specialized with
 either `PiKernel` or `PiProgram`<sup>[1](#remove-pointer)</sup>.
 
+### Inter-process safety
+For on-disc cache there might be access collisions for accessing the same file
+from different instance of SYCL applications:
+- write collision happens when 2 instances of the same application are started
+to write to the same cache file;
+- read collision may happen if one application is writing to the file and the
+other instance of the application is trying to read from it while write
+operation is not finished.
+To avoid collisions the file in on-disc cache are locked for read-write access
+until write operation is finished.
+Advisory locking <sup>[2](#advisory-lock)</sup> is used to ensure that the
+user/OS tools are able to manage files.
+
+### Hash function
+STL hash function specialized for std::string is going to be used:
+`template<>  struct hash<std::string>`
+TBD: may be it is reasonable to use own implementation for hash function to
+avoid issues when different  C++ library implementation is used producing
+different hashes. But at first look it is not an issue because it may happen only
+DPC++ compiler/runtime change and that means change of SPIRV image.
 
 ### Core of caching mechanism
 
@@ -225,7 +285,7 @@ the map. At this point we try to insert `BuildResult` stub instance with status
 equal to "in progress" which will allow other threads to know that someone is
 (i.e. we're) building the object (i.e. kernel or program) now. If insertion
 fails, we will wait for building thread to finish with call to `waitUntilBuilt`
-function. This function will throw stored exception<sup>[2](#exception-data)</sup>
+function. This function will throw stored exception<sup>[3](#exception-data)</sup>
 upon build failure. This allows waiting threads to see the same result as the
 building thread. Special case of the failure is when build result doesn't
 contain the error (i.e. the error wasn't of `cl::sycl::exception` type) and the
@@ -236,13 +296,17 @@ thread will try to build the same object once more.
 
 `BuildResult` structure also contains synchronization objects: mutex and
 condition variable. We employ them to signal waiting threads that the build
-process for this kernl/program is finished (either successfuly or with a
+process for this kernel/program is finished (either successfully or with a
 failure).
 
 
 <a name="remove-pointer">1</a>: The use of `std::remove_pointer` was omitted for
 the sake of simplicity here.
-
-<a name="exception-data">2</a>: Actually, we store contents of the exception:
+<a name="exception-data">2</a> Advisory locks work only when a process
+explicitly acquires and releases locks, and are ignored if a process is not aware
+of locks.
+<a name="exception-data">3</a>: Actually, we store contents of the exception:
 its message and error code.
 
+### Cache cleanup mechanism
+TBD
