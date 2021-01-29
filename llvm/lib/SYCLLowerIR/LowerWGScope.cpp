@@ -780,10 +780,10 @@ PreservedAnalyses SYCLLowerWGScopePass::run(Function &F, const llvm::Triple &TT,
     Instruction *First = nullptr;
     Instruction *Last = nullptr;
 
-    // Skip PHIs and allocas, as they don't have side effects and must never be
-    // guarded with the WG leader test. Note that there should be no allocas in
-    // local address space at this point - they must have been converted to
-    // globals.
+    // Skip PHIs, allocas and addrspacecasts associated with allocas, as they
+    // don't have side effects and must never be guarded with the WG leader
+    // test. Note that there should be no allocas in local address space at this
+    // point - they must have been converted to globals.
     Instruction *I = BB.getFirstNonPHI();
 
     for (; I->getOpcode() == Instruction::Alloca ||
