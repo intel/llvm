@@ -5,7 +5,7 @@
 This extension introduces Level-Zero backend for SYCL.
 It is built on top of Level-Zero runtime enabled with [Level-Zero API](https://spec.oneapi.com/level-zero/latest/index.html).
 The Level-Zero backend is aimed to provide the best possible performance of SYCL application on a variety of targets supported.
-The currently suppported targets are all Intel GPUs starting with Gen9.
+The currently supported targets are all Intel GPUs starting with Gen9.
 
 NOTE: This specification is a draft. While describing the currently implemented behaviors it is known to be not complete nor exhaustive.
       We shall continue to add more information, e.g. explain general mapping of SYCL programming model to Level-Zero API.
@@ -71,8 +71,8 @@ These SYCL objects encapsulate the corresponding Level-Zero handles:
 ### 4.2 Obtaining of native Level-Zero handles from SYCL objects
                 
 The ```get_native<cl::sycl::backend::level_zero>()``` member function is how a raw native Level-Zero handle can be obtained
-for a specific SYCL object. It is currently supported for SYCL ```platform, device, context, queue, event``` and ```program``` classes.
-There is also a free-function defined in ```cl::sycl``` namespace that can be used instead of the member function:
+for a specific SYCL object. It is currently supported for SYCL ```platform```, ```device```, ```context```, ```queue```, ```event```
+and ```program``` classes. There is also a free-function defined in ```cl::sycl``` namespace that can be used instead of the member function:
 ``` C++
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj) ->
@@ -89,11 +89,11 @@ a SYCL object that encapsulates a corresponding Level-Zero object:
 |``` make<device>(const platform &, ze_device_handle_t);```|Constructs a SYCL device instance from a Level-Zero ```ze_device_handle_t```. The platform argument gives a SYCL platform, encapsulating a Level-Zero driver supporting the passed Level-Zero device.|
 |``` make<context>(const vector_class<device> &, ze_context_handle_t);```| Constructs a SYCL context instance from a Level-Zero ```ze_context_handle_t```. The context is created against the devices passed in. There must be at least one device given and all the devices must be from the same SYCL platform and thus from the same Level-Zero driver.|
 |``` make<queue>(const context &, ze_command_queue_handle_t);```| Constructs a SYCL queue instance from a Level-Zero ```ze_command_queue_handle_t```. The context argument must be a valid SYCL context encapsulating a Level-Zero context. The queue is attached to the first device in the passed SYCL context.|
-|``` make<program>(const context &, ze_module_handle_t);```| Constructs a SYCL program instance from a Level-Zero ```ze_module_handle_t```. The context argument must be a valid SYCL context encapsulating a Level-Zero context. The Level-Zero module must be fully linked (i.e. not require further linking through [```zeModuleDynamicLink```](https://spec.oneapi.com/level-zero/latest/core/api.html?highlight=zemoduledynamiclink#_CPPv419zeModuleDynamicLink8uint32_tP18ze_module_handle_tP28ze_module_build_log_handle_t)),and thus the SYCL program is created in the "linked" state.|
+|``` make<program>(const context &, ze_module_handle_t);```| Constructs a SYCL program instance from a Level-Zero ```ze_module_handle_t```. The context argument must be a valid SYCL context encapsulating a Level-Zero context. The Level-Zero module must be fully linked (i.e. not require further linking through [```zeModuleDynamicLink```](https://spec.oneapi.com/level-zero/latest/core/api.html?highlight=zemoduledynamiclink#_CPPv419zeModuleDynamicLink8uint32_tP18ze_module_handle_tP28ze_module_build_log_handle_t)), and thus the SYCL program is created in the "linked" state.|
 
 NOTE: We shall consider adding other interoperability as needed, if possible.
                 
-### 4.4 Level-Zero handles' ownership and lifetime
+### 4.4 Level-Zero handles' ownership and thread-safety
         
 The Level-Zero runtime doesn't do reference-counting of its objects, so it is crucial to adhere to these
 practices of how Level-Zero handles are manged.
@@ -111,6 +111,13 @@ The application may call the ```get_native<T>()``` member function of a SYCL obj
 however, the SYCL runtime continues to retain ownership of this handle. The application must not use this handle after
 the last host copy of the SYCL object is destroyed (as described in the core SYCL specification under
 "Common reference semantics"), and the application must not destroy the Level-Zero handle.
+
+#### 4.4.3 Considerations for multi-threaded envoronment
+
+The Level-Zero API is not thread-safe, but it is free-threaded meaning that only the access to its global/shared state is guarded for thread-safety.
+Applications must make sure that the Level-Zero handles themselves aren't used simultaneously from different threads.
+Practically speaking, and taking into account that SYCL runtime takes ownership of the Level-Zero handles,
+the application should not attempt further direct use of those handles.
 
 ## Revision History
 |Rev|Date|Author|Changes|
