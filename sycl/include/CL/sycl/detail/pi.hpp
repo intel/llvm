@@ -290,8 +290,8 @@ public:
     return Format;
   }
 
-  /// Returns the value of a single property
-  bool isBoolPropertyTrue(const char *PropName) const;
+  /// Returns a single property from SYCL_MISC_PROP category.
+  pi_device_binary_property getProperty(const char *PropName) const;
 
   /// Gets the iterator range over scalar specialization constants in this
   /// binary image. For each property pointed to by an iterator within the
