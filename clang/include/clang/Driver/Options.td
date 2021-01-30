@@ -2394,6 +2394,10 @@ def fsycl_device_code_split_EQ : Joined<["-"], "fsycl-device-code-split=">,
 def fsycl_device_code_split : Flag<["-"], "fsycl-device-code-split">, Alias<fsycl_device_code_split_EQ>,
   AliasArgs<["auto"]>, Flags<[CC1Option, CoreOption]>,
   HelpText<"Perform SYCL device code split in the 'auto' mode, i.e. use heuristic to distribute device code across modules">;
+def fsycl_device_code_split_esimd : Flag<["-"], "fsycl-device-code-split-esimd">,
+  Flags<[CC1Option, CoreOption]>, HelpText<"Split SYCL and ESIMD kernels into separate modules">;
+def fno_sycl_device_code_split_esimd : Flag<["-"], "fno-sycl-device-code-split-esimd">,
+  Flags<[CC1Option, CoreOption]>, HelpText<"Don't split SYCL and ESIMD kernels into separate modules">;
 defm sycl_id_queries_fit_in_int: OptInFFlag<"sycl-id-queries-fit-in-int", "Assume", "Do not assume", " that SYCL ID queries fit within MAX_INT.", [CC1Option,CoreOption], LangOpts<"SYCLValueFitInMaxInt">>;
 def fsycl_use_bitcode : Flag<["-"], "fsycl-use-bitcode">,
   Flags<[CC1Option, CoreOption]>, HelpText<"Use LLVM bitcode instead of SPIR-V in fat objects">;
