@@ -5862,8 +5862,8 @@ static void handleIntelFPGAPrivateCopiesAttr(Sema &S, Decl *D,
     S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
         << "'intel::private_copies'";
 
-  S.AddOneConstantValueAttr<IntelFPGAPrivateCopiesAttr>(
-      D, Attr, Attr.getArgAsExpr(0));
+  S.addSingleArgFunctionAttr<IntelFPGAPrivateCopiesAttr>(D, Attr,
+                                                         Attr.getArgAsExpr(0));
 }
 
 static void handleIntelFPGAForcePow2DepthAttr(Sema &S, Decl *D,

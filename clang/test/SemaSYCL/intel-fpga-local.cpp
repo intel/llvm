@@ -48,8 +48,6 @@ void check_ast()
   //CHECK: VarDecl{{.*}}private_copies
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAPrivateCopiesAttr
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}8
   //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
   [[intel::private_copies(8)]] unsigned int private_copies[64];
 
@@ -375,8 +373,6 @@ void diagnostics()
   //CHECK: VarDecl{{.*}}private_copies
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAPrivateCopiesAttr
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}8
   //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
   //expected-warning@+2 {{attribute 'intelfpga::private_copies' is deprecated}}
   //expected-note@+1 {{did you mean to use 'intel::private_copies' instead?}}
@@ -390,24 +386,19 @@ void diagnostics()
 
   //CHECK: VarDecl{{.*}}pc_pc
   //CHECK: IntelFPGAPrivateCopiesAttr
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}8
   //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
   //CHECK: IntelFPGAPrivateCopiesAttr
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}16
   //CHECK-NEXT: IntegerLiteral{{.*}}16{{$}}
   //expected-warning@+2{{is already applied}}
   [[intel::private_copies(8)]]
   [[intel::private_copies(16)]] unsigned int pc_pc[64];
 
-  //expected-error@+1{{'private_copies' attribute requires integer constant between 0 and 1048576 inclusive}}
+  //expected-error@+1{{'private_copies' attribute requires a non-negative integral compile time constant expression}}
   [[intel::private_copies(-4)]] unsigned int pc_negative[64];
 
-  int i_private_copies = 32; // expected-note {{declared here}}
-  //expected-error@+1{{expression is not an integral constant expression}}
+  int i_private_copies = 32;
+  //expected-error@+1{{'private_copies' attribute requires an integer constant}}
   [[intel::private_copies(i_private_copies)]]
-  //expected-note@-1{{read of non-const variable 'i_private_copies' is not allowed in a constant expression}}
   unsigned int pc_nonconst[64];
 
   //expected-error@+1{{'private_copies' attribute takes one argument}}
@@ -704,8 +695,6 @@ struct foo {
   //CHECK: FieldDecl{{.*}}private_copies
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAPrivateCopiesAttr
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}4
   //CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
   [[intel::private_copies(4)]] unsigned int private_copies[64];
 
@@ -755,8 +744,6 @@ void check_template_parameters() {
   //CHECK: VarDecl{{.*}}private_copies
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAPrivateCopiesAttr
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}8
   //CHECK-NEXT: SubstNonTypeTemplateParmExpr
   //CHECK-NEXT: NonTypeTemplateParmDecl
   //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}

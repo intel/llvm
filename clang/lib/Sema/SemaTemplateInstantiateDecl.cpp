@@ -587,6 +587,11 @@ static void instantiateIntelFPGAMemoryAttr(
         std::is_same<AttrName, IntelFPGANumBanksAttr>::value)
       return S.AddOneConstantPowerTwoValueAttr<AttrName>(New, *Attr,
                                                          Result.getAs<Expr>());
+
+    else if (std::is_same<AttrName, IntelFPGAPrivateCopiesAttr>::value)
+      return S.addSingleArgFunctionAttr<AttrName>(New, *Attr,
+                                                  Result.getAs<Expr>());
+
     return S.AddOneConstantValueAttr<AttrName>(New, *Attr,
                                                Result.getAs<Expr>());
   }

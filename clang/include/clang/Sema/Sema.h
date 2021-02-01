@@ -12969,13 +12969,20 @@ void Sema::addSingleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
         return;
       }
     }
-    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelSchedulerTargetFmaxMhz) {
+    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelSchedulerTargetFmaxMhz ||
+        CI.getParsedKind() == ParsedAttr::AT_IntelFPGAPrivateCopies) {
       if (ArgInt < 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
             << CI.getAttrName() << /*non-negative*/ 1;
         return;
       }
     }
+  }
+
+  if (CI.getParsedKind() == ParsedAttr::AT_IntelFPGAPrivateCopies) {
+    if (!D->hasAttr<IntelFPGAMemoryAttr>())
+      D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
+          Context, IntelFPGAMemoryAttr::Default));
   }
 
   D->addAttr(::new (Context) AttrType(Context, CI, E));
