@@ -333,6 +333,7 @@ Make sure that these binaries are available in `PATH` environment variable:
   * `aoc` from `<oneAPI installation location>/compiler/<version>/<OS>/lib/oclfpga/bin`
   * `aocl-ioc64` from `<oneAPI installation location>/compiler/<version>/<OS>/bin`
 
+### Test DPC++ toolchain
 #### Run in-tree LIT tests
 
 To verify that built DPC++ toolchain is working correctly, run:
