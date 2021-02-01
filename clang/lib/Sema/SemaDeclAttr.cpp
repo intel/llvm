@@ -3044,7 +3044,7 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
     if (!((getExprValue(AL.getArgAsExpr(0), Ctx) <=
-	   getExprValue(A->getXDim(), Ctx)) &&
+           getExprValue(A->getXDim(), Ctx)) &&
           (getExprValue(AL.getArgAsExpr(1), Ctx) <=
            getExprValue(A->getYDim(), Ctx)) &&
           (getExprValue(AL.getArgAsExpr(2), Ctx) <=
