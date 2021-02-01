@@ -3006,8 +3006,8 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
     return true;
   };
 
-  /// Returns the usigned constant integer value represented by
-  /// given expression.
+  // Returns the unsigned constant integer value represented by
+  // given expression.
   auto getExprValue = [](const Expr *E, ASTContext &Ctx) {
     return E->getIntegerConstantExpr(Ctx)->getZExtValue();
   };
@@ -3030,13 +3030,8 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (AL.getKind() == ParsedAttr::AT_SYCLIntelMaxWorkGroupSize)
     S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
-  // For a SYCLDevice, WorkGroupAttr arguments are reversed.
-  // "XDim" gets the third argument to the attribute and
-  // "ZDim" gets the first argument of the attribute.
   if (const auto *A = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    int64_t AttrValue =
-        A->getValue()->getIntegerConstantExpr(S.Context)->getSExtValue();
-    if (AttrValue == 0) {
+    if (getExprValue(A->getValue(), S.getASTContext()) == 0) {
       Result &=
           checkZeroDim(A, getExprValue(AL.getArgAsExpr(0), S.getASTContext()),
                        getExprValue(AL.getArgAsExpr(1), S.getASTContext()),
