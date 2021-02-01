@@ -1856,8 +1856,30 @@ public:
   }
 #endif
 
+  template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 0>>
+  accessor(handler &, const property_list &propList)
+#ifdef __SYCL_DEVICE_ONLY__
+      : impl(range<AdjustedDim>{1}) {
+  }
+#else
+      : LocalAccessorBaseHost(range<3>{1, 1, 1}, AdjustedDim, sizeof(DataT)) {
+  }
+#endif
+
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
   accessor(range<Dimensions> AllocationSize, handler &)
+#ifdef __SYCL_DEVICE_ONLY__
+      : impl(AllocationSize) {
+  }
+#else
+      : LocalAccessorBaseHost(detail::convertToArrayOfN<3, 1>(AllocationSize),
+                              AdjustedDim, sizeof(DataT)) {
+  }
+#endif
+
+  template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
+  accessor(range<Dimensions> AllocationSize, handler &,
+          const property_list &propList)
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AllocationSize) {
   }
@@ -1956,6 +1978,19 @@ public:
                                  access::target::image);
 #endif
   }
+
+  template <typename AllocatorT>
+  accessor(cl::sycl::image<Dimensions, AllocatorT> &Image,
+           handler &CommandGroupHandler, const property_list &propList)
+      : detail::image_accessor<DataT, Dimensions, AccessMode,
+                               access::target::image, IsPlaceholder>(
+            Image, CommandGroupHandler,
+            (detail::getSyclObjImpl(Image))->getElementSize()) {
+#ifndef __SYCL_DEVICE_ONLY__
+    detail::associateWithHandler(CommandGroupHandler, this,
+                                 access::target::image);
+#endif
+  }
 #ifdef __SYCL_DEVICE_ONLY__
 private:
   using OCLImageTy =
@@ -1991,6 +2026,13 @@ class accessor<DataT, Dimensions, AccessMode, access::target::host_image,
 public:
   template <typename AllocatorT>
   accessor(cl::sycl::image<Dimensions, AllocatorT> &Image)
+      : detail::image_accessor<DataT, Dimensions, AccessMode,
+                               access::target::host_image, IsPlaceholder>(
+            Image, (detail::getSyclObjImpl(Image))->getElementSize()) {}
+
+  template <typename AllocatorT>
+  accessor(cl::sycl::image<Dimensions, AllocatorT> &Image, 
+          const property_list &propList)
       : detail::image_accessor<DataT, Dimensions, AccessMode,
                                access::target::host_image, IsPlaceholder>(
             Image, (detail::getSyclObjImpl(Image))->getElementSize()) {}
@@ -2031,6 +2073,19 @@ public:
   template <typename AllocatorT>
   accessor(cl::sycl::image<Dimensions + 1, AllocatorT> &Image,
            handler &CommandGroupHandler)
+      : detail::image_accessor<DataT, Dimensions + 1, AccessMode,
+                               access::target::image, IsPlaceholder>(
+            Image, CommandGroupHandler,
+            (detail::getSyclObjImpl(Image))->getElementSize()) {
+#ifndef __SYCL_DEVICE_ONLY__
+    detail::associateWithHandler(CommandGroupHandler, this,
+                                 access::target::image_array);
+#endif
+  }
+
+  template <typename AllocatorT>  
+  accessor(cl::sycl::image<Dimensions + 1, AllocatorT> &Image,
+           handler &CommandGroupHandler, const property_list &propList)
       : detail::image_accessor<DataT, Dimensions + 1, AccessMode,
                                access::target::image, IsPlaceholder>(
             Image, CommandGroupHandler,
