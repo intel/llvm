@@ -1,6 +1,8 @@
 // REQUIRES: ocloc, gpu
 // UNSUPPORTED: cuda
 // CUDA does neither support device code splitting nor SPIR.
+// Issue #128: The test fails for driver 27.20.100.9168
+// XFAIL: windows
 //
 // RUN: %clangxx -fsycl -fsycl-device-code-split=per_source \
 // RUN:   -fsycl-targets=spir64_gen-unknown-unknown-sycldevice \

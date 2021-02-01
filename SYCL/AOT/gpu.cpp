@@ -9,6 +9,8 @@
 // REQUIRES: ocloc, gpu
 // UNSUPPORTED: cuda
 // CUDA is not compatible with SPIR.
+// Issue #128: The test fails for driver 27.20.100.9168
+// XFAIL: windows
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice -Xsycl-target-backend=spir64_gen-unknown-unknown-sycldevice "-device *" %S/Inputs/aot.cpp -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
