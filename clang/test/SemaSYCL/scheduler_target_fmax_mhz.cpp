@@ -10,20 +10,16 @@ template <int N>
 [[intel::scheduler_target_fmax_mhz(N)]] void zoo() {}
 
 int main() {
-  // CHECK-LABEL:  FunctionDecl {{.*}}test_kernel1 'void ()'
+  // CHECK:  FunctionDecl {{.*}}test_kernel1 'void ()'
   // CHECK:        SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
-  // CHECK-NEXT:   ConstantExpr {{.*}} 'int'
-  // CHECK-NEXT:   value: Int 5
   // CHECK-NEXT:   IntegerLiteral {{.*}} 'int' 5
   // expected-warning@+3 {{attribute 'intelfpga::scheduler_target_fmax_mhz' is deprecated}}
   // expected-note@+2 {{did you mean to use 'intel::scheduler_target_fmax_mhz' instead?}}
   cl::sycl::kernel_single_task<class test_kernel1>(
       []() [[intelfpga::scheduler_target_fmax_mhz(5)]]{});
 
-  // CHECK-LABEL:  FunctionDecl {{.*}}test_kernel2 'void ()'
+  // CHECK:  FunctionDecl {{.*}}test_kernel2 'void ()'
   // CHECK:        SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
-  // CHECK-NEXT:   ConstantExpr {{.*}} 'int'
-  // CHECK-NEXT:   value: Int 2
   // CHECK-NEXT:   IntegerLiteral {{.*}} 'int' 2
   cl::sycl::kernel_single_task<class test_kernel2>(
       []() { func(); });
@@ -39,10 +35,10 @@ int main() {
   [[intel::scheduler_target_fmax_mhz(0)]] int Var = 0; // expected-error{{'scheduler_target_fmax_mhz' attribute only applies to functions}}
 
   cl::sycl::kernel_single_task<class test_kernel4>(
-      []() [[intel::scheduler_target_fmax_mhz(1048577)]]{}); // expected-error{{'scheduler_target_fmax_mhz' attribute requires integer constant between 0 and 1048576 inclusive}}
+      []() [[intel::scheduler_target_fmax_mhz(1048577)]]{}); // OK
 
   cl::sycl::kernel_single_task<class test_kernel5>(
-      []() [[intel::scheduler_target_fmax_mhz(-4)]]{}); // expected-error{{'scheduler_target_fmax_mhz' attribute requires integer constant between 0 and 1048576 inclusive}}
+      []() [[intel::scheduler_target_fmax_mhz(-4)]]{}); // expected-error{{'scheduler_target_fmax_mhz' attribute requires a non-negative integral compile time constant expression}}
 
   cl::sycl::kernel_single_task<class test_kernel6>(
       []() [[intel::scheduler_target_fmax_mhz(1), intel::scheduler_target_fmax_mhz(2)]]{}); // expected-warning{{attribute 'scheduler_target_fmax_mhz' is already applied with different parameters}}

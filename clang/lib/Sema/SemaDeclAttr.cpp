@@ -3210,7 +3210,8 @@ static void handleSchedulerTargetFmaxMhzAttr(Sema &S, Decl *D,
     S.Diag(AL.getLoc(), diag::note_spelling_suggestion)
         << "'intel::scheduler_target_fmax_mhz'";
 
-  S.AddOneConstantValueAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>(D, AL, E);
+  S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>(
+      D, AL, E);
 }
 
 // Handles max_global_work_dim.
@@ -3287,10 +3288,13 @@ static bool checkSYCLIntelLoopFuseArgument(Sema &S,
     return true;
   }
 
-  SYCLIntelLoopFuseAttr TmpAttr(S.Context, CI, E);
-  ExprResult ICE;
+  if (!ArgVal->isNonNegative()) {
+    S.Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+        << CI << /*non-negative*/ 1;
+    return true;
+  }
 
-  return S.checkRangedIntegralArgument<SYCLIntelLoopFuseAttr>(E, &TmpAttr, ICE);
+  return false;
 }
 
 void Sema::addSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,

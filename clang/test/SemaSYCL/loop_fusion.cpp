@@ -4,8 +4,8 @@
 
 [[intel::loop_fuse("foo")]] void func() {} // expected-error{{'loop_fuse' attribute requires an integer constant}}
 
-[[intel::loop_fuse(1048577)]] void func1() {}        // expected-error{{'loop_fuse' attribute requires integer constant between 0 and 1048576 inclusive}}
-[[intel::loop_fuse_independent(-1)]] void func2() {} // expected-error{{'loop_fuse_independent' attribute requires integer constant between 0 and 1048576 inclusive}}
+[[intel::loop_fuse(1048577)]] void func1() {}        // OK
+[[intel::loop_fuse_independent(-1)]] void func2() {} // expected-error{{'loop_fuse_independent' attribute requires a non-negative integral compile time constant expression}}
 
 [[intel::loop_fuse(0, 1)]] void func3() {}             // expected-error{{'loop_fuse' attribute takes no more than 1 argument}}
 [[intel::loop_fuse_independent(2, 3)]] void func4() {} // expected-error{{'loop_fuse_independent' attribute takes no more than 1 argument}}
@@ -48,13 +48,14 @@
 [[intel::loop_fuse]] void func16();
 
 template <int N>
-[[intel::loop_fuse(N)]] void func17(); // expected-error{{'loop_fuse' attribute requires integer constant between 0 and 1048576 inclusive}}
+[[intel::loop_fuse(N)]] void func17(); // expected-error{{'loop_fuse' attribute requires a non-negative integral compile time constant expression}}
 
 template <typename Ty>
 [[intel::loop_fuse(Ty{})]] void func18() {} // expected-error{{'loop_fuse' attribute requires an integer constant}}
 
 void checkTemplates() {
   func17<-1>();    // expected-note{{in instantiation of}}
+  func17<0>();     // OK
   func18<float>(); // expected-note{{in instantiation of}}
 }
 

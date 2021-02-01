@@ -1269,14 +1269,6 @@ def SYCLIntelSchedulerTargetFmaxMhz : InheritableAttr {
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelSchedulerTargetFmaxMhzAttrDocs];
-  let AdditionalMembers = [{
-    static unsigned getMinValue() {
-      return 0;
-    }
-    static unsigned getMaxValue() {
-      return 1024*1024;
-    }
-  }];
 }
 
 def SYCLIntelMaxWorkGroupSize : InheritableAttr {
@@ -1331,14 +1323,6 @@ def SYCLIntelLoopFuse : InheritableAttr {
   let Accessors = [Accessor<"isIndependent",
                   [CXX11<"intel", "loop_fuse_independent">]>];
   let Documentation = [SYCLIntelLoopFuseDocs];
-  let AdditionalMembers = [{
-    static unsigned getMinValue() {
-      return 0;
-    }
-    static unsigned getMaxValue() {
-      return 1024*1024;
-    }
-  }];
 }
 
 def C11NoReturn : InheritableAttr {

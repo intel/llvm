@@ -12970,6 +12970,13 @@ void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
         return;
       }
     }
+    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelSchedulerTargetFmaxMhz) {
+      if (ArgInt < 0) {
+        Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+            << CI.getAttrName() << /*non-negative*/ 1;
+        return;
+      }
+    }
   }
 
   D->addAttr(::new (Context) AttrType(Context, CI, E));
