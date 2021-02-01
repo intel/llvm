@@ -61,12 +61,20 @@ see [ABI Policy Guide](sycl/doc/ABIPolicyGuide.md) for more information.
 Example: `-internal-isystem %S/Inputs`
 `#include "sycl.hpp"`
 
-- Use SYCL functions for invoking kernels from the mock header `(single_task, parallel_for)`
+- Use SYCL functions for invoking kernels from the mock header `(single_task, parallel_for, parallel_for_work_group)`
+Example:
+```bash
+`#include "Inputs/sycl.hpp"`
+sycl::queue q;
+q.submit([&](cl::sycl::handler &h) {
+h.single_task( { //code });
+});
+```
 
 - Add a helpful comment describing what the test does at the beginning and other comments throughout the test as necessary.
 
 - Try to follow descriptive naming convention for variables, functions as much as possible.
-Please refer [LLVM naming convention](https://llvm.org/docs/CodingStandards.html#id43)
+Please refer [LLVM naming convention](https://llvm.org/docs/CodingStandards.html#name-types-functions-variables-and-enumerators-properly)
 
 ### Commit message
 
