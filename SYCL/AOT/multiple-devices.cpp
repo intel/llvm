@@ -9,6 +9,8 @@
 // REQUIRES: opencl-aot, ocloc, aoc, cpu, gpu, accelerator
 // UNSUPPORTED: cuda
 // CUDA is not compatible with SPIR.
+// Issue #128: The test fails for driver 27.20.100.9168
+// XFAIL: windows && gpu
 
 // 1-command compilation case
 // Targeting CPU, GPU, FPGA
