@@ -1,9 +1,10 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -Wno-return-type -Wno-sycl-2017-compat -verify -fsyntax-only -std=c++20 -Werror=vla %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -fcxx-exceptions -Wno-return-type -sycl-std=2020 -verify -fsyntax-only -std=c++20 -Werror=vla %s
 
-template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
-  kernelFunc();
-}
+// This test verifies that a SYCL kernel executed on a device, cannot call a recursive function.
+
+#include "sycl.hpp"
+
+sycl::queue q;
 
 // expected-note@+1{{function implemented using recursion declared here}}
 constexpr int constexpr_recurse1(int n);
@@ -71,6 +72,11 @@ void constexpr_recurse_test_err() {
 }
 
 int main() {
-  kernel_single_task<class fake_kernel>([]() { constexpr_recurse_test(); });
-  kernel_single_task<class fake_kernel>([]() { constexpr_recurse_test_err(); });
+  q.submit([&](sycl::handler &h) {
+    h.single_task<class fake_kernel>([]() { constexpr_recurse_test(); });
+  });
+
+  q.submit([&](sycl::handler &h) {
+    h.single_task<class fake_kernel>([]() { constexpr_recurse_test_err(); });
+  });
 }

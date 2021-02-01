@@ -527,7 +527,7 @@ Error WasmObjectFile::parseLinkingSectionSymtab(ReadContext &Ctx) {
     wasm::WasmSymbolInfo Info;
     const wasm::WasmSignature *Signature = nullptr;
     const wasm::WasmGlobalType *GlobalType = nullptr;
-    uint8_t TableType = 0;
+    const wasm::WasmTableType *TableType = nullptr;
     const wasm::WasmEventType *EventType = nullptr;
 
     Info.Kind = readUint8(Ctx);
@@ -609,7 +609,7 @@ Error WasmObjectFile::parseLinkingSectionSymtab(ReadContext &Ctx) {
         Info.Name = readString(Ctx);
         unsigned TableIndex = Info.ElementIndex - NumImportedTables;
         wasm::WasmTable &Table = Tables[TableIndex];
-        TableType = Table.Type.ElemType;
+        TableType = &Table.Type;
         if (Table.SymbolName.empty())
           Table.SymbolName = Info.Name;
       } else {
@@ -620,8 +620,7 @@ Error WasmObjectFile::parseLinkingSectionSymtab(ReadContext &Ctx) {
         } else {
           Info.Name = Import.Field;
         }
-        TableType = Import.Table.ElemType;
-        // FIXME: Parse limits here too.
+        TableType = &Import.Table;
         if (!Import.Module.empty()) {
           Info.ImportModule = Import.Module;
         }
@@ -694,7 +693,8 @@ Error WasmObjectFile::parseLinkingSectionSymtab(ReadContext &Ctx) {
     }
 
     default:
-      return make_error<GenericBinaryError>("Invalid symbol type",
+      return make_error<GenericBinaryError>("Invalid symbol type: " +
+                                                Twine(unsigned(Info.Kind)),
                                             object_error::parse_failed);
     }
 
@@ -851,14 +851,15 @@ Error WasmObjectFile::parseRelocSection(StringRef Name, ReadContext &Ctx) {
   uint32_t PreviousOffset = 0;
   while (RelocCount--) {
     wasm::WasmRelocation Reloc = {};
-    Reloc.Type = readVaruint32(Ctx);
+    uint32_t type = readVaruint32(Ctx);
+    Reloc.Type = type;
     Reloc.Offset = readVaruint32(Ctx);
     if (Reloc.Offset < PreviousOffset)
       return make_error<GenericBinaryError>("Relocations not in offset order",
                                             object_error::parse_failed);
     PreviousOffset = Reloc.Offset;
     Reloc.Index = readVaruint32(Ctx);
-    switch (Reloc.Type) {
+    switch (type) {
     case wasm::R_WASM_FUNCTION_INDEX_LEB:
     case wasm::R_WASM_TABLE_INDEX_SLEB:
     case wasm::R_WASM_TABLE_INDEX_SLEB64:
@@ -936,9 +937,8 @@ Error WasmObjectFile::parseRelocSection(StringRef Name, ReadContext &Ctx) {
       Reloc.Addend = readVarint32(Ctx);
       break;
     default:
-      return make_error<GenericBinaryError>("Bad relocation type: " +
-                                                Twine(Reloc.Type),
-                                            object_error::parse_failed);
+      return make_error<GenericBinaryError>(
+          "Bad relocation type: " + Twine(type), object_error::parse_failed);
     }
 
     // Relocations must fit inside the section, and must appear in order.  They
@@ -1367,9 +1367,11 @@ Error WasmObjectFile::parseDataSection(ReadContext &Ctx) {
   while (Count--) {
     WasmSegment Segment;
     Segment.Data.InitFlags = readVaruint32(Ctx);
-    Segment.Data.MemoryIndex = (Segment.Data.InitFlags & wasm::WASM_SEGMENT_HAS_MEMINDEX)
-                               ? readVaruint32(Ctx) : 0;
-    if ((Segment.Data.InitFlags & wasm::WASM_SEGMENT_IS_PASSIVE) == 0) {
+    Segment.Data.MemoryIndex =
+        (Segment.Data.InitFlags & wasm::WASM_DATA_SEGMENT_HAS_MEMINDEX)
+            ? readVaruint32(Ctx)
+            : 0;
+    if ((Segment.Data.InitFlags & wasm::WASM_DATA_SEGMENT_IS_PASSIVE) == 0) {
       if (Error Err = readInitExpr(Segment.Data.Offset, Ctx))
         return Err;
     } else {
