@@ -74,9 +74,6 @@ using IsReduBitAND = detail::bool_constant<
 
 template <typename T, class BinaryOperation>
 using IsReduOptForFastAtomicFetch =
-#ifdef SYCL_REDUCTION_NO_FAST_OPTS
-    detail::bool_constant<false>;
-#else
     detail::bool_constant<(is_geninteger32bit<T>::value ||
                            is_geninteger64bit<T>::value) &&
                           (IsReduPlus<T, BinaryOperation>::value ||
@@ -85,20 +82,15 @@ using IsReduOptForFastAtomicFetch =
                            IsReduBitOR<T, BinaryOperation>::value ||
                            IsReduBitXOR<T, BinaryOperation>::value ||
                            IsReduBitAND<T, BinaryOperation>::value)>;
-#endif
 
 template <typename T, class BinaryOperation>
 using IsReduOptForFastReduce = detail::bool_constant<
-#ifdef SYCL_REDUCTION_NO_FAST_OPTS
-    false>;
-#else
     (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value ||
      std::is_same<T, half>::value || std::is_same<T, float>::value ||
      std::is_same<T, double>::value) &&
     (IsReduPlus<T, BinaryOperation>::value ||
      IsReduMinimum<T, BinaryOperation>::value ||
      IsReduMaximum<T, BinaryOperation>::value)>;
-#endif
 
 // Identity = 0
 template <typename T, class BinaryOperation>
@@ -389,8 +381,7 @@ public:
   static constexpr int accessor_dim = Dims;
   static constexpr int buffer_dim = (Dims == 0) ? 1 : Dims;
   using local_accessor_type =
-      accessor<T, buffer_dim, access::mode::discard_read_write,
-               access::target::local>;
+      accessor<T, buffer_dim, access::mode::read_write, access::target::local>;
 
   static constexpr bool has_fast_atomics =
       IsReduOptForFastAtomicFetch<T, BinaryOperation>::value;
@@ -1374,7 +1365,7 @@ void associateReduAccsWithHandlerHelper(handler &CGH, ReductionT &Redu) {
 template <typename ReductionT, typename... RestT,
           enable_if_t<(sizeof...(RestT) > 0), int> Z = 0>
 void associateReduAccsWithHandlerHelper(handler &CGH, ReductionT &Redu,
-                                        RestT &...Rest) {
+                                        RestT &... Rest) {
   Redu.associateWithHandler(CGH);
   associateReduAccsWithHandlerHelper(CGH, Rest...);
 }
