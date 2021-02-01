@@ -68,7 +68,7 @@ times, which may involve JIT compilation and take quite a lot of time.
 
 In order to eliminate this waste of run-time we introduce a kernel and program
 caching. The cache is per-context and it caches underlying objects of non
-interop kernels and programs which are built with no options.
+interop kernels and programs.
 
 Also JIT compilation for cases when an application contains huge amount of
 device code (big kernels or multiple kernels) may take significant time. The
@@ -86,7 +86,7 @@ kernels and/or device functions.
 
 ## Data structure of cache
 The cache is split into two levels:
- -  in-memory cache which is used during application runtime for device code
+ - in-memory cache which is used during application runtime for device code
  which has been already loaded and built for target device.
  - on-disk cache which is used to store device binaries between application
  executions.
@@ -107,7 +107,9 @@ built for, build options id<sup>[2](#what-is-bopts)</sup>.
 binary image the kernel is contained in.
 <a name="what-is-bopts">2</a>: Hash for the string representation of build
 options set in application or environment variables (e.g.
-SYCL_PROGRAM_COMPILE_OPTIONS, SYCL_PROGRAM_LINK_OPTIONS)
+SYCL_PROGRAM_COMPILE_OPTIONS, SYCL_PROGRAM_LINK_OPTIONS). The key is hash out
+of the string which is concatenation of `program.get_compile_options()`,
+`program.get_link_options()`, `program.get_build_options()` values.
 <a name="what-is-kname">3</a>: Kernel name is a kernel ID mangled class' name
 which is provided to methods of `cl::sycl::handler` (e.g. `parallel_for` or
 `single_task`).
@@ -131,13 +133,13 @@ installed on the same host as well as SW/HW upgrades.
 
 ## Environment variables
 The following environment variables affect cache mechanism:
-`DPCPP_CACHE_DIR`=/path/to/cache/location
+`DPCPP_CACHE_DIR`=/path/to/cache/location (default values are `%AppData%\Intel\dpcpp_program_cache` for Windows and `$HOME/intel/dpcpp_program_cache`)
 `DPCPP_CACHE_ENABLED`=switching on-disc cache ON/OFF (default value is ON to expose possible issue ASAP, may be switch to OFF before the release)
 `DPCPP_CACHE_THRESHOLD`=cache clean up threshold (TBD: cleanup strategy)
-`DPCPP_CACHE_MIN_KERNEL_SIZE`=min size of kernel which is reasonable to cache on
-disk because disk access operation may take more time than do JIT compilation
-for it (default - TBD).
-`DPCPP_CACHE_MAX_KERNEL_SIZE`=too big kernels may overload disk too fast
+`DPCPP_CACHE_MIN_DEVICE_IMAGE_SIZE`=min size of device code image which is reasonable
+to cache on disk because disk access operation may take more time than do JIT
+compilation for it (default - TBD).
+`DPCPP_CACHE_MAX_DEVICE_IMAGE_SIZE`=too big kernels may overload disk too fast
 (default - TBD)
 
 ## Points of improvement (things to do)
@@ -197,7 +199,8 @@ instance of cache. We will see rationale behind it a bit later.
 Caching isn't done:
  - when program is built out of source with `program::build_with_source()` or
    `program::compile_with_source()` method;
- - when program is a result of linking multiple programs (?to be changed if possible?).
+ - when program is a result of linking multiple programs (TBD: if it is
+possible to remove this restriction).
 
 
 ### Thread-safety
@@ -302,7 +305,7 @@ failure).
 
 <a name="remove-pointer">1</a>: The use of `std::remove_pointer` was omitted for
 the sake of simplicity here.
-<a name="exception-data">2</a> Advisory locks work only when a process
+<a name="advisory-lock">2</a> Advisory locks work only when a process
 explicitly acquires and releases locks, and are ignored if a process is not aware
 of locks.
 <a name="exception-data">3</a>: Actually, we store contents of the exception:
