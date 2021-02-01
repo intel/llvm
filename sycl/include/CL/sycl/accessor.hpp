@@ -1879,7 +1879,7 @@ public:
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
   accessor(range<Dimensions> AllocationSize, handler &,
-          const property_list &propList)
+           const property_list &propList)
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AllocationSize) {
   }
@@ -2032,7 +2032,7 @@ public:
 
   template <typename AllocatorT>
   accessor(cl::sycl::image<Dimensions, AllocatorT> &Image, 
-          const property_list &propList)
+           const property_list &propList)
       : detail::image_accessor<DataT, Dimensions, AccessMode,
                                access::target::host_image, IsPlaceholder>(
             Image, (detail::getSyclObjImpl(Image))->getElementSize()) {}
@@ -2083,7 +2083,7 @@ public:
 #endif
   }
 
-  template <typename AllocatorT>  
+  template <typename AllocatorT>
   accessor(cl::sycl::image<Dimensions + 1, AllocatorT> &Image,
            handler &CommandGroupHandler, const property_list &propList)
       : detail::image_accessor<DataT, Dimensions + 1, AccessMode,
