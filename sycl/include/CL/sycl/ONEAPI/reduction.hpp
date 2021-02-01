@@ -532,14 +532,14 @@ public:
   /// Returns user's USM pointer passed to reduction for editing.
   template <bool IsOneWG, bool _IsUSM = is_usm>
   std::enable_if_t<IsOneWG && _IsUSM, result_type *>
-  getWriteMemForPartialReds(size_t, handler &CGH) {
+  getWriteMemForPartialReds(size_t, handler &) {
     return getUSMPointer();
   }
 
   /// Returns user's accessor passed to reduction for editing.
   template <bool IsOneWG, bool _IsUSM = is_usm>
   std::enable_if_t<IsOneWG && !_IsUSM, accessor_type>
-  getWriteMemForPartialReds(size_t, handler &CGH) {
+  getWriteMemForPartialReds(size_t, handler &) {
     return *MAcc;
   }
 
@@ -658,7 +658,7 @@ struct get_reduction_aux_kernel_name_t {
 /// user's lambda function KernelFunc and also does one iteration of reduction
 /// of elements computed in user's lambda function.
 /// This version uses ONEAPI::reduce() algorithm to reduce elements in each
-/// of work-groups, then it calls fast sycl atomic operations to update
+/// of work-groups, then it calls fast SYCL atomic operations to update
 /// user's reduction variable.
 ///
 /// Briefly: calls user's lambda, ONEAPI::reduce() + atomic, INT + ADD/MIN/MAX.
@@ -685,7 +685,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
 /// user's lambda function KernelFunc and also does one iteration of reduction
 /// of elements computed in user's lambda function.
 /// This version uses tree-reduction algorithm to reduce elements in each
-/// of work-groups, then it calls fast sycl atomic operations to update
+/// of work-groups, then it calls fast SYCL atomic operations to update
 /// user's reduction variable.
 ///
 /// Briefly: calls user's lambda, tree-reduction + atomic, INT + AND/OR/XOR.
@@ -1351,7 +1351,7 @@ void reduCGFunc(handler &CGH, KernelType KernelFunc,
 
 // The list of reductions may be empty; for such cases there is nothing to do.
 // This function is intentionally made template to eliminate the need in holding
-// it in sycl library, what would be less efficient and also would create the
+// it in SYCL library, what would be less efficient and also would create the
 // need in keeping it for long due support backward ABI compatibility.
 template <typename HandlerT>
 std::enable_if_t<std::is_same<HandlerT, handler>::value>
