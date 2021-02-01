@@ -1,8 +1,10 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-int-to-void-pointer-cast -internal-isystem %S/Inputs -ast-dump -sycl-std=2020 %s | FileCheck %s
 
-#include "Inputs/sycl.hpp"
+#include "sycl.hpp"
 
-namespace foo {
+sycl::queue deviceQueue;
+
+namespace fake {
 namespace cl {
 namespace sycl {
 class accessor {
@@ -11,46 +13,46 @@ public:
 };
 } // namespace sycl
 } // namespace cl
-} // namespace foo
+} // namespace fake
 
 class accessor {
 public:
   int field;
 };
 
-typedef cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
-                           cl::sycl::access::target::global_buffer>
-    MyAccessorTD;
-
-using MyAccessorA = cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
-                                       cl::sycl::access::target::global_buffer>;
-
-template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
-  kernelFunc();
-}
-
 int main() {
-  foo::cl::sycl::accessor acc = {1};
-  accessor acc1 = {1};
 
-  cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write> accessorA;
-  cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write> accessorB;
-  cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write> accessorC;
-    kernel<class fake_accessors>(
-        [=]() {
-          accessorA.use((void*)(acc.field + acc1.field));
+  fake::cl::sycl::accessor FakeAccessor = {1};
+  accessor AccessorClass = {1};
+
+  typedef sycl::accessor<int, 1, sycl::access::mode::read_write, cl::sycl::access::target::global_buffer>
+      MyAccessorTD;
+  MyAccessorTD AccessorTypeDef;
+
+  using MyAccessorA = sycl::accessor<int, 1, sycl::access::mode::read_write, cl::sycl::access::target::global_buffer>;
+  MyAccessorA AccessorAlias;
+
+  cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write> AccessorRegular;
+
+  deviceQueue.submit([&](sycl::handler &h) {
+    h.single_task<class fake_accessors>(
+        [=] {
+          AccessorRegular.use((void *)(FakeAccessor.field + AccessorClass.field));
         });
-    kernel<class accessor_typedef>(
-        [=]() {
-          accessorB.use((void*)(acc.field + acc1.field));
+
+    h.single_task<class accessor_typedef>(
+        [=] {
+          AccessorTypeDef.use((void *)(FakeAccessor.field + AccessorClass.field));
         });
-    kernel<class accessor_alias>(
-        [=]() {
-          accessorC.use((void*)(acc.field + acc1.field));
+
+    h.single_task<class accessor_alias>(
+        [=] {
+          AccessorAlias.use((void *)(FakeAccessor.field + AccessorClass.field));
         });
+  });
+
   return 0;
 }
-// CHECK: fake_accessors{{.*}} 'void (__global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, foo::cl::sycl::accessor, accessor)
-// CHECK: accessor_typedef{{.*}} 'void (__global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, foo::cl::sycl::accessor, accessor)
-// CHECK: accessor_alias{{.*}} 'void (__global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, foo::cl::sycl::accessor, accessor)
+// CHECK: fake_accessors{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, fake::cl::sycl::accessor, accessor)
+// CHECK: accessor_typedef{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, fake::cl::sycl::accessor, accessor)
+// CHECK: accessor_alias{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, fake::cl::sycl::accessor, accessor)
