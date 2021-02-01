@@ -3022,9 +3022,9 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
     else if (const auto *B = D->getAttr<ReqdWorkGroupSizeAttr>())
       Dims = B->dimensions();
     if (B) {
-      Result &= checkZeroDim(B, getExprValue(Dims[0], Ctx),
-                             getExprValue(Dims[1], Ctx),
-                             getExprValue(Dims[2], Ctx));
+      Result &=
+          checkZeroDim(B, getExprValue(Dims[0], Ctx),
+                       getExprValue(Dims[1], Ctx), getExprValue(Dims[2], Ctx));
     }
     return Result;
   }
@@ -3034,11 +3034,10 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   if (const auto *A = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
     if ((A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue()) == 0) {
-      Result &=
-          checkZeroDim(A, getExprValue(AL.getArgAsExpr(0), Ctx),
-                       getExprValue(AL.getArgAsExpr(1), Ctx),
-                       getExprValue(AL.getArgAsExpr(2), Ctx),
-                       /*ReverseAttrs=*/true);
+       Result &= checkZeroDim(A, getExprValue(AL.getArgAsExpr(0), Ctx),
+                              getExprValue(AL.getArgAsExpr(1), Ctx),
+                              getExprValue(AL.getArgAsExpr(2), Ctx),
+                              /*ReverseAttrs=*/true);
     }
   }
 
