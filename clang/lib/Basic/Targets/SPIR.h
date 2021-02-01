@@ -116,9 +116,9 @@ public:
 
   llvm::Optional<LangAS> getConstantAddressSpace() const override {
     // If we assign "opencl_constant" address space the following code becomes
-    // illegal, because it can't be casted to any other address space:
+    // illegal, because it can't be cast to any other address space:
     //
-    //   const char *getLiteral() n{
+    //   const char *getLiteral() {
     //     return "AB";
     //   }
     return LangAS::opencl_global;
