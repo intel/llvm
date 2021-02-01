@@ -54,7 +54,7 @@ see [ABI Policy Guide](sycl/doc/ABIPolicyGuide.md) for more information.
 - Run regression tests -
 [instructions](sycl/doc/GetStartedGuide.md#test-dpc-toolchain).
 
-### Test DPC++ toolchain
+### Tests development
 
 Every product change should be accompanied with corresponding test modification
 (adding new test(s), extending, removing or modifying existing test(s)).
