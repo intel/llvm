@@ -111,8 +111,6 @@ pull request should be created under
 [KhronosGroup/SYCL-CTS](https://github.com/KhronosGroup/SYCL-CTS) with required
 patch.
 
-
-
 ### Commit message
 
 - When writing your commit message, please make sure to follow
