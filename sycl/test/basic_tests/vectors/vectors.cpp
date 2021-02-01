@@ -10,21 +10,48 @@
 
 #define SYCL_SIMPLE_SWIZZLES
 #include <CL/sycl.hpp>
-using namespace cl::sycl;
 
-void check_vectors(int4 a, int4 b, int4 c, int4 gold) {
-  int4 result = a * (int4)b.y() + c;
+void check_vectors(cl::sycl::int4 a, cl::sycl::int4 b, cl::sycl::int4 c,
+                   cl::sycl::int4 gold) {
+  cl::sycl::int4 result = a * (cl::sycl::int4)b.y() + c;
   assert((int)result.x() == (int)gold.x());
   assert((int)result.y() == (int)gold.y());
-  assert((int)result.w() == (int)gold.w());
   assert((int)result.z() == (int)gold.z());
+  assert((int)result.w() == (int)gold.w());
+}
+
+template <typename From, typename To> void check_convert() {
+  cl::sycl::vec<From, 4> vec{1, 2, 3, 4};
+  cl::sycl::vec<To, 4> result = vec.template convert<To>();
+  assert((int)result.x() == (int)vec.x());
+  assert((int)result.y() == (int)vec.y());
+  assert((int)result.z() == (int)vec.z());
+  assert((int)result.w() == (int)vec.w());
+}
+
+template <typename From, typename To> void check_signed_unsigned_convert_to() {
+  check_convert<From, To>();
+  check_convert<From, cl::sycl::detail::make_unsigned_t<To>>();
+  check_convert<cl::sycl::detail::make_unsigned_t<From>, To>();
+  check_convert<cl::sycl::detail::make_unsigned_t<From>,
+                cl::sycl::detail::make_unsigned_t<To>>();
+}
+
+template <typename From> void check_convert_from() {
+  check_signed_unsigned_convert_to<From, int8_t>();
+  check_signed_unsigned_convert_to<From, int16_t>();
+  check_signed_unsigned_convert_to<From, int32_t>();
+  check_signed_unsigned_convert_to<From, int64_t>();
+  check_signed_unsigned_convert_to<From, half>();
+  check_signed_unsigned_convert_to<From, float>();
+  check_signed_unsigned_convert_to<From, double>();
 }
 
 int main() {
-  int4 a = {1, 2, 3, 4};
-  const int4 b = {10, 20, 30, 40};
-  const int4 gold = {21, 42, 90, 120};
-  const int2 a_xy = a.xy();
+  cl::sycl::int4 a = {1, 2, 3, 4};
+  const cl::sycl::int4 b = {10, 20, 30, 40};
+  const cl::sycl::int4 gold = {21, 42, 90, 120};
+  const cl::sycl::int2 a_xy = a.xy();
   check_vectors(a, b, {1, 2, 30, 40}, gold);
   check_vectors(a, b, {a.x(), a.y(), b.z(), b.w()}, gold);
   check_vectors(a, b, {a.x(), 2, b.z(), 40}, gold);
@@ -81,6 +108,15 @@ int main() {
   assert((std::is_same<cl::sycl::vec<unsigned long, 4>, cl::sycl::ulong4>::value));
   assert((std::is_same<cl::sycl::vec<unsigned long, 8>, cl::sycl::ulong8>::value));
   assert((std::is_same<cl::sycl::vec<unsigned long, 16>, cl::sycl::ulong16>::value));
+
+  // Check convert() from and to various types.
+  check_convert_from<int8_t>();
+  check_convert_from<int16_t>();
+  check_convert_from<int32_t>();
+  check_convert_from<int64_t>();
+  check_convert_from<half>();
+  check_convert_from<float>();
+  check_convert_from<double>();
 
   return 0;
 }
