@@ -1281,10 +1281,9 @@ static bool areCFlagsAccessedBetweenInstrs(
     return true;
 
   // From must be above To.
-  assert(std::find_if(++To.getReverse(), To->getParent()->rend(),
-                      [From](MachineInstr &MI) {
-                        return MI.getIterator() == From;
-                      }) != To->getParent()->rend());
+  assert(std::any_of(
+      ++To.getReverse(), To->getParent()->rend(),
+      [From](MachineInstr &MI) { return MI.getIterator() == From; }));
 
   // We iterate backward starting at \p To until we hit \p From.
   for (const MachineInstr &Instr :
@@ -3291,7 +3290,7 @@ void AArch64InstrInfo::storeRegToStackSlot(
     else if (AArch64::PPRRegClass.hasSubClassEq(RC)) {
       assert(Subtarget.hasSVE() && "Unexpected register store without SVE");
       Opc = AArch64::STR_PXI;
-      StackID = TargetStackID::SVEVector;
+      StackID = TargetStackID::ScalableVector;
     }
     break;
   case 4:
@@ -3335,7 +3334,7 @@ void AArch64InstrInfo::storeRegToStackSlot(
     } else if (AArch64::ZPRRegClass.hasSubClassEq(RC)) {
       assert(Subtarget.hasSVE() && "Unexpected register store without SVE");
       Opc = AArch64::STR_ZXI;
-      StackID = TargetStackID::SVEVector;
+      StackID = TargetStackID::ScalableVector;
     }
     break;
   case 24:
@@ -3357,7 +3356,7 @@ void AArch64InstrInfo::storeRegToStackSlot(
     } else if (AArch64::ZPR2RegClass.hasSubClassEq(RC)) {
       assert(Subtarget.hasSVE() && "Unexpected register store without SVE");
       Opc = AArch64::STR_ZZXI;
-      StackID = TargetStackID::SVEVector;
+      StackID = TargetStackID::ScalableVector;
     }
     break;
   case 48:
@@ -3368,7 +3367,7 @@ void AArch64InstrInfo::storeRegToStackSlot(
     } else if (AArch64::ZPR3RegClass.hasSubClassEq(RC)) {
       assert(Subtarget.hasSVE() && "Unexpected register store without SVE");
       Opc = AArch64::STR_ZZZXI;
-      StackID = TargetStackID::SVEVector;
+      StackID = TargetStackID::ScalableVector;
     }
     break;
   case 64:
@@ -3379,7 +3378,7 @@ void AArch64InstrInfo::storeRegToStackSlot(
     } else if (AArch64::ZPR4RegClass.hasSubClassEq(RC)) {
       assert(Subtarget.hasSVE() && "Unexpected register store without SVE");
       Opc = AArch64::STR_ZZZZXI;
-      StackID = TargetStackID::SVEVector;
+      StackID = TargetStackID::ScalableVector;
     }
     break;
   }
@@ -3445,7 +3444,7 @@ void AArch64InstrInfo::loadRegFromStackSlot(
     else if (AArch64::PPRRegClass.hasSubClassEq(RC)) {
       assert(Subtarget.hasSVE() && "Unexpected register load without SVE");
       Opc = AArch64::LDR_PXI;
-      StackID = TargetStackID::SVEVector;
+      StackID = TargetStackID::ScalableVector;
     }
     break;
   case 4:
@@ -3489,7 +3488,7 @@ void AArch64InstrInfo::loadRegFromStackSlot(
     } else if (AArch64::ZPRRegClass.hasSubClassEq(RC)) {
       assert(Subtarget.hasSVE() && "Unexpected register load without SVE");
       Opc = AArch64::LDR_ZXI;
-      StackID = TargetStackID::SVEVector;
+      StackID = TargetStackID::ScalableVector;
     }
     break;
   case 24:
@@ -3511,7 +3510,7 @@ void AArch64InstrInfo::loadRegFromStackSlot(
     } else if (AArch64::ZPR2RegClass.hasSubClassEq(RC)) {
       assert(Subtarget.hasSVE() && "Unexpected register load without SVE");
       Opc = AArch64::LDR_ZZXI;
-      StackID = TargetStackID::SVEVector;
+      StackID = TargetStackID::ScalableVector;
     }
     break;
   case 48:
@@ -3522,7 +3521,7 @@ void AArch64InstrInfo::loadRegFromStackSlot(
     } else if (AArch64::ZPR3RegClass.hasSubClassEq(RC)) {
       assert(Subtarget.hasSVE() && "Unexpected register load without SVE");
       Opc = AArch64::LDR_ZZZXI;
-      StackID = TargetStackID::SVEVector;
+      StackID = TargetStackID::ScalableVector;
     }
     break;
   case 64:
@@ -3533,7 +3532,7 @@ void AArch64InstrInfo::loadRegFromStackSlot(
     } else if (AArch64::ZPR4RegClass.hasSubClassEq(RC)) {
       assert(Subtarget.hasSVE() && "Unexpected register load without SVE");
       Opc = AArch64::LDR_ZZZZXI;
-      StackID = TargetStackID::SVEVector;
+      StackID = TargetStackID::ScalableVector;
     }
     break;
   }
@@ -4872,7 +4871,7 @@ void AArch64InstrInfo::genAlternativeCodeSequence(
   MachineFunction &MF = *MBB.getParent();
   const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
 
-  MachineInstr *MUL;
+  MachineInstr *MUL = nullptr;
   const TargetRegisterClass *RC;
   unsigned Opc;
   switch (Pattern) {
@@ -5693,6 +5692,9 @@ void AArch64InstrInfo::genAlternativeCodeSequence(
   }
   } // end switch (Pattern)
   // Record MUL and ADD/SUB for deletion
+  // FIXME: This assertion fails in CodeGen/AArch64/tailmerging_in_mbp.ll and
+  // CodeGen/AArch64/urem-seteq-nonzero.ll.
+  // assert(MUL && "MUL was never set");
   DelInstrs.push_back(MUL);
   DelInstrs.push_back(&Root);
 }

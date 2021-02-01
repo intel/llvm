@@ -24,8 +24,7 @@ using namespace mlir::LLVM;
 /// internal functions to avoid getting a verbose `!llvm` prefix. Otherwise
 /// prints it as usual.
 static void dispatchPrint(DialectAsmPrinter &printer, Type type) {
-  if (isCompatibleType(type) && !type.isa<IntegerType>() &&
-      !type.isa<FloatType>())
+  if (isCompatibleType(type) && !type.isa<IntegerType, FloatType, VectorType>())
     return mlir::LLVM::detail::printType(type, printer);
   printer.printType(type);
 }
@@ -34,8 +33,6 @@ static void dispatchPrint(DialectAsmPrinter &printer, Type type) {
 static StringRef getTypeKeyword(Type type) {
   return TypeSwitch<Type, StringRef>(type)
       .Case<LLVMVoidType>([&](Type) { return "void"; })
-      .Case<LLVMFP128Type>([&](Type) { return "fp128"; })
-      .Case<LLVMX86FP80Type>([&](Type) { return "x86_fp80"; })
       .Case<LLVMPPCFP128Type>([&](Type) { return "ppc_fp128"; })
       .Case<LLVMX86MMXType>([&](Type) { return "x86_mmx"; })
       .Case<LLVMTokenType>([&](Type) { return "token"; })
@@ -43,7 +40,8 @@ static StringRef getTypeKeyword(Type type) {
       .Case<LLVMMetadataType>([&](Type) { return "metadata"; })
       .Case<LLVMFunctionType>([&](Type) { return "func"; })
       .Case<LLVMPointerType>([&](Type) { return "ptr"; })
-      .Case<LLVMVectorType>([&](Type) { return "vec"; })
+      .Case<LLVMFixedVectorType, LLVMScalableVectorType>(
+          [&](Type) { return "vec"; })
       .Case<LLVMArrayType>([&](Type) { return "array"; })
       .Case<LLVMStructType>([&](Type) { return "struct"; })
       .Default([](Type) -> StringRef {
@@ -236,7 +234,7 @@ static LLVMPointerType parsePointerType(DialectAsmParser &parser) {
 /// Parses an LLVM dialect vector type.
 ///   llvm-type ::= `vec<` `? x`? integer `x` llvm-type `>`
 /// Supports both fixed and scalable vectors.
-static LLVMVectorType parseVectorType(DialectAsmParser &parser) {
+static Type parseVectorType(DialectAsmParser &parser) {
   SmallVector<int64_t, 2> dims;
   llvm::SMLoc dimPos;
   Type elementType;
@@ -244,7 +242,7 @@ static LLVMVectorType parseVectorType(DialectAsmParser &parser) {
   if (parser.parseLess() || parser.getCurrentLocation(&dimPos) ||
       parser.parseDimensionList(dims, /*allowDynamic=*/true) ||
       dispatchParse(parser, elementType) || parser.parseGreater())
-    return LLVMVectorType();
+    return Type();
 
   // We parsed a generic dimension list, but vectors only support two forms:
   //  - single non-dynamic entry in the list (fixed vector);
@@ -255,12 +253,14 @@ static LLVMVectorType parseVectorType(DialectAsmParser &parser) {
       (dims.size() == 2 && dims[1] == -1)) {
     parser.emitError(dimPos)
         << "expected '? x <integer> x <type>' or '<integer> x <type>'";
-    return LLVMVectorType();
+    return Type();
   }
 
   bool isScalable = dims.size() == 2;
   if (isScalable)
     return LLVMScalableVectorType::getChecked(loc, elementType, dims[1]);
+  if (elementType.isSignlessIntOrFloat())
+    return VectorType::getChecked(loc, dims, elementType);
   return LLVMFixedVectorType::getChecked(loc, elementType, dims[0]);
 }
 
@@ -458,8 +458,16 @@ static Type dispatchParse(DialectAsmParser &parser, bool allowAny = true) {
               emitWarning(loc) << "deprecated syntax, use f64 instead";
               return Float64Type::get(ctx);
             })
-      .Case("fp128", [&] { return LLVMFP128Type::get(ctx); })
-      .Case("x86_fp80", [&] { return LLVMX86FP80Type::get(ctx); })
+      .Case("fp128",
+            [&] {
+              emitWarning(loc) << "deprecated syntax, use f128 instead";
+              return Float128Type::get(ctx);
+            })
+      .Case("x86_fp80",
+            [&] {
+              emitWarning(loc) << "deprecated syntax, use f80 instead";
+              return Float80Type::get(ctx);
+            })
       .Case("ppc_fp128", [&] { return LLVMPPCFP128Type::get(ctx); })
       .Case("x86_mmx", [&] { return LLVMX86MMXType::get(ctx); })
       .Case("token", [&] { return LLVMTokenType::get(ctx); })

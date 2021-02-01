@@ -817,7 +817,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
   return PI_SUCCESS;
 }
 
-static void printZeEventList(_pi_ze_event_list_t &PiZeEventList) {
+static void printZeEventList(const _pi_ze_event_list_t &PiZeEventList) {
   zePrint("  NumEventsInWaitList %d:", PiZeEventList.Length);
 
   for (pi_uint32 I = 0; I < PiZeEventList.Length; I++) {
@@ -827,7 +827,8 @@ static void printZeEventList(_pi_ze_event_list_t &PiZeEventList) {
   zePrint("\n");
 }
 
-pi_result _pi_ze_event_list_t::releaseAndDestroyPiZeEventList() {
+pi_result _pi_ze_event_list_t::collectEventsForReleaseAndDestroyPiZeEventList(
+    std::list<pi_event> &EventsToBeReleased) {
   // acquire a lock before reading the length and list fields.
   // Acquire the lock, copy the needed data locally, and reset
   // the fields, then release the lock.
@@ -854,7 +855,8 @@ pi_result _pi_ze_event_list_t::releaseAndDestroyPiZeEventList() {
   }
 
   for (pi_uint32 I = 0; I < LocLength; I++) {
-    piEventRelease(LocPiEventList[I]);
+    // Add the event to be released to the list
+    EventsToBeReleased.push_back(LocPiEventList[I]);
   }
 
   if (LocZeEventList != nullptr) {
@@ -3755,6 +3757,7 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
 // This currently recycles the associate command list, and also makes
 // sure to release any kernel that may have been used by the event.
 static void cleanupAfterEvent(pi_event Event) {
+  zePrint("cleanupAfterEvent entry\n");
   // The implementation of this is slightly tricky.  The same event
   // can be referred to by multiple threads, so it is possible to
   // have a race condition between the read of fields of the event,
@@ -3798,11 +3801,27 @@ static void cleanupAfterEvent(pi_event Event) {
     }
   }
 
-  // Had to make sure lock of Event's Queue has been released before
-  // the code starts to release the event wait list, as that could
-  // potentially cause recursive calls to cleanupAfterEvent, and
-  // run into a problem trying to do multiple locks on the same Queue.
-  Event->WaitList.releaseAndDestroyPiZeEventList();
+  // Make a list of all the dependent events that must have signalled
+  // because this event was dependent on them.  This list will be appended
+  // to as we walk it so that this algorithm doesn't go recursive
+  // due to dependent events themselves being dependent on other events
+  // forming a potentially very deep tree, and deep recursion.  That
+  // turned out to be a significant problem with the recursive code
+  // that preceded this implementation.
+
+  std::list<pi_event> EventsToBeReleased;
+
+  Event->WaitList.collectEventsForReleaseAndDestroyPiZeEventList(
+      EventsToBeReleased);
+
+  while (!EventsToBeReleased.empty()) {
+    pi_event DepEvent = EventsToBeReleased.front();
+    EventsToBeReleased.pop_front();
+
+    DepEvent->WaitList.collectEventsForReleaseAndDestroyPiZeEventList(
+        EventsToBeReleased);
+    piEventRelease(DepEvent);
+  }
   zePrint("cleanupAfterEvent exit\n");
 }
 
@@ -4102,7 +4121,9 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
                                      (*Event)->WaitList.Length,
                                      (*Event)->WaitList.ZeEventList));
 
-  return PI_SUCCESS;
+  // Execute command list asynchronously as the event will be used
+  // to track down its completion.
+  return Queue->executeCommandList(ZeCommandList, ZeFence);
 }
 
 pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
@@ -4173,9 +4194,11 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
 
-  ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList,
-                                          (*Event)->WaitList.Length,
-                                          (*Event)->WaitList.ZeEventList));
+  const auto &WaitList = (*Event)->WaitList;
+  if (WaitList.Length) {
+    ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, WaitList.Length,
+                                            WaitList.ZeEventList));
+  }
 
   ZE_CALL(zeCommandListAppendMemoryCopy(ZeCommandList, Dst, Src, Size, ZeEvent,
                                         0, nullptr));
@@ -4187,7 +4210,7 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
   zePrint("calling zeCommandListAppendMemoryCopy() with\n"
           "  ZeEvent %#lx\n",
           pi_cast<std::uintptr_t>(ZeEvent));
-  printZeEventList((*Event)->WaitList);
+  printZeEventList(WaitList);
 
   return PI_SUCCESS;
 }
@@ -4228,14 +4251,15 @@ static pi_result enqueueMemCopyRectHelper(
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
 
-  ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList,
-                                          (*Event)->WaitList.Length,
-                                          (*Event)->WaitList.ZeEventList));
-
+  const auto &WaitList = (*Event)->WaitList;
+  if (WaitList.Length) {
+    ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, WaitList.Length,
+                                            WaitList.ZeEventList));
+  }
   zePrint("calling zeCommandListAppendMemoryCopy() with\n"
           "  ZeEvent %#lx\n",
           pi_cast<std::uintptr_t>(ZeEvent));
-  printZeEventList((*Event)->WaitList);
+  printZeEventList(WaitList);
 
   uint32_t SrcOriginX = pi_cast<uint32_t>(SrcOrigin->x_bytes);
   uint32_t SrcOriginY = pi_cast<uint32_t>(SrcOrigin->y_scalar);
@@ -4394,10 +4418,11 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
 
-  ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList,
-                                          (*Event)->WaitList.Length,
-                                          (*Event)->WaitList.ZeEventList));
-
+  const auto &WaitList = (*Event)->WaitList;
+  if (WaitList.Length) {
+    ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, WaitList.Length,
+                                            WaitList.ZeEventList));
+  }
   // Pattern size must be a power of two
   PI_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
             PI_INVALID_VALUE);
@@ -4408,7 +4433,7 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   zePrint("calling zeCommandListAppendMemoryFill() with\n"
           "  ZeEvent %#lx\n",
           pi_cast<pi_uint64>(ZeEvent));
-  printZeEventList((*Event)->WaitList);
+  printZeEventList(WaitList);
 
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
@@ -4526,10 +4551,11 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
         zeMemAllocHost(Queue->Context->ZeContext, &ZeDesc, Size, 1, RetMap));
   }
 
-  ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList,
-                                          (*Event)->WaitList.Length,
-                                          (*Event)->WaitList.ZeEventList));
-
+  const auto &WaitList = (*Event)->WaitList;
+  if (WaitList.Length) {
+    ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, WaitList.Length,
+                                            WaitList.ZeEventList));
+  }
   ZE_CALL(zeCommandListAppendMemoryCopy(
       ZeCommandList, *RetMap, pi_cast<char *>(Buffer->getZeHandle()) + Offset,
       Size, ZeEvent, 0, nullptr));
@@ -4613,10 +4639,11 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   // Set the commandlist in the event
   (*Event)->ZeCommandList = ZeCommandList;
 
-  ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList,
-                                          (*Event)->WaitList.Length,
-                                          (*Event)->WaitList.ZeEventList));
-
+  if ((*Event)->WaitList.Length) {
+    ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList,
+                                            (*Event)->WaitList.Length,
+                                            (*Event)->WaitList.ZeEventList));
+  }
   // TODO: Level Zero is missing the memory "mapping" capabilities, so we are
   // left to doing copy (write back to the device).
   //
@@ -4729,10 +4756,11 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
 
-  ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList,
-                                          (*Event)->WaitList.Length,
-                                          (*Event)->WaitList.ZeEventList));
-
+  const auto &WaitList = (*Event)->WaitList;
+  if (WaitList.Length) {
+    ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, WaitList.Length,
+                                            WaitList.ZeEventList));
+  }
   if (CommandType == PI_COMMAND_TYPE_IMAGE_READ) {
     pi_mem SrcMem = pi_cast<pi_mem>(const_cast<void *>(Src));
 
@@ -5338,10 +5366,11 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
           NumEventsInWaitList, EventWaitList, Queue))
     return Res;
 
-  ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList,
-                                          (*Event)->WaitList.Length,
-                                          (*Event)->WaitList.ZeEventList));
-
+  const auto &WaitList = (*Event)->WaitList;
+  if (WaitList.Length) {
+    ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, WaitList.Length,
+                                            WaitList.ZeEventList));
+  }
   // TODO: figure out how to translate "flags"
   ZE_CALL(zeCommandListAppendMemoryPrefetch(ZeCommandList, Ptr, Size));
 

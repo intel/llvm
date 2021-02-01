@@ -748,6 +748,46 @@ TEST_F(ValueTrackingTest, impliesPoisonTest_AddNsw) {
   EXPECT_FALSE(impliesPoison(A2, A));
 }
 
+TEST_F(ValueTrackingTest, impliesPoisonTest_Cmp) {
+  parseAssembly("define void @test(i32 %x, i32 %y, i1 %c) {\n"
+                "  %A2 = icmp eq i32 %x, %y\n"
+                "  %A0 = icmp ult i32 %x, %y\n"
+                "  %A = or i1 %A0, %c\n"
+                "  ret void\n"
+                "}");
+  EXPECT_TRUE(impliesPoison(A2, A));
+}
+
+TEST_F(ValueTrackingTest, impliesPoisonTest_FCmpFMF) {
+  parseAssembly("define void @test(float %x, float %y, i1 %c) {\n"
+                "  %A2 = fcmp nnan oeq float %x, %y\n"
+                "  %A0 = fcmp olt float %x, %y\n"
+                "  %A = or i1 %A0, %c\n"
+                "  ret void\n"
+                "}");
+  EXPECT_FALSE(impliesPoison(A2, A));
+}
+
+TEST_F(ValueTrackingTest, impliesPoisonTest_AddSubSameOps) {
+  parseAssembly("define void @test(i32 %x, i32 %y, i1 %c) {\n"
+                "  %A2 = add i32 %x, %y\n"
+                "  %A = sub i32 %x, %y\n"
+                "  ret void\n"
+                "}");
+  EXPECT_TRUE(impliesPoison(A2, A));
+}
+
+TEST_F(ValueTrackingTest, impliesPoisonTest_MaskCmp) {
+  parseAssembly("define void @test(i32 %x, i32 %y, i1 %c) {\n"
+                "  %M2 = and i32 %x, 7\n"
+                "  %A2 = icmp eq i32 %M2, 1\n"
+                "  %M = and i32 %x, 15\n"
+                "  %A = icmp eq i32 %M, 3\n"
+                "  ret void\n"
+                "}");
+  EXPECT_TRUE(impliesPoison(A2, A));
+}
+
 TEST_F(ValueTrackingTest, ComputeNumSignBits_Shuffle_Pointers) {
   parseAssembly(
       "define <2 x i32*> @test(<2 x i32*> %x) {\n"
@@ -943,6 +983,7 @@ TEST_F(ValueTrackingTest, isGuaranteedNotToBeUndefOrPoison_assume) {
 
 TEST(ValueTracking, canCreatePoisonOrUndef) {
   std::string AsmHead =
+      "@s = external dso_local global i32, align 1\n"
       "declare i32 @g(i32)\n"
       "define void @f(i32 %x, i32 %y, float %fx, float %fy, i1 %cond, "
       "<4 x i32> %vx, <4 x i32> %vx2, <vscale x 4 x i32> %svx, i8* %p) {\n";
@@ -1001,7 +1042,11 @@ TEST(ValueTracking, canCreatePoisonOrUndef) {
       {{true, false}, "call i32 @g(i32 %x)"},
       {{false, false}, "call noundef i32 @g(i32 %x)"},
       {{true, false}, "fcmp nnan oeq float %fx, %fy"},
-      {{false, false}, "fcmp oeq float %fx, %fy"}};
+      {{false, false}, "fcmp oeq float %fx, %fy"},
+      {{true, false},
+       "ashr <4 x i32> %vx, select (i1 icmp sgt (i32 ptrtoint (i32* @s to "
+       "i32), i32 1), <4 x i32> zeroinitializer, <4 x i32> <i32 0, i32 1, i32 "
+       "2, i32 3>)"}};
 
   std::string AssemblyStr = AsmHead;
   for (auto &Itm : Data)

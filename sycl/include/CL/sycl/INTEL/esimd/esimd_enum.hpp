@@ -42,8 +42,9 @@ using uint = unsigned int;
 
 // Mark a function being noinline
 #define ESIMD_NOINLINE __attribute__((noinline))
-// Mark a function to be inlined
-#define ESIMD_INLINE __attribute__((always_inline))
+// Force a function to be inlined. 'inline' is used to preserve ODR for
+// functions defined in a header.
+#define ESIMD_INLINE inline __attribute__((always_inline))
 
 // Enums
 enum { GENX_NOSAT = 0, GENX_SAT };

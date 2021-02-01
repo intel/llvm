@@ -950,8 +950,8 @@ mul24(T x, T y) __NOEXC {
 // half3 cross (half3 p0, half3 p1)
 // half4 cross (half4 p0, half4 p1)
 template <typename T>
-detail::enable_if_t<detail::is_gencrossfloat<T>::value, T> cross(T p0,
-                                                                 T p1) __NOEXC {
+detail::enable_if_t<detail::is_gencross<T>::value, T> cross(T p0,
+                                                            T p1) __NOEXC {
   return __sycl_std::__invoke_cross<T>(p0, p1);
 }
 

@@ -390,16 +390,16 @@ Type LLVMTypeConverter::convertMemRefToBarePtr(BaseMemRefType type) {
   return LLVM::LLVMPointerType::get(elementType, type.getMemorySpace());
 }
 
-// Convert an n-D vector type to an LLVM vector type via (n-1)-D array type when
-// n > 1.
-// For example, `vector<4 x f32>` converts to `!llvm.type<"<4 x f32>">` and
-// `vector<4 x 8 x 16 f32>` converts to `!llvm."[4 x [8 x <16 x f32>]]">`.
+/// Convert an n-D vector type to an LLVM vector type via (n-1)-D array type
+/// when n > 1. For example, `vector<4 x f32>` remains as is while,
+/// `vector<4x8x16xf32>` converts to `!llvm.array<4xarray<8 x vector<16xf32>>>`.
 Type LLVMTypeConverter::convertVectorType(VectorType type) {
   auto elementType = unwrap(convertType(type.getElementType()));
   if (!elementType)
     return {};
-  Type vectorType =
-      LLVM::LLVMFixedVectorType::get(elementType, type.getShape().back());
+  Type vectorType = VectorType::get(type.getShape().back(), elementType);
+  assert(LLVM::isCompatibleVectorType(vectorType) &&
+         "expected vector type compatible with the LLVM dialect");
   auto shape = type.getShape();
   for (int i = shape.size() - 2; i >= 0; --i)
     vectorType = LLVM::LLVMArrayType::get(vectorType, shape[i]);
@@ -1500,7 +1500,7 @@ static NDVectorTypeInfo extractNDVectorTypeInfo(VectorType vectorType,
         llvmTy.cast<LLVM::LLVMArrayType>().getNumElements());
     llvmTy = llvmTy.cast<LLVM::LLVMArrayType>().getElementType();
   }
-  if (!llvmTy.isa<LLVM::LLVMVectorType>())
+  if (!LLVM::isCompatibleVectorType(llvmTy))
     return info;
   info.llvmVectorTy = llvmTy;
   return info;
@@ -1727,142 +1727,6 @@ struct AssertOpLowering : public ConvertOpToLLVMPattern<AssertOp> {
     rewriter.replaceOpWithNewOp<LLVM::CondBrOp>(
         op, transformed.arg(), continuationBlock, failureBlock);
 
-    return success();
-  }
-};
-
-// Lowerings for operations on complex numbers.
-
-struct CreateComplexOpLowering
-    : public ConvertOpToLLVMPattern<CreateComplexOp> {
-  using ConvertOpToLLVMPattern<CreateComplexOp>::ConvertOpToLLVMPattern;
-
-  LogicalResult
-  matchAndRewrite(CreateComplexOp complexOp, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    CreateComplexOp::Adaptor transformed(operands);
-
-    // Pack real and imaginary part in a complex number struct.
-    auto loc = complexOp.getLoc();
-    auto structType = typeConverter->convertType(complexOp.getType());
-    auto complexStruct = ComplexStructBuilder::undef(rewriter, loc, structType);
-    complexStruct.setReal(rewriter, loc, transformed.real());
-    complexStruct.setImaginary(rewriter, loc, transformed.imaginary());
-
-    rewriter.replaceOp(complexOp, {complexStruct});
-    return success();
-  }
-};
-
-struct ReOpLowering : public ConvertOpToLLVMPattern<ReOp> {
-  using ConvertOpToLLVMPattern<ReOp>::ConvertOpToLLVMPattern;
-
-  LogicalResult
-  matchAndRewrite(ReOp op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    ReOp::Adaptor transformed(operands);
-
-    // Extract real part from the complex number struct.
-    ComplexStructBuilder complexStruct(transformed.complex());
-    Value real = complexStruct.real(rewriter, op.getLoc());
-    rewriter.replaceOp(op, real);
-
-    return success();
-  }
-};
-
-struct ImOpLowering : public ConvertOpToLLVMPattern<ImOp> {
-  using ConvertOpToLLVMPattern<ImOp>::ConvertOpToLLVMPattern;
-
-  LogicalResult
-  matchAndRewrite(ImOp op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    ImOp::Adaptor transformed(operands);
-
-    // Extract imaginary part from the complex number struct.
-    ComplexStructBuilder complexStruct(transformed.complex());
-    Value imaginary = complexStruct.imaginary(rewriter, op.getLoc());
-    rewriter.replaceOp(op, imaginary);
-
-    return success();
-  }
-};
-
-struct BinaryComplexOperands {
-  std::complex<Value> lhs, rhs;
-};
-
-template <typename OpTy>
-BinaryComplexOperands
-unpackBinaryComplexOperands(OpTy op, ArrayRef<Value> operands,
-                            ConversionPatternRewriter &rewriter) {
-  auto loc = op.getLoc();
-  typename OpTy::Adaptor transformed(operands);
-
-  // Extract real and imaginary values from operands.
-  BinaryComplexOperands unpacked;
-  ComplexStructBuilder lhs(transformed.lhs());
-  unpacked.lhs.real(lhs.real(rewriter, loc));
-  unpacked.lhs.imag(lhs.imaginary(rewriter, loc));
-  ComplexStructBuilder rhs(transformed.rhs());
-  unpacked.rhs.real(rhs.real(rewriter, loc));
-  unpacked.rhs.imag(rhs.imaginary(rewriter, loc));
-
-  return unpacked;
-}
-
-struct AddCFOpLowering : public ConvertOpToLLVMPattern<AddCFOp> {
-  using ConvertOpToLLVMPattern<AddCFOp>::ConvertOpToLLVMPattern;
-
-  LogicalResult
-  matchAndRewrite(AddCFOp op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    BinaryComplexOperands arg =
-        unpackBinaryComplexOperands<AddCFOp>(op, operands, rewriter);
-
-    // Initialize complex number struct for result.
-    auto structType = typeConverter->convertType(op.getType());
-    auto result = ComplexStructBuilder::undef(rewriter, loc, structType);
-
-    // Emit IR to add complex numbers.
-    auto fmf = LLVM::FMFAttr::get({}, op.getContext());
-    Value real =
-        rewriter.create<LLVM::FAddOp>(loc, arg.lhs.real(), arg.rhs.real(), fmf);
-    Value imag =
-        rewriter.create<LLVM::FAddOp>(loc, arg.lhs.imag(), arg.rhs.imag(), fmf);
-    result.setReal(rewriter, loc, real);
-    result.setImaginary(rewriter, loc, imag);
-
-    rewriter.replaceOp(op, {result});
-    return success();
-  }
-};
-
-struct SubCFOpLowering : public ConvertOpToLLVMPattern<SubCFOp> {
-  using ConvertOpToLLVMPattern<SubCFOp>::ConvertOpToLLVMPattern;
-
-  LogicalResult
-  matchAndRewrite(SubCFOp op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    BinaryComplexOperands arg =
-        unpackBinaryComplexOperands<SubCFOp>(op, operands, rewriter);
-
-    // Initialize complex number struct for result.
-    auto structType = typeConverter->convertType(op.getType());
-    auto result = ComplexStructBuilder::undef(rewriter, loc, structType);
-
-    // Emit IR to substract complex numbers.
-    auto fmf = LLVM::FMFAttr::get({}, op.getContext());
-    Value real =
-        rewriter.create<LLVM::FSubOp>(loc, arg.lhs.real(), arg.rhs.real(), fmf);
-    Value imag =
-        rewriter.create<LLVM::FSubOp>(loc, arg.lhs.imag(), arg.rhs.imag(), fmf);
-    result.setReal(rewriter, loc, real);
-    result.setImaginary(rewriter, loc, imag);
-
-    rewriter.replaceOp(op, {result});
     return success();
   }
 };
@@ -2484,7 +2348,7 @@ struct RsqrtOpLowering : public ConvertOpToLLVMPattern<RsqrtOp> {
 
     if (!operandType.isa<LLVM::LLVMArrayType>()) {
       LLVM::ConstantOp one;
-      if (operandType.isa<LLVM::LLVMVectorType>()) {
+      if (LLVM::isCompatibleVectorType(operandType)) {
         one = rewriter.create<LLVM::ConstantOp>(
             loc, operandType,
             SplatElementsAttr::get(resultType.cast<ShapedType>(), floatOne));
@@ -2505,8 +2369,7 @@ struct RsqrtOpLowering : public ConvertOpToLLVMPattern<RsqrtOp> {
         [&](Type llvmVectorTy, ValueRange operands) {
           auto splatAttr = SplatElementsAttr::get(
               mlir::VectorType::get(
-                  {llvmVectorTy.cast<LLVM::LLVMFixedVectorType>()
-                       .getNumElements()},
+                  {LLVM::getVectorNumElements(llvmVectorTy).getFixedValue()},
                   floatType),
               floatOne);
           auto one =
@@ -3911,7 +3774,6 @@ void mlir::populateStdToLLVMNonMemoryConversionPatterns(
   // clang-format off
   patterns.insert<
       AbsFOpLowering,
-      AddCFOpLowering,
       AddFOpLowering,
       AddIOpLowering,
       AllocaOpLowering,
@@ -3928,7 +3790,6 @@ void mlir::populateStdToLLVMNonMemoryConversionPatterns(
       CopySignOpLowering,
       CosOpLowering,
       ConstantOpLowering,
-      CreateComplexOpLowering,
       DialectCastOpLowering,
       DivFOpLowering,
       ExpOpLowering,
@@ -3942,7 +3803,6 @@ void mlir::populateStdToLLVMNonMemoryConversionPatterns(
       FPToSILowering,
       FPToUILowering,
       FPTruncLowering,
-      ImOpLowering,
       IndexCastOpLowering,
       MulFOpLowering,
       MulIOpLowering,
@@ -3950,7 +3810,6 @@ void mlir::populateStdToLLVMNonMemoryConversionPatterns(
       OrOpLowering,
       PowFOpLowering,
       PrefetchOpLowering,
-      ReOpLowering,
       RemFOpLowering,
       ReturnOpLowering,
       RsqrtOpLowering,
@@ -3965,7 +3824,6 @@ void mlir::populateStdToLLVMNonMemoryConversionPatterns(
       SplatOpLowering,
       SplatNdOpLowering,
       SqrtOpLowering,
-      SubCFOpLowering,
       SubFOpLowering,
       SubIOpLowering,
       TruncateIOpLowering,

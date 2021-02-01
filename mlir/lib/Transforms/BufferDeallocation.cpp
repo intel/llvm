@@ -54,6 +54,7 @@
 #include "PassDetail.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/StandardOps/Utils/Utils.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
@@ -73,6 +74,31 @@ static void walkReturnOperations(Region *region, const FuncT &func) {
       if (operation.hasTrait<OpTrait::ReturnLike>())
         func(&operation);
     }
+}
+
+/// Checks if all operations in a given region have at least one attached region
+/// that implements the RegionBranchOpInterface. This is not required in edge
+/// cases, where we have a single attached region and the parent operation has
+/// no results.
+static bool validateSupportedControlFlow(Region &region) {
+  bool success = true;
+  region.walk([&success](Operation *operation) {
+    auto regions = operation->getRegions();
+    // Walk over all operations in a region and check if the operation has at
+    // least one region and implements the RegionBranchOpInterface. If there
+    // is an operation that does not fulfill this condition, we cannot apply
+    // the deallocation steps. Furthermore, we accept cases, where we have a
+    // region that returns no results, since, in that case, the intra-region
+    // control flow does not affect the transformation.
+    size_t size = regions.size();
+    if (((size == 1 && !operation->getResults().empty()) || size > 1) &&
+        !dyn_cast<RegionBranchOpInterface>(operation)) {
+      operation->emitError("All operations with attached regions need to "
+                           "implement the RegionBranchOpInterface.");
+      success = false;
+    }
+  });
+  return success;
 }
 
 namespace {
@@ -394,13 +420,8 @@ private:
 
     // Extract information about dynamically shaped types by
     // extracting their dynamic dimensions.
-    SmallVector<Value, 4> dynamicOperands;
-    for (auto shapeElement : llvm::enumerate(memRefType.getShape())) {
-      if (!ShapedType::isDynamic(shapeElement.value()))
-        continue;
-      dynamicOperands.push_back(builder.create<DimOp>(
-          terminator->getLoc(), sourceValue, shapeElement.index()));
-    }
+    auto dynamicOperands =
+        getDynOperands(terminator->getLoc(), sourceValue, builder);
 
     // TODO: provide a generic interface to create dialect-specific
     // Alloc and CopyOp nodes.
@@ -510,7 +531,12 @@ struct BufferDeallocationPass : BufferDeallocationBase<BufferDeallocationPass> {
     if (backedges.size()) {
       getFunction().emitError(
           "Structured control-flow loops are supported only.");
-      return;
+      return signalPassFailure();
+    }
+
+    // Check that the control flow structures are supported.
+    if (!validateSupportedControlFlow(getFunction().getRegion())) {
+      return signalPassFailure();
     }
 
     // Place all required temporary alloc, copy and dealloc nodes.

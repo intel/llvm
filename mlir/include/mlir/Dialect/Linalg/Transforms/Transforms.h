@@ -35,6 +35,7 @@ struct TiledLinalgOp {
   LinalgOp op;
   SmallVector<Operation *, 8> loops;
   SmallVector<Value, 4> tensorResults;
+  TiledLinalgOp &operator=(const TiledLinalgOp &) = default;
 };
 
 /// Populates patterns for vectorization of all ConvN-D ops.
@@ -412,9 +413,8 @@ struct LinalgBaseTilingPattern : public RewritePattern {
                           LinalgTilingOptions options,
                           LinalgMarker marker = LinalgMarker(),
                           PatternBenefit benefit = 1);
-  LogicalResult
-  matchAndRewriteBase(Operation *op, PatternRewriter &rewriter,
-                      SmallVectorImpl<Value> &tensorResults) const;
+  LogicalResult matchAndRewriteBase(Operation *op, PatternRewriter &rewriter,
+                                    TiledLinalgOp &result) const;
 
 private:
   /// LinalgTransformMarker handles special attribute manipulations.
@@ -432,14 +432,14 @@ struct LinalgTilingPattern : public LinalgBaseTilingPattern {
                                 marker, benefit) {}
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
-    SmallVector<Value, 4> tensorResults;
+    TiledLinalgOp tiledLinalgOp;
     if (failed(LinalgBaseTilingPattern::matchAndRewriteBase(op, rewriter,
-                                                            tensorResults)))
+                                                            tiledLinalgOp)))
       return failure();
-    if (tensorResults.empty())
+    if (tiledLinalgOp.tensorResults.empty())
       rewriter.eraseOp(op);
     else
-      rewriter.replaceOp(op, tensorResults);
+      rewriter.replaceOp(op, tiledLinalgOp.tensorResults);
     return success();
   }
 };
@@ -853,13 +853,13 @@ enum class SparseVectorizationStrategy {
 };
 
 /// Defines a type for "pointer" and "index" storage in the sparse storage
-/// scheme, with a choice between the native platform-dependent index width,
-/// 64-bit integers, or 32-bit integers. A narrow width obviously reduces
+/// scheme, with a choice between the native platform-dependent index width
+/// or any of 64-/32-/16-/8-bit integers. A narrow width obviously reduces
 /// the memory footprint of the sparse storage scheme, but the width should
 /// suffice to define the total required range (viz. the maximum number of
 /// stored entries per indirection level for the "pointers" and the maximum
 /// value of each tensor index over all dimensions for the "indices").
-enum class SparseIntType { kNative, kI64, kI32 };
+enum class SparseIntType { kNative, kI64, kI32, kI16, kI8 };
 
 /// Sparsification options.
 struct SparsificationOptions {
@@ -867,7 +867,13 @@ struct SparsificationOptions {
                         SparseVectorizationStrategy v, unsigned vl,
                         SparseIntType pt, SparseIntType it)
       : parallelizationStrategy(p), vectorizationStrategy(v), vectorLength(vl),
-        ptrType(pt), indType(it) {}
+        ptrType(pt), indType(it) {
+    // TODO: remove restriction when vectors with index elements are supported
+    assert((v != SparseVectorizationStrategy::kAnyStorageInnerLoop ||
+            (ptrType != SparseIntType::kNative &&
+             indType != SparseIntType::kNative)) &&
+           "This combination requires support for vectors with index elements");
+  }
   SparsificationOptions()
       : SparsificationOptions(SparseParallelizationStrategy::kNone,
                               SparseVectorizationStrategy::kNone, 1u,

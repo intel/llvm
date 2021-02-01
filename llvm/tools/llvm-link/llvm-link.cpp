@@ -153,6 +153,7 @@ static std::unique_ptr<Module> loadArFile(const char *Argv0,
   Error Err = Error::success();
   object::Archive Archive(*Buffer, Err);
   ExitOnErr(std::move(Err));
+  Linker L(*Result);
   for (const object::Archive::Child &C : Archive.children(Err)) {
     Expected<StringRef> Ename = C.getName();
     if (Error E = Ename.takeError()) {
@@ -186,7 +187,12 @@ static std::unique_ptr<Module> loadArFile(const char *Argv0,
       return nullptr;
     }
 
-    std::unique_ptr<Module> M = parseIR(MemBuf.get(), ParseErr, Context);
+    std::unique_ptr<Module> M;
+    if (DisableLazyLoad)
+      M = parseIR(MemBuf.get(), ParseErr, Context);
+    else
+      M = getLazyIRModule(MemoryBuffer::getMemBuffer(MemBuf.get(), false),
+                          ParseErr, Context);
 
     if (!M.get()) {
       errs() << Argv0 << ": ";
@@ -197,7 +203,7 @@ static std::unique_ptr<Module> loadArFile(const char *Argv0,
     }
     if (Verbose)
       errs() << "Linking member '" << ChildName << "' of archive library.\n";
-    if (Linker::linkModules(*Result, std::move(M)))
+    if (L.linkInModule(std::move(M)))
       return nullptr;
   } // end for each child
   ExitOnErr(std::move(Err));
@@ -456,7 +462,8 @@ int main(int argc, char **argv) {
     errs() << "Here's the assembly:\n" << *Composite;
 
   std::error_code EC;
-  ToolOutputFile Out(OutputFilename, EC, sys::fs::OF_None);
+  ToolOutputFile Out(OutputFilename, EC,
+                     OutputAssembly ? sys::fs::OF_Text : sys::fs::OF_None);
   if (EC) {
     WithColor::error() << EC.message() << '\n';
     return 1;
