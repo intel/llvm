@@ -1842,9 +1842,6 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
       B.addAttribute(llvm::Attribute::MinSize);
   }
 
-  if (D->hasAttr<NoMergeAttr>())
-    B.addAttribute(llvm::Attribute::NoMerge);
-
   F->addAttributes(llvm::AttributeList::FunctionIndex, B);
 
   unsigned alignment = D->getMaxAlignment() / Context.getCharWidth();
@@ -4437,13 +4434,14 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
   // Shadows of initialized device-side global variables are also left
   // undefined.
   bool IsCUDAShadowVar =
-      !getLangOpts().CUDAIsDevice &&
+      !getLangOpts().CUDAIsDevice && !D->hasAttr<HIPManagedAttr>() &&
       (D->hasAttr<CUDAConstantAttr>() || D->hasAttr<CUDADeviceAttr>() ||
        D->hasAttr<CUDASharedAttr>());
   bool IsCUDADeviceShadowVar =
       getLangOpts().CUDAIsDevice &&
       (D->getType()->isCUDADeviceBuiltinSurfaceType() ||
-       D->getType()->isCUDADeviceBuiltinTextureType());
+       D->getType()->isCUDADeviceBuiltinTextureType() ||
+       D->hasAttr<HIPManagedAttr>());
   // HIP pinned shadow of initialized host-side global variables are also
   // left undefined.
   if (getLangOpts().CUDA &&

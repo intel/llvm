@@ -870,6 +870,30 @@ Value *InstCombinerImpl::SimplifySelectsFeedingBinaryOp(BinaryOperator &I,
   return SI;
 }
 
+/// Freely adapt every user of V as-if V was changed to !V.
+/// WARNING: only if canFreelyInvertAllUsersOf() said this can be done.
+void InstCombinerImpl::freelyInvertAllUsersOf(Value *I) {
+  for (User *U : I->users()) {
+    switch (cast<Instruction>(U)->getOpcode()) {
+    case Instruction::Select: {
+      auto *SI = cast<SelectInst>(U);
+      SI->swapValues();
+      SI->swapProfMetadata();
+      break;
+    }
+    case Instruction::Br:
+      cast<BranchInst>(U)->swapSuccessors(); // swaps prof metadata too
+      break;
+    case Instruction::Xor:
+      replaceInstUsesWith(cast<Instruction>(*U), I);
+      break;
+    default:
+      llvm_unreachable("Got unexpected user - out of sync with "
+                       "canFreelyInvertAllUsersOf() ?");
+    }
+  }
+}
+
 /// Given a 'sub' instruction, return the RHS of the instruction if the LHS is a
 /// constant zero (which is the 'negate' form).
 Value *InstCombinerImpl::dyn_castNegVal(Value *V) const {
@@ -2196,7 +2220,7 @@ Instruction *InstCombinerImpl::visitGetElementPtrInst(GetElementPtrInst &GEP) {
         // GEP (bitcast i8* X to [0 x i8]*), i32 0, ... ?
         if (CATy->getElementType() == StrippedPtrEltTy) {
           // -> GEP i8* X, ...
-          SmallVector<Value*, 8> Idx(GEP.idx_begin()+1, GEP.idx_end());
+          SmallVector<Value *, 8> Idx(drop_begin(GEP.indices()));
           GetElementPtrInst *Res = GetElementPtrInst::Create(
               StrippedPtrEltTy, StrippedPtr, Idx, GEP.getName());
           Res->setIsInBounds(GEP.isInBounds());
@@ -3827,8 +3851,7 @@ static bool prepareICWorklistFromFunction(Function &F, const DataLayout &DL,
       }
     }
 
-    for (BasicBlock *SuccBB : successors(TI))
-      Worklist.push_back(SuccBB);
+    append_range(Worklist, successors(TI));
   } while (!Worklist.empty());
 
   // Remove instructions inside unreachable blocks. This prevents the

@@ -49,11 +49,11 @@ public:
             .Case([this](Float64Type) {
               return llvm::Type::getDoubleTy(context);
             })
-            .Case([this](LLVM::LLVMFP128Type) {
-              return llvm::Type::getFP128Ty(context);
-            })
-            .Case([this](LLVM::LLVMX86FP80Type) {
+            .Case([this](Float80Type) {
               return llvm::Type::getX86_FP80Ty(context);
+            })
+            .Case([this](Float128Type) {
+              return llvm::Type::getFP128Ty(context);
             })
             .Case([this](LLVM::LLVMPPCFP128Type) {
               return llvm::Type::getPPC_FP128Ty(context);
@@ -72,7 +72,8 @@ public:
             })
             .Case<LLVM::LLVMArrayType, IntegerType, LLVM::LLVMFunctionType,
                   LLVM::LLVMPointerType, LLVM::LLVMStructType,
-                  LLVM::LLVMFixedVectorType, LLVM::LLVMScalableVectorType>(
+                  LLVM::LLVMFixedVectorType, LLVM::LLVMScalableVectorType,
+                  VectorType>(
                 [this](auto type) { return this->translate(type); })
             .Default([](Type t) -> llvm::Type * {
               llvm_unreachable("unknown LLVM dialect type");
@@ -130,6 +131,14 @@ private:
     translateTypes(type.getBody(), subtypes);
     structType->setBody(subtypes, type.isPacked());
     return structType;
+  }
+
+  /// Translates the given built-in vector type compatible with LLVM.
+  llvm::Type *translate(VectorType type) {
+    assert(LLVM::isCompatibleVectorType(type) &&
+           "expected compatible with LLVM vector type");
+    return llvm::FixedVectorType::get(translateType(type.getElementType()),
+                                      type.getNumElements());
   }
 
   /// Translates the given fixed-vector type.
@@ -221,9 +230,9 @@ private:
     if (type->isDoubleTy())
       return Float64Type::get(&context);
     if (type->isFP128Ty())
-      return LLVM::LLVMFP128Type::get(&context);
+      return Float128Type::get(&context);
     if (type->isX86_FP80Ty())
-      return LLVM::LLVMX86FP80Type::get(&context);
+      return Float80Type::get(&context);
     if (type->isPPC_FP128Ty())
       return LLVM::LLVMPPCFP128Type::get(&context);
     if (type->isX86_MMXTy())
@@ -285,8 +294,8 @@ private:
 
   /// Translates the given fixed-vector type.
   Type translate(llvm::FixedVectorType *type) {
-    return LLVM::LLVMFixedVectorType::get(translateType(type->getElementType()),
-                                          type->getNumElements());
+    return LLVM::getFixedVectorType(translateType(type->getElementType()),
+                                    type->getNumElements());
   }
 
   /// Translates the given scalable-vector type.

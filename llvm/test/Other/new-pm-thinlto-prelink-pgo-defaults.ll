@@ -54,6 +54,9 @@
 ; CHECK-O-NEXT: Running pass: InstCombinePass
 ; CHECK-O-NEXT: Running analysis: OptimizationRemarkEmitterAnalysis
 ; CHECK-O-NEXT: Running analysis: AAManager
+; CHECK-O-NEXT: Running analysis: BasicAA
+; CHECK-O-NEXT: Running analysis: ScopedNoAliasAA
+; CHECK-O-NEXT: Running analysis: TypeBasedAA
 ; CHECK-O-NEXT: Running analysis: OuterAnalysisManagerProxy
 ; CHECK-O-NEXT: Running pass: SimplifyCFGPass
 ; CHECK-O-NEXT: Finished {{.*}}Function pass manager run.
@@ -65,6 +68,7 @@
 ; CHECK-O123SZ-NEXT: Running analysis: FunctionAnalysisManagerCGSCCProxy on (foo)
 ; CHECK-O123SZ-NEXT: Running analysis: OuterAnalysisManagerProxy
 ; CHECK-O123SZ-NEXT: Starting CGSCC pass manager run.
+; CHECK-O123SZ-NEXT: Running pass: InlinerPass on (foo)
 ; CHECK-O123SZ-NEXT: Running pass: InlinerPass on (foo)
 ; CHECK-O123SZ-NEXT: Running pass: SROA on foo
 ; CHECK-O123SZ-NEXT: Running pass: EarlyCSEPass on foo
@@ -89,6 +93,10 @@
 ; CHECK-O-NEXT: Running analysis: OptimizationRemarkEmitterAnalysis on foo
 ; CHECK-O-NEXT: Running pass: ModuleInlinerWrapperPass
 ; CHECK-O-NEXT: Starting {{.*}}Module pass manager run.
+; CHECK-O-NEXT: Running pass: RequireAnalysisPass<{{.*}}GlobalsAA	
+; CHECK-O-NEXT: Running analysis: GlobalsAA	
+; CHECK-O-NEXT: Running analysis: CallGraphAnalysis	
+; CHECK-O-NEXT: Running pass: RequireAnalysisPass<{{.*}}ProfileSummaryAnalysis	
 ; CHECK-O-NEXT: Running analysis: InnerAnalysisManagerProxy
 ; CHECK-O-NEXT: Running analysis: LazyCallGraphAnalysis
 ; CHECK-O-NEXT: Running analysis: TargetLibraryAnalysis on foo
@@ -97,29 +105,21 @@
 ; CHECK-O-NEXT: Running pass: DevirtSCCRepeatedPass
 ; CHECK-O-NEXT: Starting CGSCC pass manager run.
 ; CHECK-O-NEXT: Running pass: InlinerPass
-; CHECK-O-NEXT: Finished CGSCC pass manager run.
-; CHECK-O-NEXT: Finished {{.*}}Module pass manager run.
-; CHECK-O-NEXT: Running pass: ModuleInlinerWrapperPass
-; CHECK-O-NEXT: Starting {{.*}}Module pass manager run.
-; CHECK-O-NEXT: Running pass: RequireAnalysisPass<{{.*}}GlobalsAA
-; CHECK-O-NEXT: Running analysis: GlobalsAA
-; CHECK-O-NEXT: Running analysis: CallGraphAnalysis
-; CHECK-O-NEXT: Running pass: RequireAnalysisPass<{{.*}}ProfileSummaryAnalysis
-; CHECK-O-NEXT: Running pass: DevirtSCCRepeatedPass
-; CHECK-O-NEXT: Starting CGSCC pass manager run.
 ; CHECK-O-NEXT: Running pass: InlinerPass
 ; CHECK-O-NEXT: Running pass: PostOrderFunctionAttrsPass
-; CHECK-O-NEXT: Running analysis: AAManager on foo
+; CHECK-O-NEXT: Running analysis: AAManager
+; CHECK-O-NEXT: Running analysis: BasicAA
+; CHECK-O-NEXT: Running analysis: AssumptionAnalysis
+; CHECK-O-NEXT: Running analysis: DominatorTreeAnalysis
+; CHECK-O-NEXT: Running analysis: ScopedNoAliasAA
+; CHECK-O-NEXT: Running analysis: TypeBasedAA
+; CHECK-O-NEXT: Running analysis: OuterAnalysisManagerProxy
 ; CHECK-O3-NEXT: Running pass: ArgumentPromotionPass
 ; CHECK-O3-NEXT: Running analysis: TargetIRAnalysis
 ; CHECK-O2-NEXT: Running pass: OpenMPOptPass
 ; CHECK-O3-NEXT: Running pass: OpenMPOptPass
 ; CHECK-O-NEXT: Starting {{.*}}Function pass manager run.
 ; CHECK-O-NEXT: Running pass: SROA
-; These next two can appear in any order since they are accessed as parameters
-; on the same call to SROA::runImpl
-; CHECK-O-DAG: Running analysis: DominatorTreeAnalysis on foo
-; CHECK-O-DAG: Running analysis: AssumptionAnalysis on foo
 ; CHECK-O-NEXT: Running pass: EarlyCSEPass
 ; CHECK-O1-NEXT: Running analysis: TargetIRAnalysis on foo
 ; CHECK-O2-NEXT: Running analysis: TargetIRAnalysis on foo
@@ -134,7 +134,6 @@
 ; CHECK-O-NEXT: Running pass: SimplifyCFGPass
 ; CHECK-O3-NEXT: Running pass: AggressiveInstCombinePass
 ; CHECK-O-NEXT: Running pass: InstCombinePass
-; CHECK-O-NEXT: Running analysis: OuterAnalysisManagerProxy
 ; CHECK-O-NEXT: Running analysis: BlockFrequencyAnalysis on foo
 ; These next two can appear in any order since they are accessed as parameters
 ; on the same call to BlockFrequencyInfo::calculate.

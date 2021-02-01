@@ -10,7 +10,6 @@
 
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/accessor.hpp>
-#include <CL/sycl/atomic.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/cg.hpp>
 #include <CL/sycl/detail/cg_types.hpp>
@@ -533,7 +532,6 @@ private:
   ///
   /// \param Src is a source SYCL accessor.
   /// \param Dst is a destination SYCL accessor.
-  // TODO: support atomic accessor in Src or/and Dst.
   template <typename TSrc, int DimSrc, access::mode ModeSrc,
             access::target TargetSrc, typename TDst, int DimDst,
             access::mode ModeDst, access::target TargetDst,
@@ -558,60 +556,6 @@ private:
     return true;
   }
 
-  template <typename T, int Dim, access::mode Mode, access::target Target,
-            access::placeholder IsPH>
-  static detail::enable_if_t<Dim == 0 && Mode == access::mode::atomic, T>
-  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) {
-#ifdef __ENABLE_USM_ADDR_SPACE__
-    atomic<T, access::address_space::global_device_space> AtomicSrc = Src;
-#else
-    atomic<T, access::address_space::global_space> AtomicSrc = Src;
-#endif // __ENABLE_USM_ADDR_SPACE__
-    return AtomicSrc.load();
-  }
-
-  template <typename T, int Dim, access::mode Mode, access::target Target,
-            access::placeholder IsPH>
-  static detail::enable_if_t<(Dim > 0) && Mode == access::mode::atomic, T>
-  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) {
-    id<Dim> Id = getDelinearizedIndex(Src.get_range(), 0);
-    return Src[Id].load();
-  }
-
-  template <typename T, int Dim, access::mode Mode, access::target Target,
-            access::placeholder IsPH>
-  static detail::enable_if_t<Mode != access::mode::atomic, T>
-  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) {
-    return *(Src.get_pointer());
-  }
-
-  template <typename T, int Dim, access::mode Mode, access::target Target,
-            access::placeholder IsPH>
-  static detail::enable_if_t<Dim == 0 && Mode == access::mode::atomic, void>
-  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) {
-#ifdef __ENABLE_USM_ADDR_SPACE__
-    atomic<T, access::address_space::global_device_space> AtomicDst = Dst;
-#else
-    atomic<T, access::address_space::global_space> AtomicDst = Dst;
-#endif // __ENABLE_USM_ADDR_SPACE__
-    AtomicDst.store(V);
-  }
-
-  template <typename T, int Dim, access::mode Mode, access::target Target,
-            access::placeholder IsPH>
-  static detail::enable_if_t<(Dim > 0) && Mode == access::mode::atomic, void>
-  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) {
-    id<Dim> Id = getDelinearizedIndex(Dst.get_range(), 0);
-    Dst[Id].store(V);
-  }
-
-  template <typename T, int Dim, access::mode Mode, access::target Target,
-            access::placeholder IsPH>
-  static detail::enable_if_t<Mode != access::mode::atomic, void>
-  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) {
-    *(Dst.get_pointer()) = V;
-  }
-
   /// Handles some special cases of the copy operation from one accessor
   /// to another accessor. Returns true if the copy is handled here.
   ///
@@ -632,7 +576,7 @@ private:
     single_task<class __copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc,
                                     TDst, DimDst, ModeDst, TargetDst,
                                     IsPHSrc, IsPHDst>> ([=]() {
-      writeToFirstAccElement(Dst, readFromFirstAccElement(Src));
+      *(Dst.get_pointer()) = *(Src.get_pointer());
     });
     return true;
   }
@@ -670,7 +614,7 @@ private:
     single_task<class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
         ([=]() {
       using TSrcNonConst = typename detail::remove_const_t<TSrc>;
-      *(reinterpret_cast<TSrcNonConst *>(Dst)) = readFromFirstAccElement(Src);
+      *(reinterpret_cast<TSrcNonConst *>(Dst)) = *(Src.get_pointer());
     });
   }
 
@@ -703,7 +647,7 @@ private:
                    accessor<TDst, Dim, AccMode, AccTarget, IsPH> Dst) {
     single_task<class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
         ([=]() {
-      writeToFirstAccElement(Dst, *(reinterpret_cast<const TDst *>(Src)));
+      *(Dst.get_pointer()) = *(reinterpret_cast<const TDst *>(Src));
     });
   }
 #endif // __SYCL_DEVICE_ONLY__
@@ -721,6 +665,19 @@ private:
   constexpr static bool
   isValidTargetForExplicitOp(access::target AccessTarget) {
     return isConstOrGlobal(AccessTarget) || isImageOrImageArray(AccessTarget);
+  }
+
+  constexpr static bool isValidModeForSourceAccessor(access::mode AccessMode) {
+    return AccessMode == access::mode::read ||
+           AccessMode == access::mode::read_write;
+  }
+
+  constexpr static bool
+  isValidModeForDestinationAccessor(access::mode AccessMode) {
+    return AccessMode == access::mode::write ||
+           AccessMode == access::mode::read_write ||
+           AccessMode == access::mode::discard_write ||
+           AccessMode == access::mode::discard_read_write;
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range.
@@ -1674,6 +1631,8 @@ public:
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
+    static_assert(isValidModeForSourceAccessor(AccessMode),
+                  "Invalid accessor mode for the copy method.");
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
     MSharedPtrStorage.push_back(Dst);
@@ -1697,6 +1656,8 @@ public:
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
+    static_assert(isValidModeForDestinationAccessor(AccessMode),
+                  "Invalid accessor mode for the copy method.");
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
     MSharedPtrStorage.push_back(Src);
@@ -1719,6 +1680,8 @@ public:
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
+    static_assert(isValidModeForSourceAccessor(AccessMode),
+                  "Invalid accessor mode for the copy method.");
 #ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
       // TODO: Temporary implementation for host. Should be handled by memory
@@ -1756,6 +1719,8 @@ public:
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
+    static_assert(isValidModeForDestinationAccessor(AccessMode),
+                  "Invalid accessor mode for the copy method.");
 #ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
       // TODO: Temporary implementation for host. Should be handled by memory
@@ -1801,6 +1766,10 @@ public:
                   "Invalid source accessor target for the copy method.");
     static_assert(isValidTargetForExplicitOp(AccessTarget_Dst),
                   "Invalid destination accessor target for the copy method.");
+    static_assert(isValidModeForSourceAccessor(AccessMode_Src),
+                  "Invalid source accessor mode for the copy method.");
+    static_assert(isValidModeForDestinationAccessor(AccessMode_Dst),
+                  "Invalid destination accessor mode for the copy method.");
     assert(Dst.get_size() >= Src.get_size() &&
            "The destination accessor does not fit the copied memory.");
     if (copyAccToAccHelper(Src, Dst))
