@@ -2031,7 +2031,7 @@ public:
             Image, (detail::getSyclObjImpl(Image))->getElementSize()) {}
 
   template <typename AllocatorT>
-  accessor(cl::sycl::image<Dimensions, AllocatorT> &Image, 
+  accessor(cl::sycl::image<Dimensions, AllocatorT> &Image,
            const property_list &propList)
       : detail::image_accessor<DataT, Dimensions, AccessMode,
                                access::target::host_image, IsPlaceholder>(
