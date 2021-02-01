@@ -3012,6 +3012,8 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
     return E->getIntegerConstantExpr(Ctx)->getZExtValue();
   };
 
+  ASTContext &Ctx = S.getASTContext();
+
   if (AL.getKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
     ArrayRef<const Expr *> Dims;
     Attr *B = nullptr;
@@ -3020,9 +3022,9 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
     else if (const auto *B = D->getAttr<ReqdWorkGroupSizeAttr>())
       Dims = B->dimensions();
     if (B) {
-      Result &= checkZeroDim(B, getExprValue(Dims[0], S.getASTContext()),
-                             getExprValue(Dims[1], S.getASTContext()),
-                             getExprValue(Dims[2], S.getASTContext()));
+      Result &= checkZeroDim(B, getExprValue(Dims[0], Ctx),
+                             getExprValue(Dims[1], Ctx),
+                             getExprValue(Dims[2], Ctx));
     }
     return Result;
   }
@@ -3031,22 +3033,22 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
     S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
   if (const auto *A = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    if (getExprValue(A->getValue(), S.getASTContext()) == 0) {
+    if ((A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue()) == 0) {
       Result &=
-          checkZeroDim(A, getExprValue(AL.getArgAsExpr(0), S.getASTContext()),
-                       getExprValue(AL.getArgAsExpr(1), S.getASTContext()),
-                       getExprValue(AL.getArgAsExpr(2), S.getASTContext()),
+          checkZeroDim(A, getExprValue(AL.getArgAsExpr(0), Ctx),
+                       getExprValue(AL.getArgAsExpr(1), Ctx),
+                       getExprValue(AL.getArgAsExpr(2), Ctx),
                        /*ReverseAttrs=*/true);
     }
   }
 
   if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    if (!((getExprValue(AL.getArgAsExpr(0), S.getASTContext()) <=
-           getExprValue(A->getXDim(), S.getASTContext())) &&
-          (getExprValue(AL.getArgAsExpr(1), S.getASTContext()) <=
-           getExprValue(A->getYDim(), S.getASTContext())) &&
-          (getExprValue(AL.getArgAsExpr(2), S.getASTContext()) <=
-           getExprValue(A->getZDim(), S.getASTContext())))) {
+    if (!((getExprValue(AL.getArgAsExpr(0), Ctx) <=
+	   getExprValue(A->getXDim(), Ctx)) &&
+          (getExprValue(AL.getArgAsExpr(1), Ctx) <=
+           getExprValue(A->getYDim(), Ctx)) &&
+          (getExprValue(AL.getArgAsExpr(2), Ctx) <=
+           getExprValue(A->getZDim(), Ctx)))) {
       S.Diag(AL.getLoc(), diag::err_conflicting_sycl_function_attributes)
           << AL << A->getSpelling();
       Result &= false;
@@ -3054,12 +3056,12 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   if (const auto *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    if (!((getExprValue(AL.getArgAsExpr(0), S.getASTContext()) >=
-           getExprValue(A->getXDim(), S.getASTContext())) &&
-          (getExprValue(AL.getArgAsExpr(1), S.getASTContext()) >=
-           getExprValue(A->getYDim(), S.getASTContext())) &&
-          (getExprValue(AL.getArgAsExpr(2), S.getASTContext()) >=
-           getExprValue(A->getZDim(), S.getASTContext())))) {
+    if (!((getExprValue(AL.getArgAsExpr(0), Ctx) >=
+           getExprValue(A->getXDim(), Ctx)) &&
+          (getExprValue(AL.getArgAsExpr(1), Ctx) >=
+           getExprValue(A->getYDim(), Ctx)) &&
+          (getExprValue(AL.getArgAsExpr(2), Ctx) >=
+           getExprValue(A->getZDim(), Ctx)))) {
       S.Diag(AL.getLoc(), diag::err_conflicting_sycl_function_attributes)
           << AL << A->getSpelling();
       Result &= false;
