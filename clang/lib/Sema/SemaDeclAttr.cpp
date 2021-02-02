@@ -3006,11 +3006,13 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
     return true;
   };
 
-  /// Returns the usigned constant integer value represented by
-  /// given expression.
+  // Returns the unsigned constant integer value represented by
+  // given expression.
   auto getExprValue = [](const Expr *E, ASTContext &Ctx) {
     return E->getIntegerConstantExpr(Ctx)->getZExtValue();
   };
+
+  ASTContext &Ctx = S.getASTContext();
 
   if (AL.getKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
     ArrayRef<const Expr *> Dims;
@@ -3020,9 +3022,9 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
     else if (const auto *B = D->getAttr<ReqdWorkGroupSizeAttr>())
       Dims = B->dimensions();
     if (B) {
-      Result &= checkZeroDim(B, getExprValue(Dims[0], S.getASTContext()),
-                             getExprValue(Dims[1], S.getASTContext()),
-                             getExprValue(Dims[2], S.getASTContext()));
+      Result &=
+          checkZeroDim(B, getExprValue(Dims[0], Ctx),
+                       getExprValue(Dims[1], Ctx), getExprValue(Dims[2], Ctx));
     }
     return Result;
   }
@@ -3030,28 +3032,22 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (AL.getKind() == ParsedAttr::AT_SYCLIntelMaxWorkGroupSize)
     S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
-  // For a SYCLDevice, WorkGroupAttr arguments are reversed.
-  // "XDim" gets the third argument to the attribute and
-  // "ZDim" gets the first argument of the attribute.
   if (const auto *A = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    int64_t AttrValue =
-        A->getValue()->getIntegerConstantExpr(S.Context)->getSExtValue();
-    if (AttrValue == 0) {
-      Result &=
-          checkZeroDim(A, getExprValue(AL.getArgAsExpr(0), S.getASTContext()),
-                       getExprValue(AL.getArgAsExpr(1), S.getASTContext()),
-                       getExprValue(AL.getArgAsExpr(2), S.getASTContext()),
-                       /*ReverseAttrs=*/true);
+    if ((A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue()) == 0) {
+      Result &= checkZeroDim(A, getExprValue(AL.getArgAsExpr(0), Ctx),
+                             getExprValue(AL.getArgAsExpr(1), Ctx),
+                             getExprValue(AL.getArgAsExpr(2), Ctx),
+                             /*ReverseAttrs=*/true);
     }
   }
 
   if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    if (!((getExprValue(AL.getArgAsExpr(0), S.getASTContext()) <=
-           getExprValue(A->getXDim(), S.getASTContext())) &&
-          (getExprValue(AL.getArgAsExpr(1), S.getASTContext()) <=
-           getExprValue(A->getYDim(), S.getASTContext())) &&
-          (getExprValue(AL.getArgAsExpr(2), S.getASTContext()) <=
-           getExprValue(A->getZDim(), S.getASTContext())))) {
+    if (!((getExprValue(AL.getArgAsExpr(0), Ctx) <=
+           getExprValue(A->getXDim(), Ctx)) &&
+          (getExprValue(AL.getArgAsExpr(1), Ctx) <=
+           getExprValue(A->getYDim(), Ctx)) &&
+          (getExprValue(AL.getArgAsExpr(2), Ctx) <=
+           getExprValue(A->getZDim(), Ctx)))) {
       S.Diag(AL.getLoc(), diag::err_conflicting_sycl_function_attributes)
           << AL << A->getSpelling();
       Result &= false;
@@ -3059,12 +3055,12 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   if (const auto *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    if (!((getExprValue(AL.getArgAsExpr(0), S.getASTContext()) >=
-           getExprValue(A->getXDim(), S.getASTContext())) &&
-          (getExprValue(AL.getArgAsExpr(1), S.getASTContext()) >=
-           getExprValue(A->getYDim(), S.getASTContext())) &&
-          (getExprValue(AL.getArgAsExpr(2), S.getASTContext()) >=
-           getExprValue(A->getZDim(), S.getASTContext())))) {
+    if (!((getExprValue(AL.getArgAsExpr(0), Ctx) >=
+           getExprValue(A->getXDim(), Ctx)) &&
+          (getExprValue(AL.getArgAsExpr(1), Ctx) >=
+           getExprValue(A->getYDim(), Ctx)) &&
+          (getExprValue(AL.getArgAsExpr(2), Ctx) >=
+           getExprValue(A->getZDim(), Ctx)))) {
       S.Diag(AL.getLoc(), diag::err_conflicting_sycl_function_attributes)
           << AL << A->getSpelling();
       Result &= false;
