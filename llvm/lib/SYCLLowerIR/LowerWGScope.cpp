@@ -633,7 +633,8 @@ static void fixupPrivateMemoryPFWILambdaCaptures(CallInst *PFWICall) {
   SmallVector<CaptureDesc, 4> PrivMemCaptures;
 
   // Look through cast
-  if (auto *Cast = dyn_cast<AddrSpaceCastInst>(LambdaObj))
+  auto *Cast = dyn_cast<AddrSpaceCastInst>(LambdaObj);
+  if (Cast)
     LambdaObj = Cast->getOperand(0);
 
   for (auto *U : LambdaObj->users()) {
