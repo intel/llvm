@@ -653,15 +653,22 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
         if (!HostUnifiedMemory &&
             Req->MAccessMode != access::mode::discard_write &&
             Req->MAccessMode != access::mode::discard_read_write) {
-          QueueImplPtr DefaultHostQueue =
-              Scheduler::getInstance().getDefaultHostQueue();
-          AllocaCommand *HostAllocaCmd = new AllocaCommand(
-              DefaultHostQueue, FullReq, true /* InitFromUserData */,
-              nullptr /* LinkedAllocaCmd */);
-          Record->MAllocaCommands.push_back(HostAllocaCmd);
-          Record->MWriteLeaves.push_back(HostAllocaCmd);
-          ++(HostAllocaCmd->MLeafCounter);
-          Record->MCurContext = DefaultHostQueue->getContextImplPtr();
+          // There's no need to make a host allocation if the buffer is not
+          // initialized with user data.
+          // TODO casting is required here to get the necessary information
+          // without breaking ABI, replace with the next major version.
+          auto *MemObj = static_cast<SYCLMemObjT *>(Req->MSYCLMemObj);
+          if (MemObj->hasUserDataPtr()) {
+            QueueImplPtr DefaultHostQueue =
+                Scheduler::getInstance().getDefaultHostQueue();
+            AllocaCommand *HostAllocaCmd = new AllocaCommand(
+                DefaultHostQueue, FullReq, true /* InitFromUserData */,
+                nullptr /* LinkedAllocaCmd */);
+            Record->MAllocaCommands.push_back(HostAllocaCmd);
+            Record->MWriteLeaves.push_back(HostAllocaCmd);
+            ++(HostAllocaCmd->MLeafCounter);
+            Record->MCurContext = DefaultHostQueue->getContextImplPtr();
+          }
         }
       } else {
         // If it is not the first allocation, try to setup a link

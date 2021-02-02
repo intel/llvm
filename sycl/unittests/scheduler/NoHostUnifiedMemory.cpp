@@ -120,6 +120,17 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     MS.getOrCreateAllocaForReq(Record, &DiscardReq, QImpl);
     EXPECT_EQ(Record->MAllocaCommands.size(), 1U);
   }
+  // Check non-host alloca without user pointer
+  {
+    buffer<int, 1> Buf(range<1>(1));
+    detail::Requirement Req = getMockRequirement(Buf);
+
+    // No need to create a host allocation in this case since there's no data to
+    // initialize the buffer with.
+    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
+    MS.getOrCreateAllocaForReq(Record, &Req, QImpl);
+    EXPECT_EQ(Record->MAllocaCommands.size(), 1U);
+  }
   // Check host -> non-host alloca
   {
     int val;
