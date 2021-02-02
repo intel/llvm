@@ -8,7 +8,7 @@
 ///
 /// This file contains the required infrastructure and SDNode patterns to
 /// support code generation for the standard 'V' (Vector) extension, version
-/// 0.9.  This version is still experimental as the 'V' extension hasn't been
+/// 0.10.  This version is still experimental as the 'V' extension hasn't been
 /// ratified yet.
 ///
 /// This file is included from and depends upon RISCVInstrInfoVPseudos.td
@@ -513,6 +513,68 @@ defm "" : VPatBinaryFPSDNode_R_VF<fsub, "PseudoVFRSUB">;
 defm "" : VPatBinaryFPSDNode_VV_VF<fmul, "PseudoVFMUL">;
 defm "" : VPatBinaryFPSDNode_VV_VF<fdiv, "PseudoVFDIV">;
 defm "" : VPatBinaryFPSDNode_R_VF<fdiv, "PseudoVFRDIV">;
+
+// 14.6 Vector Single-Width Floating-Point Fused Multiply-Add Instructions.
+foreach fvti = AllFloatVectors in {
+  // NOTE: We choose VFMADD because it has the most commuting freedom. So it
+  // works best with how TwoAddressInstructionPass tries commuting.
+  def : Pat<(fvti.Vector (fma fvti.RegClass:$rs1, fvti.RegClass:$rd,
+                              fvti.RegClass:$rs2)),
+            (!cast<Instruction>("PseudoVFMADD_VV_"# fvti.LMul.MX)
+                 fvti.RegClass:$rd, fvti.RegClass:$rs1, fvti.RegClass:$rs2,
+                 fvti.AVL, fvti.SEW)>;
+  def : Pat<(fvti.Vector (fma fvti.RegClass:$rs1, fvti.RegClass:$rd,
+                              (fneg fvti.RegClass:$rs2))),
+            (!cast<Instruction>("PseudoVFMSUB_VV_"# fvti.LMul.MX)
+                 fvti.RegClass:$rd, fvti.RegClass:$rs1, fvti.RegClass:$rs2,
+                 fvti.AVL, fvti.SEW)>;
+  def : Pat<(fvti.Vector (fma (fneg fvti.RegClass:$rs1), fvti.RegClass:$rd,
+                              (fneg fvti.RegClass:$rs2))),
+            (!cast<Instruction>("PseudoVFNMADD_VV_"# fvti.LMul.MX)
+                 fvti.RegClass:$rd, fvti.RegClass:$rs1, fvti.RegClass:$rs2,
+                 fvti.AVL, fvti.SEW)>;
+  def : Pat<(fvti.Vector (fma (fneg fvti.RegClass:$rs1), fvti.RegClass:$rd,
+                              fvti.RegClass:$rs2)),
+            (!cast<Instruction>("PseudoVFNMSUB_VV_"# fvti.LMul.MX)
+                 fvti.RegClass:$rd, fvti.RegClass:$rs1, fvti.RegClass:$rs2,
+                 fvti.AVL, fvti.SEW)>;
+
+  // The choice of VFMADD here is arbitrary, vfmadd.vf and vfmacc.vf are equally
+  // commutable.
+  def : Pat<(fvti.Vector (fma (splat_vector fvti.ScalarRegClass:$rs1),
+                              fvti.RegClass:$rd, fvti.RegClass:$rs2)),
+            (!cast<Instruction>("PseudoVFMADD_V" # fvti.ScalarSuffix # "_" # fvti.LMul.MX)
+                 fvti.RegClass:$rd, fvti.ScalarRegClass:$rs1, fvti.RegClass:$rs2,
+                 fvti.AVL, fvti.SEW)>;
+  def : Pat<(fvti.Vector (fma (splat_vector fvti.ScalarRegClass:$rs1),
+                              fvti.RegClass:$rd, (fneg fvti.RegClass:$rs2))),
+            (!cast<Instruction>("PseudoVFMSUB_V" # fvti.ScalarSuffix # "_" # fvti.LMul.MX)
+                 fvti.RegClass:$rd, fvti.ScalarRegClass:$rs1, fvti.RegClass:$rs2,
+                 fvti.AVL, fvti.SEW)>;
+
+  def : Pat<(fvti.Vector (fma (splat_vector fvti.ScalarRegClass:$rs1),
+                              (fneg fvti.RegClass:$rd), (fneg fvti.RegClass:$rs2))),
+            (!cast<Instruction>("PseudoVFNMADD_V" # fvti.ScalarSuffix # "_" # fvti.LMul.MX)
+                 fvti.RegClass:$rd, fvti.ScalarRegClass:$rs1, fvti.RegClass:$rs2,
+                 fvti.AVL, fvti.SEW)>;
+  def : Pat<(fvti.Vector (fma (splat_vector fvti.ScalarRegClass:$rs1),
+                              (fneg fvti.RegClass:$rd), fvti.RegClass:$rs2)),
+            (!cast<Instruction>("PseudoVFNMSUB_V" # fvti.ScalarSuffix # "_" # fvti.LMul.MX)
+                 fvti.RegClass:$rd, fvti.ScalarRegClass:$rs1, fvti.RegClass:$rs2,
+                 fvti.AVL, fvti.SEW)>;
+
+  // The splat might be negated.
+  def : Pat<(fvti.Vector (fma (fneg (splat_vector fvti.ScalarRegClass:$rs1)),
+                              fvti.RegClass:$rd, (fneg fvti.RegClass:$rs2))),
+            (!cast<Instruction>("PseudoVFNMADD_V" # fvti.ScalarSuffix # "_" # fvti.LMul.MX)
+                 fvti.RegClass:$rd, fvti.ScalarRegClass:$rs1, fvti.RegClass:$rs2,
+                 fvti.AVL, fvti.SEW)>;
+  def : Pat<(fvti.Vector (fma (fneg (splat_vector fvti.ScalarRegClass:$rs1)),
+                              fvti.RegClass:$rd, fvti.RegClass:$rs2)),
+            (!cast<Instruction>("PseudoVFNMSUB_V" # fvti.ScalarSuffix # "_" # fvti.LMul.MX)
+                 fvti.RegClass:$rd, fvti.ScalarRegClass:$rs1, fvti.RegClass:$rs2,
+                 fvti.AVL, fvti.SEW)>;
+}
 
 // 14.10. Vector Floating-Point Sign-Injection Instructions
 // Handle fneg with VFSGNJN using the same input for both operands.
