@@ -1860,9 +1860,11 @@ public:
   accessor(handler &, const property_list &propList)
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(range<AdjustedDim>{1}) {
+    void(propList);
   }
 #else
       : LocalAccessorBaseHost(range<3>{1, 1, 1}, AdjustedDim, sizeof(DataT)) {
+    void(propList);
   }
 #endif
 
@@ -1882,10 +1884,12 @@ public:
            const property_list &propList)
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AllocationSize) {
+    void(propList);
   }
 #else
       : LocalAccessorBaseHost(detail::convertToArrayOfN<3, 1>(AllocationSize),
                               AdjustedDim, sizeof(DataT)) {
+    void(propList);
   }
 #endif
 
@@ -1986,6 +1990,7 @@ public:
                                access::target::image, IsPlaceholder>(
             Image, CommandGroupHandler,
             (detail::getSyclObjImpl(Image))->getElementSize()) {
+    void(propList);
 #ifndef __SYCL_DEVICE_ONLY__
     detail::associateWithHandler(CommandGroupHandler, this,
                                  access::target::image);
@@ -2035,7 +2040,9 @@ public:
            const property_list &propList)
       : detail::image_accessor<DataT, Dimensions, AccessMode,
                                access::target::host_image, IsPlaceholder>(
-            Image, (detail::getSyclObjImpl(Image))->getElementSize()) {}
+            Image, (detail::getSyclObjImpl(Image))->getElementSize()) {
+    void(propList);
+            }
 };
 
 /// Image array accessor.
@@ -2090,6 +2097,7 @@ public:
                                access::target::image, IsPlaceholder>(
             Image, CommandGroupHandler,
             (detail::getSyclObjImpl(Image))->getElementSize()) {
+    void(propList);
 #ifndef __SYCL_DEVICE_ONLY__
     detail::associateWithHandler(CommandGroupHandler, this,
                                  access::target::image_array);
