@@ -13,6 +13,7 @@
 %struct.foo = type { %struct.barney }
 %struct.foo.0 = type { i8 }
 
+; CHECK: @[[GROUP_SHADOW_PTR:.*]] = internal unnamed_addr addrspace(3) global %struct.zot addrspace(4)*
 ; CHECK: @[[PFWG_SHADOW_PTR:.*]] = internal unnamed_addr addrspace(3) global %struct.bar addrspace(4)*
 ; CHECK: @[[PFWI_SHADOW:.*]] = internal unnamed_addr addrspace(3) global %struct.foo.0
 ; CHECK: @[[PFWG_SHADOW:.*]] = internal unnamed_addr addrspace(3) global %struct.bar
@@ -46,6 +47,8 @@ define internal spir_func void @wibble(%struct.bar addrspace(4)* %arg, %struct.z
 ; CHECK:       wg_leader:
 ; CHECK-NEXT:    store [[STRUCT_BAR]] addrspace(4)* [[ARG]], [[STRUCT_BAR]] addrspace(4)** [[TMP]], align 8
 ; CHECK-NEXT:    [[TMP3:%.*]] = load [[STRUCT_BAR]] addrspace(4)*, [[STRUCT_BAR]] addrspace(4)** [[TMP]], align 8
+; CHECK-NEXT:    [[TMP4:%.*]] = addrspacecast %struct.zot* [[ARG1]] to [[STRUCT_ZOT:%.*]] addrspace(4)*
+; CHECK-NEXT:    store [[STRUCT_ZOT]] addrspace(4)* [[TMP4]], [[STRUCT_ZOT]] addrspace(4)* addrspace(3)* @[[GROUP_SHADOW_PTR]]
 ; CHECK-NEXT:    br label [[WG_CF]]
 ; CHECK:       wg_cf:
 ; CHECK-NEXT:    [[TMP4:%.*]] = load i64, i64 addrspace(1)* @__spirv_BuiltInLocalInvocationIndex
@@ -65,8 +68,8 @@ define internal spir_func void @wibble(%struct.bar addrspace(4)* %arg, %struct.z
 ; CHECK-NEXT:    [[TMP6:%.*]] = bitcast %struct.foo.0* [[TMP2]] to i8*
 ; CHECK-NEXT:    call void @llvm.memcpy.p0i8.p3i8.i64(i8* align 1 [[TMP6]], i8 addrspace(3)* align 8 getelementptr inbounds (%struct.foo.0, [[STRUCT_FOO_0]] addrspace(3)* @[[PFWI_SHADOW]], i32 0, i32 0), i64 1, i1 false)
 ; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #0
-; CHECK-NEXT:    [[TMP7:%.*]] = addrspacecast %struct.zot* [[ARG1]] to [[STRUCT_ZOT:%.*]] addrspace(4)*
-; CHECK-NEXT:    call spir_func void @bar(%struct.zot addrspace(4)* [[TMP7]], %struct.foo.0* byval(%struct.foo.0) align 1 [[TMP2]])
+; CHECK-NEXT:    [[WG_VAL_TMP4:%.*]] = load [[STRUCT_ZOT]] addrspace(4)*, [[STRUCT_ZOT]] addrspace(4)* addrspace(3)* @[[GROUP_SHADOW_PTR]]
+; CHECK-NEXT:    call spir_func void @bar(%struct.zot addrspace(4)* [[WG_VAL_TMP4]], %struct.foo.0* byval(%struct.foo.0) align 1 [[TMP2]])
 ; CHECK-NEXT:    ret void
 ;
 bb:
