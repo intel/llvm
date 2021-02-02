@@ -1,66 +1,75 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -ast-dump -sycl-std=2020 %s | FileCheck %s
 
-// This test checks that compiler generates correct kernel wrapper arguments for
+// This test checks if the compiler generates correct kernel wrapper arguments for
 // image accessors targets.
 
-#include "Inputs/sycl.hpp"
+#include "sycl.hpp"
 
-using namespace cl::sycl;
-
-template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
-  kernelFunc();
-}
+sycl::queue q;
 
 int main() {
 
-  accessor<int, 1, access::mode::read,
-           access::target::image, access::placeholder::false_t>
+  sycl::accessor<int, 1, sycl::access::mode::read,
+                 sycl::access::target::image, sycl::access::placeholder::false_t>
       image_acc1d_read;
-  kernel<class use_image1d_r>(
-      [=]() {
-        image_acc1d_read.use();
-      });
 
-  accessor<int, 2, access::mode::read,
-           access::target::image, access::placeholder::false_t>
+  q.submit([&](sycl::handler &h) {
+    h.single_task<class use_image1d_r>(
+        [=] {
+          image_acc1d_read.use();
+        });
+  });
+
+  sycl::accessor<int, 2, sycl::access::mode::read,
+                 sycl::access::target::image, sycl::access::placeholder::false_t>
       image_acc2d_read;
-  kernel<class use_image2d_r>(
-      [=]() {
-        image_acc2d_read.use();
-      });
+  q.submit([&](sycl::handler &h) {
+    h.single_task<class use_image2d_r>(
+        [=] {
+          image_acc2d_read.use();
+        });
+  });
 
-  accessor<int, 3, access::mode::read,
-           access::target::image, access::placeholder::false_t>
+  sycl::accessor<int, 3, sycl::access::mode::read,
+                 sycl::access::target::image, sycl::access::placeholder::false_t>
       image_acc3d_read;
-  kernel<class use_image3d_r>(
-      [=]() {
-        image_acc3d_read.use();
-      });
 
-  accessor<int, 1, access::mode::write,
-           access::target::image, access::placeholder::false_t>
+  q.submit([&](sycl::handler &h) {
+    h.single_task<class use_image3d_r>(
+        [=] {
+          image_acc3d_read.use();
+        });
+  });
+
+  sycl::accessor<int, 1, sycl::access::mode::write,
+                 sycl::access::target::image, sycl::access::placeholder::false_t>
       image_acc1d_write;
-  kernel<class use_image1d_w>(
-      [=]() {
-        image_acc1d_write.use();
-      });
+  q.submit([&](sycl::handler &h) {
+    h.single_task<class use_image1d_w>(
+        [=] {
+          image_acc1d_write.use();
+        });
+  });
 
-  accessor<int, 2, access::mode::write,
-           access::target::image, access::placeholder::false_t>
+  sycl::accessor<int, 2, sycl::access::mode::write,
+                 sycl::access::target::image, sycl::access::placeholder::false_t>
       image_acc2d_write;
-  kernel<class use_image2d_w>(
-      [=]() {
-        image_acc2d_write.use();
-      });
+  q.submit([&](sycl::handler &h) {
+    h.single_task<class use_image2d_w>(
+        [=] {
+          image_acc2d_write.use();
+        });
+  });
 
-  accessor<int, 3, access::mode::write,
-           access::target::image, access::placeholder::false_t>
+  sycl::accessor<int, 3, sycl::access::mode::write,
+                 sycl::access::target::image, sycl::access::placeholder::false_t>
       image_acc3d_write;
-  kernel<class use_image3d_w>(
-      [=]() {
-        image_acc3d_write.use();
-      });
+  q.submit([&](sycl::handler &h) {
+    h.single_task<class use_image3d_w>(
+        [=] {
+          image_acc3d_write.use();
+        });
+  });
 }
 
 // CHECK: {{.*}}use_image1d_r 'void (__read_only image1d_t)'
