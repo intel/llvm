@@ -2042,7 +2042,7 @@ public:
                                access::target::host_image, IsPlaceholder>(
             Image, (detail::getSyclObjImpl(Image))->getElementSize()) {
     void(propList);
-            }
+  }
 };
 
 /// Image array accessor.
