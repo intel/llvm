@@ -317,7 +317,7 @@ void loop_attrs_compatibility() {
   [[intel::disable_loop_pipelining]]
   [[intel::max_interleaving(0)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'disable_loop_pipelining' and 'speculated_iterations' attributes are not compatible}}
+  // expected-error@+2 {{'speculated_iterations' and 'disable_loop_pipelining' attributes are not compatible}}
   [[intel::speculated_iterations(0)]]
   [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
@@ -325,7 +325,7 @@ void loop_attrs_compatibility() {
   [[intel::disable_loop_pipelining]]
   [[intel::max_concurrency(0)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'disable_loop_pipelining' and 'ii' attributes are not compatible}}
+  // expected-error@+2 {{'ii' and 'disable_loop_pipelining' attributes are not compatible}}
   [[intel::ii(10)]]
   [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
       a[i] = 0;

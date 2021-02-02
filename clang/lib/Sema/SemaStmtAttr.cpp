@@ -615,17 +615,25 @@ CheckForDuplicationSYCLLoopAttribute(Sema &S,
 template <typename LoopAttrT, typename LoopAttrT2>
 static void CheckMutualExclusionSYCLLoopAttribute(
     Sema &S, const SmallVectorImpl<const Attr *> &Attrs) {
-  const LoopAttrT *LoopAttr = nullptr;
-  const LoopAttrT2 *LoopAttr2 = nullptr;
+  std::pair<bool, bool> SeenAttrs;
+  const Attr *FirstSeen = nullptr;
 
   for (const auto *I : Attrs) {
+    // Remember the first attribute of the problematic type so that we can
+    // potentially diagnose it later.
+    if (!FirstSeen && isa<LoopAttrT, LoopAttrT2>(I))
+      FirstSeen = I;
+
+    // Remember if we've seen either of the attribute types.
     if (isa<LoopAttrT>(I))
-      LoopAttr = cast<LoopAttrT>(I);
-    if (isa<LoopAttrT2>(I))
-      LoopAttr2 = cast<LoopAttrT2>(I);
-    if (LoopAttr && LoopAttr2)
-      S.Diag(LoopAttr2->getLocation(), diag::err_attributes_are_not_compatible)
-          << LoopAttr << LoopAttr2;
+      SeenAttrs.first = true;
+    else if (isa<LoopAttrT2>(I))
+      SeenAttrs.second = true;
+
+    // If we've seen both of the attribute types, then diagnose them both.
+    if (SeenAttrs.first && SeenAttrs.second)
+      S.Diag(I->getLocation(), diag::err_attributes_are_not_compatible)
+          << FirstSeen << I;
   }
 }
 
