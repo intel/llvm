@@ -1269,9 +1269,10 @@ void reduCGFuncImpl(handler &CGH, KernelType KernelFunc,
   auto IdentitiesTuple = getReduIdentities(ReduTuple, ReduIndices);
   auto BOPsTuple = getReduBOPs(ReduTuple, ReduIndices);
 
-  using Name = typename get_reduction_main_kernel_name_t<
-      KernelName, KernelType, UniformPow2WG, IsOneWG,
-      std::tuple<Reductions...>>::name;
+  using Name =
+      typename get_reduction_main_kernel_name_t<KernelName, KernelType,
+                                                UniformPow2WG, IsOneWG,
+                                                decltype(OutAccsTuple)>::name;
   CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
     auto ReduIndices = std::index_sequence_for<Reductions...>();
     auto ReducersTuple =
@@ -1403,7 +1404,7 @@ void reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
   using Name =
       typename get_reduction_aux_kernel_name_t<KernelName, KernelType,
                                                UniformPow2WG, IsOneWG,
-                                               std::tuple<Reductions...>>::name;
+                                               decltype(OutAccsTuple)>::name;
   range<1> GlobalRange = {UniformPow2WG ? NWorkItems : NWorkGroups * WGSize};
   nd_range<1> Range{GlobalRange, range<1>(WGSize)};
   CGH.parallel_for<Name>(Range, [=](nd_item<1> NDIt) {
