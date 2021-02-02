@@ -54,7 +54,7 @@ public:
     MContext = Other.MContext;
     MDevice = Other.MDevice;
     return *this;
-  };
+  }
   usm_allocator &operator=(usm_allocator &&Other) {
     MContext = std::move(Other.MContext);
     MDevice = std::move(Other.MDevice);
