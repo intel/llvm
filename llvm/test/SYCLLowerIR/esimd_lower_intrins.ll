@@ -14,7 +14,9 @@ target triple = "spir64-unknown-unknown-sycldevice"
 @vg = dso_local global %"cm::gen::simd<int, 16>" zeroinitializer, align 64 #0
 @vc = dso_local addrspace(1) global <32 x i32> zeroinitializer
 
-define dso_local spir_func <32 x i32>  @FUNC_1() !sycl_explicit_simd !1 {
+; LowerESIMD pass should process every function, 
+; !sycl_explicit_simd metadata is not necessary.
+define dso_local spir_func <32 x i32>  @FUNC_1() {
   %a_1 = alloca <32 x i64>
   %1 = load <32 x i64>, <32 x i64>* %a_1
   %a_2 = alloca  <32 x i16>
