@@ -2237,6 +2237,7 @@ struct member no more than the specified maximum number of times to enable
 simultaneous accesses from different load/store sites in the program.
 
 .. code-block:: c++
+
   struct foo {
     [[intel::max_replicates(2)]] unsigned int max_replicates[64];
   };
@@ -2283,7 +2284,7 @@ pointer address bits to bank on.
 .. code-block:: c++
 
   void bar() {
-    [[intel::bank_bits(42, 43)]] int var_bank_bits;
+    [[intel::bank_bits(2, 3)]] int var_bank_bits;
   }
 
   struct foo {
