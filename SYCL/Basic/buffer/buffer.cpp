@@ -502,6 +502,76 @@ int main() {
       }
   }
 
+  // Check that data is copied back after forcing write-back using
+  // set_write_back
+  {
+    size_t size = 32;
+    const size_t dims = 1;
+    cl::sycl::range<dims> r(size);
+
+    std::shared_ptr<bool> bool_shrd(new bool[size],
+                                    [](bool *data) { delete[] data; });
+    std::shared_ptr<int> int_shrd(new int[size],
+                                  [](int *data) { delete[] data; });
+    std::shared_ptr<double> double_shrd(new double[size],
+                                        [](double *data) { delete[] data; });
+
+    std::vector<bool> bool_vector;
+    std::vector<int> int_vector;
+    std::vector<double> double_vector;
+    bool_vector.reserve(size);
+    int_vector.reserve(size);
+    double_vector.reserve(size);
+
+    cl::sycl::queue Queue;
+    cl::sycl::mutex_class m;
+    {
+      cl::sycl::buffer<bool, dims> buf_bool_shrd(
+          bool_shrd, r,
+          cl::sycl::property_list{cl::sycl::property::buffer::use_mutex(m)});
+      cl::sycl::buffer<int, dims> buf_int_shrd(
+          int_shrd, r,
+          cl::sycl::property_list{cl::sycl::property::buffer::use_mutex(m)});
+      cl::sycl::buffer<double, dims> buf_double_shrd(
+          double_shrd, r,
+          cl::sycl::property_list{cl::sycl::property::buffer::use_mutex(m)});
+      m.lock();
+      std::fill(bool_shrd.get(), (bool_shrd.get() + size), bool());
+      std::fill(int_shrd.get(), (int_shrd.get() + size), int());
+      std::fill(double_shrd.get(), (double_shrd.get() + size), double());
+      m.unlock();
+
+      buf_bool_shrd.set_final_data(bool_vector.begin());
+      buf_int_shrd.set_final_data(int_vector.begin());
+      buf_double_shrd.set_final_data(double_vector.begin());
+      buf_bool_shrd.set_write_back(true);
+      buf_int_shrd.set_write_back(true);
+      buf_double_shrd.set_write_back(true);
+
+      Queue.submit([&](cl::sycl::handler &cgh) {
+        auto Accessor_bool =
+            buf_bool_shrd.get_access<cl::sycl::access::mode::write>(cgh);
+        auto Accessor_int =
+            buf_int_shrd.get_access<cl::sycl::access::mode::write>(cgh);
+        auto Accessor_double =
+            buf_double_shrd.get_access<cl::sycl::access::mode::write>(cgh);
+        cgh.parallel_for<class FillBuffer>(r, [=](cl::sycl::id<1> WIid) {
+          Accessor_bool[WIid] = true;
+          Accessor_int[WIid] = 3;
+          Accessor_double[WIid] = 7.5;
+        });
+      });
+    } // Data is copied back
+
+    for (size_t i = 0; i < size; i++) {
+      if (bool_vector[i] != true || int_vector[i] != 3 ||
+          double_vector[i] != 7.5) {
+        assert(false && "Data was not copied back");
+        return 1;
+      }
+    }
+  }
+
   // Check that data is not copied back after canceling write-back using
   // set_write_back
   {
