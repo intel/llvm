@@ -296,6 +296,8 @@ public:
 
   ContextImplPtr getInteropContext() const override { return MInteropContext; }
 
+  bool hasUserDataPtr() const { return MUserPtr != nullptr; };
+
 protected:
   // An allocateMem helper that determines which host ptr to use
   void determineHostPtr(const ContextImplPtr &Context, bool InitFromUserData,
