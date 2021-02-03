@@ -16,8 +16,11 @@
 //  OFFLOAD-AVX-NEXT-SAME: "-target-cpu" "[[HOST_CPU_NAME]]" "-target-feature" "+avx"
 
 /// Check that the needed -fsycl -fsycl-is-device and -fsycl-is-host options
-/// are passed to all of the needed steps with and without preprocessing
+/// are passed to all of the needed compilation steps regardless of final
+/// phase.
 // RUN:  %clang -### -fsycl -c %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
 // RUN:  %clang -### -fsycl -E %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
+// RUN:  %clang -### -fsycl -S %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
+// RUN:  %clang -### -fsycl %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
 // CHECK-OPTS: clang{{.*}} "-cc1" {{.*}} "-fsycl" "-fsycl-is-device"
 // CHECK-OPTS: clang{{.*}} "-cc1" {{.*}} "-fsycl" "-fsycl-is-host"
