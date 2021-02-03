@@ -9,15 +9,22 @@
 using namespace sycl::INTEL::gpu;
 using namespace cl::sycl;
 
-void kernel() __attribute__((sycl_device)) {
-  simd<uint32_t, 32> offsets(0, 1);
-  simd<int, 128> v1(0, 1);
+template <typename name, typename Func>
+__attribute__((sycl_kernel)) void kernel_call(Func kernelFunc) {
+  kernelFunc();
+}
 
-  slm_init(1024);
+void caller() {
+  kernel_call<class EsimdKernel>([=]() SYCL_ESIMD_KERNEL {
+    simd<uint32_t, 32> offsets(0, 1);
+    simd<int, 128> v1(0, 1);
 
-  auto v0 = slm_load4<int, 32, ESIMD_ABGR_ENABLE>(offsets);
+    slm_init(1024);
 
-  v0 = v0 + v1;
+    auto v0 = slm_load4<int, 32, ESIMD_ABGR_ENABLE>(offsets);
 
-  slm_store4<int, 32, ESIMD_ABGR_ENABLE>(v0, offsets);
+    v0 = v0 + v1;
+
+    slm_store4<int, 32, ESIMD_ABGR_ENABLE>(v0, offsets);
+  });
 }

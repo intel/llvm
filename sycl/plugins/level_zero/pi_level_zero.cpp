@@ -3757,7 +3757,6 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
 // This currently recycles the associate command list, and also makes
 // sure to release any kernel that may have been used by the event.
 static void cleanupAfterEvent(pi_event Event) {
-  zePrint("cleanupAfterEvent entry\n");
   // The implementation of this is slightly tricky.  The same event
   // can be referred to by multiple threads, so it is possible to
   // have a race condition between the read of fields of the event,
@@ -3767,8 +3766,6 @@ static void cleanupAfterEvent(pi_event Event) {
   // queue to also serve as the thread safety mechanism for the
   // any of the Event's data members that need to be read/reset as
   // part of the cleanup operations.
-  zePrint("cleanupAfterEvent entry\n");
-
   {
     auto Queue = Event->Queue;
 
@@ -3822,7 +3819,6 @@ static void cleanupAfterEvent(pi_event Event) {
         EventsToBeReleased);
     piEventRelease(DepEvent);
   }
-  zePrint("cleanupAfterEvent exit\n");
 }
 
 pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {

@@ -1234,10 +1234,6 @@ void SYCLLowerESIMDLegacyPass::collectGenXVolatileType(Module &M) {
 PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
                                           FunctionAnalysisManager &FAM,
                                           SmallPtrSet<Type *, 4> &GVTS) {
-  // Only consider functions marked with !sycl_explicit_simd
-  if (F.getMetadata("sycl_explicit_simd") == nullptr)
-    return PreservedAnalyses::all();
-
   SmallVector<CallInst *, 32> ESIMDIntrCalls;
   SmallVector<Instruction *, 8> ESIMDToErases;
 
