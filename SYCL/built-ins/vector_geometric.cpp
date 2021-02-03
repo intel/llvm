@@ -11,7 +11,7 @@
 
 namespace s = cl::sycl;
 
-bool isFloatEqualTo(float x, float y, float epsilon = 0.005f) {
+template <typename T> bool isEqualTo(T x, T y, T epsilon = 0.005) {
   return std::fabs(x - y) <= epsilon;
 }
 
@@ -37,7 +37,7 @@ int main() {
     assert(r == 16.f);
   }
 
-  // cross
+  // cross (float)
   {
     s::cl_float4 r{0};
     {
@@ -74,6 +74,43 @@ int main() {
     assert(r4 == 0.0f);
   }
 
+  // cross (double)
+  {
+    s::cl_double4 r{0};
+    {
+      s::buffer<s::cl_double4, 1> BufR(&r, s::range<1>(1));
+      s::queue myQueue;
+      myQueue.submit([&](s::handler &cgh) {
+        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        cgh.single_task<class crossD4>([=]() {
+          AccR[0] = s::cross(
+              s::cl_double4{
+                  2.5,
+                  3.0,
+                  4.0,
+                  0.0,
+              },
+              s::cl_double4{
+                  5.2,
+                  6.0,
+                  7.0,
+                  0.0,
+              });
+        });
+      });
+    }
+
+    s::cl_double r1 = r.x();
+    s::cl_double r2 = r.y();
+    s::cl_double r3 = r.z();
+    s::cl_double r4 = r.w();
+
+    assert(isEqualTo<double>(r1, -3.0));
+    assert(isEqualTo<double>(r2, 3.3));
+    assert(isEqualTo<double>(r3, -0.6));
+    assert(isEqualTo<double>(r4, 0.0));
+  }
+
   // distance
   {
     s::cl_float r{0};
@@ -95,7 +132,7 @@ int main() {
         });
       });
     }
-    assert(isFloatEqualTo(r, 2.82843f));
+    assert(isEqualTo<float>(r, 2.82843f));
   }
 
   // length
@@ -114,7 +151,7 @@ int main() {
         });
       });
     }
-    assert(isFloatEqualTo(r, 2.23607f));
+    assert(isEqualTo<float>(r, 2.23607f));
   }
 
   // normalize
@@ -136,8 +173,8 @@ int main() {
     s::cl_float r1 = r.x();
     s::cl_float r2 = r.y();
 
-    assert(isFloatEqualTo(r1, 0.447214f));
-    assert(isFloatEqualTo(r2, 0.894427f));
+    assert(isEqualTo<float>(r1, 0.447214f));
+    assert(isEqualTo<float>(r2, 0.894427f));
   }
 
   // fast_distance
@@ -161,7 +198,7 @@ int main() {
         });
       });
     }
-    assert(isFloatEqualTo(r, 2.82843f));
+    assert(isEqualTo<float>(r, 2.82843f));
   }
 
   // fast_length
@@ -180,7 +217,7 @@ int main() {
         });
       });
     }
-    assert(isFloatEqualTo(r, 2.23607f));
+    assert(isEqualTo<float>(r, 2.23607f));
   }
 
   // fast_normalize
@@ -202,8 +239,8 @@ int main() {
     s::cl_float r1 = r.x();
     s::cl_float r2 = r.y();
 
-    assert(isFloatEqualTo(r1, 0.447144));
-    assert(isFloatEqualTo(r2, 0.894287));
+    assert(isEqualTo<float>(r1, 0.447144));
+    assert(isEqualTo<float>(r2, 0.894287));
   }
 
   return 0;
