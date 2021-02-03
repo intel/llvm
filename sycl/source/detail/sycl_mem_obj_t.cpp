@@ -100,8 +100,6 @@ size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
   return BufSize;
 }
 
-bool SYCLMemObjT::hasUserDataPtr() const { return MUserPtr != nullptr; }
-
 void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
                                    bool InitFromUserData, void *&HostPtr,
                                    bool &HostPtrReadOnly) {
