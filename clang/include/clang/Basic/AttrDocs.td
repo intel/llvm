@@ -2055,6 +2055,17 @@ let Category = DocCatVariable;
 This attribute may be attached to a variable or struct member declaration and
 instructs the backend to implement the variable or struct member in a memory
 that is clocked at twice the rate of its accessors.
+
+.. code-block:: c++
+
+  void bar() {
+    [[intel::doublepump]] int var_doublepump;
+  }
+
+  struct foo {
+    [[intel::doublepump]] unsigned int doublepump[64];
+  };
+
   }];
 }
 
@@ -2065,6 +2076,17 @@ let Category = DocCatVariable;
 This attribute may be attached to a variable or struct member declaration and
 instructs the backend to implement the variable or struct member in a memory
 that is clocked at the same rate as its accessors.
+
+.. code-block:: c++
+
+  void bar() {
+    [[intel::singlepump]] int var_singlepump;
+  }
+
+  struct foo {
+    [[intel::singlepump]] unsigned int singlepump[64];
+  };
+
   }];
 }
 
@@ -2076,6 +2098,19 @@ This attribute may be attached to a variable or struct member declaration and
 instructs the backend to implement the variable or struct member in memory
 rather than promoting to register(s).  If the optional parameter is specified
 it indicates what type of memory to use.
+
+.. code-block:: c++
+
+  void bar() {
+    [[intel::fpga_memory]] int memory;
+  }
+
+  struct foo {
+    [[intel::fpga_memory]] unsigned int memory[64];
+    [[intel::fpga_memory("MLAB")]] unsigned int memory_mlab[64];
+    [[intel::fpga_memory("BLOCK_RAM")]] unsigned int mem_blockram[32];
+  };
+
   }];
 }
 
@@ -2086,6 +2121,17 @@ def IntelFPGARegisterAttrDocs : Documentation {
 This attribute may be attached to a variable or struct member declaration and
 instructs the backend to promote the variable or struct member to register(s)
 if possible.
+
+.. code-block:: c++
+
+  void bar() {
+    [[intel::fpga_register]] int var_reg;
+  }
+
+  struct foo {
+    [[intel::fpga_register]] unsigned int reg[64];
+  };
+
   }];
 }
 
@@ -2096,6 +2142,18 @@ def IntelFPGABankWidthAttrDocs : Documentation {
 This attribute may be attached to a variable or struct member declaration and
 instructs the backend to implement the variable or struct member in a memory
 with banks that are N bytes wide.
+
+.. code-block:: c++
+
+  struct foo {
+    [[intel::bankwidth(4)]] unsigned int bankwidth[32];
+  };
+
+  template <int N>
+  void bar() {
+    [[intel::bankwidth(N)]] unsigned int bank_bits_width;
+  }
+
   }];
 }
 
@@ -2106,6 +2164,18 @@ def IntelFPGANumBanksAttrDocs : Documentation {
 This attribute may be attached to a variable or struct member declaration and
 instructs the backend to implement the variable or struct member in a memory
 with N banks.
+
+.. code-block:: c++
+
+  struct foo {
+    [[intel::numbanks(8)]] unsigned int numbanks[64];
+  };
+
+  template <int N>
+  void bar() {
+    [[intel::numbanks(N)]] unsigned int numbanks;
+  }
+
   }];
 }
 
@@ -2117,6 +2187,18 @@ This attribute may be attached to a variable or struct member declaration and
 instructs the backend to replicate the memory generated for the variable or
 struct member sufficiently to enable the specified number of simultaneous
 threads or loop iterations.
+
+.. code-block:: c++
+
+  struct foo {
+    [[intel::private_copies(4)]] unsigned int private_copies[64];
+  };
+
+  template <int N>
+  void bar() {
+    [[intel::private_copies(N)]] unsigned int private_copies;
+  }
+
   }];
 }
 
@@ -2129,6 +2211,19 @@ instructs the backend to merge the memories used to implement any variable or
 struct members that are annotated with this attribute and the same first
 argument. The second argument indicates if the memories should be merged in a
 depth-wise or width-wise manner.
+
+.. code-block:: c++
+
+  void bar() {
+    [[intel::merge("mrg1", "depth")]] int merge_depth;
+    [[intel::merge("mrg2", "width")]] int merge_width;
+  }
+
+  struct foo {
+    [[intel::merge("mrg1", "depth")]] unsigned int merge_depth[64];
+    [[intel::merge("mrg2", "width")]] unsigned int merge_width[64];
+  };
+
   }];
 }
 
@@ -2140,6 +2235,18 @@ This attribute may be attached to a variable or struct member declaration and
 instructs the backend to replicate the memory generated for the variable or
 struct member no more than the specified maximum number of times to enable
 simultaneous accesses from different load/store sites in the program.
+
+.. code-block:: c++
+
+  struct foo {
+    [[intel::max_replicates(2)]] unsigned int max_replicates[64];
+  };
+
+  template <int N>
+  void bar() {
+    [[intel::max_replicates(N)]] unsigned int max_replicates;
+  }
+
   }];
 }
 
@@ -2151,6 +2258,17 @@ This attribute may be attached to a variable or struct member declaration and
 instructs the backend to implement the variable or struct member in a memory
 with simple dual port configuration (no memory port services both stores and
 loads).
+
+.. code-block:: c++
+
+  void bar() {
+    [[intel::simple_dual_port]] int var_dual_port;
+  }
+
+  struct foo {
+    [[intel::simple_dual_port]] unsigned int dual_port[64];
+  };
+
   }];
 }
 
@@ -2162,6 +2280,23 @@ This attribute may be attached to a variable or struct member declaration and
 instructs the backend to implement the variable or struct member in a banked
 memory with 2^(N+1) banks, where the (b0, ..., bn) bits specified determine the
 pointer address bits to bank on.
+
+.. code-block:: c++
+
+  void bar() {
+    [[intel::bank_bits(2, 3)]] int var_bank_bits;
+  }
+
+  struct foo {
+    [[intel::bank_bits(1, 2)]] unsigned int bb_bb[4]
+    [[intel::bank_bits(2, 3, 4, 5)]] unsigned int bankbits[64];
+  };
+
+  template <int N>
+  void bar() {
+    [[intel::bank_bits(N, 3)]] unsigned int bank_bits;
+  }
+
   }];
 }
 
@@ -2173,15 +2308,40 @@ This attribute may be attached to a variable or struct member declaration and
 provides explicit control over the geometry of memory blocks used in a given
 memory system.
 
+.. code-block:: c++
+
+  struct foo {
+    [[intel::force_pow2_depth(1)]] int var_force_p2d;
+    [[intel::force_pow2_depth(1)]] const int const_force_p2d[64] = {0, 1};
+  };
+
+  template <int N>
+  void bar() {
+    [[intel::force_pow2_depth(N)]] unsigned int reg_force_p2d[64];
+  }
+
 In the presence of this attribute, the compiler:
 
 1. Will automatically size the memory depth to the next largest power of 2 if
 force_pow2_depth is set to 1, and will prefer width-stitching of RAM blocks
 over depth-stitching.
 
+.. code-block:: c++
+
+  void func() {
+    [[intel::force_pow2_depth(1)]] unsigned int arr_force_p2d_1[64];
+  }
+
 2. Will not size the memory to the next largest power of 2 if force_pow2_depth
 is set to 0, and will prefer depth-stitching over width-stitching if RAM usage
 can be lowered.
+
+.. code-block:: c++
+
+  void func() {
+    [[intel::force_pow2_depth(0)]] unsigned int arr_force_p2d_0[64];
+  }
+
   }];
 }
 
