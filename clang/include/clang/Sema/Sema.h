@@ -12999,7 +12999,7 @@ public:
   void MarkSyclSimd();
 
   /// Emit a diagnostic about the given attribute having a deprecated name, and
-  // also emit a fixit hint to generate the new attribute name.
+  /// also emit a fixit hint to generate the new attribute name.
   void DiagnoseDeprecatedAttribute(const ParsedAttr &A, StringRef NewScope,
                                    StringRef NewName);
 
