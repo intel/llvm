@@ -27,7 +27,7 @@ void foo() {
   [[clang::loop_unroll("str123")]]
   for (int i = 0; i < 10; ++i);
 
-  // expected-error@+1 {{duplicate unroll loop attribute 'loop_unroll'}}
+  // expected-error@+2 {{duplicate unroll loop attribute 'loop_unroll'}}
   [[clang::loop_unroll(2)]]
   [[clang::loop_unroll(4)]]
   for (int i = 0; i < 10; ++i);
