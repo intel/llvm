@@ -347,8 +347,7 @@ void Sema::DiagnoseDeprecatedAttribute(const ParsedAttr &A, StringRef NewScope,
   }
 
   Diag(A.getLoc(), diag::note_spelling_suggestion)
-      << "'" + NewFullName + "'"
-      << Fix;
+      << "'" + NewFullName + "'" << Fix;
 }
 
 void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,

@@ -1576,7 +1576,7 @@ TemplateInstantiator::TransformSYCLIntelFPGAInitiationIntervalAttr(
       getDerived().TransformExpr(II->getIntervalExpr()).get();
   return getSema()
       .BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGAInitiationIntervalAttr>(
-      *II, TransformedExpr);
+          *II, TransformedExpr);
 }
 
 const SYCLIntelFPGAMaxConcurrencyAttr *
