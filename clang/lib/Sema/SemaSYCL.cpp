@@ -318,6 +318,42 @@ static int64_t getIntExprValue(const Expr *E, ASTContext &Ctx) {
   return E->getIntegerConstantExpr(Ctx)->getSExtValue();
 }
 
+// Collect function attributes related to SYCL
+void CollectSYCLAttributes(Sema &S, FunctionDecl *FD,
+                           llvm::SmallPtrSet<Attr *, 4> &Attrs,
+                           bool directly_called = true) {
+  if (auto *A = FD->getAttr<IntelReqdSubGroupSizeAttr>())
+    Attrs.insert(A);
+  if (auto *A = FD->getAttr<ReqdWorkGroupSizeAttr>())
+    Attrs.insert(A);
+  if (auto *A = FD->getAttr<SYCLIntelKernelArgsRestrictAttr>())
+    Attrs.insert(A);
+  if (auto *A = FD->getAttr<SYCLIntelNumSimdWorkItemsAttr>())
+    Attrs.insert(A);
+  if (auto *A = FD->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>())
+    Attrs.insert(A);
+  if (auto *A = FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>())
+    Attrs.insert(A);
+  if (auto *A = FD->getAttr<SYCLIntelMaxGlobalWorkDimAttr>())
+    Attrs.insert(A);
+  if (auto *A = FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>())
+    Attrs.insert(A);
+  if (auto *A = FD->getAttr<SYCLSimdAttr>())
+    Attrs.insert(A);
+
+  // Allow the kernel attribute "use_stall_enable_clusters" only on lambda
+  // functions and function objects called directly from a kernel.
+  // For all other cases, emit a warning and ignore.
+  if (auto *A = FD->getAttr<SYCLIntelUseStallEnableClustersAttr>()) {
+    if (directly_called) {
+      Attrs.insert(A);
+    } else {
+      S.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
+      FD->dropAttr<SYCLIntelUseStallEnableClustersAttr>();
+    }
+  }
+}
+
 class MarkDeviceFunction : public RecursiveASTVisitor<MarkDeviceFunction> {
   // Used to keep track of the constexpr depth, so we know whether to skip
   // diagnostics.
@@ -520,49 +556,17 @@ public:
                               "function can be called");
         KernelBody = FD;
       }
+
       WorkList.pop_back();
       if (!Visited.insert(FD).second)
         continue; // We've already seen this Decl
-
-      if (auto *A = FD->getAttr<IntelReqdSubGroupSizeAttr>())
-        Attrs.insert(A);
-
-      if (auto *A = FD->getAttr<ReqdWorkGroupSizeAttr>())
-        Attrs.insert(A);
-
-      if (auto *A = FD->getAttr<SYCLIntelKernelArgsRestrictAttr>())
-        Attrs.insert(A);
-
-      if (auto *A = FD->getAttr<SYCLIntelNumSimdWorkItemsAttr>())
-        Attrs.insert(A);
-
-      if (auto *A = FD->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>())
-        Attrs.insert(A);
-
-      if (auto *A = FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>())
-        Attrs.insert(A);
-
-      if (auto *A = FD->getAttr<SYCLIntelMaxGlobalWorkDimAttr>())
-        Attrs.insert(A);
-
-      if (auto *A = FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>())
-        Attrs.insert(A);
-
-      if (auto *A = FD->getAttr<SYCLSimdAttr>())
-        Attrs.insert(A);
-
-      // Allow the kernel attribute "use_stall_enable_clusters" only on lambda
-      // functions and function objects that are called directly from a kernel
+      
+      // Gather all attributes of FD that are SYCL related.
+      // Some attributes are allowed only on lambda
+      // functions and function objects called directly from a kernel
       // (i.e. the one passed to the single_task or parallel_for functions).
-      // For all other cases, emit a warning and ignore.
-      if (auto *A = FD->getAttr<SYCLIntelUseStallEnableClustersAttr>()) {
-        if (ParentFD == SYCLKernel) {
-          Attrs.insert(A);
-        } else {
-          SemaRef.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
-          FD->dropAttr<SYCLIntelUseStallEnableClustersAttr>();
-        }
-      }
+      bool directly_called = (ParentFD == SYCLKernel);
+      CollectSYCLAttributes(SemaRef, FD, Attrs, directly_called);
 
       // Propagate the explicit SIMD attribute through call graph - it is used
       // to distinguish ESIMD code in ESIMD LLVM passes.
@@ -3167,6 +3171,62 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
     KernelFunc->setInvalidDecl();
 }
 
+// For a wrapped parallel_for, copy attributes from original
+// kernel to wrapped kernel.
+void Sema::copyAttributes(const CXXRecordDecl *KernelObj) {
+  // Get the operator() function of the wrapper
+  CXXMethodDecl *OpParens = nullptr;
+  for (auto *MD : KernelObj->methods()) {
+    if (MD->getOverloadedOperator() == OO_Call) {
+      OpParens = MD;
+      break;
+    }
+  }
+  assert(OpParens && "invalid kernel object");
+
+  typedef std::pair<FunctionDecl *, FunctionDecl *> ChildParentPair;
+  llvm::SmallPtrSet<FunctionDecl *, 16> Visited;
+  llvm::SmallVector<ChildParentPair, 16> WorkList;
+  WorkList.push_back({OpParens, nullptr});
+  FunctionDecl *KernelBody = nullptr;
+
+  CallGraph SYCLCG;
+  SYCLCG.addToCallGraph(getASTContext().getTranslationUnitDecl());
+  while (!WorkList.empty()) {
+    FunctionDecl *FD = WorkList.back().first;
+    FunctionDecl *ParentFD = WorkList.back().second;
+
+    if ((ParentFD == OpParens) && isSYCLKernelBodyFunction(FD)) {
+      KernelBody = FD;
+      break;
+    }
+
+    WorkList.pop_back();
+    if (!Visited.insert(FD).second)
+      continue; // We've already seen this Decl
+
+    CallGraphNode *N = SYCLCG.getNode(FD);
+    if (!N)
+      continue;
+
+    for (const CallGraphNode *CI : *N) {
+      if (auto *Callee = dyn_cast<FunctionDecl>(CI->getDecl())) {
+        Callee = Callee->getMostRecentDecl();
+        if (!Visited.count(Callee))
+          WorkList.push_back({Callee, FD});
+      }
+    }
+  }
+
+  assert(KernelBody && "improper parallel_for wrap");
+  if (KernelBody) {
+    llvm::SmallPtrSet<Attr *, 4> Attrs;
+    CollectSYCLAttributes(*this, KernelBody, Attrs);
+    if (!Attrs.empty())
+      OpParens->addAttr(SYCLSimdAttr::CreateImplicit(getASTContext()));
+  }
+}
+
 // Generates the OpenCL kernel using KernelCallerFunc (kernel caller
 // function) defined is SYCL headers.
 // Generated OpenCL kernel contains the body of the kernel caller function,
@@ -3199,14 +3259,19 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   if (KernelObj->isInvalidDecl())
     return;
 
-  bool IsSIMDKernel = isESIMDKernelType(KernelObj);
-
   // Calculate both names, since Integration headers need both.
   std::string CalculatedName, StableName;
   std::tie(CalculatedName, StableName) =
       constructKernelName(*this, KernelCallerFunc, MC);
   StringRef KernelName(getLangOpts().SYCLUnnamedLambda ? StableName
                                                        : CalculatedName);
+
+  std::string PF("__pf_kernel_wrapper");
+  if (StableName.find(PF) != std::string::npos)
+    copyAttributes(KernelObj);
+
+  bool IsSIMDKernel = isESIMDKernelType(KernelObj);
+
   SyclKernelDeclCreator kernel_decl(*this, KernelName, KernelObj->getLocation(),
                                     KernelCallerFunc->isInlined(),
                                     IsSIMDKernel);
