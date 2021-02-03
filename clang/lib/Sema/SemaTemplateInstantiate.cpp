@@ -1077,8 +1077,9 @@ namespace {
     const LoopHintAttr *TransformLoopHintAttr(const LoopHintAttr *LH);
     const SYCLIntelFPGAIVDepAttr *
     TransformSYCLIntelFPGAIVDepAttr(const SYCLIntelFPGAIVDepAttr *IV);
-    const SYCLIntelFPGAIIAttr *
-    TransformSYCLIntelFPGAIIAttr(const SYCLIntelFPGAIIAttr *II);
+    const SYCLIntelFPGAInitiationIntervalAttr *
+    TransformSYCLIntelFPGAInitiationIntervalAttr(
+        const SYCLIntelFPGAInitiationIntervalAttr *II);
     const SYCLIntelFPGAMaxConcurrencyAttr *
     TransformSYCLIntelFPGAMaxConcurrencyAttr(
         const SYCLIntelFPGAMaxConcurrencyAttr *MC);
@@ -1568,11 +1569,13 @@ TemplateInstantiator::TransformSYCLIntelFPGAIVDepAttr(
   return getSema().BuildSYCLIntelFPGAIVDepAttr(*IVDep, Expr1, Expr2);
 }
 
-const SYCLIntelFPGAIIAttr *TemplateInstantiator::TransformSYCLIntelFPGAIIAttr(
-    const SYCLIntelFPGAIIAttr *II) {
+const SYCLIntelFPGAInitiationIntervalAttr *
+TemplateInstantiator::TransformSYCLIntelFPGAInitiationIntervalAttr(
+    const SYCLIntelFPGAInitiationIntervalAttr *II) {
   Expr *TransformedExpr =
       getDerived().TransformExpr(II->getIntervalExpr()).get();
-  return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGAIIAttr>(
+  return getSema()
+      .BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGAInitiationIntervalAttr>(
       *II, TransformedExpr);
 }
 

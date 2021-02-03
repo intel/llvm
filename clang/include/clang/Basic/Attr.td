@@ -1846,13 +1846,14 @@ def SYCLIntelFPGAIVDep : Attr {
   let Documentation = [SYCLIntelFPGAIVDepAttrDocs];
 }
 
-def SYCLIntelFPGAII : Attr {
+def SYCLIntelFPGAInitiationInterval : StmtAttr {
   let Spellings = [CXX11<"intelfpga","ii">,
-                   CXX11<"intel","ii">];
+                   CXX11<"intel","ii">,
+                   CXX11<"intel", "initiation_interval">];
   let Args = [ExprArgument<"IntervalExpr">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let HasCustomTypeTransform = 1;
-  let Documentation = [SYCLIntelFPGAIIAttrDocs];
+  let Documentation = [SYCLIntelFPGAInitiationIntervalAttrDocs];
 }
 
 def SYCLIntelFPGAMaxConcurrency : Attr {
