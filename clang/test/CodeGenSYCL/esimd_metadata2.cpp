@@ -1,6 +1,6 @@
 // RUN: %clang_cc1 -disable-llvm-passes -triple spir64-unknown-unknown-sycldevice -fsycl -fsycl-is-device -fsycl-explicit-simd -S -emit-llvm %s -o - | FileCheck %s --check-prefixes CHECK,CHECK-ESIMD
 
-// This test checks that attribute !intel_reqd_sub_group_size !1 
+// This test checks that attribute !intel_reqd_sub_group_size !1
 // is added for kernels with !sycl_explicit_simd
 
 __attribute__((sycl_device)) void shared_func_decl();
