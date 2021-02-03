@@ -12996,7 +12996,6 @@ public:
   void checkSYCLDeviceVarDecl(VarDecl *Var);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void MarkDevice();
-  void MarkSyclSimd();
 
   /// Diagnoses an attribute in the 'intelfpga' namespace and suggests using
   /// the attribute in the 'intel' namespace instead.
