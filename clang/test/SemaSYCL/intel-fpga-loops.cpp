@@ -2,30 +2,21 @@
 
 // Test for Intel FPGA loop attributes applied not to a loop
 void foo() {
-  // expected-error@+1 {{intelfpga loop attributes must be applied to for, while, or do statements}}
+  // expected-error@+1 {{'ivdep' attribute only applies to 'for', 'while', and 'do' statements}}
   [[intel::ivdep]] int a[10];
-  // expected-error@+1 {{ loop attributes must be applied to for, while, or do statements}}
-  [[intel::ivdep(2)]] int b[10];
-  // expected-error@+1 {{intelfpga loop attributes must be applied to for, while, or do statements}}
+  // expected-error@+1 {{'ii' attribute only applies to 'for', 'while', and 'do' statements}}
   [[intel::ii(2)]] int c[10];
-  // expected-error@+1 {{intelfpga loop attributes must be applied to for, while, or do statements}}
+  // expected-error@+1 {{'max_concurrency' attribute only applies to 'for', 'while', and 'do' statements}}
   [[intel::max_concurrency(2)]] int d[10];
-
-  int arr[10];
-  // expected-error@+1 {{intelfpga loop attributes must be applied to for, while, or do statements}}
-  [[intel::ivdep(arr)]] int e[10];
-  // expected-error@+1 {{intelfpga loop attributes must be applied to for, while, or do statements}}
-  [[intel::ivdep(arr, 2)]] int f[10];
-
-  // expected-error@+1 {{intelfpga loop attributes must be applied to for, while, or do statements}}
+  // expected-error@+1 {{'disable_loop_pipelining' attribute only applies to 'for', 'while', and 'do' statements}}
   [[intel::disable_loop_pipelining]] int g[10];
-  // expected-error@+1 {{intelfpga loop attributes must be applied to for, while, or do statements}}
+  // expected-error@+1 {{'loop_coalesce' attribute only applies to 'for', 'while', and 'do' statements}}
   [[intel::loop_coalesce(2)]] int h[10];
-  // expected-error@+1 {{intelfpga loop attributes must be applied to for, while, or do statements}}
+  // expected-error@+1 {{'max_interleaving' attribute only applies to 'for', 'while', and 'do' statements}}
   [[intel::max_interleaving(4)]] int i[10];
-  // expected-error@+1 {{intelfpga loop attributes must be applied to for, while, or do statements}}
+  // expected-error@+1 {{'speculated_iterations' attribute only applies to 'for', 'while', and 'do' statements}}
   [[intel::speculated_iterations(6)]] int j[10];
-  // expected-error@+1 {{intelfpga loop attributes must be applied to for, while, or do statements}}
+  // expected-error@+1 {{'nofusion' attribute only applies to 'for', 'while', and 'do' statements}}
   [[intel::nofusion]] int k[10];
 }
 
