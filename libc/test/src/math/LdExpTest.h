@@ -131,25 +131,25 @@ public:
     // The result should not be infinity.
     x = NormalFloat(-FPBits::exponentBias + 1, NormalFloat::one >> 10, 0);
     exp = FPBits::maxExponent + 5;
-    ASSERT_EQ(isinf(func(x, exp)), 0);
+    ASSERT_FALSE(FPBits(func(x, exp)).isInf());
     // But if the exp is large enough to oversome than the normalization shift,
     // then it should result in infinity.
     exp = FPBits::maxExponent + 15;
-    ASSERT_NE(isinf(func(x, exp)), 0);
+    ASSERT_FP_EQ(func(x, exp), inf);
   }
 };
 
 #define LIST_LDEXP_TESTS(T, func)                                              \
-  using LdExpTest = LdExpTestTemplate<T>;                                      \
-  TEST_F(LdExpTest, SpecialNumbers) { testSpecialNumbers(&func); }             \
-  TEST_F(LdExpTest, PowersOfTwo) { testPowersOfTwo(&func); }                   \
-  TEST_F(LdExpTest, OverFlow) { testOverflow(&func); }                         \
-  TEST_F(LdExpTest, UnderflowToZeroOnNormal) {                                 \
+  using LlvmLibcLdExpTest = LdExpTestTemplate<T>;                              \
+  TEST_F(LlvmLibcLdExpTest, SpecialNumbers) { testSpecialNumbers(&func); }     \
+  TEST_F(LlvmLibcLdExpTest, PowersOfTwo) { testPowersOfTwo(&func); }           \
+  TEST_F(LlvmLibcLdExpTest, OverFlow) { testOverflow(&func); }                 \
+  TEST_F(LlvmLibcLdExpTest, UnderflowToZeroOnNormal) {                         \
     testUnderflowToZeroOnNormal(&func);                                        \
   }                                                                            \
-  TEST_F(LdExpTest, UnderflowToZeroOnSubnormal) {                              \
+  TEST_F(LlvmLibcLdExpTest, UnderflowToZeroOnSubnormal) {                      \
     testUnderflowToZeroOnSubnormal(&func);                                     \
   }                                                                            \
-  TEST_F(LdExpTest, NormalOperation) { testNormalOperation(&func); }
+  TEST_F(LlvmLibcLdExpTest, NormalOperation) { testNormalOperation(&func); }
 
 #endif // LLVM_LIBC_TEST_SRC_MATH_LDEXPTEST_H

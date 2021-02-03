@@ -127,6 +127,9 @@ public:
   /// Tuning option to enable/disable function merging. Its default value is
   /// false.
   bool MergeFunctions;
+
+  /// Uniquefy function linkage name. Its default value is false.
+  bool UniqueLinkageNames;
 };
 
 /// This class provides access to building LLVM's passes.
@@ -154,18 +157,6 @@ public:
   struct PipelineElement {
     StringRef Name;
     std::vector<PipelineElement> InnerPipeline;
-  };
-
-  /// ThinLTO phase.
-  ///
-  /// This enumerates the LLVM ThinLTO optimization phases.
-  enum class ThinLTOPhase {
-    /// No ThinLTO behavior needed.
-    None,
-    /// ThinLTO prelink (summary) phase.
-    PreLink,
-    /// ThinLTO postlink (backend compile) phase.
-    PostLink
   };
 
   /// LLVM-provided high-level optimization levels.
@@ -339,7 +330,7 @@ public:
   /// \p Phase indicates the current ThinLTO phase.
   FunctionPassManager
   buildFunctionSimplificationPipeline(OptimizationLevel Level,
-                                      ThinLTOPhase Phase);
+                                      ThinOrFullLTOPhase Phase);
 
   /// Construct the core LLVM module canonicalization and simplification
   /// pipeline.
@@ -357,13 +348,12 @@ public:
   ///
   /// \p Phase indicates the current ThinLTO phase.
   ModulePassManager buildModuleSimplificationPipeline(OptimizationLevel Level,
-                                                      ThinLTOPhase Phase);
+                                                      ThinOrFullLTOPhase Phase);
 
   /// Construct the module pipeline that performs inlining as well as
   /// the inlining-driven cleanups.
   ModuleInlinerWrapperPass buildInlinerPipeline(OptimizationLevel Level,
-                                                ThinLTOPhase Phase,
-                                                bool MandatoryOnly);
+                                                ThinOrFullLTOPhase Phase);
 
   /// Construct the core LLVM module optimization pipeline.
   ///
@@ -462,7 +452,7 @@ public:
   /// registered.
   ///
   /// This also adds target-specific alias analyses registered via
-  /// TargetMachine::registerAliasAnalyses().
+  /// TargetMachine::registerDefaultAliasAnalyses().
   AAManager buildDefaultAAPipeline();
 
   /// Parse a textual pass pipeline description into a \c
@@ -715,7 +705,7 @@ private:
   // O1 pass pipeline
   FunctionPassManager
   buildO1FunctionSimplificationPipeline(OptimizationLevel Level,
-                                        ThinLTOPhase Phase);
+                                        ThinOrFullLTOPhase Phase);
 
   void addRequiredLTOPreLinkPasses(ModulePassManager &MPM);
 

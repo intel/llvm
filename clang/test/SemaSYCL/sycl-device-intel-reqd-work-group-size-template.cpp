@@ -24,7 +24,7 @@ int foo();
 constexpr int bar() { return 0; }
 [[intel::reqd_work_group_size(bar() + 12, bar() + 12, bar() + 12)]] void func2(); // OK
 
-// Test that checks template parameter suppport on member function of class template.
+// Test that checks template parameter support on member function of class template.
 template <int SIZE, int SIZE1, int SIZE2>
 class KernelFunctor {
 public:
@@ -49,7 +49,7 @@ int main() {
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
 
-// Test that checks template parameter suppport on function.
+// Test that checks template parameter support on function.
 template <int N, int N1, int N2>
 [[intel::reqd_work_group_size(N, N1, N2)]] void func3() {}
 

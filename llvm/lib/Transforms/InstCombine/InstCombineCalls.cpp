@@ -1478,14 +1478,14 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     FunctionType *AssumeIntrinsicTy = II->getFunctionType();
     Value *AssumeIntrinsic = II->getCalledOperand();
     Value *A, *B;
-    if (match(IIOperand, m_And(m_Value(A), m_Value(B)))) {
+    if (match(IIOperand, m_LogicalAnd(m_Value(A), m_Value(B)))) {
       Builder.CreateCall(AssumeIntrinsicTy, AssumeIntrinsic, A, OpBundles,
                          II->getName());
       Builder.CreateCall(AssumeIntrinsicTy, AssumeIntrinsic, B, II->getName());
       return eraseInstFromFunction(*II);
     }
     // assume(!(a || b)) -> assume(!a); assume(!b);
-    if (match(IIOperand, m_Not(m_Or(m_Value(A), m_Value(B))))) {
+    if (match(IIOperand, m_Not(m_LogicalOr(m_Value(A), m_Value(B))))) {
       Builder.CreateCall(AssumeIntrinsicTy, AssumeIntrinsic,
                          Builder.CreateNot(A), OpBundles, II->getName());
       Builder.CreateCall(AssumeIntrinsicTy, AssumeIntrinsic,
@@ -1692,8 +1692,7 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
       for (; i != VecNumElts; ++i)
         WidenMask.push_back(UndefMaskElem);
 
-      Value *WidenShuffle = Builder.CreateShuffleVector(
-          SubVec, llvm::UndefValue::get(SubVecTy), WidenMask);
+      Value *WidenShuffle = Builder.CreateShuffleVector(SubVec, WidenMask);
 
       SmallVector<int, 8> Mask;
       for (unsigned i = 0; i != IdxN; ++i)

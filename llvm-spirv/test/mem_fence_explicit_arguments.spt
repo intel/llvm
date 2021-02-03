@@ -6,19 +6,22 @@
 3 MemoryModel 1 2
 3 Source 3 102000
 4 Name 5 "test"
-3 Name 6 "val"
+3 Name 6 "val1"
 4 Name 7 "entry"
+3 Name 9 "val2"
 6 Decorate 5 LinkageAttributes "test" Export
 4 TypeInt 3 32 0
 4 Constant 3 8 2
 2 TypeVoid 2
-4 TypeFunction 4 2 3
+5 TypeFunction 4 2 3 3
 
 5 Function 2 5 0 4
 3 FunctionParameter 3 6
+3 FunctionParameter 3 9
 
 2 Label 7
 3 MemoryBarrier 8 6
+3 MemoryBarrier 9 6
 1 Return
 
 1 FunctionEnd
@@ -30,11 +33,17 @@
 ; RUN: llvm-spirv -r %t.spv --spirv-target-env=CL2.0 -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefixes CHECK,CHECK-20
 
-; CHECK: define spir_func void @test(i32 %val)
-; CHECK: %call = call spir_func i32 @__translate_spirv_memory_fence(i32 %val)
+; CHECK: define spir_func void @test(i32 %[[VAL1:[a-zA-Z0-9]+]], i32 %[[VAL2:[a-zA-Z0-9]+]])
+; CHECK: %call = call spir_func i32 @__translate_spirv_memory_fence(i32 %[[VAL1]])
 ; CHECK-12: call spir_func void @_Z9mem_fencej(i32 %call)
-; CHECK-20: %call1 = call spir_func i32 @__translate_spirv_memory_order(i32 %val)
+; CHECK-12: %call1 = call spir_func i32 @__translate_spirv_memory_fence(i32 %[[VAL1]])
+; CHECK-12: call spir_func void @_Z9mem_fencej(i32 %call1)
+; CHECK-20: %call1 = call spir_func i32 @__translate_spirv_memory_order(i32 %[[VAL1]])
 ; CHECK-20: call spir_func void @_Z22atomic_work_item_fencej12memory_order12memory_scope(i32 %call, i32 %call1
+; CHECK-20: %call2 = call spir_func i32 @__translate_spirv_memory_scope(i32 %[[VAL2]])
+; CHECK-20: %call3 = call spir_func i32 @__translate_spirv_memory_fence(i32 %[[VAL1]])
+; CHECK-20: %call4 = call spir_func i32 @__translate_spirv_memory_order(i32 %[[VAL1]])
+; CHECK-20: call spir_func void @_Z22atomic_work_item_fencej12memory_order12memory_scope(i32 %call3, i32 %call4, i32 %call2)
 ; CHECK: define private spir_func i32 @__translate_spirv_memory_fence(i32 %key)
 ; CHECK: entry:
 ; CHECK:   %key.masked = and i32 2816, %key

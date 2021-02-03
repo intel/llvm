@@ -2010,8 +2010,6 @@ cl_int ExecCGCommand::enqueueImp() {
     ExecInterop->MInteropTask->call(InteropHandler);
     Plugin.call<PiApiKind::piEnqueueEventsWait>(MQueue->getHandleRef(), 0,
                                                 nullptr, &Event);
-    Plugin.call<PiApiKind::piQueueRelease>(
-        reinterpret_cast<pi_queue>(MQueue->get()));
 
     return CL_SUCCESS;
   }

@@ -13,8 +13,9 @@
 #ifndef _OMPTARGET_PRIVATE_H
 #define _OMPTARGET_PRIVATE_H
 
-#include <omptarget.h>
 #include <Debug.h>
+#include <SourceInfo.h>
+#include <omptarget.h>
 
 #include <cstdint>
 
@@ -47,9 +48,11 @@ struct MapComponentInfoTy {
   void *Begin;
   int64_t Size;
   int64_t Type;
+  void *Name;
   MapComponentInfoTy() = default;
-  MapComponentInfoTy(void *Base, void *Begin, int64_t Size, int64_t Type)
-      : Base(Base), Begin(Begin), Size(Size), Type(Type) {}
+  MapComponentInfoTy(void *Base, void *Begin, int64_t Size, int64_t Type,
+                     void *Name)
+      : Base(Base), Begin(Begin), Size(Size), Type(Type), Name(Name) {}
 };
 
 // This structure stores all components of a user-defined mapper. The number of
@@ -63,8 +66,10 @@ struct MapperComponentsTy {
 // The mapper function pointer type. It follows the signature below:
 // void .omp_mapper.<type_name>.<mapper_id>.(void *rt_mapper_handle,
 //                                           void *base, void *begin,
-//                                           size_t size, int64_t type);
-typedef void (*MapperFuncPtrTy)(void *, void *, void *, int64_t, int64_t);
+//                                           size_t size, int64_t type,
+//                                           void * name);
+typedef void (*MapperFuncPtrTy)(void *, void *, void *, int64_t, int64_t,
+                                void *);
 
 // Function pointer type for target_data_* functions (targetDataBegin,
 // targetDataEnd and targetDataUpdate).
@@ -90,20 +95,62 @@ int __kmpc_get_target_offload(void) __attribute__((weak));
 
 ////////////////////////////////////////////////////////////////////////////////
 /// dump a table of all the host-target pointer pairs on failure
-static inline void dumpTargetPointerMappings(const DeviceTy &Device) {
+static inline void dumpTargetPointerMappings(const ident_t *Loc,
+                                             const DeviceTy &Device) {
   if (Device.HostDataToTargetMap.empty())
     return;
 
-  fprintf(stderr, "Device %d Host-Device Pointer Mappings:\n", Device.DeviceID);
-  fprintf(stderr, "%-18s %-18s %s %s\n", "Host Ptr", "Target Ptr", "Size (B)",
-          "Declaration");
+  SourceInfo Kernel(Loc);
+  INFO(OMP_INFOTYPE_ALL, Device.DeviceID,
+       "OpenMP Host-Device pointer mappings after block at %s:%d:%d:\n",
+       Kernel.getFilename(), Kernel.getLine(), Kernel.getColumn());
+  INFO(OMP_INFOTYPE_ALL, Device.DeviceID, "%-18s %-18s %s %s %s\n", "Host Ptr",
+       "Target Ptr", "Size (B)", "RefCount", "Declaration");
   for (const auto &HostTargetMap : Device.HostDataToTargetMap) {
-    SourceInfo info(HostTargetMap.HstPtrName);
-    fprintf(stderr, DPxMOD " " DPxMOD " %-8lu %s at %s:%d:%d\n",
-            DPxPTR(HostTargetMap.HstPtrBegin),
-            DPxPTR(HostTargetMap.TgtPtrBegin),
-            HostTargetMap.HstPtrEnd - HostTargetMap.HstPtrBegin, info.getName(),
-            info.getFilename(), info.getLine(), info.getColumn());
+    SourceInfo Info(HostTargetMap.HstPtrName);
+    INFO(OMP_INFOTYPE_ALL, Device.DeviceID,
+         DPxMOD " " DPxMOD " %-8lu %-8ld %s at %s:%d:%d\n",
+         DPxPTR(HostTargetMap.HstPtrBegin), DPxPTR(HostTargetMap.TgtPtrBegin),
+         (long unsigned)(HostTargetMap.HstPtrEnd - HostTargetMap.HstPtrBegin),
+         HostTargetMap.getRefCount(), Info.getName(), Info.getFilename(),
+         Info.getLine(), Info.getColumn());
+  }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/// Print out the names and properties of the arguments to each kernel
+static inline void
+printKernelArguments(const ident_t *Loc, const int64_t DeviceId,
+                     const int32_t ArgNum, const int64_t *ArgSizes,
+                     const int64_t *ArgTypes, const map_var_info_t *ArgNames,
+                     const char *RegionType) {
+  SourceInfo info(Loc);
+  INFO(OMP_INFOTYPE_ALL, DeviceId, "%s at %s:%d:%d with %d arguments:\n",
+       RegionType, info.getFilename(), info.getLine(), info.getColumn(),
+       ArgNum);
+
+  for (int32_t i = 0; i < ArgNum; ++i) {
+    const map_var_info_t varName = (ArgNames) ? ArgNames[i] : nullptr;
+    const char *type = nullptr;
+    const char *implicit =
+        (ArgTypes[i] & OMP_TGT_MAPTYPE_IMPLICIT) ? "(implicit)" : "";
+    if (ArgTypes[i] & OMP_TGT_MAPTYPE_TO && ArgTypes[i] & OMP_TGT_MAPTYPE_FROM)
+      type = "tofrom";
+    else if (ArgTypes[i] & OMP_TGT_MAPTYPE_TO)
+      type = "to";
+    else if (ArgTypes[i] & OMP_TGT_MAPTYPE_FROM)
+      type = "from";
+    else if (ArgTypes[i] & OMP_TGT_MAPTYPE_PRIVATE)
+      type = "private";
+    else if (ArgTypes[i] & OMP_TGT_MAPTYPE_LITERAL)
+      type = "firstprivate";
+    else if (ArgSizes[i] != 0)
+      type = "alloc";
+    else
+      type = "use_address";
+
+    INFO(OMP_INFOTYPE_ALL, DeviceId, "%s(%s)[%ld] %s\n", type,
+         getNameFromMapping(varName).c_str(), ArgSizes[i], implicit);
   }
 }
 

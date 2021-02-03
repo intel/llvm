@@ -14,6 +14,7 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
+#include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
 #include "llvm/CodeGen/MachineInstr.h"
@@ -47,7 +48,7 @@ Register llvm::constrainOperandRegClass(
     const MachineFunction &MF, const TargetRegisterInfo &TRI,
     MachineRegisterInfo &MRI, const TargetInstrInfo &TII,
     const RegisterBankInfo &RBI, MachineInstr &InsertPt,
-    const TargetRegisterClass &RegClass, const MachineOperand &RegMO) {
+    const TargetRegisterClass &RegClass, MachineOperand &RegMO) {
   Register Reg = RegMO.getReg();
   // Assume physical registers are properly constrained.
   assert(Register::isVirtualRegister(Reg) && "PhysReg not implemented");
@@ -68,6 +69,13 @@ Register llvm::constrainOperandRegClass(
               TII.get(TargetOpcode::COPY), Reg)
           .addReg(ConstrainedReg);
     }
+    if (GISelChangeObserver *Observer = MF.getObserver()) {
+      Observer->changingInstr(*RegMO.getParent());
+    }
+    RegMO.setReg(ConstrainedReg);
+    if (GISelChangeObserver *Observer = MF.getObserver()) {
+      Observer->changedInstr(*RegMO.getParent());
+    }
   } else {
     if (GISelChangeObserver *Observer = MF.getObserver()) {
       if (!RegMO.isDef()) {
@@ -85,7 +93,7 @@ Register llvm::constrainOperandRegClass(
     const MachineFunction &MF, const TargetRegisterInfo &TRI,
     MachineRegisterInfo &MRI, const TargetInstrInfo &TII,
     const RegisterBankInfo &RBI, MachineInstr &InsertPt, const MCInstrDesc &II,
-    const MachineOperand &RegMO, unsigned OpIdx) {
+    MachineOperand &RegMO, unsigned OpIdx) {
   Register Reg = RegMO.getReg();
   // Assume physical registers are properly constrained.
   assert(Register::isVirtualRegister(Reg) && "PhysReg not implemented");
@@ -155,8 +163,7 @@ bool llvm::constrainSelectedInstRegOperands(MachineInstr &I,
     // If the operand is a vreg, we should constrain its regclass, and only
     // insert COPYs if that's impossible.
     // constrainOperandRegClass does that for us.
-    MO.setReg(constrainOperandRegClass(MF, TRI, MRI, TII, RBI, I, I.getDesc(),
-                                       MO, OpI));
+    constrainOperandRegClass(MF, TRI, MRI, TII, RBI, I, I.getDesc(), MO, OpI);
 
     // Tie uses to defs as indicated in MCInstrDesc if this hasn't already been
     // done.
@@ -276,7 +283,7 @@ Optional<int64_t> llvm::getConstantVRegSExtVal(Register VReg,
 
 Optional<ValueAndVReg> llvm::getConstantVRegValWithLookThrough(
     Register VReg, const MachineRegisterInfo &MRI, bool LookThroughInstrs,
-    bool HandleFConstant) {
+    bool HandleFConstant, bool LookThroughAnyExt) {
   SmallVector<std::pair<unsigned, unsigned>, 4> SeenOpcodes;
   MachineInstr *MI;
   auto IsConstantOpcode = [HandleFConstant](unsigned Opcode) {
@@ -303,6 +310,10 @@ Optional<ValueAndVReg> llvm::getConstantVRegValWithLookThrough(
   while ((MI = MRI.getVRegDef(VReg)) && !IsConstantOpcode(MI->getOpcode()) &&
          LookThroughInstrs) {
     switch (MI->getOpcode()) {
+    case TargetOpcode::G_ANYEXT:
+      if (!LookThroughAnyExt)
+        return None;
+      LLVM_FALLTHROUGH;
     case TargetOpcode::G_TRUNC:
     case TargetOpcode::G_SEXT:
     case TargetOpcode::G_ZEXT:
@@ -336,6 +347,7 @@ Optional<ValueAndVReg> llvm::getConstantVRegValWithLookThrough(
     case TargetOpcode::G_TRUNC:
       Val = Val.trunc(OpcodeAndSize.second);
       break;
+    case TargetOpcode::G_ANYEXT:
     case TargetOpcode::G_SEXT:
       Val = Val.sext(OpcodeAndSize.second);
       break;
@@ -549,6 +561,58 @@ Optional<APInt> llvm::ConstantFoldExtOp(unsigned Opcode, const Register Op1,
     }
   }
   return None;
+}
+
+bool llvm::isKnownToBeAPowerOfTwo(Register Reg, const MachineRegisterInfo &MRI,
+                                  GISelKnownBits *KB) {
+  Optional<DefinitionAndSourceRegister> DefSrcReg =
+      getDefSrcRegIgnoringCopies(Reg, MRI);
+  if (!DefSrcReg)
+    return false;
+
+  const MachineInstr &MI = *DefSrcReg->MI;
+  const LLT Ty = MRI.getType(Reg);
+
+  switch (MI.getOpcode()) {
+  case TargetOpcode::G_CONSTANT: {
+    unsigned BitWidth = Ty.getScalarSizeInBits();
+    const ConstantInt *CI = MI.getOperand(1).getCImm();
+    return CI->getValue().zextOrTrunc(BitWidth).isPowerOf2();
+  }
+  case TargetOpcode::G_SHL: {
+    // A left-shift of a constant one will have exactly one bit set because
+    // shifting the bit off the end is undefined.
+
+    // TODO: Constant splat
+    if (auto ConstLHS = getConstantVRegVal(MI.getOperand(1).getReg(), MRI)) {
+      if (*ConstLHS == 1)
+        return true;
+    }
+
+    break;
+  }
+  case TargetOpcode::G_LSHR: {
+    if (auto ConstLHS = getConstantVRegVal(MI.getOperand(1).getReg(), MRI)) {
+      if (ConstLHS->isSignMask())
+        return true;
+    }
+
+    break;
+  }
+  default:
+    break;
+  }
+
+  // TODO: Are all operands of a build vector constant powers of two?
+  if (!KB)
+    return false;
+
+  // More could be done here, though the above checks are enough
+  // to handle some common cases.
+
+  // Fall back to computeKnownBits to catch other known cases.
+  KnownBits Known = KB->getKnownBits(Reg);
+  return (Known.countMaxPopulation() == 1) && (Known.countMinPopulation() == 1);
 }
 
 void llvm::getSelectionDAGFallbackAnalysisUsage(AnalysisUsage &AU) {

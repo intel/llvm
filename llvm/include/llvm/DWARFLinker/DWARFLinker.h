@@ -85,6 +85,9 @@ public:
   virtual bool applyValidRelocs(MutableArrayRef<char> Data, uint64_t BaseOffset,
                                 bool IsLittleEndian) = 0;
 
+  /// Relocate the given address offset if a valid relocation exists.
+  virtual llvm::Expected<uint64_t> relocateIndexedAddr(uint64_t Offset) = 0;
+
   /// Returns all valid functions address ranges(i.e., those ranges
   /// which points to sections with code).
   virtual RangesTy &getValidAddressRanges() = 0;
@@ -183,7 +186,8 @@ public:
   ///
   /// As a side effect, this also switches the current Dwarf version
   /// of the MC layer to the one of U.getOrigUnit().
-  virtual void emitCompileUnitHeader(CompileUnit &Unit) = 0;
+  virtual void emitCompileUnitHeader(CompileUnit &Unit,
+                                     unsigned DwarfVersion) = 0;
 
   /// Recursively emit the DIE tree rooted at \p Die.
   virtual void emitDIE(DIE &Die) = 0;
@@ -467,7 +471,6 @@ private:
   bool registerModuleReference(DWARFDie CUDie, const DWARFUnit &Unit,
                                const DWARFFile &File,
                                OffsetsStringPool &OffsetsStringPool,
-                               UniquingStringPool &UniquingStringPoolStringPool,
                                DeclContextTree &ODRContexts,
                                uint64_t ModulesEndOffset, unsigned &UnitID,
                                bool IsLittleEndian, unsigned Indent = 0,
@@ -480,7 +483,6 @@ private:
                         StringRef ModuleName, uint64_t DwoId,
                         const DWARFFile &File,
                         OffsetsStringPool &OffsetsStringPool,
-                        UniquingStringPool &UniquingStringPool,
                         DeclContextTree &ODRContexts, uint64_t ModulesEndOffset,
                         unsigned &UnitID, bool IsLittleEndian,
                         unsigned Indent = 0, bool Quiet = false);

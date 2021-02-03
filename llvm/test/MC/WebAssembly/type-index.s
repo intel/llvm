@@ -38,6 +38,14 @@ test0:
 # BIN-NEXT:         Kind:            MEMORY
 # BIN-NEXT:         Memory:
 # BIN-NEXT:           Initial:         0x0
+# BIN-NEXT:       - Module:          env
+# BIN-NEXT:         Field:           __indirect_function_table
+# BIN-NEXT:         Kind:            TABLE
+# BIN-NEXT:         Table:
+# BIN-NEXT:           Index:           0
+# BIN-NEXT:           ElemType:        FUNCREF
+# BIN-NEXT:           Limits:
+# BIN-NEXT:             Initial:         0x0
 # BIN-NEXT:   - Type:            FUNCTION
 # BIN-NEXT:     FunctionTypes:   [ 0 ]
 # BIN-NEXT:   - Type:            CODE
@@ -58,4 +66,9 @@ test0:
 # BIN-NEXT:         Name:            test0
 # BIN-NEXT:         Flags:           [ BINDING_LOCAL ]
 # BIN-NEXT:         Function:        0
+# BIN-NEXT:       - Index:           1
+# BIN-NEXT:         Kind:            TABLE
+# BIN-NEXT:         Name:            __indirect_function_table
+# BIN-NEXT:         Flags:           [ UNDEFINED, NO_STRIP ]
+# BIN-NEXT:         Table:           0
 # BIN-NEXT: ...

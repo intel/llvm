@@ -366,9 +366,7 @@ GVN::Expression GVN::ValueTable::createExtractvalueExpr(ExtractValueInst *EI) {
        OI != OE; ++OI)
     e.varargs.push_back(lookupOrAdd(*OI));
 
-  for (ExtractValueInst::idx_iterator II = EI->idx_begin(), IE = EI->idx_end();
-         II != IE; ++II)
-    e.varargs.push_back(*II);
+  append_range(e.varargs, EI->indices());
 
   return e;
 }
@@ -1920,11 +1918,8 @@ uint32_t GVN::ValueTable::phiTranslateImpl(const BasicBlock *Pred,
 /// again.
 void GVN::ValueTable::eraseTranslateCacheEntry(uint32_t Num,
                                                const BasicBlock &CurrBlock) {
-  for (const BasicBlock *Pred : predecessors(&CurrBlock)) {
-    auto FindRes = PhiTranslateTable.find({Num, Pred});
-    if (FindRes != PhiTranslateTable.end())
-      PhiTranslateTable.erase(FindRes);
-  }
+  for (const BasicBlock *Pred : predecessors(&CurrBlock))
+    PhiTranslateTable.erase({Num, Pred});
 }
 
 // In order to find a leader for a given value number at a
@@ -2800,7 +2795,7 @@ void GVN::addDeadBlock(BasicBlock *BB) {
 
     // First, split the critical edges. This might also create additional blocks
     // to preserve LoopSimplify form and adjust edges accordingly.
-    SmallVector<BasicBlock *, 4> Preds(pred_begin(B), pred_end(B));
+    SmallVector<BasicBlock *, 4> Preds(predecessors(B));
     for (BasicBlock *P : Preds) {
       if (!DeadBlocks.count(P))
         continue;

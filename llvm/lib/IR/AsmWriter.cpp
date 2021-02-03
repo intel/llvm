@@ -609,6 +609,7 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
   case Type::LabelTyID:     OS << "label"; return;
   case Type::MetadataTyID:  OS << "metadata"; return;
   case Type::X86_MMXTyID:   OS << "x86_mmx"; return;
+  case Type::X86_AMXTyID:   OS << "x86_amx"; return;
   case Type::TokenTyID:     OS << "token"; return;
   case Type::IntegerTyID:
     OS << 'i' << cast<IntegerType>(Ty)->getBitWidth();
@@ -1367,9 +1368,8 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
         // "Inf" or NaN, that atof will accept, but the lexer will not.  Check
         // that the string matches the "[-+]?[0-9]" regex.
         //
-        assert(((StrVal[0] >= '0' && StrVal[0] <= '9') ||
-                ((StrVal[0] == '-' || StrVal[0] == '+') &&
-                 (StrVal[1] >= '0' && StrVal[1] <= '9'))) &&
+        assert((isDigit(StrVal[0]) || ((StrVal[0] == '-' || StrVal[0] == '+') &&
+                                       isDigit(StrVal[1]))) &&
                "[-+]?[0-9] regex does not match!");
         // Reparse stringized version!
         if (APFloat(APFloat::IEEEdouble(), StrVal).convertToDouble() == Val) {

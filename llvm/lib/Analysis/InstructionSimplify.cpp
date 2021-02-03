@@ -924,19 +924,19 @@ static Value *simplifyDivRem(Value *Op0, Value *Op1, bool IsDiv,
                              const SimplifyQuery &Q) {
   Type *Ty = Op0->getType();
 
-  // X / undef -> undef
-  // X % undef -> undef
+  // X / undef -> poison
+  // X % undef -> poison
   if (Q.isUndefValue(Op1))
-    return Op1;
+    return PoisonValue::get(Ty);
 
-  // X / 0 -> undef
-  // X % 0 -> undef
+  // X / 0 -> poison
+  // X % 0 -> poison
   // We don't need to preserve faults!
   if (match(Op1, m_Zero()))
-    return UndefValue::get(Ty);
+    return PoisonValue::get(Ty);
 
-  // If any element of a constant divisor fixed width vector is zero or undef,
-  // the whole op is undef.
+  // If any element of a constant divisor fixed width vector is zero or undef
+  // the behavior is undefined and we can fold the whole op to poison.
   auto *Op1C = dyn_cast<Constant>(Op1);
   auto *VTy = dyn_cast<FixedVectorType>(Ty);
   if (Op1C && VTy) {
@@ -944,7 +944,7 @@ static Value *simplifyDivRem(Value *Op0, Value *Op1, bool IsDiv,
     for (unsigned i = 0; i != NumElts; ++i) {
       Constant *Elt = Op1C->getAggregateElement(i);
       if (Elt && (Elt->isNullValue() || Q.isUndefValue(Elt)))
-        return UndefValue::get(Ty);
+        return PoisonValue::get(Ty);
     }
   }
 
@@ -1197,13 +1197,13 @@ Value *llvm::SimplifyURemInst(Value *Op0, Value *Op1, const SimplifyQuery &Q) {
   return ::SimplifyURemInst(Op0, Op1, Q, RecursionLimit);
 }
 
-/// Returns true if a shift by \c Amount always yields undef.
-static bool isUndefShift(Value *Amount, const SimplifyQuery &Q) {
+/// Returns true if a shift by \c Amount always yields poison.
+static bool isPoisonShift(Value *Amount, const SimplifyQuery &Q) {
   Constant *C = dyn_cast<Constant>(Amount);
   if (!C)
     return false;
 
-  // X shift by undef -> undef because it may shift by the bitwidth.
+  // X shift by undef -> poison because it may shift by the bitwidth.
   if (Q.isUndefValue(C))
     return true;
 
@@ -1218,7 +1218,7 @@ static bool isUndefShift(Value *Amount, const SimplifyQuery &Q) {
     for (unsigned I = 0,
                   E = cast<FixedVectorType>(C->getType())->getNumElements();
          I != E; ++I)
-      if (!isUndefShift(C->getAggregateElement(I), Q))
+      if (!isPoisonShift(C->getAggregateElement(I), Q))
         return false;
     return true;
   }
@@ -1246,8 +1246,8 @@ static Value *SimplifyShift(Instruction::BinaryOps Opcode, Value *Op0,
     return Op0;
 
   // Fold undefined shifts.
-  if (isUndefShift(Op1, Q))
-    return UndefValue::get(Op0->getType());
+  if (isPoisonShift(Op1, Q))
+    return PoisonValue::get(Op0->getType());
 
   // If the operation is with the result of a select instruction, check whether
   // operating on either branch of the select always yields the same value.
@@ -1265,7 +1265,7 @@ static Value *SimplifyShift(Instruction::BinaryOps Opcode, Value *Op0,
   // the number of bits in the type, the shift is undefined.
   KnownBits Known = computeKnownBits(Op1, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
   if (Known.One.getLimitedValue() >= Known.getBitWidth())
-    return UndefValue::get(Op0->getType());
+    return PoisonValue::get(Op0->getType());
 
   // If all valid bits in the shift amount are known zero, the first operand is
   // unchanged.
@@ -2127,12 +2127,21 @@ static Value *SimplifyAndInst(Value *Op0, Value *Op1, const SimplifyQuery &Q,
                                         Instruction::Xor, Q, MaxRecurse))
     return V;
 
-  // If the operation is with the result of a select instruction, check whether
-  // operating on either branch of the select always yields the same value.
-  if (isa<SelectInst>(Op0) || isa<SelectInst>(Op1))
+  if (isa<SelectInst>(Op0) || isa<SelectInst>(Op1)) {
+    if (Op0->getType()->isIntOrIntVectorTy(1)) {
+      // A & (A && B) -> A && B
+      if (match(Op1, m_Select(m_Specific(Op0), m_Value(), m_Zero())))
+        return Op1;
+      else if (match(Op0, m_Select(m_Specific(Op1), m_Value(), m_Zero())))
+        return Op0;
+    }
+    // If the operation is with the result of a select instruction, check
+    // whether operating on either branch of the select always yields the same
+    // value.
     if (Value *V = ThreadBinOpOverSelect(Instruction::And, Op0, Op1, Q,
                                          MaxRecurse))
       return V;
+  }
 
   // If the operation is with the result of a phi instruction, check whether
   // operating on all incoming values of the phi always yields the same value.
@@ -2224,7 +2233,7 @@ static Value *SimplifyOrInst(Value *Op0, Value *Op1, const SimplifyQuery &Q,
   if (Value *V = simplifyLogicOfAddSub(Op0, Op1, Instruction::Or))
     return V;
 
-  Value *A, *B;
+  Value *A, *B, *NotA;
   // (A & ~B) | (A ^ B) -> (A ^ B)
   // (~B & A) | (A ^ B) -> (A ^ B)
   // (A & ~B) | (B ^ A) -> (B ^ A)
@@ -2253,6 +2262,7 @@ static Value *SimplifyOrInst(Value *Op0, Value *Op1, const SimplifyQuery &Q,
        match(Op1, m_c_Xor(m_Not(m_Specific(A)), m_Specific(B)))))
     return Op1;
 
+  // Commute the 'or' operands.
   // (~A ^ B) | (A & B) -> (~A ^ B)
   // (~A ^ B) | (B & A) -> (~A ^ B)
   // (B ^ ~A) | (A & B) -> (B ^ ~A)
@@ -2261,6 +2271,25 @@ static Value *SimplifyOrInst(Value *Op0, Value *Op1, const SimplifyQuery &Q,
       (match(Op0, m_c_Xor(m_Specific(A), m_Not(m_Specific(B)))) ||
        match(Op0, m_c_Xor(m_Not(m_Specific(A)), m_Specific(B)))))
     return Op0;
+
+  // (~A & B) | ~(A | B) --> ~A
+  // (~A & B) | ~(B | A) --> ~A
+  // (B & ~A) | ~(A | B) --> ~A
+  // (B & ~A) | ~(B | A) --> ~A
+  if (match(Op0, m_c_And(m_CombineAnd(m_Value(NotA), m_Not(m_Value(A))),
+                         m_Value(B))) &&
+      match(Op1, m_Not(m_c_Or(m_Specific(A), m_Specific(B)))))
+    return NotA;
+
+  // Commute the 'or' operands.
+  // ~(A | B) | (~A & B) --> ~A
+  // ~(B | A) | (~A & B) --> ~A
+  // ~(A | B) | (B & ~A) --> ~A
+  // ~(B | A) | (B & ~A) --> ~A
+  if (match(Op1, m_c_And(m_CombineAnd(m_Value(NotA), m_Not(m_Value(A))),
+                         m_Value(B))) &&
+      match(Op0, m_Not(m_c_Or(m_Specific(A), m_Specific(B)))))
+    return NotA;
 
   if (Value *V = simplifyAndOrOfCmps(Q, Op0, Op1, false))
     return V;
@@ -2283,12 +2312,21 @@ static Value *SimplifyOrInst(Value *Op0, Value *Op1, const SimplifyQuery &Q,
                                         Instruction::And, Q, MaxRecurse))
     return V;
 
-  // If the operation is with the result of a select instruction, check whether
-  // operating on either branch of the select always yields the same value.
-  if (isa<SelectInst>(Op0) || isa<SelectInst>(Op1))
+  if (isa<SelectInst>(Op0) || isa<SelectInst>(Op1)) {
+    if (Op0->getType()->isIntOrIntVectorTy(1)) {
+      // A | (A || B) -> A || B
+      if (match(Op1, m_Select(m_Specific(Op0), m_One(), m_Value())))
+        return Op1;
+      else if (match(Op0, m_Select(m_Specific(Op1), m_One(), m_Value())))
+        return Op0;
+    }
+    // If the operation is with the result of a select instruction, check
+    // whether operating on either branch of the select always yields the same
+    // value.
     if (Value *V = ThreadBinOpOverSelect(Instruction::Or, Op0, Op1, Q,
                                          MaxRecurse))
       return V;
+  }
 
   // (A & C1)|(B & C2)
   const APInt *C1, *C2;
@@ -2875,6 +2913,28 @@ static Value *simplifyICmpWithBinOpOnLHS(
   if (match(LBO, m_LShr(m_Specific(RHS), m_Value())) ||
       match(LBO, m_UDiv(m_Specific(RHS), m_Value()))) {
     // icmp pred (X op Y), X
+    if (Pred == ICmpInst::ICMP_UGT)
+      return getFalse(ITy);
+    if (Pred == ICmpInst::ICMP_ULE)
+      return getTrue(ITy);
+  }
+
+  // (x*C1)/C2 <= x for C1 <= C2.
+  // This holds even if the multiplication overflows: Assume that x != 0 and
+  // arithmetic is modulo M. For overflow to occur we must have C1 >= M/x and
+  // thus C2 >= M/x. It follows that (x*C1)/C2 <= (M-1)/C2 <= ((M-1)*x)/M < x.
+  //
+  // Additionally, either the multiplication and division might be represented
+  // as shifts:
+  // (x*C1)>>C2 <= x for C1 < 2**C2.
+  // (x<<C1)/C2 <= x for 2**C1 < C2.
+  const APInt *C1, *C2;
+  if ((match(LBO, m_UDiv(m_Mul(m_Specific(RHS), m_APInt(C1)), m_APInt(C2))) &&
+       C1->ule(*C2)) ||
+      (match(LBO, m_LShr(m_Mul(m_Specific(RHS), m_APInt(C1)), m_APInt(C2))) &&
+       C1->ule(APInt(C2->getBitWidth(), 1) << *C2)) ||
+      (match(LBO, m_UDiv(m_Shl(m_Specific(RHS), m_APInt(C1)), m_APInt(C2))) &&
+       (APInt(C1->getBitWidth(), 1) << *C1).ule(*C2))) {
     if (Pred == ICmpInst::ICMP_UGT)
       return getFalse(ITy);
     if (Pred == ICmpInst::ICMP_ULE)
@@ -3599,7 +3659,7 @@ static Value *SimplifyICmpInst(unsigned Predicate, Value *LHS, Value *RHS,
         // expression GEP with the same indices and a null base pointer to see
         // what constant folding can make out of it.
         Constant *Null = Constant::getNullValue(GLHS->getPointerOperandType());
-        SmallVector<Value *, 4> IndicesLHS(GLHS->idx_begin(), GLHS->idx_end());
+        SmallVector<Value *, 4> IndicesLHS(GLHS->indices());
         Constant *NewLHS = ConstantExpr::getGetElementPtr(
             GLHS->getSourceElementType(), Null, IndicesLHS);
 
@@ -4242,6 +4302,11 @@ static Value *SimplifyGEPInst(Type *SrcTy, ArrayRef<Value *> Ops,
   else if (VectorType *VT = dyn_cast<VectorType>(Ops[1]->getType()))
     GEPTy = VectorType::get(GEPTy, VT->getElementCount());
 
+  // getelementptr poison, idx -> poison
+  // getelementptr baseptr, poison -> poison
+  if (any_of(Ops, [](const auto *V) { return isa<PoisonValue>(V); }))
+    return PoisonValue::get(GEPTy);
+
   if (Q.isUndefValue(Ops[0]))
     return UndefValue::get(GEPTy);
 
@@ -4265,9 +4330,7 @@ static Value *SimplifyGEPInst(Type *SrcTy, ArrayRef<Value *> Ops,
       // doesn't truncate the pointers.
       if (Ops[1]->getType()->getScalarSizeInBits() ==
           Q.DL.getPointerSizeInBits(AS)) {
-        auto PtrToIntOrZero = [GEPTy](Value *P) -> Value * {
-          if (match(P, m_Zero()))
-            return Constant::getNullValue(GEPTy);
+        auto PtrToInt = [GEPTy](Value *P) -> Value * {
           Value *Temp;
           if (match(P, m_PtrToInt(m_Value(Temp))))
             if (Temp->getType() == GEPTy)
@@ -4275,10 +4338,14 @@ static Value *SimplifyGEPInst(Type *SrcTy, ArrayRef<Value *> Ops,
           return nullptr;
         };
 
+        // FIXME: The following transforms are only legal if P and V have the
+        // same provenance (PR44403). Check whether getUnderlyingObject() is
+        // the same?
+
         // getelementptr V, (sub P, V) -> P if P points to a type of size 1.
         if (TyAllocSize == 1 &&
             match(Ops[1], m_Sub(m_Value(P), m_PtrToInt(m_Specific(Ops[0])))))
-          if (Value *R = PtrToIntOrZero(P))
+          if (Value *R = PtrToInt(P))
             return R;
 
         // getelementptr V, (ashr (sub P, V), C) -> Q
@@ -4287,7 +4354,7 @@ static Value *SimplifyGEPInst(Type *SrcTy, ArrayRef<Value *> Ops,
                   m_AShr(m_Sub(m_Value(P), m_PtrToInt(m_Specific(Ops[0]))),
                          m_ConstantInt(C))) &&
             TyAllocSize == 1ULL << C)
-          if (Value *R = PtrToIntOrZero(P))
+          if (Value *R = PtrToInt(P))
             return R;
 
         // getelementptr V, (sdiv (sub P, V), C) -> Q
@@ -4295,7 +4362,7 @@ static Value *SimplifyGEPInst(Type *SrcTy, ArrayRef<Value *> Ops,
         if (match(Ops[1],
                   m_SDiv(m_Sub(m_Value(P), m_PtrToInt(m_Specific(Ops[0]))),
                          m_SpecificInt(TyAllocSize))))
-          if (Value *R = PtrToIntOrZero(P))
+          if (Value *R = PtrToInt(P))
             return R;
       }
     }
@@ -4312,15 +4379,21 @@ static Value *SimplifyGEPInst(Type *SrcTy, ArrayRef<Value *> Ops,
           Ops[0]->stripAndAccumulateInBoundsConstantOffsets(Q.DL,
                                                             BasePtrOffset);
 
+      // Avoid creating inttoptr of zero here: While LLVMs treatment of
+      // inttoptr is generally conservative, this particular case is folded to
+      // a null pointer, which will have incorrect provenance.
+
       // gep (gep V, C), (sub 0, V) -> C
       if (match(Ops.back(),
-                m_Sub(m_Zero(), m_PtrToInt(m_Specific(StrippedBasePtr))))) {
+                m_Sub(m_Zero(), m_PtrToInt(m_Specific(StrippedBasePtr)))) &&
+          !BasePtrOffset.isNullValue()) {
         auto *CI = ConstantInt::get(GEPTy->getContext(), BasePtrOffset);
         return ConstantExpr::getIntToPtr(CI, GEPTy);
       }
       // gep (gep V, C), (xor V, -1) -> C-1
       if (match(Ops.back(),
-                m_Xor(m_PtrToInt(m_Specific(StrippedBasePtr)), m_AllOnes()))) {
+                m_Xor(m_PtrToInt(m_Specific(StrippedBasePtr)), m_AllOnes())) &&
+          !BasePtrOffset.isOneValue()) {
         auto *CI = ConstantInt::get(GEPTy->getContext(), BasePtrOffset - 1);
         return ConstantExpr::getIntToPtr(CI, GEPTy);
       }
@@ -4385,21 +4458,21 @@ Value *llvm::SimplifyInsertElementInst(Value *Vec, Value *Val, Value *Idx,
   if (VecC && ValC && IdxC)
     return ConstantExpr::getInsertElement(VecC, ValC, IdxC);
 
-  // For fixed-length vector, fold into undef if index is out of bounds.
+  // For fixed-length vector, fold into poison if index is out of bounds.
   if (auto *CI = dyn_cast<ConstantInt>(Idx)) {
     if (isa<FixedVectorType>(Vec->getType()) &&
         CI->uge(cast<FixedVectorType>(Vec->getType())->getNumElements()))
-      return UndefValue::get(Vec->getType());
+      return PoisonValue::get(Vec->getType());
   }
 
   // If index is undef, it might be out of bounds (see above case)
   if (Q.isUndefValue(Idx))
-    return UndefValue::get(Vec->getType());
+    return PoisonValue::get(Vec->getType());
 
-  // If the scalar is undef, and there is no risk of propagating poison from the
-  // vector value, simplify to the vector value.
-  if (Q.isUndefValue(Val) &&
-      isGuaranteedNotToBeUndefOrPoison(Vec))
+  // If the scalar is poison, or it is undef and there is no risk of
+  // propagating poison from the vector value, simplify to the vector value.
+  if (isa<PoisonValue>(Val) ||
+      (Q.isUndefValue(Val) && isGuaranteedNotToBePoison(Vec)))
     return Vec;
 
   // If we are extracting a value from a vector, then inserting it into the same
@@ -4464,15 +4537,15 @@ static Value *SimplifyExtractElementInst(Value *Vec, Value *Idx,
     // For fixed-length vector, fold into undef if index is out of bounds.
     if (isa<FixedVectorType>(VecVTy) &&
         IdxC->getValue().uge(cast<FixedVectorType>(VecVTy)->getNumElements()))
-      return UndefValue::get(VecVTy->getElementType());
+      return PoisonValue::get(VecVTy->getElementType());
     if (Value *Elt = findScalarElement(Vec, IdxC->getZExtValue()))
       return Elt;
   }
 
   // An undef extract index can be arbitrarily chosen to be an out-of-range
-  // index value, which would result in the instruction being undef.
+  // index value, which would result in the instruction being poison.
   if (Q.isUndefValue(Idx))
-    return UndefValue::get(VecVTy->getElementType());
+    return PoisonValue::get(VecVTy->getElementType());
 
   return nullptr;
 }
@@ -4626,7 +4699,7 @@ static Value *SimplifyShuffleVectorInst(Value *Op0, Value *Op1,
   Indices.assign(Mask.begin(), Mask.end());
 
   // Canonicalization: If mask does not select elements from an input vector,
-  // replace that input vector with undef.
+  // replace that input vector with poison.
   if (!Scalable) {
     bool MaskSelects0 = false, MaskSelects1 = false;
     unsigned InVecNumElts = InVecEltCount.getKnownMinValue();
@@ -4639,9 +4712,9 @@ static Value *SimplifyShuffleVectorInst(Value *Op0, Value *Op1,
         MaskSelects1 = true;
     }
     if (!MaskSelects0)
-      Op0 = UndefValue::get(InVecTy);
+      Op0 = PoisonValue::get(InVecTy);
     if (!MaskSelects1)
-      Op1 = UndefValue::get(InVecTy);
+      Op1 = PoisonValue::get(InVecTy);
   }
 
   auto *Op0Const = dyn_cast<Constant>(Op0);
@@ -4781,11 +4854,11 @@ static Constant *simplifyFPOp(ArrayRef<Value *> Ops,
 
     // If this operation has 'nnan' or 'ninf' and at least 1 disallowed operand
     // (an undef operand can be chosen to be Nan/Inf), then the result of
-    // this operation is poison. That result can be relaxed to undef.
+    // this operation is poison.
     if (FMF.noNaNs() && (IsNan || IsUndef))
-      return UndefValue::get(V->getType());
+      return PoisonValue::get(V->getType());
     if (FMF.noInfs() && (IsInf || IsUndef))
-      return UndefValue::get(V->getType());
+      return PoisonValue::get(V->getType());
 
     if (IsUndef || IsNan)
       return propagateNaN(cast<Constant>(V));
@@ -5444,19 +5517,19 @@ static Value *simplifyBinaryIntrinsic(Function *F, Value *Op0, Value *Op1,
   case Intrinsic::usub_with_overflow:
   case Intrinsic::ssub_with_overflow:
     // X - X -> { 0, false }
-    if (Op0 == Op1)
+    // X - undef -> { 0, false }
+    // undef - X -> { 0, false }
+    if (Op0 == Op1 || Q.isUndefValue(Op0) || Q.isUndefValue(Op1))
       return Constant::getNullValue(ReturnType);
-    LLVM_FALLTHROUGH;
+    break;
   case Intrinsic::uadd_with_overflow:
   case Intrinsic::sadd_with_overflow:
-    // X - undef -> { undef, false }
-    // undef - X -> { undef, false }
-    // X + undef -> { undef, false }
-    // undef + x -> { undef, false }
+    // X + undef -> { -1, false }
+    // undef + x -> { -1, false }
     if (Q.isUndefValue(Op0) || Q.isUndefValue(Op1)) {
       return ConstantStruct::get(
           cast<StructType>(ReturnType),
-          {UndefValue::get(ReturnType->getStructElementType(0)),
+          {Constant::getAllOnesValue(ReturnType->getStructElementType(0)),
            Constant::getNullValue(ReturnType->getStructElementType(1))});
     }
     break;
@@ -5685,11 +5758,11 @@ Value *llvm::SimplifyCall(CallBase *Call, const SimplifyQuery &Q) {
   if (Call->isMustTailCall())
     return nullptr;
 
-  // call undef -> undef
-  // call null -> undef
+  // call undef -> poison
+  // call null -> poison
   Value *Callee = Call->getCalledOperand();
   if (isa<UndefValue>(Callee) || isa<ConstantPointerNull>(Callee))
-    return UndefValue::get(Call->getType());
+    return PoisonValue::get(Call->getType());
 
   if (Value *V = tryConstantFoldCall(Call, Q))
     return V;
@@ -5814,7 +5887,7 @@ Value *llvm::SimplifyInstruction(Instruction *I, const SimplifyQuery &SQ,
                                 I->getOperand(2), Q);
     break;
   case Instruction::GetElementPtr: {
-    SmallVector<Value *, 8> Ops(I->op_begin(), I->op_end());
+    SmallVector<Value *, 8> Ops(I->operands());
     Result = SimplifyGEPInst(cast<GetElementPtrInst>(I)->getSourceElementType(),
                              Ops, Q);
     break;
@@ -5949,13 +6022,6 @@ static bool replaceAndRecursivelySimplifyImpl(
       I->eraseFromParent();
   }
   return Simplified;
-}
-
-bool llvm::recursivelySimplifyInstruction(Instruction *I,
-                                          const TargetLibraryInfo *TLI,
-                                          const DominatorTree *DT,
-                                          AssumptionCache *AC) {
-  return replaceAndRecursivelySimplifyImpl(I, nullptr, TLI, DT, AC, nullptr);
 }
 
 bool llvm::replaceAndRecursivelySimplify(

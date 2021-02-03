@@ -128,24 +128,9 @@ RT::PiMemFlags getMemObjCreationFlags(const ContextImplPtr &TargetContext,
                                       void *UserPtr, bool HostPtrReadOnly) {
   // Create read_write mem object to handle arbitrary uses.
   RT::PiMemFlags Result = PI_MEM_FLAGS_ACCESS_RW;
-  if (UserPtr) {
-    if (HostPtrReadOnly)
-      Result |= PI_MEM_FLAGS_HOST_PTR_COPY;
-    else {
-      // Create the memory object using the host pointer only if the devices
-      // support host_unified_memory to avoid potential copy overhead.
-      // TODO This check duplicates the one performed in the GraphBuilder during
-      // AllocaCommand creation. This information should be propagated here
-      // instead, which would be a breaking ABI change.
-      bool HostUnifiedMemory = true;
-      for (const device &Device : TargetContext->getDevices())
-        HostUnifiedMemory &=
-            Device.get_info<info::device::host_unified_memory>();
-      Result |= HostUnifiedMemory ? PI_MEM_FLAGS_HOST_PTR_USE
-                                  : PI_MEM_FLAGS_HOST_PTR_COPY;
-    }
-  }
-
+  if (UserPtr)
+    Result |= HostPtrReadOnly ? PI_MEM_FLAGS_HOST_PTR_COPY
+                              : PI_MEM_FLAGS_HOST_PTR_USE;
   return Result;
 }
 

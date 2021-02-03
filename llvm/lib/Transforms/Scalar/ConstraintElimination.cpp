@@ -218,14 +218,15 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT) {
     // If the condition is an OR of 2 compares and the false successor only has
     // the current block as predecessor, queue both negated conditions for the
     // false successor.
-    if (match(Br->getCondition(), m_Or(m_Cmp(), m_Cmp()))) {
+    Value *Op0, *Op1;
+    if (match(Br->getCondition(), m_LogicalOr(m_Value(Op0), m_Value(Op1))) &&
+        match(Op0, m_Cmp()) && match(Op1, m_Cmp())) {
       BasicBlock *FalseSuccessor = Br->getSuccessor(1);
       if (FalseSuccessor->getSinglePredecessor()) {
-        auto *OrI = cast<Instruction>(Br->getCondition());
-        WorkList.emplace_back(DT.getNode(FalseSuccessor),
-                              cast<CmpInst>(OrI->getOperand(0)), true);
-        WorkList.emplace_back(DT.getNode(FalseSuccessor),
-                              cast<CmpInst>(OrI->getOperand(1)), true);
+        WorkList.emplace_back(DT.getNode(FalseSuccessor), cast<CmpInst>(Op0),
+                              true);
+        WorkList.emplace_back(DT.getNode(FalseSuccessor), cast<CmpInst>(Op1),
+                              true);
       }
       continue;
     }
@@ -233,14 +234,14 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT) {
     // If the condition is an AND of 2 compares and the true successor only has
     // the current block as predecessor, queue both conditions for the true
     // successor.
-    if (match(Br->getCondition(), m_And(m_Cmp(), m_Cmp()))) {
+    if (match(Br->getCondition(), m_LogicalAnd(m_Value(Op0), m_Value(Op1))) &&
+        match(Op0, m_Cmp()) && match(Op1, m_Cmp())) {
       BasicBlock *TrueSuccessor = Br->getSuccessor(0);
       if (TrueSuccessor->getSinglePredecessor()) {
-        auto *AndI = cast<Instruction>(Br->getCondition());
-        WorkList.emplace_back(DT.getNode(TrueSuccessor),
-                              cast<CmpInst>(AndI->getOperand(0)), false);
-        WorkList.emplace_back(DT.getNode(TrueSuccessor),
-                              cast<CmpInst>(AndI->getOperand(1)), false);
+        WorkList.emplace_back(DT.getNode(TrueSuccessor), cast<CmpInst>(Op0),
+                              false);
+        WorkList.emplace_back(DT.getNode(TrueSuccessor), cast<CmpInst>(Op1),
+                              false);
       }
       continue;
     }
@@ -258,10 +259,9 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT) {
   // come before blocks and conditions dominated by them. If a block and a
   // condition have the same numbers, the condition comes before the block, as
   // it holds on entry to the block.
-  sort(WorkList.begin(), WorkList.end(),
-       [](const ConstraintOrBlock &A, const ConstraintOrBlock &B) {
-         return std::tie(A.NumIn, A.IsBlock) < std::tie(B.NumIn, B.IsBlock);
-       });
+  sort(WorkList, [](const ConstraintOrBlock &A, const ConstraintOrBlock &B) {
+    return std::tie(A.NumIn, A.IsBlock) < std::tie(B.NumIn, B.IsBlock);
+  });
 
   // Finally, process ordered worklist and eliminate implied conditions.
   SmallVector<StackEntry, 16> DFSInStack;

@@ -75,6 +75,12 @@ CmpInst::Predicate IRInstructionData::getPredicate() const {
   return cast<CmpInst>(Inst)->getPredicate();
 }
 
+static StringRef getCalledFunctionName(CallInst &CI) {
+  assert(CI.getCalledFunction() != nullptr && "Called Function is nullptr?");
+
+  return CI.getCalledFunction()->getName();
+}
+
 bool IRSimilarity::isClose(const IRInstructionData &A,
                            const IRInstructionData &B) {
 
@@ -83,27 +89,61 @@ bool IRSimilarity::isClose(const IRInstructionData &A,
 
   // Check if we are performing the same sort of operation on the same types
   // but not on the same values.
-  if (A.Inst->isSameOperationAs(B.Inst))
-    return true;
+  if (!A.Inst->isSameOperationAs(B.Inst)) {
+    // If there is a predicate, this means that either there is a swapped
+    // predicate, or that the types are different, we want to make sure that
+    // the predicates are equivalent via swapping.
+    if (isa<CmpInst>(A.Inst) && isa<CmpInst>(B.Inst)) {
 
-  // If there is a predicate, this means that either there is a swapped
-  // predicate, or that the types are different, we want to make sure that
-  // the predicates are equivalent via swapping.
-  if (isa<CmpInst>(A.Inst) && isa<CmpInst>(B.Inst)) {
+      if (A.getPredicate() != B.getPredicate())
+        return false;
 
-    if (A.getPredicate() != B.getPredicate())
-      return false;
+      // If the predicates are the same via swap, make sure that the types are
+      // still the same.
+      auto ZippedTypes = zip(A.OperVals, B.OperVals);
 
-    // If the predicates are the same via swap, make sure that the types are
-    // still the same.
-    auto ZippedTypes = zip(A.OperVals, B.OperVals);
+      return all_of(
+          ZippedTypes, [](std::tuple<llvm::Value *, llvm::Value *> R) {
+            return std::get<0>(R)->getType() == std::get<1>(R)->getType();
+          });
+    }
 
-    return all_of(ZippedTypes, [](std::tuple<llvm::Value *, llvm::Value *> R) {
-      return std::get<0>(R)->getType() == std::get<1>(R)->getType();
-    });
+    return false;
   }
 
-  return false;
+  // Since any GEP Instruction operands after the first operand cannot be
+  // defined by a register, we must make sure that the operands after the first
+  // are the same in the two instructions
+  if (auto *GEP = dyn_cast<GetElementPtrInst>(A.Inst)) {
+    auto *OtherGEP = cast<GetElementPtrInst>(B.Inst);
+
+    // If the instructions do not have the same inbounds restrictions, we do
+    // not consider them the same.
+    if (GEP->isInBounds() != OtherGEP->isInBounds())
+      return false;
+
+    auto ZippedOperands = zip(GEP->indices(), OtherGEP->indices());
+
+    // We increment here since we do not care about the first instruction,
+    // we only care about the following operands since they must be the
+    // exact same to be considered similar.
+    return all_of(drop_begin(ZippedOperands),
+                  [](std::tuple<llvm::Use &, llvm::Use &> R) {
+                    return std::get<0>(R) == std::get<1>(R);
+                  });
+  }
+
+  // If the instructions are functions, we make sure that the function name is
+  // the same.  We already know that the types are since is isSameOperationAs is
+  // true.
+  if (isa<CallInst>(A.Inst) && isa<CallInst>(B.Inst)) {
+    CallInst *CIA = cast<CallInst>(A.Inst);
+    CallInst *CIB = cast<CallInst>(B.Inst);
+    if (getCalledFunctionName(*CIA).compare(getCalledFunctionName(*CIB)) != 0)
+      return false;
+  }
+
+  return true;
 }
 
 // TODO: This is the same as the MachineOutliner, and should be consolidated
@@ -138,10 +178,8 @@ void IRInstructionMapper::convertToUnsignedVec(
     mapToIllegalUnsigned(It, IntegerMappingForBB, InstrListForBB, true);
     for_each(InstrListForBB,
              [this](IRInstructionData *ID) { this->IDL->push_back(*ID); });
-    InstrList.insert(InstrList.end(), InstrListForBB.begin(),
-                     InstrListForBB.end());
-    IntegerMapping.insert(IntegerMapping.end(), IntegerMappingForBB.begin(),
-                          IntegerMappingForBB.end());
+    llvm::append_range(InstrList, InstrListForBB);
+    llvm::append_range(IntegerMapping, IntegerMappingForBB);
   }
 }
 
@@ -362,7 +400,7 @@ static bool checkNumberingAndReplaceCommutative(
     DenseSet<unsigned> NewSet;
     for (unsigned &Curr : ValueMappingIt->second)
       // If we can find the value in the mapping, we add it to the new set.
-      if (TargetValueNumbers.find(Curr) != TargetValueNumbers.end())
+      if (TargetValueNumbers.contains(Curr))
         NewSet.insert(Curr);
 
     // If we could not find a Value, return 0.
@@ -639,11 +677,9 @@ void IRSimilarityIdentifier::populateMapper(
 
   // Insert the InstrListForModule at the end of the overall InstrList so that
   // we can have a long InstrList for the entire set of Modules being analyzed.
-  InstrList.insert(InstrList.end(), InstrListForModule.begin(),
-                   InstrListForModule.end());
+  llvm::append_range(InstrList, InstrListForModule);
   // Do the same as above, but for IntegerMapping.
-  IntegerMapping.insert(IntegerMapping.end(), IntegerMappingForModule.begin(),
-                     IntegerMappingForModule.end());
+  llvm::append_range(IntegerMapping, IntegerMappingForModule);
 }
 
 void IRSimilarityIdentifier::populateMapper(

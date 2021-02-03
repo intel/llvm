@@ -870,6 +870,30 @@ Value *InstCombinerImpl::SimplifySelectsFeedingBinaryOp(BinaryOperator &I,
   return SI;
 }
 
+/// Freely adapt every user of V as-if V was changed to !V.
+/// WARNING: only if canFreelyInvertAllUsersOf() said this can be done.
+void InstCombinerImpl::freelyInvertAllUsersOf(Value *I) {
+  for (User *U : I->users()) {
+    switch (cast<Instruction>(U)->getOpcode()) {
+    case Instruction::Select: {
+      auto *SI = cast<SelectInst>(U);
+      SI->swapValues();
+      SI->swapProfMetadata();
+      break;
+    }
+    case Instruction::Br:
+      cast<BranchInst>(U)->swapSuccessors(); // swaps prof metadata too
+      break;
+    case Instruction::Xor:
+      replaceInstUsesWith(cast<Instruction>(*U), I);
+      break;
+    default:
+      llvm_unreachable("Got unexpected user - out of sync with "
+                       "canFreelyInvertAllUsersOf() ?");
+    }
+  }
+}
+
 /// Given a 'sub' instruction, return the RHS of the instruction if the LHS is a
 /// constant zero (which is the 'negate' form).
 Value *InstCombinerImpl::dyn_castNegVal(Value *V) const {
@@ -1175,8 +1199,8 @@ Instruction *InstCombinerImpl::foldOpIntoPhi(Instruction &I, PHINode *PN) {
     }
   }
 
-  for (auto UI = PN->user_begin(), E = PN->user_end(); UI != E;) {
-    Instruction *User = cast<Instruction>(*UI++);
+  for (User *U : make_early_inc_range(PN->users())) {
+    Instruction *User = cast<Instruction>(U);
     if (User == &I) continue;
     replaceInstUsesWith(*User, NewPN);
     eraseInstFromFunction(*User);
@@ -1816,7 +1840,7 @@ static Instruction *foldSelectGEP(GetElementPtrInst &GEP,
   // gep (select Cond, TrueC, FalseC), IndexC --> select Cond, TrueC', FalseC'
   // Propagate 'inbounds' and metadata from existing instructions.
   // Note: using IRBuilder to create the constants for efficiency.
-  SmallVector<Value *, 4> IndexC(GEP.idx_begin(), GEP.idx_end());
+  SmallVector<Value *, 4> IndexC(GEP.indices());
   bool IsInBounds = GEP.isInBounds();
   Value *NewTrueC = IsInBounds ? Builder.CreateInBoundsGEP(TrueC, IndexC)
                                : Builder.CreateGEP(TrueC, IndexC);
@@ -1826,7 +1850,7 @@ static Instruction *foldSelectGEP(GetElementPtrInst &GEP,
 }
 
 Instruction *InstCombinerImpl::visitGetElementPtrInst(GetElementPtrInst &GEP) {
-  SmallVector<Value*, 8> Ops(GEP.op_begin(), GEP.op_end());
+  SmallVector<Value *, 8> Ops(GEP.operands());
   Type *GEPType = GEP.getType();
   Type *GEPEltType = GEP.getSourceElementType();
   bool IsGEPSrcEleScalable = isa<ScalableVectorType>(GEPEltType);
@@ -2196,7 +2220,7 @@ Instruction *InstCombinerImpl::visitGetElementPtrInst(GetElementPtrInst &GEP) {
         // GEP (bitcast i8* X to [0 x i8]*), i32 0, ... ?
         if (CATy->getElementType() == StrippedPtrEltTy) {
           // -> GEP i8* X, ...
-          SmallVector<Value*, 8> Idx(GEP.idx_begin()+1, GEP.idx_end());
+          SmallVector<Value *, 8> Idx(drop_begin(GEP.indices()));
           GetElementPtrInst *Res = GetElementPtrInst::Create(
               StrippedPtrEltTy, StrippedPtr, Idx, GEP.getName());
           Res->setIsInBounds(GEP.isInBounds());
@@ -2232,7 +2256,7 @@ Instruction *InstCombinerImpl::visitGetElementPtrInst(GetElementPtrInst &GEP) {
             // ->
             // %0 = GEP [10 x i8] addrspace(1)* X, ...
             // addrspacecast i8 addrspace(1)* %0 to i8*
-            SmallVector<Value*, 8> Idx(GEP.idx_begin(), GEP.idx_end());
+            SmallVector<Value *, 8> Idx(GEP.indices());
             Value *NewGEP =
                 GEP.isInBounds()
                     ? Builder.CreateInBoundsGEP(StrippedPtrEltTy, StrippedPtr,
@@ -3827,8 +3851,7 @@ static bool prepareICWorklistFromFunction(Function &F, const DataLayout &DL,
       }
     }
 
-    for (BasicBlock *SuccBB : successors(TI))
-      Worklist.push_back(SuccBB);
+    append_range(Worklist, successors(TI));
   } while (!Worklist.empty());
 
   // Remove instructions inside unreachable blocks. This prevents the

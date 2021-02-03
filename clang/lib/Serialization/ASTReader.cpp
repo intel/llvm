@@ -2211,6 +2211,29 @@ void ASTReader::resolvePendingMacro(IdentifierInfo *II,
     PP.setLoadedMacroDirective(II, Earliest, Latest);
 }
 
+bool ASTReader::shouldDisableValidationForFile(
+    const serialization::ModuleFile &M) const {
+  if (DisableValidationKind == DisableValidationForModuleKind::None)
+    return false;
+
+  // If a PCH is loaded and validation is disabled for PCH then disable
+  // validation for the PCH and the modules it loads.
+  ModuleKind K = CurrentDeserializingModuleKind.getValueOr(M.Kind);
+
+  switch (K) {
+  case MK_MainFile:
+  case MK_Preamble:
+  case MK_PCH:
+    return bool(DisableValidationKind & DisableValidationForModuleKind::PCH);
+  case MK_ImplicitModule:
+  case MK_ExplicitModule:
+  case MK_PrebuiltModule:
+    return bool(DisableValidationKind & DisableValidationForModuleKind::Module);
+  }
+
+  return false;
+}
+
 ASTReader::InputFileInfo
 ASTReader::readInputFileInfo(ModuleFile &F, unsigned ID) {
   // Go find this input file.
@@ -2357,7 +2380,7 @@ InputFile ASTReader::getInputFile(ModuleFile &F, unsigned ID, bool Complain) {
   auto HasInputFileChanged = [&]() {
     if (StoredSize != File->getSize())
       return ModificationType::Size;
-    if (!DisableValidation && StoredTime &&
+    if (!shouldDisableValidationForFile(F) && StoredTime &&
         StoredTime != File->getModificationTime()) {
       // In case the modification time changes but not the content,
       // accept the cached file as legit.
@@ -2572,6 +2595,8 @@ ASTReader::ReadControlBlock(ModuleFile &F,
     }
     return Success;
   };
+
+  bool DisableValidation = shouldDisableValidationForFile(F);
 
   // Read all of the records and blocks in the control block.
   RecordData Record;
@@ -2871,7 +2896,8 @@ ASTReader::ReadControlBlock(ModuleFile &F,
         // If we're implicitly loading a module, the base directory can't
         // change between the build and use.
         // Don't emit module relocation error if we have -fno-validate-pch
-        if (!PP.getPreprocessorOpts().DisablePCHValidation &&
+        if (!bool(PP.getPreprocessorOpts().DisablePCHOrModuleValidation &
+                  DisableValidationForModuleKind::Module) &&
             F.Kind != MK_ExplicitModule && F.Kind != MK_PrebuiltModule) {
           auto BuildDir = PP.getFileManager().getDirectory(Blob);
           if (!BuildDir || *BuildDir != M->Directory) {
@@ -3742,25 +3768,25 @@ ASTReader::ReadASTBlock(ModuleFile &F, unsigned ClientLoadCapabilities) {
       ForceCUDAHostDeviceDepth = Record[0];
       break;
 
-    case PACK_PRAGMA_OPTIONS: {
+    case ALIGN_PACK_PRAGMA_OPTIONS: {
       if (Record.size() < 3) {
         Error("invalid pragma pack record");
         return Failure;
       }
-      PragmaPackCurrentValue = Record[0];
-      PragmaPackCurrentLocation = ReadSourceLocation(F, Record[1]);
+      PragmaAlignPackCurrentValue = ReadAlignPackInfo(Record[0]);
+      PragmaAlignPackCurrentLocation = ReadSourceLocation(F, Record[1]);
       unsigned NumStackEntries = Record[2];
       unsigned Idx = 3;
       // Reset the stack when importing a new module.
-      PragmaPackStack.clear();
+      PragmaAlignPackStack.clear();
       for (unsigned I = 0; I < NumStackEntries; ++I) {
-        PragmaPackStackEntry Entry;
-        Entry.Value = Record[Idx++];
+        PragmaAlignPackStackEntry Entry;
+        Entry.Value = ReadAlignPackInfo(Record[Idx++]);
         Entry.Location = ReadSourceLocation(F, Record[Idx++]);
         Entry.PushLocation = ReadSourceLocation(F, Record[Idx++]);
-        PragmaPackStrings.push_back(ReadString(Record, Idx));
-        Entry.SlotLabel = PragmaPackStrings.back();
-        PragmaPackStack.push_back(Entry);
+        PragmaAlignPackStrings.push_back(ReadString(Record, Idx));
+        Entry.SlotLabel = PragmaAlignPackStrings.back();
+        PragmaAlignPackStack.push_back(Entry);
       }
       break;
     }
@@ -3903,7 +3929,9 @@ ASTReader::ReadModuleMapFileBlock(RecordData &Record, ModuleFile &F,
     auto &Map = PP.getHeaderSearchInfo().getModuleMap();
     const FileEntry *ModMap = M ? Map.getModuleMapFileForUniquing(M) : nullptr;
     // Don't emit module relocation error if we have -fno-validate-pch
-    if (!PP.getPreprocessorOpts().DisablePCHValidation && !ModMap) {
+    if (!bool(PP.getPreprocessorOpts().DisablePCHOrModuleValidation &
+              DisableValidationForModuleKind::Module) &&
+        !ModMap) {
       if ((ClientLoadCapabilities & ARR_OutOfDate) == 0) {
         if (auto ASTFE = M ? M->getASTFile() : None) {
           // This module was defined by an imported (explicit) module.
@@ -4189,6 +4217,8 @@ ASTReader::ASTReadResult ASTReader::ReadAST(StringRef FileName,
                                             SmallVectorImpl<ImportedSubmodule> *Imported) {
   llvm::SaveAndRestore<SourceLocation>
     SetCurImportLocRAII(CurrentImportLoc, ImportLoc);
+  llvm::SaveAndRestore<Optional<ModuleKind>> SetCurModuleKindRAII(
+      CurrentDeserializingModuleKind, Type);
 
   // Defer any pending actions until we get to the end of reading the AST file.
   Deserializing AnASTFile(this);
@@ -4623,6 +4653,7 @@ ASTReader::readUnhashedControlBlock(ModuleFile &F, bool WasImportedBy,
       PP.getHeaderSearchInfo().getHeaderSearchOpts();
   bool AllowCompatibleConfigurationMismatch =
       F.Kind == MK_ExplicitModule || F.Kind == MK_PrebuiltModule;
+  bool DisableValidation = shouldDisableValidationForFile(F);
 
   ASTReadResult Result = readUnhashedControlBlockImpl(
       &F, F.Data, ClientLoadCapabilities, AllowCompatibleConfigurationMismatch,
@@ -5514,7 +5545,8 @@ ASTReader::ReadSubmoduleBlock(ModuleFile &F, unsigned ClientLoadCapabilities) {
       if (!ParentModule) {
         if (const FileEntry *CurFile = CurrentModule->getASTFile()) {
           // Don't emit module relocation error if we have -fno-validate-pch
-          if (!PP.getPreprocessorOpts().DisablePCHValidation &&
+          if (!bool(PP.getPreprocessorOpts().DisablePCHOrModuleValidation &
+                    DisableValidationForModuleKind::Module) &&
               CurFile != F.File) {
             Error(diag::err_module_file_conflict,
                   CurrentModule->getTopLevelModuleName(), CurFile->getName(),
@@ -7882,32 +7914,37 @@ void ASTReader::UpdateSema() {
   }
   SemaObj->ForceCUDAHostDeviceDepth = ForceCUDAHostDeviceDepth;
 
-  if (PragmaPackCurrentValue) {
+  if (PragmaAlignPackCurrentValue) {
     // The bottom of the stack might have a default value. It must be adjusted
     // to the current value to ensure that the packing state is preserved after
     // popping entries that were included/imported from a PCH/module.
     bool DropFirst = false;
-    if (!PragmaPackStack.empty() &&
-        PragmaPackStack.front().Location.isInvalid()) {
-      assert(PragmaPackStack.front().Value == SemaObj->PackStack.DefaultValue &&
+    if (!PragmaAlignPackStack.empty() &&
+        PragmaAlignPackStack.front().Location.isInvalid()) {
+      assert(PragmaAlignPackStack.front().Value ==
+                 SemaObj->AlignPackStack.DefaultValue &&
              "Expected a default alignment value");
-      SemaObj->PackStack.Stack.emplace_back(
-          PragmaPackStack.front().SlotLabel, SemaObj->PackStack.CurrentValue,
-          SemaObj->PackStack.CurrentPragmaLocation,
-          PragmaPackStack.front().PushLocation);
+      SemaObj->AlignPackStack.Stack.emplace_back(
+          PragmaAlignPackStack.front().SlotLabel,
+          SemaObj->AlignPackStack.CurrentValue,
+          SemaObj->AlignPackStack.CurrentPragmaLocation,
+          PragmaAlignPackStack.front().PushLocation);
       DropFirst = true;
     }
-    for (const auto &Entry :
-         llvm::makeArrayRef(PragmaPackStack).drop_front(DropFirst ? 1 : 0))
-      SemaObj->PackStack.Stack.emplace_back(Entry.SlotLabel, Entry.Value,
-                                            Entry.Location, Entry.PushLocation);
-    if (PragmaPackCurrentLocation.isInvalid()) {
-      assert(*PragmaPackCurrentValue == SemaObj->PackStack.DefaultValue &&
-             "Expected a default alignment value");
+    for (const auto &Entry : llvm::makeArrayRef(PragmaAlignPackStack)
+                                 .drop_front(DropFirst ? 1 : 0)) {
+      SemaObj->AlignPackStack.Stack.emplace_back(
+          Entry.SlotLabel, Entry.Value, Entry.Location, Entry.PushLocation);
+    }
+    if (PragmaAlignPackCurrentLocation.isInvalid()) {
+      assert(*PragmaAlignPackCurrentValue ==
+                 SemaObj->AlignPackStack.DefaultValue &&
+             "Expected a default align and pack value");
       // Keep the current values.
     } else {
-      SemaObj->PackStack.CurrentValue = *PragmaPackCurrentValue;
-      SemaObj->PackStack.CurrentPragmaLocation = PragmaPackCurrentLocation;
+      SemaObj->AlignPackStack.CurrentValue = *PragmaAlignPackCurrentValue;
+      SemaObj->AlignPackStack.CurrentPragmaLocation =
+          PragmaAlignPackCurrentLocation;
     }
   }
   if (FpPragmaCurrentValue) {
@@ -8946,165 +8983,6 @@ ASTReader::ReadSourceRange(ModuleFile &F, const RecordData &Record,
   SourceLocation beg = ReadSourceLocation(F, Record, Idx);
   SourceLocation end = ReadSourceLocation(F, Record, Idx);
   return SourceRange(beg, end);
-}
-
-static llvm::FixedPointSemantics
-ReadFixedPointSemantics(const SmallVectorImpl<uint64_t> &Record,
-                        unsigned &Idx) {
-  unsigned Width = Record[Idx++];
-  unsigned Scale = Record[Idx++];
-  uint64_t Tmp = Record[Idx++];
-  bool IsSigned = Tmp & 0x1;
-  bool IsSaturated = Tmp & 0x2;
-  bool HasUnsignedPadding = Tmp & 0x4;
-  return llvm::FixedPointSemantics(Width, Scale, IsSigned, IsSaturated,
-                                   HasUnsignedPadding);
-}
-
-APValue ASTRecordReader::readAPValue() {
-  auto Kind = static_cast<APValue::ValueKind>(asImpl().readUInt32());
-  switch (Kind) {
-  case APValue::None:
-    return APValue();
-  case APValue::Indeterminate:
-    return APValue::IndeterminateValue();
-  case APValue::Int:
-    return APValue(asImpl().readAPSInt());
-  case APValue::Float: {
-    const llvm::fltSemantics &FloatSema = llvm::APFloatBase::EnumToSemantics(
-        static_cast<llvm::APFloatBase::Semantics>(asImpl().readUInt32()));
-    return APValue(asImpl().readAPFloat(FloatSema));
-  }
-  case APValue::FixedPoint: {
-    llvm::FixedPointSemantics FPSema = ReadFixedPointSemantics(Record, Idx);
-    return APValue(llvm::APFixedPoint(readAPInt(), FPSema));
-  }
-  case APValue::ComplexInt: {
-    llvm::APSInt First = asImpl().readAPSInt();
-    return APValue(std::move(First), asImpl().readAPSInt());
-  }
-  case APValue::ComplexFloat: {
-    const llvm::fltSemantics &FloatSema = llvm::APFloatBase::EnumToSemantics(
-        static_cast<llvm::APFloatBase::Semantics>(asImpl().readUInt32()));
-    llvm::APFloat First = readAPFloat(FloatSema);
-    return APValue(std::move(First), asImpl().readAPFloat(FloatSema));
-  }
-  case APValue::Vector: {
-    APValue Result;
-    Result.MakeVector();
-    unsigned Length = asImpl().readUInt32();
-    (void)Result.setVectorUninit(Length);
-    for (unsigned LoopIdx = 0; LoopIdx < Length; LoopIdx++)
-      Result.getVectorElt(LoopIdx) = asImpl().readAPValue();
-    return Result;
-  }
-  case APValue::Array: {
-    APValue Result;
-    unsigned InitLength = asImpl().readUInt32();
-    unsigned TotalLength = asImpl().readUInt32();
-    Result.MakeArray(InitLength, TotalLength);
-    for (unsigned LoopIdx = 0; LoopIdx < InitLength; LoopIdx++)
-      Result.getArrayInitializedElt(LoopIdx) = asImpl().readAPValue();
-    if (Result.hasArrayFiller())
-      Result.getArrayFiller() = asImpl().readAPValue();
-    return Result;
-  }
-  case APValue::Struct: {
-    APValue Result;
-    unsigned BasesLength = asImpl().readUInt32();
-    unsigned FieldsLength = asImpl().readUInt32();
-    Result.MakeStruct(BasesLength, FieldsLength);
-    for (unsigned LoopIdx = 0; LoopIdx < BasesLength; LoopIdx++)
-      Result.getStructBase(LoopIdx) = asImpl().readAPValue();
-    for (unsigned LoopIdx = 0; LoopIdx < FieldsLength; LoopIdx++)
-      Result.getStructField(LoopIdx) = asImpl().readAPValue();
-    return Result;
-  }
-  case APValue::Union: {
-    auto *FDecl = asImpl().readDeclAs<FieldDecl>();
-    APValue Value = asImpl().readAPValue();
-    return APValue(FDecl, std::move(Value));
-  }
-  case APValue::AddrLabelDiff: {
-    auto *LHS = cast<AddrLabelExpr>(asImpl().readExpr());
-    auto *RHS = cast<AddrLabelExpr>(asImpl().readExpr());
-    return APValue(LHS, RHS);
-  }
-  case APValue::MemberPointer: {
-    APValue Result;
-    bool IsDerived = asImpl().readUInt32();
-    auto *Member = asImpl().readDeclAs<ValueDecl>();
-    unsigned PathSize = asImpl().readUInt32();
-    const CXXRecordDecl **PathArray =
-        Result.setMemberPointerUninit(Member, IsDerived, PathSize).data();
-    for (unsigned LoopIdx = 0; LoopIdx < PathSize; LoopIdx++)
-      PathArray[LoopIdx] =
-          asImpl().readDeclAs<const CXXRecordDecl>()->getCanonicalDecl();
-    return Result;
-  }
-  case APValue::LValue: {
-    uint64_t Bits = asImpl().readUInt32();
-    bool HasLValuePath = Bits & 0x1;
-    bool IsLValueOnePastTheEnd = Bits & 0x2;
-    bool IsExpr = Bits & 0x4;
-    bool IsTypeInfo = Bits & 0x8;
-    bool IsNullPtr = Bits & 0x10;
-    bool HasBase = Bits & 0x20;
-    APValue::LValueBase Base;
-    QualType ElemTy;
-    assert((!IsExpr || !IsTypeInfo) && "LValueBase cannot be both");
-    if (HasBase) {
-      if (!IsTypeInfo) {
-        unsigned CallIndex = asImpl().readUInt32();
-        unsigned Version = asImpl().readUInt32();
-        if (IsExpr) {
-          Base = APValue::LValueBase(asImpl().readExpr(), CallIndex, Version);
-          ElemTy = Base.get<const Expr *>()->getType();
-        } else {
-          Base = APValue::LValueBase(asImpl().readDeclAs<const ValueDecl>(),
-                                     CallIndex, Version);
-          ElemTy = Base.get<const ValueDecl *>()->getType();
-        }
-      } else {
-        QualType TypeInfo = asImpl().readType();
-        QualType Type = asImpl().readType();
-        Base = APValue::LValueBase::getTypeInfo(
-            TypeInfoLValue(TypeInfo.getTypePtr()), Type);
-        Base.getTypeInfoType();
-      }
-    }
-    CharUnits Offset = CharUnits::fromQuantity(asImpl().readUInt32());
-    unsigned PathLength = asImpl().readUInt32();
-    APValue Result;
-    Result.MakeLValue();
-    if (HasLValuePath) {
-      APValue::LValuePathEntry *Path =
-          Result
-              .setLValueUninit(Base, Offset, PathLength, IsLValueOnePastTheEnd,
-                               IsNullPtr)
-              .data();
-      for (unsigned LoopIdx = 0; LoopIdx < PathLength; LoopIdx++) {
-        if (ElemTy->getAs<RecordType>()) {
-          unsigned Int = asImpl().readUInt32();
-          Decl *D = asImpl().readDeclAs<Decl>();
-          if (auto *RD = dyn_cast<CXXRecordDecl>(D))
-            ElemTy = getASTContext().getRecordType(RD);
-          else
-            ElemTy = cast<ValueDecl>(D)->getType();
-          Path[LoopIdx] =
-              APValue::LValuePathEntry(APValue::BaseOrMemberType(D, Int));
-        } else {
-          ElemTy = getASTContext().getAsArrayType(ElemTy)->getElementType();
-          Path[LoopIdx] =
-              APValue::LValuePathEntry::ArrayIndex(asImpl().readUInt32());
-        }
-      }
-    } else
-      Result.setLValue(Base, Offset, APValue::NoLValuePath{}, IsNullPtr);
-    return Result;
-  }
-  }
-  llvm_unreachable("Invalid APValue::ValueKind");
 }
 
 /// Read a floating-point value
@@ -11762,12 +11640,13 @@ ASTReader::ASTReader(Preprocessor &PP, InMemoryModuleCache &ModuleCache,
                      ASTContext *Context,
                      const PCHContainerReader &PCHContainerRdr,
                      ArrayRef<std::shared_ptr<ModuleFileExtension>> Extensions,
-                     StringRef isysroot, bool DisableValidation,
+                     StringRef isysroot,
+                     DisableValidationForModuleKind DisableValidationKind,
                      bool AllowASTWithCompilerErrors,
                      bool AllowConfigurationMismatch, bool ValidateSystemInputs,
                      bool ValidateASTInputFilesContent, bool UseGlobalIndex,
                      std::unique_ptr<llvm::Timer> ReadTimer)
-    : Listener(DisableValidation
+    : Listener(bool(DisableValidationKind &DisableValidationForModuleKind::PCH)
                    ? cast<ASTReaderListener>(new SimpleASTReaderListener(PP))
                    : cast<ASTReaderListener>(new PCHValidator(PP, *this))),
       SourceMgr(PP.getSourceManager()), FileMgr(PP.getFileManager()),
@@ -11775,7 +11654,7 @@ ASTReader::ASTReader(Preprocessor &PP, InMemoryModuleCache &ModuleCache,
       ContextObj(Context), ModuleMgr(PP.getFileManager(), ModuleCache,
                                      PCHContainerRdr, PP.getHeaderSearchInfo()),
       DummyIdResolver(PP), ReadTimer(std::move(ReadTimer)), isysroot(isysroot),
-      DisableValidation(DisableValidation),
+      DisableValidationKind(DisableValidationKind),
       AllowASTWithCompilerErrors(AllowASTWithCompilerErrors),
       AllowConfigurationMismatch(AllowConfigurationMismatch),
       ValidateSystemInputs(ValidateSystemInputs),

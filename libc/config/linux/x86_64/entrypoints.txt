@@ -5,6 +5,7 @@ set(TARGET_LIBC_ENTRYPOINTS
     # ctype.h entrypoints
     libc.src.ctype.isalnum
     libc.src.ctype.isalpha
+    libc.src.ctype.isascii
     libc.src.ctype.isblank
     libc.src.ctype.iscntrl
     libc.src.ctype.isdigit
@@ -15,6 +16,7 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.ctype.isspace
     libc.src.ctype.isupper
     libc.src.ctype.isxdigit
+    libc.src.ctype.toascii
     libc.src.ctype.tolower
     libc.src.ctype.toupper
 
@@ -50,6 +52,7 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.string.memchr
     libc.src.string.memcmp
     libc.src.string.memcpy
+    libc.src.string.memmove
     libc.src.string.memrchr
     libc.src.string.memset
     libc.src.string.strcat
@@ -106,6 +109,7 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.floor
     libc.src.math.floorf
     libc.src.math.floorl
+    libc.src.math.fmaf
     libc.src.math.fmin
     libc.src.math.fminf
     libc.src.math.fminl
@@ -123,24 +127,39 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.ldexp
     libc.src.math.ldexpf
     libc.src.math.ldexpl
+    libc.src.math.llrint
+    libc.src.math.llrintf
+    libc.src.math.llrintl
     libc.src.math.llround
     libc.src.math.llroundf
     libc.src.math.llroundl
     libc.src.math.logb
     libc.src.math.logbf
     libc.src.math.logbl
+    libc.src.math.lrint
+    libc.src.math.lrintf
+    libc.src.math.lrintl
     libc.src.math.lround
     libc.src.math.lroundf
     libc.src.math.lroundl
     libc.src.math.modf
     libc.src.math.modff
     libc.src.math.modfl
+    libc.src.math.nearbyint
+    libc.src.math.nearbyintf
+    libc.src.math.nearbyintl
+    libc.src.math.nextafter
+    libc.src.math.nextafterf
+    libc.src.math.nextafterl
     libc.src.math.remainderf
     libc.src.math.remainder
     libc.src.math.remainderl
     libc.src.math.remquof
     libc.src.math.remquo
     libc.src.math.remquol
+    libc.src.math.rint
+    libc.src.math.rintf
+    libc.src.math.rintl
     libc.src.math.round
     libc.src.math.roundf
     libc.src.math.roundl

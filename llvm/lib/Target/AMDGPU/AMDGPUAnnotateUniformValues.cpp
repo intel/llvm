@@ -18,11 +18,8 @@
 #include "llvm/Analysis/LegacyDivergenceAnalysis.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/MemoryDependenceAnalysis.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/InitializePasses.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "amdgpu-annotate-uniform"
 
@@ -142,10 +139,11 @@ void AMDGPUAnnotateUniformValues::visitLoadInst(LoadInst &I) {
   }
 
   bool NotClobbered = false;
+  bool GlobalLoad = isGlobalLoad(I);
   if (PtrI)
-    NotClobbered = !isClobberedInFunction(&I);
+    NotClobbered = GlobalLoad && !isClobberedInFunction(&I);
   else if (isa<Argument>(Ptr) || isa<GlobalValue>(Ptr)) {
-    if (isGlobalLoad(I) && !isClobberedInFunction(&I)) {
+    if (GlobalLoad && !isClobberedInFunction(&I)) {
       NotClobbered = true;
       // Lookup for the existing GEP
       if (noClobberClones.count(Ptr)) {

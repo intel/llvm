@@ -178,20 +178,8 @@ static bool IsSyclMathFunc(unsigned BuiltinID) {
   case Builtin::BI__builtin_truncl:
   case Builtin::BIlroundl:
   case Builtin::BI__builtin_lroundl:
-  case Builtin::BIfmax:
-  case Builtin::BI__builtin_fmax:
-  case Builtin::BIfmin:
-  case Builtin::BI__builtin_fmin:
-  case Builtin::BIfmaxf:
-  case Builtin::BI__builtin_fmaxf:
-  case Builtin::BIfminf:
-  case Builtin::BI__builtin_fminf:
   case Builtin::BIlroundf:
   case Builtin::BI__builtin_lroundf:
-  case Builtin::BI__builtin_fpclassify:
-  case Builtin::BI__builtin_isfinite:
-  case Builtin::BI__builtin_isinf:
-  case Builtin::BI__builtin_isnormal:
     return false;
   default:
     break;

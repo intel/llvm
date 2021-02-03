@@ -706,7 +706,7 @@ public:
   const ComplexPattern &getPattern() const { return Pattern; }
   unsigned getMatchNumber() const { return MatchNumber; }
 
-  const std::string getName() const { return Name; }
+  std::string getName() const { return Name; }
   unsigned getFirstResult() const { return FirstResult; }
 
   static bool classof(const Matcher *N) {
@@ -763,8 +763,8 @@ private:
   }
 };
 
-/// CheckImmAllOnesVMatcher - This check if the current node is an build vector
-/// of all ones.
+/// CheckImmAllOnesVMatcher - This checks if the current node is a build_vector
+/// or splat_vector of all ones.
 class CheckImmAllOnesVMatcher : public Matcher {
 public:
   CheckImmAllOnesVMatcher() : Matcher(CheckImmAllOnesV) {}
@@ -779,8 +779,8 @@ private:
   bool isContradictoryImpl(const Matcher *M) const override;
 };
 
-/// CheckImmAllZerosVMatcher - This check if the current node is an build vector
-/// of all zeros.
+/// CheckImmAllZerosVMatcher - This checks if the current node is a
+/// build_vector or splat_vector of all zeros.
 class CheckImmAllZerosVMatcher : public Matcher {
 public:
   CheckImmAllZerosVMatcher() : Matcher(CheckImmAllZerosV) {}

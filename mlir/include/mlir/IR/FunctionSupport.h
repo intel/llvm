@@ -80,6 +80,13 @@ void eraseFunctionArguments(Operation *op, ArrayRef<unsigned> argIndices,
 void eraseFunctionResults(Operation *op, ArrayRef<unsigned> resultIndices,
                           unsigned originalNumResults, Type newType);
 
+/// Get and set a FunctionLike operation's type signature.
+FunctionType getFunctionType(Operation *op);
+void setFunctionType(Operation *op, FunctionType newType);
+
+/// Get a FunctionLike operation's body.
+Region &getFunctionBody(Operation *op);
+
 } // namespace impl
 
 namespace OpTrait {
@@ -134,7 +141,9 @@ public:
   /// Returns true if this function is external, i.e. it has no body.
   bool isExternal() { return empty(); }
 
-  Region &getBody() { return this->getOperation()->getRegion(0); }
+  Region &getBody() {
+    return ::mlir::impl::getFunctionBody(this->getOperation());
+  }
 
   /// Delete all blocks from this function.
   void eraseBody() {
@@ -198,7 +207,7 @@ public:
   /// hide this one if the concrete class does not use FunctionType for the
   /// function type under the hood.
   FunctionType getType() {
-    return getTypeAttr().getValue().template cast<FunctionType>();
+    return ::mlir::impl::getFunctionType(this->getOperation());
   }
 
   /// Return the type of this function without the specified arguments and
@@ -333,11 +342,7 @@ public:
   /// Set the attributes held by the argument at 'index'. `attributes` may be
   /// null, in which case any existing argument attributes are removed.
   void setArgAttrs(unsigned index, DictionaryAttr attributes);
-  void setAllArgAttrs(ArrayRef<DictionaryAttr> attributes) {
-    assert(attributes.size() == getNumArguments());
-    for (unsigned i = 0, e = attributes.size(); i != e; ++i)
-      setArgAttrs(i, attributes[i]);
-  }
+  void setAllArgAttrs(ArrayRef<DictionaryAttr> attributes);
 
   /// If the an attribute exists with the specified name, change it to the new
   /// value. Otherwise, add a new attribute with the specified name/value.
@@ -400,11 +405,7 @@ public:
   /// Set the attributes held by the result at 'index'. `attributes` may be
   /// null, in which case any existing argument attributes are removed.
   void setResultAttrs(unsigned index, DictionaryAttr attributes);
-  void setAllResultAttrs(ArrayRef<DictionaryAttr> attributes) {
-    assert(attributes.size() == getNumResults());
-    for (unsigned i = 0, e = attributes.size(); i != e; ++i)
-      setResultAttrs(i, attributes[i]);
-  }
+  void setAllResultAttrs(ArrayRef<DictionaryAttr> attributes);
 
   /// If the an attribute exists with the specified name, change it to the new
   /// value. Otherwise, add a new attribute with the specified name/value.
@@ -550,15 +551,7 @@ Block *FunctionLike<ConcreteType>::addBlock() {
 
 template <typename ConcreteType>
 void FunctionLike<ConcreteType>::setType(FunctionType newType) {
-  SmallVector<char, 16> nameBuf;
-  auto oldType = getType();
-  auto *concreteOp = static_cast<ConcreteType *>(this);
-
-  for (int i = newType.getNumInputs(), e = oldType.getNumInputs(); i < e; i++)
-    concreteOp->removeAttr(getArgAttrName(i, nameBuf));
-  for (int i = newType.getNumResults(), e = oldType.getNumResults(); i < e; i++)
-    concreteOp->removeAttr(getResultAttrName(i, nameBuf));
-  (*concreteOp)->setAttr(getTypeAttrName(), TypeAttr::get(newType));
+  ::mlir::impl::setFunctionType(this->getOperation(), newType);
 }
 
 //===----------------------------------------------------------------------===//
@@ -589,6 +582,26 @@ void FunctionLike<ConcreteType>::setArgAttrs(unsigned index,
   else
     return this->getOperation()->setAttr(getArgAttrName(index, nameOut),
                                          attributes);
+}
+
+template <typename ConcreteType>
+void FunctionLike<ConcreteType>::setAllArgAttrs(
+    ArrayRef<DictionaryAttr> attributes) {
+  assert(attributes.size() == getNumArguments());
+  NamedAttrList attrs = this->getOperation()->getAttrs();
+
+  // Instead of calling setArgAttrs() multiple times, which rebuild the
+  // attribute dictionary every time, build a new list of attributes for the
+  // operation so that we rebuild the attribute dictionary in one shot.
+  SmallString<8> argAttrName;
+  for (unsigned i = 0, e = attributes.size(); i != e; ++i) {
+    StringRef attrName = getArgAttrName(i, argAttrName);
+    if (!attributes[i] || attributes[i].empty())
+      attrs.erase(attrName);
+    else
+      attrs.set(attrName, attributes[i]);
+  }
+  this->getOperation()->setAttrs(attrs);
 }
 
 /// If the an attribute exists with the specified name, change it to the new
@@ -646,6 +659,26 @@ void FunctionLike<ConcreteType>::setResultAttrs(unsigned index,
   else
     this->getOperation()->setAttr(getResultAttrName(index, nameOut),
                                   attributes);
+}
+
+template <typename ConcreteType>
+void FunctionLike<ConcreteType>::setAllResultAttrs(
+    ArrayRef<DictionaryAttr> attributes) {
+  assert(attributes.size() == getNumResults());
+  NamedAttrList attrs = this->getOperation()->getAttrs();
+
+  // Instead of calling setResultAttrs() multiple times, which rebuild the
+  // attribute dictionary every time, build a new list of attributes for the
+  // operation so that we rebuild the attribute dictionary in one shot.
+  SmallString<8> resultAttrName;
+  for (unsigned i = 0, e = attributes.size(); i != e; ++i) {
+    StringRef attrName = getResultAttrName(i, resultAttrName);
+    if (!attributes[i] || attributes[i].empty())
+      attrs.erase(attrName);
+    else
+      attrs.set(attrName, attributes[i]);
+  }
+  this->getOperation()->setAttrs(attrs);
 }
 
 /// If the an attribute exists with the specified name, change it to the new

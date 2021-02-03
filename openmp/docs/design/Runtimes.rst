@@ -16,6 +16,8 @@ the LLVM/OpenMP host runtime, aka.  `libomp.so`, is available as a `pdf
 LLVM/OpenMP Target Host Runtime (``libomptarget``)
 --------------------------------------------------
 
+.. _libopenmptarget_environment_vars:
+
 Environment Variables
 ^^^^^^^^^^^^^^^^^^^^^
 
@@ -97,6 +99,174 @@ Or, to enable every flag run with every bit set.
 .. code-block:: console
 
    $ env LIBOMPTARGET_INFO=-1 ./your-application
+
+For example, given a small application implementing the ``ZAXPY`` BLAS routine,
+``Libomptarget`` can provide useful information about data mappings and thread
+usages.
+
+.. code-block:: c++
+
+    #include <complex>
+
+    using complex = std::complex<double>;
+
+    void zaxpy(complex *X, complex *Y, complex D, std::size_t N) {
+    #pragma omp target teams distribute parallel for
+      for (std::size_t i = 0; i < N; ++i)
+        Y[i] = D * X[i] + Y[i];
+    }
+
+    int main() {
+      const std::size_t N = 1024;
+      complex X[N], Y[N], D;
+    #pragma omp target data map(to:X[0 : N]) map(tofrom:Y[0 : N])
+      zaxpy(X, Y, D, N);
+    }
+
+Compiling this code targeting ``nvptx64`` with all information enabled will
+provide the following output from the runtime library.
+
+.. code-block:: console
+
+    $ clang++ -fopenmp -fopenmp-targets=nvptx64 -O3 -gline-tables-only zaxpy.cpp -o zaxpy
+    $ env LIBOMPTARGET_INFO=-1 ./zaxpy
+
+.. code-block:: text
+
+    Info: Device supports up to 65536 CUDA blocks and 1024 threads with a warp size of 32
+    Info: Entering OpenMP data region at zaxpy.cpp:14:1 with 2 arguments:
+    Info: to(X[0:N])[16384] 
+    Info: tofrom(Y[0:N])[16384] 
+    Info: OpenMP Host-Device pointer mappings after block at zaxpy.cpp:14:1:
+    Info: Host Ptr           Target Ptr         Size (B) RefCount Declaration
+    Info: 0x00007fff963f4000 0x00007fd225004000 16384    1        Y[0:N] at zaxpy.cpp:13:17
+    Info: 0x00007fff963f8000 0x00007fd225000000 16384    1        X[0:N] at zaxpy.cpp:13:11
+    Info: Entering OpenMP kernel at zaxpy.cpp:6:1 with 4 arguments:
+    Info: firstprivate(N)[8] (implicit)
+    Info: use_address(Y)[0] (implicit)
+    Info: tofrom(D)[16] (implicit)
+    Info: use_address(X)[0] (implicit)
+    Info: Mapping exists (implicit) with HstPtrBegin=0x00007ffe37d8be80, 
+          TgtPtrBegin=0x00007f90ff004000, Size=0, updated RefCount=2, Name=Y
+    Info: Mapping exists (implicit) with HstPtrBegin=0x00007ffe37d8fe80, 
+          TgtPtrBegin=0x00007f90ff000000, Size=0, updated RefCount=2, Name=X
+    Info: Launching kernel __omp_offloading_fd02_c2c4ac1a__Z5daxpyPNSt3__17complexIdEES2_S1_m_l6
+          with 8 blocks and 128 threads in SPMD mode
+    Info: OpenMP Host-Device pointer mappings after block at zaxpy.cpp:6:1:
+    Info: Host Ptr           Target Ptr         Size (B) RefCount Declaration
+    Info: 0x00007fff963f4000 0x00007fd225004000 16384    1        Y[0:N] at zaxpy.cpp:13:17
+    Info: 0x00007fff963f8000 0x00007fd225000000 16384    1        X[0:N] at zaxpy.cpp:13:11
+    Info: Exiting OpenMP data region at zaxpy.cpp:14:1 with 2 arguments:
+    Info: to(X[0:N])[16384] 
+    Info: tofrom(Y[0:N])[16384] 
+
+From this information, we can see the OpenMP kernel being launched on the CUDA
+device with enough threads and blocks for all ``1024`` iterations of the loop in
+simplified :doc:`SPMD Mode <Offloading>`. The information from the OpenMP data
+region shows the two arrays ``X`` and ``Y`` being copied from the host to the
+device. This creates an entry in the host-device mapping table associating the
+host pointers to the newly created device data. The data mappings in the OpenMP
+device kernel show the default mappings being used for all the variables used
+implicitly on the device. Because ``X`` and ``Y`` are already mapped in the
+device's table, no new entries are created. Additionally, the default mapping
+shows that ``D`` will be copied back from the device once the OpenMP device
+kernel region ends even though it isn't written to. Finally, at the end of the
+OpenMP data region the entries for ``X`` and ``Y`` are removed from the table.
+
+.. _libopenmptarget_errors:
+
+Errors:
+^^^^^^^
+
+``libomptarget`` provides error messages when the program fails inside the
+OpenMP target region. Common causes of failure could be an invalid pointer
+access, running out of device memory, or trying to offload when the device is
+busy. If the application was built with debugging symbols the error messages
+will additionally provide the source location of the OpenMP target region.
+
+For example, consider the following code that implements a simple parallel
+reduction on the GPU. This code has a bug that causes it to fail in the
+offloading region.
+
+.. code-block:: c++
+
+    #include <cstdio>
+
+    double sum(double *A, std::size_t N) {
+      double sum = 0.0;
+    #pragma omp target teams distribute parallel for reduction(+:sum)
+      for (int i = 0; i < N; ++i)
+        sum += A[i];
+    
+      return sum;
+    }
+    
+    int main() {
+      const int N = 1024;
+      double A[N];
+      sum(A, N);
+    }
+
+If this code is compiled and run, there will be an error message indicating what is
+going wrong.
+
+.. code-block:: console
+
+    $ clang++ -fopenmp -fopenmp-targets=nvptx64 -O3 -gline-tables-only sum.cpp -o sum
+    $ ./sum
+
+.. code-block:: text
+
+    CUDA error: Error when copying data from device to host.
+    CUDA error: an illegal memory access was encountered 
+    Libomptarget error: Copying data from device failed.
+    Libomptarget error: Call to targetDataEnd failed, abort target.
+    Libomptarget error: Failed to process data after launching the kernel.
+    Libomptarget error: Run with LIBOMPTARGET_INFO=4 to dump host-target pointer mappings.
+    sum.cpp:5:1: Libomptarget error 1: failure of target construct while offloading is mandatory
+
+This shows that there is an illegal memory access occuring inside the OpenMP
+target region once execution has moved to the CUDA device, suggesting a
+segmentation fault. This then causes a chain reaction of failures in
+``libomptarget``. Another message suggests using the ``LIBOMPTARGET_INFO``
+environment variable as described in :ref:`libopenmptarget_environment_vars`. If
+we do this it will print the sate of the host-target pointer mappings at the
+time of failure.
+
+.. code-block:: console
+
+    $ clang++ -fopenmp -fopenmp-targets=nvptx64 -O3 -gline-tables-only sum.cpp -o sum
+    $ env LIBOMPTARGET_INFO=4 ./sum
+
+.. code-block:: text
+
+    info: OpenMP Host-Device pointer mappings after block at sum.cpp:5:1:
+    info: Host Ptr           Target Ptr         Size (B) RefCount Declaration
+    info: 0x00007ffc058280f8 0x00007f4186600000 8        1        sum at sum.cpp:4:10
+
+This tells us that the only data mapped between the host and the device is the
+``sum`` variable that will be copied back from the device once the reduction has
+ended. There is no entry mapping the host array ``A`` to the device. In this
+situation, the compiler cannot determine the size of the array at compile time
+so it will simply assume that the pointer is mapped on the device already by
+default. The solution is to add an explicit map clause in the target region.
+
+.. code-block:: c++
+
+    double sum(double *A, std::size_t N) {
+      double sum = 0.0;
+    #pragma omp target teams distribute parallel for reduction(+:sum) map(to:A[0 : N])
+      for (int i = 0; i < N; ++i)
+        sum += A[i];
+    
+      return sum;
+    }
+
+.. toctree::
+   :hidden:
+   :maxdepth: 1
+
+   Offloading
 
 LLVM/OpenMP Target Host Runtime Plugins (``libomptarget.rtl.XXXX``)
 -------------------------------------------------------------------

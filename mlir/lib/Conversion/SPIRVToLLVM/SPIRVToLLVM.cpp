@@ -65,11 +65,11 @@ static unsigned getBitWidth(Type type) {
 }
 
 /// Returns the bit width of LLVMType integer or vector.
-static unsigned getLLVMTypeBitWidth(LLVM::LLVMType type) {
-  auto vectorType = type.dyn_cast<LLVM::LLVMVectorType>();
-  return (vectorType ? vectorType.getElementType() : type)
-      .cast<LLVM::LLVMIntegerType>()
-      .getBitWidth();
+static unsigned getLLVMTypeBitWidth(Type type) {
+  return (LLVM::isCompatibleVectorType(type) ? LLVM::getVectorElementType(type)
+                                             : type)
+      .cast<IntegerType>()
+      .getWidth();
 }
 
 /// Creates `IntegerAttribute` with all bits set for given type
@@ -115,16 +115,15 @@ static Value createFPConstant(Location loc, Type srcType, Type dstType,
 ///   - `BitFieldSExtract`
 ///   - `BitFieldUExtract`
 /// Truncates or extends the value. If the bitwidth of the value is the same as
-/// `dstType` bitwidth, the value remains unchanged.
-static Value optionallyTruncateOrExtend(Location loc, Value value, Type dstType,
+/// `llvmType` bitwidth, the value remains unchanged.
+static Value optionallyTruncateOrExtend(Location loc, Value value,
+                                        Type llvmType,
                                         PatternRewriter &rewriter) {
   auto srcType = value.getType();
-  auto llvmType = dstType.cast<LLVM::LLVMType>();
   unsigned targetBitWidth = getLLVMTypeBitWidth(llvmType);
-  unsigned valueBitWidth =
-      srcType.isa<LLVM::LLVMType>()
-          ? getLLVMTypeBitWidth(srcType.cast<LLVM::LLVMType>())
-          : getBitWidth(srcType);
+  unsigned valueBitWidth = LLVM::isCompatibleType(srcType)
+                               ? getLLVMTypeBitWidth(srcType)
+                               : getBitWidth(srcType);
 
   if (valueBitWidth < targetBitWidth)
     return rewriter.create<LLVM::ZExtOp>(loc, llvmType, value);
@@ -193,7 +192,7 @@ convertStructTypeWithOffset(spirv::StructType type,
 
   auto elementsVector = llvm::to_vector<8>(
       llvm::map_range(type.getElementTypes(), [&](Type elementType) {
-        return converter.convertType(elementType).cast<LLVM::LLVMType>();
+        return converter.convertType(elementType);
       }));
   return LLVM::LLVMStructType::getLiteral(type.getContext(), elementsVector,
                                           /*isPacked=*/false);
@@ -204,7 +203,7 @@ static Type convertStructTypePacked(spirv::StructType type,
                                     LLVMTypeConverter &converter) {
   auto elementsVector = llvm::to_vector<8>(
       llvm::map_range(type.getElementTypes(), [&](Type elementType) {
-        return converter.convertType(elementType).cast<LLVM::LLVMType>();
+        return converter.convertType(elementType);
       }));
   return LLVM::LLVMStructType::getLiteral(type.getContext(), elementsVector,
                                           /*isPacked=*/true);
@@ -214,7 +213,7 @@ static Type convertStructTypePacked(spirv::StructType type,
 static Value createI32ConstantOf(Location loc, PatternRewriter &rewriter,
                                  unsigned value) {
   return rewriter.create<LLVM::ConstantOp>(
-      loc, LLVM::LLVMIntegerType::get(rewriter.getContext(), 32),
+      loc, IntegerType::get(rewriter.getContext(), 32),
       rewriter.getIntegerAttr(rewriter.getI32Type(), value));
 }
 
@@ -255,8 +254,7 @@ static Optional<Type> convertArrayType(spirv::ArrayType type,
       !(sizeInBytes.hasValue() && sizeInBytes.getValue() == stride))
     return llvm::None;
 
-  auto llvmElementType =
-      converter.convertType(elementType).cast<LLVM::LLVMType>();
+  auto llvmElementType = converter.convertType(elementType);
   unsigned numElements = type.getNumElements();
   return LLVM::LLVMArrayType::get(llvmElementType, numElements);
 }
@@ -265,8 +263,7 @@ static Optional<Type> convertArrayType(spirv::ArrayType type,
 /// modelled at the moment.
 static Type convertPointerType(spirv::PointerType type,
                                TypeConverter &converter) {
-  auto pointeeType =
-      converter.convertType(type.getPointeeType()).cast<LLVM::LLVMType>();
+  auto pointeeType = converter.convertType(type.getPointeeType());
   return LLVM::LLVMPointerType::get(pointeeType);
 }
 
@@ -277,8 +274,7 @@ static Optional<Type> convertRuntimeArrayType(spirv::RuntimeArrayType type,
                                               TypeConverter &converter) {
   if (type.getArrayStride() != 0)
     return llvm::None;
-  auto elementType =
-      converter.convertType(type.getElementType()).cast<LLVM::LLVMType>();
+  auto elementType = converter.convertType(type.getElementType());
   return LLVM::LLVMArrayType::get(elementType, 0);
 }
 
@@ -336,8 +332,7 @@ public:
     auto dstType = typeConverter.convertType(op.pointer().getType());
     if (!dstType)
       return failure();
-    rewriter.replaceOpWithNewOp<LLVM::AddressOfOp>(
-        op, dstType.cast<LLVM::LLVMType>(), op.variable());
+    rewriter.replaceOpWithNewOp<LLVM::AddressOfOp>(op, dstType, op.variable());
     return success();
   }
 };
@@ -666,8 +661,8 @@ public:
     //   int32_t executionMode;
     //   int32_t values[];          // optional values
     // };
-    auto llvmI32Type = LLVM::LLVMIntegerType::get(context, 32);
-    SmallVector<LLVM::LLVMType, 2> fields;
+    auto llvmI32Type = IntegerType::get(context, 32);
+    SmallVector<Type, 2> fields;
     fields.push_back(llvmI32Type);
     ArrayAttr values = op.values();
     if (!values.empty()) {
@@ -757,8 +752,7 @@ public:
                        ? LLVM::Linkage::Private
                        : LLVM::Linkage::External;
     rewriter.replaceOpWithNewOp<LLVM::GlobalOp>(
-        op, dstType.cast<LLVM::LLVMType>(), isConstant, linkage, op.sym_name(),
-        Attribute());
+        op, dstType, isConstant, linkage, op.sym_name(), Attribute());
     return success();
   }
 };
@@ -834,7 +828,8 @@ public:
     rewriter.template replaceOpWithNewOp<LLVM::FCmpOp>(
         operation, dstType,
         rewriter.getI64IntegerAttr(static_cast<int64_t>(predicate)),
-        operation.operand1(), operation.operand2());
+        operation.operand1(), operation.operand2(),
+        LLVM::FMFAttr::get({}, operation.getContext()));
     return success();
   }
 };

@@ -524,12 +524,34 @@ description. The AMDGPU target specific information is:
 **target-feature**
   Is a target feature name specified in :ref:`amdgpu-target-features-table` that
   is supported by the processor. The target features supported by each processor
-  is specified in :ref:`amdgpu-processor-table`. Those that can be specifeid in
+  is specified in :ref:`amdgpu-processor-table`. Those that can be specified in
   a target ID are marked as being controlled by ``-mcpu`` and
   ``--offload-arch``. Each target feature must appear at most once in a target
   ID. The non-canonical form target ID allows the target features to be
   specified in any order. The canonical form target ID requires the target
   features to be specified in alphabetic order.
+
+.. _amdgpu-target-id-v2-v3:
+
+Code Object V2 to V3 Target ID
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The target ID syntax for code object V2 to V3 is the same as defined in `Clang
+Offload Bundler <https://clang.llvm.org/docs/ClangOffloadBundler.html>`_ except
+when used in the :ref:`amdgpu-assembler-directive-amdgcn-target` assembler
+directive and the bundle entry ID. In those cases it has the following BNF
+syntax:
+
+.. code::
+
+  <target-id> ::== <processor> ( "+" <target-feature> )*
+
+Where a target feature is omitted if *Off* and present if *On* or *Any*.
+
+.. note::
+
+  The code object V2 to V3 cannot represent *Any* and treats it the same as
+  *On*.
 
 .. _amdgpu-embedding-bundled-objects:
 
@@ -539,6 +561,11 @@ Embedding Bundled Code Objects
 AMDGPU supports the HIP and OpenMP languages that perform code object embedding
 as described in `Clang Offload Bundler
 <https://clang.llvm.org/docs/ClangOffloadBundler.html>`_.
+
+.. note::
+
+  The target ID syntax used for code object V2 to V3 for a bundle entry ID
+  differs from that used elsewhere. See :ref:`amdgpu-target-id-v2-v3`.
 
 .. _amdgpu-address-spaces:
 
@@ -4732,25 +4759,55 @@ in table :ref:`amdgpu-amdhsa-memory-model-code-sequences-gfx6-gfx9-table`.
                                               - generic
                                               - private    1. buffer/global/flat_load
                                               - constant
-                                                         - volatile & !nontemporal
+                                                         - !volatile & nontemporal
+
+                                                           1. buffer/global/flat_load
+                                                              glc=1 slc=1
+
+                                                         - volatile
 
                                                            1. buffer/global/flat_load
                                                               glc=1
+                                                           2. s_waitcnt vmcnt(0)
 
-                                                         - nontemporal
-
-                                                           1. buffer/global/flat_load
-                                                              glc=1 slc=1
+                                                            - Must happen before
+                                                              any following volatile
+                                                              global/generic
+                                                              load/store.
+                                                            - Ensures that
+                                                              volatile
+                                                              operations to
+                                                              different
+                                                              addresses will not
+                                                              be reordered by
+                                                              hardware.
 
      load         *none*       *none*         - local    1. ds_load
-     store        *none*       *none*         - global   - !nontemporal
+     store        *none*       *none*         - global   - !volatile & !nontemporal
                                               - generic
                                               - private    1. buffer/global/flat_store
                                               - constant
-                                                         - nontemporal
+                                                         - !volatile & nontemporal
 
                                                            1. buffer/global/flat_store
                                                               glc=1 slc=1
+
+                                                         - volatile
+
+                                                           1. buffer/global/flat_store
+                                                           2. s_waitcnt vmcnt(0)
+
+                                                            - Must happen before
+                                                              any following volatile
+                                                              global/generic
+                                                              load/store.
+                                                            - Ensures that
+                                                              volatile
+                                                              operations to
+                                                              different
+                                                              addresses will not
+                                                              be reordered by
+                                                              hardware.
 
      store        *none*       *none*         - local    1. ds_store
      **Unordered Atomic**
@@ -6004,25 +6061,55 @@ table :ref:`amdgpu-amdhsa-memory-model-code-sequences-gfx10-table`.
                                               - generic
                                               - private    1. buffer/global/flat_load
                                               - constant
-                                                         - volatile & !nontemporal
-
-                                                           1. buffer/global/flat_load
-                                                              glc=1 dlc=1
-
-                                                         - nontemporal
+                                                         - !volatile & nontemporal
 
                                                            1. buffer/global/flat_load
                                                               slc=1
 
+                                                         - volatile
+
+                                                           1. buffer/global/flat_load
+                                                              glc=1 dlc=1
+                                                           2. s_waitcnt vmcnt(0)
+
+                                                            - Must happen before
+                                                              any following volatile
+                                                              global/generic
+                                                              load/store.
+                                                            - Ensures that
+                                                              volatile
+                                                              operations to
+                                                              different
+                                                              addresses will not
+                                                              be reordered by
+                                                              hardware.
+
      load         *none*       *none*         - local    1. ds_load
-     store        *none*       *none*         - global   - !nontemporal
+     store        *none*       *none*         - global   - !volatile & !nontemporal
                                               - generic
                                               - private    1. buffer/global/flat_store
                                               - constant
-                                                         - nontemporal
+                                                         - !volatile & nontemporal
 
                                                             1. buffer/global/flat_store
                                                                slc=1
+
+                                                         - volatile
+
+                                                           1. buffer/global/flat_store
+                                                           2. s_waitcnt vscnt(0)
+
+                                                            - Must happen before
+                                                              any following volatile
+                                                              global/generic
+                                                              load/store.
+                                                            - Ensures that
+                                                              volatile
+                                                              operations to
+                                                              different
+                                                              addresses will not
+                                                              be reordered by
+                                                              hardware.
 
      store        *none*       *none*         - local    1. ds_store
      **Unordered Atomic**
@@ -9136,6 +9223,8 @@ architecture processors, and are not OS-specific. Directives which begin with
 ``amdhsa`` OS is specified. See :ref:`amdgpu-target-triples` and
 :ref:`amdgpu-processors`.
 
+.. _amdgpu-assembler-directive-amdgcn-target:
+
 .amdgcn_target <target-triple> "-" <target-id>
 ++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -9144,6 +9233,11 @@ by the containing assembler source file. Used by the assembler to validate
 command-line options such as ``-triple``, ``-mcpu``, and
 ``--offload-arch=<target-id>``. A non-canonical target ID is allowed. See
 :ref:`amdgpu-target-triples` and :ref:`amdgpu-target-id`.
+
+.. note::
+
+  The target ID syntax used for code object V2 to V3 for this directive differs
+  from that used elsewhere. See :ref:`amdgpu-target-id-v2-v3`.
 
 .amdhsa_kernel <name>
 +++++++++++++++++++++

@@ -730,10 +730,8 @@ void SubtargetEmitter::EmitLoadStoreQueueInfo(const CodeGenProcModel &ProcModel,
   unsigned QueueID = 0;
   if (ProcModel.LoadQueue) {
     const Record *Queue = ProcModel.LoadQueue->getValueAsDef("QueueDescriptor");
-    QueueID =
-        1 + std::distance(ProcModel.ProcResourceDefs.begin(),
-                          std::find(ProcModel.ProcResourceDefs.begin(),
-                                    ProcModel.ProcResourceDefs.end(), Queue));
+    QueueID = 1 + std::distance(ProcModel.ProcResourceDefs.begin(),
+                                find(ProcModel.ProcResourceDefs, Queue));
   }
   OS << "  " << QueueID << ", // Resource Descriptor for the Load Queue\n";
 
@@ -741,10 +739,8 @@ void SubtargetEmitter::EmitLoadStoreQueueInfo(const CodeGenProcModel &ProcModel,
   if (ProcModel.StoreQueue) {
     const Record *Queue =
         ProcModel.StoreQueue->getValueAsDef("QueueDescriptor");
-    QueueID =
-        1 + std::distance(ProcModel.ProcResourceDefs.begin(),
-                          std::find(ProcModel.ProcResourceDefs.begin(),
-                                    ProcModel.ProcResourceDefs.end(), Queue));
+    QueueID = 1 + std::distance(ProcModel.ProcResourceDefs.begin(),
+                                find(ProcModel.ProcResourceDefs, Queue));
   }
   OS << "  " << QueueID << ", // Resource Descriptor for the Store Queue\n";
 }
@@ -1220,11 +1216,8 @@ void SubtargetEmitter::GenSchedClassTables(const CodeGenProcModel &ProcModel,
     }
     else {
       SCDesc.WriteLatencyIdx = SchedTables.WriteLatencies.size();
-      SchedTables.WriteLatencies.insert(SchedTables.WriteLatencies.end(),
-                                        WriteLatencies.begin(),
-                                        WriteLatencies.end());
-      SchedTables.WriterNames.insert(SchedTables.WriterNames.end(),
-                                     WriterNames.begin(), WriterNames.end());
+      llvm::append_range(SchedTables.WriteLatencies, WriteLatencies);
+      llvm::append_range(SchedTables.WriterNames, WriterNames);
     }
     // ReadAdvanceEntries must remain in operand order.
     SCDesc.NumReadAdvanceEntries = ReadAdvanceEntries.size();
@@ -1236,8 +1229,7 @@ void SubtargetEmitter::GenSchedClassTables(const CodeGenProcModel &ProcModel,
       SCDesc.ReadAdvanceIdx = RAPos - SchedTables.ReadAdvanceEntries.begin();
     else {
       SCDesc.ReadAdvanceIdx = SchedTables.ReadAdvanceEntries.size();
-      SchedTables.ReadAdvanceEntries.insert(RAPos, ReadAdvanceEntries.begin(),
-                                            ReadAdvanceEntries.end());
+      llvm::append_range(SchedTables.ReadAdvanceEntries, ReadAdvanceEntries);
     }
   }
 }

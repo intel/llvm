@@ -359,8 +359,7 @@ using DwarfRegNumsVecTy = std::vector<DwarfRegNumsMapPair>;
 static void finalizeDwarfRegNumsKeys(DwarfRegNumsVecTy &DwarfRegNums) {
   // Sort and unique to get a map-like vector. We want the last assignment to
   // match previous behaviour.
-  std::stable_sort(DwarfRegNums.begin(), DwarfRegNums.end(),
-                   on_first<LessRecordRegister>());
+  llvm::stable_sort(DwarfRegNums, on_first<LessRecordRegister>());
   // Warn about duplicate assignments.
   const Record *LastSeenReg = nullptr;
   for (const auto &X : DwarfRegNums) {
@@ -462,18 +461,16 @@ void RegisterInfoEmitter::EmitRegMappingTables(
 
     DefInit *DI = cast<DefInit>(V->getValue());
     Record *Alias = DI->getDef();
-    const auto &AliasIter =
-        std::lower_bound(DwarfRegNums.begin(), DwarfRegNums.end(), Alias,
-                         [](const DwarfRegNumsMapPair &A, const Record *B) {
-                           return LessRecordRegister()(A.first, B);
-                         });
+    const auto &AliasIter = llvm::lower_bound(
+        DwarfRegNums, Alias, [](const DwarfRegNumsMapPair &A, const Record *B) {
+          return LessRecordRegister()(A.first, B);
+        });
     assert(AliasIter != DwarfRegNums.end() && AliasIter->first == Alias &&
            "Expected Alias to be present in map");
-    const auto &RegIter =
-        std::lower_bound(DwarfRegNums.begin(), DwarfRegNums.end(), Reg,
-                         [](const DwarfRegNumsMapPair &A, const Record *B) {
-                           return LessRecordRegister()(A.first, B);
-                         });
+    const auto &RegIter = llvm::lower_bound(
+        DwarfRegNums, Reg, [](const DwarfRegNumsMapPair &A, const Record *B) {
+          return LessRecordRegister()(A.first, B);
+        });
     assert(RegIter != DwarfRegNums.end() && RegIter->first == Reg &&
            "Expected Reg to be present in map");
     RegIter->second = AliasIter->second;
@@ -960,7 +957,7 @@ RegisterInfoEmitter::runMCDesc(raw_ostream &OS, CodeGenTarget &Target,
     const auto &RUMasks = Reg.getRegUnitLaneMasks();
     MaskVec &LaneMaskVec = RegUnitLaneMasks[i];
     assert(LaneMaskVec.empty());
-    LaneMaskVec.insert(LaneMaskVec.begin(), RUMasks.begin(), RUMasks.end());
+    llvm::append_range(LaneMaskVec, RUMasks);
     // Terminator mask should not be used inside of the list.
 #ifndef NDEBUG
     for (LaneBitmask M : LaneMaskVec) {

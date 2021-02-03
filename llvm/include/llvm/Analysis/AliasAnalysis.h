@@ -346,19 +346,29 @@ createModRefInfo(const FunctionModRefBehavior FMRB) {
 class AAQueryInfo {
 public:
   using LocPair = std::pair<MemoryLocation, MemoryLocation>;
-  using AliasCacheT = SmallDenseMap<LocPair, AliasResult, 8>;
+  struct CacheEntry {
+    AliasResult Result;
+    /// Number of times a NoAlias assumption has been used.
+    /// 0 for assumptions that have not been used, -1 for definitive results.
+    int NumAssumptionUses;
+    /// Whether this is a definitive (non-assumption) result.
+    bool isDefinitive() const { return NumAssumptionUses < 0; }
+  };
+  using AliasCacheT = SmallDenseMap<LocPair, CacheEntry, 8>;
   AliasCacheT AliasCache;
 
   using IsCapturedCacheT = SmallDenseMap<const Value *, bool, 8>;
   IsCapturedCacheT IsCapturedCache;
 
-  AAQueryInfo() : AliasCache(), IsCapturedCache() {}
+  /// How many active NoAlias assumption uses there are.
+  int NumAssumptionUses = 0;
 
-  AliasResult updateResult(const LocPair &Locs, AliasResult Result) {
-    auto It = AliasCache.find(Locs);
-    assert(It != AliasCache.end() && "Entry must have existed");
-    return It->second = Result;
-  }
+  /// Location pairs for which an assumption based result is currently stored.
+  /// Used to remove all potentially incorrect results from the cache if an
+  /// assumption is disproven.
+  SmallVector<AAQueryInfo::LocPair, 4> AssumptionBasedResults;
+
+  AAQueryInfo() : AliasCache(), IsCapturedCache() {}
 };
 
 class BatchAAResults;

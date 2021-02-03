@@ -13,6 +13,8 @@
 
 #include "PybindUtils.h"
 
+#include "mlir-c/AffineExpr.h"
+#include "mlir-c/AffineMap.h"
 #include "mlir-c/IR.h"
 #include "llvm/ADT/DenseMap.h"
 
@@ -495,6 +497,14 @@ public:
 
   pybind11::object getOperationObject() { return operationObject; }
 
+  static pybind11::object
+  odsBuildDefault(pybind11::object cls, pybind11::list operandList,
+                  pybind11::list resultTypeList,
+                  llvm::Optional<pybind11::dict> attributes,
+                  llvm::Optional<std::vector<PyBlock *>> successors,
+                  llvm::Optional<int> regions, DefaultingPyLocation location,
+                  pybind11::object maybeIp);
+
 private:
   PyOperation &operation;           // For efficient, cast-free access from C++
   pybind11::object operationObject; // Holds the reference.
@@ -665,6 +675,55 @@ public:
 private:
   PyOperationRef parentOperation;
   MlirValue value;
+};
+
+/// Wrapper around MlirAffineExpr. Affine expressions are owned by the context.
+class PyAffineExpr : public BaseContextObject {
+public:
+  PyAffineExpr(PyMlirContextRef contextRef, MlirAffineExpr affineExpr)
+      : BaseContextObject(std::move(contextRef)), affineExpr(affineExpr) {}
+  bool operator==(const PyAffineExpr &other);
+  operator MlirAffineExpr() const { return affineExpr; }
+  MlirAffineExpr get() const { return affineExpr; }
+
+  /// Gets a capsule wrapping the void* within the MlirAffineExpr.
+  pybind11::object getCapsule();
+
+  /// Creates a PyAffineExpr from the MlirAffineExpr wrapped by a capsule.
+  /// Note that PyAffineExpr instances are uniqued, so the returned object
+  /// may be a pre-existing object. Ownership of the underlying MlirAffineExpr
+  /// is taken by calling this function.
+  static PyAffineExpr createFromCapsule(pybind11::object capsule);
+
+  PyAffineExpr add(const PyAffineExpr &other) const;
+  PyAffineExpr mul(const PyAffineExpr &other) const;
+  PyAffineExpr floorDiv(const PyAffineExpr &other) const;
+  PyAffineExpr ceilDiv(const PyAffineExpr &other) const;
+  PyAffineExpr mod(const PyAffineExpr &other) const;
+
+private:
+  MlirAffineExpr affineExpr;
+};
+
+class PyAffineMap : public BaseContextObject {
+public:
+  PyAffineMap(PyMlirContextRef contextRef, MlirAffineMap affineMap)
+      : BaseContextObject(std::move(contextRef)), affineMap(affineMap) {}
+  bool operator==(const PyAffineMap &other);
+  operator MlirAffineMap() const { return affineMap; }
+  MlirAffineMap get() const { return affineMap; }
+
+  /// Gets a capsule wrapping the void* within the MlirAffineMap.
+  pybind11::object getCapsule();
+
+  /// Creates a PyAffineMap from the MlirAffineMap wrapped by a capsule.
+  /// Note that PyAffineMap instances are uniqued, so the returned object
+  /// may be a pre-existing object. Ownership of the underlying MlirAffineMap
+  /// is taken by calling this function.
+  static PyAffineMap createFromCapsule(pybind11::object capsule);
+
+private:
+  MlirAffineMap affineMap;
 };
 
 void populateIRSubmodule(pybind11::module &m);

@@ -179,6 +179,12 @@ bool hoistRegion(DomTreeNode *, AAResults *, LoopInfo *, DominatorTree *,
 void deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
                     LoopInfo *LI, MemorySSA *MSSA = nullptr);
 
+/// Remove the backedge of the specified loop.  Handles loop nests and general
+/// loop structures subject to the precondition that the loop has no parent
+/// loop and has a single latch block.  Preserves all listed analyses.
+void breakLoopBackedge(Loop *L, DominatorTree &DT, ScalarEvolution &SE,
+                       LoopInfo &LI, MemorySSA *MSSA);
+
 /// Try to promote memory values to scalars by sinking stores out of
 /// the loop and moving loads to before the loop.  We do this by looping over
 /// the stores in the loop, looking for stores to Must pointers which are
@@ -254,6 +260,9 @@ bool hasDisableAllTransformsHint(const Loop *L);
 
 /// Look for the loop attribute that disables the LICM transformation heuristics.
 bool hasDisableLICMTransformsHint(const Loop *L);
+
+/// Look for the loop attribute that requires progress within the loop.
+bool hasMustProgress(const Loop *L);
 
 /// The mode sets how eager a transformation should be applied.
 enum TransformationMode {
@@ -345,35 +354,29 @@ bool canSinkOrHoistInst(Instruction &I, AAResults *AA, DominatorTree *DT,
                         OptimizationRemarkEmitter *ORE = nullptr);
 
 /// Returns a Min/Max operation corresponding to MinMaxRecurrenceKind.
-Value *createMinMaxOp(IRBuilderBase &Builder,
-                      RecurrenceDescriptor::MinMaxRecurrenceKind RK,
-                      Value *Left, Value *Right);
+Value *createMinMaxOp(IRBuilderBase &Builder, RecurKind RK, Value *Left,
+                      Value *Right);
 
 /// Generates an ordered vector reduction using extracts to reduce the value.
-Value *
-getOrderedReduction(IRBuilderBase &Builder, Value *Acc, Value *Src, unsigned Op,
-                    RecurrenceDescriptor::MinMaxRecurrenceKind MinMaxKind =
-                        RecurrenceDescriptor::MRK_Invalid,
-                    ArrayRef<Value *> RedOps = None);
+Value *getOrderedReduction(IRBuilderBase &Builder, Value *Acc, Value *Src,
+                           unsigned Op, RecurKind MinMaxKind = RecurKind::None,
+                           ArrayRef<Value *> RedOps = None);
 
 /// Generates a vector reduction using shufflevectors to reduce the value.
 /// Fast-math-flags are propagated using the IRBuilder's setting.
 Value *getShuffleReduction(IRBuilderBase &Builder, Value *Src, unsigned Op,
-                           RecurrenceDescriptor::MinMaxRecurrenceKind
-                               MinMaxKind = RecurrenceDescriptor::MRK_Invalid,
+                           RecurKind MinMaxKind = RecurKind::None,
                            ArrayRef<Value *> RedOps = None);
 
 /// Create a target reduction of the given vector. The reduction operation
 /// is described by the \p Opcode parameter. min/max reductions require
-/// additional information supplied in \p Flags.
+/// additional information supplied in \p RdxKind.
 /// The target is queried to determine if intrinsics or shuffle sequences are
 /// required to implement the reduction.
 /// Fast-math-flags are propagated using the IRBuilder's setting.
 Value *createSimpleTargetReduction(IRBuilderBase &B,
-                                   const TargetTransformInfo *TTI,
-                                   unsigned Opcode, Value *Src,
-                                   TargetTransformInfo::ReductionFlags Flags =
-                                       TargetTransformInfo::ReductionFlags(),
+                                   const TargetTransformInfo *TTI, Value *Src,
+                                   RecurKind RdxKind,
                                    ArrayRef<Value *> RedOps = None);
 
 /// Create a generic target reduction using a recurrence descriptor \p Desc
@@ -381,8 +384,7 @@ Value *createSimpleTargetReduction(IRBuilderBase &B,
 /// required to implement the reduction.
 /// Fast-math-flags are propagated using the RecurrenceDescriptor.
 Value *createTargetReduction(IRBuilderBase &B, const TargetTransformInfo *TTI,
-                             RecurrenceDescriptor &Desc, Value *Src,
-                             bool NoNaN = false);
+                             RecurrenceDescriptor &Desc, Value *Src);
 
 /// Get the intersection (logical and) of all of the potential IR flags
 /// of each scalar operation (VL) that will be converted into a vector (I).

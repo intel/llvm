@@ -20,6 +20,7 @@
 #include <CL/sycl/stl.hpp>
 
 #include <cstring>
+#include <memory>
 #include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -177,9 +178,10 @@ public:
       // ContiguousStorage. updateHostMemory works only with pointer to
       // continuous data.
       const size_t Size = MSizeInBytes / sizeof(DestinationValueT);
-      vector_class<DestinationValueT> ContiguousStorage(Size);
-      updateHostMemory(ContiguousStorage.data());
-      std::copy(ContiguousStorage.cbegin(), ContiguousStorage.cend(),
+      std::unique_ptr<DestinationValueT[]> ContiguousStorage(
+          new DestinationValueT[Size]);
+      updateHostMemory(ContiguousStorage.get());
+      std::copy(ContiguousStorage.get(), ContiguousStorage.get() + Size,
                 FinalData);
     };
   }
@@ -293,6 +295,8 @@ public:
   __SYCL_DLL_LOCAL MemObjType getType() const override { return UNDEFINED; }
 
   ContextImplPtr getInteropContext() const override { return MInteropContext; }
+
+  bool hasUserDataPtr() const { return MUserPtr != nullptr; };
 
 protected:
   // An allocateMem helper that determines which host ptr to use
