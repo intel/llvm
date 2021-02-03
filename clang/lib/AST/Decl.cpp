@@ -342,10 +342,6 @@ LinkageComputer::getLVForTemplateArgumentList(ArrayRef<TemplateArgument> Args,
       LV.merge(getTypeLinkageAndVisibility(Arg.getNullPtrType()));
       continue;
 
-    case TemplateArgument::UncommonValue:
-      LV.merge(getLVForValue(Arg.getAsUncommonValue(), computation));
-      continue;
-
     case TemplateArgument::Template:
     case TemplateArgument::TemplateExpansion:
       if (TemplateDecl *Template =
@@ -2744,6 +2740,17 @@ SourceRange ParmVarDecl::getSourceRange() const {
     return SourceRange(DeclaratorDecl::getBeginLoc(), getLocation());
 
   return DeclaratorDecl::getSourceRange();
+}
+
+bool ParmVarDecl::isDestroyedInCallee() const {
+  if (hasAttr<NSConsumedAttr>())
+    return true;
+
+  auto *RT = getType()->getAs<RecordType>();
+  if (RT && RT->getDecl()->isParamDestroyedInCallee())
+    return true;
+
+  return false;
 }
 
 Expr *ParmVarDecl::getDefaultArg() {

@@ -68,8 +68,8 @@ private:
   LogicalResult processBasicBlock(llvm::BasicBlock *bb, Block *block);
   /// Imports `inst` and populates instMap[inst] with the imported Value.
   LogicalResult processInstruction(llvm::Instruction *inst);
-  /// Creates an LLVMType for `type`.
-  LLVMType processType(llvm::Type *type);
+  /// Creates an LLVM-compatible MLIR type for `type`.
+  Type processType(llvm::Type *type);
   /// `value` is an SSA-use. Return the remapped version of `value` or a
   /// placeholder that will be remapped later if this is an instruction that
   /// has not yet been visited.
@@ -87,7 +87,7 @@ private:
                                   SmallVectorImpl<Value> &blockArguments);
   /// Returns the builtin type equivalent to be used in attributes for the given
   /// LLVM IR dialect type.
-  Type getStdTypeForAttr(LLVMType type);
+  Type getStdTypeForAttr(Type type);
   /// Return `value` as an attribute to attach to a GlobalOp.
   Attribute getConstantAsAttr(llvm::Constant *value);
   /// Return `c` as an MLIR Value. This could either be a ConstantOp, or
@@ -150,8 +150,8 @@ Location Importer::processDebugLoc(const llvm::DebugLoc &loc,
                              context);
 }
 
-LLVMType Importer::processType(llvm::Type *type) {
-  if (LLVMType result = typeTranslator.translateType(type))
+Type Importer::processType(llvm::Type *type) {
+  if (Type result = typeTranslator.translateType(type))
     return result;
 
   // FIXME: Diagnostic should be able to natively handle types that have
@@ -168,61 +168,55 @@ LLVMType Importer::processType(llvm::Type *type) {
 // equivalents. Array types are converted to ranked tensors; nested array types
 // are converted to multi-dimensional tensors or vectors, depending on the
 // innermost type being a scalar or a vector.
-Type Importer::getStdTypeForAttr(LLVMType type) {
+Type Importer::getStdTypeForAttr(Type type) {
   if (!type)
     return nullptr;
 
-  if (type.isIntegerTy())
-    return b.getIntegerType(type.getIntegerBitWidth());
-
-  if (type.isFloatTy())
-    return b.getF32Type();
-
-  if (type.isDoubleTy())
-    return b.getF64Type();
+  if (type.isa<IntegerType, FloatType>())
+    return type;
 
   // LLVM vectors can only contain scalars.
-  if (type.isVectorTy()) {
-    auto numElements = type.getVectorElementCount();
+  if (LLVM::isCompatibleVectorType(type)) {
+    auto numElements = LLVM::getVectorNumElements(type);
     if (numElements.isScalable()) {
       emitError(unknownLoc) << "scalable vectors not supported";
       return nullptr;
     }
-    Type elementType = getStdTypeForAttr(type.getVectorElementType());
+    Type elementType = getStdTypeForAttr(LLVM::getVectorElementType(type));
     if (!elementType)
       return nullptr;
     return VectorType::get(numElements.getKnownMinValue(), elementType);
   }
 
   // LLVM arrays can contain other arrays or vectors.
-  if (type.isArrayTy()) {
+  if (auto arrayType = type.dyn_cast<LLVMArrayType>()) {
     // Recover the nested array shape.
     SmallVector<int64_t, 4> shape;
-    shape.push_back(type.getArrayNumElements());
-    while (type.getArrayElementType().isArrayTy()) {
-      type = type.getArrayElementType();
-      shape.push_back(type.getArrayNumElements());
+    shape.push_back(arrayType.getNumElements());
+    while (arrayType.getElementType().isa<LLVMArrayType>()) {
+      arrayType = arrayType.getElementType().cast<LLVMArrayType>();
+      shape.push_back(arrayType.getNumElements());
     }
 
     // If the innermost type is a vector, use the multi-dimensional vector as
     // attribute type.
-    if (type.getArrayElementType().isVectorTy()) {
-      LLVMType vectorType = type.getArrayElementType();
-      auto numElements = vectorType.getVectorElementCount();
+    if (LLVM::isCompatibleVectorType(arrayType.getElementType())) {
+      auto numElements = LLVM::getVectorNumElements(arrayType.getElementType());
       if (numElements.isScalable()) {
         emitError(unknownLoc) << "scalable vectors not supported";
         return nullptr;
       }
       shape.push_back(numElements.getKnownMinValue());
 
-      Type elementType = getStdTypeForAttr(vectorType.getVectorElementType());
+      Type elementType = getStdTypeForAttr(
+          LLVM::getVectorElementType(arrayType.getElementType()));
       if (!elementType)
         return nullptr;
       return VectorType::get(shape, elementType);
     }
 
     // Otherwise use a tensor.
-    Type elementType = getStdTypeForAttr(type.getArrayElementType());
+    Type elementType = getStdTypeForAttr(arrayType.getElementType());
     if (!elementType)
       return nullptr;
     return RankedTensorType::get(shape, elementType);
@@ -244,7 +238,7 @@ Attribute Importer::getConstantAsAttr(llvm::Constant *value) {
   if (auto *c = dyn_cast<llvm::ConstantFP>(value)) {
     if (c->getType()->isDoubleTy())
       return b.getFloatAttr(FloatType::getF64(context), c->getValueAPF());
-    else if (c->getType()->isFloatingPointTy())
+    if (c->getType()->isFloatingPointTy())
       return b.getFloatAttr(FloatType::getF32(context), c->getValueAPF());
   }
   if (auto *f = dyn_cast<llvm::Function>(value))
@@ -252,7 +246,7 @@ Attribute Importer::getConstantAsAttr(llvm::Constant *value) {
 
   // Convert constant data to a dense elements attribute.
   if (auto *cd = dyn_cast<llvm::ConstantDataSequential>(value)) {
-    LLVMType type = processType(cd->getElementType());
+    Type type = processType(cd->getElementType());
     if (!type)
       return nullptr;
 
@@ -261,7 +255,7 @@ Attribute Importer::getConstantAsAttr(llvm::Constant *value) {
     if (!attrType)
       return nullptr;
 
-    if (type.isIntegerTy()) {
+    if (type.isa<IntegerType>()) {
       SmallVector<APInt, 8> values;
       values.reserve(cd->getNumElements());
       for (unsigned i = 0, e = cd->getNumElements(); i < e; ++i)
@@ -269,7 +263,7 @@ Attribute Importer::getConstantAsAttr(llvm::Constant *value) {
       return DenseElementsAttr::get(attrType, values);
     }
 
-    if (type.isFloatTy() || type.isDoubleTy()) {
+    if (type.isa<Float32Type, Float64Type>()) {
       SmallVector<APFloat, 8> values;
       values.reserve(cd->getNumElements());
       for (unsigned i = 0, e = cd->getNumElements(); i < e; ++i)
@@ -315,7 +309,7 @@ GlobalOp Importer::processGlobal(llvm::GlobalVariable *GV) {
   Attribute valueAttr;
   if (GV->hasInitializer())
     valueAttr = getConstantAsAttr(GV->getInitializer());
-  LLVMType type = processType(GV->getValueType());
+  Type type = processType(GV->getValueType());
   if (!type)
     return nullptr;
   GlobalOp op = b.create<GlobalOp>(
@@ -338,7 +332,7 @@ Value Importer::processConstant(llvm::Constant *c) {
   if (Attribute attr = getConstantAsAttr(c)) {
     // These constants can be represented as attributes.
     OpBuilder b(currentEntryBlock, currentEntryBlock->begin());
-    LLVMType type = processType(c->getType());
+    Type type = processType(c->getType());
     if (!type)
       return nullptr;
     if (auto symbolRef = attr.dyn_cast<FlatSymbolRefAttr>())
@@ -347,7 +341,7 @@ Value Importer::processConstant(llvm::Constant *c) {
     return instMap[c] = bEntry.create<ConstantOp>(unknownLoc, type, attr);
   }
   if (auto *cn = dyn_cast<llvm::ConstantPointerNull>(c)) {
-    LLVMType type = processType(cn->getType());
+    Type type = processType(cn->getType());
     if (!type)
       return nullptr;
     return instMap[c] = bEntry.create<NullOp>(unknownLoc, type);
@@ -370,7 +364,7 @@ Value Importer::processConstant(llvm::Constant *c) {
     return instMap[c] = instMap[i];
   }
   if (auto *ue = dyn_cast<llvm::UndefValue>(c)) {
-    LLVMType type = processType(ue->getType());
+    Type type = processType(ue->getType());
     if (!type)
       return nullptr;
     return instMap[c] = bEntry.create<UndefOp>(UnknownLoc::get(context), type);
@@ -388,7 +382,7 @@ Value Importer::processValue(llvm::Value *value) {
   // this instruction yet, create an unknown op and remap it later.
   if (isa<llvm::Instruction>(value)) {
     OperationState state(UnknownLoc::get(context), "llvm.unknown");
-    LLVMType type = processType(value->getType());
+    Type type = processType(value->getType());
     if (!type)
       return nullptr;
     state.addTypes(type);
@@ -578,7 +572,7 @@ LogicalResult Importer::processInstruction(llvm::Instruction *inst) {
     }
     state.addOperands(ops);
     if (!inst->getType()->isVoidTy()) {
-      LLVMType type = processType(inst->getType());
+      Type type = processType(inst->getType());
       if (!type)
         return failure();
       state.addTypes(type);
@@ -629,7 +623,7 @@ LogicalResult Importer::processInstruction(llvm::Instruction *inst) {
     return success();
   }
   case llvm::Instruction::PHI: {
-    LLVMType type = processType(inst->getType());
+    Type type = processType(inst->getType());
     if (!type)
       return failure();
     v = b.getInsertionBlock()->addArgument(type);
@@ -648,7 +642,7 @@ LogicalResult Importer::processInstruction(llvm::Instruction *inst) {
 
     SmallVector<Type, 2> tys;
     if (!ci->getType()->isVoidTy()) {
-      LLVMType type = processType(inst->getType());
+      Type type = processType(inst->getType());
       if (!type)
         return failure();
       tys.push_back(type);
@@ -777,7 +771,8 @@ LogicalResult Importer::processFunction(llvm::Function *f) {
   instMap.clear();
   unknownInstMap.clear();
 
-  LLVMType functionType = processType(f->getFunctionType());
+  auto functionType =
+      processType(f->getFunctionType()).dyn_cast<LLVMFunctionType>();
   if (!functionType)
     return failure();
 
@@ -805,8 +800,8 @@ LogicalResult Importer::processFunction(llvm::Function *f) {
 
   // Add function arguments to the entry block.
   for (auto kv : llvm::enumerate(f->args()))
-    instMap[&kv.value()] = blockList[0]->addArgument(
-        functionType.getFunctionParamType(kv.index()));
+    instMap[&kv.value()] =
+        blockList[0]->addArgument(functionType.getParamType(kv.index()));
 
   for (auto bbs : llvm::zip(*f, blockList)) {
     if (failed(processBasicBlock(&std::get<0>(bbs), std::get<1>(bbs))))

@@ -26,6 +26,30 @@ func @simple_loop() {
 
 /////////////////////////////////////////////////////////////////////
 
+func @for_with_yield(%buffer: memref<1024xf32>) -> (f32) {
+  %sum_0 = constant 0.0 : f32
+  %sum = affine.for %i = 0 to 10 step 2 iter_args(%sum_iter = %sum_0) -> (f32) {
+    %t = affine.load %buffer[%i] : memref<1024xf32>
+    %sum_next = addf %sum_iter, %t : f32
+    affine.yield %sum_next : f32
+  }
+  return %sum : f32
+}
+
+// CHECK-LABEL: func @for_with_yield
+// CHECK:         %[[INIT_SUM:.*]] = constant 0.000000e+00 : f32
+// CHECK-NEXT:    %[[LOWER:.*]] = constant 0 : index
+// CHECK-NEXT:    %[[UPPER:.*]] = constant 10 : index
+// CHECK-NEXT:    %[[STEP:.*]] = constant 2 : index
+// CHECK-NEXT:    %[[SUM:.*]] = scf.for %[[IV:.*]] = %[[LOWER]] to %[[UPPER]] step %[[STEP]] iter_args(%[[SUM_ITER:.*]] = %[[INIT_SUM]]) -> (f32) {
+// CHECK-NEXT:      load
+// CHECK-NEXT:      %[[SUM_NEXT:.*]] = addf
+// CHECK-NEXT:      scf.yield %[[SUM_NEXT]] : f32
+// CHECK-NEXT:    }
+// CHECK-NEXT:    return %[[SUM]] : f32
+
+/////////////////////////////////////////////////////////////////////
+
 func private @pre(index) -> ()
 func private @body2(index, index) -> ()
 func private @post(index) -> ()
@@ -135,7 +159,7 @@ func private @get_idx() -> (index)
 // CHECK-NEXT:   %[[v1:.*]] = muli %[[v0]], %[[cm1]] : index
 // CHECK-NEXT:   %[[c20:.*]] = constant 20 : index
 // CHECK-NEXT:   %[[v2:.*]] = addi %[[v1]], %[[c20]] : index
-// CHECK-NEXT:   %[[v3:.*]] = cmpi "sge", %[[v2]], %[[c0]] : index
+// CHECK-NEXT:   %[[v3:.*]] = cmpi sge, %[[v2]], %[[c0]] : index
 // CHECK-NEXT:   if %[[v3]] {
 // CHECK-NEXT:     call @body(%[[v0:.*]]) : (index) -> ()
 // CHECK-NEXT:   }
@@ -156,7 +180,7 @@ func @if_only() {
 // CHECK-NEXT:   %[[v1:.*]] = muli %[[v0]], %[[cm1]] : index
 // CHECK-NEXT:   %[[c20:.*]] = constant 20 : index
 // CHECK-NEXT:   %[[v2:.*]] = addi %[[v1]], %[[c20]] : index
-// CHECK-NEXT:   %[[v3:.*]] = cmpi "sge", %[[v2]], %[[c0]] : index
+// CHECK-NEXT:   %[[v3:.*]] = cmpi sge, %[[v2]], %[[c0]] : index
 // CHECK-NEXT:   if %[[v3]] {
 // CHECK-NEXT:     call @body(%[[v0:.*]]) : (index) -> ()
 // CHECK-NEXT:   } else {
@@ -181,12 +205,12 @@ func @if_else() {
 // CHECK-NEXT:   %[[v1:.*]] = muli %[[v0]], %[[cm1]] : index
 // CHECK-NEXT:   %[[c20:.*]] = constant 20 : index
 // CHECK-NEXT:   %[[v2:.*]] = addi %[[v1]], %[[c20]] : index
-// CHECK-NEXT:   %[[v3:.*]] = cmpi "sge", %[[v2]], %[[c0]] : index
+// CHECK-NEXT:   %[[v3:.*]] = cmpi sge, %[[v2]], %[[c0]] : index
 // CHECK-NEXT:   if %[[v3]] {
 // CHECK-NEXT:     %[[c0_0:.*]] = constant 0 : index
 // CHECK-NEXT:     %[[cm10:.*]] = constant -10 : index
 // CHECK-NEXT:     %[[v4:.*]] = addi %[[v0]], %[[cm10]] : index
-// CHECK-NEXT:     %[[v5:.*]] = cmpi "sge", %[[v4]], %[[c0_0]] : index
+// CHECK-NEXT:     %[[v5:.*]] = cmpi sge, %[[v4]], %[[c0_0]] : index
 // CHECK-NEXT:     if %[[v5]] {
 // CHECK-NEXT:       call @body(%[[v0:.*]]) : (index) -> ()
 // CHECK-NEXT:     }
@@ -194,7 +218,7 @@ func @if_else() {
 // CHECK-NEXT:     %[[c0_0:.*]] = constant 0 : index
 // CHECK-NEXT:     %[[cm10:.*]] = constant -10 : index
 // CHECK-NEXT:     %{{.*}} = addi %[[v0]], %[[cm10]] : index
-// CHECK-NEXT:     %{{.*}} = cmpi "sge", %{{.*}}, %[[c0_0]] : index
+// CHECK-NEXT:     %{{.*}} = cmpi sge, %{{.*}}, %[[c0_0]] : index
 // CHECK-NEXT:     if %{{.*}} {
 // CHECK-NEXT:       call @mid(%[[v0:.*]]) : (index) -> ()
 // CHECK-NEXT:     }
@@ -225,22 +249,22 @@ func @nested_ifs() {
 // CHECK-NEXT:   %[[v2:.*]] = addi %[[v1]], %{{.*}} : index
 // CHECK-NEXT:   %[[c1:.*]] = constant 1 : index
 // CHECK-NEXT:   %[[v3:.*]] = addi %[[v2]], %[[c1]] : index
-// CHECK-NEXT:   %[[v4:.*]] = cmpi "sge", %[[v3]], %[[c0]] : index
+// CHECK-NEXT:   %[[v4:.*]] = cmpi sge, %[[v3]], %[[c0]] : index
 // CHECK-NEXT:   %[[cm1_0:.*]] = constant -1 : index
 // CHECK-NEXT:   %[[v5:.*]] = addi %{{.*}}, %[[cm1_0]] : index
-// CHECK-NEXT:   %[[v6:.*]] = cmpi "sge", %[[v5]], %[[c0]] : index
+// CHECK-NEXT:   %[[v6:.*]] = cmpi sge, %[[v5]], %[[c0]] : index
 // CHECK-NEXT:   %[[v7:.*]] = and %[[v4]], %[[v6]] : i1
 // CHECK-NEXT:   %[[cm1_1:.*]] = constant -1 : index
 // CHECK-NEXT:   %[[v8:.*]] = addi %{{.*}}, %[[cm1_1]] : index
-// CHECK-NEXT:   %[[v9:.*]] = cmpi "sge", %[[v8]], %[[c0]] : index
+// CHECK-NEXT:   %[[v9:.*]] = cmpi sge, %[[v8]], %[[c0]] : index
 // CHECK-NEXT:   %[[v10:.*]] = and %[[v7]], %[[v9]] : i1
 // CHECK-NEXT:   %[[cm1_2:.*]] = constant -1 : index
 // CHECK-NEXT:   %[[v11:.*]] = addi %{{.*}}, %[[cm1_2]] : index
-// CHECK-NEXT:   %[[v12:.*]] = cmpi "sge", %[[v11]], %[[c0]] : index
+// CHECK-NEXT:   %[[v12:.*]] = cmpi sge, %[[v11]], %[[c0]] : index
 // CHECK-NEXT:   %[[v13:.*]] = and %[[v10]], %[[v12]] : i1
 // CHECK-NEXT:   %[[cm42:.*]] = constant -42 : index
 // CHECK-NEXT:   %[[v14:.*]] = addi %{{.*}}, %[[cm42]] : index
-// CHECK-NEXT:   %[[v15:.*]] = cmpi "eq", %[[v14]], %[[c0]] : index
+// CHECK-NEXT:   %[[v15:.*]] = cmpi eq, %[[v14]], %[[c0]] : index
 // CHECK-NEXT:   %[[v16:.*]] = and %[[v13]], %[[v15]] : i1
 // CHECK-NEXT:   if %[[v16]] {
 // CHECK-NEXT:     call @body(%[[v0:.*]]) : (index) -> ()
@@ -268,7 +292,7 @@ func @if_for() {
 // CHECK-NEXT:   %[[v1:.*]] = muli %[[v0]], %[[cm1]] : index
 // CHECK-NEXT:   %[[c20:.*]] = constant 20 : index
 // CHECK-NEXT:   %[[v2:.*]] = addi %[[v1]], %[[c20]] : index
-// CHECK-NEXT:   %[[v3:.*]] = cmpi "sge", %[[v2]], %[[c0]] : index
+// CHECK-NEXT:   %[[v3:.*]] = cmpi sge, %[[v2]], %[[c0]] : index
 // CHECK-NEXT:   if %[[v3]] {
 // CHECK-NEXT:     %[[c0:.*]]{{.*}} = constant 0 : index
 // CHECK-NEXT:     %[[c42:.*]]{{.*}} = constant 42 : index
@@ -277,7 +301,7 @@ func @if_for() {
 // CHECK-NEXT:       %[[c0_:.*]]{{.*}} = constant 0 : index
 // CHECK-NEXT:       %[[cm10:.*]] = constant -10 : index
 // CHECK-NEXT:       %[[v4:.*]] = addi %{{.*}}, %[[cm10]] : index
-// CHECK-NEXT:       %[[v5:.*]] = cmpi "sge", %[[v4]], %[[c0_:.*]]{{.*}} : index
+// CHECK-NEXT:       %[[v5:.*]] = cmpi sge, %[[v4]], %[[c0_:.*]]{{.*}} : index
 // CHECK-NEXT:       if %[[v5]] {
 // CHECK-NEXT:         call @body2(%[[v0]], %{{.*}}) : (index, index) -> ()
   affine.if #set1(%i) {
@@ -294,7 +318,7 @@ func @if_for() {
 // CHECK-NEXT:     %[[c0:.*]]{{.*}} = constant 0 : index
 // CHECK-NEXT:     %[[cm10:.*]]{{.*}} = constant -10 : index
 // CHECK-NEXT:     %{{.*}} = addi %{{.*}}, %[[cm10:.*]]{{.*}} : index
-// CHECK-NEXT:     %{{.*}} = cmpi "sge", %{{.*}}, %[[c0:.*]]{{.*}} : index
+// CHECK-NEXT:     %{{.*}} = cmpi sge, %{{.*}}, %[[c0:.*]]{{.*}} : index
 // CHECK-NEXT:     if %{{.*}} {
 // CHECK-NEXT:       %[[c0_:.*]]{{.*}} = constant 0 : index
 // CHECK-NEXT:       %[[c42_:.*]]{{.*}} = constant 42 : index
@@ -322,11 +346,11 @@ func @if_for() {
 // CHECK-NEXT:     %[[cm1:.*]] = constant -1 : index
 // CHECK-NEXT:     %[[a:.*]] = muli %{{.*}}, %[[cm1]] : index
 // CHECK-NEXT:     %[[b:.*]] = addi %[[a]], %{{.*}} : index
-// CHECK-NEXT:     %[[c:.*]] = cmpi "sgt", %{{.*}}, %[[b]] : index
+// CHECK-NEXT:     %[[c:.*]] = cmpi sgt, %{{.*}}, %[[b]] : index
 // CHECK-NEXT:     %[[d:.*]] = select %[[c]], %{{.*}}, %[[b]] : index
 // CHECK-NEXT:     %[[c10:.*]] = constant 10 : index
 // CHECK-NEXT:     %[[e:.*]] = addi %{{.*}}, %[[c10]] : index
-// CHECK-NEXT:     %[[f:.*]] = cmpi "slt", %{{.*}}, %[[e]] : index
+// CHECK-NEXT:     %[[f:.*]] = cmpi slt, %{{.*}}, %[[e]] : index
 // CHECK-NEXT:     %[[g:.*]] = select %[[f]], %{{.*}}, %[[e]] : index
 // CHECK-NEXT:     %[[c1_0:.*]] = constant 1 : index
 // CHECK-NEXT:     for %{{.*}} = %[[d]] to %[[g]] step %[[c1_0]] {
@@ -346,22 +370,22 @@ func @loop_min_max(%N : index) {
 
 #map_7_values = affine_map<(d0, d1, d2, d3, d4, d5, d6) -> (d0, d1, d2, d3, d4, d5, d6)>
 
-// Check that the "min" (cmpi "slt" + select) reduction sequence is emitted
+// Check that the "min" (cmpi slt + select) reduction sequence is emitted
 // correctly for an affine map with 7 results.
 
 // CHECK-LABEL: func @min_reduction_tree
 // CHECK-NEXT:   %[[c0:.*]] = constant 0 : index
-// CHECK-NEXT:   %[[c01:.+]] = cmpi "slt", %{{.*}}, %{{.*}} : index
+// CHECK-NEXT:   %[[c01:.+]] = cmpi slt, %{{.*}}, %{{.*}} : index
 // CHECK-NEXT:   %[[r01:.+]] = select %[[c01]], %{{.*}}, %{{.*}} : index
-// CHECK-NEXT:   %[[c012:.+]] = cmpi "slt", %[[r01]], %{{.*}} : index
+// CHECK-NEXT:   %[[c012:.+]] = cmpi slt, %[[r01]], %{{.*}} : index
 // CHECK-NEXT:   %[[r012:.+]] = select %[[c012]], %[[r01]], %{{.*}} : index
-// CHECK-NEXT:   %[[c0123:.+]] = cmpi "slt", %[[r012]], %{{.*}} : index
+// CHECK-NEXT:   %[[c0123:.+]] = cmpi slt, %[[r012]], %{{.*}} : index
 // CHECK-NEXT:   %[[r0123:.+]] = select %[[c0123]], %[[r012]], %{{.*}} : index
-// CHECK-NEXT:   %[[c01234:.+]] = cmpi "slt", %[[r0123]], %{{.*}} : index
+// CHECK-NEXT:   %[[c01234:.+]] = cmpi slt, %[[r0123]], %{{.*}} : index
 // CHECK-NEXT:   %[[r01234:.+]] = select %[[c01234]], %[[r0123]], %{{.*}} : index
-// CHECK-NEXT:   %[[c012345:.+]] = cmpi "slt", %[[r01234]], %{{.*}} : index
+// CHECK-NEXT:   %[[c012345:.+]] = cmpi slt, %[[r01234]], %{{.*}} : index
 // CHECK-NEXT:   %[[r012345:.+]] = select %[[c012345]], %[[r01234]], %{{.*}} : index
-// CHECK-NEXT:   %[[c0123456:.+]] = cmpi "slt", %[[r012345]], %{{.*}} : index
+// CHECK-NEXT:   %[[c0123456:.+]] = cmpi slt, %[[r012345]], %{{.*}} : index
 // CHECK-NEXT:   %[[r0123456:.+]] = select %[[c0123456]], %[[r012345]], %{{.*}} : index
 // CHECK-NEXT:   %[[c1:.*]] = constant 1 : index
 // CHECK-NEXT:   for %{{.*}} = %[[c0]] to %[[r0123456]] step %[[c1]] {
@@ -454,7 +478,7 @@ func @affine_apply_mod(%arg0 : index) -> (index) {
 // CHECK-NEXT: %[[c42:.*]] = constant 42 : index
 // CHECK-NEXT: %[[v0:.*]] = remi_signed %{{.*}}, %[[c42]] : index
 // CHECK-NEXT: %[[c0:.*]] = constant 0 : index
-// CHECK-NEXT: %[[v1:.*]] = cmpi "slt", %[[v0]], %[[c0]] : index
+// CHECK-NEXT: %[[v1:.*]] = cmpi slt, %[[v0]], %[[c0]] : index
 // CHECK-NEXT: %[[v2:.*]] = addi %[[v0]], %[[c42]] : index
 // CHECK-NEXT: %[[v3:.*]] = select %[[v1]], %[[v2]], %[[v0]] : index
   %0 = affine.apply #mapmod (%arg0)
@@ -473,7 +497,7 @@ func @affine_apply_floordiv(%arg0 : index) -> (index) {
 // CHECK-NEXT: %[[c42:.*]] = constant 42 : index
 // CHECK-NEXT: %[[c0:.*]] = constant 0 : index
 // CHECK-NEXT: %[[cm1:.*]] = constant -1 : index
-// CHECK-NEXT: %[[v0:.*]] = cmpi "slt", %{{.*}}, %[[c0]] : index
+// CHECK-NEXT: %[[v0:.*]] = cmpi slt, %{{.*}}, %[[c0]] : index
 // CHECK-NEXT: %[[v1:.*]] = subi %[[cm1]], %{{.*}} : index
 // CHECK-NEXT: %[[v2:.*]] = select %[[v0]], %[[v1]], %{{.*}} : index
 // CHECK-NEXT: %[[v3:.*]] = divi_signed %[[v2]], %[[c42]] : index
@@ -495,7 +519,7 @@ func @affine_apply_ceildiv(%arg0 : index) -> (index) {
 // CHECK-NEXT:  %[[c42:.*]] = constant 42 : index
 // CHECK-NEXT:  %[[c0:.*]] = constant 0 : index
 // CHECK-NEXT:  %[[c1:.*]] = constant 1 : index
-// CHECK-NEXT:  %[[v0:.*]] = cmpi "sle", %{{.*}}, %[[c0]] : index
+// CHECK-NEXT:  %[[v0:.*]] = cmpi sle, %{{.*}}, %[[c0]] : index
 // CHECK-NEXT:  %[[v1:.*]] = subi %[[c0]], %{{.*}} : index
 // CHECK-NEXT:  %[[v2:.*]] = subi %{{.*}}, %[[c1]] : index
 // CHECK-NEXT:  %[[v3:.*]] = select %[[v0]], %[[v1]], %[[v2]] : index
@@ -600,7 +624,7 @@ func @affine_min(%arg0: index, %arg1: index) -> index{
   // CHECK: %[[Cm2:.*]] = constant -1
   // CHECK: %[[neg2:.*]] = muli %[[ARG0]], %[[Cm2:.*]]
   // CHECK: %[[second:.*]] = addi %[[ARG1]], %[[neg2]]
-  // CHECK: %[[cmp:.*]] = cmpi "slt", %[[first]], %[[second]]
+  // CHECK: %[[cmp:.*]] = cmpi slt, %[[first]], %[[second]]
   // CHECK: select %[[cmp]], %[[first]], %[[second]]
   %0 = affine.min affine_map<(d0,d1) -> (d0 - d1, d1 - d0)>(%arg0, %arg1)
   return %0 : index
@@ -615,7 +639,7 @@ func @affine_max(%arg0: index, %arg1: index) -> index{
   // CHECK: %[[Cm2:.*]] = constant -1
   // CHECK: %[[neg2:.*]] = muli %[[ARG0]], %[[Cm2:.*]]
   // CHECK: %[[second:.*]] = addi %[[ARG1]], %[[neg2]]
-  // CHECK: %[[cmp:.*]] = cmpi "sgt", %[[first]], %[[second]]
+  // CHECK: %[[cmp:.*]] = cmpi sgt, %[[first]], %[[second]]
   // CHECK: select %[[cmp]], %[[first]], %[[second]]
   %0 = affine.max affine_map<(d0,d1) -> (d0 - d1, d1 - d0)>(%arg0, %arg1)
   return %0 : index
@@ -674,3 +698,104 @@ func @affine_parallel_tiled(%o: memref<100x100xf32>, %a: memref<100x100xf32>, %b
 // CHECK:             %[[A4:.*]] = load %[[ARG2]][%[[arg8]], %[[arg7]]] : memref<100x100xf32>
 // CHECK:             mulf %[[A3]], %[[A4]] : f32
 // CHECK:             scf.yield
+
+/////////////////////////////////////////////////////////////////////
+
+func @affine_parallel_simple(%arg0: memref<3x3xf32>, %arg1: memref<3x3xf32>) -> (memref<3x3xf32>) {
+  %O = alloc() : memref<3x3xf32>
+  affine.parallel (%kx, %ky) = (0, 0) to (2, 2) {
+      %1 = affine.load %arg0[%kx, %ky] : memref<3x3xf32>
+      %2 = affine.load %arg1[%kx, %ky] : memref<3x3xf32>
+      %3 = mulf %1, %2 : f32
+      affine.store %3, %O[%kx, %ky] : memref<3x3xf32>
+  }
+  return %O : memref<3x3xf32>
+}
+// CHECK-LABEL: func @affine_parallel_simple
+// CHECK:         %[[LOWER_1:.*]] = constant 0 : index
+// CHECK-NEXT:    %[[LOWER_2:.*]] = constant 0 : index
+// CHECK-NEXT:    %[[UPPER_1:.*]] = constant 2 : index
+// CHECK-NEXT:    %[[UPPER_2:.*]] = constant 2 : index
+// CHECK-NEXT:    %[[STEP_1:.*]] = constant 1 : index
+// CHECK-NEXT:    %[[STEP_2:.*]] = constant 1 : index
+// CHECK-NEXT:    scf.parallel (%[[I:.*]], %[[J:.*]]) = (%[[LOWER_1]], %[[LOWER_2]]) to (%[[UPPER_1]], %[[UPPER_2]]) step (%[[STEP_1]], %[[STEP_2]]) {
+// CHECK-NEXT:      %[[VAL_1:.*]] = load
+// CHECK-NEXT:      %[[VAL_2:.*]] = load
+// CHECK-NEXT:      %[[PRODUCT:.*]] = mulf
+// CHECK-NEXT:      store
+// CHECK-NEXT:      scf.yield
+// CHECK-NEXT:    }
+// CHECK-NEXT:    return
+// CHECK-NEXT:  }
+
+/////////////////////////////////////////////////////////////////////
+
+func @affine_parallel_simple_dynamic_bounds(%arg0: memref<?x?xf32>, %arg1: memref<?x?xf32>, %arg2: memref<?x?xf32>) {
+  %c_0 = constant 0 : index
+  %output_dim = dim %arg0, %c_0 : memref<?x?xf32>
+  affine.parallel (%kx, %ky) = (%c_0, %c_0) to (%output_dim, %output_dim) {
+      %1 = affine.load %arg0[%kx, %ky] : memref<?x?xf32>
+      %2 = affine.load %arg1[%kx, %ky] : memref<?x?xf32>
+      %3 = mulf %1, %2 : f32
+      affine.store %3, %arg2[%kx, %ky] : memref<?x?xf32>
+  }
+  return
+}
+// CHECK-LABEL: func @affine_parallel_simple_dynamic_bounds
+// CHECK-SAME:  %[[ARG_0:.*]]: memref<?x?xf32>, %[[ARG_1:.*]]: memref<?x?xf32>, %[[ARG_2:.*]]: memref<?x?xf32>
+// CHECK:         %[[DIM_INDEX:.*]] = constant 0 : index
+// CHECK-NEXT:    %[[UPPER:.*]] = dim %[[ARG_0]], %[[DIM_INDEX]] : memref<?x?xf32>
+// CHECK-NEXT:    %[[LOWER_1:.*]] = constant 0 : index
+// CHECK-NEXT:    %[[LOWER_2:.*]] = constant 0 : index
+// CHECK-NEXT:    %[[STEP_1:.*]] = constant 1 : index
+// CHECK-NEXT:    %[[STEP_2:.*]] = constant 1 : index
+// CHECK-NEXT:    scf.parallel (%[[I:.*]], %[[J:.*]]) = (%[[LOWER_1]], %[[LOWER_2]]) to (%[[UPPER]], %[[UPPER]]) step (%[[STEP_1]], %[[STEP_2]]) {
+// CHECK-NEXT:      %[[VAL_1:.*]] = load
+// CHECK-NEXT:      %[[VAL_2:.*]] = load
+// CHECK-NEXT:      %[[PRODUCT:.*]] = mulf
+// CHECK-NEXT:      store
+// CHECK-NEXT:      scf.yield
+// CHECK-NEXT:    }
+// CHECK-NEXT:    return
+// CHECK-NEXT:  }
+
+/////////////////////////////////////////////////////////////////////
+
+func @affine_parallel_with_reductions(%arg0: memref<3x3xf32>, %arg1: memref<3x3xf32>) -> (f32, f32) {
+  %0:2 = affine.parallel (%kx, %ky) = (0, 0) to (2, 2) reduce ("addf", "mulf") -> (f32, f32) {
+            %1 = affine.load %arg0[%kx, %ky] : memref<3x3xf32>
+            %2 = affine.load %arg1[%kx, %ky] : memref<3x3xf32>
+            %3 = mulf %1, %2 : f32
+            %4 = addf %1, %2 : f32
+            affine.yield %3, %4 : f32, f32
+          }
+  return %0#0, %0#1 : f32, f32
+}
+// CHECK-LABEL: func @affine_parallel_with_reductions
+// CHECK:         %[[LOWER_1:.*]] = constant 0 : index
+// CHECK-NEXT:    %[[LOWER_2:.*]] = constant 0 : index
+// CHECK-NEXT:    %[[UPPER_1:.*]] = constant 2 : index
+// CHECK-NEXT:    %[[UPPER_2:.*]] = constant 2 : index
+// CHECK-NEXT:    %[[STEP_1:.*]] = constant 1 : index
+// CHECK-NEXT:    %[[STEP_2:.*]] = constant 1 : index
+// CHECK-NEXT:    %[[INIT_1:.*]] = constant 0.000000e+00 : f32
+// CHECK-NEXT:    %[[INIT_2:.*]] = constant 1.000000e+00 : f32
+// CHECK-NEXT:    %[[RES:.*]] = scf.parallel (%[[I:.*]], %[[J:.*]]) = (%[[LOWER_1]], %[[LOWER_2]]) to (%[[UPPER_1]], %[[UPPER_2]]) step (%[[STEP_1]], %[[STEP_2]]) init (%[[INIT_1]], %[[INIT_2]]) -> (f32, f32) {
+// CHECK-NEXT:      %[[VAL_1:.*]] = load
+// CHECK-NEXT:      %[[VAL_2:.*]] = load
+// CHECK-NEXT:      %[[PRODUCT:.*]] = mulf
+// CHECK-NEXT:      %[[SUM:.*]] = addf
+// CHECK-NEXT:      scf.reduce(%[[PRODUCT]]) : f32 {
+// CHECK-NEXT:      ^bb0(%[[LHS:.*]]: f32, %[[RHS:.*]]: f32):
+// CHECK-NEXT:        %[[RES:.*]] = addf
+// CHECK-NEXT:        scf.reduce.return %[[RES]] : f32
+// CHECK-NEXT:      }
+// CHECK-NEXT:      scf.reduce(%[[SUM]]) : f32 {
+// CHECK-NEXT:      ^bb0(%[[LHS:.*]]: f32, %[[RHS:.*]]: f32):
+// CHECK-NEXT:        %[[RES:.*]] = mulf
+// CHECK-NEXT:        scf.reduce.return %[[RES]] : f32
+// CHECK-NEXT:      }
+// CHECK-NEXT:      scf.yield
+// CHECK-NEXT:    }
+// CHECK-NEXT:    return
+// CHECK-NEXT:  }

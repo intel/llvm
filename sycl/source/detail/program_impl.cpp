@@ -11,6 +11,7 @@
 #include <CL/sycl/detail/pi.h>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/property_list.hpp>
+#include <detail/config.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/spec_constant_impl.hpp>
@@ -211,12 +212,12 @@ program_impl::~program_impl() {
 
 cl_program program_impl::get() const {
   throw_if_state_is(program_state::none);
-  if (is_host()) {
-    throw invalid_object_error("This instance of program is a host instance",
-                               PI_INVALID_PROGRAM);
+  if (is_host() || getPlugin().getBackend() != cl::sycl::backend::opencl) {
+    throw invalid_object_error(
+        "This instance of program doesn't support OpenCL interoperability.",
+        PI_INVALID_PROGRAM);
   }
-  const detail::plugin &Plugin = getPlugin();
-  Plugin.call<PiApiKind::piProgramRetain>(MProgram);
+  getPlugin().call<PiApiKind::piProgramRetain>(MProgram);
   return pi::cast<cl_program>(MProgram);
 }
 
@@ -291,9 +292,13 @@ void program_impl::link(string_class LinkOptions) {
     check_device_feature_support<info::device::is_linker_available>(MDevices);
     vector_class<RT::PiDevice> Devices(get_pi_devices());
     const detail::plugin &Plugin = getPlugin();
+    const char *LinkOpts = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
+    if (!LinkOpts) {
+      LinkOpts = LinkOptions.c_str();
+    }
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramLink>(
-        MContext->getHandleRef(), Devices.size(), Devices.data(),
-        LinkOptions.c_str(), 1, &MProgram, nullptr, nullptr, &MProgram);
+        MContext->getHandleRef(), Devices.size(), Devices.data(), LinkOpts,
+        /*num_input_programs*/ 1, &MProgram, nullptr, nullptr, &MProgram);
     Plugin.checkPiResult<compile_program_error>(Err);
     MLinkOptions = LinkOptions;
     MBuildOptions = LinkOptions;
@@ -363,8 +368,12 @@ void program_impl::compile(const string_class &Options) {
   check_device_feature_support<info::device::is_compiler_available>(MDevices);
   vector_class<RT::PiDevice> Devices(get_pi_devices());
   const detail::plugin &Plugin = getPlugin();
+  const char *CompileOpts = SYCLConfig<SYCL_PROGRAM_COMPILE_OPTIONS>::get();
+  if (!CompileOpts) {
+    CompileOpts = Options.c_str();
+  }
   RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramCompile>(
-      MProgram, Devices.size(), Devices.data(), Options.c_str(), 0, nullptr,
+      MProgram, Devices.size(), Devices.data(), CompileOpts, 0, nullptr,
       nullptr, nullptr, nullptr);
 
   if (Err != PI_SUCCESS) {

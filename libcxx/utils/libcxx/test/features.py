@@ -55,7 +55,16 @@ DEFAULT_FEATURES = [
             #include <atomic>
             struct Large { int storage[100]; };
             std::atomic<Large> x;
-            int main(int, char**) { return x.load(), x.is_lock_free(); }
+            int main(int, char**) { (void)x.load(); return 0; }
+          """)),
+  # TODO: Remove this feature once compiler-rt includes __atomic_is_lockfree()
+  # on all supported platforms.
+  Feature(name='is-lockfree-runtime-function',
+          when=lambda cfg: sourceBuilds(cfg, """
+            #include <atomic>
+            struct Large { int storage[100]; };
+            std::atomic<Large> x;
+            int main(int, char**) { return x.is_lock_free(); }
           """)),
 
   Feature(name='apple-clang',                                                                                                      when=_isAppleClang),
@@ -93,6 +102,7 @@ macros = {
   '_LIBCPP_NO_VCRUNTIME': 'libcpp-no-vcruntime',
   '_LIBCPP_ABI_VERSION': 'libcpp-abi-version',
   '_LIBCPP_ABI_UNSTABLE': 'libcpp-abi-unstable',
+  '_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY': 'libcpp-has-no-filesystem-library',
   '_LIBCPP_HAS_NO_RANDOM_DEVICE': 'libcpp-has-no-random-device',
   '_LIBCPP_HAS_NO_LOCALIZATION': 'libcpp-has-no-localization',
 }
@@ -138,7 +148,8 @@ DEFAULT_FEATURES += [
   Feature(name='darwin', when=lambda cfg: '__APPLE__' in compilerMacros(cfg)),
   Feature(name='windows', when=lambda cfg: '_WIN32' in compilerMacros(cfg)),
   Feature(name='linux', when=lambda cfg: '__linux__' in compilerMacros(cfg)),
-  Feature(name='netbsd', when=lambda cfg: '__NetBSD__' in compilerMacros(cfg))
+  Feature(name='netbsd', when=lambda cfg: '__NetBSD__' in compilerMacros(cfg)),
+  Feature(name='freebsd', when=lambda cfg: '__FreeBSD__' in compilerMacros(cfg))
 ]
 
 

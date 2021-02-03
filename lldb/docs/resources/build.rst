@@ -34,7 +34,7 @@ If you want to run the test suite, you'll need to build LLDB with Python
 scripting support.
 
 * `Python <http://www.python.org/>`_
-* `SWIG <http://swig.org/>`_ 2 or later.
+* `SWIG <http://swig.org/>`_ 3 or later.
 
 Optional Dependencies
 *********************
@@ -77,7 +77,7 @@ commands below.
   > brew install swig cmake ninja
 
 Note that there's an `incompatibility
-<https://github.com/swig/swig/issues/1321>` between Python version 3.7 and later
+<https://github.com/swig/swig/issues/1321>`_ between Python version 3.7 and later
 and swig versions older than 4.0.0 which makes builds of LLDB using debug
 versions of python unusable. This primarily affects Windows, as debug builds of
 LLDB must use debug python as well.

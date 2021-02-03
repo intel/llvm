@@ -369,10 +369,7 @@ static void initSlots2Values(const Function &F,
 const Value* PerFunctionMIParsingState::getIRValue(unsigned Slot) {
   if (Slots2Values.empty())
     initSlots2Values(MF.getFunction(), Slots2Values);
-  auto ValueInfo = Slots2Values.find(Slot);
-  if (ValueInfo == Slots2Values.end())
-    return nullptr;
-  return ValueInfo->second;
+  return Slots2Values.lookup(Slot);
 }
 
 namespace {
@@ -2729,7 +2726,7 @@ bool MIParser::parseOffset(int64_t &Offset) {
 }
 
 bool MIParser::parseAlignment(unsigned &Alignment) {
-  assert(Token.is(MIToken::kw_align));
+  assert(Token.is(MIToken::kw_align) || Token.is(MIToken::kw_basealign));
   lex();
   if (Token.isNot(MIToken::IntegerLiteral) || Token.integerValue().isSigned())
     return error("expected an integer literal after 'align'");
@@ -3077,6 +3074,12 @@ bool MIParser::parseMachineMemoryOperand(MachineMemOperand *&Dest) {
   while (consumeIfPresent(MIToken::comma)) {
     switch (Token.kind()) {
     case MIToken::kw_align:
+      // align is printed if it is different than size.
+      if (parseAlignment(BaseAlignment))
+        return true;
+      break;
+    case MIToken::kw_basealign:
+      // basealign is printed if it is different than align.
       if (parseAlignment(BaseAlignment))
         return true;
       break;
@@ -3169,10 +3172,7 @@ static void initSlots2BasicBlocks(
 static const BasicBlock *getIRBlockFromSlot(
     unsigned Slot,
     const DenseMap<unsigned, const BasicBlock *> &Slots2BasicBlocks) {
-  auto BlockInfo = Slots2BasicBlocks.find(Slot);
-  if (BlockInfo == Slots2BasicBlocks.end())
-    return nullptr;
-  return BlockInfo->second;
+  return Slots2BasicBlocks.lookup(Slot);
 }
 
 const BasicBlock *MIParser::getIRBlock(unsigned Slot) {

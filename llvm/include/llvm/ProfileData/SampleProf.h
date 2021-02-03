@@ -164,7 +164,9 @@ struct SecHdrTableEntry {
 // will be saved in the higher 32 bits.
 enum class SecCommonFlags : uint32_t {
   SecFlagInValid = 0,
-  SecFlagCompress = (1 << 0)
+  SecFlagCompress = (1 << 0),
+  // Indicate the section contains only profile without context.
+  SecFlagFlat = (1 << 1)
 };
 
 // Section specific flags are defined here.
@@ -796,10 +798,7 @@ public:
       return Name;
 
     assert(GUIDToFuncNameMap && "GUIDToFuncNameMap needs to be popluated first");
-    auto iter = GUIDToFuncNameMap->find(std::stoull(Name.data()));
-    if (iter == GUIDToFuncNameMap->end())
-      return StringRef();
-    return iter->second;
+    return GUIDToFuncNameMap->lookup(std::stoull(Name.data()));
   }
 
   /// Returns the line offset to the start line of the subprogram.

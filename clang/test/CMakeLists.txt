@@ -124,6 +124,7 @@ if( NOT CLANG_BUILT_STANDALONE )
     llvm-profdata
     llvm-readelf
     llvm-readobj
+    llvm-strip
     llvm-symbolizer
     opt
     split-file

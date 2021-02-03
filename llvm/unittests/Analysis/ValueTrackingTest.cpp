@@ -67,6 +67,9 @@ protected:
 
     A = findInstructionByNameOrNull(F, "A");
     ASSERT_TRUE(A) << "@test must have an instruction %A";
+    A2 = findInstructionByNameOrNull(F, "A2");
+    A3 = findInstructionByNameOrNull(F, "A3");
+    A4 = findInstructionByNameOrNull(F, "A4");
 
     CxtI = findInstructionByNameOrNull(F, "CxtI");
     CxtI2 = findInstructionByNameOrNull(F, "CxtI2");
@@ -77,6 +80,8 @@ protected:
   std::unique_ptr<Module> M;
   Function *F = nullptr;
   Instruction *A = nullptr;
+  // Instructions (optional)
+  Instruction *A2 = nullptr, *A3 = nullptr, *A4 = nullptr;
 
   // Context instructions (optional)
   Instruction *CxtI = nullptr, *CxtI2 = nullptr, *CxtI3 = nullptr;
@@ -690,6 +695,99 @@ TEST_F(ValueTrackingTest, ComputeNumSignBits_Shuffle2) {
   EXPECT_EQ(ComputeNumSignBits(A, M->getDataLayout()), 1u);
 }
 
+TEST_F(ValueTrackingTest, impliesPoisonTest_Identity) {
+  parseAssembly("define void @test(i32 %x, i32 %y) {\n"
+                "  %A = add i32 %x, %y\n"
+                "  ret void\n"
+                "}");
+  EXPECT_TRUE(impliesPoison(A, A));
+}
+
+TEST_F(ValueTrackingTest, impliesPoisonTest_ICmp) {
+  parseAssembly("define void @test(i32 %x) {\n"
+                "  %A2 = icmp eq i32 %x, 0\n"
+                "  %A = icmp eq i32 %x, 1\n"
+                "  ret void\n"
+                "}");
+  EXPECT_TRUE(impliesPoison(A2, A));
+}
+
+TEST_F(ValueTrackingTest, impliesPoisonTest_ICmpUnknown) {
+  parseAssembly("define void @test(i32 %x, i32 %y) {\n"
+                "  %A2 = icmp eq i32 %x, %y\n"
+                "  %A = icmp eq i32 %x, 1\n"
+                "  ret void\n"
+                "}");
+  EXPECT_FALSE(impliesPoison(A2, A));
+}
+
+TEST_F(ValueTrackingTest, impliesPoisonTest_AddNswOkay) {
+  parseAssembly("define void @test(i32 %x) {\n"
+                "  %A2 = add nsw i32 %x, 1\n"
+                "  %A = add i32 %A2, 1\n"
+                "  ret void\n"
+                "}");
+  EXPECT_TRUE(impliesPoison(A2, A));
+}
+
+TEST_F(ValueTrackingTest, impliesPoisonTest_AddNswOkay2) {
+  parseAssembly("define void @test(i32 %x) {\n"
+                "  %A2 = add i32 %x, 1\n"
+                "  %A = add nsw i32 %A2, 1\n"
+                "  ret void\n"
+                "}");
+  EXPECT_TRUE(impliesPoison(A2, A));
+}
+
+TEST_F(ValueTrackingTest, impliesPoisonTest_AddNsw) {
+  parseAssembly("define void @test(i32 %x) {\n"
+                "  %A2 = add nsw i32 %x, 1\n"
+                "  %A = add i32 %x, 1\n"
+                "  ret void\n"
+                "}");
+  EXPECT_FALSE(impliesPoison(A2, A));
+}
+
+TEST_F(ValueTrackingTest, impliesPoisonTest_Cmp) {
+  parseAssembly("define void @test(i32 %x, i32 %y, i1 %c) {\n"
+                "  %A2 = icmp eq i32 %x, %y\n"
+                "  %A0 = icmp ult i32 %x, %y\n"
+                "  %A = or i1 %A0, %c\n"
+                "  ret void\n"
+                "}");
+  EXPECT_TRUE(impliesPoison(A2, A));
+}
+
+TEST_F(ValueTrackingTest, impliesPoisonTest_FCmpFMF) {
+  parseAssembly("define void @test(float %x, float %y, i1 %c) {\n"
+                "  %A2 = fcmp nnan oeq float %x, %y\n"
+                "  %A0 = fcmp olt float %x, %y\n"
+                "  %A = or i1 %A0, %c\n"
+                "  ret void\n"
+                "}");
+  EXPECT_FALSE(impliesPoison(A2, A));
+}
+
+TEST_F(ValueTrackingTest, impliesPoisonTest_AddSubSameOps) {
+  parseAssembly("define void @test(i32 %x, i32 %y, i1 %c) {\n"
+                "  %A2 = add i32 %x, %y\n"
+                "  %A = sub i32 %x, %y\n"
+                "  ret void\n"
+                "}");
+  EXPECT_TRUE(impliesPoison(A2, A));
+}
+
+TEST_F(ValueTrackingTest, impliesPoisonTest_MaskCmp) {
+  parseAssembly("define void @test(i32 %x, i32 %y, i1 %c) {\n"
+                "  %M2 = and i32 %x, 7\n"
+                "  %A2 = icmp eq i32 %M2, 1\n"
+                "  %M = and i32 %x, 15\n"
+                "  %A = icmp eq i32 %M, 3\n"
+                "  ret void\n"
+                "}");
+  EXPECT_TRUE(impliesPoison(A2, A));
+}
+
 TEST_F(ValueTrackingTest, ComputeNumSignBits_Shuffle_Pointers) {
   parseAssembly(
       "define <2 x i32*> @test(<2 x i32*> %x) {\n"
@@ -826,6 +924,34 @@ TEST_F(ValueTrackingTest, isGuaranteedNotToBeUndefOrPoison) {
                 "  ret void\n"
                 "}\n");
   EXPECT_EQ(isGuaranteedNotToBeUndefOrPoison(A), true);
+  EXPECT_EQ(isGuaranteedNotToBeUndefOrPoison(UndefValue::get(IntegerType::get(Context, 8))), false);
+  EXPECT_EQ(isGuaranteedNotToBeUndefOrPoison(PoisonValue::get(IntegerType::get(Context, 8))), false);
+  EXPECT_EQ(isGuaranteedNotToBePoison(UndefValue::get(IntegerType::get(Context, 8))), true);
+  EXPECT_EQ(isGuaranteedNotToBePoison(PoisonValue::get(IntegerType::get(Context, 8))), false);
+
+  Type *Int32Ty = Type::getInt32Ty(Context);
+  Constant *CU = UndefValue::get(Int32Ty);
+  Constant *CP = PoisonValue::get(Int32Ty);
+  Constant *C1 = ConstantInt::get(Int32Ty, 1);
+  Constant *C2 = ConstantInt::get(Int32Ty, 2);
+
+  {
+    Constant *V1 = ConstantVector::get({C1, C2});
+    EXPECT_TRUE(isGuaranteedNotToBeUndefOrPoison(V1));
+    EXPECT_TRUE(isGuaranteedNotToBePoison(V1));
+  }
+
+  {
+    Constant *V2 = ConstantVector::get({C1, CU});
+    EXPECT_FALSE(isGuaranteedNotToBeUndefOrPoison(V2));
+    EXPECT_TRUE(isGuaranteedNotToBePoison(V2));
+  }
+
+  {
+    Constant *V3 = ConstantVector::get({C1, CP});
+    EXPECT_FALSE(isGuaranteedNotToBeUndefOrPoison(V3));
+    EXPECT_FALSE(isGuaranteedNotToBePoison(V3));
+  }
 }
 
 TEST_F(ValueTrackingTest, isGuaranteedNotToBeUndefOrPoison_assume) {
@@ -857,6 +983,7 @@ TEST_F(ValueTrackingTest, isGuaranteedNotToBeUndefOrPoison_assume) {
 
 TEST(ValueTracking, canCreatePoisonOrUndef) {
   std::string AsmHead =
+      "@s = external dso_local global i32, align 1\n"
       "declare i32 @g(i32)\n"
       "define void @f(i32 %x, i32 %y, float %fx, float %fy, i1 %cond, "
       "<4 x i32> %vx, <4 x i32> %vx2, <vscale x 4 x i32> %svx, i8* %p) {\n";
@@ -915,7 +1042,11 @@ TEST(ValueTracking, canCreatePoisonOrUndef) {
       {{true, false}, "call i32 @g(i32 %x)"},
       {{false, false}, "call noundef i32 @g(i32 %x)"},
       {{true, false}, "fcmp nnan oeq float %fx, %fy"},
-      {{false, false}, "fcmp oeq float %fx, %fy"}};
+      {{false, false}, "fcmp oeq float %fx, %fy"},
+      {{true, false},
+       "ashr <4 x i32> %vx, select (i1 icmp sgt (i32 ptrtoint (i32* @s to "
+       "i32), i32 1), <4 x i32> zeroinitializer, <4 x i32> <i32 0, i32 1, i32 "
+       "2, i32 3>)"}};
 
   std::string AssemblyStr = AsmHead;
   for (auto &Itm : Data)
@@ -1002,6 +1133,130 @@ TEST_F(ComputeKnownBitsTest, ComputeKnownMulBits) {
       "  ret i32 %A\n"
       "}\n");
   expectKnownBits(/*zero*/ 95u, /*one*/ 32u);
+}
+
+TEST_F(ValueTrackingTest, KnownNonZeroFromDomCond) {
+  parseAssembly(R"(
+    declare i8* @f_i8()
+    define void @test(i1 %c) {
+      %A = call i8* @f_i8()
+      %B = call i8* @f_i8()
+      %c1 = icmp ne i8* %A, null
+      %cond = and i1 %c1, %c
+      br i1 %cond, label %T, label %Q
+    T:
+      %CxtI = add i32 0, 0
+      ret void
+    Q:
+      %CxtI2 = add i32 0, 0
+      ret void
+    }
+  )");
+  AssumptionCache AC(*F);
+  DominatorTree DT(*F);
+  DataLayout DL = M->getDataLayout();
+  EXPECT_EQ(isKnownNonZero(A, DL, 0, &AC, CxtI, &DT), true);
+  EXPECT_EQ(isKnownNonZero(A, DL, 0, &AC, CxtI2, &DT), false);
+}
+
+TEST_F(ValueTrackingTest, KnownNonZeroFromDomCond2) {
+  parseAssembly(R"(
+    declare i8* @f_i8()
+    define void @test(i1 %c) {
+      %A = call i8* @f_i8()
+      %B = call i8* @f_i8()
+      %c1 = icmp ne i8* %A, null
+      %cond = select i1 %c, i1 %c1, i1 false
+      br i1 %cond, label %T, label %Q
+    T:
+      %CxtI = add i32 0, 0
+      ret void
+    Q:
+      %CxtI2 = add i32 0, 0
+      ret void
+    }
+  )");
+  AssumptionCache AC(*F);
+  DominatorTree DT(*F);
+  DataLayout DL = M->getDataLayout();
+  EXPECT_EQ(isKnownNonZero(A, DL, 0, &AC, CxtI, &DT), true);
+  EXPECT_EQ(isKnownNonZero(A, DL, 0, &AC, CxtI2, &DT), false);
+}
+
+TEST_F(ValueTrackingTest, IsImpliedConditionAnd) {
+  parseAssembly(R"(
+    define void @test(i32 %x, i32 %y) {
+      %c1 = icmp ult i32 %x, 10
+      %c2 = icmp ult i32 %y, 15
+      %A = and i1 %c1, %c2
+      ; x < 10 /\ y < 15
+      %A2 = icmp ult i32 %x, 20
+      %A3 = icmp uge i32 %y, 20
+      %A4 = icmp ult i32 %x, 5
+      ret void
+    }
+  )");
+  DataLayout DL = M->getDataLayout();
+  EXPECT_EQ(isImpliedCondition(A, A2, DL), true);
+  EXPECT_EQ(isImpliedCondition(A, A3, DL), false);
+  EXPECT_EQ(isImpliedCondition(A, A4, DL), None);
+}
+
+TEST_F(ValueTrackingTest, IsImpliedConditionAnd2) {
+  parseAssembly(R"(
+    define void @test(i32 %x, i32 %y) {
+      %c1 = icmp ult i32 %x, 10
+      %c2 = icmp ult i32 %y, 15
+      %A = select i1 %c1, i1 %c2, i1 false
+      ; x < 10 /\ y < 15
+      %A2 = icmp ult i32 %x, 20
+      %A3 = icmp uge i32 %y, 20
+      %A4 = icmp ult i32 %x, 5
+      ret void
+    }
+  )");
+  DataLayout DL = M->getDataLayout();
+  EXPECT_EQ(isImpliedCondition(A, A2, DL), true);
+  EXPECT_EQ(isImpliedCondition(A, A3, DL), false);
+  EXPECT_EQ(isImpliedCondition(A, A4, DL), None);
+}
+
+TEST_F(ValueTrackingTest, IsImpliedConditionOr) {
+  parseAssembly(R"(
+    define void @test(i32 %x, i32 %y) {
+      %c1 = icmp ult i32 %x, 10
+      %c2 = icmp ult i32 %y, 15
+      %A = or i1 %c1, %c2 ; negated
+      ; x >= 10 /\ y >= 15
+      %A2 = icmp ult i32 %x, 5
+      %A3 = icmp uge i32 %y, 10
+      %A4 = icmp ult i32 %x, 15
+      ret void
+    }
+  )");
+  DataLayout DL = M->getDataLayout();
+  EXPECT_EQ(isImpliedCondition(A, A2, DL, false), false);
+  EXPECT_EQ(isImpliedCondition(A, A3, DL, false), true);
+  EXPECT_EQ(isImpliedCondition(A, A4, DL, false), None);
+}
+
+TEST_F(ValueTrackingTest, IsImpliedConditionOr2) {
+  parseAssembly(R"(
+    define void @test(i32 %x, i32 %y) {
+      %c1 = icmp ult i32 %x, 10
+      %c2 = icmp ult i32 %y, 15
+      %A = select i1 %c1, i1 true, i1 %c2 ; negated
+      ; x >= 10 /\ y >= 15
+      %A2 = icmp ult i32 %x, 5
+      %A3 = icmp uge i32 %y, 10
+      %A4 = icmp ult i32 %x, 15
+      ret void
+    }
+  )");
+  DataLayout DL = M->getDataLayout();
+  EXPECT_EQ(isImpliedCondition(A, A2, DL, false), false);
+  EXPECT_EQ(isImpliedCondition(A, A3, DL, false), true);
+  EXPECT_EQ(isImpliedCondition(A, A4, DL, false), None);
 }
 
 TEST_F(ComputeKnownBitsTest, KnownNonZeroShift) {

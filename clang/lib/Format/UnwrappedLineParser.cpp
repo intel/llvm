@@ -714,7 +714,7 @@ void UnwrappedLineParser::parseChildBlock() {
   nextToken();
 }
 
-void UnwrappedLineParser::parsePPDirective(unsigned Level) {
+void UnwrappedLineParser::parsePPDirective() {
   assert(FormatTok->Tok.is(tok::hash) && "'#' expected");
   ScopedMacroState MacroState(*Line, Tokens, FormatTok);
 
@@ -745,17 +745,6 @@ void UnwrappedLineParser::parsePPDirective(unsigned Level) {
   case tok::pp_endif:
     parsePPEndIf();
     break;
-  case tok::pp_pragma: {
-    bool IndentPPDirectives =
-        Style.IndentPPDirectives != FormatStyle::PPDIS_None;
-    unsigned CurrentLevel = Line->Level;
-    Line->Level =
-        Style.IndentPragmas
-            ? (IndentPPDirectives ? (Level - (PPBranchLevel + 1)) : Level)
-            : CurrentLevel;
-    parsePPUnknown();
-    Line->Level = CurrentLevel;
-  } break;
   default:
     parsePPUnknown();
     break;
@@ -2244,18 +2233,26 @@ void UnwrappedLineParser::parseLabel(bool LeftAlignLabel) {
     --Line->Level;
   if (LeftAlignLabel)
     Line->Level = 0;
+
+  bool RemoveWhitesmithsCaseIndent =
+      (!Style.IndentCaseBlocks &&
+       Style.BreakBeforeBraces == FormatStyle::BS_Whitesmiths);
+
+  if (RemoveWhitesmithsCaseIndent)
+    --Line->Level;
+
   if (!Style.IndentCaseBlocks && CommentsBeforeNextToken.empty() &&
       FormatTok->Tok.is(tok::l_brace)) {
-    CompoundStatementIndenter Indenter(this, Line->Level,
-                                       Style.BraceWrapping.AfterCaseLabel,
-                                       Style.BraceWrapping.IndentBraces);
+
+    CompoundStatementIndenter Indenter(
+        this, Line->Level, Style.BraceWrapping.AfterCaseLabel,
+        Style.BraceWrapping.IndentBraces || RemoveWhitesmithsCaseIndent);
     parseBlock(/*MustBeDeclaration=*/false);
     if (FormatTok->Tok.is(tok::kw_break)) {
       if (Style.BraceWrapping.AfterControlStatement ==
           FormatStyle::BWACS_Always) {
         addUnwrappedLine();
-        if (!Style.IndentCaseBlocks &&
-            Style.BreakBeforeBraces == FormatStyle::BS_Whitesmiths) {
+        if (RemoveWhitesmithsCaseIndent) {
           Line->Level++;
         }
       }
@@ -2276,6 +2273,7 @@ void UnwrappedLineParser::parseLabel(bool LeftAlignLabel) {
 
 void UnwrappedLineParser::parseCaseLabel() {
   assert(FormatTok->Tok.is(tok::kw_case) && "'case' expected");
+
   // FIXME: fix handling of complex expressions here.
   do {
     nextToken();
@@ -3175,7 +3173,7 @@ void UnwrappedLineParser::readToken(int LevelDifference) {
           PPBranchLevel > 0)
         Line->Level += PPBranchLevel;
       flushComments(isOnNewLine(*FormatTok));
-      parsePPDirective(Line->Level);
+      parsePPDirective();
     }
     while (FormatTok->getType() == TT_ConflictStart ||
            FormatTok->getType() == TT_ConflictEnd ||

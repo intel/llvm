@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "AMDGPU.h"
 #include "AMDKernelCodeT.h"
 #include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "MCTargetDesc/AMDGPUTargetStreamer.h"
@@ -17,49 +16,23 @@
 #include "Utils/AMDGPUBaseInfo.h"
 #include "Utils/AMDKernelCodeTUtils.h"
 #include "llvm/ADT/APFloat.h"
-#include "llvm/ADT/APInt.h"
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallBitVector.h"
-#include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/StringSwitch.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Twine.h"
-#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
-#include "llvm/MC/MCInstrDesc.h"
-#include "llvm/MC/MCInstrInfo.h"
-#include "llvm/MC/MCParser/MCAsmLexer.h"
 #include "llvm/MC/MCParser/MCAsmParser.h"
-#include "llvm/MC/MCParser/MCAsmParserExtension.h"
 #include "llvm/MC/MCParser/MCParsedAsmOperand.h"
 #include "llvm/MC/MCParser/MCTargetAsmParser.h"
-#include "llvm/MC/MCRegisterInfo.h"
-#include "llvm/MC/MCStreamer.h"
-#include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/Support/AMDGPUMetadata.h"
 #include "llvm/Support/AMDHSAKernelDescriptor.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/Compiler.h"
-#include "llvm/Support/Error.h"
 #include "llvm/Support/MachineValueType.h"
-#include "llvm/Support/MathExtras.h"
-#include "llvm/Support/SMLoc.h"
 #include "llvm/Support/TargetParser.h"
 #include "llvm/Support/TargetRegistry.h"
-#include "llvm/Support/raw_ostream.h"
-#include <algorithm>
-#include <cassert>
-#include <cstdint>
-#include <cstring>
-#include <iterator>
-#include <map>
-#include <memory>
-#include <string>
 
 using namespace llvm;
 using namespace llvm::AMDGPU;
@@ -1434,7 +1407,7 @@ private:
   bool trySkipToken(const AsmToken::TokenKind Kind);
   bool skipToken(const AsmToken::TokenKind Kind, const StringRef ErrMsg);
   bool parseString(StringRef &Val, const StringRef ErrMsg = "expected a string");
-  bool parseId(StringRef &Val, const StringRef ErrMsg);
+  bool parseId(StringRef &Val, const StringRef ErrMsg = "");
 
   void peekTokens(MutableArrayRef<AsmToken> Tokens);
   AsmToken::TokenKind getTokenKind() const;
@@ -1512,6 +1485,9 @@ public:
   OperandMatchResultTy parseDim(OperandVector &Operands);
   OperandMatchResultTy parseDPP8(OperandVector &Operands);
   OperandMatchResultTy parseDPPCtrl(OperandVector &Operands);
+  bool isSupportedDPPCtrl(StringRef Ctrl, const OperandVector &Operands);
+  int64_t parseDPPCtrlSel(StringRef Ctrl);
+  int64_t parseDPPCtrlPerm();
   AMDGPUOperand::Ptr defaultRowMask() const;
   AMDGPUOperand::Ptr defaultBankMask() const;
   AMDGPUOperand::Ptr defaultBoundCtrl() const;
@@ -2529,11 +2505,11 @@ bool AMDGPUAsmParser::updateGprCountSymbols(RegisterKind RegKind,
   int64_t OldCount;
 
   if (!Sym->isVariable())
-    return !Error(getParser().getTok().getLoc(),
+    return !Error(getLoc(),
                   ".amdgcn.next_free_{v,s}gpr symbols must be variable");
   if (!Sym->getVariableValue(false)->evaluateAsAbsolute(OldCount))
     return !Error(
-        getParser().getTok().getLoc(),
+        getLoc(),
         ".amdgcn.next_free_{v,s}gpr symbols must be absolute expressions");
 
   if (OldCount <= NewMax)
@@ -2544,7 +2520,7 @@ bool AMDGPUAsmParser::updateGprCountSymbols(RegisterKind RegKind,
 
 std::unique_ptr<AMDGPUOperand>
 AMDGPUAsmParser::parseRegister(bool RestoreOnFailure) {
-  const auto &Tok = Parser.getTok();
+  const auto &Tok = getToken();
   SMLoc StartLoc = Tok.getLoc();
   SMLoc EndLoc = Tok.getEndLoc();
   RegisterKind RegKind;
@@ -3033,15 +3009,15 @@ unsigned AMDGPUAsmParser::getConstantBusLimit(unsigned Opcode) const {
 
   switch (Opcode) {
   // 64-bit shift instructions can use only one scalar value input
-  case AMDGPU::V_LSHLREV_B64:
+  case AMDGPU::V_LSHLREV_B64_e64:
   case AMDGPU::V_LSHLREV_B64_gfx10:
-  case AMDGPU::V_LSHL_B64:
-  case AMDGPU::V_LSHRREV_B64:
+  case AMDGPU::V_LSHRREV_B64_e64:
   case AMDGPU::V_LSHRREV_B64_gfx10:
-  case AMDGPU::V_LSHR_B64:
-  case AMDGPU::V_ASHRREV_I64:
+  case AMDGPU::V_ASHRREV_I64_e64:
   case AMDGPU::V_ASHRREV_I64_gfx10:
-  case AMDGPU::V_ASHR_I64:
+  case AMDGPU::V_LSHL_B64_e64:
+  case AMDGPU::V_LSHR_B64_e64:
+  case AMDGPU::V_ASHR_I64_e64:
     return 1;
   default:
     return 2;
@@ -3555,15 +3531,15 @@ static bool IsRevOpcode(const unsigned Opcode)
   case AMDGPU::V_ASHRREV_I16_e64_vi:
   case AMDGPU::V_ASHRREV_I16_gfx10:
 
-  case AMDGPU::V_LSHLREV_B64:
+  case AMDGPU::V_LSHLREV_B64_e64:
   case AMDGPU::V_LSHLREV_B64_gfx10:
   case AMDGPU::V_LSHLREV_B64_vi:
 
-  case AMDGPU::V_LSHRREV_B64:
+  case AMDGPU::V_LSHRREV_B64_e64:
   case AMDGPU::V_LSHRREV_B64_gfx10:
   case AMDGPU::V_LSHRREV_B64_vi:
 
-  case AMDGPU::V_ASHRREV_I64:
+  case AMDGPU::V_ASHRREV_I64_e64:
   case AMDGPU::V_ASHRREV_I64_gfx10:
   case AMDGPU::V_ASHRREV_I64_vi:
 
@@ -4058,7 +4034,7 @@ bool AMDGPUAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
 
 bool AMDGPUAsmParser::ParseAsAbsoluteExpression(uint32_t &Ret) {
   int64_t Tmp = -1;
-  if (getLexer().isNot(AsmToken::Integer) && getLexer().isNot(AsmToken::Identifier)) {
+  if (!isToken(AsmToken::Integer) && !isToken(AsmToken::Identifier)) {
     return true;
   }
   if (getParser().parseAbsoluteExpression(Tmp)) {
@@ -4073,9 +4049,8 @@ bool AMDGPUAsmParser::ParseDirectiveMajorMinor(uint32_t &Major,
   if (ParseAsAbsoluteExpression(Major))
     return TokError("invalid major version");
 
-  if (getLexer().isNot(AsmToken::Comma))
+  if (!trySkipToken(AsmToken::Comma))
     return TokError("minor version number required, comma expected");
-  Lex();
 
   if (ParseAsAbsoluteExpression(Minor))
     return TokError("invalid minor version");
@@ -4089,25 +4064,24 @@ bool AMDGPUAsmParser::ParseDirectiveAMDGCNTarget() {
 
   std::string Target;
 
-  SMLoc TargetStart = getTok().getLoc();
+  SMLoc TargetStart = getLoc();
   if (getParser().parseEscapedString(Target))
     return true;
-  SMRange TargetRange = SMRange(TargetStart, getTok().getLoc());
+  SMRange TargetRange = SMRange(TargetStart, getLoc());
 
   std::string ExpectedTarget;
   raw_string_ostream ExpectedTargetOS(ExpectedTarget);
   IsaInfo::streamIsaVersion(&getSTI(), ExpectedTargetOS);
 
   if (Target != ExpectedTargetOS.str())
-    return getParser().Error(TargetRange.Start, "target must match options",
-                             TargetRange);
+    return Error(TargetRange.Start, "target must match options", TargetRange);
 
   getTargetStreamer().EmitDirectiveAMDGCNTarget(Target);
   return false;
 }
 
 bool AMDGPUAsmParser::OutOfRangeError(SMRange Range) {
-  return getParser().Error(Range.Start, "value out of range", Range);
+  return Error(Range.Start, "value out of range", Range);
 }
 
 bool AMDGPUAsmParser::calculateGPRBlocks(
@@ -4178,15 +4152,12 @@ bool AMDGPUAsmParser::ParseDirectiveAMDHSAKernel() {
   Optional<bool> EnableWavefrontSize32;
 
   while (true) {
-    while (getLexer().is(AsmToken::EndOfStatement))
-      Lex();
+    while (trySkipToken(AsmToken::EndOfStatement));
 
-    if (getLexer().isNot(AsmToken::Identifier))
-      return TokError("expected .amdhsa_ directive or .end_amdhsa_kernel");
-
-    StringRef ID = getTok().getIdentifier();
+    StringRef ID;
     SMRange IDRange = getTok().getLocRange();
-    Lex();
+    if (!parseId(ID, "expected .amdhsa_ directive or .end_amdhsa_kernel"))
+      return true;
 
     if (ID == ".end_amdhsa_kernel")
       break;
@@ -4195,11 +4166,11 @@ bool AMDGPUAsmParser::ParseDirectiveAMDHSAKernel() {
       return TokError(".amdhsa_ directives cannot be repeated");
     Seen.insert(ID);
 
-    SMLoc ValStart = getTok().getLoc();
+    SMLoc ValStart = getLoc();
     int64_t IVal;
     if (getParser().parseAbsoluteExpression(IVal))
       return true;
-    SMLoc ValEnd = getTok().getLoc();
+    SMLoc ValEnd = getLoc();
     SMRange ValRange = SMRange(ValStart, ValEnd);
 
     if (IVal < 0)
@@ -4264,8 +4235,7 @@ bool AMDGPUAsmParser::ParseDirectiveAMDHSAKernel() {
         UserSGPRCount += 1;
     } else if (ID == ".amdhsa_wavefront_size32") {
       if (IVersion.Major < 10)
-        return getParser().Error(IDRange.Start, "directive requires gfx10+",
-                                 IDRange);
+        return Error(IDRange.Start, "directive requires gfx10+", IDRange);
       EnableWavefrontSize32 = Val;
       PARSE_BITS_ENTRY(KD.kernel_code_properties,
                        KERNEL_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32,
@@ -4307,15 +4277,13 @@ bool AMDGPUAsmParser::ParseDirectiveAMDHSAKernel() {
       ReserveVCC = Val;
     } else if (ID == ".amdhsa_reserve_flat_scratch") {
       if (IVersion.Major < 7)
-        return getParser().Error(IDRange.Start, "directive requires gfx7+",
-                                 IDRange);
+        return Error(IDRange.Start, "directive requires gfx7+", IDRange);
       if (!isUInt<1>(Val))
         return OutOfRangeError(ValRange);
       ReserveFlatScr = Val;
     } else if (ID == ".amdhsa_reserve_xnack_mask") {
       if (IVersion.Major < 8)
-        return getParser().Error(IDRange.Start, "directive requires gfx8+",
-                                 IDRange);
+        return Error(IDRange.Start, "directive requires gfx8+", IDRange);
       if (!isUInt<1>(Val))
         return OutOfRangeError(ValRange);
       ReserveXNACK = Val;
@@ -4340,26 +4308,22 @@ bool AMDGPUAsmParser::ParseDirectiveAMDHSAKernel() {
                        Val, ValRange);
     } else if (ID == ".amdhsa_fp16_overflow") {
       if (IVersion.Major < 9)
-        return getParser().Error(IDRange.Start, "directive requires gfx9+",
-                                 IDRange);
+        return Error(IDRange.Start, "directive requires gfx9+", IDRange);
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc1, COMPUTE_PGM_RSRC1_FP16_OVFL, Val,
                        ValRange);
     } else if (ID == ".amdhsa_workgroup_processor_mode") {
       if (IVersion.Major < 10)
-        return getParser().Error(IDRange.Start, "directive requires gfx10+",
-                                 IDRange);
+        return Error(IDRange.Start, "directive requires gfx10+", IDRange);
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc1, COMPUTE_PGM_RSRC1_WGP_MODE, Val,
                        ValRange);
     } else if (ID == ".amdhsa_memory_ordered") {
       if (IVersion.Major < 10)
-        return getParser().Error(IDRange.Start, "directive requires gfx10+",
-                                 IDRange);
+        return Error(IDRange.Start, "directive requires gfx10+", IDRange);
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc1, COMPUTE_PGM_RSRC1_MEM_ORDERED, Val,
                        ValRange);
     } else if (ID == ".amdhsa_forward_progress") {
       if (IVersion.Major < 10)
-        return getParser().Error(IDRange.Start, "directive requires gfx10+",
-                                 IDRange);
+        return Error(IDRange.Start, "directive requires gfx10+", IDRange);
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc1, COMPUTE_PGM_RSRC1_FWD_PROGRESS, Val,
                        ValRange);
     } else if (ID == ".amdhsa_exception_fp_ieee_invalid_op") {
@@ -4393,8 +4357,7 @@ bool AMDGPUAsmParser::ParseDirectiveAMDHSAKernel() {
                        COMPUTE_PGM_RSRC2_ENABLE_EXCEPTION_INT_DIVIDE_BY_ZERO,
                        Val, ValRange);
     } else {
-      return getParser().Error(IDRange.Start,
-                               "unknown .amdhsa_kernel directive", IDRange);
+      return Error(IDRange.Start, "unknown .amdhsa_kernel directive", IDRange);
     }
 
 #undef PARSE_BITS_ENTRY
@@ -4458,7 +4421,7 @@ bool AMDGPUAsmParser::ParseDirectiveHSACodeObjectISA() {
 
   // If this directive has no arguments, then use the ISA version for the
   // targeted GPU.
-  if (getLexer().is(AsmToken::EndOfStatement)) {
+  if (isToken(AsmToken::EndOfStatement)) {
     AMDGPU::IsaVersion ISA = AMDGPU::getIsaVersion(getSTI().getCPU());
     getTargetStreamer().EmitDirectiveHSACodeObjectISA(ISA.Major, ISA.Minor,
                                                       ISA.Stepping,
@@ -4469,32 +4432,23 @@ bool AMDGPUAsmParser::ParseDirectiveHSACodeObjectISA() {
   if (ParseDirectiveMajorMinor(Major, Minor))
     return true;
 
-  if (getLexer().isNot(AsmToken::Comma))
+  if (!trySkipToken(AsmToken::Comma))
     return TokError("stepping version number required, comma expected");
-  Lex();
 
   if (ParseAsAbsoluteExpression(Stepping))
     return TokError("invalid stepping version");
 
-  if (getLexer().isNot(AsmToken::Comma))
+  if (!trySkipToken(AsmToken::Comma))
     return TokError("vendor name required, comma expected");
-  Lex();
 
-  if (getLexer().isNot(AsmToken::String))
-    return TokError("invalid vendor name");
+  if (!parseString(VendorName, "invalid vendor name"))
+    return true;
 
-  VendorName = getLexer().getTok().getStringContents();
-  Lex();
-
-  if (getLexer().isNot(AsmToken::Comma))
+  if (!trySkipToken(AsmToken::Comma))
     return TokError("arch name required, comma expected");
-  Lex();
 
-  if (getLexer().isNot(AsmToken::String))
-    return TokError("invalid arch name");
-
-  ArchName = getLexer().getTok().getStringContents();
-  Lex();
+  if (!parseString(ArchName, "invalid arch name"))
+    return true;
 
   getTargetStreamer().EmitDirectiveHSACodeObjectISA(Major, Minor, Stepping,
                                                     VendorName, ArchName);
@@ -4569,14 +4523,11 @@ bool AMDGPUAsmParser::ParseDirectiveAMDKernelCodeT() {
   while (true) {
     // Lex EndOfStatement.  This is in a while loop, because lexing a comment
     // will set the current token to EndOfStatement.
-    while(getLexer().is(AsmToken::EndOfStatement))
-      Lex();
+    while(trySkipToken(AsmToken::EndOfStatement));
 
-    if (getLexer().isNot(AsmToken::Identifier))
-      return TokError("expected value identifier or .end_amd_kernel_code_t");
-
-    StringRef ID = getLexer().getTok().getIdentifier();
-    Lex();
+    StringRef ID;
+    if (!parseId(ID, "expected value identifier or .end_amd_kernel_code_t"))
+      return true;
 
     if (ID == ".end_amd_kernel_code_t")
       break;
@@ -4591,14 +4542,12 @@ bool AMDGPUAsmParser::ParseDirectiveAMDKernelCodeT() {
 }
 
 bool AMDGPUAsmParser::ParseDirectiveAMDGPUHsaKernel() {
-  if (getLexer().isNot(AsmToken::Identifier))
-    return TokError("expected symbol name");
-
-  StringRef KernelName = Parser.getTok().getString();
+  StringRef KernelName;
+  if (!parseId(KernelName, "expected symbol name"))
+    return true;
 
   getTargetStreamer().EmitAMDGPUSymbolType(KernelName,
                                            ELF::STT_AMDGPU_HSA_KERNEL);
-  Lex();
 
   KernelScope.initialize(getContext());
   return false;
@@ -4606,19 +4555,19 @@ bool AMDGPUAsmParser::ParseDirectiveAMDGPUHsaKernel() {
 
 bool AMDGPUAsmParser::ParseDirectiveISAVersion() {
   if (getSTI().getTargetTriple().getArch() != Triple::amdgcn) {
-    return Error(getParser().getTok().getLoc(),
+    return Error(getLoc(),
                  ".amd_amdgpu_isa directive is not available on non-amdgcn "
                  "architectures");
   }
 
-  auto ISAVersionStringFromASM = getLexer().getTok().getStringContents();
+  auto ISAVersionStringFromASM = getToken().getStringContents();
 
   std::string ISAVersionStringFromSTI;
   raw_string_ostream ISAVersionStreamFromSTI(ISAVersionStringFromSTI);
   IsaInfo::streamIsaVersion(&getSTI(), ISAVersionStreamFromSTI);
 
   if (ISAVersionStringFromASM != ISAVersionStreamFromSTI.str()) {
-    return Error(getParser().getTok().getLoc(),
+    return Error(getLoc(),
                  ".amd_amdgpu_isa directive does not match triple and/or mcpu "
                  "arguments specified through the command line");
   }
@@ -4640,7 +4589,7 @@ bool AMDGPUAsmParser::ParseDirectiveHSAMetadata() {
                             HSAMD::AssemblerDirectiveEnd);
 
   if (getSTI().getTargetTriple().getOS() != Triple::AMDHSA) {
-    return Error(getParser().getTok().getLoc(),
+    return Error(getLoc(),
                  (Twine(AssemblerDirectiveBegin) + Twine(" directive is "
                  "not available on non-amdhsa OSes")).str());
   }
@@ -4652,10 +4601,10 @@ bool AMDGPUAsmParser::ParseDirectiveHSAMetadata() {
 
   if (isHsaAbiVersion3(&getSTI())) {
     if (!getTargetStreamer().EmitHSAMetadataV3(HSAMetadataString))
-      return Error(getParser().getTok().getLoc(), "invalid HSA metadata");
+      return Error(getLoc(), "invalid HSA metadata");
   } else {
     if (!getTargetStreamer().EmitHSAMetadataV2(HSAMetadataString))
-      return Error(getParser().getTok().getLoc(), "invalid HSA metadata");
+      return Error(getLoc(), "invalid HSA metadata");
   }
 
   return false;
@@ -4672,19 +4621,15 @@ bool AMDGPUAsmParser::ParseToEndDirective(const char *AssemblerDirectiveBegin,
   getLexer().setSkipSpace(false);
 
   bool FoundEnd = false;
-  while (!getLexer().is(AsmToken::Eof)) {
-    while (getLexer().is(AsmToken::Space)) {
-      CollectStream << getLexer().getTok().getString();
+  while (!isToken(AsmToken::Eof)) {
+    while (isToken(AsmToken::Space)) {
+      CollectStream << getTokenStr();
       Lex();
     }
 
-    if (getLexer().is(AsmToken::Identifier)) {
-      StringRef ID = getLexer().getTok().getIdentifier();
-      if (ID == AssemblerDirectiveEnd) {
-        Lex();
-        FoundEnd = true;
-        break;
-      }
+    if (trySkipId(AssemblerDirectiveEnd)) {
+      FoundEnd = true;
+      break;
     }
 
     CollectStream << Parser.parseStringToEndOfStatement()
@@ -4695,7 +4640,7 @@ bool AMDGPUAsmParser::ParseToEndDirective(const char *AssemblerDirectiveBegin,
 
   getLexer().setSkipSpace(true);
 
-  if (getLexer().is(AsmToken::Eof) && !FoundEnd) {
+  if (isToken(AsmToken::Eof) && !FoundEnd) {
     return TokError(Twine("expected directive ") +
                     Twine(AssemblerDirectiveEnd) + Twine(" not found"));
   }
@@ -4713,14 +4658,14 @@ bool AMDGPUAsmParser::ParseDirectivePALMetadataBegin() {
 
   auto PALMetadata = getTargetStreamer().getPALMetadata();
   if (!PALMetadata->setFromString(String))
-    return Error(getParser().getTok().getLoc(), "invalid PAL metadata");
+    return Error(getLoc(), "invalid PAL metadata");
   return false;
 }
 
 /// Parse the assembler directive for old linear-format PAL metadata.
 bool AMDGPUAsmParser::ParseDirectivePALMetadata() {
   if (getSTI().getTargetTriple().getOS() != Triple::AMDPAL) {
-    return Error(getParser().getTok().getLoc(),
+    return Error(getLoc(),
                  (Twine(PALMD::AssemblerDirective) + Twine(" directive is "
                  "not available on non-amdpal OSes")).str());
   }
@@ -4733,19 +4678,17 @@ bool AMDGPUAsmParser::ParseDirectivePALMetadata() {
       return TokError(Twine("invalid value in ") +
                       Twine(PALMD::AssemblerDirective));
     }
-    if (getLexer().isNot(AsmToken::Comma)) {
+    if (!trySkipToken(AsmToken::Comma)) {
       return TokError(Twine("expected an even number of values in ") +
                       Twine(PALMD::AssemblerDirective));
     }
-    Lex();
     if (ParseAsAbsoluteExpression(Value)) {
       return TokError(Twine("invalid value in ") +
                       Twine(PALMD::AssemblerDirective));
     }
     PALMetadata->setRegister(Key, Value);
-    if (getLexer().isNot(AsmToken::Comma))
+    if (!trySkipToken(AsmToken::Comma))
       break;
-    Lex();
   }
   return false;
 }
@@ -4757,7 +4700,7 @@ bool AMDGPUAsmParser::ParseDirectiveAMDGPULDS() {
     return true;
 
   StringRef Name;
-  SMLoc NameLoc = getLexer().getLoc();
+  SMLoc NameLoc = getLoc();
   if (getParser().parseIdentifier(Name))
     return TokError("expected identifier in directive");
 
@@ -4768,7 +4711,7 @@ bool AMDGPUAsmParser::ParseDirectiveAMDGPULDS() {
   unsigned LocalMemorySize = AMDGPU::IsaInfo::getLocalMemorySize(&getSTI());
 
   int64_t Size;
-  SMLoc SizeLoc = getLexer().getLoc();
+  SMLoc SizeLoc = getLoc();
   if (getParser().parseAbsoluteExpression(Size))
     return true;
   if (Size < 0)
@@ -4777,9 +4720,8 @@ bool AMDGPUAsmParser::ParseDirectiveAMDGPULDS() {
     return Error(SizeLoc, "size is too large");
 
   int64_t Alignment = 4;
-  if (getLexer().is(AsmToken::Comma)) {
-    Lex();
-    SMLoc AlignLoc = getLexer().getLoc();
+  if (trySkipToken(AsmToken::Comma)) {
+    SMLoc AlignLoc = getLoc();
     if (getParser().parseAbsoluteExpression(Alignment))
       return true;
     if (Alignment < 0 || !isPowerOf2_64(Alignment))
@@ -4930,35 +4872,33 @@ AMDGPUAsmParser::parseOperand(OperandVector &Operands, StringRef Mnemonic,
   // are appending default values to the Operands list.  This is only done
   // by custom parser, so we shouldn't continue on to the generic parsing.
   if (ResTy == MatchOperand_Success || ResTy == MatchOperand_ParseFail ||
-      getLexer().is(AsmToken::EndOfStatement))
+      isToken(AsmToken::EndOfStatement))
     return ResTy;
 
-  if (Mode == OperandMode_NSA && getLexer().is(AsmToken::LBrac)) {
+  SMLoc RBraceLoc;
+  SMLoc LBraceLoc = getLoc();
+  if (Mode == OperandMode_NSA && trySkipToken(AsmToken::LBrac)) {
     unsigned Prefix = Operands.size();
-    SMLoc LBraceLoc = getTok().getLoc();
-    Parser.Lex(); // eat the '['
 
     for (;;) {
       ResTy = parseReg(Operands);
       if (ResTy != MatchOperand_Success)
         return ResTy;
 
-      if (getLexer().is(AsmToken::RBrac))
+      RBraceLoc = getLoc();
+      if (trySkipToken(AsmToken::RBrac))
         break;
 
-      if (getLexer().isNot(AsmToken::Comma))
+      if (!trySkipToken(AsmToken::Comma))
         return MatchOperand_ParseFail;
-      Parser.Lex();
     }
 
     if (Operands.size() - Prefix > 1) {
       Operands.insert(Operands.begin() + Prefix,
                       AMDGPUOperand::CreateToken(this, "[", LBraceLoc));
-      Operands.push_back(AMDGPUOperand::CreateToken(this, "]",
-                                                    getTok().getLoc()));
+      Operands.push_back(AMDGPUOperand::CreateToken(this, "]", RBraceLoc));
     }
 
-    Parser.Lex(); // eat the ']'
     return MatchOperand_Success;
   }
 
@@ -4996,15 +4936,14 @@ bool AMDGPUAsmParser::ParseInstruction(ParseInstructionInfo &Info,
 
   bool IsMIMG = Name.startswith("image_");
 
-  while (!getLexer().is(AsmToken::EndOfStatement)) {
+  while (!trySkipToken(AsmToken::EndOfStatement)) {
     OperandMode Mode = OperandMode_Default;
     if (IsMIMG && isGFX10Plus() && Operands.size() == 2)
       Mode = OperandMode_NSA;
     OperandMatchResultTy Res = parseOperand(Operands, Name, Mode);
 
     // Eat the comma or space if there is one.
-    if (getLexer().is(AsmToken::Comma))
-      Parser.Lex();
+    trySkipToken(AsmToken::Comma);
 
     if (Res != MatchOperand_Success) {
       checkUnsupportedInstruction(Name, NameLoc);
@@ -5013,16 +4952,14 @@ bool AMDGPUAsmParser::ParseInstruction(ParseInstructionInfo &Info,
         StringRef Msg =
           (Res == MatchOperand_ParseFail) ? "failed parsing operand." :
                                             "not a valid operand.";
-        Error(getLexer().getLoc(), Msg);
+        Error(getLoc(), Msg);
       }
-      while (!getLexer().is(AsmToken::EndOfStatement)) {
-        Parser.Lex();
+      while (!trySkipToken(AsmToken::EndOfStatement)) {
+        lex();
       }
-      Parser.Lex();
       return true;
     }
   }
-  Parser.Lex();
 
   return false;
 }
@@ -5109,14 +5046,14 @@ OperandMatchResultTy
 AMDGPUAsmParser::parseNamedBit(const char *Name, OperandVector &Operands,
                                AMDGPUOperand::ImmTy ImmTy) {
   int64_t Bit = 0;
-  SMLoc S = Parser.getTok().getLoc();
+  SMLoc S = getLoc();
 
   // We are at the end of the statement, and this is a default argument, so
   // use a default value.
-  if (getLexer().isNot(AsmToken::EndOfStatement)) {
-    switch(getLexer().getKind()) {
+  if (!isToken(AsmToken::EndOfStatement)) {
+    switch(getTokenKind()) {
       case AsmToken::Identifier: {
-        StringRef Tok = Parser.getTok().getString();
+        StringRef Tok = getTokenStr();
         if (Tok == Name) {
           if (Tok == "r128" && !hasMIMG_R128())
             Error(S, "r128 modifier is not supported on this GPU");
@@ -5163,26 +5100,10 @@ static void addOptionalImmOperand(
 
 OperandMatchResultTy
 AMDGPUAsmParser::parseStringWithPrefix(StringRef Prefix, StringRef &Value) {
-  if (getLexer().isNot(AsmToken::Identifier)) {
+  if (!trySkipId(Prefix, AsmToken::Colon))
     return MatchOperand_NoMatch;
-  }
-  StringRef Tok = Parser.getTok().getString();
-  if (Tok != Prefix) {
-    return MatchOperand_NoMatch;
-  }
 
-  Parser.Lex();
-  if (getLexer().isNot(AsmToken::Colon)) {
-    return MatchOperand_ParseFail;
-  }
-
-  Parser.Lex();
-  if (getLexer().isNot(AsmToken::Identifier)) {
-    return MatchOperand_ParseFail;
-  }
-
-  Value = Parser.getTok().getString();
-  return MatchOperand_Success;
+  return parseId(Value) ? MatchOperand_Success : MatchOperand_ParseFail;
 }
 
 //===----------------------------------------------------------------------===//
@@ -5886,33 +5807,39 @@ bool AMDGPUOperand::isSendMsg() const {
 //===----------------------------------------------------------------------===//
 
 OperandMatchResultTy AMDGPUAsmParser::parseInterpSlot(OperandVector &Operands) {
-  if (getLexer().getKind() != AsmToken::Identifier)
+  StringRef Str;
+  SMLoc S = getLoc();
+
+  if (!parseId(Str))
     return MatchOperand_NoMatch;
 
-  StringRef Str = Parser.getTok().getString();
   int Slot = StringSwitch<int>(Str)
     .Case("p10", 0)
     .Case("p20", 1)
     .Case("p0", 2)
     .Default(-1);
 
-  SMLoc S = Parser.getTok().getLoc();
-  if (Slot == -1)
+  if (Slot == -1) {
+    Error(S, "invalid interpolation slot");
     return MatchOperand_ParseFail;
+  }
 
-  Parser.Lex();
   Operands.push_back(AMDGPUOperand::CreateImm(this, Slot, S,
                                               AMDGPUOperand::ImmTyInterpSlot));
   return MatchOperand_Success;
 }
 
 OperandMatchResultTy AMDGPUAsmParser::parseInterpAttr(OperandVector &Operands) {
-  if (getLexer().getKind() != AsmToken::Identifier)
+  StringRef Str;
+  SMLoc S = getLoc();
+
+  if (!parseId(Str))
     return MatchOperand_NoMatch;
 
-  StringRef Str = Parser.getTok().getString();
-  if (!Str.startswith("attr"))
-    return MatchOperand_NoMatch;
+  if (!Str.startswith("attr")) {
+    Error(S, "invalid interpolation attribute");
+    return MatchOperand_ParseFail;
+  }
 
   StringRef Chan = Str.take_back(2);
   int AttrChan = StringSwitch<int>(Chan)
@@ -5921,19 +5848,21 @@ OperandMatchResultTy AMDGPUAsmParser::parseInterpAttr(OperandVector &Operands) {
     .Case(".z", 2)
     .Case(".w", 3)
     .Default(-1);
-  if (AttrChan == -1)
+  if (AttrChan == -1) {
+    Error(S, "invalid or missing interpolation attribute channel");
     return MatchOperand_ParseFail;
+  }
 
   Str = Str.drop_back(2).drop_front(4);
 
   uint8_t Attr;
-  if (Str.getAsInteger(10, Attr))
+  if (Str.getAsInteger(10, Attr)) {
+    Error(S, "invalid or missing interpolation attribute number");
     return MatchOperand_ParseFail;
+  }
 
-  SMLoc S = Parser.getTok().getLoc();
-  Parser.Lex();
   if (Attr > 63) {
-    Error(S, "out of bounds attr");
+    Error(S, "out of bounds interpolation attribute number");
     return MatchOperand_ParseFail;
   }
 
@@ -6006,19 +5935,19 @@ OperandMatchResultTy AMDGPUAsmParser::parseExpTgtImpl(StringRef Str,
 }
 
 OperandMatchResultTy AMDGPUAsmParser::parseExpTgt(OperandVector &Operands) {
-  if (!isToken(AsmToken::Identifier))
-    return MatchOperand_NoMatch;
-
+  StringRef Str;
   SMLoc S = getLoc();
 
+  if (!parseId(Str))
+    return MatchOperand_NoMatch;
+
   uint8_t Val;
-  auto Res = parseExpTgtImpl(getTokenStr(), Val);
+  auto Res = parseExpTgtImpl(Str, Val);
   if (Res != MatchOperand_Success) {
     Error(S, "invalid exp target");
     return Res;
   }
 
-  Parser.Lex();
   Operands.push_back(AMDGPUOperand::CreateImm(this, Val, S,
                                               AMDGPUOperand::ImmTyExpTgt));
   return MatchOperand_Success;
@@ -6137,7 +6066,8 @@ AMDGPUAsmParser::parseId(StringRef &Val, const StringRef ErrMsg) {
     lex();
     return true;
   } else {
-    Error(getLoc(), ErrMsg);
+    if (!ErrMsg.empty())
+      Error(getLoc(), ErrMsg);
     return false;
   }
 }
@@ -6249,7 +6179,7 @@ AMDGPUAsmParser::parseSwizzleOperand(int64_t &Op,
   if (!skipToken(AsmToken::Comma, "expected a comma")) {
     return false;
   }
-  Loc = Parser.getTok().getLoc();
+  Loc = getLoc();
   if (!parseExpr(Op)) {
     return false;
   }
@@ -6372,7 +6302,7 @@ AMDGPUAsmParser::parseSwizzleBitmaskPerm(int64_t &Imm) {
   }
 
   StringRef Ctl;
-  SMLoc StrLoc = Parser.getTok().getLoc();
+  SMLoc StrLoc = getLoc();
   if (!parseString(Ctl)) {
     return false;
   }
@@ -6413,7 +6343,7 @@ AMDGPUAsmParser::parseSwizzleBitmaskPerm(int64_t &Imm) {
 bool
 AMDGPUAsmParser::parseSwizzleOffset(int64_t &Imm) {
 
-  SMLoc OffsetLoc = Parser.getTok().getLoc();
+  SMLoc OffsetLoc = getLoc();
 
   if (!parseExpr(Imm, "a swizzle macro")) {
     return false;
@@ -6431,7 +6361,7 @@ AMDGPUAsmParser::parseSwizzleMacro(int64_t &Imm) {
 
   if (skipToken(AsmToken::LParen, "expected a left parentheses")) {
 
-    SMLoc ModeLoc = Parser.getTok().getLoc();
+    SMLoc ModeLoc = getLoc();
     bool Ok = false;
 
     if (trySkipId(IdSymbolic[ID_QUAD_PERM])) {
@@ -6456,7 +6386,7 @@ AMDGPUAsmParser::parseSwizzleMacro(int64_t &Imm) {
 
 OperandMatchResultTy
 AMDGPUAsmParser::parseSwizzleOp(OperandVector &Operands) {
-  SMLoc S = Parser.getTok().getLoc();
+  SMLoc S = getLoc();
   int64_t Imm = 0;
 
   if (trySkipId("offset")) {
@@ -6501,7 +6431,7 @@ int64_t AMDGPUAsmParser::parseGPRIdxMacro() {
 
   while (true) {
     unsigned Mode = 0;
-    SMLoc S = Parser.getTok().getLoc();
+    SMLoc S = getLoc();
 
     for (unsigned ModeId = ID_MIN; ModeId <= ID_MAX; ++ModeId) {
       if (trySkipId(IdSymbolic[ModeId])) {
@@ -6539,19 +6469,12 @@ AMDGPUAsmParser::parseGPRIdxMode(OperandVector &Operands) {
   using namespace llvm::AMDGPU::VGPRIndexMode;
 
   int64_t Imm = 0;
-  SMLoc S = Parser.getTok().getLoc();
+  SMLoc S = getLoc();
 
-  if (getLexer().getKind() == AsmToken::Identifier &&
-      Parser.getTok().getString() == "gpr_idx" &&
-      getLexer().peekTok().is(AsmToken::LParen)) {
-
-    Parser.Lex();
-    Parser.Lex();
-
+  if (trySkipId("gpr_idx", AsmToken::LParen)) {
     Imm = parseGPRIdxMacro();
     if (Imm == UNDEF)
       return MatchOperand_ParseFail;
-
   } else {
     if (getParser().parseAbsoluteExpression(Imm))
       return MatchOperand_ParseFail;
@@ -6993,7 +6916,7 @@ OperandMatchResultTy AMDGPUAsmParser::parseOptionalOpr(OperandVector &Operands) 
 }
 
 OperandMatchResultTy AMDGPUAsmParser::parseOModOperand(OperandVector &Operands) {
-  StringRef Name = Parser.getTok().getString();
+  StringRef Name = getTokenStr();
   if (Name == "mul") {
     return parseIntWithPrefix("mul", Operands,
                               AMDGPUOperand::ImmTyOModSI, ConvertOmodMul);
@@ -7296,32 +7219,24 @@ OperandMatchResultTy AMDGPUAsmParser::parseDim(OperandVector &Operands) {
   if (!isGFX10Plus())
     return MatchOperand_NoMatch;
 
-  SMLoc S = Parser.getTok().getLoc();
+  SMLoc S = getLoc();
 
-  if (getLexer().isNot(AsmToken::Identifier))
+  if (!trySkipId("dim", AsmToken::Colon))
     return MatchOperand_NoMatch;
-  if (getLexer().getTok().getString() != "dim")
-    return MatchOperand_NoMatch;
-
-  Parser.Lex();
-  if (getLexer().isNot(AsmToken::Colon))
-    return MatchOperand_ParseFail;
-
-  Parser.Lex();
 
   // We want to allow "dim:1D" etc., but the initial 1 is tokenized as an
   // integer.
   std::string Token;
-  if (getLexer().is(AsmToken::Integer)) {
-    SMLoc Loc = getLexer().getTok().getEndLoc();
-    Token = std::string(getLexer().getTok().getString());
-    Parser.Lex();
-    if (getLexer().getTok().getLoc() != Loc)
+  if (isToken(AsmToken::Integer)) {
+    SMLoc Loc = getToken().getEndLoc();
+    Token = std::string(getTokenStr());
+    lex();
+    if (getLoc() != Loc)
       return MatchOperand_ParseFail;
   }
-  if (getLexer().isNot(AsmToken::Identifier))
+  if (!isToken(AsmToken::Identifier))
     return MatchOperand_ParseFail;
-  Token += getLexer().getTok().getString();
+  Token += getTokenStr();
 
   StringRef DimId = Token;
   if (DimId.startswith("SQ_RSRC_IMG_"))
@@ -7331,7 +7246,7 @@ OperandMatchResultTy AMDGPUAsmParser::parseDim(OperandVector &Operands) {
   if (!DimInfo)
     return MatchOperand_ParseFail;
 
-  Parser.Lex();
+  lex();
 
   Operands.push_back(AMDGPUOperand::CreateImm(this, DimInfo->Encoding, S,
                                               AMDGPUOperand::ImmTyDim));
@@ -7339,52 +7254,33 @@ OperandMatchResultTy AMDGPUAsmParser::parseDim(OperandVector &Operands) {
 }
 
 OperandMatchResultTy AMDGPUAsmParser::parseDPP8(OperandVector &Operands) {
-  SMLoc S = Parser.getTok().getLoc();
-  StringRef Prefix;
+  SMLoc S = getLoc();
 
-  if (getLexer().getKind() == AsmToken::Identifier) {
-    Prefix = Parser.getTok().getString();
-  } else {
-    return MatchOperand_NoMatch;
-  }
-
-  if (Prefix != "dpp8")
-    return parseDPPCtrl(Operands);
-  if (!isGFX10Plus())
+  if (!isGFX10Plus() || !trySkipId("dpp8", AsmToken::Colon))
     return MatchOperand_NoMatch;
 
   // dpp8:[%d,%d,%d,%d,%d,%d,%d,%d]
 
   int64_t Sels[8];
 
-  Parser.Lex();
-  if (getLexer().isNot(AsmToken::Colon))
+  if (!skipToken(AsmToken::LBrac, "expected an opening square bracket"))
     return MatchOperand_ParseFail;
 
-  Parser.Lex();
-  if (getLexer().isNot(AsmToken::LBrac))
-    return MatchOperand_ParseFail;
-
-  Parser.Lex();
-  if (getParser().parseAbsoluteExpression(Sels[0]))
-    return MatchOperand_ParseFail;
-  if (0 > Sels[0] || 7 < Sels[0])
-    return MatchOperand_ParseFail;
-
-  for (size_t i = 1; i < 8; ++i) {
-    if (getLexer().isNot(AsmToken::Comma))
+  for (size_t i = 0; i < 8; ++i) {
+    if (i > 0 && !skipToken(AsmToken::Comma, "expected a comma"))
       return MatchOperand_ParseFail;
 
-    Parser.Lex();
+    SMLoc Loc = getLoc();
     if (getParser().parseAbsoluteExpression(Sels[i]))
       return MatchOperand_ParseFail;
-    if (0 > Sels[i] || 7 < Sels[i])
+    if (0 > Sels[i] || 7 < Sels[i]) {
+      Error(Loc, "expected a 3-bit value");
       return MatchOperand_ParseFail;
+    }
   }
 
-  if (getLexer().isNot(AsmToken::RBrac))
+  if (!skipToken(AsmToken::RBrac, "expected a closing square bracket"))
     return MatchOperand_ParseFail;
-  Parser.Lex();
 
   unsigned DPP8 = 0;
   for (size_t i = 0; i < 8; ++i)
@@ -7394,119 +7290,138 @@ OperandMatchResultTy AMDGPUAsmParser::parseDPP8(OperandVector &Operands) {
   return MatchOperand_Success;
 }
 
+bool
+AMDGPUAsmParser::isSupportedDPPCtrl(StringRef Ctrl,
+                                    const OperandVector &Operands) {
+  if (Ctrl == "row_share" ||
+      Ctrl == "row_xmask")
+    return isGFX10Plus();
+
+  if (Ctrl == "wave_shl" ||
+      Ctrl == "wave_shr" ||
+      Ctrl == "wave_rol" ||
+      Ctrl == "wave_ror" ||
+      Ctrl == "row_bcast")
+    return isVI() || isGFX9();
+
+  return Ctrl == "row_mirror" ||
+         Ctrl == "row_half_mirror" ||
+         Ctrl == "quad_perm" ||
+         Ctrl == "row_shl" ||
+         Ctrl == "row_shr" ||
+         Ctrl == "row_ror";
+}
+
+int64_t
+AMDGPUAsmParser::parseDPPCtrlPerm() {
+  // quad_perm:[%d,%d,%d,%d]
+
+  if (!skipToken(AsmToken::LBrac, "expected an opening square bracket"))
+    return -1;
+
+  int64_t Val = 0;
+  for (int i = 0; i < 4; ++i) {
+    if (i > 0 && !skipToken(AsmToken::Comma, "expected a comma"))
+      return -1;
+
+    int64_t Temp;
+    SMLoc Loc = getLoc();
+    if (getParser().parseAbsoluteExpression(Temp))
+      return -1;
+    if (Temp < 0 || Temp > 3) {
+      Error(Loc, "expected a 2-bit value");
+      return -1;
+    }
+
+    Val += (Temp << i * 2);
+  }
+
+  if (!skipToken(AsmToken::RBrac, "expected a closing square bracket"))
+    return -1;
+
+  return Val;
+}
+
+int64_t
+AMDGPUAsmParser::parseDPPCtrlSel(StringRef Ctrl) {
+  using namespace AMDGPU::DPP;
+
+  // sel:%d
+
+  int64_t Val;
+  SMLoc Loc = getLoc();
+
+  if (getParser().parseAbsoluteExpression(Val))
+    return -1;
+
+  struct DppCtrlCheck {
+    int64_t Ctrl;
+    int Lo;
+    int Hi;
+  };
+
+  DppCtrlCheck Check = StringSwitch<DppCtrlCheck>(Ctrl)
+    .Case("wave_shl",  {DppCtrl::WAVE_SHL1,       1,  1})
+    .Case("wave_rol",  {DppCtrl::WAVE_ROL1,       1,  1})
+    .Case("wave_shr",  {DppCtrl::WAVE_SHR1,       1,  1})
+    .Case("wave_ror",  {DppCtrl::WAVE_ROR1,       1,  1})
+    .Case("row_shl",   {DppCtrl::ROW_SHL0,        1, 15})
+    .Case("row_shr",   {DppCtrl::ROW_SHR0,        1, 15})
+    .Case("row_ror",   {DppCtrl::ROW_ROR0,        1, 15})
+    .Case("row_share", {DppCtrl::ROW_SHARE_FIRST, 0, 15})
+    .Case("row_xmask", {DppCtrl::ROW_XMASK_FIRST, 0, 15})
+    .Default({-1, 0, 0});
+
+  bool Valid;
+  if (Check.Ctrl == -1) {
+    Valid = (Ctrl == "row_bcast" && (Val == 15 || Val == 31));
+    Val = (Val == 15)? DppCtrl::BCAST15 : DppCtrl::BCAST31;
+  } else {
+    Valid = Check.Lo <= Val && Val <= Check.Hi;
+    Val = (Check.Lo == Check.Hi) ? Check.Ctrl : (Check.Ctrl | Val);
+  }
+
+  if (!Valid) {
+    Error(Loc, Twine("invalid ", Ctrl) + Twine(" value"));
+    return -1;
+  }
+
+  return Val;
+}
+
 OperandMatchResultTy
 AMDGPUAsmParser::parseDPPCtrl(OperandVector &Operands) {
   using namespace AMDGPU::DPP;
 
-  SMLoc S = Parser.getTok().getLoc();
-  StringRef Prefix;
-  int64_t Int;
-
-  if (getLexer().getKind() == AsmToken::Identifier) {
-    Prefix = Parser.getTok().getString();
-  } else {
+  if (!isToken(AsmToken::Identifier) ||
+      !isSupportedDPPCtrl(getTokenStr(), Operands))
     return MatchOperand_NoMatch;
-  }
 
-  if (Prefix == "row_mirror") {
-    Int = DppCtrl::ROW_MIRROR;
-    Parser.Lex();
-  } else if (Prefix == "row_half_mirror") {
-    Int = DppCtrl::ROW_HALF_MIRROR;
-    Parser.Lex();
+  SMLoc S = getLoc();
+  int64_t Val = -1;
+  StringRef Ctrl;
+
+  parseId(Ctrl);
+
+  if (Ctrl == "row_mirror") {
+    Val = DppCtrl::ROW_MIRROR;
+  } else if (Ctrl == "row_half_mirror") {
+    Val = DppCtrl::ROW_HALF_MIRROR;
   } else {
-    // Check to prevent parseDPPCtrlOps from eating invalid tokens
-    if (Prefix != "quad_perm"
-        && Prefix != "row_shl"
-        && Prefix != "row_shr"
-        && Prefix != "row_ror"
-        && Prefix != "wave_shl"
-        && Prefix != "wave_rol"
-        && Prefix != "wave_shr"
-        && Prefix != "wave_ror"
-        && Prefix != "row_bcast"
-        && Prefix != "row_share"
-        && Prefix != "row_xmask") {
-      return MatchOperand_NoMatch;
-    }
-
-    if (!isGFX10Plus() && (Prefix == "row_share" || Prefix == "row_xmask"))
-      return MatchOperand_NoMatch;
-
-    if (!isVI() && !isGFX9() &&
-        (Prefix == "wave_shl" || Prefix == "wave_shr" ||
-         Prefix == "wave_rol" || Prefix == "wave_ror" ||
-         Prefix == "row_bcast"))
-      return MatchOperand_NoMatch;
-
-    Parser.Lex();
-    if (getLexer().isNot(AsmToken::Colon))
-      return MatchOperand_ParseFail;
-
-    if (Prefix == "quad_perm") {
-      // quad_perm:[%d,%d,%d,%d]
-      Parser.Lex();
-      if (getLexer().isNot(AsmToken::LBrac))
-        return MatchOperand_ParseFail;
-      Parser.Lex();
-
-      if (getParser().parseAbsoluteExpression(Int) || !(0 <= Int && Int <=3))
-        return MatchOperand_ParseFail;
-
-      for (int i = 0; i < 3; ++i) {
-        if (getLexer().isNot(AsmToken::Comma))
-          return MatchOperand_ParseFail;
-        Parser.Lex();
-
-        int64_t Temp;
-        if (getParser().parseAbsoluteExpression(Temp) || !(0 <= Temp && Temp <=3))
-          return MatchOperand_ParseFail;
-        const int shift = i*2 + 2;
-        Int += (Temp << shift);
-      }
-
-      if (getLexer().isNot(AsmToken::RBrac))
-        return MatchOperand_ParseFail;
-      Parser.Lex();
-    } else {
-      // sel:%d
-      Parser.Lex();
-      if (getParser().parseAbsoluteExpression(Int))
-        return MatchOperand_ParseFail;
-
-      if (Prefix == "row_shl" && 1 <= Int && Int <= 15) {
-        Int |= DppCtrl::ROW_SHL0;
-      } else if (Prefix == "row_shr" && 1 <= Int && Int <= 15) {
-        Int |= DppCtrl::ROW_SHR0;
-      } else if (Prefix == "row_ror" && 1 <= Int && Int <= 15) {
-        Int |= DppCtrl::ROW_ROR0;
-      } else if (Prefix == "wave_shl" && 1 == Int) {
-        Int = DppCtrl::WAVE_SHL1;
-      } else if (Prefix == "wave_rol" && 1 == Int) {
-        Int = DppCtrl::WAVE_ROL1;
-      } else if (Prefix == "wave_shr" && 1 == Int) {
-        Int = DppCtrl::WAVE_SHR1;
-      } else if (Prefix == "wave_ror" && 1 == Int) {
-        Int = DppCtrl::WAVE_ROR1;
-      } else if (Prefix == "row_bcast") {
-        if (Int == 15) {
-          Int = DppCtrl::BCAST15;
-        } else if (Int == 31) {
-          Int = DppCtrl::BCAST31;
-        } else {
-          return MatchOperand_ParseFail;
-        }
-      } else if (Prefix == "row_share" && 0 <= Int && Int <= 15) {
-        Int |= DppCtrl::ROW_SHARE_FIRST;
-      } else if (Prefix == "row_xmask" && 0 <= Int && Int <= 15) {
-        Int |= DppCtrl::ROW_XMASK_FIRST;
+    if (skipToken(AsmToken::Colon, "expected a colon")) {
+      if (Ctrl == "quad_perm") {
+        Val = parseDPPCtrlPerm();
       } else {
-        return MatchOperand_ParseFail;
+        Val = parseDPPCtrlSel(Ctrl);
       }
     }
   }
 
-  Operands.push_back(AMDGPUOperand::CreateImm(this, Int, S, AMDGPUOperand::ImmTyDppCtrl));
+  if (Val == -1)
+    return MatchOperand_ParseFail;
+
+  Operands.push_back(
+    AMDGPUOperand::CreateImm(this, Val, S, AMDGPUOperand::ImmTyDppCtrl));
   return MatchOperand_Success;
 }
 
@@ -7604,7 +7519,7 @@ AMDGPUAsmParser::parseSDWASel(OperandVector &Operands, StringRef Prefix,
                               AMDGPUOperand::ImmTy Type) {
   using namespace llvm::AMDGPU::SDWA;
 
-  SMLoc S = Parser.getTok().getLoc();
+  SMLoc S = getLoc();
   StringRef Value;
   OperandMatchResultTy res;
 
@@ -7623,7 +7538,6 @@ AMDGPUAsmParser::parseSDWASel(OperandVector &Operands, StringRef Prefix,
         .Case("WORD_1", SdwaSel::WORD_1)
         .Case("DWORD", SdwaSel::DWORD)
         .Default(0xffffffff);
-  Parser.Lex(); // eat last token
 
   if (Int == 0xffffffff) {
     return MatchOperand_ParseFail;
@@ -7637,7 +7551,7 @@ OperandMatchResultTy
 AMDGPUAsmParser::parseSDWADstUnused(OperandVector &Operands) {
   using namespace llvm::AMDGPU::SDWA;
 
-  SMLoc S = Parser.getTok().getLoc();
+  SMLoc S = getLoc();
   StringRef Value;
   OperandMatchResultTy res;
 
@@ -7652,7 +7566,6 @@ AMDGPUAsmParser::parseSDWADstUnused(OperandVector &Operands) {
         .Case("UNUSED_SEXT", DstUnused::UNUSED_SEXT)
         .Case("UNUSED_PRESERVE", DstUnused::UNUSED_PRESERVE)
         .Default(0xffffffff);
-  Parser.Lex(); // eat last token
 
   if (Int == 0xffffffff) {
     return MatchOperand_ParseFail;
@@ -7868,7 +7781,7 @@ unsigned AMDGPUAsmParser::validateTargetOperandClass(MCParsedAsmOperand &Op,
 //===----------------------------------------------------------------------===//
 
 OperandMatchResultTy AMDGPUAsmParser::parseEndpgmOp(OperandVector &Operands) {
-  SMLoc S = Parser.getTok().getLoc();
+  SMLoc S = getLoc();
   int64_t Imm = 0;
 
   if (!parseExpr(Imm)) {

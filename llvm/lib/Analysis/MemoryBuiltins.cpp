@@ -378,9 +378,8 @@ PointerType *llvm::getMallocType(const CallInst *CI,
   unsigned NumOfBitCastUses = 0;
 
   // Determine if CallInst has a bitcast use.
-  for (Value::const_user_iterator UI = CI->user_begin(), E = CI->user_end();
-       UI != E;)
-    if (const BitCastInst *BCI = dyn_cast<BitCastInst>(*UI++)) {
+  for (const User *U : CI->users())
+    if (const BitCastInst *BCI = dyn_cast<BitCastInst>(U)) {
       MallocType = cast<PointerType>(BCI->getDestTy());
       NumOfBitCastUses++;
     }
@@ -566,8 +565,16 @@ Value *llvm::lowerObjectSizeCall(IntrinsicInst *ObjectSize,
       Value *UseZero =
           Builder.CreateICmpULT(SizeOffsetPair.first, SizeOffsetPair.second);
       ResultSize = Builder.CreateZExtOrTrunc(ResultSize, ResultType);
-      return Builder.CreateSelect(UseZero, ConstantInt::get(ResultType, 0),
-                                  ResultSize);
+      Value *Ret = Builder.CreateSelect(
+          UseZero, ConstantInt::get(ResultType, 0), ResultSize);
+
+      // The non-constant size expression cannot evaluate to -1.
+      if (!isa<Constant>(SizeOffsetPair.first) ||
+          !isa<Constant>(SizeOffsetPair.second))
+        Builder.CreateAssumption(
+            Builder.CreateICmpNE(Ret, ConstantInt::get(ResultType, -1)));
+
+      return Ret;
     }
   }
 

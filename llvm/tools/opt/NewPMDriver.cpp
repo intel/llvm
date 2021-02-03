@@ -67,7 +67,7 @@ static cl::opt<std::string>
     AAPipeline("aa-pipeline",
                cl::desc("A textual description of the alias analysis "
                         "pipeline for handling managed aliasing queries"),
-               cl::Hidden);
+               cl::Hidden, cl::init("default"));
 
 /// {{@ These options accept textual pipeline descriptions which will be
 /// inserted into default pipelines at the respective extension points
@@ -134,6 +134,13 @@ static cl::opt<std::string>
 static cl::opt<bool> DebugInfoForProfiling(
     "new-pm-debug-info-for-profiling", cl::init(false), cl::Hidden,
     cl::desc("Emit special debug info to enable PGO profile generation."));
+static cl::opt<bool> PseudoProbeForProfiling(
+    "new-pm-pseudo-probe-for-profiling", cl::init(false), cl::Hidden,
+    cl::desc("Emit pseudo probes to enable PGO profile generation."));
+static cl::opt<bool> UniqueInternalLinkageNames(
+    "new-pm-unique-internal-linkage-names", cl::init(false), cl::Hidden,
+    cl::desc("Uniqueify Internal Linkage Symbol Names by appending the MD5 "
+             "hash of the module path."));
 /// @}}
 
 template <typename PassManagerT>
@@ -247,6 +254,9 @@ bool llvm::runPassPipeline(StringRef Arg0, Module &M, TargetMachine *TM,
     if (DebugInfoForProfiling)
       P = PGOOptions("", "", "", PGOOptions::NoAction, PGOOptions::NoCSAction,
                      true);
+    else if (PseudoProbeForProfiling)
+      P = PGOOptions("", "", "", PGOOptions::NoAction, PGOOptions::NoCSAction,
+                     false, true);
     else
       P = None;
   }
@@ -282,6 +292,7 @@ bool llvm::runPassPipeline(StringRef Arg0, Module &M, TargetMachine *TM,
   // option has been enabled.
   PTO.LoopUnrolling = !DisableLoopUnrolling;
   PTO.Coroutines = Coroutines;
+  PTO.UniqueLinkageNames = UniqueInternalLinkageNames;
   PassBuilder PB(DebugPM, TM, PTO, P, &PIC);
   registerEPCallbacks(PB);
 
@@ -337,9 +348,7 @@ bool llvm::runPassPipeline(StringRef Arg0, Module &M, TargetMachine *TM,
   // Specially handle the alias analysis manager so that we can register
   // a custom pipeline of AA passes with it.
   AAManager AA;
-  if (!AAPipeline.empty()) {
-    assert(Passes.empty() &&
-           "--aa-pipeline and -foo-pass should not both be specified");
+  if (Passes.empty()) {
     if (auto Err = PB.parseAAPipeline(AA, AAPipeline)) {
       errs() << Arg0 << ": " << toString(std::move(Err)) << "\n";
       return false;

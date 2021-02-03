@@ -143,7 +143,6 @@ class DumpVisitor : public RecursiveASTVisitor<DumpVisitor> {
       TEMPLATE_ARGUMENT_KIND(Declaration);
       TEMPLATE_ARGUMENT_KIND(Template);
       TEMPLATE_ARGUMENT_KIND(TemplateExpansion);
-      TEMPLATE_ARGUMENT_KIND(UncommonValue);
 #undef TEMPLATE_ARGUMENT_KIND
     }
     llvm_unreachable("Unhandled ArgKind enum");
@@ -243,9 +242,8 @@ class DumpVisitor : public RecursiveASTVisitor<DumpVisitor> {
         return "const";
       return "";
     }
-    if (isa<IntegerLiteral>(S) || isa<FloatingLiteral>(S) ||
-        isa<FixedPointLiteral>(S) || isa<CharacterLiteral>(S) ||
-        isa<ImaginaryLiteral>(S) || isa<CXXBoolLiteralExpr>(S))
+    if (isa<IntegerLiteral, FloatingLiteral, FixedPointLiteral,
+            CharacterLiteral, ImaginaryLiteral, CXXBoolLiteralExpr>(S))
       return toString([&](raw_ostream &OS) {
         S->printPretty(OS, nullptr, Ctx.getPrintingPolicy());
       });

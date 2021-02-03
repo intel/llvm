@@ -65,8 +65,8 @@ unsigned int res_aui[4];
 void dummy() { }
 
 void test1() {
-// CHECK-LABEL: define void @test1
-// CHECK-LE-LABEL: define void @test1
+// CHECK-LABEL: define{{.*}} void @test1
+// CHECK-LE-LABEL: define{{.*}} void @test1
 
   res_vf = vec_abs(vf);
 // CHECK: call <4 x float> @llvm.fabs.v4f32(<4 x float> %{{[0-9]*}})
@@ -927,6 +927,66 @@ void test1() {
 // CHECK-LE: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
 // CHECK-LE: or <2 x i64>
 // CHECK-LE: bitcast <2 x i64> %{{[0-9]+}} to <2 x double>
+
+  res_vbll = vec_sel(vbll, vbll, vbll);
+// CHECK: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK: and <2 x i64> %{{[0-9]+}},
+// CHECK: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
+// CHECK: or <2 x i64>
+// CHECK-LE: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK-LE: and <2 x i64> %{{[0-9]+}},
+// CHECK-LE: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
+// CHECK-LE: or <2 x i64>
+
+  res_vbll = vec_sel(vbll, vbll, vull);
+// CHECK: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK: and <2 x i64> %{{[0-9]+}},
+// CHECK: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
+// CHECK: or <2 x i64>
+// CHECK-LE: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK-LE: and <2 x i64> %{{[0-9]+}},
+// CHECK-LE: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
+// CHECK-LE: or <2 x i64>
+
+  res_vsll = vec_sel(vsll, vsll, vbll);
+// CHECK: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK: and <2 x i64> %{{[0-9]+}},
+// CHECK: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
+// CHECK: or <2 x i64>
+// CHECK-LE: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK-LE: and <2 x i64> %{{[0-9]+}},
+// CHECK-LE: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
+// CHECK-LE: or <2 x i64>
+
+  res_vsll = vec_sel(vsll, vsll, vull);
+// CHECK: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK: and <2 x i64> %{{[0-9]+}},
+// CHECK: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
+// CHECK: or <2 x i64>
+// CHECK-LE: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK-LE: and <2 x i64> %{{[0-9]+}},
+// CHECK-LE: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
+// CHECK-LE: or <2 x i64>
+
+  res_vull = vec_sel(vull, vull, vbll);
+// CHECK: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK: and <2 x i64> %{{[0-9]+}},
+// CHECK: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
+// CHECK: or <2 x i64>
+// CHECK-LE: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK-LE: and <2 x i64> %{{[0-9]+}},
+// CHECK-LE: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
+// CHECK-LE: or <2 x i64>
+
+  res_vull = vec_sel(vull, vull, vull);
+// CHECK: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK: and <2 x i64> %{{[0-9]+}},
+// CHECK: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
+// CHECK: or <2 x i64>
+// CHECK-LE: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
+// CHECK-LE: and <2 x i64> %{{[0-9]+}},
+// CHECK-LE: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
+// CHECK-LE: or <2 x i64>
 
   res_vf = vec_sqrt(vf);
 // CHECK: call <4 x float> @llvm.sqrt.v4f32(<4 x float> %{{[0-9]+}})

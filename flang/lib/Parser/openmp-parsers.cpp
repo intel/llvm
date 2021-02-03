@@ -102,7 +102,7 @@ TYPE_PARSER(construct<OmpReductionOperator>(Parser<DefinedOperator>{}) ||
     construct<OmpReductionOperator>(Parser<ProcedureDesignator>{}))
 
 TYPE_PARSER(construct<OmpReductionClause>(
-    Parser<OmpReductionOperator>{} / ":", nonemptyList(designator)))
+    Parser<OmpReductionOperator>{} / ":", Parser<OmpObjectList>{}))
 
 // OMP 5.0 2.11.4  ALLOCATE ([allocator:] variable-name-list)
 TYPE_PARSER(construct<OmpAllocateClause>(
@@ -155,10 +155,10 @@ TYPE_PARSER(
 TYPE_PARSER(
     "ACQUIRE" >> construct<OmpClause>(construct<OmpClause::Acquire>()) ||
     "ACQ_REL" >> construct<OmpClause>(construct<OmpClause::AcqRel>()) ||
-    "ALIGNED" >>
-        construct<OmpClause>(parenthesized(Parser<OmpAlignedClause>{})) ||
-    "ALLOCATE" >>
-        construct<OmpClause>(parenthesized(Parser<OmpAllocateClause>{})) ||
+    "ALIGNED" >> construct<OmpClause>(construct<OmpClause::Aligned>(
+                     parenthesized(Parser<OmpAlignedClause>{}))) ||
+    "ALLOCATE" >> construct<OmpClause>(construct<OmpClause::Allocate>(
+                      parenthesized(Parser<OmpAllocateClause>{}))) ||
     "ALLOCATOR" >> construct<OmpClause>(construct<OmpClause::Allocator>(
                        parenthesized(scalarIntExpr))) ||
     "COLLAPSE" >> construct<OmpClause>(construct<OmpClause::Collapse>(
@@ -167,16 +167,16 @@ TYPE_PARSER(
                     parenthesized(Parser<OmpObjectList>{}))) ||
     "COPYPRIVATE" >> construct<OmpClause>(construct<OmpClause::Copyprivate>(
                          (parenthesized(Parser<OmpObjectList>{})))) ||
-    "DEFAULT"_id >>
-        construct<OmpClause>(parenthesized(Parser<OmpDefaultClause>{})) ||
-    "DEFAULTMAP" >>
-        construct<OmpClause>(parenthesized(Parser<OmpDefaultmapClause>{})) ||
-    "DEPEND" >>
-        construct<OmpClause>(parenthesized(Parser<OmpDependClause>{})) ||
+    "DEFAULT"_id >> construct<OmpClause>(construct<OmpClause::Default>(
+                        parenthesized(Parser<OmpDefaultClause>{}))) ||
+    "DEFAULTMAP" >> construct<OmpClause>(construct<OmpClause::Defaultmap>(
+                        parenthesized(Parser<OmpDefaultmapClause>{}))) ||
+    "DEPEND" >> construct<OmpClause>(construct<OmpClause::Depend>(
+                    parenthesized(Parser<OmpDependClause>{}))) ||
     "DEVICE" >> construct<OmpClause>(construct<OmpClause::Device>(
                     parenthesized(scalarIntExpr))) ||
     "DIST_SCHEDULE" >>
-        construct<OmpClause>(construct<OmpDistScheduleClause>(
+        construct<OmpClause>(construct<OmpClause::DistSchedule>(
             parenthesized("STATIC" >> maybe("," >> scalarIntExpr)))) ||
     "FINAL" >> construct<OmpClause>(construct<OmpClause::Final>(
                    parenthesized(scalarLogicalExpr))) ||
@@ -188,22 +188,24 @@ TYPE_PARSER(
                        parenthesized(scalarIntExpr))) ||
     "HINT" >> construct<OmpClause>(
                   construct<OmpClause::Hint>(parenthesized(constantExpr))) ||
-    "IF" >> construct<OmpClause>(parenthesized(Parser<OmpIfClause>{})) ||
+    "IF" >> construct<OmpClause>(construct<OmpClause::If>(
+                parenthesized(Parser<OmpIfClause>{}))) ||
     "INBRANCH" >> construct<OmpClause>(construct<OmpClause::Inbranch>()) ||
     "IS_DEVICE_PTR" >> construct<OmpClause>(construct<OmpClause::IsDevicePtr>(
                            parenthesized(nonemptyList(name)))) ||
     "LASTPRIVATE" >> construct<OmpClause>(construct<OmpClause::Lastprivate>(
                          parenthesized(Parser<OmpObjectList>{}))) ||
-    "LINEAR" >>
-        construct<OmpClause>(parenthesized(Parser<OmpLinearClause>{})) ||
+    "LINEAR" >> construct<OmpClause>(construct<OmpClause::Linear>(
+                    parenthesized(Parser<OmpLinearClause>{}))) ||
     "LINK" >> construct<OmpClause>(construct<OmpClause::Link>(
                   parenthesized(Parser<OmpObjectList>{}))) ||
-    "MAP" >> construct<OmpClause>(parenthesized(Parser<OmpMapClause>{})) ||
+    "MAP" >> construct<OmpClause>(construct<OmpClause::Map>(
+                 parenthesized(Parser<OmpMapClause>{}))) ||
     "MERGEABLE" >> construct<OmpClause>(construct<OmpClause::Mergeable>()) ||
     "NOGROUP" >> construct<OmpClause>(construct<OmpClause::Nogroup>()) ||
     "NOTINBRANCH" >>
         construct<OmpClause>(construct<OmpClause::Notinbranch>()) ||
-    "NOWAIT" >> construct<OmpClause>(construct<OmpNowait>()) ||
+    "NOWAIT" >> construct<OmpClause>(construct<OmpClause::Nowait>()) ||
     "NUM_TASKS" >> construct<OmpClause>(construct<OmpClause::NumTasks>(
                        parenthesized(scalarIntExpr))) ||
     "NUM_TEAMS" >> construct<OmpClause>(construct<OmpClause::NumTeams>(
@@ -216,16 +218,19 @@ TYPE_PARSER(
                       parenthesized(scalarIntExpr))) ||
     "PRIVATE" >> construct<OmpClause>(construct<OmpClause::Private>(
                      parenthesized(Parser<OmpObjectList>{}))) ||
-    "PROC_BIND" >>
-        construct<OmpClause>(parenthesized(Parser<OmpProcBindClause>{})) ||
-    "REDUCTION" >>
-        construct<OmpClause>(parenthesized(Parser<OmpReductionClause>{})) ||
+    "PROC_BIND" >> construct<OmpClause>(construct<OmpClause::ProcBind>(
+                       parenthesized(Parser<OmpProcBindClause>{}))) ||
+    "REDUCTION" >> construct<OmpClause>(construct<OmpClause::Reduction>(
+                       parenthesized(Parser<OmpReductionClause>{}))) ||
+    "TASK_REDUCTION" >>
+        construct<OmpClause>(construct<OmpClause::TaskReduction>(
+            parenthesized(Parser<OmpReductionClause>{}))) ||
     "RELAXED" >> construct<OmpClause>(construct<OmpClause::Relaxed>()) ||
     "RELEASE" >> construct<OmpClause>(construct<OmpClause::Release>()) ||
     "SAFELEN" >> construct<OmpClause>(construct<OmpClause::Safelen>(
                      parenthesized(scalarIntConstantExpr))) ||
-    "SCHEDULE" >>
-        construct<OmpClause>(parenthesized(Parser<OmpScheduleClause>{})) ||
+    "SCHEDULE" >> construct<OmpClause>(construct<OmpClause::Schedule>(
+                      parenthesized(Parser<OmpScheduleClause>{}))) ||
     "SEQ_CST" >> construct<OmpClause>(construct<OmpClause::SeqCst>()) ||
     "SHARED" >> construct<OmpClause>(construct<OmpClause::Shared>(
                     parenthesized(Parser<OmpObjectList>{}))) ||

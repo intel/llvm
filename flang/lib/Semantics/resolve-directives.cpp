@@ -124,6 +124,7 @@ public:
 
   bool Pre(const parser::OpenACCRoutineConstruct &);
   bool Pre(const parser::AccBindClause &);
+  void Post(const parser::OpenACCStandaloneDeclarativeConstruct &);
 
   void Post(const parser::AccBeginBlockDirective &) {
     GetContext().withinConstruct = true;
@@ -215,6 +216,7 @@ private:
   void CheckMultipleAppearances(
       const parser::Name &, const Symbol &, Symbol::Flag);
   void AllowOnlyArrayAndSubArray(const parser::AccObjectList &objectList);
+  void DoNotAllowAssumedSizedArray(const parser::AccObjectList &objectList);
 };
 
 // Data-sharing and Data-mapping attributes for data-refs in OpenMP construct
@@ -229,6 +231,18 @@ public:
 
   bool Pre(const parser::SpecificationPart &x) {
     Walk(std::get<std::list<parser::OpenMPDeclarativeConstruct>>(x.t));
+    return true;
+  }
+
+  bool Pre(const parser::StmtFunctionStmt &x) {
+    const auto &parsedExpr{std::get<parser::Scalar<parser::Expr>>(x.t)};
+    if (const auto *expr{GetExpr(parsedExpr)}) {
+      for (const Symbol &symbol : evaluate::CollectSymbols(*expr)) {
+        if (!IsStmtFunctionDummy(symbol)) {
+          stmtFunctionExprSymbols_.insert(symbol.GetUltimate());
+        }
+      }
+    }
     return true;
   }
 
@@ -342,6 +356,7 @@ private:
 
   std::vector<const parser::Name *> allocateNames_; // on one directive
   SymbolSet privateDataSharingAttributeObjects_; // on one directive
+  SymbolSet stmtFunctionExprSymbols_;
 
   void AddAllocateName(const parser::Name *&object) {
     allocateNames_.push_back(object);
@@ -377,7 +392,7 @@ private:
       const parser::Name &, const Symbol &, Symbol::Flag);
 
   void CheckAssocLoopLevel(std::int64_t level, const parser::OmpClause *clause);
-  void CheckObjectInNamelist(
+  void CheckPrivateDSAObject(
       const parser::Name &, const Symbol &, Symbol::Flag);
 };
 
@@ -455,6 +470,60 @@ bool AccAttributeVisitor::Pre(const parser::OpenACCDeclarativeConstruct &x) {
   }
   ClearDataSharingAttributeObjects();
   return true;
+}
+
+static const parser::AccObjectList &GetAccObjectList(
+    const parser::AccClause &clause) {
+  if (const auto *copyClause =
+          std::get_if<Fortran::parser::AccClause::Copy>(&clause.u)) {
+    return copyClause->v;
+  } else if (const auto *createClause =
+                 std::get_if<Fortran::parser::AccClause::Create>(&clause.u)) {
+    const Fortran::parser::AccObjectListWithModifier &listWithModifier =
+        createClause->v;
+    const Fortran::parser::AccObjectList &accObjectList =
+        std::get<Fortran::parser::AccObjectList>(listWithModifier.t);
+    return accObjectList;
+  } else if (const auto *copyinClause =
+                 std::get_if<Fortran::parser::AccClause::Copyin>(&clause.u)) {
+    const Fortran::parser::AccObjectListWithModifier &listWithModifier =
+        copyinClause->v;
+    const Fortran::parser::AccObjectList &accObjectList =
+        std::get<Fortran::parser::AccObjectList>(listWithModifier.t);
+    return accObjectList;
+  } else if (const auto *copyoutClause =
+                 std::get_if<Fortran::parser::AccClause::Copyout>(&clause.u)) {
+    const Fortran::parser::AccObjectListWithModifier &listWithModifier =
+        copyoutClause->v;
+    const Fortran::parser::AccObjectList &accObjectList =
+        std::get<Fortran::parser::AccObjectList>(listWithModifier.t);
+    return accObjectList;
+  } else if (const auto *presentClause =
+                 std::get_if<Fortran::parser::AccClause::Present>(&clause.u)) {
+    return presentClause->v;
+  } else if (const auto *deviceptrClause =
+                 std::get_if<Fortran::parser::AccClause::Deviceptr>(
+                     &clause.u)) {
+    return deviceptrClause->v;
+  } else if (const auto *deviceResidentClause =
+                 std::get_if<Fortran::parser::AccClause::DeviceResident>(
+                     &clause.u)) {
+    return deviceResidentClause->v;
+  } else if (const auto *linkClause =
+                 std::get_if<Fortran::parser::AccClause::Link>(&clause.u)) {
+    return linkClause->v;
+  } else {
+    llvm_unreachable("Clause without object list!");
+  }
+}
+
+void AccAttributeVisitor::Post(
+    const parser::OpenACCStandaloneDeclarativeConstruct &x) {
+  const auto &clauseList = std::get<parser::AccClauseList>(x.t);
+  for (const auto &clause : clauseList.v) {
+    // Restriction - line 2414
+    DoNotAllowAssumedSizedArray(GetAccObjectList(clause));
+  }
 }
 
 bool AccAttributeVisitor::Pre(const parser::OpenACCLoopConstruct &x) {
@@ -575,6 +644,30 @@ void AccAttributeVisitor::AllowOnlyArrayAndSubArray(
   }
 }
 
+void AccAttributeVisitor::DoNotAllowAssumedSizedArray(
+    const parser::AccObjectList &objectList) {
+  for (const auto &accObject : objectList.v) {
+    std::visit(
+        common::visitors{
+            [&](const parser::Designator &designator) {
+              const auto &name{GetLastName(designator)};
+              if (name.symbol && semantics::IsAssumedSizeArray(*name.symbol))
+                context_.Say(designator.source,
+                    "Assumed-size dummy arrays may not appear on the %s "
+                    "directive"_err_en_US,
+                    parser::ToUpperCaseLetters(
+                        llvm::acc::getOpenACCDirectiveName(
+                            GetContext().directive)
+                            .str()));
+            },
+            [&](const auto &name) {
+
+            },
+        },
+        accObject.u);
+  }
+}
+
 bool AccAttributeVisitor::Pre(const parser::OpenACCCacheConstruct &x) {
   const auto &verbatim{std::get<parser::Verbatim>(x.t)};
   PushContext(verbatim.source, llvm::acc::Directive::ACCD_cache);
@@ -638,10 +731,10 @@ void AccAttributeVisitor::PrivatizeAssociatedLoopIndex(
 void AccAttributeVisitor::Post(const parser::AccDefaultClause &x) {
   if (!dirContext_.empty()) {
     switch (x.v) {
-    case parser::AccDefaultClause::Arg::Present:
+    case llvm::acc::DefaultValue::ACC_Default_present:
       SetContextDefaultDSA(Symbol::Flag::AccPresent);
       break;
-    case parser::AccDefaultClause::Arg::None:
+    case llvm::acc::DefaultValue::ACC_Default_none:
       SetContextDefaultDSA(Symbol::Flag::AccNone);
       break;
     }
@@ -1163,7 +1256,7 @@ void OmpAttributeVisitor::ResolveOmpObject(
                     CheckMultipleAppearances(*name, *symbol, ompFlag);
                   }
                   if (privateDataSharingAttributeFlags.test(ompFlag)) {
-                    CheckObjectInNamelist(*name, *symbol, ompFlag);
+                    CheckPrivateDSAObject(*name, *symbol, ompFlag);
                   }
 
                   if (ompFlag == Symbol::Flag::OmpAllocate) {
@@ -1317,16 +1410,26 @@ void OmpAttributeVisitor::CheckDataCopyingClause(
   }
 }
 
-void OmpAttributeVisitor::CheckObjectInNamelist(
+void OmpAttributeVisitor::CheckPrivateDSAObject(
     const parser::Name &name, const Symbol &symbol, Symbol::Flag ompFlag) {
-  if (symbol.GetUltimate().test(Symbol::Flag::InNamelist)) {
-    llvm::StringRef clauseName{"PRIVATE"};
-    if (ompFlag == Symbol::Flag::OmpFirstPrivate)
-      clauseName = "FIRSTPRIVATE";
-    else if (ompFlag == Symbol::Flag::OmpLastPrivate)
-      clauseName = "LASTPRIVATE";
+  const auto &ultimateSymbol{symbol.GetUltimate()};
+  llvm::StringRef clauseName{"PRIVATE"};
+  if (ompFlag == Symbol::Flag::OmpFirstPrivate)
+    clauseName = "FIRSTPRIVATE";
+  else if (ompFlag == Symbol::Flag::OmpLastPrivate)
+    clauseName = "LASTPRIVATE";
+
+  if (ultimateSymbol.test(Symbol::Flag::InNamelist)) {
     context_.Say(name.source,
         "Variable '%s' in NAMELIST cannot be in a %s clause"_err_en_US,
+        name.ToString(), clauseName.str());
+  }
+
+  if (stmtFunctionExprSymbols_.find(ultimateSymbol) !=
+      stmtFunctionExprSymbols_.end()) {
+    context_.Say(name.source,
+        "Variable '%s' in STATEMENT FUNCTION expression cannot be in a "
+        "%s clause"_err_en_US,
         name.ToString(), clauseName.str());
   }
 }

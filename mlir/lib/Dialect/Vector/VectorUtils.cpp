@@ -243,16 +243,16 @@ AffineMap mlir::makePermutationMap(
   return ::makePermutationMap(indices, enclosingLoopToVectorDim);
 }
 
-AffineMap mlir::getTransferMinorIdentityMap(MemRefType memRefType,
+AffineMap mlir::getTransferMinorIdentityMap(ShapedType shapedType,
                                             VectorType vectorType) {
   int64_t elementVectorRank = 0;
   VectorType elementVectorType =
-      memRefType.getElementType().dyn_cast<VectorType>();
+      shapedType.getElementType().dyn_cast<VectorType>();
   if (elementVectorType)
     elementVectorRank += elementVectorType.getRank();
   return AffineMap::getMinorIdentityMap(
-      memRefType.getRank(), vectorType.getRank() - elementVectorRank,
-      memRefType.getContext());
+      shapedType.getRank(), vectorType.getRank() - elementVectorRank,
+      shapedType.getContext());
 }
 
 bool matcher::operatesOnSuperVectorsOf(Operation &op,
@@ -312,14 +312,12 @@ bool matcher::operatesOnSuperVectorsOf(Operation &op,
   return true;
 }
 
-bool mlir::isDisjointTransferSet(VectorTransferOpInterface transferA,
-                                 VectorTransferOpInterface transferB) {
-  if (transferA.memref() != transferB.memref())
-    return false;
+bool mlir::isDisjointTransferIndices(VectorTransferOpInterface transferA,
+                                     VectorTransferOpInterface transferB) {
   // For simplicity only look at transfer of same type.
   if (transferA.getVectorType() != transferB.getVectorType())
     return false;
-  unsigned rankOffset = transferA.getLeadingMemRefRank();
+  unsigned rankOffset = transferA.getLeadingShapedRank();
   for (unsigned i = 0, e = transferA.indices().size(); i < e; i++) {
     auto indexA = transferA.indices()[i].getDefiningOp<ConstantOp>();
     auto indexB = transferB.indices()[i].getDefiningOp<ConstantOp>();
@@ -344,4 +342,11 @@ bool mlir::isDisjointTransferSet(VectorTransferOpInterface transferA,
     }
   }
   return false;
+}
+
+bool mlir::isDisjointTransferSet(VectorTransferOpInterface transferA,
+                                 VectorTransferOpInterface transferB) {
+  if (transferA.source() != transferB.source())
+    return false;
+  return isDisjointTransferIndices(transferA, transferB);
 }
