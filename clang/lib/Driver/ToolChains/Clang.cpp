@@ -6473,17 +6473,21 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   if (IsSYCL) {
-    // Host-side SYCL compilation receives the integration header file as
-    // Inputs[1].  Include the header with -include
-    if (!IsSYCLOffloadDevice && SYCLDeviceInput) {
-      const char *IntHeaderPath =
-          Args.MakeArgString(SYCLDeviceInput->getFilename());
-      CmdArgs.push_back("-include");
-      CmdArgs.push_back(IntHeaderPath);
-      // When creating dependency information, filter out the generated
-      // header file.
-      CmdArgs.push_back("-dependency-filter");
-      CmdArgs.push_back(IntHeaderPath);
+    // Add any options that are needed specific to SYCL offload while
+    // performing the host side compilation.
+    if (!IsSYCLOffloadDevice) {
+      // Host-side SYCL compilation receives the integration header file as
+      // Inputs[1].  Include the header with -include
+      if (SYCLDeviceInput) {
+        const char *IntHeaderPath =
+            Args.MakeArgString(SYCLDeviceInput->getFilename());
+        CmdArgs.push_back("-include");
+        CmdArgs.push_back(IntHeaderPath);
+        // When creating dependency information, filter out the generated
+        // header file.
+        CmdArgs.push_back("-dependency-filter");
+        CmdArgs.push_back(IntHeaderPath);
+      }
       // Let the FE know we are doing a SYCL offload compilation, but we are
       // doing the host pass.
       CmdArgs.push_back("-fsycl");
