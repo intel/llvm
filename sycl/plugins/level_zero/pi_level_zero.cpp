@@ -2246,10 +2246,6 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   bool DeviceIsIntegrated = Context->Devices.size() == 1 &&
                             Context->Devices[0]->ZeDeviceProperties.flags &
                                 ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
-  if (DeviceIsIntegrated)
-    zePrint("Buffer Create: Integrated GPU will use zeMemAllocHost\n");
-  else
-    zePrint("Buffer Create: Discrete GPU will use zeMemAllocDevice\n");
 
   // Having PI_MEM_FLAGS_HOST_PTR_ALLOC for buffer requires allocation of
   // pinned host memory which then becomes automatically accessible from

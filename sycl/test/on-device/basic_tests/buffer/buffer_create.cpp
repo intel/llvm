@@ -8,19 +8,22 @@ using namespace cl::sycl;
 
 int main() {
   constexpr int Size = 100;
-  {
-    queue Queue;
-    buffer<::cl_int, 1> Buffer(Size);
+  queue Queue;
+  auto D = Queue.get_device();
 
-    Queue.submit([&](handler &cgh) {
-      accessor Accessor{Buffer, cgh, read_write};
-      cgh.parallel_for<class CreateBuffer>(range<1>(Size), [=](id<1> ID) {});
-    });
-    Queue.wait();
-  }
+  buffer<::cl_int, 1> Buffer(Size);
+  Queue.submit([&](handler &cgh) {
+    accessor Accessor{Buffer, cgh, read_write};
+    if (D.get_info<info::device::host_unified_memory>())
+      std::cerr << "Integrated GPU should use zeMemAllocHost\n";
+    else
+      std::cerr << "Discrete GPU should use zeMemAllocDevice\n";
+    cgh.parallel_for<class CreateBuffer>(range<1>(Size), [=](id<1> ID) {});
+  });
+  Queue.wait();
 
   return 0;
 }
 
-// CHECK: Buffer Create: {{Integrated|Discrete}} GPU will use [[API:zeMemAllocHost|zeMemAllocDevice]]
-// CHECK-NEXT: ZE ---> [[API]](
+// CHECK: {{Integrated|Discrete}} GPU should use [[API:zeMemAllocHost|zeMemAllocDevice]]
+// CHECK: ZE ---> [[API]](
