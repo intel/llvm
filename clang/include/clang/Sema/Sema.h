@@ -12998,6 +12998,11 @@ public:
   void MarkDevice();
   void MarkSyclSimd();
 
+  /// Emit a diagnostic about the given attribute having a deprecated name, and
+  /// also emit a fixit hint to generate the new attribute name.
+  void DiagnoseDeprecatedAttribute(const ParsedAttr &A, StringRef NewScope,
+                                   StringRef NewName);
+
   /// Diagnoses an attribute in the 'intelfpga' namespace and suggests using
   /// the attribute in the 'intel' namespace instead.
   void CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
@@ -13252,7 +13257,7 @@ FPGALoopAttrT *Sema::BuildSYCLIntelFPGALoopAttr(const AttributeCommonInfo &A,
 
     int Val = ArgVal->getSExtValue();
 
-    if (A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGAII ||
+    if (A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGAInitiationInterval ||
         A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGALoopCoalesce) {
       if (Val <= 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
