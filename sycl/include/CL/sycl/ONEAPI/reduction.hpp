@@ -392,18 +392,17 @@ public:
 /// implementation classes. It is needed to detect the reduction classes.
 class reduction_impl_base {};
 
-/// Predicate returning true if and only if 'FirstT' is a reduction class and
-/// all types except the last one from 'RestT' are reductions as well.
-template <typename FirstT, typename... RestT>
-struct are_all_but_last_reductions {
+/// Predicate returning true if all template type parameters except the last one
+/// are reductions.
+template <typename FirstT, typename... RestT> struct AreAllButLastReductions {
   static constexpr bool value =
       std::is_base_of<reduction_impl_base, FirstT>::value &&
-      are_all_but_last_reductions<RestT...>::value;
+      AreAllButLastReductions<RestT...>::value;
 };
 
-/// Helper specialization of are_all_but_last_reductions for one element only.
-/// Returns true if the last and only typename is not a reduction.
-template <typename T> struct are_all_but_last_reductions<T> {
+/// Helper specialization of AreAllButLastReductions for one element only.
+/// Returns true if the template parameter is not a reduction.
+template <typename T> struct AreAllButLastReductions<T> {
   static constexpr bool value = !std::is_base_of<reduction_impl_base, T>::value;
 };
 
@@ -1097,9 +1096,11 @@ reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
 /// the reductions for which a local accessors are needed, this function creates
 /// those local accessors and returns a tuple consisting of them.
 template <typename... Reductions, size_t... Is>
-std::tuple<typename Reductions::local_accessor_type...>
-createReduLocalAccs(size_t Size, handler &CGH, std::index_sequence<Is...>) {
-  return {Reductions::getReadWriteLocalAcc(Size, CGH)...};
+auto createReduLocalAccs(size_t Size, handler &CGH,
+                         std::index_sequence<Is...>) {
+  return std::make_tuple(
+      std::tuple_element_t<Is, std::tuple<Reductions...>>::getReadWriteLocalAcc(
+          Size, CGH)...);
 }
 
 /// For the given 'Reductions' types pack and indices enumerating them this
@@ -1154,7 +1155,7 @@ void callReduUserKernelFunc(KernelType KernelFunc, nd_item<Dims> NDIt,
   KernelFunc(NDIt, std::get<Is>(Reducers)...);
 }
 
-template <bool UniformPow2WG, typename... LocalAccT, typename... ReducerT,
+template <bool Pow2WG, typename... LocalAccT, typename... ReducerT,
           typename... ResultT, size_t... Is>
 void initReduLocalAccs(size_t LID, size_t WGSize,
                        std::tuple<LocalAccT...> LocalAccs,
@@ -1163,7 +1164,11 @@ void initReduLocalAccs(size_t LID, size_t WGSize,
                        std::index_sequence<Is...>) {
   std::tie(std::get<Is>(LocalAccs)[LID]...) =
       std::make_tuple(std::get<Is>(Reducers).MValue...);
-  if (!UniformPow2WG)
+
+  // For work-groups, which size is not power of two, local accessors have
+  // an additional element with index WGSize that is used by the tree-reduction
+  // algorithm. Initialize those additional elements with identity values here.
+  if (!Pow2WG)
     std::tie(std::get<Is>(LocalAccs)[WGSize]...) =
         std::make_tuple(std::get<Is>(Identities)...);
 }
@@ -1175,12 +1180,22 @@ void initReduLocalAccs(size_t LID, size_t GID, size_t NWorkItems, size_t WGSize,
                        std::tuple<LocalAccT...> InputAccs,
                        const std::tuple<ResultT...> Identities,
                        std::index_sequence<Is...>) {
+  // Normally, the local accessors are initialized with elements from the input
+  // accessors. The exception is the case when (GID >= NWorkItems), which
+  // possible only when UniformPow2WG is false. For that case the elements of
+  // local accessors are initialized with identity value, so they would not
+  // give any impact into the final partial sums during the tree-reduction
+  // algorithm work.
   if (UniformPow2WG || GID < NWorkItems)
     std::tie(std::get<Is>(LocalAccs)[LID]...) =
         std::make_tuple(std::get<Is>(InputAccs)[GID]...);
   else
     std::tie(std::get<Is>(LocalAccs)[LID]...) =
         std::make_tuple(std::get<Is>(Identities)...);
+
+  // For work-groups, which size is not power of two, local accessors have
+  // an additional element with index WGSize that is used by the tree-reduction
+  // algorithm. Initialize those additional elements with identity values here.
   if (!UniformPow2WG)
     std::tie(std::get<Is>(LocalAccs)[WGSize]...) =
         std::make_tuple(std::get<Is>(Identities)...);
@@ -1196,7 +1211,7 @@ void reduceReduLocalAccs(size_t IndexA, size_t IndexB,
                                           std::get<Is>(LocalAccs)[IndexB]))...);
 }
 
-template <bool UniformPow2WG, typename... Reductions, typename... OutAccT,
+template <bool Pow2WG, typename... Reductions, typename... OutAccT,
           typename... LocalAccT, typename... BOPsT, size_t... Is,
           size_t... RWIs>
 void writeReduSumsToOutAccs(size_t OutAccIndex, size_t WGSize,
@@ -1214,11 +1229,16 @@ void writeReduSumsToOutAccs(size_t OutAccIndex, size_t WGSize,
           std::tuple_element_t<RWIs, std::tuple<Reductions...>>::getOutPointer(
               std::get<RWIs>(OutAccs))[OutAccIndex])...);
 
-  if (UniformPow2WG) {
+  if (Pow2WG) {
+    // The partial sums for the work-group are stored in 0-th elements of local
+    // accessors. Simply write those sums to output accessors.
     std::tie(std::tuple_element_t<Is, std::tuple<Reductions...>>::getOutPointer(
         std::get<Is>(OutAccs))[OutAccIndex]...) =
         std::make_tuple(std::get<Is>(LocalAccs)[0]...);
   } else {
+    // Each of local accessors keeps two partial sums: in 0-th and WGsize-th
+    // elements. Combine them into final partial sums and write to output
+    // accessors.
     std::tie(std::tuple_element_t<Is, std::tuple<Reductions...>>::getOutPointer(
         std::get<Is>(OutAccs))[OutAccIndex]...) =
         std::make_tuple(std::get<Is>(BOPs)(std::get<Is>(LocalAccs)[0],
@@ -1300,15 +1320,15 @@ constexpr auto filterSequence(FunctorT F, std::index_sequence<Is...> Indices) {
   return filterSequenceHelper<T...>(F, Indices);
 }
 
-template <typename KernelName, bool UniformPow2WG, bool IsOneWG,
-          typename KernelType, int Dims, typename... Reductions, size_t... Is>
+template <typename KernelName, bool Pow2WG, bool IsOneWG, typename KernelType,
+          int Dims, typename... Reductions, size_t... Is>
 void reduCGFuncImpl(handler &CGH, KernelType KernelFunc,
                     const nd_range<Dims> &Range,
                     std::tuple<Reductions...> &ReduTuple,
                     std::index_sequence<Is...> ReduIndices) {
 
   size_t WGSize = Range.get_local_range().size();
-  size_t LocalAccSize = WGSize + (UniformPow2WG ? 0 : 1);
+  size_t LocalAccSize = WGSize + (Pow2WG ? 0 : 1);
   auto LocalAccsTuple =
       createReduLocalAccs<Reductions...>(LocalAccSize, CGH, ReduIndices);
 
@@ -1318,10 +1338,8 @@ void reduCGFuncImpl(handler &CGH, KernelType KernelFunc,
   auto IdentitiesTuple = getReduIdentities(ReduTuple, ReduIndices);
   auto BOPsTuple = getReduBOPs(ReduTuple, ReduIndices);
 
-  using Name =
-      typename get_reduction_main_kernel_name_t<KernelName, KernelType,
-                                                UniformPow2WG, IsOneWG,
-                                                decltype(OutAccsTuple)>::name;
+  using Name = typename get_reduction_main_kernel_name_t<
+      KernelName, KernelType, Pow2WG, IsOneWG, decltype(OutAccsTuple)>::name;
   CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
     auto ReduIndices = std::index_sequence_for<Reductions...>();
     auto ReducersTuple =
@@ -1332,8 +1350,8 @@ void reduCGFuncImpl(handler &CGH, KernelType KernelFunc,
 
     size_t WGSize = NDIt.get_local_range().size();
     size_t LID = NDIt.get_local_linear_id();
-    initReduLocalAccs<UniformPow2WG>(LID, WGSize, LocalAccsTuple, ReducersTuple,
-                                     IdentitiesTuple, ReduIndices);
+    initReduLocalAccs<Pow2WG>(LID, WGSize, LocalAccsTuple, ReducersTuple,
+                              IdentitiesTuple, ReduIndices);
     NDIt.barrier();
 
     size_t PrevStep = WGSize;
@@ -1342,7 +1360,7 @@ void reduCGFuncImpl(handler &CGH, KernelType KernelFunc,
         // LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
         reduceReduLocalAccs(LID, LID + CurStep, LocalAccsTuple, BOPsTuple,
                             ReduIndices);
-      } else if (!UniformPow2WG && LID == CurStep && (PrevStep & 0x1)) {
+      } else if (!Pow2WG && LID == CurStep && (PrevStep & 0x1)) {
         // LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
         reduceReduLocalAccs(WGSize, PrevStep - 1, LocalAccsTuple, BOPsTuple,
                             ReduIndices);
@@ -1363,7 +1381,7 @@ void reduCGFuncImpl(handler &CGH, KernelType KernelFunc,
           Predicate;
       auto RWReduIndices =
           filterSequence<Reductions...>(Predicate, ReduIndices);
-      writeReduSumsToOutAccs<UniformPow2WG>(
+      writeReduSumsToOutAccs<Pow2WG>(
           GrID, WGSize, (std::tuple<Reductions...> *)nullptr, OutAccsTuple,
           LocalAccsTuple, BOPsTuple, ReduIndices, RWReduIndices);
     }
@@ -1376,21 +1394,18 @@ void reduCGFunc(handler &CGH, KernelType KernelFunc,
                 const nd_range<Dims> &Range,
                 std::tuple<Reductions...> &ReduTuple,
                 std::index_sequence<Is...> ReduIndices) {
-  size_t NWorkItems = Range.get_global_range().size();
   size_t WGSize = Range.get_local_range().size();
   size_t NWorkGroups = Range.get_group_range().size();
-
   bool Pow2WG = (WGSize & (WGSize - 1)) == 0;
-  bool HasUniformWG = Pow2WG && (NWorkGroups * WGSize == NWorkItems);
   if (NWorkGroups == 1) {
-    if (HasUniformWG)
+    if (Pow2WG)
       reduCGFuncImpl<KernelName, true, true>(CGH, KernelFunc, Range, ReduTuple,
                                              ReduIndices);
     else
       reduCGFuncImpl<KernelName, false, true>(CGH, KernelFunc, Range, ReduTuple,
                                               ReduIndices);
   } else {
-    if (HasUniformWG)
+    if (Pow2WG)
       reduCGFuncImpl<KernelName, true, false>(CGH, KernelFunc, Range, ReduTuple,
                                               ReduIndices);
     else

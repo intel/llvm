@@ -269,8 +269,7 @@ template <typename TupleT, std::size_t... Is>
 std::tuple<std::tuple_element_t<Is, TupleT>...>
 tuple_select_elements(TupleT Tuple, std::index_sequence<Is...>);
 
-template <typename FirstT, typename... RestT>
-struct are_all_but_last_reductions;
+template <typename FirstT, typename... RestT> struct AreAllButLastReductions;
 
 } // namespace detail
 } // namespace ONEAPI
@@ -1288,9 +1287,8 @@ public:
   // versions handling 1 reduction variable are more efficient right now.
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
-  std::enable_if_t<
-      (sizeof...(RestT) >= 3 &&
-       ONEAPI::detail::are_all_but_last_reductions<RestT...>::value)>
+  std::enable_if_t<(sizeof...(RestT) >= 3 &&
+                    ONEAPI::detail::AreAllButLastReductions<RestT...>::value)>
   parallel_for(nd_range<Dims> Range, RestT... Rest) {
     std::tuple<RestT...> ArgsTuple(Rest...);
     constexpr size_t NumArgs = sizeof...(RestT);
