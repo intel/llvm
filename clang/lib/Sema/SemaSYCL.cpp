@@ -1126,12 +1126,8 @@ public:
                            QualType) {
     return true;
   }
-  virtual bool enterUnion(const CXXRecordDecl *, FieldDecl *) override {
-    return true;
-  }
-  virtual bool leaveUnion(const CXXRecordDecl *, FieldDecl *) override {
-    return true;
-  }
+  virtual bool enterUnion(const CXXRecordDecl *, FieldDecl *) { return true; }
+  virtual bool leaveUnion(const CXXRecordDecl *, FieldDecl *) { return true; }
 
   // The following are used for stepping through array elements.
   virtual bool enterArray(FieldDecl *, QualType ArrayTy, QualType ElementTy) {
