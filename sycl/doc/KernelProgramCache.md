@@ -85,6 +85,7 @@ kernels and/or device functions.
 
 
 ## Data structure of cache
+
 The cache is split into two levels:
  - in-memory cache which is used during application runtime for device code
  which has been already loaded and built for target device.
@@ -92,46 +93,68 @@ The cache is split into two levels:
  executions.
 
 ### In-memory cache
+
 The cache stores underlying PI objects behind `cl::sycl::program` and
 `cl::sycl::kernel` user-level objects in a per-context data storage. The storage
 consists of two maps: one is for programs and the other is for kernels.
 
-The programs map's key consists of four components: kernel set id<sup>[1](#what-is-ksid)</sup>,
-specialization constants values, device this program is built for, build options id <sup>[2](#what-is-bopts)</sup>.
+The programs map's key consists of four components:
+ - kernel set id<sup>[1](#what-is-ksid)</sup>,
+ - specialization constants values,
+ - device this program is built for,
+ - build options id <sup>[2](#what-is-bopts)</sup>.
 
-The kernels map's key consists of four components too: program the kernel
-belongs to, kernel name<sup>[3](#what-is-kname)</sup>, device the program is
-built for, build options id<sup>[2](#what-is-bopts)</sup>.
+The kernels map's key consists of three components:
+ - program the kernel, belongs to,
+ - kernel name<sup>[3](#what-is-kname)</sup>,
+ - device the program is built for.
 
 <a name="what-is-ksid">1</a>: Kernel set id is an ordinal number of the device
 binary image the kernel is contained in.
 <a name="what-is-bopts">2</a>: Hash for the string representation of build
-options set in application or environment variables (e.g.
-SYCL_PROGRAM_COMPILE_OPTIONS, SYCL_PROGRAM_LINK_OPTIONS). The key is hash out
-of the string which is concatenation of `program.get_compile_options()`,
-`program.get_link_options()`, `program.get_build_options()` values.
+options set in application or environment variables. The both compile and link
+options are used. There are three sources of build options:
+ - from device image (pi_device_binary_struct::CompileOptions,
+ pi_device_binary_struct::LinkOptions);
+ - environment variables (SYCL_PROGRAM_COMPILE_OPTIONS,
+ SYCL_PROGRAM_LINK_OPTIONS);
+ - options passed through SYCL API.
 <a name="what-is-kname">3</a>: Kernel name is a kernel ID mangled class' name
 which is provided to methods of `cl::sycl::handler` (e.g. `parallel_for` or
 `single_task`).
 
 ### On-disk cache
+
 The cache is hidden behind in-memory cache and stores the same underlying PI
 object behind `cl::sycl::program` user-level objects in a per-context data
 storage.
-The storage is organized as a map for storing programs. It uses different keys to
-address difference in SYCL objects ids between applications runs as well as the
-fact that the same kernel name can be used in different SYCL applications.
+The storage is organized as a map for storing device code bundles. It uses
+different keys to address difference in SYCL objects ids between applications
+runs as well as the fact that the same kernel name can be used in different
+SYCL applications.
 
-The programs map's key consists of four components: device image id<sup>[1](#what-is-diid)</sup>,
-specialization constants values, device id<sup>[2](#what-is-did)</sup> this program is
-built for, build options id<sup>[3](#what-is-bopts)</sup>.
-<a name="what-is-diid">1</a>: Hash out of  first 10 kB (for performance reasons) of SPIRV image (?and/or source code?) used as input for the build.
+The programs map's key consists of four components:
+ - device image id<sup>[1](#what-is-diid)</sup>,
+ - specialization constants values,
+ - device id<sup>[2](#what-is-did)</sup> this program is built for,
+ - build options id<sup>[3](#what-is-bopts)</sup>.
+<a name="what-is-diid">1</a>: Hash out of  first 10 kB (for performance reasons) of the
+device kernel bundle used as input for the build.
 <a name="what-is-did">2</a>: Hash out of the string which is concatenation of values for
 `info::platform::name`, `info::device::name`, `info::device::version`,
 `info::device::driver_version` parameters to differentiate different HW and SW
 installed on the same host as well as SW/HW upgrades.
+<a name="what-is-bopts">3</a>: Hash for the string representation of build
+options set in application or environment variables. The both compile and link
+options are used. There are three sources of build options:
+ - from device image (pi_device_binary_struct::CompileOptions,
+ pi_device_binary_struct::LinkOptions);
+ - environment variables (SYCL_PROGRAM_COMPILE_OPTIONS,
+ SYCL_PROGRAM_LINK_OPTIONS);
+ - options passed through SYCL API.
 
 ## Environment variables
+i
 The following environment variables affect cache mechanism:
 `DPCPP_CACHE_DIR`=/path/to/cache/location (default values are `%AppData%\Intel\dpcpp_program_cache` for Windows and `$HOME/intel/dpcpp_program_cache`)
 `DPCPP_CACHE_ENABLED`=switching on-disc cache ON/OFF (default value is ON to expose possible issue ASAP, may be switch to OFF before the release)
@@ -150,7 +173,6 @@ compilation for it (default - TBD).
    check if two distinct devices are *exactly* the same. Probably this should be
    an improvement request for plugins. By now it is assumed that two devices with the same device id <a name="what-is-did">2</a> are the same.
  - Improve testing: cover real use-cases. See currently covered cases [here](https://github.com/intel/llvm/blob/sycl/sycl/unittests/kernel-and-program/Cache.cpp).
-
 
 ## Implementation details
 
@@ -253,11 +275,12 @@ A specialization of helper class [Locked](https://github.com/intel/llvm/blob/syc
 for reference of proper mapping is returned by Acquire function. The use of this
 class implements RAII to make code look cleaner a bit. Now, GetCache function
 will return the mapping to be employed that includes the 3 components: kernel
-name, device as well as any specialization constants. These get added to
+name, device as well as any specialization constants values. These get added to
 `BuildResult` and are cached. The `BuildResult` structure is specialized with
 either `PiKernel` or `PiProgram`<sup>[1](#remove-pointer)</sup>.
 
 ### Inter-process safety
+
 For on-disc cache there might be access collisions for accessing the same file
 from different instance of SYCL applications:
 - write collision happens when 2 instances of the same application are started
@@ -265,12 +288,15 @@ to write to the same cache file;
 - read collision may happen if one application is writing to the file and the
 other instance of the application is trying to read from it while write
 operation is not finished.
-To avoid collisions the file in on-disc cache are locked for read-write access
-until write operation is finished.
+To avoid collisions the file system entries are locked for read-write access
+until write operation is finished. e.g if new file or directory should be
+created/deleted parent directory is locked, file is created in locked state,
+then the directory and the file are unlocked.
 Advisory locking <sup>[2](#advisory-lock)</sup> is used to ensure that the
 user/OS tools are able to manage files.
 
 ### Hash function
+
 STL hash function specialized for std::string is going to be used:
 `template<>  struct hash<std::string>`
 TBD: may be it is reasonable to use own implementation for hash function to
@@ -302,7 +328,6 @@ condition variable. We employ them to signal waiting threads that the build
 process for this kernel/program is finished (either successfully or with a
 failure).
 
-
 <a name="remove-pointer">1</a>: The use of `std::remove_pointer` was omitted for
 the sake of simplicity here.
 <a name="advisory-lock">2</a> Advisory locks work only when a process
@@ -311,5 +336,18 @@ of locks.
 <a name="exception-data">3</a>: Actually, we store contents of the exception:
 its message and error code.
 
-### Cache cleanup mechanism
-TBD
+### On-disk cache storage structure
+
+The device image bundles are stored on filesystem using structure below:
+<cache_root>/<device_id>/<device_image_id>_<spec_constants_values>_<build_options>.bin
+
+### On-disk cache cleanup mechanism
+
+On-disk cache is going to be purged basing on file last access (read/write) date
+(access time). On SYCL application shutdown phase cache clean up process is
+initiated which walk through cache directories and check:
+ - if the file is locked, go to the next file;
+ - otherwise check file access time:
+   - if file access time is above threshold, delete the file and remove parent
+   directory while they are empty;
+   - otherwise do nothing.
