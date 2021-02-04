@@ -1548,18 +1548,20 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     case OpTypeInt: {
       const unsigned NumBits = BT->getBitWidth();
       if (NumBits > 64) {
-        // Translate arbitrary precision integer constants
+        // Translate huge arbitrary precision integer constants
         const unsigned RawDataNumWords = BConst->getNumWords();
         const unsigned BigValNumWords = (RawDataNumWords + 1) / 2;
         std::vector<uint64_t> BigValVec(BigValNumWords);
-        const SPIRVWord *RawData = BConst->getSPIRVWords();
+        const std::vector<SPIRVWord> &RawData = BConst->getSPIRVWords();
         // SPIRV words are integers of 32-bit width, meanwhile llvm::APInt
         // is storing data using an array of 64-bit words. Here we pack SPIRV
         // words into 64-bit integer array.
-        for (size_t I = 0; I != RawDataNumWords; ++I)
-          BigValVec[I / 2] =
-              (I % 2) ? BigValVec[I / 2] | ((uint64_t)RawData[I] << 32)
-                      : BigValVec[I / 2] | ((uint64_t)RawData[I]);
+        for (size_t I = 0; I != RawDataNumWords / 2; ++I)
+          BigValVec[I] =
+              (static_cast<uint64_t>(RawData[2 * I + 1]) << SpirvWordBitWidth) |
+              RawData[2 * I];
+        if (RawDataNumWords % 2)
+          BigValVec.back() = RawData.back();
         return mapValue(BV, ConstantInt::get(LT, APInt(NumBits, BigValVec)));
       }
       return mapValue(

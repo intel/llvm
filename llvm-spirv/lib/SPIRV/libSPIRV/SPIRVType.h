@@ -181,11 +181,10 @@ protected:
   _SPIRV_DEF_ENCDEC3(Id, BitWidth, IsSigned)
   void validate() const override {
     SPIRVEntry::validate();
-    assert(BitWidth > 1 &&
-           (BitWidth <= 64 ||
-            (Module->isAllowedToUseExtension(
-                 ExtensionID::SPV_INTEL_arbitrary_precision_integers) &&
-             BitWidth <= 2048)) &&
+    assert((BitWidth == 8 || BitWidth == 16 || BitWidth == 32 ||
+            BitWidth == 64 ||
+            Module->isAllowedToUseExtension(
+                ExtensionID::SPV_INTEL_arbitrary_precision_integers)) &&
            "Invalid bit width");
   }
 
