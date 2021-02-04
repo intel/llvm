@@ -72,11 +72,11 @@ interop kernels and programs.
 
 Also JIT compilation for cases when an application contains huge amount of
 device code (big kernels or multiple kernels) may take significant time. The
-kernels and programs are rebuild on every program restart. AOT compilation
+kernels and programs are rebuilt on every program restart. AOT compilation
 can be used to avoid that but it ties application to specific backend runtime
-version(s) and predefined HW configuration(s). As general solution it is
+version(s) and predefined HW configuration(s). As a general solution it is
 reasonable to have kernel/program cache which works between application
-restarts (e.g. cache on disk for devices code build for specific HW/SW
+restarts (e.g. cache on disk for device code built for specific HW/SW
 configuration).
 
 <a name="what-is-program">1</a>: Here "program" means an internal SYCL runtime
@@ -97,7 +97,7 @@ The cache stores underlying PI objects behind `cl::sycl::program` and
 consists of two maps: one is for programs and the other is for kernels.
 
 The programs map's key consists of four components: kernel set id<sup>[1](#what-is-ksid)</sup>,
-specialized constants, device this program is built for, build options id <sup>[2](#what-is-bopts)</sup>.
+specialization constants values, device this program is built for, build options id <sup>[2](#what-is-bopts)</sup>.
 
 The kernels map's key consists of four components too: program the kernel
 belongs to, kernel name<sup>[3](#what-is-kname)</sup>, device the program is
@@ -118,12 +118,12 @@ which is provided to methods of `cl::sycl::handler` (e.g. `parallel_for` or
 The cache is hidden behind in-memory cache and stores the same underlying PI
 object behind `cl::sycl::program` user-level objects in a per-context data
 storage.
-The storage consists of the map for storing programs. It uses different keys to
+The storage is organized as a map for storing programs. It uses different keys to
 address difference in SYCL objects ids between applications runs as well as the
 fact that the same kernel name can be used in different SYCL applications.
 
 The programs map's key consists of four components: device image id<sup>[1](#what-is-diid)</sup>,
-specialized constants, device id<sup>[2](#what-is-did)</sup> this program is
+specialization constants values, device id<sup>[2](#what-is-did)</sup> this program is
 built for, build options id<sup>[3](#what-is-bopts)</sup>.
 <a name="what-is-diid">1</a>: Hash out of  first 10 kB (for performance reasons) of SPIRV image (?and/or source code?) used as input for the build.
 <a name="what-is-did">2</a>: Hash out of the string which is concatenation of values for
