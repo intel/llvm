@@ -7,7 +7,7 @@ if (NOT TARGET LLVMGenXIntrinsics)
     include(FetchContent)
     FetchContent_Declare(vc-intrinsics
       GIT_REPOSITORY https://github.com/intel/vc-intrinsics.git
-      GIT_TAG        77974f5a32e19475125531483bede9ee23935257
+      GIT_TAG        80211c5bd0504fe8ddfbc9a32122df7ebc38dffb
     )
     FetchContent_MakeAvailable(vc-intrinsics)
     FetchContent_GetProperties(vc-intrinsics)

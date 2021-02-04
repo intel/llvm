@@ -1272,11 +1272,6 @@ def SYCLIntelUseStallEnableClusters : InheritableAttr {
   let Spellings = [CXX11<"intel","use_stall_enable_clusters">];
   let LangOpts = [SYCLIsHost, SYCLIsDevice];
   let Subjects = SubjectList<[Function], ErrorDiag>;
-  let AdditionalMembers = [{
-    static const char *getName() {
-      return "stall_enable";
-    }
-  }];
   let Documentation = [SYCLIntelUseStallEnableClustersAttrDocs];
 }
 
@@ -1394,9 +1389,6 @@ def LoopUnrollHint : InheritableAttr {
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let HasCustomTypeTransform = 1;
   let AdditionalMembers = [{
-    static const char *getName() {
-      return "loop_unroll";
-    }
     std::string getDiagnosticName(const PrintingPolicy &Policy) const {
       std::string ValueName;
       llvm::raw_string_ostream OS(ValueName);
@@ -1820,9 +1812,6 @@ def SYCLIntelFPGAIVDep : Attr {
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let HasCustomTypeTransform = 1;
   let AdditionalMembers = [{
-    static const char *getName() {
-      return "ivdep";
-    }
     bool isDependent() const {
       return (getSafelenExpr() &&
               getSafelenExpr()->isInstantiationDependent()) ||
@@ -1857,18 +1846,14 @@ def SYCLIntelFPGAIVDep : Attr {
   let Documentation = [SYCLIntelFPGAIVDepAttrDocs];
 }
 
-def SYCLIntelFPGAII : Attr {
+def SYCLIntelFPGAInitiationInterval : StmtAttr {
   let Spellings = [CXX11<"intelfpga","ii">,
-                   CXX11<"intel","ii">];
+                   CXX11<"intel","ii">,
+                   CXX11<"intel", "initiation_interval">];
   let Args = [ExprArgument<"IntervalExpr">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let HasCustomTypeTransform = 1;
-  let AdditionalMembers = [{
-    static const char *getName() {
-      return "ii";
-    }
-  }];
-  let Documentation = [SYCLIntelFPGAIIAttrDocs];
+  let Documentation = [SYCLIntelFPGAInitiationIntervalAttrDocs];
 }
 
 def SYCLIntelFPGAMaxConcurrency : Attr {
@@ -1877,11 +1862,6 @@ def SYCLIntelFPGAMaxConcurrency : Attr {
   let Args = [ExprArgument<"NThreadsExpr">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let HasCustomTypeTransform = 1;
-  let AdditionalMembers = [{
-    static const char *getName() {
-      return "max_concurrency";
-    }
-  }];
   let Documentation = [SYCLIntelFPGAMaxConcurrencyAttrDocs];
 }
 
@@ -1891,11 +1871,6 @@ def SYCLIntelFPGALoopCoalesce : Attr {
   let Args = [ExprArgument<"NExpr">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let HasCustomTypeTransform = 1;
-  let AdditionalMembers = [{
-    static const char *getName() {
-      return "loop_coalesce";
-    }
-  }];
   let Documentation = [SYCLIntelFPGALoopCoalesceAttrDocs];
 }
 
@@ -1904,11 +1879,6 @@ def SYCLIntelFPGADisableLoopPipelining : Attr {
                    CXX11<"intel","disable_loop_pipelining">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let HasCustomTypeTransform = 1;
-  let AdditionalMembers = [{
-    static const char *getName() {
-      return "disable_loop_pipelining";
-    }
-  }];
   let Documentation = [SYCLIntelFPGADisableLoopPipeliningAttrDocs];
 }
 
@@ -1918,11 +1888,6 @@ def SYCLIntelFPGAMaxInterleaving : Attr {
   let Args = [ExprArgument<"NExpr">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let HasCustomTypeTransform = 1;
-  let AdditionalMembers = [{
-    static const char *getName() {
-      return "max_interleaving";
-    }
-  }];
   let Documentation = [SYCLIntelFPGAMaxInterleavingAttrDocs];
 }
 
@@ -1932,11 +1897,6 @@ def SYCLIntelFPGASpeculatedIterations : Attr {
   let Args = [ExprArgument<"NExpr">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let HasCustomTypeTransform = 1;
-  let AdditionalMembers = [{
-    static const char *getName() {
-      return "speculated_iterations";
-    }
-  }];
   let Documentation = [SYCLIntelFPGASpeculatedIterationsAttrDocs];
 }
 
@@ -1944,11 +1904,6 @@ def SYCLIntelFPGANofusion : Attr {
   let Spellings = [CXX11<"intel","nofusion">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let HasCustomTypeTransform = 1;
-  let AdditionalMembers = [{
-    static const char *getName() {
-      return "nofusion";
-    }
-  }];
   let Documentation = [SYCLIntelFPGANofusionAttrDocs];
 }
 

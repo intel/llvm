@@ -584,6 +584,12 @@ static string_vector saveDeviceImageProperty(
             NameInfoPair.first, llvm::util::PropertyValue(Data, DataBitSize)));
       }
     }
+
+    if (ImgPSInfo.IsEsimdKernel) {
+      PropSet[llvm::util::PropertySetRegistry::SYCL_MISC_PROP].insert(
+          {"isEsimdImage", true});
+    }
+
     std::error_code EC;
     std::string SCFile =
         makeResultFileName(".prop", I, ImgPSInfo.IsEsimdKernel ? "esimd_" : "");
