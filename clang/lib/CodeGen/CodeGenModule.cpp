@@ -3991,7 +3991,6 @@ CodeGenModule::GetOrCreateLLVMGlobal(StringRef MangledName,
         : (LangOpts.OpenCL ? LangAS::opencl_global : LangAS::Default);
   assert(getContext().getTargetAddressSpace(ExpectedAS) ==
          Ty->getPointerAddressSpace());
-
   if (AddrSpace != ExpectedAS)
     return getTargetCodeGenInfo().performAddrSpaceCast(*this, GV, AddrSpace,
                                                        ExpectedAS, Ty);
@@ -4149,14 +4148,10 @@ LangAS CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D) {
     return AddrSpace;
   }
 
-  if (LangOpts.SYCLIsDevice) {
-    if (!D)
-      return LangAS::opencl_global;
+  if (LangOpts.SYCLIsDevice && D) {
     auto *Scope = D->getAttr<SYCLScopeAttr>();
     if (Scope && Scope->isWorkGroup())
       return LangAS::opencl_local;
-    if (D->getType().getAddressSpace() == LangAS::Default)
-      return LangAS::opencl_global;
   }
 
   if (LangOpts.CUDA && LangOpts.CUDAIsDevice) {
@@ -4184,17 +4179,6 @@ LangAS CodeGenModule::getStringLiteralAddressSpace() const {
   // OpenCL v1.2 s6.5.3: a string literal is in the constant address space.
   if (LangOpts.OpenCL)
     return LangAS::opencl_constant;
-  if (LangOpts.SYCLIsDevice)
-    // If we keep a literal string in constant address space, the following code
-    // becomes illegal:
-    //
-    //   const char *getLiteral() n{
-    //     return "AB";
-    //   }
-    // Use global address space to avoid illegal casts from constant to generic.
-    // Private address space is not used here because in SPIR-V global values
-    // cannot have private address space.
-    return LangAS::opencl_global;
   if (auto AS = getTarget().getConstantAddressSpace())
     return AS.getValue();
   return LangAS::Default;
@@ -5086,7 +5070,8 @@ void CodeGenModule::EmitAliasDefinition(GlobalDecl GD) {
     LT = getFunctionLinkage(GD);
     AS = Aliasee->getType()->getPointerAddressSpace();
   } else {
-    AS = ArgInfoAddressSpace(GetGlobalVarAddressSpace(/*D=*/nullptr));
+    const auto *VarD = cast<VarDecl>(GD.getDecl());
+    AS = ArgInfoAddressSpace(GetGlobalVarAddressSpace(VarD));
     Aliasee = GetOrCreateLLVMGlobal(AA->getAliasee(), DeclTy->getPointerTo(AS),
                                     /*D=*/nullptr);
     if (const auto *VD = dyn_cast<VarDecl>(GD.getDecl()))
