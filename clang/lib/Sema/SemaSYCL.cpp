@@ -3482,7 +3482,7 @@ static const char *paramKind2Str(KernelParamKind K) {
     CASE(sampler);
     CASE(pointer);
   }
-    return "<ERROR>";
+  return "<ERROR>";
 #undef CASE
 }
 
