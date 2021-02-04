@@ -2573,7 +2573,8 @@ bool Parser::ParseSYCLLoopAttributes(ParsedAttributes &Attrs) {
     return true;
 
   if (Attrs.begin()->getKind() != ParsedAttr::AT_SYCLIntelFPGAIVDep &&
-      Attrs.begin()->getKind() != ParsedAttr::AT_SYCLIntelFPGAII &&
+      Attrs.begin()->getKind() !=
+          ParsedAttr::AT_SYCLIntelFPGAInitiationInterval &&
       Attrs.begin()->getKind() != ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency &&
       Attrs.begin()->getKind() != ParsedAttr::AT_SYCLIntelFPGALoopCoalesce &&
       Attrs.begin()->getKind() !=

@@ -26,6 +26,11 @@
 #else
 #define __SYCL_CONSTEXPR_ON_DEVICE
 #endif
+#if __cplusplus >= 201402L
+#define _CPP14_CONSTEXPR constexpr
+#else
+#define _CPP14_CONSTEXPR
+#endif
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -35,8 +40,8 @@ namespace host_half_impl {
 class __SYCL_EXPORT half {
 public:
   half() = default;
-  half(const half &) = default;
-  half(half &&) = default;
+  constexpr half(const half &) = default;
+  constexpr half(half &&) = default;
 
   half(const float &rhs);
 
@@ -74,10 +79,19 @@ public:
     return ret;
   }
 
+  // Operator neg
+  _CPP14_CONSTEXPR half &operator-() {
+    Buf ^= 0x8000;
+    return *this;
+  }
+
   // Operator float
   operator float() const;
 
   template <typename Key> friend struct std::hash;
+
+  // Initialize underlying data
+  constexpr explicit half(uint16_t x) : Buf(x) {}
 
 private:
   uint16_t Buf;
@@ -136,8 +150,8 @@ class half;
 class half {
 public:
   half() = default;
-  half(const half &) = default;
-  half(half &&) = default;
+  constexpr half(const half &) = default;
+  constexpr half(half &&) = default;
 
   __SYCL_CONSTEXPR_ON_DEVICE half(const float &rhs) : Data(rhs) {}
 
@@ -146,8 +160,8 @@ public:
 #ifndef __SYCL_DEVICE_ONLY__
   // Since StorageT and BIsRepresentationT are different on host, these two
   // helpers are required for 'vec' class
-  half(const detail::host_half_impl::half &rhs) : Data(rhs) {};
-  operator detail::host_half_impl::half() const { return Data; }
+  constexpr half(const detail::host_half_impl::half &rhs) : Data(rhs){};
+  constexpr operator detail::host_half_impl::half() const { return Data; }
 #endif // __SYCL_DEVICE_ONLY__
 
   // Operator +=, -=, *=, /=
@@ -193,7 +207,14 @@ public:
     operator--();
     return ret;
   }
-
+  _CPP14_CONSTEXPR half &operator-() {
+    Data = -Data;
+    return *this;
+  }
+  _CPP14_CONSTEXPR half operator-() const {
+    half r = *this;
+    return -r;
+  }
   // Operator float
   operator float() const { return static_cast<float>(Data); }
 
@@ -280,8 +301,13 @@ template <> struct numeric_limits<cl::sycl::half> {
     return 0.5f;
   }
 
-  static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half infinity() noexcept {
+  static constexpr const cl::sycl::half infinity() noexcept {
+#ifdef __SYCL_DEVICE_ONLY__
     return __builtin_huge_valf();
+#else
+    return cl::sycl::detail::host_half_impl::half(
+        static_cast<uint16_t>(0x7C00));
+#endif
   }
 
   static __SYCL_CONSTEXPR_ON_DEVICE const cl::sycl::half quiet_NaN() noexcept {
@@ -313,3 +339,4 @@ inline std::istream &operator>>(std::istream &I, cl::sycl::half &rhs) {
 }
 
 #undef __SYCL_CONSTEXPR_ON_DEVICE
+#undef _CPP14_CONSTEXPR

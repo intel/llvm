@@ -9948,6 +9948,15 @@ public:
   SPIRTargetCodeGenInfo(CodeGen::CodeGenTypes &CGT)
       : TargetCodeGenInfo(std::make_unique<SPIRABIInfo>(CGT)) {}
   unsigned getOpenCLKernelCallingConv() const override;
+
+  LangAS getASTAllocaAddressSpace() const override {
+    return getLangASFromTargetAS(
+        getABIInfo().getDataLayout().getAllocaAddrSpace());
+  }
+
+  LangAS getGlobalVarAddressSpace(CodeGenModule &CGM,
+                                  const VarDecl *D) const override;
+  bool shouldEmitStaticExternCAliases() const override;
 };
 
 } // End anonymous namespace.
@@ -9967,6 +9976,34 @@ void computeSPIRKernelABIInfo(CodeGenModule &CGM, CGFunctionInfo &FI) {
 
 unsigned SPIRTargetCodeGenInfo::getOpenCLKernelCallingConv() const {
   return llvm::CallingConv::SPIR_KERNEL;
+}
+
+bool SPIRTargetCodeGenInfo::shouldEmitStaticExternCAliases() const {
+  return false;
+}
+
+LangAS SPIRTargetCodeGenInfo::getGlobalVarAddressSpace(CodeGenModule &CGM,
+                                                       const VarDecl *D) const {
+  assert(!CGM.getLangOpts().OpenCL &&
+         !(CGM.getLangOpts().CUDA && CGM.getLangOpts().CUDAIsDevice) &&
+         "Address space agnostic languages only");
+  LangAS DefaultGlobalAS = getLangASFromTargetAS(
+      CGM.getContext().getTargetAddressSpace(LangAS::opencl_global));
+  if (!D)
+    return DefaultGlobalAS;
+
+  LangAS AddrSpace = D->getType().getAddressSpace();
+  assert(AddrSpace == LangAS::Default || isTargetAddressSpace(AddrSpace) ||
+         // allow applying clang AST address spaces in SYCL mode
+         (CGM.getLangOpts().SYCL && CGM.getLangOpts().SYCLIsDevice));
+  if (AddrSpace != LangAS::Default)
+    return AddrSpace;
+
+  if (CGM.isTypeConstant(D->getType(), false)) {
+    if (auto ConstAS = CGM.getTarget().getConstantAddressSpace())
+      return ConstAS.getValue();
+  }
+  return DefaultGlobalAS;
 }
 
 static bool appendType(SmallStringEnc &Enc, QualType QType,
