@@ -883,8 +883,8 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     Type *Ty = II->getType();
     unsigned BitWidth = Ty->getScalarSizeInBits();
     Constant *ShAmtC;
-    if (match(II->getArgOperand(2), m_Constant(ShAmtC)) &&
-        !isa<ConstantExpr>(ShAmtC) && !ShAmtC->containsConstantExpression()) {
+    if (match(II->getArgOperand(2), m_ImmConstant(ShAmtC)) &&
+        !ShAmtC->containsConstantExpression()) {
       // Canonicalize a shift amount constant operand to modulo the bit-width.
       Constant *WidthC = ConstantInt::get(Ty, BitWidth);
       Constant *ModuloC = ConstantExpr::getURem(ShAmtC, WidthC);
@@ -1478,14 +1478,14 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     FunctionType *AssumeIntrinsicTy = II->getFunctionType();
     Value *AssumeIntrinsic = II->getCalledOperand();
     Value *A, *B;
-    if (match(IIOperand, m_And(m_Value(A), m_Value(B)))) {
+    if (match(IIOperand, m_LogicalAnd(m_Value(A), m_Value(B)))) {
       Builder.CreateCall(AssumeIntrinsicTy, AssumeIntrinsic, A, OpBundles,
                          II->getName());
       Builder.CreateCall(AssumeIntrinsicTy, AssumeIntrinsic, B, II->getName());
       return eraseInstFromFunction(*II);
     }
     // assume(!(a || b)) -> assume(!a); assume(!b);
-    if (match(IIOperand, m_Not(m_Or(m_Value(A), m_Value(B))))) {
+    if (match(IIOperand, m_Not(m_LogicalOr(m_Value(A), m_Value(B))))) {
       Builder.CreateCall(AssumeIntrinsicTy, AssumeIntrinsic,
                          Builder.CreateNot(A), OpBundles, II->getName());
       Builder.CreateCall(AssumeIntrinsicTy, AssumeIntrinsic,
@@ -1649,6 +1649,101 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
       }
       eraseInstFromFunction(*NextInst);
       return II;
+    }
+    break;
+  }
+  case Intrinsic::experimental_vector_insert: {
+    Value *Vec = II->getArgOperand(0);
+    Value *SubVec = II->getArgOperand(1);
+    Value *Idx = II->getArgOperand(2);
+    auto *DstTy = dyn_cast<FixedVectorType>(II->getType());
+    auto *VecTy = dyn_cast<FixedVectorType>(Vec->getType());
+    auto *SubVecTy = dyn_cast<FixedVectorType>(SubVec->getType());
+
+    // Only canonicalize if the destination vector, Vec, and SubVec are all
+    // fixed vectors.
+    if (DstTy && VecTy && SubVecTy) {
+      unsigned DstNumElts = DstTy->getNumElements();
+      unsigned VecNumElts = VecTy->getNumElements();
+      unsigned SubVecNumElts = SubVecTy->getNumElements();
+      unsigned IdxN = cast<ConstantInt>(Idx)->getZExtValue();
+
+      // The result of this call is undefined if IdxN is not a constant multiple
+      // of the SubVec's minimum vector length OR the insertion overruns Vec.
+      if (IdxN % SubVecNumElts != 0 || IdxN + SubVecNumElts > VecNumElts) {
+        replaceInstUsesWith(CI, UndefValue::get(CI.getType()));
+        return eraseInstFromFunction(CI);
+      }
+
+      // An insert that entirely overwrites Vec with SubVec is a nop.
+      if (VecNumElts == SubVecNumElts) {
+        replaceInstUsesWith(CI, SubVec);
+        return eraseInstFromFunction(CI);
+      }
+
+      // Widen SubVec into a vector of the same width as Vec, since
+      // shufflevector requires the two input vectors to be the same width.
+      // Elements beyond the bounds of SubVec within the widened vector are
+      // undefined.
+      SmallVector<int, 8> WidenMask;
+      unsigned i;
+      for (i = 0; i != SubVecNumElts; ++i)
+        WidenMask.push_back(i);
+      for (; i != VecNumElts; ++i)
+        WidenMask.push_back(UndefMaskElem);
+
+      Value *WidenShuffle = Builder.CreateShuffleVector(SubVec, WidenMask);
+
+      SmallVector<int, 8> Mask;
+      for (unsigned i = 0; i != IdxN; ++i)
+        Mask.push_back(i);
+      for (unsigned i = DstNumElts; i != DstNumElts + SubVecNumElts; ++i)
+        Mask.push_back(i);
+      for (unsigned i = IdxN + SubVecNumElts; i != DstNumElts; ++i)
+        Mask.push_back(i);
+
+      Value *Shuffle = Builder.CreateShuffleVector(Vec, WidenShuffle, Mask);
+      replaceInstUsesWith(CI, Shuffle);
+      return eraseInstFromFunction(CI);
+    }
+    break;
+  }
+  case Intrinsic::experimental_vector_extract: {
+    Value *Vec = II->getArgOperand(0);
+    Value *Idx = II->getArgOperand(1);
+
+    auto *DstTy = dyn_cast<FixedVectorType>(II->getType());
+    auto *VecTy = dyn_cast<FixedVectorType>(Vec->getType());
+
+    // Only canonicalize if the the destination vector and Vec are fixed
+    // vectors.
+    if (DstTy && VecTy) {
+      unsigned DstNumElts = DstTy->getNumElements();
+      unsigned VecNumElts = VecTy->getNumElements();
+      unsigned IdxN = cast<ConstantInt>(Idx)->getZExtValue();
+
+      // The result of this call is undefined if IdxN is not a constant multiple
+      // of the result type's minimum vector length OR the extraction overruns
+      // Vec.
+      if (IdxN % DstNumElts != 0 || IdxN + DstNumElts > VecNumElts) {
+        replaceInstUsesWith(CI, UndefValue::get(CI.getType()));
+        return eraseInstFromFunction(CI);
+      }
+
+      // Extracting the entirety of Vec is a nop.
+      if (VecNumElts == DstNumElts) {
+        replaceInstUsesWith(CI, Vec);
+        return eraseInstFromFunction(CI);
+      }
+
+      SmallVector<int, 8> Mask;
+      for (unsigned i = 0; i != DstNumElts; ++i)
+        Mask.push_back(IdxN + i);
+
+      Value *Shuffle =
+          Builder.CreateShuffleVector(Vec, UndefValue::get(VecTy), Mask);
+      replaceInstUsesWith(CI, Shuffle);
+      return eraseInstFromFunction(CI);
     }
     break;
   }

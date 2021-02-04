@@ -29,19 +29,19 @@ func @omp_taskyield() -> () {
 }
 
 // CHECK-LABEL: func @omp_flush
-// CHECK-SAME: ([[ARG0:%.*]]: !llvm.i32) {
-func @omp_flush(%arg0 : !llvm.i32) -> () {
+// CHECK-SAME: ([[ARG0:%.*]]: i32) {
+func @omp_flush(%arg0 : i32) -> () {
   // Test without data var
   // CHECK: omp.flush
   omp.flush
 
   // Test with one data var
-  // CHECK: omp.flush([[ARG0]] : !llvm.i32)
-  omp.flush(%arg0 : !llvm.i32)
+  // CHECK: omp.flush([[ARG0]] : i32)
+  omp.flush(%arg0 : i32)
 
   // Test with two data var
-  // CHECK: omp.flush([[ARG0]], [[ARG0]] : !llvm.i32, !llvm.i32)
-  omp.flush(%arg0, %arg0: !llvm.i32, !llvm.i32)
+  // CHECK: omp.flush([[ARG0]], [[ARG0]] : i32, i32)
+  omp.flush(%arg0, %arg0: i32, i32)
 
   return
 }
@@ -122,6 +122,44 @@ func @omp_parallel_pretty(%data_var : memref<i32>, %if_cond : i1, %num_threads :
                private(%data_var : memref<i32>) proc_bind(close) {
     omp.terminator
   }
+
+  return
+}
+
+func @omp_wsloop(%lb : index, %ub : index, %step : index,
+                 %data_var : memref<i32>, %linear_var : si32, %chunk_var : si32) -> () {
+
+  // CHECK: "omp.wsloop"(%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}})
+  "omp.wsloop" (%lb, %ub, %step, %data_var) ({
+    omp.yield
+  }) {operand_segment_sizes = dense<[1,1,1,1,0,0,0,0,0]> : vector<9xi32>, collapse_val = 2, ordered_val = 1} :
+    (index, index, index, memref<i32>) -> ()
+
+  // CHECK: "omp.wsloop"(%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}})
+  "omp.wsloop" (%lb, %lb, %ub, %ub, %step, %step, %data_var) ({
+    omp.yield
+  }) {operand_segment_sizes = dense<[2,2,2,1,0,0,0,0,0]> : vector<9xi32>, collapse_val = 2, ordered_val = 1} :
+    (index, index, index, index, index, index, memref<i32>) -> ()
+
+
+  // CHECK: "omp.wsloop"(%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}})
+  "omp.wsloop" (%lb, %ub, %step, %data_var, %linear_var) ({
+    omp.yield
+  }) {operand_segment_sizes = dense<[1,1,1,0,0,0,1,1,0]> : vector<9xi32>, schedule_val = "Static"} :
+    (index, index, index, memref<i32>, si32) -> ()
+
+  // CHECK: "omp.wsloop"(%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}})
+  "omp.wsloop" (%lb, %ub, %step, %data_var, %data_var, %data_var, %data_var, %linear_var, %chunk_var) ({
+    omp.yield
+  }) {operand_segment_sizes = dense<[1,1,1,1,1,1,1,1,1]> : vector<9xi32>, schedule_val = "Dynamic", collapse_val = 3, ordered_val = 2} :
+    (index, index, index, memref<i32>, memref<i32>, memref<i32>, memref<i32>, si32, si32) -> ()
+
+  // CHECK: "omp.wsloop"(%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}})
+  "omp.wsloop" (%lb, %ub, %step, %data_var) ({
+    omp.yield
+  }) {operand_segment_sizes = dense<[1,1,1,1,0,0,0,0,0]> : vector<9xi32>, nowait, schedule_val = "Auto"} :
+    (index, index, index, memref<i32>) -> ()
+
 
   return
 }

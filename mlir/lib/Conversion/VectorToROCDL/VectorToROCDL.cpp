@@ -30,8 +30,8 @@ using namespace mlir::vector;
 static LogicalResult replaceTransferOpWithMubuf(
     ConversionPatternRewriter &rewriter, ArrayRef<Value> operands,
     LLVMTypeConverter &typeConverter, Location loc, TransferReadOp xferOp,
-    LLVM::LLVMType &vecTy, Value &dwordConfig, Value &vindex,
-    Value &offsetSizeInBytes, Value &glc, Value &slc) {
+    Type &vecTy, Value &dwordConfig, Value &vindex, Value &offsetSizeInBytes,
+    Value &glc, Value &slc) {
   rewriter.replaceOpWithNewOp<ROCDL::MubufLoadOp>(
       xferOp, vecTy, dwordConfig, vindex, offsetSizeInBytes, glc, slc);
   return success();
@@ -40,8 +40,8 @@ static LogicalResult replaceTransferOpWithMubuf(
 static LogicalResult replaceTransferOpWithMubuf(
     ConversionPatternRewriter &rewriter, ArrayRef<Value> operands,
     LLVMTypeConverter &typeConverter, Location loc, TransferWriteOp xferOp,
-    LLVM::LLVMType &vecTy, Value &dwordConfig, Value &vindex,
-    Value &offsetSizeInBytes, Value &glc, Value &slc) {
+    Type &vecTy, Value &dwordConfig, Value &vindex, Value &offsetSizeInBytes,
+    Value &glc, Value &slc) {
   auto adaptor = TransferWriteOpAdaptor(operands);
   rewriter.replaceOpWithNewOp<ROCDL::MubufStoreOp>(xferOp, adaptor.vector(),
                                                    dwordConfig, vindex,
@@ -55,17 +55,13 @@ namespace {
 /// types. For unsupported cases, they will fall back to the vector to
 /// llvm conversion pattern.
 template <typename ConcreteOp>
-class VectorTransferConversion : public ConvertToLLVMPattern {
+class VectorTransferConversion : public ConvertOpToLLVMPattern<ConcreteOp> {
 public:
-  explicit VectorTransferConversion(MLIRContext *context,
-                                    LLVMTypeConverter &typeConv)
-      : ConvertToLLVMPattern(ConcreteOp::getOperationName(), context,
-                             typeConv) {}
+  using ConvertOpToLLVMPattern<ConcreteOp>::ConvertOpToLLVMPattern;
 
   LogicalResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+  matchAndRewrite(ConcreteOp xferOp, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    auto xferOp = cast<ConcreteOp>(op);
     typename ConcreteOp::Adaptor adaptor(operands);
 
     if (xferOp.getVectorType().getRank() > 1 ||
@@ -79,11 +75,12 @@ public:
     if (!xferOp.isMaskedDim(0))
       return failure();
 
-    auto toLLVMTy = [&](Type t) { return typeConverter.convertType(t); };
-    LLVM::LLVMType vecTy =
-        toLLVMTy(xferOp.getVectorType()).template cast<LLVM::LLVMType>();
-    unsigned vecWidth = vecTy.getVectorNumElements();
-    Location loc = op->getLoc();
+    auto toLLVMTy = [&](Type t) {
+      return this->getTypeConverter()->convertType(t);
+    };
+    auto vecTy = toLLVMTy(xferOp.getVectorType());
+    unsigned vecWidth = LLVM::getVectorNumElements(vecTy).getFixedValue();
+    Location loc = xferOp->getLoc();
 
     // The backend result vector scalarization have trouble scalarize
     // <1 x ty> result, exclude the x1 width from the lowering.
@@ -91,7 +88,9 @@ public:
       return failure();
 
     // Obtain dataPtr and elementType from the memref.
-    MemRefType memRefType = xferOp.getMemRefType();
+    auto memRefType = xferOp.getShapedType().template dyn_cast<MemRefType>();
+    if (!memRefType)
+      return failure();
     // MUBUF instruction operate only on addresspace 0(unified) or 1(global)
     // In case of 3(LDS): fall back to vector->llvm pass
     // In case of 5(VGPR): wrong
@@ -102,8 +101,8 @@ public:
     // Note that the dataPtr starts at the offset address specified by
     // indices, so no need to calculate offset size in bytes again in
     // the MUBUF instruction.
-    Value dataPtr = getDataPtr(loc, memRefType, adaptor.memref(),
-                               adaptor.indices(), rewriter);
+    Value dataPtr = this->getStridedElementPtr(
+        loc, memRefType, adaptor.source(), adaptor.indices(), rewriter);
 
     // 1. Create and fill a <4 x i32> dwordConfig with:
     //    1st two elements holding the address of dataPtr.
@@ -120,18 +119,13 @@ public:
     // to it.
     Type i64Ty = rewriter.getIntegerType(64);
     Value i64x2Ty = rewriter.create<LLVM::BitcastOp>(
-        loc,
-        LLVM::LLVMType::getVectorTy(
-            toLLVMTy(i64Ty).template cast<LLVM::LLVMType>(), 2),
-        constConfig);
+        loc, LLVM::getFixedVectorType(toLLVMTy(i64Ty), 2), constConfig);
     Value dataPtrAsI64 = rewriter.create<LLVM::PtrToIntOp>(
-        loc, toLLVMTy(i64Ty).template cast<LLVM::LLVMType>(), dataPtr);
-    Value zero = createIndexConstant(rewriter, loc, 0);
+        loc, toLLVMTy(i64Ty).template cast<Type>(), dataPtr);
+    Value zero = this->createIndexConstant(rewriter, loc, 0);
     Value dwordConfig = rewriter.create<LLVM::InsertElementOp>(
-        loc,
-        LLVM::LLVMType::getVectorTy(
-            toLLVMTy(i64Ty).template cast<LLVM::LLVMType>(), 2),
-        i64x2Ty, dataPtrAsI64, zero);
+        loc, LLVM::getFixedVectorType(toLLVMTy(i64Ty), 2), i64x2Ty,
+        dataPtrAsI64, zero);
     dwordConfig =
         rewriter.create<LLVM::BitcastOp>(loc, toLLVMTy(i32Vecx4), dwordConfig);
 
@@ -142,18 +136,17 @@ public:
     Value int32Zero = rewriter.create<LLVM::ConstantOp>(
         loc, toLLVMTy(i32Ty),
         rewriter.getIntegerAttr(rewriter.getIntegerType(32), 0));
-    return replaceTransferOpWithMubuf(rewriter, operands, typeConverter, loc,
-                                      xferOp, vecTy, dwordConfig, int32Zero,
-                                      int32Zero, int1False, int1False);
+    return replaceTransferOpWithMubuf(
+        rewriter, operands, *this->getTypeConverter(), loc, xferOp, vecTy,
+        dwordConfig, int32Zero, int32Zero, int1False, int1False);
   }
 };
 } // end anonymous namespace
 
 void mlir::populateVectorToROCDLConversionPatterns(
     LLVMTypeConverter &converter, OwningRewritePatternList &patterns) {
-  MLIRContext *ctx = converter.getDialect()->getContext();
   patterns.insert<VectorTransferConversion<TransferReadOp>,
-                  VectorTransferConversion<TransferWriteOp>>(ctx, converter);
+                  VectorTransferConversion<TransferWriteOp>>(converter);
 }
 
 namespace {

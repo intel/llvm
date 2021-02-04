@@ -14,7 +14,10 @@
 #ifndef LLVM_CLANG_BASIC_FILEENTRY_H
 #define LLVM_CLANG_BASIC_FILEENTRY_H
 
+#include "clang/Basic/DirectoryEntry.h"
 #include "clang/Basic/LLVM.h"
+#include "llvm/ADT/DenseMapInfo.h"
+#include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
@@ -22,6 +25,9 @@
 #include "llvm/Support/FileSystem/UniqueID.h"
 
 namespace llvm {
+
+class MemoryBuffer;
+
 namespace vfs {
 
 class File;
@@ -47,7 +53,6 @@ class OptionalStorage<clang::FileEntryRef, /*is_trivially_copyable*/ true>;
 
 namespace clang {
 
-class DirectoryEntry;
 class FileEntry;
 
 /// A reference to a \c FileEntry that includes the name of the file as it was
@@ -58,12 +63,14 @@ public:
   const FileEntry &getFileEntry() const {
     return *ME->second->V.get<FileEntry *>();
   }
+  DirectoryEntryRef getDir() const { return *ME->second->Dir; }
 
   inline bool isValid() const;
   inline off_t getSize() const;
   inline unsigned getUID() const;
   inline const llvm::sys::fs::UniqueID &getUniqueID() const;
   inline time_t getModificationTime() const;
+  inline bool isNamedPipe() const;
   inline void closeFile() const;
 
   /// Check if the underlying FileEntry is the same, intentially ignoring
@@ -87,6 +94,12 @@ public:
     return !(LHS == RHS);
   }
 
+  /// Hash code is based on the FileEntry, not the specific named reference,
+  /// just like operator==.
+  friend llvm::hash_code hash_value(FileEntryRef Ref) {
+    return llvm::hash_value(&Ref.getFileEntry());
+  }
+
   struct MapValue;
 
   /// Type used in the StringMap.
@@ -104,8 +117,11 @@ public:
     /// gcc5.3.  Once that's no longer supported, change this back.
     llvm::PointerUnion<FileEntry *, const void *> V;
 
+    /// Directory the file was found in. Set if and only if V is a FileEntry.
+    Optional<DirectoryEntryRef> Dir;
+
     MapValue() = delete;
-    MapValue(FileEntry &FE) : V(&FE) {}
+    MapValue(FileEntry &FE, DirectoryEntryRef Dir) : V(&FE), Dir(Dir) {}
     MapValue(MapEntry &ME) : V(&ME) {}
   };
 
@@ -143,13 +159,26 @@ public:
   const clang::FileEntryRef::MapEntry &getMapEntry() const { return *ME; }
 
 private:
-  friend class llvm::optional_detail::OptionalStorage<
-      FileEntryRef, /*is_trivially_copyable*/ true>;
+  friend class FileMgr::MapEntryOptionalStorage<FileEntryRef>;
   struct optional_none_tag {};
 
   // Private constructor for use by OptionalStorage.
   FileEntryRef(optional_none_tag) : ME(nullptr) {}
   bool hasOptionalValue() const { return ME; }
+
+  friend struct llvm::DenseMapInfo<FileEntryRef>;
+  struct dense_map_empty_tag {};
+  struct dense_map_tombstone_tag {};
+
+  // Private constructors for use by DenseMapInfo.
+  FileEntryRef(dense_map_empty_tag)
+      : ME(llvm::DenseMapInfo<const MapEntry *>::getEmptyKey()) {}
+  FileEntryRef(dense_map_tombstone_tag)
+      : ME(llvm::DenseMapInfo<const MapEntry *>::getTombstoneKey()) {}
+  bool isSpecialDenseMapKey() const {
+    return isSameRef(FileEntryRef(dense_map_empty_tag())) ||
+           isSameRef(FileEntryRef(dense_map_tombstone_tag()));
+  }
 
   const MapEntry *ME;
 };
@@ -167,46 +196,21 @@ namespace optional_detail {
 
 /// Customize OptionalStorage<FileEntryRef> to use FileEntryRef and its
 /// optional_none_tag to keep it the size of a single pointer.
-template <> class OptionalStorage<clang::FileEntryRef> {
-  clang::FileEntryRef MaybeRef;
+template <>
+class OptionalStorage<clang::FileEntryRef>
+    : public clang::FileMgr::MapEntryOptionalStorage<clang::FileEntryRef> {
+  using StorageImpl =
+      clang::FileMgr::MapEntryOptionalStorage<clang::FileEntryRef>;
 
 public:
-  ~OptionalStorage() = default;
-  OptionalStorage() : MaybeRef(clang::FileEntryRef::optional_none_tag()) {}
-  OptionalStorage(OptionalStorage const &Other) = default;
-  OptionalStorage(OptionalStorage &&Other) = default;
-  OptionalStorage &operator=(OptionalStorage const &Other) = default;
-  OptionalStorage &operator=(OptionalStorage &&Other) = default;
+  OptionalStorage() = default;
 
   template <class... ArgTypes>
   explicit OptionalStorage(in_place_t, ArgTypes &&...Args)
-      : MaybeRef(std::forward<ArgTypes>(Args)...) {}
-
-  void reset() { MaybeRef = clang::FileEntryRef::optional_none_tag(); }
-
-  bool hasValue() const { return MaybeRef.hasOptionalValue(); }
-
-  clang::FileEntryRef &getValue() LLVM_LVALUE_FUNCTION {
-    assert(hasValue());
-    return MaybeRef;
-  }
-  clang::FileEntryRef const &getValue() const LLVM_LVALUE_FUNCTION {
-    assert(hasValue());
-    return MaybeRef;
-  }
-#if LLVM_HAS_RVALUE_REFERENCE_THIS
-  clang::FileEntryRef &&getValue() && {
-    assert(hasValue());
-    return std::move(MaybeRef);
-  }
-#endif
-
-  template <class... Args> void emplace(Args &&...args) {
-    MaybeRef = clang::FileEntryRef(std::forward<Args>(args)...);
-  }
+      : StorageImpl(in_place_t{}, std::forward<ArgTypes>(Args)...) {}
 
   OptionalStorage &operator=(clang::FileEntryRef Ref) {
-    MaybeRef = Ref;
+    StorageImpl::operator=(Ref);
     return *this;
   }
 };
@@ -219,6 +223,35 @@ static_assert(std::is_trivially_copyable<Optional<clang::FileEntryRef>>::value,
               "Optional<FileEntryRef> should be trivially copyable");
 
 } // end namespace optional_detail
+
+/// Specialisation of DenseMapInfo for FileEntryRef.
+template <> struct DenseMapInfo<clang::FileEntryRef> {
+  static inline clang::FileEntryRef getEmptyKey() {
+    return clang::FileEntryRef(clang::FileEntryRef::dense_map_empty_tag());
+  }
+
+  static inline clang::FileEntryRef getTombstoneKey() {
+    return clang::FileEntryRef(clang::FileEntryRef::dense_map_tombstone_tag());
+  }
+
+  static unsigned getHashValue(clang::FileEntryRef Val) {
+    return hash_value(Val);
+  }
+
+  static bool isEqual(clang::FileEntryRef LHS, clang::FileEntryRef RHS) {
+    // Catch the easy cases: both empty, both tombstone, or the same ref.
+    if (LHS.isSameRef(RHS))
+      return true;
+
+    // Confirm LHS and RHS are valid.
+    if (LHS.isSpecialDenseMapKey() || RHS.isSpecialDenseMapKey())
+      return false;
+
+    // It's safe to use operator==.
+    return LHS == RHS;
+  }
+};
+
 } // end namespace llvm
 
 namespace clang {
@@ -299,16 +332,19 @@ class FileEntry {
   friend class FileManager;
 
   std::string RealPathName;   // Real path to the file; could be empty.
-  off_t Size;                 // File size in bytes.
-  time_t ModTime;             // Modification time of file.
-  const DirectoryEntry *Dir;  // Directory file lives in.
+  off_t Size = 0;             // File size in bytes.
+  time_t ModTime = 0;         // Modification time of file.
+  const DirectoryEntry *Dir = nullptr; // Directory file lives in.
   llvm::sys::fs::UniqueID UniqueID;
-  unsigned UID;               // A unique (small) ID for the file.
-  bool IsNamedPipe;
-  bool IsValid;               // Is this \c FileEntry initialized and valid?
+  unsigned UID = 0; // A unique (small) ID for the file.
+  bool IsNamedPipe = false;
+  bool IsValid = false; // Is this \c FileEntry initialized and valid?
 
   /// The open file, if it is owned by the \p FileEntry.
   mutable std::unique_ptr<llvm::vfs::File> File;
+
+  /// The file content, if it is owned by the \p FileEntry.
+  std::unique_ptr<llvm::MemoryBuffer> Content;
 
   // First access name for this FileEntry.
   //
@@ -360,6 +396,8 @@ const llvm::sys::fs::UniqueID &FileEntryRef::getUniqueID() const {
 time_t FileEntryRef::getModificationTime() const {
   return getFileEntry().getModificationTime();
 }
+
+bool FileEntryRef::isNamedPipe() const { return getFileEntry().isNamedPipe(); }
 
 void FileEntryRef::closeFile() const { getFileEntry().closeFile(); }
 

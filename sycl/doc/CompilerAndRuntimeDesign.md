@@ -305,7 +305,7 @@ used:
 `-fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice -Xsycl-target-backend "-device skl"`
 
 The driver passes the `-device skl` parameter directly to the Gen device backend
-compiler without parsing it.
+compiler `ocloc` without parsing it.
 
 **TBD:** Having multiple code forms for the same target in the fat binary might
 mean invoking device compiler multiple times. Multiple invocations are not
@@ -498,7 +498,9 @@ unit)
 TBD
 
 ##### Specialization constants lowering
-TBD
+
+See [corresponding documentation](SpecializationConstants.md)
+
 
 #### CUDA support
 

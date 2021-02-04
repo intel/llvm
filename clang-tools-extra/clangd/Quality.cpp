@@ -257,6 +257,7 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
   OS << llvm::formatv("\tReferences: {0}\n", S.References);
   OS << llvm::formatv("\tDeprecated: {0}\n", S.Deprecated);
   OS << llvm::formatv("\tReserved name: {0}\n", S.ReservedName);
+  OS << llvm::formatv("\tImplementation detail: {0}\n", S.ImplementationDetail);
   OS << llvm::formatv("\tCategory: {0}\n", static_cast<int>(S.Category));
   return OS;
 }
@@ -293,6 +294,38 @@ void SymbolRelevanceSignals::merge(const Symbol &IndexResult) {
   if (!(IndexResult.Flags & Symbol::VisibleOutsideFile)) {
     Scope = AccessibleScope::FileScope;
   }
+  if (MainFileSignals) {
+    MainFileRefs =
+        std::max(MainFileRefs,
+                 MainFileSignals->ReferencedSymbols.lookup(IndexResult.ID));
+    ScopeRefsInFile =
+        std::max(ScopeRefsInFile,
+                 MainFileSignals->RelatedNamespaces.lookup(IndexResult.Scope));
+  }
+}
+
+void SymbolRelevanceSignals::computeASTSignals(
+    const CodeCompletionResult &SemaResult) {
+  if (!MainFileSignals)
+    return;
+  if ((SemaResult.Kind != CodeCompletionResult::RK_Declaration) &&
+      (SemaResult.Kind != CodeCompletionResult::RK_Pattern))
+    return;
+  if (const NamedDecl *ND = SemaResult.getDeclaration()) {
+    auto ID = getSymbolID(ND);
+    if (!ID)
+      return;
+    MainFileRefs =
+        std::max(MainFileRefs, MainFileSignals->ReferencedSymbols.lookup(ID));
+    if (const auto *NSD = dyn_cast<NamespaceDecl>(ND->getDeclContext())) {
+      if (NSD->isAnonymousNamespace())
+        return;
+      std::string Scope = printNamespaceScope(*NSD);
+      if (!Scope.empty())
+        ScopeRefsInFile = std::max(
+            ScopeRefsInFile, MainFileSignals->RelatedNamespaces.lookup(Scope));
+    }
+  }
 }
 
 void SymbolRelevanceSignals::merge(const CodeCompletionResult &SemaCCResult) {
@@ -314,6 +347,7 @@ void SymbolRelevanceSignals::merge(const CodeCompletionResult &SemaCCResult) {
     InBaseClass |= SemaCCResult.InBaseClass;
   }
 
+  computeASTSignals(SemaCCResult);
   // Declarations are scoped, others (like macros) are assumed global.
   if (SemaCCResult.Declaration)
     Scope = std::min(Scope, computeScope(SemaCCResult.Declaration));
@@ -440,6 +474,21 @@ float SymbolRelevanceSignals::evaluateHeuristics() const {
   if (NeedsFixIts)
     Score *= 0.5f;
 
+  // Use a sigmoid style boosting function similar to `References`, which flats
+  // out nicely for large values. This avoids a sharp gradient for heavily
+  // referenced symbols. Use smaller gradient for ScopeRefsInFile since ideally
+  // MainFileRefs <= ScopeRefsInFile.
+  if (MainFileRefs >= 2) {
+    // E.g.: (2, 1.12), (9, 2.0), (48, 3.0).
+    float S = std::pow(MainFileRefs, -0.11);
+    Score *= 11.0 * (1 - S) / (1 + S) + 0.7;
+  }
+  if (ScopeRefsInFile >= 2) {
+    // E.g.: (2, 1.04), (14, 2.0), (109, 3.0), (400, 3.6).
+    float S = std::pow(ScopeRefsInFile, -0.10);
+    Score *= 10.0 * (1 - S) / (1 + S) + 0.7;
+  }
+
   return Score;
 }
 
@@ -455,6 +504,7 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
   OS << llvm::formatv("\tForbidden: {0}\n", S.Forbidden);
   OS << llvm::formatv("\tNeedsFixIts: {0}\n", S.NeedsFixIts);
   OS << llvm::formatv("\tIsInstanceMember: {0}\n", S.IsInstanceMember);
+  OS << llvm::formatv("\tInBaseClass: {0}\n", S.InBaseClass);
   OS << llvm::formatv("\tContext: {0}\n", getCompletionKindString(S.Context));
   OS << llvm::formatv("\tQuery type: {0}\n", static_cast<int>(S.Query));
   OS << llvm::formatv("\tScope: {0}\n", static_cast<int>(S.Scope));
@@ -499,12 +549,24 @@ evaluateDecisionForest(const SymbolQualitySignals &Quality,
 
   SymbolRelevanceSignals::DerivedSignals Derived =
       Relevance.calculateDerivedSignals();
-  E.setIsNameInContext(Derived.NameMatchesContext);
-  E.setIsForbidden(Relevance.Forbidden);
+  int NumMatch = 0;
+  if (Relevance.ContextWords) {
+    for (const auto &Word : Relevance.ContextWords->keys()) {
+      if (Relevance.Name.contains_lower(Word)) {
+        ++NumMatch;
+      }
+    }
+  }
+  E.setIsNameInContext(NumMatch > 0);
+  E.setNumNameInContext(NumMatch);
+  E.setFractionNameInContext(
+      Relevance.ContextWords && !Relevance.ContextWords->empty()
+          ? NumMatch * 1.0 / Relevance.ContextWords->size()
+          : 0);
   E.setIsInBaseClass(Relevance.InBaseClass);
-  E.setFileProximityDistance(Derived.FileProximityDistance);
+  E.setFileProximityDistanceCost(Derived.FileProximityDistance);
   E.setSemaFileProximityScore(Relevance.SemaFileProximityScore);
-  E.setSymbolScopeDistance(Derived.ScopeProximityDistance);
+  E.setSymbolScopeDistanceCost(Derived.ScopeProximityDistance);
   E.setSemaSaysInScope(Relevance.SemaSaysInScope);
   E.setScope(Relevance.Scope);
   E.setContextKind(Relevance.Context);
@@ -512,7 +574,6 @@ evaluateDecisionForest(const SymbolQualitySignals &Quality,
   E.setHadContextType(Relevance.HadContextType);
   E.setHadSymbolType(Relevance.HadSymbolType);
   E.setTypeMatchesPreferred(Relevance.TypeMatchesPreferred);
-  E.setFilterLength(Relevance.FilterLength);
 
   DecisionForestScores Scores;
   // Exponentiating DecisionForest prediction makes the score of each tree a
@@ -523,6 +584,9 @@ evaluateDecisionForest(const SymbolQualitySignals &Quality,
   // data that needs fixits is not-feasible.
   if (Relevance.NeedsFixIts)
     Scores.ExcludingName *= 0.5;
+  if (Relevance.Forbidden)
+    Scores.ExcludingName *= 0;
+
   // NameMatch should be a multiplier on total score to support rescoring.
   Scores.Total = Relevance.NameMatch * Scores.ExcludingName;
   return Scores;

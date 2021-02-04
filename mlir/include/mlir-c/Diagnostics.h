@@ -40,45 +40,59 @@ typedef enum MlirDiagnosticSeverity MlirDiagnosticSeverity;
 /// Opaque identifier of a diagnostic handler, useful to detach a handler.
 typedef uint64_t MlirDiagnosticHandlerID;
 
-/** Diagnostic handler type. Acceps a reference to a diagnostic, which is only
- * guaranteed to be live during the call. If the handler processed the
- * diagnostic completely, it is expected to return success. Otherwise, it is
- * expected to return failure to indicate that other handlers should attempt to
- * process the diagnostic. */
-typedef MlirLogicalResult (*MlirDiagnosticHandler)(MlirDiagnostic);
+/** Diagnostic handler type. Accepts a reference to a diagnostic, which is only
+ * guaranteed to be live during the call. The handler is passed the `userData`
+ * that was provided when the handler was attached to a context. If the handler
+ * processed the diagnostic completely, it is expected to return success.
+ * Otherwise, it is expected to return failure to indicate that other handlers
+ * should attempt to process the diagnostic. */
+typedef MlirLogicalResult (*MlirDiagnosticHandler)(MlirDiagnostic,
+                                                   void *userData);
 
 /// Prints a diagnostic using the provided callback.
-void mlirDiagnosticPrint(MlirDiagnostic diagnostic, MlirStringCallback callback,
-                         void *userData);
+MLIR_CAPI_EXPORTED void mlirDiagnosticPrint(MlirDiagnostic diagnostic,
+                                            MlirStringCallback callback,
+                                            void *userData);
 
 /// Returns the location at which the diagnostic is reported.
-MlirLocation mlirDiagnosticGetLocation(MlirDiagnostic diagnostic);
+MLIR_CAPI_EXPORTED MlirLocation
+mlirDiagnosticGetLocation(MlirDiagnostic diagnostic);
 
 /// Returns the severity of the diagnostic.
-MlirDiagnosticSeverity mlirDiagnosticGetSeverity(MlirDiagnostic diagnostic);
+MLIR_CAPI_EXPORTED MlirDiagnosticSeverity
+mlirDiagnosticGetSeverity(MlirDiagnostic diagnostic);
 
 /// Returns the number of notes attached to the diagnostic.
-intptr_t mlirDiagnosticGetNumNotes(MlirDiagnostic diagnostic);
+MLIR_CAPI_EXPORTED intptr_t
+mlirDiagnosticGetNumNotes(MlirDiagnostic diagnostic);
 
 /** Returns `pos`-th note attached to the diagnostic. Expects `pos` to be a
  * valid zero-based index into the list of notes. */
-MlirDiagnostic mlirDiagnosticGetNote(MlirDiagnostic diagnostic, intptr_t pos);
+MLIR_CAPI_EXPORTED MlirDiagnostic
+mlirDiagnosticGetNote(MlirDiagnostic diagnostic, intptr_t pos);
 
 /** Attaches the diagnostic handler to the context. Handlers are invoked in the
  * reverse order of attachment until one of them processes the diagnostic
- * completely. Returns an identifier that can be used to detach the handler. */
-MlirDiagnosticHandlerID
-mlirContextAttachDiagnosticHandler(MlirContext context,
-                                   MlirDiagnosticHandler handler);
+ * completely. When a handler is invoked it is passed the `userData` that was
+ * provided when it was attached. If non-NULL, `deleteUserData` is called once
+ * the system no longer needs to call the handler (for instance after the
+ * handler is detached or the context is destroyed). Returns an identifier that
+ * can be used to detach the handler.
+ */
+MLIR_CAPI_EXPORTED MlirDiagnosticHandlerID mlirContextAttachDiagnosticHandler(
+    MlirContext context, MlirDiagnosticHandler handler, void *userData,
+    void (*deleteUserData)(void *));
 
 /** Detaches an attached diagnostic handler from the context given its
  * identifier. */
-void mlirContextDetachDiagnosticHandler(MlirContext context,
-                                        MlirDiagnosticHandlerID id);
+MLIR_CAPI_EXPORTED void
+mlirContextDetachDiagnosticHandler(MlirContext context,
+                                   MlirDiagnosticHandlerID id);
 
 /** Emits an error at the given location through the diagnostics engine. Used
  * for testing purposes. */
-void mlirEmitError(MlirLocation location, const char *message);
+MLIR_CAPI_EXPORTED void mlirEmitError(MlirLocation location,
+                                      const char *message);
 
 #ifdef __cplusplus
 }

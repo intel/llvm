@@ -468,7 +468,7 @@ Instruction *mutateCallInstOCL(
     std::function<std::string(CallInst *, std::vector<Value *> &, Type *&RetTy)>
         ArgMutate,
     std::function<Instruction *(CallInst *)> RetMutate,
-    AttributeList *Attrs = nullptr);
+    AttributeList *Attrs = nullptr, bool TakeFuncName = false);
 
 /// Check if instruction is bitcast from spirv.ConstantSampler to spirv.Sampler
 bool isSamplerInitializer(Instruction *Inst);

@@ -947,7 +947,6 @@ void CodeGenFunction::EmitForStmt(const ForStmt &S,
   Expr::EvalResult Result;
   if (LanguageRequiresProgress()) {
     if (!S.getCond()) {
-      LoopMustProgress = true;
       FnIsMustProgress = false;
     } else if (!S.getCond()->EvaluateAsInt(Result, getContext())) {
       LoopMustProgress = true;
@@ -1465,7 +1464,7 @@ void CodeGenFunction::EmitCaseStmt(const CaseStmt &S,
       SwitchWeights->push_back(getProfileCount(NextCase));
     if (CGM.getCodeGenOpts().hasProfileClangInstr()) {
       CaseDest = createBasicBlock("sw.bb");
-      EmitBlockWithFallThrough(CaseDest, &S);
+      EmitBlockWithFallThrough(CaseDest, CurCase);
     }
     // Since this loop is only executed when the CaseStmt has no attributes
     // use a hard-coded value.
@@ -2330,8 +2329,21 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
             std::max((uint64_t)LargestVectorWidth,
                      VT->getPrimitiveSizeInBits().getKnownMinSize());
     } else {
-      ArgTypes.push_back(Dest.getAddress(*this).getType());
-      Args.push_back(Dest.getPointer(*this));
+      llvm::Type *DestAddrTy = Dest.getAddress(*this).getType();
+      llvm::Value *DestPtr = Dest.getPointer(*this);
+      // Matrix types in memory are represented by arrays, but accessed through
+      // vector pointers, with the alignment specified on the access operation.
+      // For inline assembly, update pointer arguments to use vector pointers.
+      // Otherwise there will be a mis-match if the matrix is also an
+      // input-argument which is represented as vector.
+      if (isa<MatrixType>(OutExpr->getType().getCanonicalType())) {
+        DestAddrTy = llvm::PointerType::get(
+            ConvertType(OutExpr->getType()),
+            cast<llvm::PointerType>(DestAddrTy)->getAddressSpace());
+        DestPtr = Builder.CreateBitCast(DestPtr, DestAddrTy);
+      }
+      ArgTypes.push_back(DestAddrTy);
+      Args.push_back(DestPtr);
       Constraints += "=*";
       Constraints += OutputConstraint;
       ReadOnly = ReadNone = false;

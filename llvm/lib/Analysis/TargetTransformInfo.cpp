@@ -79,9 +79,10 @@ IntrinsicCostAttributes::IntrinsicCostAttributes(Intrinsic::ID Id,
 
 IntrinsicCostAttributes::IntrinsicCostAttributes(Intrinsic::ID Id,
                                                  const CallBase &CI,
-                                                 unsigned Factor) :
-    RetTy(CI.getType()), IID(Id), VF(Factor) {
+                                                 ElementCount Factor)
+    : RetTy(CI.getType()), IID(Id), VF(Factor) {
 
+  assert(!Factor.isScalable() && "Scalable vectors are not yet supported");
   if (auto *FPMO = dyn_cast<FPMathOperator>(&CI))
     FMF = FPMO->getFastMathFlags();
 
@@ -93,9 +94,9 @@ IntrinsicCostAttributes::IntrinsicCostAttributes(Intrinsic::ID Id,
 
 IntrinsicCostAttributes::IntrinsicCostAttributes(Intrinsic::ID Id,
                                                  const CallBase &CI,
-                                                 unsigned Factor,
-                                                 unsigned ScalarCost) :
-    RetTy(CI.getType()), IID(Id), VF(Factor), ScalarizationCost(ScalarCost) {
+                                                 ElementCount Factor,
+                                                 unsigned ScalarCost)
+    : RetTy(CI.getType()), IID(Id), VF(Factor), ScalarizationCost(ScalarCost) {
 
   if (const auto *FPMO = dyn_cast<FPMathOperator>(&CI))
     FMF = FPMO->getFastMathFlags();
@@ -216,7 +217,11 @@ bool HardwareLoopInfo::isHardwareLoopCandidate(ScalarEvolution &SE,
     // Note that this block may not be the loop latch block, even if the loop
     // has a latch block.
     ExitBlock = BB;
-    ExitCount = EC;
+    TripCount = SE.getAddExpr(EC, SE.getOne(EC->getType()));
+
+    if (!EC->getType()->isPointerTy() && EC->getType() != CountType)
+      TripCount = SE.getZeroExtendExpr(TripCount, CountType);
+
     break;
   }
 
@@ -240,6 +245,11 @@ TargetTransformInfo &TargetTransformInfo::operator=(TargetTransformInfo &&RHS) {
 
 unsigned TargetTransformInfo::getInliningThresholdMultiplier() const {
   return TTIImpl->getInliningThresholdMultiplier();
+}
+
+unsigned
+TargetTransformInfo::adjustInliningThreshold(const CallBase *CB) const {
+  return TTIImpl->adjustInliningThreshold(CB);
 }
 
 int TargetTransformInfo::getInlinerVectorBonusPercent() const {
@@ -295,6 +305,10 @@ bool TargetTransformInfo::collectFlatAddressOperands(
 bool TargetTransformInfo::isNoopAddrSpaceCast(unsigned FromAS,
                                               unsigned ToAS) const {
   return TTIImpl->isNoopAddrSpaceCast(FromAS, ToAS);
+}
+
+unsigned TargetTransformInfo::getAssumedAddrSpace(const Value *V) const {
+  return TTIImpl->getAssumedAddrSpace(V);
 }
 
 Value *TargetTransformInfo::rewriteIntrinsicWithAddressSpace(
@@ -482,6 +496,10 @@ bool TargetTransformInfo::isTypeLegal(Type *Ty) const {
   return TTIImpl->isTypeLegal(Ty);
 }
 
+unsigned TargetTransformInfo::getRegUsageForType(Type *Ty) const {
+  return TTIImpl->getRegUsageForType(Ty);
+}
+
 bool TargetTransformInfo::shouldBuildLookupTables() const {
   return TTIImpl->shouldBuildLookupTables();
 }
@@ -614,12 +632,21 @@ unsigned TargetTransformInfo::getMinVectorRegisterBitWidth() const {
   return TTIImpl->getMinVectorRegisterBitWidth();
 }
 
+Optional<unsigned> TargetTransformInfo::getMaxVScale() const {
+  return TTIImpl->getMaxVScale();
+}
+
 bool TargetTransformInfo::shouldMaximizeVectorBandwidth(bool OptSize) const {
   return TTIImpl->shouldMaximizeVectorBandwidth(OptSize);
 }
 
 unsigned TargetTransformInfo::getMinimumVF(unsigned ElemWidth) const {
   return TTIImpl->getMinimumVF(ElemWidth);
+}
+
+unsigned TargetTransformInfo::getMaximumVF(unsigned ElemWidth,
+                                           unsigned Opcode) const {
+  return TTIImpl->getMaximumVF(ElemWidth, Opcode);
 }
 
 bool TargetTransformInfo::shouldConsiderAddressTypePromotion(
@@ -921,6 +948,13 @@ int TargetTransformInfo::getMinMaxReductionCost(
   return Cost;
 }
 
+InstructionCost TargetTransformInfo::getExtendedAddReductionCost(
+    bool IsMLA, bool IsUnsigned, Type *ResTy, VectorType *Ty,
+    TTI::TargetCostKind CostKind) const {
+  return TTIImpl->getExtendedAddReductionCost(IsMLA, IsUnsigned, ResTy, Ty,
+                                              CostKind);
+}
+
 unsigned
 TargetTransformInfo::getCostOfKeepingLiveOverCall(ArrayRef<Type *> Tys) const {
   return TTIImpl->getCostOfKeepingLiveOverCall(Tys);
@@ -1036,6 +1070,10 @@ bool TargetTransformInfo::shouldExpandReduction(const IntrinsicInst *II) const {
 
 unsigned TargetTransformInfo::getGISelRematGlobalCost() const {
   return TTIImpl->getGISelRematGlobalCost();
+}
+
+bool TargetTransformInfo::supportsScalableVectors() const {
+  return TTIImpl->supportsScalableVectors();
 }
 
 int TargetTransformInfo::getInstructionLatency(const Instruction *I) const {

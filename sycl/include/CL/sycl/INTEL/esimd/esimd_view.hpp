@@ -17,12 +17,12 @@ namespace sycl {
 namespace INTEL {
 namespace gpu {
 
-//
-// The reference class.
-//
-// This class represents a region applied to a base object, which
-// must be a simd object.
-//
+/// The reference class.
+///
+/// This class represents a region applied to a base object, which
+/// must be a simd object.
+///
+/// \ingroup sycl_esimd
 template <typename BaseTy, typename RegionTy> class simd_view {
 public:
   static_assert(!is_simd_view_v<BaseTy>::value);
@@ -30,17 +30,17 @@ public:
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
 
-  // The simd type if reading this simd_view object.
+  /// The simd type if reading this simd_view object.
   using value_type = simd<typename ShapeTy::element_type, length>;
 
-  // The underlying builtin value type
+  /// The underlying builtin value type
   using vector_type = vector_type_t<typename ShapeTy::element_type, length>;
 
-  // The region type of this class.
+  /// The region type of this class.
   using region_type = RegionTy;
 
-  // The element type of this class, which could be different from the element
-  // type of the base object type.
+  /// The element type of this class, which could be different from the element
+  /// type of the base object type.
   using element_type = typename ShapeTy::element_type;
 
   // TODO @rolandschulz
@@ -49,7 +49,8 @@ public:
   // internally by e.g.select, correct ?
   // {/quote}
   //
-  // Constructors.
+  /// @{
+  /// Constructors.
   simd_view(BaseTy &Base, RegionTy Region) : M_base(Base), M_region(Region) {}
   simd_view(BaseTy &&Base, RegionTy Region) : M_base(Base), M_region(Region) {}
 
@@ -67,15 +68,24 @@ public:
   simd_view(simd_view &Other) = delete;
   simd_view(simd_view &&Other)
       : M_base(Other.M_base), M_region(Other.M_region) {}
+  /// @}
 
-  // Conversion to simd value type.
-  operator value_type() const { return read(); }
+  /// Conversion to simd type.
+  template <typename ToTy> operator simd<ToTy, length>() const {
+    if constexpr (std::is_same<element_type, ToTy>::value)
+      return read();
+    else
+      return convert<ToTy, element_type, length>(read());
+  }
 
-  // Assignment operators.
+  /// @{
+  /// Assignment operators.
   simd_view &operator=(const simd_view &Other) { return write(Other.read()); }
   simd_view &operator=(const value_type &Val) { return write(Val); }
+  /// @}
 
-  // Region accessors.
+  /// @{
+  /// Region accessors.
   static constexpr bool is1D() { return !ShapeTy::Is_2D; }
   static constexpr bool is2D() { return ShapeTy::Is_2D; }
   static constexpr int getSizeX() { return ShapeTy::Size_x; }
@@ -88,21 +98,23 @@ public:
   constexpr uint16_t getOffsetY() const {
     return getTopRegion(M_region).M_offset_y;
   }
+  /// @}
 
-  // Read this simd_view object.
+  /// Read this simd_view object.
   value_type read() const {
     using BT = typename BaseTy::element_type;
     constexpr int BN = BaseTy::length;
     return readRegion<BT, BN>(M_base.data(), M_region);
   }
 
-  // Write to this simd_view object.
+  /// Write to this simd_view object.
   simd_view &write(const value_type &Val) {
     M_base.writeRegion(M_region, Val.data());
     return *this;
   }
 
-  // whole region update with predicates
+  /// @{
+  /// Whole region update with predicates.
   void merge(const value_type &Val, const mask_type_t<length> &Mask) {
     merge(Val, read(), Mask);
   }
@@ -112,8 +124,9 @@ public:
     Val2.merge(Val1, Mask);
     write(Val2.read());
   }
+  /// @}
 
-  // View this object in a different element type.
+  /// View this object in a different element type.
   template <typename EltTy> auto format() {
     using TopRegionTy = compute_format_type_t<simd_view, EltTy>;
     using NewRegionTy = std::pair<TopRegionTy, RegionTy>;
@@ -122,7 +135,7 @@ public:
     return RetTy{this->M_base, std::make_pair(TopReg, M_region)};
   }
 
-  // View as a 2-dimensional simd_view.
+  /// View as a 2-dimensional simd_view.
   template <typename EltTy, int Height, int Width> auto format() {
     using TopRegionTy =
         compute_format_type_2d_t<simd_view, EltTy, Height, Width>;
@@ -132,16 +145,12 @@ public:
     return RetTy{this->M_base, std::make_pair(TopReg, M_region)};
   }
 
-  // \brief 1D region select, apply a region on top of this object.
-  //
-  // @param Size the number of elements to be selected.
-  //
-  // @param Stride the element distance between two consecutive elements.
-  //
-  // @param Offset the starting element offset.
-  //
-  // @return the representing region object.
-  //
+  /// 1D region select, apply a region on top of this object.
+  ///
+  /// \param Size is the number of elements to be selected.
+  /// \tparam Stride is the element distance between two consecutive elements.
+  /// \param Offset is the starting element offset.
+  /// \return the representing region object.
   template <int Size, int Stride, typename T = simd_view,
             typename = sycl::detail::enable_if_t<T::is1D()>>
   auto select(uint16_t Offset = 0) {
@@ -152,24 +161,17 @@ public:
     return RetTy{this->M_base, std::make_pair(TopReg, M_region)};
   }
 
-  // \brief 2D region select, apply a region on top of this object.
-  //
-  // @param SizeX the number of elements to be selected in X-dimension.
-  //
-  // @param StrideX the element distance between two consecutive elements in
-  // X-dimension.
-  //
-  // @param SizeY the number of elements to be selected in Y-dimension.
-  //
-  // @param StrideY the element distance between two consecutive elements in
-  // Y-dimension.
-  //
-  // @param OffsetX the starting element offset in X-dimension.
-  //
-  // @param OffsetY the starting element offset in Y-dimension.
-  //
-  // @return the representing region object.
-  //
+  /// 2D region select, apply a region on top of this object.
+  ///
+  /// \tparam SizeX is the number of elements to be selected in X-dimension.
+  /// \tparam StrideX is the element distance between two consecutive elements
+  /// in X-dimension.
+  /// \tparam SizeY is the number of elements to be selected in Y-dimension.
+  /// \tparam StrideY is the element distance between two consecutive elements
+  /// Y-dimension.
+  /// \param OffsetX is the starting element offset in X-dimension.
+  /// \param OffsetY is the starting element offset in Y-dimension.
+  /// \return the representing region object.
   template <int SizeY, int StrideY, int SizeX, int StrideX,
             typename T = simd_view,
             typename = sycl::detail::enable_if_t<T::is2D()>>
@@ -183,12 +185,25 @@ public:
   }
 
 #define DEF_BINOP(BINOP, OPASSIGN)                                             \
-  auto operator BINOP(const value_type &RHS) const {                           \
+  ESIMD_INLINE friend auto operator BINOP(const simd_view &X,                  \
+                                          const value_type &Y) {               \
     using ComputeTy = compute_type_t<value_type>;                              \
-    auto V0 = convert<typename ComputeTy::vector_type>(read().data());         \
-    auto V1 = convert<typename ComputeTy::vector_type>(RHS.data());            \
+    auto V0 = convert<typename ComputeTy::vector_type>(X.read().data());       \
+    auto V1 = convert<typename ComputeTy::vector_type>(Y.data());              \
     auto V2 = V0 BINOP V1;                                                     \
     return ComputeTy(V2);                                                      \
+  }                                                                            \
+  ESIMD_INLINE friend auto operator BINOP(const value_type &X,                 \
+                                          const simd_view &Y) {                \
+    using ComputeTy = compute_type_t<value_type>;                              \
+    auto V0 = convert<typename ComputeTy::vector_type>(X.data());              \
+    auto V1 = convert<typename ComputeTy::vector_type>(Y.read().data());       \
+    auto V2 = V0 BINOP V1;                                                     \
+    return ComputeTy(V2);                                                      \
+  }                                                                            \
+  ESIMD_INLINE friend auto operator BINOP(const simd_view &X,                  \
+                                          const simd_view &Y) {                \
+    return (X BINOP Y.read());                                                 \
   }                                                                            \
   simd_view &operator OPASSIGN(const value_type &RHS) {                        \
     using ComputeTy = compute_type_t<value_type>;                              \
@@ -198,20 +213,35 @@ public:
     auto V3 = convert<vector_type>(V2);                                        \
     write(V3);                                                                 \
     return *this;                                                              \
+  }                                                                            \
+  simd_view &operator OPASSIGN(const simd_view &RHS) {                         \
+    return (*this OPASSIGN RHS.read());                                        \
   }
 
   DEF_BINOP(+, +=)
   DEF_BINOP(-, -=)
   DEF_BINOP(*, *=)
   DEF_BINOP(/, /=)
+  DEF_BINOP(%, %=)
 
 #undef DEF_BINOP
 
 #define DEF_RELOP(RELOP)                                                       \
-  simd<uint16_t, length> operator RELOP(const simd_view &RHS) const {          \
-    auto R = read().data() RELOP RHS.read().data();                            \
+  ESIMD_INLINE friend simd<uint16_t, length> operator RELOP(                   \
+      const simd_view &X, const value_type &Y) {                               \
+    auto R = X.read().data() RELOP Y.data();                                   \
     mask_type_t<length> M(1);                                                  \
     return M & convert<mask_type_t<length>>(R);                                \
+  }                                                                            \
+  ESIMD_INLINE friend simd<uint16_t, length> operator RELOP(                   \
+      const value_type &X, const simd_view &Y) {                               \
+    auto R = X.data() RELOP Y.read().data();                                   \
+    mask_type_t<length> M(1);                                                  \
+    return M & convert<mask_type_t<length>>(R);                                \
+  }                                                                            \
+  ESIMD_INLINE friend simd<uint16_t, length> operator RELOP(                   \
+      const simd_view &X, const simd_view &Y) {                                \
+    return (X RELOP Y.read());                                                 \
   }
 
   DEF_RELOP(>)
@@ -223,25 +253,52 @@ public:
 
 #undef DEF_RELOP
 
-#define DEF_LOGIC_OP(LOGIC_OP, OPASSIGN)                                       \
-  simd_view operator LOGIC_OP(const simd_view &RHS) const {                    \
+#define DEF_BITWISE_OP(BITWISE_OP, OPASSIGN)                                   \
+  ESIMD_INLINE friend auto operator BITWISE_OP(const simd_view &X,             \
+                                               const value_type &Y) {          \
     static_assert(std::is_integral<element_type>(), "not integral type");      \
-    auto V2 = read().data() LOGIC_OP RHS.read().data();                        \
-    return simd_view(V2);                                                      \
+    auto V2 = X.read().data() BITWISE_OP Y.data();                             \
+    return simd<element_type, length>(V2);                                     \
   }                                                                            \
-  simd_view &operator OPASSIGN(const simd_view &RHS) {                         \
+  ESIMD_INLINE friend auto operator BITWISE_OP(const value_type &X,            \
+                                               const simd_view &Y) {           \
+    static_assert(std::is_integral<element_type>(), "not integral type");      \
+    auto V2 = X.data() BITWISE_OP Y.read().data();                             \
+    return simd<element_type, length>(V2);                                     \
+  }                                                                            \
+  ESIMD_INLINE friend auto operator BITWISE_OP(const simd_view &X,             \
+                                               const simd_view &Y) {           \
+    return (X BITWISE_OP Y.read());                                            \
+  }                                                                            \
+  simd_view &operator OPASSIGN(const value_type &RHS) {                        \
     static_assert(std::is_integral<element_type>(), "not integeral type");     \
-    auto V2 = read().data LOGIC_OP RHS.read().data();                          \
+    auto V2 = read().data() BITWISE_OP RHS.data();                             \
     auto V3 = convert<vector_type>(V2);                                        \
     write(V3);                                                                 \
     return *this;                                                              \
+  }                                                                            \
+  simd_view &operator OPASSIGN(const simd_view &RHS) {                         \
+    return (*this OPASSIGN RHS.read());                                        \
   }
+  DEF_BITWISE_OP(&, &=)
+  DEF_BITWISE_OP(|, |=)
+  DEF_BITWISE_OP(^, ^=)
+  DEF_BITWISE_OP(>>, >>=)
+  DEF_BITWISE_OP(<<, <<=)
 
-  DEF_LOGIC_OP(&, &=)
-  DEF_LOGIC_OP(|, |=)
-  DEF_LOGIC_OP(^, ^=)
+#undef DEF_BITWISE_OP
 
-#undef DEF_LOGIC_OP
+#define DEF_UNARY_OP(UNARY_OP)                                                 \
+  auto operator UNARY_OP() {                                                   \
+    auto V = UNARY_OP(read().data());                                          \
+    return simd<element_type, length>(V);                                      \
+  }
+  DEF_UNARY_OP(!)
+  DEF_UNARY_OP(~)
+  DEF_UNARY_OP(+)
+  DEF_UNARY_OP(-)
+
+#undef DEF_UNARY_OP
 
   // Operator ++, --
   simd_view &operator++() {
@@ -263,83 +320,108 @@ public:
     return Ret;
   }
 
-  // Reference a row from a 2D region. This returns a 1D region.
+  /// Reference a row from a 2D region.
+  /// \return a 1D region.
   template <typename T = simd_view,
             typename = sycl::detail::enable_if_t<T::is2D()>>
   auto row(int i) {
     return select<1, 0, getSizeX(), 1>(i, 0).template format<element_type>();
   }
 
-  // Reference a column from a 2D region. This returns a 2D region.
+  /// Reference a column from a 2D region.
+  /// \return a 2D region.
   template <typename T = simd_view,
             typename = sycl::detail::enable_if_t<T::is2D()>>
   auto column(int i) {
     return select<getSizeY(), 1, 1, 0>(0, i);
   }
 
-  // Read a single element from a 1D region, by value only.
+  /// Read a single element from a 1D region, by value only.
   template <typename T = simd_view,
             typename = sycl::detail::enable_if_t<T::is1D()>>
   element_type operator[](int i) const {
     return read()[i];
   }
 
-  // \brief replicate operation, replicate simd instance given a simd_view
-  //
-  // @param Rep number of times region has to be replicated
-  //
-  // @param OffsetX column offset in number of elements in src region
-  //
-  // @param OffsetY row offset in number of elements in src region
-  //
-  // @param VS vertical stride of src region to replicate
-  //
-  // @param W width of src region to replicate
-  //
-  // @param HS horizontal stride of src region to replicate
-  //
-  // @return replicated simd instance
+  /// \name Replicate
+  /// Replicate simd instance given a simd_view
+  /// @{
+  ///
 
+  /// \tparam Rep is number of times region has to be replicated.
   template <int Rep> simd<element_type, Rep> replicate() {
     return read().replicate<Rep>(0);
   }
 
+  /// \tparam Rep is number of times region has to be replicated.
+  /// \tparam W is width of src region to replicate.
+  /// \param OffsetX is column offset in number of elements in src region.
+  /// \return replicated simd instance.
   template <int Rep, int W>
   simd<element_type, Rep * W> replicate(uint16_t OffsetX) {
     return replicate<Rep, 0, W>(0, OffsetX);
   }
 
+  /// \tparam Rep is number of times region has to be replicated.
+  /// \tparam W is width of src region to replicate.
+  /// \param OffsetX is column offset in number of elements in src region.
+  /// \param OffsetY is row offset in number of elements in src region.
+  /// \return replicated simd instance.
   template <int Rep, int W>
   simd<element_type, Rep * W> replicate(uint16_t OffsetY, uint16_t OffsetX) {
     return replicate<Rep, 0, W>(OffsetY, OffsetX);
   }
 
+  /// \tparam Rep is number of times region has to be replicated.
+  /// \tparam VS is vertical stride of src region to replicate.
+  /// \tparam W is width of src region to replicate.
+  /// \param OffsetX is column offset in number of elements in src region.
+  /// \return replicated simd instance.
   template <int Rep, int VS, int W>
   simd<element_type, Rep * W> replicate(uint16_t OffsetX) {
     return replicate<Rep, VS, W, 1>(0, OffsetX);
   }
 
+  /// \tparam Rep is number of times region has to be replicated.
+  /// \tparam VS is vertical stride of src region to replicate.
+  /// \tparam W is width of src region to replicate.
+  /// \param OffsetX is column offset in number of elements in src region.
+  /// \param OffsetY is row offset in number of elements in src region.
+  /// \return replicated simd instance.
   template <int Rep, int VS, int W>
   simd<element_type, Rep * W> replicate(uint16_t OffsetY, uint16_t OffsetX) {
     return replicate<Rep, VS, W, 1>(OffsetY, OffsetX);
   }
 
+  /// \tparam Rep is number of times region has to be replicated.
+  /// \tparam VS is vertical stride of src region to replicate.
+  /// \tparam W is width of src region to replicate.
+  /// \tparam HS is horizontal stride of src region to replicate.
+  /// \param OffsetX is column offset in number of elements in src region.
+  /// \return replicated simd instance.
   template <int Rep, int VS, int W, int HS>
   simd<element_type, Rep * W> replicate(uint16_t OffsetX) {
     return read().template replicate<Rep, VS, W, HS>(OffsetX);
   }
 
+  /// \tparam Rep is number of times region has to be replicated.
+  /// \tparam VS is vertical stride of src region to replicate.
+  /// \tparam W is width of src region to replicate.
+  /// \tparam HS is horizontal stride of src region to replicate.
+  /// \param OffsetX is column offset in number of elements in src region.
+  /// \param OffsetY is row offset in number of elements in src region.
+  /// \return replicated simd instance.
   template <int Rep, int VS, int W, int HS>
   simd<element_type, Rep * W> replicate(uint16_t OffsetY, uint16_t OffsetX) {
     constexpr int RowSize = is2D() ? getSizeX() : 0;
     return read().template replicate<Rep, VS, W, HS>(OffsetY * RowSize +
                                                      OffsetX);
   }
+  /// @}
 
-  // \brief any operation
-  //
-  // @return 1 if any element is set, 0 otherwise
-
+  /// Any operation.
+  ///
+  /// \return 1 if any element is set, 0 otherwise.
   template <
       typename T1 = element_type, typename T2 = BaseTy,
       typename = sycl::detail::enable_if_t<std::is_integral<T1>::value, T2>>
@@ -347,10 +429,9 @@ public:
     return read().any();
   }
 
-  // \brief all operation
-  //
-  // @return 1 if all elements are set, 0 otherwise
-
+  /// All operation.
+  ///
+  /// \return 1 if all elements are set, 0 otherwise.
   template <
       typename T1 = element_type, typename T2 = BaseTy,
       typename = sycl::detail::enable_if_t<std::is_integral<T1>::value, T2>>

@@ -91,18 +91,6 @@ if (NOT DEFINED LIBCXX_TEST_DEPS)
   message(FATAL_ERROR "Expected LIBCXX_TEST_DEPS to be defined")
 endif()
 
-# Turn this on by default when the pretty printers are python3
-# compatible.
-if(LIBCXX_TEST_GDB_PRETTY_PRINTERS)
-  find_program(LIBCXX_GDB gdb)
-  if (LIBCXX_GDB)
-    set(LIBCXX_GDB "${LIBCXX_GDB}")
-    message(STATUS "gdb found: ${LIBCXX_GDB}")
-  else()
-    message(STATUS "gdb not found. Disabling dependent tests.")
-  endif()
-endif()
-
 if (LIBCXX_INCLUDE_TESTS)
   include(AddLLVM) # for configure_lit_site_cfg and add_lit_target
 
@@ -111,14 +99,14 @@ if (LIBCXX_INCLUDE_TESTS)
     ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg
     MAIN_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py")
 
-  add_custom_target(check-cxx-deps
+  add_custom_target(cxx-test-depends
     DEPENDS cxx ${LIBCXX_TEST_DEPS}
     COMMENT "Builds dependencies required to run the test suite.")
 
   add_lit_target(check-cxx
     "Running libcxx tests"
     ${CMAKE_CURRENT_BINARY_DIR}
-    DEPENDS check-cxx-deps
+    DEPENDS cxx-test-depends
     PARAMS "${LIBCXX_TEST_PARAMS}")
 endif()
 

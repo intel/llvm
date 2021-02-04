@@ -171,9 +171,7 @@ static void addBlockAndPredsToSet(BasicBlock *InputBB, BasicBlock *StopBlock,
     if (Blocks.insert(BB).second && BB != StopBlock)
       // If BB is not already processed and it is not a stop block then
       // insert its predecessor in the work list
-      for (BasicBlock *WBB : predecessors(BB)) {
-        Worklist.push_back(WBB);
-      }
+      append_range(Worklist, predecessors(BB));
   } while (!Worklist.empty());
 }
 
@@ -681,7 +679,7 @@ ReprocessLoop:
       // The block has now been cleared of all instructions except for
       // a comparison and a conditional branch. SimplifyCFG may be able
       // to fold it now.
-      if (!FoldBranchToCommonDest(BI, MSSAU))
+      if (!FoldBranchToCommonDest(BI, /*DTU=*/nullptr, MSSAU))
         continue;
 
       // Success. The block is now dead, so remove it from the loop,
@@ -689,7 +687,7 @@ ReprocessLoop:
       LLVM_DEBUG(dbgs() << "LoopSimplify: Eliminating exiting block "
                         << ExitingBlock->getName() << "\n");
 
-      assert(pred_begin(ExitingBlock) == pred_end(ExitingBlock));
+      assert(pred_empty(ExitingBlock));
       Changed = true;
       LI->removeBlock(ExitingBlock);
 

@@ -857,6 +857,97 @@ template <spv::Op OC> bool isa(SPIRVEntry *E) {
   return E ? E->getOpCode() == OC : false;
 }
 
+template <spv::Op OC>
+class SPIRVContinuedInstINTELBase : public SPIRVEntryNoId<OC> {
+public:
+  template <spv::Op _OC, class T = void>
+  using EnableIfCompositeConst =
+      typename std::enable_if_t<_OC == OpConstantCompositeContinuedINTEL ||
+                                    _OC ==
+                                        OpSpecConstantCompositeContinuedINTEL,
+                                T>;
+  // Complete constructor
+  SPIRVContinuedInstINTELBase(SPIRVModule *M,
+                              const std::vector<SPIRVValue *> &TheElements)
+      : SPIRVEntryNoId<OC>(M, TheElements.size() + 1) {
+
+    Elements = SPIRVEntry::getIds(TheElements);
+    validate();
+  }
+
+  SPIRVContinuedInstINTELBase(SPIRVModule *M, unsigned NumOfElements)
+      : SPIRVEntryNoId<OC>(M, NumOfElements + 1) {
+    Elements.resize(NumOfElements, SPIRVID_INVALID);
+    validate();
+  }
+
+  // Incomplete constructor
+  SPIRVContinuedInstINTELBase() : SPIRVEntryNoId<OC>() {}
+
+  template <spv::Op OPC = OC>
+  EnableIfCompositeConst<OPC, std::vector<SPIRVValue *>> getElements() const {
+    return SPIRVEntry::getValues(Elements);
+  }
+
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityLongConstantCompositeINTEL);
+  }
+
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_long_constant_composite;
+  }
+
+  SPIRVWord getNumElements() const { return Elements.size(); }
+
+protected:
+  void validate() const override;
+  void setWordCount(SPIRVWord WordCount) override {
+    SPIRVEntry::setWordCount(WordCount);
+    Elements.resize(WordCount - 1);
+  }
+  _SPIRV_DCL_ENCDEC
+
+  std::vector<SPIRVId> Elements;
+};
+
+class SPIRVTypeStructContinuedINTEL
+    : public SPIRVContinuedInstINTELBase<OpTypeStructContinuedINTEL> {
+public:
+  constexpr static Op OC = OpTypeStructContinuedINTEL;
+  // Complete constructor
+  SPIRVTypeStructContinuedINTEL(SPIRVModule *M, unsigned NumOfElements)
+      : SPIRVContinuedInstINTELBase<OC>(M, NumOfElements) {}
+
+  // Incomplete constructor
+  SPIRVTypeStructContinuedINTEL() : SPIRVContinuedInstINTELBase<OC>() {}
+
+  void setElementId(size_t I, SPIRVId Id) { Elements[I] = Id; }
+
+  SPIRVType *getMemberType(size_t I) const;
+};
+
+using SPIRVConstantCompositeContinuedINTEL =
+    SPIRVContinuedInstINTELBase<OpConstantCompositeContinuedINTEL>;
+using SPIRVSpecConstantCompositeContinuedINTEL =
+    SPIRVContinuedInstINTELBase<OpSpecConstantCompositeContinuedINTEL>;
+
+template <spv::Op OpCode> struct InstToContinued;
+
+template <> struct InstToContinued<OpTypeStruct> {
+  using Type = SPIRVTypeStructContinuedINTEL *;
+  constexpr static spv::Op OpCode = OpTypeStructContinuedINTEL;
+};
+
+template <> struct InstToContinued<OpConstantComposite> {
+  using Type = SPIRVConstantCompositeContinuedINTEL *;
+  constexpr static spv::Op OpCode = OpConstantCompositeContinuedINTEL;
+};
+
+template <> struct InstToContinued<OpSpecConstantComposite> {
+  using Type = SPIRVSpecConstantCompositeContinuedINTEL *;
+  constexpr static spv::Op OpCode = OpSpecConstantCompositeContinuedINTEL;
+};
+
 // ToDo: The following typedef's are place holders for SPIRV entity classes
 // to be implemented.
 // Each time a new class is implemented, remove the corresponding typedef.

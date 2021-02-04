@@ -44,27 +44,6 @@ using folded_std_view = FoldedValueBuilder<ViewOp>;
 
 #define DEBUG_TYPE "linalg-promotion"
 
-/// If `size` comes from an AffineMinOp and one of the values of AffineMinOp
-/// is a constant then return a new value set to the smallest such constant.
-/// Otherwise return size.
-static Value extractSmallestConstantBoundingSize(OpBuilder &b, Location loc,
-                                                 Value size) {
-  Optional<int64_t> boundingConst = {};
-  if (auto affineMinOp = size.getDefiningOp<AffineMinOp>()) {
-    for (auto e : affineMinOp.getAffineMap().getResults())
-      if (auto cst = e.dyn_cast<AffineConstantExpr>())
-        boundingConst = boundingConst
-                            ? std::min(boundingConst.getValue(), cst.getValue())
-                            : cst.getValue();
-  } else if (auto constIndexOp = size.getDefiningOp<ConstantOp>()) {
-    if (constIndexOp.getType().isa<IndexType>())
-      boundingConst = constIndexOp.value().cast<IntegerAttr>().getInt();
-  }
-  return boundingConst && *boundingConst >= 0
-             ? b.create<ConstantIndexOp>(loc, *boundingConst)
-             : size;
-}
-
 /// Alloc a new buffer of `size`. If `dynamicBuffers` is true allocate exactly
 /// the size needed, otherwise try to allocate a static bounding box.
 static Value allocBuffer(const LinalgPromotionOptions &options,
@@ -76,25 +55,25 @@ static Value allocBuffer(const LinalgPromotionOptions &options,
   IntegerAttr alignment_attr;
   if (alignment.hasValue())
     alignment_attr =
-        IntegerAttr::get(IntegerType::get(64, ctx), alignment.getValue());
+        IntegerAttr::get(IntegerType::get(ctx, 64), alignment.getValue());
   if (!dynamicBuffers)
     if (auto cst = size.getDefiningOp<ConstantIndexOp>())
       return options.useAlloca
                  ? std_alloca(MemRefType::get(width * cst.getValue(),
-                                              IntegerType::get(8, ctx)),
+                                              IntegerType::get(ctx, 8)),
                               ValueRange{}, alignment_attr)
                        .value
                  : std_alloc(MemRefType::get(width * cst.getValue(),
-                                             IntegerType::get(8, ctx)),
+                                             IntegerType::get(ctx, 8)),
                              ValueRange{}, alignment_attr)
                        .value;
   Value mul =
       folded_std_muli(folder, folded_std_constant_index(folder, width), size);
   return options.useAlloca
-             ? std_alloca(MemRefType::get(-1, IntegerType::get(8, ctx)), mul,
+             ? std_alloca(MemRefType::get(-1, IntegerType::get(ctx, 8)), mul,
                           alignment_attr)
                    .value
-             : std_alloc(MemRefType::get(-1, IntegerType::get(8, ctx)), mul,
+             : std_alloc(MemRefType::get(-1, IntegerType::get(ctx, 8)), mul,
                          alignment_attr)
                    .value;
 }
@@ -166,18 +145,14 @@ struct LinalgOpInstancePromotionOptions {
   /// Alignment of promoted buffer.
   Optional<unsigned> alignment;
 };
-
-struct PromotionInfo {
-  Value fullLocalView;
-  Value partialLocalView;
-};
 } // namespace
 
 LinalgOpInstancePromotionOptions::LinalgOpInstancePromotionOptions(
     LinalgOp linalgOp, const LinalgPromotionOptions &options)
     : subViews(), dynamicBuffers(options.dynamicBuffers),
       alignment(options.alignment) {
-  unsigned nBuffers = linalgOp.getNumInputsAndOutputBuffers();
+  assert(linalgOp.hasBufferSemantics() && "revisit usage of shaped operand");
+  unsigned nBuffers = linalgOp.getNumShapedOperands();
   auto vUseFullTileBuffers =
       options.useFullTileBuffers.getValueOr(llvm::SmallBitVector());
   vUseFullTileBuffers.resize(nBuffers, options.useFullTileBuffersDefault);
@@ -185,7 +160,7 @@ LinalgOpInstancePromotionOptions::LinalgOpInstancePromotionOptions(
   for (unsigned idx = 0; idx != nBuffers; ++idx) {
     if (options.operandsToPromote && !options.operandsToPromote->count(idx))
       continue;
-    auto *op = linalgOp.getBuffer(idx).getDefiningOp();
+    auto *op = linalgOp.getShapedOperand(idx).getDefiningOp();
     if (auto sv = dyn_cast_or_null<SubViewOp>(op)) {
       subViews[idx] = sv;
       useFullTileBuffers[sv] = vUseFullTileBuffers[idx];
@@ -233,10 +208,10 @@ LinalgOpInstancePromotionOptions::LinalgOpInstancePromotionOptions(
 // To account for general boundary effects, padding must be performed on the
 // boundary tiles. For now this is done with an unconditional `fill` op followed
 // by a partial `copy` op.
-static Optional<PromotionInfo>
-promoteSubviewAsNewBuffer(OpBuilder &b, Location loc, SubViewOp subView,
-                          LinalgOpInstancePromotionOptions const &options,
-                          OperationFolder *folder) {
+Optional<PromotionInfo> mlir::linalg::promoteSubviewAsNewBuffer(
+    OpBuilder &b, Location loc, SubViewOp subView,
+    AllocBufferCallbackFn allocationFn, OperationFolder *folder) {
+  ScopedContext scopedContext(b, loc);
   auto viewType = subView.getType();
   auto rank = viewType.getRank();
   SmallVector<Value, 4> fullSizes, partialSizes;
@@ -246,7 +221,9 @@ promoteSubviewAsNewBuffer(OpBuilder &b, Location loc, SubViewOp subView,
     auto rangeValue = en.value();
     // Try to extract a tight constant.
     LLVM_DEBUG(llvm::dbgs() << "Extract tightest: " << rangeValue.size << "\n");
-    Value size = extractSmallestConstantBoundingSize(b, loc, rangeValue.size);
+    IntegerAttr sizeAttr = getSmallestBoundingIndex(rangeValue.size);
+    Value size =
+        (!sizeAttr) ? rangeValue.size : b.create<ConstantOp>(loc, sizeAttr);
     LLVM_DEBUG(llvm::dbgs() << "Extracted tightest: " << size << "\n");
     fullSizes.push_back(size);
     partialSizes.push_back(folded_std_dim(folder, subView, en.index()));
@@ -254,8 +231,7 @@ promoteSubviewAsNewBuffer(OpBuilder &b, Location loc, SubViewOp subView,
   SmallVector<int64_t, 4> dynSizes(fullSizes.size(), -1);
   // If a callback is not specified, then use the default implementation for
   // allocating the promoted buffer.
-  Optional<Value> fullLocalView =
-      options.allocationFn(b, subView, fullSizes, folder);
+  Optional<Value> fullLocalView = allocationFn(b, subView, fullSizes, folder);
   if (!fullLocalView)
     return {};
   auto zero = folded_std_constant_index(folder, 0);
@@ -279,8 +255,8 @@ promoteSubViews(OpBuilder &b, Location loc,
 
   for (auto v : options.subViews) {
     SubViewOp subView = cast<SubViewOp>(v.second.getDefiningOp());
-    Optional<PromotionInfo> promotionInfo =
-        promoteSubviewAsNewBuffer(b, loc, subView, options, folder);
+    Optional<PromotionInfo> promotionInfo = promoteSubviewAsNewBuffer(
+        b, loc, subView, options.allocationFn, folder);
     if (!promotionInfo)
       return {};
     promotionInfoMap[v.first] = *promotionInfo;
@@ -332,10 +308,10 @@ promoteSubViews(OpBuilder &b, LinalgOp op,
   // operands are not views. This is to support cases such as FillOp taking
   // extra scalars etc.  Keep a reference to output buffers;
   SmallVector<Value, 8> opViews;
-  opViews.reserve(op.getNumInputsAndOutputs());
+  opViews.reserve(op.getNumShapedOperands());
   SmallVector<std::pair<Value, Value>, 8> writebackViews;
   writebackViews.reserve(promotedBuffersAndViews->size());
-  for (auto view : llvm::enumerate(op.getInputsAndOutputBuffers())) {
+  for (auto view : llvm::enumerate(op.getShapedOperands())) {
     if (options.subViews.count(view.index()) != 0) {
       if (options.useFullTileBuffers[view.value()])
         opViews.push_back(
@@ -351,7 +327,7 @@ promoteSubViews(OpBuilder &b, LinalgOp op,
       opViews.push_back(view.value());
     }
   }
-  op.getOperation()->setOperands(0, opViews.size(), opViews);
+  op->setOperands(0, opViews.size(), opViews);
 
   OpBuilder::InsertionGuard guard(b);
   b.setInsertionPointAfter(op);
@@ -377,7 +353,7 @@ mlir::linalg::promoteSubviewsPrecondition(Operation *op,
   if (!linOp || !linOp.hasBufferSemantics())
     return failure();
   // Check that at least one of the requested operands is indeed a subview.
-  for (auto en : llvm::enumerate(linOp.getInputsAndOutputBuffers())) {
+  for (auto en : llvm::enumerate(linOp.getShapedOperands())) {
     auto sv = isa_and_nonnull<SubViewOp>(en.value().getDefiningOp());
     if (sv) {
       if (!options.operandsToPromote.hasValue() ||

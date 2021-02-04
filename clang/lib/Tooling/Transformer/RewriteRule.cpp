@@ -42,7 +42,12 @@ translateEdits(const MatchResult &Result, ArrayRef<ASTEdit> ASTEdits) {
     llvm::Optional<CharSourceRange> EditRange =
         tooling::getRangeForEdit(*Range, *Result.Context);
     // FIXME: let user specify whether to treat this case as an error or ignore
-    // it as is currently done.
+    // it as is currently done. This behavior is problematic in that it hides
+    // failures from bad ranges. Also, the behavior here differs from
+    // `flatten`. Here, we abort (without error), whereas flatten, if it hits an
+    // empty list, does not abort. As a result, `editList({A,B})` is not
+    // equivalent to `flatten(edit(A), edit(B))`. The former will abort if `A`
+    // produces a bad range, whereas the latter will simply ignore A.
     if (!EditRange)
       return SmallVector<Edit, 0>();
     auto Replacement = E.Replacement->eval(Result);
@@ -342,7 +347,7 @@ static bool hasValidKind(const DynTypedMatcher &M) {
 static std::vector<DynTypedMatcher> taggedMatchers(
     StringRef TagBase,
     const SmallVectorImpl<std::pair<size_t, RewriteRule::Case>> &Cases,
-    ast_type_traits::TraversalKind DefaultTraversalKind) {
+    TraversalKind DefaultTraversalKind) {
   std::vector<DynTypedMatcher> Matchers;
   Matchers.reserve(Cases.size());
   for (const auto &Case : Cases) {
@@ -439,7 +444,3 @@ transformer::detail::findSelectedCase(const MatchResult &Result,
 }
 
 const llvm::StringRef RewriteRule::RootID = ::clang::transformer::RootID;
-
-TextGenerator tooling::text(std::string M) {
-  return std::make_shared<SimpleTextGenerator>(std::move(M));
-}

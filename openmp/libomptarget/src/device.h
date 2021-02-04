@@ -29,7 +29,8 @@ struct RTLInfoTy;
 struct __tgt_bin_desc;
 struct __tgt_target_table;
 struct __tgt_async_info;
-class MemoryManagerTy;
+
+using map_var_info_t = void *;
 
 // enum for OMP_TARGET_OFFLOAD; keep in sync with kmp.h definition
 enum kmp_target_offload_kind {
@@ -44,6 +45,7 @@ struct HostDataToTargetTy {
   uintptr_t HstPtrBase; // host info.
   uintptr_t HstPtrBegin;
   uintptr_t HstPtrEnd; // non-inclusive.
+  map_var_info_t HstPtrName; // Optional source name of mapped variable.
 
   uintptr_t TgtPtrBegin; // target info.
 
@@ -54,8 +56,8 @@ private:
 
 public:
   HostDataToTargetTy(uintptr_t BP, uintptr_t B, uintptr_t E, uintptr_t TB,
-      bool IsINF = false)
-      : HstPtrBase(BP), HstPtrBegin(B), HstPtrEnd(E),
+                     map_var_info_t Name = nullptr, bool IsINF = false)
+      : HstPtrBase(BP), HstPtrBegin(B), HstPtrEnd(E), HstPtrName(Name),
         TgtPtrBegin(TB), RefCount(IsINF ? INFRefCount : 1) {}
 
   uint64_t getRefCount() const {
@@ -154,9 +156,6 @@ struct DeviceTy {
   // moved into the target task in libomp.
   std::map<int32_t, uint64_t> LoopTripCnt;
 
-  /// Memory manager
-  std::unique_ptr<MemoryManagerTy> MemoryManager;
-
   DeviceTy(RTLInfoTy *RTL);
 
   // The existence of mutexes makes DeviceTy non-copyable. We need to
@@ -173,9 +172,9 @@ struct DeviceTy {
   uint64_t getMapEntryRefCnt(void *HstPtrBegin);
   LookupResult lookupMapping(void *HstPtrBegin, int64_t Size);
   void *getOrAllocTgtPtr(void *HstPtrBegin, void *HstPtrBase, int64_t Size,
-                         bool &IsNew, bool &IsHostPtr, bool IsImplicit,
-                         bool UpdateRefCount, bool HasCloseModifier,
-                         bool HasPresentModifier);
+                         map_var_info_t HstPtrName, bool &IsNew,
+                         bool &IsHostPtr, bool IsImplicit, bool UpdateRefCount,
+                         bool HasCloseModifier, bool HasPresentModifier);
   void *getTgtPtrBegin(void *HstPtrBegin, int64_t Size);
   void *getTgtPtrBegin(void *HstPtrBegin, int64_t Size, bool &IsLast,
                        bool UpdateRefCount, bool &IsHostPtr,

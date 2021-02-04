@@ -16,13 +16,12 @@
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Dialect.h"
-#include "mlir/IR/Function.h"
 #include "mlir/IR/Identifier.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/Location.h"
-#include "mlir/IR/Module.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Types.h"
 #include "mlir/Support/ThreadLocalCache.h"
@@ -81,53 +80,6 @@ void mlir::registerMLIRContextCLOptions() {
   // Make sure that the options struct has been initialized.
   *clOptions;
 }
-
-//===----------------------------------------------------------------------===//
-// Builtin Dialect
-//===----------------------------------------------------------------------===//
-
-namespace {
-struct BuiltinOpAsmDialectInterface : public OpAsmDialectInterface {
-  using OpAsmDialectInterface::OpAsmDialectInterface;
-
-  LogicalResult getAlias(Attribute attr, raw_ostream &os) const override {
-    if (attr.isa<AffineMapAttr>()) {
-      os << "map";
-      return success();
-    }
-    if (attr.isa<IntegerSetAttr>()) {
-      os << "set";
-      return success();
-    }
-    return failure();
-  }
-};
-
-/// A builtin dialect to define types/etc that are necessary for the validity of
-/// the IR.
-struct BuiltinDialect : public Dialect {
-  BuiltinDialect(MLIRContext *context)
-      : Dialect(/*name=*/"", context, TypeID::get<BuiltinDialect>()) {
-    addTypes<ComplexType, BFloat16Type, Float16Type, Float32Type, Float64Type,
-             FunctionType, IndexType, IntegerType, MemRefType,
-             UnrankedMemRefType, NoneType, OpaqueType, RankedTensorType,
-             TupleType, UnrankedTensorType, VectorType>();
-    addAttributes<AffineMapAttr, ArrayAttr, DenseIntOrFPElementsAttr,
-                  DenseStringElementsAttr, DictionaryAttr, FloatAttr,
-                  SymbolRefAttr, IntegerAttr, IntegerSetAttr, OpaqueAttr,
-                  OpaqueElementsAttr, SparseElementsAttr, StringAttr, TypeAttr,
-                  UnitAttr>();
-    addAttributes<CallSiteLoc, FileLineColLoc, FusedLoc, NameLoc, OpaqueLoc,
-                  UnknownLoc>();
-    addInterfaces<BuiltinOpAsmDialectInterface>();
-
-    // TODO: These operations should be moved to a different dialect when they
-    // have been fully decoupled from the core.
-    addOperations<FuncOp, ModuleOp, ModuleTerminatorOp>();
-  }
-  static StringRef getDialectNamespace() { return ""; }
-};
-} // end anonymous namespace.
 
 //===----------------------------------------------------------------------===//
 // Locking Utilities
@@ -351,6 +303,8 @@ public:
   Float16Type f16Ty;
   Float32Type f32Ty;
   Float64Type f64Ty;
+  Float80Type f80Ty;
+  Float128Type f128Ty;
   IndexType indexTy;
   IntegerType int1Ty, int8Ty, int16Ty, int32Ty, int64Ty, int128Ty;
   NoneType noneType;
@@ -399,6 +353,8 @@ MLIRContext::MLIRContext() : impl(new MLIRContextImpl()) {
   impl->f16Ty = TypeUniquer::get<Float16Type>(this);
   impl->f32Ty = TypeUniquer::get<Float32Type>(this);
   impl->f64Ty = TypeUniquer::get<Float64Type>(this);
+  impl->f80Ty = TypeUniquer::get<Float80Type>(this);
+  impl->f128Ty = TypeUniquer::get<Float128Type>(this);
   /// Index Type.
   impl->indexTy = TypeUniquer::get<IndexType>(this);
   /// Integer Types.
@@ -787,6 +743,12 @@ Float32Type Float32Type::get(MLIRContext *context) {
 Float64Type Float64Type::get(MLIRContext *context) {
   return context->getImpl().f64Ty;
 }
+Float80Type Float80Type::get(MLIRContext *context) {
+  return context->getImpl().f80Ty;
+}
+Float128Type Float128Type::get(MLIRContext *context) {
+  return context->getImpl().f128Ty;
+}
 
 /// Get an instance of the IndexType.
 IndexType IndexType::get(MLIRContext *context) {
@@ -820,25 +782,15 @@ getCachedIntegerType(unsigned width,
   }
 }
 
-IntegerType IntegerType::get(unsigned width, MLIRContext *context) {
-  return get(width, IntegerType::Signless, context);
-}
-
-IntegerType IntegerType::get(unsigned width,
-                             IntegerType::SignednessSemantics signedness,
-                             MLIRContext *context) {
+IntegerType IntegerType::get(MLIRContext *context, unsigned width,
+                             IntegerType::SignednessSemantics signedness) {
   if (auto cached = getCachedIntegerType(width, signedness, context))
     return cached;
   return Base::get(context, width, signedness);
 }
 
-IntegerType IntegerType::getChecked(unsigned width, Location location) {
-  return getChecked(width, IntegerType::Signless, location);
-}
-
-IntegerType IntegerType::getChecked(unsigned width,
-                                    SignednessSemantics signedness,
-                                    Location location) {
+IntegerType IntegerType::getChecked(Location location, unsigned width,
+                                    SignednessSemantics signedness) {
   if (auto cached =
           getCachedIntegerType(width, signedness, location->getContext()))
     return cached;

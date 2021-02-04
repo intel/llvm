@@ -229,6 +229,10 @@ public:
                       TTI::TargetCostKind CostKind,
                       const Instruction *I = nullptr);
 
+  unsigned getMaskedMemoryOpCost(unsigned Opcode, Type *Src, Align Alignment,
+                                 unsigned AddressSpace,
+                                 TTI::TargetCostKind CostKind);
+
   int getInterleavedMemoryOpCost(
       unsigned Opcode, Type *VecTy, unsigned Factor, ArrayRef<unsigned> Indices,
       Align Alignment, unsigned AddressSpace,
@@ -243,6 +247,9 @@ public:
   int getArithmeticReductionCost(unsigned Opcode, VectorType *ValTy,
                                  bool IsPairwiseForm,
                                  TTI::TargetCostKind CostKind);
+  InstructionCost getExtendedAddReductionCost(bool IsMLA, bool IsUnsigned,
+                                              Type *ResTy, VectorType *ValTy,
+                                              TTI::TargetCostKind CostKind);
 
   int getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
                             TTI::TargetCostKind CostKind);

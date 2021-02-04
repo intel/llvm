@@ -937,6 +937,42 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF: {
     return getInfo(param_value_size, param_value, param_value_size_ret, 0u);
   }
+  case PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
+    // Number of sub-groups = max block size / warp size + possible remainder
+    int max_threads = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&max_threads,
+                             CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+                             device->get()) == CUDA_SUCCESS);
+    int warpSize = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&warpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
+                             device->get()) == CUDA_SUCCESS);
+    int maxWarps = (max_threads + warpSize - 1) / warpSize;
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   static_cast<uint32_t>(maxWarps));
+  }
+  case PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS: {
+    // Volta provides independent thread scheduling
+    // TODO: Revisit for previous generation GPUs
+    int major = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&major,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                             device->get()) == CUDA_SUCCESS);
+    bool ifp = (major >= 7);
+    return getInfo(param_value_size, param_value, param_value_size_ret, ifp);
+  }
+  case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
+    // NVIDIA devices only support one sub-group size (the warp size)
+    int warpSize = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&warpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
+                             device->get()) == CUDA_SUCCESS);
+    size_t sizes[1] = {static_cast<size_t>(warpSize)};
+    return getInfoArray<size_t>(1, param_value_size, param_value,
+                                param_value_size_ret, sizes);
+  }
   case PI_DEVICE_INFO_MAX_CLOCK_FREQUENCY: {
     int clock_freq = 0;
     cl::sycl::detail::pi::assertion(
@@ -1452,6 +1488,16 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret, value);
   }
 
+    // TODO: Investigate if this information is available on CUDA.
+  case PI_DEVICE_INFO_PCI_ADDRESS:
+  case PI_DEVICE_INFO_GPU_EU_COUNT:
+  case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
+  case PI_DEVICE_INFO_GPU_SLICES:
+  case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
+  case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
+  case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
+    return PI_INVALID_VALUE;
+
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
@@ -1645,6 +1691,8 @@ pi_result cuda_piextContextGetNativeHandle(pi_context context,
 ///
 /// \return TBD
 pi_result cuda_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                  pi_uint32 num_devices,
+                                                  const pi_device *devices,
                                                   pi_context *context) {
   cl::sycl::detail::pi::die(
       "Creation of PI context from native handle not implemented");
@@ -3000,14 +3048,53 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
   return PI_INVALID_KERNEL;
 }
 
-/// \TODO Untie from OpenCL
-/// \TODO Not implemented
 pi_result cuda_piKernelGetSubGroupInfo(
-    pi_kernel kernel, pi_device device, cl_kernel_sub_group_info param_name,
+    pi_kernel kernel, pi_device device, pi_kernel_sub_group_info param_name,
     size_t input_value_size, const void *input_value, size_t param_value_size,
     void *param_value, size_t *param_value_size_ret) {
-  cl::sycl::detail::pi::die("cuda_piKernelGetSubGroupInfo not implemented");
-  return {};
+  if (kernel != nullptr) {
+    switch (param_name) {
+    case PI_KERNEL_MAX_SUB_GROUP_SIZE: {
+      // Sub-group size is equivalent to warp size
+      int warpSize = 0;
+      cl::sycl::detail::pi::assertion(
+          cuDeviceGetAttribute(&warpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
+                               device->get()) == CUDA_SUCCESS);
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     static_cast<uint32_t>(warpSize));
+    }
+    case PI_KERNEL_MAX_NUM_SUB_GROUPS: {
+      // Number of sub-groups = max block size / warp size + possible remainder
+      int max_threads = 0;
+      cl::sycl::detail::pi::assertion(
+          cuFuncGetAttribute(&max_threads,
+                             CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+                             kernel->get()) == CUDA_SUCCESS);
+      int warpSize = 0;
+      cuda_piKernelGetSubGroupInfo(kernel, device, PI_KERNEL_MAX_SUB_GROUP_SIZE,
+                                   0, nullptr, sizeof(uint32_t), &warpSize,
+                                   nullptr);
+      int maxWarps = (max_threads + warpSize - 1) / warpSize;
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     static_cast<uint32_t>(maxWarps));
+    }
+    case PI_KERNEL_COMPILE_NUM_SUB_GROUPS: {
+      // Return value of 0 => not specified
+      // TODO: Revisit if PTX is generated for compile-time work-group sizes
+      return getInfo(param_value_size, param_value, param_value_size_ret, 0);
+    }
+    case PI_KERNEL_COMPILE_SUB_GROUP_SIZE_INTEL: {
+      // Return value of 0 => unspecified or "auto" sub-group size
+      // Correct for now, since warp size may be read from special register
+      // TODO: Return warp size once default is primary sub-group size
+      // TODO: Revisit if we can recover [[sub_group_size]] attribute from PTX
+      return getInfo(param_value_size, param_value, param_value_size_ret, 0);
+    }
+    default:
+      __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
+    }
+  }
+  return PI_INVALID_KERNEL;
 }
 
 pi_result cuda_piKernelRetain(pi_kernel kernel) {
@@ -4037,7 +4124,7 @@ pi_result cuda_piEnqueueMemImageFill(pi_queue command_queue, pi_mem image,
 ///
 pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
                                      pi_bool blocking_map,
-                                     cl_map_flags map_flags, size_t offset,
+                                     pi_map_flags map_flags, size_t offset,
                                      size_t size,
                                      pi_uint32 num_events_in_wait_list,
                                      const pi_event *event_wait_list,
@@ -4063,7 +4150,7 @@ pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
     ret_err = PI_SUCCESS;
   }
 
-  if (!is_pinned && ((map_flags & CL_MAP_READ) || (map_flags & CL_MAP_WRITE))) {
+  if (!is_pinned && ((map_flags & PI_MAP_READ) || (map_flags & PI_MAP_WRITE))) {
     // Pinned host memory is already on host so it doesn't need to be read.
     ret_err = cuda_piEnqueueMemBufferRead(
         command_queue, buffer, blocking_map, offset, size, hostPtr,
@@ -4113,9 +4200,9 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
                          _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr;
 
   if (!is_pinned &&
-      ((memobj->mem_.buffer_mem_.get_map_flags() & CL_MAP_WRITE) ||
+      ((memobj->mem_.buffer_mem_.get_map_flags() & PI_MAP_WRITE) ||
        (memobj->mem_.buffer_mem_.get_map_flags() &
-        CL_MAP_WRITE_INVALIDATE_REGION))) {
+        PI_MAP_WRITE_INVALIDATE_REGION))) {
     // Pinned host memory is only on host so it doesn't need to be written to.
     ret_err = cuda_piEnqueueMemBufferWrite(
         command_queue, memobj, true,
@@ -4162,6 +4249,9 @@ pi_result cuda_piextUSMHostAlloc(void **result_ptr, pi_context context,
     result = error;
   }
 
+  assert(alignment == 0 ||
+         (result == PI_SUCCESS &&
+          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
   return result;
 }
 
@@ -4183,6 +4273,9 @@ pi_result cuda_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
     result = error;
   }
 
+  assert(alignment == 0 ||
+         (result == PI_SUCCESS &&
+          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
   return result;
 }
 
@@ -4205,6 +4298,9 @@ pi_result cuda_piextUSMSharedAlloc(void **result_ptr, pi_context context,
     result = error;
   }
 
+  assert(alignment == 0 ||
+         (result == PI_SUCCESS &&
+          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
   return result;
 }
 
@@ -4454,6 +4550,11 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   return result;
 }
 
+// This API is called by Sycl RT to notify the end of the plugin lifetime.
+// TODO: add a global variable lifetime management code here (see
+// pi_level_zero.cpp for reference) Currently this is just a NOOP.
+pi_result cuda_piTearDown(void *PluginParameter) { return PI_SUCCESS; }
+
 const char SupportedVersion[] = _PI_H_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -4589,6 +4690,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   _PI_CL(piextKernelSetArgMemObj, cuda_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, cuda_piextKernelSetArgSampler)
+  _PI_CL(piTearDown, cuda_piTearDown)
 
 #undef _PI_CL
 

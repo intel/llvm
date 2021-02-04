@@ -11,8 +11,10 @@ add_mlir_dialect_library(MLIRLinalg
   MLIRLinalgStructuredOpsInterfaceIncGen
 
   LINK_LIBS PUBLIC
+  MLIRAffine
   MLIRIR
   MLIRSideEffectInterfaces
   MLIRViewLikeInterface
   MLIRStandard
+  MLIRTensor
   )

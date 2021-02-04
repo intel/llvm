@@ -57,7 +57,7 @@ enum { KMP_DEPHASH_OTHER_SIZE = 97, KMP_DEPHASH_MASTER_SIZE = 997 };
 size_t sizes[] = { 997, 2003, 4001, 8191, 16001, 32003, 64007, 131071, 270029 };
 const size_t MAX_GEN = 8;
 
-static inline kmp_int32 __kmp_dephash_hash(kmp_intptr_t addr, size_t hsize) {
+static inline size_t __kmp_dephash_hash(kmp_intptr_t addr, size_t hsize) {
   // TODO alternate to try: set = (((Addr64)(addrUsefulBits * 9.618)) %
   // m_num_sets );
   return ((addr >> 6) ^ (addr >> 2)) % hsize;
@@ -72,7 +72,7 @@ static kmp_dephash_t *__kmp_dephash_extend(kmp_info_t *thread,
     return current_dephash;
   size_t new_size = sizes[gen];
 
-  kmp_int32 size_to_allocate =
+  size_t size_to_allocate =
       new_size * sizeof(kmp_dephash_entry_t *) + sizeof(kmp_dephash_t);
 
 #if USE_FAST_MEMORY
@@ -93,7 +93,7 @@ static kmp_dephash_t *__kmp_dephash_extend(kmp_info_t *thread,
       next = entry->next_in_bucket;
       // Compute the new hash using the new size, and insert the entry in
       // the new bucket.
-      kmp_int32 new_bucket = __kmp_dephash_hash(entry->addr, h->size);
+      size_t new_bucket = __kmp_dephash_hash(entry->addr, h->size);
       entry->next_in_bucket = h->buckets[new_bucket];
       if (entry->next_in_bucket) {
         h->nconflicts++;
@@ -123,8 +123,7 @@ static kmp_dephash_t *__kmp_dephash_create(kmp_info_t *thread,
   else
     h_size = KMP_DEPHASH_OTHER_SIZE;
 
-  kmp_int32 size =
-      h_size * sizeof(kmp_dephash_entry_t *) + sizeof(kmp_dephash_t);
+  size_t size = h_size * sizeof(kmp_dephash_entry_t *) + sizeof(kmp_dephash_t);
 
 #if USE_FAST_MEMORY
   h = (kmp_dephash_t *)__kmp_fast_allocate(thread, size);
@@ -155,7 +154,7 @@ __kmp_dephash_find(kmp_info_t *thread, kmp_dephash_t **hash, kmp_intptr_t addr) 
     *hash = __kmp_dephash_extend(thread, h);
     h = *hash;
   }
-  kmp_int32 bucket = __kmp_dephash_hash(addr, h->size);
+  size_t bucket = __kmp_dephash_hash(addr, h->size);
 
   kmp_dephash_entry_t *entry;
   for (entry = h->buckets[bucket]; entry; entry = entry->next_in_bucket)
@@ -786,7 +785,8 @@ void __kmpc_omp_wait_deps(ident_t *loc_ref, kmp_int32 gtid, kmp_int32 ndeps,
   }
 
   int thread_finished = FALSE;
-  kmp_flag_32 flag((std::atomic<kmp_uint32> *)&node.dn.npredecessors, 0U);
+  kmp_flag_32<false, false> flag(
+      (std::atomic<kmp_uint32> *)&node.dn.npredecessors, 0U);
   while (node.dn.npredecessors > 0) {
     flag.execute_tasks(thread, gtid, FALSE,
                        &thread_finished USE_ITT_BUILD_ARG(NULL),

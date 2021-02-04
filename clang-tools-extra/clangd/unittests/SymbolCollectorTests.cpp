@@ -55,6 +55,7 @@ MATCHER_P(Snippet, S, "") {
   return (arg.Name + arg.CompletionSnippetSuffix).str() == S;
 }
 MATCHER_P(QName, Name, "") { return (arg.Scope + arg.Name).str() == Name; }
+MATCHER_P(HasName, Name, "") { return arg.Name == Name; }
 MATCHER_P(TemplateArgs, TemplArgs, "") {
   return arg.TemplateSpecializationArgs == TemplArgs;
 }
@@ -96,6 +97,9 @@ MATCHER(RefRange, "") {
   const Ref &Pos = ::testing::get<0>(arg);
   const Range &Range = ::testing::get<1>(arg);
   return rangesMatch(Pos.Location, Range);
+}
+MATCHER_P2(OverriddenBy, Subject, Object, "") {
+  return arg == Relation{Subject.ID, RelationKind::OverriddenBy, Object.ID};
 }
 ::testing::Matcher<const std::vector<Ref> &>
 HaveRanges(const std::vector<Range> Ranges) {
@@ -151,6 +155,37 @@ TEST_F(ShouldCollectSymbolTest, ShouldCollectSymbol) {
   EXPECT_TRUE(shouldCollect("InAnonymous", /*Qualified=*/false));
   EXPECT_TRUE(shouldCollect("g"));
 
+  EXPECT_FALSE(shouldCollect("Local", /*Qualified=*/false));
+}
+
+TEST_F(ShouldCollectSymbolTest, CollectLocalClassesAndVirtualMethods) {
+  build(R"(
+    namespace nx {
+    auto f() {
+      int Local;
+      auto LocalLambda = [&](){
+        Local++;
+        class ClassInLambda{};
+        return Local;
+      };
+    } // auto ensures function body is parsed.
+    auto foo() {
+      class LocalBase {
+        virtual void LocalVirtual();
+        void LocalConcrete();
+        int BaseMember;
+      };
+    }
+    } // namespace nx
+  )",
+        "");
+  auto AST = File.build();
+  EXPECT_FALSE(shouldCollect("Local", /*Qualified=*/false));
+  EXPECT_TRUE(shouldCollect("ClassInLambda", /*Qualified=*/false));
+  EXPECT_TRUE(shouldCollect("LocalBase", /*Qualified=*/false));
+  EXPECT_TRUE(shouldCollect("LocalVirtual", /*Qualified=*/false));
+  EXPECT_TRUE(shouldCollect("LocalConcrete", /*Qualified=*/false));
+  EXPECT_FALSE(shouldCollect("BaseMember", /*Qualified=*/false));
   EXPECT_FALSE(shouldCollect("Local", /*Qualified=*/false));
 }
 
@@ -225,7 +260,7 @@ public:
     index::IndexingOptions IndexOpts;
     IndexOpts.SystemSymbolFilter =
         index::IndexingOptions::SystemSymbolFilterKind::All;
-    IndexOpts.IndexFunctionLocals = false;
+    IndexOpts.IndexFunctionLocals = true;
     Collector = std::make_shared<SymbolCollector>(COpts);
     return std::make_unique<IndexAction>(Collector, std::move(IndexOpts),
                                          PragmaHandler);
@@ -317,7 +352,11 @@ TEST_F(SymbolCollectorTest, CollectSymbols) {
     void ff() {} // ignore
     }
 
-    void f1() {}
+    void f1() {
+      auto LocalLambda = [&](){
+        class ClassInLambda{};
+      };
+    }
 
     namespace foo {
     // Type alias
@@ -348,7 +387,7 @@ TEST_F(SymbolCollectorTest, CollectSymbols) {
                    AllOf(QName("Foo::operator="), ForCodeCompletion(false)),
                    AllOf(QName("Foo::Nested"), ForCodeCompletion(false)),
                    AllOf(QName("Foo::Nested::f"), ForCodeCompletion(false)),
-
+                   AllOf(QName("ClassInLambda"), ForCodeCompletion(false)),
                    AllOf(QName("Friend"), ForCodeCompletion(true)),
                    AllOf(QName("f1"), ForCodeCompletion(true)),
                    AllOf(QName("f2"), ForCodeCompletion(true)),
@@ -771,7 +810,8 @@ TEST_F(SymbolCollectorTest, RefContainers) {
   };
   EXPECT_EQ(Container("ref1a"),
             findSymbol(Symbols, "f2").ID); // function body (call)
-  EXPECT_EQ(Container("ref1b"),
+  // FIXME: This is wrongly contained by fptr and not f2.
+  EXPECT_NE(Container("ref1b"),
             findSymbol(Symbols, "f2").ID); // function body (address-of)
   EXPECT_EQ(Container("ref2"),
             findSymbol(Symbols, "v1").ID); // variable initializer
@@ -1031,7 +1071,7 @@ TEST_F(SymbolCollectorTest, RefsInHeaders) {
                                   HaveRanges(Header.ranges("macro")))));
 }
 
-TEST_F(SymbolCollectorTest, Relations) {
+TEST_F(SymbolCollectorTest, BaseOfRelations) {
   std::string Header = R"(
   class Base {};
   class Derived : public Base {};
@@ -1041,6 +1081,77 @@ TEST_F(SymbolCollectorTest, Relations) {
   const Symbol &Derived = findSymbol(Symbols, "Derived");
   EXPECT_THAT(Relations,
               Contains(Relation{Base.ID, RelationKind::BaseOf, Derived.ID}));
+}
+
+TEST_F(SymbolCollectorTest, OverrideRelationsSimpleInheritance) {
+  std::string Header = R"cpp(
+    class A {
+      virtual void foo();
+    };
+    class B : public A {
+      void foo() override;  // A::foo
+      virtual void bar();
+    };
+    class C : public B {
+      void bar() override;  // B::bar
+    };
+    class D: public C {
+      void foo() override;  // B::foo
+      void bar() override;  // C::bar
+    };
+  )cpp";
+  runSymbolCollector(Header, /*Main=*/"");
+  const Symbol &AFoo = findSymbol(Symbols, "A::foo");
+  const Symbol &BFoo = findSymbol(Symbols, "B::foo");
+  const Symbol &DFoo = findSymbol(Symbols, "D::foo");
+
+  const Symbol &BBar = findSymbol(Symbols, "B::bar");
+  const Symbol &CBar = findSymbol(Symbols, "C::bar");
+  const Symbol &DBar = findSymbol(Symbols, "D::bar");
+
+  std::vector<Relation> Result;
+  for (const Relation &R : Relations)
+    if (R.Predicate == RelationKind::OverriddenBy)
+      Result.push_back(R);
+  EXPECT_THAT(Result, UnorderedElementsAre(
+                          OverriddenBy(AFoo, BFoo), OverriddenBy(BBar, CBar),
+                          OverriddenBy(BFoo, DFoo), OverriddenBy(CBar, DBar)));
+}
+
+TEST_F(SymbolCollectorTest, OverrideRelationsMultipleInheritance) {
+  std::string Header = R"cpp(
+    class A {
+      virtual void foo();
+    };
+    class B {
+      virtual void bar();
+    };
+    class C : public B {
+      void bar() override;  // B::bar
+      virtual void baz();
+    }
+    class D : public A, C {
+      void foo() override;  // A::foo
+      void bar() override;  // C::bar
+      void baz() override;  // C::baz
+    };
+  )cpp";
+  runSymbolCollector(Header, /*Main=*/"");
+  const Symbol &AFoo = findSymbol(Symbols, "A::foo");
+  const Symbol &BBar = findSymbol(Symbols, "B::bar");
+  const Symbol &CBar = findSymbol(Symbols, "C::bar");
+  const Symbol &CBaz = findSymbol(Symbols, "C::baz");
+  const Symbol &DFoo = findSymbol(Symbols, "D::foo");
+  const Symbol &DBar = findSymbol(Symbols, "D::bar");
+  const Symbol &DBaz = findSymbol(Symbols, "D::baz");
+
+  std::vector<Relation> Result;
+  for (const Relation &R : Relations)
+    if (R.Predicate == RelationKind::OverriddenBy)
+      Result.push_back(R);
+  EXPECT_THAT(Result, UnorderedElementsAre(
+                          OverriddenBy(BBar, CBar), OverriddenBy(AFoo, DFoo),
+                          OverriddenBy(CBar, DBar), OverriddenBy(CBaz, DBaz)));
 }
 
 TEST_F(SymbolCollectorTest, CountReferences) {

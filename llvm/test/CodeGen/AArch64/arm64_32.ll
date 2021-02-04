@@ -422,7 +422,7 @@ define void @test_bare_frameaddr(i8** %addr) {
   ret void
 }
 
-define void @test_sret_use([8 x i64]* sret %out) {
+define void @test_sret_use([8 x i64]* sret([8 x i64]) %out) {
 ; CHECK-LABEL: test_sret_use:
 ; CHECK: str xzr, [x8]
   %addr = getelementptr [8 x i64], [8 x i64]* %out, i32 0, i32 0
@@ -435,7 +435,7 @@ define i64 @test_sret_call() {
 ; CHECK: mov x8, sp
 ; CHECK: bl _test_sret_use
   %arr = alloca [8 x i64]
-  call void @test_sret_use([8 x i64]* sret %arr)
+  call void @test_sret_use([8 x i64]* sret([8 x i64]) %arr)
 
   %addr = getelementptr [8 x i64], [8 x i64]* %arr, i32 0, i32 0
   %val = load i64, i64* %addr
@@ -691,6 +691,23 @@ define void @test_multiple_icmp_ptr(i8* %l, i8* %r) {
   %tst1 = icmp sgt i8* %l, inttoptr (i32 -1 to i8*)
   %tst2 = icmp sgt i8* %r, inttoptr (i32 -1 to i8*)
   %tst = and i1 %tst1, %tst2
+  br i1 %tst, label %true, label %false
+
+true:
+  call void(...) @bar()
+  ret void
+
+false:
+  ret void
+}
+
+define void @test_multiple_icmp_ptr_select(i8* %l, i8* %r) {
+; CHECK-LABEL: test_multiple_icmp_ptr_select:
+; CHECK: tbnz w0, #31, [[FALSEBB:LBB[0-9]+_[0-9]+]]
+; CHECK: tbnz w1, #31, [[FALSEBB]]
+  %tst1 = icmp sgt i8* %l, inttoptr (i32 -1 to i8*)
+  %tst2 = icmp sgt i8* %r, inttoptr (i32 -1 to i8*)
+  %tst = select i1 %tst1, i1 %tst2, i1 false
   br i1 %tst, label %true, label %false
 
 true:

@@ -174,6 +174,10 @@ protected:
   /// Section containing metadata on function stack sizes.
   MCSection *StackSizesSection = nullptr;
 
+  /// Section for pseudo probe information used by AutoFDO
+  MCSection *PseudoProbeSection = nullptr;
+  MCSection *PseudoProbeDescSection = nullptr;
+
   // ELF specific sections.
   MCSection *DataRelROSection = nullptr;
   MCSection *MergeableConst4Section = nullptr;
@@ -340,6 +344,10 @@ public:
 
   MCSection *getBBAddrMapSection(const MCSection &TextSec) const;
 
+  MCSection *getPseudoProbeSection(const MCSection *TextSec) const;
+
+  MCSection *getPseudoProbeDescSection(StringRef FuncName) const;
+
   // ELF specific sections.
   MCSection *getDataRelROSection() const { return DataRelROSection; }
   const MCSection *getMergeableConst4Section() const {
@@ -404,9 +412,7 @@ public:
   // XCOFF specific sections
   MCSection *getTOCBaseSection() const { return TOCBaseSection; }
 
-  MCSection *getEHFrameSection() {
-    return EHFrameSection;
-  }
+  MCSection *getEHFrameSection() const { return EHFrameSection; }
 
   enum Environment { IsMachO, IsELF, IsCOFF, IsWasm, IsXCOFF };
   Environment getObjectFileType() const { return Env; }

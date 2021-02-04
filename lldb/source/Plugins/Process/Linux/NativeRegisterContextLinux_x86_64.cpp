@@ -41,11 +41,8 @@ static inline int get_cpuid_count(unsigned int __leaf,
 using namespace lldb_private;
 using namespace lldb_private::process_linux;
 
-// Private namespace.
-
-namespace {
 // x86 32-bit general purpose registers.
-const uint32_t g_gpr_regnums_i386[] = {
+static const uint32_t g_gpr_regnums_i386[] = {
     lldb_eax_i386,      lldb_ebx_i386,    lldb_ecx_i386, lldb_edx_i386,
     lldb_edi_i386,      lldb_esi_i386,    lldb_ebp_i386, lldb_esp_i386,
     lldb_eip_i386,      lldb_eflags_i386, lldb_cs_i386,  lldb_fs_i386,
@@ -62,7 +59,7 @@ static_assert((sizeof(g_gpr_regnums_i386) / sizeof(g_gpr_regnums_i386[0])) -
               "g_gpr_regnums_i386 has wrong number of register infos");
 
 // x86 32-bit floating point registers.
-const uint32_t g_fpu_regnums_i386[] = {
+static const uint32_t g_fpu_regnums_i386[] = {
     lldb_fctrl_i386,    lldb_fstat_i386,     lldb_ftag_i386,  lldb_fop_i386,
     lldb_fiseg_i386,    lldb_fioff_i386,     lldb_foseg_i386, lldb_fooff_i386,
     lldb_mxcsr_i386,    lldb_mxcsrmask_i386, lldb_st0_i386,   lldb_st1_i386,
@@ -80,7 +77,7 @@ static_assert((sizeof(g_fpu_regnums_i386) / sizeof(g_fpu_regnums_i386[0])) -
               "g_fpu_regnums_i386 has wrong number of register infos");
 
 // x86 32-bit AVX registers.
-const uint32_t g_avx_regnums_i386[] = {
+static const uint32_t g_avx_regnums_i386[] = {
     lldb_ymm0_i386,     lldb_ymm1_i386, lldb_ymm2_i386, lldb_ymm3_i386,
     lldb_ymm4_i386,     lldb_ymm5_i386, lldb_ymm6_i386, lldb_ymm7_i386,
     LLDB_INVALID_REGNUM // register sets need to end with this flag
@@ -149,20 +146,21 @@ static_assert((sizeof(g_gpr_regnums_x86_64) / sizeof(g_gpr_regnums_x86_64[0])) -
 
 // x86 64-bit floating point registers.
 static const uint32_t g_fpu_regnums_x86_64[] = {
-    lldb_fctrl_x86_64,     lldb_fstat_x86_64, lldb_ftag_x86_64,
-    lldb_fop_x86_64,       lldb_fiseg_x86_64, lldb_fioff_x86_64,
-    lldb_foseg_x86_64,     lldb_fooff_x86_64, lldb_mxcsr_x86_64,
-    lldb_mxcsrmask_x86_64, lldb_st0_x86_64,   lldb_st1_x86_64,
-    lldb_st2_x86_64,       lldb_st3_x86_64,   lldb_st4_x86_64,
-    lldb_st5_x86_64,       lldb_st6_x86_64,   lldb_st7_x86_64,
-    lldb_mm0_x86_64,       lldb_mm1_x86_64,   lldb_mm2_x86_64,
-    lldb_mm3_x86_64,       lldb_mm4_x86_64,   lldb_mm5_x86_64,
-    lldb_mm6_x86_64,       lldb_mm7_x86_64,   lldb_xmm0_x86_64,
-    lldb_xmm1_x86_64,      lldb_xmm2_x86_64,  lldb_xmm3_x86_64,
-    lldb_xmm4_x86_64,      lldb_xmm5_x86_64,  lldb_xmm6_x86_64,
-    lldb_xmm7_x86_64,      lldb_xmm8_x86_64,  lldb_xmm9_x86_64,
-    lldb_xmm10_x86_64,     lldb_xmm11_x86_64, lldb_xmm12_x86_64,
-    lldb_xmm13_x86_64,     lldb_xmm14_x86_64, lldb_xmm15_x86_64,
+    lldb_fctrl_x86_64,  lldb_fstat_x86_64, lldb_ftag_x86_64,
+    lldb_fop_x86_64,    lldb_fiseg_x86_64, lldb_fioff_x86_64,
+    lldb_fip_x86_64,    lldb_foseg_x86_64, lldb_fooff_x86_64,
+    lldb_fdp_x86_64,    lldb_mxcsr_x86_64, lldb_mxcsrmask_x86_64,
+    lldb_st0_x86_64,    lldb_st1_x86_64,   lldb_st2_x86_64,
+    lldb_st3_x86_64,    lldb_st4_x86_64,   lldb_st5_x86_64,
+    lldb_st6_x86_64,    lldb_st7_x86_64,   lldb_mm0_x86_64,
+    lldb_mm1_x86_64,    lldb_mm2_x86_64,   lldb_mm3_x86_64,
+    lldb_mm4_x86_64,    lldb_mm5_x86_64,   lldb_mm6_x86_64,
+    lldb_mm7_x86_64,    lldb_xmm0_x86_64,  lldb_xmm1_x86_64,
+    lldb_xmm2_x86_64,   lldb_xmm3_x86_64,  lldb_xmm4_x86_64,
+    lldb_xmm5_x86_64,   lldb_xmm6_x86_64,  lldb_xmm7_x86_64,
+    lldb_xmm8_x86_64,   lldb_xmm9_x86_64,  lldb_xmm10_x86_64,
+    lldb_xmm11_x86_64,  lldb_xmm12_x86_64, lldb_xmm13_x86_64,
+    lldb_xmm14_x86_64,  lldb_xmm15_x86_64,
     LLDB_INVALID_REGNUM // register sets need to end with this flag
 };
 static_assert((sizeof(g_fpu_regnums_x86_64) / sizeof(g_fpu_regnums_x86_64[0])) -
@@ -195,7 +193,7 @@ static_assert((sizeof(g_mpx_regnums_x86_64) / sizeof(g_mpx_regnums_x86_64[0])) -
               "g_mpx_regnums_x86_64 has wrong number of register infos");
 
 // Number of register sets provided by this context.
-enum { k_num_extended_register_sets = 2, k_num_register_sets = 4 };
+constexpr unsigned k_num_extended_register_sets = 2, k_num_register_sets = 4;
 
 // Register sets for x86 32-bit.
 static const RegisterSet g_reg_sets_i386[k_num_register_sets] = {
@@ -218,7 +216,6 @@ static const RegisterSet g_reg_sets_x86_64[k_num_register_sets] = {
      g_avx_regnums_x86_64},
     { "Memory Protection Extensions", "mpx", k_num_mpx_registers_x86_64,
      g_mpx_regnums_x86_64}};
-}
 
 #define REG_CONTEXT_SIZE (GetRegisterInfoInterface().GetGPRSize() + sizeof(FPR))
 
@@ -529,6 +526,13 @@ NativeRegisterContextLinux_x86_64::ReadRegister(const RegisterInfo *reg_info,
   assert((reg_info->byte_offset - m_fctrl_offset_in_userarea) < sizeof(FPR));
   uint8_t *src = (uint8_t *)m_xstate.get() + reg_info->byte_offset -
                  m_fctrl_offset_in_userarea;
+
+  if (src == reinterpret_cast<uint8_t *>(&m_xstate->fxsave.ftag)) {
+    reg_value.SetUInt16(AbridgedToFullTagWord(
+        m_xstate->fxsave.ftag, m_xstate->fxsave.fstat, m_xstate->fxsave.stmm));
+    return error;
+  }
+
   switch (reg_info->byte_size) {
   case 1:
     reg_value.SetUInt8(*(uint8_t *)src);
@@ -638,23 +642,28 @@ Status NativeRegisterContextLinux_x86_64::WriteRegister(
              sizeof(FPR));
       uint8_t *dst = (uint8_t *)m_xstate.get() + reg_info->byte_offset -
                      m_fctrl_offset_in_userarea;
-      switch (reg_info->byte_size) {
-      case 1:
-        *(uint8_t *)dst = reg_value.GetAsUInt8();
-        break;
-      case 2:
-        *(uint16_t *)dst = reg_value.GetAsUInt16();
-        break;
-      case 4:
-        *(uint32_t *)dst = reg_value.GetAsUInt32();
-        break;
-      case 8:
-        *(uint64_t *)dst = reg_value.GetAsUInt64();
-        break;
-      default:
-        assert(false && "Unhandled data size.");
-        return Status("unhandled register data size %" PRIu32,
-                      reg_info->byte_size);
+
+      if (dst == reinterpret_cast<uint8_t *>(&m_xstate->fxsave.ftag))
+        m_xstate->fxsave.ftag = FullToAbridgedTagWord(reg_value.GetAsUInt16());
+      else {
+        switch (reg_info->byte_size) {
+        case 1:
+          *(uint8_t *)dst = reg_value.GetAsUInt8();
+          break;
+        case 2:
+          *(uint16_t *)dst = reg_value.GetAsUInt16();
+          break;
+        case 4:
+          *(uint32_t *)dst = reg_value.GetAsUInt32();
+          break;
+        case 8:
+          *(uint64_t *)dst = reg_value.GetAsUInt64();
+          break;
+        default:
+          assert(false && "Unhandled data size.");
+          return Status("unhandled register data size %" PRIu32,
+                        reg_info->byte_size);
+        }
       }
     }
 

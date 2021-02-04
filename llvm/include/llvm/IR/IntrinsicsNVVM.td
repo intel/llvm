@@ -128,7 +128,7 @@ class MMA_SIGNATURE<WMMA_REGS A, WMMA_REGS B, WMMA_REGS C, WMMA_REGS D> {
      !eq(A.ptx_elt_type, "u4") : [A],
      !eq(A.ptx_elt_type, "b1") : [A],
      // the rest are FP ops identified by accumulator & result type.
-     1: [D, C]
+     true: [D, C]
      );
    string ret = !foldl("", id_frags, a, b, !strconcat(a, ".", b.ptx_elt_type));
 }
@@ -225,19 +225,17 @@ class NVVM_MMA_OPS<int _ = 0> {
                                              ldst_bit_ab_ops,
                                              ldst_subint_cd_ops);
   // Separate A/B/C fragments (loads) from D (stores).
-  list<WMMA_REGS> all_ld_ops = !foldl([]<WMMA_REGS>, all_ldst_ops, a, b,
-                                      !listconcat(a, !if(!eq(b.frag,"d"), [],[b])));
-  list<WMMA_REGS> all_st_ops = !foldl([]<WMMA_REGS>, all_ldst_ops, a, b,
-                                      !listconcat(a, !if(!eq(b.frag,"d"), [b],[])));
+  list<WMMA_REGS> all_ld_ops = !filter(op, all_ldst_ops, !ne(op.frag, "d"));
+  list<WMMA_REGS> all_st_ops = !filter(op, all_ldst_ops, !eq(op.frag, "d"));
 }
 
 def NVVM_MMA_OPS : NVVM_MMA_OPS;
 
-// Returns [1] if this combination of layout/satf is supported, [] otherwise.
+// Returns true if this combination of layout/satf is supported; false otherwise.
 // MMA ops must provide all parameters. Loads and stores -- only frags and layout_a.
 // The class is used to prevent generation of records for the unsupported variants.
 // E.g.
-// foreach _ = NVVM_MMA_SUPPORTED<...>.ret in =
+// if NVVM_MMA_SUPPORTED<...>.ret then
 //   def : FOO<>; // The record will only be defined for supported ops.
 //
 class NVVM_MMA_SUPPORTED<list<WMMA_REGS> frags, string layout_a, string layout_b="-", int satf=-1> {
@@ -263,20 +261,20 @@ class NVVM_MMA_SUPPORTED<list<WMMA_REGS> frags, string layout_a, string layout_b
                # !if(!eq(!size(frags), 4),
                      frags[2].ptx_elt_type # frags[3].ptx_elt_type,
                      "?");
-  list<int> ret = !cond(
+  bit ret = !cond(
     // Sub-int MMA only supports fixed A/B layout.
     // b1 does not support .satf.
-    !eq(mma#":"#satf, "b1:row:col:0") : [1],
+    !eq(mma#":"#satf, "b1:row:col:0") : true,
     // mma.m8n8k4 has no .satf modifier.
     !and(!eq(frags[0].geom, "m8n8k4"),
-         !ne(satf, 0)): [],
+         !ne(satf, 0)): false,
 
     // mma.m8n8k4 has no C=f32 D=f16 variant.
-    !eq(gcd, "m8n8k4:f32f16"): [],
-    !eq(mma, "s4:row:col") : [1],
-    !eq(mma, "u4:row:col") : [1],
-    !eq(mma, "s4:row:col") : [1],
-    !eq(mma, "u4:row:col") : [1],
+    !eq(gcd, "m8n8k4:f32f16"): false,
+    !eq(mma, "s4:row:col") : true,
+    !eq(mma, "u4:row:col") : true,
+    !eq(mma, "s4:row:col") : true,
+    !eq(mma, "u4:row:col") : true,
     // Sub-int load/stores have fixed layout for A and B.
     !and(!eq(layout_b, "-"), // It's a Load or Store op
          !or(!eq(ld,  "b1:a:row"),
@@ -290,13 +288,13 @@ class NVVM_MMA_SUPPORTED<list<WMMA_REGS> frags, string layout_a, string layout_b
              !eq(ld, "u4:a:row"),
              !eq(ld, "u4:b:col"),
              !eq(ldf, "u4:c"),
-             !eq(ldf, "u4:d"))) : [1],
+             !eq(ldf, "u4:d"))) : true,
     // All other sub-int ops are not supported.
-    !eq(t, "b1") : [],
-    !eq(t, "s4") : [],
-    !eq(t, "u4") : [],
+    !eq(t, "b1") : false,
+    !eq(t, "s4") : false,
+    !eq(t, "u4") : false,
     // All other (non sub-int) are OK.
-    1: [1]
+    true: true
   );
 }
 
@@ -309,8 +307,8 @@ class SHFL_INFO<bit sync, string mode, string type, bit return_pred> {
   string Name = "int_nvvm_shfl_" # Suffix;
   string Builtin = "__nvvm_shfl_" # Suffix;
   string IntrName = "llvm.nvvm.shfl." # !subst("_",".", Suffix);
-  list<int> withGccBuiltin = !if(return_pred, [], [1]);
-  list<int> withoutGccBuiltin = !if(return_pred, [1], []);
+  bit withGccBuiltin = !not(return_pred);
+  bit withoutGccBuiltin = return_pred;
   LLVMType OpType = !cond(
     !eq(type,"i32"): llvm_i32_ty,
     !eq(type,"f32"): llvm_float_ty);
@@ -4000,18 +3998,18 @@ def int_nvvm_read_ptx_sreg_warpsize : PTXReadSRegIntrinsic_r32<"warpsize">;
 // SHUFFLE
 //
 // Generate intrinsics for all variants of shfl instruction.
-foreach sync = [0, 1] in {
+foreach sync = [false, true] in {
   foreach mode = ["up", "down", "bfly", "idx"] in {
     foreach type = ["i32", "f32"] in {
-      foreach return_pred = [0, 1] in {
+      foreach return_pred = [false, true] in {
         foreach i = [SHFL_INFO<sync, mode, type, return_pred>] in {
-          foreach _ = i.withGccBuiltin in {
+          if i.withGccBuiltin then {
             def i.Name : GCCBuiltin<i.Builtin>,
                          Intrinsic<i.RetTy, i.ArgsTy,
                                    [IntrInaccessibleMemOnly, IntrConvergent],
                                    i.IntrName>;
           }
-          foreach _ = i.withoutGccBuiltin in {
+          if i.withoutGccBuiltin then {
             def i.Name : Intrinsic<i.RetTy, i.ArgsTy,
                          [IntrInaccessibleMemOnly, IntrConvergent], i.IntrName>;
           }
@@ -4122,11 +4120,11 @@ class NVVM_WMMA_ST<WMMA_REGS Frag, string Layout, int WithStride>
 foreach layout = ["row", "col"] in {
   foreach stride = [0, 1] in {
     foreach frag = NVVM_MMA_OPS.all_ld_ops in
-      foreach _ = NVVM_MMA_SUPPORTED<[frag], layout>.ret in
+      if NVVM_MMA_SUPPORTED<[frag], layout>.ret then
         def WMMA_NAME_LDST<"load", frag, layout, stride>.record
              : NVVM_WMMA_LD<frag, layout, stride>;
     foreach frag = NVVM_MMA_OPS.all_st_ops in
-      foreach _ = NVVM_MMA_SUPPORTED<[frag], layout>.ret in
+      if NVVM_MMA_SUPPORTED<[frag], layout>.ret then
         def WMMA_NAME_LDST<"store", frag, layout, stride>.record
              : NVVM_WMMA_ST<frag, layout, stride>;
   }
@@ -4145,7 +4143,7 @@ foreach layout_a = ["row", "col"] in {
   foreach layout_b = ["row", "col"] in {
     foreach satf = [0, 1] in {
       foreach op = NVVM_MMA_OPS.all_mma_ops in {
-        foreach _ = NVVM_MMA_SUPPORTED<op, layout_a, layout_b, satf>.ret in {
+        if NVVM_MMA_SUPPORTED<op, layout_a, layout_b, satf>.ret then {
           def WMMA_NAME_MMA<layout_a, layout_b, satf,
                             op[0], op[1], op[2], op[3]>.record
             : NVVM_WMMA_MMA<layout_a, layout_b, satf,

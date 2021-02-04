@@ -11,7 +11,6 @@ class TestProcessConnect(GDBRemoteTestBase):
 
     NO_DEBUG_INFO_TESTCASE = True
 
-    @skipIfWindows
     def test_gdb_remote_sync(self):
         """Test the gdb-remote command in synchronous mode"""
         try:
@@ -21,7 +20,6 @@ class TestProcessConnect(GDBRemoteTestBase):
         finally:
             self.dbg.GetSelectedPlatform().DisconnectRemote()
 
-    @skipIfWindows
     @skipIfReproducer # Reproducer don't support async.
     def test_gdb_remote_async(self):
         """Test the gdb-remote command in asynchronous mode"""
@@ -40,6 +38,8 @@ class TestProcessConnect(GDBRemoteTestBase):
         """Test the gdb-remote command in synchronous mode"""
         try:
             self.dbg.SetAsync(False)
+            self.expect("platform select remote-gdb-server",
+                        substrs=['Platform: remote-gdb-server', 'Connected: no'])
             self.expect("process connect connect://" +
                         self.server.get_connect_address(),
                         substrs=['Process', 'stopped'])
@@ -52,6 +52,8 @@ class TestProcessConnect(GDBRemoteTestBase):
         """Test the gdb-remote command in asynchronous mode"""
         try:
             self.dbg.SetAsync(True)
+            self.expect("platform select remote-gdb-server",
+                        substrs=['Platform: remote-gdb-server', 'Connected: no'])
             self.expect("process connect connect://" +
                         self.server.get_connect_address(),
                         matching=False,

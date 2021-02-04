@@ -68,8 +68,8 @@ define i32 @select_1_or_0_signext(i1 signext %cond) {
 define i32 @select_0_or_neg1(i1 %cond) {
 ; CHECK-LABEL: select_0_or_neg1:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    mvn w8, w0
-; CHECK-NEXT:    sbfx w0, w8, #0, #1
+; CHECK-NEXT:    and w8, w0, #0x1
+; CHECK-NEXT:    sub w0, w8, #1 // =1
 ; CHECK-NEXT:    ret
   %sel = select i1 %cond, i32 0, i32 -1
   ret i32 %sel
@@ -78,8 +78,7 @@ define i32 @select_0_or_neg1(i1 %cond) {
 define i32 @select_0_or_neg1_zeroext(i1 zeroext %cond) {
 ; CHECK-LABEL: select_0_or_neg1_zeroext:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    mvn w8, w0
-; CHECK-NEXT:    sbfx w0, w8, #0, #1
+; CHECK-NEXT:    sub w0, w0, #1 // =1
 ; CHECK-NEXT:    ret
   %sel = select i1 %cond, i32 0, i32 -1
   ret i32 %sel
@@ -438,10 +437,9 @@ define i8 @shl_constant_sel_constants(i1 %cond) {
 ; CHECK-LABEL: shl_constant_sel_constants:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    tst w0, #0x1
-; CHECK-NEXT:    mov w8, #2
-; CHECK-NEXT:    cinc x8, x8, eq
-; CHECK-NEXT:    mov w9, #1
-; CHECK-NEXT:    lsl w0, w9, w8
+; CHECK-NEXT:    mov w8, #8
+; CHECK-NEXT:    mov w9, #4
+; CHECK-NEXT:    csel w0, w9, w8, ne
 ; CHECK-NEXT:    ret
   %sel = select i1 %cond, i8 2, i8 3
   %bo = shl i8 1, %sel
@@ -464,10 +462,9 @@ define i8 @lshr_constant_sel_constants(i1 %cond) {
 ; CHECK-LABEL: lshr_constant_sel_constants:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    tst w0, #0x1
-; CHECK-NEXT:    mov w8, #2
-; CHECK-NEXT:    cinc x8, x8, eq
-; CHECK-NEXT:    mov w9, #64
-; CHECK-NEXT:    lsr w0, w9, w8
+; CHECK-NEXT:    mov w8, #8
+; CHECK-NEXT:    mov w9, #16
+; CHECK-NEXT:    csel w0, w9, w8, ne
 ; CHECK-NEXT:    ret
   %sel = select i1 %cond, i8 2, i8 3
   %bo = lshr i8 64, %sel
@@ -489,10 +486,9 @@ define i8 @ashr_constant_sel_constants(i1 %cond) {
 ; CHECK-LABEL: ashr_constant_sel_constants:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    tst w0, #0x1
-; CHECK-NEXT:    mov w8, #2
-; CHECK-NEXT:    cinc x8, x8, eq
-; CHECK-NEXT:    mov w9, #-128
-; CHECK-NEXT:    asr w0, w9, w8
+; CHECK-NEXT:    mov w8, #-16
+; CHECK-NEXT:    mov w9, #-32
+; CHECK-NEXT:    csel w0, w9, w8, ne
 ; CHECK-NEXT:    ret
   %sel = select i1 %cond, i8 2, i8 3
   %bo = ashr i8 128, %sel

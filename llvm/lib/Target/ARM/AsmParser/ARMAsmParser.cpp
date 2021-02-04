@@ -3087,7 +3087,6 @@ public:
     // This is container for the immediate that we will create the constant
     // pool from
     addExpr(Inst, getConstantPoolImm());
-    return;
   }
 
   void addMemTBBOperands(MCInst &Inst, unsigned N) const {
@@ -6240,10 +6239,9 @@ bool ARMAsmParser::parsePrefix(ARMMCExpr::VariantKind &RefKind) {
   StringRef IDVal = Parser.getTok().getIdentifier();
 
   const auto &Prefix =
-      std::find_if(std::begin(PrefixEntries), std::end(PrefixEntries),
-                   [&IDVal](const PrefixEntry &PE) {
-                      return PE.Spelling == IDVal;
-                   });
+      llvm::find_if(PrefixEntries, [&IDVal](const PrefixEntry &PE) {
+        return PE.Spelling == IDVal;
+      });
   if (Prefix == std::end(PrefixEntries)) {
     Error(Parser.getTok().getLoc(), "unexpected prefix in operand");
     return true;
@@ -10309,11 +10307,14 @@ bool ARMAsmParser::processInstruction(MCInst &Inst,
         !HasWideQualifier) {
       // The operands aren't the same for tMOV[S]r... (no cc_out)
       MCInst TmpInst;
-      TmpInst.setOpcode(Inst.getOperand(4).getReg() ? ARM::tMOVSr : ARM::tMOVr);
+      unsigned Op = Inst.getOperand(4).getReg() ? ARM::tMOVSr : ARM::tMOVr;
+      TmpInst.setOpcode(Op);
       TmpInst.addOperand(Inst.getOperand(0));
       TmpInst.addOperand(Inst.getOperand(1));
-      TmpInst.addOperand(Inst.getOperand(2));
-      TmpInst.addOperand(Inst.getOperand(3));
+      if (Op == ARM::tMOVr) {
+        TmpInst.addOperand(Inst.getOperand(2));
+        TmpInst.addOperand(Inst.getOperand(3));
+      }
       Inst = TmpInst;
       return true;
     }

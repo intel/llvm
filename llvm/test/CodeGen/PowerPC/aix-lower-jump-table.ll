@@ -1,16 +1,16 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc-ibm-aix-xcoff \
+; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mattr=-altivec -mtriple powerpc-ibm-aix-xcoff \
 ; RUN: -code-model=small -stop-after=machine-cp < %s | FileCheck \
 ; RUN: --check-prefix=32SMALL-MIR %s
 
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc-ibm-aix-xcoff \
+; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mattr=-altivec -mtriple powerpc-ibm-aix-xcoff \
 ; RUN: -code-model=large -stop-after=machine-cp < %s | FileCheck \
 ; RUN: --check-prefix=32LARGE-MIR %s
 
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc64-ibm-aix-xcoff \
+; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mattr=-altivec -mtriple powerpc64-ibm-aix-xcoff \
 ; RUN: -code-model=small -stop-after=machine-cp < %s | FileCheck \
 ; RUN: --check-prefix=64SMALL-MIR %s
 
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc64-ibm-aix-xcoff \
+; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mattr=-altivec -mtriple powerpc64-ibm-aix-xcoff \
 ; RUN: -code-model=large -stop-after=machine-cp < %s | FileCheck \
 ; RUN: --check-prefix=64LARGE-MIR %s
 
@@ -27,10 +27,10 @@
 ; RUN: --check-prefixes=64LARGE-ASM,LARGE-ASM %s
 
 ; RUN: llc -mtriple powerpc-ibm-aix-xcoff -function-sections < %s | FileCheck \
-; RUN: --check-prefixes=FUNC-ASM,CHECK %s
+; RUN: --check-prefix=FUNC-ASM %s
 
 ; RUN: llc -mtriple powerpc64-ibm-aix-xcoff -function-sections < %s | FileCheck \
-; RUN: --check-prefixes=FUNC-ASM,CHECK %s
+; RUN: --check-prefix=FUNC-ASM %s
 
   define i32 @jump_table(i32 %a) {
   entry:

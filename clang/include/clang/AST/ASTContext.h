@@ -1012,7 +1012,7 @@ public:
 #define SVE_TYPE(Name, Id, SingletonId) \
   CanQualType SingletonId;
 #include "clang/Basic/AArch64SVEACLETypes.def"
-#define PPC_MMA_VECTOR_TYPE(Name, Id, Size) \
+#define PPC_VECTOR_TYPE(Name, Id, Size) \
   CanQualType Id##Ty;
 #include "clang/Basic/PPCTypes.def"
 
@@ -1436,7 +1436,7 @@ public:
   /// Return the unique reference to the type for the specified
   /// typedef-name decl.
   QualType getTypedefType(const TypedefNameDecl *Decl,
-                          QualType Canon = QualType()) const;
+                          QualType Underlying = QualType()) const;
 
   QualType getRecordType(const RecordDecl *Decl) const;
 
@@ -2093,6 +2093,10 @@ public:
   /// vector-length.
   bool areCompatibleSveTypes(QualType FirstType, QualType SecondType);
 
+  /// Return true if the given vector types are lax-compatible SVE vector types,
+  /// false otherwise.
+  bool areLaxCompatibleSveTypes(QualType FirstType, QualType SecondType);
+
   /// Return true if the type has been explicitly qualified with ObjC ownership.
   /// A type may be implicitly qualified with ownership under ObjC ARC, and in
   /// some cases the compiler treats these differently.
@@ -2302,6 +2306,10 @@ public:
   uint64_t lookupFieldBitOffset(const ObjCInterfaceDecl *OID,
                                 const ObjCImplementationDecl *ID,
                                 const ObjCIvarDecl *Ivar) const;
+
+  /// Find the 'this' offset for the member path in a pointer-to-member
+  /// APValue.
+  CharUnits getMemberPointerPathAdjustment(const APValue &MP) const;
 
   bool isNearlyEmpty(const CXXRecordDecl *RD) const;
 
@@ -3083,13 +3091,12 @@ public:
   };
 
   struct SectionInfo {
-    DeclaratorDecl *Decl;
+    NamedDecl *Decl;
     SourceLocation PragmaSectionLocation;
     int SectionFlags;
 
     SectionInfo() = default;
-    SectionInfo(DeclaratorDecl *Decl,
-                SourceLocation PragmaSectionLocation,
+    SectionInfo(NamedDecl *Decl, SourceLocation PragmaSectionLocation,
                 int SectionFlags)
         : Decl(Decl), PragmaSectionLocation(PragmaSectionLocation),
           SectionFlags(SectionFlags) {}

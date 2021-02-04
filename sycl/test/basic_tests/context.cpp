@@ -1,5 +1,5 @@
 // RUN: %clangxx %s -o %t.out -lsycl -I %sycl_include
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %RUN_ON_HOST %t.out
 
 //==--------------- context.cpp - SYCL context test ------------------------==//
 //

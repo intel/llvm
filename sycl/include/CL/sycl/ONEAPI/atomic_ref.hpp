@@ -453,6 +453,11 @@ public:
 
   T fetch_add(T operand, memory_order order = default_read_modify_write_order,
               memory_scope scope = default_scope) const noexcept {
+// TODO: Remove the "native atomics" macro check once implemented for all
+// backends
+#if defined(__SYCL_DEVICE_ONLY__) && defined(SYCL_USE_NATIVE_FP_ATOMICS)
+    return detail::spirv::AtomicFAdd(ptr, scope, order, operand);
+#else
     auto load_order = detail::getLoadOrder(order);
     T expected;
     T desired;
@@ -462,6 +467,7 @@ public:
       desired = expected + operand;
     } while (!compare_exchange_weak(expected, desired, order, scope));
     return expected;
+#endif
   }
 
   T operator+=(T operand) const noexcept {
@@ -470,6 +476,11 @@ public:
 
   T fetch_sub(T operand, memory_order order = default_read_modify_write_order,
               memory_scope scope = default_scope) const noexcept {
+// TODO: Remove the "native atomics" macro check once implemented for all
+// backends
+#if defined(__SYCL_DEVICE_ONLY__) && defined(SYCL_USE_NATIVE_FP_ATOMICS)
+    return detail::spirv::AtomicFAdd(ptr, scope, order, -operand);
+#else
     auto load_order = detail::getLoadOrder(order);
     T expected = load(load_order, scope);
     T desired;
@@ -477,6 +488,7 @@ public:
       desired = expected - operand;
     } while (!compare_exchange_weak(expected, desired, order, scope));
     return expected;
+#endif
   }
 
   T operator-=(T operand) const noexcept {

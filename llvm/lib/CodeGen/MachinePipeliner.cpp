@@ -442,6 +442,16 @@ bool MachinePipeliner::swingModuloScheduler(MachineLoop &L) {
   return SMS.hasNewSchedule();
 }
 
+void MachinePipeliner::getAnalysisUsage(AnalysisUsage &AU) const {
+  AU.addRequired<AAResultsWrapperPass>();
+  AU.addPreserved<AAResultsWrapperPass>();
+  AU.addRequired<MachineLoopInfo>();
+  AU.addRequired<MachineDominatorTree>();
+  AU.addRequired<LiveIntervals>();
+  AU.addRequired<MachineOptimizationRemarkEmitterPass>();
+  MachineFunctionPass::getAnalysisUsage(AU);
+}
+
 void SwingSchedulerDAG::setMII(unsigned ResMII, unsigned RecMII) {
   if (II_setByPragma > 0)
     MII = II_setByPragma;
@@ -803,10 +813,8 @@ void SwingSchedulerDAG::addLoopCarriedDependences(AliasAnalysis *AA) {
             continue;
           }
           AliasResult AAResult = AA->alias(
-              MemoryLocation(MMO1->getValue(), LocationSize::unknown(),
-                             MMO1->getAAInfo()),
-              MemoryLocation(MMO2->getValue(), LocationSize::unknown(),
-                             MMO2->getAAInfo()));
+              MemoryLocation::getAfter(MMO1->getValue(), MMO1->getAAInfo()),
+              MemoryLocation::getAfter(MMO2->getValue(), MMO2->getAAInfo()));
 
           if (AAResult != NoAlias) {
             SDep Dep(Load, SDep::Barrier);
@@ -1587,12 +1595,12 @@ static bool computePath(SUnit *Cur, SetVector<SUnit *> &Path,
                         SmallPtrSet<SUnit *, 8> &Visited) {
   if (Cur->isBoundaryNode())
     return false;
-  if (Exclude.count(Cur) != 0)
+  if (Exclude.contains(Cur))
     return false;
-  if (DestNodes.count(Cur) != 0)
+  if (DestNodes.contains(Cur))
     return true;
   if (!Visited.insert(Cur).second)
-    return Path.count(Cur) != 0;
+    return Path.contains(Cur);
   bool FoundPath = false;
   for (auto &SI : Cur->Succs)
     FoundPath |= computePath(SI.getSUnit(), Path, DestNodes, Exclude, Visited);
@@ -1743,7 +1751,6 @@ void SwingSchedulerDAG::checkNodeSets(NodeSetType &NodeSets) {
   }
   NodeSets.clear();
   LLVM_DEBUG(dbgs() << "Clear recurrence node-sets\n");
-  return;
 }
 
 /// Add the nodes that do not belong to a recurrence set into groups
@@ -1948,7 +1955,7 @@ void SwingSchedulerDAG::computeNodeOrder(NodeSetType &NodeSets) {
           for (const auto &I : maxHeight->Succs) {
             if (Nodes.count(I.getSUnit()) == 0)
               continue;
-            if (NodeOrder.count(I.getSUnit()) != 0)
+            if (NodeOrder.contains(I.getSUnit()))
               continue;
             if (ignoreDependence(I, false))
               continue;
@@ -1960,7 +1967,7 @@ void SwingSchedulerDAG::computeNodeOrder(NodeSetType &NodeSets) {
               continue;
             if (Nodes.count(I.getSUnit()) == 0)
               continue;
-            if (NodeOrder.count(I.getSUnit()) != 0)
+            if (NodeOrder.contains(I.getSUnit()))
               continue;
             R.insert(I.getSUnit());
           }
@@ -1999,7 +2006,7 @@ void SwingSchedulerDAG::computeNodeOrder(NodeSetType &NodeSets) {
           for (const auto &I : maxDepth->Preds) {
             if (Nodes.count(I.getSUnit()) == 0)
               continue;
-            if (NodeOrder.count(I.getSUnit()) != 0)
+            if (NodeOrder.contains(I.getSUnit()))
               continue;
             R.insert(I.getSUnit());
           }
@@ -2009,7 +2016,7 @@ void SwingSchedulerDAG::computeNodeOrder(NodeSetType &NodeSets) {
               continue;
             if (Nodes.count(I.getSUnit()) == 0)
               continue;
-            if (NodeOrder.count(I.getSUnit()) != 0)
+            if (NodeOrder.contains(I.getSUnit()))
               continue;
             R.insert(I.getSUnit());
           }
@@ -2945,7 +2952,7 @@ void SMSchedule::finalizeSchedule(SwingSchedulerDAG *SSD) {
     }
     // Replace the old order with the new order.
     cycleInstrs.swap(newOrderPhi);
-    cycleInstrs.insert(cycleInstrs.end(), newOrderI.begin(), newOrderI.end());
+    llvm::append_range(cycleInstrs, newOrderI);
     SSD->fixupRegisterOverlaps(cycleInstrs);
   }
 

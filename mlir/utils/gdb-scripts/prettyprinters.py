@@ -196,13 +196,15 @@ for name in [
     'DenseIntOrFPElementsAttr',
     'OpaqueElementsAttr',
     'SparseElementsAttr',
-    # mlir/IR/StandardTypes.h
+    # mlir/IR/BuiltinTypes.h
     'ComplexType',
     'IndexType',
     'IntegerType',
     'Float16Type',
     'Float32Type',
     'Float64Type',
+    'Float80Type',
+    'Float128Type',
     'NoneType',
     'VectorType',
     'RankedTensorType',

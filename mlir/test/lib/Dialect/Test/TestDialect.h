@@ -14,13 +14,14 @@
 #ifndef MLIR_TESTDIALECT_H
 #define MLIR_TESTDIALECT_H
 
+#include "TestInterfaces.h"
 #include "mlir/Dialect/Traits.h"
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
-#include "mlir/IR/Function.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/RegionKindInterface.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Interfaces/CallInterfaces.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
@@ -30,7 +31,7 @@
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 
 #include "TestOpEnums.h.inc"
-
+#include "TestOpInterfaces.h.inc"
 #include "TestOpStructs.h.inc"
 #include "TestOpsDialect.h.inc"
 
@@ -38,7 +39,9 @@
 #include "TestOps.h.inc"
 
 namespace mlir {
+namespace test {
 void registerTestDialect(DialectRegistry &registry);
-} // end namespace mlir
+} // namespace test
+} // namespace mlir
 
 #endif // MLIR_TESTDIALECT_H

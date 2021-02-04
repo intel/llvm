@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "include/math.h"
 #include "src/math/fabsf.h"
 #include "utils/FPUtil/FPBits.h"
 #include "utils/FPUtil/TestHelpers.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
 #include "utils/UnitTest/Test.h"
+#include <math.h>
 
 using FPBits = __llvm_libc::fputil::FPBits<float>;
 
@@ -19,8 +19,8 @@ DECLARE_SPECIAL_CONSTANTS(float)
 
 namespace mpfr = __llvm_libc::testing::mpfr;
 
-TEST(FabsfTest, SpecialNumbers) {
-  EXPECT_FP_EQ(nan, __llvm_libc::fabsf(nan));
+TEST(LlvmLibcFabsfTest, SpecialNumbers) {
+  EXPECT_FP_EQ(aNaN, __llvm_libc::fabsf(aNaN));
 
   EXPECT_FP_EQ(inf, __llvm_libc::fabsf(inf));
   EXPECT_FP_EQ(inf, __llvm_libc::fabsf(negInf));
@@ -29,7 +29,7 @@ TEST(FabsfTest, SpecialNumbers) {
   EXPECT_FP_EQ(zero, __llvm_libc::fabsf(negZero));
 }
 
-TEST(FabsfTest, InFloatRange) {
+TEST(LlvmLibcFabsfTest, InFloatRange) {
   using UIntType = FPBits::UIntType;
   constexpr UIntType count = 1000000;
   constexpr UIntType step = UIntType(-1) / count;

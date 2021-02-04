@@ -1,4 +1,6 @@
-// RUN: mlir-opt %s -std-bufferize -linalg-bufferize -func-bufferize -convert-linalg-to-loops -convert-linalg-to-llvm -convert-std-to-llvm | \
+// RUN: mlir-opt %s -tensor-constant-bufferize -std-bufferize -linalg-bufferize \
+// RUN: -tensor-bufferize -func-bufferize -finalizing-bufferize -convert-linalg-to-loops \
+// RUN: -convert-linalg-to-llvm -convert-std-to-llvm | \
 // RUN: mlir-cpu-runner -e main -entry-point-result=void \
 // RUN:   -shared-libs=%mlir_integration_test_dir/libmlir_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -17,7 +19,7 @@ func @main() {
   // Note that this is skipping a step and we would need at least some function
   // attribute to declare that this conversion is valid (e.g. when we statically
   // know that things will play nicely at the C ABI boundary).
-  %unranked = tensor_cast %0 : tensor<4xf32> to tensor<*xf32>
+  %unranked = tensor.cast %0 : tensor<4xf32> to tensor<*xf32>
   call @print_memref_f32(%unranked) : (tensor<*xf32>) -> ()
 
   //      CHECK: Unranked Memref base@ = {{0x[-9a-f]*}}
@@ -31,4 +33,4 @@ func @main() {
 // Note that this is skipping a step and we would need at least some function
 // attribute to declare that this conversion is valid (e.g. when we statically
 // know that things will play nicely at the C ABI boundary).
-func @print_memref_f32(%ptr : tensor<*xf32>)
+func private @print_memref_f32(%ptr : tensor<*xf32>)

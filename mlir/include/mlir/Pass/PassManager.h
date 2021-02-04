@@ -28,7 +28,6 @@ namespace mlir {
 class AnalysisManager;
 class Identifier;
 class MLIRContext;
-class ModuleOp;
 class Operation;
 class Pass;
 class PassInstrumentation;
@@ -36,6 +35,7 @@ class PassInstrumentor;
 
 namespace detail {
 struct OpPassManagerImpl;
+class OpToOpPassAdaptor;
 struct PassExecutionState;
 } // end namespace detail
 
@@ -49,8 +49,8 @@ struct PassExecutionState;
 class OpPassManager {
 public:
   enum class Nesting { Implicit, Explicit };
-  OpPassManager(Identifier name, Nesting nesting);
-  OpPassManager(StringRef name, Nesting nesting);
+  OpPassManager(Identifier name, Nesting nesting = Nesting::Explicit);
+  OpPassManager(StringRef name, Nesting nesting = Nesting::Explicit);
   OpPassManager(OpPassManager &&rhs);
   OpPassManager(const OpPassManager &rhs);
   ~OpPassManager();
@@ -105,7 +105,7 @@ public:
   /// of pipelines.
   /// Note: The quality of the string representation depends entirely on the
   /// the correctness of per-pass overrides of Pass::printAsTextualPipeline.
-  void printAsTextualPipeline(raw_ostream &os, bool filterVerifier = true);
+  void printAsTextualPipeline(raw_ostream &os);
 
   /// Raw dump of the pass manager to llvm::errs().
   void dump();
@@ -118,9 +118,25 @@ public:
   /// documentation for the same method on the Pass class.
   void getDependentDialects(DialectRegistry &dialects) const;
 
+  /// Enable or disable the implicit nesting on this particular PassManager.
+  /// This will also apply to any newly nested PassManager built from this
+  /// instance.
+  void setNesting(Nesting nesting);
+
+  /// Return the current nesting mode.
+  Nesting getNesting();
+
 private:
+  /// Initialize all of the passes within this pass manager with the given
+  /// initialization generation. The initialization generation is used to detect
+  /// if a pass manager has already been initialized.
+  void initialize(MLIRContext *context, unsigned newInitGeneration);
+
   /// A pointer to an internal implementation instance.
   std::unique_ptr<detail::OpPassManagerImpl> impl;
+
+  /// Allow access to initialize.
+  friend detail::OpToOpPassAdaptor;
 
   /// Allow access to the constructor.
   friend class PassManager;
@@ -150,12 +166,20 @@ enum class PassDisplayMode {
 /// The main pass manager and pipeline builder.
 class PassManager : public OpPassManager {
 public:
-  PassManager(MLIRContext *ctx, Nesting nesting = Nesting::Explicit);
+  /// Create a new pass manager under the given context with a specific nesting
+  /// style. The created pass manager can schedule operations that match
+  /// `operationName`.
+  PassManager(MLIRContext *ctx, Nesting nesting = Nesting::Explicit,
+              StringRef operationName = "module");
+  PassManager(MLIRContext *ctx, StringRef operationName)
+      : PassManager(ctx, Nesting::Explicit, operationName) {}
   ~PassManager();
 
-  /// Run the passes within this manager on the provided module.
+  /// Run the passes within this manager on the provided operation. The
+  /// specified operation must have the same name as the one provided the pass
+  /// manager on construction.
   LLVM_NODISCARD
-  LogicalResult run(ModuleOp module);
+  LogicalResult run(Operation *op);
 
   /// Return an instance of the context.
   MLIRContext *getContext() const { return context; }
@@ -166,6 +190,29 @@ public:
   /// manager will attempt to generate a local reproducer that contains the
   /// smallest pipeline.
   void enableCrashReproducerGeneration(StringRef outputFile,
+                                       bool genLocalReproducer = false);
+
+  /// Streams on which to output crash reproducer.
+  struct ReproducerStream {
+    virtual ~ReproducerStream() = default;
+
+    /// Description of the reproducer stream.
+    virtual StringRef description() = 0;
+
+    /// Stream on which to output reproducer.
+    virtual raw_ostream &os() = 0;
+  };
+
+  /// Method type for constructing ReproducerStream.
+  using ReproducerStreamFactory =
+      std::function<std::unique_ptr<ReproducerStream>(std::string &error)>;
+
+  /// Enable support for the pass manager to generate a reproducer on the event
+  /// of a crash or a pass failure. `factory` is used to construct the streams
+  /// to write the generated reproducer to. If `genLocalReproducer` is true, the
+  /// pass manager will attempt to generate a local reproducer that contains the
+  /// smallest pipeline.
+  void enableCrashReproducerGeneration(ReproducerStreamFactory factory,
                                        bool genLocalReproducer = false);
 
   /// Runs the verifier after each individual pass.
@@ -310,11 +357,11 @@ private:
   void dumpStatistics();
 
   /// Run the pass manager with crash recover enabled.
-  LogicalResult runWithCrashRecovery(ModuleOp module, AnalysisManager am);
+  LogicalResult runWithCrashRecovery(Operation *op, AnalysisManager am);
   /// Run the given passes with crash recover enabled.
   LogicalResult
   runWithCrashRecovery(MutableArrayRef<std::unique_ptr<Pass>> passes,
-                       ModuleOp module, AnalysisManager am);
+                       Operation *op, AnalysisManager am);
 
   /// Context this PassManager was initialized with.
   MLIRContext *context;
@@ -325,8 +372,8 @@ private:
   /// A manager for pass instrumentations.
   std::unique_ptr<PassInstrumentor> instrumentor;
 
-  /// An optional filename to use when generating a crash reproducer if valid.
-  Optional<std::string> crashReproducerFileName;
+  /// An optional factory to use when generating a crash reproducer if valid.
+  ReproducerStreamFactory crashReproducerStreamFactory;
 
   /// Flag that specifies if pass timing is enabled.
   bool passTiming : 1;

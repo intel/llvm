@@ -1,6 +1,9 @@
 add_subdirectory(Affine)
+add_subdirectory(ArmNeon)
+add_subdirectory(ArmSVE)
 add_subdirectory(Async)
 add_subdirectory(AVX512)
+add_subdirectory(Complex)
 add_subdirectory(GPU)
 add_subdirectory(Linalg)
 add_subdirectory(LLVMIR)
@@ -14,6 +17,8 @@ add_subdirectory(SDBM)
 add_subdirectory(Shape)
 add_subdirectory(SPIRV)
 add_subdirectory(StandardOps)
+add_subdirectory(Tensor)
+add_subdirectory(Tosa)
 add_subdirectory(Vector)
 
 set(LLVM_OPTIONAL_SOURCES

@@ -125,7 +125,8 @@ Intrinsic::ID llvm::getVectorIntrinsicIDForCall(const CallInst *CI,
 
   if (isTriviallyVectorizable(ID) || ID == Intrinsic::lifetime_start ||
       ID == Intrinsic::lifetime_end || ID == Intrinsic::assume ||
-      ID == Intrinsic::sideeffect)
+      ID == Intrinsic::experimental_noalias_scope_decl ||
+      ID == Intrinsic::sideeffect || ID == Intrinsic::pseudoprobe)
     return ID;
   return Intrinsic::not_intrinsic;
 }
@@ -289,6 +290,10 @@ Value *llvm::findScalarElement(Value *V, unsigned EltNo) {
     // inserted value.
     if (EltNo == IIElt)
       return III->getOperand(1);
+
+    // Guard against infinite loop on malformed, unreachable IR.
+    if (III == III->getOperand(0))
+      return nullptr;
 
     // Otherwise, the insertelement doesn't modify the value, recurse on its
     // vector input.
@@ -825,8 +830,7 @@ static Value *concatenateTwoVectors(IRBuilderBase &Builder, Value *V1,
   if (NumElts1 > NumElts2) {
     // Extend with UNDEFs.
     V2 = Builder.CreateShuffleVector(
-        V2, UndefValue::get(VecTy2),
-        createSequentialMask(0, NumElts2, NumElts1 - NumElts2));
+        V2, createSequentialMask(0, NumElts2, NumElts1 - NumElts2));
   }
 
   return Builder.CreateShuffleVector(

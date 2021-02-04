@@ -1,3 +1,5 @@
+add_llvm_component_group(AMDGPU)
+
 set(LLVM_TARGET_DEFINITIONS AMDGPU.td)
 
 tablegen(LLVM AMDGPUGenAsmMatcher.inc -gen-asm-matcher)
@@ -70,6 +72,7 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUMachineModuleInfo.cpp
   AMDGPUMacroFusion.cpp
   AMDGPUMCInstLower.cpp
+  AMDGPUMIRFormatter.cpp
   AMDGPUOpenCLEnqueuedBlockLowering.cpp
   AMDGPUPostLegalizerCombiner.cpp
   AMDGPUPreLegalizerCombiner.cpp
@@ -84,7 +87,6 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUTargetTransformInfo.cpp
   AMDGPUUnifyDivergentExitNodes.cpp
   AMDGPUUnifyMetadata.cpp
-  AMDGPUInline.cpp
   AMDGPUPerfHintAnalysis.cpp
   AMDILCFGStructurizer.cpp
   AMDGPUPrintfRuntimeBinding.cpp
@@ -142,6 +144,30 @@ add_llvm_target(AMDGPUCodeGen
   GCNNSAReassign.cpp
   GCNDPPCombine.cpp
   SIModeRegister.cpp
+
+  LINK_COMPONENTS
+  Analysis
+  AsmPrinter
+  CodeGen
+  Core
+  IPO
+  MC
+  Passes
+  AMDGPUDesc
+  AMDGPUInfo
+  AMDGPUUtils
+  Scalar
+  SelectionDAG
+  Support
+  Target
+  TransformUtils
+  Vectorize
+  GlobalISel
+  BinaryFormat
+  MIRParser
+
+  ADD_TO_COMPONENT
+  AMDGPU
   )
 
 add_subdirectory(AsmParser)

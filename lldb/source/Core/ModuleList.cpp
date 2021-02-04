@@ -82,8 +82,9 @@ ModuleListProperties::ModuleListProperties() {
                                            [this] { UpdateSymlinkMappings(); });
 
   llvm::SmallString<128> path;
-  clang::driver::Driver::getDefaultModuleCachePath(path);
-  SetClangModulesCachePath(path);
+  if (clang::driver::Driver::getDefaultModuleCachePath(path)) {
+    lldbassert(SetClangModulesCachePath(FileSpec(path)));
+  }
 }
 
 bool ModuleListProperties::GetEnableExternalLookup() const {
@@ -104,8 +105,8 @@ FileSpec ModuleListProperties::GetClangModulesCachePath() const {
       ->GetCurrentValue();
 }
 
-bool ModuleListProperties::SetClangModulesCachePath(llvm::StringRef path) {
-  return m_collection_sp->SetPropertyAtIndexAsString(
+bool ModuleListProperties::SetClangModulesCachePath(const FileSpec &path) {
+  return m_collection_sp->SetPropertyAtIndexAsFileSpec(
       nullptr, ePropertyClangModulesCachePath, path);
 }
 
@@ -345,10 +346,6 @@ void ModuleList::ClearImpl(bool use_notifier) {
 
 Module *ModuleList::GetModulePointerAtIndex(size_t idx) const {
   std::lock_guard<std::recursive_mutex> guard(m_modules_mutex);
-  return GetModulePointerAtIndexUnlocked(idx);
-}
-
-Module *ModuleList::GetModulePointerAtIndexUnlocked(size_t idx) const {
   if (idx < m_modules.size())
     return m_modules[idx].get();
   return nullptr;

@@ -576,9 +576,10 @@ void FrameTypeBuilder::addFieldForAllocas(const Function &F,
         StackLifetimeAnalyzer.getLiveRange(AI2));
   };
   auto GetAllocaSize = [&](const AllocaInfo &A) {
-    Optional<uint64_t> RetSize = A.Alloca->getAllocationSizeInBits(DL);
-    assert(RetSize && "We can't handle scalable type now.\n");
-    return RetSize.getValue();
+    Optional<TypeSize> RetSize = A.Alloca->getAllocationSizeInBits(DL);
+    assert(RetSize && "Variable Length Arrays (VLA) are not supported.\n");
+    assert(!RetSize->isScalable() && "Scalable vectors are not yet supported");
+    return RetSize->getFixedSize();
   };
   // Put larger allocas in the front. So the larger allocas have higher
   // priority to merge, which can save more space potentially. Also each
@@ -595,9 +596,21 @@ void FrameTypeBuilder::addFieldForAllocas(const Function &F,
     // NonOverlappedAllocaSet.
     for (auto &AllocaSet : NonOverlapedAllocas) {
       assert(!AllocaSet.empty() && "Processing Alloca Set is not empty.\n");
-      bool CouldMerge = none_of(AllocaSet, [&](auto Iter) {
+      bool NoInference = none_of(AllocaSet, [&](auto Iter) {
         return IsAllocaInferenre(Alloca, Iter);
       });
+      // If the alignment of A is multiple of the alignment of B, the address
+      // of A should satisfy the requirement for aligning for B.
+      //
+      // There may be other more fine-grained strategies to handle the alignment
+      // infomation during the merging process. But it seems hard to handle
+      // these strategies and benefit little.
+      bool Alignable = [&]() -> bool {
+        auto *LargestAlloca = *AllocaSet.begin();
+        return LargestAlloca->getAlign().value() % Alloca->getAlign().value() ==
+               0;
+      }();
+      bool CouldMerge = NoInference && Alignable;
       if (!CouldMerge)
         continue;
       AllocaIndex[Alloca] = AllocaIndex[*AllocaSet.begin()];
@@ -757,6 +770,15 @@ static StructType *buildFrameType(Function &F, coro::Shape &Shape,
   // Because multiple allocas may own the same field slot,
   // we add allocas to field here.
   B.addFieldForAllocas(F, FrameData, Shape);
+  // Add PromiseAlloca to Allocas list so that
+  // 1. updateLayoutIndex could update its index after
+  // `performOptimizedStructLayout`
+  // 2. it is processed in insertSpills.
+  if (Shape.ABI == coro::ABI::Switch && PromiseAlloca)
+    // We assume that the promise alloca won't be modified before
+    // CoroBegin and no alias will be create before CoroBegin.
+    FrameData.Allocas.emplace_back(
+        PromiseAlloca, DenseMap<Instruction *, llvm::Optional<APInt>>{}, false);
   // Create an entry for every spilled value.
   for (auto &S : FrameData.Spills) {
     FieldIDType Id = B.addField(S.first->getType(), None);
@@ -791,8 +813,11 @@ static StructType *buildFrameType(Function &F, coro::Shape &Shape,
   case coro::ABI::Async: {
     Shape.AsyncLowering.FrameOffset =
         alignTo(Shape.AsyncLowering.ContextHeaderSize, Shape.FrameAlign);
+    // Also make the final context size a multiple of the context alignment to
+    // make allocation easier for allocators.
     Shape.AsyncLowering.ContextSize =
-        Shape.AsyncLowering.FrameOffset + Shape.FrameSize;
+        alignTo(Shape.AsyncLowering.FrameOffset + Shape.FrameSize,
+                Shape.AsyncLowering.getContextAlignment());
     if (Shape.AsyncLowering.getContextAlignment() < Shape.FrameAlign) {
       report_fatal_error(
           "The alignment requirment of frame variables cannot be higher than "
@@ -861,12 +886,66 @@ struct AllocaUseVisitor : PtrUseVisitor<AllocaUseVisitor> {
   }
 
   void visitStoreInst(StoreInst &SI) {
-    // Base visit function will handle escape setting.
-    Base::visitStoreInst(SI);
-
     // Regardless whether the alias of the alloca is the value operand or the
     // pointer operand, we need to assume the alloca is been written.
     handleMayWrite(SI);
+
+    if (SI.getValueOperand() != U->get())
+      return;
+
+    // We are storing the pointer into a memory location, potentially escaping.
+    // As an optimization, we try to detect simple cases where it doesn't
+    // actually escape, for example:
+    //   %ptr = alloca ..
+    //   %addr = alloca ..
+    //   store %ptr, %addr
+    //   %x = load %addr
+    //   ..
+    // If %addr is only used by loading from it, we could simply treat %x as
+    // another alias of %ptr, and not considering %ptr being escaped.
+    auto IsSimpleStoreThenLoad = [&]() {
+      auto *AI = dyn_cast<AllocaInst>(SI.getPointerOperand());
+      // If the memory location we are storing to is not an alloca, it
+      // could be an alias of some other memory locations, which is difficult
+      // to analyze.
+      if (!AI)
+        return false;
+      // StoreAliases contains aliases of the memory location stored into.
+      SmallVector<Instruction *, 4> StoreAliases = {AI};
+      while (!StoreAliases.empty()) {
+        Instruction *I = StoreAliases.back();
+        StoreAliases.pop_back();
+        for (User *U : I->users()) {
+          // If we are loading from the memory location, we are creating an
+          // alias of the original pointer.
+          if (auto *LI = dyn_cast<LoadInst>(U)) {
+            enqueueUsers(*LI);
+            handleAlias(*LI);
+            continue;
+          }
+          // If we are overriding the memory location, the pointer certainly
+          // won't escape.
+          if (auto *S = dyn_cast<StoreInst>(U))
+            if (S->getPointerOperand() == I)
+              continue;
+          if (auto *II = dyn_cast<IntrinsicInst>(U))
+            if (II->isLifetimeStartOrEnd())
+              continue;
+          // BitCastInst creats aliases of the memory location being stored
+          // into.
+          if (auto *BI = dyn_cast<BitCastInst>(U)) {
+            StoreAliases.push_back(BI);
+            continue;
+          }
+          return false;
+        }
+      }
+
+      return true;
+    };
+
+    if (!IsSimpleStoreThenLoad())
+      PI.setEscaped(&SI);
   }
 
   // All mem intrinsics modify the data.
@@ -1053,7 +1132,11 @@ static Instruction *insertSpills(const FrameDataInfo &FrameData,
     if (isa<AllocaInst>(Orig)) {
       // If the type of GEP is not equal to the type of AllocaInst, it implies
       // that the AllocaInst may be reused in the Frame slot of other
-      // AllocaInst. So we cast the GEP to the type of AllocaInst.
+      // AllocaInst. So We cast GEP to the AllocaInst here to re-use
+      // the Frame storage.
+      //
+      // Note: If we change the strategy dealing with alignment, we need to refine
+      // this casting.
       if (GEP->getResultElementType() != Orig->getType())
         return Builder.CreateBitCast(GEP, Orig->getType(),
                                      Orig->getName() + Twine(".cast"));
@@ -1191,19 +1274,53 @@ static Instruction *insertSpills(const FrameDataInfo &FrameData,
       continue;
     auto *G = GetFramePointer(Alloca);
     G->setName(Alloca->getName() + Twine(".reload.addr"));
+
+    SmallPtrSet<BasicBlock *, 4> SeenDbgBBs;
     TinyPtrVector<DbgDeclareInst *> DIs = FindDbgDeclareUses(Alloca);
-    if (!DIs.empty())
-      DIBuilder(*Alloca->getModule(),
-                /*AllowUnresolved*/ false)
-          .insertDeclare(G, DIs.front()->getVariable(),
-                         DIs.front()->getExpression(),
-                         DIs.front()->getDebugLoc(), DIs.front());
+    DIBuilder DIB(*Alloca->getModule(), /*AllowUnresolved*/ false);
+    Instruction *FirstDbgDecl = nullptr;
+
+    if (!DIs.empty()) {
+      FirstDbgDecl = DIB.insertDeclare(G, DIs.front()->getVariable(),
+                                       DIs.front()->getExpression(),
+                                       DIs.front()->getDebugLoc(), DIs.front());
+      SeenDbgBBs.insert(DIs.front()->getParent());
+    }
     for (auto *DI : FindDbgDeclareUses(Alloca))
       DI->eraseFromParent();
     replaceDbgUsesWithUndef(Alloca);
 
-    for (Instruction *I : UsersToUpdate)
+    for (Instruction *I : UsersToUpdate) {
       I->replaceUsesOfWith(Alloca, G);
+
+      // After cloning, transformations might not guarantee that all uses
+      // of this alloca are dominated by the already existing dbg.declare's,
+      // compromising the debug quality. Instead of writing another
+      // transformation to patch each clone, go ahead and early populate
+      // basic blocks that use such allocas with more debug info.
+      if (SeenDbgBBs.count(I->getParent()))
+        continue;
+
+      // If there isn't a prior dbg.declare for this alloca, it probably
+      // means the state hasn't changed prior to one of the relevant suspend
+      // point for this frame access.
+      if (!FirstDbgDecl)
+        continue;
+
+      // These instructions are all dominated by the alloca, insert the
+      // dbg.value in the beginning of the BB to enhance debugging
+      // experience and allow values to be inspected as early as possible.
+      // Prefer dbg.value over dbg.declare since it better sets expectations
+      // that control flow can be later changed by other passes.
+      auto *DI = cast<DbgDeclareInst>(FirstDbgDecl);
+      BasicBlock *CurrentBlock = I->getParent();
+      auto *DerefExpr =
+          DIExpression::append(DI->getExpression(), dwarf::DW_OP_deref);
+      DIB.insertDbgValueIntrinsic(G, DI->getVariable(), DerefExpr,
+                                  DI->getDebugLoc(),
+                                  &*CurrentBlock->getFirstInsertionPt());
+      SeenDbgBBs.insert(CurrentBlock);
+    }
   }
   Builder.SetInsertPoint(FramePtr->getNextNode());
   for (const auto &A : FrameData.Allocas) {
@@ -1378,8 +1495,7 @@ static void rewritePHIsForCleanupPad(BasicBlock *CleanupPadBB,
                                                 pred_size(CleanupPadBB));
 
   int SwitchIndex = 0;
-  SmallVector<BasicBlock *, 8> Preds(pred_begin(CleanupPadBB),
-                                     pred_end(CleanupPadBB));
+  SmallVector<BasicBlock *, 8> Preds(predecessors(CleanupPadBB));
   for (BasicBlock *Pred : Preds) {
     // Create a new cleanuppad and move the PHI values to there.
     auto *CaseBB = BasicBlock::Create(CleanupPadBB->getContext(),
@@ -1430,13 +1546,15 @@ static void rewritePHIs(BasicBlock &BB) {
   // so we need to create an additional "dispatcher" block.
   if (auto *CleanupPad =
           dyn_cast_or_null<CleanupPadInst>(BB.getFirstNonPHI())) {
-    SmallVector<BasicBlock *, 8> Preds(pred_begin(&BB), pred_end(&BB));
+    SmallVector<BasicBlock *, 8> Preds(predecessors(&BB));
     for (BasicBlock *Pred : Preds) {
       if (CatchSwitchInst *CS =
               dyn_cast<CatchSwitchInst>(Pred->getTerminator())) {
+        (void)CS;
         // CleanupPad with a CatchSwitch predecessor: therefore this is an
         // unwind destination that needs to be handle specially.
         assert(CS->getUnwindDest() == &BB);
+        (void)CS;
         rewritePHIsForCleanupPad(&BB, CleanupPad);
         return;
       }
@@ -1456,7 +1574,7 @@ static void rewritePHIs(BasicBlock &BB) {
     // ehAwareSplitEdge cloned it in the transition blocks.
   }
 
-  SmallVector<BasicBlock *, 8> Preds(pred_begin(&BB), pred_end(&BB));
+  SmallVector<BasicBlock *, 8> Preds(predecessors(&BB));
   for (BasicBlock *Pred : Preds) {
     auto *IncomingBB = ehAwareSplitEdge(Pred, &BB, LandingPad, ReplPHI);
     IncomingBB->setName(BB.getName() + Twine(".from.") + Pred->getName());
@@ -1879,8 +1997,7 @@ static void sinkSpillUsesAfterCoroBegin(Function &F,
     for (User *U : Def->users()) {
       auto Inst = cast<Instruction>(U);
       if (Inst->getParent() != CoroBegin->getParent() ||
-          Dom.dominates(CoroBegin, Inst) ||
-          isa<CoroIdAsyncInst>(Inst) /*'fake' use of async context argument*/)
+          Dom.dominates(CoroBegin, Inst))
         continue;
       if (ToMove.insert(Inst))
         Worklist.push_back(Inst);
@@ -1901,17 +2018,14 @@ static void sinkSpillUsesAfterCoroBegin(Function &F,
 
   // Sort by dominance.
   SmallVector<Instruction *, 64> InsertionList(ToMove.begin(), ToMove.end());
-  std::sort(InsertionList.begin(), InsertionList.end(),
-            [&Dom](Instruction *A, Instruction *B) -> bool {
-              // If a dominates b it should preceed (<) b.
-              return Dom.dominates(A, B);
-            });
+  llvm::sort(InsertionList, [&Dom](Instruction *A, Instruction *B) -> bool {
+    // If a dominates b it should preceed (<) b.
+    return Dom.dominates(A, B);
+  });
 
   Instruction *InsertPt = CoroBegin->getNextNode();
   for (Instruction *Inst : InsertionList)
     Inst->moveBefore(InsertPt);
-
-  return;
 }
 
 /// For each local variable that all of its user are only used inside one of
@@ -2079,8 +2193,25 @@ void coro::buildCoroutineFrame(Function &F, Shape &Shape) {
   }
 
   // Put CoroEnds into their own blocks.
-  for (CoroEndInst *CE : Shape.CoroEnds)
+  for (AnyCoroEndInst *CE : Shape.CoroEnds) {
     splitAround(CE, "CoroEnd");
+
+    // Emit the musttail call function in a new block before the CoroEnd.
+    // We do this here so that the right suspend crossing info is computed for
+    // the uses of the musttail call function call. (Arguments to the coro.end
+    // instructions would be ignored)
+    if (auto *AsyncEnd = dyn_cast<CoroAsyncEndInst>(CE)) {
+      auto *MustTailCallFn = AsyncEnd->getMustTailCallFunction();
+      if (!MustTailCallFn)
+        continue;
+      IRBuilder<> Builder(AsyncEnd);
+      SmallVector<Value *, 8> Args(AsyncEnd->args());
+      auto Arguments = ArrayRef<Value *>(Args).drop_front(3);
+      auto *Call = createMustTailCall(AsyncEnd->getDebugLoc(), MustTailCallFn,
+                                      Arguments, Builder);
+      splitAround(Call, "MustTailCall.Before.CoroEnd");
+    }
+  }
 
   // Transforms multi-edge PHI Nodes, so that any value feeding into a PHI will
   // never has its definition separated from the PHI by the suspend point.
@@ -2180,13 +2311,6 @@ void coro::buildCoroutineFrame(Function &F, Shape &Shape) {
       Shape.ABI == coro::ABI::Async)
     sinkSpillUsesAfterCoroBegin(F, FrameData, Shape.CoroBegin);
   Shape.FrameTy = buildFrameType(F, Shape, FrameData);
-  // Add PromiseAlloca to Allocas list so that it is processed in insertSpills.
-  if (Shape.ABI == coro::ABI::Switch && Shape.SwitchLowering.PromiseAlloca)
-    // We assume that the promise alloca won't be modified before
-    // CoroBegin and no alias will be create before CoroBegin.
-    FrameData.Allocas.emplace_back(
-        Shape.SwitchLowering.PromiseAlloca,
-        DenseMap<Instruction *, llvm::Optional<APInt>>{}, false);
   Shape.FramePtr = insertSpills(FrameData, Shape);
   lowerLocalAllocas(LocalAllocas, DeadInstructions);
 

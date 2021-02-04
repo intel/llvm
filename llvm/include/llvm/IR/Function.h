@@ -268,6 +268,12 @@ public:
         getContext(), AttributeList::FunctionIndex, Kind));
   }
 
+  /// A function will have the "coroutine.presplit" attribute if it's
+  /// a coroutine and has not gone through full CoroSplit pass.
+  bool isPresplitCoroutine() const {
+    return hasFnAttribute("coroutine.presplit");
+  }
+
   enum ProfileCountType { PCT_Invalid, PCT_Real, PCT_Synthetic };
 
   /// Class to represent profile counts.
@@ -381,6 +387,9 @@ public:
   void setGC(std::string Str);
   void clearGC();
 
+  /// Returns true if the function has ssp, sspstrong, or sspreq fn attrs.
+  bool hasStackProtectorFnAttr() const;
+
   /// adds the attribute to the list of attributes.
   void addAttribute(unsigned i, Attribute::AttrKind Kind);
 
@@ -472,14 +481,12 @@ public:
 
   /// Extract the byval type for a parameter.
   Type *getParamByValType(unsigned ArgNo) const {
-    Type *Ty = AttributeSets.getParamByValType(ArgNo);
-    return Ty ? Ty : (arg_begin() + ArgNo)->getType()->getPointerElementType();
+    return AttributeSets.getParamByValType(ArgNo);
   }
 
   /// Extract the sret type for a parameter.
   Type *getParamStructRetType(unsigned ArgNo) const {
-    Type *Ty = AttributeSets.getParamStructRetType(ArgNo);
-    return Ty ? Ty : (arg_begin() + ArgNo)->getType()->getPointerElementType();
+    return AttributeSets.getParamStructRetType(ArgNo);
   }
 
   /// Extract the byref type for a parameter.
@@ -632,6 +639,10 @@ public:
            hasFnAttribute(Attribute::WillReturn);
   }
   void setMustProgress() { addFnAttr(Attribute::MustProgress); }
+
+  /// Determine if the function will return.
+  bool willReturn() const { return hasFnAttribute(Attribute::WillReturn); }
+  void setWillReturn() { addFnAttr(Attribute::WillReturn); }
 
   /// True if the ABI mandates (or the user requested) that this
   /// function be in a unwind table.

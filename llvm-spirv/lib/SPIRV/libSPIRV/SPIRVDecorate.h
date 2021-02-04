@@ -81,7 +81,16 @@ public:
   void setOwner(SPIRVDecorationGroup *Owner) { this->Owner = Owner; }
 
   SPIRVCapVec getRequiredCapability() const override {
-    return getCapability(Dec);
+    switch (Dec) {
+    case DecorationBuiltIn: {
+      // Return the BuiltIn's capabilities.
+      BuiltIn BI = static_cast<BuiltIn>(Literals.back());
+      return getCapability(BI);
+    }
+
+    default:
+      return getCapability(Dec);
+    }
   }
 
   SPIRVWord getRequiredSPIRVVersion() const override {
@@ -177,6 +186,10 @@ public:
     case DecorationFunctionRoundingModeINTEL:
     case DecorationFunctionDenormModeINTEL:
       return ExtensionID::SPV_INTEL_float_controls2;
+    case DecorationStallEnableINTEL:
+      return ExtensionID::SPV_INTEL_fpga_cluster_attributes;
+    case DecorationFuseLoopsInFunctionINTEL:
+      return ExtensionID::SPV_INTEL_loop_fuse;
     default:
       return {};
     }
@@ -608,6 +621,22 @@ public:
   spv::FPOperationMode getOperationMode() const {
     return static_cast<spv::FPOperationMode>(Literals.at(1));
   };
+};
+
+class SPIRVDecorateStallEnableINTEL : public SPIRVDecorate {
+public:
+  // Complete constructor for SPIRVDecorateStallEnableINTEL
+  SPIRVDecorateStallEnableINTEL(SPIRVEntry *TheTarget)
+      : SPIRVDecorate(spv::DecorationStallEnableINTEL, TheTarget){};
+};
+
+class SPIRVDecorateFuseLoopsInFunctionINTEL : public SPIRVDecorate {
+public:
+  // Complete constructor for SPIRVDecorateFuseLoopsInFunctionINTEL
+  SPIRVDecorateFuseLoopsInFunctionINTEL(SPIRVEntry *TheTarget, SPIRVWord Depth,
+                                        SPIRVWord Independent)
+      : SPIRVDecorate(spv::DecorationFuseLoopsInFunctionINTEL, TheTarget, Depth,
+                      Independent){};
 };
 
 } // namespace SPIRV

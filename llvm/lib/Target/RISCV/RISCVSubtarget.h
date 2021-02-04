@@ -13,10 +13,10 @@
 #ifndef LLVM_LIB_TARGET_RISCV_RISCVSUBTARGET_H
 #define LLVM_LIB_TARGET_RISCV_RISCVSUBTARGET_H
 
+#include "MCTargetDesc/RISCVBaseInfo.h"
 #include "RISCVFrameLowering.h"
 #include "RISCVISelLowering.h"
 #include "RISCVInstrInfo.h"
-#include "Utils/RISCVBaseInfo.h"
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
@@ -53,6 +53,7 @@ class RISCVSubtarget : public RISCVGenSubtargetInfo {
   bool HasStdExtV = false;
   bool HasStdExtZvlsseg = false;
   bool HasStdExtZvamo = false;
+  bool HasStdExtZfh = false;
   bool HasRV64 = false;
   bool IsRV32E = false;
   bool EnableLinkerRelax = false;
@@ -118,6 +119,7 @@ public:
   bool hasStdExtV() const { return HasStdExtV; }
   bool hasStdExtZvlsseg() const { return HasStdExtZvlsseg; }
   bool hasStdExtZvamo() const { return HasStdExtZvamo; }
+  bool hasStdExtZfh() const { return HasStdExtZfh; }
   bool is64Bit() const { return HasRV64; }
   bool isRV32E() const { return IsRV32E; }
   bool enableLinkerRelax() const { return EnableLinkerRelax; }

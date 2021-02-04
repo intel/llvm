@@ -505,8 +505,6 @@ namespace llvm {
     VBROADCAST,
     // Broadcast mask to vector.
     VBROADCASTM,
-    // Broadcast subvector to vector.
-    SUBV_BROADCAST,
 
     /// SSE4A Extraction and Insertion.
     EXTRQI,
@@ -776,8 +774,11 @@ namespace llvm {
     // extract_vector_elt, store.
     VEXTRACT_STORE,
 
-    // scalar broadcast from memory
+    // scalar broadcast from memory.
     VBROADCAST_LOAD,
+
+    // subvector broadcast from memory.
+    SUBV_BROADCAST_LOAD,
 
     // Store FP control world into i16 memory.
     FNSTCW16m,
@@ -814,9 +815,10 @@ namespace llvm {
     /// specifies the type to store as.
     FST,
 
-    /// This instruction grabs the address of the next argument
+    /// These instructions grab the address of the next argument
     /// from a va_list. (reads and modifies the va_list in memory)
     VAARG_64,
+    VAARG_X32,
 
     // Vector truncating store with unsigned/signed saturation
     VTRUNCSTOREUS,
@@ -853,7 +855,7 @@ namespace llvm {
     /// Returns true of the given offset can be
     /// fit into displacement field of the instruction.
     bool isOffsetSuitableForCodeModel(int64_t Offset, CodeModel::Model M,
-                                      bool hasSymbolicDisplacement = true);
+                                      bool hasSymbolicDisplacement);
 
     /// Determines whether the callee is required to pop its
     /// own arguments. Callee pop is necessary to support tail calls.
@@ -924,14 +926,6 @@ namespace llvm {
     /// Provide custom lowering hooks for some operations.
     ///
     SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
-
-    /// Places new result values for the node in Results (their number
-    /// and types must exactly match those of the original return values of
-    /// the node), or leaves Results empty, which indicates that the node is not
-    /// to be custom lowered after all.
-    void LowerOperationWrapper(SDNode *N,
-                               SmallVectorImpl<SDValue> &Results,
-                               SelectionDAG &DAG) const override;
 
     /// Replace the results of node with an illegal result
     /// type with new values built out of custom code.
@@ -1414,6 +1408,8 @@ namespace llvm {
                                    SDValue Addr, SelectionDAG &DAG)
                                    const override;
 
+    Align getPrefLoopAlignment(MachineLoop *ML) const override;
+
   protected:
     std::pair<const TargetRegisterClass *, uint8_t>
     findRepresentativeClass(const TargetRegisterInfo *TRI,
@@ -1505,6 +1501,7 @@ namespace llvm {
     SDValue LowerUINT_TO_FP(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerTRUNCATE(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerFP_TO_INT(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerFP_TO_INT_SAT(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerLRINT_LLRINT(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSETCCCARRY(SDValue Op, SelectionDAG &DAG) const;
@@ -1530,9 +1527,6 @@ namespace llvm {
     SDValue lowerFaddFsub(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerFP_EXTEND(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerFP_ROUND(SDValue Op, SelectionDAG &DAG) const;
-
-    SDValue LowerF128Call(SDValue Op, SelectionDAG &DAG,
-                          RTLIB::Libcall Call) const;
 
     SDValue
     LowerFormalArguments(SDValue Chain, CallingConv::ID CallConv, bool isVarArg,
@@ -1589,8 +1583,7 @@ namespace llvm {
 
     // Utility function to emit the low-level va_arg code for X86-64.
     MachineBasicBlock *
-    EmitVAARG64WithCustomInserter(MachineInstr &MI,
-                                  MachineBasicBlock *MBB) const;
+    EmitVAARGWithCustomInserter(MachineInstr &MI, MachineBasicBlock *MBB) const;
 
     /// Utility function to emit the xmm reg save portion of va_start.
     MachineBasicBlock *
@@ -1706,7 +1699,7 @@ namespace llvm {
   };
 
   /// Generate unpacklo/unpackhi shuffle mask.
-  void createUnpackShuffleMask(MVT VT, SmallVectorImpl<int> &Mask, bool Lo,
+  void createUnpackShuffleMask(EVT VT, SmallVectorImpl<int> &Mask, bool Lo,
                                bool Unary);
 
   /// Similar to unpacklo/unpackhi, but without the 128-bit lane limitation

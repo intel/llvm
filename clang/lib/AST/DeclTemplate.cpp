@@ -102,24 +102,10 @@ unsigned TemplateParameterList::getMinRequiredArguments() const {
   unsigned NumRequiredArgs = 0;
   for (const NamedDecl *P : asArray()) {
     if (P->isTemplateParameterPack()) {
-      if (const auto *NTTP = dyn_cast<NonTypeTemplateParmDecl>(P)) {
-        if (NTTP->isExpandedParameterPack()) {
-          NumRequiredArgs += NTTP->getNumExpansionTypes();
-          continue;
-        }
-      } else if (const auto *TTP = dyn_cast<TemplateTypeParmDecl>(P)) {
-        if (TTP->isExpandedParameterPack()) {
-          NumRequiredArgs += TTP->getNumExpansionParameters();
-          continue;
-        }
-      } else {
-        const auto *TP = cast<TemplateTemplateParmDecl>(P);
-        if (TP->isExpandedParameterPack()) {
-          NumRequiredArgs += TP->getNumExpansionTemplateParameters();
-          continue;
-        }
+      if (Optional<unsigned> Expansions = getExpandedPackSize(P)) {
+        NumRequiredArgs += *Expansions;
+        continue;
       }
-
       break;
     }
 
@@ -914,10 +900,14 @@ void ClassTemplateSpecializationDecl::getNameForDiagnostic(
   const auto *PS = dyn_cast<ClassTemplatePartialSpecializationDecl>(this);
   if (const ASTTemplateArgumentListInfo *ArgsAsWritten =
           PS ? PS->getTemplateArgsAsWritten() : nullptr) {
-    printTemplateArgumentList(OS, ArgsAsWritten->arguments(), Policy);
+    printTemplateArgumentList(
+        OS, ArgsAsWritten->arguments(), Policy,
+        getSpecializedTemplate()->getTemplateParameters());
   } else {
     const TemplateArgumentList &TemplateArgs = getTemplateArgs();
-    printTemplateArgumentList(OS, TemplateArgs.asArray(), Policy);
+    printTemplateArgumentList(
+        OS, TemplateArgs.asArray(), Policy,
+        getSpecializedTemplate()->getTemplateParameters());
   }
 }
 
@@ -1261,10 +1251,14 @@ void VarTemplateSpecializationDecl::getNameForDiagnostic(
   const auto *PS = dyn_cast<VarTemplatePartialSpecializationDecl>(this);
   if (const ASTTemplateArgumentListInfo *ArgsAsWritten =
           PS ? PS->getTemplateArgsAsWritten() : nullptr) {
-    printTemplateArgumentList(OS, ArgsAsWritten->arguments(), Policy);
+    printTemplateArgumentList(
+        OS, ArgsAsWritten->arguments(), Policy,
+        getSpecializedTemplate()->getTemplateParameters());
   } else {
     const TemplateArgumentList &TemplateArgs = getTemplateArgs();
-    printTemplateArgumentList(OS, TemplateArgs.asArray(), Policy);
+    printTemplateArgumentList(
+        OS, TemplateArgs.asArray(), Policy,
+        getSpecializedTemplate()->getTemplateParameters());
   }
 }
 

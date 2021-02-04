@@ -371,6 +371,8 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "noalias";
   if (hasAttribute(Attribute::NoBuiltin))
     return "nobuiltin";
+  if (hasAttribute(Attribute::NoCallback))
+    return "nocallback";
   if (hasAttribute(Attribute::NoCapture))
     return "nocapture";
   if (hasAttribute(Attribute::NoDuplicate))
@@ -425,8 +427,6 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "speculative_load_hardening";
   if (hasAttribute(Attribute::Speculatable))
     return "speculatable";
-  if (hasAttribute(Attribute::NoStackProtect))
-    return "nossp";
   if (hasAttribute(Attribute::StackProtect))
     return "ssp";
   if (hasAttribute(Attribute::StackProtectReq))
@@ -449,6 +449,8 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "zeroext";
   if (hasAttribute(Attribute::Cold))
     return "cold";
+  if (hasAttribute(Attribute::Hot))
+    return "hot";
   if (hasAttribute(Attribute::ImmArg))
     return "immarg";
   if (hasAttribute(Attribute::NoUndef))
@@ -1198,7 +1200,7 @@ AttributeList AttributeList::get(LLVMContext &C, AttributeSet FnAttrs,
   if (NumSets > 2) {
     // Drop the empty argument attribute sets at the end.
     ArgAttrs = ArgAttrs.take_front(NumSets - 2);
-    AttrSets.insert(AttrSets.end(), ArgAttrs.begin(), ArgAttrs.end());
+    llvm::append_range(AttrSets, ArgAttrs);
   }
 
   return getImpl(C, AttrSets);
@@ -1270,9 +1272,11 @@ AttributeList AttributeList::get(LLVMContext &C,
 AttributeList AttributeList::addAttribute(LLVMContext &C, unsigned Index,
                                           Attribute::AttrKind Kind) const {
   if (hasAttribute(Index, Kind)) return *this;
-  AttrBuilder B;
-  B.addAttribute(Kind);
-  return addAttributes(C, Index, B);
+  AttributeSet Attrs = getAttributes(Index);
+  // TODO: Insert at correct position and avoid sort.
+  SmallVector<Attribute, 8> NewAttrs(Attrs.begin(), Attrs.end());
+  NewAttrs.push_back(Attribute::get(C, Kind));
+  return setAttributes(C, Index, AttributeSet::get(C, NewAttrs));
 }
 
 AttributeList AttributeList::addAttribute(LLVMContext &C, unsigned Index,
@@ -1288,6 +1292,16 @@ AttributeList AttributeList::addAttribute(LLVMContext &C, unsigned Index,
   AttrBuilder B;
   B.addAttribute(A);
   return addAttributes(C, Index, B);
+}
+
+AttributeList AttributeList::setAttributes(LLVMContext &C, unsigned Index,
+                                           AttributeSet Attrs) const {
+  Index = attrIdxToArrayIdx(Index);
+  SmallVector<AttributeSet, 4> AttrSets(this->begin(), this->end());
+  if (Index >= AttrSets.size())
+    AttrSets.resize(Index + 1);
+  AttrSets[Index] = Attrs;
+  return AttributeList::getImpl(C, AttrSets);
 }
 
 AttributeList AttributeList::addAttributes(LLVMContext &C, unsigned Index,
@@ -1307,16 +1321,9 @@ AttributeList AttributeList::addAttributes(LLVMContext &C, unsigned Index,
          "Attempt to change alignment!");
 #endif
 
-  Index = attrIdxToArrayIdx(Index);
-  SmallVector<AttributeSet, 4> AttrSets(this->begin(), this->end());
-  if (Index >= AttrSets.size())
-    AttrSets.resize(Index + 1);
-
-  AttrBuilder Merged(AttrSets[Index]);
+  AttrBuilder Merged(getAttributes(Index));
   Merged.merge(B);
-  AttrSets[Index] = AttributeSet::get(C, Merged);
-
-  return getImpl(C, AttrSets);
+  return setAttributes(C, Index, AttributeSet::get(C, Merged));
 }
 
 AttributeList AttributeList::addParamAttribute(LLVMContext &C,
@@ -1856,7 +1863,7 @@ bool AttrBuilder::hasAlignmentAttr() const {
   return Alignment != 0;
 }
 
-bool AttrBuilder::operator==(const AttrBuilder &B) {
+bool AttrBuilder::operator==(const AttrBuilder &B) const {
   if (Attrs != B.Attrs)
     return false;
 
@@ -1941,17 +1948,19 @@ static void setOR(Function &Caller, const Function &Callee) {
 /// If the inlined function had a higher stack protection level than the
 /// calling function, then bump up the caller's stack protection level.
 static void adjustCallerSSPLevel(Function &Caller, const Function &Callee) {
-  assert(!(Callee.hasFnAttribute(Attribute::NoStackProtect) &&
-           (Caller.hasFnAttribute(Attribute::StackProtect) ||
-            Caller.hasFnAttribute(Attribute::StackProtectStrong) ||
-            Caller.hasFnAttribute(Attribute::StackProtectReq))) &&
-         "stack protected caller but callee requested no stack protector");
-  assert(!(Caller.hasFnAttribute(Attribute::NoStackProtect) &&
-           (Callee.hasFnAttribute(Attribute::StackProtect) ||
-            Callee.hasFnAttribute(Attribute::StackProtectStrong) ||
-            Callee.hasFnAttribute(Attribute::StackProtectReq))) &&
-         "stack protected callee but caller requested no stack protector");
+#ifndef NDEBUG
+  if (!Callee.hasFnAttribute(Attribute::AlwaysInline)) {
+    assert(!(!Callee.hasStackProtectorFnAttr() &&
+             Caller.hasStackProtectorFnAttr()) &&
+           "stack protected caller but callee requested no stack protector");
+    assert(!(!Caller.hasStackProtectorFnAttr() &&
+             Callee.hasStackProtectorFnAttr()) &&
+           "stack protected callee but caller requested no stack protector");
+  }
+#endif
   // If upgrading the SSP attribute, clear out the old SSP Attributes first.
+  // Having multiple SSP attributes doesn't actually hurt, but it adds useless
+  // clutter to the IR.
   AttrBuilder OldSSPAttr;
   OldSSPAttr.addAttribute(Attribute::StackProtect)
       .addAttribute(Attribute::StackProtectStrong)
@@ -2087,7 +2096,25 @@ bool AttributeFuncs::areInlineCompatible(const Function &Caller,
   return hasCompatibleFnAttrs(Caller, Callee);
 }
 
+bool AttributeFuncs::areOutlineCompatible(const Function &A,
+                                          const Function &B) {
+  return hasCompatibleFnAttrs(A, B);
+}
+
 void AttributeFuncs::mergeAttributesForInlining(Function &Caller,
                                                 const Function &Callee) {
   mergeFnAttrs(Caller, Callee);
+}
+
+void AttributeFuncs::mergeAttributesForOutlining(Function &Base,
+                                                const Function &ToMerge) {
+
+  // We merge functions so that they meet the most general case.
+  // For example, if the NoNansFPMathAttr is set in one function, but not in
+  // the other, in the merged function we can say that the NoNansFPMathAttr
+  // is not set.
+  // However if we have the SpeculativeLoadHardeningAttr set true in one
+  // function, but not the other, we make sure that the function retains
+  // that aspect in the merged function.
+  mergeFnAttrs(Base, ToMerge);
 }

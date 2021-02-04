@@ -50,6 +50,7 @@
 #include "lldb/Utility/State.h"
 #include "lldb/Utility/Timer.h"
 
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatAdapters.h"
 
@@ -298,8 +299,7 @@ protected:
       }
 
       const char *file_path = command.GetArgumentAtIndex(0);
-      static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-      Timer scoped_timer(func_cat, "(lldb) target create '%s'", file_path);
+      LLDB_SCOPED_TIMERF("(lldb) target create '%s'", file_path);
       FileSpec file_spec;
 
       if (file_path) {
@@ -318,122 +318,124 @@ protected:
           m_add_dependents.m_load_dependent_files, &m_platform_options,
           target_sp));
 
-      if (target_sp) {
-        // Only get the platform after we create the target because we might
-        // have switched platforms depending on what the arguments were to
-        // CreateTarget() we can't rely on the selected platform.
-
-        PlatformSP platform_sp = target_sp->GetPlatform();
-
-        if (remote_file) {
-          if (platform_sp) {
-            // I have a remote file.. two possible cases
-            if (file_spec && FileSystem::Instance().Exists(file_spec)) {
-              // if the remote file does not exist, push it there
-              if (!platform_sp->GetFileExists(remote_file)) {
-                Status err = platform_sp->PutFile(file_spec, remote_file);
-                if (err.Fail()) {
-                  result.AppendError(err.AsCString());
-                  result.SetStatus(eReturnStatusFailed);
-                  return false;
-                }
-              }
-            } else {
-              // there is no local file and we need one
-              // in order to make the remote ---> local transfer we need a
-              // platform
-              // TODO: if the user has passed in a --platform argument, use it
-              // to fetch the right platform
-              if (!platform_sp) {
-                result.AppendError(
-                    "unable to perform remote debugging without a platform");
-                result.SetStatus(eReturnStatusFailed);
-                return false;
-              }
-              if (file_path) {
-                // copy the remote file to the local file
-                Status err = platform_sp->GetFile(remote_file, file_spec);
-                if (err.Fail()) {
-                  result.AppendError(err.AsCString());
-                  result.SetStatus(eReturnStatusFailed);
-                  return false;
-                }
-              } else {
-                // make up a local file
-                result.AppendError("remote --> local transfer without local "
-                                   "path is not implemented yet");
-                result.SetStatus(eReturnStatusFailed);
-                return false;
-              }
-            }
-          } else {
-            result.AppendError("no platform found for target");
-            result.SetStatus(eReturnStatusFailed);
-            return false;
-          }
-        }
-
-        if (symfile || remote_file) {
-          ModuleSP module_sp(target_sp->GetExecutableModule());
-          if (module_sp) {
-            if (symfile)
-              module_sp->SetSymbolFileFileSpec(symfile);
-            if (remote_file) {
-              std::string remote_path = remote_file.GetPath();
-              target_sp->SetArg0(remote_path.c_str());
-              module_sp->SetPlatformFileSpec(remote_file);
-            }
-          }
-        }
-
-        debugger.GetTargetList().SetSelectedTarget(target_sp.get());
-        if (must_set_platform_path) {
-          ModuleSpec main_module_spec(file_spec);
-          ModuleSP module_sp =
-              target_sp->GetOrCreateModule(main_module_spec, true /* notify */);
-          if (module_sp)
-            module_sp->SetPlatformFileSpec(remote_file);
-        }
-
-        if (core_file) {
-          FileSpec core_file_dir;
-          core_file_dir.GetDirectory() = core_file.GetDirectory();
-          target_sp->AppendExecutableSearchPaths(core_file_dir);
-
-          ProcessSP process_sp(target_sp->CreateProcess(
-              GetDebugger().GetListener(), llvm::StringRef(), &core_file));
-
-          if (process_sp) {
-            // Seems weird that we Launch a core file, but that is what we
-            // do!
-            error = process_sp->LoadCore();
-
-            if (error.Fail()) {
-              result.AppendError(
-                  error.AsCString("can't find plug-in for core file"));
-              result.SetStatus(eReturnStatusFailed);
-              return false;
-            } else {
-              result.AppendMessageWithFormatv("Core file '{0}' ({1}) was loaded.\n", core_file.GetPath(),
-                  target_sp->GetArchitecture().GetArchitectureName());
-              result.SetStatus(eReturnStatusSuccessFinishNoResult);
-            }
-          } else {
-            result.AppendErrorWithFormatv(
-                "Unable to find process plug-in for core file '{0}'\n",
-                core_file.GetPath());
-            result.SetStatus(eReturnStatusFailed);
-          }
-        } else {
-          result.AppendMessageWithFormat(
-              "Current executable set to '%s' (%s).\n",
-              file_spec.GetPath().c_str(),
-              target_sp->GetArchitecture().GetArchitectureName());
-          result.SetStatus(eReturnStatusSuccessFinishNoResult);
-        }
-      } else {
+      if (!target_sp) {
         result.AppendError(error.AsCString());
         result.SetStatus(eReturnStatusFailed);
+        return false;
+      }
+
+      auto on_error = llvm::make_scope_exit(
+          [&target_list = debugger.GetTargetList(), &target_sp]() {
+            target_list.DeleteTarget(target_sp);
+          });
+
+      // Only get the platform after we create the target because we might
+      // have switched platforms depending on what the arguments were to
+      // CreateTarget() we can't rely on the selected platform.
+
+      PlatformSP platform_sp = target_sp->GetPlatform();
+
+      if (remote_file) {
+        if (platform_sp) {
+          // I have a remote file.. two possible cases
+          if (file_spec && FileSystem::Instance().Exists(file_spec)) {
+            // if the remote file does not exist, push it there
+            if (!platform_sp->GetFileExists(remote_file)) {
+              Status err = platform_sp->PutFile(file_spec, remote_file);
+              if (err.Fail()) {
+                result.AppendError(err.AsCString());
+                result.SetStatus(eReturnStatusFailed);
+                return false;
+              }
+            }
+          } else {
+            // there is no local file and we need one
+            // in order to make the remote ---> local transfer we need a
+            // platform
+            // TODO: if the user has passed in a --platform argument, use it
+            // to fetch the right platform
+            if (file_path) {
+              // copy the remote file to the local file
+              Status err = platform_sp->GetFile(remote_file, file_spec);
+              if (err.Fail()) {
+                result.AppendError(err.AsCString());
+                result.SetStatus(eReturnStatusFailed);
+                return false;
+              }
+            } else {
+              // make up a local file
+              result.AppendError("remote --> local transfer without local "
+                                 "path is not implemented yet");
+              result.SetStatus(eReturnStatusFailed);
+              return false;
+            }
+          }
+        } else {
+          result.AppendError("no platform found for target");
+          result.SetStatus(eReturnStatusFailed);
+          return false;
+        }
+      }
+
+      if (symfile || remote_file) {
+        ModuleSP module_sp(target_sp->GetExecutableModule());
+        if (module_sp) {
+          if (symfile)
+            module_sp->SetSymbolFileFileSpec(symfile);
+          if (remote_file) {
+            std::string remote_path = remote_file.GetPath();
+            target_sp->SetArg0(remote_path.c_str());
+            module_sp->SetPlatformFileSpec(remote_file);
+          }
+        }
+      }
+
+      if (must_set_platform_path) {
+        ModuleSpec main_module_spec(file_spec);
+        ModuleSP module_sp =
+            target_sp->GetOrCreateModule(main_module_spec, true /* notify */);
+        if (module_sp)
+          module_sp->SetPlatformFileSpec(remote_file);
+      }
+
+      if (core_file) {
+        FileSpec core_file_dir;
+        core_file_dir.GetDirectory() = core_file.GetDirectory();
+        target_sp->AppendExecutableSearchPaths(core_file_dir);
+
+        ProcessSP process_sp(target_sp->CreateProcess(
+            GetDebugger().GetListener(), llvm::StringRef(), &core_file, false));
+
+        if (process_sp) {
+          // Seems weird that we Launch a core file, but that is what we
+          // do!
+          error = process_sp->LoadCore();
+
+          if (error.Fail()) {
+            result.AppendError(
+                error.AsCString("can't find plug-in for core file"));
+            result.SetStatus(eReturnStatusFailed);
+            return false;
+          } else {
+            result.AppendMessageWithFormatv(
+                "Core file '{0}' ({1}) was loaded.\n", core_file.GetPath(),
+                target_sp->GetArchitecture().GetArchitectureName());
+            result.SetStatus(eReturnStatusSuccessFinishNoResult);
+            on_error.release();
+          }
+        } else {
+          result.AppendErrorWithFormatv(
+              "Unable to find process plug-in for core file '{0}'\n",
+              core_file.GetPath());
+          result.SetStatus(eReturnStatusFailed);
+        }
+      } else {
+        result.AppendMessageWithFormat(
+            "Current executable set to '%s' (%s).\n",
+            file_spec.GetPath().c_str(),
+            target_sp->GetArchitecture().GetArchitectureName());
+        result.SetStatus(eReturnStatusSuccessFinishNoResult);
+        on_error.release();
       }
     } else {
       result.AppendErrorWithFormat("'%s' takes exactly one executable path "
@@ -441,6 +443,7 @@ protected:
                                    m_cmd_name.c_str());
       result.SetStatus(eReturnStatusFailed);
     }
+
     return result.Succeeded();
   }
 
@@ -506,18 +509,11 @@ protected:
         TargetList &target_list = GetDebugger().GetTargetList();
         const uint32_t num_targets = target_list.GetNumTargets();
         if (target_idx < num_targets) {
-          TargetSP target_sp(target_list.GetTargetAtIndex(target_idx));
-          if (target_sp) {
-            Stream &strm = result.GetOutputStream();
-            target_list.SetSelectedTarget(target_sp.get());
-            bool show_stopped_process_status = false;
-            DumpTargetList(target_list, show_stopped_process_status, strm);
-            result.SetStatus(eReturnStatusSuccessFinishResult);
-          } else {
-            result.AppendErrorWithFormat("target #%u is NULL in target list\n",
-                                         target_idx);
-            result.SetStatus(eReturnStatusFailed);
-          }
+          target_list.SetSelectedTarget(target_idx);
+          Stream &strm = result.GetOutputStream();
+          bool show_stopped_process_status = false;
+          DumpTargetList(target_list, show_stopped_process_status, strm);
+          result.SetStatus(eReturnStatusSuccessFinishResult);
         } else {
           if (num_targets > 0) {
             result.AppendErrorWithFormat(
@@ -1403,31 +1399,30 @@ static void DumpBasename(Stream &strm, const FileSpec *file_spec_ptr,
 }
 
 static size_t DumpModuleObjfileHeaders(Stream &strm, ModuleList &module_list) {
-  size_t num_dumped = 0;
   std::lock_guard<std::recursive_mutex> guard(module_list.GetMutex());
   const size_t num_modules = module_list.GetSize();
-  if (num_modules > 0) {
-    strm.Printf("Dumping headers for %" PRIu64 " module(s).\n",
-                static_cast<uint64_t>(num_modules));
-    strm.IndentMore();
-    for (size_t image_idx = 0; image_idx < num_modules; ++image_idx) {
-      Module *module = module_list.GetModulePointerAtIndexUnlocked(image_idx);
-      if (module) {
-        if (num_dumped++ > 0) {
-          strm.EOL();
-          strm.EOL();
-        }
-        ObjectFile *objfile = module->GetObjectFile();
-        if (objfile)
-          objfile->Dump(&strm);
-        else {
-          strm.Format("No object file for module: {0:F}\n",
-                      module->GetFileSpec());
-        }
+  if (num_modules == 0)
+    return 0;
+
+  size_t num_dumped = 0;
+  strm.Format("Dumping headers for {0} module(s).\n", num_modules);
+  strm.IndentMore();
+  for (ModuleSP module_sp : module_list.ModulesNoLocking()) {
+    if (module_sp) {
+      if (num_dumped++ > 0) {
+        strm.EOL();
+        strm.EOL();
+      }
+      ObjectFile *objfile = module_sp->GetObjectFile();
+      if (objfile)
+        objfile->Dump(&strm);
+      else {
+        strm.Format("No object file for module: {0:F}\n",
+                    module_sp->GetFileSpec());
       }
     }
-    strm.IndentLess();
   }
+  strm.IndentLess();
   return num_dumped;
 }
 
@@ -2029,14 +2024,13 @@ protected:
 
     if (command.GetArgumentCount() == 0) {
       // Dump all sections for all modules images
-      std::lock_guard<std::recursive_mutex> guard(
-          target->GetImages().GetMutex());
-      const size_t num_modules = target->GetImages().GetSize();
+      const ModuleList &module_list = target->GetImages();
+      std::lock_guard<std::recursive_mutex> guard(module_list.GetMutex());
+      const size_t num_modules = module_list.GetSize();
       if (num_modules > 0) {
-        result.GetOutputStream().Printf("Dumping symbol table for %" PRIu64
-                                        " modules.\n",
-                                        (uint64_t)num_modules);
-        for (size_t image_idx = 0; image_idx < num_modules; ++image_idx) {
+        result.GetOutputStream().Format(
+            "Dumping symbol table for {0} modules.\n", num_modules);
+        for (ModuleSP module_sp : module_list.ModulesNoLocking()) {
           if (num_dumped > 0) {
             result.GetOutputStream().EOL();
             result.GetOutputStream().EOL();
@@ -2044,10 +2038,9 @@ protected:
           if (m_interpreter.WasInterrupted())
             break;
           num_dumped++;
-          DumpModuleSymtab(
-              m_interpreter, result.GetOutputStream(),
-              target->GetImages().GetModulePointerAtIndexUnlocked(image_idx),
-              m_options.m_sort_order, name_preference);
+          DumpModuleSymtab(m_interpreter, result.GetOutputStream(),
+                           module_sp.get(), m_options.m_sort_order,
+                           name_preference);
         }
       } else {
         result.AppendError("the target has no associated executable images");
@@ -2064,9 +2057,8 @@ protected:
         const size_t num_matches =
             FindModulesByName(target, arg_cstr, module_list, true);
         if (num_matches > 0) {
-          for (size_t i = 0; i < num_matches; ++i) {
-            Module *module = module_list.GetModulePointerAtIndex(i);
-            if (module) {
+          for (ModuleSP module_sp : module_list.Modules()) {
+            if (module_sp) {
               if (num_dumped > 0) {
                 result.GetOutputStream().EOL();
                 result.GetOutputStream().EOL();
@@ -2074,8 +2066,9 @@ protected:
               if (m_interpreter.WasInterrupted())
                 break;
               num_dumped++;
-              DumpModuleSymtab(m_interpreter, result.GetOutputStream(), module,
-                               m_options.m_sort_order, name_preference);
+              DumpModuleSymtab(m_interpreter, result.GetOutputStream(),
+                               module_sp.get(), m_options.m_sort_order,
+                               name_preference);
             }
           }
         } else
@@ -2124,22 +2117,21 @@ protected:
     if (command.GetArgumentCount() == 0) {
       // Dump all sections for all modules images
       const size_t num_modules = target->GetImages().GetSize();
-      if (num_modules > 0) {
-        result.GetOutputStream().Printf("Dumping sections for %" PRIu64
-                                        " modules.\n",
-                                        (uint64_t)num_modules);
-        for (size_t image_idx = 0; image_idx < num_modules; ++image_idx) {
-          if (m_interpreter.WasInterrupted())
-            break;
-          num_dumped++;
-          DumpModuleSections(
-              m_interpreter, result.GetOutputStream(),
-              target->GetImages().GetModulePointerAtIndex(image_idx));
-        }
-      } else {
+      if (num_modules == 0) {
         result.AppendError("the target has no associated executable images");
         result.SetStatus(eReturnStatusFailed);
         return false;
+      }
+
+      result.GetOutputStream().Format("Dumping sections for {0} modules.\n",
+                                      num_modules);
+      for (size_t image_idx = 0; image_idx < num_modules; ++image_idx) {
+        if (m_interpreter.WasInterrupted())
+          break;
+        num_dumped++;
+        DumpModuleSections(
+            m_interpreter, result.GetOutputStream(),
+            target->GetImages().GetModulePointerAtIndex(image_idx));
       }
     } else {
       // Dump specified images (by basename or fullpath)
@@ -2202,7 +2194,8 @@ protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     Target *target = &GetSelectedTarget();
 
-    const size_t num_modules = target->GetImages().GetSize();
+    const ModuleList &module_list = target->GetImages();
+    const size_t num_modules = module_list.GetSize();
     if (num_modules == 0) {
       result.AppendError("the target has no associated executable images");
       result.SetStatus(eReturnStatusFailed);
@@ -2211,14 +2204,12 @@ protected:
 
     if (command.GetArgumentCount() == 0) {
       // Dump all ASTs for all modules images
-      result.GetOutputStream().Printf("Dumping clang ast for %" PRIu64
-                                      " modules.\n",
-                                      (uint64_t)num_modules);
-      for (size_t image_idx = 0; image_idx < num_modules; ++image_idx) {
+      result.GetOutputStream().Format("Dumping clang ast for {0} modules.\n",
+                                      num_modules);
+      for (ModuleSP module_sp : module_list.ModulesNoLocking()) {
         if (m_interpreter.WasInterrupted())
           break;
-        Module *m = target->GetImages().GetModulePointerAtIndex(image_idx);
-        if (SymbolFile *sf = m->GetSymbolFile())
+        if (SymbolFile *sf = module_sp->GetSymbolFile())
           sf->DumpClangAST(result.GetOutputStream());
       }
       result.SetStatus(eReturnStatusSuccessFinishResult);
@@ -2283,22 +2274,18 @@ protected:
       const ModuleList &target_modules = target->GetImages();
       std::lock_guard<std::recursive_mutex> guard(target_modules.GetMutex());
       const size_t num_modules = target_modules.GetSize();
-      if (num_modules > 0) {
-        result.GetOutputStream().Printf("Dumping debug symbols for %" PRIu64
-                                        " modules.\n",
-                                        (uint64_t)num_modules);
-        for (uint32_t image_idx = 0; image_idx < num_modules; ++image_idx) {
-          if (m_interpreter.WasInterrupted())
-            break;
-          if (DumpModuleSymbolFile(
-                  result.GetOutputStream(),
-                  target_modules.GetModulePointerAtIndexUnlocked(image_idx)))
-            num_dumped++;
-        }
-      } else {
+      if (num_modules == 0) {
         result.AppendError("the target has no associated executable images");
         result.SetStatus(eReturnStatusFailed);
         return false;
+      }
+      result.GetOutputStream().Format(
+          "Dumping debug symbols for {0} modules.\n", num_modules);
+      for (ModuleSP module_sp : target_modules.ModulesNoLocking()) {
+        if (m_interpreter.WasInterrupted())
+          break;
+        if (DumpModuleSymbolFile(result.GetOutputStream(), module_sp.get()))
+          num_dumped++;
       }
     } else {
       // Dump specified images (by basename or fullpath)
@@ -2377,15 +2364,13 @@ protected:
 
         const ModuleList &target_modules = target->GetImages();
         std::lock_guard<std::recursive_mutex> guard(target_modules.GetMutex());
-        const size_t num_modules = target_modules.GetSize();
-        if (num_modules > 0) {
+        if (target_modules.GetSize() > 0) {
           uint32_t num_dumped = 0;
-          for (uint32_t i = 0; i < num_modules; ++i) {
+          for (ModuleSP module_sp : target_modules.ModulesNoLocking()) {
             if (m_interpreter.WasInterrupted())
               break;
             if (DumpCompileUnitLineTable(
-                    m_interpreter, result.GetOutputStream(),
-                    target_modules.GetModulePointerAtIndexUnlocked(i),
+                    m_interpreter, result.GetOutputStream(), module_sp.get(),
                     file_spec,
                     m_options.m_verbose ? eDescriptionLevelFull
                                         : eDescriptionLevelBrief))
@@ -3907,24 +3892,19 @@ protected:
 
       const ModuleList &target_modules = target->GetImages();
       std::lock_guard<std::recursive_mutex> guard(target_modules.GetMutex());
-      const size_t num_modules = target_modules.GetSize();
-      if (num_modules > 0) {
-        for (i = 0; i < num_modules && !syntax_error; ++i) {
-          Module *module_pointer =
-              target_modules.GetModulePointerAtIndexUnlocked(i);
-
-          if (module_pointer != current_module.get() &&
-              LookupInModule(m_interpreter,
-                             target_modules.GetModulePointerAtIndexUnlocked(i),
-                             result, syntax_error)) {
-            result.GetOutputStream().EOL();
-            num_successful_lookups++;
-          }
-        }
-      } else {
+      if (target_modules.GetSize() == 0) {
         result.AppendError("the target has no associated executable images");
         result.SetStatus(eReturnStatusFailed);
         return false;
+      }
+
+      for (ModuleSP module_sp : target_modules.ModulesNoLocking()) {
+        if (module_sp != current_module &&
+            LookupInModule(m_interpreter, module_sp.get(), result,
+                           syntax_error)) {
+          result.GetOutputStream().EOL();
+          num_successful_lookups++;
+        }
       }
     } else {
       // Dump specified images (by basename or fullpath)

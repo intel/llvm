@@ -82,6 +82,13 @@ struct ReferencesResult {
   std::vector<Location> References;
   bool HasMore = false;
 };
+
+/// Returns implementations at a specified \p Pos:
+///   - overrides for a virtual method;
+///   - subclasses for a base class;
+std::vector<LocatedSymbol> findImplementations(ParsedAST &AST, Position Pos,
+                                               const SymbolIndex *Index);
+
 /// Returns references of the symbol at a specified \p Pos.
 /// \p Limit limits the number of results returned (0 means no limit).
 ReferencesResult findReferences(ParsedAST &AST, Position Pos, uint32_t Limit,
@@ -104,6 +111,13 @@ llvm::Optional<TypeHierarchyItem> getTypeHierarchy(
 void resolveTypeHierarchy(TypeHierarchyItem &Item, int ResolveLevels,
                           TypeHierarchyDirection Direction,
                           const SymbolIndex *Index);
+
+/// Get call hierarchy information at \p Pos.
+std::vector<CallHierarchyItem>
+prepareCallHierarchy(ParsedAST &AST, Position Pos, PathRef TUPath);
+
+std::vector<CallHierarchyIncomingCall>
+incomingCalls(const CallHierarchyItem &Item, const SymbolIndex *Index);
 
 /// Returns all decls that are referenced in the \p FD except local symbols.
 llvm::DenseSet<const Decl *> getNonLocalDeclRefs(ParsedAST &AST,

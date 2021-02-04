@@ -164,10 +164,11 @@ bool Lowerer::lowerEarlyIntrinsics(Function &F) {
         if (cast<CoroSuspendInst>(&I)->isFinal())
           CB->setCannotDuplicate();
         break;
+      case Intrinsic::coro_end_async:
       case Intrinsic::coro_end:
         // Make sure that fallthrough coro.end is not duplicated as CoroSplit
         // pass expects that there is at most one fallthrough coro.end.
-        if (cast<CoroEndInst>(&I)->isFallthrough())
+        if (cast<AnyCoroEndInst>(&I)->isFallthrough())
           CB->setCannotDuplicate();
         break;
       case Intrinsic::coro_noop:
@@ -218,9 +219,10 @@ bool Lowerer::lowerEarlyIntrinsics(Function &F) {
 static bool declaresCoroEarlyIntrinsics(const Module &M) {
   return coro::declaresIntrinsics(
       M, {"llvm.coro.id", "llvm.coro.id.retcon", "llvm.coro.id.retcon.once",
-          "llvm.coro.destroy", "llvm.coro.done", "llvm.coro.end",
-          "llvm.coro.noop", "llvm.coro.free", "llvm.coro.promise",
-          "llvm.coro.resume", "llvm.coro.suspend"});
+          "llvm.coro.id.async", "llvm.coro.destroy", "llvm.coro.done",
+          "llvm.coro.end", "llvm.coro.end.async", "llvm.coro.noop",
+          "llvm.coro.free", "llvm.coro.promise", "llvm.coro.resume",
+          "llvm.coro.suspend"});
 }
 
 PreservedAnalyses CoroEarlyPass::run(Function &F, FunctionAnalysisManager &) {

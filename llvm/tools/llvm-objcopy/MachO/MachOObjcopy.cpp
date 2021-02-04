@@ -178,10 +178,10 @@ static Error processLoadCommands(const CopyConfig &Config, Object &Obj) {
   for (const auto &OldNew : Config.RPathsToUpdate) {
     StringRef Old = OldNew.getFirst();
     StringRef New = OldNew.getSecond();
-    if (RPaths.count(Old) == 0)
+    if (!RPaths.contains(Old))
       return createStringError(errc::invalid_argument,
                                "no LC_RPATH load command with path: " + Old);
-    if (RPaths.count(New) != 0)
+    if (RPaths.contains(New))
       return createStringError(errc::invalid_argument,
                                "rpath '" + New +
                                    "' would create a duplicate load command");
@@ -220,7 +220,7 @@ static Error processLoadCommands(const CopyConfig &Config, Object &Obj) {
 
   // Add new RPaths.
   for (StringRef RPath : Config.RPathToAdd) {
-    if (RPaths.count(RPath) != 0)
+    if (RPaths.contains(RPath))
       return createStringError(errc::invalid_argument,
                                "rpath '" + RPath +
                                    "' would create a duplicate load command");
@@ -229,7 +229,7 @@ static Error processLoadCommands(const CopyConfig &Config, Object &Obj) {
   }
 
   for (StringRef RPath : Config.RPathToPrepend) {
-    if (RPaths.count(RPath) != 0)
+    if (RPaths.contains(RPath))
       return createStringError(errc::invalid_argument,
                                "rpath '" + RPath +
                                    "' would create a duplicate load command");
@@ -280,6 +280,7 @@ static Error addSection(StringRef SecName, StringRef Filename, Object &Obj) {
   StringRef TargetSegName = Pair.first;
   Section Sec(TargetSegName, Pair.second);
   Sec.Content = Obj.NewSectionsContents.save(Buf->getBuffer());
+  Sec.Size = Sec.Content.size();
 
   // Add the a section into an existing segment.
   for (LoadCommand &LC : Obj.LoadCommands) {
@@ -296,7 +297,8 @@ static Error addSection(StringRef SecName, StringRef Filename, Object &Obj) {
 
   // There's no segment named TargetSegName. Create a new load command and
   // Insert a new section into it.
-  LoadCommand &NewSegment = Obj.addSegment(TargetSegName);
+  LoadCommand &NewSegment =
+      Obj.addSegment(TargetSegName, alignTo(Sec.Size, 16384));
   NewSegment.Sections.push_back(std::make_unique<Section>(Sec));
   NewSegment.Sections.back()->Addr = *NewSegment.getSegmentVMAddr();
   return Error::success();

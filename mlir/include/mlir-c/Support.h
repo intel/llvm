@@ -15,8 +15,28 @@
 #ifndef MLIR_C_SUPPORT_H
 #define MLIR_C_SUPPORT_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+
+//===----------------------------------------------------------------------===//
+// Visibility annotations.
+// Use MLIR_CAPI_EXPORTED for exported functions.
+//===----------------------------------------------------------------------===//
+
+#if defined(MLIR_CAPI_DISABLE_VISIBILITY_ANNOTATIONS)
+#define MLIR_CAPI_EXPORTED
+#elif defined(_WIN32) || defined(__CYGWIN__)
+// Windows visibility declarations.
+#if MLIR_CAPI_BUILDING_LIBRARY
+#define MLIR_CAPI_EXPORTED __declspec(dllexport)
+#else
+#define MLIR_CAPI_EXPORTED __declspec(dllimport)
+#endif
+#else
+// Non-windows: use visibility attributes.
+#define MLIR_CAPI_EXPORTED __attribute__((visibility("default")))
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,7 +58,8 @@ typedef struct MlirStringRef MlirStringRef;
 /** Constructs a string reference from the pointer and length. The pointer need
  * not reference to a null-terminated string.
  */
-inline MlirStringRef mlirStringRefCreate(const char *str, size_t length) {
+inline static MlirStringRef mlirStringRefCreate(const char *str,
+                                                size_t length) {
   MlirStringRef result;
   result.data = str;
   result.length = length;
@@ -48,18 +69,17 @@ inline MlirStringRef mlirStringRefCreate(const char *str, size_t length) {
 /** Constructs a string reference from a null-terminated C string. Prefer
  * mlirStringRefCreate if the length of the string is known.
  */
-MlirStringRef mlirStringRefCreateFromCString(const char *str);
+MLIR_CAPI_EXPORTED MlirStringRef
+mlirStringRefCreateFromCString(const char *str);
 
 /** A callback for returning string references.
  *
  * This function is called back by the functions that need to return a reference
  * to the portion of the string with the following arguments:
- *   - a pointer to the beginning of a string;
- *   - the length of the string (the pointer may point to a larger buffer, not
- *     necessarily null-terminated);
+ *   - an MlirStringRef representing the current portion of the string
  *   - a pointer to user data forwarded from the printing call.
  */
-typedef void (*MlirStringCallback)(const char *, intptr_t, void *);
+typedef void (*MlirStringCallback)(MlirStringRef, void *);
 
 //===----------------------------------------------------------------------===//
 // MlirLogicalResult.
@@ -76,12 +96,12 @@ struct MlirLogicalResult {
 typedef struct MlirLogicalResult MlirLogicalResult;
 
 /// Checks if the given logical result represents a success.
-inline static int mlirLogicalResultIsSuccess(MlirLogicalResult res) {
+inline static bool mlirLogicalResultIsSuccess(MlirLogicalResult res) {
   return res.value != 0;
 }
 
 /// Checks if the given logical result represents a failure.
-inline static int mlirLogicalResultIsFailure(MlirLogicalResult res) {
+inline static bool mlirLogicalResultIsFailure(MlirLogicalResult res) {
   return res.value == 0;
 }
 

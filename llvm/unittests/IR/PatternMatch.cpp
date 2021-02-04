@@ -950,11 +950,14 @@ TEST_F(PatternMatchTest, VectorOps) {
   Value *EX2 = IRB.CreateExtractElement(VI4, (uint64_t)0);
   Value *EX3 = IRB.CreateExtractElement(IdxVec, (uint64_t)1);
 
-  Value *Zero = ConstantAggregateZero::get(i32VecTy);
-  Value *SI1 = IRB.CreateShuffleVector(VI1, UndefVec, Zero);
+  Constant *Zero = ConstantAggregateZero::get(i32VecTy);
+  SmallVector<int, 16> ZeroMask;
+  ShuffleVectorInst::getShuffleMask(Zero, ZeroMask);
+
+  Value *SI1 = IRB.CreateShuffleVector(VI1, ZeroMask);
   Value *SI2 = IRB.CreateShuffleVector(VI3, VI4, IdxVec);
-  Value *SI3 = IRB.CreateShuffleVector(VI3, UndefVec, Zero);
-  Value *SI4 = IRB.CreateShuffleVector(VI4, UndefVec, Zero);
+  Value *SI3 = IRB.CreateShuffleVector(VI3, ZeroMask);
+  Value *SI4 = IRB.CreateShuffleVector(VI4, ZeroMask);
 
   Value *SP1 = IRB.CreateVectorSplat(2, IRB.getInt8(2));
   Value *SP2 = IRB.CreateVectorSplat(2, Val);
@@ -1579,6 +1582,27 @@ TEST_F(PatternMatchTest, ConstantPredicateType) {
       match(CF32NaNWithUndef, cstfp_pred_ty<always_true_pred<APFloat>>()));
   EXPECT_FALSE(
       match(CF32NaNWithUndef, cstfp_pred_ty<always_false_pred<APFloat>>()));
+}
+
+TEST_F(PatternMatchTest, InsertValue) {
+  Type *StructTy = StructType::create(IRB.getContext(),
+                                      {IRB.getInt32Ty(), IRB.getInt64Ty()});
+  Value *Ins0 =
+      IRB.CreateInsertValue(UndefValue::get(StructTy), IRB.getInt32(20), 0);
+  Value *Ins1 = IRB.CreateInsertValue(Ins0, IRB.getInt64(90), 1);
+
+  EXPECT_TRUE(match(Ins0, m_InsertValue<0>(m_Value(), m_Value())));
+  EXPECT_FALSE(match(Ins0, m_InsertValue<1>(m_Value(), m_Value())));
+  EXPECT_FALSE(match(Ins1, m_InsertValue<0>(m_Value(), m_Value())));
+  EXPECT_TRUE(match(Ins1, m_InsertValue<1>(m_Value(), m_Value())));
+
+  EXPECT_TRUE(match(Ins0, m_InsertValue<0>(m_Undef(), m_SpecificInt(20))));
+  EXPECT_FALSE(match(Ins0, m_InsertValue<0>(m_Undef(), m_SpecificInt(0))));
+
+  EXPECT_TRUE(
+      match(Ins1, m_InsertValue<1>(m_InsertValue<0>(m_Value(), m_Value()),
+                                   m_SpecificInt(90))));
+  EXPECT_FALSE(match(IRB.getInt64(99), m_InsertValue<0>(m_Value(), m_Value())));
 }
 
 template <typename T> struct MutableConstTest : PatternMatchTest { };

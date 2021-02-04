@@ -34,6 +34,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/IR/PrintPasses.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -566,7 +567,7 @@ bool Loop::isAnnotatedParallel() const {
   SmallPtrSet<MDNode *, 4>
       ParallelAccessGroups; // For scalable 'contains' check.
   if (ParallelAccesses) {
-    for (const MDOperand &MD : drop_begin(ParallelAccesses->operands(), 1)) {
+    for (const MDOperand &MD : drop_begin(ParallelAccesses->operands())) {
       MDNode *AccGroup = cast<MDNode>(MD.get());
       assert(isValidAsAccessGroup(AccGroup) &&
              "List item must be an access group");

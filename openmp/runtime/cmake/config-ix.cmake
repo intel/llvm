@@ -10,6 +10,7 @@
 
 include(CheckCCompilerFlag)
 include(CheckCSourceCompiles)
+include(CheckCXXSourceCompiles)
 include(CheckCXXCompilerFlag)
 include(CheckIncludeFile)
 include(CheckLibraryExists)
@@ -58,6 +59,7 @@ check_cxx_compiler_flag(-Wno-stringop-truncation LIBOMP_HAVE_WNO_STRINGOP_TRUNCA
 check_cxx_compiler_flag(-Wno-switch LIBOMP_HAVE_WNO_SWITCH_FLAG)
 check_cxx_compiler_flag(-Wno-uninitialized LIBOMP_HAVE_WNO_UNINITIALIZED_FLAG)
 check_cxx_compiler_flag(-Wno-unused-but-set-variable LIBOMP_HAVE_WNO_UNUSED_BUT_SET_VARIABLE_FLAG)
+# check_cxx_compiler_flag(-Wconversion LIBOMP_HAVE_WCONVERSION_FLAG)
 check_cxx_compiler_flag(-msse2 LIBOMP_HAVE_MSSE2_FLAG)
 check_cxx_compiler_flag(-ftls-model=initial-exec LIBOMP_HAVE_FTLS_MODEL_FLAG)
 libomp_check_architecture_flag(-mmic LIBOMP_HAVE_MMIC_FLAG)
@@ -139,6 +141,53 @@ else()
   if(NOT CMAKE_USE_PTHREADS_INIT)
     libomp_error_say("Need pthread interface on Unix-like systems.")
   endif()
+endif()
+
+# Checking for x86-specific waitpkg and rtm attribute and intrinsics
+if (IA32 OR INTEL64)
+  check_include_file(immintrin.h LIBOMP_HAVE_IMMINTRIN_H)
+  if (NOT LIBOMP_HAVE_IMMINTRIN_H)
+    check_include_file(intrin.h LIBOMP_HAVE_INTRIN_H)
+  endif()
+  check_cxx_source_compiles("__attribute__((target(\"rtm\")))
+                             int main() {return 0;}" LIBOMP_HAVE_ATTRIBUTE_RTM)
+  check_cxx_source_compiles("__attribute__((target(\"waitpkg\")))
+                            int main() {return 0;}" LIBOMP_HAVE_ATTRIBUTE_WAITPKG)
+  libomp_append(CMAKE_REQUIRED_DEFINITIONS -DIMMINTRIN_H LIBOMP_HAVE_IMMINTRIN_H)
+  libomp_append(CMAKE_REQUIRED_DEFINITIONS -DINTRIN_H LIBOMP_HAVE_INTRIN_H)
+  libomp_append(CMAKE_REQUIRED_DEFINITIONS -DATTRIBUTE_WAITPKG LIBOMP_HAVE_ATTRIBUTE_WAITPKG)
+  libomp_append(CMAKE_REQUIRED_DEFINITIONS -DATTRIBUTE_RTM LIBOMP_HAVE_ATTRIBUTE_RTM)
+  set(source_code "// check for attribute and wait pkg intrinsics
+      #ifdef IMMINTRIN_H
+      #include <immintrin.h>
+      #endif
+      #ifdef INTRIN_H
+      #include <intrin.h>
+      #endif
+      #ifdef ATTRIBUTE_WAITPKG
+      __attribute__((target(\"waitpkg\")))
+      #endif
+      static inline int __kmp_umwait(unsigned hint, unsigned long long counter) {
+        return _umwait(hint, counter);
+      }
+      int main() { int a = __kmp_umwait(0, 1000); return a; }")
+  check_cxx_source_compiles("${source_code}" LIBOMP_HAVE_WAITPKG_INTRINSICS)
+  set(source_code "// check for attribute rtm and rtm intrinsics
+      #ifdef IMMINTRIN_H
+      #include <immintrin.h>
+      #endif
+      #ifdef INTRIN_H
+      #include <intrin.h>
+      #endif
+      #ifdef ATTRIBUTE_RTM
+      __attribute__((target(\"rtm\")))
+      #endif
+      static inline int __kmp_xbegin() {
+        return _xbegin();
+      }
+      int main() { int a = __kmp_xbegin(); return a; }")
+  check_cxx_source_compiles("${source_code}" LIBOMP_HAVE_RTM_INTRINSICS)
+  set(CMAKE_REQUIRED_DEFINITIONS)
 endif()
 
 # Find perl executable
@@ -242,6 +291,7 @@ else()
       (LIBOMP_ARCH STREQUAL i386) OR
 #      (LIBOMP_ARCH STREQUAL arm) OR
       (LIBOMP_ARCH STREQUAL aarch64) OR
+      (LIBOMP_ARCH STREQUAL aarch64_a64fx) OR
       (LIBOMP_ARCH STREQUAL ppc64le) OR
       (LIBOMP_ARCH STREQUAL ppc64) OR
       (LIBOMP_ARCH STREQUAL riscv64))

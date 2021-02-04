@@ -306,14 +306,12 @@ MDNode *MDBuilder::createIrrLoopHeaderWeight(uint64_t Weight) {
   return MDNode::get(Context, Vals);
 }
 
-MDNode *MDBuilder::createMisExpect(uint64_t Index, uint64_t LikleyWeight,
-                                   uint64_t UnlikleyWeight) {
-  auto *IntType = Type::getInt64Ty(Context);
-  Metadata *Vals[] = {
-      createString("misexpect"),
-      createConstant(ConstantInt::get(IntType, Index)),
-      createConstant(ConstantInt::get(IntType, LikleyWeight)),
-      createConstant(ConstantInt::get(IntType, UnlikleyWeight)),
-  };
-  return MDNode::get(Context, Vals);
+MDNode *MDBuilder::createPseudoProbeDesc(uint64_t GUID, uint64_t Hash,
+                                         Function *F) {
+  auto *Int64Ty = Type::getInt64Ty(Context);
+  SmallVector<Metadata *, 3> Ops(3);
+  Ops[0] = createConstant(ConstantInt::get(Int64Ty, GUID));
+  Ops[1] = createConstant(ConstantInt::get(Int64Ty, Hash));
+  Ops[2] = createString(F->getName());
+  return MDNode::get(Context, Ops);
 }

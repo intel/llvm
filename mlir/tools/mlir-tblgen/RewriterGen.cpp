@@ -83,9 +83,10 @@ private:
   void emitOpMatch(DagNode tree, StringRef opName, int depth);
 
   // Emits C++ statements for matching the `argIndex`-th argument of the given
-  // DAG `tree` as an operand.
+  // DAG `tree` as an operand. operandIndex is the index in the DAG excluding
+  // the preceding attributes.
   void emitOperandMatch(DagNode tree, StringRef opName, int argIndex,
-                        int depth);
+                        int operandIndex, int depth);
 
   // Emits C++ statements for matching the `argIndex`-th argument of the given
   // DAG `tree` as an attribute.
@@ -315,7 +316,7 @@ void PatternEmitter::emitNativeCodeMatch(DagNode tree, StringRef opName,
         formatv("\"operand {0} of native code call '{1}' failed to satisfy "
                 "constraint: "
                 "'{2}'\"",
-                i, tree.getNativeCodeTemplate(), constraint.getDescription()));
+                i, tree.getNativeCodeTemplate(), constraint.getSummary()));
   }
 
   LLVM_DEBUG(llvm::dbgs() << "done emitting match for native code call\n");
@@ -349,7 +350,7 @@ void PatternEmitter::emitOpMatch(DagNode tree, StringRef opName, int depth) {
   if (!name.empty())
     os << formatv("{0} = {1};\n", name, castedName);
 
-  for (int i = 0, e = tree.getNumArgs(); i != e; ++i) {
+  for (int i = 0, e = tree.getNumArgs(), nextOperand = 0; i != e; ++i) {
     auto opArg = op.getArg(i);
     std::string argName = formatv("op{0}", depth + 1);
 
@@ -365,10 +366,11 @@ void PatternEmitter::emitOpMatch(DagNode tree, StringRef opName, int depth) {
       }
       os << "{\n";
 
+      // Attributes don't count for getODSOperands.
       os.indent() << formatv(
           "auto *{0} = "
           "(*{1}.getODSOperands({2}).begin()).getDefiningOp();\n",
-          argName, castedName, i);
+          argName, castedName, nextOperand++);
       emitMatch(argTree, argName, depth + 1);
       os << formatv("tblgen_ops[{0}] = {1};\n", ++opCounter, argName);
       os.unindent() << "}\n";
@@ -377,7 +379,9 @@ void PatternEmitter::emitOpMatch(DagNode tree, StringRef opName, int depth) {
 
     // Next handle DAG leaf: operand or attribute
     if (opArg.is<NamedTypeConstraint *>()) {
-      emitOperandMatch(tree, castedName, i, depth);
+      // emitOperandMatch's argument indexing counts attributes.
+      emitOperandMatch(tree, castedName, i, nextOperand, depth);
+      ++nextOperand;
     } else if (opArg.is<NamedAttribute *>()) {
       emitAttributeMatch(tree, opName, i, depth);
     } else {
@@ -390,7 +394,8 @@ void PatternEmitter::emitOpMatch(DagNode tree, StringRef opName, int depth) {
 }
 
 void PatternEmitter::emitOperandMatch(DagNode tree, StringRef opName,
-                                      int argIndex, int depth) {
+                                      int argIndex, int operandIndex,
+                                      int depth) {
   Operator &op = tree.getDialectOp(opMap);
   auto *operand = op.getArg(argIndex).get<NamedTypeConstraint *>();
   auto matcher = tree.getArgAsLeaf(argIndex);
@@ -415,14 +420,14 @@ void PatternEmitter::emitOperandMatch(DagNode tree, StringRef opName,
         PrintFatalError(loc, error);
       }
       auto self = formatv("(*{0}.getODSOperands({1}).begin()).getType()",
-                          opName, argIndex);
+                          opName, operandIndex);
       emitMatchCheck(
           opName,
           tgfmt(constraint.getConditionTemplate(), &fmtCtx.withSelf(self)),
           formatv("\"operand {0} of op '{1}' failed to satisfy constraint: "
                   "'{2}'\"",
                   operand - op.operand_begin(), op.getOperationName(),
-                  constraint.getDescription()));
+                  constraint.getSummary()));
     }
   }
 
@@ -488,7 +493,7 @@ void PatternEmitter::emitAttributeMatch(DagNode tree, StringRef opName,
         formatv("\"op '{0}' attribute '{1}' failed to satisfy constraint: "
                 "{2}\"",
                 op.getOperationName(), namedAttr->name,
-                matcher.getAsConstraint().getDescription()));
+                matcher.getAsConstraint().getSummary()));
   }
 
   // Capture the value
@@ -533,7 +538,7 @@ void PatternEmitter::emitMatchLogic(DagNode tree, StringRef opName) {
       emitMatchCheck(
           opName, tgfmt(condition, &fmtCtx.withSelf(self.str())),
           formatv("\"value entity '{0}' failed to satisfy constraint: {1}\"",
-                  entities.front(), constraint.getDescription()));
+                  entities.front(), constraint.getSummary()));
 
     } else if (isa<AttrConstraint>(constraint)) {
       PrintFatalError(
@@ -559,7 +564,7 @@ void PatternEmitter::emitMatchLogic(DagNode tree, StringRef opName) {
                      formatv("\"entities '{0}' failed to satisfy constraint: "
                              "{1}\"",
                              llvm::join(entities, ", "),
-                             constraint.getDescription()));
+                             constraint.getSummary()));
     }
   }
 
@@ -995,7 +1000,7 @@ std::string PatternEmitter::handleOpCreation(DagNode tree, int resultIndex,
   // First go through all the child nodes who are nested DAG constructs to
   // create ops for them and remember the symbol names for them, so that we can
   // use the results in the current node. This happens in a recursive manner.
-  for (int i = 0, e = resultOp.getNumOperands(); i != e; ++i) {
+  for (int i = 0, e = tree.getNumArgs() - hasLocationDirective; i != e; ++i) {
     if (auto child = tree.getArgAsNestedDag(i))
       childNodeNames[i] = handleResultPattern(child, i, depth + 1);
   }

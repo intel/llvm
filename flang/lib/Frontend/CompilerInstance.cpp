@@ -11,6 +11,7 @@
 #include "flang/Frontend/TextDiagnosticPrinter.h"
 #include "flang/Parser/parsing.h"
 #include "flang/Parser/provenance.h"
+#include "flang/Semantics/semantics.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
@@ -37,6 +38,17 @@ CompilerInstance::~CompilerInstance() {
 void CompilerInstance::set_invocation(
     std::shared_ptr<CompilerInvocation> value) {
   invocation_ = std::move(value);
+}
+
+void CompilerInstance::set_semaOutputStream(raw_ostream &Value) {
+  ownedSemaOutputStream_.release();
+  semaOutputStream_ = &Value;
+}
+
+void CompilerInstance::set_semaOutputStream(
+    std::unique_ptr<raw_ostream> Value) {
+  ownedSemaOutputStream_.swap(Value);
+  semaOutputStream_ = ownedSemaOutputStream_.get();
 }
 
 void CompilerInstance::AddOutputFile(OutputFile &&outFile) {
@@ -126,21 +138,29 @@ void CompilerInstance::ClearOutputFiles(bool eraseFiles) {
 }
 
 bool CompilerInstance::ExecuteAction(FrontendAction &act) {
-  // Set some sane defaults for the frontend.
-  // TODO: Instead of defaults we should be setting these options based on the
-  // user input.
-  this->invocation().SetDefaultFortranOpts();
+  auto &invoc = this->invocation();
 
-  // Connect Input to a CompileInstance
+  // Set some sane defaults for the frontend.
+  invoc.SetDefaultFortranOpts();
+  // Update the fortran options based on user-based input.
+  invoc.setFortranOpts();
+
+  // Run the frontend action `act` for every input file.
   for (const FrontendInputFile &fif : frontendOpts().inputs_) {
     if (act.BeginSourceFile(*this, fif)) {
+      // Switch between fixed and free form format based on the input file
+      // extension. Ideally we should have all Fortran options set before
+      // entering this loop (i.e. processing any input files). However, we
+      // can't decide between fixed and free form based on the file extension
+      // earlier than this.
+      invoc.fortranOpts().isFixedForm = fif.IsFixedForm();
       if (llvm::Error err = act.Execute()) {
         consumeError(std::move(err));
       }
       act.EndSourceFile();
     }
   }
-  return true;
+  return !diagnostics().getClient()->getNumErrors();
 }
 
 void CompilerInstance::CreateDiagnostics(

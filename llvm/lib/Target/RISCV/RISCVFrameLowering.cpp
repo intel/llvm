@@ -138,7 +138,7 @@ static int getLibCallID(const MachineFunction &MF,
     // RISCVRegisterInfo::hasReservedSpillSlot assigns negative frame indexes to
     // registers which can be saved by libcall.
     if (CS.getFrameIdx() < 0)
-      MaxReg = std::max(MaxReg.id(), CS.getReg());
+      MaxReg = std::max(MaxReg.id(), CS.getReg().id());
 
   if (MaxReg == RISCV::NoRegister)
     return -1;
@@ -235,18 +235,12 @@ bool RISCVFrameLowering::hasBP(const MachineFunction &MF) const {
 // Determines the size of the frame and maximum call frame size.
 void RISCVFrameLowering::determineFrameLayout(MachineFunction &MF) const {
   MachineFrameInfo &MFI = MF.getFrameInfo();
-  const RISCVRegisterInfo *RI = STI.getRegisterInfo();
 
   // Get the number of bytes to allocate from the FrameInfo.
   uint64_t FrameSize = MFI.getStackSize();
 
   // Get the alignment.
   Align StackAlign = getStackAlign();
-  if (RI->needsStackRealignment(MF)) {
-    Align MaxStackAlign = std::max(StackAlign, MFI.getMaxAlign());
-    FrameSize += (MaxStackAlign.value() - StackAlign.value());
-    StackAlign = MaxStackAlign;
-  }
 
   // Set Max Call Frame Size
   uint64_t MaxCallSize = alignTo(MFI.getMaxCallFrameSize(), StackAlign);
@@ -324,6 +318,11 @@ void RISCVFrameLowering::emitPrologue(MachineFunction &MF,
   // Debug location must be unknown since the first debug location is used
   // to determine the end of the prologue.
   DebugLoc DL;
+
+  // All calls are tail calls in GHC calling conv, and functions have no
+  // prologue/epilogue.
+  if (MF.getFunction().getCallingConv() == CallingConv::GHC)
+    return;
 
   // Emit prologue for shadow call stack.
   emitSCSPrologue(MF, MBB, MBBI, DL);
@@ -500,6 +499,11 @@ void RISCVFrameLowering::emitEpilogue(MachineFunction &MF,
   Register FPReg = getFPReg(STI);
   Register SPReg = getSPReg(STI);
 
+  // All calls are tail calls in GHC calling conv, and functions have no
+  // prologue/epilogue.
+  if (MF.getFunction().getCallingConv() == CallingConv::GHC)
+    return;
+
   // Get the insert location for the epilogue. If there were no terminators in
   // the block, get the last instruction.
   MachineBasicBlock::iterator MBBI = MBB.end();
@@ -564,9 +568,9 @@ void RISCVFrameLowering::emitEpilogue(MachineFunction &MF,
   emitSCSEpilogue(MF, MBB, MBBI, DL);
 }
 
-int RISCVFrameLowering::getFrameIndexReference(const MachineFunction &MF,
-                                               int FI,
-                                               Register &FrameReg) const {
+StackOffset
+RISCVFrameLowering::getFrameIndexReference(const MachineFunction &MF, int FI,
+                                           Register &FrameReg) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const TargetRegisterInfo *RI = MF.getSubtarget().getRegisterInfo();
   const auto *RVFI = MF.getInfo<RISCVMachineFunctionInfo>();
@@ -618,7 +622,7 @@ int RISCVFrameLowering::getFrameIndexReference(const MachineFunction &MF,
         Offset += RVFI->getLibCallStackSize();
     }
   }
-  return Offset;
+  return StackOffset::getFixed(Offset);
 }
 
 void RISCVFrameLowering::determineCalleeSaves(MachineFunction &MF,
@@ -652,14 +656,14 @@ void RISCVFrameLowering::determineCalleeSaves(MachineFunction &MF,
     for (unsigned i = 0; CSRegs[i]; ++i)
       SavedRegs.set(CSRegs[i]);
 
-    if (MF.getSubtarget<RISCVSubtarget>().hasStdExtD() ||
-        MF.getSubtarget<RISCVSubtarget>().hasStdExtF()) {
+    if (MF.getSubtarget<RISCVSubtarget>().hasStdExtF()) {
 
       // If interrupt is enabled, this list contains all FP registers.
       const MCPhysReg * Regs = MF.getRegInfo().getCalleeSavedRegs();
 
       for (unsigned i = 0; Regs[i]; ++i)
-        if (RISCV::FPR32RegClass.contains(Regs[i]) ||
+        if (RISCV::FPR16RegClass.contains(Regs[i]) ||
+            RISCV::FPR32RegClass.contains(Regs[i]) ||
             RISCV::FPR64RegClass.contains(Regs[i]))
           SavedRegs.set(Regs[i]);
     }

@@ -566,7 +566,8 @@ Expected<typename ELFT::DynRange> ELFFile<ELFT>::dynamicEntries() const {
 }
 
 template <class ELFT>
-Expected<const uint8_t *> ELFFile<ELFT>::toMappedAddr(uint64_t VAddr) const {
+Expected<const uint8_t *>
+ELFFile<ELFT>::toMappedAddr(uint64_t VAddr, WarningHandler WarnHandler) const {
   auto ProgramHeadersOrError = program_headers();
   if (!ProgramHeadersOrError)
     return ProgramHeadersOrError.takeError();
@@ -577,11 +578,21 @@ Expected<const uint8_t *> ELFFile<ELFT>::toMappedAddr(uint64_t VAddr) const {
     if (Phdr.p_type == ELF::PT_LOAD)
       LoadSegments.push_back(const_cast<Elf_Phdr *>(&Phdr));
 
-  const Elf_Phdr *const *I =
-      std::upper_bound(LoadSegments.begin(), LoadSegments.end(), VAddr,
-                       [](uint64_t VAddr, const Elf_Phdr_Impl<ELFT> *Phdr) {
-                         return VAddr < Phdr->p_vaddr;
-                       });
+  auto SortPred = [](const Elf_Phdr_Impl<ELFT> *A,
+                     const Elf_Phdr_Impl<ELFT> *B) {
+    return A->p_vaddr < B->p_vaddr;
+  };
+  if (!llvm::is_sorted(LoadSegments, SortPred)) {
+    if (Error E =
+            WarnHandler("loadable segments are unsorted by virtual address"))
+      return std::move(E);
+    llvm::stable_sort(LoadSegments, SortPred);
+  }
+
+  const Elf_Phdr *const *I = llvm::upper_bound(
+      LoadSegments, VAddr, [](uint64_t VAddr, const Elf_Phdr_Impl<ELFT> *Phdr) {
+        return VAddr < Phdr->p_vaddr;
+      });
 
   if (I == LoadSegments.begin())
     return createError("virtual address is not in any segment: 0x" +

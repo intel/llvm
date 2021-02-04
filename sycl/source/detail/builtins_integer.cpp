@@ -171,7 +171,7 @@ template <typename T> inline T __s_long_mad_sat(T a, T b, T c) {
   if (!neg_prod && mulhi != 0)
     return d::max_v<T>();
   if (neg_prod && mulhi != -1)
-    return d::max_v<T>(); // essentially some other negative value.
+    return d::min_v<T>(); // essentially some other negative value.
   return __s_add_sat(T(a * b), c);
 }
 

@@ -11,6 +11,7 @@
 #include "InputChunks.h"
 #include "InputEvent.h"
 #include "InputGlobal.h"
+#include "InputTable.h"
 #include "WriterUtils.h"
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/Memory.h"
@@ -191,6 +192,22 @@ static void checkEventType(const Symbol *existing, const InputFile *file,
          toString(*newSig) + " in " + toString(file));
 }
 
+static void checkTableType(const Symbol *existing, const InputFile *file,
+                           const WasmTableType *newType) {
+  if (!isa<TableSymbol>(existing)) {
+    reportTypeError(existing, file, WASM_SYMBOL_TYPE_TABLE);
+    return;
+  }
+
+  const WasmTableType *oldType = cast<TableSymbol>(existing)->getTableType();
+  if (newType->ElemType != oldType->ElemType) {
+    error("Table type mismatch: " + existing->getName() + "\n>>> defined as " +
+          toString(*oldType) + " in " + toString(existing->getFile()) +
+          "\n>>> defined as " + toString(*newType) + " in " + toString(file));
+  }
+  // FIXME: No assertions currently on the limits.
+}
+
 static void checkDataType(const Symbol *existing, const InputFile *file) {
   if (!isa<DataSymbol>(existing))
     reportTypeError(existing, file, WASM_SYMBOL_TYPE_DATA);
@@ -206,7 +223,7 @@ DefinedFunction *SymbolTable::addSyntheticFunction(StringRef name,
                                         flags, nullptr, function);
 }
 
-// Adds an optional, linker generated, data symbols.  The symbol will only be
+// Adds an optional, linker generated, data symbol.  The symbol will only be
 // added if there is an undefine reference to it, or if it is explicitly
 // exported via the --export flag.  Otherwise we don't add the symbol and return
 // nullptr.
@@ -239,6 +256,30 @@ DefinedGlobal *SymbolTable::addSyntheticGlobal(StringRef name, uint32_t flags,
   syntheticGlobals.emplace_back(global);
   return replaceSymbol<DefinedGlobal>(insertName(name).first, name, flags,
                                       nullptr, global);
+}
+
+DefinedGlobal *SymbolTable::addOptionalGlobalSymbols(StringRef name,
+                                                     uint32_t flags,
+                                                     InputGlobal *global) {
+  LLVM_DEBUG(dbgs() << "addOptionalGlobalSymbols: " << name << " -> " << global
+                    << "\n");
+  Symbol *s = find(name);
+  if (!s || s->isDefined())
+    return nullptr;
+  syntheticGlobals.emplace_back(global);
+  return replaceSymbol<DefinedGlobal>(s, name, flags, nullptr, global);
+}
+
+DefinedTable *SymbolTable::addSyntheticTable(StringRef name, uint32_t flags,
+                                             InputTable *table) {
+  LLVM_DEBUG(dbgs() << "addSyntheticTable: " << name << " -> " << table
+                    << "\n");
+  Symbol *s = find(name);
+  assert(!s || s->isUndefined());
+  if (!s)
+    s = insertName(name).first;
+  syntheticTables.emplace_back(table);
+  return replaceSymbol<DefinedTable>(s, name, flags, nullptr, table);
 }
 
 static bool shouldReplace(const Symbol *existing, InputFile *newFile,
@@ -398,6 +439,30 @@ Symbol *SymbolTable::addDefinedEvent(StringRef name, uint32_t flags,
   return s;
 }
 
+Symbol *SymbolTable::addDefinedTable(StringRef name, uint32_t flags,
+                                     InputFile *file, InputTable *table) {
+  LLVM_DEBUG(dbgs() << "addDefinedTable:" << name << "\n");
+
+  Symbol *s;
+  bool wasInserted;
+  std::tie(s, wasInserted) = insert(name, file);
+
+  auto replaceSym = [&]() {
+    replaceSymbol<DefinedTable>(s, name, flags, file, table);
+  };
+
+  if (wasInserted || s->isLazy()) {
+    replaceSym();
+    return s;
+  }
+
+  checkTableType(s, file, &table->getType());
+
+  if (shouldReplace(s, file, flags))
+    replaceSym();
+  return s;
+}
+
 // This function get called when an undefined symbol is added, and there is
 // already an existing one in the symbols table.  In this case we check that
 // custom 'import-module' and 'import-field' symbol attributes agree.
@@ -541,6 +606,30 @@ Symbol *SymbolTable::addUndefinedGlobal(StringRef name,
   return s;
 }
 
+Symbol *SymbolTable::addUndefinedTable(StringRef name,
+                                       Optional<StringRef> importName,
+                                       Optional<StringRef> importModule,
+                                       uint32_t flags, InputFile *file,
+                                       const WasmTableType *type) {
+  LLVM_DEBUG(dbgs() << "addUndefinedTable: " << name << "\n");
+  assert(flags & WASM_SYMBOL_UNDEFINED);
+
+  Symbol *s;
+  bool wasInserted;
+  std::tie(s, wasInserted) = insert(name, file);
+  if (s->traced)
+    printTraceSymbolUndefined(name, file);
+
+  if (wasInserted)
+    replaceSymbol<UndefinedTable>(s, name, importName, importModule, flags,
+                                  file, type);
+  else if (auto *lazy = dyn_cast<LazySymbol>(s))
+    lazy->fetch();
+  else if (s->isDefined())
+    checkTableType(s, file, type);
+  return s;
+}
+
 void SymbolTable::addLazy(ArchiveFile *file, const Archive::Symbol *sym) {
   LLVM_DEBUG(dbgs() << "addLazy: " << sym->getName() << "\n");
   StringRef name = sym->getName();
@@ -661,7 +750,19 @@ InputFunction *SymbolTable::replaceWithUnreachable(Symbol *sym,
   // to be exported outside the object file.
   replaceSymbol<DefinedFunction>(sym, debugName, WASM_SYMBOL_BINDING_LOCAL,
                                  nullptr, func);
+  // Ensure the stub function doesn't get a table entry.  Its address
+  // should always compare equal to the null pointer.
+  sym->isStub = true;
   return func;
+}
+
+void SymbolTable::replaceWithUndefined(Symbol *sym) {
+  // Add a synthetic dummy for weak undefined functions.  These dummies will
+  // be GC'd if not used as the target of any "call" instructions.
+  StringRef debugName = saver.save("undefined_weak:" + toString(*sym));
+  replaceWithUnreachable(sym, *sym->getSignature(), debugName);
+  // Hide our dummy to prevent export.
+  sym->setHidden(true);
 }
 
 // For weak undefined functions, there may be "call" instructions that reference
@@ -670,29 +771,35 @@ InputFunction *SymbolTable::replaceWithUnreachable(Symbol *sym,
 // the call instruction that passes Wasm validation.
 void SymbolTable::handleWeakUndefines() {
   for (Symbol *sym : getSymbols()) {
-    if (!sym->isUndefWeak())
-      continue;
-
-    const WasmSignature *sig = sym->getSignature();
-    if (!sig) {
-      // It is possible for undefined functions not to have a signature (eg. if
-      // added via "--undefined"), but weak undefined ones do have a signature.
-      // Lazy symbols may not be functions and therefore Sig can still be null
-      // in some circumstance.
-      assert(!isa<FunctionSymbol>(sym));
-      continue;
+    if (sym->isUndefWeak()) {
+      if (sym->getSignature()) {
+        replaceWithUndefined(sym);
+      } else {
+        // It is possible for undefined functions not to have a signature (eg.
+        // if added via "--undefined"), but weak undefined ones do have a
+        // signature.  Lazy symbols may not be functions and therefore Sig can
+        // still be null in some circumstance.
+        assert(!isa<FunctionSymbol>(sym));
+      }
     }
-
-    // Add a synthetic dummy for weak undefined functions.  These dummies will
-    // be GC'd if not used as the target of any "call" instructions.
-    StringRef debugName = saver.save("undefined:" + toString(*sym));
-    InputFunction* func = replaceWithUnreachable(sym, *sig, debugName);
-    // Ensure it compares equal to the null pointer, and so that table relocs
-    // don't pull in the stub body (only call-operand relocs should do that).
-    func->setTableIndex(0);
-    // Hide our dummy to prevent export.
-    sym->setHidden(true);
   }
+}
+
+DefinedFunction *SymbolTable::createUndefinedStub(const WasmSignature &sig) {
+  if (stubFunctions.count(sig))
+    return stubFunctions[sig];
+  LLVM_DEBUG(dbgs() << "createUndefinedStub: " << toString(sig) << "\n");
+  auto *sym = reinterpret_cast<DefinedFunction *>(make<SymbolUnion>());
+  sym->isUsedInRegularObj = true;
+  sym->canInline = true;
+  sym->traced = false;
+  sym->forceExport = false;
+  sym->signature = &sig;
+  replaceSymbol<DefinedFunction>(
+      sym, "undefined_stub", WASM_SYMBOL_VISIBILITY_HIDDEN, nullptr, nullptr);
+  replaceWithUnreachable(sym, sig, "undefined_stub");
+  stubFunctions[sig] = sym;
+  return sym;
 }
 
 static void reportFunctionSignatureMismatch(StringRef symName,

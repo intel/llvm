@@ -14,7 +14,6 @@
 
 #include "llvm/Transforms/Utils/LoopVersioning.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/LoopAccessAnalysis.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/MemorySSA.h"
@@ -45,12 +44,14 @@ LoopVersioning::LoopVersioning(const LoopAccessInfo &LAI,
       AliasChecks(Checks.begin(), Checks.end()),
       Preds(LAI.getPSE().getUnionPredicate()), LAI(LAI), LI(LI), DT(DT),
       SE(SE) {
-  assert(L->getExitBlock() && "No single exit block");
-  assert(L->isLoopSimplifyForm() && "Loop is not in loop-simplify form");
+  assert(L->getUniqueExitBlock() && "No single exit block");
 }
 
 void LoopVersioning::versionLoop(
     const SmallVectorImpl<Instruction *> &DefsUsedOutside) {
+  assert(VersionedLoop->isLoopSimplifyForm() &&
+         "Loop is not in loop-simplify form");
+
   Instruction *FirstCheckInst;
   Instruction *MemRuntimeCheck;
   Value *SCEVRuntimeCheck;
@@ -269,8 +270,11 @@ bool runImpl(LoopInfo *LI, function_ref<const LoopAccessInfo &(Loop &)> GetLAA,
   // Now walk the identified inner loops.
   bool Changed = false;
   for (Loop *L : Worklist) {
+    if (!L->isLoopSimplifyForm() || !L->isRotatedForm() ||
+        !L->getExitingBlock())
+      continue;
     const LoopAccessInfo &LAI = GetLAA(*L);
-    if (L->isLoopSimplifyForm() && !LAI.hasConvergentOp() &&
+    if (!LAI.hasConvergentOp() &&
         (LAI.getNumRuntimePointerChecks() ||
          !LAI.getPSE().getUnionPredicate().isAlwaysTrue())) {
       LoopVersioning LVer(LAI, LAI.getRuntimePointerChecking()->getChecks(), L,

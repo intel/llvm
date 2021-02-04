@@ -14,22 +14,12 @@
 #ifndef LLVM_LIB_TARGET_AMDGPU_SIINSTRINFO_H
 #define LLVM_LIB_TARGET_AMDGPU_SIINSTRINFO_H
 
-#include "AMDGPUInstrInfo.h"
-#include "SIDefines.h"
+#include "AMDGPUMIRFormatter.h"
 #include "SIRegisterInfo.h"
 #include "Utils/AMDGPUBaseInfo.h"
-#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SetVector.h"
-#include "llvm/CodeGen/MachineBasicBlock.h"
-#include "llvm/CodeGen/MachineFunction.h"
-#include "llvm/CodeGen/MachineInstr.h"
-#include "llvm/CodeGen/MachineInstrBuilder.h"
-#include "llvm/CodeGen/MachineOperand.h"
+#include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetSchedule.h"
-#include "llvm/MC/MCInstrDesc.h"
-#include "llvm/Support/Compiler.h"
-#include <cassert>
-#include <cstdint>
 
 #define GET_INSTRINFO_HEADER
 #include "AMDGPUGenInstrInfo.inc"
@@ -37,17 +27,20 @@
 namespace llvm {
 
 class APInt;
+class GCNSubtarget;
+class LiveVariables;
 class MachineDominatorTree;
 class MachineRegisterInfo;
 class RegScavenger;
-class GCNSubtarget;
 class TargetRegisterClass;
+class ScheduleHazardRecognizer;
 
 class SIInstrInfo final : public AMDGPUGenInstrInfo {
 private:
   const SIRegisterInfo RI;
   const GCNSubtarget &ST;
   TargetSchedModel SchedModel;
+  mutable std::unique_ptr<AMDGPUMIRFormatter> Formatter;
 
   // The inverse predicate should have the negative value.
   enum BranchPredicate {
@@ -245,9 +238,12 @@ public:
   // DstRC, then AMDGPU::COPY is returned.
   unsigned getMovOpcode(const TargetRegisterClass *DstRC) const;
 
-  const MCInstrDesc &getIndirectRegWritePseudo(
-    unsigned VecSize, unsigned EltSize, bool IsSGPR) const;
+  const MCInstrDesc &getIndirectRegWriteMovRelPseudo(unsigned VecSize,
+                                                     unsigned EltSize,
+                                                     bool IsSGPR) const;
 
+  const MCInstrDesc &getIndirectGPRIDXPseudo(unsigned VecSize,
+                                             bool IsIndirectSrc) const;
   LLVM_READONLY
   int commuteOpcode(unsigned Opc) const;
 
@@ -580,6 +576,14 @@ public:
 
   bool isDPP(uint16_t Opcode) const {
     return get(Opcode).TSFlags & SIInstrFlags::DPP;
+  }
+
+  static bool isTRANS(const MachineInstr &MI) {
+    return MI.getDesc().TSFlags & SIInstrFlags::TRANS;
+  }
+
+  bool isTRANS(uint16_t Opcode) const {
+    return get(Opcode).TSFlags & SIInstrFlags::TRANS;
   }
 
   static bool isVOP3P(const MachineInstr &MI) {
@@ -1031,13 +1035,17 @@ public:
     return isUInt<12>(Imm);
   }
 
-  unsigned getNumFlatOffsetBits(bool Signed) const;
-
   /// Returns if \p Offset is legal for the subtarget as the offset to a FLAT
   /// encoded instruction. If \p Signed, this is for an instruction that
   /// interprets the offset as signed.
   bool isLegalFLATOffset(int64_t Offset, unsigned AddrSpace,
                          bool Signed) const;
+
+  /// Split \p COffsetVal into {immediate offset field, remainder offset}
+  /// values.
+  std::pair<int64_t, int64_t> splitFlatOffset(int64_t COffsetVal,
+                                              unsigned AddrSpace,
+                                              bool IsSigned) const;
 
   /// \brief Return a target-specific opcode if Opcode is a pseudo instruction.
   /// Return -1 if the target-specific opcode for the pseudo instruction does
@@ -1069,6 +1077,12 @@ public:
   unsigned getInstrLatency(const InstrItineraryData *ItinData,
                            const MachineInstr &MI,
                            unsigned *PredCost = nullptr) const override;
+
+  const MIRFormatter *getMIRFormatter() const override {
+    if (!Formatter.get())
+      Formatter = std::make_unique<AMDGPUMIRFormatter>();
+    return Formatter.get();
+  }
 
   static unsigned getDSShaderTypeValue(const MachineFunction &MF);
 };
@@ -1168,6 +1182,9 @@ namespace AMDGPU {
 
   LLVM_READONLY
   int getFlatScratchInstSTfromSS(uint16_t Opcode);
+
+  LLVM_READONLY
+  int getFlatScratchInstSSfromSV(uint16_t Opcode);
 
   const uint64_t RSRC_DATA_FORMAT = 0xf00000000000LL;
   const uint64_t RSRC_ELEMENT_SIZE_SHIFT = (32 + 19);

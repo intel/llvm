@@ -6,19 +6,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "include/math.h"
 #include "src/math/copysignl.h"
 #include "utils/FPUtil/FPBits.h"
 #include "utils/FPUtil/TestHelpers.h"
 #include "utils/UnitTest/Test.h"
+#include <math.h>
 
 using FPBits = __llvm_libc::fputil::FPBits<long double>;
 
 DECLARE_SPECIAL_CONSTANTS(long double)
 
-TEST(CopySinlTest, SpecialNumbers) {
-  EXPECT_FP_EQ(nan, __llvm_libc::copysignl(nan, -1.0));
-  EXPECT_FP_EQ(nan, __llvm_libc::copysignl(nan, 1.0));
+TEST(LlvmLibcCopySinlTest, SpecialNumbers) {
+  EXPECT_FP_EQ(aNaN, __llvm_libc::copysignl(aNaN, -1.0));
+  EXPECT_FP_EQ(aNaN, __llvm_libc::copysignl(aNaN, 1.0));
 
   EXPECT_FP_EQ(negInf, __llvm_libc::copysignl(inf, -1.0));
   EXPECT_FP_EQ(inf, __llvm_libc::copysignl(negInf, 1.0));
@@ -27,7 +27,7 @@ TEST(CopySinlTest, SpecialNumbers) {
   EXPECT_FP_EQ(zero, __llvm_libc::copysignl(negZero, 1.0));
 }
 
-TEST(CopySinlTest, InLongDoubleRange) {
+TEST(LlvmLibcCopySinlTest, InLongDoubleRange) {
   using UIntType = FPBits::UIntType;
   constexpr UIntType count = 10000000;
   constexpr UIntType step = UIntType(-1) / count;

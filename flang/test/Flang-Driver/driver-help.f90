@@ -18,11 +18,16 @@
 ! HELP:USAGE: flang-new
 ! HELP-EMPTY:
 ! HELP-NEXT:OPTIONS:
+! HELP-NEXT: -###                   Print (but do not run) the commands to run for this compilation
+! HELP-NEXT: -c                     Only run preprocess, compile, and assemble steps
+! HELP-NEXT: -D <macro>=<value>     Define <macro> to <value> (or 1 if <value> omitted)
 ! HELP-NEXT: -E                     Only run the preprocessor
 ! HELP-NEXT: -fcolor-diagnostics    Enable colors in diagnostics
 ! HELP-NEXT: -fno-color-diagnostics Disable colors in diagnostics
 ! HELP-NEXT: -help                  Display available options
+! HELP-NEXT: -I <dir>               Add directory to the end of the list of include search paths
 ! HELP-NEXT: -o <file>              Write output to <file>
+! HELP-NEXT: -U <macro>             Undefine macro <macro>
 ! HELP-NEXT: --version              Print version information
 
 !-------------------------------------------------------------
@@ -31,10 +36,14 @@
 ! HELP-FC1:USAGE: flang-new
 ! HELP-FC1-EMPTY:
 ! HELP-FC1-NEXT:OPTIONS:
-! HELP-FC1-NEXT: -E        Only run the preprocessor
-! HELP-FC1-NEXT: -help     Display available options
-! HELP-FC1-NEXT: -o <file> Write output to <file>
-! HELP-FC1-NEXT: --version Print version information
+! HELP-FC1-NEXT: -D <macro>=<value>     Define <macro> to <value> (or 1 if <value> omitted)
+! HELP-FC1-NEXT: -emit-obj Emit native object files
+! HELP-FC1-NEXT: -E                     Only run the preprocessor
+! HELP-FC1-NEXT: -help                  Display available options
+! HELP-FC1-NEXT: -I <dir>               Add directory to the end of the list of include search paths
+! HELP-FC1-NEXT: -o <file>              Write output to <file>
+! HELP-FC1-NEXT: -U <macro>             Undefine macro <macro>
+! HELP-FC1-NEXT: --version              Print version information
 
 !---------------
 ! EXPECTED ERROR

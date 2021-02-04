@@ -16,6 +16,7 @@
 #include "WebAssemblyMachineFunctionInfo.h"
 #include "WebAssemblySubtarget.h"
 #include "WebAssemblyTargetMachine.h"
+#include "WebAssemblyUtilities.h"
 #include "llvm/CodeGen/Analysis.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -69,6 +70,7 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
   computeRegisterProperties(Subtarget->getRegisterInfo());
 
   setOperationAction(ISD::GlobalAddress, MVTPtr, Custom);
+  setOperationAction(ISD::GlobalTLSAddress, MVTPtr, Custom);
   setOperationAction(ISD::ExternalSymbol, MVTPtr, Custom);
   setOperationAction(ISD::JumpTable, MVTPtr, Custom);
   setOperationAction(ISD::BlockAddress, MVTPtr, Custom);
@@ -265,6 +267,7 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
 
   // Exception handling intrinsics
   setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::Other, Custom);
+  setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::Other, Custom);
   setOperationAction(ISD::INTRINSIC_VOID, MVT::Other, Custom);
 
   setMaxAtomicSizeInBitsSupported(64);
@@ -476,6 +479,15 @@ static MachineBasicBlock *LowerCallResults(MachineInstr &CallResults,
   if (IsIndirect) {
     MIB.addImm(0);
     MIB.addImm(0);
+
+    // Ensure that the object file has a __indirect_function_table import, as we
+    // call_indirect against it.
+    MCSymbolWasm *Sym = WebAssembly::getOrCreateFunctionTableSymbol(
+        MF.getContext(), "__indirect_function_table");
+    // Until call_indirect emits TABLE_NUMBER relocs against this symbol, mark
+    // it as NO_STRIP so as to ensure that the indirect function table makes it
+    // to linked output.
+    Sym->setNoStrip();
   }
 
   for (auto Use : CallParams.uses())
@@ -562,6 +574,16 @@ WebAssemblyTargetLowering::getRegForInlineAsmConstraint(
         if (VT.getSizeInBits() <= 64)
           return std::make_pair(0U, &WebAssembly::I64RegClass);
       }
+      if (VT.isFloatingPoint() && !VT.isVector()) {
+        switch (VT.getSizeInBits()) {
+        case 32:
+          return std::make_pair(0U, &WebAssembly::F32RegClass);
+        case 64:
+          return std::make_pair(0U, &WebAssembly::F64RegClass);
+        default:
+          break;
+        }
+      }
       break;
     default:
       break;
@@ -646,7 +668,7 @@ bool WebAssemblyTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
                                                    MachineFunction &MF,
                                                    unsigned Intrinsic) const {
   switch (Intrinsic) {
-  case Intrinsic::wasm_atomic_notify:
+  case Intrinsic::wasm_memory_atomic_notify:
     Info.opc = ISD::INTRINSIC_W_CHAIN;
     Info.memVT = MVT::i32;
     Info.ptrVal = I.getArgOperand(0);
@@ -660,7 +682,7 @@ bool WebAssemblyTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     // consistent. The same applies for wasm_atomic_wait intrinsics too.
     Info.flags = MachineMemOperand::MOVolatile | MachineMemOperand::MOLoad;
     return true;
-  case Intrinsic::wasm_atomic_wait_i32:
+  case Intrinsic::wasm_memory_atomic_wait32:
     Info.opc = ISD::INTRINSIC_W_CHAIN;
     Info.memVT = MVT::i32;
     Info.ptrVal = I.getArgOperand(0);
@@ -668,7 +690,7 @@ bool WebAssemblyTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.align = Align(4);
     Info.flags = MachineMemOperand::MOVolatile | MachineMemOperand::MOLoad;
     return true;
-  case Intrinsic::wasm_atomic_wait_i64:
+  case Intrinsic::wasm_memory_atomic_wait64:
     Info.opc = ISD::INTRINSIC_W_CHAIN;
     Info.memVT = MVT::i64;
     Info.ptrVal = I.getArgOperand(0);
@@ -733,6 +755,16 @@ bool WebAssemblyTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.memVT = MemVT;
     Info.offset = 0;
     Info.align = MemAlign;
+    return true;
+  }
+  case Intrinsic::wasm_prefetch_t:
+  case Intrinsic::wasm_prefetch_nt: {
+    Info.opc = ISD::INTRINSIC_VOID;
+    Info.memVT = MVT::i8;
+    Info.ptrVal = I.getArgOperand(0);
+    Info.offset = 0;
+    Info.align = Align(1);
+    Info.flags = MachineMemOperand::MOLoad;
     return true;
   }
   default:
@@ -945,8 +977,7 @@ WebAssemblyTargetLowering::LowerCall(CallLoweringInfo &CLI,
                                                  /*isSS=*/false);
     unsigned ValNo = 0;
     SmallVector<SDValue, 8> Chains;
-    for (SDValue Arg :
-         make_range(OutVals.begin() + NumFixedArgs, OutVals.end())) {
+    for (SDValue Arg : drop_begin(OutVals, NumFixedArgs)) {
       assert(ArgLocs[ValNo].getValNo() == ValNo &&
              "ArgLocs should remain in order and only hold varargs args");
       unsigned Offset = ArgLocs[ValNo++].getLocMemOffset();
@@ -1170,6 +1201,8 @@ SDValue WebAssemblyTargetLowering::LowerOperation(SDValue Op,
     return LowerFrameIndex(Op, DAG);
   case ISD::GlobalAddress:
     return LowerGlobalAddress(Op, DAG);
+  case ISD::GlobalTLSAddress:
+    return LowerGlobalTLSAddress(Op, DAG);
   case ISD::ExternalSymbol:
     return LowerExternalSymbol(Op, DAG);
   case ISD::JumpTable:
@@ -1276,6 +1309,49 @@ SDValue WebAssemblyTargetLowering::LowerFRAMEADDR(SDValue Op,
   Register FP =
       Subtarget->getRegisterInfo()->getFrameRegister(DAG.getMachineFunction());
   return DAG.getCopyFromReg(DAG.getEntryNode(), SDLoc(Op), FP, VT);
+}
+
+SDValue
+WebAssemblyTargetLowering::LowerGlobalTLSAddress(SDValue Op,
+                                                 SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  const auto *GA = cast<GlobalAddressSDNode>(Op);
+  MVT PtrVT = getPointerTy(DAG.getDataLayout());
+
+  MachineFunction &MF = DAG.getMachineFunction();
+  if (!MF.getSubtarget<WebAssemblySubtarget>().hasBulkMemory())
+    report_fatal_error("cannot use thread-local storage without bulk memory",
+                       false);
+
+  const GlobalValue *GV = GA->getGlobal();
+
+  // Currently Emscripten does not support dynamic linking with threads.
+  // Therefore, if we have thread-local storage, only the local-exec model
+  // is possible.
+  // TODO: remove this and implement proper TLS models once Emscripten
+  // supports dynamic linking with threads.
+  if (GV->getThreadLocalMode() != GlobalValue::LocalExecTLSModel &&
+      !Subtarget->getTargetTriple().isOSEmscripten()) {
+    report_fatal_error("only -ftls-model=local-exec is supported for now on "
+                       "non-Emscripten OSes: variable " +
+                           GV->getName(),
+                       false);
+  }
+
+  auto GlobalGet = PtrVT == MVT::i64 ? WebAssembly::GLOBAL_GET_I64
+                                     : WebAssembly::GLOBAL_GET_I32;
+  const char *BaseName = MF.createExternalSymbolName("__tls_base");
+
+  SDValue BaseAddr(
+      DAG.getMachineNode(GlobalGet, DL, PtrVT,
+                         DAG.getTargetExternalSymbol(BaseName, PtrVT)),
+      0);
+
+  SDValue TLSOffset = DAG.getTargetGlobalAddress(
+      GV, DL, PtrVT, GA->getOffset(), WebAssemblyII::MO_TLS_BASE_REL);
+  SDValue SymAddr = DAG.getNode(WebAssemblyISD::Wrapper, DL, PtrVT, TLSOffset);
+
+  return DAG.getNode(ISD::ADD, DL, PtrVT, BaseAddr, SymAddr);
 }
 
 SDValue WebAssemblyTargetLowering::LowerGlobalAddress(SDValue Op,
@@ -1385,6 +1461,21 @@ SDValue WebAssemblyTargetLowering::LowerVASTART(SDValue Op,
                       MachinePointerInfo(SV));
 }
 
+static SDValue getCppExceptionSymNode(SDValue Op, unsigned TagIndex,
+                                      SelectionDAG &DAG) {
+  // We only support C++ exceptions for now
+  int Tag =
+      cast<ConstantSDNode>(Op.getOperand(TagIndex).getNode())->getZExtValue();
+  if (Tag != WebAssembly::CPP_EXCEPTION)
+    llvm_unreachable("Invalid tag: We only support C++ exceptions for now");
+  auto &MF = DAG.getMachineFunction();
+  const auto &TLI = DAG.getTargetLoweringInfo();
+  MVT PtrVT = TLI.getPointerTy(DAG.getDataLayout());
+  const char *SymName = MF.createExternalSymbolName("__cpp_exception");
+  return DAG.getNode(WebAssemblyISD::Wrapper, SDLoc(Op), PtrVT,
+                     DAG.getTargetExternalSymbol(SymName, PtrVT));
+}
+
 SDValue WebAssemblyTargetLowering::LowerIntrinsic(SDValue Op,
                                                   SelectionDAG &DAG) const {
   MachineFunction &MF = DAG.getMachineFunction();
@@ -1418,21 +1509,26 @@ SDValue WebAssemblyTargetLowering::LowerIntrinsic(SDValue Op,
   }
 
   case Intrinsic::wasm_throw: {
-    // We only support C++ exceptions for now
-    int Tag = cast<ConstantSDNode>(Op.getOperand(2).getNode())->getZExtValue();
-    if (Tag != CPP_EXCEPTION)
-      llvm_unreachable("Invalid tag!");
-    const TargetLowering &TLI = DAG.getTargetLoweringInfo();
-    MVT PtrVT = TLI.getPointerTy(DAG.getDataLayout());
-    const char *SymName = MF.createExternalSymbolName("__cpp_exception");
-    SDValue SymNode = DAG.getNode(WebAssemblyISD::Wrapper, DL, PtrVT,
-                                  DAG.getTargetExternalSymbol(SymName, PtrVT));
+    SDValue SymNode = getCppExceptionSymNode(Op, 2, DAG);
     return DAG.getNode(WebAssemblyISD::THROW, DL,
                        MVT::Other, // outchain type
                        {
                            Op.getOperand(0), // inchain
                            SymNode,          // exception symbol
                            Op.getOperand(3)  // thrown value
+                       });
+  }
+
+  case Intrinsic::wasm_catch: {
+    SDValue SymNode = getCppExceptionSymNode(Op, 2, DAG);
+    return DAG.getNode(WebAssemblyISD::CATCH, DL,
+                       {
+                           MVT::i32,  // outchain type
+                           MVT::Other // return value
+                       },
+                       {
+                           Op.getOperand(0), // inchain
+                           SymNode           // exception symbol
                        });
   }
 
@@ -1553,8 +1649,8 @@ SDValue WebAssemblyTargetLowering::LowerBUILD_VECTOR(SDValue Op,
   SmallVector<SwizzleEntry, 16> SwizzleCounts;
 
   auto AddCount = [](auto &Counts, const auto &Val) {
-    auto CountIt = std::find_if(Counts.begin(), Counts.end(),
-                                [&Val](auto E) { return E.first == Val; });
+    auto CountIt =
+        llvm::find_if(Counts, [&Val](auto E) { return E.first == Val; });
     if (CountIt == Counts.end()) {
       Counts.emplace_back(Val, 1);
     } else {

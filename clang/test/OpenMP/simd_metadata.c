@@ -5,7 +5,6 @@
 // RUN: %clang_cc1 -fopenmp -triple i386-unknown-unknown -target-feature +avx -emit-llvm %s -o - | FileCheck %s -check-prefix=CHECK -check-prefix=X86-AVX
 // RUN: %clang_cc1 -fopenmp -triple i386-unknown-unknown -target-feature +avx512f -emit-llvm %s -o - | FileCheck %s -check-prefix=CHECK -check-prefix=X86-AVX512
 // RUN: %clang_cc1 -fopenmp -triple powerpc64-unknown-unknown -emit-llvm %s -o - | FileCheck %s -check-prefix=CHECK -check-prefix=PPC
-// RUN: %clang_cc1 -fopenmp -triple powerpc64-unknown-unknown -target-abi elfv1-qpx -emit-llvm %s -o - | FileCheck %s -check-prefix=CHECK -check-prefix=PPC-QPX
 
 // RUN: %clang_cc1 -fopenmp-simd -triple x86_64-unknown-unknown -emit-llvm %s -o - | FileCheck %s -check-prefix=CHECK -check-prefix=X86
 // RUN: %clang_cc1 -fopenmp-simd -triple x86_64-unknown-unknown -target-feature +avx -emit-llvm %s -o - | FileCheck %s -check-prefix=CHECK -check-prefix=X86-AVX
@@ -14,11 +13,10 @@
 // RUN: %clang_cc1 -fopenmp-simd -triple i386-unknown-unknown -target-feature +avx -emit-llvm %s -o - | FileCheck %s -check-prefix=CHECK -check-prefix=X86-AVX
 // RUN: %clang_cc1 -fopenmp-simd -triple i386-unknown-unknown -target-feature +avx512f -emit-llvm %s -o - | FileCheck %s -check-prefix=CHECK -check-prefix=X86-AVX512
 // RUN: %clang_cc1 -fopenmp-simd -triple powerpc64-unknown-unknown -emit-llvm %s -o - | FileCheck %s -check-prefix=CHECK -check-prefix=PPC
-// RUN: %clang_cc1 -fopenmp-simd -triple powerpc64-unknown-unknown -target-abi elfv1-qpx -emit-llvm %s -o - | FileCheck %s -check-prefix=CHECK -check-prefix=PPC-QPX
 
 void h1(float *c, float *a, double b[], int size)
 {
-// CHECK-LABEL: define void @h1
+// CHECK-LABEL: define{{.*}} void @h1
   int t = 0;
 #pragma omp simd safelen(16) linear(t) aligned(c:32) aligned(a,b)
   // CHECK:         call void @llvm.assume(i1 true) [ "align"(float* [[PTR4:%.*]], {{i64|i32}} 32) ]
@@ -28,14 +26,12 @@ void h1(float *c, float *a, double b[], int size)
   // X86-AVX-NEXT:   call void @llvm.assume(i1 true) [ "align"(float* [[PTR5:%.*]], {{i64|i32}} 32) ]
   // X86-AVX512-NEXT:call void @llvm.assume(i1 true) [ "align"(float* [[PTR5:%.*]], {{i64|i32}} 64) ]
   // PPC-NEXT:       call void @llvm.assume(i1 true) [ "align"(float* [[PTR5:%.*]], {{i64|i32}} 16) ]
-  // PPC-QPX-NEXT:   call void @llvm.assume(i1 true) [ "align"(float* [[PTR5:%.*]], {{i64|i32}} 16) ]
   // CHECK-NEXT:     load
 
   // X86-NEXT:       call void @llvm.assume(i1 true) [ "align"(double* [[PTR6:%.*]], {{i64|i32}} 16) ]
   // X86-AVX-NEXT:   call void @llvm.assume(i1 true) [ "align"(double* [[PTR6:%.*]], {{i64|i32}} 32) ]
   // X86-AVX512-NEXT:call void @llvm.assume(i1 true) [ "align"(double* [[PTR6:%.*]], {{i64|i32}} 64) ]
   // PPC-NEXT:       call void @llvm.assume(i1 true) [ "align"(double* [[PTR6:%.*]], {{i64|i32}} 16) ]
-  // PPC-QPX-NEXT:   call void @llvm.assume(i1 true) [ "align"(double* [[PTR6:%.*]], {{i64|i32}} 32) ]
   for (int i = 0; i < size; ++i) {
     c[i] = a[i] * a[i] + b[i] * b[t];
     ++t;
@@ -50,14 +46,12 @@ void h1(float *c, float *a, double b[], int size)
   // X86-AVX-NEXT:   call void @llvm.assume(i1 true) [ "align"(float* [[PTR5:%.*]], {{i64|i32}} 32) ]
   // X86-AVX512-NEXT:call void @llvm.assume(i1 true) [ "align"(float* [[PTR5:%.*]], {{i64|i32}} 64) ]
   // PPC-NEXT:       call void @llvm.assume(i1 true) [ "align"(float* [[PTR5:%.*]], {{i64|i32}} 16) ]
-  // PPC-QPX-NEXT:   call void @llvm.assume(i1 true) [ "align"(float* [[PTR5:%.*]], {{i64|i32}} 16) ]
   // CHECK-NEXT:     load
 
   // X86-NEXT:       call void @llvm.assume(i1 true) [ "align"(double* [[PTR6:%.*]], {{i64|i32}} 16) ]
   // X86-AVX-NEXT:   call void @llvm.assume(i1 true) [ "align"(double* [[PTR6:%.*]], {{i64|i32}} 32) ]
   // X86-AVX512-NEXT:call void @llvm.assume(i1 true) [ "align"(double* [[PTR6:%.*]], {{i64|i32}} 64) ]
   // PPC-NEXT:       call void @llvm.assume(i1 true) [ "align"(double* [[PTR6:%.*]], {{i64|i32}} 16) ]
-  // PPC-QPX-NEXT:   call void @llvm.assume(i1 true) [ "align"(double* [[PTR6:%.*]], {{i64|i32}} 32) ]
   for (int i = 0; i < size; ++i) {
     c[i] = a[i] * a[i] + b[i] * b[t];
     ++t;
@@ -72,14 +66,12 @@ void h1(float *c, float *a, double b[], int size)
   // X86-AVX-NEXT:   call void @llvm.assume(i1 true) [ "align"(float* [[PTR5:%.*]], {{i64|i32}} 32) ]
   // X86-AVX512-NEXT:call void @llvm.assume(i1 true) [ "align"(float* [[PTR5:%.*]], {{i64|i32}} 64) ]
   // PPC-NEXT:       call void @llvm.assume(i1 true) [ "align"(float* [[PTR5:%.*]], {{i64|i32}} 16) ]
-  // PPC-QPX-NEXT:   call void @llvm.assume(i1 true) [ "align"(float* [[PTR5:%.*]], {{i64|i32}} 16) ]
   // CHECK-NEXT:     load
 
   // X86-NEXT:       call void @llvm.assume(i1 true) [ "align"(double* [[PTR6:%.*]], {{i64|i32}} 16) ]
   // X86-AVX-NEXT:   call void @llvm.assume(i1 true) [ "align"(double* [[PTR6:%.*]], {{i64|i32}} 32) ]
   // X86-AVX512-NEXT:call void @llvm.assume(i1 true) [ "align"(double* [[PTR6:%.*]], {{i64|i32}} 64) ]
   // PPC-NEXT:       call void @llvm.assume(i1 true) [ "align"(double* [[PTR6:%.*]], {{i64|i32}} 16) ]
-  // PPC-QPX-NEXT:   call void @llvm.assume(i1 true) [ "align"(double* [[PTR6:%.*]], {{i64|i32}} 32) ]
   for (int i = 0; i < size; ++i) {
     c[i] = a[i] * a[i] + b[i] * b[t];
     ++t;
@@ -89,7 +81,7 @@ void h1(float *c, float *a, double b[], int size)
 
 void h2(float *c, float *a, float *b, int size)
 {
-// CHECK-LABEL: define void @h2
+// CHECK-LABEL: define{{.*}} void @h2
   int t = 0;
 #pragma omp simd linear(t)
   for (int i = 0; i < size; ++i) {
@@ -102,7 +94,7 @@ void h2(float *c, float *a, float *b, int size)
 
 void h3(float *c, float *a, float *b, int size)
 {
-// CHECK-LABEL: define void @h3
+// CHECK-LABEL: define{{.*}} void @h3
 #pragma omp simd
   for (int i = 0; i < size; ++i) {
     for (int j = 0; j < size; ++j) {

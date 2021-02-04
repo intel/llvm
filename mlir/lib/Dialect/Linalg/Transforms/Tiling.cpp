@@ -19,6 +19,7 @@
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/SCF/EDSC/Builders.h"
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineExprVisitor.h"
 #include "mlir/IR/AffineMap.h"
@@ -33,7 +34,6 @@ using namespace mlir::edsc::intrinsics;
 using namespace mlir::linalg;
 using namespace mlir::scf;
 
-using folded_affine_min = FoldedValueBuilder<AffineMinOp>;
 
 #define DEBUG_TYPE "linalg-tiling"
 
@@ -220,9 +220,8 @@ static bool isTiled(AffineMap map, ValueRange tileSizes) {
 
 static SmallVector<Value, 4>
 makeTiledShapes(OpBuilder &b, Location loc, LinalgOp linalgOp,
-                ValueRange operands, AffineMap map, ValueRange ivs,
+                ArrayRef<Value> tiledOperands, AffineMap map, ValueRange ivs,
                 ValueRange tileSizes, ValueRange allShapeSizes) {
-  assert(operands.size() == linalgOp.getShapedOperands().size());
   assert(ivs.size() == static_cast<size_t>(llvm::count_if(
                            llvm::make_range(tileSizes.begin(), tileSizes.end()),
                            [](Value v) { return !isZero(v); })) &&
@@ -242,11 +241,9 @@ makeTiledShapes(OpBuilder &b, Location loc, LinalgOp linalgOp,
     subShapeSizes.push_back(size - std_constant_index(1));
   }
 
-  auto *op = linalgOp.getOperation();
-
   SmallVector<Value, 4> res;
-  res.reserve(op->getNumOperands());
-  for (auto en : llvm::enumerate(operands)) {
+  res.reserve(tiledOperands.size());
+  for (auto en : llvm::enumerate(tiledOperands)) {
     Value shapedOp = en.value();
     ShapedType shapedType = shapedOp.getType().cast<ShapedType>();
     unsigned rank = shapedType.getRank();
@@ -294,8 +291,9 @@ makeTiledShapes(OpBuilder &b, Location loc, LinalgOp linalgOp,
                  getAffineDimExpr(/*position=*/2, b.getContext())},
             b.getContext());
         auto d = std_dim(shapedOp, r);
-        size =
-            affine_min(b.getIndexType(), minMap, ValueRange{size, d, offset});
+        SmallVector<Value, 4> operands{size, d, offset};
+        fullyComposeAffineMapAndOperands(&minMap, &operands);
+        size = affine_min(b.getIndexType(), minMap, operands);
       }
 
       sizes.push_back(size);
@@ -332,13 +330,8 @@ tileLinalgOpImpl(OpBuilder &b, LinalgOp op, ValueRange tileSizes,
   }
 
   // 1. Build the tiled loop ranges.
-  auto allShapeSizes = getShape(b, op);
-  // The flattened loopToOperandRangesMaps is expected to be an invertible
-  // permutation map (asserted in the inverse calculation).
-  auto mapsRange = op.indexing_maps().getAsRange<AffineMapAttr>();
-  auto maps = llvm::to_vector<8>(
-      llvm::map_range(mapsRange, [](AffineMapAttr a) { return a.getValue(); }));
-  auto shapeSizesToLoopsMap = inversePermutation(concatAffineMaps(maps));
+  auto allShapeSizes = op.createFlatListOfOperandDims(b, op.getLoc());
+  AffineMap shapeSizesToLoopsMap = op.getShapesToLoopsMap();
   if (!shapeSizesToLoopsMap)
     return llvm::None;
 
@@ -346,6 +339,7 @@ tileLinalgOpImpl(OpBuilder &b, LinalgOp op, ValueRange tileSizes,
   LoopIndexToRangeIndexMap loopIndexToRangeIndex;
   std::tie(loopRanges, loopIndexToRangeIndex) = makeTiledLoopRanges(
       b, op.getLoc(), shapeSizesToLoopsMap, allShapeSizes, tileSizes);
+
   SmallVector<Attribute, 4> iteratorTypes;
   for (auto attr :
        enumerate(op.iterator_types().cast<ArrayAttr>().getValue())) {
@@ -367,10 +361,11 @@ tileLinalgOpImpl(OpBuilder &b, LinalgOp op, ValueRange tileSizes,
         continue;
       interchangeVector.push_back(it->second);
     }
+    // Interchange vector is guaranteed to be a permutation,
+    // `inversePermutation` must succeed.
     invPermutationMap = inversePermutation(
         AffineMap::getPermutationMap(interchangeVector, b.getContext()));
-    if (!invPermutationMap)
-      return llvm::None;
+    assert(invPermutationMap);
     applyPermutationToVector(loopRanges, interchangeVector);
     applyPermutationToVector(iteratorTypes, interchangeVector);
   }
@@ -378,9 +373,9 @@ tileLinalgOpImpl(OpBuilder &b, LinalgOp op, ValueRange tileSizes,
   // 2. Create the tiled loops.
   LinalgOp res = op;
   SmallVector<Value, 4> ivs, tensorResults;
-  auto initTensors = op.getInitTensors();
+  auto outputTensors = op.getOutputTensors();
   GenerateLoopNest<LoopTy>::doit(
-      loopRanges, /*iterArgInitValues*/ initTensors, iteratorTypes,
+      loopRanges, /*iterArgInitValues*/ outputTensors, iteratorTypes,
       [&](ValueRange localIvs, ValueRange iterArgs) -> scf::ValueVector {
         auto &b = ScopedContext::getBuilderRef();
         auto loc = ScopedContext::getLocation();
@@ -395,14 +390,16 @@ tileLinalgOpImpl(OpBuilder &b, LinalgOp op, ValueRange tileSizes,
         else
           interchangedIvs.assign(ivs.begin(), ivs.end());
 
-        assert(op.getNumInitTensors() == iterArgs.size() &&
-               "num init tensors must match number of loop iter arguments");
-        // This uses knowledge about position of the init tensor in the list
-        // of operands.
-        auto operands = llvm::to_vector<4>(op.getShapedOperands());
-        std::copy(iterArgs.begin(), iterArgs.end(),
-                  operands.begin() + op.getNumInputsAndOutputBuffers());
+        assert(op.getNumOutputTensors() == iterArgs.size() &&
+               "num output tensors must match number of loop iter arguments");
 
+        auto operands = llvm::to_vector<4>(op.getInputs());
+        SmallVector<Value, 4> outputBuffers = op.getOutputBuffers();
+        // TODO: thanks to simplifying assumption we do not need to worry about
+        // order of output buffers and tensors: there is only ever one kind.
+        assert(outputBuffers.empty() || iterArgs.empty());
+        operands.append(outputBuffers.begin(), outputBuffers.end());
+        operands.append(iterArgs.begin(), iterArgs.end());
         SmallVector<Value, 4> tiledOperands =
             makeTiledShapes(b, loc, op, operands, shapeSizesToLoopsMap,
                             interchangedIvs, tileSizes, allShapeSizes);
@@ -410,42 +407,31 @@ tileLinalgOpImpl(OpBuilder &b, LinalgOp op, ValueRange tileSizes,
         tiledOperands.append(nonShapedOperands.begin(),
                              nonShapedOperands.end());
 
-        // If LinalgOp has results, they must all be tied to init tensors.
-        // We enforce this to ensure all tiled ops have been rewritten in
-        // "init tensor" form. This ensures tiling has anchor values into which
-        // to subtensor / subtensor_insert. Otherwise tiling would need to
-        // allocate which is not acceptable.
-        // This would not be the case with a special terminator op that
-        // generates the whole tensor (instead of inserting a subtensor). But
-        // the generator-based abstraction has other issues.
-        assert(op.getNumInitTensors() == op.getOperation()->getNumResults() &&
-               "expected same number of init tensors as number of results");
-
-        // Handle init tensor operands.
-        // This uses knowledge about position of the init tensor in the list
-        // of operands.
-        // TODO: InterfaceAdaptor ?
+        // TODO: use an interface/adaptor to avoid leaking position in
+        // `tiledOperands`.
         SmallVector<Type, 4> resultTensorTypes;
-        for (auto idx : llvm::seq<unsigned>(0, op.getNumInitTensors()))
+        for (OpOperand *opOperand : op.getOutputTensorsOpOperands())
           resultTensorTypes.push_back(
-              tiledOperands[op.getNumInputsAndOutputBuffers() + idx].getType());
+              tiledOperands[opOperand->getOperandNumber()].getType());
 
         res = op.clone(b, loc, resultTensorTypes, tiledOperands);
 
-        // Insert a subtensor_insert for each init subtensor.
-        for (unsigned idx = 0, e = op.getNumInitTensors(); idx != e; ++idx) {
-          Value initTensor =
-              tiledOperands[op.getNumInputsAndOutputBuffers() + idx];
-          if (auto subtensor = initTensor.getDefiningOp<SubTensorOp>()) {
+        // Insert a subtensor_insert for each output tensor.
+        unsigned resultIdx = 0;
+        for (OpOperand *opOperand : op.getOutputTensorsOpOperands()) {
+          // TODO: use an interface/adaptor to avoid leaking position in
+          // `tiledOperands`.
+          Value outputTensor = tiledOperands[opOperand->getOperandNumber()];
+          if (auto subtensor = outputTensor.getDefiningOp<SubTensorOp>()) {
             tensorResults.push_back(b.create<SubTensorInsertOp>(
-                loc, subtensor.source().getType(),
-                res.getOperation()->getResult(idx), subtensor.source(),
-                subtensor.offsets(), subtensor.sizes(), subtensor.strides(),
-                subtensor.static_offsets(), subtensor.static_sizes(),
-                subtensor.static_strides()));
+                loc, subtensor.source().getType(), res->getResult(resultIdx),
+                subtensor.source(), subtensor.offsets(), subtensor.sizes(),
+                subtensor.strides(), subtensor.static_offsets(),
+                subtensor.static_sizes(), subtensor.static_strides()));
           } else {
-            tensorResults.push_back(res.getOperation()->getResult(idx));
+            tensorResults.push_back(res->getResult(resultIdx));
           }
+          ++resultIdx;
         }
         return scf::ValueVector(tensorResults.begin(), tensorResults.end());
       },
@@ -559,6 +545,12 @@ public:
 OwningRewritePatternList
 mlir::linalg::getLinalgTilingCanonicalizationPatterns(MLIRContext *ctx) {
   OwningRewritePatternList patterns;
+  populateLinalgTilingCanonicalizationPatterns(patterns, ctx);
+  return patterns;
+}
+
+void mlir::linalg::populateLinalgTilingCanonicalizationPatterns(
+    OwningRewritePatternList &patterns, MLIRContext *ctx) {
   AffineApplyOp::getCanonicalizationPatterns(patterns, ctx);
   AffineForOp::getCanonicalizationPatterns(patterns, ctx);
   AffineMinOp::getCanonicalizationPatterns(patterns, ctx);
@@ -568,23 +560,22 @@ mlir::linalg::getLinalgTilingCanonicalizationPatterns(MLIRContext *ctx) {
   ConstantIndexOp::getCanonicalizationPatterns(patterns, ctx);
   SubTensorOp::getCanonicalizationPatterns(patterns, ctx);
   SubViewOp::getCanonicalizationPatterns(patterns, ctx);
-  TensorCastOp::getCanonicalizationPatterns(patterns, ctx);
+  tensor::CastOp::getCanonicalizationPatterns(patterns, ctx);
   ViewOp::getCanonicalizationPatterns(patterns, ctx);
   CanonicalizationPatternList<
 #define GET_OP_LIST
 #include "mlir/Dialect/Linalg/IR/LinalgStructuredOps.cpp.inc"
       >::insert(patterns, ctx);
-  return patterns;
 }
 
 /// Populate the given list with patterns that apply Linalg tiling.
 static void insertTilingPatterns(OwningRewritePatternList &patterns,
                                  const LinalgTilingOptions &options,
                                  MLIRContext *ctx) {
-  RewritePatternList<
+  RewritePatternList<GenericOp, IndexedGenericOp,
 #define GET_OP_LIST
 #include "mlir/Dialect/Linalg/IR/LinalgStructuredOps.cpp.inc"
-      >::insert(patterns, options, ctx);
+                     >::insert(patterns, options, ctx);
 }
 
 static void applyTilingToLoopPatterns(LinalgTilingLoopType loopType,

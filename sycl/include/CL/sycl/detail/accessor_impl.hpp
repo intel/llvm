@@ -70,29 +70,16 @@ public:
   }
 };
 
-// TODO ESIMD Currently all accessors are treated as ESIMD under corresponding
-// compiler option enabling the macro below. Eventually ESIMD kernels and usual
-// kernels must co-exist and there must be a mechanism for distinguishing usual
-// and ESIMD accessors.
-#ifndef __SYCL_EXPLICIT_SIMD__
-constexpr bool IsESIMDAccInit = false;
-#else
-constexpr bool IsESIMDAccInit = true;
-#endif // __SYCL_EXPLICIT_SIMD__
-
 class __SYCL_EXPORT AccessorImplHost {
 public:
   AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, detail::SYCLMemObjI *SYCLMemObject,
                    int Dims, int ElemSize, int OffsetInBytes = 0,
-                   bool IsSubBuffer = false, bool IsESIMDAcc = IsESIMDAccInit)
+                   bool IsSubBuffer = false, bool IsESIMDAcc = false)
       : MOffset(Offset), MAccessRange(AccessRange), MMemoryRange(MemoryRange),
         MAccessMode(AccessMode), MSYCLMemObj(SYCLMemObject), MDims(Dims),
         MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes),
-        MIsSubBuffer(IsSubBuffer) {
-    MIsESIMDAcc =
-        IsESIMDAcc && (SYCLMemObject->getType() == SYCLMemObjI::BUFFER);
-  }
+        MIsSubBuffer(IsSubBuffer), MIsESIMDAcc(IsESIMDAcc) {}
 
   ~AccessorImplHost();
 
@@ -134,7 +121,8 @@ public:
 
   bool PerWI = false;
 
-  // Whether this accessor is ESIMD accessor with special memory allocation.
+  // Outdated, leaving to preserve ABI.
+  // TODO: Remove during next major release.
   bool MIsESIMDAcc;
 };
 
@@ -148,8 +136,7 @@ public:
                    bool IsSubBuffer = false) {
     impl = shared_ptr_class<AccessorImplHost>(new AccessorImplHost(
         Offset, AccessRange, MemoryRange, AccessMode, SYCLMemObject, Dims,
-        ElemSize, OffsetInBytes, IsSubBuffer,
-        IsESIMDAccInit && (SYCLMemObject->getType() == SYCLMemObjI::BUFFER)));
+        ElemSize, OffsetInBytes, IsSubBuffer));
   }
 
 protected:

@@ -6,8 +6,10 @@ include "mlir/IR/OpBase.td"
 // DECL: #ifdef GET_TYPEDEF_CLASSES
 // DECL: #undef GET_TYPEDEF_CLASSES
 
-// DECL: ::mlir::Type generatedTypeParser(::mlir::MLIRContext* ctxt, ::mlir::DialectAsmParser& parser, ::llvm::StringRef mnenomic);
-// DECL: ::mlir::LogicalResult generatedTypePrinter(::mlir::Type type, ::mlir::DialectAsmPrinter& printer);
+// DECL: namespace mlir {
+// DECL: class DialectAsmParser;
+// DECL: class DialectAsmPrinter;
+// DECL: } // namespace mlir
 
 // DEF: #ifdef GET_TYPEDEF_LIST
 // DEF: #undef GET_TYPEDEF_LIST
@@ -17,8 +19,8 @@ include "mlir/IR/OpBase.td"
 // DEF: ::mlir::test::SingleParameterType,
 // DEF: ::mlir::test::IntegerType
 
-// DEF-LABEL: ::mlir::Type generatedTypeParser(::mlir::MLIRContext* ctxt, ::mlir::DialectAsmParser& parser, ::llvm::StringRef mnemonic)
-// DEF: if (mnemonic == ::mlir::test::CompoundAType::getMnemonic()) return ::mlir::test::CompoundAType::parse(ctxt, parser);
+// DEF-LABEL: ::mlir::Type generatedTypeParser(::mlir::MLIRContext *context, ::mlir::DialectAsmParser &parser, ::llvm::StringRef mnemonic)
+// DEF: if (mnemonic == ::mlir::test::CompoundAType::getMnemonic()) return ::mlir::test::CompoundAType::parse(context, parser);
 // DEF return ::mlir::Type();
 
 def Test_Dialect: Dialect {
@@ -31,7 +33,11 @@ def Test_Dialect: Dialect {
 class TestType<string name> : TypeDef<Test_Dialect, name> { }
 
 def A_SimpleTypeA : TestType<"SimpleA"> {
-// DECL: class SimpleAType: public ::mlir::Type
+// DECL: class SimpleAType : public ::mlir::Type
+}
+
+def RTLValueType : Type<CPred<"isRTLValueType($_self)">, "Type"> {
+  string cppType = "::mlir::Type";
 }
 
 // A more complex parameterized type
@@ -44,17 +50,19 @@ def B_CompoundTypeA : TestType<"CompoundA"> {
       "int":$widthOfSomething,
       "::mlir::test::SimpleTypeA": $exampleTdType,
       "SomeCppStruct": $exampleCppType,
-      ArrayRefParameter<"int", "Matrix dimensions">:$dims
+      ArrayRefParameter<"int", "Matrix dimensions">:$dims,
+      RTLValueType:$inner
   );
 
   let genVerifyInvariantsDecl = 1;
 
-// DECL-LABEL: class CompoundAType: public ::mlir::Type
-// DECL: static ::mlir::LogicalResult verifyConstructionInvariants(Location loc, int widthOfSomething, ::mlir::test::SimpleTypeA exampleTdType, SomeCppStruct exampleCppType, ::llvm::ArrayRef<int> dims);
-// DECL: static ::mlir::Type getChecked(Location loc, int widthOfSomething, ::mlir::test::SimpleTypeA exampleTdType, SomeCppStruct exampleCppType, ::llvm::ArrayRef<int> dims);
+// DECL-LABEL: class CompoundAType : public ::mlir::Type
+// DECL: static CompoundAType getChecked(::mlir::Location loc, int widthOfSomething, ::mlir::test::SimpleTypeA exampleTdType, SomeCppStruct exampleCppType, ::llvm::ArrayRef<int> dims, ::mlir::Type inner);
+// DECL: static ::mlir::LogicalResult verifyConstructionInvariants(::mlir::Location loc, int widthOfSomething, ::mlir::test::SimpleTypeA exampleTdType, SomeCppStruct exampleCppType, ::llvm::ArrayRef<int> dims, ::mlir::Type inner);
 // DECL: static ::llvm::StringRef getMnemonic() { return "cmpnd_a"; }
-// DECL: static ::mlir::Type parse(::mlir::MLIRContext* ctxt, ::mlir::DialectAsmParser& parser);
-// DECL: void print(::mlir::DialectAsmPrinter& printer) const;
+// DECL: static ::mlir::Type parse(::mlir::MLIRContext *context,
+// DECL-NEXT: ::mlir::DialectAsmParser &parser);
+// DECL: void print(::mlir::DialectAsmPrinter &printer) const;
 // DECL: int getWidthOfSomething() const;
 // DECL: ::mlir::test::SimpleTypeA getExampleTdType() const;
 // DECL: SomeCppStruct getExampleCppType() const;
@@ -68,10 +76,11 @@ def C_IndexType : TestType<"Index"> {
       StringRefParameter<"Label for index">:$label
     );
 
-// DECL-LABEL: class IndexType: public ::mlir::Type
+// DECL-LABEL: class IndexType : public ::mlir::Type
 // DECL: static ::llvm::StringRef getMnemonic() { return "index"; }
-// DECL: static ::mlir::Type parse(::mlir::MLIRContext* ctxt, ::mlir::DialectAsmParser& parser);
-// DECL: void print(::mlir::DialectAsmPrinter& printer) const;
+// DECL: static ::mlir::Type parse(::mlir::MLIRContext *context,
+// DECL-NEXT: ::mlir::DialectAsmParser &parser);
+// DECL: void print(::mlir::DialectAsmPrinter &printer) const;
 }
 
 def D_SingleParameterType : TestType<"SingleParameter"> {
@@ -93,7 +102,7 @@ def E_IntegerType : TestType<"Integer"> {
         TypeParameter<"unsigned", "Bitwidth of integer">:$width
     );
 
-// DECL-LABEL: IntegerType: public ::mlir::Type
+// DECL-LABEL: IntegerType : public ::mlir::Type
 
     let extraClassDeclaration = [{
   /// Signedness semantics.

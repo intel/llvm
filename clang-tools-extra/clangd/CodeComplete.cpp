@@ -70,6 +70,7 @@
 #include "llvm/Support/ScopedPrinter.h"
 #include <algorithm>
 #include <iterator>
+#include <limits>
 
 // We log detailed candidate here if you run with -debug-only=codecomplete.
 #define DEBUG_TYPE "CodeComplete"
@@ -173,9 +174,28 @@ struct CompletionCandidate {
 
   // Returns a token identifying the overload set this is part of.
   // 0 indicates it's not part of any overload set.
-  size_t overloadSet(const CodeCompleteOptions &Opts) const {
+  size_t overloadSet(const CodeCompleteOptions &Opts, llvm::StringRef FileName,
+                     IncludeInserter *Inserter) const {
     if (!Opts.BundleOverloads.getValueOr(false))
       return 0;
+
+    // Depending on the index implementation, we can see different header
+    // strings (literal or URI) mapping to the same file. We still want to
+    // bundle those, so we must resolve the header to be included here.
+    std::string HeaderForHash;
+    if (Inserter) {
+      if (auto Header = headerToInsertIfAllowed(Opts)) {
+        if (auto HeaderFile = toHeaderFile(*Header, FileName)) {
+          if (auto Spelled =
+                  Inserter->calculateIncludePath(*HeaderFile, FileName))
+            HeaderForHash = *Spelled;
+        } else {
+          vlog("Code completion header path manipulation failed {0}",
+               HeaderFile.takeError());
+        }
+      }
+    }
+
     llvm::SmallString<256> Scratch;
     if (IndexResult) {
       switch (IndexResult->SymInfo.Kind) {
@@ -192,7 +212,7 @@ struct CompletionCandidate {
         // This could break #include insertion.
         return llvm::hash_combine(
             (IndexResult->Scope + IndexResult->Name).toStringRef(Scratch),
-            headerToInsertIfAllowed(Opts).getValueOr(""));
+            HeaderForHash);
       default:
         return 0;
       }
@@ -206,8 +226,7 @@ struct CompletionCandidate {
         llvm::raw_svector_ostream OS(Scratch);
         D->printQualifiedName(OS);
       }
-      return llvm::hash_combine(Scratch,
-                                headerToInsertIfAllowed(Opts).getValueOr(""));
+      return llvm::hash_combine(Scratch, HeaderForHash);
     }
     assert(IdentifierResult);
     return 0;
@@ -259,7 +278,7 @@ struct CodeCompletionBuilder {
                         CodeCompletionContext::Kind ContextKind,
                         const CodeCompleteOptions &Opts,
                         bool IsUsingDeclaration, tok::TokenKind NextTokenKind)
-      : ASTCtx(ASTCtx), ExtractDocumentation(Opts.IncludeComments),
+      : ASTCtx(ASTCtx),
         EnableFunctionArgSnippets(Opts.EnableFunctionArgSnippets),
         IsUsingDeclaration(IsUsingDeclaration), NextTokenKind(NextTokenKind) {
     add(C, SemaCCS);
@@ -375,7 +394,7 @@ struct CodeCompletionBuilder {
       S.SnippetSuffix = std::string(C.IndexResult->CompletionSnippetSuffix);
       S.ReturnType = std::string(C.IndexResult->ReturnType);
     }
-    if (ExtractDocumentation && !Completion.Documentation) {
+    if (!Completion.Documentation) {
       auto SetDoc = [&](llvm::StringRef Doc) {
         if (!Doc.empty()) {
           Completion.Documentation.emplace();
@@ -494,7 +513,6 @@ private:
   ASTContext *ASTCtx;
   CodeCompletion Completion;
   llvm::SmallVector<BundledEntry, 1> Bundled;
-  bool ExtractDocumentation;
   bool EnableFunctionArgSnippets;
   // No snippets will be generated for using declarations and when the function
   // arguments are already present.
@@ -810,9 +828,9 @@ private:
 };
 
 struct ScoredSignature {
-  // When set, requires documentation to be requested from the index with this
-  // ID.
-  llvm::Optional<SymbolID> IDForDoc;
+  // When not null, requires documentation to be requested from the index with
+  // this ID.
+  SymbolID IDForDoc;
   SignatureInformation Signature;
   SignatureQualitySignals Quality;
 };
@@ -876,7 +894,7 @@ public:
       for (const auto &S : ScoredSignatures) {
         if (!S.IDForDoc)
           continue;
-        IndexRequest.IDs.insert(*S.IDForDoc);
+        IndexRequest.IDs.insert(S.IDForDoc);
       }
       Index->lookup(IndexRequest, [&](const Symbol &S) {
         if (!S.Documentation.empty())
@@ -921,7 +939,7 @@ public:
 
     for (auto &SS : ScoredSignatures) {
       auto IndexDocIt =
-          SS.IDForDoc ? FetchedDocs.find(*SS.IDForDoc) : FetchedDocs.end();
+          SS.IDForDoc ? FetchedDocs.find(SS.IDForDoc) : FetchedDocs.end();
       if (IndexDocIt != FetchedDocs.end())
         SS.Signature.documentation = IndexDocIt->second;
 
@@ -1093,8 +1111,8 @@ bool semaCodeComplete(std::unique_ptr<CodeCompleteConsumer> Consumer,
       offsetToClangLineColumn(Input.ParseInput.Contents, Input.Offset);
 
   std::unique_ptr<llvm::MemoryBuffer> ContentsBuffer =
-      llvm::MemoryBuffer::getMemBufferCopy(Input.ParseInput.Contents,
-                                           Input.FileName);
+      llvm::MemoryBuffer::getMemBuffer(Input.ParseInput.Contents,
+                                       Input.FileName);
   // The diagnostic options must be set before creating a CompilerInstance.
   CI->getDiagnosticOpts().IgnoreWarnings = true;
   // We reuse the preamble whether it's valid or not. This is a
@@ -1104,7 +1122,7 @@ bool semaCodeComplete(std::unique_ptr<CodeCompleteConsumer> Consumer,
   // overriding the preamble will break sema completion. Fortunately we can just
   // skip all includes in this case; these completions are really simple.
   PreambleBounds PreambleRegion =
-      ComputePreambleBounds(*CI->getLangOpts(), ContentsBuffer.get(), 0);
+      ComputePreambleBounds(*CI->getLangOpts(), *ContentsBuffer, 0);
   bool CompletingInPreamble = PreambleRegion.Size > Input.Offset;
   if (Input.Patch)
     Input.Patch->apply(*CI);
@@ -1570,7 +1588,8 @@ private:
         assert(IdentifierResult);
         C.Name = IdentifierResult->Name;
       }
-      if (auto OverloadSet = C.overloadSet(Opts)) {
+      if (auto OverloadSet = C.overloadSet(
+              Opts, FileName, Inserter ? Inserter.getPointer() : nullptr)) {
         auto Ret = BundleLookup.try_emplace(OverloadSet, Bundles.size());
         if (Ret.second)
           Bundles.emplace_back();
@@ -1637,9 +1656,10 @@ private:
           evaluateSymbolAndRelevance(Scores.Quality, Scores.Relevance);
       // NameMatch is in fact a multiplier on total score, so rescoring is
       // sound.
-      Scores.ExcludingName = Relevance.NameMatch
-                                 ? Scores.Total / Relevance.NameMatch
-                                 : Scores.Quality;
+      Scores.ExcludingName =
+          Relevance.NameMatch > std::numeric_limits<float>::epsilon()
+              ? Scores.Total / Relevance.NameMatch
+              : Scores.Quality;
       return Scores;
 
     case RM::DecisionForest:
@@ -1667,6 +1687,7 @@ private:
     if (PreferredType)
       Relevance.HadContextType = true;
     Relevance.ContextWords = &ContextWords;
+    Relevance.MainFileSignals = Opts.MainFileSignals;
 
     auto &First = Bundle.front();
     if (auto FuzzyScore = fuzzyScore(First))
@@ -1746,8 +1767,8 @@ private:
 
 clang::CodeCompleteOptions CodeCompleteOptions::getClangCompleteOpts() const {
   clang::CodeCompleteOptions Result;
-  Result.IncludeCodePatterns = EnableSnippets && IncludeCodePatterns;
-  Result.IncludeMacros = IncludeMacros;
+  Result.IncludeCodePatterns = EnableSnippets;
+  Result.IncludeMacros = true;
   Result.IncludeGlobals = true;
   // We choose to include full comments and not do doxygen parsing in
   // completion.

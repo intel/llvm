@@ -317,6 +317,8 @@ void MCObjectFileInfo::initELFMCObjectFileInfo(const Triple &T, bool Large) {
     break;
   case Triple::ppc64:
   case Triple::ppc64le:
+  case Triple::aarch64:
+  case Triple::aarch64_be:
   case Triple::x86_64:
     FDECFIEncoding = dwarf::DW_EH_PE_pcrel |
                      (Large ? dwarf::DW_EH_PE_sdata8 : dwarf::DW_EH_PE_sdata4);
@@ -495,6 +497,10 @@ void MCObjectFileInfo::initELFMCObjectFileInfo(const Triple &T, bool Large) {
       Ctx->getELFSection(".eh_frame", EHSectionType, EHSectionFlags);
 
   StackSizesSection = Ctx->getELFSection(".stack_sizes", ELF::SHT_PROGBITS, 0);
+
+  PseudoProbeSection = Ctx->getELFSection(".pseudo_probe", DebugSecType, 0);
+  PseudoProbeDescSection =
+      Ctx->getELFSection(".pseudo_probe_desc", DebugSecType, 0);
 }
 
 void MCObjectFileInfo::initCOFFMCObjectFileInfo(const Triple &T) {
@@ -862,17 +868,17 @@ void MCObjectFileInfo::initXCOFFMCObjectFileInfo(const Triple &T) {
   // get placed into this csect. The choice of csect name is not a property of
   // the ABI or object file format. For example, the XL compiler uses an unnamed
   // csect for program code.
-  TextSection =
-      Ctx->getXCOFFSection(".text", XCOFF::StorageMappingClass::XMC_PR,
-                           XCOFF::XTY_SD, SectionKind::getText());
+  TextSection = Ctx->getXCOFFSection(
+      ".text", XCOFF::StorageMappingClass::XMC_PR, XCOFF::XTY_SD,
+      SectionKind::getText(), /* MultiSymbolsAllowed*/ true);
 
-  DataSection =
-      Ctx->getXCOFFSection(".data", XCOFF::StorageMappingClass::XMC_RW,
-                           XCOFF::XTY_SD, SectionKind::getData());
+  DataSection = Ctx->getXCOFFSection(
+      ".data", XCOFF::StorageMappingClass::XMC_RW, XCOFF::XTY_SD,
+      SectionKind::getData(), /* MultiSymbolsAllowed*/ true);
 
-  ReadOnlySection =
-      Ctx->getXCOFFSection(".rodata", XCOFF::StorageMappingClass::XMC_RO,
-                           XCOFF::XTY_SD, SectionKind::getReadOnly());
+  ReadOnlySection = Ctx->getXCOFFSection(
+      ".rodata", XCOFF::StorageMappingClass::XMC_RO, XCOFF::XTY_SD,
+      SectionKind::getReadOnly(), /* MultiSymbolsAllowed*/ true);
 
   TOCBaseSection =
       Ctx->getXCOFFSection("TOC", XCOFF::StorageMappingClass::XMC_TC0,
@@ -880,6 +886,14 @@ void MCObjectFileInfo::initXCOFFMCObjectFileInfo(const Triple &T) {
 
   // The TOC-base always has 0 size, but 4 byte alignment.
   TOCBaseSection->setAlignment(Align(4));
+
+  LSDASection = Ctx->getXCOFFSection(".gcc_except_table",
+                                     XCOFF::StorageMappingClass::XMC_RO,
+                                     XCOFF::XTY_SD, SectionKind::getReadOnly());
+
+  CompactUnwindSection =
+      Ctx->getXCOFFSection(".eh_info_table", XCOFF::StorageMappingClass::XMC_RW,
+                           XCOFF::XTY_SD, SectionKind::getData());
 
   // DWARF sections for XCOFF are not csects. They are special STYP_DWARF
   // sections, and the individual DWARF sections are distinguished by their
@@ -964,9 +978,6 @@ MCSection *MCObjectFileInfo::getDwarfComdatSection(const char *Name,
     return Ctx->getELFSection(Name, ELF::SHT_PROGBITS, ELF::SHF_GROUP, 0,
                               utostr(Hash));
   case Triple::Wasm:
-    // FIXME: When using dwarf 5, the .debug_info section is used for type units
-    // but that section already exists, so attempting to get it as a comdate
-    // section triggers an assert.
     return Ctx->getWasmSection(Name, SectionKind::getMetadata(), utostr(Hash),
                                MCContext::GenericSectionID);
   case Triple::MachO:
@@ -995,7 +1006,7 @@ MCObjectFileInfo::getStackSizesSection(const MCSection &TextSec) const {
   }
 
   return Ctx->getELFSection(".stack_sizes", ELF::SHT_PROGBITS, Flags, 0,
-                            GroupName, MCSection::NonUniqueID,
+                            GroupName, ElfSec.getUniqueID(),
                             cast<MCSymbolELF>(TextSec.getBeginSymbol()));
 }
 
@@ -1012,7 +1023,47 @@ MCObjectFileInfo::getBBAddrMapSection(const MCSection &TextSec) const {
     Flags |= ELF::SHF_GROUP;
   }
 
+  // Use the text section's begin symbol and unique ID to create a separate
+  // .llvm_bb_addr_map section associated with every unique text section.
   return Ctx->getELFSection(".llvm_bb_addr_map", ELF::SHT_LLVM_BB_ADDR_MAP,
-                            Flags, 0, GroupName, MCSection::NonUniqueID,
+                            Flags, 0, GroupName, ElfSec.getUniqueID(),
                             cast<MCSymbolELF>(TextSec.getBeginSymbol()));
+}
+
+MCSection *
+MCObjectFileInfo::getPseudoProbeSection(const MCSection *TextSec) const {
+  if (Env == IsELF) {
+    const auto *ElfSec = static_cast<const MCSectionELF *>(TextSec);
+    // Create a separate section for probes that comes with a comdat function.
+    if (const MCSymbol *Group = ElfSec->getGroup()) {
+      auto *S = static_cast<MCSectionELF *>(PseudoProbeSection);
+      auto Flags = S->getFlags() | ELF::SHF_GROUP;
+      return Ctx->getELFSection(S->getName(), S->getType(), Flags,
+                                S->getEntrySize(), Group->getName());
+    }
+  }
+  return PseudoProbeSection;
+}
+
+MCSection *
+MCObjectFileInfo::getPseudoProbeDescSection(StringRef FuncName) const {
+  if (Env == IsELF) {
+    // Create a separate comdat group for each function's descriptor in order
+    // for the linker to deduplicate. The duplication, must be from different
+    // tranlation unit, can come from:
+    //  1. Inline functions defined in header files;
+    //  2. ThinLTO imported funcions;
+    //  3. Weak-linkage definitions.
+    // Use a concatenation of the section name and the function name as the
+    // group name so that descriptor-only groups won't be folded with groups of
+    // code.
+    if (TT.supportsCOMDAT() && !FuncName.empty()) {
+      auto *S = static_cast<MCSectionELF *>(PseudoProbeDescSection);
+      auto Flags = S->getFlags() | ELF::SHF_GROUP;
+      return Ctx->getELFSection(S->getName(), S->getType(), Flags,
+                                S->getEntrySize(),
+                                S->getName() + "_" + FuncName);
+    }
+  }
+  return PseudoProbeDescSection;
 }

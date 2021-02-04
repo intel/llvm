@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "include/math.h"
 #include "src/math/fabsl.h"
 #include "utils/FPUtil/FPBits.h"
 #include "utils/FPUtil/TestHelpers.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
 #include "utils/UnitTest/Test.h"
+#include <math.h>
 
 using FPBits = __llvm_libc::fputil::FPBits<long double>;
 
@@ -19,8 +19,8 @@ DECLARE_SPECIAL_CONSTANTS(long double)
 
 namespace mpfr = __llvm_libc::testing::mpfr;
 
-TEST(FabslTest, SpecialNumbers) {
-  EXPECT_FP_EQ(nan, __llvm_libc::fabsl(nan));
+TEST(LlvmLibcFabslTest, SpecialNumbers) {
+  EXPECT_FP_EQ(aNaN, __llvm_libc::fabsl(aNaN));
 
   EXPECT_FP_EQ(inf, __llvm_libc::fabsl(inf));
   EXPECT_FP_EQ(inf, __llvm_libc::fabsl(negInf));
@@ -29,7 +29,7 @@ TEST(FabslTest, SpecialNumbers) {
   EXPECT_FP_EQ(zero, __llvm_libc::fabsl(negZero));
 }
 
-TEST(FabslTest, InLongDoubleRange) {
+TEST(LlvmLibcFabslTest, InLongDoubleRange) {
   using UIntType = FPBits::UIntType;
   constexpr UIntType count = 10000000;
   constexpr UIntType step = UIntType(-1) / count;

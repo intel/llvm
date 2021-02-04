@@ -10,8 +10,10 @@
 
 #include "flang/Frontend/CompilerInvocation.h"
 #include "flang/Frontend/FrontendAction.h"
+#include "flang/Frontend/PreprocessorOptions.h"
 #include "flang/Parser/parsing.h"
 #include "flang/Parser/provenance.h"
+#include "flang/Semantics/semantics.h"
 #include "llvm/Support/raw_ostream.h"
 
 namespace Fortran::frontend {
@@ -27,6 +29,12 @@ class CompilerInstance {
   std::shared_ptr<Fortran::parser::AllCookedSources> allCookedSources_;
 
   std::shared_ptr<Fortran::parser::Parsing> parsing_;
+
+  /// The stream for diagnostics from Semantics
+  llvm::raw_ostream *semaOutputStream_ = &llvm::errs();
+
+  /// The stream for diagnostics from Semantics if owned, otherwise nullptr.
+  std::unique_ptr<llvm::raw_ostream> ownedSemaOutputStream_;
 
   /// The diagnostics engine instance.
   llvm::IntrusiveRefCntPtr<clang::DiagnosticsEngine> diagnostics_;
@@ -77,12 +85,30 @@ public:
 
   bool HasAllSources() const { return allSources_ != nullptr; }
 
+  parser::AllCookedSources &allCookedSources() {
+    assert(allCookedSources_ && "Compiler instance has no AllCookedSources!");
+    return *allCookedSources_;
+  };
+
   /// }
   /// @name Parser Operations
   /// {
 
   /// Return parsing to be used by Actions.
   Fortran::parser::Parsing &parsing() const { return *parsing_; }
+
+  /// }
+  /// @name Semantic analysis
+  /// {
+
+  /// Replace the current stream for verbose output.
+  void set_semaOutputStream(llvm::raw_ostream &Value);
+
+  /// Replace the current stream for verbose output.
+  void set_semaOutputStream(std::unique_ptr<llvm::raw_ostream> Value);
+
+  /// Get the current stream for verbose output.
+  llvm::raw_ostream &semaOutputStream() { return *semaOutputStream_; }
 
   /// }
   /// @name High-Level Operations
@@ -108,6 +134,13 @@ public:
   FrontendOptions &frontendOpts() { return invocation_->frontendOpts(); }
   const FrontendOptions &frontendOpts() const {
     return invocation_->frontendOpts();
+  }
+
+  PreprocessorOptions &preprocessorOpts() {
+    return invocation_->preprocessorOpts();
+  }
+  const PreprocessorOptions &preprocessorOpts() const {
+    return invocation_->preprocessorOpts();
   }
 
   /// }

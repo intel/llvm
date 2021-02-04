@@ -702,6 +702,12 @@ TEST_F(FormatTestComments, SplitsLongCxxComments) {
                    "  // long 1 2 3 4 5 6\n"
                    "}",
                    getLLVMStyleWithColumns(20)));
+
+  EXPECT_EQ("//: A comment that\n"
+            "//: doesn't fit on\n"
+            "//: one line",
+            format("//: A comment that doesn't fit on one line",
+                   getLLVMStyleWithColumns(20)));
 }
 
 TEST_F(FormatTestComments, PreservesHangingIndentInCxxComments) {
@@ -743,6 +749,24 @@ TEST_F(FormatTestComments, DontSplitLineCommentsWithEscapedNewlines) {
                    "          // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\\\n"
                    "          // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
                    getLLVMStyleWithColumns(49)));
+}
+
+TEST_F(FormatTestComments, DontIntroduceMultilineComments) {
+  // Avoid introducing a multiline comment by breaking after `\`.
+  for (int ColumnLimit = 15; ColumnLimit <= 17; ++ColumnLimit) {
+    EXPECT_EQ(
+        "// aaaaaaaaaa\n"
+        "// \\ bb",
+        format("// aaaaaaaaaa \\ bb", getLLVMStyleWithColumns(ColumnLimit)));
+    EXPECT_EQ(
+        "// aaaaaaaaa\n"
+        "// \\  bb",
+        format("// aaaaaaaaa \\  bb", getLLVMStyleWithColumns(ColumnLimit)));
+    EXPECT_EQ(
+        "// aaaaaaaaa\n"
+        "// \\  \\ bb",
+        format("// aaaaaaaaa \\  \\ bb", getLLVMStyleWithColumns(ColumnLimit)));
+  }
 }
 
 TEST_F(FormatTestComments, DontSplitLineCommentsWithPragmas) {

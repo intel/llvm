@@ -9,6 +9,7 @@
 #define MLIR_DIALECT_STANDARDOPS_EDSC_INTRINSICS_H_
 
 #include "mlir/Dialect/StandardOps/EDSC/Builders.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 
 namespace mlir {
 namespace edsc {
@@ -19,7 +20,6 @@ using std_addf = ValueBuilder<AddFOp>;
 using std_alloc = ValueBuilder<AllocOp>;
 using std_alloca = ValueBuilder<AllocaOp>;
 using std_call = OperationBuilder<CallOp>;
-using std_create_complex = ValueBuilder<CreateComplexOp>;
 using std_constant = ValueBuilder<ConstantOp>;
 using std_constant_float = ValueBuilder<ConstantFloatOp>;
 using std_constant_index = ValueBuilder<ConstantIndexOp>;
@@ -28,15 +28,12 @@ using std_dealloc = OperationBuilder<DeallocOp>;
 using std_divis = ValueBuilder<SignedDivIOp>;
 using std_diviu = ValueBuilder<UnsignedDivIOp>;
 using std_dim = ValueBuilder<DimOp>;
-using std_extract_element = ValueBuilder<ExtractElementOp>;
 using std_fpext = ValueBuilder<FPExtOp>;
 using std_fptrunc = ValueBuilder<FPTruncOp>;
-using std_im = ValueBuilder<ImOp>;
 using std_index_cast = ValueBuilder<IndexCastOp>;
 using std_muli = ValueBuilder<MulIOp>;
 using std_mulf = ValueBuilder<MulFOp>;
 using std_memref_cast = ValueBuilder<MemRefCastOp>;
-using std_re = ValueBuilder<ReOp>;
 using std_ret = OperationBuilder<ReturnOp>;
 using std_rsqrt = ValueBuilder<RsqrtOp>;
 using std_select = ValueBuilder<SelectOp>;
@@ -52,6 +49,7 @@ using std_tensor_store = OperationBuilder<TensorStoreOp>;
 using std_view = ValueBuilder<ViewOp>;
 using std_zero_extendi = ValueBuilder<ZeroExtendIOp>;
 using std_sign_extendi = ValueBuilder<SignExtendIOp>;
+using tensor_extract = ValueBuilder<tensor::ExtractOp>;
 
 /// Branches into `block` with `operands`.
 BranchOp std_br(Block *block, ValueRange operands);

@@ -14,7 +14,6 @@
 #include "PassDetail.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Dialect.h"
-#include "mlir/IR/Module.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Support/FileUtilities.h"
 #include "llvm/ADT/STLExtras.h"
@@ -52,13 +51,13 @@ void Pass::copyOptionValuesFrom(const Pass *other) {
 
 /// Prints out the pass in the textual representation of pipelines. If this is
 /// an adaptor pass, print with the op_name(sub_pass,...) format.
-void Pass::printAsTextualPipeline(raw_ostream &os, bool filterVerifier) {
+void Pass::printAsTextualPipeline(raw_ostream &os) {
   // Special case for adaptors to use the 'op_name(sub_passes)' format.
   if (auto *adaptor = dyn_cast<OpToOpPassAdaptor>(this)) {
     llvm::interleaveComma(adaptor->getPassManagers(), os,
                           [&](OpPassManager &pm) {
                             os << pm.getOpName() << "(";
-                            pm.printAsTextualPipeline(os, filterVerifier);
+                            pm.printAsTextualPipeline(os);
                             os << ")";
                           });
     return;
@@ -75,16 +74,6 @@ void Pass::printAsTextualPipeline(raw_ostream &os, bool filterVerifier) {
 }
 
 //===----------------------------------------------------------------------===//
-// Verifier Passes
-//===----------------------------------------------------------------------===//
-
-void VerifierPass::runOnOperation() {
-  if (failed(verify(getOperation())))
-    signalPassFailure();
-  markAllAnalysesPreserved();
-}
-
-//===----------------------------------------------------------------------===//
 // OpPassManagerImpl
 //===----------------------------------------------------------------------===//
 
@@ -92,9 +81,10 @@ namespace mlir {
 namespace detail {
 struct OpPassManagerImpl {
   OpPassManagerImpl(Identifier identifier, OpPassManager::Nesting nesting)
-      : name(identifier.str()), identifier(identifier), nesting(nesting) {}
+      : name(identifier.str()), identifier(identifier),
+        initializationGeneration(0), nesting(nesting) {}
   OpPassManagerImpl(StringRef name, OpPassManager::Nesting nesting)
-      : name(name), nesting(nesting) {}
+      : name(name), initializationGeneration(0), nesting(nesting) {}
 
   /// Merge the passes of this pass manager into the one provided.
   void mergeInto(OpPassManagerImpl &rhs);
@@ -116,6 +106,7 @@ struct OpPassManagerImpl {
   /// pass.
   void splitAdaptorPasses();
 
+  /// Return the operation name of this pass manager as an identifier.
   Identifier getOpName(MLIRContext &context) {
     if (!identifier)
       identifier = Identifier::get(name, &context);
@@ -131,6 +122,10 @@ struct OpPassManagerImpl {
 
   /// The set of passes to run as part of this pass manager.
   std::vector<std::unique_ptr<Pass>> passes;
+
+  /// The current initialization generation of this pass manager. This is used
+  /// to indicate when a pass manager should be reinitialized.
+  unsigned initializationGeneration;
 
   /// Control the implicit nesting of passes that mismatch the name set for this
   /// OpPassManager.
@@ -198,9 +193,9 @@ void OpPassManagerImpl::coalesceAdjacentAdaptorPasses() {
       // Otherwise, merge into the existing adaptor and delete the current one.
       currentAdaptor->mergeInto(*lastAdaptor);
       it->reset();
-    } else if (lastAdaptor && !isa<VerifierPass>(*it)) {
-      // If this pass is not an adaptor and not a verifier pass, then coalesce
-      // and forget any existing adaptor.
+    } else if (lastAdaptor) {
+      // If this pass is not an adaptor, then coalesce and forget any existing
+      // adaptor.
       for (auto &pm : lastAdaptor->getPassManagers())
         pm.getImpl().coalesceAdjacentAdaptorPasses();
       lastAdaptor = nullptr;
@@ -223,10 +218,6 @@ void OpPassManagerImpl::splitAdaptorPasses() {
   std::swap(passes, oldPasses);
 
   for (std::unique_ptr<Pass> &pass : oldPasses) {
-    // Ignore verifier passes, they are added back in the "addPass()" calls.
-    if (isa<VerifierPass>(pass.get()))
-      continue;
-
     // If this pass isn't an adaptor, move it directly to the new pass list.
     auto *currentAdaptor = dyn_cast<OpToOpPassAdaptor>(pass.get());
     if (!currentAdaptor) {
@@ -237,12 +228,8 @@ void OpPassManagerImpl::splitAdaptorPasses() {
     // Otherwise, split the adaptors of each manager within the adaptor.
     for (OpPassManager &adaptorPM : currentAdaptor->getPassManagers()) {
       adaptorPM.getImpl().splitAdaptorPasses();
-
-      // Add all non-verifier passes to this pass manager.
-      for (std::unique_ptr<Pass> &nestedPass : adaptorPM.getImpl().passes) {
-        if (!isa<VerifierPass>(nestedPass.get()))
-          nest(adaptorPM.getOpName()).addPass(std::move(nestedPass));
-      }
+      for (std::unique_ptr<Pass> &nestedPass : adaptorPM.getImpl().passes)
+        nest(adaptorPM.getOpName()).addPass(std::move(nestedPass));
     }
   }
 }
@@ -259,6 +246,7 @@ OpPassManager::OpPassManager(OpPassManager &&rhs) : impl(std::move(rhs.impl)) {}
 OpPassManager::OpPassManager(const OpPassManager &rhs) { *this = rhs; }
 OpPassManager &OpPassManager::operator=(const OpPassManager &rhs) {
   impl.reset(new OpPassManagerImpl(rhs.impl->name, rhs.impl->nesting));
+  impl->initializationGeneration = rhs.impl->initializationGeneration;
   for (auto &pass : rhs.impl->passes)
     impl->passes.emplace_back(pass->clone());
   return *this;
@@ -311,30 +299,21 @@ Identifier OpPassManager::getOpName(MLIRContext &context) const {
 
 /// Prints out the given passes as the textual representation of a pipeline.
 static void printAsTextualPipeline(ArrayRef<std::unique_ptr<Pass>> passes,
-                                   raw_ostream &os,
-                                   bool filterVerifier = true) {
-  // Filter out passes that are not part of the public pipeline.
-  auto filteredPasses =
-      llvm::make_filter_range(passes, [&](const std::unique_ptr<Pass> &pass) {
-        return !filterVerifier || !isa<VerifierPass>(pass);
-      });
-  llvm::interleaveComma(filteredPasses, os,
-                        [&](const std::unique_ptr<Pass> &pass) {
-                          pass->printAsTextualPipeline(os, filterVerifier);
-                        });
+                                   raw_ostream &os) {
+  llvm::interleaveComma(passes, os, [&](const std::unique_ptr<Pass> &pass) {
+    pass->printAsTextualPipeline(os);
+  });
 }
 
 /// Prints out the passes of the pass manager as the textual representation
 /// of pipelines.
-void OpPassManager::printAsTextualPipeline(raw_ostream &os,
-                                           bool filterVerifier) {
-  ::printAsTextualPipeline(impl->passes, os, filterVerifier);
+void OpPassManager::printAsTextualPipeline(raw_ostream &os) {
+  ::printAsTextualPipeline(impl->passes, os);
 }
 
 void OpPassManager::dump() {
   llvm::errs() << "Pass Manager with " << impl->passes.size() << " passes: ";
-  ::printAsTextualPipeline(impl->passes, llvm::errs(),
-                           /*filterVerifier=*/false);
+  ::printAsTextualPipeline(impl->passes, llvm::errs());
   llvm::errs() << "\n";
 }
 
@@ -348,12 +327,36 @@ void OpPassManager::getDependentDialects(DialectRegistry &dialects) const {
   registerDialectsForPipeline(*this, dialects);
 }
 
+void OpPassManager::setNesting(Nesting nesting) { impl->nesting = nesting; }
+
+OpPassManager::Nesting OpPassManager::getNesting() { return impl->nesting; }
+
+void OpPassManager::initialize(MLIRContext *context,
+                               unsigned newInitGeneration) {
+  if (impl->initializationGeneration == newInitGeneration)
+    return;
+  impl->initializationGeneration = newInitGeneration;
+  for (Pass &pass : getPasses()) {
+    // If this pass isn't an adaptor, directly initialize it.
+    auto *adaptor = dyn_cast<OpToOpPassAdaptor>(&pass);
+    if (!adaptor) {
+      pass.initialize(context);
+      continue;
+    }
+
+    // Otherwise, initialize each of the adaptors pass managers.
+    for (OpPassManager &adaptorPM : adaptor->getPassManagers())
+      adaptorPM.initialize(context, newInitGeneration);
+  }
+}
+
 //===----------------------------------------------------------------------===//
 // OpToOpPassAdaptor
 //===----------------------------------------------------------------------===//
 
 LogicalResult OpToOpPassAdaptor::run(Pass *pass, Operation *op,
-                                     AnalysisManager am, bool verifyPasses) {
+                                     AnalysisManager am, bool verifyPasses,
+                                     unsigned parentInitGeneration) {
   if (!op->getName().getAbstractOperation())
     return op->emitOpError()
            << "trying to schedule a pass on an unregistered operation";
@@ -364,22 +367,28 @@ LogicalResult OpToOpPassAdaptor::run(Pass *pass, Operation *op,
 
   // Initialize the pass state with a callback for the pass to dynamically
   // execute a pipeline on the currently visited operation.
-  auto dynamic_pipeline_callback =
-      [op, &am, verifyPasses](OpPassManager &pipeline,
-                              Operation *root) -> LogicalResult {
+  PassInstrumentor *pi = am.getPassInstrumentor();
+  PassInstrumentation::PipelineParentInfo parentInfo = {llvm::get_threadid(),
+                                                        pass};
+  auto dynamic_pipeline_callback = [&](OpPassManager &pipeline,
+                                       Operation *root) -> LogicalResult {
     if (!op->isAncestor(root))
       return root->emitOpError()
              << "Trying to schedule a dynamic pipeline on an "
                 "operation that isn't "
                 "nested under the current operation the pass is processing";
+    assert(pipeline.getOpName() == root->getName().getStringRef());
 
-    AnalysisManager nestedAm = am.nest(root);
+    // Initialize the user provided pipeline and execute the pipeline.
+    pipeline.initialize(root->getContext(), parentInitGeneration);
+    AnalysisManager nestedAm = root == op ? am : am.nest(root);
     return OpToOpPassAdaptor::runPipeline(pipeline.getPasses(), root, nestedAm,
-                                          verifyPasses);
+                                          verifyPasses, parentInitGeneration,
+                                          pi, &parentInfo);
   };
   pass->passState.emplace(op, am, dynamic_pipeline_callback);
+
   // Instrument before the pass has run.
-  PassInstrumentor *pi = am.getPassInstrumentor();
   if (pi)
     pi->runBeforePass(pass, op);
 
@@ -412,7 +421,11 @@ LogicalResult OpToOpPassAdaptor::run(Pass *pass, Operation *op,
 /// Run the given operation and analysis manager on a provided op pass manager.
 LogicalResult OpToOpPassAdaptor::runPipeline(
     iterator_range<OpPassManager::pass_iterator> passes, Operation *op,
-    AnalysisManager am, bool verifyPasses) {
+    AnalysisManager am, bool verifyPasses, unsigned parentInitGeneration,
+    PassInstrumentor *instrumentor,
+    const PassInstrumentation::PipelineParentInfo *parentInfo) {
+  assert((!instrumentor || parentInfo) &&
+         "expected parent info if instrumentor is provided");
   auto scope_exit = llvm::make_scope_exit([&] {
     // Clear out any computed operation analyses. These analyses won't be used
     // any more in this pipeline, and this helps reduce the current working set
@@ -422,10 +435,13 @@ LogicalResult OpToOpPassAdaptor::runPipeline(
   });
 
   // Run the pipeline over the provided operation.
+  if (instrumentor)
+    instrumentor->runBeforePipeline(op->getName().getIdentifier(), *parentInfo);
   for (Pass &pass : passes)
-    if (failed(run(&pass, op, am, verifyPasses)))
+    if (failed(run(&pass, op, am, verifyPasses, parentInitGeneration)))
       return failure();
-
+  if (instrumentor)
+    instrumentor->runAfterPipeline(op->getName().getIdentifier(), *parentInfo);
   return success();
 }
 
@@ -515,17 +531,12 @@ void OpToOpPassAdaptor::runOnOperationImpl(bool verifyPasses) {
                                        *op.getContext());
         if (!mgr)
           continue;
-        Identifier opName = mgr->getOpName(*getOperation()->getContext());
 
         // Run the held pipeline over the current operation.
-        if (instrumentor)
-          instrumentor->runBeforePipeline(opName, parentInfo);
-        LogicalResult result =
-            runPipeline(mgr->getPasses(), &op, am.nest(&op), verifyPasses);
-        if (instrumentor)
-          instrumentor->runAfterPipeline(opName, parentInfo);
-
-        if (failed(result))
+        unsigned initGeneration = mgr->impl->initializationGeneration;
+        if (failed(runPipeline(mgr->getPasses(), &op, am.nest(&op),
+                               verifyPasses, initGeneration, instrumentor,
+                               &parentInfo)))
           return signalPassFailure();
       }
     }
@@ -551,9 +562,9 @@ void OpToOpPassAdaptor::runOnOperationAsyncImpl(bool verifyPasses) {
     asyncExecutors.assign(llvm::hardware_concurrency().compute_thread_count(),
                           mgrs);
 
-  // Run a prepass over the module to collect the operations to execute over.
-  // This ensures that an analysis manager exists for each operation, as well as
-  // providing a queue of operations to execute over.
+  // Run a prepass over the operation to collect the nested operations to
+  // execute over. This ensures that an analysis manager exists for each
+  // operation, as well as providing a queue of operations to execute over.
   std::vector<std::pair<Operation *, AnalysisManager>> opAMPairs;
   for (auto &region : getOperation()->getRegions()) {
     for (auto &block : region) {
@@ -600,13 +611,10 @@ void OpToOpPassAdaptor::runOnOperationAsyncImpl(bool verifyPasses) {
               pms, it.first->getName().getIdentifier(), getContext());
           assert(pm && "expected valid pass manager for operation");
 
-          Identifier opName = pm->getOpName(*getOperation()->getContext());
-          if (instrumentor)
-            instrumentor->runBeforePipeline(opName, parentInfo);
-          auto pipelineResult =
-              runPipeline(pm->getPasses(), it.first, it.second, verifyPasses);
-          if (instrumentor)
-            instrumentor->runAfterPipeline(opName, parentInfo);
+          unsigned initGeneration = pm->impl->initializationGeneration;
+          LogicalResult pipelineResult =
+              runPipeline(pm->getPasses(), it.first, it.second, verifyPasses,
+                          initGeneration, instrumentor, &parentInfo);
 
           // Drop this thread from being tracked by the diagnostic handler.
           // After this task has finished, the thread may be used outside of
@@ -637,7 +645,8 @@ namespace {
 /// reproducers when a signal is raised, such as a segfault.
 struct RecoveryReproducerContext {
   RecoveryReproducerContext(MutableArrayRef<std::unique_ptr<Pass>> passes,
-                            ModuleOp module, StringRef filename,
+                            Operation *op,
+                            PassManager::ReproducerStreamFactory &crashStream,
                             bool disableThreads, bool verifyPasses);
   ~RecoveryReproducerContext();
 
@@ -654,11 +663,12 @@ private:
   /// The textual description of the currently executing pipeline.
   std::string pipeline;
 
-  /// The MLIR module representing the IR before the crash.
-  OwningModuleRef module;
+  /// The MLIR operation representing the IR before the crash.
+  Operation *preCrashOperation;
 
-  /// The filename to use when generating the reproducer.
-  StringRef filename;
+  /// The factory for the reproducer output stream to use when generating the
+  /// reproducer.
+  PassManager::ReproducerStreamFactory &crashStreamFactory;
 
   /// Various pass manager and context flags.
   bool disableThreads;
@@ -673,6 +683,24 @@ private:
       llvm::SmallSetVector<RecoveryReproducerContext *, 1>>
       reproducerSet;
 };
+
+/// Instance of ReproducerStream backed by file.
+struct FileReproducerStream : public PassManager::ReproducerStream {
+  FileReproducerStream(std::unique_ptr<llvm::ToolOutputFile> outputFile)
+      : outputFile(std::move(outputFile)) {}
+  ~FileReproducerStream() override;
+
+  /// Description of the reproducer stream.
+  StringRef description() override;
+
+  /// Stream on which to output reprooducer.
+  raw_ostream &os() override;
+
+private:
+  /// ToolOutputFile corresponding to opened `filename`.
+  std::unique_ptr<llvm::ToolOutputFile> outputFile = nullptr;
+};
+
 } // end anonymous namespace
 
 llvm::ManagedStatic<llvm::sys::SmartMutex<true>>
@@ -681,9 +709,10 @@ llvm::ManagedStatic<llvm::SmallSetVector<RecoveryReproducerContext *, 1>>
     RecoveryReproducerContext::reproducerSet;
 
 RecoveryReproducerContext::RecoveryReproducerContext(
-    MutableArrayRef<std::unique_ptr<Pass>> passes, ModuleOp module,
-    StringRef filename, bool disableThreads, bool verifyPasses)
-    : module(module.clone()), filename(filename),
+    MutableArrayRef<std::unique_ptr<Pass>> passes, Operation *op,
+    PassManager::ReproducerStreamFactory &crashStreamFactory,
+    bool disableThreads, bool verifyPasses)
+    : preCrashOperation(op->clone()), crashStreamFactory(crashStreamFactory),
       disableThreads(disableThreads), verifyPasses(verifyPasses) {
   // Grab the textual pipeline being executed..
   {
@@ -693,34 +722,58 @@ RecoveryReproducerContext::RecoveryReproducerContext(
 
   // Make sure that the handler is registered, and update the current context.
   llvm::sys::SmartScopedLock<true> producerLock(*reproducerMutex);
+  if (reproducerSet->empty())
+    llvm::CrashRecoveryContext::Enable();
   registerSignalHandler();
   reproducerSet->insert(this);
 }
 
 RecoveryReproducerContext::~RecoveryReproducerContext() {
+  // Erase the cloned preCrash IR that we cached.
+  preCrashOperation->erase();
+
   llvm::sys::SmartScopedLock<true> producerLock(*reproducerMutex);
   reproducerSet->remove(this);
+  if (reproducerSet->empty())
+    llvm::CrashRecoveryContext::Disable();
 }
 
+/// Description of the reproducer stream.
+StringRef FileReproducerStream::description() {
+  return outputFile->getFilename();
+}
+
+/// Stream on which to output reproducer.
+raw_ostream &FileReproducerStream::os() { return outputFile->os(); }
+
+FileReproducerStream::~FileReproducerStream() { outputFile->keep(); }
+
 LogicalResult RecoveryReproducerContext::generate(std::string &error) {
-  std::unique_ptr<llvm::ToolOutputFile> outputFile =
-      mlir::openOutputFile(filename, &error);
-  if (!outputFile)
+  std::unique_ptr<PassManager::ReproducerStream> crashStream =
+      crashStreamFactory(error);
+  if (!crashStream)
     return failure();
-  auto &outputOS = outputFile->os();
 
   // Output the current pass manager configuration.
-  outputOS << "// configuration: -pass-pipeline='" << pipeline << "'";
+  auto &os = crashStream->os();
+  os << "// configuration: -pass-pipeline='" << pipeline << "'";
   if (disableThreads)
-    outputOS << " -mlir-disable-threading";
-
-  // TODO: Should this also be configured with a pass manager flag?
-  outputOS << "\n// note: verifyPasses=" << (verifyPasses ? "true" : "false")
-           << "\n";
+    os << " -mlir-disable-threading";
+  if (verifyPasses)
+    os << " -verify-each";
+  os << '\n';
 
   // Output the .mlir module.
-  module->print(outputOS);
-  outputFile->keep();
+  preCrashOperation->print(os);
+
+  bool shouldPrintOnOp =
+      preCrashOperation->getContext()->shouldPrintOpOnDiagnostic();
+  preCrashOperation->getContext()->printOpOnDiagnostic(false);
+  preCrashOperation->emitError()
+      << "A failure has been detected while processing the MLIR module, a "
+         "reproducer has been generated in '"
+      << crashStream->description() << "'";
+  preCrashOperation->getContext()->printOpOnDiagnostic(shouldPrintOnOp);
   return success();
 }
 
@@ -741,11 +794,11 @@ void RecoveryReproducerContext::registerSignalHandler() {
 }
 
 /// Run the pass manager with crash recover enabled.
-LogicalResult PassManager::runWithCrashRecovery(ModuleOp module,
+LogicalResult PassManager::runWithCrashRecovery(Operation *op,
                                                 AnalysisManager am) {
   // If this isn't a local producer, run all of the passes in recovery mode.
   if (!localReproducer)
-    return runWithCrashRecovery(impl->passes, module, am);
+    return runWithCrashRecovery(impl->passes, op, am);
 
   // Split the passes within adaptors to ensure that each pass can be run in
   // isolation.
@@ -754,7 +807,7 @@ LogicalResult PassManager::runWithCrashRecovery(ModuleOp module,
   // If this is a local producer, run each of the passes individually.
   MutableArrayRef<std::unique_ptr<Pass>> passes = impl->passes;
   for (std::unique_ptr<Pass> &pass : passes)
-    if (failed(runWithCrashRecovery(pass, module, am)))
+    if (failed(runWithCrashRecovery(pass, op, am)))
       return failure();
   return success();
 }
@@ -762,50 +815,49 @@ LogicalResult PassManager::runWithCrashRecovery(ModuleOp module,
 /// Run the given passes with crash recover enabled.
 LogicalResult
 PassManager::runWithCrashRecovery(MutableArrayRef<std::unique_ptr<Pass>> passes,
-                                  ModuleOp module, AnalysisManager am) {
-  RecoveryReproducerContext context(passes, module, *crashReproducerFileName,
+                                  Operation *op, AnalysisManager am) {
+  RecoveryReproducerContext context(passes, op, crashReproducerStreamFactory,
                                     !getContext()->isMultithreadingEnabled(),
                                     verifyPasses);
 
   // Safely invoke the passes within a recovery context.
-  llvm::CrashRecoveryContext::Enable();
   LogicalResult passManagerResult = failure();
   llvm::CrashRecoveryContext recoveryContext;
   recoveryContext.RunSafelyOnThread([&] {
     for (std::unique_ptr<Pass> &pass : passes)
-      if (failed(OpToOpPassAdaptor::run(pass.get(), module, am, verifyPasses)))
+      if (failed(OpToOpPassAdaptor::run(pass.get(), op, am, verifyPasses,
+                                        impl->initializationGeneration)))
         return;
     passManagerResult = success();
   });
-  llvm::CrashRecoveryContext::Disable();
   if (succeeded(passManagerResult))
     return success();
 
   std::string error;
   if (failed(context.generate(error)))
-    return module.emitError("<MLIR-PassManager-Crash-Reproducer>: ") << error;
-  return module.emitError()
-         << "A failure has been detected while processing the MLIR module, a "
-            "reproducer has been generated in '"
-         << *crashReproducerFileName << "'";
+    return op->emitError("<MLIR-PassManager-Crash-Reproducer>: ") << error;
+  return failure();
 }
 
 //===----------------------------------------------------------------------===//
 // PassManager
 //===----------------------------------------------------------------------===//
 
-PassManager::PassManager(MLIRContext *ctx, Nesting nesting)
-    : OpPassManager(Identifier::get(ModuleOp::getOperationName(), ctx),
-                    nesting),
-      context(ctx), passTiming(false), localReproducer(false),
-      verifyPasses(true) {}
+PassManager::PassManager(MLIRContext *ctx, Nesting nesting,
+                         StringRef operationName)
+    : OpPassManager(Identifier::get(operationName, ctx), nesting), context(ctx),
+      passTiming(false), localReproducer(false), verifyPasses(true) {}
 
 PassManager::~PassManager() {}
 
 void PassManager::enableVerifier(bool enabled) { verifyPasses = enabled; }
 
-/// Run the passes within this manager on the provided module.
-LogicalResult PassManager::run(ModuleOp module) {
+/// Run the passes within this manager on the provided operation.
+LogicalResult PassManager::run(Operation *op) {
+  MLIRContext *context = getContext();
+  assert(op->getName().getIdentifier() == getOpName(*context) &&
+         "operation has a different name than the PassManager");
+
   // Before running, make sure to coalesce any adjacent pass adaptors in the
   // pipeline.
   getImpl().coalesceAdjacentAdaptorPasses();
@@ -813,23 +865,27 @@ LogicalResult PassManager::run(ModuleOp module) {
   // Register all dialects for the current pipeline.
   DialectRegistry dependentDialects;
   getDependentDialects(dependentDialects);
-  dependentDialects.loadAll(module.getContext());
+  dependentDialects.loadAll(context);
 
-  // Construct an analysis manager for the pipeline.
-  ModuleAnalysisManager am(module, instrumentor.get());
+  // Initialize all of the passes within the pass manager with a new generation.
+  initialize(context, impl->initializationGeneration + 1);
+
+  // Construct a top level analysis manager for the pipeline.
+  ModuleAnalysisManager am(op, instrumentor.get());
 
   // Notify the context that we start running a pipeline for book keeping.
-  module.getContext()->enterMultiThreadedExecution();
+  context->enterMultiThreadedExecution();
 
   // If reproducer generation is enabled, run the pass manager with crash
   // handling enabled.
-  LogicalResult result = crashReproducerFileName
-                             ? runWithCrashRecovery(module, am)
-                             : OpToOpPassAdaptor::runPipeline(
-                                   getPasses(), module, am, verifyPasses);
+  LogicalResult result =
+      crashReproducerStreamFactory
+          ? runWithCrashRecovery(op, am)
+          : OpToOpPassAdaptor::runPipeline(getPasses(), op, am, verifyPasses,
+                                           impl->initializationGeneration);
 
   // Notify the context that the run is done.
-  module.getContext()->exitMultiThreadedExecution();
+  context->exitMultiThreadedExecution();
 
   // Dump all of the pass statistics if necessary.
   if (passStatisticsMode)
@@ -844,7 +900,30 @@ LogicalResult PassManager::run(ModuleOp module) {
 /// pipeline.
 void PassManager::enableCrashReproducerGeneration(StringRef outputFile,
                                                   bool genLocalReproducer) {
-  crashReproducerFileName = std::string(outputFile);
+  // Capture the filename by value in case outputFile is out of scope when
+  // invoked.
+  std::string filename = outputFile.str();
+  enableCrashReproducerGeneration(
+      [filename](std::string &error) -> std::unique_ptr<ReproducerStream> {
+        std::unique_ptr<llvm::ToolOutputFile> outputFile =
+            mlir::openOutputFile(filename, &error);
+        if (!outputFile) {
+          error = "Failed to create reproducer stream: " + error;
+          return nullptr;
+        }
+        return std::make_unique<FileReproducerStream>(std::move(outputFile));
+      },
+      genLocalReproducer);
+}
+
+/// Enable support for the pass manager to generate a reproducer on the event
+/// of a crash or a pass failure. `factory` is used to construct the streams
+/// to write the generated reproducer to. If `genLocalReproducer` is true, the
+/// pass manager will attempt to generate a local reproducer that contains the
+/// smallest pipeline.
+void PassManager::enableCrashReproducerGeneration(
+    ReproducerStreamFactory factory, bool genLocalReproducer) {
+  crashReproducerStreamFactory = factory;
   localReproducer = genLocalReproducer;
 }
 
@@ -860,22 +939,41 @@ void PassManager::addInstrumentation(std::unique_ptr<PassInstrumentation> pi) {
 // AnalysisManager
 //===----------------------------------------------------------------------===//
 
-/// Returns a pass instrumentation object for the current operation.
-PassInstrumentor *AnalysisManager::getPassInstrumentor() const {
-  ParentPointerT curParent = parent;
-  while (auto *parentAM = curParent.dyn_cast<const AnalysisManager *>())
-    curParent = parentAM->parent;
-  return curParent.get<const ModuleAnalysisManager *>()->getPassInstrumentor();
+/// Get an analysis manager for the given operation, which must be a proper
+/// descendant of the current operation represented by this analysis manager.
+AnalysisManager AnalysisManager::nest(Operation *op) {
+  Operation *currentOp = impl->getOperation();
+  assert(currentOp->isProperAncestor(op) &&
+         "expected valid descendant operation");
+
+  // Check for the base case where the provided operation is immediately nested.
+  if (currentOp == op->getParentOp())
+    return nestImmediate(op);
+
+  // Otherwise, we need to collect all ancestors up to the current operation.
+  SmallVector<Operation *, 4> opAncestors;
+  do {
+    opAncestors.push_back(op);
+    op = op->getParentOp();
+  } while (op != currentOp);
+
+  AnalysisManager result = *this;
+  for (Operation *op : llvm::reverse(opAncestors))
+    result = result.nestImmediate(op);
+  return result;
 }
 
-/// Get an analysis manager for the given child operation.
-AnalysisManager AnalysisManager::nest(Operation *op) {
+/// Get an analysis manager for the given immediately nested child operation.
+AnalysisManager AnalysisManager::nestImmediate(Operation *op) {
+  assert(impl->getOperation() == op->getParentOp() &&
+         "expected immediate child operation");
+
   auto it = impl->childAnalyses.find(op);
   if (it == impl->childAnalyses.end())
     it = impl->childAnalyses
-             .try_emplace(op, std::make_unique<NestedAnalysisMap>(op))
+             .try_emplace(op, std::make_unique<NestedAnalysisMap>(op, impl))
              .first;
-  return {this, it->second.get()};
+  return {it->second.get()};
 }
 
 /// Invalidate any non preserved analyses.

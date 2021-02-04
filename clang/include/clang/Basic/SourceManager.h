@@ -35,6 +35,7 @@
 #define LLVM_CLANG_BASIC_SOURCEMANAGER_H
 
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/FileEntry.h"
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitVector.h"
@@ -60,8 +61,6 @@ namespace clang {
 class ASTReader;
 class ASTWriter;
 class FileManager;
-class FileEntry;
-class FileEntryRef;
 class LineTableInfo;
 class SourceManager;
 
@@ -288,7 +287,7 @@ class FileInfo {
   /// The location of the \#include that brought in this file.
   ///
   /// This is an invalid SLOC for the main file (top of the \#include chain).
-  unsigned IncludeLoc; // Really a SourceLocation
+  SourceLocation IncludeLoc;
 
   /// Number of FileIDs (files and macros) that were created during
   /// preprocessing of this \#include, including this SLocEntry.
@@ -308,7 +307,7 @@ public:
   static FileInfo get(SourceLocation IL, ContentCache &Con,
                       CharacteristicKind FileCharacter, StringRef Filename) {
     FileInfo X;
-    X.IncludeLoc = IL.getRawEncoding();
+    X.IncludeLoc = IL;
     X.NumCreatedFIDs = 0;
     X.HasLineDirectives = false;
     X.ContentAndKind.setPointer(&Con);
@@ -318,7 +317,7 @@ public:
   }
 
   SourceLocation getIncludeLoc() const {
-    return SourceLocation::getFromRawEncoding(IncludeLoc);
+    return IncludeLoc;
   }
 
   const ContentCache &getContentCache() const {
@@ -349,7 +348,7 @@ class ExpansionInfo {
   // Really these are all SourceLocations.
 
   /// Where the spelling for the token can be found.
-  unsigned SpellingLoc;
+  SourceLocation SpellingLoc;
 
   /// In a macro expansion, ExpansionLocStart and ExpansionLocEnd
   /// indicate the start and end of the expansion. In object-like macros,
@@ -357,24 +356,23 @@ class ExpansionInfo {
   /// will be the identifier and the end will be the ')'. Finally, in
   /// macro-argument instantiations, the end will be 'SourceLocation()', an
   /// invalid location.
-  unsigned ExpansionLocStart, ExpansionLocEnd;
+  SourceLocation ExpansionLocStart, ExpansionLocEnd;
 
   /// Whether the expansion range is a token range.
   bool ExpansionIsTokenRange;
 
 public:
   SourceLocation getSpellingLoc() const {
-    SourceLocation SpellLoc = SourceLocation::getFromRawEncoding(SpellingLoc);
-    return SpellLoc.isInvalid() ? getExpansionLocStart() : SpellLoc;
+    return SpellingLoc.isInvalid() ? getExpansionLocStart() : SpellingLoc;
   }
 
   SourceLocation getExpansionLocStart() const {
-    return SourceLocation::getFromRawEncoding(ExpansionLocStart);
+    return ExpansionLocStart;
   }
 
   SourceLocation getExpansionLocEnd() const {
-    SourceLocation EndLoc = SourceLocation::getFromRawEncoding(ExpansionLocEnd);
-    return EndLoc.isInvalid() ? getExpansionLocStart() : EndLoc;
+    return ExpansionLocEnd.isInvalid() ? getExpansionLocStart()
+                                       : ExpansionLocEnd;
   }
 
   bool isExpansionTokenRange() const { return ExpansionIsTokenRange; }
@@ -387,13 +385,11 @@ public:
 
   bool isMacroArgExpansion() const {
     // Note that this needs to return false for default constructed objects.
-    return getExpansionLocStart().isValid() &&
-           SourceLocation::getFromRawEncoding(ExpansionLocEnd).isInvalid();
+    return getExpansionLocStart().isValid() && ExpansionLocEnd.isInvalid();
   }
 
   bool isMacroBodyExpansion() const {
-    return getExpansionLocStart().isValid() &&
-           SourceLocation::getFromRawEncoding(ExpansionLocEnd).isValid();
+    return getExpansionLocStart().isValid() && ExpansionLocEnd.isValid();
   }
 
   bool isFunctionMacroExpansion() const {
@@ -411,9 +407,9 @@ public:
                               SourceLocation End,
                               bool ExpansionIsTokenRange = true) {
     ExpansionInfo X;
-    X.SpellingLoc = SpellingLoc.getRawEncoding();
-    X.ExpansionLocStart = Start.getRawEncoding();
-    X.ExpansionLocEnd = End.getRawEncoding();
+    X.SpellingLoc = SpellingLoc;
+    X.ExpansionLocStart = Start;
+    X.ExpansionLocEnd = End;
     X.ExpansionIsTokenRange = ExpansionIsTokenRange;
     return X;
   }
@@ -508,7 +504,7 @@ public:
     SLocEntry E;
     E.Offset = Offset;
     E.IsExpansion = true;
-    E.Expansion = Expansion;
+    new (&E.Expansion) ExpansionInfo(Expansion);
     return E;
   }
 };
@@ -959,6 +955,10 @@ public:
   /// data in the given source file.
   void overrideFileContents(const FileEntry *SourceFile,
                             std::unique_ptr<llvm::MemoryBuffer> Buffer);
+  void overrideFileContents(FileEntryRef SourceFile,
+                            std::unique_ptr<llvm::MemoryBuffer> Buffer) {
+    overrideFileContents(&SourceFile.getFileEntry(), std::move(Buffer));
+  }
 
   /// Override the given source file with another one.
   ///
@@ -982,11 +982,11 @@ public:
   }
 
   /// Bypass the overridden contents of a file.  This creates a new FileEntry
-  /// and initializes the content cache for it.  Returns nullptr if there is no
+  /// and initializes the content cache for it.  Returns None if there is no
   /// such file in the filesystem.
   ///
   /// This should be called before parsing has begun.
-  const FileEntry *bypassFileContentsOverride(const FileEntry &File);
+  Optional<FileEntryRef> bypassFileContentsOverride(FileEntryRef File);
 
   /// Specify that a file is transient.
   void setFileIsTransient(const FileEntry *SourceFile);
@@ -1028,6 +1028,13 @@ public:
     if (auto *Entry = getSLocEntryForFile(FID))
       return Entry->getFile().getContentCache().OrigEntry;
     return nullptr;
+  }
+
+  /// Returns the FileEntryRef for the provided FileID.
+  Optional<FileEntryRef> getFileEntryRefForID(FileID FID) const {
+    if (auto *Entry = getFileEntryForID(FID))
+      return Entry->getLastRef();
+    return None;
   }
 
   /// Returns the filename for the provided FileID, unless it's a built-in
@@ -1583,6 +1590,9 @@ public:
   /// If the source file is included multiple times, the FileID will be the
   /// first inclusion.
   FileID translateFile(const FileEntry *SourceFile) const;
+  FileID translateFile(FileEntryRef SourceFile) const {
+    return translateFile(&SourceFile.getFileEntry());
+  }
 
   /// Get the source location in \p FID for the given line:col.
   /// Returns null location if \p FID is not a file SLocEntry.

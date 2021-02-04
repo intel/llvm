@@ -15,8 +15,8 @@
 #define MLIR_DIALECT_LLVMIR_LLVMDIALECT_H_
 
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dialect.h"
-#include "mlir/IR/Function.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/TypeSupport.h"
@@ -29,6 +29,7 @@
 #include "llvm/IR/Type.h"
 
 #include "mlir/Dialect/LLVMIR/LLVMOpsEnums.h.inc"
+#include "mlir/Dialect/LLVMIR/LLVMOpsInterfaces.h.inc"
 
 namespace llvm {
 class Type;
@@ -46,7 +47,22 @@ class LLVMDialect;
 namespace detail {
 struct LLVMTypeStorage;
 struct LLVMDialectImpl;
+struct BitmaskEnumStorage;
 } // namespace detail
+
+/// An attribute that specifies LLVM instruction fastmath flags.
+class FMFAttr : public Attribute::AttrBase<FMFAttr, Attribute,
+                                           detail::BitmaskEnumStorage> {
+public:
+  using Base::Base;
+
+  static FMFAttr get(FastmathFlags flags, MLIRContext *context);
+
+  FastmathFlags getFlags() const;
+
+  void print(DialectAsmPrinter &p) const;
+  static Attribute parse(DialectAsmParser &parser);
+};
 
 } // namespace LLVM
 } // namespace mlir

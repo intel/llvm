@@ -21,6 +21,7 @@ namespace llvm {
 
 class GlobalValue;
 class MachineModuleInfo;
+class MachineFunction;
 class MCContext;
 class MCExpr;
 class MCSection;
@@ -35,10 +36,9 @@ class TargetLoweringObjectFileELF : public TargetLoweringObjectFile {
 protected:
   MCSymbolRefExpr::VariantKind PLTRelativeVariantKind =
       MCSymbolRefExpr::VK_None;
-  const TargetMachine *TM = nullptr;
 
 public:
-  TargetLoweringObjectFileELF() = default;
+  TargetLoweringObjectFileELF();
   ~TargetLoweringObjectFileELF() override = default;
 
   void Initialize(MCContext &Ctx, const TargetMachine &TM) override;
@@ -96,6 +96,9 @@ public:
   const MCExpr *lowerRelativeReference(const GlobalValue *LHS,
                                        const GlobalValue *RHS,
                                        const TargetMachine &TM) const override;
+
+  const MCExpr *lowerDSOLocalEquivalent(const DSOLocalEquivalent *Equiv,
+                                        const TargetMachine &TM) const override;
 
   MCSection *getSectionForCommandLines() const override;
 };
@@ -216,6 +219,10 @@ class TargetLoweringObjectFileXCOFF : public TargetLoweringObjectFile {
 public:
   TargetLoweringObjectFileXCOFF() = default;
   ~TargetLoweringObjectFileXCOFF() override = default;
+
+  static bool ShouldEmitEHBlock(const MachineFunction *MF);
+
+  static MCSymbol *getEHInfoTableSymbol(const MachineFunction *MF);
 
   void Initialize(MCContext &Ctx, const TargetMachine &TM) override;
 

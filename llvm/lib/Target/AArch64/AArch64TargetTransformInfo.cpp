@@ -217,10 +217,17 @@ AArch64TTIImpl::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
                                       TTI::TargetCostKind CostKind) {
   auto *RetTy = ICA.getReturnType();
   switch (ICA.getID()) {
-  case Intrinsic::smin:
   case Intrinsic::umin:
-  case Intrinsic::smax:
   case Intrinsic::umax: {
+    auto LT = TLI->getTypeLegalizationCost(DL, RetTy);
+    // umin(x,y) -> sub(x,usubsat(x,y))
+    // umax(x,y) -> add(x,usubsat(y,x))
+    if (LT.second == MVT::v2i64)
+      return LT.first * 2;
+    LLVM_FALLTHROUGH;
+  }
+  case Intrinsic::smin:
+  case Intrinsic::smax: {
     static const auto ValidMinMaxTys = {MVT::v8i8,  MVT::v16i8, MVT::v4i16,
                                         MVT::v8i16, MVT::v2i32, MVT::v4i32};
     auto LT = TLI->getTypeLegalizationCost(DL, RetTy);
@@ -240,8 +247,8 @@ bool AArch64TTIImpl::isWideningInstruction(Type *DstTy, unsigned Opcode,
   // A helper that returns a vector type from the given type. The number of
   // elements in type Ty determine the vector width.
   auto toVectorTy = [&](Type *ArgTy) {
-    return FixedVectorType::get(ArgTy->getScalarType(),
-                                cast<FixedVectorType>(DstTy)->getNumElements());
+    return VectorType::get(ArgTy->getScalarType(),
+                           cast<VectorType>(DstTy)->getElementCount());
   };
 
   // Exit early if DstTy is not a vector type whose elements are at least
@@ -290,8 +297,8 @@ bool AArch64TTIImpl::isWideningInstruction(Type *DstTy, unsigned Opcode,
     return false;
 
   // Get the total number of vector elements in the legalized types.
-  unsigned NumDstEls = DstTyL.first * DstTyL.second.getVectorNumElements();
-  unsigned NumSrcEls = SrcTyL.first * SrcTyL.second.getVectorNumElements();
+  unsigned NumDstEls = DstTyL.first * DstTyL.second.getVectorMinNumElements();
+  unsigned NumSrcEls = SrcTyL.first * SrcTyL.second.getVectorMinNumElements();
 
   // Return true if the legalized types have the same number of vector elements
   // and the destination element type size is twice that of the source type.
@@ -637,8 +644,20 @@ int AArch64TTIImpl::getArithmeticInstrCost(
     }
     return Cost;
 
-  case ISD::ADD:
   case ISD::MUL:
+    if (LT.second != MVT::v2i64)
+      return (Cost + 1) * LT.first;
+    // Since we do not have a MUL.2d instruction, a mul <2 x i64> is expensive
+    // as elements are extracted from the vectors and the muls scalarized.
+    // As getScalarizationOverhead is a bit too pessimistic, we estimate the
+    // cost for a i64 vector directly here, which is:
+    // - four i64 extracts,
+    // - two i64 inserts, and
+    // - two muls.
+    // So, for a v2i64 with LT.First = 1 the cost is 8, and for a v4i64 with
+    // LT.first = 2 the cost is 16.
+    return LT.first * 8;
+  case ISD::ADD:
   case ISD::XOR:
   case ISD::OR:
   case ISD::AND:
@@ -688,7 +707,7 @@ int AArch64TTIImpl::getCmpSelInstrCost(unsigned Opcode, Type *ValTy,
   int ISD = TLI->InstructionOpcodeToISD(Opcode);
   // We don't lower some vector selects well that are wider than the register
   // width.
-  if (ValTy->isVectorTy() && ISD == ISD::SELECT) {
+  if (isa<FixedVectorType>(ValTy) && ISD == ISD::SELECT) {
     // We would need this many instructions to hide the scalarization happening.
     const int AmortizationCost = 20;
 
@@ -730,6 +749,8 @@ int AArch64TTIImpl::getCmpSelInstrCost(unsigned Opcode, Type *ValTy,
         return Entry->Cost;
     }
   }
+  // The base case handles scalable vectors fine for now, since it treats the
+  // cost as 1 * legalization cost.
   return BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, VecPred, CostKind, I);
 }
 
@@ -749,6 +770,30 @@ AArch64TTIImpl::enableMemCmpExpansion(bool OptSize, bool IsZeroCmp) const {
   // they could be used with no holds barred (-O3).
   Options.LoadSizes = {8, 4, 2, 1};
   return Options;
+}
+
+unsigned AArch64TTIImpl::getGatherScatterOpCost(
+    unsigned Opcode, Type *DataTy, const Value *Ptr, bool VariableMask,
+    Align Alignment, TTI::TargetCostKind CostKind, const Instruction *I) {
+
+  if (!isa<ScalableVectorType>(DataTy))
+    return BaseT::getGatherScatterOpCost(Opcode, DataTy, Ptr, VariableMask,
+                                         Alignment, CostKind, I);
+  auto *VT = cast<VectorType>(DataTy);
+  auto LT = TLI->getTypeLegalizationCost(DL, DataTy);
+  ElementCount LegalVF = LT.second.getVectorElementCount();
+  Optional<unsigned> MaxNumVScale = getMaxVScale();
+  assert(MaxNumVScale && "Expected valid max vscale value");
+
+  unsigned MemOpCost =
+      getMemoryOpCost(Opcode, VT->getElementType(), Alignment, 0, CostKind, I);
+  unsigned MaxNumElementsPerGather =
+      MaxNumVScale.getValue() * LegalVF.getKnownMinValue();
+  return LT.first * MaxNumElementsPerGather * MemOpCost;
+}
+
+bool AArch64TTIImpl::useNeonVector(const Type *Ty) const {
+  return isa<FixedVectorType>(Ty) && !ST->useSVEForFixedLengthVectors();
 }
 
 int AArch64TTIImpl::getMemoryOpCost(unsigned Opcode, Type *Ty,
@@ -778,7 +823,7 @@ int AArch64TTIImpl::getMemoryOpCost(unsigned Opcode, Type *Ty,
     return LT.first * 2 * AmortizationCost;
   }
 
-  if (Ty->isVectorTy() &&
+  if (useNeonVector(Ty) &&
       cast<VectorType>(Ty)->getElementType()->isIntegerTy(8)) {
     unsigned ProfitableNumElements;
     if (Opcode == Instruction::Store)
@@ -1053,11 +1098,70 @@ bool AArch64TTIImpl::useReductionIntrinsic(unsigned Opcode, Type *Ty,
   return false;
 }
 
+int AArch64TTIImpl::getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
+                                           bool IsPairwise, bool IsUnsigned,
+                                           TTI::TargetCostKind CostKind) {
+  if (!isa<ScalableVectorType>(Ty))
+    return BaseT::getMinMaxReductionCost(Ty, CondTy, IsPairwise, IsUnsigned,
+                                         CostKind);
+  assert((isa<ScalableVectorType>(Ty) && isa<ScalableVectorType>(CondTy)) &&
+         "Both vector needs to be scalable");
+
+  std::pair<int, MVT> LT = TLI->getTypeLegalizationCost(DL, Ty);
+  int LegalizationCost = 0;
+  if (LT.first > 1) {
+    Type *LegalVTy = EVT(LT.second).getTypeForEVT(Ty->getContext());
+    unsigned CmpOpcode =
+        Ty->isFPOrFPVectorTy() ? Instruction::FCmp : Instruction::ICmp;
+    LegalizationCost =
+        getCmpSelInstrCost(CmpOpcode, LegalVTy, LegalVTy,
+                           CmpInst::BAD_ICMP_PREDICATE, CostKind) +
+        getCmpSelInstrCost(Instruction::Select, LegalVTy, LegalVTy,
+                           CmpInst::BAD_ICMP_PREDICATE, CostKind);
+    LegalizationCost *= LT.first - 1;
+  }
+
+  return LegalizationCost + /*Cost of horizontal reduction*/ 2;
+}
+
+int AArch64TTIImpl::getArithmeticReductionCostSVE(
+    unsigned Opcode, VectorType *ValTy, bool IsPairwise,
+    TTI::TargetCostKind CostKind) {
+  assert(!IsPairwise && "Cannot be pair wise to continue");
+
+  std::pair<int, MVT> LT = TLI->getTypeLegalizationCost(DL, ValTy);
+  int LegalizationCost = 0;
+  if (LT.first > 1) {
+    Type *LegalVTy = EVT(LT.second).getTypeForEVT(ValTy->getContext());
+    LegalizationCost = getArithmeticInstrCost(Opcode, LegalVTy, CostKind);
+    LegalizationCost *= LT.first - 1;
+  }
+
+  int ISD = TLI->InstructionOpcodeToISD(Opcode);
+  assert(ISD && "Invalid opcode");
+  // Add the final reduction cost for the legal horizontal reduction
+  switch (ISD) {
+  case ISD::ADD:
+  case ISD::AND:
+  case ISD::OR:
+  case ISD::XOR:
+  case ISD::FADD:
+    return LegalizationCost + 2;
+  default:
+    // TODO: Replace for invalid when InstructionCost is used
+    // cases not supported by SVE
+    return 16;
+  }
+}
+
 int AArch64TTIImpl::getArithmeticReductionCost(unsigned Opcode,
                                                VectorType *ValTy,
                                                bool IsPairwiseForm,
                                                TTI::TargetCostKind CostKind) {
 
+  if (isa<ScalableVectorType>(ValTy))
+    return getArithmeticReductionCostSVE(Opcode, ValTy, IsPairwiseForm,
+                                         CostKind);
   if (IsPairwiseForm)
     return BaseT::getArithmeticReductionCost(Opcode, ValTy, IsPairwiseForm,
                                              CostKind);

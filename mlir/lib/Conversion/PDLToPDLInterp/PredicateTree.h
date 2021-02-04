@@ -15,10 +15,12 @@
 #define MLIR_LIB_CONVERSION_PDLTOPDLINTERP_PREDICATETREE_H_
 
 #include "Predicate.h"
-#include "mlir/Dialect/PDL/IR/PDL.h"
+#include "mlir/Dialect/PDL/IR/PDLOps.h"
 #include "llvm/ADT/MapVector.h"
 
 namespace mlir {
+class ModuleOp;
+
 namespace pdl_to_pdl_interp {
 
 class MatcherNode;

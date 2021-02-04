@@ -96,45 +96,6 @@ static bool isSignTest(ICmpInst::Predicate &Pred, const APInt &C) {
   return false;
 }
 
-/// Given a signed integer type and a set of known zero and one bits, compute
-/// the maximum and minimum values that could have the specified known zero and
-/// known one bits, returning them in Min/Max.
-/// TODO: Move to method on KnownBits struct?
-static void computeSignedMinMaxValuesFromKnownBits(const KnownBits &Known,
-                                                   APInt &Min, APInt &Max) {
-  assert(Known.getBitWidth() == Min.getBitWidth() &&
-         Known.getBitWidth() == Max.getBitWidth() &&
-         "KnownZero, KnownOne and Min, Max must have equal bitwidth.");
-  APInt UnknownBits = ~(Known.Zero|Known.One);
-
-  // The minimum value is when all unknown bits are zeros, EXCEPT for the sign
-  // bit if it is unknown.
-  Min = Known.One;
-  Max = Known.One|UnknownBits;
-
-  if (UnknownBits.isNegative()) { // Sign bit is unknown
-    Min.setSignBit();
-    Max.clearSignBit();
-  }
-}
-
-/// Given an unsigned integer type and a set of known zero and one bits, compute
-/// the maximum and minimum values that could have the specified known zero and
-/// known one bits, returning them in Min/Max.
-/// TODO: Move to method on KnownBits struct?
-static void computeUnsignedMinMaxValuesFromKnownBits(const KnownBits &Known,
-                                                     APInt &Min, APInt &Max) {
-  assert(Known.getBitWidth() == Min.getBitWidth() &&
-         Known.getBitWidth() == Max.getBitWidth() &&
-         "Ty, KnownZero, KnownOne and Min, Max must have equal bitwidth.");
-  APInt UnknownBits = ~(Known.Zero|Known.One);
-
-  // The minimum value is when the unknown bits are all zeros.
-  Min = Known.One;
-  // The maximum value is when the unknown bits are all ones.
-  Max = Known.One|UnknownBits;
-}
-
 /// This is called when we see this pattern:
 ///   cmp pred (load (gep GV, ...)), cmpcst
 /// where GV is a global variable with a constant initializer. Try to simplify
@@ -541,7 +502,7 @@ static bool canRewriteGEPAsOffset(Value *Start, Value *Base,
 
       Value *V = WorkList.back();
 
-      if (Explored.count(V) != 0) {
+      if (Explored.contains(V)) {
         WorkList.pop_back();
         continue;
       }
@@ -899,8 +860,8 @@ Instruction *InstCombinerImpl::foldGEPICmp(GEPOperator *GEPLHS, Value *RHS,
     // For vectors, we apply the same reasoning on a per-lane basis.
     auto *Base = GEPLHS->getPointerOperand();
     if (GEPLHS->getType()->isVectorTy() && Base->getType()->isPointerTy()) {
-      int NumElts = cast<FixedVectorType>(GEPLHS->getType())->getNumElements();
-      Base = Builder.CreateVectorSplat(NumElts, Base);
+      auto EC = cast<VectorType>(GEPLHS->getType())->getElementCount();
+      Base = Builder.CreateVectorSplat(EC, Base);
     }
     return new ICmpInst(Cond, Base,
                         ConstantExpr::getPointerBitCastOrAddrSpaceCast(
@@ -1614,15 +1575,13 @@ Instruction *InstCombinerImpl::foldICmpXorConstant(ICmpInst &Cmp,
   if (Xor->hasOneUse()) {
     // (icmp u/s (xor X SignMask), C) -> (icmp s/u X, (xor C SignMask))
     if (!Cmp.isEquality() && XorC->isSignMask()) {
-      Pred = Cmp.isSigned() ? Cmp.getUnsignedPredicate()
-                            : Cmp.getSignedPredicate();
+      Pred = Cmp.getFlippedSignednessPredicate();
       return new ICmpInst(Pred, X, ConstantInt::get(X->getType(), C ^ *XorC));
     }
 
     // (icmp u/s (xor X ~SignMask), C) -> (icmp s/u X, (xor C ~SignMask))
     if (!Cmp.isEquality() && XorC->isMaxSignedValue()) {
-      Pred = Cmp.isSigned() ? Cmp.getUnsignedPredicate()
-                            : Cmp.getSignedPredicate();
+      Pred = Cmp.getFlippedSignednessPredicate();
       Pred = Cmp.getSwappedPredicate(Pred);
       return new ICmpInst(Pred, X, ConstantInt::get(X->getType(), C ^ *XorC));
     }
@@ -1887,8 +1846,7 @@ Instruction *InstCombinerImpl::foldICmpAndConstant(ICmpInst &Cmp,
     if (ExactLogBase2 != -1 && DL.isLegalInteger(ExactLogBase2 + 1)) {
       Type *NTy = IntegerType::get(Cmp.getContext(), ExactLogBase2 + 1);
       if (auto *AndVTy = dyn_cast<VectorType>(And->getType()))
-        NTy = FixedVectorType::get(
-            NTy, cast<FixedVectorType>(AndVTy)->getNumElements());
+        NTy = VectorType::get(NTy, AndVTy->getElementCount());
       Value *Trunc = Builder.CreateTrunc(X, NTy);
       auto NewPred = Cmp.getPredicate() == CmpInst::ICMP_EQ ? CmpInst::ICMP_SGE
                                                             : CmpInst::ICMP_SLT;
@@ -2194,8 +2152,7 @@ Instruction *InstCombinerImpl::foldICmpShlConstant(ICmpInst &Cmp,
       DL.isLegalInteger(TypeBits - Amt)) {
     Type *TruncTy = IntegerType::get(Cmp.getContext(), TypeBits - Amt);
     if (auto *ShVTy = dyn_cast<VectorType>(ShType))
-      TruncTy = FixedVectorType::get(
-          TruncTy, cast<FixedVectorType>(ShVTy)->getNumElements());
+      TruncTy = VectorType::get(TruncTy, ShVTy->getElementCount());
     Constant *NewC =
         ConstantInt::get(TruncTy, C.ashr(*ShiftAmt).trunc(TypeBits - Amt));
     return new ICmpInst(Pred, Builder.CreateTrunc(X, TruncTy), NewC);
@@ -2252,6 +2209,21 @@ Instruction *InstCombinerImpl::foldICmpShrConstant(ICmpInst &Cmp,
       if (!C.isMaxSignedValue() && !(C + 1).shl(ShAmtVal).isMinSignedValue() &&
           (ShiftedC + 1).ashr(ShAmtVal) == (C + 1))
         return new ICmpInst(Pred, X, ConstantInt::get(ShrTy, ShiftedC));
+    }
+
+    // If the compare constant has significant bits above the lowest sign-bit,
+    // then convert an unsigned cmp to a test of the sign-bit:
+    // (ashr X, ShiftC) u> C --> X s< 0
+    // (ashr X, ShiftC) u< C --> X s> -1
+    if (C.getBitWidth() > 2 && C.getNumSignBits() <= ShAmtVal) {
+      if (Pred == CmpInst::ICMP_UGT) {
+        return new ICmpInst(CmpInst::ICMP_SLT, X,
+                            ConstantInt::getNullValue(ShrTy));
+      }
+      if (Pred == CmpInst::ICMP_ULT) {
+        return new ICmpInst(CmpInst::ICMP_SGT, X,
+                            ConstantInt::getAllOnesValue(ShrTy));
+      }
     }
   } else {
     if (Pred == CmpInst::ICMP_ULT || (Pred == CmpInst::ICMP_UGT && IsExact)) {
@@ -2829,8 +2801,7 @@ static Instruction *foldICmpBitCast(ICmpInst &Cmp,
 
           Type *NewType = Builder.getIntNTy(XType->getScalarSizeInBits());
           if (auto *XVTy = dyn_cast<VectorType>(XType))
-            NewType = FixedVectorType::get(
-                NewType, cast<FixedVectorType>(XVTy)->getNumElements());
+            NewType = VectorType::get(NewType, XVTy->getElementCount());
           Value *NewBitcast = Builder.CreateBitCast(X, NewType);
           if (TrueIfSigned)
             return new ICmpInst(ICmpInst::ICMP_SLT, NewBitcast,
@@ -3413,8 +3384,8 @@ static Value *foldICmpWithLowBitMaskedVal(ICmpInst &I,
   // those elements by copying an existing, defined, and safe scalar constant.
   Type *OpTy = M->getType();
   auto *VecC = dyn_cast<Constant>(M);
-  if (OpTy->isVectorTy() && VecC && VecC->containsUndefElement()) {
-    auto *OpVTy = cast<FixedVectorType>(OpTy);
+  auto *OpVTy = dyn_cast<FixedVectorType>(OpTy);
+  if (OpVTy && VecC && VecC->containsUndefOrPoisonElement()) {
     Constant *SafeReplacementConstant = nullptr;
     for (unsigned i = 0, e = OpVTy->getNumElements(); i != e; ++i) {
       if (!isa<UndefValue>(VecC->getAggregateElement(i))) {
@@ -4053,15 +4024,13 @@ Instruction *InstCombinerImpl::foldICmpBinOp(ICmpInst &I,
       if (match(BO0->getOperand(1), m_APInt(C))) {
         // icmp u/s (a ^ signmask), (b ^ signmask) --> icmp s/u a, b
         if (C->isSignMask()) {
-          ICmpInst::Predicate NewPred =
-              I.isSigned() ? I.getUnsignedPredicate() : I.getSignedPredicate();
+          ICmpInst::Predicate NewPred = I.getFlippedSignednessPredicate();
           return new ICmpInst(NewPred, BO0->getOperand(0), BO1->getOperand(0));
         }
 
         // icmp u/s (a ^ maxsignval), (b ^ maxsignval) --> icmp s/u' a, b
         if (BO0->getOpcode() == Instruction::Xor && C->isMaxSignedValue()) {
-          ICmpInst::Predicate NewPred =
-              I.isSigned() ? I.getUnsignedPredicate() : I.getSignedPredicate();
+          ICmpInst::Predicate NewPred = I.getFlippedSignednessPredicate();
           NewPred = I.getSwappedPredicate(NewPred);
           return new ICmpInst(NewPred, BO0->getOperand(0), BO1->getOperand(0));
         }
@@ -4591,9 +4560,13 @@ bool InstCombinerImpl::OptimizeOverflowCheck(Instruction::BinaryOps BinaryOp,
   // compare.
   Builder.SetInsertPoint(&OrigI);
 
+  Type *OverflowTy = Type::getInt1Ty(LHS->getContext());
+  if (auto *LHSTy = dyn_cast<VectorType>(LHS->getType()))
+    OverflowTy = VectorType::get(OverflowTy, LHSTy->getElementCount());
+
   if (isNeutralValue(BinaryOp, RHS)) {
     Result = LHS;
-    Overflow = Builder.getFalse();
+    Overflow = ConstantInt::getFalse(OverflowTy);
     return true;
   }
 
@@ -4604,12 +4577,12 @@ bool InstCombinerImpl::OptimizeOverflowCheck(Instruction::BinaryOps BinaryOp,
     case OverflowResult::AlwaysOverflowsHigh:
       Result = Builder.CreateBinOp(BinaryOp, LHS, RHS);
       Result->takeName(&OrigI);
-      Overflow = Builder.getTrue();
+      Overflow = ConstantInt::getTrue(OverflowTy);
       return true;
     case OverflowResult::NeverOverflows:
       Result = Builder.CreateBinOp(BinaryOp, LHS, RHS);
       Result->takeName(&OrigI);
-      Overflow = Builder.getFalse();
+      Overflow = ConstantInt::getFalse(OverflowTy);
       if (auto *Inst = dyn_cast<Instruction>(Result)) {
         if (IsSigned)
           Inst->setHasNoSignedWrap();
@@ -4793,8 +4766,7 @@ static Instruction *processUMulZExtIdiom(ICmpInst &I, Value *MulVal,
   // mul.with.overflow and adjust properly mask/size.
   if (MulVal->hasNUsesOrMore(2)) {
     Value *Mul = Builder.CreateExtractValue(Call, 0, "umul.value");
-    for (auto UI = MulVal->user_begin(), UE = MulVal->user_end(); UI != UE;) {
-      User *U = *UI++;
+    for (User *U : make_early_inc_range(MulVal->users())) {
       if (U == &I || U == OtherVal)
         continue;
       if (TruncInst *TI = dyn_cast<TruncInst>(U)) {
@@ -5053,11 +5025,15 @@ Instruction *InstCombinerImpl::foldICmpUsingKnownBits(ICmpInst &I) {
   APInt Op0Min(BitWidth, 0), Op0Max(BitWidth, 0);
   APInt Op1Min(BitWidth, 0), Op1Max(BitWidth, 0);
   if (I.isSigned()) {
-    computeSignedMinMaxValuesFromKnownBits(Op0Known, Op0Min, Op0Max);
-    computeSignedMinMaxValuesFromKnownBits(Op1Known, Op1Min, Op1Max);
+    Op0Min = Op0Known.getSignedMinValue();
+    Op0Max = Op0Known.getSignedMaxValue();
+    Op1Min = Op1Known.getSignedMinValue();
+    Op1Max = Op1Known.getSignedMaxValue();
   } else {
-    computeUnsignedMinMaxValuesFromKnownBits(Op0Known, Op0Min, Op0Max);
-    computeUnsignedMinMaxValuesFromKnownBits(Op1Known, Op1Min, Op1Max);
+    Op0Min = Op0Known.getMinValue();
+    Op0Max = Op0Known.getMaxValue();
+    Op1Min = Op1Known.getMinValue();
+    Op1Max = Op1Known.getMaxValue();
   }
 
   // If Min and Max are known to be the same, then SimplifyDemandedBits figured
@@ -5075,11 +5051,9 @@ Instruction *InstCombinerImpl::foldICmpUsingKnownBits(ICmpInst &I) {
     llvm_unreachable("Unknown icmp opcode!");
   case ICmpInst::ICMP_EQ:
   case ICmpInst::ICMP_NE: {
-    if (Op0Max.ult(Op1Min) || Op0Min.ugt(Op1Max)) {
-      return Pred == CmpInst::ICMP_EQ
-                 ? replaceInstUsesWith(I, ConstantInt::getFalse(I.getType()))
-                 : replaceInstUsesWith(I, ConstantInt::getTrue(I.getType()));
-    }
+    if (Op0Max.ult(Op1Min) || Op0Min.ugt(Op1Max))
+      return replaceInstUsesWith(
+          I, ConstantInt::getBool(I.getType(), Pred == CmpInst::ICMP_NE));
 
     // If all bits are known zero except for one, then we know at most one bit
     // is set. If the comparison is against zero, then this is a check to see if
@@ -5299,7 +5273,8 @@ InstCombiner::getFlippedStrictnessPredicateAndConstant(CmpInst::Predicate Pred,
   // It may not be safe to change a compare predicate in the presence of
   // undefined elements, so replace those elements with the first safe constant
   // that we found.
-  if (C->containsUndefElement()) {
+  // TODO: in case of poison, it is safe; let's replace undefs only.
+  if (C->containsUndefOrPoisonElement()) {
     assert(SafeReplacementConstant && "Replacement constant not set");
     C = Constant::replaceUndefsWith(C, SafeReplacementConstant);
   }
@@ -5353,26 +5328,8 @@ CmpInst *InstCombinerImpl::canonicalizeICmpPredicate(CmpInst &I) {
   I.setPredicate(CmpInst::getInversePredicate(Pred));
   I.setName(I.getName() + ".not");
 
-  // And now let's adjust every user.
-  for (User *U : I.users()) {
-    switch (cast<Instruction>(U)->getOpcode()) {
-    case Instruction::Select: {
-      auto *SI = cast<SelectInst>(U);
-      SI->swapValues();
-      SI->swapProfMetadata();
-      break;
-    }
-    case Instruction::Br:
-      cast<BranchInst>(U)->swapSuccessors(); // swaps prof metadata too
-      break;
-    case Instruction::Xor:
-      replaceInstUsesWith(cast<Instruction>(*U), &I);
-      break;
-    default:
-      llvm_unreachable("Got unexpected user - out of sync with "
-                       "canFreelyInvertAllUsersOf() ?");
-    }
-  }
+  // And, adapt users.
+  freelyInvertAllUsersOf(&I);
 
   return &I;
 }

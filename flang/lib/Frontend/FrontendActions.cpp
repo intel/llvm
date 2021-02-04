@@ -7,10 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "flang/Frontend/FrontendActions.h"
+#include "flang/Common/default-kinds.h"
 #include "flang/Frontend/CompilerInstance.h"
 #include "flang/Parser/parsing.h"
 #include "flang/Parser/provenance.h"
 #include "flang/Parser/source.h"
+#include "flang/Semantics/semantics.h"
 
 using namespace Fortran::frontend;
 
@@ -59,6 +61,9 @@ void PrintPreprocessedAction::ExecuteAction() {
     return;
   }
 
+  // Print diagnostics from the preprocessor
+  ci.parsing().messages().Emit(llvm::errs(), ci.allCookedSources());
+
   // Create a file and save the preprocessed output there
   if (auto os{ci.CreateDefaultOutputFile(
           /*Binary=*/true, /*InFile=*/GetCurrentFileOrBufferName())}) {
@@ -67,4 +72,52 @@ void PrintPreprocessedAction::ExecuteAction() {
     llvm::errs() << "Unable to create the output file\n";
     return;
   }
+}
+
+void ParseSyntaxOnlyAction::ExecuteAction() {
+  CompilerInstance &ci = this->instance();
+
+  // TODO: These should be specifiable by users. For now just use the defaults.
+  common::LanguageFeatureControl features;
+  Fortran::common::IntrinsicTypeDefaultKinds defaultKinds;
+
+  // Parse. In case of failure, report and return.
+  ci.parsing().Parse(llvm::outs());
+
+  if (ci.parsing().messages().AnyFatalError()) {
+    unsigned diagID = ci.diagnostics().getCustomDiagID(
+        clang::DiagnosticsEngine::Error, "Could not parse %0");
+    ci.diagnostics().Report(diagID) << GetCurrentFileOrBufferName();
+
+    ci.parsing().messages().Emit(
+        llvm::errs(), this->instance().allCookedSources());
+    return;
+  }
+
+  auto &parseTree{*ci.parsing().parseTree()};
+
+  // Prepare semantics
+  Fortran::semantics::SemanticsContext semanticsContext{
+      defaultKinds, features, ci.allCookedSources()};
+  Fortran::semantics::Semantics semantics{
+      semanticsContext, parseTree, ci.parsing().cooked().AsCharBlock()};
+
+  // Run semantic checks
+  semantics.Perform();
+
+  // Report the diagnostics from the semantic checks
+  semantics.EmitMessages(ci.semaOutputStream());
+
+  if (semantics.AnyFatalError()) {
+    unsigned DiagID = ci.diagnostics().getCustomDiagID(
+        clang::DiagnosticsEngine::Error, "Semantic errors in %0");
+    ci.diagnostics().Report(DiagID) << GetCurrentFileOrBufferName();
+  }
+}
+
+void EmitObjAction::ExecuteAction() {
+  CompilerInstance &ci = this->instance();
+  unsigned DiagID = ci.diagnostics().getCustomDiagID(
+      clang::DiagnosticsEngine::Error, "code-generation is not available yet");
+  ci.diagnostics().Report(DiagID);
 }

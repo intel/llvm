@@ -8,7 +8,7 @@
 
 #include "mlir/Pass/PassManager.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/Function.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
 #include "gtest/gtest.h"
 
@@ -34,13 +34,13 @@ struct AnnotateFunctionPass
     : public PassWrapper<AnnotateFunctionPass, OperationPass<FuncOp>> {
   void runOnOperation() override {
     FuncOp op = getOperation();
-    Builder builder(op.getParentOfType<ModuleOp>());
+    Builder builder(op->getParentOfType<ModuleOp>());
 
     auto &ga = getAnalysis<GenericAnalysis>();
     auto &sa = getAnalysis<OpSpecificAnalysis>();
 
-    op.setAttr("isFunc", builder.getBoolAttr(ga.isFunc));
-    op.setAttr("isSecret", builder.getBoolAttr(sa.isSecret));
+    op->setAttr("isFunc", builder.getBoolAttr(ga.isFunc));
+    op->setAttr("isSecret", builder.getBoolAttr(sa.isSecret));
   }
 };
 
@@ -54,6 +54,7 @@ TEST(PassManagerTest, OpSpecificAnalysis) {
     FuncOp func =
         FuncOp::create(builder.getUnknownLoc(), name,
                        builder.getFunctionType(llvm::None, llvm::None));
+    func.setPrivate();
     module->push_back(func);
   }
 
@@ -65,12 +66,12 @@ TEST(PassManagerTest, OpSpecificAnalysis) {
 
   // Verify that each function got annotated with expected attributes.
   for (FuncOp func : module->getOps<FuncOp>()) {
-    ASSERT_TRUE(func.getAttr("isFunc").isa<BoolAttr>());
-    EXPECT_TRUE(func.getAttr("isFunc").cast<BoolAttr>().getValue());
+    ASSERT_TRUE(func->getAttr("isFunc").isa<BoolAttr>());
+    EXPECT_TRUE(func->getAttr("isFunc").cast<BoolAttr>().getValue());
 
     bool isSecret = func.getName() == "secret";
-    ASSERT_TRUE(func.getAttr("isSecret").isa<BoolAttr>());
-    EXPECT_EQ(func.getAttr("isSecret").cast<BoolAttr>().getValue(), isSecret);
+    ASSERT_TRUE(func->getAttr("isSecret").isa<BoolAttr>());
+    EXPECT_EQ(func->getAttr("isSecret").cast<BoolAttr>().getValue(), isSecret);
   }
 }
 

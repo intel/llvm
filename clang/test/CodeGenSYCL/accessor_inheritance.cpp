@@ -23,7 +23,7 @@ int main() {
 // Check kernel parameters
 // CHECK: %[[RANGE_TYPE:"struct.*cl::sycl::range"]]
 // CHECK: %[[ID_TYPE:"struct.*cl::sycl::id"]]
-// CHECK: define spir_kernel void @_ZTSZ4mainE6kernel
+// CHECK: define {{.*}}spir_kernel void @_ZTSZ4mainE6kernel
 // CHECK-SAME: i32 [[ARG_A:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: i32 [[ARG_B:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: i8 addrspace(1)* [[ACC1_DATA:%[a-zA-Z0-9_]+]],
@@ -67,13 +67,13 @@ int main() {
 // CHECK: [[ACC_FIELD:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct{{.*}}Base, %struct{{.*}}Base* [[BITCAST]], i32 0, i32 2
 // CHECK: [[ACC1_AS_CAST:%[a-zA-Z0-9_]+]] = addrspacecast %"class{{.*}}cl::sycl::accessor"* [[ACC_FIELD]] to %"class{{.*}}cl::sycl::accessor" addrspace(4)*
 // Default constructor call
-// CHECK: call spir_func void @_ZN2cl4sycl8accessorIcLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEC1Ev(%"class{{.*}}cl::sycl::accessor" addrspace(4)* [[ACC1_AS_CAST]])
+// CHECK: call spir_func void @_ZN2cl4sycl8accessorIcLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEC1Ev(%"class{{.*}}cl::sycl::accessor" addrspace(4)* {{[^,]*}} [[ACC1_AS_CAST]])
 // CHECK: [[BITCAST1:%[a-zA-Z0-9_]+]] = bitcast %struct{{.*}}Captured* [[GEP]] to i8*
 // CHECK: [[GEP1:%[a-zA-Z0-9_]+]] = getelementptr inbounds i8, i8* [[BITCAST1]], i64 20
 // CHECK: [[BITCAST2:%[a-zA-Z0-9_]+]] = bitcast i8* [[GEP1]] to %"class{{.*}}cl::sycl::accessor"*
 // CHECK: [[ACC2_AS_CAST:%[a-zA-Z0-9_]+]] = addrspacecast %"class{{.*}}cl::sycl::accessor"* [[BITCAST2]] to %"class{{.*}}cl::sycl::accessor" addrspace(4)*
 // Default constructor call
-// CHECK: call spir_func void @_ZN2cl4sycl8accessorIcLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEC2Ev(%"class{{.*}}cl::sycl::accessor" addrspace(4)* [[ACC2_AS_CAST]])
+// CHECK: call spir_func void @_ZN2cl4sycl8accessorIcLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEC2Ev(%"class{{.*}}cl::sycl::accessor" addrspace(4)* {{[^,]*}} [[ACC2_AS_CAST]])
 
 // CHECK C field initialization
 // CHECK: [[FIELD_C:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct{{.*}}Captured, %struct{{.*}}Captured* [[GEP]], i32 0, i32 2
@@ -86,9 +86,9 @@ int main() {
 // CHECK: [[ACC1_FIELD:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct{{.*}}Base, %struct{{.*}}Base* [[BITCAST3]], i32 0, i32 2
 // CHECK: [[ACC1_DATA_LOAD:%[a-zA-Z0-9_]+]] = load i8 addrspace(1)*, i8 addrspace(1)** [[ACC1_DATA]].addr
 // CHECK: [[ACC1_AS_CAST1:%[a-zA-Z0-9_]+]] = addrspacecast %"class{{.*}}cl::sycl::accessor"* [[ACC1_FIELD]] to %"class{{.*}}cl::sycl::accessor" addrspace(4)*
-// CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class{{.*}}cl::sycl::accessor" addrspace(4)* [[ACC1_AS_CAST1]], i8 addrspace(1)* [[ACC1_DATA_LOAD]]
+// CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class{{.*}}cl::sycl::accessor" addrspace(4)* {{[^,]*}} [[ACC1_AS_CAST1]], i8 addrspace(1)* [[ACC1_DATA_LOAD]]
 //
 // CHECK: [[GEP3:%[a-zA-Z0-9_]+]] = getelementptr inbounds %"class._ZTSZ4mainE3$_0.anon", %"class._ZTSZ4mainE3$_0.anon"* [[KERNEL_OBJ]], i32 0, i32 0
 // CHECK: [[ACC2_DATA_LOAD:%[a-zA-Z0-9_]+]] = load i8 addrspace(1)*, i8 addrspace(1)** [[ACC2_DATA]].addr
 // CHECK: [[AS_CAST_CAPTURED:%[a-zA-Z0-9_]+]] = addrspacecast %struct{{.*}}Captured* [[GEP3]] to %"class{{.*}}cl::sycl::accessor" addrspace(4)*
-// CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class{{.*}}cl::sycl::accessor" addrspace(4)* [[AS_CAST_CAPTURED]], i8 addrspace(1)* [[ACC2_DATA_LOAD]]
+// CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class{{.*}}cl::sycl::accessor" addrspace(4)* {{[^,]*}} [[AS_CAST_CAPTURED]], i8 addrspace(1)* [[ACC2_DATA_LOAD]]

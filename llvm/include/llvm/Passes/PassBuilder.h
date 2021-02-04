@@ -36,11 +36,15 @@ struct PGOOptions {
   enum CSPGOAction { NoCSAction, CSIRInstr, CSIRUse };
   PGOOptions(std::string ProfileFile = "", std::string CSProfileGenFile = "",
              std::string ProfileRemappingFile = "", PGOAction Action = NoAction,
-             CSPGOAction CSAction = NoCSAction, bool SamplePGOSupport = false)
+             CSPGOAction CSAction = NoCSAction,
+             bool DebugInfoForProfiling = false,
+             bool PseudoProbeForProfiling = false)
       : ProfileFile(ProfileFile), CSProfileGenFile(CSProfileGenFile),
         ProfileRemappingFile(ProfileRemappingFile), Action(Action),
-        CSAction(CSAction),
-        SamplePGOSupport(SamplePGOSupport || Action == SampleUse) {
+        CSAction(CSAction), DebugInfoForProfiling(DebugInfoForProfiling ||
+                                                  (Action == SampleUse &&
+                                                   !PseudoProbeForProfiling)),
+        PseudoProbeForProfiling(PseudoProbeForProfiling) {
     // Note, we do allow ProfileFile.empty() for Action=IRUse LTO can
     // callback with IRUse action without ProfileFile.
 
@@ -55,16 +59,26 @@ struct PGOOptions {
     // a profile.
     assert(this->CSAction != CSIRUse || this->Action == IRUse);
 
-    // If neither Action nor CSAction, SamplePGOSupport needs to be true.
+    // If neither Action nor CSAction, DebugInfoForProfiling or
+    // PseudoProbeForProfiling needs to be true.
     assert(this->Action != NoAction || this->CSAction != NoCSAction ||
-           this->SamplePGOSupport);
+           this->DebugInfoForProfiling || this->PseudoProbeForProfiling);
+
+    // Pseudo probe emission does not work with -fdebug-info-for-profiling since
+    // they both use the discriminator field of debug lines but for different
+    // purposes.
+    if (this->DebugInfoForProfiling && this->PseudoProbeForProfiling) {
+      report_fatal_error(
+          "Pseudo probes cannot be used with -debug-info-for-profiling", false);
+    }
   }
   std::string ProfileFile;
   std::string CSProfileGenFile;
   std::string ProfileRemappingFile;
   PGOAction Action;
   CSPGOAction CSAction;
-  bool SamplePGOSupport;
+  bool DebugInfoForProfiling;
+  bool PseudoProbeForProfiling;
 };
 
 /// Tunable parameters for passes in the default pipelines.
@@ -109,6 +123,13 @@ public:
   /// Tuning option to enable/disable call graph profile. Its default value is
   /// that of the flag: `-enable-npm-call-graph-profile`.
   bool CallGraphProfile;
+
+  /// Tuning option to enable/disable function merging. Its default value is
+  /// false.
+  bool MergeFunctions;
+
+  /// Uniquefy function linkage name. Its default value is false.
+  bool UniqueLinkageNames;
 };
 
 /// This class provides access to building LLVM's passes.
@@ -136,18 +157,6 @@ public:
   struct PipelineElement {
     StringRef Name;
     std::vector<PipelineElement> InnerPipeline;
-  };
-
-  /// ThinLTO phase.
-  ///
-  /// This enumerates the LLVM ThinLTO optimization phases.
-  enum class ThinLTOPhase {
-    /// No ThinLTO behavior needed.
-    None,
-    /// ThinLTO prelink (summary) phase.
-    PreLink,
-    /// ThinLTO postlink (backend compile) phase.
-    PostLink
   };
 
   /// LLVM-provided high-level optimization levels.
@@ -321,7 +330,7 @@ public:
   /// \p Phase indicates the current ThinLTO phase.
   FunctionPassManager
   buildFunctionSimplificationPipeline(OptimizationLevel Level,
-                                      ThinLTOPhase Phase);
+                                      ThinOrFullLTOPhase Phase);
 
   /// Construct the core LLVM module canonicalization and simplification
   /// pipeline.
@@ -339,12 +348,12 @@ public:
   ///
   /// \p Phase indicates the current ThinLTO phase.
   ModulePassManager buildModuleSimplificationPipeline(OptimizationLevel Level,
-                                                      ThinLTOPhase Phase);
+                                                      ThinOrFullLTOPhase Phase);
 
   /// Construct the module pipeline that performs inlining as well as
   /// the inlining-driven cleanups.
   ModuleInlinerWrapperPass buildInlinerPipeline(OptimizationLevel Level,
-                                                ThinLTOPhase Phase);
+                                                ThinOrFullLTOPhase Phase);
 
   /// Construct the core LLVM module optimization pipeline.
   ///
@@ -433,8 +442,17 @@ public:
   ModulePassManager buildLTODefaultPipeline(OptimizationLevel Level,
                                             ModuleSummaryIndex *ExportSummary);
 
+  /// Build an O0 pipeline with the minimal semantically required passes.
+  ///
+  /// This should only be used for non-LTO and LTO pre-link pipelines.
+  ModulePassManager buildO0DefaultPipeline(OptimizationLevel Level,
+                                           bool LTOPreLink = false);
+
   /// Build the default `AAManager` with the default alias analysis pipeline
   /// registered.
+  ///
+  /// This also adds target-specific alias analyses registered via
+  /// TargetMachine::registerDefaultAliasAnalyses().
   AAManager buildDefaultAAPipeline();
 
   /// Parse a textual pass pipeline description into a \c
@@ -591,6 +609,15 @@ public:
     PipelineStartEPCallbacks.push_back(C);
   }
 
+  /// Register a callback for a default optimizer pipeline extension point.
+  ///
+  /// This extension point allows adding optimization right after passes that do
+  /// basic simplification of the input IR.
+  void registerPipelineEarlySimplificationEPCallback(
+      const std::function<void(ModulePassManager &, OptimizationLevel)> &C) {
+    PipelineEarlySimplificationEPCallbacks.push_back(C);
+  }
+
   /// Register a callback for a default optimizer pipeline extension point
   ///
   /// This extension point allows adding optimizations at the very end of the
@@ -599,14 +626,6 @@ public:
       const std::function<void(ModulePassManager &, OptimizationLevel)> &C) {
     OptimizerLastEPCallbacks.push_back(C);
   }
-
-  /// Run all registered extension point callbacks
-  ///
-  /// This runs the registered callbacks in the order they would be run in a
-  /// typical build*Pipeline(). This allows for reusing register*EPCallback()
-  /// between O0 and O[123] pipelines.
-  void runRegisteredEPCallbacks(ModulePassManager &MPM, OptimizationLevel Level,
-                                bool DebugLogging);
 
   /// Register a callback for parsing an AliasAnalysis Name to populate
   /// the given AAManager \p AA
@@ -686,7 +705,9 @@ private:
   // O1 pass pipeline
   FunctionPassManager
   buildO1FunctionSimplificationPipeline(OptimizationLevel Level,
-                                        ThinLTOPhase Phase);
+                                        ThinOrFullLTOPhase Phase);
+
+  void addRequiredLTOPreLinkPasses(ModulePassManager &MPM);
 
   static Optional<std::vector<PipelineElement>>
   parsePipelineText(StringRef Text);
@@ -729,6 +750,9 @@ private:
   // Module callbacks
   SmallVector<std::function<void(ModulePassManager &, OptimizationLevel)>, 2>
       PipelineStartEPCallbacks;
+  SmallVector<std::function<void(ModulePassManager &, OptimizationLevel)>, 2>
+      PipelineEarlySimplificationEPCallbacks;
+
   SmallVector<std::function<void(ModuleAnalysisManager &)>, 2>
       ModuleAnalysisRegistrationCallbacks;
   SmallVector<std::function<bool(StringRef, ModulePassManager &,

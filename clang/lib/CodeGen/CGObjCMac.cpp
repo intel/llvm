@@ -1765,6 +1765,24 @@ struct NullReturnState {
           assert(RV.isScalar() &&
                  "NullReturnState::complete - arg not on object");
           CGF.EmitARCRelease(RV.getScalarVal(), ARCImpreciseLifetime);
+        } else {
+          QualType QT = ParamDecl->getType();
+          auto *RT = QT->getAs<RecordType>();
+          if (RT && RT->getDecl()->isParamDestroyedInCallee()) {
+            RValue RV = I->getRValue(CGF);
+            QualType::DestructionKind DtorKind = QT.isDestructedType();
+            switch (DtorKind) {
+            case QualType::DK_cxx_destructor:
+              CGF.destroyCXXObject(CGF, RV.getAggregateAddress(), QT);
+              break;
+            case QualType::DK_nontrivial_c_struct:
+              CGF.destroyNonTrivialCStruct(CGF, RV.getAggregateAddress(), QT);
+              break;
+            default:
+              llvm_unreachable("unexpected dtor kind");
+              break;
+            }
+          }
         }
       }
     }
@@ -1782,7 +1800,8 @@ struct NullReturnState {
     // If we've got a scalar return, build a phi.
     if (result.isScalar()) {
       // Derive the null-initialization value.
-      llvm::Constant *null = CGF.CGM.EmitNullConstant(resultType);
+      llvm::Value *null =
+          CGF.EmitFromMemory(CGF.CGM.EmitNullConstant(resultType), resultType);
 
       // If no join is necessary, just flow out.
       if (!contBB) return RValue::get(null);
@@ -2241,7 +2260,7 @@ CGObjCCommonMac::EmitMessageSend(CodeGen::CodeGenFunction &CGF,
   // Emit a null-check if there's a consumed argument other than the receiver.
   if (!RequiresNullCheck && CGM.getLangOpts().ObjCAutoRefCount && Method) {
     for (const auto *ParamDecl : Method->parameters()) {
-      if (ParamDecl->hasAttr<NSConsumedAttr>()) {
+      if (ParamDecl->isDestroyedInCallee()) {
         RequiresNullCheck = true;
         break;
       }
@@ -7350,7 +7369,7 @@ CGObjCNonFragileABIMac::EmitVTableMessageSend(CodeGenFunction &CGF,
   bool requiresnullCheck = false;
   if (CGM.getLangOpts().ObjCAutoRefCount && method)
     for (const auto *ParamDecl : method->parameters()) {
-      if (ParamDecl->hasAttr<NSConsumedAttr>()) {
+      if (ParamDecl->isDestroyedInCallee()) {
         if (!nullReturn.NullBB)
           nullReturn.init(CGF, arg0);
         requiresnullCheck = true;

@@ -32,6 +32,11 @@
 #include "ompt-specific.h"
 #endif
 
+#if OMPTARGET_PROFILING_SUPPORT
+#include "llvm/Support/TimeProfiler.h"
+static char *ProfileTraceFile = nullptr;
+#endif
+
 /* these are temporary issues to be dealt with */
 #define KMP_USE_PRCTL 0
 
@@ -98,7 +103,6 @@ static int __kmp_expand_threads(int nNeed);
 #if KMP_OS_WINDOWS
 static int __kmp_unregister_root_other_thread(int gtid);
 #endif
-static void __kmp_unregister_library(void); // called by __kmp_internal_end()
 static void __kmp_reap_thread(kmp_info_t *thread, int is_root);
 kmp_info_t *__kmp_thread_pool_insert_pt = NULL;
 
@@ -441,6 +445,7 @@ void __kmp_abort_process() {
     raise(SIGABRT);
     _exit(3); // Just in case, if signal ignored, exit anyway.
   } else {
+    __kmp_unregister_library();
     abort();
   }
 
@@ -1630,7 +1635,7 @@ int __kmp_fork_call(ident_t *loc, int gtid,
       }
 #endif
 
-#if USE_ITT_BUILD
+#if USE_ITT_BUILD && USE_ITT_NOTIFY
       if (((__itt_frame_submit_v3_ptr && __itt_get_timestamp_ptr) ||
            KMP_ITT_DEBUG) &&
           __kmp_forkjoin_frames_mode == 3 &&
@@ -1644,7 +1649,7 @@ int __kmp_fork_call(ident_t *loc, int gtid,
         // create new stack stitching id before entering fork barrier
         parent_team->t.t_stack_id = __kmp_itt_stack_caller_create();
       }
-#endif /* USE_ITT_BUILD */
+#endif /* USE_ITT_BUILD && USE_ITT_NOTIFY */
 
       KF_TRACE(10, ("__kmp_fork_call: before internal fork: root=%p, team=%p, "
                     "master_th=%p, gtid=%d\n",
@@ -3453,7 +3458,7 @@ static const unsigned __kmp_primes[] = {
 //  __kmp_get_random: Get a random number using a linear congruential method.
 unsigned short __kmp_get_random(kmp_info_t *thread) {
   unsigned x = thread->th.th_x;
-  unsigned short r = x >> 16;
+  unsigned short r = (unsigned short)(x >> 16);
 
   thread->th.th_x = x * thread->th.th_a + 1;
 
@@ -3984,12 +3989,6 @@ void __kmp_unregister_root_current_thread(int gtid) {
   }
 
   __kmp_reset_root(gtid, root);
-
-  /* free up this thread slot */
-  __kmp_gtid_set_specific(KMP_GTID_DNE);
-#ifdef KMP_TDATA_GTID
-  __kmp_gtid = KMP_GTID_DNE;
-#endif
 
   KMP_MB();
   KC_TRACE(10,
@@ -5205,7 +5204,7 @@ __kmp_allocate_team(kmp_root_t *root, int new_nproc, int max_nproc,
           team->t.t_threads[f]->th.th_task_state =
               team->t.t_threads[0]->th.th_task_state_memo_stack[level];
       } else { // set th_task_state for new threads in non-nested hot team
-        int old_state =
+        kmp_uint8 old_state =
             team->t.t_threads[0]->th.th_task_state; // copy master's state
         for (f = old_nproc; f < team->t.t_nproc; ++f)
           team->t.t_threads[f]->th.th_task_state = old_state;
@@ -5463,7 +5462,7 @@ void __kmp_free_team(kmp_root_t *root,
           }
 #endif
           // first check if thread is sleeping
-          kmp_flag_64 fl(&th->th.th_bar[bs_forkjoin_barrier].bb.b_go, th);
+          kmp_flag_64<> fl(&th->th.th_bar[bs_forkjoin_barrier].bb.b_go, th);
           if (fl.is_sleeping())
             fl.resume(__kmp_gtid_from_thread(th));
           KMP_CPU_PAUSE();
@@ -5707,6 +5706,13 @@ void __kmp_free_thread(kmp_info_t *this_th) {
 /* ------------------------------------------------------------------------ */
 
 void *__kmp_launch_thread(kmp_info_t *this_thr) {
+#if OMPTARGET_PROFILING_SUPPORT
+  ProfileTraceFile = getenv("LIBOMPTARGET_PROFILE");
+  // TODO: add a configuration option for time granularity
+  if (ProfileTraceFile)
+    llvm::timeTraceProfilerInitialize(500 /* us */, "libomptarget");
+#endif
+
   int gtid = this_thr->th.th_info.ds.ds_gtid;
   /*    void                 *stack_data;*/
   kmp_team_t **volatile pteam;
@@ -5807,41 +5813,24 @@ void *__kmp_launch_thread(kmp_info_t *this_thr) {
 
   KA_TRACE(10, ("__kmp_launch_thread: T#%d done\n", gtid));
   KMP_MB();
+
+#if OMPTARGET_PROFILING_SUPPORT
+  llvm::timeTraceProfilerFinishThread();
+#endif
   return this_thr;
 }
 
 /* ------------------------------------------------------------------------ */
 
 void __kmp_internal_end_dest(void *specific_gtid) {
-#if KMP_COMPILER_ICC
-#pragma warning(push)
-#pragma warning(disable : 810) // conversion from "void *" to "int" may lose
-// significant bits
-#endif
   // Make sure no significant bits are lost
-  int gtid = (kmp_intptr_t)specific_gtid - 1;
-#if KMP_COMPILER_ICC
-#pragma warning(pop)
-#endif
+  int gtid;
+  __kmp_type_convert((kmp_intptr_t)specific_gtid - 1, &gtid);
 
   KA_TRACE(30, ("__kmp_internal_end_dest: T#%d\n", gtid));
   /* NOTE: the gtid is stored as gitd+1 in the thread-local-storage
    * this is because 0 is reserved for the nothing-stored case */
 
-  /* josh: One reason for setting the gtid specific data even when it is being
-     destroyed by pthread is to allow gtid lookup through thread specific data
-     (__kmp_gtid_get_specific).  Some of the code, especially stat code,
-     that gets executed in the call to __kmp_internal_end_thread, actually
-     gets the gtid through the thread specific data.  Setting it here seems
-     rather inelegant and perhaps wrong, but allows __kmp_internal_end_thread
-     to run smoothly.
-     todo: get rid of this after we remove the dependence on
-     __kmp_gtid_get_specific  */
-  if (gtid >= 0 && KMP_UBER_GTID(gtid))
-    __kmp_gtid_set_specific(gtid);
-#ifdef KMP_TDATA_GTID
-  __kmp_gtid = gtid;
-#endif
   __kmp_internal_end_thread(gtid);
 }
 
@@ -5904,7 +5893,8 @@ static void __kmp_reap_thread(kmp_info_t *thread, int is_root) {
       /* Need release fence here to prevent seg faults for tree forkjoin barrier
        * (GEH) */
       ANNOTATE_HAPPENS_BEFORE(thread);
-      kmp_flag_64 flag(&thread->th.th_bar[bs_forkjoin_barrier].bb.b_go, thread);
+      kmp_flag_64<> flag(&thread->th.th_bar[bs_forkjoin_barrier].bb.b_go,
+                         thread);
       __kmp_release_64(&flag);
     }
 
@@ -6170,6 +6160,7 @@ void __kmp_internal_end_library(int gtid_req) {
       if (__kmp_root[gtid]->r.r_active) {
         __kmp_global.g.g_abort = -1;
         TCW_SYNC_4(__kmp_global.g.g_done, TRUE);
+        __kmp_unregister_library();
         KA_TRACE(10,
                  ("__kmp_internal_end_library: root still active, abort T#%d\n",
                   gtid));
@@ -6374,11 +6365,17 @@ static char *__kmp_registration_str = NULL;
 // Value to be saved in env var __KMP_REGISTERED_LIB_<pid>.
 
 static inline char *__kmp_reg_status_name() {
-  /* On RHEL 3u5 if linked statically, getpid() returns different values in
-     each thread. If registration and unregistration go in different threads
-     (omp_misc_other_root_exit.cpp test case), the name of registered_lib_env
-     env var can not be found, because the name will contain different pid. */
+/* On RHEL 3u5 if linked statically, getpid() returns different values in
+   each thread. If registration and unregistration go in different threads
+   (omp_misc_other_root_exit.cpp test case), the name of registered_lib_env
+   env var can not be found, because the name will contain different pid. */
+// macOS* complains about name being too long with additional getuid()
+#if KMP_OS_UNIX && !KMP_OS_DARWIN && KMP_DYNAMIC_LIB
+  return __kmp_str_format("__KMP_REGISTERED_LIB_%d_%d", (int)getpid(),
+                          (int)getuid());
+#else
   return __kmp_str_format("__KMP_REGISTERED_LIB_%d", (int)getpid());
+#endif
 } // __kmp_reg_status_get
 
 void __kmp_register_library_startup(void) {
@@ -6597,9 +6594,51 @@ static void __kmp_check_mic_type() {
 
 #endif /* KMP_MIC_SUPPORTED */
 
+#if KMP_HAVE_UMWAIT
+static void __kmp_user_level_mwait_init() {
+  struct kmp_cpuid buf;
+  __kmp_x86_cpuid(7, 0, &buf);
+  __kmp_umwait_enabled = ((buf.ecx >> 5) & 1) && __kmp_user_level_mwait;
+  KF_TRACE(30, ("__kmp_user_level_mwait_init: __kmp_umwait_enabled = %d\n",
+                __kmp_umwait_enabled));
+}
+#elif KMP_HAVE_MWAIT
+#ifndef AT_INTELPHIUSERMWAIT
+// Spurious, non-existent value that should always fail to return anything.
+// Will be replaced with the correct value when we know that.
+#define AT_INTELPHIUSERMWAIT 10000
+#endif
+// getauxval() function is available in RHEL7 and SLES12. If a system with an
+// earlier OS is used to build the RTL, we'll use the following internal
+// function when the entry is not found.
+unsigned long getauxval(unsigned long) KMP_WEAK_ATTRIBUTE_EXTERNAL;
+unsigned long getauxval(unsigned long) { return 0; }
+
+static void __kmp_user_level_mwait_init() {
+  // When getauxval() and correct value of AT_INTELPHIUSERMWAIT are available
+  // use them to find if the user-level mwait is enabled. Otherwise, forcibly
+  // set __kmp_mwait_enabled=TRUE on Intel MIC if the environment variable
+  // KMP_USER_LEVEL_MWAIT was set to TRUE.
+  if (__kmp_mic_type == mic3) {
+    unsigned long res = getauxval(AT_INTELPHIUSERMWAIT);
+    if ((res & 0x1) || __kmp_user_level_mwait) {
+      __kmp_mwait_enabled = TRUE;
+      if (__kmp_user_level_mwait) {
+        KMP_INFORM(EnvMwaitWarn);
+      }
+    } else {
+      __kmp_mwait_enabled = FALSE;
+    }
+  }
+  KF_TRACE(30, ("__kmp_user_level_mwait_init: __kmp_mic_type = %d, "
+                "__kmp_mwait_enabled = %d\n",
+                __kmp_mic_type, __kmp_mwait_enabled));
+}
+#endif /* KMP_HAVE_UMWAIT */
+
 static void __kmp_do_serial_initialize(void) {
   int i, gtid;
-  int size;
+  size_t size;
 
   KA_TRACE(10, ("__kmp_do_serial_initialize: enter\n"));
 
@@ -6771,6 +6810,9 @@ static void __kmp_do_serial_initialize(void) {
 
   __kmp_env_initialize(NULL);
 
+#if KMP_HAVE_MWAIT || KMP_HAVE_UMWAIT
+  __kmp_user_level_mwait_init();
+#endif
 // Print all messages in message catalog for testing purposes.
 #ifdef KMP_DEBUG
   char const *val = __kmp_env_get("KMP_DUMP_CATALOG");
@@ -7993,7 +8035,7 @@ static int __kmp_aux_capture_affinity_field(int gtid, const kmp_info_t *th,
     const char *long_name = __kmp_affinity_format_table[i].long_name;
     char field_format = __kmp_affinity_format_table[i].field_format;
     if (parse_long_name) {
-      int length = KMP_STRLEN(long_name);
+      size_t length = KMP_STRLEN(long_name);
       if (strncmp(*ptr, long_name, length) == 0) {
         found_valid_name = true;
         (*ptr) += length; // skip the long name
@@ -8143,7 +8185,7 @@ void __kmp_aux_set_blocktime(int arg, kmp_info_t *thread, int tid) {
 #if KMP_USE_MONITOR
   int bt_intervals;
 #endif
-  int bt_set;
+  kmp_int8 bt_set;
 
   __kmp_save_internal_controls(thread);
 
@@ -8182,7 +8224,7 @@ void __kmp_aux_set_blocktime(int arg, kmp_info_t *thread, int tid) {
 #endif
 }
 
-void __kmp_aux_set_defaults(char const *str, int len) {
+void __kmp_aux_set_defaults(char const *str, size_t len) {
   if (!__kmp_init_serial) {
     __kmp_serial_initialize();
   }
@@ -8371,7 +8413,8 @@ void __kmp_resume_if_soft_paused() {
     for (int gtid = 1; gtid < __kmp_threads_capacity; ++gtid) {
       kmp_info_t *thread = __kmp_threads[gtid];
       if (thread) { // Wake it if sleeping
-        kmp_flag_64 fl(&thread->th.th_bar[bs_forkjoin_barrier].bb.b_go, thread);
+        kmp_flag_64<> fl(&thread->th.th_bar[bs_forkjoin_barrier].bb.b_go,
+                         thread);
         if (fl.is_sleeping())
           fl.resume(gtid);
         else if (__kmp_try_suspend_mx(thread)) { // got suspend lock

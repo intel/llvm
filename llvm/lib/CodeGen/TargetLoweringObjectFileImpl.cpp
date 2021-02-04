@@ -40,6 +40,7 @@
 #include "llvm/IR/Mangler.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PseudoProbe.h"
 #include "llvm/IR/Type.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
@@ -105,10 +106,14 @@ static void GetObjCImageInfo(Module &M, unsigned &Version, unsigned &Flags,
 //                                  ELF
 //===----------------------------------------------------------------------===//
 
+TargetLoweringObjectFileELF::TargetLoweringObjectFileELF()
+    : TargetLoweringObjectFile() {
+  SupportDSOLocalEquivalentLowering = true;
+}
+
 void TargetLoweringObjectFileELF::Initialize(MCContext &Ctx,
                                              const TargetMachine &TgtM) {
   TargetLoweringObjectFile::Initialize(Ctx, TgtM);
-  TM = &TgtM;
 
   CodeModel::Model CM = TgtM.getCodeModel();
   InitializeELF(TgtM.Options.UseInitArray);
@@ -123,6 +128,7 @@ void TargetLoweringObjectFileELF::Initialize(MCContext &Ctx,
     // Fallthrough if not using EHABI
     LLVM_FALLTHROUGH;
   case Triple::ppc:
+  case Triple::ppcle:
   case Triple::x86:
     PersonalityEncoding = isPositionIndependent()
                               ? dwarf::DW_EH_PE_indirect |
@@ -175,11 +181,20 @@ void TargetLoweringObjectFileELF::Initialize(MCContext &Ctx,
     // will be in memory. Most of these could end up >2GB away so even a signed
     // pc-relative 32-bit address is insufficient, theoretically.
     if (isPositionIndependent()) {
-      PersonalityEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
-        dwarf::DW_EH_PE_sdata8;
-      LSDAEncoding = dwarf::DW_EH_PE_pcrel | dwarf::DW_EH_PE_sdata8;
-      TTypeEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
-        dwarf::DW_EH_PE_sdata8;
+      // ILP32 uses sdata4 instead of sdata8
+      if (TgtM.getTargetTriple().getEnvironment() == Triple::GNUILP32) {
+        PersonalityEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
+                              dwarf::DW_EH_PE_sdata4;
+        LSDAEncoding = dwarf::DW_EH_PE_pcrel | dwarf::DW_EH_PE_sdata4;
+        TTypeEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
+                        dwarf::DW_EH_PE_sdata4;
+      } else {
+        PersonalityEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
+                              dwarf::DW_EH_PE_sdata8;
+        LSDAEncoding = dwarf::DW_EH_PE_pcrel | dwarf::DW_EH_PE_sdata8;
+        TTypeEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
+                        dwarf::DW_EH_PE_sdata8;
+      }
     } else {
       PersonalityEncoding = dwarf::DW_EH_PE_absptr;
       LSDAEncoding = dwarf::DW_EH_PE_absptr;
@@ -311,6 +326,29 @@ void TargetLoweringObjectFileELF::emitModuleMetadata(MCStreamer &Streamer,
     }
   }
 
+  if (NamedMDNode *FuncInfo = M.getNamedMetadata(PseudoProbeDescMetadataName)) {
+    // Emit a descriptor for every function including functions that have an
+    // available external linkage. We may not want this for imported functions
+    // that has code in another thinLTO module but we don't have a good way to
+    // tell them apart from inline functions defined in header files. Therefore
+    // we put each descriptor in a separate comdat section and rely on the
+    // linker to deduplicate.
+    for (const auto *Operand : FuncInfo->operands()) {
+      const auto *MD = cast<MDNode>(Operand);
+      auto *GUID = mdconst::dyn_extract<ConstantInt>(MD->getOperand(0));
+      auto *Hash = mdconst::dyn_extract<ConstantInt>(MD->getOperand(1));
+      auto *Name = cast<MDString>(MD->getOperand(2));
+      auto *S = C.getObjectFileInfo()->getPseudoProbeDescSection(
+          TM->getFunctionSections() ? Name->getString() : StringRef());
+
+      Streamer.SwitchSection(S);
+      Streamer.emitInt64(GUID->getZExtValue());
+      Streamer.emitInt64(Hash->getZExtValue());
+      Streamer.emitULEB128IntValue(Name->getString().size());
+      Streamer.emitBytes(Name->getString());
+    }
+  }
+
   unsigned Version = 0;
   unsigned Flags = 0;
   StringRef Section;
@@ -325,46 +363,7 @@ void TargetLoweringObjectFileELF::emitModuleMetadata(MCStreamer &Streamer,
     Streamer.AddBlankLine();
   }
 
-  SmallVector<Module::ModuleFlagEntry, 8> ModuleFlags;
-  M.getModuleFlagsMetadata(ModuleFlags);
-
-  MDNode *CFGProfile = nullptr;
-
-  for (const auto &MFE : ModuleFlags) {
-    StringRef Key = MFE.Key->getString();
-    if (Key == "CG Profile") {
-      CFGProfile = cast<MDNode>(MFE.Val);
-      break;
-    }
-  }
-
-  if (!CFGProfile)
-    return;
-
-  auto GetSym = [this](const MDOperand &MDO) -> MCSymbol * {
-    if (!MDO)
-      return nullptr;
-    auto V = cast<ValueAsMetadata>(MDO);
-    const Function *F = cast<Function>(V->getValue());
-    return TM->getSymbol(F);
-  };
-
-  for (const auto &Edge : CFGProfile->operands()) {
-    MDNode *E = cast<MDNode>(Edge);
-    const MCSymbol *From = GetSym(E->getOperand(0));
-    const MCSymbol *To = GetSym(E->getOperand(1));
-    // Skip null functions. This can happen if functions are dead stripped after
-    // the CGProfile pass has been run.
-    if (!From || !To)
-      continue;
-    uint64_t Count = cast<ConstantAsMetadata>(E->getOperand(2))
-                         ->getValue()
-                         ->getUniqueInteger()
-                         .getZExtValue();
-    Streamer.emitCGProfileEntry(
-        MCSymbolRefExpr::create(From, MCSymbolRefExpr::VK_None, C),
-        MCSymbolRefExpr::create(To, MCSymbolRefExpr::VK_None, C), Count);
-  }
+  emitCGProfileMetadata(Streamer, M);
 }
 
 MCSymbol *TargetLoweringObjectFileELF::getCFIPersonalitySymbol(
@@ -616,7 +615,7 @@ getELFSectionNameForGlobal(const GlobalObject *GO, SectionKind Kind,
   bool HasPrefix = false;
   if (const auto *F = dyn_cast<Function>(GO)) {
     if (Optional<StringRef> Prefix = F->getSectionPrefix()) {
-      Name += *Prefix;
+      raw_svector_ostream(Name) << '.' << *Prefix;
       HasPrefix = true;
     }
   }
@@ -927,7 +926,7 @@ MCSection *TargetLoweringObjectFileELF::getSectionForMachineBasicBlock(
   }
 
   unsigned Flags = ELF::SHF_ALLOC | ELF::SHF_EXECINSTR;
-  std::string GroupName = "";
+  std::string GroupName;
   if (F.hasComdat()) {
     Flags |= ELF::SHF_GROUP;
     GroupName = F.getComdat()->getName().str();
@@ -1005,6 +1004,20 @@ const MCExpr *TargetLoweringObjectFileELF::lowerRelativeReference(
       MCSymbolRefExpr::create(TM.getSymbol(LHS), PLTRelativeVariantKind,
                               getContext()),
       MCSymbolRefExpr::create(TM.getSymbol(RHS), getContext()), getContext());
+}
+
+const MCExpr *TargetLoweringObjectFileELF::lowerDSOLocalEquivalent(
+    const DSOLocalEquivalent *Equiv, const TargetMachine &TM) const {
+  assert(supportDSOLocalEquivalentLowering());
+
+  const auto *GV = Equiv->getGlobalValue();
+
+  // A PLT entry is not needed for dso_local globals.
+  if (GV->isDSOLocal() || GV->isImplicitDSOLocal())
+    return MCSymbolRefExpr::create(TM.getSymbol(GV), getContext());
+
+  return MCSymbolRefExpr::create(TM.getSymbol(GV), PLTRelativeVariantKind,
+                                 getContext());
 }
 
 MCSection *TargetLoweringObjectFileELF::getSectionForCommandLines() const {
@@ -1554,6 +1567,10 @@ MCSection *TargetLoweringObjectFileCOFF::SelectSectionForGlobal(
       MCSymbol *Sym = TM.getSymbol(ComdatGV);
       StringRef COMDATSymName = Sym->getName();
 
+      if (const auto *F = dyn_cast<Function>(GO))
+        if (Optional<StringRef> Prefix = F->getSectionPrefix())
+          raw_svector_ostream(Name) << '$' << *Prefix;
+
       // Append "$symbol" to the section name *before* IR-level mangling is
       // applied when targetting mingw. This is what GCC does, and the ld.bfd
       // COFF linker will not properly handle comdats otherwise.
@@ -1649,49 +1666,7 @@ void TargetLoweringObjectFileCOFF::emitModuleMetadata(MCStreamer &Streamer,
     Streamer.AddBlankLine();
   }
 
-  auto &C = getContext();
-  SmallVector<Module::ModuleFlagEntry, 8> ModuleFlags;
-  M.getModuleFlagsMetadata(ModuleFlags);
-
-  MDNode *CFGProfile = nullptr;
-
-  for (const auto &MFE : ModuleFlags) {
-    StringRef Key = MFE.Key->getString();
-    if (Key == "CG Profile") {
-      CFGProfile = cast<MDNode>(MFE.Val);
-      break;
-    }
-  }
-
-  if (!CFGProfile)
-    return;
-
-  auto GetSym = [this](const MDOperand &MDO) -> MCSymbol * {
-    if (!MDO)
-      return nullptr;
-    auto V = cast<ValueAsMetadata>(MDO);
-    const Function *F = cast<Function>(V->getValue());
-    if (F->hasDLLImportStorageClass())
-      return nullptr;
-    return TM->getSymbol(F);
-  };
-
-  for (const auto &Edge : CFGProfile->operands()) {
-    MDNode *E = cast<MDNode>(Edge);
-    const MCSymbol *From = GetSym(E->getOperand(0));
-    const MCSymbol *To = GetSym(E->getOperand(1));
-    // Skip null functions. This can happen if functions are dead stripped after
-    // the CGProfile pass has been run.
-    if (!From || !To)
-      continue;
-    uint64_t Count = cast<ConstantAsMetadata>(E->getOperand(2))
-                         ->getValue()
-                         ->getUniqueInteger()
-                         .getZExtValue();
-    Streamer.emitCGProfileEntry(
-        MCSymbolRefExpr::create(From, MCSymbolRefExpr::VK_None, C),
-        MCSymbolRefExpr::create(To, MCSymbolRefExpr::VK_None, C), Count);
-  }
+  emitCGProfileMetadata(Streamer, M);
 }
 
 void TargetLoweringObjectFileCOFF::emitLinkerDirectives(
@@ -2001,7 +1976,7 @@ static MCSectionWasm *selectWasmSectionForGlobal(
   if (const auto *F = dyn_cast<Function>(GO)) {
     const auto &OptionalPrefix = F->getSectionPrefix();
     if (OptionalPrefix)
-      Name += *OptionalPrefix;
+      raw_svector_ostream(Name) << '.' << *OptionalPrefix;
   }
 
   if (EmitUniqueSection && UniqueSectionNames) {
@@ -2089,6 +2064,29 @@ MCSection *TargetLoweringObjectFileWasm::getStaticDtorSection(
 //===----------------------------------------------------------------------===//
 //                                  XCOFF
 //===----------------------------------------------------------------------===//
+bool TargetLoweringObjectFileXCOFF::ShouldEmitEHBlock(
+    const MachineFunction *MF) {
+  if (!MF->getLandingPads().empty())
+    return true;
+
+  const Function &F = MF->getFunction();
+  if (!F.hasPersonalityFn() || !F.needsUnwindTableEntry())
+    return false;
+
+  const Function *Per =
+      dyn_cast<Function>(F.getPersonalityFn()->stripPointerCasts());
+  if (isNoOpWithoutInvoke(classifyEHPersonality(Per)))
+    return false;
+
+  return true;
+}
+
+MCSymbol *
+TargetLoweringObjectFileXCOFF::getEHInfoTableSymbol(const MachineFunction *MF) {
+  return MF->getMMI().getContext().getOrCreateSymbol(
+      "__ehinfo." + Twine(MF->getFunctionNumber()));
+}
+
 MCSymbol *
 TargetLoweringObjectFileXCOFF::getTargetSymbol(const GlobalValue *GV,
                                                const TargetMachine &TM) const {
@@ -2110,7 +2108,8 @@ TargetLoweringObjectFileXCOFF::getTargetSymbol(const GlobalValue *GV,
       return cast<MCSectionXCOFF>(
                  getSectionForFunctionDescriptor(cast<Function>(GO), TM))
           ->getQualNameSymbol();
-    if (TM.getDataSections() || GOKind.isCommon() || GOKind.isBSSLocal())
+    if ((TM.getDataSections() && !GO->hasSection()) || GOKind.isCommon() ||
+        GOKind.isBSSLocal())
       return cast<MCSectionXCOFF>(SectionForGlobal(GO, GOKind, TM))
           ->getQualNameSymbol();
   }
@@ -2121,7 +2120,22 @@ TargetLoweringObjectFileXCOFF::getTargetSymbol(const GlobalValue *GV,
 
 MCSection *TargetLoweringObjectFileXCOFF::getExplicitSectionGlobal(
     const GlobalObject *GO, SectionKind Kind, const TargetMachine &TM) const {
-  report_fatal_error("XCOFF explicit sections not yet implemented.");
+  if (!GO->hasSection())
+    report_fatal_error("#pragma clang section is not yet supported");
+
+  StringRef SectionName = GO->getSection();
+  XCOFF::StorageMappingClass MappingClass;
+  if (Kind.isText())
+    MappingClass = XCOFF::XMC_PR;
+  else if (Kind.isData() || Kind.isReadOnlyWithRel() || Kind.isBSS())
+    MappingClass = XCOFF::XMC_RW;
+  else if (Kind.isReadOnly())
+    MappingClass = XCOFF::XMC_RO;
+  else
+    report_fatal_error("XCOFF other section types not yet implemented.");
+
+  return getContext().getXCOFFSection(SectionName, MappingClass, XCOFF::XTY_SD,
+                                      Kind, /* MultiSymbolsAllowed*/ true);
 }
 
 MCSection *TargetLoweringObjectFileXCOFF::getSectionForExternalReference(
@@ -2147,7 +2161,7 @@ MCSection *TargetLoweringObjectFileXCOFF::SelectSectionForGlobal(
     getNameWithPrefix(Name, GO, TM);
     return getContext().getXCOFFSection(
         Name, Kind.isBSSLocal() ? XCOFF::XMC_BS : XCOFF::XMC_RW, XCOFF::XTY_CM,
-        Kind, /* BeginSymbolName */ nullptr);
+        Kind);
   }
 
   if (Kind.isMergeableCString()) {
@@ -2162,8 +2176,9 @@ MCSection *TargetLoweringObjectFileXCOFF::SelectSectionForGlobal(
     if (TM.getDataSections())
       getNameWithPrefix(Name, GO, TM);
 
-    return getContext().getXCOFFSection(Name, XCOFF::XMC_RO, XCOFF::XTY_SD,
-                                        Kind, /*BeginSymbolName*/ nullptr);
+    return getContext().getXCOFFSection(
+        Name, XCOFF::XMC_RO, XCOFF::XTY_SD, Kind,
+        /* MultiSymbolsAllowed*/ !TM.getDataSections());
   }
 
   if (Kind.isText()) {
@@ -2236,9 +2251,13 @@ MCSection *TargetLoweringObjectFileXCOFF::getSectionForConstant(
 void TargetLoweringObjectFileXCOFF::Initialize(MCContext &Ctx,
                                                const TargetMachine &TgtM) {
   TargetLoweringObjectFile::Initialize(Ctx, TgtM);
-  TTypeEncoding = 0;
+  TTypeEncoding =
+      dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_datarel |
+      (TgtM.getTargetTriple().isArch32Bit() ? dwarf::DW_EH_PE_sdata4
+                                            : dwarf::DW_EH_PE_sdata8);
   PersonalityEncoding = 0;
   LSDAEncoding = 0;
+  CallSiteEncoding = dwarf::DW_EH_PE_udata4;
 }
 
 MCSection *TargetLoweringObjectFileXCOFF::getStaticCtorSection(
@@ -2290,21 +2309,22 @@ MCSymbol *TargetLoweringObjectFileXCOFF::getFunctionEntryPointSymbol(
         isa_and_nonnull<Function>(cast<GlobalAlias>(Func)->getBaseObject()))) &&
       "Func must be a function or an alias which has a function as base "
       "object.");
+
   SmallString<128> NameStr;
   NameStr.push_back('.');
   getNameWithPrefix(NameStr, Func, TM);
 
-  // When -function-sections is enabled, it's not necessary to emit
-  // function entry point label any more. We will use function entry
-  // point csect instead. And for function delcarations, the undefined symbols
-  // gets treated as csect with XTY_ER property.
-  if ((TM.getFunctionSections() || Func->isDeclaration()) &&
+  // When -function-sections is enabled and explicit section is not specified,
+  // it's not necessary to emit function entry point label any more. We will use
+  // function entry point csect instead. And for function delcarations, the
+  // undefined symbols gets treated as csect with XTY_ER property.
+  if (((TM.getFunctionSections() && !Func->hasSection()) ||
+       Func->isDeclaration()) &&
       isa<Function>(Func)) {
-    return cast<MCSectionXCOFF>(
-               getContext().getXCOFFSection(
-                   NameStr, XCOFF::XMC_PR,
-                   Func->isDeclaration() ? XCOFF::XTY_ER : XCOFF::XTY_SD,
-                   SectionKind::getText()))
+    return getContext()
+        .getXCOFFSection(NameStr, XCOFF::XMC_PR,
+                         Func->isDeclaration() ? XCOFF::XTY_ER : XCOFF::XTY_SD,
+                         SectionKind::getText())
         ->getQualNameSymbol();
   }
 

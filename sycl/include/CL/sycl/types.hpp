@@ -67,7 +67,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-enum class rounding_mode { automatic, rte, rtz, rtp, rtn };
+enum class rounding_mode { automatic = 0, rte = 1, rtz = 2, rtp = 3, rtn = 4 };
 struct elem {
   static constexpr int x = 0;
   static constexpr int y = 1;
@@ -243,9 +243,7 @@ using is_float_to_float =
                                      detail::is_floating_point<R>::value>;
 template <typename T>
 using is_standard_type =
-    std::integral_constant<bool, detail::is_sgentype<T>::value &&
-                                     !detail::is_same_v<T, long long> &&
-                                     !detail::is_same_v<T, unsigned long long>>;
+    std::integral_constant<bool, detail::is_sgentype<T>::value>;
 
 template <typename T, typename R, rounding_mode roundingMode, typename OpenCLT,
           typename OpenCLR>
@@ -297,10 +295,9 @@ detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
     // Round toward negative infinity.
   case rounding_mode::rtn:
     return std::floor(Value);
-  default:
-    assert(!"Unsupported rounding mode!");
-    return static_cast<R>(Value);
   };
+  assert(false && "Unsupported rounding mode!");
+  return static_cast<R>(Value);
 }
 #else
 
@@ -332,7 +329,7 @@ convertImpl(T Value) {
             typename OpenCLT, typename OpenCLR>                                \
   detail::enable_if_t<is_sint_to_sint<T, R>::value &&                          \
                           !detail::is_same_v<OpenCLT, OpenCLR> &&              \
-                          (detail::is_same_v<OpenCLR, DestType> ||             \
+                          (detail::is_same_v<OpenCLR, cl_##DestType> ||        \
                            (detail::is_same_v<OpenCLR, signed char> &&         \
                             detail::is_same_v<DestType, char>)),               \
                       R>                                                       \
@@ -354,7 +351,7 @@ __SYCL_GENERATE_CONVERT_IMPL(long)
             typename OpenCLT, typename OpenCLR>                                \
   detail::enable_if_t<is_uint_to_uint<T, R>::value &&                          \
                           !detail::is_same_v<OpenCLT, OpenCLR> &&              \
-                          detail::is_same_v<OpenCLR, DestType>,                \
+                          detail::is_same_v<OpenCLR, cl_##DestType>,           \
                       R>                                                       \
   convertImpl(T Value) {                                                       \
     OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
@@ -457,7 +454,7 @@ __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtn, Rtn)
             typename OpenCLT, typename OpenCLR>                                \
   detail::enable_if_t<                                                         \
       is_float_to_int<T, R>::value &&                                          \
-          (detail::is_same_v<OpenCLR, DestType> ||                             \
+          (detail::is_same_v<OpenCLR, cl_##DestType> ||                        \
            detail::is_same_v<OpenCLR, signed char> &&                          \
                detail::is_same_v<                                              \
                    DestType,                                                   \
@@ -1821,11 +1818,16 @@ public:
     return Tmp.template convert<convertT, roundingMode>();
   }
 
-  template <typename asT>
-  typename detail::enable_if_t<asT::getNumElements() == getNumElements(), asT>
-  as() const {
+  template <typename asT> asT as() const {
     // First materialize the swizzle to vec_t and then apply as() to it.
     vec_t Tmp = *this;
+    static_assert((sizeof(Tmp) == sizeof(asT)),
+                  "The new SYCL vec type must have the same storage size in "
+                  "bytes as this SYCL swizzled vec");
+    static_assert(
+        detail::is_contained<asT, detail::gtl::vector_basic_list>::value,
+        "asT must be SYCL vec of a different element type and "
+        "number of elements specified by asT");
     return Tmp.template as<asT>();
   }
 

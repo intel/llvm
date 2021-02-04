@@ -85,29 +85,42 @@ namespace ISD {
 
   /// Node predicates
 
-  /// If N is a BUILD_VECTOR node whose elements are all the same constant or
-  /// undefined, return true and return the constant value in \p SplatValue.
-  bool isConstantSplatVector(const SDNode *N, APInt &SplatValue);
+/// If N is a BUILD_VECTOR or SPLAT_VECTOR node whose elements are all the
+/// same constant or undefined, return true and return the constant value in
+/// \p SplatValue.
+bool isConstantSplatVector(const SDNode *N, APInt &SplatValue);
 
-  /// Return true if the specified node is a BUILD_VECTOR where all of the
-  /// elements are ~0 or undef.
-  bool isBuildVectorAllOnes(const SDNode *N);
+/// Return true if the specified node is a BUILD_VECTOR or SPLAT_VECTOR where
+/// all of the elements are ~0 or undef. If \p BuildVectorOnly is set to
+/// true, it only checks BUILD_VECTOR.
+bool isConstantSplatVectorAllOnes(const SDNode *N,
+                                  bool BuildVectorOnly = false);
 
-  /// Return true if the specified node is a BUILD_VECTOR where all of the
-  /// elements are 0 or undef.
-  bool isBuildVectorAllZeros(const SDNode *N);
+/// Return true if the specified node is a BUILD_VECTOR or SPLAT_VECTOR where
+/// all of the elements are 0 or undef. If \p BuildVectorOnly is set to true, it
+/// only checks BUILD_VECTOR.
+bool isConstantSplatVectorAllZeros(const SDNode *N,
+                                   bool BuildVectorOnly = false);
 
-  /// Return true if the specified node is a BUILD_VECTOR node of all
-  /// ConstantSDNode or undef.
-  bool isBuildVectorOfConstantSDNodes(const SDNode *N);
+/// Return true if the specified node is a BUILD_VECTOR where all of the
+/// elements are ~0 or undef.
+bool isBuildVectorAllOnes(const SDNode *N);
 
-  /// Return true if the specified node is a BUILD_VECTOR node of all
-  /// ConstantFPSDNode or undef.
-  bool isBuildVectorOfConstantFPSDNodes(const SDNode *N);
+/// Return true if the specified node is a BUILD_VECTOR where all of the
+/// elements are 0 or undef.
+bool isBuildVectorAllZeros(const SDNode *N);
 
-  /// Return true if the node has at least one operand and all operands of the
-  /// specified node are ISD::UNDEF.
-  bool allOperandsUndef(const SDNode *N);
+/// Return true if the specified node is a BUILD_VECTOR node of all
+/// ConstantSDNode or undef.
+bool isBuildVectorOfConstantSDNodes(const SDNode *N);
+
+/// Return true if the specified node is a BUILD_VECTOR node of all
+/// ConstantFPSDNode or undef.
+bool isBuildVectorOfConstantFPSDNodes(const SDNode *N);
+
+/// Return true if the node has at least one operand and all operands of the
+/// specified node are ISD::UNDEF.
+bool allOperandsUndef(const SDNode *N);
 
 } // end namespace ISD
 
@@ -513,6 +526,7 @@ BEGIN_TWO_BYTE_PACK()
   class LoadSDNodeBitfields {
     friend class LoadSDNode;
     friend class MaskedLoadSDNode;
+    friend class MaskedGatherSDNode;
 
     uint16_t : NumLSBaseSDNodeBits;
 
@@ -523,6 +537,7 @@ BEGIN_TWO_BYTE_PACK()
   class StoreSDNodeBitfields {
     friend class StoreSDNode;
     friend class MaskedStoreSDNode;
+    friend class MaskedScatterSDNode;
 
     uint16_t : NumLSBaseSDNodeBits;
 
@@ -674,9 +689,7 @@ public:
   bool use_empty() const { return UseList == nullptr; }
 
   /// Return true if there is exactly one use of this node.
-  bool hasOneUse() const {
-    return !use_empty() && std::next(use_begin()) == use_end();
-  }
+  bool hasOneUse() const { return hasSingleElement(uses()); }
 
   /// Return the number of uses of this node. This method takes
   /// time proportional to the number of uses.
@@ -1748,6 +1761,32 @@ public:
   }
 };
 
+/// This SDNode is used for PSEUDO_PROBE values, which are the function guid and
+/// the index of the basic block being probed. A pseudo probe serves as a place
+/// holder and will be removed at the end of compilation. It does not have any
+/// operand because we do not want the instruction selection to deal with any.
+class PseudoProbeSDNode : public SDNode {
+  friend class SelectionDAG;
+  uint64_t Guid;
+  uint64_t Index;
+  uint32_t Attributes;
+
+  PseudoProbeSDNode(unsigned Opcode, unsigned Order, const DebugLoc &Dl,
+                    SDVTList VTs, uint64_t Guid, uint64_t Index, uint32_t Attr)
+      : SDNode(Opcode, Order, Dl, VTs), Guid(Guid), Index(Index),
+        Attributes(Attr) {}
+
+public:
+  uint64_t getGuid() const { return Guid; }
+  uint64_t getIndex() const { return Index; }
+  uint32_t getAttributes() const { return Attributes; }
+
+  // Methods to support isa and dyn_cast
+  static bool classof(const SDNode *N) {
+    return N->getOpcode() == ISD::PSEUDO_PROBE;
+  }
+};
+
 class JumpTableSDNode : public SDNode {
   friend class SelectionDAG;
 
@@ -2390,6 +2429,9 @@ public:
   ISD::MemIndexType getIndexType() const {
     return static_cast<ISD::MemIndexType>(LSBaseSDNodeBits.AddressingMode);
   }
+  void setIndexType(ISD::MemIndexType IndexType) {
+    LSBaseSDNodeBits.AddressingMode = IndexType;
+  }
   bool isIndexScaled() const {
     return (getIndexType() == ISD::SIGNED_SCALED) ||
            (getIndexType() == ISD::UNSIGNED_SCALED);
@@ -2422,11 +2464,17 @@ public:
 
   MaskedGatherSDNode(unsigned Order, const DebugLoc &dl, SDVTList VTs,
                      EVT MemVT, MachineMemOperand *MMO,
-                     ISD::MemIndexType IndexType)
+                     ISD::MemIndexType IndexType, ISD::LoadExtType ETy)
       : MaskedGatherScatterSDNode(ISD::MGATHER, Order, dl, VTs, MemVT, MMO,
-                                  IndexType) {}
+                                  IndexType) {
+    LoadSDNodeBits.ExtTy = ETy;
+  }
 
   const SDValue &getPassThru() const { return getOperand(1); }
+
+  ISD::LoadExtType getExtensionType() const {
+    return ISD::LoadExtType(LoadSDNodeBits.ExtTy);
+  }
 
   static bool classof(const SDNode *N) {
     return N->getOpcode() == ISD::MGATHER;
@@ -2441,9 +2489,16 @@ public:
 
   MaskedScatterSDNode(unsigned Order, const DebugLoc &dl, SDVTList VTs,
                       EVT MemVT, MachineMemOperand *MMO,
-                      ISD::MemIndexType IndexType)
+                      ISD::MemIndexType IndexType, bool IsTrunc)
       : MaskedGatherScatterSDNode(ISD::MSCATTER, Order, dl, VTs, MemVT, MMO,
-                                  IndexType) {}
+                                  IndexType) {
+    StoreSDNodeBits.IsTruncating = IsTrunc;
+  }
+
+  /// Return true if the op does a truncation before store.
+  /// For integers this is the same as doing a TRUNCATE and storing the result.
+  /// For floats, it is the same as doing an FP_ROUND and storing the result.
+  bool isTruncatingStore() const { return StoreSDNodeBits.IsTruncating; }
 
   const SDValue &getValue() const { return getOperand(1); }
 
@@ -2593,7 +2648,8 @@ template <> struct GraphTraits<SDNode*> {
 /// with 4 and 8 byte pointer alignment, respectively.
 using LargestSDNode = AlignedCharArrayUnion<AtomicSDNode, TargetIndexSDNode,
                                             BlockAddressSDNode,
-                                            GlobalAddressSDNode>;
+                                            GlobalAddressSDNode,
+                                            PseudoProbeSDNode>;
 
 /// The SDNode class with the greatest alignment requirement.
 using MostAlignedSDNode = GlobalAddressSDNode;

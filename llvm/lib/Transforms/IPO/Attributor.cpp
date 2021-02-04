@@ -1909,6 +1909,10 @@ void InformationCache::initializeInformationCache(const Function &CF,
     InlineableFunctions.insert(&F);
 }
 
+AAResults *InformationCache::getAAResultsForFunction(const Function &F) {
+  return AG.getAnalysis<AAManager>(F);
+}
+
 InformationCache::FunctionInfo::~FunctionInfo() {
   // The instruction vectors are allocated using a BumpPtrAllocator, we need to
   // manually destroy them.
@@ -2455,7 +2459,7 @@ template <> struct DOTGraphTraits<AADepGraph *> : public DefaultDOTGraphTraits {
 
   static std::string getNodeLabel(const AADepGraphNode *Node,
                                   const AADepGraph *DG) {
-    std::string AAString = "";
+    std::string AAString;
     raw_string_ostream O(AAString);
     Node->print(O);
     return AAString;

@@ -52,6 +52,7 @@
 #include "llvm/ADT/Any.h"
 #include "llvm/ADT/FunctionExtras.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringMap.h"
 #include <type_traits>
 
 namespace llvm {
@@ -122,6 +123,11 @@ public:
     AfterAnalysisCallbacks.emplace_back(std::move(C));
   }
 
+  /// Add a class name to pass name mapping for use by pass instrumentation.
+  void addClassToPassName(StringRef ClassName, StringRef PassName);
+  /// Get the pass name for a given pass class name.
+  StringRef getPassNameForClassName(StringRef ClassName);
+
 private:
   friend class PassInstrumentation;
 
@@ -146,6 +152,8 @@ private:
   /// These are run on analyses that have been run.
   SmallVector<llvm::unique_function<AfterAnalysisFunc>, 4>
       AfterAnalysisCallbacks;
+
+  StringMap<std::string> ClassToPassName;
 };
 
 /// This class provides instrumentation entry points for the Pass Manager,

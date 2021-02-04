@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "device.h"
-#include "MemoryManager.h"
 #include "private.h"
 #include "rtl.h"
 
@@ -26,7 +25,7 @@ DeviceTy::DeviceTy(const DeviceTy &D)
       HostDataToTargetMap(D.HostDataToTargetMap),
       PendingCtorsDtors(D.PendingCtorsDtors), ShadowPtrMap(D.ShadowPtrMap),
       DataMapMtx(), PendingGlobalsMtx(), ShadowMtx(),
-      LoopTripCnt(D.LoopTripCnt), MemoryManager(nullptr) {}
+      LoopTripCnt(D.LoopTripCnt) {}
 
 DeviceTy &DeviceTy::operator=(const DeviceTy &D) {
   DeviceID = D.DeviceID;
@@ -45,14 +44,14 @@ DeviceTy &DeviceTy::operator=(const DeviceTy &D) {
 DeviceTy::DeviceTy(RTLInfoTy *RTL)
     : DeviceID(-1), RTL(RTL), RTLDeviceID(-1), IsInit(false), InitFlag(),
       HasPendingGlobals(false), HostDataToTargetMap(), PendingCtorsDtors(),
-      ShadowPtrMap(), DataMapMtx(), PendingGlobalsMtx(), ShadowMtx(),
-      MemoryManager(nullptr) {}
+      ShadowPtrMap(), DataMapMtx(), PendingGlobalsMtx(), ShadowMtx() {}
 
 DeviceTy::~DeviceTy() {
-  if (DeviceID == -1 || getInfoLevel() < 1)
+  if (DeviceID == -1 || !(getInfoLevel() & OMP_INFOTYPE_DUMP_TABLE))
     return;
 
-  dumpTargetPointerMappings(*this);
+  ident_t loc = {0, 0, 0, 0, ";libomptarget;libomptarget;0;0;;"};
+  dumpTargetPointerMappings(&loc, *this);
 }
 
 int DeviceTy::associatePtr(void *HstPtrBegin, void *TgtPtrBegin, int64_t Size) {
@@ -77,10 +76,10 @@ int DeviceTy::associatePtr(void *HstPtrBegin, void *TgtPtrBegin, int64_t Size) {
   }
 
   // Mapping does not exist, allocate it with refCount=INF
-  HostDataToTargetTy newEntry((uintptr_t) HstPtrBegin /*HstPtrBase*/,
-                              (uintptr_t) HstPtrBegin /*HstPtrBegin*/,
-                              (uintptr_t) HstPtrBegin + Size /*HstPtrEnd*/,
-                              (uintptr_t) TgtPtrBegin /*TgtPtrBegin*/,
+  HostDataToTargetTy newEntry((uintptr_t)HstPtrBegin /*HstPtrBase*/,
+                              (uintptr_t)HstPtrBegin /*HstPtrBegin*/,
+                              (uintptr_t)HstPtrBegin + Size /*HstPtrEnd*/,
+                              (uintptr_t)TgtPtrBegin /*TgtPtrBegin*/, nullptr,
                               true /*IsRefCountINF*/);
 
   DP("Creating new map entry: HstBase=" DPxMOD ", HstBegin=" DPxMOD ", HstEnd="
@@ -194,9 +193,9 @@ LookupResult DeviceTy::lookupMapping(void *HstPtrBegin, int64_t Size) {
 // If NULL is returned, then either data allocation failed or the user tried
 // to do an illegal mapping.
 void *DeviceTy::getOrAllocTgtPtr(void *HstPtrBegin, void *HstPtrBase,
-                                 int64_t Size, bool &IsNew, bool &IsHostPtr,
-                                 bool IsImplicit, bool UpdateRefCount,
-                                 bool HasCloseModifier,
+                                 int64_t Size, map_var_info_t HstPtrName,
+                                 bool &IsNew, bool &IsHostPtr, bool IsImplicit,
+                                 bool UpdateRefCount, bool HasCloseModifier,
                                  bool HasPresentModifier) {
   void *rc = NULL;
   IsHostPtr = false;
@@ -217,13 +216,14 @@ void *DeviceTy::getOrAllocTgtPtr(void *HstPtrBegin, void *HstPtrBase,
       HT.incRefCount();
 
     uintptr_t tp = HT.TgtPtrBegin + ((uintptr_t)HstPtrBegin - HT.HstPtrBegin);
-    INFO(DeviceID,
+    INFO(OMP_INFOTYPE_MAPPING_EXISTS, DeviceID,
          "Mapping exists%s with HstPtrBegin=" DPxMOD ", TgtPtrBegin=" DPxMOD
          ", "
-         "Size=%" PRId64 ",%s RefCount=%s\n",
+         "Size=%" PRId64 ",%s RefCount=%s, Name=%s\n",
          (IsImplicit ? " (implicit)" : ""), DPxPTR(HstPtrBegin), DPxPTR(tp),
          Size, (UpdateRefCount ? " updated" : ""),
-         HT.isRefCountInf() ? "INF" : std::to_string(HT.getRefCount()).c_str());
+         HT.isRefCountInf() ? "INF" : std::to_string(HT.getRefCount()).c_str(),
+         (HstPtrName) ? getNameFromMapping(HstPtrName).c_str() : "unknown");
     rc = (void *)tp;
   } else if ((lr.Flags.ExtendsBefore || lr.Flags.ExtendsAfter) && !IsImplicit) {
     // Explicit extension of mapped data - not allowed.
@@ -268,7 +268,7 @@ void *DeviceTy::getOrAllocTgtPtr(void *HstPtrBegin, void *HstPtrBase,
        DPxPTR((uintptr_t)HstPtrBegin + Size), DPxPTR(tp));
     HostDataToTargetMap.emplace(
         HostDataToTargetTy((uintptr_t)HstPtrBase, (uintptr_t)HstPtrBegin,
-                           (uintptr_t)HstPtrBegin + Size, tp));
+                           (uintptr_t)HstPtrBegin + Size, tp, HstPtrName));
     rc = (void *)tp;
   }
 
@@ -276,7 +276,7 @@ void *DeviceTy::getOrAllocTgtPtr(void *HstPtrBegin, void *HstPtrBase,
   return rc;
 }
 
-// Used by targetDataBegin, targetDataEnd, target_data_update and target.
+// Used by targetDataBegin, targetDataEnd, targetDataUpdate and target.
 // Return the target pointer begin (where the data will be moved).
 // Decrement the reference counter if called from targetDataEnd.
 void *DeviceTy::getTgtPtrBegin(void *HstPtrBegin, int64_t Size, bool &IsLast,
@@ -373,16 +373,6 @@ void DeviceTy::init() {
   if (Ret != OFFLOAD_SUCCESS)
     return;
 
-  // The memory manager will only be disabled when users provide a threshold via
-  // the environment variable \p LIBOMPTARGET_MEMORY_MANAGER_THRESHOLD and set
-  // it to 0.
-  if (const char *Env = std::getenv("LIBOMPTARGET_MEMORY_MANAGER_THRESHOLD")) {
-    size_t Threshold = std::stoul(Env);
-    if (Threshold)
-      MemoryManager = std::make_unique<MemoryManagerTy>(*this, Threshold);
-  } else
-    MemoryManager = std::make_unique<MemoryManagerTy>(*this);
-
   IsInit = true;
 }
 
@@ -411,18 +401,10 @@ __tgt_target_table *DeviceTy::load_binary(void *Img) {
 }
 
 void *DeviceTy::allocData(int64_t Size, void *HstPtr) {
-  // If memory manager is enabled, we will allocate data via memory manager.
-  if (MemoryManager)
-    return MemoryManager->allocate(Size, HstPtr);
-
   return RTL->data_alloc(RTLDeviceID, Size, HstPtr);
 }
 
 int32_t DeviceTy::deleteData(void *TgtPtrBegin) {
-  // If memory manager is enabled, we will deallocate data via memory manager.
-  if (MemoryManager)
-    return MemoryManager->free(TgtPtrBegin);
-
   return RTL->data_delete(RTLDeviceID, TgtPtrBegin);
 }
 

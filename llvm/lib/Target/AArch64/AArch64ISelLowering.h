@@ -114,6 +114,8 @@ enum NodeType : unsigned {
   FCVTZS_MERGE_PASSTHRU,
   SIGN_EXTEND_INREG_MERGE_PASSTHRU,
   ZERO_EXTEND_INREG_MERGE_PASSTHRU,
+  ABS_MERGE_PASSTHRU,
+  NEG_MERGE_PASSTHRU,
 
   SETCC_MERGE_ZERO,
 
@@ -305,9 +307,14 @@ enum NodeType : unsigned {
   PTEST,
   PTRUE,
 
+  BITREVERSE_MERGE_PASSTHRU,
+  BSWAP_MERGE_PASSTHRU,
+  CTLZ_MERGE_PASSTHRU,
+  CTPOP_MERGE_PASSTHRU,
   DUP_MERGE_PASSTHRU,
   INDEX_VECTOR,
 
+  // Cast between vectors of the same element type but differ in length.
   REINTERPRET_CAST,
 
   LD1_MERGE_ZERO,
@@ -417,7 +424,11 @@ enum NodeType : unsigned {
 
   LDP,
   STP,
-  STNP
+  STNP,
+
+  // Pseudo for a OBJC call that gets emitted together with a special `mov
+  // x29, x29` marker instruction.
+  CALL_RVMARKER
 };
 
 } // end namespace AArch64ISD
@@ -773,9 +784,7 @@ public:
   /// illegal as the original, thus leading to an infinite legalisation loop.
   /// NOTE: Once BUILD_VECTOR is legal or can be custom lowered for all legal
   /// vector types this override can be removed.
-  bool mergeStoresAfterLegalization(EVT VT) const override {
-    return !useSVEForFixedLengthVectors();
-  }
+  bool mergeStoresAfterLegalization(EVT VT) const override;
 
 private:
   /// Keep a pointer to the AArch64Subtarget around so that we can
@@ -806,6 +815,10 @@ private:
                           SDValue ThisVal) const;
 
   SDValue LowerSTORE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerABS(SDValue Op, SelectionDAG &DAG) const;
+
+  SDValue LowerMGATHER(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerMSCATTER(SDValue Op, SelectionDAG &DAG) const;
 
   SDValue LowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
 
@@ -902,8 +915,7 @@ private:
   SDValue LowerShiftRightParts(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVSETCC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerCTPOP(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerF128Call(SDValue Op, SelectionDAG &DAG,
-                        RTLIB::Libcall Call) const;
+  SDValue LowerCTTZ(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFCOPYSIGN(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFP_EXTEND(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFP_ROUND(SDValue Op, SelectionDAG &DAG) const;
@@ -980,6 +992,7 @@ private:
     return TargetLowering::getInlineAsmMemConstraint(ConstraintCode);
   }
 
+  bool shouldRemoveExtendFromGSIndex(EVT VT) const override;
   bool isVectorLoadExtDesirable(SDValue ExtVal) const override;
   bool isUsedByReturnOnly(SDNode *N, SDValue &Chain) const override;
   bool mayBeEmittedAsTailCall(const CallInst *CI) const override;
@@ -1006,11 +1019,21 @@ private:
   bool shouldLocalize(const MachineInstr &MI,
                       const TargetTransformInfo *TTI) const override;
 
-  bool useSVEForFixedLengthVectors() const;
   // Normally SVE is only used for byte size vectors that do not fit within a
   // NEON vector. This changes when OverrideNEON is true, allowing SVE to be
   // used for 64bit and 128bit vectors as well.
   bool useSVEForFixedLengthVectorVT(EVT VT, bool OverrideNEON = false) const;
+
+  // With the exception of data-predicate transitions, no instructions are
+  // required to cast between legal scalable vector types. However:
+  //  1. Packed and unpacked types have different bit lengths, meaning BITCAST
+  //     is not universally useable.
+  //  2. Most unpacked integer types are not legal and thus integer extends
+  //     cannot be used to convert between unpacked and packed types.
+  // These can make "bitcasting" a multiphase process. REINTERPRET_CAST is used
+  // to transition between unpacked and packed types of the same element type,
+  // with BITCAST used otherwise.
+  SDValue getSVESafeBitCast(EVT VT, SDValue Op, SelectionDAG &DAG) const;
 };
 
 namespace AArch64 {

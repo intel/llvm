@@ -299,13 +299,30 @@ Status NativeRegisterContextLinux_arm64::WriteRegister(
     if (m_sve_state == SVEState::Disabled || m_sve_state == SVEState::Unknown)
       return Status("SVE disabled or not supported");
     else {
-      if (GetRegisterInfo().IsSVERegVG(reg))
-        return Status("SVE state change operation not supported");
-
       // Target has SVE enabled, we will read and cache SVE ptrace data
       error = ReadAllSVE();
       if (error.Fail())
         return error;
+
+      if (GetRegisterInfo().IsSVERegVG(reg)) {
+        uint64_t vg_value = reg_value.GetAsUInt64();
+
+        if (sve_vl_valid(vg_value * 8)) {
+          if (m_sve_header_is_valid && vg_value == GetSVERegVG())
+            return error;
+
+          SetSVERegVG(vg_value);
+
+          error = WriteSVEHeader();
+          if (error.Success())
+            ConfigureRegisterContext();
+
+          if (m_sve_header_is_valid && vg_value == GetSVERegVG())
+            return error;
+        }
+
+        return Status("SVE vector length update failed.");
+      }
 
       // If target supports SVE but currently in FPSIMD mode.
       if (m_sve_state == SVEState::FPSIMD) {
@@ -936,9 +953,9 @@ Status NativeRegisterContextLinux_arm64::ReadGPR() {
 
   struct iovec ioVec;
   ioVec.iov_base = GetGPRBuffer();
-  ioVec.iov_len = GetGPRSize();
+  ioVec.iov_len = GetGPRBufferSize();
 
-  error = ReadRegisterSet(&ioVec, GetGPRSize(), NT_PRSTATUS);
+  error = ReadRegisterSet(&ioVec, GetGPRBufferSize(), NT_PRSTATUS);
 
   if (error.Success())
     m_gpr_is_valid = true;
@@ -953,11 +970,11 @@ Status NativeRegisterContextLinux_arm64::WriteGPR() {
 
   struct iovec ioVec;
   ioVec.iov_base = GetGPRBuffer();
-  ioVec.iov_len = GetGPRSize();
+  ioVec.iov_len = GetGPRBufferSize();
 
   m_gpr_is_valid = false;
 
-  return WriteRegisterSet(&ioVec, GetGPRSize(), NT_PRSTATUS);
+  return WriteRegisterSet(&ioVec, GetGPRBufferSize(), NT_PRSTATUS);
 }
 
 Status NativeRegisterContextLinux_arm64::ReadFPR() {
@@ -1111,7 +1128,7 @@ uint32_t NativeRegisterContextLinux_arm64::CalculateSVEOffset(
     sve_reg_offset =
         SVE_PT_FPSIMD_OFFSET + (reg - GetRegisterInfo().GetRegNumSVEZ0()) * 16;
   } else if (m_sve_state == SVEState::Full) {
-    uint32_t sve_z0_offset = GetGPRSize() + 8;
+    uint32_t sve_z0_offset = GetGPRSize() + 16;
     sve_reg_offset =
         SVE_SIG_REGS_OFFSET + reg_info->byte_offset - sve_z0_offset;
   }
@@ -1123,6 +1140,16 @@ void *NativeRegisterContextLinux_arm64::GetSVEBuffer() {
     return m_sve_ptrace_payload.data() + SVE_PT_FPSIMD_OFFSET;
 
   return m_sve_ptrace_payload.data();
+}
+
+std::vector<uint32_t> NativeRegisterContextLinux_arm64::GetExpeditedRegisters(
+    ExpeditedRegs expType) const {
+  std::vector<uint32_t> expedited_reg_nums =
+      NativeRegisterContext::GetExpeditedRegisters(expType);
+  if (m_sve_state == SVEState::FPSIMD || m_sve_state == SVEState::Full)
+    expedited_reg_nums.push_back(GetRegisterInfo().GetRegNumSVEVG());
+
+  return expedited_reg_nums;
 }
 
 #endif // defined (__arm64__) || defined (__aarch64__)

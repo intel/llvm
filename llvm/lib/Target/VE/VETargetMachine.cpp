@@ -44,13 +44,24 @@ static std::string computeDataLayout(const Triple &T) {
   // Stack alignment is 128 bits
   Ret += "-S128";
 
+  // Vector alignments are 64 bits
+  // Need to define all of them.  Otherwise, each alignment becomes
+  // the size of each data by default.
+  Ret += "-v64:64:64"; // for v2f32
+  Ret += "-v128:64:64";
+  Ret += "-v256:64:64";
+  Ret += "-v512:64:64";
+  Ret += "-v1024:64:64";
+  Ret += "-v2048:64:64";
+  Ret += "-v4096:64:64";
+  Ret += "-v8192:64:64";
+  Ret += "-v16384:64:64"; // for v256f64
+
   return Ret;
 }
 
 static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
-  if (!RM.hasValue())
-    return Reloc::Static;
-  return *RM;
+  return RM.getValueOr(Reloc::Static);
 }
 
 class VEELFTargetObjectFile : public TargetLoweringObjectFileELF {
@@ -98,6 +109,7 @@ public:
 
   void addIRPasses() override;
   bool addInstSelector() override;
+  void addPreEmitPass() override;
 };
 } // namespace
 
@@ -114,4 +126,9 @@ void VEPassConfig::addIRPasses() {
 bool VEPassConfig::addInstSelector() {
   addPass(createVEISelDag(getVETargetMachine()));
   return false;
+}
+
+void VEPassConfig::addPreEmitPass() {
+  // LVLGen should be called after scheduling and register allocation
+  addPass(createLVLGenPass());
 }

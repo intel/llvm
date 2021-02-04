@@ -244,6 +244,7 @@ void TemplateArgument::Profile(llvm::FoldingSetNodeID &ID,
     break;
 
   case Declaration:
+    getParamTypeForDecl().Profile(ID);
     ID.AddPointer(getAsDecl()? getAsDecl()->getCanonicalDecl() : nullptr);
     break;
 
@@ -288,10 +289,13 @@ bool TemplateArgument::structurallyEquals(const TemplateArgument &Other) const {
   case Null:
   case Type:
   case Expression:
-  case Template:
-  case TemplateExpansion:
   case NullPtr:
     return TypeOrValue.V == Other.TypeOrValue.V;
+
+  case Template:
+  case TemplateExpansion:
+    return TemplateArg.Name == Other.TemplateArg.Name &&
+           TemplateArg.NumExpansions == Other.TemplateArg.NumExpansions;
 
   case Declaration:
     return getAsDecl() == Other.getAsDecl();
@@ -520,8 +524,8 @@ clang::TemplateArgumentLocInfo::TemplateArgumentLocInfo(
   TemplateTemplateArgLocInfo *Template = new (Ctx) TemplateTemplateArgLocInfo;
   Template->Qualifier = QualifierLoc.getNestedNameSpecifier();
   Template->QualifierLocData = QualifierLoc.getOpaqueData();
-  Template->TemplateNameLoc = TemplateNameLoc.getRawEncoding();
-  Template->EllipsisLoc = EllipsisLoc.getRawEncoding();
+  Template->TemplateNameLoc = TemplateNameLoc;
+  Template->EllipsisLoc = EllipsisLoc;
   Pointer = Template;
 }
 

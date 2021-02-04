@@ -785,7 +785,9 @@ static void PropagateCallSiteMetadata(CallBase &CB, ValueToValueMapTy &VMap) {
 
   for (ValueToValueMapTy::iterator VMI = VMap.begin(), VMIE = VMap.end();
        VMI != VMIE; ++VMI) {
-    if (!VMI->second)
+    // Check that key is an instruction, to skip the Argument mapping, which
+    // points to an instruction in the original function, not the inlined one.
+    if (!VMI->second || !isa<Instruction>(VMI->first))
       continue;
 
     Instruction *NI = dyn_cast<Instruction>(VMI->second);
@@ -890,7 +892,9 @@ static void CloneAliasScopeMetadata(CallBase &CB, ValueToValueMapTy &VMap) {
   // repacements from the map.
   for (ValueToValueMapTy::iterator VMI = VMap.begin(), VMIE = VMap.end();
        VMI != VMIE; ++VMI) {
-    if (!VMI->second)
+    // Check that key is an instruction, to skip the Argument mapping, which
+    // points to an instruction in the original function, not the inlined one.
+    if (!VMI->second || !isa<Instruction>(VMI->first))
       continue;
 
     Instruction *NI = dyn_cast<Instruction>(VMI->second);
@@ -1439,8 +1443,8 @@ static DebugLoc inlineDebugLoc(DebugLoc OrigDL, DILocation *InlinedAt,
                                LLVMContext &Ctx,
                                DenseMap<const MDNode *, MDNode *> &IANodes) {
   auto IA = DebugLoc::appendInlinedAt(OrigDL, InlinedAt, Ctx, IANodes);
-  return DebugLoc::get(OrigDL.getLine(), OrigDL.getCol(), OrigDL.getScope(),
-                       IA);
+  return DILocation::get(Ctx, OrigDL.getLine(), OrigDL.getCol(),
+                         OrigDL.getScope(), IA);
 }
 
 /// Update inlined instructions' line numbers to
@@ -1564,8 +1568,7 @@ static void updateCallProfile(Function *Callee, const ValueToValueMapTy &VMap,
     return;
   auto CallSiteCount = PSI ? PSI->getProfileCount(TheCall, CallerBFI) : None;
   int64_t CallCount =
-      std::min(CallSiteCount.hasValue() ? CallSiteCount.getValue() : 0,
-               CalleeEntryCount.getCount());
+      std::min(CallSiteCount.getValueOr(0), CalleeEntryCount.getCount());
   updateProfileCallee(Callee, -CallCount, &VMap);
 }
 
@@ -1666,22 +1669,6 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
     else if (CalledFunc->getGC() != Caller->getGC())
       return InlineResult::failure("incompatible GC");
   }
-
-  // Inlining a function that explicitly should not have a stack protector may
-  // break the code if inlined into a function that does have a stack
-  // protector.
-  if (LLVM_UNLIKELY(Caller->hasFnAttribute(Attribute::NoStackProtect)))
-    if (CalledFunc->hasFnAttribute(Attribute::StackProtect) ||
-        CalledFunc->hasFnAttribute(Attribute::StackProtectStrong) ||
-        CalledFunc->hasFnAttribute(Attribute::StackProtectReq))
-      return InlineResult::failure(
-          "stack protected callee but caller requested no stack protector");
-  if (LLVM_UNLIKELY(CalledFunc->hasFnAttribute(Attribute::NoStackProtect)))
-    if (Caller->hasFnAttribute(Attribute::StackProtect) ||
-        Caller->hasFnAttribute(Attribute::StackProtectStrong) ||
-        Caller->hasFnAttribute(Attribute::StackProtectReq))
-      return InlineResult::failure(
-          "stack protected caller but callee requested no stack protector");
 
   // Get the personality function from the callee if it contains a landing pad.
   Constant *CalledPersonality =
@@ -1862,11 +1849,8 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
           MergedDeoptArgs.reserve(ParentDeopt->Inputs.size() +
                                   ChildOB.Inputs.size());
 
-          MergedDeoptArgs.insert(MergedDeoptArgs.end(),
-                                 ParentDeopt->Inputs.begin(),
-                                 ParentDeopt->Inputs.end());
-          MergedDeoptArgs.insert(MergedDeoptArgs.end(), ChildOB.Inputs.begin(),
-                                 ChildOB.Inputs.end());
+          llvm::append_range(MergedDeoptArgs, ParentDeopt->Inputs);
+          llvm::append_range(MergedDeoptArgs, ChildOB.Inputs);
 
           OpDefs.emplace_back("deopt", std::move(MergedDeoptArgs));
         }
@@ -2206,10 +2190,9 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
     // match the callee's return type, we also need to change the return type of
     // the intrinsic.
     if (Caller->getReturnType() == CB.getType()) {
-      auto NewEnd = llvm::remove_if(Returns, [](ReturnInst *RI) {
+      llvm::erase_if(Returns, [](ReturnInst *RI) {
         return RI->getParent()->getTerminatingDeoptimizeCall() != nullptr;
       });
-      Returns.erase(NewEnd, Returns.end());
     } else {
       SmallVector<ReturnInst *, 8> NormalReturns;
       Function *NewDeoptIntrinsic = Intrinsic::getDeclaration(
@@ -2233,8 +2216,7 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
         auto *CurBB = RI->getParent();
         RI->eraseFromParent();
 
-        SmallVector<Value *, 4> CallArgs(DeoptCall->arg_begin(),
-                                         DeoptCall->arg_end());
+        SmallVector<Value *, 4> CallArgs(DeoptCall->args());
 
         SmallVector<OperandBundleDef, 1> OpBundles;
         DeoptCall->getOperandBundlesAsDefs(OpBundles);
@@ -2471,7 +2453,7 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
 
   // If we inlined any musttail calls and the original return is now
   // unreachable, delete it.  It can only contain a bitcast and ret.
-  if (InlinedMustTailCalls && pred_begin(AfterCallBB) == pred_end(AfterCallBB))
+  if (InlinedMustTailCalls && pred_empty(AfterCallBB))
     AfterCallBB->eraseFromParent();
 
   // We should always be able to fold the entry block of the function into the

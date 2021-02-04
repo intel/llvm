@@ -209,8 +209,6 @@ define <2 x i7> @shl_lshr_splat_vec(<2 x i7> %X) {
   ret <2 x i7> %sh2
 }
 
-; Don't hide the shl from scalar evolution. DAGCombine will get it.
-
 define i23 @test11(i23 %x) {
 ; CHECK-LABEL: @test11(
 ; CHECK-NEXT:    [[TMP1:%.*]] = mul i23 [[X:%.*]], 6
@@ -244,8 +242,6 @@ define <2 x i47> @test12_splat_vec(<2 x i47> %X) {
   %sh2 = shl <2 x i47> %sh1, <i47 8, i47 8>
   ret <2 x i47> %sh2
 }
-
-; Don't hide the shl from scalar evolution. DAGCombine will get it.
 
 define i18 @test13(i18 %x) {
 ; CHECK-LABEL: @test13(
@@ -341,7 +337,7 @@ define <2 x i1> @test16vec_nonuniform(<2 x i84> %X) {
 
 define <2 x i1> @test16vec_undef(<2 x i84> %X) {
 ; CHECK-LABEL: @test16vec_undef(
-; CHECK-NEXT:    [[TMP1:%.*]] = and <2 x i84> [[X:%.*]], <i84 16, i84 undef>
+; CHECK-NEXT:    [[TMP1:%.*]] = and <2 x i84> [[X:%.*]], <i84 16, i84 poison>
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp ne <2 x i84> [[TMP1]], zeroinitializer
 ; CHECK-NEXT:    ret <2 x i1> [[CMP]]
 ;

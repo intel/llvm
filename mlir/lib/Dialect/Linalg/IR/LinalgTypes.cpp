@@ -12,9 +12,9 @@
 
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/DialectImplementation.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/Parser.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/InliningUtils.h"
@@ -58,8 +58,6 @@ struct LinalgInlinerInterface : public DialectInlinerInterface {
 //===----------------------------------------------------------------------===//
 
 void mlir::linalg::LinalgDialect::initialize() {
-  getContext()->getOrLoadDialect("std");
-
   addTypes<RangeType>();
   addOperations<
 #define GET_OP_LIST

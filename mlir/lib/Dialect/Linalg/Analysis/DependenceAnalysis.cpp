@@ -13,6 +13,7 @@
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/IR/BuiltinOps.h"
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -41,6 +42,13 @@ Value Aliases::find(Value v) {
 
     Operation *defOp = v.getDefiningOp();
     if (!defOp)
+      return v;
+
+    // Treat RegionBranchOpInterfaces like an allocate and don't try to follow
+    // the aliasing further.
+    if (isa<RegionBranchOpInterface>(defOp))
+      return v;
+    if (isa<TensorToMemrefOp>(defOp))
       return v;
 
     if (auto memEffect = dyn_cast<MemoryEffectOpInterface>(defOp)) {
@@ -86,34 +94,37 @@ StringRef LinalgDependenceGraph::getDependenceTypeStr(DependenceType depType) {
 
 LinalgDependenceGraph
 LinalgDependenceGraph::buildDependenceGraph(Aliases &aliases, FuncOp f) {
-  SmallVector<Operation *, 8> linalgOps;
+  SmallVector<LinalgOp, 8> linalgOps;
   f.walk([&](LinalgOp op) { linalgOps.push_back(op); });
   return LinalgDependenceGraph(aliases, linalgOps);
 }
 
 LinalgDependenceGraph::LinalgDependenceGraph(Aliases &aliases,
-                                             ArrayRef<Operation *> ops)
+                                             ArrayRef<LinalgOp> ops)
     : aliases(aliases), linalgOps(ops.begin(), ops.end()) {
   for (auto en : llvm::enumerate(linalgOps)) {
-    assert(isa<LinalgOp>(en.value()) && "Expected value for LinalgOp");
-    linalgOpPositions.insert(std::make_pair(en.value(), en.index()));
+    linalgOpPositions.insert(
+        std::make_pair(en.value().getOperation(), en.index()));
   }
   for (unsigned i = 0, e = ops.size(); i < e; ++i) {
     for (unsigned j = i + 1; j < e; ++j) {
-      addDependencesBetween(cast<LinalgOp>(ops[i]), cast<LinalgOp>(ops[j]));
+      addDependencesBetween(ops[i], ops[j]);
     }
   }
 }
 
 void LinalgDependenceGraph::addDependenceElem(DependenceType dt,
-                                              LinalgOpView indexingOpView,
-                                              LinalgOpView dependentOpView) {
-  LLVM_DEBUG(dbgs() << "\nAdd dep type " << getDependenceTypeStr(dt) << ":\t"
-                    << *indexingOpView.op << " -> " << *dependentOpView.op);
-  dependencesFromGraphs[dt][indexingOpView.op].push_back(
-      LinalgDependenceGraphElem{dependentOpView, indexingOpView.view});
-  dependencesIntoGraphs[dt][dependentOpView.op].push_back(
-      LinalgDependenceGraphElem{indexingOpView, dependentOpView.view});
+                                              OpOperand *indexingOpView,
+                                              OpOperand *dependentOpView) {
+  LLVM_DEBUG(dbgs() << "\nAdd dep type " << getDependenceTypeStr(dt) << ":\t ("
+                    << indexingOpView->get() << " @"
+                    << indexingOpView->getOperandNumber() << ") -> \n\t\t("
+                    << dependentOpView->get() << " @"
+                    << dependentOpView->getOperandNumber() << ")");
+  dependencesFromGraphs[dt][indexingOpView->getOwner()].push_back(
+      LinalgDependenceGraphElem{dependentOpView, indexingOpView, dt});
+  dependencesIntoGraphs[dt][dependentOpView->getOwner()].push_back(
+      LinalgDependenceGraphElem{indexingOpView, dependentOpView, dt});
 }
 
 LinalgDependenceGraph::dependence_range
@@ -147,41 +158,25 @@ LinalgDependenceGraph::getDependencesInto(
 }
 
 void LinalgDependenceGraph::addDependencesBetween(LinalgOp src, LinalgOp dst) {
-  for (auto srcView : src.getOutputBuffers()) { // W
+  for (OpOperand *srcOpOperand : src.getOutputBuffersOpOperands()) { // W
     // RAW graph
-    for (auto dstView : dst.getInputBuffers()) { // R
-      if (aliases.alias(srcView, dstView)) { // if alias, fill RAW
-        addDependenceElem(DependenceType::RAW,
-                          LinalgOpView{src.getOperation(), srcView},
-                          LinalgOpView{dst.getOperation(), dstView});
-      }
-    }
+    for (OpOperand *dstOpOperand : dst.getInputBuffersOpOperands()) // R
+      if (aliases.alias(srcOpOperand->get(), dstOpOperand->get()))  // RAW alias
+        addDependenceElem(DependenceType::RAW, srcOpOperand, dstOpOperand);
     // WAW graph
-    for (auto dstView : dst.getOutputBuffers()) { // W
-      if (aliases.alias(srcView, dstView)) {      // if alias, fill WAW
-        addDependenceElem(DependenceType::WAW,
-                          LinalgOpView{src.getOperation(), srcView},
-                          LinalgOpView{dst.getOperation(), dstView});
-      }
-    }
+    for (OpOperand *dstOpOperand : dst.getOutputBuffersOpOperands()) // W
+      if (aliases.alias(srcOpOperand->get(), dstOpOperand->get())) // WAW alias
+        addDependenceElem(DependenceType::WAW, srcOpOperand, dstOpOperand);
   }
-  for (auto srcView : src.getInputBuffers()) { // R
+  for (OpOperand *srcOpOperand : src.getInputBuffersOpOperands()) { // R
     // RAR graph
-    for (auto dstView : dst.getInputBuffers()) { // R
-      if (aliases.alias(srcView, dstView)) { // if alias, fill RAR
-        addDependenceElem(DependenceType::RAR,
-                          LinalgOpView{src.getOperation(), srcView},
-                          LinalgOpView{dst.getOperation(), dstView});
-      }
-    }
+    for (OpOperand *dstOpOperand : dst.getInputBuffersOpOperands()) // R
+      if (aliases.alias(srcOpOperand->get(), dstOpOperand->get()))  // RAR alias
+        addDependenceElem(DependenceType::RAR, srcOpOperand, dstOpOperand);
     // WAR graph
-    for (auto dstView : dst.getOutputBuffers()) { // W
-      if (aliases.alias(srcView, dstView)) {      // if alias, fill WAR
-        addDependenceElem(DependenceType::WAR,
-                          LinalgOpView{src.getOperation(), srcView},
-                          LinalgOpView{dst.getOperation(), dstView});
-      }
-    }
+    for (OpOperand *dstOpOperand : dst.getOutputBuffersOpOperands()) // W
+      if (aliases.alias(srcOpOperand->get(), dstOpOperand->get())) // WAR alias
+        addDependenceElem(DependenceType::WAR, srcOpOperand, dstOpOperand);
   }
 }
 
@@ -223,16 +218,18 @@ LinalgDependenceGraph::findOperationsWithCoveringDependences(
   // TODO: we are not considering paths yet, just interleaved positions.
   for (auto dt : types) {
     for (auto dependence : getDependencesFrom(src, dt)) {
-      auto interimPos = linalgOpPositions.lookup(dependence.dependentOpView.op);
+      auto interimPos =
+          linalgOpPositions.lookup(dependence.dependentOpView->getOwner());
       // Skip if not interleaved.
       if (interimPos >= dstPos || interimPos <= srcPos)
         continue;
-      if (view && !aliases.alias(view, dependence.indexingView))
+      Value consumerView = dependence.indexingOpView->get();
+      if (view && !aliases.alias(view, consumerView))
         continue;
-      auto *op = dependence.dependentOpView.op;
+      auto *op = dependence.dependentOpView->getOwner();
       LLVM_DEBUG(dbgs() << "\n***Found covering dependence of type "
                         << getDependenceTypeStr(dt) << ": " << *src << " -> "
-                        << *op << " on " << dependence.indexingView);
+                        << *op << " on " << consumerView);
       res.push_back(op);
     }
   }
@@ -242,12 +239,10 @@ LinalgDependenceGraph::findOperationsWithCoveringDependences(
 bool LinalgDependenceGraph::hasDependenceFrom(
     LinalgOp srcLinalgOp, LinalgOp dstLinalgOp,
     ArrayRef<LinalgDependenceGraph::DependenceType> depTypes) const {
-  for (auto dep : depTypes) {
-    for (auto dependence : getDependencesInto(dstLinalgOp, dep)) {
-      if (dependence.dependentOpView.op == srcLinalgOp)
+  for (auto dep : depTypes)
+    for (auto dependence : getDependencesInto(dstLinalgOp, dep))
+      if (dependence.dependentOpView->getOwner() == srcLinalgOp)
         return true;
-    }
-  }
   return false;
 }
 

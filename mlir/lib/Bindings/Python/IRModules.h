@@ -13,6 +13,8 @@
 
 #include "PybindUtils.h"
 
+#include "mlir-c/AffineExpr.h"
+#include "mlir-c/AffineMap.h"
 #include "mlir-c/IR.h"
 #include "llvm/ADT/DenseMap.h"
 
@@ -307,11 +309,24 @@ public:
   PyLocation(PyMlirContextRef contextRef, MlirLocation loc)
       : BaseContextObject(std::move(contextRef)), loc(loc) {}
 
+  operator MlirLocation() const { return loc; }
+  MlirLocation get() const { return loc; }
+
   /// Enter and exit the context manager.
   pybind11::object contextEnter();
   void contextExit(pybind11::object excType, pybind11::object excVal,
                    pybind11::object excTb);
 
+  /// Gets a capsule wrapping the void* within the MlirContext.
+  pybind11::object getCapsule();
+
+  /// Creates a PyMlirContext from the MlirContext wrapped by a capsule.
+  /// Note that PyMlirContext instances are uniqued, so the returned object
+  /// may be a pre-existing object. Ownership of the underlying MlirContext
+  /// is taken by calling this function.
+  static PyLocation createFromCapsule(pybind11::object capsule);
+
+private:
   MlirLocation loc;
 };
 
@@ -324,6 +339,8 @@ public:
   static constexpr const char kTypeDescription[] =
       "[ThreadContextAware] mlir.ir.Location";
   static PyLocation &resolve();
+
+  operator MlirLocation() const { return *get(); }
 };
 
 /// Wrapper around MlirModule.
@@ -410,7 +427,8 @@ public:
                  pybind11::object parentKeepAlive = pybind11::object());
 
   /// Gets the backing operation.
-  MlirOperation get() {
+  operator MlirOperation() const { return get(); }
+  MlirOperation get() const {
     checkValid();
     return operation;
   }
@@ -425,7 +443,7 @@ public:
     assert(!attached && "operation already attached");
     attached = true;
   }
-  void checkValid();
+  void checkValid() const;
 
   /// Gets the owning block or raises an exception if the operation has no
   /// owning block.
@@ -478,6 +496,14 @@ public:
   static pybind11::object createRawSubclass(pybind11::object userClass);
 
   pybind11::object getOperationObject() { return operationObject; }
+
+  static pybind11::object
+  odsBuildDefault(pybind11::object cls, pybind11::list operandList,
+                  pybind11::list resultTypeList,
+                  llvm::Optional<pybind11::dict> attributes,
+                  llvm::Optional<std::vector<PyBlock *>> successors,
+                  llvm::Optional<int> regions, DefaultingPyLocation location,
+                  pybind11::object maybeIp);
 
 private:
   PyOperation &operation;           // For efficient, cast-free access from C++
@@ -568,7 +594,19 @@ public:
   PyAttribute(PyMlirContextRef contextRef, MlirAttribute attr)
       : BaseContextObject(std::move(contextRef)), attr(attr) {}
   bool operator==(const PyAttribute &other);
+  operator MlirAttribute() const { return attr; }
+  MlirAttribute get() const { return attr; }
 
+  /// Gets a capsule wrapping the void* within the MlirContext.
+  pybind11::object getCapsule();
+
+  /// Creates a PyMlirContext from the MlirContext wrapped by a capsule.
+  /// Note that PyMlirContext instances are uniqued, so the returned object
+  /// may be a pre-existing object. Ownership of the underlying MlirContext
+  /// is taken by calling this function.
+  static PyAttribute createFromCapsule(pybind11::object capsule);
+
+private:
   MlirAttribute attr;
 };
 
@@ -603,7 +641,18 @@ public:
       : BaseContextObject(std::move(contextRef)), type(type) {}
   bool operator==(const PyType &other);
   operator MlirType() const { return type; }
+  MlirType get() const { return type; }
 
+  /// Gets a capsule wrapping the void* within the MlirContext.
+  pybind11::object getCapsule();
+
+  /// Creates a PyMlirContext from the MlirContext wrapped by a capsule.
+  /// Note that PyMlirContext instances are uniqued, so the returned object
+  /// may be a pre-existing object. Ownership of the underlying MlirContext
+  /// is taken by calling this function.
+  static PyType createFromCapsule(pybind11::object capsule);
+
+private:
   MlirType type;
 };
 
@@ -626,6 +675,55 @@ public:
 private:
   PyOperationRef parentOperation;
   MlirValue value;
+};
+
+/// Wrapper around MlirAffineExpr. Affine expressions are owned by the context.
+class PyAffineExpr : public BaseContextObject {
+public:
+  PyAffineExpr(PyMlirContextRef contextRef, MlirAffineExpr affineExpr)
+      : BaseContextObject(std::move(contextRef)), affineExpr(affineExpr) {}
+  bool operator==(const PyAffineExpr &other);
+  operator MlirAffineExpr() const { return affineExpr; }
+  MlirAffineExpr get() const { return affineExpr; }
+
+  /// Gets a capsule wrapping the void* within the MlirAffineExpr.
+  pybind11::object getCapsule();
+
+  /// Creates a PyAffineExpr from the MlirAffineExpr wrapped by a capsule.
+  /// Note that PyAffineExpr instances are uniqued, so the returned object
+  /// may be a pre-existing object. Ownership of the underlying MlirAffineExpr
+  /// is taken by calling this function.
+  static PyAffineExpr createFromCapsule(pybind11::object capsule);
+
+  PyAffineExpr add(const PyAffineExpr &other) const;
+  PyAffineExpr mul(const PyAffineExpr &other) const;
+  PyAffineExpr floorDiv(const PyAffineExpr &other) const;
+  PyAffineExpr ceilDiv(const PyAffineExpr &other) const;
+  PyAffineExpr mod(const PyAffineExpr &other) const;
+
+private:
+  MlirAffineExpr affineExpr;
+};
+
+class PyAffineMap : public BaseContextObject {
+public:
+  PyAffineMap(PyMlirContextRef contextRef, MlirAffineMap affineMap)
+      : BaseContextObject(std::move(contextRef)), affineMap(affineMap) {}
+  bool operator==(const PyAffineMap &other);
+  operator MlirAffineMap() const { return affineMap; }
+  MlirAffineMap get() const { return affineMap; }
+
+  /// Gets a capsule wrapping the void* within the MlirAffineMap.
+  pybind11::object getCapsule();
+
+  /// Creates a PyAffineMap from the MlirAffineMap wrapped by a capsule.
+  /// Note that PyAffineMap instances are uniqued, so the returned object
+  /// may be a pre-existing object. Ownership of the underlying MlirAffineMap
+  /// is taken by calling this function.
+  static PyAffineMap createFromCapsule(pybind11::object capsule);
+
+private:
+  MlirAffineMap affineMap;
 };
 
 void populateIRSubmodule(pybind11::module &m);

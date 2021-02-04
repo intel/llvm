@@ -10,6 +10,7 @@
 #include "check-call.h"
 #include "pointer-assignment.h"
 #include "resolve-names.h"
+#include "flang/Common/Fortran.h"
 #include "flang/Common/idioms.h"
 #include "flang/Evaluate/common.h"
 #include "flang/Evaluate/fold.h"
@@ -164,7 +165,7 @@ private:
   }
   void SayNoMatch(const std::string &, bool isAssignment = false);
   std::string TypeAsFortran(std::size_t);
-  bool AnyUntypedOperand();
+  bool AnyUntypedOrMissingOperand();
 
   ExpressionAnalyzer &context_;
   ActualArguments actuals_;
@@ -709,8 +710,16 @@ MaybeExpr ExpressionAnalyzer::Analyze(const parser::NamedConstant &n) {
   return std::nullopt;
 }
 
-MaybeExpr ExpressionAnalyzer::Analyze(const parser::NullInit &x) {
-  return Expr<SomeType>{NullPointer{}};
+MaybeExpr ExpressionAnalyzer::Analyze(const parser::NullInit &n) {
+  if (MaybeExpr value{Analyze(n.v)}) {
+    // Subtle: when the NullInit is a DataStmtConstant, it might
+    // be a misparse of a structure constructor without parameters
+    // or components (e.g., T()).  Checking the result to ensure
+    // that a "=>" data entity initializer actually resolved to
+    // a null pointer has to be done by the caller.
+    return Fold(std::move(*value));
+  }
+  return std::nullopt;
 }
 
 MaybeExpr ExpressionAnalyzer::Analyze(const parser::InitialDataTarget &x) {
@@ -1632,7 +1641,8 @@ MaybeExpr ExpressionAnalyzer::Analyze(
                         GetRank(*valueShape), symbol->name()),
                     *symbol);
               } else if (CheckConformance(messages, *componentShape,
-                             *valueShape, "component", "value")) {
+                             *valueShape, "component", "value", false,
+                             true /* can expand scalar value */)) {
                 if (GetRank(*componentShape) > 0 && GetRank(*valueShape) == 0 &&
                     !IsExpandableScalar(*converted)) {
                   AttachDeclaration(
@@ -1922,7 +1932,7 @@ const Symbol *ExpressionAnalyzer::ResolveGeneric(const Symbol &symbol,
     }
     if (std::optional<characteristics::Procedure> procedure{
             characteristics::Procedure::Characterize(
-                ProcedureDesignator{specific}, context_.intrinsics())}) {
+                ProcedureDesignator{specific}, context_.foldingContext())}) {
       ActualArguments localActuals{actuals};
       if (specific.has<semantics::ProcBindingDetails>()) {
         if (!adjustActuals.value()(specific, localActuals)) {
@@ -1933,7 +1943,8 @@ const Symbol *ExpressionAnalyzer::ResolveGeneric(const Symbol &symbol,
               *procedure, localActuals, GetFoldingContext())) {
         if (CheckCompatibleArguments(*procedure, localActuals)) {
           if (!procedure->IsElemental()) {
-            return &specific; // takes priority over elemental match
+            // takes priority over elemental match
+            return &AccessSpecific(symbol, specific);
           }
           elemental = &specific;
         }
@@ -1941,7 +1952,7 @@ const Symbol *ExpressionAnalyzer::ResolveGeneric(const Symbol &symbol,
     }
   }
   if (elemental) {
-    return elemental;
+    return &AccessSpecific(symbol, *elemental);
   }
   // Check parent derived type
   if (const auto *parentScope{symbol.owner().GetDerivedTypeParent()}) {
@@ -1958,6 +1969,33 @@ const Symbol *ExpressionAnalyzer::ResolveGeneric(const Symbol &symbol,
     return details.derivedType();
   }
   return nullptr;
+}
+
+const Symbol &ExpressionAnalyzer::AccessSpecific(
+    const Symbol &originalGeneric, const Symbol &specific) {
+  if (const auto *hosted{
+          originalGeneric.detailsIf<semantics::HostAssocDetails>()}) {
+    return AccessSpecific(hosted->symbol(), specific);
+  } else if (const auto *used{
+                 originalGeneric.detailsIf<semantics::UseDetails>()}) {
+    const auto &scope{originalGeneric.owner()};
+    auto iter{scope.find(specific.name())};
+    if (iter != scope.end() && iter->second->has<semantics::UseDetails>() &&
+        &iter->second->get<semantics::UseDetails>().symbol() == &specific) {
+      return specific;
+    } else {
+      // Create a renaming USE of the specific procedure.
+      auto rename{context_.SaveTempName(
+          used->symbol().owner().GetName().value().ToString() + "$" +
+          specific.name().ToString())};
+      return *const_cast<semantics::Scope &>(scope)
+                  .try_emplace(rename, specific.attrs(),
+                      semantics::UseDetails{rename, specific})
+                  .first->second;
+    }
+  } else {
+    return specific;
+  }
 }
 
 void ExpressionAnalyzer::EmitGenericResolutionError(const Symbol &symbol) {
@@ -2120,6 +2158,15 @@ MaybeExpr ExpressionAnalyzer::Analyze(const parser::FunctionReference &funcRef,
   return std::nullopt;
 }
 
+static bool HasAlternateReturns(const evaluate::ActualArguments &args) {
+  for (const auto &arg : args) {
+    if (arg && arg->isAlternateReturn()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void ExpressionAnalyzer::Analyze(const parser::CallStmt &callStmt) {
   const parser::Call &call{callStmt.v};
   auto restorer{GetContextualMessages().SetLocation(call.source)};
@@ -2135,8 +2182,7 @@ void ExpressionAnalyzer::Analyze(const parser::CallStmt &callStmt) {
       ProcedureDesignator *proc{std::get_if<ProcedureDesignator>(&callee->u)};
       CHECK(proc);
       if (CheckCall(call.source, *proc, callee->arguments)) {
-        bool hasAlternateReturns{
-            callee->arguments.size() < actualArgList.size()};
+        bool hasAlternateReturns{HasAlternateReturns(callee->arguments)};
         callStmt.typedCall.Reset(
             new ProcedureRef{std::move(*proc), std::move(callee->arguments),
                 hasAlternateReturns},
@@ -2225,8 +2271,8 @@ static bool IsExternalCalledImplicitly(
 std::optional<characteristics::Procedure> ExpressionAnalyzer::CheckCall(
     parser::CharBlock callSite, const ProcedureDesignator &proc,
     ActualArguments &arguments) {
-  auto chars{
-      characteristics::Procedure::Characterize(proc, context_.intrinsics())};
+  auto chars{characteristics::Procedure::Characterize(
+      proc, context_.foldingContext())};
   if (chars) {
     bool treatExternalAsImplicit{IsExternalCalledImplicitly(callSite, proc)};
     if (treatExternalAsImplicit && !chars->CanBeCalledViaImplicitInterface()) {
@@ -2450,11 +2496,18 @@ MaybeExpr RelationHelper(ExpressionAnalyzer &context, RelationalOperator opr,
                   "operator"_err_en_US);
       return std::nullopt;
     }
-    analyzer.ConvertBOZ(0, analyzer.GetType(1));
-    analyzer.ConvertBOZ(1, analyzer.GetType(0));
+    std::optional<DynamicType> leftType{analyzer.GetType(0)};
+    std::optional<DynamicType> rightType{analyzer.GetType(1)};
+    analyzer.ConvertBOZ(0, rightType);
+    analyzer.ConvertBOZ(1, leftType);
     if (analyzer.IsIntrinsicRelational(opr)) {
       return AsMaybeExpr(Relate(context.GetContextualMessages(), opr,
           analyzer.MoveExpr(0), analyzer.MoveExpr(1)));
+    } else if (leftType && leftType->category() == TypeCategory::Logical &&
+        rightType && rightType->category() == TypeCategory::Logical) {
+      context.Say("LOGICAL operands must be compared using .EQV. or "
+                  ".NEQV."_err_en_US);
+      return std::nullopt;
     } else {
       return analyzer.TryDefinedOp(opr,
           "Operands of %s must have comparable types; have %s and %s"_err_en_US);
@@ -2835,20 +2888,19 @@ void ArgumentAnalyzer::Analyze(
   // be detected and represented (they're not expressions).
   // TODO: C1534: Don't allow a "restricted" specific intrinsic to be passed.
   std::optional<ActualArgument> actual;
-  bool isAltReturn{false};
   std::visit(common::visitors{
                  [&](const common::Indirection<parser::Expr> &x) {
                    // TODO: Distinguish & handle procedure name and
                    // proc-component-ref
                    actual = AnalyzeExpr(x.value());
                  },
-                 [&](const parser::AltReturnSpec &) {
+                 [&](const parser::AltReturnSpec &label) {
                    if (!isSubroutine) {
                      context_.Say(
                          "alternate return specification may not appear on"
                          " function reference"_err_en_US);
                    }
-                   isAltReturn = true;
+                   actual = ActualArgument(label.v);
                  },
                  [&](const parser::ActualArg::PercentRef &) {
                    context_.Say("TODO: %REF() argument"_err_en_US);
@@ -2863,7 +2915,7 @@ void ArgumentAnalyzer::Analyze(
       actual->set_keyword(argKW->v.source);
     }
     actuals_.emplace_back(std::move(*actual));
-  } else if (!isAltReturn) {
+  } else {
     fatalErrors_ = true;
   }
 }
@@ -2922,7 +2974,8 @@ bool ArgumentAnalyzer::CheckConformance() const {
       auto rhShape{GetShape(foldingContext, *rhs)};
       if (lhShape && rhShape) {
         return evaluate::CheckConformance(foldingContext.messages(), *lhShape,
-            *rhShape, "left operand", "right operand");
+            *rhShape, "left operand", "right operand", true,
+            true /* scalar expansion is allowed */);
       }
     }
   }
@@ -2931,7 +2984,7 @@ bool ArgumentAnalyzer::CheckConformance() const {
 
 MaybeExpr ArgumentAnalyzer::TryDefinedOp(
     const char *opr, parser::MessageFixedText &&error, bool isUserOp) {
-  if (AnyUntypedOperand()) {
+  if (AnyUntypedOrMissingOperand()) {
     context_.Say(
         std::move(error), ToUpperCase(opr), TypeAsFortran(0), TypeAsFortran(1));
     return std::nullopt;
@@ -3246,7 +3299,9 @@ void ArgumentAnalyzer::SayNoMatch(const std::string &opr, bool isAssignment) {
 }
 
 std::string ArgumentAnalyzer::TypeAsFortran(std::size_t i) {
-  if (std::optional<DynamicType> type{GetType(i)}) {
+  if (i >= actuals_.size() || !actuals_[i]) {
+    return "missing argument";
+  } else if (std::optional<DynamicType> type{GetType(i)}) {
     return type->category() == TypeCategory::Derived
         ? "TYPE("s + type->AsFortran() + ')'
         : type->category() == TypeCategory::Character
@@ -3257,9 +3312,9 @@ std::string ArgumentAnalyzer::TypeAsFortran(std::size_t i) {
   }
 }
 
-bool ArgumentAnalyzer::AnyUntypedOperand() {
+bool ArgumentAnalyzer::AnyUntypedOrMissingOperand() {
   for (const auto &actual : actuals_) {
-    if (!actual.value().GetType()) {
+    if (!actual || !actual->GetType()) {
       return true;
     }
   }

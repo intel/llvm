@@ -44,7 +44,7 @@ class LLVM_LIBRARY_VISIBILITY AMDGPUTargetInfo final : public TargetInfo {
   unsigned WavefrontSize;
 
   /// Target ID is device name followed by optional feature name postfixed
-  /// by plus or minus sign delimitted by colon, e.g. gfx908:xnack+:sram-ecc-.
+  /// by plus or minus sign delimitted by colon, e.g. gfx908:xnack+:sramecc-.
   /// If the target ID contains feature+, map it to true.
   /// If the target ID contains feature-, map it to false.
   /// If the target ID does not contain a feature (default), do not map it.
@@ -285,6 +285,8 @@ public:
   void setSupportedOpenCLOpts() override {
     auto &Opts = getSupportedOpenCLOpts();
     Opts.support("cl_clang_storage_class_specifiers");
+    Opts.support("__cl_clang_function_pointers");
+    Opts.support("__cl_clang_variadic_functions");
 
     bool IsAMDGCN = isAMDGCN(getTriple());
 

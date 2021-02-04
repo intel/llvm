@@ -15,7 +15,9 @@ else:
 ##### Assembly parser
 
 ASM_FUNCTION_X86_RE = re.compile(
-    r'^_?(?P<func>[^:]+):[ \t]*#+[ \t]*(@"?(?P=func)"?| -- Begin function (?P=func))\n(?:\s*\.?Lfunc_begin[^:\n]*:\n)?[^:]*?'
+    r'^_?(?P<func>[^:]+):[ \t]*#+[ \t]*(@"?(?P=func)"?| -- Begin function (?P=func))\n(?:\s*\.?Lfunc_begin[^:\n]*:\n)?'
+    r'(?:\.L[^$]+\$local:\n)?'      # drop .L<func>$local:
+    r'(?:[ \t]+.cfi_startproc\n|.seh_proc[^\n]+\n)?'  # drop optional cfi
     r'(?P<body>^##?[ \t]+[^:]+:.*?)\s*'
     r'^\s*(?:[^:\n]+?:\s*\n\s*\.size|\.cfi_endproc|\.globl|\.comm|\.(?:sub)?section|#+ -- End function)',
     flags=(re.M | re.S))
@@ -66,15 +68,14 @@ ASM_FUNCTION_MSP430_RE = re.compile(
     flags=(re.M | re.S))
 
 ASM_FUNCTION_PPC_RE = re.compile(
-    r'^_?(?P<func>[^:]+):[ \t]*#+[ \t]*@"?(?P=func)"?\n'
+    r'#[ \-\t]*Begin function (?P<func>[^.:]+)\n'
     r'.*?'
-    r'\.Lfunc_begin[0-9]+:\n'
-    r'(?:[ \t]+.cfi_startproc\n)?'
-    r'(?:\.Lfunc_[gl]ep[0-9]+:\n(?:[ \t]+.*?\n)*)*'
+    r'^[_.]?(?P=func):(?:[ \t]*#+[ \t]*@"?(?P=func)"?)?\n'
+    r'(?:^[^#]*\n)*'
     r'(?P<body>.*?)\n'
     # This list is incomplete
-    r'(?:^[ \t]*(?:\.long[ \t]+[^\n]+|\.quad[ \t]+[^\n]+)\n)*'
-    r'.Lfunc_end[0-9]+:\n',
+    r'(?:^[ \t]*(?:\.(?:long|quad|v?byte)[ \t]+[^\n]+)\n)*'
+    r'(?:\.Lfunc_end|L\.\.(?P=func))[0-9]+:\n',
     flags=(re.M | re.S))
 
 ASM_FUNCTION_RISCV_RE = re.compile(
@@ -177,8 +178,9 @@ def scrub_asm_x86(asm, args):
   # Detect stack spills and reloads and hide their exact offset and whether
   # they used the stack pointer or frame pointer.
   asm = SCRUB_X86_SPILL_RELOAD_RE.sub(r'{{[-0-9]+}}(%\1{{[sb]}}p)\2', asm)
-  # Generically match the stack offset of a memory operand.
-  asm = SCRUB_X86_SP_RE.sub(r'{{[0-9]+}}(%\1)', asm)
+  if getattr(args, 'x86_scrub_sp', True):
+    # Generically match the stack offset of a memory operand.
+    asm = SCRUB_X86_SP_RE.sub(r'{{[0-9]+}}(%\1)', asm)
   if getattr(args, 'x86_scrub_rip', False):
     # Generically match a RIP-relative memory operand.
     asm = SCRUB_X86_RIP_RE.sub(r'{{.*}}(%rip)', asm)
@@ -323,8 +325,7 @@ def get_triple_from_march(march):
   print("Cannot find a triple. Assume 'x86'", file=sys.stderr)
   return 'x86'
 
-def build_function_body_dictionary_for_triple(args, raw_tool_output, triple,
-                                              prefixes, func_dict, func_order):
+def get_run_handler(triple):
   target_handlers = {
       'i686': (scrub_asm_x86, ASM_FUNCTION_X86_RE),
       'x86': (scrub_asm_x86, ASM_FUNCTION_X86_RE),
@@ -336,6 +337,7 @@ def build_function_body_dictionary_for_triple(args, raw_tool_output, triple,
       'amdgcn': (scrub_asm_amdgpu, ASM_FUNCTION_AMDGPU_RE),
       'arm': (scrub_asm_arm_eabi, ASM_FUNCTION_ARM_RE),
       'arm64': (scrub_asm_arm_eabi, ASM_FUNCTION_AARCH64_RE),
+      'arm64e': (scrub_asm_arm_eabi, ASM_FUNCTION_AARCH64_DARWIN_RE),
       'arm64-apple-ios': (scrub_asm_arm_eabi, ASM_FUNCTION_AARCH64_DARWIN_RE),
       'armv7-apple-ios' : (scrub_asm_arm_eabi, ASM_FUNCTION_ARM_IOS_RE),
       'armv7-apple-darwin': (scrub_asm_arm_eabi, ASM_FUNCTION_ARM_DARWIN_RE),
@@ -364,10 +366,7 @@ def build_function_body_dictionary_for_triple(args, raw_tool_output, triple,
   if handler is None:
     raise KeyError('Triple %r is not supported' % (triple))
 
-  scrubber, function_re = handler
-  common.build_function_body_dictionary(
-          function_re, scrubber, [args], raw_tool_output, prefixes,
-          func_dict, func_order, args.verbose, False, False)
+  return handler
 
 ##### Generator of assembly CHECK lines
 

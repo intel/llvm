@@ -1436,6 +1436,13 @@ template <class ELFT> void DynamicSection<ELFT>::finalizeContents() {
     case EM_SPARCV9:
       addInSec(DT_PLTGOT, in.plt);
       break;
+    case EM_AARCH64:
+      if (llvm::find_if(in.relaPlt->relocs, [](const DynamicReloc &r) {
+           return r.type == target->pltRel &&
+                  r.sym->stOther & STO_AARCH64_VARIANT_PCS;
+          }) != in.relaPlt->relocs.end())
+        addInt(DT_AARCH64_VARIANT_PCS, 0);
+      LLVM_FALLTHROUGH;
     default:
       addInSec(DT_PLTGOT, in.gotPlt);
       break;
@@ -2181,6 +2188,10 @@ template <class ELFT> void SymbolTableSection<ELFT>::writeTo(uint8_t *buf) {
     // See getPPC64GlobalEntryToLocalEntryOffset() for more details.
     if (config->emachine == EM_PPC64)
       eSym->st_other |= sym->stOther & 0xe0;
+    // The most significant bit of st_other is used by AArch64 ABI for the
+    // variant PCS.
+    else if (config->emachine == EM_AARCH64)
+      eSym->st_other |= sym->stOther & STO_AARCH64_VARIANT_PCS;
 
     eSym->st_name = ent.strTabOffset;
     if (isDefinedHere)
@@ -2868,6 +2879,13 @@ template <class ELFT> GdbIndexSection *GdbIndexSection::create() {
     else if (isec->name == ".debug_info")
       files.insert(isec->file);
   }
+  // Drop .rel[a].debug_gnu_pub{names,types} for --emit-relocs.
+  llvm::erase_if(inputSections, [](InputSectionBase *s) {
+    if (auto *isec = dyn_cast<InputSection>(s))
+      if (InputSectionBase *rel = isec->getRelocatedSection())
+        return !rel->isLive();
+    return !s->isLive();
+  });
 
   std::vector<GdbChunk> chunks(files.size());
   std::vector<std::vector<NameAttrEntry>> nameAttrs(files.size());

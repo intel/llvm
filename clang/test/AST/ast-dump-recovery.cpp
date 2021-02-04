@@ -121,6 +121,31 @@ void test(int x) {
   foo->func(x);
 }
 
+struct Foo2 {
+  double func();
+  class ForwardClass;
+  ForwardClass createFwd();
+
+  int overload();
+  int overload(int, int);
+};
+void test2(Foo2 f) {
+  // CHECK:      RecoveryExpr {{.*}} 'double'
+  // CHECK-NEXT:   |-MemberExpr {{.*}} '<bound member function type>'
+  // CHECK-NEXT:   | `-DeclRefExpr {{.*}} 'f'
+  // CHECK-NEXT: `-IntegerLiteral {{.*}} 'int' 1
+  f.func(1);
+  // CHECK:      RecoveryExpr {{.*}} 'Foo2::ForwardClass'
+  // CHECK-NEXT: `-MemberExpr {{.*}} '<bound member function type>' .createFwd
+  // CHECK-NEXT:   `-DeclRefExpr {{.*}} 'f'
+  f.createFwd();
+  // CHECK:      RecoveryExpr {{.*}} 'int' contains-errors
+  // CHECK-NEXT: |-UnresolvedMemberExpr
+  // CHECK-NEXT:    `-DeclRefExpr {{.*}} 'Foo2'
+  // CHECK-NEXT: `-IntegerLiteral {{.*}} 'int' 1
+  f.overload(1);
+}
+
 // CHECK:     |-AlignedAttr {{.*}} alignas
 // CHECK-NEXT:| `-RecoveryExpr {{.*}} contains-errors
 // CHECK-NEXT:|   `-UnresolvedLookupExpr {{.*}} 'invalid'
@@ -270,15 +295,4 @@ void InvalidCondition() {
   // CHECK-NEXT: |-IntegerLiteral {{.*}} 'int' 1
   // CHECK-NEXT: `-IntegerLiteral {{.*}} 'int' 2
   invalid() ? 1 : 2;
-}
-
-void abcc();
-void TypoCorrection() {
-  // RecoveryExpr is always dependent-type in this case in order to suppress
-  // following diagnostics.
-  // CHECK:      RecoveryExpr {{.*}} '<dependent type>'
-  // CHECK-NEXT: `-CallExpr {{.*}} 'void'
-  // CHECK-NEXT:   `-ImplicitCastExpr
-  // CHECK-NEXT:     `-DeclRefExpr {{.*}} 'abcc'
-  abc();
 }

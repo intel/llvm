@@ -109,6 +109,8 @@ def X86vextractst  : SDNode<"X86ISD::VEXTRACT_STORE", SDTStore,
                      [SDNPHasChain, SDNPMayStore, SDNPMemOperand]>;
 def X86VBroadcastld  : SDNode<"X86ISD::VBROADCAST_LOAD", SDTLoad,
                       [SDNPHasChain, SDNPMayLoad, SDNPMemOperand]>;
+def X86SubVBroadcastld : SDNode<"X86ISD::SUBV_BROADCAST_LOAD", SDTLoad,
+                         [SDNPHasChain, SDNPMayLoad, SDNPMemOperand]>;
 
 def SDTVtrunc    : SDTypeProfile<1, 1, [SDTCisVec<0>, SDTCisVec<1>,
                                         SDTCisInt<0>, SDTCisInt<1>,
@@ -493,10 +495,6 @@ def X86Vfpclasss   : SDNode<"X86ISD::VFPCLASSS",
                        SDTypeProfile<1, 2, [SDTCisVT<0, v1i1>,
                                             SDTCisFP<1>, SDTCisVT<2, i32>]>,[]>;
 
-def X86SubVBroadcast : SDNode<"X86ISD::SUBV_BROADCAST",
-                    SDTypeProfile<1, 1, [SDTCisVec<0>, SDTCisVec<1>,
-                                         SDTCisSubVecOfVec<1, 0>]>, []>;
-
 def X86VBroadcast : SDNode<"X86ISD::VBROADCAST", SDTVBroadcast>;
 def X86VBroadcastm : SDNode<"X86ISD::VBROADCASTM", SDTVBroadcastm>;
 
@@ -538,11 +536,6 @@ def X86fgetexpSAE   : SDNode<"X86ISD::FGETEXP_SAE", SDTFPUnaryOp>;
 def X86fgetexps     : SDNode<"X86ISD::FGETEXPS", SDTFPBinOp>;
 def X86fgetexpSAEs  : SDNode<"X86ISD::FGETEXPS_SAE", SDTFPBinOp>;
 
-def X86Fmadd        : SDNode<"ISD::FMA",          SDTFPTernaryOp, [SDNPCommutative]>;
-def X86strict_Fmadd : SDNode<"ISD::STRICT_FMA",   SDTFPTernaryOp, [SDNPCommutative, SDNPHasChain]>;
-def X86any_Fmadd    : PatFrags<(ops node:$src1, node:$src2, node:$src3),
-                               [(X86strict_Fmadd node:$src1, node:$src2, node:$src3),
-                                (X86Fmadd node:$src1, node:$src2, node:$src3)]>;
 def X86Fnmadd    : SDNode<"X86ISD::FNMADD",    SDTFPTernaryOp, [SDNPCommutative]>;
 def X86strict_Fnmadd : SDNode<"X86ISD::STRICT_FNMADD", SDTFPTernaryOp, [SDNPCommutative, SDNPHasChain]>;
 def X86any_Fnmadd : PatFrags<(ops node:$src1, node:$src2, node:$src3),
@@ -966,6 +959,16 @@ def X86VBroadcastld32 : PatFrag<(ops node:$src),
 def X86VBroadcastld64 : PatFrag<(ops node:$src),
                                 (X86VBroadcastld node:$src), [{
   return cast<MemIntrinsicSDNode>(N)->getMemoryVT().getStoreSize() == 8;
+}]>;
+
+def X86SubVBroadcastld128 : PatFrag<(ops node:$src),
+                                    (X86SubVBroadcastld node:$src), [{
+  return cast<MemIntrinsicSDNode>(N)->getMemoryVT().getStoreSize() == 16;
+}]>;
+
+def X86SubVBroadcastld256 : PatFrag<(ops node:$src),
+                                    (X86SubVBroadcastld node:$src), [{
+  return cast<MemIntrinsicSDNode>(N)->getMemoryVT().getStoreSize() == 32;
 }]>;
 
 // Scalar SSE intrinsic fragments to match several different types of loads.

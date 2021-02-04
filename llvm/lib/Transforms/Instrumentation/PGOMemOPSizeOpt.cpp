@@ -22,6 +22,7 @@
 #include "llvm/Analysis/DomTreeUpdater.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Dominators.h"
@@ -253,7 +254,7 @@ public:
     LibFunc Func;
     if (TLI.getLibFunc(CI, Func) &&
         (Func == LibFunc_memcmp || Func == LibFunc_bcmp) &&
-        !dyn_cast<ConstantInt>(CI.getArgOperand(2))) {
+        !isa<ConstantInt>(CI.getArgOperand(2))) {
       WorkList.push_back(MemOp(&CI));
     }
   }

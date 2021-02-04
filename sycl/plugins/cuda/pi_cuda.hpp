@@ -217,7 +217,7 @@ struct _pi_mem {
       /// Pointer to the active mapped region, if any
       void *mapPtr_;
       /// Original flags for the mapped region
-      cl_map_flags mapFlags_;
+      pi_map_flags mapFlags_;
 
       /** alloc_mode
        * classic: Just a normal buffer allocated on the device via cuda malloc
@@ -245,7 +245,7 @@ struct _pi_mem {
       /// the data on the device associated with this allocation.
       /// The offset is used to index into the CUDA allocation.
       ///
-      void *map_to_ptr(size_t offset, cl_map_flags flags) noexcept {
+      void *map_to_ptr(size_t offset, pi_map_flags flags) noexcept {
         assert(mapPtr_ == nullptr);
         mapOffset_ = offset;
         mapFlags_ = flags;
@@ -269,7 +269,7 @@ struct _pi_mem {
         mapOffset_ = 0;
       }
 
-      cl_map_flags get_map_flags() const noexcept {
+      pi_map_flags get_map_flags() const noexcept {
         assert(mapPtr_ != nullptr);
         return mapFlags_;
       }
@@ -299,7 +299,7 @@ struct _pi_mem {
     mem_.buffer_mem_.size_ = size;
     mem_.buffer_mem_.mapOffset_ = 0;
     mem_.buffer_mem_.mapPtr_ = nullptr;
-    mem_.buffer_mem_.mapFlags_ = CL_MAP_WRITE;
+    mem_.buffer_mem_.mapFlags_ = PI_MAP_WRITE;
     mem_.buffer_mem_.allocMode_ = mode;
     if (is_sub_buffer()) {
       cuda_piMemRetain(mem_.buffer_mem_.parent_);

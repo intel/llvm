@@ -433,9 +433,7 @@ void PruningFunctionCloner::CloneBlock(const BasicBlock *BB,
           CodeInfo->OperandBundleCallSites.push_back(NewInst);
 
     // Recursively clone any reachable successor blocks.
-    const Instruction *TI = BB->getTerminator();
-    for (const BasicBlock *Succ : successors(TI))
-      ToClone.push_back(Succ);
+    append_range(ToClone, successors(BB->getTerminator()));
   }
 
   if (CodeInfo) {
@@ -675,8 +673,7 @@ void llvm::CloneAndPruneIntoFromInst(Function *NewFunc, const Function *OldFunc,
     // Check if this block has become dead during inlining or other
     // simplifications. Note that the first block will appear dead, as it has
     // not yet been wired up properly.
-    if (I != Begin && (pred_begin(&*I) == pred_end(&*I) ||
-                       I->getSinglePredecessor() == &*I)) {
+    if (I != Begin && (pred_empty(&*I) || I->getSinglePredecessor() == &*I)) {
       BasicBlock *DeadBB = &*I++;
       DeleteDeadBlock(DeadBB);
       continue;

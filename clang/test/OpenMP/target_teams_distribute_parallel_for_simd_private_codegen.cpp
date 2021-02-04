@@ -103,12 +103,12 @@ S<float> var(3);
 int main() {
   static int sivar;
 #ifdef LAMBDA
-  // HLAMBDA: [[G:@.+]] = global i{{[0-9]+}} 1212,
+  // HLAMBDA: [[G:@.+]] ={{.*}} global i{{[0-9]+}} 1212,
   // HLAMBDA-LABEL: @main
   // HLAMBDA: call void [[OUTER_LAMBDA:@.+]](
   [&]() {
     // HLAMBDA: define{{.*}} internal{{.*}} void [[OUTER_LAMBDA]](
-    // HLAMBDA: call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 0,
+    // HLAMBDA: call i32 @__tgt_target_teams_mapper(%struct.ident_t* @{{.+}}, i64 -1, i8* @{{[^,]+}}, i32 0,
     // HLAMBDA: call void @[[LOFFL1:.+]](
     // HLAMBDA:  ret
 #pragma omp target teams distribute parallel for simd private(g, g1, sivar)
@@ -167,7 +167,7 @@ int main() {
     // LAMBDA: call void @__kmpc_for_static_fini(
     // LAMBDA: ret void
     [&]() {
-      // LAMBDA: define {{.+}} void [[INNER_LAMBDA]](%{{.+}}* [[ARG_PTR:%.+]])
+      // LAMBDA: define {{.+}} void [[INNER_LAMBDA]]({{.+}} [[ARG_PTR:%.+]])
       // LAMBDA: store %{{.+}}* [[ARG_PTR]], %{{.+}}** [[ARG_PTR_REF:%.+]],
       g = 2;
       g1 = 2;
@@ -199,7 +199,7 @@ int main() {
 }
 
 // HCHECK: define {{.*}}i{{[0-9]+}} @main()
-// HCHECK: call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 0, i8** null, i8** null, {{.+}} null, {{.+}} null, i8** null, i32 0, i32 0)
+// HCHECK: call i32 @__tgt_target_teams_mapper(%struct.ident_t* @{{.+}}, i64 -1, i8* @{{[^,]+}}, i32 0, i8** null, i8** null, {{.+}} null, {{.+}} null, i8** null, i8** null, i32 0, i32 0)
 // HCHECK: call void @[[OFFL1:.+]]()
 // HCHECK: {{%.+}} = call{{.*}} i32 @[[TMAIN_INT:.+]]()
 // HCHECK:  ret
@@ -277,12 +277,12 @@ int main() {
 // CHECK: ret void
 
 // HCHECK: define{{.*}} i{{[0-9]+}} @[[TMAIN_INT]]()
-// HCHECK: call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 0,
+// HCHECK: call i32 @__tgt_target_teams_mapper(%struct.ident_t* @{{.+}}, i64 -1, i8* @{{[^,]+}}, i32 0,
 // HCHECK: call void @[[TOFFL1:.+]]()
 // HCHECK: ret
 
 // HCHECK: define {{.*}}void @[[TOFFL1]]()
-// TCHECK: define weak void @[[TOFFL1:.+]]()
+// TCHECK: define weak{{.*}} void @[[TOFFL1:.+]]()
 // CHECK: call void {{.+}} @__kmpc_fork_teams({{.+}}, i32 0, {{.+}} @[[TOUTL1:.+]] to {{.+}})
 // CHECK: ret void
 

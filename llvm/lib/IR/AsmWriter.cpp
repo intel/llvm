@@ -399,6 +399,7 @@ static void PrintCallingConv(unsigned cc, raw_ostream &Out) {
   case CallingConv::AMDGPU_PS:     Out << "amdgpu_ps"; break;
   case CallingConv::AMDGPU_CS:     Out << "amdgpu_cs"; break;
   case CallingConv::AMDGPU_KERNEL: Out << "amdgpu_kernel"; break;
+  case CallingConv::AMDGPU_Gfx:    Out << "amdgpu_gfx"; break;
   }
 }
 
@@ -608,6 +609,7 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
   case Type::LabelTyID:     OS << "label"; return;
   case Type::MetadataTyID:  OS << "metadata"; return;
   case Type::X86_MMXTyID:   OS << "x86_mmx"; return;
+  case Type::X86_AMXTyID:   OS << "x86_amx"; return;
   case Type::TokenTyID:     OS << "token"; return;
   case Type::IntegerTyID:
     OS << 'i' << cast<IntegerType>(Ty)->getBitWidth();
@@ -1366,9 +1368,8 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
         // "Inf" or NaN, that atof will accept, but the lexer will not.  Check
         // that the string matches the "[-+]?[0-9]" regex.
         //
-        assert(((StrVal[0] >= '0' && StrVal[0] <= '9') ||
-                ((StrVal[0] == '-' || StrVal[0] == '+') &&
-                 (StrVal[1] >= '0' && StrVal[1] <= '9'))) &&
+        assert((isDigit(StrVal[0]) || ((StrVal[0] == '-' || StrVal[0] == '+') &&
+                                       isDigit(StrVal[1]))) &&
                "[-+]?[0-9] regex does not match!");
         // Reparse stringized version!
         if (APFloat(APFloat::IEEEdouble(), StrVal).convertToDouble() == Val) {
@@ -1451,6 +1452,13 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
     WriteAsOperandInternal(Out, BA->getBasicBlock(), &TypePrinter, Machine,
                            Context);
     Out << ")";
+    return;
+  }
+
+  if (const auto *Equiv = dyn_cast<DSOLocalEquivalent>(CV)) {
+    Out << "dso_local_equivalent ";
+    WriteAsOperandInternal(Out, Equiv->getGlobalValue(), &TypePrinter, Machine,
+                           Context);
     return;
   }
 
@@ -1557,6 +1565,11 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
 
   if (isa<ConstantTokenNone>(CV)) {
     Out << "none";
+    return;
+  }
+
+  if (isa<PoisonValue>(CV)) {
+    Out << "poison";
     return;
   }
 
@@ -2232,6 +2245,7 @@ static void writeDIModule(raw_ostream &Out, const DIModule *N,
   Printer.printString("apinotes", N->getAPINotesFile());
   Printer.printMetadata("file", N->getRawFile());
   Printer.printInt("line", N->getLineNo());
+  Printer.printBool("isDecl", N->getIsDecl(), /* Default */ false);
   Out << ")";
 }
 

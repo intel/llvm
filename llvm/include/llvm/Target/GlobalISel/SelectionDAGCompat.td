@@ -26,8 +26,8 @@ class GINodeEquiv<Instruction i, SDNode node> {
   // SelectionDAG has separate nodes for atomic and non-atomic memory operations
   // (ISD::LOAD, ISD::ATOMIC_LOAD, ISD::STORE, ISD::ATOMIC_STORE) but GlobalISel
   // stores this information in the MachineMemoryOperand.
-  bit CheckMMOIsNonAtomic = 0;
-  bit CheckMMOIsAtomic = 0;
+  bit CheckMMOIsNonAtomic = false;
+  bit CheckMMOIsAtomic = false;
 
   // SelectionDAG has one node for all loads and uses predicates to
   // differentiate them. GlobalISel on the other hand uses separate opcodes.
@@ -116,7 +116,7 @@ def : GINodeEquiv<G_CTTZ, cttz>;
 def : GINodeEquiv<G_CTLZ_ZERO_UNDEF, ctlz_zero_undef>;
 def : GINodeEquiv<G_CTTZ_ZERO_UNDEF, cttz_zero_undef>;
 def : GINodeEquiv<G_CTPOP, ctpop>;
-def : GINodeEquiv<G_EXTRACT_VECTOR_ELT, vector_extract>;
+def : GINodeEquiv<G_EXTRACT_VECTOR_ELT, extractelt>;
 def : GINodeEquiv<G_CONCAT_VECTORS, concat_vectors>;
 def : GINodeEquiv<G_BUILD_VECTOR, build_vector>;
 def : GINodeEquiv<G_FCEIL, fceil>;
@@ -158,7 +158,7 @@ def : GINodeEquiv<G_STRICT_FSQRT, strict_fsqrt>;
 // separate nodes for them. This GINodeEquiv maps the non-atomic loads to
 // G_LOAD with a non-atomic MachineMemOperand.
 def : GINodeEquiv<G_LOAD, ld> {
-  let CheckMMOIsNonAtomic = 1;
+  let CheckMMOIsNonAtomic = true;
   let IfSignExtend = G_SEXTLOAD;
   let IfZeroExtend = G_ZEXTLOAD;
 }
@@ -174,17 +174,17 @@ def : GINodeEquiv<G_ICMP, setcc> {
 // G_STORE handles both atomic and non-atomic stores where as SelectionDAG had
 // separate nodes for them. This GINodeEquiv maps the non-atomic stores to
 // G_STORE with a non-atomic MachineMemOperand.
-def : GINodeEquiv<G_STORE, st> { let CheckMMOIsNonAtomic = 1; }
+def : GINodeEquiv<G_STORE, st> { let CheckMMOIsNonAtomic = true; }
 
 def : GINodeEquiv<G_LOAD, atomic_load> {
-  let CheckMMOIsNonAtomic = 0;
-  let CheckMMOIsAtomic = 1;
+  let CheckMMOIsNonAtomic = false;
+  let CheckMMOIsAtomic = true;
 }
 
 // Operands are swapped for atomic_store vs. regular store
 def : GINodeEquiv<G_STORE, atomic_store> {
-  let CheckMMOIsNonAtomic = 0;
-  let CheckMMOIsAtomic = 1;
+  let CheckMMOIsNonAtomic = false;
+  let CheckMMOIsAtomic = true;
 }
 
 def : GINodeEquiv<G_ATOMIC_CMPXCHG, atomic_cmp_swap>;

@@ -30,6 +30,43 @@
 namespace llvm {
 namespace object {
 
+struct VerdAux {
+  unsigned Offset;
+  std::string Name;
+};
+
+struct VerDef {
+  unsigned Offset;
+  unsigned Version;
+  unsigned Flags;
+  unsigned Ndx;
+  unsigned Cnt;
+  unsigned Hash;
+  std::string Name;
+  std::vector<VerdAux> AuxV;
+};
+
+struct VernAux {
+  unsigned Hash;
+  unsigned Flags;
+  unsigned Other;
+  unsigned Offset;
+  std::string Name;
+};
+
+struct VerNeed {
+  unsigned Version;
+  unsigned Cnt;
+  unsigned Offset;
+  std::string File;
+  std::vector<VernAux> AuxV;
+};
+
+struct VersionEntry {
+  std::string Name;
+  bool IsVerDef;
+};
+
 StringRef getELFRelocationTypeName(uint32_t Machine, uint32_t Type);
 uint32_t getELFRelativeRelocationType(uint32_t Machine);
 StringRef getELFSectionTypeName(uint32_t Machine, uint32_t Type);
@@ -57,6 +94,36 @@ enum PPCInstrMasks : uint64_t {
 
 template <class ELFT> class ELFFile;
 
+template <class T> struct DataRegion {
+  // This constructor is used when we know the start and the size of a data
+  // region. We assume that Arr does not go past the end of the file.
+  DataRegion(ArrayRef<T> Arr) : First(Arr.data()), Size(Arr.size()) {}
+
+  // Sometimes we only know the start of a data region. We still don't want to
+  // read past the end of the file, so we provide the end of a buffer.
+  DataRegion(const T *Data, const uint8_t *BufferEnd)
+      : First(Data), BufEnd(BufferEnd) {}
+
+  Expected<T> operator[](uint64_t N) {
+    assert(Size || BufEnd);
+    if (Size) {
+      if (N >= *Size)
+        return createError(
+            "the index is greater than or equal to the number of entries (" +
+            Twine(*Size) + ")");
+    } else {
+      const uint8_t *EntryStart = (const uint8_t *)First + N * sizeof(T);
+      if (EntryStart + sizeof(T) > BufEnd)
+        return createError("can't read past the end of the file");
+    }
+    return *(First + N);
+  }
+
+  const T *First;
+  Optional<uint64_t> Size = None;
+  const uint8_t *BufEnd = nullptr;
+};
+
 template <class ELFT>
 std::string getSecIndexForError(const ELFFile<ELFT> &Obj,
                                 const typename ELFT::Shdr &Sec) {
@@ -69,6 +136,16 @@ std::string getSecIndexForError(const ELFFile<ELFT> &Obj,
   // failure.
   llvm::consumeError(TableOrErr.takeError());
   return "[unknown index]";
+}
+
+template <class ELFT>
+static std::string describe(const ELFFile<ELFT> &Obj,
+                            const typename ELFT::Shdr &Sec) {
+  unsigned SecNdx = &Sec - &cantFail(Obj.sections()).front();
+  return (object::getELFSectionTypeName(Obj.getHeader().e_machine,
+                                        Sec.sh_type) +
+          " section with index " + Twine(SecNdx))
+      .str();
 }
 
 template <class ELFT>
@@ -90,32 +167,6 @@ template <class ELFT>
 class ELFFile {
 public:
   LLVM_ELF_IMPORT_TYPES_ELFT(ELFT)
-  using uintX_t = typename ELFT::uint;
-  using Elf_Ehdr = typename ELFT::Ehdr;
-  using Elf_Shdr = typename ELFT::Shdr;
-  using Elf_Sym = typename ELFT::Sym;
-  using Elf_Dyn = typename ELFT::Dyn;
-  using Elf_Phdr = typename ELFT::Phdr;
-  using Elf_Rel = typename ELFT::Rel;
-  using Elf_Rela = typename ELFT::Rela;
-  using Elf_Relr = typename ELFT::Relr;
-  using Elf_Verdef = typename ELFT::Verdef;
-  using Elf_Verdaux = typename ELFT::Verdaux;
-  using Elf_Verneed = typename ELFT::Verneed;
-  using Elf_Vernaux = typename ELFT::Vernaux;
-  using Elf_Versym = typename ELFT::Versym;
-  using Elf_Hash = typename ELFT::Hash;
-  using Elf_GnuHash = typename ELFT::GnuHash;
-  using Elf_Nhdr = typename ELFT::Nhdr;
-  using Elf_Note = typename ELFT::Note;
-  using Elf_Note_Iterator = typename ELFT::NoteIterator;
-  using Elf_Dyn_Range = typename ELFT::DynRange;
-  using Elf_Shdr_Range = typename ELFT::ShdrRange;
-  using Elf_Sym_Range = typename ELFT::SymRange;
-  using Elf_Rel_Range = typename ELFT::RelRange;
-  using Elf_Rela_Range = typename ELFT::RelaRange;
-  using Elf_Relr_Range = typename ELFT::RelrRange;
-  using Elf_Phdr_Range = typename ELFT::PhdrRange;
 
   // This is a callback that can be passed to a number of functions.
   // It can be used to ignore non-critical errors (warnings), which is
@@ -125,6 +176,7 @@ public:
   using WarningHandler = llvm::function_ref<Error(const Twine &Msg)>;
 
   const uint8_t *base() const { return Buf.bytes_begin(); }
+  const uint8_t *end() const { return base() + getBufSize(); }
 
   size_t getBufSize() const { return Buf.size(); }
 
@@ -143,12 +195,22 @@ public:
   template <typename T>
   Expected<const T *> getEntry(const Elf_Shdr &Section, uint32_t Entry) const;
 
+  Expected<std::vector<VerDef>>
+  getVersionDefinitions(const Elf_Shdr &Sec) const;
+  Expected<std::vector<VerNeed>> getVersionDependencies(
+      const Elf_Shdr &Sec,
+      WarningHandler WarnHandler = &defaultWarningHandler) const;
+  Expected<StringRef> getSymbolVersionByIndex(
+      uint32_t SymbolVersionIndex, bool &IsDefault,
+      SmallVector<Optional<VersionEntry>, 0> &VersionMap) const;
+
   Expected<StringRef>
   getStringTable(const Elf_Shdr &Section,
                  WarningHandler WarnHandler = &defaultWarningHandler) const;
   Expected<StringRef> getStringTableForSymtab(const Elf_Shdr &Section) const;
   Expected<StringRef> getStringTableForSymtab(const Elf_Shdr &Section,
                                               Elf_Shdr_Range Sections) const;
+  Expected<StringRef> getLinkAsStrtab(const typename ELFT::Shdr &Sec) const;
 
   Expected<ArrayRef<Elf_Word>> getSHNDXTable(const Elf_Shdr &Section) const;
   Expected<ArrayRef<Elf_Word>> getSHNDXTable(const Elf_Shdr &Section,
@@ -165,6 +227,9 @@ public:
   /// Get the symbol for a given relocation.
   Expected<const Elf_Sym *> getRelocationSymbol(const Elf_Rel &Rel,
                                                 const Elf_Shdr *SymTab) const;
+
+  Expected<SmallVector<Optional<VersionEntry>, 0>>
+  loadVersionMap(const Elf_Shdr *VerNeedSec, const Elf_Shdr *VerDefSec) const;
 
   static Expected<ELFFile> create(StringRef Object);
 
@@ -183,7 +248,9 @@ public:
 
   Expected<Elf_Dyn_Range> dynamicEntries() const;
 
-  Expected<const uint8_t *> toMappedAddr(uint64_t VAddr) const;
+  Expected<const uint8_t *>
+  toMappedAddr(uint64_t VAddr,
+               WarningHandler WarnHandler = &defaultWarningHandler) const;
 
   Expected<Elf_Sym_Range> symbols(const Elf_Shdr *Sec) const {
     if (!Sec)
@@ -238,9 +305,9 @@ public:
     assert(Phdr.p_type == ELF::PT_NOTE && "Phdr is not of type PT_NOTE");
     ErrorAsOutParameter ErrAsOutParam(&Err);
     if (Phdr.p_offset + Phdr.p_filesz > getBufSize()) {
-      Err = createError("PT_NOTE header has invalid offset (0x" +
-                        Twine::utohexstr(Phdr.p_offset) + ") or size (0x" +
-                        Twine::utohexstr(Phdr.p_filesz) + ")");
+      Err =
+          createError("invalid offset (0x" + Twine::utohexstr(Phdr.p_offset) +
+                      ") or size (0x" + Twine::utohexstr(Phdr.p_filesz) + ")");
       return Elf_Note_Iterator(Err);
     }
     return Elf_Note_Iterator(base() + Phdr.p_offset, Phdr.p_filesz, Err);
@@ -257,10 +324,9 @@ public:
     assert(Shdr.sh_type == ELF::SHT_NOTE && "Shdr is not of type SHT_NOTE");
     ErrorAsOutParameter ErrAsOutParam(&Err);
     if (Shdr.sh_offset + Shdr.sh_size > getBufSize()) {
-      Err = createError("SHT_NOTE section " + getSecIndexForError(*this, Shdr) +
-                        " has invalid offset (0x" +
-                        Twine::utohexstr(Shdr.sh_offset) + ") or size (0x" +
-                        Twine::utohexstr(Shdr.sh_size) + ")");
+      Err =
+          createError("invalid offset (0x" + Twine::utohexstr(Shdr.sh_offset) +
+                      ") or size (0x" + Twine::utohexstr(Shdr.sh_size) + ")");
       return Elf_Note_Iterator(Err);
     }
     return Elf_Note_Iterator(base() + Shdr.sh_offset, Shdr.sh_size, Err);
@@ -299,13 +365,13 @@ public:
       Elf_Shdr_Range Sections,
       WarningHandler WarnHandler = &defaultWarningHandler) const;
   Expected<uint32_t> getSectionIndex(const Elf_Sym &Sym, Elf_Sym_Range Syms,
-                                     ArrayRef<Elf_Word> ShndxTable) const;
+                                     DataRegion<Elf_Word> ShndxTable) const;
   Expected<const Elf_Shdr *> getSection(const Elf_Sym &Sym,
                                         const Elf_Shdr *SymTab,
-                                        ArrayRef<Elf_Word> ShndxTable) const;
+                                        DataRegion<Elf_Word> ShndxTable) const;
   Expected<const Elf_Shdr *> getSection(const Elf_Sym &Sym,
                                         Elf_Sym_Range Symtab,
-                                        ArrayRef<Elf_Word> ShndxTable) const;
+                                        DataRegion<Elf_Word> ShndxTable) const;
   Expected<const Elf_Shdr *> getSection(uint32_t Index) const;
 
   Expected<const Elf_Sym *> getSymbol(const Elf_Shdr *Sec,
@@ -338,22 +404,25 @@ getSection(typename ELFT::ShdrRange Sections, uint32_t Index) {
 template <class ELFT>
 inline Expected<uint32_t>
 getExtendedSymbolTableIndex(const typename ELFT::Sym &Sym, unsigned SymIndex,
-                            ArrayRef<typename ELFT::Word> ShndxTable) {
+                            DataRegion<typename ELFT::Word> ShndxTable) {
   assert(Sym.st_shndx == ELF::SHN_XINDEX);
-  if (SymIndex >= ShndxTable.size())
+  if (!ShndxTable.First)
     return createError(
-        "extended symbol index (" + Twine(SymIndex) +
-        ") is past the end of the SHT_SYMTAB_SHNDX section of size " +
-        Twine(ShndxTable.size()));
+        "found an extended symbol index (" + Twine(SymIndex) +
+        "), but unable to locate the extended symbol index table");
 
-  // The size of the table was checked in getSHNDXTable.
-  return ShndxTable[SymIndex];
+  Expected<typename ELFT::Word> TableOrErr = ShndxTable[SymIndex];
+  if (!TableOrErr)
+    return createError("unable to read an extended symbol table at index " +
+                       Twine(SymIndex) + ": " +
+                       toString(TableOrErr.takeError()));
+  return *TableOrErr;
 }
 
 template <class ELFT>
 Expected<uint32_t>
 ELFFile<ELFT>::getSectionIndex(const Elf_Sym &Sym, Elf_Sym_Range Syms,
-                               ArrayRef<Elf_Word> ShndxTable) const {
+                               DataRegion<Elf_Word> ShndxTable) const {
   uint32_t Index = Sym.st_shndx;
   if (Index == ELF::SHN_XINDEX) {
     Expected<uint32_t> ErrorOrIndex =
@@ -370,7 +439,7 @@ ELFFile<ELFT>::getSectionIndex(const Elf_Sym &Sym, Elf_Sym_Range Syms,
 template <class ELFT>
 Expected<const typename ELFT::Shdr *>
 ELFFile<ELFT>::getSection(const Elf_Sym &Sym, const Elf_Shdr *SymTab,
-                          ArrayRef<Elf_Word> ShndxTable) const {
+                          DataRegion<Elf_Word> ShndxTable) const {
   auto SymsOrErr = symbols(SymTab);
   if (!SymsOrErr)
     return SymsOrErr.takeError();
@@ -380,7 +449,7 @@ ELFFile<ELFT>::getSection(const Elf_Sym &Sym, const Elf_Shdr *SymTab,
 template <class ELFT>
 Expected<const typename ELFT::Shdr *>
 ELFFile<ELFT>::getSection(const Elf_Sym &Sym, Elf_Sym_Range Symbols,
-                          ArrayRef<Elf_Word> ShndxTable) const {
+                          DataRegion<Elf_Word> ShndxTable) const {
   auto IndexOrErr = getSectionIndex(Sym, Symbols, ShndxTable);
   if (!IndexOrErr)
     return IndexOrErr.takeError();
@@ -411,7 +480,8 @@ Expected<ArrayRef<T>>
 ELFFile<ELFT>::getSectionContentsAsArray(const Elf_Shdr &Sec) const {
   if (Sec.sh_entsize != sizeof(T) && sizeof(T) != 1)
     return createError("section " + getSecIndexForError(*this, Sec) +
-                       " has an invalid sh_entsize: " + Twine(Sec.sh_entsize));
+                       " has invalid sh_entsize: expected " + Twine(sizeof(T)) +
+                       ", but got " + Twine(Sec.sh_entsize));
 
   uintX_t Offset = Sec.sh_offset;
   uintX_t Size = Sec.sh_size;
@@ -506,6 +576,43 @@ void ELFFile<ELFT>::getRelocationTypeName(uint32_t Type,
 template <class ELFT>
 uint32_t ELFFile<ELFT>::getRelativeRelocationType() const {
   return getELFRelativeRelocationType(getHeader().e_machine);
+}
+
+template <class ELFT>
+Expected<SmallVector<Optional<VersionEntry>, 0>>
+ELFFile<ELFT>::loadVersionMap(const Elf_Shdr *VerNeedSec,
+                              const Elf_Shdr *VerDefSec) const {
+  SmallVector<Optional<VersionEntry>, 0> VersionMap;
+
+  // The first two version indexes are reserved.
+  // Index 0 is VER_NDX_LOCAL, index 1 is VER_NDX_GLOBAL.
+  VersionMap.push_back(VersionEntry());
+  VersionMap.push_back(VersionEntry());
+
+  auto InsertEntry = [&](unsigned N, StringRef Version, bool IsVerdef) {
+    if (N >= VersionMap.size())
+      VersionMap.resize(N + 1);
+    VersionMap[N] = {std::string(Version), IsVerdef};
+  };
+
+  if (VerDefSec) {
+    Expected<std::vector<VerDef>> Defs = getVersionDefinitions(*VerDefSec);
+    if (!Defs)
+      return Defs.takeError();
+    for (const VerDef &Def : *Defs)
+      InsertEntry(Def.Ndx & ELF::VERSYM_VERSION, Def.Name, true);
+  }
+
+  if (VerNeedSec) {
+    Expected<std::vector<VerNeed>> Deps = getVersionDependencies(*VerNeedSec);
+    if (!Deps)
+      return Deps.takeError();
+    for (const VerNeed &Dep : *Deps)
+      for (const VernAux &Aux : Dep.AuxV)
+        InsertEntry(Aux.Other & ELF::VERSYM_VERSION, Aux.Name, false);
+  }
+
+  return VersionMap;
 }
 
 template <class ELFT>
@@ -617,17 +724,219 @@ template <class ELFT>
 template <typename T>
 Expected<const T *> ELFFile<ELFT>::getEntry(const Elf_Shdr &Section,
                                             uint32_t Entry) const {
-  if (sizeof(T) != Section.sh_entsize)
-    return createError("section " + getSecIndexForError(*this, Section) +
-                       " has invalid sh_entsize: expected " + Twine(sizeof(T)) +
-                       ", but got " + Twine(Section.sh_entsize));
-  uint64_t Pos = Section.sh_offset + (uint64_t)Entry * sizeof(T);
-  if (Pos + sizeof(T) > Buf.size())
-    return createError("unable to access section " +
-                       getSecIndexForError(*this, Section) + " data at 0x" +
-                       Twine::utohexstr(Pos) +
-                       ": offset goes past the end of file");
-  return reinterpret_cast<const T *>(base() + Pos);
+  Expected<ArrayRef<T>> EntriesOrErr = getSectionContentsAsArray<T>(Section);
+  if (!EntriesOrErr)
+    return EntriesOrErr.takeError();
+
+  ArrayRef<T> Arr = *EntriesOrErr;
+  if (Entry >= Arr.size())
+    return createError(
+        "can't read an entry at 0x" +
+        Twine::utohexstr(Entry * static_cast<uint64_t>(sizeof(T))) +
+        ": it goes past the end of the section (0x" +
+        Twine::utohexstr(Section.sh_size) + ")");
+  return &Arr[Entry];
+}
+
+template <typename ELFT>
+Expected<StringRef> ELFFile<ELFT>::getSymbolVersionByIndex(
+    uint32_t SymbolVersionIndex, bool &IsDefault,
+    SmallVector<Optional<VersionEntry>, 0> &VersionMap) const {
+  size_t VersionIndex = SymbolVersionIndex & llvm::ELF::VERSYM_VERSION;
+
+  // Special markers for unversioned symbols.
+  if (VersionIndex == llvm::ELF::VER_NDX_LOCAL ||
+      VersionIndex == llvm::ELF::VER_NDX_GLOBAL) {
+    IsDefault = false;
+    return "";
+  }
+
+  // Lookup this symbol in the version table.
+  if (VersionIndex >= VersionMap.size() || !VersionMap[VersionIndex])
+    return createError("SHT_GNU_versym section refers to a version index " +
+                       Twine(VersionIndex) + " which is missing");
+
+  const VersionEntry &Entry = *VersionMap[VersionIndex];
+  if (Entry.IsVerDef)
+    IsDefault = !(SymbolVersionIndex & llvm::ELF::VERSYM_HIDDEN);
+  else
+    IsDefault = false;
+  return Entry.Name.c_str();
+}
+
+template <class ELFT>
+Expected<std::vector<VerDef>>
+ELFFile<ELFT>::getVersionDefinitions(const Elf_Shdr &Sec) const {
+  Expected<StringRef> StrTabOrErr = getLinkAsStrtab(Sec);
+  if (!StrTabOrErr)
+    return StrTabOrErr.takeError();
+
+  Expected<ArrayRef<uint8_t>> ContentsOrErr = getSectionContents(Sec);
+  if (!ContentsOrErr)
+    return createError("cannot read content of " + describe(*this, Sec) + ": " +
+                       toString(ContentsOrErr.takeError()));
+
+  const uint8_t *Start = ContentsOrErr->data();
+  const uint8_t *End = Start + ContentsOrErr->size();
+
+  auto ExtractNextAux = [&](const uint8_t *&VerdauxBuf,
+                            unsigned VerDefNdx) -> Expected<VerdAux> {
+    if (VerdauxBuf + sizeof(Elf_Verdaux) > End)
+      return createError("invalid " + describe(*this, Sec) +
+                         ": version definition " + Twine(VerDefNdx) +
+                         " refers to an auxiliary entry that goes past the end "
+                         "of the section");
+
+    auto *Verdaux = reinterpret_cast<const Elf_Verdaux *>(VerdauxBuf);
+    VerdauxBuf += Verdaux->vda_next;
+
+    VerdAux Aux;
+    Aux.Offset = VerdauxBuf - Start;
+    if (Verdaux->vda_name <= StrTabOrErr->size())
+      Aux.Name = std::string(StrTabOrErr->drop_front(Verdaux->vda_name));
+    else
+      Aux.Name = ("<invalid vda_name: " + Twine(Verdaux->vda_name) + ">").str();
+    return Aux;
+  };
+
+  std::vector<VerDef> Ret;
+  const uint8_t *VerdefBuf = Start;
+  for (unsigned I = 1; I <= /*VerDefsNum=*/Sec.sh_info; ++I) {
+    if (VerdefBuf + sizeof(Elf_Verdef) > End)
+      return createError("invalid " + describe(*this, Sec) +
+                         ": version definition " + Twine(I) +
+                         " goes past the end of the section");
+
+    if (reinterpret_cast<uintptr_t>(VerdefBuf) % sizeof(uint32_t) != 0)
+      return createError(
+          "invalid " + describe(*this, Sec) +
+          ": found a misaligned version definition entry at offset 0x" +
+          Twine::utohexstr(VerdefBuf - Start));
+
+    unsigned Version = *reinterpret_cast<const Elf_Half *>(VerdefBuf);
+    if (Version != 1)
+      return createError("unable to dump " + describe(*this, Sec) +
+                         ": version " + Twine(Version) +
+                         " is not yet supported");
+
+    const Elf_Verdef *D = reinterpret_cast<const Elf_Verdef *>(VerdefBuf);
+    VerDef &VD = *Ret.emplace(Ret.end());
+    VD.Offset = VerdefBuf - Start;
+    VD.Version = D->vd_version;
+    VD.Flags = D->vd_flags;
+    VD.Ndx = D->vd_ndx;
+    VD.Cnt = D->vd_cnt;
+    VD.Hash = D->vd_hash;
+
+    const uint8_t *VerdauxBuf = VerdefBuf + D->vd_aux;
+    for (unsigned J = 0; J < D->vd_cnt; ++J) {
+      if (reinterpret_cast<uintptr_t>(VerdauxBuf) % sizeof(uint32_t) != 0)
+        return createError("invalid " + describe(*this, Sec) +
+                           ": found a misaligned auxiliary entry at offset 0x" +
+                           Twine::utohexstr(VerdauxBuf - Start));
+
+      Expected<VerdAux> AuxOrErr = ExtractNextAux(VerdauxBuf, I);
+      if (!AuxOrErr)
+        return AuxOrErr.takeError();
+
+      if (J == 0)
+        VD.Name = AuxOrErr->Name;
+      else
+        VD.AuxV.push_back(*AuxOrErr);
+    }
+
+    VerdefBuf += D->vd_next;
+  }
+
+  return Ret;
+}
+
+template <class ELFT>
+Expected<std::vector<VerNeed>>
+ELFFile<ELFT>::getVersionDependencies(const Elf_Shdr &Sec,
+                                      WarningHandler WarnHandler) const {
+  StringRef StrTab;
+  Expected<StringRef> StrTabOrErr = getLinkAsStrtab(Sec);
+  if (!StrTabOrErr) {
+    if (Error E = WarnHandler(toString(StrTabOrErr.takeError())))
+      return std::move(E);
+  } else {
+    StrTab = *StrTabOrErr;
+  }
+
+  Expected<ArrayRef<uint8_t>> ContentsOrErr = getSectionContents(Sec);
+  if (!ContentsOrErr)
+    return createError("cannot read content of " + describe(*this, Sec) + ": " +
+                       toString(ContentsOrErr.takeError()));
+
+  const uint8_t *Start = ContentsOrErr->data();
+  const uint8_t *End = Start + ContentsOrErr->size();
+  const uint8_t *VerneedBuf = Start;
+
+  std::vector<VerNeed> Ret;
+  for (unsigned I = 1; I <= /*VerneedNum=*/Sec.sh_info; ++I) {
+    if (VerneedBuf + sizeof(Elf_Verdef) > End)
+      return createError("invalid " + describe(*this, Sec) +
+                         ": version dependency " + Twine(I) +
+                         " goes past the end of the section");
+
+    if (reinterpret_cast<uintptr_t>(VerneedBuf) % sizeof(uint32_t) != 0)
+      return createError(
+          "invalid " + describe(*this, Sec) +
+          ": found a misaligned version dependency entry at offset 0x" +
+          Twine::utohexstr(VerneedBuf - Start));
+
+    unsigned Version = *reinterpret_cast<const Elf_Half *>(VerneedBuf);
+    if (Version != 1)
+      return createError("unable to dump " + describe(*this, Sec) +
+                         ": version " + Twine(Version) +
+                         " is not yet supported");
+
+    const Elf_Verneed *Verneed =
+        reinterpret_cast<const Elf_Verneed *>(VerneedBuf);
+
+    VerNeed &VN = *Ret.emplace(Ret.end());
+    VN.Version = Verneed->vn_version;
+    VN.Cnt = Verneed->vn_cnt;
+    VN.Offset = VerneedBuf - Start;
+
+    if (Verneed->vn_file < StrTab.size())
+      VN.File = std::string(StrTab.drop_front(Verneed->vn_file));
+    else
+      VN.File = ("<corrupt vn_file: " + Twine(Verneed->vn_file) + ">").str();
+
+    const uint8_t *VernauxBuf = VerneedBuf + Verneed->vn_aux;
+    for (unsigned J = 0; J < Verneed->vn_cnt; ++J) {
+      if (reinterpret_cast<uintptr_t>(VernauxBuf) % sizeof(uint32_t) != 0)
+        return createError("invalid " + describe(*this, Sec) +
+                           ": found a misaligned auxiliary entry at offset 0x" +
+                           Twine::utohexstr(VernauxBuf - Start));
+
+      if (VernauxBuf + sizeof(Elf_Vernaux) > End)
+        return createError(
+            "invalid " + describe(*this, Sec) + ": version dependency " +
+            Twine(I) +
+            " refers to an auxiliary entry that goes past the end "
+            "of the section");
+
+      const Elf_Vernaux *Vernaux =
+          reinterpret_cast<const Elf_Vernaux *>(VernauxBuf);
+
+      VernAux &Aux = *VN.AuxV.emplace(VN.AuxV.end());
+      Aux.Hash = Vernaux->vna_hash;
+      Aux.Flags = Vernaux->vna_flags;
+      Aux.Other = Vernaux->vna_other;
+      Aux.Offset = VernauxBuf - Start;
+      if (StrTab.size() <= Vernaux->vna_name)
+        Aux.Name = "<corrupt>";
+      else
+        Aux.Name = std::string(StrTab.drop_front(Vernaux->vna_name));
+
+      VernauxBuf += Vernaux->vna_next;
+    }
+    VerneedBuf += Verneed->vn_next;
+  }
+  return Ret;
 }
 
 template <class ELFT>
@@ -725,6 +1034,23 @@ ELFFile<ELFT>::getStringTableForSymtab(const Elf_Shdr &Sec,
   if (!SectionOrErr)
     return SectionOrErr.takeError();
   return getStringTable(**SectionOrErr);
+}
+
+template <class ELFT>
+Expected<StringRef>
+ELFFile<ELFT>::getLinkAsStrtab(const typename ELFT::Shdr &Sec) const {
+  Expected<const typename ELFT::Shdr *> StrTabSecOrErr =
+      getSection(Sec.sh_link);
+  if (!StrTabSecOrErr)
+    return createError("invalid section linked to " + describe(*this, Sec) +
+                       ": " + toString(StrTabSecOrErr.takeError()));
+
+  Expected<StringRef> StrTabOrErr = getStringTable(**StrTabSecOrErr);
+  if (!StrTabOrErr)
+    return createError("invalid string table linked to " +
+                       describe(*this, Sec) + ": " +
+                       toString(StrTabOrErr.takeError()));
+  return *StrTabOrErr;
 }
 
 template <class ELFT>

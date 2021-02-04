@@ -3442,6 +3442,7 @@ void InitializationSequence::Step::Destroy() {
   case SK_QualificationConversionRValue:
   case SK_QualificationConversionXValue:
   case SK_QualificationConversionLValue:
+  case SK_FunctionReferenceConversion:
   case SK_AtomicConversion:
   case SK_ListInitialization:
   case SK_UnwrapInitList:
@@ -3616,6 +3617,13 @@ void InitializationSequence::AddQualificationConversionStep(QualType Ty,
     S.Kind = SK_QualificationConversionLValue;
     break;
   }
+  S.Type = Ty;
+  Steps.push_back(S);
+}
+
+void InitializationSequence::AddFunctionReferenceConversionStep(QualType Ty) {
+  Step S;
+  S.Kind = SK_FunctionReferenceConversion;
   S.Type = Ty;
   Steps.push_back(S);
 }
@@ -4107,11 +4115,13 @@ static void TryConstructorInitialization(Sema &S,
                                         IsListInit);
   }
   if (Result) {
-    Sequence.SetOverloadFailure(IsListInit ?
-                      InitializationSequence::FK_ListConstructorOverloadFailed :
-                      InitializationSequence::FK_ConstructorOverloadFailed,
-                                Result);
-    return;
+    Sequence.SetOverloadFailure(
+        IsListInit ? InitializationSequence::FK_ListConstructorOverloadFailed
+                   : InitializationSequence::FK_ConstructorOverloadFailed,
+        Result);
+
+    if (Result != OR_Deleted)
+      return;
   }
 
   bool HadMultipleCandidates = (CandidateSet.size() > 1);
@@ -4132,31 +4142,45 @@ static void TryConstructorInitialization(Sema &S,
     return;
   }
 
-  // C++11 [dcl.init]p6:
-  //   If a program calls for the default initialization of an object
-  //   of a const-qualified type T, T shall be a class type with a
-  //   user-provided default constructor.
-  // C++ core issue 253 proposal:
-  //   If the implicit default constructor initializes all subobjects, no
-  //   initializer should be required.
-  // The 253 proposal is for example needed to process libstdc++ headers in 5.x.
   CXXConstructorDecl *CtorDecl = cast<CXXConstructorDecl>(Best->Function);
-  if (Kind.getKind() == InitializationKind::IK_Default &&
-      Entity.getType().isConstQualified()) {
-    if (!CtorDecl->getParent()->allowConstDefaultInit()) {
-      if (!maybeRecoverWithZeroInitialization(S, Sequence, Entity))
-        Sequence.SetFailed(InitializationSequence::FK_DefaultInitOfConst);
+  if (Result != OR_Deleted) {
+    // C++11 [dcl.init]p6:
+    //   If a program calls for the default initialization of an object
+    //   of a const-qualified type T, T shall be a class type with a
+    //   user-provided default constructor.
+    // C++ core issue 253 proposal:
+    //   If the implicit default constructor initializes all subobjects, no
+    //   initializer should be required.
+    // The 253 proposal is for example needed to process libstdc++ headers
+    // in 5.x.
+    if (Kind.getKind() == InitializationKind::IK_Default &&
+        Entity.getType().isConstQualified()) {
+      if (!CtorDecl->getParent()->allowConstDefaultInit()) {
+        if (!maybeRecoverWithZeroInitialization(S, Sequence, Entity))
+          Sequence.SetFailed(InitializationSequence::FK_DefaultInitOfConst);
+        return;
+      }
+    }
+
+    // C++11 [over.match.list]p1:
+    //   In copy-list-initialization, if an explicit constructor is chosen, the
+    //   initializer is ill-formed.
+    if (IsListInit && !Kind.AllowExplicit() && CtorDecl->isExplicit()) {
+      Sequence.SetFailed(InitializationSequence::FK_ExplicitConstructor);
       return;
     }
   }
 
-  // C++11 [over.match.list]p1:
-  //   In copy-list-initialization, if an explicit constructor is chosen, the
-  //   initializer is ill-formed.
-  if (IsListInit && !Kind.AllowExplicit() && CtorDecl->isExplicit()) {
-    Sequence.SetFailed(InitializationSequence::FK_ExplicitConstructor);
+  // [class.copy.elision]p3:
+  // In some copy-initialization contexts, a two-stage overload resolution
+  // is performed.
+  // If the first overload resolution selects a deleted function, we also
+  // need the initialization sequence to decide whether to perform the second
+  // overload resolution.
+  // For deleted functions in other contexts, there is no need to get the
+  // initialization sequence.
+  if (Result == OR_Deleted && Kind.getKind() != InitializationKind::IK_Copy)
     return;
-  }
 
   // Add the constructor initialization step. Any cv-qualification conversion is
   // subsumed by the initialization.
@@ -4240,7 +4264,7 @@ static void TryReferenceListInitialization(Sema &S,
   // bind to that.
   if (InitList->getNumInits() == 1) {
     Expr *Initializer = InitList->getInit(0);
-    QualType cv2T2 = Initializer->getType();
+    QualType cv2T2 = S.getCompletedType(Initializer);
     Qualifiers T2Quals;
     QualType T2 = S.Context.getUnqualifiedArrayType(cv2T2, T2Quals);
 
@@ -4653,7 +4677,7 @@ static OverloadingResult TryRefInitWithConversionFunction(
   else if (RefConv & Sema::ReferenceConversions::ObjC)
     Sequence.AddObjCObjectConversionStep(cv1T1);
   else if (RefConv & Sema::ReferenceConversions::Function)
-    Sequence.AddQualificationConversionStep(cv1T1, VK);
+    Sequence.AddFunctionReferenceConversionStep(cv1T1);
   else if (RefConv & Sema::ReferenceConversions::Qualification) {
     if (!S.Context.hasSameType(cv1T4, cv1T1))
       Sequence.AddQualificationConversionStep(cv1T1, VK);
@@ -4676,7 +4700,7 @@ static void TryReferenceInitialization(Sema &S,
   QualType cv1T1 = DestType->castAs<ReferenceType>()->getPointeeType();
   Qualifiers T1Quals;
   QualType T1 = S.Context.getUnqualifiedArrayType(cv1T1, T1Quals);
-  QualType cv2T2 = Initializer->getType();
+  QualType cv2T2 = S.getCompletedType(Initializer);
   Qualifiers T2Quals;
   QualType T2 = S.Context.getUnqualifiedArrayType(cv2T2, T2Quals);
 
@@ -4755,12 +4779,12 @@ static void TryReferenceInitializationCore(Sema &S,
           Sequence.AddDerivedToBaseCastStep(cv1T1, VK_LValue);
         else
           Sequence.AddObjCObjectConversionStep(cv1T1);
-      } else if (RefConv & (Sema::ReferenceConversions::Qualification |
-                            Sema::ReferenceConversions::Function)) {
+      } else if (RefConv & Sema::ReferenceConversions::Qualification) {
         // Perform a (possibly multi-level) qualification conversion.
-        // FIXME: Should we use a different step kind for function conversions?
         Sequence.AddQualificationConversionStep(cv1T1,
                                                 Initializer->getValueKind());
+      } else if (RefConv & Sema::ReferenceConversions::Function) {
+        Sequence.AddFunctionReferenceConversionStep(cv1T1);
       }
 
       // We only create a temporary here when binding a reference to a
@@ -4897,7 +4921,8 @@ static void TryReferenceInitializationCore(Sema &S,
     // Add addr space conversion if required.
     if (T1Quals.getAddressSpace() != T2Quals.getAddressSpace()) {
       auto T4Quals = cv1T4.getQualifiers();
-      T4Quals.addAddressSpace(T1Quals.getAddressSpace());
+      T4Quals.addAddressSpace(T1Quals.getAddressSpace(),
+                              S.getLangOpts().SYCLIsDevice);
       QualType cv1T4WithAS = S.Context.getQualifiedType(T2, T4Quals);
       Sequence.AddQualificationConversionStep(cv1T4WithAS, ValueKind);
       cv1T4 = cv1T4WithAS;
@@ -5250,9 +5275,17 @@ static void TryUserDefinedConversion(Sema &S,
   if (OverloadingResult Result
         = CandidateSet.BestViableFunction(S, DeclLoc, Best)) {
     Sequence.SetOverloadFailure(
-                        InitializationSequence::FK_UserConversionOverloadFailed,
-                                Result);
-    return;
+        InitializationSequence::FK_UserConversionOverloadFailed, Result);
+
+    // [class.copy.elision]p3:
+    // In some copy-initialization contexts, a two-stage overload resolution
+    // is performed.
+    // If the first overload resolution selects a deleted function, we also
+    // need the initialization sequence to decide whether to perform the second
+    // overload resolution.
+    if (!(Result == OR_Deleted &&
+          Kind.getKind() == InitializationKind::IK_Copy))
+      return;
   }
 
   FunctionDecl *Function = Best->Function;
@@ -5556,13 +5589,11 @@ static bool TryOCLZeroOpaqueTypeInitialization(Sema &S,
   return false;
 }
 
-InitializationSequence::InitializationSequence(Sema &S,
-                                               const InitializedEntity &Entity,
-                                               const InitializationKind &Kind,
-                                               MultiExprArg Args,
-                                               bool TopLevelOfInitList,
-                                               bool TreatUnavailableAsInvalid)
-    : FailedCandidateSet(Kind.getLocation(), OverloadCandidateSet::CSK_Normal) {
+InitializationSequence::InitializationSequence(
+    Sema &S, const InitializedEntity &Entity, const InitializationKind &Kind,
+    MultiExprArg Args, bool TopLevelOfInitList, bool TreatUnavailableAsInvalid)
+    : FailedOverloadResult(OR_Success),
+      FailedCandidateSet(Kind.getLocation(), OverloadCandidateSet::CSK_Normal) {
   InitializeFrom(S, Entity, Kind, Args, TopLevelOfInitList,
                  TreatUnavailableAsInvalid);
 }
@@ -8038,6 +8069,7 @@ ExprResult InitializationSequence::Perform(Sema &S,
   case SK_QualificationConversionLValue:
   case SK_QualificationConversionXValue:
   case SK_QualificationConversionRValue:
+  case SK_FunctionReferenceConversion:
   case SK_AtomicConversion:
   case SK_ConversionSequence:
   case SK_ConversionSequenceNoNarrowing:
@@ -8169,9 +8201,21 @@ ExprResult InitializationSequence::Perform(Sema &S,
       if (S.CheckExceptionSpecCompatibility(CurInit.get(), DestType))
         return ExprError();
 
+      QualType MTETy = Step->Type;
+
+      // When this is an incomplete array type (such as when this is
+      // initializing an array of unknown bounds from an init list), use THAT
+      // type instead so that we propogate the array bounds.
+      if (MTETy->isIncompleteArrayType() &&
+          !CurInit.get()->getType()->isIncompleteArrayType() &&
+          S.Context.hasSameType(
+              MTETy->getPointeeOrArrayElementType(),
+              CurInit.get()->getType()->getPointeeOrArrayElementType()))
+        MTETy = CurInit.get()->getType();
+
       // Materialize the temporary into memory.
       MaterializeTemporaryExpr *MTE = S.CreateMaterializeTemporaryExpr(
-          Step->Type, CurInit.get(), Entity.getType()->isLValueReferenceType());
+          MTETy, CurInit.get(), Entity.getType()->isLValueReferenceType());
       CurInit = MTE;
 
       // If we're extending this temporary to automatic storage duration -- we
@@ -8302,6 +8346,13 @@ ExprResult InitializationSequence::Perform(Sema &S,
       CurInit = S.PerformQualificationConversion(CurInit.get(), Step->Type, VK);
       break;
     }
+
+    case SK_FunctionReferenceConversion:
+      assert(CurInit.get()->isLValue() &&
+             "function reference should be lvalue");
+      CurInit =
+          S.ImpCastExprToType(CurInit.get(), Step->Type, CK_NoOp, VK_LValue);
+      break;
 
     case SK_AtomicConversion: {
       assert(CurInit.get()->isRValue() && "cannot convert glvalue to atomic");
@@ -9571,6 +9622,10 @@ void InitializationSequence::dump(raw_ostream &OS) const {
 
     case SK_QualificationConversionLValue:
       OS << "qualification conversion (lvalue)";
+      break;
+
+    case SK_FunctionReferenceConversion:
+      OS << "function reference conversion";
       break;
 
     case SK_AtomicConversion:

@@ -41,8 +41,8 @@ public:
 
   bool canUseAsPrologue(const MachineBasicBlock &MBB) const override;
 
-  int getFrameIndexReference(const MachineFunction &MF, int FI,
-                             Register &FrameReg) const override;
+  StackOffset getFrameIndexReference(const MachineFunction &MF, int FI,
+                                     Register &FrameReg) const override;
   StackOffset resolveFrameIndexReference(const MachineFunction &MF, int FI,
                                          Register &FrameReg, bool PreferFP,
                                          bool ForSimm) const;
@@ -94,11 +94,12 @@ public:
 
   unsigned getWinEHFuncletFrameSize(const MachineFunction &MF) const;
 
-  int getFrameIndexReferencePreferSP(const MachineFunction &MF, int FI,
-                                     Register &FrameReg,
-                                     bool IgnoreSPUpdates) const override;
-  int getNonLocalFrameIndexReference(const MachineFunction &MF,
-                               int FI) const override;
+  StackOffset
+  getFrameIndexReferencePreferSP(const MachineFunction &MF, int FI,
+                                 Register &FrameReg,
+                                 bool IgnoreSPUpdates) const override;
+  StackOffset getNonLocalFrameIndexReference(const MachineFunction &MF,
+                                             int FI) const override;
   int getSEHFrameIndexOffset(const MachineFunction &MF, int FI) const;
 
   bool isSupportedStackID(TargetStackID::Value ID) const override {
@@ -106,7 +107,7 @@ public:
     default:
       return false;
     case TargetStackID::Default:
-    case TargetStackID::SVEVector:
+    case TargetStackID::ScalableVector:
     case TargetStackID::NoAlloc:
       return true;
     }
@@ -115,7 +116,7 @@ public:
   bool isStackIdSafeForLocalArea(unsigned StackId) const override {
     // We don't support putting SVE objects into the pre-allocated local
     // frame block at the moment.
-    return StackId != TargetStackID::SVEVector;
+    return StackId != TargetStackID::ScalableVector;
   }
 
   void

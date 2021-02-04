@@ -1284,7 +1284,7 @@ public:
 
   ValueDecl *getDecl() { return D; }
   const ValueDecl *getDecl() const { return D; }
-  void setDecl(ValueDecl *NewD) { D = NewD; }
+  void setDecl(ValueDecl *NewD);
 
   DeclarationNameInfo getNameInfo() const {
     return DeclarationNameInfo(getDecl()->getDeclName(), getLocation(), DNLoc);
@@ -3232,7 +3232,7 @@ public:
   /// The returned declaration will be a FieldDecl or (in C++) a VarDecl (for
   /// static data members), a CXXMethodDecl, or an EnumConstantDecl.
   ValueDecl *getMemberDecl() const { return MemberDecl; }
-  void setMemberDecl(ValueDecl *D) { MemberDecl = D; }
+  void setMemberDecl(ValueDecl *D);
 
   /// Retrieves the declaration found by lookup.
   DeclAccessPair getFoundDecl() const {
@@ -5059,10 +5059,10 @@ public:
     uintptr_t NameOrField;
 
     /// The location of the '.' in the designated initializer.
-    unsigned DotLoc;
+    SourceLocation DotLoc;
 
     /// The location of the field name in the designated initializer.
-    unsigned FieldLoc;
+    SourceLocation FieldLoc;
   };
 
   /// An array or GNU array-range designator, e.g., "[9]" or "[10..15]".
@@ -5071,12 +5071,12 @@ public:
     /// initializer expression's list of subexpressions.
     unsigned Index;
     /// The location of the '[' starting the array range designator.
-    unsigned LBracketLoc;
+    SourceLocation LBracketLoc;
     /// The location of the ellipsis separating the start and end
     /// indices. Only valid for GNU array-range designators.
-    unsigned EllipsisLoc;
+    SourceLocation EllipsisLoc;
     /// The location of the ']' terminating the array range designator.
-    unsigned RBracketLoc;
+    SourceLocation RBracketLoc;
   };
 
   /// Represents a single C99 designator.
@@ -5108,29 +5108,32 @@ public:
     Designator(const IdentifierInfo *FieldName, SourceLocation DotLoc,
                SourceLocation FieldLoc)
       : Kind(FieldDesignator) {
+      new (&Field) DesignatedInitExpr::FieldDesignator;
       Field.NameOrField = reinterpret_cast<uintptr_t>(FieldName) | 0x01;
-      Field.DotLoc = DotLoc.getRawEncoding();
-      Field.FieldLoc = FieldLoc.getRawEncoding();
+      Field.DotLoc = DotLoc;
+      Field.FieldLoc = FieldLoc;
     }
 
     /// Initializes an array designator.
     Designator(unsigned Index, SourceLocation LBracketLoc,
                SourceLocation RBracketLoc)
       : Kind(ArrayDesignator) {
+      new (&ArrayOrRange) DesignatedInitExpr::ArrayOrRangeDesignator;
       ArrayOrRange.Index = Index;
-      ArrayOrRange.LBracketLoc = LBracketLoc.getRawEncoding();
-      ArrayOrRange.EllipsisLoc = SourceLocation().getRawEncoding();
-      ArrayOrRange.RBracketLoc = RBracketLoc.getRawEncoding();
+      ArrayOrRange.LBracketLoc = LBracketLoc;
+      ArrayOrRange.EllipsisLoc = SourceLocation();
+      ArrayOrRange.RBracketLoc = RBracketLoc;
     }
 
     /// Initializes a GNU array-range designator.
     Designator(unsigned Index, SourceLocation LBracketLoc,
                SourceLocation EllipsisLoc, SourceLocation RBracketLoc)
       : Kind(ArrayRangeDesignator) {
+      new (&ArrayOrRange) DesignatedInitExpr::ArrayOrRangeDesignator;
       ArrayOrRange.Index = Index;
-      ArrayOrRange.LBracketLoc = LBracketLoc.getRawEncoding();
-      ArrayOrRange.EllipsisLoc = EllipsisLoc.getRawEncoding();
-      ArrayOrRange.RBracketLoc = RBracketLoc.getRawEncoding();
+      ArrayOrRange.LBracketLoc = LBracketLoc;
+      ArrayOrRange.EllipsisLoc = EllipsisLoc;
+      ArrayOrRange.RBracketLoc = RBracketLoc;
     }
 
     bool isFieldDesignator() const { return Kind == FieldDesignator; }
@@ -5154,30 +5157,30 @@ public:
 
     SourceLocation getDotLoc() const {
       assert(Kind == FieldDesignator && "Only valid on a field designator");
-      return SourceLocation::getFromRawEncoding(Field.DotLoc);
+      return Field.DotLoc;
     }
 
     SourceLocation getFieldLoc() const {
       assert(Kind == FieldDesignator && "Only valid on a field designator");
-      return SourceLocation::getFromRawEncoding(Field.FieldLoc);
+      return Field.FieldLoc;
     }
 
     SourceLocation getLBracketLoc() const {
       assert((Kind == ArrayDesignator || Kind == ArrayRangeDesignator) &&
              "Only valid on an array or array-range designator");
-      return SourceLocation::getFromRawEncoding(ArrayOrRange.LBracketLoc);
+      return ArrayOrRange.LBracketLoc;
     }
 
     SourceLocation getRBracketLoc() const {
       assert((Kind == ArrayDesignator || Kind == ArrayRangeDesignator) &&
              "Only valid on an array or array-range designator");
-      return SourceLocation::getFromRawEncoding(ArrayOrRange.RBracketLoc);
+      return ArrayOrRange.RBracketLoc;
     }
 
     SourceLocation getEllipsisLoc() const {
       assert(Kind == ArrayRangeDesignator &&
              "Only valid on an array-range designator");
-      return SourceLocation::getFromRawEncoding(ArrayOrRange.EllipsisLoc);
+      return ArrayOrRange.EllipsisLoc;
     }
 
     unsigned getFirstExprIndex() const {
@@ -6395,9 +6398,6 @@ public:
 ///
 /// One can also reliably suppress all bogus errors on expressions containing
 /// recovery expressions by examining results of Expr::containsErrors().
-///
-/// FIXME: RecoveryExpr is currently generated by default in C++ mode only, as
-/// dependence isn't handled properly on several C-only codepaths.
 class RecoveryExpr final : public Expr,
                            private llvm::TrailingObjects<RecoveryExpr, Expr *> {
 public:

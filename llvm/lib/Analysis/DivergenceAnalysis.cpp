@@ -84,7 +84,6 @@
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
-#include <vector>
 
 using namespace llvm;
 
@@ -119,7 +118,7 @@ bool DivergenceAnalysis::isTemporalDivergent(const BasicBlock &ObservingBlock,
   for (const auto *Loop = LI.getLoopFor(Inst->getParent());
        Loop != RegionLoop && !Loop->contains(&ObservingBlock);
        Loop = Loop->getParentLoop()) {
-    if (DivergentLoops.find(Loop) != DivergentLoops.end())
+    if (DivergentLoops.contains(Loop))
       return true;
   }
 
@@ -333,11 +332,11 @@ void DivergenceAnalysis::compute() {
 }
 
 bool DivergenceAnalysis::isAlwaysUniform(const Value &V) const {
-  return UniformOverrides.find(&V) != UniformOverrides.end();
+  return UniformOverrides.contains(&V);
 }
 
 bool DivergenceAnalysis::isDivergent(const Value &V) const {
-  return DivergentValues.find(&V) != DivergentValues.end();
+  return DivergentValues.contains(&V);
 }
 
 bool DivergenceAnalysis::isDivergentUse(const Use &U) const {

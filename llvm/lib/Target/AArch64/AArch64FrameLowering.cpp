@@ -249,7 +249,7 @@ static unsigned estimateRSStackSizeLimit(MachineFunction &MF) {
 
 TargetStackID::Value
 AArch64FrameLowering::getStackIDForScalableVectors() const {
-  return TargetStackID::SVEVector;
+  return TargetStackID::ScalableVector;
 }
 
 /// Returns the size of the fixed object area (allocated next to sp on entry)
@@ -496,7 +496,7 @@ void AArch64FrameLowering::emitCalleeSavedFrameMoves(
       continue;
 
     StackOffset Offset;
-    if (MFI.getStackID(Info.getFrameIdx()) == TargetStackID::SVEVector) {
+    if (MFI.getStackID(Info.getFrameIdx()) == TargetStackID::ScalableVector) {
       AArch64FunctionInfo *AFI = MF.getInfo<AArch64FunctionInfo>();
       Offset =
           StackOffset::getScalable(MFI.getObjectOffset(Info.getFrameIdx())) -
@@ -1511,7 +1511,7 @@ static void InsertReturnAddressAuth(MachineFunction &MF,
   // this instruction can safely used for any v8a architecture.
   // From v8.3a onwards there are optimised authenticate LR and return
   // instructions, namely RETA{A,B}, that can be used instead.
-  if (Subtarget.hasV8_3aOps() && MBBI != MBB.end() &&
+  if (Subtarget.hasPAuth() && MBBI != MBB.end() &&
       MBBI->getOpcode() == AArch64::RET_ReallyLR) {
     BuildMI(MBB, MBBI, DL,
             TII->get(MFI.shouldSignWithBKey() ? AArch64::RETAB : AArch64::RETAA))
@@ -1649,7 +1649,7 @@ void AArch64FrameLowering::emitEpilogue(MachineFunction &MF,
     // If the prologue didn't contain any SEH opcodes and didn't set the
     // MF.hasWinCFI() flag, assume the epilogue won't either, and skip the
     // EpilogStart - to avoid generating CFI for functions that don't need it.
-    // (And as we didn't generate any prologue at all, it would be assymetrical
+    // (And as we didn't generate any prologue at all, it would be asymmetrical
     // to the epilogue.) By the end of the function, we assert that
     // HasWinCFI is equal to MF.hasWinCFI(), to verify this assumption.
     HasWinCFI = true;
@@ -1803,20 +1803,20 @@ void AArch64FrameLowering::emitEpilogue(MachineFunction &MF,
 /// debug info.  It's the same as what we use for resolving the code-gen
 /// references for now.  FIXME: This can go wrong when references are
 /// SP-relative and simple call frames aren't used.
-int AArch64FrameLowering::getFrameIndexReference(const MachineFunction &MF,
-                                                 int FI,
-                                                 Register &FrameReg) const {
+StackOffset
+AArch64FrameLowering::getFrameIndexReference(const MachineFunction &MF, int FI,
+                                             Register &FrameReg) const {
   return resolveFrameIndexReference(
-             MF, FI, FrameReg,
-             /*PreferFP=*/
-             MF.getFunction().hasFnAttribute(Attribute::SanitizeHWAddress),
-             /*ForSimm=*/false)
-      .getFixed();
+      MF, FI, FrameReg,
+      /*PreferFP=*/
+      MF.getFunction().hasFnAttribute(Attribute::SanitizeHWAddress),
+      /*ForSimm=*/false);
 }
 
-int AArch64FrameLowering::getNonLocalFrameIndexReference(
-  const MachineFunction &MF, int FI) const {
-  return getSEHFrameIndexOffset(MF, FI);
+StackOffset
+AArch64FrameLowering::getNonLocalFrameIndexReference(const MachineFunction &MF,
+                                                     int FI) const {
+  return StackOffset::getFixed(getSEHFrameIndexOffset(MF, FI));
 }
 
 static StackOffset getFPOffset(const MachineFunction &MF,
@@ -1839,6 +1839,7 @@ static StackOffset getStackOffset(const MachineFunction &MF,
   return StackOffset::getFixed(ObjectOffset + (int64_t)MFI.getStackSize());
 }
 
+  // TODO: This function currently does not work for scalable vectors.
 int AArch64FrameLowering::getSEHFrameIndexOffset(const MachineFunction &MF,
                                                  int FI) const {
   const auto *RegInfo = static_cast<const AArch64RegisterInfo *>(
@@ -1855,7 +1856,7 @@ StackOffset AArch64FrameLowering::resolveFrameIndexReference(
   const auto &MFI = MF.getFrameInfo();
   int64_t ObjectOffset = MFI.getObjectOffset(FI);
   bool isFixed = MFI.isFixedObjectIndex(FI);
-  bool isSVE = MFI.getStackID(FI) == TargetStackID::SVEVector;
+  bool isSVE = MFI.getStackID(FI) == TargetStackID::ScalableVector;
   return resolveFrameOffsetReference(MF, ObjectOffset, isFixed, isSVE, FrameReg,
                                      PreferFP, ForSimm);
 }
@@ -2411,7 +2412,7 @@ bool AArch64FrameLowering::spillCalleeSavedRegisters(
     // Update the StackIDs of the SVE stack slots.
     MachineFrameInfo &MFI = MF.getFrameInfo();
     if (RPI.Type == RegPairInfo::ZPR || RPI.Type == RegPairInfo::PPR)
-      MFI.setStackID(RPI.FrameIdx, TargetStackID::SVEVector);
+      MFI.setStackID(RPI.FrameIdx, TargetStackID::ScalableVector);
 
   }
   return true;
@@ -2760,7 +2761,7 @@ static int64_t determineSVEStackObjectOffsets(MachineFrameInfo &MFI,
 #ifndef NDEBUG
   // First process all fixed stack objects.
   for (int I = MFI.getObjectIndexBegin(); I != 0; ++I)
-    assert(MFI.getStackID(I) != TargetStackID::SVEVector &&
+    assert(MFI.getStackID(I) != TargetStackID::ScalableVector &&
            "SVE vectors should never be passed on the stack by value, only by "
            "reference.");
 #endif
@@ -2790,7 +2791,7 @@ static int64_t determineSVEStackObjectOffsets(MachineFrameInfo &MFI,
   SmallVector<int, 8> ObjectsToAllocate;
   for (int I = 0, E = MFI.getObjectIndexEnd(); I != E; ++I) {
     unsigned StackID = MFI.getStackID(I);
-    if (StackID != TargetStackID::SVEVector)
+    if (StackID != TargetStackID::ScalableVector)
       continue;
     if (MaxCSFrameIndex >= I && I >= MinCSFrameIndex)
       continue;
@@ -3273,7 +3274,7 @@ void AArch64FrameLowering::processFunctionBeforeFrameIndicesReplaced(
 /// For Win64 AArch64 EH, the offset to the Unwind object is from the SP
 /// before the update.  This is easily retrieved as it is exactly the offset
 /// that is set in processFunctionBeforeFrameFinalized.
-int AArch64FrameLowering::getFrameIndexReferencePreferSP(
+StackOffset AArch64FrameLowering::getFrameIndexReferencePreferSP(
     const MachineFunction &MF, int FI, Register &FrameReg,
     bool IgnoreSPUpdates) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -3281,7 +3282,7 @@ int AArch64FrameLowering::getFrameIndexReferencePreferSP(
     LLVM_DEBUG(dbgs() << "Offset from the SP for " << FI << " is "
                       << MFI.getObjectOffset(FI) << "\n");
     FrameReg = AArch64::SP;
-    return MFI.getObjectOffset(FI);
+    return StackOffset::getFixed(MFI.getObjectOffset(FI));
   }
 
   return getFrameIndexReference(MF, FI, FrameReg);

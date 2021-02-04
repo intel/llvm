@@ -176,9 +176,7 @@ static void RegisterPassPlugins(ArrayRef<std::string> PassPlugins,
   }
 }
 
-namespace {
-
-std::unique_ptr<TargetMachine>
+static std::unique_ptr<TargetMachine>
 createTargetMachine(const Config &Conf, const Target *TheTarget, Module &M) {
   StringRef TheTriple = M.getTargetTriple();
   SubtargetFeatures Features;
@@ -199,9 +197,11 @@ createTargetMachine(const Config &Conf, const Target *TheTarget, Module &M) {
   else
     CodeModel = M.getCodeModel();
 
-  return std::unique_ptr<TargetMachine>(TheTarget->createTargetMachine(
+  std::unique_ptr<TargetMachine> TM(TheTarget->createTargetMachine(
       TheTriple, Conf.CPU, Features.getString(), Conf.Options, RelocModel,
       CodeModel, Conf.CGOptLevel));
+  assert(TM && "Failed to create target machine");
+  return TM;
 }
 
 static void runNewPMPasses(const Config &Conf, Module &Mod, TargetMachine *TM,
@@ -237,6 +237,12 @@ static void runNewPMPasses(const Config &Conf, Module &Mod, TargetMachine *TM,
   CGSCCAnalysisManager CGAM(Conf.DebugPassManager);
   ModuleAnalysisManager MAM(Conf.DebugPassManager);
 
+  std::unique_ptr<TargetLibraryInfoImpl> TLII(
+      new TargetLibraryInfoImpl(Triple(TM->getTargetTriple())));
+  if (Conf.Freestanding)
+    TLII->disableAllFunctions();
+  FAM.registerPass([&] { return TargetLibraryAnalysis(*TLII); });
+
   // Register the AA manager first so that our version is the one used.
   FAM.registerPass([&] { return std::move(AA); });
 
@@ -248,7 +254,9 @@ static void runNewPMPasses(const Config &Conf, Module &Mod, TargetMachine *TM,
   PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
   ModulePassManager MPM(Conf.DebugPassManager);
-  // FIXME (davide): verify the input.
+
+  if (!Conf.DisableVerify)
+    MPM.addPass(VerifierPass());
 
   PassBuilder::OptimizationLevel OL;
 
@@ -270,12 +278,14 @@ static void runNewPMPasses(const Config &Conf, Module &Mod, TargetMachine *TM,
   }
 
   if (IsThinLTO)
-    MPM = PB.buildThinLTODefaultPipeline(OL, ImportSummary);
+    MPM.addPass(PB.buildThinLTODefaultPipeline(OL, ImportSummary));
   else
-    MPM = PB.buildLTODefaultPipeline(OL, ExportSummary);
-  MPM.run(Mod, MAM);
+    MPM.addPass(PB.buildLTODefaultPipeline(OL, ExportSummary));
 
-  // FIXME (davide): verify the output.
+  if (!Conf.DisableVerify)
+    MPM.addPass(VerifierPass());
+
+  MPM.run(Mod, MAM);
 }
 
 static void runNewPMCustomPasses(const Config &Conf, Module &Mod,
@@ -297,6 +307,12 @@ static void runNewPMCustomPasses(const Config &Conf, Module &Mod,
   FunctionAnalysisManager FAM;
   CGSCCAnalysisManager CGAM;
   ModuleAnalysisManager MAM;
+
+  std::unique_ptr<TargetLibraryInfoImpl> TLII(
+      new TargetLibraryInfoImpl(Triple(TM->getTargetTriple())));
+  if (Conf.Freestanding)
+    TLII->disableAllFunctions();
+  FAM.registerPass([&] { return TargetLibraryAnalysis(*TLII); });
 
   // Register the AA manager first so that our version is the one used.
   FAM.registerPass([&] { return std::move(AA); });
@@ -331,6 +347,8 @@ static void runOldPMPasses(const Config &Conf, Module &Mod, TargetMachine *TM,
 
   PassManagerBuilder PMB;
   PMB.LibraryInfo = new TargetLibraryInfoImpl(Triple(TM->getTargetTriple()));
+  if (Conf.Freestanding)
+    PMB.LibraryInfo->disableAllFunctions();
   PMB.Inliner = createFunctionInliningPass();
   PMB.ExportSummary = ExportSummary;
   PMB.ImportSummary = ImportSummary;
@@ -354,10 +372,10 @@ static void runOldPMPasses(const Config &Conf, Module &Mod, TargetMachine *TM,
   passes.run(Mod);
 }
 
-bool opt(const Config &Conf, TargetMachine *TM, unsigned Task, Module &Mod,
-         bool IsThinLTO, ModuleSummaryIndex *ExportSummary,
-         const ModuleSummaryIndex *ImportSummary,
-         const std::vector<uint8_t> &CmdArgs) {
+bool lto::opt(const Config &Conf, TargetMachine *TM, unsigned Task, Module &Mod,
+              bool IsThinLTO, ModuleSummaryIndex *ExportSummary,
+              const ModuleSummaryIndex *ImportSummary,
+              const std::vector<uint8_t> &CmdArgs) {
   if (EmbedBitcode == LTOBitcodeEmbedding::EmbedPostMergePreOptimized) {
     // FIXME: the motivation for capturing post-merge bitcode and command line
     // is replicating the compilation environment from bitcode, without needing
@@ -387,9 +405,9 @@ bool opt(const Config &Conf, TargetMachine *TM, unsigned Task, Module &Mod,
   return !Conf.PostOptModuleHook || Conf.PostOptModuleHook(Task, Mod);
 }
 
-void codegen(const Config &Conf, TargetMachine *TM, AddStreamFn AddStream,
-             unsigned Task, Module &Mod,
-             const ModuleSummaryIndex &CombinedIndex) {
+static void codegen(const Config &Conf, TargetMachine *TM,
+                    AddStreamFn AddStream, unsigned Task, Module &Mod,
+                    const ModuleSummaryIndex &CombinedIndex) {
   if (Conf.PreCodeGenModuleHook && !Conf.PreCodeGenModuleHook(Task, Mod))
     return;
 
@@ -424,6 +442,8 @@ void codegen(const Config &Conf, TargetMachine *TM, AddStreamFn AddStream,
   legacy::PassManager CodeGenPasses;
   CodeGenPasses.add(
       createImmutableModuleSummaryIndexWrapperPass(&CombinedIndex));
+  if (Conf.PreCodeGenPassesHook)
+    Conf.PreCodeGenPassesHook(CodeGenPasses);
   if (TM->addPassesToEmitFile(CodeGenPasses, *Stream->OS,
                               DwoOut ? &DwoOut->os() : nullptr,
                               Conf.CGFileType))
@@ -434,10 +454,11 @@ void codegen(const Config &Conf, TargetMachine *TM, AddStreamFn AddStream,
     DwoOut->keep();
 }
 
-void splitCodeGen(const Config &C, TargetMachine *TM, AddStreamFn AddStream,
-                  unsigned ParallelCodeGenParallelismLevel,
-                  std::unique_ptr<Module> Mod,
-                  const ModuleSummaryIndex &CombinedIndex) {
+static void splitCodeGen(const Config &C, TargetMachine *TM,
+                         AddStreamFn AddStream,
+                         unsigned ParallelCodeGenParallelismLevel,
+                         std::unique_ptr<Module> Mod,
+                         const ModuleSummaryIndex &CombinedIndex) {
   ThreadPool CodegenThreadPool(
       heavyweight_hardware_concurrency(ParallelCodeGenParallelismLevel));
   unsigned ThreadCount = 0;
@@ -485,7 +506,8 @@ void splitCodeGen(const Config &C, TargetMachine *TM, AddStreamFn AddStream,
   CodegenThreadPool.wait();
 }
 
-Expected<const Target *> initAndLookupTarget(const Config &C, Module &Mod) {
+static Expected<const Target *> initAndLookupTarget(const Config &C,
+                                                    Module &Mod) {
   if (!C.OverrideTriple.empty())
     Mod.setTargetTriple(C.OverrideTriple);
   else if (Mod.getTargetTriple().empty())
@@ -496,7 +518,6 @@ Expected<const Target *> initAndLookupTarget(const Config &C, Module &Mod) {
   if (!T)
     return make_error<StringError>(Msg, inconvertibleErrorCode());
   return T;
-}
 }
 
 Error lto::finalizeOptimizationRemarks(
@@ -572,7 +593,8 @@ Error lto::thinBackend(const Config &Conf, unsigned Task, AddStreamFn AddStream,
   // Setup optimization remarks.
   auto DiagFileOrErr = lto::setupLLVMOptimizationRemarks(
       Mod.getContext(), Conf.RemarksFilename, Conf.RemarksPasses,
-      Conf.RemarksFormat, Conf.RemarksWithHotness, Task);
+      Conf.RemarksFormat, Conf.RemarksWithHotness, Conf.RemarksHotnessThreshold,
+      Task);
   if (!DiagFileOrErr)
     return DiagFileOrErr.takeError();
   auto DiagnosticOutputFile = std::move(*DiagFileOrErr);

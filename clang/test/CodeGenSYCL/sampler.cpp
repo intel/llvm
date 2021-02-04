@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o - | FileCheck --enable-var-scope %s
-// CHECK: define spir_kernel void @{{[a-zA-Z0-9_]+}}(%opencl.sampler_t addrspace(2)* [[SAMPLER_ARG:%[a-zA-Z0-9_]+]])
+// CHECK: define {{.*}}spir_kernel void @{{[a-zA-Z0-9_]+}}(%opencl.sampler_t addrspace(2)* [[SAMPLER_ARG:%[a-zA-Z0-9_]+]])
 // CHECK-NEXT: entry:
 // CHECK-NEXT: [[SAMPLER_ARG]].addr = alloca %opencl.sampler_t addrspace(2)*, align 8
 // CHECK-NEXT: [[ANON:%[0-9]+]] = alloca %"class.{{.*}}.anon", align 8
@@ -9,10 +9,10 @@
 // CHECK-NEXT: [[GEP:%[0-9]+]]  = getelementptr inbounds %"class.{{.*}}.anon", %"class.{{.*}}.anon"* [[ANON]], i32 0, i32 0
 // CHECK-NEXT: [[LOAD_SAMPLER_ARG:%[0-9]+]] = load %opencl.sampler_t addrspace(2)*, %opencl.sampler_t addrspace(2)** [[SAMPLER_ARG]].addr, align 8
 // CHECK-NEXT: [[GEPCAST:%[0-9]+]] = addrspacecast %"class{{.*}}.cl::sycl::sampler"* [[GEP]] to %"class{{.*}}.cl::sycl::sampler" addrspace(4)*
-// CHECK-NEXT: call spir_func void @{{[a-zA-Z0-9_]+}}(%"class.{{.*}}.cl::sycl::sampler" addrspace(4)* [[GEPCAST]], %opencl.sampler_t addrspace(2)* [[LOAD_SAMPLER_ARG]])
+// CHECK-NEXT: call spir_func void @{{[a-zA-Z0-9_]+}}(%"class.{{.*}}.cl::sycl::sampler" addrspace(4)* {{[^,]*}} [[GEPCAST]], %opencl.sampler_t addrspace(2)* [[LOAD_SAMPLER_ARG]])
 //
 
-// CHECK: define spir_kernel void @{{[a-zA-Z0-9_]+}}(%opencl.sampler_t addrspace(2)* [[SAMPLER_ARG_WRAPPED:%[a-zA-Z0-9_]+]], i32 [[ARG_A:%[a-zA-Z0-9_]+]])
+// CHECK: define {{.*}}spir_kernel void @{{[a-zA-Z0-9_]+}}(%opencl.sampler_t addrspace(2)* [[SAMPLER_ARG_WRAPPED:%[a-zA-Z0-9_]+]], i32 [[ARG_A:%[a-zA-Z0-9_]+]])
 
 // Check alloca
 // CHECK: [[SAMPLER_ARG_WRAPPED]].addr = alloca %opencl.sampler_t addrspace(2)*, align 8

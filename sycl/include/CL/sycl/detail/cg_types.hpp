@@ -158,7 +158,7 @@ public:
 };
 
 // Class which stores specific lambda object.
-template <class KernelType, class KernelArgType, int Dims>
+template <class KernelType, class KernelArgType, int Dims, typename KernelName>
 class HostKernel : public HostKernelBase {
   using IDBuilder = sycl::detail::Builder;
   KernelType MKernel;
@@ -203,6 +203,9 @@ public:
   template <class ArgT = KernelArgType>
   typename detail::enable_if_t<detail::is_same_v<ArgT, sycl::id<Dims>>>
   runOnHost(const NDRDescT &NDRDesc) {
+    using KI = detail::KernelInfo<KernelName>;
+    constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
+
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
     sycl::id<Dims> Offset;
     for (int I = 0; I < Dims; ++I) {
@@ -213,8 +216,11 @@ public:
     detail::NDLoop<Dims>::iterate(Range, [&](const sycl::id<Dims> &ID) {
       sycl::item<Dims, /*Offset=*/true> Item =
           IDBuilder::createItem<Dims, true>(Range, ID, Offset);
-      store_id(&ID);
-      store_item(&Item);
+
+      if (StoreLocation) {
+        store_id(&ID);
+        store_item(&Item);
+      }
       MKernel(ID);
     });
   }
@@ -223,6 +229,9 @@ public:
   typename detail::enable_if_t<
       detail::is_same_v<ArgT, item<Dims, /*Offset=*/false>>>
   runOnHost(const NDRDescT &NDRDesc) {
+    using KI = detail::KernelInfo<KernelName>;
+    constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
+
     sycl::id<Dims> ID;
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I)
@@ -232,8 +241,11 @@ public:
       sycl::item<Dims, /*Offset=*/false> Item =
           IDBuilder::createItem<Dims, false>(Range, ID);
       sycl::item<Dims, /*Offset=*/true> ItemWithOffset = Item;
-      store_id(&ID);
-      store_item(&ItemWithOffset);
+
+      if (StoreLocation) {
+        store_id(&ID);
+        store_item(&ItemWithOffset);
+      }
       MKernel(Item);
     });
   }
@@ -242,6 +254,9 @@ public:
   typename detail::enable_if_t<
       detail::is_same_v<ArgT, item<Dims, /*Offset=*/true>>>
   runOnHost(const NDRDescT &NDRDesc) {
+    using KI = detail::KernelInfo<KernelName>;
+    constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
+
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
     sycl::id<Dims> Offset;
     for (int I = 0; I < Dims; ++I) {
@@ -253,8 +268,11 @@ public:
       sycl::id<Dims> OffsetID = ID + Offset;
       sycl::item<Dims, /*Offset=*/true> Item =
           IDBuilder::createItem<Dims, true>(Range, OffsetID, Offset);
-      store_id(&OffsetID);
-      store_item(&Item);
+
+      if (StoreLocation) {
+        store_id(&OffsetID);
+        store_item(&Item);
+      }
       MKernel(Item);
     });
   }
@@ -262,6 +280,9 @@ public:
   template <class ArgT = KernelArgType>
   typename detail::enable_if_t<detail::is_same_v<ArgT, nd_item<Dims>>>
   runOnHost(const NDRDescT &NDRDesc) {
+    using KI = detail::KernelInfo<KernelName>;
+    constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
+
     sycl::range<Dims> GroupSize(InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I) {
       if (NDRDesc.LocalSize[I] == 0 ||
@@ -294,11 +315,14 @@ public:
             IDBuilder::createItem<Dims, false>(LocalSize, LocalID);
         const sycl::nd_item<Dims> NDItem =
             IDBuilder::createNDItem<Dims>(GlobalItem, LocalItem, Group);
-        store_id(&GlobalID);
-        store_item(&GlobalItem);
-        store_nd_item(&NDItem);
-        auto g = NDItem.get_group();
-        store_group(&g);
+
+        if (StoreLocation) {
+          store_id(&GlobalID);
+          store_item(&GlobalItem);
+          store_nd_item(&NDItem);
+          auto g = NDItem.get_group();
+          store_group(&g);
+        }
         MKernel(NDItem);
       });
     });

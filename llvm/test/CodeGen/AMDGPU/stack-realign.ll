@@ -165,6 +165,7 @@ define void @func_call_align1024_bp_gets_vgpr_spill(<32 x i32> %a, i32 %b) #0 {
 ; GCN: s_mov_b32 s34, s32
 ; GCN: v_mov_b32_e32 v32, 0
 ; GCN: buffer_store_dword v32, off, s[0:3], s33 offset:1024
+; GCN-NEXT: s_waitcnt vmcnt(0)
 ; GCN-NEXT: buffer_load_dword v{{[0-9]+}}, off, s[0:3], s34
 ; GCN-NEXT: s_add_u32 s32, s32, 0x30000
 
@@ -237,10 +238,10 @@ define void @no_free_scratch_sgpr_for_bp_copy(<32 x i32> %a, i32 %b) #0 {
 ; GCN-NEXT: buffer_load_dword v{{[0-9]+}}, off, s[0:3], s34
 ; GCN: v_readlane_b32 s34, [[VGPR_REG:v[0-9]+]], 0
 ; GCN: buffer_store_dword v{{[0-9]+}}, off, s[0:3], s33 offset:128
+; GCN-NEXT: s_waitcnt vmcnt(0)
 ; GCN-NEXT: ;;#ASMSTART
 ; GCN-NEXT: ;;#ASMEND
-; GCN: s_waitcnt vmcnt(0)
-; GCN-NEXT: s_setpc_b64 s[30:31]
+; GCN: s_setpc_b64 s[30:31]
   %local_val = alloca i32, align 128, addrspace(5)
   store volatile i32 %b, i32 addrspace(5)* %local_val, align 128
   ; Use all clobberable registers, so BP has to spill to a VGPR.
@@ -284,7 +285,7 @@ define void @no_free_regs_spill_bp_to_memory(<32 x i32> %a, i32 %b) #5 {
   ret void
 }
 
-define void @spill_bp_to_memory_scratch_reg_needed_mubuf_offset(<32 x i32> %a, i32 %b, [4096 x i8] addrspace(5)* byval align 4 %arg) #5 {
+define void @spill_bp_to_memory_scratch_reg_needed_mubuf_offset(<32 x i32> %a, i32 %b, [4096 x i8] addrspace(5)* byval([4096 x i8]) align 4 %arg) #5 {
 ; If the size of the offset exceeds the MUBUF offset field we need another
 ; scratch VGPR to hold the offset.
 

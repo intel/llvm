@@ -1305,9 +1305,11 @@ Instruction *mutateCallInstOCL(
     Module *M, CallInst *CI,
     std::function<std::string(CallInst *, std::vector<Value *> &, Type *&RetTy)>
         ArgMutate,
-    std::function<Instruction *(CallInst *)> RetMutate, AttributeList *Attrs) {
+    std::function<Instruction *(CallInst *)> RetMutate, AttributeList *Attrs,
+    bool TakeFuncName) {
   OCLBuiltinFuncMangleInfo BtnInfo(CI->getCalledFunction());
-  return mutateCallInst(M, CI, ArgMutate, RetMutate, &BtnInfo, Attrs);
+  return mutateCallInst(M, CI, ArgMutate, RetMutate, &BtnInfo, Attrs,
+                        TakeFuncName);
 }
 
 static std::pair<StringRef, StringRef>

@@ -12,6 +12,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
   * [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
 * [Use DPC++ toolchain](#use-dpc-toolchain)
   * [Install low level runtime](#install-low-level-runtime)
+  * [Obtain prerequisites for ahead of time (AOT) compilation](#obtain-prerequisites-for-ahead-of-time-aot-compilation)
   * [Test DPC++ toolchain](#test-dpc-toolchain)
   * [Run simple DPC++ application](#run-simple-dpc-application)
 * [C++ standard](#c-standard)
@@ -62,7 +63,7 @@ set DPCPP_HOME=%USERPROFILE%\sycl_workspace
 mkdir %DPCPP_HOME%
 cd %DPCPP_HOME%
 
-git clone https://github.com/intel/llvm -b sycl
+git clone --config core.autocrlf=false https://github.com/intel/llvm -b sycl
 ```
 
 ## Build DPC++ toolchain
@@ -88,7 +89,8 @@ python %DPCPP_HOME%\llvm\buildbot\configure.py
 python %DPCPP_HOME%\llvm\buildbot\compile.py
 ```
 
-You can use the following flags with `configure.py`:
+You can use the following flags with `configure.py` (full list of available
+flags can be found by launching the script with `--help`):
 
 * `--system-ocl` -> Don't download OpenCL headers and library via CMake but use the system ones
 * `--no-werror` -> Don't treat warnings as errors when compiling llvm
@@ -98,8 +100,12 @@ You can use the following flags with `configure.py`:
 * `-o` -> Path to build directory
 * `--cmake-gen` -> Set build system type (e.g. `--cmake-gen "Unix Makefiles"`)
 
-Ahead-of-time compilation for the Intel&reg; processors is enabled by default.
-For more, see [opencl-aot documentation](../../opencl-aot/README.md).
+**Please note** that no data about flags is being shared between `configure.py` and
+`compile.py` scripts, which means that if you configured your build to be
+placed in non-default directory using `-o` flag, you must also specify this flag
+and the same path in `compile.py` options. This allows you, for example, to
+configure several different builds and then build just one of them which is
+needed at the moment.
 
 ### Build DPC++ toolchain with libc++ library
 
@@ -201,12 +207,14 @@ run the following commands
       /etc/OpenCL/vendors/intel_expcpu.icd
     ```
 
-3) Extract TBB libraries. For example, for the archive tbb-<tbb_version>-lin.tgz
+3) Extract or build TBB libraries using links in
+[the dependency configuration file](../../buildbot/dependency.conf). For example,
+for the archive oneapi-tbb-<tbb_version>-lin.tgz:
 
     ```bash
-    mkdir -p /opt/intel/tbb_<tbb_version>
-    cd /opt/intel/tbb_<tbb_version>
-    tar -zxvf tbb*lin.tgz
+    mkdir -p /opt/intel
+    cd /opt/intel
+    tar -zxvf oneapi-tbb*lin.tgz
     ```
 
 4) Copy files from or create symbolic links to TBB libraries in OpenCL RT
@@ -214,22 +222,22 @@ folder:
 
     ```bash
     # OpenCL FPGA emulation RT
-    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so
+    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so
       /opt/intel/oclfpgaemu_<fpga_version>/x64
-    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so
+    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so
       /opt/intel/oclfpgaemu_<fpga_version>/x64
-    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so.12
+    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so.12
       /opt/intel/oclfpgaemu_<fpga_version>/x64
-    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so.2
+    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so.2
       /opt/intel/oclfpgaemu_<fpga_version>/x64
     # OpenCL CPU RT
-    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so
+    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so
       /opt/intel/oclcpuexp_<cpu_version>/x64
-    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so
+    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so
       /opt/intel/oclcpuexp_<cpu_version>/x64
-    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so.12
+    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so.12
       /opt/intel/oclcpuexp_<cpu_version>/x64
-    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so.2
+    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so.2
       /opt/intel/oclcpuexp_<cpu_version>/x64
     ```
 
@@ -256,9 +264,9 @@ not working properly.
 [the dependency configuration file](../../buildbot/dependency.conf).  For
 example, to `c:\oclcpu_rt_<cpu_version>`.
 
-3) Extract the archive with TBB runtime using links in
-[the dependency configuration file](../../buildbot/dependency.conf).  For
-example, to `c:\tbb_<tbb_version>`.
+3) Extract the archive with TBB runtime or build it from sources using links
+in [the dependency configuration file](../../buildbot/dependency.conf).  For
+example, to `c:\oneapi-tbb-<tbb_version>`.
 
 4) Run `Command Prompt` as `Administrator`. To do that click `Start` button,
 type `Command Prompt`, click the Right mouse button on it, then click
@@ -272,47 +280,60 @@ command:
     ```bash
     # Install OpenCL FPGA emulation RT
     # Answer N to clean previous OCL_ICD_FILENAMES configuration
-    c:\oclfpga_rt_<fpga_version>\install.bat c:\tbb_<tbb_version>\tbb\bin\intel64\vc14
+    c:\oclfpga_rt_<fpga_version>\install.bat c:\oneapi-tbb-<tbb_version>\redist\intel64\vc14
     # Install OpenCL CPU RT
     # Answer Y to setup CPU RT side-bi-side with FPGA RT
-    c:\oclcpu_rt_<cpu_version>\install.bat c:\tbb_<tbb_version>\tbb\bin\intel64\vc14
+    c:\oclcpu_rt_<cpu_version>\install.bat c:\oneapi-tbb-<tbb_version>\redist\intel64\vc14
     ```
 
+### Obtain prerequisites for ahead of time (AOT) compilation
+
+[Ahead of time compilation](CompilerAndRuntimeDesign.md#ahead-of-time-aot-compilation)
+requires ahead of time compiler available in `PATH`. There is
+AOT compiler for each device type:
+
+* `GPU`, Level Zero and OpenCL runtimes are supported,
+* `CPU`, OpenCL runtime is supported,
+* `Accelerator` (FPGA or FPGA emulation), OpenCL runtime is supported.
+
+#### GPU
+
+* Linux
+
+  There are two ways how to obtain GPU AOT compiler `ocloc`:
+  * (Ubuntu) Download and install intel-ocloc_***.deb package from
+    [intel/compute-runtime releases](https://github.com/intel/compute-runtime/releases).
+    This package should have the same version as Level Zero / OpenCL GPU
+    runtimes installed on the system.
+  * (other distros) `ocloc` is a part of
+    [Intel&reg; software packages for general purpose GPU capabilities](https://dgpu-docs.intel.com/index.html).
+
+* Windows
+
+  * GPU AOT compiler `ocloc` is a part of
+    [Intel&reg; oneAPI Base Toolkit](https://software.intel.com/content/www/us/en/develop/tools/oneapi/base-toolkit.html)
+    (Intel&reg; oneAPI DPC++/C++ Compiler component).  
+    Make sure that the following path to `ocloc` binary is available in `PATH`
+    environment variable:
+
+    * `<oneAPI installation location>/compiler/<version>/windows/lib/ocloc`
+
+#### CPU
+
+* CPU AOT compiler `opencl-aot` is enabled by default. For more, see
+[opencl-aot documentation](../../opencl-aot/README.md).
+
+#### Accelerator
+
+* Accelerator AOT compiler `aoc` is a part of
+[Intel&reg; oneAPI Base Toolkit](https://software.intel.com/content/www/us/en/develop/tools/oneapi/base-toolkit.html)
+(Intel&reg; oneAPI DPC++/C++ Compiler component).  
+Make sure that these binaries are available in `PATH` environment variable:
+
+  * `aoc` from `<oneAPI installation location>/compiler/<version>/<OS>/lib/oclfpga/bin`
+  * `aocl-ioc64` from `<oneAPI installation location>/compiler/<version>/<OS>/bin`
+
 ### Test DPC++ toolchain
-
-Every product change should be accompanied with corresponding test modification
-(adding new test(s), extending, removing or modifying existing test(s)).
-
-There are 3 types of tests which are used for DPC++ toolchain validation:
-* DPC++ in-tree LIT tests including [check-llvm](../../llvm/test),
-[check-clang](../../clang/test), [check-llvm-spirv](../../llvm-spirv/test) and
-[check-sycl](../../sycl/test) targets stored in this repository. These tests
-should not have hardware (e.g. GPU, FPGA, etc.) or external software
-dependencies (e.g. OpenCL, Level Zero, CUDA runtimes). All tests not following
-this approach should be moved to DPC++ end-to-end or SYCL-CTS tests.
-However, the tests for a feature under active development requiring atomic
-change for tests and product can be put to
-[sycl/test/on-device](../../sycl/test/on-device) temporarily. It is developer
-responsibility to move the tests to DPC++ E2E test suite or SYCL-CTS once
-the feature is stabilized.
-
-* DPC++ end-to-end (E2E) tests which are extension to
-[LLVM\* test suite](https://github.com/intel/llvm-test-suite/tree/intel/SYCL).
-A test which requires full stack including backend runtimes (e.g. OpenCL,
-Level Zero or CUDA) should be put to DPC++ E2E test suite following
-[CONTRIBUTING](https://github.com/intel/llvm-test-suite/blob/intel/CONTRIBUTING.md).
-
-* SYCL-CTS are official 
-[Khronos\* SYCL\* conformance tests](https://github.com/KhronosGroup/SYCL-CTS).
-They verify SYCL specification compatibility. All implementation details or
-extensions are out of scope for the tests. If SYCL specification has changed
-(SYCL CTS tests conflict with recent version of SYCL specification) or change
-is required in the way the tests are built with DPC++ compiler (defined in
-[FindIntel_SYCL](https://github.com/KhronosGroup/SYCL-CTS/blob/SYCL-1.2.1/master/cmake/FindIntel_SYCL.cmake))
-pull request should be created under
-[KhronosGroup/SYCL-CTS](https://github.com/KhronosGroup/SYCL-CTS) with required
-patch.
-
 #### Run in-tree LIT tests
 
 To verify that built DPC++ toolchain is working correctly, run:
@@ -477,7 +498,32 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycldevice \
   simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
 ```
 
-This `simple-sycl-app.exe` application doesn't specify SYCL device for
+To build simple-sycl-app ahead of time for GPU, CPU or Accelerator devices,
+specify the target architecture:
+
+```-fsycl-targets=spir64_gen-unknown-unknown-sycldevice``` for GPU,  
+```-fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice``` for CPU,  
+```-fsycl-targets=spir64_fpga-unknown-unknown-sycldevice``` for Accelerator.
+
+Multiple target architectures are supported.
+
+E.g., this command builds simple-sycl-app for GPU and CPU devices in
+ahead of time mode:
+
+```bash
+clang++ -fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice,spir64_x86_64-unknown-unknown-sycldevice simple-sycl-app.cpp -o simple-sycl-app-aot.exe
+```
+
+Additionally, user can pass specific options of AOT compiler to
+the DPC++ compiler using ```-Xsycl-target-backend``` option, see
+[Device code formats](CompilerAndRuntimeDesign.md#device-code-formats) for
+more. To find available options, execute:
+
+```ocloc compile --help``` for GPU,
+```opencl-aot --help``` for CPU,
+```aoc -help -sycl``` for Accelerator.
+
+The `simple-sycl-app.exe` application doesn't specify SYCL device for
 execution, so SYCL runtime will use `default_selector` logic to select one
 of accelerators available in the system or SYCL host device.
 In this case, the behavior of the `default_selector` can be altered
@@ -583,7 +629,7 @@ class CUDASelector : public cl::sycl::device_selector {
 
 ## C++ standard
 
-* DPC++ runtime is built as C++14 library.
+* DPC++ runtime and headers require C++14 at least.
 * DPC++ compiler is building apps as C++17 apps by default.
 
 ## Known Issues and Limitations
@@ -591,6 +637,7 @@ class CUDASelector : public cl::sycl::device_selector {
 * DPC++ device compiler fails if the same kernel was used in different
   translation units.
 * SYCL host device is not fully supported.
+* SYCL 2020 support work is in progress.
 * 32-bit host/target is not supported.
 * DPC++ works only with OpenCL low level runtimes which support out-of-order
   queues.

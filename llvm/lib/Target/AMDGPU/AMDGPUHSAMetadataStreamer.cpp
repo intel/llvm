@@ -14,16 +14,11 @@
 
 #include "AMDGPUHSAMetadataStreamer.h"
 #include "AMDGPU.h"
-#include "AMDGPUSubtarget.h"
+#include "GCNSubtarget.h"
 #include "MCTargetDesc/AMDGPUTargetStreamer.h"
 #include "SIMachineFunctionInfo.h"
 #include "SIProgramInfo.h"
-#include "Utils/AMDGPUBaseInfo.h"
-#include "llvm/ADT/StringSwitch.h"
-#include "llvm/IR/Constants.h"
 #include "llvm/IR/Module.h"
-#include "llvm/Support/raw_ostream.h"
-
 using namespace llvm;
 
 static std::pair<Type *, Align> getArgumentTypeAlign(const Argument &Arg,

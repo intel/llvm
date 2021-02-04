@@ -106,7 +106,7 @@ static constexpr char PFWI_MD[] = "parallel_for_work_item";
 static cl::opt<int> Debug("sycl-lower-wg-debug", llvm::cl::Optional,
                           llvm::cl::Hidden,
                           llvm::cl::desc("Debug SYCL work group code lowering"),
-                          llvm::cl::init(10));
+                          llvm::cl::init(1));
 
 namespace {
 class SYCLLowerWGScopeLegacyPass : public FunctionPass {
@@ -237,6 +237,8 @@ static bool mayHaveSideEffects(const Instruction *I) {
   case Instruction::Call:
     assert(!isPFWICall(I) && "pfwi must have been handled separately");
     return true;
+  case Instruction::AddrSpaceCast:
+    return false;
   default:
     return true;
   }
@@ -375,6 +377,7 @@ using LocalsSet = SmallPtrSet<AllocaInst *, 4>;
 
 static void copyBetweenPrivateAndShadow(Value *L, GlobalVariable *Shadow,
                                         IRBuilder<> &Builder, bool Loc2Shadow) {
+  assert(isa<PointerType>(L->getType()));
   Type *T = nullptr;
   MaybeAlign LocAlign(0);
 
@@ -382,17 +385,20 @@ static void copyBetweenPrivateAndShadow(Value *L, GlobalVariable *Shadow,
     T = AI->getAllocatedType();
     LocAlign = MaybeAlign(AI->getAlignment());
   } else {
-    if (cast<Argument>(L)->hasByValAttr()) {
-      T = cast<Argument>(L)->getParamByValType();
-      LocAlign = MaybeAlign(cast<Argument>(L)->getParamAlignment());
+    auto Arg = cast<Argument>(L);
+    if (Arg->hasByValAttr()) {
+      T = Arg->getParamByValType();
+      LocAlign = MaybeAlign(Arg->getParamAlignment());
     } else {
-      Type *Ty = cast<Argument>(L)->getType();
+      Type *Ty = Arg->getType();
       Module &M = *Shadow->getParent();
       LocAlign = M.getDataLayout().getValueOrABITypeAlignment(
-          MaybeAlign(cast<Argument>(L)->getParamAlignment()), Ty);
-      T = cast<Argument>(L)->getType()->getPointerElementType();
+          MaybeAlign(Arg->getParamAlignment()), Ty);
+      T = Arg->getType()->getPointerElementType();
     }
   }
+
+  assert(T && "Unexpected type");
 
   if (T->isAggregateType()) {
     // TODO: we should use methods which directly return MaybeAlign once such
@@ -626,6 +632,10 @@ static void fixupPrivateMemoryPFWILambdaCaptures(CallInst *PFWICall) {
   // whether it is an alloca with "work_item_scope"
   SmallVector<CaptureDesc, 4> PrivMemCaptures;
 
+  // Look through cast
+  if (auto *Cast = dyn_cast<AddrSpaceCastInst>(LambdaObj))
+    LambdaObj = Cast->getOperand(0);
+
   for (auto *U : LambdaObj->users()) {
     GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(U);
 
@@ -769,19 +779,21 @@ PreservedAnalyses SYCLLowerWGScopePass::run(Function &F, const llvm::Triple &TT,
     Instruction *First = nullptr;
     Instruction *Last = nullptr;
 
-    // Skip PHIs and allocas, as they don't have side effects and must never be
-    // guarded with the WG leader test. Note that there should be no allocas in
-    // local address space at this point - they must have been converted to
-    // globals.
+    // Skip PHIs, allocas and addrspacecasts associated with allocas, as they
+    // don't have side effects and must never be guarded with the WG leader
+    // test. Note that there should be no allocas in local address space at this
+    // point - they must have been converted to globals.
     Instruction *I = BB.getFirstNonPHI();
 
-    for (; I->getOpcode() == Instruction::Alloca; I = I->getNextNode()) {
+    for (; I->getOpcode() == Instruction::Alloca ||
+           I->getOpcode() == Instruction::AddrSpaceCast;
+         I = I->getNextNode()) {
       auto *AllocaI = dyn_cast<AllocaInst>(I);
       // Allocas marked with "work_item_scope" are those originating from
       // cl::sycl::private_memory<T> variables, which must be in private memory.
       // No shadows/materialization is needed for them because they can be
       // updated only within PFWIs
-      if (!AllocaI->getMetadata(WI_SCOPE_MD))
+      if (AllocaI && !AllocaI->getMetadata(WI_SCOPE_MD))
         Allocas.insert(AllocaI);
     }
     for (; I && (I != BB.getTerminator()); I = I->getNextNode()) {

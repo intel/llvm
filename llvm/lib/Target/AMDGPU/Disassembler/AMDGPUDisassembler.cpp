@@ -17,43 +17,24 @@
 // ToDo: What to do with instruction suffixes (v_mov_b32 vs v_mov_b32_e32)?
 
 #include "Disassembler/AMDGPUDisassembler.h"
-#include "AMDGPU.h"
 #include "MCTargetDesc/AMDGPUMCTargetDesc.h"
-#include "SIDefines.h"
 #include "TargetInfo/AMDGPUTargetInfo.h"
 #include "Utils/AMDGPUBaseInfo.h"
-#include "llvm-c/Disassembler.h"
-#include "llvm/ADT/APInt.h"
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Twine.h"
-#include "llvm/BinaryFormat/ELF.h"
+#include "llvm-c/DisassemblerTypes.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
-#include "llvm/MC/MCDisassembler/MCDisassembler.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCFixedLenDisassembler.h"
-#include "llvm/MC/MCInst.h"
-#include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/Support/AMDHSAKernelDescriptor.h"
-#include "llvm/Support/Endian.h"
-#include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/TargetRegistry.h"
-#include "llvm/Support/raw_ostream.h"
-#include <algorithm>
-#include <cassert>
-#include <cstddef>
-#include <cstdint>
-#include <iterator>
-#include <tuple>
-#include <vector>
 
 using namespace llvm;
 
 #define DEBUG_TYPE "amdgpu-disassembler"
 
-#define SGPR_MAX (isGFX10() ? AMDGPU::EncValues::SGPR_MAX_GFX10 \
-                            : AMDGPU::EncValues::SGPR_MAX_SI)
+#define SGPR_MAX                                                               \
+  (isGFX10Plus() ? AMDGPU::EncValues::SGPR_MAX_GFX10                           \
+                 : AMDGPU::EncValues::SGPR_MAX_SI)
 
 using DecodeStatus = llvm::MCDisassembler::DecodeStatus;
 
@@ -64,7 +45,7 @@ AMDGPUDisassembler::AMDGPUDisassembler(const MCSubtargetInfo &STI,
   TargetMaxInstBytes(Ctx.getAsmInfo()->getMaxInstLength(&STI)) {
 
   // ToDo: AMDGPUDisassembler supports only VI ISA.
-  if (!STI.getFeatureBits()[AMDGPU::FeatureGCN3Encoding] && !isGFX10())
+  if (!STI.getFeatureBits()[AMDGPU::FeatureGCN3Encoding] && !isGFX10Plus())
     report_fatal_error("Disassembly not yet supported for subtarget");
 }
 
@@ -397,6 +378,12 @@ DecodeStatus AMDGPUDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
                          AMDGPU::OpName::src2_modifiers);
   }
 
+  if (Res && (MCII->get(MI.getOpcode()).TSFlags &
+                        (SIInstrFlags::MUBUF | SIInstrFlags::FLAT)) &&
+      AMDGPU::getNamedOperandIdx(MI.getOpcode(), AMDGPU::OpName::glc1) != -1) {
+    insertNamedMCOperand(MI, MCOperand::createImm(1), AMDGPU::OpName::glc1);
+  }
+
   if (Res && (MCII->get(MI.getOpcode()).TSFlags & SIInstrFlags::MIMG)) {
     int VAddr0Idx =
         AMDGPU::getNamedOperandIdx(MI.getOpcode(), AMDGPU::OpName::vaddr0);
@@ -558,9 +545,8 @@ DecodeStatus AMDGPUDisassembler::convertMIMGInst(MCInst &MI) const {
     DstSize = (DstSize + 1) / 2;
   }
 
-  // FIXME: Add tfe support
   if (MI.getOperand(TFEIdx).getImm())
-    return MCDisassembler::Success;
+    DstSize += 1;
 
   if (DstSize == Info->VDataDwords && AddrSize == Info->VAddrDwords)
     return MCDisassembler::Success;
@@ -1010,10 +996,8 @@ unsigned AMDGPUDisassembler::getTtmpClassId(const OpWidthTy Width) const {
 int AMDGPUDisassembler::getTTmpIdx(unsigned Val) const {
   using namespace AMDGPU::EncValues;
 
-  unsigned TTmpMin =
-      (isGFX9() || isGFX10()) ? TTMP_GFX9_GFX10_MIN : TTMP_VI_MIN;
-  unsigned TTmpMax =
-      (isGFX9() || isGFX10()) ? TTMP_GFX9_GFX10_MAX : TTMP_VI_MAX;
+  unsigned TTmpMin = isGFX9Plus() ? TTMP_GFX9PLUS_MIN : TTMP_VI_MIN;
+  unsigned TTmpMax = isGFX9Plus() ? TTMP_GFX9PLUS_MAX : TTMP_VI_MAX;
 
   return (TTmpMin <= Val && Val <= TTmpMax)? Val - TTmpMin : -1;
 }
@@ -1151,8 +1135,8 @@ MCOperand AMDGPUDisassembler::decodeSDWASrc(const OpWidthTy Width,
                               Val - SDWA9EncValues::SRC_VGPR_MIN);
     }
     if (SDWA9EncValues::SRC_SGPR_MIN <= Val &&
-        Val <= (isGFX10() ? SDWA9EncValues::SRC_SGPR_MAX_GFX10
-                          : SDWA9EncValues::SRC_SGPR_MAX_SI)) {
+        Val <= (isGFX10Plus() ? SDWA9EncValues::SRC_SGPR_MAX_GFX10
+                              : SDWA9EncValues::SRC_SGPR_MAX_SI)) {
       return createSRegOperand(getSgprClassId(Width),
                                Val - SDWA9EncValues::SRC_SGPR_MIN);
     }
@@ -1221,12 +1205,14 @@ bool AMDGPUDisassembler::isVI() const {
   return STI.getFeatureBits()[AMDGPU::FeatureVolcanicIslands];
 }
 
-bool AMDGPUDisassembler::isGFX9() const {
-  return STI.getFeatureBits()[AMDGPU::FeatureGFX9];
-}
+bool AMDGPUDisassembler::isGFX9() const { return AMDGPU::isGFX9(STI); }
 
-bool AMDGPUDisassembler::isGFX10() const {
-  return STI.getFeatureBits()[AMDGPU::FeatureGFX10];
+bool AMDGPUDisassembler::isGFX9Plus() const { return AMDGPU::isGFX9Plus(STI); }
+
+bool AMDGPUDisassembler::isGFX10() const { return AMDGPU::isGFX10(STI); }
+
+bool AMDGPUDisassembler::isGFX10Plus() const {
+  return AMDGPU::isGFX10Plus(STI);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1281,7 +1267,7 @@ MCDisassembler::DecodeStatus AMDGPUDisassembler::decodeCOMPUTE_PGM_RSRC1(
       (FourByteBuffer & COMPUTE_PGM_RSRC1_GRANULATED_WAVEFRONT_SGPR_COUNT) >>
       COMPUTE_PGM_RSRC1_GRANULATED_WAVEFRONT_SGPR_COUNT_SHIFT;
 
-  if (isGFX10() && GranulatedWavefrontSGPRCount)
+  if (isGFX10Plus() && GranulatedWavefrontSGPRCount)
     return MCDisassembler::Fail;
 
   uint32_t NextFreeSGPR = (GranulatedWavefrontSGPRCount + 1) *
@@ -1325,7 +1311,7 @@ MCDisassembler::DecodeStatus AMDGPUDisassembler::decodeCOMPUTE_PGM_RSRC1(
   if (FourByteBuffer & COMPUTE_PGM_RSRC1_RESERVED0)
     return MCDisassembler::Fail;
 
-  if (isGFX10()) {
+  if (isGFX10Plus()) {
     PRINT_DIRECTIVE(".amdhsa_workgroup_processor_mode",
                     COMPUTE_PGM_RSRC1_WGP_MODE);
     PRINT_DIRECTIVE(".amdhsa_memory_ordered", COMPUTE_PGM_RSRC1_MEM_ORDERED);
@@ -1341,7 +1327,7 @@ MCDisassembler::DecodeStatus AMDGPUDisassembler::decodeCOMPUTE_PGM_RSRC2(
   StringRef Indent = "\t";
   PRINT_DIRECTIVE(
       ".amdhsa_system_sgpr_private_segment_wavefront_offset",
-      COMPUTE_PGM_RSRC2_ENABLE_SGPR_PRIVATE_SEGMENT_WAVEFRONT_OFFSET);
+      COMPUTE_PGM_RSRC2_ENABLE_PRIVATE_SEGMENT);
   PRINT_DIRECTIVE(".amdhsa_system_sgpr_workgroup_id_x",
                   COMPUTE_PGM_RSRC2_ENABLE_SGPR_WORKGROUP_ID_X);
   PRINT_DIRECTIVE(".amdhsa_system_sgpr_workgroup_id_y",
@@ -1450,7 +1436,7 @@ AMDGPUDisassembler::decodeKernelDescriptorDirective(
     //  - Only set for GFX10, GFX6-9 have this to be 0.
     //  - Currently no directives directly control this.
     FourByteBuffer = DE.getU32(Cursor);
-    if (!isGFX10() && FourByteBuffer) {
+    if (!isGFX10Plus() && FourByteBuffer) {
       return MCDisassembler::Fail;
     }
     return MCDisassembler::Success;
@@ -1497,7 +1483,7 @@ AMDGPUDisassembler::decodeKernelDescriptorDirective(
     if (isGFX9() &&
         (TwoByteBuffer & KERNEL_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32)) {
       return MCDisassembler::Fail;
-    } else if (isGFX10()) {
+    } else if (isGFX10Plus()) {
       PRINT_DIRECTIVE(".amdhsa_wavefront_size32",
                       KERNEL_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32);
     }
@@ -1591,11 +1577,10 @@ bool AMDGPUSymbolizer::tryAddingSymbolicOperand(MCInst &Inst,
   if (!Symbols)
     return false;
 
-  auto Result = std::find_if(Symbols->begin(), Symbols->end(),
-                             [Value](const SymbolInfoTy& Val) {
-                                return Val.Addr == static_cast<uint64_t>(Value)
-                                    && Val.Type == ELF::STT_NOTYPE;
-                             });
+  auto Result = llvm::find_if(*Symbols, [Value](const SymbolInfoTy &Val) {
+    return Val.Addr == static_cast<uint64_t>(Value) &&
+           Val.Type == ELF::STT_NOTYPE;
+  });
   if (Result != Symbols->end()) {
     auto *Sym = Ctx.getOrCreateSymbol(Result->Name);
     const auto *Add = MCSymbolRefExpr::create(Sym, Ctx);

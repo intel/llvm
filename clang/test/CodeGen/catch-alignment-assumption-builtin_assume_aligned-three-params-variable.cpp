@@ -7,7 +7,7 @@
 // CHECK-SANITIZE-ANYRECOVER: @[[LINE_100_ALIGNMENT_ASSUMPTION:.*]] = {{.*}}, i32 100, i32 35 }, {{.*}}* @[[CHAR]] }
 
 void *caller(char **x, unsigned long offset) {
-  // CHECK:                           define i8* @{{.*}}(i8** %[[X:.*]], i64 %[[OFFSET:.*]])
+  // CHECK:                           define{{.*}} i8* @{{.*}}(i8** %[[X:.*]], i64 %[[OFFSET:.*]])
   // CHECK-NEXT:                      entry:
   // CHECK-NEXT:                        %[[X_ADDR:.*]] = alloca i8**, align 8
   // CHECK-NEXT:                        %[[OFFSET_ADDR:.*]] = alloca i64, align 8
@@ -25,7 +25,7 @@ void *caller(char **x, unsigned long offset) {
   // CHECK-SANITIZE:                  [[HANDLER_ALIGNMENT_ASSUMPTION]]:
   // CHECK-SANITIZE-NORECOVER-NEXT:     call void @__ubsan_handle_alignment_assumption_abort(i8* bitcast ({ {{{.*}}}, {{{.*}}}, {{{.*}}}* }* @[[LINE_100_ALIGNMENT_ASSUMPTION]] to i8*), i64 %[[PTRINT_DUP]], i64 536870912, i64 %[[OFFSET_RELOADED]]){{.*}}, !nosanitize
   // CHECK-SANITIZE-RECOVER-NEXT:       call void @__ubsan_handle_alignment_assumption(i8* bitcast ({ {{{.*}}}, {{{.*}}}, {{{.*}}}* }* @[[LINE_100_ALIGNMENT_ASSUMPTION]] to i8*), i64 %[[PTRINT_DUP]], i64 536870912, i64 %[[OFFSET_RELOADED]]){{.*}}, !nosanitize
-  // CHECK-SANITIZE-TRAP-NEXT:          call void @llvm.trap(){{.*}}, !nosanitize
+  // CHECK-SANITIZE-TRAP-NEXT:          call void @llvm.ubsantrap(i8 23){{.*}}, !nosanitize
   // CHECK-SANITIZE-UNREACHABLE-NEXT:   unreachable, !nosanitize
   // CHECK-SANITIZE:                  [[CONT]]:
   // CHECK-NEXT:                        call void @llvm.assume(i1 true) [ "align"(i8* %[[BITCAST]], i64 536870912, i64 %[[OFFSET_RELOADED]]) ]

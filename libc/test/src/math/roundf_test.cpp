@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "include/math.h"
 #include "src/math/roundf.h"
 #include "utils/FPUtil/FPBits.h"
 #include "utils/FPUtil/TestHelpers.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
 #include "utils/UnitTest/Test.h"
+#include <math.h>
 
 using FPBits = __llvm_libc::fputil::FPBits<float>;
 
@@ -19,18 +19,17 @@ namespace mpfr = __llvm_libc::testing::mpfr;
 
 DECLARE_SPECIAL_CONSTANTS(float)
 
-TEST(RoundfTest, SpecialNumbers) {
+TEST(LlvmLibcRoundfTest, SpecialNumbers) {
   EXPECT_FP_EQ(zero, __llvm_libc::roundf(zero));
   EXPECT_FP_EQ(negZero, __llvm_libc::roundf(negZero));
 
   EXPECT_FP_EQ(inf, __llvm_libc::roundf(inf));
   EXPECT_FP_EQ(negInf, __llvm_libc::roundf(negInf));
 
-  ASSERT_NE(isnan(nan), 0);
-  ASSERT_NE(isnan(__llvm_libc::roundf(nan)), 0);
+  EXPECT_FP_EQ(aNaN, __llvm_libc::roundf(aNaN));
 }
 
-TEST(RoundfTest, RoundedNumbers) {
+TEST(LlvmLibcRoundfTest, RoundedNumbers) {
   EXPECT_FP_EQ(1.0f, __llvm_libc::roundf(1.0f));
   EXPECT_FP_EQ(-1.0f, __llvm_libc::roundf(-1.0f));
   EXPECT_FP_EQ(10.0f, __llvm_libc::roundf(10.0f));
@@ -39,7 +38,7 @@ TEST(RoundfTest, RoundedNumbers) {
   EXPECT_FP_EQ(-1234.0f, __llvm_libc::roundf(-1234.0f));
 }
 
-TEST(RoundfTest, Fractions) {
+TEST(LlvmLibcRoundfTest, Fractions) {
   EXPECT_FP_EQ(1.0f, __llvm_libc::roundf(0.5f));
   EXPECT_FP_EQ(-1.0f, __llvm_libc::roundf(-0.5f));
   EXPECT_FP_EQ(0.0f, __llvm_libc::roundf(0.115f));
@@ -62,7 +61,7 @@ TEST(RoundfTest, Fractions) {
   EXPECT_FP_EQ(-1235.0f, __llvm_libc::roundf(-1234.96f));
 }
 
-TEST(RoundfTest, InFloatRange) {
+TEST(LlvmLibcRoundfTest, InFloatRange) {
   using UIntType = FPBits::UIntType;
   constexpr UIntType count = 1000000;
   constexpr UIntType step = UIntType(-1) / count;

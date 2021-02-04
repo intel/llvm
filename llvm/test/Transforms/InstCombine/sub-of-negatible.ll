@@ -831,7 +831,7 @@ define <2 x i4> @negate_shufflevector_oneinput_second_lane_is_undef(<2 x i4> %x,
 define <2 x i4> @negate_shufflevector_twoinputs(<2 x i4> %x, <2 x i4> %y, <2 x i4> %z) {
 ; CHECK-LABEL: @negate_shufflevector_twoinputs(
 ; CHECK-NEXT:    [[T0_NEG:%.*]] = shl <2 x i4> <i4 6, i4 -5>, [[X:%.*]]
-; CHECK-NEXT:    [[T1_NEG:%.*]] = add <2 x i4> [[Y:%.*]], <i4 undef, i4 1>
+; CHECK-NEXT:    [[T1_NEG:%.*]] = add <2 x i4> [[Y:%.*]], <i4 poison, i4 1>
 ; CHECK-NEXT:    [[T2_NEG:%.*]] = shufflevector <2 x i4> [[T0_NEG]], <2 x i4> [[T1_NEG]], <2 x i32> <i32 0, i32 3>
 ; CHECK-NEXT:    [[T3:%.*]] = add <2 x i4> [[T2_NEG]], [[Z:%.*]]
 ; CHECK-NEXT:    ret <2 x i4> [[T3]]
@@ -1296,9 +1296,8 @@ define i8 @negate_abs(i8 %x, i8 %y) {
 ; CHECK-LABEL: @negate_abs(
 ; CHECK-NEXT:    [[T0:%.*]] = sub i8 0, [[X:%.*]]
 ; CHECK-NEXT:    call void @use8(i8 [[T0]])
-; CHECK-NEXT:    [[T1:%.*]] = icmp slt i8 [[X]], 0
-; CHECK-NEXT:    [[TMP1:%.*]] = select i1 [[T1]], i8 [[X]], i8 [[T0]], !prof !0
-; CHECK-NEXT:    [[T3:%.*]] = add i8 [[TMP1]], [[Y:%.*]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.abs.i8(i8 [[X]], i1 false)
+; CHECK-NEXT:    [[T3:%.*]] = sub i8 [[Y:%.*]], [[TMP1]]
 ; CHECK-NEXT:    ret i8 [[T3]]
 ;
   %t0 = sub i8 0, %x
@@ -1312,8 +1311,7 @@ define i8 @negate_nabs(i8 %x, i8 %y) {
 ; CHECK-LABEL: @negate_nabs(
 ; CHECK-NEXT:    [[T0:%.*]] = sub i8 0, [[X:%.*]]
 ; CHECK-NEXT:    call void @use8(i8 [[T0]])
-; CHECK-NEXT:    [[T1:%.*]] = icmp slt i8 [[X]], 0
-; CHECK-NEXT:    [[TMP1:%.*]] = select i1 [[T1]], i8 [[T0]], i8 [[X]], !prof !0
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.abs.i8(i8 [[X]], i1 false)
 ; CHECK-NEXT:    [[T3:%.*]] = add i8 [[TMP1]], [[Y:%.*]]
 ; CHECK-NEXT:    ret i8 [[T3]]
 ;

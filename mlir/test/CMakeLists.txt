@@ -1,3 +1,4 @@
+add_subdirectory(Bindings)
 add_subdirectory(CAPI)
 add_subdirectory(EDSC)
 add_subdirectory(mlir-cpu-runner)
@@ -11,6 +12,7 @@ llvm_canonicalize_cmake_booleans(
   MLIR_CUDA_RUNNER_ENABLED
   MLIR_ROCM_CONVERSIONS_ENABLED
   MLIR_ROCM_RUNNER_ENABLED
+  MLIR_SPIRV_CPU_RUNNER_ENABLED
   MLIR_VULKAN_RUNNER_ENABLED
   )
 
@@ -100,6 +102,8 @@ endif()
 if(MLIR_BINDINGS_PYTHON_ENABLED)
   list(APPEND MLIR_TEST_DEPENDS
     MLIRBindingsPythonExtension
+    MLIRBindingsPythonTestOps
+    MLIRTransformsBindingsPythonExtension
   )
 endif()
 

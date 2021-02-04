@@ -658,23 +658,6 @@ static TemplateParameter makeTemplateParameter(Decl *D) {
   return TemplateParameter(cast<TemplateTemplateParmDecl>(D));
 }
 
-/// If \p Param is an expanded parameter pack, get the number of expansions.
-static Optional<unsigned> getExpandedPackSize(NamedDecl *Param) {
-  if (auto *TTP = dyn_cast<TemplateTypeParmDecl>(Param))
-    if (TTP->isExpandedParameterPack())
-      return TTP->getNumExpansionParameters();
-
-  if (auto *NTTP = dyn_cast<NonTypeTemplateParmDecl>(Param))
-    if (NTTP->isExpandedParameterPack())
-      return NTTP->getNumExpansionTypes();
-
-  if (auto *TTP = dyn_cast<TemplateTemplateParmDecl>(Param))
-    if (TTP->isExpandedParameterPack())
-      return TTP->getNumExpansionTemplateParameters();
-
-  return None;
-}
-
 /// A pack that we're currently deducing.
 struct clang::DeducedPack {
   // The index of the pack.
@@ -3878,10 +3861,8 @@ static bool AdjustFunctionParmAndArgTypesForDeduction(
 
   if (ParamRefType) {
     // If the argument has incomplete array type, try to complete its type.
-    if (ArgType->isIncompleteArrayType()) {
-      S.completeExprArrayBound(Arg);
-      ArgType = Arg->getType();
-    }
+    if (ArgType->isIncompleteArrayType())
+      ArgType = S.getCompletedType(Arg);
 
     // C++1z [temp.deduct.call]p3:
     //   If P is a forwarding reference and the argument is an lvalue, the type

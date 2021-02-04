@@ -8,6 +8,7 @@
 
 #pragma once
 #include <CL/sycl/detail/array.hpp>
+#include <CL/sycl/detail/helpers.hpp>
 
 #include <stdexcept>
 #include <type_traits>
@@ -141,6 +142,13 @@ public:
   __SYCL_GEN_OPT(^=)
 
 #undef __SYCL_GEN_OPT
+
+private:
+  friend class handler;
+  friend class detail::Builder;
+
+  // Adjust the first dim of the range
+  void set_range_dim0(const size_t dim0) { this->common_array[0] = dim0; }
 };
 
 #ifdef __cpp_deduction_guides

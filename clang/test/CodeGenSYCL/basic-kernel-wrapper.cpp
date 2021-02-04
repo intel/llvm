@@ -19,7 +19,7 @@ int main() {
   return 0;
 }
 
-// CHECK: define spir_kernel void @{{.*}}kernel_function
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_function
 // CHECK-SAME: i32 addrspace(1)* [[MEM_ARG:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %"struct.{{.*}}.cl::sycl::range"* byval{{.*}}align 4 [[ACC_RANGE:%[a-zA-Z0-9_]+_1]],
 // CHECK-SAME: %"struct.{{.*}}.cl::sycl::range"* byval{{.*}}align 4 [[MEM_RANGE:%[a-zA-Z0-9_]+_2]],
@@ -48,9 +48,9 @@ int main() {
 // Check accessor __init method call
 // CHECK-OLD: call spir_func void @{{.*}}__init{{.*}}(%"class.{{.*}}.cl::sycl::accessor"* [[ACCESSOR]], i32 addrspace(1)* [[MEM_LOAD]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ARANGE]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MRANGE]], %"struct.{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OID]])
 // CHECK: [[ACCESSORCAST:%[0-9]+]] = addrspacecast %"class{{.*}}accessor"* [[ACCESSOR]] to %"class{{.*}}accessor" addrspace(4)*
-// CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class.{{.*}}.cl::sycl::accessor" addrspace(4)* [[ACCESSORCAST]], i32 addrspace(1)* [[MEM_LOAD]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ARANGE]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MRANGE]], %"struct.{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OID]])
+// CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class.{{.*}}.cl::sycl::accessor" addrspace(4)* {{[^,]*}} [[ACCESSORCAST]], i32 addrspace(1)* [[MEM_LOAD]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ARANGE]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MRANGE]], %"struct.{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OID]])
 
 // Check lambda "()" operator call
 // CHECK-OLD: call spir_func void @{{.*}}(%"class.{{.*}}.anon"* [[ANON]])
 // CHECK: [[ANONCAST:%[0-9]+]] = addrspacecast %"class{{.*}}anon"* {{.*}} to %"class{{.*}}anon" addrspace(4)*
-// CHECK: call spir_func void @{{.*}}(%"class.{{.*}}.anon" addrspace(4)* [[ANONCAST]])
+// CHECK: call spir_func void @{{.*}}(%"class.{{.*}}.anon" addrspace(4)* {{[^,]*}} [[ANONCAST]])

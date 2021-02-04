@@ -97,9 +97,7 @@ public:
   Instruction *visitSRem(BinaryOperator &I);
   Instruction *visitFRem(BinaryOperator &I);
   bool simplifyDivRemOfSelectWithZeroOp(BinaryOperator &I);
-  Instruction *commonRemTransforms(BinaryOperator &I);
   Instruction *commonIRemTransforms(BinaryOperator &I);
-  Instruction *commonDivTransforms(BinaryOperator &I);
   Instruction *commonIDivTransforms(BinaryOperator &I);
   Instruction *visitUDiv(BinaryOperator &I);
   Instruction *visitSDiv(BinaryOperator &I);
@@ -107,6 +105,7 @@ public:
   Value *simplifyRangeCheck(ICmpInst *Cmp0, ICmpInst *Cmp1, bool Inverted);
   Instruction *visitAnd(BinaryOperator &I);
   Instruction *visitOr(BinaryOperator &I);
+  bool sinkNotIntoOtherHandOfAndOrOr(BinaryOperator &I);
   Instruction *visitXor(BinaryOperator &I);
   Instruction *visitShl(BinaryOperator &I);
   Value *reassociateShiftAmtsOfTwoSameDirectionShifts(
@@ -183,11 +182,6 @@ public:
   /// Try to replace select with select operand SIOpd in SI-ICmp sequence.
   bool replacedSelectWithOperand(SelectInst *SI, const ICmpInst *Icmp,
                                  const unsigned SIOpd);
-
-  /// Try to replace instruction \p I with value \p V which are pointers
-  /// in different address space.
-  /// \return true if successful.
-  bool replacePointer(Instruction &I, Value *V);
 
   LoadInst *combineLoadToNewType(LoadInst &LI, Type *NewTy,
                                  const Twine &Suffix = "");
@@ -329,6 +323,8 @@ private:
   Instruction *narrowFunnelShift(TruncInst &Trunc);
   Instruction *optimizeBitCastFromPhi(CastInst &CI, PHINode *PN);
   Instruction *matchSAddSubSat(SelectInst &MinMax1);
+
+  void freelyInvertAllUsersOf(Value *V);
 
   /// Determine if a pair of casts can be replaced by a single cast.
   ///
@@ -712,9 +708,6 @@ public:
                             SelectPatternFlavor SPF2, Value *C);
   Instruction *foldSelectInstWithICmp(SelectInst &SI, ICmpInst *ICI);
   Instruction *foldSelectValueEquivalence(SelectInst &SI, ICmpInst &ICI);
-
-  Instruction *OptAndOp(BinaryOperator *Op, ConstantInt *OpRHS,
-                        ConstantInt *AndRHS, BinaryOperator &TheAnd);
 
   Value *insertRangeTest(Value *V, const APInt &Lo, const APInt &Hi,
                          bool isSigned, bool Inside);

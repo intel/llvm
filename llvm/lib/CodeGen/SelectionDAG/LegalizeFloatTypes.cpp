@@ -819,6 +819,9 @@ bool DAGTypeLegalizer::SoftenFloatOperand(SDNode *N, unsigned OpNo) {
   case ISD::STRICT_FP_TO_UINT:
   case ISD::FP_TO_SINT:
   case ISD::FP_TO_UINT:  Res = SoftenFloatOp_FP_TO_XINT(N); break;
+  case ISD::FP_TO_SINT_SAT:
+  case ISD::FP_TO_UINT_SAT:
+                         Res = SoftenFloatOp_FP_TO_XINT_SAT(N); break;
   case ISD::STRICT_LROUND:
   case ISD::LROUND:      Res = SoftenFloatOp_LROUND(N); break;
   case ISD::STRICT_LLROUND:
@@ -910,6 +913,24 @@ SDValue DAGTypeLegalizer::SoftenFloatOp_BR_CC(SDNode *N) {
                  0);
 }
 
+// Even if the result type is legal, no libcall may exactly match. (e.g. We
+// don't have FP-i8 conversions) This helper method looks for an appropriate
+// promoted libcall.
+static RTLIB::Libcall findFPToIntLibcall(EVT SrcVT, EVT RetVT, EVT &Promoted,
+                                         bool Signed) {
+  RTLIB::Libcall LC = RTLIB::UNKNOWN_LIBCALL;
+  for (unsigned IntVT = MVT::FIRST_INTEGER_VALUETYPE;
+       IntVT <= MVT::LAST_INTEGER_VALUETYPE && LC == RTLIB::UNKNOWN_LIBCALL;
+       ++IntVT) {
+    Promoted = (MVT::SimpleValueType)IntVT;
+    // The type needs to big enough to hold the result.
+    if (Promoted.bitsGE(RetVT))
+      LC = Signed ? RTLIB::getFPTOSINT(SrcVT, Promoted)
+                  : RTLIB::getFPTOUINT(SrcVT, Promoted);
+  }
+  return LC;
+}
+
 SDValue DAGTypeLegalizer::SoftenFloatOp_FP_TO_XINT(SDNode *N) {
   bool IsStrict = N->isStrictFPOpcode();
   bool Signed = N->getOpcode() == ISD::FP_TO_SINT ||
@@ -925,16 +946,9 @@ SDValue DAGTypeLegalizer::SoftenFloatOp_FP_TO_XINT(SDNode *N) {
   // a larger type, eg: fp -> i32. Even if it is legal, no libcall may exactly
   // match, eg. we don't have fp -> i8 conversions.
   // Look for an appropriate libcall.
-  RTLIB::Libcall LC = RTLIB::UNKNOWN_LIBCALL;
-  for (unsigned IntVT = MVT::FIRST_INTEGER_VALUETYPE;
-       IntVT <= MVT::LAST_INTEGER_VALUETYPE && LC == RTLIB::UNKNOWN_LIBCALL;
-       ++IntVT) {
-    NVT = (MVT::SimpleValueType)IntVT;
-    // The type needs to big enough to hold the result.
-    if (NVT.bitsGE(RVT))
-      LC = Signed ? RTLIB::getFPTOSINT(SVT, NVT) : RTLIB::getFPTOUINT(SVT, NVT);
-  }
-  assert(LC != RTLIB::UNKNOWN_LIBCALL && "Unsupported FP_TO_XINT!");
+  RTLIB::Libcall LC = findFPToIntLibcall(SVT, RVT, NVT, Signed);
+  assert(LC != RTLIB::UNKNOWN_LIBCALL && NVT.isSimple() &&
+         "Unsupported FP_TO_XINT!");
 
   Op = GetSoftenedFloat(Op);
   SDValue Chain = IsStrict ? N->getOperand(0) : SDValue();
@@ -952,6 +966,11 @@ SDValue DAGTypeLegalizer::SoftenFloatOp_FP_TO_XINT(SDNode *N) {
   ReplaceValueWith(SDValue(N, 1), Tmp.second);
   ReplaceValueWith(SDValue(N, 0), Res);
   return SDValue();
+}
+
+SDValue DAGTypeLegalizer::SoftenFloatOp_FP_TO_XINT_SAT(SDNode *N) {
+  SDValue Res = TLI.expandFP_TO_INT_SAT(N, DAG);
+  return Res;
 }
 
 SDValue DAGTypeLegalizer::SoftenFloatOp_SELECT_CC(SDNode *N) {
@@ -1294,7 +1313,7 @@ void DAGTypeLegalizer::ExpandFloatRes_FABS(SDNode *N, SDValue &Lo,
 
 void DAGTypeLegalizer::ExpandFloatRes_FMINNUM(SDNode *N, SDValue &Lo,
                                               SDValue &Hi) {
-  ExpandFloatRes_Unary(N, GetFPLibCall(N->getValueType(0),
+  ExpandFloatRes_Binary(N, GetFPLibCall(N->getValueType(0),
                                        RTLIB::FMIN_F32, RTLIB::FMIN_F64,
                                        RTLIB::FMIN_F80, RTLIB::FMIN_F128,
                                        RTLIB::FMIN_PPCF128), Lo, Hi);
@@ -1750,9 +1769,9 @@ bool DAGTypeLegalizer::ExpandFloatOperand(SDNode *N, unsigned OpNo) {
   case ISD::STRICT_FP_ROUND:
   case ISD::FP_ROUND:   Res = ExpandFloatOp_FP_ROUND(N); break;
   case ISD::STRICT_FP_TO_SINT:
-  case ISD::FP_TO_SINT: Res = ExpandFloatOp_FP_TO_SINT(N); break;
   case ISD::STRICT_FP_TO_UINT:
-  case ISD::FP_TO_UINT: Res = ExpandFloatOp_FP_TO_UINT(N); break;
+  case ISD::FP_TO_SINT:
+  case ISD::FP_TO_UINT: Res = ExpandFloatOp_FP_TO_XINT(N); break;
   case ISD::LROUND:     Res = ExpandFloatOp_LROUND(N); break;
   case ISD::LLROUND:    Res = ExpandFloatOp_LLROUND(N); break;
   case ISD::LRINT:      Res = ExpandFloatOp_LRINT(N); break;
@@ -1878,38 +1897,23 @@ SDValue DAGTypeLegalizer::ExpandFloatOp_FP_ROUND(SDNode *N) {
   return SDValue();
 }
 
-SDValue DAGTypeLegalizer::ExpandFloatOp_FP_TO_SINT(SDNode *N) {
+SDValue DAGTypeLegalizer::ExpandFloatOp_FP_TO_XINT(SDNode *N) {
   EVT RVT = N->getValueType(0);
   SDLoc dl(N);
 
   bool IsStrict = N->isStrictFPOpcode();
+  bool Signed = N->getOpcode() == ISD::FP_TO_SINT ||
+                N->getOpcode() == ISD::STRICT_FP_TO_SINT;
   SDValue Op = N->getOperand(IsStrict ? 1 : 0);
   SDValue Chain = IsStrict ? N->getOperand(0) : SDValue();
-  RTLIB::Libcall LC = RTLIB::getFPTOSINT(Op.getValueType(), RVT);
-  assert(LC != RTLIB::UNKNOWN_LIBCALL && "Unsupported FP_TO_SINT!");
+
+  EVT NVT;
+  RTLIB::Libcall LC = findFPToIntLibcall(Op.getValueType(), RVT, NVT, Signed);
+  assert(LC != RTLIB::UNKNOWN_LIBCALL && NVT.isSimple() &&
+         "Unsupported FP_TO_XINT!");
   TargetLowering::MakeLibCallOptions CallOptions;
-  std::pair<SDValue, SDValue> Tmp = TLI.makeLibCall(DAG, LC, RVT, Op,
-                                                    CallOptions, dl, Chain);
-  if (!IsStrict)
-    return Tmp.first;
-
-  ReplaceValueWith(SDValue(N, 1), Tmp.second);
-  ReplaceValueWith(SDValue(N, 0), Tmp.first);
-  return SDValue();
-}
-
-SDValue DAGTypeLegalizer::ExpandFloatOp_FP_TO_UINT(SDNode *N) {
-  EVT RVT = N->getValueType(0);
-  SDLoc dl(N);
-
-  bool IsStrict = N->isStrictFPOpcode();
-  SDValue Op = N->getOperand(IsStrict ? 1 : 0);
-  SDValue Chain = IsStrict ? N->getOperand(0) : SDValue();
-  RTLIB::Libcall LC = RTLIB::getFPTOUINT(Op.getValueType(), RVT);
-  assert(LC != RTLIB::UNKNOWN_LIBCALL && "Unsupported FP_TO_UINT!");
-  TargetLowering::MakeLibCallOptions CallOptions;
-  std::pair<SDValue, SDValue> Tmp = TLI.makeLibCall(DAG, LC, RVT, Op,
-                                                    CallOptions, dl, Chain);
+  std::pair<SDValue, SDValue> Tmp =
+      TLI.makeLibCall(DAG, LC, NVT, Op, CallOptions, dl, Chain);
   if (!IsStrict)
     return Tmp.first;
 
@@ -2077,6 +2081,9 @@ bool DAGTypeLegalizer::PromoteFloatOperand(SDNode *N, unsigned OpNo) {
     case ISD::FCOPYSIGN:  R = PromoteFloatOp_FCOPYSIGN(N, OpNo); break;
     case ISD::FP_TO_SINT:
     case ISD::FP_TO_UINT: R = PromoteFloatOp_FP_TO_XINT(N, OpNo); break;
+    case ISD::FP_TO_SINT_SAT:
+    case ISD::FP_TO_UINT_SAT:
+                          R = PromoteFloatOp_FP_TO_XINT_SAT(N, OpNo); break;
     case ISD::FP_EXTEND:  R = PromoteFloatOp_FP_EXTEND(N, OpNo); break;
     case ISD::SELECT_CC:  R = PromoteFloatOp_SELECT_CC(N, OpNo); break;
     case ISD::SETCC:      R = PromoteFloatOp_SETCC(N, OpNo); break;
@@ -2118,6 +2125,13 @@ SDValue DAGTypeLegalizer::PromoteFloatOp_FCOPYSIGN(SDNode *N, unsigned OpNo) {
 SDValue DAGTypeLegalizer::PromoteFloatOp_FP_TO_XINT(SDNode *N, unsigned OpNo) {
   SDValue Op = GetPromotedFloat(N->getOperand(0));
   return DAG.getNode(N->getOpcode(), SDLoc(N), N->getValueType(0), Op);
+}
+
+SDValue DAGTypeLegalizer::PromoteFloatOp_FP_TO_XINT_SAT(SDNode *N,
+                                                        unsigned OpNo) {
+  SDValue Op = GetPromotedFloat(N->getOperand(0));
+  return DAG.getNode(N->getOpcode(), SDLoc(N), N->getValueType(0), Op,
+                     N->getOperand(1));
 }
 
 SDValue DAGTypeLegalizer::PromoteFloatOp_FP_EXTEND(SDNode *N, unsigned OpNo) {
@@ -2863,6 +2877,9 @@ bool DAGTypeLegalizer::SoftPromoteHalfOperand(SDNode *N, unsigned OpNo) {
   case ISD::FCOPYSIGN:  Res = SoftPromoteHalfOp_FCOPYSIGN(N, OpNo); break;
   case ISD::FP_TO_SINT:
   case ISD::FP_TO_UINT: Res = SoftPromoteHalfOp_FP_TO_XINT(N); break;
+  case ISD::FP_TO_SINT_SAT:
+  case ISD::FP_TO_UINT_SAT:
+                        Res = SoftPromoteHalfOp_FP_TO_XINT_SAT(N); break;
   case ISD::STRICT_FP_EXTEND:
   case ISD::FP_EXTEND:  Res = SoftPromoteHalfOp_FP_EXTEND(N); break;
   case ISD::SELECT_CC:  Res = SoftPromoteHalfOp_SELECT_CC(N, OpNo); break;
@@ -2930,6 +2947,20 @@ SDValue DAGTypeLegalizer::SoftPromoteHalfOp_FP_TO_XINT(SDNode *N) {
   SDValue Res = DAG.getNode(ISD::FP16_TO_FP, dl, NVT, Op);
 
   return DAG.getNode(N->getOpcode(), dl, N->getValueType(0), Res);
+}
+
+SDValue DAGTypeLegalizer::SoftPromoteHalfOp_FP_TO_XINT_SAT(SDNode *N) {
+  SDValue Op = N->getOperand(0);
+  SDLoc dl(N);
+
+  EVT NVT = TLI.getTypeToTransformTo(*DAG.getContext(), Op.getValueType());
+
+  Op = GetSoftPromotedHalf(Op);
+
+  SDValue Res = DAG.getNode(ISD::FP16_TO_FP, dl, NVT, Op);
+
+  return DAG.getNode(N->getOpcode(), dl, N->getValueType(0), Res,
+                     N->getOperand(1));
 }
 
 SDValue DAGTypeLegalizer::SoftPromoteHalfOp_SELECT_CC(SDNode *N,

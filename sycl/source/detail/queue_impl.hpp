@@ -126,13 +126,13 @@ public:
 
   /// \return an OpenCL interoperability queue handle.
   cl_command_queue get() {
-    if (!MHostQueue) {
-      getPlugin().call<PiApiKind::piQueueRetain>(MQueues[0]);
-      return pi::cast<cl_command_queue>(MQueues[0]);
+    if (MHostQueue || getPlugin().getBackend() != cl::sycl::backend::opencl) {
+      throw invalid_object_error(
+          "This instance of queue doesn't support OpenCL interoperability",
+          PI_INVALID_QUEUE);
     }
-    throw invalid_object_error(
-        "This instance of queue doesn't support OpenCL interoperability",
-        PI_INVALID_QUEUE);
+    getPlugin().call<PiApiKind::piQueueRetain>(MQueues[0]);
+    return pi::cast<cl_command_queue>(MQueues[0]);
   }
 
   /// \return an associated SYCL context.

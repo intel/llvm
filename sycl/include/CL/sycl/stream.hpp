@@ -53,6 +53,10 @@ constexpr size_t MAX_DIMENSIONS = 3;
 constexpr size_t MAX_ARRAY_SIZE =
     MAX_INTEGRAL_DIGITS * MAX_DIMENSIONS + 2 * (MAX_DIMENSIONS - 1) + 2;
 
+// First 2 bytes in each work item's flush buffer are reserved for saving
+// statement offset.
+constexpr unsigned FLUSH_BUF_OFFSET_SIZE = 2;
+
 template <class F, class T = void>
 using EnableIfFP =
     typename detail::enable_if_t<detail::is_same_v<F, float> ||
@@ -69,10 +73,35 @@ using GlobalOffsetAccessorT =
              cl::sycl::access::target::global_buffer,
              cl::sycl::access::placeholder::false_t>;
 
+// Read first 2 bytes of flush buffer to get buffer offset.
+// TODO: Should be optimized to the following:
+//   return *reinterpret_cast<uint16_t *>(&GlobalFlushBuf[WIOffset]);
+// when an issue with device code compilation using this optimization is fixed.
+inline unsigned GetFlushBufOffset(const GlobalBufAccessorT &GlobalFlushBuf,
+                                  unsigned WIOffset) {
+  return ((static_cast<unsigned>(static_cast<uint8_t>(GlobalFlushBuf[WIOffset]))
+           << 8) +
+          static_cast<uint8_t>(GlobalFlushBuf[WIOffset + 1]));
+}
+
+// Write flush buffer's offset into first 2 bytes of that buffer.
+// TODO: Should be optimized to the following:
+//   *reinterpret_cast<uint16_t *>(&GlobalFlushBuf[WIOffset]) =
+//       static_cast<uint16_t>(Offset);
+// when an issue with device code compilation using this optimization is fixed.
+inline void SetFlushBufOffset(GlobalBufAccessorT &GlobalFlushBuf,
+                              unsigned WIOffset, unsigned Offset) {
+  GlobalFlushBuf[WIOffset] = static_cast<char>((Offset >> 8) & 0xff);
+  GlobalFlushBuf[WIOffset + 1] = static_cast<char>(Offset & 0xff);
+}
+
 inline void write(GlobalBufAccessorT &GlobalFlushBuf, size_t FlushBufferSize,
-                  unsigned WIOffset, unsigned &Offset, const char *Str,
-                  unsigned Len, unsigned Padding = 0) {
-  if ((FlushBufferSize - Offset < Len + Padding) ||
+                  unsigned WIOffset, const char *Str, unsigned Len,
+                  unsigned Padding = 0) {
+  unsigned Offset =
+      GetFlushBufOffset(GlobalFlushBuf, WIOffset) + FLUSH_BUF_OFFSET_SIZE;
+
+  if ((Offset + Len + Padding > FlushBufferSize) ||
       (WIOffset + Offset + Len + Padding > GlobalFlushBuf.get_count()))
     // TODO: flush here
     return;
@@ -84,6 +113,8 @@ inline void write(GlobalBufAccessorT &GlobalFlushBuf, size_t FlushBufferSize,
   for (size_t I = 0; I < Len; ++I, ++Offset) {
     GlobalFlushBuf[WIOffset + Offset] = Str[I];
   }
+
+  SetFlushBufOffset(GlobalFlushBuf, WIOffset, Offset - FLUSH_BUF_OFFSET_SIZE);
 }
 
 inline void reverseBuf(char *Buf, unsigned Len) {
@@ -358,11 +389,10 @@ ScalarToStr(const T &Val, char *Buf, unsigned Flags, int, int Precision = -1) {
 template <typename T>
 inline typename detail::enable_if_t<std::is_integral<T>::value>
 writeIntegral(GlobalBufAccessorT &GlobalFlushBuf, size_t FlushBufferSize,
-              unsigned WIOffset, unsigned &Offset, unsigned Flags, int Width,
-              const T &Val) {
+              unsigned WIOffset, unsigned Flags, int Width, const T &Val) {
   char Digits[MAX_INTEGRAL_DIGITS] = {0};
   unsigned Len = ScalarToStr(Val, Digits, Flags, Width);
-  write(GlobalFlushBuf, FlushBufferSize, WIOffset, Offset, Digits, Len,
+  write(GlobalFlushBuf, FlushBufferSize, WIOffset, Digits, Len,
         (Width > 0 && static_cast<unsigned>(Width) > Len)
             ? static_cast<unsigned>(Width) - Len
             : 0);
@@ -371,11 +401,11 @@ writeIntegral(GlobalBufAccessorT &GlobalFlushBuf, size_t FlushBufferSize,
 template <typename T>
 inline EnableIfFP<T>
 writeFloatingPoint(GlobalBufAccessorT &GlobalFlushBuf, size_t FlushBufferSize,
-                   unsigned WIOffset, unsigned &Offset, unsigned Flags,
-                   int Width, int Precision, const T &Val) {
+                   unsigned WIOffset, unsigned Flags, int Width, int Precision,
+                   const T &Val) {
   char Digits[MAX_FLOATING_POINT_DIGITS] = {0};
   unsigned Len = ScalarToStr(Val, Digits, Flags, Width, Precision);
-  write(GlobalFlushBuf, FlushBufferSize, WIOffset, Offset, Digits, Len,
+  write(GlobalFlushBuf, FlushBufferSize, WIOffset, Digits, Len,
         (Width > 0 && static_cast<unsigned>(Width) > Len)
             ? static_cast<unsigned>(Width) - Len
             : 0);
@@ -400,18 +430,21 @@ inline bool updateOffset(GlobalOffsetAccessorT &GlobalOffset,
 
 inline void flushBuffer(GlobalOffsetAccessorT &GlobalOffset,
                         GlobalBufAccessorT &GlobalBuf,
-                        GlobalBufAccessorT &GlobalFlushBuf, unsigned &WIOffset,
-                        unsigned &Offset) {
+                        GlobalBufAccessorT &GlobalFlushBuf, unsigned WIOffset) {
+  unsigned Offset = GetFlushBufOffset(GlobalFlushBuf, WIOffset);
+  if (Offset == 0)
+    return;
 
   unsigned Cur = 0;
   if (!updateOffset(GlobalOffset, GlobalBuf, Offset, Cur))
     return;
 
-  for (unsigned I = WIOffset; I < WIOffset + Offset; I++) {
+  unsigned StmtOffset = WIOffset + FLUSH_BUF_OFFSET_SIZE;
+  for (unsigned I = StmtOffset; I < StmtOffset + Offset; I++) {
     GlobalBuf[Cur++] = GlobalFlushBuf[I];
   }
   // Reset the offset in the flush buffer
-  Offset = 0;
+  SetFlushBufOffset(GlobalFlushBuf, WIOffset, 0);
 }
 
 template <typename T, int VecLength>
@@ -447,14 +480,14 @@ VecToStr(const vec<T, VecLength> &Vec, char *VecStr, unsigned Flags, int Width,
 
 template <typename T, int VecLength>
 inline void writeVec(GlobalBufAccessorT &GlobalFlushBuf, size_t FlushBufferSize,
-                     unsigned WIOffset, unsigned &Offset, unsigned Flags,
-                     int Width, int Precision, const vec<T, VecLength> &Vec) {
+                     unsigned WIOffset, unsigned Flags, int Width,
+                     int Precision, const vec<T, VecLength> &Vec) {
   // Reserve space for vector elements and delimiters
   constexpr size_t MAX_VEC_SIZE =
       MAX_FLOATING_POINT_DIGITS * VecLength + (VecLength - 1) * 2;
   char VecStr[MAX_VEC_SIZE] = {0};
   unsigned Len = VecToStr<T, VecLength>(Vec, VecStr, Flags, Width, Precision);
-  write(GlobalFlushBuf, FlushBufferSize, WIOffset, Offset, VecStr, Len,
+  write(GlobalFlushBuf, FlushBufferSize, WIOffset, VecStr, Len,
         (Width > 0 && Width > Len) ? Width - Len : 0);
 }
 
@@ -477,16 +510,16 @@ inline unsigned ArrayToStr(char *Buf, const array<ArrayLength> &Arr) {
 template <int ArrayLength>
 inline void writeArray(GlobalBufAccessorT &GlobalFlushBuf,
                        size_t FlushBufferSize, unsigned WIOffset,
-                       unsigned &Offset, const array<ArrayLength> &Arr) {
+                       const array<ArrayLength> &Arr) {
   char Buf[MAX_ARRAY_SIZE];
   unsigned Len = ArrayToStr(Buf, Arr);
-  write(GlobalFlushBuf, FlushBufferSize, WIOffset, Offset, Buf, Len);
+  write(GlobalFlushBuf, FlushBufferSize, WIOffset, Buf, Len);
 }
 
 template <int Dimensions>
 inline void writeItem(GlobalBufAccessorT &GlobalFlushBuf,
                       size_t FlushBufferSize, unsigned WIOffset,
-                      unsigned &Offset, const item<Dimensions> &Item) {
+                      const item<Dimensions> &Item) {
   // Reserve space for 3 arrays and additional place (40 symbols) for printing
   // the text
   char Buf[3 * MAX_ARRAY_SIZE + 40];
@@ -499,13 +532,12 @@ inline void writeItem(GlobalBufAccessorT &GlobalFlushBuf,
   Len += append(Buf + Len, ", offset: ");
   Len += ArrayToStr(Buf + Len, Item.get_offset());
   Buf[Len++] = ')';
-  write(GlobalFlushBuf, FlushBufferSize, WIOffset, Offset, Buf, Len);
+  write(GlobalFlushBuf, FlushBufferSize, WIOffset, Buf, Len);
 }
 
 template <int Dimensions>
 inline void writeNDRange(GlobalBufAccessorT &GlobalFlushBuf,
                          size_t FlushBufferSize, unsigned WIOffset,
-                         unsigned &Offset,
                          const nd_range<Dimensions> &ND_Range) {
   // Reserve space for 3 arrays and additional place (50 symbols) for printing
   // the text
@@ -519,13 +551,13 @@ inline void writeNDRange(GlobalBufAccessorT &GlobalFlushBuf,
   Len += append(Buf + Len, ", offset: ");
   Len += ArrayToStr(Buf + Len, ND_Range.get_offset());
   Buf[Len++] = ')';
-  write(GlobalFlushBuf, FlushBufferSize, WIOffset, Offset, Buf, Len);
+  write(GlobalFlushBuf, FlushBufferSize, WIOffset, Buf, Len);
 }
 
 template <int Dimensions>
 inline void writeNDItem(GlobalBufAccessorT &GlobalFlushBuf,
                         size_t FlushBufferSize, unsigned WIOffset,
-                        unsigned &Offset, const nd_item<Dimensions> &ND_Item) {
+                        const nd_item<Dimensions> &ND_Item) {
   // Reserve space for 2 arrays and additional place (40 symbols) for printing
   // the text
   char Buf[2 * MAX_ARRAY_SIZE + 40];
@@ -536,13 +568,13 @@ inline void writeNDItem(GlobalBufAccessorT &GlobalFlushBuf,
   Len += append(Buf + Len, ", local_id: ");
   Len += ArrayToStr(Buf + Len, ND_Item.get_local_id());
   Buf[Len++] = ')';
-  write(GlobalFlushBuf, FlushBufferSize, WIOffset, Offset, Buf, Len);
+  write(GlobalFlushBuf, FlushBufferSize, WIOffset, Buf, Len);
 }
 
 template <int Dimensions>
 inline void writeGroup(GlobalBufAccessorT &GlobalFlushBuf,
                        size_t FlushBufferSize, unsigned WIOffset,
-                       unsigned &Offset, const group<Dimensions> &Group) {
+                       const group<Dimensions> &Group) {
   // Reserve space for 4 arrays and additional place (60 symbols) for printing
   // the text
   char Buf[4 * MAX_ARRAY_SIZE + 60];
@@ -557,7 +589,7 @@ inline void writeGroup(GlobalBufAccessorT &GlobalFlushBuf,
   Len += append(Buf + Len, ", group_range: ");
   Len += ArrayToStr(Buf + Len, Group.get_group_range());
   Buf[Len++] = ')';
-  write(GlobalFlushBuf, FlushBufferSize, WIOffset, Offset, Buf, Len);
+  write(GlobalFlushBuf, FlushBufferSize, WIOffset, Buf, Len);
 }
 
 // Space for 2 arrays and additional place (20 symbols) for printing
@@ -579,7 +611,7 @@ inline unsigned ItemToStr(char *Buf, const item<Dimensions, false> &Item) {
 template <int Dimensions>
 inline void writeHItem(GlobalBufAccessorT &GlobalFlushBuf,
                        size_t FlushBufferSize, unsigned WIOffset,
-                       unsigned &Offset, const h_item<Dimensions> &HItem) {
+                       const h_item<Dimensions> &HItem) {
   // Reserve space for 3 items and additional place (60 symbols) for printing
   // the text
   char Buf[3 * MAX_ITEM_SIZE + 60];
@@ -594,7 +626,7 @@ inline void writeHItem(GlobalBufAccessorT &GlobalFlushBuf,
                                                 : HItem.get_physical_local());
   }
   Len += append(Buf + Len, "\n)");
-  write(GlobalFlushBuf, FlushBufferSize, WIOffset, Offset, Buf, Len);
+  write(GlobalFlushBuf, FlushBufferSize, WIOffset, Buf, Len);
 }
 
 template <typename> struct IsSwizzleOp : std::false_type {};
@@ -616,19 +648,19 @@ using EnableIfSwizzleVec =
 } // namespace detail
 
 enum class stream_manipulator {
-  dec,
-  hex,
-  oct,
-  noshowbase,
-  showbase,
-  noshowpos,
-  showpos,
-  endl,
-  flush,
-  fixed,
-  scientific,
-  hexfloat,
-  defaultfloat
+  dec = 0,
+  hex = 1,
+  oct = 2,
+  noshowbase = 3,
+  showbase = 4,
+  noshowpos = 5,
+  showpos = 6,
+  endl = 7,
+  flush = 8,
+  fixed = 9,
+  scientific = 10,
+  hexfloat = 11,
+  defaultfloat = 12
 };
 
 constexpr stream_manipulator dec = stream_manipulator::dec;
@@ -697,6 +729,7 @@ inline __width_manipulator__ setw(int Width) {
 /// \ingroup sycl_api
 class __SYCL_EXPORT stream {
 public:
+  // Throws exception in case of invalid input parameters
   stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH);
 
   size_t get_size() const;
@@ -739,6 +772,8 @@ private:
   mutable unsigned WIOffset = 0;
 
   // Offset in the flush buffer
+  // TODO: This field is not used anymore.
+  // To be removed when API/ABI changes are allowed.
   mutable unsigned Offset = 0;
 
   mutable size_t FlushBufferSize;
@@ -813,10 +848,15 @@ private:
   void __init() {
     // Calculate offset in the flush buffer for each work item in the global
     // work space. We need to avoid calling intrinsics to get global id because
-    // when stream is used in  a single_task kernel this could cause some
+    // when stream is used in a single_task kernel this could cause some
     // overhead on FPGA target. That is why use global atomic variable to
     // calculate offsets.
     WIOffset = GlobalOffset[1].fetch_add(FlushBufferSize);
+
+    // Initialize flush subbuffer's offset for each work item on device.
+    // Initialization on host device is performed via submition of additional
+    // host task.
+    SetFlushBufOffset(GlobalFlushBuf, WIOffset, 0);
   }
 
   void __finalize() {
@@ -827,9 +867,7 @@ private:
     // NOTE: In the current implementation user should explicitly flush data on
     // the host device. Data is not flushed automatically after kernel execution
     // because of the missing feature in scheduler.
-    if (Offset) {
-      flushBuffer(GlobalOffset, GlobalBuf, GlobalFlushBuf, WIOffset, Offset);
-    }
+    flushBuffer(GlobalOffset, GlobalBuf, GlobalFlushBuf, WIOffset);
   }
 #endif
 
@@ -885,11 +923,7 @@ private:
 
 // Character
 inline const stream &operator<<(const stream &Out, const char C) {
-  if (Out.Offset >= Out.FlushBufferSize ||
-      Out.WIOffset + Out.Offset + 1 > Out.GlobalFlushBuf.get_count())
-    return Out;
-  Out.GlobalFlushBuf[Out.WIOffset + Out.Offset] = C;
-  ++Out.Offset;
+  detail::write(Out.GlobalFlushBuf, Out.FlushBufferSize, Out.WIOffset, &C, 1);
   return Out;
 }
 
@@ -899,8 +933,8 @@ inline const stream &operator<<(const stream &Out, const char *Str) {
   for (; Str[Len] != '\0'; Len++)
     ;
 
-  detail::write(Out.GlobalFlushBuf, Out.FlushBufferSize, Out.WIOffset,
-                Out.Offset, Str, Len);
+  detail::write(Out.GlobalFlushBuf, Out.FlushBufferSize, Out.WIOffset, Str,
+                Len);
   return Out;
 }
 
@@ -916,7 +950,7 @@ inline typename detail::enable_if_t<std::is_integral<ValueType>::value,
                                     const stream &>
 operator<<(const stream &Out, const ValueType &RHS) {
   detail::writeIntegral(Out.GlobalFlushBuf, Out.FlushBufferSize, Out.WIOffset,
-                        Out.Offset, Out.get_flags(), Out.get_width(), RHS);
+                        Out.get_flags(), Out.get_width(), RHS);
   return Out;
 }
 
@@ -924,21 +958,21 @@ operator<<(const stream &Out, const ValueType &RHS) {
 
 inline const stream &operator<<(const stream &Out, const float &RHS) {
   detail::writeFloatingPoint<float>(Out.GlobalFlushBuf, Out.FlushBufferSize,
-                                    Out.WIOffset, Out.Offset, Out.get_flags(),
+                                    Out.WIOffset, Out.get_flags(),
                                     Out.get_width(), Out.get_precision(), RHS);
   return Out;
 }
 
 inline const stream &operator<<(const stream &Out, const double &RHS) {
   detail::writeFloatingPoint<double>(Out.GlobalFlushBuf, Out.FlushBufferSize,
-                                     Out.WIOffset, Out.Offset, Out.get_flags(),
+                                     Out.WIOffset, Out.get_flags(),
                                      Out.get_width(), Out.get_precision(), RHS);
   return Out;
 }
 
 inline const stream &operator<<(const stream &Out, const half &RHS) {
   detail::writeFloatingPoint<half>(Out.GlobalFlushBuf, Out.FlushBufferSize,
-                                   Out.WIOffset, Out.Offset, Out.get_flags(),
+                                   Out.WIOffset, Out.get_flags(),
                                    Out.get_width(), Out.get_precision(), RHS);
   return Out;
 }
@@ -958,8 +992,7 @@ const stream &operator<<(const stream &Out, const T *RHS) {
   Flags &= ~detail::BaseField;
   Flags |= detail::Hex | detail::ShowBase;
   detail::writeIntegral(Out.GlobalFlushBuf, Out.FlushBufferSize, Out.WIOffset,
-                        Out.Offset, Flags, Out.get_width(),
-                        reinterpret_cast<size_t>(RHS));
+                        Flags, Out.get_width(), reinterpret_cast<size_t>(RHS));
   return Out;
 }
 
@@ -983,11 +1016,11 @@ inline const stream &operator<<(const stream &Out,
   case stream_manipulator::endl:
     Out << '\n';
     flushBuffer(Out.GlobalOffset, Out.GlobalBuf, Out.GlobalFlushBuf,
-                Out.WIOffset, Out.Offset);
+                Out.WIOffset);
     break;
   case stream_manipulator::flush:
     flushBuffer(Out.GlobalOffset, Out.GlobalBuf, Out.GlobalFlushBuf,
-                Out.WIOffset, Out.Offset);
+                Out.WIOffset);
     break;
   default:
     Out.set_manipulator(RHS);
@@ -1001,7 +1034,7 @@ inline const stream &operator<<(const stream &Out,
 template <typename T, int VectorLength>
 const stream &operator<<(const stream &Out, const vec<T, VectorLength> &RHS) {
   detail::writeVec<T, VectorLength>(Out.GlobalFlushBuf, Out.FlushBufferSize,
-                                    Out.WIOffset, Out.Offset, Out.get_flags(),
+                                    Out.WIOffset, Out.get_flags(),
                                     Out.get_width(), Out.get_precision(), RHS);
   return Out;
 }
@@ -1011,7 +1044,7 @@ const stream &operator<<(const stream &Out, const vec<T, VectorLength> &RHS) {
 template <int Dimensions>
 inline const stream &operator<<(const stream &Out, const id<Dimensions> &RHS) {
   detail::writeArray<Dimensions>(Out.GlobalFlushBuf, Out.FlushBufferSize,
-                                 Out.WIOffset, Out.Offset, RHS);
+                                 Out.WIOffset, RHS);
   return Out;
 }
 
@@ -1019,7 +1052,7 @@ template <int Dimensions>
 inline const stream &operator<<(const stream &Out,
                                 const range<Dimensions> &RHS) {
   detail::writeArray<Dimensions>(Out.GlobalFlushBuf, Out.FlushBufferSize,
-                                 Out.WIOffset, Out.Offset, RHS);
+                                 Out.WIOffset, RHS);
   return Out;
 }
 
@@ -1027,7 +1060,7 @@ template <int Dimensions>
 inline const stream &operator<<(const stream &Out,
                                 const item<Dimensions> &RHS) {
   detail::writeItem<Dimensions>(Out.GlobalFlushBuf, Out.FlushBufferSize,
-                                Out.WIOffset, Out.Offset, RHS);
+                                Out.WIOffset, RHS);
   return Out;
 }
 
@@ -1035,7 +1068,7 @@ template <int Dimensions>
 inline const stream &operator<<(const stream &Out,
                                 const nd_range<Dimensions> &RHS) {
   detail::writeNDRange<Dimensions>(Out.GlobalFlushBuf, Out.FlushBufferSize,
-                                   Out.WIOffset, Out.Offset, RHS);
+                                   Out.WIOffset, RHS);
   return Out;
 }
 
@@ -1043,7 +1076,7 @@ template <int Dimensions>
 inline const stream &operator<<(const stream &Out,
                                 const nd_item<Dimensions> &RHS) {
   detail::writeNDItem<Dimensions>(Out.GlobalFlushBuf, Out.FlushBufferSize,
-                                  Out.WIOffset, Out.Offset, RHS);
+                                  Out.WIOffset, RHS);
   return Out;
 }
 
@@ -1051,7 +1084,7 @@ template <int Dimensions>
 inline const stream &operator<<(const stream &Out,
                                 const group<Dimensions> &RHS) {
   detail::writeGroup<Dimensions>(Out.GlobalFlushBuf, Out.FlushBufferSize,
-                                 Out.WIOffset, Out.Offset, RHS);
+                                 Out.WIOffset, RHS);
   return Out;
 }
 
@@ -1059,7 +1092,7 @@ template <int Dimensions>
 inline const stream &operator<<(const stream &Out,
                                 const h_item<Dimensions> &RHS) {
   detail::writeHItem<Dimensions>(Out.GlobalFlushBuf, Out.FlushBufferSize,
-                                 Out.WIOffset, Out.Offset, RHS);
+                                 Out.WIOffset, RHS);
   return Out;
 }
 

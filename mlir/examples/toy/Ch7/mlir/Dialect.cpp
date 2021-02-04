@@ -14,9 +14,9 @@
 #include "toy/Dialect.h"
 
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/OpImplementation.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/Transforms/InliningUtils.h"
 
 using namespace mlir;
@@ -244,7 +244,7 @@ static mlir::LogicalResult verifyConstantForType(mlir::Type type,
 
   // Check that each of the elements are valid.
   llvm::ArrayRef<mlir::Attribute> attrElementValues = attrValue.getValue();
-  for (const auto &it : llvm::zip(resultElementTypes, attrElementValues))
+  for (const auto it : llvm::zip(resultElementTypes, attrElementValues))
     if (failed(verifyConstantForType(std::get<0>(it), std::get<1>(it), op)))
       return mlir::failure();
   return mlir::success();
@@ -284,6 +284,21 @@ void AddOp::inferShapes() { getResult().setType(getOperand(0).getType()); }
 /// inference interface.
 void CastOp::inferShapes() { getResult().setType(getOperand().getType()); }
 
+/// Returns true if the given set of input and result types are compatible with
+/// this cast operation. This is required by the `CastOpInterface` to verify
+/// this operation and provide other additional utilities.
+bool CastOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
+  if (inputs.size() != 1 || outputs.size() != 1)
+    return false;
+  // The inputs must be Tensors with the same element type.
+  TensorType input = inputs.front().dyn_cast<TensorType>();
+  TensorType output = outputs.front().dyn_cast<TensorType>();
+  if (!input || !output || input.getElementType() != output.getElementType())
+    return false;
+  // The shape is required to match if both types are ranked.
+  return !input.hasRank() || !output.hasRank() || input == output;
+}
+
 //===----------------------------------------------------------------------===//
 // GenericCallOp
 
@@ -298,7 +313,7 @@ void GenericCallOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
 /// Return the callee of the generic call operation, this is required by the
 /// call interface.
 CallInterfaceCallable GenericCallOp::getCallableForCallee() {
-  return getAttrOfType<SymbolRefAttr>("callee");
+  return (*this)->getAttrOfType<SymbolRefAttr>("callee");
 }
 
 /// Get the argument operands to the called function, this is required by the
@@ -324,7 +339,7 @@ void MulOp::inferShapes() { getResult().setType(getOperand(0).getType()); }
 static mlir::LogicalResult verify(ReturnOp op) {
   // We know that the parent operation is a function, because of the 'HasParent'
   // trait attached to the operation definition.
-  auto function = cast<FuncOp>(op.getParentOp());
+  auto function = cast<FuncOp>(op->getParentOp());
 
   /// ReturnOps can only have a single optional operand.
   if (op.getNumOperands() > 1)

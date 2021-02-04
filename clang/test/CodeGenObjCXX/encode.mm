@@ -1,4 +1,5 @@
-// RUN: %clang_cc1 -std=gnu++98 %s -triple=x86_64-apple-darwin10 -emit-llvm -o - | FileCheck %s
+// RUN: %clang_cc1 -Wno-objc-root-class -std=gnu++98 %s -triple=x86_64-apple-darwin10 -emit-llvm -o - | FileCheck --check-prefixes CHECK,CHECKCXX98 %s
+// RUN: %clang_cc1 -Wno-objc-root-class -std=gnu++20 %s -triple=x86_64-apple-darwin10 -emit-llvm -o - | FileCheck --check-prefixes CHECK,CHECKCXX20 %s
 
 // CHECK: v17@0:8{vector<float, float, float>=}16
 // CHECK: {vector<float, float, float>=}
@@ -87,7 +88,9 @@ namespace rdar9357400 {
 
   typedef vector< float,  fixed<4> > vector4f;
 
-  // CHECK: @_ZN11rdar93574002ggE = constant [49 x i8] c"{vector<float, rdar9357400::fixed<4, -1> >=[4f]}\00"
+  // FIXME: This difference is due to D76801. It was probably an unintentional change. Maybe we want to undo it?
+  // CHECKCXX98: @_ZN11rdar93574002ggE ={{.*}} constant [49 x i8] c"{vector<float, rdar9357400::fixed<4, -1> >=[4f]}\00"
+  // CHECKCXX20: @_ZN11rdar93574002ggE ={{.*}} constant [48 x i8] c"{vector<float, rdar9357400::fixed<4, -1>>=[4f]}\00"
   extern const char gg[] = @encode(vector4f);
 }
 
@@ -97,11 +100,11 @@ namespace rdar9624314 {
   struct B3 {};
   struct S : B2, B3 {};
 
-  // CHECK: @_ZN11rdar96243142ggE = constant [6 x i8] c"{S=i}\00"
+  // CHECK: @_ZN11rdar96243142ggE ={{.*}} constant [6 x i8] c"{S=i}\00"
   extern const char gg[] = @encode(S);
 
   struct S2 { unsigned : 0; int x; unsigned : 0; };
-  // CHECK: @_ZN11rdar96243142g2E = constant [11 x i8] c"{S2=b0ib0}\00"
+  // CHECK: @_ZN11rdar96243142g2E ={{.*}} constant [11 x i8] c"{S2=b0ib0}\00"
   extern const char g2[] = @encode(S2);
 }
 
@@ -122,7 +125,7 @@ namespace test {
    int y;
   };
 
-  // CHECK: @_ZN4test3ecdE = constant [15 x i8] c"{Zoo=^^?ii^^?}\00"
+  // CHECK: @_ZN4test3ecdE ={{.*}} constant [15 x i8] c"{Zoo=^^?ii^^?}\00"
   extern const char ecd[] = @encode(Zoo);
 }
 
@@ -143,16 +146,16 @@ struct Sub2 : public Sub_with_virt, public Base1, virtual DBase {
   float x;
 };
 
-// CHECK: @g1 = constant [10 x i8] c"{Base1=c}\00"
+// CHECK: @g1 ={{.*}} constant [10 x i8] c"{Base1=c}\00"
 extern const char g1[] = @encode(Base1);
 
-// CHECK: @g2 = constant [14 x i8] c"{DBase=^^?cd}\00"
+// CHECK: @g2 ={{.*}} constant [14 x i8] c"{DBase=^^?cd}\00"
 extern const char g2[] = @encode(DBase);
 
-// CHECK: @g3 = constant [26 x i8] c"{Sub_with_virt=^^?q^^?cd}\00"
+// CHECK: @g3 ={{.*}} constant [26 x i8] c"{Sub_with_virt=^^?q^^?cd}\00"
 extern const char g3[] = @encode(Sub_with_virt);
 
-// CHECK: @g4 = constant [19 x i8] c"{Sub2=^^?qcf^^?cd}\00"
+// CHECK: @g4 ={{.*}} constant [19 x i8] c"{Sub2=^^?qcf^^?cd}\00"
 extern const char g4[] = @encode(Sub2);
 
 // http://llvm.org/PR9927
@@ -165,27 +168,27 @@ char* _M_p;
 _Alloc_hider _M_dataplus;
 };
 
-// CHECK: @g5 = constant [32 x i8] c"{basic_string={_Alloc_hider=*}}\00"
+// CHECK: @g5 ={{.*}} constant [32 x i8] c"{basic_string={_Alloc_hider=*}}\00"
 extern const char g5[] = @encode(basic_string);
 
 
 // PR10990
-class CefBase {
+struct CefBase {
   virtual ~CefBase() {}
 };
-class CefBrowser : public virtual CefBase {};
-class CefBrowserImpl : public CefBrowser {};
-// CHECK: @g6 = constant [21 x i8] c"{CefBrowserImpl=^^?}\00"
+struct CefBrowser : public virtual CefBase {};
+struct CefBrowserImpl : public CefBrowser {};
+// CHECK: @g6 ={{.*}} constant [21 x i8] c"{CefBrowserImpl=^^?}\00"
 extern const char g6[] = @encode(CefBrowserImpl);
 
 // PR10990_2
-class CefBase2 {
+struct CefBase2 {
   virtual ~CefBase2() {}
   int i;
 };
-class CefBrowser2 : public virtual CefBase2 {};
-class CefBrowserImpl2 : public CefBrowser2 {};
-// CHECK: @g7 = constant [26 x i8] c"{CefBrowserImpl2=^^?^^?i}\00"
+struct CefBrowser2 : public virtual CefBase2 {};
+struct CefBrowserImpl2 : public CefBrowser2 {};
+// CHECK: @g7 ={{.*}} constant [26 x i8] c"{CefBrowserImpl2=^^?^^?i}\00"
 extern const char g7[] = @encode(CefBrowserImpl2);
 
 // <rdar://problem/11324167>
@@ -199,7 +202,7 @@ struct Y : Empty {
   X vec;
 };
 
-// CHECK: @g8 = constant [14 x i8] c"{Y={X=[10i]}}\00"
+// CHECK: @g8 ={{.*}} constant [14 x i8] c"{Y={X=[10i]}}\00"
 extern const char g8[] = @encode(Y);
 
 
@@ -221,7 +224,7 @@ namespace PR17142 {
   struct C { virtual ~C(); int z; };
   struct D : C, B { int a; };
   struct E : D {};
-  // CHECK: @_ZN7PR171421xE = constant [14 x i8] c"{E=^^?i^^?ii}\00"
+  // CHECK: @_ZN7PR171421xE ={{.*}} constant [14 x i8] c"{E=^^?i^^?ii}\00"
   extern const char x[] = @encode(E);
 }
 
@@ -245,3 +248,15 @@ const char *expand_struct() {
   // CHECK: @{{.*}} = private unnamed_addr constant [13 x i8] c"{N={S<N>=@}}\00"
   return @encode(N);
 }
+
+#if __cplusplus >= 202002L
+namespace PR48048 {
+  struct F {};
+  struct I {
+    int m;
+    [[no_unique_address]] F n;
+  };
+  // CHECKCXX20: @_ZN7PR480481xE ={{.*}} constant [6 x i8] c"{I=i}\00"
+  extern const char x[] = @encode(I);
+}
+#endif

@@ -191,9 +191,6 @@ if is_configured('test_arch'):
 if is_configured('lldb_build_directory'):
   dotest_cmd += ['--build-dir', config.lldb_build_directory]
 
-if is_configured('lldb_trace_directory'):
-  dotest_cmd += ['-s', config.lldb_trace_directory]
-
 if is_configured('lldb_module_cache'):
   delete_module_cache(config.lldb_module_cache)
   dotest_cmd += ['--lldb-module-cache-dir', config.lldb_module_cache]
@@ -258,7 +255,7 @@ import lldbtest
 # testFormat: The test format to use to interpret tests.
 config.test_format = lldbtest.LLDBTest(dotest_cmd)
 
-# Propagate FREEBSD_REMOTE_PLUGIN
-if 'FREEBSD_REMOTE_PLUGIN' in os.environ:
-  config.environment['FREEBSD_REMOTE_PLUGIN'] = os.environ[
-      'FREEBSD_REMOTE_PLUGIN']
+# Propagate FREEBSD_LEGACY_PLUGIN
+if 'FREEBSD_LEGACY_PLUGIN' in os.environ:
+  config.environment['FREEBSD_LEGACY_PLUGIN'] = os.environ[
+      'FREEBSD_LEGACY_PLUGIN']

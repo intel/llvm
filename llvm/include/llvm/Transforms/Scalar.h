@@ -33,6 +33,12 @@ FunctionPass *createAlignmentFromAssumptionsPass();
 
 //===----------------------------------------------------------------------===//
 //
+// AnnotationRemarks - Emit remarks for !annotation metadata.
+//
+FunctionPass *createAnnotationRemarksLegacyPass();
+
+//===----------------------------------------------------------------------===//
+//
 // SCCP - Sparse conditional constant propagation.
 //
 FunctionPass *createSCCPPass();
@@ -153,7 +159,7 @@ Pass *createLoopInterchangePass();
 //
 // LoopFlatten - This pass flattens nested loops into a single loop.
 //
-Pass *createLoopFlattenPass();
+FunctionPass *createLoopFlattenPass();
 
 //===----------------------------------------------------------------------===//
 //
@@ -204,7 +210,7 @@ Pass *createLoopRerollPass();
 //
 // LoopRotate - This pass is a simple loop rotating pass.
 //
-Pass *createLoopRotatePass(int MaxHeaderSize = -1);
+Pass *createLoopRotatePass(int MaxHeaderSize = -1, bool PrepareForLTO = false);
 
 //===----------------------------------------------------------------------===//
 //
@@ -539,6 +545,14 @@ Pass *createWarnMissedTransformationsPass();
 // instruction in a function.
 //
 FunctionPass *createInstSimplifyLegacyPass();
+
+
+//===----------------------------------------------------------------------===//
+//
+// createScalarizeMaskedMemIntrinPass - Replace masked load, store, gather
+// and scatter intrinsics with scalar code when target doesn't support them.
+//
+FunctionPass *createScalarizeMaskedMemIntrinLegacyPass();
 } // End llvm namespace
 
 #endif

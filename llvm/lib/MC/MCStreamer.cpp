@@ -22,6 +22,7 @@
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstPrinter.h"
 #include "llvm/MC/MCObjectFileInfo.h"
+#include "llvm/MC/MCPseudoProbe.h"
 #include "llvm/MC/MCRegister.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSection.h"
@@ -90,7 +91,7 @@ void MCTargetStreamer::emitAssignment(MCSymbol *Symbol, const MCExpr *Value) {}
 
 MCStreamer::MCStreamer(MCContext &Ctx)
     : Context(Ctx), CurrentWinFrameInfo(nullptr),
-      UseAssemblerInfoForParsing(false) {
+      CurrentProcWinFrameInfoStartIndex(0), UseAssemblerInfoForParsing(false) {
   SectionStack.push_back(std::pair<MCSectionSubPair, MCSectionSubPair>());
 }
 
@@ -273,9 +274,9 @@ bool MCStreamer::hasUnfinishedDwarfFrameInfo() {
 
 MCDwarfFrameInfo *MCStreamer::getCurrentDwarfFrameInfo() {
   if (!hasUnfinishedDwarfFrameInfo()) {
-    getContext().reportError(SMLoc(), "this directive must appear between "
-                                      ".cfi_startproc and .cfi_endproc "
-                                      "directives");
+    getContext().reportError(getStartTokLoc(),
+                             "this directive must appear between "
+                             ".cfi_startproc and .cfi_endproc directives");
     return nullptr;
   }
   return &DwarfFrameInfos.back();
@@ -692,6 +693,7 @@ void MCStreamer::EmitWinCFIStartProc(const MCSymbol *Symbol, SMLoc Loc) {
 
   MCSymbol *StartProc = emitCFILabel();
 
+  CurrentProcWinFrameInfoStartIndex = WinFrameInfos.size();
   WinFrameInfos.emplace_back(
       std::make_unique<WinEH::FrameInfo>(Symbol, StartProc));
   CurrentWinFrameInfo = WinFrameInfos.back().get();
@@ -709,6 +711,11 @@ void MCStreamer::EmitWinCFIEndProc(SMLoc Loc) {
   CurFrame->End = Label;
   if (!CurFrame->FuncletOrFuncEnd)
     CurFrame->FuncletOrFuncEnd = CurFrame->End;
+
+  for (size_t I = CurrentProcWinFrameInfoStartIndex, E = WinFrameInfos.size();
+       I != E; ++I)
+    EmitWindowsUnwindTables(WinFrameInfos[I].get());
+  SwitchSection(CurFrame->TextSection);
 }
 
 void MCStreamer::EmitWinCFIFuncletOrFuncEnd(SMLoc Loc) {
@@ -967,10 +974,13 @@ void MCStreamer::emitRawText(const Twine &T) {
 void MCStreamer::EmitWindowsUnwindTables() {
 }
 
-void MCStreamer::Finish() {
+void MCStreamer::EmitWindowsUnwindTables(WinEH::FrameInfo *Frame) {
+}
+
+void MCStreamer::Finish(SMLoc EndLoc) {
   if ((!DwarfFrameInfos.empty() && !DwarfFrameInfos.back().End) ||
       (!WinFrameInfos.empty() && !WinFrameInfos.back()->End)) {
-    getContext().reportError(SMLoc(), "Unfinished frame!");
+    getContext().reportError(EndLoc, "Unfinished frame!");
     return;
   }
 
@@ -1033,6 +1043,25 @@ void MCStreamer::emitInstruction(const MCInst &Inst, const MCSubtargetInfo &) {
       visitUsedExpr(*Inst.getOperand(i).getExpr());
 }
 
+void MCStreamer::emitPseudoProbe(uint64_t Guid, uint64_t Index, uint64_t Type,
+                                 uint64_t Attr,
+                                 const MCPseudoProbeInlineStack &InlineStack) {
+  auto &Context = getContext();
+
+  // Create a symbol at in the current section for use in the probe.
+  MCSymbol *ProbeSym = Context.createTempSymbol();
+
+  // Set the value of the symbol to use for the MCPseudoProbe.
+  emitLabel(ProbeSym);
+
+  // Create a (local) probe entry with the symbol.
+  MCPseudoProbe Probe(ProbeSym, Guid, Index, Type, Attr);
+
+  // Add the probe entry to this section's entries.
+  Context.getMCPseudoProbeTable().getProbeSections().addPseudoProbe(
+      getCurrentSectionOnly(), Probe, InlineStack);
+}
+
 void MCStreamer::emitAbsoluteSymbolDiff(const MCSymbol *Hi, const MCSymbol *Lo,
                                         unsigned Size) {
   // Get the Hi-Lo expression.
@@ -1047,7 +1076,7 @@ void MCStreamer::emitAbsoluteSymbolDiff(const MCSymbol *Hi, const MCSymbol *Lo,
   }
 
   // Otherwise, emit with .set (aka assignment).
-  MCSymbol *SetLabel = Context.createTempSymbol("set", true);
+  MCSymbol *SetLabel = Context.createTempSymbol("set");
   emitAssignment(SetLabel, Diff);
   emitSymbolValue(SetLabel, Size);
 }

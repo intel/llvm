@@ -236,6 +236,11 @@ private:
   /// state.
   void visitBlockArgument(Block *block, int i);
 
+  /// Mark the entry block of the given region as executable. Returns false if
+  /// the block was already marked executable. If `markArgsOverdefined` is true,
+  /// the arguments of the entry block are also set to overdefined.
+  bool markEntryBlockExecutable(Region *region, bool markArgsOverdefined);
+
   /// Mark the given block as executable. Returns false if the block was already
   /// marked executable.
   bool markBlockExecutable(Block *block);
@@ -313,16 +318,9 @@ private:
 SCCPSolver::SCCPSolver(Operation *op) {
   /// Initialize the solver with the regions within this operation.
   for (Region &region : op->getRegions()) {
-    if (region.empty())
-      continue;
-    Block *entryBlock = &region.front();
-
-    // Mark the entry block as executable.
-    markBlockExecutable(entryBlock);
-
-    // The values passed to these regions are invisible, so mark any arguments
-    // as overdefined.
-    markAllOverdefined(entryBlock->getArguments());
+    // Mark the entry block as executable. The values passed to these regions
+    // are also invisible, so mark any arguments as overdefined.
+    markEntryBlockExecutable(&region, /*markArgsOverdefined=*/true);
   }
   initializeSymbolCallables(op);
 }
@@ -405,8 +403,10 @@ void SCCPSolver::initializeSymbolCallables(Operation *op) {
 
       // If not all of the uses of this symbol are visible, we can't track the
       // state of the arguments.
-      if (symbol.isPublic() || (!allUsesVisible && symbol.isNested()))
-        markAllOverdefined(callableRegion->getArguments());
+      if (symbol.isPublic() || (!allUsesVisible && symbol.isNested())) {
+        for (Region &region : callable->getRegions())
+          markEntryBlockExecutable(&region, /*markArgsOverdefined=*/true);
+      }
     }
     if (callableLatticeState.empty())
       return;
@@ -435,7 +435,7 @@ void SCCPSolver::initializeSymbolCallables(Operation *op) {
 
           // We only need to record the call in the lattice if it produces any
           // values.
-          if (callOp.getOperation()->getNumResults())
+          if (callOp->getNumResults())
             callableLatticeIt->second.addSymbolCall(callOp);
         }
         continue;
@@ -443,8 +443,10 @@ void SCCPSolver::initializeSymbolCallables(Operation *op) {
       // This use isn't a call, so don't we know all of the callers.
       auto *symbol = symbolTable.lookupSymbolIn(op, use.getSymbolRef());
       auto it = callableLatticeState.find(symbol);
-      if (it != callableLatticeState.end())
-        markAllOverdefined(it->second.getCallableArguments());
+      if (it != callableLatticeState.end()) {
+        for (Region &region : it->first->getRegions())
+          markEntryBlockExecutable(&region, /*markArgsOverdefined=*/true);
+      }
     }
   };
   SymbolTable::walkSymbolTables(op, /*allSymUsesVisible=*/!op->getBlock(),
@@ -495,8 +497,14 @@ void SCCPSolver::visitOperation(Operation *op) {
 
   // Process callable operations. These are specially handled region operations
   // that track dataflow via calls.
-  if (isa<CallableOpInterface>(op))
+  if (isa<CallableOpInterface>(op)) {
+    // If this callable has a tracked lattice state, it will be visited by calls
+    // that reference it instead. This way, we don't assume that it is
+    // executable unless there is a proper reference to it.
+    if (callableLatticeState.count(op))
+      return;
     return visitCallableOperation(op);
+  }
 
   // Process region holding operations. The region visitor processes result
   // values, so we can exit afterwards.
@@ -517,7 +525,7 @@ void SCCPSolver::visitOperation(Operation *op) {
   // in-place. The constant passed in may not correspond to the real runtime
   // value, so in-place updates are not allowed.
   SmallVector<Value, 8> originalOperands(op->getOperands());
-  MutableDictionaryAttr originalAttrs = op->getMutableAttrDict();
+  DictionaryAttr originalAttrs = op->getAttrDictionary();
 
   // Simulate the result of folding this operation to a constant. If folding
   // fails or was an in-place fold, mark the results as overdefined.
@@ -551,19 +559,11 @@ void SCCPSolver::visitOperation(Operation *op) {
 }
 
 void SCCPSolver::visitCallableOperation(Operation *op) {
-  // Mark the regions as executable.
+  // Mark the regions as executable. If we aren't tracking lattice state for
+  // this callable, mark all of the region arguments as overdefined.
   bool isTrackingLatticeState = callableLatticeState.count(op);
-  for (Region &region : op->getRegions()) {
-    if (region.empty())
-      continue;
-    Block *entryBlock = &region.front();
-    markBlockExecutable(entryBlock);
-
-    // If we aren't tracking lattice state for this callable, mark all of the
-    // region arguments as overdefined.
-    if (!isTrackingLatticeState)
-      markAllOverdefined(entryBlock->getArguments());
-  }
+  for (Region &region : op->getRegions())
+    markEntryBlockExecutable(&region, !isTrackingLatticeState);
 
   // TODO: Add support for non-symbol callables when necessary. If the callable
   // has non-call uses we would mark overdefined, otherwise allow for
@@ -572,7 +572,7 @@ void SCCPSolver::visitCallableOperation(Operation *op) {
 }
 
 void SCCPSolver::visitCallOperation(CallOpInterface op) {
-  ResultRange callResults = op.getOperation()->getResults();
+  ResultRange callResults = op->getResults();
 
   // Resolve the callable operation for this call.
   Operation *callableOp = nullptr;
@@ -599,6 +599,9 @@ void SCCPSolver::visitCallOperation(CallOpInterface op) {
       visitUsers(callableArg);
   }
 
+  // Visit the callable.
+  visitCallableOperation(callableOp);
+
   // Merge in the lattice state for the callable results as well.
   auto callableResults = callableLatticeIt->second.getResultLatticeValues();
   for (auto it : llvm::zip(callResults, callableResults))
@@ -613,13 +616,8 @@ void SCCPSolver::visitRegionOperation(Operation *op,
   auto regionInterface = dyn_cast<RegionBranchOpInterface>(op);
   if (!regionInterface) {
     // If we can't, conservatively mark all regions as executable.
-    for (Region &region : op->getRegions()) {
-      if (region.empty())
-        continue;
-      Block *entryBlock = &region.front();
-      markBlockExecutable(entryBlock);
-      markAllOverdefined(entryBlock->getArguments());
-    }
+    for (Region &region : op->getRegions())
+      markEntryBlockExecutable(&region, /*markArgsOverdefined=*/true);
 
     // Don't try to simulate the results of a region operation as we can't
     // guarantee that folding will be out-of-place. We don't allow in-place
@@ -854,6 +852,16 @@ void SCCPSolver::visitBlockArgument(Block *block, int i) {
   // If the lattice was updated, visit any executable users of the argument.
   if (updatedLattice)
     visitUsers(arg);
+}
+
+bool SCCPSolver::markEntryBlockExecutable(Region *region,
+                                          bool markArgsOverdefined) {
+  if (!region->empty()) {
+    if (markArgsOverdefined)
+      markAllOverdefined(region->front().getArguments());
+    return markBlockExecutable(&region->front());
+  }
+  return false;
 }
 
 bool SCCPSolver::markBlockExecutable(Block *block) {

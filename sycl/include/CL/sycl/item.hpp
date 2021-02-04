@@ -118,6 +118,9 @@ protected:
   friend class detail::Builder;
 
 private:
+  friend class handler;
+  void set_allowed_range(const range<dimensions> rnwi) { MImpl.MExtent = rnwi; }
+
   detail::ItemBase<dimensions, with_offset> MImpl;
 };
 

@@ -17,6 +17,7 @@
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SetVector.h"
 
 using mlir::edsc::intrinsics::AffineIndexedValue;
@@ -33,7 +34,7 @@ namespace linalg {
 class LinalgDependenceGraph;
 
 /// A struct containing the Linalg producer before and after fusion.
-/// When operating on tensors, `fusedProducer` may feed into a `tensor_cast` op
+/// When operating on tensors, `fusedProducer` may feed into a `tensor.cast` op
 /// before the consumer Linalg op, until enough canonicalizations have applied.
 struct FusionInfo {
   LinalgOp originalProducer;
@@ -82,47 +83,51 @@ bool isProducerLastWriteOfView(const LinalgDependenceGraph &graph,
 bool isFusableInto(const LinalgDependenceGraph &graph, LinalgOp consumer,
                    Value consumedView, LinalgOp producer);
 
+using FusableOpDependencesTy = llvm::MapVector<
+    Operation *,
+    SmallVector<LinalgDependenceGraph::LinalgDependenceGraphElem, 1>>;
+FusableOpDependencesTy
+findAllFusableDependences(ArrayRef<LinalgOp> ops,
+                          const LinalgDependenceGraph &dependenceGraph);
+
 /// Fuses producer into consumer if the producer is structurally feasible and
 /// the fusion would not violate dependencies.
-/// Implements the fusion part of the "tileAndFuse on buffers"
-/// transformation and thus requires the `consumerdIdx`^th operand of `consumer`
-/// to be a `subview` op (generally obtained by applying the tiling
-/// transformation).
-Optional<FusionInfo> fuseProducerOfBuffer(OpBuilder &b, LinalgOp consumer,
-                                          unsigned consumerIdx,
+/// Implements the fusion part of the "tileAndFuse on buffers" transformation
+/// and thus requires the `consumerOpOperand` to be a `subview` op (generally
+/// obtained by applying the tiling transformation).
+Optional<FusionInfo> fuseProducerOfBuffer(OpBuilder &b,
+                                          OpOperand &consumerOpOperand,
                                           const LinalgDependenceGraph &graph);
 /// Tensor counterpart of `fuseProducerOfBuffer`.
 /// This implements the fusion part of the "tileAndFuse on tensors"
-/// transformation and thus requires the `consumerdIdx`^th operand of `consumer`
-/// to be the result of a `subtensor` op (generally obtained by applying the
-/// tiling transformation).
-Optional<FusionInfo> fuseProducerOfTensor(OpBuilder &b, LinalgOp consumer,
-                                          unsigned consumerIdx);
+/// transformation and thus requires the `consumerOpOperand` to be a `subtensor`
+/// op (generally obtained by applying the tiling transformation).
+Optional<FusionInfo> fuseProducerOfTensor(OpBuilder &b,
+                                          OpOperand &consumerOpOperand);
+/// Tensor counterpart of `fuseProducerOfBuffer`.
+/// This implements the fusion part of the "tileAndFuse on tensors"
+/// transformation and thus requires the `consumerOpOperand` to be a `subtensor`
+/// op (generally obtained by applying the tiling transformation).
+/// Assumes `producerOfTensor` is a Linalg op that produces `consumerOpOperand`.
+Optional<FusionInfo> fuseProducerOfTensor(OpBuilder &b,
+                                          OpResult producerOpResult,
+                                          OpOperand &consumerOpOperand);
 
 /// Fuse linalg operation on tensors, with the producer of the operand at
 /// position `consumerIdx` of the consumer.
 Optional<SmallVector<Value, 1>> fuseTensorOps(PatternRewriter &rewriter,
-                                              Operation *consumer,
-                                              unsigned consumerIdx);
+                                              OpOperand &consumerOpOperand);
 
-/// Returns the linearized list of all shape dimensions in a `linalgOp`.
-/// Applying the inverse, concatenated loopToOperandRangeMaps to this list
-/// allows the derivation of loop ranges for any linalgOp.
-SmallVector<Value, 8> getShape(OpBuilder &builder, LinalgOp linalgOp);
-template <typename ConcreteOpTy>
-SmallVector<Value, 8> getShape(OpBuilder &builder, ConcreteOpTy linalgOp) {
-  return getShape(builder, cast<linalg::LinalgOp>(linalgOp.getOperation()));
-}
+/// Like `getShape`, but only returns statically-known information, without
+/// generating any new IR. For each shape dimension, returns >=0 if that
+/// dimension is statically known, or -1 otherwise.
+SmallVector<int64_t, 8> getStaticShape(LinalgOp linalgOp);
 
-/// Returns the loop ranges of the `linalgOp`. Applies the inverse of the
-/// concatenated indexing maps to the result of `getShape`. Returns None if
-/// the bounds computation fails.
-Optional<SmallVector<Value, 4>> getLoopRanges(OpBuilder &builder,
-                                              LinalgOp linalgOp);
-
-/// Returns the values obtained by applying `map` to the list of values.
-SmallVector<Value, 4> applyMapToValues(OpBuilder &b, Location loc,
-                                       AffineMap map, ValueRange values);
+/// Returns the statically-known loop ranges of the `linalgOp`. Composes
+/// `linalgOp.getShapesToLoopsMap()` with the result of `getStaticShape`.
+/// Returns None if `linalgOp.getShapesToLoopsMap()` fails. Returns -1
+/// for non-statically-known loop ranges.
+Optional<SmallVector<int64_t, 4>> getStaticLoopRanges(LinalgOp linalgOp);
 
 /// Apply the permutation defined by `permutation` to `inVec`.
 /// Element `i` in `inVec` is mapped to location `j = permutation[i]`.
@@ -136,6 +141,12 @@ void applyPermutationToVector(SmallVector<T, N> &inVec,
     auxVec[i] = inVec[permutation[i]];
   inVec = auxVec;
 }
+
+/// If `size` comes from an AffineMinOp and one of the values of AffineMinOp
+/// is a constant then return a new value set to the smallest such constant.
+/// If `size` comes from a ConstantOp, return the constant.
+/// Otherwise return nullptr.
+IntegerAttr getSmallestBoundingIndex(Value size);
 
 /// Scheme used to distribute loops to processors.
 enum class DistributionMethod {

@@ -83,7 +83,7 @@ void AliasSet::mergeSetIn(AliasSet &AS, AliasSetTracker &AST) {
       addRef();
     }
   } else if (ASHadUnknownInsts) {
-    UnknownInsts.insert(UnknownInsts.end(), AS.UnknownInsts.begin(), AS.UnknownInsts.end());
+    llvm::append_range(UnknownInsts, AS.UnknownInsts);
     AS.UnknownInsts.clear();
   }
 
@@ -438,7 +438,9 @@ void AliasSetTracker::addUnknown(Instruction *Inst) {
       break;
       // FIXME: Add lifetime/invariant intrinsics (See: PR30807).
     case Intrinsic::assume:
+    case Intrinsic::experimental_noalias_scope_decl:
     case Intrinsic::sideeffect:
+    case Intrinsic::pseudoprobe:
       return;
     }
   }
@@ -670,8 +672,10 @@ void AliasSet::print(raw_ostream &OS) const {
     for (iterator I = begin(), E = end(); I != E; ++I) {
       if (I != begin()) OS << ", ";
       I.getPointer()->printAsOperand(OS << "(");
-      if (I.getSize() == LocationSize::unknown())
-        OS << ", unknown)";
+      if (I.getSize() == LocationSize::afterPointer())
+        OS << ", unknown after)";
+      else if (I.getSize() == LocationSize::beforeOrAfterPointer())
+        OS << ", unknown before-or-after)";
       else
         OS << ", " << I.getSize() << ")";
     }

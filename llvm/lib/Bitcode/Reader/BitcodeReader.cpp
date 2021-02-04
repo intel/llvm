@@ -1433,6 +1433,8 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::NoAlias;
   case bitc::ATTR_KIND_NO_BUILTIN:
     return Attribute::NoBuiltin;
+  case bitc::ATTR_KIND_NO_CALLBACK:
+    return Attribute::NoCallback;
   case bitc::ATTR_KIND_NO_CAPTURE:
     return Attribute::NoCapture;
   case bitc::ATTR_KIND_NO_DUPLICATE:
@@ -1537,8 +1539,8 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::ByRef;
   case bitc::ATTR_KIND_MUSTPROGRESS:
     return Attribute::MustProgress;
-  case bitc::ATTR_KIND_NO_STACK_PROTECT:
-    return Attribute::NoStackProtect;
+  case bitc::ATTR_KIND_HOT:
+    return Attribute::Hot;
   }
 }
 
@@ -1760,6 +1762,9 @@ Error BitcodeReader::parseTypeTableBody() {
       break;
     case bitc::TYPE_CODE_X86_MMX:   // X86_MMX
       ResultTy = Type::getX86_MMXTy(Context);
+      break;
+    case bitc::TYPE_CODE_X86_AMX:   // X86_AMX
+      ResultTy = Type::getX86_AMXTy(Context);
       break;
     case bitc::TYPE_CODE_TOKEN:     // TOKEN
       ResultTy = Type::getTokenTy(Context);
@@ -2411,6 +2416,9 @@ Error BitcodeReader::parseConstants() {
     default:  // Default behavior: unknown constant
     case bitc::CST_CODE_UNDEF:     // UNDEF
       V = UndefValue::get(CurTy);
+      break;
+    case bitc::CST_CODE_POISON:    // POISON
+      V = PoisonValue::get(CurTy);
       break;
     case bitc::CST_CODE_SETTYPE:   // SETTYPE: [typeid]
       if (Record.empty())
@@ -3958,7 +3966,8 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
         if (!IA)
           return error("Invalid record");
       }
-      LastLoc = DebugLoc::get(Line, Col, Scope, IA, isImplicitCode);
+      LastLoc = DILocation::get(Scope->getContext(), Line, Col, Scope, IA,
+                                isImplicitCode);
       I->setDebugLoc(LastLoc);
       I = nullptr;
       continue;
@@ -6349,8 +6358,7 @@ Error ModuleSummaryIndexBitcodeReader::parseEntireSummary(unsigned ID) {
     }
     case bitc::FS_TYPE_TESTS:
       assert(PendingTypeTests.empty());
-      PendingTypeTests.insert(PendingTypeTests.end(), Record.begin(),
-                              Record.end());
+      llvm::append_range(PendingTypeTests, Record);
       break;
 
     case bitc::FS_TYPE_TEST_ASSUME_VCALLS:

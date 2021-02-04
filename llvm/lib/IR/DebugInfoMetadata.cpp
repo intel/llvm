@@ -926,14 +926,14 @@ DIModule *DIModule::getImpl(LLVMContext &Context, Metadata *File,
                             Metadata *Scope, MDString *Name,
                             MDString *ConfigurationMacros,
                             MDString *IncludePath, MDString *APINotesFile,
-                            unsigned LineNo, StorageType Storage,
+                            unsigned LineNo, bool IsDecl, StorageType Storage,
                             bool ShouldCreate) {
   assert(isCanonical(Name) && "Expected canonical MDString");
   DEFINE_GETIMPL_LOOKUP(DIModule, (File, Scope, Name, ConfigurationMacros,
-                                   IncludePath, APINotesFile, LineNo));
+                                   IncludePath, APINotesFile, LineNo, IsDecl));
   Metadata *Ops[] = {File,        Scope,       Name, ConfigurationMacros,
                      IncludePath, APINotesFile};
-  DEFINE_GETIMPL_STORE(DIModule, (LineNo), Ops);
+  DEFINE_GETIMPL_STORE(DIModule, (LineNo, IsDecl), Ops);
 }
 
 DITemplateTypeParameter *
@@ -1114,6 +1114,7 @@ bool DIExpression::isValid() const {
       return I->get() == expr_op_begin()->get() && I->getArg(0) == 1 &&
              getNumElements() == 2;
     }
+    case dwarf::DW_OP_LLVM_implicit_pointer:
     case dwarf::DW_OP_LLVM_convert:
     case dwarf::DW_OP_LLVM_tag_offset:
     case dwarf::DW_OP_constu:

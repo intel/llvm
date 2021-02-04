@@ -89,6 +89,12 @@ namespace llvm {
     FRE,
     FRSQRTE,
 
+    /// Test instruction for software square root.
+    FTSQRT,
+
+    /// Square root instruction.
+    FSQRT,
+
     /// VPERM - The PPC VPERM Instruction.
     ///
     VPERM,
@@ -146,8 +152,7 @@ namespace llvm {
     /// probed.
     PROBED_ALLOCA,
 
-    /// GlobalBaseReg - On Darwin, this node represents the result of the mflr
-    /// at function entry, used for PIC code.
+    /// The result of the mflr at function entry, used for PIC code.
     GlobalBaseReg,
 
     /// These nodes represent PPC shifts.
@@ -657,10 +662,6 @@ namespace llvm {
     /// the number of bytes of each element [124] -> [bhw].
     SDValue get_VSPLTI_elt(SDNode *N, unsigned ByteSize, SelectionDAG &DAG);
 
-    /// If this is a qvaligni shuffle mask, return the shift
-    /// amount, otherwise return -1.
-    int isQVALIGNIShuffleMask(SDNode *N);
-
   } // end namespace PPC
 
   class PPCTargetLowering : public TargetLowering {
@@ -770,6 +771,8 @@ namespace llvm {
     bool SelectAddressRegImm(SDValue N, SDValue &Disp, SDValue &Base,
                              SelectionDAG &DAG,
                              MaybeAlign EncodingAlignment) const;
+    bool SelectAddressRegImm34(SDValue N, SDValue &Disp, SDValue &Base,
+                               SelectionDAG &DAG) const;
 
     /// SelectAddressRegRegOnly - Given the specified addressed, force it to be
     /// represented as an indexed [r+r] operation.
@@ -785,12 +788,6 @@ namespace llvm {
     /// LowerOperation - Provide custom lowering hooks for some operations.
     ///
     SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
-
-    /// LowerOperationWrapper - Place custom new result values for node in
-    /// Results.
-    void LowerOperationWrapper(SDNode *N,
-                               SmallVectorImpl<SDValue> &Results,
-                               SelectionDAG &DAG) const override;
 
     /// ReplaceNodeResults - Replace the results of node with an illegal result
     /// type with new values built out of custom code.
@@ -1150,16 +1147,14 @@ namespace llvm {
     SDValue LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerVECTOR_SHUFFLE(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerINSERT_VECTOR_ELT(SDValue Op, SelectionDAG &DAG) const;
-    SDValue LowerEXTRACT_VECTOR_ELT(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerINTRINSIC_VOID(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerBSWAP(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerATOMIC_CMP_SWAP(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSCALAR_TO_VECTOR(SDValue Op, SelectionDAG &DAG) const;
-    SDValue LowerSIGN_EXTEND_INREG(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerMUL(SDValue Op, SelectionDAG &DAG) const;
-    SDValue LowerABS(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerFP_EXTEND(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerFP_ROUND(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerROTL(SDValue Op, SelectionDAG &DAG) const;
 
     SDValue LowerVectorLoad(SDValue Op, SelectionDAG &DAG) const;
@@ -1206,10 +1201,6 @@ namespace llvm {
         SDValue Chain, CallingConv::ID CallConv, bool isVarArg,
         const SmallVectorImpl<ISD::InputArg> &Ins, const SDLoc &dl,
         SelectionDAG &DAG, SmallVectorImpl<SDValue> &InVals) const;
-    SDValue LowerFormalArguments_Darwin(
-        SDValue Chain, CallingConv::ID CallConv, bool isVarArg,
-        const SmallVectorImpl<ISD::InputArg> &Ins, const SDLoc &dl,
-        SelectionDAG &DAG, SmallVectorImpl<SDValue> &InVals) const;
     SDValue LowerFormalArguments_64SVR4(
         SDValue Chain, CallingConv::ID CallConv, bool isVarArg,
         const SmallVectorImpl<ISD::InputArg> &Ins, const SDLoc &dl,
@@ -1224,13 +1215,6 @@ namespace llvm {
                                        ISD::ArgFlagsTy Flags, SelectionDAG &DAG,
                                        const SDLoc &dl) const;
 
-    SDValue LowerCall_Darwin(SDValue Chain, SDValue Callee, CallFlags CFlags,
-                             const SmallVectorImpl<ISD::OutputArg> &Outs,
-                             const SmallVectorImpl<SDValue> &OutVals,
-                             const SmallVectorImpl<ISD::InputArg> &Ins,
-                             const SDLoc &dl, SelectionDAG &DAG,
-                             SmallVectorImpl<SDValue> &InVals,
-                             const CallBase *CB) const;
     SDValue LowerCall_64SVR4(SDValue Chain, SDValue Callee, CallFlags CFlags,
                              const SmallVectorImpl<ISD::OutputArg> &Outs,
                              const SmallVectorImpl<SDValue> &OutVals,
@@ -1287,6 +1271,10 @@ namespace llvm {
                             bool Reciprocal) const override;
     SDValue getRecipEstimate(SDValue Operand, SelectionDAG &DAG, int Enabled,
                              int &RefinementSteps) const override;
+    SDValue getSqrtInputTest(SDValue Operand, SelectionDAG &DAG,
+                             const DenormalMode &Mode) const override;
+    SDValue getSqrtResultForDenormInput(SDValue Operand,
+                                        SelectionDAG &DAG) const override;
     unsigned combineRepeatedFPDivisors() const override;
 
     SDValue
@@ -1325,6 +1313,8 @@ namespace llvm {
 
   bool isIntS16Immediate(SDNode *N, int16_t &Imm);
   bool isIntS16Immediate(SDValue Op, int16_t &Imm);
+  bool isIntS34Immediate(SDNode *N, int64_t &Imm);
+  bool isIntS34Immediate(SDValue Op, int64_t &Imm);
 
   bool convertToNonDenormSingle(APInt &ArgAPInt);
   bool convertToNonDenormSingle(APFloat &ArgAPFloat);

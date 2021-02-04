@@ -320,6 +320,16 @@ public:
   bool isReversed() const { return CXXRewrittenBinaryOperatorBits.IsReversed; }
 
   BinaryOperatorKind getOperator() const { return getDecomposedForm().Opcode; }
+  BinaryOperatorKind getOpcode() const { return getOperator(); }
+  static StringRef getOpcodeStr(BinaryOperatorKind Op) {
+    return BinaryOperator::getOpcodeStr(Op);
+  }
+  StringRef getOpcodeStr() const {
+    return BinaryOperator::getOpcodeStr(getOpcode());
+  }
+  bool isComparisonOp() const { return true; }
+  bool isAssignmentOp() const { return false; }
+
   const Expr *getLHS() const { return getDecomposedForm().LHS; }
   const Expr *getRHS() const { return getDecomposedForm().RHS; }
 
@@ -2028,6 +2038,9 @@ public:
   /// Get the template parameters were explicitly specified (as opposed to being
   /// invented by use of an auto parameter).
   ArrayRef<NamedDecl *> getExplicitTemplateParameters() const;
+
+  /// Get the trailing requires clause, if any.
+  Expr *getTrailingRequiresClause() const;
 
   /// Whether this is a generic lambda.
   bool isGenericLambda() const { return getTemplateParameterList(); }
@@ -4611,6 +4624,8 @@ public:
   /// Get the operand that doesn't contain a pack, for a binary fold.
   Expr *getInit() const { return isLeftFold() ? getLHS() : getRHS(); }
 
+  SourceLocation getLParenLoc() const { return LParenLoc; }
+  SourceLocation getRParenLoc() const { return RParenLoc; }
   SourceLocation getEllipsisLoc() const { return EllipsisLoc; }
   BinaryOperatorKind getOperator() const { return Opcode; }
 
@@ -4864,7 +4879,7 @@ class BuiltinBitCastExpr final
       private llvm::TrailingObjects<BuiltinBitCastExpr, CXXBaseSpecifier *> {
   friend class ASTStmtReader;
   friend class CastExpr;
-  friend class TrailingObjects;
+  friend TrailingObjects;
 
   SourceLocation KWLoc;
   SourceLocation RParenLoc;

@@ -82,9 +82,7 @@ define i8 @test10a(i8 %A) {
   ret i8 %C
 }
 
-;; This transformation is deferred to DAGCombine:
 ;; (A >> 3) << 4 === (A & 0x1F) << 1
-;; The shl may be valuable to scalar evolution.
 define i8 @test11(i8 %x) {
 ; CHECK-LABEL: @test11(
 ; CHECK-NEXT:    [[TMP1:%.*]] = mul i8 [[X:%.*]], 6
@@ -109,7 +107,6 @@ define i8 @test11a(i8 %A) {
   ret i8 %C
 }
 
-;; This is deferred to DAGCombine unless %B is single-use.
 ;; (A >> 8) << 8 === A & -256
 define i32 @test12(i32 %A) {
 ; CHECK-LABEL: @test12(
@@ -137,9 +134,7 @@ define i8 @shishi(i8 %x) {
   ret i8 %r
 }
 
-;; This transformation is deferred to DAGCombine:
 ;; (A >> 3) << 4 === (A & -8) * 2
-;; The shl may be valuable to scalar evolution.
 define i8 @test13(i8 %x) {
 ; CHECK-LABEL: @test13(
 ; CHECK-NEXT:    [[TMP1:%.*]] = mul i8 [[X:%.*]], 6
@@ -667,7 +662,7 @@ define <3 x i32> @test38_nonuniform(<3 x i32> %x) nounwind readnone {
 
 define <2 x i32> @test38_undef(<2 x i32> %x) nounwind readnone {
 ; CHECK-LABEL: @test38_undef(
-; CHECK-NEXT:    ret <2 x i32> undef
+; CHECK-NEXT:    ret <2 x i32> poison
 ;
   %rem = srem <2 x i32> %x, <i32 32, i32 undef>
   %shl = shl <2 x i32> <i32 1, i32 1>, %rem
@@ -1214,7 +1209,7 @@ bb12:                                             ; preds = %bb11, %bb8, %bb
 
 define i32 @test62(i32 %a) {
 ; CHECK-LABEL: @test62(
-; CHECK-NEXT:    ret i32 undef
+; CHECK-NEXT:    ret i32 poison
 ;
   %b = ashr i32 %a, 32  ; shift all bits out
   ret i32 %b
@@ -1222,7 +1217,7 @@ define i32 @test62(i32 %a) {
 
 define <4 x i32> @test62_splat_vector(<4 x i32> %a) {
 ; CHECK-LABEL: @test62_splat_vector(
-; CHECK-NEXT:    ret <4 x i32> undef
+; CHECK-NEXT:    ret <4 x i32> poison
 ;
   %b = ashr <4 x i32> %a, <i32 32, i32 32, i32 32, i32 32>  ; shift all bits out
   ret <4 x i32> %b
@@ -1725,7 +1720,6 @@ define i177 @lshr_out_of_range(i177 %Y, i177** %A2) {
 ; https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=26716
 define i177 @lshr_out_of_range2(i177 %Y, i177** %A2) {
 ; CHECK-LABEL: @lshr_out_of_range2(
-; CHECK-NEXT:    store i177** [[A2:%.*]], i177*** undef, align 8
 ; CHECK-NEXT:    ret i177 0
 ;
   %B5 = udiv i177 %Y, -1

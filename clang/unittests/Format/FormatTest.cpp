@@ -2727,6 +2727,29 @@ TEST_F(FormatTest, FormatTryCatch) {
                "    throw;\n"
                "  }\n"
                "};\n");
+  verifyFormat("class A {\n"
+               "  int a;\n"
+               "  A() try : a(0), b{1} {\n"
+               "  } catch (...) {\n"
+               "    throw;\n"
+               "  }\n"
+               "};\n");
+  verifyFormat("class A {\n"
+               "  int a;\n"
+               "  A() try : a(0), b{1}, c{2} {\n"
+               "  } catch (...) {\n"
+               "    throw;\n"
+               "  }\n"
+               "};\n");
+  verifyFormat("class A {\n"
+               "  int a;\n"
+               "  A() try : a(0), b{1}, c{2} {\n"
+               "    { // New scope.\n"
+               "    }\n"
+               "  } catch (...) {\n"
+               "    throw;\n"
+               "  }\n"
+               "};\n");
 
   // Incomplete try-catch blocks.
   verifyIncompleteFormat("try {} catch (");
@@ -7755,6 +7778,15 @@ TEST_F(FormatTest, UnderstandsUnaryOperators) {
 
   verifyFormat("co_yield -1;");
   verifyFormat("co_return -1;");
+
+  // Check that * is not treated as a binary operator when we set
+  // PointerAlignment as PAS_Left after a keyword and not a declaration.
+  FormatStyle PASLeftStyle = getLLVMStyle();
+  PASLeftStyle.PointerAlignment = FormatStyle::PAS_Left;
+  verifyFormat("co_return *a;", PASLeftStyle);
+  verifyFormat("co_await *a;", PASLeftStyle);
+  verifyFormat("co_yield *a", PASLeftStyle);
+  verifyFormat("return *a;", PASLeftStyle);
 }
 
 TEST_F(FormatTest, DoesNotIndentRelativeToUnaryOperators) {
@@ -9859,6 +9891,71 @@ TEST_F(FormatTest, SplitEmptyClass) {
                "{\n"
                "} Foo_t;",
                Style);
+
+  Style.BraceWrapping.SplitEmptyRecord = true;
+  Style.BraceWrapping.AfterStruct = true;
+  verifyFormat("class rep\n"
+               "{\n"
+               "};",
+               Style);
+  verifyFormat("struct rep\n"
+               "{\n"
+               "};",
+               Style);
+  verifyFormat("template <typename T> class rep\n"
+               "{\n"
+               "};",
+               Style);
+  verifyFormat("template <typename T> struct rep\n"
+               "{\n"
+               "};",
+               Style);
+  verifyFormat("class rep\n"
+               "{\n"
+               "  int x;\n"
+               "};",
+               Style);
+  verifyFormat("struct rep\n"
+               "{\n"
+               "  int x;\n"
+               "};",
+               Style);
+  verifyFormat("template <typename T> class rep\n"
+               "{\n"
+               "  int x;\n"
+               "};",
+               Style);
+  verifyFormat("template <typename T> struct rep\n"
+               "{\n"
+               "  int x;\n"
+               "};",
+               Style);
+  verifyFormat("template <typename T> class rep // Foo\n"
+               "{\n"
+               "  int x;\n"
+               "};",
+               Style);
+  verifyFormat("template <typename T> struct rep // Bar\n"
+               "{\n"
+               "  int x;\n"
+               "};",
+               Style);
+
+  verifyFormat("template <typename T> class rep<T>\n"
+               "{\n"
+               "  int x;\n"
+               "};",
+               Style);
+
+  verifyFormat("template <typename T> class rep<std::complex<T>>\n"
+               "{\n"
+               "  int x;\n"
+               "};",
+               Style);
+  verifyFormat("template <typename T> class rep<std::complex<T>>\n"
+               "{\n"
+               "};",
+               Style);
 }
 
 TEST_F(FormatTest, SplitEmptyStruct) {
@@ -11957,6 +12054,20 @@ TEST_F(FormatTest, ConfigurableSpacesInParentheses) {
                "  do_something((int) i);\n"
                "} while (something( ));",
                Spaces);
+
+  verifyFormat("size_t idx = (size_t) (ptr - ((char *) file));", Spaces);
+  verifyFormat("size_t idx = (size_t) a;", Spaces);
+  verifyFormat("size_t idx = (size_t) (a - 1);", Spaces);
+  verifyFormat("size_t idx = (a->*foo)(a - 1);", Spaces);
+  verifyFormat("size_t idx = (a->foo)(a - 1);", Spaces);
+  verifyFormat("size_t idx = (*foo)(a - 1);", Spaces);
+  Spaces.SpaceAfterCStyleCast = false;
+  verifyFormat("size_t idx = (size_t)(ptr - ((char *)file));", Spaces);
+  verifyFormat("size_t idx = (size_t)a;", Spaces);
+  verifyFormat("size_t idx = (size_t)(a - 1);", Spaces);
+  verifyFormat("size_t idx = (a->*foo)(a - 1);", Spaces);
+  verifyFormat("size_t idx = (a->foo)(a - 1);", Spaces);
+  verifyFormat("size_t idx = (*foo)(a - 1);", Spaces);
 }
 
 TEST_F(FormatTest, ConfigurableSpacesInSquareBrackets) {
@@ -12045,6 +12156,17 @@ TEST_F(FormatTest, ConfigurableSpaceBeforeColon) {
                "case 1:\n"
                "default:\n"
                "}");
+  verifyFormat("switch (allBraces) {\n"
+               "case 1: {\n"
+               "  break;\n"
+               "}\n"
+               "case 2: {\n"
+               "  [[fallthrough]];\n"
+               "}\n"
+               "default: {\n"
+               "  break;\n"
+               "}\n"
+               "}");
 
   FormatStyle CtorInitializerStyle = getLLVMStyleWithColumns(30);
   CtorInitializerStyle.SpaceBeforeCtorInitializerColon = false;
@@ -12060,6 +12182,18 @@ TEST_F(FormatTest, ConfigurableSpaceBeforeColon) {
   verifyFormat("switch (x) {\n"
                "case 1:\n"
                "default:\n"
+               "}",
+               CtorInitializerStyle);
+  verifyFormat("switch (allBraces) {\n"
+               "case 1: {\n"
+               "  break;\n"
+               "}\n"
+               "case 2: {\n"
+               "  [[fallthrough]];\n"
+               "}\n"
+               "default: {\n"
+               "  break;\n"
+               "}\n"
                "}",
                CtorInitializerStyle);
   CtorInitializerStyle.BreakConstructorInitializers =
@@ -12102,6 +12236,18 @@ TEST_F(FormatTest, ConfigurableSpaceBeforeColon) {
                "default:\n"
                "}",
                InheritanceStyle);
+  verifyFormat("switch (allBraces) {\n"
+               "case 1: {\n"
+               "  break;\n"
+               "}\n"
+               "case 2: {\n"
+               "  [[fallthrough]];\n"
+               "}\n"
+               "default: {\n"
+               "  break;\n"
+               "}\n"
+               "}",
+               InheritanceStyle);
   InheritanceStyle.BreakInheritanceList = FormatStyle::BILS_AfterColon;
   verifyFormat("class Foooooooooooooooooooooo:\n"
                "    public aaaaaaaaaaaaaaaaaa,\n"
@@ -12142,8 +12288,45 @@ TEST_F(FormatTest, ConfigurableSpaceBeforeColon) {
                "default:\n"
                "}",
                ForLoopStyle);
+  verifyFormat("switch (allBraces) {\n"
+               "case 1: {\n"
+               "  break;\n"
+               "}\n"
+               "case 2: {\n"
+               "  [[fallthrough]];\n"
+               "}\n"
+               "default: {\n"
+               "  break;\n"
+               "}\n"
+               "}",
+               ForLoopStyle);
+
+  FormatStyle CaseStyle = getLLVMStyle();
+  CaseStyle.SpaceBeforeCaseColon = true;
+  verifyFormat("class Foo : public Bar {};", CaseStyle);
+  verifyFormat("Foo::Foo() : foo(1) {}", CaseStyle);
+  verifyFormat("for (auto a : b) {\n}", CaseStyle);
+  verifyFormat("int x = a ? b : c;", CaseStyle);
+  verifyFormat("switch (x) {\n"
+               "case 1 :\n"
+               "default :\n"
+               "}",
+               CaseStyle);
+  verifyFormat("switch (allBraces) {\n"
+               "case 1 : {\n"
+               "  break;\n"
+               "}\n"
+               "case 2 : {\n"
+               "  [[fallthrough]];\n"
+               "}\n"
+               "default : {\n"
+               "  break;\n"
+               "}\n"
+               "}",
+               CaseStyle);
 
   FormatStyle NoSpaceStyle = getLLVMStyle();
+  EXPECT_EQ(NoSpaceStyle.SpaceBeforeCaseColon, false);
   NoSpaceStyle.SpaceBeforeCtorInitializerColon = false;
   NoSpaceStyle.SpaceBeforeInheritanceColon = false;
   NoSpaceStyle.SpaceBeforeRangeBasedForLoopColon = false;
@@ -12161,6 +12344,54 @@ TEST_F(FormatTest, ConfigurableSpaceBeforeColon) {
                "default:\n"
                "}",
                NoSpaceStyle);
+  verifyFormat("switch (allBraces) {\n"
+               "case 1: {\n"
+               "  break;\n"
+               "}\n"
+               "case 2: {\n"
+               "  [[fallthrough]];\n"
+               "}\n"
+               "default: {\n"
+               "  break;\n"
+               "}\n"
+               "}",
+               NoSpaceStyle);
+
+  FormatStyle InvertedSpaceStyle = getLLVMStyle();
+  InvertedSpaceStyle.SpaceBeforeCaseColon = true;
+  InvertedSpaceStyle.SpaceBeforeCtorInitializerColon = false;
+  InvertedSpaceStyle.SpaceBeforeInheritanceColon = false;
+  InvertedSpaceStyle.SpaceBeforeRangeBasedForLoopColon = false;
+  verifyFormat("class Foo: public Bar {};", InvertedSpaceStyle);
+  verifyFormat("Foo::Foo(): foo(1) {}", InvertedSpaceStyle);
+  verifyFormat("for (auto a: b) {\n}", InvertedSpaceStyle);
+  verifyFormat("int x = a ? b : c;", InvertedSpaceStyle);
+  verifyFormat("{\n"
+               "label3:\n"
+               "  int x = 0;\n"
+               "}",
+               InvertedSpaceStyle);
+  verifyFormat("switch (x) {\n"
+               "case 1 :\n"
+               "case 2 : {\n"
+               "  break;\n"
+               "}\n"
+               "default :\n"
+               "  break;\n"
+               "}",
+               InvertedSpaceStyle);
+  verifyFormat("switch (allBraces) {\n"
+               "case 1 : {\n"
+               "  break;\n"
+               "}\n"
+               "case 2 : {\n"
+               "  [[fallthrough]];\n"
+               "}\n"
+               "default : {\n"
+               "  break;\n"
+               "}\n"
+               "}",
+               InvertedSpaceStyle);
 }
 
 TEST_F(FormatTest, ConfigurableSpaceAroundPointerQualifiers) {
@@ -13250,6 +13481,58 @@ TEST_F(FormatTest, AllmanBraceBreaking) {
                "#endif",
                AllmanBraceStyle);
 
+  EXPECT_EQ(AllmanBraceStyle.AllowShortLambdasOnASingleLine,
+            FormatStyle::SLS_All);
+
+  verifyFormat("[](int i) { return i + 2; };\n"
+               "[](int i, int j)\n"
+               "{\n"
+               "  auto x = i + j;\n"
+               "  auto y = i * j;\n"
+               "  return x ^ y;\n"
+               "};\n"
+               "void foo()\n"
+               "{\n"
+               "  auto shortLambda = [](int i) { return i + 2; };\n"
+               "  auto longLambda = [](int i, int j)\n"
+               "  {\n"
+               "    auto x = i + j;\n"
+               "    auto y = i * j;\n"
+               "    return x ^ y;\n"
+               "  };\n"
+               "}",
+               AllmanBraceStyle);
+
+  AllmanBraceStyle.AllowShortLambdasOnASingleLine = FormatStyle::SLS_None;
+
+  verifyFormat("[](int i)\n"
+               "{\n"
+               "  return i + 2;\n"
+               "};\n"
+               "[](int i, int j)\n"
+               "{\n"
+               "  auto x = i + j;\n"
+               "  auto y = i * j;\n"
+               "  return x ^ y;\n"
+               "};\n"
+               "void foo()\n"
+               "{\n"
+               "  auto shortLambda = [](int i)\n"
+               "  {\n"
+               "    return i + 2;\n"
+               "  };\n"
+               "  auto longLambda = [](int i, int j)\n"
+               "  {\n"
+               "    auto x = i + j;\n"
+               "    auto y = i * j;\n"
+               "    return x ^ y;\n"
+               "  };\n"
+               "}",
+               AllmanBraceStyle);
+
+  // Reset
+  AllmanBraceStyle.AllowShortLambdasOnASingleLine = FormatStyle::SLS_All;
+
   // This shouldn't affect ObjC blocks..
   verifyFormat("[self doSomeThingWithACompletionHandler:^{\n"
                "  // ...\n"
@@ -13492,7 +13775,7 @@ TEST_F(FormatTest, WhitesmithsBraceBreaking) {
                "  {\n"
                "  switch (a)\n"
                "    {\n"
-               "    case 2:\n"
+               "  case 2:\n"
                "    {\n"
                "    }\n"
                "    break;\n"
@@ -13504,18 +13787,18 @@ TEST_F(FormatTest, WhitesmithsBraceBreaking) {
                "  {\n"
                "  switch (a)\n"
                "    {\n"
-               "    case 0:\n"
+               "  case 0:\n"
                "    break;\n"
-               "    case 1:\n"
+               "  case 1:\n"
                "    {\n"
                "    foo();\n"
                "    break;\n"
                "    }\n"
-               "    case 2:\n"
+               "  case 2:\n"
                "    {\n"
                "    }\n"
                "    break;\n"
-               "    default:\n"
+               "  default:\n"
                "    break;\n"
                "    }\n"
                "  }\n",
@@ -13525,12 +13808,12 @@ TEST_F(FormatTest, WhitesmithsBraceBreaking) {
                "  {\n"
                "  switch (a)\n"
                "    {\n"
-               "    case 0:\n"
+               "  case 0:\n"
                "    {\n"
                "    foo(x);\n"
                "    }\n"
                "    break;\n"
-               "    default:\n"
+               "  default:\n"
                "    {\n"
                "    foo(1);\n"
                "    }\n"
@@ -14104,6 +14387,7 @@ TEST_F(FormatTest, ParsesConfigurationBools) {
   CHECK_PARSE_BOOL(BinPackArguments);
   CHECK_PARSE_BOOL(BinPackParameters);
   CHECK_PARSE_BOOL(BreakAfterJavaFieldAnnotations);
+  CHECK_PARSE_BOOL(BreakBeforeConceptDeclarations);
   CHECK_PARSE_BOOL(BreakBeforeTernaryOperators);
   CHECK_PARSE_BOOL(BreakStringLiterals);
   CHECK_PARSE_BOOL(CompactNamespaces);
@@ -14115,6 +14399,7 @@ TEST_F(FormatTest, ParsesConfigurationBools) {
   CHECK_PARSE_BOOL(IndentCaseLabels);
   CHECK_PARSE_BOOL(IndentCaseBlocks);
   CHECK_PARSE_BOOL(IndentGotoLabels);
+  CHECK_PARSE_BOOL(IndentRequires);
   CHECK_PARSE_BOOL(IndentWrappedFunctionNames);
   CHECK_PARSE_BOOL(KeepEmptyLinesAtTheStartOfBlocks);
   CHECK_PARSE_BOOL(ObjCSpaceAfterProperty);
@@ -14135,6 +14420,7 @@ TEST_F(FormatTest, ParsesConfigurationBools) {
   CHECK_PARSE_BOOL(SpaceAfterTemplateKeyword);
   CHECK_PARSE_BOOL(SpaceAfterLogicalNot);
   CHECK_PARSE_BOOL(SpaceBeforeAssignmentOperators);
+  CHECK_PARSE_BOOL(SpaceBeforeCaseColon);
   CHECK_PARSE_BOOL(SpaceBeforeCpp11BracedList);
   CHECK_PARSE_BOOL(SpaceBeforeCtorInitializerColon);
   CHECK_PARSE_BOOL(SpaceBeforeInheritanceColon);
@@ -14497,6 +14783,11 @@ TEST_F(FormatTest, ParsesConfiguration) {
   CHECK_PARSE("AttributeMacros: [attr1, attr2]", AttributeMacros,
               std::vector<std::string>({"attr1", "attr2"}));
 
+  Style.StatementAttributeLikeMacros.clear();
+  CHECK_PARSE("StatementAttributeLikeMacros: [emit,Q_EMIT]",
+              StatementAttributeLikeMacros,
+              std::vector<std::string>({"emit", "Q_EMIT"}));
+
   Style.StatementMacros.clear();
   CHECK_PARSE("StatementMacros: [QUNUSED]", StatementMacros,
               std::vector<std::string>{"QUNUSED"});
@@ -14524,12 +14815,13 @@ TEST_F(FormatTest, ParsesConfiguration) {
 
   Style.IncludeStyle.IncludeCategories.clear();
   std::vector<tooling::IncludeStyle::IncludeCategory> ExpectedCategories = {
-      {"abc/.*", 2, 0}, {".*", 1, 0}};
+      {"abc/.*", 2, 0, false}, {".*", 1, 0, true}};
   CHECK_PARSE("IncludeCategories:\n"
               "  - Regex: abc/.*\n"
               "    Priority: 2\n"
               "  - Regex: .*\n"
-              "    Priority: 1",
+              "    Priority: 1\n"
+              "    CaseSensitive: true\n",
               IncludeStyle.IncludeCategories, ExpectedCategories);
   CHECK_PARSE("IncludeIsMainRegex: 'abc$'", IncludeStyle.IncludeIsMainRegex,
               "abc$");
@@ -16710,6 +17002,15 @@ TEST_F(FormatTest, GuessLanguageWithCaret) {
       guessLanguage("foo.h", "int(^foo[(kNumEntries + 10)])(char, float);"));
 }
 
+TEST_F(FormatTest, GuessLanguageWithPragmas) {
+  EXPECT_EQ(FormatStyle::LK_Cpp,
+            guessLanguage("foo.h", "__pragma(warning(disable:))"));
+  EXPECT_EQ(FormatStyle::LK_Cpp,
+            guessLanguage("foo.h", "#pragma(warning(disable:))"));
+  EXPECT_EQ(FormatStyle::LK_Cpp,
+            guessLanguage("foo.h", "_Pragma(warning(disable:))"));
+}
+
 TEST_F(FormatTest, FormatsInlineAsmSymbolicNames) {
   // ASM symbolic names are identifiers that must be surrounded by [] without
   // space in between:
@@ -17214,6 +17515,28 @@ TEST_F(FormatTest, LikelyUnlikely) {
                Style);
 }
 
+TEST_F(FormatTest, PenaltyIndentedWhitespace) {
+  verifyFormat("Constructor()\n"
+               "    : aaaaaa(aaaaaa), aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa(\n"
+               "                          aaaa(aaaaaaaaaaaaaaaaaa, "
+               "aaaaaaaaaaaaaaaaaat))");
+  verifyFormat("Constructor()\n"
+               "    : aaaaaaaaaaaaa(aaaaaa), "
+               "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa(aaaaaaaaaaaaaaaaaa)");
+
+  FormatStyle StyleWithWhitespacePenalty = getLLVMStyle();
+  StyleWithWhitespacePenalty.PenaltyIndentedWhitespace = 5;
+  verifyFormat("Constructor()\n"
+               "    : aaaaaa(aaaaaa),\n"
+               "      aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa(\n"
+               "          aaaa(aaaaaaaaaaaaaaaaaa, aaaaaaaaaaaaaaaaaat))",
+               StyleWithWhitespacePenalty);
+  verifyFormat("Constructor()\n"
+               "    : aaaaaaaaaaaaa(aaaaaa), "
+               "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa(aaaaaaaaaaaaaaaaaa)",
+               StyleWithWhitespacePenalty);
+}
+
 TEST_F(FormatTest, LLVMDefaultStyle) {
   FormatStyle Style = getLLVMStyle();
   verifyFormat("extern \"C\" {\n"
@@ -17265,6 +17588,307 @@ TEST_F(FormatTest, WebKitDefaultStyle) {
                "int foo();\n"
                "}",
                Style);
+}
+
+TEST_F(FormatTest, ConceptsAndRequires) {
+  FormatStyle Style = getLLVMStyle();
+  Style.AllowShortFunctionsOnASingleLine = FormatStyle::SFS_None;
+
+  verifyFormat("template <typename T>\n"
+               "concept Hashable = requires(T a) {\n"
+               "  { std::hash<T>{}(a) } -> std::convertible_to<std::size_t>;\n"
+               "};",
+               Style);
+  verifyFormat("template <typename T>\n"
+               "concept EqualityComparable = requires(T a, T b) {\n"
+               "  { a == b } -> bool;\n"
+               "};",
+               Style);
+  verifyFormat("template <typename T>\n"
+               "concept EqualityComparable = requires(T a, T b) {\n"
+               "  { a == b } -> bool;\n"
+               "  { a != b } -> bool;\n"
+               "};",
+               Style);
+  verifyFormat("template <typename T>\n"
+               "concept EqualityComparable = requires(T a, T b) {\n"
+               "  { a == b } -> bool;\n"
+               "  { a != b } -> bool;\n"
+               "};",
+               Style);
+
+  verifyFormat("template <typename It>\n"
+               "requires Iterator<It>\n"
+               "void sort(It begin, It end) {\n"
+               "  //....\n"
+               "}",
+               Style);
+
+  verifyFormat("template <typename T>\n"
+               "concept Large = sizeof(T) > 10;",
+               Style);
+
+  verifyFormat("template <typename T, typename U>\n"
+               "concept FooableWith = requires(T t, U u) {\n"
+               "  typename T::foo_type;\n"
+               "  { t.foo(u) } -> typename T::foo_type;\n"
+               "  t++;\n"
+               "};\n"
+               "void doFoo(FooableWith<int> auto t) {\n"
+               "  t.foo(3);\n"
+               "}",
+               Style);
+  verifyFormat("template <typename T>\n"
+               "concept Context = sizeof(T) == 1;",
+               Style);
+  verifyFormat("template <typename T>\n"
+               "concept Context = is_specialization_of_v<context, T>;",
+               Style);
+  verifyFormat("template <typename T>\n"
+               "concept Node = std::is_object_v<T>;",
+               Style);
+  verifyFormat("template <typename T>\n"
+               "concept Tree = true;",
+               Style);
+
+  verifyFormat("template <typename T> int g(T i) requires Concept1<I> {\n"
+               "  //...\n"
+               "}",
+               Style);
+
+  verifyFormat(
+      "template <typename T> int g(T i) requires Concept1<I> && Concept2<I> {\n"
+      "  //...\n"
+      "}",
+      Style);
+
+  verifyFormat(
+      "template <typename T> int g(T i) requires Concept1<I> || Concept2<I> {\n"
+      "  //...\n"
+      "}",
+      Style);
+
+  verifyFormat("template <typename T>\n"
+               "veryveryvery_long_return_type g(T i) requires Concept1<I> || "
+               "Concept2<I> {\n"
+               "  //...\n"
+               "}",
+               Style);
+
+  verifyFormat("template <typename T>\n"
+               "veryveryvery_long_return_type g(T i) requires Concept1<I> && "
+               "Concept2<I> {\n"
+               "  //...\n"
+               "}",
+               Style);
+
+  verifyFormat(
+      "template <typename T>\n"
+      "veryveryvery_long_return_type g(T i) requires Concept1 && Concept2 {\n"
+      "  //...\n"
+      "}",
+      Style);
+
+  verifyFormat(
+      "template <typename T>\n"
+      "veryveryvery_long_return_type g(T i) requires Concept1 || Concept2 {\n"
+      "  //...\n"
+      "}",
+      Style);
+
+  verifyFormat("template <typename It>\n"
+               "requires Foo<It>() && Bar<It> {\n"
+               "  //....\n"
+               "}",
+               Style);
+
+  verifyFormat("template <typename It>\n"
+               "requires Foo<Bar<It>>() && Bar<Foo<It, It>> {\n"
+               "  //....\n"
+               "}",
+               Style);
+
+  verifyFormat("template <typename It>\n"
+               "requires Foo<Bar<It, It>>() && Bar<Foo<It, It>> {\n"
+               "  //....\n"
+               "}",
+               Style);
+
+  verifyFormat(
+      "template <typename It>\n"
+      "requires Foo<Bar<It>, Baz<It>>() && Bar<Foo<It>, Baz<It, It>> {\n"
+      "  //....\n"
+      "}",
+      Style);
+
+  Style.IndentRequires = true;
+  verifyFormat("template <typename It>\n"
+               "  requires Iterator<It>\n"
+               "void sort(It begin, It end) {\n"
+               "  //....\n"
+               "}",
+               Style);
+  verifyFormat("template <std::size index_>\n"
+               "  requires(index_ < sizeof...(Children_))\n"
+               "Tree auto &child() {\n"
+               "  // ...\n"
+               "}",
+               Style);
+
+  Style.SpaceBeforeParens = FormatStyle::SBPO_Always;
+  verifyFormat("template <typename T>\n"
+               "concept Hashable = requires (T a) {\n"
+               "  { std::hash<T>{}(a) } -> std::convertible_to<std::size_t>;\n"
+               "};",
+               Style);
+
+  verifyFormat("template <class T = void>\n"
+               "  requires EqualityComparable<T> || Same<T, void>\n"
+               "struct equal_to;",
+               Style);
+
+  verifyFormat("template <class T>\n"
+               "  requires requires {\n"
+               "    T{};\n"
+               "    T (int);\n"
+               "  }\n",
+               Style);
+
+  Style.ColumnLimit = 78;
+  verifyFormat("template <typename T>\n"
+               "concept Context = Traits<typename T::traits_type> and\n"
+               "    Interface<typename T::interface_type> and\n"
+               "    Request<typename T::request_type> and\n"
+               "    Response<typename T::response_type> and\n"
+               "    ContextExtension<typename T::extension_type> and\n"
+               "    ::std::is_copy_constructable<T> and "
+               "::std::is_move_constructable<T> and\n"
+               "    requires (T c) {\n"
+               "  { c.response; } -> Response;\n"
+               "} and requires (T c) {\n"
+               "  { c.request; } -> Request;\n"
+               "}\n",
+               Style);
+
+  verifyFormat("template <typename T>\n"
+               "concept Context = Traits<typename T::traits_type> or\n"
+               "    Interface<typename T::interface_type> or\n"
+               "    Request<typename T::request_type> or\n"
+               "    Response<typename T::response_type> or\n"
+               "    ContextExtension<typename T::extension_type> or\n"
+               "    ::std::is_copy_constructable<T> or "
+               "::std::is_move_constructable<T> or\n"
+               "    requires (T c) {\n"
+               "  { c.response; } -> Response;\n"
+               "} or requires (T c) {\n"
+               "  { c.request; } -> Request;\n"
+               "}\n",
+               Style);
+
+  verifyFormat("template <typename T>\n"
+               "concept Context = Traits<typename T::traits_type> &&\n"
+               "    Interface<typename T::interface_type> &&\n"
+               "    Request<typename T::request_type> &&\n"
+               "    Response<typename T::response_type> &&\n"
+               "    ContextExtension<typename T::extension_type> &&\n"
+               "    ::std::is_copy_constructable<T> && "
+               "::std::is_move_constructable<T> &&\n"
+               "    requires (T c) {\n"
+               "  { c.response; } -> Response;\n"
+               "} && requires (T c) {\n"
+               "  { c.request; } -> Request;\n"
+               "}\n",
+               Style);
+
+  verifyFormat("template <typename T>\nconcept someConcept = Constraint1<T> && "
+               "Constraint2<T>;");
+
+  Style.BreakBeforeBraces = FormatStyle::BS_Custom;
+  Style.BraceWrapping.AfterFunction = true;
+  Style.BraceWrapping.AfterClass = true;
+  Style.AlwaysBreakTemplateDeclarations = FormatStyle::BTDS_Yes;
+  Style.BreakConstructorInitializers = FormatStyle::BCIS_BeforeColon;
+  verifyFormat("void Foo () requires (std::copyable<T>)\n"
+               "{\n"
+               "  return\n"
+               "}\n",
+               Style);
+
+  verifyFormat("void Foo () requires std::copyable<T>\n"
+               "{\n"
+               "  return\n"
+               "}\n",
+               Style);
+
+  verifyFormat("template <std::semiregular F, std::semiregular... Args>\n"
+               "  requires (std::invocable<F, std::invoke_result_t<Args>...>)\n"
+               "struct constant;",
+               Style);
+
+  verifyFormat("template <std::semiregular F, std::semiregular... Args>\n"
+               "  requires std::invocable<F, std::invoke_result_t<Args>...>\n"
+               "struct constant;",
+               Style);
+
+  verifyFormat("template <class T>\n"
+               "class plane_with_very_very_very_long_name\n"
+               "{\n"
+               "  constexpr plane_with_very_very_very_long_name () requires "
+               "std::copyable<T>\n"
+               "      : plane_with_very_very_very_long_name (1)\n"
+               "  {\n"
+               "  }\n"
+               "}\n",
+               Style);
+
+  verifyFormat("template <class T>\n"
+               "class plane_with_long_name\n"
+               "{\n"
+               "  constexpr plane_with_long_name () requires std::copyable<T>\n"
+               "      : plane_with_long_name (1)\n"
+               "  {\n"
+               "  }\n"
+               "}\n",
+               Style);
+
+  Style.BreakBeforeConceptDeclarations = false;
+  verifyFormat("template <typename T> concept Tree = true;", Style);
+
+  Style.IndentRequires = false;
+  verifyFormat("template <std::semiregular F, std::semiregular... Args>\n"
+               "requires (std::invocable<F, std::invoke_result_t<Args>...>) "
+               "struct constant;",
+               Style);
+}
+
+TEST_F(FormatTest, StatementAttributeLikeMacros) {
+  FormatStyle Style = getLLVMStyle();
+  StringRef Source = "void Foo::slot() {\n"
+                     "  unsigned char MyChar = 'x';\n"
+                     "  emit signal(MyChar);\n"
+                     "  Q_EMIT signal(MyChar);\n"
+                     "}";
+
+  EXPECT_EQ(Source, format(Source, Style));
+
+  Style.AlignConsecutiveDeclarations = true;
+  EXPECT_EQ("void Foo::slot() {\n"
+            "  unsigned char MyChar = 'x';\n"
+            "  emit          signal(MyChar);\n"
+            "  Q_EMIT signal(MyChar);\n"
+            "}",
+            format(Source, Style));
+
+  Style.StatementAttributeLikeMacros.push_back("emit");
+  EXPECT_EQ(Source, format(Source, Style));
+
+  Style.StatementAttributeLikeMacros = {};
+  EXPECT_EQ("void Foo::slot() {\n"
+            "  unsigned char MyChar = 'x';\n"
+            "  emit          signal(MyChar);\n"
+            "  Q_EMIT        signal(MyChar);\n"
+            "}",
+            format(Source, Style));
 }
 } // namespace
 } // namespace format

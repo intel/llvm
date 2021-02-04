@@ -12,9 +12,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "Parser.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/DialectImplementation.h"
-#include "mlir/IR/StandardTypes.h"
 #include "llvm/Support/SourceMgr.h"
 
 using namespace mlir;
@@ -82,20 +82,7 @@ public:
 
   /// Parse an optional integer value from the stream.
   OptionalParseResult parseOptionalInteger(uint64_t &result) override {
-    Token curToken = parser.getToken();
-    if (curToken.isNot(Token::integer, Token::minus))
-      return llvm::None;
-
-    bool negative = parser.consumeIf(Token::minus);
-    Token curTok = parser.getToken();
-    if (parser.parseToken(Token::integer, "expected integer value"))
-      return failure();
-
-    auto val = curTok.getUInt64IntegerValue();
-    if (!val)
-      return emitError(curTok.getLoc(), "integer value too large");
-    result = negative ? -*val : *val;
-    return success();
+    return parser.parseOptionalInteger(result);
   }
 
   //===--------------------------------------------------------------------===//
@@ -576,8 +563,8 @@ Type Parser::parseExtendedType() {
 
         // Otherwise, form a new opaque type.
         return OpaqueType::getChecked(
-            Identifier::get(dialectName, state.context), symbolData,
-            state.context, getEncodedSourceLocation(loc));
+            getEncodedSourceLocation(loc),
+            Identifier::get(dialectName, state.context), symbolData);
       });
 }
 

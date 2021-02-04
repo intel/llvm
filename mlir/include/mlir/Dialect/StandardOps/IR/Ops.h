@@ -15,10 +15,11 @@
 #define MLIR_DIALECT_STANDARDOPS_IR_OPS_H
 
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpImplementation.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/Interfaces/CallInterfaces.h"
+#include "mlir/Interfaces/CastInterfaces.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Interfaces/VectorInterfaces.h"
@@ -33,16 +34,13 @@ class Builder;
 class FuncOp;
 class OpBuilder;
 
-/// Auxiliary range data structure to unpack the offset, size and stride
-/// operands of the SubViewOp / SubTensorOp into a list of triples.
-/// Such a list of triple is sometimes more convenient to manipulate.
-struct Range {
-  Value offset;
-  Value size;
-  Value stride;
-};
-
 raw_ostream &operator<<(raw_ostream &os, Range &range);
+
+/// Return the list of Range (i.e. offset, size, stride). Each Range
+/// entry contains either the dynamic value or a ConstantIndexOp constructed
+/// with `b` at location `loc`.
+SmallVector<Range, 8> getOrCreateRanges(OffsetSizeAndStrideOpInterface op,
+                                        OpBuilder &b, Location loc);
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/StandardOps/IR/Ops.h.inc"
@@ -62,7 +60,9 @@ public:
   static void build(OpBuilder &builder, OperationState &result,
                     const APFloat &value, FloatType type);
 
-  APFloat getValue() { return getAttrOfType<FloatAttr>("value").getValue(); }
+  APFloat getValue() {
+    return (*this)->getAttrOfType<FloatAttr>("value").getValue();
+  }
 
   static bool classof(Operation *op);
 };
@@ -84,7 +84,9 @@ public:
   static void build(OpBuilder &builder, OperationState &result, int64_t value,
                     Type type);
 
-  int64_t getValue() { return getAttrOfType<IntegerAttr>("value").getInt(); }
+  int64_t getValue() {
+    return (*this)->getAttrOfType<IntegerAttr>("value").getInt();
+  }
 
   static bool classof(Operation *op);
 };
@@ -101,7 +103,9 @@ public:
   /// Build a constant int op producing an index.
   static void build(OpBuilder &builder, OperationState &result, int64_t value);
 
-  int64_t getValue() { return getAttrOfType<IntegerAttr>("value").getInt(); }
+  int64_t getValue() {
+    return (*this)->getAttrOfType<IntegerAttr>("value").getInt();
+  }
 
   static bool classof(Operation *op);
 };
@@ -162,8 +166,8 @@ public:
   }
   // Returns the source memref indices for this DMA operation.
   operand_range getSrcIndices() {
-    return {getOperation()->operand_begin() + 1,
-            getOperation()->operand_begin() + 1 + getSrcMemRefRank()};
+    return {(*this)->operand_begin() + 1,
+            (*this)->operand_begin() + 1 + getSrcMemRefRank()};
   }
 
   // Returns the destination MemRefType for this DMA operations.
@@ -181,8 +185,8 @@ public:
 
   // Returns the destination memref indices for this DMA operation.
   operand_range getDstIndices() {
-    return {getOperation()->operand_begin() + 1 + getSrcMemRefRank() + 1,
-            getOperation()->operand_begin() + 1 + getSrcMemRefRank() + 1 +
+    return {(*this)->operand_begin() + 1 + getSrcMemRefRank() + 1,
+            (*this)->operand_begin() + 1 + getSrcMemRefRank() + 1 +
                 getDstMemRefRank()};
   }
 
@@ -204,9 +208,8 @@ public:
   operand_range getTagIndices() {
     unsigned tagIndexStartPos =
         1 + getSrcMemRefRank() + 1 + getDstMemRefRank() + 1 + 1;
-    return {getOperation()->operand_begin() + tagIndexStartPos,
-            getOperation()->operand_begin() + tagIndexStartPos +
-                getTagMemRefRank()};
+    return {(*this)->operand_begin() + tagIndexStartPos,
+            (*this)->operand_begin() + tagIndexStartPos + getTagMemRefRank()};
   }
 
   /// Returns true if this is a DMA from a faster memory space to a slower one.
@@ -282,8 +285,8 @@ public:
 
   // Returns the tag memref index for this DMA operation.
   operand_range getTagIndices() {
-    return {getOperation()->operand_begin() + 1,
-            getOperation()->operand_begin() + 1 + getTagMemRefRank()};
+    return {(*this)->operand_begin() + 1,
+            (*this)->operand_begin() + 1 + getTagMemRefRank()};
   }
 
   // Returns the rank (number of indices) of the tag memref.
@@ -312,16 +315,6 @@ public:
 llvm::Optional<SmallVector<bool, 4>>
 computeRankReductionMask(ArrayRef<int64_t> originalShape,
                          ArrayRef<int64_t> reducedShape);
-
-/// Prints dimension and symbol list.
-void printDimAndSymbolList(Operation::operand_iterator begin,
-                           Operation::operand_iterator end, unsigned numDims,
-                           OpAsmPrinter &p);
-
-/// Parses dimension and symbol list and returns true if parsing failed.
-ParseResult parseDimAndSymbolList(OpAsmParser &parser,
-                                  SmallVectorImpl<Value> &operands,
-                                  unsigned &numDims);
 
 /// Determines whether MemRefCastOp casts to a more dynamic version of the
 /// source memref. This is useful to to fold a memref_cast into a consuming op
@@ -361,31 +354,6 @@ ParseResult parseDimAndSymbolList(OpAsmParser &parser,
 ///   consumer %0 ... : memref<?x16xf32, affine_map<(i, j)->(16 * i + j)>>
 /// ```
 bool canFoldIntoConsumerOp(MemRefCastOp castOp);
-
-/// Counterpart of `canFoldIntoConsumerOp(MemRefCastOp castOp)` for tensors.
-/// Determines whether TensorCastOp casts to a more dynamic version of the
-/// source tensor. This is useful to fold a tensor_cast into a consuming op and
-/// implement canonicalization patterns for ops in different dialects that may
-/// consume the results of tensor_cast operations. Such foldable tensor_cast
-/// operations are typically inserted as `subtensor` ops and are canonicalized,
-/// to preserve the type compatibility of their uses.
-///
-/// Returns true when all conditions are met:
-/// 1. source and result are ranked tensors with same element type and rank.
-/// 2. the tensor type has more static information than the result
-///
-/// Example:
-/// ```mlir
-///   %1 = tensor_cast %0 : tensor<8x16xf32> to tensor<?x?xf32>
-///   %2 = consumer %1 ... : tensor<?x?xf32> ...
-/// ```
-///
-/// folds into:
-///
-/// ```mlir
-///   %2 = consumer %0 ... : tensor<8x16xf32> ...
-/// ```
-bool canFoldIntoConsumerOp(TensorCastOp castOp);
 
 /// Compute `lhs` `pred` `rhs`, where `pred` is one of the known integer
 /// comparison predicates.

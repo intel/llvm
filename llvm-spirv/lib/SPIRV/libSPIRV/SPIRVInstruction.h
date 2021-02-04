@@ -2722,29 +2722,54 @@ _SPIRV_OP(PowN, true, 10)
 class SPIRVAtomicInstBase : public SPIRVInstTemplateBase {
 public:
   SPIRVCapVec getRequiredCapability() const override {
-    SPIRVCapVec CapVec;
-    // Most of atomic instructions do not require any capabilities
-    // ... unless they operate on 64-bit integers.
-    if (hasType() && getType()->isTypeInt(64)) {
-      // In SPIRV 1.2 spec only 2 atomic instructions have no result type:
-      // 1. OpAtomicStore - need to check type of the Value operand
-      // 2. OpAtomicFlagClear - doesn't require Int64Atomics capability.
-      CapVec.push_back(CapabilityInt64Atomics);
-    }
-    // Per the spec OpAtomicCompareExchangeWeak, OpAtomicFlagTestAndSet and
-    // OpAtomicFlagClear instructions require kernel capability. But this
-    // capability should be added by setting OpenCL memory model.
-    return CapVec;
+    // Most of the atomic instructions require a specific capability when
+    // operating on 64-bit integers.
+    // In SPIRV 1.2 spec, only 2 atomic instructions have no result type:
+    // 1. OpAtomicStore - need to check type of the Value operand
+    // 2. OpAtomicFlagClear - doesn't require Int64Atomics capability.
+    // Besides, OpAtomicCompareExchangeWeak, OpAtomicFlagTestAndSet and
+    // OpAtomicFlagClear instructions require the "kernel" capability. But this
+    // capability should be added by setting the OpenCL memory model.
+    if (hasType() && getType()->isTypeInt(64))
+      return {CapabilityInt64Atomics};
+    return {};
   }
 
-  // Overriding the following method only because of OpAtomicStore.
-  // We have to declare Int64Atomics capability if the Value operand is int64.
+  // Overriding the following method because of particular OpAtomic*
+  // instructions that declare additional capabilities, e.g. based on operand
+  // types.
+  void setOpWords(const std::vector<SPIRVWord> &TheOps) override {
+    SPIRVInstTemplateBase::setOpWords(TheOps);
+    for (auto RC : getRequiredCapability())
+      Module->addCapability(RC);
+  }
+};
+
+class SPIRVAtomicStoreInst : public SPIRVAtomicInstBase {
+public:
+  // Overriding the following method because of 'const'-related
+  // issues with overriding getRequiredCapability(). TODO: Resolve.
   void setOpWords(const std::vector<SPIRVWord> &TheOps) override {
     SPIRVInstTemplateBase::setOpWords(TheOps);
     static const unsigned ValueOperandIndex = 3;
-    if (getOpCode() == OpAtomicStore &&
-        getOperand(ValueOperandIndex)->getType()->isTypeInt(64))
+    if (getOperand(ValueOperandIndex)->getType()->isTypeInt(64))
       Module->addCapability(CapabilityInt64Atomics);
+  }
+};
+
+class SPIRVAtomicFAddEXTInst : public SPIRVAtomicInstBase {
+public:
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_EXT_shader_atomic_float_add;
+  }
+
+  SPIRVCapVec getRequiredCapability() const override {
+    assert(hasType());
+    if (getType()->isTypeFloat(32))
+      return {CapabilityAtomicFloat32AddEXT};
+    assert(getType()->isTypeFloat(64) &&
+           "AtomicFAddEXT can only be generated for f32 or f64 types");
+    return {CapabilityAtomicFloat64AddEXT};
   }
 };
 
@@ -2754,7 +2779,6 @@ public:
 _SPIRV_OP(AtomicFlagTestAndSet, true, 6)
 _SPIRV_OP(AtomicFlagClear, false, 4)
 _SPIRV_OP(AtomicLoad, true, 6)
-_SPIRV_OP(AtomicStore, false, 5)
 _SPIRV_OP(AtomicExchange, true, 7)
 _SPIRV_OP(AtomicCompareExchange, true, 9)
 _SPIRV_OP(AtomicCompareExchangeWeak, true, 9)
@@ -2770,6 +2794,12 @@ _SPIRV_OP(AtomicAnd, true, 7)
 _SPIRV_OP(AtomicOr, true, 7)
 _SPIRV_OP(AtomicXor, true, 7)
 _SPIRV_OP(MemoryBarrier, false, 3)
+#undef _SPIRV_OP
+#define _SPIRV_OP(x, BaseClass, ...)                                           \
+  typedef SPIRVInstTemplate<SPIRV##BaseClass, Op##x, __VA_ARGS__> SPIRV##x;
+// Specialized atomic builtins
+_SPIRV_OP(AtomicStore, AtomicStoreInst, false, 5)
+_SPIRV_OP(AtomicFAddEXT, AtomicFAddEXTInst, true, 7)
 #undef _SPIRV_OP
 
 class SPIRVImageInstBase : public SPIRVInstTemplateBase {
@@ -2806,7 +2836,7 @@ _SPIRV_OP(GenericCastToPtrExplicit, true, 5, false, 1)
 
 class SPIRVAssumeTrueINTEL : public SPIRVInstruction {
 public:
-  static const Op OC = OpAssumeTrueINTEL;
+  static const Op OC = internal::OpAssumeTrueINTEL;
   static const SPIRVWord FixedWordCount = 2;
 
   SPIRVAssumeTrueINTEL(SPIRVId TheCondition, SPIRVBasicBlock *BB)
@@ -2823,7 +2853,7 @@ public:
   }
 
   SPIRVCapVec getRequiredCapability() const override {
-    return getVec(CapabilityOptimizationHintsINTEL);
+    return getVec(internal::CapabilityOptimizationHintsINTEL);
   }
 
   llvm::Optional<ExtensionID> getRequiredExtension() const override {
@@ -2844,7 +2874,7 @@ protected:
 class SPIRVExpectINTELInstBase : public SPIRVInstTemplateBase {
 protected:
   SPIRVCapVec getRequiredCapability() const override {
-    return getVec(CapabilityOptimizationHintsINTEL);
+    return getVec(internal::CapabilityOptimizationHintsINTEL);
   }
 
   llvm::Optional<ExtensionID> getRequiredExtension() const override {
@@ -2852,11 +2882,12 @@ protected:
   }
 };
 
-#define _SPIRV_OP(x, ...)                                                      \
-  typedef SPIRVInstTemplate<SPIRVExpectINTELInstBase, Op##x, __VA_ARGS__>      \
+#define _SPIRV_OP_INTERNAL(x, ...)                                             \
+  typedef SPIRVInstTemplate<SPIRVExpectINTELInstBase, internal::Op##x,         \
+                            __VA_ARGS__>                                       \
       SPIRV##x;
-_SPIRV_OP(ExpectINTEL, true, 5)
-#undef _SPIRV_OP
+_SPIRV_OP_INTERNAL(ExpectINTEL, true, 5)
+#undef _SPIRV_OP_INTERNAL
 
 class SPIRVSubgroupShuffleINTELInstBase : public SPIRVInstTemplateBase {
 protected:

@@ -16,6 +16,7 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 using namespace mlir;
+using namespace mlir::test;
 
 // Native function for testing NativeCodeCall
 static Value chooseOperand(Value input1, Value input2, BoolAttr choice) {
@@ -60,7 +61,7 @@ public:
 
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
-    // Exercice OperationFolder API for a single-result operation that is folded
+    // Exercise OperationFolder API for a single-result operation that is folded
     // upon construction. The operation being created through the folder has an
     // in-place folder, and it should be still present in the output.
     // Furthermore, the folder should not crash when attempting to recover the
@@ -202,12 +203,16 @@ struct TestRegionRewriteBlockMovement : public ConversionPattern {
                   ConversionPatternRewriter &rewriter) const final {
     // Inline this region into the parent region.
     auto &parentRegion = *op->getParentRegion();
+    auto &opRegion = op->getRegion(0);
     if (op->getAttr("legalizer.should_clone"))
-      rewriter.cloneRegionBefore(op->getRegion(0), parentRegion,
-                                 parentRegion.end());
+      rewriter.cloneRegionBefore(opRegion, parentRegion, parentRegion.end());
     else
-      rewriter.inlineRegionBefore(op->getRegion(0), parentRegion,
-                                  parentRegion.end());
+      rewriter.inlineRegionBefore(opRegion, parentRegion, parentRegion.end());
+
+    if (op->getAttr("legalizer.erase_old_blocks")) {
+      while (!opRegion.empty())
+        rewriter.eraseBlock(&opRegion.front());
+    }
 
     // Drop this operation.
     rewriter.eraseOp(op);
@@ -462,7 +467,7 @@ struct TestBoundedRecursiveRewrite
                                 PatternRewriter &rewriter) const final {
     // Decrement the depth of the op in-place.
     rewriter.updateRootInPlace(op, [&] {
-      op.setAttr("depth", rewriter.getI64IntegerAttr(op.depth() - 1));
+      op->setAttr("depth", rewriter.getI64IntegerAttr(op.depth() - 1));
     });
     return success();
   }
@@ -504,7 +509,7 @@ struct TestTypeConverter : public TypeConverter {
 
     // Convert I42 to I43.
     if (t.isInteger(42)) {
-      results.push_back(IntegerType::get(43, t.getContext()));
+      results.push_back(IntegerType::get(t.getContext(), 43));
       return success();
     }
 
@@ -842,6 +847,10 @@ struct TestTypeConversionDriver
 };
 } // end anonymous namespace
 
+//===----------------------------------------------------------------------===//
+// Test Block Merging
+//===----------------------------------------------------------------------===//
+
 namespace {
 /// A rewriter pattern that tests that blocks can be merged.
 struct TestMergeBlock : public OpConversionPattern<TestMergeBlocksOp> {
@@ -894,7 +903,7 @@ struct TestMergeSingleBlockOps
   matchAndRewrite(SingleBlockImplicitTerminatorOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
     SingleBlockImplicitTerminatorOp parentOp =
-        op.getParentOfType<SingleBlockImplicitTerminatorOp>();
+        op->getParentOfType<SingleBlockImplicitTerminatorOp>();
     if (!parentOp)
       return failure();
     Block &innerBlock = op.region().front();
@@ -931,14 +940,14 @@ struct TestMergeBlocksPatternDriver
 
     /// Only allow `test.br` within test.merge_blocks op.
     target.addDynamicallyLegalOp<TestBranchOp>([&](TestBranchOp op) -> bool {
-      return op.getParentOfType<TestMergeBlocksOp>();
+      return op->getParentOfType<TestMergeBlocksOp>();
     });
 
     /// Expect that all nested test.SingleBlockImplicitTerminator ops are
     /// inlined.
     target.addDynamicallyLegalOp<SingleBlockImplicitTerminatorOp>(
         [&](SingleBlockImplicitTerminatorOp op) -> bool {
-          return !op.getParentOfType<SingleBlockImplicitTerminatorOp>();
+          return !op->getParentOfType<SingleBlockImplicitTerminatorOp>();
         });
 
     DenseSet<Operation *> unlegalizedOps;
@@ -951,10 +960,51 @@ struct TestMergeBlocksPatternDriver
 } // namespace
 
 //===----------------------------------------------------------------------===//
+// Test Selective Replacement
+//===----------------------------------------------------------------------===//
+
+namespace {
+/// A rewrite mechanism to inline the body of the op into its parent, when both
+/// ops can have a single block.
+struct TestSelectiveOpReplacementPattern : public OpRewritePattern<TestCastOp> {
+  using OpRewritePattern<TestCastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(TestCastOp op,
+                                PatternRewriter &rewriter) const final {
+    if (op.getNumOperands() != 2)
+      return failure();
+    OperandRange operands = op.getOperands();
+
+    // Replace non-terminator uses with the first operand.
+    rewriter.replaceOpWithIf(op, operands[0], [](OpOperand &operand) {
+      return operand.getOwner()->isKnownTerminator();
+    });
+    // Replace everything else with the second operand if the operation isn't
+    // dead.
+    rewriter.replaceOp(op, op.getOperand(1));
+    return success();
+  }
+};
+
+struct TestSelectiveReplacementPatternDriver
+    : public PassWrapper<TestSelectiveReplacementPatternDriver,
+                         OperationPass<>> {
+  void runOnOperation() override {
+    mlir::OwningRewritePatternList patterns;
+    MLIRContext *context = &getContext();
+    patterns.insert<TestSelectiveOpReplacementPattern>(context);
+    applyPatternsAndFoldGreedily(getOperation()->getRegions(),
+                                 std::move(patterns));
+  }
+};
+} // namespace
+
+//===----------------------------------------------------------------------===//
 // PassRegistration
 //===----------------------------------------------------------------------===//
 
 namespace mlir {
+namespace test {
 void registerPatternsTestPass() {
   PassRegistration<TestReturnTypeDriver>("test-return-type",
                                          "Run return type functions");
@@ -986,5 +1036,9 @@ void registerPatternsTestPass() {
   PassRegistration<TestMergeBlocksPatternDriver>{
       "test-merge-blocks",
       "Test Merging operation in ConversionPatternRewriter"};
+  PassRegistration<TestSelectiveReplacementPatternDriver>{
+      "test-pattern-selective-replacement",
+      "Test selective replacement in the PatternRewriter"};
 }
+} // namespace test
 } // namespace mlir

@@ -296,7 +296,9 @@ static void writeInstrProfile(StringRef OutputFilename,
                               ProfileFormat OutputFormat,
                               InstrProfWriter &Writer) {
   std::error_code EC;
-  raw_fd_ostream Output(OutputFilename.data(), EC, sys::fs::OF_None);
+  raw_fd_ostream Output(OutputFilename.data(), EC,
+                        OutputFormat == PF_Text ? sys::fs::OF_Text
+                                                : sys::fs::OF_None);
   if (EC)
     exitWithErrorCode(EC, OutputFilename);
 
@@ -660,6 +662,7 @@ mergeSampleProfile(const WeightedFileVector &Inputs, SymbolRemapper *Remapper,
   SmallVector<std::unique_ptr<sampleprof::SampleProfileReader>, 5> Readers;
   LLVMContext Context;
   sampleprof::ProfileSymbolList WriterList;
+  Optional<bool> ProfileIsProbeBased;
   for (const auto &Input : Inputs) {
     auto ReaderOrErr = SampleProfileReader::create(Input.Filename, Context);
     if (std::error_code EC = ReaderOrErr.getError()) {
@@ -680,6 +683,11 @@ mergeSampleProfile(const WeightedFileVector &Inputs, SymbolRemapper *Remapper,
     }
 
     StringMap<FunctionSamples> &Profiles = Reader->getProfiles();
+    if (ProfileIsProbeBased &&
+        ProfileIsProbeBased != FunctionSamples::ProfileIsProbeBased)
+      exitWithError(
+          "cannot merge probe-based profile with non-probe-based profile");
+    ProfileIsProbeBased = FunctionSamples::ProfileIsProbeBased;
     for (StringMap<FunctionSamples>::iterator I = Profiles.begin(),
                                               E = Profiles.end();
          I != E; ++I) {
@@ -1822,6 +1830,9 @@ std::error_code SampleOverlapAggregator::loadProfiles() {
     exitWithErrorCode(EC, BaseFilename);
   if (std::error_code EC = TestReader->read())
     exitWithErrorCode(EC, TestFilename);
+  if (BaseReader->profileIsProbeBased() != TestReader->profileIsProbeBased())
+    exitWithError(
+        "cannot compare probe-based profile with non-probe-based profile");
 
   // Load BaseHotThreshold and TestHotThreshold as 99-percentile threshold in
   // profile summary.
@@ -2243,7 +2254,6 @@ static void dumpHotFunctionList(const std::vector<std::string> &ColumnTitle,
     FOS.PadToColumn(ColumnOffset[3]);
     FOS << R.FuncName << "\n";
   }
-  return;
 }
 
 static int
@@ -2419,7 +2429,7 @@ static int show_main(int argc, const char *argv[]) {
   if (OutputFilename.empty())
     OutputFilename = "-";
 
-  if (!Filename.compare(OutputFilename)) {
+  if (Filename == OutputFilename) {
     errs() << sys::path::filename(argv[0])
            << ": Input file name cannot be the same as the output file name!\n";
     return 1;

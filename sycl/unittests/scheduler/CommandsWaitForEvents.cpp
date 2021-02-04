@@ -56,10 +56,10 @@ pi_result getEventInfoFunc(pi_event Event, pi_event_info PName, size_t PVSize,
 
   if (Event == TestContext->EventCtx1)
     *reinterpret_cast<pi_context *>(PV) =
-        reinterpret_cast<pi_context>(TestContext->Ctx1->get());
+        reinterpret_cast<pi_context>(TestContext->Ctx1->getHandleRef());
   else if (Event == TestContext->EventCtx2)
     *reinterpret_cast<pi_context *>(PV) =
-        reinterpret_cast<pi_context>(TestContext->Ctx2->get());
+        reinterpret_cast<pi_context>(TestContext->Ctx2->getHandleRef());
 
   return PI_SUCCESS;
 }
@@ -71,21 +71,18 @@ TEST_F(SchedulerTest, CommandsWaitForEvents) {
     return;
   }
 
-  queue Q1;
-  queue Q2;
+  platform Plt{Selector};
+  unittest::PiMock Mock{Plt};
 
-  unittest::PiMock Mock1(Q1);
-  unittest::PiMock Mock2(Q2);
+  Mock.redefine<detail::PiApiKind::piEventsWait>(waitFunc);
+  Mock.redefine<detail::PiApiKind::piEventRetain>(retainReleaseFunc);
+  Mock.redefine<detail::PiApiKind::piEventRelease>(retainReleaseFunc);
+  Mock.redefine<detail::PiApiKind::piEventGetInfo>(getEventInfoFunc);
 
-  Mock1.redefine<detail::PiApiKind::piEventsWait>(waitFunc);
-  Mock1.redefine<detail::PiApiKind::piEventRetain>(retainReleaseFunc);
-  Mock1.redefine<detail::PiApiKind::piEventRelease>(retainReleaseFunc);
-  Mock1.redefine<detail::PiApiKind::piEventGetInfo>(getEventInfoFunc);
-
-  Mock2.redefine<detail::PiApiKind::piEventsWait>(waitFunc);
-  Mock2.redefine<detail::PiApiKind::piEventRetain>(retainReleaseFunc);
-  Mock2.redefine<detail::PiApiKind::piEventRelease>(retainReleaseFunc);
-  Mock2.redefine<detail::PiApiKind::piEventGetInfo>(getEventInfoFunc);
+  context Ctx1{Plt};
+  queue Q1{Ctx1, Selector};
+  context Ctx2{Plt};
+  queue Q2{Ctx2, Selector};
 
   TestContext.reset(new TestCtx(Q1, Q2));
 
@@ -112,4 +109,7 @@ TEST_F(SchedulerTest, CommandsWaitForEvents) {
   ASSERT_TRUE(TestContext->EventCtx1WasWaited &&
               TestContext->EventCtx2WasWaited)
       << "Not all events were waited for";
+  delete TestContext.release(); // explicitly delete here is important for CUDA
+                                // BE to ensure that cuda driver is still in
+                                // memory while cuda objects are being freed.
 }

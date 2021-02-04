@@ -8,10 +8,10 @@ with some restrictions. See this [document](https://github.com/intel/llvm/blob/s
 - must work with separate compilation and linking
 - must support AOT compilation
 
-Implementaion is based on SPIR-V specialization constants. But there is one
-important difference between SYCL and SPIR-V: in SYCL speciazation constants are
-identified by a type ID which is mapped to a symbolic name, in SPIR-V - by an
-ordinal number. This complicates the design, as the compiler
+Implementation is based on SPIR-V specialization constants. But there is one
+important difference between SYCL and SPIR-V: in SYCL specialization constants
+are identified by a type ID which is mapped to a symbolic name, in SPIR-V - by
+an ordinal number. This complicates the design, as the compiler
 1) needs to propagate symbolic =\> numeric ID correspondence to the runtime
 2) can assign numeric IDs only when linking due to the separate compilation
 
@@ -66,7 +66,7 @@ recognized by a special LLVM pass later.
 
 Compilation and subsequent linkage of device code results in a number of
 `__sycl_getSpecConstantValue` calls whose arguments are symbolic spec constant
-IDs. Before generating the a device binary, each linked device code LLVMIR
+IDs. Before generating a device binary, each linked device code LLVMIR
 module undergoes processing by the sycl-post-link tool which can run LLVMIR
 passes before passing the module onto the llvm-spirv translator.
 
@@ -108,7 +108,7 @@ the `__sycl_getSpecConstantValue` calls with constants - default values of
 the spec constant's type. No maps are generated, and SYCL program can't change
 the value of a spec constant.
 
-#### LLVMIR-SPIR-V translator
+#### LLVM -> SPIR-V translation
 
 Given the `__spirv_SpecConstant` intrinsic calls produced by the
 `SpecConstants` pass:
@@ -175,7 +175,7 @@ struct A {
 
 struct POD {
   A a[2];
-  int b;
+  cl::sycl::vec<int, 2> b;
 };
 ```
 
@@ -187,7 +187,7 @@ and the user says
       { goldi, goldf },
       { goldi + 1, goldf + 1 },
     },
-    goldi
+    { goldi, goldi }
   };
 
   cl::sycl::ONEAPI::experimental::spec_constant<POD, MyConst> sc =  program4.set_spec_constant<MyConst>(gold);
@@ -195,49 +195,102 @@ and the user says
 
 #### Compiler
 
-##### The SpecConstant pass changes
+##### The SpecConstants pass
 
- - The SpecConstants pass in the post-link will have the following IR as input (`sret` conversion is omitted for clarity):
-
-```
-  %spec_const = call %struct.POD __sycl_getCompositeSpecConstantValue<POD type mangling> ("MyConst_mangled")
-```
-
-where `__sycl_getCompositeSpecConstantValue` is a new "intrinsic"
- (in addition to `__sycl_getSpecConstantValue`) recognized by SpecConstants pass,
- which creates a value of a composite (of non-primitive type) specialization constant.
- It does not need a default value, because its default value consists of default
- valued of its leaf specialization constants (see below).
-
- - after spec constant enumeration (symbolic -\> int ID translation), the SpecConstants pass
- will handle the `__sycl_getCompositeSpecConstantValue`. Given the knowledge of the composite
- specialization constant's type (`%struct.POD`), the pass will traverse its leaf
- fields and generate 5 "primitive" spec constants using already existing SPIR-V intrinsic:
+The SpecConstants pass in the post-link will have the following IR as input
+(`sret` conversion is omitted for clarity):
 
 ```
-%gold_POD_a0x = call i32 __spirv_SpecConstant(i32 10, i32 0)
-%gold_POD_a0y = call float __spirv_SpecConstant(i32 11, float 0)
-%gold_POD_a1x = call i32 __spirv_SpecConstant(i32 12, i32 0)
-%gold_POD_a1y = call float __spirv_SpecConstant(i32 13, float 0)
-%gold_POD_b = call i32 __spirv_SpecConstant(i32 14, i32 0)
+%struct.POD = type { [2 x %struct.A], <2 x i32> }
+%struct.A = type { i32, float }
+
+%spec_const = call %struct.POD __sycl_getCompositeSpecConstantValue<POD type mangling> ("MyConst_mangled")
 ```
 
-And 1 "composite"
+`__sycl_getCompositeSpecConstantValue` is a new "intrinsic" (in addition to
+`__sycl_getSpecConstantValue`) recognized by the `SpecConstants` pass, which
+creates a value of a composite (of non-primitive type) specialization constant.
+It does not need a default value, because its default value consists of default
+values of its leaf specialization constants (see below).
+
+`__sycl_getCompositeSpecConstantValue` will be replaced with a set of
+`__spirv_SpecConstant` calls for each member of its return type plus one
+`__spirv_SpecConstantComposite` to gather members back into a single composite.
+If any composite member is another composite, then it will be also represented
+by number of `__spirv_SpecConstant` plus one `__spirv_SpecConstantComposite`.
 
 ```
-  %gold_POD = call %struct.POD __spirvCompositeSpecConstant<POD type mangling>(i32 10, i32 11, i32 12, i32 13, i32 14)
+%gold_POD_A0_x = call i32 __spirv_SpecConstant(i32 10, i32 0)
+%gold_POD_A0_y = call float __spirv_SpecConstant(i32 11, float 0)
+
+%gold_POD_A0 = call %struct.A __spirv_SpecConstantComposite(i32 %gold_POD_A0_x, float %gold_POD_A0_y)
+
+%gold_POD_A1_x = call i32 __spirv_SpecConstant(i32 12, i32 0)
+%gold_POD_A1_y = call float __spirv_SpecConstant(i32 13, float 0)
+
+%gold_POD_A1 = call %struct.A __spirv_SpecConstantComposite(i32 %gold_POD_A1_x, float %gold_POD_A1_y)
+
+%gold_POD_A = call [2 x %struct.A] __spirv_SpecConstantComposite(%struct.A %gold_POD_A0, %struct.A %gold_POD_A1)
+
+%gold_POD_b0 = call i32 __spirv_SpecConstant(i32 14, i32 0)
+%gold_POD_b1 = call i32 __spirv_SpecConstant(i32 15, i32 0)
+%gold_POD_b = call <2 x i32> __spirv_SpecConstant(i32 %gold_POD_b0, i32 %gold_POD_b1)
+
+%gold = call %struct.POD __spirv_SpecConstantComposite([2 x %struct.A] %gold_POD_A, <2 x i32> %gold_POD_b)
+
 ```
 
-where `__spirvCompositeSpecConstant<POD type mangling>` is a new SPIR-V intrinsic which
- represents creation of a composite specialization constant. Its arguments are spec
- constant IDs corresponding to the leaf fields of the POD type of the constant.
-Spec ID for the composite spec constant is not needed, as runtime will never use it - it will use IDs of the leaves instead.
- Yet, the SPIR-V specification does not allow `SpecID` decoration for composite spec constants.
+Spec ID for the composite spec constant is not needed, as runtime will never use
+it - it will use IDs of the leaves instead, which are being assigned by the
+`SpecConstants` pass during replacement of SYCL intrinsics with SPIR-V
+intrinsics.
+Besides, the SPIR-V specification does not allow `SpecID` decoration for
+composite spec constants, because its defined by its members instead.
+
+`__spirv_SpecConstantComposite` is a new SPIR-V intrinsic, which represents
+composite specialization constant. Its arguments are LLVM IR values
+corresponding to elements of the composite constant.
+
+##### LLVM -> SPIR-V translation
+
+Given the `__spirv_SpecConstantComposite` intrinsic calls produced by the
+`SpecConstants` pass:
+```
+
+%struct.A = type { i32, float }
+
+; Function Attrs: alwaysinline
+define dso_local spir_func void @get(%struct.A* sret %ret.ptr) local_unnamed_addr #0 {
+  ; args are "ID" and "default value":
+  %1 = tail call spir_func i32 @_Z20__spirv_SpecConstantii(i32 42, i32 0)
+  %2 = tail call spir_func float @_Z20__spirv_SpecConstantif(i32 43, float 0.000000e+00)
+  %ret = tail call spir_func %struct.A @_Z29__spirv_SpecConstantCompositeif(%1, %2)
+  store %struct.A %ret, %struct.A* %ret.ptr
+  ret void
+}
+```
+
+the translator will generate `OpSpecConstant` and `OpSpecConstantComposite`
+SPIR-V instructions with proper `SpecId` decorations:
+
+```
+              OpDecorate %i32 SpecId 42                        ; ID of the 1st member
+              OpDecorate %float SpecId 43                      ; ID of the 2nd member
+       %i32 = OpSpecConstant %int.type 0                       ; 1st member with default value
+     %float = OpSpecConstant %float.type 0.0                   ; 2nd member with default value
+    %struct = OpSpecConstantComposite %struct.type %i32 %float ; Composite doens't need IDs or default value
+         %1 = OpTypeFunction %struct.type
+
+       %get = OpFunction %struct.type None %1
+         %2 = OpLabel
+              OpReturnValue %struct
+              OpFunctionEnd
+```
 
 ##### The post-link tool changes
 
 For composite specialization constants the post link tool will additionally
-generate linearized list of \<leaf spec ID,type,offset,size\> tuples (descriptors),
+generate linearized list of \<leaf spec ID,offset,size\> tuples (descriptors),
 where each tuple describes a leaf field, and store it together with the
 existing meta-information associated with the specialization constants and
 passed to the runtime. Also, for a composite specialization constant there is
@@ -245,47 +298,18 @@ no ID map entry within the meta information, and the composite constant is
 referenced by its symbolic ID. For example:
 
 ```
-MyConst_mangled [10,int,0,4],[11,float,4,4],[12,int,8,4],[13,float,12,4],[14,int,16,4]
+MyConst_mangled [10,0,4],[11,4,4],[12,8,4],[13,12,4],[14,16,4]
 ```
 
-#### LLVMIR-\>SPIR-V translator
-
-The translator aims to create the following code (pseudo-code)
-
-```
-%gold_POD_a0x = OpSpecConstant(0)    [SpecId = 10]
-%gold_POD_a0y = OpSpecConstant(0.0f) [SpecId = 11]
-%gold_POD_a1x = OpSpecConstant(0)    [SpecId = 12]
-%gold_POD_a1y = OpSpecConstant(0.0f) [SpecId = 13]
-%gold_POD_b   = OpSpecConstant(0)    [SpecId = 14]
-
-%gold_POD_a0 = OpSpecConstantComposite(
-  %gold_POD_a0x // gold.a[0].x
-  %gold_POD_a0y // gold.a[0].y
-)
-
-%gold_POD_a1 = OpSpecConstantComposite(
-  %gold_POD_a1x // gold.a[1].x
-  %gold_POD_a1y // gold.a[1].y
-)
-
-%gold_POD = OpSpecConstantComposite(
-  %gold_POD_a0,
-  %gold_POD_a1,
-  %gold_POD_b   // gold.b
-}
-```
-
-- First, `OpSpecConstant` instructions are created using already existing mechanism for
-primitive spec constants.
-- Then the translator will handle `__spirvCompositeSpecConstant*` intrinsic.
-It will recursively traverse the spec constant type structure in parallel with
-the argument list - which is a list of primitive spec constant SpecIds.
-When traversing, it will create all the intermediate OpSpecConstantComposite
-instructions as well as the root one (`%gold_POD`) using simple depth-first tree
-traversal with stack. This requires mapping from SpecId decoration number to
-\<id\> of the corresponding OpSpecConstant instruction, but this should be pretty
-straightforward.
+This tuple is needed, because at SYCL runtime level, composite constants are set
+by user as a byte array and we have to break it down to the leaf members of the
+composite and set a value for each leaf as for a separate scalar specialization
+constant. Each tuple contains the following data:
+- ID of composite constant leaf, i.e. ID of a scalar specialization constant
+- Offset from the beginning of composite, which points to the location of a
+  scalar value within the composite, i.e. the position where scalar
+  specialization constant resides within the byte array supplied by the user
+- Size of the scalar specialization constant
 
 #### SYCL runtime
 

@@ -694,7 +694,6 @@ define i64 @test50(i64 %x) {
   %D = add i32 %B, -1
   %E = sext i32 %D to i64
   ret i64 %E
-; lshr+shl will be handled by DAGCombine.
 }
 
 define i64 @test51(i64 %A, i1 %cond) {
@@ -875,11 +874,11 @@ define <3 x i32> @test60(<4 x i32> %call4) {
 
 define <4 x i32> @test61(<3 x i32> %call4) {
 ; BE-LABEL: @test61(
-; BE-NEXT:    [[P10:%.*]] = shufflevector <3 x i32> [[CALL4:%.*]], <3 x i32> <i32 0, i32 undef, i32 undef>, <4 x i32> <i32 3, i32 0, i32 1, i32 2>
+; BE-NEXT:    [[P10:%.*]] = shufflevector <3 x i32> [[CALL4:%.*]], <3 x i32> <i32 0, i32 poison, i32 poison>, <4 x i32> <i32 3, i32 0, i32 1, i32 2>
 ; BE-NEXT:    ret <4 x i32> [[P10]]
 ;
 ; LE-LABEL: @test61(
-; LE-NEXT:    [[P10:%.*]] = shufflevector <3 x i32> [[CALL4:%.*]], <3 x i32> <i32 0, i32 undef, i32 undef>, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+; LE-NEXT:    [[P10:%.*]] = shufflevector <3 x i32> [[CALL4:%.*]], <3 x i32> <i32 0, i32 poison, i32 poison>, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
 ; LE-NEXT:    ret <4 x i32> [[P10]]
 ;
   %p11 = bitcast <3 x i32> %call4 to i96
@@ -891,12 +890,12 @@ define <4 x i32> @test61(<3 x i32> %call4) {
 define <4 x i32> @test62(<3 x float> %call4) {
 ; BE-LABEL: @test62(
 ; BE-NEXT:    [[TMP1:%.*]] = bitcast <3 x float> [[CALL4:%.*]] to <3 x i32>
-; BE-NEXT:    [[P10:%.*]] = shufflevector <3 x i32> [[TMP1]], <3 x i32> <i32 0, i32 undef, i32 undef>, <4 x i32> <i32 3, i32 0, i32 1, i32 2>
+; BE-NEXT:    [[P10:%.*]] = shufflevector <3 x i32> [[TMP1]], <3 x i32> <i32 0, i32 poison, i32 poison>, <4 x i32> <i32 3, i32 0, i32 1, i32 2>
 ; BE-NEXT:    ret <4 x i32> [[P10]]
 ;
 ; LE-LABEL: @test62(
 ; LE-NEXT:    [[TMP1:%.*]] = bitcast <3 x float> [[CALL4:%.*]] to <3 x i32>
-; LE-NEXT:    [[P10:%.*]] = shufflevector <3 x i32> [[TMP1]], <3 x i32> <i32 0, i32 undef, i32 undef>, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+; LE-NEXT:    [[P10:%.*]] = shufflevector <3 x i32> [[TMP1]], <3 x i32> <i32 0, i32 poison, i32 poison>, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
 ; LE-NEXT:    ret <4 x i32> [[P10]]
 ;
   %p11 = bitcast <3 x float> %call4 to i96

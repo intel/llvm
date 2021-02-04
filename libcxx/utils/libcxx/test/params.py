@@ -8,7 +8,7 @@
 
 from libcxx.test.dsl import *
 
-_allStandards = ['c++03', 'c++11', 'c++14', 'c++17', 'c++2a']
+_allStandards = ['c++03', 'c++11', 'c++14', 'c++17', 'c++2a', 'c++2b']
 _warningFlags = [
   '-Werror',
   '-Wall',
@@ -81,17 +81,11 @@ DEFAULT_PARAMETERS = [
               AddFeature('use_system_cxx_lib')
             ] if useSystem else [
               # If we're testing upstream libc++, disable availability markup,
-              # which is not relevant for non-shipped flabors of libc++.
+              # which is not relevant for non-shipped flavors of libc++.
               AddCompileFlag('-D_LIBCPP_DISABLE_AVAILABILITY')
             ]),
 
   # Parameters to enable or disable parts of the test suite
-  Parameter(name='enable_filesystem', choices=[True, False], type=bool, default=True,
-            help="Whether to enable tests for the C++ <filesystem> library.",
-            actions=lambda filesystem: [] if filesystem else [
-              AddFeature('c++filesystem-disabled')
-            ]),
-
   Parameter(name='enable_experimental', choices=[True, False], type=bool, default=False,
             help="Whether to enable tests for experimental C++ libraries (typically Library Fundamentals TSes).",
             actions=lambda experimental: [] if not experimental else [

@@ -170,7 +170,7 @@ std::string OSUtil::getDirName(const char* Path) {
   std::string Tmp(Path);
   // dirname(3) needs a writable C string: a null-terminator is written where a
   // path should split.
-  size_t TruncatedSize = strlen(dirname(const_cast<char*>(Tmp.c_str())));
+  size_t TruncatedSize = strlen(dirname(const_cast<char *>(Tmp.c_str())));
   Tmp.resize(TruncatedSize);
   return Tmp;
 }
@@ -196,7 +196,7 @@ std::string OSUtil::getCurrentDSODir() {
   char Path[MAX_PATH];
   Path[0] = '\0';
   Path[sizeof(Path) - 1] = '\0';
-  auto Handle = getOSModuleHandle(&getCurrentDSODir);
+  auto Handle = getOSModuleHandle(reinterpret_cast<void *>(&getCurrentDSODir));
   DWORD Ret = GetModuleFileNameA(
       reinterpret_cast<HMODULE>(OSUtil::ExeModuleHandle == Handle ? 0 : Handle),
       reinterpret_cast<LPSTR>(&Path), sizeof(Path));

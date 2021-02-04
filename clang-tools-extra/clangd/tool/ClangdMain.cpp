@@ -11,8 +11,12 @@
 #include "Features.inc"
 #include "PathMapping.h"
 #include "Protocol.h"
+#include "TidyProvider.h"
 #include "Transport.h"
 #include "index/Background.h"
+#include "index/Index.h"
+#include "index/Merge.h"
+#include "index/ProjectAware.h"
 #include "index/Serialization.h"
 #include "index/remote/Client.h"
 #include "refactor/Rename.h"
@@ -40,9 +44,14 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
 #ifndef _WIN32
 #include <unistd.h>
+#endif
+
+#ifdef __GLIBC__
+#include <malloc.h>
 #endif
 
 namespace clang {
@@ -71,8 +80,21 @@ OptionCategory CompileCommands("clangd compilation flags options");
 OptionCategory Features("clangd feature options");
 OptionCategory Misc("clangd miscellaneous options");
 OptionCategory Protocol("clangd protocol and logging options");
+OptionCategory Retired("clangd flags no longer in use");
 const OptionCategory *ClangdCategories[] = {&Features, &Protocol,
-                                            &CompileCommands, &Misc};
+                                            &CompileCommands, &Misc, &Retired};
+
+template <typename T> class RetiredFlag {
+  opt<T> Option;
+
+public:
+  RetiredFlag(llvm::StringRef Name)
+      : Option(Name, cat(Retired), desc("Obsolete flag, ignored"), Hidden,
+               llvm::cl::callback([Name](const T &) {
+                 llvm::errs()
+                     << "The flag `-" << Name << "` is obsolete and ignored.\n";
+               })) {}
+};
 
 enum CompileArgsFrom { LSPCompileArgs, FilesystemCompileArgs };
 opt<CompileArgsFrom> CompileArgsFrom{
@@ -185,14 +207,6 @@ opt<CodeCompleteOptions::CodeCompletionRankingModel> RankingModel{
     Hidden,
 };
 
-opt<float> DecisionForestBase{
-    "decision-forest-base",
-    cat(Features),
-    desc("Base for exponentiating the prediction from DecisionForest."),
-    init(CodeCompleteOptions().DecisionForestBase),
-    Hidden,
-};
-
 // FIXME: also support "plain" style where signatures are always omitted.
 enum CompletionStyleFlag { Detailed, Bundled };
 opt<CompletionStyleFlag> CompletionStyle{
@@ -266,15 +280,7 @@ opt<bool> IncludeIneligibleResults{
     Hidden,
 };
 
-opt<bool> EnableIndex{
-    "index",
-    cat(Features),
-    desc("Enable index-based features. By default, clangd maintains an index "
-         "built from symbols in opened files. Global index support needs to "
-         "enabled separatedly"),
-    init(true),
-    Hidden,
-};
+RetiredFlag<bool> EnableIndex("index");
 
 opt<int> LimitResults{
     "limit-results",
@@ -284,13 +290,7 @@ opt<int> LimitResults{
     init(100),
 };
 
-opt<bool> SuggestMissingIncludes{
-    "suggest-missing-includes",
-    cat(Features),
-    desc("Attempts to fix diagnostic errors caused by missing "
-         "includes using index"),
-    init(true),
-};
+RetiredFlag<bool> SuggestMissingIncludes("suggest-missing-includes");
 
 list<std::string> TweakList{
     "tweaks",
@@ -307,20 +307,8 @@ opt<bool> CrossFileRename{
     init(true),
 };
 
-opt<bool> RecoveryAST{
-    "recovery-ast",
-    cat(Features),
-    desc("Preserve expressions in AST for broken code."),
-    init(ClangdServer::Options().BuildRecoveryAST),
-};
-
-opt<bool> RecoveryASTType{
-    "recovery-ast-type",
-    cat(Features),
-    desc("Preserve the type for recovery AST."),
-    init(ClangdServer::Options().PreserveRecoveryASTType),
-    Hidden,
-};
+RetiredFlag<bool> RecoveryAST("recovery-ast");
+RetiredFlag<bool> RecoveryASTType("recovery-ast-type");
 
 opt<bool> FoldingRanges{
     "folding-ranges",
@@ -462,6 +450,7 @@ opt<bool> PrettyPrint{
     init(false),
 };
 
+// FIXME: retire this flag in llvm 13 release cycle.
 opt<bool> AsyncPreamble{
     "async-preamble",
     cat(Misc),
@@ -485,12 +474,37 @@ opt<bool> EnableConfig{
     init(true),
 };
 
+// FIXME: retire this flag in llvm 13 release cycle.
 opt<bool> CollectMainFileRefs{
     "collect-main-file-refs",
     cat(Misc),
     desc("Store references to main-file-only symbols in the index"),
-    init(false),
+    init(ClangdServer::Options().CollectMainFileRefs),
+    Hidden,
 };
+
+#if defined(__GLIBC__) && CLANGD_MALLOC_TRIM
+opt<bool> EnableMallocTrim{
+    "malloc-trim",
+    cat(Misc),
+    desc("Release memory periodically via malloc_trim(3)."),
+    init(true),
+};
+
+std::function<void()> getMemoryCleanupFunction() {
+  if (!EnableMallocTrim)
+    return nullptr;
+  // Leave a few MB at the top of the heap: it is insignificant
+  // and will most likely be needed by the main thread
+  constexpr size_t MallocTrimPad = 20'000'000;
+  return []() {
+    if (malloc_trim(MallocTrimPad))
+      vlog("Released memory via malloc_trim");
+  };
+}
+#else
+std::function<void()> getMemoryCleanupFunction() { return nullptr; }
+#endif
 
 #if CLANGD_ENABLE_REMOTE
 opt<std::string> RemoteIndexAddress{
@@ -524,10 +538,10 @@ public:
           "Expect URI body to be an absolute path starting with '/': {0}",
           Body);
     Body = Body.ltrim('/');
-    llvm::SmallVector<char, 16> Path(Body.begin(), Body.end());
+    llvm::SmallString<16> Path(Body);
     path::native(Path);
     fs::make_absolute(TestScheme::TestDir, Path);
-    return std::string(Path.begin(), Path.end());
+    return std::string(Path);
   }
 
   llvm::Expected<URI>
@@ -551,6 +565,27 @@ const char TestScheme::TestDir[] = "C:\\clangd-test";
 const char TestScheme::TestDir[] = "/clangd-test";
 #endif
 
+std::unique_ptr<SymbolIndex>
+loadExternalIndex(const Config::ExternalIndexSpec &External,
+                  AsyncTaskRunner &Tasks) {
+  switch (External.Kind) {
+  case Config::ExternalIndexSpec::Server:
+    log("Associating {0} with remote index at {1}.", External.MountPoint,
+        External.Location);
+    return remote::getClient(External.Location, External.MountPoint);
+  case Config::ExternalIndexSpec::File:
+    log("Associating {0} with monolithic index at {1}.", External.MountPoint,
+        External.Location);
+    auto NewIndex = std::make_unique<SwapIndex>(std::make_unique<MemIndex>());
+    Tasks.runAsync("Load-index:" + External.Location,
+                   [File = External.Location, PlaceHolder = NewIndex.get()] {
+                     if (auto Idx = loadIndex(File, /*UseDex=*/true))
+                       PlaceHolder->reset(std::move(Idx));
+                   });
+    return std::move(NewIndex);
+  }
+  llvm_unreachable("Invalid ExternalIndexKind.");
+}
 } // namespace
 } // namespace clangd
 } // namespace clang
@@ -724,11 +759,12 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   }
   if (!ResourceDir.empty())
     Opts.ResourceDir = ResourceDir;
-  Opts.BuildDynamicSymbolIndex = EnableIndex;
+  Opts.BuildDynamicSymbolIndex = true;
   Opts.CollectMainFileRefs = CollectMainFileRefs;
+  std::vector<std::unique_ptr<SymbolIndex>> IdxStack;
   std::unique_ptr<SymbolIndex> StaticIdx;
   std::future<void> AsyncIndexLoad; // Block exit while loading the index.
-  if (EnableIndex && !IndexFile.empty()) {
+  if (!IndexFile.empty()) {
     // Load the index asynchronously. Meanwhile SwapIndex returns no results.
     SwapIndex *Placeholder;
     StaticIdx.reset(Placeholder = new SwapIndex(std::make_unique<MemIndex>()));
@@ -757,11 +793,18 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   }
 #endif
   Opts.BackgroundIndex = EnableBackgroundIndex;
-  Opts.StaticIndex = StaticIdx.get();
+  auto PAI = createProjectAwareIndex(loadExternalIndex);
+  if (StaticIdx) {
+    IdxStack.emplace_back(std::move(StaticIdx));
+    IdxStack.emplace_back(
+        std::make_unique<MergedIndex>(PAI.get(), IdxStack.back().get()));
+    Opts.StaticIndex = IdxStack.back().get();
+  } else {
+    Opts.StaticIndex = PAI.get();
+  }
   Opts.AsyncThreadsCount = WorkerThreadsCount;
-  Opts.BuildRecoveryAST = RecoveryAST;
-  Opts.PreserveRecoveryASTType = RecoveryASTType;
   Opts.FoldingRanges = FoldingRanges;
+  Opts.MemoryCleanup = getMemoryCleanupFunction();
 
   Opts.CodeComplete.IncludeIneligibleResults = IncludeIneligibleResults;
   Opts.CodeComplete.Limit = LimitResults;
@@ -773,12 +816,10 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
     Opts.CodeComplete.IncludeIndicator.Insert.clear();
     Opts.CodeComplete.IncludeIndicator.NoInsert.clear();
   }
-  Opts.CodeComplete.SpeculativeIndexRequest = Opts.StaticIndex;
   Opts.CodeComplete.EnableFunctionArgSnippets = EnableFunctionArgSnippets;
   Opts.CodeComplete.AllScopes = AllScopesCompletion;
   Opts.CodeComplete.RunParser = CodeCompletionParse;
   Opts.CodeComplete.RankingModel = RankingModel;
-  Opts.CodeComplete.DecisionForestBase = DecisionForestBase;
 
   RealThreadsafeFS TFS;
   std::vector<std::unique_ptr<config::Provider>> ProviderStack;
@@ -803,33 +844,23 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   }
 
   // Create an empty clang-tidy option.
-  std::mutex ClangTidyOptMu;
-  std::unique_ptr<tidy::ClangTidyOptionsProvider>
-      ClangTidyOptProvider; /*GUARDED_BY(ClangTidyOptMu)*/
+  TidyProvider ClangTidyOptProvider;
   if (EnableClangTidy) {
-    auto EmptyDefaults = tidy::ClangTidyOptions::getDefaults();
-    EmptyDefaults.Checks.reset(); // So we can tell if checks were ever set.
-    tidy::ClangTidyOptions OverrideClangTidyOptions;
+    std::vector<TidyProvider> Providers;
+    Providers.reserve(4 + EnableConfig);
+    Providers.push_back(provideEnvironment());
+    Providers.push_back(provideClangTidyFiles(TFS));
+    if (EnableConfig)
+      Providers.push_back(provideClangdConfig());
     if (!ClangTidyChecks.empty())
-      OverrideClangTidyOptions.Checks = ClangTidyChecks;
-    ClangTidyOptProvider = std::make_unique<tidy::FileOptionsProvider>(
-        tidy::ClangTidyGlobalOptions(),
-        /* Default */ EmptyDefaults,
-        /* Override */ OverrideClangTidyOptions, TFS.view(/*CWD=*/llvm::None));
-    Opts.GetClangTidyOptions = [&](llvm::vfs::FileSystem &,
-                                   llvm::StringRef File) {
-      // This function must be thread-safe and tidy option providers are not.
-      tidy::ClangTidyOptions Opts;
-      {
-        std::lock_guard<std::mutex> Lock(ClangTidyOptMu);
-        // FIXME: use the FS provided to the function.
-        Opts = ClangTidyOptProvider->getOptions(File);
-      }
-      return Opts;
-    };
+      Providers.push_back(addTidyChecks(ClangTidyChecks));
+    else
+      Providers.push_back(provideDefaultChecks());
+    Providers.push_back(disableUnusableChecks());
+    ClangTidyOptProvider = combine(std::move(Providers));
+    Opts.ClangTidyProvider = ClangTidyOptProvider;
   }
   Opts.AsyncPreambleBuilds = AsyncPreamble;
-  Opts.SuggestMissingIncludes = SuggestMissingIncludes;
   Opts.QueryDriverGlobs = std::move(QueryDriverGlobs);
   Opts.TweakFilter = [&](const Tweak &T) {
     if (T.hidden() && !HiddenFeatures)

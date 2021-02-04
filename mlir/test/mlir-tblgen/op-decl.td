@@ -34,8 +34,7 @@ def NS_AOp : NS_Op<"a_op", [IsolatedFromAbove, IsolatedFromAbove]> {
     VariadicRegion<AnyRegion>:$someRegions
   );
   let builders = [OpBuilderDAG<(ins "Value":$val)>,
-                  OpBuilderDAG<(ins CArg<"int", "0">:$integer)>,
-                  OpBuilder<"double deprecatedForm">];
+                  OpBuilderDAG<(ins CArg<"int", "0">:$integer)>];
   let parser = [{ foo }];
   let printer = [{ bar }];
   let verifier = [{ baz }];
@@ -82,9 +81,9 @@ def NS_AOp : NS_Op<"a_op", [IsolatedFromAbove, IsolatedFromAbove]> {
 // CHECK:   uint32_t attr1();
 // CHECK:   ::mlir::FloatAttr attr2Attr()
 // CHECK:   ::llvm::Optional< ::llvm::APFloat > attr2();
+// CHECK:   ::mlir::Attribute removeAttr2Attr();
 // CHECK:   static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, Value val);
 // CHECK:   static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, int integer = 0);
-// CHECK:   static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, double deprecatedForm);
 // CHECK:   static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::Type r, ::mlir::TypeRange s, ::mlir::Value a, ::mlir::ValueRange b, ::mlir::IntegerAttr attr1, /*optional*/::mlir::FloatAttr attr2, unsigned someRegionsCount)
 // CHECK:   static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::Type r, ::mlir::TypeRange s, ::mlir::Value a, ::mlir::ValueRange b, uint32_t attr1, /*optional*/::mlir::FloatAttr attr2, unsigned someRegionsCount)
 // CHECK:   static void build(::mlir::OpBuilder &, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes, unsigned numRegions)
@@ -248,6 +247,23 @@ def NS_JOp : NS_Op<"op_with_InferTypeOpInterface_interface", [DeclareOpInterface
 // CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::Value a, ::mlir::Value b);
 // CHECK: static void build(::mlir::OpBuilder &, ::mlir::OperationState &odsState, ::mlir::TypeRange resultTypes, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
 // CHECK: static void build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes = {});
+
+// Test that type defs have the proper namespaces when used as a constraint.
+// ---
+
+def Test_Dialect2 : Dialect {
+  let name = "test";
+  let cppNamespace = "::mlir::dialect2";
+}
+def TestDialect2Type : TypeDef<Test_Dialect2, "Dialect2Type">;
+
+def NS_ResultWithDialectTypeOp : NS_Op<"op_with_dialect_type", []> {
+  let results = (outs TestDialect2Type);
+}
+
+// CHECK-LABEL: NS::ResultWithDialectTypeOp declarations
+// CHECK:     class ResultWithDialectTypeOp :
+// CHECK-SAME: ::mlir::OpTrait::OneTypedResult<::mlir::dialect2::Dialect2TypeType>
 
 // Check that default builders can be suppressed.
 // ---

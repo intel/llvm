@@ -817,9 +817,7 @@ def int_arm_neon_vcadd_rot90  : Neon_2Arg_Intrinsic;
 def int_arm_neon_vcadd_rot270 : Neon_2Arg_Intrinsic;
 
 // GNU eabi mcount
-def int_arm_gnu_eabi_mcount : Intrinsic<[],
-                                    [],
-                                    [IntrReadMem, IntrWriteMem]>;
+def int_arm_gnu_eabi_mcount : Intrinsic<[], [], []>;
 
 def int_arm_mve_pred_i2v : Intrinsic<
   [llvm_anyvector_ty], [llvm_i32_ty], [IntrNoMem]>;
@@ -924,7 +922,7 @@ multiclass MVEPredicatedM<list<LLVMType> rets, list<LLVMType> params,
                           list<IntrinsicProperty> props = [IntrNoMem]> {
   def "": Intrinsic<rets, params, props>;
   def _predicated: Intrinsic<rets, params # [pred,
-      !if(!eq(!cast<string>(rets[0]), "llvm_anyvector_ty"),
+      !if(!eq(rets[0], llvm_anyvector_ty),
           LLVMMatchType<0>, rets[0])], props>;
 }
 

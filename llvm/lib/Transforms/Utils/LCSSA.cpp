@@ -265,15 +265,11 @@ bool llvm::formLCSSAForInstructions(SmallVectorImpl<Instruction *> &Worklist,
         Worklist.push_back(PostProcessPN);
 
     // Keep track of PHI nodes that we want to remove because they did not have
-    // any uses rewritten. If the new PHI is used, store it so that we can
-    // try to propagate dbg.value intrinsics to it.
-    SmallVector<PHINode *, 2> NeedDbgValues;
+    // any uses rewritten.
     for (PHINode *PN : AddedPHIs)
       if (PN->use_empty())
         LocalPHIsToRemove.insert(PN);
-      else
-        NeedDbgValues.push_back(PN);
-    insertDebugValuesForPHIs(InstBB, NeedDbgValues);
+
     Changed = true;
   }
 
@@ -299,12 +295,9 @@ bool llvm::formLCSSAForInstructions(SmallVectorImpl<Instruction *> &Worklist,
 static void computeBlocksDominatingExits(
     Loop &L, const DominatorTree &DT, SmallVector<BasicBlock *, 8> &ExitBlocks,
     SmallSetVector<BasicBlock *, 8> &BlocksDominatingExits) {
-  SmallVector<BasicBlock *, 8> BBWorklist;
-
   // We start from the exit blocks, as every block trivially dominates itself
   // (not strictly).
-  for (BasicBlock *BB : ExitBlocks)
-    BBWorklist.push_back(BB);
+  SmallVector<BasicBlock *, 8> BBWorklist(ExitBlocks);
 
   while (!BBWorklist.empty()) {
     BasicBlock *BB = BBWorklist.pop_back_val();

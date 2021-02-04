@@ -8,10 +8,10 @@
 
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Interfaces/FoldInterfaces.h"
 #include <numeric>
@@ -61,8 +61,9 @@ const AbstractOperation *OperationName::getAbstractOperation() const {
   return representation.dyn_cast<const AbstractOperation *>();
 }
 
-OperationName OperationName::getFromOpaquePointer(void *pointer) {
-  return OperationName(RepresentationUnion::getFromOpaqueValue(pointer));
+OperationName OperationName::getFromOpaquePointer(const void *pointer) {
+  return OperationName(
+      RepresentationUnion::getFromOpaqueValue(const_cast<void *>(pointer)));
 }
 
 //===----------------------------------------------------------------------===//
@@ -75,20 +76,22 @@ Operation *Operation::create(Location location, OperationName name,
                              ArrayRef<NamedAttribute> attributes,
                              BlockRange successors, unsigned numRegions) {
   return create(location, name, resultTypes, operands,
-                MutableDictionaryAttr(attributes), successors, numRegions);
+                DictionaryAttr::get(attributes, location.getContext()),
+                successors, numRegions);
 }
 
 /// Create a new Operation from operation state.
 Operation *Operation::create(const OperationState &state) {
   return create(state.location, state.name, state.types, state.operands,
-                state.attributes, state.successors, state.regions);
+                state.attributes.getDictionary(state.getContext()),
+                state.successors, state.regions);
 }
 
 /// Create a new Operation with the specific fields.
 Operation *Operation::create(Location location, OperationName name,
                              TypeRange resultTypes, ValueRange operands,
-                             MutableDictionaryAttr attributes,
-                             BlockRange successors, RegionRange regions) {
+                             DictionaryAttr attributes, BlockRange successors,
+                             RegionRange regions) {
   unsigned numRegions = regions.size();
   Operation *op = create(location, name, resultTypes, operands, attributes,
                          successors, numRegions);
@@ -98,12 +101,12 @@ Operation *Operation::create(Location location, OperationName name,
   return op;
 }
 
-/// Overload of create that takes an existing MutableDictionaryAttr to avoid
+/// Overload of create that takes an existing DictionaryAttr to avoid
 /// unnecessarily uniquing a list of attributes.
 Operation *Operation::create(Location location, OperationName name,
                              TypeRange resultTypes, ValueRange operands,
-                             MutableDictionaryAttr attributes,
-                             BlockRange successors, unsigned numRegions) {
+                             DictionaryAttr attributes, BlockRange successors,
+                             unsigned numRegions) {
   // We only need to allocate additional memory for a subset of results.
   unsigned numTrailingResults = OpResult::getNumTrailing(resultTypes.size());
   unsigned numInlineResults = OpResult::getNumInline(resultTypes.size());
@@ -118,16 +121,18 @@ Operation *Operation::create(Location location, OperationName name,
       needsOperandStorage = !abstractOp->hasTrait<OpTrait::ZeroOperands>();
   }
 
-  // Compute the byte size for the operation and the operand storage.
-  auto byteSize =
-      totalSizeToAlloc<detail::InLineOpResult, detail::TrailingOpResult,
-                       BlockOperand, Region, detail::OperandStorage>(
-          numInlineResults, numTrailingResults, numSuccessors, numRegions,
-          needsOperandStorage ? 1 : 0);
-  byteSize +=
-      llvm::alignTo(detail::OperandStorage::additionalAllocSize(numOperands),
-                    alignof(Operation));
-  void *rawMem = malloc(byteSize);
+  // Compute the byte size for the operation and the operand storage. This takes
+  // into account the size of the operation, its trailing objects, and its
+  // prefixed objects.
+  size_t byteSize =
+      totalSizeToAlloc<BlockOperand, Region, detail::OperandStorage>(
+          numSuccessors, numRegions, needsOperandStorage ? 1 : 0) +
+      detail::OperandStorage::additionalAllocSize(numOperands);
+  size_t prefixByteSize = llvm::alignTo(
+      Operation::prefixAllocSize(numTrailingResults, numInlineResults),
+      alignof(Operation));
+  char *mallocMem = reinterpret_cast<char *>(malloc(byteSize + prefixByteSize));
+  void *rawMem = mallocMem + prefixByteSize;
 
   // Create the new Operation.
   Operation *op =
@@ -161,19 +166,21 @@ Operation *Operation::create(Location location, OperationName name,
 
 Operation::Operation(Location location, OperationName name,
                      TypeRange resultTypes, unsigned numSuccessors,
-                     unsigned numRegions,
-                     const MutableDictionaryAttr &attributes,
+                     unsigned numRegions, DictionaryAttr attributes,
                      bool hasOperandStorage)
     : location(location), numSuccs(numSuccessors), numRegions(numRegions),
       hasOperandStorage(hasOperandStorage), hasSingleResult(false), name(name),
       attrs(attributes) {
+  assert(attributes && "unexpected null attribute dictionary");
+  assert(llvm::all_of(resultTypes, [](Type t) { return t; }) &&
+         "unexpected null result type");
   if (!resultTypes.empty()) {
     // If there is a single result it is stored in-place, otherwise use a tuple.
     hasSingleResult = resultTypes.size() == 1;
     if (hasSingleResult)
       resultType = resultTypes.front();
     else
-      resultType = TupleType::get(resultTypes, location->getContext());
+      resultType = TupleType::get(location->getContext(), resultTypes);
   }
 }
 
@@ -197,8 +204,12 @@ Operation::~Operation() {
 
 /// Destroy this operation or one of its subclasses.
 void Operation::destroy() {
+  // Operations may have additional prefixed allocation, which needs to be
+  // accounted for here when computing the address to free.
+  char *rawMem = reinterpret_cast<char *>(this) -
+                 llvm::alignTo(prefixAllocSize(), alignof(Operation));
   this->~Operation();
-  free(this);
+  free(rawMem);
 }
 
 /// Return the context this operation is associated with.
@@ -480,6 +491,12 @@ void Operation::erase() {
     parent->getOperations().erase(this);
   else
     destroy();
+}
+
+/// Remove the operation from its parent block, but don't delete it.
+void Operation::remove() {
+  if (Block *parent = getBlock())
+    parent->getOperations().remove(this);
 }
 
 /// Unlink this operation from its current block and insert it right before
@@ -1068,6 +1085,57 @@ LogicalResult OpTrait::impl::verifyNoRegionArguments(Operation *op) {
   return success();
 }
 
+/// Checks if two ShapedTypes are the same, ignoring the element type.
+static bool areSameShapedTypeIgnoringElementType(ShapedType a, ShapedType b) {
+  if (a.getTypeID() != b.getTypeID())
+    return false;
+  if (!a.hasRank())
+    return !b.hasRank();
+  return a.getShape() == b.getShape();
+}
+
+LogicalResult OpTrait::impl::verifyElementwiseMappable(Operation *op) {
+  auto isMappableType = [](Type type) {
+    return type.isa<VectorType, TensorType>();
+  };
+  auto resultMappableTypes = llvm::to_vector<1>(
+      llvm::make_filter_range(op->getResultTypes(), isMappableType));
+  auto operandMappableTypes = llvm::to_vector<2>(
+      llvm::make_filter_range(op->getOperandTypes(), isMappableType));
+
+  // If the op only has scalar operand/result types, then we have nothing to
+  // check.
+  if (resultMappableTypes.empty() && operandMappableTypes.empty())
+    return success();
+
+  if (!resultMappableTypes.empty() && operandMappableTypes.empty())
+    return op->emitOpError("if a result is non-scalar, then at least one "
+                           "operand must be non-scalar");
+
+  assert(!operandMappableTypes.empty());
+
+  if (resultMappableTypes.empty())
+    return op->emitOpError("if an operand is non-scalar, then there must be at "
+                           "least one non-scalar result");
+
+  if (resultMappableTypes.size() != op->getNumResults())
+    return op->emitOpError(
+        "if an operand is non-scalar, then all results must be non-scalar");
+
+  auto mustMatchType = operandMappableTypes[0].cast<ShapedType>();
+  for (auto type :
+       llvm::concat<Type>(resultMappableTypes, operandMappableTypes)) {
+    if (!areSameShapedTypeIgnoringElementType(type.cast<ShapedType>(),
+                                              mustMatchType)) {
+      return op->emitOpError() << "all non-scalar operands/results must have "
+                                  "the same shape and base type: found "
+                               << type << " and " << mustMatchType;
+    }
+  }
+
+  return success();
+}
+
 //===----------------------------------------------------------------------===//
 // BinaryOp implementation
 //===----------------------------------------------------------------------===//
@@ -1116,6 +1184,48 @@ void impl::printOneResultOp(Operation *op, OpAsmPrinter &p) {
 // CastOp implementation
 //===----------------------------------------------------------------------===//
 
+/// Attempt to fold the given cast operation.
+LogicalResult
+impl::foldCastInterfaceOp(Operation *op, ArrayRef<Attribute> attrOperands,
+                          SmallVectorImpl<OpFoldResult> &foldResults) {
+  OperandRange operands = op->getOperands();
+  if (operands.empty())
+    return failure();
+  ResultRange results = op->getResults();
+
+  // Check for the case where the input and output types match 1-1.
+  if (operands.getTypes() == results.getTypes()) {
+    foldResults.append(operands.begin(), operands.end());
+    return success();
+  }
+
+  return failure();
+}
+
+/// Attempt to verify the given cast operation.
+LogicalResult impl::verifyCastInterfaceOp(
+    Operation *op, function_ref<bool(TypeRange, TypeRange)> areCastCompatible) {
+  auto resultTypes = op->getResultTypes();
+  if (llvm::empty(resultTypes))
+    return op->emitOpError()
+           << "expected at least one result for cast operation";
+
+  auto operandTypes = op->getOperandTypes();
+  if (!areCastCompatible(operandTypes, resultTypes)) {
+    InFlightDiagnostic diag = op->emitOpError("operand type");
+    if (llvm::empty(operandTypes))
+      diag << "s []";
+    else if (llvm::size(operandTypes) == 1)
+      diag << " " << *operandTypes.begin();
+    else
+      diag << "s " << operandTypes;
+    return diag << " and result type" << (resultTypes.size() == 1 ? " " : "s ")
+                << resultTypes << " are cast incompatible";
+  }
+
+  return success();
+}
+
 void impl::buildCastOp(OpBuilder &builder, OperationState &result, Value source,
                        Type destType) {
   result.addOperands(source);
@@ -1145,6 +1255,19 @@ Value impl::foldCastOp(Operation *op) {
   if (op->getOperand(0).getType() == op->getResult(0).getType())
     return op->getOperand(0);
   return nullptr;
+}
+
+LogicalResult
+impl::verifyCastOp(Operation *op,
+                   function_ref<bool(Type, Type)> areCastCompatible) {
+  auto opType = op->getOperand(0).getType();
+  auto resType = op->getResult(0).getType();
+  if (!areCastCompatible(opType, resType))
+    return op->emitError("operand type ")
+           << opType << " and result type " << resType
+           << " are cast incompatible";
+
+  return success();
 }
 
 //===----------------------------------------------------------------------===//

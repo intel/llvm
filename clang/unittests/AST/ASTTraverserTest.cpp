@@ -35,6 +35,10 @@ public:
   }
 
   void Visit(const Stmt *S) {
+    if (!S) {
+      OS << "<<<NULL>>>";
+      return;
+    }
     OS << S->getStmtClassName();
     if (auto *E = dyn_cast<DeclRefExpr>(S)) {
       OS << " '" << E->getDecl()->getDeclName() << "'";
@@ -51,7 +55,14 @@ public:
     OS << C->getCommentKindName();
   }
 
-  void Visit(const CXXCtorInitializer *Init) { OS << "CXXCtorInitializer"; }
+  void Visit(const CXXCtorInitializer *Init) {
+    OS << "CXXCtorInitializer";
+    if (const auto *F = Init->getAnyMember()) {
+      OS << " '" << F->getNameAsString() << "'";
+    } else if (auto const *TSI = Init->getTypeSourceInfo()) {
+      OS << " '" << TSI->getType().getAsString() << "'";
+    }
+  }
 
   void Visit(const Attr *A) {
     switch (A->getKind()) {
@@ -226,7 +237,7 @@ WarnUnusedResultAttr
 
   verifyWithDynNode(Init,
                     R"cpp(
-CXXCtorInitializer
+CXXCtorInitializer 'm_number'
 `-IntegerLiteral
 )cpp");
 
@@ -1050,6 +1061,392 @@ LambdaExpr
   }
 }
 
+TEST(Traverse, IgnoreUnlessSpelledInSourceImplicit) {
+  {
+    auto AST = buildASTFromCode(R"cpp(
+int i = 0;
+)cpp");
+    const auto *TUDecl = AST->getASTContext().getTranslationUnitDecl();
+
+    EXPECT_EQ(dumpASTString(TK_IgnoreUnlessSpelledInSource, TUDecl),
+              R"cpp(
+TranslationUnitDecl
+`-VarDecl 'i'
+  `-IntegerLiteral
+)cpp");
+  }
+
+  auto AST2 = buildASTFromCodeWithArgs(R"cpp(
+struct Simple {
+};
+struct Other {
+};
+
+struct Record : Simple, Other {
+  Record() : Simple(), m_i(42) {}
+private:
+  int m_i;
+  int m_i2 = 42;
+  Simple m_s;
+};
+
+struct NonTrivial {
+    NonTrivial() {}
+    NonTrivial(NonTrivial&) {}
+    NonTrivial& operator=(NonTrivial&) { return *this; }
+
+    ~NonTrivial() {}
+};
+
+struct ContainsArray {
+    NonTrivial arr[2];
+    int irr[2];
+    ContainsArray& operator=(ContainsArray &) = default;
+};
+
+void copyIt()
+{
+    ContainsArray ca;
+    ContainsArray ca2;
+    ca2 = ca;
+}
+
+void forLoop()
+{
+    int arr[2];
+    for (auto i : arr)
+    {
+
+    }
+    for (auto& a = arr; auto i : a)
+    {
+
+    }
+}
+
+struct DefaultedAndDeleted {
+  NonTrivial nt;
+  DefaultedAndDeleted() = default;
+  ~DefaultedAndDeleted() = default;
+  DefaultedAndDeleted(DefaultedAndDeleted &) = default;
+  DefaultedAndDeleted& operator=(DefaultedAndDeleted &) = default;
+  DefaultedAndDeleted(DefaultedAndDeleted &&) = delete;
+  DefaultedAndDeleted& operator=(DefaultedAndDeleted &&) = delete;
+};
+
+void copyIt2()
+{
+    DefaultedAndDeleted ca;
+    DefaultedAndDeleted ca2;
+    ca2 = ca;
+}
+
+void hasDefaultArg(int i, int j = 0)
+{
+}
+void callDefaultArg()
+{
+  hasDefaultArg(42);
+}
+)cpp",
+                                       {"-std=c++20"});
+
+  {
+    auto BN = ast_matchers::match(
+        cxxRecordDecl(hasName("Record"), unless(isImplicit())).bind("rec"),
+        AST2->getASTContext());
+    EXPECT_EQ(BN.size(), 1u);
+
+    EXPECT_EQ(dumpASTString(TK_AsIs, BN[0].getNodeAs<Decl>("rec")),
+              R"cpp(
+CXXRecordDecl 'Record'
+|-CXXRecordDecl 'Record'
+|-CXXConstructorDecl 'Record'
+| |-CXXCtorInitializer 'struct Simple'
+| | `-CXXConstructExpr
+| |-CXXCtorInitializer 'struct Other'
+| | `-CXXConstructExpr
+| |-CXXCtorInitializer 'm_i'
+| | `-IntegerLiteral
+| |-CXXCtorInitializer 'm_i2'
+| | `-CXXDefaultInitExpr
+| |-CXXCtorInitializer 'm_s'
+| | `-CXXConstructExpr
+| `-CompoundStmt
+|-AccessSpecDecl
+|-FieldDecl 'm_i'
+|-FieldDecl 'm_i2'
+| `-IntegerLiteral
+`-FieldDecl 'm_s'
+)cpp");
+
+    EXPECT_EQ(dumpASTString(TK_IgnoreUnlessSpelledInSource,
+                            BN[0].getNodeAs<Decl>("rec")),
+              R"cpp(
+CXXRecordDecl 'Record'
+|-CXXConstructorDecl 'Record'
+| |-CXXCtorInitializer 'struct Simple'
+| | `-CXXConstructExpr
+| |-CXXCtorInitializer 'm_i'
+| | `-IntegerLiteral
+| `-CompoundStmt
+|-AccessSpecDecl
+|-FieldDecl 'm_i'
+|-FieldDecl 'm_i2'
+| `-IntegerLiteral
+`-FieldDecl 'm_s'
+)cpp");
+  }
+  {
+    auto BN = ast_matchers::match(
+        cxxRecordDecl(hasName("ContainsArray"), unless(isImplicit()))
+            .bind("rec"),
+        AST2->getASTContext());
+    EXPECT_EQ(BN.size(), 1u);
+
+    EXPECT_EQ(dumpASTString(TK_AsIs, BN[0].getNodeAs<Decl>("rec")),
+              R"cpp(
+CXXRecordDecl 'ContainsArray'
+|-CXXRecordDecl 'ContainsArray'
+|-FieldDecl 'arr'
+|-FieldDecl 'irr'
+|-CXXMethodDecl 'operator='
+| |-ParmVarDecl ''
+| `-CompoundStmt
+|   |-ForStmt
+|   | |-DeclStmt
+|   | | `-VarDecl '__i0'
+|   | |   `-IntegerLiteral
+|   | |-<<<NULL>>>
+|   | |-BinaryOperator
+|   | | |-ImplicitCastExpr
+|   | | | `-DeclRefExpr '__i0'
+|   | | `-IntegerLiteral
+|   | |-UnaryOperator
+|   | | `-DeclRefExpr '__i0'
+|   | `-CXXMemberCallExpr
+|   |   |-MemberExpr
+|   |   | `-ArraySubscriptExpr
+|   |   |   |-ImplicitCastExpr
+|   |   |   | `-MemberExpr
+|   |   |   |   `-CXXThisExpr
+|   |   |   `-ImplicitCastExpr
+|   |   |     `-DeclRefExpr '__i0'
+|   |   `-ArraySubscriptExpr
+|   |     |-ImplicitCastExpr
+|   |     | `-MemberExpr
+|   |     |   `-DeclRefExpr ''
+|   |     `-ImplicitCastExpr
+|   |       `-DeclRefExpr '__i0'
+|   |-CallExpr
+|   | |-ImplicitCastExpr
+|   | | `-DeclRefExpr '__builtin_memcpy'
+|   | |-ImplicitCastExpr
+|   | | `-UnaryOperator
+|   | |   `-MemberExpr
+|   | |     `-CXXThisExpr
+|   | |-ImplicitCastExpr
+|   | | `-UnaryOperator
+|   | |   `-MemberExpr
+|   | |     `-DeclRefExpr ''
+|   | `-IntegerLiteral
+|   `-ReturnStmt
+|     `-UnaryOperator
+|       `-CXXThisExpr
+|-CXXConstructorDecl 'ContainsArray'
+| `-ParmVarDecl ''
+|-CXXDestructorDecl '~ContainsArray'
+| `-CompoundStmt
+`-CXXConstructorDecl 'ContainsArray'
+  |-CXXCtorInitializer 'arr'
+  | `-CXXConstructExpr
+  `-CompoundStmt
+)cpp");
+
+    EXPECT_EQ(dumpASTString(TK_IgnoreUnlessSpelledInSource,
+                            BN[0].getNodeAs<Decl>("rec")),
+              R"cpp(
+CXXRecordDecl 'ContainsArray'
+|-FieldDecl 'arr'
+|-FieldDecl 'irr'
+`-CXXMethodDecl 'operator='
+  `-ParmVarDecl ''
+)cpp");
+  }
+  {
+    auto BN = ast_matchers::match(functionDecl(hasName("forLoop")).bind("func"),
+                                  AST2->getASTContext());
+    EXPECT_EQ(BN.size(), 1u);
+
+    EXPECT_EQ(dumpASTString(TK_AsIs, BN[0].getNodeAs<Decl>("func")),
+              R"cpp(
+FunctionDecl 'forLoop'
+`-CompoundStmt
+  |-DeclStmt
+  | `-VarDecl 'arr'
+  |-CXXForRangeStmt
+  | |-<<<NULL>>>
+  | |-DeclStmt
+  | | `-VarDecl '__range1'
+  | |   `-DeclRefExpr 'arr'
+  | |-DeclStmt
+  | | `-VarDecl '__begin1'
+  | |   `-ImplicitCastExpr
+  | |     `-DeclRefExpr '__range1'
+  | |-DeclStmt
+  | | `-VarDecl '__end1'
+  | |   `-BinaryOperator
+  | |     |-ImplicitCastExpr
+  | |     | `-DeclRefExpr '__range1'
+  | |     `-IntegerLiteral
+  | |-BinaryOperator
+  | | |-ImplicitCastExpr
+  | | | `-DeclRefExpr '__begin1'
+  | | `-ImplicitCastExpr
+  | |   `-DeclRefExpr '__end1'
+  | |-UnaryOperator
+  | | `-DeclRefExpr '__begin1'
+  | |-DeclStmt
+  | | `-VarDecl 'i'
+  | |   `-ImplicitCastExpr
+  | |     `-UnaryOperator
+  | |       `-ImplicitCastExpr
+  | |         `-DeclRefExpr '__begin1'
+  | `-CompoundStmt
+  `-CXXForRangeStmt
+    |-DeclStmt
+    | `-VarDecl 'a'
+    |   `-DeclRefExpr 'arr'
+    |-DeclStmt
+    | `-VarDecl '__range1'
+    |   `-DeclRefExpr 'a'
+    |-DeclStmt
+    | `-VarDecl '__begin1'
+    |   `-ImplicitCastExpr
+    |     `-DeclRefExpr '__range1'
+    |-DeclStmt
+    | `-VarDecl '__end1'
+    |   `-BinaryOperator
+    |     |-ImplicitCastExpr
+    |     | `-DeclRefExpr '__range1'
+    |     `-IntegerLiteral
+    |-BinaryOperator
+    | |-ImplicitCastExpr
+    | | `-DeclRefExpr '__begin1'
+    | `-ImplicitCastExpr
+    |   `-DeclRefExpr '__end1'
+    |-UnaryOperator
+    | `-DeclRefExpr '__begin1'
+    |-DeclStmt
+    | `-VarDecl 'i'
+    |   `-ImplicitCastExpr
+    |     `-UnaryOperator
+    |       `-ImplicitCastExpr
+    |         `-DeclRefExpr '__begin1'
+    `-CompoundStmt
+)cpp");
+
+    EXPECT_EQ(dumpASTString(TK_IgnoreUnlessSpelledInSource,
+                            BN[0].getNodeAs<Decl>("func")),
+              R"cpp(
+FunctionDecl 'forLoop'
+`-CompoundStmt
+  |-DeclStmt
+  | `-VarDecl 'arr'
+  |-CXXForRangeStmt
+  | |-<<<NULL>>>
+  | |-VarDecl 'i'
+  | |-DeclRefExpr 'arr'
+  | `-CompoundStmt
+  `-CXXForRangeStmt
+    |-DeclStmt
+    | `-VarDecl 'a'
+    |   `-DeclRefExpr 'arr'
+    |-VarDecl 'i'
+    |-DeclRefExpr 'a'
+    `-CompoundStmt
+)cpp");
+  }
+  {
+    auto BN = ast_matchers::match(
+        cxxRecordDecl(hasName("DefaultedAndDeleted"), unless(isImplicit()))
+            .bind("rec"),
+        AST2->getASTContext());
+    EXPECT_EQ(BN.size(), 1u);
+
+    EXPECT_EQ(dumpASTString(TK_AsIs, BN[0].getNodeAs<Decl>("rec")),
+              R"cpp(
+CXXRecordDecl 'DefaultedAndDeleted'
+|-CXXRecordDecl 'DefaultedAndDeleted'
+|-FieldDecl 'nt'
+|-CXXConstructorDecl 'DefaultedAndDeleted'
+| |-CXXCtorInitializer 'nt'
+| | `-CXXConstructExpr
+| `-CompoundStmt
+|-CXXDestructorDecl '~DefaultedAndDeleted'
+| `-CompoundStmt
+|-CXXConstructorDecl 'DefaultedAndDeleted'
+| `-ParmVarDecl ''
+|-CXXMethodDecl 'operator='
+| |-ParmVarDecl ''
+| `-CompoundStmt
+|   |-CXXMemberCallExpr
+|   | |-MemberExpr
+|   | | `-MemberExpr
+|   | |   `-CXXThisExpr
+|   | `-MemberExpr
+|   |   `-DeclRefExpr ''
+|   `-ReturnStmt
+|     `-UnaryOperator
+|       `-CXXThisExpr
+|-CXXConstructorDecl 'DefaultedAndDeleted'
+| `-ParmVarDecl ''
+`-CXXMethodDecl 'operator='
+  `-ParmVarDecl ''
+)cpp");
+
+    EXPECT_EQ(dumpASTString(TK_IgnoreUnlessSpelledInSource,
+                            BN[0].getNodeAs<Decl>("rec")),
+              R"cpp(
+CXXRecordDecl 'DefaultedAndDeleted'
+|-FieldDecl 'nt'
+|-CXXConstructorDecl 'DefaultedAndDeleted'
+|-CXXDestructorDecl '~DefaultedAndDeleted'
+|-CXXConstructorDecl 'DefaultedAndDeleted'
+| `-ParmVarDecl ''
+|-CXXMethodDecl 'operator='
+| `-ParmVarDecl ''
+|-CXXConstructorDecl 'DefaultedAndDeleted'
+| `-ParmVarDecl ''
+`-CXXMethodDecl 'operator='
+  `-ParmVarDecl ''
+)cpp");
+  }
+  {
+    auto BN = ast_matchers::match(
+        callExpr(callee(functionDecl(hasName("hasDefaultArg"))))
+            .bind("funcCall"),
+        AST2->getASTContext());
+    EXPECT_EQ(BN.size(), 1u);
+
+    EXPECT_EQ(dumpASTString(TK_AsIs, BN[0].getNodeAs<CallExpr>("funcCall")),
+              R"cpp(
+CallExpr
+|-ImplicitCastExpr
+| `-DeclRefExpr 'hasDefaultArg'
+|-IntegerLiteral
+`-CXXDefaultArgExpr
+)cpp");
+    EXPECT_EQ(dumpASTString(TK_IgnoreUnlessSpelledInSource,
+                            BN[0].getNodeAs<CallExpr>("funcCall")),
+              R"cpp(
+CallExpr
+|-DeclRefExpr 'hasDefaultArg'
+`-IntegerLiteral
+)cpp");
+  }
+}
+
 TEST(Traverse, IgnoreUnlessSpelledInSourceTemplateInstantiations) {
 
   auto AST = buildASTFromCode(R"cpp(
@@ -1075,6 +1472,26 @@ void instantiate()
   (void)timesTwo<int>(2);
   (void)timesTwo<double>(2);
 }
+
+template class TemplStruct<float>;
+
+extern template class TemplStruct<long>;
+
+template<> class TemplStruct<bool> {
+  TemplStruct() {}
+  ~TemplStruct() {}
+
+  void foo() {}
+private:
+  bool m_t;
+};
+
+// Explicit instantiation of template functions do not appear in the AST
+template float timesTwo(float);
+
+template<> bool timesTwo<bool>(bool) {
+  return true;
+}
 )cpp");
   {
     auto BN = ast_matchers::match(
@@ -1088,7 +1505,6 @@ void instantiate()
 ClassTemplateDecl 'TemplStruct'
 |-TemplateTypeParmDecl 'T'
 `-CXXRecordDecl 'TemplStruct'
-  |-CXXRecordDecl 'TemplStruct'
   |-CXXConstructorDecl 'TemplStruct<T>'
   | `-CompoundStmt
   |-CXXDestructorDecl '~TemplStruct<T>'
@@ -1121,18 +1537,89 @@ ClassTemplateDecl 'TemplStruct'
 | |-FieldDecl 'm_t'
 | `-CXXConstructorDecl 'TemplStruct'
 |   `-ParmVarDecl ''
+|-ClassTemplateSpecializationDecl 'TemplStruct'
+| |-TemplateArgument type double
+| | `-BuiltinType
+| |-CXXRecordDecl 'TemplStruct'
+| |-CXXConstructorDecl 'TemplStruct'
+| | `-CompoundStmt
+| |-CXXDestructorDecl '~TemplStruct'
+| | `-CompoundStmt
+| |-AccessSpecDecl
+| |-FieldDecl 'm_t'
+| `-CXXConstructorDecl 'TemplStruct'
+|   `-ParmVarDecl ''
+|-ClassTemplateSpecializationDecl 'TemplStruct'
+| |-TemplateArgument type float
+| | `-BuiltinType
+| |-CXXRecordDecl 'TemplStruct'
+| |-CXXConstructorDecl 'TemplStruct'
+| | `-CompoundStmt
+| |-CXXDestructorDecl '~TemplStruct'
+| | `-CompoundStmt
+| |-AccessSpecDecl
+| `-FieldDecl 'm_t'
+|-ClassTemplateSpecializationDecl 'TemplStruct'
+| |-TemplateArgument type long
+| | `-BuiltinType
+| |-CXXRecordDecl 'TemplStruct'
+| |-CXXConstructorDecl 'TemplStruct'
+| |-CXXDestructorDecl '~TemplStruct'
+| |-AccessSpecDecl
+| `-FieldDecl 'm_t'
 `-ClassTemplateSpecializationDecl 'TemplStruct'
-  |-TemplateArgument type double
+  |-TemplateArgument type _Bool
   | `-BuiltinType
   |-CXXRecordDecl 'TemplStruct'
   |-CXXConstructorDecl 'TemplStruct'
   | `-CompoundStmt
   |-CXXDestructorDecl '~TemplStruct'
   | `-CompoundStmt
+  |-CXXMethodDecl 'foo'
+  | `-CompoundStmt
   |-AccessSpecDecl
-  |-FieldDecl 'm_t'
-  `-CXXConstructorDecl 'TemplStruct'
-    `-ParmVarDecl ''
+  `-FieldDecl 'm_t'
+)cpp");
+  }
+  {
+    auto BN = ast_matchers::match(
+        classTemplateSpecializationDecl(
+            hasTemplateArgument(
+                0, templateArgument(refersToType(asString("_Bool")))))
+            .bind("templSpec"),
+        AST->getASTContext());
+    EXPECT_EQ(BN.size(), 1u);
+
+    EXPECT_EQ(dumpASTString(TK_AsIs, BN[0].getNodeAs<Decl>("templSpec")),
+              R"cpp(
+ClassTemplateSpecializationDecl 'TemplStruct'
+|-TemplateArgument type _Bool
+| `-BuiltinType
+|-CXXRecordDecl 'TemplStruct'
+|-CXXConstructorDecl 'TemplStruct'
+| `-CompoundStmt
+|-CXXDestructorDecl '~TemplStruct'
+| `-CompoundStmt
+|-CXXMethodDecl 'foo'
+| `-CompoundStmt
+|-AccessSpecDecl
+`-FieldDecl 'm_t'
+)cpp");
+
+    EXPECT_EQ(dumpASTString(TK_IgnoreUnlessSpelledInSource,
+                            BN[0].getNodeAs<Decl>("templSpec")),
+              R"cpp(
+ClassTemplateSpecializationDecl 'TemplStruct'
+|-TemplateArgument type _Bool
+| `-BuiltinType
+|-CXXConstructorDecl 'TemplStruct'
+| `-CompoundStmt
+|-CXXDestructorDecl '~TemplStruct'
+| `-CompoundStmt
+|-CXXMethodDecl 'foo'
+| `-CompoundStmt
+|-AccessSpecDecl
+`-FieldDecl 'm_t'
 )cpp");
   }
   {
@@ -1176,17 +1663,132 @@ FunctionTemplateDecl 'timesTwo'
 |       |-ImplicitCastExpr
 |       | `-DeclRefExpr 'input'
 |       `-IntegerLiteral
+|-FunctionDecl 'timesTwo'
+| |-TemplateArgument type double
+| | `-BuiltinType
+| |-ParmVarDecl 'input'
+| `-CompoundStmt
+|   `-ReturnStmt
+|     `-BinaryOperator
+|       |-ImplicitCastExpr
+|       | `-DeclRefExpr 'input'
+|       `-ImplicitCastExpr
+|         `-IntegerLiteral
+|-FunctionDecl 'timesTwo'
+| |-TemplateArgument type float
+| | `-BuiltinType
+| |-ParmVarDecl 'input'
+| `-CompoundStmt
+|   `-ReturnStmt
+|     `-BinaryOperator
+|       |-ImplicitCastExpr
+|       | `-DeclRefExpr 'input'
+|       `-ImplicitCastExpr
+|         `-IntegerLiteral
+|-FunctionDecl 'timesTwo'
+| |-TemplateArgument type _Bool
+| | `-BuiltinType
+| |-ParmVarDecl ''
+| `-CompoundStmt
+|   `-ReturnStmt
+|     `-CXXBoolLiteralExpr
 `-FunctionDecl 'timesTwo'
-  |-TemplateArgument type double
+  |-TemplateArgument type _Bool
   | `-BuiltinType
-  |-ParmVarDecl 'input'
-  `-CompoundStmt
-    `-ReturnStmt
-      `-BinaryOperator
-        |-ImplicitCastExpr
-        | `-DeclRefExpr 'input'
-        `-ImplicitCastExpr
-          `-IntegerLiteral
+  `-ParmVarDecl 'input'
+)cpp");
+  }
+  {
+    auto BN = ast_matchers::match(
+        classTemplateSpecializationDecl(
+            hasName("TemplStruct"),
+            hasTemplateArgument(
+                0, templateArgument(refersToType(asString("float")))),
+            hasParent(translationUnitDecl()))
+            .bind("rec"),
+        AST->getASTContext());
+    EXPECT_EQ(BN.size(), 1u);
+
+    EXPECT_EQ(dumpASTString(TK_IgnoreUnlessSpelledInSource,
+                            BN[0].getNodeAs<Decl>("rec")),
+              R"cpp(
+ClassTemplateSpecializationDecl 'TemplStruct'
+`-TemplateArgument type float
+  `-BuiltinType
+)cpp");
+
+    EXPECT_EQ(dumpASTString(TK_AsIs, BN[0].getNodeAs<Decl>("rec")),
+              R"cpp(
+ClassTemplateSpecializationDecl 'TemplStruct'
+|-TemplateArgument type float
+| `-BuiltinType
+|-CXXRecordDecl 'TemplStruct'
+|-CXXConstructorDecl 'TemplStruct'
+| `-CompoundStmt
+|-CXXDestructorDecl '~TemplStruct'
+| `-CompoundStmt
+|-AccessSpecDecl
+`-FieldDecl 'm_t'
+)cpp");
+  }
+}
+
+TEST(Traverse, CXXRewrittenBinaryOperator) {
+
+  auto AST = buildASTFromCodeWithArgs(R"cpp(
+namespace std {
+struct strong_ordering {
+  int n;
+  constexpr operator int() const { return n; }
+  static const strong_ordering equal, greater, less;
+};
+constexpr strong_ordering strong_ordering::equal = {0};
+constexpr strong_ordering strong_ordering::greater = {1};
+constexpr strong_ordering strong_ordering::less = {-1};
+}
+
+struct HasSpaceshipMem {
+  int a;
+  constexpr auto operator<=>(const HasSpaceshipMem&) const = default;
+};
+
+void binop()
+{
+    HasSpaceshipMem hs1, hs2;
+    if (hs1 < hs2)
+        return;
+}
+)cpp",
+                                      {"-std=c++20"});
+  {
+    auto BN = ast_matchers::match(cxxRewrittenBinaryOperator().bind("binop"),
+                                  AST->getASTContext());
+    EXPECT_EQ(BN.size(), 1u);
+
+    EXPECT_EQ(dumpASTString(TK_AsIs, BN[0].getNodeAs<Stmt>("binop")),
+              R"cpp(
+CXXRewrittenBinaryOperator
+`-BinaryOperator
+  |-ImplicitCastExpr
+  | `-CXXMemberCallExpr
+  |   `-MemberExpr
+  |     `-ImplicitCastExpr
+  |       `-MaterializeTemporaryExpr
+  |         `-CXXOperatorCallExpr
+  |           |-ImplicitCastExpr
+  |           | `-DeclRefExpr 'operator<=>'
+  |           |-ImplicitCastExpr
+  |           | `-DeclRefExpr 'hs1'
+  |           `-ImplicitCastExpr
+  |             `-DeclRefExpr 'hs2'
+  `-IntegerLiteral
+)cpp");
+    EXPECT_EQ(dumpASTString(TK_IgnoreUnlessSpelledInSource,
+                            BN[0].getNodeAs<Stmt>("binop")),
+              R"cpp(
+CXXRewrittenBinaryOperator
+|-DeclRefExpr 'hs1'
+`-DeclRefExpr 'hs2'
 )cpp");
   }
 }
