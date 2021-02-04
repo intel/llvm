@@ -307,7 +307,7 @@ static Attr *handleIntelFPGANofusionAttr(Sema &S, Stmt *St,
   if (S.LangOpts.SYCLIsHost)
     return nullptr;
 
-    if (!isa<ForStmt, CXXForRangeStmt, DoStmt, WhileStmt>(St)) {
+  if (!isa<ForStmt, CXXForRangeStmt, DoStmt, WhileStmt>(St)) {
     S.Diag(A.getLoc(), diag::err_attribute_wrong_decl_type_str)
         << A << "'for', 'while', and 'do' statements";
     return nullptr;
