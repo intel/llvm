@@ -278,13 +278,12 @@ public:
 
     detail::NDLoop<Dims>::iterate(/*LowerBound=*/Offset, Stride, UpperBound,
                                   [&](const sycl::id<Dims> &ID) {
-                                    sycl::id<Dims> OffsetID = ID + Offset;
                                     sycl::item<Dims, /*Offset=*/true> Item =
                                         IDBuilder::createItem<Dims, true>(
-                                            Range, OffsetID, Offset);
+                                            Range, ID, Offset);
 
                                     if (StoreLocation) {
-                                      store_id(&OffsetID);
+                                      store_id(&ID);
                                       store_item(&Item);
                                     }
                                     MKernel(Item);
