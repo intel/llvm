@@ -146,69 +146,74 @@ public:
   SPIRVConstantBase(SPIRVModule *M, SPIRVType *TheType, SPIRVId TheId,
                     uint64_t TheValue)
       : SPIRVValue(M, 0, OC, TheType, TheId) {
-    Union.UInt64Val = TheValue;
-    recalculateWordCount();
-    validate();
+    setWords(&TheValue);
   }
   // Incomplete constructor for AP integer constant
   SPIRVConstantBase(SPIRVModule *M, SPIRVType *TheType, SPIRVId TheId,
-                    llvm::APInt &TheValue);
+                    const llvm::APInt &TheValue);
   // Complete constructor for float constant
   SPIRVConstantBase(SPIRVModule *M, SPIRVType *TheType, SPIRVId TheId,
                     float TheValue)
       : SPIRVValue(M, 0, OC, TheType, TheId) {
-    Union.FloatVal = TheValue;
-    recalculateWordCount();
-    validate();
+    setWords(reinterpret_cast<uint64_t *>(&TheValue));
   }
   // Complete constructor for double constant
   SPIRVConstantBase(SPIRVModule *M, SPIRVType *TheType, SPIRVId TheId,
                     double TheValue)
       : SPIRVValue(M, 0, OC, TheType, TheId) {
-    Union.DoubleVal = TheValue;
-    recalculateWordCount();
-    validate();
+    setWords(reinterpret_cast<uint64_t *>(&TheValue));
   }
   // Incomplete constructor
   SPIRVConstantBase() : SPIRVValue(OC), NumWords(0) {}
-  uint64_t getZExtIntValue() const { return Union.UInt64Val; }
-  float getFloatValue() const { return Union.FloatVal; }
-  double getDoubleValue() const { return Union.DoubleVal; }
+  uint64_t getZExtIntValue() const { return getValue<uint64_t>(); }
+  float getFloatValue() const { return getValue<float>(); }
+  double getDoubleValue() const { return getValue<double>(); }
   unsigned getNumWords() const { return NumWords; }
-  SPIRVWord *getSPIRVWords() { return Union.Words; }
+  const std::vector<SPIRVWord> &getSPIRVWords() { return Words; }
 
 protected:
+  constexpr static SPIRVWord FixedWC = 3;
+
+  // Common method for getting values of size less or equal to 64 bits.
+  template <typename T> T getValue() const {
+    constexpr auto ValueSize = static_cast<unsigned>(sizeof(T));
+    assert((ValueSize <= 8) && "Incorrect result type of requested value");
+    T TheValue{};
+    unsigned CopyBytes = std::min(ValueSize, NumWords * SpirvWordSize);
+    std::memcpy(&TheValue, Words.data(), CopyBytes);
+    return TheValue;
+  }
+
+  void setWords(const uint64_t *TheValue);
   void recalculateWordCount() {
-    NumWords = (Type->getBitWidth() + 31) / 32;
-    WordCount = 3 + NumWords;
+    NumWords =
+        (Type->getBitWidth() + SpirvWordBitWidth - 1) / SpirvWordBitWidth;
+    WordCount = FixedWC + NumWords;
   }
   void validate() const override {
     SPIRVValue::validate();
-    assert(NumWords >= 1 && NumWords <= 64 && "Invalid constant size");
+    assert(NumWords >= 1 && "Invalid constant size");
   }
   void encode(spv_ostream &O) const override {
     getEncoder(O) << Type << Id;
-    for (unsigned I = 0; I < NumWords; ++I)
-      getEncoder(O) << Union.Words[I];
+    for (const auto &Word : Words)
+      getEncoder(O) << Word;
   }
   void setWordCount(SPIRVWord WordCount) override {
     SPIRVValue::setWordCount(WordCount);
-    NumWords = WordCount - 3;
+    NumWords = WordCount - FixedWC;
   }
   void decode(std::istream &I) override {
     getDecoder(I) >> Type >> Id;
-    for (unsigned J = 0; J < NumWords; ++J)
-      getDecoder(I) >> Union.Words[J];
+    Words.resize(NumWords);
+    for (auto &Word : Words)
+      getDecoder(I) >> Word;
   }
 
   unsigned NumWords;
-  union UnionType {
-    uint64_t UInt64Val;
-    float FloatVal;
-    double DoubleVal;
-    SPIRVWord Words[64];
-    UnionType() { UInt64Val = 0; }
-  } Union;
+
+private:
+  std::vector<SPIRVWord> Words;
 };
 
 using SPIRVConstant = SPIRVConstantBase<OpConstant>;
