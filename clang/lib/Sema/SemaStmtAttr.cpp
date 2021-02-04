@@ -93,7 +93,7 @@ static Attr *handleIntelFPGALoopAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
   }
 
   if (NumArgs == 0) {
-    if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAII ||
+    if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAInitiationInterval ||
         A.getKind() == ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency ||
         A.getKind() == ParsedAttr::AT_SYCLIntelFPGAMaxInterleaving ||
         A.getKind() == ParsedAttr::AT_SYCLIntelFPGASpeculatedIterations) {
@@ -664,7 +664,8 @@ static void CheckMutualExclusionSYCLLoopAttribute(
 
 static void CheckForIncompatibleSYCLLoopAttributes(
     Sema &S, const SmallVectorImpl<const Attr *> &Attrs) {
-  CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGAIIAttr>(S, Attrs);
+  CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGAInitiationIntervalAttr>(
+      S, Attrs);
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGAMaxConcurrencyAttr>(S,
                                                                         Attrs);
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGALoopCoalesceAttr>(S, Attrs);
@@ -682,7 +683,8 @@ static void CheckForIncompatibleSYCLLoopAttributes(
                                         SYCLIntelFPGASpeculatedIterationsAttr>(
       S, Attrs);
   CheckMutualExclusionSYCLLoopAttribute<SYCLIntelFPGADisableLoopPipeliningAttr,
-                                        SYCLIntelFPGAIIAttr>(S, Attrs);
+                                        SYCLIntelFPGAInitiationIntervalAttr>(
+      S, Attrs);
   CheckMutualExclusionSYCLLoopAttribute<SYCLIntelFPGADisableLoopPipeliningAttr,
                                         SYCLIntelFPGAIVDepAttr>(S, Attrs);
   CheckMutualExclusionSYCLLoopAttribute<SYCLIntelFPGADisableLoopPipeliningAttr,
@@ -804,8 +806,9 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
     return handleLoopHintAttr(S, St, A, Range);
   case ParsedAttr::AT_SYCLIntelFPGAIVDep:
     return handleIntelFPGAIVDepAttr(S, St, A);
-  case ParsedAttr::AT_SYCLIntelFPGAII:
-    return handleIntelFPGALoopAttr<SYCLIntelFPGAIIAttr>(S, St, A);
+  case ParsedAttr::AT_SYCLIntelFPGAInitiationInterval:
+    return handleIntelFPGALoopAttr<SYCLIntelFPGAInitiationIntervalAttr>(S, St,
+                                                                        A);
   case ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency:
     return handleIntelFPGALoopAttr<SYCLIntelFPGAMaxConcurrencyAttr>(S, St, A);
   case ParsedAttr::AT_SYCLIntelFPGALoopCoalesce:
