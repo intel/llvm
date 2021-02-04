@@ -552,12 +552,6 @@ public:
         }
       }
 
-      // Propagate the explicit SIMD attribute through call graph - it is used
-      // to distinguish ESIMD code in ESIMD LLVM passes.
-      if (KernelBody && KernelBody->hasAttr<SYCLSimdAttr>() &&
-          (KernelBody != FD) && !FD->hasAttr<SYCLSimdAttr>())
-        FD->addAttr(SYCLSimdAttr::CreateImplicit(SemaRef.getASTContext()));
-
       // Attribute "loop_fuse" can be applied explicitly on kernel function.
       // Attribute should not be propagated from device functions to kernel.
       if (auto *A = FD->getAttr<SYCLIntelLoopFuseAttr>()) {
@@ -3208,27 +3202,6 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   KernelObjVisitor Visitor{*this};
   Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body, int_header);
   Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body, int_header);
-}
-
-// This function marks all the callees of explicit SIMD kernel
-// with !sycl_explicit_simd. We want to have different semantics
-// for functions that are called from SYCL and E-SIMD contexts.
-// Later, functions marked with !sycl_explicit_simd will be cloned
-// to maintain two different semantics.
-void Sema::MarkSyclSimd() {
-  for (Decl *D : syclDeviceDecls())
-    if (auto SYCLKernel = dyn_cast<FunctionDecl>(D))
-      if (SYCLKernel->hasAttr<SYCLSimdAttr>()) {
-        MarkDeviceFunction Marker(*this);
-        Marker.SYCLCG.addToCallGraph(getASTContext().getTranslationUnitDecl());
-        llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet;
-        Marker.CollectKernelSet(SYCLKernel, SYCLKernel, VisitedSet);
-        for (const auto &elt : Marker.KernelSet) {
-          if (FunctionDecl *Def = elt->getDefinition())
-            if (!Def->hasAttr<SYCLSimdAttr>())
-              Def->addAttr(SYCLSimdAttr::CreateImplicit(getASTContext()));
-        }
-      }
 }
 
 void Sema::MarkDevice(void) {

@@ -12996,7 +12996,6 @@ public:
   void checkSYCLDeviceVarDecl(VarDecl *Var);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void MarkDevice();
-  void MarkSyclSimd();
 
   /// Emit a diagnostic about the given attribute having a deprecated name, and
   /// also emit a fixit hint to generate the new attribute name.
