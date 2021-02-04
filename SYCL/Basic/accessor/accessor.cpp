@@ -200,6 +200,32 @@ int main() {
     }
   }
 
+  // Local accessor
+  {
+    cl::sycl::queue queue;
+
+    constexpr int dims = 1;
+
+    using data_loc = int;
+    constexpr auto mode_loc = cl::sycl::access::mode::read_write;
+    constexpr auto target_loc = cl::sycl::target::local;
+    const auto range_loc = cl::sycl::range<1>(1);
+
+    {
+      queue.submit([&](cl::sycl::handler &cgh) {
+        auto properties = cl::sycl::property_list{};
+
+        auto acc_loc_p =
+            cl::sycl::accessor<data_loc, dims, mode_loc, target_loc>(
+                range_loc, cgh, properties);
+        auto acc_loc = cl::sycl::accessor<data_loc, dims, mode_loc, target_loc>(
+            range_loc, cgh);
+
+        cgh.single_task<class loc_img_acc>([=]() {});
+      });
+    }
+  }
+
   // Discard write accessor.
   {
     try {
