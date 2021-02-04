@@ -1178,6 +1178,9 @@ void initReduLocalAccs(size_t LID, size_t GID, size_t NWorkItems, size_t WGSize,
   if (UniformPow2WG || GID < NWorkItems)
     std::tie(std::get<Is>(LocalAccs)[LID]...) =
         std::make_tuple(std::get<Is>(InputAccs)[GID]...);
+  else
+    std::tie(std::get<Is>(LocalAccs)[LID]...) =
+        std::make_tuple(std::get<Is>(Identities)...);
   if (!UniformPow2WG)
     std::tie(std::get<Is>(LocalAccs)[WGSize]...) =
         std::make_tuple(std::get<Is>(Identities)...);
