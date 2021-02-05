@@ -799,6 +799,7 @@ For instance:
 // GPU/accelerator implementation
 template <typename T, address_space AS> class multi_ptr {
   // GetAnnotatedPointer<T, global>::type == "__attribute__((opencl_global)) T"
+  // See sycl/include/CL/sycl/access/access.hpp for more details
   using pointer_t = typename GetAnnotatedPointer<T, AS>::type *;
  
   pointer_t data;
@@ -819,29 +820,26 @@ Depending on the compiler mode `multi_ptr` will either annotate internal data
 with address space attribute or not.
 
 To utilize existing clang's functionality, we re-use following OpenCL address
-space attributes in SYCL mode with modified semantic rules and unmodified parser
-and IR generation components.
+space attributes in SYCL mode: `__attribute__((opencl_global))`,
+`__attribute__((opencl_global_host))`, `__attribute__((opencl_global_device))`,
+`__attribute__((opencl_local))`, `__attribute__((opencl_private))` and
+`__attribute__((opencl_constant))`.
 
-``` C++
-  __attribute__((opencl_global))
-  __attribute__((opencl_local))
-  __attribute__((opencl_private))
-```
+The main address space semantic difference of SYCL mode from OpenCL is that
+SYCL doesn't assign OpenCL generic address space to a declaration w/o explicit
+address space attribute. Similar to other single-source C++-based GPU
+programming modes like OpenMP/CUDA/HIP, SYCL keeps "default" address space for
+such declarations and defines pointer casts between OpenCL address space
+attributes and default address space the same way OpenCL specification defines
+them for generic address space. This design has two important features: keeps
+the type system consistent between host and device compilers on the one hand and
+enable tools for emitting device code aligned with SPIR memory model (and other
+GPU targets).
 
-The main difference in Sema component with OpenCL mode is that SYCL mode
-(similar to other single-source GPU programming modes like OpenMP/CUDA/HIP)
-keeps "default" address space for the declaration without explicit address space
-attribute annotations. This keeps the type system for the code shared between
-the host and device semantically-equivalent for both compilers: regular C++ host
-compiler and SYCL compiler.
-
-SYCL mode allows conversion from annotated pointer to unannotated pointer to
-enable integration of accelerated code with standard C++ code.
-
-> **NOTE:** casting unannotated pointer to address-space annotated pointer must
-be done with care. If address space of annotated pointer doesn't match the
-address space of the allocation unannotated pointer is pointing to, the behavior
-of cast operation is undefined.
+> **NOTE**: although SYCL device compiler supports
+`__attribute__((opencl_constant))`, the use of this attribute is limited within
+SYCL implementation. An OpenCL constant pointer can not be casted to a pointer
+with different address space (including default).
 
 ### Compiler/Runtime interface
 
