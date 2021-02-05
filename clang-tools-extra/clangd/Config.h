@@ -28,6 +28,7 @@
 #include "llvm/ADT/FunctionExtras.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringMap.h"
+#include "llvm/ADT/StringSet.h"
 #include <string>
 #include <vector>
 
@@ -51,11 +52,19 @@ struct Config {
   Config(Config &&) = default;
   Config &operator=(Config &&) = default;
 
+  struct CDBSearchSpec {
+    enum { Ancestors, FixedDir, NoCDBSearch } Policy = Ancestors;
+    // Absolute, native slashes, no trailing slash.
+    llvm::Optional<std::string> FixedCDBPath;
+  };
+
   /// Controls how the compile command for the current file is determined.
   struct {
-    // Edits to apply to the compile command, in sequence.
+    /// Edits to apply to the compile command, in sequence.
     std::vector<llvm::unique_function<void(std::vector<std::string> &) const>>
         Edits;
+    /// Where to search for compilation databases for this file's flags.
+    CDBSearchSpec CDBSearch = {CDBSearchSpec::Ancestors, llvm::None};
   } CompileFlags;
 
   enum class BackgroundPolicy { Build, Skip };
@@ -77,6 +86,19 @@ struct Config {
     llvm::Optional<ExternalIndexSpec> External;
   } Index;
 
+  /// Controls warnings and errors when parsing code.
+  struct {
+    bool SuppressAll = false;
+    llvm::StringSet<> Suppress;
+
+    /// Configures what clang-tidy checks to run and options to use with them.
+    struct {
+      // A comma-seperated list of globs specify which clang-tidy checks to run.
+      std::string Checks;
+      llvm::StringMap<std::string> CheckOptions;
+    } ClangTidy;
+  } Diagnostics;
+
   /// Style of the codebase.
   struct {
     // Namespaces that should always be fully qualified, meaning no "using"
@@ -84,14 +106,6 @@ struct Config {
     // ::). All nested namespaces are affected as well.
     std::vector<std::string> FullyQualifiedNamespaces;
   } Style;
-
-  /// Configures what clang-tidy checks to run and options to use with them.
-  struct {
-    // A comma-seperated list of globs to specify which clang-tidy checks to
-    // run.
-    std::string Checks;
-    llvm::StringMap<std::string> CheckOptions;
-  } ClangTidy;
 };
 
 } // namespace clangd

@@ -17,7 +17,7 @@ body:             |
     ; CHECK: [[COPY:%[0-9]+]]:gpr32 = COPY $w0
     ; CHECK: [[COPY1:%[0-9]+]]:gpr32 = COPY $w1
     ; CHECK: [[SUBSWrr:%[0-9]+]]:gpr32 = SUBSWrr [[COPY]], [[COPY1]], implicit-def $nzcv
-    ; CHECK: [[CSINCWr:%[0-9]+]]:gpr32 = CSINCWr $wzr, $wzr, 3, implicit $nzcv
+    ; CHECK: [[CSINCWr:%[0-9]+]]:gpr32 = CSINCWr $wzr, $wzr, 2, implicit $nzcv
     ; CHECK: [[UBFMWri:%[0-9]+]]:gpr32 = UBFMWri [[CSINCWr]], 0, 0
     ; CHECK: [[UBFMWri1:%[0-9]+]]:gpr32 = UBFMWri [[UBFMWri]], 0, 7
     ; CHECK: $w0 = COPY [[UBFMWri1]]
@@ -46,7 +46,7 @@ body:             |
     ; CHECK: [[COPY:%[0-9]+]]:gpr64 = COPY $x0
     ; CHECK: [[COPY1:%[0-9]+]]:gpr64 = COPY $x1
     ; CHECK: [[SUBSXrr:%[0-9]+]]:gpr64 = SUBSXrr [[COPY]], [[COPY1]], implicit-def $nzcv
-    ; CHECK: [[CSINCWr:%[0-9]+]]:gpr32 = CSINCWr $wzr, $wzr, 3, implicit $nzcv
+    ; CHECK: [[CSINCWr:%[0-9]+]]:gpr32 = CSINCWr $wzr, $wzr, 2, implicit $nzcv
     ; CHECK: [[UBFMWri:%[0-9]+]]:gpr32 = UBFMWri [[CSINCWr]], 0, 0
     ; CHECK: [[UBFMWri1:%[0-9]+]]:gpr32 = UBFMWri [[UBFMWri]], 0, 7
     ; CHECK: $w0 = COPY [[UBFMWri1]]
@@ -75,7 +75,7 @@ body:             |
     ; CHECK: liveins: $w0, $w1, $x2
     ; CHECK: %copy:gpr32sp = COPY $w0
     ; CHECK: %add:gpr32 = SUBSWri %copy, 16, 0, implicit-def $nzcv
-    ; CHECK: %overflow:gpr32 = CSINCWr $wzr, $wzr, 3, implicit $nzcv
+    ; CHECK: %overflow:gpr32 = CSINCWr $wzr, $wzr, 2, implicit $nzcv
     ; CHECK: $w0 = COPY %add
     ; CHECK: RET_ReallyLR implicit $w0
     %copy:gpr(s32) = COPY $w0
@@ -101,7 +101,7 @@ body:             |
     ; CHECK: %copy1:gpr32 = COPY $w0
     ; CHECK: %copy2:gpr32 = COPY $w1
     ; CHECK: %add:gpr32 = SUBSWrs %copy1, %copy2, 16, implicit-def $nzcv
-    ; CHECK: %overflow:gpr32 = CSINCWr $wzr, $wzr, 3, implicit $nzcv
+    ; CHECK: %overflow:gpr32 = CSINCWr $wzr, $wzr, 2, implicit $nzcv
     ; CHECK: $w0 = COPY %add
     ; CHECK: RET_ReallyLR implicit $w0
     %copy1:gpr(s32) = COPY $w0
@@ -128,7 +128,7 @@ body:             |
     ; CHECK: liveins: $w0, $w1, $x2
     ; CHECK: %copy:gpr32sp = COPY $w0
     ; CHECK: %add:gpr32 = ADDSWri %copy, 16, 0, implicit-def $nzcv
-    ; CHECK: %overflow:gpr32 = CSINCWr $wzr, $wzr, 3, implicit $nzcv
+    ; CHECK: %overflow:gpr32 = CSINCWr $wzr, $wzr, 2, implicit $nzcv
     ; CHECK: $w0 = COPY %add
     ; CHECK: RET_ReallyLR implicit $w0
     %copy:gpr(s32) = COPY $w0
@@ -153,7 +153,7 @@ body:             |
     ; CHECK: %reg0:gpr64sp = COPY $x0
     ; CHECK: %reg1:gpr32 = COPY $w0
     ; CHECK: %add:gpr64 = SUBSXrx %reg0, %reg1, 18, implicit-def $nzcv
-    ; CHECK: %flags:gpr32 = CSINCWr $wzr, $wzr, 3, implicit $nzcv
+    ; CHECK: %flags:gpr32 = CSINCWr $wzr, $wzr, 2, implicit $nzcv
     ; CHECK: $x0 = COPY %add
     ; CHECK: RET_ReallyLR implicit $x0
     %reg0:gpr(s64) = COPY $x0
