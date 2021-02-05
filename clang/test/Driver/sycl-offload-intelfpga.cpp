@@ -347,7 +347,7 @@
 // RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT2 %s
 // RUN: %clang_cl -### -fsycl -fintelfpga %t_dir/dummy.cpp 2>&1 \
 // RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT2 %s
-// CHK-FPGA-REPORT-OPT2: aoc{{.*}} "-sycl"{{.*}} "-dep-files={{.+}}dummy-{{.+}}.d" "-output-report-folder=dummy.prj"
+// CHK-FPGA-REPORT-OPT2: aoc{{.*}} "-sycl"{{.*}} "-dep-files={{.+}}dummy-{{.+}}.d" "-output-report-folder={{.*}}dummy.prj"
 // CHK-FPGA-REPORT-OPT2-NOT: aoc{{.*}} "-sycl" {{.*}}_dir{{.*}}
 
 /// -fintelfpga dependency files from multiple source
@@ -356,7 +356,7 @@
 // RUN:  | FileCheck -check-prefix=CHK-FPGA-MULTI-DEPS %s
 // RUN: %clang_cl -### -fsycl -fintelfpga %t_dir/dummy.cpp dummy2.cpp 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK-FPGA-MULTI-DEPS %s
-// CHK-FPGA-MULTI-DEPS: aoc{{.*}} "-sycl"{{.*}} "-dep-files={{.+}}dummy-{{.+}}.d,{{.+}}dummy2-{{.+}}.d" "-output-report-folder=dummy.prj"
+// CHK-FPGA-MULTI-DEPS: aoc{{.*}} "-sycl"{{.*}} "-dep-files={{.+}}dummy-{{.+}}.d,{{.+}}dummy2-{{.+}}.d" "-output-report-folder={{.*}}dummy.prj"
 
 /// -fintelfpga output report file should be based on first input (src/obj)
 // RUN: mkdir -p %t_dir
@@ -372,7 +372,7 @@
 // RUN:  | FileCheck -check-prefix=CHK-FPGA-REPORT-NAME %s
 // RUN: %clang_cl -### -fsycl -fintelfpga %t_dir/dummy2.cpp %t_dir/dummy1.o 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK-FPGA-REPORT-NAME %s
-// CHK-FPGA-REPORT-NAME: aoc{{.*}} "-sycl"{{.*}} "-output-report-folder=dummy2.prj"
+// CHK-FPGA-REPORT-NAME: aoc{{.*}} "-sycl"{{.*}} "-output-report-folder={{.*}}dummy2.prj"
 
 /// Check for implied options (-g -O0)
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga -g -O0 -Xs "-DFOO1 -DFOO2" %s 2>&1 \
