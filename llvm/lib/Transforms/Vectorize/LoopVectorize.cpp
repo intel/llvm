@@ -2882,10 +2882,9 @@ void InnerLoopVectorizer::scalarizeInstruction(Instruction *Instr, VPUser &User,
 
   // llvm.experimental.noalias.scope.decl intrinsics must only be duplicated for
   // the first lane and part.
-  if (auto *II = dyn_cast<IntrinsicInst>(Instr))
+  if (isa<NoAliasScopeDeclInst>(Instr))
     if (Instance.Lane != 0 || Instance.Part != 0)
-      if (II->getIntrinsicID() == Intrinsic::experimental_noalias_scope_decl)
-        return;
+      return;
 
   setDebugLocFromInst(Builder, Instr);
 
@@ -3225,9 +3224,10 @@ void InnerLoopVectorizer::emitMemRuntimeChecks(Loop *L, BasicBlock *Bypass) {
 
   Instruction *FirstCheckInst;
   Instruction *MemRuntimeCheck;
-  std::tie(FirstCheckInst, MemRuntimeCheck) =
-      addRuntimeChecks(MemCheckBlock->getTerminator(), OrigLoop,
-                       RtPtrChecking.getChecks(), RtPtrChecking.getSE());
+  SCEVExpander Exp(*PSE.getSE(), MemCheckBlock->getModule()->getDataLayout(),
+                   "induction");
+  std::tie(FirstCheckInst, MemRuntimeCheck) = addRuntimeChecks(
+      MemCheckBlock->getTerminator(), OrigLoop, RtPtrChecking.getChecks(), Exp);
   assert(MemRuntimeCheck && "no RT checks generated although RtPtrChecking "
                             "claimed checks are required");
   CondBranch->setCondition(MemRuntimeCheck);
@@ -7719,9 +7719,15 @@ void LoopVectorizationPlanner::executePlan(InnerLoopVectorizer &ILV,
 
   assert(BestVF.hasValue() && "Vectorization Factor is missing");
 
-  VPTransformState State{*BestVF, BestUF,      LI,
-                         DT,      ILV.Builder, ILV.VectorLoopValueMap,
-                         &ILV,    CallbackILV};
+  VPTransformState State{*BestVF,
+                         BestUF,
+                         OrigLoop,
+                         LI,
+                         DT,
+                         ILV.Builder,
+                         ILV.VectorLoopValueMap,
+                         &ILV,
+                         CallbackILV};
   State.CFG.PrevBB = ILV.createVectorizedLoopSkeleton();
   State.TripCount = ILV.getOrCreateTripCount(nullptr);
   State.CanonicalIV = ILV.Induction;
@@ -8902,7 +8908,7 @@ void LoopVectorizationPlanner::adjustRecipesForInLoopReductions(
                          ? RecipeBuilder.createBlockInMask(R->getParent(), Plan)
                          : nullptr;
       VPReductionRecipe *RedRecipe = new VPReductionRecipe(
-          &RdxDesc, R, ChainOp, VecOp, CondOp, Legal->hasFunNoNaNAttr(), TTI);
+          &RdxDesc, R, ChainOp, VecOp, CondOp, TTI);
       WidenRecipe->getVPValue()->replaceAllUsesWith(RedRecipe);
       Plan->removeVPValueFor(R);
       Plan->addVPValue(R, RedRecipe);

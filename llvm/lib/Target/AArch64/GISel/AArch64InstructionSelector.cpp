@@ -4378,7 +4378,7 @@ AArch64InstructionSelector::emitOverflowOp(unsigned Opcode, Register Dst,
   case TargetOpcode::G_SSUBO:
     return std::make_pair(emitSUBS(Dst, LHS, RHS, MIRBuilder), AArch64CC::VS);
   case TargetOpcode::G_USUBO:
-    return std::make_pair(emitSUBS(Dst, LHS, RHS, MIRBuilder), AArch64CC::HS);
+    return std::make_pair(emitSUBS(Dst, LHS, RHS, MIRBuilder), AArch64CC::LO);
   }
 }
 

@@ -124,8 +124,8 @@ void *MemoryManager::allocateInteropMemObject(
   return UserPtr;
 }
 
-RT::PiMemFlags getMemObjCreationFlags(const ContextImplPtr &TargetContext,
-                                      void *UserPtr, bool HostPtrReadOnly) {
+static RT::PiMemFlags getMemObjCreationFlags(void *UserPtr,
+                                             bool HostPtrReadOnly) {
   // Create read_write mem object to handle arbitrary uses.
   RT::PiMemFlags Result = PI_MEM_FLAGS_ACCESS_RW;
   if (UserPtr)
@@ -140,7 +140,7 @@ void *MemoryManager::allocateImageObject(ContextImplPtr TargetContext,
                                          const RT::PiMemImageFormat &Format,
                                          const sycl::property_list &) {
   RT::PiMemFlags CreationFlags =
-      getMemObjCreationFlags(TargetContext, UserPtr, HostPtrReadOnly);
+      getMemObjCreationFlags(UserPtr, HostPtrReadOnly);
 
   RT::PiMem NewMem;
   const detail::plugin &Plugin = TargetContext->getPlugin();
@@ -155,7 +155,7 @@ MemoryManager::allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
                                     bool HostPtrReadOnly, const size_t Size,
                                     const sycl::property_list &PropsList) {
   RT::PiMemFlags CreationFlags =
-      getMemObjCreationFlags(TargetContext, UserPtr, HostPtrReadOnly);
+      getMemObjCreationFlags(UserPtr, HostPtrReadOnly);
   if (PropsList.has_property<
           sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
     CreationFlags |= PI_MEM_FLAGS_HOST_PTR_ALLOC;

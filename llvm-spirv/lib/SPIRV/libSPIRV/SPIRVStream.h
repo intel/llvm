@@ -76,6 +76,8 @@ public:
   void validate() const;
   void ignore(size_t N);
   void ignoreInstruction();
+  std::vector<SPIRVEntry *>
+  getContinuedInstructions(const spv::Op ContinuedOpCode);
 
   std::istream &IS;
   SPIRVModule &M;

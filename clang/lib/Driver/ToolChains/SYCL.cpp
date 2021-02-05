@@ -350,10 +350,10 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
     if (types::isSrcFile(Ty) || Ty == types::TY_Object) {
       // The project report is created in CWD, so strip off any directory
       // information if provided with the input file.
-      ArgName = llvm::sys::path::filename(ArgName);
+      StringRef TrimmedArgName = llvm::sys::path::filename(ArgName);
       if (types::isSrcFile(Ty)) {
         SmallString<128> DepName(
-            C.getDriver().getFPGATempDepFile(std::string(ArgName)));
+            C.getDriver().getFPGATempDepFile(std::string(TrimmedArgName)));
         if (!DepName.empty())
           FPGADepFiles.push_back(InputInfo(types::TY_Dependencies,
                                            Args.MakeArgString(DepName),
