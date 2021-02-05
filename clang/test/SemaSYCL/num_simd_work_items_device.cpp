@@ -35,64 +35,68 @@ struct FuncObj {
 
 #ifdef TRIGGER_ERROR
 struct TRIFuncObjBad1 {
-   [[intel::num_simd_work_items(3)]] // expected-error{{'num_simd_work_items' attribute conflicts with ''reqd_work_group_size'' attribute}}
-   [[intel::reqd_work_group_size(5, 5, 5)]] //expected-note{{conflicting attribute is here}}
-   void operator()() const {}
+  [[intel::num_simd_work_items(3)]]        // expected-error{{'num_simd_work_items' attribute conflicts with ''reqd_work_group_size'' attribute}}
+  [[intel::reqd_work_group_size(5, 5, 5)]] //expected-note{{conflicting attribute is here}}
+  void
+  operator()() const {}
 };
 
 struct TRIFuncObjBad2 {
-   [[intel::reqd_work_group_size(5, 5, 5)]] // expected-note{{conflicting attribute is here}}
-   [[intel::num_simd_work_items(3)]] // expected-error{{'num_simd_work_items' attribute conflicts with 'reqd_work_group_size' attribute}}
-   void operator()() const {}
+  [[intel::reqd_work_group_size(5, 5, 5)]] // expected-note{{conflicting attribute is here}}
+  [[intel::num_simd_work_items(3)]] // expected-error{{'num_simd_work_items' attribute conflicts with 'reqd_work_group_size' attribute}}
+  void
+  operator()() const {}
 };
 
 struct TRIFuncObjBad3 {
-   [[intel::num_simd_work_items(3)]] // expected-error{{'num_simd_work_items' attribute conflicts with ''reqd_work_group_size'' attribute}}
-   [[cl::reqd_work_group_size(5, 5, 5)]] //expected-note{{conflicting attribute is here}}
-   void operator()() const {}
+  [[intel::num_simd_work_items(3)]]     // expected-error{{'num_simd_work_items' attribute conflicts with 'reqd_work_group_size' attribute}}
+  [[cl::reqd_work_group_size(5, 5, 5)]] //expected-note{{conflicting attribute is here}}
+  void
+  operator()() const {}
 };
 
 struct TRIFuncObjBad4 {
-   [[cl::reqd_work_group_size(5, 5, 5)]] // expected-note{{conflicting attribute is here}}
-   [[intel::num_simd_work_items(3)]] // expected-error{{'num_simd_work_items' attribute conflicts with 'reqd_work_group_size' attribute}}
-   void operator()() const {}
+  [[cl::reqd_work_group_size(5, 5, 5)]] // expected-note{{conflicting attribute is here}}
+  [[intel::num_simd_work_items(3)]]     // expected-error{{'num_simd_work_items' attribute conflicts with 'reqd_work_group_size' attribute}}
+  void
+  operator()() const {}
 };
 #endif // TRIGGER_ERROR
 
 struct TRIFuncObjGood1 {
-   [[intel::num_simd_work_items(4)]] //OK
-   [[intel::reqd_work_group_size(64, 64, 64)]]
-   void operator()() const {}
+  [[intel::num_simd_work_items(4)]]
+  [[intel::reqd_work_group_size(64, 64, 64)]] void
+  operator()() const {}
 };
 
 struct TRIFuncObjGood2 {
-   [[intel::reqd_work_group_size(64, 64, 64)]]
-   [[intel::num_simd_work_items(4)]] //OK
-   void operator()() const {}
+  [[intel::reqd_work_group_size(64, 64, 64)]]
+  [[intel::num_simd_work_items(4)]] void
+  operator()() const {}
 };
 
 struct TRIFuncObjGood3 {
-   [[intel::num_simd_work_items(4)]] //OK
-   [[cl::reqd_work_group_size(64, 64, 64)]]
-   void operator()() const {}
+  [[intel::num_simd_work_items(4)]]
+  [[cl::reqd_work_group_size(64, 64, 64)]] void
+  operator()() const {}
 };
 
 struct TRIFuncObjGood4 {
-   [[cl::reqd_work_group_size(64, 64, 64)]]
-   [[intel::num_simd_work_items(4)]] //OK
-   void operator()() const {}
+  [[cl::reqd_work_group_size(64, 64, 64)]]
+  [[intel::num_simd_work_items(4)]] void
+  operator()() const {}
 };
 
 struct TRIFuncObjGood5 {
-   [[intel::num_simd_work_items(3)]] //OK
-   [[intel::max_work_group_size(5, 5, 5)]]
-   void operator()() const {}
+  [[intel::num_simd_work_items(3)]]
+  [[intel::max_work_group_size(5, 5, 5)]] void
+  operator()() const {}
 };
 
 struct TRIFuncObjGood6 {
-   [[intel::max_work_group_size(5, 5, 5)]]
-   [[intel::num_simd_work_items(3)]] //OK
-   void operator()() const {}
+  [[intel::max_work_group_size(5, 5, 5)]]
+  [[intel::num_simd_work_items(3)]] void
+  operator()() const {}
 };
 
 int main() {
