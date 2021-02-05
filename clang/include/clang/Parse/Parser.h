@@ -2834,14 +2834,6 @@ private:
   /// \return false if error happens.
   bool ParseOpenCLUnrollHintAttribute(ParsedAttributes &Attrs);
 
-  /// Parses intelfpga:: and clang:: loop attributes if the language is SYCL
-  bool MaybeParseSYCLLoopAttributes(ParsedAttributes &Attrs) {
-    if (getLangOpts().SYCLIsDevice || getLangOpts().SYCLIsHost)
-      return ParseSYCLLoopAttributes(Attrs);
-    return true;
-  }
-  bool ParseSYCLLoopAttributes(ParsedAttributes &Attrs);
-
   void ParseNullabilityTypeSpecifiers(ParsedAttributes &attrs);
   VersionTuple ParseVersionTuple(SourceRange &Range);
   void ParseAvailabilityAttribute(IdentifierInfo &Availability,
