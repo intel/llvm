@@ -2,9 +2,9 @@
 ; RUN: opt -S -early-cse -earlycse-debug-hash < %s | FileCheck %s
 
 declare float @truncf(float) #0
-declare float @llvm.trunc.f32(float)
+declare float @llvm.trunc.f32(float) #0
 declare double @trunc(double) #0
-declare double @llvm.trunc.f64(double)
+declare double @llvm.trunc.f64(double) #0
 
 define float @constant_fold_trunc_f32_01() #0 {
 ; CHECK-LABEL: @constant_fold_trunc_f32_01(
@@ -102,4 +102,4 @@ define double @constant_fold_trunc_f64_06() #0 {
   ret double %x
 }
 
-attributes #0 = { nounwind readnone willreturn }
+attributes #0 = { nounwind readnone }

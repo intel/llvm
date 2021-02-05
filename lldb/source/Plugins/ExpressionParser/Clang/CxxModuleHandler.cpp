@@ -33,9 +33,6 @@ CxxModuleHandler::CxxModuleHandler(ASTImporter &importer, ASTContext *target)
       "shared_ptr",
       "unique_ptr",
       "weak_ptr",
-      // iterator
-      "move_iterator",
-      "__wrap_iter",
       // utility
       "allocator",
       "pair",

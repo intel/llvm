@@ -1,5 +1,1 @@
-﻿!mod$ v1 sum:1f5a35ada852dc66
-module basictestmoduleone
-type::t1
-end type
-end
+NOT A REAL MODULE FILE - USE THIS ONLY FOR TESTING THE DRIVER

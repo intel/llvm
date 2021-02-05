@@ -8,7 +8,7 @@
 
 #include "llvm/Object/ELF.h"
 #include "llvm/BinaryFormat/ELF.h"
-#include "llvm/Support/DataExtractor.h"
+#include "llvm/Support/LEB128.h"
 
 using namespace llvm;
 using namespace object;
@@ -373,31 +373,39 @@ ELFFile<ELFT>::android_relas(const Elf_Shdr &Sec) const {
   Expected<ArrayRef<uint8_t>> ContentsOrErr = getSectionContents(Sec);
   if (!ContentsOrErr)
     return ContentsOrErr.takeError();
-  ArrayRef<uint8_t> Content = *ContentsOrErr;
-  if (Content.size() < 4 || Content[0] != 'A' || Content[1] != 'P' ||
-      Content[2] != 'S' || Content[3] != '2')
+  const uint8_t *Cur = ContentsOrErr->begin();
+  const uint8_t *End = ContentsOrErr->end();
+  if (ContentsOrErr->size() < 4 || Cur[0] != 'A' || Cur[1] != 'P' ||
+      Cur[2] != 'S' || Cur[3] != '2')
     return createError("invalid packed relocation header");
-  DataExtractor Data(Content, isLE(), ELFT::Is64Bits ? 8 : 4);
-  DataExtractor::Cursor Cur(/*Offset=*/4);
+  Cur += 4;
 
-  uint64_t NumRelocs = Data.getSLEB128(Cur);
-  uint64_t Offset = Data.getSLEB128(Cur);
+  const char *ErrStr = nullptr;
+  auto ReadSLEB = [&]() -> int64_t {
+    if (ErrStr)
+      return 0;
+    unsigned Len;
+    int64_t Result = decodeSLEB128(Cur, &Len, End, &ErrStr);
+    Cur += Len;
+    return Result;
+  };
+
+  uint64_t NumRelocs = ReadSLEB();
+  uint64_t Offset = ReadSLEB();
   uint64_t Addend = 0;
 
-  if (!Cur)
-    return std::move(Cur.takeError());
+  if (ErrStr)
+    return createError(ErrStr);
 
   std::vector<Elf_Rela> Relocs;
   Relocs.reserve(NumRelocs);
   while (NumRelocs) {
-    uint64_t NumRelocsInGroup = Data.getSLEB128(Cur);
-    if (!Cur)
-      return std::move(Cur.takeError());
+    uint64_t NumRelocsInGroup = ReadSLEB();
     if (NumRelocsInGroup > NumRelocs)
       return createError("relocation group unexpectedly large");
     NumRelocs -= NumRelocsInGroup;
 
-    uint64_t GroupFlags = Data.getSLEB128(Cur);
+    uint64_t GroupFlags = ReadSLEB();
     bool GroupedByInfo = GroupFlags & ELF::RELOCATION_GROUPED_BY_INFO_FLAG;
     bool GroupedByOffsetDelta = GroupFlags & ELF::RELOCATION_GROUPED_BY_OFFSET_DELTA_FLAG;
     bool GroupedByAddend = GroupFlags & ELF::RELOCATION_GROUPED_BY_ADDEND_FLAG;
@@ -405,30 +413,34 @@ ELFFile<ELFT>::android_relas(const Elf_Shdr &Sec) const {
 
     uint64_t GroupOffsetDelta;
     if (GroupedByOffsetDelta)
-      GroupOffsetDelta = Data.getSLEB128(Cur);
+      GroupOffsetDelta = ReadSLEB();
 
     uint64_t GroupRInfo;
     if (GroupedByInfo)
-      GroupRInfo = Data.getSLEB128(Cur);
+      GroupRInfo = ReadSLEB();
 
     if (GroupedByAddend && GroupHasAddend)
-      Addend += Data.getSLEB128(Cur);
+      Addend += ReadSLEB();
 
     if (!GroupHasAddend)
       Addend = 0;
 
-    for (uint64_t I = 0; Cur && I != NumRelocsInGroup; ++I) {
+    for (uint64_t I = 0; I != NumRelocsInGroup; ++I) {
       Elf_Rela R;
-      Offset += GroupedByOffsetDelta ? GroupOffsetDelta : Data.getSLEB128(Cur);
+      Offset += GroupedByOffsetDelta ? GroupOffsetDelta : ReadSLEB();
       R.r_offset = Offset;
-      R.r_info = GroupedByInfo ? GroupRInfo : Data.getSLEB128(Cur);
+      R.r_info = GroupedByInfo ? GroupRInfo : ReadSLEB();
       if (GroupHasAddend && !GroupedByAddend)
-        Addend += Data.getSLEB128(Cur);
+        Addend += ReadSLEB();
       R.r_addend = Addend;
       Relocs.push_back(R);
+
+      if (ErrStr)
+        return createError(ErrStr);
     }
-    if (!Cur)
-      return std::move(Cur.takeError());
+
+    if (ErrStr)
+      return createError(ErrStr);
   }
 
   return Relocs;

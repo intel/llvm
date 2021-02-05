@@ -6,11 +6,11 @@ template <bool> struct S {};
 template <typename> concept C = true;
 template <typename T = int> S<C<T>> f0() { return S<C<T>>{}; }
 template S<C<int>> f0<>();
-// CHECK: @_ZN5test12f0IiEENS_1SIL_ZNS_1CIT_EEEEEv(
+// CHECK: @_ZN5test12f0IiEENS_1SIXL_ZNS_1CIT_EEEEEEv(
 }
 
 template <bool> struct S {};
 template <typename> concept C = true;
 template <typename T = int> S<C<T>> f0() { return S<C<T>>{}; }
 template S<C<int>> f0<>();
-// CHECK: @_Z2f0IiE1SIL_Z1CIT_EEEv(
+// CHECK: @_Z2f0IiE1SIXL_Z1CIT_EEEEv(

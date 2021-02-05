@@ -1,5 +1,4 @@
 // RUN:   mlir-opt %s -async-ref-counting                                      \
-// RUN:               -async-to-async-runtime                                  \
 // RUN:               -convert-async-to-llvm                                   \
 // RUN:               -convert-vector-to-llvm                                  \
 // RUN:               -convert-std-to-llvm                                     \

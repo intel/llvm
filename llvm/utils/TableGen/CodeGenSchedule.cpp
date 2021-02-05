@@ -1208,10 +1208,11 @@ void CodeGenSchedModels::collectProcItinRW() {
 
 // Gather the unsupported features for processor models.
 void CodeGenSchedModels::collectProcUnsupportedFeatures() {
-  for (CodeGenProcModel &ProcModel : ProcModels)
-    append_range(
-        ProcModel.UnsupportedFeaturesDefs,
-        ProcModel.ModelDef->getValueAsListOfDefs("UnsupportedFeatures"));
+  for (CodeGenProcModel &ProcModel : ProcModels) {
+    for (Record *Pred : ProcModel.ModelDef->getValueAsListOfDefs("UnsupportedFeatures")) {
+       ProcModel.UnsupportedFeaturesDefs.push_back(Pred);
+    }
+  }
 }
 
 /// Infer new classes from existing classes. In the process, this may create new

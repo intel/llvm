@@ -1143,9 +1143,9 @@ Set directory to include search path with prefix
 
 Add directory to SYSTEM include search path, absolute paths are relative to -isysroot
 
-.. option:: --libomptarget-nvptx-bc-path=<arg>
+.. option:: --libomptarget-nvptx-path=<arg>
 
-Path to libomptarget-nvptx bitcode library
+Path to libomptarget-nvptx libraries
 
 .. option:: --ptxas-path=<arg>
 
@@ -2044,12 +2044,6 @@ Set update method of profile counters (atomic,prefer-atomic,single)
 .. program:: clang
 
 Use instrumentation data for profile-guided optimization. If pathname is a directory, it reads from <pathname>/default.profdata. Otherwise, it reads from file <pathname>.
-
-.. program:: clang1
-.. option:: -fprofile-list=<file>
-.. program:: clang
-
-Filename defining the list of functions/files to instrument. The file uses the sanitizer special case list format.
 
 .. option:: -freciprocal-math, -fno-reciprocal-math
 

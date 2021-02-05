@@ -1544,6 +1544,13 @@ struct CounterCoverageMappingBuilder
   }
 };
 
+std::string normalizeFilename(StringRef Filename) {
+  llvm::SmallString<256> Path(Filename);
+  llvm::sys::fs::make_absolute(Path);
+  llvm::sys::path::remove_dots(Path, /*remove_dot_dot=*/true);
+  return std::string(Path);
+}
+
 } // end anonymous namespace
 
 static void dump(llvm::raw_ostream &OS, StringRef FunctionName,
@@ -1583,23 +1590,6 @@ static void dump(llvm::raw_ostream &OS, StringRef FunctionName,
       OS << " (Expanded file = " << R.ExpandedFileID << ")";
     OS << "\n";
   }
-}
-
-CoverageMappingModuleGen::CoverageMappingModuleGen(
-    CodeGenModule &CGM, CoverageSourceInfo &SourceInfo)
-    : CGM(CGM), SourceInfo(SourceInfo) {
-  ProfilePrefixMap = CGM.getCodeGenOpts().ProfilePrefixMap;
-}
-
-std::string CoverageMappingModuleGen::normalizeFilename(StringRef Filename) {
-  llvm::SmallString<256> Path(Filename);
-  llvm::sys::fs::make_absolute(Path);
-  llvm::sys::path::remove_dots(Path, /*remove_dot_dot=*/true);
-  for (const auto &Entry : ProfilePrefixMap) {
-    if (llvm::sys::path::replace_path_prefix(Path, Entry.first, Entry.second))
-      break;
-  }
-  return Path.str().str();
 }
 
 static std::string getInstrProfSection(const CodeGenModule &CGM,

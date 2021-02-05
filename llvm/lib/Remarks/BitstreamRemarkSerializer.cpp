@@ -21,7 +21,8 @@ BitstreamRemarkSerializerHelper::BitstreamRemarkSerializerHelper(
     : Encoded(), R(), Bitstream(Encoded), ContainerType(ContainerType) {}
 
 static void push(SmallVectorImpl<uint64_t> &R, StringRef Str) {
-  append_range(R, Str);
+  for (const char C : Str)
+    R.push_back(C);
 }
 
 static void setRecordName(unsigned RecordID, BitstreamWriter &Bitstream,

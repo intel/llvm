@@ -221,16 +221,6 @@ static LogicalResult foldMemRefCast(Operation *op) {
 // parse`className` function.
 
 //===----------------------------------------------------------------------===//
-// FillOp
-//===----------------------------------------------------------------------===//
-
-void FillOp::build(OpBuilder &builder, OperationState &result, Value output,
-                   Value value) {
-  build(builder, result, output.getType().dyn_cast<RankedTensorType>(), output,
-        value);
-}
-
-//===----------------------------------------------------------------------===//
 // GenericOps
 //===----------------------------------------------------------------------===//
 void GenericOp::build(
@@ -712,10 +702,6 @@ static LogicalResult verify(InitTensorOp op) {
                                             ShapedType::isDynamic)))
     return failure();
 
-  if (op.static_sizes().size() != static_cast<unsigned>(resultType.getRank()))
-    return op->emitError("expected ")
-           << resultType.getRank() << " sizes values";
-
   Type expectedType =
       InitTensorOp::inferResultType(staticSizes, resultType.getElementType());
   if (resultType != expectedType) {
@@ -900,29 +886,7 @@ static Value getExpandedInitTensor(OpBuilder &builder,
 }
 
 namespace {
-/// Since `init_tensor` operation creates a tensor needed only for its shape, a
-/// subtensor of this is also needed only for its shape. The result can be
-/// replaced by a new init_tensor operation of the same size as the subtensor
-/// op.
-struct FoldInitTensorWithSubTensorOp : public OpRewritePattern<SubTensorOp> {
-  using OpRewritePattern<SubTensorOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(SubTensorOp subtensorOp,
-                                PatternRewriter &rewriter) const override {
-    if (!subtensorOp.source().getDefiningOp<linalg::InitTensorOp>())
-      return failure();
-    rewriter.replaceOpWithNewOp<linalg::InitTensorOp>(
-        subtensorOp, subtensorOp.sizes(),
-        llvm::to_vector<4>(llvm::map_range(
-            subtensorOp.static_sizes(),
-            [](Attribute attr) { return attr.cast<IntegerAttr>().getInt(); })),
-        subtensorOp.getSourceType().getElementType());
-    return success();
-  }
-};
-
-struct FoldInitTensorWithTensorReshapeOp
-    : public OpRewritePattern<TensorReshapeOp> {
+struct FoldWithTensorReshapeOp : public OpRewritePattern<TensorReshapeOp> {
   using OpRewritePattern<TensorReshapeOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(TensorReshapeOp reshapeOp,
@@ -947,9 +911,8 @@ struct FoldInitTensorWithTensorReshapeOp
 
 void InitTensorOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
-  results
-      .insert<FoldInitTensorWithSubTensorOp, FoldInitTensorWithTensorReshapeOp,
-              ReplaceDimOfInitTensorOp, ReplaceStaticShapeDims>(context);
+  results.insert<FoldWithTensorReshapeOp, ReplaceDimOfInitTensorOp,
+                 ReplaceStaticShapeDims>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1763,10 +1726,6 @@ static LogicalResult verify(FillOp op) {
   auto fillType = op.value().getType();
   if (viewType.getElementType() != fillType)
     return op.emitOpError("expects fill type to match view elemental type");
-  if (!op.getNumResults() && !viewType.isa<MemRefType>()) {
-    return op.emitOpError(
-        "expected fill op with no result value to use memref type");
-  }
   return success();
 }
 

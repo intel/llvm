@@ -44,21 +44,21 @@ class DummyProcess : public Process {
 public:
   using Process::Process;
 
-  bool CanDebug(lldb::TargetSP target, bool plugin_specified_by_name) override {
+  virtual bool CanDebug(lldb::TargetSP target, bool plugin_specified_by_name) {
     return true;
   }
-  Status DoDestroy() override { return {}; }
-  void RefreshStateAfterStop() override {}
-  size_t DoReadMemory(lldb::addr_t vm_addr, void *buf, size_t size,
-                      Status &error) override {
+  virtual Status DoDestroy() { return {}; }
+  virtual void RefreshStateAfterStop() {}
+  virtual size_t DoReadMemory(lldb::addr_t vm_addr, void *buf, size_t size,
+                              Status &error) {
     return 0;
   }
-  bool DoUpdateThreadList(ThreadList &old_thread_list,
-                          ThreadList &new_thread_list) override {
+  virtual bool UpdateThreadList(ThreadList &old_thread_list,
+                                ThreadList &new_thread_list) {
     return false;
   }
-  ConstString GetPluginName() override { return ConstString("Dummy"); }
-  uint32_t GetPluginVersion() override { return 0; }
+  virtual ConstString GetPluginName() { return ConstString("Dummy"); }
+  virtual uint32_t GetPluginVersion() { return 0; }
 
   ProcessModID &GetModIDNonConstRef() { return m_mod_id; }
 };

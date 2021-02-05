@@ -21,7 +21,7 @@
 !--------------------------------------------
 ! EXPECTED OUTPUT FOR MISSING INCLUDED FILE
 !--------------------------------------------
-! UNINCLUDED:#include: Source file 'basic-header-one.h' was not found
+! UNINCLUDED:No such file or directory
 ! UNINCLUDED-NOT:program b
 ! UNINCLUDED-NOT:program c
 

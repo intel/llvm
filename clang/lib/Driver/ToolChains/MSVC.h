@@ -132,10 +132,9 @@ public:
   void AddHIPIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                          llvm::opt::ArgStringList &CC1Args) const override;
 
-  bool getWindowsSDKLibraryPath(
-      const llvm::opt::ArgList &Args, std::string &path) const;
-  bool getUniversalCRTLibraryPath(const llvm::opt::ArgList &Args,
-                                  std::string &path) const;
+  bool getWindowsSDKLibraryPath(std::string &path) const;
+  /// Check if Universal CRT should be used if available
+  bool getUniversalCRTLibraryPath(std::string &path) const;
   bool useUniversalCRT() const;
   VersionTuple
   computeMSVCVersion(const Driver *D,

@@ -5,7 +5,6 @@ add_mlir_public_c_api_library(MLIRCAPIIR
   BuiltinAttributes.cpp
   BuiltinTypes.cpp
   Diagnostics.cpp
-  IntegerSet.cpp
   IR.cpp
   Pass.cpp
   Support.cpp

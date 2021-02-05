@@ -17,7 +17,6 @@
 
 namespace mlir {
 class FuncOp;
-class Operation;
 class OpBuilder;
 class ValueRange;
 
@@ -58,11 +57,5 @@ scf::ForOp cloneWithNewYields(OpBuilder &b, scf::ForOp loop,
 ///    region is inlined into a new FuncOp that is captured by the pointer.
 void outlineIfOp(OpBuilder &b, scf::IfOp ifOp, FuncOp *thenFn,
                  StringRef thenFnName, FuncOp *elseFn, StringRef elseFnName);
-
-/// Get a list of innermost parallel loops contained in `rootOp`. Innermost parallel
-/// loops are those that do not contain further parallel loops themselves.
-bool getInnermostParallelLoops(Operation *rootOp,
-                               SmallVectorImpl<scf::ParallelOp> &result);
-
 } // end namespace mlir
 #endif // MLIR_DIALECT_SCF_UTILS_H_

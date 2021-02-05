@@ -4,7 +4,7 @@
 ; CHECK-NEXT:    [N] -> {  :  }
 ; CHECK-NEXT:    Invalid Context:
 ; CHECK-NEXT:    [N] -> {  : false }
-; CHECK:         p0: %N
+; CHECK-NEXT:    p0: %N
 ; CHECK:         Statements {
 ; CHECK-NEXT:    	Stmt_for_body
 ; CHECK-NEXT:            Domain :=

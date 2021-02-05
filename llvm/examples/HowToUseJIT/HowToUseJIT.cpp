@@ -36,7 +36,6 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
 #include "llvm/ExecutionEngine/GenericValue.h"
-#include "llvm/ExecutionEngine/MCJIT.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
@@ -60,7 +59,6 @@ using namespace llvm;
 
 int main() {
   InitializeNativeTarget();
-  LLVMInitializeNativeAsmPrinter();
 
   LLVMContext Context;
   

@@ -7843,10 +7843,9 @@ ScalarEvolution::computeLoadConstantCompareExitLimit(
   Idx = getSCEVAtScope(Idx, L);
 
   // We can only recognize very limited forms of loop index expressions, in
-  // particular, only affine AddRec's like {C1,+,C2}<L>.
+  // particular, only affine AddRec's like {C1,+,C2}.
   const SCEVAddRecExpr *IdxExpr = dyn_cast<SCEVAddRecExpr>(Idx);
-  if (!IdxExpr || IdxExpr->getLoop() != L || !IdxExpr->isAffine() ||
-      isLoopInvariant(IdxExpr, L) ||
+  if (!IdxExpr || !IdxExpr->isAffine() || isLoopInvariant(IdxExpr, L) ||
       !isa<SCEVConstant>(IdxExpr->getOperand(0)) ||
       !isa<SCEVConstant>(IdxExpr->getOperand(1)))
     return getCouldNotCompute();

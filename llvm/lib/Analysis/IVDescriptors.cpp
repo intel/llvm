@@ -273,7 +273,8 @@ bool RecurrenceDescriptor::AddReductionVar(PHINode *Phi, RecurKind Kind,
   //      * An instruction type other than PHI or the reduction operation.
   //      * A PHI in the header other than the initial PHI.
   while (!Worklist.empty()) {
-    Instruction *Cur = Worklist.pop_back_val();
+    Instruction *Cur = Worklist.back();
+    Worklist.pop_back();
 
     // No Users.
     // If the instruction has no users then this is a broken chain and can't be

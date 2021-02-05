@@ -7,9 +7,9 @@ from mlir.ir import *
 class ModuleOp:
   """Specialization for the module op class."""
 
-  def __init__(self, *, loc=None, ip=None):
+  def __init__(self, loc=None, ip=None):
     super().__init__(
-        self.build_generic(results=[], operands=[], loc=loc, ip=ip))
+        self._ods_build_default(operands=[], results=[], loc=loc, ip=ip))
     body = self.regions[0].blocks.append()
     with InsertionPoint(body):
       Operation.create("module_terminator")
@@ -25,8 +25,7 @@ class FuncOp:
   def __init__(self,
                name,
                type,
-               *,
-               visibility=None,
+               visibility,
                body_builder=None,
                loc=None,
                ip=None):
@@ -35,8 +34,8 @@ class FuncOp:
     - `name` is a string representing the function name.
     - `type` is either a FunctionType or a pair of list describing inputs and
       results.
-    - `visibility` is a string matching `public`, `private`, or `nested`. None
-      implies private visibility.
+    - `visibility` is a string matching `public`, `private`, or `nested`. The
+      empty string implies a private visibility.
     - `body_builder` is an optional callback, when provided a new entry block
       is created and the callback is invoked with the new op as argument within
       an InsertionPoint context already set for the block. The callback is
@@ -51,7 +50,7 @@ class FuncOp:
     type = TypeAttr.get(type)
     sym_visibility = StringAttr.get(
         str(visibility)) if visibility is not None else None
-    super().__init__(sym_name, type, sym_visibility, loc=loc, ip=ip)
+    super().__init__(sym_name, type, sym_visibility, loc, ip)
     if body_builder:
       entry_block = self.add_entry_block()
       with InsertionPoint(entry_block):

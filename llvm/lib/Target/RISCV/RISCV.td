@@ -56,14 +56,6 @@ def HasStdExtC : Predicate<"Subtarget->hasStdExtC()">,
                            AssemblerPredicate<(all_of FeatureStdExtC),
                            "'C' (Compressed Instructions)">;
 
-def FeatureExtZba
-    : SubtargetFeature<"experimental-zba", "HasStdExtZba", "true",
-                       "'Zba' (Address calculation 'B' Instructions)">;
-def HasStdExtZba : Predicate<"Subtarget->hasStdExtZba()">,
-                             AssemblerPredicate<(all_of FeatureExtZba),
-                             "'Zba' (Address calculation 'B' Instructions)">;
-def NotHasStdExtZba : Predicate<"!Subtarget->hasStdExtZba()">;
-
 def FeatureExtZbb
     : SubtargetFeature<"experimental-zbb", "HasStdExtZbb", "true",
                        "'Zbb' (Base 'B' Instructions)">;
@@ -131,9 +123,9 @@ def HasStdExtZbt : Predicate<"Subtarget->hasStdExtZbt()">,
 // subextensions. They should be enabled if either has been specified.
 def HasStdExtZbbOrZbp
     : Predicate<"Subtarget->hasStdExtZbb() || Subtarget->hasStdExtZbp()">,
-                AssemblerPredicate<(any_of FeatureExtZbb, FeatureExtZbp),
-                                   "'Zbb' (Base 'B' Instructions) or "
-                                   "'Zbp' (Permutation 'B' Instructions)">;
+                AssemblerPredicate<(any_of FeatureExtZbb, FeatureExtZbp)>;
+def NotHasStdExtZbbOrZbp
+    : Predicate<"!(Subtarget->hasStdExtZbb() || Subtarget->hasStdExtZbp())">;
 
 def FeatureExtZbproposedc
     : SubtargetFeature<"experimental-zbproposedc", "HasStdExtZbproposedc", "true",
@@ -145,8 +137,7 @@ def HasStdExtZbproposedc : Predicate<"Subtarget->hasStdExtZbproposedc()">,
 def FeatureStdExtB
     : SubtargetFeature<"experimental-b", "HasStdExtB", "true",
                        "'B' (Bit Manipulation Instructions)",
-                       [FeatureExtZba,
-                        FeatureExtZbb,
+                       [FeatureExtZbb,
                         FeatureExtZbc,
                         FeatureExtZbe,
                         FeatureExtZbf,

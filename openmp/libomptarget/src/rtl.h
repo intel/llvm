@@ -53,7 +53,6 @@ struct RTLInfoTy {
                                             __tgt_async_info *);
   typedef int64_t(init_requires_ty)(int64_t);
   typedef int64_t(synchronize_ty)(int32_t, __tgt_async_info *);
-  typedef int32_t (*register_lib_ty)(__tgt_bin_desc *);
 
   int32_t Idx = -1;             // RTL index, index is the number of devices
                                 // of other RTLs that were registered before,
@@ -87,8 +86,6 @@ struct RTLInfoTy {
   run_team_region_async_ty *run_team_region_async = nullptr;
   init_requires_ty *init_requires = nullptr;
   synchronize_ty *synchronize = nullptr;
-  register_lib_ty register_lib = nullptr;
-  register_lib_ty unregister_lib = nullptr;
 
   // Are there images associated with this RTL.
   bool isUsed = false;
@@ -100,7 +97,14 @@ struct RTLInfoTy {
 };
 
 /// RTLs identified in the system.
-struct RTLsTy {
+class RTLsTy {
+private:
+  // Mutex-like object to guarantee thread-safety and unique initialization
+  // (i.e. the library attempts to load the RTLs (plugins) only once).
+  std::once_flag initFlag;
+  void LoadRTLs(); // not thread-safe
+
+public:
   // List of the detected runtime libraries.
   std::list<RTLInfoTy> AllRTLs;
 
@@ -120,12 +124,8 @@ struct RTLsTy {
 
   // Unregister a shared library from all RTLs.
   void UnregisterLib(__tgt_bin_desc *desc);
-
-  // Mutex-like object to guarantee thread-safety and unique initialization
-  // (i.e. the library attempts to load the RTLs (plugins) only once).
-  std::once_flag initFlag;
-  void LoadRTLs(); // not thread-safe
 };
+
 
 /// Map between the host entry begin and the translation table. Each
 /// registered library gets one TranslationTable. Use the map from

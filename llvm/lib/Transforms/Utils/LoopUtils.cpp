@@ -761,18 +761,13 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
   }
 }
 
-static Loop *getOutermostLoop(Loop *L) {
-  while (Loop *Parent = L->getParentLoop())
-    L = Parent;
-  return L;
-}
-
 void llvm::breakLoopBackedge(Loop *L, DominatorTree &DT, ScalarEvolution &SE,
                              LoopInfo &LI, MemorySSA *MSSA) {
+
+  assert(L->isOutermost() && "Can't yet preserve LCSSA for this case");
   auto *Latch = L->getLoopLatch();
   assert(Latch && "multiple latches not yet supported");
   auto *Header = L->getHeader();
-  Loop *OutermostLoop = getOutermostLoop(L);
 
   SE.forgetLoop(L);
 
@@ -795,14 +790,6 @@ void llvm::breakLoopBackedge(Loop *L, DominatorTree &DT, ScalarEvolution &SE,
   // Erase (and destroy) this loop instance.  Handles relinking sub-loops
   // and blocks within the loop as needed.
   LI.erase(L);
-
-  // If the loop we broke had a parent, then changeToUnreachable might have
-  // caused a block to be removed from the parent loop (see loop_nest_lcssa
-  // test case in zero-btc.ll for an example), thus changing the parent's
-  // exit blocks.  If that happened, we need to rebuild LCSSA on the outermost
-  // loop which might have a had a block removed.
-  if (OutermostLoop != L)
-    formLCSSARecursively(*OutermostLoop, DT, &LI, &SE);
 }
 
 
@@ -920,27 +907,27 @@ bool llvm::hasIterationCountInvariantInParent(Loop *InnerLoop,
 
 Value *llvm::createMinMaxOp(IRBuilderBase &Builder, RecurKind RK, Value *Left,
                             Value *Right) {
-  CmpInst::Predicate Pred;
+  CmpInst::Predicate P = CmpInst::ICMP_NE;
   switch (RK) {
   default:
     llvm_unreachable("Unknown min/max recurrence kind");
   case RecurKind::UMin:
-    Pred = CmpInst::ICMP_ULT;
+    P = CmpInst::ICMP_ULT;
     break;
   case RecurKind::UMax:
-    Pred = CmpInst::ICMP_UGT;
+    P = CmpInst::ICMP_UGT;
     break;
   case RecurKind::SMin:
-    Pred = CmpInst::ICMP_SLT;
+    P = CmpInst::ICMP_SLT;
     break;
   case RecurKind::SMax:
-    Pred = CmpInst::ICMP_SGT;
+    P = CmpInst::ICMP_SGT;
     break;
   case RecurKind::FMin:
-    Pred = CmpInst::FCMP_OLT;
+    P = CmpInst::FCMP_OLT;
     break;
   case RecurKind::FMax:
-    Pred = CmpInst::FCMP_OGT;
+    P = CmpInst::FCMP_OGT;
     break;
   }
 
@@ -950,7 +937,7 @@ Value *llvm::createMinMaxOp(IRBuilderBase &Builder, RecurKind RK, Value *Left,
   FastMathFlags FMF;
   FMF.setFast();
   Builder.setFastMathFlags(FMF);
-  Value *Cmp = Builder.CreateCmp(Pred, Left, Right, "rdx.minmax.cmp");
+  Value *Cmp = Builder.CreateCmp(P, Left, Right, "rdx.minmax.cmp");
   Value *Select = Builder.CreateSelect(Cmp, Left, Right, "rdx.minmax.select");
   return Select;
 }
@@ -1587,8 +1574,7 @@ struct PointerBounds {
 /// in \p TheLoop.  \return the values for the bounds.
 static PointerBounds expandBounds(const RuntimeCheckingPtrGroup *CG,
                                   Loop *TheLoop, Instruction *Loc,
-                                  SCEVExpander &Exp) {
-  ScalarEvolution *SE = Exp.getSE();
+                                  SCEVExpander &Exp, ScalarEvolution *SE) {
   // TODO: Add helper to retrieve pointers to CG.
   Value *Ptr = CG->RtCheck.Pointers[CG->Members[0]].PointerValue;
   const SCEV *Sc = SE->getSCEV(Ptr);
@@ -1627,15 +1613,16 @@ static PointerBounds expandBounds(const RuntimeCheckingPtrGroup *CG,
 /// lower bounds for both pointers in the check.
 static SmallVector<std::pair<PointerBounds, PointerBounds>, 4>
 expandBounds(const SmallVectorImpl<RuntimePointerCheck> &PointerChecks, Loop *L,
-             Instruction *Loc, SCEVExpander &Exp) {
+             Instruction *Loc, ScalarEvolution *SE, SCEVExpander &Exp) {
   SmallVector<std::pair<PointerBounds, PointerBounds>, 4> ChecksWithBounds;
 
   // Here we're relying on the SCEV Expander's cache to only emit code for the
   // same bounds once.
   transform(PointerChecks, std::back_inserter(ChecksWithBounds),
             [&](const RuntimePointerCheck &Check) {
-              PointerBounds First = expandBounds(Check.first, L, Loc, Exp),
-                            Second = expandBounds(Check.second, L, Loc, Exp);
+              PointerBounds First = expandBounds(Check.first, L, Loc, Exp, SE),
+                            Second =
+                                expandBounds(Check.second, L, Loc, Exp, SE);
               return std::make_pair(First, Second);
             });
 
@@ -1645,10 +1632,12 @@ expandBounds(const SmallVectorImpl<RuntimePointerCheck> &PointerChecks, Loop *L,
 std::pair<Instruction *, Instruction *> llvm::addRuntimeChecks(
     Instruction *Loc, Loop *TheLoop,
     const SmallVectorImpl<RuntimePointerCheck> &PointerChecks,
-    SCEVExpander &Exp) {
+    ScalarEvolution *SE) {
   // TODO: Move noalias annotation code from LoopVersioning here and share with LV if possible.
   // TODO: Pass  RtPtrChecking instead of PointerChecks and SE separately, if possible
-  auto ExpandedChecks = expandBounds(PointerChecks, TheLoop, Loc, Exp);
+  const DataLayout &DL = TheLoop->getHeader()->getModule()->getDataLayout();
+  SCEVExpander Exp(*SE, DL, "induction");
+  auto ExpandedChecks = expandBounds(PointerChecks, TheLoop, Loc, SE, Exp);
 
   LLVMContext &Ctx = Loc->getContext();
   Instruction *FirstInst = nullptr;

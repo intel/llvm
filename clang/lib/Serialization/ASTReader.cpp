@@ -1499,7 +1499,7 @@ bool ASTReader::ReadSLocEntry(int ID) {
     // we will also try to fail gracefully by setting up the SLocEntry.
     unsigned InputID = Record[4];
     InputFile IF = getInputFile(*F, InputID);
-    Optional<FileEntryRef> File = IF.getFile();
+    const FileEntry *File = IF.getFile();
     bool OverriddenBuffer = IF.isOverridden();
 
     // Note that we only check if a File was returned. If it was out-of-date
@@ -1515,8 +1515,9 @@ bool ASTReader::ReadSLocEntry(int ID) {
     }
     SrcMgr::CharacteristicKind
       FileCharacter = (SrcMgr::CharacteristicKind)Record[2];
-    FileID FID = SourceMgr.createFileID(*File, IncludeLoc, FileCharacter, ID,
-                                        BaseOffset + Record[0]);
+    // FIXME: The FileID should be created from the FileEntryRef.
+    FileID FID = SourceMgr.createFileID(File, IncludeLoc, FileCharacter,
+                                        ID, BaseOffset + Record[0]);
     SrcMgr::FileInfo &FileInfo =
           const_cast<SrcMgr::FileInfo&>(SourceMgr.getSLocEntry(FID).getFile());
     FileInfo.NumCreatedFIDs = Record[5];
@@ -1532,14 +1533,14 @@ bool ASTReader::ReadSLocEntry(int ID) {
     }
 
     const SrcMgr::ContentCache &ContentCache =
-        SourceMgr.getOrCreateContentCache(*File, isSystem(FileCharacter));
+        SourceMgr.getOrCreateContentCache(File, isSystem(FileCharacter));
     if (OverriddenBuffer && !ContentCache.BufferOverridden &&
         ContentCache.ContentsEntry == ContentCache.OrigEntry &&
         !ContentCache.getBufferIfLoaded()) {
       auto Buffer = ReadBuffer(SLocEntryCursor, File->getName());
       if (!Buffer)
         return true;
-      SourceMgr.overrideFileContents(*File, std::move(Buffer));
+      SourceMgr.overrideFileContents(File, std::move(Buffer));
     }
 
     break;
@@ -3608,12 +3609,11 @@ ASTReader::ReadASTBlock(ModuleFile &F, unsigned ClientLoadCapabilities) {
     case OPENCL_EXTENSIONS:
       for (unsigned I = 0, E = Record.size(); I != E; ) {
         auto Name = ReadString(Record, I);
-        auto &OptInfo = OpenCLExtensions.OptMap[Name];
-        OptInfo.Supported = Record[I++] != 0;
-        OptInfo.Enabled = Record[I++] != 0;
-        OptInfo.Avail = Record[I++];
-        OptInfo.Core = Record[I++];
-        OptInfo.Opt = Record[I++];
+        auto &Opt = OpenCLExtensions.OptMap[Name];
+        Opt.Supported = Record[I++] != 0;
+        Opt.Enabled = Record[I++] != 0;
+        Opt.Avail = Record[I++];
+        Opt.Core = Record[I++];
       }
       break;
 
@@ -7875,7 +7875,7 @@ void ASTReader::InitializeSema(Sema &S) {
         NewOverrides.applyOverrides(SemaObj->getLangOpts());
   }
 
-  SemaObj->OpenCLFeatures = OpenCLExtensions;
+  SemaObj->OpenCLFeatures.copy(OpenCLExtensions);
   SemaObj->OpenCLTypeExtMap = OpenCLTypeExtMap;
   SemaObj->OpenCLDeclExtMap = OpenCLDeclExtMap;
 
@@ -8744,18 +8744,25 @@ ASTReader::getGlobalSelectorID(ModuleFile &M, unsigned LocalID) const {
 
 DeclarationNameLoc
 ASTRecordReader::readDeclarationNameLoc(DeclarationName Name) {
+  DeclarationNameLoc DNLoc;
   switch (Name.getNameKind()) {
   case DeclarationName::CXXConstructorName:
   case DeclarationName::CXXDestructorName:
   case DeclarationName::CXXConversionFunctionName:
-    return DeclarationNameLoc::makeNamedTypeLoc(readTypeSourceInfo());
+    DNLoc.NamedType.TInfo = readTypeSourceInfo();
+    break;
 
   case DeclarationName::CXXOperatorName:
-    return DeclarationNameLoc::makeCXXOperatorNameLoc(readSourceRange());
+    DNLoc.CXXOperatorName.BeginOpNameLoc
+      = readSourceLocation().getRawEncoding();
+    DNLoc.CXXOperatorName.EndOpNameLoc
+      = readSourceLocation().getRawEncoding();
+    break;
 
   case DeclarationName::CXXLiteralOperatorName:
-    return DeclarationNameLoc::makeCXXLiteralOperatorNameLoc(
-        readSourceLocation());
+    DNLoc.CXXLiteralOperatorName.OpNameLoc
+      = readSourceLocation().getRawEncoding();
+    break;
 
   case DeclarationName::Identifier:
   case DeclarationName::ObjCZeroArgSelector:
@@ -8765,7 +8772,7 @@ ASTRecordReader::readDeclarationNameLoc(DeclarationName Name) {
   case DeclarationName::CXXDeductionGuideName:
     break;
   }
-  return DeclarationNameLoc();
+  return DNLoc;
 }
 
 DeclarationNameInfo ASTRecordReader::readDeclarationNameInfo() {

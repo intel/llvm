@@ -18,7 +18,6 @@
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Verifier.h"
-#include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Parser.h"
 
 using namespace mlir;
@@ -189,7 +188,6 @@ MlirOperationState mlirOperationStateGet(MlirStringRef name, MlirLocation loc) {
   state.successors = nullptr;
   state.nAttributes = 0;
   state.attributes = nullptr;
-  state.enableResultTypeInference = false;
   return state;
 }
 
@@ -221,47 +219,11 @@ void mlirOperationStateAddAttributes(MlirOperationState *state, intptr_t n,
   APPEND_ELEMS(MlirNamedAttribute, nAttributes, attributes);
 }
 
-void mlirOperationStateEnableResultTypeInference(MlirOperationState *state) {
-  state->enableResultTypeInference = true;
-}
-
 //===----------------------------------------------------------------------===//
 // Operation API.
 //===----------------------------------------------------------------------===//
 
-static LogicalResult inferOperationTypes(OperationState &state) {
-  MLIRContext *context = state.getContext();
-  const AbstractOperation *abstractOp =
-      AbstractOperation::lookup(state.name.getStringRef(), context);
-  if (!abstractOp) {
-    emitError(state.location)
-        << "type inference was requested for the operation " << state.name
-        << ", but the operation was not registered. Ensure that the dialect "
-           "containing the operation is linked into MLIR and registered with "
-           "the context";
-    return failure();
-  }
-
-  // Fallback to inference via an op interface.
-  auto *inferInterface = abstractOp->getInterface<InferTypeOpInterface>();
-  if (!inferInterface) {
-    emitError(state.location)
-        << "type inference was requested for the operation " << state.name
-        << ", but the operation does not support type inference. Result "
-           "types must be specified explicitly.";
-    return failure();
-  }
-
-  if (succeeded(inferInterface->inferReturnTypes(
-          context, state.location, state.operands,
-          state.attributes.getDictionary(context), state.regions, state.types)))
-    return success();
-
-  // Diagnostic emitted by interface.
-  return failure();
-}
-
-MlirOperation mlirOperationCreate(MlirOperationState *state) {
+MlirOperation mlirOperationCreate(const MlirOperationState *state) {
   assert(state);
   OperationState cppState(unwrap(state->location), unwrap(state->name));
   SmallVector<Type, 4> resultStorage;
@@ -281,21 +243,12 @@ MlirOperation mlirOperationCreate(MlirOperationState *state) {
   for (intptr_t i = 0; i < state->nRegions; ++i)
     cppState.addRegion(std::unique_ptr<Region>(unwrap(state->regions[i])));
 
+  MlirOperation result = wrap(Operation::create(cppState));
   free(state->results);
   free(state->operands);
   free(state->successors);
   free(state->regions);
   free(state->attributes);
-
-  // Infer result types.
-  if (state->enableResultTypeInference) {
-    assert(cppState.types.empty() &&
-           "result type inference enabled and result types provided");
-    if (failed(inferOperationTypes(cppState)))
-      return {nullptr};
-  }
-
-  MlirOperation result = wrap(Operation::create(cppState));
   return result;
 }
 

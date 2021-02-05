@@ -1,5 +1,4 @@
 // RUN:   mlir-opt %s -async-parallel-for                                      \
-// RUN:               -async-to-async-runtime                                  \
 // RUN:               -async-ref-counting                                      \
 // RUN:               -convert-async-to-llvm                                   \
 // RUN:               -convert-scf-to-std                                      \

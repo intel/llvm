@@ -13,10 +13,11 @@
 #ifndef LLVM_DEBUGINFO_PDB_RAW_PDBSTRINGTABLEBUILDER_H
 #define LLVM_DEBUGINFO_PDB_RAW_PDBSTRINGTABLEBUILDER_H
 
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/DebugInfo/CodeView/DebugStringTableSubsection.h"
 #include "llvm/Support/Error.h"
-#include <cstdint>
+#include <vector>
 
 namespace llvm {
 class BinaryStreamWriter;

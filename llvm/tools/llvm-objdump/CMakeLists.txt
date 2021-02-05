@@ -3,6 +3,7 @@ set(LLVM_LINK_COMPONENTS
   AllTargetsDisassemblers
   AllTargetsInfos
   BinaryFormat
+  CodeGen
   DebugInfoDWARF
   DebugInfoPDB
   Demangle

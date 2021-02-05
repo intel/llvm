@@ -362,7 +362,8 @@ static void getSectionsAndSymbols(MachOObjectFile *MachOObj,
       Symbols.push_back(Symbol);
   }
 
-  append_range(Sections, MachOObj->sections());
+  for (const SectionRef &Section : MachOObj->sections())
+    Sections.push_back(Section);
 
   bool BaseSegmentAddressSet = false;
   for (const auto &Command : MachOObj->load_commands()) {
@@ -6114,7 +6115,8 @@ static void printObjc2_64bit_MetaData(MachOObjectFile *O, bool verbose) {
     CreateSymbolAddressMap(O, &AddrMap);
 
   std::vector<SectionRef> Sections;
-  append_range(Sections, O->sections());
+  for (const SectionRef &Section : O->sections())
+    Sections.push_back(Section);
 
   struct DisassembleInfo info(O, &AddrMap, &Sections, verbose);
 
@@ -6195,7 +6197,8 @@ static void printObjc2_32bit_MetaData(MachOObjectFile *O, bool verbose) {
     CreateSymbolAddressMap(O, &AddrMap);
 
   std::vector<SectionRef> Sections;
-  append_range(Sections, O->sections());
+  for (const SectionRef &Section : O->sections())
+    Sections.push_back(Section);
 
   struct DisassembleInfo info(O, &AddrMap, &Sections, verbose);
 
@@ -6289,7 +6292,8 @@ static bool printObjc1_32bit_MetaData(MachOObjectFile *O, bool verbose) {
     CreateSymbolAddressMap(O, &AddrMap);
 
   std::vector<SectionRef> Sections;
-  append_range(Sections, O->sections());
+  for (const SectionRef &Section : O->sections())
+    Sections.push_back(Section);
 
   struct DisassembleInfo info(O, &AddrMap, &Sections, verbose);
 
@@ -6446,7 +6450,8 @@ static void DumpProtocolSection(MachOObjectFile *O, const char *sect,
   CreateSymbolAddressMap(O, &AddrMap);
 
   std::vector<SectionRef> Sections;
-  append_range(Sections, O->sections());
+  for (const SectionRef &Section : O->sections())
+    Sections.push_back(Section);
 
   struct DisassembleInfo info(O, &AddrMap, &Sections, true);
 

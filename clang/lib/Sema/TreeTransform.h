@@ -14341,9 +14341,11 @@ TreeTransform<Derived>::RebuildCXXOperatorCallExpr(OverloadedOperatorKind Op,
     SourceLocation RBrace;
 
     if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(Callee)) {
-      DeclarationNameLoc NameLoc = DRE->getNameInfo().getInfo();
-      LBrace = NameLoc.getCXXOperatorNameBeginLoc();
-      RBrace = NameLoc.getCXXOperatorNameEndLoc();
+        DeclarationNameLoc NameLoc = DRE->getNameInfo().getInfo();
+        LBrace = SourceLocation::getFromRawEncoding(
+                    NameLoc.CXXOperatorName.BeginOpNameLoc);
+        RBrace = SourceLocation::getFromRawEncoding(
+                    NameLoc.CXXOperatorName.EndOpNameLoc);
     } else {
       LBrace = Callee->getBeginLoc();
       RBrace = OpLoc;

@@ -32,6 +32,7 @@ class PredicatedScalarEvolution;
 class ScalarEvolution;
 class SCEV;
 class DominatorTree;
+class ICFLoopSafetyInfo;
 
 /// These are the kinds of recurrences that we support.
 enum class RecurKind {

@@ -312,8 +312,8 @@ protected:
 
   void Clear();
 
-  bool DoUpdateThreadList(ThreadList &old_thread_list,
-                          ThreadList &new_thread_list) override;
+  bool UpdateThreadList(ThreadList &old_thread_list,
+                        ThreadList &new_thread_list) override;
 
   Status ConnectToReplayServer();
 

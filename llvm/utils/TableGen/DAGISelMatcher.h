@@ -635,7 +635,6 @@ private:
   bool isEqualImpl(const Matcher *M) const override {
     return cast<CheckCondCodeMatcher>(M)->CondCodeName == CondCodeName;
   }
-  bool isContradictoryImpl(const Matcher *M) const override;
 };
 
 /// CheckChild2CondCodeMatcher - This checks to see if child 2 node is a
@@ -657,7 +656,6 @@ private:
   bool isEqualImpl(const Matcher *M) const override {
     return cast<CheckChild2CondCodeMatcher>(M)->CondCodeName == CondCodeName;
   }
-  bool isContradictoryImpl(const Matcher *M) const override;
 };
 
 /// CheckValueTypeMatcher - This checks to see if the current node is a

@@ -26,9 +26,10 @@ using namespace lldb;
 #pragma warning (disable : 4190)
 #endif
 
-extern "C" llvm::Expected<bool> LLDBSwigLuaBreakpointCallbackFunction(
-    lua_State *L, lldb::StackFrameSP stop_frame_sp,
-    lldb::BreakpointLocationSP bp_loc_sp, StructuredDataImpl *extra_args_impl);
+extern "C" llvm::Expected<bool>
+LLDBSwigLuaBreakpointCallbackFunction(lua_State *L,
+                                      lldb::StackFrameSP stop_frame_sp,
+                                      lldb::BreakpointLocationSP bp_loc_sp);
 
 #if _MSC_VER
 #pragma warning (pop)
@@ -97,20 +98,11 @@ llvm::Error Lua::RegisterBreakpointCallback(void *baton, const char *body) {
 
 llvm::Expected<bool>
 Lua::CallBreakpointCallback(void *baton, lldb::StackFrameSP stop_frame_sp,
-                            lldb::BreakpointLocationSP bp_loc_sp,
-                            StructuredData::ObjectSP extra_args_sp) {
-
+                            lldb::BreakpointLocationSP bp_loc_sp) {
   lua_pushlightuserdata(m_lua_state, baton);
   lua_gettable(m_lua_state, LUA_REGISTRYINDEX);
-  auto *extra_args_impl = [&]() -> StructuredDataImpl * {
-    if (extra_args_sp == nullptr)
-      return nullptr;
-    auto *extra_args_impl = new StructuredDataImpl();
-    extra_args_impl->SetObjectSP(extra_args_sp);
-    return extra_args_impl;
-  }();
   return LLDBSwigLuaBreakpointCallbackFunction(m_lua_state, stop_frame_sp,
-                                               bp_loc_sp, extra_args_impl);
+                                               bp_loc_sp);
 }
 
 llvm::Error Lua::CheckSyntax(llvm::StringRef buffer) {

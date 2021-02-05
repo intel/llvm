@@ -606,9 +606,7 @@ unsigned ARMFastISel::ARMMaterializeGV(const GlobalValue *GV, MVT VT) {
     }
   }
 
-  if ((Subtarget->isTargetELF() && Subtarget->isGVInGOT(GV)) ||
-      (Subtarget->isTargetMachO() && IsIndirect) ||
-      Subtarget->genLongCalls()) {
+  if (IsIndirect) {
     MachineInstrBuilder MIB;
     unsigned NewDestReg = createResultReg(TLI.getRegClassFor(VT));
     if (isThumb2)

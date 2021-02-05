@@ -137,17 +137,5 @@ protected:
   const RISCVSubtarget &STI;
 };
 
-namespace RISCVVPseudosTable {
-
-struct PseudoInfo {
-  uint16_t Pseudo;
-  uint16_t BaseInstr;
-};
-
-#define GET_RISCVVPseudosTable_DECL
-#include "RISCVGenSearchableTables.inc"
-
-} // end namespace RISCVVPseudosTable
-
 } // end namespace llvm
 #endif

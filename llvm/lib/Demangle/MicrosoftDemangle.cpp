@@ -1711,8 +1711,6 @@ CallingConv Demangler::demangleCallingConvention(StringView &MangledName) {
     return CallingConv::Eabi;
   case 'Q':
     return CallingConv::Vectorcall;
-  case 'S':
-    return CallingConv::Swift;
   }
 
   return CallingConv::None;

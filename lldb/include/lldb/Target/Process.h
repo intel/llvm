@@ -2014,17 +2014,8 @@ public:
   virtual Status DisableWatchpoint(Watchpoint *wp, bool notify = true);
 
   // Thread Queries
-
-  /// Update the thread list.
-  ///
-  /// This method performs some general clean up before invoking
-  /// \a DoUpdateThreadList, which should be implemented by each
-  /// process plugin.
-  ///
-  /// \return
-  ///     \b true if the new thread list could be generated, \b false otherwise.
-  bool UpdateThreadList(ThreadList &old_thread_list,
-                        ThreadList &new_thread_list);
+  virtual bool UpdateThreadList(ThreadList &old_thread_list,
+                                ThreadList &new_thread_list) = 0;
 
   void UpdateThreadListIfNeeded();
 
@@ -2523,15 +2514,6 @@ void PruneThreadPlans();
                                 bool trap_exceptions = false);
 
 protected:
-  /// Update the thread list following process plug-in's specific logic.
-  ///
-  /// This method should only be invoked by \a UpdateThreadList.
-  ///
-  /// \return
-  ///     \b true if the new thread list could be generated, \b false otherwise.
-  virtual bool DoUpdateThreadList(ThreadList &old_thread_list,
-                                  ThreadList &new_thread_list) = 0;
-
   /// Actually do the reading of memory from a process.
   ///
   /// Subclasses must override this function and can return fewer bytes than

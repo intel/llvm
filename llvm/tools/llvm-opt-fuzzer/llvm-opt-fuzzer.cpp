@@ -51,7 +51,6 @@ std::unique_ptr<IRMutator> createOptMutator() {
           InjectorIRStrategy::getDefaultOps()));
   Strategies.push_back(
       std::make_unique<InstDeleterIRStrategy>());
-  Strategies.push_back(std::make_unique<InstModificationIRStrategy>());
 
   return std::make_unique<IRMutator>(std::move(Types), std::move(Strategies));
 }

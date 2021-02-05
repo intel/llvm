@@ -148,7 +148,8 @@ static bool processHeaderPhiOperands(BasicBlock *Header, BasicBlock *Latch,
   }
 
   while (!Worklist.empty()) {
-    Instruction *I = Worklist.pop_back_val();
+    Instruction *I = Worklist.back();
+    Worklist.pop_back();
     if (!Visit(I))
       return false;
 

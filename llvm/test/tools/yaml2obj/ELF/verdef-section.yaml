@@ -241,10 +241,10 @@ Sections:
     Type: SHT_GNU_verdef
   - Name: .dynstr
     Type: SHT_STRTAB
-  - Type: SectionHeaderTable
-    Sections:
-      - Name: .gnu.version_d
-      - Name: .strtab
-      - Name: .shstrtab
-    Excluded:
-      - Name: .dynstr
+SectionHeaderTable:
+  Sections:
+    - Name: .gnu.version_d
+    - Name: .strtab
+    - Name: .shstrtab
+  Excluded:
+    - Name: .dynstr

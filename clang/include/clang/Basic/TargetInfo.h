@@ -1438,39 +1438,21 @@ public:
   /// Set supported OpenCL extensions and optional core features.
   virtual void setSupportedOpenCLOpts() {}
 
-  virtual void supportAllOpenCLOpts(bool V = true) {
-#define OPENCLEXTNAME(Ext) getTargetOpts().OpenCLFeaturesMap[#Ext] = V;
-#include "clang/Basic/OpenCLExtensions.def"
-  }
-
   /// Set supported OpenCL extensions as written on command line
-  virtual void setCommandLineOpenCLOpts() {
+  virtual void setOpenCLExtensionOpts() {
     for (const auto &Ext : getTargetOpts().OpenCLExtensionsAsWritten) {
-      bool IsPrefixed = (Ext[0] == '+' || Ext[0] == '-');
-      std::string Name = IsPrefixed ? Ext.substr(1) : Ext;
-      bool V = IsPrefixed ? Ext[0] == '+' : true;
-
-      if (Name == "all") {
-        supportAllOpenCLOpts(V);
-        continue;
-      }
-
-      getTargetOpts().OpenCLFeaturesMap[Name] = V;
+      getTargetOpts().SupportedOpenCLOptions.support(Ext);
     }
   }
 
-  /// Define OpenCL macros based on target settings and language version
-  void getOpenCLFeatureDefines(const LangOptions &Opts,
-                               MacroBuilder &Builder) const;
-
   /// Get supported OpenCL extensions and optional core features.
-  llvm::StringMap<bool> &getSupportedOpenCLOpts() {
-    return getTargetOpts().OpenCLFeaturesMap;
+  OpenCLOptions &getSupportedOpenCLOpts() {
+    return getTargetOpts().SupportedOpenCLOptions;
   }
 
   /// Get const supported OpenCL extensions and optional core features.
-  const llvm::StringMap<bool> &getSupportedOpenCLOpts() const {
-    return getTargetOpts().OpenCLFeaturesMap;
+  const OpenCLOptions &getSupportedOpenCLOpts() const {
+      return getTargetOpts().SupportedOpenCLOptions;
   }
 
   /// Get address space for OpenCL type.

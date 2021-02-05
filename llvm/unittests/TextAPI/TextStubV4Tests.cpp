@@ -255,9 +255,18 @@ TEST(TBDv4, ReadMultipleDocuments) {
                             {Targets[0], Targets[2]});
   EXPECT_EQ(1U, File->reexportedLibraries().size());
   EXPECT_EQ(reexport, File->reexportedLibraries().front());
-  EXPECT_TRUE(File->symbols().empty());
+  ExportedSymbolSeq Exports;
+  for (const auto *Sym : File->symbols()) {
+    EXPECT_FALSE(Sym->isWeakReferenced());
+    EXPECT_FALSE(Sym->isUndefined());
+    Exports.emplace_back(ExportedSymbol{Sym->getKind(), Sym->getName().str(),
+                                        Sym->isWeakDefined(),
+                                        Sym->isThreadLocalValue()});
+  }
+  EXPECT_EQ(0U, Exports.size());
 
   // Check Inlined Document
+  Exports.clear();
   Targets.clear();
   Uuids.clear();
   PlatformKind Platform = PlatformKind::macOS;
@@ -283,7 +292,6 @@ TEST(TBDv4, ReadMultipleDocuments) {
   EXPECT_TRUE(Document->isApplicationExtensionSafe());
   EXPECT_FALSE(Document->isInstallAPI());
 
-  ExportedSymbolSeq Exports;
   ExportedSymbolSeq Reexports, Undefineds;
   for (const auto *Sym : Document->symbols()) {
     ExportedSymbol Temp =

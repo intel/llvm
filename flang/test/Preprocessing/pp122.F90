@@ -1,4 +1,4 @@
-! RUN: %flang -E %s 2>&1 | FileCheck %s
+! RUN: %f18 -E %s 2>&1 | FileCheck %s
 ! CHECK: ch = "KWM"
 ! KWM NOT expanded in "literal"
 #define KWM 666

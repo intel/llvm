@@ -965,7 +965,6 @@ ASTContext::ASTContext(LangOptions &LOpts, SourceManager &SM,
       XRayFilter(new XRayFunctionFilter(LangOpts.XRayAlwaysInstrumentFiles,
                                         LangOpts.XRayNeverInstrumentFiles,
                                         LangOpts.XRayAttrListFiles, SM)),
-      ProfList(new ProfileList(LangOpts.ProfileListFiles, SM)),
       PrintingPolicy(LOpts), Idents(idents), Selectors(sels),
       BuiltinInfo(builtins), DeclarationNames(*this), Comments(SM),
       CommentCommandTraits(BumpAlloc, LOpts.CommentOpts),
@@ -5852,8 +5851,9 @@ ASTContext::getNameForTemplate(TemplateName Name,
     } else {
       DName = DeclarationNames.getCXXOperatorName(DTN->getOperator());
       // DNInfo work in progress: FIXME: source locations?
-      DeclarationNameLoc DNLoc =
-          DeclarationNameLoc::makeCXXOperatorNameLoc(SourceRange());
+      DeclarationNameLoc DNLoc;
+      DNLoc.CXXOperatorName.BeginOpNameLoc = SourceLocation().getRawEncoding();
+      DNLoc.CXXOperatorName.EndOpNameLoc = SourceLocation().getRawEncoding();
       return DeclarationNameInfo(DName, NameLoc, DNLoc);
     }
   }

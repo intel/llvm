@@ -18,6 +18,7 @@ namespace msf {
 class MappedBlockStream;
 }
 namespace pdb {
+class PDBFile;
 class PDBStringTable;
 
 class InjectedSourceStream {

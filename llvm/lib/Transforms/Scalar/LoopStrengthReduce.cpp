@@ -507,7 +507,8 @@ void Formula::canonicalize(const Loop &L) {
 
   // Keep the invariant sum in BaseRegs and one of the variant sum in ScaledReg.
   if (!ScaledReg) {
-    ScaledReg = BaseRegs.pop_back_val();
+    ScaledReg = BaseRegs.back();
+    BaseRegs.pop_back();
     Scale = 1;
   }
 

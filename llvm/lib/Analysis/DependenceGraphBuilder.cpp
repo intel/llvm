@@ -498,7 +498,8 @@ void AbstractDependenceGraphBuilder<G>::sortNodesTopologically() {
 
   size_t OldSize = Graph.Nodes.size();
   Graph.Nodes.clear();
-  append_range(Graph.Nodes, reverse(NodesInPO));
+  for (NodeType *N : reverse(NodesInPO))
+    Graph.Nodes.push_back(N);
   if (Graph.Nodes.size() != OldSize)
     assert(false &&
            "Expected the number of nodes to stay the same after the sort");

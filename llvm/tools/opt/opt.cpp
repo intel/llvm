@@ -70,10 +70,8 @@ static codegen::RegisterCodeGenFlags CFG;
 static cl::list<const PassInfo*, bool, PassNameParser>
 PassList(cl::desc("Optimizations available:"));
 
-static cl::opt<bool>
-    EnableNewPassManager("enable-new-pm",
-                         cl::desc("Enable the new pass manager"),
-                         cl::init(LLVM_ENABLE_NEW_PASS_MANAGER));
+static cl::opt<bool> EnableNewPassManager(
+    "enable-new-pm", cl::desc("Enable the new pass manager"), cl::init(false));
 
 // This flag specifies a textual description of the optimization pass pipeline
 // to run over the module. This flag switches opt to use the new pass manager
@@ -658,8 +656,7 @@ int main(int argc, char **argv) {
   // specified by an internal option. This is normally done during LTO which is
   // not performed via opt.
   updateVCallVisibilityInModule(*M,
-                                /* WholeProgramVisibilityEnabledInLTO */ false,
-                                /* DynamicExportSymbols */ {});
+                                /* WholeProgramVisibilityEnabledInLTO */ false);
 
   // Figure out what stream we are supposed to write to...
   std::unique_ptr<ToolOutputFile> Out;

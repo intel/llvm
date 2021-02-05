@@ -27,7 +27,6 @@ class AliasSet;
 class AliasSetTracker;
 class BasicBlock;
 class BlockFrequencyInfo;
-class ICFLoopSafetyInfo;
 class IRBuilderBase;
 class Loop;
 class LoopInfo;
@@ -37,7 +36,6 @@ class MemorySSAUpdater;
 class OptimizationRemarkEmitter;
 class PredIteratorCache;
 class ScalarEvolution;
-class ScalarEvolutionExpander;
 class SCEV;
 class SCEVExpander;
 class TargetLibraryInfo;
@@ -481,7 +479,7 @@ Loop *cloneLoop(Loop *L, Loop *PL, ValueToValueMapTy &VM,
 std::pair<Instruction *, Instruction *>
 addRuntimeChecks(Instruction *Loc, Loop *TheLoop,
                  const SmallVectorImpl<RuntimePointerCheck> &PointerChecks,
-                 SCEVExpander &Expander);
+                 ScalarEvolution *SE);
 
 } // end namespace llvm
 

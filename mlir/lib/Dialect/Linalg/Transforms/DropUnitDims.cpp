@@ -497,7 +497,6 @@ void mlir::populateLinalgFoldUnitExtentDimsPatterns(
               ReplaceUnitExtentTensors<IndexedGenericOp>>(context);
   TensorReshapeOp::getCanonicalizationPatterns(patterns, context);
   patterns.insert<FoldReshapeOpWithUnitExtent>(context);
-  populateFoldUnitDimsReshapeOpsByLinearizationPatterns(context, patterns);
 }
 
 namespace {

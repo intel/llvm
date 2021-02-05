@@ -214,9 +214,8 @@ public:
   Error modifyPassConfig(const Triple &TT, PassConfiguration &Config) override {
     // Add passes to mark duplicate defs as should-discard, and to walk the
     // link graph to build the symbol dependence graph.
-    Config.PrePrunePasses.push_back([this](LinkGraph &G) {
-      return claimOrExternalizeWeakAndCommonSymbols(G);
-    });
+    Config.PrePrunePasses.push_back(
+        [this](LinkGraph &G) { return externalizeWeakAndCommonSymbols(G); });
 
     Layer.modifyPassConfig(*MR, TT, Config);
 
@@ -234,38 +233,19 @@ private:
   using LocalSymbolNamedDependenciesMap =
       DenseMap<const Symbol *, LocalSymbolNamedDependencies>;
 
-  Error claimOrExternalizeWeakAndCommonSymbols(LinkGraph &G) {
+  Error externalizeWeakAndCommonSymbols(LinkGraph &G) {
     auto &ES = Layer.getExecutionSession();
-
-    SymbolFlagsMap NewSymbolsToClaim;
-    std::vector<std::pair<SymbolStringPtr, Symbol *>> NameToSym;
-
-    auto ProcessSymbol = [&](Symbol *Sym) {
-      if (Sym->hasName() && Sym->getLinkage() == Linkage::Weak) {
-        auto Name = ES.intern(Sym->getName());
-        if (!MR->getSymbols().count(ES.intern(Sym->getName()))) {
-          JITSymbolFlags SF = JITSymbolFlags::Weak;
-          if (Sym->getScope() == Scope::Default)
-            SF |= JITSymbolFlags::Exported;
-          NewSymbolsToClaim[Name] = SF;
-          NameToSym.push_back(std::make_pair(std::move(Name), Sym));
-        }
-      }
-    };
-
     for (auto *Sym : G.defined_symbols())
-      ProcessSymbol(Sym);
+      if (Sym->hasName() && Sym->getLinkage() == Linkage::Weak) {
+        if (!MR->getSymbols().count(ES.intern(Sym->getName())))
+          G.makeExternal(*Sym);
+      }
+
     for (auto *Sym : G.absolute_symbols())
-      ProcessSymbol(Sym);
-
-    // Attempt to claim all weak defs that we're not already responsible for.
-    // This cannot fail -- any clashes will just result in rejection of our
-    // claim, at which point we'll externalize that symbol.
-    cantFail(MR->defineMaterializing(std::move(NewSymbolsToClaim)));
-
-    for (auto &KV : NameToSym)
-      if (!MR->getSymbols().count(KV.first))
-        G.makeExternal(*KV.second);
+      if (Sym->hasName() && Sym->getLinkage() == Linkage::Weak) {
+        if (!MR->getSymbols().count(ES.intern(Sym->getName())))
+          G.makeExternal(*Sym);
+      }
 
     return Error::success();
   }

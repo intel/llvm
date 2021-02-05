@@ -181,13 +181,12 @@ ENUM_CLASS(Rank,
     conformable, // scalar, or array of same rank & shape as "array" argument
     reduceOperation, // a pure function with constraints for REDUCE
     dimReduced, // scalar if no DIM= argument, else rank(array)-1
-    dimRemovedOrScalar, // rank(array)-1 (less DIM) or scalar
-    locReduced, // vector(1:rank) if no DIM= argument, else rank(array)-1
+    dimRemoved, // scalar, or rank(array)-1
     rankPlus1, // rank(known)+1
     shaped, // rank is length of SHAPE vector
 )
 
-ENUM_CLASS(Optionality, required, optional, missing,
+ENUM_CLASS(Optionality, required, optional,
     defaultsToSameKind, // for MatchingDefaultKIND
     defaultsToDefaultForResult, // for DefaultingKIND
     defaultsToSizeKind, // for SizeDefaultKIND
@@ -227,9 +226,6 @@ static constexpr IntrinsicDummyArgument RequiredDIM{"dim",
     common::Intent::In};
 static constexpr IntrinsicDummyArgument OptionalDIM{"dim",
     {IntType, KindCode::dimArg}, Rank::scalar, Optionality::optional,
-    common::Intent::In};
-static constexpr IntrinsicDummyArgument MissingDIM{"dim",
-    {IntType, KindCode::dimArg}, Rank::scalar, Optionality::missing,
     common::Intent::In};
 static constexpr IntrinsicDummyArgument OptionalMASK{"mask", AnyLogical,
     Rank::conformable, Optionality::optional, common::Intent::In};
@@ -350,8 +346,8 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
     {"count", {{"mask", AnyLogical, Rank::array}, OptionalDIM, DefaultingKIND},
         KINDInt, Rank::dimReduced, IntrinsicClass::transformationalFunction},
     {"cshift",
-        {{"array", SameType, Rank::array},
-            {"shift", AnyInt, Rank::dimRemovedOrScalar}, OptionalDIM},
+        {{"array", SameType, Rank::array}, {"shift", AnyInt, Rank::dimRemoved},
+            OptionalDIM},
         SameType, Rank::conformable, IntrinsicClass::transformationalFunction},
     {"dble", {{"a", AnyNumeric, Rank::elementalOrBOZ}}, DoublePrecision},
     {"digits", {{"x", AnyIntOrReal, Rank::anyOrAssumedRank}}, DefaultInt,
@@ -384,16 +380,16 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
     {"dshiftr", {{"i", BOZ}, {"j", SameInt}, {"shift", AnyInt}}, SameInt},
     {"eoshift",
         {{"array", SameIntrinsic, Rank::array},
-            {"shift", AnyInt, Rank::dimRemovedOrScalar},
-            {"boundary", SameIntrinsic, Rank::dimReduced,
+            {"shift", AnyInt, Rank::dimRemoved},
+            {"boundary", SameIntrinsic, Rank::dimRemoved,
                 Optionality::optional},
             OptionalDIM},
         SameIntrinsic, Rank::conformable,
         IntrinsicClass::transformationalFunction},
     {"eoshift",
         {{"array", SameDerivedType, Rank::array},
-            {"shift", AnyInt, Rank::dimReduced},
-            {"boundary", SameDerivedType, Rank::dimReduced}, OptionalDIM},
+            {"shift", AnyInt, Rank::dimRemoved},
+            {"boundary", SameDerivedType, Rank::dimRemoved}, OptionalDIM},
         SameDerivedType, Rank::conformable,
         IntrinsicClass::transformationalFunction},
     {"epsilon", {{"x", SameReal, Rank::anyOrAssumedRank}}, SameReal,
@@ -414,21 +410,20 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
             {"value", AnyNumeric, Rank::scalar}, RequiredDIM, OptionalMASK,
             SizeDefaultKIND,
             {"back", AnyLogical, Rank::scalar, Optionality::optional}},
-        KINDInt, Rank::locReduced, IntrinsicClass::transformationalFunction},
+        KINDInt, Rank::dimRemoved, IntrinsicClass::transformationalFunction},
     {"findloc",
         {{"array", AnyNumeric, Rank::array},
-            {"value", AnyNumeric, Rank::scalar}, MissingDIM, OptionalMASK,
-            SizeDefaultKIND,
+            {"value", AnyNumeric, Rank::scalar}, OptionalMASK, SizeDefaultKIND,
             {"back", AnyLogical, Rank::scalar, Optionality::optional}},
         KINDInt, Rank::vector, IntrinsicClass::transformationalFunction},
     {"findloc",
         {{"array", SameChar, Rank::array}, {"value", SameChar, Rank::scalar},
             RequiredDIM, OptionalMASK, SizeDefaultKIND,
             {"back", AnyLogical, Rank::scalar, Optionality::optional}},
-        KINDInt, Rank::locReduced, IntrinsicClass::transformationalFunction},
+        KINDInt, Rank::dimRemoved, IntrinsicClass::transformationalFunction},
     {"findloc",
         {{"array", SameChar, Rank::array}, {"value", SameChar, Rank::scalar},
-            MissingDIM, OptionalMASK, SizeDefaultKIND,
+            OptionalMASK, SizeDefaultKIND,
             {"back", AnyLogical, Rank::scalar, Optionality::optional}},
         KINDInt, Rank::vector, IntrinsicClass::transformationalFunction},
     {"findloc",
@@ -436,11 +431,10 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
             {"value", AnyLogical, Rank::scalar}, RequiredDIM, OptionalMASK,
             SizeDefaultKIND,
             {"back", AnyLogical, Rank::scalar, Optionality::optional}},
-        KINDInt, Rank::locReduced, IntrinsicClass::transformationalFunction},
+        KINDInt, Rank::dimRemoved, IntrinsicClass::transformationalFunction},
     {"findloc",
         {{"array", AnyLogical, Rank::array},
-            {"value", AnyLogical, Rank::scalar}, MissingDIM, OptionalMASK,
-            SizeDefaultKIND,
+            {"value", AnyLogical, Rank::scalar}, OptionalMASK, SizeDefaultKIND,
             {"back", AnyLogical, Rank::scalar, Optionality::optional}},
         KINDInt, Rank::vector, IntrinsicClass::transformationalFunction},
     {"floor", {{"a", AnyReal}, DefaultingKIND}, KINDInt},
@@ -450,18 +444,12 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
         Rank::scalar, IntrinsicClass::inquiryFunction},
     {"hypot", {{"x", OperandReal}, {"y", OperandReal}}, OperandReal},
     {"iachar", {{"c", AnyChar}, DefaultingKIND}, KINDInt},
-    {"iall", {{"array", SameInt, Rank::array}, RequiredDIM, OptionalMASK},
+    {"iall", {{"array", SameInt, Rank::array}, OptionalDIM, OptionalMASK},
         SameInt, Rank::dimReduced, IntrinsicClass::transformationalFunction},
-    {"iall", {{"array", SameInt, Rank::array}, MissingDIM, OptionalMASK},
-        SameInt, Rank::scalar, IntrinsicClass::transformationalFunction},
-    {"iany", {{"array", SameInt, Rank::array}, RequiredDIM, OptionalMASK},
+    {"iany", {{"array", SameInt, Rank::array}, OptionalDIM, OptionalMASK},
         SameInt, Rank::dimReduced, IntrinsicClass::transformationalFunction},
-    {"iany", {{"array", SameInt, Rank::array}, MissingDIM, OptionalMASK},
-        SameInt, Rank::scalar, IntrinsicClass::transformationalFunction},
-    {"iparity", {{"array", SameInt, Rank::array}, RequiredDIM, OptionalMASK},
+    {"iparity", {{"array", SameInt, Rank::array}, OptionalDIM, OptionalMASK},
         SameInt, Rank::dimReduced, IntrinsicClass::transformationalFunction},
-    {"iparity", {{"array", SameInt, Rank::array}, MissingDIM, OptionalMASK},
-        SameInt, Rank::scalar, IntrinsicClass::transformationalFunction},
     {"iand", {{"i", SameInt}, {"j", SameInt, Rank::elementalOrBOZ}}, SameInt},
     {"iand", {{"i", BOZ}, {"j", SameInt}}, SameInt},
     {"ibclr", {{"i", SameInt}, {"pos", AnyInt}}, SameInt},
@@ -552,22 +540,14 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
     {"maxexponent", {{"x", AnyReal, Rank::anyOrAssumedRank}}, DefaultInt,
         Rank::scalar, IntrinsicClass::inquiryFunction},
     {"maxloc",
-        {{"array", AnyRelatable, Rank::array}, RequiredDIM, OptionalMASK,
+        {{"array", AnyRelatable, Rank::array}, OptionalDIM, OptionalMASK,
             SizeDefaultKIND,
             {"back", AnyLogical, Rank::scalar, Optionality::optional}},
-        KINDInt, Rank::locReduced, IntrinsicClass::transformationalFunction},
-    {"maxloc",
-        {{"array", AnyRelatable, Rank::array}, MissingDIM, OptionalMASK,
-            SizeDefaultKIND,
-            {"back", AnyLogical, Rank::scalar, Optionality::optional}},
-        KINDInt, Rank::locReduced, IntrinsicClass::transformationalFunction},
+        KINDInt, Rank::dimReduced, IntrinsicClass::transformationalFunction},
     {"maxval",
-        {{"array", SameRelatable, Rank::array}, RequiredDIM, OptionalMASK},
+        {{"array", SameRelatable, Rank::array}, OptionalDIM, OptionalMASK},
         SameRelatable, Rank::dimReduced,
         IntrinsicClass::transformationalFunction},
-    {"maxval",
-        {{"array", SameRelatable, Rank::array}, MissingDIM, OptionalMASK},
-        SameRelatable, Rank::scalar, IntrinsicClass::transformationalFunction},
     {"merge",
         {{"tsource", SameType}, {"fsource", SameType}, {"mask", AnyLogical}},
         SameType},
@@ -589,22 +569,14 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
     {"minexponent", {{"x", AnyReal, Rank::anyOrAssumedRank}}, DefaultInt,
         Rank::scalar, IntrinsicClass::inquiryFunction},
     {"minloc",
-        {{"array", AnyRelatable, Rank::array}, RequiredDIM, OptionalMASK,
+        {{"array", AnyRelatable, Rank::array}, OptionalDIM, OptionalMASK,
             SizeDefaultKIND,
             {"back", AnyLogical, Rank::scalar, Optionality::optional}},
-        KINDInt, Rank::locReduced, IntrinsicClass::transformationalFunction},
-    {"minloc",
-        {{"array", AnyRelatable, Rank::array}, MissingDIM, OptionalMASK,
-            SizeDefaultKIND,
-            {"back", AnyLogical, Rank::scalar, Optionality::optional}},
-        KINDInt, Rank::locReduced, IntrinsicClass::transformationalFunction},
+        KINDInt, Rank::dimReduced, IntrinsicClass::transformationalFunction},
     {"minval",
-        {{"array", SameRelatable, Rank::array}, RequiredDIM, OptionalMASK},
+        {{"array", SameRelatable, Rank::array}, OptionalDIM, OptionalMASK},
         SameRelatable, Rank::dimReduced,
         IntrinsicClass::transformationalFunction},
-    {"minval",
-        {{"array", SameRelatable, Rank::array}, MissingDIM, OptionalMASK},
-        SameRelatable, Rank::scalar, IntrinsicClass::transformationalFunction},
     {"mod", {{"a", OperandIntOrReal}, {"p", OperandIntOrReal}},
         OperandIntOrReal},
     {"modulo", {{"a", OperandIntOrReal}, {"p", OperandIntOrReal}},
@@ -639,11 +611,9 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
     {"popcnt", {{"i", AnyInt}}, DefaultInt},
     {"poppar", {{"i", AnyInt}}, DefaultInt},
     {"product",
-        {{"array", SameNumeric, Rank::array}, RequiredDIM, OptionalMASK},
+        {{"array", SameNumeric, Rank::array}, OptionalDIM, OptionalMASK},
         SameNumeric, Rank::dimReduced,
         IntrinsicClass::transformationalFunction},
-    {"product", {{"array", SameNumeric, Rank::array}, MissingDIM, OptionalMASK},
-        SameNumeric, Rank::scalar, IntrinsicClass::transformationalFunction},
     {"precision", {{"x", AnyFloating, Rank::anyOrAssumedRank}}, DefaultInt,
         Rank::scalar, IntrinsicClass::inquiryFunction},
     {"present", {{"a", Addressable, Rank::anyOrAssumedRank}}, DefaultLogical,
@@ -660,16 +630,10 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
         KINDReal},
     {"reduce",
         {{"array", SameType, Rank::array},
-            {"operation", SameType, Rank::reduceOperation}, RequiredDIM,
+            {"operation", SameType, Rank::reduceOperation}, OptionalDIM,
             OptionalMASK, {"identity", SameType, Rank::scalar},
             {"ordered", AnyLogical, Rank::scalar, Optionality::optional}},
         SameType, Rank::dimReduced, IntrinsicClass::transformationalFunction},
-    {"reduce",
-        {{"array", SameType, Rank::array},
-            {"operation", SameType, Rank::reduceOperation}, MissingDIM,
-            OptionalMASK, {"identity", SameType, Rank::scalar},
-            {"ordered", AnyLogical, Rank::scalar, Optionality::optional}},
-        SameType, Rank::scalar, IntrinsicClass::transformationalFunction},
     {"repeat", {{"string", SameChar, Rank::scalar}, {"ncopies", AnyInt}},
         SameChar, Rank::scalar, IntrinsicClass::transformationalFunction},
     {"reshape",
@@ -731,11 +695,9 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
     {"sqrt", {{"x", SameFloating}}, SameFloating},
     {"storage_size", {{"a", AnyData, Rank::anyOrAssumedRank}, SizeDefaultKIND},
         KINDInt, Rank::scalar, IntrinsicClass::inquiryFunction},
-    {"sum", {{"array", SameNumeric, Rank::array}, RequiredDIM, OptionalMASK},
+    {"sum", {{"array", SameNumeric, Rank::array}, OptionalDIM, OptionalMASK},
         SameNumeric, Rank::dimReduced,
         IntrinsicClass::transformationalFunction},
-    {"sum", {{"array", SameNumeric, Rank::array}, MissingDIM, OptionalMASK},
-        SameNumeric, Rank::scalar, IntrinsicClass::transformationalFunction},
     {"tan", {{"x", SameFloating}}, SameFloating},
     {"tand", {{"x", SameFloating}}, SameFloating},
     {"tanh", {{"x", SameFloating}}, SameFloating},
@@ -1121,9 +1083,6 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
       bool found{false};
       int slot{missingActualArguments};
       for (std::size_t j{0}; j < nonRepeatedDummies && !found; ++j) {
-        if (dummy[j].optionality == Optionality::missing) {
-          continue;
-        }
         if (arg->keyword()) {
           found = *arg->keyword() == dummy[j].keyword;
           if (found) {
@@ -1191,9 +1150,6 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
       } else {
         continue;
       }
-    } else if (d.optionality == Optionality::missing) {
-      messages.Say("unexpected '%s=' argument"_err_en_US, d.keyword);
-      return std::nullopt;
     }
     if (arg->GetAssumedTypeDummy()) {
       // TYPE(*) assumed-type dummy argument forwarded to intrinsic
@@ -1394,8 +1350,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
         CHECK(arrayArg);
         argOk = rank == 0 || rank == arrayArg->Rank();
         break;
-      case Rank::dimReduced:
-      case Rank::dimRemovedOrScalar:
+      case Rank::dimRemoved:
         CHECK(arrayArg);
         argOk = rank == 0 || rank + 1 == arrayArg->Rank();
         break;
@@ -1405,7 +1360,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
         CHECK(arrayArg);
         argOk = rank == 0;
         break;
-      case Rank::locReduced:
+      case Rank::dimReduced:
       case Rank::rankPlus1:
       case Rank::shaped:
         common::die("INTERNAL: result-only rank code appears on argument '%s' "
@@ -1563,9 +1518,9 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
     CHECK(arrayArg);
     resultRank = hasDimArg ? arrayArg->Rank() - 1 : 0;
     break;
-  case Rank::locReduced:
+  case Rank::dimRemoved:
     CHECK(arrayArg);
-    resultRank = hasDimArg ? arrayArg->Rank() - 1 : 1;
+    resultRank = arrayArg->Rank() - 1;
     break;
   case Rank::rankPlus1:
     CHECK(knownArg);
@@ -1581,7 +1536,6 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
   case Rank::known:
   case Rank::anyOrAssumedRank:
   case Rank::reduceOperation:
-  case Rank::dimRemovedOrScalar:
     common::die("INTERNAL: bad Rank code on intrinsic '%s' result", name);
     break;
   }

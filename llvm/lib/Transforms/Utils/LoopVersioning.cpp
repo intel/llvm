@@ -60,12 +60,9 @@ void LoopVersioning::versionLoop(
   // Add the memcheck in the original preheader (this is empty initially).
   BasicBlock *RuntimeCheckBB = VersionedLoop->getLoopPreheader();
   const auto &RtPtrChecking = *LAI.getRuntimePointerChecking();
-
-  SCEVExpander Exp2(*RtPtrChecking.getSE(),
-                    VersionedLoop->getHeader()->getModule()->getDataLayout(),
-                    "induction");
-  std::tie(FirstCheckInst, MemRuntimeCheck) = addRuntimeChecks(
-      RuntimeCheckBB->getTerminator(), VersionedLoop, AliasChecks, Exp2);
+  std::tie(FirstCheckInst, MemRuntimeCheck) =
+      addRuntimeChecks(RuntimeCheckBB->getTerminator(), VersionedLoop,
+                       AliasChecks, RtPtrChecking.getSE());
 
   SCEVExpander Exp(*SE, RuntimeCheckBB->getModule()->getDataLayout(),
                    "scev.check");

@@ -1,6 +1,7 @@
 add_subdirectory(Bindings)
 add_subdirectory(CAPI)
 add_subdirectory(EDSC)
+add_subdirectory(mlir-cpu-runner)
 add_subdirectory(SDBM)
 add_subdirectory(lib)
 
@@ -53,6 +54,8 @@ set(MLIR_TEST_DEPENDS
   mlir-sdbm-api-test
   mlir-tblgen
   mlir-translate
+  mlir_test_cblas
+  mlir_test_cblas_interface
   mlir_runner_utils
   mlir_c_runner_utils
   mlir_async_runtime

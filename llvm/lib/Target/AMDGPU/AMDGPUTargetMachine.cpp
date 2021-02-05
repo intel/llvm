@@ -579,27 +579,24 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB,
   PB.registerCGSCCOptimizerLateEPCallback(
       [this, DebugPassManager](CGSCCPassManager &PM,
                                PassBuilder::OptimizationLevel Level) {
-        if (Level == PassBuilder::OptimizationLevel::O0)
-          return;
+          FunctionPassManager FPM(DebugPassManager);
 
-        FunctionPassManager FPM(DebugPassManager);
+          // Add infer address spaces pass to the opt pipeline after inlining
+          // but before SROA to increase SROA opportunities.
+          FPM.addPass(InferAddressSpacesPass());
 
-        // Add infer address spaces pass to the opt pipeline after inlining
-        // but before SROA to increase SROA opportunities.
-        FPM.addPass(InferAddressSpacesPass());
+          // This should run after inlining to have any chance of doing
+          // anything, and before other cleanup optimizations.
+          FPM.addPass(AMDGPULowerKernelAttributesPass());
 
-        // This should run after inlining to have any chance of doing
-        // anything, and before other cleanup optimizations.
-        FPM.addPass(AMDGPULowerKernelAttributesPass());
+          if (Level != PassBuilder::OptimizationLevel::O0) {
+            // Promote alloca to vector before SROA and loop unroll. If we
+            // manage to eliminate allocas before unroll we may choose to unroll
+            // less.
+            FPM.addPass(AMDGPUPromoteAllocaToVectorPass(*this));
+          }
 
-        if (Level != PassBuilder::OptimizationLevel::O0) {
-          // Promote alloca to vector before SROA and loop unroll. If we
-          // manage to eliminate allocas before unroll we may choose to unroll
-          // less.
-          FPM.addPass(AMDGPUPromoteAllocaToVectorPass(*this));
-        }
-
-        PM.addPass(createCGSCCToFunctionPassAdaptor(std::move(FPM)));
+          PM.addPass(createCGSCCToFunctionPassAdaptor(std::move(FPM)));
       });
 }
 

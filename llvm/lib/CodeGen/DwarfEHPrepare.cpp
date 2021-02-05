@@ -153,7 +153,7 @@ size_t DwarfEHPrepare::pruneUnreachableResumes(
       BasicBlock *BB = RI->getParent();
       new UnreachableInst(Ctx, RI);
       RI->eraseFromParent();
-      simplifyCFG(BB, *TTI, DTU);
+      simplifyCFG(BB, *TTI, RequireAndPreserveDomTree ? DTU : nullptr);
     }
   }
   Resumes.resize(ResumesLeft);
@@ -242,14 +242,24 @@ bool DwarfEHPrepare::InsertUnwindResumeCalls() {
   CI->setDoesNotReturn();
   new UnreachableInst(Ctx, UnwindBB);
 
-  if (DTU)
+  if (DTU && RequireAndPreserveDomTree)
     DTU->applyUpdates(Updates);
 
   return true;
 }
 
 bool DwarfEHPrepare::run() {
+  assert(((OptLevel == CodeGenOpt::None || !RequireAndPreserveDomTree) ||
+          (DTU &&
+           DTU->getDomTree().verify(DominatorTree::VerificationLevel::Full))) &&
+         "Original domtree is invalid?");
+
   bool Changed = InsertUnwindResumeCalls();
+
+  assert(((OptLevel == CodeGenOpt::None || !RequireAndPreserveDomTree) ||
+          (DTU &&
+           DTU->getDomTree().verify(DominatorTree::VerificationLevel::Full))) &&
+         "Original domtree is invalid?");
 
   return Changed;
 }
@@ -258,7 +268,7 @@ static bool prepareDwarfEH(CodeGenOpt::Level OptLevel,
                            FunctionCallee &RewindFunction, Function &F,
                            const TargetLowering &TLI, DominatorTree *DT,
                            const TargetTransformInfo *TTI) {
-  DomTreeUpdater DTU(DT, DomTreeUpdater::UpdateStrategy::Lazy);
+  DomTreeUpdater DTU(DT, DomTreeUpdater::UpdateStrategy::Eager);
 
   return DwarfEHPrepare(OptLevel, RewindFunction, F, TLI, DT ? &DTU : nullptr,
                         TTI)
@@ -285,11 +295,8 @@ public:
     const TargetLowering &TLI = *TM.getSubtargetImpl(F)->getTargetLowering();
     DominatorTree *DT = nullptr;
     const TargetTransformInfo *TTI = nullptr;
-    if (auto *DTWP = getAnalysisIfAvailable<DominatorTreeWrapperPass>())
-      DT = &DTWP->getDomTree();
     if (OptLevel != CodeGenOpt::None) {
-      if (!DT)
-        DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
+      DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
       TTI = &getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);
     }
     return prepareDwarfEH(OptLevel, RewindFunction, F, TLI, DT, TTI);
@@ -301,8 +308,9 @@ public:
     if (OptLevel != CodeGenOpt::None) {
       AU.addRequired<DominatorTreeWrapperPass>();
       AU.addRequired<TargetTransformInfoWrapperPass>();
+      if (RequireAndPreserveDomTree)
+        AU.addPreserved<DominatorTreeWrapperPass>();
     }
-    AU.addPreserved<DominatorTreeWrapperPass>();
   }
 
   StringRef getPassName() const override {

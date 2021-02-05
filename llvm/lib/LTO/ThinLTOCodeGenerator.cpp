@@ -507,9 +507,7 @@ static void resolvePrevailingInIndex(
     ResolvedODR[ModuleIdentifier][GUID] = NewLinkage;
   };
 
-  // TODO Conf.VisibilityScheme can be lto::Config::ELF for ELF.
-  lto::Config Conf;
-  thinLTOResolvePrevailingInIndex(Conf, Index, isPrevailing, recordNewLinkage,
+  thinLTOResolvePrevailingInIndex(Index, isPrevailing, recordNewLinkage,
                                   GUIDPreservedSymbols);
 }
 
@@ -1009,10 +1007,7 @@ void ThinLTOCodeGenerator::run() {
   // linker option in the old LTO API, but this call allows it to be specified
   // via the internal option. Must be done before WPD below.
   updateVCallVisibilityInIndex(*Index,
-                               /* WholeProgramVisibilityEnabledInLTO */ false,
-                               // FIXME: This needs linker information via a
-                               // TBD new interface.
-                               /* DynamicExportSymbols */ {});
+                               /* WholeProgramVisibilityEnabledInLTO */ false);
 
   // Perform index-based WPD. This will return immediately if there are
   // no index entries in the typeIdMetadata map (e.g. if we are instead

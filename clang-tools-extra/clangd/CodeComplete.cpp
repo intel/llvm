@@ -1123,9 +1123,7 @@ bool semaCodeComplete(std::unique_ptr<CodeCompleteConsumer> Consumer,
   // skip all includes in this case; these completions are really simple.
   PreambleBounds PreambleRegion =
       ComputePreambleBounds(*CI->getLangOpts(), *ContentsBuffer, 0);
-  bool CompletingInPreamble = Input.Offset < PreambleRegion.Size ||
-                              (!PreambleRegion.PreambleEndsAtStartOfLine &&
-                               Input.Offset == PreambleRegion.Size);
+  bool CompletingInPreamble = PreambleRegion.Size > Input.Offset;
   if (Input.Patch)
     Input.Patch->apply(*CI);
   // NOTE: we must call BeginSourceFile after prepareCompilerInstance. Otherwise

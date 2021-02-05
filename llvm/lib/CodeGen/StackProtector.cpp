@@ -70,7 +70,6 @@ StackProtector::StackProtector() : FunctionPass(ID), SSPBufferSize(8) {
 INITIALIZE_PASS_BEGIN(StackProtector, DEBUG_TYPE,
                       "Insert stack protectors", false, true)
 INITIALIZE_PASS_DEPENDENCY(TargetPassConfig)
-INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
 INITIALIZE_PASS_END(StackProtector, DEBUG_TYPE,
                     "Insert stack protectors", false, true)
 

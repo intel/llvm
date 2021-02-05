@@ -223,11 +223,6 @@ struct ValueInfo {
     return RefAndFlags.getPointer();
   }
 
-  /// Returns the most constraining visibility among summaries. The
-  /// visibilities, ordered from least to most constraining, are: default,
-  /// protected and hidden.
-  GlobalValue::VisibilityTypes getELFVisibility() const;
-
   bool isDSOLocal() const;
 
   /// Checks if all copies are eligible for auto-hiding (have flag set).
@@ -299,9 +294,6 @@ public:
     /// types based on global summary-based analysis.
     unsigned Linkage : 4;
 
-    /// Indicates the visibility.
-    unsigned Visibility : 2;
-
     /// Indicate if the global value cannot be imported (e.g. it cannot
     /// be renamed or references something that can't be renamed).
     unsigned NotEligibleToImport : 1;
@@ -330,12 +322,10 @@ public:
 
     /// Convenience Constructors
     explicit GVFlags(GlobalValue::LinkageTypes Linkage,
-                     GlobalValue::VisibilityTypes Visibility,
                      bool NotEligibleToImport, bool Live, bool IsLocal,
                      bool CanAutoHide)
-        : Linkage(Linkage), Visibility(Visibility),
-          NotEligibleToImport(NotEligibleToImport), Live(Live),
-          DSOLocal(IsLocal), CanAutoHide(CanAutoHide) {}
+        : Linkage(Linkage), NotEligibleToImport(NotEligibleToImport),
+          Live(Live), DSOLocal(IsLocal), CanAutoHide(CanAutoHide) {}
   };
 
 private:
@@ -419,13 +409,6 @@ public:
   void setCanAutoHide(bool CanAutoHide) { Flags.CanAutoHide = CanAutoHide; }
 
   bool canAutoHide() const { return Flags.CanAutoHide; }
-
-  GlobalValue::VisibilityTypes getVisibility() const {
-    return (GlobalValue::VisibilityTypes)Flags.Visibility;
-  }
-  void setVisibility(GlobalValue::VisibilityTypes Vis) {
-    Flags.Visibility = (unsigned)Vis;
-  }
 
   /// Flag that this global value cannot be imported.
   void setNotEligibleToImport() { Flags.NotEligibleToImport = true; }
@@ -611,7 +594,6 @@ public:
     return FunctionSummary(
         FunctionSummary::GVFlags(
             GlobalValue::LinkageTypes::AvailableExternallyLinkage,
-            GlobalValue::DefaultVisibility,
             /*NotEligibleToImport=*/true, /*Live=*/true, /*IsLocal=*/false,
             /*CanAutoHide=*/false),
         /*NumInsts=*/0, FunctionSummary::FFlags{}, /*EntryCount=*/0,

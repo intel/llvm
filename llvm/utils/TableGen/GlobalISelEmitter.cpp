@@ -933,8 +933,7 @@ public:
                                 StringRef ParentSymbolicName) {
     std::string ParentName(ParentSymbolicName);
     if (ComplexSubOperands.count(SymbolicName)) {
-      const std::string &RecordedParentName =
-          ComplexSubOperandsParentName[SymbolicName];
+      auto RecordedParentName = ComplexSubOperandsParentName[SymbolicName];
       if (RecordedParentName != ParentName)
         return failedImport("Error: Complex suboperand " + SymbolicName +
                             " referenced by different operands: " +
@@ -5431,7 +5430,8 @@ std::vector<Matcher *> GlobalISelEmitter::optimizeRules(
     // added rules out of it and make sure to re-create the group to properly
     // re-initialize it:
     if (CurrentGroup->size() < 2)
-      append_range(OptRules, CurrentGroup->matchers());
+      for (Matcher *M : CurrentGroup->matchers())
+        OptRules.push_back(M);
     else {
       CurrentGroup->finalize();
       OptRules.push_back(CurrentGroup.get());
@@ -5690,7 +5690,8 @@ void GlobalISelEmitter::run(raw_ostream &OS) {
   // Emit a table containing the LLT objects needed by the matcher and an enum
   // for the matcher to reference them with.
   std::vector<LLTCodeGen> TypeObjects;
-  append_range(TypeObjects, KnownTypes);
+  for (const auto &Ty : KnownTypes)
+    TypeObjects.push_back(Ty);
   llvm::sort(TypeObjects);
   OS << "// LLT Objects.\n"
      << "enum {\n";

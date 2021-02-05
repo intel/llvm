@@ -385,8 +385,10 @@ void SourceManager::initializeForReplay(const SourceManager &Old) {
   }
 }
 
-ContentCache &SourceManager::getOrCreateContentCache(FileEntryRef FileEnt,
+ContentCache &SourceManager::getOrCreateContentCache(const FileEntry *FileEnt,
                                                      bool isSystemFile) {
+  assert(FileEnt && "Didn't specify a file entry to use?");
+
   // Do we already have information about this file?
   ContentCache *&Entry = FileInfos[FileEnt];
   if (Entry)
@@ -412,7 +414,7 @@ ContentCache &SourceManager::getOrCreateContentCache(FileEntryRef FileEnt,
 
   Entry->IsFileVolatile = UserFilesAreVolatile && !isSystemFile;
   Entry->IsTransient = FilesAreTransient;
-  Entry->BufferOverridden |= FileEnt.isNamedPipe();
+  Entry->BufferOverridden |= FileEnt->isNamedPipe();
 
   return *Entry;
 }
@@ -532,15 +534,18 @@ FileID SourceManager::createFileID(const FileEntry *SourceFile,
                                    SourceLocation IncludePos,
                                    SrcMgr::CharacteristicKind FileCharacter,
                                    int LoadedID, unsigned LoadedOffset) {
-  return createFileID(SourceFile->getLastRef(), IncludePos, FileCharacter,
-                      LoadedID, LoadedOffset);
+  assert(SourceFile && "Null source file!");
+  SrcMgr::ContentCache &IR =
+      getOrCreateContentCache(SourceFile, isSystem(FileCharacter));
+  return createFileIDImpl(IR, SourceFile->getName(), IncludePos, FileCharacter,
+                          LoadedID, LoadedOffset);
 }
 
 FileID SourceManager::createFileID(FileEntryRef SourceFile,
                                    SourceLocation IncludePos,
                                    SrcMgr::CharacteristicKind FileCharacter,
                                    int LoadedID, unsigned LoadedOffset) {
-  SrcMgr::ContentCache &IR = getOrCreateContentCache(SourceFile,
+  SrcMgr::ContentCache &IR = getOrCreateContentCache(&SourceFile.getFileEntry(),
                                                      isSystem(FileCharacter));
 
   // If this is a named pipe, immediately load the buffer to ensure subsequent
@@ -680,13 +685,13 @@ SourceManager::createExpansionLocImpl(const ExpansionInfo &Info,
 
 llvm::Optional<llvm::MemoryBufferRef>
 SourceManager::getMemoryBufferForFileOrNone(const FileEntry *File) {
-  SrcMgr::ContentCache &IR = getOrCreateContentCache(File->getLastRef());
+  SrcMgr::ContentCache &IR = getOrCreateContentCache(File);
   return IR.getBufferOrNone(Diag, getFileManager(), SourceLocation());
 }
 
 void SourceManager::overrideFileContents(
     const FileEntry *SourceFile, std::unique_ptr<llvm::MemoryBuffer> Buffer) {
-  SrcMgr::ContentCache &IR = getOrCreateContentCache(SourceFile->getLastRef());
+  SrcMgr::ContentCache &IR = getOrCreateContentCache(SourceFile);
 
   IR.setBuffer(std::move(Buffer));
   IR.BufferOverridden = true;
@@ -714,12 +719,12 @@ SourceManager::bypassFileContentsOverride(FileEntryRef File) {
   if (!BypassFile)
     return None;
 
-  (void)getOrCreateContentCache(*BypassFile);
+  (void)getOrCreateContentCache(&BypassFile->getFileEntry());
   return BypassFile;
 }
 
 void SourceManager::setFileIsTransient(const FileEntry *File) {
-  getOrCreateContentCache(File->getLastRef()).IsTransient = true;
+  getOrCreateContentCache(File).IsTransient = true;
 }
 
 Optional<StringRef>

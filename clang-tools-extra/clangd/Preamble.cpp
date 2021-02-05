@@ -378,7 +378,8 @@ bool isPreambleCompatible(const PreambleData &Preamble,
   auto VFS = Inputs.TFS->view(Inputs.CompileCommand.Directory);
   return compileCommandsAreEqual(Inputs.CompileCommand,
                                  Preamble.CompileCommand) &&
-         Preamble.Preamble.CanReuse(CI, *ContentsBuffer, Bounds, *VFS);
+         Preamble.Preamble.CanReuse(CI, ContentsBuffer.get(), Bounds,
+                                    VFS.get());
 }
 
 void escapeBackslashAndQuotes(llvm::StringRef Text, llvm::raw_ostream &OS) {

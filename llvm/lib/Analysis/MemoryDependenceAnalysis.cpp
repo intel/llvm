@@ -752,7 +752,8 @@ MemoryDependenceResults::getNonLocalCallDependency(CallBase *QueryCall) {
   } else {
     // Seed DirtyBlocks with each of the preds of QueryInst's block.
     BasicBlock *QueryBB = QueryCall->getParent();
-    append_range(DirtyBlocks, PredCache.get(QueryBB));
+    for (BasicBlock *Pred : PredCache.get(QueryBB))
+      DirtyBlocks.push_back(Pred);
     ++NumUncacheNonLocal;
   }
 
@@ -766,7 +767,8 @@ MemoryDependenceResults::getNonLocalCallDependency(CallBase *QueryCall) {
 
   // Iterate while we still have blocks to update.
   while (!DirtyBlocks.empty()) {
-    BasicBlock *DirtyBB = DirtyBlocks.pop_back_val();
+    BasicBlock *DirtyBB = DirtyBlocks.back();
+    DirtyBlocks.pop_back();
 
     // Already processed this block?
     if (!Visited.insert(DirtyBB).second)
@@ -836,7 +838,8 @@ MemoryDependenceResults::getNonLocalCallDependency(CallBase *QueryCall) {
 
       // If the block *is* completely transparent to the load, we need to check
       // the predecessors of this block.  Add them to our worklist.
-      append_range(DirtyBlocks, PredCache.get(DirtyBB));
+      for (BasicBlock *Pred : PredCache.get(DirtyBB))
+        DirtyBlocks.push_back(Pred);
     }
   }
 

@@ -612,7 +612,7 @@ class DebugCommunication(object):
                        stopCommands=None, exitCommands=None,
                        terminateCommands=None ,sourcePath=None,
                        debuggerRoot=None, launchCommands=None, sourceMap=None,
-                       runInTerminal=False, expectFailure=False):
+                       runInTerminal=False):
         args_dict = {
             'program': program
         }
@@ -660,10 +660,9 @@ class DebugCommunication(object):
         }
         response = self.send_recv(command_dict)
 
-        if not expectFailure:
-            # Wait for a 'process' and 'initialized' event in any order
-            self.wait_for_event(filter=['process', 'initialized'])
-            self.wait_for_event(filter=['process', 'initialized'])
+        # Wait for a 'process' and 'initialized' event in any order
+        self.wait_for_event(filter=['process', 'initialized'])
+        self.wait_for_event(filter=['process', 'initialized'])
         return response
 
     def request_next(self, threadId):

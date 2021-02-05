@@ -17,6 +17,7 @@
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
 #include <cstdint>
+#include <vector>
 
 namespace llvm {
 class BinaryStreamReader;

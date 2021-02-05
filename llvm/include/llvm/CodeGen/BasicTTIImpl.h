@@ -1747,12 +1747,7 @@ public:
       // library call but still not a cheap instruction.
       SingleCallCost = TargetTransformInfo::TCC_Expensive;
       break;
-    case Intrinsic::ctlz:
-      ISDs.push_back(ISD::CTLZ);
-      break;
-    case Intrinsic::cttz:
-      ISDs.push_back(ISD::CTTZ);
-      break;
+    // FIXME: ctlz, cttz, ...
     case Intrinsic::bswap:
       ISDs.push_back(ISD::BSWAP);
       break;

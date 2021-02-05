@@ -17,7 +17,6 @@ namespace llvm {
 namespace pdb {
 
 class InjectedSourceStream;
-class PDBFile;
 class PDBStringTable;
 
 class NativeEnumInjectedSources : public IPDBEnumChildren<IPDBInjectedSource> {

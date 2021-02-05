@@ -24,9 +24,10 @@ extern "C" int luaopen_lldb(lua_State *L) { return 0; }
 #pragma warning (disable : 4190)
 #endif
 
-extern "C" llvm::Expected<bool> LLDBSwigLuaBreakpointCallbackFunction(
-    lua_State *L, lldb::StackFrameSP stop_frame_sp,
-    lldb::BreakpointLocationSP bp_loc_sp, StructuredDataImpl *extra_args_impl) {
+extern "C" llvm::Expected<bool>
+LLDBSwigLuaBreakpointCallbackFunction(lua_State *L,
+                                      lldb::StackFrameSP stop_frame_sp,
+                                      lldb::BreakpointLocationSP bp_loc_sp) {
   return false;
 }
 

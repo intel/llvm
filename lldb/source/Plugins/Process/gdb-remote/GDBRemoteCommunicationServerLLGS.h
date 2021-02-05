@@ -68,7 +68,7 @@ public:
   /// \return
   ///     An Status object indicating the success or failure of the
   ///     attach operation.
-  Status AttachWaitProcess(llvm::StringRef process_name, bool include_existing);
+  Status AttachWaitProcess(llvm::StringRef process_name);
 
   // NativeProcessProtocol::NativeDelegate overrides
   void InitializeDelegate(NativeProcessProtocol *process) override;
@@ -182,10 +182,6 @@ protected:
   PacketResult Handle_vAttach(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_vAttachWait(StringExtractorGDBRemote &packet);
-
-  PacketResult Handle_qVAttachOrWaitSupported(StringExtractorGDBRemote &packet);
-
-  PacketResult Handle_vAttachOrWait(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_D(StringExtractorGDBRemote &packet);
 

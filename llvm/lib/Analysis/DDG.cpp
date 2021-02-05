@@ -190,7 +190,8 @@ DataDependenceGraph::DataDependenceGraph(Function &F, DependenceInfo &D)
   // directions.
   BasicBlockListType BBList;
   for (auto &SCC : make_range(scc_begin(&F), scc_end(&F)))
-    append_range(BBList, SCC);
+    for (BasicBlock * BB : SCC)
+      BBList.push_back(BB);
   std::reverse(BBList.begin(), BBList.end());
   DDGBuilder(*this, D, BBList).populate();
 }
@@ -206,7 +207,8 @@ DataDependenceGraph::DataDependenceGraph(Loop &L, LoopInfo &LI,
   LoopBlocksDFS DFS(&L);
   DFS.perform(&LI);
   BasicBlockListType BBList;
-  append_range(BBList, make_range(DFS.beginRPO(), DFS.endRPO()));
+  for (BasicBlock *BB : make_range(DFS.beginRPO(), DFS.endRPO()))
+    BBList.push_back(BB);
   DDGBuilder(*this, D, BBList).populate();
 }
 

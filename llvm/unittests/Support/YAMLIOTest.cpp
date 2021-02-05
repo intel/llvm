@@ -2691,23 +2691,12 @@ TEST(YAMLIO, TestEmptyMapWrite) {
 }
 
 TEST(YAMLIO, TestEmptySequenceWrite) {
-  {
-    FooBarContainer cont;
-    std::string str;
-    llvm::raw_string_ostream OS(str);
-    Output yout(OS);
-    yout << cont;
-    EXPECT_EQ(OS.str(), "---\nfbs:             []\n...\n");
-  }
-
-  {
-    FooBarSequence seq;
-    std::string str;
-    llvm::raw_string_ostream OS(str);
-    Output yout(OS);
-    yout << seq;
-    EXPECT_EQ(OS.str(), "---\n[]\n...\n");
-  }
+  FooBarContainer cont;
+  std::string str;
+  llvm::raw_string_ostream OS(str);
+  Output yout(OS);
+  yout << cont;
+  EXPECT_EQ(OS.str(), "---\nfbs:             []\n...\n");
 }
 
 static void TestEscaped(llvm::StringRef Input, llvm::StringRef Expected) {

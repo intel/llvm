@@ -224,8 +224,6 @@ private:
                                        const DebugLoc &DL, uint64_t Offset,
                                        uint64_t Align) const;
 
-  void adjustFrameForMsvcCxxEh(MachineFunction &MF) const;
-
   /// Aligns the stack pointer by ANDing it with -MaxAlign.
   void BuildStackAlignAND(MachineBasicBlock &MBB,
                           MachineBasicBlock::iterator MBBI, const DebugLoc &DL,

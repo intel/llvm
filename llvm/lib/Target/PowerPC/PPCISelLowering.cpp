@@ -8613,8 +8613,7 @@ SDValue PPCTargetLowering::LowerBUILD_VECTOR(SDValue Op,
           PPCISD::XXSPLTI_SP_TO_DP, dl, MVT::v2f64,
           DAG.getTargetConstant(APSplatBits.getZExtValue(), dl, MVT::i32));
       return DAG.getBitcast(Op.getValueType(), SplatNode);
-    } else if (APSplatBits.getBitWidth() == 64) {
-      // We may lose precision, so we have to use XXSPLTI32DX.
+    } else { // We may lose precision, so we have to use XXSPLTI32DX.
 
       uint32_t Hi =
           (uint32_t)((APSplatBits.getZExtValue() & 0xFFFFFFFF00000000LL) >> 32);
@@ -12134,7 +12133,7 @@ SDValue PPCTargetLowering::getSqrtInputTest(SDValue Op, SelectionDAG &DAG,
   if (!isTypeLegal(MVT::i1) ||
       (VT != MVT::f64 &&
        ((VT != MVT::v2f64 && VT != MVT::v4f32) || !Subtarget.hasVSX())))
-    return TargetLowering::getSqrtInputTest(Op, DAG, Mode);
+    return SDValue();
 
   SDLoc DL(Op);
   // The output register of FTSQRT is CR field.
@@ -12606,7 +12605,8 @@ SDValue PPCTargetLowering::DAGCombineTruncBoolExt(SDNode *N,
   // Visit all inputs, collect all binary operations (and, or, xor and
   // select) that are all fed by extensions.
   while (!BinOps.empty()) {
-    SDValue BinOp = BinOps.pop_back_val();
+    SDValue BinOp = BinOps.back();
+    BinOps.pop_back();
 
     if (!Visited.insert(BinOp.getNode()).second)
       continue;
@@ -12821,7 +12821,8 @@ SDValue PPCTargetLowering::DAGCombineExtBoolTrunc(SDNode *N,
   // Visit all inputs, collect all binary operations (and, or, xor and
   // select) that are all fed by truncations.
   while (!BinOps.empty()) {
-    SDValue BinOp = BinOps.pop_back_val();
+    SDValue BinOp = BinOps.back();
+    BinOps.pop_back();
 
     if (!Visited.insert(BinOp.getNode()).second)
       continue;

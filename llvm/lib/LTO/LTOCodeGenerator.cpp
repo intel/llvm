@@ -326,15 +326,15 @@ LTOCodeGenerator::compileOptimized() {
   return std::move(*BufferOrErr);
 }
 
-bool LTOCodeGenerator::compile_to_file(const char **Name) {
-  if (!optimize())
+bool LTOCodeGenerator::compile_to_file(const char **Name, bool DisableVerify) {
+  if (!optimize(DisableVerify))
     return false;
 
   return compileOptimizedToFile(Name);
 }
 
-std::unique_ptr<MemoryBuffer> LTOCodeGenerator::compile() {
-  if (!optimize())
+std::unique_ptr<MemoryBuffer> LTOCodeGenerator::compile(bool DisableVerify) {
+  if (!optimize(DisableVerify))
     return nullptr;
 
   return compileOptimized();
@@ -361,7 +361,7 @@ bool LTOCodeGenerator::determineTarget() {
 
   // Construct LTOModule, hand over ownership of module and target. Use MAttr as
   // the default set of features.
-  SubtargetFeatures Features(join(MAttrs, ""));
+  SubtargetFeatures Features(MAttr);
   Features.getDefaultSubtargetFeatures(Triple);
   FeatureStr = Features.getString();
   // Set a default CPU for Darwin triples.
@@ -527,7 +527,7 @@ void LTOCodeGenerator::finishOptimizationRemarks() {
 }
 
 /// Optimize merged modules using various IPO passes
-bool LTOCodeGenerator::optimize() {
+bool LTOCodeGenerator::optimize(bool DisableVerify) {
   if (!this->determineTarget())
     return false;
 
@@ -553,10 +553,7 @@ bool LTOCodeGenerator::optimize() {
   // via the internal option. Must be done before WPD invoked via the optimizer
   // pipeline run below.
   updateVCallVisibilityInModule(*MergedModule,
-                                /* WholeProgramVisibilityEnabledInLTO */ false,
-                                // FIXME: This needs linker information via a
-                                // TBD new interface.
-                                /* DynamicExportSymbols */ {});
+                                /* WholeProgramVisibilityEnabledInLTO */ false);
 
   // We always run the verifier once on the merged module, the `DisableVerify`
   // parameter only applies to subsequent verify.

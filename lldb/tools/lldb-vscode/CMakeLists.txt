@@ -27,12 +27,10 @@ add_lldb_tool(lldb-vscode
   lldb-vscode.cpp
   BreakpointBase.cpp
   ExceptionBreakpoint.cpp
-  FifoFiles.cpp
   FunctionBreakpoint.cpp
   IOStream.cpp
   JSONUtils.cpp
   LLDBUtils.cpp
-  RunInTerminal.cpp
   SourceBreakpoint.cpp
   VSCode.cpp
 

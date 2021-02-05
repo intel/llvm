@@ -2051,7 +2051,8 @@ void DFSanVisitor::visitCallBase(CallBase &CB) {
           Args.push_back(DFSF.LabelReturnAlloca);
         }
 
-        append_range(Args, drop_begin(CB.args(), FT->getNumParams()));
+        for (i = CB.arg_begin() + FT->getNumParams(); i != CB.arg_end(); ++i)
+          Args.push_back(*i);
 
         CallInst *CustomCI = IRB.CreateCall(CustomF, Args);
         CustomCI->setCallingConv(CI->getCallingConv());

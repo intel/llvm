@@ -344,6 +344,9 @@ public:
   unsigned getNumStores() const { return LAI->getNumStores(); }
   unsigned getNumLoads() const { return LAI->getNumLoads(); }
 
+  // Returns true if the NoNaN attribute is set on the function.
+  bool hasFunNoNaNAttr() const { return HasFunNoNaNAttr; }
+
   /// Returns all assume calls in predicated blocks. They need to be dropped
   /// when flattening the CFG.
   const SmallPtrSetImpl<Instruction *> &getConditionalAssumes() const {
@@ -491,6 +494,9 @@ private:
   /// Allowed outside users. This holds the variables that can be accessed from
   /// outside the loop.
   SmallPtrSet<Value *, 4> AllowedExit;
+
+  /// Can we assume the absence of NaNs.
+  bool HasFunNoNaNAttr = false;
 
   /// Vectorization requirements that will go through late-evaluation.
   LoopVectorizationRequirements *Requirements;

@@ -117,8 +117,7 @@ const Expr *Expr::skipRValueSubobjectAdjustments(
           BO->getRHS()->getType()->getAs<MemberPointerType>();
         Adjustments.push_back(SubobjectAdjustment(MPT, BO->getRHS()));
         continue;
-      }
-      if (BO->getOpcode() == BO_Comma) {
+      } else if (BO->getOpcode() == BO_Comma) {
         CommaLHSs.push_back(BO->getLHS());
         E = BO->getRHS();
         continue;
@@ -660,8 +659,8 @@ std::string PredefinedExpr::ComputeName(IdentKind IK, const Decl *CurrentDecl) {
         if (!Buffer.empty() && Buffer.front() == '\01')
           return std::string(Buffer.substr(1));
         return std::string(Buffer.str());
-      }
-      return std::string(ND->getIdentifier()->getName());
+      } else
+        return std::string(ND->getIdentifier()->getName());
     }
     return "";
   }
@@ -3774,7 +3773,7 @@ Expr::isNullPointerConstant(ASTContext &Ctx,
     const IntegerLiteral *Lit = dyn_cast<IntegerLiteral>(this);
     if (Lit && !Lit->getValue())
       return NPCK_ZeroLiteral;
-    if (!Ctx.getLangOpts().MSVCCompat || !isCXX98IntegralConstantExpr(Ctx))
+    else if (!Ctx.getLangOpts().MSVCCompat || !isCXX98IntegralConstantExpr(Ctx))
       return NPCK_NotNull;
   } else {
     // If we have an integer constant expression, we need to *evaluate* it and
@@ -4203,8 +4202,9 @@ GenericSelectionExpr::CreateEmpty(const ASTContext &Context,
 IdentifierInfo *DesignatedInitExpr::Designator::getFieldName() const {
   assert(Kind == FieldDesignator && "Only valid on a field designator");
   if (Field.NameOrField & 0x01)
-    return reinterpret_cast<IdentifierInfo *>(Field.NameOrField & ~0x01);
-  return getField()->getIdentifier();
+    return reinterpret_cast<IdentifierInfo *>(Field.NameOrField&~0x01);
+  else
+    return getField()->getIdentifier();
 }
 
 DesignatedInitExpr::DesignatedInitExpr(const ASTContext &C, QualType Ty,
@@ -4322,8 +4322,7 @@ void DesignatedInitExpr::ExpandDesignator(const ASTContext &C, unsigned Idx,
                        Designators + Idx);
     --NumNewDesignators;
     return;
-  }
-  if (NumNewDesignators == 1) {
+  } else if (NumNewDesignators == 1) {
     Designators[Idx] = *First;
     return;
   }

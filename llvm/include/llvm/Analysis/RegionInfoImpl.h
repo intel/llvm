@@ -886,7 +886,8 @@ typename Tr::RegionT *RegionInfoBase<Tr>::getCommonRegion(RegionT *A,
 template <class Tr>
 typename Tr::RegionT *
 RegionInfoBase<Tr>::getCommonRegion(SmallVectorImpl<RegionT *> &Regions) const {
-  RegionT *ret = Regions.pop_back_val();
+  RegionT *ret = Regions.back();
+  Regions.pop_back();
 
   for (RegionT *R : Regions)
     ret = getCommonRegion(ret, R);

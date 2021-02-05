@@ -325,7 +325,7 @@ void BasicBlock::removePredecessor(BasicBlock *Pred,
          "Pred is not a predecessor!");
 
   // Return early if there are no PHI nodes to update.
-  if (empty() || !isa<PHINode>(begin()))
+  if (!isa<PHINode>(begin()))
     return;
 
   unsigned NumPreds = cast<PHINode>(front()).getNumIncomingValues();

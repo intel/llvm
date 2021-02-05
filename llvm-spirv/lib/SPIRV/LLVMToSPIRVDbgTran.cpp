@@ -437,21 +437,6 @@ SPIRVWord transDebugFlags(const DINode *DN) {
   return Flags;
 }
 
-/// Clang doesn't emit access flags for members with default access specifier
-/// See clang/lib/CodeGen/CGDebugInfo.cpp: getAccessFlag()
-/// In SPIR-V we set the flags even for members with default access specifier
-SPIRVWord adjustAccessFlags(DIScope *Scope, SPIRVWord Flags) {
-  if (Scope && (Flags & SPIRVDebug::FlagAccess) == 0) {
-    unsigned Tag = Scope->getTag();
-    if (Tag == dwarf::DW_TAG_class_type)
-      Flags |= SPIRVDebug::FlagIsPrivate;
-    else if (Tag == dwarf::DW_TAG_structure_type ||
-             Tag == dwarf::DW_TAG_union_type)
-      Flags |= SPIRVDebug::FlagIsPublic;
-  }
-  return Flags;
-}
-
 /// The following methods (till the end of the file) implement translation of
 /// debug instrtuctions described in the spec.
 
@@ -681,7 +666,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgMemberType(const DIDerivedType *MT) {
   Ops[OffsetIdx] = SPIRVWriter->transValue(Offset, nullptr)->getId();
   ConstantInt *Size = getUInt(M, MT->getSizeInBits());
   Ops[SizeIdx] = SPIRVWriter->transValue(Size, nullptr)->getId();
-  Ops[FlagsIdx] = adjustAccessFlags(MT->getScope(), transDebugFlags(MT));
+  Ops[FlagsIdx] = transDebugFlags(MT);
   if (MT->isStaticMember()) {
     if (llvm::Constant *C = MT->getConstant()) {
       SPIRVValue *Val = SPIRVWriter->transValue(C, nullptr);
@@ -831,7 +816,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgFunction(const DISubprogram *Func) {
   else
     Ops[ParentIdx] = getScope(Scope)->getId();
   Ops[LinkageNameIdx] = BM->getString(Func->getLinkageName().str())->getId();
-  Ops[FlagsIdx] = adjustAccessFlags(Scope, transDebugFlags(Func));
+  Ops[FlagsIdx] = transDebugFlags(Func);
 
   SPIRVEntry *DebugFunc = nullptr;
   if (!Func->isDefinition()) {

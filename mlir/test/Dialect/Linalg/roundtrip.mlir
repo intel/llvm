@@ -805,22 +805,3 @@ func @legal_collapsing_reshape_dynamic_memref
 // CHECK-DAG: #[[MAP2:.+]] = affine_map<(d0, d1, d2, d3, d4) -> (d2, d3, d4)>
 //     CHECK: func @legal_collapsing_reshape_dynamic_memref
 //     CHECK:   linalg.reshape %{{.+}} [#[[MAP0]], #[[MAP1]], #[[MAP2]]]
-
-// -----
-
-func @fill_tensor(%arg0 : index, %arg1 : index, %arg2 : f32) -> tensor<?x?xf32> {
-  %0 = linalg.init_tensor [%arg0, %arg1] : tensor<?x?xf32>
-  %1 = linalg.fill(%0, %arg2) : tensor<?x?xf32>, f32 -> tensor<?x?xf32>
-  return %1 : tensor<?x?xf32>
-}
-// CHECK: %{{.+}} = linalg.fill(%{{.+}}, %{{.+}}) : tensor<?x?xf32>, f32 -> tensor<?x?xf32>
-
-// -----
-
-// TODO: this op should disappear once pad_tensors is available and connected.
-// CHECK-LABEL: func @simple_pad
-func @simple_pad(%0: tensor<?x4x?xf32>, %pad: f32) {
-//     CHECK:   linalg.simple_pad %{{.+}} pad %{{.+}}: tensor<?x4x?xf32> to tensor<8x4x8xf32>
-  %1 = linalg.simple_pad %0 pad %pad: tensor<?x4x?xf32> to tensor<8x4x8xf32> pad f32
-  return
-}
