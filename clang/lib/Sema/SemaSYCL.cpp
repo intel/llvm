@@ -320,7 +320,7 @@ static int64_t getIntExprValue(const Expr *E, ASTContext &Ctx) {
 
 // Collect function attributes related to SYCL
 static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
-                                  llvm::SmallPtrSet<Attr *, 4> &Attrs,
+                                  llvm::SmallVector<Attr *, 4> &Attrs,
                                   bool DirectlyCalled = true) {
   if (!FD->hasAttrs())
     return;
@@ -330,7 +330,7 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
             SYCLIntelSchedulerTargetFmaxMhzAttr, SYCLIntelMaxWorkGroupSizeAttr,
             SYCLIntelMaxGlobalWorkDimAttr, SYCLIntelNoGlobalWorkOffsetAttr,
             SYCLSimdAttr>(A)) {
-      Attrs.insert(A);
+      Attrs.push_back(A);
     }
   }
   // Allow the kernel attribute "use_stall_enable_clusters" only on lambda
@@ -338,7 +338,7 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
   // For all other cases, emit a warning and ignore.
   if (auto *A = FD->getAttr<SYCLIntelUseStallEnableClustersAttr>()) {
     if (DirectlyCalled) {
-      Attrs.insert(A);
+      Attrs.push_back(A);
     } else {
       S.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
       FD->dropAttr<SYCLIntelUseStallEnableClustersAttr>();
@@ -517,7 +517,7 @@ public:
   // Returns the kernel body function found during traversal.
   FunctionDecl *
   CollectPossibleKernelAttributes(FunctionDecl *SYCLKernel,
-                                  llvm::SmallPtrSet<Attr *, 4> &Attrs) {
+                                  llvm::SmallVector<Attr *, 4> &Attrs) {
     typedef std::pair<FunctionDecl *, FunctionDecl *> ChildParentPair;
     llvm::SmallPtrSet<FunctionDecl *, 16> Visited;
     llvm::SmallVector<ChildParentPair, 16> WorkList;
@@ -570,7 +570,7 @@ public:
       // Attribute should not be propagated from device functions to kernel.
       if (auto *A = FD->getAttr<SYCLIntelLoopFuseAttr>()) {
         if (ParentFD == SYCLKernel) {
-          Attrs.insert(A);
+          Attrs.push_back(A);
         }
       }
 
@@ -3165,7 +3165,7 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
 
 // For a wrapped parallel_for, copy attributes from original
 // kernel to wrapped kernel.
-void Sema::copyAttributes(const CXXRecordDecl *KernelObj) {
+void Sema::copySYCLKernelAttrs(const CXXRecordDecl *KernelObj) {
   // Get the operator() function of the wrapper
   CXXMethodDecl *OpParens = nullptr;
   for (auto *MD : KernelObj->methods()) {
@@ -3212,10 +3212,10 @@ void Sema::copyAttributes(const CXXRecordDecl *KernelObj) {
 
   assert(KernelBody && "improper parallel_for wrap");
   if (KernelBody) {
-    llvm::SmallPtrSet<Attr *, 4> Attrs;
+    llvm::SmallVector<Attr *, 4> Attrs;
     collectSYCLAttributes(*this, KernelBody, Attrs);
     if (!Attrs.empty())
-      OpParens->addAttr(SYCLSimdAttr::CreateImplicit(getASTContext()));
+      OpParens->setAttrs(Attrs);
   }
 }
 
@@ -3258,9 +3258,10 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   StringRef KernelName(getLangOpts().SYCLUnnamedLambda ? StableName
                                                        : CalculatedName);
 
-  std::string PF("__pf_kernel_wrapper");
-  if (StableName.find(PF) != std::string::npos)
-    copyAttributes(KernelObj);
+  // Attributes of a user-written SYCL kernel must be copied to the internally
+  // generated alternative kernel, identified by a known string in its name.
+  if (StableName.find("__pf_kernel_wrapper") != std::string::npos)
+    copySYCLKernelAttrs(KernelObj);
 
   bool IsSIMDKernel = isESIMDKernelType(KernelObj);
 
@@ -3322,7 +3323,7 @@ void Sema::MarkDevice(void) {
       Marker.CollectKernelSet(SYCLKernel, SYCLKernel, VisitedSet);
 
       // Let's propagate attributes from device functions to a SYCL kernels
-      llvm::SmallPtrSet<Attr *, 4> Attrs;
+      llvm::SmallVector<Attr *, 4> Attrs;
       // This function collects all kernel attributes which might be applied to
       // a device functions, but need to be propagated down to callers, i.e.
       // SYCL kernels
