@@ -319,33 +319,25 @@ static int64_t getIntExprValue(const Expr *E, ASTContext &Ctx) {
 }
 
 // Collect function attributes related to SYCL
-void CollectSYCLAttributes(Sema &S, FunctionDecl *FD,
+static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
                            llvm::SmallPtrSet<Attr *, 4> &Attrs,
-                           bool directly_called = true) {
-  if (auto *A = FD->getAttr<IntelReqdSubGroupSizeAttr>())
-    Attrs.insert(A);
-  if (auto *A = FD->getAttr<ReqdWorkGroupSizeAttr>())
-    Attrs.insert(A);
-  if (auto *A = FD->getAttr<SYCLIntelKernelArgsRestrictAttr>())
-    Attrs.insert(A);
-  if (auto *A = FD->getAttr<SYCLIntelNumSimdWorkItemsAttr>())
-    Attrs.insert(A);
-  if (auto *A = FD->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>())
-    Attrs.insert(A);
-  if (auto *A = FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>())
-    Attrs.insert(A);
-  if (auto *A = FD->getAttr<SYCLIntelMaxGlobalWorkDimAttr>())
-    Attrs.insert(A);
-  if (auto *A = FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>())
-    Attrs.insert(A);
-  if (auto *A = FD->getAttr<SYCLSimdAttr>())
-    Attrs.insert(A);
-
+                           bool DirectlyCalled = true) {
+  if (!FD->hasAttrs())
+    return;
+  for (Attr *A : FD->getAttrs()) {
+    if (isa<IntelReqdSubGroupSizeAttr, ReqdWorkGroupSizeAttr,
+            SYCLIntelKernelArgsRestrictAttr, SYCLIntelNumSimdWorkItemsAttr,
+            SYCLIntelSchedulerTargetFmaxMhzAttr, SYCLIntelMaxWorkGroupSizeAttr,
+            SYCLIntelMaxGlobalWorkDimAttr, SYCLIntelNoGlobalWorkOffsetAttr,
+            SYCLSimdAttr>(A)) {
+      Attrs.insert(A);
+    }
+  }
   // Allow the kernel attribute "use_stall_enable_clusters" only on lambda
   // functions and function objects called directly from a kernel.
   // For all other cases, emit a warning and ignore.
   if (auto *A = FD->getAttr<SYCLIntelUseStallEnableClustersAttr>()) {
-    if (directly_called) {
+    if (DirectlyCalled) {
       Attrs.insert(A);
     } else {
       S.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
@@ -565,8 +557,8 @@ public:
       // Some attributes are allowed only on lambda
       // functions and function objects called directly from a kernel
       // (i.e. the one passed to the single_task or parallel_for functions).
-      bool directly_called = (ParentFD == SYCLKernel);
-      CollectSYCLAttributes(SemaRef, FD, Attrs, directly_called);
+      bool DirectlyCalled = (ParentFD == SYCLKernel);
+      collectSYCLAttributes(SemaRef, FD, Attrs, DirectlyCalled);
 
       // Propagate the explicit SIMD attribute through call graph - it is used
       // to distinguish ESIMD code in ESIMD LLVM passes.
@@ -3221,7 +3213,7 @@ void Sema::copyAttributes(const CXXRecordDecl *KernelObj) {
   assert(KernelBody && "improper parallel_for wrap");
   if (KernelBody) {
     llvm::SmallPtrSet<Attr *, 4> Attrs;
-    CollectSYCLAttributes(*this, KernelBody, Attrs);
+    collectSYCLAttributes(*this, KernelBody, Attrs);
     if (!Attrs.empty())
       OpParens->addAttr(SYCLSimdAttr::CreateImplicit(getASTContext()));
   }
