@@ -8,7 +8,7 @@
 // REQUIRES: gpu
 // UNSUPPORTED: cuda
 // RUN: %clangxx-esimd -fsycl %s -o %t.out
-// RUN: %ESIMD_RUN_PLACEHOLDER %t.out
+// RUN: env SYCL_PI_TRACE=-1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
 
 #include "esimd_test_utils.hpp"
 
@@ -95,3 +95,7 @@ int main(void) {
   std::cout << (err_cnt > 0 ? "FAILED\n" : "Passed\n");
   return err_cnt > 0 ? 1 : 0;
 }
+
+// CHECK: ---> piProgramBuild(
+// CHECK: <const char *>: -vc-codegen
+// CHECK: ) ---> pi_result : PI_SUCCESS
