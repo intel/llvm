@@ -43,7 +43,7 @@ struct TRIFuncObjBad1 {
 
 struct TRIFuncObjBad2 {
   [[intel::reqd_work_group_size(5, 5, 5)]] // expected-note{{conflicting attribute is here}}
-  [[intel::num_simd_work_items(3)]] // expected-error{{'num_simd_work_items' attribute conflicts with 'reqd_work_group_size' attribute}}
+  [[intel::num_simd_work_items(3)]]        // expected-error{{'num_simd_work_items' attribute conflicts with 'reqd_work_group_size' attribute}}
   void
   operator()() const {}
 };
