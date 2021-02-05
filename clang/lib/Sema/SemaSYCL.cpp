@@ -320,8 +320,8 @@ static int64_t getIntExprValue(const Expr *E, ASTContext &Ctx) {
 
 // Collect function attributes related to SYCL
 static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
-                           llvm::SmallPtrSet<Attr *, 4> &Attrs,
-                           bool DirectlyCalled = true) {
+                                  llvm::SmallPtrSet<Attr *, 4> &Attrs,
+                                  bool DirectlyCalled = true) {
   if (!FD->hasAttrs())
     return;
   for (Attr *A : FD->getAttrs()) {
