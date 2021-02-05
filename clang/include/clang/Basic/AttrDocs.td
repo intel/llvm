@@ -2424,9 +2424,15 @@ the work-group size we specify for the ``intel::reqd_work_group_size`` or
 
 .. code-block:: c++
 
-  struct TRIFuncObjGood1 {
+  struct func {
     [[intel::num_simd_work_items(4)]]
     [[intel::reqd_work_group_size(64, 64, 64)]]
+    void operator()() const {}
+  };
+
+  struct bar {
+    [[intel::reqd_work_group_size(64, 64, 64)]]
+    [[intel::num_simd_work_items(4)]]
     void operator()() const {}
   };
 
