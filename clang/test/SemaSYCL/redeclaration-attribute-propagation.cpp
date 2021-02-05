@@ -58,6 +58,8 @@ int main() {
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
     // CHECK:  -SYCLIntelNoGlobalWorkOffsetAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr {{.*}}1
+    // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     // CHECK:  `-ReqdWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}

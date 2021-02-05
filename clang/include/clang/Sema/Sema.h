@@ -13061,14 +13061,12 @@ void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
   assert(E && "Attribute must have an argument.");
 
   if (!E->isInstantiationDependent()) {
-    Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(getASTContext());
-    if (!ArgVal) {
-      Diag(E->getExprLoc(), diag::err_attribute_argument_type)
-          << CI.getAttrName() << AANT_ArgumentIntegerConstant
-          << E->getSourceRange();
+    llvm::APSInt ArgVal;
+    ExprResult ICE = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (ICE.isInvalid())
       return;
-    }
-    int32_t ArgInt = ArgVal->getSExtValue();
+    E = ICE.get();
+    int32_t ArgInt = ArgVal.getSExtValue();
     if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelNumSimdWorkItems ||
         CI.getParsedKind() == ParsedAttr::AT_IntelReqdSubGroupSize) {
       if (ArgInt <= 0) {

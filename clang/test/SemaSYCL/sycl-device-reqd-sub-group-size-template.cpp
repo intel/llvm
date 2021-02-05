@@ -6,7 +6,8 @@
 // is checked properly when instantiating from the template definition.
 template <typename Ty>
 // expected-error@+2{{'reqd_sub_group_size' attribute requires a positive integral compile time constant expression}}
-// expected-error@+1 2{{'reqd_sub_group_size' attribute requires an integer constant}}
+// expected-error@+2 {{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
+// expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
 [[intel::reqd_sub_group_size(Ty{})]] void func() {}
 
 struct S {};
@@ -20,8 +21,10 @@ void test() {
 }
 
 // Test that checks expression is not a constant expression.
+// expected-note@+1{{declared here}}
 int foo();
-// expected-error@+1{{'reqd_sub_group_size' attribute requires an integer constant}}
+// expected-error@+2{{expression is not an integral constant expression}}
+// expected-note@+1{{non-constexpr function 'foo' cannot be used in a constant expression}}
 [[intel::reqd_sub_group_size(foo() + 12)]] void func1();
 
 // Test that checks expression is a constant expression.
