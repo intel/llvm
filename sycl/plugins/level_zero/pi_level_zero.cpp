@@ -756,7 +756,8 @@ pi_result _pi_queue::executeOpenCommandList() {
 }
 
 static const bool FilterEventWaitList = [] {
-  const bool RetVal = std::getenv("SYCL_PI_LEVEL_ZERO_FILTER_EVENT_WAIT_LIST");
+  const char *Ret = std::getenv("SYCL_PI_LEVEL_ZERO_FILTER_EVENT_WAIT_LIST");
+  const bool RetVal = Ret ? std::stoi(Ret) : 1;
   return RetVal;
 }();
 
