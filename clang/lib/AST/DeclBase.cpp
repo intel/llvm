@@ -230,11 +230,11 @@ bool Decl::isTemplateDecl() const {
 TemplateDecl *Decl::getDescribedTemplate() const {
   if (auto *FD = dyn_cast<FunctionDecl>(this))
     return FD->getDescribedFunctionTemplate();
-  if (auto *RD = dyn_cast<CXXRecordDecl>(this))
+  else if (auto *RD = dyn_cast<CXXRecordDecl>(this))
     return RD->getDescribedClassTemplate();
-  if (auto *VD = dyn_cast<VarDecl>(this))
+  else if (auto *VD = dyn_cast<VarDecl>(this))
     return VD->getDescribedVarTemplate();
-  if (auto *AD = dyn_cast<TypeAliasDecl>(this))
+  else if (auto *AD = dyn_cast<TypeAliasDecl>(this))
     return AD->getDescribedAliasTemplate();
 
   return nullptr;
@@ -695,23 +695,24 @@ bool Decl::canBeWeakImported(bool &IsDefinition) const {
       return false;
     }
     return true;
-  }
+
   // Functions, if they aren't definitions.
-  if (const auto *FD = dyn_cast<FunctionDecl>(this)) {
+  } else if (const auto *FD = dyn_cast<FunctionDecl>(this)) {
     if (FD->hasBody()) {
       IsDefinition = true;
       return false;
     }
     return true;
 
-  }
   // Objective-C classes, if this is the non-fragile runtime.
-  if (isa<ObjCInterfaceDecl>(this) &&
+  } else if (isa<ObjCInterfaceDecl>(this) &&
              getASTContext().getLangOpts().ObjCRuntime.hasWeakClassImport()) {
     return true;
-  }
+
   // Nothing else.
-  return false;
+  } else {
+    return false;
+  }
 }
 
 bool Decl::isWeakImported() const {
@@ -1026,16 +1027,16 @@ template <class T> static Decl *getNonClosureContext(T *D) {
         MD->getParent()->isLambda())
       return getNonClosureContext(MD->getParent()->getParent());
     return MD;
-  }
-  if (auto *FD = dyn_cast<FunctionDecl>(D))
+  } else if (auto *FD = dyn_cast<FunctionDecl>(D))
     return FD;
-  if (auto *MD = dyn_cast<ObjCMethodDecl>(D))
+  else if (auto *MD = dyn_cast<ObjCMethodDecl>(D))
     return MD;
-  if (auto *BD = dyn_cast<BlockDecl>(D))
+  else if (auto *BD = dyn_cast<BlockDecl>(D))
     return getNonClosureContext(BD->getParent());
-  if (auto *CD = dyn_cast<CapturedDecl>(D))
+  else if (auto *CD = dyn_cast<CapturedDecl>(D))
     return getNonClosureContext(CD->getParent());
-  return nullptr;
+  else
+    return nullptr;
 }
 
 Decl *Decl::getNonClosureContext() {
@@ -1170,8 +1171,10 @@ bool DeclContext::isDependentContext() const {
 bool DeclContext::isTransparentContext() const {
   if (getDeclKind() == Decl::Enum)
     return !cast<EnumDecl>(this)->isScoped();
+  else if (getDeclKind() == Decl::LinkageSpec || getDeclKind() == Decl::Export)
+    return true;
 
-  return getDeclKind() == Decl::LinkageSpec || getDeclKind() == Decl::Export;
+  return false;
 }
 
 static bool isLinkageSpecContext(const DeclContext *DC,

@@ -215,9 +215,8 @@ FileHeader:
 ## The index of the section name string table is too large.
 ## The section would be past the EOF.
   EShStrNdx: [[SHSTRNDX=0x3000]]
-Sections:
-  - Type: SectionHeaderTable
-    NoHeaders: true
+SectionHeaderTable:
+  NoHeaders: true
 
 ## Check we don't dump anything except the file header when the section header table can't be read.
 

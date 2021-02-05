@@ -28,7 +28,7 @@ void InputOutputTestAction::ExecuteAction() {
   CompilerInstance &ci = instance();
   Fortran::parser::AllSources &allSources{ci.allSources()};
   const Fortran::parser::SourceFile *sf;
-  sf = allSources.Open(path, error_stream, std::optional<std::string>{"."s});
+  sf = allSources.Open(path, error_stream);
   llvm::ArrayRef<char> fileContent = sf->content();
 
   // Output file descriptor to receive the content of input file.
@@ -93,9 +93,6 @@ void ParseSyntaxOnlyAction::ExecuteAction() {
         llvm::errs(), this->instance().allCookedSources());
     return;
   }
-
-  // Report the diagnostics from parsing
-  ci.parsing().messages().Emit(llvm::errs(), ci.allCookedSources());
 
   auto &parseTree{*ci.parsing().parseTree()};
 

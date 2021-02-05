@@ -1015,8 +1015,7 @@ MCOperand AMDGPUDisassembler::decodeSrcOp(const OpWidthTy Width, unsigned Val) c
                                    : getVgprClassId(Width), Val - VGPR_MIN);
   }
   if (Val <= SGPR_MAX) {
-    // "SGPR_MIN <= Val" is always true and causes compilation warning.
-    static_assert(SGPR_MIN == 0, "");
+    assert(SGPR_MIN == 0); // "SGPR_MIN <= Val" is always true and causes compilation warning.
     return createSRegOperand(getSgprClassId(Width), Val - SGPR_MIN);
   }
 
@@ -1053,8 +1052,7 @@ MCOperand AMDGPUDisassembler::decodeDstOp(const OpWidthTy Width, unsigned Val) c
   assert(Width == OPW256 || Width == OPW512);
 
   if (Val <= SGPR_MAX) {
-    // "SGPR_MIN <= Val" is always true and causes compilation warning.
-    static_assert(SGPR_MIN == 0, "");
+    assert(SGPR_MIN == 0); // "SGPR_MIN <= Val" is always true and causes compilation warning.
     return createSRegOperand(getSgprClassId(Width), Val - SGPR_MIN);
   }
 

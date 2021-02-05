@@ -359,7 +359,8 @@ void A15SDOptimizer::elideCopiesAndPHIs(MachineInstr *MI,
    SmallVector<MachineInstr *, 8> Front;
    Front.push_back(MI);
    while (Front.size() != 0) {
-     MI = Front.pop_back_val();
+     MI = Front.back();
+     Front.pop_back();
 
      // If we have already explored this MachineInstr, ignore it.
      if (Reached.find(MI) != Reached.end())

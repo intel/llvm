@@ -15,6 +15,7 @@
 #include <cassert>
 #include <cstdint>
 #include <set>
+#include <vector>
 
 using namespace llvm;
 

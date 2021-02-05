@@ -39,6 +39,7 @@ class MachineOperand;
 class MachineRegisterInfo;
 class RegisterBankInfo;
 class TargetInstrInfo;
+class TargetRegisterClass;
 class TargetRegisterInfo;
 
 /// Container class for CodeGen predicate results.

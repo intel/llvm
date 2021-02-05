@@ -769,9 +769,7 @@ Expected<StringRef> ELFDumper<ELFT>::getSymbolVersion(const Elf_Sym &Sym,
       getVersionMap();
   if (!MapOrErr)
     return MapOrErr.takeError();
-
-  return Obj.getSymbolVersionByIndex(Version, IsDefault, **MapOrErr,
-                                     Sym.st_shndx == ELF::SHN_UNDEF);
+  return Obj.getSymbolVersionByIndex(Version, IsDefault, **MapOrErr);
 }
 
 template <typename ELFT>
@@ -4386,8 +4384,8 @@ void GNUELFDumper<ELFT>::printVersionSymbolSection(const Elf_Shdr *Sec) {
     }
 
     bool IsDefault;
-    Expected<StringRef> NameOrErr = this->Obj.getSymbolVersionByIndex(
-        Ndx, IsDefault, *VersionMap, /*IsSymHidden=*/None);
+    Expected<StringRef> NameOrErr =
+        this->Obj.getSymbolVersionByIndex(Ndx, IsDefault, *VersionMap);
     if (!NameOrErr) {
       this->reportUniqueWarning("unable to get a version for entry " +
                                 Twine(I) + " of " + this->describe(*Sec) +

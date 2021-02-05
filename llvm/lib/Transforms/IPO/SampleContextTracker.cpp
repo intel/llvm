@@ -179,7 +179,7 @@ SampleContextTracker::SampleContextTracker(
     SampleContext Context(FuncSample.first(), RawContext);
     LLVM_DEBUG(dbgs() << "Tracking Context for function: " << Context << "\n");
     if (!Context.isBaseContext())
-      FuncToCtxtProfileSet[Context.getNameWithoutContext()].insert(FSamples);
+      FuncToCtxtProfileSet[Context.getName()].insert(FSamples);
     ContextTrieNode *NewNode = getOrCreateContextPath(Context, true);
     assert(!NewNode->getFunctionSamples() &&
            "New node can't have sample profile");

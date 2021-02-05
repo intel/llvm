@@ -9,9 +9,9 @@
 
 define internal void @func_1(i64* nocapture readnone %0) #0 {
 ; CHECK-LABEL: @func_1(
-; CHECK-NEXT:    ret void
+; CHECK-NEXT:    unreachable
 ;
-  ret void
+  unreachable
 }
 
 define i16 @main(i16 %0, i16** nocapture readnone %1) #1 {
@@ -24,5 +24,5 @@ bb1:
   unreachable
 }
 
-attributes #0 = { noinline norecurse nounwind readnone willreturn }
+attributes #0 = { noinline norecurse nounwind readnone }
 attributes #1 = { norecurse nounwind readnone }

@@ -331,7 +331,8 @@ TrainingLogger::TrainingLogger(StringRef LogFileName,
     FT.push_back(
         {TensorSpec::createSpec<int64_t>(FeatureNameMap.at(I), {1}), None});
   if (MUTR && MUTR->outputLoggedFeatureSpecs().size() > 1)
-    append_range(FT, drop_begin(MUTR->outputLoggedFeatureSpecs()));
+    FT.insert(FT.end(), MUTR->outputLoggedFeatureSpecs().begin() + 1,
+              MUTR->outputLoggedFeatureSpecs().end());
 
   DefaultDecisionPos = FT.size();
   FT.push_back(
@@ -464,7 +465,8 @@ ModelUnderTrainingRunner::ModelUnderTrainingRunner(LLVMContext &Ctx,
   for (size_t I = 0; I < NumberOfFeatures; ++I)
     InputSpecs.push_back(
         TensorSpec::createSpec<int64_t>(TFFeedPrefix + FeatureNameMap[I], {1}));
-  append_range(InputSpecs, TrainingOnlyFeatures);
+  InputSpecs.insert(InputSpecs.end(), TrainingOnlyFeatures.begin(),
+                    TrainingOnlyFeatures.end());
   if (auto MaybeOutSpecs =
           loadOutputSpecs(Ctx, DecisionName, ModelPath, TFOutputSpecOverride))
     OutputSpecs = std::move(*MaybeOutSpecs);

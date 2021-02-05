@@ -81,8 +81,8 @@ protected:
 
   void Clear();
 
-  bool DoUpdateThreadList(lldb_private::ThreadList &old_thread_list,
-                          lldb_private::ThreadList &new_thread_list) override;
+  bool UpdateThreadList(lldb_private::ThreadList &old_thread_list,
+                        lldb_private::ThreadList &new_thread_list) override;
 
   lldb_private::ObjectFile *GetCoreObjectFile();
 

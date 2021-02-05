@@ -25,7 +25,7 @@
 namespace clang {
 namespace format {
 
-static constexpr StringRef Blanks = " \t\v\f\r";
+static const char *const Blanks = " \t\v\f\r";
 static bool IsBlank(char C) {
   switch (C) {
   case ' ':
@@ -41,27 +41,25 @@ static bool IsBlank(char C) {
 
 static StringRef getLineCommentIndentPrefix(StringRef Comment,
                                             const FormatStyle &Style) {
-  static constexpr StringRef KnownCStylePrefixes[] = {"///<", "//!<", "///",
-                                                      "//!",  "//:",  "//"};
-  static constexpr StringRef KnownTextProtoPrefixes[] = {"####", "###", "##",
-                                                         "//", "#"};
-  ArrayRef<StringRef> KnownPrefixes(KnownCStylePrefixes);
+  static const char *const KnownCStylePrefixes[] = {"///<", "//!<", "///",
+                                                    "//",   "//!",  "//:"};
+  static const char *const KnownTextProtoPrefixes[] = {"//", "#", "##", "###",
+                                                       "####"};
+  ArrayRef<const char *> KnownPrefixes(KnownCStylePrefixes);
   if (Style.Language == FormatStyle::LK_TextProto)
     KnownPrefixes = KnownTextProtoPrefixes;
 
-  assert(std::is_sorted(KnownPrefixes.begin(), KnownPrefixes.end(),
-                        [](StringRef Lhs, StringRef Rhs) noexcept {
-                          return Lhs.size() > Rhs.size();
-                        }));
-
+  StringRef LongestPrefix;
   for (StringRef KnownPrefix : KnownPrefixes) {
     if (Comment.startswith(KnownPrefix)) {
-      const auto PrefixLength =
-          Comment.find_first_not_of(' ', KnownPrefix.size());
-      return Comment.substr(0, PrefixLength);
+      size_t PrefixLength = KnownPrefix.size();
+      while (PrefixLength < Comment.size() && Comment[PrefixLength] == ' ')
+        ++PrefixLength;
+      if (PrefixLength > LongestPrefix.size())
+        LongestPrefix = Comment.substr(0, PrefixLength);
     }
   }
-  return {};
+  return LongestPrefix;
 }
 
 static BreakableToken::Split
@@ -751,7 +749,8 @@ bool BreakableBlockComment::mayReflow(
 }
 
 BreakableLineCommentSection::BreakableLineCommentSection(
-    const FormatToken &Token, unsigned StartColumn, bool InPPDirective,
+    const FormatToken &Token, unsigned StartColumn,
+    unsigned OriginalStartColumn, bool FirstInLine, bool InPPDirective,
     encoding::Encoding Encoding, const FormatStyle &Style)
     : BreakableComment(Token, StartColumn, InPPDirective, Encoding, Style) {
   assert(Tok.is(TT_LineComment) &&

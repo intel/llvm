@@ -119,8 +119,12 @@ Preprocessor::Preprocessor(std::shared_ptr<PreprocessorOptions> PPOpts,
   // a macro. They get unpoisoned where it is allowed.
   (Ident__VA_ARGS__ = getIdentifierInfo("__VA_ARGS__"))->setIsPoisoned();
   SetPoisonReason(Ident__VA_ARGS__,diag::ext_pp_bad_vaargs_use);
-  (Ident__VA_OPT__ = getIdentifierInfo("__VA_OPT__"))->setIsPoisoned();
-  SetPoisonReason(Ident__VA_OPT__,diag::ext_pp_bad_vaopt_use);
+  if (getLangOpts().CPlusPlus20) {
+    (Ident__VA_OPT__ = getIdentifierInfo("__VA_OPT__"))->setIsPoisoned();
+    SetPoisonReason(Ident__VA_OPT__,diag::ext_pp_bad_vaopt_use);
+  } else {
+    Ident__VA_OPT__ = nullptr;
+  }
 
   // Initialize the pragma handlers.
   RegisterBuiltinPragmas();

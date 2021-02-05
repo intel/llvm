@@ -15,12 +15,11 @@
 #include "llvm/DebugInfo/GSYM/LookupResult.h"
 #include "llvm/DebugInfo/GSYM/Range.h"
 #include "llvm/DebugInfo/GSYM/StringTable.h"
-#include <cstdint>
 #include <tuple>
+#include <vector>
 
 namespace llvm {
 class raw_ostream;
-
 namespace gsym {
 
 class GsymReader;

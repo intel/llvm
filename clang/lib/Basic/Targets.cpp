@@ -735,7 +735,7 @@ TargetInfo::CreateTargetInfo(DiagnosticsEngine &Diags,
     return nullptr;
 
   Target->setSupportedOpenCLOpts();
-  Target->setCommandLineOpenCLOpts();
+  Target->setOpenCLExtensionOpts();
   Target->setMaxAtomicWidth();
 
   if (!Target->validateTarget(Diags))
@@ -744,30 +744,4 @@ TargetInfo::CreateTargetInfo(DiagnosticsEngine &Diags,
   Target->CheckFixedPointBits();
 
   return Target.release();
-}
-
-/// getOpenCLFeatureDefines - Define OpenCL macros based on target settings
-/// and language version
-void TargetInfo::getOpenCLFeatureDefines(const LangOptions &Opts,
-                                         MacroBuilder &Builder) const {
-
-  auto defineOpenCLExtMacro = [&](llvm::StringRef Name, unsigned AvailVer,
-                                  unsigned CoreVersions,
-                                  unsigned OptionalVersions) {
-    // Check if extension is supported by target and is available in this
-    // OpenCL version
-    auto It = getTargetOpts().OpenCLFeaturesMap.find(Name);
-    if ((It != getTargetOpts().OpenCLFeaturesMap.end()) && It->getValue() &&
-        OpenCLOptions::OpenCLOptionInfo(AvailVer, CoreVersions,
-                                        OptionalVersions)
-            .isAvailableIn(Opts))
-      Builder.defineMacro(Name);
-  };
-#define OPENCL_GENERIC_EXTENSION(Ext, Avail, Core, Opt)                        \
-  defineOpenCLExtMacro(#Ext, Avail, Core, Opt);
-#include "clang/Basic/OpenCLExtensions.def"
-
-  // FIXME: OpenCL options which affect language semantics/syntax
-  // should be moved into LangOptions, thus macro definitions of
-  // such options is better to be done in clang::InitializePreprocessor
 }

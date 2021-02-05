@@ -2673,11 +2673,9 @@ BasicBlock *GVN::splitCriticalEdges(BasicBlock *Pred, BasicBlock *Succ) {
   BasicBlock *BB = SplitCriticalEdge(
       Pred, Succ,
       CriticalEdgeSplittingOptions(DT, LI, MSSAU).unsetPreserveLoopSimplify());
-  if (BB) {
-    if (MD)
-      MD->invalidateCachedPredecessors();
-    InvalidBlockRPONumbers = true;
-  }
+  if (MD)
+    MD->invalidateCachedPredecessors();
+  InvalidBlockRPONumbers = true;
   return BB;
 }
 
@@ -2686,20 +2684,14 @@ BasicBlock *GVN::splitCriticalEdges(BasicBlock *Pred, BasicBlock *Succ) {
 bool GVN::splitCriticalEdges() {
   if (toSplit.empty())
     return false;
-
-  bool Changed = false;
   do {
     std::pair<Instruction *, unsigned> Edge = toSplit.pop_back_val();
-    Changed |= SplitCriticalEdge(Edge.first, Edge.second,
-                                 CriticalEdgeSplittingOptions(DT, LI, MSSAU)) !=
-               nullptr;
+    SplitCriticalEdge(Edge.first, Edge.second,
+                      CriticalEdgeSplittingOptions(DT, LI, MSSAU));
   } while (!toSplit.empty());
-  if (Changed) {
-    if (MD)
-      MD->invalidateCachedPredecessors();
-    InvalidBlockRPONumbers = true;
-  }
-  return Changed;
+  if (MD) MD->invalidateCachedPredecessors();
+  InvalidBlockRPONumbers = true;
+  return true;
 }
 
 /// Executes one iteration of GVN

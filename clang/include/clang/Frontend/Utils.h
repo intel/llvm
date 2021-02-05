@@ -23,7 +23,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Option/OptSpecifier.h"
-#include "llvm/Support/FileCollector.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include <cstdint>
 #include <memory>
@@ -153,8 +152,9 @@ class ModuleDependencyCollector : public DependencyCollector {
   bool HasErrors = false;
   llvm::StringSet<> Seen;
   llvm::vfs::YAMLVFSWriter VFSWriter;
-  llvm::FileCollector::PathCanonicalizer Canonicalizer;
+  llvm::StringMap<std::string> SymLinkMap;
 
+  bool getRealPath(StringRef SrcPath, SmallVectorImpl<char> &Result);
   std::error_code copyToRoot(StringRef Src, StringRef Dst = {});
 
 public:

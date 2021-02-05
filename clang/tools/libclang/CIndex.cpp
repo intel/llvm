@@ -3356,8 +3356,10 @@ RefNamePieces buildPieces(unsigned NameFlags, bool IsMemberRefExpr,
     Pieces.push_back(*TemplateArgsLoc);
 
   if (Kind == DeclarationName::CXXOperatorName) {
-    Pieces.push_back(NI.getInfo().getCXXOperatorNameBeginLoc());
-    Pieces.push_back(NI.getInfo().getCXXOperatorNameEndLoc());
+    Pieces.push_back(SourceLocation::getFromRawEncoding(
+        NI.getInfo().CXXOperatorName.BeginOpNameLoc));
+    Pieces.push_back(SourceLocation::getFromRawEncoding(
+        NI.getInfo().CXXOperatorName.EndOpNameLoc));
   }
 
   if (WantSinglePiece) {

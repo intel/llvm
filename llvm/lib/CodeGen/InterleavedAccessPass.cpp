@@ -385,7 +385,8 @@ bool InterleavedAccess::lowerInterleavedLoad(
     return !Extracts.empty() || BinOpShuffleChanged;
   }
 
-  append_range(DeadInsts, Shuffles);
+  for (auto SVI : Shuffles)
+    DeadInsts.push_back(SVI);
 
   DeadInsts.push_back(LI);
   return true;

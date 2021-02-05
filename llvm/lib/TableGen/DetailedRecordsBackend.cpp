@@ -104,8 +104,7 @@ void DetailedRecordsEmitter::printRecords(raw_ostream &OS) {
 
   for (const auto &RecPair : RecordList) {
     auto *const Rec = RecPair.second.get();
-    std::string Name = Rec->getNameInitAsString();
-    OS << formatv("\n{0}  |{1}|\n", Name.empty() ? "\"\"" : Name,
+    OS << formatv("\n{0}  |{1}|\n", Rec->getNameInitAsString(),
                   SrcMgr.getFormattedLocationNoOffset(Rec->getLoc().front()));
     printDefms(Rec, OS);
     printSuperclasses(Rec, OS);

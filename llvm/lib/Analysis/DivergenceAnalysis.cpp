@@ -209,7 +209,8 @@ void DivergenceAnalysis::analyzeLoopExitDivergence(const BasicBlock &DivExit,
   Visited.insert(&DivExit);
 
   do {
-    auto *UserBlock = TaintStack.pop_back_val();
+    auto *UserBlock = TaintStack.back();
+    TaintStack.pop_back();
 
     // don't spread divergence beyond the region
     if (!inRegion(*UserBlock))

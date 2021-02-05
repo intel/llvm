@@ -15,7 +15,6 @@
 #include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/SCF/Transforms.h"
-#include "mlir/Dialect/SCF/Utils.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 
 using namespace mlir;
@@ -127,6 +126,29 @@ void mlir::scf::tileParallelLoop(ParallelOp op, ArrayRef<int64_t> tileSizes) {
   op.erase();
 }
 
+/// Get a list of most nested parallel loops.
+static bool getInnermostPloops(Operation *rootOp,
+                               SmallVectorImpl<ParallelOp> &result) {
+  assert(rootOp != nullptr && "Root operation must not be a nullptr.");
+  bool rootEnclosesPloops = false;
+  for (Region &region : rootOp->getRegions()) {
+    for (Block &block : region.getBlocks()) {
+      for (Operation &op : block) {
+        bool enclosesPloops = getInnermostPloops(&op, result);
+        rootEnclosesPloops |= enclosesPloops;
+        if (auto ploop = dyn_cast<ParallelOp>(op)) {
+          rootEnclosesPloops = true;
+
+          // Collect ploop if it is an innermost one.
+          if (!enclosesPloops)
+            result.push_back(ploop);
+        }
+      }
+    }
+  }
+  return rootEnclosesPloops;
+}
+
 namespace {
 struct ParallelLoopTiling
     : public SCFParallelLoopTilingBase<ParallelLoopTiling> {
@@ -137,7 +159,7 @@ struct ParallelLoopTiling
 
   void runOnFunction() override {
     SmallVector<ParallelOp, 2> innermostPloops;
-    getInnermostParallelLoops(getFunction().getOperation(), innermostPloops);
+    getInnermostPloops(getFunction().getOperation(), innermostPloops);
     for (ParallelOp ploop : innermostPloops) {
       // FIXME: Add reduction support.
       if (ploop.getNumReductions() == 0)

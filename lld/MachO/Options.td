@@ -477,7 +477,7 @@ def dependency_info : Separate<["-"], "dependency_info">,
      Flags<[HelpHidden]>,
      Group<grp_introspect>;
 def save_temps : Flag<["-"], "save-temps">,
-     HelpText<"Save intermediate LTO compilation results">,
+     HelpText<"Save temporary files instead of deleting them">,
      Group<grp_introspect>;
 
 def grp_symtab : OptionGroup<"symtab">, HelpText<"SYMBOL TABLE OPTIMIZATIONS">;
@@ -862,7 +862,8 @@ def object_path_lto : Separate<["-"], "object_path_lto">,
      Group<grp_rare>;
 def lto_library : Separate<["-"], "lto_library">,
      MetaVarName<"<path>">,
-     HelpText<"Deprecated & ignored. LLD supports LTO directly, without using an external dylib.">,
+     HelpText<"Override the default ../lib/libLTO.dylib as <path>">,
+     Flags<[HelpHidden]>,
      Group<grp_rare>;
 def cache_path_lto : Separate<["-"], "cache_path_lto">,
      MetaVarName<"<path>">,

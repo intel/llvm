@@ -15,6 +15,7 @@
 #include "llvm/Support/BinaryStreamRef.h"
 #include "llvm/Support/Error.h"
 #include <cstdint>
+#include <vector>
 
 namespace llvm {
 

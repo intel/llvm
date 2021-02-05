@@ -3978,7 +3978,6 @@ void ASTWriter::WriteOpenCLExtensions(Sema &SemaRef) {
     Record.push_back(V.Enabled ? 1 : 0);
     Record.push_back(V.Avail);
     Record.push_back(V.Core);
-    Record.push_back(V.Opt);
   }
   Stream.EmitRecord(OPENCL_EXTENSIONS, Record);
 }
@@ -5413,15 +5412,19 @@ void ASTRecordWriter::AddDeclarationNameLoc(const DeclarationNameLoc &DNLoc,
   case DeclarationName::CXXConstructorName:
   case DeclarationName::CXXDestructorName:
   case DeclarationName::CXXConversionFunctionName:
-    AddTypeSourceInfo(DNLoc.getNamedTypeInfo());
+    AddTypeSourceInfo(DNLoc.NamedType.TInfo);
     break;
 
   case DeclarationName::CXXOperatorName:
-    AddSourceRange(DNLoc.getCXXOperatorNameRange());
+    AddSourceLocation(SourceLocation::getFromRawEncoding(
+        DNLoc.CXXOperatorName.BeginOpNameLoc));
+    AddSourceLocation(
+        SourceLocation::getFromRawEncoding(DNLoc.CXXOperatorName.EndOpNameLoc));
     break;
 
   case DeclarationName::CXXLiteralOperatorName:
-    AddSourceLocation(DNLoc.getCXXLiteralOperatorNameLoc());
+    AddSourceLocation(SourceLocation::getFromRawEncoding(
+        DNLoc.CXXLiteralOperatorName.OpNameLoc));
     break;
 
   case DeclarationName::Identifier:

@@ -3736,9 +3736,7 @@ SDValue TargetLowering::SimplifySetCC(EVT VT, SDValue N0, SDValue N1,
         break; // todo, be more careful with signed comparisons
       }
     } else if (N0.getOpcode() == ISD::SIGN_EXTEND_INREG &&
-               (Cond == ISD::SETEQ || Cond == ISD::SETNE) &&
-               !isSExtCheaperThanZExt(cast<VTSDNode>(N0.getOperand(1))->getVT(),
-                                      OpVT)) {
+               (Cond == ISD::SETEQ || Cond == ISD::SETNE)) {
       EVT ExtSrcTy = cast<VTSDNode>(N0.getOperand(1))->getVT();
       unsigned ExtSrcTyBits = ExtSrcTy.getSizeInBits();
       EVT ExtDstTy = N0.getValueType();
@@ -3782,7 +3780,8 @@ SDValue TargetLowering::SimplifySetCC(EVT VT, SDValue N0, SDValue N1,
            (N0.getOpcode() == ISD::AND &&
             N0.getOperand(0).getOpcode() == ISD::XOR &&
             N0.getOperand(1) == N0.getOperand(0).getOperand(1))) &&
-          isOneConstant(N0.getOperand(1))) {
+          isa<ConstantSDNode>(N0.getOperand(1)) &&
+          cast<ConstantSDNode>(N0.getOperand(1))->isOne()) {
         // If this is (X^1) == 0/1, swap the RHS and eliminate the xor.  We
         // can only do this if the top bits are known zero.
         unsigned BitWidth = N0.getValueSizeInBits();
@@ -3826,7 +3825,9 @@ SDValue TargetLowering::SimplifySetCC(EVT VT, SDValue N0, SDValue N1,
             return DAG.getSetCC(dl, VT, XorLHS, XorRHS, Cond);
           }
         }
-        if (Op0.getOpcode() == ISD::AND && isOneConstant(Op0.getOperand(1))) {
+        if (Op0.getOpcode() == ISD::AND &&
+            isa<ConstantSDNode>(Op0.getOperand(1)) &&
+            cast<ConstantSDNode>(Op0.getOperand(1))->isOne()) {
           // If this is (X&1) == / != 1, normalize it to (X&1) != / == 0.
           if (Op0.getValueType().bitsGT(VT))
             Op0 = DAG.getNode(ISD::AND, dl, VT,
@@ -5033,15 +5034,9 @@ static SDValue BuildExactSDIV(const TargetLowering &TLI, SDNode *N,
     return SDValue();
 
   SDValue Shift, Factor;
-  if (VT.isFixedLengthVector()) {
+  if (VT.isVector()) {
     Shift = DAG.getBuildVector(ShVT, dl, Shifts);
     Factor = DAG.getBuildVector(VT, dl, Factors);
-  } else if (VT.isScalableVector()) {
-    assert(Shifts.size() == 1 && Factors.size() == 1 &&
-           "Expected matchUnaryPredicate to return one element for scalable "
-           "vectors");
-    Shift = DAG.getSplatVector(ShVT, dl, Shifts[0]);
-    Factor = DAG.getSplatVector(VT, dl, Factors[0]);
   } else {
     Shift = Shifts[0];
     Factor = Factors[0];
@@ -5134,20 +5129,11 @@ SDValue TargetLowering::BuildSDIV(SDNode *N, SelectionDAG &DAG,
     return SDValue();
 
   SDValue MagicFactor, Factor, Shift, ShiftMask;
-  if (VT.isFixedLengthVector()) {
+  if (VT.isVector()) {
     MagicFactor = DAG.getBuildVector(VT, dl, MagicFactors);
     Factor = DAG.getBuildVector(VT, dl, Factors);
     Shift = DAG.getBuildVector(ShVT, dl, Shifts);
     ShiftMask = DAG.getBuildVector(VT, dl, ShiftMasks);
-  } else if (VT.isScalableVector()) {
-    assert(MagicFactors.size() == 1 && Factors.size() == 1 &&
-           Shifts.size() == 1 && ShiftMasks.size() == 1 &&
-           "Expected matchUnaryPredicate to return one element for scalable "
-           "vectors");
-    MagicFactor = DAG.getSplatVector(VT, dl, MagicFactors[0]);
-    Factor = DAG.getSplatVector(VT, dl, Factors[0]);
-    Shift = DAG.getSplatVector(ShVT, dl, Shifts[0]);
-    ShiftMask = DAG.getSplatVector(VT, dl, ShiftMasks[0]);
   } else {
     MagicFactor = MagicFactors[0];
     Factor = Factors[0];
@@ -5261,19 +5247,11 @@ SDValue TargetLowering::BuildUDIV(SDNode *N, SelectionDAG &DAG,
     return SDValue();
 
   SDValue PreShift, PostShift, MagicFactor, NPQFactor;
-  if (VT.isFixedLengthVector()) {
+  if (VT.isVector()) {
     PreShift = DAG.getBuildVector(ShVT, dl, PreShifts);
     MagicFactor = DAG.getBuildVector(VT, dl, MagicFactors);
     NPQFactor = DAG.getBuildVector(VT, dl, NPQFactors);
     PostShift = DAG.getBuildVector(ShVT, dl, PostShifts);
-  } else if (VT.isScalableVector()) {
-    assert(PreShifts.size() == 1 && MagicFactors.size() == 1 &&
-           NPQFactors.size() == 1 && PostShifts.size() == 1 &&
-           "Expected matchUnaryPredicate to return one for scalable vectors");
-    PreShift = DAG.getSplatVector(ShVT, dl, PreShifts[0]);
-    MagicFactor = DAG.getSplatVector(VT, dl, MagicFactors[0]);
-    NPQFactor = DAG.getSplatVector(VT, dl, NPQFactors[0]);
-    PostShift = DAG.getSplatVector(ShVT, dl, PostShifts[0]);
   } else {
     PreShift = PreShifts[0];
     MagicFactor = MagicFactors[0];
@@ -5325,10 +5303,8 @@ SDValue TargetLowering::BuildUDIV(SDNode *N, SelectionDAG &DAG,
   Q = DAG.getNode(ISD::SRL, dl, VT, Q, PostShift);
   Created.push_back(Q.getNode());
 
-  EVT SetCCVT = getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), VT);
-
   SDValue One = DAG.getConstant(1, dl, VT);
-  SDValue IsOne = DAG.getSetCC(dl, SetCCVT, N1, One, ISD::SETEQ);
+  SDValue IsOne = DAG.getSetCC(dl, VT, N1, One, ISD::SETEQ);
   return DAG.getSelect(dl, VT, IsOne, N0, Q);
 }
 
@@ -5755,7 +5731,7 @@ TargetLowering::prepareSREMEqFold(EVT SETCCVT, SDValue REMNode,
     return SDValue();
 
   SDValue PVal, AVal, KVal, QVal;
-  if (VT.isFixedLengthVector()) {
+  if (VT.isVector()) {
     if (HadOneDivisor) {
       // Try to turn PAmts into a splat, since we don't care about the values
       // that are currently '0'. If we can't, just keep '0'`s.
@@ -5774,15 +5750,6 @@ TargetLowering::prepareSREMEqFold(EVT SETCCVT, SDValue REMNode,
     AVal = DAG.getBuildVector(VT, DL, AAmts);
     KVal = DAG.getBuildVector(ShVT, DL, KAmts);
     QVal = DAG.getBuildVector(VT, DL, QAmts);
-  } else if (VT.isScalableVector()) {
-    assert(PAmts.size() == 1 && AAmts.size() == 1 && KAmts.size() == 1 &&
-           QAmts.size() == 1 &&
-           "Expected matchUnaryPredicate to return one element for scalable "
-           "vectors");
-    PVal = DAG.getSplatVector(VT, DL, PAmts[0]);
-    AVal = DAG.getSplatVector(VT, DL, AAmts[0]);
-    KVal = DAG.getSplatVector(ShVT, DL, KAmts[0]);
-    QVal = DAG.getSplatVector(VT, DL, QAmts[0]);
   } else {
     PVal = PAmts[0];
     AVal = AAmts[0];
@@ -5875,28 +5842,6 @@ verifyReturnAddressArgumentIsConstant(SDValue Op, SelectionDAG &DAG) const {
   }
 
   return false;
-}
-
-SDValue TargetLowering::getSqrtInputTest(SDValue Op, SelectionDAG &DAG,
-                                         const DenormalMode &Mode) const {
-  SDLoc DL(Op);
-  EVT VT = Op.getValueType();
-  EVT CCVT = getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), VT);
-  SDValue FPZero = DAG.getConstantFP(0.0, DL, VT);
-  // Testing it with denormal inputs to avoid wrong estimate.
-  if (Mode.Input == DenormalMode::IEEE) {
-    // This is specifically a check for the handling of denormal inputs,
-    // not the result.
-
-    // Test = fabs(X) < SmallestNormal
-    const fltSemantics &FltSem = DAG.EVTToAPFloatSemantics(VT);
-    APFloat SmallestNorm = APFloat::getSmallestNormalized(FltSem);
-    SDValue NormC = DAG.getConstantFP(SmallestNorm, DL, VT);
-    SDValue Fabs = DAG.getNode(ISD::FABS, DL, VT, Op);
-    return DAG.getSetCC(DL, CCVT, Fabs, NormC, ISD::SETLT);
-  }
-  // Test = X == 0.0
-  return DAG.getSetCC(DL, CCVT, Op, FPZero, ISD::SETEQ);
 }
 
 SDValue TargetLowering::getNegatedExpression(SDValue Op, SelectionDAG &DAG,

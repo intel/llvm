@@ -592,7 +592,7 @@ void Output::endSequence() {
   // If we did not emit anything, we should explicitly emit an empty sequence
   if (StateStack.back() == inSeqFirstElement) {
     Padding = PaddingBeforeContainer;
-    newLineCheck(/*EmptySequence=*/true);
+    newLineCheck();
     output("[]");
     Padding = "\n";
   }
@@ -798,7 +798,7 @@ void Output::outputNewLine() {
 // if seq in middle, use "- " if firstKey, else use "  "
 //
 
-void Output::newLineCheck(bool EmptySequence) {
+void Output::newLineCheck() {
   if (Padding != "\n") {
     output(Padding);
     Padding = {};
@@ -807,7 +807,7 @@ void Output::newLineCheck(bool EmptySequence) {
   outputNewLine();
   Padding = {};
 
-  if (StateStack.size() == 0 || EmptySequence)
+  if (StateStack.size() == 0)
     return;
 
   unsigned Indent = StateStack.size() - 1;
@@ -831,6 +831,7 @@ void Output::newLineCheck(bool EmptySequence) {
   if (OutputDash) {
     output("- ");
   }
+
 }
 
 void Output::paddedKey(StringRef key) {

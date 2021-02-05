@@ -151,22 +151,13 @@ static cl::opt<LinkageNameOption>
                                             "Abstract subprograms")),
                       cl::init(DefaultLinkageNames));
 
-static cl::opt<DwarfDebug::MinimizeAddrInV5> MinimizeAddrInV5Option(
-    "minimize-addr-in-v5", cl::Hidden,
+static cl::opt<DefaultOnOff> AlwaysUseRangesInV5(
+    "always-use-ranges-in-v5", cl::Hidden,
     cl::desc("Always use DW_AT_ranges in DWARFv5 whenever it could allow more "
              "address pool entry sharing to reduce relocations/object size"),
-    cl::values(clEnumValN(DwarfDebug::MinimizeAddrInV5::Default, "Default",
-                          "Default address minimization strategy"),
-               clEnumValN(DwarfDebug::MinimizeAddrInV5::Ranges, "Ranges",
-                          "Use rnglists for contiguous ranges if that allows "
-                          "using a pre-existing base address"),
-               clEnumValN(DwarfDebug::MinimizeAddrInV5::Expressions,
-                          "Expressions",
-                          "Use exprloc addrx+offset expressions for any "
-                          "address with a prior base address"),
-               clEnumValN(DwarfDebug::MinimizeAddrInV5::Disabled, "Disabled",
-                          "Stuff")),
-    cl::init(DwarfDebug::MinimizeAddrInV5::Default));
+    cl::values(clEnumVal(Default, "Default for platform"),
+               clEnumVal(Enable, "Enabled"), clEnumVal(Disable, "Disabled")),
+    cl::init(Default));
 
 static constexpr unsigned ULEB128PadSize = 4;
 
@@ -442,12 +433,14 @@ DwarfDebug::DwarfDebug(AsmPrinter *A)
   // Split DWARF would benefit object size significantly by trading reductions
   // in address pool usage for slightly increased range list encodings.
   if (DwarfVersion >= 5) {
-    MinimizeAddr = MinimizeAddrInV5Option;
-    // FIXME: In the future, enable this by default for Split DWARF where the
-    // tradeoff is more pronounced due to being able to offload the range
-    // lists to the dwo file and shrink object files/reduce relocations there.
-    if (MinimizeAddr == MinimizeAddrInV5::Default)
-      MinimizeAddr = MinimizeAddrInV5::Disabled;
+    if (AlwaysUseRangesInV5 == Default) {
+      // FIXME: In the future, enable this by default for Split DWARF where the
+      // tradeoff is more pronounced due to being able to offload the range
+      // lists to the dwo file and shrink object files/reduce relocations there.
+      AlwaysUseRanges = false;
+    } else {
+      AlwaysUseRanges = AlwaysUseRangesInV5 == Enable;
+    }
   }
 
   Asm->OutStreamer->getContext().setDwarfVersion(DwarfVersion);
@@ -3401,10 +3394,7 @@ dwarf::Form DwarfDebug::getDwarfSectionOffsetForm() const {
 }
 
 const MCSymbol *DwarfDebug::getSectionLabel(const MCSection *S) {
-  auto I = SectionLabels.find(S);
-  if (I == SectionLabels.end())
-    return nullptr;
-  return I->second;
+  return SectionLabels.find(S)->second;
 }
 void DwarfDebug::insertSectionLabel(const MCSymbol *S) {
   if (SectionLabels.insert(std::make_pair(&S->getSection(), S)).second)

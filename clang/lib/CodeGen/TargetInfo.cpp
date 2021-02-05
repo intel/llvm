@@ -4709,12 +4709,13 @@ Address PPC32_SVR4_ABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAList,
   // };
 
   bool isI64 = Ty->isIntegerType() && getContext().getTypeSize(Ty) == 64;
-  bool isInt = !Ty->isFloatingType();
+  bool isInt =
+      Ty->isIntegerType() || Ty->isPointerType() || Ty->isAggregateType();
   bool isF64 = Ty->isFloatingType() && getContext().getTypeSize(Ty) == 64;
 
   // All aggregates are passed indirectly?  That doesn't seem consistent
   // with the argument-lowering code.
-  bool isIndirect = isAggregateTypeForABI(Ty);
+  bool isIndirect = Ty->isAggregateType();
 
   CGBuilderTy &Builder = CGF.Builder;
 

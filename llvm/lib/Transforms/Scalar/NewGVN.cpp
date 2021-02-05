@@ -2876,7 +2876,8 @@ void NewGVN::cleanupTables() {
   }
 
   while (!TempInst.empty()) {
-    auto *I = TempInst.pop_back_val();
+    auto *I = TempInst.back();
+    TempInst.pop_back();
     I->deleteValue();
   }
 

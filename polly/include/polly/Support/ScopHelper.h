@@ -68,9 +68,6 @@ struct Assumption {
 
   /// An optional block whose domain can simplify the assumption.
   llvm::BasicBlock *BB;
-
-  // Whether the assumption must be checked at runtime.
-  bool RequiresRTC;
 };
 
 using RecordedAssumptionsTy = llvm::SmallVector<Assumption, 8>;
@@ -91,11 +88,9 @@ using RecordedAssumptionsTy = llvm::SmallVector<Assumption, 8>;
 ///             set, the domain of that block will be used to simplify the
 ///             actual assumption in @p Set once it is added. This is useful
 ///             if the assumption was created prior to the domain.
-/// @param RTC  Does the assumption require a runtime check?
 void recordAssumption(RecordedAssumptionsTy *RecordedAssumptions,
                       AssumptionKind Kind, isl::set Set, llvm::DebugLoc Loc,
-                      AssumptionSign Sign, llvm::BasicBlock *BB = nullptr,
-                      bool RTC = true);
+                      AssumptionSign Sign, llvm::BasicBlock *BB = nullptr);
 
 /// Type to remap values.
 using ValueMapT = llvm::DenseMap<llvm::AssertingVH<llvm::Value>,

@@ -680,8 +680,6 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_NOSYNC;
   case Attribute::NoCfCheck:
     return bitc::ATTR_KIND_NOCF_CHECK;
-  case Attribute::NoProfile:
-    return bitc::ATTR_KIND_NO_PROFILE;
   case Attribute::NoUnwind:
     return bitc::ATTR_KIND_NO_UNWIND;
   case Attribute::NullPointerIsValid:
@@ -1044,8 +1042,7 @@ static uint64_t getEncodedFFlags(FunctionSummary::FFlags Flags) {
   return RawFlags;
 }
 
-// Decode the flags for GlobalValue in the summary. See getDecodedGVSummaryFlags
-// in BitcodeReader.cpp.
+// Decode the flags for GlobalValue in the summary
 static uint64_t getEncodedGVSummaryFlags(GlobalValueSummary::GVFlags Flags) {
   uint64_t RawFlags = 0;
 
@@ -1058,8 +1055,6 @@ static uint64_t getEncodedGVSummaryFlags(GlobalValueSummary::GVFlags Flags) {
   // change to the getEncodedLinkage() function will need to be taken into
   // account here as well.
   RawFlags = (RawFlags << 4) | Flags.Linkage; // 4 bits
-
-  RawFlags |= (Flags.Visibility << 8); // 2 bits
 
   return RawFlags;
 }

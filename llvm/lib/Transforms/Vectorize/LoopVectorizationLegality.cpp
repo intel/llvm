@@ -605,6 +605,11 @@ static bool isTLIScalarize(const TargetLibraryInfo &TLI, const CallInst &CI) {
 bool LoopVectorizationLegality::canVectorizeInstrs() {
   BasicBlock *Header = TheLoop->getHeader();
 
+  // Look for the attribute signaling the absence of NaNs.
+  Function &F = *Header->getParent();
+  HasFunNoNaNAttr =
+      F.getFnAttribute("no-nans-fp-math").getValueAsString() == "true";
+
   // For each block in the loop.
   for (BasicBlock *BB : TheLoop->blocks()) {
     // Scan the instructions in the block and look for hazards.
@@ -668,7 +673,7 @@ bool LoopVectorizationLegality::canVectorizeInstrs() {
         InductionDescriptor ID;
         if (InductionDescriptor::isInductionPHI(Phi, TheLoop, PSE, ID)) {
           addInductionPhi(Phi, ID, AllowedExit);
-          if (ID.hasUnsafeAlgebra())
+          if (ID.hasUnsafeAlgebra() && !HasFunNoNaNAttr)
             Requirements->addUnsafeAlgebraInst(ID.getUnsafeAlgebraInst());
           continue;
         }
@@ -942,8 +947,9 @@ bool LoopVectorizationLegality::blockCanBePredicated(
     // Do not let llvm.experimental.noalias.scope.decl block the vectorization.
     // TODO: there might be cases that it should block the vectorization. Let's
     // ignore those for now.
-    if (isa<NoAliasScopeDeclInst>(&I))
+    if (match(&I, m_Intrinsic<Intrinsic::experimental_noalias_scope_decl>())) {
       continue;
+    }
 
     // We might be able to hoist the load.
     if (I.mayReadFromMemory()) {

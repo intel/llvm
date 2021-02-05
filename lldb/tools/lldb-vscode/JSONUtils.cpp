@@ -1001,9 +1001,7 @@ llvm::json::Value CreateCompileUnit(lldb::SBCompileUnit unit) {
 /// See
 /// https://microsoft.github.io/debug-adapter-protocol/specification#Reverse_Requests_RunInTerminal
 llvm::json::Object
-CreateRunInTerminalReverseRequest(const llvm::json::Object &launch_request,
-                                  llvm::StringRef debug_adaptor_path,
-                                  llvm::StringRef comm_file) {
+CreateRunInTerminalReverseRequest(const llvm::json::Object &launch_request) {
   llvm::json::Object reverse_request;
   reverse_request.try_emplace("type", "request");
   reverse_request.try_emplace("command", "runInTerminal");
@@ -1014,13 +1012,10 @@ CreateRunInTerminalReverseRequest(const llvm::json::Object &launch_request,
   run_in_terminal_args.try_emplace("kind", "integrated");
 
   auto launch_request_arguments = launch_request.getObject("arguments");
+  std::vector<std::string> args = GetStrings(launch_request_arguments, "args");
   // The program path must be the first entry in the "args" field
-  std::vector<std::string> args = {
-      debug_adaptor_path.str(), "--comm-file", comm_file.str(),
-      "--launch-target", GetString(launch_request_arguments, "program").str()};
-  std::vector<std::string> target_args =
-      GetStrings(launch_request_arguments, "args");
-  args.insert(args.end(), target_args.begin(), target_args.end());
+  args.insert(args.begin(),
+              GetString(launch_request_arguments, "program").str());
   run_in_terminal_args.try_emplace("args", args);
 
   const auto cwd = GetString(launch_request_arguments, "cwd");
@@ -1041,14 +1036,6 @@ CreateRunInTerminalReverseRequest(const llvm::json::Object &launch_request,
   reverse_request.try_emplace(
       "arguments", llvm::json::Value(std::move(run_in_terminal_args)));
   return reverse_request;
-}
-
-std::string JSONToString(const llvm::json::Value &json) {
-  std::string data;
-  llvm::raw_string_ostream os(data);
-  os << json;
-  os.flush();
-  return data;
 }
 
 } // namespace lldb_vscode

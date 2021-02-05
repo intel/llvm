@@ -1,4 +1,4 @@
-! RUN: %flang -E %s 2>&1 | FileCheck %s
+! RUN: %f18 -E %s 2>&1 | FileCheck %s
 ! CHECK: res = 777
 ! ditto, with & ! comment
       integer, parameter :: KWM = 666

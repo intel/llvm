@@ -12,24 +12,24 @@
 # RUN:     | llvm-objdump --mattr=+experimental-zbs -d -r - \
 # RUN:     | FileCheck --check-prefix=CHECK-ASM-AND-OBJ %s
 
-# CHECK-ASM-AND-OBJ: bclrw t0, t1, t2
+# CHECK-ASM-AND-OBJ: sbclrw t0, t1, t2
 # CHECK-ASM: encoding: [0xbb,0x12,0x73,0x48]
-bclrw t0, t1, t2
-# CHECK-ASM-AND-OBJ: bsetw t0, t1, t2
+sbclrw t0, t1, t2
+# CHECK-ASM-AND-OBJ: sbsetw t0, t1, t2
 # CHECK-ASM: encoding: [0xbb,0x12,0x73,0x28]
-bsetw t0, t1, t2
-# CHECK-ASM-AND-OBJ: binvw t0, t1, t2
+sbsetw t0, t1, t2
+# CHECK-ASM-AND-OBJ: sbinvw t0, t1, t2
 # CHECK-ASM: encoding: [0xbb,0x12,0x73,0x68]
-binvw t0, t1, t2
-# CHECK-ASM-AND-OBJ: bextw t0, t1, t2
+sbinvw t0, t1, t2
+# CHECK-ASM-AND-OBJ: sbextw t0, t1, t2
 # CHECK-ASM: encoding: [0xbb,0x52,0x73,0x48]
-bextw t0, t1, t2
-# CHECK-ASM-AND-OBJ: bclriw  t0, t1, 0
+sbextw t0, t1, t2
+# CHECK-ASM-AND-OBJ: sbclriw  t0, t1, 0
 # CHECK-ASM: encoding: [0x9b,0x12,0x03,0x48]
-bclriw	t0, t1, 0
-# CHECK-ASM-AND-OBJ: bsetiw  t0, t1, 0
+sbclriw	t0, t1, 0
+# CHECK-ASM-AND-OBJ: sbsetiw  t0, t1, 0
 # CHECK-ASM: encoding: [0x9b,0x12,0x03,0x28]
-bsetiw	t0, t1, 0
-# CHECK-ASM-AND-OBJ: binviw  t0, t1, 0
+sbsetiw	t0, t1, 0
+# CHECK-ASM-AND-OBJ: sbinviw  t0, t1, 0
 # CHECK-ASM: encoding: [0x9b,0x12,0x03,0x68]
-binviw	t0, t1, 0
+sbinviw	t0, t1, 0

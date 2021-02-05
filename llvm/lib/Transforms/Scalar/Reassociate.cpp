@@ -1128,7 +1128,8 @@ static Value *EmitAddTreeOfValues(Instruction *I,
                                   SmallVectorImpl<WeakTrackingVH> &Ops) {
   if (Ops.size() == 1) return Ops.back();
 
-  Value *V1 = Ops.pop_back_val();
+  Value *V1 = Ops.back();
+  Ops.pop_back();
   Value *V2 = EmitAddTreeOfValues(I, Ops);
   return CreateAdd(V2, V1, "reass.add", I, I);
 }

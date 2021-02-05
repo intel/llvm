@@ -92,13 +92,6 @@ static cl::opt<bool>
 
 extern cl::opt<InlinerFunctionImportStatsOpts> InlinerFunctionImportStats;
 
-static cl::opt<std::string> CGSCCInlineReplayFile(
-    "cgscc-inline-replay", cl::init(""), cl::value_desc("filename"),
-    cl::desc(
-        "Optimization remarks file containing inline remarks to be replayed "
-        "by inlining from cgscc inline remarks."),
-    cl::Hidden);
-
 LegacyInlinerBase::LegacyInlinerBase(char &ID) : CallGraphSCCPass(ID) {}
 
 LegacyInlinerBase::LegacyInlinerBase(char &ID, bool InsertLifetime)
@@ -640,8 +633,8 @@ bool LegacyInlinerBase::removeDeadFunctions(CallGraph &CG,
 InlineAdvisor &
 InlinerPass::getAdvisor(const ModuleAnalysisManagerCGSCCProxy::Result &MAM,
                         FunctionAnalysisManager &FAM, Module &M) {
-  if (OwnedAdvisor)
-    return *OwnedAdvisor;
+  if (OwnedDefaultAdvisor)
+    return *OwnedDefaultAdvisor;
 
   auto *IAA = MAM.getCachedResult<InlineAdvisorAnalysis>(M);
   if (!IAA) {
@@ -653,16 +646,9 @@ InlinerPass::getAdvisor(const ModuleAnalysisManagerCGSCCProxy::Result &MAM,
     // duration of the inliner pass, and thus the lifetime of the owned advisor.
     // The one we would get from the MAM can be invalidated as a result of the
     // inliner's activity.
-    OwnedAdvisor =
+    OwnedDefaultAdvisor =
         std::make_unique<DefaultInlineAdvisor>(M, FAM, getInlineParams());
-
-    if (!CGSCCInlineReplayFile.empty())
-      OwnedAdvisor = std::make_unique<ReplayInlineAdvisor>(
-          M, FAM, M.getContext(), std::move(OwnedAdvisor),
-          CGSCCInlineReplayFile,
-          /*EmitRemarks=*/true);
-
-    return *OwnedAdvisor;
+    return *OwnedDefaultAdvisor;
   }
   assert(IAA->getAdvisor() &&
          "Expected a present InlineAdvisorAnalysis also have an "
@@ -1012,7 +998,7 @@ ModuleInlinerWrapperPass::ModuleInlinerWrapperPass(InlineParams Params,
 PreservedAnalyses ModuleInlinerWrapperPass::run(Module &M,
                                                 ModuleAnalysisManager &MAM) {
   auto &IAA = MAM.getResult<InlineAdvisorAnalysis>(M);
-  if (!IAA.tryCreate(Params, Mode, CGSCCInlineReplayFile)) {
+  if (!IAA.tryCreate(Params, Mode)) {
     M.getContext().emitError(
         "Could not setup Inlining Advisor for the requested "
         "mode and/or options");

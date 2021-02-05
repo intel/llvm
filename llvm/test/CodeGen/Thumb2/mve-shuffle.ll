@@ -512,12 +512,14 @@ entry:
   ret <4 x float> %res
 }
 
-define arm_aapcs_vfpcc <8 x half> @insert_f16(half %a) {
+; TODO: Calling convention needs fixing to pass half types directly to functions
+define arm_aapcs_vfpcc <8 x half> @insert_f16(half *%aa) {
 ; CHECK-LABEL: insert_f16:
 ; CHECK:       @ %bb.0: @ %entry
-; CHECK-NEXT:    @ kill: def $s0 killed $s0 def $q0
+; CHECK-NEXT:    vldr.16 s0, [r0]
 ; CHECK-NEXT:    bx lr
 entry:
+  %a = load half, half* %aa
   %res = insertelement <8 x half> undef, half %a, i32 0
   ret <8 x half> %res
 }

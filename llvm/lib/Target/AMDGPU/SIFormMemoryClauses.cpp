@@ -53,11 +53,6 @@ public:
     MachineFunctionPass::getAnalysisUsage(AU);
   }
 
-  MachineFunctionProperties getClearedProperties() const override {
-    return MachineFunctionProperties().set(
-        MachineFunctionProperties::Property::IsSSA);
-  }
-
 private:
   template <typename Callable>
   void forAllLanes(Register Reg, LaneBitmask LaneMask, Callable Func) const;
@@ -322,7 +317,6 @@ bool SIFormMemoryClauses::runOnMachineFunction(MachineFunction &MF) {
       MF.getFunction(), "amdgpu-max-memory-clause", MaxClause);
 
   for (MachineBasicBlock &MBB : MF) {
-    GCNDownwardRPTracker RPT(*LIS);
     MachineBasicBlock::instr_iterator Next;
     for (auto I = MBB.instr_begin(), E = MBB.instr_end(); I != E; I = Next) {
       MachineInstr &MI = *I;
@@ -333,19 +327,12 @@ bool SIFormMemoryClauses::runOnMachineFunction(MachineFunction &MF) {
       if (!isValidClauseInst(MI, IsVMEM))
         continue;
 
-      if (!RPT.getNext().isValid())
-        RPT.reset(MI);
-      else { // Advance the state to the current MI.
-        RPT.advance(MachineBasicBlock::const_iterator(MI));
-        RPT.advanceBeforeNext();
-      }
-
-      const GCNRPTracker::LiveRegSet LiveRegsCopy(RPT.getLiveRegs());
       RegUse Defs, Uses;
-      if (!processRegUses(MI, Defs, Uses, RPT)) {
-        RPT.reset(MI, &LiveRegsCopy);
+      GCNDownwardRPTracker RPT(*LIS);
+      RPT.reset(MI);
+
+      if (!processRegUses(MI, Defs, Uses, RPT))
         continue;
-      }
 
       unsigned Length = 1;
       for ( ; Next != E && Length < FuncMaxClause; ++Next) {
@@ -360,19 +347,14 @@ bool SIFormMemoryClauses::runOnMachineFunction(MachineFunction &MF) {
 
         ++Length;
       }
-      if (Length < 2) {
-        RPT.reset(MI, &LiveRegsCopy);
+      if (Length < 2)
         continue;
-      }
 
       Changed = true;
       MFI->limitOccupancy(LastRecordedOccupancy);
 
       auto B = BuildMI(MBB, I, DebugLoc(), TII->get(TargetOpcode::BUNDLE));
       Ind->insertMachineInstrInMaps(*B);
-
-      // Restore the state after processing the bundle.
-      RPT.reset(*B, &LiveRegsCopy);
 
       for (auto BI = I; BI != Next; ++BI) {
         BI->bundleWithPred();

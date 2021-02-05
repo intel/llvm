@@ -682,40 +682,28 @@ Simplex Simplex::makeProduct(const Simplex &a, const Simplex &b) {
   return result;
 }
 
-SmallVector<Fraction, 8> Simplex::getRationalSample() const {
-  assert(!empty && "This should not be called when Simplex is empty.");
+Optional<SmallVector<int64_t, 8>> Simplex::getSamplePointIfIntegral() const {
+  // The tableau is empty, so no sample point exists.
+  if (empty)
+    return {};
 
-  SmallVector<Fraction, 8> sample;
-  sample.reserve(var.size());
+  SmallVector<int64_t, 8> sample;
   // Push the sample value for each variable into the vector.
   for (const Unknown &u : var) {
     if (u.orientation == Orientation::Column) {
       // If the variable is in column position, its sample value is zero.
-      sample.emplace_back(0, 1);
+      sample.push_back(0);
     } else {
       // If the variable is in row position, its sample value is the entry in
       // the constant column divided by the entry in the common denominator
-      // column.
-      sample.emplace_back(tableau(u.pos, 1), tableau(u.pos, 0));
+      // column. If this is not an integer, then the sample point is not
+      // integral so we return None.
+      if (tableau(u.pos, 1) % tableau(u.pos, 0) != 0)
+        return {};
+      sample.push_back(tableau(u.pos, 1) / tableau(u.pos, 0));
     }
   }
   return sample;
-}
-
-Optional<SmallVector<int64_t, 8>> Simplex::getSamplePointIfIntegral() const {
-  // If the tableau is empty, no sample point exists.
-  if (empty)
-    return {};
-  SmallVector<Fraction, 8> rationalSample = getRationalSample();
-  SmallVector<int64_t, 8> integerSample;
-  integerSample.reserve(var.size());
-  for (const Fraction &coord : rationalSample) {
-    // If the sample is non-integral, return None.
-    if (coord.num % coord.den != 0)
-      return {};
-    integerSample.push_back(coord.num / coord.den);
-  }
-  return integerSample;
 }
 
 /// Given a simplex for a polytope, construct a new simplex whose variables are

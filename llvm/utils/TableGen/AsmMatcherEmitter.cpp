@@ -1112,7 +1112,9 @@ static std::string getEnumNameForToken(StringRef Str) {
     case '-': Res += "_MINUS_"; break;
     case '#': Res += "_HASH_"; break;
     default:
-      if (isAlnum(*it))
+      if ((*it >= 'A' && *it <= 'Z') ||
+          (*it >= 'a' && *it <= 'z') ||
+          (*it >= '0' && *it <= '9'))
         Res += *it;
       else
         Res += "_" + utostr((unsigned) *it) + "_";

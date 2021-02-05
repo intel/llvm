@@ -9,7 +9,6 @@
 #ifndef liblldb_ScriptInterpreterLua_h_
 #define liblldb_ScriptInterpreterLua_h_
 
-#include "lldb/Core/StructuredDataImpl.h"
 #include "lldb/Interpreter/ScriptInterpreter.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/lldb-enumerations.h"
@@ -23,11 +22,6 @@ public:
     CommandDataLua() : BreakpointOptions::CommandData() {
       interpreter = lldb::eScriptLanguageLua;
     }
-    CommandDataLua(StructuredData::ObjectSP extra_args_sp)
-        : BreakpointOptions::CommandData(), m_extra_args_sp(extra_args_sp) {
-      interpreter = lldb::eScriptLanguageLua;
-    }
-    StructuredData::ObjectSP m_extra_args_sp;
   };
 
   ScriptInterpreterLua(Debugger &debugger);
@@ -78,17 +72,9 @@ public:
   Status SetBreakpointCommandCallback(BreakpointOptions *bp_options,
                                       const char *command_body_text) override;
 
-  Status SetBreakpointCommandCallbackFunction(
-      BreakpointOptions *bp_options, const char *function_name,
-      StructuredData::ObjectSP extra_args_sp) override;
-
 private:
   std::unique_ptr<Lua> m_lua;
   bool m_session_is_active = false;
-
-  Status RegisterBreakpointCallback(BreakpointOptions *bp_options,
-                                    const char *command_body_text,
-                                    StructuredData::ObjectSP extra_args_sp);
 };
 
 } // namespace lldb_private

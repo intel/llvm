@@ -9,7 +9,6 @@ add_llvm_component_library(LLVMObject
   ELF.cpp
   ELFObjectFile.cpp
   Error.cpp
-  FaultMapParser.cpp
   IRObjectFile.cpp
   IRSymtab.cpp
   MachOObjectFile.cpp

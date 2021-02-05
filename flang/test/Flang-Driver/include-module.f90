@@ -1,4 +1,5 @@
 ! Ensure argument -I works as expected with module files.
+! The module files for this test are not real module files.
 
 ! REQUIRES: new-flang-driver
 
@@ -17,21 +18,15 @@
 !-----------------------------------------
 ! EXPECTED OUTPUT FOR MISSING MODULE FILE
 !-----------------------------------------
-! SINGLEINCLUDE:Error reading module file for module 'basictestmoduletwo'
+! SINGLEINCLUDE:No such file or directory
 ! SINGLEINCLUDE-NOT:Error reading module file for module 'basictestmoduletwo'
-! SINGLEINCLUDE-NOT:error: Derived type 't1' not found
-! SINGLEINCLUDE:error: Derived type 't2' not found
 
 !---------------------------------------
 ! EXPECTED OUTPUT FOR ALL MODULES FOUND
 !---------------------------------------
-! INCLUDED-NOT:Error reading module file
-! INCLUDED-NOT:error: Derived type 't1' not found
-! INCLUDED:error: Derived type 't2' not found
+! INCLUDED-NOT:No such file or directory
 
 program test_dash_I_with_mod_files
     USE basictestmoduleone
     USE basictestmoduletwo
-    type(t1) :: x1 ! t1 defined in Inputs/basictestmoduleone.mod
-    type(t2) :: x2 ! t2 defined in Inputs/module-dir/basictestmoduleone.mod
 end

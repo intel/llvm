@@ -15,6 +15,7 @@ define <vscale x 1 x half> @vfadd_vv_nxv1f16(<vscale x 1 x half> %va, <vscale x 
 define <vscale x 1 x half> @vfadd_vf_nxv1f16(<vscale x 1 x half> %va, half %b) {
 ; CHECK-LABEL: vfadd_vf_nxv1f16:
 ; CHECK:       # %bb.0:
+; CHECK-NEXT:    # kill: def $f10_h killed $f10_h def $f10_f
 ; CHECK-NEXT:    vsetvli a0, zero, e16,mf4,ta,mu
 ; CHECK-NEXT:    vfadd.vf v8, v8, fa0
 ; CHECK-NEXT:    ret
@@ -37,6 +38,7 @@ define <vscale x 2 x half> @vfadd_vv_nxv2f16(<vscale x 2 x half> %va, <vscale x 
 define <vscale x 2 x half> @vfadd_vf_nxv2f16(<vscale x 2 x half> %va, half %b) {
 ; CHECK-LABEL: vfadd_vf_nxv2f16:
 ; CHECK:       # %bb.0:
+; CHECK-NEXT:    # kill: def $f10_h killed $f10_h def $f10_f
 ; CHECK-NEXT:    vsetvli a0, zero, e16,mf2,ta,mu
 ; CHECK-NEXT:    vfadd.vf v8, v8, fa0
 ; CHECK-NEXT:    ret
@@ -59,6 +61,7 @@ define <vscale x 4 x half> @vfadd_vv_nxv4f16(<vscale x 4 x half> %va, <vscale x 
 define <vscale x 4 x half> @vfadd_vf_nxv4f16(<vscale x 4 x half> %va, half %b) {
 ; CHECK-LABEL: vfadd_vf_nxv4f16:
 ; CHECK:       # %bb.0:
+; CHECK-NEXT:    # kill: def $f10_h killed $f10_h def $f10_f
 ; CHECK-NEXT:    vsetvli a0, zero, e16,m1,ta,mu
 ; CHECK-NEXT:    vfadd.vf v8, v8, fa0
 ; CHECK-NEXT:    ret
@@ -81,6 +84,7 @@ define <vscale x 8 x half> @vfadd_vv_nxv8f16(<vscale x 8 x half> %va, <vscale x 
 define <vscale x 8 x half> @vfadd_vf_nxv8f16(<vscale x 8 x half> %va, half %b) {
 ; CHECK-LABEL: vfadd_vf_nxv8f16:
 ; CHECK:       # %bb.0:
+; CHECK-NEXT:    # kill: def $f10_h killed $f10_h def $f10_f
 ; CHECK-NEXT:    vsetvli a0, zero, e16,m2,ta,mu
 ; CHECK-NEXT:    vfadd.vf v8, v8, fa0
 ; CHECK-NEXT:    ret
@@ -93,6 +97,7 @@ define <vscale x 8 x half> @vfadd_vf_nxv8f16(<vscale x 8 x half> %va, half %b) {
 define <vscale x 8 x half> @vfadd_fv_nxv8f16(<vscale x 8 x half> %va, half %b) {
 ; CHECK-LABEL: vfadd_fv_nxv8f16:
 ; CHECK:       # %bb.0:
+; CHECK-NEXT:    # kill: def $f10_h killed $f10_h def $f10_f
 ; CHECK-NEXT:    vsetvli a0, zero, e16,m2,ta,mu
 ; CHECK-NEXT:    vfadd.vf v8, v8, fa0
 ; CHECK-NEXT:    ret
@@ -115,6 +120,7 @@ define <vscale x 16 x half> @vfadd_vv_nxv16f16(<vscale x 16 x half> %va, <vscale
 define <vscale x 16 x half> @vfadd_vf_nxv16f16(<vscale x 16 x half> %va, half %b) {
 ; CHECK-LABEL: vfadd_vf_nxv16f16:
 ; CHECK:       # %bb.0:
+; CHECK-NEXT:    # kill: def $f10_h killed $f10_h def $f10_f
 ; CHECK-NEXT:    vsetvli a0, zero, e16,m4,ta,mu
 ; CHECK-NEXT:    vfadd.vf v8, v8, fa0
 ; CHECK-NEXT:    ret
@@ -137,6 +143,7 @@ define <vscale x 32 x half> @vfadd_vv_nxv32f16(<vscale x 32 x half> %va, <vscale
 define <vscale x 32 x half> @vfadd_vf_nxv32f16(<vscale x 32 x half> %va, half %b) {
 ; CHECK-LABEL: vfadd_vf_nxv32f16:
 ; CHECK:       # %bb.0:
+; CHECK-NEXT:    # kill: def $f10_h killed $f10_h def $f10_f
 ; CHECK-NEXT:    vsetvli a0, zero, e16,m8,ta,mu
 ; CHECK-NEXT:    vfadd.vf v8, v8, fa0
 ; CHECK-NEXT:    ret

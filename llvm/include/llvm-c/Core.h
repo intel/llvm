@@ -160,10 +160,10 @@ typedef enum {
   LLVMVectorTypeKind,    /**< Fixed width SIMD vector type */
   LLVMMetadataTypeKind,  /**< Metadata */
   LLVMX86_MMXTypeKind,   /**< X86 MMX */
+  LLVMX86_AMXTypeKind,   /**< X86 AMX */
   LLVMTokenTypeKind,     /**< Tokens */
   LLVMScalableVectorTypeKind, /**< Scalable SIMD vector type */
-  LLVMBFloatTypeKind,    /**< 16 bit brain floating point type */
-  LLVMX86_AMXTypeKind    /**< X86 AMX */
+  LLVMBFloatTypeKind     /**< 16 bit brain floating point type */
 } LLVMTypeKind;
 
 typedef enum {
@@ -270,6 +270,7 @@ typedef enum {
   LLVMConstantVectorValueKind,
 
   LLVMUndefValueValueKind,
+  LLVMPoisonValueValueKind,
   LLVMConstantAggregateZeroValueKind,
   LLVMConstantDataArrayValueKind,
   LLVMConstantDataVectorValueKind,
@@ -282,7 +283,6 @@ typedef enum {
   LLVMInlineAsmValueKind,
 
   LLVMInstructionValueKind,
-  LLVMPoisonValueValueKind
 } LLVMValueKind;
 
 typedef enum {

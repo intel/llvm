@@ -652,7 +652,8 @@ bool BasicAAResult::pointsToConstantMemory(const MemoryLocation &Loc,
         Visited.clear();
         return AAResultBase::pointsToConstantMemory(Loc, AAQI, OrLocal);
       }
-      append_range(Worklist, PN->incoming_values());
+      for (Value *IncValue : PN->incoming_values())
+        Worklist.push_back(IncValue);
       continue;
     }
 

@@ -647,7 +647,7 @@ public:
 /// DeclarationNameLoc - Additional source/type location info
 /// for a declaration name. Needs a DeclarationName in order
 /// to be interpreted correctly.
-class DeclarationNameLoc {
+struct DeclarationNameLoc {
   // The source location for identifier stored elsewhere.
   // struct {} Identifier;
 
@@ -679,78 +679,10 @@ class DeclarationNameLoc {
     struct CXXLitOpName CXXLiteralOperatorName;
   };
 
-  void setNamedTypeLoc(TypeSourceInfo *TInfo) { NamedType.TInfo = TInfo; }
-
-  void setCXXOperatorNameRange(SourceRange Range) {
-    CXXOperatorName.BeginOpNameLoc = Range.getBegin().getRawEncoding();
-    CXXOperatorName.EndOpNameLoc = Range.getEnd().getRawEncoding();
-  }
-
-  void setCXXLiteralOperatorNameLoc(SourceLocation Loc) {
-    CXXLiteralOperatorName.OpNameLoc = Loc.getRawEncoding();
-  }
-
-public:
   DeclarationNameLoc(DeclarationName Name);
+
   // FIXME: this should go away once all DNLocs are properly initialized.
   DeclarationNameLoc() { memset((void*) this, 0, sizeof(*this)); }
-
-  /// Returns the source type info. Assumes that the object stores location
-  /// information of a constructor, destructor or conversion operator.
-  TypeSourceInfo *getNamedTypeInfo() const { return NamedType.TInfo; }
-
-  /// Return the beginning location of the getCXXOperatorNameRange() range.
-  SourceLocation getCXXOperatorNameBeginLoc() const {
-    return SourceLocation::getFromRawEncoding(CXXOperatorName.BeginOpNameLoc);
-  }
-
-  /// Return the end location of the getCXXOperatorNameRange() range.
-  SourceLocation getCXXOperatorNameEndLoc() const {
-    return SourceLocation::getFromRawEncoding(CXXOperatorName.EndOpNameLoc);
-  }
-
-  /// Return the range of the operator name (without the operator keyword).
-  /// Assumes that the object stores location information of a (non-literal)
-  /// operator.
-  SourceRange getCXXOperatorNameRange() const {
-    return SourceRange(getCXXOperatorNameBeginLoc(),
-                       getCXXOperatorNameEndLoc());
-  }
-
-  /// Return the location of the literal operator name (without the operator
-  /// keyword). Assumes that the object stores location information of a literal
-  /// operator.
-  SourceLocation getCXXLiteralOperatorNameLoc() const {
-    return SourceLocation::getFromRawEncoding(CXXLiteralOperatorName.OpNameLoc);
-  }
-
-  /// Construct location information for a constructor, destructor or conversion
-  /// operator.
-  static DeclarationNameLoc makeNamedTypeLoc(TypeSourceInfo *TInfo) {
-    DeclarationNameLoc DNL;
-    DNL.setNamedTypeLoc(TInfo);
-    return DNL;
-  }
-
-  /// Construct location information for a non-literal C++ operator.
-  static DeclarationNameLoc makeCXXOperatorNameLoc(SourceLocation BeginLoc,
-                                                   SourceLocation EndLoc) {
-    return makeCXXOperatorNameLoc(SourceRange(BeginLoc, EndLoc));
-  }
-
-  /// Construct location information for a non-literal C++ operator.
-  static DeclarationNameLoc makeCXXOperatorNameLoc(SourceRange Range) {
-    DeclarationNameLoc DNL;
-    DNL.setCXXOperatorNameRange(Range);
-    return DNL;
-  }
-
-  /// Construct location information for a literal C++ operator.
-  static DeclarationNameLoc makeCXXLiteralOperatorNameLoc(SourceLocation Loc) {
-    DeclarationNameLoc DNL;
-    DNL.setCXXLiteralOperatorNameLoc(Loc);
-    return DNL;
-  }
 };
 
 /// DeclarationNameInfo - A collector data type for bundling together
@@ -790,6 +722,7 @@ public:
   void setLoc(SourceLocation L) { NameLoc = L; }
 
   const DeclarationNameLoc &getInfo() const { return LocInfo; }
+  DeclarationNameLoc &getInfo() { return LocInfo; }
   void setInfo(const DeclarationNameLoc &Info) { LocInfo = Info; }
 
   /// getNamedTypeInfo - Returns the source type info associated to
@@ -799,7 +732,7 @@ public:
         Name.getNameKind() != DeclarationName::CXXDestructorName &&
         Name.getNameKind() != DeclarationName::CXXConversionFunctionName)
       return nullptr;
-    return LocInfo.getNamedTypeInfo();
+    return LocInfo.NamedType.TInfo;
   }
 
   /// setNamedTypeInfo - Sets the source type info associated to
@@ -808,7 +741,7 @@ public:
     assert(Name.getNameKind() == DeclarationName::CXXConstructorName ||
            Name.getNameKind() == DeclarationName::CXXDestructorName ||
            Name.getNameKind() == DeclarationName::CXXConversionFunctionName);
-    LocInfo = DeclarationNameLoc::makeNamedTypeLoc(TInfo);
+    LocInfo.NamedType.TInfo = TInfo;
   }
 
   /// getCXXOperatorNameRange - Gets the range of the operator name
@@ -816,14 +749,18 @@ public:
   SourceRange getCXXOperatorNameRange() const {
     if (Name.getNameKind() != DeclarationName::CXXOperatorName)
       return SourceRange();
-    return LocInfo.getCXXOperatorNameRange();
+    return SourceRange(
+     SourceLocation::getFromRawEncoding(LocInfo.CXXOperatorName.BeginOpNameLoc),
+     SourceLocation::getFromRawEncoding(LocInfo.CXXOperatorName.EndOpNameLoc)
+                       );
   }
 
   /// setCXXOperatorNameRange - Sets the range of the operator name
   /// (without the operator keyword). Assumes it is a C++ operator.
   void setCXXOperatorNameRange(SourceRange R) {
     assert(Name.getNameKind() == DeclarationName::CXXOperatorName);
-    LocInfo = DeclarationNameLoc::makeCXXOperatorNameLoc(R);
+    LocInfo.CXXOperatorName.BeginOpNameLoc = R.getBegin().getRawEncoding();
+    LocInfo.CXXOperatorName.EndOpNameLoc = R.getEnd().getRawEncoding();
   }
 
   /// getCXXLiteralOperatorNameLoc - Returns the location of the literal
@@ -832,7 +769,8 @@ public:
   SourceLocation getCXXLiteralOperatorNameLoc() const {
     if (Name.getNameKind() != DeclarationName::CXXLiteralOperatorName)
       return SourceLocation();
-    return LocInfo.getCXXLiteralOperatorNameLoc();
+    return SourceLocation::
+      getFromRawEncoding(LocInfo.CXXLiteralOperatorName.OpNameLoc);
   }
 
   /// setCXXLiteralOperatorNameLoc - Sets the location of the literal
@@ -840,7 +778,7 @@ public:
   /// Assumes it is a literal operator.
   void setCXXLiteralOperatorNameLoc(SourceLocation Loc) {
     assert(Name.getNameKind() == DeclarationName::CXXLiteralOperatorName);
-    LocInfo = DeclarationNameLoc::makeCXXLiteralOperatorNameLoc(Loc);
+    LocInfo.CXXLiteralOperatorName.OpNameLoc = Loc.getRawEncoding();
   }
 
   /// Determine whether this name involves a template parameter.

@@ -722,9 +722,13 @@ def get_op_definition(instruction, doc, existing_info, capability_mapping):
   operands = instruction.get('operands', [])
 
   # Op availability
-  avail = get_availability_spec(instruction, capability_mapping, True, False)
-  if avail:
-    avail = '\n\n  {0}'.format(avail)
+  avail = ''
+  # We assume other instruction categories has a base availability spec, so
+  # only add this if this is directly using SPV_Op as the base.
+  if inst_category == 'Op':
+    avail = get_availability_spec(instruction, capability_mapping, True, False)
+    if avail:
+      avail = '\n\n  {0}'.format(avail)
 
   # Set op's result
   results = ''

@@ -14,7 +14,6 @@
 #include "llvm/Analysis/InlineAdvisor.h"
 #include "llvm/Analysis/InlineCost.h"
 #include "llvm/Analysis/LazyCallGraph.h"
-#include "llvm/Analysis/ReplayInlineAdvisor.h"
 #include "llvm/Analysis/Utils/ImportedFunctionsInliningStatistics.h"
 #include "llvm/IR/PassManager.h"
 #include <utility>
@@ -106,7 +105,7 @@ public:
 private:
   InlineAdvisor &getAdvisor(const ModuleAnalysisManagerCGSCCProxy::Result &MAM,
                             FunctionAnalysisManager &FAM, Module &M);
-  std::unique_ptr<InlineAdvisor> OwnedAdvisor;
+  std::unique_ptr<DefaultInlineAdvisor> OwnedDefaultAdvisor;
   const bool OnlyMandatory;
 };
 

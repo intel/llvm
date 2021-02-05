@@ -156,7 +156,8 @@ bool MatchQuery::run(llvm::raw_ostream &OS, QuerySession &QS) const {
         if (QS.DetailedASTOutput) {
           OS << "Binding for \"" << BI->first << "\":\n";
           const ASTContext &Ctx = AST->getASTContext();
-          ASTDumper Dumper(OS, Ctx, AST->getDiagnostics().getShowColors());
+          const SourceManager &SM = Ctx.getSourceManager();
+          ASTDumper Dumper(OS, Ctx, SM.getDiagnostics().getShowColors());
           Dumper.SetTraversalKind(QS.TK);
           Dumper.Visit(BI->second);
           OS << "\n";

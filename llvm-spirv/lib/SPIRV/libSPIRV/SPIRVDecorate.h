@@ -190,8 +190,6 @@ public:
       return ExtensionID::SPV_INTEL_fpga_cluster_attributes;
     case DecorationFuseLoopsInFunctionINTEL:
       return ExtensionID::SPV_INTEL_loop_fuse;
-    case DecorationCallableFunctionINTEL:
-      return ExtensionID::SPV_INTEL_fast_composite;
     default:
       return {};
     }

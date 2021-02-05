@@ -61,7 +61,6 @@
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
-#include "llvm/IR/ValueHandle.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -219,7 +218,7 @@ class SimplifyCFGOpt {
   const TargetTransformInfo &TTI;
   DomTreeUpdater *DTU;
   const DataLayout &DL;
-  ArrayRef<WeakVH> LoopHeaders;
+  SmallPtrSetImpl<BasicBlock *> *LoopHeaders;
   const SimplifyCFGOptions &Options;
   bool Resimplify;
 
@@ -229,9 +228,6 @@ class SimplifyCFGOpt {
   bool SimplifyEqualityComparisonWithOnlyPredecessor(Instruction *TI,
                                                      BasicBlock *Pred,
                                                      IRBuilder<> &Builder);
-  bool PerformValueComparisonIntoPredecessorFolding(Instruction *TI, Value *&CV,
-                                                    Instruction *PTI,
-                                                    IRBuilder<> &Builder);
   bool FoldValueComparisonIntoPredecessors(Instruction *TI,
                                            IRBuilder<> &Builder);
 
@@ -265,7 +261,8 @@ class SimplifyCFGOpt {
 
 public:
   SimplifyCFGOpt(const TargetTransformInfo &TTI, DomTreeUpdater *DTU,
-                 const DataLayout &DL, ArrayRef<WeakVH> LoopHeaders,
+                 const DataLayout &DL,
+                 SmallPtrSetImpl<BasicBlock *> *LoopHeaders,
                  const SimplifyCFGOptions &Opts)
       : TTI(TTI), DTU(DTU), DL(DL), LoopHeaders(LoopHeaders), Options(Opts) {
     assert((!DTU || !DTU->hasPostDomTree()) &&
@@ -1049,264 +1046,6 @@ static void FitWeights(MutableArrayRef<uint64_t> Weights) {
   }
 }
 
-static void CloneInstructionsIntoPredecessorBlockAndUpdateSSAUses(
-    BasicBlock *BB, BasicBlock *PredBlock, ValueToValueMapTy &VMap) {
-  Instruction *PTI = PredBlock->getTerminator();
-
-  // If we have bonus instructions, clone them into the predecessor block.
-  // Note that there may be multiple predecessor blocks, so we cannot move
-  // bonus instructions to a predecessor block.
-  for (Instruction &BonusInst : *BB) {
-    if (isa<DbgInfoIntrinsic>(BonusInst) || BonusInst.isTerminator())
-      continue;
-
-    Instruction *NewBonusInst = BonusInst.clone();
-
-    if (PTI->getDebugLoc() != NewBonusInst->getDebugLoc()) {
-      // Unless the instruction has the same !dbg location as the original
-      // branch, drop it. When we fold the bonus instructions we want to make
-      // sure we reset their debug locations in order to avoid stepping on
-      // dead code caused by folding dead branches.
-      NewBonusInst->setDebugLoc(DebugLoc());
-    }
-
-    RemapInstruction(NewBonusInst, VMap,
-                     RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
-    VMap[&BonusInst] = NewBonusInst;
-
-    // If we moved a load, we cannot any longer claim any knowledge about
-    // its potential value. The previous information might have been valid
-    // only given the branch precondition.
-    // For an analogous reason, we must also drop all the metadata whose
-    // semantics we don't understand. We *can* preserve !annotation, because
-    // it is tied to the instruction itself, not the value or position.
-    NewBonusInst->dropUnknownNonDebugMetadata(LLVMContext::MD_annotation);
-
-    PredBlock->getInstList().insert(PTI->getIterator(), NewBonusInst);
-    NewBonusInst->takeName(&BonusInst);
-    BonusInst.setName(NewBonusInst->getName() + ".old");
-
-    // Update (liveout) uses of bonus instructions,
-    // now that the bonus instruction has been cloned into predecessor.
-    SSAUpdater SSAUpdate;
-    SSAUpdate.Initialize(BonusInst.getType(),
-                         (NewBonusInst->getName() + ".merge").str());
-    SSAUpdate.AddAvailableValue(BB, &BonusInst);
-    SSAUpdate.AddAvailableValue(PredBlock, NewBonusInst);
-    for (Use &U : make_early_inc_range(BonusInst.uses()))
-      SSAUpdate.RewriteUseAfterInsertions(U);
-  }
-}
-
-bool SimplifyCFGOpt::PerformValueComparisonIntoPredecessorFolding(
-    Instruction *TI, Value *&CV, Instruction *PTI, IRBuilder<> &Builder) {
-  BasicBlock *BB = TI->getParent();
-  BasicBlock *Pred = PTI->getParent();
-
-  std::vector<DominatorTree::UpdateType> Updates;
-
-  // Figure out which 'cases' to copy from SI to PSI.
-  std::vector<ValueEqualityComparisonCase> BBCases;
-  BasicBlock *BBDefault = GetValueEqualityComparisonCases(TI, BBCases);
-
-  std::vector<ValueEqualityComparisonCase> PredCases;
-  BasicBlock *PredDefault = GetValueEqualityComparisonCases(PTI, PredCases);
-
-  // Based on whether the default edge from PTI goes to BB or not, fill in
-  // PredCases and PredDefault with the new switch cases we would like to
-  // build.
-  SmallMapVector<BasicBlock *, int, 8> NewSuccessors;
-
-  // Update the branch weight metadata along the way
-  SmallVector<uint64_t, 8> Weights;
-  bool PredHasWeights = HasBranchWeights(PTI);
-  bool SuccHasWeights = HasBranchWeights(TI);
-
-  if (PredHasWeights) {
-    GetBranchWeights(PTI, Weights);
-    // branch-weight metadata is inconsistent here.
-    if (Weights.size() != 1 + PredCases.size())
-      PredHasWeights = SuccHasWeights = false;
-  } else if (SuccHasWeights)
-    // If there are no predecessor weights but there are successor weights,
-    // populate Weights with 1, which will later be scaled to the sum of
-    // successor's weights
-    Weights.assign(1 + PredCases.size(), 1);
-
-  SmallVector<uint64_t, 8> SuccWeights;
-  if (SuccHasWeights) {
-    GetBranchWeights(TI, SuccWeights);
-    // branch-weight metadata is inconsistent here.
-    if (SuccWeights.size() != 1 + BBCases.size())
-      PredHasWeights = SuccHasWeights = false;
-  } else if (PredHasWeights)
-    SuccWeights.assign(1 + BBCases.size(), 1);
-
-  if (PredDefault == BB) {
-    // If this is the default destination from PTI, only the edges in TI
-    // that don't occur in PTI, or that branch to BB will be activated.
-    std::set<ConstantInt *, ConstantIntOrdering> PTIHandled;
-    for (unsigned i = 0, e = PredCases.size(); i != e; ++i)
-      if (PredCases[i].Dest != BB)
-        PTIHandled.insert(PredCases[i].Value);
-      else {
-        // The default destination is BB, we don't need explicit targets.
-        std::swap(PredCases[i], PredCases.back());
-
-        if (PredHasWeights || SuccHasWeights) {
-          // Increase weight for the default case.
-          Weights[0] += Weights[i + 1];
-          std::swap(Weights[i + 1], Weights.back());
-          Weights.pop_back();
-        }
-
-        PredCases.pop_back();
-        --i;
-        --e;
-      }
-
-    // Reconstruct the new switch statement we will be building.
-    if (PredDefault != BBDefault) {
-      PredDefault->removePredecessor(Pred);
-      if (PredDefault != BB)
-        Updates.push_back({DominatorTree::Delete, Pred, PredDefault});
-      PredDefault = BBDefault;
-      ++NewSuccessors[BBDefault];
-    }
-
-    unsigned CasesFromPred = Weights.size();
-    uint64_t ValidTotalSuccWeight = 0;
-    for (unsigned i = 0, e = BBCases.size(); i != e; ++i)
-      if (!PTIHandled.count(BBCases[i].Value) && BBCases[i].Dest != BBDefault) {
-        PredCases.push_back(BBCases[i]);
-        ++NewSuccessors[BBCases[i].Dest];
-        if (SuccHasWeights || PredHasWeights) {
-          // The default weight is at index 0, so weight for the ith case
-          // should be at index i+1. Scale the cases from successor by
-          // PredDefaultWeight (Weights[0]).
-          Weights.push_back(Weights[0] * SuccWeights[i + 1]);
-          ValidTotalSuccWeight += SuccWeights[i + 1];
-        }
-      }
-
-    if (SuccHasWeights || PredHasWeights) {
-      ValidTotalSuccWeight += SuccWeights[0];
-      // Scale the cases from predecessor by ValidTotalSuccWeight.
-      for (unsigned i = 1; i < CasesFromPred; ++i)
-        Weights[i] *= ValidTotalSuccWeight;
-      // Scale the default weight by SuccDefaultWeight (SuccWeights[0]).
-      Weights[0] *= SuccWeights[0];
-    }
-  } else {
-    // If this is not the default destination from PSI, only the edges
-    // in SI that occur in PSI with a destination of BB will be
-    // activated.
-    std::set<ConstantInt *, ConstantIntOrdering> PTIHandled;
-    std::map<ConstantInt *, uint64_t> WeightsForHandled;
-    for (unsigned i = 0, e = PredCases.size(); i != e; ++i)
-      if (PredCases[i].Dest == BB) {
-        PTIHandled.insert(PredCases[i].Value);
-
-        if (PredHasWeights || SuccHasWeights) {
-          WeightsForHandled[PredCases[i].Value] = Weights[i + 1];
-          std::swap(Weights[i + 1], Weights.back());
-          Weights.pop_back();
-        }
-
-        std::swap(PredCases[i], PredCases.back());
-        PredCases.pop_back();
-        --i;
-        --e;
-      }
-
-    // Okay, now we know which constants were sent to BB from the
-    // predecessor.  Figure out where they will all go now.
-    for (unsigned i = 0, e = BBCases.size(); i != e; ++i)
-      if (PTIHandled.count(BBCases[i].Value)) {
-        // If this is one we are capable of getting...
-        if (PredHasWeights || SuccHasWeights)
-          Weights.push_back(WeightsForHandled[BBCases[i].Value]);
-        PredCases.push_back(BBCases[i]);
-        ++NewSuccessors[BBCases[i].Dest];
-        PTIHandled.erase(BBCases[i].Value); // This constant is taken care of
-      }
-
-    // If there are any constants vectored to BB that TI doesn't handle,
-    // they must go to the default destination of TI.
-    for (ConstantInt *I : PTIHandled) {
-      if (PredHasWeights || SuccHasWeights)
-        Weights.push_back(WeightsForHandled[I]);
-      PredCases.push_back(ValueEqualityComparisonCase(I, BBDefault));
-      ++NewSuccessors[BBDefault];
-    }
-  }
-
-  // Okay, at this point, we know which new successor Pred will get.  Make
-  // sure we update the number of entries in the PHI nodes for these
-  // successors.
-  for (const std::pair<BasicBlock *, int /*Num*/> &NewSuccessor :
-       NewSuccessors) {
-    for (auto I : seq(0, NewSuccessor.second)) {
-      (void)I;
-      AddPredecessorToBlock(NewSuccessor.first, Pred, BB);
-    }
-    if (!is_contained(successors(Pred), NewSuccessor.first))
-      Updates.push_back({DominatorTree::Insert, Pred, NewSuccessor.first});
-  }
-
-  Builder.SetInsertPoint(PTI);
-  // Convert pointer to int before we switch.
-  if (CV->getType()->isPointerTy()) {
-    CV =
-        Builder.CreatePtrToInt(CV, DL.getIntPtrType(CV->getType()), "magicptr");
-  }
-
-  // Now that the successors are updated, create the new Switch instruction.
-  SwitchInst *NewSI = Builder.CreateSwitch(CV, PredDefault, PredCases.size());
-  NewSI->setDebugLoc(PTI->getDebugLoc());
-  for (ValueEqualityComparisonCase &V : PredCases)
-    NewSI->addCase(V.Value, V.Dest);
-
-  if (PredHasWeights || SuccHasWeights) {
-    // Halve the weights if any of them cannot fit in an uint32_t
-    FitWeights(Weights);
-
-    SmallVector<uint32_t, 8> MDWeights(Weights.begin(), Weights.end());
-
-    setBranchWeights(NewSI, MDWeights);
-  }
-
-  EraseTerminatorAndDCECond(PTI);
-
-  // Okay, last check.  If BB is still a successor of PSI, then we must
-  // have an infinite loop case.  If so, add an infinitely looping block
-  // to handle the case to preserve the behavior of the code.
-  BasicBlock *InfLoopBlock = nullptr;
-  for (unsigned i = 0, e = NewSI->getNumSuccessors(); i != e; ++i)
-    if (NewSI->getSuccessor(i) == BB) {
-      if (!InfLoopBlock) {
-        // Insert it at the end of the function, because it's either code,
-        // or it won't matter if it's hot. :)
-        InfLoopBlock =
-            BasicBlock::Create(BB->getContext(), "infloop", BB->getParent());
-        BranchInst::Create(InfLoopBlock, InfLoopBlock);
-        Updates.push_back({DominatorTree::Insert, InfLoopBlock, InfLoopBlock});
-      }
-      NewSI->setSuccessor(i, InfLoopBlock);
-    }
-
-  if (InfLoopBlock)
-    Updates.push_back({DominatorTree::Insert, Pred, InfLoopBlock});
-
-  Updates.push_back({DominatorTree::Delete, Pred, BB});
-
-  if (DTU)
-    DTU->applyUpdates(Updates);
-
-  ++NumFoldValueComparisonIntoPredecessors;
-  return true;
-}
-
 /// The specified terminator is a value equality comparison instruction
 /// (either a switch or a branch on "X == c").
 /// See if any of the predecessors of the terminator block are value comparisons
@@ -1319,30 +1058,235 @@ bool SimplifyCFGOpt::FoldValueComparisonIntoPredecessors(Instruction *TI,
 
   bool Changed = false;
 
+  auto _ = make_scope_exit([&]() {
+    if (Changed)
+      ++NumFoldValueComparisonIntoPredecessors;
+  });
+
   SmallSetVector<BasicBlock *, 16> Preds(pred_begin(BB), pred_end(BB));
   while (!Preds.empty()) {
     BasicBlock *Pred = Preds.pop_back_val();
-    Instruction *PTI = Pred->getTerminator();
-
-    // Don't try to fold into itself.
-    if (Pred == BB)
-      continue;
 
     // See if the predecessor is a comparison with the same value.
+    Instruction *PTI = Pred->getTerminator();
     Value *PCV = isValueEqualityComparison(PTI); // PredCondVal
-    if (PCV != CV)
-      continue;
 
-    SmallSetVector<BasicBlock *, 4> FailBlocks;
-    if (!SafeToMergeTerminators(TI, PTI, &FailBlocks)) {
-      for (auto *Succ : FailBlocks) {
-        if (!SplitBlockPredecessors(Succ, TI->getParent(), ".fold.split", DTU))
-          return false;
+    if (PCV == CV && TI != PTI) {
+      SmallSetVector<BasicBlock*, 4> FailBlocks;
+      if (!SafeToMergeTerminators(TI, PTI, &FailBlocks)) {
+        for (auto *Succ : FailBlocks) {
+          if (!SplitBlockPredecessors(Succ, TI->getParent(), ".fold.split",
+                                      DTU))
+            return false;
+        }
       }
-    }
 
-    PerformValueComparisonIntoPredecessorFolding(TI, CV, PTI, Builder);
-    Changed = true;
+      std::vector<DominatorTree::UpdateType> Updates;
+
+      // Figure out which 'cases' to copy from SI to PSI.
+      std::vector<ValueEqualityComparisonCase> BBCases;
+      BasicBlock *BBDefault = GetValueEqualityComparisonCases(TI, BBCases);
+
+      std::vector<ValueEqualityComparisonCase> PredCases;
+      BasicBlock *PredDefault = GetValueEqualityComparisonCases(PTI, PredCases);
+
+      // Based on whether the default edge from PTI goes to BB or not, fill in
+      // PredCases and PredDefault with the new switch cases we would like to
+      // build.
+      SmallMapVector<BasicBlock *, int, 8> NewSuccessors;
+
+      // Update the branch weight metadata along the way
+      SmallVector<uint64_t, 8> Weights;
+      bool PredHasWeights = HasBranchWeights(PTI);
+      bool SuccHasWeights = HasBranchWeights(TI);
+
+      if (PredHasWeights) {
+        GetBranchWeights(PTI, Weights);
+        // branch-weight metadata is inconsistent here.
+        if (Weights.size() != 1 + PredCases.size())
+          PredHasWeights = SuccHasWeights = false;
+      } else if (SuccHasWeights)
+        // If there are no predecessor weights but there are successor weights,
+        // populate Weights with 1, which will later be scaled to the sum of
+        // successor's weights
+        Weights.assign(1 + PredCases.size(), 1);
+
+      SmallVector<uint64_t, 8> SuccWeights;
+      if (SuccHasWeights) {
+        GetBranchWeights(TI, SuccWeights);
+        // branch-weight metadata is inconsistent here.
+        if (SuccWeights.size() != 1 + BBCases.size())
+          PredHasWeights = SuccHasWeights = false;
+      } else if (PredHasWeights)
+        SuccWeights.assign(1 + BBCases.size(), 1);
+
+      if (PredDefault == BB) {
+        // If this is the default destination from PTI, only the edges in TI
+        // that don't occur in PTI, or that branch to BB will be activated.
+        std::set<ConstantInt *, ConstantIntOrdering> PTIHandled;
+        for (unsigned i = 0, e = PredCases.size(); i != e; ++i)
+          if (PredCases[i].Dest != BB)
+            PTIHandled.insert(PredCases[i].Value);
+          else {
+            // The default destination is BB, we don't need explicit targets.
+            std::swap(PredCases[i], PredCases.back());
+
+            if (PredHasWeights || SuccHasWeights) {
+              // Increase weight for the default case.
+              Weights[0] += Weights[i + 1];
+              std::swap(Weights[i + 1], Weights.back());
+              Weights.pop_back();
+            }
+
+            PredCases.pop_back();
+            --i;
+            --e;
+          }
+
+        // Reconstruct the new switch statement we will be building.
+        if (PredDefault != BBDefault) {
+          PredDefault->removePredecessor(Pred);
+          if (PredDefault != BB)
+            Updates.push_back({DominatorTree::Delete, Pred, PredDefault});
+          PredDefault = BBDefault;
+          ++NewSuccessors[BBDefault];
+        }
+
+        unsigned CasesFromPred = Weights.size();
+        uint64_t ValidTotalSuccWeight = 0;
+        for (unsigned i = 0, e = BBCases.size(); i != e; ++i)
+          if (!PTIHandled.count(BBCases[i].Value) &&
+              BBCases[i].Dest != BBDefault) {
+            PredCases.push_back(BBCases[i]);
+            ++NewSuccessors[BBCases[i].Dest];
+            if (SuccHasWeights || PredHasWeights) {
+              // The default weight is at index 0, so weight for the ith case
+              // should be at index i+1. Scale the cases from successor by
+              // PredDefaultWeight (Weights[0]).
+              Weights.push_back(Weights[0] * SuccWeights[i + 1]);
+              ValidTotalSuccWeight += SuccWeights[i + 1];
+            }
+          }
+
+        if (SuccHasWeights || PredHasWeights) {
+          ValidTotalSuccWeight += SuccWeights[0];
+          // Scale the cases from predecessor by ValidTotalSuccWeight.
+          for (unsigned i = 1; i < CasesFromPred; ++i)
+            Weights[i] *= ValidTotalSuccWeight;
+          // Scale the default weight by SuccDefaultWeight (SuccWeights[0]).
+          Weights[0] *= SuccWeights[0];
+        }
+      } else {
+        // If this is not the default destination from PSI, only the edges
+        // in SI that occur in PSI with a destination of BB will be
+        // activated.
+        std::set<ConstantInt *, ConstantIntOrdering> PTIHandled;
+        std::map<ConstantInt *, uint64_t> WeightsForHandled;
+        for (unsigned i = 0, e = PredCases.size(); i != e; ++i)
+          if (PredCases[i].Dest == BB) {
+            PTIHandled.insert(PredCases[i].Value);
+
+            if (PredHasWeights || SuccHasWeights) {
+              WeightsForHandled[PredCases[i].Value] = Weights[i + 1];
+              std::swap(Weights[i + 1], Weights.back());
+              Weights.pop_back();
+            }
+
+            std::swap(PredCases[i], PredCases.back());
+            PredCases.pop_back();
+            --i;
+            --e;
+          }
+
+        // Okay, now we know which constants were sent to BB from the
+        // predecessor.  Figure out where they will all go now.
+        for (unsigned i = 0, e = BBCases.size(); i != e; ++i)
+          if (PTIHandled.count(BBCases[i].Value)) {
+            // If this is one we are capable of getting...
+            if (PredHasWeights || SuccHasWeights)
+              Weights.push_back(WeightsForHandled[BBCases[i].Value]);
+            PredCases.push_back(BBCases[i]);
+            ++NewSuccessors[BBCases[i].Dest];
+            PTIHandled.erase(
+                BBCases[i].Value); // This constant is taken care of
+          }
+
+        // If there are any constants vectored to BB that TI doesn't handle,
+        // they must go to the default destination of TI.
+        for (ConstantInt *I : PTIHandled) {
+          if (PredHasWeights || SuccHasWeights)
+            Weights.push_back(WeightsForHandled[I]);
+          PredCases.push_back(ValueEqualityComparisonCase(I, BBDefault));
+          ++NewSuccessors[BBDefault];
+        }
+      }
+
+      // Okay, at this point, we know which new successor Pred will get.  Make
+      // sure we update the number of entries in the PHI nodes for these
+      // successors.
+      for (const std::pair<BasicBlock *, int /*Num*/> &NewSuccessor :
+           NewSuccessors) {
+        for (auto I : seq(0, NewSuccessor.second)) {
+          (void)I;
+          AddPredecessorToBlock(NewSuccessor.first, Pred, BB);
+        }
+        if (!is_contained(successors(Pred), NewSuccessor.first))
+          Updates.push_back({DominatorTree::Insert, Pred, NewSuccessor.first});
+      }
+
+      Builder.SetInsertPoint(PTI);
+      // Convert pointer to int before we switch.
+      if (CV->getType()->isPointerTy()) {
+        CV = Builder.CreatePtrToInt(CV, DL.getIntPtrType(CV->getType()),
+                                    "magicptr");
+      }
+
+      // Now that the successors are updated, create the new Switch instruction.
+      SwitchInst *NewSI =
+          Builder.CreateSwitch(CV, PredDefault, PredCases.size());
+      NewSI->setDebugLoc(PTI->getDebugLoc());
+      for (ValueEqualityComparisonCase &V : PredCases)
+        NewSI->addCase(V.Value, V.Dest);
+
+      if (PredHasWeights || SuccHasWeights) {
+        // Halve the weights if any of them cannot fit in an uint32_t
+        FitWeights(Weights);
+
+        SmallVector<uint32_t, 8> MDWeights(Weights.begin(), Weights.end());
+
+        setBranchWeights(NewSI, MDWeights);
+      }
+
+      EraseTerminatorAndDCECond(PTI);
+
+      // Okay, last check.  If BB is still a successor of PSI, then we must
+      // have an infinite loop case.  If so, add an infinitely looping block
+      // to handle the case to preserve the behavior of the code.
+      BasicBlock *InfLoopBlock = nullptr;
+      for (unsigned i = 0, e = NewSI->getNumSuccessors(); i != e; ++i)
+        if (NewSI->getSuccessor(i) == BB) {
+          if (!InfLoopBlock) {
+            // Insert it at the end of the function, because it's either code,
+            // or it won't matter if it's hot. :)
+            InfLoopBlock = BasicBlock::Create(BB->getContext(), "infloop",
+                                              BB->getParent());
+            BranchInst::Create(InfLoopBlock, InfLoopBlock);
+            Updates.push_back(
+                {DominatorTree::Insert, InfLoopBlock, InfLoopBlock});
+          }
+          NewSI->setSuccessor(i, InfLoopBlock);
+        }
+
+      if (InfLoopBlock)
+        Updates.push_back({DominatorTree::Insert, Pred, InfLoopBlock});
+
+      Updates.push_back({DominatorTree::Delete, Pred, BB});
+
+      if (DTU)
+        DTU->applyUpdates(Updates);
+
+      Changed = true;
+    }
   }
   return Changed;
 }
@@ -2887,7 +2831,80 @@ static bool PerformBranchToCommonDestFolding(BranchInst *BI, BranchInst *PBI,
   // which will allow us to update live-out uses of bonus instructions.
   AddPredecessorToBlock(UniqueSucc, PredBlock, BB, MSSAU);
 
-  // Try to update branch weights.
+  // If we have bonus instructions, clone them into the predecessor block.
+  // Note that there may be multiple predecessor blocks, so we cannot move
+  // bonus instructions to a predecessor block.
+  ValueToValueMapTy VMap; // maps original values to cloned values
+  for (Instruction &BonusInst : *BB) {
+    if (isa<DbgInfoIntrinsic>(BonusInst) || isa<BranchInst>(BonusInst))
+      continue;
+
+    Instruction *NewBonusInst = BonusInst.clone();
+
+    if (PBI->getDebugLoc() != NewBonusInst->getDebugLoc()) {
+      // Unless the instruction has the same !dbg location as the original
+      // branch, drop it. When we fold the bonus instructions we want to make
+      // sure we reset their debug locations in order to avoid stepping on
+      // dead code caused by folding dead branches.
+      NewBonusInst->setDebugLoc(DebugLoc());
+    }
+
+    RemapInstruction(NewBonusInst, VMap,
+                     RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
+    VMap[&BonusInst] = NewBonusInst;
+
+    // If we moved a load, we cannot any longer claim any knowledge about
+    // its potential value. The previous information might have been valid
+    // only given the branch precondition.
+    // For an analogous reason, we must also drop all the metadata whose
+    // semantics we don't understand. We *can* preserve !annotation, because
+    // it is tied to the instruction itself, not the value or position.
+    NewBonusInst->dropUnknownNonDebugMetadata(LLVMContext::MD_annotation);
+
+    PredBlock->getInstList().insert(PBI->getIterator(), NewBonusInst);
+    NewBonusInst->takeName(&BonusInst);
+    BonusInst.setName(BonusInst.getName() + ".old");
+    BonusInst.replaceUsesWithIf(
+        NewBonusInst, [BB, BI, UniqueSucc, PredBlock](Use &U) {
+          auto *User = cast<Instruction>(U.getUser());
+          // Ignore non-external uses of bonus instructions.
+          if (User->getParent() == BB) {
+            assert(!isa<PHINode>(User) &&
+                   "Non-external users are never PHI instructions.");
+            return false;
+          }
+          if (User->getParent() == PredBlock) {
+            // The "exteral" use is in the block into which we just cloned the
+            // bonus instruction. This means two things: 1. we are in an
+            // unreachable block 2. the instruction is self-referencing.
+            // So let's just rewrite it...
+            return true;
+          }
+          (void)BI;
+          assert(isa<PHINode>(User) && "All external users must be PHI's.");
+          auto *PN = cast<PHINode>(User);
+          assert(is_contained(successors(BB), User->getParent()) &&
+                 "All external users must be in successors of BB.");
+          assert((PN->getIncomingBlock(U) == BB ||
+                  PN->getIncomingBlock(U) == PredBlock) &&
+                 "The incoming block for that incoming value external use "
+                 "must be either the original block with bonus instructions, "
+                 "or the new predecessor block.");
+          // UniqueSucc is the block for which we change it's predecessors,
+          // so it is the only block in which we'll need to update PHI nodes.
+          if (User->getParent() != UniqueSucc)
+            return false;
+          // Update the incoming value for the new predecessor.
+          return PN->getIncomingBlock(U) == PredBlock;
+        });
+  }
+
+  // Now that the Cond was cloned into the predecessor basic block,
+  // or/and the two conditions together.
+  Instruction *NewCond = cast<Instruction>(Builder.CreateBinOp(
+      Opc, PBI->getCondition(), VMap[BI->getCondition()], "or.cond"));
+  PBI->setCondition(NewCond);
+
   uint64_t PredTrueWeight, PredFalseWeight, SuccTrueWeight, SuccFalseWeight;
   if (extractPredSuccWeights(PBI, BI, PredTrueWeight, PredFalseWeight,
                              SuccTrueWeight, SuccFalseWeight)) {
@@ -2927,7 +2944,6 @@ static bool PerformBranchToCommonDestFolding(BranchInst *BI, BranchInst *PBI,
   } else
     PBI->setMetadata(LLVMContext::MD_prof, nullptr);
 
-  // Now, update the CFG.
   PBI->setSuccessor(PBI->getSuccessor(0) != BB, UniqueSucc);
 
   if (DTU)
@@ -2938,15 +2954,6 @@ static bool PerformBranchToCommonDestFolding(BranchInst *BI, BranchInst *PBI,
   // We need to copy it to the new latch, that is, PBI.
   if (MDNode *LoopMD = BI->getMetadata(LLVMContext::MD_loop))
     PBI->setMetadata(LLVMContext::MD_loop, LoopMD);
-
-  ValueToValueMapTy VMap; // maps original values to cloned values
-  CloneInstructionsIntoPredecessorBlockAndUpdateSSAUses(BB, PredBlock, VMap);
-
-  // Now that the Cond was cloned into the predecessor basic block,
-  // or/and the two conditions together.
-  Instruction *NewCond = cast<Instruction>(Builder.CreateBinOp(
-      Opc, PBI->getCondition(), VMap[BI->getCondition()], "or.cond"));
-  PBI->setCondition(NewCond);
 
   // Copy any debug value intrinsics into the end of PredBlock.
   for (Instruction &I : *BB) {
@@ -3015,6 +3022,22 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, DomTreeUpdater *DTU,
     if (NumBonusInsts > BonusInstThreshold)
       return Changed;
   }
+
+  // Also, for now, all liveout uses of bonus instructions must be in PHI nodes
+  // in successor blocks as incoming values from the bonus instructions's block,
+  // otherwise we'll fail to update them.
+  // FIXME: We could lift this restriction, but we need to form PHI nodes and
+  // rewrite offending uses, but we can't do that without having a domtree.
+  if (any_of(*BB, [BB](Instruction &I) {
+        return any_of(I.uses(), [BB](Use &U) {
+          auto *User = cast<Instruction>(U.getUser());
+          if (User->getParent() == BB)
+            return false; // Not an external use.
+          auto *PN = dyn_cast<PHINode>(User);
+          return !PN || PN->getIncomingBlock(U) != BB;
+        });
+      }))
+    return Changed;
 
   // Cond is known to be a compare or binary operator.  Check to make sure that
   // neither operand is a potentially-trapping constant expression.
@@ -4206,6 +4229,8 @@ bool SimplifyCFGOpt::simplifySingleResume(ResumeInst *RI) {
   }
 
   // The landingpad is now unreachable.  Zap it.
+  if (LoopHeaders)
+    LoopHeaders->erase(BB);
   if (DTU)
     DTU->deleteBB(BB);
   else
@@ -4429,6 +4454,8 @@ bool SimplifyCFGOpt::simplifyReturn(ReturnInst *RI, IRBuilder<> &Builder) {
     // If we eliminated all predecessors of the block, delete the block now.
     if (pred_empty(BB)) {
       // We know there are no successors, so just nuke the block.
+      if (LoopHeaders)
+        LoopHeaders->erase(BB);
       if (DTU)
         DTU->deleteBB(BB);
       else
@@ -4630,6 +4657,8 @@ bool SimplifyCFGOpt::simplifyUnreachable(UnreachableInst *UI) {
   // If this block is now dead, remove it.
   if (pred_empty(BB) && BB != &BB->getParent()->getEntryBlock()) {
     // We know there are no successors, so just nuke the block.
+    if (LoopHeaders)
+      LoopHeaders->erase(BB);
     if (DTU)
       DTU->deleteBB(BB);
     else
@@ -6222,8 +6251,8 @@ bool SimplifyCFGOpt::simplifyUncondBranch(BranchInst *BI,
   // backedge, so we can eliminate BB.
   bool NeedCanonicalLoop =
       Options.NeedCanonicalLoop &&
-      (!LoopHeaders.empty() && BB->hasNPredecessorsOrMore(2) &&
-       (is_contained(LoopHeaders, BB) || is_contained(LoopHeaders, Succ)));
+      (LoopHeaders && BB->hasNPredecessorsOrMore(2) &&
+       (LoopHeaders->count(BB) || LoopHeaders->count(Succ)));
   BasicBlock::iterator I = BB->getFirstNonPHIOrDbg()->getIterator();
   if (I->isTerminator() && BB != &BB->getParent()->getEntryBlock() &&
       !NeedCanonicalLoop && TryToSimplifyUncondBranchFromEmptyBlock(BB, DTU))
@@ -6561,10 +6590,20 @@ bool SimplifyCFGOpt::simplifyOnceImpl(BasicBlock *BB) {
 bool SimplifyCFGOpt::simplifyOnce(BasicBlock *BB) {
   bool Changed = simplifyOnceImpl(BB);
 
+  assert((!RequireAndPreserveDomTree ||
+          (DTU &&
+           DTU->getDomTree().verify(DominatorTree::VerificationLevel::Full))) &&
+         "Failed to maintain validity of domtree!");
+
   return Changed;
 }
 
 bool SimplifyCFGOpt::run(BasicBlock *BB) {
+  assert((!RequireAndPreserveDomTree ||
+          (DTU &&
+           DTU->getDomTree().verify(DominatorTree::VerificationLevel::Full))) &&
+         "Original domtree is invalid?");
+
   bool Changed = false;
 
   // Repeated simplify BB as long as resimplification is requested.
@@ -6581,8 +6620,8 @@ bool SimplifyCFGOpt::run(BasicBlock *BB) {
 
 bool llvm::simplifyCFG(BasicBlock *BB, const TargetTransformInfo &TTI,
                        DomTreeUpdater *DTU, const SimplifyCFGOptions &Options,
-                       ArrayRef<WeakVH> LoopHeaders) {
-  return SimplifyCFGOpt(TTI, DTU, BB->getModule()->getDataLayout(), LoopHeaders,
-                        Options)
+                       SmallPtrSetImpl<BasicBlock *> *LoopHeaders) {
+  return SimplifyCFGOpt(TTI, RequireAndPreserveDomTree ? DTU : nullptr,
+                        BB->getModule()->getDataLayout(), LoopHeaders, Options)
       .run(BB);
 }

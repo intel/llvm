@@ -843,38 +843,6 @@ static void getArrayElements(const Constant *C,
 Expected<Constant *>
 IRLinker::linkAppendingVarProto(GlobalVariable *DstGV,
                                 const GlobalVariable *SrcGV) {
-  // Check that both variables have compatible properties.
-  if (DstGV && !DstGV->isDeclaration() && !SrcGV->isDeclaration()) {
-    if (!SrcGV->hasAppendingLinkage() || !DstGV->hasAppendingLinkage())
-      return stringErr(
-          "Linking globals named '" + SrcGV->getName() +
-          "': can only link appending global with another appending "
-          "global!");
-
-    if (DstGV->isConstant() != SrcGV->isConstant())
-      return stringErr("Appending variables linked with different const'ness!");
-
-    if (DstGV->getAlignment() != SrcGV->getAlignment())
-      return stringErr(
-          "Appending variables with different alignment need to be linked!");
-
-    if (DstGV->getVisibility() != SrcGV->getVisibility())
-      return stringErr(
-          "Appending variables with different visibility need to be linked!");
-
-    if (DstGV->hasGlobalUnnamedAddr() != SrcGV->hasGlobalUnnamedAddr())
-      return stringErr(
-          "Appending variables with different unnamed_addr need to be linked!");
-
-    if (DstGV->getSection() != SrcGV->getSection())
-      return stringErr(
-          "Appending variables with different section name need to be linked!");
-  }
-
-  // Do not need to do anything if source is a declaration.
-  if (SrcGV->isDeclaration())
-    return DstGV;
-
   Type *EltTy = cast<ArrayType>(TypeMap.get(SrcGV->getValueType()))
                     ->getElementType();
 
@@ -900,13 +868,37 @@ IRLinker::linkAppendingVarProto(GlobalVariable *DstGV,
   }
 
   uint64_t DstNumElements = 0;
-  if (DstGV && !DstGV->isDeclaration()) {
+  if (DstGV) {
     ArrayType *DstTy = cast<ArrayType>(DstGV->getValueType());
     DstNumElements = DstTy->getNumElements();
+
+    if (!SrcGV->hasAppendingLinkage() || !DstGV->hasAppendingLinkage())
+      return stringErr(
+          "Linking globals named '" + SrcGV->getName() +
+          "': can only link appending global with another appending "
+          "global!");
 
     // Check to see that they two arrays agree on type.
     if (EltTy != DstTy->getElementType())
       return stringErr("Appending variables with different element types!");
+    if (DstGV->isConstant() != SrcGV->isConstant())
+      return stringErr("Appending variables linked with different const'ness!");
+
+    if (DstGV->getAlignment() != SrcGV->getAlignment())
+      return stringErr(
+          "Appending variables with different alignment need to be linked!");
+
+    if (DstGV->getVisibility() != SrcGV->getVisibility())
+      return stringErr(
+          "Appending variables with different visibility need to be linked!");
+
+    if (DstGV->hasGlobalUnnamedAddr() != SrcGV->hasGlobalUnnamedAddr())
+      return stringErr(
+          "Appending variables with different unnamed_addr need to be linked!");
+
+    if (DstGV->getSection() != SrcGV->getSection())
+      return stringErr(
+          "Appending variables with different section name need to be linked!");
   }
 
   SmallVector<Constant *, 16> SrcElements;
@@ -936,10 +928,9 @@ IRLinker::linkAppendingVarProto(GlobalVariable *DstGV,
 
   Constant *Ret = ConstantExpr::getBitCast(NG, TypeMap.get(SrcGV->getType()));
 
-  Mapper.scheduleMapAppendingVariable(
-      *NG,
-      (DstGV && !DstGV->isDeclaration()) ? DstGV->getInitializer() : nullptr,
-      IsOldStructor, SrcElements);
+  Mapper.scheduleMapAppendingVariable(*NG,
+                                      DstGV ? DstGV->getInitializer() : nullptr,
+                                      IsOldStructor, SrcElements);
 
   // Replace any uses of the two global variables with uses of the new
   // global.
@@ -992,7 +983,8 @@ Expected<Constant *> IRLinker::linkGlobalValueProto(GlobalValue *SGV,
     DGV = nullptr;
 
   // Handle the ultra special appending linkage case first.
-  if (SGV->hasAppendingLinkage() || (DGV && DGV->hasAppendingLinkage()))
+  assert(!DGV || SGV->hasAppendingLinkage() == DGV->hasAppendingLinkage());
+  if (SGV->hasAppendingLinkage())
     return linkAppendingVarProto(cast_or_null<GlobalVariable>(DGV),
                                  cast<GlobalVariable>(SGV));
 

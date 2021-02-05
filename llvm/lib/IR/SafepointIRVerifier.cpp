@@ -350,7 +350,8 @@ static enum BaseType getBaseType(const Value *Val) {
     // Push all the incoming values of phi node into the worklist for
     // processing.
     if (const auto *PN = dyn_cast<PHINode>(V)) {
-      append_range(Worklist, PN->incoming_values());
+      for (Value *InV: PN->incoming_values())
+        Worklist.push_back(InV);
       continue;
     }
     if (const auto *SI = dyn_cast<SelectInst>(V)) {

@@ -111,32 +111,23 @@ LinearTransform::makeTransformToColumnEchelon(Matrix m) {
   return {echelonCol, LinearTransform(std::move(resultMatrix))};
 }
 
-SmallVector<int64_t, 8>
-LinearTransform::postMultiplyRow(ArrayRef<int64_t> rowVec) const {
-  assert(rowVec.size() == matrix.getNumRows() &&
-         "row vector dimension should match transform output dimension");
+SmallVector<int64_t, 8> LinearTransform::applyTo(ArrayRef<int64_t> v) {
+  assert(v.size() == matrix.getNumRows() &&
+         "vector dimension should be matrix output dimension");
 
-  SmallVector<int64_t, 8> result(matrix.getNumColumns(), 0);
-  for (unsigned col = 0, e = matrix.getNumColumns(); col < e; ++col)
+  SmallVector<int64_t, 8> result;
+  result.reserve(v.size());
+  for (unsigned col = 0, e = matrix.getNumColumns(); col < e; ++col) {
+    int64_t elem = 0;
     for (unsigned i = 0, e = matrix.getNumRows(); i < e; ++i)
-      result[col] += rowVec[i] * matrix(i, col);
-  return result;
-}
-
-SmallVector<int64_t, 8>
-LinearTransform::preMultiplyColumn(ArrayRef<int64_t> colVec) const {
-  assert(matrix.getNumColumns() == colVec.size() &&
-         "column vector dimension should match transform input dimension");
-
-  SmallVector<int64_t, 8> result(matrix.getNumRows(), 0);
-  for (unsigned row = 0, e = matrix.getNumRows(); row < e; row++)
-    for (unsigned i = 0, e = matrix.getNumColumns(); i < e; i++)
-      result[row] += matrix(row, i) * colVec[i];
+      elem += v[i] * matrix(i, col);
+    result.push_back(elem);
+  }
   return result;
 }
 
 FlatAffineConstraints
-LinearTransform::applyTo(const FlatAffineConstraints &fac) const {
+LinearTransform::applyTo(const FlatAffineConstraints &fac) {
   FlatAffineConstraints result(fac.getNumDimIds());
 
   for (unsigned i = 0, e = fac.getNumEqualities(); i < e; ++i) {
@@ -144,7 +135,7 @@ LinearTransform::applyTo(const FlatAffineConstraints &fac) const {
 
     int64_t c = eq.back();
 
-    SmallVector<int64_t, 8> newEq = postMultiplyRow(eq.drop_back());
+    SmallVector<int64_t, 8> newEq = applyTo(eq.drop_back());
     newEq.push_back(c);
     result.addEquality(newEq);
   }
@@ -154,7 +145,7 @@ LinearTransform::applyTo(const FlatAffineConstraints &fac) const {
 
     int64_t c = ineq.back();
 
-    SmallVector<int64_t, 8> newIneq = postMultiplyRow(ineq.drop_back());
+    SmallVector<int64_t, 8> newIneq = applyTo(ineq.drop_back());
     newIneq.push_back(c);
     result.addInequality(newIneq);
   }

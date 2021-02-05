@@ -19,7 +19,6 @@
 #include "AMDGPURegisterBankInfo.h"
 #include "AMDGPUTargetMachine.h"
 #include "SIMachineFunctionInfo.h"
-#include "Utils/AMDGPUBaseInfo.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/CodeGen/GlobalISel/InlineAsmLowering.h"
 #include "llvm/CodeGen/MachineScheduler.h"
@@ -89,7 +88,8 @@ GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
   // Similarly we want enable-prt-strict-null to be on by default and not to
   // unset everything else if it is disabled
 
-  SmallString<256> FullFS("+promote-alloca,+load-store-opt,+enable-ds128,");
+  // Assuming ECC is enabled is the conservative default.
+  SmallString<256> FullFS("+promote-alloca,+load-store-opt,+enable-ds128,+sram-ecc,+xnack,");
 
   // Turn on features that HSA ABI requires. Also turn on FlatForGlobal by default
   if (isAmdHsaOS())
@@ -164,12 +164,20 @@ GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
 
   HasFminFmaxLegacy = getGeneration() < AMDGPUSubtarget::VOLCANIC_ISLANDS;
 
-  TargetID.setTargetIDFromFeaturesString(FS);
+  // Disable XNACK on targets where it is not enabled by default unless it is
+  // explicitly requested.
+  if (!FS.contains("+xnack") && DoesNotSupportXNACK && EnableXNACK) {
+    ToggleFeature(AMDGPU::FeatureXNACK);
+    EnableXNACK = false;
+  }
 
-  LLVM_DEBUG(dbgs() << "xnack setting for subtarget: "
-                    << TargetID.getXnackSetting() << '\n');
-  LLVM_DEBUG(dbgs() << "sramecc setting for subtarget: "
-                    << TargetID.getSramEccSetting() << '\n');
+  // ECC is on by default, but turn it off if the hardware doesn't support it
+  // anyway. This matters for the gfx9 targets with d16 loads, but don't support
+  // ECC.
+  if (DoesNotSupportSRAMECC && EnableSRAMECC) {
+    ToggleFeature(AMDGPU::FeatureSRAMECC);
+    EnableSRAMECC = false;
+  }
 
   return *this;
 }
@@ -198,7 +206,6 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     AMDGPUGenSubtargetInfo(TT, GPU, /*TuneCPU*/ GPU, FS),
     AMDGPUSubtarget(TT),
     TargetTriple(TT),
-    TargetID(*this),
     Gen(INVALID),
     InstrItins(getInstrItineraryForCPU(GPU)),
     LDSBankCount(0),
@@ -214,8 +221,8 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     UnalignedAccessMode(false),
 
     HasApertureRegs(false),
-    SupportsXNACK(false),
     EnableXNACK(false),
+    DoesNotSupportXNACK(false),
     EnableCuMode(false),
     TrapHandler(false),
 
@@ -264,8 +271,8 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     HasMAIInsts(false),
     HasPkFmacF16Inst(false),
     HasAtomicFaddInsts(false),
-    SupportsSRAMECC(false),
     EnableSRAMECC(false),
+    DoesNotSupportSRAMECC(false),
     HasNoSdstCMPX(false),
     HasVscnt(false),
     HasGetWaveIdInst(false),

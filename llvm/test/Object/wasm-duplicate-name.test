@@ -26,4 +26,4 @@ Sections:
         Name:          b
 ...
 
-# CHECK: {{.*}}: function named more than once
+# CHECK: {{.*}}: Function named more than once

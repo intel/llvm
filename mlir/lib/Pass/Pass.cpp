@@ -846,7 +846,6 @@ PassManager::runWithCrashRecovery(MutableArrayRef<std::unique_ptr<Pass>> passes,
 PassManager::PassManager(MLIRContext *ctx, Nesting nesting,
                          StringRef operationName)
     : OpPassManager(Identifier::get(operationName, ctx), nesting), context(ctx),
-      initializationKey(DenseMapInfo<llvm::hash_code>::getTombstoneKey()),
       passTiming(false), localReproducer(false), verifyPasses(true) {}
 
 PassManager::~PassManager() {}
@@ -869,11 +868,7 @@ LogicalResult PassManager::run(Operation *op) {
   dependentDialects.loadAll(context);
 
   // Initialize all of the passes within the pass manager with a new generation.
-  llvm::hash_code newInitKey = context->getRegistryHash();
-  if (newInitKey != initializationKey) {
-    initialize(context, impl->initializationGeneration + 1);
-    initializationKey = newInitKey;
-  }
+  initialize(context, impl->initializationGeneration + 1);
 
   // Construct a top level analysis manager for the pipeline.
   ModuleAnalysisManager am(op, instrumentor.get());

@@ -20,6 +20,7 @@
 #include "llvm/Support/BinaryStreamWriter.h"
 #include "llvm/Support/Error.h"
 #include <cstdint>
+#include <vector>
 
 namespace llvm {
 namespace codeview {

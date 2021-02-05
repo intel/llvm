@@ -47,7 +47,6 @@ private:
 public:
   InstructionCost() = default;
 
-  InstructionCost(CostState) = delete;
   InstructionCost(CostType Val) : Value(Val), State(Valid) {}
 
   static InstructionCost getInvalid(CostType Val = 0) {

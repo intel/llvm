@@ -17,6 +17,15 @@
 class SPV_GroupNonUniformArithmeticOp<string mnemonic, Type type,
       list<OpTrait> traits = []> : SPV_Op<mnemonic, traits> {
 
+  let availability = [
+    MinVersion<SPV_V_1_3>,
+    MaxVersion<SPV_V_1_5>,
+    Extension<[]>,
+    Capability<[SPV_C_GroupNonUniformArithmetic,
+                SPV_C_GroupNonUniformClustered,
+                SPV_C_GroupNonUniformPartitionedNV]>
+  ];
+
   let arguments = (ins
     SPV_ScopeAttr:$execution_scope,
     SPV_GroupOperationAttr:$group_operation,
@@ -38,7 +47,7 @@ class SPV_GroupNonUniformArithmeticOp<string mnemonic, Type type,
 
 def SPV_GroupNonUniformBallotOp : SPV_Op<"GroupNonUniformBallot", []> {
   let summary = [{
-    Result is a bitfield value combining the Predicate value from all
+    Returns a bitfield value combining the Predicate value from all
     invocations in the group that execute the same dynamic instance of this
     instruction. The bit is set to one if the corresponding invocation is
     active and the Predicate for that invocation evaluated to true;
@@ -99,8 +108,8 @@ def SPV_GroupNonUniformBallotOp : SPV_Op<"GroupNonUniformBallot", []> {
 def SPV_GroupNonUniformBroadcastOp : SPV_Op<"GroupNonUniformBroadcast",
   [NoSideEffect, AllTypesMatch<["value", "result"]>]> {
   let summary = [{
-    Result is the Value of the invocation identified by the id Id to all
-    active invocations in the group.
+    Return the Value of the invocation identified by the id Id to all active
+    invocations in the group.
   }];
 
   let description = [{
@@ -215,7 +224,8 @@ def SPV_GroupNonUniformElectOp : SPV_Op<"GroupNonUniformElect", []> {
 
 // -----
 
-def SPV_GroupNonUniformFAddOp : SPV_GroupNonUniformArithmeticOp<"GroupNonUniformFAdd", SPV_Float, []> {
+def SPV_GroupNonUniformFAddOp :
+    SPV_GroupNonUniformArithmeticOp<"GroupNonUniformFAdd", SPV_Float, []> {
   let summary = [{
     A floating point add group operation of all Value operands contributed
     by active invocations in the group.
@@ -261,18 +271,12 @@ def SPV_GroupNonUniformFAddOp : SPV_GroupNonUniformArithmeticOp<"GroupNonUniform
     %1 = spv.GroupNonUniformFAdd "Subgroup" "ClusteredReduce" %vector cluster_size(%four) : vector<4xf32>
     ```
   }];
-
-  let availability = [
-    MinVersion<SPV_V_1_3>,
-    MaxVersion<SPV_V_1_5>,
-    Extension<[]>,
-    Capability<[SPV_C_GroupNonUniformArithmetic, SPV_C_GroupNonUniformClustered, SPV_C_GroupNonUniformPartitionedNV]>
-  ];
 }
 
 // -----
 
-def SPV_GroupNonUniformFMaxOp : SPV_GroupNonUniformArithmeticOp<"GroupNonUniformFMax", SPV_Float, []> {
+def SPV_GroupNonUniformFMaxOp :
+    SPV_GroupNonUniformArithmeticOp<"GroupNonUniformFMax", SPV_Float, []> {
   let summary = [{
     A floating point maximum group operation of all Value operands
     contributed by active invocations in by group.
@@ -321,18 +325,12 @@ def SPV_GroupNonUniformFMaxOp : SPV_GroupNonUniformArithmeticOp<"GroupNonUniform
     %1 = spv.GroupNonUniformFMax "Subgroup" "ClusteredReduce" %vector cluster_size(%four) : vector<4xf32>
     ```
   }];
-
-  let availability = [
-    MinVersion<SPV_V_1_3>,
-    MaxVersion<SPV_V_1_5>,
-    Extension<[]>,
-    Capability<[SPV_C_GroupNonUniformArithmetic, SPV_C_GroupNonUniformClustered, SPV_C_GroupNonUniformPartitionedNV]>
-  ];
 }
 
 // -----
 
-def SPV_GroupNonUniformFMinOp : SPV_GroupNonUniformArithmeticOp<"GroupNonUniformFMin", SPV_Float, []> {
+def SPV_GroupNonUniformFMinOp :
+    SPV_GroupNonUniformArithmeticOp<"GroupNonUniformFMin", SPV_Float, []> {
   let summary = [{
     A floating point minimum group operation of all Value operands
     contributed by active invocations in the group.
@@ -381,18 +379,12 @@ def SPV_GroupNonUniformFMinOp : SPV_GroupNonUniformArithmeticOp<"GroupNonUniform
     %1 = spv.GroupNonUniformFMin "Subgroup" "ClusteredReduce" %vector cluster_size(%four) : vector<4xf32>
     ```
   }];
-
-  let availability = [
-    MinVersion<SPV_V_1_3>,
-    MaxVersion<SPV_V_1_5>,
-    Extension<[]>,
-    Capability<[SPV_C_GroupNonUniformArithmetic, SPV_C_GroupNonUniformClustered, SPV_C_GroupNonUniformPartitionedNV]>
-  ];
 }
 
 // -----
 
-def SPV_GroupNonUniformFMulOp : SPV_GroupNonUniformArithmeticOp<"GroupNonUniformFMul", SPV_Float, []> {
+def SPV_GroupNonUniformFMulOp :
+    SPV_GroupNonUniformArithmeticOp<"GroupNonUniformFMul", SPV_Float, []> {
   let summary = [{
     A floating point multiply group operation of all Value operands
     contributed by active invocations in the group.
@@ -438,18 +430,12 @@ def SPV_GroupNonUniformFMulOp : SPV_GroupNonUniformArithmeticOp<"GroupNonUniform
     %1 = spv.GroupNonUniformFMul "Subgroup" "ClusteredReduce" %vector cluster_size(%four) : vector<4xf32>
     ```
   }];
-
-  let availability = [
-    MinVersion<SPV_V_1_3>,
-    MaxVersion<SPV_V_1_5>,
-    Extension<[]>,
-    Capability<[SPV_C_GroupNonUniformArithmetic, SPV_C_GroupNonUniformClustered, SPV_C_GroupNonUniformPartitionedNV]>
-  ];
 }
 
 // -----
 
-def SPV_GroupNonUniformIAddOp : SPV_GroupNonUniformArithmeticOp<"GroupNonUniformIAdd", SPV_Integer, []> {
+def SPV_GroupNonUniformIAddOp :
+    SPV_GroupNonUniformArithmeticOp<"GroupNonUniformIAdd", SPV_Integer, []> {
   let summary = [{
     An integer add group operation of all Value operands contributed by
     active invocations in the group.
@@ -493,18 +479,12 @@ def SPV_GroupNonUniformIAddOp : SPV_GroupNonUniformArithmeticOp<"GroupNonUniform
     %1 = spv.GroupNonUniformIAdd "Subgroup" "ClusteredReduce" %vector cluster_size(%four) : vector<4xi32>
     ```
   }];
-
-  let availability = [
-    MinVersion<SPV_V_1_3>,
-    MaxVersion<SPV_V_1_5>,
-    Extension<[]>,
-    Capability<[SPV_C_GroupNonUniformArithmetic, SPV_C_GroupNonUniformClustered, SPV_C_GroupNonUniformPartitionedNV]>
-  ];
 }
 
 // -----
 
-def SPV_GroupNonUniformIMulOp : SPV_GroupNonUniformArithmeticOp<"GroupNonUniformIMul", SPV_Integer, []> {
+def SPV_GroupNonUniformIMulOp :
+    SPV_GroupNonUniformArithmeticOp<"GroupNonUniformIMul", SPV_Integer, []> {
   let summary = [{
     An integer multiply group operation of all Value operands contributed by
     active invocations in the group.
@@ -548,18 +528,12 @@ def SPV_GroupNonUniformIMulOp : SPV_GroupNonUniformArithmeticOp<"GroupNonUniform
     %1 = spv.GroupNonUniformIMul "Subgroup" "ClusteredReduce" %vector cluster_size(%four) : vector<4xi32>
     ```
   }];
-
-  let availability = [
-    MinVersion<SPV_V_1_3>,
-    MaxVersion<SPV_V_1_5>,
-    Extension<[]>,
-    Capability<[SPV_C_GroupNonUniformArithmetic, SPV_C_GroupNonUniformClustered, SPV_C_GroupNonUniformPartitionedNV]>
-  ];
 }
 
 // -----
 
-def SPV_GroupNonUniformSMaxOp : SPV_GroupNonUniformArithmeticOp<"GroupNonUniformSMax",
+def SPV_GroupNonUniformSMaxOp :
+    SPV_GroupNonUniformArithmeticOp<"GroupNonUniformSMax",
                                     SPV_Integer,
                                     [SignedOp]> {
   let summary = [{
@@ -605,18 +579,12 @@ def SPV_GroupNonUniformSMaxOp : SPV_GroupNonUniformArithmeticOp<"GroupNonUniform
     %1 = spv.GroupNonUniformSMax "Subgroup" "ClusteredReduce" %vector cluster_size(%four) : vector<4xi32>
     ```
   }];
-
-  let availability = [
-    MinVersion<SPV_V_1_3>,
-    MaxVersion<SPV_V_1_5>,
-    Extension<[]>,
-    Capability<[SPV_C_GroupNonUniformArithmetic, SPV_C_GroupNonUniformClustered, SPV_C_GroupNonUniformPartitionedNV]>
-  ];
 }
 
 // -----
 
-def SPV_GroupNonUniformSMinOp : SPV_GroupNonUniformArithmeticOp<"GroupNonUniformSMin",
+def SPV_GroupNonUniformSMinOp :
+    SPV_GroupNonUniformArithmeticOp<"GroupNonUniformSMin",
                                     SPV_Integer,
                                     [SignedOp]> {
   let summary = [{
@@ -662,18 +630,12 @@ def SPV_GroupNonUniformSMinOp : SPV_GroupNonUniformArithmeticOp<"GroupNonUniform
     %1 = spv.GroupNonUniformSMin "Subgroup" "ClusteredReduce" %vector cluster_size(%four) : vector<4xi32>
     ```
   }];
-
-  let availability = [
-    MinVersion<SPV_V_1_3>,
-    MaxVersion<SPV_V_1_5>,
-    Extension<[]>,
-    Capability<[SPV_C_GroupNonUniformArithmetic, SPV_C_GroupNonUniformClustered, SPV_C_GroupNonUniformPartitionedNV]>
-  ];
 }
 
 // -----
 
-def SPV_GroupNonUniformUMaxOp : SPV_GroupNonUniformArithmeticOp<"GroupNonUniformUMax",
+def SPV_GroupNonUniformUMaxOp :
+    SPV_GroupNonUniformArithmeticOp<"GroupNonUniformUMax",
                                     SPV_Integer,
                                     [UnsignedOp]> {
   let summary = [{
@@ -720,18 +682,12 @@ def SPV_GroupNonUniformUMaxOp : SPV_GroupNonUniformArithmeticOp<"GroupNonUniform
     %1 = spv.GroupNonUniformUMax "Subgroup" "ClusteredReduce" %vector cluster_size(%four) : vector<4xi32>
     ```
   }];
-
-  let availability = [
-    MinVersion<SPV_V_1_3>,
-    MaxVersion<SPV_V_1_5>,
-    Extension<[]>,
-    Capability<[SPV_C_GroupNonUniformArithmetic, SPV_C_GroupNonUniformClustered, SPV_C_GroupNonUniformPartitionedNV]>
-  ];
 }
 
 // -----
 
-def SPV_GroupNonUniformUMinOp : SPV_GroupNonUniformArithmeticOp<"GroupNonUniformUMin",
+def SPV_GroupNonUniformUMinOp :
+    SPV_GroupNonUniformArithmeticOp<"GroupNonUniformUMin",
                                     SPV_Integer,
                                     [UnsignedOp]> {
   let summary = [{
@@ -778,13 +734,6 @@ def SPV_GroupNonUniformUMinOp : SPV_GroupNonUniformArithmeticOp<"GroupNonUniform
     %1 = spv.GroupNonUniformUMin "Subgroup" "ClusteredReduce" %vector cluster_size(%four) : vector<4xi32>
     ```
   }];
-
-  let availability = [
-    MinVersion<SPV_V_1_3>,
-    MaxVersion<SPV_V_1_5>,
-    Extension<[]>,
-    Capability<[SPV_C_GroupNonUniformArithmetic, SPV_C_GroupNonUniformClustered, SPV_C_GroupNonUniformPartitionedNV]>
-  ];
 }
 
 // -----

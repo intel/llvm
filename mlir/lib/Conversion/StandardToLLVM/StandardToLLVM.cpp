@@ -3336,14 +3336,8 @@ struct SubViewOpLowering : public ConvertOpToLLVMPattern<SubViewOp> {
       targetMemRef.setConstantOffset(rewriter, loc, offset);
     } else {
       Value baseOffset = sourceMemRef.offset(rewriter, loc);
-      // `inferredShapeRank` may be larger than the number of offset operands
-      // because of trailing semantics. In this case, the offset is guaranteed
-      // to be interpreted as 0 and we can just skip the extra dimensions.
-      for (unsigned i = 0, e = std::min(inferredShapeRank,
-                                        subViewOp.getMixedOffsets().size());
-           i < e; ++i) {
+      for (unsigned i = 0; i < inferredShapeRank; ++i) {
         Value offset =
-            // TODO: need OpFoldResult ODS adaptor to clean this up.
             subViewOp.isDynamicOffset(i)
                 ? operands[subViewOp.getIndexOfDynamicOffset(i)]
                 : rewriter.create<LLVM::ConstantOp>(
@@ -3356,47 +3350,31 @@ struct SubViewOpLowering : public ConvertOpToLLVMPattern<SubViewOp> {
     }
 
     // Update sizes and strides.
-    SmallVector<OpFoldResult> mixedSizes = subViewOp.getMixedSizes();
-    SmallVector<OpFoldResult> mixedStrides = subViewOp.getMixedStrides();
-    assert(mixedSizes.size() == mixedStrides.size() &&
-           "expected sizes and strides of equal length");
     for (int i = inferredShapeRank - 1, j = resultShapeRank - 1;
          i >= 0 && j >= 0; --i) {
       if (!mask[i])
         continue;
 
-      // `i` may overflow subViewOp.getMixedSizes because of trailing semantics.
-      // In this case, the size is guaranteed to be interpreted as Dim and the
-      // stride as 1.
-      Value size, stride;
-      if (static_cast<unsigned>(i) >= mixedSizes.size()) {
-        size = rewriter.create<LLVM::DialectCastOp>(
-            loc, llvmIndexType,
-            rewriter.create<DimOp>(loc, subViewOp.source(), i));
+      Value size =
+          subViewOp.isDynamicSize(i)
+              ? operands[subViewOp.getIndexOfDynamicSize(i)]
+              : rewriter.create<LLVM::ConstantOp>(
+                    loc, llvmIndexType,
+                    rewriter.getI64IntegerAttr(subViewOp.getStaticSize(i)));
+      targetMemRef.setSize(rewriter, loc, j, size);
+      Value stride;
+      if (!ShapedType::isDynamicStrideOrOffset(strides[i])) {
         stride = rewriter.create<LLVM::ConstantOp>(
-            loc, llvmIndexType, rewriter.getI64IntegerAttr(1));
+            loc, llvmIndexType, rewriter.getI64IntegerAttr(strides[i]));
       } else {
-        // TODO: need OpFoldResult ODS adaptor to clean this up.
-        size =
-            subViewOp.isDynamicSize(i)
-                ? operands[subViewOp.getIndexOfDynamicSize(i)]
+        stride =
+            subViewOp.isDynamicStride(i)
+                ? operands[subViewOp.getIndexOfDynamicStride(i)]
                 : rewriter.create<LLVM::ConstantOp>(
                       loc, llvmIndexType,
-                      rewriter.getI64IntegerAttr(subViewOp.getStaticSize(i)));
-        if (!ShapedType::isDynamicStrideOrOffset(strides[i])) {
-          stride = rewriter.create<LLVM::ConstantOp>(
-              loc, llvmIndexType, rewriter.getI64IntegerAttr(strides[i]));
-        } else {
-          stride = subViewOp.isDynamicStride(i)
-                       ? operands[subViewOp.getIndexOfDynamicStride(i)]
-                       : rewriter.create<LLVM::ConstantOp>(
-                             loc, llvmIndexType,
-                             rewriter.getI64IntegerAttr(
-                                 subViewOp.getStaticStride(i)));
-          stride = rewriter.create<LLVM::MulOp>(loc, stride, strideValues[i]);
-        }
+                      rewriter.getI64IntegerAttr(subViewOp.getStaticStride(i)));
+        stride = rewriter.create<LLVM::MulOp>(loc, stride, strideValues[i]);
       }
-      targetMemRef.setSize(rewriter, loc, j, size);
       targetMemRef.setStride(rewriter, loc, j, stride);
       j--;
     }

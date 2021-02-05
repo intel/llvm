@@ -226,23 +226,14 @@ struct TestLinalgTileAndFuseSequencePass
     Aliases aliases;
     LinalgDependenceGraph dependenceGraph(aliases, linalgOps);
     OpBuilder builder(funcOp.getContext());
-    linalg::LinalgTilingLoopType loopType = LinalgTilingLoopType::ParallelLoops;
-    if (llvm::all_of(linalgOps, [](LinalgOp linalgOp) {
-          return linalgOp.hasTensorSemantics();
-        }))
-      loopType = LinalgTilingLoopType::Loops;
     Optional<TiledAndFusedLinalgOps> tileAndFuseOps = tileAndFuseLinalgOps(
         builder, linalgOps, dependenceGraph,
-        LinalgTilingOptions().setTileSizes(tileSizes).setLoopType(loopType));
+        LinalgTilingOptions().setTileSizes(tileSizes).setLoopType(
+            LinalgTilingLoopType::ParallelLoops));
     if (!tileAndFuseOps)
       return signalPassFailure();
-    if (linalgOps.back().hasTensorSemantics()) {
-      linalgOps.back().getOperation()->replaceAllUsesWith(
-          tileAndFuseOps->fusedLoops.front());
-    }
     for (auto op : linalgOps)
-      if (op.hasBufferSemantics())
-        op.erase();
+      op.erase();
   }
 };
 } // namespace

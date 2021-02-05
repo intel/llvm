@@ -228,8 +228,7 @@ public:
       // InlineAdvisor must be preserved across analysis invalidations.
       return false;
     }
-    bool tryCreate(InlineParams Params, InliningAdvisorMode Mode,
-                   StringRef ReplayFile);
+    bool tryCreate(InlineParams Params, InliningAdvisorMode Mode);
     InlineAdvisor *getAdvisor() const { return Advisor.get(); }
     void clear() { Advisor.reset(); }
 

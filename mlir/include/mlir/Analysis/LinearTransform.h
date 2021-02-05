@@ -35,15 +35,10 @@ public:
 
   // Returns a FlatAffineConstraints having a constraint vector vT for every
   // constraint vector v in fac, where T is this transform.
-  FlatAffineConstraints applyTo(const FlatAffineConstraints &fac) const;
+  FlatAffineConstraints applyTo(const FlatAffineConstraints &fac);
 
-  // The given vector is interpreted as a row vector v. Post-multiply v with
-  // this transform, say T, and return vT.
-  SmallVector<int64_t, 8> postMultiplyRow(ArrayRef<int64_t> rowVec) const;
-
-  // The given vector is interpreted as a column vector v. Pre-multiply v with
-  // this transform, say T, and return Tv.
-  SmallVector<int64_t, 8> preMultiplyColumn(ArrayRef<int64_t> colVec) const;
+  // Post-multiply the given vector v with this transform, say T, returning vT.
+  SmallVector<int64_t, 8> applyTo(ArrayRef<int64_t> v);
 
 private:
   Matrix matrix;

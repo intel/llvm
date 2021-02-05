@@ -380,7 +380,7 @@ void ExecutionDomainFix::visitSoftInstr(MachineInstr *mi, unsigned mask) {
 
   // Finally set all defs and non-collapsed uses to dv. We must iterate through
   // all the operators, including imp-def ones.
-  for (const MachineOperand &mo : mi->operands()) {
+  for (MachineOperand &mo : mi->operands()) {
     if (!mo.isReg())
       continue;
     for (int rx : regIndices(mo.getReg())) {
@@ -454,14 +454,16 @@ bool ExecutionDomainFix::runOnMachineFunction(MachineFunction &mf) {
   // Traverse the basic blocks.
   LoopTraversal Traversal;
   LoopTraversal::TraversalOrder TraversedMBBOrder = Traversal.traverse(mf);
-  for (const LoopTraversal::TraversedMBBInfo &TraversedMBB : TraversedMBBOrder)
+  for (LoopTraversal::TraversedMBBInfo TraversedMBB : TraversedMBBOrder) {
     processBasicBlock(TraversedMBB);
+  }
 
-  for (const LiveRegsDVInfo &OutLiveRegs : MBBOutRegsInfos)
-    for (DomainValue *OutLiveReg : OutLiveRegs)
+  for (LiveRegsDVInfo OutLiveRegs : MBBOutRegsInfos) {
+    for (DomainValue *OutLiveReg : OutLiveRegs) {
       if (OutLiveReg)
         release(OutLiveReg);
-
+    }
+  }
   MBBOutRegsInfos.clear();
   Avail.clear();
   Allocator.DestroyAll();

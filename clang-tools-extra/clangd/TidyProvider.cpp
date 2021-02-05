@@ -255,7 +255,7 @@ TidyProvider disableUnusableChecks(llvm::ArrayRef<std::string> ExtraBadChecks) {
 
 TidyProviderRef provideClangdConfig() {
   return [](tidy::ClangTidyOptions &Opts, llvm::StringRef) {
-    const auto &CurTidyConfig = Config::current().Diagnostics.ClangTidy;
+    const auto &CurTidyConfig = Config::current().ClangTidy;
     if (!CurTidyConfig.Checks.empty())
       mergeCheckList(Opts.Checks, CurTidyConfig.Checks);
 

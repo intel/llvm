@@ -541,13 +541,6 @@ isl::union_map ZoneAlgorithm::computePerPHI(const ScopArrayInfo *SAI) {
   if (It != PerPHIMaps.end())
     return It->second;
 
-  // Cannot reliably compute immediate predecessor for undefined executions, so
-  // bail out if we do not know. This in particular applies to undefined control
-  // flow.
-  isl::set DefinedContext = S->getDefinedBehaviorContext();
-  if (!DefinedContext)
-    return nullptr;
-
   assert(SAI->isPHIKind());
 
   // { DomainPHIWrite[] -> Scatter[] }
@@ -572,7 +565,8 @@ isl::union_map ZoneAlgorithm::computePerPHI(const ScopArrayInfo *SAI) {
   isl::map PHIWriteTimes = BeforeRead.intersect_range(WriteTimes);
 
   // Remove instances outside the context.
-  PHIWriteTimes = PHIWriteTimes.intersect_params(DefinedContext);
+  PHIWriteTimes = PHIWriteTimes.intersect_params(S->getAssumedContext());
+  PHIWriteTimes = subtractParams(PHIWriteTimes, S->getInvalidContext());
 
   isl::map LastPerPHIWrites = PHIWriteTimes.lexmax();
 
@@ -1031,13 +1025,6 @@ void ZoneAlgorithm::computeNormalizedPHIs() {
       auto *PHI = cast<PHINode>(MA->getAccessInstruction());
       const ScopArrayInfo *SAI = MA->getOriginalScopArrayInfo();
 
-      // Determine which instance of the PHI statement corresponds to which
-      // incoming value. Skip if we cannot determine PHI predecessors.
-      // { PHIDomain[] -> IncomingDomain[] }
-      isl::union_map PerPHI = computePerPHI(SAI);
-      if (!PerPHI)
-        continue;
-
       // { PHIDomain[] -> PHIValInst[] }
       isl::map PHIValInst = makeValInst(PHI, &Stmt, Stmt.getSurroundingLoop());
 
@@ -1060,6 +1047,11 @@ void ZoneAlgorithm::computeNormalizedPHIs() {
 
         IncomingValInsts = IncomingValInsts.add_map(IncomingValInst);
       }
+
+      // Determine which instance of the PHI statement corresponds to which
+      // incoming value.
+      // { PHIDomain[] -> IncomingDomain[] }
+      isl::union_map PerPHI = computePerPHI(SAI);
 
       // { PHIValInst[] -> IncomingValInst[] }
       isl::union_map PHIMap =

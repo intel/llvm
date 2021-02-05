@@ -60,11 +60,10 @@ CompileFlags:
 Index:
   Background: Skip
 ---
-Diagnostics:
-  ClangTidy:
-    CheckOptions:
-      IgnoreMacros: true
-      example-check.ExampleOption: 0
+ClangTidy: 
+  CheckOptions: 
+    IgnoreMacros: true
+    example-check.ExampleOption: 0
   )yaml";
   auto Results = Fragment::parseYAML(YAML, "config.yaml", Diags.callback());
   EXPECT_THAT(Diags.Diagnostics, IsEmpty());
@@ -78,7 +77,7 @@ Diagnostics:
 
   ASSERT_TRUE(Results[2].Index.Background);
   EXPECT_EQ("Skip", *Results[2].Index.Background.getValue());
-  EXPECT_THAT(Results[3].Diagnostics.ClangTidy.CheckOptions,
+  EXPECT_THAT(Results[3].ClangTidy.CheckOptions,
               ElementsAre(PairVal("IgnoreMacros", "true"),
                           PairVal("example-check.ExampleOption", "0")));
 }
@@ -99,7 +98,7 @@ If:
             YAML.range());
 }
 
-TEST(ParseYAML, ConfigDiagnostics) {
+TEST(ParseYAML, Diagnostics) {
   CapturedDiags Diags;
   Annotations YAML(R"yaml(
 If:
