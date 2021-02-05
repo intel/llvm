@@ -1,7 +1,7 @@
 // TODO enable on Windows
 // REQUIRES: linux && gpu
 // RUN: %clangxx-esimd -fsycl %s -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %ESIMD_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
+// RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
 // UNSUPPORTED: cuda
 
 //==----------- spec_const_redefine_esimd.cpp ------------------------------==//

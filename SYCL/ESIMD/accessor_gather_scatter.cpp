@@ -8,7 +8,7 @@
 // REQUIRES: gpu
 // UNSUPPORTED: cuda
 // RUN: %clangxx-esimd -fsycl %s -o %t.out
-// RUN: %ESIMD_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
 // The test checks functionality of the gather/scatter accessor-based ESIMD
 // intrinsics.
