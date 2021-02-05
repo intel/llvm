@@ -787,7 +787,7 @@ The SPIR-V specific functions are implemented in for the SYCL host device here:
 
 ### Address spaces handling
 
-SYCL-1.2.1 specification uses C++ templates to represent pointers to disjoint
+SYCL specification uses C++ classes to represent pointers to disjoint
 memory regions on an accelerator to enable compilation with standard C++
 toolchain and SYCL compiler toolchain.
 
@@ -826,15 +826,16 @@ space attributes in SYCL mode: `__attribute__((opencl_global))`,
 `__attribute__((opencl_constant))`.
 
 The main address space semantic difference of SYCL mode from OpenCL is that
-SYCL doesn't assign OpenCL generic address space to a declaration w/o explicit
+SYCL doesn't assign OpenCL generic address space to a declaration's type without explicit
 address space attribute. Similar to other single-source C++-based GPU
-programming modes like OpenMP/CUDA/HIP, SYCL keeps "default" address space for
-such declarations and defines pointer casts between OpenCL address space
-attributes and default address space the same way OpenCL specification defines
-them for generic address space. This design has two important features: keeps
-the type system consistent between host and device compilers on the one hand and
-enable tools for emitting device code aligned with SPIR memory model (and other
-GPU targets).
+programming modes like OpenMP/CUDA/HIP, SYCL uses
+clang's "default" address space for types with no address space attributes.
+During the lowering to LLVM IR, the default address space is mapped to
+the SPIR generic address space. Declarations are assigned to the
+relevant memory region depending on their declaration context and
+pointers to them are cast to generic. This design has two important features: keeps
+the type system consistent with C++ on one hand and enable tools for emitting device code
+aligned with SPIR memory model (and other GPU targets).
 
 > **NOTE**: although SYCL device compiler supports
 `__attribute__((opencl_constant))`, the use of this attribute is limited within
