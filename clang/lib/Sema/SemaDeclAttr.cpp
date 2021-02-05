@@ -3104,8 +3104,28 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
       return;
   }
 
+  ASTContext &Ctx = S.getASTContext();
+
+  if (AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize) {
+    if (const auto *A = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
+      Optional<llvm::APSInt> NumSimdWorkItems =
+          A->getValue()->getIntegerConstantExpr(Ctx);
+      Optional<llvm::APSInt> XDimVal = XDimExpr->getIntegerConstantExpr(Ctx);
+      Optional<llvm::APSInt> YDimVal = YDimExpr->getIntegerConstantExpr(Ctx);
+      Optional<llvm::APSInt> ZDimVal = ZDimExpr->getIntegerConstantExpr(Ctx);
+
+      if (!(XDimVal->getExtValue() % NumSimdWorkItems->getExtValue() == 0 ||
+            YDimVal->getZExtValue() % NumSimdWorkItems->getExtValue() == 0 ||
+            ZDimVal->getZExtValue() % NumSimdWorkItems->getExtValue() == 0)) {
+        S.Diag(A->getLocation(), diag::err_conflicting_sycl_function_attributes)
+            << A << AL;
+        S.Diag(AL.getLoc(), diag::note_conflicting_attribute);
+        return;
+      }
+    }
+  }
+
   if (WorkGroupAttr *ExistingAttr = D->getAttr<WorkGroupAttr>()) {
-    ASTContext &Ctx = S.getASTContext();
     Optional<llvm::APSInt> XDimVal = XDimExpr->getIntegerConstantExpr(Ctx);
     Optional<llvm::APSInt> YDimVal = YDimExpr->getIntegerConstantExpr(Ctx);
     Optional<llvm::APSInt> ZDimVal = ZDimExpr->getIntegerConstantExpr(Ctx);
@@ -3171,18 +3191,38 @@ static void handleSubGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
 }
 
 // Handles num_simd_work_items.
-static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D, const ParsedAttr &A) {
+static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (D->isInvalidDecl())
     return;
 
-  Expr *E = A.getArgAsExpr(0);
+  Expr *E = AL.getArgAsExpr(0);
 
   if (D->getAttr<SYCLIntelNumSimdWorkItemsAttr>())
-    S.Diag(A.getLoc(), diag::warn_duplicate_attribute) << A;
+    S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
 
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
+  S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
-  S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelNumSimdWorkItemsAttr>(D, A, E);
+  if (const auto *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
+    ASTContext &Ctx = S.getASTContext();
+
+    if (!E->isValueDependent()) {
+      Optional<llvm::APSInt> NumSimdWorkItems = E->getIntegerConstantExpr(Ctx);
+      Optional<llvm::APSInt> XDimVal = A->getXDimVal(Ctx);
+      Optional<llvm::APSInt> YDimVal = A->getYDimVal(Ctx);
+      Optional<llvm::APSInt> ZDimVal = A->getZDimVal(Ctx);
+
+      if (!(XDimVal->getExtValue() % NumSimdWorkItems->getExtValue() == 0 ||
+            YDimVal->getZExtValue() % NumSimdWorkItems->getExtValue() == 0 ||
+            ZDimVal->getZExtValue() % NumSimdWorkItems->getExtValue() == 0)) {
+        S.Diag(AL.getLoc(), diag::err_conflicting_sycl_function_attributes)
+            << AL << A->getSpelling();
+        S.Diag(A->getLocation(), diag::note_conflicting_attribute);
+        return;
+      }
+    }
+  }
+
+  S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelNumSimdWorkItemsAttr>(D, AL, E);
 }
 
 // Handles use_stall_enable_clusters

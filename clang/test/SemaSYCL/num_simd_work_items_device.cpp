@@ -33,6 +33,68 @@ struct FuncObj {
   [[intel::num_simd_work_items(42)]] void operator()() const {}
 };
 
+#ifdef TRIGGER_ERROR
+struct TRIFuncObjBad1 {
+   [[intel::num_simd_work_items(3)]] // expected-error{{'num_simd_work_items' attribute conflicts with ''reqd_work_group_size'' attribute}}
+   [[intel::reqd_work_group_size(5, 5, 5)]] //expected-note{{conflicting attribute is here}}
+   void operator()() const {}
+};
+
+struct TRIFuncObjBad2 {
+   [[intel::reqd_work_group_size(5, 5, 5)]] // expected-note{{conflicting attribute is here}}
+   [[intel::num_simd_work_items(3)]] // expected-error{{'num_simd_work_items' attribute conflicts with 'reqd_work_group_size' attribute}}
+   void operator()() const {}
+};
+
+struct TRIFuncObjBad3 {
+   [[intel::num_simd_work_items(3)]] // expected-error{{'num_simd_work_items' attribute conflicts with ''reqd_work_group_size'' attribute}}
+   [[cl::reqd_work_group_size(5, 5, 5)]] //expected-note{{conflicting attribute is here}}
+   void operator()() const {}
+};
+
+struct TRIFuncObjBad4 {
+   [[cl::reqd_work_group_size(5, 5, 5)]] // expected-note{{conflicting attribute is here}}
+   [[intel::num_simd_work_items(3)]] // expected-error{{'num_simd_work_items' attribute conflicts with 'reqd_work_group_size' attribute}}
+   void operator()() const {}
+};
+#endif // TRIGGER_ERROR
+
+struct TRIFuncObjGood1 {
+   [[intel::num_simd_work_items(4)]] //OK
+   [[intel::reqd_work_group_size(64, 64, 64)]]
+   void operator()() const {}
+};
+
+struct TRIFuncObjGood2 {
+   [[intel::reqd_work_group_size(64, 64, 64)]]
+   [[intel::num_simd_work_items(4)]] //OK
+   void operator()() const {}
+};
+
+struct TRIFuncObjGood3 {
+   [[intel::num_simd_work_items(4)]] //OK
+   [[cl::reqd_work_group_size(64, 64, 64)]]
+   void operator()() const {}
+};
+
+struct TRIFuncObjGood4 {
+   [[cl::reqd_work_group_size(64, 64, 64)]]
+   [[intel::num_simd_work_items(4)]] //OK
+   void operator()() const {}
+};
+
+struct TRIFuncObjGood5 {
+   [[intel::num_simd_work_items(3)]] //OK
+   [[intel::max_work_group_size(5, 5, 5)]]
+   void operator()() const {}
+};
+
+struct TRIFuncObjGood6 {
+   [[intel::max_work_group_size(5, 5, 5)]]
+   [[intel::num_simd_work_items(3)]] //OK
+   void operator()() const {}
+};
+
 int main() {
   q.submit([&](handler &h) {
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel1
@@ -54,16 +116,78 @@ int main() {
     h.single_task<class test_kernel3>(
         []() { func_do_not_ignore(); });
 
+    h.single_task<class test_kernel4>(TRIFuncObjGood1());
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4
+    // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+
+    h.single_task<class test_kernel5>(TRIFuncObjGood2());
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel5
+    // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+
+    h.single_task<class test_kernel6>(TRIFuncObjGood3());
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel6
+    // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+
+    h.single_task<class test_kernel7>(TRIFuncObjGood4());
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel7
+    // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+
+    h.single_task<class test_kernel8>(TRIFuncObjGood5());
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel8
+    // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
+    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
+
+    h.single_task<class test_kernel9>(TRIFuncObjGood6());
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel9
+    // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
+    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
+    // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
+
 #ifdef TRIGGER_ERROR
     [[intel::num_simd_work_items(0)]] int Var = 0; // expected-error{{'num_simd_work_items' attribute only applies to functions}}
 
-    h.single_task<class test_kernel4>(
+    h.single_task<class test_kernel10>(
         []() [[intel::num_simd_work_items(0)]]{}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 
-    h.single_task<class test_kernel5>(
+    h.single_task<class test_kernel11>(
         []() [[intel::num_simd_work_items(-42)]]{}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 
-    h.single_task<class test_kernel6>(
+    h.single_task<class test_kernel12>(TRIFuncObjBad1());
+
+    h.single_task<class test_kernel13>(TRIFuncObjBad2());
+
+    h.single_task<class test_kernel14>(TRIFuncObjBad3());
+
+    h.single_task<class test_kernel15>(TRIFuncObjBad4());
+
+    h.single_task<class test_kernel16>(
         []() [[intel::num_simd_work_items(1), intel::num_simd_work_items(2)]]{}); // expected-warning{{attribute 'num_simd_work_items' is already applied with different parameters}}
 #endif // TRIGGER_ERROR
   });
