@@ -3640,7 +3640,8 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
   size_t Index = 0;
   ze_event_pool_handle_t ZeEventPool = {};
-  Context->getFreeSlotInExistingOrNewPool(ZeEventPool, Index);
+  if (auto Res = Context->getFreeSlotInExistingOrNewPool(ZeEventPool, Index))
+    return Res;
 
   ze_event_handle_t ZeEvent;
   ze_event_desc_t ZeEventDesc = {};
@@ -3899,7 +3900,8 @@ pi_result piEventRelease(pi_event Event) {
     ZE_CALL(zeEventDestroy(Event->ZeEvent));
 
     auto Context = Event->Context;
-    Context->decrementAliveEventsInPool(Event->ZeEventPool);
+    if (auto Res = Context->decrementAliveEventsInPool(Event->ZeEventPool))
+      return Res;
 
     // We intentionally incremented the reference counter when an event is
     // created so that we can avoid pi_queue is released before the associated
