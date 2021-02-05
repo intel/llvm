@@ -80,8 +80,8 @@ restarts (e.g. cache on disk for device code built for specific HW/SW
 configuration).
 
 <a name="what-is-program">1</a>: Here "program" means an internal SYCL runtime
-object corresponding to a SPIRV module or native binary defining a set of SYCL
-kernels and/or device functions.
+object corresponding to a device code module or native binary defining a set of
+SYCL kernels and/or device functions.
 
 
 ## Data structure of cache
@@ -104,10 +104,9 @@ The programs map's key consists of four components:
  - device this program is built for,
  - build options id <sup>[2](#what-is-bopts)</sup>.
 
-The kernels map's key consists of three components:
+The kernels map's key consists of two components:
  - program the kernel, belongs to,
- - kernel name<sup>[3](#what-is-kname)</sup>,
- - device the program is built for.
+ - kernel name<sup>[3](#what-is-kname)</sup>.
 
 <a name="what-is-ksid">1</a>: Kernel set id is an ordinal number of the device
 binary image the kernel is contained in.
@@ -128,7 +127,7 @@ which is provided to methods of `cl::sycl::handler` (e.g. `parallel_for` or
 The cache is hidden behind in-memory cache and stores the same underlying PI
 object behind `cl::sycl::program` user-level objects in a per-context data
 storage.
-The storage is organized as a map for storing device code bundles. It uses
+The storage is organized as a map for storing device code image. It uses
 different keys to address difference in SYCL objects ids between applications
 runs as well as the fact that the same kernel name can be used in different
 SYCL applications.
@@ -139,7 +138,7 @@ The programs map's key consists of four components:
  - device id<sup>[2](#what-is-did)</sup> this program is built for,
  - build options id<sup>[3](#what-is-bopts)</sup>.
 <a name="what-is-diid">1</a>: Hash out of  first 10 kB (for performance reasons) of the
-device kernel bundle used as input for the build.
+device code image used as input for the build.
 <a name="what-is-did">2</a>: Hash out of the string which is concatenation of values for
 `info::platform::name`, `info::device::name`, `info::device::version`,
 `info::device::driver_version` parameters to differentiate different HW and SW
@@ -301,8 +300,8 @@ STL hash function specialized for std::string is going to be used:
 `template<>  struct hash<std::string>`
 TBD: may be it is reasonable to use own implementation for hash function to
 avoid issues when different  C++ library implementation is used producing
-different hashes. But at first look it is not an issue because it may happen only
-DPC++ compiler/runtime change and that means change of SPIRV image.
+different hashes. But at first look it is not an issue because it may happen
+only DPC++ compiler/runtime change and that means change of device code image.
 
 ### Core of caching mechanism
 
@@ -338,10 +337,21 @@ its message and error code.
 
 ### On-disk cache storage structure
 
-The device image bundles are stored on filesystem using structure below:
+The device code image are stored on filesystem using structure below:
 <cache_root>/<device_id>/<device_image_id>_<spec_constants_values>_<build_options>.bin
 
-### On-disk cache cleanup mechanism
+### Cache cleanup
+
+Cache cleanup mechanism is required to avoid resources overfloat both for
+memory and disk. The general idea is to delete items following LRU (least
+recently used) startegy.
+
+#### In-memory cache cleanup
+
+It is initiated on program/kernel maps access/add item operation. The items
+exceeding storage threshold are deleted.
+
+#### On-disk cache cleanup mechanism
 
 On-disk cache is going to be purged basing on file last access (read/write) date
 (access time). On SYCL application shutdown phase cache clean up process is
