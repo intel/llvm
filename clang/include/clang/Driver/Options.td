@@ -5493,7 +5493,8 @@ def fopenmp_host_ir_file_path : Separate<["-"], "fopenmp-host-ir-file-path">,
 
 def fsycl_is_device : Flag<["-"], "fsycl-is-device">,
   HelpText<"Generate code for SYCL device.">,
-  MarshallingInfoFlag<LangOpts<"SYCLIsDevice">>;
+  MarshallingInfoFlag<LangOpts<"SYCLIsDevice">>,
+  ShouldParseIf<fsycl.KeyPath>;
 def fsycl_is_host : Flag<["-"], "fsycl-is-host">,
   HelpText<"SYCL host compilation">,
   MarshallingInfoFlag<LangOpts<"SYCLIsHost">>;
