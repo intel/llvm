@@ -13092,10 +13092,8 @@ void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
   D->addAttr(::new (Context) AttrType(Context, CI, E));
 }
 
-template <typename AttrInfo>
-static bool handleMaxWorkSizeAttrExpr(Sema &S, const AttrInfo &AI,
-                                      const Expr *E, unsigned &Val,
-                                      unsigned Idx) {
+static bool handleMaxWorkSizeAttrExpr(Sema &S, const AttributeCommonInfo &CI,
+                                      Expr *E) {
   assert(E && "Attribute must have an argument.");
 
   if (!E->isInstantiationDependent()) {
@@ -13103,8 +13101,8 @@ static bool handleMaxWorkSizeAttrExpr(Sema &S, const AttrInfo &AI,
         E->getIntegerConstantExpr(S.getASTContext());
 
     if (!ArgVal) {
-      S.Diag(AI.getLocation(), diag::err_attribute_argument_type)
-          << &AI << AANT_ArgumentIntegerConstant << E->getSourceRange();
+      S.Diag(E->getExprLoc(), diag::err_attribute_argument_type)
+          << CI << AANT_ArgumentIntegerConstant << E->getSourceRange();
       return false;
     }
 
@@ -13116,40 +13114,14 @@ static bool handleMaxWorkSizeAttrExpr(Sema &S, const AttrInfo &AI,
       return true;
     }
 
-    Val = ArgVal->getZExtValue();
+    unsigned Val = ArgVal->getZExtValue();
     if (Val == 0) {
       S.Diag(E->getExprLoc(), diag::err_attribute_argument_is_zero)
-          << &AI << E->getSourceRange();
+          << CI << E->getSourceRange();
       return false;
     }
   }
   return true;
-}
-
-template <typename AttrType>
-static bool checkMaxWorkSizeAttrArguments(Sema &S, Expr *XDimExpr,
-                                          Expr *YDimExpr, Expr *ZDimExpr,
-                                          const AttrType &Attr) {
-  // Accept template arguments for now as they depend on something else.
-  // We'll get to check them when they eventually get instantiated.
-  if (XDimExpr->isValueDependent() ||
-      (YDimExpr && YDimExpr->isValueDependent()) ||
-      (ZDimExpr && ZDimExpr->isValueDependent()))
-    return false;
-
-  unsigned XDim = 0;
-  if (!handleMaxWorkSizeAttrExpr(S, Attr, XDimExpr, XDim, 0))
-    return true;
-
-  unsigned YDim = 0;
-  if (YDimExpr && !handleMaxWorkSizeAttrExpr(S, Attr, YDimExpr, YDim, 1))
-    return true;
-
-  unsigned ZDim = 0;
-  if (ZDimExpr && !handleMaxWorkSizeAttrExpr(S, Attr, ZDimExpr, ZDim, 2))
-    return true;
-
-  return false;
 }
 
 template <typename WorkGroupAttrType>
@@ -13157,11 +13129,24 @@ void Sema::addIntelSYCLTripleArgFunctionAttr(Decl *D,
                                              const AttributeCommonInfo &CI,
                                              Expr *XDimExpr, Expr *YDimExpr,
                                              Expr *ZDimExpr) {
-  WorkGroupAttrType TmpAttr(Context, CI, XDimExpr, YDimExpr, ZDimExpr);
 
-  if (checkMaxWorkSizeAttrArguments(*this, XDimExpr, YDimExpr, ZDimExpr,
-                                    TmpAttr))
-    return;
+  assert((XDimExpr && YDimExpr && ZDimExpr) &&
+         "argument has unexpected null value");
+
+  // Accept template arguments for now as they depend on something else.
+  // We'll get to check them when they eventually get instantiated.
+  if (!XDimExpr->isValueDependent() && !YDimExpr->isValueDependent() &&
+      !ZDimExpr->isValueDependent()) {
+
+    if (!handleMaxWorkSizeAttrExpr(*this, CI, XDimExpr))
+      return;
+
+    if (!handleMaxWorkSizeAttrExpr(*this, CI, YDimExpr))
+      return;
+
+    if (!handleMaxWorkSizeAttrExpr(*this, CI, ZDimExpr))
+      return;
+  }
 
   D->addAttr(::new (Context)
                  WorkGroupAttrType(Context, CI, XDimExpr, YDimExpr, ZDimExpr));
