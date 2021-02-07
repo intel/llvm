@@ -794,7 +794,7 @@ SYCL compiler toolchain.
 For instance:
 
 ``` C++
-// check that SYCL mode is ON and we can use non-standard annotations
+// check that SYCL mode is ON and we can use non-standard decorations
 #if defined(__SYCL_DEVICE_ONLY__)
 // GPU/accelerator implementation
 template <typename T, address_space AS> class multi_ptr {
@@ -809,14 +809,14 @@ template <typename T, address_space AS> class multi_ptr {
 #else
 // CPU/host implementation
 template <typename T, address_space AS> class multi_ptr {
-  T *m_Pointer; // regular unannotated pointer
+  T *m_Pointer; // regular undecorated pointer
   public:
   T *get() { return m_Pointer; }
 }
 #endif
 ```
 
-Depending on the compiler mode `multi_ptr` will either annotate internal data
+Depending on the compiler mode `multi_ptr` will either decorate internal data
 with address space attribute or not.
 
 To utilize existing clang's functionality, we re-use following OpenCL address
