@@ -5,7 +5,7 @@
 // Test that checks wrong function template instantiation and ensures that the type
 // is checked properly when instantiating from the template definition.
 template <typename Ty>
-// expected-error@+2{{'reqd_sub_group_size' attribute requires a positive integral compile time constant expression}}
+// expected-error@+3{{'reqd_sub_group_size' attribute requires a positive integral compile time constant expression}}
 // expected-error@+2 {{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
 // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
 [[intel::reqd_sub_group_size(Ty{})]] void func() {}
