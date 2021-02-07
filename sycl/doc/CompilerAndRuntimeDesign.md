@@ -798,20 +798,20 @@ For instance:
 #if defined(__SYCL_DEVICE_ONLY__)
 // GPU/accelerator implementation
 template <typename T, address_space AS> class multi_ptr {
-  // GetAnnotatedPointer<T, global>::type == "__attribute__((opencl_global)) T"
+  // DecoratedType<T, global>::type == "__attribute__((opencl_global)) T"
   // See sycl/include/CL/sycl/access/access.hpp for more details
-  using pointer_t = typename GetAnnotatedPointer<T, AS>::type *;
+  using pointer_t = typename DecoratedType<T, AS>::type *;
  
-  pointer_t data;
+  pointer_t m_Pointer;
   public:
-  pointer_t get_pointer() { return data; }
+  pointer_t get() { return m_Pointer; }
 }
 #else
 // CPU/host implementation
 template <typename T, address_space AS> class multi_ptr {
-  T *data; // regular unannotated pointer
+  T *m_Pointer; // regular unannotated pointer
   public:
-  T *get_pointer() { return data; }
+  T *get() { return m_Pointer; }
 }
 #endif
 ```
