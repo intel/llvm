@@ -790,7 +790,7 @@ def Wno_nonportable_cfstrings : Joined<["-"], "Wno-nonportable-cfstrings">, Grou
   Flags<[CC1Option]>;
 def Wnonportable_cfstrings : Joined<["-"], "Wnonportable-cfstrings">, Group<W_Group>,
   Flags<[CC1Option]>;
-def Wno_sycl_strict : Joined<["-"], "Wno-sycl-strict">, Group<W_Group>, HelpText<"Disable warnings which enforce strict SYCL language compatibility.">;
+def Wno_sycl_strict : Flag<["-"], "Wno-sycl-strict">, Group<W_Group>, HelpText<"Disable warnings which enforce strict SYCL language compatibility.">;
 def Wp_COMMA : CommaJoined<["-"], "Wp,">,
   HelpText<"Pass the comma separated arguments in <arg> to the preprocessor">,
   MetaVarName<"<arg>">, Group<Preprocessor_Group>;
