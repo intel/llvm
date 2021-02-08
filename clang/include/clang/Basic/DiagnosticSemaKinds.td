@@ -3192,6 +3192,9 @@ def warn_dllimport_dropped_from_inline_function : Warning<
   InGroup<IgnoredAttributes>;
 def warn_attribute_ignored : Warning<"%0 attribute ignored">,
   InGroup<IgnoredAttributes>;
+def warn_attribute_on_direct_kernel_callee_only : Warning<"%0 attribute allowed"
+  " only on function directly called from kernel; attribute ignored">,
+  InGroup<IgnoredAttributes>;
 def warn_nothrow_attribute_ignored : Warning<"'nothrow' attribute conflicts with"
   " exception specification; attribute ignored">,
   InGroup<IgnoredAttributes>;

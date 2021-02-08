@@ -328,7 +328,9 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
     if (DirectlyCalled) {
       Attrs.push_back(A);
     } else {
-      S.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
+      S.Diag(A->getLocation(),
+             diag::warn_attribute_on_direct_kernel_callee_only)
+          << A;
       FD->dropAttr<SYCLIntelUseStallEnableClustersAttr>();
     }
   }
