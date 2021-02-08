@@ -3106,38 +3106,56 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   ASTContext &Ctx = S.getASTContext();
 
-  if (AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize) {
-    if (const auto *A = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
-      Optional<llvm::APSInt> NumSimdWorkItems =
-          A->getValue()->getIntegerConstantExpr(Ctx);
-      Optional<llvm::APSInt> XDimVal = XDimExpr->getIntegerConstantExpr(Ctx);
-      Optional<llvm::APSInt> YDimVal = YDimExpr->getIntegerConstantExpr(Ctx);
-      Optional<llvm::APSInt> ZDimVal = ZDimExpr->getIntegerConstantExpr(Ctx);
-
-      if (!(XDimVal->getExtValue() % NumSimdWorkItems->getExtValue() == 0 ||
-            YDimVal->getZExtValue() % NumSimdWorkItems->getExtValue() == 0 ||
-            ZDimVal->getZExtValue() % NumSimdWorkItems->getExtValue() == 0)) {
-        S.Diag(A->getLocation(), diag::err_conflicting_sycl_function_attributes)
-            << A << AL;
-        S.Diag(AL.getLoc(), diag::note_conflicting_attribute);
-        return;
-      }
-    }
-  }
-
-  if (WorkGroupAttr *ExistingAttr = D->getAttr<WorkGroupAttr>()) {
+  if (!XDimExpr->isValueDependent() || !YDimExpr->isValueDependent() ||
+      !ZDimExpr->isValueDependent()) {
     Optional<llvm::APSInt> XDimVal = XDimExpr->getIntegerConstantExpr(Ctx);
     Optional<llvm::APSInt> YDimVal = YDimExpr->getIntegerConstantExpr(Ctx);
     Optional<llvm::APSInt> ZDimVal = ZDimExpr->getIntegerConstantExpr(Ctx);
-    Optional<llvm::APSInt> ExistingXDimVal = ExistingAttr->getXDimVal(Ctx);
-    Optional<llvm::APSInt> ExistingYDimVal = ExistingAttr->getYDimVal(Ctx);
-    Optional<llvm::APSInt> ExistingZDimVal = ExistingAttr->getZDimVal(Ctx);
 
-    // Compare attribute arguments value and warn for a mismatch.
-    if (ExistingXDimVal != XDimVal || ExistingYDimVal != YDimVal ||
-        ExistingZDimVal != ZDimVal) {
-      S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
-      S.Diag(ExistingAttr->getLocation(), diag::note_conflicting_attribute);
+    if (AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize) {
+      if (const auto *A = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
+        int64_t NumSimdWorkItems =
+          A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue();
+
+	assert(NumSimdWorkItems && XDimVal &&
+               "Argument should be an integer constant expression");
+        assert(NumSimdWorkItems && YDimVal &&
+               "Argument should be an integer constant expression");
+        assert(NumSimdWorkItems && ZDimVal &&
+               "Argument should be an integer constant expression");
+
+        if (NumSimdWorkItems == 0)
+          return;
+
+        if (!(XDimVal->getZExtValue() % NumSimdWorkItems == 0 ||
+              YDimVal->getZExtValue() % NumSimdWorkItems == 0 ||
+              ZDimVal->getZExtValue() % NumSimdWorkItems == 0)) {
+          S.Diag(A->getLocation(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
+              << A << AL;
+          S.Diag(AL.getLoc(), diag::note_conflicting_attribute);
+          return;
+        }
+      }
+    }
+
+    if (WorkGroupAttr *ExistingAttr = D->getAttr<WorkGroupAttr>()) {
+      Optional<llvm::APSInt> ExistingXDimVal = ExistingAttr->getXDimVal(Ctx);
+      Optional<llvm::APSInt> ExistingYDimVal = ExistingAttr->getYDimVal(Ctx);
+      Optional<llvm::APSInt> ExistingZDimVal = ExistingAttr->getZDimVal(Ctx);
+
+      assert(XDimVal && ExistingXDimVal &&
+             "Argument should be an integer constant expression");
+      assert(YDimVal && ExistingYDimVal &&
+             "Argument should be an integer constant expression");
+      assert(ZDimVal && ExistingZDimVal &&
+             "Argument should be an integer constant expression");
+
+      // Compare attribute arguments value and warn for a mismatch.
+      if (ExistingXDimVal != XDimVal || ExistingYDimVal != YDimVal ||
+          ExistingZDimVal != ZDimVal) {
+        S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
+        S.Diag(ExistingAttr->getLocation(), diag::note_conflicting_attribute);
+      }
     }
   }
 
@@ -3202,20 +3220,31 @@ static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
-  if (const auto *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
+  if (!E->isValueDependent()) {
     ASTContext &Ctx = S.getASTContext();
+    Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(Ctx);
 
-    if (!E->isValueDependent()) {
-      Optional<llvm::APSInt> NumSimdWorkItems = E->getIntegerConstantExpr(Ctx);
+    if (const auto *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
       Optional<llvm::APSInt> XDimVal = A->getXDimVal(Ctx);
       Optional<llvm::APSInt> YDimVal = A->getYDimVal(Ctx);
       Optional<llvm::APSInt> ZDimVal = A->getZDimVal(Ctx);
 
-      if (!(XDimVal->getExtValue() % NumSimdWorkItems->getExtValue() == 0 ||
-            YDimVal->getZExtValue() % NumSimdWorkItems->getExtValue() == 0 ||
-            ZDimVal->getZExtValue() % NumSimdWorkItems->getExtValue() == 0)) {
-        S.Diag(AL.getLoc(), diag::err_conflicting_sycl_function_attributes)
-            << AL << A->getSpelling();
+      assert(ArgVal && XDimVal &&
+             "Argument should be an integer constant expression");
+      assert(ArgVal && YDimVal &&
+             "Argument should be an integer constant expression");
+      assert(ArgVal && ZDimVal &&
+             "Argument should be an integer constant expression");
+
+      int64_t NumSimdWorkItems = ArgVal->getSExtValue();
+      if (NumSimdWorkItems == 0)
+        return;
+
+      if (!(XDimVal->getZExtValue() % NumSimdWorkItems == 0 ||
+            YDimVal->getZExtValue() % NumSimdWorkItems == 0 ||
+            ZDimVal->getZExtValue() % NumSimdWorkItems == 0)) {
+        S.Diag(AL.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
+            << AL << A;
         S.Diag(A->getLocation(), diag::note_conflicting_attribute);
         return;
       }

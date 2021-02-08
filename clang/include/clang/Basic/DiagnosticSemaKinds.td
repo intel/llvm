@@ -11212,6 +11212,9 @@ def err_sycl_invalid_accessor_property_list_template_param : Error<
   "%select{accessor_property_list|accessor_property_list pack argument|buffer_location}0 "
   "template parameter must be a "
   "%select{parameter pack|type|non-negative integer}1">;
+def err_sycl_num_kernel_wrong_reqd_wg_size : Error<
+  "%0 attribute must evenly divide the work-group size for the %1 attribute">;
+
 def warn_sycl_pass_by_value_deprecated 
     : Warning<"Passing kernel functions by value is deprecated in SYCL 2020">,
       InGroup<Sycl2020Compat>, ShowInSystemHeader;
