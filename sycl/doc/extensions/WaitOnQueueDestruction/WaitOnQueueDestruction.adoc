@@ -1,0 +1,18 @@
+= SYCL Proposals: Wait on Destruction Queue Property
+James Brodman <james.brodman@intel.com>
+v0.1
+:source-highlighter: pygments
+:icons: font
+== Introduction
+This document presents an addition proposed for a future version of the SYCL Specification.  This proposal adds a new queue property that may be specified during queue construction that modifies the behavior of the queue on destruction. Normally, queue destruction is non-blocking - it does not wait for enqueued operations to first complete.  Queues created with this property will first wait on all submitted operations before proceeding with normal destruction.
+
+.Proposed Queue Property
+[cols="^50,50",options="header"]
+|===
+
+|Property |Description
+|`property::queue::wait_on_destruction`
+| The `wait_on_destruction` property adds the requirement that the SYCL queue wait on all submitted operations before the destructor returns.
+|===
+
+
