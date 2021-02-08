@@ -120,7 +120,14 @@ should be used.
 -DSYCL_LIBCXX_INCLUDE_PATH=<path to libc++ headers> \
 -DSYCL_LIBCXX_LIBRARY_PATH=<path to libc++ and libc++abi libraries>
 ```
+You can also use configure script to enable:
 
+```
+python %DPCPP_HOME%\llvm\buildbot\configure.py --use-libcxx \
+--libcxx-include <path to libc++ headers> \
+--libcxx-library <path to libc++ and libc++ abi libraries>
+python %DPCPP_HOME%\llvm\buildbot\compile.py
+```
 ### Build DPC++ toolchain with support for NVIDIA CUDA
 
 There is experimental support for DPC++ for CUDA devices.
