@@ -239,12 +239,11 @@ struct _pi_context : _pi_object {
 
   // Get index of the free slot in the available pool. If there is no avialble
   // pool then create new one.
-  ze_result_t getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &,
-                                             size_t &);
+  pi_result getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &, size_t &);
 
   // If event is destroyed then decrement number of events living in the pool
   // and destroy the pool if there are no alive events.
-  ze_result_t decrementAliveEventsInPool(ze_event_pool_handle_t pool);
+  pi_result decrementAliveEventsInPool(ze_event_pool_handle_t pool);
 
   // Store USM allocator context(internal allocator structures)
   // for USM shared/host and device allocations. There is 1 allocator context
