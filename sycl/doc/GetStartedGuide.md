@@ -20,7 +20,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
   * [Using the DPC++ toolchain on CUDA platforms](#using-the-dpc-toolchain-on-cuda-platforms)
 * [C++ standard](#c-standard)
 * [Known Issues and Limitations](#known-issues-and-limitations)
-* [CUDA backend limitations](#cuda-backend-limitations)
+* [CUDA back-end limitations](#cuda-back-end-limitations)
 * [Find More](#find-more)
 
 ## Prerequisites
