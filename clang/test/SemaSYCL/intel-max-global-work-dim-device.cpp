@@ -111,7 +111,7 @@ int main() {
 
     h.single_task<class test_kernel7>(
         []() [[intel::max_global_work_dim(3),
-               intel::max_global_work_dim(2)]]{}); // expected-warning{{attribute 'max_global_work_dim' is already applied with different parameters}}
+               intel::max_global_work_dim(2)]]{}); // expected-warning{{attribute 'max_global_work_dim' is already applied with different arguments}}
 
     h.single_task<class test_kernel8>(TRIFuncObjBad());
 

@@ -34,7 +34,7 @@ func3();
 
 [[cl::reqd_work_group_size(1, 1, 1)]] // expected-note {{conflicting attribute is here}}
 void
-// expected-warning@+1 {{attribute 'reqd_work_group_size' is already applied with different parameters}}
+// expected-warning@+1 {{attribute 'reqd_work_group_size' is already applied with different arguments}}
 func3() {} // expected-error {{'reqd_work_group_size' attribute conflicts with ''reqd_work_group_size'' attribute}}
 
 //fourth case - expect error
@@ -44,7 +44,7 @@ func4();
 
 [[intel::max_work_group_size(8, 8, 8)]] // expected-note {{conflicting attribute is here}}
 void
-// expected-warning@+1 {{attribute 'max_work_group_size' is already applied with different parameters}}
+// expected-warning@+1 {{attribute 'max_work_group_size' is already applied with different arguments}}
 func4() {} // expected-error {{'max_work_group_size' attribute conflicts with ''max_work_group_size'' attribute}}
 #endif
 

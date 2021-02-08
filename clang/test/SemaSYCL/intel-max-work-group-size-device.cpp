@@ -100,7 +100,7 @@ int main() {
 
     h.single_task<class test_kernel8>(
         []() [[intel::max_work_group_size(16, 16, 16),   // expected-note{{conflicting attribute is here}}
-               intel::max_work_group_size(2, 2, 2)]]{}); // expected-warning{{attribute 'max_work_group_size' is already applied with different parameters}}
+               intel::max_work_group_size(2, 2, 2)]]{}); // expected-warning{{attribute 'max_work_group_size' is already applied with different arguments}}
 
     h.single_task<class test_kernel9>(
         DAFuncObj());

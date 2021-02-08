@@ -14,8 +14,8 @@
 [[intel::loop_fuse]] [[intel::loop_fuse]] void func5() {}
 [[intel::loop_fuse_independent(10)]] [[intel::loop_fuse_independent(10)]] void func6() {}
 
-[[intel::loop_fuse]] [[intel::loop_fuse(10)]] void func7() {}                            // expected-warning {{attribute 'loop_fuse' is already applied with different parameters}}
-[[intel::loop_fuse_independent(5)]] [[intel::loop_fuse_independent(10)]] void func8() {} // expected-warning {{attribute 'loop_fuse_independent' is already applied with different parameters}}
+[[intel::loop_fuse]] [[intel::loop_fuse(10)]] void func7() {}                            // expected-warning {{attribute 'loop_fuse' is already applied with different arguments}}
+[[intel::loop_fuse_independent(5)]] [[intel::loop_fuse_independent(10)]] void func8() {} // expected-warning {{attribute 'loop_fuse_independent' is already applied with different arguments}}
 
 [[intel::loop_fuse]] void func9();
 [[intel::loop_fuse]] void func9();
@@ -24,10 +24,10 @@
 [[intel::loop_fuse_independent(10)]] void func10();
 
 [[intel::loop_fuse(1)]] void func11();
-[[intel::loop_fuse(3)]] void func11(); // expected-warning {{attribute 'loop_fuse' is already applied with different parameters}}
+[[intel::loop_fuse(3)]] void func11(); // expected-warning {{attribute 'loop_fuse' is already applied with different arguments}}
 
 [[intel::loop_fuse_independent(1)]] void func12();
-[[intel::loop_fuse_independent(3)]] void func12(); // expected-warning {{attribute 'loop_fuse_independent' is already applied with different parameters}}
+[[intel::loop_fuse_independent(3)]] void func12(); // expected-warning {{attribute 'loop_fuse_independent' is already applied with different arguments}}
 
 // expected-error@+2 {{'loop_fuse_independent' and 'loop_fuse' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
