@@ -3115,9 +3115,9 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     if (AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize) {
       if (const auto *A = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
         int64_t NumSimdWorkItems =
-          A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue();
+            A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue();
 
-	assert(NumSimdWorkItems && XDimVal &&
+        assert(NumSimdWorkItems && XDimVal &&
                "Argument should be an integer constant expression");
         assert(NumSimdWorkItems && YDimVal &&
                "Argument should be an integer constant expression");

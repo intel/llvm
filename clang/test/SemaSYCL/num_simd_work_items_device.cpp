@@ -63,9 +63,8 @@ struct TRIFuncObjBad4 {
 };
 
 struct TRIFuncObjBad5 {
-  [[intel::num_simd_work_items(0)]]        // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
-  [[intel::reqd_work_group_size(5, 5, 5)]]
-  void
+  [[intel::num_simd_work_items(0)]] // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+  [[intel::reqd_work_group_size(5, 5, 5)]] void
   operator()() const {}
 };
 #endif // TRIGGER_ERROR
@@ -222,7 +221,7 @@ int main() {
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    
+
     h.single_task<class test_kernel12>(TRIFuncObjGood9());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel12
     // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
