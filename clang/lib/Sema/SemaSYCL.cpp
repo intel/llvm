@@ -312,15 +312,15 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
                                   bool DirectlyCalled = true) {
   if (!FD->hasAttrs())
     return;
-  for (Attr *A : FD->getAttrs()) {
-    if (isa<IntelReqdSubGroupSizeAttr, ReqdWorkGroupSizeAttr,
-            SYCLIntelKernelArgsRestrictAttr, SYCLIntelNumSimdWorkItemsAttr,
-            SYCLIntelSchedulerTargetFmaxMhzAttr, SYCLIntelMaxWorkGroupSizeAttr,
-            SYCLIntelMaxGlobalWorkDimAttr, SYCLIntelNoGlobalWorkOffsetAttr,
-            SYCLSimdAttr>(A)) {
-      Attrs.push_back(A);
-    }
-  }
+
+  llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
+    return isa<IntelReqdSubGroupSizeAttr, ReqdWorkGroupSizeAttr,
+               SYCLIntelKernelArgsRestrictAttr, SYCLIntelNumSimdWorkItemsAttr,
+               SYCLIntelSchedulerTargetFmaxMhzAttr,
+               SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
+               SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
+  });
+
   // Allow the kernel attribute "use_stall_enable_clusters" only on lambda
   // functions and function objects called directly from a kernel.
   // For all other cases, emit a warning and ignore.
@@ -542,9 +542,9 @@ public:
         continue; // We've already seen this Decl
 
       // Gather all attributes of FD that are SYCL related.
-      // Some attributes are allowed only on lambda
-      // functions and function objects called directly from a kernel
-      // (i.e. the one passed to the single_task or parallel_for functions).
+      // Some attributes are allowed only on lambda functions and function
+      // objects called directly from a kernel (i.e. the one passed to the
+      // single_task or parallel_for functions).
       bool DirectlyCalled = (ParentFD == SYCLKernel);
       collectSYCLAttributes(SemaRef, FD, Attrs, DirectlyCalled);
 
@@ -3197,7 +3197,7 @@ void Sema::copySYCLKernelAttrs(const CXXRecordDecl *KernelObj) {
     llvm::SmallVector<Attr *, 4> Attrs;
     collectSYCLAttributes(*this, KernelBody, Attrs);
     if (!Attrs.empty())
-      OpParens->setAttrs(Attrs);
+      llvm::for_each(Attrs, [OpParens](Attr *A) { OpParens->addAttr(A); });
   }
 }
 
