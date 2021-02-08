@@ -118,6 +118,9 @@ public:
   }
 
   ~queue_impl() {
+    if (has_property<property::queue::wait_on_destruction>()) {
+      wait();
+    }
     throw_asynchronous();
     if (!MHostQueue) {
       getPlugin().call<PiApiKind::piQueueRelease>(MQueues[0]);

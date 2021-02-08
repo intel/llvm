@@ -28,7 +28,7 @@ void foo(sycl::buffer<int, 2>) {}
 // CHECK-NEXT:  24 |                 class sycl::detail::SYCLMemObjAllocator * _M_head_impl
 // CHECK-NEXT:  32 |     class sycl::property_list MProps
 // CHECK-NEXT:  32 |       class sycl::detail::PropertyListBase (base)
-// CHECK-NEXT:  32 |         class std::bitset<7> MDataLessProps
+// CHECK-NEXT:  32 |         class std::bitset<8> MDataLessProps
 // CHECK-NEXT:  32 |           struct std::_Base_bitset<1> (base)
 // CHECK-NEXT:  32 |             std::_Base_bitset<1>::_WordT _M_w
 // CHECK-NEXT:  40 |         class std::vector<class std::shared_ptr<class sycl::detail::PropertyWithDataBase> > MPropsWithData

@@ -31,7 +31,8 @@ enum DataLessPropKind {
   NoInit = 4,
   BufferUsePinnedHostMemory = 5,
   UsePrimaryContext = 6,
-  DataLessPropKindSize = 7
+  WaitOnDestruction = 7,
+  DataLessPropKindSize = 8
 };
 
 // List of all properties with data IDs

@@ -17,6 +17,8 @@ namespace queue {
 class in_order : public detail::DataLessProperty<detail::InOrder> {};
 class enable_profiling
     : public detail::DataLessProperty<detail::QueueEnableProfiling> {};
+class wait_on_destruction
+    : public detail::DataLessProperty<detail::WaitOnDestruction> {};
 } // namespace queue
 } // namespace property
 } // namespace sycl
