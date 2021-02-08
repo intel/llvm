@@ -47,5 +47,5 @@ int main() {
       []() [[intel::scheduler_target_fmax_mhz(-4)]]{}); // expected-error{{'scheduler_target_fmax_mhz' attribute requires a non-negative integral compile time constant expression}}
 
   cl::sycl::kernel_single_task<class test_kernel6>(
-      []() [[intel::scheduler_target_fmax_mhz(1), intel::scheduler_target_fmax_mhz(2)]]{}); // expected-warning{{attribute 'scheduler_target_fmax_mhz' is already applied with different parameters}}
+      []() [[intel::scheduler_target_fmax_mhz(1), intel::scheduler_target_fmax_mhz(2)]]{}); // expected-warning{{attribute 'scheduler_target_fmax_mhz' is already applied with different arguments}}
 }
