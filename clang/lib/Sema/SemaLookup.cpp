@@ -754,19 +754,6 @@ static void GetProgModelBuiltinFctOverloads(
   }
 }
 
-/// Add extensions to the function declaration.
-/// \param S (in/out) The Sema instance.
-/// \param BIDecl (in) Description of the builtin.
-/// \param FDecl (in/out) FunctionDecl instance.
-static void AddOpenCLExtensions(Sema &S,
-                                const OpenCLBuiltin::BuiltinStruct &BIDecl,
-                                FunctionDecl *FDecl) {
-  // Fetch extension associated with a function prototype.
-  StringRef E = OpenCLBuiltin::FunctionExtensionTable[BIDecl.Extension];
-  if (E != "")
-    S.setOpenCLExtensionForDecl(FDecl, E);
-}
-
 /// When trying to resolve a function name, if ProgModel::isBuiltin() returns a
 /// non-null <Index, Len> pair, then the name is referencing a
 /// builtin function.  Add all candidate signatures to the LookUpResult.
@@ -909,7 +896,6 @@ bool Sema::LookupBuiltin(LookupResult &R) {
                 if (!this->getLangOpts().OpenCLCPlusPlus)
                   NewOpenCLBuiltin.addAttr(
                       OverloadableAttr::CreateImplicit(Context));
-                AddOpenCLExtensions(*this, OpenCLBuiltin, &NewOpenCLBuiltin);
               });
           return true;
         }
