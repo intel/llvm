@@ -1,0 +1,117 @@
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out
+// RUN: %RUN_ON_HOST %t1.out
+
+//==------------------ usm_memset.cpp - USM memset test --------------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include <CL/sycl.hpp>
+
+#include <cassert>
+
+using namespace cl::sycl;
+
+constexpr int N = 42;
+constexpr int VAL = 3;
+
+int main() {
+  queue q;
+  auto dev = q.get_device();
+  auto ctxt = q.get_context();
+  char *array;
+
+  if (dev.get_info<info::device::usm_host_allocations>()) {
+    array = (char *)malloc_host(N * sizeof(char), q);
+    q.submit([&](handler &h) {
+       h.memset(array, VAL, N * sizeof(char));
+     }).wait();
+    for (int i = 0; i < N; ++i) {
+      assert(array[i] == VAL);
+    }
+    free(array, ctxt);
+
+    array =
+        (char *)aligned_alloc_host(alignof(long long), N * sizeof(char), ctxt);
+    q.submit([&](handler &h) {
+       h.memset(array, VAL, N * sizeof(char));
+     }).wait();
+    for (int i = 0; i < N; ++i) {
+      assert(array[i] == VAL);
+    }
+    free(array, ctxt);
+  }
+
+  if (dev.get_info<info::device::usm_shared_allocations>()) {
+    array = (char *)malloc_shared(N * sizeof(char), q);
+    q.submit([&](handler &h) {
+       h.memset(array, VAL, N * sizeof(char));
+     }).wait();
+    for (int i = 0; i < N; ++i) {
+      assert(array[i] == VAL);
+    }
+    free(array, ctxt);
+
+    array = (char *)aligned_alloc_shared(alignof(long long), N * sizeof(char),
+                                         dev, ctxt);
+    q.submit([&](handler &h) {
+       h.memset(array, VAL, N * sizeof(char));
+     }).wait();
+    for (int i = 0; i < N; ++i) {
+      assert(array[i] == VAL);
+    }
+    free(array, ctxt);
+  }
+
+  if (dev.get_info<info::device::usm_device_allocations>()) {
+    std::vector<char> out;
+    out.resize(N);
+
+    array = (char *)malloc_device(N * sizeof(char), q);
+    q.submit([&](handler &h) {
+       h.memset(array, VAL, N * sizeof(char));
+     }).wait();
+
+    {
+      buffer<char, 1> buf{&out[0], range<1>{N}};
+      q.submit([&](handler &h) {
+         auto acc = buf.template get_access<access::mode::write>(h);
+         h.parallel_for<class usm_device_transfer>(
+             range<1>(N), [=](id<1> item) { acc[item] = array[item]; });
+       }).wait();
+    }
+
+    for (int i = 0; i < N; ++i) {
+      assert(out[i] == VAL);
+    }
+    free(array, ctxt);
+
+    out.clear();
+    out.resize(N);
+
+    array = (char *)aligned_alloc_device(alignof(long long), N * sizeof(char),
+                                         dev, ctxt);
+    q.submit([&](handler &h) {
+       h.memset(array, VAL, N * sizeof(char));
+     }).wait();
+
+    {
+      buffer<char, 1> buf{&out[0], range<1>{N}};
+      q.submit([&](handler &h) {
+         auto acc = buf.template get_access<access::mode::write>(h);
+         h.parallel_for<class usm_aligned_device_transfer>(
+             range<1>(N), [=](id<1> item) { acc[item] = array[item]; });
+       }).wait();
+    }
+
+    for (int i = 0; i < N; ++i) {
+      assert(out[i] == VAL);
+    }
+    free(array, ctxt);
+  }
+
+  return 0;
+}
