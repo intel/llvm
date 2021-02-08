@@ -10,11 +10,14 @@ and a wide range of compute accelerators such as GPU and FPGA.
 * [Build DPC++ toolchain](#build-dpc-toolchain)
   * [Build DPC++ toolchain with libc++ library](#build-dpc-toolchain-with-libc-library)
   * [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
+  * [Build Doxygen documentation](#build-doxygen-documentation)
 * [Use DPC++ toolchain](#use-dpc-toolchain)
   * [Install low level runtime](#install-low-level-runtime)
   * [Obtain prerequisites for ahead of time (AOT) compilation](#obtain-prerequisites-for-ahead-of-time-aot-compilation)
   * [Test DPC++ toolchain](#test-dpc-toolchain)
   * [Run simple DPC++ application](#run-simple-dpc-application)
+  * [Code the program for a specific GPU](#code-the-program-for-a-specific-gpu)
+  * [Using the DPC++ toolchain on CUDA platforms](#using-the-dpc-toolchain-on-cuda-platforms)
 * [C++ standard](#c-standard)
 * [Known Issues and Limitations](#known-issues-and-limitations)
 * [CUDA backend limitations](#cuda-backend-limitations)
@@ -145,30 +148,30 @@ a Titan RTX GPU (SM 71), but it should work on any GPU compatible with SM 50 or
 above. The default SM for the NVIDIA CUDA backend is 5.0. Users can specify
 lower values, but some features may not be supported.
 
+### Build Doxygen documentation
+
+Building Doxygen documentation is similar to building the product itself. First,
+the following tools need to be installed:
+
+* doxygen
+* graphviz
+
+Then you'll need to add the following options to your CMake configuration
+command:
+
+```
+-DLLVM_ENABLE_DOXYGEN=ON
+```
+
+After CMake cache is generated, build the documentation with `doxygen-sycl`
+target. It will be put to `$DPCPP_HOME/llvm/build/tools/sycl/doc/html`
+directory.
+
 ### Deployment
 
 TODO: add instructions how to deploy built DPC++ toolchain.
 
 ## Use DPC++ toolchain
-
-### Using the DPC++ toolchain on CUDA platforms
-
-The DPC++ toolchain support on CUDA platforms is still in an experimental phase.
-Currently, the DPC++ toolchain relies on having a recent OpenCL implementation
-on the system in order to link applications to the DPC++ runtime.
-The OpenCL implementation is not used at runtime if only the CUDA backend is
-used in the application, but must be installed.
-
-The OpenCL implementation provided by the CUDA SDK is OpenCL 1.2, which is
-too old to link with the DPC++ runtime and lacks some symbols.
-
-We recommend installing the low level CPU runtime, following the instructions
-in the next section.
-
-Instead of installing the low level CPU runtime, it is possible to build and
-install the
-[Khronos ICD loader](https://github.com/KhronosGroup/OpenCL-ICD-Loader),
-which contains all the symbols required.
 
 ### Install low level runtime
 
@@ -394,25 +397,6 @@ cmake -DIntel_SYCL_ROOT=$DPCPP_HOME/deploy -DSYCL_IMPLEMENTATION=Intel_SYCL ...
 cmake -DIntel_SYCL_ROOT=%DPCPP_HOME%\deploy -DSYCL_IMPLEMENTATION=Intel_SYCL ...
 ```
 
-### Build Doxygen documentation
-
-Building Doxygen documentation is similar to building the product itself. First,
-the following tools need to be installed:
-
-* doxygen
-* graphviz
-
-Then you'll need to add the following options to your CMake configuration
-command:
-
-```
--DLLVM_ENABLE_DOXYGEN=ON
-```
-
-After CMake cache is generated, build the documentation with `doxygen-sycl`
-target. It will be put to `$DPCPP_HOME/llvm/build/tools/sycl/doc/html`
-directory.
-
 ### Run simple DPC++ application
 
 A simple DPC++ or SYCL\* program consists of following parts:
@@ -633,6 +617,25 @@ class CUDASelector : public cl::sycl::device_selector {
     }
 };
 ```
+
+### Using the DPC++ toolchain on CUDA platforms
+
+The DPC++ toolchain support on CUDA platforms is still in an experimental phase.
+Currently, the DPC++ toolchain relies on having a recent OpenCL implementation
+on the system in order to link applications to the DPC++ runtime.
+The OpenCL implementation is not used at runtime if only the CUDA backend is
+used in the application, but must be installed.
+
+The OpenCL implementation provided by the CUDA SDK is OpenCL 1.2, which is
+too old to link with the DPC++ runtime and lacks some symbols.
+
+We recommend installing the low level CPU runtime, following the instructions
+in the next section.
+
+Instead of installing the low level CPU runtime, it is possible to build and
+install the
+[Khronos ICD loader](https://github.com/KhronosGroup/OpenCL-ICD-Loader),
+which contains all the symbols required.
 
 ## C++ standard
 
