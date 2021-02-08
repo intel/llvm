@@ -316,8 +316,11 @@ unsigned DwarfTypeUnit::getOrCreateSourceID(const DIFile *File) {
 }
 
 void DwarfUnit::addPoolOpAddress(DIEValueList &Die, const MCSymbol *Label) {
+  bool UseAddrOffsetFormOrExpressions =
+      DD->useAddrOffsetForm() || DD->useAddrOffsetExpressions();
+
   const MCSymbol *Base = nullptr;
-  if (Label->isInSection() && DD->useAddrOffsetExpressions())
+  if (Label->isInSection() && UseAddrOffsetFormOrExpressions)
     Base = DD->getSectionLabel(&Label->getSection());
 
   uint32_t Index = DD->getAddressPool().getIndex(Base ? Base : Label);
@@ -546,10 +549,16 @@ DIE *DwarfUnit::getOrCreateContextDIE(const DIScope *Context) {
   if (auto *NS = dyn_cast<DINamespace>(Context))
     return getOrCreateNameSpace(NS);
   if (auto *SP = dyn_cast<DISubprogram>(Context)) {
+    assert(SP->isDefinition());
+    // When generating type units, each unit gets its own subprogram.
+    // FIXME: constructSubprogramDefinitionDIE may produce .debug_gnu_pubnames
+    // with 0 DIE Offset entries with split dwarf.
+    if (DD->generateTypeUnits() || DD->useSplitDwarf())
+      return getOrCreateSubprogramDIE(SP);
+
     // Subprogram definitions should be created in the Unit that they specify,
     // which might not be "this" unit when type definitions move around under
     // LTO.
-    assert(SP->isDefinition());
     return &DD->constructSubprogramDefinitionDIE(SP);
   }
   if (auto *M = dyn_cast<DIModule>(Context))

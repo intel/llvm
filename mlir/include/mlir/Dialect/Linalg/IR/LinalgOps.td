@@ -45,6 +45,11 @@ def Linalg_InitTensorOp : Linalg_Op<"init_tensor", [NoSideEffect]> {
 
   let results = (outs AnyTensor:$result);
 
+  let assemblyFormat = [{
+    custom<OperandsOrIntegersSizesList>($sizes, $static_sizes) attr-dict
+    `:` type($result)
+  }];
+
   let verifier = [{ return ::verify(*this); }];
 
   let extraClassDeclaration = [{
@@ -118,7 +123,7 @@ def Linalg_InitTensorOp : Linalg_Op<"init_tensor", [NoSideEffect]> {
 }
 
 def Linalg_PadTensorOp : Linalg_Op<"pad_tensor",
-    [AttrSizedOperandSegments, SingleBlockImplicitTerminator<"YieldOp">]> {
+    [AttrSizedOperandSegments]> {
   let summary = "tensor pad operation";
   let description = [{
     `linalg.pad_tensor` is an operation that pads the `source` tensor
@@ -181,9 +186,15 @@ def Linalg_PadTensorOp : Linalg_Op<"pad_tensor",
     I64ArrayAttr:$static_low,
     I64ArrayAttr:$static_high);
 
-  let regions = (region AnyRegion:$region);
+  let regions = (region SizedRegion<1>:$region);
 
   let results = (outs AnyTensor:$result);
+
+  let assemblyFormat = [{
+    $source `low` `` custom<OperandsOrIntegersSizesList>($low, $static_low)
+    `high` `` custom<OperandsOrIntegersSizesList>($high, $static_high)
+    $region attr-dict `:` type($source) `to` type($result)
+  }];
 
   let extraClassDeclaration = [{
     static StringRef getStaticLowAttrName() {
@@ -194,11 +205,25 @@ def Linalg_PadTensorOp : Linalg_Op<"pad_tensor",
       return "static_high";
     }
 
+    RankedTensorType getSourceType() {
+      return source().getType().cast<RankedTensorType>();
+    }
+    RankedTensorType getResultType() {
+      return getResult().getType().cast<RankedTensorType>();
+    }
+
     // Infer the shape of the result tensor given the static shapes
     // and element type of the result tensor.
     static RankedTensorType inferResultType(RankedTensorType sourceType,
                                 ArrayRef<int64_t> staticLow,
                                 ArrayRef<int64_t> staticHigh);
+
+    // Return a PadTensorOp that pads `source` to `type` size where the static
+    // sizes are assumed to be greater than the dynamic sizes. The op performs
+    // "high" padding (i.e. it adds trailing padding values until the desired
+    // size is met).
+    static linalg::PadTensorOp createPadHighOp(
+        Type type, Value source, Value pad, Location loc, OpBuilder & builder);
   }];
 
   let builders = [
@@ -208,6 +233,11 @@ def Linalg_PadTensorOp : Linalg_Op<"pad_tensor",
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
     // Build a PadTensorOp with all dynamic entries.
     OpBuilderDAG<(ins "Value":$source, "ValueRange":$low, "ValueRange":$high,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
+    // Build a PadTensorOp with with mixed static and dynamic entries and custom
+    // result type. If the type passed is nullptr, it is inferred.
+    OpBuilderDAG<(ins "Type":$resultType, "Value":$source,
+      "ArrayRef<OpFoldResult>":$low, "ArrayRef<OpFoldResult>":$high,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>
   ];
 }
@@ -401,110 +431,6 @@ def Linalg_TensorReshapeOp : Linalg_ReshapeLikeOp<"tensor_reshape">,
   }];
   let hasFolder = 1;
   let hasCanonicalizer = 1;
-}
-
-def Linalg_SliceOp : Linalg_Op<"slice", [
-      DeclareOpInterfaceMethods<ViewLikeOpInterface>, NoSideEffect]>,
-    Arguments<(ins AnyStridedMemRef:$view,
-                   Variadic<AnyTypeOf<[Range, Index]>>:$indexings)>,
-    Results<(outs AnyStridedMemRef)> {
-  let summary = "Produce a rank-reduced `subview` of a base `view`.";
-  let description = [{
-    The `linalg.slice` op allows defining a subregion of a smaller rank than the
-    operand `view` within the underlying buffer.
-
-    A `linalg.slice` op takes a view and a variadic number of indexings and
-    produces a `view` of the same elemental type. An indexing is either:
-      1. a `linalg.range`, in which case it does not reduce the rank of the
-         parent `view` along the corresponding dimension.
-      2. an `index`, in which case it reduces the rank of the parent view by
-         one.
-
-    If an indexing extends past the size of the `view`, this is undefined
-    behavior. Ideally the `linalg.slice` operation would automatically truncate
-    it to be within bounds but there are tradeoffs involved now that `std.view`
-    is a standard op.
-
-    Examples:
-
-      1. rank-preserving `slice`:
-
-      ```mlir
-      %4 = linalg.slice %0[%1, %2] : memref<?x?xf32, stride_spec>,
-        !linalg.range, !linalg.range, memref<?x?xf32, stride_spec>
-      ```
-
-      2. rank-reducing `slice` (from 2-D to 1-D):
-
-      ```mlir
-      %4 = linalg.slice %0[%1, %2] : memref<?x?xf32, stride_spec>,
-        index, !linalg.range, memref<?x?xf32, stride_spec>
-      ```
-
-      3. rank-reducing `slice` (from 2-D to 0-D):
-
-      ```mlir
-      %4 = linalg.slice %0[%1, %2] : memref<?x?xf32, stride_spec>,
-        index, index, memref<?x?xf32, stride_spec>
-      ```
-  }];
-
-  let builders = [OpBuilderDAG<(ins "Value":$base, "ValueRange":$indexings)>];
-
-  let extraClassDeclaration = [{
-    enum { FirstIndexingOperand = 1 };
-    unsigned getRank() { return getShapedType().getRank(); }
-    Type getElementType() { return getShapedType().getElementType(); }
-    ShapedType getShapedType() { return getType().cast<ShapedType>(); }
-    unsigned getBaseViewRank() { return getBaseViewType().getRank(); }
-    ShapedType getBaseViewType() { return view().getType().cast<ShapedType>();}
-
-    // Get the underlying indexing at a given rank.
-    Value indexing(unsigned rank) { return *(indexings().begin() + rank); }
-
-    // Get the subset of indexings that are of RangeType.
-    SmallVector<Value, 8> getRanges() {
-      SmallVector<Value, 8> res;
-      for (auto operand : indexings())
-        if (!operand.getType().isa<IndexType>())
-          res.push_back(operand);
-      return res;
-    }
-  }];
-
-  let hasFolder = 1;
-}
-
-def Linalg_SimplePadOp : Linalg_Op<"simple_pad", [NoSideEffect]> {
-  let summary = "TODO: replace with pad_tensors when ready.";
-
-  let description = [{
-    `linalg.simple_pad` is a tmp placeholder for padding and packing on tensors.
-    Its semantics are to pad a partially dynamic tensor to a fully static tensor
-    where the static sizes are assumed to be greater than the dynamic sizes. The
-    op perforrms "high" padding (i.e. it adds trailing padding values until the 
-    desired size is met).
-  }];
-
-  let arguments = (ins AnyRankedTensor:$tensor, AnyType:$padding);
-  let results = (outs AnyRankedTensor:$result);
-
-  // TODO: verify all static result, some dynamic input, static shapes match,
-  // element types match, ranks match etc. Use pad_tensors when ready but for
-  // now just let it ne fully specified by traits.
-  let verifier = ?;
-
-  let extraClassDeclaration = [{
-    RankedTensorType getSourceType() {
-      return tensor().getType().cast<RankedTensorType>(); }
-    RankedTensorType getResultType() {
-      return getResult().getType().cast<RankedTensorType>(); }
-   }];
-
-  let assemblyFormat = [{
-    $tensor `pad` $padding attr-dict `:`
-      type($tensor) `to` type($result) `pad` type($padding)
-  }];
 }
 
 def Linalg_YieldOp : Linalg_Op<"yield", [NoSideEffect, ReturnLike, Terminator]>,

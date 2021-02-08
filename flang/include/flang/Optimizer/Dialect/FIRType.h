@@ -39,11 +39,10 @@ struct BoxTypeStorage;
 struct BoxCharTypeStorage;
 struct BoxProcTypeStorage;
 struct CharacterTypeStorage;
-struct CplxTypeStorage;
-struct DimsTypeStorage;
+struct ComplexTypeStorage;
 struct FieldTypeStorage;
 struct HeapTypeStorage;
-struct IntTypeStorage;
+struct IntegerTypeStorage;
 struct LenTypeStorage;
 struct LogicalTypeStorage;
 struct PointerTypeStorage;
@@ -105,11 +104,11 @@ public:
 /// Model of a Fortran COMPLEX intrinsic type, including the KIND type
 /// parameter. COMPLEX is a floating point type with a real and imaginary
 /// member.
-class CplxType : public mlir::Type::TypeBase<CplxType, mlir::Type,
-                                             detail::CplxTypeStorage> {
+class ComplexType : public mlir::Type::TypeBase<fir::ComplexType, mlir::Type,
+                                                detail::ComplexTypeStorage> {
 public:
   using Base::Base;
-  static CplxType get(mlir::MLIRContext *ctxt, KindTy kind);
+  static fir::ComplexType get(mlir::MLIRContext *ctxt, KindTy kind);
 
   /// Get the corresponding fir.real<k> type.
   mlir::Type getElementType() const;
@@ -119,19 +118,18 @@ public:
 
 /// Model of a Fortran INTEGER intrinsic type, including the KIND type
 /// parameter.
-class IntType
-    : public mlir::Type::TypeBase<IntType, mlir::Type, detail::IntTypeStorage> {
+class IntegerType : public mlir::Type::TypeBase<fir::IntegerType, mlir::Type,
+                                                detail::IntegerTypeStorage> {
 public:
   using Base::Base;
-  static IntType get(mlir::MLIRContext *ctxt, KindTy kind);
+  static fir::IntegerType get(mlir::MLIRContext *ctxt, KindTy kind);
   KindTy getFKind() const;
 };
 
 /// Model of a Fortran LOGICAL intrinsic type, including the KIND type
 /// parameter.
-class LogicalType
-    : public mlir::Type::TypeBase<LogicalType, mlir::Type,
-                                  detail::LogicalTypeStorage> {
+class LogicalType : public mlir::Type::TypeBase<LogicalType, mlir::Type,
+                                                detail::LogicalTypeStorage> {
 public:
   using Base::Base;
   static LogicalType get(mlir::MLIRContext *ctxt, KindTy kind);
@@ -190,20 +188,6 @@ public:
 
   static mlir::LogicalResult verifyConstructionInvariants(mlir::Location,
                                                           mlir::Type eleTy);
-};
-
-/// The type of a runtime vector that describes triples of array dimension
-/// information. A triple consists of a lower bound, upper bound, and
-/// stride. Each dimension of an array entity may have an associated triple that
-/// maps how elements of the array are accessed.
-class DimsType : public mlir::Type::TypeBase<DimsType, mlir::Type,
-                                             detail::DimsTypeStorage> {
-public:
-  using Base::Base;
-  static DimsType get(mlir::MLIRContext *ctx, unsigned rank);
-
-  /// returns -1 if the rank is unknown
-  unsigned getRank() const;
 };
 
 /// The type of a field name. Implementations may defer the layout of a Fortran
@@ -389,12 +373,12 @@ inline bool isa_real(mlir::Type t) {
 /// Is `t` an integral type?
 inline bool isa_integer(mlir::Type t) {
   return t.isa<mlir::IndexType>() || t.isa<mlir::IntegerType>() ||
-         t.isa<fir::IntType>();
+         t.isa<fir::IntegerType>();
 }
 
 /// Is `t` a FIR or MLIR Complex type?
 inline bool isa_complex(mlir::Type t) {
-  return t.isa<fir::CplxType>() || t.isa<mlir::ComplexType>();
+  return t.isa<fir::ComplexType>() || t.isa<mlir::ComplexType>();
 }
 
 } // namespace fir

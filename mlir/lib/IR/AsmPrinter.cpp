@@ -633,10 +633,10 @@ LogicalResult AliasInitializer::generateAlias(
     T symbol, llvm::MapVector<StringRef, std::vector<T>> &aliasToSymbol) {
   SmallString<16> tempBuffer;
   for (const auto &interface : interfaces) {
-    interface.getAlias(symbol, aliasOS);
-    StringRef name = aliasOS.str();
-    if (name.empty())
+    if (failed(interface.getAlias(symbol, aliasOS)))
       continue;
+    StringRef name = aliasOS.str();
+    assert(!name.empty() && "expected valid alias name");
     name = sanitizeIdentifier(name, tempBuffer, /*allowedPunctChars=*/"$_-",
                               /*allowTrailingDigit=*/false);
     name = name.copy(aliasAllocator);
@@ -731,7 +731,7 @@ void AliasState::printAliases(raw_ostream &os, NewLineCounter &newLine,
   }
   for (const auto &it : llvm::make_filter_range(typeToAlias, filterFn)) {
     it.second.print(os << '!');
-    os << " = " << it.first << newLine;
+    os << " = type " << it.first << newLine;
   }
 }
 

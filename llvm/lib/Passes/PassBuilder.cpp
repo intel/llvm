@@ -84,7 +84,6 @@
 #include "llvm/Transforms/Coroutines/CoroEarly.h"
 #include "llvm/Transforms/Coroutines/CoroElide.h"
 #include "llvm/Transforms/Coroutines/CoroSplit.h"
-#include "llvm/Transforms/HelloNew/HelloWorld.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/IPO/Annotation2Metadata.h"
 #include "llvm/Transforms/IPO/ArgumentPromotion.h"
@@ -215,6 +214,7 @@
 #include "llvm/Transforms/Utils/CanonicalizeFreezeInLoops.h"
 #include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
 #include "llvm/Transforms/Utils/FixIrreducible.h"
+#include "llvm/Transforms/Utils/HelloWorld.h"
 #include "llvm/Transforms/Utils/InjectTLIMappings.h"
 #include "llvm/Transforms/Utils/InstructionNamer.h"
 #include "llvm/Transforms/Utils/LCSSA.h"
@@ -273,6 +273,10 @@ static cl::opt<bool> PerformMandatoryInliningsFirst(
     "mandatory-inlining-first", cl::init(true), cl::Hidden, cl::ZeroOrMore,
     cl::desc("Perform mandatory inlinings module-wide, before performing "
              "inlining."));
+
+static cl::opt<bool> EnableO3NonTrivialUnswitching(
+    "enable-npm-O3-nontrivial-unswitch", cl::init(true), cl::Hidden,
+    cl::ZeroOrMore, cl::desc("Enable non-trivial loop unswitching for -O3"));
 
 PipelineTuningOptions::PipelineTuningOptions() {
   LoopInterleaving = true;
@@ -726,7 +730,8 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   // TODO: Investigate promotion cap for O1.
   LPM1.addPass(LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap));
   LPM1.addPass(
-      SimpleLoopUnswitchPass(/* NonTrivial */ Level == OptimizationLevel::O3));
+      SimpleLoopUnswitchPass(/* NonTrivial */ Level == OptimizationLevel::O3 &&
+                             EnableO3NonTrivialUnswitching));
   LPM2.addPass(LoopIdiomRecognizePass());
   LPM2.addPass(IndVarSimplifyPass());
 
@@ -1423,6 +1428,9 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
   // Now add the optimization pipeline.
   MPM.addPass(buildModuleOptimizationPipeline(Level, LTOPreLink));
 
+  if (PGOOpt && PGOOpt->PseudoProbeForProfiling)
+    MPM.addPass(PseudoProbeUpdatePass());
+
   // Emit annotation remarks.
   addAnnotationRemarksPass(MPM);
 
@@ -1476,6 +1484,9 @@ PassBuilder::buildThinLTOPreLinkDefaultPipeline(OptimizationLevel Level) {
   // on these, we schedule the cleanup here.
   if (PTO.Coroutines)
     MPM.addPass(createModuleToFunctionPassAdaptor(CoroCleanupPass()));
+
+  if (PGOOpt && PGOOpt->PseudoProbeForProfiling)
+    MPM.addPass(PseudoProbeUpdatePass());
 
   // Emit annotation remarks.
   addAnnotationRemarksPass(MPM);

@@ -3794,7 +3794,8 @@ void X86InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
                                        const TargetRegisterClass *RC,
                                        const TargetRegisterInfo *TRI) const {
   const MachineFunction &MF = *MBB.getParent();
-  assert(MF.getFrameInfo().getObjectSize(FrameIdx) >= TRI->getSpillSize(*RC) &&
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
+  assert(MFI.getObjectSize(FrameIdx) >= TRI->getSpillSize(*RC) &&
          "Stack slot too small for store");
   if (RC->getID() == X86::TILERegClassID) {
     unsigned Opc = X86::TILESTORED;
@@ -3808,15 +3809,11 @@ void X86InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
     MachineOperand &MO = NewMI->getOperand(2);
     MO.setReg(VirtReg);
     MO.setIsKill(true);
-  } else if (RC->getID() == X86::TILECFGRegClassID) {
-    unsigned Opc = X86::PSTTILECFG;
-    addFrameReference(BuildMI(MBB, MI, DebugLoc(), get(Opc)), FrameIdx)
-        .addReg(SrcReg, getKillRegState(isKill));
   } else {
     unsigned Alignment = std::max<uint32_t>(TRI->getSpillSize(*RC), 16);
     bool isAligned =
         (Subtarget.getFrameLowering()->getStackAlign() >= Alignment) ||
-        RI.canRealignStack(MF);
+        (RI.canRealignStack(MF) && !MFI.isFixedObjectIndex(FrameIdx));
     unsigned Opc = getStoreRegOpcode(SrcReg, RC, isAligned, Subtarget);
     addFrameReference(BuildMI(MBB, MI, DebugLoc(), get(Opc)), FrameIdx)
         .addReg(SrcReg, getKillRegState(isKill));
@@ -3840,16 +3837,13 @@ void X86InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
     MachineOperand &MO = NewMI->getOperand(3);
     MO.setReg(VirtReg);
     MO.setIsKill(true);
-  } else if (RC->getID() == X86::TILECFGRegClassID) {
-    unsigned Opc = X86::PLDTILECFG;
-    addFrameReference(BuildMI(MBB, MI, DebugLoc(), get(Opc), DestReg),
-                      FrameIdx);
   } else {
     const MachineFunction &MF = *MBB.getParent();
+    const MachineFrameInfo &MFI = MF.getFrameInfo();
     unsigned Alignment = std::max<uint32_t>(TRI->getSpillSize(*RC), 16);
     bool isAligned =
         (Subtarget.getFrameLowering()->getStackAlign() >= Alignment) ||
-        RI.canRealignStack(MF);
+        (RI.canRealignStack(MF) && !MFI.isFixedObjectIndex(FrameIdx));
     unsigned Opc = getLoadRegOpcode(DestReg, RC, isAligned, Subtarget);
     addFrameReference(BuildMI(MBB, MI, DebugLoc(), get(Opc), DestReg),
                       FrameIdx);
@@ -6789,7 +6783,7 @@ bool X86InstrInfo::isSchedulingBoundary(const MachineInstr &MI,
   // ENDBR instructions should not be scheduled around.
   unsigned Opcode = MI.getOpcode();
   if (Opcode == X86::ENDBR64 || Opcode == X86::ENDBR32 ||
-      Opcode == X86::PLDTILECFG)
+      Opcode == X86::LDTILECFG)
     return true;
 
   return TargetInstrInfo::isSchedulingBoundary(MI, MBB, MF);

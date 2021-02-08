@@ -23,6 +23,8 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/LLVM.h"
+#include "mlir/Transforms/RegionUtils.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include <type_traits>
@@ -36,54 +38,290 @@ using llvm::dbgs;
 
 #define DEBUG_TYPE "linalg-vectorization"
 
-static bool hasMultiplyAddBody(Region &r) {
-  if (!llvm::hasSingleElement(r))
-    return false;
-  if (!llvm::hasNItems(r.front().begin(), r.front().end(), 3))
-    return false;
-
-  using mlir::matchers::m_Val;
-  auto a = m_Val(r.getArgument(0));
-  auto b = m_Val(r.getArgument(1));
-  auto c = m_Val(r.getArgument(2));
-  // TODO: Update this detection once we have  matcher support for specifying
-  // that any permutation of operands matches.
-  auto pattern1 = m_Op<linalg::YieldOp>(m_Op<AddFOp>(m_Op<MulFOp>(a, b), c));
-  auto pattern2 = m_Op<linalg::YieldOp>(m_Op<AddFOp>(c, m_Op<MulFOp>(a, b)));
-  auto pattern3 = m_Op<linalg::YieldOp>(m_Op<AddFOp>(m_Op<MulFOp>(b, a), c));
-  auto pattern4 = m_Op<linalg::YieldOp>(m_Op<AddFOp>(c, m_Op<MulFOp>(b, a)));
-  auto pattern5 = m_Op<linalg::YieldOp>(m_Op<AddIOp>(m_Op<MulIOp>(a, b), c));
-  auto pattern6 = m_Op<linalg::YieldOp>(m_Op<AddIOp>(c, m_Op<MulIOp>(a, b)));
-  auto pattern7 = m_Op<linalg::YieldOp>(m_Op<AddIOp>(m_Op<MulIOp>(b, a), c));
-  auto pattern8 = m_Op<linalg::YieldOp>(m_Op<AddIOp>(c, m_Op<MulIOp>(b, a)));
-  return pattern1.match(&r.front().back()) ||
-         pattern2.match(&r.front().back()) ||
-         pattern3.match(&r.front().back()) ||
-         pattern4.match(&r.front().back()) ||
-         pattern5.match(&r.front().back()) ||
-         pattern6.match(&r.front().back()) ||
-         pattern7.match(&r.front().back()) || pattern8.match(&r.front().back());
+/// Return the unique instance of OpType in `block` if it is indeed unique.
+/// Return null if none or more than 1 instances exist.
+template <typename OpType>
+static OpType getSingleOpOfType(Block &block) {
+  OpType res;
+  block.walk([&](OpType op) {
+    if (res) {
+      res = nullptr;
+      return WalkResult::interrupt();
+    }
+    res = op;
+    return WalkResult::advance();
+  });
+  return res;
 }
 
-// TODO: Should be Tablegen'd from a single source that generates the op itself.
-static LogicalResult isContraction(Operation *op) {
-  // TODO: interface for named ops.
-  if (isa<linalg::BatchMatmulOp, linalg::MatmulOp, linalg::MatmulColumnMajorOp,
-          linalg::MatvecOp, linalg::VecmatOp, linalg::DotOp>(op))
-    return success();
+/// Helper data structure to represent the result of vectorization.
+/// In certain specific cases, like terminators, we do not want to propagate/
+enum VectorizationStatus {
+  /// Op failed to vectorize.
+  Failure = 0,
+  /// Op vectorized and custom function took care of replacement logic
+  NoReplace,
+  /// Op vectorized into a new Op whose results will replace original Op's
+  /// results.
+  NewOp
+  // TODO: support values if Op vectorized to Many-Ops whose results we need to
+  // aggregate for replacement.
+};
+struct VectorizationResult {
+  /// Return status from vectorizing the current op.
+  enum VectorizationStatus status = VectorizationStatus::Failure;
+  /// New vectorized operation to replace the current op.
+  /// Replacement behavior is specified by `status`.
+  Operation *newOp;
+};
 
-  auto genericOp = dyn_cast<linalg::GenericOp>(op);
-  if (!genericOp)
-    return failure();
-
-  auto mapRange = genericOp.indexing_maps().getAsValueRange<AffineMapAttr>();
-  return success(
-      genericOp.getNumInputs() == 2 && genericOp.getNumOutputs() == 1 &&
-      llvm::all_of(mapRange,
-                   [](AffineMap m) { return m.isProjectedPermutation(); }) &&
-      hasMultiplyAddBody(genericOp.region()));
+/// Return a vector type of the same shape and element type as the (assumed)
+/// ShapedType of `v`.
+static VectorType extractVectorTypeFromShapedValue(Value v) {
+  auto st = v.getType().cast<ShapedType>();
+  if (st.isa<MemRefType>() && st.getShape().empty())
+    return VectorType();
+  return VectorType::get(st.getShape(), st.getElementType());
 }
 
+/// Build a vector.transfer_read from `source` at indices set to all `0`.
+/// If source has rank zero, build an std.load.
+/// Return the produced value.
+static Value buildVectorRead(OpBuilder &builder, Value source) {
+  edsc::ScopedContext scope(builder);
+  auto shapedType = source.getType().cast<ShapedType>();
+  if (VectorType vectorType = extractVectorTypeFromShapedValue(source)) {
+    SmallVector<Value> indices(shapedType.getRank(), std_constant_index(0));
+    return vector_transfer_read(vectorType, source, indices);
+  }
+  return std_load(source);
+}
+
+/// Build a vector.transfer_write of `value` into `dest` at indices set to all
+/// `0`. If `dest` has null rank, build an std.store.
+/// Return the produced value or null if no value is produced.
+static Value buildVectorWrite(OpBuilder &builder, Value value, Value dest) {
+  edsc::ScopedContext scope(builder);
+  Operation *write;
+  auto shapedType = dest.getType().cast<ShapedType>();
+  if (VectorType vectorType = extractVectorTypeFromShapedValue(dest)) {
+    SmallVector<Value> indices(shapedType.getRank(), std_constant_index(0));
+    if (vectorType != value.getType())
+      value = vector_broadcast(vectorType, value);
+    write = vector_transfer_write(value, dest, indices);
+  } else {
+    write = std_store(value, dest);
+  }
+  LLVM_DEBUG(dbgs() << "\n[" DEBUG_TYPE "]: vectorized op: " << *write);
+  if (!write->getResults().empty())
+    return write->getResult(0);
+  return Value();
+}
+
+/// If value of assumed VectorType has a shape different than `shape`, buil and
+/// return a new vector.broadcast to `shape`.
+/// Otherwise, just return value.
+static Value broadcastIfNeeded(OpBuilder &builder, Value value,
+                               ArrayRef<int64_t> shape) {
+  auto vecType = value.getType().dyn_cast<VectorType>();
+  if (shape.empty() || (vecType != nullptr && vecType.getShape() == shape))
+    return value;
+  auto newVecType = VectorType::get(shape, vecType ? vecType.getElementType()
+                                                   : value.getType());
+  return builder.create<vector::BroadcastOp>(
+      builder.getInsertionPoint()->getLoc(), newVecType, value);
+}
+
+// Custom vectorization function type. Produce a vector form of Operation*
+// assuming all its vectorized operands are already in the BlockAndValueMapping.
+// Return nullptr if the Operation cannot be vectorized.
+using CustomVectorizationHook = std::function<VectorizationResult(
+    Operation *, const BlockAndValueMapping &)>;
+
+/// Helper function to vectorize the terminator of a `linalgOp`. New result
+/// vector values are appended to `results`.
+/// Return VectorizationStatus::NoReplace to signal the vectorization algorithm
+/// that it should not try to map produced operations: this is the purpose of
+/// the `results` argument to capture such values and make them available for
+/// RAUW to the vectorization algorithm.
+/// This function is meant to be used as a CustomVectorizationHook.
+static VectorizationResult
+vectorizeLinalgYield(OpBuilder &builder, Operation *op,
+                     const BlockAndValueMapping &bvm, LinalgOp linalgOp,
+                     SmallVectorImpl<Value> &results) {
+  auto yieldOp = dyn_cast<linalg::YieldOp>(op);
+  if (!yieldOp)
+    return VectorizationResult{VectorizationStatus::Failure, nullptr};
+  for (auto outputs : llvm::enumerate(yieldOp.values())) {
+    // TODO: Scan for an opportunity for reuse.
+    // TODO: use a map.
+    Value vectorValue = bvm.lookup(outputs.value());
+    Value result = buildVectorWrite(builder, vectorValue,
+                                    linalgOp.getOutput(outputs.index()));
+    if (result)
+      results.push_back(result);
+  }
+  return VectorizationResult{VectorizationStatus::NoReplace, nullptr};
+}
+
+/// Generic vectorization for a single operation `op`, given already vectorized
+/// operands carried by `bvm`. Vectorization occurs as follows:
+///   1. Try to apply any of the `customVectorizationHooks` and return its
+///   result on success.
+///   2. Clone any constant in the current scope without vectorization: each
+///   consumer of the constant will later determine the shape to which the
+///   constant needs to be broadcast to.
+///   3. Fail on any remaining non `ElementwiseMappable` op. It is the purpose
+///   of the `customVectorizationHooks` to cover such cases.
+///   4. Clone `op` in vector form to a vector of shape prescribed by the first
+///   operand of maximal rank. Other operands have smaller rank and are
+///   broadcast accordingly. It is assumed this broadcast is always legal,
+///   otherwise, it means one of the `customVectorizationHooks` is incorrect.
+///
+/// This function assumes all operands of `op` have been vectorized and are in
+/// the `bvm` mapping. As a consequence, this function is meant to be called on
+/// a topologically-sorted list of ops.
+/// This function does not update `bvm` but returns a VectorizationStatus that
+/// instructs the caller what `bvm` update needs to occur.
+static VectorizationResult
+vectorizeOneOp(OpBuilder &builder, Operation *op,
+               const BlockAndValueMapping &bvm,
+               ArrayRef<CustomVectorizationHook> customVectorizationHooks) {
+  LLVM_DEBUG(dbgs() << "\n[" DEBUG_TYPE "]: vectorize op " << *op);
+
+  // 1. Try to apply any CustomVectorizationHook.
+  if (!customVectorizationHooks.empty()) {
+    for (auto &customFunc : customVectorizationHooks) {
+      VectorizationResult result = customFunc(op, bvm);
+      if (result.status == VectorizationStatus::Failure)
+        continue;
+      return result;
+    }
+  }
+
+  // 2. Constant ops don't get vectorized but rather broadcasted at their users.
+  // Clone so that the constant is not confined to the linalgOp block .
+  if (isa<ConstantOp>(op))
+    return VectorizationResult{VectorizationStatus::NewOp, builder.clone(*op)};
+
+  // 3. Only ElementwiseMappable are allowed in the generic vectorization.
+  if (!op->hasTrait<OpTrait::ElementwiseMappable>())
+    return VectorizationResult{VectorizationStatus::Failure, nullptr};
+
+  // 4. Generic vectorization path for ElementwiseMappable ops.
+  //   a. first get the first max ranked shape.
+  SmallVector<int64_t, 4> firstMaxRankedShape;
+  for (Value operand : op->getOperands()) {
+    auto vt = bvm.lookup(operand).getType().dyn_cast<VectorType>();
+    if (vt && firstMaxRankedShape.size() < vt.getShape().size())
+      firstMaxRankedShape.assign(vt.getShape().begin(), vt.getShape().end());
+  }
+  //   b. broadcast each op if needed.
+  auto vectorizedOperands = llvm::map_range(op->getOperands(), [&](Value v) {
+    return firstMaxRankedShape.empty()
+               ? bvm.lookup(v)
+               : broadcastIfNeeded(builder, bvm.lookup(v), firstMaxRankedShape);
+  });
+  //   c. for elementwise, the result is the vector with the firstMaxRankedShape
+  auto returnTypes = llvm::map_range(op->getResultTypes(), [&](Type t) {
+    return firstMaxRankedShape.empty()
+               ? t
+               : VectorType::get(firstMaxRankedShape, t);
+  });
+
+  // Build and return the new op.
+  OperationState state(op->getLoc(), op->getName());
+  state.addAttributes(op->getAttrs());
+  state.addOperands(llvm::to_vector<4>(vectorizedOperands));
+  state.addTypes(llvm::to_vector<4>(returnTypes));
+  return VectorizationResult{VectorizationStatus::NewOp,
+                             builder.createOperation(state)};
+}
+
+/// Generic vectorization function that rewrites the body of a `linalgOp` into
+/// vector form. Generic vectorization proceeds as follows:
+///   1. The region for the linalg op is created if necessary.
+///   2. Values defined above the region are mapped to themselves and will be
+///   broadcasted on a per-need basis by their consumers.
+///   3. Each region argument is vectorized into a vector.transfer_read (or 0-d
+///   load).
+///   TODO: Reuse opportunities for RAR dependencies.
+///   4. Register CustomVectorizationHook for YieldOp to capture the results.
+///   5. Iteratively call vectorizeOneOp on the region operations.
+///   6. RAUW the linalg op by the results captured vectorizing the YieldOp.
+static LogicalResult vectorizeAsLinalgGeneric(
+    OpBuilder &builder, LinalgOp linalgOp,
+    ArrayRef<CustomVectorizationHook> customVectorizationHooks = {}) {
+  // 1. Certain Linalg ops do not have a region but only a region builder.
+  // If so, build the region so we can vectorize.
+  std::unique_ptr<Region> owningRegion;
+  Region *region;
+  if (linalgOp->getNumRegions() > 0) {
+    region = &linalgOp->getRegion(0);
+  } else {
+    // RAII avoid remaining in block.
+    OpBuilder::InsertionGuard g(builder);
+    owningRegion = std::make_unique<Region>();
+    region = owningRegion.get();
+    Block *block = builder.createBlock(region);
+    auto elementTypes = llvm::to_vector<4>(
+        llvm::map_range(linalgOp.getShapedOperandTypes(),
+                        [](ShapedType t) { return t.getElementType(); }));
+    block->addArguments(elementTypes);
+    linalgOp.getRegionBuilder()(*block);
+  }
+  Block *block = &region->front();
+
+  BlockAndValueMapping bvm;
+  // 2. Values defined above the region can only be broadcast for now. Make them
+  // map to themselves.
+  llvm::SetVector<Value> valuesSet;
+  mlir::getUsedValuesDefinedAbove(*region, valuesSet);
+  bvm.map(valuesSet.getArrayRef(), valuesSet.getArrayRef());
+
+  // 3. Turn all BBArgs into vector.transfer_read / load.
+  SmallVector<AffineMap> indexings;
+  for (auto bbarg : block->getArguments()) {
+    Value vectorArg = linalgOp.getShapedOperand(bbarg.getArgNumber());
+    Value vectorRead = buildVectorRead(builder, vectorArg);
+    LLVM_DEBUG(dbgs() << "\n[" DEBUG_TYPE "]: new vectorized bbarg("
+                      << bbarg.getArgNumber() << "): " << vectorRead);
+    bvm.map(bbarg, vectorRead);
+    bvm.map(vectorArg, vectorRead);
+  }
+
+  // 4. Register CustomVectorizationHook for yieldOp.
+  SmallVector<Value> results;
+  CustomVectorizationHook vectorizeYield =
+      [&](Operation *op,
+          const BlockAndValueMapping &bvm) -> VectorizationResult {
+    return vectorizeLinalgYield(builder, op, bvm, linalgOp, results);
+  };
+  // Append the vectorizeYield hook.
+  auto hooks = llvm::to_vector<4>(customVectorizationHooks);
+  hooks.push_back(vectorizeYield);
+
+  // 5. Iteratively call `vectorizeOneOp` to each op in the slice.
+  for (Operation &op : block->getOperations()) {
+    VectorizationResult result = vectorizeOneOp(builder, &op, bvm, hooks);
+    if (result.status == VectorizationStatus::Failure) {
+      LLVM_DEBUG(dbgs() << "\n[" DEBUG_TYPE "]: failed to vectorize: " << op);
+      return failure();
+    }
+    if (result.status == VectorizationStatus::NewOp) {
+      LLVM_DEBUG(dbgs() << "\n[" DEBUG_TYPE "]: new vector op: "
+                        << *result.newOp;);
+      bvm.map(op.getResults(), result.newOp->getResults());
+    }
+  }
+
+  // 6. RAUW the linalg op by the results captured vectorizing the YieldOp.
+  if (!results.empty())
+    linalgOp->replaceAllUsesWith(results);
+  return success();
+}
+
+/// Detect whether `r` has only ConstantOp, ElementwiseMappable and YieldOp.
 static bool hasOnlyScalarElementwiseOp(Region &r) {
   if (!llvm::hasSingleElement(r))
     return false;
@@ -109,7 +347,7 @@ static bool isElementwise(Operation *op) {
     if (!genericOp.getOutputIndexingMap(i).isIdentity())
       return false;
   }
-  // Currently limit the input indexing map to minor identity as other
+  // Currently bound the input indexing map to minor identity as other
   // permutations might require adding transpose ops to convert the vector read
   // to the right shape.
   for (unsigned i = 0, e = genericOp.getNumInputs(); i < e; i++) {
@@ -119,169 +357,38 @@ static bool isElementwise(Operation *op) {
   return hasOnlyScalarElementwiseOp(genericOp.getRegion());
 }
 
-static VectorType extractVectorTypeFromShapedValue(Value v) {
-  auto st = v.getType().cast<ShapedType>();
-  if (st.isa<MemRefType>() && st.getShape().empty())
-    return VectorType();
-  return VectorType::get(st.getShape(), st.getElementType());
-}
-
-static Value transferReadVector(OpBuilder &builder, Value source) {
-  edsc::ScopedContext scope(builder);
-  auto shapedType = source.getType().cast<ShapedType>();
-  if (VectorType vectorType = extractVectorTypeFromShapedValue(source)) {
-    SmallVector<Value, 4> indices(shapedType.getRank(), std_constant_index(0));
-    return vector_transfer_read(vectorType, source, indices);
-  }
-  return std_load(source);
-}
-
-static Value transferWriteVector(OpBuilder &builder, Value value, Value dest) {
-  edsc::ScopedContext scope(builder);
-  Operation *write;
-  auto shapedType = dest.getType().cast<ShapedType>();
-  if (VectorType vectorType = extractVectorTypeFromShapedValue(dest)) {
-    SmallVector<Value, 4> indices(shapedType.getRank(), std_constant_index(0));
-    if (vectorType != value.getType())
-      value = vector_broadcast(vectorType, value);
-    write = vector_transfer_write(value, dest, indices);
-  } else {
-    write = std_store(value, dest);
-  }
-  if (!write->getResults().empty())
-    return write->getResult(0);
-  return Value();
-}
-
-namespace {
-// Transforms scalar operations into their vectorized counterparts,
-// while using the provided generic op to map:
-//   * Its arguments to transfer reads from the views of the generic op.
-//   * linalg.yield ops to transfer writes to the views of the generic op.
-class GenericVectorizer {
-public:
-  GenericVectorizer(OpBuilder &builder, linalg::GenericOp generic)
-      : builder(builder), generic(generic) {}
-
-  // Takes a scalar operation and builds its vectorized counterpart or
-  // counterparts using the underlying builder.
-  // If operands of the scalar operation are referring to previously vectorized
-  // operations, then in their vectorized form these operands will be referring
-  // to previous vectorization results.
-  void vectorize(Operation &scalarOp) {
-    auto yieldOp = dyn_cast<linalg::YieldOp>(scalarOp);
-    if (yieldOp) {
-      for (auto outputs : llvm::enumerate(yieldOp.values())) {
-        Value vectorValue = vectorize(outputs.value());
-        Value result = transferWriteVector(builder, vectorValue,
-                                           generic.getOutput(outputs.index()));
-        if (result)
-          results.push_back(result);
-      }
-      return;
-    }
-    Operation *vectorOp = uncachedVectorize(scalarOp);
-    assert(scalarOp.getNumResults() == vectorOp->getNumResults());
-    for (auto result :
-         llvm::zip(scalarOp.getResults(), vectorOp->getResults())) {
-      valueCache[std::get<0>(result)] = std::get<1>(result);
-    }
-  }
-
-  llvm::ArrayRef<Value> getResults() { return results; }
-
-private:
-  // Transforms a scalar value into its vectorized counterpart, recursively
-  // vectorizing operations as necessary using the underlying builder.
-  // Keeps track of previously vectorized values and reuses vectorization
-  // results if these values come up again.
-  Value vectorize(Value scalarValue) {
-    // Don't vectorize values coming from outside the region.
-    if (scalarValue.getParentRegion() != &generic.region())
-      return scalarValue;
-    auto vectorValueIt = valueCache.find(scalarValue);
-    if (vectorValueIt != valueCache.end())
-      return vectorValueIt->second;
-
-    // If the value is from the region but not in the cache it means it is a
-    // block argument.
-    auto scalarArg = scalarValue.cast<BlockArgument>();
-    assert(scalarArg.getOwner() == &generic.region().front());
-    Value vectorArg = generic.getShapedOperand(scalarArg.getArgNumber());
-    Value vectorResult = transferReadVector(builder, vectorArg);
-    valueCache[scalarArg] = vectorResult;
-    return vectorResult;
-  }
-
-  // Return the largest shape of all the given values. Return an empty
-  // SmallVector if there are no vector value.
-  static SmallVector<int64_t, 4> getLargestShape(ArrayRef<Value> values) {
-    SmallVector<int64_t, 4> largestShape;
-    int64_t maxSize = 1;
-    for (Value value : values) {
-      auto vecType = value.getType().dyn_cast<VectorType>();
-      if (!vecType)
-        continue;
-      if (maxSize < vecType.getNumElements()) {
-        maxSize = vecType.getNumElements();
-        largestShape.assign(vecType.getShape().begin(),
-                            vecType.getShape().end());
-      }
-    }
-    return largestShape;
-  }
-
-  // If the value's type doesn't have the given shape broadcast it.
-  Value broadcastIfNeeded(Value value, ArrayRef<int64_t> shape) {
-    auto vecType = value.getType().dyn_cast<VectorType>();
-    if (shape.empty() || (vecType != nullptr && vecType.getShape() == shape))
-      return value;
-    auto newVecType = VectorType::get(shape, vecType ? vecType.getElementType()
-                                                     : value.getType());
-    return builder.create<vector::BroadcastOp>(
-        builder.getInsertionPoint()->getLoc(), newVecType, value);
-  }
-
-  // Takes a scalar operation and builds its vectorized counterpart or
-  // counterparts using underlying builder without involving any caches.
-  Operation *uncachedVectorize(Operation &base_scalarOp) {
-    SmallVector<Value, 4> vectorizedOperands;
-    for (Value operand : base_scalarOp.getOperands()) {
-      vectorizedOperands.push_back(vectorize(operand));
-    }
-    SmallVector<int64_t, 4> shape = getLargestShape(vectorizedOperands);
-    for (Value &operand : vectorizedOperands)
-      operand = broadcastIfNeeded(operand, shape);
-    OperationState state(base_scalarOp.getLoc(), base_scalarOp.getName());
-    state.addAttributes(base_scalarOp.getAttrs());
-    state.addOperands(vectorizedOperands);
-    if (shape.empty()) {
-      state.addTypes(base_scalarOp.getResultTypes());
-    } else {
-      SmallVector<VectorType, 4> vectorizedTypes;
-      for (auto Type : base_scalarOp.getResultTypes())
-        vectorizedTypes.push_back(VectorType::get(shape, Type));
-      state.addTypes(vectorizedTypes);
-    }
-    return builder.createOperation(state);
-  }
-
-  OpBuilder &builder;
-  linalg::GenericOp generic;
-  llvm::DenseMap<Value, Value> valueCache;
-  SmallVector<Value, 8> results;
-};
-} // namespace
-
-// Replaces elementwise linalg.generic ops with their bodies with scalar
-// operations from these bodies promoted to vector operations.
-static void vectorizeElementwise(linalg::GenericOp op, OpBuilder &builder) {
-  GenericVectorizer vectorizer(builder, op);
-  for (Operation &scalarOp : op.region().front()) {
-    vectorizer.vectorize(scalarOp);
-  }
-  if (!op->getResults().empty())
-    op->replaceAllUsesWith(vectorizer.getResults());
+static void vectorizeContraction(OpBuilder &builder, LinalgOp linalgOp) {
+  assert(isaContractionOpInterface(linalgOp) &&
+         "expected vectorizeContraction preconditions to be met");
+  Location loc = linalgOp.getLoc();
+  // Vectorize other ops as vector contraction.
+  // TODO: interface.
+  LLVM_DEBUG(dbgs() << "\n[" DEBUG_TYPE "]: "
+                    << "Rewrite linalg op as vector.contract: ";
+             linalgOp.dump());
+  // Special function that describes how to vectorize the multiplication op in a
+  // linalg contraction.
+  CustomVectorizationHook vectorizeContraction =
+      [&](Operation *op,
+          const BlockAndValueMapping &bvm) -> VectorizationResult {
+    if (!isa<MulIOp, MulFOp>(op))
+      return VectorizationResult{VectorizationStatus::Failure, nullptr};
+    auto outShape = linalgOp.getOutputShapedType(0).getShape();
+    auto vType = outShape.empty()
+                     ? op->getResult(0).getType()
+                     : VectorType::get(outShape, op->getResult(0).getType());
+    auto zero =
+        builder.create<ConstantOp>(loc, vType, builder.getZeroAttr(vType));
+    Operation *contract = builder.create<vector::ContractionOp>(
+        loc, bvm.lookup(op->getOperand(0)), bvm.lookup(op->getOperand(1)), zero,
+        linalgOp.indexing_maps(), linalgOp.iterator_types());
+    return VectorizationResult{VectorizationStatus::NewOp, contract};
+  };
+  auto status =
+      vectorizeAsLinalgGeneric(builder, linalgOp, {vectorizeContraction});
+  (void)status;
+  assert(succeeded(status) &&
+         "Unexpected vectorization failed despite preconditions");
 }
 
 LogicalResult mlir::linalg::vectorizeLinalgOpPrecondition(Operation *op) {
@@ -298,231 +405,50 @@ LogicalResult mlir::linalg::vectorizeLinalgOpPrecondition(Operation *op) {
     return success();
   if (isElementwise(op))
     return success();
-  return isContraction(op);
+  return success(isaContractionOpInterface(linalgOp));
 }
 
 void mlir::linalg::vectorizeLinalgOp(OpBuilder &builder, Operation *op) {
   assert(succeeded(vectorizeLinalgOpPrecondition(op)));
 
-  StringRef dbgPref = "\n[" DEBUG_TYPE "]: ";
-  (void)dbgPref;
   edsc::ScopedContext scope(builder, op->getLoc());
   // In the case of 0-D memrefs, return null and special case to scalar load or
   // store later.
   if (auto fillOp = dyn_cast<linalg::FillOp>(op)) {
     // Vectorize fill as a vector.broadcast.
-    LLVM_DEBUG(dbgs() << dbgPref
+    LLVM_DEBUG(dbgs() << "\n[" DEBUG_TYPE "]: "
                       << "Rewrite linalg.fill as vector.broadcast: " << *op);
-    transferWriteVector(builder, fillOp.value(), fillOp.output());
+    buildVectorWrite(builder, fillOp.value(), fillOp.output());
     return;
   }
   if (auto copyOp = dyn_cast<linalg::CopyOp>(op)) {
     // Vectorize copy as a vector.transfer_read+vector.transfer_write.
-    LLVM_DEBUG(dbgs() << dbgPref
+    LLVM_DEBUG(dbgs() << "\n[" DEBUG_TYPE "]: "
                       << "Rewrite linalg.copy as vector.transfer_read + "
                          "vector.transfer_write: "
                       << *op);
-    Value vector = transferReadVector(builder, copyOp.input());
-    transferWriteVector(builder, vector, copyOp.output());
+    Value vector = buildVectorRead(builder, copyOp.input());
+    buildVectorWrite(builder, vector, copyOp.output());
     return;
   }
 
   if (isElementwise(op)) {
-    LLVM_DEBUG(dbgs() << dbgPref
-                      << "Rewrite linalg op as vector.transfer_read + "
-                         "vector_op + vector.transfer_write: "
-                      << *op);
-    return vectorizeElementwise(cast<linalg::GenericOp>(op), builder);
+    LLVM_DEBUG(dbgs() << "\n[" DEBUG_TYPE "]: "
+                      << "Rewrite linalg op as vector.transfer_read + " << *op);
+    auto status = vectorizeAsLinalgGeneric(builder, cast<LinalgOp>(op));
+    (void)status;
+    assert(succeeded(status) &&
+           "Unexpected vectorization failed despite preconditions");
+    return;
   }
 
-  assert(succeeded(isContraction(op)) && "Expected contraction");
-
-  // Vectorize other ops as vector contraction.
-  // TODO: interface.
-  LLVM_DEBUG(dbgs() << dbgPref
-                    << "Rewrite linalg op as vector.contract: " << *op);
-  auto linalgOp = cast<linalg::LinalgOp>(op);
-  Value a = transferReadVector(builder, linalgOp.getInput(0));
-  Value b = transferReadVector(builder, linalgOp.getInput(1));
-  Value c = transferReadVector(builder, linalgOp.getOutput(0));
-  Value res = vector_contract(a, b, c, linalgOp.indexing_maps(),
-                              linalgOp.iterator_types());
-  Value writeResult = transferWriteVector(builder, res, linalgOp.getOutput(0));
-  if (writeResult)
-    linalgOp->replaceAllUsesWith(ArrayRef<Value>(writeResult));
+  vectorizeContraction(builder, cast<LinalgOp>(op));
 }
 
-/// Check whether there is any interleaved use of any `values` between `firstOp`
-/// and `secondOp`. Conservatively return `true` if any op or value is in a
-/// different block.
-static bool mayExistInterleavedUses(Operation *firstOp, Operation *secondOp,
-                                    ValueRange values) {
-  StringRef dbgPref = "\n[" DEBUG_TYPE "]: ";
-  (void)dbgPref;
-  if (firstOp->getBlock() != secondOp->getBlock() ||
-      !firstOp->isBeforeInBlock(secondOp)) {
-    LLVM_DEBUG(llvm::dbgs()
-               << dbgPref << "interleavedUses precondition failed, firstOp: "
-               << *firstOp << ", second op: " << *secondOp);
-    return true;
-  }
-  for (auto v : values) {
-    for (auto &u : v.getUses()) {
-      Operation *owner = u.getOwner();
-      if (owner == firstOp || owner == secondOp)
-        continue;
-      // TODO: this is too conservative, use dominance info in the future.
-      if (owner->getBlock() == firstOp->getBlock() &&
-          (owner->isBeforeInBlock(firstOp) || secondOp->isBeforeInBlock(owner)))
-        continue;
-      LLVM_DEBUG(llvm::dbgs()
-                 << dbgPref << " found interleaved op " << *owner
-                 << ", firstOp: " << *firstOp << ", second op: " << *secondOp);
-      return true;
-    }
-  }
-  return false;
-}
-
-/// Return the unique subview use of `v` if it is indeed unique, null otherwise.
-static SubViewOp getSubViewUseIfUnique(Value v) {
-  SubViewOp subViewOp;
-  for (auto &u : v.getUses()) {
-    if (auto newSubViewOp = dyn_cast<SubViewOp>(u.getOwner())) {
-      if (subViewOp)
-        return SubViewOp();
-      subViewOp = newSubViewOp;
-    }
-  }
-  return subViewOp;
-}
-
-/// TODO: use interfaces, side-effects and aliasing analysis as appropriate,
-/// when available.
-LogicalResult LinalgCopyVTRForwardingPattern::matchAndRewrite(
-    vector::TransferReadOp xferOp, PatternRewriter &rewriter) const {
-
-  // Transfer into `view`.
-  Value viewOrAlloc = xferOp.source();
-  if (!viewOrAlloc.getDefiningOp<ViewOp>() &&
-      !viewOrAlloc.getDefiningOp<AllocOp>())
-    return failure();
-
-  StringRef dbgPref = "\n[" DEBUG_TYPE "]: VTRForwarding: ";
-  (void)dbgPref;
-  LLVM_DEBUG(llvm::dbgs() << dbgPref << viewOrAlloc);
-
-  // Ensure there is exactly one subview of `viewOrAlloc` defining `subView`.
-  SubViewOp subViewOp = getSubViewUseIfUnique(viewOrAlloc);
-  if (!subViewOp)
-    return failure();
-  Value subView = subViewOp.getResult();
-  LLVM_DEBUG(llvm::dbgs() << dbgPref << "with subView " << subView);
-
-  // Find the copy into `subView` without interleaved uses.
-  CopyOp copyOp;
-  for (auto &u : subView.getUses()) {
-    if (auto newCopyOp = dyn_cast<CopyOp>(u.getOwner())) {
-      if (newCopyOp.getOutputBuffer(0) != subView)
-        continue;
-      LLVM_DEBUG(llvm::dbgs() << dbgPref << "copy candidate " << *newCopyOp);
-      if (mayExistInterleavedUses(newCopyOp, xferOp, {viewOrAlloc, subView}))
-        continue;
-      copyOp = newCopyOp;
-      break;
-    }
-  }
-  if (!copyOp)
-    return failure();
-  LLVM_DEBUG(llvm::dbgs() << dbgPref << "with copy " << *copyOp);
-
-  // Find the fill into `viewOrAlloc` without interleaved uses before the copy.
-  FillOp maybeFillOp;
-  for (auto &u : viewOrAlloc.getUses()) {
-    if (auto newFillOp = dyn_cast<FillOp>(u.getOwner())) {
-      if (newFillOp.getOutputBuffer(0) != viewOrAlloc)
-        continue;
-      LLVM_DEBUG(llvm::dbgs() << dbgPref << "fill candidate " << *newFillOp);
-      if (mayExistInterleavedUses(newFillOp, copyOp, {viewOrAlloc, subView}))
-        continue;
-      maybeFillOp = newFillOp;
-      break;
-    }
-  }
-  // Ensure padding matches.
-  if (maybeFillOp && xferOp.padding() != maybeFillOp.value())
-    return failure();
-  if (maybeFillOp)
-    LLVM_DEBUG(llvm::dbgs() << dbgPref << "with maybeFillOp " << *maybeFillOp);
-
-  // `in` is the subview that linalg.copy reads. Replace it.
-  Value in = copyOp.getInput(0);
-
-  // linalg.copy + linalg.fill can be used to create a padded local buffer.
-  // The `masked` attribute is only valid on this padded buffer.
-  // When forwarding to vector.transfer_read, the attribute must be reset
-  // conservatively.
-  Value res = rewriter.create<vector::TransferReadOp>(
-      xferOp.getLoc(), xferOp.getVectorType(), in, xferOp.indices(),
-      xferOp.permutation_map(), xferOp.padding(), ArrayAttr());
-
-  if (maybeFillOp)
-    rewriter.eraseOp(maybeFillOp);
-  rewriter.eraseOp(copyOp);
-  rewriter.replaceOp(xferOp, res);
-
-  return success();
-}
-
-/// TODO: use interfaces, side-effects and aliasing analysis as appropriate,
-/// when available.
-LogicalResult LinalgCopyVTWForwardingPattern::matchAndRewrite(
-    vector::TransferWriteOp xferOp, PatternRewriter &rewriter) const {
-  // Transfer into `viewOrAlloc`.
-  Value viewOrAlloc = xferOp.source();
-  if (!viewOrAlloc.getDefiningOp<ViewOp>() &&
-      !viewOrAlloc.getDefiningOp<AllocOp>())
-    return failure();
-
-  // Ensure there is exactly one subview of `viewOrAlloc` defining `subView`.
-  SubViewOp subViewOp = getSubViewUseIfUnique(viewOrAlloc);
-  if (!subViewOp)
-    return failure();
-  Value subView = subViewOp.getResult();
-
-  // Find the copy from `subView` without interleaved uses.
-  CopyOp copyOp;
-  for (auto &u : subViewOp.getResult().getUses()) {
-    if (auto newCopyOp = dyn_cast<CopyOp>(u.getOwner())) {
-      if (newCopyOp.getInput(0) != subView)
-        continue;
-      if (mayExistInterleavedUses(xferOp, newCopyOp, {viewOrAlloc, subView}))
-        continue;
-      copyOp = newCopyOp;
-      break;
-    }
-  }
-  if (!copyOp)
-    return failure();
-
-  // `out` is the subview copied into that we replace.
-  Value out = copyOp.getOutputBuffer(0);
-
-  // Forward vector.transfer into copy.
-  // linalg.copy + linalg.fill can be used to create a padded local buffer.
-  // The `masked` attribute is only valid on this padded buffer.
-  // When forwarding to vector.transfer_write, the attribute must be reset
-  // conservatively.
-  rewriter.create<vector::TransferWriteOp>(
-      xferOp.getLoc(), xferOp.vector(), out, xferOp.indices(),
-      xferOp.permutation_map(), ArrayAttr());
-
-  rewriter.eraseOp(copyOp);
-  rewriter.eraseOp(xferOp);
-
-  return success();
-}
-
+//----------------------------------------------------------------------------//
+// Misc. conv vectorization patterns.
+//----------------------------------------------------------------------------//
+// TODO: cleanup all this.
 template <class ConvOp, int N>
 LogicalResult ConvOpVectorization<ConvOp, N>::matchAndRewrite(
     ConvOp op, PatternRewriter &rewriter) const {
@@ -607,12 +533,13 @@ populateVectorizationPatterns(OwningRewritePatternList &tilingPatterns,
   constexpr static StringRef kPromotedMarker = "PROMOTED";
   tilingPatterns.insert<LinalgTilingPattern<ConvOp>>(
       context, LinalgTilingOptions().setTileSizes(tileSizes),
-      LinalgMarker({}, Identifier::get(kTiledMarker, context)));
+      LinalgTransformationFilter(ArrayRef<Identifier>{},
+                                 Identifier::get(kTiledMarker, context)));
 
   promotionPatterns.insert<LinalgPromotionPattern<ConvOp>>(
       context, LinalgPromotionOptions().setUseFullTileBuffersByDefault(true),
-      LinalgMarker(Identifier::get(kTiledMarker, context),
-                   Identifier::get(kPromotedMarker, context)));
+      LinalgTransformationFilter(Identifier::get(kTiledMarker, context),
+                                 Identifier::get(kPromotedMarker, context)));
 
   SmallVector<bool, 4> mask(N);
   int offset = tileSizes.size() - N;
@@ -656,4 +583,181 @@ void mlir::linalg::populateConvVectorizationPatterns(
   patterns.push_back(std::move(tiling));
   patterns.push_back(std::move(promotion));
   patterns.push_back(std::move(vectorization));
+}
+
+//----------------------------------------------------------------------------//
+// Forwarding patterns
+//----------------------------------------------------------------------------//
+
+/// Check whether there is any interleaved use of any `values` between `firstOp`
+/// and `secondOp`. Conservatively return `true` if any op or value is in a
+/// different block.
+static bool mayExistInterleavedUses(Operation *firstOp, Operation *secondOp,
+                                    ValueRange values) {
+  if (firstOp->getBlock() != secondOp->getBlock() ||
+      !firstOp->isBeforeInBlock(secondOp)) {
+    LLVM_DEBUG(llvm::dbgs() << "\n[" DEBUG_TYPE "]: "
+                            << "interleavedUses precondition failed, firstOp: "
+                            << *firstOp << ", second op: " << *secondOp);
+    return true;
+  }
+  for (auto v : values) {
+    for (auto &u : v.getUses()) {
+      Operation *owner = u.getOwner();
+      if (owner == firstOp || owner == secondOp)
+        continue;
+      // TODO: this is too conservative, use dominance info in the future.
+      if (owner->getBlock() == firstOp->getBlock() &&
+          (owner->isBeforeInBlock(firstOp) || secondOp->isBeforeInBlock(owner)))
+        continue;
+      LLVM_DEBUG(llvm::dbgs()
+                 << "\n[" DEBUG_TYPE "]: "
+                 << " found interleaved op " << *owner
+                 << ", firstOp: " << *firstOp << ", second op: " << *secondOp);
+      return true;
+    }
+  }
+  return false;
+}
+
+/// Return the unique subview use of `v` if it is indeed unique, null otherwise.
+static SubViewOp getSubViewUseIfUnique(Value v) {
+  SubViewOp subViewOp;
+  for (auto &u : v.getUses()) {
+    if (auto newSubViewOp = dyn_cast<SubViewOp>(u.getOwner())) {
+      if (subViewOp)
+        return SubViewOp();
+      subViewOp = newSubViewOp;
+    }
+  }
+  return subViewOp;
+}
+
+/// TODO: use interfaces, side-effects and aliasing analysis as appropriate,
+/// when available.
+LogicalResult LinalgCopyVTRForwardingPattern::matchAndRewrite(
+    vector::TransferReadOp xferOp, PatternRewriter &rewriter) const {
+
+  // Transfer into `view`.
+  Value viewOrAlloc = xferOp.source();
+  if (!viewOrAlloc.getDefiningOp<ViewOp>() &&
+      !viewOrAlloc.getDefiningOp<AllocOp>())
+    return failure();
+
+  LLVM_DEBUG(llvm::dbgs() << "\n[" DEBUG_TYPE "]: " << viewOrAlloc);
+
+  // Ensure there is exactly one subview of `viewOrAlloc` defining `subView`.
+  SubViewOp subViewOp = getSubViewUseIfUnique(viewOrAlloc);
+  if (!subViewOp)
+    return failure();
+  Value subView = subViewOp.getResult();
+  LLVM_DEBUG(llvm::dbgs() << "\n[" DEBUG_TYPE "]: "
+                          << "with subView " << subView);
+
+  // Find the copy into `subView` without interleaved uses.
+  CopyOp copyOp;
+  for (auto &u : subView.getUses()) {
+    if (auto newCopyOp = dyn_cast<CopyOp>(u.getOwner())) {
+      if (newCopyOp.getOutputBuffer(0) != subView)
+        continue;
+      LLVM_DEBUG(llvm::dbgs() << "\n[" DEBUG_TYPE "]: "
+                              << "copy candidate " << *newCopyOp);
+      if (mayExistInterleavedUses(newCopyOp, xferOp, {viewOrAlloc, subView}))
+        continue;
+      copyOp = newCopyOp;
+      break;
+    }
+  }
+  if (!copyOp)
+    return failure();
+  LLVM_DEBUG(llvm::dbgs() << "\n[" DEBUG_TYPE "]: "
+                          << "with copy " << *copyOp);
+
+  // Find the fill into `viewOrAlloc` without interleaved uses before the copy.
+  FillOp maybeFillOp;
+  for (auto &u : viewOrAlloc.getUses()) {
+    if (auto newFillOp = dyn_cast<FillOp>(u.getOwner())) {
+      if (newFillOp.getOutputBuffer(0) != viewOrAlloc)
+        continue;
+      LLVM_DEBUG(llvm::dbgs() << "\n[" DEBUG_TYPE "]: "
+                              << "fill candidate " << *newFillOp);
+      if (mayExistInterleavedUses(newFillOp, copyOp, {viewOrAlloc, subView}))
+        continue;
+      maybeFillOp = newFillOp;
+      break;
+    }
+  }
+  // Ensure padding matches.
+  if (maybeFillOp && xferOp.padding() != maybeFillOp.value())
+    return failure();
+  if (maybeFillOp)
+    LLVM_DEBUG(llvm::dbgs() << "\n[" DEBUG_TYPE "]: "
+                            << "with maybeFillOp " << *maybeFillOp);
+
+  // `in` is the subview that linalg.copy reads. Replace it.
+  Value in = copyOp.getInput(0);
+
+  // linalg.copy + linalg.fill can be used to create a padded local buffer.
+  // The `masked` attribute is only valid on this padded buffer.
+  // When forwarding to vector.transfer_read, the attribute must be reset
+  // conservatively.
+  Value res = rewriter.create<vector::TransferReadOp>(
+      xferOp.getLoc(), xferOp.getVectorType(), in, xferOp.indices(),
+      xferOp.permutation_map(), xferOp.padding(), ArrayAttr());
+
+  if (maybeFillOp)
+    rewriter.eraseOp(maybeFillOp);
+  rewriter.eraseOp(copyOp);
+  rewriter.replaceOp(xferOp, res);
+
+  return success();
+}
+
+/// TODO: use interfaces, side-effects and aliasing analysis as appropriate,
+/// when available.
+LogicalResult LinalgCopyVTWForwardingPattern::matchAndRewrite(
+    vector::TransferWriteOp xferOp, PatternRewriter &rewriter) const {
+  // Transfer into `viewOrAlloc`.
+  Value viewOrAlloc = xferOp.source();
+  if (!viewOrAlloc.getDefiningOp<ViewOp>() &&
+      !viewOrAlloc.getDefiningOp<AllocOp>())
+    return failure();
+
+  // Ensure there is exactly one subview of `viewOrAlloc` defining `subView`.
+  SubViewOp subViewOp = getSubViewUseIfUnique(viewOrAlloc);
+  if (!subViewOp)
+    return failure();
+  Value subView = subViewOp.getResult();
+
+  // Find the copy from `subView` without interleaved uses.
+  CopyOp copyOp;
+  for (auto &u : subViewOp.getResult().getUses()) {
+    if (auto newCopyOp = dyn_cast<CopyOp>(u.getOwner())) {
+      if (newCopyOp.getInput(0) != subView)
+        continue;
+      if (mayExistInterleavedUses(xferOp, newCopyOp, {viewOrAlloc, subView}))
+        continue;
+      copyOp = newCopyOp;
+      break;
+    }
+  }
+  if (!copyOp)
+    return failure();
+
+  // `out` is the subview copied into that we replace.
+  Value out = copyOp.getOutputBuffer(0);
+
+  // Forward vector.transfer into copy.
+  // linalg.copy + linalg.fill can be used to create a padded local buffer.
+  // The `masked` attribute is only valid on this padded buffer.
+  // When forwarding to vector.transfer_write, the attribute must be reset
+  // conservatively.
+  rewriter.create<vector::TransferWriteOp>(
+      xferOp.getLoc(), xferOp.vector(), out, xferOp.indices(),
+      xferOp.permutation_map(), ArrayAttr());
+
+  rewriter.eraseOp(copyOp);
+  rewriter.eraseOp(xferOp);
+
+  return success();
 }

@@ -57,6 +57,25 @@ func @pad_asymmetrical(%arg0: tensor<2x3xf32>, %ub0: index, %ub1: index,
 
 // -----
 
+func @pad_to_static_size(%arg0: tensor<?x?xf32>, %ub0: index, %ub1: index,
+                         %pad_value: f32) -> tensor<2x3xf32> {
+  %0 = linalg.pad_tensor %arg0 low[0, 0] high[%ub0, %ub1] {
+    ^bb0(%arg1: index, %arg2: index):
+      linalg.yield %pad_value : f32
+    } : tensor<?x?xf32> to tensor<2x3xf32>
+  return %0 : tensor<2x3xf32>
+}
+// CHECK-LABEL: func @pad_to_static_size
+//  CHECK-SAME: %[[ARG0:[a-zA-Z0-9_]*]]
+//  CHECK-SAME: %[[UB0:[a-zA-Z0-9_]*]]
+//  CHECK-SAME: %[[UB1:[a-zA-Z0-9_]*]]
+//       CHECK:   linalg.pad_tensor %[[ARG0]]
+//  CHECK-SAME:     low[0, 0]
+//  CHECK-SAME:     high[%[[UB0]], %[[UB1]]]
+//       CHECK:    : tensor<?x?xf32> to tensor<2x3xf32>
+
+// -----
+
 func @range(%arg0: index, %arg1: index, %arg2: index) {
   %0 = linalg.range %arg0:%arg1:%arg2 : !linalg.range
   return
@@ -66,32 +85,13 @@ func @range(%arg0: index, %arg1: index, %arg2: index) {
 
 // -----
 
-// CHECK-DAG: #[[$strided1D:.*]] = affine_map<(d0)[s0] -> (d0 + s0)>
-
 func @views(%arg0: index, %arg1: index, %arg2: index, %arg3: index, %arg4: index) {
   %c0 = constant 0 : index
   %0 = muli %arg0, %arg0 : index
   %1 = alloc (%0) : memref<?xi8>
   %2 = linalg.range %arg0:%arg1:%arg2 : !linalg.range
   %3 = view %1[%c0][%arg0, %arg0] : memref<?xi8> to memref<?x?xf32>
-  %4 = linalg.slice %3[%2, %2] :
-    memref<?x?xf32>,
-    !linalg.range,
-    !linalg.range,
-    memref<?x?xf32>
-  %5 = linalg.slice %3[%2, %arg2] : memref<?x?xf32>,
-                                    !linalg.range,
-                                    index,
-                                    memref<?xf32, offset: ?, strides: [1]>
-  %6 = linalg.slice %3[%arg2, %2] : memref<?x?xf32>,
-                                    index,
-                                    !linalg.range,
-                                    memref<?xf32, offset: ?, strides: [1]>
-  %7 = linalg.slice %3[%arg2, %arg3] : memref<?x?xf32>,
-                                       index,
-                                       index,
-                                       memref<f32>
-  %8 = view %1[%c0][%arg0, %arg0] : memref<?xi8> to memref<?x?xvector<4x4xf32>>
+  %4 = view %1[%c0][%arg0, %arg0] : memref<?xi8> to memref<?x?xvector<4x4xf32>>
   dealloc %1 : memref<?xi8>
   return
 }
@@ -101,26 +101,6 @@ func @views(%arg0: index, %arg1: index, %arg2: index, %arg3: index, %arg4: index
 //  CHECK-NEXT:  range
 //  CHECK-NEXT:  std.view %{{.*}}[%{{.*}}][%{{.*}}] :
 //  CHECK-SAME:     memref<?xi8> to memref<?x?xf32>
-//  CHECK-NEXT:  linalg.slice %{{.*}}[%{{.*}}, %{{.*}}] :
-//  CHECK-SAME:     memref<?x?xf32>,
-//  CHECK-SAME:     !linalg.range,
-//  CHECK-SAME:     !linalg.range,
-//  CHECK-SAME:     memref<?x?xf32>
-//  CHECK-NEXT:  linalg.slice %{{.*}}[%{{.*}}, %{{.*}}] :
-//  CHECK-SAME:     memref<?x?xf32>,
-//  CHECK-SAME:     !linalg.range,
-//  CHECK-SAME:     index,
-//  CHECK-SAME:     memref<?xf32, #[[$strided1D]]>
-//  CHECK-NEXT:  linalg.slice %{{.*}}[%{{.*}}, %{{.*}}] :
-//  CHECK-SAME:     memref<?x?xf32>,
-//  CHECK-SAME:     index,
-//  CHECK-SAME:     !linalg.range,
-//  CHECK-SAME:     memref<?xf32, #[[$strided1D]]>
-//  CHECK-NEXT:  linalg.slice %{{.*}}[%{{.*}}, %{{.*}}] :
-//  CHECK-SAME:     memref<?x?xf32>,
-//  CHECK-SAME:     index,
-//  CHECK-SAME:     index,
-//  CHECK-SAME:     memref<f32>
 //  CHECK-NEXT:  view %{{.*}}[%{{.*}}][%{{.*}}] :
 //  CHECK-SAME:     memref<?xi8> to memref<?x?xvector<4x4xf32>>
 //  CHECK-NEXT:  dealloc %{{.*}} : memref<?xi8>
@@ -814,13 +794,3 @@ func @fill_tensor(%arg0 : index, %arg1 : index, %arg2 : f32) -> tensor<?x?xf32> 
   return %1 : tensor<?x?xf32>
 }
 // CHECK: %{{.+}} = linalg.fill(%{{.+}}, %{{.+}}) : tensor<?x?xf32>, f32 -> tensor<?x?xf32>
-
-// -----
-
-// TODO: this op should disappear once pad_tensors is available and connected.
-// CHECK-LABEL: func @simple_pad
-func @simple_pad(%0: tensor<?x4x?xf32>, %pad: f32) {
-//     CHECK:   linalg.simple_pad %{{.+}} pad %{{.+}}: tensor<?x4x?xf32> to tensor<8x4x8xf32>
-  %1 = linalg.simple_pad %0 pad %pad: tensor<?x4x?xf32> to tensor<8x4x8xf32> pad f32
-  return
-}

@@ -804,6 +804,13 @@ static void InsertBuiltinDeclarationsFromTable(
         continue;
     }
 
+    // Ignore this builtin function if it carries an extension macro that is
+    // not defined. This indicates that the extension is not supported by the
+    // target, so the builtin function should not be available.
+    StringRef Ext = ProgModel::FunctionExtensionTable[Builtin.Extension];
+    if (!Ext.empty() && !S.getPreprocessor().isMacroDefined(Ext))
+      continue;
+
     SmallVector<QualType, 1> RetTypes;
     SmallVector<SmallVector<QualType, 1>, 5> ArgTypes;
 
@@ -853,6 +860,8 @@ static void InsertBuiltinDeclarationsFromTable(
         NewBuiltin->addAttr(ConstAttr::CreateImplicit(Context));
       if (Builtin.IsConv)
         NewBuiltin->addAttr(ConvergentAttr::CreateImplicit(Context));
+      if (!S.getLangOpts().OpenCLCPlusPlus)
+        NewBuiltin->addAttr(OverloadableAttr::CreateImplicit(Context));
 
       ProgModelFinalizer(Builtin, *NewBuiltin);
       LR.addDecl(NewBuiltin);

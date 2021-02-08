@@ -306,7 +306,6 @@ Scheduler::Scheduler() {
 }
 
 Scheduler::~Scheduler() {
-  DefaultHostQueue->stopThreadPool();
   // By specification there are several possible sync points: buffer
   // destruction, wait() method of a queue or event. Stream doesn't introduce
   // any synchronization point. It is guaranteed that stream is flushed and

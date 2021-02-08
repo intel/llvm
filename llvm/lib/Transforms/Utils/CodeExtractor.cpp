@@ -333,7 +333,7 @@ void CodeExtractorAnalysisCache::findSideEffectInfoForBlock(BasicBlock &BB) {
         MemAddr = LI->getPointerOperand();
       }
       // Global variable can not be aliased with locals.
-      if (dyn_cast<Constant>(MemAddr))
+      if (isa<Constant>(MemAddr))
         break;
       Value *Base = MemAddr->stripInBoundsConstantOffsets();
       if (!isa<AllocaInst>(Base)) {
@@ -1161,9 +1161,8 @@ CallInst *CodeExtractor::emitCallAndSwitchStatement(Function *newFunction,
   AllocaInst *Struct = nullptr;
   if (AggregateArgs && (inputs.size() + outputs.size() > 0)) {
     std::vector<Type *> ArgTypes;
-    for (ValueSet::iterator v = StructValues.begin(),
-           ve = StructValues.end(); v != ve; ++v)
-      ArgTypes.push_back((*v)->getType());
+    for (Value *V : StructValues)
+      ArgTypes.push_back(V->getType());
 
     // Allocate a struct at the beginning of this function
     StructArgTy = StructType::get(newFunction->getContext(), ArgTypes);

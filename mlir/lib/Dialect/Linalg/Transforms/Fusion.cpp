@@ -426,9 +426,8 @@ mlir::linalg::fuseProducerOfBuffer(OpBuilder &b, OpOperand &consumerOpOperand,
   // Must be a subview or a slice to guarantee there are loops we can fuse
   // into.
   auto subView = consumerOpOperand.get().getDefiningOp<SubViewOp>();
-  auto slice = consumerOpOperand.get().getDefiningOp<SliceOp>();
-  if (!subView && !slice) {
-    LLVM_DEBUG(llvm::dbgs() << "\nNot fusable (not a subview or slice)");
+  if (!subView) {
+    LLVM_DEBUG(llvm::dbgs() << "\nNot fusable (not a subview)");
     return llvm::None;
   }
 
@@ -731,45 +730,6 @@ collectFusableLoops(ArrayRef<LinalgOp> ops,
 
   return fusableLoops;
 }
-
-// /// For `consumer` with tensor semantics, find the Linalg operation on
-// tensors
-// /// producer the operand at position `consumerIdx`. This is a simple use-def
-// /// chain using the SSA value, but returned as an element of the
-// /// `LinalgDependenceGraphElem` to use the same analysis for both tensors and
-// /// buffers.
-// static Optional<LinalgDependenceGraph::LinalgDependenceGraphElem>
-// findFusableProducerForTensorOp(OpOperand &consumerOpOperand) {
-//   // For now only looking for cases where the operand is produced by another
-//   // Linalg structured operation.
-//   LinalgOp consumer = cast<LinalgOp>(consumerOpOperand.getOwner());
-//   if (!consumer || !consumer.hasTensorSemantics())
-//     return llvm::None;
-//   unsigned consumerIdx = consumerOpOperand.getOperandNumber();
-//   Value value = consumerOpOperand.get();
-//   if (auto linalgOp = value.getDefiningOp<LinalgOp>()) {
-//     return LinalgDependenceGraph::LinalgDependenceGraphElem{
-//         &(linalgOp
-//               .getOutputOpOperands()[value.cast<OpResult>().getResultNumber()]),
-//         &(consumer.getInputOpOperands()[consumerIdx]),
-//         LinalgDependenceGraph::DependenceType::RAW};
-//   }
-//   return llvm::None;
-// }
-
-// static Optional<LinalgDependenceGraph::LinalgDependenceGraphElem>
-// findFusableProducer(OpOperand &consumerOpOperand,
-//                     const LinalgDependenceGraph &dependenceGraph) {
-//   LinalgOp consumer = cast<LinalgOp>(consumerOpOperand.getOwner());
-//   if (!consumer)
-//     return llvm::None;
-//   if (consumer.hasBufferSemantics())
-//     return findFusableProducerForBufferOp(consumerOpOperand,
-//     dependenceGraph);
-//   if (consumer.hasTensorSemantics())
-//     return findFusableProducerForTensorOp(consumerOpOperand);
-//   return llvm::None;
-// }
 
 /// Find all dependences that are fusable.
 FusableOpDependencesTy mlir::linalg::findAllFusableDependences(

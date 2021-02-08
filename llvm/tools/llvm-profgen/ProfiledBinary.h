@@ -179,8 +179,8 @@ public:
   uint64_t offsetToVirtualAddr(uint64_t Offset) const {
     return Offset + BaseAddress;
   }
-  const StringRef getPath() const { return Path; }
-  const StringRef getName() const { return llvm::sys::path::filename(Path); }
+  StringRef getPath() const { return Path; }
+  StringRef getName() const { return llvm::sys::path::filename(Path); }
   uint64_t getBaseAddress() const { return BaseAddress; }
   void setBaseAddress(uint64_t Address) { BaseAddress = Address; }
   uint64_t getPreferredBaseAddress() const { return PreferredBaseAddress; }
@@ -236,17 +236,27 @@ public:
   // Get the context string of the current stack with inline context filled in.
   // It will search the disassembling info stored in Offset2LocStackMap. This is
   // used as the key of function sample map
-  std::string getExpandedContextStr(const std::list<uint64_t> &stack) const;
+  std::string
+  getExpandedContextStr(const SmallVectorImpl<uint64_t> &Stack) const;
 
   const PseudoProbe *getCallProbeForAddr(uint64_t Address) const {
     return ProbeDecoder.getCallProbeForAddr(Address);
   }
   void
   getInlineContextForProbe(const PseudoProbe *Probe,
-                           SmallVector<std::string, 16> &InlineContextStack,
-                           bool IncludeLeaf) const {
+                           SmallVectorImpl<std::string> &InlineContextStack,
+                           bool IncludeLeaf = false) const {
     return ProbeDecoder.getInlineContextForProbe(Probe, InlineContextStack,
                                                  IncludeLeaf);
+  }
+  const AddressProbesMap &getAddress2ProbesMap() const {
+    return ProbeDecoder.getAddress2ProbesMap();
+  }
+  const PseudoProbeFuncDesc *getFuncDescForGUID(uint64_t GUID) {
+    return ProbeDecoder.getFuncDescForGUID(GUID);
+  }
+  const PseudoProbeFuncDesc *getInlinerDescForProbe(const PseudoProbe *Probe) {
+    return ProbeDecoder.getInlinerDescForProbe(Probe);
   }
 };
 

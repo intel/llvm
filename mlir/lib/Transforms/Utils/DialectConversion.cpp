@@ -122,6 +122,9 @@ struct ConversionValueMapping {
   /// Drop the last mapping for the given value.
   void erase(Value value) { mapping.erase(value); }
 
+  /// Returns the inverse raw value mapping (without recursive query support).
+  BlockAndValueMapping getInverse() const { return mapping.getInverse(); }
+
 private:
   /// Current value mappings.
   BlockAndValueMapping mapping;
@@ -256,8 +259,10 @@ struct ArgConverter {
   /// Attempt to convert the signature of the given block, if successful a new
   /// block is returned containing the new arguments. Returns `block` if it did
   /// not require conversion.
-  FailureOr<Block *> convertSignature(Block *block, TypeConverter &converter,
-                                      ConversionValueMapping &mapping);
+  FailureOr<Block *>
+  convertSignature(Block *block, TypeConverter &converter,
+                   ConversionValueMapping &mapping,
+                   SmallVectorImpl<BlockArgument> &argReplacements);
 
   /// Apply the given signature conversion on the given block. The new block
   /// containing the updated signature is returned. If no conversions were
@@ -268,7 +273,8 @@ struct ArgConverter {
   Block *applySignatureConversion(
       Block *block, TypeConverter &converter,
       TypeConverter::SignatureConversion &signatureConversion,
-      ConversionValueMapping &mapping);
+      ConversionValueMapping &mapping,
+      SmallVectorImpl<BlockArgument> &argReplacements);
 
   /// Insert a new conversion into the cache.
   void insertConversion(Block *newBlock, ConvertedBlockInfo &&info);
@@ -425,9 +431,9 @@ LogicalResult ArgConverter::materializeLiveConversions(
 //===----------------------------------------------------------------------===//
 // Conversion
 
-FailureOr<Block *>
-ArgConverter::convertSignature(Block *block, TypeConverter &converter,
-                               ConversionValueMapping &mapping) {
+FailureOr<Block *> ArgConverter::convertSignature(
+    Block *block, TypeConverter &converter, ConversionValueMapping &mapping,
+    SmallVectorImpl<BlockArgument> &argReplacements) {
   // Check if the block was already converted. If the block is detached,
   // conservatively assume it is going to be deleted.
   if (hasBeenConverted(block) || !block->getParent())
@@ -435,14 +441,16 @@ ArgConverter::convertSignature(Block *block, TypeConverter &converter,
 
   // Try to convert the signature for the block with the provided converter.
   if (auto conversion = converter.convertBlockSignature(block))
-    return applySignatureConversion(block, converter, *conversion, mapping);
+    return applySignatureConversion(block, converter, *conversion, mapping,
+                                    argReplacements);
   return failure();
 }
 
 Block *ArgConverter::applySignatureConversion(
     Block *block, TypeConverter &converter,
     TypeConverter::SignatureConversion &signatureConversion,
-    ConversionValueMapping &mapping) {
+    ConversionValueMapping &mapping,
+    SmallVectorImpl<BlockArgument> &argReplacements) {
   // If no arguments are being changed or added, there is nothing to do.
   unsigned origArgCount = block->getNumArguments();
   auto convertedTypes = signatureConversion.getConvertedTypes();
@@ -477,6 +485,7 @@ Block *ArgConverter::applySignatureConversion(
              "invalid to provide a replacement value when the argument isn't "
              "dropped");
       mapping.map(origArg, inputMap->replacementValue);
+      argReplacements.push_back(origArg);
       continue;
     }
 
@@ -492,6 +501,7 @@ Block *ArgConverter::applySignatureConversion(
       newArg = replArgs.front();
     }
     mapping.map(origArg, newArg);
+    argReplacements.push_back(origArg);
     info.argInfo[i] =
         ConvertedArgInfo(inputMap->inputNo, inputMap->size, newArg);
   }
@@ -1113,9 +1123,10 @@ FailureOr<Block *> ConversionPatternRewriterImpl::convertBlockSignature(
     Block *block, TypeConverter &converter,
     TypeConverter::SignatureConversion *conversion) {
   FailureOr<Block *> result =
-      conversion ? argConverter.applySignatureConversion(block, converter,
-                                                         *conversion, mapping)
-                 : argConverter.convertSignature(block, converter, mapping);
+      conversion ? argConverter.applySignatureConversion(
+                       block, converter, *conversion, mapping, argReplacements)
+                 : argConverter.convertSignature(block, converter, mapping,
+                                                 argReplacements);
   if (Block *newBlock = result.getValue()) {
     if (newBlock != block)
       blockActions.push_back(BlockAction::getTypeConversion(newBlock));
@@ -2123,7 +2134,8 @@ private:
   legalizeChangedResultType(Operation *op, OpResult result, Value newValue,
                             TypeConverter *replConverter,
                             ConversionPatternRewriter &rewriter,
-                            ConversionPatternRewriterImpl &rewriterImpl);
+                            ConversionPatternRewriterImpl &rewriterImpl,
+                            const BlockAndValueMapping &inverseMapping);
 
   /// The legalizer to use when converting operations.
   OperationLegalizer opLegalizer;
@@ -2213,6 +2225,11 @@ OperationConverter::finalize(ConversionPatternRewriter &rewriter) {
   if (failed(legalizeConvertedArgumentTypes(rewriter, rewriterImpl)))
     return failure();
 
+  if (rewriterImpl.operationsWithChangedResults.empty())
+    return success();
+
+  Optional<BlockAndValueMapping> inverseMapping;
+
   // Process requested operation replacements.
   for (unsigned i = 0, e = rewriterImpl.operationsWithChangedResults.size();
        i != e; ++i) {
@@ -2233,11 +2250,15 @@ OperationConverter::finalize(ConversionPatternRewriter &rewriter) {
       if (result.getType() == newValue.getType())
         continue;
 
+      // Compute the inverse mapping only if it is really needed.
+      if (!inverseMapping)
+        inverseMapping = rewriterImpl.mapping.getInverse();
+
       // Legalize this result.
       rewriter.setInsertionPoint(repl.first);
       if (failed(legalizeChangedResultType(repl.first, result, newValue,
                                            repl.second.converter, rewriter,
-                                           rewriterImpl)))
+                                           rewriterImpl, *inverseMapping)))
         return failure();
 
       // Update the end iterator for this loop in the case it was updated
@@ -2297,16 +2318,32 @@ LogicalResult OperationConverter::legalizeErasedResult(
   return success();
 }
 
+/// Finds a user of the given value, or of any other value that the given value
+/// replaced, that was not replaced in the conversion process.
+static Operation *
+findLiveUserOfReplaced(Value value, ConversionPatternRewriterImpl &rewriterImpl,
+                       const BlockAndValueMapping &inverseMapping) {
+  do {
+    // Walk the users of this value to see if there are any live users that
+    // weren't replaced during conversion.
+    auto liveUserIt = llvm::find_if_not(value.getUsers(), [&](Operation *user) {
+      return rewriterImpl.isOpIgnored(user);
+    });
+    if (liveUserIt != value.user_end())
+      return *liveUserIt;
+    value = inverseMapping.lookupOrNull(value);
+  } while (value != nullptr);
+  return nullptr;
+}
+
 LogicalResult OperationConverter::legalizeChangedResultType(
     Operation *op, OpResult result, Value newValue,
     TypeConverter *replConverter, ConversionPatternRewriter &rewriter,
-    ConversionPatternRewriterImpl &rewriterImpl) {
-  // Walk the users of this value to see if there are any live users that
-  // weren't replaced during conversion.
-  auto liveUserIt = llvm::find_if_not(result.getUsers(), [&](Operation *user) {
-    return rewriterImpl.isOpIgnored(user);
-  });
-  if (liveUserIt == result.user_end())
+    ConversionPatternRewriterImpl &rewriterImpl,
+    const BlockAndValueMapping &inverseMapping) {
+  Operation *liveUser =
+      findLiveUserOfReplaced(result, rewriterImpl, inverseMapping);
+  if (!liveUser)
     return success();
 
   // If the replacement has a type converter, attempt to materialize a
@@ -2332,8 +2369,8 @@ LogicalResult OperationConverter::legalizeChangedResultType(
                               << result.getResultNumber() << " of operation '"
                               << op->getName()
                               << "' that remained live after conversion";
-    diag.attachNote(liveUserIt->getLoc())
-        << "see existing live user here: " << *liveUserIt;
+    diag.attachNote(liveUser->getLoc())
+        << "see existing live user here: " << *liveUser;
     return failure();
   }
 

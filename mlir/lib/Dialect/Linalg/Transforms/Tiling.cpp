@@ -536,7 +536,9 @@ public:
   static void insert(OwningRewritePatternList &patterns,
                      const LinalgTilingOptions &options, MLIRContext *ctx) {
     patterns.insert<LinalgTilingPattern<OpTy>>(
-        ctx, options, LinalgMarker({}, Identifier::get("tiled", ctx)));
+        ctx, options,
+        LinalgTransformationFilter(ArrayRef<Identifier>{},
+                                   Identifier::get("tiled", ctx)));
     RewritePatternList<OpTypes...>::insert(patterns, options, ctx);
   }
 };
@@ -586,9 +588,9 @@ static void applyTilingToLoopPatterns(LinalgTilingLoopType loopType,
   MLIRContext *ctx = funcOp.getContext();
   OwningRewritePatternList patterns;
   insertTilingPatterns(patterns, options, ctx);
-  applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
-  applyPatternsAndFoldGreedily(funcOp,
-                               getLinalgTilingCanonicalizationPatterns(ctx));
+  (void)applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
+  (void)applyPatternsAndFoldGreedily(
+      funcOp, getLinalgTilingCanonicalizationPatterns(ctx));
   // Drop the marker.
   funcOp.walk([](LinalgOp op) {
     op.removeAttr(LinalgTransforms::kLinalgTransformMarker);

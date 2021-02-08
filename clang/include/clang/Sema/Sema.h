@@ -442,6 +442,9 @@ public:
   void enterCondition(Sema &S, SourceLocation Tok);
   void enterReturn(Sema &S, SourceLocation Tok);
   void enterVariableInit(SourceLocation Tok, Decl *D);
+  /// Handles e.g. BaseType{ .D = Tok...
+  void enterDesignatedInitializer(SourceLocation Tok, QualType BaseType,
+                                  const Designation &D);
   /// Computing a type for the function argument may require running
   /// overloading, so we postpone its computation until it is actually needed.
   ///
@@ -12502,7 +12505,7 @@ private:
   void CheckArrayAccess(const Expr *BaseExpr, const Expr *IndexExpr,
                         const ArraySubscriptExpr *ASE=nullptr,
                         bool AllowOnePastEnd=true, bool IndexNegated=false);
-  void CheckArrayAccess(const Expr *E);
+  void CheckArrayAccess(const Expr *E, int AllowOnePastEnd = 0);
   // Used to grab the relevant information from a FormatAttr and a
   // FunctionDeclaration.
   struct FormatStringInfo {

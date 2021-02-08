@@ -344,8 +344,18 @@ extern const internal::VariadicAllOfMatcher<Decl> decl;
 ///   int number = 42;
 ///   auto [foo, bar] = std::make_pair{42, 42};
 /// \endcode
-extern const internal::VariadicAllOfMatcher<DecompositionDecl>
+extern const internal::VariadicDynCastAllOfMatcher<Decl, DecompositionDecl>
     decompositionDecl;
+
+/// Matches binding declarations
+/// Example matches \c foo and \c bar
+/// (matcher = bindingDecl()
+///
+/// \code
+///   auto [foo, bar] = std::make_pair{42, 42};
+/// \endcode
+extern const internal::VariadicDynCastAllOfMatcher<Decl, BindingDecl>
+    bindingDecl;
 
 /// Matches a declaration of a linkage specification.
 ///
@@ -2828,6 +2838,42 @@ auto mapAnyOf(internal::VariadicDynCastAllOfMatcher<T, U> const &...) {
 extern const internal::MapAnyOfMatcher<BinaryOperator, CXXOperatorCallExpr,
                                        CXXRewrittenBinaryOperator>
     binaryOperation;
+
+/// Matches function calls and constructor calls
+///
+/// Because CallExpr and CXXConstructExpr do not share a common
+/// base class with API accessing arguments etc, AST Matchers for code
+/// which should match both are typically duplicated. This matcher
+/// removes the need for duplication.
+///
+/// Given code
+/// \code
+/// struct ConstructorTakesInt
+/// {
+///   ConstructorTakesInt(int i) {}
+/// };
+///
+/// void callTakesInt(int i)
+/// {
+/// }
+///
+/// void doCall()
+/// {
+///   callTakesInt(42);
+/// }
+///
+/// void doConstruct()
+/// {
+///   ConstructorTakesInt cti(42);
+/// }
+/// \endcode
+///
+/// The matcher
+/// \code
+/// invocation(hasArgument(0, integerLiteral(equals(42))))
+/// \endcode
+/// matches the expression in both doCall and doConstruct
+extern const internal::MapAnyOfMatcher<CallExpr, CXXConstructExpr> invocation;
 
 /// Matches unary expressions that have a specific type of argument.
 ///
@@ -7341,6 +7387,80 @@ extern const internal::VariadicDynCastAllOfMatcher<Stmt, CUDAKernelCallExpr>
 AST_MATCHER(Expr, nullPointerConstant) {
   return Node.isNullPointerConstant(Finder->getASTContext(),
                                     Expr::NPC_ValueDependentIsNull);
+}
+
+/// Matches the DecompositionDecl the binding belongs to.
+///
+/// For example, in:
+/// \code
+/// void foo()
+/// {
+///     int arr[3];
+///     auto &[f, s, t] = arr;
+///
+///     f = 42;
+/// }
+/// \endcode
+/// The matcher:
+/// \code
+///   bindingDecl(hasName("f"),
+///                 forDecomposition(decompositionDecl())
+/// \endcode
+/// matches 'f' in 'auto &[f, s, t]'.
+AST_MATCHER_P(BindingDecl, forDecomposition, internal::Matcher<ValueDecl>,
+              InnerMatcher) {
+  if (const ValueDecl *VD = Node.getDecomposedDecl())
+    return InnerMatcher.matches(*VD, Finder, Builder);
+  return false;
+}
+
+/// Matches the Nth binding of a DecompositionDecl.
+///
+/// For example, in:
+/// \code
+/// void foo()
+/// {
+///     int arr[3];
+///     auto &[f, s, t] = arr;
+///
+///     f = 42;
+/// }
+/// \endcode
+/// The matcher:
+/// \code
+///   decompositionDecl(hasBinding(0,
+///   bindingDecl(hasName("f").bind("fBinding"))))
+/// \endcode
+/// matches the decomposition decl with 'f' bound to "fBinding".
+AST_MATCHER_P2(DecompositionDecl, hasBinding, unsigned, N,
+               internal::Matcher<BindingDecl>, InnerMatcher) {
+  if (Node.bindings().size() <= N)
+    return false;
+  return InnerMatcher.matches(*Node.bindings()[N], Finder, Builder);
+}
+
+/// Matches any binding of a DecompositionDecl.
+///
+/// For example, in:
+/// \code
+/// void foo()
+/// {
+///     int arr[3];
+///     auto &[f, s, t] = arr;
+///
+///     f = 42;
+/// }
+/// \endcode
+/// The matcher:
+/// \code
+///   decompositionDecl(hasAnyBinding(bindingDecl(hasName("f").bind("fBinding"))))
+/// \endcode
+/// matches the decomposition decl with 'f' bound to "fBinding".
+AST_MATCHER_P(DecompositionDecl, hasAnyBinding, internal::Matcher<BindingDecl>,
+              InnerMatcher) {
+  return llvm::any_of(Node.bindings(), [&](const auto *Binding) {
+    return InnerMatcher.matches(*Binding, Finder, Builder);
+  });
 }
 
 /// Matches declaration of the function the statement belongs to

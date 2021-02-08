@@ -74,8 +74,16 @@ struct IncomingArgHandler : public CallLowering::IncomingValueHandler {
     default:
       MIRBuilder.buildCopy(ValVReg, PhysReg);
       break;
+    case CCValAssign::LocInfo::ZExt: {
+      auto WideTy = LLT{VA.getLocVT()};
+      auto NarrowTy = MRI.getType(ValVReg);
+      MIRBuilder.buildTrunc(ValVReg,
+                            MIRBuilder.buildAssertZExt(
+                                WideTy, MIRBuilder.buildCopy(WideTy, PhysReg),
+                                NarrowTy.getSizeInBits()));
+      break;
+    }
     case CCValAssign::LocInfo::SExt:
-    case CCValAssign::LocInfo::ZExt:
     case CCValAssign::LocInfo::AExt: {
       auto Copy = MIRBuilder.buildCopy(LLT{VA.getLocVT()}, PhysReg);
       MIRBuilder.buildTrunc(ValVReg, Copy);
@@ -93,8 +101,23 @@ struct IncomingArgHandler : public CallLowering::IncomingValueHandler {
     MemSize = std::min(static_cast<uint64_t>(RegTy.getSizeInBytes()), MemSize);
 
     auto MMO = MF.getMachineMemOperand(
-        MPO, MachineMemOperand::MOLoad | MachineMemOperand::MOInvariant, MemSize,
-        inferAlignFromPtrInfo(MF, MPO));
+        MPO, MachineMemOperand::MOLoad | MachineMemOperand::MOInvariant,
+        MemSize, inferAlignFromPtrInfo(MF, MPO));
+    const LLT LocVT = LLT{VA.getLocVT()};
+    if (VA.getLocInfo() == CCValAssign::LocInfo::ZExt &&
+        RegTy.getScalarSizeInBits() < LocVT.getScalarSizeInBits()) {
+      // We know the parameter is zero-extended. Perform a load into LocVT, and
+      // use G_ASSERT_ZEXT to communicate that this was zero-extended from the
+      // parameter type. Move down to the parameter type using G_TRUNC.
+      MIRBuilder.buildTrunc(ValVReg,
+                            MIRBuilder.buildAssertZExt(
+                                LocVT, MIRBuilder.buildLoad(LocVT, Addr, *MMO),
+                                RegTy.getScalarSizeInBits()));
+      return;
+    }
+
+    // No extension information, or no extension necessary. Load into the
+    // incoming parameter type directly.
     MIRBuilder.buildLoad(ValVReg, Addr, *MMO);
   }
 

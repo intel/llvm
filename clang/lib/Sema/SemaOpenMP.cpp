@@ -7413,10 +7413,7 @@ Expr *OpenMPIterationSpaceChecker::buildNumIterations(
   // LB = TestIsLessOp.getValue() ? min(LB(MinVal), LB(MaxVal)) :
   // max(LB(MinVal), LB(MaxVal))
   if (InitDependOnLC) {
-    const LoopIterationSpace &IS =
-        ResultIterSpaces[ResultIterSpaces.size() - 1 -
-                         InitDependOnLC.getValueOr(
-                             CondDependOnLC.getValueOr(0))];
+    const LoopIterationSpace &IS = ResultIterSpaces[*InitDependOnLC - 1];
     if (!IS.MinValue || !IS.MaxValue)
       return nullptr;
     // OuterVar = Min
@@ -7493,10 +7490,7 @@ Expr *OpenMPIterationSpaceChecker::buildNumIterations(
   // UB = TestIsLessOp.getValue() ? max(UB(MinVal), UB(MaxVal)) :
   // min(UB(MinVal), UB(MaxVal))
   if (CondDependOnLC) {
-    const LoopIterationSpace &IS =
-        ResultIterSpaces[ResultIterSpaces.size() - 1 -
-                         InitDependOnLC.getValueOr(
-                             CondDependOnLC.getValueOr(0))];
+    const LoopIterationSpace &IS = ResultIterSpaces[*CondDependOnLC - 1];
     if (!IS.MinValue || !IS.MaxValue)
       return nullptr;
     // OuterVar = Min
@@ -12484,7 +12478,7 @@ static OpenMPDirectiveKind getOpenMPCaptureRegionForClause(
     case OMPD_distribute_parallel_for_simd:
     case OMPD_distribute:
     case OMPD_distribute_simd:
-      // Do not capture thread_limit-clause expressions.
+      // Do not capture dist_schedule-clause expressions.
       break;
     case OMPD_parallel_for:
     case OMPD_parallel_for_simd:
@@ -12539,7 +12533,7 @@ static OpenMPDirectiveKind getOpenMPCaptureRegionForClause(
     case OMPD_atomic:
     case OMPD_target_teams:
     case OMPD_requires:
-      llvm_unreachable("Unexpected OpenMP directive with schedule clause");
+      llvm_unreachable("Unexpected OpenMP directive with dist_schedule clause");
     case OMPD_unknown:
     default:
       llvm_unreachable("Unknown OpenMP directive");
@@ -12616,7 +12610,7 @@ static OpenMPDirectiveKind getOpenMPCaptureRegionForClause(
     case OMPD_atomic:
     case OMPD_distribute_simd:
     case OMPD_requires:
-      llvm_unreachable("Unexpected OpenMP directive with num_teams-clause");
+      llvm_unreachable("Unexpected OpenMP directive with device-clause");
     case OMPD_unknown:
     default:
       llvm_unreachable("Unknown OpenMP directive");

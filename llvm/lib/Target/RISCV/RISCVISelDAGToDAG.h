@@ -44,6 +44,7 @@ public:
                                     std::vector<SDValue> &OutOps) override;
 
   bool SelectAddrFI(SDValue Addr, SDValue &Base);
+  bool SelectRVVBaseAddr(SDValue Addr, SDValue &Base);
 
   bool isUnneededShiftMask(SDNode *N, unsigned Width) const;
 
@@ -52,6 +53,8 @@ public:
   bool MatchSROI(SDNode *N) const;
   bool MatchSROIW(SDNode *N) const;
   bool MatchSLLIUW(SDNode *N) const;
+
+  bool selectVLOp(SDValue N, SDValue &VL);
 
   bool selectVSplat(SDValue N, SDValue &SplatVal);
   bool selectVSplatSimm5(SDValue N, SDValue &SplatVal);

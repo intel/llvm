@@ -78,7 +78,7 @@ static cl::opt<bool> AllowEmptyInput(
              "checks that some error message does not occur, for example."));
 
 static cl::opt<bool> AllowUnusedPrefixes(
-    "allow-unused-prefixes", cl::init(true),
+    "allow-unused-prefixes", cl::init(true), cl::ZeroOrMore,
     cl::desc("Allow prefixes to be specified but not appear in the test."));
 
 static cl::opt<bool> MatchFullLines(
@@ -745,14 +745,11 @@ int main(int argc, char **argv) {
   }
 
   FileCheckRequest Req;
-  for (StringRef Prefix : CheckPrefixes)
-    Req.CheckPrefixes.push_back(Prefix);
+  append_range(Req.CheckPrefixes, CheckPrefixes);
 
-  for (StringRef Prefix : CommentPrefixes)
-    Req.CommentPrefixes.push_back(Prefix);
+  append_range(Req.CommentPrefixes, CommentPrefixes);
 
-  for (StringRef CheckNot : ImplicitCheckNot)
-    Req.ImplicitCheckNot.push_back(CheckNot);
+  append_range(Req.ImplicitCheckNot, ImplicitCheckNot);
 
   bool GlobalDefineError = false;
   for (StringRef G : GlobalDefines) {

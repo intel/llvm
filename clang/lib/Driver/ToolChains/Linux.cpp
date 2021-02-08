@@ -241,15 +241,6 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
     ExtraOpts.push_back("relro");
   }
 
-  if (Triple.isAndroid() && Triple.isAndroidVersionLT(29)) {
-    // https://github.com/android/ndk/issues/1196
-    // The unwinder used by the crash handler on versions of Android prior to
-    // API 29 did not correctly handle binaries built with rosegment, which is
-    // enabled by default for LLD. Android only supports LLD, so it's not an
-    // issue that this flag is not accepted by other linkers.
-    ExtraOpts.push_back("--no-rosegment");
-  }
-
   // Android ARM/AArch64 use max-page-size=4096 to reduce VMA usage. Note, lld
   // from 11 onwards default max-page-size to 65536 for both ARM and AArch64.
   if ((Triple.isARM() || Triple.isAArch64()) && Triple.isAndroid()) {
@@ -857,6 +848,19 @@ bool Linux::isPIEDefault() const {
           getTriple().isMusl() || getSanitizerArgs().requiresPIE();
 }
 
+bool Linux::IsAArch64OutlineAtomicsDefault(const ArgList &Args) const {
+  // Outline atomics for AArch64 are supported by compiler-rt
+  // and libgcc since 9.3.1
+  assert(getTriple().isAArch64() && "expected AArch64 target!");
+  ToolChain::RuntimeLibType RtLib = GetRuntimeLibType(Args);
+  if (RtLib == ToolChain::RLT_CompilerRT)
+    return true;
+  assert(RtLib == ToolChain::RLT_Libgcc && "unexpected runtime library type!");
+  if (GCCInstallation.getVersion().isOlderThan(9, 3, 1))
+    return false;
+  return true;
+}
+
 bool Linux::isNoExecStackDefault() const {
     return getTriple().isAndroid();
 }
@@ -880,6 +884,7 @@ SanitizerMask Linux::getSupportedSanitizers() const {
                          getTriple().getArch() == llvm::Triple::thumb ||
                          getTriple().getArch() == llvm::Triple::armeb ||
                          getTriple().getArch() == llvm::Triple::thumbeb;
+  const bool IsRISCV64 = getTriple().getArch() == llvm::Triple::riscv64;
   const bool IsSystemZ = getTriple().getArch() == llvm::Triple::systemz;
   SanitizerMask Res = ToolChain::getSupportedSanitizers();
   Res |= SanitizerKind::Address;
@@ -894,7 +899,7 @@ SanitizerMask Linux::getSupportedSanitizers() const {
   if (IsX86_64 || IsMIPS64 || IsAArch64)
     Res |= SanitizerKind::DataFlow;
   if (IsX86_64 || IsMIPS64 || IsAArch64 || IsX86 || IsArmArch || IsPowerPC64 ||
-      IsSystemZ)
+      IsRISCV64 || IsSystemZ)
     Res |= SanitizerKind::Leak;
   if (IsX86_64 || IsMIPS64 || IsAArch64 || IsPowerPC64)
     Res |= SanitizerKind::Thread;

@@ -17,7 +17,6 @@
 
 #include "mlir/ExecutionEngine/CRunnerUtils.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/Support/raw_ostream.h"
 
 #include "cuda.h"
 
@@ -29,7 +28,7 @@
     cuGetErrorName(result, &name);                                             \
     if (!name)                                                                 \
       name = "<unknown>";                                                      \
-    llvm::errs() << "'" << #expr << "' failed with '" << name << "'\n";        \
+    fprintf(stderr, "'%s' failed with '%s'\n", #expr, name);                   \
   }(expr)
 
 // Static reference to CUDA primary context for device ordinal 0.
@@ -149,6 +148,7 @@ extern "C" void mgpuMemcpy(void *dst, void *src, uint64_t sizeBytes,
 // Allows to register byte array with the CUDA runtime. Helpful until we have
 // transfer functions implemented.
 extern "C" void mgpuMemHostRegister(void *ptr, uint64_t sizeBytes) {
+  ScopedContext scopedContext;
   CUDA_REPORT_IF_ERROR(cuMemHostRegister(ptr, sizeBytes, /*flags=*/0));
 }
 

@@ -87,13 +87,8 @@ CharacterType parseCharacter(mlir::DialectAsmParser &parser) {
 }
 
 // `complex` `<` kind `>`
-CplxType parseComplex(mlir::DialectAsmParser &parser) {
-  return parseKindSingleton<CplxType>(parser);
-}
-
-// `dims` `<` rank `>`
-DimsType parseDims(mlir::DialectAsmParser &parser) {
-  return parseRankSingleton<DimsType>(parser);
+fir::ComplexType parseComplex(mlir::DialectAsmParser &parser) {
+  return parseKindSingleton<fir::ComplexType>(parser);
 }
 
 // `field`
@@ -107,8 +102,8 @@ HeapType parseHeap(mlir::DialectAsmParser &parser, mlir::Location loc) {
 }
 
 // `int` `<` kind `>`
-IntType parseInteger(mlir::DialectAsmParser &parser) {
-  return parseKindSingleton<IntType>(parser);
+fir::IntegerType parseInteger(mlir::DialectAsmParser &parser) {
+  return parseKindSingleton<fir::IntegerType>(parser);
 }
 
 // `len`
@@ -181,14 +176,13 @@ SequenceType parseSequence(mlir::DialectAsmParser &parser, mlir::Location) {
 /// Is `ty` a standard or FIR integer type?
 static bool isaIntegerType(mlir::Type ty) {
   // TODO: why aren't we using isa_integer? investigatation required.
-  return ty.isa<mlir::IntegerType>() || ty.isa<fir::IntType>();
+  return ty.isa<mlir::IntegerType>() || ty.isa<fir::IntegerType>();
 }
 
 bool verifyRecordMemberType(mlir::Type ty) {
   return !(ty.isa<BoxType>() || ty.isa<BoxCharType>() ||
-           ty.isa<BoxProcType>() || ty.isa<DimsType>() || ty.isa<FieldType>() ||
-           ty.isa<LenType>() || ty.isa<ReferenceType>() ||
-           ty.isa<TypeDescType>());
+           ty.isa<BoxProcType>() || ty.isa<FieldType>() || ty.isa<LenType>() ||
+           ty.isa<ReferenceType>() || ty.isa<TypeDescType>());
 }
 
 bool verifySameLists(llvm::ArrayRef<RecordType::TypePair> a1,
@@ -325,8 +319,6 @@ mlir::Type fir::parseFirType(FIROpsDialect *, mlir::DialectAsmParser &parser) {
     return parseCharacter(parser);
   if (typeNameLit == "complex")
     return parseComplex(parser);
-  if (typeNameLit == "dims")
-    return parseDims(parser);
   if (typeNameLit == "field")
     return parseField(parser);
   if (typeNameLit == "heap")
@@ -381,29 +373,6 @@ protected:
 private:
   CharacterTypeStorage() = delete;
   explicit CharacterTypeStorage(KindTy kind) : kind{kind} {}
-};
-
-struct DimsTypeStorage : public mlir::TypeStorage {
-  using KeyTy = unsigned;
-
-  static unsigned hashKey(const KeyTy &key) { return llvm::hash_combine(key); }
-
-  bool operator==(const KeyTy &key) const { return key == getRank(); }
-
-  static DimsTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
-                                    unsigned rank) {
-    auto *storage = allocator.allocate<DimsTypeStorage>();
-    return new (storage) DimsTypeStorage{rank};
-  }
-
-  unsigned getRank() const { return rank; }
-
-protected:
-  unsigned rank;
-
-private:
-  DimsTypeStorage() = delete;
-  explicit DimsTypeStorage(unsigned rank) : rank{rank} {}
 };
 
 /// The type of a derived type part reference
@@ -469,17 +438,17 @@ private:
 };
 
 /// `INTEGER` storage
-struct IntTypeStorage : public mlir::TypeStorage {
+struct IntegerTypeStorage : public mlir::TypeStorage {
   using KeyTy = KindTy;
 
   static unsigned hashKey(const KeyTy &key) { return llvm::hash_combine(key); }
 
   bool operator==(const KeyTy &key) const { return key == getFKind(); }
 
-  static IntTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
-                                   KindTy kind) {
-    auto *storage = allocator.allocate<IntTypeStorage>();
-    return new (storage) IntTypeStorage{kind};
+  static IntegerTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
+                                       KindTy kind) {
+    auto *storage = allocator.allocate<IntegerTypeStorage>();
+    return new (storage) IntegerTypeStorage{kind};
   }
 
   KindTy getFKind() const { return kind; }
@@ -488,22 +457,22 @@ protected:
   KindTy kind;
 
 private:
-  IntTypeStorage() = delete;
-  explicit IntTypeStorage(KindTy kind) : kind{kind} {}
+  IntegerTypeStorage() = delete;
+  explicit IntegerTypeStorage(KindTy kind) : kind{kind} {}
 };
 
 /// `COMPLEX` storage
-struct CplxTypeStorage : public mlir::TypeStorage {
+struct ComplexTypeStorage : public mlir::TypeStorage {
   using KeyTy = KindTy;
 
   static unsigned hashKey(const KeyTy &key) { return llvm::hash_combine(key); }
 
   bool operator==(const KeyTy &key) const { return key == getFKind(); }
 
-  static CplxTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
-                                    KindTy kind) {
-    auto *storage = allocator.allocate<CplxTypeStorage>();
-    return new (storage) CplxTypeStorage{kind};
+  static ComplexTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
+                                       KindTy kind) {
+    auto *storage = allocator.allocate<ComplexTypeStorage>();
+    return new (storage) ComplexTypeStorage{kind};
   }
 
   KindTy getFKind() const { return kind; }
@@ -512,8 +481,8 @@ protected:
   KindTy kind;
 
 private:
-  CplxTypeStorage() = delete;
-  explicit CplxTypeStorage(KindTy kind) : kind{kind} {}
+  ComplexTypeStorage() = delete;
+  explicit ComplexTypeStorage(KindTy kind) : kind{kind} {}
 };
 
 /// `REAL` storage (for reals of unsupported sizes)
@@ -833,8 +802,8 @@ bool isa_std_type(mlir::Type t) {
 
 bool isa_fir_or_std_type(mlir::Type t) {
   if (auto funcType = t.dyn_cast<mlir::FunctionType>())
-    return llvm::all_of(funcType.getInputs(), isa_fir_or_std_type) &&  
-      llvm::all_of(funcType.getResults(), isa_fir_or_std_type);
+    return llvm::all_of(funcType.getInputs(), isa_fir_or_std_type) &&
+           llvm::all_of(funcType.getResults(), isa_fir_or_std_type);
   return isa_fir_type(t) || isa_std_type(t);
 }
 
@@ -871,14 +840,6 @@ CharacterType fir::CharacterType::get(mlir::MLIRContext *ctxt, KindTy kind) {
 
 int fir::CharacterType::getFKind() const { return getImpl()->getFKind(); }
 
-// Dims
-
-DimsType fir::DimsType::get(mlir::MLIRContext *ctxt, unsigned rank) {
-  return Base::get(ctxt, rank);
-}
-
-unsigned fir::DimsType::getRank() const { return getImpl()->getRank(); }
-
 // Field
 
 FieldType fir::FieldType::get(mlir::MLIRContext *ctxt) {
@@ -901,23 +862,23 @@ int fir::LogicalType::getFKind() const { return getImpl()->getFKind(); }
 
 // INTEGER
 
-IntType fir::IntType::get(mlir::MLIRContext *ctxt, KindTy kind) {
+fir::IntegerType fir::IntegerType::get(mlir::MLIRContext *ctxt, KindTy kind) {
   return Base::get(ctxt, kind);
 }
 
-int fir::IntType::getFKind() const { return getImpl()->getFKind(); }
+int fir::IntegerType::getFKind() const { return getImpl()->getFKind(); }
 
 // COMPLEX
 
-CplxType fir::CplxType::get(mlir::MLIRContext *ctxt, KindTy kind) {
+fir::ComplexType fir::ComplexType::get(mlir::MLIRContext *ctxt, KindTy kind) {
   return Base::get(ctxt, kind);
 }
 
-mlir::Type fir::CplxType::getElementType() const {
+mlir::Type fir::ComplexType::getElementType() const {
   return fir::RealType::get(getContext(), getFKind());
 }
 
-KindTy fir::CplxType::getFKind() const { return getImpl()->getFKind(); }
+KindTy fir::ComplexType::getFKind() const { return getImpl()->getFKind(); }
 
 // REAL
 
@@ -992,7 +953,7 @@ mlir::Type fir::ReferenceType::getEleTy() const {
 mlir::LogicalResult
 fir::ReferenceType::verifyConstructionInvariants(mlir::Location loc,
                                                  mlir::Type eleTy) {
-  if (eleTy.isa<DimsType>() || eleTy.isa<FieldType>() || eleTy.isa<LenType>() ||
+  if (eleTy.isa<FieldType>() || eleTy.isa<LenType>() ||
       eleTy.isa<ReferenceType>() || eleTy.isa<TypeDescType>())
     return mlir::emitError(loc, "cannot build a reference to type: ")
            << eleTy << '\n';
@@ -1012,10 +973,10 @@ mlir::Type fir::PointerType::getEleTy() const {
 
 static bool canBePointerOrHeapElementType(mlir::Type eleTy) {
   return eleTy.isa<BoxType>() || eleTy.isa<BoxCharType>() ||
-         eleTy.isa<BoxProcType>() || eleTy.isa<DimsType>() ||
-         eleTy.isa<FieldType>() || eleTy.isa<LenType>() ||
-         eleTy.isa<HeapType>() || eleTy.isa<PointerType>() ||
-         eleTy.isa<ReferenceType>() || eleTy.isa<TypeDescType>();
+         eleTy.isa<BoxProcType>() || eleTy.isa<FieldType>() ||
+         eleTy.isa<LenType>() || eleTy.isa<HeapType>() ||
+         eleTy.isa<PointerType>() || eleTy.isa<ReferenceType>() ||
+         eleTy.isa<TypeDescType>();
 }
 
 mlir::LogicalResult
@@ -1100,8 +1061,8 @@ mlir::LogicalResult fir::SequenceType::verifyConstructionInvariants(
     mlir::AffineMapAttr map) {
   // DIMENSION attribute can only be applied to an intrinsic or record type
   if (eleTy.isa<BoxType>() || eleTy.isa<BoxCharType>() ||
-      eleTy.isa<BoxProcType>() || eleTy.isa<DimsType>() ||
-      eleTy.isa<FieldType>() || eleTy.isa<LenType>() || eleTy.isa<HeapType>() ||
+      eleTy.isa<BoxProcType>() || eleTy.isa<FieldType>() ||
+      eleTy.isa<LenType>() || eleTy.isa<HeapType>() ||
       eleTy.isa<PointerType>() || eleTy.isa<ReferenceType>() ||
       eleTy.isa<TypeDescType>() || eleTy.isa<SequenceType>())
     return mlir::emitError(loc, "cannot build an array of this element type: ")
@@ -1186,9 +1147,9 @@ mlir::LogicalResult
 fir::TypeDescType::verifyConstructionInvariants(mlir::Location loc,
                                                 mlir::Type eleTy) {
   if (eleTy.isa<BoxType>() || eleTy.isa<BoxCharType>() ||
-      eleTy.isa<BoxProcType>() || eleTy.isa<DimsType>() ||
-      eleTy.isa<FieldType>() || eleTy.isa<LenType>() ||
-      eleTy.isa<ReferenceType>() || eleTy.isa<TypeDescType>())
+      eleTy.isa<BoxProcType>() || eleTy.isa<FieldType>() ||
+      eleTy.isa<LenType>() || eleTy.isa<ReferenceType>() ||
+      eleTy.isa<TypeDescType>())
     return mlir::emitError(loc, "cannot build a type descriptor of type: ")
            << eleTy << '\n';
   return mlir::success();
@@ -1245,7 +1206,7 @@ void fir::printFirType(FIROpsDialect *, mlir::Type ty,
     os << "char<" << type.getFKind() << '>';
     return;
   }
-  if (auto type = ty.dyn_cast<CplxType>()) {
+  if (auto type = ty.dyn_cast<fir::ComplexType>()) {
     os << "complex<" << type.getFKind() << '>';
     return;
   }
@@ -1276,10 +1237,6 @@ void fir::printFirType(FIROpsDialect *, mlir::Type ty,
     os << '>';
     return;
   }
-  if (auto type = ty.dyn_cast<DimsType>()) {
-    os << "dims<" << type.getRank() << '>';
-    return;
-  }
   if (ty.isa<FieldType>()) {
     os << "field";
     return;
@@ -1290,7 +1247,7 @@ void fir::printFirType(FIROpsDialect *, mlir::Type ty,
     os << '>';
     return;
   }
-  if (auto type = ty.dyn_cast<fir::IntType>()) {
+  if (auto type = ty.dyn_cast<fir::IntegerType>()) {
     os << "int<" << type.getFKind() << '>';
     return;
   }

@@ -194,9 +194,8 @@ bool TargetLowering::findOptimalMemOpLowering(
     // equal to DstAlign (or zero).
     VT = MVT::i64;
     if (Op.isFixedDstAlign())
-      while (
-          Op.getDstAlign() < (VT.getSizeInBits() / 8) &&
-          !allowsMisalignedMemoryAccesses(VT, DstAS, Op.getDstAlign().value()))
+      while (Op.getDstAlign() < (VT.getSizeInBits() / 8) &&
+             !allowsMisalignedMemoryAccesses(VT, DstAS, Op.getDstAlign()))
         VT = (MVT::SimpleValueType)(VT.getSimpleVT().SimpleTy - 1);
     assert(VT.isInteger());
 
@@ -250,7 +249,7 @@ bool TargetLowering::findOptimalMemOpLowering(
       bool Fast;
       if (NumMemOps && Op.allowOverlap() && NewVTSize < Size &&
           allowsMisalignedMemoryAccesses(
-              VT, DstAS, Op.isFixedDstAlign() ? Op.getDstAlign().value() : 1,
+              VT, DstAS, Op.isFixedDstAlign() ? Op.getDstAlign() : Align(1),
               MachineMemOperand::MONone, &Fast) &&
           Fast)
         VTSize = Size;
@@ -5158,11 +5157,9 @@ SDValue TargetLowering::BuildSDIV(SDNode *N, SelectionDAG &DAG,
   // Multiply the numerator (operand 0) by the magic value.
   // FIXME: We should support doing a MUL in a wider type.
   SDValue Q;
-  if (IsAfterLegalization ? isOperationLegal(ISD::MULHS, VT)
-                          : isOperationLegalOrCustom(ISD::MULHS, VT))
+  if (isOperationLegalOrCustom(ISD::MULHS, VT, IsAfterLegalization))
     Q = DAG.getNode(ISD::MULHS, dl, VT, N0, MagicFactor);
-  else if (IsAfterLegalization ? isOperationLegal(ISD::SMUL_LOHI, VT)
-                               : isOperationLegalOrCustom(ISD::SMUL_LOHI, VT)) {
+  else if (isOperationLegalOrCustom(ISD::SMUL_LOHI, VT, IsAfterLegalization)) {
     SDValue LoHi =
         DAG.getNode(ISD::SMUL_LOHI, dl, DAG.getVTList(VT, VT), N0, MagicFactor);
     Q = SDValue(LoHi.getNode(), 1);
@@ -5286,11 +5283,9 @@ SDValue TargetLowering::BuildUDIV(SDNode *N, SelectionDAG &DAG,
 
   // FIXME: We should support doing a MUL in a wider type.
   auto GetMULHU = [&](SDValue X, SDValue Y) {
-    if (IsAfterLegalization ? isOperationLegal(ISD::MULHU, VT)
-                            : isOperationLegalOrCustom(ISD::MULHU, VT))
+    if (isOperationLegalOrCustom(ISD::MULHU, VT, IsAfterLegalization))
       return DAG.getNode(ISD::MULHU, dl, VT, X, Y);
-    if (IsAfterLegalization ? isOperationLegal(ISD::UMUL_LOHI, VT)
-                            : isOperationLegalOrCustom(ISD::UMUL_LOHI, VT)) {
+    if (isOperationLegalOrCustom(ISD::UMUL_LOHI, VT, IsAfterLegalization)) {
       SDValue LoHi =
           DAG.getNode(ISD::UMUL_LOHI, dl, DAG.getVTList(VT, VT), X, Y);
       return SDValue(LoHi.getNode(), 1);
@@ -6514,7 +6509,7 @@ bool TargetLowering::expandFP_TO_SINT(SDNode *Node, SDValue &Result,
 
   // Expand f32 -> i64 conversion
   // This algorithm comes from compiler-rt's implementation of fixsfdi:
-  // https://github.com/llvm/llvm-project/blob/master/compiler-rt/lib/builtins/fixsfdi.c
+  // https://github.com/llvm/llvm-project/blob/main/compiler-rt/lib/builtins/fixsfdi.c
   unsigned SrcEltBits = SrcVT.getScalarSizeInBits();
   EVT IntVT = SrcVT.changeTypeToInteger();
   EVT IntShVT = getShiftAmountTy(IntVT, DAG.getDataLayout());
@@ -7004,6 +6999,64 @@ bool TargetLowering::expandABS(SDNode *N, SDValue &Result,
     Result = DAG.getNode(ISD::SUB, dl, VT, Shift, Xor);
   }
   return true;
+}
+
+SDValue TargetLowering::expandBSWAP(SDNode *N, SelectionDAG &DAG) const {
+  SDLoc dl(N);
+  EVT VT = N->getValueType(0);
+  SDValue Op = N->getOperand(0);
+
+  if (!VT.isSimple())
+    return SDValue();
+
+  EVT SHVT = getShiftAmountTy(VT, DAG.getDataLayout());
+  SDValue Tmp1, Tmp2, Tmp3, Tmp4, Tmp5, Tmp6, Tmp7, Tmp8;
+  switch (VT.getSimpleVT().getScalarType().SimpleTy) {
+  default:
+    return SDValue();
+  case MVT::i16:
+    // Use a rotate by 8. This can be further expanded if necessary.
+    return DAG.getNode(ISD::ROTL, dl, VT, Op, DAG.getConstant(8, dl, SHVT));
+  case MVT::i32:
+    Tmp4 = DAG.getNode(ISD::SHL, dl, VT, Op, DAG.getConstant(24, dl, SHVT));
+    Tmp3 = DAG.getNode(ISD::SHL, dl, VT, Op, DAG.getConstant(8, dl, SHVT));
+    Tmp2 = DAG.getNode(ISD::SRL, dl, VT, Op, DAG.getConstant(8, dl, SHVT));
+    Tmp1 = DAG.getNode(ISD::SRL, dl, VT, Op, DAG.getConstant(24, dl, SHVT));
+    Tmp3 = DAG.getNode(ISD::AND, dl, VT, Tmp3,
+                       DAG.getConstant(0xFF0000, dl, VT));
+    Tmp2 = DAG.getNode(ISD::AND, dl, VT, Tmp2, DAG.getConstant(0xFF00, dl, VT));
+    Tmp4 = DAG.getNode(ISD::OR, dl, VT, Tmp4, Tmp3);
+    Tmp2 = DAG.getNode(ISD::OR, dl, VT, Tmp2, Tmp1);
+    return DAG.getNode(ISD::OR, dl, VT, Tmp4, Tmp2);
+  case MVT::i64:
+    Tmp8 = DAG.getNode(ISD::SHL, dl, VT, Op, DAG.getConstant(56, dl, SHVT));
+    Tmp7 = DAG.getNode(ISD::SHL, dl, VT, Op, DAG.getConstant(40, dl, SHVT));
+    Tmp6 = DAG.getNode(ISD::SHL, dl, VT, Op, DAG.getConstant(24, dl, SHVT));
+    Tmp5 = DAG.getNode(ISD::SHL, dl, VT, Op, DAG.getConstant(8, dl, SHVT));
+    Tmp4 = DAG.getNode(ISD::SRL, dl, VT, Op, DAG.getConstant(8, dl, SHVT));
+    Tmp3 = DAG.getNode(ISD::SRL, dl, VT, Op, DAG.getConstant(24, dl, SHVT));
+    Tmp2 = DAG.getNode(ISD::SRL, dl, VT, Op, DAG.getConstant(40, dl, SHVT));
+    Tmp1 = DAG.getNode(ISD::SRL, dl, VT, Op, DAG.getConstant(56, dl, SHVT));
+    Tmp7 = DAG.getNode(ISD::AND, dl, VT, Tmp7,
+                       DAG.getConstant(255ULL<<48, dl, VT));
+    Tmp6 = DAG.getNode(ISD::AND, dl, VT, Tmp6,
+                       DAG.getConstant(255ULL<<40, dl, VT));
+    Tmp5 = DAG.getNode(ISD::AND, dl, VT, Tmp5,
+                       DAG.getConstant(255ULL<<32, dl, VT));
+    Tmp4 = DAG.getNode(ISD::AND, dl, VT, Tmp4,
+                       DAG.getConstant(255ULL<<24, dl, VT));
+    Tmp3 = DAG.getNode(ISD::AND, dl, VT, Tmp3,
+                       DAG.getConstant(255ULL<<16, dl, VT));
+    Tmp2 = DAG.getNode(ISD::AND, dl, VT, Tmp2,
+                       DAG.getConstant(255ULL<<8 , dl, VT));
+    Tmp8 = DAG.getNode(ISD::OR, dl, VT, Tmp8, Tmp7);
+    Tmp6 = DAG.getNode(ISD::OR, dl, VT, Tmp6, Tmp5);
+    Tmp4 = DAG.getNode(ISD::OR, dl, VT, Tmp4, Tmp3);
+    Tmp2 = DAG.getNode(ISD::OR, dl, VT, Tmp2, Tmp1);
+    Tmp8 = DAG.getNode(ISD::OR, dl, VT, Tmp8, Tmp6);
+    Tmp4 = DAG.getNode(ISD::OR, dl, VT, Tmp4, Tmp2);
+    return DAG.getNode(ISD::OR, dl, VT, Tmp8, Tmp4);
+  }
 }
 
 std::pair<SDValue, SDValue>

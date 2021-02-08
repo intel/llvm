@@ -157,6 +157,7 @@ LogicalResult spirv::Deserializer::processInstruction(
   case spirv::Opcode::OpTypeMatrix:
   case spirv::Opcode::OpTypeArray:
   case spirv::Opcode::OpTypeFunction:
+  case spirv::Opcode::OpTypeImage:
   case spirv::Opcode::OpTypeRuntimeArray:
   case spirv::Opcode::OpTypeStruct:
   case spirv::Opcode::OpTypePointer:
@@ -285,7 +286,7 @@ LogicalResult spirv::Deserializer::processOpWithoutGrammarAttr(
     valueMap[valueID] = op->getResult(0);
 
   if (op->hasTrait<OpTrait::IsTerminator>())
-    clearDebugLine();
+    (void)clearDebugLine();
 
   return success();
 }

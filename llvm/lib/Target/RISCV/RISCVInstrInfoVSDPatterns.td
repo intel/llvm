@@ -8,7 +8,7 @@
 ///
 /// This file contains the required infrastructure and SDNode patterns to
 /// support code generation for the standard 'V' (Vector) extension, version
-/// 0.9.  This version is still experimental as the 'V' extension hasn't been
+/// 0.10.  This version is still experimental as the 'V' extension hasn't been
 /// ratified yet.
 ///
 /// This file is included from and depends upon RISCVInstrInfoVPseudos.td
@@ -39,32 +39,38 @@ def SplatPat       : ComplexPattern<vAny, 1, "selectVSplat", [], [], 1>;
 def SplatPat_simm5 : ComplexPattern<vAny, 1, "selectVSplatSimm5", []>;
 def SplatPat_uimm5 : ComplexPattern<vAny, 1, "selectVSplatUimm5", []>;
 
+def RVVBaseAddr : ComplexPattern<iPTR, 1, "SelectRVVBaseAddr">;
+
 class SwapHelper<dag Prefix, dag A, dag B, dag Suffix, bit swap> {
    dag Value = !con(Prefix, !if(swap, B, A), !if(swap, A, B), Suffix);
 }
 
 multiclass VPatUSLoadStoreSDNode<LLVMType type,
-                                 LLVMType mask_type,
                                  int sew,
                                  LMULInfo vlmul,
                                  OutPatFrag avl,
-                                 RegisterClass reg_rs1,
                                  VReg reg_class>
 {
   defvar load_instr = !cast<Instruction>("PseudoVLE"#sew#"_V_"#vlmul.MX);
   defvar store_instr = !cast<Instruction>("PseudoVSE"#sew#"_V_"#vlmul.MX);
   // Load
-  def : Pat<(type (load reg_rs1:$rs1)),
-            (load_instr reg_rs1:$rs1, avl, sew)>;
+  def : Pat<(type (load RVVBaseAddr:$rs1)),
+            (load_instr RVVBaseAddr:$rs1, avl, sew)>;
   // Store
-  def : Pat<(store type:$rs2, reg_rs1:$rs1),
-            (store_instr reg_class:$rs2, reg_rs1:$rs1, avl, sew)>;
+  def : Pat<(store type:$rs2, RVVBaseAddr:$rs1),
+            (store_instr reg_class:$rs2, RVVBaseAddr:$rs1, avl, sew)>;
 }
 
-multiclass VPatUSLoadStoreSDNodes<RegisterClass reg_rs1> {
-  foreach vti = AllVectors in
-    defm "" : VPatUSLoadStoreSDNode<vti.Vector, vti.Mask, vti.SEW, vti.LMul,
-                                    vti.AVL, reg_rs1, vti.RegClass>;
+multiclass VPatUSLoadStoreMaskSDNode<MTypeInfo m>
+{
+  defvar load_instr = !cast<Instruction>("PseudoVLE1_V_"#m.BX);
+  defvar store_instr = !cast<Instruction>("PseudoVSE1_V_"#m.BX);
+  // Load
+  def : Pat<(m.Mask (load RVVBaseAddr:$rs1)),
+            (load_instr RVVBaseAddr:$rs1, m.AVL, m.SEW)>;
+  // Store
+  def : Pat<(store m.Mask:$rs2, RVVBaseAddr:$rs1),
+            (store_instr VR:$rs2, RVVBaseAddr:$rs1, m.AVL, m.SEW)>;
 }
 
 class VPatBinarySDNode_VV<SDNode vop,
@@ -356,8 +362,11 @@ multiclass VPatNConvertFP2ISDNode_V<SDNode vop, string instruction_name> {
 let Predicates = [HasStdExtV] in {
 
 // 7.4. Vector Unit-Stride Instructions
-defm "" : VPatUSLoadStoreSDNodes<GPR>;
-defm "" : VPatUSLoadStoreSDNodes<AddrFI>;
+foreach vti = AllVectors in
+  defm "" : VPatUSLoadStoreSDNode<vti.Vector, vti.SEW, vti.LMul,
+                                  vti.AVL, vti.RegClass>;
+foreach mti = AllMasks in
+  defm "" : VPatUSLoadStoreMaskSDNode<mti>;
 
 // 12.1. Vector Single-Width Integer Add and Subtract
 defm "" : VPatBinarySDNode_VV_VX_VI<add, "PseudoVADD">;
@@ -442,8 +451,8 @@ defm "" : VPatBinarySDNode_VV_VX<mulhs, "PseudoVMULH">;
 defm "" : VPatBinarySDNode_VV_VX<mulhu, "PseudoVMULHU">;
 
 // 12.11. Vector Integer Divide Instructions
-defm "" : VPatBinarySDNode_VV_VX<sdiv, "PseudoVDIVU">;
-defm "" : VPatBinarySDNode_VV_VX<udiv, "PseudoVDIV">;
+defm "" : VPatBinarySDNode_VV_VX<udiv, "PseudoVDIVU">;
+defm "" : VPatBinarySDNode_VV_VX<sdiv, "PseudoVDIV">;
 defm "" : VPatBinarySDNode_VV_VX<urem, "PseudoVREMU">;
 defm "" : VPatBinarySDNode_VV_VX<srem, "PseudoVREM">;
 
@@ -513,6 +522,76 @@ defm "" : VPatBinaryFPSDNode_R_VF<fsub, "PseudoVFRSUB">;
 defm "" : VPatBinaryFPSDNode_VV_VF<fmul, "PseudoVFMUL">;
 defm "" : VPatBinaryFPSDNode_VV_VF<fdiv, "PseudoVFDIV">;
 defm "" : VPatBinaryFPSDNode_R_VF<fdiv, "PseudoVFRDIV">;
+
+// 14.6 Vector Single-Width Floating-Point Fused Multiply-Add Instructions.
+foreach fvti = AllFloatVectors in {
+  // NOTE: We choose VFMADD because it has the most commuting freedom. So it
+  // works best with how TwoAddressInstructionPass tries commuting.
+  def : Pat<(fvti.Vector (fma fvti.RegClass:$rs1, fvti.RegClass:$rd,
+                              fvti.RegClass:$rs2)),
+            (!cast<Instruction>("PseudoVFMADD_VV_"# fvti.LMul.MX)
+                 fvti.RegClass:$rd, fvti.RegClass:$rs1, fvti.RegClass:$rs2,
+                 fvti.AVL, fvti.SEW)>;
+  def : Pat<(fvti.Vector (fma fvti.RegClass:$rs1, fvti.RegClass:$rd,
+                              (fneg fvti.RegClass:$rs2))),
+            (!cast<Instruction>("PseudoVFMSUB_VV_"# fvti.LMul.MX)
+                 fvti.RegClass:$rd, fvti.RegClass:$rs1, fvti.RegClass:$rs2,
+                 fvti.AVL, fvti.SEW)>;
+  def : Pat<(fvti.Vector (fma (fneg fvti.RegClass:$rs1), fvti.RegClass:$rd,
+                              (fneg fvti.RegClass:$rs2))),
+            (!cast<Instruction>("PseudoVFNMADD_VV_"# fvti.LMul.MX)
+                 fvti.RegClass:$rd, fvti.RegClass:$rs1, fvti.RegClass:$rs2,
+                 fvti.AVL, fvti.SEW)>;
+  def : Pat<(fvti.Vector (fma (fneg fvti.RegClass:$rs1), fvti.RegClass:$rd,
+                              fvti.RegClass:$rs2)),
+            (!cast<Instruction>("PseudoVFNMSUB_VV_"# fvti.LMul.MX)
+                 fvti.RegClass:$rd, fvti.RegClass:$rs1, fvti.RegClass:$rs2,
+                 fvti.AVL, fvti.SEW)>;
+
+  // The choice of VFMADD here is arbitrary, vfmadd.vf and vfmacc.vf are equally
+  // commutable.
+  def : Pat<(fvti.Vector (fma (splat_vector fvti.ScalarRegClass:$rs1),
+                              fvti.RegClass:$rd, fvti.RegClass:$rs2)),
+            (!cast<Instruction>("PseudoVFMADD_V" # fvti.ScalarSuffix # "_" # fvti.LMul.MX)
+                 fvti.RegClass:$rd, fvti.ScalarRegClass:$rs1, fvti.RegClass:$rs2,
+                 fvti.AVL, fvti.SEW)>;
+  def : Pat<(fvti.Vector (fma (splat_vector fvti.ScalarRegClass:$rs1),
+                              fvti.RegClass:$rd, (fneg fvti.RegClass:$rs2))),
+            (!cast<Instruction>("PseudoVFMSUB_V" # fvti.ScalarSuffix # "_" # fvti.LMul.MX)
+                 fvti.RegClass:$rd, fvti.ScalarRegClass:$rs1, fvti.RegClass:$rs2,
+                 fvti.AVL, fvti.SEW)>;
+
+  def : Pat<(fvti.Vector (fma (splat_vector fvti.ScalarRegClass:$rs1),
+                              (fneg fvti.RegClass:$rd), (fneg fvti.RegClass:$rs2))),
+            (!cast<Instruction>("PseudoVFNMADD_V" # fvti.ScalarSuffix # "_" # fvti.LMul.MX)
+                 fvti.RegClass:$rd, fvti.ScalarRegClass:$rs1, fvti.RegClass:$rs2,
+                 fvti.AVL, fvti.SEW)>;
+  def : Pat<(fvti.Vector (fma (splat_vector fvti.ScalarRegClass:$rs1),
+                              (fneg fvti.RegClass:$rd), fvti.RegClass:$rs2)),
+            (!cast<Instruction>("PseudoVFNMSUB_V" # fvti.ScalarSuffix # "_" # fvti.LMul.MX)
+                 fvti.RegClass:$rd, fvti.ScalarRegClass:$rs1, fvti.RegClass:$rs2,
+                 fvti.AVL, fvti.SEW)>;
+
+  // The splat might be negated.
+  def : Pat<(fvti.Vector (fma (fneg (splat_vector fvti.ScalarRegClass:$rs1)),
+                              fvti.RegClass:$rd, (fneg fvti.RegClass:$rs2))),
+            (!cast<Instruction>("PseudoVFNMADD_V" # fvti.ScalarSuffix # "_" # fvti.LMul.MX)
+                 fvti.RegClass:$rd, fvti.ScalarRegClass:$rs1, fvti.RegClass:$rs2,
+                 fvti.AVL, fvti.SEW)>;
+  def : Pat<(fvti.Vector (fma (fneg (splat_vector fvti.ScalarRegClass:$rs1)),
+                              fvti.RegClass:$rd, fvti.RegClass:$rs2)),
+            (!cast<Instruction>("PseudoVFNMSUB_V" # fvti.ScalarSuffix # "_" # fvti.LMul.MX)
+                 fvti.RegClass:$rd, fvti.ScalarRegClass:$rs1, fvti.RegClass:$rs2,
+                 fvti.AVL, fvti.SEW)>;
+}
+
+// 14.10. Vector Floating-Point Sign-Injection Instructions
+// Handle fneg with VFSGNJN using the same input for both operands.
+foreach vti = AllFloatVectors in {
+  def : Pat<(fneg (vti.Vector vti.RegClass:$rs)),
+            (!cast<Instruction>("PseudoVFSGNJN_VV_"# vti.LMul.MX)
+                 vti.RegClass:$rs, vti.RegClass:$rs, vti.AVL, vti.SEW)>;
+}
 
 // 14.11. Vector Floating-Point Compare Instructions
 defm "" : VPatFPSetCCSDNode_VV_VF_FV<SETEQ,  "PseudoVMFEQ", "PseudoVMFEQ">;

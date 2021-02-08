@@ -8,22 +8,6 @@ func @load_number_of_indices(%v : memref<f32>) {
 
 // -----
 
-func @slice_number_of_indexings(%arg0: memref<?x?xf32, affine_map<(i, j)[off, M]->(off + M * i + j)>>) {
-  // expected-error @+2 {{expected 2 indexings, got 1}}
-  %c0 = constant 0: index
-  %0 = linalg.slice %arg0[%c0] : memref<?x?xf32, affine_map<(i, j)[off, M]->(off + M * i + j)>>, index, memref<?x?xf32, affine_map<(i, j)[off, M]->(off + M * i + j)>>
-}
-
-// -----
-
-func @slice_rank_vs_range_indices(%arg0: memref<?x?xf32, affine_map<(i, j)[off, M]->(off + M * i + j)>>) {
-  // expected-error @+2 {{op expected rank of the view(1) to be the number of ranges(0)}}
-  %c0 = constant 0: index
-  %0 = linalg.slice %arg0[%c0, %c0] : memref<?x?xf32, affine_map<(i, j)[off, M]->(off + M * i + j)>>, index, index, memref<?xf32, affine_map<(i)[off]->(off + i)>>
-}
-
-// -----
-
 func @store_number_of_indices(%v : memref<f32>) {
   // expected-error @+3 {{store index operand count not equal to memref rank}}
   %c0 = constant 0 : index
@@ -643,7 +627,7 @@ func @pad_number_of_block_args(%arg0: tensor<?x4xi32>, %arg1: i32) -> tensor<?x9
 // -----
 
 func @pad_no_block(%arg0: tensor<?x4xi32>, %arg1: i32) -> tensor<?x9xi32> {
-  // expected-error @+1 {{expected region with 1 block}}
+  // expected-error @+1 {{op region #0 ('region') failed to verify constraint: region with 1 blocks}}
   %0 = linalg.pad_tensor %arg0 low[1, 2] high[2, 3] {
   } : tensor<?x4xi32> to tensor<?x9xi32>
   return %0 : tensor<?x9xi32>

@@ -1010,13 +1010,90 @@ TEST(RenameTest, Renameable) {
       )cpp",
        "conflict", !HeaderFile, nullptr, "Conflict"},
 
-      {R"cpp(// FIXME: detecting local variables is not supported yet.
+      {R"cpp(
         void func() {
-          int Conflict;
-          int [[V^ar]];
+          bool Whatever;
+          int V^ar;
+          char Conflict;
         }
       )cpp",
-       nullptr, !HeaderFile, nullptr, "Conflict"},
+       "conflict", !HeaderFile, nullptr, "Conflict"},
+
+      {R"cpp(
+        void func() {
+          if (int Conflict = 42) {
+            int V^ar;
+          }
+        }
+      )cpp",
+       "conflict", !HeaderFile, nullptr, "Conflict"},
+
+      {R"cpp(
+        void func() {
+          if (int Conflict = 42) {
+          } else {
+            bool V^ar;
+          }
+        }
+      )cpp",
+       "conflict", !HeaderFile, nullptr, "Conflict"},
+
+      {R"cpp(
+        void func() {
+          if (int V^ar = 42) {
+          } else {
+            bool Conflict;
+          }
+        }
+      )cpp",
+       "conflict", !HeaderFile, nullptr, "Conflict"},
+
+      {R"cpp(
+        void func() {
+          while (int V^ar = 10) {
+            bool Conflict = true;
+          }
+        }
+      )cpp",
+       "conflict", !HeaderFile, nullptr, "Conflict"},
+
+      {R"cpp(
+        void func() {
+          for (int Something = 9000, Anything = 14, Conflict = 42; Anything > 9;
+               ++Something) {
+            int V^ar;
+          }
+        }
+      )cpp",
+       "conflict", !HeaderFile, nullptr, "Conflict"},
+
+      {R"cpp(
+        void func() {
+          for (int V^ar = 14, Conflict = 42;;) {
+          }
+        }
+      )cpp",
+       "conflict", !HeaderFile, nullptr, "Conflict"},
+
+      {R"cpp(
+        void func(int Conflict) {
+          bool V^ar;
+        }
+      )cpp",
+       "conflict", !HeaderFile, nullptr, "Conflict"},
+
+      {R"cpp(
+        void func(int V^ar) {
+          bool Conflict;
+        }
+      )cpp",
+       "conflict", !HeaderFile, nullptr, "Conflict"},
+
+      {R"cpp(
+        void func(int V^ar, int Conflict) {
+        }
+      )cpp",
+       "conflict", !HeaderFile, nullptr, "Conflict"},
 
       {R"cpp(// Trying to rename into the same name, SameName == SameName.
         void func() {
@@ -1065,6 +1142,52 @@ TEST(RenameTest, Renameable) {
                 expectedResult(T, NewName));
     }
   }
+}
+
+MATCHER_P(newText, T, "") { return arg.newText == T; }
+
+TEST(RenameTest, IndexMergeMainFile) {
+  Annotations Code("int ^x();");
+  TestTU TU = TestTU::withCode(Code.code());
+  TU.Filename = "main.cc";
+  auto AST = TU.build();
+
+  auto Main = testPath("main.cc");
+
+  auto Rename = [&](const SymbolIndex *Idx) {
+    auto GetDirtyBuffer = [&](PathRef Path) -> llvm::Optional<std::string> {
+      return Code.code().str(); // Every file has the same content.
+    };
+    RenameOptions Opts;
+    Opts.AllowCrossFile = true;
+    RenameInputs Inputs{Code.point(), "xPrime", AST,           Main,
+                        Idx,          Opts,     GetDirtyBuffer};
+    auto Results = rename(Inputs);
+    EXPECT_TRUE(bool(Results)) << llvm::toString(Results.takeError());
+    return std::move(*Results);
+  };
+
+  // We do not expect to see duplicated edits from AST vs index.
+  auto Results = Rename(TU.index().get());
+  EXPECT_THAT(Results.GlobalChanges.keys(), ElementsAre(Main));
+  EXPECT_THAT(Results.GlobalChanges[Main].asTextEdits(),
+              ElementsAre(newText("xPrime")));
+
+  // Sanity check: we do expect to see index results!
+  TU.Filename = "other.cc";
+  Results = Rename(TU.index().get());
+  EXPECT_THAT(Results.GlobalChanges.keys(),
+              UnorderedElementsAre(Main, testPath("other.cc")));
+
+#if defined(_WIN32) || defined(__APPLE__)
+  // On case-insensitive systems, no duplicates if AST vs index case differs.
+  // https://github.com/clangd/clangd/issues/665
+  TU.Filename = "MAIN.CC";
+  Results = Rename(TU.index().get());
+  EXPECT_THAT(Results.GlobalChanges.keys(), ElementsAre(Main));
+  EXPECT_THAT(Results.GlobalChanges[Main].asTextEdits(),
+              ElementsAre(newText("xPrime")));
+#endif
 }
 
 TEST(RenameTest, MainFileReferencesOnly) {
