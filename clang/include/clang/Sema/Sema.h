@@ -13093,20 +13093,19 @@ void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
 }
 
 static bool handleMaxWorkSizeAttrExpr(Sema &S, const AttributeCommonInfo &CI,
-                                      Expr *E) {
+                                      Expr *&E) {
   assert(E && "Attribute must have an argument.");
 
   if (!E->isInstantiationDependent()) {
-    Optional<llvm::APSInt> ArgVal =
-        E->getIntegerConstantExpr(S.getASTContext());
+    llvm::APSInt ArgVal;
+    ExprResult ICE = S.VerifyIntegerConstantExpression(E, &ArgVal);
 
-    if (!ArgVal) {
-      S.Diag(E->getExprLoc(), diag::err_attribute_argument_type)
-          << CI << AANT_ArgumentIntegerConstant << E->getSourceRange();
+    if (ICE.isInvalid())
       return false;
-    }
 
-    if (ArgVal->isNegative()) {
+    E = ICE.get();
+
+    if (ArgVal.isNegative()) {
       S.Diag(E->getExprLoc(),
              diag::warn_attribute_requires_non_negative_integer_argument)
           << E->getType() << S.Context.UnsignedLongLongTy
@@ -13114,7 +13113,7 @@ static bool handleMaxWorkSizeAttrExpr(Sema &S, const AttributeCommonInfo &CI,
       return true;
     }
 
-    unsigned Val = ArgVal->getZExtValue();
+    unsigned Val = ArgVal.getZExtValue();
     if (Val == 0) {
       S.Diag(E->getExprLoc(), diag::err_attribute_argument_is_zero)
           << CI << E->getSourceRange();
