@@ -111,6 +111,7 @@ The kernels map's key consists of two components:
 
 <a name="what-is-ksid">1</a>: Kernel set id is an ordinal number of the device
 binary image the kernel is contained in.
+
 <a name="what-is-bopts">2</a>: The concatenation of build options (both compile
 and link options) set in application or environment variables. There are three
 sources of build options which cache is aware of:
@@ -123,6 +124,7 @@ sources of build options which cache is aware of:
 Note: Backend runtimes used by SYCL can have extra environment or configurations
 values (e.g. IGC has [igc_flags.def](https://github.com/intel/intel-graphics-compiler/blob/7f91dd6b9f2ca9c1a8ffddd04fa86461311c4271/IGC/common/igc_flags.def) which affect JIT process). Changing such
 configuration will invalidate cache and manual cache cleanup should be done.
+
 <a name="what-is-kname">3</a>: Kernel name is a kernel ID mangled class' name
 which is provided to methods of `cl::sycl::handler` (e.g. `parallel_for` or
 `single_task`).
@@ -144,10 +146,12 @@ The programs map's key consists of four components:
  - build options id<sup>[3](#what-is-bopts)</sup>.
 
 <a name="what-is-diid">1</a>: Hash out of the device code image used as input for the build.
+
 <a name="what-is-did">2</a>: Hash out of the string which is concatenation of values for
 `info::platform::name`, `info::device::name`, `info::device::version`,
 `info::device::driver_version` parameters to differentiate different HW and SW
 installed on the same host as well as SW/HW upgrades.
+
 <a name="what-is-bopts">3</a>: Hash for the concatenation of build options (both
 compile and link options) set in application or environment variables. There are
 three sources of build options:
@@ -310,6 +314,7 @@ failure).
 
 <a name="remove-pointer">1</a>: The use of `std::remove_pointer` was omitted for
 the sake of simplicity here.
+
 <a name="exception-data">2</a>: Actually, we store contents of the exception:
 its message and error code.
 
