@@ -2529,12 +2529,14 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     MemSetInst *MSI = cast<MemSetInst>(II);
     Value *Val = MSI->getValue();
     if (!isa<Constant>(Val)) {
-      assert(!"Can't translate llvm.memset with non-const `value` argument");
+      assert(false &&
+             "Can't translate llvm.memset with non-const `value` argument");
       return nullptr;
     }
     Value *Len = MSI->getLength();
     if (!isa<ConstantInt>(Len)) {
-      assert(!"Can't translate llvm.memset with non-const `length` argument");
+      assert(false &&
+             "Can't translate llvm.memset with non-const `length` argument");
       return nullptr;
     }
     uint64_t NumElements = static_cast<ConstantInt *>(Len)->getZExtValue();
