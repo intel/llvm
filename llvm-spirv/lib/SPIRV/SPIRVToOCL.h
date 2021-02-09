@@ -51,7 +51,7 @@ protected:
   SPIRVToOCL(char &ID) : ModulePass(ID), M(nullptr), Ctx(nullptr) {}
 
 public:
-  virtual bool runOnModule(Module &M) = 0;
+  virtual bool runOnModule(Module &M) override = 0;
 
   void visitCallInst(CallInst &CI);
 
