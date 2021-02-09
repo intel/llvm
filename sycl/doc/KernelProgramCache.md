@@ -168,18 +168,14 @@ If full values does not match build is done and new item is added to cache.
 ## Cache configuration
 
 There is set of configuration parameters which can be set as environment variables or parameters in `sycl.conf`  and affect cache behavior:
-`SYCL_CACHE_DIR`=/path/to/cache/location (default values are
-`%AppData%\Intel\dpcpp_program_cache` for Windows and
-`$HOME/intel/dpcpp_program_cache` on Linux)
-`SYCL_CACHE_ENABLED`=switching on-disc cache ON/OFF (default value is ON to expose possible issue ASAP, may be switch to OFF before the release)
-`SYCL_CACHE_MAX_SIZE`=cache eviction is triggered once size of cached imaged
-exceeds the value (TBD: 2 GB)
-`SYCL_CACHE_THRESHOLD`=cache eviction up threshold (TBD: 1 week)
-`SYCL_CACHE_MIN_DEVICE_IMAGE_SIZE`=min size of device code image which is reasonable
-to cache on disk because disk access operation may take more time than do JIT
-compilation for it (default - TBD).
-`SYCL_CACHE_MAX_DEVICE_IMAGE_SIZE`=too big kernels may overload disk too fast
-(default - TBD)
+| Environment variable | Values | Description |
+| -------------------- | ------ | ----------- |
+| `SYCL_CACHE_DIR`| Path | Path to persistent cache root directory. Default values are `%AppData%\Intel\dpcpp_program_cache` for Windows and `$HOME/intel/dpcpp_program_cache` on Linux. |
+| `SYCL_CACHE_ENABLED` | ON, OFF | Switches persistent cache on or off (default value is ON) |
+| `SYCL_CACHE_MAX_SIZE` | Positive integer | Cache eviction is triggered once size of cached images exceeds the value in megabytes (default - 8 192 for 8 GB) |
+| `SYCL_CACHE_THRESHOLD` | Positive integer | Cache eviction threshold in days (default value is 7 for 1 week) |
+| `SYCL_CACHE_MIN_DEVICE_IMAGE_SIZE` | Positive integer | Minimum size of device code image in kilobytes which is reasonable to cache on disk because disk access operation may take more time than do JIT compilation for it (default value 1) |
+| `SYCL_CACHE_MAX_DEVICE_IMAGE_SIZE` | Positive integer | Maximum size of device image in megabytes which is cached. Too big kernels may overload disk too fast (default value 1024 for 1 GB). |
 
 ## Implementation details
 
@@ -283,10 +279,6 @@ either `PiKernel` or `PiProgram`<sup>[1](#remove-pointer)</sup>.
 
 STL hash function specialized for std::string is going to be used:
 `template<>  struct hash<std::string>`
-TBD: may be it is reasonable to use own implementation for hash function to
-avoid issues when different  C++ library implementation is used producing
-different hashes. But at first look it is not an issue because it may happen
-only DPC++ compiler/runtime change and that means change of device code image.
 
 ### Core of caching mechanism
 
@@ -366,7 +358,7 @@ directory the directory should be locked until file creation done.
 Advisory locking <sup>[1](#advisory-lock)</sup> is used to ensure that the
 user/OS tools are able to manage files.
 
-<a name="advisory-lock">1</a> Advisory locks work only when a process
+<a name="advisory-lock">1.</a> Advisory locks work only when a process
 explicitly acquires and releases locks, and are ignored if a process is not aware
 of locks.
 
