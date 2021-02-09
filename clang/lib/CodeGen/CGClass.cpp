@@ -342,7 +342,7 @@ Address CodeGenFunction::GetAddressOfBaseClass(
       EmitTypeCheck(TCK_Upcast, Loc, Value.getPointer(),
                     DerivedTy, DerivedAlign, SkippedChecks);
     }
-    return Builder.CreatePointerBitCastOrAddrSpaceCast(Value, BasePtrTy);
+    return Builder.CreateBitCast(Value, BasePtrTy);
   }
 
   llvm::BasicBlock *origBB = nullptr;

@@ -320,26 +320,52 @@ static bool checkAttrMutualExclusion(Sema &S, Decl *D, const Attr &AL) {
   return false;
 }
 
+void Sema::DiagnoseDeprecatedAttribute(const ParsedAttr &A, StringRef NewScope,
+                                       StringRef NewName) {
+  assert((!NewName.empty() || !NewScope.empty()) &&
+         "Deprecated attribute with no new scope or name?");
+  Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated)
+      << "'" + A.getNormalizedFullName() + "'";
+
+  FixItHint Fix;
+  std::string NewFullName;
+  if (NewScope.empty() && !NewName.empty()) {
+    // Only have a new name.
+    Fix = FixItHint::CreateReplacement(A.getLoc(), NewName);
+    NewFullName =
+        ((A.hasScope() ? A.getScopeName()->getName() : StringRef("")) +
+         "::" + NewName)
+            .str();
+  } else if (NewName.empty() && !NewScope.empty()) {
+    // Only have a new scope.
+    Fix = FixItHint::CreateReplacement(A.getScopeLoc(), NewScope);
+    NewFullName = (NewScope + "::" + A.getAttrName()->getName()).str();
+  } else {
+    // Have both a new name and a new scope.
+    NewFullName = (NewScope + "::" + NewName).str();
+    Fix = FixItHint::CreateReplacement(A.getRange(), NewFullName);
+  }
+
+  Diag(A.getLoc(), diag::note_spelling_suggestion)
+      << "'" + NewFullName + "'" << Fix;
+}
+
 void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
                                                 StringRef NewName) {
+  // Additionally, diagnose the old [[intel::ii]] spelling.
+  if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAInitiationInterval &&
+      A.getAttrName()->isStr("ii")) {
+    DiagnoseDeprecatedAttribute(A, "intel", "initiation_interval");
+    return;
+  }
+
   // All attributes in the intelfpga vendor namespace are deprecated in favor
   // of a name in the intel vendor namespace. By default, assume the attribute
   // retains its original name but changes the namespace. However, some
   // attributes were renamed, so we support supplying a new name as well.
   if (A.hasScope() && A.getScopeName()->isStr("intelfpga")) {
-    Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated)
-        << "'" + A.getNormalizedFullName() + "'";
-
-    FixItHint Fix = NewName.empty()
-                        ? FixItHint::CreateReplacement(A.getScopeLoc(), "intel")
-                        : FixItHint::CreateReplacement(
-                              A.getRange(), ("intel::" + NewName).str());
-
-    Diag(A.getLoc(), diag::note_spelling_suggestion)
-        << (llvm::Twine("'intel::") +
-            (NewName.empty() ? A.getAttrName()->getName() : NewName) + "'")
-               .str()
-        << Fix;
+    DiagnoseDeprecatedAttribute(A, "intel", NewName);
+    return;
   }
 }
 
@@ -3006,11 +3032,13 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
     return true;
   };
 
-  /// Returns the usigned constant integer value represented by
-  /// given expression.
+  // Returns the unsigned constant integer value represented by
+  // given expression.
   auto getExprValue = [](const Expr *E, ASTContext &Ctx) {
     return E->getIntegerConstantExpr(Ctx)->getZExtValue();
   };
+
+  ASTContext &Ctx = S.getASTContext();
 
   if (AL.getKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
     ArrayRef<const Expr *> Dims;
@@ -3020,9 +3048,9 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
     else if (const auto *B = D->getAttr<ReqdWorkGroupSizeAttr>())
       Dims = B->dimensions();
     if (B) {
-      Result &= checkZeroDim(B, getExprValue(Dims[0], S.getASTContext()),
-                             getExprValue(Dims[1], S.getASTContext()),
-                             getExprValue(Dims[2], S.getASTContext()));
+      Result &=
+          checkZeroDim(B, getExprValue(Dims[0], Ctx),
+                       getExprValue(Dims[1], Ctx), getExprValue(Dims[2], Ctx));
     }
     return Result;
   }
@@ -3030,28 +3058,22 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (AL.getKind() == ParsedAttr::AT_SYCLIntelMaxWorkGroupSize)
     S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
-  // For a SYCLDevice, WorkGroupAttr arguments are reversed.
-  // "XDim" gets the third argument to the attribute and
-  // "ZDim" gets the first argument of the attribute.
   if (const auto *A = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    int64_t AttrValue =
-        A->getValue()->getIntegerConstantExpr(S.Context)->getSExtValue();
-    if (AttrValue == 0) {
-      Result &=
-          checkZeroDim(A, getExprValue(AL.getArgAsExpr(0), S.getASTContext()),
-                       getExprValue(AL.getArgAsExpr(1), S.getASTContext()),
-                       getExprValue(AL.getArgAsExpr(2), S.getASTContext()),
-                       /*ReverseAttrs=*/true);
+    if ((A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue()) == 0) {
+      Result &= checkZeroDim(A, getExprValue(AL.getArgAsExpr(0), Ctx),
+                             getExprValue(AL.getArgAsExpr(1), Ctx),
+                             getExprValue(AL.getArgAsExpr(2), Ctx),
+                             /*ReverseAttrs=*/true);
     }
   }
 
   if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    if (!((getExprValue(AL.getArgAsExpr(0), S.getASTContext()) <=
-           getExprValue(A->getXDim(), S.getASTContext())) &&
-          (getExprValue(AL.getArgAsExpr(1), S.getASTContext()) <=
-           getExprValue(A->getYDim(), S.getASTContext())) &&
-          (getExprValue(AL.getArgAsExpr(2), S.getASTContext()) <=
-           getExprValue(A->getZDim(), S.getASTContext())))) {
+    if (!((getExprValue(AL.getArgAsExpr(0), Ctx) <=
+           getExprValue(A->getXDim(), Ctx)) &&
+          (getExprValue(AL.getArgAsExpr(1), Ctx) <=
+           getExprValue(A->getYDim(), Ctx)) &&
+          (getExprValue(AL.getArgAsExpr(2), Ctx) <=
+           getExprValue(A->getZDim(), Ctx)))) {
       S.Diag(AL.getLoc(), diag::err_conflicting_sycl_function_attributes)
           << AL << A->getSpelling();
       Result &= false;
@@ -3059,12 +3081,12 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   if (const auto *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    if (!((getExprValue(AL.getArgAsExpr(0), S.getASTContext()) >=
-           getExprValue(A->getXDim(), S.getASTContext())) &&
-          (getExprValue(AL.getArgAsExpr(1), S.getASTContext()) >=
-           getExprValue(A->getYDim(), S.getASTContext())) &&
-          (getExprValue(AL.getArgAsExpr(2), S.getASTContext()) >=
-           getExprValue(A->getZDim(), S.getASTContext())))) {
+    if (!((getExprValue(AL.getArgAsExpr(0), Ctx) >=
+           getExprValue(A->getXDim(), Ctx)) &&
+          (getExprValue(AL.getArgAsExpr(1), Ctx) >=
+           getExprValue(A->getYDim(), Ctx)) &&
+          (getExprValue(AL.getArgAsExpr(2), Ctx) >=
+           getExprValue(A->getZDim(), Ctx)))) {
       S.Diag(AL.getLoc(), diag::err_conflicting_sycl_function_attributes)
           << AL << A->getSpelling();
       Result &= false;
