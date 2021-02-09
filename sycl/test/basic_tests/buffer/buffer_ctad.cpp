@@ -42,8 +42,8 @@ int main() {
   std::allocator<int> buf_alloc;
   shared_ptr_class<int> ptr_alloc{new int[5], [](int *p) { delete[] p; }};
   buffer b5(ptr, range<1>(5), buf_alloc);
-  static_assert(std::is_same<decltype(b5),
-                             buffer<int, 1, std::allocator<int>>>::value);
+  static_assert(
+      std::is_same<decltype(b5), buffer<int, 1, std::allocator<int>>>::value);
 
   shared_ptr_class<int[]> arr_ptr{new int[5]};
   buffer b6(arr_ptr, range<1>(5));
@@ -51,6 +51,6 @@ int main() {
 
   shared_ptr_class<int[]> arr_ptr_alloc{new int[5]};
   buffer b7(arr_ptr_alloc, range<1>(5), buf_alloc);
-  static_assert(std::is_same<decltype(b7),
-                             buffer<int, 1, std::allocator<int>>>::value);
+  static_assert(
+      std::is_same<decltype(b7), buffer<int, 1, std::allocator<int>>>::value);
 }
