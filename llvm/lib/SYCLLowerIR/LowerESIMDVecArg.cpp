@@ -181,11 +181,12 @@ Function *ESIMDLowerVecArgPass::rewriteFunc(Function &F) {
 
   llvm::CloneFunctionInto(NF, &F, VMap, F.getSubprogram() != nullptr, Returns);
 
-  if (!F.isDeclaration()) {
-    // insert bitcasts in new function only if its a definition
-    for (auto &B : BitCasts) {
+  // insert bitcasts in new function only if its a definition
+  for (auto &B : BitCasts) {
+    if (!F.isDeclaration())
       NF->begin()->getInstList().push_front(B);
-    }
+    else
+      delete B;
   }
 
   NF->takeName(&F);
@@ -284,6 +285,5 @@ bool ESIMDLowerVecArgPass::run(Module &M) {
       }
     }
   }
-
   return true;
 }
