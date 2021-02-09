@@ -225,6 +225,27 @@ struct known_identity_impl<BinaryOperation, AccumulatorT,
           : std::numeric_limits<AccumulatorT>::lowest();
 };
 
+#ifdef __SYCL_REDUCER_OP_EQ_CHECK_TRAIT
+#error "__SYCL_REDUCER_OP_EQ_CHECK_TRAIT must not be defined"
+#endif
+
+#define __SYCL_REDUCER_OP_EQ_CHECK_TRAIT(OpName, Op)                           \
+  template <typename, typename = void>                                         \
+  struct HasSameTypeArg##OpName##Eq : public std::false_type {};               \
+  template <typename T>                                                        \
+  struct HasSameTypeArg##OpName##Eq<                                           \
+      T, std::enable_if_t<std::is_same<                                        \
+             decltype(static_cast<T &(T::*)(const T &)>(&T::operator+=)),      \
+             T &(T::*)(const T &)>::value>> : public std::true_type {};
+
+__SYCL_REDUCER_OP_EQ_CHECK_TRAIT(Plus, +)
+__SYCL_REDUCER_OP_EQ_CHECK_TRAIT(Multiplies, *)
+__SYCL_REDUCER_OP_EQ_CHECK_TRAIT(BitwiseOR, |)
+__SYCL_REDUCER_OP_EQ_CHECK_TRAIT(BitwiseXOR, ^)
+__SYCL_REDUCER_OP_EQ_CHECK_TRAIT(BitwiseAND, &)
+
+#undef __SYCL_REDUCER_OP_EQ_CHECK_TRAIT
+
 /// Class that is used to represent objects that are passed to user's lambda
 /// functions and representing users' reduction variable.
 /// The generic version of the class represents those reductions of those
@@ -237,6 +258,41 @@ public:
   void combine(const T &Partial) { MValue = MBinaryOp(MValue, Partial); }
 
   T getIdentity() const { return MIdentity; }
+
+  template <typename _T = T>
+  enable_if_t<HasSameTypeArgPlusEq<_T>::value, reducer &>
+  operator+=(const _T &Partial) {
+    MValue += Partial;
+    return *this;
+  }
+
+  template <typename _T = T>
+  enable_if_t<HasSameTypeArgMultipliesEq<_T>::value, reducer &>
+  operator*=(const _T &Partial) {
+    MValue *= Partial;
+    return *this;
+  }
+
+  template <typename _T = T>
+  enable_if_t<HasSameTypeArgBitwiseOREq<_T>::value, reducer &>
+  operator|=(const _T &Partial) {
+    MValue |= Partial;
+    return *this;
+  }
+
+  template <typename _T = T>
+  enable_if_t<HasSameTypeArgBitwiseXOREq<_T>::value, reducer &>
+  operator^=(const _T &Partial) {
+    MValue ^= Partial;
+    return *this;
+  }
+
+  template <typename _T = T>
+  enable_if_t<HasSameTypeArgBitwiseANDEq<_T>::value, reducer &>
+  operator&=(const _T &Partial) {
+    MValue &= Partial;
+    return *this;
+  }
 
   T MValue;
 
