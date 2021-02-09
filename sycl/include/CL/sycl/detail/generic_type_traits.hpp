@@ -324,7 +324,7 @@ public:
 template <typename T> class TryToGetPointerVecT {
   static T check(...);
   template <typename A>
-  static typename PtrValueType<
+  static typename DecoratedType<
       typename TryToGetVectorT<typename TryToGetElementType<A>::type>::type,
       A::address_space>::type *
   check(const A &);
