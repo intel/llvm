@@ -537,7 +537,8 @@ llvm::createSPIRVBIsLoweringPass(Module &M,
   case SPIRV::BIsRepresentation::SPIRVFriendlyIR:
     // nothing to do, already done
     return nullptr;
+  default:
+    llvm_unreachable("Unsupported built-ins representation");
+    return nullptr;
   }
-  llvm_unreachable("Unsupported built-ins representation");
-  return nullptr;
 }
