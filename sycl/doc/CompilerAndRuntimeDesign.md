@@ -798,13 +798,15 @@ For instance:
 #if defined(__SYCL_DEVICE_ONLY__)
 // GPU/accelerator implementation
 template <typename T, address_space AS> class multi_ptr {
-  // DecoratedType<T, global>::type == "__attribute__((opencl_global)) T"
+  // DecoratedType applies corresponding address space attribute to the type T
+  // DecoratedType<T, global_space>::type == "__attribute__((opencl_global)) T"
   // See sycl/include/CL/sycl/access/access.hpp for more details
   using pointer_t = typename DecoratedType<T, AS>::type *;
  
   pointer_t m_Pointer;
   public:
   pointer_t get() { return m_Pointer; }
+  T& operator* () { return *reinterpret_cast<T*>(m_Pointer); }
 }
 #else
 // CPU/host implementation
@@ -812,18 +814,13 @@ template <typename T, address_space AS> class multi_ptr {
   T *m_Pointer; // regular undecorated pointer
   public:
   T *get() { return m_Pointer; }
+  T& operator* () { return *m_Pointer; }
 }
 #endif
 ```
 
 Depending on the compiler mode `multi_ptr` will either decorate internal data
 with address space attribute or not.
-
-To utilize existing clang's functionality, we re-use following OpenCL address
-space attributes in SYCL mode: `__attribute__((opencl_global))`,
-`__attribute__((opencl_global_host))`, `__attribute__((opencl_global_device))`,
-`__attribute__((opencl_local))`, `__attribute__((opencl_private))` and
-`__attribute__((opencl_constant))`.
 
 The main address space semantic difference of SYCL mode from OpenCL is that
 SYCL doesn't assign OpenCL generic address space to a declaration's type without
@@ -837,10 +834,60 @@ two important features: keeps the type system consistent with C++ on one hand
 and enable tools for emitting device code aligned with SPIR memory model (and
 other GPU targets).
 
+So inside a function, this variable declaration:
+
+```C++
+int var;
+```
+
+DPC++ turn into
+
+```C++
+VarDecl  var 'int'
+```
+
+OpenCL compiler turn into
+
+```C++
+VarDecl  var '__private int'
+```
+
+Changing variable type has massive and destructive effect in C++. For instance
+this does not compile in C++ for OpenCL mode:
+
+```C++
+template<typename T1, typename T2>
+struct is_same {
+    static constexpr int value = 0;
+};
+
+template<typename T>
+struct is_same<T, T> {
+    static constexpr int value = 1;
+};
+
+void foo(int p) {
+    static_assert(is_same<decltype(p), int>::value, "int is not an int?"); // Fails: p is '__private int' != 'int'
+    static_assert(is_same<decltype(&p), int*>::value, "int* is not an int*?");  // Fails: p is '__private int*' != '__generic int*'
+}
+```
+
+To utilize existing clang's functionality, we re-use following OpenCL address
+space attributes in SYCL mode:
+
+| Address space attribute | SYCL address_space enumeration |
+|-------------------------|--------------------------------|
+| `__attribute__((opencl_global))` | global_space, constant_space |
+| `__attribute__((opencl_global_host))` | global_host_space |
+| `__attribute__((opencl_global_device))` | global_device_space |
+| `__attribute__((opencl_local))` | local_space |
+| `__attribute__((opencl_private))` | private_space |
+| `__attribute__((opencl_constant))` | N/A
+
 > **NOTE**: although SYCL device compiler supports
 `__attribute__((opencl_constant))`, the use of this attribute is limited within
 SYCL implementation. An OpenCL constant pointer can not be casted to a pointer
-with different address space (including default).
+with any other address space (including default).
 
 ### Compiler/Runtime interface
 
