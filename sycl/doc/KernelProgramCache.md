@@ -1,3 +1,4 @@
+
 # A brief overview of kernel and program caching mechanism.
 
 ## Rationale behind caching
@@ -70,14 +71,14 @@ In order to eliminate this waste of run-time we introduce a kernel and program
 caching. The cache is per-context and it caches underlying objects of non
 interop kernels and programs.
 
-Also JIT compilation for cases when an application contains huge amount of
-device code (big kernels or multiple kernels) may take significant time. The
-kernels and programs are rebuilt on every program restart. AOT compilation
-can be used to avoid that but it ties application to specific backend runtime
-version(s) and predefined HW configuration(s). As a general solution it is
-reasonable to have kernel/program cache which works between application
-restarts (e.g. cache on disk for device code built for specific HW/SW
-configuration).
+*Use-case #3.* Rebuild of all programs on SYCL application restart:
+JIT compilation for cases when an application contains huge amount of device
+code (big kernels or multiple kernels) may take significant time. The kernels and
+programs are rebuilt on every program restart. AOT compilation can be used to
+avoid that but it ties application to specific backend runtime version(s) and
+predefined HW configuration(s). As a general solution it is reasonable to have
+program persistent cache which works between application restarts (e.g. cache
+on disk for device code built for specific HW/SW configuration).
 
 <a name="what-is-program">1</a>: Here "program" means an internal SYCL runtime
 object corresponding to a device code module or native binary defining a set of
@@ -89,8 +90,8 @@ SYCL kernels and/or device functions.
 The cache is split into two levels:
  - in-memory cache which is used during application runtime for device code
  which has been already loaded and built for target device.
- - on-disk cache which is used to store device binaries between application
- executions.
+ - persistent (on-disk) cache which is used to store device binaries between
+ application executions.
 
 ### In-memory cache
 
@@ -110,21 +111,25 @@ The kernels map's key consists of two components:
 
 <a name="what-is-ksid">1</a>: Kernel set id is an ordinal number of the device
 binary image the kernel is contained in.
-<a name="what-is-bopts">2</a>: Hash for the string representation of build
-options set in application or environment variables. The both compile and link
-options are used. There are three sources of build options:
+<a name="what-is-bopts">2</a>: The concatenation of build options (both compile
+and link options) set in application or environment variables. There are three
+sources of build options which cache is aware of:
  - from device image (pi_device_binary_struct::CompileOptions,
  pi_device_binary_struct::LinkOptions);
  - environment variables (SYCL_PROGRAM_COMPILE_OPTIONS,
  SYCL_PROGRAM_LINK_OPTIONS);
  - options passed through SYCL API.
+
+Note: Backend runtimes used by SYCL can have extra environment or configurations
+values (e.g. IGC has [igc_flags.def](https://github.com/intel/intel-graphics-compiler/blob/7f91dd6b9f2ca9c1a8ffddd04fa86461311c4271/IGC/common/igc_flags.def) which affect JIT process). Changing such
+configuration will invalidate cache and manual cache cleanup should be done.
 <a name="what-is-kname">3</a>: Kernel name is a kernel ID mangled class' name
 which is provided to methods of `cl::sycl::handler` (e.g. `parallel_for` or
 `single_task`).
 
-### On-disk cache
+### Persistent cache
 
-The cache is hidden behind in-memory cache and stores the same underlying PI
+The cache works behind in-memory cache and stores the same underlying PI
 object behind `cl::sycl::program` user-level objects in a per-context data
 storage.
 The storage is organized as a map for storing device code image. It uses
@@ -137,41 +142,40 @@ The programs map's key consists of four components:
  - specialization constants values,
  - device id<sup>[2](#what-is-did)</sup> this program is built for,
  - build options id<sup>[3](#what-is-bopts)</sup>.
-<a name="what-is-diid">1</a>: Hash out of  first 10 kB (for performance reasons) of the
-device code image used as input for the build.
+
+<a name="what-is-diid">1</a>: Hash out of the device code image used as input for the build.
 <a name="what-is-did">2</a>: Hash out of the string which is concatenation of values for
 `info::platform::name`, `info::device::name`, `info::device::version`,
 `info::device::driver_version` parameters to differentiate different HW and SW
 installed on the same host as well as SW/HW upgrades.
-<a name="what-is-bopts">3</a>: Hash for the string representation of build
-options set in application or environment variables. The both compile and link
-options are used. There are three sources of build options:
+<a name="what-is-bopts">3</a>: Hash for the concatenation of build options (both
+compile and link options) set in application or environment variables. There are
+three sources of build options:
  - from device image (pi_device_binary_struct::CompileOptions,
  pi_device_binary_struct::LinkOptions);
  - environment variables (SYCL_PROGRAM_COMPILE_OPTIONS,
  SYCL_PROGRAM_LINK_OPTIONS);
  - options passed through SYCL API.
+Hashes are used for fast built device image identification and shorten filenames
+on disk. To avoid possible collisions cache item on disk contains full key
+values and compared with current build request values to ensure matching.
+If full values does not match build is done and new item is added to cache.
 
-## Environment variables
-i
-The following environment variables affect cache mechanism:
-`DPCPP_CACHE_DIR`=/path/to/cache/location (default values are `%AppData%\Intel\dpcpp_program_cache` for Windows and `$HOME/intel/dpcpp_program_cache`)
-`DPCPP_CACHE_ENABLED`=switching on-disc cache ON/OFF (default value is ON to expose possible issue ASAP, may be switch to OFF before the release)
-`DPCPP_CACHE_THRESHOLD`=cache clean up threshold (TBD: cleanup strategy)
-`DPCPP_CACHE_MIN_DEVICE_IMAGE_SIZE`=min size of device code image which is reasonable
+## Cache configuration
+
+There is set of configuration parameters which can be set as environment variables or parameters in `sycl.conf`  and affect cache behavior:
+`SYCL_CACHE_DIR`=/path/to/cache/location (default values are
+`%AppData%\Intel\dpcpp_program_cache` for Windows and
+`$HOME/intel/dpcpp_program_cache` on Linux)
+`SYCL_CACHE_ENABLED`=switching on-disc cache ON/OFF (default value is ON to expose possible issue ASAP, may be switch to OFF before the release)
+`SYCL_CACHE_MAX_SIZE`=cache eviction is triggered once size of cached imaged
+exceeds the value (TBD: 2 GB)
+`SYCL_CACHE_THRESHOLD`=cache eviction up threshold (TBD: 1 week)
+`SYCL_CACHE_MIN_DEVICE_IMAGE_SIZE`=min size of device code image which is reasonable
 to cache on disk because disk access operation may take more time than do JIT
 compilation for it (default - TBD).
-`DPCPP_CACHE_MAX_DEVICE_IMAGE_SIZE`=too big kernels may overload disk too fast
+`SYCL_CACHE_MAX_DEVICE_IMAGE_SIZE`=too big kernels may overload disk too fast
 (default - TBD)
-
-## Points of improvement (things to do)
-
- - Implement LRU policy on cached objects. See [issue](https://github.com/intel/llvm/issues/2517).
- - Employ the same built object for multiple devices of the same ISA,
-   capabilities and so on. *NOTE:* It's not really known if it's possible to
-   check if two distinct devices are *exactly* the same. Probably this should be
-   an improvement request for plugins. By now it is assumed that two devices with the same device id <a name="what-is-did">2</a> are the same.
- - Improve testing: cover real use-cases. See currently covered cases [here](https://github.com/intel/llvm/blob/sycl/sycl/unittests/kernel-and-program/Cache.cpp).
 
 ## Implementation details
 
@@ -216,13 +220,6 @@ variables (plus a mutex for proper work of condition variable).
 instance of cache. We will see rationale behind it a bit later.
 
 *Build* function actually builds the kernel or program.
-
-Caching isn't done:
- - when program is built out of source with `program::build_with_source()` or
-   `program::compile_with_source()` method;
- - when program is a result of linking multiple programs (TBD: if it is
-possible to remove this restriction).
-
 
 ### Thread-safety
 
@@ -278,22 +275,6 @@ name, device as well as any specialization constants values. These get added to
 `BuildResult` and are cached. The `BuildResult` structure is specialized with
 either `PiKernel` or `PiProgram`<sup>[1](#remove-pointer)</sup>.
 
-### Inter-process safety
-
-For on-disc cache there might be access collisions for accessing the same file
-from different instance of SYCL applications:
-- write collision happens when 2 instances of the same application are started
-to write to the same cache file;
-- read collision may happen if one application is writing to the file and the
-other instance of the application is trying to read from it while write
-operation is not finished.
-To avoid collisions the file system entries are locked for read-write access
-until write operation is finished. e.g if new file or directory should be
-created/deleted parent directory is locked, file is created in locked state,
-then the directory and the file are unlocked.
-Advisory locking <sup>[2](#advisory-lock)</sup> is used to ensure that the
-user/OS tools are able to manage files.
-
 ### Hash function
 
 STL hash function specialized for std::string is going to be used:
@@ -313,7 +294,7 @@ the map. At this point we try to insert `BuildResult` stub instance with status
 equal to "in progress" which will allow other threads to know that someone is
 (i.e. we're) building the object (i.e. kernel or program) now. If insertion
 fails, we will wait for building thread to finish with call to `waitUntilBuilt`
-function. This function will throw stored exception<sup>[3](#exception-data)</sup>
+function. This function will throw stored exception<sup>[2](#exception-data)</sup>
 upon build failure. This allows waiting threads to see the same result as the
 building thread. Special case of the failure is when build result doesn't
 contain the error (i.e. the error wasn't of `cl::sycl::exception` type) and the
@@ -329,35 +310,94 @@ failure).
 
 <a name="remove-pointer">1</a>: The use of `std::remove_pointer` was omitted for
 the sake of simplicity here.
-<a name="advisory-lock">2</a> Advisory locks work only when a process
-explicitly acquires and releases locks, and are ignored if a process is not aware
-of locks.
-<a name="exception-data">3</a>: Actually, we store contents of the exception:
+<a name="exception-data">2</a>: Actually, we store contents of the exception:
 its message and error code.
 
-### On-disk cache storage structure
+### Persistent cache storage structure
 
-The device code image are stored on filesystem using structure below:
-<cache_root>/<device_id>/<device_image_id>_<spec_constants_values>_<build_options>.bin
+The device code image are stored on file system using structure below:
+```
+<cache_root>/
+	<device_hash>/
+		<device_image_hash>/
+			<spec_constants_values_hash>/
+				<build_options_hash>/
+					<n>.src
+					<n>.bin
+```
+ - `<cache_root>` - root directory storing cache files;
+ - `<device_hash>` - hash out of device information used to identify target device;
+ - `<device_image_hash>` - hash made out of device image used as input for the JIT compilation;
+ - `<spec_constants_values_hash>` - hash for specialization constants values;
+ - `<build_options_hash>` - hash for all build options;
+ - `<n>` - sequential number of hash collisions. When hashes matches for the specific build but full values don't, new cache item is added with incremented value (enumeration started from 0).
 
-### Cache cleanup
+Two files per cache item is stored on disk:
+ - `<n>.src` contains full values for build parameters (device information, specialization constant values, build options, device image) which is used to resolve hash collisions and analysis of cached items. 
+ - `<n>.bin` contains built device code.
 
-Cache cleanup mechanism is required to avoid resources overfloat both for
+### Inter-process safety
+
+For on-disc cache there might be access collisions for accessing the same file
+from different instance of SYCL applications:
+- write collision happens when 2 instances of the same application are started
+to write to the same cache file/directory;
+- read collision may happen if one application is writing to the file and the
+other instance of the application is trying to read from it while write
+operation is not finished.
+
+To avoid collisions the file system entries are locked for read-write access
+until write operation is finished. e.g if new file or directory should be
+created/deleted parent directory is locked, file is created in locked state,
+then the directory and the file are unlocked.
+
+To address cases with high lock rate (multiple copies of the SYCL applications
+are run in parallel and use the same cache directory) nested directories
+representing cache keys are used to minimize locks down to applications which
+build the same device with the same parameters. Directory is locked for minimum
+time because it can be unlocked once subdirectory is created. If file is created in
+directory the directory should be locked until file creation done.
+
+Advisory locking <sup>[1](#advisory-lock)</sup> is used to ensure that the
+user/OS tools are able to manage files.
+
+<a name="advisory-lock">1</a> Advisory locks work only when a process
+explicitly acquires and releases locks, and are ignored if a process is not aware
+of locks.
+
+### Cache eviction mechanism
+
+Cache eviction mechanism is required to avoid resources overfloat both for
 memory and disk. The general idea is to delete items following LRU (least
-recently used) startegy.
+recently used) strategy both for in-memory and persistent cache.
 
-#### In-memory cache cleanup
+#### In-memory cache eviction
 
-It is initiated on program/kernel maps access/add item operation. The items
-exceeding storage threshold are deleted.
+It is initiated on program/kernel maps access/add item operation. Then cache size exceeds storage threshold the items which are least recently used are deleted.
 
-#### On-disk cache cleanup mechanism
+#### Persistent cache eviction
 
-On-disk cache is going to be purged basing on file last access (read/write) date
-(access time). On SYCL application shutdown phase cache clean up process is
-initiated which walk through cache directories and check:
+Persistent cache eviction is going to be applied basing on file last access (read/write) date (access
+time). On SYCL application shutdown phase cache eviction process is initiated
+which walk through cache directories and check:
  - if the file is locked, go to the next file;
  - otherwise check file access time:
    - if file access time is above threshold, delete the file and remove parent
-   directory while they are empty;
+   directory while they are unlocked and empty;
    - otherwise do nothing.
+
+## Cache limitations
+
+The caching isn't done when:
+ - when program is built out of source with `program::build_with_source()` or `program::compile_with_source()` method;
+ - when program is a result of linking multiple programs;
+ - program is built using interoperability methods.
+
+## Points of improvement (things to do)
+
+ - Employ the same built object for multiple devices of the same ISA,
+   capabilities and so on. *NOTE:* It's not really known if it's possible to
+   check if two distinct devices are *exactly* the same. Probably this should be
+   an improvement request for plugins. By now it is assumed that two devices with the same device id <a name="what-is-did">2</a> are the same.
+ - Improve testing: cover real use-cases. See currently covered cases [here](https://github.com/intel/llvm/blob/sycl/sycl/unittests/kernel-and-program/Cache.cpp).
+ - Implement tool for exploring cache items (initially it is possible using OS utilities).
