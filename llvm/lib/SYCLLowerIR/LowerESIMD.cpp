@@ -976,8 +976,6 @@ static void createESIMDIntrinsicArgs(const ESIMDIntrinDesc &Desc,
       GenXArgs.push_back(llvm::ConstantInt::get(Ty, Rule.I.ArgConst));
       break;
     }
-    default:
-      llvm_unreachable_internal("unknown argument rule kind");
     }
   }
 }
