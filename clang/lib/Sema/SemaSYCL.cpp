@@ -3152,7 +3152,7 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
 // kernel to wrapped kernel.
 void Sema::copySYCLKernelAttrs(const CXXRecordDecl *KernelObj) {
   // Get the operator() function of the wrapper
-  CXXMethodDecl* OpParens = getOperatorParens(KernelObj);
+  CXXMethodDecl *OpParens = getOperatorParens(KernelObj);
   assert(OpParens && "invalid kernel object");
 
   typedef std::pair<FunctionDecl *, FunctionDecl *> ChildParentPair;
