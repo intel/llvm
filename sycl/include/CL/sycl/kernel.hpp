@@ -57,6 +57,7 @@ public:
   ///
   /// \param ClKernel is a valid OpenCL cl_kernel instance
   /// \param SyclContext is a valid SYCL context
+  __SYCL121_DEPRECATED("OpenCL interop APIs are deprecated")
   kernel(cl_kernel ClKernel, const context &SyclContext);
 
   kernel(const kernel &RHS) = default;
@@ -78,6 +79,7 @@ public:
   /// an invalid_object_error exception will be thrown.
   ///
   /// \return a valid cl_kernel instance
+  __SYCL121_DEPRECATED("OpenCL interop APIs are deprecated")
   cl_kernel get() const;
 
   /// Check if the associated SYCL context is a SYCL host context.

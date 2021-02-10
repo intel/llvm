@@ -39,12 +39,25 @@
 #endif
 
 #ifndef __SYCL_DEPRECATED
+#ifndef SYCL_DISABLE_DEPRECATION_WARNINGS
 #ifdef _WIN32
 #define __SYCL_DEPRECATED(message) __declspec(deprecated(message))
 #else
 #define __SYCL_DEPRECATED(message) __attribute__((deprecated(message)))
 #endif
+#else // SYCL_DISABLE_DEPRECATION_WARNINGS
+#define __SYCL_DEPRECATED(message)
+#endif // SYCL_DISABLE_DEPRECATION_WARNINGS
 #endif // __SYCL_DEPRECATED
+
+#ifndef __SYCL121_DEPRECATED
+#if SYCL_LANGUAGE_VERSION >= 202001 &&                                         \
+    !defined(SYCL121_DISABLE_DEPRECATION_WARNINGS)
+#define __SYCL121_DEPRECATED(message) __SYCL_DEPRECATED(message)
+#else
+#define __SYCL121_DEPRECATED(message)
+#endif
+#endif // __SYCL121_DEPRECATED
 
 #ifndef __SYCL_INLINE_CONSTEXPR
 // inline constexpr is a C++17 feature
