@@ -50,12 +50,12 @@
 #endif // SYCL_DISABLE_DEPRECATION_WARNINGS
 #endif // __SYCL_DEPRECATED
 
-#ifndef __SYCL121_DEPRECATED
+#ifndef __SYCL2020_DEPRECATED
 #if SYCL_LANGUAGE_VERSION >= 202001 &&                                         \
-    !defined(SYCL121_DISABLE_DEPRECATION_WARNINGS)
-#define __SYCL121_DEPRECATED(message) __SYCL_DEPRECATED(message)
+    !defined(SYCL2020_DISABLE_DEPRECATION_WARNINGS)
+#define __SYCL2020_DEPRECATED(message) __SYCL_DEPRECATED(message)
 #else
-#define __SYCL121_DEPRECATED(message)
+#define __SYCL2020_DEPRECATED(message)
 #endif
 #endif // __SYCL121_DEPRECATED
 

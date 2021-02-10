@@ -18,3 +18,13 @@ front-end.
 This behavior is not following the SYCL spec since `constant_ptr` conversions to
 the underlying pointer types return pointers without any additional qualifiers
 so it's disabled by default.
+
+### SYCL2020_DISABLE_DEPRECATION_WARNINGS
+
+Disables warning coming from usage of SYCL 1.2.1 APIs, that are deprecated in
+SYCL 2020.
+
+### SYCL_DISABLE_DEPRECATION_WARNINGS
+
+Disables all deprecation warnings in SYCL runtime headers, including deprecation
+of OpenCL interop APIs.

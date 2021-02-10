@@ -142,7 +142,7 @@ public:
   /// \param ClQueue is a valid instance of OpenCL queue.
   /// \param SyclContext is a valid SYCL context.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
-  __SYCL121_DEPRECATED("OpenCL interop APIs are deprecated")
+  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
   queue(cl_command_queue ClQueue, const context &SyclContext,
         const async_handler &AsyncHandler = {});
 
@@ -160,7 +160,7 @@ public:
 
   /// \return a valid instance of OpenCL queue, which is retained before being
   /// returned.
-  __SYCL121_DEPRECATED("OpenCL interop APIs are deprecated")
+  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
   cl_command_queue get() const;
 
   /// \return an associated SYCL context.

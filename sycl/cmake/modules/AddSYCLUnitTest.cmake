@@ -24,6 +24,7 @@ macro(add_sycl_unittest test_dirname link_variant)
 
     get_target_property(SYCL_LINK_LIBS ${sycl_so_target} LINK_LIBRARIES)
   endif()
+  target_compile_definitions(${test_dirname} PRIVATE SYCL2020_DISABLE_DEPRECATION_WARNINGS)
 
   target_link_libraries(${test_dirname}
     PRIVATE
@@ -71,6 +72,7 @@ macro(add_sycl_unittest_with_device test_dirname link_variant)
     -DGTEST_LANG_CXX11=1
     -DGTEST_HAS_TR1_TUPLE=0
     -D__SYCL_BUILD_SYCL_DLL
+    -DSYCL2020_DISABLE_DEPRECATION_WARNINGS
     -I${LLVM_MAIN_SRC_DIR}/utils/unittest/googletest/include
     -I${LLVM_MAIN_SRC_DIR}/utils/unittest/googlemock/include
     -I${LLVM_BINARY_DIR}/include

@@ -203,7 +203,7 @@ public:
   }
 
   template <int N = dimensions, typename = EnableIfOneDimension<N>>
-  __SYCL121_DEPRECATED("OpenCL interop APIs are deprecated")
+  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
   buffer(cl_mem MemObject, const context &SyclContext,
          event AvailableEvent = {})
       : Range{0} {

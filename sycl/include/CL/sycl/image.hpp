@@ -220,7 +220,7 @@ public:
         PropList);
   }
 
-  __SYCL121_DEPRECATED("OpenCL interop APIs are deprecated")
+  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
   image(cl_mem ClMemObject, const context &SyclContext,
         event AvailableEvent = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
