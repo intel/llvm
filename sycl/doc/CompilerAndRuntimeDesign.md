@@ -122,7 +122,7 @@ the "device part" of the code marking them with the new SYCL device attribute.
 
 All SYCL memory objects shared between host and device (buffers/images,
 these objects map to OpenCL buffers and images) must be accessed through special
-`accessor` classes. The "device" side implementation of these classes contain
+`accessor` classes. The "device" side implementation of these classes contains
 pointers to the device memory. As there is no way in OpenCL to pass structures
 with pointers inside as kernel arguments all memory objects shared between host
 and device must be passed to the kernel as raw pointers.
@@ -246,7 +246,7 @@ the filetable to get a new filetable:
   a_1.bin|a_1.sym|a_1.props
 ```
 
-- Finally, this filetable is passed to the `clang-offfload-wrapper` tool to
+- Finally, this filetable is passed to the `clang-offload-wrapper` tool to
 construct a wrapper object which embeds all those files.
 
 Note that the graph does not change when more rows (clusters) or columns
@@ -262,7 +262,7 @@ must be passed to the clang driver:
 
 With this option specified, the driver will invoke the host compiler and a
 number of SYCL device compilers for targets specified in the `-fsycl-targets`
-option.  If `-fsycl-targets` is not specified, then single SPIR-V target is
+option. If `-fsycl-targets` is not specified, then single SPIR-V target is
 assumed, and single device compiler for this target is invoked.
 
 The option `-sycl-std` allows specifying which version of
@@ -276,7 +276,7 @@ time to produce the final binary, as opposed to just-in-time (JIT) compilation
 when final code generation is deferred until application runtime time.
 
 AOT compilation reduces application execution time by skipping JIT compilation
-and final device code can be tested before deploy.
+and final device code can be tested before deploying.
 
 JIT compilation provides portability of device code and target specific
 optimizations.
@@ -284,7 +284,7 @@ optimizations.
 #### List of native targets
 
 The ahead-of-time compilation mode implies that there must be a way to specify
-a set of target architectures for which to compile device code. By default the
+a set of target architectures for which to compile device code. By default, the
 compiler generates SPIR-V and OpenCL device JIT compiler produces native target
 binary.
 
@@ -304,7 +304,7 @@ approach is assumed and device code is compiled for a single target triple -
 Each target may support a number of code forms, each device compiler defines
 and understands mnemonics designating a particular code form, for example
 "`visa:3.3`" could designate virtual ISA version 3.3 for Intel GPU target (Gen
-architecture).  User can specify desired code format using the target-specific
+architecture). User can specify desired code format using the target-specific
 option mechanism, similar to OpenMP.
 
 `-Xsycl-target-backend=<triple> "arg1 arg2 ..."`
@@ -334,12 +334,12 @@ The compiler supports such features as
 - splitting application build into separate compile and link steps.
 
 Overall build flow changes compared to the one shown on the Diagram 1
-above in the following way.  
+above in the following way.
 **Compilation step** ends with engaging the offload
 bundler to generate so-called "fat object" for each
 <host object, device code IR> pair produced from the same heterogeneous source.
 The fat object files become the result of compilation similar to object
-files with usual non-offload compiler.  
+files with usual non-offload compiler.
 **Link step** starts with breaking the input fat objects back into their
 constituents, then continue the same way as on the Diagram 1 - link host code
 and device code separately and finally produce a "fat binary".
@@ -386,15 +386,15 @@ takes the pointer to the offload descriptor and invokes SYCL runtime library's
 registration function passing it as a parameter.
 
 The offload descriptor type hierarchy is described in the `pi.h` header. The
-top level structure is `pi_device_binaries_struct`.
+top-level structure is `pi_device_binaries_struct`.
 
 #### Device Link
 
 The -fsycl-link flag instructs the compiler to fully link device code without
-fully linking host code.  The result of such a compile is a fat object that
-contains a fully linked device binary.  The primary motivation for this flow
+fully linking host code. The result of such a compile is a fat object that
+contains a fully linked device binary. The primary motivation for this flow
 is to allow users to save re-compile time when making changes that only affect
-their host code.  In the case where device image generation takes a long time
+their host code. In the case where device image generation takes a long time
 (e.g. FPGA), this savings can be significant.
 
 For example, if the user separated source code into four files: dev_a.cpp,
@@ -405,12 +405,12 @@ device code, they can divide the compilation process into three steps:
 2. Host Compile (c): host_a.cpp -> host_a.o; host_b.cpp -> host_b.o
 3. Linking: dev_image.o host_a.o host_b.o -> executable
 
-Step 1 can take hours for some targets.  But if the user wish to recompile after
-modifying only host_a.cpp and host_b.cpp, they can simply run steps 2 and 3
-without rerunning the expensive step 1.
+Step 1 can take hours for some targets. But if the user wishes to recompile
+after modifying only host_a.cpp and host_b.cpp, they can simply run steps 2 and
+3 without rerunning the expensive step 1.
 
 The compiler is responsible for verifying that the user provided all the
-relevant files to the device link step.  There are 2 cases that have to be
+relevant files to the device link step. There are 2 cases that have to be
 checked:
 
 1. Missing symbols referenced by the kernels present in the device link step
@@ -418,11 +418,11 @@ checked:
 2. Missing kernels.
 
 Case 1 can be identified in the device binary generation stage (step 1) by
-scanning the known kernels.  Case 2 must be verified by the driver by checking
+scanning the known kernels. Case 2 must be verified by the driver by checking
 for newly introduced kernels in the final link stage (step 3).
 
 The llvm-no-spir-kernel tool was introduced to facilitate checking for case 2 in
-the driver.  It detects if a module includes kernels and is invoked as follows:
+the driver. It detects if a module includes kernels and is invoked as follows:
 
 ```bash
 llvm-no-spir-kernel host.bc
@@ -553,7 +553,7 @@ compiler defines the macro `__SYCL_NVPTX__`.
 This macro can safely be used to enable NVPTX specific code path in SYCL
 kernels.
 
-*Note: this macro is only define during the device compilation phase.*
+*Note: this macro is defined only during the device compilation phase.*
 
 ##### NVPTX Builtins
 
@@ -746,10 +746,10 @@ corresponding equivalents in LLVM IR. E.g.
 - Operation: ??? → `OpGroupAsyncCopy`
 
 Translation from LLVM IR to SPIR-V for special types is also supported, but
-such LLVM IR must comply to some special requirements. Unfortunately there is
+such LLVM IR must comply to some special requirements. Unfortunately, there is
 no canonical form of special built-in types and operations in LLVM IR, moreover
 we can't re-use existing representation generated by OpenCL C front-end
-compiler.  For instance here is how `OpGroupAsyncCopy` operation looks in LLVM
+compiler. For instance, here is how `OpGroupAsyncCopy` operation looks in LLVM
 IR produced by OpenCL C front-end compiler.
 
 ```LLVM
