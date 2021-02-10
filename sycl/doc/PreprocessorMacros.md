@@ -21,7 +21,7 @@ so it's disabled by default.
 
 ### SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
-Disables warning coming from usage of SYCL 1.2.1 APIs, that are deprecated in
+Disables warnings coming from usage of SYCL 1.2.1 APIs, that are deprecated in
 SYCL 2020.
 
 ### SYCL_DISABLE_DEPRECATION_WARNINGS
