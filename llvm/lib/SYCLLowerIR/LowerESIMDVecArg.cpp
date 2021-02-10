@@ -64,35 +64,14 @@
 //        i64 0, i32 0))
 //===----------------------------------------------------------------------===//
 
+#include "llvm/SYCLLowerIR/LowerESIMD.h"
+
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
 using namespace llvm;
 
 #define DEBUG_TYPE "ESIMDLowerVecArg"
-
-namespace llvm {
-
-// Forward declarations
-void initializeESIMDLowerVecArgLegacyPassPass(PassRegistry &);
-ModulePass *createESIMDLowerVecArgPass();
-
-// Pass converts simd* function parameters and globals to
-// llvm's first-class vector* type.
-class ESIMDLowerVecArgPass {
-public:
-  bool run(Module &M);
-
-private:
-  DenseMap<GlobalVariable *, GlobalVariable *> OldNewGlobal;
-
-  Function *rewriteFunc(Function &F);
-  Type *getSimdArgPtrTyOrNull(Value *arg);
-  void fixGlobals(Module &M);
-  void removeOldGlobals();
-};
-
-} // namespace llvm
 
 namespace {
 class ESIMDLowerVecArgLegacyPass : public ModulePass {
@@ -103,8 +82,9 @@ public:
   }
 
   bool runOnModule(Module &M) override {
-    auto Modified = Impl.run(M);
-    return Modified;
+    ModuleAnalysisManager MAM;
+    Impl.run(M, MAM);
+    return true;
   }
 
   bool doInitialization(Module &M) override { return false; }
@@ -264,7 +244,8 @@ void ESIMDLowerVecArgPass::removeOldGlobals() {
   }
 }
 
-bool ESIMDLowerVecArgPass::run(Module &M) {
+PreservedAnalyses ESIMDLowerVecArgPass::run(Module &M,
+                                            ModuleAnalysisManager &) {
   fixGlobals(M);
 
   SmallVector<Function *, 10> functions;
@@ -282,5 +263,5 @@ bool ESIMDLowerVecArgPass::run(Module &M) {
     }
   }
 
-  return true;
+  return PreservedAnalyses::none();
 }

@@ -29,6 +29,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <cctype>
 #include <cstring>
@@ -42,32 +43,26 @@ namespace id = itanium_demangle;
 #define SLM_BTI 254
 
 namespace {
-class SYCLLowerESIMDLegacyPass : public FunctionPass {
+SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &);
+void generateKernelMetadata(Module &);
+
+class SYCLLowerESIMDLegacyPass : public ModulePass {
 public:
   static char ID; // Pass identification, replacement for typeid
-  SYCLLowerESIMDLegacyPass() : FunctionPass(ID) {
+  SYCLLowerESIMDLegacyPass() : ModulePass(ID) {
     initializeSYCLLowerESIMDLegacyPassPass(*PassRegistry::getPassRegistry());
   }
 
   // run the LowerESIMD pass on the specified module
-  bool runOnFunction(Function &F) override {
-    FunctionAnalysisManager FAM;
-    auto PA = Impl.run(F, FAM, GenXVolatileTypeSet);
+  bool runOnModule(Module &M) override {
+    ModuleAnalysisManager MAM;
+    llvm::outs() << "here!\n";
+    auto PA = Impl.run(M, MAM);
     return !PA.areAllPreserved();
-  }
-
-  bool doInitialization(Module &M) override {
-    // emit ESIMD backend compatible metadata.
-    generateKernelMetadata(M);
-    collectGenXVolatileType(M);
-    return false;
   }
 
 private:
   SYCLLowerESIMDPass Impl;
-  SmallPtrSet<Type *, 4> GenXVolatileTypeSet;
-  void generateKernelMetadata(Module &M);
-  void collectGenXVolatileType(Module &M);
 };
 } // namespace
 
@@ -76,7 +71,7 @@ INITIALIZE_PASS(SYCLLowerESIMDLegacyPass, "LowerESIMD",
                 "Lower constructs specific to Close To Metal", false, false)
 
 // Public interface to the SYCLLowerESIMDPass.
-FunctionPass *llvm::createSYCLLowerESIMDPass() {
+ModulePass *llvm::createSYCLLowerESIMDPass() {
   return new SYCLLowerESIMDLegacyPass();
 }
 
@@ -1105,7 +1100,7 @@ static std::string getMDString(MDNode *N, unsigned I) {
   return "";
 }
 
-void SYCLLowerESIMDLegacyPass::generateKernelMetadata(Module &M) {
+void generateKernelMetadata(Module &M) {
   if (M.getNamedMetadata(GENX_KERNEL_METADATA))
     return;
 
@@ -1212,7 +1207,9 @@ void SYCLLowerESIMDLegacyPass::generateKernelMetadata(Module &M) {
 }
 
 // collect all the vector-types that are used by genx-volatiles
-void SYCLLowerESIMDLegacyPass::collectGenXVolatileType(Module &M) {
+// TODO: can we make the Module argument `const`?
+SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
+  SmallPtrSet<Type *, 4> GenXVolatileTypeSet;
   for (auto &G : M.getGlobalList()) {
     if (!G.hasAttribute("genx_volatile"))
       continue;
@@ -1227,13 +1224,28 @@ void SYCLLowerESIMDLegacyPass::collectGenXVolatileType(Module &M) {
     assert(VTy->isVectorTy());
     GenXVolatileTypeSet.insert(VTy);
   }
+  return GenXVolatileTypeSet;
 }
 
 } // namespace
 
-PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
-                                          FunctionAnalysisManager &FAM,
-                                          SmallPtrSet<Type *, 4> &GVTS) {
+PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
+                                          ModuleAnalysisManager &) {
+  generateKernelMetadata(M);
+  SmallPtrSet<Type *, 4> GVTS = collectGenXVolatileTypes(M);
+
+  size_t AmountOfESIMDIntrCalls = 0;
+  for (auto &F : M.functions()) {
+    AmountOfESIMDIntrCalls += this->runOnFunction(F, GVTS);
+  }
+
+  // TODO FIXME ESIMD figure out less conservative result
+  return AmountOfESIMDIntrCalls > 0 ? PreservedAnalyses::none()
+                                    : PreservedAnalyses::all();
+}
+
+size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
+                                         SmallPtrSet<Type *, 4> &GVTS) {
   SmallVector<CallInst *, 32> ESIMDIntrCalls;
   SmallVector<Instruction *, 8> ESIMDToErases;
 
@@ -1333,7 +1345,5 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
     CI->eraseFromParent();
   }
 
-  // TODO FIXME ESIMD figure out less conservative result
-  return ESIMDIntrCalls.size() > 0 ? PreservedAnalyses::none()
-                                   : PreservedAnalyses::all();
+  return ESIMDIntrCalls.size();
 }

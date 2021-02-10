@@ -119,8 +119,7 @@ public:
   // run the LowerWGScope pass on the specified module
   bool runOnFunction(Function &F) override {
     FunctionAnalysisManager FAM;
-    auto TT = llvm::Triple(F.getParent()->getTargetTriple());
-    auto PA = Impl.run(F, TT, FAM);
+    auto PA = Impl.run(F, FAM);
     return !PA.areAllPreserved();
   }
 
@@ -761,11 +760,12 @@ static void sharePFWGPrivateObjects(Function &F, const Triple &TT) {
   spirv::genWGBarrier(MergeBB->front(), TT);
 }
 
-PreservedAnalyses SYCLLowerWGScopePass::run(Function &F, const llvm::Triple &TT,
+PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
                                             FunctionAnalysisManager &FAM) {
   if (!F.getMetadata(WG_SCOPE_MD))
     return PreservedAnalyses::all();
   bool Changed = false;
+  const auto &TT = llvm::Triple(F.getParent()->getTargetTriple());
   // Ranges of "side effect" instructions
   SmallVector<InstrRange, 16> Ranges;
   SmallPtrSet<AllocaInst *, 16> Allocas;
