@@ -2401,7 +2401,7 @@ def fno_sycl_device_code_split_esimd : Flag<["-"], "fno-sycl-device-code-split-e
 def fsycl_device_code_lower_esimd : Flag<["-"], "fsycl-device-code-lower-esimd">,
   Flags<[CC1Option, CoreOption]>, HelpText<"Lower ESIMD-specific constructs">;
 def fno_sycl_device_code_lower_esimd : Flag<["-"], "fno-sycl-device-code-lower-esimd">,
-  Flags<[CC1Option, CoreOption]>, HelpText<"Don't lower ESIMD-specific constructs">;
+  Flags<[CC1Option, CoreOption]>, HelpText<"Do not lower ESIMD-specific constructs">;
 defm sycl_id_queries_fit_in_int: OptInFFlag<"sycl-id-queries-fit-in-int", "Assume", "Do not assume", " that SYCL ID queries fit within MAX_INT.", [CC1Option,CoreOption], LangOpts<"SYCLValueFitInMaxInt">>;
 def fsycl_use_bitcode : Flag<["-"], "fsycl-use-bitcode">,
   Flags<[CC1Option, CoreOption]>, HelpText<"Use LLVM bitcode instead of SPIR-V in fat objects">;
