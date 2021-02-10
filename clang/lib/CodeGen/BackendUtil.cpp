@@ -64,6 +64,7 @@
 #include "llvm/Transforms/IPO/LowerTypeTests.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/IPO/ThinLTOBitcodeWriter.h"
+#include "llvm/Transforms/IPO/DeadArgumentElimination.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizer.h"
@@ -1230,6 +1231,37 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
   PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
   ModulePassManager MPM(CodeGenOpts.DebugPassManager);
+
+  // ESIMD extension always requires lowering of certain IR constructs, such as
+  // ESIMD C++ intrinsics, as the last FE step.
+  if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD) {
+    PB.registerPipelineStartEPCallback(
+        [](ModulePassManager &MPM, PassBuilder::OptimizationLevel) {
+          MPM.addPass(SYCLLowerESIMDPass());
+        });
+  }
+
+  // Eliminate dead arguments from SPIR kernels in SYCL environment.
+  // 1. Run DAE when LLVM optimizations are applied as well.
+  // 2. We cannot run DAE for ESIMD since the pointers to SPIR kernel
+  //    functions are saved in !genx.kernels metadata.
+  // 3. DAE pass temporary guarded under option.
+  if (LangOpts.SYCLIsDevice && !CodeGenOpts.DisableLLVMPasses &&
+      !LangOpts.SYCLExplicitSIMD && LangOpts.EnableDAEInSpirKernels) {
+    PB.registerOptimizerLastEPCallback(
+        [](ModulePassManager &MPM, PassBuilder::OptimizationLevel) {
+          MPM.addPass(DeadArgumentEliminationSYCLPass());
+        });
+  }
+
+  if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD) {
+    PB.registerOptimizerLastEPCallback(
+        [](ModulePassManager &MPM, PassBuilder::OptimizationLevel) {
+          // FIXME: Adjust GenXSPIRVWriterAdaptorPass to work with new pass
+          // manager
+          // MPM.addPass(GenXSPIRVWriterAdaptorPass();
+        });
+  }
 
   if (!CodeGenOpts.DisableLLVMPasses) {
     // Map our optimization levels into one of the distinct levels used to
