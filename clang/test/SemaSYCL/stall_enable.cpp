@@ -6,7 +6,9 @@
 using namespace cl::sycl;
 queue q;
 
-[[intel::use_stall_enable_clusters]] void test() {} //expected-warning{{'use_stall_enable_clusters' attribute allowed only on function directly called from kernel}}
+[[intel::use_stall_enable_clusters]] void test() {} // \
+     expected-warning{{'use_stall_enable_clusters' attribute ignored}} \
+     expected-note{{'use_stall_enable_clusters' attribute allowed only on a function directly called from a SYCL kernel function; attribute ignored}}
 
 #ifdef TRIGGER_ERROR
 [[intel::use_stall_enable_clusters(1)]] void bar1() {} // expected-error{{'use_stall_enable_clusters' attribute takes no arguments}}

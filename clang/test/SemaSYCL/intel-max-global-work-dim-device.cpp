@@ -80,29 +80,29 @@ int main() {
 
     h.single_task<class test_kernel4>(TRIFuncObjGood1());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4
-    // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}0{{$}}
+    // CHECK: SYCLIntelMaxGlobalWorkDimAttr {{.*}}
+    // CHECK-NEXT: IntegerLiteral{{.*}}0{{$}}
+    // CHECK: SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
+    // CHECK: ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
 
     h.single_task<class test_kernel5>(TRIFuncObjGood2());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel5
-    // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
-    // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
+    // CHECK: SYCLIntelMaxGlobalWorkDimAttr {{.*}}
+    // CHECK-NEXT: IntegerLiteral{{.*}}3{{$}}
+    // CHECK: SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
+    // CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
+    // CHECK: ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
+    // CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
 #ifdef TRIGGER_ERROR
     [[intel::max_global_work_dim(1)]] int Var = 0; // expected-error{{'max_global_work_dim' attribute only applies to functions}}
 

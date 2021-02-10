@@ -328,8 +328,9 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
     if (DirectlyCalled) {
       Attrs.push_back(A);
     } else {
+      S.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
       S.Diag(A->getLocation(),
-             diag::warn_attribute_on_direct_kernel_callee_only)
+             diag::note_attribute_on_direct_kernel_callee_only)
           << A;
       FD->dropAttr<SYCLIntelUseStallEnableClustersAttr>();
     }
@@ -2056,8 +2057,8 @@ public:
   using SyclKernelFieldHandler::handleSyclHalfType;
 };
 
-static const CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
-  for (const auto *MD : Rec->methods()) {
+static CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
+  for (auto *MD : Rec->methods()) {
     if (MD->getOverloadedOperator() == OO_Call)
       return MD;
   }
@@ -3151,13 +3152,7 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
 // kernel to wrapped kernel.
 void Sema::copySYCLKernelAttrs(const CXXRecordDecl *KernelObj) {
   // Get the operator() function of the wrapper
-  CXXMethodDecl *OpParens = nullptr;
-  for (auto *MD : KernelObj->methods()) {
-    if (MD->getOverloadedOperator() == OO_Call) {
-      OpParens = MD;
-      break;
-    }
-  }
+  CXXMethodDecl* OpParens = getOperatorParens(KernelObj);
   assert(OpParens && "invalid kernel object");
 
   typedef std::pair<FunctionDecl *, FunctionDecl *> ChildParentPair;
