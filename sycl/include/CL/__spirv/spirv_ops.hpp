@@ -169,6 +169,50 @@ __SPIRV_ATOMICS(__SPIRV_ATOMIC_UNSIGNED, unsigned long)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_UNSIGNED, unsigned long long)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_MINMAX, Min)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_MINMAX, Max)
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __attribute__((opencl_generic)) void *
+__spirv_PtrCastToGeneric(const void *Ptr) noexcept;
+
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __attribute__((opencl_global)) void *
+__spirv_GenericCastToPtrExplicit_ToGlobal(const void *Ptr,
+                                          __spv::StorageClass::Flag S) noexcept;
+
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __attribute__((opencl_local)) void *
+__spirv_GenericCastToPtrExplicit_ToLocal(const void *Ptr,
+                                         __spv::StorageClass::Flag S) noexcept;
+
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __attribute__((opencl_private)) void *
+__spirv_GenericCastToPtrExplicit_ToPrivate(
+    const void *Ptr, __spv::StorageClass::Flag S) noexcept;
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __attribute__((opencl_generic)) dataT *
+__spirv_PtrCastToGeneric(const void *Ptr) noexcept {
+  return (__attribute__((opencl_generic)) dataT *)__spirv_PtrCastToGeneric(Ptr);
+}
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __attribute__((opencl_global)) dataT *
+__spirv_GenericCastToPtrExplicit_ToGlobal(
+    const void *Ptr, __spv::StorageClass::Flag S) noexcept {
+  return (__attribute__((opencl_global))
+          dataT *)__spirv_GenericCastToPtrExplicit_ToGlobal(Ptr, S);
+}
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __attribute__((opencl_local)) dataT *
+__spirv_GenericCastToPtrExplicit_ToLocal(const void *Ptr,
+                                         __spv::StorageClass::Flag S) noexcept {
+  return (__attribute__((opencl_local))
+          dataT *)__spirv_GenericCastToPtrExplicit_ToLocal(Ptr, S);
+}
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __attribute__((opencl_private)) dataT *
+__spirv_GenericCastToPtrExplicit_ToPrivate(
+    const void *Ptr, __spv::StorageClass::Flag S) noexcept {
+  return (__attribute__((opencl_private))
+          dataT *)__spirv_GenericCastToPtrExplicit_ToPrivate(Ptr, S);
+}
 
 template <typename dataT>
 __SYCL_CONVERGENT__ extern SYCL_EXTERNAL dataT

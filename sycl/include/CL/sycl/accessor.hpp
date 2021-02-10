@@ -286,8 +286,14 @@ protected:
   constexpr static bool IsAccessReadWrite =
       AccessMode == access::mode::read_write;
 
+#if defined(__SYCL_DEVICE_ONLY__) && defined(SYCL_USE_DECORATED_REF)
+  using RefType = detail::const_if_const_AS<
+      AS, typename detail::DecoratedType<DataT, AS>::type> &;
+  using ConstRefType = const typename detail::DecoratedType<DataT, AS>::type &;
+#else
   using RefType = detail::const_if_const_AS<AS, DataT> &;
   using ConstRefType = const DataT &;
+#endif
   using PtrType = detail::const_if_const_AS<AS, DataT> *;
 
   using AccType = accessor<DataT, Dimensions, AccessMode, AccessTarget,
@@ -800,8 +806,14 @@ protected:
 
   using ConcreteASPtrType = typename detail::DecoratedType<DataT, AS>::type *;
 
+#if defined(__SYCL_DEVICE_ONLY__) && defined(SYCL_USE_DECORATED_REF)
+  using RefType = detail::const_if_const_AS<
+      AS, typename detail::DecoratedType<DataT, AS>::type> &;
+  using ConstRefType = const typename detail::DecoratedType<DataT, AS>::type &;
+#else
   using RefType = detail::const_if_const_AS<AS, DataT> &;
   using ConstRefType = const DataT &;
+#endif
   using PtrType = detail::const_if_const_AS<AS, DataT> *;
 
   template <int Dims = Dimensions> size_t getLinearIndex(id<Dims> Id) const {
@@ -1794,7 +1806,12 @@ protected:
 
   using ConcreteASPtrType = typename detail::DecoratedType<DataT, AS>::type *;
 
+#if defined(__SYCL_DEVICE_ONLY__) && defined(SYCL_USE_DECORATED_REF)
+  using RefType = detail::const_if_const_AS<
+      AS, typename detail::DecoratedType<DataT, AS>::type> &;
+#else
   using RefType = detail::const_if_const_AS<AS, DataT> &;
+#endif
   using PtrType = detail::const_if_const_AS<AS, DataT> *;
 
 #ifdef __SYCL_DEVICE_ONLY__

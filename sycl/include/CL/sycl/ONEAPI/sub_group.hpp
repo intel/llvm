@@ -45,6 +45,11 @@ using AcceptableForLocalLoadStore =
     bool_constant<!std::is_same<void, SelectBlockT<T>>::value &&
                   Space == access::address_space::local_space>;
 
+template <typename T, access::address_space Space>
+using AcceptableForPrivateLoadStore =
+    bool_constant<!std::is_same<void, SelectBlockT<T>>::value &&
+                  Space == access::address_space::private_space>;
+
 #ifdef __SYCL_DEVICE_ONLY__
 template <typename T, access::address_space Space>
 T load(const multi_ptr<T, Space> src) {
@@ -224,6 +229,50 @@ struct sub_group {
 
   /* --- sub_group load/stores --- */
   /* these can map to SIMD or block read/write hardware where available */
+#ifdef __SYCL_DEVICE_ONLY__
+  // Method for decorated pointer
+  template <typename T>
+  detail::enable_if_t<
+      !std::is_same<typename detail::remove_AS<T>::type, T>::value, T>
+  load(T *src) const {
+    return load(sycl::multi_ptr<typename detail::remove_AS<T>::type,
+                                sycl::detail::deduce_AS<T>::value>(
+        (typename detail::remove_AS<T>::type *)src));
+  }
+
+#ifndef SYCL_USE_DECORATED_REF
+  // Method for raw pointer
+  template <typename T>
+  detail::enable_if_t<
+      std::is_same<typename detail::remove_AS<T>::type, T>::value, T>
+  load(T *src) const {
+
+    auto p = __spirv_GenericCastToPtrExplicit_ToPrivate<T>(
+        src, __spv::StorageClass::Function);
+    if (p)
+      return load(p);
+
+    auto l = __spirv_GenericCastToPtrExplicit_ToLocal<T>(
+        src, __spv::StorageClass::Workgroup);
+    if (l)
+      return load(l);
+
+    auto g = __spirv_GenericCastToPtrExplicit_ToGlobal<T>(
+        src, __spv::StorageClass::CrossWorkgroup);
+    if (g)
+      return load(g);
+
+    // Fallback for other address spaces to be mapped to global
+    return load(__spirv_PtrCastToGeneric<T>(src));
+  }
+#endif // SYCL_USE_DECORATED_REF
+#else  //__SYCL_DEVICE_ONLY__
+  template <typename T> T load(T *src) const {
+    (void)src;
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_INVALID_DEVICE);
+  }
+#endif //__SYCL_DEVICE_ONLY__
 
   template <typename T, access::address_space Space>
   sycl::detail::enable_if_t<
@@ -245,6 +294,20 @@ struct sub_group {
   template <typename T, access::address_space Space>
   sycl::detail::enable_if_t<
       sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value, T>
+  load(const multi_ptr<T, Space> src) const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return src.get()[get_local_id()[0]];
+#else
+    (void)src;
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
+  }
+
+  template <typename T, access::address_space Space>
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForPrivateLoadStore<T, Space>::value,
+      T>
   load(const multi_ptr<T, Space> src) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return src.get()[get_local_id()[0]];
@@ -315,6 +378,59 @@ struct sub_group {
 #endif
   }
 
+#ifdef __SYCL_DEVICE_ONLY__
+  // Method for decorated pointer
+  template <typename T>
+  detail::enable_if_t<
+      !std::is_same<typename detail::remove_AS<T>::type, T>::value>
+  store(T *dst, const typename detail::remove_AS<T>::type &x) const {
+    store(sycl::multi_ptr<typename detail::remove_AS<T>::type,
+                          sycl::detail::deduce_AS<T>::value>(
+              (typename detail::remove_AS<T>::type *)dst),
+          x);
+  }
+
+#ifndef SYCL_USE_DECORATED_REF
+  // Method for raw pointer
+  template <typename T>
+  detail::enable_if_t<
+      std::is_same<typename detail::remove_AS<T>::type, T>::value>
+  store(T *dst, const typename detail::remove_AS<T>::type &x) const {
+
+    auto p = __spirv_GenericCastToPtrExplicit_ToPrivate<T>(
+        dst, __spv::StorageClass::Function);
+    if (p) {
+      store(p, x);
+      return;
+    }
+
+    auto l = __spirv_GenericCastToPtrExplicit_ToLocal<T>(
+        dst, __spv::StorageClass::Workgroup);
+    if (l) {
+      store(l, x);
+      return;
+    }
+
+    auto g = __spirv_GenericCastToPtrExplicit_ToGlobal<T>(
+        dst, __spv::StorageClass::CrossWorkgroup);
+    if (g) {
+      store(g, x);
+      return;
+    }
+
+    // Fallback for other address spaces to be mapped to global
+    store(__spirv_PtrCastToGeneric<T>(dst), x);
+  }
+#endif // SYCL_USE_DECORATED_REF
+#else  //__SYCL_DEVICE_ONLY__
+  template <typename T> void store(T *dst, const T &x) const {
+    (void)dst;
+    (void)x;
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_INVALID_DEVICE);
+  }
+#endif //__SYCL_DEVICE_ONLY__
+
   template <typename T, access::address_space Space>
   sycl::detail::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value>
@@ -336,6 +452,20 @@ struct sub_group {
   template <typename T, access::address_space Space>
   sycl::detail::enable_if_t<
       sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value>
+  store(multi_ptr<T, Space> dst, const T &x) const {
+#ifdef __SYCL_DEVICE_ONLY__
+    dst.get()[get_local_id()[0]] = x;
+#else
+    (void)dst;
+    (void)x;
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
+  }
+
+  template <typename T, access::address_space Space>
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForPrivateLoadStore<T, Space>::value>
   store(multi_ptr<T, Space> dst, const T &x) const {
 #ifdef __SYCL_DEVICE_ONLY__
     dst.get()[get_local_id()[0]] = x;

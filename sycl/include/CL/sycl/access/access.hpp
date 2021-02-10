@@ -115,6 +115,7 @@ constexpr bool modeWritesNewData(access::mode m) {
 #define __OPENCL_LOCAL_AS__ __attribute__((opencl_local))
 #define __OPENCL_CONSTANT_AS__ __attribute__((opencl_constant))
 #define __OPENCL_PRIVATE_AS__ __attribute__((opencl_private))
+#define __OPENCL_GENERIC_AS__ __attribute__((opencl_generic))
 #else
 #define __OPENCL_GLOBAL_AS__
 #define __OPENCL_GLOBAL_DEVICE_AS__
@@ -122,6 +123,7 @@ constexpr bool modeWritesNewData(access::mode m) {
 #define __OPENCL_LOCAL_AS__
 #define __OPENCL_CONSTANT_AS__
 #define __OPENCL_PRIVATE_AS__
+#define __OPENCL_GENERIC_AS__
 #endif
 
 template <access::target accessTarget> struct TargetToAS {
@@ -187,17 +189,15 @@ template <typename ElementType>
 struct DecoratedType<ElementType, access::address_space::local_space> {
   using type = __OPENCL_LOCAL_AS__ ElementType;
 };
+template <class T> struct remove_AS { typedef T type; };
 
-template <class T>
-struct remove_AS {
-  typedef T type;
+template <class T> struct deduce_AS {
+  static const access::address_space value =
+      access::address_space::global_space;
 };
 
 #ifdef __SYCL_DEVICE_ONLY__
-template <class T>
-struct remove_AS<__OPENCL_GLOBAL_AS__ T> {
-  typedef T type;
-};
+template <class T> struct remove_AS<__OPENCL_GLOBAL_AS__ T> { typedef T type; };
 
 #ifdef __ENABLE_USM_ADDR_SPACE__
 template <class T> struct remove_AS<__OPENCL_GLOBAL_DEVICE_AS__ T> {
@@ -207,21 +207,49 @@ template <class T> struct remove_AS<__OPENCL_GLOBAL_DEVICE_AS__ T> {
 template <class T> struct remove_AS<__OPENCL_GLOBAL_HOST_AS__ T> {
   typedef T type;
 };
+
+template <class T> struct deduce_AS<__OPENCL_GLOBAL_DEVICE_AS__ T> {
+  static const access::address_space value =
+      access::address_space::global_device_space;
+};
+
+template <class T> struct deduce_AS<__OPENCL_GLOBAL_HOST_AS__ T> {
+  static const access::address_space value =
+      access::address_space::global_host_space;
+};
 #endif // __ENABLE_USM_ADDR_SPACE__
 
-template <class T>
-struct remove_AS<__OPENCL_PRIVATE_AS__ T> {
+template <class T> struct remove_AS<__OPENCL_PRIVATE_AS__ T> {
   typedef T type;
 };
 
-template <class T>
-struct remove_AS<__OPENCL_LOCAL_AS__ T> {
+template <class T> struct remove_AS<__OPENCL_LOCAL_AS__ T> { typedef T type; };
+
+template <class T> struct remove_AS<__OPENCL_CONSTANT_AS__ T> {
   typedef T type;
 };
 
-template <class T>
-struct remove_AS<__OPENCL_CONSTANT_AS__ T> {
+template <class T> struct remove_AS<__OPENCL_GENERIC_AS__ T> {
   typedef T type;
+};
+
+template <class T> struct deduce_AS<__OPENCL_PRIVATE_AS__ T> {
+  static const access::address_space value =
+      access::address_space::private_space;
+};
+
+template <class T> struct deduce_AS<__OPENCL_LOCAL_AS__ T> {
+  static const access::address_space value = access::address_space::local_space;
+};
+
+template <class T> struct deduce_AS<__OPENCL_CONSTANT_AS__ T> {
+  static const access::address_space value =
+      access::address_space::constant_space;
+};
+
+template <class T> struct deduce_AS<__OPENCL_GENERIC_AS__ T> {
+  static const access::address_space value =
+      access::address_space::global_space;
 };
 #endif
 
@@ -231,8 +259,8 @@ struct remove_AS<__OPENCL_CONSTANT_AS__ T> {
 #undef __OPENCL_LOCAL_AS__
 #undef __OPENCL_CONSTANT_AS__
 #undef __OPENCL_PRIVATE_AS__
-
+#undef __OPENCL_GENERIC_AS__
 } // namespace detail
 
-}  // namespace sycl
-}  // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
