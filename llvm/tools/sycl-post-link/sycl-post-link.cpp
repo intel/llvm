@@ -19,6 +19,7 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
+#include "llvm/GenXIntrinsics/GenXSPIRVWriterAdaptor.h"
 #include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
@@ -26,6 +27,7 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
+#include "llvm/SYCLLowerIR/LowerESIMD.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Path.h"
@@ -35,6 +37,8 @@
 #include "llvm/Support/WithColor.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
+#include "llvm/Transforms/InstCombine/InstCombine.h"
+#include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
 #include <memory>
@@ -91,6 +95,36 @@ static cl::opt<bool> OutputAssembly{"S",
 static cl::opt<bool> SplitEsimd{"split-esimd",
                                 cl::desc("Split SYCL and ESIMD kernels"),
                                 cl::cat(PostLinkCat)};
+
+static cl::opt<bool> LowerEsimd{
+    "lower-esimd", cl::desc("Lower ESIMD constructs"), cl::cat(PostLinkCat)};
+
+static cl::opt<bool>
+    OptLevelO0("O0", cl::desc("Optimization level 0. Similar to clang -O0"),
+               cl::cat(PostLinkCat));
+
+static cl::opt<bool>
+    OptLevelO1("O1", cl::desc("Optimization level 1. Similar to clang -O1"),
+               cl::cat(PostLinkCat));
+
+static cl::opt<bool>
+    OptLevelO2("O2", cl::desc("Optimization level 2. Similar to clang -O2"),
+               cl::cat(PostLinkCat));
+
+static cl::opt<bool> OptLevelOs(
+    "Os",
+    cl::desc(
+        "Like -O2 with extra optimizations for size. Similar to clang -Os"),
+    cl::cat(PostLinkCat));
+
+static cl::opt<bool> OptLevelOz(
+    "Oz",
+    cl::desc("Like -Os but reduces code size further. Similar to clang -Oz"),
+    cl::cat(PostLinkCat));
+
+static cl::opt<bool>
+    OptLevelO3("O3", cl::desc("Optimization level 3. Similar to clang -O3"),
+               cl::cat(PostLinkCat));
 
 enum IRSplitMode {
   SPLIT_PER_TU,     // one module per translation unit
@@ -627,6 +661,57 @@ static string_vector saveResultSymbolsLists(string_vector &ResSymbolsLists,
     }                                                                          \
   }
 
+// Helper function for creating Inliner pass.
+// The approach is taken from opt tool.
+static Pass *createFunctionInliningPassHelper() {
+  if (OptLevelO0)
+    return createFunctionInliningPass(0, 0, false);
+
+  if (OptLevelO1)
+    return createFunctionInliningPass(1, 0, false);
+
+  if (OptLevelO2)
+    return createFunctionInliningPass(2, 0, false);
+
+  if (OptLevelOs)
+    return createFunctionInliningPass(2, 1, false);
+
+  if (OptLevelOz)
+    return createFunctionInliningPass(2, 2, false);
+
+  if (OptLevelO3)
+    return createFunctionInliningPass(3, 0, false);
+
+  return createFunctionInliningPass();
+}
+
+// When ESIMD code was separated from the regular SYCL code,
+// we can safely process ESIMD part.
+// TODO: support options like -debug-pass, -print-[before|after], and others
+static void LowerEsimdConstructs(Module &M) {
+  legacy::PassManager MPM;
+  MPM.add(createSYCLLowerESIMDPass());
+  if (!OptLevelO0) {
+    // Inlining and SROA passes are required to make
+    // ESIMD/accessor_gather_scatter.cpp test work.
+    MPM.add(createFunctionInliningPassHelper());
+    MPM.add(createSROAPass());
+    MPM.add(createESIMDLowerVecArgPass());
+    MPM.add(createESIMDLowerLoadStorePass());
+    MPM.add(createSROAPass());
+    MPM.add(createEarlyCSEPass(true));
+    MPM.add(createInstructionCombiningPass());
+    MPM.add(createDeadCodeEliminationPass());
+    MPM.add(createFunctionInliningPassHelper());
+    MPM.add(createSROAPass());
+    MPM.add(createEarlyCSEPass(true));
+    MPM.add(createInstructionCombiningPass());
+    MPM.add(createDeadCodeEliminationPass());
+  }
+  MPM.add(createGenXSPIRVWriterAdaptorPass());
+  MPM.run(M);
+}
+
 using TableFiles = std::map<StringRef, string_vector>;
 
 static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
@@ -634,6 +719,9 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   TableFiles TblFiles;
   if (!M)
     return TblFiles;
+
+  if (IsEsimd && LowerEsimd)
+    LowerEsimdConstructs(*M);
 
   std::map<StringRef, std::vector<Function *>> GlobalsSet;
 
@@ -687,11 +775,16 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     ResultModules.push_back(std::move(M));
 
   {
-    // reuse input module if there were no spec constants and no splitting
+    // Reuse input module with only regular SYCL kernels if there were
+    // no spec constants and no splitting.
+    // We cannot reuse input module for ESIMD code since it was transformed.
+    bool CanReuseInputModule = !SpecConstsMet && (ResultModules.size() == 1) &&
+                               !SyclAndEsimdKernels && !IsEsimd;
     string_vector Files =
-        SpecConstsMet || (ResultModules.size() > 1) || SyclAndEsimdKernels
-            ? saveResultModules(ResultModules, IsEsimd ? "esimd_" : "")
-            : string_vector{InputFilename};
+        CanReuseInputModule
+            ? string_vector{InputFilename}
+            : saveResultModules(ResultModules, IsEsimd ? "esimd_" : "");
+
     // "Code" column is always output
     std::copy(Files.begin(), Files.end(),
               std::back_inserter(TblFiles[COL_CODE]));
@@ -818,6 +911,10 @@ int main(int argc, char **argv) {
       "- Specialization constant intrinsic transformer. Replaces symbolic\n"
       "  ID-based intrinsics to integer ID-based ones to make them friendly\n"
       "  for the SPIRV translator\n"
+      "When the tool splits input module into regular SYCL and ESIMD kernels,\n"
+      "it performs a set of specific lowering and transformation passes on\n"
+      "ESIMD module, which is enabled by the '-lower-esimd' option. Regular\n"
+      "optimization level options are supported, e.g. -O[0|1|2|3|s|z].\n"
       "Normally, the tool generates a number of files and \"file table\"\n"
       "file listing all generated files in a table manner. For example, if\n"
       "the input file 'example.bc' contains two kernels, then the command\n"
