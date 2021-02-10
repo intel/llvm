@@ -73,6 +73,8 @@
 #include "llvm/IR/PrintPasses.h"
 #include "llvm/IR/SafepointIRVerifier.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/SYCLLowerIR/LowerESIMD.h"
+#include "llvm/SYCLLowerIR/LowerWGScope.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
