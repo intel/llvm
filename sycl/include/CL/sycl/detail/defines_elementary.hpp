@@ -57,7 +57,7 @@
 #else
 #define __SYCL2020_DEPRECATED(message)
 #endif
-#endif // __SYCL121_DEPRECATED
+#endif // __SYCL2020_DEPRECATED
 
 #ifndef __SYCL_INLINE_CONSTEXPR
 // inline constexpr is a C++17 feature

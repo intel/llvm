@@ -15,7 +15,7 @@ int main() {
   cl_mem Mem;
   // expected-warning@+1 {{'buffer' is deprecated: OpenCL interop APIs are deprecated}}
   sycl::buffer<int, 1> Buf{Mem, Ctx};
-  (void)Buf.get_size();
+  (void)Buf;
 
   cl_device_id DevId;
   // expected-warning@+1 {{'device' is deprecated: OpenCL interop APIs are deprecated}}
@@ -31,7 +31,7 @@ int main() {
 
   // expected-warning@+1 {{'image' is deprecated: OpenCL interop APIs are deprecated}}
   sycl::image<1> Img{Mem, Ctx};
-  (void)Img.get_size();
+  (void)Img;
 
   cl_kernel ClKernel;
   // expected-warning@+1 {{'kernel' is deprecated: OpenCL interop APIs are deprecated}}
@@ -57,7 +57,7 @@ int main() {
   cl_sampler ClSampler;
   // expected-warning@+1 {{'sampler' is deprecated: OpenCL interop APIs are deprecated}}
   sycl::sampler Sampler{ClSampler, Ctx};
-  (void)Sampler.get_addressing_mode();
+  (void)Sampler;
 
   return 0;
 }
