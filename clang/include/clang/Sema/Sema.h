@@ -13144,9 +13144,7 @@ void Sema::addIntelSYCLTripleArgFunctionAttr(Decl *D,
 
     if (!XDimExpr || !YDimExpr || !ZDimExpr)
       return;
-
   }
-
   D->addAttr(::new (Context)
                  WorkGroupAttrType(Context, CI, XDimExpr, YDimExpr, ZDimExpr));
 }
