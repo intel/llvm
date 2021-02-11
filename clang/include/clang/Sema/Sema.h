@@ -13092,8 +13092,8 @@ void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
   D->addAttr(::new (Context) AttrType(Context, CI, E));
 }
 
-static bool handleMaxWorkSizeAttrExpr(Sema &S, const AttributeCommonInfo &CI,
-                                      Expr *&E) {
+static Expr *checkMaxWorkSizeAttrExpr(Sema &S, const AttributeCommonInfo &CI,
+                                      Expr *E) {
   assert(E && "Attribute must have an argument.");
 
   if (!E->isInstantiationDependent()) {
@@ -13101,7 +13101,7 @@ static bool handleMaxWorkSizeAttrExpr(Sema &S, const AttributeCommonInfo &CI,
     ExprResult ICE = S.VerifyIntegerConstantExpression(E, &ArgVal);
 
     if (ICE.isInvalid())
-      return false;
+      return nullptr;
 
     E = ICE.get();
 
@@ -13110,17 +13110,17 @@ static bool handleMaxWorkSizeAttrExpr(Sema &S, const AttributeCommonInfo &CI,
              diag::warn_attribute_requires_non_negative_integer_argument)
           << E->getType() << S.Context.UnsignedLongLongTy
           << E->getSourceRange();
-      return true;
+      return E;
     }
 
     unsigned Val = ArgVal.getZExtValue();
     if (Val == 0) {
       S.Diag(E->getExprLoc(), diag::err_attribute_argument_is_zero)
           << CI << E->getSourceRange();
-      return false;
+      return nullptr;
     }
   }
-  return true;
+  return E;
 }
 
 template <typename WorkGroupAttrType>
@@ -13137,14 +13137,14 @@ void Sema::addIntelSYCLTripleArgFunctionAttr(Decl *D,
   if (!XDimExpr->isValueDependent() && !YDimExpr->isValueDependent() &&
       !ZDimExpr->isValueDependent()) {
 
-    if (!handleMaxWorkSizeAttrExpr(*this, CI, XDimExpr))
+    // Save ConstantExpr in semantic attribute
+    XDimExpr = checkMaxWorkSizeAttrExpr(*this, CI, XDimExpr);
+    YDimExpr = checkMaxWorkSizeAttrExpr(*this, CI, YDimExpr);
+    ZDimExpr = checkMaxWorkSizeAttrExpr(*this, CI, ZDimExpr);
+
+    if (!XDimExpr || !YDimExpr || !ZDimExpr)
       return;
 
-    if (!handleMaxWorkSizeAttrExpr(*this, CI, YDimExpr))
-      return;
-
-    if (!handleMaxWorkSizeAttrExpr(*this, CI, ZDimExpr))
-      return;
   }
 
   D->addAttr(::new (Context)
