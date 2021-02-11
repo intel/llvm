@@ -311,6 +311,7 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
 
   InputInfoList ForeachInputs;
   InputInfoList FPGADepFiles;
+  StringRef createdReportName;
   ArgStringList CmdArgs{"-o", Output.getFilename()};
   for (const auto &II : Inputs) {
     std::string Filename(II.getFilename());
@@ -324,6 +325,21 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
       FPGADepFiles.push_back(II);
     else
       CmdArgs.push_back(C.getArgs().MakeArgString(Filename));
+    // Check for any AOCR input, if found use that as the project report name
+    StringRef Ext(llvm::sys::path::extension(Filename));
+    if (Ext.empty())
+      continue;
+    if (getToolChain().LookupTypeForExtension(Ext.drop_front()) ==
+        types::TY_FPGA_AOCR) {
+      // Keep the base of the .aocr file name.  Input file is a temporary,
+      // so we are stripping off the additional naming information for a
+      // cleaner name.
+      SmallString<128> NameBase(Filename.substr(0, Filename.length() - 12));
+      NameBase.append(".aocr");
+      llvm::sys::path::replace_extension(NameBase, "prj");
+      createdReportName =
+          Args.MakeArgString(llvm::sys::path::filename(NameBase));
+    }
   }
   CmdArgs.push_back("-sycl");
 
@@ -334,7 +350,6 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
       ForeachExt = "aocr";
     }
 
-  StringRef createdReportName;
   for (auto *A : Args) {
     // Any input file is assumed to have a dependency file associated and
     // the report folder can also be named based on the first input.
