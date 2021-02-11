@@ -223,7 +223,7 @@ Allows the use of various operations for arbitrary precision floating-point math
 
 === Instructions
 
-In Section 3.32.13, *Arithmetic Instructions*, add the following instructions:
+In Section 3.37.13, *Arithmetic Instructions*, add the following instructions:
 
 [cols="12", width="100%"]
 |=====
@@ -1099,13 +1099,15 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 |=====
 8+<|*OpArbitraryFloatCastFromIntINTEL* +
 
-An `OpTypeInt` representing an arbitrary precision integer is passed in as _A_.
-It is type casted into an arbitrary precision floating point number with the new specification (Eout, Mout) and returned as _Result_.
+An `OpTypeInt` representing an arbitrary precision integer of signedness `FromSign` is passed in as _A_.
+It is type casted into an arbitrary precision floating point number with the new specification (Eout, Mout) and sign `FromSign`. The result of the cast operation is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
 _Eout_ and _Mout_ contain the width of the exponent and the mantissa of the floating point type of _Result_.
 Note that the exponent value (Eout) is inferred from the width of the `OpTypeInt`.
+
+`FromSign` is used to set the sign of _Result_.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
 
@@ -1115,7 +1117,7 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 8 | 5842 | <id> Result Type | Result <id> | A <id> | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 8 | 5842 | <id> Result Type | Result <id> | A <id> | _Literal_ Mout | _Literal_ FromSign | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
 [cols="9", width="100%"]
@@ -1123,12 +1125,14 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 8+<|*OpArbitraryFloatCastToIntINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
-It is type casted into an arbitrary precision integer with width `W` and returned as _Result_.
+It is type casted into an arbitrary precision integer with width `W`, sign `ToSign` and returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `W` and is the type of _Result_.
 
 _E1_ and _M1_ contain the width of the exponent and the mantissa of the floating point type of _A_.
 Note that the exponent value (E1) is inferred from the width of the `OpTypeInt`.
+
+`ToSign` is used to set the sign of _Result_.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
 
@@ -1138,7 +1142,7 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 8 | 5843 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 8 | 5843 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ ToSign | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
 === Validation Rules
