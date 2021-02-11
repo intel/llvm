@@ -100,8 +100,7 @@ Parser::ParseStatementOrDeclaration(StmtVector &Stmts,
 
   ParsedAttributesWithRange Attrs(AttrFactory);
   MaybeParseCXX11Attributes(Attrs, nullptr, /*MightBeObjCMessageSend*/ true);
-  if (!MaybeParseOpenCLUnrollHintAttribute(Attrs) ||
-      !MaybeParseSYCLLoopAttributes(Attrs))
+  if (!MaybeParseOpenCLUnrollHintAttribute(Attrs))
     return StmtError();
 
   StmtResult Res = ParseStatementOrDeclarationAfterAttributes(
@@ -2561,34 +2560,6 @@ bool Parser::ParseOpenCLUnrollHintAttribute(ParsedAttributes &Attrs) {
 
   if (!(Tok.is(tok::kw_for) || Tok.is(tok::kw_while) || Tok.is(tok::kw_do))) {
     Diag(Tok, diag::err_opencl_unroll_hint_on_non_loop);
-    return false;
-  }
-  return true;
-}
-
-bool Parser::ParseSYCLLoopAttributes(ParsedAttributes &Attrs) {
-  MaybeParseCXX11Attributes(Attrs);
-
-  if (Attrs.empty())
-    return true;
-
-  if (Attrs.begin()->getKind() != ParsedAttr::AT_SYCLIntelFPGAIVDep &&
-      Attrs.begin()->getKind() != ParsedAttr::AT_SYCLIntelFPGAII &&
-      Attrs.begin()->getKind() != ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency &&
-      Attrs.begin()->getKind() != ParsedAttr::AT_SYCLIntelFPGALoopCoalesce &&
-      Attrs.begin()->getKind() !=
-          ParsedAttr::AT_SYCLIntelFPGADisableLoopPipelining &&
-      Attrs.begin()->getKind() != ParsedAttr::AT_SYCLIntelFPGAMaxInterleaving &&
-      Attrs.begin()->getKind() !=
-          ParsedAttr::AT_SYCLIntelFPGASpeculatedIterations &&
-      Attrs.begin()->getKind() != ParsedAttr::AT_LoopUnrollHint &&
-      Attrs.begin()->getKind() != ParsedAttr::AT_SYCLIntelFPGANofusion)
-    return true;
-
-  bool IsIntelFPGAAttribute = (Attrs.begin()->getKind() != ParsedAttr::AT_LoopUnrollHint);
-
-  if (!(Tok.is(tok::kw_for) || Tok.is(tok::kw_while) || Tok.is(tok::kw_do))) {
-    Diag(Tok, diag::err_loop_attr_on_non_loop) << IsIntelFPGAAttribute;
     return false;
   }
   return true;
