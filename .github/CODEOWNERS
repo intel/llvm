@@ -15,13 +15,13 @@ opencl-aot/ @dm-vodopyanov @AlexeySachkov @romanovvlad
 # Device library
 libdevice/ @vzakhari
 
+# DPC++ runtime library
+sycl/ @intel/llvm-reviewers-runtime
+
 # Documentation
 sycl/ReleaseNotes.md @pvchupin
 sycl/doc/ @pvchupin @kbobrovs
 sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
-
-# DPC++ runtime library
-sycl/ @intel/llvm-reviewers-runtime
 
 # USM
 sycl/include/CL/sycl/detail/clusm.hpp @jbrodman
