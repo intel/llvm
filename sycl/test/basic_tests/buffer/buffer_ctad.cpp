@@ -41,7 +41,7 @@ int main() {
 
   std::allocator<int> buf_alloc;
   shared_ptr_class<int> ptr_alloc{new int[5], [](int *p) { delete[] p; }};
-  buffer b5(ptr, range<1>(5), buf_alloc);
+  buffer b5(ptr_alloc, range<1>(5), buf_alloc);
   static_assert(
       std::is_same<decltype(b5), buffer<int, 1, std::allocator<int>>>::value);
 
