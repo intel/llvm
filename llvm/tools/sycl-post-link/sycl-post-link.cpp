@@ -96,13 +96,14 @@ static cl::opt<bool> SplitEsimd{"split-esimd",
                                 cl::desc("Split SYCL and ESIMD kernels"),
                                 cl::cat(PostLinkCat)};
 
-// TODO Design note: sycl-post-link should probably separate different kinds of its
-// functionality on  logical and source level:
+// TODO Design note: sycl-post-link should probably separate different kinds of
+// its functionality on  logical and source level:
 //  - LLVM IR module splitting
 //  - Running LLVM IR passes on resulting modules
 //  - Generating additional files (like spec constants, dead arg info,...)
-// The tool itself could be just a "driver" creating needed pipelines from the above actions.
-// This could help make the tool structure clearer and more maintainable.
+// The tool itself could be just a "driver" creating needed pipelines from the
+// above actions. This could help make the tool structure clearer and more
+// maintainable.
 
 static cl::opt<bool> LowerEsimd{
     "lower-esimd", cl::desc("Lower ESIMD constructs"), cl::cat(PostLinkCat)};
@@ -704,8 +705,10 @@ static void LowerEsimdConstructs(Module &M) {
     // ESIMD/accessor_gather_scatter.cpp test work.
     MPM.add(createFunctionInliningPassHelper());
     MPM.add(createSROAPass());
-    MPM.add(createESIMDLowerVecArgPass());
-    MPM.add(createESIMDLowerLoadStorePass());
+  }
+  MPM.add(createESIMDLowerVecArgPass());
+  MPM.add(createESIMDLowerLoadStorePass());
+  if (!OptLevelO0) {
     MPM.add(createSROAPass());
     MPM.add(createEarlyCSEPass(true));
     MPM.add(createInstructionCombiningPass());
