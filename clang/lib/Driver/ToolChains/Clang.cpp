@@ -8269,6 +8269,35 @@ static void addArgs(ArgStringList &DstArgs, const llvm::opt::ArgList &Alloc,
   }
 }
 
+// Partially copied from clang/lib/Frontend/CompilerInvocation.cpp
+static std::string getOptimizationLevel(const ArgList &Args) {
+  if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
+    if (A->getOption().matches(options::OPT_O0))
+      return "-O0";
+
+    if (A->getOption().matches(options::OPT_Ofast))
+      return "-O3";
+
+    assert(A->getOption().matches(options::OPT_O));
+
+    StringRef S(A->getValue());
+    if (S == "g")
+      return "-O1";
+
+    if (S == "d")
+      return "-O0";
+
+    // Options -O[1|2|3|s|z] are passed as they are. '-O0' is handled earlier.
+    std::array<char, 5> AcceptedOptions = {'1', '2', '3', 's', 'z'};
+    if (std::any_of(AcceptedOptions.begin(), AcceptedOptions.end(),
+                    [=](char c) { return c == S[0]; }))
+      return std::string("-O") + S[0];
+  }
+
+  // The default for SYCL device code optimization
+  return "-O2";
+}
+
 // sycl-post-link tool normally outputs a file table (see the tool sources for
 // format description) which lists all the other output files associated with
 // the device LLVMIR bitcode. This is basically a triple of bitcode, symbols
@@ -8325,6 +8354,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
                        options::OPT_fno_sycl_device_code_lower_esimd, false))
       addArgs(CmdArgs, TCArgs, {"-lower-esimd"});
   }
+  addArgs(CmdArgs, TCArgs, {StringRef(getOptimizationLevel(TCArgs))});
   // specialization constants processing is mandatory
   auto *SYCLPostLink = llvm::dyn_cast<SYCLPostLinkJobAction>(&JA);
   if (SYCLPostLink && SYCLPostLink->getRTSetsSpecConstants())
