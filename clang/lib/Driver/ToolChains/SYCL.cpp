@@ -333,9 +333,11 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
         types::TY_FPGA_AOCR) {
       // Keep the base of the .aocr file name.  Input file is a temporary,
       // so we are stripping off the additional naming information for a
-      // cleaner name.  The length is the being stripped from the name is the
-      // added temporary string and the extension:  input_file-XXXXXX.aocr
-      SmallString<128> NameBase(Filename.substr(0, Filename.length() - 12));
+      // cleaner name.  The suffix being stripped from the name is the
+      // added temporary string and the extension.
+      StringRef SuffixFormat("-XXXXXX.aocr");
+      SmallString<128> NameBase(
+          Filename.substr(0, Filename.length() - SuffixFormat.size()));
       NameBase.append(".prj");
       CreatedReportName =
           Args.MakeArgString(llvm::sys::path::filename(NameBase));
