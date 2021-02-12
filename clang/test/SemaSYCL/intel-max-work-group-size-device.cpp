@@ -46,15 +46,27 @@ int main() {
   q.submit([&](handler &h) {
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel1
     // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
     h.single_task<class test_kernel1>(FuncObj());
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
     // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}} {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 8
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 8
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 8
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
     // expected-warning@+3 {{attribute 'intelfpga::max_work_group_size' is deprecated}}
     // expected-note@+2 {{did you mean to use 'intel::max_work_group_size' instead?}}
@@ -63,16 +75,28 @@ int main() {
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
     // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 2
     // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 2
     // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 2
     // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
     h.single_task<class test_kernel3>(
         []() { func_do_not_ignore(); });
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4
     // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 8
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 8
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int -8
     // CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
     // expected-warning@+2{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
@@ -81,9 +105,15 @@ int main() {
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel5
     // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int -8
     // CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 8
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int -8
     // CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
     // expected-warning@+2 2{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
@@ -96,7 +126,7 @@ int main() {
         []() [[intel::max_work_group_size(0, 1, 3)]]{}); // expected-error{{'max_work_group_size' attribute must be greater than 0}}
 
     h.single_task<class test_kernel7>(
-        []() [[intel::max_work_group_size(1.2f, 1, 3)]]{}); // expected-error{{'max_work_group_size' attribute requires an integer constant}}
+        []() [[intel::max_work_group_size(1.2f, 1, 3)]]{}); // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
 
     h.single_task<class test_kernel8>(
         []() [[intel::max_work_group_size(16, 16, 16),   // expected-note{{conflicting attribute is here}}

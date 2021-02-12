@@ -366,6 +366,12 @@ public:
     return *MHostTaskThreadPool;
   }
 
+  void stopThreadPool() {
+    if (MHostTaskThreadPool) {
+      MHostTaskThreadPool->finishAndWait();
+    }
+  }
+
   /// Gets the native handle of the SYCL queue.
   ///
   /// \return a native handle.

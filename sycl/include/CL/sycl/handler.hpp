@@ -30,6 +30,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <tuple>
 #include <type_traits>
 
 // SYCL_LANGUAGE_VERSION is 4 digit year followed by 2 digit revision
@@ -244,8 +245,31 @@ enable_if_t<!Reduction::has_fast_atomics, size_t>
 reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
               Reduction &Redu);
 
+template <typename KernelName, typename KernelType, int Dims,
+          typename... Reductions, size_t... Is>
+void reduCGFunc(handler &CGH, KernelType KernelFunc,
+                const nd_range<Dims> &Range,
+                std::tuple<Reductions...> &ReduTuple,
+                std::index_sequence<Is...>);
+
+template <typename KernelName, typename KernelType, typename... Reductions,
+          size_t... Is>
+size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
+                     std::tuple<Reductions...> &ReduTuple,
+                     std::index_sequence<Is...>);
+
 __SYCL_EXPORT size_t reduGetMaxWGSize(shared_ptr_class<queue_impl> Queue,
                                       size_t LocalMemBytesPerWorkItem);
+
+template <typename... ReductionT, size_t... Is>
+size_t reduGetMemPerWorkItem(std::tuple<ReductionT...> &ReduTuple,
+                             std::index_sequence<Is...>);
+
+template <typename TupleT, std::size_t... Is>
+std::tuple<std::tuple_element_t<Is, TupleT>...>
+tuple_select_elements(TupleT Tuple, std::index_sequence<Is...>);
+
+template <typename FirstT, typename... RestT> struct AreAllButLastReductions;
 
 } // namespace detail
 } // namespace ONEAPI
@@ -1184,7 +1208,6 @@ public:
   /// globally visible, there is no need for the developer to provide
   /// a kernel name for it.
   ///
-  /// TODO: Need to handle more than 1 reduction in parallel_for().
   /// TODO: Support HOST. The kernels called by this parallel_for() may use
   /// some functionality that is not yet supported on HOST such as:
   /// barrier(), and ONEAPI::reduce() that also may be used in more
@@ -1253,6 +1276,54 @@ public:
 
       NWorkItems = ONEAPI::detail::reduAuxCGFunc<KernelName, KernelType>(
           AuxHandler, NWorkItems, MaxWGSize, Redu);
+      MLastEvent = AuxHandler.finalize();
+    } // end while (NWorkItems > 1)
+  }
+
+  // This version of parallel_for may handle one or more reductions packed in
+  // \p Rest argument. Note thought that the last element in \p Rest pack is
+  // the kernel function.
+  // TODO: this variant is currently enabled for 2+ reductions only as the
+  // versions handling 1 reduction variable are more efficient right now.
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename... RestT>
+  std::enable_if_t<(sizeof...(RestT) >= 3 &&
+                    ONEAPI::detail::AreAllButLastReductions<RestT...>::value)>
+  parallel_for(nd_range<Dims> Range, RestT... Rest) {
+    std::tuple<RestT...> ArgsTuple(Rest...);
+    constexpr size_t NumArgs = sizeof...(RestT);
+    auto KernelFunc = std::get<NumArgs - 1>(ArgsTuple);
+    auto ReduIndices = std::make_index_sequence<NumArgs - 1>();
+    auto ReduTuple =
+        ONEAPI::detail::tuple_select_elements(ArgsTuple, ReduIndices);
+
+    size_t LocalMemPerWorkItem =
+        ONEAPI::detail::reduGetMemPerWorkItem(ReduTuple, ReduIndices);
+    // TODO: currently the maximal work group size is determined for the given
+    // queue/device, while it is safer to use queries to the kernel compiled
+    // for the device.
+    size_t MaxWGSize =
+        ONEAPI::detail::reduGetMaxWGSize(MQueue, LocalMemPerWorkItem);
+    if (Range.get_local_range().size() > MaxWGSize)
+      throw sycl::runtime_error("The implementation handling parallel_for with"
+                                " reduction requires work group size not bigger"
+                                " than " +
+                                    std::to_string(MaxWGSize),
+                                PI_INVALID_WORK_GROUP_SIZE);
+
+    ONEAPI::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, ReduTuple,
+                                           ReduIndices);
+    shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
+    this->finalize();
+
+    size_t NWorkItems = Range.get_group_range().size();
+    while (NWorkItems > 1) {
+      handler AuxHandler(QueueCopy, MIsHost);
+      AuxHandler.saveCodeLoc(MCodeLoc);
+
+      NWorkItems =
+          ONEAPI::detail::reduAuxCGFunc<KernelName, decltype(KernelFunc)>(
+              AuxHandler, NWorkItems, MaxWGSize, ReduTuple, ReduIndices);
       MLastEvent = AuxHandler.finalize();
     } // end while (NWorkItems > 1)
   }

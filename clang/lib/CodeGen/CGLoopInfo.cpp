@@ -1017,7 +1017,8 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       addSYCLIVDepInfo(Header->getContext(), IntelFPGAIVDep->getSafelenValue(),
                        IntelFPGAIVDep->getArrayDecl());
 
-    if (const auto *IntelFPGAII = dyn_cast<SYCLIntelFPGAIIAttr>(A))
+    if (const auto *IntelFPGAII =
+            dyn_cast<SYCLIntelFPGAInitiationIntervalAttr>(A))
       setSYCLIInterval(IntelFPGAII->getIntervalExpr()
                            ->getIntegerConstantExpr(Ctx)
                            ->getSExtValue());

@@ -12996,7 +12996,11 @@ public:
   void checkSYCLDeviceVarDecl(VarDecl *Var);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void MarkDevice();
-  void MarkSyclSimd();
+
+  /// Emit a diagnostic about the given attribute having a deprecated name, and
+  /// also emit a fixit hint to generate the new attribute name.
+  void DiagnoseDeprecatedAttribute(const ParsedAttr &A, StringRef NewScope,
+                                   StringRef NewName);
 
   /// Diagnoses an attribute in the 'intelfpga' namespace and suggests using
   /// the attribute in the 'intel' namespace instead.
@@ -13061,14 +13065,12 @@ void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
   assert(E && "Attribute must have an argument.");
 
   if (!E->isInstantiationDependent()) {
-    Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(getASTContext());
-    if (!ArgVal) {
-      Diag(E->getExprLoc(), diag::err_attribute_argument_type)
-          << CI.getAttrName() << AANT_ArgumentIntegerConstant
-          << E->getSourceRange();
+    llvm::APSInt ArgVal;
+    ExprResult ICE = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (ICE.isInvalid())
       return;
-    }
-    int32_t ArgInt = ArgVal->getSExtValue();
+    E = ICE.get();
+    int32_t ArgInt = ArgVal.getSExtValue();
     if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelNumSimdWorkItems ||
         CI.getParsedKind() == ParsedAttr::AT_IntelReqdSubGroupSize) {
       if (ArgInt <= 0) {
@@ -13094,64 +13096,35 @@ void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
   D->addAttr(::new (Context) AttrType(Context, CI, E));
 }
 
-template <typename AttrInfo>
-static bool handleMaxWorkSizeAttrExpr(Sema &S, const AttrInfo &AI,
-                                      const Expr *E, unsigned &Val,
-                                      unsigned Idx) {
+static Expr *checkMaxWorkSizeAttrExpr(Sema &S, const AttributeCommonInfo &CI,
+                                      Expr *E) {
   assert(E && "Attribute must have an argument.");
 
   if (!E->isInstantiationDependent()) {
-    Optional<llvm::APSInt> ArgVal =
-        E->getIntegerConstantExpr(S.getASTContext());
+    llvm::APSInt ArgVal;
+    ExprResult ICE = S.VerifyIntegerConstantExpression(E, &ArgVal);
 
-    if (!ArgVal) {
-      S.Diag(AI.getLocation(), diag::err_attribute_argument_type)
-          << &AI << AANT_ArgumentIntegerConstant << E->getSourceRange();
-      return false;
-    }
+    if (ICE.isInvalid())
+      return nullptr;
 
-    if (ArgVal->isNegative()) {
+    E = ICE.get();
+
+    if (ArgVal.isNegative()) {
       S.Diag(E->getExprLoc(),
              diag::warn_attribute_requires_non_negative_integer_argument)
           << E->getType() << S.Context.UnsignedLongLongTy
           << E->getSourceRange();
-      return true;
+      return E;
     }
 
-    Val = ArgVal->getZExtValue();
+    unsigned Val = ArgVal.getZExtValue();
     if (Val == 0) {
       S.Diag(E->getExprLoc(), diag::err_attribute_argument_is_zero)
-          << &AI << E->getSourceRange();
-      return false;
+          << CI << E->getSourceRange();
+      return nullptr;
     }
   }
-  return true;
-}
-
-template <typename AttrType>
-static bool checkMaxWorkSizeAttrArguments(Sema &S, Expr *XDimExpr,
-                                          Expr *YDimExpr, Expr *ZDimExpr,
-                                          const AttrType &Attr) {
-  // Accept template arguments for now as they depend on something else.
-  // We'll get to check them when they eventually get instantiated.
-  if (XDimExpr->isValueDependent() ||
-      (YDimExpr && YDimExpr->isValueDependent()) ||
-      (ZDimExpr && ZDimExpr->isValueDependent()))
-    return false;
-
-  unsigned XDim = 0;
-  if (!handleMaxWorkSizeAttrExpr(S, Attr, XDimExpr, XDim, 0))
-    return true;
-
-  unsigned YDim = 0;
-  if (YDimExpr && !handleMaxWorkSizeAttrExpr(S, Attr, YDimExpr, YDim, 1))
-    return true;
-
-  unsigned ZDim = 0;
-  if (ZDimExpr && !handleMaxWorkSizeAttrExpr(S, Attr, ZDimExpr, ZDim, 2))
-    return true;
-
-  return false;
+  return E;
 }
 
 template <typename WorkGroupAttrType>
@@ -13159,12 +13132,23 @@ void Sema::addIntelSYCLTripleArgFunctionAttr(Decl *D,
                                              const AttributeCommonInfo &CI,
                                              Expr *XDimExpr, Expr *YDimExpr,
                                              Expr *ZDimExpr) {
-  WorkGroupAttrType TmpAttr(Context, CI, XDimExpr, YDimExpr, ZDimExpr);
 
-  if (checkMaxWorkSizeAttrArguments(*this, XDimExpr, YDimExpr, ZDimExpr,
-                                    TmpAttr))
-    return;
+  assert((XDimExpr && YDimExpr && ZDimExpr) &&
+         "argument has unexpected null value");
 
+  // Accept template arguments for now as they depend on something else.
+  // We'll get to check them when they eventually get instantiated.
+  if (!XDimExpr->isValueDependent() && !YDimExpr->isValueDependent() &&
+      !ZDimExpr->isValueDependent()) {
+
+    // Save ConstantExpr in semantic attribute
+    XDimExpr = checkMaxWorkSizeAttrExpr(*this, CI, XDimExpr);
+    YDimExpr = checkMaxWorkSizeAttrExpr(*this, CI, YDimExpr);
+    ZDimExpr = checkMaxWorkSizeAttrExpr(*this, CI, ZDimExpr);
+
+    if (!XDimExpr || !YDimExpr || !ZDimExpr)
+      return;
+  }
   D->addAttr(::new (Context)
                  WorkGroupAttrType(Context, CI, XDimExpr, YDimExpr, ZDimExpr));
 }
@@ -13252,7 +13236,7 @@ FPGALoopAttrT *Sema::BuildSYCLIntelFPGALoopAttr(const AttributeCommonInfo &A,
 
     int Val = ArgVal->getSExtValue();
 
-    if (A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGAII ||
+    if (A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGAInitiationInterval ||
         A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGALoopCoalesce) {
       if (Val <= 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)

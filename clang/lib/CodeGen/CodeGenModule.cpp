@@ -124,6 +124,8 @@ CodeGenModule::CodeGenModule(ASTContext &C, const HeaderSearchOptions &HSO,
     C.toCharUnitsFromBits(C.getTargetInfo().getMaxPointerWidth()).getQuantity();
   IntAlignInBytes =
     C.toCharUnitsFromBits(C.getTargetInfo().getIntAlign()).getQuantity();
+  CharTy =
+    llvm::IntegerType::get(LLVMContext, C.getTargetInfo().getCharWidth());
   IntTy = llvm::IntegerType::get(LLVMContext, C.getTargetInfo().getIntWidth());
   IntPtrTy = llvm::IntegerType::get(LLVMContext,
     C.getTargetInfo().getMaxPointerWidth());
@@ -2670,6 +2672,34 @@ bool CodeGenModule::imbueXRayAttrs(llvm::Function *Fn, SourceLocation Loc,
   return true;
 }
 
+bool CodeGenModule::isProfileInstrExcluded(llvm::Function *Fn,
+                                           SourceLocation Loc) const {
+  const auto &ProfileList = getContext().getProfileList();
+  // If the profile list is empty, then instrument everything.
+  if (ProfileList.isEmpty())
+    return false;
+  CodeGenOptions::ProfileInstrKind Kind = getCodeGenOpts().getProfileInstr();
+  // First, check the function name.
+  Optional<bool> V = ProfileList.isFunctionExcluded(Fn->getName(), Kind);
+  if (V.hasValue())
+    return *V;
+  // Next, check the source location.
+  if (Loc.isValid()) {
+    Optional<bool> V = ProfileList.isLocationExcluded(Loc, Kind);
+    if (V.hasValue())
+      return *V;
+  }
+  // If location is unknown, this may be a compiler-generated function. Assume
+  // it's located in the main file.
+  auto &SM = Context.getSourceManager();
+  if (const auto *MainFile = SM.getFileEntryForID(SM.getMainFileID())) {
+    Optional<bool> V = ProfileList.isFileExcluded(MainFile->getName(), Kind);
+    if (V.hasValue())
+      return *V;
+  }
+  return ProfileList.getDefault();
+}
+
 bool CodeGenModule::MustBeEmitted(const ValueDecl *Global) {
   // Never defer when EmitAllDecls is specified.
   if (LangOpts.EmitAllDecls)
@@ -3991,7 +4021,6 @@ CodeGenModule::GetOrCreateLLVMGlobal(StringRef MangledName,
         : (LangOpts.OpenCL ? LangAS::opencl_global : LangAS::Default);
   assert(getContext().getTargetAddressSpace(ExpectedAS) ==
          Ty->getPointerAddressSpace());
-
   if (AddrSpace != ExpectedAS)
     return getTargetCodeGenInfo().performAddrSpaceCast(*this, GV, AddrSpace,
                                                        ExpectedAS, Ty);
@@ -4149,14 +4178,10 @@ LangAS CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D) {
     return AddrSpace;
   }
 
-  if (LangOpts.SYCLIsDevice) {
-    if (!D)
-      return LangAS::opencl_global;
+  if (LangOpts.SYCLIsDevice && D) {
     auto *Scope = D->getAttr<SYCLScopeAttr>();
     if (Scope && Scope->isWorkGroup())
       return LangAS::opencl_local;
-    if (D->getType().getAddressSpace() == LangAS::Default)
-      return LangAS::opencl_global;
   }
 
   if (LangOpts.CUDA && LangOpts.CUDAIsDevice) {
@@ -4184,17 +4209,6 @@ LangAS CodeGenModule::getStringLiteralAddressSpace() const {
   // OpenCL v1.2 s6.5.3: a string literal is in the constant address space.
   if (LangOpts.OpenCL)
     return LangAS::opencl_constant;
-  if (LangOpts.SYCLIsDevice)
-    // If we keep a literal string in constant address space, the following code
-    // becomes illegal:
-    //
-    //   const char *getLiteral() n{
-    //     return "AB";
-    //   }
-    // Use global address space to avoid illegal casts from constant to generic.
-    // Private address space is not used here because in SPIR-V global values
-    // cannot have private address space.
-    return LangAS::opencl_global;
   if (auto AS = getTarget().getConstantAddressSpace())
     return AS.getValue();
   return LangAS::Default;
@@ -5086,7 +5100,8 @@ void CodeGenModule::EmitAliasDefinition(GlobalDecl GD) {
     LT = getFunctionLinkage(GD);
     AS = Aliasee->getType()->getPointerAddressSpace();
   } else {
-    AS = ArgInfoAddressSpace(GetGlobalVarAddressSpace(/*D=*/nullptr));
+    AS = ArgInfoAddressSpace(
+        GetGlobalVarAddressSpace(dyn_cast<VarDecl>(GD.getDecl())));
     Aliasee = GetOrCreateLLVMGlobal(AA->getAliasee(), DeclTy->getPointerTo(AS),
                                     /*D=*/nullptr);
     if (const auto *VD = dyn_cast<VarDecl>(GD.getDecl()))

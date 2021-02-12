@@ -1642,8 +1642,12 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
     CGM.generateIntelFPGAAnnotation(&D, AnnotStr);
     if (!AnnotStr.empty()) {
       llvm::Value *V = address.getPointer();
-      EmitAnnotationCall(CGM.getIntrinsic(llvm::Intrinsic::var_annotation),
-                         Builder.CreateBitCast(V, CGM.Int8PtrTy, V->getName()),
+      llvm::Type *DestPtrTy = llvm::PointerType::getInt8PtrTy(
+          CGM.getLLVMContext(), address.getAddressSpace());
+      llvm::Value *Arg = Builder.CreateBitCast(V, DestPtrTy, V->getName());
+      if (address.getAddressSpace() != 0)
+        Arg = Builder.CreateAddrSpaceCast(Arg, CGM.Int8PtrTy, V->getName());
+      EmitAnnotationCall(CGM.getIntrinsic(llvm::Intrinsic::var_annotation), Arg,
                          AnnotStr, D.getLocation());
     }
   }

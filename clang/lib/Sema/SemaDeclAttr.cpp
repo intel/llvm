@@ -320,26 +320,52 @@ static bool checkAttrMutualExclusion(Sema &S, Decl *D, const Attr &AL) {
   return false;
 }
 
+void Sema::DiagnoseDeprecatedAttribute(const ParsedAttr &A, StringRef NewScope,
+                                       StringRef NewName) {
+  assert((!NewName.empty() || !NewScope.empty()) &&
+         "Deprecated attribute with no new scope or name?");
+  Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated)
+      << "'" + A.getNormalizedFullName() + "'";
+
+  FixItHint Fix;
+  std::string NewFullName;
+  if (NewScope.empty() && !NewName.empty()) {
+    // Only have a new name.
+    Fix = FixItHint::CreateReplacement(A.getLoc(), NewName);
+    NewFullName =
+        ((A.hasScope() ? A.getScopeName()->getName() : StringRef("")) +
+         "::" + NewName)
+            .str();
+  } else if (NewName.empty() && !NewScope.empty()) {
+    // Only have a new scope.
+    Fix = FixItHint::CreateReplacement(A.getScopeLoc(), NewScope);
+    NewFullName = (NewScope + "::" + A.getAttrName()->getName()).str();
+  } else {
+    // Have both a new name and a new scope.
+    NewFullName = (NewScope + "::" + NewName).str();
+    Fix = FixItHint::CreateReplacement(A.getRange(), NewFullName);
+  }
+
+  Diag(A.getLoc(), diag::note_spelling_suggestion)
+      << "'" + NewFullName + "'" << Fix;
+}
+
 void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
                                                 StringRef NewName) {
+  // Additionally, diagnose the old [[intel::ii]] spelling.
+  if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAInitiationInterval &&
+      A.getAttrName()->isStr("ii")) {
+    DiagnoseDeprecatedAttribute(A, "intel", "initiation_interval");
+    return;
+  }
+
   // All attributes in the intelfpga vendor namespace are deprecated in favor
   // of a name in the intel vendor namespace. By default, assume the attribute
   // retains its original name but changes the namespace. However, some
   // attributes were renamed, so we support supplying a new name as well.
   if (A.hasScope() && A.getScopeName()->isStr("intelfpga")) {
-    Diag(A.getLoc(), diag::warn_attribute_spelling_deprecated)
-        << "'" + A.getNormalizedFullName() + "'";
-
-    FixItHint Fix = NewName.empty()
-                        ? FixItHint::CreateReplacement(A.getScopeLoc(), "intel")
-                        : FixItHint::CreateReplacement(
-                              A.getRange(), ("intel::" + NewName).str());
-
-    Diag(A.getLoc(), diag::note_spelling_suggestion)
-        << (llvm::Twine("'intel::") +
-            (NewName.empty() ? A.getAttrName()->getName() : NewName) + "'")
-               .str()
-        << Fix;
+    DiagnoseDeprecatedAttribute(A, "intel", NewName);
+    return;
   }
 }
 
