@@ -246,19 +246,6 @@ public:
                     const char *LinkingOutput) const override;
 };
 
-/// Partially link objects and archives.
-class LLVM_LIBRARY_VISIBILITY PartialLink final : public Tool {
-public:
-  PartialLink(const ToolChain &TC) : Tool("partial link", "partial-link", TC) {}
-
-  bool hasIntegratedCPP() const override { return false; }
-  bool hasGoodDiagnostics() const override { return true; }
-  void ConstructJob(Compilation &C, const JobAction &JA,
-                    const InputInfo &Output, const InputInfoList &Inputs,
-                    const llvm::opt::ArgList &TCArgs,
-                    const char *LinkingOutput) const override;
-};
-
 } // end namespace tools
 
 } // end namespace driver
