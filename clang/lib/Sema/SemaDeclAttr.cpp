@@ -5720,9 +5720,7 @@ static void handleOneConstantPowerTwoValueAttr(Sema &S, Decl *D,
   if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, A))
     return;
 
-  if (A.getKind() == ParsedAttr::AT_IntelFPGABankWidth ||
-      A.getKind() == ParsedAttr::AT_IntelFPGANumBanks)
-    S.CheckDeprecatedSYCLAttributeSpelling(A);
+  S.CheckDeprecatedSYCLAttributeSpelling(A);
 
   S.AddOneConstantPowerTwoValueAttr<AttrType>(D, A, A.getArgAsExpr(0));
 }
@@ -5759,8 +5757,8 @@ static void handleIntelFPGAMaxReplicatesAttr(Sema &S, Decl *D,
 
   S.CheckDeprecatedSYCLAttributeSpelling(A);
 
-  S.AddOneConstantValueAttr<IntelFPGAMaxReplicatesAttr>(D, A,
-                                                        A.getArgAsExpr(0));
+  S.addIntelSingleArgFunctionAttr<IntelFPGAMaxReplicatesAttr>(
+      D, A, A.getArgAsExpr(0));
 }
 
 /// Handle the merge attribute.
@@ -5837,11 +5835,14 @@ void Sema::AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
     Expr::EvalResult Result;
     ListIsValueDep = ListIsValueDep || E->isValueDependent();
     if (!E->isValueDependent()) {
-      ExprResult ICE;
-      if (checkRangedIntegralArgument<IntelFPGABankBitsAttr>(E, &TmpAttr, ICE))
+      ExprResult ICE = VerifyIntegerConstantExpression(E, &Value);
+      if (ICE.isInvalid())
         return;
-      if (E->EvaluateAsInt(Result, Context))
-        Value = Result.Val.getInt();
+      if (!Value.isNonNegative()) {
+        Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+            << CI << /*non-negative*/ 1;
+        return;
+      }
       E = ICE.get();
     }
     Args.push_back(E);

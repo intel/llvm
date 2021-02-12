@@ -1998,14 +1998,6 @@ def IntelFPGABankWidth : Attr {
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Documentation = [IntelFPGABankWidthAttrDocs];
-  let AdditionalMembers = [{
-    static unsigned getMinValue() {
-      return 1;
-    }
-    static unsigned getMaxValue() {
-      return 1024*1024;
-    }
-  }];
 }
 
 def IntelFPGANumBanks : Attr {
@@ -2016,14 +2008,6 @@ def IntelFPGANumBanks : Attr {
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Documentation = [IntelFPGANumBanksAttrDocs];
-  let AdditionalMembers = [{
-    static unsigned getMinValue() {
-      return 1;
-    }
-    static unsigned getMaxValue() {
-      return 1024*1024;
-    }
-  }];
 }
 
 def IntelFPGAPrivateCopies : InheritableAttr {
@@ -2054,14 +2038,6 @@ def IntelFPGAMaxReplicates : Attr {
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Documentation = [IntelFPGAMaxReplicatesAttrDocs];
-  let AdditionalMembers = [{
-    static unsigned getMinValue() {
-      return 1;
-    }
-    static unsigned getMaxValue() {
-      return 1024*1024;
-    }
-  }];
 }
 
 def IntelFPGASimpleDualPort : Attr {
@@ -2097,14 +2073,6 @@ def IntelFPGABankBits : Attr {
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Documentation = [IntelFPGABankBitsDocs];
-  let AdditionalMembers = [{
-    static unsigned getMinValue() {
-      return 0;
-    }
-    static unsigned getMaxValue() {
-      return 1024*1024;
-    }
-  }];
 }
 
 def IntelFPGAForcePow2Depth : Attr {

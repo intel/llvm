@@ -13071,22 +13071,23 @@ void Sema::addIntelSingleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
     E = ICE.get();
     int32_t ArgInt = ArgVal.getSExtValue();
     if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelNumSimdWorkItems ||
-        CI.getParsedKind() == ParsedAttr::AT_IntelReqdSubGroupSize) {
+        CI.getParsedKind() == ParsedAttr::AT_IntelReqdSubGroupSize ||
+        CI.getParsedKind() == ParsedAttr::AT_IntelFPGAMaxReplicates) {
       if (ArgInt <= 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-            << CI.getAttrName() << /*positive*/ 0;
+            << CI << /*positive*/ 0;
         return;
       }
     }
     if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
       if (ArgInt < 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-            << CI.getAttrName() << /*non-negative*/ 1;
+            << CI << /*non-negative*/ 1;
         return;
       }
       if (ArgInt > 3) {
         Diag(E->getBeginLoc(), diag::err_attribute_argument_out_of_range)
-            << CI.getAttrName() << 0 << 3 << E->getSourceRange();
+            << CI << 0 << 3 << E->getSourceRange();
         return;
       }
     }
@@ -13094,7 +13095,7 @@ void Sema::addIntelSingleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
         CI.getParsedKind() == ParsedAttr::AT_IntelFPGAPrivateCopies) {
       if (ArgInt < 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-            << CI.getAttrName() << /*non-negative*/ 1;
+            << CI << /*non-negative*/ 1;
         return;
       }
     }
@@ -13186,12 +13187,15 @@ void Sema::AddOneConstantPowerTwoValueAttr(Decl *D,
   AttrType TmpAttr(Context, CI, E);
 
   if (!E->isValueDependent()) {
-    ExprResult ICE;
-    if (checkRangedIntegralArgument<AttrType>(E, &TmpAttr, ICE))
+    llvm::APSInt Value;
+    ExprResult ICE = VerifyIntegerConstantExpression(E, &Value);
+    if (ICE.isInvalid())
       return;
-    Expr::EvalResult Result;
-    E->EvaluateAsInt(Result, Context);
-    llvm::APSInt Value = Result.Val.getInt();
+    if (!Value.isStrictlyPositive()) {
+      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+          << CI << /*positive*/ 0;
+      return;
+    }
     if (!Value.isPowerOf2()) {
       Diag(CI.getLoc(), diag::err_attribute_argument_not_power_of_two)
           << &TmpAttr;

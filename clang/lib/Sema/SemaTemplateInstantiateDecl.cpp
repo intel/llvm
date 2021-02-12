@@ -588,7 +588,8 @@ static void instantiateIntelFPGAMemoryAttr(
       return S.AddOneConstantPowerTwoValueAttr<AttrName>(New, *Attr,
                                                          Result.getAs<Expr>());
 
-    if (std::is_same<AttrName, IntelFPGAPrivateCopiesAttr>::value)
+    if (std::is_same<AttrName, IntelFPGAPrivateCopiesAttr>::value ||
+        std::is_same<AttrName, IntelFPGAMaxReplicatesAttr>::value)
       return S.addIntelSingleArgFunctionAttr<AttrName>(New, *Attr,
                                                        Result.getAs<Expr>());
 
