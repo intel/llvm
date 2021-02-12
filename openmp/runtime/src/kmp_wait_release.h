@@ -57,7 +57,7 @@ template <typename P> class kmp_flag_native {
 public:
   typedef P flag_t;
   kmp_flag_native(volatile P *p, flag_type ft)
-      : loc(p), t({(unsigned int)ft, 0U}) {}
+      : loc(p), t({(short unsigned int)ft, 0U}) {}
   volatile P *get() { return loc; }
   void *get_void_p() { return RCAST(void *, CCAST(P *, loc)); }
   void set(volatile P *new_loc) { loc = new_loc; }
@@ -77,7 +77,7 @@ template <typename P> class kmp_flag {
 public:
   typedef P flag_t;
   kmp_flag(std::atomic<P> *p, flag_type ft)
-      : loc(p), t({(unsigned int)ft, 0U}) {}
+      : loc(p), t({(short unsigned int)ft, 0U}) {}
   /*!
    * @result the pointer to the actual flag
    */
@@ -389,6 +389,26 @@ final_spin=FALSE)
         break;
     }
 
+    // For hidden helper thread, if task_team is nullptr, it means the main
+    // thread has not released the barrier. We cannot wait here because once the
+    // main thread releases all children barriers, all hidden helper threads are
+    // still sleeping. This leads to a problem that following configuration,
+    // such as task team sync, will not be performed such that this thread does
+    // not have task team. Usually it is not bad. However, a corner case is,
+    // when the first task encountered is an untied task, the check in
+    // __kmp_task_alloc will crash because it uses the task team pointer without
+    // checking whether it is nullptr. It is probably under some kind of
+    // assumption.
+    if (task_team && KMP_HIDDEN_HELPER_WORKER_THREAD(th_gtid) &&
+        !TCR_4(__kmp_hidden_helper_team_done)) {
+      // If there is still hidden helper tasks to be executed, the hidden helper
+      // thread will not enter a waiting status.
+      if (KMP_ATOMIC_LD_ACQ(&__kmp_unexecuted_hidden_helper_tasks) == 0) {
+        __kmp_hidden_helper_worker_thread_wait();
+      }
+      continue;
+    }
+
     // Don't suspend if KMP_BLOCKTIME is set to "infinite"
     if (__kmp_dflt_blocktime == KMP_MAX_BLOCKTIME &&
         __kmp_pause_status != kmp_soft_paused)
@@ -509,7 +529,7 @@ static inline void __kmp_mwait_template(int th_gtid, C *flag) {
   __kmp_lock_suspend_mx(th);
 
   volatile void *spin = flag->get();
-  void *cacheline = (void *)(kmp_uint64(spin) & ~(CACHE_LINE - 1));
+  void *cacheline = (void *)(kmp_uintptr_t(spin) & ~(CACHE_LINE - 1));
 
   if (!flag->done_check()) {
     // Mark thread as no longer active

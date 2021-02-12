@@ -1396,6 +1396,12 @@ def err_pragma_loop_invalid_option : Error<
   "%select{invalid|missing}0 option%select{ %1|}0; expected vectorize, "
   "vectorize_width, interleave, interleave_count, unroll, unroll_count, "
   "pipeline, pipeline_initiation_interval, vectorize_predicate, or distribute">;
+def err_pragma_loop_invalid_vectorize_option : Error<
+  "vectorize_width loop hint malformed; use vectorize_width(X, fixed) or "
+  "vectorize_width(X, scalable) where X is an integer, or vectorize_width('fixed' or 'scalable')">;
+def note_pragma_loop_invalid_vectorize_option : Note<
+  "vectorize_width loop hint malformed; use vectorize_width(X, fixed) or "
+  "vectorize_width(X, scalable) where X is an integer, or vectorize_width('fixed' or 'scalable')">;
 
 def err_pragma_fp_invalid_option : Error<
   "%select{invalid|missing}0 option%select{ %1|}0; expected 'contract', 'reassociate' or 'exceptions'">;
@@ -1426,12 +1432,6 @@ def err_pragma_cannot_end_force_cuda_host_device : Error<
   "force_cuda_host_device end pragma without matching "
   "force_cuda_host_device begin">;
 } // end of Parse Issue category.
-
-// SYCL loop pragmas and attributes support
-// * Intel FPGA attribute ivdep, ii, max_concurrency support
-// * clang::loop_unroll attribute support
-def err_loop_attr_on_non_loop : Error<
-  "%select{clang|intelfpga}0 loop attributes must be applied to for, while, or do statements">;
 
 let CategoryName = "Modules Issue" in {
 def err_unexpected_module_decl : Error<

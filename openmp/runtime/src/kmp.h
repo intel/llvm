@@ -66,6 +66,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits>
+#include <type_traits>
 /* include <ctype.h> don't use; problems with /MD on Windows* OS NT due to bad
    Microsoft library. Some macros provided below to replace these functions  */
 #ifndef __ABSOFT_WIN
@@ -593,6 +595,32 @@ typedef int PACKED_REDUCTION_METHOD_T;
 #include <pthread.h>
 #endif
 
+enum kmp_hw_t : int {
+  KMP_HW_UNKNOWN = -1,
+  KMP_HW_MACHINE = 0,
+  KMP_HW_SOCKET,
+  KMP_HW_PROC_GROUP,
+  KMP_HW_NUMA,
+  KMP_HW_DIE,
+  KMP_HW_L3,
+  KMP_HW_TILE,
+  KMP_HW_MODULE,
+  KMP_HW_L2,
+  KMP_HW_L1,
+  KMP_HW_CORE,
+  KMP_HW_THREAD,
+  KMP_HW_LAST
+};
+
+#define KMP_ASSERT_VALID_HW_TYPE(type)                                         \
+  KMP_DEBUG_ASSERT(type >= (kmp_hw_t)0 && type < KMP_HW_LAST)
+
+#define KMP_FOREACH_HW_TYPE(type)                                              \
+  for (kmp_hw_t type = (kmp_hw_t)0; type < KMP_HW_LAST;                        \
+       type = (kmp_hw_t)((int)type + 1))
+
+const char *__kmp_hw_get_catalog_string(kmp_hw_t type, bool plural = false);
+
 /* Only Linux* OS and Windows* OS support thread affinity. */
 #if KMP_AFFINITY_SUPPORTED
 
@@ -761,6 +789,7 @@ enum affinity_gran {
   affinity_gran_thread,
   affinity_gran_core,
   affinity_gran_tile,
+  affinity_gran_die,
   affinity_gran_numa,
   affinity_gran_package,
   affinity_gran_node,
@@ -777,6 +806,7 @@ enum affinity_top_method {
 #if KMP_ARCH_X86 || KMP_ARCH_X86_64
   affinity_top_method_apicid,
   affinity_top_method_x2apicid,
+  affinity_top_method_x2apicid_1f,
 #endif /* KMP_ARCH_X86 || KMP_ARCH_X86_64 */
   affinity_top_method_cpuinfo, // KMP_CPUINFO_FILE is usable on Windows* OS, too
 #if KMP_GROUP_AFFINITY
@@ -861,6 +891,7 @@ typedef struct kmp_hws_item {
 } kmp_hws_item_t;
 
 extern kmp_hws_item_t __kmp_hws_socket;
+extern kmp_hws_item_t __kmp_hws_die;
 extern kmp_hws_item_t __kmp_hws_node;
 extern kmp_hws_item_t __kmp_hws_tile;
 extern kmp_hws_item_t __kmp_hws_core;
@@ -888,7 +919,7 @@ extern int __kmp_hws_abs_flag; // absolute or per-item number requested
 typedef uintptr_t omp_uintptr_t;
 
 typedef enum {
-  omp_atk_threadmodel = 1,
+  omp_atk_sync_hint = 1,
   omp_atk_alignment = 2,
   omp_atk_access = 3,
   omp_atk_pool_size = 4,
@@ -901,10 +932,10 @@ typedef enum {
 typedef enum {
   omp_atv_false = 0,
   omp_atv_true = 1,
-  omp_atv_default = 2,
   omp_atv_contended = 3,
   omp_atv_uncontended = 4,
-  omp_atv_sequential = 5,
+  omp_atv_serialized = 5,
+  omp_atv_sequential = omp_atv_serialized, // (deprecated)
   omp_atv_private = 6,
   omp_atv_all = 7,
   omp_atv_thread = 8,
@@ -919,6 +950,7 @@ typedef enum {
   omp_atv_blocked = 17,
   omp_atv_interleaved = 18
 } omp_alloctrait_value_t;
+#define omp_atv_default ((omp_uintptr_t)-1)
 
 typedef void *omp_memspace_handle_t;
 extern omp_memspace_handle_t const omp_default_mem_space;
@@ -2331,7 +2363,8 @@ typedef struct kmp_tasking_flags { /* Total struct must be exactly 32 bits */
   unsigned priority_specified : 1; /* set if the compiler provides priority
                                       setting for the task */
   unsigned detachable : 1; /* 1 == can detach */
-  unsigned reserved : 9; /* reserved for compiler use */
+  unsigned hidden_helper : 1; /* 1 == hidden helper task */
+  unsigned reserved : 8; /* reserved for compiler use */
 
   /* Library flags */ /* Total library flags must be 16 bits */
   unsigned tasktype : 1; /* task is either explicit(1) or implicit (0) */
@@ -2379,7 +2412,14 @@ struct kmp_taskdata { /* aligned during dynamic allocation       */
   kmp_depnode_t
       *td_depnode; // Pointer to graph node if this task has dependencies
   kmp_task_team_t *td_task_team;
-  kmp_int32 td_size_alloc; // The size of task structure, including shareds etc.
+  // The global thread id of the encountering thread. We need it because when a
+  // regular task depends on a hidden helper task, and the hidden helper task
+  // is finished on a hidden helper thread, it will call __kmp_release_deps to
+  // release all dependences. If now the task is a regular task, we need to pass
+  // the encountering gtid such that the task will be picked up and executed by
+  // its encountering team instead of hidden helper team.
+  kmp_int32 encountering_gtid;
+  size_t td_size_alloc; // Size of task structure, including shareds etc.
 #if defined(KMP_GOMP_COMPAT)
   // 4 or 8 byte integers for the loop bounds in GOMP_taskloop
   kmp_int32 td_size_loop_bounds;
@@ -2446,6 +2486,9 @@ typedef struct kmp_base_task_team {
   kmp_int32 tt_max_threads; // # entries allocated for threads_data array
   kmp_int32 tt_found_proxy_tasks; // found proxy tasks since last barrier
   kmp_int32 tt_untied_task_encountered;
+  // There is hidden helper thread encountered in this task team so that we must
+  // wait when waiting on task team
+  kmp_int32 tt_hidden_helper_task_encountered;
 
   KMP_ALIGN_CACHE
   std::atomic<kmp_int32> tt_unfinished_threads; /* #threads still active */
@@ -2914,6 +2957,7 @@ extern volatile int __kmp_init_parallel;
 extern volatile int __kmp_init_monitor;
 #endif
 extern volatile int __kmp_init_user_locks;
+extern volatile int __kmp_init_hidden_helper_threads;
 extern int __kmp_init_counter;
 extern int __kmp_root_counter;
 extern int __kmp_version;
@@ -3590,7 +3634,7 @@ extern void __kmp_user_set_library(enum library_type arg);
 extern void __kmp_aux_set_library(enum library_type arg);
 extern void __kmp_aux_set_stacksize(size_t arg);
 extern void __kmp_aux_set_blocktime(int arg, kmp_info_t *thread, int tid);
-extern void __kmp_aux_set_defaults(char const *str, int len);
+extern void __kmp_aux_set_defaults(char const *str, size_t len);
 
 /* Functions called from __kmp_aux_env_initialize() in kmp_settings.cpp */
 void kmpc_set_blocktime(int arg);
@@ -3982,6 +4026,45 @@ static inline void __kmp_resume_if_hard_paused() {
 
 extern void __kmp_omp_display_env(int verbose);
 
+// 1: it is initializing hidden helper team
+extern volatile int __kmp_init_hidden_helper;
+// 1: the hidden helper team is done
+extern volatile int __kmp_hidden_helper_team_done;
+// 1: enable hidden helper task
+extern kmp_int32 __kmp_enable_hidden_helper;
+// Main thread of hidden helper team
+extern kmp_info_t *__kmp_hidden_helper_main_thread;
+// Descriptors for the hidden helper threads
+extern kmp_info_t **__kmp_hidden_helper_threads;
+// Number of hidden helper threads
+extern kmp_int32 __kmp_hidden_helper_threads_num;
+// Number of hidden helper tasks that have not been executed yet
+extern std::atomic<kmp_int32> __kmp_unexecuted_hidden_helper_tasks;
+
+extern void __kmp_hidden_helper_initialize();
+extern void __kmp_hidden_helper_threads_initz_routine();
+extern void __kmp_do_initialize_hidden_helper_threads();
+extern void __kmp_hidden_helper_threads_initz_wait();
+extern void __kmp_hidden_helper_initz_release();
+extern void __kmp_hidden_helper_threads_deinitz_wait();
+extern void __kmp_hidden_helper_threads_deinitz_release();
+extern void __kmp_hidden_helper_main_thread_wait();
+extern void __kmp_hidden_helper_worker_thread_wait();
+extern void __kmp_hidden_helper_worker_thread_signal();
+extern void __kmp_hidden_helper_main_thread_release();
+
+// Check whether a given thread is a hidden helper thread
+#define KMP_HIDDEN_HELPER_THREAD(gtid)                                         \
+  ((gtid) >= 1 && (gtid) <= __kmp_hidden_helper_threads_num)
+
+#define KMP_HIDDEN_HELPER_WORKER_THREAD(gtid)                                  \
+  ((gtid) > 1 && (gtid) <= __kmp_hidden_helper_threads_num)
+
+// Map a gtid to a hidden helper thread. The first hidden helper thread, a.k.a
+// main thread, is skipped.
+#define KMP_GTID_TO_SHADOW_GTID(gtid)                                          \
+  ((gtid) % (__kmp_hidden_helper_threads_num - 1) + 2)
+
 #ifdef __cplusplus
 }
 #endif
@@ -4086,5 +4169,113 @@ public:
   operator bool() { return bool(f); }
   operator FILE *() { return f; }
 };
+
+template <typename SourceType, typename TargetType,
+          bool isSourceSmaller = (sizeof(SourceType) < sizeof(TargetType)),
+          bool isSourceEqual = (sizeof(SourceType) == sizeof(TargetType)),
+          bool isSourceSigned = std::is_signed<SourceType>::value,
+          bool isTargetSigned = std::is_signed<TargetType>::value>
+struct kmp_convert {};
+
+// Both types are signed; Source smaller
+template <typename SourceType, typename TargetType>
+struct kmp_convert<SourceType, TargetType, true, false, true, true> {
+  static TargetType to(SourceType src) { return (TargetType)src; }
+};
+// Source equal
+template <typename SourceType, typename TargetType>
+struct kmp_convert<SourceType, TargetType, false, true, true, true> {
+  static TargetType to(SourceType src) { return src; }
+};
+// Source bigger
+template <typename SourceType, typename TargetType>
+struct kmp_convert<SourceType, TargetType, false, false, true, true> {
+  static TargetType to(SourceType src) {
+    KMP_ASSERT(src <= static_cast<SourceType>(
+                          (std::numeric_limits<TargetType>::max)()));
+    KMP_ASSERT(src >= static_cast<SourceType>(
+                          (std::numeric_limits<TargetType>::min)()));
+    return (TargetType)src;
+  }
+};
+
+// Source signed, Target unsigned
+// Source smaller
+template <typename SourceType, typename TargetType>
+struct kmp_convert<SourceType, TargetType, true, false, true, false> {
+  static TargetType to(SourceType src) {
+    KMP_ASSERT(src >= 0);
+    return (TargetType)src;
+  }
+};
+// Source equal
+template <typename SourceType, typename TargetType>
+struct kmp_convert<SourceType, TargetType, false, true, true, false> {
+  static TargetType to(SourceType src) {
+    KMP_ASSERT(src >= 0);
+    return (TargetType)src;
+  }
+};
+// Source bigger
+template <typename SourceType, typename TargetType>
+struct kmp_convert<SourceType, TargetType, false, false, true, false> {
+  static TargetType to(SourceType src) {
+    KMP_ASSERT(src >= 0);
+    KMP_ASSERT(src <= static_cast<SourceType>(
+                          (std::numeric_limits<TargetType>::max)()));
+    return (TargetType)src;
+  }
+};
+
+// Source unsigned, Target signed
+// Source smaller
+template <typename SourceType, typename TargetType>
+struct kmp_convert<SourceType, TargetType, true, false, false, true> {
+  static TargetType to(SourceType src) { return (TargetType)src; }
+};
+// Source equal
+template <typename SourceType, typename TargetType>
+struct kmp_convert<SourceType, TargetType, false, true, false, true> {
+  static TargetType to(SourceType src) {
+    KMP_ASSERT(src <= static_cast<SourceType>(
+                          (std::numeric_limits<TargetType>::max)()));
+    return (TargetType)src;
+  }
+};
+// Source bigger
+template <typename SourceType, typename TargetType>
+struct kmp_convert<SourceType, TargetType, false, false, false, true> {
+  static TargetType to(SourceType src) {
+    KMP_ASSERT(src <= static_cast<SourceType>(
+                          (std::numeric_limits<TargetType>::max)()));
+    return (TargetType)src;
+  }
+};
+
+// Source unsigned, Target unsigned
+// Source smaller
+template <typename SourceType, typename TargetType>
+struct kmp_convert<SourceType, TargetType, true, false, false, false> {
+  static TargetType to(SourceType src) { return (TargetType)src; }
+};
+// Source equal
+template <typename SourceType, typename TargetType>
+struct kmp_convert<SourceType, TargetType, false, true, false, false> {
+  static TargetType to(SourceType src) { return src; }
+};
+// Source bigger
+template <typename SourceType, typename TargetType>
+struct kmp_convert<SourceType, TargetType, false, false, false, false> {
+  static TargetType to(SourceType src) {
+    KMP_ASSERT(src <= static_cast<SourceType>(
+                          (std::numeric_limits<TargetType>::max)()));
+    return (TargetType)src;
+  }
+};
+
+template <typename T1, typename T2>
+static inline void __kmp_type_convert(T1 src, T2 *dest) {
+  *dest = kmp_convert<T1, T2>::to(src);
+}
 
 #endif /* KMP_H */

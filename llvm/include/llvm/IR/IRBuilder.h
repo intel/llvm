@@ -779,11 +779,11 @@ public:
 
   /// Create a vector float max reduction intrinsic of the source
   /// vector.
-  CallInst *CreateFPMaxReduce(Value *Src, bool NoNaN = false);
+  CallInst *CreateFPMaxReduce(Value *Src);
 
   /// Create a vector float min reduction intrinsic of the source
   /// vector.
-  CallInst *CreateFPMinReduce(Value *Src, bool NoNaN = false);
+  CallInst *CreateFPMinReduce(Value *Src);
 
   /// Create a lifetime.start intrinsic.
   ///
@@ -857,6 +857,13 @@ public:
   /// added to the call instruction.
   CallInst *CreateAssumption(Value *Cond,
                              ArrayRef<OperandBundleDef> OpBundles = llvm::None);
+
+  /// Create a llvm.experimental.noalias.scope.decl intrinsic call.
+  Instruction *CreateNoAliasScopeDeclaration(Value *Scope);
+  Instruction *CreateNoAliasScopeDeclaration(MDNode *ScopeTag) {
+    return CreateNoAliasScopeDeclaration(
+        MetadataAsValue::get(Context, ScopeTag));
+  }
 
   /// Create a call to the experimental.gc.statepoint intrinsic to
   /// start a new statepoint sequence.
@@ -2524,10 +2531,10 @@ public:
   }
 
   /// Create a unary shuffle. The second vector operand of the IR instruction
-  /// is undefined.
+  /// is poison.
   Value *CreateShuffleVector(Value *V, ArrayRef<int> Mask,
                              const Twine &Name = "") {
-    return CreateShuffleVector(V, UndefValue::get(V->getType()), Mask, Name);
+    return CreateShuffleVector(V, PoisonValue::get(V->getType()), Mask, Name);
   }
 
   Value *CreateExtractValue(Value *Agg,

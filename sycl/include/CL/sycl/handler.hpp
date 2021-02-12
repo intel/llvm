@@ -10,7 +10,6 @@
 
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/accessor.hpp>
-#include <CL/sycl/atomic.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/cg.hpp>
 #include <CL/sycl/detail/cg_types.hpp>
@@ -31,6 +30,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <tuple>
 #include <type_traits>
 
 // SYCL_LANGUAGE_VERSION is 4 digit year followed by 2 digit revision
@@ -245,8 +245,31 @@ enable_if_t<!Reduction::has_fast_atomics, size_t>
 reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
               Reduction &Redu);
 
+template <typename KernelName, typename KernelType, int Dims,
+          typename... Reductions, size_t... Is>
+void reduCGFunc(handler &CGH, KernelType KernelFunc,
+                const nd_range<Dims> &Range,
+                std::tuple<Reductions...> &ReduTuple,
+                std::index_sequence<Is...>);
+
+template <typename KernelName, typename KernelType, typename... Reductions,
+          size_t... Is>
+size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
+                     std::tuple<Reductions...> &ReduTuple,
+                     std::index_sequence<Is...>);
+
 __SYCL_EXPORT size_t reduGetMaxWGSize(shared_ptr_class<queue_impl> Queue,
                                       size_t LocalMemBytesPerWorkItem);
+
+template <typename... ReductionT, size_t... Is>
+size_t reduGetMemPerWorkItem(std::tuple<ReductionT...> &ReduTuple,
+                             std::index_sequence<Is...>);
+
+template <typename TupleT, std::size_t... Is>
+std::tuple<std::tuple_element_t<Is, TupleT>...>
+tuple_select_elements(TupleT Tuple, std::index_sequence<Is...>);
+
+template <typename FirstT, typename... RestT> struct AreAllButLastReductions;
 
 } // namespace detail
 } // namespace ONEAPI
@@ -533,7 +556,6 @@ private:
   ///
   /// \param Src is a source SYCL accessor.
   /// \param Dst is a destination SYCL accessor.
-  // TODO: support atomic accessor in Src or/and Dst.
   template <typename TSrc, int DimSrc, access::mode ModeSrc,
             access::target TargetSrc, typename TDst, int DimDst,
             access::mode ModeDst, access::target TargetDst,
@@ -558,60 +580,6 @@ private:
     return true;
   }
 
-  template <typename T, int Dim, access::mode Mode, access::target Target,
-            access::placeholder IsPH>
-  static detail::enable_if_t<Dim == 0 && Mode == access::mode::atomic, T>
-  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) {
-#ifdef __ENABLE_USM_ADDR_SPACE__
-    atomic<T, access::address_space::global_device_space> AtomicSrc = Src;
-#else
-    atomic<T, access::address_space::global_space> AtomicSrc = Src;
-#endif // __ENABLE_USM_ADDR_SPACE__
-    return AtomicSrc.load();
-  }
-
-  template <typename T, int Dim, access::mode Mode, access::target Target,
-            access::placeholder IsPH>
-  static detail::enable_if_t<(Dim > 0) && Mode == access::mode::atomic, T>
-  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) {
-    id<Dim> Id = getDelinearizedIndex(Src.get_range(), 0);
-    return Src[Id].load();
-  }
-
-  template <typename T, int Dim, access::mode Mode, access::target Target,
-            access::placeholder IsPH>
-  static detail::enable_if_t<Mode != access::mode::atomic, T>
-  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) {
-    return *(Src.get_pointer());
-  }
-
-  template <typename T, int Dim, access::mode Mode, access::target Target,
-            access::placeholder IsPH>
-  static detail::enable_if_t<Dim == 0 && Mode == access::mode::atomic, void>
-  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) {
-#ifdef __ENABLE_USM_ADDR_SPACE__
-    atomic<T, access::address_space::global_device_space> AtomicDst = Dst;
-#else
-    atomic<T, access::address_space::global_space> AtomicDst = Dst;
-#endif // __ENABLE_USM_ADDR_SPACE__
-    AtomicDst.store(V);
-  }
-
-  template <typename T, int Dim, access::mode Mode, access::target Target,
-            access::placeholder IsPH>
-  static detail::enable_if_t<(Dim > 0) && Mode == access::mode::atomic, void>
-  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) {
-    id<Dim> Id = getDelinearizedIndex(Dst.get_range(), 0);
-    Dst[Id].store(V);
-  }
-
-  template <typename T, int Dim, access::mode Mode, access::target Target,
-            access::placeholder IsPH>
-  static detail::enable_if_t<Mode != access::mode::atomic, void>
-  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) {
-    *(Dst.get_pointer()) = V;
-  }
-
   /// Handles some special cases of the copy operation from one accessor
   /// to another accessor. Returns true if the copy is handled here.
   ///
@@ -632,7 +600,7 @@ private:
     single_task<class __copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc,
                                     TDst, DimDst, ModeDst, TargetDst,
                                     IsPHSrc, IsPHDst>> ([=]() {
-      writeToFirstAccElement(Dst, readFromFirstAccElement(Src));
+      *(Dst.get_pointer()) = *(Src.get_pointer());
     });
     return true;
   }
@@ -670,7 +638,7 @@ private:
     single_task<class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
         ([=]() {
       using TSrcNonConst = typename detail::remove_const_t<TSrc>;
-      *(reinterpret_cast<TSrcNonConst *>(Dst)) = readFromFirstAccElement(Src);
+      *(reinterpret_cast<TSrcNonConst *>(Dst)) = *(Src.get_pointer());
     });
   }
 
@@ -703,7 +671,7 @@ private:
                    accessor<TDst, Dim, AccMode, AccTarget, IsPH> Dst) {
     single_task<class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
         ([=]() {
-      writeToFirstAccElement(Dst, *(reinterpret_cast<const TDst *>(Src)));
+      *(Dst.get_pointer()) = *(reinterpret_cast<const TDst *>(Src));
     });
   }
 #endif // __SYCL_DEVICE_ONLY__
@@ -721,6 +689,19 @@ private:
   constexpr static bool
   isValidTargetForExplicitOp(access::target AccessTarget) {
     return isConstOrGlobal(AccessTarget) || isImageOrImageArray(AccessTarget);
+  }
+
+  constexpr static bool isValidModeForSourceAccessor(access::mode AccessMode) {
+    return AccessMode == access::mode::read ||
+           AccessMode == access::mode::read_write;
+  }
+
+  constexpr static bool
+  isValidModeForDestinationAccessor(access::mode AccessMode) {
+    return AccessMode == access::mode::write ||
+           AccessMode == access::mode::read_write ||
+           AccessMode == access::mode::discard_write ||
+           AccessMode == access::mode::discard_read_write;
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range.
@@ -748,9 +729,13 @@ private:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
-    // FIXME Remove this ifndef once rounding of execution range works well with
-    // ESIMD compilation flow.
-#ifndef __SYCL_EXPLICIT_SIMD__
+    // FIXME Remove the ESIMD check once rounding of execution range works well
+    // with ESIMD compilation flow.
+    // Range rounding is supported only for newer SYCL standards.
+    // Range rounding can also be disabled by the user.
+#if !defined(__SYCL_EXPLICIT_SIMD__) &&                                        \
+    !defined(SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING) &&                      \
+    SYCL_LANGUAGE_VERSION >= 202001
     // The work group size preferred by this device.
     // A reasonable choice for rounding up the range is 32.
     constexpr size_t GoodLocalSizeX = 32;
@@ -816,7 +801,8 @@ private:
       MCGType = detail::CG::KERNEL;
 #endif
     } else
-#endif // __SYCL_EXPLICIT_SIMD__
+#endif // !__SYCL_EXPLICIT_SIMD__ && !SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING
+       // && SYCL_LANGUAGE_VERSION > 202001
     {
 #ifdef __SYCL_DEVICE_ONLY__
       (void)NumWorkItems;
@@ -1222,7 +1208,6 @@ public:
   /// globally visible, there is no need for the developer to provide
   /// a kernel name for it.
   ///
-  /// TODO: Need to handle more than 1 reduction in parallel_for().
   /// TODO: Support HOST. The kernels called by this parallel_for() may use
   /// some functionality that is not yet supported on HOST such as:
   /// barrier(), and ONEAPI::reduce() that also may be used in more
@@ -1291,6 +1276,54 @@ public:
 
       NWorkItems = ONEAPI::detail::reduAuxCGFunc<KernelName, KernelType>(
           AuxHandler, NWorkItems, MaxWGSize, Redu);
+      MLastEvent = AuxHandler.finalize();
+    } // end while (NWorkItems > 1)
+  }
+
+  // This version of parallel_for may handle one or more reductions packed in
+  // \p Rest argument. Note thought that the last element in \p Rest pack is
+  // the kernel function.
+  // TODO: this variant is currently enabled for 2+ reductions only as the
+  // versions handling 1 reduction variable are more efficient right now.
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename... RestT>
+  std::enable_if_t<(sizeof...(RestT) >= 3 &&
+                    ONEAPI::detail::AreAllButLastReductions<RestT...>::value)>
+  parallel_for(nd_range<Dims> Range, RestT... Rest) {
+    std::tuple<RestT...> ArgsTuple(Rest...);
+    constexpr size_t NumArgs = sizeof...(RestT);
+    auto KernelFunc = std::get<NumArgs - 1>(ArgsTuple);
+    auto ReduIndices = std::make_index_sequence<NumArgs - 1>();
+    auto ReduTuple =
+        ONEAPI::detail::tuple_select_elements(ArgsTuple, ReduIndices);
+
+    size_t LocalMemPerWorkItem =
+        ONEAPI::detail::reduGetMemPerWorkItem(ReduTuple, ReduIndices);
+    // TODO: currently the maximal work group size is determined for the given
+    // queue/device, while it is safer to use queries to the kernel compiled
+    // for the device.
+    size_t MaxWGSize =
+        ONEAPI::detail::reduGetMaxWGSize(MQueue, LocalMemPerWorkItem);
+    if (Range.get_local_range().size() > MaxWGSize)
+      throw sycl::runtime_error("The implementation handling parallel_for with"
+                                " reduction requires work group size not bigger"
+                                " than " +
+                                    std::to_string(MaxWGSize),
+                                PI_INVALID_WORK_GROUP_SIZE);
+
+    ONEAPI::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, ReduTuple,
+                                           ReduIndices);
+    shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
+    this->finalize();
+
+    size_t NWorkItems = Range.get_group_range().size();
+    while (NWorkItems > 1) {
+      handler AuxHandler(QueueCopy, MIsHost);
+      AuxHandler.saveCodeLoc(MCodeLoc);
+
+      NWorkItems =
+          ONEAPI::detail::reduAuxCGFunc<KernelName, decltype(KernelFunc)>(
+              AuxHandler, NWorkItems, MaxWGSize, ReduTuple, ReduIndices);
       MLastEvent = AuxHandler.finalize();
     } // end while (NWorkItems > 1)
   }
@@ -1669,6 +1702,8 @@ public:
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
+    static_assert(isValidModeForSourceAccessor(AccessMode),
+                  "Invalid accessor mode for the copy method.");
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
     MSharedPtrStorage.push_back(Dst);
@@ -1692,6 +1727,8 @@ public:
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
+    static_assert(isValidModeForDestinationAccessor(AccessMode),
+                  "Invalid accessor mode for the copy method.");
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
     MSharedPtrStorage.push_back(Src);
@@ -1714,6 +1751,8 @@ public:
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
+    static_assert(isValidModeForSourceAccessor(AccessMode),
+                  "Invalid accessor mode for the copy method.");
 #ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
       // TODO: Temporary implementation for host. Should be handled by memory
@@ -1751,6 +1790,8 @@ public:
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
+    static_assert(isValidModeForDestinationAccessor(AccessMode),
+                  "Invalid accessor mode for the copy method.");
 #ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
       // TODO: Temporary implementation for host. Should be handled by memory
@@ -1796,6 +1837,10 @@ public:
                   "Invalid source accessor target for the copy method.");
     static_assert(isValidTargetForExplicitOp(AccessTarget_Dst),
                   "Invalid destination accessor target for the copy method.");
+    static_assert(isValidModeForSourceAccessor(AccessMode_Src),
+                  "Invalid source accessor mode for the copy method.");
+    static_assert(isValidModeForDestinationAccessor(AccessMode_Dst),
+                  "Invalid destination accessor mode for the copy method.");
     assert(Dst.get_size() >= Src.get_size() &&
            "The destination accessor does not fit the copied memory.");
     if (copyAccToAccHelper(Src, Dst))

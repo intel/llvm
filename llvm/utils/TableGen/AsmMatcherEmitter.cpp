@@ -789,9 +789,8 @@ public:
   }
 
   bool hasOptionalOperands() const {
-    return find_if(Classes, [](const ClassInfo &Class) {
-             return Class.IsOptional;
-           }) != Classes.end();
+    return any_of(Classes,
+                  [](const ClassInfo &Class) { return Class.IsOptional; });
   }
 };
 
@@ -1113,9 +1112,7 @@ static std::string getEnumNameForToken(StringRef Str) {
     case '-': Res += "_MINUS_"; break;
     case '#': Res += "_HASH_"; break;
     default:
-      if ((*it >= 'A' && *it <= 'Z') ||
-          (*it >= 'a' && *it <= 'z') ||
-          (*it >= '0' && *it <= '9'))
+      if (isAlnum(*it))
         Res += *it;
       else
         Res += "_" + utostr((unsigned) *it) + "_";
@@ -2390,9 +2387,9 @@ static void emitMatchClassEnumeration(CodeGenTarget &Target,
 static void emitOperandMatchErrorDiagStrings(AsmMatcherInfo &Info, raw_ostream &OS) {
   // If the target does not use DiagnosticString for any operands, don't emit
   // an unused function.
-  if (std::all_of(
-          Info.Classes.begin(), Info.Classes.end(),
-          [](const ClassInfo &CI) { return CI.DiagnosticString.empty(); }))
+  if (llvm::all_of(Info.Classes, [](const ClassInfo &CI) {
+        return CI.DiagnosticString.empty();
+      }))
     return;
 
   OS << "static const char *getMatchKindDiag(" << Info.Target.getName()

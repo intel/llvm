@@ -424,7 +424,7 @@ static void DoInitialMatch(const SCEV *S, Loop *L,
   // Handle a multiplication by -1 (negation) if it didn't fold.
   if (const SCEVMulExpr *Mul = dyn_cast<SCEVMulExpr>(S))
     if (Mul->getOperand(0)->isAllOnesValue()) {
-      SmallVector<const SCEV *, 4> Ops(Mul->op_begin()+1, Mul->op_end());
+      SmallVector<const SCEV *, 4> Ops(drop_begin(Mul->operands()));
       const SCEV *NewMul = SE.getMulExpr(Ops);
 
       SmallVector<const SCEV *, 4> MyGood;
@@ -485,11 +485,10 @@ bool Formula::isCanonical(const Loop &L) const {
   // If ScaledReg is not a recurrent expr, or it is but its loop is not current
   // loop, meanwhile BaseRegs contains a recurrent expr reg related with current
   // loop, we want to swap the reg in BaseRegs with ScaledReg.
-  auto I =
-      find_if(make_range(BaseRegs.begin(), BaseRegs.end()), [&](const SCEV *S) {
-        return isa<const SCEVAddRecExpr>(S) &&
-               (cast<SCEVAddRecExpr>(S)->getLoop() == &L);
-      });
+  auto I = find_if(BaseRegs, [&](const SCEV *S) {
+    return isa<const SCEVAddRecExpr>(S) &&
+           (cast<SCEVAddRecExpr>(S)->getLoop() == &L);
+  });
   return I == BaseRegs.end();
 }
 
@@ -508,8 +507,7 @@ void Formula::canonicalize(const Loop &L) {
 
   // Keep the invariant sum in BaseRegs and one of the variant sum in ScaledReg.
   if (!ScaledReg) {
-    ScaledReg = BaseRegs.back();
-    BaseRegs.pop_back();
+    ScaledReg = BaseRegs.pop_back_val();
     Scale = 1;
   }
 
@@ -518,11 +516,10 @@ void Formula::canonicalize(const Loop &L) {
   // reg with ScaledReg.
   const SCEVAddRecExpr *SAR = dyn_cast<const SCEVAddRecExpr>(ScaledReg);
   if (!SAR || SAR->getLoop() != &L) {
-    auto I = find_if(make_range(BaseRegs.begin(), BaseRegs.end()),
-                     [&](const SCEV *S) {
-                       return isa<const SCEVAddRecExpr>(S) &&
-                              (cast<SCEVAddRecExpr>(S)->getLoop() == &L);
-                     });
+    auto I = find_if(BaseRegs, [&](const SCEV *S) {
+      return isa<const SCEVAddRecExpr>(S) &&
+             (cast<SCEVAddRecExpr>(S)->getLoop() == &L);
+    });
     if (I != BaseRegs.end())
       std::swap(ScaledReg, *I);
   }
@@ -755,13 +752,13 @@ static int64_t ExtractImmediate(const SCEV *&S, ScalarEvolution &SE) {
       return C->getValue()->getSExtValue();
     }
   } else if (const SCEVAddExpr *Add = dyn_cast<SCEVAddExpr>(S)) {
-    SmallVector<const SCEV *, 8> NewOps(Add->op_begin(), Add->op_end());
+    SmallVector<const SCEV *, 8> NewOps(Add->operands());
     int64_t Result = ExtractImmediate(NewOps.front(), SE);
     if (Result != 0)
       S = SE.getAddExpr(NewOps);
     return Result;
   } else if (const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(S)) {
-    SmallVector<const SCEV *, 8> NewOps(AR->op_begin(), AR->op_end());
+    SmallVector<const SCEV *, 8> NewOps(AR->operands());
     int64_t Result = ExtractImmediate(NewOps.front(), SE);
     if (Result != 0)
       S = SE.getAddRecExpr(NewOps, AR->getLoop(),
@@ -781,13 +778,13 @@ static GlobalValue *ExtractSymbol(const SCEV *&S, ScalarEvolution &SE) {
       return GV;
     }
   } else if (const SCEVAddExpr *Add = dyn_cast<SCEVAddExpr>(S)) {
-    SmallVector<const SCEV *, 8> NewOps(Add->op_begin(), Add->op_end());
+    SmallVector<const SCEV *, 8> NewOps(Add->operands());
     GlobalValue *Result = ExtractSymbol(NewOps.back(), SE);
     if (Result)
       S = SE.getAddExpr(NewOps);
     return Result;
   } else if (const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(S)) {
-    SmallVector<const SCEV *, 8> NewOps(AR->op_begin(), AR->op_end());
+    SmallVector<const SCEV *, 8> NewOps(AR->operands());
     GlobalValue *Result = ExtractSymbol(NewOps.front(), SE);
     if (Result)
       S = SE.getAddRecExpr(NewOps, AR->getLoop(),
@@ -5796,8 +5793,9 @@ static void DbgGatherEqualValues(Loop *L, ScalarEvolution &SE,
         if (!SE.isSCEVable(Phi.getType()))
           continue;
         auto PhiSCEV = SE.getSCEV(&Phi);
-        if (Optional<APInt> Offset =
-                SE.computeConstantDifference(DbgValueSCEV, PhiSCEV))
+        Optional<APInt> Offset =
+                SE.computeConstantDifference(DbgValueSCEV, PhiSCEV);
+        if (Offset && Offset->getMinSignedBits() <= 64)
           EqSet.emplace_back(std::make_tuple(
               &Phi, Offset.getValue().getSExtValue(), DVI->getExpression()));
       }

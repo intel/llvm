@@ -802,8 +802,8 @@ public:
   void setPredicate(Predicate P) { setSubclassData<PredicateField>(P); }
 
   static bool isFPPredicate(Predicate P) {
-    assert(FIRST_FCMP_PREDICATE == 0 &&
-           "FIRST_FCMP_PREDICATE is required to be 0");
+    static_assert(FIRST_FCMP_PREDICATE == 0,
+                  "FIRST_FCMP_PREDICATE is required to be 0");
     return P <= LAST_FCMP_PREDICATE;
   }
 
@@ -1126,7 +1126,7 @@ public:
 
   explicit OperandBundleDefT(const OperandBundleUse &OBU) {
     Tag = std::string(OBU.getTagName());
-    Inputs.insert(Inputs.end(), OBU.Inputs.begin(), OBU.Inputs.end());
+    llvm::append_range(Inputs, OBU.Inputs);
   }
 
   ArrayRef<InputTy> inputs() const { return Inputs; }
@@ -1756,6 +1756,10 @@ public:
   bool onlyReadsMemory() const {
     return doesNotAccessMemory() || hasFnAttr(Attribute::ReadOnly);
   }
+
+  /// Returns true if this function is guaranteed to return.
+  bool willReturn() const { return hasFnAttr(Attribute::WillReturn); }
+
   void setOnlyReadsMemory() {
     addAttribute(AttributeList::FunctionIndex, Attribute::ReadOnly);
   }

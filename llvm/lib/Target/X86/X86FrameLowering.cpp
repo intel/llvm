@@ -2898,8 +2898,8 @@ static unsigned getHiPELiteral(
 // non-meta instructions between MBBI and MBB.end().
 static bool blockEndIsUnreachable(const MachineBasicBlock &MBB,
                                   MachineBasicBlock::const_iterator MBBI) {
-  return std::all_of(
-             MBB.succ_begin(), MBB.succ_end(),
+  return llvm::all_of(
+             MBB.successors(),
              [](const MachineBasicBlock *Succ) { return Succ->isEHPad(); }) &&
          std::all_of(MBBI, MBB.end(), [](const MachineInstr &MI) {
            return MI.isMetaInstruction();
@@ -3516,13 +3516,21 @@ void X86FrameLowering::processFunctionBeforeFrameFinalized(
   // emitPrologue if it gets called and emits CFI.
   MF.setHasWinCFI(false);
 
+  // If we are using Windows x64 CFI, ensure that the stack is always 8 byte
+  // aligned. The format doesn't support misaligned stack adjustments.
+  if (MF.getTarget().getMCAsmInfo()->usesWindowsCFI())
+    MF.getFrameInfo().ensureMaxAlignment(Align(SlotSize));
+
   // If this function isn't doing Win64-style C++ EH, we don't need to do
   // anything.
-  const Function &F = MF.getFunction();
-  if (!STI.is64Bit() || !MF.hasEHFunclets() ||
-      classifyEHPersonality(F.getPersonalityFn()) != EHPersonality::MSVC_CXX)
-    return;
+  if (STI.is64Bit() && MF.hasEHFunclets() &&
+      classifyEHPersonality(MF.getFunction().getPersonalityFn()) ==
+          EHPersonality::MSVC_CXX) {
+    adjustFrameForMsvcCxxEh(MF);
+  }
+}
 
+void X86FrameLowering::adjustFrameForMsvcCxxEh(MachineFunction &MF) const {
   // Win64 C++ EH needs to allocate the UnwindHelp object at some fixed offset
   // relative to RSP after the prologue.  Find the offset of the last fixed
   // object, so that we can allocate a slot immediately following it. If there

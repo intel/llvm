@@ -162,7 +162,8 @@ typedef enum {
   LLVMX86_MMXTypeKind,   /**< X86 MMX */
   LLVMTokenTypeKind,     /**< Tokens */
   LLVMScalableVectorTypeKind, /**< Scalable SIMD vector type */
-  LLVMBFloatTypeKind     /**< 16 bit brain floating point type */
+  LLVMBFloatTypeKind,    /**< 16 bit brain floating point type */
+  LLVMX86_AMXTypeKind    /**< X86 AMX */
 } LLVMTypeKind;
 
 typedef enum {
@@ -269,7 +270,6 @@ typedef enum {
   LLVMConstantVectorValueKind,
 
   LLVMUndefValueValueKind,
-  LLVMPoisonValueValueKind,
   LLVMConstantAggregateZeroValueKind,
   LLVMConstantDataArrayValueKind,
   LLVMConstantDataVectorValueKind,
@@ -282,6 +282,7 @@ typedef enum {
   LLVMInlineAsmValueKind,
 
   LLVMInstructionValueKind,
+  LLVMPoisonValueValueKind
 } LLVMValueKind;
 
 typedef enum {
@@ -1494,6 +1495,11 @@ LLVMTypeRef LLVMLabelTypeInContext(LLVMContextRef C);
 LLVMTypeRef LLVMX86MMXTypeInContext(LLVMContextRef C);
 
 /**
+ * Create a X86 AMX type in a context.
+ */
+LLVMTypeRef LLVMX86AMXTypeInContext(LLVMContextRef C);
+
+/**
  * Create a token type in a context.
  */
 LLVMTypeRef LLVMTokenTypeInContext(LLVMContextRef C);
@@ -1510,6 +1516,7 @@ LLVMTypeRef LLVMMetadataTypeInContext(LLVMContextRef C);
 LLVMTypeRef LLVMVoidType(void);
 LLVMTypeRef LLVMLabelType(void);
 LLVMTypeRef LLVMX86MMXType(void);
+LLVMTypeRef LLVMX86AMXType(void);
 
 /**
  * @}

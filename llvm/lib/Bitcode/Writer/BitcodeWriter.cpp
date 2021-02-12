@@ -680,6 +680,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_NOSYNC;
   case Attribute::NoCfCheck:
     return bitc::ATTR_KIND_NOCF_CHECK;
+  case Attribute::NoProfile:
+    return bitc::ATTR_KIND_NO_PROFILE;
   case Attribute::NoUnwind:
     return bitc::ATTR_KIND_NO_UNWIND;
   case Attribute::NullPointerIsValid:
@@ -913,6 +915,7 @@ void ModuleBitcodeWriter::writeTypeTable() {
     case Type::LabelTyID:     Code = bitc::TYPE_CODE_LABEL;     break;
     case Type::MetadataTyID:  Code = bitc::TYPE_CODE_METADATA;  break;
     case Type::X86_MMXTyID:   Code = bitc::TYPE_CODE_X86_MMX;   break;
+    case Type::X86_AMXTyID:   Code = bitc::TYPE_CODE_X86_AMX;   break;
     case Type::TokenTyID:     Code = bitc::TYPE_CODE_TOKEN;     break;
     case Type::IntegerTyID:
       // INTEGER: [width]
@@ -1041,7 +1044,8 @@ static uint64_t getEncodedFFlags(FunctionSummary::FFlags Flags) {
   return RawFlags;
 }
 
-// Decode the flags for GlobalValue in the summary
+// Decode the flags for GlobalValue in the summary. See getDecodedGVSummaryFlags
+// in BitcodeReader.cpp.
 static uint64_t getEncodedGVSummaryFlags(GlobalValueSummary::GVFlags Flags) {
   uint64_t RawFlags = 0;
 
@@ -1054,6 +1058,8 @@ static uint64_t getEncodedGVSummaryFlags(GlobalValueSummary::GVFlags Flags) {
   // change to the getEncodedLinkage() function will need to be taken into
   // account here as well.
   RawFlags = (RawFlags << 4) | Flags.Linkage; // 4 bits
+
+  RawFlags |= (Flags.Visibility << 8); // 2 bits
 
   return RawFlags;
 }
@@ -3628,7 +3634,7 @@ static void writeFunctionTypeMetadataRecords(BitstreamWriter &Stream,
       Record.clear();
       Record.push_back(VC.VFunc.GUID);
       Record.push_back(VC.VFunc.Offset);
-      Record.insert(Record.end(), VC.Args.begin(), VC.Args.end());
+      llvm::append_range(Record, VC.Args);
       Stream.EmitRecord(Ty, Record);
     }
   };
@@ -3702,7 +3708,7 @@ static void writeWholeProgramDevirtResolutionByArg(
     SmallVector<uint64_t, 64> &NameVals, const std::vector<uint64_t> &args,
     const WholeProgramDevirtResolution::ByArg &ByArg) {
   NameVals.push_back(args.size());
-  NameVals.insert(NameVals.end(), args.begin(), args.end());
+  llvm::append_range(NameVals, args);
 
   NameVals.push_back(ByArg.TheKind);
   NameVals.push_back(ByArg.Info);
@@ -3829,7 +3835,7 @@ void ModuleBitcodeWriterBase::writeModuleLevelReferences(
     NameVals.push_back(VE.getValueID(RI.getValue()));
   // Sort the refs for determinism output, the vector returned by FS->refs() has
   // been initialized from a DenseSet.
-  llvm::sort(NameVals.begin() + SizeBeforeRefs, NameVals.end());
+  llvm::sort(drop_begin(NameVals, SizeBeforeRefs));
 
   if (VTableFuncs.empty())
     Stream.EmitRecord(bitc::FS_PERMODULE_GLOBALVAR_INIT_REFS, NameVals,

@@ -237,9 +237,15 @@ public:
         //          for integer, "f" - for floating point
         {"rdregion",
          {"rdregion", {a(0), t(3), t(4), t(5), a(1), t(6)}, nk(-1)}},
+        {"rdindirect",
+         {"rdregion", {a(0), c32(0), t(2), c32(0), a(1), t(3)}, nk(-1)}},
         {{"wrregion"},
          {{"wrregion"},
           {a(0), a(1), t(3), t(4), t(5), a(2), t(6), ai1(3)},
+          nk(-1)}},
+        {{"wrindirect"},
+         {{"wrregion"},
+          {a(0), a(1), c32(0), t(2), c32(0), a(2), t(3), ai1(3)},
           nk(-1)}},
         {"vload", {"vload", {l(0)}}},
         {"vstore", {"vstore", {a(1), a(0)}}},
@@ -720,7 +726,8 @@ static void translateUnPackMask(CallInst &CI) {
   llvm::Value *TransCI = Builder.CreateZExt(
       Arg0, llvm::FixedVectorType::get(llvm::Type::getInt16Ty(Context), N));
   TransCI->takeName(&CI);
-  cast<llvm::Instruction>(TransCI)->setDebugLoc(CI.getDebugLoc());
+  if (llvm::Instruction *TransCInst = dyn_cast<llvm::Instruction>(TransCI))
+    TransCInst->setDebugLoc(CI.getDebugLoc());
   CI.replaceAllUsesWith(TransCI);
 }
 
@@ -970,8 +977,6 @@ static void createESIMDIntrinsicArgs(const ESIMDIntrinDesc &Desc,
       GenXArgs.push_back(llvm::ConstantInt::get(Ty, Rule.I.ArgConst));
       break;
     }
-    default:
-      llvm_unreachable_internal("unknown argument rule kind");
     }
   }
 }
@@ -1228,10 +1233,6 @@ void SYCLLowerESIMDLegacyPass::collectGenXVolatileType(Module &M) {
 PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
                                           FunctionAnalysisManager &FAM,
                                           SmallPtrSet<Type *, 4> &GVTS) {
-  // Only consider functions marked with !sycl_explicit_simd
-  if (F.getMetadata("sycl_explicit_simd") == nullptr)
-    return PreservedAnalyses::all();
-
   SmallVector<CallInst *, 32> ESIMDIntrCalls;
   SmallVector<Instruction *, 8> ESIMDToErases;
 

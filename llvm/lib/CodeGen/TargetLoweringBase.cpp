@@ -135,7 +135,7 @@ void TargetLoweringBase::InitLibcalls(const Triple &TT) {
     setLibcallCallingConv((RTLIB::Libcall)LC, CallingConv::C);
 
   // For IEEE quad-precision libcall names, PPC uses "kf" instead of "tf".
-  if (TT.getArch() == Triple::ppc || TT.isPPC64()) {
+  if (TT.isPPC()) {
     setLibcallName(RTLIB::ADD_F128, "__addkf3");
     setLibcallName(RTLIB::SUB_F128, "__subkf3");
     setLibcallName(RTLIB::MUL_F128, "__mulkf3");
@@ -1227,36 +1227,6 @@ TargetLoweringBase::emitPatchPoint(MachineInstr &InitialMI,
   return MBB;
 }
 
-MachineBasicBlock *
-TargetLoweringBase::emitXRayCustomEvent(MachineInstr &MI,
-                                        MachineBasicBlock *MBB) const {
-  assert(MI.getOpcode() == TargetOpcode::PATCHABLE_EVENT_CALL &&
-         "Called emitXRayCustomEvent on the wrong MI!");
-  auto &MF = *MI.getMF();
-  auto MIB = BuildMI(MF, MI.getDebugLoc(), MI.getDesc());
-  for (unsigned OpIdx = 0; OpIdx != MI.getNumOperands(); ++OpIdx)
-    MIB.add(MI.getOperand(OpIdx));
-
-  MBB->insert(MachineBasicBlock::iterator(MI), MIB);
-  MI.eraseFromParent();
-  return MBB;
-}
-
-MachineBasicBlock *
-TargetLoweringBase::emitXRayTypedEvent(MachineInstr &MI,
-                                       MachineBasicBlock *MBB) const {
-  assert(MI.getOpcode() == TargetOpcode::PATCHABLE_TYPED_EVENT_CALL &&
-         "Called emitXRayTypedEvent on the wrong MI!");
-  auto &MF = *MI.getMF();
-  auto MIB = BuildMI(MF, MI.getDebugLoc(), MI.getDesc());
-  for (unsigned OpIdx = 0; OpIdx != MI.getNumOperands(); ++OpIdx)
-    MIB.add(MI.getOperand(OpIdx));
-
-  MBB->insert(MachineBasicBlock::iterator(MI), MIB);
-  MI.eraseFromParent();
-  return MBB;
-}
-
 /// findRepresentativeClass - Return the largest legal super-reg register class
 /// of the register class for the specified type and its associated "cost".
 // This function is in TargetLowering because it uses RegClassForVT which would
@@ -1756,6 +1726,14 @@ bool TargetLoweringBase::allowsMemoryAccess(LLVMContext &Context,
                             MMO.getFlags(), Fast);
 }
 
+bool TargetLoweringBase::allowsMemoryAccess(LLVMContext &Context,
+                                            const DataLayout &DL, LLT Ty,
+                                            const MachineMemOperand &MMO,
+                                            bool *Fast) const {
+  return allowsMemoryAccess(Context, DL, getMVTForLLT(Ty), MMO.getAddrSpace(),
+                            MMO.getAlign(), MMO.getFlags(), Fast);
+}
+
 BranchProbability TargetLoweringBase::getPredictableBranchThreshold() const {
   return BranchProbability(MinPercentageForPredictableBranch, 100);
 }
@@ -2069,7 +2047,7 @@ static bool parseRefinementStep(StringRef In, size_t &Position,
   // step parameter.
   if (RefStepString.size() == 1) {
     char RefStepChar = RefStepString[0];
-    if (RefStepChar >= '0' && RefStepChar <= '9') {
+    if (isDigit(RefStepChar)) {
       Value = RefStepChar - '0';
       return true;
     }

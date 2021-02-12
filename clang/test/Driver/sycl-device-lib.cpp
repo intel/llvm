@@ -121,4 +121,12 @@
 // RUN:   | FileCheck %s -check-prefix=SYCL_LLVM_LINK_NO_DEVICE_LIB
 // SYCL_LLVM_LINK_NO_DEVICE_LIB: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-device"
 // SYCL_LLVM_LINK_NO_DEVICE_LIB-NOT: llvm-link{{.*}}  "-only-needed"
-// SYCL_LLVM_LINK_NO_DEVICE_LIB: sycl-post-link{{.*}}  "-symbols" "-spec-const=rt" "-o" "{{.*}}.table" "{{.*}}.bc"
+// SYCL_LLVM_LINK_NO_DEVICE_LIB: sycl-post-link{{.*}}  "-symbols" "-split-esimd" "-spec-const=rt" "-o" "{{.*}}.table" "{{.*}}.bc"
+
+/// ###########################################################################
+/// test llvm-link behavior for special user input whose filename resembles SYCL device library
+// RUN: touch libsycl-crt.o
+// RUN: %clangxx -fsycl libsycl-crt.o -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_LLVM_LINK_USER_ONLY_NEEDED
+// SYCL_LLVM_LINK_USER_ONLY_NEEDED: llvm-link{{.*}}  "{{.*}}.o" "-o" "{{.*}}.bc" "--suppress-warnings"
+// SYCL_LLVM_LINK_USER_ONLY_NEEDED: llvm-link{{.*}}  "-only-needed" "{{.*}}" "-o" "{{.*}}.bc" "--suppress-warnings"

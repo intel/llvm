@@ -55,7 +55,6 @@
 ; CHECK-NEXT:      Dominator Tree Construction
 ; CHECK-NEXT:      Exception handling preparation
 ; CHECK-NEXT:      Merge internal globals
-; CHECK-NEXT:      Dominator Tree Construction
 ; CHECK-NEXT:      Natural Loop Information
 ; CHECK-NEXT:      Scalar Evolution Analysis
 ; CHECK-NEXT:      Lazy Branch Probability Analysis
@@ -68,7 +67,6 @@
 ; CHECK-NEXT:      Safe Stack instrumentation pass
 ; CHECK-NEXT:      Insert stack protectors
 ; CHECK-NEXT:      Module Verifier
-; CHECK-NEXT:      Dominator Tree Construction
 ; CHECK-NEXT:      Basic Alias Analysis (stateless AA impl)
 ; CHECK-NEXT:      Function Alias Analysis Results
 ; CHECK-NEXT:      Natural Loop Information
@@ -172,6 +170,9 @@
 ; CHECK-NEXT:      Implement the 'patchable-function' attribute
 ; CHECK-NEXT:      Thumb2 instruction size reduce pass
 ; CHECK-NEXT:      Unpack machine instruction bundles
+; CHECK-NEXT:      MachineDominator Tree Construction
+; CHECK-NEXT:      Machine Natural Loop Construction
+; CHECK-NEXT:      ARM block placement
 ; CHECK-NEXT:      optimise barriers pass
 ; CHECK-NEXT:      Contiguously Lay Out Funclets
 ; CHECK-NEXT:      StackMap Liveness Analysis

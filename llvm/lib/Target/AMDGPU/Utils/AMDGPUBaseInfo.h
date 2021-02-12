@@ -9,22 +9,15 @@
 #ifndef LLVM_LIB_TARGET_AMDGPU_UTILS_AMDGPUBASEINFO_H
 #define LLVM_LIB_TARGET_AMDGPU_UTILS_AMDGPUBASEINFO_H
 
-#include "AMDGPU.h"
-#include "AMDKernelCodeT.h"
 #include "SIDefines.h"
 #include "llvm/IR/CallingConv.h"
-#include "llvm/MC/MCInstrDesc.h"
-#include "llvm/Support/AMDHSAKernelDescriptor.h"
 #include "llvm/Support/Alignment.h"
-#include "llvm/Support/Compiler.h"
-#include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/TargetParser.h"
-#include <cstdint>
-#include <string>
-#include <utility>
+
+struct amd_kernel_code_t;
 
 namespace llvm {
 
+struct Align;
 class Argument;
 class Function;
 class GCNSubtarget;
@@ -35,7 +28,13 @@ class MCSubtargetInfo;
 class StringRef;
 class Triple;
 
+namespace amdhsa {
+struct kernel_descriptor_t;
+}
+
 namespace AMDGPU {
+
+struct IsaVersion;
 
 /// \returns HSA OS ABI Version identification.
 Optional<uint8_t> getHsaAbiVersion(const MCSubtargetInfo *STI);
@@ -68,6 +67,84 @@ enum {
   // doesn't spill SGPRs as much as when 80 is set.
   FIXED_NUM_SGPRS_FOR_INIT_BUG = 96,
   TRAP_NUM_SGPRS = 16
+};
+
+enum class TargetIDSetting {
+  Unsupported,
+  Any,
+  Off,
+  On
+};
+
+class AMDGPUTargetID {
+private:
+  TargetIDSetting XnackSetting;
+  TargetIDSetting SramEccSetting;
+
+public:
+  explicit AMDGPUTargetID(const MCSubtargetInfo &STI);
+  ~AMDGPUTargetID() = default;
+
+  /// \return True if the current xnack setting is not "Unsupported".
+  bool isXnackSupported() const {
+    return XnackSetting != TargetIDSetting::Unsupported;
+  }
+
+  /// \returns True if the current xnack setting is "On" or "Any".
+  bool isXnackOnOrAny() const {
+    return XnackSetting == TargetIDSetting::On ||
+        XnackSetting == TargetIDSetting::Any;
+  }
+
+  /// \returns True if current xnack setting is "On" or "Off",
+  /// false otherwise.
+  bool isXnackOnOrOff() const {
+    return getXnackSetting() == TargetIDSetting::On ||
+        getXnackSetting() == TargetIDSetting::Off;
+  }
+
+  /// \returns The current xnack TargetIDSetting, possible options are
+  /// "Unsupported", "Any", "Off", and "On".
+  TargetIDSetting getXnackSetting() const {
+    return XnackSetting;
+  }
+
+  /// Sets xnack setting to \p NewXnackSetting.
+  void setXnackSetting(TargetIDSetting NewXnackSetting) {
+    XnackSetting = NewXnackSetting;
+  }
+
+  /// \return True if the current sramecc setting is not "Unsupported".
+  bool isSramEccSupported() const {
+    return SramEccSetting != TargetIDSetting::Unsupported;
+  }
+
+  /// \returns True if the current sramecc setting is "On" or "Any".
+  bool isSramEccOnOrAny() const {
+  return SramEccSetting == TargetIDSetting::On ||
+      SramEccSetting == TargetIDSetting::Any;
+  }
+
+  /// \returns True if current sramecc setting is "On" or "Off",
+  /// false otherwise.
+  bool isSramEccOnOrOff() const {
+    return getSramEccSetting() == TargetIDSetting::On ||
+        getSramEccSetting() == TargetIDSetting::Off;
+  }
+
+  /// \returns The current sramecc TargetIDSetting, possible options are
+  /// "Unsupported", "Any", "Off", and "On".
+  TargetIDSetting getSramEccSetting() const {
+    return SramEccSetting;
+  }
+
+  /// Sets sramecc setting to \p NewSramEccSetting.
+  void setSramEccSetting(TargetIDSetting NewSramEccSetting) {
+    SramEccSetting = NewSramEccSetting;
+  }
+
+  void setTargetIDFromFeaturesString(StringRef FS);
+  void setTargetIDFromTargetIDStream(StringRef TargetID);
 };
 
 /// Streams isa version string for given subtarget \p STI into \p Stream.
@@ -487,6 +564,18 @@ void decodeHwreg(unsigned Val, unsigned &Id, unsigned &Offset, unsigned &Width);
 
 } // namespace Hwreg
 
+namespace Exp {
+
+bool getTgtName(unsigned Id, StringRef &Name, int &Index);
+
+LLVM_READONLY
+unsigned getTgtId(const StringRef Name);
+
+LLVM_READNONE
+bool isSupportedTgtId(unsigned Id, const MCSubtargetInfo &STI);
+
+} // namespace Exp
+
 namespace MTBUFFormat {
 
 LLVM_READNONE
@@ -862,6 +951,10 @@ struct SIModeRegisterDefaults {
 };
 
 } // end namespace AMDGPU
+
+raw_ostream &operator<<(raw_ostream &OS,
+                        const AMDGPU::IsaInfo::TargetIDSetting S);
+
 } // end namespace llvm
 
 #endif // LLVM_LIB_TARGET_AMDGPU_UTILS_AMDGPUBASEINFO_H

@@ -669,8 +669,8 @@ void link_MachO_x86_64(std::unique_ptr<LinkGraph> G,
   if (Ctx->shouldAddDefaultTargetPasses(G->getTargetTriple())) {
     // Add eh-frame passses.
     Config.PrePrunePasses.push_back(EHFrameSplitter("__eh_frame"));
-    Config.PrePrunePasses.push_back(
-        EHFrameEdgeFixer("__eh_frame", NegDelta32, Delta64, Delta64));
+    Config.PrePrunePasses.push_back(EHFrameEdgeFixer(
+        "__eh_frame", G->getPointerSize(), Delta64, Delta32, NegDelta32));
 
     // Add a mark-live pass.
     if (auto MarkLive = Ctx->getMarkLivePass(G->getTargetTriple()))
@@ -685,7 +685,7 @@ void link_MachO_x86_64(std::unique_ptr<LinkGraph> G,
     });
 
     // Add GOT/Stubs optimizer pass.
-    Config.PostAllocationPasses.push_back(optimizeMachO_x86_64_GOTAndStubs);
+    Config.PreFixupPasses.push_back(optimizeMachO_x86_64_GOTAndStubs);
   }
 
   if (auto Err = Ctx->modifyPassConfig(G->getTargetTriple(), Config))

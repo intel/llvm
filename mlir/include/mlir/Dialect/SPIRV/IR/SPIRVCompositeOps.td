@@ -21,8 +21,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 
 def SPV_CompositeConstructOp : SPV_Op<"CompositeConstruct", [NoSideEffect]> {
   let summary = [{
-    Construct a new composite object from a set of constituent objects that
-    will fully form it.
+    Construct a new composite object from a set of constituent objects.
   }];
 
   let description = [{
@@ -69,7 +68,8 @@ def SPV_CompositeConstructOp : SPV_Op<"CompositeConstruct", [NoSideEffect]> {
 
 // -----
 
-def SPV_CompositeExtractOp : SPV_Op<"CompositeExtract", [NoSideEffect]> {
+def SPV_CompositeExtractOp : SPV_Op<"CompositeExtract",
+                                    [NoSideEffect, UsableInSpecConstantOp]> {
   let summary = "Extract a part of a composite object.";
 
   let description = [{
@@ -119,7 +119,8 @@ def SPV_CompositeExtractOp : SPV_Op<"CompositeExtract", [NoSideEffect]> {
 
 // -----
 
-def SPV_CompositeInsertOp : SPV_Op<"CompositeInsert", [NoSideEffect]> {
+def SPV_CompositeInsertOp : SPV_Op<"CompositeInsert",
+                                   [NoSideEffect, UsableInSpecConstantOp]> {
   let summary = [{
     Make a copy of a composite object, while modifying one part of it.
   }];
@@ -215,13 +216,12 @@ def SPV_VectorExtractDynamicOp : SPV_Op<"VectorExtractDynamic",
   let results = (outs
     SPV_Scalar:$result
   );
-  
+
   let verifier = [{ return success(); }];
   
   let assemblyFormat = [{
     $vector `[` $index `]` attr-dict `:` type($vector) `,` type($index) 
   }];
-  
 }
 
 // -----
@@ -279,7 +279,7 @@ def SPV_VectorInsertDynamicOp : SPV_Op<"VectorInsertDynamic",
   let results = (outs
     SPV_Vector:$result
   );
-  
+
   let verifier = [{ return success(); }];
   
   let assemblyFormat = [{

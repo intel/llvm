@@ -88,6 +88,7 @@ public:
 #include "llvm/Frontend/OpenMP/OMP.inc"
         ) {
   }
+  using llvmOmpClause = const llvm::omp::Clause;
 
   void Enter(const parser::OpenMPConstruct &);
   void Enter(const parser::OpenMPLoopConstruct &);
@@ -152,9 +153,11 @@ public:
   void Enter(const parser::OmpClause::Priority &);
   void Enter(const parser::OmpClause::Private &);
   void Enter(const parser::OmpClause::ProcBind &);
+  void Enter(const parser::OmpClause::Reduction &);
   void Enter(const parser::OmpClause::Safelen &);
   void Enter(const parser::OmpClause::Shared &);
   void Enter(const parser::OmpClause::Simdlen &);
+  void Enter(const parser::OmpClause::TaskReduction &);
   void Enter(const parser::OmpClause::ThreadLimit &);
   void Enter(const parser::OmpClause::To &);
   void Enter(const parser::OmpClause::Link &);
@@ -183,7 +186,6 @@ public:
   void Enter(const parser::OmpIfClause &);
   void Enter(const parser::OmpLinearClause &);
   void Enter(const parser::OmpMapClause &);
-  void Enter(const parser::OmpReductionClause &);
   void Enter(const parser::OmpScheduleClause &);
 
 private:
@@ -206,6 +208,11 @@ private:
       const parser::OmpObjectList &, const llvm::omp::Clause);
   void GetSymbolsInObjectList(
       const parser::OmpObjectList &, std::vector<const Symbol *> &);
+  const parser::Name GetLoopIndex(const parser::DoConstruct *x);
+  void SetLoopInfo(const parser::OpenMPLoopConstruct &x);
+  void CheckIsLoopIvPartOfClause(
+      llvmOmpClause clause, const parser::OmpObjectList &ompObjectList);
+  void CheckWorkshareBlockStmts(const parser::Block &, parser::CharBlock);
 };
 } // namespace Fortran::semantics
 #endif // FORTRAN_SEMANTICS_CHECK_OMP_STRUCTURE_H_

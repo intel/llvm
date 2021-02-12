@@ -16,38 +16,38 @@ namespace access {
 
 enum class target {
   global_buffer = 2014,
-  constant_buffer,
-  local,
-  image,
-  host_buffer,
-  host_image,
-  image_array
+  constant_buffer = 2015,
+  local = 2016,
+  image = 2017,
+  host_buffer = 2018,
+  host_image = 2019,
+  image_array = 2020
 };
 
 enum class mode {
   read = 1024,
-  write,
-  read_write,
-  discard_write,
-  discard_read_write,
-  atomic
+  write = 1025,
+  read_write = 1026,
+  discard_write = 1027,
+  discard_read_write = 1028,
+  atomic = 1029
 };
 
 enum class fence_space {
-  local_space,
-  global_space,
-  global_and_local
+  local_space = 0,
+  global_space = 1,
+  global_and_local = 2
 };
 
-enum class placeholder { false_t, true_t };
+enum class placeholder { false_t = 0, true_t = 1 };
 
 enum class address_space : int {
   private_space = 0,
-  global_space,
-  constant_space,
-  local_space,
-  global_device_space,
-  global_host_space
+  global_space = 1,
+  constant_space = 2,
+  local_space = 3,
+  global_device_space = 4,
+  global_host_space = 5
 };
 
 } // namespace access
@@ -147,30 +147,30 @@ template <> struct TargetToAS<access::target::constant_buffer> {
 };
 
 template <typename ElementType, access::address_space addressSpace>
-struct PtrValueType;
+struct DecoratedType;
 
 template <typename ElementType>
-struct PtrValueType<ElementType, access::address_space::private_space> {
+struct DecoratedType<ElementType, access::address_space::private_space> {
   using type = __OPENCL_PRIVATE_AS__ ElementType;
 };
 
 template <typename ElementType>
-struct PtrValueType<ElementType, access::address_space::global_space> {
+struct DecoratedType<ElementType, access::address_space::global_space> {
   using type = __OPENCL_GLOBAL_AS__ ElementType;
 };
 
 template <typename ElementType>
-struct PtrValueType<ElementType, access::address_space::global_device_space> {
+struct DecoratedType<ElementType, access::address_space::global_device_space> {
   using type = __OPENCL_GLOBAL_DEVICE_AS__ ElementType;
 };
 
 template <typename ElementType>
-struct PtrValueType<ElementType, access::address_space::global_host_space> {
+struct DecoratedType<ElementType, access::address_space::global_host_space> {
   using type = __OPENCL_GLOBAL_HOST_AS__ ElementType;
 };
 
 template <typename ElementType>
-struct PtrValueType<ElementType, access::address_space::constant_space> {
+struct DecoratedType<ElementType, access::address_space::constant_space> {
   // Current implementation of address spaces handling leads to possibility
   // of emitting incorrect (in terms of OpenCL) address space casts from
   // constant to generic (and vise-versa). So, global address space is used here
@@ -184,7 +184,7 @@ struct PtrValueType<ElementType, access::address_space::constant_space> {
 };
 
 template <typename ElementType>
-struct PtrValueType<ElementType, access::address_space::local_space> {
+struct DecoratedType<ElementType, access::address_space::local_space> {
   using type = __OPENCL_LOCAL_AS__ ElementType;
 };
 

@@ -36,6 +36,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/ValueHandle.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
@@ -86,8 +87,9 @@ static bool mergeEmptyReturnBlocks(Function &F, DomTreeUpdater *DTU) {
   BasicBlock *RetBlock = nullptr;
 
   // Scan all the blocks in the function, looking for empty return blocks.
-  for (Function::iterator BBI = F.begin(), E = F.end(); BBI != E; ) {
-    BasicBlock &BB = *BBI++;
+  for (BasicBlock &BB : make_early_inc_range(F)) {
+    if (DTU && DTU->isBBPendingDeletion(&BB))
+      continue;
 
     // Only look at return blocks.
     ReturnInst *Ret = dyn_cast<ReturnInst>(BB.getTerminator());
@@ -141,8 +143,11 @@ static bool mergeEmptyReturnBlocks(Function &F, DomTreeUpdater *DTU) {
       // All predecessors of BB should now branch to RetBlock instead.
       if (DTU) {
         for (auto *Predecessor : predecessors(&BB)) {
+          // But, iff Predecessor already branches to RetBlock,
+          // don't (re-)add DomTree edge, because it already exists.
+          if (!is_contained(successors(Predecessor), RetBlock))
+            Updates.push_back({DominatorTree::Insert, Predecessor, RetBlock});
           Updates.push_back({DominatorTree::Delete, Predecessor, &BB});
-          Updates.push_back({DominatorTree::Insert, Predecessor, RetBlock});
         }
       }
       BB.replaceAllUsesWith(RetBlock);
@@ -175,7 +180,7 @@ static bool mergeEmptyReturnBlocks(Function &F, DomTreeUpdater *DTU) {
   }
 
   if (DTU) {
-    DTU->applyUpdatesPermissive(Updates);
+    DTU->applyUpdates(Updates);
     for (auto *BB : DeadBlocks)
       DTU->deleteBB(BB);
   } else {
@@ -196,16 +201,29 @@ static bool iterativelySimplifyCFG(Function &F, const TargetTransformInfo &TTI,
 
   SmallVector<std::pair<const BasicBlock *, const BasicBlock *>, 32> Edges;
   FindFunctionBackedges(F, Edges);
-  SmallPtrSet<BasicBlock *, 16> LoopHeaders;
+  SmallPtrSet<BasicBlock *, 16> UniqueLoopHeaders;
   for (unsigned i = 0, e = Edges.size(); i != e; ++i)
-    LoopHeaders.insert(const_cast<BasicBlock *>(Edges[i].second));
+    UniqueLoopHeaders.insert(const_cast<BasicBlock *>(Edges[i].second));
+
+  SmallVector<WeakVH, 16> LoopHeaders(UniqueLoopHeaders.begin(),
+                                      UniqueLoopHeaders.end());
 
   while (LocalChange) {
     LocalChange = false;
 
     // Loop over all of the basic blocks and remove them if they are unneeded.
     for (Function::iterator BBIt = F.begin(); BBIt != F.end(); ) {
-      if (simplifyCFG(&*BBIt++, TTI, DTU, Options, &LoopHeaders)) {
+      BasicBlock &BB = *BBIt++;
+      if (DTU) {
+        assert(
+            !DTU->isBBPendingDeletion(&BB) &&
+            "Should not end up trying to simplify blocks marked for removal.");
+        // Make sure that the advanced iterator does not point at the blocks
+        // that are marked for removal, skip over all such blocks.
+        while (BBIt != F.end() && DTU->isBBPendingDeletion(&*BBIt))
+          ++BBIt;
+      }
+      if (simplifyCFG(&BB, TTI, DTU, Options, LoopHeaders)) {
         LocalChange = true;
         ++NumSimpl;
       }
@@ -357,6 +375,7 @@ INITIALIZE_PASS_BEGIN(CFGSimplifyPass, "simplifycfg", "Simplify the CFG", false,
                       false)
 INITIALIZE_PASS_DEPENDENCY(TargetTransformInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
+INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
 INITIALIZE_PASS_END(CFGSimplifyPass, "simplifycfg", "Simplify the CFG", false,
                     false)
 

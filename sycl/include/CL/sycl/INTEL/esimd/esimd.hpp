@@ -179,8 +179,31 @@ public:
   //   This would allow you to use the subscript operator to write to an
   //   element.
   // {/quote}
-  /// Read a single element, by value only.
+  /// Read single element, return value only (not reference).
   Ty operator[](int i) const { return data()[i]; }
+
+  // TODO ESIMD_EXPERIMENTAL
+  /// Read multiple elements by their indices in vector
+  template <int Size>
+  simd<Ty, Size> iselect(const simd<uint16_t, Size> &Indices) {
+    vector_type_t<uint16_t, Size> Offsets = Indices.data() * sizeof(Ty);
+    return __esimd_rdindirect<Ty, N, Size>(data(), Offsets);
+  }
+  // TODO ESIMD_EXPERIMENTAL
+  /// update single element
+  void iupdate(ushort Index, Ty V) {
+    auto Val = data();
+    Val[Index] = V;
+    set(Val);
+  }
+  // TODO ESIMD_EXPERIMENTAL
+  /// update multiple elements by their indices in vector
+  template <int Size>
+  void iupdate(const simd<uint16_t, Size> &Indices, const simd<Ty, Size> &Val,
+               mask_type_t<Size> Mask) {
+    vector_type_t<uint16_t, Size> Offsets = Indices.data() * sizeof(Ty);
+    set(__esimd_wrindirect<Ty, N, Size>(data(), Val.data(), Offsets, Mask));
+  }
 
   // TODO
   // @rolandschulz

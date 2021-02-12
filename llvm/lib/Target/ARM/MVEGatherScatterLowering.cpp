@@ -853,7 +853,6 @@ void MVEGatherScatterLowering::pushOutMul(PHINode *&Phi,
   Phi->addIncoming(NewIncrement, Phi->getIncomingBlock(LoopIncrement));
   Phi->removeIncomingValue((unsigned)0);
   Phi->removeIncomingValue((unsigned)0);
-  return;
 }
 
 // Check whether all usages of this instruction are as offsets of
@@ -939,11 +938,10 @@ bool MVEGatherScatterLowering::optimiseOffsets(Value *Offsets, BasicBlock *BB,
     return false;
 
   // The phi must be an induction variable
-  Instruction *Op;
   int IncrementingBlock = -1;
 
   for (int i = 0; i < 2; i++)
-    if ((Op = dyn_cast<Instruction>(Phi->getIncomingValue(i))) != nullptr)
+    if (auto *Op = dyn_cast<Instruction>(Phi->getIncomingValue(i)))
       if (Op->getOpcode() == Instruction::Add &&
           (Op->getOperand(0) == Phi || Op->getOperand(1) == Phi))
         IncrementingBlock = i;

@@ -14,18 +14,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPU.h"
-#include "AMDGPUSubtarget.h"
-#include "SIInstrInfo.h"
+#include "GCNSubtarget.h"
 #include "SIMachineFunctionInfo.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/CodeGen/LiveInterval.h"
 #include "llvm/CodeGen/LiveIntervals.h"
 #include "llvm/CodeGen/LiveRegMatrix.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
-#include "llvm/CodeGen/VirtRegMap.h"
 #include "llvm/InitializePasses.h"
-#include "llvm/Support/MathExtras.h"
-#include <algorithm>
 
 using namespace llvm;
 
@@ -193,6 +188,14 @@ GCNNSAReassign::CheckNSA(const MachineInstr &MI, bool Fast) const {
       // be reassigned if not. If needed it is better to rely on register
       // coalescer to process such address tuples.
       if (MRI->getRegClass(Reg) != &AMDGPU::VGPR_32RegClass || Op.getSubReg())
+        return NSA_Status::FIXED;
+
+      // InlineSpiller does not call LRM::assign() after an LI split leaving
+      // it in an inconsistent state, so we cannot call LRM::unassign().
+      // See llvm bug #48911.
+      // Skip reassign if a register has originated from such split.
+      // FIXME: Remove the workaround when bug #48911 is fixed.
+      if (VRM->getPreSplitReg(Reg))
         return NSA_Status::FIXED;
 
       const MachineInstr *Def = MRI->getUniqueVRegDef(Reg);

@@ -29,7 +29,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Triple.h"
-#include "llvm/CodeGen/FaultMaps.h"
+#include "llvm/ADT/Twine.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/DebugInfo/Symbolize/Symbolize.h"
 #include "llvm/Demangle/Demangle.h"
@@ -49,6 +49,7 @@
 #include "llvm/Object/COFF.h"
 #include "llvm/Object/COFFImportFile.h"
 #include "llvm/Object/ELFObjectFile.h"
+#include "llvm/Object/FaultMapParser.h"
 #include "llvm/Object/MachO.h"
 #include "llvm/Object/MachOUniversal.h"
 #include "llvm/Object/ObjectFile.h"
@@ -448,7 +449,7 @@ std::string objdump::getFileNameForError(const object::Archive::Child &C,
   return "<file index: " + std::to_string(Index) + ">";
 }
 
-void objdump::reportWarning(Twine Message, StringRef File) {
+void objdump::reportWarning(const Twine &Message, StringRef File) {
   // Output order between errs() and outs() matters especially for archive
   // files where the output is per member object.
   outs().flush();
@@ -457,7 +458,7 @@ void objdump::reportWarning(Twine Message, StringRef File) {
 }
 
 LLVM_ATTRIBUTE_NORETURN void objdump::reportError(StringRef File,
-                                                  Twine Message) {
+                                                  const Twine &Message) {
   outs().flush();
   WithColor::error(errs(), ToolName) << "'" << File << "': " << Message << "\n";
   exit(1);
@@ -480,11 +481,11 @@ LLVM_ATTRIBUTE_NORETURN void objdump::reportError(Error E, StringRef FileName,
   exit(1);
 }
 
-static void reportCmdLineWarning(Twine Message) {
+static void reportCmdLineWarning(const Twine &Message) {
   WithColor::warning(errs(), ToolName) << Message << "\n";
 }
 
-LLVM_ATTRIBUTE_NORETURN static void reportCmdLineError(Twine Message) {
+LLVM_ATTRIBUTE_NORETURN static void reportCmdLineError(const Twine &Message) {
   WithColor::error(errs(), ToolName) << Message << "\n";
   exit(1);
 }
@@ -1478,8 +1479,7 @@ getRelocsMap(object::ObjectFile const &Obj) {
     if (Relocated == Obj.section_end() || !checkSectionFilter(*Relocated).Keep)
       continue;
     std::vector<RelocationRef> &V = Ret[*Relocated];
-    for (const RelocationRef &R : Sec.relocations())
-      V.push_back(R);
+    append_range(V, Sec.relocations());
     // Sort relocations by address.
     llvm::stable_sort(V, isRelocAddressLess);
   }

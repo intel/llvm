@@ -255,6 +255,8 @@ def llvm_token_ty      : LLVMType<token>;                         // token
 def llvm_x86mmx_ty     : LLVMType<x86mmx>;
 def llvm_ptrx86mmx_ty  : LLVMPointerType<llvm_x86mmx_ty>;         // <1 x i64>*
 
+def llvm_x86amx_ty     : LLVMType<x86amx>;
+
 def llvm_v2i1_ty       : LLVMType<v2i1>;     //   2 x i1
 def llvm_v4i1_ty       : LLVMType<v4i1>;     //   4 x i1
 def llvm_v8i1_ty       : LLVMType<v8i1>;     //   8 x i1
@@ -536,6 +538,16 @@ def int_readcyclecounter : DefaultAttrsIntrinsic<[llvm_i64_ty]>;
 // control dependencies will be maintained.
 def int_assume        : DefaultAttrsIntrinsic<[], [llvm_i1_ty], [IntrWillReturn,
                                                      NoUndef<ArgIndex<0>>]>;
+
+// 'llvm.experimental.noalias.scope.decl' intrinsic: Inserted at the location of
+// noalias scope declaration. Makes it possible to identify that a noalias scope
+// is only valid inside the body of a loop.
+//
+// Purpose of the different arguments:
+// - arg0: id.scope: metadata representing the scope declaration.
+def int_experimental_noalias_scope_decl
+    : DefaultAttrsIntrinsic<[], [llvm_metadata_ty],
+        [IntrInaccessibleMemOnly]>; // blocks LICM and some more
 
 // Stack Protector Intrinsic - The stackprotector intrinsic writes the stack
 // guard to the correct place on the stack frame.

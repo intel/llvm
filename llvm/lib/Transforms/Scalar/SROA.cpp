@@ -1076,7 +1076,7 @@ AllocaSlices::AllocaSlices(const DataLayout &DL, AllocaInst &AI)
 
   // Sort the uses. This arranges for the offsets to be in ascending order,
   // and the sizes to be in descending order.
-  std::stable_sort(Slices.begin(), Slices.end());
+  llvm::stable_sort(Slices);
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
@@ -2113,8 +2113,7 @@ static bool isIntegerWideningViable(Partition &P, Type *AllocaTy,
   // that we cover the alloca.
   // FIXME: We shouldn't consider split slices that happen to start in the
   // partition here...
-  bool WholeAllocaOp =
-      P.begin() != P.end() ? false : DL.isLegalInteger(SizeInBits);
+  bool WholeAllocaOp = P.empty() && DL.isLegalInteger(SizeInBits);
 
   for (const Slice &S : P)
     if (!isIntegerWideningViableForSlice(S, P.beginOffset(), AllocaTy, DL,
@@ -2207,8 +2206,7 @@ static Value *extractVector(IRBuilderTy &IRB, Value *V, unsigned BeginIndex,
   Mask.reserve(NumElements);
   for (unsigned i = BeginIndex; i != EndIndex; ++i)
     Mask.push_back(i);
-  V = IRB.CreateShuffleVector(V, UndefValue::get(V->getType()), Mask,
-                              Name + ".extract");
+  V = IRB.CreateShuffleVector(V, Mask, Name + ".extract");
   LLVM_DEBUG(dbgs() << "     shuffle: " << *V << "\n");
   return V;
 }
@@ -2241,22 +2239,22 @@ static Value *insertVector(IRBuilderTy &IRB, Value *Old, Value *V,
   // use a shuffle vector to widen it with undef elements, and then
   // a second shuffle vector to select between the loaded vector and the
   // incoming vector.
-  SmallVector<Constant *, 8> Mask;
+  SmallVector<int, 8> Mask;
   Mask.reserve(cast<FixedVectorType>(VecTy)->getNumElements());
   for (unsigned i = 0; i != cast<FixedVectorType>(VecTy)->getNumElements(); ++i)
     if (i >= BeginIndex && i < EndIndex)
-      Mask.push_back(IRB.getInt32(i - BeginIndex));
+      Mask.push_back(i - BeginIndex);
     else
-      Mask.push_back(UndefValue::get(IRB.getInt32Ty()));
-  V = IRB.CreateShuffleVector(V, UndefValue::get(V->getType()),
-                              ConstantVector::get(Mask), Name + ".expand");
+      Mask.push_back(-1);
+  V = IRB.CreateShuffleVector(V, Mask, Name + ".expand");
   LLVM_DEBUG(dbgs() << "    shuffle: " << *V << "\n");
 
-  Mask.clear();
+  SmallVector<Constant *, 8> Mask2;
+  Mask2.reserve(cast<FixedVectorType>(VecTy)->getNumElements());
   for (unsigned i = 0; i != cast<FixedVectorType>(VecTy)->getNumElements(); ++i)
-    Mask.push_back(IRB.getInt1(i >= BeginIndex && i < EndIndex));
+    Mask2.push_back(IRB.getInt1(i >= BeginIndex && i < EndIndex));
 
-  V = IRB.CreateSelect(ConstantVector::get(Mask), V, Old, Name + "blend");
+  V = IRB.CreateSelect(ConstantVector::get(Mask2), V, Old, Name + "blend");
 
   LLVM_DEBUG(dbgs() << "    blend: " << *V << "\n");
   return V;
@@ -3477,7 +3475,7 @@ private:
                       << "\n              " << GEPI);
 
     IRBuilderTy Builder(&GEPI);
-    SmallVector<Value *, 4> Index(GEPI.idx_begin(), GEPI.idx_end());
+    SmallVector<Value *, 4> Index(GEPI.indices());
     bool IsInBounds = GEPI.isInBounds();
 
     Value *True = Sel->getTrueValue();
@@ -3531,7 +3529,7 @@ private:
                       << "\n              " << GEPI
                       << "\n          to: ");
 
-    SmallVector<Value *, 4> Index(GEPI.idx_begin(), GEPI.idx_end());
+    SmallVector<Value *, 4> Index(GEPI.indices());
     bool IsInBounds = GEPI.isInBounds();
     IRBuilderTy PHIBuilder(GEPI.getParent()->getFirstNonPHI());
     PHINode *NewPN = PHIBuilder.CreatePHI(GEPI.getType(),

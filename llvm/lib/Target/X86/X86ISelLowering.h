@@ -855,7 +855,7 @@ namespace llvm {
     /// Returns true of the given offset can be
     /// fit into displacement field of the instruction.
     bool isOffsetSuitableForCodeModel(int64_t Offset, CodeModel::Model M,
-                                      bool hasSymbolicDisplacement = true);
+                                      bool hasSymbolicDisplacement);
 
     /// Determines whether the callee is required to pop its
     /// own arguments. Callee pop is necessary to support tail calls.
@@ -1408,6 +1408,8 @@ namespace llvm {
                                    SDValue Addr, SelectionDAG &DAG)
                                    const override;
 
+    Align getPrefLoopAlignment(MachineLoop *ML) const override;
+
   protected:
     std::pair<const TargetRegisterClass *, uint8_t>
     findRepresentativeClass(const TargetRegisterInfo *TRI,
@@ -1499,6 +1501,7 @@ namespace llvm {
     SDValue LowerUINT_TO_FP(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerTRUNCATE(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerFP_TO_INT(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerFP_TO_INT_SAT(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerLRINT_LLRINT(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSETCCCARRY(SDValue Op, SelectionDAG &DAG) const;

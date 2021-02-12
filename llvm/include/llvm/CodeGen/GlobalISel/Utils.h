@@ -23,6 +23,7 @@
 namespace llvm {
 
 class AnalysisUsage;
+class GISelKnownBits;
 class MachineFunction;
 class MachineInstr;
 class MachineOperand;
@@ -51,9 +52,10 @@ Register constrainRegToClass(MachineRegisterInfo &MRI,
 
 /// Constrain the Register operand OpIdx, so that it is now constrained to the
 /// TargetRegisterClass passed as an argument (RegClass).
-/// If this fails, create a new virtual register in the correct class and
-/// insert a COPY before \p InsertPt if it is a use or after if it is a
-/// definition. The debug location of \p InsertPt is used for the new copy.
+/// If this fails, create a new virtual register in the correct class and insert
+/// a COPY before \p InsertPt if it is a use or after if it is a definition.
+/// In both cases, the function also updates the register of RegMo. The debug
+/// location of \p InsertPt is used for the new copy.
 ///
 /// \return The virtual register constrained to the right register class.
 Register constrainOperandRegClass(const MachineFunction &MF,
@@ -63,12 +65,13 @@ Register constrainOperandRegClass(const MachineFunction &MF,
                                   const RegisterBankInfo &RBI,
                                   MachineInstr &InsertPt,
                                   const TargetRegisterClass &RegClass,
-                                  const MachineOperand &RegMO);
+                                  MachineOperand &RegMO);
 
-/// Try to constrain Reg so that it is usable by argument OpIdx of the
-/// provided MCInstrDesc \p II. If this fails, create a new virtual
-/// register in the correct class and insert a COPY before \p InsertPt
-/// if it is a use or after if it is a definition.
+/// Try to constrain Reg so that it is usable by argument OpIdx of the provided
+/// MCInstrDesc \p II. If this fails, create a new virtual register in the
+/// correct class and insert a COPY before \p InsertPt if it is a use or after
+/// if it is a definition. In both cases, the function also updates the register
+/// of RegMo.
 /// This is equivalent to constrainOperandRegClass(..., RegClass, ...)
 /// with RegClass obtained from the MCInstrDesc. The debug location of \p
 /// InsertPt is used for the new copy.
@@ -80,7 +83,7 @@ Register constrainOperandRegClass(const MachineFunction &MF,
                                   const TargetInstrInfo &TII,
                                   const RegisterBankInfo &RBI,
                                   MachineInstr &InsertPt, const MCInstrDesc &II,
-                                  const MachineOperand &RegMO, unsigned OpIdx);
+                                  MachineOperand &RegMO, unsigned OpIdx);
 
 /// Mutate the newly-selected instruction \p I to constrain its (possibly
 /// generic) virtual register operands to the instruction's register class.
@@ -143,10 +146,13 @@ struct ValueAndVReg {
 /// When \p LookThroughInstrs == false this function behaves like
 /// getConstantVRegVal.
 /// When \p HandleFConstants == false the function bails on G_FCONSTANTs.
+/// When \p LookThroughAnyExt == true the function treats G_ANYEXT same as
+/// G_SEXT.
 Optional<ValueAndVReg>
 getConstantVRegValWithLookThrough(Register VReg, const MachineRegisterInfo &MRI,
                                   bool LookThroughInstrs = true,
-                                  bool HandleFConstants = true);
+                                  bool HandleFConstants = true,
+                                  bool LookThroughAnyExt = false);
 const ConstantFP* getConstantFPVRegVal(Register VReg,
                                        const MachineRegisterInfo &MRI);
 
@@ -193,6 +199,12 @@ Optional<APInt> ConstantFoldBinOp(unsigned Opcode, const Register Op1,
 
 Optional<APInt> ConstantFoldExtOp(unsigned Opcode, const Register Op1,
                                   uint64_t Imm, const MachineRegisterInfo &MRI);
+
+/// Test if the given value is known to have exactly one bit set. This differs
+/// from computeKnownBits in that it doesn't necessarily determine which bit is
+/// set.
+bool isKnownToBeAPowerOfTwo(Register Val, const MachineRegisterInfo &MRI,
+                            GISelKnownBits *KnownBits = nullptr);
 
 /// Returns true if \p Val can be assumed to never be a NaN. If \p SNaN is true,
 /// this returns if \p Val can be assumed to never be a signaling NaN.

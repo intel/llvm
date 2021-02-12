@@ -7,10 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "GlobalCompilationDatabase.h"
+#include "Config.h"
 #include "FS.h"
 #include "SourceCode.h"
 #include "support/Logger.h"
 #include "support/Path.h"
+#include "support/Threading.h"
 #include "support/ThreadsafeFS.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Tooling/ArgumentsAdjusters.h"
@@ -19,15 +21,19 @@
 #include "clang/Tooling/JSONCompilationDatabase.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
+#include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/VirtualFileSystem.h"
+#include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -271,7 +277,8 @@ parseJSON(PathRef Path, llvm::StringRef Data, std::string &Error) {
 }
 static std::unique_ptr<tooling::CompilationDatabase>
 parseFixed(PathRef Path, llvm::StringRef Data, std::string &Error) {
-  return tooling::FixedCompilationDatabase::loadFromBuffer(Path, Data, Error);
+  return tooling::FixedCompilationDatabase::loadFromBuffer(
+      llvm::sys::path::parent_path(Path), Data, Error);
 }
 
 bool DirectoryBasedGlobalCompilationDatabase::DirectoryCache::load(
@@ -350,15 +357,17 @@ bool DirectoryBasedGlobalCompilationDatabase::DirectoryCache::load(
     }
     // Don't log Error here, it's usually just "couldn't find <file>".
   }
-  vlog("No compilation database at {0}", Path);
+  dlog("No compilation database at {0}", Path);
   return true;
 }
 
 DirectoryBasedGlobalCompilationDatabase::
     DirectoryBasedGlobalCompilationDatabase(const Options &Opts)
-    : Opts(Opts) {
-  if (Opts.CompileCommandsDir)
-    OnlyDirCache = std::make_unique<DirectoryCache>(*Opts.CompileCommandsDir);
+    : Opts(Opts), Broadcaster(std::make_unique<BroadcastThread>(*this)) {
+  if (!this->Opts.ContextProvider)
+    this->Opts.ContextProvider = [](llvm::StringRef) {
+      return Context::current().clone();
+    };
 }
 
 DirectoryBasedGlobalCompilationDatabase::
@@ -400,14 +409,6 @@ static std::string maybeCaseFoldPath(PathRef Path) {
 #endif
 }
 
-static bool pathEqual(PathRef A, PathRef B) {
-#if defined(_WIN32) || defined(__APPLE__)
-  return A.equals_lower(B);
-#else
-  return A == B;
-#endif
-}
-
 std::vector<DirectoryBasedGlobalCompilationDatabase::DirectoryCache *>
 DirectoryBasedGlobalCompilationDatabase::getDirectoryCaches(
     llvm::ArrayRef<llvm::StringRef> Dirs) const {
@@ -436,31 +437,42 @@ DirectoryBasedGlobalCompilationDatabase::lookupCDB(
   assert(llvm::sys::path::is_absolute(Request.FileName) &&
          "path must be absolute");
 
+  std::string Storage;
+  std::vector<llvm::StringRef> SearchDirs;
+  if (Opts.CompileCommandsDir) // FIXME: unify this case with config.
+    SearchDirs = {Opts.CompileCommandsDir.getValue()};
+  else {
+    WithContext WithProvidedContext(Opts.ContextProvider(Request.FileName));
+    const auto &Spec = Config::current().CompileFlags.CDBSearch;
+    switch (Spec.Policy) {
+    case Config::CDBSearchSpec::NoCDBSearch:
+      return llvm::None;
+    case Config::CDBSearchSpec::FixedDir:
+      Storage = Spec.FixedCDBPath.getValue();
+      SearchDirs = {Storage};
+      break;
+    case Config::CDBSearchSpec::Ancestors:
+      // Traverse the canonical version to prevent false positives. i.e.:
+      // src/build/../a.cc can detect a CDB in /src/build if not
+      // canonicalized.
+      Storage = removeDots(Request.FileName);
+      actOnAllParentDirectories(Storage, [&](llvm::StringRef Dir) {
+        SearchDirs.push_back(Dir);
+        return false;
+      });
+    }
+  }
+
+  std::shared_ptr<const tooling::CompilationDatabase> CDB = nullptr;
   bool ShouldBroadcast = false;
   DirectoryCache *DirCache = nullptr;
-  std::shared_ptr<const tooling::CompilationDatabase> CDB = nullptr;
-  if (OnlyDirCache) {
-    DirCache = OnlyDirCache.get();
-    ShouldBroadcast = Request.ShouldBroadcast;
-    CDB = DirCache->get(Opts.TFS, ShouldBroadcast, Request.FreshTime,
-                        Request.FreshTimeMissing);
-  } else {
-    // Traverse the canonical version to prevent false positives. i.e.:
-    // src/build/../a.cc can detect a CDB in /src/build if not canonicalized.
-    std::string CanonicalPath = removeDots(Request.FileName);
-    std::vector<llvm::StringRef> SearchDirs;
-    actOnAllParentDirectories(CanonicalPath, [&](PathRef Path) {
-      SearchDirs.push_back(Path);
-      return false;
-    });
-    for (DirectoryCache *Candidate : getDirectoryCaches(SearchDirs)) {
-      bool CandidateShouldBroadcast = Request.ShouldBroadcast;
-      if ((CDB = Candidate->get(Opts.TFS, CandidateShouldBroadcast,
-                                Request.FreshTime, Request.FreshTimeMissing))) {
-        DirCache = Candidate;
-        ShouldBroadcast = CandidateShouldBroadcast;
-        break;
-      }
+  for (DirectoryCache *Candidate : getDirectoryCaches(SearchDirs)) {
+    bool CandidateShouldBroadcast = Request.ShouldBroadcast;
+    if ((CDB = Candidate->get(Opts.TFS, CandidateShouldBroadcast,
+                              Request.FreshTime, Request.FreshTimeMissing))) {
+      DirCache = Candidate;
+      ShouldBroadcast = CandidateShouldBroadcast;
+      break;
     }
   }
 
@@ -471,73 +483,277 @@ DirectoryBasedGlobalCompilationDatabase::lookupCDB(
   Result.CDB = std::move(CDB);
   Result.PI.SourceRoot = DirCache->Path;
 
-  // FIXME: Maybe make the following part async, since this can block
-  // retrieval of compile commands.
   if (ShouldBroadcast)
     broadcastCDB(Result);
   return Result;
 }
 
-void DirectoryBasedGlobalCompilationDatabase::broadcastCDB(
-    CDBLookupResult Result) const {
-  vlog("Broadcasting compilation database from {0}", Result.PI.SourceRoot);
-  assert(Result.CDB && "Trying to broadcast an invalid CDB!");
+// The broadcast thread announces files with new compile commands to the world.
+// Primarily this is used to enqueue them for background indexing.
+//
+// It's on a separate thread because:
+//  - otherwise it would block the first parse of the initial file
+//  - we need to enumerate all files in the CDB, of which there are many
+//  - we (will) have to evaluate config for every file in the CDB, which is slow
+class DirectoryBasedGlobalCompilationDatabase::BroadcastThread {
+  class Filter;
+  DirectoryBasedGlobalCompilationDatabase &Parent;
 
-  std::vector<std::string> AllFiles = Result.CDB->getAllFiles();
-  // We assume CDB in CompileCommandsDir owns all of its entries, since we don't
-  // perform any search in parent paths whenever it is set.
-  if (OnlyDirCache) {
-    assert(OnlyDirCache->Path == Result.PI.SourceRoot &&
-           "Trying to broadcast a CDB outside of CompileCommandsDir!");
-    OnCommandChanged.broadcast(std::move(AllFiles));
-    return;
+  std::mutex Mu;
+  std::condition_variable CV;
+  // Shutdown flag (CV is notified after writing).
+  // This is atomic so that broadcasts can also observe it and abort early.
+  std::atomic<bool> ShouldStop = {false};
+  struct Task {
+    CDBLookupResult Lookup;
+    Context Ctx;
+  };
+  std::deque<Task> Queue;
+  llvm::Optional<Task> ActiveTask;
+  std::thread Thread; // Must be last member.
+
+  // Thread body: this is just the basic queue procesing boilerplate.
+  void run() {
+    std::unique_lock<std::mutex> Lock(Mu);
+    while (true) {
+      bool Stopping = false;
+      CV.wait(Lock, [&] {
+        return (Stopping = ShouldStop.load(std::memory_order_acquire)) ||
+               !Queue.empty();
+      });
+      if (Stopping) {
+        Queue.clear();
+        CV.notify_all();
+        return;
+      }
+      ActiveTask = std::move(Queue.front());
+      Queue.pop_front();
+
+      Lock.unlock();
+      {
+        WithContext WithCtx(std::move(ActiveTask->Ctx));
+        process(ActiveTask->Lookup);
+      }
+      Lock.lock();
+      ActiveTask.reset();
+      CV.notify_all();
+    }
   }
 
-  // Uniquify all parent directories of all files.
-  llvm::StringMap<bool> DirectoryHasCDB;
-  std::vector<llvm::StringRef> FileAncestors;
-  for (llvm::StringRef File : AllFiles) {
-    actOnAllParentDirectories(File, [&](PathRef Path) {
-      auto It = DirectoryHasCDB.try_emplace(Path);
-      // Already seen this path, and all of its parents.
-      if (!It.second)
-        return true;
+  // Inspects a new CDB and broadcasts the files it owns.
+  void process(const CDBLookupResult &T);
 
-      FileAncestors.push_back(It.first->getKey());
-      return pathEqual(Path, Result.PI.SourceRoot);
+public:
+  BroadcastThread(DirectoryBasedGlobalCompilationDatabase &Parent)
+      : Parent(Parent), Thread([this] { run(); }) {}
+
+  void enqueue(CDBLookupResult Lookup) {
+    {
+      assert(!Lookup.PI.SourceRoot.empty());
+      std::lock_guard<std::mutex> Lock(Mu);
+      // New CDB takes precedence over any queued one for the same directory.
+      llvm::erase_if(Queue, [&](const Task &T) {
+        return T.Lookup.PI.SourceRoot == Lookup.PI.SourceRoot;
+      });
+      Queue.push_back({std::move(Lookup), Context::current().clone()});
+    }
+    CV.notify_all();
+  }
+
+  bool blockUntilIdle(Deadline Timeout) {
+    std::unique_lock<std::mutex> Lock(Mu);
+    return wait(Lock, CV, Timeout,
+                [&] { return Queue.empty() && !ActiveTask.hasValue(); });
+  }
+
+  ~BroadcastThread() {
+    ShouldStop.store(true, std::memory_order_release);
+    CV.notify_all();
+    Thread.join();
+  }
+};
+
+// The DirBasedCDB associates each file with a specific CDB.
+// When a CDB is discovered, it may claim to describe files that we associate
+// with a different CDB. We do not want to broadcast discovery of these, and
+// trigger background indexing of them.
+//
+// We must filter the list, and check whether they are associated with this CDB.
+// This class attempts to do so efficiently.
+//
+// Roughly, it:
+//  - loads the config for each file, and determines the relevant search path
+//  - gathers all directories that are part of any search path
+//  - (lazily) checks for a CDB in each such directory at most once
+//  - walks the search path for each file and determines whether to include it.
+class DirectoryBasedGlobalCompilationDatabase::BroadcastThread::Filter {
+  llvm::StringRef ThisDir;
+  DirectoryBasedGlobalCompilationDatabase &Parent;
+
+  // Keep track of all directories we might check for CDBs.
+  struct DirInfo {
+    DirectoryCache *Cache = nullptr;
+    enum { Unknown, Missing, TargetCDB, OtherCDB } State = Unknown;
+    DirInfo *Parent = nullptr;
+  };
+  llvm::StringMap<DirInfo> Dirs;
+
+  // A search path starts at a directory, and either includes ancestors or not.
+  using SearchPath = llvm::PointerIntPair<DirInfo *, 1>;
+
+  // Add all ancestor directories of FilePath to the tracked set.
+  // Returns the immediate parent of the file.
+  DirInfo *addParents(llvm::StringRef FilePath) {
+    DirInfo *Leaf = nullptr;
+    DirInfo *Child = nullptr;
+    actOnAllParentDirectories(FilePath, [&](llvm::StringRef Dir) {
+      auto &Info = Dirs[Dir];
+      // If this is the first iteration, then this node is the overall result.
+      if (!Leaf)
+        Leaf = &Info;
+      // Fill in the parent link from the previous iteration to this parent.
+      if (Child)
+        Child->Parent = &Info;
+      // Keep walking, whether we inserted or not, if parent link is missing.
+      // (If it's present, parent links must be present up to the root, so stop)
+      Child = &Info;
+      return Info.Parent != nullptr;
     });
-  }
-  // Work out which ones have CDBs in them.
-  // Given that we know that CDBs have been moved/generated, don't trust caches.
-  // (This should be rare, so it's OK to add a little latency).
-  constexpr auto IgnoreCache = std::chrono::steady_clock::time_point::max();
-  auto DirectoryCaches = getDirectoryCaches(FileAncestors);
-  assert(DirectoryCaches.size() == FileAncestors.size());
-  for (unsigned I = 0; I < DirectoryCaches.size(); ++I) {
-    bool ShouldBroadcast = false;
-    if (DirectoryCaches[I]->get(Opts.TFS, ShouldBroadcast,
-                                /*FreshTime=*/IgnoreCache,
-                                /*FreshTimeMissing=*/IgnoreCache))
-      DirectoryHasCDB.find(FileAncestors[I])->setValue(true);
+    return Leaf;
   }
 
-  std::vector<std::string> GovernedFiles;
-  for (llvm::StringRef File : AllFiles) {
-    // A file is governed by this CDB if lookup for the file would find it.
-    // Independent of whether it has an entry for that file or not.
-    actOnAllParentDirectories(File, [&](PathRef Path) {
-      if (DirectoryHasCDB.lookup(Path)) {
-        if (pathEqual(Path, Result.PI.SourceRoot))
-          // Make sure listeners always get a canonical path for the file.
-          GovernedFiles.push_back(removeDots(File));
-        // Stop as soon as we hit a CDB.
+  // Populates DirInfo::Cache (and State, if it is TargetCDB).
+  void grabCaches() {
+    // Fast path out if there were no files, or CDB loading is off.
+    if (Dirs.empty())
+      return;
+
+    std::vector<llvm::StringRef> DirKeys;
+    std::vector<DirInfo *> DirValues;
+    DirKeys.reserve(Dirs.size() + 1);
+    DirValues.reserve(Dirs.size());
+    for (auto &E : Dirs) {
+      DirKeys.push_back(E.first());
+      DirValues.push_back(&E.second);
+    }
+
+    // Also look up the cache entry for the CDB we're broadcasting.
+    // Comparing DirectoryCache pointers is more robust than checking string
+    // equality, e.g. reuses the case-sensitivity handling.
+    DirKeys.push_back(ThisDir);
+    auto DirCaches = Parent.getDirectoryCaches(DirKeys);
+    const DirectoryCache *ThisCache = DirCaches.back();
+    DirCaches.pop_back();
+    DirKeys.pop_back();
+
+    for (unsigned I = 0; I < DirKeys.size(); ++I) {
+      DirValues[I]->Cache = DirCaches[I];
+      if (DirCaches[I] == ThisCache)
+        DirValues[I]->State = DirInfo::TargetCDB;
+    }
+  }
+
+  // Should we include a file from this search path?
+  bool shouldInclude(SearchPath P) {
+    DirInfo *Info = P.getPointer();
+    if (!Info)
+      return false;
+    if (Info->State == DirInfo::Unknown) {
+      assert(Info->Cache && "grabCaches() should have filled this");
+      // Given that we know that CDBs have been moved/generated, don't trust
+      // caches. (This should be rare, so it's OK to add a little latency).
+      constexpr auto IgnoreCache = std::chrono::steady_clock::time_point::max();
+      // Don't broadcast CDBs discovered while broadcasting!
+      bool ShouldBroadcast = false;
+      bool Exists =
+          nullptr != Info->Cache->get(Parent.Opts.TFS, ShouldBroadcast,
+                                      /*FreshTime=*/IgnoreCache,
+                                      /*FreshTimeMissing=*/IgnoreCache);
+      Info->State = Exists ? DirInfo::OtherCDB : DirInfo::Missing;
+    }
+    // If we have a CDB, include the file if it's the target CDB only.
+    if (Info->State != DirInfo::Missing)
+      return Info->State == DirInfo::TargetCDB;
+    // If we have no CDB and no relevant parent, don't include the file.
+    if (!P.getInt() || !Info->Parent)
+      return false;
+    // Walk up to the next parent.
+    return shouldInclude(SearchPath(Info->Parent, 1));
+  }
+
+public:
+  Filter(llvm::StringRef ThisDir,
+         DirectoryBasedGlobalCompilationDatabase &Parent)
+      : ThisDir(ThisDir), Parent(Parent) {}
+
+  std::vector<std::string> filter(std::vector<std::string> AllFiles,
+                                  std::atomic<bool> &ShouldStop) {
+    std::vector<std::string> Filtered;
+    // Allow for clean early-exit of the slow parts.
+    auto ExitEarly = [&] {
+      if (ShouldStop.load(std::memory_order_acquire)) {
+        log("Giving up on broadcasting CDB, as we're shutting down");
+        Filtered.clear();
         return true;
       }
       return false;
-    });
+    };
+    // Compute search path for each file.
+    std::vector<SearchPath> SearchPaths(AllFiles.size());
+    for (unsigned I = 0; I < AllFiles.size(); ++I) {
+      if (Parent.Opts.CompileCommandsDir) { // FIXME: unify with config
+        SearchPaths[I].setPointer(
+            &Dirs[Parent.Opts.CompileCommandsDir.getValue()]);
+        continue;
+      }
+      if (ExitEarly()) // loading config may be slow
+        return Filtered;
+      WithContext WithProvidedContent(Parent.Opts.ContextProvider(AllFiles[I]));
+      const Config::CDBSearchSpec &Spec =
+          Config::current().CompileFlags.CDBSearch;
+      switch (Spec.Policy) {
+      case Config::CDBSearchSpec::NoCDBSearch:
+        break;
+      case Config::CDBSearchSpec::Ancestors:
+        SearchPaths[I].setInt(/*Recursive=*/1);
+        SearchPaths[I].setPointer(addParents(AllFiles[I]));
+        break;
+      case Config::CDBSearchSpec::FixedDir:
+        SearchPaths[I].setPointer(&Dirs[Spec.FixedCDBPath.getValue()]);
+        break;
+      }
+    }
+    // Get the CDB cache for each dir on the search path, but don't load yet.
+    grabCaches();
+    // Now work out which files we want to keep, loading CDBs where needed.
+    for (unsigned I = 0; I < AllFiles.size(); ++I) {
+      if (ExitEarly()) // loading CDBs may be slow
+        return Filtered;
+      if (shouldInclude(SearchPaths[I]))
+        Filtered.push_back(std::move(AllFiles[I]));
+    }
+    return Filtered;
   }
+};
 
-  OnCommandChanged.broadcast(std::move(GovernedFiles));
+void DirectoryBasedGlobalCompilationDatabase::BroadcastThread::process(
+    const CDBLookupResult &T) {
+  vlog("Broadcasting compilation database from {0}", T.PI.SourceRoot);
+  std::vector<std::string> GovernedFiles =
+      Filter(T.PI.SourceRoot, Parent).filter(T.CDB->getAllFiles(), ShouldStop);
+  if (!GovernedFiles.empty())
+    Parent.OnCommandChanged.broadcast(std::move(GovernedFiles));
+}
+
+void DirectoryBasedGlobalCompilationDatabase::broadcastCDB(
+    CDBLookupResult Result) const {
+  assert(Result.CDB && "Trying to broadcast an invalid CDB!");
+  Broadcaster->enqueue(Result);
+}
+
+bool DirectoryBasedGlobalCompilationDatabase::blockUntilIdle(
+    Deadline Timeout) const {
+  return Broadcaster->blockUntilIdle(Timeout);
 }
 
 llvm::Optional<ProjectInfo>
@@ -556,13 +772,8 @@ DirectoryBasedGlobalCompilationDatabase::getProjectInfo(PathRef File) const {
 OverlayCDB::OverlayCDB(const GlobalCompilationDatabase *Base,
                        std::vector<std::string> FallbackFlags,
                        tooling::ArgumentsAdjuster Adjuster)
-    : Base(Base), ArgsAdjuster(std::move(Adjuster)),
-      FallbackFlags(std::move(FallbackFlags)) {
-  if (Base)
-    BaseChanged = Base->watch([this](const std::vector<std::string> Changes) {
-      OnCommandChanged.broadcast(Changes);
-    });
-}
+    : DelegatingCDB(Base), ArgsAdjuster(std::move(Adjuster)),
+      FallbackFlags(std::move(FallbackFlags)) {}
 
 llvm::Optional<tooling::CompileCommand>
 OverlayCDB::getCompileCommand(PathRef File) const {
@@ -573,8 +784,8 @@ OverlayCDB::getCompileCommand(PathRef File) const {
     if (It != Commands.end())
       Cmd = It->second;
   }
-  if (!Cmd && Base)
-    Cmd = Base->getCompileCommand(File);
+  if (!Cmd)
+    Cmd = DelegatingCDB::getCompileCommand(File);
   if (!Cmd)
     return llvm::None;
   if (ArgsAdjuster)
@@ -583,8 +794,7 @@ OverlayCDB::getCompileCommand(PathRef File) const {
 }
 
 tooling::CompileCommand OverlayCDB::getFallbackCommand(PathRef File) const {
-  auto Cmd = Base ? Base->getFallbackCommand(File)
-                  : GlobalCompilationDatabase::getFallbackCommand(File);
+  auto Cmd = DelegatingCDB::getFallbackCommand(File);
   std::lock_guard<std::mutex> Lock(Mutex);
   Cmd.CommandLine.insert(Cmd.CommandLine.end(), FallbackFlags.begin(),
                          FallbackFlags.end());
@@ -609,13 +819,43 @@ void OverlayCDB::setCompileCommand(
   OnCommandChanged.broadcast({CanonPath});
 }
 
-llvm::Optional<ProjectInfo> OverlayCDB::getProjectInfo(PathRef File) const {
-  // It wouldn't make much sense to treat files with overridden commands
-  // specially when we can't do the same for the (unknown) local headers they
-  // include or changing behavior mid-air after receiving an override.
+DelegatingCDB::DelegatingCDB(const GlobalCompilationDatabase *Base)
+    : Base(Base) {
   if (Base)
-    return Base->getProjectInfo(File);
-  return llvm::None;
+    BaseChanged = Base->watch([this](const std::vector<std::string> Changes) {
+      OnCommandChanged.broadcast(Changes);
+    });
 }
+
+DelegatingCDB::DelegatingCDB(std::unique_ptr<GlobalCompilationDatabase> Base)
+    : DelegatingCDB(Base.get()) {
+  BaseOwner = std::move(Base);
+}
+
+llvm::Optional<tooling::CompileCommand>
+DelegatingCDB::getCompileCommand(PathRef File) const {
+  if (!Base)
+    return llvm::None;
+  return Base->getCompileCommand(File);
+}
+
+llvm::Optional<ProjectInfo> DelegatingCDB::getProjectInfo(PathRef File) const {
+  if (!Base)
+    return llvm::None;
+  return Base->getProjectInfo(File);
+}
+
+tooling::CompileCommand DelegatingCDB::getFallbackCommand(PathRef File) const {
+  if (!Base)
+    return GlobalCompilationDatabase::getFallbackCommand(File);
+  return Base->getFallbackCommand(File);
+}
+
+bool DelegatingCDB::blockUntilIdle(Deadline D) const {
+  if (!Base)
+    return true;
+  return Base->blockUntilIdle(D);
+}
+
 } // namespace clangd
 } // namespace clang

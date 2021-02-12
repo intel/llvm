@@ -50,6 +50,7 @@
 namespace __sanitizer {
 class FlagParser;
 class ThreadRegistry;
+class ThreadContextBase;
 struct DTLS;
 }
 
@@ -103,8 +104,9 @@ class LeakReport {
                       ChunkTag tag);
   void ReportTopLeaks(uptr max_leaks);
   void PrintSummary();
-  void ApplySuppressions();
+  uptr ApplySuppressions();
   uptr UnsuppressedLeakCount();
+  uptr IndirectUnsuppressedLeakCount();
 
  private:
   void PrintReportForLeak(uptr index);
@@ -141,6 +143,7 @@ InternalMmapVector<RootRegion> const *GetRootRegions();
 void ScanRootRegion(Frontier *frontier, RootRegion const &region,
                     uptr region_begin, uptr region_end, bool is_readable);
 void ForEachExtraStackRangeCb(uptr begin, uptr end, void* arg);
+void GetAdditionalThreadContextPtrs(ThreadContextBase *tctx, void *ptrs);
 // Run stoptheworld while holding any platform-specific locks, as well as the
 // allocator and thread registry locks.
 void LockStuffAndStopTheWorld(StopTheWorldCallback callback,

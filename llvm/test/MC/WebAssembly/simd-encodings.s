@@ -724,4 +724,40 @@ main:
     # CHECK: i64x2.signselect # encoding: [0xfd,0x94,0x01]
     i64x2.signselect
 
+    # CHECK: i16x8.extadd_pairwise_i8x16_s # encoding: [0xfd,0xc2,0x01]
+    i16x8.extadd_pairwise_i8x16_s
+
+    # CHECK: i16x8.extadd_pairwise_i8x16_u # encoding: [0xfd,0xc3,0x01]
+    i16x8.extadd_pairwise_i8x16_u
+
+    # CHECK: i32x4.extadd_pairwise_i16x8_s # encoding: [0xfd,0xa5,0x01]
+    i32x4.extadd_pairwise_i16x8_s
+
+    # CHECK: i32x4.extadd_pairwise_i16x8_u # encoding: [0xfd,0xa6,0x01]
+    i32x4.extadd_pairwise_i16x8_u
+
+    # CHECK: prefetch.t 16 # encoding: [0xfd,0xc5,0x01,0x00,0x10]
+    prefetch.t 16
+
+    # CHECK: prefetch.nt 16 # encoding: [0xfd,0xc6,0x01,0x00,0x10]
+    prefetch.nt 16
+
+    # CHECK: f64x2.convert_low_i32x4_s # encoding: [0xfd,0x53]
+    f64x2.convert_low_i32x4_s
+
+    # CHECK: f64x2.convert_low_i32x4_u # encoding: [0xfd,0x54]
+    f64x2.convert_low_i32x4_u
+
+    # CHECK: i32x4.trunc_sat_zero_f64x2_s # encoding: [0xfd,0x55]
+    i32x4.trunc_sat_zero_f64x2_s
+
+    # CHECK: i32x4.trunc_sat_zero_f64x2_u # encoding: [0xfd,0x56]
+    i32x4.trunc_sat_zero_f64x2_u
+
+    # CHECK: f32x4.demote_zero_f64x2 # encoding: [0xfd,0x57]
+    f32x4.demote_zero_f64x2
+
+    # CHECK: f64x2.promote_low_f32x4 # encoding: [0xfd,0x69]
+    f64x2.promote_low_f32x4
+
     end_function

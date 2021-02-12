@@ -89,6 +89,23 @@ bool CallLowering::lowerCall(MachineIRBuilder &MIRBuilder, const CallBase &CB,
                               .getFnAttribute("disable-tail-calls")
                               .getValueAsString() != "true");
 
+  CallingConv::ID CallConv = CB.getCallingConv();
+  Type *RetTy = CB.getType();
+  bool IsVarArg = CB.getFunctionType()->isVarArg();
+
+  SmallVector<BaseArgInfo, 4> SplitArgs;
+  getReturnInfo(CallConv, RetTy, CB.getAttributes(), SplitArgs, DL);
+  Info.CanLowerReturn = canLowerReturn(MF, CallConv, SplitArgs, IsVarArg);
+
+  if (!Info.CanLowerReturn) {
+    // Callee requires sret demotion.
+    insertSRetOutgoingArgument(MIRBuilder, CB, Info);
+
+    // The sret demotion isn't compatible with tail-calls, since the sret
+    // argument points into the caller's stack frame.
+    CanBeTailCalled = false;
+  }
+
   // First step is to marshall all the function's parameters into the correct
   // physregs and memory locations. Gather the sequence of argument types that
   // we'll pass to the assigner function.
@@ -116,16 +133,16 @@ bool CallLowering::lowerCall(MachineIRBuilder &MIRBuilder, const CallBase &CB,
   else
     Info.Callee = MachineOperand::CreateReg(GetCalleeReg(), false);
 
-  Info.OrigRet = ArgInfo{ResRegs, CB.getType(), ISD::ArgFlagsTy{}};
+  Info.OrigRet = ArgInfo{ResRegs, RetTy, ISD::ArgFlagsTy{}};
   if (!Info.OrigRet.Ty->isVoidTy())
     setArgFlags(Info.OrigRet, AttributeList::ReturnIndex, DL, CB);
 
   Info.KnownCallees = CB.getMetadata(LLVMContext::MD_callees);
-  Info.CallConv = CB.getCallingConv();
+  Info.CallConv = CallConv;
   Info.SwiftErrorVReg = SwiftErrorVReg;
   Info.IsMustTailCall = CB.isMustTailCall();
   Info.IsTailCall = CanBeTailCalled;
-  Info.IsVarArg = CB.getFunctionType()->isVarArg();
+  Info.IsVarArg = IsVarArg;
   return lowerCall(MIRBuilder, Info);
 }
 
@@ -429,6 +446,154 @@ bool CallLowering::handleAssignments(CCState &CCInfo,
   return true;
 }
 
+void CallLowering::insertSRetLoads(MachineIRBuilder &MIRBuilder, Type *RetTy,
+                                   ArrayRef<Register> VRegs, Register DemoteReg,
+                                   int FI) const {
+  MachineFunction &MF = MIRBuilder.getMF();
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+  const DataLayout &DL = MF.getDataLayout();
+
+  SmallVector<EVT, 4> SplitVTs;
+  SmallVector<uint64_t, 4> Offsets;
+  ComputeValueVTs(*TLI, DL, RetTy, SplitVTs, &Offsets, 0);
+
+  assert(VRegs.size() == SplitVTs.size());
+
+  unsigned NumValues = SplitVTs.size();
+  Align BaseAlign = DL.getPrefTypeAlign(RetTy);
+  Type *RetPtrTy = RetTy->getPointerTo(DL.getAllocaAddrSpace());
+  LLT OffsetLLTy = getLLTForType(*DL.getIntPtrType(RetPtrTy), DL);
+
+  MachinePointerInfo PtrInfo = MachinePointerInfo::getFixedStack(MF, FI);
+
+  for (unsigned I = 0; I < NumValues; ++I) {
+    Register Addr;
+    MIRBuilder.materializePtrAdd(Addr, DemoteReg, OffsetLLTy, Offsets[I]);
+    auto *MMO = MF.getMachineMemOperand(PtrInfo, MachineMemOperand::MOLoad,
+                                        MRI.getType(VRegs[I]).getSizeInBytes(),
+                                        commonAlignment(BaseAlign, Offsets[I]));
+    MIRBuilder.buildLoad(VRegs[I], Addr, *MMO);
+  }
+}
+
+void CallLowering::insertSRetStores(MachineIRBuilder &MIRBuilder, Type *RetTy,
+                                    ArrayRef<Register> VRegs,
+                                    Register DemoteReg) const {
+  MachineFunction &MF = MIRBuilder.getMF();
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+  const DataLayout &DL = MF.getDataLayout();
+
+  SmallVector<EVT, 4> SplitVTs;
+  SmallVector<uint64_t, 4> Offsets;
+  ComputeValueVTs(*TLI, DL, RetTy, SplitVTs, &Offsets, 0);
+
+  assert(VRegs.size() == SplitVTs.size());
+
+  unsigned NumValues = SplitVTs.size();
+  Align BaseAlign = DL.getPrefTypeAlign(RetTy);
+  unsigned AS = DL.getAllocaAddrSpace();
+  LLT OffsetLLTy =
+      getLLTForType(*DL.getIntPtrType(RetTy->getPointerTo(AS)), DL);
+
+  MachinePointerInfo PtrInfo(AS);
+
+  for (unsigned I = 0; I < NumValues; ++I) {
+    Register Addr;
+    MIRBuilder.materializePtrAdd(Addr, DemoteReg, OffsetLLTy, Offsets[I]);
+    auto *MMO = MF.getMachineMemOperand(PtrInfo, MachineMemOperand::MOStore,
+                                        MRI.getType(VRegs[I]).getSizeInBytes(),
+                                        commonAlignment(BaseAlign, Offsets[I]));
+    MIRBuilder.buildStore(VRegs[I], Addr, *MMO);
+  }
+}
+
+void CallLowering::insertSRetIncomingArgument(
+    const Function &F, SmallVectorImpl<ArgInfo> &SplitArgs, Register &DemoteReg,
+    MachineRegisterInfo &MRI, const DataLayout &DL) const {
+  unsigned AS = DL.getAllocaAddrSpace();
+  DemoteReg = MRI.createGenericVirtualRegister(
+      LLT::pointer(AS, DL.getPointerSizeInBits(AS)));
+
+  Type *PtrTy = PointerType::get(F.getReturnType(), AS);
+
+  SmallVector<EVT, 1> ValueVTs;
+  ComputeValueVTs(*TLI, DL, PtrTy, ValueVTs);
+
+  // NOTE: Assume that a pointer won't get split into more than one VT.
+  assert(ValueVTs.size() == 1);
+
+  ArgInfo DemoteArg(DemoteReg, ValueVTs[0].getTypeForEVT(PtrTy->getContext()));
+  setArgFlags(DemoteArg, AttributeList::ReturnIndex, DL, F);
+  DemoteArg.Flags[0].setSRet();
+  SplitArgs.insert(SplitArgs.begin(), DemoteArg);
+}
+
+void CallLowering::insertSRetOutgoingArgument(MachineIRBuilder &MIRBuilder,
+                                              const CallBase &CB,
+                                              CallLoweringInfo &Info) const {
+  const DataLayout &DL = MIRBuilder.getDataLayout();
+  Type *RetTy = CB.getType();
+  unsigned AS = DL.getAllocaAddrSpace();
+  LLT FramePtrTy = LLT::pointer(AS, DL.getPointerSizeInBits(AS));
+
+  int FI = MIRBuilder.getMF().getFrameInfo().CreateStackObject(
+      DL.getTypeAllocSize(RetTy), DL.getPrefTypeAlign(RetTy), false);
+
+  Register DemoteReg = MIRBuilder.buildFrameIndex(FramePtrTy, FI).getReg(0);
+  ArgInfo DemoteArg(DemoteReg, PointerType::get(RetTy, AS));
+  setArgFlags(DemoteArg, AttributeList::ReturnIndex, DL, CB);
+  DemoteArg.Flags[0].setSRet();
+
+  Info.OrigArgs.insert(Info.OrigArgs.begin(), DemoteArg);
+  Info.DemoteStackIndex = FI;
+  Info.DemoteRegister = DemoteReg;
+}
+
+bool CallLowering::checkReturn(CCState &CCInfo,
+                               SmallVectorImpl<BaseArgInfo> &Outs,
+                               CCAssignFn *Fn) const {
+  for (unsigned I = 0, E = Outs.size(); I < E; ++I) {
+    MVT VT = MVT::getVT(Outs[I].Ty);
+    if (Fn(I, VT, VT, CCValAssign::Full, Outs[I].Flags[0], CCInfo))
+      return false;
+  }
+  return true;
+}
+
+void CallLowering::getReturnInfo(CallingConv::ID CallConv, Type *RetTy,
+                                 AttributeList Attrs,
+                                 SmallVectorImpl<BaseArgInfo> &Outs,
+                                 const DataLayout &DL) const {
+  LLVMContext &Context = RetTy->getContext();
+  ISD::ArgFlagsTy Flags = ISD::ArgFlagsTy();
+
+  SmallVector<EVT, 4> SplitVTs;
+  ComputeValueVTs(*TLI, DL, RetTy, SplitVTs);
+  addArgFlagsFromAttributes(Flags, Attrs, AttributeList::ReturnIndex);
+
+  for (EVT VT : SplitVTs) {
+    unsigned NumParts =
+        TLI->getNumRegistersForCallingConv(Context, CallConv, VT);
+    MVT RegVT = TLI->getRegisterTypeForCallingConv(Context, CallConv, VT);
+    Type *PartTy = EVT(RegVT).getTypeForEVT(Context);
+
+    for (unsigned I = 0; I < NumParts; ++I) {
+      Outs.emplace_back(PartTy, Flags);
+    }
+  }
+}
+
+bool CallLowering::checkReturnTypeForCallConv(MachineFunction &MF) const {
+  const auto &F = MF.getFunction();
+  Type *ReturnType = F.getReturnType();
+  CallingConv::ID CallConv = F.getCallingConv();
+
+  SmallVector<BaseArgInfo, 4> SplitArgs;
+  getReturnInfo(CallConv, ReturnType, F.getAttributes(), SplitArgs,
+                MF.getDataLayout());
+  return canLowerReturn(MF, CallConv, SplitArgs, F.isVarArg());
+}
+
 bool CallLowering::analyzeArgInfo(CCState &CCState,
                                   SmallVectorImpl<ArgInfo> &Args,
                                   CCAssignFn &AssignFnFixed,
@@ -443,6 +608,58 @@ bool CallLowering::analyzeArgInfo(CCState &CCState,
       return false;
     }
   }
+  return true;
+}
+
+bool CallLowering::parametersInCSRMatch(
+    const MachineRegisterInfo &MRI, const uint32_t *CallerPreservedMask,
+    const SmallVectorImpl<CCValAssign> &OutLocs,
+    const SmallVectorImpl<ArgInfo> &OutArgs) const {
+  for (unsigned i = 0; i < OutLocs.size(); ++i) {
+    auto &ArgLoc = OutLocs[i];
+    // If it's not a register, it's fine.
+    if (!ArgLoc.isRegLoc())
+      continue;
+
+    MCRegister PhysReg = ArgLoc.getLocReg();
+
+    // Only look at callee-saved registers.
+    if (MachineOperand::clobbersPhysReg(CallerPreservedMask, PhysReg))
+      continue;
+
+    LLVM_DEBUG(
+        dbgs()
+        << "... Call has an argument passed in a callee-saved register.\n");
+
+    // Check if it was copied from.
+    const ArgInfo &OutInfo = OutArgs[i];
+
+    if (OutInfo.Regs.size() > 1) {
+      LLVM_DEBUG(
+          dbgs() << "... Cannot handle arguments in multiple registers.\n");
+      return false;
+    }
+
+    // Check if we copy the register, walking through copies from virtual
+    // registers. Note that getDefIgnoringCopies does not ignore copies from
+    // physical registers.
+    MachineInstr *RegDef = getDefIgnoringCopies(OutInfo.Regs[0], MRI);
+    if (!RegDef || RegDef->getOpcode() != TargetOpcode::COPY) {
+      LLVM_DEBUG(
+          dbgs()
+          << "... Parameter was not copied into a VReg, cannot tail call.\n");
+      return false;
+    }
+
+    // Got a copy. Verify that it's the same as the register we want.
+    Register CopyRHS = RegDef->getOperand(1).getReg();
+    if (CopyRHS != PhysReg) {
+      LLVM_DEBUG(dbgs() << "... Callee-saved register was not copied into "
+                           "VReg, cannot tail call.\n");
+      return false;
+    }
+  }
+
   return true;
 }
 

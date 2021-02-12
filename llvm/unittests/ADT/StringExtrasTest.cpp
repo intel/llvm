@@ -215,3 +215,17 @@ TEST(StringExtras, IToStr) {
   EXPECT_EQ(std::to_string(MinInt64), itostr(MinInt64));
   EXPECT_EQ(std::to_string(MaxInt64), itostr(MaxInt64));
 }
+
+TEST(StringExtras, ListSeparator) {
+  ListSeparator LS;
+  StringRef S = LS;
+  EXPECT_EQ(S, "");
+  S = LS;
+  EXPECT_EQ(S, ", ");
+
+  ListSeparator LS2(" ");
+  S = LS2;
+  EXPECT_EQ(S, "");
+  S = LS2;
+  EXPECT_EQ(S, " ");
+}

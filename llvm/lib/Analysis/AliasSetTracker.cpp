@@ -83,7 +83,7 @@ void AliasSet::mergeSetIn(AliasSet &AS, AliasSetTracker &AST) {
       addRef();
     }
   } else if (ASHadUnknownInsts) {
-    UnknownInsts.insert(UnknownInsts.end(), AS.UnknownInsts.begin(), AS.UnknownInsts.end());
+    llvm::append_range(UnknownInsts, AS.UnknownInsts);
     AS.UnknownInsts.clear();
   }
 
@@ -438,6 +438,7 @@ void AliasSetTracker::addUnknown(Instruction *Inst) {
       break;
       // FIXME: Add lifetime/invariant intrinsics (See: PR30807).
     case Intrinsic::assume:
+    case Intrinsic::experimental_noalias_scope_decl:
     case Intrinsic::sideeffect:
     case Intrinsic::pseudoprobe:
       return;

@@ -1769,7 +1769,6 @@ void llvm::UpgradeInlineAsmString(std::string *AsmStr) {
       (Pos = AsmStr->find("# marker")) != std::string::npos) {
     AsmStr->replace(Pos, 1, ";");
   }
-  return;
 }
 
 /// Upgrade a call to an old intrinsic. All argument and return casting must be
@@ -2397,7 +2396,6 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
                          Name.startswith("avx2.pmovzx") ||
                          Name.startswith("avx512.mask.pmovsx") ||
                          Name.startswith("avx512.mask.pmovzx"))) {
-      auto *SrcTy = cast<FixedVectorType>(CI->getArgOperand(0)->getType());
       auto *DstTy = cast<FixedVectorType>(CI->getType());
       unsigned NumDstElts = DstTy->getNumElements();
 
@@ -2406,8 +2404,8 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
       for (unsigned i = 0; i != NumDstElts; ++i)
         ShuffleMask[i] = i;
 
-      Value *SV = Builder.CreateShuffleVector(
-          CI->getArgOperand(0), UndefValue::get(SrcTy), ShuffleMask);
+      Value *SV =
+          Builder.CreateShuffleVector(CI->getArgOperand(0), ShuffleMask);
 
       bool DoSext = (StringRef::npos != Name.find("pmovsx"));
       Rep = DoSext ? Builder.CreateSExt(SV, DstTy)
@@ -2434,12 +2432,10 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
                                             PointerType::getUnqual(VT));
       Value *Load = Builder.CreateAlignedLoad(VT, Op, Align(1));
       if (NumSrcElts == 2)
-        Rep = Builder.CreateShuffleVector(
-            Load, UndefValue::get(Load->getType()), ArrayRef<int>{0, 1, 0, 1});
+        Rep = Builder.CreateShuffleVector(Load, ArrayRef<int>{0, 1, 0, 1});
       else
-        Rep =
-            Builder.CreateShuffleVector(Load, UndefValue::get(Load->getType()),
-                                        ArrayRef<int>{0, 1, 2, 3, 0, 1, 2, 3});
+        Rep = Builder.CreateShuffleVector(
+            Load, ArrayRef<int>{0, 1, 2, 3, 0, 1, 2, 3});
     } else if (IsX86 && (Name.startswith("avx512.mask.shuf.i") ||
                          Name.startswith("avx512.mask.shuf.f"))) {
       unsigned Imm = cast<ConstantInt>(CI->getArgOperand(2))->getZExtValue();
@@ -2487,8 +2483,9 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
       Value *Op = CI->getArgOperand(0);
       ElementCount EC = cast<VectorType>(CI->getType())->getElementCount();
       Type *MaskTy = VectorType::get(Type::getInt32Ty(C), EC);
-      Rep = Builder.CreateShuffleVector(Op, UndefValue::get(Op->getType()),
-                                        Constant::getNullValue(MaskTy));
+      SmallVector<int, 8> M;
+      ShuffleVectorInst::getShuffleMask(Constant::getNullValue(MaskTy), M);
+      Rep = Builder.CreateShuffleVector(Op, M);
 
       if (CI->getNumArgOperands() == 3)
         Rep = EmitX86Select(Builder, CI->getArgOperand(2), Rep,
@@ -2581,13 +2578,12 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
       Imm = Imm % Scale;
 
       // Extend the second operand into a vector the size of the destination.
-      Value *UndefV = UndefValue::get(Op1->getType());
       SmallVector<int, 8> Idxs(DstNumElts);
       for (unsigned i = 0; i != SrcNumElts; ++i)
         Idxs[i] = i;
       for (unsigned i = SrcNumElts; i != DstNumElts; ++i)
         Idxs[i] = SrcNumElts;
-      Rep = Builder.CreateShuffleVector(Op1, UndefV, Idxs);
+      Rep = Builder.CreateShuffleVector(Op1, Idxs);
 
       // Insert the second operand into the first operand.
 
@@ -3897,8 +3893,8 @@ void llvm::UpgradeCallsToIntrinsic(Function *F) {
   if (UpgradeIntrinsicFunction(F, NewFn)) {
     // Replace all users of the old function with the new function or new
     // instructions. This is not a range loop because the call is deleted.
-    for (auto UI = F->user_begin(), UE = F->user_end(); UI != UE; )
-      if (CallInst *CI = dyn_cast<CallInst>(*UI++))
+    for (User *U : make_early_inc_range(F->users()))
+      if (CallInst *CI = dyn_cast<CallInst>(U))
         UpgradeIntrinsicCall(CI, NewFn);
 
     // Remove old function, no longer used, from the module.
@@ -4034,8 +4030,8 @@ void llvm::UpgradeARCRuntime(Module &M) {
 
     Function *NewFn = llvm::Intrinsic::getDeclaration(&M, IntrinsicFunc);
 
-    for (auto I = Fn->user_begin(), E = Fn->user_end(); I != E;) {
-      CallInst *CI = dyn_cast<CallInst>(*I++);
+    for (User *U : make_early_inc_range(Fn->users())) {
+      CallInst *CI = dyn_cast<CallInst>(U);
       if (!CI || CI->getCalledFunction() != Fn)
         continue;
 

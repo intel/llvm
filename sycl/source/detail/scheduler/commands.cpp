@@ -496,9 +496,14 @@ void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
   }
 
   // Do not add redundant event dependencies for in-order queues.
-  if (Dep.MDepCommand && Dep.MDepCommand->getWorkerQueue() == WorkerQueue &&
-      WorkerQueue->has_property<property::queue::in_order>())
-    return;
+  // TODO temporarily disabled with Level Zero since the enqueued operations
+  // that are implemented directly in the plugin (e.g. map/unmap) do not satisfy
+  // in-order queue requirements.
+  if (WorkerQueue->is_host() ||
+      WorkerQueue->getPlugin().getBackend() != backend::level_zero)
+    if (Dep.MDepCommand && Dep.MDepCommand->getWorkerQueue() == WorkerQueue &&
+        WorkerQueue->has_property<property::queue::in_order>())
+      return;
 
   ContextImplPtr DepEventContext = DepEvent->getContextImpl();
   // If contexts don't match we'll connect them using host task
@@ -2010,8 +2015,6 @@ cl_int ExecCGCommand::enqueueImp() {
     ExecInterop->MInteropTask->call(InteropHandler);
     Plugin.call<PiApiKind::piEnqueueEventsWait>(MQueue->getHandleRef(), 0,
                                                 nullptr, &Event);
-    Plugin.call<PiApiKind::piQueueRelease>(
-        reinterpret_cast<pi_queue>(MQueue->get()));
 
     return CL_SUCCESS;
   }

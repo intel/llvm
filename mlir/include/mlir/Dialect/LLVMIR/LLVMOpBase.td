@@ -49,23 +49,29 @@ def LLVM_Dialect : Dialect {
 
 // LLVM dialect type.
 def LLVM_Type : DialectType<LLVM_Dialect,
-                            CPred<"$_self.isa<::mlir::LLVM::LLVMType>()">,
-                            "LLVM dialect type">;
+                            CPred<"::mlir::LLVM::isCompatibleType($_self)">,
+                            "LLVM dialect-compatible type">;
+
+// Type constraint accepting LLVM token type.
+def LLVM_TokenType : Type<
+  CPred<"$_self.isa<::mlir::LLVM::LLVMTokenType>()">,
+  "LLVM token type">,
+  BuildableType<"::mlir::LLVM::LLVMTokenType::get($_builder.getContext())">;
 
 // Type constraint accepting LLVM integer types.
 def LLVM_AnyInteger : Type<
-  CPred<"$_self.isa<::mlir::LLVM::LLVMIntegerType>()">,
+  CPred<"$_self.isa<::mlir::IntegerType>()">,
   "LLVM integer type">;
 
 // Type constraints accepting LLVM integer type of a specific width.
 class LLVM_IntBase<int width> :
     Type<And<[
         LLVM_AnyInteger.predicate,
-        CPred<"$_self.cast<::mlir::LLVM::LLVMIntegerType>().getBitWidth() == "
+        CPred<"$_self.cast<::mlir::IntegerType>().getWidth() == "
               # width>]>,
         "LLVM " # width # "-bit integer type">,
     BuildableType<
-        "::mlir::LLVM::LLVMIntegerType::get($_builder.getContext(), "
+        "::mlir::IntegerType::get($_builder.getContext(), "
         # width # ")">;
 
 def LLVM_i1 : LLVM_IntBase<1>;
@@ -82,12 +88,7 @@ def LLVM_PrimitiveType : Type<
 
 // Type constraint accepting any LLVM floating point type.
 def LLVM_AnyFloat : Type<
-  CPred<"$_self.isa<::mlir::LLVM::LLVMBFloatType, "
-                   "::mlir::LLVM::LLVMHalfType, "
-                   "::mlir::LLVM::LLVMFloatType, "
-                   "::mlir::LLVM::LLVMDoubleType, "
-                   "::mlir::LLVM::LLVMFP128Type, "
-                   "::mlir::LLVM::LLVMX86FP80Type>()">,
+  CPred<"::mlir::LLVM::isCompatibleFloatingPointType($_self)">,
   "floating point LLVM type">;
 
 // Type constraint accepting any LLVM pointer type.
@@ -102,7 +103,17 @@ class LLVM_PointerTo<Type pointee> : Type<
          "$_self",
          "$_self.cast<::mlir::LLVM::LLVMPointerType>().getElementType()",
          pointee.predicate>]>,
-  "LLVM pointer to " # pointee.description>;
+  "LLVM pointer to " # pointee.summary>;
+
+// Type constraints accepting LLVM pointer type to integer of a specific width.
+class LLVM_IntPtrBase<int width> : Type<
+  LLVM_PointerTo<LLVM_IntBase<width>>.predicate,
+  "LLVM pointer to " # LLVM_IntBase<width>.summary>,
+  BuildableType<"::mlir::LLVM::LLVMPointerType::get("
+                "::mlir::IntegerType::get($_builder.getContext(), "
+                # width #"))">;
+
+def LLVM_i8Ptr : LLVM_IntPtrBase<8>;
 
 // Type constraint accepting any LLVM structure type.
 def LLVM_AnyStruct : Type<CPred<"$_self.isa<::mlir::LLVM::LLVMStructType>()">,
@@ -131,8 +142,8 @@ def LLVM_AnyNonAggregate : Type<Neg<LLVM_AnyAggregate.predicate>,
                                "LLVM non-aggregate type">;
 
 // Type constraint accepting any LLVM vector type.
-def LLVM_AnyVector : Type<CPred<"$_self.isa<::mlir::LLVM::LLVMVectorType>()">,
-                         "LLVM vector type">;
+def LLVM_AnyVector : Type<CPred<"::mlir::LLVM::isCompatibleVectorType($_self)">,
+                         "LLVM dialect-compatible vector type">;
 
 // Type constraint accepting an LLVM vector type with an additional constraint
 // on the vector element type.
@@ -140,9 +151,9 @@ class LLVM_VectorOf<Type element> : Type<
   And<[LLVM_AnyVector.predicate,
        SubstLeaves<
          "$_self",
-         "$_self.cast<::mlir::LLVM::LLVMVectorType>().getElementType()",
+         "::mlir::LLVM::getVectorElementType($_self)",
          element.predicate>]>,
-  "LLVM vector of " # element.description>;
+  "LLVM dialect-compatible vector of " # element.summary>;
 
 // Type constraint accepting a constrained type, or a vector of such types.
 class LLVM_ScalarOrVectorOf<Type element> :
@@ -223,9 +234,9 @@ class ListIntSubst<string pattern, list<int> values> {
 // or result in the operation.
 def LLVM_IntrPatterns {
   string operand =
-    [{convertType(opInst.getOperand($0).getType().cast<LLVM::LLVMType>())}];
+    [{convertType(opInst.getOperand($0).getType())}];
   string result =
-    [{convertType(opInst.getResult($0).getType().cast<LLVM::LLVMType>())}];
+    [{convertType(opInst.getResult($0).getType())}];
   string structResult =
     [{convertType(opInst.getResult(0).getType().cast<LLVM::LLVMStructType>()
                                                    .getBody()[$0])}];
@@ -258,10 +269,10 @@ class LLVM_IntrOpBase<Dialect dialect, string opName, string enumName,
     llvm::Function *fn = llvm::Intrinsic::getDeclaration(
         module,
         llvm::Intrinsic::}] # enumName # [{,
-        { }] # StrJoin<!listconcat(
+        { }] # !interleave(!listconcat(
             ListIntSubst<resultPattern, overloadedResults>.lst,
             ListIntSubst<LLVM_IntrPatterns.operand,
-                         overloadedOperands>.lst)>.result # [{
+                         overloadedOperands>.lst), ", ") # [{
         });
     auto operands = lookupValues(opInst.getOperands());
     }] # !if(!gt(numResults, 0), "$res = ", "")
@@ -326,7 +337,8 @@ class LLVM_VectorReductionAcc<string mnem>
     llvm::Function *fn = llvm::Intrinsic::getDeclaration(
         module,
         llvm::Intrinsic::vector_reduce_}] # mnem # [{,
-        { }] # StrJoin<ListIntSubst<LLVM_IntrPatterns.operand, [1]>.lst>.result # [{
+        { }] # !interleave(ListIntSubst<LLVM_IntrPatterns.operand, [1]>.lst,
+                           ", ") # [{
         });
     auto operands = lookupValues(opInst.getOperands());
     llvm::FastMathFlags origFM = builder.getFastMathFlags();

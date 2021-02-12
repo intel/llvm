@@ -7,9 +7,9 @@ __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
 
 int main() {
 
-  // CHECK: define spir_kernel void @_ZTSZ4mainE15kernel_function()
+  // CHECK: define {{.*}}spir_kernel void @_ZTSZ4mainE15kernel_function()
 
-  // CHECK: call spir_func void @"_ZZ4mainENK3$_0clEv"(%"class.{{.*}}.anon" addrspace(4)* {{[^,]*}} %2)
+  // CHECK: call spir_func void @"_ZZ4mainENK3$_0clEv"(%"class.{{.*}}.anon" addrspace(4)* {{[^,]*}} %{{.+}})
 
   // CHECK: define internal spir_func void @"_ZZ4mainENK3$_0clEv"(%"class.{{.*}}anon" addrspace(4)* {{[^,]*}} %this)
 

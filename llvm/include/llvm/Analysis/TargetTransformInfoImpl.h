@@ -67,6 +67,7 @@ public:
   }
 
   unsigned getInliningThresholdMultiplier() const { return 1; }
+  unsigned adjustInliningThreshold(const CallBase *CB) const { return 0; }
 
   int getInlinerVectorBonusPercent() const { return 150; }
 
@@ -369,6 +370,8 @@ public:
 
   unsigned getMinVectorRegisterBitWidth() const { return 128; }
 
+  Optional<unsigned> getMaxVScale() const { return None; }
+
   bool shouldMaximizeVectorBandwidth(bool OptSize) const { return false; }
 
   unsigned getMinimumVF(unsigned ElemWidth) const { return 0; }
@@ -555,6 +558,7 @@ public:
     case Intrinsic::is_constant:
     case Intrinsic::lifetime_start:
     case Intrinsic::lifetime_end:
+    case Intrinsic::experimental_noalias_scope_decl:
     case Intrinsic::objectsize:
     case Intrinsic::ptr_annotation:
     case Intrinsic::var_annotation:
@@ -594,6 +598,12 @@ public:
 
   unsigned getMinMaxReductionCost(VectorType *, VectorType *, bool, bool,
                                   TTI::TargetCostKind) const {
+    return 1;
+  }
+
+  InstructionCost getExtendedAddReductionCost(
+      bool IsMLA, bool IsUnsigned, Type *ResTy, VectorType *Ty,
+      TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput) const {
     return 1;
   }
 
@@ -1069,8 +1079,7 @@ public:
   }
 
   int getInstructionLatency(const Instruction *I) {
-    SmallVector<const Value *, 4> Operands(I->value_op_begin(),
-                                           I->value_op_end());
+    SmallVector<const Value *, 4> Operands(I->operand_values());
     if (getUserCost(I, Operands, TTI::TCK_Latency) == TTI::TCC_Free)
       return 0;
 

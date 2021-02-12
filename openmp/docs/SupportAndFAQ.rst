@@ -56,7 +56,7 @@ To build an *effective* OpenMP offload capable compiler, only one extra CMake
 option, `LLVM_ENABLE_RUNTIMES="openmp"`, is needed when building LLVM (Generic
 information about building LLVM is available `here <https://llvm.org/docs/GettingStarted.html>`__.).
 Make sure all backends that are targeted by OpenMP to be enabled. By default,
-Clang will be build with all backends enabled.
+Clang will be built with all backends enabled.
 
 If your build machine is not the target machine or automatic detection of the
 available GPUs failed, you should also set:
@@ -66,8 +66,8 @@ available GPUs failed, you should also set:
 
 .. note::
   The compiler that generates the offload code should be the same (version) as
-  the compiler that build the OpenMP device runtimes. The OpenMP host runtime
-  can be build by a different compiler.
+  the compiler that builds the OpenMP device runtimes. The OpenMP host runtime
+  can be built by a different compiler.
 
 .. _advanced_builds: https://llvm.org//docs/AdvancedBuilds.html
 
@@ -109,3 +109,12 @@ through a similar mechanism. It is worth noting that this support requires
 `extensions to the OpenMP begin/end declare variant context selector
 <https://clang.llvm.org/docs/AttributeReference.html#pragma-omp-declare-variant>`__
 that are exposed through LLVM/Clang to the user as well.
+
+Q: What is a way to debug errors from mapping memory to a target device?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+An experimental way to debug these errors is to use :ref:`remote process 
+offloading <remote_offloading_plugin>`.
+By using ``libomptarget.rtl.rpc.so`` and ``openmp-offloading-server``, it is
+possible to explicitly perform memory transfers between processes on the host
+CPU and run sanitizers while doing so in order to catch these errors.

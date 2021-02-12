@@ -2107,6 +2107,78 @@ RValue CodeGenFunction::emitRotate(const CallExpr *E, bool IsRotateRight) {
   return RValue::get(Builder.CreateCall(F, { Src, Src, ShiftAmt }));
 }
 
+// Map math builtins for long-double to f128 version.
+static unsigned mutateLongDoubleBuiltin(unsigned BuiltinID) {
+  switch (BuiltinID) {
+#define MUTATE_LDBL(func) \
+  case Builtin::BI__builtin_##func##l: \
+    return Builtin::BI__builtin_##func##f128;
+  MUTATE_LDBL(sqrt)
+  MUTATE_LDBL(cbrt)
+  MUTATE_LDBL(fabs)
+  MUTATE_LDBL(log)
+  MUTATE_LDBL(log2)
+  MUTATE_LDBL(log10)
+  MUTATE_LDBL(log1p)
+  MUTATE_LDBL(logb)
+  MUTATE_LDBL(exp)
+  MUTATE_LDBL(exp2)
+  MUTATE_LDBL(expm1)
+  MUTATE_LDBL(fdim)
+  MUTATE_LDBL(hypot)
+  MUTATE_LDBL(ilogb)
+  MUTATE_LDBL(pow)
+  MUTATE_LDBL(fmin)
+  MUTATE_LDBL(fmax)
+  MUTATE_LDBL(ceil)
+  MUTATE_LDBL(trunc)
+  MUTATE_LDBL(rint)
+  MUTATE_LDBL(nearbyint)
+  MUTATE_LDBL(round)
+  MUTATE_LDBL(floor)
+  MUTATE_LDBL(lround)
+  MUTATE_LDBL(llround)
+  MUTATE_LDBL(lrint)
+  MUTATE_LDBL(llrint)
+  MUTATE_LDBL(fmod)
+  MUTATE_LDBL(modf)
+  MUTATE_LDBL(nan)
+  MUTATE_LDBL(nans)
+  MUTATE_LDBL(inf)
+  MUTATE_LDBL(fma)
+  MUTATE_LDBL(sin)
+  MUTATE_LDBL(cos)
+  MUTATE_LDBL(tan)
+  MUTATE_LDBL(sinh)
+  MUTATE_LDBL(cosh)
+  MUTATE_LDBL(tanh)
+  MUTATE_LDBL(asin)
+  MUTATE_LDBL(acos)
+  MUTATE_LDBL(atan)
+  MUTATE_LDBL(asinh)
+  MUTATE_LDBL(acosh)
+  MUTATE_LDBL(atanh)
+  MUTATE_LDBL(atan2)
+  MUTATE_LDBL(erf)
+  MUTATE_LDBL(erfc)
+  MUTATE_LDBL(ldexp)
+  MUTATE_LDBL(frexp)
+  MUTATE_LDBL(huge_val)
+  MUTATE_LDBL(copysign)
+  MUTATE_LDBL(nextafter)
+  MUTATE_LDBL(nexttoward)
+  MUTATE_LDBL(remainder)
+  MUTATE_LDBL(remquo)
+  MUTATE_LDBL(scalbln)
+  MUTATE_LDBL(scalbn)
+  MUTATE_LDBL(tgamma)
+  MUTATE_LDBL(lgamma)
+#undef MUTATE_LDBL
+  default:
+    return BuiltinID;
+  }
+}
+
 RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
                                         const CallExpr *E,
                                         ReturnValueSlot ReturnValue) {
@@ -2122,6 +2194,14 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
       return RValue::get(llvm::ConstantFP::get(getLLVMContext(),
                                                Result.Val.getFloat()));
   }
+
+  // If current long-double semantics is IEEE 128-bit, replace math builtins
+  // of long-double with f128 equivalent.
+  // TODO: This mutation should also be applied to other targets other than PPC,
+  // after backend supports IEEE 128-bit style libcalls.
+  if (getTarget().getTriple().isPPC64() &&
+      &getTarget().getLongDoubleFormat() == &llvm::APFloat::IEEEquad())
+    BuiltinID = mutateLongDoubleBuiltin(BuiltinID);
 
   // If the builtin has been declared explicitly with an assembler label,
   // disable the specialized emitting below. Ideally we should communicate the
@@ -5047,6 +5127,7 @@ static Value *EmitTargetArchBuiltinExpr(CodeGenFunction *CGF,
   case llvm::Triple::x86_64:
     return CGF->EmitX86BuiltinExpr(BuiltinID, E);
   case llvm::Triple::ppc:
+  case llvm::Triple::ppcle:
   case llvm::Triple::ppc64:
   case llvm::Triple::ppc64le:
     return CGF->EmitPPCBuiltinExpr(BuiltinID, E);
@@ -7747,8 +7828,7 @@ static llvm::Value *VectorUnzip(CGBuilderTy &Builder, llvm::Value *V, bool Odd) 
       cast<llvm::FixedVectorType>(V->getType())->getNumElements();
   for (unsigned i = 0; i < InputElements; i += 2)
     Indices.push_back(i + Odd);
-  return Builder.CreateShuffleVector(V, llvm::UndefValue::get(V->getType()),
-                                     Indices);
+  return Builder.CreateShuffleVector(V, Indices);
 }
 
 static llvm::Value *VectorZip(CGBuilderTy &Builder, llvm::Value *V0,
@@ -7789,8 +7869,7 @@ static llvm::Value *ARMMVEVectorElementReverse(CGBuilderTy &Builder,
   unsigned Mask = ReverseWidth / LaneSize - 1;
   for (unsigned i = 0; i < Elements; i++)
     Indices.push_back(i ^ Mask);
-  return Builder.CreateShuffleVector(V, llvm::UndefValue::get(V->getType()),
-                                     Indices);
+  return Builder.CreateShuffleVector(V, Indices);
 }
 
 Value *CodeGenFunction::EmitARMMVEBuiltinExpr(unsigned BuiltinID,
@@ -8984,6 +9063,46 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
     llvm::Value *Arg = EmitScalarExpr(E->getArg(0));
     return Builder.CreateCall(
         CGM.getIntrinsic(Intrinsic::aarch64_fjcvtzs), Arg);
+  }
+
+  if (BuiltinID == AArch64::BI__builtin_arm_ld64b ||
+      BuiltinID == AArch64::BI__builtin_arm_st64b ||
+      BuiltinID == AArch64::BI__builtin_arm_st64bv ||
+      BuiltinID == AArch64::BI__builtin_arm_st64bv0) {
+    llvm::Value *MemAddr = EmitScalarExpr(E->getArg(0));
+    llvm::Value *ValPtr = EmitScalarExpr(E->getArg(1));
+
+    if (BuiltinID == AArch64::BI__builtin_arm_ld64b) {
+      // Load from the address via an LLVM intrinsic, receiving a
+      // tuple of 8 i64 words, and store each one to ValPtr.
+      Function *F = CGM.getIntrinsic(Intrinsic::aarch64_ld64b);
+      llvm::Value *Val = Builder.CreateCall(F, MemAddr);
+      llvm::Value *ToRet;
+      for (size_t i = 0; i < 8; i++) {
+        llvm::Value *ValOffsetPtr = Builder.CreateGEP(ValPtr, Builder.getInt32(i));
+        Address Addr(ValOffsetPtr, CharUnits::fromQuantity(8));
+        ToRet = Builder.CreateStore(Builder.CreateExtractValue(Val, i), Addr);
+      }
+      return ToRet;
+    } else {
+      // Load 8 i64 words from ValPtr, and store them to the address
+      // via an LLVM intrinsic.
+      SmallVector<llvm::Value *, 9> Args;
+      Args.push_back(MemAddr);
+      for (size_t i = 0; i < 8; i++) {
+        llvm::Value *ValOffsetPtr = Builder.CreateGEP(ValPtr, Builder.getInt32(i));
+        Address Addr(ValOffsetPtr, CharUnits::fromQuantity(8));
+        Args.push_back(Builder.CreateLoad(Addr));
+      }
+
+      auto Intr = (BuiltinID == AArch64::BI__builtin_arm_st64b
+                       ? Intrinsic::aarch64_st64b
+                       : BuiltinID == AArch64::BI__builtin_arm_st64bv
+                             ? Intrinsic::aarch64_st64bv
+                             : Intrinsic::aarch64_st64bv0);
+      Function *F = CGM.getIntrinsic(Intr);
+      return Builder.CreateCall(F, Args);
+    }
   }
 
   if (BuiltinID == AArch64::BI__clear_cache) {
@@ -11814,8 +11933,7 @@ static Value *EmitX86CvtF16ToFloatExpr(CodeGenFunction &CGF,
   if (NumDstElts !=
       cast<llvm::FixedVectorType>(Src->getType())->getNumElements()) {
     assert(NumDstElts == 4 && "Unexpected vector size");
-    Src = CGF.Builder.CreateShuffleVector(Src, UndefValue::get(Src->getType()),
-                                          ArrayRef<int>{0, 1, 2, 3});
+    Src = CGF.Builder.CreateShuffleVector(Src, ArrayRef<int>{0, 1, 2, 3});
   }
 
   // Bitcast from vXi16 to vXf16.
@@ -12706,7 +12824,6 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
       Indices[i] = i + Index;
 
     Value *Res = Builder.CreateShuffleVector(Ops[0],
-                                             UndefValue::get(Ops[0]->getType()),
                                              makeArrayRef(Indices, NumElts),
                                              "extract");
 
@@ -12746,7 +12863,6 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
       Indices[i] = (i >= SrcNumElts) ? SrcNumElts + (i % SrcNumElts) : i;
 
     Value *Op1 = Builder.CreateShuffleVector(Ops[1],
-                                             UndefValue::get(Ops[1]->getType()),
                                              makeArrayRef(Indices, DstNumElts),
                                              "widen");
 
@@ -12832,8 +12948,7 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
         Indices[l + i] = l + i;
     }
 
-    return Builder.CreateShuffleVector(Ops[0], UndefValue::get(Ty),
-                                       makeArrayRef(Indices, NumElts),
+    return Builder.CreateShuffleVector(Ops[0], makeArrayRef(Indices, NumElts),
                                        "pshuflw");
   }
   case X86::BI__builtin_ia32_pshufhw:
@@ -12856,8 +12971,7 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
       }
     }
 
-    return Builder.CreateShuffleVector(Ops[0], UndefValue::get(Ty),
-                                       makeArrayRef(Indices, NumElts),
+    return Builder.CreateShuffleVector(Ops[0], makeArrayRef(Indices, NumElts),
                                        "pshufhw");
   }
   case X86::BI__builtin_ia32_pshufd:
@@ -12886,8 +13000,7 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
       }
     }
 
-    return Builder.CreateShuffleVector(Ops[0], UndefValue::get(Ty),
-                                       makeArrayRef(Indices, NumElts),
+    return Builder.CreateShuffleVector(Ops[0], makeArrayRef(Indices, NumElts),
                                        "permil");
   }
   case X86::BI__builtin_ia32_shufpd:
@@ -12934,8 +13047,7 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
       for (unsigned i = 0; i != 4; ++i)
         Indices[l + i] = l + ((Imm >> (2 * i)) & 0x3);
 
-    return Builder.CreateShuffleVector(Ops[0], UndefValue::get(Ty),
-                                       makeArrayRef(Indices, NumElts),
+    return Builder.CreateShuffleVector(Ops[0], makeArrayRef(Indices, NumElts),
                                        "perm");
   }
   case X86::BI__builtin_ia32_palignr128:
@@ -13969,8 +14081,7 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
     // Lowering vector comparisons to fcmp instructions, while
     // ignoring signalling behaviour requested
     // ignoring rounding mode requested
-    // This is is only possible as long as FENV_ACCESS is not implemented.
-    // See also: https://reviews.llvm.org/D45616
+    // This is only possible if fp-model is not strict and FENV_ACCESS is off.
 
     // The third argument is the comparison condition, and integer in the
     // range [0, 31]
@@ -16598,8 +16709,8 @@ Value *CodeGenFunction::EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
     Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_throw);
     return Builder.CreateCall(Callee, {Tag, Obj});
   }
-  case WebAssembly::BI__builtin_wasm_rethrow_in_catch: {
-    Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_rethrow_in_catch);
+  case WebAssembly::BI__builtin_wasm_rethrow: {
+    Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_rethrow);
     return Builder.CreateCall(Callee);
   }
   case WebAssembly::BI__builtin_wasm_memory_atomic_wait32: {
@@ -16938,6 +17049,28 @@ Value *CodeGenFunction::EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
     Function *Callee = CGM.getIntrinsic(IntNo, ConvertType(E->getType()));
     return Builder.CreateCall(Callee, {LHS, RHS});
   }
+  case WebAssembly::BI__builtin_wasm_extadd_pairwise_i8x16_s_i16x8:
+  case WebAssembly::BI__builtin_wasm_extadd_pairwise_i8x16_u_i16x8:
+  case WebAssembly::BI__builtin_wasm_extadd_pairwise_i16x8_s_i32x4:
+  case WebAssembly::BI__builtin_wasm_extadd_pairwise_i16x8_u_i32x4: {
+    Value *Vec = EmitScalarExpr(E->getArg(0));
+    unsigned IntNo;
+    switch (BuiltinID) {
+    case WebAssembly::BI__builtin_wasm_extadd_pairwise_i8x16_s_i16x8:
+    case WebAssembly::BI__builtin_wasm_extadd_pairwise_i16x8_s_i32x4:
+      IntNo = Intrinsic::wasm_extadd_pairwise_signed;
+      break;
+    case WebAssembly::BI__builtin_wasm_extadd_pairwise_i8x16_u_i16x8:
+    case WebAssembly::BI__builtin_wasm_extadd_pairwise_i16x8_u_i32x4:
+      IntNo = Intrinsic::wasm_extadd_pairwise_unsigned;
+      break;
+    default:
+      llvm_unreachable("unexptected builtin ID");
+    }
+
+    Function *Callee = CGM.getIntrinsic(IntNo, ConvertType(E->getType()));
+    return Builder.CreateCall(Callee, Vec);
+  }
   case WebAssembly::BI__builtin_wasm_bitselect: {
     Value *V1 = EmitScalarExpr(E->getArg(0));
     Value *V2 = EmitScalarExpr(E->getArg(1));
@@ -17093,6 +17226,46 @@ Value *CodeGenFunction::EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
     Function *Callee = CGM.getIntrinsic(IntNo);
     return Builder.CreateCall(Callee, Vec);
   }
+  case WebAssembly::BI__builtin_wasm_convert_low_s_i32x4_f64x2:
+  case WebAssembly::BI__builtin_wasm_convert_low_u_i32x4_f64x2: {
+    Value *Vec = EmitScalarExpr(E->getArg(0));
+    unsigned IntNo;
+    switch (BuiltinID) {
+    case WebAssembly::BI__builtin_wasm_convert_low_s_i32x4_f64x2:
+      IntNo = Intrinsic::wasm_convert_low_signed;
+      break;
+    case WebAssembly::BI__builtin_wasm_convert_low_u_i32x4_f64x2:
+      IntNo = Intrinsic::wasm_convert_low_unsigned;
+      break;
+    }
+    Function *Callee = CGM.getIntrinsic(IntNo);
+    return Builder.CreateCall(Callee, Vec);
+  }
+  case WebAssembly::BI__builtin_wasm_trunc_saturate_zero_s_f64x2_i32x4:
+  case WebAssembly::BI__builtin_wasm_trunc_saturate_zero_u_f64x2_i32x4: {
+    Value *Vec = EmitScalarExpr(E->getArg(0));
+    unsigned IntNo;
+    switch (BuiltinID) {
+    case WebAssembly::BI__builtin_wasm_trunc_saturate_zero_s_f64x2_i32x4:
+      IntNo = Intrinsic::wasm_trunc_saturate_zero_signed;
+      break;
+    case WebAssembly::BI__builtin_wasm_trunc_saturate_zero_u_f64x2_i32x4:
+      IntNo = Intrinsic::wasm_trunc_saturate_zero_unsigned;
+      break;
+    }
+    Function *Callee = CGM.getIntrinsic(IntNo);
+    return Builder.CreateCall(Callee, Vec);
+  }
+  case WebAssembly::BI__builtin_wasm_demote_zero_f64x2_f32x4: {
+    Value *Vec = EmitScalarExpr(E->getArg(0));
+    Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_demote_zero);
+    return Builder.CreateCall(Callee, Vec);
+  }
+  case WebAssembly::BI__builtin_wasm_promote_low_f32x4_f64x2: {
+    Value *Vec = EmitScalarExpr(E->getArg(0));
+    Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_promote_low);
+    return Builder.CreateCall(Callee, Vec);
+  }
   case WebAssembly::BI__builtin_wasm_load32_zero: {
     Value *Ptr = EmitScalarExpr(E->getArg(0));
     Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_load32_zero);
@@ -17162,6 +17335,16 @@ Value *CodeGenFunction::EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
     }
     Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_shuffle);
     return Builder.CreateCall(Callee, Ops);
+  }
+  case WebAssembly::BI__builtin_wasm_prefetch_t: {
+    Value *Ptr = EmitScalarExpr(E->getArg(0));
+    Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_prefetch_t);
+    return Builder.CreateCall(Callee, Ptr);
+  }
+  case WebAssembly::BI__builtin_wasm_prefetch_nt: {
+    Value *Ptr = EmitScalarExpr(E->getArg(0));
+    Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_prefetch_nt);
+    return Builder.CreateCall(Callee, Ptr);
   }
   default:
     return nullptr;

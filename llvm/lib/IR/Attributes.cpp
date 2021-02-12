@@ -403,6 +403,8 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "nocf_check";
   if (hasAttribute(Attribute::NoRecurse))
     return "norecurse";
+  if (hasAttribute(Attribute::NoProfile))
+    return "noprofile";
   if (hasAttribute(Attribute::NoUnwind))
     return "nounwind";
   if (hasAttribute(Attribute::OptForFuzzing))
@@ -1200,7 +1202,7 @@ AttributeList AttributeList::get(LLVMContext &C, AttributeSet FnAttrs,
   if (NumSets > 2) {
     // Drop the empty argument attribute sets at the end.
     ArgAttrs = ArgAttrs.take_front(NumSets - 2);
-    AttrSets.insert(AttrSets.end(), ArgAttrs.begin(), ArgAttrs.end());
+    llvm::append_range(AttrSets, ArgAttrs);
   }
 
   return getImpl(C, AttrSets);
@@ -1272,9 +1274,11 @@ AttributeList AttributeList::get(LLVMContext &C,
 AttributeList AttributeList::addAttribute(LLVMContext &C, unsigned Index,
                                           Attribute::AttrKind Kind) const {
   if (hasAttribute(Index, Kind)) return *this;
-  AttrBuilder B;
-  B.addAttribute(Kind);
-  return addAttributes(C, Index, B);
+  AttributeSet Attrs = getAttributes(Index);
+  // TODO: Insert at correct position and avoid sort.
+  SmallVector<Attribute, 8> NewAttrs(Attrs.begin(), Attrs.end());
+  NewAttrs.push_back(Attribute::get(C, Kind));
+  return setAttributes(C, Index, AttributeSet::get(C, NewAttrs));
 }
 
 AttributeList AttributeList::addAttribute(LLVMContext &C, unsigned Index,
@@ -1290,6 +1294,16 @@ AttributeList AttributeList::addAttribute(LLVMContext &C, unsigned Index,
   AttrBuilder B;
   B.addAttribute(A);
   return addAttributes(C, Index, B);
+}
+
+AttributeList AttributeList::setAttributes(LLVMContext &C, unsigned Index,
+                                           AttributeSet Attrs) const {
+  Index = attrIdxToArrayIdx(Index);
+  SmallVector<AttributeSet, 4> AttrSets(this->begin(), this->end());
+  if (Index >= AttrSets.size())
+    AttrSets.resize(Index + 1);
+  AttrSets[Index] = Attrs;
+  return AttributeList::getImpl(C, AttrSets);
 }
 
 AttributeList AttributeList::addAttributes(LLVMContext &C, unsigned Index,
@@ -1309,16 +1323,9 @@ AttributeList AttributeList::addAttributes(LLVMContext &C, unsigned Index,
          "Attempt to change alignment!");
 #endif
 
-  Index = attrIdxToArrayIdx(Index);
-  SmallVector<AttributeSet, 4> AttrSets(this->begin(), this->end());
-  if (Index >= AttrSets.size())
-    AttrSets.resize(Index + 1);
-
-  AttrBuilder Merged(AttrSets[Index]);
+  AttrBuilder Merged(getAttributes(Index));
   Merged.merge(B);
-  AttrSets[Index] = AttributeSet::get(C, Merged);
-
-  return getImpl(C, AttrSets);
+  return setAttributes(C, Index, AttributeSet::get(C, Merged));
 }
 
 AttributeList AttributeList::addParamAttribute(LLVMContext &C,
@@ -2091,7 +2098,25 @@ bool AttributeFuncs::areInlineCompatible(const Function &Caller,
   return hasCompatibleFnAttrs(Caller, Callee);
 }
 
+bool AttributeFuncs::areOutlineCompatible(const Function &A,
+                                          const Function &B) {
+  return hasCompatibleFnAttrs(A, B);
+}
+
 void AttributeFuncs::mergeAttributesForInlining(Function &Caller,
                                                 const Function &Callee) {
   mergeFnAttrs(Caller, Callee);
+}
+
+void AttributeFuncs::mergeAttributesForOutlining(Function &Base,
+                                                const Function &ToMerge) {
+
+  // We merge functions so that they meet the most general case.
+  // For example, if the NoNansFPMathAttr is set in one function, but not in
+  // the other, in the merged function we can say that the NoNansFPMathAttr
+  // is not set.
+  // However if we have the SpeculativeLoadHardeningAttr set true in one
+  // function, but not the other, we make sure that the function retains
+  // that aspect in the merged function.
+  mergeFnAttrs(Base, ToMerge);
 }

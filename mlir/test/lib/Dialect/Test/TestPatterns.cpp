@@ -61,7 +61,7 @@ public:
 
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
-    // Exercice OperationFolder API for a single-result operation that is folded
+    // Exercise OperationFolder API for a single-result operation that is folded
     // upon construction. The operation being created through the folder has an
     // in-place folder, and it should be still present in the output.
     // Furthermore, the folder should not crash when attempting to recover the
@@ -847,6 +847,10 @@ struct TestTypeConversionDriver
 };
 } // end anonymous namespace
 
+//===----------------------------------------------------------------------===//
+// Test Block Merging
+//===----------------------------------------------------------------------===//
+
 namespace {
 /// A rewriter pattern that tests that blocks can be merged.
 struct TestMergeBlock : public OpConversionPattern<TestMergeBlocksOp> {
@@ -956,6 +960,46 @@ struct TestMergeBlocksPatternDriver
 } // namespace
 
 //===----------------------------------------------------------------------===//
+// Test Selective Replacement
+//===----------------------------------------------------------------------===//
+
+namespace {
+/// A rewrite mechanism to inline the body of the op into its parent, when both
+/// ops can have a single block.
+struct TestSelectiveOpReplacementPattern : public OpRewritePattern<TestCastOp> {
+  using OpRewritePattern<TestCastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(TestCastOp op,
+                                PatternRewriter &rewriter) const final {
+    if (op.getNumOperands() != 2)
+      return failure();
+    OperandRange operands = op.getOperands();
+
+    // Replace non-terminator uses with the first operand.
+    rewriter.replaceOpWithIf(op, operands[0], [](OpOperand &operand) {
+      return operand.getOwner()->isKnownTerminator();
+    });
+    // Replace everything else with the second operand if the operation isn't
+    // dead.
+    rewriter.replaceOp(op, op.getOperand(1));
+    return success();
+  }
+};
+
+struct TestSelectiveReplacementPatternDriver
+    : public PassWrapper<TestSelectiveReplacementPatternDriver,
+                         OperationPass<>> {
+  void runOnOperation() override {
+    mlir::OwningRewritePatternList patterns;
+    MLIRContext *context = &getContext();
+    patterns.insert<TestSelectiveOpReplacementPattern>(context);
+    applyPatternsAndFoldGreedily(getOperation()->getRegions(),
+                                 std::move(patterns));
+  }
+};
+} // namespace
+
+//===----------------------------------------------------------------------===//
 // PassRegistration
 //===----------------------------------------------------------------------===//
 
@@ -992,6 +1036,9 @@ void registerPatternsTestPass() {
   PassRegistration<TestMergeBlocksPatternDriver>{
       "test-merge-blocks",
       "Test Merging operation in ConversionPatternRewriter"};
+  PassRegistration<TestSelectiveReplacementPatternDriver>{
+      "test-pattern-selective-replacement",
+      "Test selective replacement in the PatternRewriter"};
 }
 } // namespace test
 } // namespace mlir

@@ -246,12 +246,12 @@ struct VPCallback {
 /// VPTransformState holds information passed down when "executing" a VPlan,
 /// needed for generating the output IR.
 struct VPTransformState {
-  VPTransformState(ElementCount VF, unsigned UF, LoopInfo *LI,
+  VPTransformState(ElementCount VF, unsigned UF, Loop *OrigLoop, LoopInfo *LI,
                    DominatorTree *DT, IRBuilder<> &Builder,
                    VectorizerValueMap &ValueMap, InnerLoopVectorizer *ILV,
                    VPCallback &Callback)
-      : VF(VF), UF(UF), Instance(), LI(LI), DT(DT), Builder(Builder),
-        ValueMap(ValueMap), ILV(ILV), Callback(Callback) {}
+      : VF(VF), UF(UF), Instance(), OrigLoop(OrigLoop), LI(LI), DT(DT),
+        Builder(Builder), ValueMap(ValueMap), ILV(ILV), Callback(Callback) {}
 
   /// The chosen Vectorization and Unroll Factors of the loop being vectorized.
   ElementCount VF;
@@ -269,6 +269,9 @@ struct VPTransformState {
     typedef SmallVector<Value *, 2> PerPartValuesTy;
 
     DenseMap<VPValue *, PerPartValuesTy> PerPartOutput;
+
+    using ScalarsPerPartValuesTy = SmallVector<SmallVector<Value *, 4>, 2>;
+    DenseMap<VPValue *, ScalarsPerPartValuesTy> PerPartScalars;
   } Data;
 
   /// Get the generated Value for a given VPValue and a given Part. Note that
@@ -285,24 +288,21 @@ struct VPTransformState {
   }
 
   /// Get the generated Value for a given VPValue and given Part and Lane.
-  Value *get(VPValue *Def, const VPIteration &Instance) {
-    // If the Def is managed directly by VPTransformState, extract the lane from
-    // the relevant part. Note that currently only VPInstructions and external
-    // defs are managed by VPTransformState. Other Defs are still created by ILV
-    // and managed in its ValueMap. For those this method currently just
-    // delegates the call to ILV below.
-    if (Data.PerPartOutput.count(Def)) {
-      auto *VecPart = Data.PerPartOutput[Def][Instance.Part];
-      if (!VecPart->getType()->isVectorTy()) {
-        assert(Instance.Lane == 0 && "cannot get lane > 0 for scalar");
-        return VecPart;
-      }
-      // TODO: Cache created scalar values.
-      return Builder.CreateExtractElement(VecPart,
-                                          Builder.getInt32(Instance.Lane));
-    }
+  Value *get(VPValue *Def, const VPIteration &Instance);
 
-    return Callback.getOrCreateScalarValue(VPValue2Value[Def], Instance);
+  bool hasVectorValue(VPValue *Def, unsigned Part) {
+    auto I = Data.PerPartOutput.find(Def);
+    return I != Data.PerPartOutput.end() && Part < I->second.size() &&
+           I->second[Part];
+  }
+
+  bool hasScalarValue(VPValue *Def, VPIteration Instance) {
+    auto I = Data.PerPartScalars.find(Def);
+    if (I == Data.PerPartScalars.end())
+      return false;
+    return Instance.Part < I->second.size() &&
+           Instance.Lane < I->second[Instance.Part].size() &&
+           I->second[Instance.Part][Instance.Lane];
   }
 
   /// Set the generated Value for a given VPValue and a given Part.
@@ -314,6 +314,17 @@ struct VPTransformState {
     Data.PerPartOutput[Def][Part] = V;
   }
   void set(VPValue *Def, Value *IRDef, Value *V, unsigned Part);
+
+  void set(VPValue *Def, Value *V, const VPIteration &Instance) {
+    auto Iter = Data.PerPartScalars.insert({Def, {}});
+    auto &PerPartVec = Iter.first->second;
+    while (PerPartVec.size() <= Instance.Part)
+      PerPartVec.emplace_back();
+    auto &Scalars = PerPartVec[Instance.Part];
+    while (Scalars.size() <= Instance.Lane)
+      Scalars.push_back(nullptr);
+    Scalars[Instance.Lane] = V;
+  }
 
   /// Hold state information used when constructing the CFG of the output IR,
   /// traversing the VPBasicBlocks and generating corresponding IR BasicBlocks.
@@ -339,6 +350,9 @@ struct VPTransformState {
 
     CFGState() = default;
   } CFG;
+
+  /// Hold a pointer to the original loop.
+  Loop *OrigLoop;
 
   /// Hold a pointer to LoopInfo to register new basic blocks in the loop.
   LoopInfo *LI;
@@ -413,14 +427,14 @@ class VPBlockBase {
 
   /// Remove \p Predecessor from the predecessors of this block.
   void removePredecessor(VPBlockBase *Predecessor) {
-    auto Pos = std::find(Predecessors.begin(), Predecessors.end(), Predecessor);
+    auto Pos = find(Predecessors, Predecessor);
     assert(Pos && "Predecessor does not exist");
     Predecessors.erase(Pos);
   }
 
   /// Remove \p Successor from the successors of this block.
   void removeSuccessor(VPBlockBase *Successor) {
-    auto Pos = std::find(Successors.begin(), Successors.end(), Successor);
+    auto Pos = find(Successors, Successor);
     assert(Pos && "Successor does not exist");
     Successors.erase(Pos);
   }
@@ -645,13 +659,6 @@ public:
   /// this VPRecipe, thereby "executing" the VPlan.
   virtual void execute(struct VPTransformState &State) = 0;
 
-  /// Each recipe prints itself.
-  virtual void print(raw_ostream &O, const Twine &Indent,
-                     VPSlotTracker &SlotTracker) const = 0;
-
-  /// Dump the recipe to stderr (for debugging).
-  void dump() const;
-
   /// Insert an unlinked recipe into a basic block immediately before
   /// the specified recipe.
   void insertBefore(VPRecipeBase *InsertPos);
@@ -663,6 +670,11 @@ public:
   /// Unlink this recipe from its current VPBasicBlock and insert it into
   /// the VPBasicBlock that MovePos lives in, right after MovePos.
   void moveAfter(VPRecipeBase *MovePos);
+
+  /// Unlink this recipe and insert into BB before I.
+  ///
+  /// \pre I is a valid iterator into BB.
+  void moveBefore(VPBasicBlock &BB, iplist<VPRecipeBase>::iterator I);
 
   /// This method unlinks 'this' from the containing basic block, but does not
   /// delete it.
@@ -772,13 +784,12 @@ public:
   /// provided.
   void execute(VPTransformState &State) override;
 
-  /// Print the Recipe.
+  /// Print the VPInstruction to \p O.
   void print(raw_ostream &O, const Twine &Indent,
              VPSlotTracker &SlotTracker) const override;
 
-  /// Print the VPInstruction.
-  void print(raw_ostream &O) const;
-  void print(raw_ostream &O, VPSlotTracker &SlotTracker) const;
+  /// Print the VPInstruction to dbgs() (for debugging).
+  void dump() const;
 
   /// Return true if this instruction may modify memory.
   bool mayWriteToMemory() const {
@@ -932,13 +943,15 @@ public:
 
 /// A recipe for handling phi nodes of integer and floating-point inductions,
 /// producing their vector and scalar values.
-class VPWidenIntOrFpInductionRecipe : public VPRecipeBase {
+class VPWidenIntOrFpInductionRecipe : public VPRecipeBase, public VPUser {
   PHINode *IV;
   TruncInst *Trunc;
 
 public:
-  VPWidenIntOrFpInductionRecipe(PHINode *IV, TruncInst *Trunc = nullptr)
-      : VPRecipeBase(VPWidenIntOrFpInductionSC), IV(IV), Trunc(Trunc) {
+  VPWidenIntOrFpInductionRecipe(PHINode *IV, VPValue *Start,
+                                TruncInst *Trunc = nullptr)
+      : VPRecipeBase(VPWidenIntOrFpInductionSC), VPUser({Start}), IV(IV),
+        Trunc(Trunc) {
     if (Trunc)
       new VPValue(Trunc, this);
     else
@@ -958,13 +971,30 @@ public:
   /// Print the recipe.
   void print(raw_ostream &O, const Twine &Indent,
              VPSlotTracker &SlotTracker) const override;
+
+  /// Returns the start value of the induction.
+  VPValue *getStartValue() { return getOperand(0); }
 };
 
 /// A recipe for handling all phi nodes except for integer and FP inductions.
-class VPWidenPHIRecipe : public VPRecipeBase {
+/// For reduction PHIs, RdxDesc must point to the corresponding recurrence
+/// descriptor and the start value is the first operand of the recipe.
+class VPWidenPHIRecipe : public VPRecipeBase, public VPUser {
   PHINode *Phi;
 
+  /// Descriptor for a reduction PHI.
+  RecurrenceDescriptor *RdxDesc = nullptr;
+
 public:
+  /// Create a new VPWidenPHIRecipe for the reduction \p Phi described by \p
+  /// RdxDesc.
+  VPWidenPHIRecipe(PHINode *Phi, RecurrenceDescriptor &RdxDesc, VPValue &Start)
+      : VPWidenPHIRecipe(Phi) {
+    this->RdxDesc = &RdxDesc;
+    addOperand(&Start);
+  }
+
+  /// Create a VPWidenPHIRecipe for \p Phi
   VPWidenPHIRecipe(PHINode *Phi) : VPRecipeBase(VPWidenPHISC), Phi(Phi) {
     new VPValue(Phi, this);
   }
@@ -981,6 +1011,11 @@ public:
   /// Print the recipe.
   void print(raw_ostream &O, const Twine &Indent,
              VPSlotTracker &SlotTracker) const override;
+
+  /// Returns the start value of the phi, if it is a reduction.
+  VPValue *getStartValue() {
+    return getNumOperands() == 0 ? nullptr : getOperand(0);
+  }
 };
 
 /// A recipe for vectorizing a phi-node as a sequence of mask-based select
@@ -1095,17 +1130,15 @@ public:
 class VPReductionRecipe : public VPRecipeBase, public VPUser, public VPValue {
   /// The recurrence decriptor for the reduction in question.
   RecurrenceDescriptor *RdxDesc;
-  /// Fast math flags to use for the resulting reduction operation.
-  bool NoNaN;
   /// Pointer to the TTI, needed to create the target reduction
   const TargetTransformInfo *TTI;
 
 public:
   VPReductionRecipe(RecurrenceDescriptor *R, Instruction *I, VPValue *ChainOp,
-                    VPValue *VecOp, VPValue *CondOp, bool NoNaN,
+                    VPValue *VecOp, VPValue *CondOp,
                     const TargetTransformInfo *TTI)
       : VPRecipeBase(VPRecipeBase::VPReductionSC), VPUser({ChainOp, VecOp}),
-        VPValue(VPValue::VPVReductionSC, I, this), RdxDesc(R), NoNaN(NoNaN),
+        VPValue(VPValue::VPVReductionSC, I, this), RdxDesc(R),
         TTI(TTI) {
     if (CondOp)
       addOperand(CondOp);
@@ -1215,7 +1248,7 @@ public:
              VPSlotTracker &SlotTracker) const override {
     O << " +\n" << Indent << "\"BRANCH-ON-MASK ";
     if (VPValue *Mask = getMask())
-      Mask->print(O, SlotTracker);
+      Mask->printAsOperand(O, SlotTracker);
     else
       O << " All-One";
     O << "\\l\"";
@@ -1242,7 +1275,7 @@ public:
   /// nodes after merging back from a Branch-on-Mask.
   VPPredInstPHIRecipe(VPValue *PredV)
       : VPRecipeBase(VPPredInstPHISC), VPUser(PredV) {
-    new VPValue(VPValue::VPValueSC, PredV->getUnderlyingValue(), this);
+    new VPValue(PredV->getUnderlyingValue(), this);
   }
   ~VPPredInstPHIRecipe() override = default;
 

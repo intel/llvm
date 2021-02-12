@@ -9,6 +9,6 @@ int main() {
   kernel_single_task<class kernel>([]() {});
   return 0;
 }
-// CHECK: define spir_kernel void @{{.*}}kernel{{.*}}() #[[KERN_ATTR:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel{{.*}}() #[[KERN_ATTR:[0-9]+]]
 
 // CHECK: #[[KERN_ATTR]] = { {{.*}}"sycl-module-id"="{{.*}}module-id.cpp"{{.*}} }

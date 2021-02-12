@@ -86,7 +86,7 @@ struct InstRegexOp : public SetTheory::Operator {
     auto Pseudos = Instructions.slice(NumGeneric, NumPseudos);
     auto NonPseudos = Instructions.slice(NumGeneric + NumPseudos);
 
-    for (Init *Arg : make_range(Expr->arg_begin(), Expr->arg_end())) {
+    for (Init *Arg : Expr->getArgs()) {
       StringInit *SI = dyn_cast<StringInit>(Arg);
       if (!SI)
         PrintFatalError(Loc, "instregex requires pattern string: " +
@@ -1208,11 +1208,10 @@ void CodeGenSchedModels::collectProcItinRW() {
 
 // Gather the unsupported features for processor models.
 void CodeGenSchedModels::collectProcUnsupportedFeatures() {
-  for (CodeGenProcModel &ProcModel : ProcModels) {
-    for (Record *Pred : ProcModel.ModelDef->getValueAsListOfDefs("UnsupportedFeatures")) {
-       ProcModel.UnsupportedFeaturesDefs.push_back(Pred);
-    }
-  }
+  for (CodeGenProcModel &ProcModel : ProcModels)
+    append_range(
+        ProcModel.UnsupportedFeaturesDefs,
+        ProcModel.ModelDef->getValueAsListOfDefs("UnsupportedFeatures"));
 }
 
 /// Infer new classes from existing classes. In the process, this may create new
@@ -1549,8 +1548,7 @@ pushVariant(const TransVariant &VInfo, bool IsRead) {
         ExpandedRWs.push_back(*RWI);
       else
         SchedModels.expandRWSequence(*RWI, ExpandedRWs, IsRead);
-      RWSequences[OperIdx].insert(RWSequences[OperIdx].end(),
-                                  ExpandedRWs.begin(), ExpandedRWs.end());
+      llvm::append_range(RWSequences[OperIdx], ExpandedRWs);
     }
     assert(OperIdx == RWSequences.size() && "missed a sequence");
   }
@@ -1566,7 +1564,7 @@ pushVariant(const TransVariant &VInfo, bool IsRead) {
       else
         SchedModels.expandRWSequence(*RWI, ExpandedRWs, IsRead);
     }
-    Seq.insert(Seq.end(), ExpandedRWs.begin(), ExpandedRWs.end());
+    llvm::append_range(Seq, ExpandedRWs);
   }
 }
 
@@ -1826,8 +1824,7 @@ void CodeGenSchedModels::verifyProcResourceGroups(CodeGenProcModel &PM) {
                              OtherUnits.begin(), OtherUnits.end())
           != CheckUnits.end()) {
         // CheckUnits and OtherUnits overlap
-        OtherUnits.insert(OtherUnits.end(), CheckUnits.begin(),
-                          CheckUnits.end());
+        llvm::append_range(OtherUnits, CheckUnits);
         if (!hasSuperGroup(OtherUnits, PM)) {
           PrintFatalError((PM.ProcResourceDefs[i])->getLoc(),
                           "proc resource group overlaps with "

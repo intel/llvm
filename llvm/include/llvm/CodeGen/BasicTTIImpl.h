@@ -401,6 +401,7 @@ public:
   }
 
   unsigned getInliningThresholdMultiplier() { return 1; }
+  unsigned adjustInliningThreshold(const CallBase *CB) { return 0; }
 
   int getInlinerVectorBonusPercent() { return 150; }
 
@@ -570,6 +571,8 @@ public:
   /// @{
 
   unsigned getRegisterBitWidth(bool Vector) const { return 32; }
+
+  Optional<unsigned> getMaxVScale() const { return None; }
 
   /// Estimate the overhead of scalarizing an instruction. Insert and Extract
   /// are set if the demanded result elements need to be inserted and/or
@@ -1239,8 +1242,6 @@ public:
       return thisT()->getMemcpyCost(ICA.getInst());
 
     case Intrinsic::masked_scatter: {
-      if (isa<ScalableVectorType>(RetTy))
-        return BaseT::getIntrinsicInstrCost(ICA, CostKind);
       assert(VF.isScalar() && "Can't vectorize types here.");
       const Value *Mask = Args[3];
       bool VarMask = !isa<Constant>(Mask);
@@ -1250,8 +1251,6 @@ public:
                                              VarMask, Alignment, CostKind, I);
     }
     case Intrinsic::masked_gather: {
-      if (isa<ScalableVectorType>(RetTy))
-        return BaseT::getIntrinsicInstrCost(ICA, CostKind);
       assert(VF.isScalar() && "Can't vectorize types here.");
       const Value *Mask = Args[2];
       bool VarMask = !isa<Constant>(Mask);
@@ -1290,15 +1289,11 @@ public:
     case Intrinsic::vector_reduce_fmin:
     case Intrinsic::vector_reduce_umax:
     case Intrinsic::vector_reduce_umin: {
-      if (isa<ScalableVectorType>(RetTy))
-        return BaseT::getIntrinsicInstrCost(ICA, CostKind);
       IntrinsicCostAttributes Attrs(IID, RetTy, Args[0]->getType(), FMF, 1, I);
       return getTypeBasedIntrinsicInstrCost(Attrs, CostKind);
     }
     case Intrinsic::vector_reduce_fadd:
     case Intrinsic::vector_reduce_fmul: {
-      if (isa<ScalableVectorType>(RetTy))
-        return BaseT::getIntrinsicInstrCost(ICA, CostKind);
       IntrinsicCostAttributes Attrs(
           IID, RetTy, {Args[0]->getType(), Args[1]->getType()}, FMF, 1, I);
       return getTypeBasedIntrinsicInstrCost(Attrs, CostKind);
@@ -1752,7 +1747,12 @@ public:
       // library call but still not a cheap instruction.
       SingleCallCost = TargetTransformInfo::TCC_Expensive;
       break;
-    // FIXME: ctlz, cttz, ...
+    case Intrinsic::ctlz:
+      ISDs.push_back(ISD::CTLZ);
+      break;
+    case Intrinsic::cttz:
+      ISDs.push_back(ISD::CTTZ);
+      break;
     case Intrinsic::bswap:
       ISDs.push_back(ISD::BSWAP);
       break;
@@ -2018,6 +2018,27 @@ public:
     // So just need a single extractelement.
     return ShuffleCost + MinMaxCost +
            thisT()->getVectorInstrCost(Instruction::ExtractElement, Ty, 0);
+  }
+
+  InstructionCost getExtendedAddReductionCost(bool IsMLA, bool IsUnsigned,
+                                              Type *ResTy, VectorType *Ty,
+                                              TTI::TargetCostKind CostKind) {
+    // Without any native support, this is equivalent to the cost of
+    // vecreduce.add(ext) or if IsMLA vecreduce.add(mul(ext, ext))
+    VectorType *ExtTy = VectorType::get(ResTy, Ty);
+    unsigned RedCost = thisT()->getArithmeticReductionCost(
+        Instruction::Add, ExtTy, false, CostKind);
+    unsigned MulCost = 0;
+    unsigned ExtCost = thisT()->getCastInstrCost(
+        IsUnsigned ? Instruction::ZExt : Instruction::SExt, ExtTy, Ty,
+        TTI::CastContextHint::None, CostKind);
+    if (IsMLA) {
+      MulCost =
+          thisT()->getArithmeticInstrCost(Instruction::Mul, ExtTy, CostKind);
+      ExtCost *= 2;
+    }
+
+    return RedCost + MulCost + ExtCost;
   }
 
   unsigned getVectorSplitCost() { return 1; }

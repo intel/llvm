@@ -28,6 +28,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/CallGraphSCCPass.h"
+#include "llvm/Analysis/LazyCallGraph.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
@@ -157,6 +158,7 @@ private:
   void replaceCoroSuspends();
   void replaceCoroEnds();
   void replaceSwiftErrorOps();
+  void salvageDebugInfo();
   void handleFinalSuspend();
 };
 
@@ -630,6 +632,39 @@ void CoroCloner::replaceSwiftErrorOps() {
   ::replaceSwiftErrorOps(*NewF, Shape, &VMap);
 }
 
+void CoroCloner::salvageDebugInfo() {
+  SmallVector<DbgDeclareInst *, 8> Worklist;
+  SmallDenseMap<llvm::Value *, llvm::AllocaInst *, 4> DbgPtrAllocaCache;
+  for (auto &BB : *NewF)
+    for (auto &I : BB)
+      if (auto *DDI = dyn_cast<DbgDeclareInst>(&I))
+        Worklist.push_back(DDI);
+  for (DbgDeclareInst *DDI : Worklist) {
+    // This is a heuristic that detects declares left by CoroFrame.
+    bool LoadFromFramePtr = !isa<AllocaInst>(DDI->getAddress());
+    coro::salvageDebugInfo(DbgPtrAllocaCache, DDI, LoadFromFramePtr);
+  }
+  // Remove all salvaged dbg.declare intrinsics that became
+  // either unreachable or stale due to the CoroSplit transformation.
+  auto IsUnreachableBlock = [&](BasicBlock *BB) {
+    return BB->hasNPredecessors(0) && BB != &NewF->getEntryBlock();
+  };
+  for (DbgDeclareInst *DDI : Worklist) {
+    if (IsUnreachableBlock(DDI->getParent()))
+      DDI->eraseFromParent();
+    else if (dyn_cast_or_null<AllocaInst>(DDI->getAddress())) {
+      // Count all non-debuginfo uses in reachable blocks.
+      unsigned Uses = 0;
+      for (auto *User : DDI->getAddress()->users())
+        if (auto *I = dyn_cast<Instruction>(User))
+          if (!isa<AllocaInst>(I) && !IsUnreachableBlock(I->getParent()))
+            ++Uses;
+      if (!Uses)
+        DDI->eraseFromParent();
+    }
+  }
+}
+
 void CoroCloner::replaceEntryBlock() {
   // In the original function, the AllocaSpillBlock is a block immediately
   // following the allocation of the frame object which defines GEPs for
@@ -902,6 +937,9 @@ void CoroCloner::create() {
 
   // Remove coro.end intrinsics.
   replaceCoroEnds();
+
+  // Salvage debug info that points into the coroutine frame.
+  salvageDebugInfo();
 
   // Eliminate coro.free from the clones, replacing it with 'null' in cleanup,
   // to suppress deallocation code.
@@ -1747,21 +1785,31 @@ static void updateCallGraphAfterCoroutineSplit(
     End->eraseFromParent();
   }
 
-  postSplitCleanup(N.getFunction());
+  if (!Clones.empty()) {
+    switch (Shape.ABI) {
+    case coro::ABI::Switch:
+      // Each clone in the Switch lowering is independent of the other clones.
+      // Let the LazyCallGraph know about each one separately.
+      for (Function *Clone : Clones)
+        CG.addSplitFunction(N.getFunction(), *Clone);
+      break;
+    case coro::ABI::Async:
+    case coro::ABI::Retcon:
+    case coro::ABI::RetconOnce:
+      // Each clone in the Async/Retcon lowering references of the other clones.
+      // Let the LazyCallGraph know about all of them at once.
+      CG.addSplitRefRecursiveFunctions(N.getFunction(), Clones);
+      break;
+    }
 
-  // We've inserted instructions into coroutine 'f' that reference the three new
-  // coroutine funclets. We must now update the call graph so that reference
-  // edges between 'f' and its funclets are added to it. LazyCallGraph only
-  // allows CGSCC passes to insert "trivial" reference edges. We've ensured
-  // above, by inserting the funclets into the same SCC as the corutine, that
-  // the edges are trivial.
-  //
-  // N.B.: If we didn't update the call graph here, a CGSCCToFunctionPassAdaptor
-  // later in this CGSCC pass pipeline may be run, triggering a call graph
-  // update of its own. Function passes run by the adaptor are not permitted to
-  // add new edges of any kind to the graph, and the new edges inserted by this
-  // pass would be misattributed to that unrelated function pass.
-  updateCGAndAnalysisManagerForCGSCCPass(CG, C, N, AM, UR, FAM);
+    // Let the CGSCC infra handle the changes to the original function.
+    updateCGAndAnalysisManagerForCGSCCPass(CG, C, N, AM, UR, FAM);
+  }
+
+  // Do some cleanup and let the CGSCC infra see if we've cleaned up any edges
+  // to the split functions.
+  postSplitCleanup(N.getFunction());
+  updateCGAndAnalysisManagerForFunctionPass(CG, C, N, AM, UR, FAM);
 }
 
 // When we see the coroutine the first time, we insert an indirect call to a
@@ -2006,17 +2054,7 @@ PreservedAnalyses CoroSplitPass::run(LazyCallGraph::SCC &C,
     LLVM_DEBUG(dbgs() << "CoroSplit: Processing coroutine '" << F.getName()
                       << "' state: " << Value << "\n");
     if (Value == UNPREPARED_FOR_SPLIT) {
-      // Enqueue a second iteration of the CGSCC pipeline.
-      // N.B.:
-      // The CoroSplitLegacy pass "triggers" a restart of the CGSCC pass
-      // pipeline by inserting an indirect function call that the
-      // CoroElideLegacy pass then replaces with a direct function call. The
-      // legacy CGSCC pipeline's implicit behavior was as if wrapped in the new
-      // pass manager abstraction DevirtSCCRepeatedPass.
-      //
-      // This pass does not need to "trigger" another run of the pipeline.
-      // Instead, it simply enqueues the same RefSCC onto the pipeline's
-      // worklist.
+      // Enqueue a second iteration of the CGSCC pipeline on this SCC.
       UR.CWorklist.insert(&C);
       F.addFnAttr(CORO_PRESPLIT_ATTR, PREPARED_FOR_SPLIT);
       continue;
@@ -2027,9 +2065,12 @@ PreservedAnalyses CoroSplitPass::run(LazyCallGraph::SCC &C,
     const coro::Shape Shape = splitCoroutine(F, Clones, ReuseFrameSlot);
     updateCallGraphAfterCoroutineSplit(*N, Shape, Clones, C, CG, AM, UR, FAM);
 
-    if (Shape.ABI == coro::ABI::Async && !Shape.CoroSuspends.empty()) {
-      // We want the inliner to be run on the newly inserted functions.
-      UR.CWorklist.insert(&C);
+    if ((Shape.ABI == coro::ABI::Async || Shape.ABI == coro::ABI::Retcon ||
+         Shape.ABI == coro::ABI::RetconOnce) &&
+        !Shape.CoroSuspends.empty()) {
+      // Run the CGSCC pipeline on the newly split functions.
+      // All clones will be in the same RefSCC, so choose a random clone.
+      UR.RCWorklist.insert(CG.lookupRefSCC(CG.get(*Clones[0])));
     }
   }
 

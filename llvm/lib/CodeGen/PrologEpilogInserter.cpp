@@ -1077,7 +1077,26 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
     // If the frame pointer is eliminated, all frame offsets will be relative to
     // SP not FP. Align to MaxAlign so this works.
     StackAlign = std::max(StackAlign, MaxAlign);
+    int64_t OffsetBeforeAlignment = Offset;
     Offset = alignTo(Offset, StackAlign, Skew);
+
+    // If we have increased the offset to fulfill the alignment constrants,
+    // then the scavenging spill slots may become harder to reach from the
+    // stack pointer, float them so they stay close.
+    if (OffsetBeforeAlignment != Offset && RS && !EarlyScavengingSlots) {
+      SmallVector<int, 2> SFIs;
+      RS->getScavengingFrameIndices(SFIs);
+      LLVM_DEBUG(if (!SFIs.empty()) llvm::dbgs()
+                     << "Adjusting emergency spill slots!\n";);
+      int64_t Delta = Offset - OffsetBeforeAlignment;
+      for (SmallVectorImpl<int>::iterator I = SFIs.begin(), IE = SFIs.end();
+           I != IE; ++I) {
+        LLVM_DEBUG(llvm::dbgs() << "Adjusting offset of emergency spill slot #"
+                                << *I << " from " << MFI.getObjectOffset(*I););
+        MFI.setObjectOffset(*I, MFI.getObjectOffset(*I) - Delta);
+        LLVM_DEBUG(llvm::dbgs() << " to " << MFI.getObjectOffset(*I) << "\n";);
+      }
+    }
   }
 
   // Update frame info to pretend that this is part of the stack...
@@ -1211,8 +1230,6 @@ void PEI::replaceFrameIndices(MachineBasicBlock *BB, MachineFunction &MF,
 
         StackOffset Offset =
             TFI->getFrameIndexReference(MF, FrameIdx, Reg);
-        assert(!Offset.getScalable() &&
-               "Frame offsets with a scalable component are not supported");
         MI.getOperand(0).ChangeToRegister(Reg, false /*isDef*/);
         MI.getOperand(0).setIsDebug();
 
@@ -1238,7 +1255,8 @@ void PEI::replaceFrameIndices(MachineBasicBlock *BB, MachineFunction &MF,
           // Make the DBG_VALUE direct.
           MI.getDebugOffset().ChangeToRegister(0, false);
         }
-        DIExpr = DIExpression::prepend(DIExpr, PrependFlags, Offset.getFixed());
+
+        DIExpr = TRI.prependOffsetExpression(DIExpr, PrependFlags, Offset);
         MI.getDebugExpressionOp().setMetadata(DIExpr);
         continue;
       }

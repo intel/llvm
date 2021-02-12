@@ -259,18 +259,17 @@ static void dumpSectionContents(raw_ostream &OS, LinkGraph &G) {
   for (auto &S : G.sections())
     Sections.push_back(&S);
 
-  std::sort(Sections.begin(), Sections.end(),
-            [](const Section *LHS, const Section *RHS) {
-              if (llvm::empty(LHS->symbols()) && llvm::empty(RHS->symbols()))
-                return false;
-              if (llvm::empty(LHS->symbols()))
-                return false;
-              if (llvm::empty(RHS->symbols()))
-                return true;
-              SectionRange LHSRange(*LHS);
-              SectionRange RHSRange(*RHS);
-              return LHSRange.getStart() < RHSRange.getStart();
-            });
+  llvm::sort(Sections, [](const Section *LHS, const Section *RHS) {
+    if (llvm::empty(LHS->symbols()) && llvm::empty(RHS->symbols()))
+      return false;
+    if (llvm::empty(LHS->symbols()))
+      return false;
+    if (llvm::empty(RHS->symbols()))
+      return true;
+    SectionRange LHSRange(*LHS);
+    SectionRange RHSRange(*RHS);
+    return LHSRange.getStart() < RHSRange.getStart();
+  });
 
   for (auto *S : Sections) {
     OS << S->getName() << " content:";
@@ -585,7 +584,7 @@ LLVMJITLinkRemoteTargetProcessControl::LaunchExecutor() {
                                  inconvertibleErrorCode());
 #else
 
-  rpc::registerStringError<LLVMJITLinkChannel>();
+  shared::registerStringError<LLVMJITLinkChannel>();
 
   constexpr int ReadEnd = 0;
   constexpr int WriteEnd = 1;
@@ -640,8 +639,8 @@ LLVMJITLinkRemoteTargetProcessControl::LaunchExecutor() {
 
   // Return an RPC channel connected to our end of the pipes.
   auto SSP = std::make_shared<SymbolStringPool>();
-  auto Channel = std::make_unique<rpc::FDRawByteChannel>(FromExecutor[ReadEnd],
-                                                         ToExecutor[WriteEnd]);
+  auto Channel = std::make_unique<shared::FDRawByteChannel>(
+      FromExecutor[ReadEnd], ToExecutor[WriteEnd]);
   auto Endpoint = std::make_unique<LLVMJITLinkRPCEndpoint>(*Channel, true);
 
   auto ReportError = [](Error Err) {
@@ -668,7 +667,7 @@ LLVMJITLinkRemoteTargetProcessControl::ConnectToExecutor() {
                                  inconvertibleErrorCode());
 #else
 
-  rpc::registerStringError<LLVMJITLinkChannel>();
+  shared::registerStringError<LLVMJITLinkChannel>();
 
   StringRef HostNameStr, PortStr;
   std::tie(HostNameStr, PortStr) =
@@ -705,7 +704,7 @@ LLVMJITLinkRemoteTargetProcessControl::ConnectToExecutor() {
                                    inconvertibleErrorCode());
 
   auto SSP = std::make_shared<SymbolStringPool>();
-  auto Channel = std::make_unique<rpc::FDRawByteChannel>(SockFD, SockFD);
+  auto Channel = std::make_unique<shared::FDRawByteChannel>(SockFD, SockFD);
   auto Endpoint = std::make_unique<LLVMJITLinkRPCEndpoint>(*Channel, true);
 
   auto ReportError = [](Error Err) {

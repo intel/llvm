@@ -135,6 +135,7 @@
 #include <vector>
 
 using namespace llvm;
+using namespace PatternMatch;
 
 #define DEBUG_TYPE "scalar-evolution"
 
@@ -1221,6 +1222,11 @@ const SCEV *ScalarEvolution::getTruncateExpr(const SCEV *Op, Type *Ty,
     return getAddRecExpr(Operands, AddRec->getLoop(), SCEV::FlagAnyWrap);
   }
 
+  // Return zero if truncating to known zeros.
+  uint32_t MinTrailingZeros = GetMinTrailingZeros(Op);
+  if (MinTrailingZeros >= getTypeSizeInBits(Ty))
+    return getZero(Ty);
+
   // The cast wasn't folded; create an explicit cast node. We can reuse
   // the existing insert position since if we get here, we won't have
   // made any changes which would invalidate it.
@@ -2171,7 +2177,7 @@ CollectAddOperandsWithScales(DenseMap<const SCEV *, APInt> &M,
       } else {
         // A multiplication of a constant with some other value. Update
         // the map.
-        SmallVector<const SCEV *, 4> MulOps(Mul->op_begin()+1, Mul->op_end());
+        SmallVector<const SCEV *, 4> MulOps(drop_begin(Mul->operands()));
         const SCEV *Key = SE.getMulExpr(MulOps);
         auto Pair = M.insert({Key, NewScale});
         if (Pair.second) {
@@ -2596,8 +2602,7 @@ const SCEV *ScalarEvolution::getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
       //  NLI + LI + {Start,+,Step}  -->  NLI + {LI+Start,+,Step}
       LIOps.push_back(AddRec->getStart());
 
-      SmallVector<const SCEV *, 4> AddRecOps(AddRec->op_begin(),
-                                             AddRec->op_end());
+      SmallVector<const SCEV *, 4> AddRecOps(AddRec->operands());
       // This follows from the fact that the no-wrap flags on the outer add
       // expression are applicable on the 0th iteration, when the add recurrence
       // will be equal to its start value.
@@ -2635,8 +2640,7 @@ const SCEV *ScalarEvolution::getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
         "AddRecExprs are not sorted in reverse dominance order?");
       if (AddRecLoop == cast<SCEVAddRecExpr>(Ops[OtherIdx])->getLoop()) {
         // Other + {A,+,B}<L> + {C,+,D}<L>  -->  Other + {A+C,+,B+D}<L>
-        SmallVector<const SCEV *, 4> AddRecOps(AddRec->op_begin(),
-                                               AddRec->op_end());
+        SmallVector<const SCEV *, 4> AddRecOps(AddRec->operands());
         for (; OtherIdx != Ops.size() && isa<SCEVAddRecExpr>(Ops[OtherIdx]);
              ++OtherIdx) {
           const auto *OtherAddRec = cast<SCEVAddRecExpr>(Ops[OtherIdx]);
@@ -3176,8 +3180,7 @@ const SCEV *ScalarEvolution::getUDivExpr(const SCEV *LHS,
             const SCEV *Op = M->getOperand(i);
             const SCEV *Div = getUDivExpr(Op, RHSC);
             if (!isa<SCEVUDivExpr>(Div) && getMulExpr(Div, RHSC) == Op) {
-              Operands = SmallVector<const SCEV *, 4>(M->op_begin(),
-                                                      M->op_end());
+              Operands = SmallVector<const SCEV *, 4>(M->operands());
               Operands[i] = Div;
               return getMulExpr(Operands);
             }
@@ -3271,8 +3274,7 @@ const SCEV *ScalarEvolution::getUDivExactExpr(const SCEV *LHS,
     // first element of the mulexpr.
     if (const auto *LHSCst = dyn_cast<SCEVConstant>(Mul->getOperand(0))) {
       if (LHSCst == RHSCst) {
-        SmallVector<const SCEV *, 2> Operands;
-        Operands.append(Mul->op_begin() + 1, Mul->op_end());
+        SmallVector<const SCEV *, 2> Operands(drop_begin(Mul->operands()));
         return getMulExpr(Operands);
       }
 
@@ -3362,8 +3364,7 @@ ScalarEvolution::getAddRecExpr(SmallVectorImpl<const SCEV *> &Operands,
             ? (L->getLoopDepth() < NestedLoop->getLoopDepth())
             : (!NestedLoop->contains(L) &&
                DT.dominates(L->getHeader(), NestedLoop->getHeader()))) {
-      SmallVector<const SCEV *, 4> NestedOperands(NestedAR->op_begin(),
-                                                  NestedAR->op_end());
+      SmallVector<const SCEV *, 4> NestedOperands(NestedAR->operands());
       Operands[0] = NestedAR->getStart();
       // AddRecs require their operands be loop-invariant with respect to their
       // loops. Don't perform this transformation if it would break this
@@ -7578,47 +7579,64 @@ ScalarEvolution::computeExitLimitFromCondFromBinOp(
     ExitLimitCacheTy &Cache, const Loop *L, Value *ExitCond, bool ExitIfTrue,
     bool ControlsExit, bool AllowPredicates) {
   // Check if the controlling expression for this loop is an And or Or.
-  if (auto *BO = dyn_cast<BinaryOperator>(ExitCond)) {
-    if (BO->getOpcode() == Instruction::And)
-      return computeExitLimitFromCondFromBinOpHelper(
-          Cache, L, BO, !ExitIfTrue, ExitIfTrue, ControlsExit, AllowPredicates,
-          ConstantInt::get(BO->getType(), 1));
-    if (BO->getOpcode() == Instruction::Or)
-      return computeExitLimitFromCondFromBinOpHelper(
-          Cache, L, BO, ExitIfTrue, ExitIfTrue, ControlsExit, AllowPredicates,
-          ConstantInt::get(BO->getType(), 0));
-  }
-  return None;
-}
+  Value *Op0, *Op1;
+  bool IsAnd = false;
+  if (match(ExitCond, m_LogicalAnd(m_Value(Op0), m_Value(Op1))))
+    IsAnd = true;
+  else if (match(ExitCond, m_LogicalOr(m_Value(Op0), m_Value(Op1))))
+    IsAnd = false;
+  else
+    return None;
 
-ScalarEvolution::ExitLimit
-ScalarEvolution::computeExitLimitFromCondFromBinOpHelper(
-    ExitLimitCacheTy &Cache, const Loop *L, BinaryOperator *BO,
-    bool EitherMayExit, bool ExitIfTrue, bool ControlsExit,
-    bool AllowPredicates, const Constant *NeutralElement) {
-  ExitLimit EL0 = computeExitLimitFromCondCached(
-      Cache, L, BO->getOperand(0), ExitIfTrue, ControlsExit && !EitherMayExit,
-      AllowPredicates);
-  ExitLimit EL1 = computeExitLimitFromCondCached(
-      Cache, L, BO->getOperand(1), ExitIfTrue, ControlsExit && !EitherMayExit,
-      AllowPredicates);
-  // Be robust against unsimplified IR for the form "op i1 X,
-  // NeutralElement"
-  if (ConstantInt *CI = dyn_cast<ConstantInt>(BO->getOperand(1)))
-    return CI == NeutralElement ? EL0 : EL1;
-  if (ConstantInt *CI = dyn_cast<ConstantInt>(BO->getOperand(0)))
-    return CI == NeutralElement ? EL1 : EL0;
+  // EitherMayExit is true in these two cases:
+  //   br (and Op0 Op1), loop, exit
+  //   br (or  Op0 Op1), exit, loop
+  bool EitherMayExit = IsAnd ^ ExitIfTrue;
+  ExitLimit EL0 = computeExitLimitFromCondCached(Cache, L, Op0, ExitIfTrue,
+                                                 ControlsExit && !EitherMayExit,
+                                                 AllowPredicates);
+  ExitLimit EL1 = computeExitLimitFromCondCached(Cache, L, Op1, ExitIfTrue,
+                                                 ControlsExit && !EitherMayExit,
+                                                 AllowPredicates);
+
+  // Be robust against unsimplified IR for the form "op i1 X, NeutralElement"
+  const Constant *NeutralElement = ConstantInt::get(ExitCond->getType(), IsAnd);
+  if (isa<ConstantInt>(Op1))
+    return Op1 == NeutralElement ? EL0 : EL1;
+  if (isa<ConstantInt>(Op0))
+    return Op0 == NeutralElement ? EL1 : EL0;
+
   const SCEV *BECount = getCouldNotCompute();
   const SCEV *MaxBECount = getCouldNotCompute();
   if (EitherMayExit) {
     // Both conditions must be same for the loop to continue executing.
     // Choose the less conservative count.
-    if (EL0.ExactNotTaken == getCouldNotCompute() ||
-        EL1.ExactNotTaken == getCouldNotCompute())
-      BECount = getCouldNotCompute();
-    else
+    // If ExitCond is a short-circuit form (select), using
+    // umin(EL0.ExactNotTaken, EL1.ExactNotTaken) is unsafe in general.
+    // To see the detailed examples, please see
+    // test/Analysis/ScalarEvolution/exit-count-select.ll
+    bool PoisonSafe = isa<BinaryOperator>(ExitCond);
+    if (!PoisonSafe)
+      // Even if ExitCond is select, we can safely derive BECount using both
+      // EL0 and EL1 in these cases:
+      // (1) EL0.ExactNotTaken is non-zero
+      // (2) EL1.ExactNotTaken is non-poison
+      // (3) EL0.ExactNotTaken is zero (BECount should be simply zero and
+      //     it cannot be umin(0, ..))
+      // The PoisonSafe assignment below is simplified and the assertion after
+      // BECount calculation fully guarantees the condition (3).
+      PoisonSafe = isa<SCEVConstant>(EL0.ExactNotTaken) ||
+                   isa<SCEVConstant>(EL1.ExactNotTaken);
+    if (EL0.ExactNotTaken != getCouldNotCompute() &&
+        EL1.ExactNotTaken != getCouldNotCompute() && PoisonSafe) {
       BECount =
           getUMinFromMismatchedTypes(EL0.ExactNotTaken, EL1.ExactNotTaken);
+
+      // If EL0.ExactNotTaken was zero and ExitCond was a short-circuit form,
+      // it should have been simplified to zero (see the condition (3) above)
+      assert(!isa<BinaryOperator>(ExitCond) || !EL0.ExactNotTaken->isZero() ||
+             BECount->isZero());
+    }
     if (EL0.MaxNotTaken == getCouldNotCompute())
       MaxBECount = EL1.MaxNotTaken;
     else if (EL1.MaxNotTaken == getCouldNotCompute())
@@ -7825,9 +7843,10 @@ ScalarEvolution::computeLoadConstantCompareExitLimit(
   Idx = getSCEVAtScope(Idx, L);
 
   // We can only recognize very limited forms of loop index expressions, in
-  // particular, only affine AddRec's like {C1,+,C2}.
+  // particular, only affine AddRec's like {C1,+,C2}<L>.
   const SCEVAddRecExpr *IdxExpr = dyn_cast<SCEVAddRecExpr>(Idx);
-  if (!IdxExpr || !IdxExpr->isAffine() || isLoopInvariant(IdxExpr, L) ||
+  if (!IdxExpr || IdxExpr->getLoop() != L || !IdxExpr->isAffine() ||
+      isLoopInvariant(IdxExpr, L) ||
       !isa<SCEVConstant>(IdxExpr->getOperand(0)) ||
       !isa<SCEVConstant>(IdxExpr->getOperand(1)))
     return getCouldNotCompute();
@@ -11337,7 +11356,7 @@ const SCEV *SCEVAddRecExpr::getNumIterationsInRange(const ConstantRange &Range,
   // If the start is a non-zero constant, shift the range to simplify things.
   if (const SCEVConstant *SC = dyn_cast<SCEVConstant>(getStart()))
     if (!SC->getValue()->isZero()) {
-      SmallVector<const SCEV *, 4> Operands(op_begin(), op_end());
+      SmallVector<const SCEV *, 4> Operands(operands());
       Operands[0] = SE.getZero(SC->getType());
       const SCEV *Shifted = SE.getAddRecExpr(Operands, getLoop(),
                                              getNoWrapFlags(FlagNW));
@@ -11948,7 +11967,7 @@ void ScalarEvolution::SCEVCallbackVH::allUsesReplacedWith(Value *V) {
   // so that future queries will recompute the expressions using the new
   // value.
   Value *Old = getValPtr();
-  SmallVector<User *, 16> Worklist(Old->user_begin(), Old->user_end());
+  SmallVector<User *, 16> Worklist(Old->users());
   SmallPtrSet<User *, 8> Visited;
   while (!Worklist.empty()) {
     User *U = Worklist.pop_back_val();
@@ -11961,7 +11980,7 @@ void ScalarEvolution::SCEVCallbackVH::allUsesReplacedWith(Value *V) {
     if (PHINode *PN = dyn_cast<PHINode>(U))
       SE->ConstantEvolutionLoopExitValue.erase(PN);
     SE->eraseValueFromMap(U);
-    Worklist.insert(Worklist.end(), U->user_begin(), U->user_end());
+    llvm::append_range(Worklist, U->users());
   }
   // Delete the Old value.
   if (PHINode *PN = dyn_cast<PHINode>(Old))
@@ -12526,7 +12545,7 @@ void ScalarEvolution::verify() const {
 
   while (!LoopStack.empty()) {
     auto *L = LoopStack.pop_back_val();
-    LoopStack.insert(LoopStack.end(), L->begin(), L->end());
+    llvm::append_range(LoopStack, *L);
 
     auto *CurBECount = SCM.visit(
         const_cast<ScalarEvolution *>(this)->getBackedgeTakenCount(L));

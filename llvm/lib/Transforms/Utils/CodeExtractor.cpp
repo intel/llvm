@@ -768,8 +768,7 @@ void CodeExtractor::severSplitPHINodesOfExits(
         NewBB = BasicBlock::Create(ExitBB->getContext(),
                                    ExitBB->getName() + ".split",
                                    ExitBB->getParent(), ExitBB);
-        SmallVector<BasicBlock *, 4> Preds(pred_begin(ExitBB),
-                                           pred_end(ExitBB));
+        SmallVector<BasicBlock *, 4> Preds(predecessors(ExitBB));
         for (BasicBlock *PredBB : Preds)
           if (Blocks.count(PredBB))
             PredBB->getTerminator()->replaceUsesOfWith(ExitBB, NewBB);
@@ -974,6 +973,7 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
       case Attribute::UWTable:
       case Attribute::NoCfCheck:
       case Attribute::MustProgress:
+      case Attribute::NoProfile:
         break;
       }
 

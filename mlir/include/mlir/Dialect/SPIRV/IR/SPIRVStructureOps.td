@@ -195,6 +195,56 @@ def SPV_EntryPointOp : SPV_Op<"EntryPoint", [InModuleScope]> {
 
 // -----
 
+def SPV_ExecutionModeOp : SPV_Op<"ExecutionMode", [InModuleScope]> {
+  let summary = "Declare an execution mode for an entry point.";
+
+  let description = [{
+    Entry Point must be the Entry Point <id> operand of an OpEntryPoint
+    instruction.
+
+    Mode is the execution mode. See Execution Mode.
+
+    This instruction is only valid when the Mode operand is an execution
+    mode that takes no Extra Operands, or takes Extra Operands that are not
+    <id> operands.
+
+    <!-- End of AutoGen section -->
+
+    ```
+    execution-mode ::= "Invocations" | "SpacingEqual" |
+                       <and other SPIR-V execution modes...>
+
+    execution-mode-op ::= `spv.ExecutionMode ` ssa-use execution-mode
+                          (integer-literal (`, ` integer-literal)* )?
+    ```
+
+    #### Example:
+
+    ```mlir
+    spv.ExecutionMode @foo "ContractionOff"
+    spv.ExecutionMode @bar "LocalSizeHint", 3, 4, 5
+    ```
+  }];
+
+  let arguments = (ins
+    FlatSymbolRefAttr:$fn,
+    SPV_ExecutionModeAttr:$execution_mode,
+    I32ArrayAttr:$values
+  );
+
+  let results = (outs);
+
+  let verifier = [{ return success(); }];
+
+  let autogenSerialization = 0;
+
+  let builders = [
+    OpBuilderDAG<(ins "spirv::FuncOp":$function,
+      "spirv::ExecutionMode":$executionMode, "ArrayRef<int32_t>":$params)>];
+}
+
+// -----
+
 def SPV_FuncOp : SPV_Op<"func", [
     AutomaticAllocationScope, DeclareOpInterfaceMethods<CallableOpInterface>,
     FunctionLike, InModuleScope, IsolatedFromAbove, Symbol
@@ -557,7 +607,10 @@ def SPV_SpecConstantOp : SPV_Op<"specConstant", [InModuleScope, Symbol]> {
   let autogenSerialization = 0;
 }
 
-def SPV_SpecConstantCompositeOp : SPV_Op<"specConstantComposite", [InModuleScope, Symbol]> {
+// -----
+
+def SPV_SpecConstantCompositeOp : SPV_Op<"specConstantComposite", [
+    InModuleScope, Symbol]> {
   let summary = "Declare a new composite specialization constant.";
 
   let description = [{
@@ -608,43 +661,7 @@ def SPV_SpecConstantCompositeOp : SPV_Op<"specConstantComposite", [InModuleScope
   let autogenSerialization = 0;
 }
 
-def SPV_YieldOp : SPV_Op<"mlir.yield", [
-    HasParent<"SpecConstantOperationOp">, NoSideEffect, Terminator]> {
-  let summary = [{
-    Yields the result computed in `spv.SpecConstantOperation`'s
-    region back to the parent op.
-  }];
-
-  let description = [{
-    This op is a special terminator whose only purpose is to terminate
-    an `spv.SpecConstantOperation`'s enclosed region. It accepts a
-    single operand produced by the preceeding (and only other) instruction
-    in its parent block (see SPV_SpecConstantOperation for further
-    details). This op has no corresponding SPIR-V instruction.
-
-    ```
-    spv.mlir.yield ::= `spv.mlir.yield` ssa-id : spirv-type
-    ```
-
-    #### Example:
-    ```mlir
-    %0 = ... (some op supported by SPIR-V OpSpecConstantOp)
-    spv.mlir.yield %0
-    ```
-  }];
-
-  let arguments = (ins AnyType:$operand);
-
-  let results = (outs);
-
-  let hasOpcode = 0;
-
-  let autogenSerialization = 0;
-
-  let assemblyFormat = "attr-dict $operand `:` type($operand)";
-
-  let verifier = [{ return success(); }];
-}
+// -----
 
 def SPV_SpecConstantOperationOp : SPV_Op<"SpecConstantOperation", [
        NoSideEffect, InFunctionScope,
@@ -730,6 +747,46 @@ def SPV_SpecConstantOperationOp : SPV_Op<"SpecConstantOperation", [
   let hasOpcode = 0;
 
   let autogenSerialization = 0;
+}
+
+// -----
+
+def SPV_YieldOp : SPV_Op<"mlir.yield", [
+    HasParent<"SpecConstantOperationOp">, NoSideEffect, Terminator]> {
+  let summary = [{
+    Yields the result computed in `spv.SpecConstantOperation`'s
+    region back to the parent op.
+  }];
+
+  let description = [{
+    This op is a special terminator whose only purpose is to terminate
+    an `spv.SpecConstantOperation`'s enclosed region. It accepts a
+    single operand produced by the preceeding (and only other) instruction
+    in its parent block (see SPV_SpecConstantOperation for further
+    details). This op has no corresponding SPIR-V instruction.
+
+    ```
+    spv.mlir.yield ::= `spv.mlir.yield` ssa-id : spirv-type
+    ```
+
+    #### Example:
+    ```mlir
+    %0 = ... (some op supported by SPIR-V OpSpecConstantOp)
+    spv.mlir.yield %0
+    ```
+  }];
+
+  let arguments = (ins AnyType:$operand);
+
+  let results = (outs);
+
+  let hasOpcode = 0;
+
+  let autogenSerialization = 0;
+
+  let assemblyFormat = "attr-dict $operand `:` type($operand)";
+
+  let verifier = [{ return success(); }];
 }
 
 // -----

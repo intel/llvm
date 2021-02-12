@@ -38,16 +38,6 @@ class StrFunc<string r> {
   string result = r;
 }
 
-// TODO: Use !interleave() directly rather than through StrJoin/StrJoinInt.
-
-// Concatenates a list of strings with a separator (default ", ")
-class StrJoin<list<string> strings, string sep = ", "> :
-    StrFunc<!interleave(strings, sep)>;
-
-// Concatenates a list of integers into a string with a separator (default ", ")
-class StrJoinInt<list<int> integers, string sep = ", "> :
-    StrFunc<!interleave(integers, sep)>;
-
 //===----------------------------------------------------------------------===//
 // Predicate definitions
 //===----------------------------------------------------------------------===//
@@ -164,9 +154,9 @@ class Concat<string pre, Pred child, string suf> :
 class Constraint<Pred pred, string desc = ""> {
   // The predicates that this constraint requires.
   Pred predicate = pred;
-  // User-readable description used in error reporting messages. If empty, a
-  // generic message will be used.
-  string description = desc;
+  // User-readable one line summary used in error reporting messages. If empty,
+  // a generic message will be used.
+  string summary = desc;
 }
 
 // Subclasses used to differentiate different constraint kinds. These are used
@@ -175,24 +165,24 @@ class Constraint<Pred pred, string desc = ""> {
 // are considered as uncategorized constraints.
 
 // Subclass for constraints on a type.
-class TypeConstraint<Pred predicate, string description = "",
+class TypeConstraint<Pred predicate, string summary = "",
                      string cppClassNameParam = "::mlir::Type"> :
-    Constraint<predicate, description> {
+    Constraint<predicate, summary> {
   // The name of the C++ Type class if known, or Type if not.
   string cppClassName = cppClassNameParam;
 }
 
 // Subclass for constraints on an attribute.
-class AttrConstraint<Pred predicate, string description = ""> :
-    Constraint<predicate, description>;
+class AttrConstraint<Pred predicate, string summary = ""> :
+    Constraint<predicate, summary>;
 
 // Subclass for constraints on a region.
-class RegionConstraint<Pred predicate, string description = ""> :
-    Constraint<predicate, description>;
+class RegionConstraint<Pred predicate, string summary = ""> :
+    Constraint<predicate, summary>;
 
 // Subclass for constraints on a successor.
-class SuccessorConstraint<Pred predicate, string description = ""> :
-    Constraint<predicate, description>;
+class SuccessorConstraint<Pred predicate, string summary = ""> :
+    Constraint<predicate, summary>;
 
 // How to use these constraint categories:
 //
@@ -292,14 +282,14 @@ class Dialect {
 class Type<Pred condition, string descr = "",
            string cppClassName = "::mlir::Type"> :
     TypeConstraint<condition, descr, cppClassName> {
-  string typeDescription = "";
+  string description = "";
   string builderCall = "";
 }
 
-// Allows providing an alternative name and description to an existing type def.
-class TypeAlias<Type t, string description = t.description> :
-    Type<t.predicate, description> {
-  let typeDescription = t.typeDescription;
+// Allows providing an alternative name and summary to an existing type def.
+class TypeAlias<Type t, string summary = t.summary> :
+    Type<t.predicate, summary> {
+  let description = t.description;
   let builderCall = t.builderCall;
 }
 
@@ -312,13 +302,13 @@ class DialectType<Dialect d, Pred condition, string descr = "",
 
 // A variadic type constraint. It expands to zero or more of the base type. This
 // class is used for supporting variadic operands/results.
-class Variadic<Type type> : TypeConstraint<type.predicate, type.description> {
+class Variadic<Type type> : TypeConstraint<type.predicate, type.summary> {
   Type baseType = type;
 }
 
 // An optional type constraint. It expands to either zero or one of the base
 // type. This class is used for supporting optional operands/results.
-class Optional<Type type> : TypeConstraint<type.predicate, type.description> {
+class Optional<Type type> : TypeConstraint<type.predicate, type.summary> {
   Type baseType = type;
 }
 
@@ -333,6 +323,13 @@ class BuildableType<code builder> {
   code builderCall = builder;
 }
 
+// A type that's buildable iff the type passed as an argument is buildable.
+// This is intended for use by types like container types, which are only
+// buildable if the type of their elements is buildable.
+class SameBuildabilityAs<Type type, code builder> {
+  code builderCall = !if(!empty(type.builderCall), "", builder);
+}
+
 // Any type at all.
 def AnyType : Type<CPred<"true">, "any type">;
 
@@ -342,13 +339,14 @@ def NoneType : Type<CPred<"$_self.isa<::mlir::NoneType>()">, "none type",
       BuildableType<"$_builder.getType<::mlir::NoneType>()">;
 
 // Any type from the given list
-class AnyTypeOf<list<Type> allowedTypes, string description = "",
+class AnyTypeOf<list<Type> allowedTypes, string summary = "",
                 string cppClassName = "::mlir::Type"> : Type<
     // Satisfy any of the allowed type's condition
     Or<!foreach(allowedtype, allowedTypes, allowedtype.predicate)>,
-    !if(!eq(description, ""),
-        StrJoin<!foreach(t, allowedTypes, t.description), " or ">.result,
-        description)>;
+    !if(!eq(summary, ""),
+        !interleave(!foreach(t, allowedTypes, t.summary), " or "),
+        summary),
+    cppClassName>;
 
 // Integer types.
 
@@ -364,7 +362,7 @@ class AnyI<int width>
 
 class AnyIntOfWidths<list<int> widths> :
     AnyTypeOf<!foreach(w, widths, AnyI<w>),
-              StrJoinInt<widths, "/">.result # "-bit integer",
+              !interleave(widths, "/") # "-bit integer",
               "::mlir::IntegerType">;
 
 def AnyI1  : AnyI<1>;
@@ -388,7 +386,7 @@ class I<int width>
 
 class SignlessIntOfWidths<list<int> widths> :
     AnyTypeOf<!foreach(w, widths, I<w>),
-              StrJoinInt<widths, "/">.result # "-bit signless integer">;
+              !interleave(widths, "/") # "-bit signless integer">;
 
 def I1  : I<1>;
 def I8  : I<8>;
@@ -411,7 +409,7 @@ class SI<int width>
 
 class SignedIntOfWidths<list<int> widths> :
     AnyTypeOf<!foreach(w, widths, SI<w>),
-              StrJoinInt<widths, "/">.result # "-bit signed integer">;
+              !interleave(widths, "/") # "-bit signed integer">;
 
 def SI1  : SI<1>;
 def SI8  : SI<8>;
@@ -434,7 +432,7 @@ class UI<int width>
 
 class UnsignedIntOfWidths<list<int> widths> :
     AnyTypeOf<!foreach(w, widths, UI<w>),
-              StrJoinInt<widths, "/">.result # "-bit unsigned integer">;
+              !interleave(widths, "/") # "-bit unsigned integer">;
 
 def UI1  : UI<1>;
 def UI8  : UI<8>;
@@ -463,11 +461,13 @@ class F<int width>
 
 class FloatOfWidths<list<int> widths> :
     AnyTypeOf<!foreach(w, widths, F<w>),
-              StrJoinInt<widths, "/">.result # "-bit float">;
+              !interleave(widths, "/") # "-bit float">;
 
 def F16 : F<16>;
 def F32 : F<32>;
 def F64 : F<64>;
+def F80 : F<80>;
+def F128 : F<128>;
 
 def BF16 : Type<CPred<"$_self.isBF16()">, "bfloat16 type">,
            BuildableType<"$_builder.getBF16Type()">;
@@ -478,17 +478,19 @@ class Complex<Type type>
           SubstLeaves<"$_self",
                       "$_self.cast<::mlir::ComplexType>().getElementType()",
            type.predicate>]>,
-           "complex type with " # type.description # " elements",
-           "::mlir::ComplexType"> {
+           "complex type with " # type.summary # " elements",
+           "::mlir::ComplexType">,
+      SameBuildabilityAs<type, "::mlir::ComplexType::get($_builder.get" # type #
+                               "Type())"> {
   Type elementType = type;
 }
 
 def AnyComplex : Type<CPred<"$_self.isa<::mlir::ComplexType>()">,
                       "complex-type", "::mlir::ComplexType">;
 
-class OpaqueType<string dialect, string name, string description>
+class OpaqueType<string dialect, string name, string summary>
   : Type<CPred<"isOpaqueTypeWithName($_self, \""#dialect#"\", \""#name#"\")">,
-         description, "::mlir::OpaqueType">,
+         summary, "::mlir::OpaqueType">,
     BuildableType<"::mlir::OpaqueType::get($_builder.getContext(), "
                   "$_builder.getIdentifier(\"" # dialect # "\"), \""
                   # name # "\")">;
@@ -507,7 +509,7 @@ class ContainerType<Type etype, Pred containerPred, code elementTypeCall,
     Type<And<[containerPred,
                 SubstLeaves<"$_self", !cast<string>(elementTypeCall),
                 etype.predicate>]>,
-         descr # " of " # etype.description # " values", cppClassName> {
+         descr # " of " # etype.summary # " values", cppClassName> {
   // The type of elements in the container.
   Type elementType = etype;
 
@@ -551,7 +553,7 @@ class IsVectorOfRankPred<list<int> allowedRanks> :
 // Any vector where the rank is from the given `allowedRanks` list
 class VectorOfRank<list<int> allowedRanks> : Type<
   IsVectorOfRankPred<allowedRanks>,
-  " of ranks " # StrJoinInt<allowedRanks, "/">.result, "::mlir::VectorType">;
+  " of ranks " # !interleave(allowedRanks, "/"), "::mlir::VectorType">;
 
 // Any vector where the rank is from the given `allowedRanks` list and the type
 // is from the given `allowedTypes` list
@@ -559,8 +561,7 @@ class VectorOfRankAndType<list<int> allowedRanks,
                           list<Type> allowedTypes> : Type<
   And<[VectorOf<allowedTypes>.predicate,
        VectorOfRank<allowedRanks>.predicate]>,
-  VectorOf<allowedTypes>.description #
-  VectorOfRank<allowedRanks>.description,
+  VectorOf<allowedTypes>.summary # VectorOfRank<allowedRanks>.summary,
   "::mlir::VectorType">;
 
 // Whether the number of elements of a vector is from the given
@@ -576,9 +577,8 @@ class IsVectorOfLengthPred<list<int> allowedLengths> :
 // `allowedLengths` list
 class VectorOfLength<list<int> allowedLengths> : Type<
   IsVectorOfLengthPred<allowedLengths>,
-  " of length " # StrJoinInt<allowedLengths, "/">.result,
+  " of length " # !interleave(allowedLengths, "/"),
   "::mlir::VectorType">;
-
 
 // Any vector where the number of elements is from the given
 // `allowedLengths` list and the type is from the given `allowedTypes`
@@ -587,8 +587,7 @@ class VectorOfLengthAndType<list<int> allowedLengths,
                             list<Type> allowedTypes> : Type<
   And<[VectorOf<allowedTypes>.predicate,
        VectorOfLength<allowedLengths>.predicate]>,
-  VectorOf<allowedTypes>.description #
-  VectorOfLength<allowedLengths>.description,
+  VectorOf<allowedTypes>.summary # VectorOfLength<allowedLengths>.summary,
   "::mlir::VectorType">;
 
 def AnyVector : VectorOf<[AnyType]>;
@@ -614,7 +613,7 @@ def AnyRankedTensor :
 // TODO: Have an easy way to add another constraint to a type.
 class StaticShapeTensorOf<list<Type> allowedTypes>
     : Type<And<[TensorOf<allowedTypes>.predicate, HasStaticShapePred]>,
-           "statically shaped " # TensorOf<allowedTypes>.description,
+           "statically shaped " # TensorOf<allowedTypes>.summary,
            "::mlir::TensorType">;
 
 def AnyStaticShapeTensor : StaticShapeTensorOf<[AnyType]>;
@@ -634,8 +633,8 @@ def F64Tensor  : TensorOf<[F64]>;
 // Ranked tensor type with one of the specified types and ranks.
 class TensorRankOf<list<Type> allowedTypes, list<int> ranks> :
     Type<And<[TensorOf<allowedTypes>.predicate, HasAnyRankOfPred<ranks>]>,
-         StrJoin<!foreach(rank, ranks, rank # "D"), "/">.result # " " #
-         TensorOf<allowedTypes>.description, "::mlir::TensorType">;
+         !interleave(!foreach(rank, ranks, rank # "D"), "/") # " " #
+         TensorOf<allowedTypes>.summary, "::mlir::TensorType">;
 
 class 0DTensorOf<list<Type> allowedTypes> : TensorRankOf<allowedTypes, [0]>;
 class 1DTensorOf<list<Type> allowedTypes> : TensorRankOf<allowedTypes, [1]>;
@@ -647,7 +646,7 @@ class 4DTensorOf<list<Type> allowedTypes> : TensorRankOf<allowedTypes, [4]>;
 def AnyUnrankedMemRef :
     ShapedContainerType<[AnyType],
                         IsUnrankedMemRefTypePred, "unranked.memref",
-                        "::mlir::MemRefType">;
+                        "::mlir::UnrankedMemRefType">;
 // Memref type.
 
 // Memrefs are blocks of data with fixed type and rank.
@@ -675,12 +674,12 @@ def F64MemRef  : MemRefOf<[F64]>;
 // TODO: Have an easy way to add another constraint to a type.
 class MemRefRankOf<list<Type> allowedTypes, list<int> ranks> :
     Type<And<[MemRefOf<allowedTypes>.predicate, HasAnyRankOfPred<ranks>]>,
-         StrJoin<!foreach(rank, ranks, rank # "D"), "/">.result # " " #
-         MemRefOf<allowedTypes>.description>;
+         !interleave(!foreach(rank, ranks, rank # "D"), "/") # " " #
+         MemRefOf<allowedTypes>.summary>;
 
 class StaticShapeMemRefOf<list<Type> allowedTypes>
     : Type<And<[MemRefOf<allowedTypes>.predicate, HasStaticShapePred]>,
-           "statically shaped " # MemRefOf<allowedTypes>.description>;
+           "statically shaped " # MemRefOf<allowedTypes>.summary>;
 
 def AnyStaticShapeMemRef : StaticShapeMemRefOf<[AnyType]>;
 
@@ -689,19 +688,19 @@ def HasStridesPred : CPred<[{ isStrided($_self.cast<::mlir::MemRefType>()) }]>;
 
 class StridedMemRefOf<list<Type> allowedTypes>
     : Type<And<[MemRefOf<allowedTypes>.predicate, HasStridesPred]>,
-           "strided " # MemRefOf<allowedTypes>.description>;
+           "strided " # MemRefOf<allowedTypes>.summary>;
 
 def AnyStridedMemRef : StridedMemRefOf<[AnyType]>;
 
 class AnyStridedMemRefOfRank<int rank> :
   Type<And<[AnyStridedMemRef.predicate,
             MemRefRankOf<[AnyType], [rank]>.predicate]>,
-       AnyStridedMemRef.description # " of rank " # rank>;
+       AnyStridedMemRef.summary # " of rank " # rank>;
 
 class StridedMemRefRankOf<list<Type> allowedTypes, list<int> ranks> :
     Type<And<[MemRefOf<allowedTypes>.predicate, HasAnyRankOfPred<ranks>]>,
-         StrJoin<!foreach(rank, ranks, rank # "D"), "/">.result # " " #
-         MemRefOf<allowedTypes>.description>;
+         !interleave(!foreach(rank, ranks, rank # "D"), "/") # " " #
+         MemRefOf<allowedTypes>.summary>;
 
 // This represents a generic tuple without any constraints on element type.
 def AnyTuple : Type<IsTupleTypePred, "tuple", "::mlir::TupleType">;
@@ -720,7 +719,7 @@ class MixedContainerType<Type etype, Pred containerPred, code elementTypesCall,
                 "; })"
             >
         ]>,
-        descr # " with any combination of " # etype.description # " values"> {
+        descr # " with any combination of " # etype.summary # " values"> {
   // The type of elements in the container.
   Type elementType = etype;
 
@@ -840,7 +839,7 @@ class DialectAttr<Dialect d, Pred condition, string descr = ""> :
 
 // Decorates an attribute to have an (unvalidated) default value if not present.
 class DefaultValuedAttr<Attr attr, string val> :
-    Attr<attr.predicate, attr.description> {
+    Attr<attr.predicate, attr.summary> {
   // Construct this attribute with the input attribute and change only
   // the default value.
   // Note: this has to be kept up to date with Attr above.
@@ -856,7 +855,7 @@ class DefaultValuedAttr<Attr attr, string val> :
 
 // Decorates an attribute as optional. The return type of the generated
 // attribute accessor method will be Optional<>.
-class OptionalAttr<Attr attr> : Attr<attr.predicate, attr.description> {
+class OptionalAttr<Attr attr> : Attr<attr.predicate, attr.summary> {
   // Rewrite the attribute to be optional.
   // Note: this has to be kept up to date with Attr above.
   let storageType = attr.storageType;
@@ -1059,12 +1058,12 @@ class TypedStrAttr<Type ty>
 // Base class for attributes containing types. Example:
 //   def IntTypeAttr : TypeAttrBase<"IntegerType", "integer type attribute">
 // defines a type attribute containing an integer type.
-class TypeAttrBase<string retType, string description> :
+class TypeAttrBase<string retType, string summary> :
     Attr<And<[
       CPred<"$_self.isa<::mlir::TypeAttr>()">,
       CPred<"$_self.cast<::mlir::TypeAttr>().getValue().isa<"
             # retType # ">()">]>,
-    description> {
+    summary> {
   let storageType = [{ ::mlir::TypeAttr }];
   let returnType = retType;
   let valueType = NoneType;
@@ -1190,43 +1189,42 @@ class EnumAttrInfo<string name, list<EnumAttrCaseInfo> cases> {
 // Op attributes of this kind are stored as StringAttr. Extra verification will
 // be generated on the string though: only the symbols of the allowed cases are
 // permitted as the string value.
-class StrEnumAttr<string name, string description,
-                  list<StrEnumAttrCase> cases> :
-    EnumAttrInfo<name, cases>,
+class StrEnumAttr<string name, string summary, list<StrEnumAttrCase> cases>
+  : EnumAttrInfo<name, cases>,
     StringBasedAttr<
       And<[StrAttr.predicate, Or<!foreach(case, cases, case.predicate)>]>,
-      !if(!empty(description), "allowed string cases: " #
-          StrJoin<!foreach(case, cases, "'" # case.symbol # "'")>.result,
-          description)>;
+      !if(!empty(summary), "allowed string cases: " #
+          !interleave(!foreach(case, cases, "'" # case.symbol # "'"), ", "),
+          summary)>;
 
 // An enum attribute backed by IntegerAttr.
 //
 // Op attributes of this kind are stored as IntegerAttr. Extra verification will
 // be generated on the integer though: only the values of the allowed cases are
 // permitted as the integer value.
-class IntEnumAttr<I intType, string name, string description,
+class IntEnumAttr<I intType, string name, string summary,
                   list<IntEnumAttrCaseBase> cases> :
     EnumAttrInfo<name, cases>,
     SignlessIntegerAttrBase<intType,
-      !if(!empty(description), "allowed " # intType.description # " cases: " #
-          StrJoinInt<!foreach(case, cases, case.value)>.result, description)> {
+      !if(!empty(summary), "allowed " # intType.summary # " cases: " #
+          !interleave(!foreach(case, cases, case.value), ", "), summary)> {
   let predicate = And<[
     SignlessIntegerAttrBase<intType, "">.predicate,
     Or<!foreach(case, cases, case.predicate)>]>;
 }
 
-class I32EnumAttr<string name, string description,
+class I32EnumAttr<string name, string summary,
                   list<I32EnumAttrCase> cases> :
-    IntEnumAttr<I32, name, description, cases> {
+    IntEnumAttr<I32, name, summary, cases> {
   let returnType = cppNamespace # "::" # name;
   let underlyingType = "uint32_t";
   let convertFromStorage = "static_cast<" # returnType # ">($_self.getInt())";
   let constBuilderCall =
           "$_builder.getI32IntegerAttr(static_cast<int32_t>($0))";
 }
-class I64EnumAttr<string name, string description,
+class I64EnumAttr<string name, string summary,
                   list<I64EnumAttrCase> cases> :
-    IntEnumAttr<I64, name, description, cases> {
+    IntEnumAttr<I64, name, summary, cases> {
   let returnType = cppNamespace # "::" # name;
   let underlyingType = "uint64_t";
   let convertFromStorage = "static_cast<" # returnType # ">($_self.getInt())";
@@ -1240,14 +1238,14 @@ class I64EnumAttr<string name, string description,
 // be generated on the integer to make sure only allowed bit are set. Besides,
 // helper methods are generated to parse a string separated with a specified
 // delimiter to a symbol and vice versa.
-class BitEnumAttr<string name, string description,
+class BitEnumAttr<string name, string summary,
                   list<BitEnumAttrCase> cases> :
-    EnumAttrInfo<name, cases>, SignlessIntegerAttrBase<I32, description> {
+    EnumAttrInfo<name, cases>, SignlessIntegerAttrBase<I32, summary> {
   let predicate = And<[
     I32Attr.predicate,
     // Make sure we don't have unknown bit set.
     CPred<"!($_self.cast<::mlir::IntegerAttr>().getValue().getZExtValue() & (~("
-          # StrJoin<!foreach(case, cases, case.value # "u"), "|">.result #
+          # !interleave(!foreach(case, cases, case.value # "u"), "|") #
           ")))">
   ]>;
 
@@ -1268,8 +1266,8 @@ class BitEnumAttr<string name, string description,
 //===----------------------------------------------------------------------===//
 // Composite attribute kinds
 
-class DictionaryAttrBase<Pred condition, string description> :
-    Attr<condition, description> {
+class DictionaryAttrBase<Pred condition, string summary> :
+    Attr<condition, summary> {
   let storageType = [{ ::mlir::DictionaryAttr }];
   let returnType = [{ ::mlir::DictionaryAttr }];
   let valueType = NoneType;
@@ -1280,8 +1278,8 @@ def DictionaryAttr
     : DictionaryAttrBase<CPred<"$_self.isa<::mlir::DictionaryAttr>()">,
                                "dictionary of named attribute values">;
 
-class ElementsAttrBase<Pred condition, string description> :
-    Attr<condition, description> {
+class ElementsAttrBase<Pred condition, string summary> :
+    Attr<condition, summary> {
   let storageType = [{ ::mlir::ElementsAttr }];
   let returnType = [{ ::mlir::ElementsAttr }];
   let convertFromStorage = "$_self";
@@ -1290,10 +1288,10 @@ class ElementsAttrBase<Pred condition, string description> :
 def ElementsAttr : ElementsAttrBase<CPred<"$_self.isa<::mlir::ElementsAttr>()">,
                                     "constant vector/tensor attribute">;
 
-class IntElementsAttrBase<Pred condition, string description> :
+class IntElementsAttrBase<Pred condition, string summary> :
     ElementsAttrBase<And<[CPred<"$_self.isa<::mlir::DenseIntElementsAttr>()">,
                           condition]>,
-                     description> {
+                     summary> {
   let storageType = [{ ::mlir::DenseIntElementsAttr }];
   let returnType = [{ ::mlir::DenseIntElementsAttr }];
 
@@ -1338,13 +1336,13 @@ class RankedSignlessIntElementsAttr<int width, list<int> dims> :
   let predicate = And<[
     SignlessIntElementsAttr<width>.predicate,
     CPred<"$_self.cast<::mlir::DenseIntElementsAttr>().getType().getShape() == "
-        "::mlir::ArrayRef<int64_t>({" # StrJoinInt<dims>.result # "})">]>;
+        "::mlir::ArrayRef<int64_t>({" # !interleave(dims, ", ") # "})">]>;
 
-  let description = width # "-bit signless int elements attribute of shape [" #
-                    StrJoinInt<dims>.result # "]";
+  let summary = width # "-bit signless int elements attribute of shape [" #
+                !interleave(dims, ", ") # "]";
 
   let constBuilderCall = "::mlir::DenseIntElementsAttr::get("
-    "::mlir::RankedTensorType::get({" # StrJoinInt<dims>.result #
+    "::mlir::RankedTensorType::get({" # !interleave(dims, ", ") #
     "}, $_builder.getIntegerType(" # width # ")), ::llvm::makeArrayRef($0))";
 }
 
@@ -1380,15 +1378,15 @@ class RankedFloatElementsAttr<int width, list<int> dims> : ElementsAttrBase<
       // Check that this is ranked and has the specified shape.
       "$_self.cast<::mlir::DenseFPElementsAttr>().getType().hasRank() && "
       "$_self.cast<::mlir::DenseFPElementsAttr>().getType().getShape() == "
-      "::mlir::ArrayRef<int64_t>({" # StrJoinInt<dims>.result # "})">,
+      "::mlir::ArrayRef<int64_t>({" # !interleave(dims, ", ") # "})">,
   width # "-bit float elements attribute of shape [" #
-  StrJoinInt<dims>.result # "]"> {
+  !interleave(dims, ", ") # "]"> {
 
   let storageType = [{ ::mlir::DenseFPElementsAttr }];
   let returnType = [{ ::mlir::DenseFPElementsAttr }];
 
   let constBuilderCall = "::mlir::DenseElementsAttr::get("
-    "::mlir::RankedTensorType::get({" # StrJoinInt<dims>.result #
+    "::mlir::RankedTensorType::get({" # !interleave(dims, ", ") #
     "}, $_builder.getF" # width # "Type()), "
     "::llvm::makeArrayRef($0)).cast<::mlir::DenseFPElementsAttr>()";
   let convertFromStorage = "$_self";
@@ -1417,8 +1415,7 @@ CPred<"$_self.isa<::mlir::AffineMapAttr>()">, "AffineMap attribute"> {
 }
 
 // Base class for array attributes.
-class ArrayAttrBase<Pred condition, string description> :
-    Attr<condition, description> {
+class ArrayAttrBase<Pred condition, string summary> : Attr<condition, summary> {
   let storageType = [{ ::mlir::ArrayAttr }];
   let returnType = [{ ::mlir::ArrayAttr }];
   let valueType = NoneType;
@@ -1430,7 +1427,7 @@ def ArrayAttr : ArrayAttrBase<CPred<"$_self.isa<::mlir::ArrayAttr>()">,
 
 // Base class for array attributes whose elements are of the same kind.
 // `element` specifies the element attribute kind stored in this array.
-class TypedArrayAttrBase<Attr element, string description>: ArrayAttrBase<
+class TypedArrayAttrBase<Attr element, string summary>: ArrayAttrBase<
     And<[
       // Guarantee this is an ArrayAttr first
       CPred<"$_self.isa<::mlir::ArrayAttr>()">,
@@ -1439,7 +1436,7 @@ class TypedArrayAttrBase<Attr element, string description>: ArrayAttrBase<
                             "[](::mlir::Attribute attr) { return ",
                                SubstLeaves<"$_self", "attr", element.predicate>,
                             "; })">]>,
-    description> {
+    summary> {
   let constBuilderCall = "$_builder.getArrayAttr($0)";
 
   Attr elementAttr = element;
@@ -1492,7 +1489,7 @@ class StructAttr<string name, Dialect d,
     DictionaryAttrBase<CPred<"$_self.isa<" # d.cppNamespace
                                            # "::" # name # ">()">,
         "DictionaryAttr with field(s): " #
-        StrJoin<!foreach(a, attributes, "'" # a.name # "'"), ", ">.result #
+        !interleave(!foreach(a, attributes, "'" # a.name # "'"), ", ") #
         " (each field having its own constraints)"> {
   // Name for this StructAttr.
   string className = name;
@@ -1599,8 +1596,8 @@ def ConstUnitAttr : ConstantAttr<UnitAttr, "unit">;
 class Confined<Attr attr, list<AttrConstraint> constraints> : Attr<
     And<!listconcat([attr.predicate],
                       !foreach(pred, constraints, pred.predicate))>,
-    !foldl(/*init*/attr.description, /*list*/constraints,
-           prev, cur, prev # " " # cur.description)> {
+    !foldl(/*init*/attr.summary, /*list*/constraints,
+           prev, cur, prev # " " # cur.summary)> {
   let storageType = attr.storageType;
   let returnType = attr.returnType;
   let convertFromStorage = attr.convertFromStorage;
@@ -1617,7 +1614,7 @@ class Confined<Attr attr, list<AttrConstraint> constraints> : Attr<
 class AllAttrConstraintsOf<list<AttrConstraint> constraints> : AttrConstraint<
     And<!listconcat([!head(constraints).predicate],
                       !foreach(pred, !tail(constraints), pred.predicate))>,
-    !interleave(!foreach(con, constraints, con.description), " and ")> {
+    !interleave(!foreach(con, constraints, con.summary), " and ")> {
 }
 
 class IntMinValue<int n> : AttrConstraint<
@@ -1690,7 +1687,7 @@ class SizedRegion<int numBlocks> : Region<
 
 // A variadic region constraint. It expands to zero or more of the base region.
 class VariadicRegion<Region region>
-  : Region<region.predicate, region.description>;
+  : Region<region.predicate, region.summary>;
 
 //===----------------------------------------------------------------------===//
 // Successor definitions
@@ -1705,7 +1702,7 @@ def AnySuccessor : Successor<?, "any successor">;
 // A variadic successor constraint. It expands to zero or more of the base
 // successor.
 class VariadicSuccessor<Successor successor>
-  : Successor<successor.predicate, successor.description>;
+  : Successor<successor.predicate, successor.summary>;
 
 //===----------------------------------------------------------------------===//
 // OpTrait definitions
@@ -1738,7 +1735,7 @@ class GenInternalOpTrait<string prop> : OpTrait {
 
 // PredOpTrait is an op trait implemented by way of a predicate on the op.
 class PredOpTrait<string descr, Pred pred> : OpTrait {
-  string description = descr;
+  string summary = descr;
   Pred predicate = pred;
 }
 
@@ -1794,7 +1791,7 @@ class HasParent<string op>
     : ParamNativeOpTrait<"HasParent", op>;
 
 class ParentOneOf<list<string> ops>
-    : ParamNativeOpTrait<"HasParent", StrJoin<ops>.result>;
+    : ParamNativeOpTrait<"HasParent", !interleave(ops, ", ")>;
 
 // Op result type is derived from the first attribute. If the attribute is an
 // subclass of `TypeAttrBase`, its value is used, otherwise, the type of the
@@ -2017,8 +2014,8 @@ class OpVariable<Constraint varConstraint, string desc = "",
   // The constraint, either attribute or type, of the argument.
   Constraint constraint = varConstraint;
 
-  // A description for the argument.
-  string description = desc;
+  // One-line human-readable description of the argument.
+  string summary = desc;
 
   // The list of decorators for this variable, e.g. side effects.
   list<OpVariableDecorator> decorators = varDecorators;
@@ -2161,19 +2158,19 @@ class ElementType<string name> : StrFunc<"getElementTypeOrSelf($" # name # ")">;
 
 class AllMatchPred<list<string> values> :
     CPred<"::llvm::is_splat(::llvm::makeArrayRef({"
-          # StrJoin<values>.result #"}))">;
+          # !interleave(values, ", ") #"}))">;
 
-class AllMatch<list<string> values, string description> :
-    PredOpTrait<description, AllMatchPred<values>>;
+class AllMatch<list<string> values, string summary> :
+    PredOpTrait<summary, AllMatchPred<values>>;
 
 // TODO: Only works for non-variadic.
 class AllMatchSameOperatorPred<list<string> names, string operator> :
     AllMatchPred<!foreach(n, names, !subst("$_self", "$" # n, operator))>;
 
 class AllMatchSameOperatorTrait<list<string> names, string operator,
-                                string description> :
+                                string summary> :
     PredOpTrait<
-        "all of {" # StrJoin<names>.result # "} have same " # description,
+        "all of {" # !interleave(names, ", ") # "} have same " # summary,
         AllMatchSameOperatorPred<names, operator>> {
   list<string> values = names;
 }
@@ -2196,15 +2193,27 @@ class AllTypesMatch<list<string> names> :
     AllMatchSameOperatorTrait<names, "$_self.getType()", "type">;
 
 // A type constraint that denotes `transform(lhs.getType()) == rhs.getType()`.
-class TypesMatchWith<string description, string lhsArg, string rhsArg,
-                     string transform> :
-    PredOpTrait<description, CPred<
-      !subst("$_self", "$" # lhsArg # ".getType()", transform)
-      # " == $" # rhsArg # ".getType()">> {
+// An optional comparator function may be provided that changes the above form
+// into: `comparator(transform(lhs.getType()), rhs.getType())`.
+class TypesMatchWith<string summary, string lhsArg, string rhsArg,
+                     string transform, string comparator = "std::equal_to<>()">
+  : PredOpTrait<summary, CPred<
+      comparator # "(" #
+      !subst("$_self", "$" # lhsArg # ".getType()", transform) #
+      ", $" # rhsArg # ".getType())">> {
   string lhs = lhsArg;
   string rhs = rhsArg;
   string transformer = transform;
 }
+
+// Special variant of `TypesMatchWith` that provides a comparator suitable for
+// ranged arguments.
+class RangedTypesMatchWith<string summary, string lhsArg, string rhsArg,
+                           string transform>
+  : TypesMatchWith<summary, lhsArg, rhsArg, transform,
+    "[](auto &&lhs, auto &&rhs) { "
+    "return std::equal(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());"
+    " }">;
 
 // Type Constraint operand `idx`'s Element type is `type`.
 class TCopVTEtIs<int idx, Type type> : And<[
@@ -2219,7 +2228,7 @@ class TCopVTEtIs<int idx, Type type> : And<[
 class TypeIsPred<string name, Type type> :
    SubstLeaves<"$_self", "$" # name # ".getType()", type.predicate>;
 class TypeIs<string name, Type type> : PredOpTrait<
-  "'" # name # "' is " # type.description, TypeIsPred<name, type>>;
+  "'" # name # "' is " # type.summary, TypeIsPred<name, type>>;
 
 // Predicate to verify that a named argument or result's element type matches a
 // given type.
@@ -2228,7 +2237,7 @@ class ElementTypeIsPred<string name, Type type> : And<[
    SubstLeaves<"$_self", "getElementTypeOrSelf($" # name # ")",
      type.predicate>]>;
 class ElementTypeIs<string name, Type type> : PredOpTrait<
-  "'" # name # "' is " # type.description, ElementTypeIsPred<name, type>>;
+  "'" # name # "' is " # type.summary, ElementTypeIsPred<name, type>>;
 
 // Predicate to verify that the i'th operand and the j'th operand have the same
 // elemental type.
@@ -2290,7 +2299,7 @@ class TCOpIsBroadcastableToRes<int opId, int resId> : And<[
 // 2) the indices are not out of range.
 class TCopVTEtAreSameAt<list<int> indices> : CPred<
   "::llvm::is_splat(::llvm::map_range("
-      "::mlir::ArrayRef<unsigned>({" # StrJoinInt<indices>.result # "}), "
+      "::mlir::ArrayRef<unsigned>({" # !interleave(indices, ", ") # "}), "
       "[this](unsigned i) { return getElementTypeOrSelf(this->getOperand(i)); "
       "}))">;
 
@@ -2435,6 +2444,73 @@ def replaceWithValue;
 // Data type generation
 //===----------------------------------------------------------------------===//
 
+// Class for defining a custom type getter.
+//
+// TableGen generates several generic getter methods for each type by default,
+// corresponding to the specified dag parameters. If the default generated ones
+// cannot cover some use case, custom getters can be defined using instances of
+// this class.
+//
+// The signature of the `get` is always either:
+//
+// ```c++
+// static <Type-Name> get(MLIRContext *context, <other-parameters>...) {
+//   <body>...
+// }
+// ```
+//
+// or:
+//
+// ```c++
+// static <TypeName> get(MLIRContext *context, <parameters>...);
+// ```
+//
+// To define a custom getter, the parameter list and body should be passed
+// in as separate template arguments to this class. The parameter list is a
+// TableGen DAG with `ins` operation with named arguments, which has either:
+//   - string initializers ("Type":$name) to represent a typed parameter, or
+//   - CArg-typed initializers (CArg<"Type", "default">:$name) to represent a
+//     typed parameter that may have a default value.
+// The type string is used verbatim to produce code and, therefore, must be a
+// valid C++ type. It is used inside the C++ namespace of the parent Type's
+// dialect; explicit namespace qualification like `::mlir` may be necessary if
+// Types are not placed inside the `mlir` namespace. The default value string is
+// used verbatim to produce code and must be a valid C++ initializer the given
+// type. For example, the following signature specification
+//
+// ```
+// TypeBuilder<(ins "int":$integerArg, CArg<"float", "3.0f">:$floatArg)>
+// ```
+//
+// has an integer parameter and a float parameter with a default value.
+//
+// If an empty string is passed in for `body`, then *only* the builder
+// declaration will be generated; this provides a way to define complicated
+// builders entirely in C++.
+//
+// `checkedBody` is similar to `body`, but is the code block used when
+// generating a `getChecked` method.
+class TypeBuilder<dag parameters, code bodyCode = "",
+                  code checkedBodyCode = ""> {
+  dag dagParams = parameters;
+  code body = bodyCode;
+  code checkedBody = checkedBodyCode;
+
+  // The context parameter can be inferred from one of the other parameters and
+  // is not implicitly added to the parameter list.
+  bit hasInferredContextParam = 0;
+}
+
+// A class of TypeBuilder that is able to infer the MLIRContext parameter from
+// one of the other builder parameters. Instances of this builder do not have
+// `MLIRContext *` implicitly added to the parameter list.
+class TypeBuilderWithInferredContext<dag parameters, code bodyCode = "",
+                                     code checkedBodyCode = "">
+  : TypeBuilder<parameters, bodyCode> {
+  code checkedBody = checkedBodyCode;
+  let hasInferredContextParam = 1;
+}
+
 // Define a new type, named `name`, belonging to `dialect` that inherits from
 // the given C++ base class.
 class TypeDef<Dialect dialect, string name,
@@ -2443,8 +2519,8 @@ class TypeDef<Dialect dialect, string name,
   // The name of the C++ base class to use for this Type.
   string cppBaseClassName = baseCppClass;
 
-  // Short summary of the type.
-  string summary = ?;
+  // Additional, longer human-readable description of what the op does.
+  string description = "";
 
   // Name of storage class to generate or use.
   string storageClass = name # "TypeStorage";
@@ -2480,6 +2556,18 @@ class TypeDef<Dialect dialect, string name,
   // for re-allocating ArrayRefs. It is defined below.)
   dag parameters = (ins);
 
+  // Custom type builder methods.
+  // In addition to the custom builders provided here, and unless
+  // skipDefaultBuilders is set, a default builder is generated with the
+  // following signature:
+  //
+  // ```c++
+  // static <TypeName> get(MLIRContext *, <parameters>);
+  // ```
+  //
+  // Note that builders should only be provided when a type has parameters.
+  list<TypeBuilder> builders = ?;
+
   // Use the lowercased name as the keyword for parsing/printing. Specify only
   // if you want tblgen to generate declarations and/or definitions of
   // printer/parser for this type.
@@ -2493,6 +2581,9 @@ class TypeDef<Dialect dialect, string name,
 
   // If set, generate accessors for each Type parameter.
   bit genAccessors = 1;
+  // Avoid generating default get/getChecked functions. Custom get methods must
+  // be provided.
+  bit skipDefaultBuilders = 0;
   // Generate the verifyConstructionInvariants declaration and getChecked
   // method.
   bit genVerifyInvariantsDecl = 0;
@@ -2516,8 +2607,8 @@ class TypeParameter<string type, string desc> {
   code allocator = ?;
   // The C++ type of this parameter.
   string cppType = type;
-  // A description of this parameter.
-  string description = desc;
+  // One-line human-readable description of the argument.
+  string summary = desc;
   // The format string for the asm syntax (documentation only).
   string syntax = ?;
 }

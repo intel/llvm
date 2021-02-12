@@ -34,7 +34,6 @@ using namespace mlir::edsc::intrinsics;
 using namespace mlir::linalg;
 using namespace mlir::scf;
 
-using folded_affine_min = FoldedValueBuilder<AffineMinOp>;
 
 #define DEBUG_TYPE "linalg-tiling"
 
@@ -221,9 +220,8 @@ static bool isTiled(AffineMap map, ValueRange tileSizes) {
 
 static SmallVector<Value, 4>
 makeTiledShapes(OpBuilder &b, Location loc, LinalgOp linalgOp,
-                ValueRange operands, AffineMap map, ValueRange ivs,
+                ArrayRef<Value> tiledOperands, AffineMap map, ValueRange ivs,
                 ValueRange tileSizes, ValueRange allShapeSizes) {
-  assert(operands.size() == linalgOp.getShapedOperands().size());
   assert(ivs.size() == static_cast<size_t>(llvm::count_if(
                            llvm::make_range(tileSizes.begin(), tileSizes.end()),
                            [](Value v) { return !isZero(v); })) &&
@@ -243,11 +241,9 @@ makeTiledShapes(OpBuilder &b, Location loc, LinalgOp linalgOp,
     subShapeSizes.push_back(size - std_constant_index(1));
   }
 
-  auto *op = linalgOp.getOperation();
-
   SmallVector<Value, 4> res;
-  res.reserve(op->getNumOperands());
-  for (auto en : llvm::enumerate(operands)) {
+  res.reserve(tiledOperands.size());
+  for (auto en : llvm::enumerate(tiledOperands)) {
     Value shapedOp = en.value();
     ShapedType shapedType = shapedOp.getType().cast<ShapedType>();
     unsigned rank = shapedType.getRank();
@@ -259,15 +255,15 @@ makeTiledShapes(OpBuilder &b, Location loc, LinalgOp linalgOp,
     }
 
     // Construct a new subview / subtensor for the tile.
-    SmallVector<Value, 4> offsets, sizes, strides;
+    SmallVector<OpFoldResult, 4> offsets, sizes, strides;
     offsets.reserve(rank);
     sizes.reserve(rank);
     strides.reserve(rank);
     for (unsigned r = 0; r < rank; ++r) {
       if (!isTiled(map.getSubMap({r}), tileSizes)) {
-        offsets.push_back(std_constant_index(0));
-        sizes.push_back(std_dim(shapedOp, r));
-        strides.push_back(std_constant_index(1));
+        offsets.push_back(b.getIndexAttr(0));
+        sizes.push_back(std_dim(shapedOp, r).value);
+        strides.push_back(b.getIndexAttr(1));
         continue;
       }
 
@@ -295,12 +291,13 @@ makeTiledShapes(OpBuilder &b, Location loc, LinalgOp linalgOp,
                  getAffineDimExpr(/*position=*/2, b.getContext())},
             b.getContext());
         auto d = std_dim(shapedOp, r);
-        size =
-            affine_min(b.getIndexType(), minMap, ValueRange{size, d, offset});
+        SmallVector<Value, 4> operands{size, d, offset};
+        fullyComposeAffineMapAndOperands(&minMap, &operands);
+        size = affine_min(b.getIndexType(), minMap, operands);
       }
 
       sizes.push_back(size);
-      strides.push_back(std_constant_index(1));
+      strides.push_back(b.getIndexAttr(1));
     }
 
     if (shapedType.isa<MemRefType>())
@@ -342,6 +339,7 @@ tileLinalgOpImpl(OpBuilder &b, LinalgOp op, ValueRange tileSizes,
   LoopIndexToRangeIndexMap loopIndexToRangeIndex;
   std::tie(loopRanges, loopIndexToRangeIndex) = makeTiledLoopRanges(
       b, op.getLoc(), shapeSizesToLoopsMap, allShapeSizes, tileSizes);
+
   SmallVector<Attribute, 4> iteratorTypes;
   for (auto attr :
        enumerate(op.iterator_types().cast<ArrayAttr>().getValue())) {
@@ -574,10 +572,10 @@ void mlir::linalg::populateLinalgTilingCanonicalizationPatterns(
 static void insertTilingPatterns(OwningRewritePatternList &patterns,
                                  const LinalgTilingOptions &options,
                                  MLIRContext *ctx) {
-  RewritePatternList<
+  RewritePatternList<GenericOp, IndexedGenericOp,
 #define GET_OP_LIST
 #include "mlir/Dialect/Linalg/IR/LinalgStructuredOps.cpp.inc"
-      >::insert(patterns, options, ctx);
+                     >::insert(patterns, options, ctx);
 }
 
 static void applyTilingToLoopPatterns(LinalgTilingLoopType loopType,

@@ -22,8 +22,8 @@
 //
 // E.g. An interleaved load (Factor = 2):
 //        %wide.vec = load <8 x i32>, <8 x i32>* %ptr
-//        %v0 = shuffle <8 x i32> %wide.vec, <8 x i32> undef, <0, 2, 4, 6>
-//        %v1 = shuffle <8 x i32> %wide.vec, <8 x i32> undef, <1, 3, 5, 7>
+//        %v0 = shuffle <8 x i32> %wide.vec, <8 x i32> poison, <0, 2, 4, 6>
+//        %v1 = shuffle <8 x i32> %wide.vec, <8 x i32> poison, <1, 3, 5, 7>
 //
 // It could be transformed into a ld2 intrinsic in AArch64 backend or a vld2
 // intrinsic in ARM backend.
@@ -123,10 +123,11 @@ private:
   /// Given a number of shuffles of the form shuffle(binop(x,y)), convert them
   /// to binop(shuffle(x), shuffle(y)) to allow the formation of an
   /// interleaving load. Any newly created shuffles that operate on \p LI will
-  /// be added to \p Shuffles.
-  bool tryReplaceBinOpShuffles(ArrayRef<ShuffleVectorInst *> BinOpShuffles,
-                               SmallVectorImpl<ShuffleVectorInst *> &Shuffles,
-                               LoadInst *LI);
+  /// be added to \p Shuffles. Returns true, if any changes to the IR have been
+  /// made.
+  bool replaceBinOpShuffles(ArrayRef<ShuffleVectorInst *> BinOpShuffles,
+                            SmallVectorImpl<ShuffleVectorInst *> &Shuffles,
+                            LoadInst *LI);
 };
 
 } // end anonymous namespace.
@@ -350,6 +351,7 @@ bool InterleavedAccess::lowerInterleavedLoad(
                                     Index))
       return false;
 
+    assert(Shuffle->getShuffleMask().size() <= NumLoadElements);
     Indices.push_back(Index);
   }
   for (auto *Shuffle : BinOpShuffles) {
@@ -358,6 +360,8 @@ bool InterleavedAccess::lowerInterleavedLoad(
     if (!isDeInterleaveMaskOfFactor(Shuffle->getShuffleMask(), Factor,
                                     Index))
       return false;
+
+    assert(Shuffle->getShuffleMask().size() <= NumLoadElements);
 
     if (cast<Instruction>(Shuffle->getOperand(0))->getOperand(0) == LI)
       Indices.push_back(Index);
@@ -369,34 +373,40 @@ bool InterleavedAccess::lowerInterleavedLoad(
   // use the shufflevector instructions instead of the load.
   if (!tryReplaceExtracts(Extracts, Shuffles))
     return false;
-  if (!tryReplaceBinOpShuffles(BinOpShuffles.getArrayRef(), Shuffles, LI))
-    return false;
+
+  bool BinOpShuffleChanged =
+      replaceBinOpShuffles(BinOpShuffles.getArrayRef(), Shuffles, LI);
 
   LLVM_DEBUG(dbgs() << "IA: Found an interleaved load: " << *LI << "\n");
 
   // Try to create target specific intrinsics to replace the load and shuffles.
-  if (!TLI->lowerInterleavedLoad(LI, Shuffles, Indices, Factor))
-    return false;
+  if (!TLI->lowerInterleavedLoad(LI, Shuffles, Indices, Factor)) {
+    // If Extracts is not empty, tryReplaceExtracts made changes earlier.
+    return !Extracts.empty() || BinOpShuffleChanged;
+  }
 
-  for (auto SVI : Shuffles)
-    DeadInsts.push_back(SVI);
+  append_range(DeadInsts, Shuffles);
 
   DeadInsts.push_back(LI);
   return true;
 }
 
-bool InterleavedAccess::tryReplaceBinOpShuffles(
+bool InterleavedAccess::replaceBinOpShuffles(
     ArrayRef<ShuffleVectorInst *> BinOpShuffles,
     SmallVectorImpl<ShuffleVectorInst *> &Shuffles, LoadInst *LI) {
   for (auto *SVI : BinOpShuffles) {
     BinaryOperator *BI = cast<BinaryOperator>(SVI->getOperand(0));
+    Type *BIOp0Ty = BI->getOperand(0)->getType();
     ArrayRef<int> Mask = SVI->getShuffleMask();
+    assert(all_of(Mask, [&](int Idx) {
+      return Idx < (int)cast<FixedVectorType>(BIOp0Ty)->getNumElements();
+    }));
 
-    auto *NewSVI1 = new ShuffleVectorInst(
-        BI->getOperand(0), UndefValue::get(BI->getOperand(0)->getType()), Mask,
-        SVI->getName(), SVI);
+    auto *NewSVI1 =
+        new ShuffleVectorInst(BI->getOperand(0), PoisonValue::get(BIOp0Ty),
+                              Mask, SVI->getName(), SVI);
     auto *NewSVI2 = new ShuffleVectorInst(
-        BI->getOperand(1), UndefValue::get(BI->getOperand(1)->getType()), Mask,
+        BI->getOperand(1), PoisonValue::get(BI->getOperand(1)->getType()), Mask,
         SVI->getName(), SVI);
     Value *NewBI = BinaryOperator::Create(BI->getOpcode(), NewSVI1, NewSVI2,
                                           BI->getName(), SVI);
@@ -410,7 +420,8 @@ bool InterleavedAccess::tryReplaceBinOpShuffles(
     if (NewSVI2->getOperand(0) == LI)
       Shuffles.push_back(NewSVI2);
   }
-  return true;
+
+  return !BinOpShuffles.empty();
 }
 
 bool InterleavedAccess::tryReplaceExtracts(

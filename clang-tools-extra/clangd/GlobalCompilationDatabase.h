@@ -51,6 +51,10 @@ public:
   /// Clangd should treat the results as unreliable.
   virtual tooling::CompileCommand getFallbackCommand(PathRef File) const;
 
+  /// If the CDB does any asynchronous work, wait for it to complete.
+  /// For use in tests.
+  virtual bool blockUntilIdle(Deadline D) const { return true; }
+
   using CommandChanged = Event<std::vector<std::string>>;
   /// The callback is notified when files may have new compile commands.
   /// The argument is a list of full file paths.
@@ -60,6 +64,27 @@ public:
 
 protected:
   mutable CommandChanged OnCommandChanged;
+};
+
+// Helper class for implementing GlobalCompilationDatabases that wrap others.
+class DelegatingCDB : public GlobalCompilationDatabase {
+public:
+  DelegatingCDB(const GlobalCompilationDatabase *Base);
+  DelegatingCDB(std::unique_ptr<GlobalCompilationDatabase> Base);
+
+  llvm::Optional<tooling::CompileCommand>
+  getCompileCommand(PathRef File) const override;
+
+  llvm::Optional<ProjectInfo> getProjectInfo(PathRef File) const override;
+
+  tooling::CompileCommand getFallbackCommand(PathRef File) const override;
+
+  bool blockUntilIdle(Deadline D) const override;
+
+private:
+  const GlobalCompilationDatabase *Base;
+  std::unique_ptr<GlobalCompilationDatabase> BaseOwner;
+  CommandChanged::Subscription BaseChanged;
 };
 
 /// Gets compile args from tooling::CompilationDatabases built for parent
@@ -78,7 +103,10 @@ public:
     // (This is more expensive to check frequently, as we check many locations).
     std::chrono::steady_clock::duration RevalidateMissingAfter =
         std::chrono::seconds(30);
+    // Used to provide per-file configuration.
+    std::function<Context(llvm::StringRef)> ContextProvider;
     // Only look for a compilation database in this one fixed directory.
+    // FIXME: fold this into config/context mechanism.
     llvm::Optional<Path> CompileCommandsDir;
   };
 
@@ -95,18 +123,15 @@ public:
   /// \p File's parents.
   llvm::Optional<ProjectInfo> getProjectInfo(PathRef File) const override;
 
+  bool blockUntilIdle(Deadline Timeout) const override;
+
 private:
   Options Opts;
 
   class DirectoryCache;
-  // If there's an explicit CompileCommandsDir, cache of the CDB found there.
-  mutable std::unique_ptr<DirectoryCache> OnlyDirCache;
-
   // Keyed by possibly-case-folded directory path.
   // We can hand out pointers as they're stable and entries are never removed.
-  // Empty if CompileCommandsDir is given (OnlyDirCache is used instead).
   mutable llvm::StringMap<DirectoryCache> DirCaches;
-  // DirCaches access must be locked (unlike OnlyDirCache, which is threadsafe).
   mutable std::mutex DirCachesMutex;
 
   std::vector<DirectoryCache *>
@@ -127,6 +152,9 @@ private:
   };
   llvm::Optional<CDBLookupResult> lookupCDB(CDBLookupRequest Request) const;
 
+  class BroadcastThread;
+  std::unique_ptr<BroadcastThread> Broadcaster;
+
   // Performs broadcast on governed files.
   void broadcastCDB(CDBLookupResult Res) const;
 
@@ -143,7 +171,7 @@ getQueryDriverDatabase(llvm::ArrayRef<std::string> QueryDriverGlobs,
 
 /// Wraps another compilation database, and supports overriding the commands
 /// using an in-memory mapping.
-class OverlayCDB : public GlobalCompilationDatabase {
+class OverlayCDB : public DelegatingCDB {
 public:
   // Base may be null, in which case no entries are inherited.
   // FallbackFlags are added to the fallback compile command.
@@ -155,9 +183,6 @@ public:
   llvm::Optional<tooling::CompileCommand>
   getCompileCommand(PathRef File) const override;
   tooling::CompileCommand getFallbackCommand(PathRef File) const override;
-  /// Project info is gathered purely from the inner compilation database to
-  /// ensure consistency.
-  llvm::Optional<ProjectInfo> getProjectInfo(PathRef File) const override;
 
   /// Sets or clears the compilation command for a particular file.
   void
@@ -167,10 +192,8 @@ public:
 private:
   mutable std::mutex Mutex;
   llvm::StringMap<tooling::CompileCommand> Commands; /* GUARDED_BY(Mut) */
-  const GlobalCompilationDatabase *Base;
   tooling::ArgumentsAdjuster ArgsAdjuster;
   std::vector<std::string> FallbackFlags;
-  CommandChanged::Subscription BaseChanged;
 };
 
 } // namespace clangd

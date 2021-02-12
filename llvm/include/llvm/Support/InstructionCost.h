@@ -47,6 +47,7 @@ private:
 public:
   InstructionCost() = default;
 
+  InstructionCost(CostState) = delete;
   InstructionCost(CostType Val) : Value(Val), State(Valid) {}
 
   static InstructionCost getInvalid(CostType Val = 0) {
@@ -194,14 +195,6 @@ public:
   bool operator>=(const CostType RHS) const {
     InstructionCost RHS2(RHS);
     return *this >= RHS2;
-  }
-
-  static InstructionCost min(InstructionCost LHS, InstructionCost RHS) {
-    return LHS < RHS ? LHS : RHS;
-  }
-
-  static InstructionCost max(InstructionCost LHS, InstructionCost RHS) {
-    return LHS > RHS ? LHS : RHS;
   }
 
   void print(raw_ostream &OS) const;

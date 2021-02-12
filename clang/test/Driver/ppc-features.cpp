@@ -1,9 +1,15 @@
 /// Check default CC1 and linker options for ppc32.
-// RUN: %clang -### -target powerpc-unknown-linux-gnu %s 2>&1 | FileCheck --check-prefix=PPC32 %s
+// RUN: %clang -### -target powerpcle-unknown-linux-gnu %s 2>&1 | FileCheck --check-prefixes=PPC32,PPC32LELNX %s
+// RUN: %clang -### -target powerpc-unknown-linux-gnu %s 2>&1 | FileCheck --check-prefixes=PPC32,PPC32BELNX %s
+// RUN: %clang -### -target powerpcle-unknown-freebsd13.0 %s 2>&1 | FileCheck --check-prefixes=PPC32,PPC32LEFBSD %s
+// RUN: %clang -### -target powerpc-unknown-freebsd13.0 %s 2>&1 | FileCheck --check-prefixes=PPC32,PPC32BEFBSD %s
 // PPC32:      "-munwind-tables"
 // PPC32-SAME: "-mfloat-abi" "hard"
 
-// PPC32: "-m" "elf32ppclinux"
+// PPC32LELNX-NEXT: "-m" "elf32lppclinux"
+// PPC32BELNX-NEXT: "-m" "elf32ppclinux"
+// PPC32LEFBSD-NEXT: "-m" "elf32lppc"
+// PPC32BEFBSD-NEXT: "-m" "elf32ppc_fbsd"
 
 // check -msoft-float option for ppc32
 // RUN: %clang -target powerpc-unknown-linux-gnu %s -msoft-float -### -o %t.o 2>&1 | FileCheck --check-prefix=CHECK-SOFTFLOAT %s
@@ -149,18 +155,33 @@
 // CHECK-SPE: "-target-feature" "+spe"
 // CHECK-NOSPE: "-target-feature" "-spe"
 
-// Assembler features
-// RUN: %clang -target powerpc64-unknown-linux-gnu %s -### -o %t.o -no-integrated-as 2>&1 | FileCheck -check-prefix=CHECK_BE_AS_ARGS %s
-// CHECK_BE_AS_ARGS: "-mppc64"
-// CHECK_BE_AS_ARGS: "-many"
+// RUN: %clang -target powerpc %s -mefpu2 -c -### 2>&1 | FileCheck -check-prefix=CHECK-EFPU2 %s
+// CHECK-EFPU2: "-target-feature" "+efpu2"
 
-// RUN: %clang -target powerpc64le-unknown-linux-gnu %s -### -o %t.o -no-integrated-as 2>&1 | FileCheck -check-prefix=CHECK_LE_AS_ARGS %s
-// CHECK_LE_AS_ARGS: "-mppc64"
-// CHECK_LE_AS_ARGS: "-mlittle-endian"
-// CHECK_LE_AS_ARGS: "-mpower8"
+// Assembler features
+// RUN: %clang -target powerpc-unknown-linux-gnu %s -### -o %t.o -no-integrated-as 2>&1 | FileCheck -check-prefix=CHECK_32_BE_AS_ARGS %s
+// CHECK_32_BE_AS_ARGS: "-mppc"
+// CHECK_32_BE_AS_ARGS-SAME: "-mbig-endian"
+// CHECK_32_BE_AS_ARGS-SAME: "-many"
+
+// RUN: %clang -target powerpcle-unknown-linux-gnu %s -### -o %t.o -no-integrated-as 2>&1 | FileCheck -check-prefix=CHECK_32_LE_AS_ARGS %s
+// CHECK_32_LE_AS_ARGS: "-mppc"
+// CHECK_32_LE_AS_ARGS-SAME: "-mlittle-endian"
+// CHECK_32_LE_AS_ARGS-SAME: "-many"
+
+// RUN: %clang -target powerpc64-unknown-linux-gnu %s -### -o %t.o -no-integrated-as 2>&1 | FileCheck -check-prefix=CHECK_64_BE_AS_ARGS %s
+// CHECK_64_BE_AS_ARGS: "-mppc64"
+// CHECK_64_BE_AS_ARGS-SAME: "-mbig-endian"
+// CHECK_64_BE_AS_ARGS-SAME: "-many"
+
+// RUN: %clang -target powerpc64le-unknown-linux-gnu %s -### -o %t.o -no-integrated-as 2>&1 | FileCheck -check-prefix=CHECK_64_LE_AS_ARGS %s
+// CHECK_64_LE_AS_ARGS: "-mppc64"
+// CHECK_64_LE_AS_ARGS-SAME: "-mlittle-endian"
+// CHECK_64_LE_AS_ARGS-SAME: "-mpower8"
 
 // OpenMP features
 // RUN: %clang -target powerpc-unknown-linux-gnu %s -### -fopenmp=libomp -o %t.o 2>&1 | FileCheck -check-prefix=CHECK_OPENMP_TLS %s
+// RUN: %clang -target powerpcle-unknown-linux-gnu %s -### -fopenmp=libomp -o %t.o 2>&1 | FileCheck -check-prefix=CHECK_OPENMP_TLS %s
 // RUN: %clang -target powerpc64-unknown-linux-gnu %s -### -fopenmp=libomp -o %t.o 2>&1 | FileCheck -check-prefix=CHECK_OPENMP_TLS %s
 // RUN: %clang -target powerpc64le-unknown-linux-gnu %s -### -fopenmp=libomp -o %t.o 2>&1 | FileCheck -check-prefix=CHECK_OPENMP_TLS %s
 // CHECK_OPENMP_TLS-NOT: "-fnoopenmp-use-tls"

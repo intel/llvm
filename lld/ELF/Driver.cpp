@@ -152,6 +152,7 @@ static std::tuple<ELFKind, uint16_t, uint8_t> parseEmulation(StringRef emul) {
           .Cases("elf32ltsmip", "elf32ltsmipn32", {ELF32LEKind, EM_MIPS})
           .Case("elf32lriscv", {ELF32LEKind, EM_RISCV})
           .Cases("elf32ppc", "elf32ppclinux", {ELF32BEKind, EM_PPC})
+          .Cases("elf32lppc", "elf32lppclinux", {ELF32LEKind, EM_PPC})
           .Case("elf64btsmip", {ELF64BEKind, EM_MIPS})
           .Case("elf64ltsmip", {ELF64LEKind, EM_MIPS})
           .Case("elf64lriscv", {ELF64LEKind, EM_RISCV})
@@ -1004,6 +1005,8 @@ static void readConfigs(opt::InputArgList &args) {
   config->ltoo = args::getInteger(args, OPT_lto_O, 2);
   config->ltoObjPath = args.getLastArgValue(OPT_lto_obj_path_eq);
   config->ltoPartitions = args::getInteger(args, OPT_lto_partitions, 1);
+  config->ltoPseudoProbeForProfiling =
+      args.hasArg(OPT_lto_pseudo_probe_for_profiling);
   config->ltoSampleProfile = args.getLastArgValue(OPT_lto_sample_profile);
   config->ltoBasicBlockSections =
       args.getLastArgValue(OPT_lto_basic_block_sections);
@@ -1921,7 +1924,13 @@ static std::vector<WrappedSymbol> addWrappedSymbols(opt::InputArgList &args) {
 
     // Tell LTO not to eliminate these symbols.
     sym->isUsedInRegularObj = true;
-    if (!wrap->isUndefined())
+    // If sym is referenced in any object file, bitcode file or shared object,
+    // retain wrap which is the redirection target of sym. If the object file
+    // defining sym has sym references, we cannot easily distinguish the case
+    // from cases where sym is not referenced. Retain wrap because we choose to
+    // wrap sym references regardless of whether sym is defined
+    // (https://sourceware.org/bugzilla/show_bug.cgi?id=26358).
+    if (sym->referenced || sym->isDefined())
       wrap->isUsedInRegularObj = true;
   }
   return v;
@@ -2145,7 +2154,11 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
   // They also might be exported if referenced by DSOs.
   script->declareSymbols();
 
-  // Handle the -exclude-libs option.
+  // Handle --exclude-libs. This is before scanVersionScript() due to a
+  // workaround for Android ndk: for a defined versioned symbol in an archive
+  // without a version node in the version script, Android does not expect a
+  // 'has undefined version' error in -shared --exclude-libs=ALL mode (PR36295).
+  // GNU ld errors in this case.
   if (args.hasArg(OPT_exclude_libs))
     excludeLibs(args);
 
@@ -2177,6 +2190,12 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
   // With this the symbol table should be complete. After this, no new names
   // except a few linker-synthesized ones will be added to the symbol table.
   compileBitcodeFiles<ELFT>();
+
+  // Handle --exclude-libs again because lto.tmp may reference additional
+  // libcalls symbols defined in an excluded archive. This may override
+  // versionId set by scanVersionScript().
+  if (args.hasArg(OPT_exclude_libs))
+    excludeLibs(args);
 
   // Symbol resolution finished. Report backward reference problems.
   reportBackrefs();

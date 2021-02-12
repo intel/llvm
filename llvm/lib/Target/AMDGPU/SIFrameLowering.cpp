@@ -7,17 +7,14 @@
 //==-----------------------------------------------------------------------===//
 
 #include "SIFrameLowering.h"
-#include "AMDGPUSubtarget.h"
-#include "SIInstrInfo.h"
-#include "SIMachineFunctionInfo.h"
-#include "SIRegisterInfo.h"
+#include "AMDGPU.h"
+#include "GCNSubtarget.h"
 #include "MCTargetDesc/AMDGPUMCTargetDesc.h"
-
+#include "SIMachineFunctionInfo.h"
 #include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
-#include "llvm/CodeGen/MachineFunction.h"
-#include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/RegisterScavenging.h"
+#include "llvm/Target/TargetMachine.h"
 
 using namespace llvm;
 
@@ -787,7 +784,7 @@ bool SIFrameLowering::isSupportedStackID(TargetStackID::Value ID) const {
   case TargetStackID::NoAlloc:
   case TargetStackID::SGPRSpill:
     return true;
-  case TargetStackID::SVEVector:
+  case TargetStackID::ScalableVector:
     return false;
   }
   llvm_unreachable("Invalid TargetStackID::Value");
@@ -1306,6 +1303,8 @@ void SIFrameLowering::determineCalleeSaves(MachineFunction &MF,
   LiveRegs.init(*TRI);
 
   if (WillHaveFP || hasFP(MF)) {
+    assert(!MFI->SGPRForFPSaveRestoreCopy && !MFI->FramePointerSaveIndex &&
+           "Re-reserving spill slot for FP");
     getVGPRSpillLaneOrTempRegister(MF, LiveRegs, MFI->SGPRForFPSaveRestoreCopy,
                                    MFI->FramePointerSaveIndex, true);
   }
@@ -1313,6 +1312,9 @@ void SIFrameLowering::determineCalleeSaves(MachineFunction &MF,
   if (TRI->hasBasePointer(MF)) {
     if (MFI->SGPRForFPSaveRestoreCopy)
       LiveRegs.addReg(MFI->SGPRForFPSaveRestoreCopy);
+
+    assert(!MFI->SGPRForBPSaveRestoreCopy &&
+           !MFI->BasePointerSaveIndex && "Re-reserving spill slot for BP");
     getVGPRSpillLaneOrTempRegister(MF, LiveRegs, MFI->SGPRForBPSaveRestoreCopy,
                                    MFI->BasePointerSaveIndex, false);
   }
@@ -1331,7 +1333,21 @@ void SIFrameLowering::determineCalleeSavesSGPR(MachineFunction &MF,
 
   // The SP is specifically managed and we don't want extra spills of it.
   SavedRegs.reset(MFI->getStackPtrOffsetReg());
+
+  const BitVector AllSavedRegs = SavedRegs;
   SavedRegs.clearBitsInMask(TRI->getAllVGPRRegMask());
+
+  // If clearing VGPRs changed the mask, we will have some CSR VGPR spills.
+  const bool HaveAnyCSRVGPR = SavedRegs != AllSavedRegs;
+
+  // We have to anticipate introducing CSR VGPR spills if we don't have any
+  // stack objects already, since we require an FP if there is a call and stack.
+  MachineFrameInfo &FrameInfo = MF.getFrameInfo();
+  const bool WillHaveFP = FrameInfo.hasCalls() && HaveAnyCSRVGPR;
+
+  // FP will be specially managed like SP.
+  if (WillHaveFP || hasFP(MF))
+    SavedRegs.reset(MFI->getFrameOffsetReg());
 }
 
 bool SIFrameLowering::assignCalleeSavedSpillSlots(

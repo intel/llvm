@@ -73,11 +73,26 @@ void DwarfCompileUnit::addLabelAddress(DIE &Die, dwarf::Attribute Attribute,
   if (Label)
     DD->addArangeLabel(SymbolCU(this, Label));
 
-  unsigned idx = DD->getAddressPool().getIndex(Label);
-  Die.addValue(DIEValueAllocator, Attribute,
-               DD->getDwarfVersion() >= 5 ? dwarf::DW_FORM_addrx
-                                          : dwarf::DW_FORM_GNU_addr_index,
-               DIEInteger(idx));
+  if (Label->isInSection() || !DD->useAddrOffsetExpressions()) {
+    const MCSymbol *Base = DD->getSectionLabel(&Label->getSection());
+    if (Base == Label || !DD->useAddrOffsetExpressions()) {
+      unsigned idx = DD->getAddressPool().getIndex(Label);
+      Die.addValue(DIEValueAllocator, Attribute,
+                   DD->getDwarfVersion() >= 5 ? dwarf::DW_FORM_addrx
+                                              : dwarf::DW_FORM_GNU_addr_index,
+                   DIEInteger(idx));
+      return;
+    }
+  }
+
+  // Could be extended to work with DWARFv4 Split DWARF if that's important for
+  // someone. In that case DW_FORM_data would be used.
+  assert(DD->getDwarfVersion() >= 5 &&
+         "Addr+offset expressions are only valuable when using debug_addr (to "
+         "reduce relocations) available in DWARFv5 or higher");
+  auto *Loc = new (DIEValueAllocator) DIEBlock();
+  addPoolOpAddress(*Loc, Label);
+  addBlock(Die, Attribute, dwarf::DW_FORM_exprloc, Loc);
 }
 
 void DwarfCompileUnit::addLocalLabelAddress(DIE &Die,
@@ -558,7 +573,12 @@ void DwarfCompileUnit::addScopeRangeList(DIE &ScopeDIE,
 
 void DwarfCompileUnit::attachRangesOrLowHighPC(
     DIE &Die, SmallVector<RangeSpan, 2> Ranges) {
-  if (Ranges.size() == 1 || !DD->useRangesSection()) {
+  assert(!Ranges.empty());
+  if (!DD->useRangesSection() ||
+      (Ranges.size() == 1 &&
+       (!DD->alwaysUseRanges() ||
+        DD->getSectionLabel(&Ranges.front().Begin->getSection()) ==
+            Ranges.front().Begin))) {
     const RangeSpan &Front = Ranges.front();
     const RangeSpan &Back = Ranges.back();
     attachLowHighPC(Die, Front.Begin, Back.End);
@@ -715,6 +735,13 @@ DIE *DwarfCompileUnit::constructVariableDIEImpl(const DbgVariable &DV,
       addConstantFPValue(*VariableDie, DVal->getConstantFP());
     } else if (DVal->isConstantInt()) {
       addConstantValue(*VariableDie, DVal->getConstantInt(), DV.getType());
+    } else if (DVal->isTargetIndexLocation()) {
+      DIELoc *Loc = new (DIEValueAllocator) DIELoc;
+      DIEDwarfExpression DwarfExpr(*Asm, *this, *Loc);
+      const DIBasicType *BT = dyn_cast<DIBasicType>(
+          static_cast<const Metadata *>(DV.getVariable()->getType()));
+      DwarfDebug::emitDebugLocValue(*Asm, BT, *DVal, DwarfExpr);
+      addBlock(*VariableDie, dwarf::DW_AT_location, DwarfExpr.finalize());
     }
     return VariableDie;
   }
@@ -734,11 +761,10 @@ DIE *DwarfCompileUnit::constructVariableDIEImpl(const DbgVariable &DV,
         TFI->getFrameIndexReference(*Asm->MF, Fragment.FI, FrameReg);
     DwarfExpr.addFragmentOffset(Expr);
 
-    assert(!Offset.getScalable() &&
-           "Frame offsets with a scalable component are not supported");
-
+    auto *TRI = Asm->MF->getSubtarget().getRegisterInfo();
     SmallVector<uint64_t, 8> Ops;
-    DIExpression::appendOffset(Ops, Offset.getFixed());
+    TRI->getOffsetOpcodes(Offset, Ops);
+
     // According to
     // https://docs.nvidia.com/cuda/archive/10.0/ptx-writers-guide-to-interoperability/index.html#cuda-specific-dwarf
     // cuda-gdb requires DW_AT_address_class for all variables to be able to

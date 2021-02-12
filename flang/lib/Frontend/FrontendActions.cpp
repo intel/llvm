@@ -28,7 +28,7 @@ void InputOutputTestAction::ExecuteAction() {
   CompilerInstance &ci = instance();
   Fortran::parser::AllSources &allSources{ci.allSources()};
   const Fortran::parser::SourceFile *sf;
-  sf = allSources.Open(path, error_stream);
+  sf = allSources.Open(path, error_stream, std::optional<std::string>{"."s});
   llvm::ArrayRef<char> fileContent = sf->content();
 
   // Output file descriptor to receive the content of input file.
@@ -61,6 +61,9 @@ void PrintPreprocessedAction::ExecuteAction() {
     return;
   }
 
+  // Print diagnostics from the preprocessor
+  ci.parsing().messages().Emit(llvm::errs(), ci.allCookedSources());
+
   // Create a file and save the preprocessed output there
   if (auto os{ci.CreateDefaultOutputFile(
           /*Binary=*/true, /*InFile=*/GetCurrentFileOrBufferName())}) {
@@ -78,8 +81,22 @@ void ParseSyntaxOnlyAction::ExecuteAction() {
   common::LanguageFeatureControl features;
   Fortran::common::IntrinsicTypeDefaultKinds defaultKinds;
 
-  // Parse
+  // Parse. In case of failure, report and return.
   ci.parsing().Parse(llvm::outs());
+
+  if (ci.parsing().messages().AnyFatalError()) {
+    unsigned diagID = ci.diagnostics().getCustomDiagID(
+        clang::DiagnosticsEngine::Error, "Could not parse %0");
+    ci.diagnostics().Report(diagID) << GetCurrentFileOrBufferName();
+
+    ci.parsing().messages().Emit(
+        llvm::errs(), this->instance().allCookedSources());
+    return;
+  }
+
+  // Report the diagnostics from parsing
+  ci.parsing().messages().Emit(llvm::errs(), ci.allCookedSources());
+
   auto &parseTree{*ci.parsing().parseTree()};
 
   // Prepare semantics
@@ -96,7 +113,14 @@ void ParseSyntaxOnlyAction::ExecuteAction() {
 
   if (semantics.AnyFatalError()) {
     unsigned DiagID = ci.diagnostics().getCustomDiagID(
-        clang::DiagnosticsEngine::Error, "semantic errors in %0");
+        clang::DiagnosticsEngine::Error, "Semantic errors in %0");
     ci.diagnostics().Report(DiagID) << GetCurrentFileOrBufferName();
   }
+}
+
+void EmitObjAction::ExecuteAction() {
+  CompilerInstance &ci = this->instance();
+  unsigned DiagID = ci.diagnostics().getCustomDiagID(
+      clang::DiagnosticsEngine::Error, "code-generation is not available yet");
+  ci.diagnostics().Report(DiagID);
 }

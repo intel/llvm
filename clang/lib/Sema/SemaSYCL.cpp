@@ -178,20 +178,8 @@ static bool IsSyclMathFunc(unsigned BuiltinID) {
   case Builtin::BI__builtin_truncl:
   case Builtin::BIlroundl:
   case Builtin::BI__builtin_lroundl:
-  case Builtin::BIfmax:
-  case Builtin::BI__builtin_fmax:
-  case Builtin::BIfmin:
-  case Builtin::BI__builtin_fmin:
-  case Builtin::BIfmaxf:
-  case Builtin::BI__builtin_fmaxf:
-  case Builtin::BIfminf:
-  case Builtin::BI__builtin_fminf:
   case Builtin::BIlroundf:
   case Builtin::BI__builtin_lroundf:
-  case Builtin::BI__builtin_fpclassify:
-  case Builtin::BI__builtin_isfinite:
-  case Builtin::BI__builtin_isinf:
-  case Builtin::BI__builtin_isnormal:
     return false;
   default:
     break;
@@ -563,12 +551,6 @@ public:
           FD->dropAttr<SYCLIntelUseStallEnableClustersAttr>();
         }
       }
-
-      // Propagate the explicit SIMD attribute through call graph - it is used
-      // to distinguish ESIMD code in ESIMD LLVM passes.
-      if (KernelBody && KernelBody->hasAttr<SYCLSimdAttr>() &&
-          (KernelBody != FD) && !FD->hasAttr<SYCLSimdAttr>())
-        FD->addAttr(SYCLSimdAttr::CreateImplicit(SemaRef.getASTContext()));
 
       // Attribute "loop_fuse" can be applied explicitly on kernel function.
       // Attribute should not be propagated from device functions to kernel.
@@ -1478,12 +1460,12 @@ public:
     return isValid();
   }
 
-  bool enterUnion(const CXXRecordDecl *RD, FieldDecl *FD) {
+  bool enterUnion(const CXXRecordDecl *RD, FieldDecl *FD) override {
     ++UnionCount;
     return true;
   }
 
-  bool leaveUnion(const CXXRecordDecl *RD, FieldDecl *FD) {
+  bool leaveUnion(const CXXRecordDecl *RD, FieldDecl *FD) override {
     --UnionCount;
     return true;
   }
@@ -3222,27 +3204,6 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body, int_header);
 }
 
-// This function marks all the callees of explicit SIMD kernel
-// with !sycl_explicit_simd. We want to have different semantics
-// for functions that are called from SYCL and E-SIMD contexts.
-// Later, functions marked with !sycl_explicit_simd will be cloned
-// to maintain two different semantics.
-void Sema::MarkSyclSimd() {
-  for (Decl *D : syclDeviceDecls())
-    if (auto SYCLKernel = dyn_cast<FunctionDecl>(D))
-      if (SYCLKernel->hasAttr<SYCLSimdAttr>()) {
-        MarkDeviceFunction Marker(*this);
-        Marker.SYCLCG.addToCallGraph(getASTContext().getTranslationUnitDecl());
-        llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet;
-        Marker.CollectKernelSet(SYCLKernel, SYCLKernel, VisitedSet);
-        for (const auto &elt : Marker.KernelSet) {
-          if (FunctionDecl *Def = elt->getDefinition())
-            if (!Def->hasAttr<SYCLSimdAttr>())
-              Def->addAttr(SYCLSimdAttr::CreateImplicit(getASTContext()));
-        }
-      }
-}
-
 void Sema::MarkDevice(void) {
   // Create the call graph so we can detect recursion and check the validity
   // of new operator overrides. Add the kernel function itself in case
@@ -3489,9 +3450,9 @@ static const char *paramKind2Str(KernelParamKind K) {
     CASE(std_layout);
     CASE(sampler);
     CASE(pointer);
-  default:
-    return "<ERROR>";
   }
+  return "<ERROR>";
+
 #undef CASE
 }
 

@@ -91,7 +91,7 @@ uint32_t TgtStackItemSize = 0;
   {}
 #endif
 
-#include "../../common/elf_common.c"
+#include "elf_common.h"
 
 /// Keep entries table per device
 struct FuncOrGblEntryTy {
@@ -638,7 +638,7 @@ void finiAsyncInfoPtr(__tgt_async_info *async_info_ptr) {
 }
 
 bool elf_machine_id_is_amdgcn(__tgt_device_image *image) {
-  const uint16_t amdgcnMachineID = EM_AMDGPU;
+  const uint16_t amdgcnMachineID = 224; // EM_AMDGPU may not be in system elf.h
   int32_t r = elf_check_machine(image, amdgcnMachineID);
   if (!r) {
     DP("Supported machine ID not found\n");
@@ -1254,7 +1254,6 @@ __tgt_target_table *__tgt_rtl_load_binary_locked(int32_t device_id,
     }
   }
 
-  // TODO: Check with Guansong to understand the below comment more thoroughly.
   // Here, we take advantage of the data that is appended after img_end to get
   // the symbols' name we need to load. This data consist of the host entries
   // begin and end as well as the target name (see the offloading linker script
@@ -1762,7 +1761,7 @@ int32_t __tgt_rtl_run_target_team_region_locked(
                 loop_tripcount, // From run_region arg
                 KernelInfo->device_id);
 
-  if (print_kernel_trace == 4)
+  if (print_kernel_trace >= 1)
     // enum modes are SPMD, GENERIC, NONE 0,1,2
     fprintf(stderr,
             "DEVID:%2d SGN:%1d ConstWGSize:%-4d args:%2d teamsXthrds:(%4dX%4d) "

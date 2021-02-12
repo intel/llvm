@@ -13,6 +13,7 @@
 #ifndef MLIR_ANALYSIS_AFFINE_STRUCTURES_H
 #define MLIR_ANALYSIS_AFFINE_STRUCTURES_H
 
+#include "mlir/Analysis/Presburger/Matrix.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Support/LogicalResult.h"
@@ -146,18 +147,22 @@ public:
   /// returns true, no integer solution to the equality constraints can exist.
   bool isEmptyByGCDTest() const;
 
-  /// Runs the GCD test heuristic. If it proves inconclusive, falls back to
-  /// generalized basis reduction if the set is bounded.
-  ///
   /// Returns true if the set of constraints is found to have no solution,
-  /// false if a solution exists or all tests were inconclusive.
+  /// false if a solution exists. Uses the same algorithm as findIntegerSample.
   bool isIntegerEmpty() const;
 
-  /// Find a sample point satisfying the constraints. This uses a branch and
-  /// bound algorithm with generalized basis reduction, which always works if
-  /// the set is bounded. This should not be called for unbounded sets.
+  // Returns a matrix where each row is a vector along which the polytope is
+  // bounded. The span of the returned vectors is guaranteed to contain all
+  // such vectors. The returned vectors are NOT guaranteed to be linearly
+  // independent. This function should not be called on empty sets.
+  Matrix getBoundedDirections() const;
+
+  /// Find an integer sample point satisfying the constraints using a
+  /// branch and bound algorithm with generalized basis reduction, with some
+  /// additional processing using Simplex for unbounded sets.
   ///
-  /// Returns such a point if one exists, or an empty Optional otherwise.
+  /// Returns an integer sample point if one exists, or an empty Optional
+  /// otherwise.
   Optional<SmallVector<int64_t, 8>> findIntegerSample() const;
 
   /// Returns true if the given point satisfies the constraints, or false
@@ -226,6 +231,21 @@ public:
   /// symbol).
   //  TODO: add support for non-unit strides.
   LogicalResult addAffineForOpDomain(AffineForOp forOp);
+
+  /// Adds constraints (lower and upper bounds) for each loop in the loop nest
+  /// described by the bound maps 'lbMaps' and 'ubMaps' of a computation slice.
+  /// Every pair ('lbMaps[i]', 'ubMaps[i]') describes the bounds of a loop in
+  /// the nest, sorted outer-to-inner. 'operands' contains the bound operands
+  /// for a single bound map. All the bound maps will use the same bound
+  /// operands. Note that some loops described by a computation slice might not
+  /// exist yet in the IR so the Value attached to those dimension identifiers
+  /// might be empty. For that reason, this method doesn't perform Value
+  /// look-ups to retrieve the dimension identifier positions. Instead, it
+  /// assumes the position of the dim identifiers in the constraint system is
+  /// the same as the position of the loop in the loop nest.
+  LogicalResult addDomainFromSliceMaps(ArrayRef<AffineMap> lbMaps,
+                                       ArrayRef<AffineMap> ubMaps,
+                                       ArrayRef<Value> operands);
 
   /// Adds constraints imposed by the `affine.if` operation. These constraints
   /// are collected from the IntegerSet attached to the given `affine.if`
@@ -380,8 +400,9 @@ public:
   /// Changes all symbol identifiers which are loop IVs to dim identifiers.
   void convertLoopIVSymbolsToDims();
 
-  /// Sets the specified identifier to a constant and removes it.
-  void setAndEliminate(unsigned pos, int64_t constVal);
+  /// Sets the values.size() identifiers starting at pos to the specified values
+  /// and removes them.
+  void setAndEliminate(unsigned pos, ArrayRef<int64_t> values);
 
   /// Tries to fold the specified identifier to a constant using a trivial
   /// equality detection; if successful, the constant is substituted for the

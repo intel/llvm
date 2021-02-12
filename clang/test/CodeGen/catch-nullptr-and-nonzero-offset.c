@@ -1,12 +1,12 @@
-// RUN: %clang_cc1 -x c -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s --check-prefixes=CHECK,CHECK-NOSANITIZE
+// RUN: %clang_cc1 -x c -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s
 // RUN: %clang_cc1 -x c -fsanitize=pointer-overflow -fno-sanitize-recover=pointer-overflow -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s -implicit-check-not="call void @__ubsan_handle_pointer_overflow" --check-prefixes=CHECK,CHECK-SANITIZE,CHECK-SANITIZE-ANYRECOVER,CHECK-SANITIZE-NORECOVER,CHECK-SANITIZE-UNREACHABLE,CHECK-SANITIZE-C,CHECK-SANITIZE-ANYRECOVER-C,CHECK-SANITIZE-NORECOVER-C,CHECK-SANITIZE-UNREACHABLE-C
 // RUN: %clang_cc1 -x c -fsanitize=pointer-overflow -fsanitize-recover=pointer-overflow -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s -implicit-check-not="call void @__ubsan_handle_pointer_overflow" --check-prefixes=CHECK,CHECK-SANITIZE,CHECK-SANITIZE-ANYRECOVER,CHECK-SANITIZE-RECOVER,CHECK-SANITIZE-C,CHECK-SANITIZE-ANYRECOVER-C,CHECK-SANITIZE-RECOVER-C
 // RUN: %clang_cc1 -x c -fsanitize=pointer-overflow -fsanitize-trap=pointer-overflow -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s -implicit-check-not="call void @__ubsan_handle_pointer_overflow" --check-prefixes=CHECK,CHECK-SANITIZE,CHECK-SANITIZE-TRAP,CHECK-SANITIZE-UNREACHABLE,CHECK-SANITIZE-C,CHECK-SANITIZE-TRAP-C,CHECK-SANITIZE-UNREACHABLE-C
 
-// RUN: %clang_cc1 -x c++ -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s --check-prefixes=CHECK,CHECK-NOSANITIZE
-// RUN: %clang_cc1 -x c++ -fsanitize=pointer-overflow -fno-sanitize-recover=pointer-overflow -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s -implicit-check-not="call void @__ubsan_handle_pointer_overflow" --check-prefixes=CHECK,CHECK-SANITIZE,CHECK-SANITIZE-ANYRECOVER,CHECK-SANITIZE-NORECOVER,CHECK-SANITIZE-UNREACHABLE,CHECK-SANITIZE-CPP,CHECK-SANITIZE-ANYRECOVER-CPP,CHECK-SANITIZE-NORECOVER-CPP,CHECK-SANITIZE-UNREACHABLE-CPP
-// RUN: %clang_cc1 -x c++ -fsanitize=pointer-overflow -fsanitize-recover=pointer-overflow -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s -implicit-check-not="call void @__ubsan_handle_pointer_overflow" --check-prefixes=CHECK,CHECK-SANITIZE,CHECK-SANITIZE-ANYRECOVER,CHECK-SANITIZE-RECOVER,CHECK-SANITIZE-CPP,CHECK-SANITIZE-ANYRECOVER-CPP,CHECK-SANITIZE-RECOVER-CPP
-// RUN: %clang_cc1 -x c++ -fsanitize=pointer-overflow -fsanitize-trap=pointer-overflow -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s -implicit-check-not="call void @__ubsan_handle_pointer_overflow" --check-prefixes=CHECK,CHECK-SANITIZE,CHECK-SANITIZE-TRAP,CHECK-SANITIZE-UNREACHABLE,CHECK-SANITIZE-CPP,CHECK-SANITIZE-TRAP-CPP,CHECK-SANITIZE-UNREACHABLE-CPP
+// RUN: %clang_cc1 -x c++ -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s
+// RUN: %clang_cc1 -x c++ -fsanitize=pointer-overflow -fno-sanitize-recover=pointer-overflow -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s -implicit-check-not="call void @__ubsan_handle_pointer_overflow" --check-prefixes=CHECK,CHECK-SANITIZE,CHECK-SANITIZE-ANYRECOVER,CHECK-SANITIZE-NORECOVER,CHECK-SANITIZE-UNREACHABLE,CHECK-SANITIZE-CPP
+// RUN: %clang_cc1 -x c++ -fsanitize=pointer-overflow -fsanitize-recover=pointer-overflow -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s -implicit-check-not="call void @__ubsan_handle_pointer_overflow" --check-prefixes=CHECK,CHECK-SANITIZE,CHECK-SANITIZE-ANYRECOVER,CHECK-SANITIZE-RECOVER,CHECK-SANITIZE-CPP
+// RUN: %clang_cc1 -x c++ -fsanitize=pointer-overflow -fsanitize-trap=pointer-overflow -emit-llvm %s -o - -triple x86_64-linux-gnu | FileCheck %s -implicit-check-not="call void @__ubsan_handle_pointer_overflow" --check-prefixes=CHECK,CHECK-SANITIZE,CHECK-SANITIZE-TRAP,CHECK-SANITIZE-UNREACHABLE,CHECK-SANITIZE-CPP
 
 // In C++/LLVM IR, if the base pointer evaluates to a null pointer value,
 // the only valid pointer this inbounds GEP can produce is also a null pointer.
@@ -41,7 +41,7 @@ extern "C" {
 #endif
 
 char *var_var(char *base, unsigned long offset) {
-  // CHECK: define i8* @var_var(i8* %[[BASE:.*]], i64 %[[OFFSET:.*]])
+  // CHECK: define{{.*}} i8* @var_var(i8* %[[BASE:.*]], i64 %[[OFFSET:.*]])
   // CHECK-NEXT:                      [[ENTRY:.*]]:
   // CHECK-NEXT:                        %[[BASE_ADDR:.*]] = alloca i8*, align 8
   // CHECK-NEXT:                        %[[OFFSET_ADDR:.*]] = alloca i64, align 8
@@ -76,7 +76,7 @@ char *var_var(char *base, unsigned long offset) {
 }
 
 char *var_zero(char *base) {
-  // CHECK:                             define i8* @var_zero(i8* %[[BASE:.*]])
+  // CHECK:                             define{{.*}} i8* @var_zero(i8* %[[BASE:.*]])
   // CHECK-NEXT:                        [[ENTRY:.*]]:
   // CHECK-NEXT:                          %[[BASE_ADDR:.*]] = alloca i8*, align 8
   // CHECK-NEXT:                          store i8* %[[BASE]], i8** %[[BASE_ADDR]], align 8
@@ -103,7 +103,7 @@ char *var_zero(char *base) {
 }
 
 char *var_one(char *base) {
-  // CHECK:                           define i8* @var_one(i8* %[[BASE:.*]])
+  // CHECK:                           define{{.*}} i8* @var_one(i8* %[[BASE:.*]])
   // CHECK-NEXT:                      [[ENTRY:.*]]:
   // CHECK-NEXT:                        %[[BASE_ADDR:.*]] = alloca i8*, align 8
   // CHECK-NEXT:                        store i8* %[[BASE]], i8** %[[BASE_ADDR]], align 8
@@ -131,7 +131,7 @@ char *var_one(char *base) {
 }
 
 char *var_allones(char *base) {
-  // CHECK:                           define i8* @var_allones(i8* %[[BASE:.*]])
+  // CHECK:                           define{{.*}} i8* @var_allones(i8* %[[BASE:.*]])
   // CHECK-NEXT:                      [[ENTRY:.*]]:
   // CHECK-NEXT:                        %[[BASE_ADDR:.*]] = alloca i8*, align 8
   // CHECK-NEXT:                        store i8* %[[BASE]], i8** %[[BASE_ADDR]], align 8
@@ -161,7 +161,7 @@ char *var_allones(char *base) {
 //------------------------------------------------------------------------------
 
 char *nullptr_var(unsigned long offset) {
-  // CHECK:                           define i8* @nullptr_var(i64 %[[OFFSET:.*]])
+  // CHECK:                           define{{.*}} i8* @nullptr_var(i64 %[[OFFSET:.*]])
   // CHECK-NEXT:                      [[ENTRY:.*]]:
   // CHECK-NEXT:                        %[[OFFSET_ADDR:.*]] = alloca i64, align 8
   // CHECK-NEXT:                        store i64 %[[OFFSET]], i64* %[[OFFSET_ADDR]], align 8
@@ -192,7 +192,7 @@ char *nullptr_var(unsigned long offset) {
 }
 
 char *nullptr_zero() {
-  // CHECK:                             define i8* @nullptr_zero()
+  // CHECK:                             define{{.*}} i8* @nullptr_zero()
   // CHECK-NEXT:                        [[ENTRY:.*]]:
   // CHECK-SANITIZE-C-NEXT:               br i1 false, label %[[CONT:.*]], label %[[HANDLER_POINTER_OVERFLOW:[^,]+]],{{.*}} !nosanitize
   // CHECK-SANITIZE-C:                  [[HANDLER_POINTER_OVERFLOW]]:
@@ -209,7 +209,7 @@ char *nullptr_zero() {
 }
 
 char *nullptr_one_BAD() {
-  // CHECK:                           define i8* @nullptr_one_BAD()
+  // CHECK:                           define{{.*}} i8* @nullptr_one_BAD()
   // CHECK-NEXT:                      [[ENTRY:.*]]:
   // CHECK-SANITIZE-C-NEXT:             br i1 false, label %[[CONT:.*]], label %[[HANDLER_POINTER_OVERFLOW:[^,]+]],{{.*}} !nosanitize
   // CHECK-SANITIZE-CPP-NEXT:           br i1 icmp eq (i64 ptrtoint (i8* getelementptr inbounds (i8, i8* null, i64 1) to i64), i64 0), label %[[CONT:.*]], label %[[HANDLER_POINTER_OVERFLOW:[^,]+]],{{.*}} !nosanitize
@@ -227,7 +227,7 @@ char *nullptr_one_BAD() {
 }
 
 char *nullptr_allones_BAD() {
-  // CHECK:                           define i8* @nullptr_allones_BAD()
+  // CHECK:                           define{{.*}} i8* @nullptr_allones_BAD()
   // CHECK-NEXT:                      [[ENTRY:.*]]:
   // CHECK-SANITIZE-C-NEXT:             br i1 false, label %[[CONT:.*]], label %[[HANDLER_POINTER_OVERFLOW:[^,]+]],{{.*}} !nosanitize
   // CHECK-SANITIZE-CPP-NEXT:           br i1 icmp eq (i64 mul (i64 ptrtoint (i8* getelementptr (i8, i8* null, i32 1) to i64), i64 -1), i64 0), label %[[CONT:.*]], label %[[HANDLER_POINTER_OVERFLOW:[^,]+]],{{.*}} !nosanitize
@@ -247,7 +247,7 @@ char *nullptr_allones_BAD() {
 //------------------------------------------------------------------------------
 
 char *one_var(unsigned long offset) {
-  // CHECK:                           define i8* @one_var(i64 %[[OFFSET:.*]])
+  // CHECK:                           define{{.*}} i8* @one_var(i64 %[[OFFSET:.*]])
   // CHECK-NEXT:                      [[ENTRY:.*]]:
   // CHECK-NEXT:                        %[[OFFSET_ADDR:.*]] = alloca i64, align 8
   // CHECK-NEXT:                        store i64 %[[OFFSET]], i64* %[[OFFSET_ADDR]], align 8
@@ -278,7 +278,7 @@ char *one_var(unsigned long offset) {
 }
 
 char *one_zero() {
-  // CHECK:                             define i8* @one_zero()
+  // CHECK:                             define{{.*}} i8* @one_zero()
   // CHECK-NEXT:                        [[ENTRY:.*]]:
   // CHECK-SANITIZE-C-NEXT:               br i1 icmp ne (i8* inttoptr (i64 1 to i8*), i8* null), label %[[CONT:.*]], label %[[HANDLER_POINTER_OVERFLOW:[^,]+]],{{.*}} !nosanitize
   // CHECK-SANITIZE-C:                  [[HANDLER_POINTER_OVERFLOW]]:
@@ -295,7 +295,7 @@ char *one_zero() {
 }
 
 char *one_one_OK() {
-  // CHECK:                           define i8* @one_one_OK()
+  // CHECK:                           define{{.*}} i8* @one_one_OK()
   // CHECK-NEXT:                      [[ENTRY:.*]]:
   // CHECK-SANITIZE-C-NEXT:             br i1 and (i1 icmp ne (i8* inttoptr (i64 1 to i8*), i8* null), i1 icmp ne (i64 add (i64 sub (i64 ptrtoint (i8* getelementptr inbounds (i8, i8* inttoptr (i64 1 to i8*), i64 1) to i64), i64 1), i64 1), i64 0)), label %[[CONT:.*]], label %[[HANDLER_POINTER_OVERFLOW:[^,]+]],{{.*}} !nosanitize
   // CHECK-SANITIZE-CPP-NEXT:           br i1 xor (i1 icmp eq (i8* inttoptr (i64 1 to i8*), i8* null), i1 icmp ne (i64 add (i64 sub (i64 ptrtoint (i8* getelementptr inbounds (i8, i8* inttoptr (i64 1 to i8*), i64 1) to i64), i64 1), i64 1), i64 0)), label %[[CONT:.*]], label %[[HANDLER_POINTER_OVERFLOW:[^,]+]],{{.*}} !nosanitize
@@ -313,7 +313,7 @@ char *one_one_OK() {
 }
 
 char *one_allones_BAD() {
-  // CHECK:                           define i8* @one_allones_BAD()
+  // CHECK:                           define{{.*}} i8* @one_allones_BAD()
   // CHECK-NEXT:                      [[ENTRY:.*]]:
   // CHECK-SANITIZE-C-NEXT:             br i1 and (i1 icmp ne (i8* inttoptr (i64 1 to i8*), i8* null), i1 icmp ne (i64 add (i64 sub (i64 ptrtoint (i8* getelementptr inbounds (i8, i8* inttoptr (i64 1 to i8*), i64 -1) to i64), i64 1), i64 1), i64 0)), label %[[CONT:.*]], label %[[HANDLER_POINTER_OVERFLOW:[^,]+]],{{.*}} !nosanitize
   // CHECK-SANITIZE-CPP-NEXT:           br i1 xor (i1 icmp eq (i8* inttoptr (i64 1 to i8*), i8* null), i1 icmp ne (i64 add (i64 sub (i64 ptrtoint (i8* getelementptr inbounds (i8, i8* inttoptr (i64 1 to i8*), i64 -1) to i64), i64 1), i64 1), i64 0)), label %[[CONT:.*]], label %[[HANDLER_POINTER_OVERFLOW:[^,]+]],{{.*}} !nosanitize
@@ -333,7 +333,7 @@ char *one_allones_BAD() {
 //------------------------------------------------------------------------------
 
 char *allones_var(unsigned long offset) {
-  // CHECK:                           define i8* @allones_var(i64 %[[OFFSET:.*]])
+  // CHECK:                           define{{.*}} i8* @allones_var(i64 %[[OFFSET:.*]])
   // CHECK-NEXT:                      [[ENTRY:.*]]:
   // CHECK-NEXT:                        %[[OFFSET_ADDR:.*]] = alloca i64, align 8
   // CHECK-NEXT:                        store i64 %[[OFFSET]], i64* %[[OFFSET_ADDR]], align 8
@@ -364,7 +364,7 @@ char *allones_var(unsigned long offset) {
 }
 
 char *allones_zero_OK() {
-  // CHECK:                             define i8* @allones_zero_OK()
+  // CHECK:                             define{{.*}} i8* @allones_zero_OK()
   // CHECK-NEXT:                        [[ENTRY:.*]]:
   // CHECK-SANITIZE-C-NEXT:               br i1 icmp ne (i8* inttoptr (i64 -1 to i8*), i8* null), label %[[CONT:.*]], label %[[HANDLER_POINTER_OVERFLOW:[^,]+]],{{.*}} !nosanitize
   // CHECK-SANITIZE-C:                  [[HANDLER_POINTER_OVERFLOW]]:
@@ -381,7 +381,7 @@ char *allones_zero_OK() {
 }
 
 char *allones_one_BAD() {
-  // CHECK: define i8* @allones_one_BAD()
+  // CHECK: define{{.*}} i8* @allones_one_BAD()
   // CHECK-NEXT: [[ENTRY:.*]]:
   // CHECK-SANITIZE-C-NEXT:             br i1 and (i1 icmp ne (i8* inttoptr (i64 -1 to i8*), i8* null), i1 icmp ne (i64 add (i64 sub (i64 ptrtoint (i8* getelementptr inbounds (i8, i8* inttoptr (i64 -1 to i8*), i64 1) to i64), i64 -1), i64 -1), i64 0)), label %[[CONT:.*]], label %[[HANDLER_POINTER_OVERFLOW:[^,]+]],{{.*}} !nosanitize
   // CHECK-SANITIZE-CPP-NEXT:           br i1 xor (i1 icmp eq (i8* inttoptr (i64 -1 to i8*), i8* null), i1 icmp ne (i64 add (i64 sub (i64 ptrtoint (i8* getelementptr inbounds (i8, i8* inttoptr (i64 -1 to i8*), i64 1) to i64), i64 -1), i64 -1), i64 0)), label %[[CONT:.*]], label %[[HANDLER_POINTER_OVERFLOW:[^,]+]],{{.*}} !nosanitize
@@ -399,7 +399,7 @@ char *allones_one_BAD() {
 }
 
 char *allones_allones_OK() {
-  // CHECK: define i8* @allones_allones_OK()
+  // CHECK: define{{.*}} i8* @allones_allones_OK()
   // CHECK-NEXT: [[ENTRY:.*]]:
   // CHECK-SANITIZE-C-NEXT:             br i1 and (i1 icmp ne (i8* inttoptr (i64 -1 to i8*), i8* null), i1 icmp ne (i64 add (i64 sub (i64 ptrtoint (i8* getelementptr inbounds (i8, i8* inttoptr (i64 -1 to i8*), i64 -1) to i64), i64 -1), i64 -1), i64 0)), label %[[CONT:.*]], label %[[HANDLER_POINTER_OVERFLOW:[^,]+]],{{.*}} !nosanitize
   // CHECK-SANITIZE-CPP-NEXT:           br i1 xor (i1 icmp eq (i8* inttoptr (i64 -1 to i8*), i8* null), i1 icmp ne (i64 add (i64 sub (i64 ptrtoint (i8* getelementptr inbounds (i8, i8* inttoptr (i64 -1 to i8*), i64 -1) to i64), i64 -1), i64 -1), i64 0)), label %[[CONT:.*]], label %[[HANDLER_POINTER_OVERFLOW:[^,]+]],{{.*}} !nosanitize

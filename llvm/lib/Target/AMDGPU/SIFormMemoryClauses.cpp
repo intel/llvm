@@ -14,15 +14,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPU.h"
-#include "AMDGPUSubtarget.h"
 #include "GCNRegPressure.h"
-#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
-#include "SIInstrInfo.h"
 #include "SIMachineFunctionInfo.h"
-#include "SIRegisterInfo.h"
-#include "llvm/ADT/DenseMap.h"
-#include "llvm/CodeGen/LiveIntervals.h"
-#include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/InitializePasses.h"
 
 using namespace llvm;
@@ -58,6 +51,11 @@ public:
     AU.addRequired<LiveIntervals>();
     AU.setPreservesAll();
     MachineFunctionPass::getAnalysisUsage(AU);
+  }
+
+  MachineFunctionProperties getClearedProperties() const override {
+    return MachineFunctionProperties().set(
+        MachineFunctionProperties::Property::IsSSA);
   }
 
 private:
@@ -324,6 +322,7 @@ bool SIFormMemoryClauses::runOnMachineFunction(MachineFunction &MF) {
       MF.getFunction(), "amdgpu-max-memory-clause", MaxClause);
 
   for (MachineBasicBlock &MBB : MF) {
+    GCNDownwardRPTracker RPT(*LIS);
     MachineBasicBlock::instr_iterator Next;
     for (auto I = MBB.instr_begin(), E = MBB.instr_end(); I != E; I = Next) {
       MachineInstr &MI = *I;
@@ -334,12 +333,19 @@ bool SIFormMemoryClauses::runOnMachineFunction(MachineFunction &MF) {
       if (!isValidClauseInst(MI, IsVMEM))
         continue;
 
-      RegUse Defs, Uses;
-      GCNDownwardRPTracker RPT(*LIS);
-      RPT.reset(MI);
+      if (!RPT.getNext().isValid())
+        RPT.reset(MI);
+      else { // Advance the state to the current MI.
+        RPT.advance(MachineBasicBlock::const_iterator(MI));
+        RPT.advanceBeforeNext();
+      }
 
-      if (!processRegUses(MI, Defs, Uses, RPT))
+      const GCNRPTracker::LiveRegSet LiveRegsCopy(RPT.getLiveRegs());
+      RegUse Defs, Uses;
+      if (!processRegUses(MI, Defs, Uses, RPT)) {
+        RPT.reset(MI, &LiveRegsCopy);
         continue;
+      }
 
       unsigned Length = 1;
       for ( ; Next != E && Length < FuncMaxClause; ++Next) {
@@ -354,14 +360,19 @@ bool SIFormMemoryClauses::runOnMachineFunction(MachineFunction &MF) {
 
         ++Length;
       }
-      if (Length < 2)
+      if (Length < 2) {
+        RPT.reset(MI, &LiveRegsCopy);
         continue;
+      }
 
       Changed = true;
       MFI->limitOccupancy(LastRecordedOccupancy);
 
       auto B = BuildMI(MBB, I, DebugLoc(), TII->get(TargetOpcode::BUNDLE));
       Ind->insertMachineInstrInMaps(*B);
+
+      // Restore the state after processing the bundle.
+      RPT.reset(*B, &LiveRegsCopy);
 
       for (auto BI = I; BI != Next; ++BI) {
         BI->bundleWithPred();

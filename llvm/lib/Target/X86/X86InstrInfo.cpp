@@ -6464,7 +6464,7 @@ X86InstrInfo::unfoldMemoryOperand(SelectionDAG &DAG, SDNode *N,
   }
   if (Load)
     BeforeOps.push_back(SDValue(Load, 0));
-  BeforeOps.insert(BeforeOps.end(), AfterOps.begin(), AfterOps.end());
+  llvm::append_range(BeforeOps, AfterOps);
   // Change CMP32ri r, 0 back to TEST32rr r, r, etc.
   switch (Opc) {
     default: break;
@@ -6788,7 +6788,8 @@ bool X86InstrInfo::isSchedulingBoundary(const MachineInstr &MI,
 
   // ENDBR instructions should not be scheduled around.
   unsigned Opcode = MI.getOpcode();
-  if (Opcode == X86::ENDBR64 || Opcode == X86::ENDBR32)
+  if (Opcode == X86::ENDBR64 || Opcode == X86::ENDBR32 ||
+      Opcode == X86::PLDTILECFG)
     return true;
 
   return TargetInstrInfo::isSchedulingBoundary(MI, MBB, MF);

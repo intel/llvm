@@ -34,6 +34,7 @@
 namespace llvm {
 
 class BitVector;
+class DIExpression;
 class LiveRegMatrix;
 class MachineFunction;
 class MachineInstr;
@@ -413,6 +414,16 @@ public:
   /// we stop the search.
   virtual Register lookThruCopyLike(Register SrcReg,
                                     const MachineRegisterInfo *MRI) const;
+
+  /// Find the original SrcReg unless it is the target of a copy-like operation,
+  /// in which case we chain backwards through all such operations to the
+  /// ultimate source register. If a physical register is encountered, we stop
+  /// the search.
+  /// Return the original SrcReg if all the definitions in the chain only have
+  /// one user and not a physical register.
+  virtual Register
+  lookThruSingleUseCopyChain(Register SrcReg,
+                             const MachineRegisterInfo *MRI) const;
 
   /// Return a null-terminated list of all of the callee-saved registers on
   /// this target. The register should be in the order of desired callee-save
@@ -900,11 +911,11 @@ public:
     return false;
   }
 
-  /// Insert defining instruction(s) for BaseReg to be a pointer to FrameIdx
-  /// before insertion point I.
-  virtual void materializeFrameBaseRegister(MachineBasicBlock *MBB,
-                                            Register BaseReg, int FrameIdx,
-                                            int64_t Offset) const {
+  /// Insert defining instruction(s) for a pointer to FrameIdx before
+  /// insertion point I. Return materialized frame pointer.
+  virtual Register materializeFrameBaseRegister(MachineBasicBlock *MBB,
+                                                int FrameIdx,
+                                                int64_t Offset) const {
     llvm_unreachable("materializeFrameBaseRegister does not exist on this "
                      "target");
   }
@@ -922,6 +933,15 @@ public:
                                   int64_t Offset) const {
     llvm_unreachable("isFrameOffsetLegal does not exist on this target");
   }
+
+  /// Gets the DWARF expression opcodes for \p Offset.
+  virtual void getOffsetOpcodes(const StackOffset &Offset,
+                                SmallVectorImpl<uint64_t> &Ops) const;
+
+  /// Prepends a DWARF expression for \p Offset to DIExpression \p Expr.
+  DIExpression *
+  prependOffsetExpression(const DIExpression *Expr, unsigned PrependFlags,
+                          const StackOffset &Offset) const;
 
   /// Spill the register so it can be used by the register scavenger.
   /// Return true if the register was spilled, false otherwise.

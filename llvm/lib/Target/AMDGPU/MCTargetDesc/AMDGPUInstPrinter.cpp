@@ -16,13 +16,9 @@
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/MC/MCInstrInfo.h"
-#include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/MathExtras.h"
-#include "llvm/Support/raw_ostream.h"
-#include <cassert>
+#include "llvm/Support/TargetParser.h"
 
 using namespace llvm;
 using namespace llvm::AMDGPU;
@@ -962,10 +958,9 @@ void AMDGPUInstPrinter::printSDWADstUnused(const MCInst *MI, unsigned OpNo,
   }
 }
 
-template <unsigned N>
 void AMDGPUInstPrinter::printExpSrcN(const MCInst *MI, unsigned OpNo,
-                                     const MCSubtargetInfo &STI,
-                                     raw_ostream &O) {
+                                     const MCSubtargetInfo &STI, raw_ostream &O,
+                                     unsigned N) {
   unsigned Opc = MI->getOpcode();
   int EnIdx = AMDGPU::getNamedOperandIdx(Opc, AMDGPU::OpName::en);
   unsigned En = MI->getOperand(EnIdx).getImm();
@@ -973,12 +968,8 @@ void AMDGPUInstPrinter::printExpSrcN(const MCInst *MI, unsigned OpNo,
   int ComprIdx = AMDGPU::getNamedOperandIdx(Opc, AMDGPU::OpName::compr);
 
   // If compr is set, print as src0, src0, src1, src1
-  if (MI->getOperand(ComprIdx).getImm()) {
-    if (N == 1 || N == 2)
-      --OpNo;
-    else if (N == 3)
-      OpNo -= 2;
-  }
+  if (MI->getOperand(ComprIdx).getImm())
+    OpNo = OpNo - N + N / 2;
 
   if (En & (1 << N))
     printRegOperand(MI->getOperand(OpNo).getReg(), O, MRI);
@@ -989,49 +980,43 @@ void AMDGPUInstPrinter::printExpSrcN(const MCInst *MI, unsigned OpNo,
 void AMDGPUInstPrinter::printExpSrc0(const MCInst *MI, unsigned OpNo,
                                      const MCSubtargetInfo &STI,
                                      raw_ostream &O) {
-  printExpSrcN<0>(MI, OpNo, STI, O);
+  printExpSrcN(MI, OpNo, STI, O, 0);
 }
 
 void AMDGPUInstPrinter::printExpSrc1(const MCInst *MI, unsigned OpNo,
                                      const MCSubtargetInfo &STI,
                                      raw_ostream &O) {
-  printExpSrcN<1>(MI, OpNo, STI, O);
+  printExpSrcN(MI, OpNo, STI, O, 1);
 }
 
 void AMDGPUInstPrinter::printExpSrc2(const MCInst *MI, unsigned OpNo,
                                      const MCSubtargetInfo &STI,
                                      raw_ostream &O) {
-  printExpSrcN<2>(MI, OpNo, STI, O);
+  printExpSrcN(MI, OpNo, STI, O, 2);
 }
 
 void AMDGPUInstPrinter::printExpSrc3(const MCInst *MI, unsigned OpNo,
                                      const MCSubtargetInfo &STI,
                                      raw_ostream &O) {
-  printExpSrcN<3>(MI, OpNo, STI, O);
+  printExpSrcN(MI, OpNo, STI, O, 3);
 }
 
 void AMDGPUInstPrinter::printExpTgt(const MCInst *MI, unsigned OpNo,
                                     const MCSubtargetInfo &STI,
                                     raw_ostream &O) {
-  // This is really a 6 bit field.
-  uint32_t Tgt = MI->getOperand(OpNo).getImm() & ((1 << 6) - 1);
+  using namespace llvm::AMDGPU::Exp;
 
-  if (Tgt <= Exp::ET_MRT7)
-    O << " mrt" << Tgt - Exp::ET_MRT0;
-  else if (Tgt == Exp::ET_MRTZ)
-    O << " mrtz";
-  else if (Tgt == Exp::ET_NULL)
-    O << " null";
-  else if (Tgt >= Exp::ET_POS0 &&
-           Tgt <= uint32_t(isGFX10Plus(STI) ? Exp::ET_POS4 : Exp::ET_POS3))
-    O << " pos" << Tgt - Exp::ET_POS0;
-  else if (isGFX10Plus(STI) && Tgt == Exp::ET_PRIM)
-    O << " prim";
-  else if (Tgt >= Exp::ET_PARAM0 && Tgt <= Exp::ET_PARAM31)
-    O << " param" << Tgt - Exp::ET_PARAM0;
-  else {
-    // Reserved values 10, 11
-    O << " invalid_target_" << Tgt;
+  // This is really a 6 bit field.
+  unsigned Id = MI->getOperand(OpNo).getImm() & ((1 << 6) - 1);
+
+  int Index;
+  StringRef TgtName;
+  if (getTgtName(Id, TgtName, Index) && isSupportedTgtId(Id, STI)) {
+    O << ' ' << TgtName;
+    if (Index >= 0)
+      O << Index;
+  } else {
+    O << " invalid_target_" << Id;
   }
 }
 

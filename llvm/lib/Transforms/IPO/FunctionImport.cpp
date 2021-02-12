@@ -124,14 +124,8 @@ static cl::opt<bool> ComputeDead("compute-dead", cl::init(true), cl::Hidden,
                                  cl::desc("Compute dead symbols"));
 
 static cl::opt<bool> EnableImportMetadata(
-    "enable-import-metadata", cl::init(
-#if !defined(NDEBUG)
-                                  true /*Enabled with asserts.*/
-#else
-                                  false
-#endif
-                                  ),
-    cl::Hidden, cl::desc("Enable import metadata like 'thinlto_src_module'"));
+    "enable-import-metadata", cl::init(false), cl::Hidden,
+    cl::desc("Enable import metadata like 'thinlto_src_module'"));
 
 /// Summary file to use for function importing when using -function-import from
 /// the command line.
@@ -1006,7 +1000,6 @@ bool llvm::convertToDeclaration(GlobalValue &GV) {
   return true;
 }
 
-/// Fixup prevailing symbol linkages in \p TheModule based on summary analysis.
 void llvm::thinLTOResolvePrevailingInModule(
     Module &TheModule, const GVSummaryMapTy &DefinedGlobals) {
   auto updateLinkage = [&](GlobalValue &GV) {
@@ -1015,8 +1008,6 @@ void llvm::thinLTOResolvePrevailingInModule(
     if (GS == DefinedGlobals.end())
       return;
     auto NewLinkage = GS->second->linkage();
-    if (NewLinkage == GV.getLinkage())
-      return;
     if (GlobalValue::isLocalLinkage(GV.getLinkage()) ||
         // Don't internalize anything here, because the code below
         // lacks necessary correctness checks. Leave this job to
@@ -1024,6 +1015,16 @@ void llvm::thinLTOResolvePrevailingInModule(
         GlobalValue::isLocalLinkage(NewLinkage) ||
         // In case it was dead and already converted to declaration.
         GV.isDeclaration())
+      return;
+
+    // Set the potentially more constraining visibility computed from summaries.
+    // The DefaultVisibility condition is because older GlobalValueSummary does
+    // not record DefaultVisibility and we don't want to change protected/hidden
+    // to default.
+    if (GS->second->getVisibility() != GlobalValue::DefaultVisibility)
+      GV.setVisibility(GS->second->getVisibility());
+
+    if (NewLinkage == GV.getLinkage())
       return;
 
     // Check for a non-prevailing def that has interposable linkage

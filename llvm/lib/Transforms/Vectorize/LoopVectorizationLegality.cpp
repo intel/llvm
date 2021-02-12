@@ -605,11 +605,6 @@ static bool isTLIScalarize(const TargetLibraryInfo &TLI, const CallInst &CI) {
 bool LoopVectorizationLegality::canVectorizeInstrs() {
   BasicBlock *Header = TheLoop->getHeader();
 
-  // Look for the attribute signaling the absence of NaNs.
-  Function &F = *Header->getParent();
-  HasFunNoNaNAttr =
-      F.getFnAttribute("no-nans-fp-math").getValueAsString() == "true";
-
   // For each block in the loop.
   for (BasicBlock *BB : TheLoop->blocks()) {
     // Scan the instructions in the block and look for hazards.
@@ -673,7 +668,7 @@ bool LoopVectorizationLegality::canVectorizeInstrs() {
         InductionDescriptor ID;
         if (InductionDescriptor::isInductionPHI(Phi, TheLoop, PSE, ID)) {
           addInductionPhi(Phi, ID, AllowedExit);
-          if (ID.hasUnsafeAlgebra() && !HasFunNoNaNAttr)
+          if (ID.hasUnsafeAlgebra())
             Requirements->addUnsafeAlgebraInst(ID.getUnsafeAlgebraInst());
           continue;
         }
@@ -944,6 +939,12 @@ bool LoopVectorizationLegality::blockCanBePredicated(
       continue;
     }
 
+    // Do not let llvm.experimental.noalias.scope.decl block the vectorization.
+    // TODO: there might be cases that it should block the vectorization. Let's
+    // ignore those for now.
+    if (isa<NoAliasScopeDeclInst>(&I))
+      continue;
+
     // We might be able to hoist the load.
     if (I.mayReadFromMemory()) {
       auto *LI = dyn_cast<LoadInst>(&I);
@@ -1101,8 +1102,7 @@ bool LoopVectorizationLegality::canVectorizeLoopCFG(Loop *Lp,
   // TODO: This restriction can be relaxed in the near future, it's here solely
   // to allow separation of changes for review. We need to generalize the phi
   // update logic in a number of places.
-  BasicBlock *ExitBB = Lp->getUniqueExitBlock();
-  if (!ExitBB) {
+  if (!Lp->getUniqueExitBlock()) {
     reportVectorizationFailure("The loop must have a unique exit block",
         "loop control flow is not understood by vectorizer",
         "CFGNotUnderstood", ORE, TheLoop);
@@ -1111,23 +1111,6 @@ bool LoopVectorizationLegality::canVectorizeLoopCFG(Loop *Lp,
     else
       return false;
   }
-
-  // The existing code assumes that LCSSA implies that phis are single entry
-  // (which was true when we had at most a single exiting edge from the latch).
-  // In general, there's nothing which prevents an LCSSA phi in exit block from
-  // having two or more values if there are multiple exiting edges leading to
-  // the exit block.  (TODO: implement general case)
-  if (!llvm::empty(ExitBB->phis()) && !ExitBB->getSinglePredecessor()) {
-    reportVectorizationFailure("The loop must have no live-out values if "
-                               "it has more than one exiting block",
-        "loop control flow is not understood by vectorizer",
-        "CFGNotUnderstood", ORE, TheLoop);
-    if (DoExtraAnalysis)
-      Result = false;
-    else
-      return false;
-  }
-
   return Result;
 }
 

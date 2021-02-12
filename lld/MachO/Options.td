@@ -3,23 +3,38 @@ include "llvm/Option/OptParser.td"
 // Flags that lld/MachO understands but ld64 doesn't. These take
 // '--' instead of '-' and use dashes instead of underscores, so
 // they don't collide with the ld64 compat options.
+def grp_lld : OptionGroup<"kind">, HelpText<"LLD-SPECIFIC">;
 
-def help : Flag<["-", "--"], "help">;
+def help : Flag<["-", "--"], "help">,
+    Group<grp_lld>;
 def help_hidden : Flag<["--"], "help-hidden">,
-  HelpText<"Display help for hidden options">;
+    HelpText<"Display help for hidden options">,
+    Group<grp_lld>;
 def color_diagnostics: Flag<["--"], "color-diagnostics">,
-  HelpText<"Alias for --color-diagnostics=always">;
+    HelpText<"Alias for --color-diagnostics=always">,
+    Group<grp_lld>;
 def no_color_diagnostics: Flag<["--"], "no-color-diagnostics">,
-  HelpText<"Alias for --color-diagnostics=never">;
+    HelpText<"Alias for --color-diagnostics=never">,
+    Group<grp_lld>;
 def color_diagnostics_eq: Joined<["--"], "color-diagnostics=">,
-  HelpText<"Use colors in diagnostics (default: auto)">,
-  MetaVarName<"[auto,always,never]">;
-def reproduce: Separate<["--"], "reproduce">;
+    HelpText<"Use colors in diagnostics (default: auto)">,
+    MetaVarName<"[auto,always,never]">,
+    Group<grp_lld>;
+def reproduce: Separate<["--"], "reproduce">,
+    Group<grp_lld>;
 def reproduce_eq: Joined<["--"], "reproduce=">,
     Alias<!cast<Separate>(reproduce)>,
-    HelpText<"Write tar file containing inputs and command to reproduce link">;
+    HelpText<"Write tar file containing inputs and command to reproduce link">,
+    Group<grp_lld>;
 def version: Flag<["--"], "version">,
-    HelpText<"Display the version number and exit">;
+    HelpText<"Display the version number and exit">,
+    Group<grp_lld>;
+def lto_legacy_pass_manager: Flag<["--"], "lto-legacy-pass-manager">,
+    HelpText<"Use the legacy pass manager in LLVM">,
+    Group<grp_lld>;
+def no_lto_legacy_pass_manager : Flag<["--"], "no-lto-legacy-pass-manager">,
+    HelpText<"Use the new pass manager in LLVM">,
+    Group<grp_lld>;
 
 
 // This is a complete Options.td compiled from Apple's ld(1) manpage
@@ -462,7 +477,7 @@ def dependency_info : Separate<["-"], "dependency_info">,
      Flags<[HelpHidden]>,
      Group<grp_introspect>;
 def save_temps : Flag<["-"], "save-temps">,
-     HelpText<"Save temporary files instead of deleting them">,
+     HelpText<"Save intermediate LTO compilation results">,
      Group<grp_introspect>;
 
 def grp_symtab : OptionGroup<"symtab">, HelpText<"SYMBOL TABLE OPTIMIZATIONS">;
@@ -511,6 +526,13 @@ def grp_rare : OptionGroup<"rare">, HelpText<"RARELY USED">;
 
 def v : Flag<["-"], "v">,
      HelpText<"Print the linker version and search paths and exit">,
+     Group<grp_rare>;
+def adhoc_codesign : Flag<["-"], "adhoc_codesign">,
+     HelpText<"Write an ad-hoc code signature to the output file.">,
+     Flags<[HelpHidden]>,
+     Group<grp_rare>;
+def no_adhoc_codesign : Flag<["-"], "no_adhoc_codesign">,
+     HelpText<"Do not write an ad-hoc code signature to the output file.">,
      Group<grp_rare>;
 def version_details : Flag<["-"], "version_details">,
      HelpText<"Print the linker version in JSON form">,
@@ -840,8 +862,7 @@ def object_path_lto : Separate<["-"], "object_path_lto">,
      Group<grp_rare>;
 def lto_library : Separate<["-"], "lto_library">,
      MetaVarName<"<path>">,
-     HelpText<"Override the default ../lib/libLTO.dylib as <path>">,
-     Flags<[HelpHidden]>,
+     HelpText<"Deprecated & ignored. LLD supports LTO directly, without using an external dylib.">,
      Group<grp_rare>;
 def cache_path_lto : Separate<["-"], "cache_path_lto">,
      MetaVarName<"<path>">,

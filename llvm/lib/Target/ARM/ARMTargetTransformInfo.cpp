@@ -491,6 +491,7 @@ int ARMTTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
         {ISD::TRUNCATE, MVT::v4i32, MVT::v4i8, 0},
         {ISD::TRUNCATE, MVT::v8i16, MVT::v8i8, 0},
         {ISD::TRUNCATE, MVT::v8i32, MVT::v8i16, 1},
+        {ISD::TRUNCATE, MVT::v8i32, MVT::v8i8, 1},
         {ISD::TRUNCATE, MVT::v16i32, MVT::v16i8, 3},
         {ISD::TRUNCATE, MVT::v16i16, MVT::v16i8, 1},
     };
@@ -749,6 +750,18 @@ int ARMTTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
       return Lanes;
     else
       return Lanes * CallCost;
+  }
+
+  if (ISD == ISD::TRUNCATE && ST->hasMVEIntegerOps() &&
+      SrcTy.isFixedLengthVector()) {
+    // Treat a truncate with larger than legal source (128bits for MVE) as
+    // expensive, 2 instructions per lane.
+    if ((SrcTy.getScalarType() == MVT::i8 ||
+         SrcTy.getScalarType() == MVT::i16 ||
+         SrcTy.getScalarType() == MVT::i32) &&
+        SrcTy.getSizeInBits() > 128 &&
+        SrcTy.getSizeInBits() > DstTy.getSizeInBits())
+      return SrcTy.getVectorNumElements() * 2;
   }
 
   // Scalar integer conversion costs.
@@ -1498,17 +1511,65 @@ int ARMTTIImpl::getArithmeticReductionCost(unsigned Opcode, VectorType *ValTy,
                                            CostKind);
 }
 
+InstructionCost
+ARMTTIImpl::getExtendedAddReductionCost(bool IsMLA, bool IsUnsigned,
+                                        Type *ResTy, VectorType *ValTy,
+                                        TTI::TargetCostKind CostKind) {
+  EVT ValVT = TLI->getValueType(DL, ValTy);
+  EVT ResVT = TLI->getValueType(DL, ResTy);
+  if (ST->hasMVEIntegerOps() && ValVT.isSimple() && ResVT.isSimple()) {
+    std::pair<int, MVT> LT = TLI->getTypeLegalizationCost(DL, ValTy);
+    if ((LT.second == MVT::v16i8 && ResVT.getSizeInBits() <= 32) ||
+        (LT.second == MVT::v8i16 &&
+         ResVT.getSizeInBits() <= (IsMLA ? 64 : 32)) ||
+        (LT.second == MVT::v4i32 && ResVT.getSizeInBits() <= 64))
+      return ST->getMVEVectorCostFactor() * LT.first;
+  }
+
+  return BaseT::getExtendedAddReductionCost(IsMLA, IsUnsigned, ResTy, ValTy,
+                                            CostKind);
+}
+
 int ARMTTIImpl::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
                                       TTI::TargetCostKind CostKind) {
-  // Currently we make a somewhat optimistic assumption that active_lane_mask's
-  // are always free. In reality it may be freely folded into a tail predicated
-  // loop, expanded into a VCPT or expanded into a lot of add/icmp code. We
-  // may need to improve this in the future, but being able to detect if it
-  // is free or not involves looking at a lot of other code. We currently assume
-  // that the vectorizer inserted these, and knew what it was doing in adding
-  // one.
-  if (ST->hasMVEIntegerOps() && ICA.getID() == Intrinsic::get_active_lane_mask)
-    return 0;
+  switch (ICA.getID()) {
+  case Intrinsic::get_active_lane_mask:
+    // Currently we make a somewhat optimistic assumption that
+    // active_lane_mask's are always free. In reality it may be freely folded
+    // into a tail predicated loop, expanded into a VCPT or expanded into a lot
+    // of add/icmp code. We may need to improve this in the future, but being
+    // able to detect if it is free or not involves looking at a lot of other
+    // code. We currently assume that the vectorizer inserted these, and knew
+    // what it was doing in adding one.
+    if (ST->hasMVEIntegerOps())
+      return 0;
+    break;
+  case Intrinsic::sadd_sat:
+  case Intrinsic::ssub_sat:
+  case Intrinsic::uadd_sat:
+  case Intrinsic::usub_sat: {
+    if (!ST->hasMVEIntegerOps())
+      break;
+    // Get the Return type, either directly of from ICA.ReturnType and ICA.VF.
+    Type *VT = ICA.getReturnType();
+    if (!VT->isVectorTy() && !ICA.getVectorFactor().isScalar())
+      VT = VectorType::get(VT, ICA.getVectorFactor());
+
+    std::pair<int, MVT> LT =
+        TLI->getTypeLegalizationCost(DL, VT);
+    if (LT.second == MVT::v4i32 || LT.second == MVT::v8i16 ||
+        LT.second == MVT::v16i8) {
+      // This is a base cost of 1 for the vadd, plus 3 extract shifts if we
+      // need to extend the type, as it uses shr(qadd(shl, shl)).
+      unsigned Instrs = LT.second.getScalarSizeInBits() ==
+                                ICA.getReturnType()->getScalarSizeInBits()
+                            ? 1
+                            : 4;
+      return LT.first * ST->getMVEVectorCostFactor() * Instrs;
+    }
+    break;
+  }
+  }
 
   return BaseT::getIntrinsicInstrCost(ICA, CostKind);
 }
@@ -2000,8 +2061,7 @@ void ARMTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
         return;
       }
 
-      SmallVector<const Value*, 4> Operands(I.value_op_begin(),
-                                            I.value_op_end());
+      SmallVector<const Value*, 4> Operands(I.operand_values());
       Cost +=
         getUserCost(&I, Operands, TargetTransformInfo::TCK_SizeAndLatency);
     }
@@ -2041,7 +2101,7 @@ bool ARMTTIImpl::preferInLoopReduction(unsigned Opcode, Type *Ty,
   unsigned ScalarBits = Ty->getScalarSizeInBits();
   switch (Opcode) {
   case Instruction::Add:
-    return ScalarBits <= 32;
+    return ScalarBits <= 64;
   default:
     return false;
   }

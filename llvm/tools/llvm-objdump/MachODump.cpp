@@ -362,8 +362,7 @@ static void getSectionsAndSymbols(MachOObjectFile *MachOObj,
       Symbols.push_back(Symbol);
   }
 
-  for (const SectionRef &Section : MachOObj->sections())
-    Sections.push_back(Section);
+  append_range(Sections, MachOObj->sections());
 
   bool BaseSegmentAddressSet = false;
   for (const auto &Command : MachOObj->load_commands()) {
@@ -2395,7 +2394,7 @@ void objdump::parseInputMachO(MachOUniversalBinary *UB) {
           ArchFound = true;
           Expected<std::unique_ptr<ObjectFile>> ObjOrErr =
               I->getAsObjectFile();
-          std::string ArchitectureName = "";
+          std::string ArchitectureName;
           if (ArchFlags.size() > 1)
             ArchitectureName = I->getArchFlagName();
           if (ObjOrErr) {
@@ -2511,7 +2510,7 @@ void objdump::parseInputMachO(MachOUniversalBinary *UB) {
                                               E = UB->end_objects();
         I != E; ++I) {
     Expected<std::unique_ptr<ObjectFile>> ObjOrErr = I->getAsObjectFile();
-    std::string ArchitectureName = "";
+    std::string ArchitectureName;
     if (moreThanOneArch)
       ArchitectureName = I->getArchFlagName();
     if (ObjOrErr) {
@@ -6115,8 +6114,7 @@ static void printObjc2_64bit_MetaData(MachOObjectFile *O, bool verbose) {
     CreateSymbolAddressMap(O, &AddrMap);
 
   std::vector<SectionRef> Sections;
-  for (const SectionRef &Section : O->sections())
-    Sections.push_back(Section);
+  append_range(Sections, O->sections());
 
   struct DisassembleInfo info(O, &AddrMap, &Sections, verbose);
 
@@ -6197,8 +6195,7 @@ static void printObjc2_32bit_MetaData(MachOObjectFile *O, bool verbose) {
     CreateSymbolAddressMap(O, &AddrMap);
 
   std::vector<SectionRef> Sections;
-  for (const SectionRef &Section : O->sections())
-    Sections.push_back(Section);
+  append_range(Sections, O->sections());
 
   struct DisassembleInfo info(O, &AddrMap, &Sections, verbose);
 
@@ -6292,8 +6289,7 @@ static bool printObjc1_32bit_MetaData(MachOObjectFile *O, bool verbose) {
     CreateSymbolAddressMap(O, &AddrMap);
 
   std::vector<SectionRef> Sections;
-  for (const SectionRef &Section : O->sections())
-    Sections.push_back(Section);
+  append_range(Sections, O->sections());
 
   struct DisassembleInfo info(O, &AddrMap, &Sections, verbose);
 
@@ -6450,8 +6446,7 @@ static void DumpProtocolSection(MachOObjectFile *O, const char *sect,
   CreateSymbolAddressMap(O, &AddrMap);
 
   std::vector<SectionRef> Sections;
-  for (const SectionRef &Section : O->sections())
-    Sections.push_back(Section);
+  append_range(Sections, O->sections());
 
   struct DisassembleInfo info(O, &AddrMap, &Sections, true);
 

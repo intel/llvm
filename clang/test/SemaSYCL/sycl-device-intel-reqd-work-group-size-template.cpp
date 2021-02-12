@@ -6,7 +6,7 @@
 // is checked properly when instantiating from the template definition.
 
 template <typename Ty, typename Ty1, typename Ty2>
-// expected-error@+1{{'reqd_work_group_size' attribute requires an integer constant}}
+// expected-error@+1 3{{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
 [[intel::reqd_work_group_size(Ty{}, Ty1{}, Ty2{})]] void func() {}
 
 struct S {};
@@ -16,15 +16,17 @@ void var() {
 }
 
 // Test that checks expression is not a constant expression.
+// expected-note@+1 3{{declared here}}
 int foo();
-// expected-error@+1{{'reqd_work_group_size' attribute requires an integer constant}}
+// expected-error@+2 3{{expression is not an integral constant expression}}
+// expected-note@+1 3{{non-constexpr function 'foo' cannot be used in a constant expression}}
 [[intel::reqd_work_group_size(foo() + 12, foo() + 12, foo() + 12)]] void func1();
 
 // Test that checks expression is a constant expression.
 constexpr int bar() { return 0; }
 [[intel::reqd_work_group_size(bar() + 12, bar() + 12, bar() + 12)]] void func2(); // OK
 
-// Test that checks template parameter suppport on member function of class template.
+// Test that checks template parameter support on member function of class template.
 template <int SIZE, int SIZE1, int SIZE2>
 class KernelFunctor {
 public:
@@ -39,17 +41,23 @@ int main() {
 // CHECK: ClassTemplateSpecializationDecl {{.*}} {{.*}} class KernelFunctor definition
 // CHECK: CXXRecordDecl {{.*}} {{.*}} implicit class KernelFunctor
 // CHECK: ReqdWorkGroupSizeAttr {{.*}}
-// CHECK: SubstNonTypeTemplateParmExpr {{.*}}
+// CHECK-NEXT: ConstantExpr{{.*}}'int'
+// CHECK-NEXT: value: Int 16
+// CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}16{{$}}
-// CHECK: SubstNonTypeTemplateParmExpr {{.*}}
+// CHECK-NEXT: ConstantExpr{{.*}}'int'
+// CHECK-NEXT: value: Int 1
+// CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
-// CHECK: SubstNonTypeTemplateParmExpr {{.*}}
+// CHECK-NEXT: ConstantExpr{{.*}}'int'
+// CHECK-NEXT: value: Int 1
+// CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
 
-// Test that checks template parameter suppport on function.
+// Test that checks template parameter support on function.
 template <int N, int N1, int N2>
 [[intel::reqd_work_group_size(N, N1, N2)]] void func3() {}
 
@@ -59,15 +67,20 @@ int check() {
 }
 
 // CHECK: FunctionTemplateDecl {{.*}} {{.*}} func3
-// CHECK: NonTypeTemplateParmDecl {{.*}} {{.*}} referenced 'int' depth 0 index 0 N
-// CHECK: FunctionDecl {{.*}} {{.*}} func3 'void ()'
+// CHECK: FunctionDecl {{.*}} {{.*}} used func3 'void ()'
 // CHECK: ReqdWorkGroupSizeAttr {{.*}}
-// CHECK: SubstNonTypeTemplateParmExpr {{.*}}
+// CHECK-NEXT: ConstantExpr{{.*}}'int'
+// CHECK-NEXT: value: Int 8
+// CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
-// CHECK: SubstNonTypeTemplateParmExpr {{.*}}
+// CHECK-NEXT: ConstantExpr{{.*}}'int'
+// CHECK-NEXT: value: Int 8
+// CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
-// CHECK: SubstNonTypeTemplateParmExpr {{.*}}
+// CHECK-NEXT: ConstantExpr{{.*}}'int'
+// CHECK-NEXT: value: Int 8
+// CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}

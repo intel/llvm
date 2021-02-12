@@ -65,16 +65,15 @@ SelfTargetProcessControl::loadDylib(const char *DylibPath) {
 }
 
 Expected<std::vector<tpctypes::LookupResult>>
-SelfTargetProcessControl::lookupSymbols(
-    ArrayRef<tpctypes::LookupRequest> Request) {
+SelfTargetProcessControl::lookupSymbols(ArrayRef<LookupRequest> Request) {
   std::vector<tpctypes::LookupResult> R;
 
   for (auto &Elem : Request) {
     auto *Dylib = jitTargetAddressToPointer<sys::DynamicLibrary *>(Elem.Handle);
-    assert(llvm::find_if(DynamicLibraries,
-                         [=](const std::unique_ptr<sys::DynamicLibrary> &DL) {
-                           return DL.get() == Dylib;
-                         }) != DynamicLibraries.end() &&
+    assert(llvm::any_of(DynamicLibraries,
+                        [=](const std::unique_ptr<sys::DynamicLibrary> &DL) {
+                          return DL.get() == Dylib;
+                        }) &&
            "Invalid handle");
 
     R.push_back(std::vector<JITTargetAddress>());

@@ -258,6 +258,15 @@ public:
     };
   }
 
+  template <typename Result>
+  void bind(const char *Method,
+            void (ClangdLSPServer::*Handler)(Callback<Result>)) {
+    Calls[Method] = [Handler, this](llvm::json::Value RawParams,
+                                    ReplyOnce Reply) {
+      (Server.*Handler)(std::move(Reply));
+    };
+  }
+
   // Bind a reply callback to a request. The callback will be invoked when
   // clangd receives the reply from the LSP client.
   // Return a call id of the request.
@@ -298,6 +307,12 @@ public:
       trace::Span Tracer(Method, LSPLatency);
       SPAN_ATTACH(Tracer, "Params", RawParams);
       (Server.*Handler)(*P);
+    };
+  }
+
+  void bind(const char *Method, void (ClangdLSPServer::*Handler)()) {
+    Notifications[Method] = [Handler, this](llvm::json::Value RawParams) {
+      (Server.*Handler)();
     };
   }
 
@@ -443,6 +458,14 @@ private:
 };
 constexpr int ClangdLSPServer::MessageHandler::MaxReplayCallbacks;
 
+template <>
+void ClangdLSPServer::MessageHandler::bind<NoParams>(
+    const char *Method, void (ClangdLSPServer::*Handler)(const NoParams &)) {
+  Notifications[Method] = [Handler, this](llvm::json::Value RawParams) {
+    (Server.*Handler)(NoParams{});
+  };
+}
+
 // call(), notify(), and reply() wrap the Transport, adding logging and locking.
 void ClangdLSPServer::callRaw(StringRef Method, llvm::json::Value Params,
                               Callback<llvm::json::Value> CB) {
@@ -487,6 +510,11 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
         "semanticTokens request, choosing the latter (no notifications).");
     Opts.TheiaSemanticHighlighting = false;
   }
+  if (Opts.TheiaSemanticHighlighting) {
+    log("Using legacy semanticHighlights notification, which will be removed "
+        "in clangd 13. Clients should use the standard semanticTokens "
+        "request instead.");
+  }
 
   if (Params.rootUri && *Params.rootUri)
     Opts.WorkspaceRoot = std::string(Params.rootUri->file());
@@ -500,6 +528,7 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
   if (Opts.UseDirBasedCDB) {
     DirectoryBasedGlobalCompilationDatabase::Options CDBOpts(TFS);
     CDBOpts.CompileCommandsDir = Opts.CompileCommandsDir;
+    CDBOpts.ContextProvider = Opts.ContextProvider;
     BaseCDB =
         std::make_unique<DirectoryBasedGlobalCompilationDatabase>(CDBOpts);
     BaseCDB = getQueryDriverDatabase(llvm::makeArrayRef(Opts.QueryDriverGlobs),
@@ -620,7 +649,7 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
             {"documentSymbolProvider", true},
             {"workspaceSymbolProvider", true},
             {"referencesProvider", true},
-            {"astProvider", true},
+            {"astProvider", true}, // clangd extension
             {"executeCommandProvider",
              llvm::json::Object{
                  {"commands",
@@ -628,7 +657,9 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
                    ExecuteCommandParams::CLANGD_APPLY_TWEAK}},
              }},
             {"typeHierarchyProvider", true},
-            {"memoryUsageProvider", true}, // clangd extension.
+            {"memoryUsageProvider", true}, // clangd extension
+            {"compilationDatabase",        // clangd extension
+             llvm::json::Object{{"automaticReload", true}}},
             {"callHierarchyProvider", true},
         }}}};
   if (Opts.Encoding)
@@ -645,8 +676,7 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
 
 void ClangdLSPServer::onInitialized(const InitializedParams &Params) {}
 
-void ClangdLSPServer::onShutdown(const ShutdownParams &Params,
-                                 Callback<std::nullptr_t> Reply) {
+void ClangdLSPServer::onShutdown(Callback<std::nullptr_t> Reply) {
   // Do essentially nothing, just say we're ready to exit.
   ShutdownRequestReceived = true;
   Reply(nullptr);
@@ -654,8 +684,7 @@ void ClangdLSPServer::onShutdown(const ShutdownParams &Params,
 
 // sync is a clangd extension: it blocks until all background work completes.
 // It blocks the calling thread, so no messages are processed until it returns!
-void ClangdLSPServer::onSync(const NoParams &Params,
-                             Callback<std::nullptr_t> Reply) {
+void ClangdLSPServer::onSync(Callback<std::nullptr_t> Reply) {
   if (Server->blockUntilIdleForTest(/*TimeoutSeconds=*/60))
     Reply(nullptr);
   else
@@ -1443,8 +1472,7 @@ void ClangdLSPServer::onSemanticTokensDelta(
       });
 }
 
-void ClangdLSPServer::onMemoryUsage(const NoParams &,
-                                    Callback<MemoryTree> Reply) {
+void ClangdLSPServer::onMemoryUsage(Callback<MemoryTree> Reply) {
   llvm::BumpPtrAllocator DetailAlloc;
   MemoryTree MT(&DetailAlloc);
   profile(MT);
@@ -1467,6 +1495,12 @@ ClangdLSPServer::ClangdLSPServer(class Transport &Transp,
       MsgHandler(new MessageHandler(*this)), TFS(TFS),
       SupportedSymbolKinds(defaultSymbolKinds()),
       SupportedCompletionItemKinds(defaultCompletionItemKinds()), Opts(Opts) {
+  if (Opts.ConfigProvider) {
+    assert(!Opts.ContextProvider &&
+           "Only one of ConfigProvider and ContextProvider allowed!");
+    this->Opts.ContextProvider = ClangdServer::createConfiguredContextProvider(
+        Opts.ConfigProvider, this);
+  }
 
   // clang-format off
   MsgHandler->bind("initialize", &ClangdLSPServer::onInitialize);

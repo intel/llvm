@@ -263,8 +263,8 @@ bool ARMCallLowering::lowerReturnVal(MachineIRBuilder &MIRBuilder,
 }
 
 bool ARMCallLowering::lowerReturn(MachineIRBuilder &MIRBuilder,
-                                  const Value *Val,
-                                  ArrayRef<Register> VRegs) const {
+                                  const Value *Val, ArrayRef<Register> VRegs,
+                                  FunctionLoweringInfo &FLI) const {
   assert(!Val == VRegs.empty() && "Return value without a vreg");
 
   auto const &ST = MIRBuilder.getMF().getSubtarget<ARMSubtarget>();
@@ -410,9 +410,10 @@ struct FormalArgHandler : public ARMIncomingValueHandler {
 
 } // end anonymous namespace
 
-bool ARMCallLowering::lowerFormalArguments(
-    MachineIRBuilder &MIRBuilder, const Function &F,
-    ArrayRef<ArrayRef<Register>> VRegs) const {
+bool ARMCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
+                                           const Function &F,
+                                           ArrayRef<ArrayRef<Register>> VRegs,
+                                           FunctionLoweringInfo &FLI) const {
   auto &TLI = *getTLI<ARMTargetLowering>();
   auto Subtarget = TLI.getSubtarget();
 
@@ -537,14 +538,10 @@ bool ARMCallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInfo &
 
   MIB.addRegMask(TRI->getCallPreservedMask(MF, Info.CallConv));
 
-  bool IsVarArg = false;
   SmallVector<ArgInfo, 8> ArgInfos;
   for (auto Arg : Info.OrigArgs) {
     if (!isSupportedType(DL, TLI, Arg.Ty))
       return false;
-
-    if (!Arg.IsFixed)
-      IsVarArg = true;
 
     if (Arg.Flags[0].isByVal())
       return false;
@@ -552,7 +549,7 @@ bool ARMCallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInfo &
     splitToValueTypes(Arg, ArgInfos, MF);
   }
 
-  auto ArgAssignFn = TLI.CCAssignFnForCall(Info.CallConv, IsVarArg);
+  auto ArgAssignFn = TLI.CCAssignFnForCall(Info.CallConv, Info.IsVarArg);
   ARMOutgoingValueHandler ArgHandler(MIRBuilder, MRI, MIB, ArgAssignFn);
   if (!handleAssignments(MIRBuilder, ArgInfos, ArgHandler))
     return false;
@@ -566,7 +563,7 @@ bool ARMCallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInfo &
 
     ArgInfos.clear();
     splitToValueTypes(Info.OrigRet, ArgInfos, MF);
-    auto RetAssignFn = TLI.CCAssignFnForReturn(Info.CallConv, IsVarArg);
+    auto RetAssignFn = TLI.CCAssignFnForReturn(Info.CallConv, Info.IsVarArg);
     CallReturnHandler RetHandler(MIRBuilder, MRI, MIB, RetAssignFn);
     if (!handleAssignments(MIRBuilder, ArgInfos, RetHandler))
       return false;

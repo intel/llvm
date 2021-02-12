@@ -686,13 +686,26 @@
 // CLANG-NOT: "--dependent-lib=libcmt"
 // CLANG-NOT: "-vectorize-slp"
 
+// Cover PR42501: clang-cl /clang: pass-through causes read-after-free with aliased options.
+// RUN: %clang_cl /clang:-save-temps /clang:-Wl,test1,test2 -### -- %s 2>&1 | FileCheck -check-prefix=SAVETEMPS %s
+// SAVETEMPS: "-save-temps=cwd"
+// SAVETEMPS: "test1" "test2"
+
 // Validate that the default triple is used when run an empty tools dir is specified
 // RUN: %clang_cl -vctoolsdir "" -### -- %s 2>&1 | FileCheck %s --check-prefix VCTOOLSDIR
 // VCTOOLSDIR: "-triple" "{{[a-zA-Z0-9_-]*}}-pc-windows-msvc19.11.0"
 
 // Validate that built-in include paths are based on the supplied path
-// RUN: %clang_cl -vctoolsdir "/fake" -### -- %s 2>&1 | FileCheck %s --check-prefix FAKEDIR
+// RUN: %clang_cl --target=aarch64-pc-windows-msvc -vctoolsdir "/fake" -winsdkdir "/foo" -winsdkversion 10.0.12345.0 -### -- %s 2>&1 | FileCheck %s --check-prefix FAKEDIR
 // FAKEDIR: "-internal-isystem" "/fake{{/|\\\\}}include"
 // FAKEDIR: "-internal-isystem" "/fake{{/|\\\\}}atlmfc{{/|\\\\}}include"
+// FAKEDIR: "-internal-isystem" "/foo{{/|\\\\}}Include{{/|\\\\}}10.0.12345.0{{/|\\\\}}ucrt"
+// FAKEDIR: "-internal-isystem" "/foo{{/|\\\\}}Include{{/|\\\\}}10.0.12345.0{{/|\\\\}}shared"
+// FAKEDIR: "-internal-isystem" "/foo{{/|\\\\}}Include{{/|\\\\}}10.0.12345.0{{/|\\\\}}um"
+// FAKEDIR: "-internal-isystem" "/foo{{/|\\\\}}Include{{/|\\\\}}10.0.12345.0{{/|\\\\}}winrt"
+// FAKEDIR: "-libpath:/fake{{/|\\\\}}lib{{/|\\\\}}
+// FAKEDIR: "-libpath:/fake{{/|\\\\}}atlmfc{{/|\\\\}}lib{{/|\\\\}}
+// FAKEDIR: "-libpath:/foo{{/|\\\\}}Lib{{/|\\\\}}10.0.12345.0{{/|\\\\}}ucrt
+// FAKEDIR: "-libpath:/foo{{/|\\\\}}Lib{{/|\\\\}}10.0.12345.0{{/|\\\\}}um
 
 void f() { }

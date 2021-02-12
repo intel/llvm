@@ -92,13 +92,6 @@ def SPV_BitCountOp : SPV_BitUnaryOp<"BitCount", []> {
     %3 = spv.BitCount %1: vector<4xi32>
     ```
   }];
-
-  let availability = [
-    MinVersion<SPV_V_1_0>,
-    MaxVersion<SPV_V_1_5>,
-    Extension<[]>,
-    Capability<[]>
-  ];
 }
 
 // -----
@@ -178,7 +171,8 @@ def SPV_BitFieldInsertOp : SPV_Op<"BitFieldInsert",
 
 // -----
 
-def SPV_BitFieldSExtractOp : SPV_BitFieldExtractOp<"BitFieldSExtract", []> {
+def SPV_BitFieldSExtractOp : SPV_BitFieldExtractOp<"BitFieldSExtract",
+                                                   [SignedOp]> {
   let summary = "Extract a bit field from an object, with sign extension.";
 
   let description = [{
@@ -232,7 +226,8 @@ def SPV_BitFieldSExtractOp : SPV_BitFieldExtractOp<"BitFieldSExtract", []> {
 
 // -----
 
-def SPV_BitFieldUExtractOp : SPV_BitFieldExtractOp<"BitFieldUExtract", []> {
+def SPV_BitFieldUExtractOp : SPV_BitFieldExtractOp<"BitFieldUExtract",
+                                                   [UnsignedOp]> {
   let summary = "Extract a bit field from an object, without sign extension.";
 
   let description = [{
@@ -308,7 +303,8 @@ def SPV_BitReverseOp : SPV_BitUnaryOp<"BitReverse", []> {
 
 // -----
 
-def SPV_BitwiseAndOp : SPV_BitBinaryOp<"BitwiseAnd", [Commutative]> {
+def SPV_BitwiseAndOp : SPV_BitBinaryOp<"BitwiseAnd",
+                                       [Commutative, UsableInSpecConstantOp]> {
   let summary = [{
     Result is 1 if both Operand 1 and Operand 2 are 1. Result is 0 if either
     Operand 1 or Operand 2 are 0.
@@ -338,18 +334,12 @@ def SPV_BitwiseAndOp : SPV_BitBinaryOp<"BitwiseAnd", [Commutative]> {
     %2 = spv.BitwiseAnd %0, %1 : vector<4xi32>
     ```
   }];
-
-  let availability = [
-    MinVersion<SPV_V_1_0>,
-    MaxVersion<SPV_V_1_5>,
-    Extension<[]>,
-    Capability<[]>
-  ];
 }
 
 // -----
 
-def SPV_BitwiseOrOp : SPV_BitBinaryOp<"BitwiseOr", [Commutative]> {
+def SPV_BitwiseOrOp : SPV_BitBinaryOp<"BitwiseOr",
+                                      [Commutative, UsableInSpecConstantOp]> {
   let summary = [{
     Result is 1 if either Operand 1 or Operand 2 is 1. Result is 0 if both
     Operand 1 and Operand 2 are 0.
@@ -379,18 +369,12 @@ def SPV_BitwiseOrOp : SPV_BitBinaryOp<"BitwiseOr", [Commutative]> {
     %2 = spv.BitwiseOr %0, %1 : vector<4xi32>
     ```
   }];
-
-  let availability = [
-    MinVersion<SPV_V_1_0>,
-    MaxVersion<SPV_V_1_5>,
-    Extension<[]>,
-    Capability<[]>
-  ];
 }
 
 // -----
 
-def SPV_BitwiseXorOp : SPV_BitBinaryOp<"BitwiseXor", [Commutative]> {
+def SPV_BitwiseXorOp : SPV_BitBinaryOp<"BitwiseXor",
+                                       [Commutative, UsableInSpecConstantOp]> {
   let summary = [{
     Result is 1 if exactly one of Operand 1 or Operand 2 is 1. Result is 0
     if Operand 1 and Operand 2 have the same value.
@@ -420,21 +404,15 @@ def SPV_BitwiseXorOp : SPV_BitBinaryOp<"BitwiseXor", [Commutative]> {
     %2 = spv.BitwiseXor %0, %1 : vector<4xi32>
     ```
   }];
-
-  let availability = [
-    MinVersion<SPV_V_1_0>,
-    MaxVersion<SPV_V_1_5>,
-    Extension<[]>,
-    Capability<[]>
-  ];
 }
 
 // -----
 
-def SPV_ShiftLeftLogicalOp : SPV_ShiftOp<"ShiftLeftLogical", []> {
+def SPV_ShiftLeftLogicalOp : SPV_ShiftOp<"ShiftLeftLogical",
+                                         [UsableInSpecConstantOp]> {
   let summary = [{
     Shift the bits in Base left by the number of bits specified in Shift.
-    The least-significant bits will be zero filled.
+    The least-significant bits are zero filled.
   }];
 
   let description = [{
@@ -471,21 +449,15 @@ def SPV_ShiftLeftLogicalOp : SPV_ShiftOp<"ShiftLeftLogical", []> {
     %5 = spv.ShiftLeftLogical %3, %4 : vector<3xi32>, vector<3xi16>
     ```
   }];
-
-  let availability = [
-    MinVersion<SPV_V_1_0>,
-    MaxVersion<SPV_V_1_5>,
-    Extension<[]>,
-    Capability<[]>
-  ];
 }
 
 // -----
 
-def SPV_ShiftRightArithmeticOp : SPV_ShiftOp<"ShiftRightArithmetic", []> {
+def SPV_ShiftRightArithmeticOp : SPV_ShiftOp<"ShiftRightArithmetic",
+                                             [UsableInSpecConstantOp]> {
   let summary = [{
     Shift the bits in Base right by the number of bits specified in Shift.
-    The most-significant bits will be filled with the sign bit from Base.
+    The most-significant bits are filled with the sign bit from Base.
   }];
 
   let description = [{
@@ -519,21 +491,15 @@ def SPV_ShiftRightArithmeticOp : SPV_ShiftOp<"ShiftRightArithmetic", []> {
     %5 = spv.ShiftRightArithmetic %3, %4 : vector<3xi32>, vector<3xi16>
     ```
   }];
-
-  let availability = [
-    MinVersion<SPV_V_1_0>,
-    MaxVersion<SPV_V_1_5>,
-    Extension<[]>,
-    Capability<[]>
-  ];
 }
 
 // -----
 
-def SPV_ShiftRightLogicalOp : SPV_ShiftOp<"ShiftRightLogical", []> {
+def SPV_ShiftRightLogicalOp : SPV_ShiftOp<"ShiftRightLogical",
+                                          [UsableInSpecConstantOp]> {
   let summary = [{
     Shift the bits in Base right by the number of bits specified in Shift.
-    The most-significant bits will be zero filled.
+    The most-significant bits are zero filled.
   }];
 
   let description = [{
@@ -568,18 +534,11 @@ def SPV_ShiftRightLogicalOp : SPV_ShiftOp<"ShiftRightLogical", []> {
     %5 = spv.ShiftRightLogical %3, %4 : vector<3xi32>, vector<3xi16>
     ```
   }];
-
-  let availability = [
-    MinVersion<SPV_V_1_0>,
-    MaxVersion<SPV_V_1_5>,
-    Extension<[]>,
-    Capability<[]>
-  ];
 }
 
 // -----
 
-def SPV_NotOp : SPV_BitUnaryOp<"Not", []> {
+def SPV_NotOp : SPV_BitUnaryOp<"Not", [UsableInSpecConstantOp]> {
   let summary = "Complement the bits of Operand.";
 
   let description = [{
@@ -587,7 +546,7 @@ def SPV_NotOp : SPV_BitUnaryOp<"Not", []> {
 
     Result Type must be a scalar or vector of integer type.
 
-    Operand’s type  must be a scalar or vector of integer type.  It must
+    Operand's type  must be a scalar or vector of integer type.  It must
     have the same number of components as Result Type.  The component width
     must equal the component width in Result Type.
 

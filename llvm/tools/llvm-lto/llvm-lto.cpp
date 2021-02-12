@@ -78,17 +78,6 @@ static cl::opt<bool> DisableVerify(
     "disable-verify", cl::init(false),
     cl::desc("Do not run the verifier during the optimization pipeline"));
 
-static cl::opt<bool> DisableInline("disable-inlining", cl::init(false),
-                                   cl::desc("Do not run the inliner pass"));
-
-static cl::opt<bool>
-    DisableGVNLoadPRE("disable-gvn-loadpre", cl::init(false),
-                      cl::desc("Do not run the GVN load PRE pass"));
-
-static cl::opt<bool> DisableLTOVectorization(
-    "disable-lto-vectorization", cl::init(false),
-    cl::desc("Do not run loop or slp vectorization during LTO"));
-
 static cl::opt<bool> EnableFreestanding(
     "lto-freestanding", cl::init(false),
     cl::desc("Enable Freestanding (disable builtins / TLI) during LTO"));
@@ -964,6 +953,7 @@ int main(int argc, char **argv) {
                                true);
 
   LTOCodeGenerator CodeGen(Context);
+  CodeGen.setDisableVerify(DisableVerify);
 
   if (UseDiagnosticHandler)
     CodeGen.setDiagnosticHandler(handleDiagnostics, nullptr);
@@ -1022,12 +1012,7 @@ int main(int argc, char **argv) {
   CodeGen.setCpu(codegen::getMCPU().c_str());
 
   CodeGen.setOptLevel(OptLevel - '0');
-
-  auto MAttrs = codegen::getMAttrs();
-  if (!MAttrs.empty()) {
-    std::string attrs = join(MAttrs, ",");
-    CodeGen.setAttr(attrs);
-  }
+  CodeGen.setAttrs(codegen::getMAttrs());
 
   if (auto FT = codegen::getExplicitFileType())
     CodeGen.setFileType(FT.getValue());
@@ -1042,8 +1027,7 @@ int main(int argc, char **argv) {
         error("writing linked module failed.");
     }
 
-    if (!CodeGen.optimize(DisableVerify, DisableInline, DisableGVNLoadPRE,
-                          DisableLTOVectorization)) {
+    if (!CodeGen.optimize()) {
       // Diagnostic messages should have been printed by the handler.
       error("error optimizing the code");
     }
@@ -1084,8 +1068,7 @@ int main(int argc, char **argv) {
       error(": -save-merged-module must be specified with -o");
 
     const char *OutputName = nullptr;
-    if (!CodeGen.compile_to_file(&OutputName, DisableVerify, DisableInline,
-                                 DisableGVNLoadPRE, DisableLTOVectorization))
+    if (!CodeGen.compile_to_file(&OutputName))
       error("error compiling the code");
       // Diagnostic messages should have been printed by the handler.
 

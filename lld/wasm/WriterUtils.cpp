@@ -30,8 +30,6 @@ std::string toString(ValType type) {
     return "f64";
   case ValType::V128:
     return "v128";
-  case ValType::EXNREF:
-    return "exnref";
   case ValType::FUNCREF:
     return "funcref";
   case ValType::EXTERNREF:
@@ -64,6 +62,21 @@ std::string toString(const WasmEventType &type) {
   if (type.Attribute == WASM_EVENT_ATTRIBUTE_EXCEPTION)
     return "exception";
   return "unknown";
+}
+
+static std::string toString(const llvm::wasm::WasmLimits &limits) {
+  std::string ret;
+  ret += "flags=0x" + std::to_string(limits.Flags);
+  ret += "; initial=" + std::to_string(limits.Initial);
+  if (limits.Flags & WASM_LIMITS_FLAG_HAS_MAX)
+    ret += "; max=" + std::to_string(limits.Maximum);
+  return ret;
+}
+
+std::string toString(const WasmTableType &type) {
+  SmallString<128> ret("");
+  return "type=" + toString(static_cast<ValType>(type.ElemType)) +
+         "; limits=[" + toString(type.Limits) + "]";
 }
 
 namespace wasm {
@@ -204,7 +217,7 @@ void writeEvent(raw_ostream &os, const WasmEvent &event) {
 }
 
 void writeTableType(raw_ostream &os, const WasmTableType &type) {
-  writeU8(os, WASM_TYPE_FUNCREF, "table type");
+  writeValueType(os, ValType(type.ElemType), "table type");
   writeLimits(os, type.Limits);
 }
 

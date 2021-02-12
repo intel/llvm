@@ -76,20 +76,6 @@ static MaskFormat get1DMaskFormat(Value mask) {
   return MaskFormat::Unknown;
 }
 
-/// Helper method to cast a 1-D memref<10xf32> "base" into a
-/// memref<vector<10xf32>> in the output parameter "newBase",
-/// using the 'element' vector type "vt". Returns true on success.
-static bool castedToMemRef(Location loc, Value base, MemRefType mt,
-                           VectorType vt, PatternRewriter &rewriter,
-                           Value &newBase) {
-  // The vector.type_cast operation does not accept unknown memref<?xf32>.
-  // TODO: generalize the cast and accept this case too
-  if (!mt.hasStaticShape())
-    return false;
-  newBase = rewriter.create<TypeCastOp>(loc, MemRefType::get({}, vt), base);
-  return true;
-}
-
 //===----------------------------------------------------------------------===//
 // VectorDialect
 //===----------------------------------------------------------------------===//
@@ -1908,7 +1894,7 @@ public:
     auto dstVecType = op.getType().cast<VectorType>();
     unsigned dstRank = dstVecType.getRank();
     unsigned rankDiff = dstRank - srcRrank;
-    // Check if the most inner dimensions of the source of the broacast are the
+    // Check if the most inner dimensions of the source of the broadcast are the
     // same as the destination of the extract. If this is the case we can just
     // use a broadcast as the original dimensions are untouched.
     bool lowerDimMatch = true;
@@ -2039,28 +2025,28 @@ static LogicalResult verifyTransferOp(Operation *op, ShapedType shapedType,
 
 /// Builder that sets padding to zero.
 void TransferReadOp::build(OpBuilder &builder, OperationState &result,
-                           VectorType vector, Value memref, ValueRange indices,
+                           VectorType vector, Value source, ValueRange indices,
                            AffineMap permutationMap,
                            ArrayRef<bool> maybeMasked) {
-  Type elemType = memref.getType().cast<MemRefType>().getElementType();
+  Type elemType = source.getType().cast<ShapedType>().getElementType();
   Value padding = builder.create<ConstantOp>(result.location, elemType,
                                              builder.getZeroAttr(elemType));
   if (maybeMasked.empty())
-    return build(builder, result, vector, memref, indices, permutationMap,
+    return build(builder, result, vector, source, indices, permutationMap,
                  padding, ArrayAttr());
   ArrayAttr maskedArrayAttr = builder.getBoolArrayAttr(maybeMasked);
-  build(builder, result, vector, memref, indices, permutationMap, padding,
+  build(builder, result, vector, source, indices, permutationMap, padding,
         maskedArrayAttr);
 }
 
 /// Builder that sets permutation map (resp. padding) to 'getMinorIdentityMap'
 /// (resp. zero).
 void TransferReadOp::build(OpBuilder &builder, OperationState &result,
-                           VectorType vectorType, Value memref,
+                           VectorType vectorType, Value source,
                            ValueRange indices, ArrayRef<bool> maybeMasked) {
   auto permMap = getTransferMinorIdentityMap(
-      memref.getType().cast<MemRefType>(), vectorType);
-  build(builder, result, vectorType, memref, indices, permMap, maybeMasked);
+      source.getType().cast<ShapedType>(), vectorType);
+  build(builder, result, vectorType, source, indices, permMap, maybeMasked);
 }
 
 static void printTransferAttrs(OpAsmPrinter &p, VectorTransferOpInterface op) {
@@ -2241,6 +2227,14 @@ Optional<SmallVector<int64_t, 4>> TransferReadOp::getShapeForUnroll() {
   return SmallVector<int64_t, 4>{s.begin(), s.end()};
 }
 
+void TransferReadOp::getEffects(
+    SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+        &effects) {
+  if (getShapedType().isa<MemRefType>())
+    effects.emplace_back(MemoryEffects::Read::get(), source(),
+                         SideEffects::DefaultResource::get());
+}
+
 //===----------------------------------------------------------------------===//
 // TransferWriteOp
 //===----------------------------------------------------------------------===//
@@ -2251,7 +2245,7 @@ void TransferWriteOp::build(OpBuilder &builder, OperationState &result,
                             ArrayRef<bool> maybeMasked) {
   auto vectorType = vector.getType().cast<VectorType>();
   auto permMap = getTransferMinorIdentityMap(
-      source.getType().cast<MemRefType>(), vectorType);
+      source.getType().cast<ShapedType>(), vectorType);
   if (maybeMasked.empty())
     return build(builder, result, vector, source, indices, permMap,
                  ArrayAttr());
@@ -2327,7 +2321,7 @@ static void print(OpAsmPrinter &p, TransferWriteOp op) {
 }
 
 static LogicalResult verify(TransferWriteOp op) {
-  // Consistency of elemental types in memref and vector.
+  // Consistency of elemental types in shape and vector.
   ShapedType shapedType = op.getShapedType();
   VectorType vectorType = op.getVectorType();
   auto permutationMap = op.permutation_map();
@@ -2355,6 +2349,14 @@ Optional<SmallVector<int64_t, 4>> TransferWriteOp::getShapeForUnroll() {
   return llvm::to_vector<4>(getVectorType().getShape());
 }
 
+void TransferWriteOp::getEffects(
+    SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+        &effects) {
+  if (getShapedType().isa<MemRefType>())
+    effects.emplace_back(MemoryEffects::Write::get(), source(),
+                         SideEffects::DefaultResource::get());
+}
+
 //===----------------------------------------------------------------------===//
 // MaskedLoadOp
 //===----------------------------------------------------------------------===//
@@ -2363,10 +2365,12 @@ static LogicalResult verify(MaskedLoadOp op) {
   VectorType maskVType = op.getMaskVectorType();
   VectorType passVType = op.getPassThruVectorType();
   VectorType resVType = op.getResultVectorType();
+  MemRefType memType = op.getMemRefType();
 
-  if (resVType.getElementType() != op.getMemRefType().getElementType())
+  if (resVType.getElementType() != memType.getElementType())
     return op.emitOpError("base and result element type should match");
-
+  if (llvm::size(op.indices()) != memType.getRank())
+    return op.emitOpError("requires ") << memType.getRank() << " indices";
   if (resVType.getDimSize(0) != maskVType.getDimSize(0))
     return op.emitOpError("expected result dim to match mask dim");
   if (resVType != passVType)
@@ -2380,13 +2384,10 @@ public:
   using OpRewritePattern<MaskedLoadOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(MaskedLoadOp load,
                                 PatternRewriter &rewriter) const override {
-    Value newBase;
     switch (get1DMaskFormat(load.mask())) {
     case MaskFormat::AllTrue:
-      if (!castedToMemRef(load.getLoc(), load.base(), load.getMemRefType(),
-                          load.getResultVectorType(), rewriter, newBase))
-        return failure();
-      rewriter.replaceOpWithNewOp<LoadOp>(load, newBase);
+      rewriter.replaceOpWithNewOp<vector::TransferReadOp>(
+          load, load.getType(), load.base(), load.indices(), false);
       return success();
     case MaskFormat::AllFalse:
       rewriter.replaceOp(load, load.pass_thru());
@@ -2411,10 +2412,12 @@ void MaskedLoadOp::getCanonicalizationPatterns(
 static LogicalResult verify(MaskedStoreOp op) {
   VectorType maskVType = op.getMaskVectorType();
   VectorType valueVType = op.getValueVectorType();
+  MemRefType memType = op.getMemRefType();
 
-  if (valueVType.getElementType() != op.getMemRefType().getElementType())
+  if (valueVType.getElementType() != memType.getElementType())
     return op.emitOpError("base and value element type should match");
-
+  if (llvm::size(op.indices()) != memType.getRank())
+    return op.emitOpError("requires ") << memType.getRank() << " indices";
   if (valueVType.getDimSize(0) != maskVType.getDimSize(0))
     return op.emitOpError("expected value dim to match mask dim");
   return success();
@@ -2426,13 +2429,10 @@ public:
   using OpRewritePattern<MaskedStoreOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(MaskedStoreOp store,
                                 PatternRewriter &rewriter) const override {
-    Value newBase;
     switch (get1DMaskFormat(store.mask())) {
     case MaskFormat::AllTrue:
-      if (!castedToMemRef(store.getLoc(), store.base(), store.getMemRefType(),
-                          store.getValueVectorType(), rewriter, newBase))
-        return failure();
-      rewriter.replaceOpWithNewOp<StoreOp>(store, store.value(), newBase);
+      rewriter.replaceOpWithNewOp<vector::TransferWriteOp>(
+          store, store.value(), store.base(), store.indices(), false);
       return success();
     case MaskFormat::AllFalse:
       rewriter.eraseOp(store);
@@ -2458,19 +2458,16 @@ static LogicalResult verify(GatherOp op) {
   VectorType indicesVType = op.getIndicesVectorType();
   VectorType maskVType = op.getMaskVectorType();
   VectorType resVType = op.getResultVectorType();
+  MemRefType memType = op.getMemRefType();
 
-  if (resVType.getElementType() != op.getMemRefType().getElementType())
+  if (resVType.getElementType() != memType.getElementType())
     return op.emitOpError("base and result element type should match");
-
   if (resVType.getDimSize(0) != indicesVType.getDimSize(0))
     return op.emitOpError("expected result dim to match indices dim");
   if (resVType.getDimSize(0) != maskVType.getDimSize(0))
     return op.emitOpError("expected result dim to match mask dim");
-  if (llvm::size(op.pass_thru()) != 0) {
-    VectorType passVType = op.getPassThruVectorType();
-    if (resVType != passVType)
-      return op.emitOpError("expected pass_thru of same type as result type");
-  }
+  if (resVType != op.getPassThruVectorType())
+    return op.emitOpError("expected pass_thru of same type as result type");
   return success();
 }
 
@@ -2507,10 +2504,10 @@ static LogicalResult verify(ScatterOp op) {
   VectorType indicesVType = op.getIndicesVectorType();
   VectorType maskVType = op.getMaskVectorType();
   VectorType valueVType = op.getValueVectorType();
+  MemRefType memType = op.getMemRefType();
 
-  if (valueVType.getElementType() != op.getMemRefType().getElementType())
+  if (valueVType.getElementType() != memType.getElementType())
     return op.emitOpError("base and value element type should match");
-
   if (valueVType.getDimSize(0) != indicesVType.getDimSize(0))
     return op.emitOpError("expected value dim to match indices dim");
   if (valueVType.getDimSize(0) != maskVType.getDimSize(0))
@@ -2551,10 +2548,12 @@ static LogicalResult verify(ExpandLoadOp op) {
   VectorType maskVType = op.getMaskVectorType();
   VectorType passVType = op.getPassThruVectorType();
   VectorType resVType = op.getResultVectorType();
+  MemRefType memType = op.getMemRefType();
 
-  if (resVType.getElementType() != op.getMemRefType().getElementType())
+  if (resVType.getElementType() != memType.getElementType())
     return op.emitOpError("base and result element type should match");
-
+  if (llvm::size(op.indices()) != memType.getRank())
+    return op.emitOpError("requires ") << memType.getRank() << " indices";
   if (resVType.getDimSize(0) != maskVType.getDimSize(0))
     return op.emitOpError("expected result dim to match mask dim");
   if (resVType != passVType)
@@ -2568,14 +2567,10 @@ public:
   using OpRewritePattern<ExpandLoadOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(ExpandLoadOp expand,
                                 PatternRewriter &rewriter) const override {
-    Value newBase;
     switch (get1DMaskFormat(expand.mask())) {
     case MaskFormat::AllTrue:
-      if (!castedToMemRef(expand.getLoc(), expand.base(),
-                          expand.getMemRefType(), expand.getResultVectorType(),
-                          rewriter, newBase))
-        return failure();
-      rewriter.replaceOpWithNewOp<LoadOp>(expand, newBase);
+      rewriter.replaceOpWithNewOp<vector::TransferReadOp>(
+          expand, expand.getType(), expand.base(), expand.indices(), false);
       return success();
     case MaskFormat::AllFalse:
       rewriter.replaceOp(expand, expand.pass_thru());
@@ -2600,10 +2595,12 @@ void ExpandLoadOp::getCanonicalizationPatterns(
 static LogicalResult verify(CompressStoreOp op) {
   VectorType maskVType = op.getMaskVectorType();
   VectorType valueVType = op.getValueVectorType();
+  MemRefType memType = op.getMemRefType();
 
-  if (valueVType.getElementType() != op.getMemRefType().getElementType())
+  if (valueVType.getElementType() != memType.getElementType())
     return op.emitOpError("base and value element type should match");
-
+  if (llvm::size(op.indices()) != memType.getRank())
+    return op.emitOpError("requires ") << memType.getRank() << " indices";
   if (valueVType.getDimSize(0) != maskVType.getDimSize(0))
     return op.emitOpError("expected value dim to match mask dim");
   return success();
@@ -2615,14 +2612,11 @@ public:
   using OpRewritePattern<CompressStoreOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(CompressStoreOp compress,
                                 PatternRewriter &rewriter) const override {
-    Value newBase;
     switch (get1DMaskFormat(compress.mask())) {
     case MaskFormat::AllTrue:
-      if (!castedToMemRef(compress.getLoc(), compress.base(),
-                          compress.getMemRefType(),
-                          compress.getValueVectorType(), rewriter, newBase))
-        return failure();
-      rewriter.replaceOpWithNewOp<StoreOp>(compress, compress.value(), newBase);
+      rewriter.replaceOpWithNewOp<vector::TransferWriteOp>(
+          compress, compress.value(), compress.base(), compress.indices(),
+          false);
       return success();
     case MaskFormat::AllFalse:
       rewriter.eraseOp(compress);

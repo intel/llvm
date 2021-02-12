@@ -8,10 +8,6 @@ endif()
 
 cmake_minimum_required(VERSION 3.13.4)
 
-if (POLICY CMP0042)
-  cmake_policy(SET CMP0042 NEW) # Set MACOSX_RPATH=YES by default
-endif()
-
 # Add path for custom modules
 set(CMAKE_MODULE_PATH
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
@@ -28,7 +24,7 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR LIBUNWIND_STANDALONE_B
   project(libunwind LANGUAGES C CXX ASM)
 
   set(PACKAGE_NAME libunwind)
-  set(PACKAGE_VERSION 12.0.0git)
+  set(PACKAGE_VERSION 13.0.0git)
   set(PACKAGE_STRING "${PACKAGE_NAME} ${PACKAGE_VERSION}")
   set(PACKAGE_BUGREPORT "llvm-bugs@lists.llvm.org")
 

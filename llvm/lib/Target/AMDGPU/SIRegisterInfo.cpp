@@ -12,21 +12,15 @@
 //===----------------------------------------------------------------------===//
 
 #include "SIRegisterInfo.h"
+#include "AMDGPU.h"
 #include "AMDGPURegisterBankInfo.h"
-#include "AMDGPUSubtarget.h"
-#include "SIInstrInfo.h"
-#include "SIMachineFunctionInfo.h"
+#include "GCNSubtarget.h"
 #include "MCTargetDesc/AMDGPUInstPrinter.h"
 #include "MCTargetDesc/AMDGPUMCTargetDesc.h"
+#include "SIMachineFunctionInfo.h"
 #include "llvm/CodeGen/LiveIntervals.h"
 #include "llvm/CodeGen/MachineDominators.h"
-#include "llvm/CodeGen/MachineFrameInfo.h"
-#include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/RegisterScavenging.h"
-#include "llvm/CodeGen/SlotIndexes.h"
-#include "llvm/IR/Function.h"
-#include "llvm/IR/LLVMContext.h"
-#include <vector>
 
 using namespace llvm;
 
@@ -423,13 +417,12 @@ bool SIRegisterInfo::needsFrameBaseReg(MachineInstr *MI, int64_t Offset) const {
     return !SIInstrInfo::isLegalMUBUFImmOffset(FullOffset);
 
   const SIInstrInfo *TII = ST.getInstrInfo();
-  return TII->isLegalFLATOffset(FullOffset, AMDGPUAS::PRIVATE_ADDRESS, true);
+  return !TII->isLegalFLATOffset(FullOffset, AMDGPUAS::PRIVATE_ADDRESS, true);
 }
 
-void SIRegisterInfo::materializeFrameBaseRegister(MachineBasicBlock *MBB,
-                                                  Register BaseReg,
-                                                  int FrameIdx,
-                                                  int64_t Offset) const {
+Register SIRegisterInfo::materializeFrameBaseRegister(MachineBasicBlock *MBB,
+                                                      int FrameIdx,
+                                                      int64_t Offset) const {
   MachineBasicBlock::iterator Ins = MBB->begin();
   DebugLoc DL; // Defaults to "unknown"
 
@@ -438,16 +431,20 @@ void SIRegisterInfo::materializeFrameBaseRegister(MachineBasicBlock *MBB,
 
   MachineFunction *MF = MBB->getParent();
   const SIInstrInfo *TII = ST.getInstrInfo();
+  MachineRegisterInfo &MRI = MF->getRegInfo();
   unsigned MovOpc = ST.enableFlatScratch() ? AMDGPU::S_MOV_B32
                                            : AMDGPU::V_MOV_B32_e32;
+
+  Register BaseReg = MRI.createVirtualRegister(
+      ST.enableFlatScratch() ? &AMDGPU::SReg_32_XEXEC_HIRegClass
+                             : &AMDGPU::VGPR_32RegClass);
 
   if (Offset == 0) {
     BuildMI(*MBB, Ins, DL, TII->get(MovOpc), BaseReg)
       .addFrameIndex(FrameIdx);
-    return;
+    return BaseReg;
   }
 
-  MachineRegisterInfo &MRI = MF->getRegInfo();
   Register OffsetReg = MRI.createVirtualRegister(&AMDGPU::SReg_32_XM0RegClass);
 
   Register FIReg = MRI.createVirtualRegister(
@@ -463,13 +460,15 @@ void SIRegisterInfo::materializeFrameBaseRegister(MachineBasicBlock *MBB,
     BuildMI(*MBB, Ins, DL, TII->get(AMDGPU::S_ADD_U32), BaseReg)
         .addReg(OffsetReg, RegState::Kill)
         .addReg(FIReg);
-    return;
+    return BaseReg;
   }
 
   TII->getAddNoCarry(*MBB, Ins, DL, BaseReg)
     .addReg(OffsetReg, RegState::Kill)
     .addReg(FIReg)
     .addImm(0); // clamp bit
+
+  return BaseReg;
 }
 
 void SIRegisterInfo::resolveFrameIndex(MachineInstr &MI, Register BaseReg,
@@ -497,9 +496,6 @@ void SIRegisterInfo::resolveFrameIndex(MachineInstr &MI, Register BaseReg,
   MachineOperand *OffsetOp = TII->getNamedOperand(MI, AMDGPU::OpName::offset);
   int64_t NewOffset = OffsetOp->getImm() + Offset;
 
-#ifndef NDEBUG
-  MachineBasicBlock *MBB = MI.getParent();
-  MachineFunction *MF = MBB->getParent();
   assert(FIOp && FIOp->isFI() && "frame index must be address operand");
   assert(TII->isMUBUF(MI) || TII->isFLATScratch(MI));
 
@@ -511,11 +507,9 @@ void SIRegisterInfo::resolveFrameIndex(MachineInstr &MI, Register BaseReg,
     return;
   }
 
+#ifndef NDEBUG
   MachineOperand *SOffset = TII->getNamedOperand(MI, AMDGPU::OpName::soffset);
-  assert((SOffset->isReg() &&
-          SOffset->getReg() ==
-              MF->getInfo<SIMachineFunctionInfo>()->getStackPtrOffsetReg()) ||
-         (SOffset->isImm() && SOffset->getImm() == 0));
+  assert(SOffset->isImm() && SOffset->getImm() == 0);
 #endif
 
   assert(SIInstrInfo::isLegalMUBUFImmOffset(NewOffset) &&
@@ -528,7 +522,7 @@ void SIRegisterInfo::resolveFrameIndex(MachineInstr &MI, Register BaseReg,
 bool SIRegisterInfo::isFrameOffsetLegal(const MachineInstr *MI,
                                         Register BaseReg,
                                         int64_t Offset) const {
-  if (!SIInstrInfo::isMUBUF(*MI) && !!SIInstrInfo::isFLATScratch(*MI))
+  if (!SIInstrInfo::isMUBUF(*MI) && !SIInstrInfo::isFLATScratch(*MI))
     return false;
 
   int64_t NewOffset = Offset + getScratchInstrOffset(MI);
@@ -694,8 +688,8 @@ static MachineInstrBuilder spillVGPRtoAGPR(const GCNSubtarget &ST,
 
   unsigned Dst = IsStore ? Reg : ValueReg;
   unsigned Src = IsStore ? ValueReg : Reg;
-  unsigned Opc = (IsStore ^ TRI->isVGPR(MRI, Reg)) ? AMDGPU::V_ACCVGPR_WRITE_B32
-                                                   : AMDGPU::V_ACCVGPR_READ_B32;
+  unsigned Opc = (IsStore ^ TRI->isVGPR(MRI, Reg)) ? AMDGPU::V_ACCVGPR_WRITE_B32_e64
+                                                   : AMDGPU::V_ACCVGPR_READ_B32_e64;
 
   auto MIB = BuildMI(*MBB, MI, MI->getDebugLoc(), TII->get(Opc), Dst)
                .addReg(Src, getKillRegState(IsKill));
@@ -969,7 +963,7 @@ void SIRegisterInfo::buildSpillLoadStore(MachineBasicBlock::iterator MI,
       }
       if (IsStore) {
         auto AccRead = BuildMI(*MBB, MI, DL,
-                               TII->get(AMDGPU::V_ACCVGPR_READ_B32), TmpReg)
+                              TII->get(AMDGPU::V_ACCVGPR_READ_B32_e64), TmpReg)
           .addReg(SubReg, getKillRegState(IsKill));
         if (NeedSuperRegDef)
           AccRead.addReg(ValueReg, RegState::ImplicitDefine);
@@ -1008,7 +1002,7 @@ void SIRegisterInfo::buildSpillLoadStore(MachineBasicBlock::iterator MI,
       MIB.addReg(ValueReg, RegState::ImplicitDefine);
 
     if (!IsStore && TmpReg != AMDGPU::NoRegister) {
-      MIB = BuildMI(*MBB, MI, DL, TII->get(AMDGPU::V_ACCVGPR_WRITE_B32),
+      MIB = BuildMI(*MBB, MI, DL, TII->get(AMDGPU::V_ACCVGPR_WRITE_B32_e64),
                     FinalReg)
         .addReg(TmpReg, RegState::Kill);
       MIB->setAsmPrinterFlag(MachineInstr::ReloadReuse);
@@ -1706,18 +1700,10 @@ void SIRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
                                           AMDGPU::OpName::vaddr));
 
         auto &SOffset = *TII->getNamedOperand(*MI, AMDGPU::OpName::soffset);
-        assert((SOffset.isReg() &&
-                SOffset.getReg() == MFI->getStackPtrOffsetReg()) ||
-               (SOffset.isImm() && SOffset.getImm() == 0));
-        if (SOffset.isReg()) {
-          if (FrameReg == AMDGPU::NoRegister) {
-            SOffset.ChangeToImmediate(0);
-          } else {
-            SOffset.setReg(FrameReg);
-          }
-        } else if (SOffset.isImm() && FrameReg != AMDGPU::NoRegister) {
+        assert((SOffset.isImm() && SOffset.getImm() == 0));
+
+        if (FrameReg != AMDGPU::NoRegister)
           SOffset.ChangeToRegister(FrameReg, false);
-        }
 
         int64_t Offset = FrameInfo.getObjectOffset(Index);
         int64_t OldImm
@@ -1878,6 +1864,16 @@ SIRegisterInfo::getPhysRegClass(MCRegister Reg) const {
   return nullptr;
 }
 
+bool SIRegisterInfo::isSGPRReg(const MachineRegisterInfo &MRI,
+                               Register Reg) const {
+  const TargetRegisterClass *RC;
+  if (Reg.isVirtual())
+    RC = MRI.getRegClass(Reg);
+  else
+    RC = getPhysRegClass(Reg);
+  return isSGPRClass(RC);
+}
+
 // TODO: It might be helpful to have some target specific flags in
 // TargetRegisterClass to mark which classes are VGPRs to make this trivial.
 bool SIRegisterInfo::hasVGPRs(const TargetRegisterClass *RC) const {
@@ -1984,6 +1980,12 @@ bool SIRegisterInfo::shouldRewriteCopySrc(
 
   // Plain copy.
   return getCommonSubClass(DefRC, SrcRC) != nullptr;
+}
+
+bool SIRegisterInfo::opCanUseLiteralConstant(unsigned OpType) const {
+  // TODO: 64-bit operands have extending behavior from 32-bit literal.
+  return OpType >= AMDGPU::OPERAND_REG_IMM_FIRST &&
+         OpType <= AMDGPU::OPERAND_REG_IMM_LAST;
 }
 
 /// Returns a lowest register that is not used at any point in the function.

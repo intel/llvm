@@ -617,7 +617,7 @@ X86DAGToDAGISel::IsProfitableToFold(SDValue N, SDNode *U, SDNode *Root) const {
         // best of both worlds.
         if (U->getOpcode() == ISD::AND &&
             Imm->getAPIntValue().getBitWidth() == 64 &&
-            Imm->getAPIntValue().isSignedIntN(32))
+            Imm->getAPIntValue().isIntN(32))
           return false;
 
         // If this really a zext_inreg that can be represented with a movzx
@@ -4282,6 +4282,7 @@ bool X86DAGToDAGISel::shrinkAndImmediate(SDNode *And) {
 
   // A negative mask allows a smaller encoding. Create a new 'and' node.
   SDValue NewMask = CurDAG->getConstant(NegMaskVal, SDLoc(And), VT);
+  insertDAGNode(*CurDAG, SDValue(And, 0), NewMask);
   SDValue NewAnd = CurDAG->getNode(ISD::AND, SDLoc(And), VT, And0, NewMask);
   ReplaceNode(And, NewAnd.getNode());
   SelectCode(NewAnd.getNode());
@@ -4618,7 +4619,7 @@ void X86DAGToDAGISel::Select(SDNode *Node) {
                        Segment,
                        CFG,
                        Chain};
-      CNode = CurDAG->getMachineNode(Opc, dl, {MVT::v256i32, MVT::Other}, Ops);
+      CNode = CurDAG->getMachineNode(Opc, dl, {MVT::x86amx, MVT::Other}, Ops);
       ReplaceNode(Node, CNode);
       return;
     }
@@ -4637,7 +4638,19 @@ void X86DAGToDAGISel::Select(SDNode *Node) {
                        CFG,
                        Chain};
       MachineSDNode *CNode =
-          CurDAG->getMachineNode(Opc, dl, {MVT::v256i32, MVT::Other}, Ops);
+          CurDAG->getMachineNode(Opc, dl, {MVT::x86amx, MVT::Other}, Ops);
+      ReplaceNode(Node, CNode);
+      return;
+    }
+    case Intrinsic::x86_tilezero_internal: {
+      if (!Subtarget->hasAMXTILE())
+        break;
+      unsigned Opc = X86::PTILEZEROV;
+      SDValue Chain = Node->getOperand(0);
+      SDValue CFG = CurDAG->getRegister(0, MVT::Untyped);
+      SDValue Ops[] = {Node->getOperand(2), Node->getOperand(3), CFG, Chain};
+      MachineSDNode *CNode =
+          CurDAG->getMachineNode(Opc, dl, {MVT::x86amx, MVT::Other}, Ops);
       ReplaceNode(Node, CNode);
       return;
     }

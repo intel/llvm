@@ -2,16 +2,16 @@
 
 // Global ivdep - annotate all GEPs
 //
-// CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_no_paramv()
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_no_paramv()
 void ivdep_no_param() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
   // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
   int b[10];
   [[intel::ivdep]] for (int i = 0; i != 10; ++i) {
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_NO_PARAM:[0-9]+]]
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_NO_PARAM:[0-9]+]]
     a[i] = 0;
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_B]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_NO_PARAM:[0-9]+]]
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_NO_PARAM:[0-9]+]]
     b[i] = 0;
     // CHECK: br label %for.cond, !llvm.loop ![[MD_LOOP_NO_PARAM:[0-9]+]]
   }
@@ -20,7 +20,7 @@ void ivdep_no_param() {
 // Global ivdep - annotate all GEPs
 // Make sure that ALL of the relevant GEPs for an array are marked into the array's index groups
 //
-// CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_no_param_multiple_gepsv()
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_no_param_multiple_gepsv()
 void ivdep_no_param_multiple_geps() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
@@ -29,12 +29,12 @@ void ivdep_no_param_multiple_geps() {
   // CHECK: %[[TMP:[0-9a-z]+]] = alloca i32
   int t;
   [[intel::ivdep]] for (int i = 0; i != 10; ++i) {
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_MUL_GEPS:[0-9]+]]
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_MUL_GEPS:[0-9]+]]
     t = a[i];
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_B]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_MUL_GEPS:[0-9]+]]
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_MUL_GEPS]]
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_MUL_GEPS:[0-9]+]]
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_MUL_GEPS]]
     a[i] = b[i];
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_B]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_MUL_GEPS]]
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_MUL_GEPS]]
     b[i] = t;
     // CHECK: br label %for.cond, !llvm.loop ![[MD_LOOP_MUL_GEPS:[0-9]+]]
   }
@@ -42,16 +42,16 @@ void ivdep_no_param_multiple_geps() {
 
 // Global ivdep w/ safelen specified - annotate all GEPs
 //
-// CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_safelenv()
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_safelenv()
 void ivdep_safelen() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
   // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
   int b[10];
   [[intel::ivdep(5)]] for (int i = 0; i != 10; ++i) {
-    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_SAFELEN:[0-9]+]]
+    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_SAFELEN:[0-9]+]]
     a[i] = 0;
-    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_B]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_SAFELEN:[0-9]+]]
+    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_SAFELEN:[0-9]+]]
     b[i] = 0;
     // CHECK: br label %for.cond, !llvm.loop ![[MD_LOOP_SAFELEN:[0-9]+]]
   }
@@ -59,7 +59,7 @@ void ivdep_safelen() {
 
 // Global ivdep, albeit conflicting safelens - annotate all GEPs
 //
-// CHECK: define spir_func void @_Z{{[0-9]+}}ivdep_conflicting_safelenv()
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_conflicting_safelenv()
 void ivdep_conflicting_safelen() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
@@ -67,9 +67,9 @@ void ivdep_conflicting_safelen() {
   int b[10];
   [[intel::ivdep(5)]]
   [[intel::ivdep(4)]] for (int i = 0; i != 10; ++i) {
-    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_A]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_CONFL_SAFELEN:[0-9]+]]
+    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_CONFL_SAFELEN:[0-9]+]]
     a[i] = 0;
-    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32]* %[[ARRAY_B]], i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_CONFL_SAFELEN:[0-9]+]]
+    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_CONFL_SAFELEN:[0-9]+]]
     b[i] = 0;
     // CHECK: br label %for.cond, !llvm.loop ![[MD_LOOP_CONFL_SAFELEN:[0-9]+]]
   }
