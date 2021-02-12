@@ -3095,8 +3095,7 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
   return Result;
 }
 
-static Expr *checkWorkSizeAttrExpr(Sema &S, const ParsedAttr &CI,
-                                   Expr *E) {
+static Expr *checkWorkSizeAttrExpr(Sema &S, const ParsedAttr &CI, Expr *E) {
   assert(E && "Attribute must have an argument.");
 
   if (!E->isInstantiationDependent()) {
@@ -3148,8 +3147,8 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   ASTContext &Ctx = S.getASTContext();
 
-  if (!XDimExpr->isValueDependent() &&
-      !YDimExpr->isValueDependent() && !ZDimExpr->isValueDependent()) {
+  if (!XDimExpr->isValueDependent() && !YDimExpr->isValueDependent() &&
+      !ZDimExpr->isValueDependent()) {
     Optional<llvm::APSInt> XDimVal = XDimExpr->getIntegerConstantExpr(Ctx);
     Optional<llvm::APSInt> YDimVal = YDimExpr->getIntegerConstantExpr(Ctx);
     Optional<llvm::APSInt> ZDimVal = ZDimExpr->getIntegerConstantExpr(Ctx);
@@ -3161,7 +3160,7 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     if (!XDimExpr || !YDimExpr || !ZDimExpr)
       return;
 
-     // Skip SEMA if we're in a template, this will be diagnosed later.
+    // Skip SEMA if we're in a template, this will be diagnosed later.
     if (S.getCurLexicalContext()->isDependentContext())
       return;
 
@@ -6047,8 +6046,7 @@ void Sema::addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &Attr,
     Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(getASTContext());
     if (!ArgVal) {
       Diag(E->getExprLoc(), diag::err_attribute_argument_type)
-          << Attr << AANT_ArgumentIntegerConstant
-          << E->getSourceRange();
+          << Attr << AANT_ArgumentIntegerConstant << E->getSourceRange();
       return;
     }
     int32_t ArgInt = ArgVal->getSExtValue();

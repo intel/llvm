@@ -13079,7 +13079,7 @@ void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
       }
     }
     if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim ||
-	CI.getParsedKind() == ParsedAttr::AT_SYCLIntelNumSimdWorkItems) {
+        CI.getParsedKind() == ParsedAttr::AT_SYCLIntelNumSimdWorkItems) {
       if (ArgInt < 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
             << CI << /*non-negative*/ 1;
@@ -13099,7 +13099,7 @@ void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
 }
 
 static Expr *checkWorkSizeAttrExpr(Sema &S, const AttributeCommonInfo &CI,
-                                      Expr *E) {
+                                   Expr *E) {
   assert(E && "Attribute must have an argument.");
 
   if (!E->isInstantiationDependent()) {
