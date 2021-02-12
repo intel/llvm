@@ -305,6 +305,12 @@ void Sema::Initialize() {
                      Context.SingletonId);
 #include "clang/Basic/OpenCLImageTypes.def"
 #undef SEMA_STRINGIZE
+    const StringRef &HeaderName = getLangOpts().SYCLIntHeader;
+    if (!HeaderName.empty()) {
+      int ResultFD = 0;
+      // Ignore the return value; compilation will fail if file is absent
+      (void)llvm::sys::fs::openFileForWrite(HeaderName, ResultFD);
+    }
   }
 
   if (getLangOpts().SYCLIsDevice || getLangOpts().OpenCL) {
