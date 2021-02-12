@@ -358,8 +358,15 @@ void program_impl::create_cl_program_with_source(const string_class &Source) {
   const char *Src = Source.c_str();
   size_t Size = Source.size();
   const detail::plugin &Plugin = getPlugin();
-  Plugin.call<PiApiKind::piclProgramCreateWithSource>(
+  RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piclProgramCreateWithSource>(
       MContext->getHandleRef(), 1, &Src, &Size, &MProgram);
+
+  if (getPlugin().getBackend() == cl::sycl::backend::level_zero &&
+      Err == PI_INVALID_OPERATION) {
+    throw feature_not_supported(
+        "piclProgramCreateWithSource: not supported in Level Zero",
+        PI_INVALID_OPERATION);
+  }
 }
 
 void program_impl::compile(const string_class &Options) {
