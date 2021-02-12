@@ -2,7 +2,7 @@
 ; RUN: opt -LowerESIMD -S < %s | FileCheck %s
 
 ; This test checks that there is no crash while lowering 
-; __esimd_unpack_mask.
+; __esimd_unpack_mask when its argument is an integer constant.
 
 define spir_func <32 x i16> @_Z3foov() {
 ; CHECK-LABEL: @_Z3foov(
