@@ -10206,12 +10206,12 @@ public:
   void AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
                                 Expr **Exprs, unsigned Size);
   template <typename AttrType>
-  void addIntelSYCLSingleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
-                                         Expr *E);
+  void addIntelSingleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
+                                     Expr *E);
   template <typename AttrType>
-  void addIntelSYCLTripleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
-                                         Expr *XDimExpr, Expr *YDimExpr,
-                                         Expr *ZDimExpr);
+  void addIntelTripleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
+                                     Expr *XDimExpr, Expr *YDimExpr,
+                                     Expr *ZDimExpr);
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
                       bool IsPackExpansion);
@@ -13059,9 +13059,8 @@ public:
 };
 
 template <typename AttrType>
-void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
-                                             const AttributeCommonInfo &CI,
-                                             Expr *E) {
+void Sema::addIntelSingleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
+                                         Expr *E) {
   assert(E && "Attribute must have an argument.");
 
   if (!E->isInstantiationDependent()) {
@@ -13142,10 +13141,9 @@ static Expr *checkMaxWorkSizeAttrExpr(Sema &S, const AttributeCommonInfo &CI,
 }
 
 template <typename WorkGroupAttrType>
-void Sema::addIntelSYCLTripleArgFunctionAttr(Decl *D,
-                                             const AttributeCommonInfo &CI,
-                                             Expr *XDimExpr, Expr *YDimExpr,
-                                             Expr *ZDimExpr) {
+void Sema::addIntelTripleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
+                                         Expr *XDimExpr, Expr *YDimExpr,
+                                         Expr *ZDimExpr) {
 
   assert((XDimExpr && YDimExpr && ZDimExpr) &&
          "argument has unexpected null value");

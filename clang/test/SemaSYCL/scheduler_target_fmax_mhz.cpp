@@ -12,6 +12,8 @@ template <int N>
 int main() {
   // CHECK:  FunctionDecl {{.*}}test_kernel1 'void ()'
   // CHECK:        SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
+  // CHECK-NEXT:   ConstantExpr {{.*}} 'int'
+  // CHECK-NEXT:   value: Int 5
   // CHECK-NEXT:   IntegerLiteral {{.*}} 'int' 5
   // expected-warning@+3 {{attribute 'intelfpga::scheduler_target_fmax_mhz' is deprecated}}
   // expected-note@+2 {{did you mean to use 'intel::scheduler_target_fmax_mhz' instead?}}
@@ -20,6 +22,8 @@ int main() {
 
   // CHECK:  FunctionDecl {{.*}}test_kernel2 'void ()'
   // CHECK:        SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
+  // CHECK-NEXT:   ConstantExpr {{.*}} 'int'
+  // CHECK-NEXT:   value: Int 2
   // CHECK-NEXT:   IntegerLiteral {{.*}} 'int' 2
   cl::sycl::kernel_single_task<class test_kernel2>(
       []() { func(); });

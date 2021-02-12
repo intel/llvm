@@ -571,8 +571,8 @@ static void instantiateIntelSYCTripleLFunctionAttr(
     return;
   Expr *ZDimExpr = Result.getAs<Expr>();
 
-  S.addIntelSYCLTripleArgFunctionAttr<AttrName>(New, *Attr, XDimExpr, YDimExpr,
-                                                ZDimExpr);
+  S.addIntelTripleArgFunctionAttr<AttrName>(New, *Attr, XDimExpr, YDimExpr,
+                                            ZDimExpr);
 }
 
 template <typename AttrName>
@@ -589,8 +589,8 @@ static void instantiateIntelFPGAMemoryAttr(
                                                          Result.getAs<Expr>());
 
     else if (std::is_same<AttrName, IntelFPGAPrivateCopiesAttr>::value)
-      return S.addSingleArgFunctionAttr<AttrName>(New, *Attr,
-                                                  Result.getAs<Expr>());
+      return S.addIntelSingleArgFunctionAttr<AttrName>(New, *Attr,
+                                                       Result.getAs<Expr>());
 
     return S.AddOneConstantValueAttr<AttrName>(New, *Attr,
                                                Result.getAs<Expr>());
@@ -641,8 +641,7 @@ static void instantiateIntelSYCLFunctionAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.addIntelSYCLSingleArgFunctionAttr<AttrName>(New, *Attr,
-                                                  Result.getAs<Expr>());
+    S.addIntelSingleArgFunctionAttr<AttrName>(New, *Attr, Result.getAs<Expr>());
 }
 
 /// Determine whether the attribute A might be relevent to the declaration D.

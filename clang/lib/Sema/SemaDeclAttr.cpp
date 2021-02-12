@@ -3150,8 +3150,8 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!checkWorkGroupSizeValues(S, D, AL))
     return;
 
-  S.addIntelSYCLTripleArgFunctionAttr<WorkGroupAttr>(D, AL, XDimExpr, YDimExpr,
-                                                     ZDimExpr);
+  S.addIntelTripleArgFunctionAttr<WorkGroupAttr>(D, AL, XDimExpr, YDimExpr,
+                                                 ZDimExpr);
 }
 
 // Handles work_group_size_hint.
@@ -3193,7 +3193,7 @@ static void handleSubGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (D->getAttr<IntelReqdSubGroupSizeAttr>())
     S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
 
-  S.addIntelSYCLSingleArgFunctionAttr<IntelReqdSubGroupSizeAttr>(D, AL, E);
+  S.addIntelSingleArgFunctionAttr<IntelReqdSubGroupSizeAttr>(D, AL, E);
 }
 
 // Handles num_simd_work_items.
@@ -3208,7 +3208,7 @@ static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D, const ParsedAttr &A) {
 
   S.CheckDeprecatedSYCLAttributeSpelling(A);
 
-  S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelNumSimdWorkItemsAttr>(D, A, E);
+  S.addIntelSingleArgFunctionAttr<SYCLIntelNumSimdWorkItemsAttr>(D, A, E);
 }
 
 // Handles use_stall_enable_clusters
@@ -3239,8 +3239,8 @@ static void handleSchedulerTargetFmaxMhzAttr(Sema &S, Decl *D,
 
   S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
-  S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>(
-      D, AL, E);
+  S.addIntelSingleArgFunctionAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>(D, AL,
+                                                                       E);
 }
 
 // Handles max_global_work_dim.
@@ -3260,7 +3260,7 @@ static void handleMaxGlobalWorkDimAttr(Sema &S, Decl *D, const ParsedAttr &A) {
 
   S.CheckDeprecatedSYCLAttributeSpelling(A);
 
-  S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelMaxGlobalWorkDimAttr>(D, A, E);
+  S.addIntelSingleArgFunctionAttr<SYCLIntelMaxGlobalWorkDimAttr>(D, A, E);
 }
 
 SYCLIntelLoopFuseAttr *
@@ -5587,7 +5587,7 @@ static void handleNoGlobalWorkOffsetAttr(Sema &S, Decl *D,
                 ? A.getArgAsExpr(0)
                 : IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
                                          S.Context.IntTy, A.getLoc());
-  S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelNoGlobalWorkOffsetAttr>(D, A, E);
+  S.addIntelSingleArgFunctionAttr<SYCLIntelNoGlobalWorkOffsetAttr>(D, A, E);
 }
 
 /// Handle the [[intelfpga::doublepump]] and [[intelfpga::singlepump]] attributes.
@@ -5897,8 +5897,8 @@ static void handleIntelFPGAPrivateCopiesAttr(Sema &S, Decl *D,
 
   S.CheckDeprecatedSYCLAttributeSpelling(A);
 
-  S.addSingleArgFunctionAttr<IntelFPGAPrivateCopiesAttr>(D, Attr,
-                                                         Attr.getArgAsExpr(0));
+  S.addIntelSingleArgFunctionAttr<IntelFPGAPrivateCopiesAttr>(
+      D, A, A.getArgAsExpr(0));
 }
 
 static void handleIntelFPGAForcePow2DepthAttr(Sema &S, Decl *D,
