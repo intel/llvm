@@ -574,28 +574,37 @@ static void instantiateIntelSYCTripleLFunctionAttr(
   S.addIntelTripleArgAttr<AttrName>(New, *Attr, XDimExpr, YDimExpr, ZDimExpr);
 }
 
-template <typename AttrName>
-static void instantiateIntelFPGAMemoryAttr(
+static void instantiateIntelFPGAForcePow2DepthAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const AttrName *Attr, Decl *New) {
+    const IntelFPGAForcePow2DepthAttr *Attr, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
-  if (!Result.isInvalid()) {
-    if (std::is_same<AttrName, IntelFPGABankWidthAttr>::value ||
-        std::is_same<AttrName, IntelFPGANumBanksAttr>::value)
-      return S.AddOneConstantPowerTwoValueAttr<AttrName>(New, *Attr,
-                                                         Result.getAs<Expr>());
+  if (!Result.isInvalid())
+    return S.AddOneConstantValueAttr<IntelFPGAForcePow2DepthAttr>(
+        New, *Attr, Result.getAs<Expr>());
+}
 
-    if (std::is_same<AttrName, IntelFPGAPrivateCopiesAttr>::value ||
-        std::is_same<AttrName, IntelFPGAMaxReplicatesAttr>::value)
-      return S.addIntelSingleArgAttr<AttrName>(New, *Attr,
-                                               Result.getAs<Expr>());
+static void instantiateIntelFPGABankWidthAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const IntelFPGABankWidthAttr *Attr, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.AddOneConstantPowerTwoValueAttr<IntelFPGABankWidthAttr>(
+        New, *Attr, Result.getAs<Expr>());
+}
 
-    if (std::is_same<AttrName, IntelFPGAForcePow2DepthAttr>::value)
-      return S.AddOneConstantValueAttr<AttrName>(New, *Attr,
-                                                 Result.getAs<Expr>());
-  }
+static void instantiateIntelFPGANumBanksAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const IntelFPGANumBanksAttr *Attr, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.AddOneConstantPowerTwoValueAttr<IntelFPGANumBanksAttr>(
+        New, *Attr, Result.getAs<Expr>());
 }
 
 static void instantiateIntelFPGABankBitsAttr(
@@ -790,23 +799,23 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
 
     if (const auto *IntelFPGABankWidth =
             dyn_cast<IntelFPGABankWidthAttr>(TmplAttr)) {
-      instantiateIntelFPGAMemoryAttr<IntelFPGABankWidthAttr>(
-          *this, TemplateArgs, IntelFPGABankWidth, New);
+      instantiateIntelFPGABankWidthAttr(*this, TemplateArgs, IntelFPGABankWidth,
+                                        New);
     }
 
     if (const auto *IntelFPGANumBanks =
             dyn_cast<IntelFPGANumBanksAttr>(TmplAttr)) {
-      instantiateIntelFPGAMemoryAttr<IntelFPGANumBanksAttr>(
-          *this, TemplateArgs, IntelFPGANumBanks, New);
+      instantiateIntelFPGANumBanksAttr(*this, TemplateArgs, IntelFPGANumBanks,
+                                       New);
     }
     if (const auto *IntelFPGAPrivateCopies =
             dyn_cast<IntelFPGAPrivateCopiesAttr>(TmplAttr)) {
-      instantiateIntelFPGAMemoryAttr<IntelFPGAPrivateCopiesAttr>(
+      instantiateIntelSYCLFunctionAttr<IntelFPGAPrivateCopiesAttr>(
           *this, TemplateArgs, IntelFPGAPrivateCopies, New);
     }
     if (const auto *IntelFPGAMaxReplicates =
             dyn_cast<IntelFPGAMaxReplicatesAttr>(TmplAttr)) {
-      instantiateIntelFPGAMemoryAttr<IntelFPGAMaxReplicatesAttr>(
+      instantiateIntelSYCLFunctionAttr<IntelFPGAMaxReplicatesAttr>(
           *this, TemplateArgs, IntelFPGAMaxReplicates, New);
     }
     if (const auto *IntelFPGABankBits =
@@ -816,8 +825,8 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
     if (const auto *IntelFPGAForcePow2Depth =
             dyn_cast<IntelFPGAForcePow2DepthAttr>(TmplAttr)) {
-      instantiateIntelFPGAMemoryAttr<IntelFPGAForcePow2DepthAttr>(
-          *this, TemplateArgs, IntelFPGAForcePow2Depth, New);
+      instantiateIntelFPGAForcePow2DepthAttr(*this, TemplateArgs,
+                                             IntelFPGAForcePow2Depth, New);
     }
     if (const auto *SYCLIntelPipeIO = dyn_cast<SYCLIntelPipeIOAttr>(TmplAttr)) {
       instantiateSYCLIntelPipeIOAttr(*this, TemplateArgs, SYCLIntelPipeIO, New);
