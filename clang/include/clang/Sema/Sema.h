@@ -13176,13 +13176,6 @@ void Sema::AddOneConstantValueAttr(Decl *D, const AttributeCommonInfo &CI,
       return;
     E = ICE.get();
   }
-
-  if (IntelFPGAPrivateCopiesAttr::classof(&TmpAttr)) {
-    if (!D->hasAttr<IntelFPGAMemoryAttr>())
-      D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
-          Context, IntelFPGAMemoryAttr::Default));
-  }
-
   D->addAttr(::new (Context) AttrType(Context, CI, E));
 }
 
