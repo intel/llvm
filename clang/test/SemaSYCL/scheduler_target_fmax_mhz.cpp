@@ -10,7 +10,7 @@ template <int N>
 [[intel::scheduler_target_fmax_mhz(N)]] void zoo() {}
 
 int main() {
-  // CHECK:  FunctionDecl {{.*}}test_kernel1 'void ()'
+  // CHECK-LABEL:  FunctionDecl {{.*}}test_kernel1 'void ()'
   // CHECK:        SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
   // CHECK-NEXT:   ConstantExpr {{.*}} 'int'
   // CHECK-NEXT:   value: Int 5
@@ -20,7 +20,7 @@ int main() {
   cl::sycl::kernel_single_task<class test_kernel1>(
       []() [[intelfpga::scheduler_target_fmax_mhz(5)]]{});
 
-  // CHECK:  FunctionDecl {{.*}}test_kernel2 'void ()'
+  // CHECK-LABEL:  FunctionDecl {{.*}}test_kernel2 'void ()'
   // CHECK:        SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
   // CHECK-NEXT:   ConstantExpr {{.*}} 'int'
   // CHECK-NEXT:   value: Int 2
