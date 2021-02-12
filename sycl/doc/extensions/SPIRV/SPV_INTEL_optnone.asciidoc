@@ -11,7 +11,7 @@ Contact
 
 To report problems with this extension, please open a new issue at:
 
-https://github.com/KhronosGroup/SPIRV-Headers
+https://github.com/intel/llvm
 
 Contributors
 ------------
@@ -49,9 +49,8 @@ This extension requires SPIR-V 1.0.
 Overview
 --------
 
-This extension adds new possible value for Function Control mask - *OptNoneINTEL*.
-*OptNoneINTEL* value in a Function Control mask is a strong request to not optimize
-the function.
+This extension adds new possible value for Function Control mask - *OptNoneINTEL*,
+which represents a strong request to not optimize the function.
 
 Extension Name
 --------------
