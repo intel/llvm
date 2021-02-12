@@ -634,15 +634,15 @@ static void instantiateSYCLIntelLoopFuseAttr(
 }
 
 template <typename AttrName>
-static void
-instantiateFunctionAttr(Sema &S,
-                        const MultiLevelTemplateArgumentList &TemplateArgs,
-                        const AttrName *Attr, Decl *New) {
+static void instantiateIntelSYCLFunctionAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const AttrName *Attr, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.addSingleArgFunctionAttr<AttrName>(New, *Attr, Result.getAs<Expr>());
+    S.addIntelSYCLSingleArgFunctionAttr<AttrName>(New, *Attr,
+                                                  Result.getAs<Expr>());
 }
 
 /// Determine whether the attribute A might be relevent to the declaration D.
@@ -825,25 +825,25 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
     if (const auto *IntelReqdSubGroupSize =
             dyn_cast<IntelReqdSubGroupSizeAttr>(TmplAttr)) {
-      instantiateFunctionAttr<IntelReqdSubGroupSizeAttr>(
+      instantiateIntelSYCLFunctionAttr<IntelReqdSubGroupSizeAttr>(
           *this, TemplateArgs, IntelReqdSubGroupSize, New);
       continue;
     }
     if (const auto *SYCLIntelNumSimdWorkItems =
             dyn_cast<SYCLIntelNumSimdWorkItemsAttr>(TmplAttr)) {
-      instantiateFunctionAttr<SYCLIntelNumSimdWorkItemsAttr>(
+      instantiateIntelSYCLFunctionAttr<SYCLIntelNumSimdWorkItemsAttr>(
           *this, TemplateArgs, SYCLIntelNumSimdWorkItems, New);
       continue;
     }
     if (const auto *SYCLIntelSchedulerTargetFmaxMhz =
             dyn_cast<SYCLIntelSchedulerTargetFmaxMhzAttr>(TmplAttr)) {
-      instantiateFunctionAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>(
+      instantiateIntelSYCLFunctionAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>(
           *this, TemplateArgs, SYCLIntelSchedulerTargetFmaxMhz, New);
       continue;
     }
     if (const auto *SYCLIntelMaxGlobalWorkDim =
             dyn_cast<SYCLIntelMaxGlobalWorkDimAttr>(TmplAttr)) {
-      instantiateFunctionAttr<SYCLIntelMaxGlobalWorkDimAttr>(
+      instantiateIntelSYCLFunctionAttr<SYCLIntelMaxGlobalWorkDimAttr>(
           *this, TemplateArgs, SYCLIntelMaxGlobalWorkDim, New);
       continue;
     }
@@ -855,7 +855,7 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
     if (const auto *SYCLIntelNoGlobalWorkOffset =
             dyn_cast<SYCLIntelNoGlobalWorkOffsetAttr>(TmplAttr)) {
-      instantiateFunctionAttr<SYCLIntelNoGlobalWorkOffsetAttr>(
+      instantiateIntelSYCLFunctionAttr<SYCLIntelNoGlobalWorkOffsetAttr>(
           *this, TemplateArgs, SYCLIntelNoGlobalWorkOffset, New);
       continue;
     }

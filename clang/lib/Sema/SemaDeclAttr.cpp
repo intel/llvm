@@ -3158,7 +3158,7 @@ static void handleSubGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (D->getAttr<IntelReqdSubGroupSizeAttr>())
     S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
 
-  S.addSingleArgFunctionAttr<IntelReqdSubGroupSizeAttr>(D, AL, E);
+  S.addIntelSYCLSingleArgFunctionAttr<IntelReqdSubGroupSizeAttr>(D, AL, E);
 }
 
 // Handles num_simd_work_items.
@@ -3176,7 +3176,8 @@ static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D,
     S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
         << "'intel::num_simd_work_items'";
 
-  S.addSingleArgFunctionAttr<SYCLIntelNumSimdWorkItemsAttr>(D, Attr, E);
+  S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelNumSimdWorkItemsAttr>(D, Attr,
+                                                                     E);
 }
 
 // Handles use_stall_enable_clusters
@@ -3209,7 +3210,8 @@ static void handleSchedulerTargetFmaxMhzAttr(Sema &S, Decl *D,
     S.Diag(AL.getLoc(), diag::note_spelling_suggestion)
         << "'intel::scheduler_target_fmax_mhz'";
 
-  S.addSingleArgFunctionAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>(D, AL, E);
+  S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>(
+      D, AL, E);
 }
 
 // Handles max_global_work_dim.
@@ -3232,7 +3234,8 @@ static void handleMaxGlobalWorkDimAttr(Sema &S, Decl *D,
     S.Diag(Attr.getLoc(), diag::note_spelling_suggestion)
         << "'intel::max_global_work_dim'";
 
-  S.addSingleArgFunctionAttr<SYCLIntelMaxGlobalWorkDimAttr>(D, Attr, E);
+  S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelMaxGlobalWorkDimAttr>(D, Attr,
+                                                                     E);
 }
 
 SYCLIntelLoopFuseAttr *
@@ -5523,7 +5526,8 @@ static void handleNoGlobalWorkOffsetAttr(Sema &S, Decl *D,
                 ? Attr.getArgAsExpr(0)
                 : IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
                                          S.Context.IntTy, Attr.getLoc());
-  S.addSingleArgFunctionAttr<SYCLIntelNoGlobalWorkOffsetAttr>(D, Attr, E);
+  S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelNoGlobalWorkOffsetAttr>(D, Attr,
+                                                                       E);
 }
 
 /// Handle the [[intelfpga::doublepump]] and [[intelfpga::singlepump]] attributes.

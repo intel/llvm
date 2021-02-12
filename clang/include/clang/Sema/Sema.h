@@ -10094,8 +10094,8 @@ public:
   void AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
                                 Expr **Exprs, unsigned Size);
   template <typename AttrType>
-  void addSingleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
-                                Expr *E);
+  void addIntelSYCLSingleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
+                                         Expr *E);
   template <typename AttrType>
   void addIntelSYCLTripleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
                                          Expr *XDimExpr, Expr *YDimExpr,
@@ -12936,8 +12936,9 @@ public:
 };
 
 template <typename AttrType>
-void Sema::addSingleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
-                                    Expr *E) {
+void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
+                                             const AttributeCommonInfo &CI,
+                                             Expr *E) {
   assert(E && "Attribute must have an argument.");
 
   if (!E->isInstantiationDependent()) {
