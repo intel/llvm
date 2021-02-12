@@ -238,6 +238,36 @@ public:
 
   T getIdentity() const { return MIdentity; }
 
+  template <typename _T = T>
+  enable_if_t<IsReduPlus<_T, BinaryOperation>::value>
+  operator+=(const _T &Partial) {
+    combine(Partial);
+  }
+
+  template <typename _T = T>
+  enable_if_t<IsReduMultiplies<_T, BinaryOperation>::value>
+  operator*=(const _T &Partial) {
+    combine(Partial);
+  }
+
+  template <typename _T = T>
+  enable_if_t<IsReduBitOR<_T, BinaryOperation>::value>
+  operator|=(const _T &Partial) {
+    combine(Partial);
+  }
+
+  template <typename _T = T>
+  enable_if_t<IsReduBitXOR<_T, BinaryOperation>::value>
+  operator^=(const _T &Partial) {
+    combine(Partial);
+  }
+
+  template <typename _T = T>
+  enable_if_t<IsReduBitAND<_T, BinaryOperation>::value>
+  operator&=(const _T &Partial) {
+    combine(Partial);
+  }
+
   T MValue;
 
 private:
@@ -281,48 +311,33 @@ public:
   }
 
   template <typename _T = T>
-  enable_if_t<std::is_same<_T, T>::value &&
-                  IsReduPlus<T, BinaryOperation>::value,
-              reducer &>
+  enable_if_t<IsReduPlus<_T, BinaryOperation>::value>
   operator+=(const _T &Partial) {
     combine(Partial);
-    return *this;
   }
 
   template <typename _T = T>
-  enable_if_t<std::is_same<_T, T>::value &&
-                  IsReduMultiplies<T, BinaryOperation>::value,
-              reducer &>
+  enable_if_t<IsReduMultiplies<_T, BinaryOperation>::value>
   operator*=(const _T &Partial) {
     combine(Partial);
-    return *this;
   }
 
   template <typename _T = T>
-  enable_if_t<std::is_same<_T, T>::value &&
-                  IsReduBitOR<T, BinaryOperation>::value,
-              reducer &>
+  enable_if_t<IsReduBitOR<_T, BinaryOperation>::value>
   operator|=(const _T &Partial) {
     combine(Partial);
-    return *this;
   }
 
   template <typename _T = T>
-  enable_if_t<std::is_same<_T, T>::value &&
-                  IsReduBitXOR<T, BinaryOperation>::value,
-              reducer &>
+  enable_if_t<IsReduBitXOR<_T, BinaryOperation>::value>
   operator^=(const _T &Partial) {
     combine(Partial);
-    return *this;
   }
 
   template <typename _T = T>
-  enable_if_t<std::is_same<_T, T>::value &&
-                  IsReduBitAND<T, BinaryOperation>::value,
-              reducer &>
+  enable_if_t<IsReduBitAND<_T, BinaryOperation>::value>
   operator&=(const _T &Partial) {
     combine(Partial);
-    return *this;
   }
 
   /// Atomic ADD operation: *ReduVarPtr += MValue;
