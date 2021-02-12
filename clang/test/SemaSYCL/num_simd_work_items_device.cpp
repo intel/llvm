@@ -63,7 +63,7 @@ struct TRIFuncObjBad4 {
 };
 
 struct TRIFuncObjBad5 {
-  [[intel::num_simd_work_items(0)]] // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+  [[intel::num_simd_work_items(0)]] // expected-error{{'num_simd_work_items' attribute must be greater than 0}}
   [[intel::reqd_work_group_size(5, 5, 5)]] void
   operator()() const {}
 };
@@ -84,7 +84,7 @@ struct TRIFuncObjBad7 {
 
 struct TRIFuncObjBad8 {
   [[intel::num_simd_work_items(3)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-  [[intel::reqd_work_group_size(5, 5)]] //expected-note{{conflicting attribute is here}}
+  [[intel::reqd_work_group_size(5, 5)]] // expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
 };
@@ -94,6 +94,54 @@ struct TRIFuncObjBad9 {
   [[intel::num_simd_work_items(3)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   void
   operator()() const {}
+};
+
+struct TRIFuncObjBad10 {
+  [[intel::reqd_work_group_size(5, 5, 5)]]
+  [[intel::num_simd_work_items(0)]] // expected-error{{'num_simd_work_items' attribute must be greater than 0}}
+  void operator()() const {}
+};
+
+struct TRIFuncObjBad11 {
+  [[intel::num_simd_work_items(3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+  [[intel::reqd_work_group_size(64, 64, 64)]]
+  void operator()() const {}
+};
+
+struct TRIFuncObjBad12 {
+  [[intel::reqd_work_group_size(64, 64, 64)]]
+  [[intel::num_simd_work_items(3.f)]]  // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+  void operator()() const {}
+};
+
+struct TRIFuncObjBad13 {
+  [[intel::reqd_work_group_size(0)]] // expected-error{{'reqd_work_group_size' attribute must be greater than 0}}
+  [[intel::num_simd_work_items(0)]]  // expected-error{{'num_simd_work_items' attribute must be greater than 0}}
+  void operator()() const {}
+};
+
+struct TRIFuncObjBad14 {
+  [[intel::num_simd_work_items(0)]]  // expected-error{{'num_simd_work_items' attribute must be greater than 0}}
+  [[intel::reqd_work_group_size(0)]] // expected-error{{'reqd_work_group_size' attribute must be greater than 0}}
+  void operator()() const {}
+};
+
+struct TRIFuncObjBad15 {
+  [[intel::num_simd_work_items(3.f)]]  // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+  [[intel::reqd_work_group_size(3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+  void operator()() const {}
+};
+
+struct TRIFuncObjBad16 {
+  [[intel::reqd_work_group_size(3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+  [[intel::num_simd_work_items(3.f)]]  // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+  void operator()() const {}
+};
+
+struct TRIFuncObjBad17 {
+  [[intel::num_simd_work_items(-1)]]  // expected-error{{'num_simd_work_items' attribute requires a non-negative integral compile time constant expression}}
+  [[intel::reqd_work_group_size(-1)]] // expected-warning{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
+  void operator()() const {}
 };
 #endif // TRIGGER_ERROR
 
@@ -187,101 +235,181 @@ int main() {
     h.single_task<class test_kernel4>(TRIFuncObjGood1());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4
     // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
 
     h.single_task<class test_kernel5>(TRIFuncObjGood2());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel5
     // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
 
     h.single_task<class test_kernel6>(TRIFuncObjGood3());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel6
     // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
 
     h.single_task<class test_kernel7>(TRIFuncObjGood4());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel7
     // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
 
     h.single_task<class test_kernel8>(TRIFuncObjGood5());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel8
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 3
     // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
     // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 5
     // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 5
     // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 5
     // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
 
     h.single_task<class test_kernel9>(TRIFuncObjGood6());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel9
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 3
     // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
     // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 5
     // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 5
     // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 5
     // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
 
     h.single_task<class test_kernel10>(TRIFuncObjGood7());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel10
     // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
 
     h.single_task<class test_kernel11>(TRIFuncObjGood8());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel11
     // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
 
     h.single_task<class test_kernel12>(TRIFuncObjGood9());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel12
     // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
 
     h.single_task<class test_kernel13>(TRIFuncObjGood10());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel13
     // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
 
 #ifdef TRIGGER_ERROR
     [[intel::num_simd_work_items(0)]] int Var = 0; // expected-error{{'num_simd_work_items' attribute only applies to functions}}
 
     h.single_task<class test_kernel14>(
-        []() [[intel::num_simd_work_items(0)]]{}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+        []() [[intel::num_simd_work_items(0)]]{}); // expected-error{{'num_simd_work_items' attribute must be greater than 0}}
 
     h.single_task<class test_kernel15>(
-        []() [[intel::num_simd_work_items(-42)]]{}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+        []() [[intel::num_simd_work_items(-42)]]{}); // expected-error{{'num_simd_work_items' attribute requires a non-negative integral compile time constant expression}}
 
     h.single_task<class test_kernel16>(TRIFuncObjBad1());
 
@@ -297,11 +425,27 @@ int main() {
 
     h.single_task<class test_kernel22>(TRIFuncObjBad7());
 
-    h.single_task<class test_kernel13>(TRIFuncObjBad8());
+    h.single_task<class test_kernel23>(TRIFuncObjBad8());
 
     h.single_task<class test_kernel24>(TRIFuncObjBad9());
 
-    h.single_task<class test_kernel25>(
+    h.single_task<class test_kernel25>(TRIFuncObjBad10());
+
+    h.single_task<class test_kernel26>(TRIFuncObjBad11());
+
+    h.single_task<class test_kernel27>(TRIFuncObjBad12());
+
+    h.single_task<class test_kernel28>(TRIFuncObjBad13());
+
+    h.single_task<class test_kernel29>(TRIFuncObjBad14());
+
+    h.single_task<class test_kernel30>(TRIFuncObjBad15());
+
+    h.single_task<class test_kernel31>(TRIFuncObjBad16());
+
+    h.single_task<class test_kernel32>(TRIFuncObjBad17());
+
+    h.single_task<class test_kernel33>(
         []() [[intel::num_simd_work_items(1), intel::num_simd_work_items(2)]]{}); // expected-warning{{attribute 'num_simd_work_items' is already applied with different parameters}}
 #endif // TRIGGER_ERROR
   });

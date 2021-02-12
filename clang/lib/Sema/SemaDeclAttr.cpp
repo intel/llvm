@@ -3095,6 +3095,22 @@ static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &AL) {
   return Result;
 }
 
+static Expr *checkWorkSizeAttrExpr(Sema &S, const ParsedAttr &CI,
+                                   Expr *E) {
+  assert(E && "Attribute must have an argument.");
+
+  if (!E->isInstantiationDependent()) {
+    llvm::APSInt ArgVal;
+    ExprResult ICE = S.VerifyIntegerConstantExpression(E, &ArgVal);
+
+    if (ICE.isInvalid())
+      return nullptr;
+
+    E = ICE.get();
+  }
+  return E;
+}
+
 // Handles reqd_work_group_size and max_work_group_size.
 template <typename WorkGroupAttr>
 static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -3132,26 +3148,27 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   ASTContext &Ctx = S.getASTContext();
 
-  if (!XDimExpr->isValueDependent() || !YDimExpr->isValueDependent() ||
-      !ZDimExpr->isValueDependent()) {
+  if (!XDimExpr->isValueDependent() &&
+      !YDimExpr->isValueDependent() && !ZDimExpr->isValueDependent()) {
     Optional<llvm::APSInt> XDimVal = XDimExpr->getIntegerConstantExpr(Ctx);
     Optional<llvm::APSInt> YDimVal = YDimExpr->getIntegerConstantExpr(Ctx);
     Optional<llvm::APSInt> ZDimVal = ZDimExpr->getIntegerConstantExpr(Ctx);
+
+    XDimExpr = checkWorkSizeAttrExpr(S, AL, XDimExpr);
+    YDimExpr = checkWorkSizeAttrExpr(S, AL, YDimExpr);
+    ZDimExpr = checkWorkSizeAttrExpr(S, AL, ZDimExpr);
+
+    if (!XDimExpr || !YDimExpr || !ZDimExpr)
+      return;
+
+     // Skip SEMA if we're in a template, this will be diagnosed later.
+    if (S.getCurLexicalContext()->isDependentContext())
+      return;
 
     if (AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize) {
       if (const auto *A = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
         int64_t NumSimdWorkItems =
             A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue();
-
-        assert(NumSimdWorkItems && XDimVal &&
-               "Argument should be an integer constant expression");
-        assert(NumSimdWorkItems && YDimVal &&
-               "Argument should be an integer constant expression");
-        assert(NumSimdWorkItems && ZDimVal &&
-               "Argument should be an integer constant expression");
-
-        if (NumSimdWorkItems == 0)
-          return;
 
         if (!(XDimVal->getZExtValue() % NumSimdWorkItems == 0 ||
               YDimVal->getZExtValue() % NumSimdWorkItems == 0 ||
@@ -3169,13 +3186,6 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
       Optional<llvm::APSInt> ExistingYDimVal = ExistingAttr->getYDimVal(Ctx);
       Optional<llvm::APSInt> ExistingZDimVal = ExistingAttr->getZDimVal(Ctx);
 
-      assert(XDimVal && ExistingXDimVal &&
-             "Argument should be an integer constant expression");
-      assert(YDimVal && ExistingYDimVal &&
-             "Argument should be an integer constant expression");
-      assert(ZDimVal && ExistingZDimVal &&
-             "Argument should be an integer constant expression");
-
       // Compare attribute arguments value and warn for a mismatch.
       if (ExistingXDimVal != XDimVal || ExistingYDimVal != YDimVal ||
           ExistingZDimVal != ZDimVal) {
@@ -3183,10 +3193,10 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
         S.Diag(ExistingAttr->getLocation(), diag::note_conflicting_attribute);
       }
     }
-  }
 
-  if (!checkWorkGroupSizeValues(S, D, AL))
-    return;
+    if (!checkWorkGroupSizeValues(S, D, AL))
+      return;
+  }
 
   S.addIntelSYCLTripleArgFunctionAttr<WorkGroupAttr>(D, AL, XDimExpr, YDimExpr,
                                                      ZDimExpr);
@@ -3246,25 +3256,27 @@ static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
-  if (!E->isValueDependent()) {
+  if (!E->isValueDependent() || !E->isInstantiationDependent()) {
     ASTContext &Ctx = S.getASTContext();
-    Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(Ctx);
+    llvm::APSInt ArgVal;
+    ExprResult ICE = S.VerifyIntegerConstantExpression(E, &ArgVal);
+
+    if (ICE.isInvalid())
+      return;
+
+    E = ICE.get();
+    int64_t NumSimdWorkItems = ArgVal.getSExtValue();
+
+    if (NumSimdWorkItems == 0) {
+      S.Diag(E->getExprLoc(), diag::err_attribute_argument_is_zero)
+          << AL << E->getSourceRange();
+      return;
+    }
 
     if (const auto *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
       Optional<llvm::APSInt> XDimVal = A->getXDimVal(Ctx);
       Optional<llvm::APSInt> YDimVal = A->getYDimVal(Ctx);
       Optional<llvm::APSInt> ZDimVal = A->getZDimVal(Ctx);
-
-      assert(ArgVal && XDimVal &&
-             "Argument should be an integer constant expression");
-      assert(ArgVal && YDimVal &&
-             "Argument should be an integer constant expression");
-      assert(ArgVal && ZDimVal &&
-             "Argument should be an integer constant expression");
-
-      int64_t NumSimdWorkItems = ArgVal->getSExtValue();
-      if (NumSimdWorkItems == 0)
-        return;
 
       if (!(XDimVal->getZExtValue() % NumSimdWorkItems == 0 ||
             YDimVal->getZExtValue() % NumSimdWorkItems == 0 ||
@@ -6035,14 +6047,14 @@ void Sema::addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &Attr,
     Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(getASTContext());
     if (!ArgVal) {
       Diag(E->getExprLoc(), diag::err_attribute_argument_type)
-          << Attr.getAttrName() << AANT_ArgumentIntegerConstant
+          << Attr << AANT_ArgumentIntegerConstant
           << E->getSourceRange();
       return;
     }
     int32_t ArgInt = ArgVal->getSExtValue();
     if (ArgInt < 0) {
       Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << Attr.getAttrName() << /*non-negative*/ 1;
+          << Attr << /*non-negative*/ 1;
       return;
     }
   }

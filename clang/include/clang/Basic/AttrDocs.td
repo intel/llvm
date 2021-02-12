@@ -2418,9 +2418,11 @@ device kernel, the attribute is not ignored and it is propagated to the kernel.
     [[intel::num_simd_work_items(N)]] void operator()() const {}
   };
 
-The ``intel::num_simd_work_items`` attribute we specify must evenly divide
-the work-group size we specify for the ``intel::reqd_work_group_size`` or
-``cl::reqd_work_group_size`` attribute.
+If the`` intel::reqd_work_group_size`` or ``cl::reqd_work_group_size``
+attribute is specified on a declaration along with a
+intel::num_simd_work_items attribute, the work group size attribute
+arguments must all be evenly divisible by the argument specified in
+the ``intel::num_simd_work_items`` attribute.
 
 .. code-block:: c++
 
