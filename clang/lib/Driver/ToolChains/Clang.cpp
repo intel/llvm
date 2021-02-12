@@ -8308,6 +8308,9 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     if (TCArgs.hasFlag(options::OPT_fsycl_device_code_split_esimd,
                        options::OPT_fno_sycl_device_code_split_esimd, true))
       addArgs(CmdArgs, TCArgs, {"-split-esimd"});
+    if (TCArgs.hasFlag(options::OPT_fsycl_device_code_lower_esimd,
+                       options::OPT_fno_sycl_device_code_lower_esimd, false))
+      addArgs(CmdArgs, TCArgs, {"-lower-esimd"});
   }
   // specialization constants processing is mandatory
   auto *SYCLPostLink = llvm::dyn_cast<SYCLPostLinkJobAction>(&JA);
