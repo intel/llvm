@@ -72,7 +72,7 @@ Modify Section 3.31, "Capability", adding these rows to the Capability table:
 --
 [options="header"]
 |====
-2+^| Capability ^| Depends On
+2+^| Capability ^| Implicitly Declares
 | 6094 | *CapabilityOptNoneINTEL* +
 Allow to use *OptNoneINTEL* Function Control mask value |
 |====
