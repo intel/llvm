@@ -10206,12 +10206,10 @@ public:
   void AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
                                 Expr **Exprs, unsigned Size);
   template <typename AttrType>
-  void addIntelSingleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
-                                     Expr *E);
+  void addIntelSingleArgAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E);
   template <typename AttrType>
-  void addIntelTripleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
-                                     Expr *XDimExpr, Expr *YDimExpr,
-                                     Expr *ZDimExpr);
+  void addIntelTripleArgAttr(Decl *D, const AttributeCommonInfo &CI,
+                             Expr *XDimExpr, Expr *YDimExpr, Expr *ZDimExpr);
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
                       bool IsPackExpansion);
@@ -13059,8 +13057,8 @@ public:
 };
 
 template <typename AttrType>
-void Sema::addIntelSingleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
-                                         Expr *E) {
+void Sema::addIntelSingleArgAttr(Decl *D, const AttributeCommonInfo &CI,
+                                 Expr *E) {
   assert(E && "Attribute must have an argument.");
 
   if (!E->isInstantiationDependent()) {
@@ -13142,9 +13140,9 @@ static Expr *checkMaxWorkSizeAttrExpr(Sema &S, const AttributeCommonInfo &CI,
 }
 
 template <typename WorkGroupAttrType>
-void Sema::addIntelTripleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
-                                         Expr *XDimExpr, Expr *YDimExpr,
-                                         Expr *ZDimExpr) {
+void Sema::addIntelTripleArgAttr(Decl *D, const AttributeCommonInfo &CI,
+                                 Expr *XDimExpr, Expr *YDimExpr,
+                                 Expr *ZDimExpr) {
 
   assert((XDimExpr && YDimExpr && ZDimExpr) &&
          "argument has unexpected null value");
