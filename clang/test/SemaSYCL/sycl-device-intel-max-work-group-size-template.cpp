@@ -6,18 +6,20 @@
 // is checked properly when instantiating from the template definition.
 
 template <typename Ty, typename Ty1, typename Ty2>
-// expected-error@+1{{'max_work_group_size' attribute requires an integer constant}}
+// expected-error@+1 3{{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
 [[intel::max_work_group_size(Ty{}, Ty1{}, Ty2{})]] void func() {}
 
 struct S {};
 void var() {
-  //expected-note@+1{{in instantiation of function template specialization 'func<S, S, S>' requested here}}
+  //expected-note@+1 {{in instantiation of function template specialization 'func<S, S, S>' requested here}}
   func<S, S, S>();
 }
 
 // Test that checks expression is not a constant expression.
+// expected-note@+1 3{{declared here}}
 int foo();
-// expected-error@+1{{'max_work_group_size' attribute requires an integer constant}}
+// expected-error@+2 3{{expression is not an integral constant expression}}
+// expected-note@+1 3{{non-constexpr function 'foo' cannot be used in a constant expression}}
 [[intel::max_work_group_size(foo() + 12, foo() + 12, foo() + 12)]] void func1();
 
 // Test that checks expression is a constant expression.
@@ -39,13 +41,19 @@ int main() {
 // CHECK: ClassTemplateSpecializationDecl {{.*}} {{.*}} class KernelFunctor definition
 // CHECK: CXXRecordDecl {{.*}} {{.*}} implicit class KernelFunctor
 // CHECK: SYCLIntelMaxWorkGroupSizeAttr {{.*}}
-// CHECK: SubstNonTypeTemplateParmExpr {{.*}}
+// CHECK-NEXT: ConstantExpr{{.*}}'int'
+// CHECK-NEXT: value: Int 4
+// CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
-// CHECK: SubstNonTypeTemplateParmExpr {{.*}}
+// CHECK-NEXT: ConstantExpr{{.*}}'int'
+// CHECK-NEXT: value: Int 4
+// CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
-// CHECK: SubstNonTypeTemplateParmExpr {{.*}}
+// CHECK-NEXT: ConstantExpr{{.*}}'int'
+// CHECK-NEXT: value: Int 4
+// CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
 
@@ -59,15 +67,20 @@ int check() {
 }
 
 // CHECK: FunctionTemplateDecl {{.*}} {{.*}} func3
-// CHECK: NonTypeTemplateParmDecl {{.*}} {{.*}} referenced 'int' depth 0 index 0 N
-// CHECK: FunctionDecl {{.*}} {{.*}} func3 'void ()'
+// CHECK: FunctionDecl {{.*}} {{.*}} used func3 'void ()'
 // CHECK: SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+// CHECK-NEXT: ConstantExpr{{.*}}'int'
+// CHECK-NEXT: value: Int 8
 // CHECK: SubstNonTypeTemplateParmExpr {{.*}}
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
-// CHECK: SubstNonTypeTemplateParmExpr {{.*}}
+// CHECK-NEXT: ConstantExpr{{.*}}'int'
+// CHECK-NEXT: value: Int 8
+// CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
-// CHECK: SubstNonTypeTemplateParmExpr {{.*}}
+// CHECK-NEXT: ConstantExpr{{.*}}'int'
+// CHECK-NEXT: value: Int 8
+// CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
