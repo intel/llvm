@@ -311,7 +311,7 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
 
   InputInfoList ForeachInputs;
   InputInfoList FPGADepFiles;
-  StringRef createdReportName;
+  StringRef CreatedReportName;
   ArgStringList CmdArgs{"-o", Output.getFilename()};
   for (const auto &II : Inputs) {
     std::string Filename(II.getFilename());
@@ -333,11 +333,11 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
         types::TY_FPGA_AOCR) {
       // Keep the base of the .aocr file name.  Input file is a temporary,
       // so we are stripping off the additional naming information for a
-      // cleaner name.
+      // cleaner name.  The length is the being stripped from the name is the
+      // added temporary string and the extension:  input_file-XXXXXX.aocr
       SmallString<128> NameBase(Filename.substr(0, Filename.length() - 12));
-      NameBase.append(".aocr");
-      llvm::sys::path::replace_extension(NameBase, "prj");
-      createdReportName =
+      NameBase.append(".prj");
+      CreatedReportName =
           Args.MakeArgString(llvm::sys::path::filename(NameBase));
     }
   }
@@ -374,11 +374,11 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
                                            Args.MakeArgString(DepName),
                                            Args.MakeArgString(DepName)));
       }
-      if (createdReportName.empty()) {
+      if (CreatedReportName.empty()) {
         // Project report should be saved into CWD, so strip off any
         // directory information if provided with the input file.
         llvm::sys::path::replace_extension(ArgName, "prj");
-        createdReportName = Args.MakeArgString(ArgName);
+        CreatedReportName = Args.MakeArgString(ArgName);
       }
     }
   }
@@ -407,8 +407,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
   } else {
     // Output directory is based off of the first object name as captured
     // above.
-    if (!createdReportName.empty())
-      ReportOptArg += createdReportName;
+    if (!CreatedReportName.empty())
+      ReportOptArg += CreatedReportName;
   }
   if (!ReportOptArg.empty())
     CmdArgs.push_back(C.getArgs().MakeArgString(
