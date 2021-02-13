@@ -1,4 +1,8 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -Wno-sycl-2017-compat -verify -pedantic %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -fsyntax-only -verify -pedantic %s
+
+#include "sycl.hpp"
+
+sycl::queue deviceQueue;
 
 // Test for Intel FPGA loop attributes applied not to a loop
 void foo() {
@@ -393,28 +397,26 @@ void max_concurrency_dependent() {
       a[i] = 0;
 }
 
-template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
-  kernelFunc();
-}
-
 int main() {
-  kernel_single_task<class kernel_function>([]() {
-    foo();
-    foo_deprecated();
-    boo();
-    goo();
-    zoo();
-    loop_attrs_compatibility();
-    ivdep_dependent<4, 2, 1>();
-    //expected-note@-1 +{{in instantiation of function template specialization}}
-    ivdep_dependent<2, 4, -1>();
-    //expected-note@-1 +{{in instantiation of function template specialization}}
-    ii_dependent<2, 4, -1>();
-    //expected-note@-1 +{{in instantiation of function template specialization}}
-    max_concurrency_dependent<1, 4, -2>();
-    //expected-note@-1 +{{in instantiation of function template specialization}}
+  deviceQueue.submit([&](sycl::handler &h) {
+    h.single_task<class kernel_function>([]() {
+      foo();
+      foo_deprecated();
+      boo();
+      goo();
+      zoo();
+      loop_attrs_compatibility();
+      ivdep_dependent<4, 2, 1>();
+      //expected-note@-1 +{{in instantiation of function template specialization}}
+      ivdep_dependent<2, 4, -1>();
+      //expected-note@-1 +{{in instantiation of function template specialization}}
+      ii_dependent<2, 4, -1>();
+      //expected-note@-1 +{{in instantiation of function template specialization}}
+      max_concurrency_dependent<1, 4, -2>();
+      //expected-note@-1 +{{in instantiation of function template specialization}}
+    });
   });
+
   return 0;
 }
 
