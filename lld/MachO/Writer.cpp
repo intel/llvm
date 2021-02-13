@@ -427,11 +427,10 @@ static void prepareSymbolRelocation(lld::macho::Symbol *sym,
 
 void Writer::scanRelocations() {
   for (InputSection *isec : inputSections) {
-    // We do not wish to add rebase opcodes for __LD,__compact_unwind, because
-    // it doesn't actually end up in the final binary. TODO: filtering it out
-    // before Writer runs might be cleaner...
-    if (isec->segname == segment_names::ld)
+    if (isec->segname == segment_names::ld) {
+      prepareCompactUnwind(isec);
       continue;
+    }
 
     for (Reloc &r : isec->relocs) {
       if (target->hasAttr(r.type, RelocAttrBits::SUBTRAHEND))
@@ -721,8 +720,9 @@ void Writer::createOutputSections() {
 }
 
 void Writer::assignAddresses(OutputSegment *seg) {
-  addr = alignTo(addr, PageSize);
-  fileOff = alignTo(fileOff, PageSize);
+  uint64_t pageSize = target->getPageSize();
+  addr = alignTo(addr, pageSize);
+  fileOff = alignTo(fileOff, pageSize);
   seg->fileOff = fileOff;
 
   for (OutputSection *osec : seg->getSections()) {
