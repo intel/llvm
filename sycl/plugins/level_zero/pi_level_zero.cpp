@@ -415,20 +415,6 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *CallStr,
   if (!(condition))                                                            \
     return error;
 
-// Destroy all the command lists associated with this device.
-// This is required when destructing the _pi_device object.
-// During the piTearDown process, platforms and root devices are
-// destroyed automatically regardless of their reference counts.
-// So, this destructor should explicitly call zeCommandListDestroy
-// to avoid memory leaks.
-_pi_device::~_pi_device() {
-  std::lock_guard<std::mutex> Lock(ZeCommandListCacheMutex);
-  for (ze_command_list_handle_t &ZeCommandList : ZeCommandListCache) {
-    if (ZeCommandList)
-      ZE_CALL_NOCHECK(zeCommandListDestroy(ZeCommandList));
-  }
-}
-
 // This helper function increments the reference counter of the Queue
 // without guarding with a lock.
 // It is the caller's responsibility to make sure the lock is acquired
@@ -522,6 +508,12 @@ pi_result _pi_context::finalize() {
 
   // Destroy the command list used for initializations
   ZE_CALL(zeCommandListDestroy(ZeCommandListInit));
+
+  std::lock_guard<std::mutex> Lock(ZeCommandListCacheMutex);
+  for (ze_command_list_handle_t &ZeCommandList : ZeCommandListCache) {
+    if (ZeCommandList)
+      ZE_CALL(zeCommandListDestroy(ZeCommandList));
+  }
   return PI_SUCCESS;
 }
 
@@ -534,8 +526,8 @@ _pi_queue::resetCommandListFenceEntry(ze_command_list_handle_t ZeCommandList,
   ZE_CALL(zeFenceReset(this->ZeCommandListFenceMap[ZeCommandList]));
   ZE_CALL(zeCommandListReset(ZeCommandList));
   if (MakeAvailable) {
-    std::lock_guard<std::mutex> lock(this->Device->ZeCommandListCacheMutex);
-    this->Device->ZeCommandListCache.push_back(ZeCommandList);
+    std::lock_guard<std::mutex> lock(this->Context->ZeCommandListCacheMutex);
+    this->Context->ZeCommandListCache.push_back(ZeCommandList);
   }
 
   return PI_SUCCESS;
@@ -559,7 +551,7 @@ static const pi_uint32 ZeCommandListBatchSize = [] {
 
 // Retrieve an available command list to be used in a PI call
 // Caller must hold a lock on the Queue passed in.
-pi_result _pi_device::getAvailableCommandList(
+pi_result _pi_context::getAvailableCommandList(
     pi_queue Queue, ze_command_list_handle_t *ZeCommandList,
     ze_fence_handle_t *ZeFence, bool AllowBatching) {
   // First see if there is an command-list open for batching commands
@@ -595,10 +587,10 @@ pi_result _pi_device::getAvailableCommandList(
   {
     // Make sure to acquire the lock before checking the size, or there
     // will be a race condition.
-    std::lock_guard<std::mutex> lock(Queue->Device->ZeCommandListCacheMutex);
+    std::lock_guard<std::mutex> lock(Queue->Context->ZeCommandListCacheMutex);
 
-    if (Queue->Device->ZeCommandListCache.size() > 0) {
-      *ZeCommandList = Queue->Device->ZeCommandListCache.front();
+    if (Queue->Context->ZeCommandListCache.size() > 0) {
+      *ZeCommandList = Queue->Context->ZeCommandListCache.front();
       auto it = Queue->ZeCommandListFenceMap.find(*ZeCommandList);
       if (it != Queue->ZeCommandListFenceMap.end()) {
         *ZeFence = it->second;
@@ -610,7 +602,7 @@ pi_result _pi_device::getAvailableCommandList(
         ZE_CALL(zeFenceCreate(Queue->ZeCommandQueue, &ZeFenceDesc, ZeFence));
         Queue->ZeCommandListFenceMap[*ZeCommandList] = *ZeFence;
       }
-      Queue->Device->ZeCommandListCache.pop_front();
+      Queue->Context->ZeCommandListCache.pop_front();
       return PI_SUCCESS;
     }
   }
@@ -636,12 +628,14 @@ pi_result _pi_device::getAvailableCommandList(
   // command lists we can create.
   // Once created, this command list & fence are added to the command list fence
   // map.
-  if ((*ZeCommandList == nullptr) && (this->Platform->ZeGlobalCommandListCount <
-                                      this->Platform->ZeMaxCommandListCache)) {
-    ZE_CALL(zeCommandListCreate(Queue->Context->ZeContext, ZeDevice,
-                                &ZeCommandListDesc, ZeCommandList));
+  if ((*ZeCommandList == nullptr) &&
+      (Queue->Device->Platform->ZeGlobalCommandListCount <
+       Queue->Device->Platform->ZeMaxCommandListCache)) {
+    ZE_CALL(zeCommandListCreate(Queue->Context->ZeContext,
+                                Queue->Device->ZeDevice, &ZeCommandListDesc,
+                                ZeCommandList));
     // Increments the total number of command lists created on this platform.
-    this->Platform->ZeGlobalCommandListCount++;
+    Queue->Device->Platform->ZeGlobalCommandListCount++;
     ZE_CALL(zeFenceCreate(Queue->ZeCommandQueue, &ZeFenceDesc, ZeFence));
     Queue->ZeCommandListFenceMap.insert(
         std::pair<ze_command_list_handle_t, ze_fence_handle_t>(*ZeCommandList,
@@ -3594,8 +3588,8 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
-                                                        &ZeFence, true))
+  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
+                                                         &ZeFence, true))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4111,8 +4105,8 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
-                                                        &ZeFence))
+  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
+                                                         &ZeFence))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4188,8 +4182,8 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
-                                                        &ZeFence))
+  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
+                                                         &ZeFence))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4245,8 +4239,8 @@ static pi_result enqueueMemCopyRectHelper(
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
-                                                        &ZeFence))
+  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
+                                                         &ZeFence))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4412,8 +4406,8 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
-                                                        &ZeFence))
+  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
+                                                         &ZeFence))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4538,8 +4532,8 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
   // For discrete devices we need a command list
-  if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
-                                                        &ZeFence))
+  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
+                                                         &ZeFence))
     return Res;
 
   // Set the commandlist in the event
@@ -4638,8 +4632,8 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-  if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
-                                                        &ZeFence))
+  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
+                                                         &ZeFence))
     return Res;
 
   // Set the commandlist in the event
@@ -4750,8 +4744,8 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
-                                                        &ZeFence))
+  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
+                                                         &ZeFence))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -5357,8 +5351,8 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
-                                                        &ZeFence))
+  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
+                                                         &ZeFence))
     return Res;
 
   // TODO: do we need to create a unique command type for this?
@@ -5413,8 +5407,8 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Device->getAvailableCommandList(Queue, &ZeCommandList,
-                                                        &ZeFence))
+  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
+                                                         &ZeFence))
     return Res;
 
   // TODO: do we need to create a unique command type for this?
