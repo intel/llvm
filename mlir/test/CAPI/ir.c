@@ -1412,23 +1412,26 @@ int registerOnlyStd() {
   if (mlirContextGetNumLoadedDialects(ctx) != 1)
     return 1;
 
-  MlirDialect std =
-      mlirContextGetOrLoadDialect(ctx, mlirStandardDialectGetNamespace());
+  MlirDialectHandle stdHandle = mlirGetDialectHandle__std__();
+
+  MlirDialect std = mlirContextGetOrLoadDialect(
+      ctx, mlirDialectHandleGetNamespace(stdHandle));
   if (!mlirDialectIsNull(std))
     return 2;
 
-  mlirContextRegisterStandardDialect(ctx);
+  mlirDialectHandleRegisterDialect(stdHandle, ctx);
 
-  std = mlirContextGetOrLoadDialect(ctx, mlirStandardDialectGetNamespace());
+  std = mlirContextGetOrLoadDialect(ctx,
+                                    mlirDialectHandleGetNamespace(stdHandle));
   if (mlirDialectIsNull(std))
     return 3;
 
-  MlirDialect alsoStd = mlirContextLoadStandardDialect(ctx);
+  MlirDialect alsoStd = mlirDialectHandleLoadDialect(stdHandle, ctx);
   if (!mlirDialectEqual(std, alsoStd))
     return 4;
 
   MlirStringRef stdNs = mlirDialectGetNamespace(std);
-  MlirStringRef alsoStdNs = mlirStandardDialectGetNamespace();
+  MlirStringRef alsoStdNs = mlirDialectHandleGetNamespace(stdHandle);
   if (stdNs.length != alsoStdNs.length ||
       strncmp(stdNs.data, alsoStdNs.data, stdNs.length))
     return 5;
@@ -1453,6 +1456,7 @@ static int testBackreferences() {
   mlirRegionAppendOwnedBlock(region, block);
   mlirOperationStateAddOwnedRegions(&opState, 1, &region);
   MlirOperation op = mlirOperationCreate(&opState);
+  MlirIdentifier ident = mlirIdentifierGet(ctx, mlirStringRefCreateFromCString("identifier"));
 
   if (!mlirContextEqual(ctx, mlirOperationGetContext(op))) {
     fprintf(stderr, "ERROR: Getting context from operation failed\n");
@@ -1461,6 +1465,10 @@ static int testBackreferences() {
   if (!mlirOperationEqual(op, mlirBlockGetParentOperation(block))) {
     fprintf(stderr, "ERROR: Getting parent operation from block failed\n");
     return 2;
+  }
+  if (!mlirContextEqual(ctx, mlirIdentifierGetContext(ident))) {
+    fprintf(stderr, "ERROR: Getting context from identifier failed\n");
+    return 3;
   }
   
   mlirOperationDestroy(op);
