@@ -73,6 +73,9 @@ std::mutex ZeCall::GlobalLock;
 // Controls Level Zero calls tracing in zePrint.
 static bool ZeDebug = false;
 
+// Controls PI level tracing prints.
+static bool PrintPiTrace = false;
+
 // Map Level Zero runtime error code to PI error code
 static pi_result mapError(ze_result_t ZeResult) {
   // TODO: these mapping need to be clarified and synced with the PI API return
@@ -115,7 +118,8 @@ static pi_result mapError(ze_result_t ZeResult) {
 
 // Trace an internal PI call; returns in case of an error.
 #define PI_CALL(Call)                                                          \
-  fprintf(stderr, "PI ---> %s\n", #Call);                                      \
+  if (PrintPiTrace)                                                            \
+    fprintf(stderr, "PI ---> %s\n", #Call);                                    \
   pi_result Result = (Call);                                                   \
   if (Result != PI_SUCCESS)                                                    \
     return Result;
@@ -923,6 +927,12 @@ static bool setEnvVar(const char *name, const char *value) {
 
 pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                          pi_uint32 *NumPlatforms) {
+
+  static const char *PiTrace = std::getenv("SYCL_PI_TRACE");
+  static const int PiTraceValue = PiTrace ? std::stoi(PiTrace) : 0;
+  if (PiTraceValue == -1) { // Means print all PI traces
+    PrintPiTrace = true;
+  }
 
   static const char *DebugMode = std::getenv("ZE_DEBUG");
   static const int DebugModeValue = DebugMode ? std::stoi(DebugMode) : 0;
