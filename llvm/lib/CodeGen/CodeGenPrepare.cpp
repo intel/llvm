@@ -566,10 +566,9 @@ bool CodeGenPrepare::runOnFunction(Function &F) {
       MadeChange |= ConstantFoldTerminator(&BB, true);
       if (!MadeChange) continue;
 
-      for (SmallVectorImpl<BasicBlock*>::iterator
-             II = Successors.begin(), IE = Successors.end(); II != IE; ++II)
-        if (pred_empty(*II))
-          WorkList.insert(*II);
+      for (BasicBlock *Succ : Successors)
+        if (pred_empty(Succ))
+          WorkList.insert(Succ);
     }
 
     // Delete the dead blocks and any of their dead successors.
@@ -580,10 +579,9 @@ bool CodeGenPrepare::runOnFunction(Function &F) {
 
       DeleteDeadBlock(BB);
 
-      for (SmallVectorImpl<BasicBlock*>::iterator
-             II = Successors.begin(), IE = Successors.end(); II != IE; ++II)
-        if (pred_empty(*II))
-          WorkList.insert(*II);
+      for (BasicBlock *Succ : Successors)
+        if (pred_empty(Succ))
+          WorkList.insert(Succ);
     }
 
     // Merge pairs of basic blocks with unconditional branches, connected by
@@ -780,8 +778,8 @@ bool CodeGenPrepare::isMergingEmptyBlockProfitable(BasicBlock *BB,
   // Skip merging if the block's successor is also a successor to any callbr
   // that leads to this block.
   // FIXME: Is this really needed? Is this a correctness issue?
-  for (pred_iterator PI = pred_begin(BB), E = pred_end(BB); PI != E; ++PI) {
-    if (auto *CBI = dyn_cast<CallBrInst>((*PI)->getTerminator()))
+  for (BasicBlock *Pred : predecessors(BB)) {
+    if (auto *CBI = dyn_cast<CallBrInst>((Pred)->getTerminator()))
       for (unsigned i = 0, e = CBI->getNumSuccessors(); i != e; ++i)
         if (DestBB == CBI->getSuccessor(i))
           return false;
@@ -822,9 +820,7 @@ bool CodeGenPrepare::isMergingEmptyBlockProfitable(BasicBlock *BB,
 
   // Find all other incoming blocks from which incoming values of all PHIs in
   // DestBB are the same as the ones from BB.
-  for (pred_iterator PI = pred_begin(DestBB), E = pred_end(DestBB); PI != E;
-       ++PI) {
-    BasicBlock *DestBBPred = *PI;
+  for (BasicBlock *DestBBPred : predecessors(DestBB)) {
     if (DestBBPred == BB)
       continue;
 
@@ -964,8 +960,8 @@ void CodeGenPrepare::eliminateMostlyEmptyBlock(BasicBlock *BB) {
         for (unsigned i = 0, e = BBPN->getNumIncomingValues(); i != e; ++i)
           PN.addIncoming(InVal, BBPN->getIncomingBlock(i));
       } else {
-        for (pred_iterator PI = pred_begin(BB), E = pred_end(BB); PI != E; ++PI)
-          PN.addIncoming(InVal, *PI);
+        for (BasicBlock *Pred : predecessors(BB))
+          PN.addIncoming(InVal, Pred);
       }
     }
   }
@@ -1284,7 +1280,34 @@ bool CodeGenPrepare::replaceMathCmpWithIntrinsic(BinaryOperator *BO,
                                                  Value *Arg0, Value *Arg1,
                                                  CmpInst *Cmp,
                                                  Intrinsic::ID IID) {
-  if (BO->getParent() != Cmp->getParent()) {
+  auto isIVIncrement = [this, &Cmp](BinaryOperator *BO) {
+    auto *PN = dyn_cast<PHINode>(BO->getOperand(0));
+    if (!PN)
+      return false;
+    const Loop *L = LI->getLoopFor(BO->getParent());
+    if (!L || L->getHeader() != PN->getParent() || !L->getLoopLatch())
+      return false;
+    const BasicBlock *Latch = L->getLoopLatch();
+    if (PN->getIncomingValueForBlock(Latch) != BO)
+      return false;
+    if (auto *Step = dyn_cast<Instruction>(BO->getOperand(1)))
+      if (L->contains(Step->getParent()))
+        return false;
+    // IV increment may have other users than the IV. We do not want to make
+    // dominance queries to analyze the legality of moving it towards the cmp,
+    // so just check that there is no other users.
+    if (!BO->hasOneUse())
+      return false;
+    // Do not risk on moving increment into a child loop.
+    if (LI->getLoopFor(Cmp->getParent()) != L)
+      return false;
+    // Ultimately, the insertion point must dominate latch. This should be a
+    // cheap check because no CFG changes & dom tree recomputation happens
+    // during the transform.
+    Function *F = BO->getParent()->getParent();
+    return getDT(*F).dominates(Cmp->getParent(), Latch);
+  };
+  if (BO->getParent() != Cmp->getParent() && !isIVIncrement(BO)) {
     // We used to use a dominator tree here to allow multi-block optimization.
     // But that was problematic because:
     // 1. It could cause a perf regression by hoisting the math op into the
@@ -1295,6 +1318,14 @@ bool CodeGenPrepare::replaceMathCmpWithIntrinsic(BinaryOperator *BO,
     //    This is because we recompute the DT on every change in the main CGP
     //    run-loop. The recomputing is probably unnecessary in many cases, so if
     //    that was fixed, using a DT here would be ok.
+    //
+    // There is one important particular case we still want to handle: if BO is
+    // the IV increment. Important properties that make it profitable:
+    // - We can speculate IV increment anywhere in the loop (as long as the
+    //   indvar Phi is its only user);
+    // - Upon computing Cmp, we effectively compute something equivalent to the
+    //   IV increment (despite it loops differently in the IR). So moving it up
+    //   to the cmp point does not really increase register pressure.
     return false;
   }
 
@@ -2280,14 +2311,14 @@ bool CodeGenPrepare::dupRetToEnableTailCallOpts(BasicBlock *BB, bool &ModifiedDT
     }
   } else {
     SmallPtrSet<BasicBlock*, 4> VisitedBBs;
-    for (pred_iterator PI = pred_begin(BB), PE = pred_end(BB); PI != PE; ++PI) {
-      if (!VisitedBBs.insert(*PI).second)
+    for (BasicBlock *Pred : predecessors(BB)) {
+      if (!VisitedBBs.insert(Pred).second)
         continue;
-      if (Instruction *I = (*PI)->rbegin()->getPrevNonDebugInstruction(true)) {
+      if (Instruction *I = Pred->rbegin()->getPrevNonDebugInstruction(true)) {
         CallInst *CI = dyn_cast<CallInst>(I);
         if (CI && CI->use_empty() && TLI->mayBeEmittedAsTailCall(CI) &&
             attributesPermitTailCall(F, CI, RetI, *TLI))
-          TailCallBBs.push_back(*PI);
+          TailCallBBs.push_back(Pred);
       }
     }
   }
@@ -2802,11 +2833,8 @@ class TypePromotionTransaction {
     /// Reassign the original uses of Inst to Inst.
     void undo() override {
       LLVM_DEBUG(dbgs() << "Undo: UsersReplacer: " << *Inst << "\n");
-      for (use_iterator UseIt = OriginalUses.begin(),
-                        EndIt = OriginalUses.end();
-           UseIt != EndIt; ++UseIt) {
-        UseIt->Inst->setOperand(UseIt->Idx, Inst);
-      }
+      for (InstructionAndIdx &Use : OriginalUses)
+        Use.Inst->setOperand(Use.Idx, Inst);
       // RAUW has replaced all original uses with references to the new value,
       // including the debug uses. Since we are undoing the replacements,
       // the original debug uses must also be reinstated to maintain the
@@ -2985,9 +3013,8 @@ TypePromotionTransaction::getRestorationPoint() const {
 }
 
 bool TypePromotionTransaction::commit() {
-  for (CommitPt It = Actions.begin(), EndIt = Actions.end(); It != EndIt;
-       ++It)
-    (*It)->commit();
+  for (std::unique_ptr<TypePromotionAction> &Action : Actions)
+    Action->commit();
   bool Modified = !Actions.empty();
   Actions.clear();
   return Modified;

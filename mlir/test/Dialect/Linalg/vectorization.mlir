@@ -223,19 +223,19 @@ func @generic_vectorize(%arg0: memref<4x256xf32>,
     %8 = constant 2.0 : f32
   //       CHECK:   %[[DIV:.*]] = divf %[[V3]], %[[ARG3B]] : vector<4x256xf32>
     %9 = divf %arg5, %i : f32
-  //       CHECK:   %[[EXP:.*]] = exp2 %[[V3]] : vector<4x256xf32>
-    %10 = exp2 %arg5 : f32
+  //       CHECK:   %[[EXP:.*]] = math.exp2 %[[V3]] : vector<4x256xf32>
+    %10 = math.exp2 %arg5 : f32
   //       CHECK:   %[[MUL:.*]] = mulf %[[V3]], %[[CST0]] : vector<4x256xf32>
     %11 = mulf %arg5, %8 : f32
-  //       CHECK:   %[[RSQRT:.*]] = rsqrt %[[V3]] : vector<4x256xf32>
-    %12 = rsqrt %arg5 : f32
+  //       CHECK:   %[[RSQRT:.*]] = math.rsqrt %[[V3]] : vector<4x256xf32>
+    %12 = math.rsqrt %arg5 : f32
   //       CHECK:   %[[SEL:.*]] = select %[[CMP]], %[[V3]], %[[V1]] : vector<4x256xi1>, vector<4x256xf32>
     %13 = select %7, %arg5, %arg6 : f32
   //       CHECK:   %[[V0B:.*]] = vector.broadcast %[[V0]] : vector<256xf32> to vector<4x256xf32>
   //       CHECK:   %[[SUB:.*]] = subf %[[V3]], %[[V0B]] : vector<4x256xf32>
     %14 = subf %arg5, %arg4 : f32
-  //       CHECK:   %[[TAN:.*]] = tanh %[[V3]] : vector<4x256xf32>
-    %15 = tanh %arg5 : f32
+  //       CHECK:   %[[TAN:.*]] = math.tanh %[[V3]] : vector<4x256xf32>
+    %15 = math.tanh %arg5 : f32
   //       CHECK:   vector.transfer_write %[[ADD]], %[[ARG0]][%[[C0]], %[[C0]]] {{.*}} : vector<4x256xf32>, memref<4x256xf32>
   //       CHECK:   vector.transfer_write %[[CST0]], %[[ARG0]][%[[C0]], %[[C0]]] {{.*}} : vector<4x256xf32>, memref<4x256xf32>
   //       CHECK:   vector.transfer_write %[[CST1]], %[[ARG0]][%[[C0]], %[[C0]]] {{.*}} : vector<4x256xf32>, memref<4x256xf32>
@@ -304,19 +304,19 @@ func @generic_vectorize_tensor(%arg0: tensor<4x256xf32>,
     %8 = constant 2.0 : f32
   //       CHECK:   %[[DIV:.*]] = divf %[[V3]], %[[ARG3B]] : vector<4x256xf32>
     %9 = divf %arg5, %i : f32
-  //       CHECK:   %[[EXP:.*]] = exp2 %[[V3]] : vector<4x256xf32>
-    %10 = exp2 %arg5 : f32
+  //       CHECK:   %[[EXP:.*]] = math.exp2 %[[V3]] : vector<4x256xf32>
+    %10 = math.exp2 %arg5 : f32
   //       CHECK:   %[[MUL:.*]] = mulf %[[V3]], %[[CST0]] : vector<4x256xf32>
     %11 = mulf %arg5, %8 : f32
-  //       CHECK:   %[[RSQRT:.*]] = rsqrt %[[V3]] : vector<4x256xf32>
-    %12 = rsqrt %arg5 : f32
+  //       CHECK:   %[[RSQRT:.*]] = math.rsqrt %[[V3]] : vector<4x256xf32>
+    %12 = math.rsqrt %arg5 : f32
   //       CHECK:   %[[SEL:.*]] = select %[[CMP]], %[[V3]], %[[V1]] : vector<4x256xi1>, vector<4x256xf32>
     %13 = select %7, %arg5, %arg6 : f32
   //       CHECK:   %[[V0B:.*]] = vector.broadcast %[[V0]] : vector<256xf32> to vector<4x256xf32>
   //       CHECK:   %[[SUB:.*]] = subf %[[V3]], %[[V0B]] : vector<4x256xf32>
     %14 = subf %arg5, %arg4 : f32
-  //       CHECK:   %[[TAN:.*]] = tanh %[[V3]] : vector<4x256xf32>
-    %15 = tanh %arg5 : f32
+  //       CHECK:   %[[TAN:.*]] = math.tanh %[[V3]] : vector<4x256xf32>
+    %15 = math.tanh %arg5 : f32
   //       CHECK:   %[[R0:.*]] = vector.transfer_write %[[ADD]], %[[ARG0]][%[[C0]], %[[C0]]] {{.*}} : vector<4x256xf32>, tensor<4x256xf32>
   //       CHECK:   %[[R1:.*]] = vector.transfer_write %[[CST0]], %[[ARG0]][%[[C0]], %[[C0]]] {{.*}} : vector<4x256xf32>, tensor<4x256xf32>
   //       CHECK:   %[[R2:.*]] = vector.transfer_write %[[CST1]], %[[ARG0]][%[[C0]], %[[C0]]] {{.*}} : vector<4x256xf32>, tensor<4x256xf32>
@@ -389,4 +389,45 @@ func @matmul_i8_i8_i32(%a: memref<4x6xi8>, %b: memref<6x12xi8>, %c: memref<4x12x
   linalg.matmul_i8_i8_i32 ins(%a, %b : memref<4x6xi8>, memref<6x12xi8>)
     outs(%c: memref<4x12xi32>)
   return
+}
+
+// -----
+
+// CHECK-LABEL: func @pad_static
+//   CHECK-NOT:   linalg.pad_tensor
+func @pad_static(%arg0: tensor<?x?x?xf32>, %pad_value: f32) -> tensor<2x3x4xf32> {
+  //      CHECK: %[[C0:.*]] = constant 0 : index
+  //      CHECK: %[[READ:.*]] = vector.transfer_read %{{.*}}[%[[C0]], %[[C0]], %[[C0]]]
+  // CHECK-SAME:   : tensor<?x?x?xf32>, vector<2x3x4xf32>
+  //      CHECK: %[[INIT:.*]] = linalg.init_tensor [2, 3, 4] : tensor<2x3x4xf32>
+  //      CHECK: %[[WRITTEN:.*]] = vector.transfer_write %[[READ]], %[[INIT]][%[[C0]], %[[C0]], %[[C0]]]
+  // CHECK-SAME:   {masked = [false, false, false]} : vector<2x3x4xf32>, tensor<2x3x4xf32>
+  %0 = linalg.pad_tensor %arg0 low[0, 0, 0] high[0, 0, 0] {
+    ^bb0(%arg1: index, %arg2: index, %arg3: index):
+      linalg.yield %pad_value : f32
+    } : tensor<?x?x?xf32> to tensor<2x3x4xf32>
+
+  // CHECK: return %[[WRITTEN]] : tensor<2x3x4xf32>
+  return %0 : tensor<2x3x4xf32>
+}
+
+// CHECK-LABEL: func @pad_static_high_padding
+//       CHECK:   linalg.pad_tensor
+func @pad_static_high_padding(%arg0: tensor<?x?x?xf32>, %pad_value: f32) -> tensor<2x3x4xf32> {
+  %0 = linalg.pad_tensor %arg0 low[0, 0, 0] high[0, 1, 0] {
+    ^bb0(%arg1: index, %arg2: index, %arg3: index):
+      linalg.yield %pad_value : f32
+    } : tensor<?x?x?xf32> to tensor<2x3x4xf32>
+  return %0 : tensor<2x3x4xf32>
+}
+
+// CHECK-LABEL: func @pad_dynamic
+//       CHECK:   linalg.pad_tensor
+func @pad_dynamic(%arg0: tensor<1x2x2x?xf32>, %low: index, %high: index,
+                  %pad_value: f32) -> tensor<6x?x?x?xf32> {
+  %0 = linalg.pad_tensor %arg0 low[2, %low, 3, 3] high[3, 3, %high, 2] {
+    ^bb0(%arg1: index, %arg2: index, %arg3: index, %arg4: index):
+      linalg.yield %pad_value : f32
+    } : tensor<1x2x2x?xf32> to tensor<6x?x?x?xf32>
+  return %0 : tensor<6x?x?x?xf32>
 }

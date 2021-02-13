@@ -184,9 +184,6 @@ TEST(ParsedASTTest,
     template <>
     int foo<bool> = 0;
   )cpp";
-  // FIXME: Auto-completion in a template requires disabling delayed template
-  // parsing.
-  TU.ExtraArgs.push_back("-fno-delayed-template-parsing");
 
   auto AST = TU.build();
   EXPECT_THAT(
@@ -376,7 +373,7 @@ TEST(ParsedASTTest, ReplayPreambleForTidyCheckers) {
     void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                             StringRef FileName, bool IsAngled,
                             CharSourceRange FilenameRange, const FileEntry *,
-                            StringRef, StringRef, const Module *,
+                            StringRef, StringRef, const clang::Module *,
                             SrcMgr::CharacteristicKind) override {
       Includes.emplace_back(SM, HashLoc, IncludeTok, FileName, IsAngled,
                             FilenameRange);

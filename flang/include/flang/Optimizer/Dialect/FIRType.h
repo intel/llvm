@@ -17,6 +17,9 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "llvm/ADT/SmallVector.h"
 
+#define GET_TYPEDEF_CLASSES
+#include "flang/Optimizer/Dialect/FIROpsTypes.h.inc"
+
 namespace llvm {
 class raw_ostream;
 class StringRef;
@@ -39,7 +42,6 @@ class FIROpsDialect;
 using KindTy = unsigned;
 
 namespace detail {
-struct BoxTypeStorage;
 struct BoxCharTypeStorage;
 struct BoxProcTypeStorage;
 struct CharacterTypeStorage;
@@ -54,8 +56,6 @@ struct RealTypeStorage;
 struct RecordTypeStorage;
 struct ReferenceTypeStorage;
 struct SequenceTypeStorage;
-struct ShapeTypeStorage;
-struct ShapeShiftTypeStorage;
 struct SliceTypeStorage;
 struct TypeDescTypeStorage;
 struct VectorTypeStorage;
@@ -177,23 +177,6 @@ public:
 
 // FIR support types
 
-/// The type of a Fortran descriptor. Descriptors are tuples of information that
-/// describe an entity being passed from a calling context. This information
-/// might include (but is not limited to) whether the entity is an array, its
-/// size, or what type it has.
-class BoxType
-    : public mlir::Type::TypeBase<BoxType, mlir::Type, detail::BoxTypeStorage> {
-public:
-  using Base::Base;
-  static BoxType get(mlir::Type eleTy, mlir::AffineMapAttr map = {});
-  mlir::Type getEleTy() const;
-  mlir::AffineMapAttr getLayoutMap() const;
-
-  static mlir::LogicalResult
-  verifyConstructionInvariants(mlir::Location, mlir::Type eleTy,
-                               mlir::AffineMapAttr map);
-};
-
 /// The type of a pair that describes a CHARACTER variable. Specifically, a
 /// CHARACTER consists of a reference to a buffer (the string value) and a LEN
 /// type parameter (the runtime length of the buffer).
@@ -217,30 +200,6 @@ public:
 
   static mlir::LogicalResult verifyConstructionInvariants(mlir::Location,
                                                           mlir::Type eleTy);
-};
-
-/// Type of a vector of runtime values that define the shape of a
-/// multidimensional array object. The vector is the extents of each array
-/// dimension. The rank of a ShapeType must be at least 1.
-class ShapeType : public mlir::Type::TypeBase<ShapeType, mlir::Type,
-                                              detail::ShapeTypeStorage> {
-public:
-  using Base::Base;
-  static ShapeType get(mlir::MLIRContext *ctx, unsigned rank);
-  unsigned getRank() const;
-};
-
-/// Type of a vector of runtime values that define the shape and the origin of a
-/// multidimensional array object. The vector is of pairs, origin offset and
-/// extent, of each array dimension. The rank of a ShapeShiftType must be at
-/// least 1.
-class ShapeShiftType
-    : public mlir::Type::TypeBase<ShapeShiftType, mlir::Type,
-                                  detail::ShapeShiftTypeStorage> {
-public:
-  using Base::Base;
-  static ShapeShiftType get(mlir::MLIRContext *ctx, unsigned rank);
-  unsigned getRank() const;
 };
 
 /// Type of a vector that represents an array slice operation on an array.

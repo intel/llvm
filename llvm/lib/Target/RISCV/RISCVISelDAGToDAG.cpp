@@ -71,6 +71,24 @@ static RISCVVLMUL getLMUL(MVT VT) {
   }
 }
 
+static unsigned getRegClassIDForLMUL(RISCVVLMUL LMul) {
+  switch (LMul) {
+  default:
+    llvm_unreachable("Invalid LMUL.");
+  case RISCVVLMUL::LMUL_F8:
+  case RISCVVLMUL::LMUL_F4:
+  case RISCVVLMUL::LMUL_F2:
+  case RISCVVLMUL::LMUL_1:
+    return RISCV::VRRegClassID;
+  case RISCVVLMUL::LMUL_2:
+    return RISCV::VRM2RegClassID;
+  case RISCVVLMUL::LMUL_4:
+    return RISCV::VRM4RegClassID;
+  case RISCVVLMUL::LMUL_8:
+    return RISCV::VRM8RegClassID;
+  }
+}
+
 static unsigned getSubregIndexByMVT(MVT VT, unsigned Index) {
   RISCVVLMUL LMUL = getLMUL(VT);
   if (LMUL == RISCVVLMUL::LMUL_F8 || LMUL == RISCVVLMUL::LMUL_F4 ||
@@ -823,6 +841,48 @@ void RISCVDAGToDAGISel::Select(SDNode *Node) {
     }
     break;
   }
+  case ISD::INSERT_SUBVECTOR: {
+    // Bail when not a "cast" like insert_subvector.
+    if (Node->getConstantOperandVal(2) != 0)
+      break;
+    if (!Node->getOperand(0).isUndef())
+      break;
+
+    // Bail when normal isel should do the job.
+    EVT InVT = Node->getOperand(1).getValueType();
+    if (VT.isFixedLengthVector() || InVT.isScalableVector())
+      break;
+
+    SDValue V = Node->getOperand(1);
+    SDLoc DL(V);
+    unsigned RegClassID = getRegClassIDForLMUL(getLMUL(VT));
+    SDValue RC =
+        CurDAG->getTargetConstant(RegClassID, DL, Subtarget->getXLenVT());
+    SDNode *NewNode =
+        CurDAG->getMachineNode(TargetOpcode::COPY_TO_REGCLASS, DL, VT, V, RC);
+    ReplaceNode(Node, NewNode);
+    return;
+  }
+  case ISD::EXTRACT_SUBVECTOR: {
+    // Bail when not a "cast" like extract_subvector.
+    if (Node->getConstantOperandVal(1) != 0)
+      break;
+
+    // Bail when normal isel can do the job.
+    EVT InVT = Node->getOperand(0).getValueType();
+    if (VT.isScalableVector() || InVT.isFixedLengthVector())
+      break;
+
+    SDValue V = Node->getOperand(0);
+    SDLoc DL(V);
+    unsigned RegClassID = getRegClassIDForLMUL(getLMUL(InVT.getSimpleVT()));
+    SDValue RC =
+        CurDAG->getTargetConstant(RegClassID, DL, Subtarget->getXLenVT());
+    SDNode *NewNode =
+        CurDAG->getMachineNode(TargetOpcode::COPY_TO_REGCLASS, DL, VT, V, RC);
+    ReplaceNode(Node, NewNode);
+    return;
+  }
   }
 
   // Select the default instruction.
@@ -955,7 +1015,8 @@ bool RISCVDAGToDAGISel::selectVLOp(SDValue N, SDValue &VL) {
 
 bool RISCVDAGToDAGISel::selectVSplat(SDValue N, SDValue &SplatVal) {
   if (N.getOpcode() != ISD::SPLAT_VECTOR &&
-      N.getOpcode() != RISCVISD::SPLAT_VECTOR_I64)
+      N.getOpcode() != RISCVISD::SPLAT_VECTOR_I64 &&
+      N.getOpcode() != RISCVISD::VMV_V_X_VL)
     return false;
   SplatVal = N.getOperand(0);
   return true;
@@ -963,7 +1024,8 @@ bool RISCVDAGToDAGISel::selectVSplat(SDValue N, SDValue &SplatVal) {
 
 bool RISCVDAGToDAGISel::selectVSplatSimm5(SDValue N, SDValue &SplatVal) {
   if ((N.getOpcode() != ISD::SPLAT_VECTOR &&
-       N.getOpcode() != RISCVISD::SPLAT_VECTOR_I64) ||
+       N.getOpcode() != RISCVISD::SPLAT_VECTOR_I64 &&
+       N.getOpcode() != RISCVISD::VMV_V_X_VL) ||
       !isa<ConstantSDNode>(N.getOperand(0)))
     return false;
 
@@ -993,7 +1055,8 @@ bool RISCVDAGToDAGISel::selectVSplatSimm5(SDValue N, SDValue &SplatVal) {
 
 bool RISCVDAGToDAGISel::selectVSplatUimm5(SDValue N, SDValue &SplatVal) {
   if ((N.getOpcode() != ISD::SPLAT_VECTOR &&
-       N.getOpcode() != RISCVISD::SPLAT_VECTOR_I64) ||
+       N.getOpcode() != RISCVISD::SPLAT_VECTOR_I64 &&
+       N.getOpcode() != RISCVISD::VMV_V_X_VL) ||
       !isa<ConstantSDNode>(N.getOperand(0)))
     return false;
 
@@ -1006,6 +1069,36 @@ bool RISCVDAGToDAGISel::selectVSplatUimm5(SDValue N, SDValue &SplatVal) {
       CurDAG->getTargetConstant(SplatImm, SDLoc(N), Subtarget->getXLenVT());
 
   return true;
+}
+
+bool RISCVDAGToDAGISel::selectRVVSimm5(SDValue N, unsigned Width,
+                                       SDValue &Imm) {
+  if (auto *C = dyn_cast<ConstantSDNode>(N)) {
+    int64_t ImmVal = SignExtend64(C->getSExtValue(), Width);
+
+    if (!isInt<5>(ImmVal))
+      return false;
+
+    Imm = CurDAG->getTargetConstant(ImmVal, SDLoc(N), Subtarget->getXLenVT());
+    return true;
+  }
+
+  return false;
+}
+
+bool RISCVDAGToDAGISel::selectRVVUimm5(SDValue N, unsigned Width,
+                                       SDValue &Imm) {
+  if (auto *C = dyn_cast<ConstantSDNode>(N)) {
+    int64_t ImmVal = C->getSExtValue();
+
+    if (!isUInt<5>(ImmVal))
+      return false;
+
+    Imm = CurDAG->getTargetConstant(ImmVal, SDLoc(N), Subtarget->getXLenVT());
+    return true;
+  }
+
+  return false;
 }
 
 // Merge an ADDI into the offset of a load/store instruction where possible.
