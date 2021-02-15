@@ -152,7 +152,7 @@ for detailed directory structure) full key values are compared with the ones
 stored on disk (in every <n>.src file located in the cache item directory):
  - if they match the built image is loaded from correspoding <n>.bin file;
  - otherwise image build is done and new cache item is created on disk
-containing 2 files: <max_n+1>.src for key values and <max_n+1.bin> for
+containing 2 files: <max_n+1>.src for key values and <max_n+1>.bin for
 built image.
 
 <a name="what-is-diid">1</a>: Hash out of the device code image used as input for the build.
