@@ -145,6 +145,16 @@ The programs map's key consists of four components:
  - device id<sup>[2](#what-is-did)</sup> this program is built for,
  - build options id<sup>[3](#what-is-bopts)</sup>.
 
+Hashes are used for fast built device image identification and shorten
+filenames on disk. Once cache directory on disc is identified (see
+[Persistent cache storage structure](#persistent-cache-storage-structure)
+for detailed directory structure) full key values are compared with the ones
+stored on disk (in every <n>.src file located in the cache item directory):
+ - if they match the built image is loaded from correspoding <n>.bin file;
+ - otherwise image build is done and new cache item is created on disk
+containing 2 files: <max_n+1>.src for key values and <max_n+1.bin> for
+built image.
+
 <a name="what-is-diid">1</a>: Hash out of the device code image used as input for the build.
 
 <a name="what-is-did">2</a>: Hash out of the string which is concatenation of values for
@@ -160,10 +170,6 @@ three sources of build options:
  - environment variables (SYCL_PROGRAM_COMPILE_OPTIONS,
  SYCL_PROGRAM_LINK_OPTIONS);
  - options passed through SYCL API.
-Hashes are used for fast built device image identification and shorten filenames
-on disk. To avoid possible collisions cache item on disk contains full key
-values and compared with current build request values to ensure matching.
-If full values does not match build is done and new item is added to cache.
 
 ## Cache configuration
 
@@ -365,12 +371,16 @@ of locks.
 ### Cache eviction mechanism
 
 Cache eviction mechanism is required to avoid resources overfloat both for
-memory and disk. The general idea is to delete items following LRU (least
-recently used) strategy both for in-memory and persistent cache.
+memory and disk. The general idea is to delete items following cache size or
+LRU (least recently used) strategy both for in-memory and persistent cache.
 
 #### In-memory cache eviction
 
-It is initiated on program/kernel maps access/add item operation. Then cache size exceeds storage threshold the items which are least recently used are deleted.
+It is initiated on program/kernel maps access/add item operation. Then cache
+size exceeds storage threshold the items which are least recently used are
+deleted.
+TODO: add detailed description of in-memory cache eviction mechanism.
+
 
 #### Persistent cache eviction
 
