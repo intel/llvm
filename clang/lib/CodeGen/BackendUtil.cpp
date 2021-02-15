@@ -1257,9 +1257,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
   if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD) {
     PB.registerOptimizerLastEPCallback(
         [](ModulePassManager &MPM, PassBuilder::OptimizationLevel) {
-          // FIXME: Adjust GenXSPIRVWriterAdaptorPass to work with new pass
-          // manager
-          // MPM.addPass(GenXSPIRVWriterAdaptorPass();
+          MPM.addPass(GenXSPIRVWriterAdaptor(false, false));
         });
   }
 
