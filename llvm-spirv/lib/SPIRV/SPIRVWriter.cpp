@@ -2931,8 +2931,15 @@ SPIRVWord LLVMToSPIRV::transFunctionControlMask(Function *F) {
   SPIRVWord FCM = 0;
   SPIRSPIRVFuncCtlMaskMap::foreach (
       [&](Attribute::AttrKind Attr, SPIRVFunctionControlMaskKind Mask) {
-        if (F->hasFnAttribute(Attr))
+        if (F->hasFnAttribute(Attr)) {
+          if (Attr == Attribute::OptimizeNone) {
+            if (!BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_optnone))
+              return;
+            BM->addExtension(ExtensionID::SPV_INTEL_optnone);
+            BM->addCapability(internal::CapabilityOptNoneINTEL);
+          }
           FCM |= Mask;
+        }
       });
   return FCM;
 }
