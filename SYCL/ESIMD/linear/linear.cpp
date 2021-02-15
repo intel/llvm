@@ -104,17 +104,15 @@ int main(int argc, char *argv[]) {
             in = media_block_load<unsigned char, 8, 32>(accInput, h_pos * 24,
                                                         v_pos * 6);
 
-            simd<float, 8 * 32> vin_float = vin;
-            auto in_float = vin_float.format<float, 8, 32>();
-            m = in_float.select<6, 1, 24, 1>(1, 3);
-            m += in_float.select<6, 1, 24, 1>(0, 0);
-            m += in_float.select<6, 1, 24, 1>(0, 3);
-            m += in_float.select<6, 1, 24, 1>(0, 6);
-            m += in_float.select<6, 1, 24, 1>(1, 0);
-            m += in_float.select<6, 1, 24, 1>(1, 6);
-            m += in_float.select<6, 1, 24, 1>(2, 0);
-            m += in_float.select<6, 1, 24, 1>(2, 3);
-            m += in_float.select<6, 1, 24, 1>(2, 6);
+            m = in.select<6, 1, 24, 1>(1, 3);
+            m += in.select<6, 1, 24, 1>(0, 0);
+            m += in.select<6, 1, 24, 1>(0, 3);
+            m += in.select<6, 1, 24, 1>(0, 6);
+            m += in.select<6, 1, 24, 1>(1, 0);
+            m += in.select<6, 1, 24, 1>(1, 6);
+            m += in.select<6, 1, 24, 1>(2, 0);
+            m += in.select<6, 1, 24, 1>(2, 3);
+            m += in.select<6, 1, 24, 1>(2, 6);
             m = m * 0.111f;
 
             vout = vm;
