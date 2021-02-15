@@ -44,9 +44,15 @@ public:
                                     std::vector<SDValue> &OutOps) override;
 
   bool SelectAddrFI(SDValue Addr, SDValue &Base);
-  bool SelectRVVBaseAddr(SDValue Addr, SDValue &Base);
+  bool SelectBaseAddr(SDValue Addr, SDValue &Base);
 
-  bool isUnneededShiftMask(SDNode *N, unsigned Width) const;
+  bool selectShiftMask(SDValue N, unsigned ShiftWidth, SDValue &ShAmt);
+  bool selectShiftMaskXLen(SDValue N, SDValue &ShAmt) {
+    return selectShiftMask(N, Subtarget->getXLen(), ShAmt);
+  }
+  bool selectShiftMask32(SDValue N, SDValue &ShAmt) {
+    return selectShiftMask(N, 32, ShAmt);
+  }
 
   bool MatchSRLIW(SDNode *N) const;
   bool MatchSLLIUW(SDNode *N) const;

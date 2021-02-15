@@ -46,33 +46,44 @@ def SDT_RISCVFPBinOp_VL : SDTypeProfile<1, 4, [SDTCisSameAs<0, 1>,
                                                SDTCisSameNumEltsAs<0, 3>,
                                                SDTCisVT<4, XLenVT>]>;
 
+def riscv_vmv_v_x_vl : SDNode<"RISCVISD::VMV_V_X_VL",
+                              SDTypeProfile<1, 2, [SDTCisVec<0>, SDTCisInt<0>,
+                                                   SDTCisVT<1, XLenVT>,
+                                                   SDTCisVT<2, XLenVT>]>>;
+def riscv_vfmv_v_f_vl : SDNode<"RISCVISD::VFMV_V_F_VL",
+                               SDTypeProfile<1, 2, [SDTCisVec<0>, SDTCisFP<0>,
+                                                    SDTCisEltOfVec<1, 0>,
+                                                    SDTCisVT<2, XLenVT>]>>;
+
 def riscv_vle_vl : SDNode<"RISCVISD::VLE_VL", SDT_RISCVVLE_VL,
                           [SDNPHasChain, SDNPMayLoad, SDNPMemOperand]>;
 def riscv_vse_vl : SDNode<"RISCVISD::VSE_VL", SDT_RISCVVSE_VL,
                           [SDNPHasChain, SDNPMayStore, SDNPMemOperand]>;
 
-def riscv_add_vl  : SDNode<"RISCVISD::ADD_VL",  SDT_RISCVIntBinOp_VL, [SDNPCommutative]>;
-def riscv_sub_vl  : SDNode<"RISCVISD::SUB_VL",  SDT_RISCVIntBinOp_VL>;
-def riscv_mul_vl  : SDNode<"RISCVISD::MUL_VL",  SDT_RISCVIntBinOp_VL, [SDNPCommutative]>;
-def riscv_and_vl  : SDNode<"RISCVISD::AND_VL",  SDT_RISCVIntBinOp_VL, [SDNPCommutative]>;
-def riscv_or_vl   : SDNode<"RISCVISD::OR_VL",   SDT_RISCVIntBinOp_VL, [SDNPCommutative]>;
-def riscv_xor_vl  : SDNode<"RISCVISD::XOR_VL",  SDT_RISCVIntBinOp_VL, [SDNPCommutative]>;
-def riscv_sdiv_vl : SDNode<"RISCVISD::SDIV_VL", SDT_RISCVIntBinOp_VL>;
-def riscv_srem_vl : SDNode<"RISCVISD::SREM_VL", SDT_RISCVIntBinOp_VL>;
-def riscv_udiv_vl : SDNode<"RISCVISD::UDIV_VL", SDT_RISCVIntBinOp_VL>;
-def riscv_urem_vl : SDNode<"RISCVISD::UREM_VL", SDT_RISCVIntBinOp_VL>;
-def riscv_shl_vl  : SDNode<"RISCVISD::SHL_VL",  SDT_RISCVIntBinOp_VL>;
-def riscv_sra_vl  : SDNode<"RISCVISD::SRA_VL",  SDT_RISCVIntBinOp_VL>;
-def riscv_srl_vl  : SDNode<"RISCVISD::SRL_VL",  SDT_RISCVIntBinOp_VL>;
-def riscv_smin_vl : SDNode<"RISCVISD::SMIN_VL", SDT_RISCVIntBinOp_VL>;
-def riscv_smax_vl : SDNode<"RISCVISD::SMAX_VL", SDT_RISCVIntBinOp_VL>;
-def riscv_umin_vl : SDNode<"RISCVISD::UMIN_VL", SDT_RISCVIntBinOp_VL>;
-def riscv_umax_vl : SDNode<"RISCVISD::UMAX_VL", SDT_RISCVIntBinOp_VL>;
-def riscv_fadd_vl : SDNode<"RISCVISD::FADD_VL", SDT_RISCVFPBinOp_VL, [SDNPCommutative]>;
-def riscv_fsub_vl : SDNode<"RISCVISD::FSUB_VL", SDT_RISCVFPBinOp_VL>;
-def riscv_fmul_vl : SDNode<"RISCVISD::FMUL_VL", SDT_RISCVFPBinOp_VL, [SDNPCommutative]>;
-def riscv_fdiv_vl : SDNode<"RISCVISD::FDIV_VL", SDT_RISCVFPBinOp_VL>;
-def riscv_fneg_vl : SDNode<"RISCVISD::FNEG_VL", SDT_RISCVFPUnOp_VL>;
+def riscv_add_vl   : SDNode<"RISCVISD::ADD_VL",   SDT_RISCVIntBinOp_VL, [SDNPCommutative]>;
+def riscv_sub_vl   : SDNode<"RISCVISD::SUB_VL",   SDT_RISCVIntBinOp_VL>;
+def riscv_mul_vl   : SDNode<"RISCVISD::MUL_VL",   SDT_RISCVIntBinOp_VL, [SDNPCommutative]>;
+def riscv_and_vl   : SDNode<"RISCVISD::AND_VL",   SDT_RISCVIntBinOp_VL, [SDNPCommutative]>;
+def riscv_or_vl    : SDNode<"RISCVISD::OR_VL",    SDT_RISCVIntBinOp_VL, [SDNPCommutative]>;
+def riscv_xor_vl   : SDNode<"RISCVISD::XOR_VL",   SDT_RISCVIntBinOp_VL, [SDNPCommutative]>;
+def riscv_sdiv_vl  : SDNode<"RISCVISD::SDIV_VL",  SDT_RISCVIntBinOp_VL>;
+def riscv_srem_vl  : SDNode<"RISCVISD::SREM_VL",  SDT_RISCVIntBinOp_VL>;
+def riscv_udiv_vl  : SDNode<"RISCVISD::UDIV_VL",  SDT_RISCVIntBinOp_VL>;
+def riscv_urem_vl  : SDNode<"RISCVISD::UREM_VL",  SDT_RISCVIntBinOp_VL>;
+def riscv_shl_vl   : SDNode<"RISCVISD::SHL_VL",   SDT_RISCVIntBinOp_VL>;
+def riscv_sra_vl   : SDNode<"RISCVISD::SRA_VL",   SDT_RISCVIntBinOp_VL>;
+def riscv_srl_vl   : SDNode<"RISCVISD::SRL_VL",   SDT_RISCVIntBinOp_VL>;
+def riscv_smin_vl  : SDNode<"RISCVISD::SMIN_VL",  SDT_RISCVIntBinOp_VL>;
+def riscv_smax_vl  : SDNode<"RISCVISD::SMAX_VL",  SDT_RISCVIntBinOp_VL>;
+def riscv_umin_vl  : SDNode<"RISCVISD::UMIN_VL",  SDT_RISCVIntBinOp_VL>;
+def riscv_umax_vl  : SDNode<"RISCVISD::UMAX_VL",  SDT_RISCVIntBinOp_VL>;
+def riscv_fadd_vl  : SDNode<"RISCVISD::FADD_VL",  SDT_RISCVFPBinOp_VL, [SDNPCommutative]>;
+def riscv_fsub_vl  : SDNode<"RISCVISD::FSUB_VL",  SDT_RISCVFPBinOp_VL>;
+def riscv_fmul_vl  : SDNode<"RISCVISD::FMUL_VL",  SDT_RISCVFPBinOp_VL, [SDNPCommutative]>;
+def riscv_fdiv_vl  : SDNode<"RISCVISD::FDIV_VL",  SDT_RISCVFPBinOp_VL>;
+def riscv_fneg_vl  : SDNode<"RISCVISD::FNEG_VL",  SDT_RISCVFPUnOp_VL>;
+def riscv_fabs_vl  : SDNode<"RISCVISD::FABS_VL",  SDT_RISCVFPUnOp_VL>;
+def riscv_fsqrt_vl : SDNode<"RISCVISD::FSQRT_VL", SDT_RISCVFPUnOp_VL>;
 
 def SDT_RISCVVecFMA_VL : SDTypeProfile<1, 5, [SDTCisSameAs<0, 1>,
                                               SDTCisSameAs<0, 2>,
@@ -302,22 +313,22 @@ foreach vti = AllVectors in {
   defvar load_instr = !cast<Instruction>("PseudoVLE"#vti.SEW#"_V_"#vti.LMul.MX);
   defvar store_instr = !cast<Instruction>("PseudoVSE"#vti.SEW#"_V_"#vti.LMul.MX);
   // Load
-  def : Pat<(vti.Vector (riscv_vle_vl RVVBaseAddr:$rs1, (XLenVT (VLOp GPR:$vl)))),
-            (load_instr RVVBaseAddr:$rs1, GPR:$vl, vti.SEW)>;
+  def : Pat<(vti.Vector (riscv_vle_vl BaseAddr:$rs1, (XLenVT (VLOp GPR:$vl)))),
+            (load_instr BaseAddr:$rs1, GPR:$vl, vti.SEW)>;
   // Store
-  def : Pat<(riscv_vse_vl (vti.Vector vti.RegClass:$rs2), RVVBaseAddr:$rs1,
+  def : Pat<(riscv_vse_vl (vti.Vector vti.RegClass:$rs2), BaseAddr:$rs1,
                           (XLenVT (VLOp GPR:$vl))),
-            (store_instr vti.RegClass:$rs2, RVVBaseAddr:$rs1, GPR:$vl, vti.SEW)>;
+            (store_instr vti.RegClass:$rs2, BaseAddr:$rs1, GPR:$vl, vti.SEW)>;
 }
 
 foreach mti = AllMasks in {
   defvar load_instr = !cast<Instruction>("PseudoVLE1_V_"#mti.BX);
   defvar store_instr = !cast<Instruction>("PseudoVSE1_V_"#mti.BX);
-  def : Pat<(mti.Mask (riscv_vle_vl RVVBaseAddr:$rs1, (XLenVT (VLOp GPR:$vl)))),
-            (load_instr RVVBaseAddr:$rs1, GPR:$vl, mti.SEW)>;
-  def : Pat<(riscv_vse_vl (mti.Mask VR:$rs2), RVVBaseAddr:$rs1,
+  def : Pat<(mti.Mask (riscv_vle_vl BaseAddr:$rs1, (XLenVT (VLOp GPR:$vl)))),
+            (load_instr BaseAddr:$rs1, GPR:$vl, mti.SEW)>;
+  def : Pat<(riscv_vse_vl (mti.Mask VR:$rs2), BaseAddr:$rs1,
                           (XLenVT (VLOp GPR:$vl))),
-            (store_instr VR:$rs2, RVVBaseAddr:$rs1, GPR:$vl, mti.SEW)>;
+            (store_instr VR:$rs2, BaseAddr:$rs1, GPR:$vl, mti.SEW)>;
 }
 
 // 12.1. Vector Single-Width Integer Add and Subtract
@@ -440,13 +451,39 @@ foreach vti = AllFloatVectors in {
                  GPR:$vl, vti.SEW)>;
 }
 
-// 14.12. Vector Floating-Point Sign-Injection Instructions
-// Handle fneg with VFSGNJN using the same input for both operands.
 foreach vti = AllFloatVectors in {
+  // 14.8. Vector Floating-Point Square-Root Instruction
+  def : Pat<(riscv_fsqrt_vl (vti.Vector vti.RegClass:$rs2), (vti.Mask true_mask),
+                            (XLenVT (VLOp GPR:$vl))),
+            (!cast<Instruction>("PseudoVFSQRT_V_"# vti.LMul.MX)
+                 vti.RegClass:$rs2, GPR:$vl, vti.SEW)>;
+
+  // 14.12. Vector Floating-Point Sign-Injection Instructions
+  def : Pat<(riscv_fabs_vl (vti.Vector vti.RegClass:$rs), (vti.Mask true_mask),
+                           (XLenVT (VLOp GPR:$vl))),
+            (!cast<Instruction>("PseudoVFSGNJX_VV_"# vti.LMul.MX)
+                 vti.RegClass:$rs, vti.RegClass:$rs, GPR:$vl, vti.SEW)>;
+  // Handle fneg with VFSGNJN using the same input for both operands.
   def : Pat<(riscv_fneg_vl (vti.Vector vti.RegClass:$rs), (vti.Mask true_mask),
                            (XLenVT (VLOp GPR:$vl))),
             (!cast<Instruction>("PseudoVFSGNJN_VV_"# vti.LMul.MX)
                  vti.RegClass:$rs, vti.RegClass:$rs, GPR:$vl, vti.SEW)>;
+}
+
+// 14.16. Vector Floating-Point Move Instruction
+foreach fvti = AllFloatVectors in {
+  // If we're splatting fpimm0, use vmv.v.x vd, x0.
+  def : Pat<(fvti.Vector (riscv_vfmv_v_f_vl
+                         (fvti.Scalar (fpimm0)), (XLenVT (VLOp GPR:$vl)))),
+            (!cast<Instruction>("PseudoVMV_V_I_"#fvti.LMul.MX)
+             0, GPR:$vl, fvti.SEW)>;
+
+  def : Pat<(fvti.Vector (riscv_vfmv_v_f_vl
+                         (fvti.Scalar fvti.ScalarRegClass:$rs2), (XLenVT (VLOp GPR:$vl)))),
+            (!cast<Instruction>("PseudoVFMV_V_" # fvti.ScalarSuffix # "_" #
+                                fvti.LMul.MX)
+             (fvti.Scalar fvti.ScalarRegClass:$rs2),
+             GPR:$vl, fvti.SEW)>;
 }
 
 } // Predicates = [HasStdExtV, HasStdExtF]

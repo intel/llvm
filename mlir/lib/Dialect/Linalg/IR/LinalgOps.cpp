@@ -45,8 +45,7 @@ template <typename NamedStructuredOpType>
 static void fillStructuredOpRegion(
     OpBuilder &opBuilder, Region &region, TypeRange inputTypes,
     TypeRange outputTypes, ValueRange captures = {},
-    std::function<void(unsigned, unsigned)> errorHandler = [](unsigned,
-                                                              unsigned) {});
+    std::function<void(unsigned, unsigned)> errorHandler = nullptr);
 
 /// Generic entry point to create both the region and the block of a LinalgOp.
 template <typename NamedStructuredOpType>
@@ -1819,8 +1818,10 @@ fillStructuredOpRegion(OpBuilder &opBuilder, Region &region,
   Block *body = opBuilder.createBlock(&region, /*insertPt=*/{}, argTypes);
   unsigned actual = body->getNumArguments();
   unsigned expected = NamedStructuredOpType::getNumRegionArgs();
-  if (expected != actual)
-    return errorHandler(expected, actual);
+  if (expected != actual) {
+    if (errorHandler) errorHandler(expected, actual);
+    return;
+  }
 
   opBuilder.setInsertionPointToStart(body);
   mlir::edsc::ScopedContext scope(opBuilder, opBuilder.getUnknownLoc());

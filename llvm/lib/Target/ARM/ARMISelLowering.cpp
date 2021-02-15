@@ -1343,6 +1343,7 @@ ARMTargetLowering::ARMTargetLowering(const TargetMachine &TM,
     // iff target supports vfp2.
     setOperationAction(ISD::BITCAST, MVT::i64, Custom);
     setOperationAction(ISD::FLT_ROUNDS_, MVT::i32, Custom);
+    setOperationAction(ISD::SET_ROUNDING, MVT::Other, Custom);
   }
 
   // We want to custom lower some of our intrinsics.
@@ -6118,6 +6119,48 @@ SDValue ARMTargetLowering::LowerFLT_ROUNDS_(SDValue Op,
   return DAG.getMergeValues({And, Chain}, dl);
 }
 
+SDValue ARMTargetLowering::LowerSET_ROUNDING(SDValue Op,
+                                             SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  SDValue Chain = Op->getOperand(0);
+  SDValue RMValue = Op->getOperand(1);
+
+  // The rounding mode is in bits 23:22 of the FPSCR.
+  // The llvm.set.rounding argument value to ARM rounding mode value mapping
+  // is 0->3, 1->0, 2->1, 3->2. The formula we use to implement this is
+  // ((arg - 1) & 3) << 22).
+  //
+  // It is expected that the argument of llvm.set.rounding is within the
+  // segment [0, 3], so NearestTiesToAway (4) is not handled here. It is
+  // responsibility of the code generated llvm.set.rounding to ensure this
+  // condition.
+
+  // Calculate new value of FPSCR[23:22].
+  RMValue = DAG.getNode(ISD::SUB, DL, MVT::i32, RMValue,
+                        DAG.getConstant(1, DL, MVT::i32));
+  RMValue = DAG.getNode(ISD::AND, DL, MVT::i32, RMValue,
+                        DAG.getConstant(0x3, DL, MVT::i32));
+  RMValue = DAG.getNode(ISD::SHL, DL, MVT::i32, RMValue,
+                        DAG.getConstant(ARM::RoundingBitsPos, DL, MVT::i32));
+
+  // Get current value of FPSCR.
+  SDValue Ops[] = {Chain,
+                   DAG.getConstant(Intrinsic::arm_get_fpscr, DL, MVT::i32)};
+  SDValue FPSCR =
+      DAG.getNode(ISD::INTRINSIC_W_CHAIN, DL, {MVT::i32, MVT::Other}, Ops);
+  Chain = FPSCR.getValue(1);
+  FPSCR = FPSCR.getValue(0);
+
+  // Put new rounding mode into FPSCR[23:22].
+  const unsigned RMMask = ~(ARM::Rounding::rmMask << ARM::RoundingBitsPos);
+  FPSCR = DAG.getNode(ISD::AND, DL, MVT::i32, FPSCR,
+                      DAG.getConstant(RMMask, DL, MVT::i32));
+  FPSCR = DAG.getNode(ISD::OR, DL, MVT::i32, FPSCR, RMValue);
+  SDValue Ops2[] = {
+      Chain, DAG.getConstant(Intrinsic::arm_set_fpscr, DL, MVT::i32), FPSCR};
+  return DAG.getNode(ISD::INTRINSIC_VOID, DL, MVT::Other, Ops2);
+}
+
 static SDValue LowerCTTZ(SDNode *N, SelectionDAG &DAG,
                          const ARMSubtarget *ST) {
   SDLoc dl(N);
@@ -9849,6 +9892,7 @@ SDValue ARMTargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::CONCAT_VECTORS: return LowerCONCAT_VECTORS(Op, DAG, Subtarget);
   case ISD::TRUNCATE:      return LowerTruncatei1(Op, DAG, Subtarget);
   case ISD::FLT_ROUNDS_:   return LowerFLT_ROUNDS_(Op, DAG);
+  case ISD::SET_ROUNDING:  return LowerSET_ROUNDING(Op, DAG);
   case ISD::MUL:           return LowerMUL(Op, DAG);
   case ISD::SDIV:
     if (Subtarget->isTargetWindows() && !Op.getValueType().isVector())
@@ -14916,6 +14960,42 @@ static SDValue PerformSplittingToNarrowingStores(StoreSDNode *St,
   return DAG.getNode(ISD::TokenFactor, DL, MVT::Other, Stores);
 }
 
+// Given a floating point store from an extracted vector, with an integer
+// VGETLANE that already exists, store the existing VGETLANEu directly. This can
+// help reduce fp register pressure, doesn't require the fp extract and allows
+// use of more integer post-inc stores not available with vstr.
+static SDValue PerformExtractFpToIntStores(StoreSDNode *St, SelectionDAG &DAG) {
+  if (!St->isSimple() || St->isTruncatingStore() || !St->isUnindexed())
+    return SDValue();
+  SDValue Extract = St->getValue();
+  EVT VT = Extract.getValueType();
+  // For now only uses f16. This may be useful for f32 too, but that will
+  // be bitcast(extract), not the VGETLANEu we currently check here.
+  if (VT != MVT::f16 || Extract->getOpcode() != ISD::EXTRACT_VECTOR_ELT)
+    return SDValue();
+
+  SDNode *GetLane =
+      DAG.getNodeIfExists(ARMISD::VGETLANEu, DAG.getVTList(MVT::i32),
+                          {Extract.getOperand(0), Extract.getOperand(1)});
+  if (!GetLane)
+    return SDValue();
+
+  LLVMContext &C = *DAG.getContext();
+  SDLoc DL(St);
+  // Create a new integer store to replace the existing floating point version.
+  SDValue Ch = St->getChain();
+  SDValue BasePtr = St->getBasePtr();
+  Align Alignment = St->getOriginalAlign();
+  MachineMemOperand::Flags MMOFlags = St->getMemOperand()->getFlags();
+  AAMDNodes AAInfo = St->getAAInfo();
+  EVT NewToVT = EVT::getIntegerVT(C, VT.getSizeInBits());
+  SDValue Store = DAG.getTruncStore(Ch, DL, SDValue(GetLane, 0), BasePtr,
+                                    St->getPointerInfo(), NewToVT,
+                                    Alignment.value(), MMOFlags, AAInfo);
+
+  return Store;
+}
+
 /// PerformSTORECombine - Target-specific dag combine xforms for
 /// ISD::STORE.
 static SDValue PerformSTORECombine(SDNode *N,
@@ -14931,9 +15011,12 @@ static SDValue PerformSTORECombine(SDNode *N,
     if (SDValue Store = PerformTruncatingStoreCombine(St, DCI.DAG))
       return Store;
 
-  if (Subtarget->hasMVEIntegerOps())
+  if (Subtarget->hasMVEIntegerOps()) {
     if (SDValue NewToken = PerformSplittingToNarrowingStores(St, DCI.DAG))
       return NewToken;
+    if (SDValue NewChain = PerformExtractFpToIntStores(St, DCI.DAG))
+      return NewChain;
+  }
 
   if (!ISD::isNormalStore(St))
     return SDValue();
