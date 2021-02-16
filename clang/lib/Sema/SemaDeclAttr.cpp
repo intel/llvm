@@ -3166,9 +3166,9 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     }
     if (const auto *ExistingAttr = D->getAttr<WorkGroupAttr>()) {
       // Compare attribute arguments value and warn for a mismatch.
-       if (ExistingAttr->getXDimVal(Ctx) != XDimVal ||
-           ExistingAttr->getYDimVal(Ctx) != YDimVal ||
-           ExistingAttr->getZDimVal(Ctx) != ZDimVal) {
+      if (ExistingAttr->getXDimVal(Ctx) != XDimVal ||
+          ExistingAttr->getYDimVal(Ctx) != YDimVal ||
+          ExistingAttr->getZDimVal(Ctx) != ZDimVal) {
         S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
         S.Diag(ExistingAttr->getLocation(), diag::note_conflicting_attribute);
       }
