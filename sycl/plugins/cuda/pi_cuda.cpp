@@ -2650,7 +2650,7 @@ pi_result cuda_piclProgramCreateWithSource(pi_context context, pi_uint32 count,
                                            const size_t *lengths,
                                            pi_program *program) {
   cl::sycl::detail::pi::die("cuda_piclProgramCreateWithSource not implemented");
-  return {};
+  return PI_INVALID_OPERATION;
 }
 
 /// Loads the images from a PI program into a CUmodule that can be

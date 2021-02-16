@@ -17,6 +17,7 @@
 #include <detail/spec_constant_impl.hpp>
 
 #include <algorithm>
+#include <string>
 #include <fstream>
 #include <list>
 #include <memory>
@@ -25,6 +26,21 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+
+inline const std::string GetBackendString(cl::sycl::backend backend) {
+  switch (backend) {
+#define PI_BACKEND_STR(backend_name)                                           \
+  case cl::sycl::backend::backend_name:                                        \
+    return #backend_name
+    PI_BACKEND_STR(cuda);
+    PI_BACKEND_STR(host);
+    PI_BACKEND_STR(opencl);
+    PI_BACKEND_STR(level_zero);
+#undef PI_BACKEND_STR
+  default:
+    return "Unknown Plugin";
+  }
+}
 
 program_impl::program_impl(ContextImplPtr Context,
                            const property_list &PropList)
@@ -362,11 +378,10 @@ void program_impl::create_cl_program_with_source(const string_class &Source) {
       Plugin.call_nocheck<PiApiKind::piclProgramCreateWithSource>(
           MContext->getHandleRef(), 1, &Src, &Size, &MProgram);
 
-  if (Plugin.getBackend() == cl::sycl::backend::level_zero &&
-      Err == PI_INVALID_OPERATION) {
+  if (Err == PI_INVALID_OPERATION) {
     throw feature_not_supported(
-        "piclProgramCreateWithSource is not supported in Level Zero",
-        PI_INVALID_OPERATION);
+        "program::compile_with_source is not supported in" +
+         GetBackendString(Plugin.getBackend()), PI_INVALID_OPERATION);
   }
 }
 
