@@ -340,7 +340,7 @@ Two files per cache item are stored on disk:
 
 ### Inter-process safety
 
-For on-disc cache there might be access collisions for accessing the same file
+For on-disk cache there might be access collisions for accessing the same file
 from different instances of SYCL applications:
 - write collision happens when 2 instances of the same application are started
 to write to the same cache file/directory;
