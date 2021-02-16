@@ -175,6 +175,11 @@ enum NodeType : unsigned {
   // operand is VL.
   SETCC_VL,
 
+  // Mask binary operators.
+  VMAND_VL,
+  VMOR_VL,
+  VMXOR_VL,
+
   // Set mask vector to all zeros or ones.
   VMCLR_VL,
   VMSET_VL,
@@ -402,8 +407,11 @@ private:
   SDValue lowerFixedLengthVectorLoadToRVV(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerFixedLengthVectorStoreToRVV(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerFixedLengthVectorSetccToRVV(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lowerToScalableOp(SDValue Op, SelectionDAG &DAG,
-                            unsigned NewOpc) const;
+  SDValue lowerFixedLengthVectorLogicOpToRVV(SDValue Op, SelectionDAG &DAG,
+                                             unsigned MaskOpc,
+                                             unsigned VecOpc) const;
+  SDValue lowerToScalableOp(SDValue Op, SelectionDAG &DAG, unsigned NewOpc,
+                            bool HasMask = true) const;
 
   bool isEligibleForTailCallOptimization(
       CCState &CCInfo, CallLoweringInfo &CLI, MachineFunction &MF,

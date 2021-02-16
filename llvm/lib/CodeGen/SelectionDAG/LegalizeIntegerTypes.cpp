@@ -478,6 +478,16 @@ SDValue DAGTypeLegalizer::PromoteIntRes_BITREVERSE(SDNode *N) {
   EVT NVT = Op.getValueType();
   SDLoc dl(N);
 
+  // If the larger BITREVERSE isn't supported by the target, try to expand now.
+  // If we expand later we'll end up with more operations since we lost the
+  // original type. We only do this for scalars since we have a shuffle
+  // based lowering for vectors in LegalizeVectorOps.
+  if (!OVT.isVector() && OVT.isSimple() &&
+      !TLI.isOperationLegalOrCustom(ISD::BITREVERSE, NVT)) {
+    if (SDValue Res = TLI.expandBITREVERSE(N, DAG))
+      return DAG.getNode(ISD::ANY_EXTEND, dl, NVT, Res);
+  }
+
   unsigned DiffBits = NVT.getScalarSizeInBits() - OVT.getScalarSizeInBits();
   EVT ShiftVT = getShiftAmountTyForConstant(NVT, TLI, DAG);
   return DAG.getNode(ISD::SRL, dl, NVT,
@@ -774,6 +784,14 @@ SDValue DAGTypeLegalizer::PromoteIntRes_ADDSUBSHLSAT(SDNode *N) {
   EVT PromotedType = Op1Promoted.getValueType();
   unsigned NewBits = PromotedType.getScalarSizeInBits();
 
+  if (Opcode == ISD::UADDSAT) {
+    APInt MaxVal = APInt::getAllOnesValue(OldBits).zext(NewBits);
+    SDValue SatMax = DAG.getConstant(MaxVal, dl, PromotedType);
+    SDValue Add =
+        DAG.getNode(ISD::ADD, dl, PromotedType, Op1Promoted, Op2Promoted);
+    return DAG.getNode(ISD::UMIN, dl, PromotedType, Add, SatMax);
+  }
+
   // USUBSAT can always be promoted as long as we have zero-extended the args.
   if (Opcode == ISD::USUBSAT)
     return DAG.getNode(ISD::USUBSAT, dl, PromotedType, Op1Promoted,
@@ -789,7 +807,6 @@ SDValue DAGTypeLegalizer::PromoteIntRes_ADDSUBSHLSAT(SDNode *N) {
     case ISD::SSHLSAT:
       ShiftOp = ISD::SRA;
       break;
-    case ISD::UADDSAT:
     case ISD::USHLSAT:
       ShiftOp = ISD::SRL;
       break;
@@ -810,14 +827,6 @@ SDValue DAGTypeLegalizer::PromoteIntRes_ADDSUBSHLSAT(SDNode *N) {
     SDValue Result =
         DAG.getNode(Opcode, dl, PromotedType, Op1Promoted, Op2Promoted);
     return DAG.getNode(ShiftOp, dl, PromotedType, Result, ShiftAmount);
-  }
-
-  if (Opcode == ISD::UADDSAT) {
-    APInt MaxVal = APInt::getAllOnesValue(OldBits).zext(NewBits);
-    SDValue SatMax = DAG.getConstant(MaxVal, dl, PromotedType);
-    SDValue Add =
-        DAG.getNode(ISD::ADD, dl, PromotedType, Op1Promoted, Op2Promoted);
-    return DAG.getNode(ISD::UMIN, dl, PromotedType, Add, SatMax);
   }
 
   unsigned AddOp = Opcode == ISD::SADDSAT ? ISD::ADD : ISD::SUB;
