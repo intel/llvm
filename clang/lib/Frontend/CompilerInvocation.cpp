@@ -2900,9 +2900,16 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Res,
     // If specified, create an empty integration header file for now.
     const StringRef &HeaderName = LangOpts.SYCLIntHeader;
     if (!HeaderName.empty()) {
-      int ResultFD = 0;
       // Ignore the return value; compilation will fail if this file is absent.
-      (void)llvm::sys::fs::openFileForWrite(HeaderName, ResultFD);
+      Expected<llvm::sys::fs::file_t> ft =
+          llvm::sys::fs::openNativeFileForWrite(HeaderName,
+              llvm::sys::fs::CD_OpenAlways, llvm::sys::fs::OF_None);
+      if (ft)
+        llvm::sys::fs::closeFile(*ft);
+      else {
+        llvm::errs() << "Error: " << llvm::toString(ft.takeError()) <<
+            " when opening " << HeaderName << "\n";
+      }
     }
   }
 
