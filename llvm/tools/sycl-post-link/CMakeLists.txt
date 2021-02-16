@@ -6,6 +6,8 @@ set(LLVM_LINK_COMPONENTS
   Support
   TransformUtils
   SYCLLowerIR
+  InstCombine
+  ScalarOpts
   )
 
 get_property(LLVMGenXIntrinsics_SOURCE_DIR GLOBAL PROPERTY LLVMGenXIntrinsics_SOURCE_PROP)
@@ -28,3 +30,5 @@ add_llvm_tool(sycl-post-link
   intrinsics_gen
   LLVMGenXIntrinsics
   )
+
+target_link_libraries(sycl-post-link PRIVATE LLVMGenXIntrinsics)
