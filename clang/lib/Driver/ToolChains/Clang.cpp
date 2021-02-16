@@ -8284,9 +8284,6 @@ static std::string getSYCLPostLinkOptimizationLevel(const ArgList &Args) {
     if (S == "g")
       return "-O1";
 
-    if (S == "d")
-      return "-O0";
-
     // Options -O[1|2|3|s|z] are passed as they are. '-O0' is handled earlier.
     std::array<char, 5> AcceptedOptions = {'1', '2', '3', 's', 'z'};
     if (std::any_of(AcceptedOptions.begin(), AcceptedOptions.end(),
