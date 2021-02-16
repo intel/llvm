@@ -381,7 +381,8 @@ void program_impl::create_cl_program_with_source(const string_class &Source) {
   if (Err == PI_INVALID_OPERATION) {
     throw feature_not_supported(
         "program::compile_with_source is not supported in" +
-         GetBackendString(Plugin.getBackend()), PI_INVALID_OPERATION);
+            GetBackendString(Plugin.getBackend()),
+        PI_INVALID_OPERATION);
   }
 }
 
