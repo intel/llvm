@@ -8270,7 +8270,7 @@ static void addArgs(ArgStringList &DstArgs, const llvm::opt::ArgList &Alloc,
 }
 
 // Partially copied from clang/lib/Frontend/CompilerInvocation.cpp
-static std::string getOptimizationLevel(const ArgList &Args) {
+static std::string getSYCLPostLinkOptimizationLevel(const ArgList &Args) {
   if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
     if (A->getOption().matches(options::OPT_O0))
       return "-O0";
@@ -8354,7 +8354,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
                        options::OPT_fno_sycl_device_code_lower_esimd, false))
       addArgs(CmdArgs, TCArgs, {"-lower-esimd"});
   }
-  addArgs(CmdArgs, TCArgs, {StringRef(getOptimizationLevel(TCArgs))});
+  addArgs(CmdArgs, TCArgs,
+          {StringRef(getSYCLPostLinkOptimizationLevel(TCArgs))});
   // specialization constants processing is mandatory
   auto *SYCLPostLink = llvm::dyn_cast<SYCLPostLinkJobAction>(&JA);
   if (SYCLPostLink && SYCLPostLink->getRTSetsSpecConstants())
