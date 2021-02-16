@@ -36,10 +36,20 @@ public:
   detail::ContextImplPtr getInteropContext() const override { return nullptr; }
 };
 
+static cl::sycl::device getDeviceWithHostUnifiedMemory() {
+  for (cl::sycl::device &D : cl::sycl::device::get_devices()) {
+    if (!D.is_host() &&
+        D.get_info<cl::sycl::info::device::host_unified_memory>())
+      return D;
+  }
+  return {};
+}
+
 TEST_F(SchedulerTest, LinkedAllocaDependencies) {
-  default_selector Selector{};
-  if (Selector.select_device().is_host()) {
-    std::cerr << "Not run due to host-only environment\n";
+  cl::sycl::device Dev = getDeviceWithHostUnifiedMemory();
+  if (Dev.is_host()) {
+    std::cerr << "Not run: no non-host devices with host unified memory support"
+              << std::endl;
     return;
   }
 
@@ -47,7 +57,9 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
   // 2. call Scheduler::GraphBuilder::getOrCreateAllocaForReq
   detail::Requirement Req = getMockRequirement();
 
-  cl::sycl::queue Queue1;
+  // Commands are linked only if the device supports host unified memory.
+
+  cl::sycl::queue Queue1{Dev};
   cl::sycl::detail::QueueImplPtr Q1 = cl::sycl::detail::getSyclObjImpl(Queue1);
 
   sycl::device HostDevice;

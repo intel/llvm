@@ -118,7 +118,7 @@ int main() {
   cl::sycl::queue q;
 #ifndef __SYCL_UNNAMED_LAMBDA__
   // expected-error-re@Inputs/sycl.hpp:220 {{'(lambda at {{.*}}unnamed-kernel.cpp{{.*}}' is an invalid kernel name type}}
-  // expected-note@Inputs/sycl.hpp:220 {{kernel name is missing}}
+  // expected-note@Inputs/sycl.hpp:220 {{unnamed type used in a SYCL kernel name}}
   // expected-note@+2{{in instantiation of function template specialization}}
 #endif
   q.submit([&](cl::sycl::handler &h) { h.single_task([] {}); });

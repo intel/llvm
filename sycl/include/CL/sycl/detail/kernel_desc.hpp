@@ -23,10 +23,10 @@ namespace detail {
 
 // kernel parameter kinds
 enum class kernel_param_kind_t {
-  kind_accessor,
-  kind_std_layout, // standard layout object parameters
-  kind_sampler,
-  kind_pointer
+  kind_accessor = 0,
+  kind_std_layout = 1, // standard layout object parameters
+  kind_sampler = 2,
+  kind_pointer = 3
 };
 
 // describes a kernel parameter
@@ -56,6 +56,9 @@ template <class KernelNameType> struct KernelInfo {
     return Dummy;
   }
   static constexpr const char *getName() { return ""; }
+  static constexpr bool isESIMD() { return 0; }
+  static constexpr bool callsThisItem() { return false; }
+  static constexpr bool callsAnyThisFreeFunction() { return false; }
 };
 #else
 template <char...> struct KernelInfoData {
@@ -65,6 +68,9 @@ template <char...> struct KernelInfoData {
     return Dummy;
   }
   static constexpr const char *getName() { return ""; }
+  static constexpr bool isESIMD() { return 0; }
+  static constexpr bool callsThisItem() { return false; }
+  static constexpr bool callsAnyThisFreeFunction() { return false; }
 };
 
 // C++14 like index_sequence and make_index_sequence

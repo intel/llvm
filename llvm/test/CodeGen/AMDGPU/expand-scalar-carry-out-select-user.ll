@@ -43,7 +43,6 @@ define i32 @s_add_co_select_user() {
 ; GFX10-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
 ; GFX10-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX10-NEXT:    s_mov_b64 s[4:5], 0
-; GFX10-NEXT:    ; implicit-def: $vcc_hi
 ; GFX10-NEXT:    s_load_dword s4, s[4:5], 0x0
 ; GFX10-NEXT:    s_waitcnt lgkmcnt(0)
 ; GFX10-NEXT:    v_add_co_u32_e64 v0, s5, s4, s4
@@ -89,11 +88,13 @@ define amdgpu_kernel void @s_add_co_br_user(i32 %i) {
 ; GFX7-NEXT:    v_mov_b32_e32 v2, 9
 ; GFX7-NEXT:    v_mov_b32_e32 v1, 0
 ; GFX7-NEXT:    flat_store_dword v[0:1], v2
+; GFX7-NEXT:    s_waitcnt vmcnt(0)
 ; GFX7-NEXT:  BB1_2: ; %bb1
 ; GFX7-NEXT:    v_mov_b32_e32 v0, 0
 ; GFX7-NEXT:    v_mov_b32_e32 v2, 10
 ; GFX7-NEXT:    v_mov_b32_e32 v1, 0
 ; GFX7-NEXT:    flat_store_dword v[0:1], v2
+; GFX7-NEXT:    s_waitcnt vmcnt(0)
 ; GFX7-NEXT:    s_endpgm
 ;
 ; GFX9-LABEL: s_add_co_br_user:
@@ -114,17 +115,18 @@ define amdgpu_kernel void @s_add_co_br_user(i32 %i) {
 ; GFX9-NEXT:    v_mov_b32_e32 v2, 9
 ; GFX9-NEXT:    v_mov_b32_e32 v1, 0
 ; GFX9-NEXT:    global_store_dword v[0:1], v2, off
+; GFX9-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-NEXT:  BB1_2: ; %bb1
 ; GFX9-NEXT:    v_mov_b32_e32 v0, 0
 ; GFX9-NEXT:    v_mov_b32_e32 v2, 10
 ; GFX9-NEXT:    v_mov_b32_e32 v1, 0
 ; GFX9-NEXT:    global_store_dword v[0:1], v2, off
+; GFX9-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-NEXT:    s_endpgm
 ;
 ; GFX10-LABEL: s_add_co_br_user:
 ; GFX10:       ; %bb.0: ; %bb
 ; GFX10-NEXT:    s_load_dword s0, s[4:5], 0x0
-; GFX10-NEXT:    ; implicit-def: $vcc_hi
 ; GFX10-NEXT:    s_waitcnt lgkmcnt(0)
 ; GFX10-NEXT:    s_add_i32 s1, s0, s0
 ; GFX10-NEXT:    v_cmp_lt_u32_e64 s1, s1, s0
@@ -139,11 +141,13 @@ define amdgpu_kernel void @s_add_co_br_user(i32 %i) {
 ; GFX10-NEXT:    v_mov_b32_e32 v2, 9
 ; GFX10-NEXT:    v_mov_b32_e32 v1, 0
 ; GFX10-NEXT:    global_store_dword v[0:1], v2, off
+; GFX10-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX10-NEXT:  BB1_2: ; %bb1
 ; GFX10-NEXT:    v_mov_b32_e32 v0, 0
 ; GFX10-NEXT:    v_mov_b32_e32 v2, 10
 ; GFX10-NEXT:    v_mov_b32_e32 v1, 0
 ; GFX10-NEXT:    global_store_dword v[0:1], v2, off
+; GFX10-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX10-NEXT:    s_endpgm
 bb:
   %i1 = add i32 %i, %i

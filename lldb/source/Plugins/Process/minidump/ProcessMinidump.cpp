@@ -200,8 +200,9 @@ const char *ProcessMinidump::GetPluginDescriptionStatic() {
 
 lldb::ProcessSP ProcessMinidump::CreateInstance(lldb::TargetSP target_sp,
                                                 lldb::ListenerSP listener_sp,
-                                                const FileSpec *crash_file) {
-  if (!crash_file)
+                                                const FileSpec *crash_file,
+                                                bool can_connect) {
+  if (!crash_file || can_connect)
     return nullptr;
 
   lldb::ProcessSP process_sp;
@@ -234,7 +235,7 @@ ProcessMinidump::ProcessMinidump(lldb::TargetSP target_sp,
                                  lldb::ListenerSP listener_sp,
                                  const FileSpec &core_file,
                                  DataBufferSP core_data)
-    : Process(target_sp, listener_sp), m_core_file(core_file),
+    : PostMortemProcess(target_sp, listener_sp), m_core_file(core_file),
       m_core_data(std::move(core_data)), m_is_wow64(false) {}
 
 ProcessMinidump::~ProcessMinidump() {
@@ -461,8 +462,8 @@ Status ProcessMinidump::GetMemoryRegions(MemoryRegionInfos &region_list) {
 
 void ProcessMinidump::Clear() { Process::m_thread_list.Clear(); }
 
-bool ProcessMinidump::UpdateThreadList(ThreadList &old_thread_list,
-                                       ThreadList &new_thread_list) {
+bool ProcessMinidump::DoUpdateThreadList(ThreadList &old_thread_list,
+                                         ThreadList &new_thread_list) {
   for (const minidump::Thread &thread : m_thread_list) {
     LocationDescriptor context_location = thread.Context;
 

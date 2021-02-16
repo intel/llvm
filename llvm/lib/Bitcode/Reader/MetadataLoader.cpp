@@ -365,7 +365,7 @@ public:
   ~PlaceholderQueue() {
     assert(empty() && "PlaceholderQueue hasn't been flushed before being destroyed");
   }
-  bool empty() { return PHs.empty(); }
+  bool empty() const { return PHs.empty(); }
   DistinctMDOperandPlaceholder &getPlaceholderOp(unsigned ID);
   void flush(BitcodeReaderMetadataList &MetadataList);
 
@@ -676,7 +676,7 @@ public:
     return FunctionsWithSPs.lookup(F);
   }
 
-  bool hasSeenOldLoopTags() { return HasSeenOldLoopTags; }
+  bool hasSeenOldLoopTags() const { return HasSeenOldLoopTags; }
 
   Error parseMetadataAttachment(
       Function &F, const SmallVectorImpl<Instruction *> &InstructionList);
@@ -684,7 +684,7 @@ public:
   Error parseMetadataKinds();
 
   void setStripTBAA(bool Value) { StripTBAA = Value; }
-  bool isStrippingTBAA() { return StripTBAA; }
+  bool isStrippingTBAA() const { return StripTBAA; }
 
   unsigned size() const { return MetadataList.size(); }
   void shrinkTo(unsigned N) { MetadataList.shrinkTo(N); }
@@ -875,6 +875,7 @@ MetadataLoader::MetadataLoaderImpl::lazyLoadModuleMetadataBlock() {
       case bitc::METADATA_OBJC_PROPERTY:
       case bitc::METADATA_IMPORTED_ENTITY:
       case bitc::METADATA_GLOBAL_VAR_EXPR:
+      case bitc::METADATA_GENERIC_SUBRANGE:
         // We don't expect to see any of these, if we see one, give up on
         // lazy-loading and fallback.
         MDStringRef.clear();
@@ -1371,6 +1372,18 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
     NextMetadataNo++;
     break;
   }
+  case bitc::METADATA_GENERIC_SUBRANGE: {
+    Metadata *Val = nullptr;
+    Val = GET_OR_DISTINCT(DIGenericSubrange,
+                          (Context, getMDOrNull(Record[1]),
+                           getMDOrNull(Record[2]), getMDOrNull(Record[3]),
+                           getMDOrNull(Record[4])));
+
+    MetadataList.assignValue(Val, NextMetadataNo);
+    IsDistinct = Record[0] & 1;
+    NextMetadataNo++;
+    break;
+  }
   case bitc::METADATA_ENUMERATOR: {
     if (Record.size() < 3)
       return error("Invalid record");
@@ -1552,19 +1565,20 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
   }
 
   case bitc::METADATA_MODULE: {
-    if (Record.size() < 5 || Record.size() > 8)
+    if (Record.size() < 5 || Record.size() > 9)
       return error("Invalid record");
 
-    unsigned Offset = Record.size() >= 7 ? 2 : 1;
+    unsigned Offset = Record.size() >= 8 ? 2 : 1;
     IsDistinct = Record[0];
     MetadataList.assignValue(
         GET_OR_DISTINCT(
             DIModule,
-            (Context, Record.size() >= 7 ? getMDOrNull(Record[1]) : nullptr,
+            (Context, Record.size() >= 8 ? getMDOrNull(Record[1]) : nullptr,
              getMDOrNull(Record[0 + Offset]), getMDString(Record[1 + Offset]),
              getMDString(Record[2 + Offset]), getMDString(Record[3 + Offset]),
              getMDString(Record[4 + Offset]),
-             Record.size() <= 7 ? 0 : Record[7])),
+             Record.size() <= 7 ? 0 : Record[7],
+             Record.size() <= 8 ? false : Record[8])),
         NextMetadataNo);
     NextMetadataNo++;
     break;

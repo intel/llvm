@@ -30,6 +30,8 @@ int main() {
 
   // CHECK-LABEL:  FunctionDecl {{.*}}test_kernel3 'void ()'
   // CHECK:        SYCLIntelSchedulerTargetFmaxMhzAttr {{.*}}
+  // CHECK-NEXT:   ConstantExpr {{.*}} 'int'
+  // CHECK-NEXT:   value: Int 75
   // CHECK-NEXT:   SubstNonTypeTemplateParmExpr {{.*}} 'int'
   // CHECK-NEXT:   NonTypeTemplateParmDecl {{.*}} referenced 'int' depth 0 index 0 N
   // CHECK-NEXT:   IntegerLiteral {{.*}} 'int' 75

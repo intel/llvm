@@ -2,6 +2,8 @@
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc --spirv-target-env=SPV-IR
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-LLVM
 
 ; CHECK-LLVM: opencl.image2d_array_ro_t = type opaque
 ; CHECK-LLVM: define spir_kernel void @sample_kernel(%opencl.image2d_array_ro_t addrspace(1)
@@ -13,6 +15,11 @@
 ; CHECK-LLVM: call spir_func i64 @_Z20get_image_array_size20ocl_image2d_array_ro(%opencl.image2d_array_ro_t addrspace(1)
 ; CHECK-LLVM: declare spir_func <2 x i32> @_Z13get_image_dim20ocl_image2d_array_ro(%opencl.image2d_array_ro_t addrspace(1)
 ; CHECK-LLVM: declare spir_func i64 @_Z20get_image_array_size20ocl_image2d_array_ro(%opencl.image2d_array_ro_t addrspace(1)
+
+; CHECK-SPV-LLVM: call spir_func <3 x i32> @_Z32__spirv_ImageQuerySizeLod_Ruint320ocl_image2d_array_roi(%opencl.image2d_array_ro_t addrspace(1)
+; CHECK-SPV-LLVM: call spir_func <3 x i64> @_Z33__spirv_ImageQuerySizeLod_Rulong320ocl_image2d_array_roi(%opencl.image2d_array_ro_t addrspace(1)
+; CHECK-SPV-LLVM: declare spir_func <3 x i32> @_Z32__spirv_ImageQuerySizeLod_Ruint320ocl_image2d_array_roi(%opencl.image2d_array_ro_t addrspace(1)
+; CHECK-SPV-LLVM: declare spir_func <3 x i64> @_Z33__spirv_ImageQuerySizeLod_Rulong320ocl_image2d_array_roi(%opencl.image2d_array_ro_t addrspace(1)
 
 ; CHECK-LLVM-DAG: [[AQ]] = !{!"read_only"}
 ; CHECK-LLVM-DAG: [[TYPE]] = !{!"image2d_array_t"}

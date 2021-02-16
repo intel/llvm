@@ -64,14 +64,17 @@ public:
   /// section. Reset current relocation pointer if neccessary.
   virtual bool hasValidRelocs(bool ResetRelocsPtr = true) = 0;
 
-  /// Checks that there is a relocation against .debug_info
-  /// table between \p StartOffset and \p NextOffset.
-  ///
-  /// This function must be called with offsets in strictly ascending
-  /// order because it never looks back at relocations it already 'went past'.
-  /// \returns true and sets Info.InDebugMap if it is the case.
-  virtual bool hasValidRelocationAt(uint64_t StartOffset, uint64_t EndOffset,
-                                    CompileUnit::DIEInfo &Info) = 0;
+  /// Checks that the specified DIE has a DW_AT_Location attribute
+  /// that references into a live code section. This function
+  /// must be called with DIE offsets in strictly ascending order.
+  virtual bool hasLiveMemoryLocation(const DWARFDie &DIE,
+                                     CompileUnit::DIEInfo &Info) = 0;
+
+  /// Checks that the specified DIE has a DW_AT_Low_pc attribute
+  /// that references into a live code section. This function
+  /// must be called with DIE offsets in strictly ascending order.
+  virtual bool hasLiveAddressRange(const DWARFDie &DIE,
+                                   CompileUnit::DIEInfo &Info) = 0;
 
   /// Apply the valid relocations to the buffer \p Data, taking into
   /// account that Data is at \p BaseOffset in the debug_info section.
@@ -81,6 +84,9 @@ public:
   /// \returns true whether any reloc has been applied.
   virtual bool applyValidRelocs(MutableArrayRef<char> Data, uint64_t BaseOffset,
                                 bool IsLittleEndian) = 0;
+
+  /// Relocate the given address offset if a valid relocation exists.
+  virtual llvm::Expected<uint64_t> relocateIndexedAddr(uint64_t Offset) = 0;
 
   /// Returns all valid functions address ranges(i.e., those ranges
   /// which points to sections with code).
@@ -180,7 +186,8 @@ public:
   ///
   /// As a side effect, this also switches the current Dwarf version
   /// of the MC layer to the one of U.getOrigUnit().
-  virtual void emitCompileUnitHeader(CompileUnit &Unit) = 0;
+  virtual void emitCompileUnitHeader(CompileUnit &Unit,
+                                     unsigned DwarfVersion) = 0;
 
   /// Recursively emit the DIE tree rooted at \p Die.
   virtual void emitDIE(DIE &Die) = 0;
@@ -353,24 +360,26 @@ private:
   /// of work needs to be performed when processing the current item. The flags
   /// and info fields are optional based on the type.
   struct WorklistItem {
-    WorklistItemType Type;
     DWARFDie Die;
+    WorklistItemType Type;
     CompileUnit &CU;
     unsigned Flags;
-    unsigned AncestorIdx = 0;
-    CompileUnit::DIEInfo *OtherInfo = nullptr;
+    union {
+      const unsigned AncestorIdx;
+      CompileUnit::DIEInfo *OtherInfo;
+    };
 
     WorklistItem(DWARFDie Die, CompileUnit &CU, unsigned Flags,
                  WorklistItemType T = WorklistItemType::LookForDIEsToKeep)
-        : Type(T), Die(Die), CU(CU), Flags(Flags) {}
+        : Die(Die), Type(T), CU(CU), Flags(Flags), AncestorIdx(0) {}
 
     WorklistItem(DWARFDie Die, CompileUnit &CU, WorklistItemType T,
                  CompileUnit::DIEInfo *OtherInfo = nullptr)
-        : Type(T), Die(Die), CU(CU), OtherInfo(OtherInfo) {}
+        : Die(Die), Type(T), CU(CU), Flags(0), OtherInfo(OtherInfo) {}
 
     WorklistItem(unsigned AncestorIdx, CompileUnit &CU, unsigned Flags)
-        : Type(WorklistItemType::LookForParentDIEsToKeep), CU(CU), Flags(Flags),
-          AncestorIdx(AncestorIdx) {}
+        : Die(), Type(WorklistItemType::LookForParentDIEsToKeep), CU(CU),
+          Flags(Flags), AncestorIdx(AncestorIdx) {}
   };
 
   /// returns true if we need to translate strings.
@@ -462,7 +471,6 @@ private:
   bool registerModuleReference(DWARFDie CUDie, const DWARFUnit &Unit,
                                const DWARFFile &File,
                                OffsetsStringPool &OffsetsStringPool,
-                               UniquingStringPool &UniquingStringPoolStringPool,
                                DeclContextTree &ODRContexts,
                                uint64_t ModulesEndOffset, unsigned &UnitID,
                                bool IsLittleEndian, unsigned Indent = 0,
@@ -475,7 +483,6 @@ private:
                         StringRef ModuleName, uint64_t DwoId,
                         const DWARFFile &File,
                         OffsetsStringPool &OffsetsStringPool,
-                        UniquingStringPool &UniquingStringPool,
                         DeclContextTree &ODRContexts, uint64_t ModulesEndOffset,
                         unsigned &UnitID, bool IsLittleEndian,
                         unsigned Indent = 0, bool Quiet = false);
@@ -495,7 +502,6 @@ private:
   /// Check if a variable describing DIE should be kept.
   /// \returns updated TraversalFlags.
   unsigned shouldKeepVariableDIE(AddressesMap &RelocMgr, const DWARFDie &DIE,
-                                 CompileUnit &Unit,
                                  CompileUnit::DIEInfo &MyInfo, unsigned Flags);
 
   unsigned shouldKeepSubprogramDIE(AddressesMap &RelocMgr, RangesTy &Ranges,

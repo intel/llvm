@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Annotations.h"
+#include "Config.h"
 #include "Diagnostics.h"
 #include "ParsedAST.h"
 #include "Protocol.h"
@@ -14,7 +15,9 @@
 #include "TestFS.h"
 #include "TestIndex.h"
 #include "TestTU.h"
+#include "TidyProvider.h"
 #include "index/MemIndex.h"
+#include "support/Context.h"
 #include "support/Path.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticSema.h"
@@ -129,7 +132,7 @@ o]]();
     }
   )cpp");
   auto TU = TestTU::withCode(Test.code());
-  TU.ClangTidyChecks = "-*,google-explicit-constructor";
+  TU.ClangTidyProvider = addTidyChecks("google-explicit-constructor");
   EXPECT_THAT(
       TU.build().getDiagnostics(),
       ElementsAre(
@@ -201,8 +204,8 @@ TEST(DiagnosticsTest, DeduplicatedClangTidyDiagnostics) {
   auto TU = TestTU::withCode(Test.code());
   // Enable alias clang-tidy checks, these check emits the same diagnostics
   // (except the check name).
-  TU.ClangTidyChecks = "-*, readability-uppercase-literal-suffix, "
-                       "hicpp-uppercase-literal-suffix";
+  TU.ClangTidyProvider = addTidyChecks("readability-uppercase-literal-suffix,"
+                                       "hicpp-uppercase-literal-suffix");
   // Verify that we filter out the duplicated diagnostic message.
   EXPECT_THAT(
       TU.build().getDiagnostics(),
@@ -245,9 +248,10 @@ TEST(DiagnosticsTest, ClangTidy) {
   )cpp");
   auto TU = TestTU::withCode(Test.code());
   TU.HeaderFilename = "assert.h"; // Suppress "not found" error.
-  TU.ClangTidyChecks =
-      "-*, bugprone-sizeof-expression, bugprone-macro-repeated-side-effects, "
-      "modernize-deprecated-headers, modernize-use-trailing-return-type";
+  TU.ClangTidyProvider = addTidyChecks("bugprone-sizeof-expression,"
+                                       "bugprone-macro-repeated-side-effects,"
+                                       "modernize-deprecated-headers,"
+                                       "modernize-use-trailing-return-type");
   EXPECT_THAT(
       TU.build().getDiagnostics(),
       UnorderedElementsAre(
@@ -289,7 +293,7 @@ TEST(DiagnosticsTest, ClangTidyEOF) {
   auto TU = TestTU::withCode(Test.code());
   TU.ExtraArgs = {"-isystem."};
   TU.AdditionalFiles["a.h"] = TU.AdditionalFiles["b.h"] = "";
-  TU.ClangTidyChecks = "-*, llvm-include-order";
+  TU.ClangTidyProvider = addTidyChecks("llvm-include-order");
   EXPECT_THAT(
       TU.build().getDiagnostics(),
       Contains(AllOf(Diag(Test.range(), "#includes are not sorted properly"),
@@ -361,12 +365,34 @@ TEST(DiagnosticTest, NoMultipleDiagnosticInFlight) {
     }
   )cpp");
   TestTU TU = TestTU::withCode(Main.code());
-  TU.ClangTidyChecks = "modernize-loop-convert";
+  TU.ClangTidyProvider = addTidyChecks("modernize-loop-convert");
   EXPECT_THAT(
       TU.build().getDiagnostics(),
       UnorderedElementsAre(::testing::AllOf(
           Diag(Main.range(), "use range-based for loop instead"),
           DiagSource(Diag::ClangTidy), DiagName("modernize-loop-convert"))));
+}
+
+TEST(DiagnosticTest, RespectsDiagnosticConfig) {
+  Annotations Main(R"cpp(
+    // error-ok
+    void x() {
+      [[unknown]]();
+      $ret[[return]] 42;
+    }
+  )cpp");
+  auto TU = TestTU::withCode(Main.code());
+  EXPECT_THAT(
+      TU.build().getDiagnostics(),
+      ElementsAre(Diag(Main.range(), "use of undeclared identifier 'unknown'"),
+                  Diag(Main.range("ret"),
+                       "void function 'x' should not return a value")));
+  Config Cfg;
+  Cfg.Diagnostics.Suppress.insert("return-type");
+  WithContextValue WithCfg(Config::Key, std::move(Cfg));
+  EXPECT_THAT(TU.build().getDiagnostics(),
+              ElementsAre(Diag(Main.range(),
+                               "use of undeclared identifier 'unknown'")));
 }
 
 TEST(DiagnosticTest, ClangTidySuppressionComment) {
@@ -384,7 +410,7 @@ TEST(DiagnosticTest, ClangTidySuppressionComment) {
     }
   )cpp");
   TestTU TU = TestTU::withCode(Main.code());
-  TU.ClangTidyChecks = "bugprone-integer-division";
+  TU.ClangTidyProvider = addTidyChecks("bugprone-integer-division");
   EXPECT_THAT(
       TU.build().getDiagnostics(),
       UnorderedElementsAre(::testing::AllOf(
@@ -401,8 +427,8 @@ TEST(DiagnosticTest, ClangTidyWarningAsError) {
     }
   )cpp");
   TestTU TU = TestTU::withCode(Main.code());
-  TU.ClangTidyChecks = "bugprone-integer-division";
-  TU.ClangTidyWarningsAsErrors = "bugprone-integer-division";
+  TU.ClangTidyProvider =
+      addTidyChecks("bugprone-integer-division", "bugprone-integer-division");
   EXPECT_THAT(
       TU.build().getDiagnostics(),
       UnorderedElementsAre(::testing::AllOf(
@@ -452,8 +478,8 @@ TEST(DiagnosticTest, ClangTidySuppressionCommentTrumpsWarningAsError) {
     }
   )cpp");
   TestTU TU = TestTU::withCode(Main.code());
-  TU.ClangTidyChecks = "bugprone-integer-division";
-  TU.ClangTidyWarningsAsErrors = "bugprone-integer-division";
+  TU.ClangTidyProvider =
+      addTidyChecks("bugprone-integer-division", "bugprone-integer-division");
   EXPECT_THAT(TU.build().getDiagnostics(), UnorderedElementsAre());
 }
 
@@ -468,8 +494,26 @@ TEST(DiagnosticTest, ClangTidyNoLiteralDataInMacroToken) {
     }
   )cpp");
   TestTU TU = TestTU::withCode(Main.code());
-  TU.ClangTidyChecks = "-*,bugprone-bad-signal-to-kill-thread";
+  TU.ClangTidyProvider = addTidyChecks("bugprone-bad-signal-to-kill-thread");
   EXPECT_THAT(TU.build().getDiagnostics(), UnorderedElementsAre()); // no-crash
+}
+
+TEST(DiagnosticTest, ElseAfterReturnRange) {
+  Annotations Main(R"cpp(
+    int foo(int cond) {
+    if (cond == 1) {
+      return 42;
+    } [[else]] if (cond == 2) {
+      return 43;
+    }
+    return 44;
+    }
+  )cpp");
+  TestTU TU = TestTU::withCode(Main.code());
+  TU.ClangTidyProvider = addTidyChecks("llvm-else-after-return");
+  EXPECT_THAT(
+      TU.build().getDiagnostics(),
+      ElementsAre(Diag(Main.range(), "do not use 'else' after 'return'")));
 }
 
 TEST(DiagnosticsTest, Preprocessor) {
@@ -489,6 +533,15 @@ TEST(DiagnosticsTest, Preprocessor) {
   EXPECT_THAT(
       TestTU::withCode(Test.code()).build().getDiagnostics(),
       ElementsAre(Diag(Test.range(), "use of undeclared identifier 'b'")));
+}
+
+TEST(DiagnosticsTest, IgnoreVerify) {
+  auto TU = TestTU::withCode(R"cpp(
+    int a; // expected-error {{}}
+  )cpp");
+  TU.ExtraArgs.push_back("-Xclang");
+  TU.ExtraArgs.push_back("-verify");
+  EXPECT_THAT(TU.build().getDiagnostics(), IsEmpty());
 }
 
 // Recursive main-file include is diagnosed, and doesn't crash.
@@ -826,11 +879,13 @@ void bar() {
 
   ::$global[[Global]] glob;
 }
+using Type = ns::$template[[Foo]]<int>;
   )cpp");
   auto TU = TestTU::withCode(Test.code());
   auto Index = buildIndexWithSymbol(
       {SymbolWithHeader{"ns::X", "unittest:///x.h", "\"x.h\""},
-       SymbolWithHeader{"Global", "unittest:///global.h", "\"global.h\""}});
+       SymbolWithHeader{"Global", "unittest:///global.h", "\"global.h\""},
+       SymbolWithHeader{"ns::Foo", "unittest:///foo.h", "\"foo.h\""}});
   TU.ExternalIndex = Index.get();
 
   EXPECT_THAT(
@@ -855,7 +910,12 @@ void bar() {
                      "no type named 'Global' in the global namespace"),
                 DiagName("typename_nested_not_found"),
                 WithFix(Fix(Test.range("insert"), "#include \"global.h\"\n",
-                            "Add include \"global.h\" for symbol Global")))));
+                            "Add include \"global.h\" for symbol Global"))),
+          AllOf(Diag(Test.range("template"),
+                     "no template named 'Foo' in namespace 'ns'"),
+                DiagName("no_member_template"),
+                WithFix(Fix(Test.range("insert"), "#include \"foo.h\"\n",
+                            "Add include \"foo.h\" for symbol ns::Foo")))));
 }
 
 TEST(IncludeFixerTest, MultipleMatchedSymbols) {

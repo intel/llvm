@@ -298,26 +298,26 @@ static constexpr RuntimeFunction pgmathPrecise[] = {
 
 static mlir::FunctionType genF32F32FuncType(mlir::MLIRContext *context) {
   auto t = mlir::FloatType::getF32(context);
-  return mlir::FunctionType::get({t}, {t}, context);
+  return mlir::FunctionType::get(context, {t}, {t});
 }
 
 static mlir::FunctionType genF64F64FuncType(mlir::MLIRContext *context) {
   auto t = mlir::FloatType::getF64(context);
-  return mlir::FunctionType::get({t}, {t}, context);
+  return mlir::FunctionType::get(context, {t}, {t});
 }
 
 template <int Bits>
 static mlir::FunctionType genIntF64FuncType(mlir::MLIRContext *context) {
   auto t = mlir::FloatType::getF64(context);
-  auto r = mlir::IntegerType::get(Bits, context);
-  return mlir::FunctionType::get({t}, {r}, context);
+  auto r = mlir::IntegerType::get(context, Bits);
+  return mlir::FunctionType::get(context, {t}, {r});
 }
 
 template <int Bits>
 static mlir::FunctionType genIntF32FuncType(mlir::MLIRContext *context) {
   auto t = mlir::FloatType::getF32(context);
-  auto r = mlir::IntegerType::get(Bits, context);
-  return mlir::FunctionType::get({t}, {r}, context);
+  auto r = mlir::IntegerType::get(context, Bits);
+  return mlir::FunctionType::get(context, {t}, {r});
 }
 
 // TODO : Fill-up this table with more intrinsic.
@@ -497,7 +497,7 @@ static mlir::FuncOp getFuncOp(mlir::Location loc,
                               const RuntimeFunction &runtime) {
   auto function = builder.addNamedFunction(
       loc, runtime.symbol, runtime.typeGenerator(builder.getContext()));
-  function.setAttr("fir.runtime", builder.getUnitAttr());
+  function->setAttr("fir.runtime", builder.getUnitAttr());
   return function;
 }
 
@@ -585,8 +585,8 @@ getFunctionType(mlir::Type resultType, llvm::ArrayRef<mlir::Value> arguments,
   llvm::SmallVector<mlir::Type, 2> argumentTypes;
   for (auto &arg : arguments)
     argumentTypes.push_back(arg.getType());
-  return mlir::FunctionType::get(argumentTypes, resultType,
-                                 builder.getModule().getContext());
+  return mlir::FunctionType::get(builder.getModule().getContext(),
+                                 argumentTypes, resultType);
 }
 
 /// fir::ExtendedValue to mlir::Value translation layer
@@ -769,7 +769,7 @@ mlir::FuncOp IntrinsicLibrary::getWrapper(GeneratorType generator,
   if (!function) {
     // First time this wrapper is needed, build it.
     function = builder.createFunction(loc, wrapperName, funcType);
-    function.setAttr("fir.intrinsic", builder.getUnitAttr());
+    function->setAttr("fir.intrinsic", builder.getUnitAttr());
     function.addEntryBlock();
 
     // Create local context to emit code into the newly created function
@@ -1144,7 +1144,7 @@ mlir::Value IntrinsicLibrary::genMerge(mlir::Type,
                                        llvm::ArrayRef<mlir::Value> args) {
   assert(args.size() == 3);
 
-  auto i1Type = mlir::IntegerType::get(1, builder.getContext());
+  auto i1Type = mlir::IntegerType::get(builder.getContext(), 1);
   auto mask = builder.createConvert(loc, i1Type, args[2]);
   return builder.create<mlir::SelectOp>(loc, mask, args[0], args[1]);
 }

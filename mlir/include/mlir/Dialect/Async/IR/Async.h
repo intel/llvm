@@ -14,44 +14,41 @@
 #ifndef MLIR_DIALECT_ASYNC_IR_ASYNC_H
 #define MLIR_DIALECT_ASYNC_IR_ASYNC_H
 
+#include "mlir/Dialect/Async/IR/AsyncTypes.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 
-namespace mlir {
-namespace async {
+//===----------------------------------------------------------------------===//
+// Async Dialect
+//===----------------------------------------------------------------------===//
 
-namespace detail {
-struct ValueTypeStorage;
-} // namespace detail
+#include "mlir/Dialect/Async/IR/AsyncOpsDialect.h.inc"
 
-/// The token type to represent asynchronous operation completion.
-class TokenType : public Type::TypeBase<TokenType, Type, TypeStorage> {
-public:
-  using Base::Base;
-};
-
-/// The value type to represent values returned from asynchronous operations.
-class ValueType
-    : public Type::TypeBase<ValueType, Type, detail::ValueTypeStorage> {
-public:
-  using Base::Base;
-
-  /// Get or create an async ValueType with the provided value type.
-  static ValueType get(Type valueType);
-
-  Type getValueType();
-};
-
-} // namespace async
-} // namespace mlir
+//===----------------------------------------------------------------------===//
+// Async Dialect Operations
+//===----------------------------------------------------------------------===//
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Async/IR/AsyncOps.h.inc"
 
-#include "mlir/Dialect/Async/IR/AsyncOpsDialect.h.inc"
+//===----------------------------------------------------------------------===//
+// Helper functions of Async dialect transformations.
+//===----------------------------------------------------------------------===//
+
+namespace mlir {
+namespace async {
+
+/// Returns true if the type is reference counted at runtime.
+inline bool isRefCounted(Type type) {
+  return type.isa<TokenType, ValueType, GroupType>();
+}
+
+} // namespace async
+} // namespace mlir
 
 #endif // MLIR_DIALECT_ASYNC_IR_ASYNC_H

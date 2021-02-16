@@ -122,7 +122,7 @@ A* t10() {
   return new(1, 2, 3.45, 100) A;
 }
 
-// CHECK-LABEL: define void @_Z3t11i
+// CHECK-LABEL: define{{.*}} void @_Z3t11i
 struct B { int a; };
 struct Bmemptr { int Bmemptr::* memptr; int a; };
 
@@ -146,7 +146,7 @@ void t11(int n) {
 struct Empty { };
 
 // We don't need to initialize an empty class.
-// CHECK-LABEL: define void @_Z3t12v
+// CHECK-LABEL: define{{.*}} void @_Z3t12v
 void t12() {
   // CHECK: call noalias nonnull i8* @_Znam
   // CHECK-NOT: br
@@ -160,7 +160,7 @@ void t12() {
 }
 
 // Zero-initialization
-// CHECK-LABEL: define void @_Z3t13i
+// CHECK-LABEL: define{{.*}} void @_Z3t13i
 void t13(int n) {
   // CHECK: call noalias nonnull i8* @_Znwm
   // CHECK: store i32 0, i32*
@@ -195,28 +195,28 @@ void f() {
 namespace test15 {
   struct A { A(); ~A(); };
 
-  // CHECK-LABEL:    define void @_ZN6test156test0aEPv(
+  // CHECK-LABEL:    define{{.*}} void @_ZN6test156test0aEPv(
   // CHECK:      [[P:%.*]] = load i8*, i8**
   // CHECK-NOT:  icmp eq i8* [[P]], null
   // CHECK-NOT:  br i1
   // CHECK:      [[T0:%.*]] = bitcast i8* [[P]] to [[A:%.*]]*
-  // CHECK-NEXT: call void @_ZN6test151AC1Ev([[A]]* [[T0]])
+  // CHECK-NEXT: call void @_ZN6test151AC1Ev([[A]]* {{[^,]*}} [[T0]])
   void test0a(void *p) {
     new (p) A();
   }
 
-  // CHECK-LABEL:    define void @_ZN6test156test0bEPv(
+  // CHECK-LABEL:    define{{.*}} void @_ZN6test156test0bEPv(
   // CHECK:      [[P0:%.*]] = load i8*, i8**
   // CHECK:      [[P:%.*]] = call i8* @_ZnwmPvb(i64 1, i8* [[P0]]
   // CHECK-NEXT: icmp eq i8* [[P]], null
   // CHECK-NEXT: br i1
   // CHECK:      [[T0:%.*]] = bitcast i8* [[P]] to [[A:%.*]]*
-  // CHECK-NEXT: call void @_ZN6test151AC1Ev([[A]]* [[T0]])
+  // CHECK-NEXT: call void @_ZN6test151AC1Ev([[A]]* {{[^,]*}} [[T0]])
   void test0b(void *p) {
     new (p, true) A();
   }
 
-  // CHECK-LABEL:    define void @_ZN6test156test1aEPv(
+  // CHECK-LABEL:    define{{.*}} void @_ZN6test156test1aEPv(
   // CHECK:      [[P:%.*]] = load i8*, i8**
   // CHECK-NOT:  icmp eq i8* [[P]], null
   // CHECK-NOT:  br i1
@@ -224,7 +224,7 @@ namespace test15 {
   // CHECK-NEXT: [[END:%.*]] = getelementptr inbounds [[A]], [[A]]* [[BEGIN]], i64 5
   // CHECK-NEXT: br label
   // CHECK:      [[CUR:%.*]] = phi [[A]]* [ [[BEGIN]], {{%.*}} ], [ [[NEXT:%.*]], {{%.*}} ]
-  // CHECK-NEXT: call void @_ZN6test151AC1Ev([[A]]* [[CUR]])
+  // CHECK-NEXT: call void @_ZN6test151AC1Ev([[A]]* {{[^,]*}} [[CUR]])
   // CHECK-NEXT: [[NEXT]] = getelementptr inbounds [[A]], [[A]]* [[CUR]], i64 1
   // CHECK-NEXT: [[DONE:%.*]] = icmp eq [[A]]* [[NEXT]], [[END]]
   // CHECK-NEXT: br i1 [[DONE]]
@@ -232,7 +232,7 @@ namespace test15 {
     new (p) A[5];
   }
 
-  // CHECK-LABEL:    define void @_ZN6test156test1bEPv(
+  // CHECK-LABEL:    define{{.*}} void @_ZN6test156test1bEPv(
   // CHECK:      [[P0:%.*]] = load i8*, i8**
   // CHECK:      [[P:%.*]] = call i8* @_ZnamPvb(i64 13, i8* [[P0]]
   // CHECK-NEXT: icmp eq i8* [[P]], null
@@ -242,7 +242,7 @@ namespace test15 {
   // CHECK-NEXT: [[END:%.*]] = getelementptr inbounds [[A]], [[A]]* [[BEGIN]], i64 5
   // CHECK-NEXT: br label
   // CHECK:      [[CUR:%.*]] = phi [[A]]* [ [[BEGIN]], {{%.*}} ], [ [[NEXT:%.*]], {{%.*}} ]
-  // CHECK-NEXT: call void @_ZN6test151AC1Ev([[A]]* [[CUR]])
+  // CHECK-NEXT: call void @_ZN6test151AC1Ev([[A]]* {{[^,]*}} [[CUR]])
   // CHECK-NEXT: [[NEXT]] = getelementptr inbounds [[A]], [[A]]* [[CUR]], i64 1
   // CHECK-NEXT: [[DONE:%.*]] = icmp eq [[A]]* [[NEXT]], [[END]]
   // CHECK-NEXT: br i1 [[DONE]]
@@ -252,7 +252,7 @@ namespace test15 {
 
   // TODO: it's okay if all these size calculations get dropped.
   // FIXME: maybe we should try to throw on overflow?
-  // CHECK-LABEL:    define void @_ZN6test155test2EPvi(
+  // CHECK-LABEL:    define{{.*}} void @_ZN6test155test2EPvi(
   // CHECK:      [[N:%.*]] = load i32, i32*
   // CHECK-NEXT: [[T0:%.*]] = sext i32 [[N]] to i64
   // CHECK-NEXT: [[P:%.*]] = load i8*, i8**
@@ -262,7 +262,7 @@ namespace test15 {
   // CHECK:      [[END:%.*]] = getelementptr inbounds [[A]], [[A]]* [[BEGIN]], i64 [[T0]]
   // CHECK-NEXT: br label
   // CHECK:      [[CUR:%.*]] = phi [[A]]* [ [[BEGIN]],
-  // CHECK-NEXT: call void @_ZN6test151AC1Ev([[A]]* [[CUR]])
+  // CHECK-NEXT: call void @_ZN6test151AC1Ev([[A]]* {{[^,]*}} [[CUR]])
   void test2(void *p, int n) {
     new (p) A[n];
   }
@@ -284,7 +284,7 @@ namespace PR10197 {
 namespace PR11523 {
   class MyClass;
   typedef int MyClass::* NewTy;
-  // CHECK-LABEL: define i64* @_ZN7PR115231fEv
+  // CHECK-LABEL: define{{.*}} i64* @_ZN7PR115231fEv
   // CHECK: store i64 -1
   NewTy* f() { return new NewTy[2](); }
 }
@@ -296,14 +296,14 @@ namespace PR11757 {
   // CHECK: define {{.*}} @_ZN7PR117571aEPNS_1XE
   // CHECK: [[CALL:%.*]] = call noalias nonnull i8* @_Znwm
   // CHECK-NEXT: [[CASTED:%.*]] = bitcast i8* [[CALL]] to
-  // CHECK-NEXT: call void @_ZN7PR117571XC1Ev({{.*}}* [[CASTED]])
+  // CHECK-NEXT: call void @_ZN7PR117571XC1Ev({{.*}}* {{[^,]*}} [[CASTED]])
   // CHECK-NEXT: ret {{.*}} [[CASTED]]
 }
 
 namespace PR13380 {
   struct A { A() {} };
   struct B : public A { int x; };
-  // CHECK-LABEL: define i8* @_ZN7PR133801fEv
+  // CHECK-LABEL: define{{.*}} i8* @_ZN7PR133801fEv
   // CHECK: call noalias nonnull i8* @_Znam(
   // CHECK: call void @llvm.memset.p0i8
   // CHECK-NEXT: call void @_ZN7PR133801BC1Ev
@@ -316,7 +316,7 @@ void *operator new(size_t, MyPlacementType);
 namespace N3664 {
   struct S { S() throw(int); };
 
-  // CHECK-LABEL: define void @_ZN5N36641fEv
+  // CHECK-LABEL: define{{.*}} void @_ZN5N36641fEv
   void f() {
     // CHECK: call noalias nonnull i8* @_Znwm(i64 4) [[ATTR_BUILTIN_NEW:#[^ ]*]]
     int *p = new int; // expected-note {{allocated with 'new' here}}
@@ -337,7 +337,7 @@ namespace N3664 {
 
   // CHECK: declare i8* @_ZnamRKSt9nothrow_t(i64, {{.*}}) [[ATTR_NOBUILTIN_NOUNWIND_ALLOCSIZE:#[^ ]*]]
 
-  // CHECK-LABEL: define void @_ZN5N36641gEv
+  // CHECK-LABEL: define{{.*}} void @_ZN5N36641gEv
   void g() {
     // It's OK for there to be attributes here, so long as we don't have a
     // 'builtin' attribute.
@@ -357,7 +357,7 @@ namespace N3664 {
 }
 
 namespace builtins {
-  // CHECK-LABEL: define void @_ZN8builtins1fEv
+  // CHECK-LABEL: define{{.*}} void @_ZN8builtins1fEv
   void f() {
     // CHECK: call noalias nonnull i8* @_Znwm(i64 4) [[ATTR_BUILTIN_NEW]]
     // CHECK: call void @_ZdlPv({{.*}}) [[ATTR_BUILTIN_DELETE]]

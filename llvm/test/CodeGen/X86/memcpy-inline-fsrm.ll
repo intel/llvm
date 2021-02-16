@@ -4,6 +4,7 @@
 ; RUN: llc -mtriple=x86_64-linux-gnu -x86-use-fsrm-for-memcpy -mcpu=haswell < %s | FileCheck %s --check-prefix=NOFSRM
 ; RUN: llc -mtriple=x86_64-linux-gnu -x86-use-fsrm-for-memcpy -mcpu=icelake-client < %s | FileCheck %s --check-prefix=FSRM
 ; RUN: llc -mtriple=x86_64-linux-gnu -x86-use-fsrm-for-memcpy -mcpu=icelake-server < %s | FileCheck %s --check-prefix=FSRM
+; RUN: llc -mtriple=x86_64-linux-gnu -x86-use-fsrm-for-memcpy -mcpu=znver3 < %s | FileCheck %s --check-prefix=FSRM
 
 declare void @llvm.memcpy.p0i8.p0i8.i64(i8* nocapture, i8* nocapture, i64, i1) nounwind
 
@@ -24,8 +25,8 @@ define void @test1(i8* %a, i8* %b, i64 %s) nounwind {
 ; Check that we don't crash due to a memcpy size type mismatch error ("Cannot
 ; emit physreg copy instruction") in X86InstrInfo::copyPhysReg.
 %struct = type { [4096 x i8] }
-declare void @foo(%struct* byval)
+declare void @foo(%struct* byval(%struct))
 define void @test2(%struct* %x) {
-  call void @foo(%struct* byval %x)
+  call void @foo(%struct* byval(%struct) %x)
   ret void
 }

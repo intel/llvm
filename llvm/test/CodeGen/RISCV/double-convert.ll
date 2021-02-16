@@ -136,9 +136,9 @@ define i64 @fcvt_l_d(double %a) nounwind {
 ; RV32IFD-LABEL: fcvt_l_d:
 ; RV32IFD:       # %bb.0:
 ; RV32IFD-NEXT:    addi sp, sp, -16
-; RV32IFD-NEXT:    sw ra, 12(sp)
-; RV32IFD-NEXT:    call __fixdfdi
-; RV32IFD-NEXT:    lw ra, 12(sp)
+; RV32IFD-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
+; RV32IFD-NEXT:    call __fixdfdi@plt
+; RV32IFD-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32IFD-NEXT:    addi sp, sp, 16
 ; RV32IFD-NEXT:    ret
 ;
@@ -155,9 +155,9 @@ define i64 @fcvt_lu_d(double %a) nounwind {
 ; RV32IFD-LABEL: fcvt_lu_d:
 ; RV32IFD:       # %bb.0:
 ; RV32IFD-NEXT:    addi sp, sp, -16
-; RV32IFD-NEXT:    sw ra, 12(sp)
-; RV32IFD-NEXT:    call __fixunsdfdi
-; RV32IFD-NEXT:    lw ra, 12(sp)
+; RV32IFD-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
+; RV32IFD-NEXT:    call __fixunsdfdi@plt
+; RV32IFD-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32IFD-NEXT:    addi sp, sp, 16
 ; RV32IFD-NEXT:    ret
 ;
@@ -203,9 +203,9 @@ define double @fcvt_d_l(i64 %a) nounwind {
 ; RV32IFD-LABEL: fcvt_d_l:
 ; RV32IFD:       # %bb.0:
 ; RV32IFD-NEXT:    addi sp, sp, -16
-; RV32IFD-NEXT:    sw ra, 12(sp)
-; RV32IFD-NEXT:    call __floatdidf
-; RV32IFD-NEXT:    lw ra, 12(sp)
+; RV32IFD-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
+; RV32IFD-NEXT:    call __floatdidf@plt
+; RV32IFD-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32IFD-NEXT:    addi sp, sp, 16
 ; RV32IFD-NEXT:    ret
 ;
@@ -222,9 +222,9 @@ define double @fcvt_d_lu(i64 %a) nounwind {
 ; RV32IFD-LABEL: fcvt_d_lu:
 ; RV32IFD:       # %bb.0:
 ; RV32IFD-NEXT:    addi sp, sp, -16
-; RV32IFD-NEXT:    sw ra, 12(sp)
-; RV32IFD-NEXT:    call __floatundidf
-; RV32IFD-NEXT:    lw ra, 12(sp)
+; RV32IFD-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
+; RV32IFD-NEXT:    call __floatundidf@plt
+; RV32IFD-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32IFD-NEXT:    addi sp, sp, 16
 ; RV32IFD-NEXT:    ret
 ;
@@ -266,4 +266,84 @@ define double @fmv_d_x(i64 %a, i64 %b) nounwind {
   %2 = bitcast i64 %b to double
   %3 = fadd double %1, %2
   ret double %3
+}
+
+define double @fcvt_d_w_i8(i8 signext %a) nounwind {
+; RV32IFD-LABEL: fcvt_d_w_i8:
+; RV32IFD:       # %bb.0:
+; RV32IFD-NEXT:    addi sp, sp, -16
+; RV32IFD-NEXT:    fcvt.d.w ft0, a0
+; RV32IFD-NEXT:    fsd ft0, 8(sp)
+; RV32IFD-NEXT:    lw a0, 8(sp)
+; RV32IFD-NEXT:    lw a1, 12(sp)
+; RV32IFD-NEXT:    addi sp, sp, 16
+; RV32IFD-NEXT:    ret
+;
+; RV64IFD-LABEL: fcvt_d_w_i8:
+; RV64IFD:       # %bb.0:
+; RV64IFD-NEXT:    fcvt.d.w ft0, a0
+; RV64IFD-NEXT:    fmv.x.d a0, ft0
+; RV64IFD-NEXT:    ret
+  %1 = sitofp i8 %a to double
+  ret double %1
+}
+
+define double @fcvt_d_wu_i8(i8 zeroext %a) nounwind {
+; RV32IFD-LABEL: fcvt_d_wu_i8:
+; RV32IFD:       # %bb.0:
+; RV32IFD-NEXT:    addi sp, sp, -16
+; RV32IFD-NEXT:    fcvt.d.wu ft0, a0
+; RV32IFD-NEXT:    fsd ft0, 8(sp)
+; RV32IFD-NEXT:    lw a0, 8(sp)
+; RV32IFD-NEXT:    lw a1, 12(sp)
+; RV32IFD-NEXT:    addi sp, sp, 16
+; RV32IFD-NEXT:    ret
+;
+; RV64IFD-LABEL: fcvt_d_wu_i8:
+; RV64IFD:       # %bb.0:
+; RV64IFD-NEXT:    fcvt.d.wu ft0, a0
+; RV64IFD-NEXT:    fmv.x.d a0, ft0
+; RV64IFD-NEXT:    ret
+  %1 = uitofp i8 %a to double
+  ret double %1
+}
+
+define double @fcvt_d_w_i16(i16 signext %a) nounwind {
+; RV32IFD-LABEL: fcvt_d_w_i16:
+; RV32IFD:       # %bb.0:
+; RV32IFD-NEXT:    addi sp, sp, -16
+; RV32IFD-NEXT:    fcvt.d.w ft0, a0
+; RV32IFD-NEXT:    fsd ft0, 8(sp)
+; RV32IFD-NEXT:    lw a0, 8(sp)
+; RV32IFD-NEXT:    lw a1, 12(sp)
+; RV32IFD-NEXT:    addi sp, sp, 16
+; RV32IFD-NEXT:    ret
+;
+; RV64IFD-LABEL: fcvt_d_w_i16:
+; RV64IFD:       # %bb.0:
+; RV64IFD-NEXT:    fcvt.d.w ft0, a0
+; RV64IFD-NEXT:    fmv.x.d a0, ft0
+; RV64IFD-NEXT:    ret
+  %1 = sitofp i16 %a to double
+  ret double %1
+}
+
+define double @fcvt_d_wu_i16(i16 zeroext %a) nounwind {
+; RV32IFD-LABEL: fcvt_d_wu_i16:
+; RV32IFD:       # %bb.0:
+; RV32IFD-NEXT:    addi sp, sp, -16
+; RV32IFD-NEXT:    fcvt.d.wu ft0, a0
+; RV32IFD-NEXT:    fsd ft0, 8(sp)
+; RV32IFD-NEXT:    lw a0, 8(sp)
+; RV32IFD-NEXT:    lw a1, 12(sp)
+; RV32IFD-NEXT:    addi sp, sp, 16
+; RV32IFD-NEXT:    ret
+;
+; RV64IFD-LABEL: fcvt_d_wu_i16:
+; RV64IFD:       # %bb.0:
+; RV64IFD-NEXT:    fcvt.d.wu ft0, a0
+; RV64IFD-NEXT:    fmv.x.d a0, ft0
+; RV64IFD-NEXT:    ret
+  %1 = uitofp i16 %a to double
+  ret double %1
 }

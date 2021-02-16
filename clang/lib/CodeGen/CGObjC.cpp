@@ -23,6 +23,7 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/BinaryFormat/MachO.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/InlineAsm.h"
 using namespace clang;
@@ -2220,6 +2221,12 @@ static llvm::Value *emitObjCValueOperation(CodeGenFunction &CGF,
   // Call the function.
   llvm::CallBase *Inst = CGF.EmitCallOrInvoke(fn, value);
 
+  // Mark calls to objc_autorelease as tail on the assumption that methods
+  // overriding autorelease do not touch anything on the stack.
+  if (fnName == "objc_autorelease")
+    if (auto *Call = dyn_cast<llvm::CallInst>(Inst))
+      Call->setTailCall();
+
   // Cast the result back to the original type.
   return CGF.Builder.CreateBitCast(Inst, origType);
 }
@@ -2887,45 +2894,57 @@ typedef llvm::function_ref<llvm::Value *(CodeGenFunction &CGF,
   ValueTransform;
 
 /// Insert code immediately after a call.
+
+// FIXME: We should find a way to emit the runtime call immediately
+// after the call is emitted to eliminate the need for this function.
 static llvm::Value *emitARCOperationAfterCall(CodeGenFunction &CGF,
                                               llvm::Value *value,
                                               ValueTransform doAfterCall,
                                               ValueTransform doFallback) {
-  if (llvm::CallInst *call = dyn_cast<llvm::CallInst>(value)) {
-    CGBuilderTy::InsertPoint ip = CGF.Builder.saveIP();
+  CGBuilderTy::InsertPoint ip = CGF.Builder.saveIP();
 
+  if (llvm::CallInst *call = dyn_cast<llvm::CallInst>(value)) {
     // Place the retain immediately following the call.
     CGF.Builder.SetInsertPoint(call->getParent(),
                                ++llvm::BasicBlock::iterator(call));
     value = doAfterCall(CGF, value);
-
-    CGF.Builder.restoreIP(ip);
-    return value;
   } else if (llvm::InvokeInst *invoke = dyn_cast<llvm::InvokeInst>(value)) {
-    CGBuilderTy::InsertPoint ip = CGF.Builder.saveIP();
-
     // Place the retain at the beginning of the normal destination block.
     llvm::BasicBlock *BB = invoke->getNormalDest();
     CGF.Builder.SetInsertPoint(BB, BB->begin());
     value = doAfterCall(CGF, value);
 
-    CGF.Builder.restoreIP(ip);
-    return value;
-
   // Bitcasts can arise because of related-result returns.  Rewrite
   // the operand.
   } else if (llvm::BitCastInst *bitcast = dyn_cast<llvm::BitCastInst>(value)) {
+    // Change the insert point to avoid emitting the fall-back call after the
+    // bitcast.
+    CGF.Builder.SetInsertPoint(bitcast->getParent(), bitcast->getIterator());
     llvm::Value *operand = bitcast->getOperand(0);
     operand = emitARCOperationAfterCall(CGF, operand, doAfterCall, doFallback);
     bitcast->setOperand(0, operand);
-    return bitcast;
-
-  // Generic fall-back case.
+    value = bitcast;
   } else {
-    // Retain using the non-block variant: we never need to do a copy
-    // of a block that's been returned to us.
-    return doFallback(CGF, value);
+    auto *phi = dyn_cast<llvm::PHINode>(value);
+    if (phi && phi->getNumIncomingValues() == 2 &&
+        isa<llvm::ConstantPointerNull>(phi->getIncomingValue(1)) &&
+        isa<llvm::CallBase>(phi->getIncomingValue(0))) {
+      // Handle phi instructions that are generated when it's necessary to check
+      // whether the receiver of a message is null.
+      llvm::Value *inVal = phi->getIncomingValue(0);
+      inVal = emitARCOperationAfterCall(CGF, inVal, doAfterCall, doFallback);
+      phi->setIncomingValue(0, inVal);
+      value = phi;
+    } else {
+      // Generic fall-back case.
+      // Retain using the non-block variant: we never need to do a copy
+      // of a block that's been returned to us.
+      value = doFallback(CGF, value);
+    }
   }
+
+  CGF.Builder.restoreIP(ip);
+  return value;
 }
 
 /// Given that the given expression is some sort of call (which does
@@ -3814,9 +3833,61 @@ CodeGenFunction::EmitBlockCopyAndAutorelease(llvm::Value *Block, QualType Ty) {
   return Val;
 }
 
+static unsigned getBaseMachOPlatformID(const llvm::Triple &TT) {
+  switch (TT.getOS()) {
+  case llvm::Triple::Darwin:
+  case llvm::Triple::MacOSX:
+    return llvm::MachO::PLATFORM_MACOS;
+  case llvm::Triple::IOS:
+    return llvm::MachO::PLATFORM_IOS;
+  case llvm::Triple::TvOS:
+    return llvm::MachO::PLATFORM_TVOS;
+  case llvm::Triple::WatchOS:
+    return llvm::MachO::PLATFORM_WATCHOS;
+  default:
+    return /*Unknown platform*/ 0;
+  }
+}
+
+static llvm::Value *emitIsPlatformVersionAtLeast(CodeGenFunction &CGF,
+                                                 const VersionTuple &Version) {
+  CodeGenModule &CGM = CGF.CGM;
+  // Note: we intend to support multi-platform version checks, so reserve
+  // the room for a dual platform checking invocation that will be
+  // implemented in the future.
+  llvm::SmallVector<llvm::Value *, 8> Args;
+
+  auto EmitArgs = [&](const VersionTuple &Version, const llvm::Triple &TT) {
+    Optional<unsigned> Min = Version.getMinor(), SMin = Version.getSubminor();
+    Args.push_back(
+        llvm::ConstantInt::get(CGM.Int32Ty, getBaseMachOPlatformID(TT)));
+    Args.push_back(llvm::ConstantInt::get(CGM.Int32Ty, Version.getMajor()));
+    Args.push_back(llvm::ConstantInt::get(CGM.Int32Ty, Min ? *Min : 0));
+    Args.push_back(llvm::ConstantInt::get(CGM.Int32Ty, SMin ? *SMin : 0));
+  };
+
+  assert(!Version.empty() && "unexpected empty version");
+  EmitArgs(Version, CGM.getTarget().getTriple());
+
+  if (!CGM.IsPlatformVersionAtLeastFn) {
+    llvm::FunctionType *FTy = llvm::FunctionType::get(
+        CGM.Int32Ty, {CGM.Int32Ty, CGM.Int32Ty, CGM.Int32Ty, CGM.Int32Ty},
+        false);
+    CGM.IsPlatformVersionAtLeastFn =
+        CGM.CreateRuntimeFunction(FTy, "__isPlatformVersionAtLeast");
+  }
+
+  llvm::Value *Check =
+      CGF.EmitNounwindRuntimeCall(CGM.IsPlatformVersionAtLeastFn, Args);
+  return CGF.Builder.CreateICmpNE(Check,
+                                  llvm::Constant::getNullValue(CGM.Int32Ty));
+}
+
 llvm::Value *
-CodeGenFunction::EmitBuiltinAvailable(ArrayRef<llvm::Value *> Args) {
-  assert(Args.size() == 3 && "Expected 3 argument here!");
+CodeGenFunction::EmitBuiltinAvailable(const VersionTuple &Version) {
+  // Darwin uses the new __isPlatformVersionAtLeast family of routines.
+  if (CGM.getTarget().getTriple().isOSDarwin())
+    return emitIsPlatformVersionAtLeast(*this, Version);
 
   if (!CGM.IsOSVersionAtLeastFn) {
     llvm::FunctionType *FTy =
@@ -3825,17 +3896,50 @@ CodeGenFunction::EmitBuiltinAvailable(ArrayRef<llvm::Value *> Args) {
         CGM.CreateRuntimeFunction(FTy, "__isOSVersionAtLeast");
   }
 
+  Optional<unsigned> Min = Version.getMinor(), SMin = Version.getSubminor();
+  llvm::Value *Args[] = {
+      llvm::ConstantInt::get(CGM.Int32Ty, Version.getMajor()),
+      llvm::ConstantInt::get(CGM.Int32Ty, Min ? *Min : 0),
+      llvm::ConstantInt::get(CGM.Int32Ty, SMin ? *SMin : 0),
+  };
+
   llvm::Value *CallRes =
       EmitNounwindRuntimeCall(CGM.IsOSVersionAtLeastFn, Args);
 
   return Builder.CreateICmpNE(CallRes, llvm::Constant::getNullValue(Int32Ty));
 }
 
+static bool isFoundationNeededForDarwinAvailabilityCheck(
+    const llvm::Triple &TT, const VersionTuple &TargetVersion) {
+  VersionTuple FoundationDroppedInVersion;
+  switch (TT.getOS()) {
+  case llvm::Triple::IOS:
+  case llvm::Triple::TvOS:
+    FoundationDroppedInVersion = VersionTuple(/*Major=*/13);
+    break;
+  case llvm::Triple::WatchOS:
+    FoundationDroppedInVersion = VersionTuple(/*Major=*/6);
+    break;
+  case llvm::Triple::Darwin:
+  case llvm::Triple::MacOSX:
+    FoundationDroppedInVersion = VersionTuple(/*Major=*/10, /*Minor=*/15);
+    break;
+  default:
+    llvm_unreachable("Unexpected OS");
+  }
+  return TargetVersion < FoundationDroppedInVersion;
+}
+
 void CodeGenModule::emitAtAvailableLinkGuard() {
-  if (!IsOSVersionAtLeastFn)
+  if (!IsPlatformVersionAtLeastFn)
     return;
   // @available requires CoreFoundation only on Darwin.
   if (!Target.getTriple().isOSDarwin())
+    return;
+  // @available doesn't need Foundation on macOS 10.15+, iOS/tvOS 13+, or
+  // watchOS 6+.
+  if (!isFoundationNeededForDarwinAvailabilityCheck(
+          Target.getTriple(), Target.getPlatformMinVersion()))
     return;
   // Add -framework CoreFoundation to the linker commands. We still want to
   // emit the core foundation reference down below because otherwise if

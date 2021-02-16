@@ -61,7 +61,8 @@ SlabTuple indexSymbols(ASTContext &AST, std::shared_ptr<Preprocessor> PP,
   // We only need declarations, because we don't count references.
   IndexOpts.SystemSymbolFilter =
       index::IndexingOptions::SystemSymbolFilterKind::DeclarationsOnly;
-  IndexOpts.IndexFunctionLocals = false;
+  // We index function-local classes and its member functions only.
+  IndexOpts.IndexFunctionLocals = true;
   if (IsIndexMainAST) {
     // We only collect refs when indexing main AST.
     CollectorOpts.RefFilter = RefKind::All;
@@ -266,11 +267,14 @@ FileSymbols::buildIndex(IndexType Type, DuplicateHandling DuplicateHandle,
   std::vector<std::shared_ptr<SymbolSlab>> SymbolSlabs;
   std::vector<std::shared_ptr<RefSlab>> RefSlabs;
   std::vector<std::shared_ptr<RelationSlab>> RelationSlabs;
+  llvm::StringSet<> Files;
   std::vector<RefSlab *> MainFileRefs;
   {
     std::lock_guard<std::mutex> Lock(Mutex);
-    for (const auto &FileAndSymbols : SymbolsSnapshot)
+    for (const auto &FileAndSymbols : SymbolsSnapshot) {
       SymbolSlabs.push_back(FileAndSymbols.second);
+      Files.insert(FileAndSymbols.first());
+    }
     for (const auto &FileAndRefs : RefsSnapshot) {
       RefSlabs.push_back(FileAndRefs.second.Slab);
       if (FileAndRefs.second.CountReferences)
@@ -366,22 +370,20 @@ FileSymbols::buildIndex(IndexType Type, DuplicateHandling DuplicateHandle,
     StorageSize += Slab->bytes();
   for (const auto &RefSlab : RefSlabs)
     StorageSize += RefSlab->bytes();
-  for (const auto &RelationSlab : RelationSlabs)
-    StorageSize += RelationSlab->bytes();
 
   // Index must keep the slabs and contiguous ranges alive.
   switch (Type) {
   case IndexType::Light:
     return std::make_unique<MemIndex>(
         llvm::make_pointee_range(AllSymbols), std::move(AllRefs),
-        std::move(AllRelations),
+        std::move(AllRelations), std::move(Files),
         std::make_tuple(std::move(SymbolSlabs), std::move(RefSlabs),
                         std::move(RefsStorage), std::move(SymsStorage)),
         StorageSize);
   case IndexType::Heavy:
     return std::make_unique<dex::Dex>(
         llvm::make_pointee_range(AllSymbols), std::move(AllRefs),
-        std::move(AllRelations),
+        std::move(AllRelations), std::move(Files),
         std::make_tuple(std::move(SymbolSlabs), std::move(RefSlabs),
                         std::move(RefsStorage), std::move(SymsStorage)),
         StorageSize);

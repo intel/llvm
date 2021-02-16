@@ -1,3 +1,5 @@
+add_subdirectory(SPIRV)
+
 add_mlir_translation_library(MLIRTargetLLVMIRModuleTranslation
   LLVMIR/DebugTranslation.cpp
   LLVMIR/ModuleTranslation.cpp
@@ -52,6 +54,44 @@ add_mlir_translation_library(MLIRTargetLLVMIR
   IRReader
 
   LINK_LIBS PUBLIC
+  MLIRTargetLLVMIRModuleTranslation
+  )
+
+add_mlir_translation_library(MLIRTargetArmNeon
+  LLVMIR/LLVMArmNeonIntr.cpp
+
+  ADDITIONAL_HEADER_DIRS
+  ${MLIR_MAIN_INCLUDE_DIR}/mlir/Target/LLVMIR
+
+  DEPENDS
+  MLIRLLVMArmNeonConversionsIncGen
+
+  LINK_COMPONENTS
+  Core
+
+  LINK_LIBS PUBLIC
+  MLIRIR
+  MLIRLLVMArmNeon
+  MLIRLLVMIR
+  MLIRTargetLLVMIRModuleTranslation
+  )
+
+add_mlir_translation_library(MLIRTargetArmSVE
+  LLVMIR/LLVMArmSVEIntr.cpp
+
+  ADDITIONAL_HEADER_DIRS
+  ${MLIR_MAIN_INCLUDE_DIR}/mlir/Target/LLVMIR
+
+  DEPENDS
+  MLIRLLVMArmSVEConversionsIncGen
+
+  LINK_COMPONENTS
+  Core
+
+  LINK_LIBS PUBLIC
+  MLIRIR
+  MLIRLLVMArmSVE
+  MLIRLLVMIR
   MLIRTargetLLVMIRModuleTranslation
   )
 

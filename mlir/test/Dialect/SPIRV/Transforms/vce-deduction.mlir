@@ -27,7 +27,7 @@ spv.module Logical GLSL450 attributes {
     #spv.vce<v1.5, [Shader, GroupNonUniformBallot], []>, {}>
 } {
   spv.func @group_non_uniform_ballot(%predicate : i1) -> vector<4xi32> "None" {
-    %0 = spv.GroupNonUniformBallot "Workgroup" %predicate : vector<4xi32>
+    %0 = spv.GroupNonUniformBallot Workgroup %predicate : vector<4xi32>
     spv.ReturnValue %0: vector<4xi32>
   }
 }
@@ -118,6 +118,18 @@ spv.module Logical GLSL450 attributes {
   spv.func @fadd_function(%val : f16) -> f16 "None" {
     %0 = spv.FAdd %val, %val : f16
     spv.ReturnValue %0: f16
+  }
+}
+
+// Using 16-element vectors requires Vector16.
+// CHECK: requires #spv.vce<v1.0, [Vector16, Shader], []>
+spv.module Logical GLSL450 attributes {
+  spv.target_env = #spv.target_env<
+    #spv.vce<v1.3, [Shader, Vector16], []>, {}>
+} {
+  spv.func @iadd_v16_function(%val : vector<16xi32>) -> vector<16xi32> "None" {
+    %0 = spv.IAdd %val, %val : vector<16xi32>
+    spv.ReturnValue %0: vector<16xi32>
   }
 }
 

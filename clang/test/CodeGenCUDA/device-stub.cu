@@ -28,11 +28,11 @@
 // RUN: %clang_cc1 -triple x86_64-linux-gnu -emit-llvm %s \
 // RUN:     -target-sdk-version=9.2 -fgpu-rdc -fcuda-include-gpubinary %t -o - \
 // RUN:   | FileCheck %s -allow-deprecated-dag-overlap \
-// RUN:       --check-prefixes=ALL,LNX,RDC,CUDA,CUDARDC,CUDA_NEW
+// RUN:       --check-prefixes=ALL,LNX,RDC,CUDA,CUDARDC,CUDA-NEW
 // RUN: %clang_cc1 -triple x86_64-linux-gnu -emit-llvm %s -std=c++17 \
 // RUN:     -target-sdk-version=9.2 -fgpu-rdc -fcuda-include-gpubinary %t -o - \
 // RUN:   | FileCheck %s -allow-deprecated-dag-overlap \
-// RUN:       --check-prefixes=ALL,LNX,RDC,CUDA,CUDARDC,CUDA_NEW,LNX_17
+// RUN:       --check-prefixes=ALL,LNX,RDC,CUDA,CUDARDC,CUDA-NEW,LNX_17
 // RUN: %clang_cc1 -triple x86_64-linux-gnu -emit-llvm %s \
 // RUN:     -target-sdk-version=9.2 -o - \
 // RUN:   | FileCheck -allow-deprecated-dag-overlap %s -check-prefix=NOGPUBIN
@@ -69,7 +69,7 @@ __constant__ int constant_var;
 __shared__ int shared_var;
 
 // Make sure host globals don't get internalized...
-// LNX-DAG: @host_var = global i32
+// LNX-DAG: @host_var ={{.*}} global i32
 // WIN-DAG: @"?host_var@@3HA" = dso_local global i32
 int host_var;
 // ... and that extern vars remain external.
@@ -156,7 +156,7 @@ void use_pointers() {
 // * Make sure our constructor was added to global ctor list.
 // LNX: @llvm.global_ctors = appending global {{.*}}@__[[PREFIX]]_module_ctor
 // * Alias to global symbol containing the NVModuleID.
-// RDC: @__fatbinwrap[[MODULE_ID]] = alias { i32, i32, i8*, i8* }
+// RDC: @__fatbinwrap[[MODULE_ID]] ={{.*}} alias { i32, i32, i8*, i8* }
 // RDC-SAME: { i32, i32, i8*, i8* }* @__[[PREFIX]]_fatbin_wrapper
 
 // Test that we build the correct number of calls to cudaSetupArgument followed

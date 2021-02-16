@@ -5,6 +5,9 @@ exp mrt8 v3, v2, v1, v0
 // GCN: :5: error: invalid exp target
 
 exp pos4 v3, v2, v1, v0
+// GCN: :5: error: exp target is not supported on this GPU
+
+exp pos5 v3, v2, v1, v0
 // GCN: :5: error: invalid exp target
 
 exp param32 v3, v2, v1, v0
@@ -23,28 +26,37 @@ exp invalid_target_11 v3, v2, v1, v0 done
 // GCN: :5: error: invalid exp target
 
 exp mrt-1 v3, v2, v1, v0
-// GCN: :5: error: failed parsing operand
+// GCN: :5: error: invalid exp target
 
 exp mrtX v3, v2, v1, v0
-// GCN: :5: error: failed parsing operand
+// GCN: :5: error: invalid exp target
 
 exp pos-1 v3, v2, v1, v0
-// GCN: :5: error: failed parsing operand
+// GCN: :5: error: invalid exp target
 
 exp posX v3, v2, v1, v0
-// GCN: :5: error: failed parsing operand
+// GCN: :5: error: invalid exp target
 
 exp param-1 v3, v2, v1, v0
-// GCN: :5: error: failed parsing operand
+// GCN: :5: error: invalid exp target
 
 exp paramX v3, v2, v1, v0
-// GCN: :5: error: failed parsing operand
+// GCN: :5: error: invalid exp target
 
 exp invalid_target_-1 v3, v2, v1, v0
-// GCN: :5: error: failed parsing operand
+// GCN: :5: error: invalid exp target
 
 exp invalid_target_X v3, v2, v1, v0
-// GCN: :5: error: failed parsing operand
+// GCN: :5: error: invalid exp target
+
+exp 0 v3, v2, v1, v0
+// GCN: :5: error: invalid operand for instruction
+
+exp , v3, v2, v1, v0
+// GCN: :5: error: unknown token in expression
+
+exp
+// GCN: :1: error: too few operands for instruction
 
 exp mrt0 s0, v0, v0, v0
 // GCN: 10: error: invalid operand for instruction

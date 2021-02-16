@@ -25,8 +25,8 @@ define i32 @add_i32(i32* nocapture readonly %x, i32 %n) {
 ; CHECK-NEXT:    subs r0, r3, #4
 ; CHECK-NEXT:    add.w lr, r2, r0, lsr #2
 ; CHECK-NEXT:    movs r0, #0
-; CHECK-NEXT:    mov r2, r12
 ; CHECK-NEXT:    dls lr, lr
+; CHECK-NEXT:    mov r2, r12
 ; CHECK-NEXT:  .LBB0_5: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q0, [r2], #16
@@ -38,12 +38,12 @@ define i32 @add_i32(i32* nocapture readonly %x, i32 %n) {
 ; CHECK-NEXT:    popeq {r7, pc}
 ; CHECK-NEXT:  .LBB0_7: @ %for.body.preheader1
 ; CHECK-NEXT:    sub.w lr, r1, r3
-; CHECK-NEXT:    add.w r1, r12, r3, lsl #2
+; CHECK-NEXT:    add.w r2, r12, r3, lsl #2
 ; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB0_8: @ %for.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    ldr r2, [r1], #4
-; CHECK-NEXT:    add r0, r2
+; CHECK-NEXT:    ldr r1, [r2], #4
+; CHECK-NEXT:    add r0, r1
 ; CHECK-NEXT:    le lr, .LBB0_8
 ; CHECK-NEXT:  .LBB0_9: @ %for.cond.cleanup
 ; CHECK-NEXT:    pop {r7, pc}
@@ -811,8 +811,8 @@ define i32 @smin_i32_inloop(i32* nocapture readonly %x, i32 %n) {
 ; CHECK-NEXT:    subs r0, r3, #4
 ; CHECK-NEXT:    add.w lr, r2, r0, lsr #2
 ; CHECK-NEXT:    mvn r0, #-2147483648
-; CHECK-NEXT:    mov r2, r12
 ; CHECK-NEXT:    dls lr, lr
+; CHECK-NEXT:    mov r2, r12
 ; CHECK-NEXT:  .LBB8_5: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q0, [r2], #16
@@ -824,13 +824,13 @@ define i32 @smin_i32_inloop(i32* nocapture readonly %x, i32 %n) {
 ; CHECK-NEXT:    popeq {r7, pc}
 ; CHECK-NEXT:  .LBB8_7: @ %for.body.preheader1
 ; CHECK-NEXT:    sub.w lr, r1, r3
-; CHECK-NEXT:    add.w r1, r12, r3, lsl #2
+; CHECK-NEXT:    add.w r2, r12, r3, lsl #2
 ; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB8_8: @ %for.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    ldr r2, [r1], #4
-; CHECK-NEXT:    cmp r0, r2
-; CHECK-NEXT:    csel r0, r0, r2, lt
+; CHECK-NEXT:    ldr r1, [r2], #4
+; CHECK-NEXT:    cmp r0, r1
+; CHECK-NEXT:    csel r0, r0, r1, lt
 ; CHECK-NEXT:    le lr, .LBB8_8
 ; CHECK-NEXT:  .LBB8_9: @ %for.cond.cleanup
 ; CHECK-NEXT:    pop {r7, pc}
@@ -1007,8 +1007,8 @@ define i32 @smax_i32_inloop(i32* nocapture readonly %x, i32 %n) {
 ; CHECK-NEXT:    subs r0, r3, #4
 ; CHECK-NEXT:    add.w lr, r2, r0, lsr #2
 ; CHECK-NEXT:    mov.w r0, #-2147483648
-; CHECK-NEXT:    mov r2, r12
 ; CHECK-NEXT:    dls lr, lr
+; CHECK-NEXT:    mov r2, r12
 ; CHECK-NEXT:  .LBB10_5: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q0, [r2], #16
@@ -1020,13 +1020,13 @@ define i32 @smax_i32_inloop(i32* nocapture readonly %x, i32 %n) {
 ; CHECK-NEXT:    popeq {r7, pc}
 ; CHECK-NEXT:  .LBB10_7: @ %for.body.preheader1
 ; CHECK-NEXT:    sub.w lr, r1, r3
-; CHECK-NEXT:    add.w r1, r12, r3, lsl #2
+; CHECK-NEXT:    add.w r2, r12, r3, lsl #2
 ; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB10_8: @ %for.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    ldr r2, [r1], #4
-; CHECK-NEXT:    cmp r0, r2
-; CHECK-NEXT:    csel r0, r0, r2, gt
+; CHECK-NEXT:    ldr r1, [r2], #4
+; CHECK-NEXT:    cmp r0, r1
+; CHECK-NEXT:    csel r0, r0, r1, gt
 ; CHECK-NEXT:    le lr, .LBB10_8
 ; CHECK-NEXT:  .LBB10_9: @ %for.cond.cleanup
 ; CHECK-NEXT:    pop {r7, pc}
@@ -1203,8 +1203,8 @@ define i32 @umin_i32_inloop(i32* nocapture readonly %x, i32 %n) {
 ; CHECK-NEXT:    subs r0, r3, #4
 ; CHECK-NEXT:    add.w lr, r2, r0, lsr #2
 ; CHECK-NEXT:    mov.w r0, #-1
-; CHECK-NEXT:    mov r2, r12
 ; CHECK-NEXT:    dls lr, lr
+; CHECK-NEXT:    mov r2, r12
 ; CHECK-NEXT:  .LBB12_5: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q0, [r2], #16
@@ -1216,13 +1216,13 @@ define i32 @umin_i32_inloop(i32* nocapture readonly %x, i32 %n) {
 ; CHECK-NEXT:    popeq {r7, pc}
 ; CHECK-NEXT:  .LBB12_7: @ %for.body.preheader1
 ; CHECK-NEXT:    sub.w lr, r1, r3
-; CHECK-NEXT:    add.w r1, r12, r3, lsl #2
+; CHECK-NEXT:    add.w r2, r12, r3, lsl #2
 ; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB12_8: @ %for.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    ldr r2, [r1], #4
-; CHECK-NEXT:    cmp r0, r2
-; CHECK-NEXT:    csel r0, r0, r2, hi
+; CHECK-NEXT:    ldr r1, [r2], #4
+; CHECK-NEXT:    cmp r0, r1
+; CHECK-NEXT:    csel r0, r0, r1, hi
 ; CHECK-NEXT:    le lr, .LBB12_8
 ; CHECK-NEXT:  .LBB12_9: @ %for.cond.cleanup
 ; CHECK-NEXT:    pop {r7, pc}
@@ -1399,8 +1399,8 @@ define i32 @umax_i32_inloop(i32* nocapture readonly %x, i32 %n) {
 ; CHECK-NEXT:    subs r0, r3, #4
 ; CHECK-NEXT:    add.w lr, r2, r0, lsr #2
 ; CHECK-NEXT:    movs r0, #0
-; CHECK-NEXT:    mov r2, r12
 ; CHECK-NEXT:    dls lr, lr
+; CHECK-NEXT:    mov r2, r12
 ; CHECK-NEXT:  .LBB14_5: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q0, [r2], #16
@@ -1412,13 +1412,13 @@ define i32 @umax_i32_inloop(i32* nocapture readonly %x, i32 %n) {
 ; CHECK-NEXT:    popeq {r7, pc}
 ; CHECK-NEXT:  .LBB14_7: @ %for.body.preheader1
 ; CHECK-NEXT:    sub.w lr, r1, r3
-; CHECK-NEXT:    add.w r1, r12, r3, lsl #2
+; CHECK-NEXT:    add.w r2, r12, r3, lsl #2
 ; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB14_8: @ %for.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    ldr r2, [r1], #4
-; CHECK-NEXT:    cmp r0, r2
-; CHECK-NEXT:    csel r0, r0, r2, hi
+; CHECK-NEXT:    ldr r1, [r2], #4
+; CHECK-NEXT:    cmp r0, r1
+; CHECK-NEXT:    csel r0, r0, r1, hi
 ; CHECK-NEXT:    le lr, .LBB14_8
 ; CHECK-NEXT:  .LBB14_9: @ %for.cond.cleanup
 ; CHECK-NEXT:    pop {r7, pc}

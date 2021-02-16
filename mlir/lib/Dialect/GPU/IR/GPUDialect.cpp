@@ -16,12 +16,13 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/FunctionImplementation.h"
-#include "mlir/IR/Module.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/TypeUtilities.h"
 #include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
@@ -80,13 +81,13 @@ LogicalResult GPUDialect::verifyOperationAttribute(Operation *op,
   auto walkResult = module.walk([&module](LaunchFuncOp launchOp) -> WalkResult {
     // Ignore launches that are nested more or less deep than functions in the
     // module we are currently checking.
-    if (!launchOp.getParentOp() ||
-        launchOp.getParentOp()->getParentOp() != module)
+    if (!launchOp->getParentOp() ||
+        launchOp->getParentOp()->getParentOp() != module)
       return success();
 
     // Ignore launch ops with missing attributes here. The errors will be
     // reported by the verifiers of those ops.
-    if (!launchOp.getAttrOfType<SymbolRefAttr>(
+    if (!launchOp->getAttrOfType<SymbolRefAttr>(
             LaunchFuncOp::getKernelAttrName()))
       return success();
 
@@ -434,14 +435,19 @@ void LaunchFuncOp::build(OpBuilder &builder, OperationState &result,
   result.addOperands({gridSize.x, gridSize.y, gridSize.z, blockSize.x,
                       blockSize.y, blockSize.z});
   result.addOperands(kernelOperands);
-  auto kernelModule = kernelFunc.getParentOfType<GPUModuleOp>();
+  auto kernelModule = kernelFunc->getParentOfType<GPUModuleOp>();
   auto kernelSymbol = builder.getSymbolRefAttr(
       kernelModule.getName(), {builder.getSymbolRefAttr(kernelFunc.getName())});
   result.addAttribute(getKernelAttrName(), kernelSymbol);
+  SmallVector<int32_t, 8> segmentSizes(8, 1);
+  segmentSizes.front() = 0; // Initially no async dependencies.
+  segmentSizes.back() = static_cast<int32_t>(kernelOperands.size());
+  result.addAttribute(getOperandSegmentSizeAttr(),
+                      builder.getI32VectorAttr(segmentSizes));
 }
 
 unsigned LaunchFuncOp::getNumKernelOperands() {
-  return getNumOperands() - kNumConfigOperands;
+  return getNumOperands() - asyncDependencies().size() - kNumConfigOperands;
 }
 
 StringRef LaunchFuncOp::getKernelModuleName() {
@@ -451,28 +457,31 @@ StringRef LaunchFuncOp::getKernelModuleName() {
 StringRef LaunchFuncOp::getKernelName() { return kernel().getLeafReference(); }
 
 Value LaunchFuncOp::getKernelOperand(unsigned i) {
-  return getOperation()->getOperand(i + kNumConfigOperands);
+  return getOperand(asyncDependencies().size() + kNumConfigOperands + i);
 }
 
 KernelDim3 LaunchFuncOp::getGridSizeOperandValues() {
-  return KernelDim3{getOperand(0), getOperand(1), getOperand(2)};
+  auto operands = getOperands().drop_front(asyncDependencies().size());
+  return KernelDim3{operands[0], operands[1], operands[2]};
 }
 
 KernelDim3 LaunchFuncOp::getBlockSizeOperandValues() {
-  return KernelDim3{getOperand(3), getOperand(4), getOperand(5)};
+  auto operands = getOperands().drop_front(asyncDependencies().size());
+  return KernelDim3{operands[3], operands[4], operands[5]};
 }
 
 static LogicalResult verify(LaunchFuncOp op) {
-  auto module = op.getParentOfType<ModuleOp>();
+  auto module = op->getParentOfType<ModuleOp>();
   if (!module)
     return op.emitOpError("expected to belong to a module");
 
-  if (!module.getAttrOfType<UnitAttr>(GPUDialect::getContainerModuleAttrName()))
+  if (!module->getAttrOfType<UnitAttr>(
+          GPUDialect::getContainerModuleAttrName()))
     return op.emitOpError(
         "expected the closest surrounding module to have the '" +
         GPUDialect::getContainerModuleAttrName() + "' attribute");
 
-  auto kernelAttr = op.getAttrOfType<SymbolRefAttr>(op.getKernelAttrName());
+  auto kernelAttr = op->getAttrOfType<SymbolRefAttr>(op.getKernelAttrName());
   if (!kernelAttr)
     return op.emitOpError("symbol reference attribute '" +
                           op.getKernelAttrName() + "' must be specified");
@@ -493,7 +502,7 @@ parseLaunchFuncOperands(OpAsmParser &parser,
                                          argTypes, argAttrs, isVariadic);
 }
 
-static void printLaunchFuncOperands(OpAsmPrinter &printer,
+static void printLaunchFuncOperands(OpAsmPrinter &printer, Operation *,
                                     OperandRange operands, TypeRange types) {
   if (operands.empty())
     return;
@@ -515,8 +524,9 @@ static void printLaunchFuncOperands(OpAsmPrinter &printer,
 /// workgroup memory.
 BlockArgument GPUFuncOp::addWorkgroupAttribution(Type type) {
   auto attrName = getNumWorkgroupAttributionsAttrName();
-  auto attr = getAttrOfType<IntegerAttr>(attrName);
-  setAttr(attrName, IntegerAttr::get(attr.getType(), attr.getValue() + 1));
+  auto attr = (*this)->getAttrOfType<IntegerAttr>(attrName);
+  (*this)->setAttr(attrName,
+                   IntegerAttr::get(attr.getType(), attr.getValue() + 1));
   return getBody().insertArgument(getType().getNumInputs() + attr.getInt(),
                                   type);
 }
@@ -693,7 +703,7 @@ void GPUFuncOp::setType(FunctionType newType) {
   for (int i = newType.getNumInputs(), e = oldType.getNumInputs(); i < e; i++)
     removeAttr(getArgAttrName(i, nameBuf));
 
-  setAttr(getTypeAttrName(), TypeAttr::get(newType));
+  (*this)->setAttr(getTypeAttrName(), TypeAttr::get(newType));
 }
 
 /// Hook for FunctionLike verifier.
@@ -770,7 +780,7 @@ static ParseResult parseReturnOp(OpAsmParser &parser, OperationState &result) {
 }
 
 static LogicalResult verify(gpu::ReturnOp returnOp) {
-  GPUFuncOp function = returnOp.getParentOfType<GPUFuncOp>();
+  GPUFuncOp function = returnOp->getParentOfType<GPUFuncOp>();
 
   FunctionType funType = function.getType();
 
@@ -829,8 +839,25 @@ static void print(OpAsmPrinter &p, GPUModuleOp op) {
   p.printSymbolName(op.getName());
   p.printOptionalAttrDictWithKeyword(op.getAttrs(),
                                      {SymbolTable::getSymbolAttrName()});
-  p.printRegion(op.getOperation()->getRegion(0), /*printEntryBlockArgs=*/false,
+  p.printRegion(op->getRegion(0), /*printEntryBlockArgs=*/false,
                 /*printBlockTerminators=*/false);
+}
+
+//===----------------------------------------------------------------------===//
+// GPUMemcpyOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(MemcpyOp op) {
+  auto srcType = op.src().getType();
+  auto dstType = op.dst().getType();
+
+  if (getElementTypeOrSelf(srcType) != getElementTypeOrSelf(dstType))
+    return op.emitOpError("arguments have incompatible element type");
+
+  if (failed(verifyCompatibleShape(srcType, dstType)))
+    return op.emitOpError("arguments have incompatible shape");
+
+  return success();
 }
 
 static ParseResult parseAsyncDependencies(
@@ -846,7 +873,8 @@ static ParseResult parseAsyncDependencies(
                                  OpAsmParser::Delimiter::OptionalSquare);
 }
 
-static void printAsyncDependencies(OpAsmPrinter &printer, Type asyncTokenType,
+static void printAsyncDependencies(OpAsmPrinter &printer, Operation *op,
+                                   Type asyncTokenType,
                                    OperandRange asyncDependencies) {
   if (asyncTokenType)
     printer << "async ";

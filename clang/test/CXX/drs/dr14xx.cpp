@@ -4,6 +4,29 @@
 // RUN: %clang_cc1 -std=c++17 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
 // RUN: %clang_cc1 -std=c++2a %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
 
+namespace dr1413 { // dr1413: 12
+  template<int> struct Check {
+    typedef int type;
+  };
+  template<typename T> struct A : T {
+    static const int a = 1;
+    static const int b;
+    static void c();
+    void d();
+
+    void f() {
+      Check<true ? 0 : A::unknown_spec>::type *var1; // expected-error {{undeclared identifier 'var1'}}
+      Check<true ? 0 : a>::type *var2; // ok, variable declaration  expected-note 0+{{here}}
+      Check<true ? 0 : b>::type *var3; // expected-error {{undeclared identifier 'var3'}}
+      Check<true ? 0 : (c, 0)>::type *var4; // expected-error {{undeclared identifier 'var4'}}
+      // value-dependent because of the implied type-dependent 'this->', not because of 'd'
+      Check<true ? 0 : (d(), 0)>::type *var5; // expected-error {{undeclared identifier 'var5'}}
+      // value-dependent because of the value-dependent '&' operator, not because of 'A::d'
+      Check<true ? 0 : (&A::d(), 0)>::type *var5; // expected-error {{undeclared identifier 'var5'}}
+    }
+  };
+}
+
 namespace dr1423 { // dr1423: 11
 #if __cplusplus >= 201103L
   bool b1 = nullptr; // expected-error {{cannot initialize}}
@@ -411,17 +434,17 @@ namespace dr1467 {  // dr1467: 3.7 c++11
   // When the array size is 4 the call will attempt to bind an lvalue to an
   // rvalue and fail. Therefore #2 will be called. (rsmith will bring this
   // issue to CWG)
-  void f(const char(&&)[4]);              // expected-note 5 {{no known conversion}}
+  void f(const char(&&)[4]);              // expected-note 2 {{expects an rvalue}} expected-note 3 {{no known conversion}}
   void f(const char(&&)[5]) = delete;     // expected-note 2 {{candidate function has been explicitly deleted}} expected-note 3 {{no known conversion}}
-  void f(const wchar_t(&&)[4]);           // expected-note 5 {{no known conversion}}
+  void f(const wchar_t(&&)[4]);           // expected-note {{expects an rvalue}} expected-note 4 {{no known conversion}}
   void f(const wchar_t(&&)[5]) = delete;  // expected-note {{candidate function has been explicitly deleted}} expected-note 4 {{no known conversion}}
 #if __cplusplus >= 202002L
-  void f2(const char8_t(&&)[4]);          // expected-note {{no known conversion}}
+  void f2(const char8_t(&&)[4]);          // expected-note {{expects an rvalue}}
   void f2(const char8_t(&&)[5]) = delete; // expected-note {{candidate function has been explicitly deleted}}
 #endif
-  void f(const char16_t(&&)[4]);          // expected-note 5 {{no known conversion}}
+  void f(const char16_t(&&)[4]);          // expected-note {{expects an rvalue}} expected-note 4 {{no known conversion}}
   void f(const char16_t(&&)[5]) = delete; // expected-note {{candidate function has been explicitly deleted}} expected-note 4 {{no known conversion}}
-  void f(const char32_t(&&)[4]);          // expected-note 5 {{no known conversion}}
+  void f(const char32_t(&&)[4]);          // expected-note {{expects an rvalue}} expected-note 4 {{no known conversion}}
   void f(const char32_t(&&)[5]) = delete; // expected-note {{candidate function has been explicitly deleted}} expected-note 4 {{no known conversion}}
   void g() {
     f({"abc"});       // expected-error {{call to deleted function 'f'}}

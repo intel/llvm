@@ -30,9 +30,15 @@ class DerivedTypeSpec;
 class Scope;
 class Symbol;
 
+// Note: Here ProgramUnit includes internal subprograms while TopLevelUnit
+// does not. "program-unit" in the Fortran standard matches TopLevelUnit.
+const Scope &GetTopLevelUnitContaining(const Scope &);
+const Scope &GetTopLevelUnitContaining(const Symbol &);
+const Scope &GetProgramUnitContaining(const Scope &);
+const Scope &GetProgramUnitContaining(const Symbol &);
+
 const Scope *FindModuleContaining(const Scope &);
-const Scope *FindProgramUnitContaining(const Scope &);
-const Scope *FindProgramUnitContaining(const Symbol &);
+const Scope *FindModuleFileContaining(const Scope &);
 const Scope *FindPureProcedureContaining(const Scope &);
 const Scope *FindPureProcedureContaining(const Symbol &);
 const Symbol *FindPointerComponent(const Scope &);
@@ -97,7 +103,15 @@ bool IsIsoCType(const DerivedTypeSpec *);
 bool IsEventTypeOrLockType(const DerivedTypeSpec *);
 bool IsOrContainsEventOrLockComponent(const Symbol &);
 bool CanBeTypeBoundProc(const Symbol *);
-bool IsInitialized(const Symbol &, bool ignoreDATAstatements = false);
+// Does a non-PARAMETER symbol have explicit initialization with =value or
+// =>target in its declaration, or optionally in a DATA statement? (Being
+// ALLOCATABLE or having a derived type with default component initialization
+// doesn't count; it must be a variable initialization that implies the SAVE
+// attribute, or a derived type component default value.)
+bool IsStaticallyInitialized(const Symbol &, bool ignoreDATAstatements = false);
+// Is the symbol explicitly or implicitly initialized in any way?
+bool IsInitialized(const Symbol &, bool ignoreDATAstatements = false,
+    const Symbol *derivedType = nullptr);
 bool HasIntrinsicTypeName(const Symbol &);
 bool IsSeparateModuleProcedureInterface(const Symbol *);
 bool IsAutomatic(const Symbol &);

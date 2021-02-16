@@ -83,6 +83,20 @@ def get_asan_rtlib():
     return found_dylibs[0]
 
 
+####################################################
+# FIXME: remove this when we flip the default value for --allow-unused-prefixes
+# to false.
+fc = ToolSubst('FileCheck', unresolved='fatal')
+# Insert this first. Then, we'll first update the blank FileCheck command; then,
+# the default substitution of FileCheck will replace it to its full path.
+config.substitutions.insert(0, (fc.regex,
+    'FileCheck --allow-unused-prefixes=false'))
+# When addressing this fixme, replace %FileCheckRaw% with just FileCheck.
+config.substitutions.append(('%FileCheckRaw%', 'FileCheck'))
+# Also remove the lit.local.cfg under llvm/test/Reduce
+# and the pertinent FIXME in llvm/test/FileCheck
+####################################################
+
 llvm_config.use_default_substitutions()
 
 # Add site-specific substitutions.
@@ -150,7 +164,8 @@ tools.extend([
     'dsymutil', 'lli', 'lli-child-target', 'llvm-ar', 'llvm-as',
     'llvm-addr2line', 'llvm-bcanalyzer', 'llvm-bitcode-strip', 'llvm-config', 
     'llvm-cov', 'llvm-cxxdump', 'llvm-cvtres', 'llvm-diff', 'llvm-dis', 
-    'llvm-dwarfdump', 'llvm-exegesis', 'llvm-extract', 'llvm-isel-fuzzer', 'llvm-ifs',
+    'llvm-dwarfdump', 'llvm-dlltool', 'llvm-exegesis', 'llvm-extract',
+    'llvm-isel-fuzzer', 'llvm-ifs',
     'llvm-install-name-tool', 'llvm-jitlink', 'llvm-opt-fuzzer', 'llvm-lib',
     'llvm-link', 'llvm-lto', 'llvm-lto2', 'llvm-mc', 'llvm-mca',
     'llvm-modextract', 'llvm-nm', 'llvm-objcopy', 'llvm-objdump',

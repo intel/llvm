@@ -1,4 +1,8 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-return-type -fcxx-exceptions -fsyntax-only -ast-dump -Wno-sycl-2017-compat -verify -pedantic %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -Wno-return-type -fcxx-exceptions -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
+
+#include "sycl.hpp"
+
+sycl::queue deviceQueue;
 
 //CHECK: FunctionDecl{{.*}}check_ast
 void check_ast()
@@ -847,19 +851,17 @@ struct templ_st {
   [[intel::force_pow2_depth(A)]] unsigned int templ_force_p2d_field[64];
 };
 
-template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
-  kernelFunc();
-}
-
 int main() {
-  kernel_single_task<class kernel_function>([]() {
-    check_ast();
-    diagnostics();
-    check_gnu_style();
-    //expected-note@+1{{in instantiation of function template specialization}}
-    check_template_parameters<2, 4, 8, -1, 1>();
-    struct templ_st<0> ts {};
+  deviceQueue.submit([&](sycl::handler &h) {
+    h.single_task<class kernel_function>([]() {
+      check_ast();
+      diagnostics();
+      check_gnu_style();
+      //expected-note@+1{{in instantiation of function template specialization}}
+      check_template_parameters<2, 4, 8, -1, 1>();
+      struct templ_st<0> ts {};
+    });
   });
+
   return 0;
 }

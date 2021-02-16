@@ -43,7 +43,7 @@ struct ModHeader {
 };
 
 static std::optional<SourceName> GetSubmoduleParent(const parser::Program &);
-static SymbolVector CollectSymbols(const Scope &);
+static void CollectSymbols(const Scope &, SymbolVector &, SymbolVector &);
 static void PutEntity(llvm::raw_ostream &, const Symbol &);
 static void PutObjectEntity(llvm::raw_ostream &, const Symbol &);
 static void PutProcEntity(llvm::raw_ostream &, const Symbol &);
@@ -178,11 +178,16 @@ std::string ModFileWriter::GetAsString(const Symbol &symbol) {
 
 // Put out the visible symbols from scope.
 bool ModFileWriter::PutSymbols(const Scope &scope) {
-  std::string buf;
-  llvm::raw_string_ostream typeBindings{
-      buf}; // stuff after CONTAINS in derived type
-  for (const Symbol &symbol : CollectSymbols(scope)) {
+  SymbolVector sorted;
+  SymbolVector uses;
+  CollectSymbols(scope, sorted, uses);
+  std::string buf; // stuff after CONTAINS in derived type
+  llvm::raw_string_ostream typeBindings{buf};
+  for (const Symbol &symbol : sorted) {
     PutSymbol(typeBindings, symbol);
+  }
+  for (const Symbol &symbol : uses) {
+    PutUse(symbol);
   }
   if (auto str{typeBindings.str()}; !str.empty()) {
     CHECK(scope.IsDerivedType());
@@ -190,6 +195,15 @@ bool ModFileWriter::PutSymbols(const Scope &scope) {
     return true;
   } else {
     return false;
+  }
+}
+
+static llvm::raw_ostream &PutGenericName(
+    llvm::raw_ostream &os, const Symbol &symbol) {
+  if (IsGenericDefinedOp(symbol)) {
+    return os << "operator(" << symbol.name() << ')';
+  } else {
+    return os << symbol.name();
   }
 }
 
@@ -205,8 +219,8 @@ void ModFileWriter::PutSymbol(
                    if (symbol.owner().IsDerivedType()) {
                      // generic binding
                      for (const Symbol &proc : x.specificProcs()) {
-                       typeBindings << "generic::" << symbol.name() << "=>"
-                                    << proc.name() << '\n';
+                       PutGenericName(typeBindings << "generic::", symbol)
+                           << "=>" << proc.name() << '\n';
                      }
                    } else {
                      PutGeneric(symbol);
@@ -314,6 +328,10 @@ void ModFileWriter::PutSubprogram(const Symbol &symbol) {
     bindAttrs.set(Attr::BIND_C, true);
     attrs.set(Attr::BIND_C, false);
   }
+  bool isAbstract{attrs.test(Attr::ABSTRACT)};
+  if (isAbstract) {
+    attrs.set(Attr::ABSTRACT, false);
+  }
   Attrs prefixAttrs{subprogramPrefixAttrs & attrs};
   // emit any non-prefix attributes in an attribute statement
   attrs &= ~subprogramPrefixAttrs;
@@ -326,7 +344,7 @@ void ModFileWriter::PutSubprogram(const Symbol &symbol) {
   bool isInterface{details.isInterface()};
   llvm::raw_ostream &os{isInterface ? decls_ : contains_};
   if (isInterface) {
-    os << "interface\n";
+    os << (isAbstract ? "abstract " : "") << "interface\n";
   }
   PutAttrs(os, prefixAttrs, std::nullopt, ""s, " "s);
   os << (details.isFunction() ? "function " : "subroutine ");
@@ -383,20 +401,14 @@ static bool IsIntrinsicOp(const Symbol &symbol) {
   }
 }
 
-static llvm::raw_ostream &PutGenericName(
-    llvm::raw_ostream &os, const Symbol &symbol) {
-  if (IsGenericDefinedOp(symbol)) {
-    return os << "operator(" << symbol.name() << ')';
-  } else {
-    return os << symbol.name();
-  }
-}
-
 void ModFileWriter::PutGeneric(const Symbol &symbol) {
+  const auto &genericOwner{symbol.owner()};
   auto &details{symbol.get<GenericDetails>()};
   PutGenericName(decls_ << "interface ", symbol) << '\n';
   for (const Symbol &specific : details.specificProcs()) {
-    decls_ << "procedure::" << specific.name() << '\n';
+    if (specific.owner() == genericOwner) {
+      decls_ << "procedure::" << specific.name() << '\n';
+    }
   }
   decls_ << "end interface\n";
   if (symbol.attrs().test(Attr::PRIVATE)) {
@@ -417,6 +429,9 @@ void ModFileWriter::PutUse(const Symbol &symbol) {
   uses_ << '\n';
   PutUseExtraAttr(Attr::VOLATILE, symbol, use);
   PutUseExtraAttr(Attr::ASYNCHRONOUS, symbol, use);
+  if (symbol.attrs().test(Attr::PRIVATE)) {
+    PutGenericName(useExtraAttrs_ << "private::", symbol) << '\n';
+  }
 }
 
 // We have "USE local => use" in this module. If attr was added locally
@@ -429,10 +444,35 @@ void ModFileWriter::PutUseExtraAttr(
   }
 }
 
+// When a generic interface has the same name as a derived type
+// in the same scope, the generic shadows the derived type.
+// If the derived type were declared first, emit the generic
+// interface at the position of derived type's declaration.
+// (ReplaceName() is not used for this purpose because doing so
+// would confusingly position error messages pertaining to the generic
+// interface upon the derived type's declaration.)
+static inline SourceName NameInModuleFile(const Symbol &symbol) {
+  if (const auto *generic{symbol.detailsIf<GenericDetails>()}) {
+    if (const auto *derivedTypeOverload{generic->derivedType()}) {
+      if (derivedTypeOverload->name().begin() < symbol.name().begin()) {
+        return derivedTypeOverload->name();
+      }
+    }
+  } else if (const auto *use{symbol.detailsIf<UseDetails>()}) {
+    if (use->symbol().attrs().test(Attr::PRIVATE)) {
+      // Avoid the use in sorting of names created to access private
+      // specific procedures as a result of generic resolution;
+      // they're not in the cooked source.
+      return use->symbol().name();
+    }
+  }
+  return symbol.name();
+}
+
 // Collect the symbols of this scope sorted by their original order, not name.
 // Namelists are an exception: they are sorted after other symbols.
-SymbolVector CollectSymbols(const Scope &scope) {
-  SymbolVector sorted;
+void CollectSymbols(
+    const Scope &scope, SymbolVector &sorted, SymbolVector &uses) {
   SymbolVector namelist;
   std::size_t commonSize{scope.commonBlocks().size()};
   auto symbols{scope.GetSymbols()};
@@ -444,14 +484,21 @@ SymbolVector CollectSymbols(const Scope &scope) {
       } else {
         sorted.push_back(symbol);
       }
+      if (const auto *details{symbol->detailsIf<GenericDetails>()}) {
+        uses.insert(uses.end(), details->uses().begin(), details->uses().end());
+      }
     }
   }
+  // Sort most symbols by name: use of Symbol::ReplaceName ensures the source
+  // location of a symbol's name is the first "real" use.
+  std::sort(sorted.begin(), sorted.end(), [](SymbolRef x, SymbolRef y) {
+    return NameInModuleFile(x).begin() < NameInModuleFile(y).begin();
+  });
   sorted.insert(sorted.end(), namelist.begin(), namelist.end());
   for (const auto &pair : scope.commonBlocks()) {
     sorted.push_back(*pair.second);
   }
   std::sort(sorted.end() - commonSize, sorted.end());
-  return sorted;
 }
 
 void PutEntity(llvm::raw_ostream &os, const Symbol &symbol) {
@@ -799,13 +846,15 @@ Scope *ModFileReader::Read(const SourceName &name, Scope *ancestor) {
   } else {
     parentScope = ancestor;
   }
-  ResolveNames(context_, *parseTree);
-  const auto &it{parentScope->find(name)};
-  if (it == parentScope->end()) {
+  auto pair{parentScope->try_emplace(name, UnknownDetails{})};
+  if (!pair.second) {
     return nullptr;
   }
-  auto &modSymbol{*it->second};
+  Symbol &modSymbol{*pair.first->second};
   modSymbol.set(Symbol::Flag::ModFile);
+  ResolveNames(context_, *parseTree);
+  CHECK(modSymbol.has<ModuleDetails>());
+  CHECK(modSymbol.test(Symbol::Flag::ModFile));
   return modSymbol.scope();
 }
 
@@ -954,14 +1003,16 @@ bool SubprogramSymbolCollector::NeedImport(
     const SourceName &name, const Symbol &symbol) {
   if (!isInterface_) {
     return false;
-  } else if (symbol.owner() != scope_.parent()) {
-    // detect import from parent of use-associated symbol
-    // can be null in the case of a use-associated derived type's parent type
-    const auto *found{scope_.FindSymbol(name)};
-    CHECK(found || symbol.has<DerivedTypeDetails>());
-    return found && found->has<UseDetails>() && found->owner() != scope_;
-  } else {
+  } else if (symbol.owner().Contains(scope_)) {
     return true;
+  } else if (const Symbol * found{scope_.FindSymbol(name)}) {
+    // detect import from ancestor of use-associated symbol
+    return found->has<UseDetails>() && found->owner() != scope_;
+  } else {
+    // "found" can be null in the case of a use-associated derived type's parent
+    // type
+    CHECK(symbol.has<DerivedTypeDetails>());
+    return false;
   }
 }
 

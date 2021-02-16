@@ -1178,28 +1178,6 @@ AppleObjCRuntimeV2::GetClassDescriptorFromISA(ObjCISA isa) {
   return class_descriptor_sp;
 }
 
-static std::pair<bool, ConstString> ObjCGetClassNameRaw(
-                                      AppleObjCRuntime::ObjCISA isa,
-                                      Process *process) {
-  StreamString expr_string;
-  std::string input = std::to_string(isa);
-  expr_string.Printf("(const char *)objc_debug_class_getNameRaw(%s)",
-                     input.c_str());
-
-  ValueObjectSP result_sp;
-  EvaluateExpressionOptions eval_options;
-  eval_options.SetLanguage(lldb::eLanguageTypeObjC);
-  eval_options.SetResultIsInternal(true);
-  eval_options.SetGenerateDebugInfo(true);
-  eval_options.SetTimeout(process->GetUtilityExpressionTimeout());
-  auto eval_result = process->GetTarget().EvaluateExpression(
-      expr_string.GetData(),
-      process->GetThreadList().GetSelectedThread()->GetSelectedFrame().get(),
-      result_sp, eval_options);
-  ConstString type_name(result_sp->GetSummaryAsCString());
-  return std::make_pair(eval_result == eExpressionCompleted, type_name);
-}
-
 ObjCLanguageRuntime::ClassDescriptorSP
 AppleObjCRuntimeV2::GetClassDescriptor(ValueObject &valobj) {
   ClassDescriptorSP objc_class_sp;
@@ -1235,10 +1213,7 @@ AppleObjCRuntimeV2::GetClassDescriptor(ValueObject &valobj) {
     return objc_class_sp;
 
   objc_class_sp = GetClassDescriptorFromISA(isa);
-
-  if (objc_class_sp)
-    return objc_class_sp;
-  else {
+  if (isa && !objc_class_sp) {
     Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS |
                                       LIBLLDB_LOG_TYPES));
     LLDB_LOGF(log,
@@ -1246,13 +1221,6 @@ AppleObjCRuntimeV2::GetClassDescriptor(ValueObject &valobj) {
               ": AppleObjCRuntimeV2::GetClassDescriptor() ISA was "
               "not in class descriptor cache 0x%" PRIx64,
               isa_pointer, isa);
-  }
-
-  ClassDescriptorSP descriptor_sp(new ClassDescriptorV2(*this, isa, nullptr));
-  auto resolved = ObjCGetClassNameRaw(isa, process);
-  if (resolved.first == true) {
-    AddClass(isa, descriptor_sp, resolved.second.AsCString());
-    objc_class_sp = descriptor_sp;
   }
   return objc_class_sp;
 }
@@ -1336,7 +1304,8 @@ AppleObjCRuntimeV2::UpdateISAToDescriptorMapDynamic(
     return DescriptorMapUpdateResult::Fail();
 
   thread_sp->CalculateExecutionContext(exe_ctx);
-  TypeSystemClang *ast = TypeSystemClang::GetScratch(process->GetTarget());
+  TypeSystemClang *ast =
+      ScratchTypeSystemClang::GetForTarget(process->GetTarget());
 
   if (!ast)
     return DescriptorMapUpdateResult::Fail();
@@ -1579,7 +1548,8 @@ AppleObjCRuntimeV2::UpdateISAToDescriptorMapSharedCache() {
     return DescriptorMapUpdateResult::Fail();
 
   thread_sp->CalculateExecutionContext(exe_ctx);
-  TypeSystemClang *ast = TypeSystemClang::GetScratch(process->GetTarget());
+  TypeSystemClang *ast =
+      ScratchTypeSystemClang::GetForTarget(process->GetTarget());
 
   if (!ast)
     return DescriptorMapUpdateResult::Fail();
@@ -1620,10 +1590,7 @@ AppleObjCRuntimeV2::UpdateISAToDescriptorMapSharedCache() {
 
     ObjCLanguageRuntime *objc_runtime = ObjCLanguageRuntime::Get(*process);
     if (objc_runtime) {
-      const ModuleList &images = process->GetTarget().GetImages();
-      std::lock_guard<std::recursive_mutex> guard(images.GetMutex());
-      for (size_t i = 0; i < images.GetSize(); ++i) {
-        lldb::ModuleSP mod_sp = images.GetModuleAtIndexUnlocked(i);
+      for (lldb::ModuleSP mod_sp : process->GetTarget().GetImages().Modules()) {
         if (objc_runtime->IsModuleObjCLibrary(mod_sp)) {
           const Symbol *symbol =
               mod_sp->FindFirstSymbolWithNameAndType(g_class_getNameRaw_symbol_name, 
@@ -1861,10 +1828,9 @@ lldb::addr_t AppleObjCRuntimeV2::GetSharedCacheReadOnlyAddress() {
 }
 
 void AppleObjCRuntimeV2::UpdateISAToDescriptorMapIfNeeded() {
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PROCESS | LIBLLDB_LOG_TYPES));
+  LLDB_SCOPED_TIMER();
 
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat, LLVM_PRETTY_FUNCTION);
+  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PROCESS | LIBLLDB_LOG_TYPES));
 
   // Else we need to check with our process to see when the map was updated.
   Process *process = GetProcess();
@@ -2641,7 +2607,7 @@ class ObjCExceptionRecognizedStackFrame : public RecognizedStackFrame {
     if (!abi) return;
 
     TypeSystemClang *clang_ast_context =
-        TypeSystemClang::GetScratch(process_sp->GetTarget());
+        ScratchTypeSystemClang::GetForTarget(process_sp->GetTarget());
     if (!clang_ast_context)
       return;
     CompilerType voidstar =

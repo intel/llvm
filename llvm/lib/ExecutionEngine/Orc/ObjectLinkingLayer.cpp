@@ -28,20 +28,17 @@ public:
       ObjectLinkingLayer &Layer,
       std::unique_ptr<MaterializationResponsibility> MR,
       std::unique_ptr<MemoryBuffer> ObjBuffer)
-      : Layer(Layer), MR(std::move(MR)), ObjBuffer(std::move(ObjBuffer)) {}
+      : JITLinkContext(&MR->getTargetJITDylib()), Layer(Layer),
+        MR(std::move(MR)), ObjBuffer(std::move(ObjBuffer)) {}
 
   ~ObjectLinkingLayerJITLinkContext() {
     // If there is an object buffer return function then use it to
     // return ownership of the buffer.
-    if (Layer.ReturnObjectBuffer)
+    if (Layer.ReturnObjectBuffer && ObjBuffer)
       Layer.ReturnObjectBuffer(std::move(ObjBuffer));
   }
 
   JITLinkMemoryManager &getMemoryManager() override { return Layer.MemMgr; }
-
-  MemoryBufferRef getObjectBuffer() const override {
-    return ObjBuffer->getMemBufferRef();
-  }
 
   void notifyFailed(Error Err) override {
     for (auto &P : Layer.Plugins)
@@ -217,8 +214,9 @@ public:
   Error modifyPassConfig(const Triple &TT, PassConfiguration &Config) override {
     // Add passes to mark duplicate defs as should-discard, and to walk the
     // link graph to build the symbol dependence graph.
-    Config.PrePrunePasses.push_back(
-        [this](LinkGraph &G) { return externalizeWeakAndCommonSymbols(G); });
+    Config.PrePrunePasses.push_back([this](LinkGraph &G) {
+      return claimOrExternalizeWeakAndCommonSymbols(G);
+    });
 
     Layer.modifyPassConfig(*MR, TT, Config);
 
@@ -236,19 +234,38 @@ private:
   using LocalSymbolNamedDependenciesMap =
       DenseMap<const Symbol *, LocalSymbolNamedDependencies>;
 
-  Error externalizeWeakAndCommonSymbols(LinkGraph &G) {
+  Error claimOrExternalizeWeakAndCommonSymbols(LinkGraph &G) {
     auto &ES = Layer.getExecutionSession();
-    for (auto *Sym : G.defined_symbols())
-      if (Sym->hasName() && Sym->getLinkage() == Linkage::Weak) {
-        if (!MR->getSymbols().count(ES.intern(Sym->getName())))
-          G.makeExternal(*Sym);
-      }
 
-    for (auto *Sym : G.absolute_symbols())
+    SymbolFlagsMap NewSymbolsToClaim;
+    std::vector<std::pair<SymbolStringPtr, Symbol *>> NameToSym;
+
+    auto ProcessSymbol = [&](Symbol *Sym) {
       if (Sym->hasName() && Sym->getLinkage() == Linkage::Weak) {
-        if (!MR->getSymbols().count(ES.intern(Sym->getName())))
-          G.makeExternal(*Sym);
+        auto Name = ES.intern(Sym->getName());
+        if (!MR->getSymbols().count(ES.intern(Sym->getName()))) {
+          JITSymbolFlags SF = JITSymbolFlags::Weak;
+          if (Sym->getScope() == Scope::Default)
+            SF |= JITSymbolFlags::Exported;
+          NewSymbolsToClaim[Name] = SF;
+          NameToSym.push_back(std::make_pair(std::move(Name), Sym));
+        }
       }
+    };
+
+    for (auto *Sym : G.defined_symbols())
+      ProcessSymbol(Sym);
+    for (auto *Sym : G.absolute_symbols())
+      ProcessSymbol(Sym);
+
+    // Attempt to claim all weak defs that we're not already responsible for.
+    // This cannot fail -- any clashes will just result in rejection of our
+    // claim, at which point we'll externalize that symbol.
+    cantFail(MR->defineMaterializing(std::move(NewSymbolsToClaim)));
+
+    for (auto &KV : NameToSym)
+      if (!MR->getSymbols().count(KV.first))
+        G.makeExternal(*KV.second);
 
     return Error::success();
   }
@@ -462,8 +479,19 @@ ObjectLinkingLayer::~ObjectLinkingLayer() {
 void ObjectLinkingLayer::emit(std::unique_ptr<MaterializationResponsibility> R,
                               std::unique_ptr<MemoryBuffer> O) {
   assert(O && "Object must not be null");
-  jitLink(std::make_unique<ObjectLinkingLayerJITLinkContext>(
-      *this, std::move(R), std::move(O)));
+  auto ObjBuffer = O->getMemBufferRef();
+  auto Ctx = std::make_unique<ObjectLinkingLayerJITLinkContext>(
+      *this, std::move(R), std::move(O));
+  if (auto G = createLinkGraphFromObject(std::move(ObjBuffer)))
+    link(std::move(*G), std::move(Ctx));
+  else
+    Ctx->notifyFailed(G.takeError());
+}
+
+void ObjectLinkingLayer::emit(std::unique_ptr<MaterializationResponsibility> R,
+                              std::unique_ptr<LinkGraph> G) {
+  link(std::move(G), std::make_unique<ObjectLinkingLayerJITLinkContext>(
+                         *this, std::move(R), nullptr));
 }
 
 void ObjectLinkingLayer::modifyPassConfig(MaterializationResponsibility &MR,

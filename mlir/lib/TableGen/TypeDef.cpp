@@ -11,12 +11,33 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/TableGen/TypeDef.h"
+#include "mlir/TableGen/Dialect.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
 
 using namespace mlir;
 using namespace mlir::tblgen;
+
+//===----------------------------------------------------------------------===//
+// TypeBuilder
+//===----------------------------------------------------------------------===//
+
+/// Return an optional code body used for the `getChecked` variant of this
+/// builder.
+Optional<StringRef> TypeBuilder::getCheckedBody() const {
+  Optional<StringRef> body = def->getValueAsOptionalString("checkedBody");
+  return body && !body->empty() ? body : llvm::None;
+}
+
+/// Returns true if this builder is able to infer the MLIRContext parameter.
+bool TypeBuilder::hasInferredContextParameter() const {
+  return def->getValueAsBit("hasInferredContextParam");
+}
+
+//===----------------------------------------------------------------------===//
+// TypeDef
+//===----------------------------------------------------------------------===//
 
 Dialect TypeDef::getDialect() const {
   auto *dialectDef =
@@ -29,6 +50,10 @@ Dialect TypeDef::getDialect() const {
 StringRef TypeDef::getName() const { return def->getName(); }
 StringRef TypeDef::getCppClassName() const {
   return def->getValueAsString("cppClassName");
+}
+
+StringRef TypeDef::getCppBaseClassName() const {
+  return def->getValueAsString("cppBaseClassName");
 }
 
 bool TypeDef::hasDescription() const {
@@ -78,10 +103,10 @@ llvm::Optional<StringRef> TypeDef::getMnemonic() const {
   return def->getValueAsOptionalString("mnemonic");
 }
 llvm::Optional<StringRef> TypeDef::getPrinterCode() const {
-  return def->getValueAsOptionalCode("printer");
+  return def->getValueAsOptionalString("printer");
 }
 llvm::Optional<StringRef> TypeDef::getParserCode() const {
-  return def->getValueAsOptionalCode("parser");
+  return def->getValueAsOptionalString("parser");
 }
 bool TypeDef::genAccessors() const {
   return def->getValueAsBit("genAccessors");
@@ -94,6 +119,11 @@ llvm::Optional<StringRef> TypeDef::getExtraDecls() const {
   return value.empty() ? llvm::Optional<StringRef>() : value;
 }
 llvm::ArrayRef<llvm::SMLoc> TypeDef::getLoc() const { return def->getLoc(); }
+
+bool TypeDef::skipDefaultBuilders() const {
+  return def->getValueAsBit("skipDefaultBuilders");
+}
+
 bool TypeDef::operator==(const TypeDef &other) const {
   return def == other.def;
 }
@@ -102,17 +132,46 @@ bool TypeDef::operator<(const TypeDef &other) const {
   return getName() < other.getName();
 }
 
+//===----------------------------------------------------------------------===//
+// TypeParameter
+//===----------------------------------------------------------------------===//
+
+TypeDef::TypeDef(const llvm::Record *def) : def(def) {
+  // Populate the builders.
+  auto *builderList =
+      dyn_cast_or_null<llvm::ListInit>(def->getValueInit("builders"));
+  if (builderList && !builderList->empty()) {
+    for (llvm::Init *init : builderList->getValues()) {
+      TypeBuilder builder(cast<llvm::DefInit>(init)->getDef(), def->getLoc());
+
+      // Ensure that all parameters have names.
+      for (const TypeBuilder::Parameter &param : builder.getParameters()) {
+        if (!param.getName())
+          PrintFatalError(def->getLoc(),
+                          "type builder parameters must have a name");
+      }
+      builders.emplace_back(builder);
+    }
+  } else if (skipDefaultBuilders()) {
+    PrintFatalError(
+        def->getLoc(),
+        "default builders are skipped and no custom builders provided");
+  }
+}
+
 StringRef TypeParameter::getName() const {
   return def->getArgName(num)->getValue();
 }
-llvm::Optional<StringRef> TypeParameter::getAllocator() const {
+Optional<StringRef> TypeParameter::getAllocator() const {
   llvm::Init *parameterType = def->getArg(num);
   if (isa<llvm::StringInit>(parameterType))
     return llvm::Optional<StringRef>();
 
   if (auto *typeParameter = dyn_cast<llvm::DefInit>(parameterType)) {
     llvm::RecordVal *code = typeParameter->getDef()->getValue("allocator");
-    if (llvm::CodeInit *ci = dyn_cast<llvm::CodeInit>(code->getValue()))
+    if (!code)
+      return llvm::Optional<StringRef>();
+    if (llvm::StringInit *ci = dyn_cast<llvm::StringInit>(code->getValue()))
       return ci->getValue();
     if (isa<llvm::UnsetInit>(code->getValue()))
       return llvm::Optional<StringRef>();
@@ -136,14 +195,14 @@ StringRef TypeParameter::getCppType() const {
       "Parameters DAG arguments must be either strings or defs "
       "which inherit from TypeParameter\n");
 }
-llvm::Optional<StringRef> TypeParameter::getDescription() const {
+Optional<StringRef> TypeParameter::getSummary() const {
   auto *parameterType = def->getArg(num);
   if (auto *typeParameter = dyn_cast<llvm::DefInit>(parameterType)) {
-    const auto *desc = typeParameter->getDef()->getValue("description");
+    const auto *desc = typeParameter->getDef()->getValue("summary");
     if (llvm::StringInit *ci = dyn_cast<llvm::StringInit>(desc->getValue()))
       return ci->getValue();
   }
-  return llvm::Optional<StringRef>();
+  return Optional<StringRef>();
 }
 StringRef TypeParameter::getSyntax() const {
   auto *parameterType = def->getArg(num);

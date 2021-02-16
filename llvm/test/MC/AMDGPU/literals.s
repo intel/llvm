@@ -1,14 +1,14 @@
-// RUN: not llvm-mc -arch=amdgcn -show-encoding %s | FileCheck %s --check-prefix=GCN --check-prefix=SI --check-prefix=SICI
-// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti -show-encoding %s | FileCheck %s --check-prefix=GCN --check-prefix=SI --check-prefix=SICI
-// RUN: not llvm-mc -arch=amdgcn -mcpu=bonaire -show-encoding %s | FileCheck %s --check-prefix=GCN --check-prefix=SICI --check-prefix=CIVI --check-prefix=CI
-// RUN: not llvm-mc -arch=amdgcn -mcpu=tonga -show-encoding %s | FileCheck %s --check-prefix=GCN --check-prefix=CIVI --check-prefix=GFX89
-// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx900 -show-encoding %s | FileCheck %s --check-prefix=GCN --check-prefix=CIVI --check-prefix=GFX89 --check-prefix=GFX9
+// RUN: not llvm-mc -arch=amdgcn -show-encoding %s | FileCheck %s --check-prefix=SICI
+// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti -show-encoding %s | FileCheck %s --check-prefix=SICI
+// RUN: not llvm-mc -arch=amdgcn -mcpu=bonaire -show-encoding %s | FileCheck %s --check-prefixes=SICI,CI
+// RUN: not llvm-mc -arch=amdgcn -mcpu=tonga -show-encoding %s | FileCheck %s --check-prefix=GFX89
+// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx900 -show-encoding %s | FileCheck %s --check-prefixes=GFX89,GFX9
 
-// RUN: not llvm-mc -arch=amdgcn %s 2>&1 | FileCheck %s --check-prefix=NOGCN --check-prefix=NOSI --check-prefix=NOSICI --check-prefix=NOSICIVI --implicit-check-not=error:
-// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti %s 2>&1 | FileCheck %s --check-prefix=NOGCN --check-prefix=NOSI --check-prefix=NOSICI --check-prefix=NOSICIVI --implicit-check-not=error:
-// RUN: not llvm-mc -arch=amdgcn -mcpu=bonaire %s 2>&1 | FileCheck %s --check-prefix=NOGCN --check-prefix=NOSICI --check-prefix=NOCIVI --check-prefix=NOSICIVI --implicit-check-not=error:
-// RUN: not llvm-mc -arch=amdgcn -mcpu=tonga %s 2>&1 | FileCheck %s --check-prefix=NOGCN --check-prefix=NOSICIVI --check-prefix=NOVI --check-prefix=NOGFX89 --implicit-check-not=error:
-// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx900 %s 2>&1 | FileCheck %s --check-prefix=NOGCN --check-prefix=NOGFX89 --check-prefix=NOGFX9 --implicit-check-not=error:
+// RUN: not llvm-mc -arch=amdgcn %s 2>&1 | FileCheck %s --check-prefixes=NOGCN,NOSI,NOSICI,NOSICIVI --implicit-check-not=error:
+// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti %s 2>&1 | FileCheck %s --check-prefixes=NOGCN,NOSI,NOSICI,NOSICIVI --implicit-check-not=error:
+// RUN: not llvm-mc -arch=amdgcn -mcpu=bonaire %s 2>&1 | FileCheck %s --check-prefixes=NOGCN,NOSICI,NOCIVI,NOSICIVI --implicit-check-not=error:
+// RUN: not llvm-mc -arch=amdgcn -mcpu=tonga %s 2>&1 | FileCheck %s --check-prefixes=NOGCN,NOSICIVI,NOVI,NOGFX89 --implicit-check-not=error:
+// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx900 %s 2>&1 | FileCheck %s --check-prefixes=NOGCN,NOGFX89,NOGFX9 --implicit-check-not=error:
 
 //---------------------------------------------------------------------------//
 // fp literal, expected fp operand
@@ -282,12 +282,12 @@ v_trunc_f32_e32 v0, 1234
 // GFX89: v_fract_f64_e32 v[0:1], 0x4d2 ; encoding: [0xff,0x64,0x00,0x7e,0xd2,0x04,0x00,0x00]
 v_fract_f64_e32 v[0:1], 1234
 
-// NOSICI: error: invalid literal operand
-// NOGFX89: error: invalid literal operand
+// NOSICI: error: literal operands are not supported
+// NOGFX89: error: literal operands are not supported
 v_trunc_f32_e64 v0, 1234
 
-// NOSICI: error: invalid literal operand
-// NOGFX89: error: invalid literal operand
+// NOSICI: error: literal operands are not supported
+// NOGFX89: error: literal operands are not supported
 v_fract_f64_e64 v[0:1], 1234
 
 // SICI: v_trunc_f32_e32 v0, 0xffff2bcf ; encoding: [0xff,0x42,0x00,0x7e,0xcf,0x2b,0xff,0xff]
@@ -378,8 +378,8 @@ s_mov_b64_e32 s[0:1], 1234
 // GFX89: v_and_b32_e32 v0, 0x4d2, v1 ; encoding: [0xff,0x02,0x00,0x26,0xd2,0x04,0x00,0x00]
 v_and_b32_e32 v0, 1234, v1
 
-// NOSICI: error: invalid literal operand
-// NOGFX89: error: invalid literal operand
+// NOSICI: error: literal operands are not supported
+// NOGFX89: error: literal operands are not supported
 v_and_b32_e64 v0, 1234, v1
 
 // SICI: s_mov_b64 s[0:1], 0xffff2bcf ; encoding: [0xff,0x04,0x80,0xbe,0xcf,0x2b,0xff,0xff]
@@ -450,12 +450,12 @@ v_trunc_f32_e64 v0, 0x3fc45f306dc9c882
 // GFX89: v_fract_f64_e64 v[0:1], 0.15915494309189532 ; encoding: [0x00,0x00,0x72,0xd1,0xf8,0x00,0x00,0x00]
 v_fract_f64_e64 v[0:1], 0x3fc45f306dc9c882
 
-// NOSICI: error: invalid literal operand
+// NOSICI: error: literal operands are not supported
 // GFX89: v_trunc_f32_e64 v0, 0.15915494 ; encoding: [0x00,0x00,0x5c,0xd1,0xf8,0x00,0x00,0x00]
 v_trunc_f32_e64 v0, 0x3e22f983
 
-// NOSICI: error: invalid literal operand
-// NOGFX89: error: invalid literal operand
+// NOSICI: error: literal operands are not supported
+// NOGFX89: error: literal operands are not supported
 v_fract_f64_e64 v[0:1], 0x3e22f983
 
 // NOSICI: error: invalid operand for instruction
@@ -466,7 +466,7 @@ s_mov_b64_e32 s[0:1], 0.159154943091895317852646485335
 // GFX89: v_and_b32_e32 v0, 0.15915494, v1 ; encoding: [0xf8,0x02,0x00,0x26]
 v_and_b32_e32 v0, 0.159154943091895317852646485335, v1
 
-// NOSICI: error: invalid literal operand
+// NOSICI: error: literal operands are not supported
 // GFX89: v_and_b32_e64 v0, 0.15915494, v1 ; encoding: [0x00,0x00,0x13,0xd1,0xf8,0x02,0x02,0x00]
 v_and_b32_e64 v0, 0.159154943091895317852646485335, v1
 

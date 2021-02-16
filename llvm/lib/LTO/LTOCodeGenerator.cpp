@@ -43,6 +43,7 @@
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/SubtargetFeature.h"
+#include "llvm/Remarks/HotnessThresholdParser.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Host.h"
@@ -86,6 +87,14 @@ cl::opt<bool> RemarksWithHotness(
     "lto-pass-remarks-with-hotness",
     cl::desc("With PGO, include profile count in optimization remarks"),
     cl::Hidden);
+
+cl::opt<Optional<uint64_t>, false, remarks::HotnessThresholdParser>
+    RemarksHotnessThreshold(
+        "lto-pass-remarks-hotness-threshold",
+        cl::desc("Minimum profile count required for an "
+                 "optimization remark to be output."
+                 " Use 'auto' to apply the threshold from profile summary."),
+        cl::value_desc("uint or 'auto'"), cl::init(0), cl::Hidden);
 
 cl::opt<std::string>
     RemarksFilename("lto-pass-remarks-output",
@@ -317,22 +326,15 @@ LTOCodeGenerator::compileOptimized() {
   return std::move(*BufferOrErr);
 }
 
-bool LTOCodeGenerator::compile_to_file(const char **Name, bool DisableVerify,
-                                       bool DisableInline,
-                                       bool DisableGVNLoadPRE,
-                                       bool DisableVectorization) {
-  if (!optimize(DisableVerify, DisableInline, DisableGVNLoadPRE,
-                DisableVectorization))
+bool LTOCodeGenerator::compile_to_file(const char **Name) {
+  if (!optimize())
     return false;
 
   return compileOptimizedToFile(Name);
 }
 
-std::unique_ptr<MemoryBuffer>
-LTOCodeGenerator::compile(bool DisableVerify, bool DisableInline,
-                          bool DisableGVNLoadPRE, bool DisableVectorization) {
-  if (!optimize(DisableVerify, DisableInline, DisableGVNLoadPRE,
-                DisableVectorization))
+std::unique_ptr<MemoryBuffer> LTOCodeGenerator::compile() {
+  if (!optimize())
     return nullptr;
 
   return compileOptimized();
@@ -359,7 +361,7 @@ bool LTOCodeGenerator::determineTarget() {
 
   // Construct LTOModule, hand over ownership of module and target. Use MAttr as
   // the default set of features.
-  SubtargetFeatures Features(MAttr);
+  SubtargetFeatures Features(join(MAttrs, ""));
   Features.getDefaultSubtargetFeatures(Triple);
   FeatureStr = Features.getString();
   // Set a default CPU for Darwin triples.
@@ -368,16 +370,21 @@ bool LTOCodeGenerator::determineTarget() {
       MCpu = "core2";
     else if (Triple.getArch() == llvm::Triple::x86)
       MCpu = "yonah";
+    else if (Triple.isArm64e())
+      MCpu = "apple-a12";
     else if (Triple.getArch() == llvm::Triple::aarch64 ||
              Triple.getArch() == llvm::Triple::aarch64_32)
       MCpu = "cyclone";
   }
 
   TargetMach = createTargetMachine();
+  assert(TargetMach && "Unable to create target machine");
+
   return true;
 }
 
 std::unique_ptr<TargetMachine> LTOCodeGenerator::createTargetMachine() {
+  assert(MArch && "MArch is not set!");
   return std::unique_ptr<TargetMachine>(MArch->createTargetMachine(
       TripleStr, MCpu, FeatureStr, Options, RelocModel, None, CGOptLevel));
 }
@@ -520,15 +527,13 @@ void LTOCodeGenerator::finishOptimizationRemarks() {
 }
 
 /// Optimize merged modules using various IPO passes
-bool LTOCodeGenerator::optimize(bool DisableVerify, bool DisableInline,
-                                bool DisableGVNLoadPRE,
-                                bool DisableVectorization) {
+bool LTOCodeGenerator::optimize() {
   if (!this->determineTarget())
     return false;
 
-  auto DiagFileOrErr =
-      lto::setupLLVMOptimizationRemarks(Context, RemarksFilename, RemarksPasses,
-                                        RemarksFormat, RemarksWithHotness);
+  auto DiagFileOrErr = lto::setupLLVMOptimizationRemarks(
+      Context, RemarksFilename, RemarksPasses, RemarksFormat,
+      RemarksWithHotness, RemarksHotnessThreshold);
   if (!DiagFileOrErr) {
     errs() << "Error: " << toString(DiagFileOrErr.takeError()) << "\n";
     report_fatal_error("Can't get an output file for the remarks");
@@ -548,7 +553,10 @@ bool LTOCodeGenerator::optimize(bool DisableVerify, bool DisableInline,
   // via the internal option. Must be done before WPD invoked via the optimizer
   // pipeline run below.
   updateVCallVisibilityInModule(*MergedModule,
-                                /* WholeProgramVisibilityEnabledInLTO */ false);
+                                /* WholeProgramVisibilityEnabledInLTO */ false,
+                                // FIXME: This needs linker information via a
+                                // TBD new interface.
+                                /* DynamicExportSymbols */ {});
 
   // We always run the verifier once on the merged module, the `DisableVerify`
   // parameter only applies to subsequent verify.
@@ -571,11 +579,9 @@ bool LTOCodeGenerator::optimize(bool DisableVerify, bool DisableInline,
 
   Triple TargetTriple(TargetMach->getTargetTriple());
   PassManagerBuilder PMB;
-  PMB.DisableGVNLoadPRE = DisableGVNLoadPRE;
-  PMB.LoopVectorize = !DisableVectorization;
-  PMB.SLPVectorize = !DisableVectorization;
-  if (!DisableInline)
-    PMB.Inliner = createFunctionInliningPass();
+  PMB.LoopVectorize = true;
+  PMB.SLPVectorize = true;
+  PMB.Inliner = createFunctionInliningPass();
   PMB.LibraryInfo = new TargetLibraryInfoImpl(TargetTriple);
   if (Freestanding)
     PMB.LibraryInfo->disableAllFunctions();

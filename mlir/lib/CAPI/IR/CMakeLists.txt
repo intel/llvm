@@ -1,18 +1,18 @@
-# Main API.
-add_mlir_library(MLIRCAPIIR
+# Main API shared library.
+add_mlir_public_c_api_library(MLIRCAPIIR
   AffineExpr.cpp
   AffineMap.cpp
+  BuiltinAttributes.cpp
+  BuiltinTypes.cpp
   Diagnostics.cpp
+  IntegerSet.cpp
   IR.cpp
-  StandardAttributes.cpp
-  StandardTypes.cpp
+  Pass.cpp
   Support.cpp
-
-  ADDITIONAL_HEADER_DIRS
-  ${MLIR_MAIN_INCLUDE_DIR}/mlir-c
 
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRParser
   MLIRSupport
-  )
+  MLIRPass
+)

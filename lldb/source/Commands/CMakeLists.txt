@@ -31,11 +31,13 @@ add_lldb_library(lldbCommands
   CommandObjectStats.cpp
   CommandObjectTarget.cpp
   CommandObjectThread.cpp
+  CommandObjectThreadUtil.cpp
   CommandObjectTrace.cpp
   CommandObjectType.cpp
   CommandObjectVersion.cpp
   CommandObjectWatchpoint.cpp
   CommandObjectWatchpointCommand.cpp
+  CommandOptionsProcessLaunch.cpp
 
   LINK_LIBS
     lldbBase

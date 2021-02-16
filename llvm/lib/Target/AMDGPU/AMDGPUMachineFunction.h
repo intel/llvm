@@ -12,7 +12,6 @@
 #include "Utils/AMDGPUBaseInfo.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/CodeGen/MachineFunction.h"
-#include "llvm/Support/Alignment.h"
 
 namespace llvm {
 
@@ -44,9 +43,12 @@ protected:
   // State of MODE register, assumed FP mode.
   AMDGPU::SIModeRegisterDefaults Mode;
 
-  // Kernels + shaders. i.e. functions called by the driver and not called
+  // Kernels + shaders. i.e. functions called by the hardware and not called
   // by other functions.
   bool IsEntryFunction = false;
+
+  // Entry points called by other functions instead of directly by the hardware.
+  bool IsModuleEntryFunction = false;
 
   bool NoSignedZerosFPMath = false;
 
@@ -76,6 +78,8 @@ public:
   bool isEntryFunction() const {
     return IsEntryFunction;
   }
+
+  bool isModuleEntryFunction() const { return IsModuleEntryFunction; }
 
   bool hasNoSignedZerosFPMath() const {
     return NoSignedZerosFPMath;

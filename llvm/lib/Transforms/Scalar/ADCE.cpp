@@ -295,7 +295,7 @@ void AggressiveDeadCodeElimination::initialize() {
   // return of the function.
   // We do this by seeing which of the postdomtree root children exit the
   // program, and for all others, mark the subtree live.
-  for (auto *PDTChild : children<DomTreeNode *>(PDT.getRootNode())) {
+  for (auto &PDTChild : children<DomTreeNode *>(PDT.getRootNode())) {
     auto *BB = PDTChild->getBlock();
     auto &Info = BlockInfo[BB];
     // Real function return
@@ -643,7 +643,7 @@ void AggressiveDeadCodeElimination::computeReversePostOrder() {
   SmallPtrSet<BasicBlock*, 16> Visited;
   unsigned PostOrder = 0;
   for (auto &BB : F) {
-    if (succ_begin(&BB) != succ_end(&BB))
+    if (!succ_empty(&BB))
       continue;
     for (BasicBlock *Block : inverse_post_order_ext(&BB,Visited))
       BlockInfo[Block].PostOrder = PostOrder++;

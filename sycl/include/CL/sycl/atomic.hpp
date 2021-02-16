@@ -26,7 +26,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-enum class memory_order : int { relaxed };
+enum class memory_order : int { relaxed = 0 };
 
 // Forward declaration
 template <typename pointerT, access::address_space addressSpace>
@@ -201,17 +201,17 @@ public:
 #ifdef __ENABLE_USM_ADDR_SPACE__
   // Create atomic in global_space with one from global_device_space
   template <access::address_space _Space = addressSpace,
-            typename = typename std::enable_if<
+            typename = typename detail::enable_if_t<
                 _Space == addressSpace &&
-                addressSpace == access::address_space::global_space>::type>
+                addressSpace == access::address_space::global_space>>
   atomic(const atomic<T, access::address_space::global_device_space> &RHS) {
     Ptr = RHS.Ptr;
   }
 
   template <access::address_space _Space = addressSpace,
-            typename = typename std::enable_if<
+            typename = typename detail::enable_if_t<
                 _Space == addressSpace &&
-                addressSpace == access::address_space::global_space>::type>
+                addressSpace == access::address_space::global_space>>
   atomic(atomic<T, access::address_space::global_device_space> &&RHS) {
     Ptr = RHS.Ptr;
   }
@@ -318,7 +318,7 @@ public:
 
 private:
 #ifdef __SYCL_DEVICE_ONLY__
-  typename detail::PtrValueType<T, addressSpace>::type *Ptr;
+  typename detail::DecoratedType<T, addressSpace>::type *Ptr;
 #else
   std::atomic<T> *Ptr;
 #endif

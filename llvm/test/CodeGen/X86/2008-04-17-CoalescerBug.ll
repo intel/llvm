@@ -14,7 +14,7 @@
 @.str33 = external constant [29 x i32]		; <[29 x i32]*> [#uses=1]
 @.str89 = external constant [5 x i32]		; <[5 x i32]*> [#uses=1]
 
-define void @_ZNK10wxDateTime6FormatEPKwRKNS_8TimeZoneE(%struct.wxString* noalias sret  %agg.result, %struct.wxDateTime* %this, i32* %format, %"struct.wxDateTime::TimeZone"* %tz, i1 %foo) personality i32 (...)* @__gxx_personality_v0 {
+define void @_ZNK10wxDateTime6FormatEPKwRKNS_8TimeZoneE(%struct.wxString* noalias sret(%struct.wxString)  %agg.result, %struct.wxDateTime* %this, i32* %format, %"struct.wxDateTime::TimeZone"* %tz, i1 %foo) personality i32 (...)* @__gxx_personality_v0 {
 ; CHECK-LABEL: _ZNK10wxDateTime6FormatEPKwRKNS_8TimeZoneE:
 ; CHECK:       ## %bb.0: ## %entry
 ; CHECK-NEXT:    pushl %ebp
@@ -47,7 +47,6 @@ define void @_ZNK10wxDateTime6FormatEPKwRKNS_8TimeZoneE(%struct.wxString* noalia
 ; CHECK-NEXT:    movb $1, %bh
 ; CHECK-NEXT:    movl $274877907, %ebp ## imm = 0x10624DD3
 ; CHECK-NEXT:    jmp LBB0_5
-; CHECK-NEXT:    .p2align 4, 0x90
 ; CHECK-NEXT:  LBB0_23: ## %bb7806
 ; CHECK-NEXT:    ## in Loop: Header=BB0_5 Depth=1
 ; CHECK-NEXT:  Ltmp16:
@@ -153,15 +152,6 @@ define void @_ZNK10wxDateTime6FormatEPKwRKNS_8TimeZoneE(%struct.wxString* noalia
 ; CHECK-NEXT:    calll __ZN12wxStringBase10ConcatSelfEmPKwm
 ; CHECK-NEXT:  Ltmp11:
 ; CHECK-NEXT:    jmp LBB0_5
-; CHECK-NEXT:  LBB0_22: ## %bb5968
-; CHECK-NEXT:  Ltmp2:
-; CHECK-NEXT:    movl $0, {{[0-9]+}}(%esp)
-; CHECK-NEXT:    movl $0, {{[0-9]+}}(%esp)
-; CHECK-NEXT:    movl $0, (%esp)
-; CHECK-NEXT:    calll __ZN8wxString6FormatEPKwz
-; CHECK-NEXT:    subl $4, %esp
-; CHECK-NEXT:  Ltmp3:
-; CHECK-NEXT:    jmp LBB0_27
 ; CHECK-NEXT:  LBB0_9: ## %bb5657
 ; CHECK-NEXT:  Ltmp13:
 ; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %eax
@@ -170,6 +160,15 @@ define void @_ZNK10wxDateTime6FormatEPKwRKNS_8TimeZoneE(%struct.wxString* noalia
 ; CHECK-NEXT:    movl %eax, (%esp)
 ; CHECK-NEXT:    calll __ZNK10wxDateTime12GetDayOfYearERKNS_8TimeZoneE
 ; CHECK-NEXT:  Ltmp14:
+; CHECK-NEXT:    jmp LBB0_27
+; CHECK-NEXT:  LBB0_22: ## %bb5968
+; CHECK-NEXT:  Ltmp2:
+; CHECK-NEXT:    movl $0, {{[0-9]+}}(%esp)
+; CHECK-NEXT:    movl $0, {{[0-9]+}}(%esp)
+; CHECK-NEXT:    movl $0, (%esp)
+; CHECK-NEXT:    calll __ZN8wxString6FormatEPKwz
+; CHECK-NEXT:    subl $4, %esp
+; CHECK-NEXT:  Ltmp3:
 ; CHECK-NEXT:  LBB0_27: ## %bb115.critedge.i
 ; CHECK-NEXT:    movl %esi, %eax
 ; CHECK-NEXT:    addl $28, %esp
@@ -291,13 +290,13 @@ bb448.i8694:		; preds = %bb440.i8663, %bb278.i8617
 invcont5814:		; preds = %bb448.i8694, %bb265.i8606
 	%tmp812.0.0 = phi i16 [ %tmp477478.i8670, %bb448.i8694 ], [ %tmp273274.i8595, %bb265.i8606 ]		; <i16> [#uses=1]
 	%tmp58165817 = zext i16 %tmp812.0.0 to i32		; <i32> [#uses=1]
-	invoke void (%struct.wxString*, i32*, ...) @_ZN8wxString6FormatEPKwz( %struct.wxString* noalias sret  null, i32* null, i32 %tmp58165817 )
+	invoke void (%struct.wxString*, i32*, ...) @_ZN8wxString6FormatEPKwz(%struct.wxString* noalias sret(%struct.wxString)  null, i32* null, i32 %tmp58165817 )
 			to label %invcont5831 unwind label %lpad
 invcont5831:		; preds = %invcont5814
-	%tmp5862 = invoke zeroext  i8 @_ZN12wxStringBase10ConcatSelfEmPKwm( %struct.wxStringBase* null, i32 0, i32* null, i32 0 )
+	%tmp5862 = invoke zeroext  i8 @_ZN12wxStringBase10ConcatSelfEmPKwm(%struct.wxStringBase* null, i32 0, i32* null, i32 0 )
 			to label %bb7834 unwind label %lpad8185		; <i8> [#uses=0]
 bb5968:		; preds = %bb3314
-	invoke void (%struct.wxString*, i32*, ...) @_ZN8wxString6FormatEPKwz( %struct.wxString* noalias sret  null, i32* null, i32 0 )
+	invoke void (%struct.wxString*, i32*, ...) @_ZN8wxString6FormatEPKwz(%struct.wxString* noalias sret(%struct.wxString)  null, i32* null, i32 0 )
 			to label %invcont5981 unwind label %lpad
 invcont5981:		; preds = %bb5968
 	ret void
@@ -346,6 +345,6 @@ declare %struct.wxStringBase* @_ZN12wxStringBase6appendEmw(%struct.wxStringBase*
 
 declare %struct.wxStringBase* @_ZN12wxStringBaseaSEPKw(%struct.wxStringBase*, i32*)
 
-declare void @_ZN8wxString6FormatEPKwz(%struct.wxString* noalias sret , i32*, ...)
+declare void @_ZN8wxString6FormatEPKwz(%struct.wxString* noalias sret(%struct.wxString) , i32*, ...)
 
 declare i32 @__gxx_personality_v0(...)

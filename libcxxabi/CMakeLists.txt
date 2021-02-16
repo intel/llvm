@@ -10,16 +10,14 @@ endif()
 
 cmake_minimum_required(VERSION 3.13.4)
 
-if(POLICY CMP0042)
-  cmake_policy(SET CMP0042 NEW) # Set MACOSX_RPATH=YES by default
-endif()
-
 # Add path for custom modules
 set(CMAKE_MODULE_PATH
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules"
   ${CMAKE_MODULE_PATH}
   )
+
+set(CMAKE_FOLDER "libc++")
 
 set(LIBCXXABI_SOURCE_DIR  ${CMAKE_CURRENT_SOURCE_DIR})
 set(LIBCXXABI_BINARY_DIR  ${CMAKE_CURRENT_BINARY_DIR})
@@ -46,6 +44,23 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR LIBCXXABI_STANDALONE_B
 
   # Find the LLVM sources and simulate LLVM CMake options.
   include(HandleOutOfTreeLLVM)
+endif()
+
+if (LIBCXXABI_STANDALONE_BUILD)
+  find_package(Python3 COMPONENTS Interpreter)
+  if(NOT Python3_Interpreter_FOUND)
+    message(WARNING "Python3 not found, using python2 as a fallback")
+    find_package(Python2 COMPONENTS Interpreter REQUIRED)
+    if(Python2_VERSION VERSION_LESS 2.7)
+      message(SEND_ERROR "Python 2.7 or newer is required")
+    endif()
+
+    # Treat python2 as python3
+    add_executable(Python3::Interpreter IMPORTED)
+    set_target_properties(Python3::Interpreter PROPERTIES
+      IMPORTED_LOCATION ${Python2_EXECUTABLE})
+    set(Python3_EXECUTABLE ${Python2_EXECUTABLE})
+  endif()
 endif()
 
 # Require out of source build.
@@ -133,6 +148,8 @@ option(LIBCXXABI_BAREMETAL "Build libc++abi for baremetal targets." OFF)
 # The default terminate handler attempts to demangle uncaught exceptions, which
 # causes extra I/O and demangling code to be pulled in.
 option(LIBCXXABI_SILENT_TERMINATE "Set this to make the terminate handler default to a silent alternative" OFF)
+option(LIBCXXABI_NON_DEMANGLING_TERMINATE "Set this to make the terminate handler
+avoid demangling" OFF)
 
 if (NOT LIBCXXABI_ENABLE_SHARED AND NOT LIBCXXABI_ENABLE_STATIC)
   message(FATAL_ERROR "libc++abi must be built as either a shared or static library.")
@@ -265,9 +282,20 @@ endif()
 # library.
 add_definitions(-D_LIBCXXABI_BUILDING_LIBRARY)
 
+# libcxxabi needs to, for various reasons, include the libcpp headers as if
+# it is being built as part of libcxx.
+add_definitions(-D_LIBCPP_BUILDING_LIBRARY)
+
 # Disable DLL annotations on Windows for static builds.
 if (WIN32 AND LIBCXXABI_ENABLE_STATIC AND NOT LIBCXXABI_ENABLE_SHARED)
-  add_definitions(-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS)
+  if (LIBCXX_ENABLE_SHARED AND LIBCXX_ENABLE_STATIC_ABI_LIBRARY)
+    # Building libcxxabi statically, but intending for it to be statically
+    # linked into a shared libcxx; keep dllexport enabled within libcxxabi,
+    # as the symbols will need to be exported from libcxx.
+  else()
+    # Regular static build; disable dllexports.
+    add_definitions(-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS)
+  endif()
 endif()
 
 add_compile_flags_if_supported(-Werror=return-type)
@@ -426,6 +454,10 @@ endif()
 
 if (LIBCXXABI_SILENT_TERMINATE)
   add_definitions(-DLIBCXXABI_SILENT_TERMINATE)
+endif()
+
+if (LIBCXXABI_NON_DEMANGLING_TERMINATE)
+  add_definitions(-DLIBCXXABI_NON_DEMANGLING_TERMINATE)
 endif()
 
 if (LIBCXXABI_BAREMETAL)

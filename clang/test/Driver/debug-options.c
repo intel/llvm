@@ -115,7 +115,7 @@
 // PS4 defaults to sce; -ggdb0 changes tuning but turns off debug info,
 // then -g turns it back on without affecting tuning.
 // RUN: %clang -### -c -ggdb0 -g -target x86_64-scei-ps4 %s 2>&1 \
-// RUN:             | FileCheck -check-prefix=G -check-prefix=G_GDB %s
+// RUN:             | FileCheck -check-prefix=G_GDB %s
 //
 // RUN: %clang -### -c -g1 %s 2>&1 \
 // RUN:             | FileCheck -check-prefix=GLTO_ONLY %s
@@ -196,8 +196,7 @@
 // RUN: %clang -### -c -gpubnames -gno-gnu-pubnames %s 2>&1 | FileCheck -check-prefix=NOPUB %s
 // RUN: %clang -### -c -gpubnames -gno-pubnames %s 2>&1 | FileCheck -check-prefix=NOPUB %s
 //
-// RUN: %clang -### -c -gsplit-dwarf %s 2>&1 | FileCheck -check-prefix=GPUB %s
-// RUN: %clang -### -c -gsplit-dwarf -gno-pubnames %s 2>&1 | FileCheck -check-prefix=NOPUB %s
+// RUN: %clang -### -c -gsplit-dwarf -g -gno-pubnames %s 2>&1 | FileCheck -check-prefix=NOPUB %s
 //
 // RUN: %clang -### -c -fdebug-ranges-base-address %s 2>&1 | FileCheck -check-prefix=RNGBSE %s
 // RUN: %clang -### -c %s 2>&1 | FileCheck -check-prefix=NORNGBSE %s
@@ -213,6 +212,9 @@
 //
 // RUN: %clang -### -fdebug-types-section -fno-debug-types-section -target x86_64-unknown-linux %s 2>&1 \
 // RUN:        | FileCheck -check-prefix=NOFDTS %s
+//
+// RUN: %clang -### -fdebug-types-section -target wasm32-unknown-unknown %s 2>&1 \
+// RUN:        | FileCheck -check-prefix=FDTS %s
 //
 // RUN: %clang -### -fdebug-types-section -target x86_64-apple-darwin %s 2>&1 \
 // RUN:        | FileCheck -check-prefix=FDTSE %s
@@ -372,3 +374,19 @@
 // RUN:        | FileCheck -check-prefix=NO_DEBUG_UNUSED_TYPES %s
 // NO_DEBUG_UNUSED_TYPES: "-debug-info-kind={{limited|line-tables-only|standalone}}"
 // NO_DEBUG_UNUSED_TYPES-NOT: "-debug-info-kind=unused-types"
+//
+// RUN: %clang -### -c -gdwarf-5 -gdwarf64 -target x86_64 %s 2>&1 | FileCheck -check-prefix=GDWARF64_ON %s
+// RUN: %clang -### -c -gdwarf-4 -gdwarf64 -target x86_64 %s 2>&1 | FileCheck -check-prefix=GDWARF64_ON %s
+// RUN: %clang -### -c -gdwarf-3 -gdwarf64 -target x86_64 %s 2>&1 | FileCheck -check-prefix=GDWARF64_ON %s
+// RUN: %clang -### -c -gdwarf-2 -gdwarf64 -target x86_64 %s 2>&1 | FileCheck -check-prefix=GDWARF64_VER %s
+// RUN: %clang -### -c -gdwarf-4 -gdwarf64 -target x86_64 -target x86_64 %s 2>&1 \
+// RUN:       | FileCheck -check-prefix=GDWARF64_ON %s
+// RUN: %clang -### -c -gdwarf-4 -gdwarf64 -target i386-linux-gnu %s 2>&1 \
+// RUN:       | FileCheck -check-prefix=GDWARF64_32ARCH %s
+// RUN: %clang -### -c -gdwarf-4 -gdwarf64 -target x86_64-apple-darwin %s 2>&1 \
+// RUN:       | FileCheck -check-prefix=GDWARF64_ELF %s
+//
+// GDWARF64_ON:  "-gdwarf64"
+// GDWARF64_VER:  error: invalid argument '-gdwarf64' only allowed with 'DWARFv3 or greater'
+// GDWARF64_32ARCH: error: invalid argument '-gdwarf64' only allowed with '64 bit architecture'
+// GDWARF64_ELF: error: invalid argument '-gdwarf64' only allowed with 'ELF platforms'

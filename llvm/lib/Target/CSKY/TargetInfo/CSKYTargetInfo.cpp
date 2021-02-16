@@ -15,11 +15,6 @@ Target &llvm::getTheCSKYTarget() {
   return TheCSKYTarget;
 }
 
-extern "C" void LLVMInitializeCSKYTargetInfo() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeCSKYTargetInfo() {
   RegisterTarget<Triple::csky> X(getTheCSKYTarget(), "csky", "C-SKY", "CSKY");
 }
-
-// FIXME: Temporary stub - this function must be defined for linking
-// to succeed and will be called unconditionally by llc, so must be a no-op.
-// Remove once this function is properly implemented.
-extern "C" void LLVMInitializeCSKYTargetMC() {}

@@ -1,10 +1,10 @@
 // RUN: %clangxx -fsycl %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %RUN_ON_HOST %t.out
 
 // This performs basic checks such as reduction creation, getIdentity() method,
 // and the combine() method of the aux class 'reducer'.
 
-#include "../on-device/reduction/reduction_utils.hpp"
+#include "reduction_utils.hpp"
 #include <CL/sycl.hpp>
 #include <cassert>
 

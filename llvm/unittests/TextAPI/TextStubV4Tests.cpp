@@ -255,18 +255,9 @@ TEST(TBDv4, ReadMultipleDocuments) {
                             {Targets[0], Targets[2]});
   EXPECT_EQ(1U, File->reexportedLibraries().size());
   EXPECT_EQ(reexport, File->reexportedLibraries().front());
-  ExportedSymbolSeq Exports;
-  for (const auto *Sym : File->symbols()) {
-    EXPECT_FALSE(Sym->isWeakReferenced());
-    EXPECT_FALSE(Sym->isUndefined());
-    Exports.emplace_back(ExportedSymbol{Sym->getKind(), Sym->getName().str(),
-                                        Sym->isWeakDefined(),
-                                        Sym->isThreadLocalValue()});
-  }
-  EXPECT_EQ(0U, Exports.size());
+  EXPECT_TRUE(File->symbols().empty());
 
   // Check Inlined Document
-  Exports.clear();
   Targets.clear();
   Uuids.clear();
   PlatformKind Platform = PlatformKind::macOS;
@@ -292,6 +283,7 @@ TEST(TBDv4, ReadMultipleDocuments) {
   EXPECT_TRUE(Document->isApplicationExtensionSafe());
   EXPECT_FALSE(Document->isInstallAPI());
 
+  ExportedSymbolSeq Exports;
   ExportedSymbolSeq Reexports, Undefineds;
   for (const auto *Sym : Document->symbols()) {
     ExportedSymbol Temp =
@@ -924,8 +916,8 @@ TEST(TBDv4, MalformedFile2) {
   EXPECT_FALSE(!!Result);
   std::string ErrorMessage = toString(Result.takeError());
   ASSERT_EQ(
-      "malformed file\nTest.tbd:5:9: error: unknown key 'foobar'\nfoobar: "
-      "\"unsupported key\"\n        ^~~~~~~~~~~~~~~~~\n",
+      "malformed file\nTest.tbd:5:1: error: unknown key 'foobar'\nfoobar: "
+      "\"unsupported key\"\n^~~~~~\n",
       ErrorMessage);
 }
 

@@ -21,10 +21,10 @@ namespace sycl {
 namespace detail {
 
 void spec_constant_impl::set(size_t Size, const void *Val) {
-  if ((Size > sizeof(Bytes)) || (Size == 0))
+  if (0 == Size)
     throw sycl::runtime_error("invalid spec constant size", PI_INVALID_VALUE);
-  this->Size = Size;
-  std::memcpy(Bytes, Val, Size);
+  auto *BytePtr = reinterpret_cast<const char *>(Val);
+  this->Bytes.assign(BytePtr, BytePtr + Size);
 }
 
 void stableSerializeSpecConstRegistry(const SpecConstRegistryT &Reg,

@@ -52,4 +52,5 @@ CHECK:   =default           -   set spec constants to C++ defaults
 CHECK: --split=<value>      - split input module
 CHECK:   =source            -   1 output module per source (translation unit)
 CHECK:   =kernel            -   1 output module per kernel
+CHECK:   =auto              -   Choose split mode automatically
 CHECK: --symbols            - generate exported symbol files

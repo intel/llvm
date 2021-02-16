@@ -103,8 +103,12 @@ class StorageTypeMap:
     self.map = {}
     for type_name in self.type_names:
       concrete_type = gdb.lookup_type(type_name)
-      storage = gdb.parse_and_eval(
-          "&'mlir::TypeID::get<%s>()::instance'" % type_name)
+      try:
+        storage = gdb.parse_and_eval(
+            "&'mlir::detail::TypeIDExported::get<%s>()::instance'" % type_name)
+      except gdb.error:
+        # Skip when TypeID instance cannot be found in current context.
+        continue
       if concrete_type and storage:
         self.map[int(storage)] = concrete_type
 
@@ -192,13 +196,15 @@ for name in [
     'DenseIntOrFPElementsAttr',
     'OpaqueElementsAttr',
     'SparseElementsAttr',
-    # mlir/IR/StandardTypes.h
+    # mlir/IR/BuiltinTypes.h
     'ComplexType',
     'IndexType',
     'IntegerType',
     'Float16Type',
     'Float32Type',
     'Float64Type',
+    'Float80Type',
+    'Float128Type',
     'NoneType',
     'VectorType',
     'RankedTensorType',

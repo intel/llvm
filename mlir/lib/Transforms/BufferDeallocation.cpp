@@ -54,11 +54,12 @@
 #include "PassDetail.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/StandardOps/Utils/Utils.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Transforms/Bufferize.h"
+#include "mlir/Transforms/BufferUtils.h"
 #include "mlir/Transforms/Passes.h"
 #include "llvm/ADT/SetOperations.h"
 
@@ -75,153 +76,29 @@ static void walkReturnOperations(Region *region, const FuncT &func) {
     }
 }
 
-/// Wrapper for the actual `RegionBranchOpInterface.getSuccessorRegions`
-/// function that initializes the required `operandAttributes` array.
-static void getSuccessorRegions(RegionBranchOpInterface regionInterface,
-                                llvm::Optional<unsigned> index,
-                                SmallVectorImpl<RegionSuccessor> &successors) {
-  // Create a list of null attributes for each operand to comply with the
-  // `getSuccessorRegions` interface definition that requires a single
-  // attribute per operand.
-  SmallVector<Attribute, 2> operandAttributes(
-      regionInterface.getOperation()->getNumOperands());
-
-  // Get all successor regions using the temporarily allocated
-  // `operandAttributes`.
-  regionInterface.getSuccessorRegions(index, operandAttributes, successors);
-}
-
-//===----------------------------------------------------------------------===//
-// BufferPlacementAllocs
-//===----------------------------------------------------------------------===//
-
-/// Get the start operation to place the given alloc value withing the
-// specified placement block.
-Operation *BufferPlacementAllocs::getStartOperation(Value allocValue,
-                                                    Block *placementBlock,
-                                                    const Liveness &liveness) {
-  // We have to ensure that we place the alloc before its first use in this
-  // block.
-  const LivenessBlockInfo &livenessInfo = *liveness.getLiveness(placementBlock);
-  Operation *startOperation = livenessInfo.getStartOperation(allocValue);
-  // Check whether the start operation lies in the desired placement block.
-  // If not, we will use the terminator as this is the last operation in
-  // this block.
-  if (startOperation->getBlock() != placementBlock) {
-    Operation *opInPlacementBlock =
-        placementBlock->findAncestorOpInBlock(*startOperation);
-    startOperation = opInPlacementBlock ? opInPlacementBlock
-                                        : placementBlock->getTerminator();
-  }
-
-  return startOperation;
-}
-
-/// Finds associated deallocs that can be linked to our allocation nodes (if
-/// any).
-Operation *BufferPlacementAllocs::findDealloc(Value allocValue) {
-  auto userIt = llvm::find_if(allocValue.getUsers(), [&](Operation *user) {
-    auto effectInterface = dyn_cast<MemoryEffectOpInterface>(user);
-    if (!effectInterface)
-      return false;
-    // Try to find a free effect that is applied to one of our values
-    // that will be automatically freed by our pass.
-    SmallVector<MemoryEffects::EffectInstance, 2> effects;
-    effectInterface.getEffectsOnValue(allocValue, effects);
-    return llvm::any_of(effects, [&](MemoryEffects::EffectInstance &it) {
-      return isa<MemoryEffects::Free>(it.getEffect());
-    });
+/// Checks if all operations in a given region have at least one attached region
+/// that implements the RegionBranchOpInterface. This is not required in edge
+/// cases, where we have a single attached region and the parent operation has
+/// no results.
+static bool validateSupportedControlFlow(Region &region) {
+  bool success = true;
+  region.walk([&success](Operation *operation) {
+    auto regions = operation->getRegions();
+    // Walk over all operations in a region and check if the operation has at
+    // least one region and implements the RegionBranchOpInterface. If there
+    // is an operation that does not fulfill this condition, we cannot apply
+    // the deallocation steps. Furthermore, we accept cases, where we have a
+    // region that returns no results, since, in that case, the intra-region
+    // control flow does not affect the transformation.
+    size_t size = regions.size();
+    if (((size == 1 && !operation->getResults().empty()) || size > 1) &&
+        !dyn_cast<RegionBranchOpInterface>(operation)) {
+      operation->emitError("All operations with attached regions need to "
+                           "implement the RegionBranchOpInterface.");
+      success = false;
+    }
   });
-  // Assign the associated dealloc operation (if any).
-  return userIt != allocValue.user_end() ? *userIt : nullptr;
-}
-
-/// Initializes the internal list by discovering all supported allocation
-/// nodes.
-BufferPlacementAllocs::BufferPlacementAllocs(Operation *op) { build(op); }
-
-/// Searches for and registers all supported allocation entries.
-void BufferPlacementAllocs::build(Operation *op) {
-  op->walk([&](MemoryEffectOpInterface opInterface) {
-    // Try to find a single allocation result.
-    SmallVector<MemoryEffects::EffectInstance, 2> effects;
-    opInterface.getEffects(effects);
-
-    SmallVector<MemoryEffects::EffectInstance, 2> allocateResultEffects;
-    llvm::copy_if(
-        effects, std::back_inserter(allocateResultEffects),
-        [=](MemoryEffects::EffectInstance &it) {
-          Value value = it.getValue();
-          return isa<MemoryEffects::Allocate>(it.getEffect()) && value &&
-                 value.isa<OpResult>() &&
-                 it.getResource() !=
-                     SideEffects::AutomaticAllocationScopeResource::get();
-        });
-    // If there is one result only, we will be able to move the allocation and
-    // (possibly existing) deallocation ops.
-    if (allocateResultEffects.size() != 1)
-      return;
-    // Get allocation result.
-    Value allocValue = allocateResultEffects[0].getValue();
-    // Find the associated dealloc value and register the allocation entry.
-    allocs.push_back(std::make_tuple(allocValue, findDealloc(allocValue)));
-  });
-}
-
-//===----------------------------------------------------------------------===//
-// BufferPlacementTransformationBase
-//===----------------------------------------------------------------------===//
-
-/// Constructs a new transformation base using the given root operation.
-BufferPlacementTransformationBase::BufferPlacementTransformationBase(
-    Operation *op)
-    : aliases(op), allocs(op), liveness(op) {}
-
-/// Returns true if the given operation represents a loop by testing whether it
-/// implements the `LoopLikeOpInterface` or the `RegionBranchOpInterface`. In
-/// the case of a `RegionBranchOpInterface`, it checks all region-based control-
-/// flow edges for cycles.
-bool BufferPlacementTransformationBase::isLoop(Operation *op) {
-  // If the operation implements the `LoopLikeOpInterface` it can be considered
-  // a loop.
-  if (isa<LoopLikeOpInterface>(op))
-    return true;
-
-  // If the operation does not implement the `RegionBranchOpInterface`, it is
-  // (currently) not possible to detect a loop.
-  RegionBranchOpInterface regionInterface;
-  if (!(regionInterface = dyn_cast<RegionBranchOpInterface>(op)))
-    return false;
-
-  // Recurses into a region using the current region interface to find potential
-  // cycles.
-  SmallPtrSet<Region *, 4> visitedRegions;
-  std::function<bool(Region *)> recurse = [&](Region *current) {
-    if (!current)
-      return false;
-    // If we have found a back edge, the parent operation induces a loop.
-    if (!visitedRegions.insert(current).second)
-      return true;
-    // Recurses into all region successors.
-    SmallVector<RegionSuccessor, 2> successors;
-    getSuccessorRegions(regionInterface, current->getRegionNumber(),
-                        successors);
-    for (RegionSuccessor &regionEntry : successors)
-      if (recurse(regionEntry.getSuccessor()))
-        return true;
-    return false;
-  };
-
-  // Start with all entry regions and test whether they induce a loop.
-  SmallVector<RegionSuccessor, 2> successorRegions;
-  getSuccessorRegions(regionInterface, /*index=*/llvm::None, successorRegions);
-  for (RegionSuccessor &regionEntry : successorRegions) {
-    if (recurse(regionEntry.getSuccessor()))
-      return true;
-    visitedRegions.clear();
-  }
-
-  return false;
+  return success;
 }
 
 namespace {
@@ -443,8 +320,7 @@ private:
     // parent operation. In this case, we have to introduce an additional copy
     // for buffer that is passed to the argument.
     SmallVector<RegionSuccessor, 2> successorRegions;
-    getSuccessorRegions(regionInterface, /*index=*/llvm::None,
-                        successorRegions);
+    regionInterface.getSuccessorRegions(/*index=*/llvm::None, successorRegions);
     auto *it =
         llvm::find_if(successorRegions, [&](RegionSuccessor &successorRegion) {
           return successorRegion.getSuccessor() == argRegion;
@@ -497,8 +373,8 @@ private:
       // Query the regionInterface to get all successor regions of the current
       // one.
       SmallVector<RegionSuccessor, 2> successorRegions;
-      getSuccessorRegions(regionInterface, region.getRegionNumber(),
-                          successorRegions);
+      regionInterface.getSuccessorRegions(region.getRegionNumber(),
+                                          successorRegions);
       // Try to find a matching region successor.
       RegionSuccessor *regionSuccessor =
           llvm::find_if(successorRegions, regionPredicate);
@@ -544,13 +420,8 @@ private:
 
     // Extract information about dynamically shaped types by
     // extracting their dynamic dimensions.
-    SmallVector<Value, 4> dynamicOperands;
-    for (auto shapeElement : llvm::enumerate(memRefType.getShape())) {
-      if (!ShapedType::isDynamic(shapeElement.value()))
-        continue;
-      dynamicOperands.push_back(builder.create<DimOp>(
-          terminator->getLoc(), sourceValue, shapeElement.index()));
-    }
+    auto dynamicOperands =
+        getDynOperands(terminator->getLoc(), sourceValue, builder);
 
     // TODO: provide a generic interface to create dialect-specific
     // Alloc and CopyOp nodes.
@@ -660,7 +531,12 @@ struct BufferDeallocationPass : BufferDeallocationBase<BufferDeallocationPass> {
     if (backedges.size()) {
       getFunction().emitError(
           "Structured control-flow loops are supported only.");
-      return;
+      return signalPassFailure();
+    }
+
+    // Check that the control flow structures are supported.
+    if (!validateSupportedControlFlow(getFunction().getRegion())) {
+      return signalPassFailure();
     }
 
     // Place all required temporary alloc, copy and dealloc nodes.

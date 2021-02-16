@@ -6,7 +6,7 @@
 ;   int i = 0;
 ;   int m = 42;
 
-;  [[intelfpga::ivdep]]
+;  [[intel::ivdep]]
 ;   while (i < m) {
 ;     if (i % 2) {
 ;       ++i;
@@ -15,7 +15,7 @@
 ;   }
 
 ;   i = 0;
-;   [[intelfpga::ii(2)]]
+;   [[intel::ii(2)]]
 ;   while (i < m) {
 ;     if (i % 3) {
 ;       ++i;
@@ -24,7 +24,7 @@
 ;   }
 
 ;   i = 0;
-;   [[intelfpga::max_concurrency(4)]]
+;   [[intel::max_concurrency(4)]]
 ;   while (i < m) {
 ;     if (i % 5) {
 ;       ++i;
@@ -33,7 +33,7 @@
 ;   }
 
 ;   i = 0;
-;   [[intelfpga::ivdep(2)]]
+;   [[intel::ivdep(2)]]
 ;   while (true) {
 ;     if (i % 2) {
 ;       ++i;
@@ -46,14 +46,14 @@
 
 ; void loop_pipelining() {
 ;   int a[10];
-;   [[intelfpga::disable_loop_pipelining]]
+;   [[intel::disable_loop_pipelining]]
 ;   for (int i = 0; i != 10; ++i)
 ;     a[i] = 0;
 ; }
 
 ; void loop_coalesce() {
 ;   int i = 0, m = 42;
-;   [[intelfpga::loop_coalesce(4)]]
+;   [[intel::loop_coalesce(4)]]
 ;   while (i < m) {
 ;     if (i % 2) {
 ;       ++i;
@@ -61,7 +61,7 @@
 ;     }
 ;   }
 ;   i = 0;
-;   [[intelfpga::loop_coalesce]]
+;   [[intel::loop_coalesce]]
 ;   while (i < m) {
 ;     if (i % 3) {
 ;       ++i;
@@ -72,21 +72,28 @@
 
 ; void max_interleaving() {
 ;   int a[10];
-;   [[intelfpga::max_interleaving(3)]]
+;   [[intel::max_interleaving(3)]]
 ;   for (int i = 0; i != 10; ++i)
 ;     a[i] = 0;
 ; }
 
 ; void speculated_iterations() {
 ;   int a[10];
-;   [[intelfpga::speculated_iterations(4)]]
+;   [[intel::speculated_iterations(4)]]
+;   for (int i = 0; i != 10; ++i)
+;     a[i] = 0;
+; }
+;
+; void nofusion() {
+;   int a[10];
+;   [[intel::nofusion]]
 ;   for (int i = 0; i != 10; ++i)
 ;     a[i] = 0;
 ; }
 
 ; TODO: This source code will result in different LLVM IR after
 ; rev [a47242e4b2c1c9] of https://github.com/intel/llvm (the
-; [[intelfpga::ivdep]] attribute will be represented otherwise).
+; [[intel::ivdep]] attribute will be represented otherwise).
 ; It's worth factoring out the old representation's translation:
 ; (!"llvm.loop.ivdep.*" <-> LoopControlDependency*Mask)
 ; into a separate test file
@@ -341,9 +348,9 @@ while.end:                                        ; preds = %while.cond
   br label %while.cond1
 
 ; Per SPIR-V spec, LoopControlLoopCoalesceINTELMask = 0x100000 (1048576)
-; CHECK-SPIRV: 4 LoopMerge {{[0-9]+}} {{[0-9]+}} 1048576
+; CHECK-SPIRV: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 1048576 0
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
-; CHECK-SPIRV-NEGATIVE-NOT: 4 LoopMerge {{[0-9]+}} {{[0-9]+}} 1048576
+; CHECK-SPIRV-NEGATIVE-NOT: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 1048576 0
 while.cond1:                                      ; preds = %if.end8, %if.then6, %while.end
   %4 = load i32, i32* %i, align 4
   %5 = load i32, i32* %m, align 4
@@ -437,6 +444,40 @@ for.end:                                          ; preds = %for.cond
   ret void
 }
 
+; Function Attrs: noinline nounwind optnone
+define spir_func void @nofusion() #3 {
+entry:
+  %a = alloca [10 x i32], align 4
+  %i = alloca i32, align 4
+  store i32 0, i32* %i, align 4
+  br label %for.cond
+
+; Per SPIR-V spec, LoopControlNoFusionINTELMask = 0x800000 (8388608)
+; CHECK-SPIRV: 4 LoopMerge {{[0-9]+}} {{[0-9]+}} 8388608
+; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV-NEGATIVE-NOT: 4 LoopMerge {{[0-9]+}} {{[0-9]+}} 8388608
+for.cond:                                         ; preds = %for.inc, %entry
+  %0 = load i32, i32* %i, align 4
+  %cmp = icmp ne i32 %0, 10
+  br i1 %cmp, label %for.body, label %for.end
+
+for.body:                                         ; preds = %for.cond
+  %1 = load i32, i32* %i, align 4
+  %idxprom = sext i32 %1 to i64
+  %arrayidx = getelementptr inbounds [10 x i32], [10 x i32]* %a, i64 0, i64 %idxprom
+  store i32 0, i32* %arrayidx, align 4
+  br label %for.inc
+
+for.inc:                                          ; preds = %for.body
+  %2 = load i32, i32* %i, align 4
+  %inc = add nsw i32 %2, 1
+  store i32 %inc, i32* %i, align 4
+  br label %for.cond, !llvm.loop !29
+
+for.end:                                          ; preds = %for.cond
+  ret void
+}
+
 attributes #0 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "sycl-module-id"="FPGALoopMergeInst.cpp" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind willreturn }
 attributes #2 = { inlinehint nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
@@ -477,6 +518,8 @@ attributes #4 = { nounwind }
 !26 = !{!"llvm.loop.max_interleaving.count", i32 3}
 !27 = distinct !{!27, !28}
 !28 = !{!"llvm.loop.intel.speculated.iterations.count", i32 4}
+!29 = distinct !{!29, !30}
+!30 = !{!"llvm.loop.fusion.disable"}
 
 ; CHECK-LLVM: br label %while.cond, !llvm.loop ![[MD_A:[0-9]+]]
 ; CHECK-LLVM: br label %while.cond{{[0-9]+}}, !llvm.loop ![[MD_B:[0-9]+]]
@@ -487,6 +530,7 @@ attributes #4 = { nounwind }
 ; CHECK-LLVM: br label %while.cond{{[0-9]+}}, !llvm.loop ![[MD_G:[0-9]+]]
 ; CHECK-LLVM: br label %for.cond{{[0-9]*}}, !llvm.loop ![[MD_H:[0-9]+]]
 ; CHECK-LLVM: br label %for.cond{{[0-9]*}}, !llvm.loop ![[MD_I:[0-9]+]]
+; CHECK-LLVM: br label %for.cond{{[0-9]*}}, !llvm.loop ![[MD_NF:[0-9]+]]
 
 ; CHECK-LLVM: ![[MD_A]] = distinct !{![[MD_A]], ![[MD_ivdep_enable:[0-9]+]]}
 ; CHECK-LLVM: ![[MD_ivdep_enable]] = !{!"llvm.loop.ivdep.enable"}
@@ -507,3 +551,5 @@ attributes #4 = { nounwind }
 ; CHECK-LLVM: ![[MD_max_interleaving]] = !{!"llvm.loop.max_interleaving.count", i32 3}
 ; CHECK-LLVM: ![[MD_I]] = distinct !{![[MD_I]], ![[MD_spec_iterations:[0-9]+]]}
 ; CHECK-LLVM: ![[MD_spec_iterations]] = !{!"llvm.loop.intel.speculated.iterations.count", i32 4}
+; CHECK-LLVM: ![[MD_NF]] = distinct !{![[MD_NF]], ![[MD_nofusion:[0-9]+]]}
+; CHECK-LLVM: ![[MD_nofusion]] = !{!"llvm.loop.fusion.disable"}

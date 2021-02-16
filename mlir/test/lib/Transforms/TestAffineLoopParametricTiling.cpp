@@ -20,7 +20,6 @@ using namespace mlir;
 #define DEBUG_TYPE "test-affine-parametric-tile"
 
 namespace {
-
 struct TestAffineLoopParametricTiling
     : public PassWrapper<TestAffineLoopParametricTiling, FunctionPass> {
   void runOnFunction() override;
@@ -34,7 +33,7 @@ static void checkIfTilingParametersExist(ArrayRef<AffineForOp> band) {
   assert(!band.empty() && "no loops in input band");
   AffineForOp topLoop = band[0];
 
-  if (FuncOp funcOp = dyn_cast<FuncOp>(topLoop.getParentOp()))
+  if (FuncOp funcOp = dyn_cast<FuncOp>(topLoop->getParentOp()))
     assert(funcOp.getNumArguments() >= band.size() && "Too few tile sizes");
 }
 
@@ -45,7 +44,7 @@ static void checkIfTilingParametersExist(ArrayRef<AffineForOp> band) {
 static void getTilingParameters(ArrayRef<AffineForOp> band,
                                 SmallVectorImpl<Value> &tilingParameters) {
   AffineForOp topLoop = band[0];
-  Region *funcOpRegion = topLoop.getParentRegion();
+  Region *funcOpRegion = topLoop->getParentRegion();
   unsigned nestDepth = band.size();
 
   for (BlockArgument blockArgument :
@@ -82,9 +81,11 @@ void TestAffineLoopParametricTiling::runOnFunction() {
 }
 
 namespace mlir {
+namespace test {
 void registerTestAffineLoopParametricTilingPass() {
   PassRegistration<TestAffineLoopParametricTiling>(
       "test-affine-parametric-tile",
       "Tile affine loops using SSA values as tile sizes");
 }
+} // namespace test
 } // namespace mlir

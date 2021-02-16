@@ -59,6 +59,7 @@ tools = [
     'mlir-tblgen',
     'mlir-translate',
     'mlir-capi-ir-test',
+    'mlir-capi-pass-test',
     'mlir-edsc-builder-api-test',
 ]
 
@@ -74,6 +75,7 @@ tools.extend([
     ToolSubst('%linalg_test_lib_dir', config.linalg_test_lib_dir, unresolved='ignore'),
     ToolSubst('%mlir_runner_utils_dir', config.mlir_runner_utils_dir, unresolved='ignore'),
     ToolSubst('%rocm_wrapper_library_dir', config.rocm_wrapper_library_dir, unresolved='ignore'),
+    ToolSubst('%spirv_wrapper_library_dir', config.spirv_wrapper_library_dir, unresolved='ignore'),
     ToolSubst('%vulkan_wrapper_library_dir', config.vulkan_wrapper_library_dir, unresolved='ignore'),
 ])
 
@@ -83,7 +85,7 @@ llvm_config.add_tool_substitutions(tools, tool_dirs)
 # FileCheck -enable-var-scope is enabled by default in MLIR test
 # This option avoids to accidentally reuse variable across -LABEL match,
 # it can be explicitly opted-in by prefixing the variable name with $
-config.environment['FILECHECK_OPTS'] = "-enable-var-scope"
+config.environment['FILECHECK_OPTS'] = "-enable-var-scope --allow-unused-prefixes=false"
 
 
 # LLVM can be configured with an empty default triple

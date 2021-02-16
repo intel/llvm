@@ -6,11 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "gwp_asan/definitions.h"
-#include "gwp_asan/utilities.h"
-
-#include <assert.h>
-
 #ifdef __BIONIC__
 #include <stdlib.h>
 extern "C" GWP_ASAN_WEAK void android_set_abort_message(const char *);
@@ -24,7 +19,7 @@ void die(const char *Message) {
   if (&android_set_abort_message != nullptr)
     android_set_abort_message(Message);
   abort();
-#else // __BIONIC__
+#else  // __BIONIC__
   fprintf(stderr, "%s", Message);
   __builtin_trap();
 #endif // __BIONIC__

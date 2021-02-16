@@ -9,7 +9,7 @@
 #include "flang/Frontend/CompilerInstance.h"
 #include "flang/Frontend/TextDiagnosticPrinter.h"
 #include "clang/Basic/DiagnosticOptions.h"
-#include "llvm/Support//FileSystem.h"
+#include "llvm/Support/FileSystem.h"
 
 #include "gtest/gtest.h"
 
@@ -47,7 +47,7 @@ TEST(CompilerInstance, SanityCheckForFileManager) {
   llvm::raw_string_ostream error_stream{buf};
   CompilerInstance compInst;
   const Fortran::parser::SourceFile *sf =
-      compInst.GetAllSources().Open(testFilePath, error_stream);
+      compInst.allSources().Open(testFilePath, error_stream);
 
   // 3. Verify the content of the input file
   // This is just a sanity check to make sure that CompilerInstance is capable

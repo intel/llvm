@@ -135,7 +135,7 @@ static bool emitOneBuilder(const Record &record, raw_ostream &os) {
     } else if (isResultName(op, name)) {
       bs << formatv("valueMapping[op.{0}()]", name);
     } else if (name == "_resultType") {
-      bs << "convertType(op.getResult().getType().cast<LLVM::LLVMType>())";
+      bs << "convertType(op.getResult().getType())";
     } else if (name == "_hasResult") {
       bs << "opInst.getNumResults() == 1";
     } else if (name == "_location") {
@@ -250,7 +250,7 @@ static void emitOneEnumFromConversion(const llvm::Record *record,
   StringRef cppNamespace = enumAttr.getCppNamespace();
 
   // Emit the function converting the enum attribute from its LLVM counterpart.
-  os << formatv("static {0}::{1} convert{1}FromLLVM({2} value) {{\n",
+  os << formatv("inline {0}::{1} convert{1}FromLLVM({2} value) {{\n",
                 cppNamespace, cppClassName, llvmClass);
   os << "  switch (value) {\n";
 

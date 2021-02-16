@@ -8,8 +8,8 @@
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Identifier.h"
-#include "mlir/IR/StandardTypes.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -25,7 +25,7 @@ namespace mlir {
 /// Helper that returns an example test::TestStruct for testing its
 /// implementation.
 static test::TestStruct getTestStruct(mlir::MLIRContext *context) {
-  auto integerType = mlir::IntegerType::get(32, context);
+  auto integerType = mlir::IntegerType::get(context, 32);
   auto integerAttr = mlir::IntegerAttr::get(integerType, 127);
 
   auto floatType = mlir::FloatType::getF32(context);
@@ -105,7 +105,7 @@ TEST(StructsGenTest, ClassofBadTypeFalse) {
       expectedValues.begin(), expectedValues.end() - 1);
 
   // Add a copy of the last attribute with the wrong type.
-  auto i64Type = mlir::IntegerType::get(64, &context);
+  auto i64Type = mlir::IntegerType::get(&context, 64);
   auto elementsType = mlir::RankedTensorType::get({3}, i64Type);
   auto elementsAttr =
       mlir::DenseIntElementsAttr::get(elementsType, ArrayRef<int64_t>{1, 2, 3});

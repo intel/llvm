@@ -21,29 +21,21 @@ void nofusion() {
   while (i < 10)
     ;
 
-  [[intel::nofusion]] for (int i = 0; i < 10; ++i) {
-    // CHECK: br label %{{.*}}, !llvm.loop ![[MD_NF_3:.*]]
-    for (int j = 0; j < 10; ++j) {
-      // CHECK-NOT: br label %{{.*}}, !llvm.loop !{{.*}}
-      a[i] += a[j];
-    }
-  }
-
   int k;
   [[intel::nofusion]] for (auto k : a) {
-    // CHECK: br label %{{.*}}, !llvm.loop ![[MD_NF_5:.*]]
+    // CHECK: br label %{{.*}}, !llvm.loop ![[MD_NF_3:.*]]
     k += 4;
   }
 
   [[intel::nofusion]] for (int i = 0; i < 10; ++i) {
-    // CHECK: br label %{{.*}}, !llvm.loop ![[MD_NF_6:.*]]
+    // CHECK: br label %{{.*}}, !llvm.loop ![[MD_NF_4:.*]]
     a[i] += 5;
   }
 
   for (int i = 0; i < 10; ++i) {
     // CHECK-NOT: br label %{{.*}}, !llvm.loop !{{.*}}
     [[intel::nofusion]] for (int j = 0; j < 10; ++j) {
-      // CHECK: br label %{{.*}}, !llvm.loop ![[MD_NF_8:.*]]
+      // CHECK: br label %{{.*}}, !llvm.loop ![[MD_NF_6:.*]]
       a[i] += a[j];
     }
   }
@@ -56,10 +48,10 @@ int main() {
   return 0;
 }
 
-// CHECK: ![[MD_NF_1]] = distinct !{![[MD_NF_1]], ![[MD_Nofusion:[0-9]+]]}
+// CHECK: ![[MD_NF_1]] = distinct !{![[MD_NF_1]], ![[MP:[0-9]+]], ![[MD_Nofusion:[0-9]+]]}
+// CHECK-NEXT: ![[MP]] = !{!"llvm.loop.mustprogress"}
 // CHECK: ![[MD_Nofusion]] = !{!"llvm.loop.fusion.disable"}
-// CHECK: ![[MD_NF_2]] = distinct !{![[MD_NF_2]], ![[MD_Nofusion]]}
+// CHECK: ![[MD_NF_2]] = distinct !{![[MD_NF_2]], ![[MP]], ![[MD_Nofusion]]}
 // CHECK: ![[MD_NF_3]] = distinct !{![[MD_NF_3]], ![[MD_Nofusion]]}
-// CHECK: ![[MD_NF_5]] = distinct !{![[MD_NF_5]], ![[MD_Nofusion]]}
-// CHECK: ![[MD_NF_6]] = distinct !{![[MD_NF_6]], ![[MD_Nofusion]]}
-// CHECK: ![[MD_NF_8]] = distinct !{![[MD_NF_8]], ![[MD_Nofusion]]}
+// CHECK: ![[MD_NF_4]] = distinct !{![[MD_NF_4]], ![[MP]], ![[MD_Nofusion]]}
+// CHECK: ![[MD_NF_6]] = distinct !{![[MD_NF_6]], ![[MP]], ![[MD_Nofusion]]}

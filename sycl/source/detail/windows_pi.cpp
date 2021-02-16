@@ -8,9 +8,9 @@
 
 #include <CL/sycl/detail/defines.hpp>
 
+#include <string>
 #include <windows.h>
 #include <winreg.h>
-#include <string>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -21,8 +21,13 @@ void *loadOsLibrary(const std::string &PluginPath) {
   return (void *)LoadLibraryA(PluginPath.c_str());
 }
 
+int unloadOsLibrary(void *Library) {
+  return (int)FreeLibrary((HMODULE)Library);
+}
+
 void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
-  return GetProcAddress((HMODULE)Library, FunctionName.c_str());
+  return reinterpret_cast<void *>(
+      GetProcAddress((HMODULE)Library, FunctionName.c_str()));
 }
 
 } // namespace pi

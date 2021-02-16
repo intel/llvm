@@ -10,6 +10,8 @@ int main() {
   constexpr cl::sycl::half L5 =
       std::numeric_limits<cl::sycl::half>::round_error();
   constexpr cl::sycl::half L6 = std::numeric_limits<cl::sycl::half>::infinity();
+  constexpr cl::sycl::half L6n =
+      -std::numeric_limits<cl::sycl::half>::infinity();
   constexpr cl::sycl::half L7 =
       std::numeric_limits<cl::sycl::half>::quiet_NaN();
   constexpr cl::sycl::half L8 =

@@ -6,13 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+// XFAIL: gcc-7, gcc-8, gcc-9
+
 #include <cassert>
 #include "support/timer.h"
 
 // This test explicitly tests dynamic cast with types that have inaccessible
 // bases.
 #if defined(__clang__)
-#pragma clang diagnostic ignored "-Winaccessible-base"
+#   pragma clang diagnostic ignored "-Winaccessible-base"
+#elif defined(__GNUC__) && (__GNUC__ >= 10)
+#   pragma GCC diagnostic ignored "-Winaccessible-base"
 #endif
 
 namespace t1

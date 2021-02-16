@@ -17,11 +17,13 @@
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/pi.h>
 
+#include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <iostream>
 #include <limits>
 #include <map>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -58,8 +60,6 @@ CONSTFIX char clCreateBufferWithPropertiesName[] =
 CONSTFIX char clSetKernelArgMemPointerName[] = "clSetKernelArgMemPointerINTEL";
 CONSTFIX char clEnqueueMemsetName[] = "clEnqueueMemsetINTEL";
 CONSTFIX char clEnqueueMemcpyName[] = "clEnqueueMemcpyINTEL";
-CONSTFIX char clEnqueueMigrateMemName[] = "clEnqueueMigrateMemINTEL";
-CONSTFIX char clEnqueueMemAdviseName[] = "clEnqueueMemAdviseINTEL";
 CONSTFIX char clGetMemAllocInfoName[] = "clGetMemAllocInfoINTEL";
 CONSTFIX char clSetProgramSpecializationConstantName[] =
     "clSetProgramSpecializationConstant";
@@ -79,9 +79,10 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
     return PI_SUCCESS;
   }
 
-  size_t deviceCount;
-  cl_int ret_err = clGetContextInfo(
-      cast<cl_context>(context), CL_CONTEXT_DEVICES, 0, nullptr, &deviceCount);
+  cl_uint deviceCount;
+  cl_int ret_err =
+      clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_NUM_DEVICES,
+                       sizeof(cl_uint), &deviceCount, nullptr);
 
   if (ret_err != CL_SUCCESS || deviceCount < 1) {
     return PI_INVALID_CONTEXT;
@@ -161,6 +162,29 @@ static pi_result USMSetIndirectAccess(pi_kernel kernel) {
 }
 
 extern "C" {
+
+pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
+                          size_t paramValueSize, void *paramValue,
+                          size_t *paramValueSizeRet) {
+  switch (paramName) {
+    // Intel GPU EU device-specific information extensions.
+    // TODO: Check regularly to see if support in enabled in OpenCL.
+  case PI_DEVICE_INFO_PCI_ADDRESS:
+  case PI_DEVICE_INFO_GPU_EU_COUNT:
+  case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
+  case PI_DEVICE_INFO_GPU_SLICES:
+  case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
+  case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
+  case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
+    return PI_INVALID_VALUE;
+
+  default:
+    cl_int result = clGetDeviceInfo(
+        cast<cl_device_id>(device), cast<cl_device_info>(paramName),
+        paramValueSize, paramValue, paramValueSizeRet);
+    return static_cast<pi_result>(result);
+  }
+}
 
 pi_result piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
                          pi_uint32 *num_platforms) {
@@ -329,11 +353,10 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
 
 pi_result piProgramCreate(pi_context context, const void *il, size_t length,
                           pi_program *res_program) {
-
-  size_t deviceCount;
-
-  cl_int ret_err = clGetContextInfo(
-      cast<cl_context>(context), CL_CONTEXT_DEVICES, 0, nullptr, &deviceCount);
+  cl_uint deviceCount;
+  cl_int ret_err =
+      clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_NUM_DEVICES,
+                       sizeof(cl_uint), &deviceCount, nullptr);
 
   std::vector<cl_device_id> devicesInCtx(deviceCount);
 
@@ -511,7 +534,11 @@ pi_result piContextCreate(const pi_context_properties *properties,
 }
 
 pi_result piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                             pi_uint32 num_devices,
+                                             const pi_device *devices,
                                              pi_context *piContext) {
+  (void)num_devices;
+  (void)devices;
   assert(piContext != nullptr);
   *piContext = reinterpret_cast<pi_context>(nativeHandle);
   return PI_SUCCESS;
@@ -521,22 +548,25 @@ pi_result piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
                             void *host_ptr, pi_mem *ret_mem,
                             const pi_mem_properties *properties) {
   pi_result ret_err = PI_INVALID_OPERATION;
-  clCreateBufferWithPropertiesINTEL_fn FuncPtr = nullptr;
-
-  if (properties)
+  if (properties) {
+    // TODO: need to check if all properties are supported by OpenCL RT and
+    // ignore unsupported
+    clCreateBufferWithPropertiesINTEL_fn FuncPtr = nullptr;
     // First we need to look up the function pointer
     ret_err = getExtFuncFromContext<clCreateBufferWithPropertiesName,
                                     clCreateBufferWithPropertiesINTEL_fn>(
         context, &FuncPtr);
+    if (FuncPtr) {
+      *ret_mem = cast<pi_mem>(FuncPtr(cast<cl_context>(context), properties,
+                                      cast<cl_mem_flags>(flags), size, host_ptr,
+                                      cast<cl_int *>(&ret_err)));
+      return ret_err;
+    }
+  }
 
-  if (FuncPtr)
-    *ret_mem = cast<pi_mem>(FuncPtr(cast<cl_context>(context), properties,
-                                    cast<cl_mem_flags>(flags), size, host_ptr,
-                                    cast<cl_int *>(&ret_err)));
-  else
-    *ret_mem = cast<pi_mem>(clCreateBuffer(cast<cl_context>(context),
-                                           cast<cl_mem_flags>(flags), size,
-                                           host_ptr, cast<cl_int *>(&ret_err)));
+  *ret_mem = cast<pi_mem>(clCreateBuffer(cast<cl_context>(context),
+                                         cast<cl_mem_flags>(flags), size,
+                                         host_ptr, cast<cl_int *>(&ret_err)));
   return ret_err;
 }
 
@@ -633,6 +663,7 @@ pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,
                                   const void *input_value,
                                   size_t param_value_size, void *param_value,
                                   size_t *param_value_size_ret) {
+  (void)param_value_size;
   size_t ret_val;
   cl_int ret_err;
   ret_err = cast<pi_result>(clGetKernelSubGroupInfo(
@@ -664,11 +695,12 @@ pi_result piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
   return PI_SUCCESS;
 }
 
-pi_result piEnqueueMemBufferMap(
-    pi_queue command_queue, pi_mem buffer, pi_bool blocking_map,
-    cl_map_flags map_flags, // TODO: untie from OpenCL
-    size_t offset, size_t size, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event, void **ret_map) {
+pi_result piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
+                                pi_bool blocking_map, pi_map_flags map_flags,
+                                size_t offset, size_t size,
+                                pi_uint32 num_events_in_wait_list,
+                                const pi_event *event_wait_list,
+                                pi_event *event, void **ret_map) {
 
   pi_result ret_err = PI_INVALID_OPERATION;
   *ret_map = cast<void *>(clEnqueueMapBuffer(
@@ -711,6 +743,9 @@ pi_result piextUSMHostAlloc(void **result_ptr, pi_context context,
 
   *result_ptr = Ptr;
 
+  assert(alignment == 0 ||
+         (RetVal == PI_SUCCESS &&
+          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
   return RetVal;
 }
 
@@ -744,6 +779,9 @@ pi_result piextUSMDeviceAlloc(void **result_ptr, pi_context context,
 
   *result_ptr = Ptr;
 
+  assert(alignment == 0 ||
+         (RetVal == PI_SUCCESS &&
+          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
   return RetVal;
 }
 
@@ -777,6 +815,9 @@ pi_result piextUSMSharedAlloc(void **result_ptr, pi_context context,
 
   *result_ptr = Ptr;
 
+  assert(alignment == 0 ||
+         (RetVal == PI_SUCCESS &&
+          reinterpret_cast<std::uintptr_t>(*result_ptr) % alignment == 0));
   return RetVal;
 }
 
@@ -807,6 +848,7 @@ pi_result piextUSMFree(pi_context context, void *ptr) {
 /// \param arg_value is the pointer argument
 pi_result piextKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
                                    size_t arg_size, const void *arg_value) {
+  (void)arg_size;
 
   // Size is unused in CL as pointer args are passed by value.
 
@@ -928,6 +970,9 @@ pi_result piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr, size_t size,
                                   pi_uint32 num_events_in_waitlist,
                                   const pi_event *events_waitlist,
                                   pi_event *event) {
+  (void)ptr;
+  (void)size;
+  (void)flags;
 
   return cast<pi_result>(clEnqueueMarkerWithWaitList(
       cast<cl_command_queue>(queue), num_events_in_waitlist,
@@ -970,6 +1015,9 @@ pi_result piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr, size_t size,
 pi_result piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
                                    size_t length, pi_mem_advice advice,
                                    pi_event *event) {
+  (void)ptr;
+  (void)length;
+  (void)advice;
 
   return cast<pi_result>(
       clEnqueueMarkerWithWaitList(cast<cl_command_queue>(queue), 0, nullptr,
@@ -1130,6 +1178,14 @@ pi_result piextProgramGetNativeHandle(pi_program program,
   return piextGetNativeHandle(program, nativeHandle);
 }
 
+// This API is called by Sycl RT to notify the end of the plugin lifetime.
+// TODO: add a global variable lifetime management code here (see
+// pi_level_zero.cpp for reference) Currently this is just a NOOP.
+pi_result piTearDown(void *PluginParameter) {
+  (void)PluginParameter;
+  return PI_SUCCESS;
+}
+
 pi_result piPluginInit(pi_plugin *PluginInit) {
   int CompareVersions = strcmp(PluginInit->PiVersion, SupportedVersion);
   if (CompareVersions < 0) {
@@ -1152,7 +1208,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          piextPlatformCreateWithNativeHandle)
   // Device
   _PI_CL(piDevicesGet, piDevicesGet)
-  _PI_CL(piDeviceGetInfo, clGetDeviceInfo)
+  _PI_CL(piDeviceGetInfo, piDeviceGetInfo)
   _PI_CL(piDevicePartition, clCreateSubDevices)
   _PI_CL(piDeviceRetain, clRetainDevice)
   _PI_CL(piDeviceRelease, clReleaseDevice)
@@ -1257,6 +1313,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)
+  _PI_CL(piTearDown, piTearDown)
 
 #undef _PI_CL
 

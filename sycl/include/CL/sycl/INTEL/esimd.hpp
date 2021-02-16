@@ -10,6 +10,8 @@
 
 #pragma once
 
+/// \defgroup sycl_esimd DPC++ Explicit SIMD API
+
 #include <CL/sycl/INTEL/esimd/esimd.hpp>
 #include <CL/sycl/INTEL/esimd/esimd_math.hpp>
 #include <CL/sycl/INTEL/esimd/esimd_memory.hpp>

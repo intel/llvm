@@ -108,10 +108,8 @@ def err_fe_action_not_available : Error<
     "action %0 not compiled in">;
 def err_fe_invalid_alignment : Error<
     "invalid value '%1' in '%0'; alignment must be a power of 2">;
-def err_fe_invalid_wchar_type
-    : Error<"invalid wchar_t type '%0'; must be one of 'char', 'short', 'int'">;
 def err_fe_invalid_exception_model
-   : Error<"invalid exception model '%0' for target '%1'">;
+   : Error<"invalid exception model '%select{none|dwarf|sjlj|arm|seh|wasm|aix}0' for target '%1'">;
 def warn_fe_concepts_ts_flag : Warning<
   "-fconcepts-ts is deprecated - use '-std=c++20' for Concepts support">,
   InGroup<Deprecated>;
@@ -299,12 +297,6 @@ def warn_profile_data_missing : Warning<
 def warn_profile_data_unprofiled : Warning<
   "no profile data available for file \"%0\"">,
   InGroup<ProfileInstrUnprofiled>;
-def warn_profile_data_misexpect : Warning<
-  "Potential performance regression from use of __builtin_expect(): "
-  "Annotation was correct on %0 of profiled executions.">,
-  BackendInfo,
-  InGroup<MisExpect>,
-  DefaultIgnore;
 } // end of instrumentation issue category
 
 }

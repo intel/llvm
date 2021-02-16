@@ -22,13 +22,13 @@ define amdgpu_kernel void @minnum_f16_ieee(
 ; SI-NEXT:    s_mov_b32 s15, s3
 ; SI-NEXT:    s_mov_b32 s10, s2
 ; SI-NEXT:    s_mov_b32 s11, s3
-; SI-NEXT:    buffer_load_ushort v0, off, s[12:15], 0
-; SI-NEXT:    buffer_load_ushort v1, off, s[8:11], 0
+; SI-NEXT:    buffer_load_ushort v0, off, s[12:15], 0 glc
+; SI-NEXT:    s_waitcnt vmcnt(0)
+; SI-NEXT:    buffer_load_ushort v1, off, s[8:11], 0 glc
+; SI-NEXT:    s_waitcnt vmcnt(0)
 ; SI-NEXT:    s_mov_b32 s0, s4
 ; SI-NEXT:    s_mov_b32 s1, s5
-; SI-NEXT:    s_waitcnt vmcnt(1)
 ; SI-NEXT:    v_cvt_f32_f16_e32 v0, v0
-; SI-NEXT:    s_waitcnt vmcnt(0)
 ; SI-NEXT:    v_cvt_f32_f16_e32 v1, v1
 ; SI-NEXT:    v_mul_f32_e32 v0, 1.0, v0
 ; SI-NEXT:    v_mul_f32_e32 v1, 1.0, v1
@@ -50,13 +50,13 @@ define amdgpu_kernel void @minnum_f16_ieee(
 ; VI-NEXT:    s_mov_b32 s15, s3
 ; VI-NEXT:    s_mov_b32 s10, s2
 ; VI-NEXT:    s_mov_b32 s11, s3
-; VI-NEXT:    buffer_load_ushort v0, off, s[12:15], 0
-; VI-NEXT:    buffer_load_ushort v1, off, s[8:11], 0
+; VI-NEXT:    buffer_load_ushort v0, off, s[12:15], 0 glc
+; VI-NEXT:    s_waitcnt vmcnt(0)
+; VI-NEXT:    buffer_load_ushort v1, off, s[8:11], 0 glc
+; VI-NEXT:    s_waitcnt vmcnt(0)
 ; VI-NEXT:    s_mov_b32 s0, s4
 ; VI-NEXT:    s_mov_b32 s1, s5
-; VI-NEXT:    s_waitcnt vmcnt(1)
 ; VI-NEXT:    v_max_f16_e32 v0, v0, v0
-; VI-NEXT:    s_waitcnt vmcnt(0)
 ; VI-NEXT:    v_max_f16_e32 v1, v1, v1
 ; VI-NEXT:    v_min_f16_e32 v0, v0, v1
 ; VI-NEXT:    buffer_store_short v0, off, s[0:3], 0
@@ -75,13 +75,13 @@ define amdgpu_kernel void @minnum_f16_ieee(
 ; GFX9-NEXT:    s_mov_b32 s15, s3
 ; GFX9-NEXT:    s_mov_b32 s10, s2
 ; GFX9-NEXT:    s_mov_b32 s11, s3
-; GFX9-NEXT:    buffer_load_ushort v0, off, s[12:15], 0
-; GFX9-NEXT:    buffer_load_ushort v1, off, s[8:11], 0
+; GFX9-NEXT:    buffer_load_ushort v0, off, s[12:15], 0 glc
+; GFX9-NEXT:    s_waitcnt vmcnt(0)
+; GFX9-NEXT:    buffer_load_ushort v1, off, s[8:11], 0 glc
+; GFX9-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-NEXT:    s_mov_b32 s0, s4
 ; GFX9-NEXT:    s_mov_b32 s1, s5
-; GFX9-NEXT:    s_waitcnt vmcnt(1)
 ; GFX9-NEXT:    v_max_f16_e32 v0, v0, v0
-; GFX9-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-NEXT:    v_max_f16_e32 v1, v1, v1
 ; GFX9-NEXT:    v_min_f16_e32 v0, v0, v1
 ; GFX9-NEXT:    buffer_store_short v0, off, s[0:3], 0
@@ -315,17 +315,17 @@ define amdgpu_kernel void @minnum_v2f16_ieee(
 ; GFX9-LABEL: minnum_v2f16_ieee:
 ; GFX9:       ; %bb.0: ; %entry
 ; GFX9-NEXT:    s_load_dwordx4 s[4:7], s[0:1], 0x24
-; GFX9-NEXT:    s_load_dwordx2 s[0:1], s[0:1], 0x34
+; GFX9-NEXT:    s_load_dwordx2 s[8:9], s[0:1], 0x34
 ; GFX9-NEXT:    s_mov_b32 s3, 0xf000
 ; GFX9-NEXT:    s_mov_b32 s2, -1
 ; GFX9-NEXT:    s_waitcnt lgkmcnt(0)
-; GFX9-NEXT:    s_load_dword s6, s[6:7], 0x0
-; GFX9-NEXT:    s_load_dword s7, s[0:1], 0x0
 ; GFX9-NEXT:    s_mov_b32 s0, s4
+; GFX9-NEXT:    s_load_dword s10, s[6:7], 0x0
+; GFX9-NEXT:    s_load_dword s11, s[8:9], 0x0
 ; GFX9-NEXT:    s_mov_b32 s1, s5
 ; GFX9-NEXT:    s_waitcnt lgkmcnt(0)
-; GFX9-NEXT:    v_pk_max_f16 v1, s6, s6
-; GFX9-NEXT:    v_pk_max_f16 v0, s7, s7
+; GFX9-NEXT:    v_pk_max_f16 v1, s10, s10
+; GFX9-NEXT:    v_pk_max_f16 v0, s11, s11
 ; GFX9-NEXT:    v_pk_min_f16 v0, v1, v0
 ; GFX9-NEXT:    buffer_store_dword v0, off, s[0:3], 0
 ; GFX9-NEXT:    s_endpgm
@@ -582,12 +582,12 @@ define amdgpu_kernel void @minnum_v3f16(
 ; GFX9-NEXT:    s_mov_b32 s0, s4
 ; GFX9-NEXT:    s_mov_b32 s1, s5
 ; GFX9-NEXT:    s_load_dwordx2 s[4:5], s[6:7], 0x0
-; GFX9-NEXT:    s_load_dwordx2 s[6:7], s[8:9], 0x0
+; GFX9-NEXT:    s_load_dwordx2 s[10:11], s[8:9], 0x0
 ; GFX9-NEXT:    s_waitcnt lgkmcnt(0)
 ; GFX9-NEXT:    v_pk_max_f16 v1, s4, s4
-; GFX9-NEXT:    v_pk_max_f16 v0, s6, s6
+; GFX9-NEXT:    v_pk_max_f16 v0, s10, s10
 ; GFX9-NEXT:    v_pk_min_f16 v0, v1, v0
-; GFX9-NEXT:    v_pk_max_f16 v2, s7, s7
+; GFX9-NEXT:    v_pk_max_f16 v2, s11, s11
 ; GFX9-NEXT:    v_pk_max_f16 v1, s5, s5
 ; GFX9-NEXT:    v_pk_min_f16 v1, v1, v2
 ; GFX9-NEXT:    buffer_store_short v1, off, s[0:3], 0 offset:4
@@ -696,12 +696,12 @@ define amdgpu_kernel void @minnum_v4f16(
 ; GFX9-NEXT:    s_mov_b32 s0, s4
 ; GFX9-NEXT:    s_mov_b32 s1, s5
 ; GFX9-NEXT:    s_load_dwordx2 s[4:5], s[6:7], 0x0
-; GFX9-NEXT:    s_load_dwordx2 s[6:7], s[8:9], 0x0
+; GFX9-NEXT:    s_load_dwordx2 s[10:11], s[8:9], 0x0
 ; GFX9-NEXT:    s_waitcnt lgkmcnt(0)
 ; GFX9-NEXT:    v_pk_max_f16 v1, s5, s5
-; GFX9-NEXT:    v_pk_max_f16 v0, s7, s7
+; GFX9-NEXT:    v_pk_max_f16 v0, s11, s11
 ; GFX9-NEXT:    v_pk_min_f16 v1, v1, v0
-; GFX9-NEXT:    v_pk_max_f16 v2, s6, s6
+; GFX9-NEXT:    v_pk_max_f16 v2, s10, s10
 ; GFX9-NEXT:    v_pk_max_f16 v0, s4, s4
 ; GFX9-NEXT:    v_pk_min_f16 v0, v0, v2
 ; GFX9-NEXT:    buffer_store_dwordx2 v[0:1], off, s[0:3], 0

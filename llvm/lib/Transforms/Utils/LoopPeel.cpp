@@ -115,7 +115,12 @@ bool llvm::canPeel(Loop *L) {
   // This can be an indication of two different things:
   // 1) The loop is not rotated.
   // 2) The loop contains irreducible control flow that involves the latch.
-  if (L->getLoopLatch() != L->getExitingBlock())
+  const BasicBlock *Latch = L->getLoopLatch();
+  if (Latch != L->getExitingBlock())
+    return false;
+
+  // Peeling is only supported if the latch is a branch.
+  if (!isa<BranchInst>(Latch->getTerminator()))
     return false;
 
   return true;
@@ -227,11 +232,9 @@ static unsigned countToEliminateCompares(Loop &L, unsigned MaxPeelCount,
     // consider AddRecs of the loop we are trying to peel.
     if (!LeftAR->isAffine() || LeftAR->getLoop() != &L)
       continue;
-    bool Increasing;
     if (!(ICmpInst::isEquality(Pred) && LeftAR->hasNoSelfWrap()) &&
-        !SE.isMonotonicPredicate(LeftAR, Pred, Increasing))
+        !SE.getMonotonicPredicateType(LeftAR, Pred))
       continue;
-    (void)Increasing;
 
     // Check if extending the current DesiredPeelCount lets us evaluate Pred
     // or !Pred in the loop body statically.

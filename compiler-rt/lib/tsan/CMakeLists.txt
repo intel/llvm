@@ -25,10 +25,6 @@ append_list_if(SANITIZER_LIMIT_FRAME_SIZE -Wframe-larger-than=530
 append_list_if(COMPILER_RT_HAS_WGLOBAL_CONSTRUCTORS_FLAG -Wglobal-constructors
                TSAN_RTL_CFLAGS)
 
-if (TARGET cxx-headers OR HAVE_LIBCXX)
-  set(TSAN_DEPS cxx-headers)
-endif()
-
 set(TSAN_SOURCES
   rtl/tsan_clock.cpp
   rtl/tsan_debugging.cpp
@@ -146,7 +142,6 @@ if(APPLE)
                 RTSanitizerCommonSymbolizer
                 RTUbsan
     CFLAGS ${TSAN_RTL_CFLAGS}
-    DEPS ${TSAN_DEPS}
     LINK_FLAGS ${SANITIZER_COMMON_LINK_FLAGS} ${WEAK_SYMBOL_LINK_FLAGS}
     LINK_LIBS ${TSAN_LINK_LIBS} objc
     PARENT_TARGET tsan)
@@ -155,8 +150,7 @@ if(APPLE)
     ARCHS ${TSAN_SUPPORTED_ARCH}
     SOURCES ${TSAN_SOURCES} ${TSAN_CXX_SOURCES} ${TSAN_ASM_SOURCES}
     ADDITIONAL_HEADERS ${TSAN_HEADERS}
-    CFLAGS ${TSAN_RTL_CFLAGS}
-    DEPS ${TSAN_DEPS})
+    CFLAGS ${TSAN_RTL_CFLAGS})
 
   # Build and check Go runtime.
   set(BUILDGO_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/go/buildgo.sh)
@@ -220,7 +214,6 @@ else()
               $<TARGET_OBJECTS:RTUbsan.${arch}>
       ADDITIONAL_HEADERS ${TSAN_HEADERS}
       CFLAGS ${TSAN_RTL_CFLAGS}
-      DEPS ${TSAN_DEPS}
       PARENT_TARGET tsan)
     add_compiler_rt_runtime(clang_rt.tsan_cxx
       STATIC
@@ -229,7 +222,6 @@ else()
               $<TARGET_OBJECTS:RTUbsan_cxx.${arch}>
       ADDITIONAL_HEADERS ${TSAN_HEADERS}
       CFLAGS ${TSAN_RTL_CFLAGS}
-      DEPS ${TSAN_DEPS}
       PARENT_TARGET tsan)
     list(APPEND TSAN_RUNTIME_LIBRARIES clang_rt.tsan-${arch}
                                        clang_rt.tsan_cxx-${arch})
@@ -244,21 +236,6 @@ else()
                           clang_rt.tsan-${arch}-symbols
                           clang_rt.tsan_cxx-${arch}-symbols)
   endforeach()
-endif()
-
-# Make sure that non-platform-specific files don't include any system headers.
-# FreeBSD/NetBSD do not install a number of Clang-provided headers for the
-# compiler in the base system due to incompatibilities between FreeBSD/NetBSD's
-# and Clang's versions. As a workaround do not use --sysroot=. on FreeBSD/NetBSD
-# until this is addressed.
-if(COMPILER_RT_HAS_SYSROOT_FLAG AND NOT CMAKE_SYSTEM_NAME MATCHES "FreeBSD"
-   AND NOT CMAKE_SYSTEM_NAME MATCHES "NetBSD")
-  file(GLOB _tsan_generic_sources rtl/tsan*)
-  file(GLOB _tsan_platform_sources rtl/tsan*posix* rtl/tsan*mac*
-                                   rtl/tsan*linux*)
-  list(REMOVE_ITEM _tsan_generic_sources ${_tsan_platform_sources})
-  set_source_files_properties(${_tsan_generic_sources}
-    PROPERTIES COMPILE_FLAGS "--sysroot=.")
 endif()
 
 # Build libcxx instrumented with TSan.

@@ -23,7 +23,7 @@ machineFunctionInfo:
 body:             |
   ; CHECK:   $sgpr1 = COPY killed $sgpr5
   ; CHECK:   $sgpr4_sgpr5 = S_GETPC_B64
-  ; CHECK:   $sgpr4 = S_MOV_B32 $sgpr8, implicit-def $sgpr4_sgpr5_sgpr6_sgpr7
+  ; CHECK:   $sgpr4 = S_MOV_B32 $sgpr8
   ; CHECK:   $sgpr4_sgpr5_sgpr6_sgpr7 = S_LOAD_DWORDX4_IMM $sgpr4_sgpr5, 0, 0, 0, implicit-def $sgpr4_sgpr5_sgpr6_sgpr7 :: (dereferenceable invariant load 16, align 4, addrspace 4)
   bb.0:
     successors: %bb.1, %bb.2
@@ -33,7 +33,6 @@ body:             |
     renamable $vgpr0 = V_MBCNT_LO_U32_B32_e64 -1, 0, implicit $exec
     renamable $sgpr0 = S_BFE_U32 killed renamable $sgpr0, 589836, implicit-def dead $scc
     renamable $vcc_lo = V_CMP_GT_U32_e64 killed $sgpr0, killed $vgpr0, implicit $exec
-    $vcc_hi = IMPLICIT_DEF
     $sgpr0 = S_AND_SAVEEXEC_B32 $vcc_lo, implicit-def $exec, implicit-def $scc, implicit $exec
     S_CBRANCH_EXECZ %bb.2, implicit $exec
     S_BRANCH %bb.1

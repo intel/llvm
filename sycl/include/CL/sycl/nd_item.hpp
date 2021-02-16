@@ -121,12 +121,12 @@ public:
   /// Executes a work-group mem-fence with memory ordering on the local address
   /// space, global address space or both based on the value of \p accessSpace.
   template <access::mode accessMode = access::mode::read_write>
-  void
-  mem_fence(typename std::enable_if<accessMode == access::mode::read ||
-                                        accessMode == access::mode::write ||
-                                        accessMode == access::mode::read_write,
-                                    access::fence_space>::type accessSpace =
-                access::fence_space::global_and_local) const {
+  void mem_fence(
+      typename detail::enable_if_t<accessMode == access::mode::read ||
+                                       accessMode == access::mode::write ||
+                                       accessMode == access::mode::read_write,
+                                   access::fence_space>
+          accessSpace = access::fence_space::global_and_local) const {
     (void)accessSpace;
     Group.mem_fence();
   }

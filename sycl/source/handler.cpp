@@ -103,9 +103,6 @@ event handler::finalize() {
     throw runtime_error("Command group submitted without a kernel or a "
                         "explicit memory operation.",
                         PI_INVALID_OPERATION);
-  default:
-    throw runtime_error("Unhandled type of command group",
-                        PI_INVALID_OPERATION);
   }
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
@@ -130,9 +127,17 @@ void handler::associateWithHandler(detail::AccessorBaseHost *AccBase,
                                    /*index*/ 0);
 }
 
+// TODO remove this one once ABI breaking changes are allowed.
 void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                          const int Size, const size_t Index, size_t &IndexShift,
                          bool IsKernelCreatedFromSource) {
+  processArg(Ptr, Kind, Size, Index, IndexShift, IsKernelCreatedFromSource,
+             false);
+}
+
+void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
+                         const int Size, const size_t Index, size_t &IndexShift,
+                         bool IsKernelCreatedFromSource, bool IsESIMD) {
   using detail::kernel_param_kind_t;
 
   switch (Kind) {
@@ -162,7 +167,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       // TODO ESIMD currently does not suport offset, memory and access ranges -
       // accessor::init for ESIMD-mode accessor has a single field, translated
       // to a single kernel argument set above.
-      if (!AccImpl->MIsESIMDAcc && !IsKernelCreatedFromSource) {
+      if (!IsKernelCreatedFromSource && !IsESIMD) {
         // Dimensionality of the buffer is 1 when dimensionality of the
         // accessor is 0.
         const size_t SizeAccField =
@@ -253,13 +258,21 @@ void handler::extractArgsAndReqs() {
     const detail::kernel_param_kind_t &Kind = UnPreparedArgs[I].MType;
     const int &Size = UnPreparedArgs[I].MSize;
     const int Index = UnPreparedArgs[I].MIndex;
-    processArg(Ptr, Kind, Size, Index, IndexShift, IsKernelCreatedFromSource);
+    processArg(Ptr, Kind, Size, Index, IndexShift, IsKernelCreatedFromSource,
+               false);
   }
+}
+
+// TODO remove once ABI breaking changes are allowed
+void handler::extractArgsAndReqsFromLambda(
+    char *LambdaPtr, size_t KernelArgsNum,
+    const detail::kernel_param_desc_t *KernelArgs) {
+  extractArgsAndReqsFromLambda(LambdaPtr, KernelArgsNum, KernelArgs, false);
 }
 
 void handler::extractArgsAndReqsFromLambda(
     char *LambdaPtr, size_t KernelArgsNum,
-    const detail::kernel_param_desc_t *KernelArgs) {
+    const detail::kernel_param_desc_t *KernelArgs, bool IsESIMD) {
   const bool IsKernelCreatedFromSource = false;
   size_t IndexShift = 0;
   for (size_t I = 0; I < KernelArgsNum; ++I) {
@@ -284,7 +297,8 @@ void handler::extractArgsAndReqsFromLambda(
         Ptr = detail::getSyclObjImpl(*LocalAccBase).get();
       }
     }
-    processArg(Ptr, Kind, Size, I, IndexShift, IsKernelCreatedFromSource);
+    processArg(Ptr, Kind, Size, I, IndexShift, IsKernelCreatedFromSource,
+               IsESIMD);
   }
 }
 

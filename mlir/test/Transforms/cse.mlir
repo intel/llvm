@@ -1,6 +1,6 @@
 // RUN: mlir-opt -allow-unregistered-dialect %s -pass-pipeline='func(cse)' | FileCheck %s
 
-// CHECK-DAG: #map0 = affine_map<(d0) -> (d0 mod 2)>
+// CHECK-DAG: #[[$MAP:.*]] = affine_map<(d0) -> (d0 mod 2)>
 #map0 = affine_map<(d0) -> (d0 mod 2)>
 
 // CHECK-LABEL: @simple_constant
@@ -19,7 +19,7 @@ func @basic() -> (index, index) {
   %c0 = constant 0 : index
   %c1 = constant 0 : index
 
-  // CHECK-NEXT: %0 = affine.apply #map0(%c0)
+  // CHECK-NEXT: %0 = affine.apply #[[$MAP]](%c0)
   %0 = affine.apply #map0(%c0)
   %1 = affine.apply #map0(%c1)
 
@@ -68,10 +68,10 @@ func @different_ops() -> (i32, i32) {
 /// types.
 // CHECK-LABEL: @different_results
 func @different_results(%arg0: tensor<*xf32>) -> (tensor<?x?xf32>, tensor<4x?xf32>) {
-  // CHECK: %0 = tensor_cast %arg0 : tensor<*xf32> to tensor<?x?xf32>
-  // CHECK-NEXT: %1 = tensor_cast %arg0 : tensor<*xf32> to tensor<4x?xf32>
-  %0 = tensor_cast %arg0 : tensor<*xf32> to tensor<?x?xf32>
-  %1 = tensor_cast %arg0 : tensor<*xf32> to tensor<4x?xf32>
+  // CHECK: %0 = tensor.cast %arg0 : tensor<*xf32> to tensor<?x?xf32>
+  // CHECK-NEXT: %1 = tensor.cast %arg0 : tensor<*xf32> to tensor<4x?xf32>
+  %0 = tensor.cast %arg0 : tensor<*xf32> to tensor<?x?xf32>
+  %1 = tensor.cast %arg0 : tensor<*xf32> to tensor<4x?xf32>
 
   // CHECK-NEXT: return %0, %1 : tensor<?x?xf32>, tensor<4x?xf32>
   return %0, %1 : tensor<?x?xf32>, tensor<4x?xf32>
@@ -81,12 +81,12 @@ func @different_results(%arg0: tensor<*xf32>) -> (tensor<?x?xf32>, tensor<4x?xf3
 // CHECK-LABEL: @different_attributes
 func @different_attributes(index, index) -> (i1, i1, i1) {
 ^bb0(%a : index, %b : index):
-  // CHECK: %0 = cmpi "slt", %arg0, %arg1 : index
-  %0 = cmpi "slt", %a, %b : index
+  // CHECK: %0 = cmpi slt, %arg0, %arg1 : index
+  %0 = cmpi slt, %a, %b : index
 
-  // CHECK-NEXT: %1 = cmpi "ne", %arg0, %arg1 : index
+  // CHECK-NEXT: %1 = cmpi ne, %arg0, %arg1 : index
   /// Predicate 1 means inequality comparison.
-  %1 = cmpi "ne", %a, %b : index
+  %1 = cmpi ne, %a, %b : index
   %2 = "std.cmpi"(%a, %b) {predicate = 1} : (index, index) -> i1
 
   // CHECK-NEXT: return %0, %1, %1 : i1, i1, i1

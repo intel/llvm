@@ -18,4 +18,7 @@
 template <typename T>
 SYCL_EXTERNAL T __sycl_getSpecConstantValue(const char *ID);
 
+template <typename T>
+SYCL_EXTERNAL T __sycl_getCompositeSpecConstantValue(const char *ID);
+
 #endif

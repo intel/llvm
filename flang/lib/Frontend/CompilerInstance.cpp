@@ -9,7 +9,9 @@
 #include "flang/Frontend/CompilerInstance.h"
 #include "flang/Frontend/CompilerInvocation.h"
 #include "flang/Frontend/TextDiagnosticPrinter.h"
+#include "flang/Parser/parsing.h"
 #include "flang/Parser/provenance.h"
+#include "flang/Semantics/semantics.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
@@ -20,15 +22,33 @@ using namespace Fortran::frontend;
 
 CompilerInstance::CompilerInstance()
     : invocation_(new CompilerInvocation()),
-      allSources_(new Fortran::parser::AllSources()) {}
+      allSources_(new Fortran::parser::AllSources()),
+      allCookedSources_(new Fortran::parser::AllCookedSources(*allSources_)),
+      parsing_(new Fortran::parser::Parsing(*allCookedSources_)) {
+
+  // TODO: This is a good default during development, but ultimately we should
+  // give the user the opportunity to specify this.
+  allSources_->set_encoding(Fortran::parser::Encoding::UTF_8);
+}
 
 CompilerInstance::~CompilerInstance() {
   assert(outputFiles_.empty() && "Still output files in flight?");
 }
 
-void CompilerInstance::SetInvocation(
+void CompilerInstance::set_invocation(
     std::shared_ptr<CompilerInvocation> value) {
   invocation_ = std::move(value);
+}
+
+void CompilerInstance::set_semaOutputStream(raw_ostream &Value) {
+  ownedSemaOutputStream_.release();
+  semaOutputStream_ = &Value;
+}
+
+void CompilerInstance::set_semaOutputStream(
+    std::unique_ptr<raw_ostream> Value) {
+  ownedSemaOutputStream_.swap(Value);
+  semaOutputStream_ = ownedSemaOutputStream_.get();
 }
 
 void CompilerInstance::AddOutputFile(OutputFile &&outFile) {
@@ -69,7 +89,7 @@ CompilerInstance::CreateDefaultOutputFile(
 
   // Get the path of the output file
   std::string outputFilePath =
-      GetOutputFilePath(GetFrontendOpts().outputFile_, baseName, extension);
+      GetOutputFilePath(frontendOpts().outputFile_, baseName, extension);
 
   // Create the output file
   std::unique_ptr<llvm::raw_pwrite_stream> os =
@@ -118,17 +138,29 @@ void CompilerInstance::ClearOutputFiles(bool eraseFiles) {
 }
 
 bool CompilerInstance::ExecuteAction(FrontendAction &act) {
+  auto &invoc = this->invocation();
 
-  // Connect Input to a CompileInstance
-  for (const FrontendInputFile &fif : GetFrontendOpts().inputs_) {
+  // Set some sane defaults for the frontend.
+  invoc.SetDefaultFortranOpts();
+  // Update the fortran options based on user-based input.
+  invoc.setFortranOpts();
+
+  // Run the frontend action `act` for every input file.
+  for (const FrontendInputFile &fif : frontendOpts().inputs_) {
     if (act.BeginSourceFile(*this, fif)) {
+      // Switch between fixed and free form format based on the input file
+      // extension. Ideally we should have all Fortran options set before
+      // entering this loop (i.e. processing any input files). However, we
+      // can't decide between fixed and free form based on the file extension
+      // earlier than this.
+      invoc.fortranOpts().isFixedForm = fif.IsFixedForm();
       if (llvm::Error err = act.Execute()) {
         consumeError(std::move(err));
       }
       act.EndSourceFile();
     }
   }
-  return true;
+  return !diagnostics().getClient()->getNumErrors();
 }
 
 void CompilerInstance::CreateDiagnostics(

@@ -195,23 +195,84 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**AlignConsecutiveAssignments** (``bool``)
-  If ``true``, aligns consecutive assignments.
+**AlignConsecutiveAssignments** (``AlignConsecutiveStyle``)
+  Style of aligning consecutive assignments.
 
-  This will align the assignment operators of consecutive lines. This
-  will result in formattings like
+  ``Consecutive`` will result in formattings like:
 
   .. code-block:: c++
 
-    int aaaa = 12;
-    int b    = 23;
-    int ccc  = 23;
+    int a            = 1;
+    int somelongname = 2;
+    double c         = 3;
 
-**AlignConsecutiveBitFields** (``bool``)
-  If ``true``, aligns consecutive bitfield members.
+  Possible values:
 
-  This will align the bitfield separators of consecutive lines. This
-  will result in formattings like
+  * ``ACS_None`` (in configuration: ``None``)
+     Do not align assignments on consecutive lines.
+
+  * ``ACS_Consecutive`` (in configuration: ``Consecutive``)
+     Align assignments on consecutive lines. This will result in
+     formattings like:
+
+     .. code-block:: c++
+
+       int a            = 1;
+       int somelongname = 2;
+       double c         = 3;
+
+       int d = 3;
+       /* A comment. */
+       double e = 4;
+
+  * ``ACS_AcrossEmptyLines`` (in configuration: ``AcrossEmptyLines``)
+     Same as ACS_Consecutive, but also spans over empty lines, e.g.
+
+     .. code-block:: c++
+
+       int a            = 1;
+       int somelongname = 2;
+       double c         = 3;
+
+       int d            = 3;
+       /* A comment. */
+       double e = 4;
+
+  * ``ACS_AcrossComments`` (in configuration: ``AcrossComments``)
+     Same as ACS_Consecutive, but also spans over lines only containing
+     comments, e.g.
+
+     .. code-block:: c++
+
+       int a            = 1;
+       int somelongname = 2;
+       double c         = 3;
+
+       int d    = 3;
+       /* A comment. */
+       double e = 4;
+
+  * ``ACS_AcrossEmptyLinesAndComments``
+    (in configuration: ``AcrossEmptyLinesAndComments``)
+
+     Same as ACS_Consecutive, but also spans over lines only containing
+     comments and empty lines, e.g.
+
+     .. code-block:: c++
+
+       int a            = 1;
+       int somelongname = 2;
+       double c         = 3;
+
+       int d            = 3;
+       /* A comment. */
+       double e         = 4;
+
+**AlignConsecutiveBitFields** (``AlignConsecutiveStyle``)
+  Style of aligning consecutive bit field.
+
+  ``Consecutive`` will align the bitfield separators of consecutive lines.
+  This will result in formattings like:
 
   .. code-block:: c++
 
@@ -219,23 +280,146 @@ the configuration (without a prefix: ``Auto``).
     int b    : 12;
     int ccc  : 8;
 
-**AlignConsecutiveDeclarations** (``bool``)
-  If ``true``, aligns consecutive declarations.
+  Possible values:
 
-  This will align the declaration names of consecutive lines. This
-  will result in formattings like
+  * ``ACS_None`` (in configuration: ``None``)
+     Do not align bit fields on consecutive lines.
+
+  * ``ACS_Consecutive`` (in configuration: ``Consecutive``)
+     Align bit fields on consecutive lines. This will result in
+     formattings like:
+
+     .. code-block:: c++
+
+       int aaaa : 1;
+       int b    : 12;
+       int ccc  : 8;
+
+       int d : 2;
+       /* A comment. */
+       int ee : 3;
+
+  * ``ACS_AcrossEmptyLines`` (in configuration: ``AcrossEmptyLines``)
+     Same as ACS_Consecutive, but also spans over empty lines, e.g.
+
+     .. code-block:: c++
+
+       int aaaa : 1;
+       int b    : 12;
+       int ccc  : 8;
+
+       int d    : 2;
+       /* A comment. */
+       int ee : 3;
+
+  * ``ACS_AcrossComments`` (in configuration: ``AcrossComments``)
+     Same as ACS_Consecutive, but also spans over lines only containing
+     comments, e.g.
+
+     .. code-block:: c++
+
+       int aaaa : 1;
+       int b    : 12;
+       int ccc  : 8;
+
+       int d  : 2;
+       /* A comment. */
+       int ee : 3;
+
+  * ``ACS_AcrossEmptyLinesAndComments``
+    (in configuration: ``AcrossEmptyLinesAndComments``)
+
+     Same as ACS_Consecutive, but also spans over lines only containing
+     comments and empty lines, e.g.
+
+     .. code-block:: c++
+
+       int aaaa : 1;
+       int b    : 12;
+       int ccc  : 8;
+
+       int d    : 2;
+       /* A comment. */
+       int ee   : 3;
+
+**AlignConsecutiveDeclarations** (``AlignConsecutiveStyle``)
+  Style of aligning consecutive declarations.
+
+  ``Consecutive`` will align the declaration names of consecutive lines.
+  This will result in formattings like:
 
   .. code-block:: c++
 
     int         aaaa = 12;
     float       b = 23;
-    std::string ccc = 23;
+    std::string ccc;
 
-**AlignConsecutiveMacros** (``bool``)
-  If ``true``, aligns consecutive C/C++ preprocessor macros.
+  Possible values:
 
-  This will align C/C++ preprocessor macros of consecutive lines.
-  Will result in formattings like
+  * ``ACS_None`` (in configuration: ``None``)
+     Do not align bit declarations on consecutive lines.
+
+  * ``ACS_Consecutive`` (in configuration: ``Consecutive``)
+     Align declarations on consecutive lines. This will result in
+     formattings like:
+
+     .. code-block:: c++
+
+       int         aaaa = 12;
+       float       b = 23;
+       std::string ccc;
+
+       int a = 42;
+       /* A comment. */
+       bool c = false;
+
+  * ``ACS_AcrossEmptyLines`` (in configuration: ``AcrossEmptyLines``)
+     Same as ACS_Consecutive, but also spans over empty lines, e.g.
+
+     .. code-block:: c++
+
+       int         aaaa = 12;
+       float       b = 23;
+       std::string ccc;
+
+       int         a = 42;
+       /* A comment. */
+       bool c = false;
+
+  * ``ACS_AcrossComments`` (in configuration: ``AcrossComments``)
+     Same as ACS_Consecutive, but also spans over lines only containing
+     comments, e.g.
+
+     .. code-block:: c++
+
+       int         aaaa = 12;
+       float       b = 23;
+       std::string ccc;
+
+       int  a = 42;
+       /* A comment. */
+       bool c = false;
+
+  * ``ACS_AcrossEmptyLinesAndComments``
+    (in configuration: ``AcrossEmptyLinesAndComments``)
+
+     Same as ACS_Consecutive, but also spans over lines only containing
+     comments and empty lines, e.g.
+
+     .. code-block:: c++
+
+       int         aaaa = 12;
+       float       b = 23;
+       std::string ccc;
+
+       int         a = 42;
+       /* A comment. */
+       bool        c = false;
+
+**AlignConsecutiveMacros** (``AlignConsecutiveStyle``)
+  Style of aligning consecutive macro definitions.
+
+  ``Consecutive`` will result in formattings like:
 
   .. code-block:: c++
 
@@ -244,6 +428,68 @@ the configuration (without a prefix: ``Auto``).
     #define EVEN_LONGER_NAME (2)
     #define foo(x)           (x * x)
     #define bar(y, z)        (y + z)
+
+  Possible values:
+
+  * ``ACS_None`` (in configuration: ``None``)
+     Do not align macro definitions on consecutive lines.
+
+  * ``ACS_Consecutive`` (in configuration: ``Consecutive``)
+     Align macro definitions on consecutive lines. This will result in
+     formattings like:
+
+     .. code-block:: c++
+
+       #define SHORT_NAME       42
+       #define LONGER_NAME      0x007f
+       #define EVEN_LONGER_NAME (2)
+
+       #define foo(x) (x * x)
+       /* some comment */
+       #define bar(y, z) (y + z)
+
+  * ``ACS_AcrossEmptyLines`` (in configuration: ``AcrossEmptyLines``)
+     Same as ACS_Consecutive, but also spans over empty lines, e.g.
+
+     .. code-block:: c++
+
+       #define SHORT_NAME       42
+       #define LONGER_NAME      0x007f
+       #define EVEN_LONGER_NAME (2)
+
+       #define foo(x)           (x * x)
+       /* some comment */
+       #define bar(y, z) (y + z)
+
+  * ``ACS_AcrossComments`` (in configuration: ``AcrossComments``)
+     Same as ACS_Consecutive, but also spans over lines only containing
+     comments, e.g.
+
+     .. code-block:: c++
+
+       #define SHORT_NAME       42
+       #define LONGER_NAME      0x007f
+       #define EVEN_LONGER_NAME (2)
+
+       #define foo(x)    (x * x)
+       /* some comment */
+       #define bar(y, z) (y + z)
+
+  * ``ACS_AcrossEmptyLinesAndComments``
+    (in configuration: ``AcrossEmptyLinesAndComments``)
+
+     Same as ACS_Consecutive, but also spans over lines only containing
+     comments and empty lines, e.g.
+
+     .. code-block:: c++
+
+       #define SHORT_NAME       42
+       #define LONGER_NAME      0x007f
+       #define EVEN_LONGER_NAME (2)
+
+       #define foo(x)           (x * x)
+       /* some comment */
+       #define bar(y, z)        (y + z)
 
 **AlignEscapedNewlines** (``EscapedNewlineAlignmentStyle``)
   Options for aligning backslashes in escaped newlines.
@@ -1205,16 +1451,47 @@ the configuration (without a prefix: ``Auto``).
 
     .. code-block:: c++
 
-      try {
-        foo();
-      } catch () {
+      namespace N {
+      enum E {
+        E1,
+        E2,
+      };
+
+      class C {
+      public:
+        C();
+      };
+
+      bool baz(int i) {
+        try {
+          do {
+            switch (i) {
+            case 1: {
+              foobar();
+              break;
+            }
+            default: {
+              break;
+            }
+            }
+          } while (--i);
+          return true;
+        } catch (...) {
+          handleError();
+          return false;
+        }
       }
-      void foo() { bar(); }
-      class foo {};
-      if (foo()) {
-      } else {
+
+      void foo(bool b) {
+        if (b) {
+          baz(2);
+        } else {
+          baz(5);
+        }
       }
-      enum X : int { A, B };
+
+      void bar() { foo(true); }
+      } // namespace N
 
   * ``BS_Linux`` (in configuration: ``Linux``)
     Like ``Attach``, but break before braces on function, namespace and
@@ -1222,18 +1499,51 @@ the configuration (without a prefix: ``Auto``).
 
     .. code-block:: c++
 
-      try {
-        foo();
-      } catch () {
-      }
-      void foo() { bar(); }
-      class foo
+      namespace N
       {
+      enum E {
+        E1,
+        E2,
       };
-      if (foo()) {
-      } else {
+
+      class C
+      {
+      public:
+        C();
+      };
+
+      bool baz(int i)
+      {
+        try {
+          do {
+            switch (i) {
+            case 1: {
+              foobar();
+              break;
+            }
+            default: {
+              break;
+            }
+            }
+          } while (--i);
+          return true;
+        } catch (...) {
+          handleError();
+          return false;
+        }
       }
-      enum X : int { A, B };
+
+      void foo(bool b)
+      {
+        if (b) {
+          baz(2);
+        } else {
+          baz(5);
+        }
+      }
+
+      void bar() { foo(true); }
+      } // namespace N
 
   * ``BS_Mozilla`` (in configuration: ``Mozilla``)
     Like ``Attach``, but break before braces on enum, function, and record
@@ -1241,18 +1551,51 @@ the configuration (without a prefix: ``Auto``).
 
     .. code-block:: c++
 
-      try {
-        foo();
-      } catch () {
-      }
-      void foo() { bar(); }
-      class foo
+      namespace N {
+      enum E
       {
+        E1,
+        E2,
       };
-      if (foo()) {
-      } else {
+
+      class C
+      {
+      public:
+        C();
+      };
+
+      bool baz(int i)
+      {
+        try {
+          do {
+            switch (i) {
+            case 1: {
+              foobar();
+              break;
+            }
+            default: {
+              break;
+            }
+            }
+          } while (--i);
+          return true;
+        } catch (...) {
+          handleError();
+          return false;
+        }
       }
-      enum X : int { A, B };
+
+      void foo(bool b)
+      {
+        if (b) {
+          baz(2);
+        } else {
+          baz(5);
+        }
+      }
+
+      void bar() { foo(true); }
+      } // namespace N
 
   * ``BS_Stroustrup`` (in configuration: ``Stroustrup``)
     Like ``Attach``, but break before function definitions, ``catch``, and
@@ -1260,75 +1603,175 @@ the configuration (without a prefix: ``Auto``).
 
     .. code-block:: c++
 
-      try {
-        foo();
-      }
-      catch () {
-      }
-      void foo() { bar(); }
-      class foo {
+      namespace N {
+      enum E {
+        E1,
+        E2,
       };
-      if (foo()) {
+
+      class C {
+      public:
+        C();
+      };
+
+      bool baz(int i)
+      {
+        try {
+          do {
+            switch (i) {
+            case 1: {
+              foobar();
+              break;
+            }
+            default: {
+              break;
+            }
+            }
+          } while (--i);
+          return true;
+        }
+        catch (...) {
+          handleError();
+          return false;
+        }
       }
-      else {
+
+      void foo(bool b)
+      {
+        if (b) {
+          baz(2);
+        }
+        else {
+          baz(5);
+        }
       }
-      enum X : int { A, B };
+
+      void bar() { foo(true); }
+      } // namespace N
 
   * ``BS_Allman`` (in configuration: ``Allman``)
     Always break before braces.
 
     .. code-block:: c++
 
-      try
+      namespace N
       {
-        foo();
-      }
-      catch ()
+      enum E
       {
-      }
-      void foo() { bar(); }
-      class foo
-      {
+        E1,
+        E2,
       };
-      if (foo())
+
+      class C
       {
-      }
-      else
-      {
-      }
-      enum X : int
-      {
-        A,
-        B
+      public:
+        C();
       };
+
+      bool baz(int i)
+      {
+        try
+        {
+          do
+          {
+            switch (i)
+            {
+            case 1:
+            {
+              foobar();
+              break;
+            }
+            default:
+            {
+              break;
+            }
+            }
+          } while (--i);
+          return true;
+        }
+        catch (...)
+        {
+          handleError();
+          return false;
+        }
+      }
+
+      void foo(bool b)
+      {
+        if (b)
+        {
+          baz(2);
+        }
+        else
+        {
+          baz(5);
+        }
+      }
+
+      void bar() { foo(true); }
+      } // namespace N
 
   * ``BS_Whitesmiths`` (in configuration: ``Whitesmiths``)
     Like ``Allman`` but always indent braces and line up code with braces.
 
     .. code-block:: c++
 
-      try
+      namespace N
         {
-        foo();
-        }
-      catch ()
+      enum E
         {
-        }
-      void foo() { bar(); }
-      class foo
-        {
+        E1,
+        E2,
         };
-      if (foo())
+
+      class C
         {
-        }
-      else
-        {
-        }
-      enum X : int
-        {
-        A,
-        B
+      public:
+        C();
         };
+
+      bool baz(int i)
+        {
+        try
+          {
+          do
+            {
+            switch (i)
+              {
+              case 1:
+              {
+              foobar();
+              break;
+              }
+              default:
+              {
+              break;
+              }
+              }
+            } while (--i);
+          return true;
+          }
+        catch (...)
+          {
+          handleError();
+          return false;
+          }
+        }
+
+      void foo(bool b)
+        {
+        if (b)
+          {
+          baz(2);
+          }
+        else
+          {
+          baz(5);
+          }
+        }
+
+      void bar() { foo(true); }
+        } // namespace N
 
   * ``BS_GNU`` (in configuration: ``GNU``)
     Always break before braces and add an extra level of indentation to
@@ -1337,50 +1780,129 @@ the configuration (without a prefix: ``Auto``).
 
     .. code-block:: c++
 
-      try
-        {
-          foo();
-        }
-      catch ()
-        {
-        }
-      void foo() { bar(); }
-      class foo
+      namespace N
       {
-      };
-      if (foo())
-        {
-        }
-      else
-        {
-        }
-      enum X : int
+      enum E
       {
-        A,
-        B
+        E1,
+        E2,
       };
+
+      class C
+      {
+      public:
+        C();
+      };
+
+      bool baz(int i)
+      {
+        try
+          {
+            do
+              {
+                switch (i)
+                  {
+                  case 1:
+                    {
+                      foobar();
+                      break;
+                    }
+                  default:
+                    {
+                      break;
+                    }
+                  }
+              }
+            while (--i);
+            return true;
+          }
+        catch (...)
+          {
+            handleError();
+            return false;
+          }
+      }
+
+      void foo(bool b)
+      {
+        if (b)
+          {
+            baz(2);
+          }
+        else
+          {
+            baz(5);
+          }
+      }
+
+      void bar() { foo(true); }
+      } // namespace N
 
   * ``BS_WebKit`` (in configuration: ``WebKit``)
     Like ``Attach``, but break before functions.
 
     .. code-block:: c++
 
-      try {
-        foo();
-      } catch () {
-      }
-      void foo() { bar(); }
-      class foo {
+      namespace N {
+      enum E {
+        E1,
+        E2,
       };
-      if (foo()) {
-      } else {
+
+      class C {
+      public:
+        C();
+      };
+
+      bool baz(int i)
+      {
+        try {
+          do {
+            switch (i) {
+            case 1: {
+              foobar();
+              break;
+            }
+            default: {
+              break;
+            }
+            }
+          } while (--i);
+          return true;
+        } catch (...) {
+          handleError();
+          return false;
+        }
       }
-      enum X : int { A, B };
+
+      void foo(bool b)
+      {
+        if (b) {
+          baz(2);
+        } else {
+          baz(5);
+        }
+      }
+
+      void bar() { foo(true); }
+      } // namespace N
 
   * ``BS_Custom`` (in configuration: ``Custom``)
     Configure each individual brace in `BraceWrapping`.
 
 
+
+**BreakBeforeConceptDeclarations** (``bool``)
+  If ``true``, concept will be placed on a new line.
+
+  .. code-block:: c++
+
+    true:
+     template<typename T>
+     concept ...
+
+    false:
+     template<typename T> concept ...
 
 **BreakBeforeTernaryOperators** (``bool``)
   If ``true``, ternary operators will be placed after line breaks.
@@ -1597,6 +2119,75 @@ the configuration (without a prefix: ``Auto``).
 **DisableFormat** (``bool``)
   Disables formatting completely.
 
+**EmptyLineBeforeAccessModifier** (``EmptyLineBeforeAccessModifierStyle``)
+  Defines in which cases to put empty line before access modifiers.
+
+  Possible values:
+
+  * ``ELBAMS_Never`` (in configuration: ``Never``)
+    Remove all empty lines before access modifiers.
+
+    .. code-block:: c++
+
+      struct foo {
+      private:
+        int i;
+      protected:
+        int j;
+        /* comment */
+      public:
+        foo() {}
+      private:
+      protected:
+      };
+
+  * ``ELBAMS_Leave`` (in configuration: ``Leave``)
+    Keep existing empty lines before access modifiers.
+
+  * ``ELBAMS_LogicalBlock`` (in configuration: ``LogicalBlock``)
+    Add empty line only when access modifier starts a new logical block.
+    Logical block is a group of one or more member fields or functions.
+
+    .. code-block:: c++
+
+      struct foo {
+      private:
+        int i;
+
+      protected:
+        int j;
+        /* comment */
+      public:
+        foo() {}
+
+      private:
+      protected:
+      };
+
+  * ``ELBAMS_Always`` (in configuration: ``Always``)
+    Always add empty line before access modifiers unless access modifier
+    is at the start of struct or class definition.
+
+    .. code-block:: c++
+
+      struct foo {
+      private:
+        int i;
+
+      protected:
+        int j;
+        /* comment */
+
+      public:
+        foo() {}
+
+      private:
+
+      protected:
+      };
+
+
+
 **ExperimentalAutoDetectBinPacking** (``bool``)
   If ``true``, clang-format detects whether function calls and
   definitions are formatted with one parameter per line.
@@ -1701,11 +2292,14 @@ the configuration (without a prefix: ``Auto``).
   always need to be first.
 
   There is a third and optional field ``SortPriority`` which can used while
-  ``IncludeBloks = IBS_Regroup`` to define the priority in which ``#includes``
-  should be ordered, and value of ``Priority`` defines the order of
-  ``#include blocks`` and also enables to group ``#includes`` of different
-  priority for order.``SortPriority`` is set to the value of ``Priority``
-  as default if it is not assigned.
+  ``IncludeBlocks = IBS_Regroup`` to define the priority in which
+  ``#includes`` should be ordered. The value of ``Priority`` defines the
+  order of ``#include blocks`` and also allows the grouping of ``#includes``
+  of different priority. ``SortPriority`` is set to the value of
+  ``Priority`` as default if it is not assigned.
+
+  Each regular expression can be marked as case sensitive with the field
+  ``CaseSensitive``, per default it is not.
 
   To configure this in the .clang-format file, use:
 
@@ -1715,6 +2309,7 @@ the configuration (without a prefix: ``Auto``).
       - Regex:           '^"(llvm|llvm-c|clang|clang-c)/'
         Priority:        2
         SortPriority:    2
+        CaseSensitive:   true
       - Regex:           '^(<|"(gtest|gmock|isl|json)/)'
         Priority:        3
       - Regex:           '<[[:alnum:].]+>'
@@ -1900,6 +2495,25 @@ the configuration (without a prefix: ``Auto``).
        #endif
 
 
+
+**IndentRequires** (``bool``)
+  Indent the requires clause in a template
+
+  .. code-block:: c++
+
+     true:
+     template <typename It>
+       requires Iterator<It>
+     void sort(It begin, It end) {
+       //....
+     }
+
+     false:
+     template <typename It>
+     requires Iterator<It>
+     void sort(It begin, It end) {
+       //....
+     }
 
 **IndentWidth** (``unsigned``)
   The number of columns to use for indentation.
@@ -2301,6 +2915,10 @@ the configuration (without a prefix: ``Auto``).
 **PenaltyExcessCharacter** (``unsigned``)
   The penalty for each character outside of the column limit.
 
+**PenaltyIndentedWhitespace** (``unsigned``)
+  Penalty for each character of whitespace indentation
+  (counted relative to leading non-whitespace column).
+
 **PenaltyReturnTypeOnItsOwnLine** (``unsigned``)
   Penalty for putting the return type of a function onto its own
   line.
@@ -2511,6 +3129,16 @@ the configuration (without a prefix: ``Auto``).
      true:                                  false:
      int a = 5;                     vs.     int a= 5;
      a += 42;                               a+= 42;
+
+**SpaceBeforeCaseColon** (``bool``)
+  If ``false``, spaces will be removed before case colon.
+
+  .. code-block:: c++
+
+    true:                                   false
+    switch (x) {                    vs.     switch (x) {
+      case 1 : break;                         case 1: break;
+    }                                       }
 
 **SpaceBeforeCpp11BracedList** (``bool``)
   If ``true``, a space will be inserted before a C++11 braced list
@@ -2760,6 +3388,23 @@ the configuration (without a prefix: ``Auto``).
     Automatic detection based on the input.
 
 
+
+**StatementAttributeLikeMacros** (``std::vector<std::string>``)
+  Macros which are ignored in front of a statement, as if they were an
+  attribute. So that they are not parsed as identifier, for example for Qts
+  emit.
+
+  .. code-block:: c++
+
+    AlignConsecutiveDeclarations: true
+    StatementAttributeLikeMacros: []
+    unsigned char data = 'x';
+    emit          signal(data); // This is parsed as variable declaration.
+
+    AlignConsecutiveDeclarations: true
+    StatementAttributeLikeMacros: [emit]
+    unsigned char data = 'x';
+    emit signal(data); // Now it's fine again.
 
 **StatementMacros** (``std::vector<std::string>``)
   A vector of macros that should be interpreted as complete

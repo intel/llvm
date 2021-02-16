@@ -32,7 +32,6 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/ELF.h"
-#include "llvm/BinaryFormat/MachO.h"
 #include "llvm/CodeGen/AsmPrinter.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -53,7 +52,6 @@
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstBuilder.h"
 #include "llvm/MC/MCSectionELF.h"
-#include "llvm/MC/MCSectionMachO.h"
 #include "llvm/MC/MCSectionXCOFF.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
@@ -76,6 +74,7 @@
 #include <new>
 
 using namespace llvm;
+using namespace llvm::XCOFF;
 
 #define DEBUG_TYPE "asmprinter"
 
@@ -165,6 +164,8 @@ private:
   DenseMap<const GlobalObject *, SmallVector<const GlobalAlias *, 1>>
       GOAliasMap;
 
+  void emitTracebackTable();
+
 public:
   PPCAIXAsmPrinter(TargetMachine &TM, std::unique_ptr<MCStreamer> Streamer)
       : PPCAsmPrinter(TM, std::move(Streamer)) {
@@ -188,6 +189,8 @@ public:
 
   void emitFunctionEntryLabel() override;
 
+  void emitFunctionBodyEnd() override;
+
   void emitEndOfAsmFile(Module &) override;
 
   void emitLinkage(const GlobalValue *GV, MCSymbol *GVSym) const override;
@@ -195,6 +198,8 @@ public:
   void emitInstruction(const MachineInstr *MI) override;
 
   bool doFinalization(Module &M) override;
+
+  void emitTTypeReference(const GlobalValue *GV, unsigned Encoding) override;
 };
 
 } // end anonymous namespace
@@ -1076,6 +1081,7 @@ void PPCAsmPrinter::emitInstruction(const MachineInstr *MI) {
   case PPC::GETtlsADDR:
     // Transform: %x3 = GETtlsADDR %x3, @sym
     // Into: BL8_NOP_TLS __tls_get_addr(sym at tlsgd)
+  case PPC::GETtlsADDRPCREL:
   case PPC::GETtlsADDR32: {
     // Transform: %r3 = GETtlsADDR32 %r3, @sym
     // Into: BL_TLS __tls_get_addr(sym at tlsgd)@PLT
@@ -1121,6 +1127,7 @@ void PPCAsmPrinter::emitInstruction(const MachineInstr *MI) {
   case PPC::GETtlsldADDR:
     // Transform: %x3 = GETtlsldADDR %x3, @sym
     // Into: BL8_NOP_TLS __tls_get_addr(sym at tlsld)
+  case PPC::GETtlsldADDRPCREL:
   case PPC::GETtlsldADDR32: {
     // Transform: %r3 = GETtlsldADDR32 %r3, @sym
     // Into: BL_TLS __tls_get_addr(sym at tlsld)@PLT
@@ -1218,10 +1225,6 @@ void PPCAsmPrinter::emitInstruction(const MachineInstr *MI) {
   case PPC::LWA: {
     // Verify alignment is legal, so we don't create relocations
     // that can't be supported.
-    // FIXME:  This test is currently disabled for Darwin.  The test
-    // suite shows a handful of test cases that fail this check for
-    // Darwin.  Those need to be investigated before this sanity test
-    // can be enabled for those subtargets.
     unsigned OpNum = (MI->getOpcode() == PPC::STD) ? 2 : 1;
     const MachineOperand &MO = MI->getOperand(OpNum);
     if (MO.isGlobal()) {
@@ -1733,13 +1736,288 @@ void PPCAIXAsmPrinter::SetupMachineFunction(MachineFunction &MF) {
   return AsmPrinter::SetupMachineFunction(MF);
 }
 
+void PPCAIXAsmPrinter::emitFunctionBodyEnd() {
+
+  if (!TM.getXCOFFTracebackTable())
+    return;
+
+  emitTracebackTable();
+}
+
+void PPCAIXAsmPrinter::emitTracebackTable() {
+
+  // Create a symbol for the end of function.
+  MCSymbol *FuncEnd = createTempSymbol(MF->getName());
+  OutStreamer->emitLabel(FuncEnd);
+
+  OutStreamer->AddComment("Traceback table begin");
+  // Begin with a fullword of zero.
+  OutStreamer->emitIntValueInHexWithPadding(0, 4 /*size*/);
+
+  SmallString<128> CommentString;
+  raw_svector_ostream CommentOS(CommentString);
+
+  auto EmitComment = [&]() {
+    OutStreamer->AddComment(CommentOS.str());
+    CommentString.clear();
+  };
+
+  auto EmitCommentAndValue = [&](uint64_t Value, int Size) {
+    EmitComment();
+    OutStreamer->emitIntValueInHexWithPadding(Value, Size);
+  };
+
+  unsigned int Version = 0;
+  CommentOS << "Version = " << Version;
+  EmitCommentAndValue(Version, 1);
+
+  // There is a lack of information in the IR to assist with determining the
+  // source language. AIX exception handling mechanism would only search for
+  // personality routine and LSDA area when such language supports exception
+  // handling. So to be conservatively correct and allow runtime to do its job,
+  // we need to set it to C++ for now.
+  TracebackTable::LanguageID LanguageIdentifier =
+      TracebackTable::CPlusPlus; // C++
+
+  CommentOS << "Language = "
+            << getNameForTracebackTableLanguageId(LanguageIdentifier);
+  EmitCommentAndValue(LanguageIdentifier, 1);
+
+  //  This is only populated for the third and fourth bytes.
+  uint32_t FirstHalfOfMandatoryField = 0;
+
+  // Emit the 3rd byte of the mandatory field.
+
+  // We always set traceback offset bit to true.
+  FirstHalfOfMandatoryField |= TracebackTable::HasTraceBackTableOffsetMask;
+
+  const PPCFunctionInfo *FI = MF->getInfo<PPCFunctionInfo>();
+  const MachineRegisterInfo &MRI = MF->getRegInfo();
+
+  // Check the function uses floating-point processor instructions or not
+  for (unsigned Reg = PPC::F0; Reg <= PPC::F31; ++Reg) {
+    if (MRI.isPhysRegUsed(Reg)) {
+      FirstHalfOfMandatoryField |= TracebackTable::IsFloatingPointPresentMask;
+      break;
+    }
+  }
+
+#define GENBOOLCOMMENT(Prefix, V, Field)                                       \
+  CommentOS << (Prefix) << ((V) & (TracebackTable::Field##Mask) ? "+" : "-")   \
+            << #Field
+
+#define GENVALUECOMMENT(PrefixAndName, V, Field)                               \
+  CommentOS << (PrefixAndName) << " = "                                        \
+            << static_cast<unsigned>(((V) & (TracebackTable::Field##Mask)) >>  \
+                                     (TracebackTable::Field##Shift))
+
+  GENBOOLCOMMENT("", FirstHalfOfMandatoryField, IsGlobaLinkage);
+  GENBOOLCOMMENT(", ", FirstHalfOfMandatoryField, IsOutOfLineEpilogOrPrologue);
+  EmitComment();
+
+  GENBOOLCOMMENT("", FirstHalfOfMandatoryField, HasTraceBackTableOffset);
+  GENBOOLCOMMENT(", ", FirstHalfOfMandatoryField, IsInternalProcedure);
+  EmitComment();
+
+  GENBOOLCOMMENT("", FirstHalfOfMandatoryField, HasControlledStorage);
+  GENBOOLCOMMENT(", ", FirstHalfOfMandatoryField, IsTOCless);
+  EmitComment();
+
+  GENBOOLCOMMENT("", FirstHalfOfMandatoryField, IsFloatingPointPresent);
+  EmitComment();
+  GENBOOLCOMMENT("", FirstHalfOfMandatoryField,
+                 IsFloatingPointOperationLogOrAbortEnabled);
+  EmitComment();
+
+  OutStreamer->emitIntValueInHexWithPadding(
+      (FirstHalfOfMandatoryField & 0x0000ff00) >> 8, 1);
+
+  // Set the 4th byte of the mandatory field.
+  FirstHalfOfMandatoryField |= TracebackTable::IsFunctionNamePresentMask;
+
+  static_assert(XCOFF::AllocRegNo == 31, "Unexpected register usage!");
+  if (MRI.isPhysRegUsed(Subtarget->isPPC64() ? PPC::X31 : PPC::R31))
+    FirstHalfOfMandatoryField |= TracebackTable::IsAllocaUsedMask;
+
+  const SmallVectorImpl<Register> &MustSaveCRs = FI->getMustSaveCRs();
+  if (!MustSaveCRs.empty())
+    FirstHalfOfMandatoryField |= TracebackTable::IsCRSavedMask;
+
+  if (FI->mustSaveLR())
+    FirstHalfOfMandatoryField |= TracebackTable::IsLRSavedMask;
+
+  GENBOOLCOMMENT("", FirstHalfOfMandatoryField, IsInterruptHandler);
+  GENBOOLCOMMENT(", ", FirstHalfOfMandatoryField, IsFunctionNamePresent);
+  GENBOOLCOMMENT(", ", FirstHalfOfMandatoryField, IsAllocaUsed);
+  EmitComment();
+  GENVALUECOMMENT("OnConditionDirective", FirstHalfOfMandatoryField,
+                  OnConditionDirective);
+  GENBOOLCOMMENT(", ", FirstHalfOfMandatoryField, IsCRSaved);
+  GENBOOLCOMMENT(", ", FirstHalfOfMandatoryField, IsLRSaved);
+  EmitComment();
+  OutStreamer->emitIntValueInHexWithPadding((FirstHalfOfMandatoryField & 0xff),
+                                            1);
+
+  // Set the 5th byte of mandatory field.
+  uint32_t SecondHalfOfMandatoryField = 0;
+
+  // Always store back chain.
+  SecondHalfOfMandatoryField |= TracebackTable::IsBackChainStoredMask;
+
+  uint32_t FPRSaved = 0;
+  for (unsigned Reg = PPC::F14; Reg <= PPC::F31; ++Reg) {
+    if (MRI.isPhysRegModified(Reg)) {
+      FPRSaved = PPC::F31 - Reg + 1;
+      break;
+    }
+  }
+  SecondHalfOfMandatoryField |= (FPRSaved << TracebackTable::FPRSavedShift) &
+                                TracebackTable::FPRSavedMask;
+  GENBOOLCOMMENT("", SecondHalfOfMandatoryField, IsBackChainStored);
+  GENBOOLCOMMENT(", ", SecondHalfOfMandatoryField, IsFixup);
+  GENVALUECOMMENT(", NumOfFPRsSaved", SecondHalfOfMandatoryField, FPRSaved);
+  EmitComment();
+  OutStreamer->emitIntValueInHexWithPadding(
+      (SecondHalfOfMandatoryField & 0xff000000) >> 24, 1);
+
+  // Set the 6th byte of mandatory field.
+  bool ShouldEmitEHBlock = TargetLoweringObjectFileXCOFF::ShouldEmitEHBlock(MF);
+  if (ShouldEmitEHBlock)
+    SecondHalfOfMandatoryField |= TracebackTable::HasExtensionTableMask;
+
+  uint32_t GPRSaved = 0;
+
+  // X13 is reserved under 64-bit environment.
+  unsigned GPRBegin = Subtarget->isPPC64() ? PPC::X14 : PPC::R13;
+  unsigned GPREnd = Subtarget->isPPC64() ? PPC::X31 : PPC::R31;
+
+  for (unsigned Reg = GPRBegin; Reg <= GPREnd; ++Reg) {
+    if (MRI.isPhysRegModified(Reg)) {
+      GPRSaved = GPREnd - Reg + 1;
+      break;
+    }
+  }
+
+  SecondHalfOfMandatoryField |= (GPRSaved << TracebackTable::GPRSavedShift) &
+                                TracebackTable::GPRSavedMask;
+
+  GENBOOLCOMMENT("", SecondHalfOfMandatoryField, HasVectorInfo);
+  GENBOOLCOMMENT(", ", SecondHalfOfMandatoryField, HasExtensionTable);
+  GENVALUECOMMENT(", NumOfGPRsSaved", SecondHalfOfMandatoryField, GPRSaved);
+  EmitComment();
+  OutStreamer->emitIntValueInHexWithPadding(
+      (SecondHalfOfMandatoryField & 0x00ff0000) >> 16, 1);
+
+  // Set the 7th byte of mandatory field.
+  uint32_t NumberOfFixedPara = FI->getFixedParamNum();
+  SecondHalfOfMandatoryField |=
+      (NumberOfFixedPara << TracebackTable::NumberOfFixedParmsShift) &
+      TracebackTable::NumberOfFixedParmsMask;
+  GENVALUECOMMENT("NumberOfFixedParms", SecondHalfOfMandatoryField,
+                  NumberOfFixedParms);
+  EmitComment();
+  OutStreamer->emitIntValueInHexWithPadding(
+      (SecondHalfOfMandatoryField & 0x0000ff00) >> 8, 1);
+
+  // Set the 8th byte of mandatory field.
+
+  // Always set parameter on stack.
+  SecondHalfOfMandatoryField |= TracebackTable::HasParmsOnStackMask;
+
+  uint32_t NumberOfFPPara = FI->getFloatingPointParamNum();
+  SecondHalfOfMandatoryField |=
+      (NumberOfFPPara << TracebackTable::NumberOfFloatingPointParmsShift) &
+      TracebackTable::NumberOfFloatingPointParmsMask;
+
+  GENVALUECOMMENT("NumberOfFPParms", SecondHalfOfMandatoryField,
+                  NumberOfFloatingPointParms);
+  GENBOOLCOMMENT(", ", SecondHalfOfMandatoryField, HasParmsOnStack);
+  EmitComment();
+  OutStreamer->emitIntValueInHexWithPadding(SecondHalfOfMandatoryField & 0xff,
+                                            1);
+
+  // Generate the optional fields of traceback table.
+
+  // Parameter type.
+  if (NumberOfFixedPara || NumberOfFPPara) {
+    assert((SecondHalfOfMandatoryField & TracebackTable::HasVectorInfoMask) ==
+               0 &&
+           "VectorInfo has not been implemented.");
+    uint32_t ParaType = FI->getParameterType();
+    CommentOS << "Parameter type = "
+              << XCOFF::parseParmsType(ParaType,
+                                       NumberOfFixedPara + NumberOfFPPara);
+    EmitComment();
+    OutStreamer->emitIntValueInHexWithPadding(ParaType, sizeof(ParaType));
+  }
+
+  // Traceback table offset.
+  OutStreamer->AddComment("Function size");
+  if (FirstHalfOfMandatoryField & TracebackTable::HasTraceBackTableOffsetMask) {
+    MCSymbol *FuncSectSym = getObjFileLowering().getFunctionEntryPointSymbol(
+        &(MF->getFunction()), TM);
+    OutStreamer->emitAbsoluteSymbolDiff(FuncEnd, FuncSectSym, 4);
+  }
+
+  // Since we unset the Int_Handler.
+  if (FirstHalfOfMandatoryField & TracebackTable::IsInterruptHandlerMask)
+    report_fatal_error("Hand_Mask not implement yet");
+
+  if (FirstHalfOfMandatoryField & TracebackTable::HasControlledStorageMask)
+    report_fatal_error("Ctl_Info not implement yet");
+
+  if (FirstHalfOfMandatoryField & TracebackTable::IsFunctionNamePresentMask) {
+    StringRef Name = MF->getName().substr(0, INT16_MAX);
+    int16_t NameLength = Name.size();
+    CommentOS << "Function name len = "
+              << static_cast<unsigned int>(NameLength);
+    EmitCommentAndValue(NameLength, 2);
+    OutStreamer->AddComment("Function Name");
+    OutStreamer->emitBytes(Name);
+  }
+
+  if (FirstHalfOfMandatoryField & TracebackTable::IsAllocaUsedMask) {
+    uint8_t AllocReg = XCOFF::AllocRegNo;
+    OutStreamer->AddComment("AllocaUsed");
+    OutStreamer->emitIntValueInHex(AllocReg, sizeof(AllocReg));
+  }
+
+  uint8_t ExtensionTableFlag = 0;
+  if (SecondHalfOfMandatoryField & TracebackTable::HasExtensionTableMask) {
+    if (ShouldEmitEHBlock)
+      ExtensionTableFlag |= ExtendedTBTableFlag::TB_EH_INFO;
+
+    CommentOS << "ExtensionTableFlag = "
+              << getExtendedTBTableFlagString(ExtensionTableFlag);
+    EmitCommentAndValue(ExtensionTableFlag, sizeof(ExtensionTableFlag));
+  }
+
+  if (ExtensionTableFlag & ExtendedTBTableFlag::TB_EH_INFO) {
+    auto &Ctx = OutStreamer->getContext();
+    MCSymbol *EHInfoSym =
+        TargetLoweringObjectFileXCOFF::getEHInfoTableSymbol(MF);
+    MCSymbol *TOCEntry = lookUpOrCreateTOCEntry(EHInfoSym);
+    const MCSymbol *TOCBaseSym =
+        cast<MCSectionXCOFF>(getObjFileLowering().getTOCBaseSection())
+            ->getQualNameSymbol();
+    const MCExpr *Exp =
+        MCBinaryExpr::createSub(MCSymbolRefExpr::create(TOCEntry, Ctx),
+                                MCSymbolRefExpr::create(TOCBaseSym, Ctx), Ctx);
+
+    const DataLayout &DL = getDataLayout();
+    OutStreamer->emitValueToAlignment(4);
+    OutStreamer->AddComment("EHInfo Table");
+    OutStreamer->emitValue(Exp, DL.getPointerSize());
+  }
+
+#undef GENBOOLCOMMENT
+#undef GENVALUECOMMENT
+}
+
 void PPCAIXAsmPrinter::ValidateGV(const GlobalVariable *GV) {
   // Early error checking limiting what is supported.
   if (GV->isThreadLocal())
     report_fatal_error("Thread local not yet supported on AIX.");
-
-  if (GV->hasSection())
-    report_fatal_error("Custom section for Data not yet supported.");
 
   if (GV->hasComdat())
     report_fatal_error("COMDAT not yet supported by AIX.");
@@ -1811,10 +2089,12 @@ void PPCAIXAsmPrinter::emitGlobalVariable(const GlobalVariable *GV) {
   MCSymbol *EmittedInitSym = GVSym;
   emitLinkage(GV, EmittedInitSym);
   emitAlignment(getGVAlignment(GV, DL), GV);
+
   // When -fdata-sections is enabled, every GlobalVariable will
   // be put into its own csect; therefore, label is not necessary here.
-  if (!TM.getDataSections())
+  if (!TM.getDataSections() || GV->hasSection()) {
     OutStreamer->emitLabel(EmittedInitSym);
+  }
 
   // Emit aliasing label for global variable.
   llvm::for_each(GOAliasMap[GV], [this](const GlobalAlias *Alias) {
@@ -1921,7 +2201,7 @@ bool PPCAIXAsmPrinter::doInitialization(Module &M) {
       // the sinit and sterm function names.
       if (FormatIndicatorAndUniqueModId.empty()) {
         std::string UniqueModuleId = getUniqueModuleId(&M);
-        if (UniqueModuleId.compare("") != 0)
+        if (UniqueModuleId != "")
           // TODO: Use source file full path to generate the unique module id
           // and add a format indicator as a part of function name in case we
           // will support more than one format.
@@ -1997,6 +2277,48 @@ bool PPCAIXAsmPrinter::doFinalization(Module &M) {
   return PPCAsmPrinter::doFinalization(M);
 }
 
+static unsigned mapToSinitPriority(int P) {
+  if (P < 0 || P > 65535)
+    report_fatal_error("invalid init priority");
+
+  if (P <= 20)
+    return P;
+
+  if (P < 81)
+    return 20 + (P - 20) * 16;
+
+  if (P <= 1124)
+    return 1004 + (P - 81);
+
+  if (P < 64512)
+    return 2047 + (P - 1124) * 33878;
+
+  return 2147482625u + (P - 64512);
+}
+
+static std::string convertToSinitPriority(int Priority) {
+  // This helper function converts clang init priority to values used in sinit
+  // and sterm functions.
+  //
+  // The conversion strategies are:
+  // We map the reserved clang/gnu priority range [0, 100] into the sinit/sterm
+  // reserved priority range [0, 1023] by
+  // - directly mapping the first 21 and the last 20 elements of the ranges
+  // - linear interpolating the intermediate values with a step size of 16.
+  //
+  // We map the non reserved clang/gnu priority range of [101, 65535] into the
+  // sinit/sterm priority range [1024, 2147483648] by:
+  // - directly mapping the first and the last 1024 elements of the ranges
+  // - linear interpolating the intermediate values with a step size of 33878.
+  unsigned int P = mapToSinitPriority(Priority);
+
+  std::string PrioritySuffix;
+  llvm::raw_string_ostream os(PrioritySuffix);
+  os << llvm::format_hex_no_prefix(P, 8);
+  os.flush();
+  return PrioritySuffix;
+}
+
 void PPCAIXAsmPrinter::emitXXStructorList(const DataLayout &DL,
                                           const Constant *List, bool IsCtor) {
   SmallVector<Structor, 8> Structors;
@@ -2006,23 +2328,38 @@ void PPCAIXAsmPrinter::emitXXStructorList(const DataLayout &DL,
 
   unsigned Index = 0;
   for (Structor &S : Structors) {
-    if (S.Priority != 65535)
-      report_fatal_error(
-          "prioritized sinit and sterm functions are not yet supported on AIX");
+    if (const ConstantExpr *CE = dyn_cast<ConstantExpr>(S.Func))
+      S.Func = CE->getOperand(0);
 
     llvm::GlobalAlias::create(
         GlobalValue::ExternalLinkage,
         (IsCtor ? llvm::Twine("__sinit") : llvm::Twine("__sterm")) +
-            llvm::Twine("80000000_", FormatIndicatorAndUniqueModId) +
+            llvm::Twine(convertToSinitPriority(S.Priority)) +
+            llvm::Twine("_", FormatIndicatorAndUniqueModId) +
             llvm::Twine("_", llvm::utostr(Index++)),
         cast<Function>(S.Func));
   }
 }
 
-/// createPPCAsmPrinterPass - Returns a pass that prints the PPC assembly code
-/// for a MachineFunction to the given output stream, in a format that the
-/// Darwin assembler can deal with.
-///
+void PPCAIXAsmPrinter::emitTTypeReference(const GlobalValue *GV,
+                                          unsigned Encoding) {
+  if (GV) {
+    MCSymbol *TypeInfoSym = TM.getSymbol(GV);
+    MCSymbol *TOCEntry = lookUpOrCreateTOCEntry(TypeInfoSym);
+    const MCSymbol *TOCBaseSym =
+        cast<MCSectionXCOFF>(getObjFileLowering().getTOCBaseSection())
+            ->getQualNameSymbol();
+    auto &Ctx = OutStreamer->getContext();
+    const MCExpr *Exp =
+        MCBinaryExpr::createSub(MCSymbolRefExpr::create(TOCEntry, Ctx),
+                                MCSymbolRefExpr::create(TOCBaseSym, Ctx), Ctx);
+    OutStreamer->emitValue(Exp, GetSizeOfEncodedValue(Encoding));
+  } else
+    OutStreamer->emitIntValue(0, GetSizeOfEncodedValue(Encoding));
+}
+
+// Return a pass that prints the PPC assembly code for a MachineFunction to the
+// given output stream.
 static AsmPrinter *
 createPPCAsmPrinterPass(TargetMachine &tm,
                         std::unique_ptr<MCStreamer> &&Streamer) {
@@ -2035,6 +2372,8 @@ createPPCAsmPrinterPass(TargetMachine &tm,
 // Force static initialization.
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializePowerPCAsmPrinter() {
   TargetRegistry::RegisterAsmPrinter(getThePPC32Target(),
+                                     createPPCAsmPrinterPass);
+  TargetRegistry::RegisterAsmPrinter(getThePPC32LETarget(),
                                      createPPCAsmPrinterPass);
   TargetRegistry::RegisterAsmPrinter(getThePPC64Target(),
                                      createPPCAsmPrinterPass);

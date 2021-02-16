@@ -36,8 +36,6 @@ Expr *ParentMapContext::traverseIgnored(Expr *E) const {
   switch (Traversal) {
   case TK_AsIs:
     return E;
-  case TK_IgnoreImplicitCastsAndParentheses:
-    return E->IgnoreParenImpCasts();
   case TK_IgnoreUnlessSpelledInSource:
     return E->IgnoreUnlessSpelledInSource();
   }
@@ -154,8 +152,13 @@ public:
 
       auto SR = Child->getSourceRange();
 
+      if (const auto *C = dyn_cast<CXXFunctionalCastExpr>(E)) {
+        if (C->getSourceRange() == SR)
+          return true;
+      }
+
       if (const auto *C = dyn_cast<CXXConstructExpr>(E)) {
-        if (C->getSourceRange() == SR || !isa<CXXTemporaryObjectExpr>(C))
+        if (C->getSourceRange() == SR || C->isElidable())
           return true;
       }
 

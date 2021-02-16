@@ -105,6 +105,9 @@ namespace {
     /// available in a physical register.
     LiveRegMap LiveVirtRegs;
 
+    /// Stores assigned virtual registers present in the bundle MI.
+    DenseMap<Register, MCPhysReg> BundleVirtRegsMap;
+
     DenseMap<unsigned, SmallVector<MachineInstr *, 2>> LiveDbgValueMap;
     /// List of DBG_VALUE that we encountered without the vreg being assigned
     /// because they were placed after the last use of the vreg.
@@ -203,6 +206,11 @@ namespace {
           MachineFunctionProperties::Property::NoVRegs);
     }
 
+    MachineFunctionProperties getClearedProperties() const override {
+      return MachineFunctionProperties().set(
+        MachineFunctionProperties::Property::IsSSA);
+    }
+
   private:
     bool runOnMachineFunction(MachineFunction &MF) override;
 
@@ -213,6 +221,8 @@ namespace {
 
     void allocateInstruction(MachineInstr &MI);
     void handleDebugValue(MachineInstr &MI);
+    void handleBundle(MachineInstr &MI);
+
     bool usePhysReg(MachineInstr &MI, MCPhysReg PhysReg);
     bool definePhysReg(MachineInstr &MI, MCPhysReg PhysReg);
     bool displacePhysReg(MachineInstr &MI, MCPhysReg PhysReg);
@@ -490,7 +500,7 @@ void RegAllocFast::reloadAtBegin(MachineBasicBlock &MBB) {
     if (PhysReg == 0)
       continue;
 
-    unsigned FirstUnit = *MCRegUnitIterator(PhysReg, TRI);
+    MCRegister FirstUnit = *MCRegUnitIterator(PhysReg, TRI);
     if (RegUnitStates[FirstUnit] == regLiveIn)
       continue;
 
@@ -561,7 +571,7 @@ bool RegAllocFast::displacePhysReg(MachineInstr &MI, MCPhysReg PhysReg) {
 void RegAllocFast::freePhysReg(MCPhysReg PhysReg) {
   LLVM_DEBUG(dbgs() << "Freeing " << printReg(PhysReg, TRI) << ':');
 
-  unsigned FirstUnit = *MCRegUnitIterator(PhysReg, TRI);
+  MCRegister FirstUnit = *MCRegUnitIterator(PhysReg, TRI);
   switch (unsigned VirtReg = RegUnitStates[FirstUnit]) {
   case regFree:
     LLVM_DEBUG(dbgs() << '\n');
@@ -884,6 +894,9 @@ void RegAllocFast::defineVirtReg(MachineInstr &MI, unsigned OpNum,
     LRI->LiveOut = false;
     LRI->Reloaded = false;
   }
+  if (MI.getOpcode() == TargetOpcode::BUNDLE) {
+    BundleVirtRegsMap[VirtReg] = PhysReg;
+  }
   markRegUsedInInstr(PhysReg);
   setPhysReg(MI, MO, PhysReg);
 }
@@ -929,6 +942,10 @@ void RegAllocFast::useVirtReg(MachineInstr &MI, unsigned OpNum,
   }
 
   LRI->LastUse = &MI;
+
+  if (MI.getOpcode() == TargetOpcode::BUNDLE) {
+    BundleVirtRegsMap[VirtReg] = LRI->PhysReg;
+  }
   markRegUsedInInstr(LRI->PhysReg);
   setPhysReg(MI, MO, LRI->PhysReg);
 }
@@ -945,7 +962,7 @@ void RegAllocFast::setPhysReg(MachineInstr &MI, MachineOperand &MO,
   }
 
   // Handle subregister index.
-  MO.setReg(PhysReg ? TRI->getSubReg(PhysReg, MO.getSubReg()) : Register());
+  MO.setReg(PhysReg ? TRI->getSubReg(PhysReg, MO.getSubReg()) : MCRegister());
   MO.setIsRenamable(true);
   // Note: We leave the subreg number around a little longer in case of defs.
   // This is so that the register freeing logic in allocateInstruction can still
@@ -1059,6 +1076,7 @@ void RegAllocFast::allocateInstruction(MachineInstr &MI) {
   //   operands and early-clobbers.
 
   UsedInInstr.clear();
+  BundleVirtRegsMap.clear();
 
   // Scan for special cases; Apply pre-assigned register defs to state.
   bool HasPhysRegUse = false;
@@ -1139,8 +1157,7 @@ void RegAllocFast::allocateInstruction(MachineInstr &MI) {
           }
         }
 
-        llvm::sort(DefOperandIndexes.begin(), DefOperandIndexes.end(),
-                   [&](uint16_t I0, uint16_t I1) {
+        llvm::sort(DefOperandIndexes, [&](uint16_t I0, uint16_t I1) {
           const MachineOperand &MO0 = MI.getOperand(I0);
           const MachineOperand &MO1 = MI.getOperand(I1);
           Register Reg0 = MO0.getReg();
@@ -1377,6 +1394,30 @@ void RegAllocFast::handleDebugValue(MachineInstr &MI) {
   LiveDbgValueMap[Reg].push_back(&MI);
 }
 
+void RegAllocFast::handleBundle(MachineInstr &MI) {
+  MachineBasicBlock::instr_iterator BundledMI = MI.getIterator();
+  ++BundledMI;
+  while (BundledMI->isBundledWithPred()) {
+    for (unsigned I = 0; I < BundledMI->getNumOperands(); ++I) {
+      MachineOperand &MO = BundledMI->getOperand(I);
+      if (!MO.isReg())
+        continue;
+
+      Register Reg = MO.getReg();
+      if (!Reg.isVirtual())
+        continue;
+
+      DenseMap<Register, MCPhysReg>::iterator DI;
+      DI = BundleVirtRegsMap.find(Reg);
+      assert(DI != BundleVirtRegsMap.end() && "Unassigned virtual register");
+
+      setPhysReg(MI, MO, DI->second);
+    }
+
+    ++BundledMI;
+  }
+}
+
 void RegAllocFast::allocateBasicBlock(MachineBasicBlock &MBB) {
   this->MBB = &MBB;
   LLVM_DEBUG(dbgs() << "\nAllocating " << MBB);
@@ -1406,6 +1447,12 @@ void RegAllocFast::allocateBasicBlock(MachineBasicBlock &MBB) {
     }
 
     allocateInstruction(MI);
+
+    // Once BUNDLE header is assigned registers, same assignments need to be
+    // done for bundled MIs.
+    if (MI.getOpcode() == TargetOpcode::BUNDLE) {
+      handleBundle(MI);
+    }
   }
 
   LLVM_DEBUG(

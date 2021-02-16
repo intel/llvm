@@ -237,7 +237,7 @@ const LoadedModule *Symbolizer::FindModuleForAddress(uptr address) {
 //   <file_name>:<line_number>:<column_number>
 //   ...
 //   <empty line>
-class LLVMSymbolizerProcess : public SymbolizerProcess {
+class LLVMSymbolizerProcess final : public SymbolizerProcess {
  public:
   explicit LLVMSymbolizerProcess(const char *path)
       : SymbolizerProcess(path, /*use_posix_spawn=*/SANITIZER_MAC) {}
@@ -356,7 +356,7 @@ void ParseSymbolizePCOutput(const char *str, SymbolizedStack *res) {
       InternalFree(info->function);
       info->function = 0;
     }
-    if (0 == internal_strcmp(info->file, "??")) {
+    if (info->file && 0 == internal_strcmp(info->file, "??")) {
       InternalFree(info->file);
       info->file = 0;
     }

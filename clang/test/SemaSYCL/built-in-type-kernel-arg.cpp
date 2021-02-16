@@ -1,14 +1,11 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -ast-dump %s | FileCheck %s
 
 // This test checks that compiler generates correct initialization for arguments
 // that have struct or built-in type inside the OpenCL kernel
 
-#include "Inputs/sycl.hpp"
+#include "sycl.hpp"
 
-template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
-  kernelFunc();
-}
+sycl::queue deviceQueue;
 
 struct test_struct {
   int data;
@@ -18,10 +15,12 @@ struct test_struct {
 };
 
 void test(const int some_const) {
-  kernel<class kernel_const>(
-      [=]() {
-        int a = some_const;
-      });
+  deviceQueue.submit([&](sycl::handler &h) {
+    h.single_task<class kernel_const>(
+        [=]() {
+          int a = some_const;
+        });
+  });
 }
 
 int main() {
@@ -31,20 +30,29 @@ int main() {
   int *ptr_array[2];
   test_struct s;
   s.data = data;
-  kernel<class kernel_int>(
-      [=]() {
-        int kernel_data = data;
-      });
-  kernel<class kernel_struct>(
-      [=]() {
-        test_struct k_s;
-        k_s = s;
-      });
-  kernel<class kernel_pointer>(
-      [=]() {
-        new_data_addr[0] = data_addr[0];
-        int *local = ptr_array[1];
-      });
+
+  deviceQueue.submit([&](sycl::handler &h) {
+    h.single_task<class kernel_int>(
+        [=]() {
+          int kernel_data = data;
+        });
+  });
+
+  deviceQueue.submit([&](sycl::handler &h) {
+    h.single_task<class kernel_struct>(
+        [=]() {
+          test_struct k_s;
+          k_s = s;
+        });
+  });
+
+  deviceQueue.submit([&](sycl::handler &h) {
+    h.single_task<class kernel_pointer>(
+        [=]() {
+          new_data_addr[0] = data_addr[0];
+          int *local = ptr_array[1];
+        });
+  });
 
   const int some_const = 10;
   test(some_const);

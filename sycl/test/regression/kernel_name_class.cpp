@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %RUN_ON_HOST %t.out
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.ext.out -fsycl-unnamed-lambda
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out %t.ext.out
+// RUN: %RUN_ON_HOST %t.out %t.ext.out
 
 //==-- kernel_name_class.cpp - SYCL kernel naming variants test ------------==//
 //

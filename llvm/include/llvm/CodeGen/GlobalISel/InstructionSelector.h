@@ -39,7 +39,6 @@ class MachineOperand;
 class MachineRegisterInfo;
 class RegisterBankInfo;
 class TargetInstrInfo;
-class TargetRegisterClass;
 class TargetRegisterInfo;
 
 /// Container class for CodeGen predicate results.
@@ -526,16 +525,6 @@ protected:
     llvm_unreachable(
         "Subclasses must override this with a tablegen-erated function");
   }
-
-  /// Constrain a register operand of an instruction \p I to a specified
-  /// register class. This could involve inserting COPYs before (for uses) or
-  /// after (for defs) and may replace the operand of \p I.
-  /// \returns whether operand regclass constraining succeeded.
-  bool constrainOperandRegToRegClass(MachineInstr &I, unsigned OpIdx,
-                                     const TargetRegisterClass &RC,
-                                     const TargetInstrInfo &TII,
-                                     const TargetRegisterInfo &TRI,
-                                     const RegisterBankInfo &RBI) const;
 
   bool isOperandImmEqual(const MachineOperand &MO, int64_t Value,
                          const MachineRegisterInfo &MRI) const;

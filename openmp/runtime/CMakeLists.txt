@@ -34,6 +34,7 @@ if(${OPENMP_STANDALONE_BUILD})
   # Should assertions be enabled?  They are on by default.
   set(LIBOMP_ENABLE_ASSERTIONS TRUE CACHE BOOL
     "enable assertions?")
+  set(LIBOMPTARGET_PROFILING_SUPPORT FALSE)
 else() # Part of LLVM build
   # Determine the native architecture from LLVM.
   string(TOLOWER "${LLVM_TARGET_ARCH}" LIBOMP_NATIVE_ARCH)
@@ -65,8 +66,21 @@ else() # Part of LLVM build
     libomp_get_architecture(LIBOMP_ARCH)
   endif ()
   set(LIBOMP_ENABLE_ASSERTIONS ${LLVM_ENABLE_ASSERTIONS})
+  # Time profiling support
+  set(LIBOMPTARGET_PROFILING_SUPPORT ${OPENMP_ENABLE_LIBOMPTARGET_PROFILING})
 endif()
-libomp_check_variable(LIBOMP_ARCH 32e x86_64 32 i386 arm ppc64 ppc64le aarch64 mic mips mips64 riscv64)
+
+# FUJITSU A64FX is a special processor because its cache line size is 256.
+# We need to pass this information into kmp_config.h.
+if(LIBOMP_ARCH STREQUAL "aarch64")
+  libomp_is_aarch64_a64fx(LIBOMP_DETECT_AARCH64_A64FX)
+  if (LIBOMP_DETECT_AARCH64_A64FX)
+    set(LIBOMP_ARCH "aarch64_a64fx")
+    set(LIBOMP_ARCH_AARCH64_A64FX TRUE)
+  endif()
+endif()
+
+libomp_check_variable(LIBOMP_ARCH 32e x86_64 32 i386 arm ppc64 ppc64le aarch64 aarch64_a64fx mic mips mips64 riscv64)
 
 set(LIBOMP_LIB_TYPE normal CACHE STRING
   "Performance,Profiling,Stubs library (normal/profile/stubs)")
@@ -136,6 +150,7 @@ set(IA32 FALSE)
 set(INTEL64 FALSE)
 set(ARM FALSE)
 set(AARCH64 FALSE)
+set(AARCH64_A64FX FALSE)
 set(PPC64BE FALSE)
 set(PPC64LE FALSE)
 set(PPC64 FALSE)
@@ -157,6 +172,8 @@ elseif("${LIBOMP_ARCH}" STREQUAL "ppc64le") # PPC64LE architecture
   set(PPC64 TRUE)
 elseif("${LIBOMP_ARCH}" STREQUAL "aarch64") # AARCH64 architecture
   set(AARCH64 TRUE)
+elseif("${LIBOMP_ARCH}" STREQUAL "aarch64_a64fx") # AARCH64_A64FX architecture
+  set(AARCH64_A64FX TRUE)
 elseif("${LIBOMP_ARCH}" STREQUAL "mic") # Intel(R) Many Integrated Core Architecture
   set(MIC TRUE)
 elseif("${LIBOMP_ARCH}" STREQUAL "mips") # MIPS architecture

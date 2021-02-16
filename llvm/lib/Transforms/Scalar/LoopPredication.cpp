@@ -362,7 +362,7 @@ PreservedAnalyses LoopPredicationPass::run(Loop &L, LoopAnalysisManager &AM,
   // For the new PM, we also can't use BranchProbabilityInfo as an analysis
   // pass. Function analyses need to be preserved across loop transformations
   // but BPI is not preserved, hence a newly built one is needed.
-  BranchProbabilityInfo BPI(*F, AR.LI, &AR.TLI);
+  BranchProbabilityInfo BPI(*F, AR.LI, &AR.TLI, &AR.DT, nullptr);
   LoopPredication LP(&AR.AA, &AR.DT, &AR.SE, &AR.LI, &BPI);
   if (!LP.runOnLoop(&L))
     return PreservedAnalyses::all();
@@ -454,8 +454,7 @@ static bool isSafeToTruncateWideIVType(const DataLayout &DL,
   // LatchEnd = 2, rangeCheckType = i32. If it's not a monotonic predicate, the
   // IV wraps around, and the truncation of the IV would lose the range of
   // iterations between 2^32 and 2^64.
-  bool Increasing;
-  if (!SE.isMonotonicPredicate(LatchCheck.IV, LatchCheck.Pred, Increasing))
+  if (!SE.getMonotonicPredicateType(LatchCheck.IV, LatchCheck.Pred))
     return false;
   // The active bits should be less than the bits in the RangeCheckType. This
   // guarantees that truncating the latch check to RangeCheckType is a safe

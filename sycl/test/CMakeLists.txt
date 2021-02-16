@@ -45,61 +45,36 @@ list(APPEND SYCL_DEPLOY_TEST_DEPS
 add_lit_testsuite(check-sycl-deploy "Running the SYCL regression tests"
   ${CMAKE_CURRENT_BINARY_DIR}
   ARGS ${DEPLOY_RT_TEST_ARGS}
-  PARAMS "SYCL_BE=PI_OPENCL"
+  PARAMS "SYCL_PLUGIN=opencl"
   DEPENDS ${SYCL_DEPLOY_TEST_DEPS}
   EXCLUDE_FROM_CHECK_ALL
   )
 set_target_properties(check-sycl-deploy PROPERTIES FOLDER "SYCL tests")
 
-add_lit_testsuites(SYCL ${CMAKE_CURRENT_SOURCE_DIR}
-  DEPENDS ${SYCL_TEST_DEPS}
-  EXCLUDE_FROM_CHECK_ALL
-  )
-
-add_lit_testsuites(SYCL-DEPLOY ${CMAKE_CURRENT_SOURCE_DIR}
-  ARGS ${DEPLOY_RT_TEST_ARGS}
-  PARAMS "SYCL_BE=PI_OPENCL"
-  DEPENDS ${SYCL_DEPLOY_TEST_DEPS}
-  EXCLUDE_FROM_CHECK_ALL
-  )
-
-add_lit_testsuite(check-sycl-opencl "Running the SYCL regression tests for OpenCL"
+add_lit_testsuite(check-sycl-spirv "Running device-agnostic SYCL regression tests for SPIR-V"
   ${CMAKE_CURRENT_BINARY_DIR}
   ARGS ${RT_TEST_ARGS}
-  PARAMS "SYCL_BE=PI_OPENCL"
+  PARAMS "SYCL_TRIPLE=spir64-unknown-linux-sycldevice"
   DEPENDS ${SYCL_TEST_DEPS}
   EXCLUDE_FROM_CHECK_ALL
   )
-set_target_properties(check-sycl-opencl PROPERTIES FOLDER "SYCL tests")
-
-add_lit_testsuite(check-sycl-level-zero "Running the SYCL regression tests for Level Zero"
-  ${CMAKE_CURRENT_BINARY_DIR}
-  ARGS ${RT_TEST_ARGS}
-  PARAMS "SYCL_BE=PI_LEVEL_ZERO"
-  DEPENDS ${SYCL_TEST_DEPS}
-  EXCLUDE_FROM_CHECK_ALL
-  )
-set_target_properties(check-sycl-level-zero PROPERTIES FOLDER "SYCL tests")
 
 add_custom_target(check-sycl)
-add_dependencies(check-sycl check-sycl-opencl check-sycl-level-zero)
+add_dependencies(check-sycl check-sycl-spirv)
 set_target_properties(check-sycl PROPERTIES FOLDER "SYCL tests")
 
 if(SYCL_BUILD_PI_CUDA)
-  add_lit_testsuite(check-sycl-cuda "Running the SYCL regression tests for CUDA"
+  add_lit_testsuite(check-sycl-ptx "Running device-agnostic SYCL regression tests for NVidia PTX"
     ${CMAKE_CURRENT_BINARY_DIR}
     ARGS ${RT_TEST_ARGS}
-    PARAMS "SYCL_BE=PI_CUDA"
+    PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda-sycldevice;SYCL_PLUGIN=cuda"
     DEPENDS ${SYCL_TEST_DEPS}
     EXCLUDE_FROM_CHECK_ALL
   )
-  set_target_properties(check-sycl-cuda PROPERTIES FOLDER "SYCL CUDA tests")
 
+  add_custom_target(check-sycl-cuda)
+  add_dependencies(check-sycl-cuda check-sycl-ptx)
   add_dependencies(check-sycl check-sycl-cuda)
 
-  add_lit_testsuites(SYCL-CUDA ${CMAKE_CURRENT_SOURCE_DIR}
-    PARAMS "SYCL_BE=PI_CUDA"
-    DEPENDS ${SYCL_TEST_DEPS}
-    EXCLUDE_FROM_CHECK_ALL
-  )
 endif()
+add_subdirectory(on-device)

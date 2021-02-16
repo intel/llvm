@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
+#include "mlir/Dialect/Affine/Utils.h"
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
@@ -21,9 +22,10 @@
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/Matchers.h"
-#include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/LLVM.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include <type_traits>
@@ -104,6 +106,116 @@ mlir::linalg::LinalgTilingOptions::setTileSizes(ArrayRef<int64_t> ts) {
   return *this;
 }
 
+/// Try to compute a static bounding box for `operand`
+/// Return success if either:
+///   1. The operand is already statically shaped, `result` is left unchanged.
+///   2. The operand is (partially) dynamic, `result` is the result of a freshly
+///      created SimplePadOp.
+/// Return failure if the operand cannot be padded to a static shape.
+static LogicalResult padOperandToSmallestStaticBoundingBox(
+    PatternRewriter &rewriter, linalg::LinalgOp opToPad, Value operand,
+    const LinalgTilingOptions &options, Value &result) {
+  auto tensorType = operand.getType().cast<RankedTensorType>();
+  // Already static shape, no need to pad.
+  if (tensorType.hasStaticShape())
+    return success();
+  auto subtensor = operand.getDefiningOp<SubTensorOp>();
+  // Not a subtensor, cannot construct a static bounding box.
+  if (!subtensor)
+    return failure();
+  SmallVector<int64_t> staticSizes;
+  staticSizes.reserve(tensorType.getRank());
+  auto shapedOp =
+      cast<OffsetSizeAndStrideOpInterface>(subtensor.getOperation());
+  for (auto size : shapedOp.getMixedSizes()) {
+    auto indexAttr = size.is<Attribute>()
+                         ? size.get<Attribute>().dyn_cast<IntegerAttr>()
+                         : linalg::getSmallestBoundingIndex(size.get<Value>());
+    // SmallestBoundingIndex must exist for all sizes.
+    // For now return an error if we can't find it.
+    if (!indexAttr)
+      return rewriter.notifyMatchFailure(
+          opToPad, "No constant bounding box can be found for padding");
+    staticSizes.push_back(indexAttr.getInt());
+  }
+  Value pad = options.paddingValueComputationFunction(rewriter, opToPad);
+  auto staticTensorType =
+      RankedTensorType::get(staticSizes, tensorType.getElementType());
+  result = rewriter.create<linalg::SimplePadOp>(opToPad->getLoc(),
+                                                staticTensorType, operand, pad);
+  return success();
+}
+
+// Try to create a static bounding box around each operand of `res.op`.
+// If successful, `res.op` is rewritten in static form with padded operands.
+// `res.op` is updated to the cloned static form of the op on success.
+static LogicalResult rewriteAsPaddedOp(PatternRewriter &rewriter,
+                                       TiledLinalgOp &res,
+                                       const LinalgTilingOptions &options) {
+  LinalgOp opToPad = res.op;
+  Location loc = opToPad->getLoc();
+
+  // If the op is fully static, it does not need padding.
+  // TODO: there are cases where we may still want to pad to larger sizes.
+  if (llvm::all_of(opToPad.getShapedOperands(), [](Value v) {
+        return v.getType().cast<RankedTensorType>().hasStaticShape();
+      }))
+    return success();
+
+  OpBuilder::InsertionGuard g(rewriter);
+  // Set IP after op because we also take the dims of the original output.
+  rewriter.setInsertionPointAfter(opToPad);
+  // Make a copy of the shaped operands and update it.
+  SmallVector<Value> operands = opToPad.getShapedOperands();
+  for (Value &v : operands) {
+    Value paddedOperand;
+    // If padding was requested but the shape cannot be bounded statically then
+    // the pattern fails to apply.
+    if (failed(padOperandToSmallestStaticBoundingBox(rewriter, opToPad, v,
+                                                     options, paddedOperand))) {
+      return failure();
+    }
+    // Update v if we indeed got a padded operand.
+    v = paddedOperand ? paddedOperand : v;
+  }
+
+  // Clone `opToPad` to operate on the statically padded shapes.
+  auto resultTensorTypes =
+      ValueRange(operands).take_back(opToPad.getNumOutputs()).getTypes();
+  ValueRange otherOperands = opToPad.getAssumedNonShapedOperands();
+  operands.append(otherOperands.begin(), otherOperands.end());
+  linalg::LinalgOp paddedOp =
+      opToPad.clone(rewriter, loc, resultTensorTypes, operands);
+
+  // Recover the subtensor out of the new static results. This keeps the
+  // original linalg op around because it uses the dims of the original results.
+  // This later folds away.
+  SmallVector<Value> paddedSubviewResults;
+  paddedSubviewResults.reserve(opToPad->getNumResults());
+  llvm::SetVector<Operation *> newUsersOfOpToPad;
+  for (auto it : llvm::zip(opToPad->getResults(), paddedOp->getResults())) {
+    auto rank = std::get<0>(it).getType().cast<RankedTensorType>().getRank();
+    SmallVector<OpFoldResult> offsets(rank, rewriter.getIndexAttr(0));
+    auto sizes = llvm::to_vector<4>(llvm::map_range(
+        llvm::seq<unsigned>(0, rank), [&](unsigned d) -> OpFoldResult {
+          auto dimOp = rewriter.create<DimOp>(loc, std::get<0>(it), d);
+          newUsersOfOpToPad.insert(dimOp);
+          return dimOp.getResult();
+        }));
+    SmallVector<OpFoldResult> strides(rank, rewriter.getIndexAttr(1));
+    paddedSubviewResults.push_back(rewriter.create<SubTensorOp>(
+        loc, std::get<1>(it), offsets, sizes, strides));
+  }
+  // Replace the transient `opToPad` locally, except for uses that we just
+  // created for the purpose of extracting the dims.
+  rewriter.replaceOpWithIf(opToPad, paddedSubviewResults, [&](OpOperand &opOp) {
+    return !newUsersOfOpToPad.contains(opOp.getOwner());
+  });
+
+  res = TiledLinalgOp{paddedOp, res.loops, res.tensorResults};
+  return success();
+}
+
 /// Linalg base tiling pattern.
 mlir::linalg::LinalgBaseTilingPattern::LinalgBaseTilingPattern(
     StringRef opName, MLIRContext *context, LinalgTilingOptions options,
@@ -111,24 +223,17 @@ mlir::linalg::LinalgBaseTilingPattern::LinalgBaseTilingPattern(
     : RewritePattern(opName, {}, benefit, context), marker(marker),
       options(options) {}
 
+mlir::linalg::LinalgBaseTilingPattern::LinalgBaseTilingPattern(
+    LinalgTilingOptions options, LinalgMarker marker, PatternBenefit benefit)
+    : RewritePattern(benefit, MatchAnyOpTypeTag()), marker(marker),
+      options(options) {}
+
 LogicalResult mlir::linalg::LinalgBaseTilingPattern::matchAndRewriteBase(
-    Operation *op, PatternRewriter &rewriter,
-    SmallVectorImpl<Value> &tensorResults) const {
+    Operation *op, PatternRewriter &rewriter, TiledLinalgOp &result) const {
   LinalgOp linalgOp = dyn_cast<LinalgOp>(op);
   if (!linalgOp)
     return failure();
   if (failed(marker.checkAndNotify(rewriter, linalgOp)))
-    return failure();
-
-  // If LinalgOp has results, they must all be tied to init tensors.
-  // We enforce this to ensure all tiled ops have been rewritten in
-  // "init tensor" form. This ensures tiling has anchor values into which to
-  // subtensor / subtensor_insert. Otherwise tiling would need to allocate which
-  // is not acceptable.
-  // This would not be the case with a special terminator op that generates the
-  // whole tensor (instead of inserting a subtensor). But the generator-based
-  // abstraction has other issues.
-  if (linalgOp.getNumInitTensors() != linalgOp.getOperation()->getNumResults())
     return failure();
 
   Optional<TiledLinalgOp> res = tileLinalgOp(rewriter, linalgOp, options);
@@ -136,11 +241,34 @@ LogicalResult mlir::linalg::LinalgBaseTilingPattern::matchAndRewriteBase(
   if (!res)
     return failure();
 
-  // Return relevant information to derived pattern.
-  tensorResults = res->tensorResults;
+  // Setup RAII guard to return properly.
+  bool succeeded = true;
+  LinalgOp tiledOp = res->op;
+  auto guard = llvm::make_scope_exit([&]() {
+    if (!succeeded)
+      return;
+    // Return relevant information to derived pattern.
+    result = *res;
+    // Replace marker on both tiledOp and tiledAndPaddedOp, if necessary.
+    marker.replaceLinalgMarker(rewriter, tiledOp);
+    if (tiledOp != res->op)
+      marker.replaceLinalgMarker(rewriter, res->op);
+  });
 
-  // New marker if specified.
-  marker.replaceLinalgMarker(rewriter, res->op.getOperation());
+  // Consider padding on the fly only if the op has tensor semantics.
+  if (!options.paddingValueComputationFunction ||
+      !linalgOp.hasTensorSemantics())
+    return success();
+
+  // Try to pad on the fly by rewriting res->op as a padded op.
+  if (failed(rewriteAsPaddedOp(rewriter, *res, options))) {
+    // Set so RAII guard does not propagate TiledLinalgOp to `result`.
+    succeeded = false;
+    return failure();
+  }
+
+  // Do not perform replacement of `linalgOp`, let the derived patterns
+  // do this as they see fit, from the resulting TiledLinalgOp.
   return success();
 }
 
@@ -165,17 +293,73 @@ LogicalResult mlir::linalg::LinalgBaseTileAndFusePattern::matchAndRewrite(
   if (!linalgOp.hasBufferSemantics())
     return failure();
 
+  DenseSet<Operation *> producers;
+  producers.insert(linalgOp);
+  for (auto dependence : dependenceGraph.getDependentOperationsInto(linalgOp)) {
+    Optional<unsigned> operandNumber = dependence.getIndexingOpViewOperandNum();
+    // When looking at dependences into, indexingOp is always OpOperand. We
+    // could assert, but continue if this is not the case.
+    if (!operandNumber)
+      continue;
+    if (!fusionOptions.indicesToFuse.count(operandNumber.getValue()))
+      continue;
+    if (isa<LinalgOp>(dependence.getDependentOp()))
+      producers.insert(dependence.getDependentOp());
+  }
+
+  SmallVector<LinalgOp, 1> fusionOps;
+  for (auto it = op->getBlock()->begin(), ie = Block::iterator(op); it != ie;
+       ++it) {
+    auto producerLinalgOp = dyn_cast<LinalgOp>(&(*it));
+    if (producerLinalgOp && producers.count(producerLinalgOp))
+      fusionOps.push_back(producerLinalgOp);
+  }
+  fusionOps.push_back(linalgOp);
+
+  SmallVector<Value, 4> tileSizes =
+      tilingOptions.tileSizeComputationFunction(rewriter, op);
+  LinalgTilingOptions instanceTilingOptions = tilingOptions;
+  instanceTilingOptions.setTileSizes(tileSizes);
   Optional<TiledAndFusedLinalgOps> tiledAndFusedOps = tileAndFuseLinalgOps(
-      rewriter, op, dependenceGraph, tilingOptions, fusionOptions);
+      rewriter, fusionOps, dependenceGraph, instanceTilingOptions);
   if (!tiledAndFusedOps)
     return failure();
+
+  // Tile the unfused loops;
+  SmallVector<Value, 4> unfusedLoopTileSizes;
+  Value zero = rewriter.create<ConstantIndexOp>(op->getLoc(), 0);
+  for (auto tileSize : enumerate(tileSizes)) {
+    if (tiledAndFusedOps->fusedLoopDims.count(tileSize.index()))
+      unfusedLoopTileSizes.push_back(zero);
+    else
+      unfusedLoopTileSizes.push_back(tileSize.value());
+  }
+  // Tile the loop only if there is a non-zero tile size.
+  if (unfusedLoopTileSizes.size() > linalgOp.getNumLoops())
+    unfusedLoopTileSizes.resize(linalgOp.getNumLoops());
+  if (llvm::any_of(unfusedLoopTileSizes, [](Value val) {
+        if (auto cst = val.getDefiningOp<ConstantIndexOp>())
+          return cst.getValue() != 0;
+        return true;
+      })) {
+    LinalgTilingOptions unfusedTilingOptions = tilingOptions;
+    unfusedTilingOptions.setTileSizes(unfusedLoopTileSizes);
+    Optional<TiledLinalgOp> unfusedTiledOp =
+        tileLinalgOp(rewriter, tiledAndFusedOps->op, unfusedTilingOptions);
+    if (!unfusedTiledOp)
+      return failure();
+    rewriter.eraseOp(tiledAndFusedOps->op);
+    tiledAndFusedOps->op = unfusedTiledOp->op;
+  }
+
   marker.replaceLinalgMarker(rewriter, tiledAndFusedOps->op.getOperation());
   for (auto fusedOp : tiledAndFusedOps->fusedProducers) {
     fusedOpMarker.replaceLinalgMarker(rewriter, fusedOp.getOperation());
   }
-  for (auto origProducerOp : tiledAndFusedOps->originalProducers)
+  for (auto origProducerOp : ArrayRef<LinalgOp>(fusionOps).drop_back()) {
     originalOpMarker.replaceLinalgMarker(rewriter,
                                          origProducerOp.getOperation());
+  }
   rewriter.updateRootInPlace(
       op, [&]() { originalOpMarker.replaceLinalgMarker(rewriter, op); });
   return success();
@@ -257,8 +441,8 @@ LogicalResult mlir::linalg::LinalgBaseVectorizationPattern::matchAndRewrite(
 }
 
 LogicalResult mlir::linalg::applyStagedPatterns(
-    Operation *op, ArrayRef<OwningRewritePatternList> stage1Patterns,
-    const OwningRewritePatternList &stage2Patterns,
+    Operation *op, ArrayRef<FrozenRewritePatternList> stage1Patterns,
+    const FrozenRewritePatternList &stage2Patterns,
     function_ref<LogicalResult(Operation *)> stage3Lambda) {
   unsigned iteration = 0;
   (void)iteration;
@@ -285,38 +469,6 @@ LogicalResult mlir::linalg::applyStagedPatterns(
     }
   }
   return success();
-}
-
-/// Traverse `e` and return an AffineExpr where all occurrences of `dim` have
-/// been replaced by either:
-///  - `min` if `positivePath` is true when we reach an occurrence of `dim`
-///  - `max` if `positivePath` is true when we reach an occurrence of `dim`
-/// `positivePath` is negated each time we hit a multiplicative or divisive
-/// binary op with a constant negative coefficient.
-static AffineExpr substWithMin(AffineExpr e, AffineExpr dim, AffineExpr min,
-                               AffineExpr max, bool positivePath = true) {
-  if (e == dim)
-    return positivePath ? min : max;
-  if (auto bin = e.dyn_cast<AffineBinaryOpExpr>()) {
-    AffineExpr lhs = bin.getLHS();
-    AffineExpr rhs = bin.getRHS();
-    if (bin.getKind() == mlir::AffineExprKind::Add)
-      return substWithMin(lhs, dim, min, max, positivePath) +
-             substWithMin(rhs, dim, min, max, positivePath);
-
-    auto c1 = bin.getLHS().dyn_cast<AffineConstantExpr>();
-    auto c2 = bin.getRHS().dyn_cast<AffineConstantExpr>();
-    if (c1 && c1.getValue() < 0)
-      return getAffineBinaryOpExpr(
-          bin.getKind(), c1, substWithMin(rhs, dim, min, max, !positivePath));
-    if (c2 && c2.getValue() < 0)
-      return getAffineBinaryOpExpr(
-          bin.getKind(), substWithMin(lhs, dim, min, max, !positivePath), c2);
-    return getAffineBinaryOpExpr(
-        bin.getKind(), substWithMin(lhs, dim, min, max, positivePath),
-        substWithMin(rhs, dim, min, max, positivePath));
-  }
-  return e;
 }
 
 /// Given the `lbVal`, `ubVal` and `stepVal` of a loop, append `lbVal` and

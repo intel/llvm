@@ -14,6 +14,9 @@
 #include <CL/sycl/INTEL/esimd/detail/esimd_types.hpp>
 #include <CL/sycl/INTEL/esimd/detail/esimd_util.hpp>
 #include <CL/sycl/INTEL/esimd/esimd_enum.hpp>
+#include <CL/sycl/detail/accessor_impl.hpp>
+
+#include <assert.h>
 #include <cstdint>
 
 // \brief __esimd_rdregion: region access intrinsic.
@@ -62,6 +65,11 @@ template <typename T, int N, int M, int VStride, int Width, int Stride,
           int ParentWidth = 0>
 SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<T, M>
 __esimd_rdregion(sycl::INTEL::gpu::vector_type_t<T, N> Input, uint16_t Offset);
+
+template <typename T, int N, int M, int ParentWidth = 0>
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<T, M>
+__esimd_rdindirect(sycl::INTEL::gpu::vector_type_t<T, N> Input,
+                   sycl::INTEL::gpu::vector_type_t<uint16_t, M> Offset);
 
 // __esimd_wrregion returns the updated vector with the region updated.
 //
@@ -116,6 +124,13 @@ SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<T, N>
 __esimd_wrregion(sycl::INTEL::gpu::vector_type_t<T, N> OldVal,
                  sycl::INTEL::gpu::vector_type_t<T, M> NewVal, uint16_t Offset,
                  sycl::INTEL::gpu::mask_type_t<M> Mask = 1);
+
+template <typename T, int N, int M, int ParentWidth = 0>
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<T, N>
+__esimd_wrindirect(sycl::INTEL::gpu::vector_type_t<T, N> OldVal,
+                   sycl::INTEL::gpu::vector_type_t<T, M> NewVal,
+                   sycl::INTEL::gpu::vector_type_t<uint16_t, M> Offset,
+                   sycl::INTEL::gpu::mask_type_t<M> Mask = 1);
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -258,6 +273,20 @@ __esimd_rdregion(sycl::INTEL::gpu::vector_type_t<T, N> Input, uint16_t Offset) {
   return Result;
 }
 
+template <typename T, int N, int M, int ParentWidth>
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<T, M>
+__esimd_rdindirect(sycl::INTEL::gpu::vector_type_t<T, N> Input,
+                   sycl::INTEL::gpu::vector_type_t<uint16_t, M> Offset) {
+  sycl::INTEL::gpu::vector_type_t<T, M> Result;
+  for (int i = 0; i < M; ++i) {
+    uint16_t EltOffset = Offset[i] / sizeof(T);
+    assert(Offset[i] % sizeof(T) == 0);
+    assert(EltOffset < N);
+    Result[i] = Input[EltOffset];
+  }
+  return Result;
+}
+
 template <typename T, int N, int M, int VStride, int Width, int Stride,
           int ParentWidth>
 SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<T, N>
@@ -277,6 +306,24 @@ __esimd_wrregion(sycl::INTEL::gpu::vector_type_t<T, N> OldVal,
       if (Mask[Index])
         Result[i * VStride + j * Stride + EltOffset] = NewVal[Index];
       ++Index;
+    }
+  }
+  return Result;
+}
+
+template <typename T, int N, int M, int ParentWidth>
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<T, N>
+__esimd_wrindirect(sycl::INTEL::gpu::vector_type_t<T, N> OldVal,
+                   sycl::INTEL::gpu::vector_type_t<T, M> NewVal,
+                   sycl::INTEL::gpu::vector_type_t<uint16_t, M> Offset,
+                   sycl::INTEL::gpu::mask_type_t<M> Mask) {
+  sycl::INTEL::gpu::vector_type_t<T, N> Result = OldVal;
+  for (int i = 0; i < M; ++i) {
+    if (Mask[i]) {
+      uint16_t EltOffset = Offset[i] / sizeof(T);
+      assert(Offset[i] % sizeof(T) == 0);
+      assert(EltOffset < N);
+      Result[EltOffset] = NewVal[i];
     }
   }
   return Result;

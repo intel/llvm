@@ -5,8 +5,8 @@
 
 ; CHECK-LLVM: %1 = load [4 x <4 x float>], [4 x <4 x float>]* %lhs
 ; CHECK-LLVM: %2 = load float, float* %rhs
-; CHECK-LLVM: %.splatinsert = insertelement <4 x float> undef, float %2, i32 0
-; CHECK-LLVM: %3 = shufflevector <4 x float> %.splatinsert, <4 x float> undef, <4 x i32> zeroinitializer
+; CHECK-LLVM: %.splatinsert = insertelement <4 x float> poison, float %2, i32 0
+; CHECK-LLVM: %3 = shufflevector <4 x float> %.splatinsert, <4 x float> poison, <4 x i32> zeroinitializer
 ; CHECK-LLVM: %4 = extractvalue [4 x <4 x float>] %1, 0
 ; CHECK-LLVM: %5 = fmul <4 x float> %4, %3
 ; CHECK-LLVM: %6 = insertvalue [4 x <4 x float>] undef, <4 x float> %5, 0

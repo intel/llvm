@@ -72,7 +72,7 @@ TEST(WorkspaceSymbols, NoLocals) {
         struct LocalClass {};
         int local_var;
       })cpp";
-  EXPECT_THAT(getSymbols(TU, "l"), IsEmpty());
+  EXPECT_THAT(getSymbols(TU, "l"), ElementsAre(QName("LocalClass")));
   EXPECT_THAT(getSymbols(TU, "p"), IsEmpty());
 }
 
@@ -523,11 +523,13 @@ TEST(DocumentSymbols, InHeaderFile) {
       }
       )cpp";
   TU.Code = R"cpp(
+      int i; // declaration to finish preamble
       #include "bar.h"
       int test() {
       }
       )cpp";
-  EXPECT_THAT(getSymbols(TU.build()), ElementsAre(WithName("test")));
+  EXPECT_THAT(getSymbols(TU.build()),
+              ElementsAre(WithName("i"), WithName("test")));
 }
 
 TEST(DocumentSymbols, Template) {

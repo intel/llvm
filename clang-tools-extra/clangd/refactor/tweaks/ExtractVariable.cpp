@@ -79,7 +79,7 @@ computeReferencedDecls(const clang::Expr *Expr) {
     }
   };
   FindDeclRefsVisitor Visitor;
-  Visitor.TraverseStmt(const_cast<Stmt *>(dyn_cast<Stmt>(Expr)));
+  Visitor.TraverseStmt(const_cast<Stmt *>(cast<Stmt>(Expr)));
   return Visitor.ReferencedDecls;
 }
 
@@ -202,7 +202,7 @@ ExtractionContext::insertDeclaration(llvm::StringRef VarName,
 struct ParsedBinaryOperator {
   BinaryOperatorKind Kind;
   SourceLocation ExprLoc;
-  llvm::SmallVector<const SelectionTree::Node*, 8> SelectedOperands;
+  llvm::SmallVector<const SelectionTree::Node *> SelectedOperands;
 
   // If N is a binary operator, populate this and return true.
   bool parse(const SelectionTree::Node &N) {

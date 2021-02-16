@@ -1,3 +1,4 @@
+// REQUIRES: amdgpu-registered-target
 // Begin X86/GCC/Linux tests ----------------
 
 // RUN: %clang -march=i386 -m32 -E -dM %s -o - 2>&1 \
@@ -1654,6 +1655,7 @@
 // CHECK_SPR_M32: #define __AVX512VL__ 1
 // CHECK_SPR_M32: #define __AVX512VNNI__ 1
 // CHECK_SPR_M32: #define __AVX512VPOPCNTDQ__ 1
+// CHECK_SPR_M32: #define __AVXVNNI__ 1
 // CHECK_SPR_M32: #define __AVX__ 1
 // CHECK_SPR_M32: #define __BMI2__ 1
 // CHECK_SPR_M32: #define __BMI__ 1
@@ -1724,6 +1726,7 @@
 // CHECK_SPR_M64: #define __AVX512VL__ 1
 // CHECK_SPR_M64: #define __AVX512VNNI__ 1
 // CHECK_SPR_M64: #define __AVX512VPOPCNTDQ__ 1
+// CHECK_SPR_M64: #define __AVXVNNI__ 1
 // CHECK_SPR_M64: #define __AVX__ 1
 // CHECK_SPR_M64: #define __BMI2__ 1
 // CHECK_SPR_M64: #define __BMI__ 1
@@ -1782,6 +1785,7 @@
 // CHECK_ADL_M32: #define __AES__ 1
 // CHECK_ADL_M32: #define __AVX2__ 1
 // CHECK_ADL_M32-NOT: AVX512
+// CHECK_ADL_M32: #define __AVXVNNI__ 1
 // CHECK_ADL_M32: #define __AVX__ 1
 // CHECK_ADL_M32: #define __BMI2__ 1
 // CHECK_ADL_M32: #define __BMI__ 1
@@ -1822,6 +1826,7 @@
 // CHECK_ADL_M64: #define __AES__ 1
 // CHECK_ADL_M64: #define __AVX2__ 1
 // CHECK_ADL_M64-NOT: AVX512
+// CHECK_ADL_M64: #define __AVXVNNI__ 1
 // CHECK_ADL_M64: #define __AVX__ 1
 // CHECK_ADL_M64: #define __BMI2__ 1
 // CHECK_ADL_M64: #define __BMI__ 1

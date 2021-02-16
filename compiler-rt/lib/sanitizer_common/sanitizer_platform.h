@@ -19,10 +19,23 @@
 # error "This operating system is not supported"
 #endif
 
+// Get __GLIBC__ on a glibc platform. Exclude Android: features.h includes C
+// function declarations into a .S file which doesn't compile.
+// https://crbug.com/1162741
+#if __has_include(<features.h>) && !defined(__ANDROID__)
+#include <features.h>
+#endif
+
 #if defined(__linux__)
 # define SANITIZER_LINUX   1
 #else
 # define SANITIZER_LINUX   0
+#endif
+
+#if defined(__GLIBC__)
+# define SANITIZER_GLIBC   1
+#else
+# define SANITIZER_GLIBC   0
 #endif
 
 #if defined(__FreeBSD__)
@@ -238,7 +251,11 @@
 // FIXME: this value should be different on different platforms.  Larger values
 // will still work but will consume more memory for TwoLevelByteMap.
 #if defined(__mips__)
+#if SANITIZER_GO && defined(__mips64)
+#define SANITIZER_MMAP_RANGE_SIZE FIRST_32_SECOND_64(1ULL << 32, 1ULL << 47)
+#else
 # define SANITIZER_MMAP_RANGE_SIZE FIRST_32_SECOND_64(1ULL << 32, 1ULL << 40)
+#endif
 #elif SANITIZER_RISCV64
 #define SANITIZER_MMAP_RANGE_SIZE FIRST_32_SECOND_64(1ULL << 32, 1ULL << 38)
 #elif defined(__aarch64__)

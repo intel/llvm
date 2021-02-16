@@ -107,7 +107,7 @@ these are represented as instances of `MlirStringRef` structure that contains a
 pointer to the first character of the string fragment (`str`) and the fragment
 length (`length`). Note that the fragment is _not necessarily_ null-terminated,
 the `length` field must be used to identify the last character. `MlirStringRef`
-is a non-owning pointer, the caller is in charge of perfoming the copy or
+is a non-owning pointer, the caller is in charge of performing the copy or
 ensuring that the pointee outlives all uses of `MlirStringRef`.
 
 ### Printing
@@ -185,12 +185,12 @@ for (iter = mlirXGetFirst<Y>(x); !mlirYIsNull(iter);
 
 ### Extensions for Dialect Attributes and Types
 
-Dialect attributes and types can follow the example of standard attributes and
+Dialect attributes and types can follow the example of builtin attributes and
 types, provided that implementations live in separate directories, i.e.
 `include/mlir-c/<...>Dialect/` and `lib/CAPI/<...>Dialect/`. The core APIs
 provide implementation-private headers in `include/mlir/CAPI/IR` that allow one
 to convert between opaque C structures for core IR components and their C++
 counterparts. `wrap` converts a C++ class into a C structure and `unwrap` does
-the inverse conversion. Once the C++ object is available, the API
-implementation should rely on `isa` to implement `mlirXIsAY` and is expected to
-use `cast` inside other API calls.
+the inverse conversion. Once the C++ object is available, the API implementation
+should rely on `isa` to implement `mlirXIsAY` and is expected to use `cast`
+inside other API calls.

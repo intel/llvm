@@ -9,13 +9,13 @@
 #ifndef LLDB_TARGET_PROCESSTRACE_H
 #define LLDB_TARGET_PROCESSTRACE_H
 
-#include "lldb/Target/Process.h"
+#include "lldb/Target/PostMortemProcess.h"
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/Status.h"
 
 namespace lldb_private {
 
-class ProcessTrace : public Process {
+class ProcessTrace : public PostMortemProcess {
 public:
   static void Initialize();
 
@@ -71,13 +71,14 @@ public:
 protected:
   void Clear();
 
-  bool UpdateThreadList(ThreadList &old_thread_list,
-                        ThreadList &new_thread_list) override;
+  bool DoUpdateThreadList(ThreadList &old_thread_list,
+                          ThreadList &new_thread_list) override;
 
 private:
   static lldb::ProcessSP CreateInstance(lldb::TargetSP target_sp,
                                         lldb::ListenerSP listener_sp,
-                                        const FileSpec *crash_file_path);
+                                        const FileSpec *crash_file_path,
+                                        bool can_connect);
 };
 
 } // namespace lldb_private

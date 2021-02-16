@@ -160,6 +160,14 @@ public:
 
   void setDebugInfoEIS(DebugInfoEIS EIS) { DebugInfoVersion = EIS; }
 
+  bool shouldReplaceLLVMFmulAddWithOpenCLMad() const noexcept {
+    return ReplaceLLVMFmulAddWithOpenCLMad;
+  }
+
+  void setReplaceLLVMFmulAddWithOpenCLMad(bool Value) noexcept {
+    ReplaceLLVMFmulAddWithOpenCLMad = Value;
+  }
+
 private:
   // Common translation options
   VersionNumber MaxVersion = VersionNumber::MaximumVersion;
@@ -192,6 +200,10 @@ private:
   bool AllowExtraDIExpressions = false;
 
   DebugInfoEIS DebugInfoVersion = DebugInfoEIS::OpenCL_DebugInfo_100;
+
+  // Controls whether llvm.fmuladd.* should be replaced with mad from OpenCL
+  // extended instruction set or with a simple fmul + fadd
+  bool ReplaceLLVMFmulAddWithOpenCLMad = true;
 };
 
 } // namespace SPIRV

@@ -14,18 +14,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPU.h"
-#include "AMDGPUSubtarget.h"
-#include "SIInstrInfo.h"
+#include "GCNSubtarget.h"
 #include "SIMachineFunctionInfo.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/CodeGen/LiveInterval.h"
 #include "llvm/CodeGen/LiveIntervals.h"
 #include "llvm/CodeGen/LiveRegMatrix.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
-#include "llvm/CodeGen/VirtRegMap.h"
 #include "llvm/InitializePasses.h"
-#include "llvm/Support/MathExtras.h"
-#include <algorithm>
 
 using namespace llvm;
 
@@ -195,6 +190,14 @@ GCNNSAReassign::CheckNSA(const MachineInstr &MI, bool Fast) const {
       if (MRI->getRegClass(Reg) != &AMDGPU::VGPR_32RegClass || Op.getSubReg())
         return NSA_Status::FIXED;
 
+      // InlineSpiller does not call LRM::assign() after an LI split leaving
+      // it in an inconsistent state, so we cannot call LRM::unassign().
+      // See llvm bug #48911.
+      // Skip reassign if a register has originated from such split.
+      // FIXME: Remove the workaround when bug #48911 is fixed.
+      if (VRM->getPreSplitReg(Reg))
+        return NSA_Status::FIXED;
+
       const MachineInstr *Def = MRI->getUniqueVRegDef(Reg);
 
       if (Def && Def->isCopy() && Def->getOperand(1).getReg() == PhysReg)
@@ -279,7 +282,7 @@ bool GCNNSAReassign::runOnMachineFunction(MachineFunction &MF) {
       const MachineOperand &Op = MI->getOperand(VAddr0Idx + I);
       Register Reg = Op.getReg();
       LiveInterval *LI = &LIS->getInterval(Reg);
-      if (llvm::find(Intervals, LI) != Intervals.end()) {
+      if (llvm::is_contained(Intervals, LI)) {
         // Same register used, unable to make sequential
         Intervals.clear();
         break;

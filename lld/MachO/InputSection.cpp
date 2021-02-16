@@ -11,6 +11,7 @@
 #include "OutputSegment.h"
 #include "Symbols.h"
 #include "Target.h"
+#include "Writer.h"
 #include "lld/Common/Memory.h"
 #include "llvm/Support/Endian.h"
 
@@ -24,6 +25,10 @@ std::vector<InputSection *> macho::inputSections;
 
 uint64_t InputSection::getFileOffset() const {
   return parent->fileOff + outSecFileOff;
+}
+
+uint64_t InputSection::getFileSize() const {
+  return isZeroFill(flags) ? 0 : getSize();
 }
 
 uint64_t InputSection::getVA() const { return parent->addr + outSecOff; }
@@ -41,11 +46,12 @@ void InputSection::writeTo(uint8_t *buf) {
           target->resolveSymbolVA(buf + r.offset, *referentSym, r.type);
 
       if (isThreadLocalVariables(flags)) {
-        // References from thread-local variable sections are treated
-        // as offsets relative to the start of the referent section,
-        // instead of as absolute addresses.
-        if (auto *defined = dyn_cast<Defined>(referentSym))
-          referentVA -= defined->isec->parent->addr;
+        // References from thread-local variable sections are treated as offsets
+        // relative to the start of the thread-local data memory area, which
+        // is initialized via copying all the TLV data sections (which are all
+        // contiguous).
+        if (isa<Defined>(referentSym))
+          referentVA -= firstTLVDataSection->addr;
       }
     } else if (auto *referentIsec = r.referent.dyn_cast<InputSection *>()) {
       referentVA = referentIsec->getVA();
@@ -56,6 +62,23 @@ void InputSection::writeTo(uint8_t *buf) {
       referentVal -= getVA() + r.offset;
     target->relocateOne(buf + r.offset, r, referentVal);
   }
+}
+
+bool macho::isCodeSection(InputSection *isec) {
+  uint32_t type = isec->flags & MachO::SECTION_TYPE;
+  if (type != S_REGULAR && type != S_COALESCED)
+    return false;
+
+  uint32_t attr = isec->flags & MachO::SECTION_ATTRIBUTES_USR;
+  if (attr == S_ATTR_PURE_INSTRUCTIONS)
+    return true;
+
+  if (isec->segname == segment_names::text)
+    return StringSwitch<bool>(isec->name)
+        .Cases("__textcoal_nt", "__StaticInit", true)
+        .Default(false);
+
+  return false;
 }
 
 std::string lld::toString(const InputSection *isec) {

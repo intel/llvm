@@ -64,7 +64,7 @@ LinalgOp mlir::linalg::interchange(LinalgOp op,
   assert(permutationMap && "expected permutation to be invertible");
   SmallVector<Attribute, 4> newIndexingMaps;
   auto indexingMaps = op.indexing_maps().getValue();
-  for (unsigned i = 0, e = op.getNumInputsAndOutputs(); i != e; ++i) {
+  for (unsigned i = 0, e = op.getNumShapedOperands(); i != e; ++i) {
     AffineMap m = indexingMaps[i].cast<AffineMapAttr>().getValue();
     if (!permutationMap.isEmpty())
       m = m.compose(permutationMap);
@@ -76,10 +76,10 @@ LinalgOp mlir::linalg::interchange(LinalgOp op,
     itTypesVector.push_back(itTypes[i]);
   applyPermutationToVector(itTypesVector, interchangeVector);
 
-  op.setAttr(getIndexingMapsAttrName(),
-             ArrayAttr::get(newIndexingMaps, context));
-  op.setAttr(getIteratorTypesAttrName(),
-             ArrayAttr::get(itTypesVector, context));
+  op->setAttr(getIndexingMapsAttrName(),
+              ArrayAttr::get(newIndexingMaps, context));
+  op->setAttr(getIteratorTypesAttrName(),
+              ArrayAttr::get(itTypesVector, context));
 
   return op;
 }

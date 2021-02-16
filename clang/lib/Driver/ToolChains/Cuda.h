@@ -199,6 +199,8 @@ public:
                      const llvm::opt::ArgList &Args) const override;
 
   unsigned GetDefaultDwarfVersion() const override { return 2; }
+  // NVPTX supports only DWARF2.
+  unsigned getMaxDwarfVersion() const override { return 2; }
 
   Tool *SelectTool(const JobAction &JA) const override;
 

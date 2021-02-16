@@ -1,4 +1,4 @@
-//===- SPIRVtype.cpp – Class to represent a SPIR-V type ---------*- C++ -*-===//
+//===- SPIRVtype.cpp - Class to represent a SPIR-V type ---------*- C++ -*-===//
 //
 //                     The LLVM/SPIRV Translator
 //

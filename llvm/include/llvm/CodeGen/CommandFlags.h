@@ -75,6 +75,8 @@ bool getDontPlaceZerosInBSS();
 
 bool getEnableGuaranteedTailCallOpt();
 
+bool getEnableAIXExtendedAltivecABI();
+
 bool getDisableTailCalls();
 
 bool getStackSymbolOrdering();
@@ -96,6 +98,8 @@ bool getFunctionSections();
 Optional<bool> getExplicitFunctionSections();
 
 bool getIgnoreXCOFFVisibility();
+
+bool getXCOFFTracebackTable();
 
 std::string getBBSections();
 
@@ -124,6 +128,8 @@ bool getEmitCallSiteInfo();
 bool getEnableMachineFunctionSplitter();
 
 bool getEnableDebugEntryValues();
+
+bool getPseudoProbeForProfiling();
 
 bool getValueTrackingVariableLocations();
 

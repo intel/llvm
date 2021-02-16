@@ -19,79 +19,11 @@ void AsyncDialect::initialize() {
 #define GET_OP_LIST
 #include "mlir/Dialect/Async/IR/AsyncOps.cpp.inc"
       >();
-  addTypes<TokenType>();
-  addTypes<ValueType>();
+  addTypes<
+#define GET_TYPEDEF_LIST
+#include "mlir/Dialect/Async/IR/AsyncOpsTypes.cpp.inc"
+      >();
 }
-
-/// Parse a type registered to this dialect.
-Type AsyncDialect::parseType(DialectAsmParser &parser) const {
-  StringRef keyword;
-  if (parser.parseKeyword(&keyword))
-    return Type();
-
-  if (keyword == "token")
-    return TokenType::get(getContext());
-
-  if (keyword == "value") {
-    Type ty;
-    if (parser.parseLess() || parser.parseType(ty) || parser.parseGreater()) {
-      parser.emitError(parser.getNameLoc(), "failed to parse async value type");
-      return Type();
-    }
-    return ValueType::get(ty);
-  }
-
-  parser.emitError(parser.getNameLoc(), "unknown async type: ") << keyword;
-  return Type();
-}
-
-/// Print a type registered to this dialect.
-void AsyncDialect::printType(Type type, DialectAsmPrinter &os) const {
-  TypeSwitch<Type>(type)
-      .Case<TokenType>([&](TokenType) { os << "token"; })
-      .Case<ValueType>([&](ValueType valueTy) {
-        os << "value<";
-        os.printType(valueTy.getValueType());
-        os << '>';
-      })
-      .Default([](Type) { llvm_unreachable("unexpected 'async' type kind"); });
-}
-
-//===----------------------------------------------------------------------===//
-/// ValueType
-//===----------------------------------------------------------------------===//
-
-namespace mlir {
-namespace async {
-namespace detail {
-
-// Storage for `async.value<T>` type, the only member is the wrapped type.
-struct ValueTypeStorage : public TypeStorage {
-  ValueTypeStorage(Type valueType) : valueType(valueType) {}
-
-  /// The hash key used for uniquing.
-  using KeyTy = Type;
-  bool operator==(const KeyTy &key) const { return key == valueType; }
-
-  /// Construction.
-  static ValueTypeStorage *construct(TypeStorageAllocator &allocator,
-                                     Type valueType) {
-    return new (allocator.allocate<ValueTypeStorage>())
-        ValueTypeStorage(valueType);
-  }
-
-  Type valueType;
-};
-
-} // namespace detail
-} // namespace async
-} // namespace mlir
-
-ValueType ValueType::get(Type valueType) {
-  return Base::get(valueType.getContext(), valueType);
-}
-
-Type ValueType::getValueType() { return getImpl()->valueType; }
 
 //===----------------------------------------------------------------------===//
 // YieldOp
@@ -100,13 +32,13 @@ Type ValueType::getValueType() { return getImpl()->valueType; }
 static LogicalResult verify(YieldOp op) {
   // Get the underlying value types from async values returned from the
   // parent `async.execute` operation.
-  auto executeOp = op.getParentOfType<ExecuteOp>();
+  auto executeOp = op->getParentOfType<ExecuteOp>();
   auto types = llvm::map_range(executeOp.results(), [](const OpResult &result) {
     return result.getType().cast<ValueType>().getValueType();
   });
 
-  if (!std::equal(types.begin(), types.end(), op.getOperandTypes().begin()))
-    return op.emitOpError("Operand types do not match the types returned from "
+  if (op.getOperandTypes() != types)
+    return op.emitOpError("operand types do not match the types returned from "
                           "the parent ExecuteOp");
 
   return success();
@@ -117,6 +49,72 @@ static LogicalResult verify(YieldOp op) {
 //===----------------------------------------------------------------------===//
 
 constexpr char kOperandSegmentSizesAttr[] = "operand_segment_sizes";
+
+void ExecuteOp::getNumRegionInvocations(
+    ArrayRef<Attribute> operands, SmallVectorImpl<int64_t> &countPerRegion) {
+  (void)operands;
+  assert(countPerRegion.empty());
+  countPerRegion.push_back(1);
+}
+
+void ExecuteOp::getSuccessorRegions(Optional<unsigned> index,
+                                    ArrayRef<Attribute> operands,
+                                    SmallVectorImpl<RegionSuccessor> &regions) {
+  // The `body` region branch back to the parent operation.
+  if (index.hasValue()) {
+    assert(*index == 0);
+    regions.push_back(RegionSuccessor(getResults()));
+    return;
+  }
+
+  // Otherwise the successor is the body region.
+  regions.push_back(RegionSuccessor(&body()));
+}
+
+void ExecuteOp::build(OpBuilder &builder, OperationState &result,
+                      TypeRange resultTypes, ValueRange dependencies,
+                      ValueRange operands, BodyBuilderFn bodyBuilder) {
+
+  result.addOperands(dependencies);
+  result.addOperands(operands);
+
+  // Add derived `operand_segment_sizes` attribute based on parsed operands.
+  int32_t numDependencies = dependencies.size();
+  int32_t numOperands = operands.size();
+  auto operandSegmentSizes = DenseIntElementsAttr::get(
+      VectorType::get({2}, builder.getIntegerType(32)),
+      {numDependencies, numOperands});
+  result.addAttribute(kOperandSegmentSizesAttr, operandSegmentSizes);
+
+  // First result is always a token, and then `resultTypes` wrapped into
+  // `async.value`.
+  result.addTypes({TokenType::get(result.getContext())});
+  for (Type type : resultTypes)
+    result.addTypes(ValueType::get(type));
+
+  // Add a body region with block arguments as unwrapped async value operands.
+  Region *bodyRegion = result.addRegion();
+  bodyRegion->push_back(new Block);
+  Block &bodyBlock = bodyRegion->front();
+  for (Value operand : operands) {
+    auto valueType = operand.getType().dyn_cast<ValueType>();
+    bodyBlock.addArgument(valueType ? valueType.getValueType()
+                                    : operand.getType());
+  }
+
+  // Create the default terminator if the builder is not provided and if the
+  // expected result is empty. Otherwise, leave this to the caller
+  // because we don't know which values to return from the execute op.
+  if (resultTypes.empty() && !bodyBuilder) {
+    OpBuilder::InsertionGuard guard(builder);
+    builder.setInsertionPointToStart(&bodyBlock);
+    builder.create<async::YieldOp>(result.location, ValueRange());
+  } else if (bodyBuilder) {
+    OpBuilder::InsertionGuard guard(builder);
+    builder.setInsertionPointToStart(&bodyBlock);
+    bodyBuilder(builder, result.location, bodyBlock.getArguments());
+  }
+}
 
 static void print(OpAsmPrinter &p, ExecuteOp op) {
   p << op.getOperationName();
@@ -238,12 +236,7 @@ static LogicalResult verify(ExecuteOp op) {
   });
 
   // Verify that unwrapped argument types matches the body region arguments.
-  if (llvm::size(unwrappedTypes) != llvm::size(op.body().getArgumentTypes()))
-    return op.emitOpError("the number of async body region arguments does not "
-                          "match the number of execute operation arguments");
-
-  if (!std::equal(unwrappedTypes.begin(), unwrappedTypes.end(),
-                  op.body().getArgumentTypes().begin()))
+  if (op.body().getArgumentTypes() != unwrappedTypes)
     return op.emitOpError("async body region argument types do not match the "
                           "execute operation arguments types");
 
@@ -276,8 +269,8 @@ static ParseResult parseAwaitResultType(OpAsmParser &parser, Type &operandType,
   return success();
 }
 
-static void printAwaitResultType(OpAsmPrinter &p, Type operandType,
-                                 Type resultType) {
+static void printAwaitResultType(OpAsmPrinter &p, Operation *op,
+                                 Type operandType, Type resultType) {
   p << operandType;
 }
 
@@ -299,5 +292,47 @@ static LogicalResult verify(AwaitOp op) {
   return success();
 }
 
+//===----------------------------------------------------------------------===//
+// TableGen'd op method definitions
+//===----------------------------------------------------------------------===//
+
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Async/IR/AsyncOps.cpp.inc"
+
+//===----------------------------------------------------------------------===//
+// TableGen'd type method definitions
+//===----------------------------------------------------------------------===//
+
+#define GET_TYPEDEF_CLASSES
+#include "mlir/Dialect/Async/IR/AsyncOpsTypes.cpp.inc"
+
+void ValueType::print(DialectAsmPrinter &printer) const {
+  printer << getMnemonic();
+  printer << "<";
+  printer.printType(getValueType());
+  printer << '>';
+}
+
+Type ValueType::parse(mlir::MLIRContext *, mlir::DialectAsmParser &parser) {
+  Type ty;
+  if (parser.parseLess() || parser.parseType(ty) || parser.parseGreater()) {
+    parser.emitError(parser.getNameLoc(), "failed to parse async value type");
+    return Type();
+  }
+  return ValueType::get(ty);
+}
+
+/// Print a type registered to this dialect.
+void AsyncDialect::printType(Type type, DialectAsmPrinter &os) const {
+  if (failed(generatedTypePrinter(type, os)))
+    llvm_unreachable("unexpected 'async' type kind");
+}
+
+/// Parse a type registered to this dialect.
+Type AsyncDialect::parseType(DialectAsmParser &parser) const {
+  StringRef mnemonic;
+  if (parser.parseKeyword(&mnemonic))
+    return Type();
+
+  return generatedTypeParser(getContext(), parser, mnemonic);
+}

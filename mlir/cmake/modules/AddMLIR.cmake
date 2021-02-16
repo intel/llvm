@@ -29,7 +29,7 @@ endfunction()
 # Generate Documentation
 function(add_mlir_doc doc_filename command output_file output_directory)
   set(LLVM_TARGET_DEFINITIONS ${doc_filename}.td)
-  tablegen(MLIR ${output_file}.md ${command} "-I${MLIR_MAIN_INCLUDE_DIR}" "-I${MLIR_INCLUDE_DIR}")
+  tablegen(MLIR ${output_file}.md ${command})
   set(GEN_DOC_FILE ${MLIR_BINARY_DIR}/docs/${output_directory}${output_file}.md)
   add_custom_command(
           OUTPUT ${GEN_DOC_FILE}
@@ -163,6 +163,33 @@ function(add_mlir_library_install name)
   set_property(GLOBAL APPEND PROPERTY MLIR_ALL_LIBS ${name})
   endif()
   set_property(GLOBAL APPEND PROPERTY MLIR_EXPORTS ${name})
+endfunction()
+
+# Declare an mlir library which is part of the public C-API and will be
+# compiled and exported into libMLIRPublicAPI.so/MLIRPublicAPI.dll.
+# This shared library is built regardless of the overall setting of building
+# libMLIR.so (which exports the C++ implementation).
+function(add_mlir_public_c_api_library name)
+  add_mlir_library(${name}
+    ${ARGN}
+    # NOTE: Generates obj.${name} which is used for shared library building.
+    OBJECT
+    EXCLUDE_FROM_LIBMLIR
+    ADDITIONAL_HEADER_DIRS
+    ${MLIR_MAIN_INCLUDE_DIR}/mlir-c
+  )
+  # API libraries compile with hidden visibility and macros that enable
+  # exporting from the DLL. Only apply to the obj lib, which only affects
+  # the exports via a shared library.
+  set_target_properties(obj.${name}
+    PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+  )
+  target_compile_definitions(obj.${name}
+    PRIVATE
+    -DMLIR_CAPI_BUILDING_LIBRARY=1
+  )
+  set_property(GLOBAL APPEND PROPERTY MLIR_PUBLIC_C_API_LIBS ${name})
 endfunction()
 
 # Declare the library associated with a dialect.

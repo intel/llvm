@@ -299,9 +299,9 @@ int main(int Argc, char *Argv[]) {
       "o", cl::init("output.bin"),
       cl::desc("Specify the output OpenCL program binary filename"),
       cl::value_desc("filename"));
-  cl::opt<std::string> OptBuildOptions("bo",
-                                       cl::desc("Set OpenCL build options"),
-                                       cl::value_desc("build options"));
+  cl::list<std::string> OptBuildOptions("bo", cl::ZeroOrMore,
+                                        cl::desc("Set OpenCL build options"),
+                                        cl::value_desc("build options"));
 
   cl::ParseCommandLineOptions(Argc, Argv,
                               "OpenCL ahead-of-time (AOT) compilation tool");
@@ -414,7 +414,12 @@ int main(int Argc, char *Argv[]) {
   CLProgramUPtr ProgramUPtr(std::move(Progs[0]));
 
   // step 7: set OpenCL build options
-  std::string BuildOptions = OptBuildOptions;
+  std::string BuildOptions;
+  if (!OptBuildOptions.empty()) {
+    for (const auto &BO : OptBuildOptions)
+      BuildOptions += BO + ' ';
+  }
+
   auto ParentDir = sys::path::parent_path(OptInputBinary);
   if (!ParentDir.empty()) {
     BuildOptions += " -I \"" + std::string(ParentDir) + '\"';
@@ -422,8 +427,8 @@ int main(int Argc, char *Argv[]) {
   std::cout << "Using build options: " << BuildOptions << '\n';
 
   // step 8: build OpenCL program
-  CLErr = clBuildProgram(ProgramUPtr.get(), 1, &DeviceId,
-                         OptBuildOptions.c_str(), nullptr, nullptr);
+  CLErr = clBuildProgram(ProgramUPtr.get(), 1, &DeviceId, BuildOptions.c_str(),
+                         nullptr, nullptr);
 
   std::string CompilerBuildLog;
   std::tie(CompilerBuildLog, ErrorMessage, std::ignore) =

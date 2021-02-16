@@ -387,6 +387,7 @@ constexpr B &&b4 = ((1, 2), 3, 4, B { {10}, {{20}} });
 static_assert(&b4 != &b2, "");
 
 // Proposed DR: copy-elision doesn't trigger lifetime extension.
+// expected-warning@+1 2{{temporary whose address is used as value of local variable 'b5' will be destroyed at the end of the full-expression}}
 constexpr B b5 = B{ {0}, {0} }; // expected-error {{constant expression}} expected-note {{reference to temporary}} expected-note {{here}}
 
 namespace NestedNonStatic {
@@ -396,6 +397,7 @@ namespace NestedNonStatic {
   struct A { int &&r; };
   struct B { A &&a; };
   constexpr B a = { A{0} }; // ok
+  // expected-warning@+1 {{temporary bound to reference member of local variable 'b' will be destroyed at the end of the full-expression}}
   constexpr B b = { A(A{0}) }; // expected-error {{constant expression}} expected-note {{reference to temporary}} expected-note {{here}}
 }
 
@@ -1805,11 +1807,10 @@ namespace PR15884 {
 }
 
 namespace AfterError {
-  // FIXME: Suppress the 'no return statements' diagnostic if the body is invalid.
-  constexpr int error() { // expected-error {{no return statement}}
+  constexpr int error() {
     return foobar; // expected-error {{undeclared identifier}}
   }
-  constexpr int k = error();
+  constexpr int k = error(); // expected-error {{constexpr variable 'k' must be initialized by a constant expression}}
 }
 
 namespace std {

@@ -113,5 +113,32 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
   __esimd_vstore<int, 32>(&vc, va.data());
   // CHECK: store <32 x i32>  %{{[0-9a-zA-Z_.]+}}, <32 x i32> addrspace(4)* {{.*}}
 
+  {
+    sycl::accessor<int, 1, sycl::access::mode::read_write,
+                   sycl::access::target::global_buffer>
+        acc;
+    simd<uint32_t, 8> offsets = 1;
+    simd<uint16_t, 8> pred{1, 0, 1, 0, 1, 0, 1, 0};
+
+    // 4-byte element gather
+    simd<int, 8> v = gather<int, 8>(acc, offsets, 100);
+    // CHECK: %[[SI3:[0-9a-zA-Z_.]+]] = ptrtoint i32 addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
+    // CHECK: %{{[0-9a-zA-Z_.]+}} = call <8 x i32> @llvm.genx.gather.scaled2.v8i32.v8i32(i32 2, i16 0, i32 %[[SI3]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}})
+
+    // 4-byte element scatter
+    scatter<int, 8>(acc, v, offsets, 100, pred);
+    // CHECK: %[[SI4:[0-9a-zA-Z_.]+]] = ptrtoint i32 addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
+    // CHECK: call void @llvm.genx.scatter.scaled.v8i1.v8i32.v8i32(<8 x i1> %{{[0-9a-zA-Z_.]+}}, i32 2, i16 0, i32 %[[SI4]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}})
+
+    // 1-byte element gather
+    simd<unsigned char, 8> v1 = gather<unsigned char, 8>(acc, offsets, 100);
+    // CHECK: %[[SI5:[0-9a-zA-Z_.]+]] = ptrtoint i32 addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
+    // CHECK: %{{[0-9a-zA-Z_.]+}} = call <8 x i32> @llvm.genx.gather.scaled2.v8i32.v8i32(i32 0, i16 0, i32 %[[SI5]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}})
+
+    // 1-byte element scatter
+    scatter<unsigned char, 8>(acc, v1, offsets, 100, pred);
+    // CHECK: %[[SI6:[0-9a-zA-Z_.]+]] = ptrtoint i32 addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
+    // CHECK: call void @llvm.genx.scatter.scaled.v8i1.v8i32.v8i32(<8 x i1> %{{[0-9a-zA-Z_.]+}}, i32 0, i16 0, i32 %[[SI6]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}})
+  }
   return d;
 }

@@ -230,6 +230,24 @@ TEST_F(TargetDeclTest, UsingDecl) {
                {"void waldo()"});
 }
 
+TEST_F(TargetDeclTest, BaseSpecifier) {
+  Code = R"cpp(
+    struct X {};
+    struct Y : [[private]] X {};
+  )cpp";
+  EXPECT_DECLS("CXXBaseSpecifier", "struct X");
+  Code = R"cpp(
+    struct X {};
+    struct Y : [[private X]] {};
+  )cpp";
+  EXPECT_DECLS("CXXBaseSpecifier", "struct X");
+  Code = R"cpp(
+    struct X {};
+    struct Y : private [[X]] {};
+  )cpp";
+  EXPECT_DECLS("RecordTypeLoc", "struct X");
+}
+
 TEST_F(TargetDeclTest, ConstructorInitList) {
   Code = R"cpp(
     struct X {
@@ -785,6 +803,47 @@ TEST_F(TargetDeclTest, DependentTypes) {
       )cpp";
   EXPECT_DECLS("DependentTemplateSpecializationTypeLoc",
                "template <typename> struct B");
+}
+
+TEST_F(TargetDeclTest, TypedefCascade) {
+  Code = R"cpp(
+        struct C {
+          using type = int;
+        };
+        struct B {
+          using type = C::type;
+        };
+        struct A {
+          using type = B::type;
+        };
+        A::[[type]] waldo;
+  )cpp";
+  EXPECT_DECLS("TypedefTypeLoc",
+               {"using type = int", Rel::Alias | Rel::Underlying},
+               {"using type = C::type", Rel::Alias | Rel::Underlying},
+               {"using type = B::type", Rel::Alias});
+}
+
+TEST_F(TargetDeclTest, RecursiveTemplate) {
+  Flags.push_back("-std=c++20"); // the test case uses concepts
+
+  Code = R"cpp(
+        template <typename T>
+        concept Leaf = false;
+
+        template <typename Tree>
+        struct descend_left {
+          using type = typename descend_left<typename Tree::left>::[[type]];
+        };
+
+        template <Leaf Tree>
+        struct descend_left<Tree> {
+          using type = typename Tree::value;
+        };
+  )cpp";
+  EXPECT_DECLS("DependentNameTypeLoc",
+               {"using type = typename descend_left<typename Tree::left>::type",
+                Rel::Alias | Rel::Underlying});
 }
 
 TEST_F(TargetDeclTest, ObjC) {

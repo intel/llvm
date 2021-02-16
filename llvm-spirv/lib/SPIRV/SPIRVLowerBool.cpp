@@ -77,39 +77,28 @@ public:
       replace(&I, Cmp);
     }
   }
-  virtual void visitZExtInst(ZExtInst &I) {
+  void handleCastInstructions(Instruction &I) {
     auto Op = I.getOperand(0);
     if (isBoolType(Op->getType())) {
-      auto Ty = I.getType();
+      auto Opcode = I.getOpcode();
+      auto Ty = (Opcode == Instruction::ZExt || Opcode == Instruction::SExt)
+                    ? I.getType()
+                    : Type::getInt32Ty(*Context);
       auto Zero = getScalarOrVectorConstantInt(Ty, 0, false);
-      auto One = getScalarOrVectorConstantInt(Ty, 1, false);
+      auto One = getScalarOrVectorConstantInt(
+          Ty, (Opcode == Instruction::SExt) ? ~0 : 1, false);
       assert(Zero && One && "Couldn't create constant int");
       auto Sel = SelectInst::Create(Op, One, Zero, "", &I);
-      replace(&I, Sel);
+      if (Opcode == Instruction::ZExt || Opcode == Instruction::SExt)
+        replace(&I, Sel);
+      else if (Opcode == Instruction::UIToFP || Opcode == Instruction::SIToFP)
+        I.setOperand(0, Sel);
     }
   }
-  virtual void visitSExtInst(SExtInst &I) {
-    auto Op = I.getOperand(0);
-    if (isBoolType(Op->getType())) {
-      auto Ty = I.getType();
-      auto Zero = getScalarOrVectorConstantInt(Ty, 0, false);
-      auto One = getScalarOrVectorConstantInt(Ty, ~0, false);
-      assert(Zero && One && "Couldn't create constant int");
-      auto Sel = SelectInst::Create(Op, One, Zero, "", &I);
-      replace(&I, Sel);
-    }
-  }
-  virtual void visitUIToFPInst(UIToFPInst &I) {
-    auto Op = I.getOperand(0);
-    if (isBoolType(Op->getType())) {
-      auto Ty = Type::getInt32Ty(*Context);
-      auto Zero = getScalarOrVectorConstantInt(Ty, 0, false);
-      auto One = getScalarOrVectorConstantInt(Ty, 1, false);
-      assert(Zero && One && "Couldn't create constant int");
-      auto Sel = SelectInst::Create(Op, One, Zero, "", &I);
-      I.setOperand(0, Sel);
-    }
-  }
+  virtual void visitZExtInst(ZExtInst &I) { handleCastInstructions(I); }
+  virtual void visitSExtInst(SExtInst &I) { handleCastInstructions(I); }
+  virtual void visitUIToFPInst(UIToFPInst &I) { handleCastInstructions(I); }
+  virtual void visitSIToFPInst(SIToFPInst &I) { handleCastInstructions(I); }
   bool runOnModule(Module &M) override {
     Context = &M.getContext();
     visit(M);

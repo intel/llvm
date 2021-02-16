@@ -31,20 +31,15 @@
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPU.h"
-#include "AMDGPUSubtarget.h"
-#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
-#include "SIInstrInfo.h"
+#include "GCNSubtarget.h"
 #include "SIMachineFunctionInfo.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/CodeGen/LiveInterval.h"
 #include "llvm/CodeGen/LiveIntervals.h"
 #include "llvm/CodeGen/LiveRegMatrix.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"
-#include "llvm/CodeGen/VirtRegMap.h"
 #include "llvm/InitializePasses.h"
-#include "llvm/Support/MathExtras.h"
 
 using namespace llvm;
 
@@ -321,7 +316,7 @@ unsigned GCNRegBankReassign::getPhysRegBank(Register Reg,
     return RegNo % NUM_VGPR_BANKS;
   }
 
-  unsigned RegNo = TRI->getEncodingValue(Reg) / 2;
+  unsigned RegNo = TRI->getEncodingValue(AMDGPU::getMCReg(Reg, *ST)) / 2;
   return RegNo % NUM_SGPR_BANKS + SGPR_BANK_OFFSET;
 }
 
@@ -366,7 +361,7 @@ uint32_t GCNRegBankReassign::getRegBankMask(Register Reg, unsigned SubReg,
   }
 
   // SGPRs have 8 banks holding 2 consequitive registers each.
-  unsigned RegNo = TRI->getEncodingValue(Reg) / 2;
+  unsigned RegNo = TRI->getEncodingValue(AMDGPU::getMCReg(Reg, *ST)) / 2;
   unsigned StartBit = AMDGPU::VGPR_32RegClass.getNumRegs();
   if (RegNo + StartBit >= RegsUsed.size())
     return 0;
@@ -474,6 +469,14 @@ unsigned GCNRegBankReassign::getOperandGatherWeight(const MachineInstr& MI,
 
 bool GCNRegBankReassign::isReassignable(Register Reg) const {
   if (Reg.isPhysical() || !VRM->isAssignedReg(Reg))
+    return false;
+
+  // InlineSpiller does not call LRM::assign() after an LI split leaving it
+  // in an inconsistent state, so we cannot call LRM::unassign().
+  // See llvm bug #48911.
+  // Skip reassign if a register has originated from such split.
+  // FIXME: Remove the workaround when bug #48911 is fixed.
+  if (VRM->getPreSplitReg(Reg))
     return false;
 
   const MachineInstr *Def = MRI->getUniqueVRegDef(Reg);
@@ -818,9 +821,10 @@ bool GCNRegBankReassign::runOnMachineFunction(MachineFunction &MF) {
   MaxNumSGPRs = std::min(ST->getMaxNumSGPRs(Occupancy, true), MaxNumSGPRs);
 
   CSRegs = MRI->getCalleeSavedRegs();
-
-  RegsUsed.resize(AMDGPU::VGPR_32RegClass.getNumRegs() +
-                  TRI->getEncodingValue(AMDGPU::SGPR_NULL) / 2 + 1);
+  unsigned NumRegBanks = AMDGPU::VGPR_32RegClass.getNumRegs() +
+                         // Not a tight bound
+                         AMDGPU::SReg_32RegClass.getNumRegs() / 2 + 1;
+  RegsUsed.resize(NumRegBanks);
 
   LLVM_DEBUG(dbgs() << "=== RegBanks reassign analysis on function " << MF.getName()
                << '\n');

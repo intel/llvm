@@ -147,7 +147,7 @@ Operator::arg_range Operator::getArgs() const {
 
 StringRef Operator::getArgName(int index) const {
   DagInit *argumentValues = def.getValueAsDag("arguments");
-  return argumentValues->getArgName(index)->getValue();
+  return argumentValues->getArgNameStr(index);
 }
 
 auto Operator::getArgDecorators(int index) const -> var_decorator_range {
@@ -521,6 +521,18 @@ void Operator::populateOpStructure() {
     regions.push_back({name, region});
   }
 
+  // Populate the builders.
+  auto *builderList =
+      dyn_cast_or_null<llvm::ListInit>(def.getValueInit("builders"));
+  if (builderList && !builderList->empty()) {
+    for (llvm::Init *init : builderList->getValues())
+      builders.emplace_back(cast<llvm::DefInit>(init)->getDef(), def.getLoc());
+  } else if (skipDefaultBuilders()) {
+    PrintFatalError(
+        def.getLoc(),
+        "default builders are skipped and no custom builders provided");
+  }
+
   LLVM_DEBUG(print(llvm::dbgs()));
 }
 
@@ -547,12 +559,12 @@ StringRef Operator::getSummary() const {
 
 bool Operator::hasAssemblyFormat() const {
   auto *valueInit = def.getValueInit("assemblyFormat");
-  return isa<llvm::CodeInit, llvm::StringInit>(valueInit);
+  return isa<llvm::StringInit>(valueInit);
 }
 
 StringRef Operator::getAssemblyFormat() const {
   return TypeSwitch<llvm::Init *, StringRef>(def.getValueInit("assemblyFormat"))
-      .Case<llvm::StringInit, llvm::CodeInit>(
+      .Case<llvm::StringInit>(
           [&](auto *init) { return init->getValue(); });
 }
 

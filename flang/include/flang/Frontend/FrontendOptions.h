@@ -1,4 +1,4 @@
-//===- FrontendOptions.h ----------------------------------------*- C -*-===//
+//===- FrontendOptions.h ----------------------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -22,15 +22,35 @@ enum ActionKind {
   /// -test-io mode
   InputOutputTest,
 
-  // TODO: ADD flags as the Actions are implemented, e.g.
-  // RunPreprocessor, ParserSyntaxOnly, EmitLLVM, EmitLLVMOnly,
-  // EmitCodeGenOnly, EmitAssembly, (...)
+  /// -E mode.
+  PrintPreprocessedInput,
+
+  /// -fsyntax-only
+  ParseSyntaxOnly,
+
+  /// Emit a .o file.
+  EmitObj,
+
+  /// TODO: RunPreprocessor, EmitLLVM, EmitLLVMOnly,
+  /// EmitCodeGenOnly, EmitAssembly, (...)
 };
+
+/// \param suffix The file extension
+/// \return True if the file extension should be processed as fixed form
+bool isFixedFormSuffix(llvm::StringRef suffix);
+
+/// \param suffix The file extension
+/// \return True if the file extension should be processed as free form
+bool isFreeFormSuffix(llvm::StringRef suffix);
 
 inline const char *GetActionKindName(const ActionKind ak) {
   switch (ak) {
   case InputOutputTest:
     return "InputOutputTest";
+  case PrintPreprocessedInput:
+    return "PrintPreprocessedInput";
+  case ParseSyntaxOnly:
+    return "ParseSyntaxOnly";
   default:
     return "<unknown ActionKind>";
     // TODO:
@@ -84,25 +104,38 @@ class FrontendInputFile {
   /// The kind of input, atm it contains language
   InputKind kind_;
 
+  /// Is this input file in fixed-form format? This is simply derived from the
+  /// file extension and should not be altered by consumers. For input from
+  /// stdin this is never modified.
+  bool isFixedForm_ = false;
+
 public:
   FrontendInputFile() = default;
   FrontendInputFile(llvm::StringRef file, InputKind kind)
-      : file_(file.str()), kind_(kind) {}
+      : file_(file.str()), kind_(kind) {
+
+    // Based on the extension, decide whether this is a fixed or free form
+    // file.
+    auto pathDotIndex{file.rfind(".")};
+    std::string pathSuffix{file.substr(pathDotIndex + 1)};
+    isFixedForm_ = isFixedFormSuffix(pathSuffix);
+  }
   FrontendInputFile(const llvm::MemoryBuffer *buffer, InputKind kind)
       : buffer_(buffer), kind_(kind) {}
 
-  InputKind GetKind() const { return kind_; }
+  InputKind kind() const { return kind_; }
 
   bool IsEmpty() const { return file_.empty() && buffer_ == nullptr; }
   bool IsFile() const { return !IsBuffer(); }
   bool IsBuffer() const { return buffer_ != nullptr; }
+  bool IsFixedForm() const { return isFixedForm_; }
 
-  llvm::StringRef GetFile() const {
+  llvm::StringRef file() const {
     assert(IsFile());
     return file_;
   }
 
-  const llvm::MemoryBuffer *GetBuffer() const {
+  const llvm::MemoryBuffer *buffer() const {
     assert(IsBuffer() && "Requested buffer_, but it is empty!");
     return buffer_;
   }

@@ -239,31 +239,28 @@ __CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, double, -DBL_MAX)
     }                                                                          \
     __spirv_ControlBarrier(Workgroup, 0, 0);                                   \
     /* Perform InclusiveScan over sub-group results */                         \
-    /* FIXME: Ideally, use an alternative algorithm that doesn't require two   \
-     * calls to __syncthreads() */                                             \
-    for (int o = 1; o < num_sg; o *= 2) {                                      \
-      TYPE contribution = IDENTITY;                                            \
-      if (sg_id >= o && sg_lid == 0) {                                         \
-        contribution = scratch[sg_id - o];                                     \
+    TYPE sg_prefix;                                                            \
+    TYPE sg_aggregate = scratch[0];                                            \
+    _Pragma("unroll") for (int s = 1; s < num_sg; ++s) {                       \
+      if (sg_id == s) {                                                        \
+        sg_prefix = sg_aggregate;                                              \
       }                                                                        \
-      __spirv_ControlBarrier(Workgroup, 0, 0);                                 \
-      if (sg_id >= o && sg_lid == 0) {                                         \
-        scratch[sg_id] = OP(scratch[sg_id], contribution);                     \
-      }                                                                        \
-      __spirv_ControlBarrier(Workgroup, 0, 0);                                 \
+      TYPE addend = scratch[s];                                                \
+      sg_aggregate = OP(sg_aggregate, addend);                                 \
     }                                                                          \
     /* For Reduce, broadcast result from final sub-group */                    \
     /* For Scan, combine results from previous sub-groups */                   \
     TYPE result;                                                               \
     if (op == Reduce) {                                                        \
-      result = scratch[num_sg - 1];                                            \
+      result = sg_aggregate;                                                   \
     } else if (op == InclusiveScan || op == ExclusiveScan) {                   \
       if (sg_id == 0) {                                                        \
         result = sg_x;                                                         \
       } else {                                                                 \
-        result = OP(sg_x, scratch[sg_id - 1]);                                 \
+        result = OP(sg_x, sg_prefix);                                          \
       }                                                                        \
     }                                                                          \
+    __spirv_ControlBarrier(Workgroup, 0, 0);                                   \
     return result;                                                             \
   }
 
@@ -385,6 +382,10 @@ long __clc__3d_to_linear_local_id(ulong3 id) {
       uint scope, TYPE x, ulong3 local_id) {                                   \
     ulong linear_local_id = __clc__3d_to_linear_local_id(local_id);            \
     return __spirv_GroupBroadcast(scope, x, linear_local_id);                  \
+  }                                                                            \
+  _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __spirv_GroupBroadcast(          \
+      uint scope, TYPE x, uint local_id) {                                     \
+    return __spirv_GroupBroadcast(scope, x, (ulong)local_id);                  \
   }
 __CLC_GROUP_BROADCAST(char);
 __CLC_GROUP_BROADCAST(uchar);
@@ -410,6 +411,10 @@ _Z17__spirv_GroupBroadcastjDF16_Dv2_m(uint scope, half x, ulong2 local_id) {
 _CLC_DECL _CLC_CONVERGENT half
 _Z17__spirv_GroupBroadcastjDF16_Dv3_m(uint scope, half x, ulong3 local_id) {
   return __spirv_GroupBroadcast(scope, x, local_id);
+}
+_CLC_DECL _CLC_CONVERGENT half
+_Z22__spirv_GroupBroadcastjDF16_j(uint scope, half x, uint local_id) {
+  return __spirv_GroupBroadcast(scope, x, (ulong)local_id);
 }
 
 #undef __CLC_GROUP_BROADCAST

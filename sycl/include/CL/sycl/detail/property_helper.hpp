@@ -25,22 +25,23 @@ namespace detail {
 // List of all dataless properties' IDs
 enum DataLessPropKind {
   BufferUseHostPtr = 0,
-  ImageUseHostPtr,
-  QueueEnableProfiling,
-  InOrder,
-  NoInit,
-  BufferUsePinnedHostMemory,
-  UsePrimaryContext,
-  DataLessPropKindSize
+  ImageUseHostPtr = 1,
+  QueueEnableProfiling = 2,
+  InOrder = 3,
+  NoInit = 4,
+  BufferUsePinnedHostMemory = 5,
+  UsePrimaryContext = 6,
+  DataLessPropKindSize = 7
 };
 
 // List of all properties with data IDs
 enum PropWithDataKind {
   BufferUseMutex = 0,
-  BufferContextBound,
-  ImageUseMutex,
-  ImageContextBound,
-  PropWithDataKindSize
+  BufferContextBound = 1,
+  ImageUseMutex = 2,
+  ImageContextBound = 3,
+  BufferMemChannel = 4,
+  PropWithDataKindSize = 5
 };
 
 // Base class for dataless properties, needed to check that the type of an

@@ -47,13 +47,16 @@ void TestLinalgHoisting::runOnFunction() {
   }
   if (testHoistRedundantTransfers) {
     hoistRedundantVectorTransfers(getFunction());
+    hoistRedundantVectorTransfersOnTensor(getFunction());
     return;
   }
 }
 
 namespace mlir {
+namespace test {
 void registerTestLinalgHoisting() {
   PassRegistration<TestLinalgHoisting> testTestLinalgHoistingPass(
       "test-linalg-hoisting", "Test Linalg hoisting functions.");
 }
+} // namespace test
 } // namespace mlir

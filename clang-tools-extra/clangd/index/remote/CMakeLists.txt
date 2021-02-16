@@ -1,7 +1,14 @@
 if (CLANGD_ENABLE_REMOTE)
-  generate_protos(RemoteIndexServiceProto "Service.proto" GRPC)
   generate_protos(RemoteIndexProto "Index.proto")
-  add_dependencies(RemoteIndexServiceProto RemoteIndexProto)
+  generate_protos(RemoteIndexServiceProto "Service.proto"
+    DEPENDS "Index.proto"
+    GRPC)
+  # FIXME: Move this into generate_protos. Currently we only mention proto
+  # filename as a dependency, but linking requires target name.
+  target_link_libraries(RemoteIndexServiceProto
+    PRIVATE
+    RemoteIndexProto
+    )
   include_directories(${CMAKE_CURRENT_BINARY_DIR})
   include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../)
 
@@ -17,9 +24,7 @@ if (CLANGD_ENABLE_REMOTE)
     RemoteIndexProto
     RemoteIndexServiceProto
     clangdRemoteMarshalling
-
-    protobuf
-    grpc++
+    clangBasic
     clangDaemon
     clangdSupport
 

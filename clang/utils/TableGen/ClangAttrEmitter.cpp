@@ -1149,8 +1149,9 @@ namespace {
          << "Unevaluated(S, Sema::ExpressionEvaluationContext::Unevaluated);\n";
       OS << "        ExprResult " << "Result = S.SubstExpr("
          << "A->get" << getUpperName() << "(), TemplateArgs);\n";
-      OS << "        tempInst" << getUpperName() << " = "
-         << "Result.getAs<Expr>();\n";
+      OS << "        if (Result.isInvalid())\n";
+      OS << "          return nullptr;\n";
+      OS << "        tempInst" << getUpperName() << " = Result.get();\n";
       OS << "      }\n";
     }
 
@@ -1202,7 +1203,9 @@ namespace {
          << "_end();\n";
       OS << "        for (; I != E; ++I, ++TI) {\n";
       OS << "          ExprResult Result = S.SubstExpr(*I, TemplateArgs);\n";
-      OS << "          *TI = Result.getAs<Expr>();\n";
+      OS << "          if (Result.isInvalid())\n";
+      OS << "            return nullptr;\n";
+      OS << "          *TI = Result.get();\n";
       OS << "        }\n";
       OS << "      }\n";
     }
@@ -1273,8 +1276,16 @@ namespace {
       OS << "      return false;\n";
     }
 
+    void writeTemplateInstantiation(raw_ostream &OS) const override {
+      OS << "      " << getType() << " tempInst" << getUpperName() << " =\n";
+      OS << "        S.SubstType(A->get" << getUpperName() << "Loc(), "
+         << "TemplateArgs, A->getLoc(), A->getAttrName());\n";
+      OS << "      if (!tempInst" << getUpperName() << ")\n";
+      OS << "        return nullptr;\n";
+    }
+
     void writeTemplateInstantiationArgs(raw_ostream &OS) const override {
-      OS << "A->get" << getUpperName() << "Loc()";
+      OS << "tempInst" << getUpperName();
     }
 
     void writePCHWrite(raw_ostream &OS) const override {
@@ -2370,7 +2381,7 @@ static void emitAttributes(RecordKeeper &Records, raw_ostream &OS,
         ai->writeCtorParameters(OS);
       }
       OS << ", const AttributeCommonInfo &CommonInfo";
-      if (Header)
+      if (Header && Implicit)
         OS << " = {SourceRange{}}";
       OS << ")";
       if (Header) {
@@ -2685,6 +2696,7 @@ static const AttrClassDescriptor AttrClassDescriptors[] = {
   { "ATTR", "Attr" },
   { "TYPE_ATTR", "TypeAttr" },
   { "STMT_ATTR", "StmtAttr" },
+  { "DECL_OR_STMT_ATTR", "DeclOrStmtAttr" },
   { "INHERITABLE_ATTR", "InheritableAttr" },
   { "DECL_OR_TYPE_ATTR", "DeclOrTypeAttr" },
   { "INHERITABLE_PARAM_ATTR", "InheritableParamAttr" },
@@ -3329,12 +3341,13 @@ void EmitClangAttrTemplateInstantiateHelper(const std::vector<Record *> &Attrs,
     for (auto const &ai : Args)
       ai->writeTemplateInstantiation(OS);
 
-    OS << "        return new (C) " << R.getName() << "Attr(C, *A";
+    OS << "      return new (C) " << R.getName() << "Attr(C, *A";
     for (auto const &ai : Args) {
       OS << ", ";
       ai->writeTemplateInstantiationArgs(OS);
     }
-    OS << ");\n    }\n";
+    OS << ");\n"
+       << "    }\n";
   }
   OS << "  } // end switch\n"
      << "  llvm_unreachable(\"Unknown attribute!\");\n"
@@ -3513,6 +3526,9 @@ static void GenerateCustomAppertainsTo(const Record &Subject, raw_ostream &OS) {
 }
 
 static void GenerateAppertainsTo(const Record &Attr, raw_ostream &OS) {
+  // FIXME: this function only diagnoses declaration attributes and lacks
+  // reasonable support for statement attributes.
+
   // If the attribute does not contain a Subjects definition, then use the
   // default appertainsTo logic.
   if (Attr.isValueUnset("Subjects"))
@@ -3544,7 +3560,16 @@ static void GenerateAppertainsTo(const Record &Attr, raw_ostream &OS) {
     // because it requires the subject to be of a specific type, and were that
     // information inlined here, it would not support an attribute with multiple
     // custom subjects.
-    if ((*I)->isSubClassOf("SubsetSubject")) {
+    //
+    // If the subject is a statement rather than a declaration node, use 'true'
+    // as the test so that statement nodes can be mixed with declaration nodes
+    // for attributes which appertain to both statements and declarations. If
+    // all of the nodes are statement nodes (so the diagnostic predicate is
+    // trivially true), this will diagnose the use of the attribute on any
+    // declaration, which is reasonable.
+    if ((*I)->isSubClassOf("StmtNode")) {
+      OS << "true";
+    } else if ((*I)->isSubClassOf("SubsetSubject")) {
       OS << "!" << functionNameForCustomAppertainsTo(**I) << "(D)";
     } else {
       OS << "!isa<" << GetSubjectWithSuffix(*I) << ">(D)";
@@ -3777,7 +3802,8 @@ void EmitClangAttrParsedAttrImpl(RecordKeeper &Records, raw_ostream &OS) {
     OS << (Attr.isSubClassOf("TypeAttr") ||
            Attr.isSubClassOf("DeclOrTypeAttr")) << ";\n";
     OS << "    IsStmt = ";
-    OS << Attr.isSubClassOf("StmtAttr") << ";\n";
+    OS << (Attr.isSubClassOf("StmtAttr") || Attr.isSubClassOf("DeclOrStmtAttr"))
+       << ";\n";
     OS << "    IsKnownToGCC = ";
     OS << IsKnownToGCC(Attr) << ";\n";
     OS << "    IsSupportedByPragmaAttribute = ";

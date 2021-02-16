@@ -309,7 +309,7 @@ def LiteralInvalidB : TestFormat_Op<"literal_invalid_b", [{
 }]>;
 // CHECK-NOT: error
 def LiteralValid : TestFormat_Op<"literal_valid", [{
-  `_` `:` `,` `=` `<` `>` `(` `)` `[` `]` ` ` `->` `abc$._`
+  `_` `:` `,` `=` `<` `>` `(` `)` `[` `]` `?` `+` `*` ` ` `` `->` `\n` `abc$._`
   attr-dict
 }]>;
 
@@ -329,11 +329,11 @@ def OptionalInvalidB : TestFormat_Op<"optional_invalid_b", [{
 def OptionalInvalidC : TestFormat_Op<"optional_invalid_c", [{
   ($attr)? attr-dict
 }]>, Arguments<(ins OptionalAttr<I64Attr>:$attr)>;
-// CHECK: error: first element of an operand group must be an attribute, literal, operand, or region
+// CHECK: error: first parsable element of an operand group must be an attribute, literal, operand, or region
 def OptionalInvalidD : TestFormat_Op<"optional_invalid_d", [{
   (type($operand) $operand^)? attr-dict
 }]>, Arguments<(ins Optional<I64>:$operand)>;
-// CHECK: error: type directive can only refer to variables within the optional group
+// CHECK: error: only literals, types, and variables can be used within an optional group
 def OptionalInvalidE : TestFormat_Op<"optional_invalid_e", [{
   (`,` $attr^ type(operands))? attr-dict
 }]>, Arguments<(ins OptionalAttr<I64Attr>:$attr)>;
@@ -349,9 +349,9 @@ def OptionalInvalidG : TestFormat_Op<"optional_invalid_g", [{
 def OptionalInvalidH : TestFormat_Op<"optional_invalid_h", [{
   ($arg^) attr-dict
 }]>, Arguments<(ins I64:$arg)>;
-// CHECK: error: only variables can be used to anchor an optional group
+// CHECK: error: only literals, types, and variables can be used within an optional group
 def OptionalInvalidI : TestFormat_Op<"optional_invalid_i", [{
-  ($arg type($arg)^) attr-dict
+  (functional-type($arg, results)^)? attr-dict
 }]>, Arguments<(ins Variadic<I64>:$arg)>;
 // CHECK: error: only literals, types, and variables can be used within an optional group
 def OptionalInvalidJ : TestFormat_Op<"optional_invalid_j", [{
@@ -361,14 +361,19 @@ def OptionalInvalidJ : TestFormat_Op<"optional_invalid_j", [{
 def OptionalInvalidK : TestFormat_Op<"optional_invalid_k", [{
   ($arg^)
 }]>, Arguments<(ins Variadic<I64>:$arg)>;
-// CHECK: error: only variables can be used to anchor an optional group
+// CHECK: error: only variables and types can be used to anchor an optional group
 def OptionalInvalidL : TestFormat_Op<"optional_invalid_l", [{
   (custom<MyDirective>($arg)^)?
 }]>, Arguments<(ins I64:$arg)>;
-// CHECK: error: only variables can be used to anchor an optional group
+// CHECK: error: only variables and types can be used to anchor an optional group
 def OptionalInvalidM : TestFormat_Op<"optional_invalid_m", [{
   (` `^)?
 }]>, Arguments<(ins)>;
+
+// CHECK-NOT: error
+def OptionalValidA : TestFormat_Op<"optional_valid_a", [{
+  (` ` `` $arg^)?
+}]>;
 
 //===----------------------------------------------------------------------===//
 // Variables

@@ -79,8 +79,6 @@ using uint = unsigned int;
 using ulong = unsigned long;
 using longlong = long long;
 using ulonglong = unsigned long long;
-// TODO cl::sycl::half is not in SYCL specification, but is used by Khronos CTS.
-// Related tests issue: KhronosGroup/SYCL-CTS#37
 using half = cl::sycl::detail::half_impl::half;
 using cl_bool = bool;
 using cl_char = std::int8_t;

@@ -609,12 +609,15 @@ MAKE_1V_2P(modf, s::cl_half, s::cl_half, s::cl_half)
 
 // nan
 __SYCL_EXPORT s::cl_float nan(s::cl_uint nancode) __NOEXC {
+  (void)nancode;
   return d::quiet_NaN<s::cl_float>();
 }
 __SYCL_EXPORT s::cl_double nan(s::cl_ulong nancode) __NOEXC {
+  (void)nancode;
   return d::quiet_NaN<s::cl_double>();
 }
 __SYCL_EXPORT s::cl_half nan(s::cl_ushort nancode) __NOEXC {
+  (void)nancode;
   return s::cl_half(d::quiet_NaN<s::cl_float>());
 }
 MAKE_1V(nan, s::cl_float, s::cl_uint)

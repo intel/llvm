@@ -136,13 +136,9 @@ bool GeneratePCHAction::ComputeASTConsumerArguments(CompilerInstance &CI,
 std::unique_ptr<llvm::raw_pwrite_stream>
 GeneratePCHAction::CreateOutputFile(CompilerInstance &CI, StringRef InFile,
                                     std::string &OutputFile) {
-  // We use createOutputFile here because this is exposed via libclang, and we
-  // must disable the RemoveFileOnSignal behavior.
-  // We use a temporary to avoid race conditions.
-  std::unique_ptr<raw_pwrite_stream> OS =
-      CI.createOutputFile(CI.getFrontendOpts().OutputFile, /*Binary=*/true,
-                          /*RemoveFileOnSignal=*/false, InFile,
-                          /*Extension=*/"", CI.getFrontendOpts().UseTemporary);
+  // Because this is exposed via libclang we must disable RemoveFileOnSignal.
+  std::unique_ptr<raw_pwrite_stream> OS = CI.createDefaultOutputFile(
+      /*Binary=*/true, InFile, /*Extension=*/"", /*RemoveFileOnSignal=*/false);
   if (!OS)
     return nullptr;
 
@@ -177,7 +173,8 @@ GenerateModuleAction::CreateASTConsumer(CompilerInstance &CI,
   Consumers.push_back(std::make_unique<PCHGenerator>(
       CI.getPreprocessor(), CI.getModuleCache(), OutputFile, Sysroot, Buffer,
       CI.getFrontendOpts().ModuleFileExtensions,
-      /*AllowASTWithErrors=*/false,
+      /*AllowASTWithErrors=*/
+      +CI.getFrontendOpts().AllowPCMWithCompilerErrors,
       /*IncludeTimestamps=*/
       +CI.getFrontendOpts().BuildingImplicitModule,
       /*ShouldCacheASTInMemory=*/
@@ -185,6 +182,11 @@ GenerateModuleAction::CreateASTConsumer(CompilerInstance &CI,
   Consumers.push_back(CI.getPCHContainerWriter().CreatePCHContainerGenerator(
       CI, std::string(InFile), OutputFile, std::move(OS), Buffer));
   return std::make_unique<MultiplexConsumer>(std::move(Consumers));
+}
+
+bool GenerateModuleAction::shouldEraseOutputFiles() {
+  return !getCompilerInstance().getFrontendOpts().AllowPCMWithCompilerErrors &&
+         ASTFrontendAction::shouldEraseOutputFiles();
 }
 
 bool GenerateModuleFromModuleMapAction::BeginSourceFileAction(
@@ -213,13 +215,10 @@ GenerateModuleFromModuleMapAction::CreateOutputFile(CompilerInstance &CI,
                                    ModuleMapFile);
   }
 
-  // We use createOutputFile here because this is exposed via libclang, and we
-  // must disable the RemoveFileOnSignal behavior.
-  // We use a temporary to avoid race conditions.
-  return CI.createOutputFile(CI.getFrontendOpts().OutputFile, /*Binary=*/true,
-                             /*RemoveFileOnSignal=*/false, InFile,
-                             /*Extension=*/"", /*UseTemporary=*/true,
-                             /*CreateMissingDirectories=*/true);
+  // Because this is exposed via libclang we must disable RemoveFileOnSignal.
+  return CI.createDefaultOutputFile(/*Binary=*/true, InFile, /*Extension=*/"",
+                                    /*RemoveFileOnSignal=*/false,
+                                    /*CreateMissingDirectories=*/true);
 }
 
 bool GenerateModuleInterfaceAction::BeginSourceFileAction(
@@ -298,7 +297,7 @@ bool GenerateHeaderModuleAction::BeginSourceFileAction(
         << Name;
       continue;
     }
-    Headers.push_back({std::string(Name), &FE->getFileEntry()});
+    Headers.push_back({std::string(Name), *FE});
   }
   HS.getModuleMap().createHeaderModule(CI.getLangOpts().CurrentModule, Headers);
 
@@ -338,8 +337,8 @@ void VerifyPCHAction::ExecuteAction() {
       CI.getPreprocessor(), CI.getModuleCache(), &CI.getASTContext(),
       CI.getPCHContainerReader(), CI.getFrontendOpts().ModuleFileExtensions,
       Sysroot.empty() ? "" : Sysroot.c_str(),
-      /*DisableValidation*/ false,
-      /*AllowPCHWithCompilerErrors*/ false,
+      DisableValidationForModuleKind::None,
+      /*AllowASTWithCompilerErrors*/ false,
       /*AllowConfigurationMismatch*/ true,
       /*ValidateSystemInputs*/ true));
 
@@ -467,7 +466,10 @@ private:
     Entry.Event = BeginInstantiation ? "Begin" : "End";
     if (auto *NamedTemplate = dyn_cast_or_null<NamedDecl>(Inst.Entity)) {
       llvm::raw_string_ostream OS(Entry.Name);
-      NamedTemplate->getNameForDiagnostic(OS, TheSema.getLangOpts(), true);
+      PrintingPolicy Policy = TheSema.Context.getPrintingPolicy();
+      // FIXME: Also ask for FullyQualifiedNames?
+      Policy.SuppressDefaultTemplateArgs = false;
+      NamedTemplate->getNameForDiagnostic(OS, Policy, true);
       const PresumedLoc DefLoc =
         TheSema.getSourceManager().getPresumedLoc(Inst.Entity->getLocation());
       if(!DefLoc.isInvalid())

@@ -10,11 +10,11 @@
 
 #include "flang/Frontend/CompilerInvocation.h"
 #include "flang/Frontend/FrontendAction.h"
+#include "flang/Frontend/PreprocessorOptions.h"
+#include "flang/Parser/parsing.h"
 #include "flang/Parser/provenance.h"
+#include "flang/Semantics/semantics.h"
 #include "llvm/Support/raw_ostream.h"
-
-#include <cassert>
-#include <memory>
 
 namespace Fortran::frontend {
 
@@ -25,6 +25,16 @@ class CompilerInstance {
 
   /// Flang file  manager.
   std::shared_ptr<Fortran::parser::AllSources> allSources_;
+
+  std::shared_ptr<Fortran::parser::AllCookedSources> allCookedSources_;
+
+  std::shared_ptr<Fortran::parser::Parsing> parsing_;
+
+  /// The stream for diagnostics from Semantics
+  llvm::raw_ostream *semaOutputStream_ = &llvm::errs();
+
+  /// The stream for diagnostics from Semantics if owned, otherwise nullptr.
+  std::unique_ptr<llvm::raw_ostream> ownedSemaOutputStream_;
 
   /// The diagnostics engine instance.
   llvm::IntrusiveRefCntPtr<clang::DiagnosticsEngine> diagnostics_;
@@ -58,22 +68,47 @@ public:
   /// @name Compiler Invocation
   /// {
 
-  CompilerInvocation &GetInvocation() {
+  CompilerInvocation &invocation() {
     assert(invocation_ && "Compiler instance has no invocation!");
     return *invocation_;
   };
 
   /// Replace the current invocation.
-  void SetInvocation(std::shared_ptr<CompilerInvocation> value);
+  void set_invocation(std::shared_ptr<CompilerInvocation> value);
 
   /// }
   /// @name File manager
   /// {
 
   /// Return the current allSources.
-  Fortran::parser::AllSources &GetAllSources() const { return *allSources_; }
+  Fortran::parser::AllSources &allSources() const { return *allSources_; }
 
   bool HasAllSources() const { return allSources_ != nullptr; }
+
+  parser::AllCookedSources &allCookedSources() {
+    assert(allCookedSources_ && "Compiler instance has no AllCookedSources!");
+    return *allCookedSources_;
+  };
+
+  /// }
+  /// @name Parser Operations
+  /// {
+
+  /// Return parsing to be used by Actions.
+  Fortran::parser::Parsing &parsing() const { return *parsing_; }
+
+  /// }
+  /// @name Semantic analysis
+  /// {
+
+  /// Replace the current stream for verbose output.
+  void set_semaOutputStream(llvm::raw_ostream &Value);
+
+  /// Replace the current stream for verbose output.
+  void set_semaOutputStream(std::unique_ptr<llvm::raw_ostream> Value);
+
+  /// Get the current stream for verbose output.
+  llvm::raw_ostream &semaOutputStream() { return *semaOutputStream_; }
 
   /// }
   /// @name High-Level Operations
@@ -96,9 +131,16 @@ public:
     return invocation_->GetDiagnosticOpts();
   }
 
-  FrontendOptions &GetFrontendOpts() { return invocation_->GetFrontendOpts(); }
-  const FrontendOptions &GetFrontendOpts() const {
-    return invocation_->GetFrontendOpts();
+  FrontendOptions &frontendOpts() { return invocation_->frontendOpts(); }
+  const FrontendOptions &frontendOpts() const {
+    return invocation_->frontendOpts();
+  }
+
+  PreprocessorOptions &preprocessorOpts() {
+    return invocation_->preprocessorOpts();
+  }
+  const PreprocessorOptions &preprocessorOpts() const {
+    return invocation_->preprocessorOpts();
   }
 
   /// }
@@ -108,24 +150,15 @@ public:
   bool HasDiagnostics() const { return diagnostics_ != nullptr; }
 
   /// Get the current diagnostics engine.
-  clang::DiagnosticsEngine &GetDiagnostics() const {
+  clang::DiagnosticsEngine &diagnostics() const {
     assert(diagnostics_ && "Compiler instance has no diagnostics!");
     return *diagnostics_;
   }
-
-  /// Replace the current diagnostics engine.
-  void SetDiagnostics(clang::DiagnosticsEngine *value);
 
   clang::DiagnosticConsumer &GetDiagnosticClient() const {
     assert(diagnostics_ && diagnostics_->getClient() &&
         "Compiler instance has no diagnostic client!");
     return *diagnostics_->getClient();
-  }
-
-  /// Get the current diagnostics engine.
-  clang::DiagnosticsEngine &getDiagnostics() const {
-    assert(diagnostics_ && "Compiler instance has no diagnostics!");
-    return *diagnostics_;
   }
 
   /// {
@@ -192,7 +225,7 @@ public:
   /// }
   /// @name Output Stream Methods
   /// {
-  void SetOutputStream(std::unique_ptr<llvm::raw_pwrite_stream> outStream) {
+  void set_outputStream(std::unique_ptr<llvm::raw_pwrite_stream> outStream) {
     outputStream_ = std::move(outStream);
   }
 

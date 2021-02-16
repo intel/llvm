@@ -14,6 +14,7 @@
 
 #include <iostream>
 #include <map>
+#include <vector>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -22,20 +23,18 @@ namespace detail {
 // Represents a specialization constant value in SYCL runtime.
 class spec_constant_impl {
 public:
-  spec_constant_impl() : Size(0), Bytes{0} {};
+  spec_constant_impl() = default;
 
   spec_constant_impl(size_t Size, const void *Val) { set(Size, Val); }
 
   void set(size_t Size, const void *Val);
 
-  size_t getSize() const { return Size; }
-  const unsigned char *getValuePtr() const { return Bytes; }
-  bool isSet() const { return Size != 0; }
+  size_t getSize() const { return Bytes.size(); }
+  const char *getValuePtr() const { return Bytes.data(); }
+  bool isSet() const { return !Bytes.empty(); }
 
 private:
-  size_t Size; // the size of the spec constant value
-  // TODO invent more flexible approach to support values of arbitrary type:
-  unsigned char Bytes[8]; // memory to hold the value bytes
+  std::vector<char> Bytes;
 };
 
 std::ostream &operator<<(std::ostream &Out, const spec_constant_impl &V);

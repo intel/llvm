@@ -24,6 +24,7 @@
 ; RUN:     --check-prefix=CHECK-O3 --check-prefix=CHECK-EP-Peephole
 
 ; CHECK-O: Starting llvm::Module pass manager run.
+; CHECK-O-NEXT: Running pass: Annotation2Metadata
 ; CHECK-O-NEXT: Running pass: GlobalDCEPass
 ; CHECK-O-NEXT: Running pass: ForceFunctionAttrsPass
 ; CHECK-O-NEXT: Running pass: InferFunctionAttrsPass
@@ -48,6 +49,12 @@
 ; CHECK-O-NEXT: Running analysis: OuterAnalysisManagerProxy<{{.*}}LazyCallGraph{{.*}}>
 ; CHECK-O-NEXT: Running pass: PostOrderFunctionAttrsPass
 ; CHECK-O-NEXT: Running analysis: AAManager
+; CHECK-O-NEXT: Running analysis: BasicAA
+; CHECK-O1-NEXT: Running analysis: AssumptionAnalysis on foo
+; CHECK-O1-NEXT: Running analysis: DominatorTreeAnalysis
+; CHECK-O-NEXT: Running analysis: ScopedNoAliasAA
+; CHECK-O-NEXT: Running analysis: TypeBasedAA
+; CHECK-O-NEXT: Running analysis: OuterAnalysisManagerProxy
 ; CHECK-O-NEXT: Running pass: ReversePostOrderFunctionAttrsPass
 ; CHECK-O-NEXT: Running analysis: CallGraphAnalysis
 ; CHECK-O-NEXT: Running pass: GlobalSplitPass
@@ -60,14 +67,13 @@
 ; CHECK-O2-NEXT: Starting llvm::Function pass manager run.
 ; CHECK-O3-NEXT: Running pass: AggressiveInstCombinePass
 ; CHECK-O2-NEXT: Running pass: InstCombinePass
-; CHECK-O2-NEXT: Running analysis: OuterAnalysisManagerProxy
 ; CHECK-EP-Peephole-NEXT: Running pass: NoOpFunctionPass
 ; CHECK-O2-NEXT: Finished llvm::Function pass manager run.
 ; CHECK-O2-NEXT: Running pass: ModuleInlinerWrapperPass
 ; CHECK-O2-NEXT: Running analysis: InlineAdvisorAnalysis
 ; CHECK-O2-NEXT: Starting llvm::Module pass manager run.
-; CHECK-O2-NEXT: Running pass: AlwaysInlinerPass
 ; CHECK-O2-NEXT: Starting CGSCC pass manager run.
+; CHECK-O2-NEXT: Running pass: InlinerPass
 ; CHECK-O2-NEXT: Running pass: InlinerPass
 ; CHECK-O2-NEXT: Finished CGSCC pass manager run.
 ; CHECK-O2-NEXT: Finished llvm::Module pass manager run.
@@ -104,6 +110,7 @@
 ; CHECK-O2-NEXT: Running pass: SimplifyCFGPass
 ; CHECK-O2-NEXT: Running pass: EliminateAvailableExternallyPass
 ; CHECK-O2-NEXT: Running pass: GlobalDCEPass
+; CHECK-O-NEXT: Running pass: AnnotationRemarksPass on foo
 ; CHECK-O-NEXT: Running pass: PrintModulePass
 
 ; Make sure we get the IR back out without changes when we print the module.

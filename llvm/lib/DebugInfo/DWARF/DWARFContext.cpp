@@ -1022,8 +1022,7 @@ DWARFContext::DIEsForAddress DWARFContext::getDIEsForAddress(uint64_t Address) {
       break;
     }
 
-    for (auto Child : DIE)
-      Worklist.push_back(Child);
+    append_range(Worklist, DIE);
   }
 
   return Result;
@@ -1780,7 +1779,7 @@ public:
 
       // Symbol to [address, section index] cache mapping.
       std::map<SymbolRef, SymInfo> AddrCache;
-      bool (*Supports)(uint64_t);
+      SupportsRelocation Supports;
       RelocationResolver Resolver;
       std::tie(Supports, Resolver) = getRelocationResolver(Obj);
       for (const RelocationRef &Reloc : Section.relocations()) {

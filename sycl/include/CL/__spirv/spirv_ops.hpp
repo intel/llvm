@@ -79,6 +79,10 @@ extern SYCL_EXTERNAL TempRetT __spirv_ImageSampleExplicitLod(SampledType,
   extern SYCL_EXTERNAL Type __spirv_AtomicISub(                                \
       AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
       Type V);
+#define __SPIRV_ATOMIC_FADD(AS, Type)                                          \
+  extern SYCL_EXTERNAL Type __spirv_AtomicFAddEXT(                             \
+      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
+      Type V);
 #define __SPIRV_ATOMIC_SMIN(AS, Type)                                          \
   extern SYCL_EXTERNAL Type __spirv_AtomicSMin(                                \
       AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
@@ -109,6 +113,7 @@ extern SYCL_EXTERNAL TempRetT __spirv_ImageSampleExplicitLod(SampledType,
       Type V);
 
 #define __SPIRV_ATOMIC_FLOAT(AS, Type)                                         \
+  __SPIRV_ATOMIC_FADD(AS, Type)                                                \
   __SPIRV_ATOMIC_LOAD(AS, Type)                                                \
   __SPIRV_ATOMIC_STORE(AS, Type)                                               \
   __SPIRV_ATOMIC_EXCHANGE(AS, Type)

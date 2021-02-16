@@ -13,9 +13,12 @@ on:
     branches:
       - master
       - llvm_release_*
-    paths-ignore: # no need to check formatting for documentation and tests
-      - 'docs/**'
-      - 'test/**'
+    paths-ignore: # no need to check formatting for:
+      - 'docs/**' # documentation
+      - 'test/**' # tests
+      - '**.md'   # README
+      - '**.txt'  # CMakeLists.txt
+      - '**/check-**-build.xml' # Other workflows
 
 env:
   # We need compile command database in order to perform clang-tidy check. So,
@@ -40,7 +43,7 @@ jobs:
     - name: Gather list of changes
       id: gather-list-of-changes
       run: |
-        git diff -U0 --no-color ${{ github.sha }}^ > diff-to-inspect.txt
+        git diff -U0 --no-color ${{ github.sha }}^ -- include lib > diff-to-inspect.txt
         if [ -s diff-to-inspect.txt ]; then
           # Here we set an output of our step, which is used later to either
           # perform or skip further steps, i.e. there is no sense to install
@@ -58,7 +61,7 @@ jobs:
         curl -L "https://apt.llvm.org/llvm-snapshot.gpg.key" | sudo apt-key add -
         echo "deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic main" | sudo tee -a /etc/apt/sources.list
         sudo apt-get update
-        sudo apt-get install -yqq clang-format-9 clang-tidy-9 llvm-${{ env.LLVM_VERSION }}-dev
+        sudo apt-get install -yqq clang-format-9 clang-tidy-9 llvm-${{ env.LLVM_VERSION }}-dev libomp-${{ env.LLVM_VERSION }}-dev
 
     - name: Generate compile command database
       if: ${{ steps.gather-list-of-changes.outputs.HAS_CHANGES }}

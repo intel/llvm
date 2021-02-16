@@ -219,26 +219,28 @@ LLVM_NODISCARD Value *Negator::visitImpl(Value *V, unsigned Depth) {
     break; // Other instructions require recursive reasoning.
   }
 
+  if (I->getOpcode() == Instruction::Sub &&
+      (I->hasOneUse() || match(I->getOperand(0), m_ImmConstant()))) {
+    // `sub` is always negatible.
+    // However, only do this either if the old `sub` doesn't stick around, or
+    // it was subtracting from a constant. Otherwise, this isn't profitable.
+    return Builder.CreateSub(I->getOperand(1), I->getOperand(0),
+                             I->getName() + ".neg");
+  }
+
   // Some other cases, while still don't require recursion,
   // are restricted to the one-use case.
   if (!V->hasOneUse())
     return nullptr;
 
   switch (I->getOpcode()) {
-  case Instruction::Sub:
-    // `sub` is always negatible.
-    // But if the old `sub` sticks around, even thought we don't increase
-    // instruction count, this is a likely regression since we increased
-    // live-range of *both* of the operands, which might lead to more spilling.
-    return Builder.CreateSub(I->getOperand(1), I->getOperand(0),
-                             I->getName() + ".neg");
   case Instruction::SDiv:
     // `sdiv` is negatible if divisor is not undef/INT_MIN/1.
     // While this is normally not behind a use-check,
     // let's consider division to be special since it's costly.
     if (auto *Op1C = dyn_cast<Constant>(I->getOperand(1))) {
-      if (!Op1C->containsUndefElement() && Op1C->isNotMinSignedValue() &&
-          Op1C->isNotOneValue()) {
+      if (!Op1C->containsUndefOrPoisonElement() &&
+          Op1C->isNotMinSignedValue() && Op1C->isNotOneValue()) {
         Value *BO =
             Builder.CreateSDiv(I->getOperand(0), ConstantExpr::getNeg(Op1C),
                                I->getName() + ".neg");

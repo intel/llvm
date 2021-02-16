@@ -63,8 +63,7 @@ static Error writeVariableSizedInteger(uint64_t Integer, size_t Size,
 }
 
 static void ZeroFillBytes(raw_ostream &OS, size_t Size) {
-  std::vector<uint8_t> FillData;
-  FillData.insert(FillData.begin(), Size, 0);
+  std::vector<uint8_t> FillData(Size, 0);
   OS.write(reinterpret_cast<char *>(FillData.data()), Size);
 }
 
@@ -650,7 +649,7 @@ Error DWARFYAML::emitDebugAddr(raw_ostream &OS, const Data &DI) {
     writeInteger((uint8_t)TableEntry.SegSelectorSize, OS, DI.IsLittleEndian);
 
     for (const SegAddrPair &Pair : TableEntry.SegAddrPairs) {
-      if (TableEntry.SegSelectorSize != 0)
+      if (TableEntry.SegSelectorSize != yaml::Hex8{0})
         if (Error Err = writeVariableSizedInteger(Pair.Segment,
                                                   TableEntry.SegSelectorSize,
                                                   OS, DI.IsLittleEndian))

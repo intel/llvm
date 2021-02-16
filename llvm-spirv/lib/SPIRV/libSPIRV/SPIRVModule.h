@@ -236,6 +236,7 @@ public:
   virtual SPIRVTypePointer *addPointerType(SPIRVStorageClassKind,
                                            SPIRVType *) = 0;
   virtual SPIRVTypeStruct *openStructType(unsigned, const std::string &) = 0;
+  virtual SPIRVEntry *addTypeStructContinuedINTEL(unsigned NumMembers) = 0;
   virtual void closeStructType(SPIRVTypeStruct *, bool) = 0;
   virtual SPIRVTypeVector *addVectorType(SPIRVType *, SPIRVWord) = 0;
   virtual SPIRVTypeVoid *addVoidType() = 0;
@@ -252,6 +253,13 @@ public:
   // Constants creation functions
   virtual SPIRVValue *
   addCompositeConstant(SPIRVType *, const std::vector<SPIRVValue *> &) = 0;
+  virtual SPIRVEntry *
+  addCompositeConstantContinuedINTEL(const std::vector<SPIRVValue *> &) = 0;
+  virtual SPIRVValue *
+  addSpecConstantComposite(SPIRVType *Ty,
+                           const std::vector<SPIRVValue *> &Elements) = 0;
+  virtual SPIRVEntry *
+  addSpecConstantCompositeContinuedINTEL(const std::vector<SPIRVValue *> &) = 0;
   virtual SPIRVValue *addConstFunctionPointerINTEL(SPIRVType *Ty,
                                                    SPIRVFunction *F) = 0;
   virtual SPIRVValue *addConstant(SPIRVValue *) = 0;
@@ -484,6 +492,10 @@ public:
 
   bool allowExtraDIExpressions() const noexcept {
     return TranslationOpts.allowExtraDIExpressions();
+  }
+
+  bool shouldReplaceLLVMFmulAddWithOpenCLMad() const noexcept {
+    return TranslationOpts.shouldReplaceLLVMFmulAddWithOpenCLMad();
   }
 
   SPIRVExtInstSetKind getDebugInfoEIS() const {

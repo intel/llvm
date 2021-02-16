@@ -19,6 +19,7 @@ namespace detail {
 stream_impl::stream_impl(size_t BufferSize, size_t MaxStatementSize,
                          handler &CGH)
     : BufferSize_(BufferSize), MaxStatementSize_(MaxStatementSize) {
+  (void)CGH;
   // We need to store stream buffers in the scheduler because they need to be
   // alive after submitting the kernel. They cannot be stored in the stream
   // object because it causes loop dependency between objects and results in
@@ -27,7 +28,7 @@ stream_impl::stream_impl(size_t BufferSize, size_t MaxStatementSize,
   // the end of line symbol.
   detail::Scheduler::getInstance().allocateStreamBuffers(
       this, BufferSize + OffsetSize + 1 /* size of the stream buffer */,
-      MaxStatementSize /* size of the flush buffer */);
+      MaxStatementSize + FLUSH_BUF_OFFSET_SIZE /* size of the flush buffer */);
 }
 
 // Method to provide an access to the global stream buffer
@@ -43,7 +44,7 @@ GlobalBufAccessorT stream_impl::accessGlobalFlushBuf(handler &CGH) {
   return detail::Scheduler::getInstance()
       .StreamBuffersPool.find(this)
       ->second->FlushBuf.get_access<cl::sycl::access::mode::read_write>(
-          CGH, range<1>(MaxStatementSize_), id<1>(0));
+          CGH, range<1>(MaxStatementSize_ + FLUSH_BUF_OFFSET_SIZE), id<1>(0));
 }
 
 // Method to provide an atomic access to the offset in the global stream
@@ -76,7 +77,7 @@ void stream_impl::flush() {
                 cgh, range<1>(BufferSize_), id<1>(OffsetSize));
     // Create accessor to the flush buffer even if not using it yet. Otherwise
     // kernel will be a leaf for the flush buffer and scheduler will not be able
-    // to cleanup the kernel. TODO: git rid of finalize method by using host
+    // to cleanup the kernel. TODO: get rid of finalize method by using host
     // accessor to the flush buffer.
     auto FlushBufHostAcc =
         detail::Scheduler::getInstance()

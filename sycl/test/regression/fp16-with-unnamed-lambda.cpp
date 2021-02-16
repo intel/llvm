@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=host %t.out
+// RUN: %RUN_ON_HOST %t.out
 #include <CL/sycl.hpp>
 
 #include <iostream>

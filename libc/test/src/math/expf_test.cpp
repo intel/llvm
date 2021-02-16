@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "include/errno.h"
-#include "include/math.h"
 #include "src/errno/llvmlibc_errno.h"
 #include "src/math/expf.h"
 #include "utils/FPUtil/BitPatterns.h"
@@ -16,6 +15,7 @@
 #include "utils/FPUtil/FloatProperties.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
 #include "utils/UnitTest/Test.h"
+#include <math.h>
 
 #include <stdint.h>
 
@@ -28,7 +28,7 @@ using BitPatterns = __llvm_libc::fputil::BitPatterns<float>;
 
 namespace mpfr = __llvm_libc::testing::mpfr;
 
-TEST(ExpfTest, SpecialNumbers) {
+TEST(LlvmLibcExpfTest, SpecialNumbers) {
   llvmlibc_errno = 0;
 
   EXPECT_TRUE(
@@ -64,7 +64,7 @@ TEST(ExpfTest, SpecialNumbers) {
   EXPECT_EQ(llvmlibc_errno, 0);
 }
 
-TEST(ExpfTest, Overflow) {
+TEST(LlvmLibcExpfTest, Overflow) {
   llvmlibc_errno = 0;
   EXPECT_EQ(BitPatterns::inf,
             valueAsBits(__llvm_libc::expf(valueFromBits(0x7f7fffffU))));
@@ -81,7 +81,7 @@ TEST(ExpfTest, Overflow) {
   EXPECT_EQ(llvmlibc_errno, ERANGE);
 }
 
-TEST(ExpfTest, Underflow) {
+TEST(LlvmLibcExpfTest, Underflow) {
   llvmlibc_errno = 0;
   EXPECT_EQ(BitPatterns::zero,
             valueAsBits(__llvm_libc::expf(valueFromBits(0xff7fffffU))));
@@ -100,7 +100,7 @@ TEST(ExpfTest, Underflow) {
 
 // Test with inputs which are the borders of underflow/overflow but still
 // produce valid results without setting errno.
-TEST(ExpfTest, Borderline) {
+TEST(LlvmLibcExpfTest, Borderline) {
   float x;
 
   llvmlibc_errno = 0;
@@ -121,7 +121,7 @@ TEST(ExpfTest, Borderline) {
   EXPECT_EQ(llvmlibc_errno, 0);
 }
 
-TEST(ExpfTest, InFloatRange) {
+TEST(LlvmLibcExpfTest, InFloatRange) {
   constexpr uint32_t count = 1000000;
   constexpr uint32_t step = UINT32_MAX / count;
   for (uint32_t i = 0, v = 0; i <= count; ++i, v += step) {

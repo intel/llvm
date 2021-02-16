@@ -13,9 +13,11 @@
 
 // Test function scope static device variable, which should not be externalized.
 // DEV-DAG: @_ZZ6kernelPiPPKiE1w = internal addrspace(4) constant i32 1
+// DEV-DAG: @_ZZ6kernelPiPPKiE21local_static_constant = internal addrspace(4) constant i32 42
+// DEV-DAG: @_ZZ6kernelPiPPKiE19local_static_device = internal addrspace(1) constant i32 43
 
 // Check a static device variable referenced by host function is externalized.
-// DEV-DAG: @_ZL1x = addrspace(1) externally_initialized global i32 0
+// DEV-DAG: @_ZL1x ={{.*}} addrspace(1) externally_initialized global i32 0
 // HOST-DAG: @_ZL1x = internal global i32 undef
 // HOST-DAG: @[[DEVNAMEX:[0-9]+]] = {{.*}}c"_ZL1x\00"
 
@@ -27,22 +29,22 @@ static __device__ int x;
 static __device__ int x2;
 
 // Check a static device variable referenced by host device function is externalized.
-// DEV-DAG: @_ZL2x3 = addrspace(1) externally_initialized global i32 0
+// DEV-DAG: @_ZL2x3 ={{.*}} addrspace(1) externally_initialized global i32 0
 static __device__ int x3;
 
 // Check a static device variable referenced in file scope is externalized.
-// DEV-DAG: @_ZL2x4 = addrspace(1) externally_initialized global i32 0
+// DEV-DAG: @_ZL2x4 ={{.*}} addrspace(1) externally_initialized global i32 0
 static __device__ int x4;
 int& x4_ref = x4;
 
 // Check a static device variable in anonymous namespace.
-// DEV-DAG: @_ZN12_GLOBAL__N_12x5E = addrspace(1) externally_initialized global i32 0
+// DEV-DAG: @_ZN12_GLOBAL__N_12x5E ={{.*}} addrspace(1) externally_initialized global i32 0
 namespace {
 static __device__ int x5;
 }
 
 // Check a static constant variable referenced by host is externalized.
-// DEV-DAG: @_ZL1y = addrspace(4) externally_initialized global i32 0
+// DEV-DAG: @_ZL1y ={{.*}} addrspace(4) externally_initialized global i32 0
 // HOST-DAG: @_ZL1y = internal global i32 undef
 // HOST-DAG: @[[DEVNAMEY:[0-9]+]] = {{.*}}c"_ZL1y\00"
 
@@ -64,7 +66,7 @@ static constexpr int z2 = 456;
 // DEV-DAG: @_ZZ6devfunPPKiE1p = linkonce_odr addrspace(4) constant i32 2, comdat
 
 // Check a static device variable referenced by host function only is externalized.
-// DEV-DAG: @_ZL1w = addrspace(1) externally_initialized global i32 0
+// DEV-DAG: @_ZL1w ={{.*}} addrspace(1) externally_initialized global i32 0
 // HOST-DAG: @_ZL1w = internal global i32 undef
 // HOST-DAG: @[[DEVNAMEW:[0-9]+]] = {{.*}}c"_ZL1w\00"
 
@@ -78,6 +80,8 @@ inline __device__ void devfun(const int ** b) {
 
 __global__ void kernel(int *a, const int **b) {
   const static int w = 1;
+  const static __constant__ int local_static_constant = 42;
+  const static __device__ int local_static_device = 43;
   a[0] = x;
   a[1] = y;
   a[2] = x2;
@@ -86,6 +90,8 @@ __global__ void kernel(int *a, const int **b) {
   a[5] = x5;
   b[0] = &w;
   b[1] = &z2;
+  b[2] = &local_static_constant;
+  b[3] = &local_static_device;
   devfun(b);
 }
 

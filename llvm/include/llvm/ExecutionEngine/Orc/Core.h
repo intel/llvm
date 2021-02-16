@@ -17,6 +17,7 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/FunctionExtras.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
+#include "llvm/ExecutionEngine/JITLink/JITLinkDylib.h"
 #include "llvm/ExecutionEngine/JITSymbol.h"
 #include "llvm/ExecutionEngine/Orc/SymbolStringPool.h"
 #include "llvm/ExecutionEngine/OrcV1Deprecation.h"
@@ -849,6 +850,9 @@ class LookupState {
   friend class ExecutionSession;
 
 public:
+  LookupState();
+  LookupState(LookupState &&);
+  LookupState &operator=(LookupState &&);
   ~LookupState();
 
   /// Continue the lookup. This can be called by DefinitionGenerators
@@ -887,7 +891,8 @@ public:
 /// their addresses may be used as keys for resource management.
 /// JITDylib state changes must be made via an ExecutionSession to guarantee
 /// that they are synchronized with respect to other JITDylib operations.
-class JITDylib : public ThreadSafeRefCountedBase<JITDylib> {
+class JITDylib : public ThreadSafeRefCountedBase<JITDylib>,
+                 public jitlink::JITLinkDylib {
   friend class AsynchronousSymbolQuery;
   friend class ExecutionSession;
   friend class Platform;
@@ -1536,7 +1541,14 @@ Error JITDylib::define(std::unique_ptr<MaterializationUnitType> &&MU,
     return Error::success();
   } else
     DEBUG_WITH_TYPE("orc", {
-      dbgs() << "Defining MU " << MU->getName() << " for " << getName() << "\n";
+      dbgs() << "Defining MU " << MU->getName() << " for " << getName()
+             << " (tracker: ";
+      if (RT == getDefaultResourceTracker())
+        dbgs() << "default)";
+      else if (RT)
+        dbgs() << RT.get() << ")\n";
+      else
+        dbgs() << "0x0, default will be used)\n";
     });
 
   return ES.runSessionLocked([&, this]() -> Error {
@@ -1570,7 +1582,14 @@ Error JITDylib::define(std::unique_ptr<MaterializationUnitType> &MU,
     return Error::success();
   } else
     DEBUG_WITH_TYPE("orc", {
-      dbgs() << "Defining MU " << MU->getName() << " for " << getName() << "\n";
+      dbgs() << "Defining MU " << MU->getName() << " for " << getName()
+             << " (tracker: ";
+      if (RT == getDefaultResourceTracker())
+        dbgs() << "default)";
+      else if (RT)
+        dbgs() << RT.get() << ")\n";
+      else
+        dbgs() << "0x0, default will be used)\n";
     });
 
   return ES.runSessionLocked([&, this]() -> Error {

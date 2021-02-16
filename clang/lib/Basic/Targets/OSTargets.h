@@ -253,6 +253,7 @@ public:
     case llvm::Triple::mips:
     case llvm::Triple::mipsel:
     case llvm::Triple::ppc:
+    case llvm::Triple::ppcle:
     case llvm::Triple::ppc64:
     case llvm::Triple::ppc64le:
       this->MCountName = "_mcount";
@@ -383,8 +384,12 @@ protected:
       Triple.getEnvironmentVersion(Maj, Min, Rev);
       this->PlatformName = "android";
       this->PlatformMinVersion = VersionTuple(Maj, Min, Rev);
-      if (Maj)
-        Builder.defineMacro("__ANDROID_API__", Twine(Maj));
+      if (Maj) {
+        Builder.defineMacro("__ANDROID_MIN_SDK_VERSION__", Twine(Maj));
+        // This historical but ambiguous name for the minSdkVersion macro. Keep
+        // defined for compatibility.
+        Builder.defineMacro("__ANDROID_API__", "__ANDROID_MIN_SDK_VERSION__");
+      }
     } else {
         Builder.defineMacro("__gnu_linux__");
     }
@@ -409,6 +414,7 @@ public:
     case llvm::Triple::mips64:
     case llvm::Triple::mips64el:
     case llvm::Triple::ppc:
+    case llvm::Triple::ppcle:
     case llvm::Triple::ppc64:
     case llvm::Triple::ppc64le:
       this->MCountName = "_mcount";
@@ -673,6 +679,9 @@ protected:
     Builder.defineMacro("_POWER");
 
     Builder.defineMacro("_AIX");
+
+    if (Opts.EnableAIXExtendedAltivecABI)
+      Builder.defineMacro("__EXTABI__");
 
     unsigned Major, Minor, Micro;
     Triple.getOSVersion(Major, Minor, Micro);

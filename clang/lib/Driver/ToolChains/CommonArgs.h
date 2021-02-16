@@ -137,6 +137,14 @@ void addMultilibFlag(bool Enabled, const char *const Flag,
 
 void addX86AlignBranchArgs(const Driver &D, const llvm::opt::ArgList &Args,
                            llvm::opt::ArgStringList &CmdArgs, bool IsLTO);
+
+unsigned getOrCheckAMDGPUCodeObjectVersion(const Driver &D,
+                                           const llvm::opt::ArgList &Args,
+                                           bool Diagnose = false);
+
+void addMachineOutlinerArgs(const Driver &D, const llvm::opt::ArgList &Args,
+                            llvm::opt::ArgStringList &CmdArgs,
+                            const llvm::Triple &Triple, bool IsLTO);
 } // end namespace tools
 } // end namespace driver
 } // end namespace clang

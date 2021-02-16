@@ -386,6 +386,16 @@ AtomicISub(multi_ptr<T, AddressSpace> MPtr, ONEAPI::memory_scope Scope,
 }
 
 template <typename T, access::address_space AddressSpace>
+inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
+AtomicFAdd(multi_ptr<T, AddressSpace> MPtr, ONEAPI::memory_scope Scope,
+           ONEAPI::memory_order Order, T Value) {
+  auto *Ptr = MPtr.get();
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  return __spirv_AtomicFAddEXT(Ptr, SPIRVScope, SPIRVOrder, Value);
+}
+
+template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
 AtomicAnd(multi_ptr<T, AddressSpace> MPtr, ONEAPI::memory_scope Scope,
           ONEAPI::memory_order Order, T Value) {

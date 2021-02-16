@@ -230,7 +230,11 @@ struct sub_group {
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value, T>
   load(const multi_ptr<T, Space> src) const {
 #ifdef __SYCL_DEVICE_ONLY__
+#ifdef __NVPTX__
+    return src.get()[get_local_id()[0]];
+#else
     return sycl::detail::sub_group::load(src);
+#endif // __NVPTX__
 #else
     (void)src;
     throw runtime_error("Sub-groups are not supported on host device.",
@@ -258,7 +262,15 @@ struct sub_group {
       vec<T, N>>
   load(const multi_ptr<T, Space> src) const {
 #ifdef __SYCL_DEVICE_ONLY__
+#ifdef __NVPTX__
+    vec<T, N> res;
+    for (int i = 0; i < N; ++i) {
+      res[i] = *(src.get() + i * get_max_local_range()[0] + get_local_id()[0]);
+    }
+    return res;
+#else
     return sycl::detail::sub_group::load<N, T>(src);
+#endif // __NVPTX__
 #else
     (void)src;
     throw runtime_error("Sub-groups are not supported on host device.",
@@ -291,7 +303,11 @@ struct sub_group {
       vec<T, 1>>
   load(const multi_ptr<T, Space> src) const {
 #ifdef __SYCL_DEVICE_ONLY__
+#ifdef __NVPTX__
+    return src.get()[get_local_id()[0]];
+#else
     return sycl::detail::sub_group::load(src);
+#endif // __NVPTX__
 #else
     (void)src;
     throw runtime_error("Sub-groups are not supported on host device.",
@@ -304,7 +320,11 @@ struct sub_group {
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space> dst, const T &x) const {
 #ifdef __SYCL_DEVICE_ONLY__
+#ifdef __NVPTX__
+    dst.get()[get_local_id()[0]] = x;
+#else
     sycl::detail::sub_group::store(dst, x);
+#endif // __NVPTX__
 #else
     (void)dst;
     (void)x;
@@ -333,7 +353,11 @@ struct sub_group {
       N == 1>
   store(multi_ptr<T, Space> dst, const vec<T, 1> &x) const {
 #ifdef __SYCL_DEVICE_ONLY__
+#ifdef __NVPTX__
+    dst.get()[get_local_id()[0]] = x[0];
+#else
     store<T, Space>(dst, x);
+#endif // __NVPTX__
 #else
     (void)dst;
     (void)x;
@@ -348,7 +372,13 @@ struct sub_group {
       N != 1>
   store(multi_ptr<T, Space> dst, const vec<T, N> &x) const {
 #ifdef __SYCL_DEVICE_ONLY__
+#ifdef __NVPTX__
+    for (int i = 0; i < N; ++i) {
+      *(dst.get() + i * get_max_local_range()[0] + get_local_id()[0]) = x[i];
+    }
+#else
     sycl::detail::sub_group::store(dst, x);
+#endif // __NVPTX__
 #else
     (void)dst;
     (void)x;

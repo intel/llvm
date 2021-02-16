@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "src/math/cosf.h"
 #include "math_utils.h"
 #include "sincosf_utils.h"
 
-#include "include/math.h"
 #include "src/__support/common.h"
+#include <math.h>
 
 #include <stdint.h>
 
@@ -20,7 +21,7 @@ namespace __llvm_libc {
 // error is 0.5303 * 2^-23. A single-step range reduction is used for
 // small values. Large inputs have their range reduced using fast integer
 // arithmetic.
-float LLVM_LIBC_ENTRYPOINT(cosf)(float y) {
+LLVM_LIBC_FUNCTION(float, cosf, (float y)) {
   double x = y;
   double s;
   int n;

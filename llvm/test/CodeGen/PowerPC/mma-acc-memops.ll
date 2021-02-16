@@ -6,18 +6,16 @@
 ; RUN:   -mcpu=pwr10 -ppc-asm-full-reg-names \
 ; RUN:   -ppc-vsr-nums-as-vr < %s | FileCheck %s --check-prefix=BE-PAIRED
 
-@f = common local_unnamed_addr global <512 x i1> zeroinitializer, align 16
-@g = common local_unnamed_addr global <256 x i1> zeroinitializer, align 16
+@f = common dso_local local_unnamed_addr global <512 x i1> zeroinitializer, align 16
+@g = common dso_local local_unnamed_addr global <256 x i1> zeroinitializer, align 16
 
-define void @testLdSt(i64 %SrcIdx, i64 %DstIdx) {
+define dso_local void @testLdSt(i64 %SrcIdx, i64 %DstIdx) {
 ; LE-PAIRED-LABEL: testLdSt:
 ; LE-PAIRED:       # %bb.0: # %entry
 ; LE-PAIRED-NEXT:    plxv vs1, f@PCREL+96(0), 1
 ; LE-PAIRED-NEXT:    plxv vs0, f@PCREL+112(0), 1
 ; LE-PAIRED-NEXT:    plxv vs3, f@PCREL+64(0), 1
 ; LE-PAIRED-NEXT:    plxv vs2, f@PCREL+80(0), 1
-; LE-PAIRED-NEXT:    xxmtacc acc0
-; LE-PAIRED-NEXT:    xxmfacc acc0
 ; LE-PAIRED-NEXT:    pstxv vs0, f@PCREL+176(0), 1
 ; LE-PAIRED-NEXT:    pstxv vs1, f@PCREL+160(0), 1
 ; LE-PAIRED-NEXT:    pstxv vs2, f@PCREL+144(0), 1
@@ -26,14 +24,12 @@ define void @testLdSt(i64 %SrcIdx, i64 %DstIdx) {
 ;
 ; BE-PAIRED-LABEL: testLdSt:
 ; BE-PAIRED:       # %bb.0: # %entry
-; BE-PAIRED-NEXT:    addis r3, r2, .LC0@toc@ha
-; BE-PAIRED-NEXT:    ld r3, .LC0@toc@l(r3)
+; BE-PAIRED-NEXT:    addis r3, r2, f@toc@ha
+; BE-PAIRED-NEXT:    addi r3, r3, f@toc@l
 ; BE-PAIRED-NEXT:    lxv vs1, 80(r3)
 ; BE-PAIRED-NEXT:    lxv vs0, 64(r3)
 ; BE-PAIRED-NEXT:    lxv vs3, 112(r3)
 ; BE-PAIRED-NEXT:    lxv vs2, 96(r3)
-; BE-PAIRED-NEXT:    xxmtacc acc0
-; BE-PAIRED-NEXT:    xxmfacc acc0
 ; BE-PAIRED-NEXT:    stxv vs1, 144(r3)
 ; BE-PAIRED-NEXT:    stxv vs0, 128(r3)
 ; BE-PAIRED-NEXT:    stxv vs3, 176(r3)
@@ -47,7 +43,7 @@ entry:
   ret void
 }
 
-define void @testXLdSt(i64 %SrcIdx, i64 %DstIdx) {
+define dso_local void @testXLdSt(i64 %SrcIdx, i64 %DstIdx) {
 ; LE-PAIRED-LABEL: testXLdSt:
 ; LE-PAIRED:       # %bb.0: # %entry
 ; LE-PAIRED-NEXT:    sldi r3, r3, 6
@@ -58,8 +54,6 @@ define void @testXLdSt(i64 %SrcIdx, i64 %DstIdx) {
 ; LE-PAIRED-NEXT:    lxvx vs3, r5, r3
 ; LE-PAIRED-NEXT:    lxv vs2, 16(r6)
 ; LE-PAIRED-NEXT:    sldi r3, r4, 6
-; LE-PAIRED-NEXT:    xxmtacc acc0
-; LE-PAIRED-NEXT:    xxmfacc acc0
 ; LE-PAIRED-NEXT:    stxvx vs3, r5, r3
 ; LE-PAIRED-NEXT:    add r3, r5, r3
 ; LE-PAIRED-NEXT:    stxv vs0, 48(r3)
@@ -69,17 +63,15 @@ define void @testXLdSt(i64 %SrcIdx, i64 %DstIdx) {
 ;
 ; BE-PAIRED-LABEL: testXLdSt:
 ; BE-PAIRED:       # %bb.0: # %entry
-; BE-PAIRED-NEXT:    addis r5, r2, .LC0@toc@ha
+; BE-PAIRED-NEXT:    addis r5, r2, f@toc@ha
 ; BE-PAIRED-NEXT:    sldi r3, r3, 6
-; BE-PAIRED-NEXT:    ld r5, .LC0@toc@l(r5)
+; BE-PAIRED-NEXT:    addi r5, r5, f@toc@l
 ; BE-PAIRED-NEXT:    add r6, r5, r3
 ; BE-PAIRED-NEXT:    lxvx vs0, r5, r3
 ; BE-PAIRED-NEXT:    sldi r3, r4, 6
 ; BE-PAIRED-NEXT:    lxv vs1, 16(r6)
 ; BE-PAIRED-NEXT:    lxv vs3, 48(r6)
 ; BE-PAIRED-NEXT:    lxv vs2, 32(r6)
-; BE-PAIRED-NEXT:    xxmtacc acc0
-; BE-PAIRED-NEXT:    xxmfacc acc0
 ; BE-PAIRED-NEXT:    stxvx vs0, r5, r3
 ; BE-PAIRED-NEXT:    add r3, r5, r3
 ; BE-PAIRED-NEXT:    stxv vs1, 16(r3)
@@ -94,15 +86,13 @@ entry:
   ret void
 }
 
-define void @testUnalignedLdSt() {
+define dso_local void @testUnalignedLdSt() {
 ; LE-PAIRED-LABEL: testUnalignedLdSt:
 ; LE-PAIRED:       # %bb.0: # %entry
 ; LE-PAIRED-NEXT:    plxv vs1, f@PCREL+43(0), 1
 ; LE-PAIRED-NEXT:    plxv vs0, f@PCREL+59(0), 1
 ; LE-PAIRED-NEXT:    plxv vs3, f@PCREL+11(0), 1
 ; LE-PAIRED-NEXT:    plxv vs2, f@PCREL+27(0), 1
-; LE-PAIRED-NEXT:    xxmtacc acc0
-; LE-PAIRED-NEXT:    xxmfacc acc0
 ; LE-PAIRED-NEXT:    pstxv vs0, f@PCREL+67(0), 1
 ; LE-PAIRED-NEXT:    pstxv vs1, f@PCREL+51(0), 1
 ; LE-PAIRED-NEXT:    pstxv vs2, f@PCREL+35(0), 1
@@ -111,9 +101,9 @@ define void @testUnalignedLdSt() {
 ;
 ; BE-PAIRED-LABEL: testUnalignedLdSt:
 ; BE-PAIRED:       # %bb.0: # %entry
-; BE-PAIRED-NEXT:    addis r3, r2, .LC0@toc@ha
+; BE-PAIRED-NEXT:    addis r3, r2, f@toc@ha
 ; BE-PAIRED-NEXT:    li r4, 11
-; BE-PAIRED-NEXT:    ld r3, .LC0@toc@l(r3)
+; BE-PAIRED-NEXT:    addi r3, r3, f@toc@l
 ; BE-PAIRED-NEXT:    lxvx vs0, r3, r4
 ; BE-PAIRED-NEXT:    li r4, 27
 ; BE-PAIRED-NEXT:    lxvx vs1, r3, r4
@@ -122,8 +112,6 @@ define void @testUnalignedLdSt() {
 ; BE-PAIRED-NEXT:    li r4, 59
 ; BE-PAIRED-NEXT:    lxvx vs3, r3, r4
 ; BE-PAIRED-NEXT:    li r4, 35
-; BE-PAIRED-NEXT:    xxmtacc acc0
-; BE-PAIRED-NEXT:    xxmfacc acc0
 ; BE-PAIRED-NEXT:    stxvx vs1, r3, r4
 ; BE-PAIRED-NEXT:    li r4, 19
 ; BE-PAIRED-NEXT:    stxvx vs0, r3, r4
@@ -143,7 +131,7 @@ entry:
   ret void
 }
 
-define void @testLdStPair(i64 %SrcIdx, i64 %DstIdx) {
+define dso_local void @testLdStPair(i64 %SrcIdx, i64 %DstIdx) {
 ; LE-PAIRED-LABEL: testLdStPair:
 ; LE-PAIRED:       # %bb.0: # %entry
 ; LE-PAIRED-NEXT:    plxv vs1, g@PCREL+32(0), 1
@@ -154,8 +142,8 @@ define void @testLdStPair(i64 %SrcIdx, i64 %DstIdx) {
 ;
 ; BE-PAIRED-LABEL: testLdStPair:
 ; BE-PAIRED:       # %bb.0: # %entry
-; BE-PAIRED-NEXT:    addis r3, r2, .LC1@toc@ha
-; BE-PAIRED-NEXT:    ld r3, .LC1@toc@l(r3)
+; BE-PAIRED-NEXT:    addis r3, r2, g@toc@ha
+; BE-PAIRED-NEXT:    addi r3, r3, g@toc@l
 ; BE-PAIRED-NEXT:    lxv vs1, 48(r3)
 ; BE-PAIRED-NEXT:    lxv vs0, 32(r3)
 ; BE-PAIRED-NEXT:    stxv vs1, 80(r3)
@@ -169,7 +157,7 @@ entry:
   ret void
 }
 
-define void @testXLdStPair(i64 %SrcIdx, i64 %DstIdx) {
+define dso_local void @testXLdStPair(i64 %SrcIdx, i64 %DstIdx) {
 ; LE-PAIRED-LABEL: testXLdStPair:
 ; LE-PAIRED:       # %bb.0: # %entry
 ; LE-PAIRED-NEXT:    sldi r3, r3, 5
@@ -185,9 +173,9 @@ define void @testXLdStPair(i64 %SrcIdx, i64 %DstIdx) {
 ;
 ; BE-PAIRED-LABEL: testXLdStPair:
 ; BE-PAIRED:       # %bb.0: # %entry
-; BE-PAIRED-NEXT:    addis r5, r2, .LC1@toc@ha
+; BE-PAIRED-NEXT:    addis r5, r2, g@toc@ha
 ; BE-PAIRED-NEXT:    sldi r3, r3, 5
-; BE-PAIRED-NEXT:    ld r5, .LC1@toc@l(r5)
+; BE-PAIRED-NEXT:    addi r5, r5, g@toc@l
 ; BE-PAIRED-NEXT:    add r6, r5, r3
 ; BE-PAIRED-NEXT:    lxvx vs0, r5, r3
 ; BE-PAIRED-NEXT:    sldi r3, r4, 5
@@ -204,7 +192,7 @@ entry:
   ret void
 }
 
-define void @testUnalignedLdStPair() {
+define dso_local void @testUnalignedLdStPair() {
 ; LE-PAIRED-LABEL: testUnalignedLdStPair:
 ; LE-PAIRED:       # %bb.0: # %entry
 ; LE-PAIRED-NEXT:    plxv vs1, g@PCREL+11(0), 1
@@ -215,9 +203,9 @@ define void @testUnalignedLdStPair() {
 ;
 ; BE-PAIRED-LABEL: testUnalignedLdStPair:
 ; BE-PAIRED:       # %bb.0: # %entry
-; BE-PAIRED-NEXT:    addis r3, r2, .LC1@toc@ha
+; BE-PAIRED-NEXT:    addis r3, r2, g@toc@ha
 ; BE-PAIRED-NEXT:    li r4, 11
-; BE-PAIRED-NEXT:    ld r3, .LC1@toc@l(r3)
+; BE-PAIRED-NEXT:    addi r3, r3, g@toc@l
 ; BE-PAIRED-NEXT:    lxvx vs0, r3, r4
 ; BE-PAIRED-NEXT:    li r4, 27
 ; BE-PAIRED-NEXT:    lxvx vs1, r3, r4

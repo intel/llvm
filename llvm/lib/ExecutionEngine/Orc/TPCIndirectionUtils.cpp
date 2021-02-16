@@ -109,7 +109,7 @@ Error TPCTrampolinePool::grow() {
   jitlink::JITLinkMemoryManager::SegmentsRequestMap Request;
   Request[TrampolinePagePermissions] = {PageSize, static_cast<size_t>(PageSize),
                                         0};
-  auto Alloc = TPC.getMemMgr().allocate(Request);
+  auto Alloc = TPC.getMemMgr().allocate(nullptr, Request);
 
   if (!Alloc)
     return Alloc.takeError();
@@ -160,7 +160,7 @@ Error TPCIndirectStubsManager::createStubs(const StubInitsMap &StubInits) {
   switch (TPCIU.getABISupport().getPointerSize()) {
   case 4: {
     unsigned ASIdx = 0;
-    std::vector<TargetProcessControl::MemoryAccess::UInt32Write> PtrUpdates;
+    std::vector<tpctypes::UInt32Write> PtrUpdates;
     for (auto &SI : StubInits)
       PtrUpdates.push_back({(*AvailableStubInfos)[ASIdx++].PointerAddress,
                             static_cast<uint32_t>(SI.second.first)});
@@ -168,7 +168,7 @@ Error TPCIndirectStubsManager::createStubs(const StubInitsMap &StubInits) {
   }
   case 8: {
     unsigned ASIdx = 0;
-    std::vector<TargetProcessControl::MemoryAccess::UInt64Write> PtrUpdates;
+    std::vector<tpctypes::UInt64Write> PtrUpdates;
     for (auto &SI : StubInits)
       PtrUpdates.push_back({(*AvailableStubInfos)[ASIdx++].PointerAddress,
                             static_cast<uint64_t>(SI.second.first)});
@@ -213,11 +213,11 @@ Error TPCIndirectStubsManager::updatePointer(StringRef Name,
   auto &MemAccess = TPCIU.getTargetProcessControl().getMemoryAccess();
   switch (TPCIU.getABISupport().getPointerSize()) {
   case 4: {
-    TargetProcessControl::MemoryAccess::UInt32Write PUpdate(PtrAddr, NewAddr);
+    tpctypes::UInt32Write PUpdate(PtrAddr, NewAddr);
     return MemAccess.writeUInt32s(PUpdate);
   }
   case 8: {
-    TargetProcessControl::MemoryAccess::UInt64Write PUpdate(PtrAddr, NewAddr);
+    tpctypes::UInt64Write PUpdate(PtrAddr, NewAddr);
     return MemAccess.writeUInt64s(PUpdate);
   }
   default:
@@ -294,7 +294,7 @@ TPCIndirectionUtils::writeResolverBlock(JITTargetAddress ReentryFnAddr,
   jitlink::JITLinkMemoryManager::SegmentsRequestMap Request;
   Request[ResolverBlockPermissions] = {TPC.getPageSize(),
                                        static_cast<size_t>(ResolverSize), 0};
-  auto Alloc = TPC.getMemMgr().allocate(Request);
+  auto Alloc = TPC.getMemMgr().allocate(nullptr, Request);
   if (!Alloc)
     return Alloc.takeError();
 
@@ -364,7 +364,7 @@ TPCIndirectionUtils::getIndirectStubs(unsigned NumStubs) {
     Request[StubPagePermissions] = {PageSize, static_cast<size_t>(StubBytes),
                                     0};
     Request[PointerPagePermissions] = {PageSize, 0, PointerBytes};
-    auto Alloc = TPC.getMemMgr().allocate(Request);
+    auto Alloc = TPC.getMemMgr().allocate(nullptr, Request);
     if (!Alloc)
       return Alloc.takeError();
 
