@@ -3,6 +3,7 @@
 #endif
 
 EXT(SPV_EXT_shader_atomic_float_add)
+EXT(SPV_EXT_shader_atomic_float_min_max)
 EXT(SPV_KHR_no_integer_wrap_decoration)
 EXT(SPV_KHR_float_controls)
 EXT(SPV_INTEL_subgroups)
