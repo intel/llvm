@@ -2894,9 +2894,17 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Res,
   if (LangOpts.OpenMPIsDevice)
     Res.getTargetOpts().HostTriple = Res.getFrontendOpts().AuxTriple;
 
-  // Set the triple of the host for SYCL device compile.
-  if (LangOpts.SYCLIsDevice)
+  if (LangOpts.SYCLIsDevice) {
+    // Set the triple of the host for SYCL device compile.
     Res.getTargetOpts().HostTriple = Res.getFrontendOpts().AuxTriple;
+    // If specified, create an empty integration header file for now.
+    const StringRef &HeaderName = LangOpts.SYCLIntHeader;
+    if (!HeaderName.empty()) {
+      int ResultFD = 0;
+      // Ignore the return value; compilation will fail if this file is absent.
+      (void)llvm::sys::fs::openFileForWrite(HeaderName, ResultFD);
+    }
+  }
 
   Success &= ParseCodeGenArgs(Res.getCodeGenOpts(), Args, DashX, Diags, T,
                               Res.getFrontendOpts().OutputFile, LangOpts);
