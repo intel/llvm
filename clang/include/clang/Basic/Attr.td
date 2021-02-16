@@ -1304,6 +1304,11 @@ def SYCLIntelMaxWorkGroupSize : InheritableAttr {
     ArrayRef<const Expr *> dimensions() const {
       return {getXDim(), getYDim(), getZDim()};
     }
+    bool isValueDependent() const {
+      return (getXDim() && getXDim()->isValueDependent()) ||
+             (getYDim() && getYDim()->isValueDependent()) ||
+             (getZDim() && getZDim()->isValueDependent());
+    }
     Optional<llvm::APSInt> getXDimVal(ASTContext &Ctx) const {
       return getXDim()->getIntegerConstantExpr(Ctx);
     }
@@ -2845,7 +2850,7 @@ def ReqdWorkGroupSize : InheritableAttr {
     ArrayRef<const Expr *> dimensions() const {
       return {getXDim(), getYDim(), getZDim()};
     }
-    bool isDependent() const {
+    bool isValueDependent() const {
       return (getXDim() && getXDim()->isValueDependent()) ||
              (getYDim() && getYDim()->isValueDependent()) ||
              (getZDim() && getZDim()->isValueDependent());

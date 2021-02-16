@@ -13074,7 +13074,7 @@ void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
     if (CI.getParsedKind() == ParsedAttr::AT_IntelReqdSubGroupSize) {
       if (ArgInt <= 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-            << CI << /*positive*/ 0;
+            << CI.getAttrName() << /*positive*/ 0;
         return;
       }
     }
@@ -13082,14 +13082,14 @@ void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
         CI.getParsedKind() == ParsedAttr::AT_SYCLIntelNumSimdWorkItems) {
       if (ArgInt < 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-            << CI << /*non-negative*/ 1;
+            << CI.getAttrName() << /*non-negative*/ 1;
         return;
       }
     }
     if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
       if (ArgInt > 3) {
         Diag(E->getBeginLoc(), diag::err_attribute_argument_out_of_range)
-            << CI << 0 << 3 << E->getSourceRange();
+            << CI.getAttrName() << 0 << 3 << E->getSourceRange();
         return;
       }
     }
@@ -13098,8 +13098,8 @@ void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
   D->addAttr(::new (Context) AttrType(Context, CI, E));
 }
 
-static Expr *checkWorkSizeAttrExpr(Sema &S, const AttributeCommonInfo &CI,
-                                   Expr *E) {
+static Expr *checkMaxWorkSizeAttrExpr(Sema &S, const AttributeCommonInfo &CI,
+                                      Expr *E) {
   assert(E && "Attribute must have an argument.");
 
   if (!E->isInstantiationDependent()) {
@@ -13144,9 +13144,9 @@ void Sema::addIntelSYCLTripleArgFunctionAttr(Decl *D,
       !ZDimExpr->isValueDependent()) {
 
     // Save ConstantExpr in semantic attribute
-    XDimExpr = checkWorkSizeAttrExpr(*this, CI, XDimExpr);
-    YDimExpr = checkWorkSizeAttrExpr(*this, CI, YDimExpr);
-    ZDimExpr = checkWorkSizeAttrExpr(*this, CI, ZDimExpr);
+    XDimExpr = checkMaxWorkSizeAttrExpr(*this, CI, XDimExpr);
+    YDimExpr = checkMaxWorkSizeAttrExpr(*this, CI, YDimExpr);
+    ZDimExpr = checkMaxWorkSizeAttrExpr(*this, CI, ZDimExpr);
 
     if (!XDimExpr || !YDimExpr || !ZDimExpr)
       return;
@@ -13231,7 +13231,8 @@ FPGALoopAttrT *Sema::BuildSYCLIntelFPGALoopAttr(const AttributeCommonInfo &A,
 
     if (!ArgVal) {
       Diag(E->getExprLoc(), diag::err_attribute_argument_type)
-          << A << AANT_ArgumentIntegerConstant << E->getSourceRange();
+          << A.getAttrName() << AANT_ArgumentIntegerConstant
+          << E->getSourceRange();
       return nullptr;
     }
 
@@ -13241,7 +13242,7 @@ FPGALoopAttrT *Sema::BuildSYCLIntelFPGALoopAttr(const AttributeCommonInfo &A,
         A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGALoopCoalesce) {
       if (Val <= 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-            << A << /* positive */ 0;
+            << A.getAttrName() << /* positive */ 0;
         return nullptr;
       }
     } else if (A.getParsedKind() ==
@@ -13252,7 +13253,7 @@ FPGALoopAttrT *Sema::BuildSYCLIntelFPGALoopAttr(const AttributeCommonInfo &A,
                    ParsedAttr::AT_SYCLIntelFPGASpeculatedIterations) {
       if (Val < 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-            << A << /* non-negative */ 1;
+            << A.getAttrName() << /* non-negative */ 1;
         return nullptr;
       }
     } else {
