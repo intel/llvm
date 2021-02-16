@@ -54,6 +54,63 @@ see [ABI Policy Guide](sycl/doc/ABIPolicyGuide.md) for more information.
 - Run regression tests -
 [instructions](sycl/doc/GetStartedGuide.md#test-dpc-toolchain).
 
+### Tests development
+
+Every product change should be accompanied with corresponding test modification
+(adding new test(s), extending, removing or modifying existing test(s)).
+
+There are 3 types of tests which are used for DPC++ toolchain validation:
+* DPC++ in-tree LIT tests including [check-llvm](../../llvm/test),
+[check-clang](../../clang/test), [check-llvm-spirv](../../llvm-spirv/test) and
+[check-sycl](../../sycl/test) targets stored in this repository. These tests
+should not have hardware (e.g. GPU, FPGA, etc.) or external software
+dependencies (e.g. OpenCL, Level Zero, CUDA runtimes). All tests not following
+this approach should be moved to DPC++ end-to-end or SYCL-CTS tests.
+However, the tests for a feature under active development requiring atomic
+change for tests and product can be put to
+[sycl/test/on-device](../../sycl/test/on-device) temporarily. It is developer
+responsibility to move the tests to DPC++ E2E test suite or SYCL-CTS once
+the feature is stabilized.
+
+    **Guidelines for adding DPC++ in-tree LIT tests (DPC++ Clang FE tests)**:
+    - Use `sycl::` namespace instead of `cl::sycl::`
+
+    - Include sycl mock headers as system headers.
+    Example: `-internal-isystem %S/Inputs`
+    `#include "sycl.hpp"`
+
+    - Use SYCL functions for invoking kernels from the mock header `(single_task, parallel_for, parallel_for_work_group)`
+    Example:
+    ```bash
+    `#include "Inputs/sycl.hpp"`
+    sycl::queue q;
+    q.submit([&](cl::sycl::handler &h) {
+    h.single_task( { //code });
+    });
+    ```
+
+    - Add a helpful comment describing what the test does at the beginning and other comments throughout the test as necessary.
+
+    - Try to follow descriptive naming convention for variables, functions as much as possible.
+    Please refer [LLVM naming convention](https://llvm.org/docs/CodingStandards.html#name-types-functions-variables-and-enumerators-properly)
+
+* DPC++ end-to-end (E2E) tests which are extension to
+[LLVM\* test suite](https://github.com/intel/llvm-test-suite/tree/intel/SYCL).
+A test which requires full stack including backend runtimes (e.g. OpenCL,
+Level Zero or CUDA) should be put to DPC++ E2E test suite following
+[CONTRIBUTING](https://github.com/intel/llvm-test-suite/blob/intel/CONTRIBUTING.md).
+
+* SYCL-CTS are official 
+[Khronos\* SYCL\* conformance tests](https://github.com/KhronosGroup/SYCL-CTS).
+They verify SYCL specification compatibility. All implementation details or
+extensions are out of scope for the tests. If SYCL specification has changed
+(SYCL CTS tests conflict with recent version of SYCL specification) or change
+is required in the way the tests are built with DPC++ compiler (defined in
+[FindIntel_SYCL](https://github.com/KhronosGroup/SYCL-CTS/blob/SYCL-1.2.1/master/cmake/FindIntel_SYCL.cmake))
+pull request should be created under
+[KhronosGroup/SYCL-CTS](https://github.com/KhronosGroup/SYCL-CTS) with required
+patch.
+
 ### Commit message
 
 - When writing your commit message, please make sure to follow

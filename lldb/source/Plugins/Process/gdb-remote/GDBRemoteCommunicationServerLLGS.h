@@ -59,6 +59,17 @@ public:
   ///     attach operation.
   Status AttachToProcess(lldb::pid_t pid);
 
+  /// Wait to attach to a process with a given name.
+  ///
+  /// This method supports waiting for the next instance of a process
+  /// with a given name and attaching llgs to that via the configured
+  /// Platform.
+  ///
+  /// \return
+  ///     An Status object indicating the success or failure of the
+  ///     attach operation.
+  Status AttachWaitProcess(llvm::StringRef process_name, bool include_existing);
+
   // NativeProcessProtocol::NativeDelegate overrides
   void InitializeDelegate(NativeProcessProtocol *process) override;
 
@@ -169,6 +180,12 @@ protected:
   PacketResult Handle_QRestoreRegisterState(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_vAttach(StringExtractorGDBRemote &packet);
+
+  PacketResult Handle_vAttachWait(StringExtractorGDBRemote &packet);
+
+  PacketResult Handle_qVAttachOrWaitSupported(StringExtractorGDBRemote &packet);
+
+  PacketResult Handle_vAttachOrWait(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_D(StringExtractorGDBRemote &packet);
 

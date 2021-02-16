@@ -21,38 +21,38 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 enum class image_channel_order : unsigned int {
-  a,
-  r,
-  rx,
-  rg,
-  rgx,
-  ra,
-  rgb,
-  rgbx,
-  rgba,
-  argb,
-  bgra,
-  intensity,
-  luminance,
-  abgr
+  a = 0,
+  r = 1,
+  rx = 2,
+  rg = 3,
+  rgx = 4,
+  ra = 5,
+  rgb = 6,
+  rgbx = 7,
+  rgba = 8,
+  argb = 9,
+  bgra = 10,
+  intensity = 11,
+  luminance = 12,
+  abgr = 13
 };
 
 enum class image_channel_type : unsigned int {
-  snorm_int8,
-  snorm_int16,
-  unorm_int8,
-  unorm_int16,
-  unorm_short_565,
-  unorm_short_555,
-  unorm_int_101010,
-  signed_int8,
-  signed_int16,
-  signed_int32,
-  unsigned_int8,
-  unsigned_int16,
-  unsigned_int32,
-  fp16,
-  fp32
+  snorm_int8 = 0,
+  snorm_int16 = 1,
+  unorm_int8 = 2,
+  unorm_int16 = 3,
+  unorm_short_565 = 4,
+  unorm_short_555 = 5,
+  unorm_int_101010 = 6,
+  signed_int8 = 7,
+  signed_int16 = 8,
+  signed_int32 = 9,
+  unsigned_int8 = 10,
+  unsigned_int16 = 11,
+  unsigned_int32 = 13,
+  fp16 = 14,
+  fp32 = 15
 };
 
 using byte = unsigned char;

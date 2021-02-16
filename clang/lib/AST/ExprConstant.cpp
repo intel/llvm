@@ -9798,7 +9798,14 @@ bool RecordExprEvaluator::VisitInitListExpr(const InitListExpr *E) {
     ThisOverrideRAII ThisOverride(*Info.CurrentCall, &This,
                                   isa<CXXDefaultInitExpr>(InitExpr));
 
-    return EvaluateInPlace(Result.getUnionValue(), Info, Subobject, InitExpr);
+    if (EvaluateInPlace(Result.getUnionValue(), Info, Subobject, InitExpr)) {
+      if (Field->isBitField())
+        return truncateBitfieldValue(Info, InitExpr, Result.getUnionValue(),
+                                     Field);
+      return true;
+    }
+
+    return false;
   }
 
   if (!Result.hasValue())
@@ -10193,7 +10200,7 @@ bool VectorExprEvaluator::VisitCastExpr(const CastExpr *E) {
           Elt = SValInt.rotl(i*EltSize+EltSize).zextOrTrunc(EltSize);
         else
           Elt = SValInt.rotr(i*EltSize).zextOrTrunc(EltSize);
-        Elts.push_back(APValue(APSInt(Elt, EltTy->isSignedIntegerType())));
+        Elts.push_back(APValue(APSInt(Elt, !EltTy->isSignedIntegerType())));
       }
     } else {
       return Error(E);
@@ -11413,9 +11420,9 @@ static bool tryEvaluateBuiltinObjectSize(const Expr *E, unsigned Type,
       return false;
   }
 
-  // If we point outside of the object, there are no accessible bytes.
-  if (LVal.getLValueOffset().isNegative() ||
-      ((Type & 1) && !LVal.Designator.isValidSubobject())) {
+  // If we point to before the start of the object, there are no accessible
+  // bytes.
+  if (LVal.getLValueOffset().isNegative()) {
     Size = 0;
     return true;
   }

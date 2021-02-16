@@ -555,10 +555,10 @@ def LLVM_ShuffleVectorOp : LLVM_Op<"shufflevector", [NoSideEffect]> {
     OpBuilderDAG<(ins "Value":$v1, "Value":$v2, "ArrayAttr":$mask,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>];
   let verifier = [{
-    auto wrappedVectorType1 = v1().getType().cast<LLVMVectorType>();
-    auto wrappedVectorType2 = v2().getType().cast<LLVMVectorType>();
-    if (wrappedVectorType1.getElementType() !=
-        wrappedVectorType2.getElementType())
+    auto type1 = v1().getType();
+    auto type2 = v2().getType();
+    if (::mlir::LLVM::getVectorElementType(type1) !=
+            ::mlir::LLVM::getVectorElementType(type2))
       return emitOpError("expected matching LLVM IR Dialect element types");
     return success();
   }];
@@ -1111,7 +1111,7 @@ def LLVM_ConstantOp
     %2 = llvm.mlir.constant(42.0 : f32) : f32
 
     // Splat dense vector constant.
-    %3 = llvm.mlir.constant(dense<1.0> : vector<4xf32>) : !llvm.vec<4 x f32>
+    %3 = llvm.mlir.constant(dense<1.0> : vector<4xf32>) : vector<4xf32>
     ```
   }];
 
@@ -1224,6 +1224,57 @@ def LLVM_SMulWithOverflowOp
 def LLVM_UMulWithOverflowOp
     : LLVM_IntrOp<"umul.with.overflow", [0], [], [], 2> {
   let arguments = (ins LLVM_Type, LLVM_Type);
+}
+
+//
+// Coroutine intrinsics.
+//
+
+def LLVM_CoroIdOp : LLVM_IntrOp<"coro.id", [], [], [], 1> {
+  let arguments = (ins LLVM_i32:$align,
+                       LLVM_i8Ptr:$promise,
+                       LLVM_i8Ptr:$coroaddr,
+                       LLVM_i8Ptr:$fnaddrs);
+  let assemblyFormat = "$align `,` $promise `,` $coroaddr `,` $fnaddrs"
+    " attr-dict `:` type($res)";
+}
+
+def LLVM_CoroBeginOp : LLVM_IntrOp<"coro.begin", [], [], [], 1> {
+  let arguments = (ins LLVM_TokenType:$token,
+                       LLVM_i8Ptr:$mem);
+  let assemblyFormat = "$token `,` $mem attr-dict `:` type($res)";
+}
+
+def LLVM_CoroSizeOp : LLVM_IntrOp<"coro.size", [0], [], [], 1> {
+  let assemblyFormat = "attr-dict `:` type($res)";
+}
+
+def LLVM_CoroSaveOp : LLVM_IntrOp<"coro.save", [], [], [], 1> {
+  let arguments = (ins LLVM_i8Ptr:$handle);
+  let assemblyFormat = "$handle attr-dict `:` type($res)";
+}
+
+def LLVM_CoroSuspendOp : LLVM_IntrOp<"coro.suspend", [], [], [], 1> {
+  let arguments = (ins LLVM_TokenType:$save,
+                       LLVM_i1:$final);
+  let assemblyFormat = "$save `,` $final attr-dict `:` type($res)";
+}
+
+def LLVM_CoroEndOp : LLVM_IntrOp<"coro.end", [], [], [], 1> {
+  let arguments = (ins LLVM_i8Ptr:$handle,
+                       LLVM_i1:$unwind);
+  let assemblyFormat = "$handle `,` $unwind attr-dict `:` type($res)";
+}
+
+def LLVM_CoroFreeOp : LLVM_IntrOp<"coro.free", [], [], [], 1> {
+  let arguments = (ins LLVM_TokenType:$id,
+                       LLVM_i8Ptr:$handle);
+  let assemblyFormat = "$id `,` $handle attr-dict `:` type($res)";
+}
+
+def LLVM_CoroResumeOp : LLVM_IntrOp<"coro.resume", [], [], [], 0> {
+  let arguments = (ins LLVM_i8Ptr:$handle);
+  let assemblyFormat = "$handle attr-dict";
 }
 
 //

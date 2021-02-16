@@ -148,7 +148,6 @@ private:
   mutable std::unique_ptr<Tool> SPIRVTranslator;
   mutable std::unique_ptr<Tool> SPIRCheck;
   mutable std::unique_ptr<Tool> SYCLPostLink;
-  mutable std::unique_ptr<Tool> PartialLink;
   mutable std::unique_ptr<Tool> BackendCompiler;
   mutable std::unique_ptr<Tool> FileTableTform;
 
@@ -165,7 +164,6 @@ private:
   Tool *getSPIRVTranslator() const;
   Tool *getSPIRCheck() const;
   Tool *getSYCLPostLink() const;
-  Tool *getPartialLink() const;
   Tool *getBackendCompiler() const;
   Tool *getTableTform() const;
 

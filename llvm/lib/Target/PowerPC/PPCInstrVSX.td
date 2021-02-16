@@ -2408,6 +2408,8 @@ def MrgWords {
 // arbitrarily chosen to be Big, Little.
 //
 // Predicate combinations available:
+// [HasVSX, IsLittleEndian, HasP8Altivec] Altivec patterns using VSX instr.
+// [HasVSX, IsBigEndian, HasP8Altivec] Altivec patterns using VSX instr.
 // [HasVSX]
 // [HasVSX, IsBigEndian]
 // [HasVSX, IsLittleEndian]
@@ -2435,6 +2437,18 @@ def MrgWords {
 // [HasVSX, HasP9Altivec, IsLittleEndian]
 // [HasVSX, IsISA3_0, HasDirectMove, IsBigEndian, IsPPC64]
 // [HasVSX, IsISA3_0, HasDirectMove, IsLittleEndian]
+
+// These Altivec patterns are here because we need a VSX instruction to match
+// the intrinsic (but only for little endian system).
+let Predicates = [HasVSX, IsLittleEndian, HasP8Altivec] in
+  def : Pat<(v16i8 (int_ppc_altivec_crypto_vpermxor v16i8:$a,
+                                                    v16i8:$b, v16i8:$c)),
+            (v16i8 (VPERMXOR $a, $b, (XXLNOR (COPY_TO_REGCLASS $c, VSRC),
+                                             (COPY_TO_REGCLASS $c, VSRC))))>;
+let Predicates = [HasVSX, IsBigEndian, HasP8Altivec] in
+  def : Pat<(v16i8 (int_ppc_altivec_crypto_vpermxor v16i8:$a,
+                                                    v16i8:$b, v16i8:$c)),
+            (v16i8 (VPERMXOR $a, $b, $c))>;
 
 let AddedComplexity = 400 in {
 // Valid for any VSX subtarget, regardless of endianness.
@@ -4647,20 +4661,24 @@ def : InstAlias<"xvmovdp $XT, $XB",
 def : InstAlias<"xvmovsp $XT, $XB",
                 (XVCPSGNSP vsrc:$XT, vsrc:$XB, vsrc:$XB)>;
 
-def : InstAlias<"xxspltd $XT, $XB, 0",
-                (XXPERMDI vsrc:$XT, vsrc:$XB, vsrc:$XB, 0)>;
-def : InstAlias<"xxspltd $XT, $XB, 1",
-                (XXPERMDI vsrc:$XT, vsrc:$XB, vsrc:$XB, 3)>;
+// Certain versions of the AIX assembler may missassemble these mnemonics.
+let Predicates = [ModernAs] in {
+  def : InstAlias<"xxspltd $XT, $XB, 0",
+                  (XXPERMDI vsrc:$XT, vsrc:$XB, vsrc:$XB, 0)>;
+  def : InstAlias<"xxspltd $XT, $XB, 1",
+                  (XXPERMDI vsrc:$XT, vsrc:$XB, vsrc:$XB, 3)>;
+  def : InstAlias<"xxspltd $XT, $XB, 0",
+                  (XXPERMDIs vsrc:$XT, vsfrc:$XB, 0)>;
+  def : InstAlias<"xxspltd $XT, $XB, 1",
+                  (XXPERMDIs vsrc:$XT, vsfrc:$XB, 3)>;
+}
+
 def : InstAlias<"xxmrghd $XT, $XA, $XB",
                 (XXPERMDI vsrc:$XT, vsrc:$XA, vsrc:$XB, 0)>;
 def : InstAlias<"xxmrgld $XT, $XA, $XB",
                 (XXPERMDI vsrc:$XT, vsrc:$XA, vsrc:$XB, 3)>;
 def : InstAlias<"xxswapd $XT, $XB",
                 (XXPERMDI vsrc:$XT, vsrc:$XB, vsrc:$XB, 2)>;
-def : InstAlias<"xxspltd $XT, $XB, 0",
-                (XXPERMDIs vsrc:$XT, vsfrc:$XB, 0)>;
-def : InstAlias<"xxspltd $XT, $XB, 1",
-                (XXPERMDIs vsrc:$XT, vsfrc:$XB, 3)>;
 def : InstAlias<"xxswapd $XT, $XB",
                 (XXPERMDIs vsrc:$XT, vsfrc:$XB, 2)>;
 def : InstAlias<"mfvrd $rA, $XT",

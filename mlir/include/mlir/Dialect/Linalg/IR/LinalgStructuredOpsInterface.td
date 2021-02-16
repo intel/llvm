@@ -611,6 +611,22 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
     >,
     InterfaceMethod<
       /*desc=*/[{
+        Return true if `opOperand` is an input tensor.
+      }],
+      /*retTy=*/"bool",
+      /*methodName=*/"isInputTensor",
+      /*args=*/(ins "OpOperand *":$opOperand),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        if (!opOperand->get().getType().template isa<RankedTensorType>())
+          return false;
+        if (opOperand->getOperandNumber() < $_op.getNumInputs())
+          return true;
+        return false;
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
         Return true if `opOperand` is an init tensor. This is true when it is
         an output tensor operand whose value is used in the payload region.
       }],
@@ -724,6 +740,18 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       /*defaultImplementation=*/[{
         return this->getOperation()->getOpOperands().take_front(
           getNumShapedOperands());
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Return the OpOperands for all the shaped operands.
+      }],
+      /*retTy=*/" OpOperand&",
+      /*methodName=*/"getShapedOpOperand",
+      /*args=*/(ins "unsigned":$i),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        return *(this->getShapedOpOperands().begin() + i);
       }]
     >,
     InterfaceMethod<
@@ -934,6 +962,56 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
         return inversePermutation(getLoopsToShapesMap());
       }]
     >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Return the position in the results of the affine map computed
+        by getLoopsToShapesMap() that represents the shape of an
+        operand (input or output) at a dimension.
+      }],
+      /*retTy=*/"Optional<unsigned>",
+      /*methodName=*/"getOperandDimPositionInLoopsToShapeMap",
+      /*args=*/(ins "unsigned":$operandIdx, "unsigned":$dim),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        unsigned pos = 0;
+        for (auto type : llvm::enumerate(getShapedOperandTypes())) {
+          if (type.index() == operandIdx) return pos + dim;
+          pos += type.value().getRank();
+        }
+        return {};
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Return the position in the results of the affine map computed
+        by getLoopsToShapesMap() that represents the shape of an
+        input operand at a dimension.
+      }],
+      /*retTy=*/"Optional<unsigned>",
+      /*methodName=*/"getInputValueDimPositionInLoopsToShapeMap",
+      /*args=*/(ins "unsigned":$inputIdx, "unsigned":$dim),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        if (inputIdx >= getNumInputs()) return {};
+        return getOperandDimPositionInLoopsToShapeMap(inputIdx, dim);
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Return the position in the results of the affine map computed
+        by getLoopsToShapesMap() that represents the shape of the
+        result value at a dimension.
+      }],
+      /*retTy=*/"Optional<unsigned>",
+      /*methodName=*/"getResultValueDimPositionInLoopsToShapeMap",
+      /*args=*/(ins "unsigned":$resultIdx, "unsigned":$dim),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        if (resultIdx >= getNumOutputs()) return {};
+        return getOperandDimPositionInLoopsToShapeMap(
+            getNumInputs() + resultIdx, dim);
+      }]
+    >,
 
     //===------------------------------------------------------------------===//
     // Other static interface methods.
@@ -1001,20 +1079,23 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
     /// init_tensors operands. Asserts that these operands are value types to
     /// allow transformations like tiling to just use the values when cloning
     /// `linalgOp`.
-    SmallVector<Value, 4> getAssumedNonShapedOperands() {
-      unsigned numShapedOperands = getNumShapedOperands();
-      unsigned nExtraOperands =
-        getOperation()->getNumOperands() - numShapedOperands;
-      SmallVector<Value, 4> res;
-      res.reserve(nExtraOperands);
-      for (unsigned i = 0; i < nExtraOperands; ++i) {
-        res.push_back(getOperation()->getOperand(numShapedOperands + i));
-        assert((res.back().getType().isSignlessIntOrIndexOrFloat()
-                || res.back().getType().template isa<VectorType>()) &&
-               "expected scalar or vector type");
+    Operation::operand_range getAssumedNonShapedOperands() {
+      Operation::operand_range res{
+        getOperation()->getOperands().begin() + getNumShapedOperands(),
+        getOperation()->getOperands().end()};
+      for (Type t : TypeRange{res}) {
+        (void)t;
+        assert((t.isSignlessIntOrIndexOrFloat() || t.template isa<VectorType>())
+               &&"expected scalar or vector type");
       }
       return res;
     }
+
+    /// Returns the value that expresses the shape of the output in terms of
+    /// shape of the input operands where possible
+    Optional<Value> inferResultDimFromInputShapes
+      (OpBuilder &b, Location loc, unsigned resultIdx, unsigned im);
+
     //========================================================================//
     // Helper functions to mutate the `operand_segment_sizes` attribute.
     // These are useful when cloning and changing operand types.

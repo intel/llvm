@@ -11,6 +11,7 @@
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/FunctionSupport.h"
 #include "mlir/Rewrite/PatternApplicator.h"
 #include "mlir/Transforms/Utils.h"
 #include "llvm/ADT/SetVector.h"
@@ -849,6 +850,7 @@ static void detachNestedAndErase(Operation *op) {
       block.dropAllDefinedValueUses();
     }
   }
+  op->dropAllUses();
   op->erase();
 }
 
@@ -1248,6 +1250,21 @@ ConversionPatternRewriter::ConversionPatternRewriter(MLIRContext *ctx)
     : PatternRewriter(ctx),
       impl(new detail::ConversionPatternRewriterImpl(*this)) {}
 ConversionPatternRewriter::~ConversionPatternRewriter() {}
+
+/// PatternRewriter hook for replacing the results of an operation when the
+/// given functor returns true.
+void ConversionPatternRewriter::replaceOpWithIf(
+    Operation *op, ValueRange newValues, bool *allUsesReplaced,
+    llvm::unique_function<bool(OpOperand &) const> functor) {
+  // TODO: To support this we will need to rework a bit of how replacements are
+  // tracked, given that this isn't guranteed to replace all of the uses of an
+  // operation. The main change is that now an operation can be replaced
+  // multiple times, in parts. The current "set" based tracking is mainly useful
+  // for tracking if a replaced operation should be ignored, i.e. if all of the
+  // uses will be replaced.
+  llvm_unreachable(
+      "replaceOpWithIf is currently not supported by DialectConversion");
+}
 
 /// PatternRewriter hook for replacing the results of an operation.
 void ConversionPatternRewriter::replaceOp(Operation *op, ValueRange newValues) {
@@ -2499,41 +2516,52 @@ auto TypeConverter::convertBlockSignature(Block *block)
 }
 
 /// Create a default conversion pattern that rewrites the type signature of a
-/// FuncOp.
+/// FunctionLike op. This only supports FunctionLike ops which use FunctionType
+/// to represent their type.
 namespace {
-struct FuncOpSignatureConversion : public OpConversionPattern<FuncOp> {
-  FuncOpSignatureConversion(MLIRContext *ctx, TypeConverter &converter)
-      : OpConversionPattern(converter, ctx) {}
+struct FunctionLikeSignatureConversion : public ConversionPattern {
+  FunctionLikeSignatureConversion(StringRef functionLikeOpName,
+                                  MLIRContext *ctx, TypeConverter &converter)
+      : ConversionPattern(functionLikeOpName, /*benefit=*/1, converter, ctx) {}
 
-  /// Hook for derived classes to implement combined matching and rewriting.
+  /// Hook to implement combined matching and rewriting for FunctionLike ops.
   LogicalResult
-  matchAndRewrite(FuncOp funcOp, ArrayRef<Value> operands,
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    FunctionType type = funcOp.getType();
+    FunctionType type = mlir::impl::getFunctionType(op);
 
     // Convert the original function types.
     TypeConverter::SignatureConversion result(type.getNumInputs());
     SmallVector<Type, 1> newResults;
     if (failed(typeConverter->convertSignatureArgs(type.getInputs(), result)) ||
         failed(typeConverter->convertTypes(type.getResults(), newResults)) ||
-        failed(rewriter.convertRegionTypes(&funcOp.getBody(), *typeConverter,
-                                           &result)))
+        failed(rewriter.convertRegionTypes(&mlir::impl::getFunctionBody(op),
+                                           *typeConverter, &result)))
       return failure();
 
     // Update the function signature in-place.
-    rewriter.updateRootInPlace(funcOp, [&] {
-      funcOp.setType(FunctionType::get(funcOp.getContext(),
-                                       result.getConvertedTypes(), newResults));
-    });
+    auto newType = FunctionType::get(rewriter.getContext(),
+                                     result.getConvertedTypes(), newResults);
+
+    rewriter.updateRootInPlace(
+        op, [&] { mlir::impl::setFunctionType(op, newType); });
+
     return success();
   }
 };
 } // end anonymous namespace
 
+void mlir::populateFunctionLikeTypeConversionPattern(
+    StringRef functionLikeOpName, OwningRewritePatternList &patterns,
+    MLIRContext *ctx, TypeConverter &converter) {
+  patterns.insert<FunctionLikeSignatureConversion>(functionLikeOpName, ctx,
+                                                   converter);
+}
+
 void mlir::populateFuncOpTypeConversionPattern(
     OwningRewritePatternList &patterns, MLIRContext *ctx,
     TypeConverter &converter) {
-  patterns.insert<FuncOpSignatureConversion>(ctx, converter);
+  populateFunctionLikeTypeConversionPattern<FuncOp>(patterns, ctx, converter);
 }
 
 //===----------------------------------------------------------------------===//

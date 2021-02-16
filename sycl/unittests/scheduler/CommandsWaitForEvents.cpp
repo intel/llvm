@@ -56,10 +56,10 @@ pi_result getEventInfoFunc(pi_event Event, pi_event_info PName, size_t PVSize,
 
   if (Event == TestContext->EventCtx1)
     *reinterpret_cast<pi_context *>(PV) =
-        reinterpret_cast<pi_context>(TestContext->Ctx1->get());
+        reinterpret_cast<pi_context>(TestContext->Ctx1->getHandleRef());
   else if (Event == TestContext->EventCtx2)
     *reinterpret_cast<pi_context *>(PV) =
-        reinterpret_cast<pi_context>(TestContext->Ctx2->get());
+        reinterpret_cast<pi_context>(TestContext->Ctx2->getHandleRef());
 
   return PI_SUCCESS;
 }
@@ -109,4 +109,7 @@ TEST_F(SchedulerTest, CommandsWaitForEvents) {
   ASSERT_TRUE(TestContext->EventCtx1WasWaited &&
               TestContext->EventCtx2WasWaited)
       << "Not all events were waited for";
+  delete TestContext.release(); // explicitly delete here is important for CUDA
+                                // BE to ensure that cuda driver is still in
+                                // memory while cuda objects are being freed.
 }

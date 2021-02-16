@@ -235,6 +235,22 @@ AArch64TTIImpl::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
       return LT.first;
     break;
   }
+  case Intrinsic::sadd_sat:
+  case Intrinsic::ssub_sat:
+  case Intrinsic::uadd_sat:
+  case Intrinsic::usub_sat: {
+    static const auto ValidSatTys = {MVT::v8i8,  MVT::v16i8, MVT::v4i16,
+                                     MVT::v8i16, MVT::v2i32, MVT::v4i32,
+                                     MVT::v2i64};
+    auto LT = TLI->getTypeLegalizationCost(DL, RetTy);
+    // This is a base cost of 1 for the vadd, plus 3 extract shifts if we
+    // need to extend the type, as it uses shr(qadd(shl, shl)).
+    unsigned Instrs =
+        LT.second.getScalarSizeInBits() == RetTy->getScalarSizeInBits() ? 1 : 4;
+    if (any_of(ValidSatTys, [&LT](MVT M) { return M == LT.second; }))
+      return LT.first * Instrs;
+    break;
+  }
   default:
     break;
   }
@@ -707,7 +723,7 @@ int AArch64TTIImpl::getCmpSelInstrCost(unsigned Opcode, Type *ValTy,
   int ISD = TLI->InstructionOpcodeToISD(Opcode);
   // We don't lower some vector selects well that are wider than the register
   // width.
-  if (ValTy->isVectorTy() && ISD == ISD::SELECT) {
+  if (isa<FixedVectorType>(ValTy) && ISD == ISD::SELECT) {
     // We would need this many instructions to hide the scalarization happening.
     const int AmortizationCost = 20;
 
@@ -749,6 +765,8 @@ int AArch64TTIImpl::getCmpSelInstrCost(unsigned Opcode, Type *ValTy,
         return Entry->Cost;
     }
   }
+  // The base case handles scalable vectors fine for now, since it treats the
+  // cost as 1 * legalization cost.
   return BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, VecPred, CostKind, I);
 }
 
@@ -1096,11 +1114,70 @@ bool AArch64TTIImpl::useReductionIntrinsic(unsigned Opcode, Type *Ty,
   return false;
 }
 
+int AArch64TTIImpl::getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
+                                           bool IsPairwise, bool IsUnsigned,
+                                           TTI::TargetCostKind CostKind) {
+  if (!isa<ScalableVectorType>(Ty))
+    return BaseT::getMinMaxReductionCost(Ty, CondTy, IsPairwise, IsUnsigned,
+                                         CostKind);
+  assert((isa<ScalableVectorType>(Ty) && isa<ScalableVectorType>(CondTy)) &&
+         "Both vector needs to be scalable");
+
+  std::pair<int, MVT> LT = TLI->getTypeLegalizationCost(DL, Ty);
+  int LegalizationCost = 0;
+  if (LT.first > 1) {
+    Type *LegalVTy = EVT(LT.second).getTypeForEVT(Ty->getContext());
+    unsigned CmpOpcode =
+        Ty->isFPOrFPVectorTy() ? Instruction::FCmp : Instruction::ICmp;
+    LegalizationCost =
+        getCmpSelInstrCost(CmpOpcode, LegalVTy, LegalVTy,
+                           CmpInst::BAD_ICMP_PREDICATE, CostKind) +
+        getCmpSelInstrCost(Instruction::Select, LegalVTy, LegalVTy,
+                           CmpInst::BAD_ICMP_PREDICATE, CostKind);
+    LegalizationCost *= LT.first - 1;
+  }
+
+  return LegalizationCost + /*Cost of horizontal reduction*/ 2;
+}
+
+int AArch64TTIImpl::getArithmeticReductionCostSVE(
+    unsigned Opcode, VectorType *ValTy, bool IsPairwise,
+    TTI::TargetCostKind CostKind) {
+  assert(!IsPairwise && "Cannot be pair wise to continue");
+
+  std::pair<int, MVT> LT = TLI->getTypeLegalizationCost(DL, ValTy);
+  int LegalizationCost = 0;
+  if (LT.first > 1) {
+    Type *LegalVTy = EVT(LT.second).getTypeForEVT(ValTy->getContext());
+    LegalizationCost = getArithmeticInstrCost(Opcode, LegalVTy, CostKind);
+    LegalizationCost *= LT.first - 1;
+  }
+
+  int ISD = TLI->InstructionOpcodeToISD(Opcode);
+  assert(ISD && "Invalid opcode");
+  // Add the final reduction cost for the legal horizontal reduction
+  switch (ISD) {
+  case ISD::ADD:
+  case ISD::AND:
+  case ISD::OR:
+  case ISD::XOR:
+  case ISD::FADD:
+    return LegalizationCost + 2;
+  default:
+    // TODO: Replace for invalid when InstructionCost is used
+    // cases not supported by SVE
+    return 16;
+  }
+}
+
 int AArch64TTIImpl::getArithmeticReductionCost(unsigned Opcode,
                                                VectorType *ValTy,
                                                bool IsPairwiseForm,
                                                TTI::TargetCostKind CostKind) {
 
+  if (isa<ScalableVectorType>(ValTy))
+    return getArithmeticReductionCostSVE(Opcode, ValTy, IsPairwiseForm,
+                                         CostKind);
   if (IsPairwiseForm)
     return BaseT::getArithmeticReductionCost(Opcode, ValTy, IsPairwiseForm,
                                              CostKind);

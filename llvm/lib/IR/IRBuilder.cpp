@@ -452,6 +452,13 @@ IRBuilderBase::CreateAssumption(Value *Cond,
   return createCallHelper(FnAssume, Ops, this, "", nullptr, OpBundles);
 }
 
+Instruction *IRBuilderBase::CreateNoAliasScopeDeclaration(Value *Scope) {
+  Module *M = BB->getModule();
+  auto *FnIntrinsic = Intrinsic::getDeclaration(
+      M, Intrinsic::experimental_noalias_scope_decl, {});
+  return createCallHelper(FnIntrinsic, {Scope}, this);
+}
+
 /// Create a call to a Masked Load intrinsic.
 /// \p Ptr       - base pointer for the load
 /// \p Alignment - alignment of the source location
@@ -885,8 +892,7 @@ CallInst *IRBuilderBase::CreateConstrainedFPCall(
     Optional<fp::ExceptionBehavior> Except) {
   llvm::SmallVector<Value *, 6> UseArgs;
 
-  for (auto *OneArg : Args)
-    UseArgs.push_back(OneArg);
+  append_range(UseArgs, Args);
   bool HasRoundingMD = false;
   switch (Callee->getIntrinsicID()) {
   default:
@@ -1040,9 +1046,7 @@ Value *IRBuilderBase::CreatePreserveArrayAccessIndex(
 
   Value *LastIndexV = getInt32(LastIndex);
   Constant *Zero = ConstantInt::get(Type::getInt32Ty(Context), 0);
-  SmallVector<Value *, 4> IdxList;
-  for (unsigned I = 0; I < Dimension; ++I)
-    IdxList.push_back(Zero);
+  SmallVector<Value *, 4> IdxList(Dimension, Zero);
   IdxList.push_back(LastIndexV);
 
   Type *ResultType =

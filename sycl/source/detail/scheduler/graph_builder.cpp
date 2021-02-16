@@ -635,45 +635,70 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
                                 0 /*ReMOffsetInBytes*/, false /*MIsSubBuffer*/);
       // Can reuse user data for the first allocation. Do so if host unified
       // memory is supported regardless of the access mode (the pointer will be
-      // reused) or if it's not and the access mode is not discard (the pointer
-      // will be copied).
+      // reused). For devices without host unified memory the initialization
+      // will be performed as a write operation.
       // TODO the case where the first alloca is made with a discard mode and
       // the user pointer is read-only is still not handled: it leads to
       // unnecessary copy on devices with unified host memory support.
+      const bool HostUnifiedMemory =
+          checkHostUnifiedMemory(Queue->getContextImplPtr());
       const bool InitFromUserData =
-          Record->MAllocaCommands.empty() &&
-          (checkHostUnifiedMemory(Queue->getContextImplPtr()) ||
-           (Req->MAccessMode != access::mode::discard_write &&
-            Req->MAccessMode != access::mode::discard_read_write));
-
+          Record->MAllocaCommands.empty() && HostUnifiedMemory;
       AllocaCommandBase *LinkedAllocaCmd = nullptr;
-      // If it is not the first allocation, try to setup a link
-      // FIXME: Temporary limitation, linked alloca commands for an image is not
-      // supported because map operation is not implemented for an image.
-      if (!Record->MAllocaCommands.empty() &&
-          Req->MSYCLMemObj->getType() == SYCLMemObjI::MemObjType::BUFFER)
-        // Current limitation is to setup link between current allocation and
-        // new one. There could be situations when we could setup link with
-        // "not" current allocation, but it will require memory copy.
-        // Can setup link between cl and host allocations only
-        if (Queue->is_host() != Record->MCurContext->is_host()) {
-          // Linked commands assume that the host allocation is reused by the
-          // plugin runtime and that can lead to unnecessary copy overhead on
-          // devices that do not support host unified memory. Do not link the
-          // allocations in this case.
-          const ContextImplPtr &NonHostCtx = Queue->is_host()
-                                                 ? Record->MCurContext
-                                                 : Queue->getContextImplPtr();
-          if (checkHostUnifiedMemory(NonHostCtx)) {
-            AllocaCommandBase *LinkedAllocaCmdCand =
-                findAllocaForReq(Record, Req, Record->MCurContext);
 
-            // Cannot setup link if candidate is linked already
-            if (LinkedAllocaCmdCand && !LinkedAllocaCmdCand->MLinkedAllocaCmd) {
-              LinkedAllocaCmd = LinkedAllocaCmdCand;
-            }
+      // For the first allocation on a device without host unified memory we
+      // might need to also create a host alloca right away in order to perform
+      // the initial memory write.
+      if (Record->MAllocaCommands.empty()) {
+        if (!HostUnifiedMemory &&
+            Req->MAccessMode != access::mode::discard_write &&
+            Req->MAccessMode != access::mode::discard_read_write) {
+          // There's no need to make a host allocation if the buffer is not
+          // initialized with user data.
+          // TODO casting is required here to get the necessary information
+          // without breaking ABI, replace with the next major version.
+          auto *MemObj = static_cast<SYCLMemObjT *>(Req->MSYCLMemObj);
+          if (MemObj->hasUserDataPtr()) {
+            QueueImplPtr DefaultHostQueue =
+                Scheduler::getInstance().getDefaultHostQueue();
+            AllocaCommand *HostAllocaCmd = new AllocaCommand(
+                DefaultHostQueue, FullReq, true /* InitFromUserData */,
+                nullptr /* LinkedAllocaCmd */);
+            Record->MAllocaCommands.push_back(HostAllocaCmd);
+            Record->MWriteLeaves.push_back(HostAllocaCmd);
+            ++(HostAllocaCmd->MLeafCounter);
+            Record->MCurContext = DefaultHostQueue->getContextImplPtr();
           }
         }
+      } else {
+        // If it is not the first allocation, try to setup a link
+        // FIXME: Temporary limitation, linked alloca commands for an image is
+        // not supported because map operation is not implemented for an image.
+        if (Req->MSYCLMemObj->getType() == SYCLMemObjI::MemObjType::BUFFER)
+          // Current limitation is to setup link between current allocation and
+          // new one. There could be situations when we could setup link with
+          // "not" current allocation, but it will require memory copy.
+          // Can setup link between cl and host allocations only
+          if (Queue->is_host() != Record->MCurContext->is_host()) {
+            // Linked commands assume that the host allocation is reused by the
+            // plugin runtime and that can lead to unnecessary copy overhead on
+            // devices that do not support host unified memory. Do not link the
+            // allocations in this case.
+            bool HostUnifiedMemoryOnNonHostDevice =
+                Queue->is_host() ? checkHostUnifiedMemory(Record->MCurContext)
+                                 : HostUnifiedMemory;
+            if (HostUnifiedMemoryOnNonHostDevice) {
+              AllocaCommandBase *LinkedAllocaCmdCand =
+                  findAllocaForReq(Record, Req, Record->MCurContext);
+
+              // Cannot setup link if candidate is linked already
+              if (LinkedAllocaCmdCand &&
+                  !LinkedAllocaCmdCand->MLinkedAllocaCmd) {
+                LinkedAllocaCmd = LinkedAllocaCmdCand;
+              }
+            }
+          }
+      }
 
       AllocaCmd =
           new AllocaCommand(Queue, FullReq, InitFromUserData, LinkedAllocaCmd);

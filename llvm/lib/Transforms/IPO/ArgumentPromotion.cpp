@@ -822,11 +822,9 @@ static bool canPaddingBeAccessed(Argument *arg) {
 
   // Scan through the uses recursively to make sure the pointer is always used
   // sanely.
-  SmallVector<Value *, 16> WorkList;
-  WorkList.insert(WorkList.end(), arg->user_begin(), arg->user_end());
+  SmallVector<Value *, 16> WorkList(arg->users());
   while (!WorkList.empty()) {
-    Value *V = WorkList.back();
-    WorkList.pop_back();
+    Value *V = WorkList.pop_back_val();
     if (isa<GetElementPtrInst>(V) || isa<PHINode>(V)) {
       if (PtrValues.insert(V).second)
         llvm::append_range(WorkList, V->users());

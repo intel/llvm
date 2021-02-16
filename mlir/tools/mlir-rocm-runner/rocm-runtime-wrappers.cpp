@@ -31,17 +31,33 @@
     llvm::errs() << "'" << #expr << "' failed with '" << name << "'\n";        \
   }(expr)
 
-// Static initialization of HIP context for device ordinal 0.
-static auto InitializeCtx = [] {
+// Static reference to HIP primary context for device ordinal 0.
+static hipCtx_t Context = [] {
   HIP_REPORT_IF_ERROR(hipInit(/*flags=*/0));
   hipDevice_t device;
   HIP_REPORT_IF_ERROR(hipDeviceGet(&device, /*ordinal=*/0));
-  hipContext_t context;
-  HIP_REPORT_IF_ERROR(hipCtxCreate(&context, /*flags=*/0, device));
-  return 0;
+  hipCtx_t context;
+  HIP_REPORT_IF_ERROR(hipDevicePrimaryCtxRetain(&context, device));
+  return context;
 }();
 
+// Sets the `Context` for the duration of the instance and restores the previous
+// context on destruction.
+class ScopedContext {
+public:
+  ScopedContext() {
+    HIP_REPORT_IF_ERROR(hipCtxGetCurrent(&previous));
+    HIP_REPORT_IF_ERROR(hipCtxSetCurrent(Context));
+  }
+
+  ~ScopedContext() { HIP_REPORT_IF_ERROR(hipCtxSetCurrent(previous)); }
+
+private:
+  hipCtx_t previous;
+};
+
 extern "C" hipModule_t mgpuModuleLoad(void *data) {
+  ScopedContext scopedContext;
   hipModule_t module = nullptr;
   HIP_REPORT_IF_ERROR(hipModuleLoadData(&module, data));
   return module;
@@ -67,12 +83,14 @@ extern "C" void mgpuLaunchKernel(hipFunction_t function, intptr_t gridX,
                                  intptr_t blockZ, int32_t smem,
                                  hipStream_t stream, void **params,
                                  void **extra) {
+  ScopedContext scopedContext;
   HIP_REPORT_IF_ERROR(hipModuleLaunchKernel(function, gridX, gridY, gridZ,
                                             blockX, blockY, blockZ, smem,
                                             stream, params, extra));
 }
 
 extern "C" hipStream_t mgpuStreamCreate() {
+  ScopedContext scopedContext;
   hipStream_t stream = nullptr;
   HIP_REPORT_IF_ERROR(hipStreamCreate(&stream));
   return stream;
@@ -91,6 +109,7 @@ extern "C" void mgpuStreamWaitEvent(hipStream_t stream, hipEvent_t event) {
 }
 
 extern "C" hipEvent_t mgpuEventCreate() {
+  ScopedContext scopedContext;
   hipEvent_t event = nullptr;
   HIP_REPORT_IF_ERROR(hipEventCreateWithFlags(&event, hipEventDisableTiming));
   return event;
@@ -109,18 +128,20 @@ extern "C" void mgpuEventRecord(hipEvent_t event, hipStream_t stream) {
 }
 
 extern "C" void *mgpuMemAlloc(uint64_t sizeBytes, hipStream_t /*stream*/) {
+  ScopedContext scopedContext;
   void *ptr;
-  HIP_REPORT_IF_ERROR(hipMemAlloc(&ptr, sizeBytes));
+  HIP_REPORT_IF_ERROR(hipMalloc(&ptr, sizeBytes));
   return ptr;
 }
 
 extern "C" void mgpuMemFree(void *ptr, hipStream_t /*stream*/) {
-  HIP_REPORT_IF_ERROR(hipMemFree(ptr));
+  HIP_REPORT_IF_ERROR(hipFree(ptr));
 }
 
 extern "C" void mgpuMemcpy(void *dst, void *src, uint64_t sizeBytes,
                            hipStream_t stream) {
-  HIP_REPORT_IF_ERROR(hipMemcpyAsync(dst, src, sizeBytes, stream));
+  HIP_REPORT_IF_ERROR(
+      hipMemcpyAsync(dst, src, sizeBytes, hipMemcpyDefault, stream));
 }
 
 /// Helper functions for writing mlir example code

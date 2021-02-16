@@ -9,7 +9,8 @@
 //
 
 #include "AMDGPU.h"
-#include "AMDGPUSubtarget.h"
+#include "GCNSubtarget.h"
+#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "SIMachineFunctionInfo.h"
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
@@ -125,15 +126,15 @@ char &llvm::SIFoldOperandsID = SIFoldOperands::ID;
 static unsigned macToMad(unsigned Opc) {
   switch (Opc) {
   case AMDGPU::V_MAC_F32_e64:
-    return AMDGPU::V_MAD_F32;
+    return AMDGPU::V_MAD_F32_e64;
   case AMDGPU::V_MAC_F16_e64:
-    return AMDGPU::V_MAD_F16;
+    return AMDGPU::V_MAD_F16_e64;
   case AMDGPU::V_FMAC_F32_e64:
-    return AMDGPU::V_FMA_F32;
+    return AMDGPU::V_FMA_F32_e64;
   case AMDGPU::V_FMAC_F16_e64:
-    return AMDGPU::V_FMA_F16_gfx9;
+    return AMDGPU::V_FMA_F16_gfx9_e64;
   case AMDGPU::V_FMAC_LEGACY_F32_e64:
-    return AMDGPU::V_FMA_LEGACY_F32;
+    return AMDGPU::V_FMA_LEGACY_F32_e64;
   }
   return AMDGPU::INSTRUCTION_LIST_END;
 }
@@ -642,14 +643,8 @@ void SIFoldOperands::foldOperand(
       // wave.
       MachineOperand &SOff =
           *TII->getNamedOperand(*UseMI, AMDGPU::OpName::soffset);
-      if ((!SOff.isReg() || SOff.getReg() != MFI->getStackPtrOffsetReg()) &&
-          (!SOff.isImm() || SOff.getImm() != 0))
+      if (!SOff.isImm() || SOff.getImm() != 0)
         return;
-
-      // If this is relative to the current wave, update it to be relative to
-      // the current frame.
-      if (SOff.isImm())
-        SOff.ChangeToRegister(MFI->getStackPtrOffsetReg(), false);
     }
 
     // A frame index will resolve to a positive constant, so it should always be
@@ -706,7 +701,7 @@ void SIFoldOperands::foldOperand(
 
       if (DestRC == &AMDGPU::AGPR_32RegClass &&
           TII->isInlineConstant(OpToFold, AMDGPU::OPERAND_REG_INLINE_C_INT32)) {
-        UseMI->setDesc(TII->get(AMDGPU::V_ACCVGPR_WRITE_B32));
+        UseMI->setDesc(TII->get(AMDGPU::V_ACCVGPR_WRITE_B32_e64));
         UseMI->getOperand(1).ChangeToImmediate(OpToFold.getImm());
         CopiesToReplace.push_back(UseMI);
         return;
@@ -770,7 +765,7 @@ void SIFoldOperands::foldOperand(
 
             auto Tmp = MRI->createVirtualRegister(&AMDGPU::AGPR_32RegClass);
             BuildMI(MBB, UseMI, DL,
-                    TII->get(AMDGPU::V_ACCVGPR_WRITE_B32), Tmp).addImm(Imm);
+                    TII->get(AMDGPU::V_ACCVGPR_WRITE_B32_e64), Tmp).addImm(Imm);
             B.addReg(Tmp);
           } else if (Def->isReg() && TRI->isAGPR(*MRI, Def->getReg())) {
             auto Src = getRegSubRegPair(*Def);
@@ -812,7 +807,7 @@ void SIFoldOperands::foldOperand(
             }
             auto Tmp = MRI->createVirtualRegister(&AMDGPU::AGPR_32RegClass);
             BuildMI(MBB, UseMI, DL,
-                    TII->get(AMDGPU::V_ACCVGPR_WRITE_B32), Tmp).addReg(Vgpr);
+                    TII->get(AMDGPU::V_ACCVGPR_WRITE_B32_e64), Tmp).addReg(Vgpr);
             B.addReg(Tmp);
           }
 
@@ -826,10 +821,10 @@ void SIFoldOperands::foldOperand(
         return;
       if (TRI->isAGPR(*MRI, UseMI->getOperand(0).getReg()) &&
           TRI->isVGPR(*MRI, UseMI->getOperand(1).getReg()))
-        UseMI->setDesc(TII->get(AMDGPU::V_ACCVGPR_WRITE_B32));
+        UseMI->setDesc(TII->get(AMDGPU::V_ACCVGPR_WRITE_B32_e64));
       else if (TRI->isVGPR(*MRI, UseMI->getOperand(0).getReg()) &&
                TRI->isAGPR(*MRI, UseMI->getOperand(1).getReg()))
-        UseMI->setDesc(TII->get(AMDGPU::V_ACCVGPR_READ_B32));
+        UseMI->setDesc(TII->get(AMDGPU::V_ACCVGPR_READ_B32_e64));
       return;
     }
 
@@ -1310,7 +1305,7 @@ const MachineOperand *SIFoldOperands::isClamp(const MachineInstr &MI) const {
   switch (Op) {
   case AMDGPU::V_MAX_F32_e64:
   case AMDGPU::V_MAX_F16_e64:
-  case AMDGPU::V_MAX_F64:
+  case AMDGPU::V_MAX_F64_e64:
   case AMDGPU::V_PK_MAX_F16: {
     if (!TII->getNamedOperand(MI, AMDGPU::OpName::clamp)->getImm())
       return nullptr;

@@ -52,6 +52,12 @@ def LLVM_Type : DialectType<LLVM_Dialect,
                             CPred<"::mlir::LLVM::isCompatibleType($_self)">,
                             "LLVM dialect-compatible type">;
 
+// Type constraint accepting LLVM token type.
+def LLVM_TokenType : Type<
+  CPred<"$_self.isa<::mlir::LLVM::LLVMTokenType>()">,
+  "LLVM token type">,
+  BuildableType<"::mlir::LLVM::LLVMTokenType::get($_builder.getContext())">;
+
 // Type constraint accepting LLVM integer types.
 def LLVM_AnyInteger : Type<
   CPred<"$_self.isa<::mlir::IntegerType>()">,
@@ -99,6 +105,16 @@ class LLVM_PointerTo<Type pointee> : Type<
          pointee.predicate>]>,
   "LLVM pointer to " # pointee.summary>;
 
+// Type constraints accepting LLVM pointer type to integer of a specific width.
+class LLVM_IntPtrBase<int width> : Type<
+  LLVM_PointerTo<LLVM_IntBase<width>>.predicate,
+  "LLVM pointer to " # LLVM_IntBase<width>.summary>,
+  BuildableType<"::mlir::LLVM::LLVMPointerType::get("
+                "::mlir::IntegerType::get($_builder.getContext(), "
+                # width #"))">;
+
+def LLVM_i8Ptr : LLVM_IntPtrBase<8>;
+
 // Type constraint accepting any LLVM structure type.
 def LLVM_AnyStruct : Type<CPred<"$_self.isa<::mlir::LLVM::LLVMStructType>()">,
                          "LLVM structure type">;
@@ -126,8 +142,8 @@ def LLVM_AnyNonAggregate : Type<Neg<LLVM_AnyAggregate.predicate>,
                                "LLVM non-aggregate type">;
 
 // Type constraint accepting any LLVM vector type.
-def LLVM_AnyVector : Type<CPred<"$_self.isa<::mlir::LLVM::LLVMVectorType>()">,
-                         "LLVM vector type">;
+def LLVM_AnyVector : Type<CPred<"::mlir::LLVM::isCompatibleVectorType($_self)">,
+                         "LLVM dialect-compatible vector type">;
 
 // Type constraint accepting an LLVM vector type with an additional constraint
 // on the vector element type.
@@ -135,9 +151,9 @@ class LLVM_VectorOf<Type element> : Type<
   And<[LLVM_AnyVector.predicate,
        SubstLeaves<
          "$_self",
-         "$_self.cast<::mlir::LLVM::LLVMVectorType>().getElementType()",
+         "::mlir::LLVM::getVectorElementType($_self)",
          element.predicate>]>,
-  "LLVM vector of " # element.summary>;
+  "LLVM dialect-compatible vector of " # element.summary>;
 
 // Type constraint accepting a constrained type, or a vector of such types.
 class LLVM_ScalarOrVectorOf<Type element> :

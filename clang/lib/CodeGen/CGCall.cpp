@@ -1991,7 +1991,9 @@ void CodeGenModule::ConstructAttributeList(
           FuncAttrs.addAttribute(llvm::Attribute::NoReturn);
         NBA = Fn->getAttr<NoBuiltinAttr>();
       }
-      if (!AttrOnCallSite && TargetDecl->hasAttr<NoMergeAttr>())
+      // Only place nomerge attribute on call sites, never functions. This
+      // allows it to work on indirect virtual function calls.
+      if (AttrOnCallSite && TargetDecl->hasAttr<NoMergeAttr>())
         FuncAttrs.addAttribute(llvm::Attribute::NoMerge);
     }
 
@@ -4769,17 +4771,6 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
             V->getType()->isIntegerTy())
           V = Builder.CreateZExt(V, ArgInfo.getCoerceToType());
 
-        if (FirstIRArg < IRFuncTy->getNumParams()) {
-          const auto *LHSPtrTy =
-              dyn_cast_or_null<llvm::PointerType>(V->getType());
-          const auto *RHSPtrTy = dyn_cast_or_null<llvm::PointerType>(
-              IRFuncTy->getParamType(FirstIRArg));
-          if (LHSPtrTy && RHSPtrTy &&
-              LHSPtrTy->getAddressSpace() != RHSPtrTy->getAddressSpace())
-            V = Builder.CreateAddrSpaceCast(V,
-                                            IRFuncTy->getParamType(FirstIRArg));
-        }
-
         // If the argument doesn't match, perform a bitcast to coerce it.  This
         // can happen due to trivial type mismatches.
         if (FirstIRArg < IRFuncTy->getNumParams() &&
@@ -5000,20 +4991,6 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   if (!CallArgs.getCleanupsToDeactivate().empty())
     deactivateArgCleanupsBeforeCall(*this, CallArgs);
 
-  // Addrspace cast to generic if necessary
-  for (unsigned i = 0; i < IRFuncTy->getNumParams(); ++i) {
-    if (auto *PtrTy = dyn_cast<llvm::PointerType>(IRCallArgs[i]->getType())) {
-      auto *ExpectedPtrType =
-          cast<llvm::PointerType>(IRFuncTy->getParamType(i));
-      unsigned ValueAS = PtrTy->getAddressSpace();
-      unsigned ExpectedAS = ExpectedPtrType->getAddressSpace();
-      if (ValueAS != ExpectedAS) {
-        IRCallArgs[i] = Builder.CreatePointerBitCastOrAddrSpaceCast(
-            IRCallArgs[i], ExpectedPtrType);
-      }
-    }
-  }
-
   // Assert that the arguments we computed match up.  The IR verifier
   // will catch this, but this is a common enough source of problems
   // during IRGen changes that it's way better for debugging to catch
@@ -5052,13 +5029,11 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         Attrs.addAttribute(getLLVMContext(), llvm::AttributeList::FunctionIndex,
                            llvm::Attribute::StrictFP);
 
-  // Add nomerge attribute to the call-site if the callee function doesn't have
-  // the attribute.
-  if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(TargetDecl))
-    if (!FD->hasAttr<NoMergeAttr>() && InNoMergeAttributedStmt)
-      Attrs = Attrs.addAttribute(getLLVMContext(),
-                                 llvm::AttributeList::FunctionIndex,
-                                 llvm::Attribute::NoMerge);
+  // Add call-site nomerge attribute if exists.
+  if (InNoMergeAttributedStmt)
+    Attrs =
+        Attrs.addAttribute(getLLVMContext(), llvm::AttributeList::FunctionIndex,
+                           llvm::Attribute::NoMerge);
 
   // Apply some call-site-specific attributes.
   // TODO: work this into building the attribute set.

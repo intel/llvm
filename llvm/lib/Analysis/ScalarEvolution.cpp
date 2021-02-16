@@ -2177,7 +2177,7 @@ CollectAddOperandsWithScales(DenseMap<const SCEV *, APInt> &M,
       } else {
         // A multiplication of a constant with some other value. Update
         // the map.
-        SmallVector<const SCEV *, 4> MulOps(Mul->op_begin()+1, Mul->op_end());
+        SmallVector<const SCEV *, 4> MulOps(drop_begin(Mul->operands()));
         const SCEV *Key = SE.getMulExpr(MulOps);
         auto Pair = M.insert({Key, NewScale});
         if (Pair.second) {
@@ -3274,8 +3274,7 @@ const SCEV *ScalarEvolution::getUDivExactExpr(const SCEV *LHS,
     // first element of the mulexpr.
     if (const auto *LHSCst = dyn_cast<SCEVConstant>(Mul->getOperand(0))) {
       if (LHSCst == RHSCst) {
-        SmallVector<const SCEV *, 2> Operands;
-        Operands.append(Mul->op_begin() + 1, Mul->op_end());
+        SmallVector<const SCEV *, 2> Operands(drop_begin(Mul->operands()));
         return getMulExpr(Operands);
       }
 
@@ -7844,9 +7843,10 @@ ScalarEvolution::computeLoadConstantCompareExitLimit(
   Idx = getSCEVAtScope(Idx, L);
 
   // We can only recognize very limited forms of loop index expressions, in
-  // particular, only affine AddRec's like {C1,+,C2}.
+  // particular, only affine AddRec's like {C1,+,C2}<L>.
   const SCEVAddRecExpr *IdxExpr = dyn_cast<SCEVAddRecExpr>(Idx);
-  if (!IdxExpr || !IdxExpr->isAffine() || isLoopInvariant(IdxExpr, L) ||
+  if (!IdxExpr || IdxExpr->getLoop() != L || !IdxExpr->isAffine() ||
+      isLoopInvariant(IdxExpr, L) ||
       !isa<SCEVConstant>(IdxExpr->getOperand(0)) ||
       !isa<SCEVConstant>(IdxExpr->getOperand(1)))
     return getCouldNotCompute();

@@ -181,11 +181,20 @@ void TargetLoweringObjectFileELF::Initialize(MCContext &Ctx,
     // will be in memory. Most of these could end up >2GB away so even a signed
     // pc-relative 32-bit address is insufficient, theoretically.
     if (isPositionIndependent()) {
-      PersonalityEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
-        dwarf::DW_EH_PE_sdata8;
-      LSDAEncoding = dwarf::DW_EH_PE_pcrel | dwarf::DW_EH_PE_sdata8;
-      TTypeEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
-        dwarf::DW_EH_PE_sdata8;
+      // ILP32 uses sdata4 instead of sdata8
+      if (TgtM.getTargetTriple().getEnvironment() == Triple::GNUILP32) {
+        PersonalityEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
+                              dwarf::DW_EH_PE_sdata4;
+        LSDAEncoding = dwarf::DW_EH_PE_pcrel | dwarf::DW_EH_PE_sdata4;
+        TTypeEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
+                        dwarf::DW_EH_PE_sdata4;
+      } else {
+        PersonalityEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
+                              dwarf::DW_EH_PE_sdata8;
+        LSDAEncoding = dwarf::DW_EH_PE_pcrel | dwarf::DW_EH_PE_sdata8;
+        TTypeEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
+                        dwarf::DW_EH_PE_sdata8;
+      }
     } else {
       PersonalityEncoding = dwarf::DW_EH_PE_absptr;
       LSDAEncoding = dwarf::DW_EH_PE_absptr;
@@ -676,7 +685,8 @@ MCSection *TargetLoweringObjectFileELF::getExplicitSectionGlobal(
     UniqueID = NextUniqueID++;
     Flags |= ELF::SHF_LINK_ORDER;
   } else {
-    if (getContext().getAsmInfo()->useIntegratedAssembler()) {
+    if (getContext().getAsmInfo()->useIntegratedAssembler() ||
+        getContext().getAsmInfo()->binutilsIsAtLeast(2, 35)) {
       // Symbols must be placed into sections with compatible entry
       // sizes. Generate unique sections for symbols that have not
       // been assigned to compatible sections.
@@ -727,8 +737,9 @@ MCSection *TargetLoweringObjectFileELF::getExplicitSectionGlobal(
   assert(Section->getLinkedToSymbol() == LinkedToSym &&
          "Associated symbol mismatch between sections");
 
-  if (!getContext().getAsmInfo()->useIntegratedAssembler()) {
-    // If we are not using the integrated assembler then this symbol might have
+  if (!(getContext().getAsmInfo()->useIntegratedAssembler() ||
+        getContext().getAsmInfo()->binutilsIsAtLeast(2, 35))) {
+    // If we are using GNU as before 2.35, then this symbol might have
     // been placed in an incompatible mergeable section. Emit an error if this
     // is the case to avoid creating broken output.
     if ((Section->getFlags() & ELF::SHF_MERGE) &&
@@ -917,7 +928,7 @@ MCSection *TargetLoweringObjectFileELF::getSectionForMachineBasicBlock(
   }
 
   unsigned Flags = ELF::SHF_ALLOC | ELF::SHF_EXECINSTR;
-  std::string GroupName = "";
+  std::string GroupName;
   if (F.hasComdat()) {
     Flags |= ELF::SHF_GROUP;
     GroupName = F.getComdat()->getName().str();

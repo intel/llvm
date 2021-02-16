@@ -22,7 +22,7 @@ The files/directories related to the translator:
 ## Build Instructions
 
 The `master` branch of this repo is aimed to be buildable with the latest
-LLVM `master` revision.
+LLVM `main` revision.
 
 ### Build with pre-installed LLVM
 
@@ -187,7 +187,7 @@ More information can be found in
 ## Branching strategy
 
 Code on the master branch in this repository is intended to be compatible with
-the master branch of the [llvm](https://github.com/llvm/llvm-project)
+the main branch of the [llvm](https://github.com/llvm/llvm-project)
 project. That is, for an OpenCL kernel compiled to llvm bitcode by the latest
 git revision of Clang it should be possible to translate it to SPIR-V with the
 llvm-spirv tool.

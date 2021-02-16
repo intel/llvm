@@ -7,10 +7,10 @@ macro(add_sycl_executable ARG_TARGET_NAME)
 
   set(CXX_COMPILER clang++)
   if(MSVC)
-      set(CXX_COMPILER clang-cl.exe)
-      set(LIB_POSTFIX ".lib")
+    set(CXX_COMPILER clang-cl.exe)
+    set(LIB_POSTFIX ".lib")
   else()
-      set(LIB_PREFIX "-l")
+    set(LIB_PREFIX "-l")
   endif()
   set(DEVICE_COMPILER_EXECUTABLE ${LLVM_RUNTIME_OUTPUT_INTDIR}/${CXX_COMPILER})
 

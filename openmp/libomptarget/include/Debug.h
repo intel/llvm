@@ -47,11 +47,14 @@ enum OpenMPInfoType : uint32_t {
   OMP_INFOTYPE_MAPPING_EXISTS = 0x0002,
   // Dump the contents of the device pointer map at kernel exit or failure.
   OMP_INFOTYPE_DUMP_TABLE = 0x0004,
-  // Print kernel information from target device plugins
+  // Print kernel information from target device plugins.
   OMP_INFOTYPE_PLUGIN_KERNEL = 0x0010,
+  // Enable every flag.
+  OMP_INFOTYPE_ALL = 0xffffffff,
 };
 
-static inline uint32_t getInfoLevel() {
+// Add __attribute__((used)) to work around a bug in gcc 5/6.
+static inline uint32_t __attribute__((used)) getInfoLevel() {
   static uint32_t InfoLevel = 0;
   static std::once_flag Flag{};
   std::call_once(Flag, []() {
@@ -62,7 +65,8 @@ static inline uint32_t getInfoLevel() {
   return InfoLevel;
 }
 
-static inline uint32_t getDebugLevel() {
+// Add __attribute__((used)) to work around a bug in gcc 5/6.
+static inline uint32_t __attribute__((used)) getDebugLevel() {
   static uint32_t DebugLevel = 0;
   static std::once_flag Flag{};
   std::call_once(Flag, []() {
@@ -161,11 +165,11 @@ static inline uint32_t getDebugLevel() {
 #endif // OMPTARGET_DEBUG
 
 /// Emit a message giving the user extra information about the runtime if
-#define INFO(_id, ...)                                                         \
+#define INFO(_flags, _id, ...)                                                 \
   do {                                                                         \
     if (getDebugLevel() > 0) {                                                 \
       DEBUGP(DEBUG_PREFIX, __VA_ARGS__);                                       \
-    } else if (getInfoLevel() > 0) {                                           \
+    } else if (getInfoLevel() & _flags) {                                      \
       INFO_MESSAGE(_id, __VA_ARGS__);                                          \
     }                                                                          \
   } while (false)

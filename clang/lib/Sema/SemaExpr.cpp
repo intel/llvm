@@ -2871,8 +2871,7 @@ ExprResult Sema::BuildIvarRefExpr(Scope *S, SourceLocation Loc,
   // turn this into Self->ivar, just return a BareIVarExpr or something.
   IdentifierInfo &II = Context.Idents.get("self");
   UnqualifiedId SelfName;
-  SelfName.setIdentifier(&II, SourceLocation());
-  SelfName.setKind(UnqualifiedIdKind::IK_ImplicitSelfParam);
+  SelfName.setImplicitSelfParam(&II);
   CXXScopeSpec SelfScopeSpec;
   SourceLocation TemplateKWLoc;
   ExprResult SelfExpr =
@@ -16051,6 +16050,16 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
   else
     FDiag << FirstType << SecondType << Action << SrcExpr->getSourceRange();
 
+  if (DiagKind == diag::ext_typecheck_convert_incompatible_pointer_sign ||
+      DiagKind == diag::err_typecheck_convert_incompatible_pointer_sign) {
+    auto isPlainChar = [](const clang::Type *Type) {
+      return Type->isSpecificBuiltinType(BuiltinType::Char_S) ||
+             Type->isSpecificBuiltinType(BuiltinType::Char_U);
+    };
+    FDiag << (isPlainChar(FirstType->getPointeeOrArrayElementType()) ||
+              isPlainChar(SecondType->getPointeeOrArrayElementType()));
+  }
+
   // If we can fix the conversion, suggest the FixIts.
   if (!ConvHints.isNull()) {
     for (FixItHint &H : ConvHints.Hints)
@@ -16218,7 +16227,8 @@ Sema::VerifyIntegerConstantExpression(Expr *E, llvm::APSInt *Result,
     if (Result)
       *Result = E->EvaluateKnownConstIntCheckOverflow(Context);
     if (!isa<ConstantExpr>(E))
-      E = ConstantExpr::Create(Context, E);
+      E = Result ? ConstantExpr::Create(Context, E, APValue(*Result))
+                 : ConstantExpr::Create(Context, E);
     return E;
   }
 

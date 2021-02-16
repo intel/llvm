@@ -3526,6 +3526,9 @@ static void GenerateCustomAppertainsTo(const Record &Subject, raw_ostream &OS) {
 }
 
 static void GenerateAppertainsTo(const Record &Attr, raw_ostream &OS) {
+  // FIXME: this function only diagnoses declaration attributes and lacks
+  // reasonable support for statement attributes.
+
   // If the attribute does not contain a Subjects definition, then use the
   // default appertainsTo logic.
   if (Attr.isValueUnset("Subjects"))
@@ -3557,7 +3560,16 @@ static void GenerateAppertainsTo(const Record &Attr, raw_ostream &OS) {
     // because it requires the subject to be of a specific type, and were that
     // information inlined here, it would not support an attribute with multiple
     // custom subjects.
-    if ((*I)->isSubClassOf("SubsetSubject")) {
+    //
+    // If the subject is a statement rather than a declaration node, use 'true'
+    // as the test so that statement nodes can be mixed with declaration nodes
+    // for attributes which appertain to both statements and declarations. If
+    // all of the nodes are statement nodes (so the diagnostic predicate is
+    // trivially true), this will diagnose the use of the attribute on any
+    // declaration, which is reasonable.
+    if ((*I)->isSubClassOf("StmtNode")) {
+      OS << "true";
+    } else if ((*I)->isSubClassOf("SubsetSubject")) {
       OS << "!" << functionNameForCustomAppertainsTo(**I) << "(D)";
     } else {
       OS << "!isa<" << GetSubjectWithSuffix(*I) << ">(D)";

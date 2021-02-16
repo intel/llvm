@@ -28,7 +28,7 @@ namespace detail {
 class program_impl;
 }
 
-enum class program_state { none, compiled, linked };
+enum class program_state { none = 0, compiled = 1, linked = 2 };
 
 /// Provides an abstraction of a SYCL program.
 ///

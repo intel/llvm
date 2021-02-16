@@ -1368,9 +1368,8 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
         // "Inf" or NaN, that atof will accept, but the lexer will not.  Check
         // that the string matches the "[-+]?[0-9]" regex.
         //
-        assert(((StrVal[0] >= '0' && StrVal[0] <= '9') ||
-                ((StrVal[0] == '-' || StrVal[0] == '+') &&
-                 (StrVal[1] >= '0' && StrVal[1] <= '9'))) &&
+        assert((isDigit(StrVal[0]) || ((StrVal[0] == '-' || StrVal[0] == '+') &&
+                                       isDigit(StrVal[1]))) &&
                "[-+]?[0-9] regex does not match!");
         // Reparse stringized version!
         if (APFloat(APFloat::IEEEdouble(), StrVal).convertToDouble() == Val) {
@@ -3164,6 +3163,18 @@ static std::string getLinkageNameWithSpace(GlobalValue::LinkageTypes LT) {
   return getLinkageName(LT) + " ";
 }
 
+static const char *getVisibilityName(GlobalValue::VisibilityTypes Vis) {
+  switch (Vis) {
+  case GlobalValue::DefaultVisibility:
+    return "default";
+  case GlobalValue::HiddenVisibility:
+    return "hidden";
+  case GlobalValue::ProtectedVisibility:
+    return "protected";
+  }
+  llvm_unreachable("invalid visibility");
+}
+
 void AssemblyWriter::printFunctionSummary(const FunctionSummary *FS) {
   Out << ", insts: " << FS->instCount();
 
@@ -3332,6 +3343,8 @@ void AssemblyWriter::printSummary(const GlobalValueSummary &Summary) {
   Out << "(module: ^" << Machine.getModulePathSlot(Summary.modulePath())
       << ", flags: (";
   Out << "linkage: " << getLinkageName(LT);
+  Out << ", visibility: "
+      << getVisibilityName((GlobalValue::VisibilityTypes)GVFlags.Visibility);
   Out << ", notEligibleToImport: " << GVFlags.NotEligibleToImport;
   Out << ", live: " << GVFlags.Live;
   Out << ", dsoLocal: " << GVFlags.DSOLocal;

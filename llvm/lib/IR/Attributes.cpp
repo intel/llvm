@@ -403,6 +403,8 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "nocf_check";
   if (hasAttribute(Attribute::NoRecurse))
     return "norecurse";
+  if (hasAttribute(Attribute::NoProfile))
+    return "noprofile";
   if (hasAttribute(Attribute::NoUnwind))
     return "nounwind";
   if (hasAttribute(Attribute::OptForFuzzing))
@@ -1272,9 +1274,11 @@ AttributeList AttributeList::get(LLVMContext &C,
 AttributeList AttributeList::addAttribute(LLVMContext &C, unsigned Index,
                                           Attribute::AttrKind Kind) const {
   if (hasAttribute(Index, Kind)) return *this;
-  AttrBuilder B;
-  B.addAttribute(Kind);
-  return addAttributes(C, Index, B);
+  AttributeSet Attrs = getAttributes(Index);
+  // TODO: Insert at correct position and avoid sort.
+  SmallVector<Attribute, 8> NewAttrs(Attrs.begin(), Attrs.end());
+  NewAttrs.push_back(Attribute::get(C, Kind));
+  return setAttributes(C, Index, AttributeSet::get(C, NewAttrs));
 }
 
 AttributeList AttributeList::addAttribute(LLVMContext &C, unsigned Index,
@@ -1290,6 +1294,16 @@ AttributeList AttributeList::addAttribute(LLVMContext &C, unsigned Index,
   AttrBuilder B;
   B.addAttribute(A);
   return addAttributes(C, Index, B);
+}
+
+AttributeList AttributeList::setAttributes(LLVMContext &C, unsigned Index,
+                                           AttributeSet Attrs) const {
+  Index = attrIdxToArrayIdx(Index);
+  SmallVector<AttributeSet, 4> AttrSets(this->begin(), this->end());
+  if (Index >= AttrSets.size())
+    AttrSets.resize(Index + 1);
+  AttrSets[Index] = Attrs;
+  return AttributeList::getImpl(C, AttrSets);
 }
 
 AttributeList AttributeList::addAttributes(LLVMContext &C, unsigned Index,
@@ -1309,16 +1323,9 @@ AttributeList AttributeList::addAttributes(LLVMContext &C, unsigned Index,
          "Attempt to change alignment!");
 #endif
 
-  Index = attrIdxToArrayIdx(Index);
-  SmallVector<AttributeSet, 4> AttrSets(this->begin(), this->end());
-  if (Index >= AttrSets.size())
-    AttrSets.resize(Index + 1);
-
-  AttrBuilder Merged(AttrSets[Index]);
+  AttrBuilder Merged(getAttributes(Index));
   Merged.merge(B);
-  AttrSets[Index] = AttributeSet::get(C, Merged);
-
-  return getImpl(C, AttrSets);
+  return setAttributes(C, Index, AttributeSet::get(C, Merged));
 }
 
 AttributeList AttributeList::addParamAttribute(LLVMContext &C,

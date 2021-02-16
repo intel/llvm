@@ -412,11 +412,11 @@ ModuleTranslation::convertOmpParallel(Operation &opInst,
   LogicalResult bodyGenStatus = success();
 
   auto bodyGenCB = [&](InsertPointTy allocaIP, InsertPointTy codeGenIP,
-                       llvm::BasicBlock &continuationIP) {
+                       llvm::BasicBlock &continuationBlock) {
     // ParallelOp has only one region associated with it.
     auto &region = cast<omp::ParallelOp>(opInst).getRegion();
     convertOmpOpRegions(region, "omp.par.region", valueMapping, blockMapping,
-                        *codeGenIP.getBlock(), continuationIP, builder,
+                        *codeGenIP.getBlock(), continuationBlock, builder,
                         bodyGenStatus);
   };
 
@@ -517,11 +517,11 @@ LogicalResult ModuleTranslation::convertOmpMaster(Operation &opInst,
   LogicalResult bodyGenStatus = success();
 
   auto bodyGenCB = [&](InsertPointTy allocaIP, InsertPointTy codeGenIP,
-                       llvm::BasicBlock &continuationIP) {
+                       llvm::BasicBlock &continuationBlock) {
     // MasterOp has only one region associated with it.
     auto &region = cast<omp::MasterOp>(opInst).getRegion();
     convertOmpOpRegions(region, "omp.master.region", valueMapping, blockMapping,
-                        *codeGenIP.getBlock(), continuationIP, builder,
+                        *codeGenIP.getBlock(), continuationBlock, builder,
                         bodyGenStatus);
   };
 
@@ -1105,7 +1105,8 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
       if (!argTy.isa<LLVM::LLVMPointerType>())
         return func.emitError(
             "llvm.sret attribute attached to LLVM non-pointer argument");
-      llvmArg.addAttr(llvm::Attribute::AttrKind::StructRet);
+      llvmArg.addAttrs(llvm::AttrBuilder().addStructRetAttr(
+          llvmArg.getType()->getPointerElementType()));
     }
 
     if (auto attr = func.getArgAttrOfType<UnitAttr>(argIdx, "llvm.byval")) {
@@ -1113,7 +1114,8 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
       if (!argTy.isa<LLVM::LLVMPointerType>())
         return func.emitError(
             "llvm.byval attribute attached to LLVM non-pointer argument");
-      llvmArg.addAttr(llvm::Attribute::AttrKind::ByVal);
+      llvmArg.addAttrs(llvm::AttrBuilder().addByValAttr(
+          llvmArg.getType()->getPointerElementType()));
     }
 
     valueMapping[mlirArg] = &llvmArg;

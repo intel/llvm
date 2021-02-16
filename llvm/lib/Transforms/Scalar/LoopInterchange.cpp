@@ -661,6 +661,10 @@ static Value *followLCSSA(Value *SV) {
 
 // Check V's users to see if it is involved in a reduction in L.
 static PHINode *findInnerReductionPhi(Loop *L, Value *V) {
+  // Reduction variables cannot be constants.
+  if (isa<Constant>(V))
+    return nullptr;
+
   for (Value *User : V->users()) {
     if (PHINode *PHI = dyn_cast<PHINode>(User)) {
       if (PHI->getNumIncomingValues() == 1)
@@ -1580,9 +1584,9 @@ bool LoopInterchangeTransform::adjustLoopBranches() {
 
   // Now update the reduction PHIs in the inner and outer loop headers.
   SmallVector<PHINode *, 4> InnerLoopPHIs, OuterLoopPHIs;
-  for (PHINode &PHI : drop_begin(InnerLoopHeader->phis(), 1))
+  for (PHINode &PHI : drop_begin(InnerLoopHeader->phis()))
     InnerLoopPHIs.push_back(cast<PHINode>(&PHI));
-  for (PHINode &PHI : drop_begin(OuterLoopHeader->phis(), 1))
+  for (PHINode &PHI : drop_begin(OuterLoopHeader->phis()))
     OuterLoopPHIs.push_back(cast<PHINode>(&PHI));
 
   auto &OuterInnerReductions = LIL.getOuterInnerReductions();

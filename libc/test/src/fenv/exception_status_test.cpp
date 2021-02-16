@@ -15,7 +15,7 @@
 
 #include <fenv.h>
 
-TEST(ExceptionStatusTest, RaiseAndTest) {
+TEST(LlvmLibcExceptionStatusTest, RaiseAndTest) {
   // This test raises a set of exceptions and checks that the exception
   // status flags are updated. The intention is really not to invoke the
   // exception handler. Hence, we will disable all exceptions at the
@@ -26,28 +26,28 @@ TEST(ExceptionStatusTest, RaiseAndTest) {
                    FE_UNDERFLOW};
   for (int e : excepts) {
     int r = __llvm_libc::feraiseexcept(e);
-    EXPECT_EQ(r, 0);
+    ASSERT_EQ(r, 0);
     int s = __llvm_libc::fetestexcept(e);
-    EXPECT_EQ(s, e);
+    ASSERT_EQ(s, e);
 
     r = __llvm_libc::feclearexcept(e);
-    EXPECT_EQ(r, 0);
+    ASSERT_EQ(r, 0);
     s = __llvm_libc::fetestexcept(e);
-    EXPECT_EQ(s, 0);
+    ASSERT_EQ(s, 0);
   }
 
   for (int e1 : excepts) {
     for (int e2 : excepts) {
       int e = e1 | e2;
       int r = __llvm_libc::feraiseexcept(e);
-      EXPECT_EQ(r, 0);
+      ASSERT_EQ(r, 0);
       int s = __llvm_libc::fetestexcept(e);
-      EXPECT_EQ(s, e);
+      ASSERT_EQ(s, e);
 
       r = __llvm_libc::feclearexcept(e);
-      EXPECT_EQ(r, 0);
+      ASSERT_EQ(r, 0);
       s = __llvm_libc::fetestexcept(e);
-      EXPECT_EQ(s, 0);
+      ASSERT_EQ(s, 0);
     }
   }
 
@@ -56,14 +56,14 @@ TEST(ExceptionStatusTest, RaiseAndTest) {
       for (int e3 : excepts) {
         int e = e1 | e2 | e3;
         int r = __llvm_libc::feraiseexcept(e);
-        EXPECT_EQ(r, 0);
+        ASSERT_EQ(r, 0);
         int s = __llvm_libc::fetestexcept(e);
-        EXPECT_EQ(s, e);
+        ASSERT_EQ(s, e);
 
         r = __llvm_libc::feclearexcept(e);
-        EXPECT_EQ(r, 0);
+        ASSERT_EQ(r, 0);
         s = __llvm_libc::fetestexcept(e);
-        EXPECT_EQ(s, 0);
+        ASSERT_EQ(s, 0);
       }
     }
   }
@@ -74,14 +74,14 @@ TEST(ExceptionStatusTest, RaiseAndTest) {
         for (int e4 : excepts) {
           int e = e1 | e2 | e3 | e4;
           int r = __llvm_libc::feraiseexcept(e);
-          EXPECT_EQ(r, 0);
+          ASSERT_EQ(r, 0);
           int s = __llvm_libc::fetestexcept(e);
-          EXPECT_EQ(s, e);
+          ASSERT_EQ(s, e);
 
           r = __llvm_libc::feclearexcept(e);
-          EXPECT_EQ(r, 0);
+          ASSERT_EQ(r, 0);
           s = __llvm_libc::fetestexcept(e);
-          EXPECT_EQ(s, 0);
+          ASSERT_EQ(s, 0);
         }
       }
     }
@@ -94,14 +94,14 @@ TEST(ExceptionStatusTest, RaiseAndTest) {
           for (int e5 : excepts) {
             int e = e1 | e2 | e3 | e4 | e5;
             int r = __llvm_libc::feraiseexcept(e);
-            EXPECT_EQ(r, 0);
+            ASSERT_EQ(r, 0);
             int s = __llvm_libc::fetestexcept(e);
-            EXPECT_EQ(s, e);
+            ASSERT_EQ(s, e);
 
             r = __llvm_libc::feclearexcept(e);
-            EXPECT_EQ(r, 0);
+            ASSERT_EQ(r, 0);
             s = __llvm_libc::fetestexcept(e);
-            EXPECT_EQ(s, 0);
+            ASSERT_EQ(s, 0);
           }
         }
       }
@@ -109,7 +109,7 @@ TEST(ExceptionStatusTest, RaiseAndTest) {
   }
 
   int r = __llvm_libc::feraiseexcept(FE_ALL_EXCEPT);
-  EXPECT_EQ(r, 0);
+  ASSERT_EQ(r, 0);
   int s = __llvm_libc::fetestexcept(FE_ALL_EXCEPT);
-  EXPECT_EQ(s, FE_ALL_EXCEPT);
+  ASSERT_EQ(s, FE_ALL_EXCEPT);
 }

@@ -14,7 +14,7 @@
 
 #include "AMDGPUHSAMetadataStreamer.h"
 #include "AMDGPU.h"
-#include "AMDGPUSubtarget.h"
+#include "GCNSubtarget.h"
 #include "MCTargetDesc/AMDGPUTargetStreamer.h"
 #include "SIMachineFunctionInfo.h"
 #include "SIProgramInfo.h"
@@ -59,7 +59,7 @@ void MetadataStreamerV2::verify(StringRef HSAMetadataString) const {
   errs() << "AMDGPU HSA Metadata Parser Test: ";
 
   HSAMD::Metadata FromHSAMetadataString;
-  if (fromString(std::string(HSAMetadataString), FromHSAMetadataString)) {
+  if (fromString(HSAMetadataString, FromHSAMetadataString)) {
     errs() << "FAIL\n";
     return;
   }

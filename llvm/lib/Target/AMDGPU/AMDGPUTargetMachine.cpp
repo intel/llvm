@@ -255,7 +255,6 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPUExternalAAWrapperPass(*PR);
   initializeAMDGPUUseNativeCallsPass(*PR);
   initializeAMDGPUSimplifyLibCallsPass(*PR);
-  initializeAMDGPUInlinerPass(*PR);
   initializeAMDGPUPrintfRuntimeBindingPass(*PR);
   initializeGCNRegBankReassignPass(*PR);
   initializeGCNNSAReassignPass(*PR);
@@ -423,7 +422,7 @@ void AMDGPUTargetMachine::adjustPassManager(PassManagerBuilder &Builder) {
 
   if (EnableFunctionCalls) {
     delete Builder.Inliner;
-    Builder.Inliner = createAMDGPUFunctionInliningPass();
+    Builder.Inliner = createFunctionInliningPass();
   }
 
   Builder.addExtension(
@@ -580,24 +579,27 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB,
   PB.registerCGSCCOptimizerLateEPCallback(
       [this, DebugPassManager](CGSCCPassManager &PM,
                                PassBuilder::OptimizationLevel Level) {
-          FunctionPassManager FPM(DebugPassManager);
+        if (Level == PassBuilder::OptimizationLevel::O0)
+          return;
 
-          // Add infer address spaces pass to the opt pipeline after inlining
-          // but before SROA to increase SROA opportunities.
-          FPM.addPass(InferAddressSpacesPass());
+        FunctionPassManager FPM(DebugPassManager);
 
-          // This should run after inlining to have any chance of doing
-          // anything, and before other cleanup optimizations.
-          FPM.addPass(AMDGPULowerKernelAttributesPass());
+        // Add infer address spaces pass to the opt pipeline after inlining
+        // but before SROA to increase SROA opportunities.
+        FPM.addPass(InferAddressSpacesPass());
 
-          if (Level != PassBuilder::OptimizationLevel::O0) {
-            // Promote alloca to vector before SROA and loop unroll. If we
-            // manage to eliminate allocas before unroll we may choose to unroll
-            // less.
-            FPM.addPass(AMDGPUPromoteAllocaToVectorPass(*this));
-          }
+        // This should run after inlining to have any chance of doing
+        // anything, and before other cleanup optimizations.
+        FPM.addPass(AMDGPULowerKernelAttributesPass());
 
-          PM.addPass(createCGSCCToFunctionPassAdaptor(std::move(FPM)));
+        if (Level != PassBuilder::OptimizationLevel::O0) {
+          // Promote alloca to vector before SROA and loop unroll. If we
+          // manage to eliminate allocas before unroll we may choose to unroll
+          // less.
+          FPM.addPass(AMDGPUPromoteAllocaToVectorPass(*this));
+        }
+
+        PM.addPass(createCGSCCToFunctionPassAdaptor(std::move(FPM)));
       });
 }
 
@@ -1109,6 +1111,10 @@ bool GCNPassConfig::addRegBankSelect() {
 
 bool GCNPassConfig::addGlobalInstructionSelect() {
   addPass(new InstructionSelect());
+  // TODO: Fix instruction selection to do the right thing for image
+  // instructions with tfe or lwe in the first place, instead of running a
+  // separate pass to fix them up?
+  addPass(createSIAddIMGInitPass());
   return false;
 }
 
@@ -1224,6 +1230,12 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
   SIMachineFunctionInfo *MFI = MF.getInfo<SIMachineFunctionInfo>();
 
   MFI->initializeBaseYamlFields(YamlMFI);
+
+  if (MFI->Occupancy == 0) {
+    // Fixup the subtarget dependent default value.
+    const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
+    MFI->Occupancy = ST.computeOccupancy(MF.getFunction(), MFI->getLDSSize());
+  }
 
   auto parseRegister = [&](const yaml::StringValue &RegName, Register &RegVal) {
     Register TempReg;

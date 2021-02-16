@@ -142,7 +142,6 @@ struct _pi_device : _pi_object {
     // NOTE: one must additionally call initialize() to complete
     // PI device creation.
   }
-  ~_pi_device();
 
   // Keep the ordinal of a "compute" commands group, where we send all
   // commands currently.
@@ -160,32 +159,10 @@ struct _pi_device : _pi_object {
   // PI platform to which this device belongs.
   pi_platform Platform;
 
-  // Mutex Lock for the Command List Cache
-  std::mutex ZeCommandListCacheMutex;
-  // Cache of all currently Available Command Lists for use by PI APIs
-  std::list<ze_command_list_handle_t> ZeCommandListCache;
-
   // Indicates if this is a root-device or a sub-device.
   // Technically this information can be queried from a device handle, but it
   // seems better to just keep it here.
   bool IsSubDevice;
-
-  // Retrieves a command list for executing on this device along with
-  // a fence to be used in tracking the execution of this command list.
-  // If a command list has been created on this device which has
-  // completed its commands, then that command list and its associated fence
-  // will be reused. Otherwise, a new command list and fence will be created for
-  // running on this device. L0 fences are created on a L0 command queue so the
-  // caller must pass a command queue to create a new fence for the new command
-  // list if a command list/fence pair is not available. All Command Lists &
-  // associated fences are destroyed at Device Release.
-  // If AllowBatching is true, then the command list returned may already have
-  // command in it, if AllowBatching is false, any open command lists that
-  // already exist in Queue will be closed and executed.
-  pi_result getAvailableCommandList(pi_queue Queue,
-                                    ze_command_list_handle_t *ZeCommandList,
-                                    ze_fence_handle_t *ZeFence,
-                                    bool AllowBatching = false);
 
   // Cache of the immutable device properties.
   ze_device_properties_t ZeDeviceProperties;
@@ -237,14 +214,36 @@ struct _pi_context : _pi_object {
   // support of the multiple devices per context will be added.
   ze_command_list_handle_t ZeCommandListInit;
 
+  // Mutex Lock for the Command List Cache
+  std::mutex ZeCommandListCacheMutex;
+
+  // Cache of all currently Available Command Lists for use by PI APIs
+  std::list<ze_command_list_handle_t> ZeCommandListCache;
+
+  // Retrieves a command list for executing on this device along with
+  // a fence to be used in tracking the execution of this command list.
+  // If a command list has been created on this device which has
+  // completed its commands, then that command list and its associated fence
+  // will be reused. Otherwise, a new command list and fence will be created for
+  // running on this device. L0 fences are created on a L0 command queue so the
+  // caller must pass a command queue to create a new fence for the new command
+  // list if a command list/fence pair is not available. All Command Lists &
+  // associated fences are destroyed at Device Release.
+  // If AllowBatching is true, then the command list returned may already have
+  // command in it, if AllowBatching is false, any open command lists that
+  // already exist in Queue will be closed and executed.
+  pi_result getAvailableCommandList(pi_queue Queue,
+                                    ze_command_list_handle_t *ZeCommandList,
+                                    ze_fence_handle_t *ZeFence,
+                                    bool AllowBatching = false);
+
   // Get index of the free slot in the available pool. If there is no avialble
   // pool then create new one.
-  ze_result_t getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &,
-                                             size_t &);
+  pi_result getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &, size_t &);
 
   // If event is destroyed then decrement number of events living in the pool
   // and destroy the pool if there are no alive events.
-  ze_result_t decrementAliveEventsInPool(ze_event_pool_handle_t pool);
+  pi_result decrementAliveEventsInPool(ze_event_pool_handle_t pool);
 
   // Store USM allocator context(internal allocator structures)
   // for USM shared/host and device allocations. There is 1 allocator context
@@ -509,9 +508,11 @@ struct _pi_ze_event_list_t {
                                          const pi_event *EventList,
                                          pi_queue CurQueue);
 
-  // Release all the events in this object's PiEventList, and destroy
-  // the data structures it contains.
-  pi_result releaseAndDestroyPiZeEventList();
+  // Add all the events in this object's PiEventList to the end
+  // of the list EventsToBeReleased. Destroy pi_ze_event_list_t data
+  // structure fields making it look empty.
+  pi_result collectEventsForReleaseAndDestroyPiZeEventList(
+      std::list<pi_event> &EventsToBeReleased);
 
   // Had to create custom assignment operator because the mutex is
   // not assignment copyable. Just field by field copy of the other

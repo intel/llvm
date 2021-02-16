@@ -217,8 +217,7 @@ void GISelKnownBits::computeKnownBitsImpl(Register R, KnownBits &Known,
     auto CstVal = getConstantVRegVal(R, MRI);
     if (!CstVal)
       break;
-    Known.One = *CstVal;
-    Known.Zero = ~Known.One;
+    Known = KnownBits::makeConstant(*CstVal);
     break;
   }
   case TargetOpcode::G_FRAME_INDEX: {
@@ -346,6 +345,12 @@ void GISelKnownBits::computeKnownBitsImpl(Register R, KnownBits &Known,
     // If the sign bit is known to be zero or one, then sext will extend
     // it to the top bits, else it will just zext.
     Known = Known.sext(BitWidth);
+    break;
+  }
+  case TargetOpcode::G_SEXT_INREG: {
+    computeKnownBitsImpl(MI.getOperand(1).getReg(), Known, DemandedElts,
+                         Depth + 1);
+    Known = Known.sextInReg(MI.getOperand(2).getImm());
     break;
   }
   case TargetOpcode::G_ANYEXT: {

@@ -70,8 +70,10 @@ static codegen::RegisterCodeGenFlags CFG;
 static cl::list<const PassInfo*, bool, PassNameParser>
 PassList(cl::desc("Optimizations available:"));
 
-static cl::opt<bool> EnableNewPassManager(
-    "enable-new-pm", cl::desc("Enable the new pass manager"), cl::init(false));
+static cl::opt<bool>
+    EnableNewPassManager("enable-new-pm",
+                         cl::desc("Enable the new pass manager"),
+                         cl::init(LLVM_ENABLE_NEW_PASS_MANAGER));
 
 // This flag specifies a textual description of the optimization pass pipeline
 // to run over the module. This flag switches opt to use the new pass manager
@@ -480,30 +482,22 @@ static bool shouldPinPassToLegacyPM(StringRef Pass) {
       return false;
 
   std::vector<StringRef> PassNamePrefix = {
-      "x86-",  "xcore-", "wasm-",    "systemz-", "ppc-",   "nvvm-",   "nvptx-",
-      "mips-", "lanai-", "hexagon-", "bpf-",     "avr-",   "thumb2-", "arm-",
-      "si-",   "gcn-",   "amdgpu-",  "aarch64-", "amdgcn-"};
+      "x86-",  "xcore-", "wasm-",    "systemz-", "ppc-",    "nvvm-",   "nvptx-",
+      "mips-", "lanai-", "hexagon-", "bpf-",     "avr-",    "thumb2-", "arm-",
+      "si-",   "gcn-",   "amdgpu-",  "aarch64-", "amdgcn-", "polly-"};
   std::vector<StringRef> PassNameContain = {"ehprepare"};
-  std::vector<StringRef> PassNameExact = {"safe-stack",
-                                          "cost-model",
-                                          "codegenprepare",
-                                          "interleaved-load-combine",
-                                          "unreachableblockelim",
-                                          "verify-safepoint-ir",
-                                          "divergence",
-                                          "atomic-expand",
-                                          "hardware-loops",
-                                          "type-promotion",
-                                          "mve-tail-predication",
-                                          "interleaved-access",
-                                          "global-merge",
-                                          "pre-isel-intrinsic-lowering",
-                                          "expand-reductions",
-                                          "indirectbr-expand",
-                                          "generic-to-nvvm",
-                                          "expandmemcmp",
-                                          "loop-reduce",
-                                          "lower-amx-type"};
+  std::vector<StringRef> PassNameExact = {
+      "safe-stack",           "cost-model",
+      "codegenprepare",       "interleaved-load-combine",
+      "unreachableblockelim", "verify-safepoint-ir",
+      "divergence",           "atomic-expand",
+      "hardware-loops",       "type-promotion",
+      "mve-tail-predication", "interleaved-access",
+      "global-merge",         "pre-isel-intrinsic-lowering",
+      "expand-reductions",    "indirectbr-expand",
+      "generic-to-nvvm",      "expandmemcmp",
+      "loop-reduce",          "lower-amx-type",
+      "polyhedral-info"};
   for (const auto &P : PassNamePrefix)
     if (Pass.startswith(P))
       return true;
@@ -664,7 +658,8 @@ int main(int argc, char **argv) {
   // specified by an internal option. This is normally done during LTO which is
   // not performed via opt.
   updateVCallVisibilityInModule(*M,
-                                /* WholeProgramVisibilityEnabledInLTO */ false);
+                                /* WholeProgramVisibilityEnabledInLTO */ false,
+                                /* DynamicExportSymbols */ {});
 
   // Figure out what stream we are supposed to write to...
   std::unique_ptr<ToolOutputFile> Out;

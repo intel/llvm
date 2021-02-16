@@ -8,7 +8,7 @@ void bar() {
 }
 
 void foo() {
-  // expected-error@+1 {{clang loop attributes must be applied to for, while, or do statements}}
+  // expected-error@+1 {{'loop_unroll' attribute only applies to 'for', 'while', and 'do' statements}}
   [[clang::loop_unroll(8)]] int a[10];
 
   // expected-error@+1 {{'loop_unroll' attribute takes no more than 1 argument}}
@@ -27,7 +27,7 @@ void foo() {
   [[clang::loop_unroll("str123")]]
   for (int i = 0; i < 10; ++i);
 
-  // expected-error@+1 {{duplicate unroll loop attribute 'loop_unroll'}}
+  // expected-error@+2 {{duplicate unroll loop attribute 'loop_unroll'}}
   [[clang::loop_unroll(2)]]
   [[clang::loop_unroll(4)]]
   for (int i = 0; i < 10; ++i);
@@ -39,7 +39,7 @@ void foo() {
 
   // no error expected
   [[clang::loop_unroll(4)]]
-  [[intel::ii(2)]] for (int i = 0; i < 10; ++i);
+  [[intel::initiation_interval(2)]] for (int i = 0; i < 10; ++i);
 
   // expected-error@+2 {{'loop_unroll' attribute requires an integer constant}}
   int b = 4;

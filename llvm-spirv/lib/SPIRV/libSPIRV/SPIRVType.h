@@ -700,18 +700,8 @@ protected:
     Decoder >> Id >> MemberTypeIdVec;
     Module->add(this);
 
-    Decoder.getWordCountAndOpCode();
-    while (!I.eof()) {
-      SPIRVEntry *Entry = Decoder.getEntry();
-      if (Entry != nullptr)
-        Module->add(Entry);
-      if (Entry && Decoder.OpCode == ContinuedOpCode) {
-        auto ContinuedInst = static_cast<ContinuedInstType>(Entry);
-        addContinuedInstruction(ContinuedInst);
-        Decoder.getWordCountAndOpCode();
-      } else {
-        break;
-      }
+    for (SPIRVEntry *E : Decoder.getContinuedInstructions(ContinuedOpCode)) {
+      addContinuedInstruction(static_cast<ContinuedInstType>(E));
     }
   }
 

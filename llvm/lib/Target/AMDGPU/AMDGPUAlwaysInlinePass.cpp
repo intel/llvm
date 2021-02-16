@@ -54,12 +54,9 @@ char AMDGPUAlwaysInline::ID = 0;
 static void
 recursivelyVisitUsers(GlobalValue &GV,
                       SmallPtrSetImpl<Function *> &FuncsToAlwaysInline) {
-  SmallVector<User *, 16> Stack;
+  SmallVector<User *, 16> Stack(GV.users());
 
   SmallPtrSet<const Value *, 8> Visited;
-
-  for (User *U : GV.users())
-    Stack.push_back(U);
 
   while (!Stack.empty()) {
     User *U = Stack.pop_back_val();
@@ -84,8 +81,7 @@ recursivelyVisitUsers(GlobalValue &GV,
       continue;
     }
 
-    for (User *UU : U->users())
-      Stack.push_back(UU);
+    append_range(Stack, U->users());
   }
 }
 

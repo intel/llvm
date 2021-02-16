@@ -123,14 +123,6 @@ program_impl::program_impl(ContextImplPtr Context,
                            pi_native_handle InteropProgram,
                            RT::PiProgram Program)
     : MProgram(Program), MContext(Context), MLinkable(true) {
-
-  if (Context->getDevices().size() > 1) {
-    throw feature_not_supported(
-        "multiple devices within a context are not supported with "
-        "sycl::program and sycl::kernel",
-        PI_INVALID_OPERATION);
-  }
-
   const detail::plugin &Plugin = getPlugin();
   if (MProgram == nullptr) {
     assert(InteropProgram &&
@@ -172,6 +164,12 @@ program_impl::program_impl(ContextImplPtr Context,
   Plugin.call<PiApiKind::piProgramGetBuildInfo>(
       MProgram, Device, CL_PROGRAM_BINARY_TYPE, sizeof(cl_program_binary_type),
       &BinaryType, nullptr);
+  if (BinaryType == CL_PROGRAM_BINARY_TYPE_NONE) {
+    throw invalid_object_error(
+        "The native program passed to the program constructor has to be either "
+        "compiled or linked",
+        PI_INVALID_PROGRAM);
+  }
   size_t Size = 0;
   Plugin.call<PiApiKind::piProgramGetBuildInfo>(
       MProgram, Device, CL_PROGRAM_BUILD_OPTIONS, 0, nullptr, &Size);
@@ -182,7 +180,7 @@ program_impl::program_impl(ContextImplPtr Context,
   string_class Options(OptionsVector.begin(), OptionsVector.end());
   switch (BinaryType) {
   case CL_PROGRAM_BINARY_TYPE_NONE:
-    MState = program_state::none;
+    assert(false);
     break;
   case CL_PROGRAM_BINARY_TYPE_COMPILED_OBJECT:
     MState = program_state::compiled;
@@ -212,12 +210,12 @@ program_impl::~program_impl() {
 
 cl_program program_impl::get() const {
   throw_if_state_is(program_state::none);
-  if (is_host()) {
-    throw invalid_object_error("This instance of program is a host instance",
-                               PI_INVALID_PROGRAM);
+  if (is_host() || getPlugin().getBackend() != cl::sycl::backend::opencl) {
+    throw invalid_object_error(
+        "This instance of program doesn't support OpenCL interoperability.",
+        PI_INVALID_PROGRAM);
   }
-  const detail::plugin &Plugin = getPlugin();
-  Plugin.call<PiApiKind::piProgramRetain>(MProgram);
+  getPlugin().call<PiApiKind::piProgramRetain>(MProgram);
   return pi::cast<cl_program>(MProgram);
 }
 

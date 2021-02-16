@@ -451,6 +451,10 @@ public:
   /// Return whether names in the profile are all MD5 numbers.
   virtual bool useMD5() { return false; }
 
+  /// Don't read profile without context if the flag is set. This is only meaningful
+  /// for ExtBinary format.
+  virtual void setSkipFlatProf(bool Skip) {}
+
   SampleProfileReaderItaniumRemapper *getRemapper() { return Remapper.get(); }
 
 protected:
@@ -484,7 +488,11 @@ protected:
   /// \brief Whether samples are collected based on pseudo probes.
   bool ProfileIsProbeBased = false;
 
+  /// Whether function profiles are context-sensitive.
   bool ProfileIsCS = false;
+
+  /// Number of context-sensitive profiles.
+  uint32_t CSProfileCount = 0;
 
   /// \brief The format of sample.
   SampleProfileFormat Format = SPF_None;
@@ -666,6 +674,10 @@ protected:
   /// the lifetime of MD5StringBuf is not shorter than that of NameTable.
   std::unique_ptr<std::vector<std::string>> MD5StringBuf;
 
+  /// If SkipFlatProf is true, skip the sections with
+  /// SecFlagFlat flag.
+  bool SkipFlatProf = false;
+
 public:
   SampleProfileReaderExtBinaryBase(std::unique_ptr<MemoryBuffer> B,
                                    LLVMContext &C, SampleProfileFormat Format)
@@ -689,6 +701,8 @@ public:
   virtual std::unique_ptr<ProfileSymbolList> getProfileSymbolList() override {
     return std::move(ProfSymList);
   };
+
+  virtual void setSkipFlatProf(bool Skip) override { SkipFlatProf = Skip; }
 };
 
 class SampleProfileReaderExtBinary : public SampleProfileReaderExtBinaryBase {

@@ -31,8 +31,8 @@ include(LibomptargetUtils)
 include(LibomptargetGetDependencies)
 
 # LLVM source tree is required at build time for libomptarget
-if (NOT LIBOMPTARGET_LLVM_MAIN_INCLUDE_DIR)
-  message(FATAL_ERROR "Missing definition for LIBOMPTARGET_LLVM_MAIN_INCLUDE_DIR")
+if (NOT LIBOMPTARGET_LLVM_INCLUDE_DIRS)
+  message(FATAL_ERROR "Missing definition for LIBOMPTARGET_LLVM_INCLUDE_DIRS")
 endif()
 
 # This is a list of all the targets that are supported/tested right now.
@@ -68,14 +68,10 @@ set(LIBOMPTARGET_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 add_subdirectory(${LIBOMPTARGET_SRC_DIR})
 
 # Definitions for testing, for reuse when testing libomptarget-nvptx.
-if(OPENMP_STANDALONE_BUILD)
-  set(LIBOMPTARGET_OPENMP_HEADER_FOLDER "${CMAKE_CURRENT_BINARY_DIR}/../runtime/src" CACHE STRING
-    "Path to folder containing omp.h")
-  set(LIBOMPTARGET_OPENMP_HOST_RTL_FOLDER "${CMAKE_CURRENT_BINARY_DIR}/../runtime/src" CACHE STRING
-    "Path to folder containing libomp.so")
-else()
-  set(LIBOMPTARGET_OPENMP_HEADER_FOLDER "${CMAKE_CURRENT_BINARY_DIR}/../runtime/src")
-endif()
+set(LIBOMPTARGET_OPENMP_HEADER_FOLDER "${LIBOMP_INCLUDE_DIR}" CACHE STRING
+  "Path to folder containing omp.h")
+set(LIBOMPTARGET_OPENMP_HOST_RTL_FOLDER "${LIBOMP_LIBRARY_DIR}" CACHE STRING
+  "Path to folder containing libomp.so, and libLLVMSupport.so with profiling enabled")
 
 
 # Build offloading plugins and device RTLs if they are available.

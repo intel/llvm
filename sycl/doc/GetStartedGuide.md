@@ -10,14 +10,17 @@ and a wide range of compute accelerators such as GPU and FPGA.
 * [Build DPC++ toolchain](#build-dpc-toolchain)
   * [Build DPC++ toolchain with libc++ library](#build-dpc-toolchain-with-libc-library)
   * [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
+  * [Build Doxygen documentation](#build-doxygen-documentation)
 * [Use DPC++ toolchain](#use-dpc-toolchain)
   * [Install low level runtime](#install-low-level-runtime)
   * [Obtain prerequisites for ahead of time (AOT) compilation](#obtain-prerequisites-for-ahead-of-time-aot-compilation)
   * [Test DPC++ toolchain](#test-dpc-toolchain)
   * [Run simple DPC++ application](#run-simple-dpc-application)
+  * [Code the program for a specific GPU](#code-the-program-for-a-specific-gpu)
+  * [Using the DPC++ toolchain on CUDA platforms](#using-the-dpc-toolchain-on-cuda-platforms)
 * [C++ standard](#c-standard)
 * [Known Issues and Limitations](#known-issues-and-limitations)
-* [CUDA backend limitations](#cuda-backend-limitations)
+* [CUDA back-end limitations](#cuda-back-end-limitations)
 * [Find More](#find-more)
 
 ## Prerequisites
@@ -120,7 +123,14 @@ should be used.
 -DSYCL_LIBCXX_INCLUDE_PATH=<path to libc++ headers> \
 -DSYCL_LIBCXX_LIBRARY_PATH=<path to libc++ and libc++abi libraries>
 ```
+You can also use configure script to enable:
 
+```
+python %DPCPP_HOME%\llvm\buildbot\configure.py --use-libcxx \
+--libcxx-include <path to libc++ headers> \
+--libcxx-library <path to libc++ and libc++ abi libraries>
+python %DPCPP_HOME%\llvm\buildbot\compile.py
+```
 ### Build DPC++ toolchain with support for NVIDIA CUDA
 
 There is experimental support for DPC++ for CUDA devices.
@@ -138,30 +148,30 @@ a Titan RTX GPU (SM 71), but it should work on any GPU compatible with SM 50 or
 above. The default SM for the NVIDIA CUDA backend is 5.0. Users can specify
 lower values, but some features may not be supported.
 
+### Build Doxygen documentation
+
+Building Doxygen documentation is similar to building the product itself. First,
+the following tools need to be installed:
+
+* doxygen
+* graphviz
+
+Then you'll need to add the following options to your CMake configuration
+command:
+
+```
+-DLLVM_ENABLE_DOXYGEN=ON
+```
+
+After CMake cache is generated, build the documentation with `doxygen-sycl`
+target. It will be put to `$DPCPP_HOME/llvm/build/tools/sycl/doc/html`
+directory.
+
 ### Deployment
 
 TODO: add instructions how to deploy built DPC++ toolchain.
 
 ## Use DPC++ toolchain
-
-### Using the DPC++ toolchain on CUDA platforms
-
-The DPC++ toolchain support on CUDA platforms is still in an experimental phase.
-Currently, the DPC++ toolchain relies on having a recent OpenCL implementation
-on the system in order to link applications to the DPC++ runtime.
-The OpenCL implementation is not used at runtime if only the CUDA backend is
-used in the application, but must be installed.
-
-The OpenCL implementation provided by the CUDA SDK is OpenCL 1.2, which is
-too old to link with the DPC++ runtime and lacks some symbols.
-
-We recommend installing the low level CPU runtime, following the instructions
-in the next section.
-
-Instead of installing the low level CPU runtime, it is possible to build and
-install the
-[Khronos ICD loader](https://github.com/KhronosGroup/OpenCL-ICD-Loader),
-which contains all the symbols required.
 
 ### Install low level runtime
 
@@ -334,40 +344,6 @@ Make sure that these binaries are available in `PATH` environment variable:
   * `aocl-ioc64` from `<oneAPI installation location>/compiler/<version>/<OS>/bin`
 
 ### Test DPC++ toolchain
-
-Every product change should be accompanied with corresponding test modification
-(adding new test(s), extending, removing or modifying existing test(s)).
-
-There are 3 types of tests which are used for DPC++ toolchain validation:
-* DPC++ in-tree LIT tests including [check-llvm](../../llvm/test),
-[check-clang](../../clang/test), [check-llvm-spirv](../../llvm-spirv/test) and
-[check-sycl](../../sycl/test) targets stored in this repository. These tests
-should not have hardware (e.g. GPU, FPGA, etc.) or external software
-dependencies (e.g. OpenCL, Level Zero, CUDA runtimes). All tests not following
-this approach should be moved to DPC++ end-to-end or SYCL-CTS tests.
-However, the tests for a feature under active development requiring atomic
-change for tests and product can be put to
-[sycl/test/on-device](../../sycl/test/on-device) temporarily. It is developer
-responsibility to move the tests to DPC++ E2E test suite or SYCL-CTS once
-the feature is stabilized.
-
-* DPC++ end-to-end (E2E) tests which are extension to
-[LLVM\* test suite](https://github.com/intel/llvm-test-suite/tree/intel/SYCL).
-A test which requires full stack including backend runtimes (e.g. OpenCL,
-Level Zero or CUDA) should be put to DPC++ E2E test suite following
-[CONTRIBUTING](https://github.com/intel/llvm-test-suite/blob/intel/CONTRIBUTING.md).
-
-* SYCL-CTS are official 
-[Khronos\* SYCL\* conformance tests](https://github.com/KhronosGroup/SYCL-CTS).
-They verify SYCL specification compatibility. All implementation details or
-extensions are out of scope for the tests. If SYCL specification has changed
-(SYCL CTS tests conflict with recent version of SYCL specification) or change
-is required in the way the tests are built with DPC++ compiler (defined in
-[FindIntel_SYCL](https://github.com/KhronosGroup/SYCL-CTS/blob/SYCL-1.2.1/master/cmake/FindIntel_SYCL.cmake))
-pull request should be created under
-[KhronosGroup/SYCL-CTS](https://github.com/KhronosGroup/SYCL-CTS) with required
-patch.
-
 #### Run in-tree LIT tests
 
 To verify that built DPC++ toolchain is working correctly, run:
@@ -420,25 +396,6 @@ cmake -DIntel_SYCL_ROOT=$DPCPP_HOME/deploy -DSYCL_IMPLEMENTATION=Intel_SYCL ...
 ```bat
 cmake -DIntel_SYCL_ROOT=%DPCPP_HOME%\deploy -DSYCL_IMPLEMENTATION=Intel_SYCL ...
 ```
-
-### Build Doxygen documentation
-
-Building Doxygen documentation is similar to building the product itself. First,
-the following tools need to be installed:
-
-* doxygen
-* graphviz
-
-Then you'll need to add the following options to your CMake configuration
-command:
-
-```
--DLLVM_ENABLE_DOXYGEN=ON
-```
-
-After CMake cache is generated, build the documentation with `doxygen-sycl`
-target. It will be put to `$DPCPP_HOME/llvm/build/tools/sycl/doc/html`
-directory.
 
 ### Run simple DPC++ application
 
@@ -660,6 +617,25 @@ class CUDASelector : public cl::sycl::device_selector {
     }
 };
 ```
+
+### Using the DPC++ toolchain on CUDA platforms
+
+The DPC++ toolchain support on CUDA platforms is still in an experimental phase.
+Currently, the DPC++ toolchain relies on having a recent OpenCL implementation
+on the system in order to link applications to the DPC++ runtime.
+The OpenCL implementation is not used at runtime if only the CUDA backend is
+used in the application, but must be installed.
+
+The OpenCL implementation provided by the CUDA SDK is OpenCL 1.2, which is
+too old to link with the DPC++ runtime and lacks some symbols.
+
+We recommend installing the low level CPU runtime, following the instructions
+in the next section.
+
+Instead of installing the low level CPU runtime, it is possible to build and
+install the
+[Khronos ICD loader](https://github.com/KhronosGroup/OpenCL-ICD-Loader),
+which contains all the symbols required.
 
 ## C++ standard
 

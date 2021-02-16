@@ -937,6 +937,42 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF: {
     return getInfo(param_value_size, param_value, param_value_size_ret, 0u);
   }
+  case PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
+    // Number of sub-groups = max block size / warp size + possible remainder
+    int max_threads = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&max_threads,
+                             CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+                             device->get()) == CUDA_SUCCESS);
+    int warpSize = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&warpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
+                             device->get()) == CUDA_SUCCESS);
+    int maxWarps = (max_threads + warpSize - 1) / warpSize;
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   static_cast<uint32_t>(maxWarps));
+  }
+  case PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS: {
+    // Volta provides independent thread scheduling
+    // TODO: Revisit for previous generation GPUs
+    int major = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&major,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                             device->get()) == CUDA_SUCCESS);
+    bool ifp = (major >= 7);
+    return getInfo(param_value_size, param_value, param_value_size_ret, ifp);
+  }
+  case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
+    // NVIDIA devices only support one sub-group size (the warp size)
+    int warpSize = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&warpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
+                             device->get()) == CUDA_SUCCESS);
+    size_t sizes[1] = {static_cast<size_t>(warpSize)};
+    return getInfoArray<size_t>(1, param_value_size, param_value,
+                                param_value_size_ret, sizes);
+  }
   case PI_DEVICE_INFO_MAX_CLOCK_FREQUENCY: {
     int clock_freq = 0;
     cl::sycl::detail::pi::assertion(
@@ -3012,14 +3048,53 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
   return PI_INVALID_KERNEL;
 }
 
-/// \TODO Untie from OpenCL
-/// \TODO Not implemented
 pi_result cuda_piKernelGetSubGroupInfo(
-    pi_kernel kernel, pi_device device, cl_kernel_sub_group_info param_name,
+    pi_kernel kernel, pi_device device, pi_kernel_sub_group_info param_name,
     size_t input_value_size, const void *input_value, size_t param_value_size,
     void *param_value, size_t *param_value_size_ret) {
-  cl::sycl::detail::pi::die("cuda_piKernelGetSubGroupInfo not implemented");
-  return {};
+  if (kernel != nullptr) {
+    switch (param_name) {
+    case PI_KERNEL_MAX_SUB_GROUP_SIZE: {
+      // Sub-group size is equivalent to warp size
+      int warpSize = 0;
+      cl::sycl::detail::pi::assertion(
+          cuDeviceGetAttribute(&warpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
+                               device->get()) == CUDA_SUCCESS);
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     static_cast<uint32_t>(warpSize));
+    }
+    case PI_KERNEL_MAX_NUM_SUB_GROUPS: {
+      // Number of sub-groups = max block size / warp size + possible remainder
+      int max_threads = 0;
+      cl::sycl::detail::pi::assertion(
+          cuFuncGetAttribute(&max_threads,
+                             CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+                             kernel->get()) == CUDA_SUCCESS);
+      int warpSize = 0;
+      cuda_piKernelGetSubGroupInfo(kernel, device, PI_KERNEL_MAX_SUB_GROUP_SIZE,
+                                   0, nullptr, sizeof(uint32_t), &warpSize,
+                                   nullptr);
+      int maxWarps = (max_threads + warpSize - 1) / warpSize;
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     static_cast<uint32_t>(maxWarps));
+    }
+    case PI_KERNEL_COMPILE_NUM_SUB_GROUPS: {
+      // Return value of 0 => not specified
+      // TODO: Revisit if PTX is generated for compile-time work-group sizes
+      return getInfo(param_value_size, param_value, param_value_size_ret, 0);
+    }
+    case PI_KERNEL_COMPILE_SUB_GROUP_SIZE_INTEL: {
+      // Return value of 0 => unspecified or "auto" sub-group size
+      // Correct for now, since warp size may be read from special register
+      // TODO: Return warp size once default is primary sub-group size
+      // TODO: Revisit if we can recover [[sub_group_size]] attribute from PTX
+      return getInfo(param_value_size, param_value, param_value_size_ret, 0);
+    }
+    default:
+      __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
+    }
+  }
+  return PI_INVALID_KERNEL;
 }
 
 pi_result cuda_piKernelRetain(pi_kernel kernel) {

@@ -143,13 +143,18 @@ def CopyOp : LinalgStructured_Op<"copy", [CopyOpInterface]> {
   }];
   let verifier = [{ return ::verify(*this); }];
 
+  let assemblyFormat = [{
+    `(` operands `)` attr-dict `:` type(operands)
+  }];
+
   let hasFolder = 1;
   let hasCanonicalizer = 1;
 }
 
 def FillOp : LinalgStructured_Op<"fill", []> {
-  let arguments = (ins AnyStridedMemRef:$output,
+  let arguments = (ins AnyShaped:$output,
                    AnyTypeOf<[AnyFloat, AnySignlessInteger, AnyVector]>:$value);
+  let results = (outs Optional<AnyRankedTensor>:$result);
   let extraClassDeclaration = libraryCallName # [{
     ValueRange inputs() { return {}; }
     ValueRange outputs() { return getOperands().take_front(); }
@@ -173,6 +178,14 @@ def FillOp : LinalgStructured_Op<"fill", []> {
       return nullptr;
     }
   }];
+
+  let assemblyFormat = [{
+    `(` operands `)` attr-dict `:` type(operands) (`->` type($result)^)?
+  }];
+
+  let builders = [
+    OpBuilderDAG<(ins "Value":$output, "Value":$value)>
+  ];
 
   let verifier = [{ return ::verify(*this); }];
 

@@ -692,11 +692,9 @@ static bool unswitchTrivialSwitch(Loop &L, SwitchInst &SI, DominatorTree &DT,
   // successor.
   BasicBlock *CommonSuccBB = nullptr;
   if (SI.getNumCases() > 0 &&
-      std::all_of(std::next(SI.case_begin()), SI.case_end(),
-                  [&SI](const SwitchInst::CaseHandle &Case) {
-                    return Case.getCaseSuccessor() ==
-                           SI.case_begin()->getCaseSuccessor();
-                  }))
+      all_of(drop_begin(SI.cases()), [&SI](const SwitchInst::CaseHandle &Case) {
+        return Case.getCaseSuccessor() == SI.case_begin()->getCaseSuccessor();
+      }))
     CommonSuccBB = SI.case_begin()->getCaseSuccessor();
   if (!DefaultExitBB) {
     // If we're not unswitching the default, we need it to match any cases to
@@ -2904,6 +2902,10 @@ static bool unswitchLoop(Loop &L, DominatorTree &DT, LoopInfo &LI,
   // a parameter but also check a local flag that can be used for testing
   // a debugging.
   if (!NonTrivial && !EnableNonTrivialUnswitch)
+    return false;
+
+  // Skip non-trivial unswitching for optsize functions.
+  if (L.getHeader()->getParent()->hasOptSize())
     return false;
 
   // For non-trivial unswitching, because it often creates new loops, we rely on

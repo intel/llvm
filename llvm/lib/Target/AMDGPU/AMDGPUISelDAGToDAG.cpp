@@ -12,7 +12,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPU.h"
-#include "AMDGPUSubtarget.h"
 #include "AMDGPUTargetMachine.h"
 #include "SIMachineFunctionInfo.h"
 #include "llvm/Analysis/LegacyDivergenceAnalysis.h"
@@ -1131,7 +1130,7 @@ void AMDGPUDAGToDAGISel::SelectFMA_W_CHAIN(SDNode *N) {
   Ops[8] = N->getOperand(0);
   Ops[9] = N->getOperand(4);
 
-  CurDAG->SelectNodeTo(N, AMDGPU::V_FMA_F32, N->getVTList(), Ops);
+  CurDAG->SelectNodeTo(N, AMDGPU::V_FMA_F32_e64, N->getVTList(), Ops);
 }
 
 void AMDGPUDAGToDAGISel::SelectFMUL_W_CHAIN(SDNode *N) {
@@ -1156,7 +1155,7 @@ void AMDGPUDAGToDAGISel::SelectDIV_SCALE(SDNode *N) {
   assert(VT == MVT::f32 || VT == MVT::f64);
 
   unsigned Opc
-    = (VT == MVT::f64) ? AMDGPU::V_DIV_SCALE_F64 : AMDGPU::V_DIV_SCALE_F32;
+    = (VT == MVT::f64) ? AMDGPU::V_DIV_SCALE_F64_e64 : AMDGPU::V_DIV_SCALE_F32_e64;
 
   // src0_modifiers, src0, src1_modifiers, src1, src2_modifiers, src2, clamp,
   // omod
@@ -1172,7 +1171,7 @@ void AMDGPUDAGToDAGISel::SelectDIV_SCALE(SDNode *N) {
 void AMDGPUDAGToDAGISel::SelectMAD_64_32(SDNode *N) {
   SDLoc SL(N);
   bool Signed = N->getOpcode() == AMDGPUISD::MAD_I64_I32;
-  unsigned Opc = Signed ? AMDGPU::V_MAD_I64_I32 : AMDGPU::V_MAD_U64_U32;
+  unsigned Opc = Signed ? AMDGPU::V_MAD_I64_I32_e64 : AMDGPU::V_MAD_U64_U32_e64;
 
   SDValue Clamp = CurDAG->getTargetConstant(0, SL, MVT::i1);
   SDValue Ops[] = { N->getOperand(0), N->getOperand(1), N->getOperand(2),
@@ -1524,7 +1523,9 @@ std::pair<SDValue, SDValue> AMDGPUDAGToDAGISel::foldFrameIndex(SDValue N) const 
       FI ? CurDAG->getTargetFrameIndex(FI->getIndex(), FI->getValueType(0)) : N;
 
   // We rebase the base address into an absolute stack address and hence
-  // use constant 0 for soffset.
+  // use constant 0 for soffset. This value must be retained until
+  // frame elimination and eliminateFrameIndex will choose the appropriate
+  // frame register if need be.
   return std::make_pair(TFI, CurDAG->getTargetConstant(0, DL, MVT::i32));
 }
 

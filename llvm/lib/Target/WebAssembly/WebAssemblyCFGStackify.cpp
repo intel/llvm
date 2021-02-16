@@ -57,6 +57,11 @@ class WebAssemblyCFGStackify final : public MachineFunctionPass {
   // which holds the beginning of the scope. This will allow us to quickly skip
   // over scoped regions when walking blocks.
   SmallVector<MachineBasicBlock *, 8> ScopeTops;
+  void updateScopeTops(MachineBasicBlock *Begin, MachineBasicBlock *End) {
+    int EndNo = End->getNumber();
+    if (!ScopeTops[EndNo] || ScopeTops[EndNo]->getNumber() > Begin->getNumber())
+      ScopeTops[EndNo] = Begin;
+  }
 
   // Placing markers.
   void placeMarkers(MachineFunction &MF);
@@ -135,10 +140,10 @@ static bool explicitlyBranchesTo(MachineBasicBlock *Pred,
 // contains instructions that should go before the marker, and AfterSet contains
 // ones that should go after the marker. In this function, AfterSet is only
 // used for sanity checking.
+template <typename Container>
 static MachineBasicBlock::iterator
-getEarliestInsertPos(MachineBasicBlock *MBB,
-                     const SmallPtrSet<const MachineInstr *, 4> &BeforeSet,
-                     const SmallPtrSet<const MachineInstr *, 4> &AfterSet) {
+getEarliestInsertPos(MachineBasicBlock *MBB, const Container &BeforeSet,
+                     const Container &AfterSet) {
   auto InsertPos = MBB->end();
   while (InsertPos != MBB->begin()) {
     if (BeforeSet.count(&*std::prev(InsertPos))) {
@@ -159,10 +164,10 @@ getEarliestInsertPos(MachineBasicBlock *MBB,
 // contains instructions that should go before the marker, and AfterSet contains
 // ones that should go after the marker. In this function, BeforeSet is only
 // used for sanity checking.
+template <typename Container>
 static MachineBasicBlock::iterator
-getLatestInsertPos(MachineBasicBlock *MBB,
-                   const SmallPtrSet<const MachineInstr *, 4> &BeforeSet,
-                   const SmallPtrSet<const MachineInstr *, 4> &AfterSet) {
+getLatestInsertPos(MachineBasicBlock *MBB, const Container &BeforeSet,
+                   const Container &AfterSet) {
   auto InsertPos = MBB->begin();
   while (InsertPos != MBB->end()) {
     if (AfterSet.count(&*InsertPos)) {
@@ -176,27 +181,6 @@ getLatestInsertPos(MachineBasicBlock *MBB,
     ++InsertPos;
   }
   return InsertPos;
-}
-
-// Find a catch instruction and its destination register within an EH pad.
-static MachineInstr *findCatch(MachineBasicBlock *EHPad, Register &ExnReg) {
-  assert(EHPad->isEHPad());
-  MachineInstr *Catch = nullptr;
-  for (auto &MI : *EHPad) {
-    if (WebAssembly::isCatch(MI.getOpcode())) {
-      Catch = &MI;
-      ExnReg = Catch->getOperand(0).getReg();
-      break;
-    }
-  }
-  assert(Catch && "EH pad does not have a catch");
-  assert(ExnReg != 0 && "Invalid register");
-  return Catch;
-}
-
-static MachineInstr *findCatch(MachineBasicBlock *EHPad) {
-  Register Dummy;
-  return findCatch(EHPad, Dummy);
 }
 
 void WebAssemblyCFGStackify::registerScope(MachineInstr *Begin,
@@ -372,10 +356,7 @@ void WebAssemblyCFGStackify::placeBlockMarker(MachineBasicBlock &MBB) {
   registerScope(Begin, End);
 
   // Track the farthest-spanning scope that ends at this point.
-  int Number = MBB.getNumber();
-  if (!ScopeTops[Number] ||
-      ScopeTops[Number]->getNumber() > Header->getNumber())
-    ScopeTops[Number] = Header;
+  updateScopeTops(Header, &MBB);
 }
 
 /// Insert a LOOP marker for a loop starting at MBB (if it's a loop header).
@@ -443,8 +424,7 @@ void WebAssemblyCFGStackify::placeLoopMarker(MachineBasicBlock &MBB) {
   assert((!ScopeTops[AfterLoop->getNumber()] ||
           ScopeTops[AfterLoop->getNumber()]->getNumber() < MBB.getNumber()) &&
          "With block sorting the outermost loop for a block should be first.");
-  if (!ScopeTops[AfterLoop->getNumber()])
-    ScopeTops[AfterLoop->getNumber()] = &MBB;
+  updateScopeTops(&MBB, AfterLoop);
 }
 
 void WebAssemblyCFGStackify::placeTryMarker(MachineBasicBlock &MBB) {
@@ -643,11 +623,8 @@ void WebAssemblyCFGStackify::placeTryMarker(MachineBasicBlock &MBB) {
   // catch         |
   //   end_block --|
   // end_try
-  for (int Number : {Cont->getNumber(), MBB.getNumber()}) {
-    if (!ScopeTops[Number] ||
-        ScopeTops[Number]->getNumber() > Header->getNumber())
-      ScopeTops[Number] = Header;
-  }
+  for (auto *End : {&MBB, Cont})
+    updateScopeTops(Header, End);
 }
 
 void WebAssemblyCFGStackify::removeUnnecessaryInstrs(MachineFunction &MF) {
@@ -660,11 +637,32 @@ void WebAssemblyCFGStackify::removeUnnecessaryInstrs(MachineFunction &MF) {
   //   try
   //     ...
   //     br bb2      <- Not necessary
-  // bb1:
+  // bb1 (ehpad):
   //   catch
   //     ...
-  // bb2:
+  // bb2:            <- Continuation BB
   //   end
+  //
+  // A more involved case: When the BB where 'end' is located is an another EH
+  // pad, the Cont (= continuation) BB is that EH pad's 'end' BB. For example,
+  // bb0:
+  //   try
+  //     try
+  //       ...
+  //       br bb3      <- Not necessary
+  // bb1 (ehpad):
+  //     catch
+  // bb2 (ehpad):
+  //     end
+  //   catch
+  //     ...
+  // bb3:            <- Continuation BB
+  //   end
+  //
+  // When the EH pad at hand is bb1, its matching end_try is in bb2. But it is
+  // another EH pad, so bb0's continuation BB becomes bb3. So 'br bb3' in the
+  // code can be deleted. This is why we run 'while' until 'Cont' is not an EH
+  // pad.
   for (auto &MBB : MF) {
     if (!MBB.isEHPad())
       continue;
@@ -672,7 +670,14 @@ void WebAssemblyCFGStackify::removeUnnecessaryInstrs(MachineFunction &MF) {
     MachineBasicBlock *TBB = nullptr, *FBB = nullptr;
     SmallVector<MachineOperand, 4> Cond;
     MachineBasicBlock *EHPadLayoutPred = MBB.getPrevNode();
-    MachineBasicBlock *Cont = BeginToEnd[EHPadToTry[&MBB]]->getParent();
+
+    MachineBasicBlock *Cont = &MBB;
+    while (Cont->isEHPad()) {
+      MachineInstr *Try = EHPadToTry[Cont];
+      MachineInstr *EndTry = BeginToEnd[Try];
+      Cont = EndTry->getParent();
+    }
+
     bool Analyzable = !TII.analyzeBranch(*EHPadLayoutPred, TBB, FBB, Cond);
     // This condition means either
     // 1. This BB ends with a single unconditional branch whose destinaion is
@@ -763,10 +768,12 @@ static unsigned getCopyOpcode(const TargetRegisterClass *RC) {
 // not yet been added. So 'LLVM_ATTRIBUTE_UNUSED' is added to suppress the
 // warning. Remove the attribute after the new functionality is added.
 LLVM_ATTRIBUTE_UNUSED static void
-unstackifyVRegsUsedInSplitBB(MachineBasicBlock &MBB, MachineBasicBlock &Split,
-                             WebAssemblyFunctionInfo &MFI,
-                             MachineRegisterInfo &MRI,
-                             const WebAssemblyInstrInfo &TII) {
+unstackifyVRegsUsedInSplitBB(MachineBasicBlock &MBB, MachineBasicBlock &Split) {
+  MachineFunction &MF = *MBB.getParent();
+  const auto &TII = *MF.getSubtarget<WebAssemblySubtarget>().getInstrInfo();
+  auto &MFI = *MF.getInfo<WebAssemblyFunctionInfo>();
+  auto &MRI = MF.getRegInfo();
+
   for (auto &MI : Split) {
     for (auto &MO : MI.explicit_uses()) {
       if (!MO.isReg() || Register::isPhysicalRegister(MO.getReg()))
@@ -874,7 +881,10 @@ void WebAssemblyCFGStackify::fixEndsAtEndOfFunction(MachineFunction &MF) {
         // instructions before its corresponding 'catch' too.
         auto *EHPad = TryToEHPad.lookup(EndToBegin[&MI]);
         assert(EHPad);
-        Worklist.push_back(std::next(findCatch(EHPad)->getReverseIterator()));
+        auto NextIt =
+            std::next(WebAssembly::findCatch(EHPad)->getReverseIterator());
+        if (NextIt != EHPad->rend())
+          Worklist.push_back(NextIt);
         LLVM_FALLTHROUGH;
       }
       case WebAssembly::END_BLOCK:

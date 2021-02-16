@@ -614,22 +614,26 @@ TEST(ValueTracking, GuaranteedToTransferExecutionToSuccessor) {
   StringRef Assembly =
       "declare void @nounwind_readonly(i32*) nounwind readonly "
       "declare void @nounwind_argmemonly(i32*) nounwind argmemonly "
+      "declare void @nounwind_willreturn(i32*) nounwind willreturn "
       "declare void @throws_but_readonly(i32*) readonly "
       "declare void @throws_but_argmemonly(i32*) argmemonly "
-      "declare void @nounwind_willreturn(i32*) nounwind willreturn"
+      "declare void @throws_but_willreturn(i32*) willreturn "
       " "
       "declare void @unknown(i32*) "
       " "
       "define void @f(i32* %p) { "
       "  call void @nounwind_readonly(i32* %p) "
       "  call void @nounwind_argmemonly(i32* %p) "
+      "  call void @nounwind_willreturn(i32* %p)"
       "  call void @throws_but_readonly(i32* %p) "
       "  call void @throws_but_argmemonly(i32* %p) "
+      "  call void @throws_but_willreturn(i32* %p) "
       "  call void @unknown(i32* %p) nounwind readonly "
       "  call void @unknown(i32* %p) nounwind argmemonly "
+      "  call void @unknown(i32* %p) nounwind willreturn "
       "  call void @unknown(i32* %p) readonly "
       "  call void @unknown(i32* %p) argmemonly "
-      "  call void @nounwind_willreturn(i32* %p)"
+      "  call void @unknown(i32* %p) willreturn "
       "  ret void "
       "} ";
 
@@ -643,15 +647,18 @@ TEST(ValueTracking, GuaranteedToTransferExecutionToSuccessor) {
 
   auto &BB = F->getEntryBlock();
   bool ExpectedAnswers[] = {
-      true,  // call void @nounwind_readonly(i32* %p)
-      true,  // call void @nounwind_argmemonly(i32* %p)
+      false, // call void @nounwind_readonly(i32* %p)
+      false, // call void @nounwind_argmemonly(i32* %p)
+      true,  // call void @nounwind_willreturn(i32* %p)
       false, // call void @throws_but_readonly(i32* %p)
       false, // call void @throws_but_argmemonly(i32* %p)
-      true,  // call void @unknown(i32* %p) nounwind readonly
-      true,  // call void @unknown(i32* %p) nounwind argmemonly
+      false, // call void @throws_but_willreturn(i32* %p)
+      false, // call void @unknown(i32* %p) nounwind readonly
+      false, // call void @unknown(i32* %p) nounwind argmemonly
+      true,  // call void @unknown(i32* %p) nounwind willreturn
       false, // call void @unknown(i32* %p) readonly
       false, // call void @unknown(i32* %p) argmemonly
-      true,  // call void @nounwind_willreturn(i32* %p)
+      false, // call void @unknown(i32* %p) willreturn
       false, // ret void
   };
 
@@ -746,6 +753,46 @@ TEST_F(ValueTrackingTest, impliesPoisonTest_AddNsw) {
                 "  ret void\n"
                 "}");
   EXPECT_FALSE(impliesPoison(A2, A));
+}
+
+TEST_F(ValueTrackingTest, impliesPoisonTest_Cmp) {
+  parseAssembly("define void @test(i32 %x, i32 %y, i1 %c) {\n"
+                "  %A2 = icmp eq i32 %x, %y\n"
+                "  %A0 = icmp ult i32 %x, %y\n"
+                "  %A = or i1 %A0, %c\n"
+                "  ret void\n"
+                "}");
+  EXPECT_TRUE(impliesPoison(A2, A));
+}
+
+TEST_F(ValueTrackingTest, impliesPoisonTest_FCmpFMF) {
+  parseAssembly("define void @test(float %x, float %y, i1 %c) {\n"
+                "  %A2 = fcmp nnan oeq float %x, %y\n"
+                "  %A0 = fcmp olt float %x, %y\n"
+                "  %A = or i1 %A0, %c\n"
+                "  ret void\n"
+                "}");
+  EXPECT_FALSE(impliesPoison(A2, A));
+}
+
+TEST_F(ValueTrackingTest, impliesPoisonTest_AddSubSameOps) {
+  parseAssembly("define void @test(i32 %x, i32 %y, i1 %c) {\n"
+                "  %A2 = add i32 %x, %y\n"
+                "  %A = sub i32 %x, %y\n"
+                "  ret void\n"
+                "}");
+  EXPECT_TRUE(impliesPoison(A2, A));
+}
+
+TEST_F(ValueTrackingTest, impliesPoisonTest_MaskCmp) {
+  parseAssembly("define void @test(i32 %x, i32 %y, i1 %c) {\n"
+                "  %M2 = and i32 %x, 7\n"
+                "  %A2 = icmp eq i32 %M2, 1\n"
+                "  %M = and i32 %x, 15\n"
+                "  %A = icmp eq i32 %M, 3\n"
+                "  ret void\n"
+                "}");
+  EXPECT_TRUE(impliesPoison(A2, A));
 }
 
 TEST_F(ValueTrackingTest, ComputeNumSignBits_Shuffle_Pointers) {
@@ -943,6 +990,7 @@ TEST_F(ValueTrackingTest, isGuaranteedNotToBeUndefOrPoison_assume) {
 
 TEST(ValueTracking, canCreatePoisonOrUndef) {
   std::string AsmHead =
+      "@s = external dso_local global i32, align 1\n"
       "declare i32 @g(i32)\n"
       "define void @f(i32 %x, i32 %y, float %fx, float %fy, i1 %cond, "
       "<4 x i32> %vx, <4 x i32> %vx2, <vscale x 4 x i32> %svx, i8* %p) {\n";
@@ -1001,7 +1049,11 @@ TEST(ValueTracking, canCreatePoisonOrUndef) {
       {{true, false}, "call i32 @g(i32 %x)"},
       {{false, false}, "call noundef i32 @g(i32 %x)"},
       {{true, false}, "fcmp nnan oeq float %fx, %fy"},
-      {{false, false}, "fcmp oeq float %fx, %fy"}};
+      {{false, false}, "fcmp oeq float %fx, %fy"},
+      {{true, false},
+       "ashr <4 x i32> %vx, select (i1 icmp sgt (i32 ptrtoint (i32* @s to "
+       "i32), i32 1), <4 x i32> zeroinitializer, <4 x i32> <i32 0, i32 1, i32 "
+       "2, i32 3>)"}};
 
   std::string AssemblyStr = AsmHead;
   for (auto &Itm : Data)

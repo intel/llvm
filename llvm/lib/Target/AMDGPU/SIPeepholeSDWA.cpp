@@ -20,7 +20,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPU.h"
-#include "AMDGPUSubtarget.h"
+#include "GCNSubtarget.h"
+#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
@@ -596,8 +597,8 @@ SIPeepholeSDWA::matchSDWAOperand(MachineInstr &MI) {
     break;
   }
 
-  case AMDGPU::V_BFE_I32:
-  case AMDGPU::V_BFE_U32: {
+  case AMDGPU::V_BFE_I32_e64:
+  case AMDGPU::V_BFE_U32_e64: {
     // e.g.:
     // from: v_bfe_u32 v1, v0, 8, 8
     // to SDWA src:v0 src_sel:BYTE_1
@@ -648,7 +649,7 @@ SIPeepholeSDWA::matchSDWAOperand(MachineInstr &MI) {
       break;
 
     return std::make_unique<SDWASrcOperand>(
-          Src0, Dst, SrcSel, false, false, Opcode != AMDGPU::V_BFE_U32);
+          Src0, Dst, SrcSel, false, false, Opcode != AMDGPU::V_BFE_U32_e64);
   }
 
   case AMDGPU::V_AND_B32_e32:

@@ -1433,12 +1433,6 @@ def err_pragma_cannot_end_force_cuda_host_device : Error<
   "force_cuda_host_device begin">;
 } // end of Parse Issue category.
 
-// SYCL loop pragmas and attributes support
-// * Intel FPGA attribute ivdep, ii, max_concurrency support
-// * clang::loop_unroll attribute support
-def err_loop_attr_on_non_loop : Error<
-  "%select{clang|intelfpga}0 loop attributes must be applied to for, while, or do statements">;
-
 let CategoryName = "Modules Issue" in {
 def err_unexpected_module_decl : Error<
   "module declaration can only appear at the top level">;

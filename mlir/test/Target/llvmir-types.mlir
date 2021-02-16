@@ -15,9 +15,9 @@ llvm.func @return_float() -> f32
 // CHECK: declare double @return_double()
 llvm.func @return_double() -> f64
 // CHECK: declare fp128 @return_fp128()
-llvm.func @return_fp128() -> !llvm.fp128
+llvm.func @return_fp128() -> f128
 // CHECK: declare x86_fp80 @return_x86_fp80()
-llvm.func @return_x86_fp80() -> !llvm.x86_fp80
+llvm.func @return_x86_fp80() -> f80
 // CHECK: declare ppc_fp128 @return_ppc_fp128()
 llvm.func @return_ppc_fp128() -> !llvm.ppc_fp128
 // CHECK: declare x86_mmx @return_x86_mmx()
@@ -87,15 +87,15 @@ llvm.func @return_ppi8_42_9() -> !llvm.ptr<ptr<i8, 42>, 9>
 //
 
 // CHECK: declare <4 x i32> @return_v4_i32()
-llvm.func @return_v4_i32() -> !llvm.vec<4 x i32>
+llvm.func @return_v4_i32() -> vector<4xi32>
 // CHECK: declare <4 x float> @return_v4_float()
-llvm.func @return_v4_float() -> !llvm.vec<4 x f32>
+llvm.func @return_v4_float() -> vector<4xf32>
 // CHECK: declare <vscale x 4 x i32> @return_vs_4_i32()
-llvm.func @return_vs_4_i32() -> !llvm.vec<? x 4 x i32>
+llvm.func @return_vs_4_i32() -> !llvm.vec<?x4 x i32>
 // CHECK: declare <vscale x 8 x half> @return_vs_8_half()
-llvm.func @return_vs_8_half() -> !llvm.vec<? x 8 x f16>
+llvm.func @return_vs_8_half() -> !llvm.vec<?x8 x f16>
 // CHECK: declare <4 x i8*> @return_v_4_pi8()
-llvm.func @return_v_4_pi8() -> !llvm.vec<4 x ptr<i8>>
+llvm.func @return_v_4_pi8() -> !llvm.vec<4xptr<i8>>
 
 //
 // Arrays.

@@ -31,7 +31,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPU.h"
-#include "AMDGPUSubtarget.h"
+#include "GCNSubtarget.h"
 #include "SIMachineFunctionInfo.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
@@ -469,6 +469,14 @@ unsigned GCNRegBankReassign::getOperandGatherWeight(const MachineInstr& MI,
 
 bool GCNRegBankReassign::isReassignable(Register Reg) const {
   if (Reg.isPhysical() || !VRM->isAssignedReg(Reg))
+    return false;
+
+  // InlineSpiller does not call LRM::assign() after an LI split leaving it
+  // in an inconsistent state, so we cannot call LRM::unassign().
+  // See llvm bug #48911.
+  // Skip reassign if a register has originated from such split.
+  // FIXME: Remove the workaround when bug #48911 is fixed.
+  if (VRM->getPreSplitReg(Reg))
     return false;
 
   const MachineInstr *Def = MRI->getUniqueVRegDef(Reg);

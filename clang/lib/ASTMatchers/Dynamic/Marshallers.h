@@ -925,6 +925,70 @@ private:
   const StringRef MatcherName;
 };
 
+class MapAnyOfMatcherDescriptor : public MatcherDescriptor {
+  ASTNodeKind CladeNodeKind;
+  std::vector<ASTNodeKind> NodeKinds;
+
+public:
+  MapAnyOfMatcherDescriptor(ASTNodeKind CladeNodeKind,
+                            std::vector<ASTNodeKind> NodeKinds)
+      : CladeNodeKind(CladeNodeKind), NodeKinds(NodeKinds) {}
+
+  VariantMatcher create(SourceRange NameRange, ArrayRef<ParserValue> Args,
+                        Diagnostics *Error) const override {
+
+    std::vector<DynTypedMatcher> NodeArgs;
+
+    for (auto NK : NodeKinds) {
+      std::vector<DynTypedMatcher> InnerArgs;
+
+      for (const auto &Arg : Args) {
+        if (!Arg.Value.isMatcher())
+          return {};
+        const VariantMatcher &VM = Arg.Value.getMatcher();
+        if (VM.hasTypedMatcher(NK)) {
+          auto DM = VM.getTypedMatcher(NK);
+          InnerArgs.push_back(DM);
+        }
+      }
+
+      if (InnerArgs.empty()) {
+        NodeArgs.push_back(
+            DynTypedMatcher::trueMatcher(NK).dynCastTo(CladeNodeKind));
+      } else {
+        NodeArgs.push_back(
+            DynTypedMatcher::constructVariadic(
+                ast_matchers::internal::DynTypedMatcher::VO_AllOf, NK,
+                InnerArgs)
+                .dynCastTo(CladeNodeKind));
+      }
+    }
+
+    auto Result = DynTypedMatcher::constructVariadic(
+        ast_matchers::internal::DynTypedMatcher::VO_AnyOf, CladeNodeKind,
+        NodeArgs);
+    Result.setAllowBind(true);
+    return VariantMatcher::SingleMatcher(Result);
+  }
+
+  bool isVariadic() const override { return true; }
+  unsigned getNumArgs() const override { return 0; }
+
+  void getArgKinds(ASTNodeKind ThisKind, unsigned,
+                   std::vector<ArgKind> &Kinds) const override {
+    Kinds.push_back(ThisKind);
+  }
+
+  bool isConvertibleTo(ASTNodeKind Kind, unsigned *Specificity,
+                       ASTNodeKind *LeastDerivedKind) const override {
+    if (Specificity)
+      *Specificity = 1;
+    if (LeastDerivedKind)
+      *LeastDerivedKind = CladeNodeKind;
+    return true;
+  }
+};
+
 /// Helper functions to select the appropriate marshaller functions.
 /// They detect the number of arguments, arguments types and return type.
 
@@ -1027,6 +1091,15 @@ std::unique_ptr<MatcherDescriptor> makeMatcherAutoMarshall(
     StringRef MatcherName) {
   return std::make_unique<VariadicOperatorMatcherDescriptor>(
       MinCount, MaxCount, Func.Op, MatcherName);
+}
+
+template <typename CladeType, typename... MatcherT>
+std::unique_ptr<MatcherDescriptor> makeMatcherAutoMarshall(
+    ast_matchers::internal::MapAnyOfMatcherImpl<CladeType, MatcherT...>,
+    StringRef MatcherName) {
+  return std::make_unique<MapAnyOfMatcherDescriptor>(
+      ASTNodeKind::getFromNodeKind<CladeType>(),
+      std::vector<ASTNodeKind>{ASTNodeKind::getFromNodeKind<MatcherT>()...});
 }
 
 } // namespace internal

@@ -4792,6 +4792,44 @@ defm USUBL   : SIMDLongThreeVectorBHS<1, 0b0010, "usubl",
 defm USUBW   : SIMDWideThreeVectorBHS<   1, 0b0011, "usubw",
                  BinOpFrag<(sub node:$LHS, (zanyext node:$RHS))>>;
 
+// Additional patterns for [SU]ML[AS]L
+multiclass Neon_mul_acc_widen_patterns<SDPatternOperator opnode, SDPatternOperator vecopnode,
+  Instruction INST8B, Instruction INST4H, Instruction INST2S> {
+  def : Pat<(v4i16 (opnode
+                    V64:$Ra,
+                    (v4i16 (extract_subvector
+                            (vecopnode (v8i8 V64:$Rn),(v8i8 V64:$Rm)),
+                            (i64 0))))),
+             (EXTRACT_SUBREG (v8i16 (INST8B
+                                     (INSERT_SUBREG (v8i16 (IMPLICIT_DEF)), V64:$Ra, dsub),
+                                     V64:$Rn, V64:$Rm)), dsub)>;
+  def : Pat<(v2i32 (opnode
+                    V64:$Ra,
+                    (v2i32 (extract_subvector
+                            (vecopnode (v4i16 V64:$Rn),(v4i16 V64:$Rm)),
+                            (i64 0))))),
+             (EXTRACT_SUBREG (v4i32 (INST4H
+                                     (INSERT_SUBREG (v4i32 (IMPLICIT_DEF)), V64:$Ra, dsub),
+                                     V64:$Rn, V64:$Rm)), dsub)>;
+  def : Pat<(v1i64 (opnode
+                    V64:$Ra,
+                    (v1i64 (extract_subvector
+                            (vecopnode (v2i32 V64:$Rn),(v2i32 V64:$Rm)),
+                            (i64 0))))),
+             (EXTRACT_SUBREG (v2i64 (INST2S
+                                     (INSERT_SUBREG (v2i64 (IMPLICIT_DEF)), V64:$Ra, dsub),
+                                     V64:$Rn, V64:$Rm)), dsub)>;
+}
+
+defm : Neon_mul_acc_widen_patterns<add, int_aarch64_neon_umull,
+     UMLALv8i8_v8i16, UMLALv4i16_v4i32, UMLALv2i32_v2i64>;
+defm : Neon_mul_acc_widen_patterns<add, int_aarch64_neon_smull,
+     SMLALv8i8_v8i16, SMLALv4i16_v4i32, SMLALv2i32_v2i64>;
+defm : Neon_mul_acc_widen_patterns<sub, int_aarch64_neon_umull,
+     UMLSLv8i8_v8i16, UMLSLv4i16_v4i32, UMLSLv2i32_v2i64>;
+defm : Neon_mul_acc_widen_patterns<sub, int_aarch64_neon_smull,
+     SMLSLv8i8_v8i16, SMLSLv4i16_v4i32, SMLSLv2i32_v2i64>;
+
 // Additional patterns for SMULL and UMULL
 multiclass Neon_mul_widen_patterns<SDPatternOperator opnode,
   Instruction INST8B, Instruction INST4H, Instruction INST2S> {
@@ -7809,10 +7847,18 @@ let AddedComplexity = 10 in {
 let Predicates = [HasLS64] in {
   def LD64B: LoadStore64B<0b101, "ld64b", (ins GPR64sp:$Rn),
                                           (outs GPR64x8:$Rt)>;
-  def ST64B: LoadStore64B<0b001, "st64b", (ins GPR64sp:$Rn, GPR64x8:$Rt),
+  def ST64B: LoadStore64B<0b001, "st64b", (ins GPR64x8:$Rt, GPR64sp:$Rn),
                                           (outs)>;
   def ST64BV:   Store64BV<0b011, "st64bv">;
   def ST64BV0:  Store64BV<0b010, "st64bv0">;
+
+  class ST64BPattern<Intrinsic intrinsic, Instruction instruction>
+    : Pat<(intrinsic GPR64sp:$addr, GPR64:$x0, GPR64:$x1, GPR64:$x2, GPR64:$x3, GPR64:$x4, GPR64:$x5, GPR64:$x6, GPR64:$x7),
+          (instruction (REG_SEQUENCE GPR64x8Class, $x0, x8sub_0, $x1, x8sub_1, $x2, x8sub_2, $x3, x8sub_3, $x4, x8sub_4, $x5, x8sub_5, $x6, x8sub_6, $x7, x8sub_7), $addr)>;
+
+  def : ST64BPattern<int_aarch64_st64b, ST64B>;
+  def : ST64BPattern<int_aarch64_st64bv, ST64BV>;
+  def : ST64BPattern<int_aarch64_st64bv0, ST64BV0>;
 }
 
 include "AArch64InstrAtomics.td"

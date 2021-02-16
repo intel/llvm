@@ -648,19 +648,19 @@ using EnableIfSwizzleVec =
 } // namespace detail
 
 enum class stream_manipulator {
-  dec,
-  hex,
-  oct,
-  noshowbase,
-  showbase,
-  noshowpos,
-  showpos,
-  endl,
-  flush,
-  fixed,
-  scientific,
-  hexfloat,
-  defaultfloat
+  dec = 0,
+  hex = 1,
+  oct = 2,
+  noshowbase = 3,
+  showbase = 4,
+  noshowpos = 5,
+  showpos = 6,
+  endl = 7,
+  flush = 8,
+  fixed = 9,
+  scientific = 10,
+  hexfloat = 11,
+  defaultfloat = 12
 };
 
 constexpr stream_manipulator dec = stream_manipulator::dec;

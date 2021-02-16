@@ -235,8 +235,7 @@ static RecordRecTy *resolveRecordTypes(RecordRecTy *T1, RecordRecTy *T2) {
   SmallVector<Record *, 4> Stack(T1->classes_begin(), T1->classes_end());
 
   while (!Stack.empty()) {
-    Record *R = Stack.back();
-    Stack.pop_back();
+    Record *R = Stack.pop_back_val();
 
     if (T2->isSubClassOf(R)) {
       CommonSuperClasses.push_back(R);
@@ -689,8 +688,10 @@ Init *UnOpInit::Fold(Record *CurRec, bool IsFinal) const {
       if (DefInit *LHSd = dyn_cast<DefInit>(LHS))
         return StringInit::get(LHSd->getAsString());
 
-      if (IntInit *LHSi = dyn_cast<IntInit>(LHS))
+      if (IntInit *LHSi =
+              dyn_cast_or_null<IntInit>(LHS->convertInitializerTo(IntRecTy::get())))
         return StringInit::get(LHSi->getAsString());
+
     } else if (isa<RecordRecTy>(getType())) {
       if (StringInit *Name = dyn_cast<StringInit>(LHS)) {
         if (!CurRec && !IsFinal)

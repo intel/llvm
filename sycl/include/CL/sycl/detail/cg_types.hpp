@@ -208,21 +208,28 @@ public:
 
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
     sycl::id<Dims> Offset;
+    sycl::range<Dims> Stride(
+        InitializedVal<Dims, range>::template get<1>()); // initialized to 1
+    sycl::range<Dims> UpperBound(
+        InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I) {
       Range[I] = NDRDesc.GlobalSize[I];
       Offset[I] = NDRDesc.GlobalOffset[I];
+      UpperBound[I] = Range[I] + Offset[I];
     }
 
-    detail::NDLoop<Dims>::iterate(Range, [&](const sycl::id<Dims> &ID) {
-      sycl::item<Dims, /*Offset=*/true> Item =
-          IDBuilder::createItem<Dims, true>(Range, ID, Offset);
+    detail::NDLoop<Dims>::iterate(/*LowerBound=*/Offset, Stride, UpperBound,
+                                  [&](const sycl::id<Dims> &ID) {
+                                    sycl::item<Dims, /*Offset=*/true> Item =
+                                        IDBuilder::createItem<Dims, true>(
+                                            Range, ID, Offset);
 
-      if (StoreLocation) {
-        store_id(&ID);
-        store_item(&Item);
-      }
-      MKernel(ID);
-    });
+                                    if (StoreLocation) {
+                                      store_id(&ID);
+                                      store_item(&Item);
+                                    }
+                                    MKernel(ID);
+                                  });
   }
 
   template <class ArgT = KernelArgType>
@@ -259,22 +266,28 @@ public:
 
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
     sycl::id<Dims> Offset;
+    sycl::range<Dims> Stride(
+        InitializedVal<Dims, range>::template get<1>()); // initialized to 1
+    sycl::range<Dims> UpperBound(
+        InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I) {
       Range[I] = NDRDesc.GlobalSize[I];
       Offset[I] = NDRDesc.GlobalOffset[I];
+      UpperBound[I] = Range[I] + Offset[I];
     }
 
-    detail::NDLoop<Dims>::iterate(Range, [&](const sycl::id<Dims> &ID) {
-      sycl::id<Dims> OffsetID = ID + Offset;
-      sycl::item<Dims, /*Offset=*/true> Item =
-          IDBuilder::createItem<Dims, true>(Range, OffsetID, Offset);
+    detail::NDLoop<Dims>::iterate(/*LowerBound=*/Offset, Stride, UpperBound,
+                                  [&](const sycl::id<Dims> &ID) {
+                                    sycl::item<Dims, /*Offset=*/true> Item =
+                                        IDBuilder::createItem<Dims, true>(
+                                            Range, ID, Offset);
 
-      if (StoreLocation) {
-        store_id(&OffsetID);
-        store_item(&Item);
-      }
-      MKernel(Item);
-    });
+                                    if (StoreLocation) {
+                                      store_id(&ID);
+                                      store_item(&Item);
+                                    }
+                                    MKernel(Item);
+                                  });
   }
 
   template <class ArgT = KernelArgType>

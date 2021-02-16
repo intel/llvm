@@ -254,24 +254,12 @@ StringRef CGDebugInfo::getFunctionName(const FunctionDecl *FD) {
   FunctionTemplateSpecializationInfo *Info =
       FD->getTemplateSpecializationInfo();
 
-  // Emit the unqualified name in normal operation. LLVM and the debugger can
-  // compute the fully qualified name from the scope chain. If we're only
-  // emitting line table info, there won't be any scope chains, so emit the
-  // fully qualified name here so that stack traces are more accurate.
-  // FIXME: Do this when emitting DWARF as well as when emitting CodeView after
-  // evaluating the size impact.
-  bool UseQualifiedName = DebugKind == codegenoptions::DebugLineTablesOnly &&
-                          CGM.getCodeGenOpts().EmitCodeView;
-
-  if (!Info && FII && !UseQualifiedName)
+  if (!Info && FII)
     return FII->getName();
 
   SmallString<128> NS;
   llvm::raw_svector_ostream OS(NS);
-  if (!UseQualifiedName)
-    FD->printName(OS);
-  else
-    FD->printQualifiedName(OS, getPrintingPolicy());
+  FD->printName(OS);
 
   // Add any template specialization args.
   if (Info) {
@@ -493,11 +481,10 @@ std::string CGDebugInfo::remapDIPath(StringRef Path) const {
 }
 
 unsigned CGDebugInfo::getLineNumber(SourceLocation Loc) {
-  if (Loc.isInvalid() && CurLoc.isInvalid())
+  if (Loc.isInvalid())
     return 0;
   SourceManager &SM = CGM.getContext().getSourceManager();
-  PresumedLoc PLoc = SM.getPresumedLoc(Loc.isValid() ? Loc : CurLoc);
-  return PLoc.isValid() ? PLoc.getLine() : 0;
+  return SM.getPresumedLoc(Loc).getLine();
 }
 
 unsigned CGDebugInfo::getColumnNumber(SourceLocation Loc, bool Force) {
@@ -1044,7 +1031,8 @@ CGDebugInfo::getOrCreateRecordFwdDecl(const RecordType *Ty,
   if (llvm::DIType *T = getTypeOrNull(CGM.getContext().getRecordType(RD)))
     return cast<llvm::DICompositeType>(T);
   llvm::DIFile *DefUnit = getOrCreateFile(RD->getLocation());
-  unsigned Line = getLineNumber(RD->getLocation());
+  const unsigned Line =
+      getLineNumber(RD->getLocation().isValid() ? RD->getLocation() : CurLoc);
   StringRef RDName = getClassName(RD);
 
   uint64_t Size = 0;
@@ -1065,7 +1053,10 @@ CGDebugInfo::getOrCreateRecordFwdDecl(const RecordType *Ty,
       Flags |= llvm::DINode::FlagNonTrivial;
 
   // Create the type.
-  SmallString<256> Identifier = getTypeIdentifier(Ty, CGM, TheCU);
+  SmallString<256> Identifier;
+  // Don't include a linkage name in line tables only.
+  if (CGM.getCodeGenOpts().hasReducedDebugInfo())
+    Identifier = getTypeIdentifier(Ty, CGM, TheCU);
   llvm::DICompositeType *RetTy = DBuilder.createReplaceableCompositeType(
       getTagForRecord(RD), RDName, Ctx, DefUnit, Line, 0, Size, Align, Flags,
       Identifier);
@@ -1365,7 +1356,7 @@ CGDebugInfo::createFieldType(StringRef name, QualType type, SourceLocation loc,
 
   // Get the location for the field.
   llvm::DIFile *file = getOrCreateFile(loc);
-  unsigned line = getLineNumber(loc);
+  const unsigned line = getLineNumber(loc.isValid() ? loc : CurLoc);
 
   uint64_t SizeInBits = 0;
   auto Align = AlignInBits;
@@ -2116,8 +2107,7 @@ StringRef CGDebugInfo::getDynamicInitializerName(const VarDecl *VD,
 }
 
 void CGDebugInfo::CollectVTableInfo(const CXXRecordDecl *RD, llvm::DIFile *Unit,
-                                    SmallVectorImpl<llvm::Metadata *> &EltTys,
-                                    llvm::DICompositeType *RecordTy) {
+                                    SmallVectorImpl<llvm::Metadata *> &EltTys) {
   // If this class is not dynamic then there is not any vtable info to collect.
   if (!RD->isDynamicClass())
     return;
@@ -2334,6 +2324,12 @@ static bool shouldOmitDefinition(codegenoptions::DebugInfoKind DebugKind,
     if (ES->hasExternalDefinitions(RD) == ExternalASTSource::EK_Always)
       return true;
 
+  // Only emit forward declarations in line tables only to keep debug info size
+  // small. This only applies to CodeView, since we don't emit types in DWARF
+  // line tables only.
+  if (DebugKind == codegenoptions::DebugLineTablesOnly)
+    return true;
+
   if (DebugKind > codegenoptions::LimitedDebugInfo)
     return false;
 
@@ -2435,7 +2431,7 @@ llvm::DIType *CGDebugInfo::CreateTypeDefinition(const RecordType *Ty) {
   const auto *CXXDecl = dyn_cast<CXXRecordDecl>(RD);
   if (CXXDecl) {
     CollectCXXBases(CXXDecl, DefUnit, EltTys, FwdDecl);
-    CollectVTableInfo(CXXDecl, DefUnit, EltTys, FwdDecl);
+    CollectVTableInfo(CXXDecl, DefUnit, EltTys);
   }
 
   // Collect data fields (including static variables and any initializers).
@@ -3139,6 +3135,7 @@ static QualType UnwrapTypeForDebugInfo(QualType T, const ASTContext &C) {
 }
 
 llvm::DIType *CGDebugInfo::getTypeOrNull(QualType Ty) {
+  assert(Ty == UnwrapTypeForDebugInfo(Ty, CGM.getContext()));
   auto It = TypeCache.find(Ty.getAsOpaquePtr());
   if (It != TypeCache.end()) {
     // Verify that the debug info still exists.
@@ -3342,9 +3339,14 @@ llvm::DICompositeType *CGDebugInfo::CreateLimitedType(const RecordType *Ty) {
   RecordDecl *RD = Ty->getDecl();
 
   // Get overall information about the record type for the debug info.
-  llvm::DIFile *DefUnit = getOrCreateFile(RD->getLocation());
-  unsigned Line = getLineNumber(RD->getLocation());
   StringRef RDName = getClassName(RD);
+  const SourceLocation Loc = RD->getLocation();
+  llvm::DIFile *DefUnit = nullptr;
+  unsigned Line = 0;
+  if (Loc.isValid()) {
+    DefUnit = getOrCreateFile(Loc);
+    Line = getLineNumber(Loc);
+  }
 
   llvm::DIScope *RDContext = getDeclContextDescriptor(RD);
 
@@ -3480,7 +3482,11 @@ void CGDebugInfo::collectFunctionDeclProps(GlobalDecl GD, llvm::DIFile *Unit,
                               DebugKind <= codegenoptions::DebugLineTablesOnly))
     LinkageName = StringRef();
 
-  if (CGM.getCodeGenOpts().hasReducedDebugInfo()) {
+  // Emit the function scope in line tables only mode (if CodeView) to
+  // differentiate between function names.
+  if (CGM.getCodeGenOpts().hasReducedDebugInfo() ||
+      (DebugKind == codegenoptions::DebugLineTablesOnly &&
+       CGM.getCodeGenOpts().EmitCodeView)) {
     if (const NamespaceDecl *NSDecl =
             dyn_cast_or_null<NamespaceDecl>(FD->getDeclContext()))
       FDContext = getOrCreateNamespace(NSDecl);
@@ -3489,6 +3495,8 @@ void CGDebugInfo::collectFunctionDeclProps(GlobalDecl GD, llvm::DIFile *Unit,
       llvm::DIScope *Mod = getParentModuleOrNull(RDecl);
       FDContext = getContextDescriptor(RDecl, Mod ? Mod : TheCU);
     }
+  }
+  if (CGM.getCodeGenOpts().hasReducedDebugInfo()) {
     // Check if it is a noreturn-marked function
     if (FD->isNoReturn())
       Flags |= llvm::DINode::FlagNoReturn;
@@ -3733,7 +3741,10 @@ llvm::DISubprogram *CGDebugInfo::getObjCMethodDeclaration(
 llvm::DISubroutineType *CGDebugInfo::getOrCreateFunctionType(const Decl *D,
                                                              QualType FnType,
                                                              llvm::DIFile *F) {
-  if (!D || DebugKind <= codegenoptions::DebugLineTablesOnly)
+  // In CodeView, we emit the function types in line tables only because the
+  // only way to distinguish between functions is by display name and type.
+  if (!D || (DebugKind <= codegenoptions::DebugLineTablesOnly &&
+             !CGM.getCodeGenOpts().EmitCodeView))
     // Create fake but valid subroutine type. Otherwise -verify would fail, and
     // subprogram DIE will miss DW_AT_decl_file and DW_AT_decl_line fields.
     return DBuilder.createSubroutineType(DBuilder.getOrCreateTypeArray(None));
@@ -3800,11 +3811,9 @@ llvm::DISubroutineType *CGDebugInfo::getOrCreateFunctionType(const Decl *D,
   return cast<llvm::DISubroutineType>(getOrCreateType(FnType, F));
 }
 
-void CGDebugInfo::EmitFunctionStart(GlobalDecl GD, SourceLocation Loc,
+void CGDebugInfo::emitFunctionStart(GlobalDecl GD, SourceLocation Loc,
                                     SourceLocation ScopeLoc, QualType FnType,
-                                    llvm::Function *Fn, bool CurFuncIsThunk,
-                                    CGBuilderTy &Builder) {
-
+                                    llvm::Function *Fn, bool CurFuncIsThunk) {
   StringRef Name;
   StringRef LinkageName;
 
@@ -3872,7 +3881,7 @@ void CGDebugInfo::EmitFunctionStart(GlobalDecl GD, SourceLocation Loc,
   llvm::DISubprogram::DISPFlags SPFlagsForDef =
       SPFlags | llvm::DISubprogram::SPFlagDefinition;
 
-  unsigned LineNo = getLineNumber(Loc);
+  const unsigned LineNo = getLineNumber(Loc.isValid() ? Loc : CurLoc);
   unsigned ScopeLine = getLineNumber(ScopeLoc);
   llvm::DISubroutineType *DIFnType = getOrCreateFunctionType(D, FnType, Unit);
   llvm::DISubprogram *Decl = nullptr;
@@ -4375,7 +4384,8 @@ void CGDebugInfo::EmitDeclareOfBlockDeclRefVariable(
       Ty = CreateSelfType(VD->getType(), Ty);
 
   // Get location information.
-  unsigned Line = getLineNumber(VD->getLocation());
+  const unsigned Line =
+      getLineNumber(VD->getLocation().isValid() ? VD->getLocation() : CurLoc);
   unsigned Column = getColumnNumber(VD->getLocation());
 
   const llvm::DataLayout &target = CGM.getDataLayout();
@@ -4835,6 +4845,8 @@ void CGDebugInfo::EmitUsingDirective(const UsingDirectiveDecl &UD) {
   if (!NSDecl->isAnonymousNamespace() ||
       CGM.getCodeGenOpts().DebugExplicitImport) {
     auto Loc = UD.getLocation();
+    if (!Loc.isValid())
+      Loc = CurLoc;
     DBuilder.createImportedModule(
         getCurrentContextDescriptor(cast<Decl>(UD.getDeclContext())),
         getOrCreateNamespace(NSDecl), getOrCreateFile(Loc), getLineNumber(Loc));

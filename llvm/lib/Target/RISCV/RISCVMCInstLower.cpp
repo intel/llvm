@@ -176,8 +176,14 @@ static bool lowerRISCVVMachineInstrToMCInst(const MachineInstr *MI,
       if (RISCV::VRM2RegClass.contains(Reg) ||
           RISCV::VRM4RegClass.contains(Reg) ||
           RISCV::VRM8RegClass.contains(Reg)) {
-        Reg = TRI->getSubReg(Reg, RISCV::sub_vrm2);
+        Reg = TRI->getSubReg(Reg, RISCV::sub_vrm1_0);
         assert(Reg && "Subregister does not exist");
+      } else if (RISCV::FPR16RegClass.contains(Reg)) {
+        Reg = TRI->getMatchingSuperReg(Reg, RISCV::sub_16, &RISCV::FPR32RegClass);
+        assert(Reg && "Subregister does not exist");
+      } else if (RISCV::FPR64RegClass.contains(Reg)) {
+        Reg = TRI->getSubReg(Reg, RISCV::sub_32);
+        assert(Reg && "Superregister does not exist");
       }
 
       MCOp = MCOperand::createReg(Reg);
@@ -209,5 +215,21 @@ void llvm::LowerRISCVMachineInstrToMCInst(const MachineInstr *MI, MCInst &OutMI,
     MCOperand MCOp;
     if (LowerRISCVMachineOperandToMCOperand(MO, MCOp, AP))
       OutMI.addOperand(MCOp);
+  }
+
+  if (OutMI.getOpcode() == RISCV::PseudoReadVLENB) {
+    OutMI.setOpcode(RISCV::CSRRS);
+    OutMI.addOperand(MCOperand::createImm(
+        RISCVSysReg::lookupSysRegByName("VLENB")->Encoding));
+    OutMI.addOperand(MCOperand::createReg(RISCV::X0));
+    return;
+  }
+
+  if (OutMI.getOpcode() == RISCV::PseudoReadVL) {
+    OutMI.setOpcode(RISCV::CSRRS);
+    OutMI.addOperand(MCOperand::createImm(
+        RISCVSysReg::lookupSysRegByName("VL")->Encoding));
+    OutMI.addOperand(MCOperand::createReg(RISCV::X0));
+    return;
   }
 }

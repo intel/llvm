@@ -31,45 +31,42 @@ void test() {
 
   // CHECK: @[[STR:[.a-zA-Z0-9_]+]] = private unnamed_addr addrspace(1) constant [14 x i8] c"Hello, world!\00", align 1
 
-  // CHECK: %i.ascast = addrspacecast i32* %i to i32 addrspace(4)*
+  // CHECK: %[[GEN:.*]] = addrspacecast i32* %i to i32 addrspace(4)*
   // CHECK: %[[ARR:[a-zA-Z0-9]+]] = alloca [42 x i32]
+  // CHECK: [[ARR_ASCAST:%.*]] = addrspacecast [42 x i32]* %[[ARR]] to [42 x i32] addrspace(4)*
 
   int i = 0;
   int *pptr = &i;
-  // CHECK: %[[GEN:[0-9]+]] = addrspacecast i32* %i to i32 addrspace(4)*
-  // CHECK: store i32 addrspace(4)* %[[GEN]], i32 addrspace(4)** %pptr
+  // CHECK: store i32 addrspace(4)* %[[GEN]], i32 addrspace(4)* addrspace(4)* %pptr.ascast
   bool is_i_ptr = (pptr == &i);
-  // CHECK: %[[VALPPTR:[0-9]+]] = load i32 addrspace(4)*, i32 addrspace(4)** %pptr
+  // CHECK: %[[VALPPTR:[0-9]+]] = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %pptr.ascast
   // CHECK: %cmp{{[0-9]*}} = icmp eq i32 addrspace(4)* %[[VALPPTR]], %i.ascast
   *pptr = foo;
 
   int var23 = 23;
   char *cp = (char *)&var23;
   *cp = 41;
-  // CHECK: store i32 23, i32* %[[VAR:[a-zA-Z0-9]+]]
-  // CHECK: [[VARAS:[a-zA-Z0-9]+]] = addrspacecast i32* %[[VAR]] to i32 addrspace(4)*
-  // CHECK: [[VARCAST:[a-zA-Z0-9]+]] = bitcast i32 addrspace(4)* %[[VARAS]] to i8 addrspace(4)*
-  // CHECK: store i8 addrspace(4)* %[[VARCAST]], i8 addrspace(4)** %{{.*}}
+  // CHECK: store i32 23, i32 addrspace(4)* %[[VAR:[a-zA-Z0-9]+]]
+  // CHECK: [[VARCAST:[a-zA-Z0-9]+]] = bitcast i32 addrspace(4)* %[[VARAS:[a-zA-Z0-9]+]] to i8 addrspace(4)*
+  // CHECK: store i8 addrspace(4)* %[[VARCAST]], i8 addrspace(4)* addrspace(4)* %{{.*}}
 
   int arr[42];
   char *cpp = (char *)arr;
   *cpp = 43;
-  // CHECK:     %[[ARRDECAY:[a-zA-Z0-9]+]] = getelementptr inbounds [42 x i32], [42 x i32]* %[[ARR]], i64 0, i64 0
-  // CHECK: %[[ARRAS:[a-zA-Z0-9]+]] = addrspacecast i32* %[[ARRDECAY]] to i32 addrspace(4)*
-  // CHECK: %[[ARRCAST:[a-zA-Z0-9]+]] = bitcast i32 addrspace(4)* %[[ARRAS]] to i8 addrspace(4)*
-  // CHECK: store i8 addrspace(4)* %[[ARRCAST]], i8 addrspace(4)** %{{.*}}
+  // CHECK: [[ARRAYDECAY1:%.*]] = getelementptr inbounds [42 x i32], [42 x i32] addrspace(4)* [[ARR_ASCAST]], i64 0, i64 0
+  // CHECK: [[ADD_PTR:%.*]] = getelementptr inbounds i32, i32 addrspace(4)* [[ARRAYDECAY1]], i64 10
+  // CHECK: store i32 addrspace(4)* [[ADD_PTR]], i32 addrspace(4)* addrspace(4)* %{{.*}}
 
   int *aptr = arr + 10;
   if (aptr < arr + sizeof(arr))
     *aptr = 44;
-  // CHECK:    %[[VALAPTR:[0-9]+]] = load i32 addrspace(4)*, i32 addrspace(4)** %aptr
-  // CHECK:        %[[ARRDCY2:[a-zA-Z0-9]+]] = getelementptr inbounds [42 x i32], [42 x i32]* %[[ARR]], i64 0, i64 0
-  // CHECK:        %[[ADDPTR:[a-zA-Z0-9.]+]] = getelementptr inbounds i32, i32* %[[ARRDCY2]], i64 168
-  // CHECK:    %[[ADDPTRCAST:[a-zA-Z0-9.]+]] = addrspacecast i32* %[[ADDPTR]] to i32 addrspace(4)*
-  // CHECK:    %cmp{{[0-9]+}} = icmp ult i32 addrspace(4)* %[[VALAPTR]], %[[ADDPTRCAST]]
+  // CHECK: [[TMP13:%.*]] = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %aptr.ascast
+  // CHECK: [[ARRAYDECAY2:%.*]] = getelementptr inbounds [42 x i32], [42 x i32] addrspace(4)* [[ARR_ASCAST]], i64 0, i64 0
+  // CHECK: [[ADD_PTR3:%.*]] = getelementptr inbounds i32, i32 addrspace(4)* [[ARRAYDECAY2]], i64 168
+  // CHECK: [[CMP4:%.*]] = icmp ult i32 addrspace(4)* [[TMP13]], [[ADD_PTR3]]
 
   const char *str = "Hello, world!";
-  // CHECK: store i8 addrspace(4)* addrspacecast (i8 addrspace(1)* getelementptr inbounds ([14 x i8], [14 x i8] addrspace(1)* @[[STR]], i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)** %[[STRVAL:[a-zA-Z0-9]+]], align 8
+  // CHECK: store i8 addrspace(4)* getelementptr inbounds ([14 x i8], [14 x i8] addrspace(4)* addrspacecast ([14 x i8] addrspace(1)* @.str to [14 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* addrspace(4)* %[[STRVAL:[a-zA-Z0-9.]+]], align 8
 
   i = str[0];
 
@@ -79,28 +76,27 @@ void test() {
   // CHECK: br i1 %[[COND]], label %[[CONDTRUE:[.a-zA-Z0-9]+]], label %[[CONDFALSE:[.a-zA-Z0-9]+]]
 
   // CHECK: [[CONDTRUE]]:
-  // CHECK-NEXT: %[[VALTRUE:[a-zA-Z0-9]+]] = load i8 addrspace(4)*, i8 addrspace(4)** %[[STRVAL]]
+  // CHECK-NEXT: %[[VALTRUE:[a-zA-Z0-9]+]] = load i8 addrspace(4)*, i8 addrspace(4)* addrspace(4)* %[[STRVAL]]
   // CHECK-NEXT: br label %[[CONDEND:[.a-zA-Z0-9]+]]
 
   // CHECK: [[CONDFALSE]]:
 
   // CHECK: [[CONDEND]]:
-  // CHECK-NEXT: phi i8 addrspace(4)* [ %[[VALTRUE]], %[[CONDTRUE]] ], [ addrspacecast (i8 addrspace(1)* getelementptr inbounds ([21 x i8], [21 x i8] addrspace(1)* @{{.*}}, i64 0, i64 0) to i8 addrspace(4)*), %[[CONDFALSE]] ]
+  // CHECK-NEXT: phi i8 addrspace(4)* [ %[[VALTRUE]], %[[CONDTRUE]] ], [ getelementptr inbounds ([21 x i8], [21 x i8] addrspace(4)* addrspacecast ([21 x i8] addrspace(1)* @{{.*}} to [21 x i8] addrspace(4)*), i64 0, i64 0), %[[CONDFALSE]] ]
 
   const char *select_null = i > 2 ? "Yet another Hello world" : nullptr;
   (void)select_null;
-  // CHECK: select i1 %{{.*}}, i8 addrspace(4)* addrspacecast (i8 addrspace(1)* getelementptr inbounds ([24 x i8], [24 x i8] addrspace(1)* @{{.*}}, i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)* null
+  // CHECK: select i1 %{{.*}}, i8 addrspace(4)* getelementptr inbounds ([24 x i8], [24 x i8] addrspace(4)* addrspacecast ([24 x i8] addrspace(1)* @{{.*}} to [24 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* null
 
   const char *select_str_trivial1 = true ? str : "Another hello world!";
   (void)select_str_trivial1;
-  // CHECK: %[[TRIVIALTRUE:[a-zA-Z0-9]+]] = load i8 addrspace(4)*, i8 addrspace(4)** %[[STRVAL]]
-  // CHECK: store i8 addrspace(4)* %[[TRIVIALTRUE]], i8 addrspace(4)** %{{.*}}, align 8
+  // CHECK: %[[TRIVIALTRUE:[a-zA-Z0-9]+]] = load i8 addrspace(4)*, i8 addrspace(4)* addrspace(4)* %[[STRVAL]]
+  // CHECK: store i8 addrspace(4)* %[[TRIVIALTRUE]], i8 addrspace(4)* addrspace(4)* %{{.*}}, align 8
 
   const char *select_str_trivial2 = false ? str : "Another hello world!";
   (void)select_str_trivial2;
-  // CHECK: store i8 addrspace(4)* addrspacecast (i8 addrspace(1)* getelementptr inbounds ([21 x i8], [21 x i8] addrspace(1)* @{{.*}}, i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)** %{{.*}}
-  //
-  //
+  // CHECK: store i8 addrspace(4)* getelementptr inbounds ([21 x i8], [21 x i8] addrspace(4)* addrspacecast ([21 x i8] addrspace(1)* @{{.*}} to [21 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* addrspace(4)* %{{.*}}
+
   Y yy;
   baz(yy);
   // CHECK: define {{.*}}spir_func void @{{.*}}baz{{.*}}

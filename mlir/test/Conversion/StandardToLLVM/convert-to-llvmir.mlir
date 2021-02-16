@@ -40,7 +40,7 @@ func @simple_loop() {
 // CHECK32-NEXT:  {{.*}} = llvm.icmp "slt" {{.*}}, {{.*}} : i32
 // CHECK32-NEXT:  llvm.cond_br {{.*}}, ^bb3, ^bb4
 ^bb2(%0: index):	// 2 preds: ^bb1, ^bb3
-  %1 = cmpi "slt", %0, %c42 : index
+  %1 = cmpi slt, %0, %c42 : index
   cond_br %1, ^bb3, ^bb4
 
 // CHECK:      ^bb3:	// pred: ^bb2
@@ -62,66 +62,6 @@ func @simple_loop() {
 // CHECK:      ^bb4:	// pred: ^bb2
 // CHECK-NEXT:  llvm.return
 ^bb4:	// pred: ^bb2
-  return
-}
-
-// CHECK-LABEL: llvm.func @complex_numbers()
-// CHECK-NEXT:    %[[REAL0:.*]] = llvm.mlir.constant(1.200000e+00 : f32) : f32
-// CHECK-NEXT:    %[[IMAG0:.*]] = llvm.mlir.constant(3.400000e+00 : f32) : f32
-// CHECK-NEXT:    %[[CPLX0:.*]] = llvm.mlir.undef : !llvm.struct<(f32, f32)>
-// CHECK-NEXT:    %[[CPLX1:.*]] = llvm.insertvalue %[[REAL0]], %[[CPLX0]][0] : !llvm.struct<(f32, f32)>
-// CHECK-NEXT:    %[[CPLX2:.*]] = llvm.insertvalue %[[IMAG0]], %[[CPLX1]][1] : !llvm.struct<(f32, f32)>
-// CHECK-NEXT:    %[[REAL1:.*]] = llvm.extractvalue %[[CPLX2:.*]][0] : !llvm.struct<(f32, f32)>
-// CHECK-NEXT:    %[[IMAG1:.*]] = llvm.extractvalue %[[CPLX2:.*]][1] : !llvm.struct<(f32, f32)>
-// CHECK-NEXT:    llvm.return
-func @complex_numbers() {
-  %real0 = constant 1.2 : f32
-  %imag0 = constant 3.4 : f32
-  %cplx2 = create_complex %real0, %imag0 : complex<f32>
-  %real1 = re %cplx2 : complex<f32>
-  %imag1 = im %cplx2 : complex<f32>
-  return
-}
-
-// CHECK-LABEL: llvm.func @complex_addition()
-// CHECK-DAG:     %[[A_REAL:.*]] = llvm.extractvalue %[[A:.*]][0] : !llvm.struct<(f64, f64)>
-// CHECK-DAG:     %[[B_REAL:.*]] = llvm.extractvalue %[[B:.*]][0] : !llvm.struct<(f64, f64)>
-// CHECK-DAG:     %[[A_IMAG:.*]] = llvm.extractvalue %[[A]][1] : !llvm.struct<(f64, f64)>
-// CHECK-DAG:     %[[B_IMAG:.*]] = llvm.extractvalue %[[B]][1] : !llvm.struct<(f64, f64)>
-// CHECK:         %[[C0:.*]] = llvm.mlir.undef : !llvm.struct<(f64, f64)>
-// CHECK-DAG:     %[[C_REAL:.*]] = llvm.fadd %[[A_REAL]], %[[B_REAL]] : f64
-// CHECK-DAG:     %[[C_IMAG:.*]] = llvm.fadd %[[A_IMAG]], %[[B_IMAG]] : f64
-// CHECK:         %[[C1:.*]] = llvm.insertvalue %[[C_REAL]], %[[C0]][0] : !llvm.struct<(f64, f64)>
-// CHECK:         %[[C2:.*]] = llvm.insertvalue %[[C_IMAG]], %[[C1]][1] : !llvm.struct<(f64, f64)>
-func @complex_addition() {
-  %a_re = constant 1.2 : f64
-  %a_im = constant 3.4 : f64
-  %a = create_complex %a_re, %a_im : complex<f64>
-  %b_re = constant 5.6 : f64
-  %b_im = constant 7.8 : f64
-  %b = create_complex %b_re, %b_im : complex<f64>
-  %c = addcf %a, %b : complex<f64>
-  return
-}
-
-// CHECK-LABEL: llvm.func @complex_substraction()
-// CHECK-DAG:     %[[A_REAL:.*]] = llvm.extractvalue %[[A:.*]][0] : !llvm.struct<(f64, f64)>
-// CHECK-DAG:     %[[B_REAL:.*]] = llvm.extractvalue %[[B:.*]][0] : !llvm.struct<(f64, f64)>
-// CHECK-DAG:     %[[A_IMAG:.*]] = llvm.extractvalue %[[A]][1] : !llvm.struct<(f64, f64)>
-// CHECK-DAG:     %[[B_IMAG:.*]] = llvm.extractvalue %[[B]][1] : !llvm.struct<(f64, f64)>
-// CHECK:         %[[C0:.*]] = llvm.mlir.undef : !llvm.struct<(f64, f64)>
-// CHECK-DAG:     %[[C_REAL:.*]] = llvm.fsub %[[A_REAL]], %[[B_REAL]] : f64
-// CHECK-DAG:     %[[C_IMAG:.*]] = llvm.fsub %[[A_IMAG]], %[[B_IMAG]] : f64
-// CHECK:         %[[C1:.*]] = llvm.insertvalue %[[C_REAL]], %[[C0]][0] : !llvm.struct<(f64, f64)>
-// CHECK:         %[[C2:.*]] = llvm.insertvalue %[[C_IMAG]], %[[C1]][1] : !llvm.struct<(f64, f64)>
-func @complex_substraction() {
-  %a_re = constant 1.2 : f64
-  %a_im = constant 3.4 : f64
-  %a = create_complex %a_re, %a_im : complex<f64>
-  %b_re = constant 5.6 : f64
-  %b_im = constant 7.8 : f64
-  %b = create_complex %b_re, %b_im : complex<f64>
-  %c = subcf %a, %b : complex<f64>
   return
 }
 
@@ -193,7 +133,7 @@ func @func_args(i32, i32) -> i32 {
 // CHECK32-NEXT:  {{.*}} = llvm.icmp "slt" {{.*}}, {{.*}} : i32
 // CHECK32-NEXT:  llvm.cond_br {{.*}}, ^bb3, ^bb4
 ^bb2(%0: index):	// 2 preds: ^bb1, ^bb3
-  %1 = cmpi "slt", %0, %c42 : index
+  %1 = cmpi slt, %0, %c42 : index
   cond_br %1, ^bb3, ^bb4
 
 // CHECK-NEXT: ^bb3:	// pred: ^bb2
@@ -266,7 +206,7 @@ func @imperfectly_nested_loops() {
 // CHECK-NEXT:  {{.*}} = llvm.icmp "slt" {{.*}}, {{.*}} : i64
 // CHECK-NEXT:  llvm.cond_br {{.*}}, ^bb3, ^bb8
 ^bb2(%0: index):	// 2 preds: ^bb1, ^bb7
-  %1 = cmpi "slt", %0, %c42 : index
+  %1 = cmpi slt, %0, %c42 : index
   cond_br %1, ^bb3, ^bb8
 
 // CHECK-NEXT: ^bb3:
@@ -289,7 +229,7 @@ func @imperfectly_nested_loops() {
 // CHECK-NEXT:  {{.*}} = llvm.icmp "slt" {{.*}}, {{.*}} : i64
 // CHECK-NEXT:  llvm.cond_br {{.*}}, ^bb6, ^bb7
 ^bb5(%2: index):	// 2 preds: ^bb4, ^bb6
-  %3 = cmpi "slt", %2, %c56 : index
+  %3 = cmpi slt, %2, %c56 : index
   cond_br %3, ^bb6, ^bb7
 
 // CHECK-NEXT: ^bb6:	// pred: ^bb5
@@ -382,7 +322,7 @@ func @more_imperfectly_nested_loops() {
   %c42 = constant 42 : index
   br ^bb2(%c0 : index)
 ^bb2(%0: index):	// 2 preds: ^bb1, ^bb11
-  %1 = cmpi "slt", %0, %c42 : index
+  %1 = cmpi slt, %0, %c42 : index
   cond_br %1, ^bb3, ^bb12
 ^bb3:	// pred: ^bb2
   call @pre(%0) : (index) -> ()
@@ -392,7 +332,7 @@ func @more_imperfectly_nested_loops() {
   %c56 = constant 56 : index
   br ^bb5(%c7 : index)
 ^bb5(%2: index):	// 2 preds: ^bb4, ^bb6
-  %3 = cmpi "slt", %2, %c56 : index
+  %3 = cmpi slt, %2, %c56 : index
   cond_br %3, ^bb6, ^bb7
 ^bb6:	// pred: ^bb5
   call @body2(%0, %2) : (index, index) -> ()
@@ -407,7 +347,7 @@ func @more_imperfectly_nested_loops() {
   %c37 = constant 37 : index
   br ^bb9(%c18 : index)
 ^bb9(%5: index):	// 2 preds: ^bb8, ^bb10
-  %6 = cmpi "slt", %5, %c37 : index
+  %6 = cmpi slt, %5, %c37 : index
   cond_br %6, ^bb10, ^bb11
 ^bb10:	// pred: ^bb9
   call @body3(%0, %5) : (index, index) -> ()
@@ -487,35 +427,35 @@ func @multireturn_caller() {
   return
 }
 
-// CHECK-LABEL: llvm.func @vector_ops(%arg0: !llvm.vec<4 x f32>, %arg1: !llvm.vec<4 x i1>, %arg2: !llvm.vec<4 x i64>, %arg3: !llvm.vec<4 x i64>) -> !llvm.vec<4 x f32> {
+// CHECK-LABEL: llvm.func @vector_ops(%arg0: vector<4xf32>, %arg1: vector<4xi1>, %arg2: vector<4xi64>, %arg3: vector<4xi64>) -> vector<4xf32> {
 func @vector_ops(%arg0: vector<4xf32>, %arg1: vector<4xi1>, %arg2: vector<4xi64>, %arg3: vector<4xi64>) -> vector<4xf32> {
-// CHECK-NEXT:  %0 = llvm.mlir.constant(dense<4.200000e+01> : vector<4xf32>) : !llvm.vec<4 x f32>
+// CHECK-NEXT:  %0 = llvm.mlir.constant(dense<4.200000e+01> : vector<4xf32>) : vector<4xf32>
   %0 = constant dense<42.> : vector<4xf32>
-// CHECK-NEXT:  %1 = llvm.fadd %arg0, %0 : !llvm.vec<4 x f32>
+// CHECK-NEXT:  %1 = llvm.fadd %arg0, %0 : vector<4xf32>
   %1 = addf %arg0, %0 : vector<4xf32>
-// CHECK-NEXT:  %2 = llvm.sdiv %arg2, %arg2 : !llvm.vec<4 x i64>
+// CHECK-NEXT:  %2 = llvm.sdiv %arg2, %arg2 : vector<4xi64>
   %3 = divi_signed %arg2, %arg2 : vector<4xi64>
-// CHECK-NEXT:  %3 = llvm.udiv %arg2, %arg2 : !llvm.vec<4 x i64>
+// CHECK-NEXT:  %3 = llvm.udiv %arg2, %arg2 : vector<4xi64>
   %4 = divi_unsigned %arg2, %arg2 : vector<4xi64>
-// CHECK-NEXT:  %4 = llvm.srem %arg2, %arg2 : !llvm.vec<4 x i64>
+// CHECK-NEXT:  %4 = llvm.srem %arg2, %arg2 : vector<4xi64>
   %5 = remi_signed %arg2, %arg2 : vector<4xi64>
-// CHECK-NEXT:  %5 = llvm.urem %arg2, %arg2 : !llvm.vec<4 x i64>
+// CHECK-NEXT:  %5 = llvm.urem %arg2, %arg2 : vector<4xi64>
   %6 = remi_unsigned %arg2, %arg2 : vector<4xi64>
-// CHECK-NEXT:  %6 = llvm.fdiv %arg0, %0 : !llvm.vec<4 x f32>
+// CHECK-NEXT:  %6 = llvm.fdiv %arg0, %0 : vector<4xf32>
   %7 = divf %arg0, %0 : vector<4xf32>
-// CHECK-NEXT:  %7 = llvm.frem %arg0, %0 : !llvm.vec<4 x f32>
+// CHECK-NEXT:  %7 = llvm.frem %arg0, %0 : vector<4xf32>
   %8 = remf %arg0, %0 : vector<4xf32>
-// CHECK-NEXT:  %8 = llvm.and %arg2, %arg3 : !llvm.vec<4 x i64>
+// CHECK-NEXT:  %8 = llvm.and %arg2, %arg3 : vector<4xi64>
   %9 = and %arg2, %arg3 : vector<4xi64>
-// CHECK-NEXT:  %9 = llvm.or %arg2, %arg3 : !llvm.vec<4 x i64>
+// CHECK-NEXT:  %9 = llvm.or %arg2, %arg3 : vector<4xi64>
   %10 = or %arg2, %arg3 : vector<4xi64>
-// CHECK-NEXT:  %10 = llvm.xor %arg2, %arg3 : !llvm.vec<4 x i64>
+// CHECK-NEXT:  %10 = llvm.xor %arg2, %arg3 : vector<4xi64>
   %11 = xor %arg2, %arg3 : vector<4xi64>
-// CHECK-NEXT:  %11 = llvm.shl %arg2, %arg2 : !llvm.vec<4 x i64>
+// CHECK-NEXT:  %11 = llvm.shl %arg2, %arg2 : vector<4xi64>
   %12 = shift_left %arg2, %arg2 : vector<4xi64>
-// CHECK-NEXT:  %12 = llvm.ashr %arg2, %arg2 : !llvm.vec<4 x i64>
+// CHECK-NEXT:  %12 = llvm.ashr %arg2, %arg2 : vector<4xi64>
   %13 = shift_right_signed %arg2, %arg2 : vector<4xi64>
-// CHECK-NEXT:  %13 = llvm.lshr %arg2, %arg2 : !llvm.vec<4 x i64>
+// CHECK-NEXT:  %13 = llvm.lshr %arg2, %arg2 : vector<4xi64>
   %14 = shift_right_unsigned %arg2, %arg2 : vector<4xi64>
   return %1 : vector<4xf32>
 }
@@ -528,7 +468,7 @@ func @ops(f32, f32, i32, i32, f64) -> (f32, i32) {
 // CHECK-NEXT:  %1 = llvm.sub %arg2, %arg3 : i32
   %1 = subi %arg2, %arg3: i32
 // CHECK-NEXT:  %2 = llvm.icmp "slt" %arg2, %1 : i32
-  %2 = cmpi "slt", %arg2, %1 : i32
+  %2 = cmpi slt, %arg2, %1 : i32
 // CHECK-NEXT:  %3 = llvm.sdiv %arg2, %arg3 : i32
   %3 = divi_signed %arg2, %arg3 : i32
 // CHECK-NEXT:  %4 = llvm.udiv %arg2, %arg3 : i32
@@ -597,17 +537,17 @@ func @sitofp(%arg0 : i32, %arg1 : i64) {
 // Checking conversion of integer vectors to floating point vector types.
 // CHECK-LABEL: @sitofp_vector
 func @sitofp_vector(%arg0 : vector<2xi16>, %arg1 : vector<2xi32>, %arg2 : vector<2xi64>) {
-// CHECK-NEXT: = llvm.sitofp {{.*}} : !llvm.vec<2 x i16> to !llvm.vec<2 x f32>
+// CHECK-NEXT: = llvm.sitofp {{.*}} : vector<2xi16> to vector<2xf32>
   %0 = sitofp %arg0: vector<2xi16> to vector<2xf32>
-// CHECK-NEXT: = llvm.sitofp {{.*}} : !llvm.vec<2 x i16> to !llvm.vec<2 x f64>
+// CHECK-NEXT: = llvm.sitofp {{.*}} : vector<2xi16> to vector<2xf64>
   %1 = sitofp %arg0: vector<2xi16> to vector<2xf64>
-// CHECK-NEXT: = llvm.sitofp {{.*}} : !llvm.vec<2 x i32> to !llvm.vec<2 x f32>
+// CHECK-NEXT: = llvm.sitofp {{.*}} : vector<2xi32> to vector<2xf32>
   %2 = sitofp %arg1: vector<2xi32> to vector<2xf32>
-// CHECK-NEXT: = llvm.sitofp {{.*}} : !llvm.vec<2 x i32> to !llvm.vec<2 x f64>
+// CHECK-NEXT: = llvm.sitofp {{.*}} : vector<2xi32> to vector<2xf64>
   %3 = sitofp %arg1: vector<2xi32> to vector<2xf64>
-// CHECK-NEXT: = llvm.sitofp {{.*}} : !llvm.vec<2 x i64> to !llvm.vec<2 x f32>
+// CHECK-NEXT: = llvm.sitofp {{.*}} : vector<2xi64> to vector<2xf32>
   %4 = sitofp %arg2: vector<2xi64> to vector<2xf32>
-// CHECK-NEXT: = llvm.sitofp {{.*}} : !llvm.vec<2 x i64> to !llvm.vec<2 x f64>
+// CHECK-NEXT: = llvm.sitofp {{.*}} : vector<2xi64> to vector<2xf64>
   %5 = sitofp %arg2: vector<2xi64> to vector<2xf64>
   return
 }
@@ -641,11 +581,11 @@ func @fpext(%arg0 : f16, %arg1 : f32) {
 // Checking conversion of integer types to floating point.
 // CHECK-LABEL: @fpext
 func @fpext_vector(%arg0 : vector<2xf16>, %arg1 : vector<2xf32>) {
-// CHECK-NEXT: = llvm.fpext {{.*}} : !llvm.vec<2 x f16> to !llvm.vec<2 x f32>
+// CHECK-NEXT: = llvm.fpext {{.*}} : vector<2xf16> to vector<2xf32>
   %0 = fpext %arg0: vector<2xf16> to vector<2xf32>
-// CHECK-NEXT: = llvm.fpext {{.*}} : !llvm.vec<2 x f16> to !llvm.vec<2 x f64>
+// CHECK-NEXT: = llvm.fpext {{.*}} : vector<2xf16> to vector<2xf64>
   %1 = fpext %arg0: vector<2xf16> to vector<2xf64>
-// CHECK-NEXT: = llvm.fpext {{.*}} : !llvm.vec<2 x f32> to !llvm.vec<2 x f64>
+// CHECK-NEXT: = llvm.fpext {{.*}} : vector<2xf32> to vector<2xf64>
   %2 = fpext %arg1: vector<2xf32> to vector<2xf64>
   return
 }
@@ -667,17 +607,17 @@ func @fptosi(%arg0 : f32, %arg1 : f64) {
 // Checking conversion of floating point vectors to integer vector types.
 // CHECK-LABEL: @fptosi_vector
 func @fptosi_vector(%arg0 : vector<2xf16>, %arg1 : vector<2xf32>, %arg2 : vector<2xf64>) {
-// CHECK-NEXT: = llvm.fptosi {{.*}} : !llvm.vec<2 x f16> to !llvm.vec<2 x i32>
+// CHECK-NEXT: = llvm.fptosi {{.*}} : vector<2xf16> to vector<2xi32>
   %0 = fptosi %arg0: vector<2xf16> to vector<2xi32>
-// CHECK-NEXT: = llvm.fptosi {{.*}} : !llvm.vec<2 x f16> to !llvm.vec<2 x i64>
+// CHECK-NEXT: = llvm.fptosi {{.*}} : vector<2xf16> to vector<2xi64>
   %1 = fptosi %arg0: vector<2xf16> to vector<2xi64>
-// CHECK-NEXT: = llvm.fptosi {{.*}} : !llvm.vec<2 x f32> to !llvm.vec<2 x i32>
+// CHECK-NEXT: = llvm.fptosi {{.*}} : vector<2xf32> to vector<2xi32>
   %2 = fptosi %arg1: vector<2xf32> to vector<2xi32>
-// CHECK-NEXT: = llvm.fptosi {{.*}} : !llvm.vec<2 x f32> to !llvm.vec<2 x i64>
+// CHECK-NEXT: = llvm.fptosi {{.*}} : vector<2xf32> to vector<2xi64>
   %3 = fptosi %arg1: vector<2xf32> to vector<2xi64>
-// CHECK-NEXT: = llvm.fptosi {{.*}} : !llvm.vec<2 x f64> to !llvm.vec<2 x i32>
+// CHECK-NEXT: = llvm.fptosi {{.*}} : vector<2xf64> to vector<2xi32>
   %4 = fptosi %arg2: vector<2xf64> to vector<2xi32>
-// CHECK-NEXT: = llvm.fptosi {{.*}} : !llvm.vec<2 x f64> to !llvm.vec<2 x i64>
+// CHECK-NEXT: = llvm.fptosi {{.*}} : vector<2xf64> to vector<2xi64>
   %5 = fptosi %arg2: vector<2xf64> to vector<2xi64>
   return
 }
@@ -699,17 +639,17 @@ func @fptoui(%arg0 : f32, %arg1 : f64) {
 // Checking conversion of floating point vectors to integer vector types.
 // CHECK-LABEL: @fptoui_vector
 func @fptoui_vector(%arg0 : vector<2xf16>, %arg1 : vector<2xf32>, %arg2 : vector<2xf64>) {
-// CHECK-NEXT: = llvm.fptoui {{.*}} : !llvm.vec<2 x f16> to !llvm.vec<2 x i32>
+// CHECK-NEXT: = llvm.fptoui {{.*}} : vector<2xf16> to vector<2xi32>
   %0 = fptoui %arg0: vector<2xf16> to vector<2xi32>
-// CHECK-NEXT: = llvm.fptoui {{.*}} : !llvm.vec<2 x f16> to !llvm.vec<2 x i64>
+// CHECK-NEXT: = llvm.fptoui {{.*}} : vector<2xf16> to vector<2xi64>
   %1 = fptoui %arg0: vector<2xf16> to vector<2xi64>
-// CHECK-NEXT: = llvm.fptoui {{.*}} : !llvm.vec<2 x f32> to !llvm.vec<2 x i32>
+// CHECK-NEXT: = llvm.fptoui {{.*}} : vector<2xf32> to vector<2xi32>
   %2 = fptoui %arg1: vector<2xf32> to vector<2xi32>
-// CHECK-NEXT: = llvm.fptoui {{.*}} : !llvm.vec<2 x f32> to !llvm.vec<2 x i64>
+// CHECK-NEXT: = llvm.fptoui {{.*}} : vector<2xf32> to vector<2xi64>
   %3 = fptoui %arg1: vector<2xf32> to vector<2xi64>
-// CHECK-NEXT: = llvm.fptoui {{.*}} : !llvm.vec<2 x f64> to !llvm.vec<2 x i32>
+// CHECK-NEXT: = llvm.fptoui {{.*}} : vector<2xf64> to vector<2xi32>
   %4 = fptoui %arg2: vector<2xf64> to vector<2xi32>
-// CHECK-NEXT: = llvm.fptoui {{.*}} : !llvm.vec<2 x f64> to !llvm.vec<2 x i64>
+// CHECK-NEXT: = llvm.fptoui {{.*}} : vector<2xf64> to vector<2xi64>
   %5 = fptoui %arg2: vector<2xf64> to vector<2xi64>
   return
 }
@@ -717,17 +657,17 @@ func @fptoui_vector(%arg0 : vector<2xf16>, %arg1 : vector<2xf32>, %arg2 : vector
 // Checking conversion of integer vectors to floating point vector types.
 // CHECK-LABEL: @uitofp_vector
 func @uitofp_vector(%arg0 : vector<2xi16>, %arg1 : vector<2xi32>, %arg2 : vector<2xi64>) {
-// CHECK-NEXT: = llvm.uitofp {{.*}} : !llvm.vec<2 x i16> to !llvm.vec<2 x f32>
+// CHECK-NEXT: = llvm.uitofp {{.*}} : vector<2xi16> to vector<2xf32>
   %0 = uitofp %arg0: vector<2xi16> to vector<2xf32>
-// CHECK-NEXT: = llvm.uitofp {{.*}} : !llvm.vec<2 x i16> to !llvm.vec<2 x f64>
+// CHECK-NEXT: = llvm.uitofp {{.*}} : vector<2xi16> to vector<2xf64>
   %1 = uitofp %arg0: vector<2xi16> to vector<2xf64>
-// CHECK-NEXT: = llvm.uitofp {{.*}} : !llvm.vec<2 x i32> to !llvm.vec<2 x f32>
+// CHECK-NEXT: = llvm.uitofp {{.*}} : vector<2xi32> to vector<2xf32>
   %2 = uitofp %arg1: vector<2xi32> to vector<2xf32>
-// CHECK-NEXT: = llvm.uitofp {{.*}} : !llvm.vec<2 x i32> to !llvm.vec<2 x f64>
+// CHECK-NEXT: = llvm.uitofp {{.*}} : vector<2xi32> to vector<2xf64>
   %3 = uitofp %arg1: vector<2xi32> to vector<2xf64>
-// CHECK-NEXT: = llvm.uitofp {{.*}} : !llvm.vec<2 x i64> to !llvm.vec<2 x f32>
+// CHECK-NEXT: = llvm.uitofp {{.*}} : vector<2xi64> to vector<2xf32>
   %4 = uitofp %arg2: vector<2xi64> to vector<2xf32>
-// CHECK-NEXT: = llvm.uitofp {{.*}} : !llvm.vec<2 x i64> to !llvm.vec<2 x f64>
+// CHECK-NEXT: = llvm.uitofp {{.*}} : vector<2xi64> to vector<2xf64>
   %5 = uitofp %arg2: vector<2xi64> to vector<2xf64>
   return
 }
@@ -747,11 +687,11 @@ func @fptrunc(%arg0 : f32, %arg1 : f64) {
 // Checking conversion of integer types to floating point.
 // CHECK-LABEL: @fptrunc
 func @fptrunc_vector(%arg0 : vector<2xf32>, %arg1 : vector<2xf64>) {
-// CHECK-NEXT: = llvm.fptrunc {{.*}} : !llvm.vec<2 x f32> to !llvm.vec<2 x f16>
+// CHECK-NEXT: = llvm.fptrunc {{.*}} : vector<2xf32> to vector<2xf16>
   %0 = fptrunc %arg0: vector<2xf32> to vector<2xf16>
-// CHECK-NEXT: = llvm.fptrunc {{.*}} : !llvm.vec<2 x f64> to !llvm.vec<2 x f16>
+// CHECK-NEXT: = llvm.fptrunc {{.*}} : vector<2xf64> to vector<2xf16>
   %1 = fptrunc %arg1: vector<2xf64> to vector<2xf16>
-// CHECK-NEXT: = llvm.fptrunc {{.*}} : !llvm.vec<2 x f64> to !llvm.vec<2 x f32>
+// CHECK-NEXT: = llvm.fptrunc {{.*}} : vector<2xf64> to vector<2xf32>
   %2 = fptrunc %arg1: vector<2xf64> to vector<2xf32>
   return
 }
@@ -808,20 +748,20 @@ func @fcmp(f32, f32) -> () {
   // CHECK-NEXT: llvm.fcmp "une" %arg0, %arg1 : f32
   // CHECK-NEXT: llvm.fcmp "uno" %arg0, %arg1 : f32
   // CHECK-NEXT: llvm.return
-  %1 = cmpf "oeq", %arg0, %arg1 : f32
-  %2 = cmpf "ogt", %arg0, %arg1 : f32
-  %3 = cmpf "oge", %arg0, %arg1 : f32
-  %4 = cmpf "olt", %arg0, %arg1 : f32
-  %5 = cmpf "ole", %arg0, %arg1 : f32
-  %6 = cmpf "one", %arg0, %arg1 : f32
-  %7 = cmpf "ord", %arg0, %arg1 : f32
-  %8 = cmpf "ueq", %arg0, %arg1 : f32
-  %9 = cmpf "ugt", %arg0, %arg1 : f32
-  %10 = cmpf "uge", %arg0, %arg1 : f32
-  %11 = cmpf "ult", %arg0, %arg1 : f32
-  %12 = cmpf "ule", %arg0, %arg1 : f32
-  %13 = cmpf "une", %arg0, %arg1 : f32
-  %14 = cmpf "uno", %arg0, %arg1 : f32
+  %1 = cmpf oeq, %arg0, %arg1 : f32
+  %2 = cmpf ogt, %arg0, %arg1 : f32
+  %3 = cmpf oge, %arg0, %arg1 : f32
+  %4 = cmpf olt, %arg0, %arg1 : f32
+  %5 = cmpf ole, %arg0, %arg1 : f32
+  %6 = cmpf one, %arg0, %arg1 : f32
+  %7 = cmpf ord, %arg0, %arg1 : f32
+  %8 = cmpf ueq, %arg0, %arg1 : f32
+  %9 = cmpf ugt, %arg0, %arg1 : f32
+  %10 = cmpf uge, %arg0, %arg1 : f32
+  %11 = cmpf ult, %arg0, %arg1 : f32
+  %12 = cmpf ule, %arg0, %arg1 : f32
+  %13 = cmpf une, %arg0, %arg1 : f32
+  %14 = cmpf uno, %arg0, %arg1 : f32
 
   return
 }
@@ -831,40 +771,40 @@ func @vec_bin(%arg0: vector<2x2x2xf32>) -> vector<2x2x2xf32> {
   %0 = addf %arg0, %arg0 : vector<2x2x2xf32>
   return %0 : vector<2x2x2xf32>
 
-//  CHECK-NEXT: llvm.mlir.undef : !llvm.array<2 x array<2 x vec<2 x f32>>>
+//  CHECK-NEXT: llvm.mlir.undef : !llvm.array<2 x array<2 x vector<2xf32>>>
 
 // This block appears 2x2 times
-//  CHECK-NEXT: llvm.extractvalue %{{.*}}[0, 0] : !llvm.array<2 x array<2 x vec<2 x f32>>>
-//  CHECK-NEXT: llvm.extractvalue %{{.*}}[0, 0] : !llvm.array<2 x array<2 x vec<2 x f32>>>
-//  CHECK-NEXT: llvm.fadd %{{.*}} : !llvm.vec<2 x f32>
-//  CHECK-NEXT: llvm.insertvalue %{{.*}}[0, 0] : !llvm.array<2 x array<2 x vec<2 x f32>>>
+//  CHECK-NEXT: llvm.extractvalue %{{.*}}[0, 0] : !llvm.array<2 x array<2 x vector<2xf32>>>
+//  CHECK-NEXT: llvm.extractvalue %{{.*}}[0, 0] : !llvm.array<2 x array<2 x vector<2xf32>>>
+//  CHECK-NEXT: llvm.fadd %{{.*}} : vector<2xf32>
+//  CHECK-NEXT: llvm.insertvalue %{{.*}}[0, 0] : !llvm.array<2 x array<2 x vector<2xf32>>>
 
 // We check the proper indexing of extract/insert in the remaining 3 positions.
-//       CHECK: llvm.extractvalue %{{.*}}[0, 1] : !llvm.array<2 x array<2 x vec<2 x f32>>>
-//       CHECK: llvm.insertvalue %{{.*}}[0, 1] : !llvm.array<2 x array<2 x vec<2 x f32>>>
-//       CHECK: llvm.extractvalue %{{.*}}[1, 0] : !llvm.array<2 x array<2 x vec<2 x f32>>>
-//       CHECK: llvm.insertvalue %{{.*}}[1, 0] : !llvm.array<2 x array<2 x vec<2 x f32>>>
-//       CHECK: llvm.extractvalue %{{.*}}[1, 1] : !llvm.array<2 x array<2 x vec<2 x f32>>>
-//       CHECK: llvm.insertvalue %{{.*}}[1, 1] : !llvm.array<2 x array<2 x vec<2 x f32>>>
+//       CHECK: llvm.extractvalue %{{.*}}[0, 1] : !llvm.array<2 x array<2 x vector<2xf32>>>
+//       CHECK: llvm.insertvalue %{{.*}}[0, 1] : !llvm.array<2 x array<2 x vector<2xf32>>>
+//       CHECK: llvm.extractvalue %{{.*}}[1, 0] : !llvm.array<2 x array<2 x vector<2xf32>>>
+//       CHECK: llvm.insertvalue %{{.*}}[1, 0] : !llvm.array<2 x array<2 x vector<2xf32>>>
+//       CHECK: llvm.extractvalue %{{.*}}[1, 1] : !llvm.array<2 x array<2 x vector<2xf32>>>
+//       CHECK: llvm.insertvalue %{{.*}}[1, 1] : !llvm.array<2 x array<2 x vector<2xf32>>>
 
 // And we're done
 //   CHECK-NEXT: return
 }
 
 // CHECK-LABEL: @splat
-// CHECK-SAME: %[[A:arg[0-9]+]]: !llvm.vec<4 x f32>
+// CHECK-SAME: %[[A:arg[0-9]+]]: vector<4xf32>
 // CHECK-SAME: %[[ELT:arg[0-9]+]]: f32
 func @splat(%a: vector<4xf32>, %b: f32) -> vector<4xf32> {
   %vb = splat %b : vector<4xf32>
   %r = mulf %a, %vb : vector<4xf32>
   return %r : vector<4xf32>
 }
-// CHECK-NEXT: %[[UNDEF:[0-9]+]] = llvm.mlir.undef : !llvm.vec<4 x f32>
+// CHECK-NEXT: %[[UNDEF:[0-9]+]] = llvm.mlir.undef : vector<4xf32>
 // CHECK-NEXT: %[[ZERO:[0-9]+]] = llvm.mlir.constant(0 : i32) : i32
-// CHECK-NEXT: %[[V:[0-9]+]] = llvm.insertelement %[[ELT]], %[[UNDEF]][%[[ZERO]] : i32] : !llvm.vec<4 x f32>
+// CHECK-NEXT: %[[V:[0-9]+]] = llvm.insertelement %[[ELT]], %[[UNDEF]][%[[ZERO]] : i32] : vector<4xf32>
 // CHECK-NEXT: %[[SPLAT:[0-9]+]] = llvm.shufflevector %[[V]], %[[UNDEF]] [0 : i32, 0 : i32, 0 : i32, 0 : i32]
-// CHECK-NEXT: %[[SCALE:[0-9]+]] = llvm.fmul %[[A]], %[[SPLAT]] : !llvm.vec<4 x f32>
-// CHECK-NEXT: llvm.return %[[SCALE]] : !llvm.vec<4 x f32>
+// CHECK-NEXT: %[[SCALE:[0-9]+]] = llvm.fmul %[[A]], %[[SPLAT]] : vector<4xf32>
+// CHECK-NEXT: llvm.return %[[SCALE]] : vector<4xf32>
 
 // CHECK-LABEL: func @view(
 // CHECK: %[[ARG0:.*]]: i64, %[[ARG1:.*]]: i64, %[[ARG2:.*]]: i64
@@ -979,11 +919,11 @@ func @subview(%0 : memref<64x4xf32, offset: 0, strides: [4, 1]>, %arg0 : index, 
   // CHECK: %[[OFFINC1:.*]] = llvm.mul %[[ARG1]], %[[STRIDE1]] : i64
   // CHECK: %[[OFF2:.*]] = llvm.add %[[OFF1]], %[[OFFINC1]] : i64
   // CHECK: %[[DESC2:.*]] = llvm.insertvalue %[[OFF2]], %[[DESC1]][2] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
-  // CHECK: %[[DESC3:.*]] = llvm.insertvalue %[[ARG1]], %[[DESC2]][3, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
   // CHECK: %[[DESCSTRIDE1:.*]] = llvm.mul %[[ARG1]], %[[STRIDE1]] : i64
+  // CHECK: %[[DESC3:.*]] = llvm.insertvalue %[[ARG1]], %[[DESC2]][3, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
   // CHECK: %[[DESC4:.*]] = llvm.insertvalue %[[DESCSTRIDE1]], %[[DESC3]][4, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
-  // CHECK: %[[DESC5:.*]] = llvm.insertvalue %[[ARG0]], %[[DESC4]][3, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
   // CHECK: %[[DESCSTRIDE0:.*]] = llvm.mul %[[ARG0]], %[[STRIDE0]] : i64
+  // CHECK: %[[DESC5:.*]] = llvm.insertvalue %[[ARG0]], %[[DESC4]][3, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
   // CHECK: llvm.insertvalue %[[DESCSTRIDE0]], %[[DESC5]][4, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
   // CHECK32: %[[DESC:.*]] = llvm.mlir.undef : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[BITCAST0:.*]] = llvm.bitcast %{{.*}} : !llvm.ptr<f32> to !llvm.ptr<f32>
@@ -998,11 +938,11 @@ func @subview(%0 : memref<64x4xf32, offset: 0, strides: [4, 1]>, %arg0 : index, 
   // CHECK32: %[[OFFINC1:.*]] = llvm.mul %[[ARG1]], %[[STRIDE1]] : i32
   // CHECK32: %[[OFF2:.*]] = llvm.add %[[OFF1]], %[[OFFINC1]] : i32
   // CHECK32: %[[DESC2:.*]] = llvm.insertvalue %[[OFF2]], %[[DESC1]][2] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
-  // CHECK32: %[[DESC3:.*]] = llvm.insertvalue %[[ARG1]], %[[DESC2]][3, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[DESCSTRIDE1:.*]] = llvm.mul %[[ARG1]], %[[STRIDE1]] : i32
+  // CHECK32: %[[DESC3:.*]] = llvm.insertvalue %[[ARG1]], %[[DESC2]][3, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[DESC4:.*]] = llvm.insertvalue %[[DESCSTRIDE1]], %[[DESC3]][4, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
-  // CHECK32: %[[DESC5:.*]] = llvm.insertvalue %[[ARG0]], %[[DESC4]][3, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[DESCSTRIDE0:.*]] = llvm.mul %[[ARG0]], %[[STRIDE0]] : i32
+  // CHECK32: %[[DESC5:.*]] = llvm.insertvalue %[[ARG0]], %[[DESC4]][3, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
 
   %1 = subview %0[%arg0, %arg1][%arg0, %arg1][%arg0, %arg1] :
     memref<64x4xf32, offset: 0, strides: [4, 1]>
@@ -1040,11 +980,11 @@ func @subview_non_zero_addrspace(%0 : memref<64x4xf32, offset: 0, strides: [4, 1
   // CHECK: %[[OFFINC1:.*]] = llvm.mul %[[ARG1]], %[[STRIDE1]] : i64
   // CHECK: %[[OFF2:.*]] = llvm.add %[[OFF1]], %[[OFFINC1]] : i64
   // CHECK: %[[DESC2:.*]] = llvm.insertvalue %[[OFF2]], %[[DESC1]][2] : !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i64, array<2 x i64>, array<2 x i64>)>
-  // CHECK: %[[DESC3:.*]] = llvm.insertvalue %[[ARG1]], %[[DESC2]][3, 1] : !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i64, array<2 x i64>, array<2 x i64>)>
   // CHECK: %[[DESCSTRIDE1:.*]] = llvm.mul %[[ARG1]], %[[STRIDE1]] : i64
+  // CHECK: %[[DESC3:.*]] = llvm.insertvalue %[[ARG1]], %[[DESC2]][3, 1] : !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i64, array<2 x i64>, array<2 x i64>)>
   // CHECK: %[[DESC4:.*]] = llvm.insertvalue %[[DESCSTRIDE1]], %[[DESC3]][4, 1] : !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i64, array<2 x i64>, array<2 x i64>)>
-  // CHECK: %[[DESC5:.*]] = llvm.insertvalue %[[ARG0]], %[[DESC4]][3, 0] : !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i64, array<2 x i64>, array<2 x i64>)>
   // CHECK: %[[DESCSTRIDE0:.*]] = llvm.mul %[[ARG0]], %[[STRIDE0]] : i64
+  // CHECK: %[[DESC5:.*]] = llvm.insertvalue %[[ARG0]], %[[DESC4]][3, 0] : !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i64, array<2 x i64>, array<2 x i64>)>
   // CHECK: llvm.insertvalue %[[DESCSTRIDE0]], %[[DESC5]][4, 0] : !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i64, array<2 x i64>, array<2 x i64>)>
   // CHECK32: %[[DESC:.*]] = llvm.mlir.undef : !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[BITCAST0:.*]] = llvm.bitcast %{{.*}} : !llvm.ptr<f32, 3> to !llvm.ptr<f32, 3>
@@ -1059,11 +999,11 @@ func @subview_non_zero_addrspace(%0 : memref<64x4xf32, offset: 0, strides: [4, 1
   // CHECK32: %[[OFFINC1:.*]] = llvm.mul %[[ARG1]], %[[STRIDE1]] : i32
   // CHECK32: %[[OFF2:.*]] = llvm.add %[[OFF1]], %[[OFFINC1]] : i32
   // CHECK32: %[[DESC2:.*]] = llvm.insertvalue %[[OFF2]], %[[DESC1]][2] : !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i32, array<2 x i32>, array<2 x i32>)>
-  // CHECK32: %[[DESC3:.*]] = llvm.insertvalue %[[ARG1]], %[[DESC2]][3, 1] : !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[DESCSTRIDE1:.*]] = llvm.mul %[[ARG1]], %[[STRIDE1]] : i32
+  // CHECK32: %[[DESC3:.*]] = llvm.insertvalue %[[ARG1]], %[[DESC2]][3, 1] : !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[DESC4:.*]] = llvm.insertvalue %[[DESCSTRIDE1]], %[[DESC3]][4, 1] : !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i32, array<2 x i32>, array<2 x i32>)>
-  // CHECK32: %[[DESC5:.*]] = llvm.insertvalue %[[ARG0]], %[[DESC4]][3, 0] : !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[DESCSTRIDE0:.*]] = llvm.mul %[[ARG0]], %[[STRIDE0]] : i32
+  // CHECK32: %[[DESC5:.*]] = llvm.insertvalue %[[ARG0]], %[[DESC4]][3, 0] : !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i32, array<2 x i32>, array<2 x i32>)>
 
   %1 = subview %0[%arg0, %arg1][%arg0, %arg1][%arg0, %arg1] :
     memref<64x4xf32, offset: 0, strides: [4, 1], 3>
@@ -1112,12 +1052,12 @@ func @subview_const_size(%0 : memref<64x4xf32, offset: 0, strides: [4, 1]>, %arg
   // CHECK: %[[OFF2:.*]] = llvm.add %[[OFF1]], %[[OFFINC1]] : i64
   // CHECK: %[[DESC2:.*]] = llvm.insertvalue %[[OFF2]], %[[DESC1]][2] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
   // CHECK: %[[CST2:.*]] = llvm.mlir.constant(2 : i64)
-  // CHECK: %[[DESC3:.*]] = llvm.insertvalue %[[CST2]], %[[DESC2]][3, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
   // CHECK: %[[DESCSTRIDE1:.*]] = llvm.mul %[[ARG8]], %[[STRIDE1]] : i64
+  // CHECK: %[[DESC3:.*]] = llvm.insertvalue %[[CST2]], %[[DESC2]][3, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
   // CHECK: %[[DESC4:.*]] = llvm.insertvalue %[[DESCSTRIDE1]], %[[DESC3]][4, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
   // CHECK: %[[CST4:.*]] = llvm.mlir.constant(4 : i64)
-  // CHECK: %[[DESC5:.*]] = llvm.insertvalue %[[CST4]], %[[DESC4]][3, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
   // CHECK: %[[DESCSTRIDE0:.*]] = llvm.mul %[[ARG7]], %[[STRIDE0]] : i64
+  // CHECK: %[[DESC5:.*]] = llvm.insertvalue %[[CST4]], %[[DESC4]][3, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
   // CHECK: llvm.insertvalue %[[DESCSTRIDE0]], %[[DESC5]][4, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
   // CHECK32: %[[DESC:.*]] = llvm.mlir.undef : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[BITCAST0:.*]] = llvm.bitcast %{{.*}} : !llvm.ptr<f32> to !llvm.ptr<f32>
@@ -1133,12 +1073,12 @@ func @subview_const_size(%0 : memref<64x4xf32, offset: 0, strides: [4, 1]>, %arg
   // CHECK32: %[[OFF2:.*]] = llvm.add %[[OFF1]], %[[OFFINC1]] : i32
   // CHECK32: %[[DESC2:.*]] = llvm.insertvalue %[[OFF2]], %[[DESC1]][2] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[CST2:.*]] = llvm.mlir.constant(2 : i64)
-  // CHECK32: %[[DESC3:.*]] = llvm.insertvalue %[[CST2]], %[[DESC2]][3, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[DESCSTRIDE1:.*]] = llvm.mul %[[ARG8]], %[[STRIDE1]] : i32
+  // CHECK32: %[[DESC3:.*]] = llvm.insertvalue %[[CST2]], %[[DESC2]][3, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[DESC4:.*]] = llvm.insertvalue %[[DESCSTRIDE1]], %[[DESC3]][4, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[CST4:.*]] = llvm.mlir.constant(4 : i64)
-  // CHECK32: %[[DESC5:.*]] = llvm.insertvalue %[[CST4]], %[[DESC4]][3, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[DESCSTRIDE0:.*]] = llvm.mul %[[ARG7]], %[[STRIDE0]] : i32
+  // CHECK32: %[[DESC5:.*]] = llvm.insertvalue %[[CST4]], %[[DESC4]][3, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: llvm.insertvalue %[[DESCSTRIDE0]], %[[DESC5]][4, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   %1 = subview %0[%arg0, %arg1][4, 2][%arg0, %arg1] :
     memref<64x4xf32, offset: 0, strides: [4, 1]>
@@ -1186,11 +1126,11 @@ func @subview_const_stride(%0 : memref<64x4xf32, offset: 0, strides: [4, 1]>, %a
   // CHECK: %[[OFFINC1:.*]] = llvm.mul %[[ARG8]], %[[STRIDE1]] : i64
   // CHECK: %[[OFF2:.*]] = llvm.add %[[OFF1]], %[[OFFINC1]] : i64
   // CHECK: %[[DESC2:.*]] = llvm.insertvalue %[[OFF2]], %[[DESC1]][2] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
-  // CHECK: %[[DESC3:.*]] = llvm.insertvalue %[[ARG8]], %[[DESC2]][3, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
   // CHECK: %[[CST2:.*]] = llvm.mlir.constant(2 : i64)
+  // CHECK: %[[DESC3:.*]] = llvm.insertvalue %[[ARG8]], %[[DESC2]][3, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
   // CHECK: %[[DESC4:.*]] = llvm.insertvalue %[[CST2]], %[[DESC3]][4, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
-  // CHECK: %[[DESC5:.*]] = llvm.insertvalue %[[ARG7]], %[[DESC4]][3, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
   // CHECK: %[[CST4:.*]] = llvm.mlir.constant(4 : i64)
+  // CHECK: %[[DESC5:.*]] = llvm.insertvalue %[[ARG7]], %[[DESC4]][3, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
   // CHECK: llvm.insertvalue %[[CST4]], %[[DESC5]][4, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
   // CHECK32: %[[DESC:.*]] = llvm.mlir.undef : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[BITCAST0:.*]] = llvm.bitcast %{{.*}} : !llvm.ptr<f32> to !llvm.ptr<f32>
@@ -1205,11 +1145,11 @@ func @subview_const_stride(%0 : memref<64x4xf32, offset: 0, strides: [4, 1]>, %a
   // CHECK32: %[[OFFINC1:.*]] = llvm.mul %[[ARG8]], %[[STRIDE1]] : i32
   // CHECK32: %[[OFF2:.*]] = llvm.add %[[OFF1]], %[[OFFINC1]] : i32
   // CHECK32: %[[DESC2:.*]] = llvm.insertvalue %[[OFF2]], %[[DESC1]][2] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
-  // CHECK32: %[[DESC3:.*]] = llvm.insertvalue %[[ARG8]], %[[DESC2]][3, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[CST2:.*]] = llvm.mlir.constant(2 : i64)
+  // CHECK32: %[[DESC3:.*]] = llvm.insertvalue %[[ARG8]], %[[DESC2]][3, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[DESC4:.*]] = llvm.insertvalue %[[CST2]], %[[DESC3]][4, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
-  // CHECK32: %[[DESC5:.*]] = llvm.insertvalue %[[ARG7]], %[[DESC4]][3, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[CST4:.*]] = llvm.mlir.constant(4 : i64)
+  // CHECK32: %[[DESC5:.*]] = llvm.insertvalue %[[ARG7]], %[[DESC4]][3, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: llvm.insertvalue %[[CST4]], %[[DESC5]][4, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   %1 = subview %0[%arg0, %arg1][%arg0, %arg1][1, 2] :
     memref<64x4xf32, offset: 0, strides: [4, 1]>
@@ -1234,12 +1174,12 @@ func @subview_const_stride_and_offset(%0 : memref<64x4xf32, offset: 0, strides: 
   // CHECK32: %[[CST8:.*]] = llvm.mlir.constant(8 : index)
   // CHECK32: %[[DESC2:.*]] = llvm.insertvalue %[[CST8]], %[[DESC1]][2] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[CST3:.*]] = llvm.mlir.constant(3 : i64)
-  // CHECK32: %[[DESC3:.*]] = llvm.insertvalue %[[CST3]], %[[DESC2]][3, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[CST1:.*]] = llvm.mlir.constant(1 : i64)
+  // CHECK32: %[[DESC3:.*]] = llvm.insertvalue %[[CST3]], %[[DESC2]][3, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[DESC4:.*]] = llvm.insertvalue %[[CST1]], %[[DESC3]][4, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[CST62:.*]] = llvm.mlir.constant(62 : i64)
-  // CHECK32: %[[DESC5:.*]] = llvm.insertvalue %[[CST62]], %[[DESC4]][3, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[CST4:.*]] = llvm.mlir.constant(4 : i64)
+  // CHECK32: %[[DESC5:.*]] = llvm.insertvalue %[[CST62]], %[[DESC4]][3, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: llvm.insertvalue %[[CST4]], %[[DESC5]][4, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   %1 = subview %0[0, 8][62, 3][1, 1] :
     memref<64x4xf32, offset: 0, strides: [4, 1]>
@@ -1279,12 +1219,12 @@ func @subview_mixed_static_dynamic(%0 : memref<64x4xf32, offset: 0, strides: [4,
   // CHECK32: %[[OFFA2:.*]] = llvm.add %[[OFFA1]], %[[OFFM2]] : i32
   // CHECK32: %[[DESC2:.*]] = llvm.insertvalue %[[OFFA2]], %[[DESC1]][2] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
 
-  // CHECK32: %[[DESC3:.*]] = llvm.insertvalue %[[ARG2]], %[[DESC2]][3, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[CST1:.*]] = llvm.mlir.constant(1 : i64) : i32
+  // CHECK32: %[[DESC3:.*]] = llvm.insertvalue %[[ARG2]], %[[DESC2]][3, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[DESC4:.*]] = llvm.insertvalue %[[CST1]], %[[DESC3]][4, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[CST62:.*]] = llvm.mlir.constant(62 : i64) : i32
-  // CHECK32: %[[DESC5:.*]] = llvm.insertvalue %[[CST62]], %[[DESC4]][3, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: %[[DESCSTRIDE0:.*]] = llvm.mul %[[ARG0]], %[[STRIDE0]] : i32
+  // CHECK32: %[[DESC5:.*]] = llvm.insertvalue %[[CST62]], %[[DESC4]][3, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   // CHECK32: llvm.insertvalue %[[DESCSTRIDE0]], %[[DESC5]][4, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i32, array<2 x i32>, array<2 x i32>)>
   %1 = subview %0[%arg1, 8][62, %arg2][%arg0, 1] :
     memref<64x4xf32, offset: 0, strides: [4, 1]>
@@ -1292,23 +1232,103 @@ func @subview_mixed_static_dynamic(%0 : memref<64x4xf32, offset: 0, strides: [4,
   return
 }
 
+// CHECK-LABEL: func @subview_leading_operands(
+func @subview_leading_operands(%0 : memref<5x3xf32>, %1: memref<5x?xf32>) {
+  // CHECK: llvm.mlir.undef : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  // Alloc ptr
+  // CHECK: llvm.insertvalue %{{.*}}, %{{.*}}[0] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  // Aligned ptr
+  // CHECK: llvm.insertvalue %{{.*}}, %{{.*}}[1] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  // Offset
+  // CHECK: %[[C6:.*]] = llvm.mlir.constant(6 : index) : i64
+  // CHECK: llvm.insertvalue %[[C6:.*]], %{{.*}}[2] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  // Sizes and strides @rank 1: both static.
+  // CHECK: %[[C3:.*]] = llvm.mlir.constant(3 : index) : i64
+  // CHECK: %[[C1:.*]] = llvm.mlir.constant(1 : i64) : i64
+  // CHECK: llvm.insertvalue %[[C3]], %{{.*}}[3, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  // CHECK: llvm.insertvalue %[[C1]], %{{.*}}[4, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  // Sizes and strides @rank 0: both static extracted from type.
+  // CHECK: %[[C3_2:.*]] = llvm.mlir.constant(3 : i64) : i64
+  // CHECK: %[[C3_3:.*]] = llvm.mlir.constant(3 : i64) : i64
+  // CHECK: llvm.insertvalue %[[C3_2]], %{{.*}}[3, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  // CHECK: llvm.insertvalue %[[C3_3]], %{{.*}}[4, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  %2 = subview %0[2][3][1]: memref<5x3xf32> to memref<3x3xf32, offset: 6, strides: [3, 1]>
+
+  return
+}
+
+// CHECK-LABEL: func @subview_leading_operands_dynamic(
+func @subview_leading_operands_dynamic(%0 : memref<5x?xf32>) {
+  // CHECK: llvm.mlir.undef : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  // Alloc ptr
+  // CHECK: llvm.insertvalue %{{.*}}, %{{.*}}[0] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  // Aligned ptr
+  // CHECK: llvm.insertvalue %{{.*}}, %{{.*}}[1] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  // Extract strides
+  // CHECK: %[[ST0:.*]] = llvm.extractvalue %{{.*}}[4, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  // CHECK: %[[ST1:.*]] = llvm.extractvalue %{{.*}}[4, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  // Compute and insert offset from 2 + dynamic value.
+  // CHECK: %[[OFF:.*]] = llvm.extractvalue %{{.*}}[2] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  // CHECK: %[[C2:.*]] = llvm.mlir.constant(2 : i64) : i64
+  // CHECK: %[[MUL:.*]] = llvm.mul %[[C2]], %[[ST0]] : i64
+  // CHECK: %[[NEW_OFF:.*]] = llvm.add %[[OFF]], %[[MUL]]  : i64
+  // CHECK: llvm.insertvalue %[[NEW_OFF]], %{{.*}}[2] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  // Sizes and strides @rank 1: static stride 1, dynamic size unchanged from source memref.
+  // CHECK: %[[SZ1:.*]] = llvm.extractvalue %{{.*}}[3, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  // CHECK: %[[C1:.*]] = llvm.mlir.constant(1 : i64) : i64
+  // CHECK: llvm.insertvalue %[[SZ1]], %{{.*}}[3, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  // CHECK: llvm.insertvalue %[[C1]], %{{.*}}[4, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  // Sizes and strides @rank 0: both static.
+  // CHECK: %[[C3:.*]] = llvm.mlir.constant(3 : i64) : i64
+  // CHECK: %[[C1_2:.*]] = llvm.mlir.constant(1 : i64) : i64
+  // CHECK: %[[MUL:.*]] = llvm.mul %[[C1_2]], %[[ST0]]  : i64
+  // CHECK: llvm.insertvalue %[[C3]], %{{.*}}[3, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  // CHECK: llvm.insertvalue %[[MUL]], %{{.*}}[4, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  %1 = subview %0[2][3][1]: memref<5x?xf32> to memref<3x?xf32, offset: ?, strides: [?, 1]>
+  return
+}
+
+// CHECK-LABEL: func @subview_rank_reducing_leading_operands(
+func @subview_rank_reducing_leading_operands(%0 : memref<5x3xf32>) {
+  // CHECK: llvm.mlir.undef : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  // Alloc ptr
+  // CHECK: llvm.insertvalue %{{.*}}, %{{.*}}[0] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  // Aligned ptr
+  // CHECK: llvm.insertvalue %{{.*}}, %{{.*}}[1] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  // Extract strides
+  // CHECK: %[[ST0:.*]] = llvm.extractvalue %{{.*}}[4, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  // CHECK: %[[ST1:.*]] = llvm.extractvalue %{{.*}}[4, 1] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
+  // Offset
+  // CHECK: %[[C3:.*]] = llvm.mlir.constant(3 : index) : i64
+  // CHECK: llvm.insertvalue %[[C3:.*]], %{{.*}}[2] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<1 x i64>, array<1 x i64>)>
+  // Sizes and strides @rank 0: both static.
+  // CHECK: %[[C3:.*]] = llvm.mlir.constant(3 : index) : i64
+  // CHECK: %[[C1:.*]] = llvm.mlir.constant(1 : i64) : i64
+  // CHECK: llvm.insertvalue %[[C3]], %{{.*}}[3, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<1 x i64>, array<1 x i64>)>
+  // CHECK: llvm.insertvalue %[[C1]], %{{.*}}[4, 0] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<1 x i64>, array<1 x i64>)>
+  %1 = subview %0[1][1][1]: memref<5x3xf32> to memref<3xf32, offset: 3, strides: [1]>
+
+  return
+}
+
+
 // -----
 
 // CHECK-LABEL: func @atomic_rmw
 func @atomic_rmw(%I : memref<10xi32>, %ival : i32, %F : memref<10xf32>, %fval : f32, %i : index) {
-  atomic_rmw "assign" %fval, %F[%i] : (f32, memref<10xf32>) -> f32
+  atomic_rmw assign %fval, %F[%i] : (f32, memref<10xf32>) -> f32
   // CHECK: llvm.atomicrmw xchg %{{.*}}, %{{.*}} acq_rel
-  atomic_rmw "addi" %ival, %I[%i] : (i32, memref<10xi32>) -> i32
+  atomic_rmw addi %ival, %I[%i] : (i32, memref<10xi32>) -> i32
   // CHECK: llvm.atomicrmw add %{{.*}}, %{{.*}} acq_rel
-  atomic_rmw "maxs" %ival, %I[%i] : (i32, memref<10xi32>) -> i32
+  atomic_rmw maxs %ival, %I[%i] : (i32, memref<10xi32>) -> i32
   // CHECK: llvm.atomicrmw max %{{.*}}, %{{.*}} acq_rel
-  atomic_rmw "mins" %ival, %I[%i] : (i32, memref<10xi32>) -> i32
+  atomic_rmw mins %ival, %I[%i] : (i32, memref<10xi32>) -> i32
   // CHECK: llvm.atomicrmw min %{{.*}}, %{{.*}} acq_rel
-  atomic_rmw "maxu" %ival, %I[%i] : (i32, memref<10xi32>) -> i32
+  atomic_rmw maxu %ival, %I[%i] : (i32, memref<10xi32>) -> i32
   // CHECK: llvm.atomicrmw umax %{{.*}}, %{{.*}} acq_rel
-  atomic_rmw "minu" %ival, %I[%i] : (i32, memref<10xi32>) -> i32
+  atomic_rmw minu %ival, %I[%i] : (i32, memref<10xi32>) -> i32
   // CHECK: llvm.atomicrmw umin %{{.*}}, %{{.*}} acq_rel
-  atomic_rmw "addf" %fval, %F[%i] : (f32, memref<10xf32>) -> f32
+  atomic_rmw addf %fval, %F[%i] : (f32, memref<10xf32>) -> f32
   // CHECK: llvm.atomicrmw fadd %{{.*}}, %{{.*}} acq_rel
   return
 }
@@ -1353,24 +1373,6 @@ func @assume_alignment(%0 : memref<4x4xf16>) {
   // CHECK-NEXT: "llvm.intr.assume"(%[[CONDITION]]) : (i1) -> ()
   assume_alignment %0, 16 : memref<4x4xf16>
   return
-}
-
-// -----
-
-// CHECK-LABEL: func @mlir_cast_to_llvm
-// CHECK-SAME: %[[ARG:.*]]:
-func @mlir_cast_to_llvm(%0 : vector<2xf16>) -> !llvm.vec<2 x f16> {
-  %1 = llvm.mlir.cast %0 : vector<2xf16> to !llvm.vec<2 x f16>
-  // CHECK-NEXT: llvm.return %[[ARG]]
-  return %1 : !llvm.vec<2 x f16>
-}
-
-// CHECK-LABEL: func @mlir_cast_from_llvm
-// CHECK-SAME: %[[ARG:.*]]:
-func @mlir_cast_from_llvm(%0 : !llvm.vec<2 x f16>) -> vector<2xf16> {
-  %1 = llvm.mlir.cast %0 : !llvm.vec<2 x f16> to vector<2xf16>
-  // CHECK-NEXT: llvm.return %[[ARG]]
-  return %1 : vector<2xf16>
 }
 
 // -----
@@ -1420,7 +1422,7 @@ func @dim_of_unranked(%unranked: memref<*xi32>) -> index {
   return %dim : index
 }
 // CHECK-NEXT: llvm.mlir.undef : !llvm.struct<(i64, ptr<i8>)>
-// CHECK-NEXT: llvm.insertvalue 
+// CHECK-NEXT: llvm.insertvalue
 // CHECK-NEXT: %[[UNRANKED_DESC:.*]] = llvm.insertvalue
 // CHECK-NEXT: %[[C0:.*]] = llvm.mlir.constant(0 : index) : i64
 

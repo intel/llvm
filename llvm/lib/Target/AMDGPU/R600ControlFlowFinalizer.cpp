@@ -13,8 +13,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPU.h"
-#include "AMDGPUSubtarget.h"
+#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "R600MachineFunctionInfo.h"
+#include "R600Subtarget.h"
 #include <set>
 
 using namespace llvm;
@@ -58,12 +59,7 @@ unsigned CFStack::getLoopDepth() {
 }
 
 bool CFStack::branchStackContains(CFStack::StackItem Item) {
-  for (std::vector<CFStack::StackItem>::const_iterator I = BranchStack.begin(),
-       E = BranchStack.end(); I != E; ++I) {
-    if (*I == Item)
-      return true;
-  }
-  return false;
+  return llvm::is_contained(BranchStack, Item);
 }
 
 bool CFStack::requiresWorkAroundForInst(unsigned Opcode) {

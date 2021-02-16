@@ -67,6 +67,7 @@ public:
   }
 
   unsigned getInliningThresholdMultiplier() const { return 1; }
+  unsigned adjustInliningThreshold(const CallBase *CB) const { return 0; }
 
   int getInlinerVectorBonusPercent() const { return 150; }
 
@@ -557,6 +558,7 @@ public:
     case Intrinsic::is_constant:
     case Intrinsic::lifetime_start:
     case Intrinsic::lifetime_end:
+    case Intrinsic::experimental_noalias_scope_decl:
     case Intrinsic::objectsize:
     case Intrinsic::ptr_annotation:
     case Intrinsic::var_annotation:
@@ -596,6 +598,12 @@ public:
 
   unsigned getMinMaxReductionCost(VectorType *, VectorType *, bool, bool,
                                   TTI::TargetCostKind) const {
+    return 1;
+  }
+
+  InstructionCost getExtendedAddReductionCost(
+      bool IsMLA, bool IsUnsigned, Type *ResTy, VectorType *Ty,
+      TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput) const {
     return 1;
   }
 

@@ -1,5 +1,9 @@
 // RUN: %clang_cc1 -triple spir64 -aux-triple x86_64-unknown-linux-gnu \
-// RUN:    -fsycl -fsycl-is-device -verify -fsyntax-only %s
+// RUN:    -fsycl -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -verify -fsyntax-only %s
+
+#include "sycl.hpp"
+
+sycl::queue deviceQueue;
 
 typedef __uint128_t BIGTY;
 
@@ -71,50 +75,53 @@ int foobar() {
   return a;
 }
 
-template <typename Name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
-  // expected-note@+1 7{{called by 'kernel}}
-  kernelFunc();
-}
-
 int main() {
   // expected-note@+1 {{'CapturedToDevice' defined here}}
   __int128 CapturedToDevice = 1;
   host_ok();
-  kernel<class variables>([=]() {
-    // expected-error@+1 {{'__int128' is not supported on this target}}
-    decltype(CapturedToDevice) D;
-    // expected-error@+2 {{'__int128' is not supported on this target}}
-    // expected-error@+1 {{'CapturedToDevice' requires 128 bit size '__int128' type support, but device 'spir64' does not support it}}
-    auto C = CapturedToDevice;
-    // expected-note@+1 3{{used here}}
-    Z<__int128> S;
-    // expected-error@+1 {{'field1' requires 128 bit size '__int128' type support, but device 'spir64' does not support it}}
-    S.field1 += 1;
-    // expected-error@+1 {{'field' requires 128 bit size '__int128' type support, but device 'spir64' does not support it}}
-    S.field = 1;
+  deviceQueue.submit([&](sycl::handler &h) {
+    // expected-note@Inputs/sycl.hpp:212 {{called by 'kernel_single_task<variables, (lambda}}
+    h.single_task<class variables>([=]() {
+      // expected-error@+1 {{'__int128' is not supported on this target}}
+      decltype(CapturedToDevice) D;
+      // expected-error@+2 {{'__int128' is not supported on this target}}
+      // expected-error@+1 {{'CapturedToDevice' requires 128 bit size '__int128' type support, but device 'spir64' does not support it}}
+      auto C = CapturedToDevice;
+      // expected-note@+1 3{{used here}}
+      Z<__int128> S;
+      // expected-error@+1 {{'field1' requires 128 bit size '__int128' type support, but device 'spir64' does not support it}}
+      S.field1 += 1;
+      // expected-error@+1 {{'field' requires 128 bit size '__int128' type support, but device 'spir64' does not support it}}
+      S.field = 1;
+    });
   });
 
-  kernel<class functions>([=]() {
-    // expected-note@+1 2{{called by 'operator()'}}
-    usage();
-    // expected-error@+2 {{'unsigned __int128' is not supported on this target}}
-    // expected-note@+1 {{'BBBB' defined here}}
-    BIGTY BBBB;
-    // expected-error@+4 {{'__int128' is not supported on this target}}
-    // expected-error@+3 {{'BBBB' requires 128 bit size 'BIGTY' (aka 'unsigned __int128') type support, but device 'spir64' does not support it}}
-    // expected-error@+2 2{{'foo' requires 128 bit size '__int128' type support, but device 'spir64' does not support it}}
-    // expected-note@+1 1{{called by 'operator()'}}
-    auto A = foo(BBBB);
-    // expected-note@+1 {{called by 'operator()'}}
-    auto i = foobar();
+  deviceQueue.submit([&](sycl::handler &h) {
+    // expected-note@Inputs/sycl.hpp:212 5{{called by 'kernel_single_task<functions, (lambda}}
+    h.single_task<class functions>([=]() {
+      // expected-note@+1 2{{called by 'operator()'}}
+      usage();
+      // expected-error@+2 {{'unsigned __int128' is not supported on this target}}
+      // expected-note@+1 {{'BBBB' defined here}}
+      BIGTY BBBB;
+      // expected-error@+4 {{'__int128' is not supported on this target}}
+      // expected-error@+3 {{'BBBB' requires 128 bit size 'BIGTY' (aka 'unsigned __int128') type support, but device 'spir64' does not support it}}
+      // expected-error@+2 2{{'foo' requires 128 bit size '__int128' type support, but device 'spir64' does not support it}}
+      // expected-note@+1 1{{called by 'operator()'}}
+      auto A = foo(BBBB);
+      // expected-note@+1 {{called by 'operator()'}}
+      auto i = foobar();
+    });
   });
 
-  kernel<class ok>([=]() {
-    // expected-note@+1 3{{used here}}
-    Z<__int128> S;
-    foo2<__int128>();
-    auto A = sizeof(CapturedToDevice);
+  deviceQueue.submit([&](sycl::handler &h) {
+    // expected-note@Inputs/sycl.hpp:212 {{called by 'kernel_single_task<ok, (lambda}}
+    h.single_task<class ok>([=]() {
+      // expected-note@+1 3{{used here}}
+      Z<__int128> S;
+      foo2<__int128>();
+      auto A = sizeof(CapturedToDevice);
+    });
   });
 
   return 0;

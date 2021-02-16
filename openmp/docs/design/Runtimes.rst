@@ -16,6 +16,8 @@ the LLVM/OpenMP host runtime, aka.  `libomp.so`, is available as a `pdf
 LLVM/OpenMP Target Host Runtime (``libomptarget``)
 --------------------------------------------------
 
+.. _libopenmptarget_environment_vars:
+
 Environment Variables
 ^^^^^^^^^^^^^^^^^^^^^
 
@@ -171,6 +173,95 @@ shows that ``D`` will be copied back from the device once the OpenMP device
 kernel region ends even though it isn't written to. Finally, at the end of the
 OpenMP data region the entries for ``X`` and ``Y`` are removed from the table.
 
+.. _libopenmptarget_errors:
+
+Errors:
+^^^^^^^
+
+``libomptarget`` provides error messages when the program fails inside the
+OpenMP target region. Common causes of failure could be an invalid pointer
+access, running out of device memory, or trying to offload when the device is
+busy. If the application was built with debugging symbols the error messages
+will additionally provide the source location of the OpenMP target region.
+
+For example, consider the following code that implements a simple parallel
+reduction on the GPU. This code has a bug that causes it to fail in the
+offloading region.
+
+.. code-block:: c++
+
+    #include <cstdio>
+
+    double sum(double *A, std::size_t N) {
+      double sum = 0.0;
+    #pragma omp target teams distribute parallel for reduction(+:sum)
+      for (int i = 0; i < N; ++i)
+        sum += A[i];
+    
+      return sum;
+    }
+    
+    int main() {
+      const int N = 1024;
+      double A[N];
+      sum(A, N);
+    }
+
+If this code is compiled and run, there will be an error message indicating what is
+going wrong.
+
+.. code-block:: console
+
+    $ clang++ -fopenmp -fopenmp-targets=nvptx64 -O3 -gline-tables-only sum.cpp -o sum
+    $ ./sum
+
+.. code-block:: text
+
+    CUDA error: Error when copying data from device to host.
+    CUDA error: an illegal memory access was encountered 
+    Libomptarget error: Copying data from device failed.
+    Libomptarget error: Call to targetDataEnd failed, abort target.
+    Libomptarget error: Failed to process data after launching the kernel.
+    Libomptarget error: Run with LIBOMPTARGET_INFO=4 to dump host-target pointer mappings.
+    sum.cpp:5:1: Libomptarget error 1: failure of target construct while offloading is mandatory
+
+This shows that there is an illegal memory access occuring inside the OpenMP
+target region once execution has moved to the CUDA device, suggesting a
+segmentation fault. This then causes a chain reaction of failures in
+``libomptarget``. Another message suggests using the ``LIBOMPTARGET_INFO``
+environment variable as described in :ref:`libopenmptarget_environment_vars`. If
+we do this it will print the sate of the host-target pointer mappings at the
+time of failure.
+
+.. code-block:: console
+
+    $ clang++ -fopenmp -fopenmp-targets=nvptx64 -O3 -gline-tables-only sum.cpp -o sum
+    $ env LIBOMPTARGET_INFO=4 ./sum
+
+.. code-block:: text
+
+    info: OpenMP Host-Device pointer mappings after block at sum.cpp:5:1:
+    info: Host Ptr           Target Ptr         Size (B) RefCount Declaration
+    info: 0x00007ffc058280f8 0x00007f4186600000 8        1        sum at sum.cpp:4:10
+
+This tells us that the only data mapped between the host and the device is the
+``sum`` variable that will be copied back from the device once the reduction has
+ended. There is no entry mapping the host array ``A`` to the device. In this
+situation, the compiler cannot determine the size of the array at compile time
+so it will simply assume that the pointer is mapped on the device already by
+default. The solution is to add an explicit map clause in the target region.
+
+.. code-block:: c++
+
+    double sum(double *A, std::size_t N) {
+      double sum = 0.0;
+    #pragma omp target teams distribute parallel for reduction(+:sum) map(to:A[0 : N])
+      for (int i = 0; i < N; ++i)
+        sum += A[i];
+    
+      return sum;
+    }
+
 .. toctree::
    :hidden:
    :maxdepth: 1
@@ -181,6 +272,62 @@ LLVM/OpenMP Target Host Runtime Plugins (``libomptarget.rtl.XXXX``)
 -------------------------------------------------------------------
 
 .. _device_runtime:
+
+
+.. _remote_offloading_plugin:
+
+Remote Offloading Plugin:
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The remote offloading plugin permits the execution of OpenMP target regions
+on devices in remote hosts in addition to the devices connected to the local
+host. All target devices on the remote host will be exposed to the
+application as if they were local devices, that is, the remote host CPU or
+its GPUs can be offloaded to with the appropriate device number. If the
+server is running on the same host, each device may be identified twice:
+once through the device plugins and once through the device plugins that the
+server application has access to.
+
+This plugin consists of ``libomptarget.rtl.rpc.so`` and
+``openmp-offloading-server`` which should be running on the (remote) host. The
+server application does not have to be running on a remote host, and can
+instead be used on the same host in order to debug memory mapping during offloading.
+These are implemented via gRPC/protobuf so these libraries are required to
+build and use this plugin. The server must also have access to the necessary
+target-specific plugins in order to perform the offloading.
+
+Due to the experimental nature of this plugin, the CMake variable
+``LIBOMPTARGET_ENABLE_EXPERIMENTAL_REMOTE_PLUGIN`` must be set in order to
+build this plugin. For example, the rpc plugin is not designed to be
+thread-safe, the server cannot concurrently handle offloading from multiple
+applications at once (it is synchronous) and will terminate after a single
+execution. Note that ``openmp-offloading-server`` is unable to
+remote offload onto a remote host itself and will error out if this is attempted.
+
+Remote offloading is configured via environment variables at runtime of the OpenMP application:
+    * ``LIBOMPTARGET_RPC_ADDRESS=<Address>:<Port>``
+    * ``LIBOMPTARGET_RPC_ALLOCATOR_MAX=<NumBytes>``
+    * ``LIBOMPTARGET_BLOCK_SIZE=<NumBytes>``
+    * ``LIBOMPTARGET_RPC_LATENCY=<Seconds>``
+
+LIBOMPTARGET_RPC_ADDRESS
+""""""""""""""""""""""""
+The address and port at which the server is running. This needs to be set for
+the server and the application, the default is ``0.0.0.0:50051``. A single
+OpenMP executable can offload onto multiple remote hosts by setting this to
+comma-seperated values of the addresses.
+
+LIBOMPTARGET_RPC_ALLOCATOR_MAX
+""""""""""""""""""""""""""""""
+After allocating this size, the protobuf allocator will clear. This can be set for both endpoints.
+
+LIBOMPTARGET_BLOCK_SIZE
+"""""""""""""""""""""""
+This is the maximum size of a single message while streaming data transfers between the two endpoints and can be set for both endpoints.
+
+LIBOMPTARGET_RPC_LATENCY
+""""""""""""""""""""""""
+This is the maximum amount of time the client will wait for a response from the server.
 
 LLVM/OpenMP Target Device Runtime (``libomptarget-ARCH-SUBARCH.bc``)
 --------------------------------------------------------------------

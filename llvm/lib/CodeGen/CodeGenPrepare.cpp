@@ -661,7 +661,7 @@ bool CodeGenPrepare::eliminateFallThrough(Function &F) {
   // Use a temporary array to avoid iterator being invalidated when
   // deleting blocks.
   SmallVector<WeakTrackingVH, 16> Blocks;
-  for (auto &Block : llvm::make_range(std::next(F.begin()), F.end()))
+  for (auto &Block : llvm::drop_begin(F))
     Blocks.push_back(&Block);
 
   SmallSet<WeakTrackingVH, 16> Preds;
@@ -747,7 +747,7 @@ bool CodeGenPrepare::eliminateMostlyEmptyBlocks(Function &F) {
   // as we remove them.
   // Note that this intentionally skips the entry block.
   SmallVector<WeakTrackingVH, 16> Blocks;
-  for (auto &Block : llvm::make_range(std::next(F.begin()), F.end()))
+  for (auto &Block : llvm::drop_begin(F))
     Blocks.push_back(&Block);
 
   for (auto &Block : Blocks) {
@@ -3714,8 +3714,7 @@ private:
             PHINode::Create(CommonType, PredCount, "sunk_phi", CurrentPhi);
         Map[Current] = PHI;
         ST.insertNewPhi(PHI);
-        for (Value *P : CurrentPhi->incoming_values())
-          Worklist.push_back(P);
+        append_range(Worklist, CurrentPhi->incoming_values());
       }
     }
   }
@@ -4969,8 +4968,7 @@ bool CodeGenPrepare::optimizeMemoryInst(Instruction *MemoryInst, Value *Addr,
 
     // For a PHI node, push all of its incoming values.
     if (PHINode *P = dyn_cast<PHINode>(V)) {
-      for (Value *IncValue : P->incoming_values())
-        worklist.push_back(IncValue);
+      append_range(worklist, P->incoming_values());
       PhiOrSelectSeen = true;
       continue;
     }
