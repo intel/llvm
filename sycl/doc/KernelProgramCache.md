@@ -1,4 +1,3 @@
-
 # A brief overview of kernel and program caching mechanism.
 
 ## Rationale behind caching
@@ -102,11 +101,11 @@ consists of two maps: one is for programs and the other is for kernels.
 The programs map's key consists of four components:
  - kernel set id<sup>[1](#what-is-ksid)</sup>,
  - specialization constants values,
- - device this program is built for,
+ - the device this program is built for,
  - build options id <sup>[2](#what-is-bopts)</sup>.
 
 The kernels map's key consists of two components:
- - program the kernel, belongs to,
+ - the program the kernel belongs to,
  - kernel name<sup>[3](#what-is-kname)</sup>.
 
 <a name="what-is-ksid">1</a>: Kernel set id is an ordinal number of the device
@@ -114,7 +113,7 @@ binary image the kernel is contained in.
 
 <a name="what-is-bopts">2</a>: The concatenation of build options (both compile
 and link options) set in application or environment variables. There are three
-sources of build options which cache is aware of:
+sources of build options that the cache is aware of:
  - from device image (pi_device_binary_struct::CompileOptions,
  pi_device_binary_struct::LinkOptions);
  - environment variables (SYCL_PROGRAM_COMPILE_OPTIONS,
@@ -342,7 +341,7 @@ Two files per cache item are stored on disk:
 ### Inter-process safety
 
 For on-disc cache there might be access collisions for accessing the same file
-from different instance of SYCL applications:
+from different instances of SYCL applications:
 - write collision happens when 2 instances of the same application are started
 to write to the same cache file/directory;
 - read collision may happen if one application is writing to the file and the
@@ -359,7 +358,7 @@ are run in parallel and use the same cache directory) nested directories
 representing cache keys are used to minimize locks down to applications which
 build the same device with the same parameters. Directory is locked for minimum
 time because it can be unlocked once subdirectory is created. If file is created in
-directory the directory should be locked until file creation done.
+a directory, the directory should be locked until file creation is done.
 
 Advisory locking <sup>[1](#advisory-lock)</sup> is used to ensure that the
 user/OS tools are able to manage files.
@@ -376,7 +375,7 @@ LRU (least recently used) strategy both for in-memory and persistent cache.
 
 #### In-memory cache eviction
 
-It is initiated on program/kernel maps access/add item operation. Then cache
+It is initiated on program/kernel maps access/add item operation. When cache
 size exceeds storage threshold the items which are least recently used are
 deleted.
 TODO: add detailed description of in-memory cache eviction mechanism.
@@ -384,9 +383,9 @@ TODO: add detailed description of in-memory cache eviction mechanism.
 
 #### Persistent cache eviction
 
-Persistent cache eviction is going to be applied basing on file last access (read/write) date (access
+Persistent cache eviction is going to be applied based on file last access (read/write) date (access
 time). On SYCL application shutdown phase cache eviction process is initiated
-which walk through cache directories and check:
+which walks through cache directories as follows:
  - if the file is locked, go to the next file;
  - otherwise check file access time:
    - if file access time is above threshold, delete the file and remove parent
