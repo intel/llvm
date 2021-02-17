@@ -60,11 +60,20 @@ template <int N>
 // expected-error@+1{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 [[intel::num_simd_work_items(N)]] void func3() {}
 
+template <int N>
+[[intel::num_simd_work_items(4)]] void func4(); // expected-note {{previous attribute is here}}
+
+template <int N>
+[[intel::num_simd_work_items(N)]] void func4() {} // expected-warning {{attribute 'num_simd_work_items' is already applied with different parameters}}
+
 int check() {
   // no error expected
   func3<8>();
   //expected-note@+1{{in instantiation of function template specialization 'func3<-1>' requested here}}
   func3<-1>();
+
+  func4<6>(); //expected-note {{in instantiation of function template specialization 'func4<6>' requested here}}
+
   return 0;
 }
 

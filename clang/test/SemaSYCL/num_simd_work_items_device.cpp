@@ -8,7 +8,7 @@ queue q;
 
 #ifndef __SYCL_DEVICE_ONLY__
 struct FuncObj {
-  [[intel::num_simd_work_items(42)]] // expected-no-diagnostics
+  [[intel::num_simd_work_items(42)]]
   void
   operator()() const {}
 };
@@ -25,6 +25,12 @@ void foo() {
     h.single_task<class test_kernel1>(FuncObj());
   });
 }
+
+[[intel::num_simd_work_items(12)]] void bar();
+[[intel::num_simd_work_items(12)]] void bar() {} // OK
+
+[[intel::num_simd_work_items(12)]] void baz();  // expected-note {{previous attribute is here}}
+[[intel::num_simd_work_items(100)]] void baz(); // expected-warning {{attribute 'num_simd_work_items' is already applied with different parameters}}
 
 #else // __SYCL_DEVICE_ONLY__
 [[intel::num_simd_work_items(2)]] void func_do_not_ignore() {}
@@ -70,7 +76,8 @@ int main() {
         []() [[intel::num_simd_work_items(-42)]]{}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 
     h.single_task<class test_kernel6>(
-        []() [[intel::num_simd_work_items(1), intel::num_simd_work_items(2)]]{}); // expected-warning{{attribute 'num_simd_work_items' is already applied with different parameters}}
+        []() [[intel::num_simd_work_items(1), intel::num_simd_work_items(2)]]{}); // expected-warning{{attribute 'num_simd_work_items' is already applied with different parameters}} \
+                                                                                  // expected-note {{previous attribute is here}}
 #endif // TRIGGER_ERROR
   });
   return 0;
