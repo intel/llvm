@@ -2654,7 +2654,8 @@ pi_result cuda_piclProgramCreateWithSource(pi_context context, pi_uint32 count,
                                            const char **strings,
                                            const size_t *lengths,
                                            pi_program *program) {
-  cl::sycl::detail::pi::cuPrint("cuda_piclProgramCreateWithSource not implemented");
+  cl::sycl::detail::pi::cuPrint(
+      "cuda_piclProgramCreateWithSource not implemented");
   return PI_INVALID_OPERATION;
 }
 
