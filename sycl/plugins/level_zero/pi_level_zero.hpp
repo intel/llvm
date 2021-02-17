@@ -340,6 +340,11 @@ struct _pi_queue : _pi_object {
     // The Level-Zero fence that will be signalled at completion.
     ze_fence_handle_t ZeFence;
     // Record if the fence is in use by any command-list.
+    // This is needed to avoid leak of the tracked command-list if the fence
+    // was not yet signaled at the time all events in that list were already
+    // completed (we are polling the fence at events completion). The fence
+    // may be still "in-use" due to sporadic delay in HW.
+    //
     bool InUse;
   } command_list_fence_t;
 
