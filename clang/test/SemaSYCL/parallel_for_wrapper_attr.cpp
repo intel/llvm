@@ -1,13 +1,6 @@
 // RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl -fsycl-is-device -triple spir64 | FileCheck %s
 
-template <typename Name, typename Type>
-[[clang::sycl_kernel]] void __my_kernel__(Type bar) {
-  bar();
-}
-
-template <typename Name, typename Type> void parallel_for(Type lambda) {
-  __my_kernel__<Name>(lambda);
-}
+#include "Inputs/sycl.hpp"
 
 template <typename T> class Fobj {
 public:
@@ -19,10 +12,15 @@ public:
 };
 
 void invoke() {
-  Fobj<int> fobj1;
-  parallel_for<class __pf_kernel_wrapper>(fobj1);
-  Fobj<short> fobj2;
-  parallel_for<class PPP>(fobj2);
+  sycl::queue q;
+  q.submit([&](sycl::handler &h) {
+    Fobj<int> fobj1;
+    h.parallel_for<class __pf_kernel_wrapper>(fobj1);
+  });
+  q.submit([&](sycl::handler &h) {
+    Fobj<short> fobj2;
+    h.parallel_for<class PPP>(fobj2);
+  });
 }
 
 // CHECK-LABEL: ClassTemplateSpecializationDecl {{.*}} class Fobj definition
@@ -35,7 +33,7 @@ void invoke() {
 // CHECK:       CXXOperatorCallExpr {{.*}} 'void':'void' '()'
 // CHECK:       IntelReqdSubGroupSizeAttr {{.*}}
 // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 4
-// CHECK:       CXXDestructorDecl
+// CHECK:       CXXConstructorDecl
 
 // CHECK-LABEL: ClassTemplateSpecializationDecl {{.*}} class Fobj definition
 // CHECK:       TemplateArgument type 'short'
@@ -47,4 +45,4 @@ void invoke() {
 // CHECK:       CXXOperatorCallExpr {{.*}} 'void':'void' '()'
 // CHECK-NOT:   IntelReqdSubGroupSizeAttr {{.*}}
 // CHECK-NOT:   IntegerLiteral {{.*}} 'int' 4
-// CHECK:       CXXDestructorDecl
+// CHECK:       CXXConstructorDecl
