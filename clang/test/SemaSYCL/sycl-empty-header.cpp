@@ -13,4 +13,4 @@
 // RUN: chmod 400 %t.fail.h
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-int-header=%t.fail.h %s 2>&1 | FileCheck %s --check-prefix=SYCL-BADFILE
 // RUN: rm %t.fail.h
-// SYCL-BADFILE: Error: Permission denied when opening {{.*.fail.h}}
+// SYCL-BADFILE: Error: {{[Pp]ermission}} denied when opening {{.*.fail.h}}
