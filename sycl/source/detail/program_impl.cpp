@@ -364,8 +364,8 @@ void program_impl::create_cl_program_with_source(const string_class &Source) {
 
   if (Err == PI_INVALID_OPERATION) {
     throw feature_not_supported(
-      "program::compile_with_source is not supported by the selected backend",
-          PI_INVALID_OPERATION);
+        "program::compile_with_source is not supported by the selected backend",
+        PI_INVALID_OPERATION);
   }
 }
 
