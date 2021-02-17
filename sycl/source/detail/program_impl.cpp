@@ -363,9 +363,8 @@ void program_impl::create_cl_program_with_source(const string_class &Source) {
           MContext->getHandleRef(), 1, &Src, &Size, &MProgram);
 
   if (Err == PI_INVALID_OPERATION) {
-    throw feature_not_supported(
-        "program::compile_with_source is not supported",
-        PI_INVALID_OPERATION);
+    throw feature_not_supported("program::compile_with_source is not supported",
+                                PI_INVALID_OPERATION);
   }
 }
 
