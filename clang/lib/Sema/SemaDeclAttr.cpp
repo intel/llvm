@@ -3235,7 +3235,6 @@ static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
   if (!E->isValueDependent()) {
-    ASTContext &Ctx = S.getASTContext();
     llvm::APSInt ArgVal;
     ExprResult ICE = S.VerifyIntegerConstantExpression(E, &ArgVal);
 
@@ -3252,6 +3251,7 @@ static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     }
 
     if (const auto *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
+      ASTContext &Ctx = S.getASTContext();
       Optional<llvm::APSInt> XDimVal = A->getXDimVal(Ctx);
       Optional<llvm::APSInt> YDimVal = A->getYDimVal(Ctx);
       Optional<llvm::APSInt> ZDimVal = A->getZDimVal(Ctx);
@@ -3267,7 +3267,7 @@ static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     }
   }
 
-  S.addIntelSingleArgAttr<SYCLIntelNumSimdWorkItemsAttr>(D, A, E);
+  S.addIntelSingleArgAttr<SYCLIntelNumSimdWorkItemsAttr>(D, AL, E);
 }
 
 // Handles use_stall_enable_clusters
