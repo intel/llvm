@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_TRANSFORMS_IPO_SAMPLEPROFILELOADERUTIL_H
-#define LLVM_TRANSFORMS_IPO_SAMPLEPROFILELOADERUTIL_H
+#ifndef LLVM_TRANSFORMS_UTILS_SAMPLEPROFILELOADERUTIL_H
+#define LLVM_TRANSFORMS_UTILS_SAMPLEPROFILELOADERUTIL_H
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
@@ -26,6 +26,8 @@
 
 namespace llvm {
 using namespace sampleprof;
+
+class ProfileSummaryInfo;
 
 extern cl::opt<unsigned> SampleProfileMaxPropagateIterations;
 extern cl::opt<unsigned> SampleProfileRecordCoverage;
@@ -90,8 +92,7 @@ private:
 /// Return true if the given callsite is hot wrt to hot cutoff threshold.
 bool callsiteIsHot(const FunctionSamples *CallsiteFS, ProfileSummaryInfo *PSI,
                    bool ProfAccForSymsInList);
-
 } // end of namespace sampleprofutil
 } // end of namespace llvm
 
-#endif // LLVM_TRANSFORMS_IPO_SAMPLEPROFILELOADERUTIL_H
+#endif // LLVM_TRANSFORMS_UTILS_SAMPLEPROFILELOADERUTIL_H

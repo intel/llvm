@@ -684,6 +684,40 @@ static inline QualType GetFloat16Type(clang::ASTContext &Context) {
   return Context.getLangOpts().OpenCL ? Context.HalfTy : Context.Float16Ty;
 }
 
+/// Diagnose a missing builtin type.
+static QualType diagOpenCLBuiltinTypeError(Sema &S, llvm::StringRef TypeClass,
+                                           llvm::StringRef Name) {
+  S.Diag(SourceLocation(), diag::err_opencl_type_not_found)
+      << TypeClass << Name;
+  return S.Context.VoidTy;
+}
+
+/// Lookup an OpenCL enum type.
+static QualType getOpenCLEnumType(Sema &S, llvm::StringRef Name) {
+  LookupResult Result(S, &S.Context.Idents.get(Name), SourceLocation(),
+                      Sema::LookupTagName);
+  S.LookupName(Result, S.TUScope);
+  if (Result.empty())
+    return diagOpenCLBuiltinTypeError(S, "enum", Name);
+  EnumDecl *Decl = Result.getAsSingle<EnumDecl>();
+  if (!Decl)
+    return diagOpenCLBuiltinTypeError(S, "enum", Name);
+  return S.Context.getEnumType(Decl);
+}
+
+/// Lookup an OpenCL typedef type.
+static QualType getOpenCLTypedefType(Sema &S, llvm::StringRef Name) {
+  LookupResult Result(S, &S.Context.Idents.get(Name), SourceLocation(),
+                      Sema::LookupOrdinaryName);
+  S.LookupName(Result, S.TUScope);
+  if (Result.empty())
+    return diagOpenCLBuiltinTypeError(S, "typedef", Name);
+  TypedefNameDecl *Decl = Result.getAsSingle<TypedefNameDecl>();
+  if (!Decl)
+    return diagOpenCLBuiltinTypeError(S, "typedef", Name);
+  return S.Context.getTypedefType(Decl);
+}
+
 /// Get the QualType instances of the return type and arguments for a ProgModel
 /// builtin function signature.
 /// \param Context (in) The Context instance.
@@ -697,12 +731,12 @@ static inline QualType GetFloat16Type(clang::ASTContext &Context) {
 ///        of (vector sizes) x (types) .
 template <typename ProgModel>
 static void GetQualTypesForProgModelBuiltin(
-    ASTContext &Context, const typename ProgModel::BuiltinStruct &Builtin,
+    Sema &S, const typename ProgModel::BuiltinStruct &Builtin,
     unsigned &GenTypeMaxCnt, SmallVector<QualType, 1> &RetTypes,
     SmallVector<SmallVector<QualType, 1>, 5> &ArgTypes) {
   // Get the QualType instances of the return types.
   unsigned Sig = ProgModel::SignatureTable[Builtin.SigTableIndex];
-  ProgModel::Bultin2Qual(Context, ProgModel::TypeTable[Sig], RetTypes);
+  ProgModel::Bultin2Qual(S, ProgModel::TypeTable[Sig], RetTypes);
   GenTypeMaxCnt = RetTypes.size();
 
   // Get the QualType instances of the arguments.
@@ -710,7 +744,7 @@ static void GetQualTypesForProgModelBuiltin(
   for (unsigned Index = 1; Index < Builtin.NumTypes; Index++) {
     SmallVector<QualType, 1> Ty;
     ProgModel::Bultin2Qual(
-        Context,
+        S,
         ProgModel::TypeTable[ProgModel::SignatureTable[Builtin.SigTableIndex +
                                                        Index]],
         Ty);
@@ -815,7 +849,7 @@ static void InsertBuiltinDeclarationsFromTable(
     SmallVector<SmallVector<QualType, 1>, 5> ArgTypes;
 
     // Obtain QualType lists for the function signature.
-    GetQualTypesForProgModelBuiltin<ProgModel>(Context, Builtin, GenTypeMaxCnt,
+    GetQualTypesForProgModelBuiltin<ProgModel>(S, Builtin, GenTypeMaxCnt,
                                                RetTypes, ArgTypes);
     if (GenTypeMaxCnt > 1) {
       HasGenType = true;

@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ProfileData/SampleProfileLoaderBaseUtil.h"
+#include "llvm/Transforms/Utils/SampleProfileLoaderBaseUtil.h"
 
 namespace llvm {
 
@@ -65,35 +65,6 @@ bool callsiteIsHot(const FunctionSamples *CallsiteFS, ProfileSummaryInfo *PSI,
   else
     return PSI->isHotCount(CallsiteTotalSamples);
 }
-
-#if 0
-void clearCoverageTracker(SampleCoverageTracker *CT) { CT->clear(); }
-
-bool markSamplesUsed(SampleCoverageTracker *CT, const FunctionSamples *FS,
-                     uint32_t LineOffset, uint32_t Discriminator,
-                     uint64_t Samples) {
-  return CT->markSamplesUsed(FS, LineOffset, Discriminator, Samples);
-}
-unsigned computeCoverage(const SampleCoverageTracker *CT, unsigned Used,
-                         unsigned Total) {
-  return CT->computeCoverage(Used, Total);
-}
-unsigned countUsedRecords(const SampleCoverageTracker *CT,
-                          const FunctionSamples *FS, ProfileSummaryInfo *PSI) {
-  return CT->countUsedRecords(FS, PSI);
-}
-unsigned countBodyRecords(const SampleCoverageTracker *CT,
-                          const FunctionSamples *FS, ProfileSummaryInfo *PSI) {
-  return CT->countBodyRecords(FS, PSI);
-}
-uint64_t getTotalUsedSamples(const SampleCoverageTracker *CT) {
-  return CT->getTotalUsedSamples();
-}
-uint64_t countBodySamples(const SampleCoverageTracker *CT,
-                          const FunctionSamples *FS, ProfileSummaryInfo *PSI) {
-  return CT->countBodySamples(FS, PSI);
-}
-#endif
 
 /// Mark as used the sample record for the given function samples at
 /// (LineOffset, Discriminator).

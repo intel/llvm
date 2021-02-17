@@ -48,7 +48,7 @@
 //    Find out whether a string matches an existing builtin function
 //    name and return an index into BuiltinTable and the number of overloads.
 //
-//  * void Bultin2Qual(ASTContext&, ProgModelTypeStruct, std::vector<QualType>&)
+//  * void Bultin2Qual(Sema&, ProgModelTypeStruct, std::vector<QualType>&)
 //    Convert an ProgModelTypeStruct type to a list of QualType instances.
 //    One ProgModelTypeStruct can represent multiple types, primarily when using
 //    GenTypes.
@@ -366,7 +366,7 @@ static const unsigned short SignatureTable[];
 static const BuiltinStruct BuiltinTable[];
 
 static std::pair<unsigned, unsigned> isBuiltin(llvm::StringRef Name);
-static void Bultin2Qual(ASTContext &Context, const ProgModelTypeStruct &Ty,
+static void Bultin2Qual(Sema &Sema, const ProgModelTypeStruct &Ty,
                         llvm::SmallVectorImpl<QualType> &QT);
 
 )";
@@ -658,6 +658,10 @@ void BuiltinNameEmitter::EmitQualTypeFinder() {
   OS << R"(
 
 // Convert an ProgModelTypeStruct type to a list of QualTypes.
+static QualType getOpenCLEnumType(Sema &S, llvm::StringRef Name);
+static QualType getOpenCLTypedefType(Sema &S, llvm::StringRef Name);
+
+// Convert an ProgModelTypeStruct type to a list of QualTypes.
 // Generic types represent multiple types and vector sizes, thus a vector
 // is returned. The conversion is done in two steps:
 // Step 1: A switch statement fills a vector with scalar base types for the
@@ -668,10 +672,11 @@ void BuiltinNameEmitter::EmitQualTypeFinder() {
 )";
 
   OS << "void " << ClassName
-     << "::Bultin2Qual(ASTContext &Context, const ProgModelTypeStruct &Ty, "
+     << "::Bultin2Qual(Sema &S, const ProgModelTypeStruct &Ty, "
         "llvm::SmallVectorImpl<QualType> &QT) {\n";
 
   OS << R"(
+  ASTContext &Context = S.Context;
   // Number of scalar types in the GenType.
   unsigned GenTypeNumTypes;
   // Pointer to the list of vector sizes for the GenType.

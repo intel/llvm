@@ -275,8 +275,8 @@ public:
       }
 
       SmallVector<ReturnInst *, 8> Returns;
-      CloneFunctionInto(NewFunc, Func, VMap, /*ModuleLevelChanges=*/true,
-                        Returns);
+      CloneFunctionInto(NewFunc, Func, VMap,
+                        CloneFunctionChangeType::DifferentModule, Returns);
     } else {
       NewFunc->copyAttributesFrom(Func);
       NewFunc->setComdat(Func->getComdat());

@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_TRANSFORMS_IPO_SAMPLEPROFILELOADERIMPL_H
-#define LLVM_TRANSFORMS_IPO_SAMPLEPROFILELOADERIMPL_H
+#ifndef LLVM_TRANSFORMS_UTILS_SAMPLEPROFILELOADERIMPL_H
+#define LLVM_TRANSFORMS_UTILS_SAMPLEPROFILELOADERIMPL_H
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
@@ -21,10 +21,6 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Analysis/OptimizationRemarkEmitter.h"
-#include "llvm/Analysis/PostDominators.h"
-#include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/DebugInfoMetadata.h"
@@ -36,21 +32,15 @@
 #include "llvm/IR/Module.h"
 #include "llvm/ProfileData/SampleProf.h"
 #include "llvm/ProfileData/SampleProfReader.h"
-#include "llvm/ProfileData/SampleProfileLoaderBaseUtil.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/GenericDomTree.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Utils/SampleProfileLoaderBaseUtil.h"
 
 namespace llvm {
-using namespace llvm;
 using namespace sampleprof;
-using ProfileCount = Function::ProfileCount;
-namespace sampleprofutil {
-bool callsiteIsHot(const SampleCoverageTracker *CT,
-                   const FunctionSamples *CallsiteFS, ProfileSummaryInfo *PSI,
-                   bool ProfAccForSymsInList);
-} // namespace sampleprofutil
 using namespace sampleprofutil;
+using ProfileCount = Function::ProfileCount;
 
 #define DEBUG_TYPE "sample-profile-impl"
 
@@ -72,6 +62,7 @@ public:
   void dump() { Reader->dump(); }
 
 protected:
+  ~SampleProfileLoaderBaseImpl() = default;
   friend class SampleCoverageTracker;
 
   unsigned getFunctionLoc(Function &F);
@@ -859,4 +850,4 @@ void SampleProfileLoaderBaseImpl::computeDominanceAndLoopInfo(Function &F) {
 #undef DEBUG_TYPE
 
 } // namespace llvm
-#endif // LLVM_TRANSFORMS_IPO_SAMPLEPROFILELOADERIMPL_H
+#endif // LLVM_TRANSFORMS_UTILS_SAMPLEPROFILELOADERIMPL_H
