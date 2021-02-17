@@ -113,8 +113,8 @@ int main(int argc, char **argv) {
   uint32_t PlatformNum = 0;
   // DeviceNum represents a globally unique device number.
   // It is printed at the beginning of each line from 'sycl-ls'.
-  // For user-friendliness, this number starts at 1 instead of 0.
-  uint32_t DeviceNum = 1;
+  // This number starts at 0.
+  uint32_t DeviceNum = 0;
   for (const auto &Platform : Platforms) {
     ++PlatformNum;
     if (verbose) {

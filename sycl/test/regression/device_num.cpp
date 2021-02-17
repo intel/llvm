@@ -1,10 +1,10 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: sycl-ls
+// RUN: env SYCL_DEVICE_FILTER=0 %t.out
 // RUN: env SYCL_DEVICE_FILTER=1 %t.out
 // RUN: env SYCL_DEVICE_FILTER=2 %t.out
 // RUN: env SYCL_DEVICE_FILTER=3 %t.out
 // RUN: env SYCL_DEVICE_FILTER=4 %t.out
-// RUN: env SYCL_DEVICE_FILTER=5 %t.out
 
 #include <CL/sycl.hpp>
 #include <iostream>
@@ -45,7 +45,7 @@ int main() {
 
   auto devices = device::get_devices();
   if (devices.size() >= deviceNum) {
-    device targetDevice = devices[deviceNum - 1];
+    device targetDevice = devices[deviceNum];
     std::cout << "Target Device: ";
     printDeviceType(targetDevice);
 
