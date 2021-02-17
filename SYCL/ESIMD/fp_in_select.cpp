@@ -13,6 +13,8 @@
 // RUN: %clangxx-esimd -Xclang -fsycl-allow-func-ptr -std=c++14 -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // UNSUPPORTED: cuda
+// The test fails on JITing due to use of too many registers
+// REQUIRES: TEMPORARY_DISBLED
 //
 // The test checks that ESIMD kernels correctly handle function pointers as
 // arguments of LLVM's select function.

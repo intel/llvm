@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
-// Test currently timeouts on Windows Level Zero
-// UNSUPPORTED: windows && level_zero
+// Test currently timeouts on Windows Level Zero and OpenCL
+// UNSUPPORTED: windows
 // RUN: %clangxx-esimd -fsycl %s -o %t.out
 // RUN: env IGC_FunctionControl=3 IGC_ForceInlineStackCallWithImplArg=1 %GPU_RUN_PLACEHOLDER %t.out
 // UNSUPPORTED: cuda
