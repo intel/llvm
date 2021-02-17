@@ -31,16 +31,18 @@ macro(add_sycl_unittest test_dirname link_variant)
       OpenCL-Headers
       ${SYCL_LINK_LIBS}
     )
-  target_include_directories(${test_dirname} PRIVATE SYSTEM
+  target_include_directories(${test_dirname}
+    PRIVATE SYSTEM
       ${sycl_inc_dir}
       ${SYCL_SOURCE_DIR}/source/
       ${SYCL_SOURCE_DIR}/unittests/
     )
   if (UNIX)
     # These warnings are coming from Google Test code.
-    target_compile_options(${test_dirname} PRIVATE
-      -Wno-unused-parameter
-      -Wno-inconsistent-missing-override
+    target_compile_options(${test_dirname}
+      PRIVATE
+        -Wno-unused-parameter
+        -Wno-inconsistent-missing-override
     )
   endif()
   # LLVM gtest uses LLVM utilities that require C++-14

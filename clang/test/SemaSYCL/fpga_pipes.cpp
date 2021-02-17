@@ -33,11 +33,6 @@ int Storage4 __attribute__((io_pipe_id(5)));
 template <int N>
 pipe_storage Storage5 __attribute__((io_pipe_id(N)));
 
-template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
-  kernelFunc();
-}
-
 void foo(pipe_storage PS) {}
 
 int main() {
