@@ -210,7 +210,10 @@ getScalarSpecConstMetadata(const Instruction *I) {
       cast<ConstantInt>(MDInt->getValue())->getValue().getZExtValue());
   std::vector<SpecConstantDescriptor> Res(1);
   Res[0].ID = ID;
-  Res[0].Size = I->getType()->getPrimitiveSizeInBits() / /* bits in byte */ 8;
+  // We need to add an additional byte if the type size is not evenly
+  // divisible by eight, which might be the case for i1, i.e. booleans
+  Res[0].Size = I->getType()->getPrimitiveSizeInBits() / 8 +
+                (I->getType()->getPrimitiveSizeInBits() % 8 != 0);
   Res[0].Offset = 0;
   return std::make_pair(MDSym->getString(), Res);
 }
@@ -256,7 +259,10 @@ void collectCompositeElementsInfoRecursive(
     SpecConstantDescriptor Desc;
     Desc.ID = 0; // To be filled later
     Desc.Offset = Offset;
-    Desc.Size = Ty->getPrimitiveSizeInBits() / 8;
+    // We need to add an additional byte if the type size is not evenly
+    // divisible by eight, which might be the case for i1, i.e. booleans
+    Desc.Size = Ty->getPrimitiveSizeInBits() / 8 +
+                (Ty->getPrimitiveSizeInBits() % 8 != 0);
     Result[Index++] = Desc;
     Offset += Desc.Size;
   }
