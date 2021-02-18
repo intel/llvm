@@ -102,7 +102,8 @@ int CheckHistogram(unsigned int *cpu_histogram, unsigned int *gpu_histogram) {
 }
 
 int main() {
-  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
+  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
+          property::queue::enable_profiling{});
   auto dev = q.get_device();
   auto ctxt = q.get_context();
 
@@ -146,7 +147,6 @@ int main() {
   // Uses the GPU to calculate the histogram output data.
   unsigned int *output_surface =
       (uint32_t *)malloc_shared(4 * NUM_BINS, dev, ctxt);
-  memset(output_surface, 0, 4 * NUM_BINS);
 
   unsigned int num_threads;
   num_threads = width * height / (NUM_BLOCKS * BLOCK_WIDTH * sizeof(int));
@@ -155,19 +155,32 @@ int main() {
   auto LocalRange = cl::sycl::range<1>(NUM_BINS / 16);
   cl::sycl::nd_range<1> Range(GlobalRange, LocalRange);
 
+  // Launches the task on the GPU.
+  double kernel_times = 0;
+  unsigned num_iters = 10;
   try {
-    auto e = q.submit([&](cl::sycl::handler &cgh) {
-      cgh.parallel_for<class histogram_slm>(
-          Range, [=](cl::sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
-            histogram_atomic(input_ptr, output_surface, ndi.get_group(0),
-                             ndi.get_local_id(0), 16);
-          });
-    });
-    e.wait();
+    for (int iter = 0; iter <= num_iters; ++iter) {
+      double etime = 0;
+      memset(output_surface, 0, 4 * NUM_BINS);
+      auto e = q.submit([&](cl::sycl::handler &cgh) {
+        cgh.parallel_for<class histogram_slm>(
+            Range, [=](cl::sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+              histogram_atomic(input_ptr, output_surface, ndi.get_group(0),
+                               ndi.get_local_id(0), 16);
+            });
+      });
+      e.wait();
+      etime = esimd_test::report_time("kernel time", e, e);
+      if (iter > 0)
+        kernel_times += etime;
+    }
   } catch (cl::sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     return e.get_cl_code();
   }
+
+  float kernel_time = kernel_times / num_iters;
+  std::cerr << "GPU kernel time = " << kernel_time << " msec\n";
 
   std::cout << "finish GPU histogram\n";
 

@@ -421,16 +421,6 @@ ESIMD_INLINE void cmk_bitonic_merge(uint32_t *buf, uint32_t n, uint32_t m,
   }
 }
 
-static double report_time(const string &msg, event e0, event en) {
-  cl_ulong time_start =
-      e0.get_profiling_info<info::event_profiling::command_start>();
-  cl_ulong time_end =
-      en.get_profiling_info<info::event_profiling::command_end>();
-  double elapsed = (time_end - time_start) / 1e6;
-  cout << msg << elapsed << " milliseconds" << std::endl;
-  return elapsed;
-}
-
 struct BitonicSort {
   enum {
     base_sort_size_ = 256,
@@ -532,7 +522,7 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
           });
     });
     e.wait();
-    total_time += report_time("kernel time", e, e);
+    total_time += esimd_test::report_time("kernel time", e, e);
   } catch (cl::sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     return e.get_cl_code();
@@ -580,7 +570,8 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
   }
 
   mergeEvent[k - 1].wait();
-  total_time += report_time("kernel time", mergeEvent[0], mergeEvent[k - 1]);
+  total_time +=
+      esimd_test::report_time("kernel time", mergeEvent[0], mergeEvent[k - 1]);
 
   cout << " Sorting Time = " << total_time << " msec " << std::endl;
   return 1;

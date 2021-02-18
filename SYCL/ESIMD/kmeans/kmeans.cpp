@@ -531,17 +531,6 @@ bool openPointsJSON(const char *filename,
   return true;
 }
 
-// return msecond
-static double report_time(const string &msg, event e) {
-  cl_ulong time_start =
-      e.get_profiling_info<info::event_profiling::command_start>();
-  cl_ulong time_end =
-      e.get_profiling_info<info::event_profiling::command_end>();
-  double elapsed = (time_end - time_start) / 1e6;
-  // cerr << msg << elapsed << " msecs" << std::endl;
-  return elapsed;
-}
-
 int main(int argc, char *argv[]) {
   if (argc != 2) {
     std::cerr << "Usage: kmeans.exe input_file" << std::endl;
@@ -649,7 +638,7 @@ int main(int argc, char *argv[]) {
     });
 
     e.wait();
-    kernel1_time_in_ns += report_time("kernel1", e);
+    kernel1_time_in_ns += esimd_test::report_time("kernel1", e, e);
 
     printf("Done with kmeans\n");
 
@@ -666,7 +655,7 @@ int main(int argc, char *argv[]) {
                                         });
     });
     e1.wait();
-    kernel2_time_in_ns += report_time("kernel2", e1);
+    kernel2_time_in_ns += esimd_test::report_time("kernel2", e1, e1);
 #endif
 
     // compute centroid position
@@ -679,7 +668,7 @@ int main(int argc, char *argv[]) {
           });
     });
     e2.wait();
-    kernel3_time_in_ns += report_time("kernel3", e2);
+    kernel3_time_in_ns += esimd_test::report_time("kernel3", e2, e2);
   };
 
   try {

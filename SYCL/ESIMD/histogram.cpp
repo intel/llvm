@@ -41,11 +41,11 @@ void histogram_CPU(unsigned int width, unsigned int height, unsigned char *srcY,
 void writeHist(unsigned int *hist) {
   int total = 0;
 
-  std::cerr << "\nHistogram: \n";
+  // std::cerr << "\nHistogram: \n";
   for (int i = 0; i < NUM_BINS; i += 8) {
-    std::cerr << "\n  [" << i << " - " << i + 7 << "]:";
+    // std::cerr << "\n  [" << i << " - " << i + 7 << "]:";
     for (int j = 0; j < 8; j++) {
-      std::cerr << "\t" << hist[i + j];
+      // std::cerr << "\t" << hist[i + j];
       total += hist[i + j];
     }
   }
@@ -80,7 +80,8 @@ int main(int argc, char *argv[]) {
   // Read in image luma plane
 
   // Allocate Input Buffer
-  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
+  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
+          property::queue::enable_profiling{});
 
   auto dev = q.get_device();
   auto ctxt = q.get_context();
@@ -121,10 +122,6 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  for (int i = 0; i < NUM_BINS; i++) {
-    bins[i] = 0;
-  }
-
   // ------------------------------------------------------------------------
   // CPU Execution:
 
@@ -136,76 +133,89 @@ int main(int argc, char *argv[]) {
                          image_channel_type::unsigned_int32,
                          range<2>{width / sizeof(uint4), height});
 
+  // Launches the task on the GPU.
+  double kernel_times = 0;
+  unsigned num_iters = 10;
+
   try {
-    // create ranges
-    // We need that many workitems
-    auto GlobalRange = range<1>(range_width * range_height);
-    // Number of workitems in a workgroup
-    auto LocalRange = range<1>(1);
-    nd_range<1> Range(GlobalRange, LocalRange);
+    for (int iter = 0; iter <= num_iters; ++iter) {
+      double etime = 0;
+      for (int b = 0; b < NUM_BINS; b++)
+        bins[b] = 0;
+      // create ranges
+      // We need that many workitems
+      auto GlobalRange = range<1>(range_width * range_height);
+      // Number of workitems in a workgroup
+      auto LocalRange = range<1>(1);
+      nd_range<1> Range(GlobalRange, LocalRange);
 
-    auto e = q.submit([&](handler &cgh) {
-      auto readAcc = Img.get_access<uint4, cl::sycl::access::mode::read>(cgh);
+      auto e = q.submit([&](handler &cgh) {
+        auto readAcc = Img.get_access<uint4, cl::sycl::access::mode::read>(cgh);
 
-      cgh.parallel_for<class Hist>(
-          Range, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
-            using namespace sycl::INTEL::gpu;
+        cgh.parallel_for<class Hist>(
+            Range, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+              using namespace sycl::INTEL::gpu;
 
-            // Get thread origin offsets
-            uint tid = ndi.get_group(0);
-            uint h_pos = (tid % range_width) * BLOCK_WIDTH;
-            uint v_pos = (tid / range_width) * BLOCK_HEIGHT;
+              // Get thread origin offsets
+              uint tid = ndi.get_group(0);
+              uint h_pos = (tid % range_width) * BLOCK_WIDTH;
+              uint v_pos = (tid / range_width) * BLOCK_HEIGHT;
 
-            // Declare a 8x32 uchar matrix to store the input block pixel value
-            simd<unsigned char, 8 * 32> in;
+              // Declare a 8x32 uchar matrix to store the input block pixel
+              // value
+              simd<unsigned char, 8 * 32> in;
 
-            // Declare a vector to store the local histogram
-            simd<unsigned int, NUM_BINS> histogram(0);
+              // Declare a vector to store the local histogram
+              simd<unsigned int, NUM_BINS> histogram(0);
 
-            // Each thread handles BLOCK_HEIGHTxBLOCK_WIDTH pixel block
-            for (int y = 0; y < BLOCK_HEIGHT / 8; y++) {
-              // Perform 2D media block read to load 8x32 pixel block
-              in =
-                  media_block_load<unsigned char, 8, 32>(readAcc, h_pos, v_pos);
+              // Each thread handles BLOCK_HEIGHTxBLOCK_WIDTH pixel block
+              for (int y = 0; y < BLOCK_HEIGHT / 8; y++) {
+                // Perform 2D media block read to load 8x32 pixel block
+                in = media_block_load<unsigned char, 8, 32>(readAcc, h_pos,
+                                                            v_pos);
 
-          // Accumulate local histogram for each pixel value
+            // Accumulate local histogram for each pixel value
 #pragma unroll
-              for (int i = 0; i < 8; i++) {
+                for (int i = 0; i < 8; i++) {
 #pragma unroll
-                for (int j = 0; j < 32; j++) {
-                  histogram.select<1, 1>(in[i * 32 + j]) += 1;
+                  for (int j = 0; j < 32; j++) {
+                    histogram.select<1, 1>(in[i * 32 + j]) += 1;
+                  }
                 }
+
+                // Update starting offset for the next work block
+                v_pos += 8;
               }
 
-              // Update starting offset for the next work block
-              v_pos += 8;
-            }
+              // Declare a vector to store the offset for atomic write operation
+              simd<unsigned int, 8> offset(0, 1); // init to 0, 1, 2, ..., 7
+              offset *= sizeof(unsigned int);
 
-            // Declare a vector to store the offset for atomic write operation
-            simd<unsigned int, 8> offset(0, 1); // init to 0, 1, 2, ..., 7
-            offset *= sizeof(unsigned int);
-
-        // Update global sum by atomically adding each local histogram
+          // Update global sum by atomically adding each local histogram
 #pragma unroll
-            for (int i = 0; i < NUM_BINS; i += 8) {
-              // Declare a vector to store the source for atomic write operation
-              simd<unsigned int, 8> src;
-              src = histogram.select<8, 1>(i);
+              for (int i = 0; i < NUM_BINS; i += 8) {
+                // Declare a vector to store the source for atomic write
+                // operation
+                simd<unsigned int, 8> src;
+                src = histogram.select<8, 1>(i);
 
 #ifdef __SYCL_DEVICE_ONLY__
-              flat_atomic<EsimdAtomicOpType::ATOMIC_ADD, unsigned int, 8>(
-                  bins, offset, src, 1);
-              offset += 8 * sizeof(unsigned int);
+                flat_atomic<EsimdAtomicOpType::ATOMIC_ADD, unsigned int, 8>(
+                    bins, offset, src, 1);
+                offset += 8 * sizeof(unsigned int);
 #else
               auto vals = block_load<unsigned int, 8>(bins + i);
               vals = vals + src;
               block_store<unsigned int, 8>(bins + i, vals);
 #endif
-            }
-          });
-    });
-    e.wait();
-
+              }
+            });
+      });
+      e.wait();
+      etime = esimd_test::report_time("kernel time", e, e);
+      if (iter > 0)
+        kernel_times += etime;
+    }
     // SYCL will enqueue and run the kernel. Recall that the buffer's data is
     // given back to the host at the end of scope.
     // make sure data is given back to the host at the end of this scope
@@ -213,6 +223,9 @@ int main(int argc, char *argv[]) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     return e.get_cl_code();
   }
+
+  float kernel_time = kernel_times / num_iters;
+  std::cerr << "GPU kernel time = " << kernel_time << " msec\n";
 
   writeHist(bins);
   writeHist(cpuHistogram);

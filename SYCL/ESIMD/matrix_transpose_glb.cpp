@@ -16,46 +16,6 @@
 #include <CL/sycl/INTEL/esimd.hpp>
 #include <iostream>
 
-#ifdef __linux__
-#include <libgen.h>
-#include <sys/time.h>
-#include <unistd.h>
-#elif defined(_WIN32) || defined(WIN32)
-#include <Windows.h>
-#endif
-
-double getTimeStamp() {
-#ifdef __linux__
-  {
-    struct timeval t;
-    if (gettimeofday(&t, 0) != 0) {
-      fprintf(stderr, "Linux-specific time measurement counter (gettimeofday) "
-                      "is not available.\n");
-      std::exit(1);
-    }
-    return t.tv_sec + t.tv_usec / 1e6;
-  }
-#elif defined(_WIN32) || defined(WIN32)
-  {
-    LARGE_INTEGER curclock;
-    LARGE_INTEGER freq;
-    if (!QueryPerformanceCounter(&curclock) ||
-        !QueryPerformanceFrequency(&freq)) {
-      fprintf(stderr, "Windows - specific time measurement "
-                      "counter(QueryPerformanceCounter, "
-                      "QueryPerformanceFrequency) is not available.\n");
-      std::exit(1);
-    }
-    return double(curclock.QuadPart) / freq.QuadPart;
-  }
-#else
-  {
-    fprintf(stderr, "Unsupported platform.\n");
-    std::exit(1);
-  }
-#endif
-}
-
 using namespace cl::sycl;
 using namespace std;
 using namespace sycl::INTEL::gpu;
@@ -94,17 +54,6 @@ bool checkResult(const int *M, unsigned N) {
     }
   }
   return true;
-}
-
-// return msecond
-static double report_time(const string &msg, event e) {
-  cl_ulong time_start =
-      e.get_profiling_info<info::event_profiling::command_start>();
-  cl_ulong time_end =
-      e.get_profiling_info<info::event_profiling::command_end>();
-  double elapsed = (time_end - time_start) / 1e6;
-  // cerr << msg << elapsed << " msecs" << std::endl;
-  return elapsed;
 }
 
 // This represents the register file that kernels operate on.
@@ -306,7 +255,8 @@ bool runTest(unsigned MZ, unsigned block_size) {
   cl::sycl::nd_range<2> Range(GlobalRange, LocalRange);
 
   // Start timer.
-  double start = getTimeStamp();
+  esimd_test::Timer timer;
+  double start;
 
   // Launches the task on the GPU.
   double kernel_times = 0;
@@ -324,7 +274,7 @@ bool runTest(unsigned MZ, unsigned block_size) {
               });
         });
         e.wait();
-        etime = report_time("kernel time", e);
+        etime = esimd_test::report_time("kernel time", e, e);
       } else if (block_size == 8) {
         auto e = q.submit([&](handler &cgh) {
           cgh.parallel_for<class Transpose08>(
@@ -333,11 +283,13 @@ bool runTest(unsigned MZ, unsigned block_size) {
               });
         });
         e.wait();
-        etime = report_time("kernel time", e);
+        etime = esimd_test::report_time("kernel time", e, e);
       }
 
       if (i > 0)
         kernel_times += etime;
+      else
+        start = timer.Elapsed();
     }
   } catch (cl::sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
@@ -346,7 +298,7 @@ bool runTest(unsigned MZ, unsigned block_size) {
   }
 
   // End timer.
-  double end = getTimeStamp();
+  double end = timer.Elapsed();
 
   float total_time = (end - start) * 1000.0f / num_iters;
   float kernel_time = kernel_times / num_iters;
