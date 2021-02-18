@@ -96,12 +96,12 @@ two reasons:
   amount of unnecessary linked code, but might also lead to build errors if the
   kernel uses some features, which are not supported by target device (and they
   are not used in the `SYCL_EXTERNAL` function).
-Besides separating `SYCL_EXTERNAL` functions from kernels, they can be further
-split into separate device images if device code split is requested. This is
-done by grouping them using `module-id` attribute. Non-`SYCL_EXTERNAL` functions
-used by `SYCL_EXTERNAL` functions with different `module-id` attributes are
-copied to device images corresponding to those `SYCL_EXTERNAL` functions
-to make them self-contained
+Besides separating `SYCL_EXTERNAL` functions from kernels, `sycl-post-link`
+can also distribute those functions into separate device images if device code
+split is requested. This is done by grouping them using `module-id` attribute.
+Non-`SYCL_EXTERNAL` functions used by `SYCL_EXTERNAL` functions with different
+`module-id` attributes are copied to device images corresponding to those
+`SYCL_EXTERNAL` functions to make them self-contained.
 In case one `SYCL_EXTERNAL` function uses another `SYCL_EXTERNAL` function
 with different `module-id` attribute, the second one is not copied to the
 device image with the first function, but dependency between those device images
@@ -117,7 +117,7 @@ of exported functions attached to them through device image properties
 **NOTE**: If device code split is enabled, it seems reasonable to perform
 exports arrangement before device code split procedure.
 
-In orger to collect information about imported symbols `sycl-post-link` looks
+In order to collect information about imported symbols `sycl-post-link` looks
 through LLVM IR and for each declared but not defined symbol records its name,
 except the following cases:
 - Declarations with `__` prefix in demangled name are not recorded as imported
