@@ -29,10 +29,15 @@ void invoke() {
 // CHECK:       CXXMethodDecl {{.*}} used operator() 'void () const' inline
 // CHECK-NEXT:  CompoundStmt
 // CHECK-NEXT:  IntelReqdSubGroupSizeAttr {{.*}}
-// CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 4
+// CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+// CHECK-NEXT:  value: Int 4
+// CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
 // CHECK:       CXXOperatorCallExpr {{.*}} 'void':'void' '()'
 // CHECK:       IntelReqdSubGroupSizeAttr {{.*}}
-// CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 4
+// CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+// CHECK-NEXT:  value: Int 4
+// CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+// CHECK:       CXXConstructorDecl
 // CHECK:       CXXConstructorDecl
 
 // CHECK-LABEL: ClassTemplateSpecializationDecl {{.*}} class Fobj definition
@@ -41,8 +46,9 @@ void invoke() {
 // CHECK:       CXXMethodDecl {{.*}} used operator() 'void () const' inline
 // CHECK-NEXT:  CompoundStmt
 // CHECK-NEXT:  IntelReqdSubGroupSizeAttr {{.*}}
-// CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 4
+// CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+// CHECK-NEXT:  value: Int 4
+// CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
 // CHECK:       CXXOperatorCallExpr {{.*}} 'void':'void' '()'
 // CHECK-NOT:   IntelReqdSubGroupSizeAttr {{.*}}
-// CHECK-NOT:   IntegerLiteral {{.*}} 'int' 4
 // CHECK:       CXXConstructorDecl
