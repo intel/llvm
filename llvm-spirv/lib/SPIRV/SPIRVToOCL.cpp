@@ -89,6 +89,10 @@ void SPIRVToOCL::visitCallInst(CallInst &CI) {
     visitCallSPIRVImageMediaBlockBuiltin(&CI, OC);
     return;
   }
+  if (isCvtOpCode(OC)) {
+    visitCallSPIRVCvtBuiltin(&CI, OC, DemangledName);
+    return;
+  }
   if (OCLSPIRVBuiltinMap::rfind(OC))
     visitCallSPIRVBuiltin(&CI, OC);
 }
@@ -494,6 +498,33 @@ void SPIRVToOCL::visitCallSPIRVImageMediaBlockBuiltin(CallInst *CI, Op OC) {
         }
 
         return OCLSPIRVBuiltinMap::rmap(OC) + FuncPostfix;
+      },
+      &Attrs);
+}
+
+void SPIRVToOCL::visitCallSPIRVCvtBuiltin(CallInst *CI, Op OC,
+                                          StringRef DemangledName) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *Call, std::vector<Value *> &Args) {
+        std::string CastBuiltInName;
+        if (isCvtFromUnsignedOpCode(OC))
+          CastBuiltInName = "u";
+        CastBuiltInName += kOCLBuiltinName::ConvertPrefix;
+        Type *DstTy = Call->getType();
+        CastBuiltInName +=
+            mapLLVMTypeToOCLType(DstTy, !isCvtToUnsignedOpCode(OC));
+        if (DemangledName.find("_sat") != StringRef::npos || isSatCvtOpCode(OC))
+          CastBuiltInName += "_sat";
+        Value *Src = Call->getOperand(0);
+        assert(Src && "Invalid SPIRV convert builtin call");
+        Type *SrcTy = Src->getType();
+        auto Loc = DemangledName.find("_rt");
+        if (Loc != StringRef::npos &&
+            !(isa<IntegerType>(SrcTy) && isa<IntegerType>(DstTy)))
+          CastBuiltInName += DemangledName.substr(Loc, 4).str();
+        return CastBuiltInName;
       },
       &Attrs);
 }

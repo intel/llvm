@@ -98,6 +98,12 @@ public:
   ///  intel_sub_group_media_block_write
   void visitCallSPIRVImageMediaBlockBuiltin(CallInst *CI, Op OC);
 
+  /// Transform __spirv_*Convert_R{ReturnType}{_sat}{_rtp|_rtn|_rtz|_rte} to
+  /// convert_{ReturnType}_{sat}{_rtp|_rtn|_rtz|_rte}
+  /// example:  <2 x i8> __spirv_SatConvertUToS(<2 x i32>) =>
+  ///   convert_uchar2_sat(int2)
+  void visitCallSPIRVCvtBuiltin(CallInst *CI, Op OC, StringRef DemangledName);
+
   /// Transform __spirv_* builtins to OCL 2.0 builtins.
   /// No change with arguments.
   void visitCallSPIRVBuiltin(CallInst *CI, Op OC);
