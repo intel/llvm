@@ -78,7 +78,6 @@ public:
     SPIRVTranslatorJobClass,
     SPIRCheckJobClass,
     SYCLPostLinkJobClass,
-    PartialLinkJobClass,
     BackendCompileJobClass,
     FileTableTformJobClass,
     StaticLibJobClass,
@@ -745,18 +744,6 @@ public:
 
 private:
   bool RTSetsSpecConsts = true;
-};
-
-class PartialLinkJobAction : public JobAction {
-  void anchor() override;
-
-public:
-  PartialLinkJobAction(Action *Input, types::ID OutputType);
-  PartialLinkJobAction(ActionList &Input, types::ID OutputType);
-
-  static bool classof(const Action *A) {
-    return A->getKind() == PartialLinkJobClass;
-  }
 };
 
 class BackendCompileJobAction : public JobAction {

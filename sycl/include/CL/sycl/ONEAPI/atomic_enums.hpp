@@ -60,9 +60,7 @@ __SYCL_INLINE_CONSTEXPR memory_scope memory_scope_system = memory_scope::system;
 
 #ifndef __SYCL_DEVICE_ONLY__
 namespace detail {
-// Cannot use switch statement in constexpr before C++14
-// Nested ternary conditions in else branch required for C++11
-#if __cplusplus >= 201402L
+
 static inline constexpr std::memory_order
 getStdMemoryOrder(::cl::sycl::ONEAPI::memory_order order) {
   switch (order) {
@@ -80,22 +78,7 @@ getStdMemoryOrder(::cl::sycl::ONEAPI::memory_order order) {
     return std::memory_order_seq_cst;
   }
 }
-#else
-static inline constexpr std::memory_order
-getStdMemoryOrder(::cl::sycl::ONEAPI::memory_order order) {
-  return (order == memory_order::relaxed)
-             ? std::memory_order_relaxed
-             : (order == memory_order::__consume_unsupported)
-                   ? std::memory_order_consume
-                   : (order == memory_order::acquire)
-                         ? std::memory_order_acquire
-                         : (order == memory_order::release)
-                               ? std::memory_order_release
-                               : (order == memory_order::acq_rel)
-                                     ? std::memory_order_acq_rel
-                                     : std::memory_order_seq_cst;
-}
-#endif // __cplusplus
+
 } // namespace detail
 #endif // __SYCL_DEVICE_ONLY__
 

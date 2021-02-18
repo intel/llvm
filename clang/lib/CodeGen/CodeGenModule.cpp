@@ -5100,8 +5100,8 @@ void CodeGenModule::EmitAliasDefinition(GlobalDecl GD) {
     LT = getFunctionLinkage(GD);
     AS = Aliasee->getType()->getPointerAddressSpace();
   } else {
-    const auto *VarD = cast<VarDecl>(GD.getDecl());
-    AS = ArgInfoAddressSpace(GetGlobalVarAddressSpace(VarD));
+    AS = ArgInfoAddressSpace(
+        GetGlobalVarAddressSpace(dyn_cast<VarDecl>(GD.getDecl())));
     Aliasee = GetOrCreateLLVMGlobal(AA->getAliasee(), DeclTy->getPointerTo(AS),
                                     /*D=*/nullptr);
     if (const auto *VD = dyn_cast<VarDecl>(GD.getDecl()))
@@ -6036,6 +6036,9 @@ void CodeGenModule::EmitTopLevelDecl(Decl *D) {
       break;
     // File-scope asm is ignored during device-side OpenMP compilation.
     if (LangOpts.OpenMPIsDevice)
+      break;
+    // File-scope asm is ignored during device-side SYCL compilation.
+    if (LangOpts.SYCLIsDevice)
       break;
     auto *AD = cast<FileScopeAsmDecl>(D);
     getModule().appendModuleInlineAsm(AD->getAsmString()->getString());

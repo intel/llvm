@@ -37,11 +37,15 @@ int main() {
   q.submit([&](handler &h) {
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel1
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 42
     // CHECK-NEXT:  IntegerLiteral{{.*}}42{{$}}
     h.single_task<class test_kernel1>(FuncObj());
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 8
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
     // expected-warning@+3 {{attribute 'intelfpga::num_simd_work_items' is deprecated}}
     // expected-note@+2 {{did you mean to use 'intel::num_simd_work_items' instead?}}
@@ -50,6 +54,8 @@ int main() {
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 2
     // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
     h.single_task<class test_kernel3>(
         []() { func_do_not_ignore(); });

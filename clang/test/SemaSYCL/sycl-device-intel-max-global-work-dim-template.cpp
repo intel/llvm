@@ -5,7 +5,8 @@
 // Test that checks wrong function template instantiation and ensures that the type
 // is checked properly when instantiating from the template definition.
 template <typename Ty>
-// expected-error@+1 2{{'max_global_work_dim' attribute requires an integer constant}}
+// expected-error@+2 {{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
+// expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
 [[intel::max_global_work_dim(Ty{})]] void func() {}
 
 struct S {};
@@ -19,8 +20,10 @@ void test() {
 }
 
 // Test that checks expression is not a constant expression.
+// expected-note@+1{{declared here}}
 int foo();
-// expected-error@+1{{'max_global_work_dim' attribute requires an integer constant}}
+// expected-error@+2{{expression is not an integral constant expression}}
+// expected-note@+1{{non-constexpr function 'foo' cannot be used in a constant expression}}
 [[intel::max_global_work_dim(foo() + 1)]] void func1();
 
 // Test that checks expression is a constant expression.
@@ -44,9 +47,12 @@ int main() {
 
 // CHECK: ClassTemplateDecl {{.*}} {{.*}} KernelFunctor
 // CHECK: ClassTemplateSpecializationDecl {{.*}} {{.*}} class KernelFunctor definition
+// CHECK: TemplateArgument integral 2
 // CHECK: CXXRecordDecl {{.*}} {{.*}} implicit class KernelFunctor
 // CHECK: SYCLIntelMaxGlobalWorkDimAttr {{.*}}
-// CHECK: SubstNonTypeTemplateParmExpr {{.*}}
+// CHECK-NEXT: ConstantExpr {{.*}} 'int'
+// CHECK-NEXT: value: Int 2
+// CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
 
@@ -57,16 +63,17 @@ template <int N>
 
 int check() {
   // no error expected
-  func3<2>();
+  func3<3>();
   //expected-note@+1{{in instantiation of function template specialization 'func3<-1>' requested here}}
   func3<-1>();
   return 0;
 }
 
-// CHECK: FunctionTemplateDecl {{.*}} {{.*}} func3
-// CHECK: NonTypeTemplateParmDecl {{.*}} {{.*}} referenced 'int' depth 0 index 0 N
 // CHECK: FunctionDecl {{.*}} {{.*}} func3 'void ()'
+// CHECK: TemplateArgument integral 3
 // CHECK: SYCLIntelMaxGlobalWorkDimAttr {{.*}}
-// CHECK: SubstNonTypeTemplateParmExpr {{.*}}
+// CHECK-NEXT: ConstantExpr {{.*}} 'int'
+// CHECK-NEXT: value: Int 3
+// CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
-// CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
+// CHECK-NEXT: IntegerLiteral{{.*}}3{{$}}

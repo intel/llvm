@@ -10206,12 +10206,10 @@ public:
   void AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
                                 Expr **Exprs, unsigned Size);
   template <typename AttrType>
-  void addIntelSYCLSingleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
-                                         Expr *E);
+  void addIntelSingleArgAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E);
   template <typename AttrType>
-  void addIntelSYCLTripleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
-                                         Expr *XDimExpr, Expr *YDimExpr,
-                                         Expr *ZDimExpr);
+  void addIntelTripleArgAttr(Decl *D, const AttributeCommonInfo &CI,
+                             Expr *XDimExpr, Expr *YDimExpr, Expr *ZDimExpr);
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
                       bool IsPackExpansion);
@@ -13060,116 +13058,109 @@ public:
 };
 
 template <typename AttrType>
-void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
-                                             const AttributeCommonInfo &CI,
-                                             Expr *E) {
+void Sema::addIntelSingleArgAttr(Decl *D, const AttributeCommonInfo &CI,
+                                 Expr *E) {
   assert(E && "Attribute must have an argument.");
 
   if (!E->isInstantiationDependent()) {
-    Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(getASTContext());
-    if (!ArgVal) {
-      Diag(E->getExprLoc(), diag::err_attribute_argument_type)
-          << CI.getAttrName() << AANT_ArgumentIntegerConstant
-          << E->getSourceRange();
+    llvm::APSInt ArgVal;
+    ExprResult ICE = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (ICE.isInvalid())
       return;
-    }
-    int32_t ArgInt = ArgVal->getSExtValue();
+    E = ICE.get();
+    int32_t ArgInt = ArgVal.getSExtValue();
     if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelNumSimdWorkItems ||
-        CI.getParsedKind() == ParsedAttr::AT_IntelReqdSubGroupSize) {
+        CI.getParsedKind() == ParsedAttr::AT_IntelReqdSubGroupSize ||
+        CI.getParsedKind() == ParsedAttr::AT_IntelFPGAMaxReplicates) {
       if (ArgInt <= 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-            << CI.getAttrName() << /*positive*/ 0;
+            << CI << /*positive*/ 0;
         return;
       }
     }
     if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
       if (ArgInt < 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-            << CI.getAttrName() << /*non-negative*/ 1;
+            << CI << /*non-negative*/ 1;
         return;
       }
       if (ArgInt > 3) {
         Diag(E->getBeginLoc(), diag::err_attribute_argument_out_of_range)
-            << CI.getAttrName() << 0 << 3 << E->getSourceRange();
+            << CI << 0 << 3 << E->getSourceRange();
         return;
       }
     }
+    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelSchedulerTargetFmaxMhz ||
+        CI.getParsedKind() == ParsedAttr::AT_IntelFPGAPrivateCopies) {
+      if (ArgInt < 0) {
+        Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+            << CI << /*non-negative*/ 1;
+        return;
+      }
+    }
+  }
+
+  if (CI.getParsedKind() == ParsedAttr::AT_IntelFPGAPrivateCopies) {
+    if (!D->hasAttr<IntelFPGAMemoryAttr>())
+      D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
+          Context, IntelFPGAMemoryAttr::Default));
   }
 
   D->addAttr(::new (Context) AttrType(Context, CI, E));
 }
 
-template <typename AttrInfo>
-static bool handleMaxWorkSizeAttrExpr(Sema &S, const AttrInfo &AI,
-                                      const Expr *E, unsigned &Val,
-                                      unsigned Idx) {
+static Expr *checkMaxWorkSizeAttrExpr(Sema &S, const AttributeCommonInfo &CI,
+                                      Expr *E) {
   assert(E && "Attribute must have an argument.");
 
   if (!E->isInstantiationDependent()) {
-    Optional<llvm::APSInt> ArgVal =
-        E->getIntegerConstantExpr(S.getASTContext());
+    llvm::APSInt ArgVal;
+    ExprResult ICE = S.VerifyIntegerConstantExpression(E, &ArgVal);
 
-    if (!ArgVal) {
-      S.Diag(AI.getLocation(), diag::err_attribute_argument_type)
-          << &AI << AANT_ArgumentIntegerConstant << E->getSourceRange();
-      return false;
-    }
+    if (ICE.isInvalid())
+      return nullptr;
 
-    if (ArgVal->isNegative()) {
+    E = ICE.get();
+
+    if (ArgVal.isNegative()) {
       S.Diag(E->getExprLoc(),
              diag::warn_attribute_requires_non_negative_integer_argument)
           << E->getType() << S.Context.UnsignedLongLongTy
           << E->getSourceRange();
-      return true;
+      return E;
     }
 
-    Val = ArgVal->getZExtValue();
+    unsigned Val = ArgVal.getZExtValue();
     if (Val == 0) {
       S.Diag(E->getExprLoc(), diag::err_attribute_argument_is_zero)
-          << &AI << E->getSourceRange();
-      return false;
+          << CI << E->getSourceRange();
+      return nullptr;
     }
   }
-  return true;
-}
-
-template <typename AttrType>
-static bool checkMaxWorkSizeAttrArguments(Sema &S, Expr *XDimExpr,
-                                          Expr *YDimExpr, Expr *ZDimExpr,
-                                          const AttrType &Attr) {
-  // Accept template arguments for now as they depend on something else.
-  // We'll get to check them when they eventually get instantiated.
-  if (XDimExpr->isValueDependent() ||
-      (YDimExpr && YDimExpr->isValueDependent()) ||
-      (ZDimExpr && ZDimExpr->isValueDependent()))
-    return false;
-
-  unsigned XDim = 0;
-  if (!handleMaxWorkSizeAttrExpr(S, Attr, XDimExpr, XDim, 0))
-    return true;
-
-  unsigned YDim = 0;
-  if (YDimExpr && !handleMaxWorkSizeAttrExpr(S, Attr, YDimExpr, YDim, 1))
-    return true;
-
-  unsigned ZDim = 0;
-  if (ZDimExpr && !handleMaxWorkSizeAttrExpr(S, Attr, ZDimExpr, ZDim, 2))
-    return true;
-
-  return false;
+  return E;
 }
 
 template <typename WorkGroupAttrType>
-void Sema::addIntelSYCLTripleArgFunctionAttr(Decl *D,
-                                             const AttributeCommonInfo &CI,
-                                             Expr *XDimExpr, Expr *YDimExpr,
-                                             Expr *ZDimExpr) {
-  WorkGroupAttrType TmpAttr(Context, CI, XDimExpr, YDimExpr, ZDimExpr);
+void Sema::addIntelTripleArgAttr(Decl *D, const AttributeCommonInfo &CI,
+                                 Expr *XDimExpr, Expr *YDimExpr,
+                                 Expr *ZDimExpr) {
 
-  if (checkMaxWorkSizeAttrArguments(*this, XDimExpr, YDimExpr, ZDimExpr,
-                                    TmpAttr))
-    return;
+  assert((XDimExpr && YDimExpr && ZDimExpr) &&
+         "argument has unexpected null value");
 
+  // Accept template arguments for now as they depend on something else.
+  // We'll get to check them when they eventually get instantiated.
+  if (!XDimExpr->isValueDependent() && !YDimExpr->isValueDependent() &&
+      !ZDimExpr->isValueDependent()) {
+
+    // Save ConstantExpr in semantic attribute
+    XDimExpr = checkMaxWorkSizeAttrExpr(*this, CI, XDimExpr);
+    YDimExpr = checkMaxWorkSizeAttrExpr(*this, CI, YDimExpr);
+    ZDimExpr = checkMaxWorkSizeAttrExpr(*this, CI, ZDimExpr);
+
+    if (!XDimExpr || !YDimExpr || !ZDimExpr)
+      return;
+  }
   D->addAttr(::new (Context)
                  WorkGroupAttrType(Context, CI, XDimExpr, YDimExpr, ZDimExpr));
 }
@@ -13185,13 +13176,6 @@ void Sema::AddOneConstantValueAttr(Decl *D, const AttributeCommonInfo &CI,
       return;
     E = ICE.get();
   }
-
-  if (IntelFPGAPrivateCopiesAttr::classof(&TmpAttr)) {
-    if (!D->hasAttr<IntelFPGAMemoryAttr>())
-      D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
-          Context, IntelFPGAMemoryAttr::Default));
-  }
-
   D->addAttr(::new (Context) AttrType(Context, CI, E));
 }
 
@@ -13202,12 +13186,15 @@ void Sema::AddOneConstantPowerTwoValueAttr(Decl *D,
   AttrType TmpAttr(Context, CI, E);
 
   if (!E->isValueDependent()) {
-    ExprResult ICE;
-    if (checkRangedIntegralArgument<AttrType>(E, &TmpAttr, ICE))
+    llvm::APSInt Value;
+    ExprResult ICE = VerifyIntegerConstantExpression(E, &Value);
+    if (ICE.isInvalid())
       return;
-    Expr::EvalResult Result;
-    E->EvaluateAsInt(Result, Context);
-    llvm::APSInt Value = Result.Val.getInt();
+    if (!Value.isStrictlyPositive()) {
+      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+          << CI << /*positive*/ 0;
+      return;
+    }
     if (!Value.isPowerOf2()) {
       Diag(CI.getLoc(), diag::err_attribute_argument_not_power_of_two)
           << &TmpAttr;

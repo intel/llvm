@@ -26,11 +26,6 @@
 #else
 #define __SYCL_CONSTEXPR_ON_DEVICE
 #endif
-#if __cplusplus >= 201402L
-#define _CPP14_CONSTEXPR constexpr
-#else
-#define _CPP14_CONSTEXPR
-#endif
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -80,7 +75,7 @@ public:
   }
 
   // Operator neg
-  _CPP14_CONSTEXPR half &operator-() {
+  constexpr half &operator-() {
     Buf ^= 0x8000;
     return *this;
   }
@@ -207,11 +202,11 @@ public:
     operator--();
     return ret;
   }
-  _CPP14_CONSTEXPR half &operator-() {
+  constexpr half &operator-() {
     Data = -Data;
     return *this;
   }
-  _CPP14_CONSTEXPR half operator-() const {
+  constexpr half operator-() const {
     half r = *this;
     return -r;
   }

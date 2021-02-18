@@ -147,30 +147,30 @@ template <> struct TargetToAS<access::target::constant_buffer> {
 };
 
 template <typename ElementType, access::address_space addressSpace>
-struct PtrValueType;
+struct DecoratedType;
 
 template <typename ElementType>
-struct PtrValueType<ElementType, access::address_space::private_space> {
+struct DecoratedType<ElementType, access::address_space::private_space> {
   using type = __OPENCL_PRIVATE_AS__ ElementType;
 };
 
 template <typename ElementType>
-struct PtrValueType<ElementType, access::address_space::global_space> {
+struct DecoratedType<ElementType, access::address_space::global_space> {
   using type = __OPENCL_GLOBAL_AS__ ElementType;
 };
 
 template <typename ElementType>
-struct PtrValueType<ElementType, access::address_space::global_device_space> {
+struct DecoratedType<ElementType, access::address_space::global_device_space> {
   using type = __OPENCL_GLOBAL_DEVICE_AS__ ElementType;
 };
 
 template <typename ElementType>
-struct PtrValueType<ElementType, access::address_space::global_host_space> {
+struct DecoratedType<ElementType, access::address_space::global_host_space> {
   using type = __OPENCL_GLOBAL_HOST_AS__ ElementType;
 };
 
 template <typename ElementType>
-struct PtrValueType<ElementType, access::address_space::constant_space> {
+struct DecoratedType<ElementType, access::address_space::constant_space> {
   // Current implementation of address spaces handling leads to possibility
   // of emitting incorrect (in terms of OpenCL) address space casts from
   // constant to generic (and vise-versa). So, global address space is used here
@@ -184,7 +184,7 @@ struct PtrValueType<ElementType, access::address_space::constant_space> {
 };
 
 template <typename ElementType>
-struct PtrValueType<ElementType, access::address_space::local_space> {
+struct DecoratedType<ElementType, access::address_space::local_space> {
   using type = __OPENCL_LOCAL_AS__ ElementType;
 };
 

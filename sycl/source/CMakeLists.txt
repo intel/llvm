@@ -62,22 +62,22 @@ function(add_sycl_rt_library LIB_NAME)
   endif()
 
   target_include_directories(
-      ${LIB_OBJ_NAME}
-      PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        "${sycl_inc_dir}"
-        ${OpenCL_INCLUDE_DIRS}
+    ${LIB_OBJ_NAME}
+    PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}
+      "${sycl_inc_dir}"
+      ${OpenCL_INCLUDE_DIRS}
   )
 
   find_package(Threads REQUIRED)
 
   target_link_libraries(${LIB_NAME}
-      PRIVATE
-        ${OpenCL_LIBRARIES}
-        ${CMAKE_DL_LIBS}
-        ${CMAKE_THREAD_LIBS_INIT}
-      PUBLIC
-        $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:pi_cuda>
+    PRIVATE
+      ${OpenCL_LIBRARIES}
+      ${CMAKE_DL_LIBS}
+      ${CMAKE_THREAD_LIBS_INIT}
+    PUBLIC
+      $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:pi_cuda>
   )
 
   target_compile_definitions(${LIB_OBJ_NAME}
@@ -191,7 +191,6 @@ if (MSVC)
   endif()
 
   set(SYCL_EXTRA_OPTS "/MD")
-
 endif()
 
 if (SYCL_ENABLE_XPTI_TRACING)
@@ -208,6 +207,6 @@ if (libdevice IN_LIST LLVM_ENABLE_PROJECTS)
 endif()
 
 install(TARGETS ${SYCL_RT_LIBS}
-    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT sycl
-    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT sycl
-    RUNTIME DESTINATION "bin" COMPONENT sycl)
+  ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT sycl
+  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT sycl
+  RUNTIME DESTINATION "bin" COMPONENT sycl)

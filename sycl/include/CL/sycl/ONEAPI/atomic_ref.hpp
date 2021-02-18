@@ -69,9 +69,6 @@ template <> struct memory_order_traits<memory_order::seq_cst> {
   static constexpr memory_order write_order = memory_order::seq_cst;
 };
 
-// Cannot use switch statement in constexpr before C++14
-// Nested ternary conditions in else branch required for C++11
-#if __cplusplus >= 201402L
 inline constexpr memory_order getLoadOrder(memory_order order) {
   switch (order) {
   case memory_order_relaxed:
@@ -87,14 +84,6 @@ inline constexpr memory_order getLoadOrder(memory_order order) {
     return memory_order_seq_cst;
   }
 }
-#else
-inline constexpr memory_order getLoadOrder(memory_order order) {
-  return (order == memory_order_relaxed)
-             ? memory_order_relaxed
-             : (order == memory_order_seq_cst) ? memory_order_seq_cst
-                                               : memory_order_acquire;
-}
-#endif
 
 template <typename T, typename = void> struct bit_equal;
 

@@ -726,7 +726,8 @@ static void translateUnPackMask(CallInst &CI) {
   llvm::Value *TransCI = Builder.CreateZExt(
       Arg0, llvm::FixedVectorType::get(llvm::Type::getInt16Ty(Context), N));
   TransCI->takeName(&CI);
-  cast<llvm::Instruction>(TransCI)->setDebugLoc(CI.getDebugLoc());
+  if (llvm::Instruction *TransCInst = dyn_cast<llvm::Instruction>(TransCI))
+    TransCInst->setDebugLoc(CI.getDebugLoc());
   CI.replaceAllUsesWith(TransCI);
 }
 
@@ -976,8 +977,6 @@ static void createESIMDIntrinsicArgs(const ESIMDIntrinDesc &Desc,
       GenXArgs.push_back(llvm::ConstantInt::get(Ty, Rule.I.ArgConst));
       break;
     }
-    default:
-      llvm_unreachable_internal("unknown argument rule kind");
     }
   }
 }

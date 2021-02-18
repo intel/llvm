@@ -620,7 +620,6 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
   }
 
   if (const ReqdWorkGroupSizeAttr *A = FD->getAttr<ReqdWorkGroupSizeAttr>()) {
-    llvm::LLVMContext &Context = getLLVMContext();
     ASTContext &ClangCtx = FD->getASTContext();
     Optional<llvm::APSInt> XDimVal = A->getXDimVal(ClangCtx);
     Optional<llvm::APSInt> YDimVal = A->getYDimVal(ClangCtx);
@@ -643,10 +642,9 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
 
   if (const IntelReqdSubGroupSizeAttr *A =
           FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
-    llvm::LLVMContext &Context = getLLVMContext();
-    Optional<llvm::APSInt> ArgVal =
-        A->getValue()->getIntegerConstantExpr(FD->getASTContext());
-    assert(ArgVal.hasValue() && "Not an integer constant expression");
+    const auto *CE = dyn_cast<ConstantExpr>(A->getValue());
+    assert(CE && "Not an integer constant expression");
+    Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getSExtValue()))};
     Fn->setMetadata("intel_reqd_sub_group_size",
@@ -663,10 +661,9 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
 
   if (const SYCLIntelNumSimdWorkItemsAttr *A =
       FD->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
-    llvm::LLVMContext &Context = getLLVMContext();
-    Optional<llvm::APSInt> ArgVal =
-        A->getValue()->getIntegerConstantExpr(FD->getASTContext());
-    assert(ArgVal.hasValue() && "Not an integer constant expression");
+    const auto *CE = dyn_cast<ConstantExpr>(A->getValue());
+    assert(CE && "Not an integer constant expression");
+    Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getSExtValue()))};
     Fn->setMetadata("num_simd_work_items",
@@ -675,9 +672,9 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
 
   if (const SYCLIntelSchedulerTargetFmaxMhzAttr *A =
           FD->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>()) {
-    Optional<llvm::APSInt> ArgVal =
-        A->getValue()->getIntegerConstantExpr(FD->getASTContext());
-    assert(ArgVal.hasValue() && "Not an integer constant expression");
+    const auto *CE = dyn_cast<ConstantExpr>(A->getValue());
+    assert(CE && "Not an integer constant expression");
+    Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getSExtValue()))};
     Fn->setMetadata("scheduler_target_fmax_mhz",
@@ -686,10 +683,9 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
 
   if (const SYCLIntelMaxGlobalWorkDimAttr *A =
       FD->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    llvm::LLVMContext &Context = getLLVMContext();
-    Optional<llvm::APSInt> ArgVal =
-        A->getValue()->getIntegerConstantExpr(FD->getASTContext());
-    assert(ArgVal.hasValue() && "Not an integer constant expression");
+    const auto *CE = dyn_cast<ConstantExpr>(A->getValue());
+    assert(CE && "Not an integer constant expression");
+    Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getSExtValue()))};
     Fn->setMetadata("max_global_work_dim",
@@ -698,7 +694,6 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
 
   if (const SYCLIntelMaxWorkGroupSizeAttr *A =
           FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    llvm::LLVMContext &Context = getLLVMContext();
     ASTContext &ClangCtx = FD->getASTContext();
     Optional<llvm::APSInt> XDimVal = A->getXDimVal(ClangCtx);
     Optional<llvm::APSInt> YDimVal = A->getYDimVal(ClangCtx);
@@ -723,9 +718,9 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
           FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {
     const Expr *Arg = A->getValue();
     assert(Arg && "Got an unexpected null argument");
-    Optional<llvm::APSInt> ArgVal =
-        Arg->getIntegerConstantExpr(FD->getASTContext());
-    assert(ArgVal.hasValue() && "Not an integer constant expression");
+    const auto *CE = dyn_cast<ConstantExpr>(Arg);
+    assert(CE && "Not an integer constant expression");
+    Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     if (ArgVal->getBoolValue())
       Fn->setMetadata("no_global_work_offset", llvm::MDNode::get(Context, {}));
   }

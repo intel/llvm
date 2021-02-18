@@ -5,8 +5,9 @@
 // Test that checks wrong function template instantiation and ensures that the type
 // is checked properly when instantiating from the template definition.
 template <typename Ty>
-// expected-error@+2{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
-// expected-error@+1 2{{'num_simd_work_items' attribute requires an integer constant}}
+// expected-error@+3{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+// expected-error@+2{{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
+// expected-error@+1{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
 [[intel::num_simd_work_items(Ty{})]] void func() {}
 
 struct S {};
@@ -20,8 +21,10 @@ void test() {
 }
 
 // Test that checks expression is not a constant expression.
+// expected-note@+1{{declared here}}
 int foo();
-// expected-error@+1{{'num_simd_work_items' attribute requires an integer constant}}
+// expected-error@+2{{expression is not an integral constant expression}}
+// expected-note@+1{{non-constexpr function 'foo' cannot be used in a constant expression}}
 [[intel::num_simd_work_items(foo() + 12)]] void func1();
 
 // Test that checks expression is a constant expression.
