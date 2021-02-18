@@ -21,7 +21,7 @@
 // test smaller input size
 // test 8x16 block size
 //
-#define DIM_SIZE (1 << 10)
+#define DIM_SIZE (1 << 13)
 #define SQUARE_SZ (DIM_SIZE * DIM_SIZE)
 
 #define WIDTH 16
@@ -145,11 +145,6 @@ int main(void) {
                   in.row(i + 2).select<WIDTH, 1>(5) * -0.0333333333333f +
                   in.row(i + 3).select<WIDTH, 1>(5) * -0.05f +
                   in.row(i + 4).select<WIDTH, 1>(5) * -0.1f +
-                  in.row(i + 6).select<WIDTH, 1>(5) * 0.1f +
-                  in.row(i + 7).select<WIDTH, 1>(5) * 0.05f +
-                  in.row(i + 8).select<WIDTH, 1>(5) * 0.0333333333333f +
-                  in.row(i + 9).select<WIDTH, 1>(5) * 0.025f +
-                  in.row(i + 10).select<WIDTH, 1>(5) * 0.02f +
                   in.row(i + 5).select<WIDTH, 1>(0) * -0.02f +
                   in.row(i + 5).select<WIDTH, 1>(1) * -0.025f +
                   in.row(i + 5).select<WIDTH, 1>(2) * -0.0333333333333f +
@@ -159,7 +154,12 @@ int main(void) {
                   in.row(i + 5).select<WIDTH, 1>(7) * 0.05f +
                   in.row(i + 5).select<WIDTH, 1>(8) * 0.0333333333333f +
                   in.row(i + 5).select<WIDTH, 1>(9) * 0.025f +
-                  in.row(i + 5).select<WIDTH, 1>(10) * 0.02f;
+                  in.row(i + 5).select<WIDTH, 1>(10) * 0.02f +
+                  in.row(i + 6).select<WIDTH, 1>(5) * 0.1f +
+                  in.row(i + 7).select<WIDTH, 1>(5) * 0.05f +
+                  in.row(i + 8).select<WIDTH, 1>(5) * 0.0333333333333f +
+                  in.row(i + 9).select<WIDTH, 1>(5) * 0.025f +
+                  in.row(i + 10).select<WIDTH, 1>(5) * 0.02f;
 
               // predciate output
               simd<ushort, WIDTH> p = (elm16 + h_pos * WIDTH) < DIM_SIZE - 10;

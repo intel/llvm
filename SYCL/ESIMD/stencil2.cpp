@@ -21,7 +21,7 @@
 // test smaller input size
 // test 8x16 block size
 //
-#define DIM_SIZE (1 << 10)
+#define DIM_SIZE (1 << 13)
 #define SQUARE_SZ (DIM_SIZE * DIM_SIZE)
 
 #define WIDTH 16
@@ -147,11 +147,6 @@ int main(void) {
                   vin.select<WIDTH, 1>(GET_IDX(i + 2, 5)) * -0.0333333333333f +
                   vin.select<WIDTH, 1>(GET_IDX(i + 3, 5)) * -0.05f +
                   vin.select<WIDTH, 1>(GET_IDX(i + 4, 5)) * -0.1f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 6, 5)) * 0.1f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 7, 5)) * 0.05f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 8, 5)) * 0.0333333333333f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 9, 5)) * 0.025f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 10, 5)) * 0.02f +
                   vin.select<WIDTH, 1>(GET_IDX(i + 5, 0)) * -0.02f +
                   vin.select<WIDTH, 1>(GET_IDX(i + 5, 1)) * -0.025f +
                   vin.select<WIDTH, 1>(GET_IDX(i + 5, 2)) * -0.0333333333333f +
@@ -161,7 +156,12 @@ int main(void) {
                   vin.select<WIDTH, 1>(GET_IDX(i + 5, 7)) * 0.05f +
                   vin.select<WIDTH, 1>(GET_IDX(i + 5, 8)) * 0.0333333333333f +
                   vin.select<WIDTH, 1>(GET_IDX(i + 5, 9)) * 0.025f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 5, 10)) * 0.02f;
+                  vin.select<WIDTH, 1>(GET_IDX(i + 5, 10)) * 0.02f +
+                  vin.select<WIDTH, 1>(GET_IDX(i + 6, 5)) * 0.1f +
+                  vin.select<WIDTH, 1>(GET_IDX(i + 7, 5)) * 0.05f +
+                  vin.select<WIDTH, 1>(GET_IDX(i + 8, 5)) * 0.0333333333333f +
+                  vin.select<WIDTH, 1>(GET_IDX(i + 9, 5)) * 0.025f +
+                  vin.select<WIDTH, 1>(GET_IDX(i + 10, 5)) * 0.02f;
 
               // predciate output
               simd<ushort, WIDTH> p = (elm16 + h_pos * WIDTH) < DIM_SIZE - 10;
