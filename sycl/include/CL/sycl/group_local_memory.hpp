@@ -17,7 +17,7 @@
 
 // Requests a fixed-size allocation in local address space at kernel scope.
 // This function is not implementable in SYCL headers and is left without
-// definition. Calls to it will be transformed by a pass during compilation.
+// definition. Calls to it will be resolved by SYCL device compiler.
 #ifdef __SYCL_DEVICE_ONLY__
 extern "C" SYCL_EXTERNAL __attribute__((opencl_local)) std::uint8_t *
 __sycl_allocate_local_memory(std::size_t Size, std::size_t Alignment);
