@@ -68,7 +68,7 @@ generating this attribute on `SYCL_EXTERNAL` functions:
 
 ### sycl-post-link changes
 
-`sycl-post-link` performs 3 important tasks:
+To support dynamic device linkage, `sycl-post-link` performs 3 main tasks:
 - Arranges `SYCL_EXTERNAL` functions into a separate device image(s)
 - Supplies device images containing exports with an information about exported
   symbols
@@ -110,8 +110,9 @@ is recorder instead.
 After `SYCL_EXTERNAL` functions are arranged into a separate device image(s),
 all non-`SYCL_EXTERNAL` functions are internalized to avoid multiple definition
 errors during runtime linking.
-Device images with `SYCL_EXTERNAL` functions will also have a list of names
-of exported functions.
+Device images with `SYCL_EXTERNAL` functions will also get a list of names
+of exported functions attached to them through device image properties
+(described below).
 
 **NOTE**: If device code split is enabled, it seems reasonable to perform
 exports arrangement before device code split procedure.
@@ -124,7 +125,8 @@ except the following cases:
   - Declarations with `__spirv_*` prefix should not be recorded as dependencies
   since they represent SPIR-V operations and will be transformed to SPIR-V
   instructions during LLVM->SPIR-V translation.
-- Based on some attributes which could be defined later
+- Based on some attributes (which could be defined later) we may want to avoid
+  listing some functions as imported ones
   - This is needed to have possibility to call device-specific builtins not
     starting with `__` by forward-declaring them in DPC++ code
 
