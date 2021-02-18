@@ -48,7 +48,8 @@ __SYCL_EXPORT device make_device(const platform &Platform,
 //----------------------------------------------------------------------------
 // Implementation of level_zero::make<context>
 __SYCL_EXPORT context make_context(const vector_class<device> &DeviceList,
-                                   pi_native_handle NativeHandle) {
+                                   pi_native_handle NativeHandle,
+                                   bool KeepOwnership) {
   const auto &Plugin = pi::getPlugin<backend::level_zero>();
   // Create PI context first.
   pi_context PiContext;
@@ -57,7 +58,8 @@ __SYCL_EXPORT context make_context(const vector_class<device> &DeviceList,
     DeviceHandles.push_back(detail::getSyclObjImpl(Dev)->getHandleRef());
   }
   Plugin.call<PiApiKind::piextContextCreateWithNativeHandle>(
-      NativeHandle, DeviceHandles.size(), DeviceHandles.data(), &PiContext);
+      NativeHandle, DeviceHandles.size(), DeviceHandles.data(), !KeepOwnership,
+      &PiContext);
   // Construct the SYCL context from PI context.
   return detail::createSyclObjFromImpl<context>(
       std::make_shared<context_impl>(PiContext, async_handler{}, Plugin));
