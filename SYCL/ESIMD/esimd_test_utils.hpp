@@ -11,6 +11,7 @@
 #define NOMINMAX
 
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <fstream>
 #include <iostream>
@@ -159,6 +160,34 @@ To bit_cast(const From &src) noexcept {
   To dst;
   std::memcpy(&dst, &src, sizeof(To));
   return dst;
+}
+
+// Timer class for measuring elasped time
+class Timer {
+public:
+  Timer() : start_(std::chrono::steady_clock::now()) {}
+
+  double Elapsed() {
+    auto now = std::chrono::steady_clock::now();
+    return std::chrono::duration_cast<Duration>(now - start_).count();
+  }
+
+private:
+  using Duration = std::chrono::duration<double>;
+  std::chrono::steady_clock::time_point start_;
+};
+
+// e0 is the first event, en is the last event
+// find the time difference between the starting time of the e0 and
+// the ending time of en, return micro-second
+inline double report_time(const std::string &msg, event e0, event en) {
+  cl_ulong time_start =
+      e0.get_profiling_info<info::event_profiling::command_start>();
+  cl_ulong time_end =
+      en.get_profiling_info<info::event_profiling::command_end>();
+  double elapsed = (time_end - time_start) / 1e6;
+  // cerr << msg << elapsed << " msecs" << std::endl;
+  return elapsed;
 }
 
 } // namespace esimd_test
