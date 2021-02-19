@@ -3004,6 +3004,7 @@ extern enum sched_type __kmp_static; /* default static scheduling method */
 extern enum sched_type __kmp_guided; /* default guided scheduling method */
 extern enum sched_type __kmp_auto; /* default auto scheduling method */
 extern int __kmp_chunk; /* default runtime chunk size */
+extern int __kmp_force_monotonic; /* whether monotonic scheduling forced */
 
 extern size_t __kmp_stksize; /* stack size per thread         */
 #if KMP_USE_MONITOR
@@ -3152,6 +3153,8 @@ extern const char *__kmp_speculative_statsfile;
 extern int __kmp_display_env; /* TRUE or FALSE */
 extern int __kmp_display_env_verbose; /* TRUE if OMP_DISPLAY_ENV=VERBOSE */
 extern int __kmp_omp_cancellation; /* TRUE or FALSE */
+extern int __kmp_nteams;
+extern int __kmp_teams_thread_limit;
 
 /* ------------------------------------------------------------------------- */
 
@@ -3360,6 +3363,8 @@ extern void __kmp_push_proc_bind(ident_t *loc, int gtid,
                                  kmp_proc_bind_t proc_bind);
 extern void __kmp_push_num_teams(ident_t *loc, int gtid, int num_teams,
                                  int num_threads);
+extern void __kmp_push_num_teams_51(ident_t *loc, int gtid, int num_teams_lb,
+                                    int num_teams_ub, int num_threads);
 
 extern void __kmp_yield();
 
@@ -3846,6 +3851,10 @@ KMP_EXPORT void __kmpc_task_reduction_modifier_fini(ident_t *loc, int gtid,
 KMP_EXPORT kmp_int32 __kmpc_omp_reg_task_with_affinity(
     ident_t *loc_ref, kmp_int32 gtid, kmp_task_t *new_task, kmp_int32 naffins,
     kmp_task_affinity_info_t *affin_list);
+KMP_EXPORT void __kmp_set_num_teams(int num_teams);
+KMP_EXPORT int __kmp_get_max_teams(void);
+KMP_EXPORT void __kmp_set_teams_thread_limit(int limit);
+KMP_EXPORT int __kmp_get_teams_thread_limit(void);
 
 /* Lock interface routines (fast versions with gtid passed in) */
 KMP_EXPORT void __kmpc_init_lock(ident_t *loc, kmp_int32 gtid,
@@ -3914,6 +3923,11 @@ KMP_EXPORT void __kmpc_push_proc_bind(ident_t *loc, kmp_int32 global_tid,
 KMP_EXPORT void __kmpc_push_num_teams(ident_t *loc, kmp_int32 global_tid,
                                       kmp_int32 num_teams,
                                       kmp_int32 num_threads);
+/* Function for OpenMP 5.1 num_teams clause */
+KMP_EXPORT void __kmpc_push_num_teams_51(ident_t *loc, kmp_int32 global_tid,
+                                         kmp_int32 num_teams_lb,
+                                         kmp_int32 num_teams_ub,
+                                         kmp_int32 num_threads);
 KMP_EXPORT void __kmpc_fork_teams(ident_t *loc, kmp_int32 argc,
                                   kmpc_micro microtask, ...);
 struct kmp_dim { // loop bounds info casted to kmp_int64

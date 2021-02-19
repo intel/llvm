@@ -922,13 +922,9 @@ static bool emitDebugValueComment(const MachineInstr *MI, AsmPrinter &AP) {
   const DIExpression *Expr = MI->getDebugExpression();
   if (Expr->getNumElements()) {
     OS << '[';
-    bool NeedSep = false;
+    ListSeparator LS;
     for (auto Op : Expr->expr_ops()) {
-      if (NeedSep)
-        OS << ", ";
-      else
-        NeedSep = true;
-      OS << dwarf::OperationEncodingString(Op.getOp());
+      OS << LS << dwarf::OperationEncodingString(Op.getOp());
       for (unsigned I = 0; I < Op.getNumArgs(); ++I)
         OS << ' ' << Op.getArg(I);
     }
@@ -3468,9 +3464,9 @@ void AsmPrinter::emitPatchableFunctionEntries() {
     const MCSymbolELF *LinkedToSym = nullptr;
     StringRef GroupName;
 
-    // GNU as < 2.35 did not support section flag 'o'. Use SHF_LINK_ORDER only
-    // if we are using the integrated assembler.
-    if (MAI->useIntegratedAssembler()) {
+    // GNU as < 2.35 did not support section flag 'o'. GNU ld < 2.36 did not
+    // support mixed SHF_LINK_ORDER and non-SHF_LINK_ORDER sections.
+    if (MAI->useIntegratedAssembler() || MAI->binutilsIsAtLeast(2, 36)) {
       Flags |= ELF::SHF_LINK_ORDER;
       if (F.hasComdat()) {
         Flags |= ELF::SHF_GROUP;

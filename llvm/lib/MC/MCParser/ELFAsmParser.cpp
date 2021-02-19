@@ -326,6 +326,9 @@ static unsigned parseSectionFlags(StringRef flagsStr, bool *UseLastGroup) {
     case 'G':
       flags |= ELF::SHF_GROUP;
       break;
+    case 'R':
+      flags |= ELF::SHF_GNU_RETAIN;
+      break;
     case '?':
       *UseLastGroup = true;
       break;
@@ -500,6 +503,7 @@ bool ELFAsmParser::ParseSectionArguments(bool IsPush, SMLoc loc) {
   int64_t Size = 0;
   StringRef GroupName;
   unsigned Flags = 0;
+  unsigned extraFlags = 0;
   const MCExpr *Subsection = nullptr;
   bool UseLastGroup = false;
   MCSymbolELF *LinkedToSym = nullptr;
@@ -531,8 +535,6 @@ bool ELFAsmParser::ParseSectionArguments(bool IsPush, SMLoc loc) {
         goto EndStmt;
       Lex();
     }
-
-    unsigned extraFlags;
 
     if (getLexer().isNot(AsmToken::String)) {
       if (!getContext().getAsmInfo()->usesSunStyleELFSectionSwitchSyntax()
@@ -655,10 +657,11 @@ EndStmt:
   // Check that flags are used consistently. However, the GNU assembler permits
   // to leave out in subsequent uses of the same sections; for compatibility,
   // do likewise.
-  if ((Flags || Size || !TypeName.empty()) && Section->getFlags() != Flags)
+  if ((extraFlags || Size || !TypeName.empty()) && Section->getFlags() != Flags)
     Error(loc, "changed section flags for " + SectionName + ", expected: 0x" +
                    utohexstr(Section->getFlags()));
-  if ((Flags || Size || !TypeName.empty()) && Section->getEntrySize() != Size)
+  if ((extraFlags || Size || !TypeName.empty()) &&
+      Section->getEntrySize() != Size)
     Error(loc, "changed section entsize for " + SectionName +
                    ", expected: " + Twine(Section->getEntrySize()));
 

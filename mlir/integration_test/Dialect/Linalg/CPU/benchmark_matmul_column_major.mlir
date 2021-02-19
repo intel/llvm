@@ -7,20 +7,23 @@
 // RUN: mlir-opt -test-linalg-codegen-strategy="anchor-op=linalg.copy register-tile-sizes=4,16 vectorize" | \
 
 // RUN: mlir-opt -canonicalize -convert-vector-to-scf -lower-affine -convert-linalg-to-loops | \
-// RUN: mlir-opt -canonicalize -convert-scf-to-std -convert-vector-to-llvm | \
+// RUN: mlir-opt -canonicalize -convert-scf-to-std -convert-vector-to-llvm -convert-std-to-llvm | \
 // RUN: mlir-cpu-runner -O3 -e main -entry-point-result=void \
 // Activate to dump assembly
 // R_UN:   -dump-object-file -object-filename=/tmp/a.o \
-// RUN:   -shared-libs=%mlir_integration_test_dir/libmlir_runner_utils%shlibext | \
+// RUN:   -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
 // Use tee to both print to stderr and FileCheck
 // RUN: tee -a /dev/stderr | FileCheck %s
 
-!row_major_A = type memref<${M}x${K}xf32>
-!row_major_B = type memref<${K}x${N}xf32>
-!row_major_C = type memref<${M}x${N}xf32>
-!column_major_A = type memref<${K}x${M}xf32>
-!column_major_B = type memref<${N}x${K}xf32>
-!column_major_C = type memref<${N}x${M}xf32>
+!elem_type_a = type f32
+!elem_type_b = type f32
+!elem_type_c = type f32
+!row_major_A = type memref<${M}x${K}x!elem_type_a>
+!row_major_B = type memref<${K}x${N}x!elem_type_b>
+!row_major_C = type memref<${M}x${N}x!elem_type_c>
+!column_major_A = type memref<${K}x${M}x!elem_type_a>
+!column_major_B = type memref<${N}x${K}x!elem_type_b>
+!column_major_C = type memref<${N}x${M}x!elem_type_c>
 
 func @matmul_column_major(%a: !column_major_A, %b: !column_major_B, %c: !column_major_C)
 // TODO: activate manually for now.
@@ -52,16 +55,16 @@ func @print_perf(%iters: index, %total_time: f64) {
 }
 
 func @main() {
-  %f0 = constant 0.0 : f32
-  %f1 = constant 1.0 : f32
+  %f0 = constant 0.0 : !elem_type_c
+  %f1 = constant 1.0 : !elem_type_a
 
   %cA = alloc() : !column_major_A
   %cB = alloc() : !column_major_B
   %cC = alloc() : !column_major_C
 
-  linalg.fill(%cA, %f1) : !column_major_A, f32
-  linalg.fill(%cB, %f1) : !column_major_B, f32
-  linalg.fill(%cC, %f0) : !column_major_C, f32
+  linalg.fill(%cA, %f1) : !column_major_A, !elem_type_a
+  linalg.fill(%cB, %f1) : !column_major_B, !elem_type_b
+  linalg.fill(%cC, %f0) : !column_major_C, !elem_type_c
 
   %c0 = constant 0: index
   %c1 = constant 1: index
@@ -72,9 +75,9 @@ func @main() {
   scf.for %arg0 = %c0 to %iters step %c1 {
     // linalg.matmul writes %C in place, need to reset it to zero every time.
     // This is accounts for about 10-15% perf hit on small sizes.
-    // Once linalg on tensors is ready, fusing fill at teh register level will
+    // Once linalg on tensors is ready, fusing fill at the register level will
     // be easy.
-    linalg.fill(%cC, %f0) : !column_major_C, f32
+    linalg.fill(%cC, %f0) : !column_major_C, !elem_type_c
     call @matmul_column_major(%cA, %cB, %cC) : (!column_major_A, !column_major_B, !column_major_C) -> ()
   }
   %t_end_matmul_column_major = call @rtclock() : () -> f64
@@ -83,7 +86,7 @@ func @main() {
 
   %res = load %cC[%c0, %c0]: !column_major_C
   // CHECK: 64
-  vector.print %res: f32
+  vector.print %res: !elem_type_c
 
   dealloc %cA : !column_major_A
   dealloc %cB : !column_major_B

@@ -12,6 +12,7 @@
 
 #include "mlir/Conversion/TosaToLinalg/TosaToLinalg.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/IR/PatternMatch.h"
@@ -29,7 +30,7 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
                                             PatternRewriter &rewriter) {
   Location loc = op->getLoc();
   auto elementTy =
-      op->getResult(0).getType().cast<ShapedType>().getElementType();
+      op->getOperand(0).getType().cast<ShapedType>().getElementType();
 
   // tosa::AbsOp
   if (isa<tosa::AbsOp>(op) && elementTy.isa<FloatType>())
@@ -64,7 +65,15 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
 
   // tosa::PowOp
   if (isa<tosa::PowOp>(op) && elementTy.isa<FloatType>())
-    return rewriter.create<mlir::PowFOp>(loc, resultTypes, args);
+    return rewriter.create<mlir::math::PowFOp>(loc, resultTypes, args);
+
+  // tosa::LogOp
+  if (isa<tosa::LogOp>(op) && elementTy.isa<FloatType>())
+    return rewriter.create<mlir::math::LogOp>(loc, resultTypes, args);
+
+  // tosa::ExpOp
+  if (isa<tosa::ExpOp>(op) && elementTy.isa<FloatType>())
+    return rewriter.create<mlir::math::ExpOp>(loc, resultTypes, args);
 
   // tosa::SubOp
   if (isa<tosa::SubOp>(op) && elementTy.isa<FloatType>())
@@ -75,9 +84,61 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
 
   // tosa::TanhOp
   if (isa<tosa::TanhOp>(op) && elementTy.isa<FloatType>())
-    return rewriter.create<mlir::TanhOp>(loc, resultTypes, args);
+    return rewriter.create<mlir::math::TanhOp>(loc, resultTypes, args);
 
-  rewriter.notifyMatchFailure(
+  // tosa::GreaterOp
+  if (isa<tosa::GreaterOp>(op) && elementTy.isa<FloatType>())
+    return rewriter.create<mlir::CmpFOp>(loc, CmpFPredicate::OGT, args[0],
+                                         args[1]);
+
+  if (isa<tosa::GreaterOp>(op) && elementTy.isSignlessInteger())
+    return rewriter.create<mlir::CmpIOp>(loc, CmpIPredicate::sgt, args[0],
+                                         args[1]);
+
+  // tosa::GreaterEqualOp
+  if (isa<tosa::GreaterEqualOp>(op) && elementTy.isa<FloatType>())
+    return rewriter.create<mlir::CmpFOp>(loc, CmpFPredicate::OGE, args[0],
+                                         args[1]);
+
+  if (isa<tosa::GreaterEqualOp>(op) && elementTy.isSignlessInteger())
+    return rewriter.create<mlir::CmpIOp>(loc, CmpIPredicate::sge, args[0],
+                                         args[1]);
+
+  // tosa::MaximumOp
+  if (isa<tosa::MaximumOp>(op) && elementTy.isa<FloatType>()) {
+    auto predicate = rewriter.create<mlir::CmpFOp>(loc, CmpFPredicate::OGT,
+                                                   args[0], args[1]);
+    return rewriter.create<mlir::SelectOp>(loc, predicate, args[0], args[1]);
+  }
+
+  if (isa<tosa::MaximumOp>(op) && elementTy.isSignlessInteger()) {
+    auto predicate = rewriter.create<mlir::CmpIOp>(loc, CmpIPredicate::sgt,
+                                                   args[0], args[1]);
+    return rewriter.create<mlir::SelectOp>(loc, predicate, args[0], args[1]);
+  }
+
+  // tosa::MinimumOp
+  if (isa<tosa::MinimumOp>(op) && elementTy.isa<FloatType>()) {
+    auto predicate = rewriter.create<mlir::CmpFOp>(loc, CmpFPredicate::OLT,
+                                                   args[0], args[1]);
+    return rewriter.create<mlir::SelectOp>(loc, predicate, args[0], args[1]);
+  }
+
+  if (isa<tosa::MinimumOp>(op) && elementTy.isSignlessInteger()) {
+    auto predicate = rewriter.create<mlir::CmpIOp>(loc, CmpIPredicate::slt,
+                                                   args[0], args[1]);
+    return rewriter.create<mlir::SelectOp>(loc, predicate, args[0], args[1]);
+  }
+
+  // tosa::CeilOp
+  if (isa<tosa::CeilOp>(op) && elementTy.isa<FloatType>())
+    return rewriter.create<mlir::CeilFOp>(loc, resultTypes, args);
+
+  // tosa::FloorOp
+  if (isa<tosa::FloorOp>(op) && elementTy.isa<FloatType>())
+    return rewriter.create<mlir::FloorFOp>(loc, resultTypes, args);
+
+  (void)rewriter.notifyMatchFailure(
       op, "unhandled op for linalg body calculation for elementwise op");
   return nullptr;
 }
@@ -92,21 +153,8 @@ elementwiseMatchAndRewriteHelper(Operation *operation,
     return rewriter.notifyMatchFailure(operation,
                                        "All results must be a shaped type");
 
-  // For now require no broadcasting. Consider making it support broadcasting
-  // operations.
-  Type uniqueTy = operation->getOperand(0).getType();
-  bool allInputTypesEqual =
-      llvm::all_of(operation->getOperandTypes(),
-                   [&](Type operandTy) { return operandTy == uniqueTy; });
-  if (!allInputTypesEqual)
-    return rewriter.notifyMatchFailure(operation,
-                                       "All operands must have the same type");
-  bool allResultTypesEqual =
-      llvm::all_of(operation->getResultTypes(),
-                   [&](Type resultTy) { return resultTy == uniqueTy; });
-  if (!allResultTypesEqual)
-    return rewriter.notifyMatchFailure(
-        operation, "All results must have the same type as the input");
+  assert(operation->getNumResults() == 1 &&
+         "All TOSA elementwise ops should only return a single result.");
 
   // Construct the indexing maps needed for linalg.generic ops.
   SmallVector<Type> bodyArgTypes;
@@ -132,12 +180,30 @@ elementwiseMatchAndRewriteHelper(Operation *operation,
   auto bodyResultTypes = llvm::to_vector<4>(llvm::map_range(
       initTensors, [](Value v) { return getElementTypeOrSelf(v); }));
 
-  // Supports only non-broadcasted operation. Shoudl consider update indexing
-  // map to be multidimensional.
   unsigned nloops = t0.getRank();
-  AffineMap commonIndexingMap = rewriter.getMultiDimIdentityMap(nloops);
-  SmallVector<AffineMap, 2> indexingMaps(
-      operation->getNumOperands() + bodyResultTypes.size(), commonIndexingMap);
+  SmallVector<AffineMap, 2> indexingMaps;
+  indexingMaps.reserve(operation->getNumOperands() + bodyResultTypes.size());
+
+  // Input indexing maps may be broadcasted.
+  for (Type types : operation->getOperandTypes()) {
+    auto shape = types.cast<ShapedType>().getShape();
+    SmallVector<AffineExpr, 4> dimExprs;
+    dimExprs.reserve(nloops);
+    for (unsigned i = 0; i < nloops; ++i) {
+      // If the dimension is one we can broadcast the input with a constant
+      // affine expression.
+      if (shape[i] == 1)
+        dimExprs.push_back(rewriter.getAffineConstantExpr(0));
+      else
+        dimExprs.push_back(rewriter.getAffineDimExpr(i));
+    }
+    indexingMaps.push_back(AffineMap::get(/*dimCount=*/nloops,
+                                          /*symbolCount=*/0, dimExprs,
+                                          rewriter.getContext()));
+  }
+
+  indexingMaps.append(operation->getNumResults(),
+                      rewriter.getMultiDimIdentityMap(nloops));
 
   bool didEncounterError = false;
   auto linalgOp = rewriter.create<linalg::GenericOp>(
@@ -179,10 +245,16 @@ void mlir::tosa::populateTosaToLinalgOnTensorsConversionPatterns(
     MLIRContext *context, OwningRewritePatternList *patterns) {
   patterns->insert<
       PointwiseConverter<tosa::AddOp>, PointwiseConverter<tosa::SubOp>,
-      PointwiseConverter<tosa::PowOp>, PointwiseConverter<tosa::AbsOp>,
+      PointwiseConverter<tosa::PowOp>, PointwiseConverter<tosa::LogOp>,
+      PointwiseConverter<tosa::ExpOp>, PointwiseConverter<tosa::AbsOp>,
       PointwiseConverter<tosa::TanhOp>, PointwiseConverter<tosa::BitwiseAndOp>,
       PointwiseConverter<tosa::BitwiseOrOp>,
       PointwiseConverter<tosa::BitwiseXorOp>,
       PointwiseConverter<tosa::LogicalLeftShiftOp>,
-      PointwiseConverter<tosa::LogicalRightShiftOp>>(context);
+      PointwiseConverter<tosa::LogicalRightShiftOp>,
+      PointwiseConverter<tosa::GreaterOp>,
+      PointwiseConverter<tosa::GreaterEqualOp>,
+      PointwiseConverter<tosa::MaximumOp>, PointwiseConverter<tosa::MinimumOp>,
+      PointwiseConverter<tosa::CeilOp>, PointwiseConverter<tosa::FloorOp>>(
+      context);
 }

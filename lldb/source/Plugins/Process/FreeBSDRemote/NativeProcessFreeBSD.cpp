@@ -265,7 +265,17 @@ void NativeProcessFreeBSD::MonitorSIGTRAP(lldb::pid_t pid) {
     switch (info.pl_siginfo.si_code) {
     case TRAP_BRKPT:
       if (thread) {
-        thread->SetStoppedByBreakpoint();
+        auto thread_info =
+            m_threads_stepping_with_breakpoint.find(thread->GetID());
+        if (thread_info != m_threads_stepping_with_breakpoint.end()) {
+          thread->SetStoppedByTrace();
+          Status brkpt_error = RemoveBreakpoint(thread_info->second);
+          if (brkpt_error.Fail())
+            LLDB_LOG(log, "pid = {0} remove stepping breakpoint: {1}",
+                     thread_info->first, brkpt_error);
+          m_threads_stepping_with_breakpoint.erase(thread_info);
+        } else
+          thread->SetStoppedByBreakpoint();
         FixupBreakpointPCAsNeeded(*thread);
       }
       SetState(StateType::eStateStopped, true);
@@ -352,6 +362,27 @@ Status NativeProcessFreeBSD::PtraceWrapper(int req, lldb::pid_t pid, void *addr,
     LLDB_LOG(log, "ptrace() failed: {0}", error);
 
   return error;
+}
+
+llvm::Expected<llvm::ArrayRef<uint8_t>>
+NativeProcessFreeBSD::GetSoftwareBreakpointTrapOpcode(size_t size_hint) {
+  static const uint8_t g_arm_opcode[] = {0xfe, 0xde, 0xff, 0xe7};
+  static const uint8_t g_thumb_opcode[] = {0x01, 0xde};
+
+  switch (GetArchitecture().GetMachine()) {
+  case llvm::Triple::arm:
+    switch (size_hint) {
+    case 2:
+      return llvm::makeArrayRef(g_thumb_opcode);
+    case 4:
+      return llvm::makeArrayRef(g_arm_opcode);
+    default:
+      return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                     "Unrecognised trap opcode size hint!");
+    }
+  default:
+    return NativeProcessProtocol::GetSoftwareBreakpointTrapOpcode(size_hint);
+  }
 }
 
 Status NativeProcessFreeBSD::Resume(const ResumeActionList &resume_actions) {
@@ -877,4 +908,8 @@ Status NativeProcessFreeBSD::ReinitializeThreads() {
     AddThread(lwp);
 
   return error;
+}
+
+bool NativeProcessFreeBSD::SupportHardwareSingleStepping() const {
+  return !m_arch.IsMIPS();
 }

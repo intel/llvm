@@ -1361,8 +1361,10 @@ def OpenCLKernel : InheritableAttr {
   let SimpleHandler = 1;
 }
 
-def OpenCLUnrollHint : InheritableAttr {
+def OpenCLUnrollHint : StmtAttr {
   let Spellings = [GNU<"opencl_unroll_hint">];
+//  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
+//                             ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [UnsignedArgument<"UnrollHint">];
   let Documentation = [OpenCLUnrollHintDocs];
 }
@@ -2927,6 +2929,16 @@ def SwiftAsync : InheritableAttr {
                 ["None", "SwiftPrivate", "NotSwiftPrivate"]>,
               ParamIdxArgument<"CompletionHandlerIndex", /*opt=*/1>];
   let Documentation = [SwiftAsyncDocs];
+}
+
+def SwiftAsyncError : InheritableAttr {
+  let Spellings = [Clang<"swift_async_error">];
+  let Subjects = SubjectList<[Function, ObjCMethod]>;
+  let Args = [EnumArgument<"Convention", "ConventionKind",
+              ["none", "nonnull_error", "zero_argument", "nonzero_argument"],
+              ["None", "NonNullError", "ZeroArgument", "NonZeroArgument"]>,
+              UnsignedArgument<"HandlerParamIdx", /*opt=*/1>];
+  let Documentation = [SwiftAsyncErrorDocs];
 }
 
 def Suppress : StmtAttr {

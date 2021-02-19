@@ -14,23 +14,28 @@
 
 #include "llvm/ADT/STLExtras.h"
 
+#include "mlir/Conversion/AsyncToLLVM/AsyncToLLVM.h"
 #include "mlir/Conversion/GPUCommon/GPUCommonPass.h"
 #include "mlir/Conversion/GPUToNVVM/GPUToNVVMPass.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
+#include "mlir/Dialect/Async/IR/Async.h"
+#include "mlir/Dialect/Async/Passes.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/GPU/Passes.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/ExecutionEngine/JitRunner.h"
 #include "mlir/ExecutionEngine/OptUtils.h"
 #include "mlir/IR/BuiltinOps.h"
-#include "mlir/InitAllDialects.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Target/LLVMIR.h"
 #include "mlir/Target/NVVMIR.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
+
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/TargetSelect.h"
 
@@ -83,10 +88,10 @@ OwnedBlob compilePtxToCubin(const std::string ptx, Location loc,
   RETURN_ON_CUDA_ERROR(
       cuLinkAddData(linkState, CUjitInputType::CU_JIT_INPUT_PTX,
                     const_cast<void *>(static_cast<const void *>(ptx.c_str())),
-                    ptx.length(), name.data(), /* kernel name */
-                    0,                         /* number of jit options */
-                    nullptr,                   /* jit options */
-                    nullptr                    /* jit option values */
+                    ptx.length(), name.str().data(), /* kernel name */
+                    0,                               /* number of jit options */
+                    nullptr,                         /* jit options */
+                    nullptr                          /* jit option values */
                     ),
       "cuLinkAddData");
 
@@ -101,6 +106,7 @@ OwnedBlob compilePtxToCubin(const std::string ptx, Location loc,
 
   // This will also destroy the cubin data.
   RETURN_ON_CUDA_ERROR(cuLinkDestroy(linkState), "cuLinkDestroy");
+  RETURN_ON_CUDA_ERROR(cuCtxDestroy(context), "cuCtxDestroy");
 
   return result;
 }
@@ -117,7 +123,14 @@ static LogicalResult runMLIRPasses(ModuleOp m) {
   kernelPm.addPass(createConvertGPUKernelToBlobPass(
       translateModuleToNVVMIR, compilePtxToCubin, "nvptx64-nvidia-cuda",
       "sm_35", "+ptx60", gpuBinaryAnnotation));
+  auto &funcPm = pm.nest<FuncOp>();
+  funcPm.addPass(createGpuAsyncRegionPass());
+  funcPm.addPass(createAsyncRefCountingPass());
   pm.addPass(createGpuToLLVMConversionPass(gpuBinaryAnnotation));
+  pm.addPass(createAsyncToAsyncRuntimePass());
+  pm.addPass(createConvertAsyncToLLVMPass());
+  mlir::LowerToLLVMOptions lower_to_llvm_opts;
+  pm.addPass(mlir::createLowerToLLVMPass(lower_to_llvm_opts));
 
   return pm.run(m);
 }
@@ -139,5 +152,11 @@ int main(int argc, char **argv) {
   mlir::JitRunnerConfig jitRunnerConfig;
   jitRunnerConfig.mlirTransformer = runMLIRPasses;
 
-  return mlir::JitRunnerMain(argc, argv, jitRunnerConfig);
+  mlir::DialectRegistry registry;
+  registry.insert<mlir::LLVM::LLVMDialect, mlir::NVVM::NVVMDialect,
+                  mlir::async::AsyncDialect, mlir::gpu::GPUDialect,
+                  mlir::StandardOpsDialect>();
+  mlir::registerLLVMDialectTranslation(registry);
+
+  return mlir::JitRunnerMain(argc, argv, registry, jitRunnerConfig);
 }

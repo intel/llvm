@@ -53,6 +53,10 @@ enum NodeType : unsigned {
   // instructions.
   ROLW,
   RORW,
+  // RV64IB/RV32IB funnel shifts, with the semantics of the named RISC-V
+  // instructions, but the same operand order as fshl/fshr intrinsics.
+  FSR,
+  FSL,
   // RV64IB funnel shifts, with the semantics of the named RISC-V instructions,
   // but the same operand order as fshl/fshr intrinsics.
   FSRW,
@@ -85,9 +89,14 @@ enum NodeType : unsigned {
   GORCI,
   GORCIW,
   // Vector Extension
-  // VMV_X_S matches the semantics of vmv.x.s. The result is always XLenVT
-  // sign extended from the vector element size. NOTE: The result size will
-  // never be less than the vector element size.
+  // VMV_V_X_VL matches the semantics of vmv.v.x but includes an extra operand
+  // for the VL value to be used for the operation.
+  VMV_V_X_VL,
+  // VFMV_V_F_VL matches the semantics of vfmv.v.f but includes an extra operand
+  // for the VL value to be used for the operation.
+  VFMV_V_F_VL,
+  // VMV_X_S matches the semantics of vmv.x.s. The result is always XLenVT sign
+  // extended from the vector element size.
   VMV_X_S,
   // Splats an i64 scalar to a vector type (with element type i64) where the
   // scalar is a sign-extended i32.
@@ -104,12 +113,81 @@ enum NodeType : unsigned {
   // XLenVT index (either constant or non-constant).
   VSLIDEUP,
   VSLIDEDOWN,
-  // Matches the semantics of the unmasked vid.v instruction.
-  VID,
+  // Matches the semantics of the vid.v instruction, with a mask and VL
+  // operand.
+  VID_VL,
   // Matches the semantics of the vfcnvt.rod function (Convert double-width
   // float to single-width float, rounding towards odd). Takes a double-width
   // float vector and produces a single-width float vector.
   VFNCVT_ROD,
+  // These nodes match the semantics of the corresponding RVV vector reduction
+  // instructions. They produce a vector result which is the reduction
+  // performed over the first vector operand plus the first element of the
+  // second vector operand. The first operand is an unconstrained vector type,
+  // and the result and second operand's types are expected to be the
+  // corresponding full-width LMUL=1 type for the first operand:
+  //   nxv8i8 = vecreduce_add nxv32i8, nxv8i8
+  //   nxv2i32 = vecreduce_add nxv8i32, nxv2i32
+  // The different in types does introduce extra vsetvli instructions but
+  // similarly it reduces the number of registers consumed per reduction.
+  VECREDUCE_ADD,
+  VECREDUCE_UMAX,
+  VECREDUCE_SMAX,
+  VECREDUCE_UMIN,
+  VECREDUCE_SMIN,
+  VECREDUCE_AND,
+  VECREDUCE_OR,
+  VECREDUCE_XOR,
+  VECREDUCE_FADD,
+  VECREDUCE_SEQ_FADD,
+
+  // Vector binary and unary ops with a mask as a third operand, and VL as a
+  // fourth operand.
+  // FIXME: Can we replace these with ISD::VP_*?
+  ADD_VL,
+  AND_VL,
+  MUL_VL,
+  OR_VL,
+  SDIV_VL,
+  SHL_VL,
+  SREM_VL,
+  SRA_VL,
+  SRL_VL,
+  SUB_VL,
+  UDIV_VL,
+  UREM_VL,
+  XOR_VL,
+  FADD_VL,
+  FSUB_VL,
+  FMUL_VL,
+  FDIV_VL,
+  FNEG_VL,
+  FABS_VL,
+  FSQRT_VL,
+  FMA_VL,
+  SMIN_VL,
+  SMAX_VL,
+  UMIN_VL,
+  UMAX_VL,
+
+  // Vector compare producing a mask. Fourth operand is input mask. Fifth
+  // operand is VL.
+  SETCC_VL,
+
+  // Set mask vector to all zeros or ones.
+  VMCLR_VL,
+  VMSET_VL,
+
+  // Matches the semantics of vrgather.vx with an extra operand for VL.
+  VRGATHER_VX_VL,
+
+  // Memory opcodes start here.
+  VLE_VL = ISD::FIRST_TARGET_MEMORY_OPCODE,
+  VSE_VL,
+
+  // WARNING: Do not add anything in the end unless you want the node to
+  // have memop! In fact, starting from FIRST_TARGET_MEMORY_OPCODE all
+  // opcodes will be thought as target memory ops!
 };
 } // namespace RISCVISD
 
@@ -277,6 +355,13 @@ public:
                                           Value *NewVal, Value *Mask,
                                           AtomicOrdering Ord) const override;
 
+  /// Returns true if the target allows unaligned memory accesses of the
+  /// specified type.
+  bool allowsMisalignedMemoryAccesses(
+      EVT VT, unsigned AddrSpace = 0, Align Alignment = Align(1),
+      MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
+      bool *Fast = nullptr) const override;
+
 private:
   void analyzeInputArgs(MachineFunction &MF, CCState &CCInfo,
                         const SmallVectorImpl<ISD::InputArg> &Ins,
@@ -311,6 +396,13 @@ private:
   SDValue lowerEXTRACT_VECTOR_ELT(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINTRINSIC_W_CHAIN(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerVECREDUCE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerFPVECREDUCE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerFixedLengthVectorLoadToRVV(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerFixedLengthVectorStoreToRVV(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerFixedLengthVectorSetccToRVV(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerToScalableOp(SDValue Op, SelectionDAG &DAG,
+                            unsigned NewOpc) const;
 
   bool isEligibleForTailCallOptimization(
       CCState &CCInfo, CallLoweringInfo &CLI, MachineFunction &MF,
@@ -321,7 +413,14 @@ private:
   void validateCCReservedRegs(
       const SmallVectorImpl<std::pair<llvm::Register, llvm::SDValue>> &Regs,
       MachineFunction &MF) const;
+
+  bool useRVVForFixedLengthVectorVT(MVT VT) const;
 };
+
+namespace RISCV {
+// We use 64 bits as the known part in the scalable vector types.
+static constexpr unsigned RVVBitsPerBlock = 64;
+} // namespace RISCV
 
 namespace RISCVVIntrinsicsTable {
 

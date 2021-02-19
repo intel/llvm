@@ -1089,31 +1089,6 @@ bool AArch64TTIImpl::shouldConsiderAddressTypePromotion(
   return Considerable;
 }
 
-bool AArch64TTIImpl::useReductionIntrinsic(unsigned Opcode, Type *Ty,
-                                           TTI::ReductionFlags Flags) const {
-  auto *VTy = cast<VectorType>(Ty);
-  unsigned ScalarBits = Ty->getScalarSizeInBits();
-  switch (Opcode) {
-  case Instruction::FAdd:
-  case Instruction::FMul:
-  case Instruction::And:
-  case Instruction::Or:
-  case Instruction::Xor:
-  case Instruction::Mul:
-    return false;
-  case Instruction::Add:
-    return ScalarBits * cast<FixedVectorType>(VTy)->getNumElements() >= 128;
-  case Instruction::ICmp:
-    return (ScalarBits < 64) &&
-           (ScalarBits * cast<FixedVectorType>(VTy)->getNumElements() >= 128);
-  case Instruction::FCmp:
-    return Flags.NoNaN;
-  default:
-    llvm_unreachable("Unhandled reduction opcode");
-  }
-  return false;
-}
-
 int AArch64TTIImpl::getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
                                            bool IsPairwise, bool IsUnsigned,
                                            TTI::TargetCostKind CostKind) {
@@ -1249,6 +1224,15 @@ int AArch64TTIImpl::getShuffleCost(TTI::ShuffleKind Kind, VectorType *Tp,
       { TTI::SK_PermuteSingleSrc, MVT::v2f32, 1 }, // mov.
       { TTI::SK_PermuteSingleSrc, MVT::v4f32, 3 }, // perfectshuffle worst case.
       { TTI::SK_PermuteSingleSrc, MVT::v2f64, 1 }, // mov.
+      // Broadcast shuffle kinds for scalable vectors
+      { TTI::SK_Broadcast, MVT::nxv16i8,  1 },
+      { TTI::SK_Broadcast, MVT::nxv8i16,  1 },
+      { TTI::SK_Broadcast, MVT::nxv4i32,  1 },
+      { TTI::SK_Broadcast, MVT::nxv2i64,  1 },
+      { TTI::SK_Broadcast, MVT::nxv8f16,  1 },
+      { TTI::SK_Broadcast, MVT::nxv8bf16, 1 },
+      { TTI::SK_Broadcast, MVT::nxv4f32,  1 },
+      { TTI::SK_Broadcast, MVT::nxv2f64,  1 },
     };
     std::pair<int, MVT> LT = TLI->getTypeLegalizationCost(DL, Tp);
     if (const auto *Entry = CostTableLookup(ShuffleTbl, Kind, LT.second))

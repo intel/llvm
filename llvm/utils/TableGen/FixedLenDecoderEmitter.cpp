@@ -1250,7 +1250,7 @@ bool FilterChooser::doesOpcodeNeedPredicate(unsigned Opc) const {
     if (!Pred->getValue("AssemblerMatcherPredicate"))
       continue;
 
-    if (dyn_cast<DagInit>(Pred->getValue("AssemblerCondDag")->getValue()))
+    if (isa<DagInit>(Pred->getValue("AssemblerCondDag")->getValue()))
       return true;
   }
   return false;
@@ -2418,7 +2418,7 @@ void FixedLenDecoderEmitter::run(raw_ostream &o) {
       if (auto *DI = dyn_cast_or_null<DefInit>(RV->getValue())) {
         const CodeGenHwModes &HWM = Target.getHwModes();
         EncodingInfoByHwMode EBM(DI->getDef(), HWM);
-        for (auto &KV : EBM.Map)
+        for (auto &KV : EBM)
           HwModeNames.insert(HWM.getMode(KV.first).Name);
       }
     }
@@ -2436,7 +2436,7 @@ void FixedLenDecoderEmitter::run(raw_ostream &o) {
       if (DefInit *DI = dyn_cast_or_null<DefInit>(RV->getValue())) {
         const CodeGenHwModes &HWM = Target.getHwModes();
         EncodingInfoByHwMode EBM(DI->getDef(), HWM);
-        for (auto &KV : EBM.Map) {
+        for (auto &KV : EBM) {
           NumberedEncodings.emplace_back(KV.second, NumberedInstruction,
                                          HWM.getMode(KV.first).Name);
           HwModeNames.insert(HWM.getMode(KV.first).Name);

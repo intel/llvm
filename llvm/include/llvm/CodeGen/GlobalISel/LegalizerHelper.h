@@ -17,8 +17,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CODEGEN_GLOBALISEL_MACHINELEGALIZEHELPER_H
-#define LLVM_CODEGEN_GLOBALISEL_MACHINELEGALIZEHELPER_H
+#ifndef LLVM_CODEGEN_GLOBALISEL_LEGALIZERHELPER_H
+#define LLVM_CODEGEN_GLOBALISEL_LEGALIZERHELPER_H
 
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
@@ -170,8 +170,8 @@ private:
   widenScalarExtract(MachineInstr &MI, unsigned TypeIdx, LLT WideTy);
   LegalizeResult
   widenScalarInsert(MachineInstr &MI, unsigned TypeIdx, LLT WideTy);
-  LegalizeResult widenScalarAddoSubo(MachineInstr &MI, unsigned TypeIdx,
-                                     LLT WideTy);
+  LegalizeResult widenScalarAddSubOverflow(MachineInstr &MI, unsigned TypeIdx,
+                                           LLT WideTy);
   LegalizeResult widenScalarAddSubShlSat(MachineInstr &MI, unsigned TypeIdx,
                                          LLT WideTy);
 
