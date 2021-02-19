@@ -289,6 +289,11 @@ namespace pi {
   std::terminate();
 }
 
+// Reports error messages
+void cuPrint(const char *Message) {
+  std::cerr << "pi_print: " << Message << std::endl;
+}
+
 void assertion(bool Condition, const char *Message) {
   if (!Condition)
     die(Message);
@@ -2649,8 +2654,9 @@ pi_result cuda_piclProgramCreateWithSource(pi_context context, pi_uint32 count,
                                            const char **strings,
                                            const size_t *lengths,
                                            pi_program *program) {
-  cl::sycl::detail::pi::die("cuda_piclProgramCreateWithSource not implemented");
-  return {};
+  cl::sycl::detail::pi::cuPrint(
+      "cuda_piclProgramCreateWithSource not implemented");
+  return PI_INVALID_OPERATION;
 }
 
 /// Loads the images from a PI program into a CUmodule that can be

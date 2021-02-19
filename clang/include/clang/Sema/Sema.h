@@ -13091,6 +13091,8 @@ void Sema::addIntelSingleArgAttr(Decl *D, const AttributeCommonInfo &CI,
             << CI << /*non-negative*/ 1;
         return;
       }
+    }
+    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
       if (ArgInt > 3) {
         Diag(E->getBeginLoc(), diag::err_attribute_argument_out_of_range)
             << CI << 0 << 3 << E->getSourceRange();
