@@ -486,6 +486,10 @@ public:
     return TranslationOpts.getFPContractMode();
   }
 
+  bool isUnknownIntrinsicAllowed(llvm::IntrinsicInst *II) const noexcept {
+    return TranslationOpts.isUnknownIntrinsicAllowed(II);
+  }
+
   bool isSPIRVAllowUnknownIntrinsicsEnabled() const noexcept {
     return TranslationOpts.isSPIRVAllowUnknownIntrinsicsEnabled();
   }

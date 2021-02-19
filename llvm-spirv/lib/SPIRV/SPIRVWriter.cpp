@@ -2733,7 +2733,7 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
       return BM->addInstTemplate(OpSaveMemoryINTEL, BB, Ty);
     }
     BM->getErrorLog().checkError(
-        BM->isSPIRVAllowUnknownIntrinsicsEnabled(), SPIRVEC_InvalidFunctionCall,
+        BM->isUnknownIntrinsicAllowed(II), SPIRVEC_InvalidFunctionCall,
         toString(II) + "\nTranslation of llvm.stacksave intrinsic requires "
                        "SPV_INTEL_variable_length_array extension or "
                        "-spirv-allow-unknown-intrinsics option.");
@@ -2747,7 +2747,7 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
                                  nullptr);
     }
     BM->getErrorLog().checkError(
-        BM->isSPIRVAllowUnknownIntrinsicsEnabled(), SPIRVEC_InvalidFunctionCall,
+        BM->isUnknownIntrinsicAllowed(II), SPIRVEC_InvalidFunctionCall,
         toString(II) + "\nTranslation of llvm.restore intrinsic requires "
                        "SPV_INTEL_variable_length_array extension or "
                        "-spirv-allow-unknown-intrinsics option.");
@@ -2770,7 +2770,7 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
       return transValue(ConstantInt::getFalse(II->getType()), BB, false);
   }
   default:
-    if (BM->isSPIRVAllowUnknownIntrinsicsEnabled())
+    if (BM->isUnknownIntrinsicAllowed(II))
       return BM->addCallInst(
           transFunctionDecl(II->getCalledFunction()),
           transArguments(II, BB,
