@@ -3314,8 +3314,8 @@ void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
       Optional<llvm::APSInt> YDimVal = DeclAttr->getYDimVal(Context);
       Optional<llvm::APSInt> ZDimVal = DeclAttr->getZDimVal(Context);
 
-      if (*XDimVal % ArgVal != 0 || *YDimVal % ArgVal != 0 ||
-          *ZDimVal % ArgVal != 0) {
+      if (!(*XDimVal % ArgVal == 0 || *YDimVal % ArgVal == 0 ||
+            *ZDimVal % ArgVal == 0)) {
         Diag(CI.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
             << CI << DeclAttr;
         Diag(DeclAttr->getLocation(), diag::note_conflicting_attribute);

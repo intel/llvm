@@ -69,7 +69,7 @@ struct TRIFuncObjBad4 {
 };
 
 struct TRIFuncObjBad5 {
-  [[intel::num_simd_work_items(0)]] // expected-error{{'num_simd_work_items' attribute must be greater than 0}}
+  [[intel::num_simd_work_items(0)]] // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
   [[intel::reqd_work_group_size(5, 5, 5)]] void
   operator()() const {}
 };
@@ -104,7 +104,7 @@ struct TRIFuncObjBad9 {
 
 struct TRIFuncObjBad10 {
   [[intel::reqd_work_group_size(5, 5, 5)]]
-  [[intel::num_simd_work_items(0)]] // expected-error{{'num_simd_work_items' attribute must be greater than 0}}
+  [[intel::num_simd_work_items(0)]] // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
   void operator()() const {}
 };
 
@@ -122,12 +122,12 @@ struct TRIFuncObjBad12 {
 
 struct TRIFuncObjBad13 {
   [[intel::reqd_work_group_size(0)]] // expected-error{{'reqd_work_group_size' attribute must be greater than 0}}
-  [[intel::num_simd_work_items(0)]]  // expected-error{{'num_simd_work_items' attribute must be greater than 0}}
+  [[intel::num_simd_work_items(0)]]  // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
   void operator()() const {}
 };
 
 struct TRIFuncObjBad14 {
-  [[intel::num_simd_work_items(0)]]  // expected-error{{'num_simd_work_items' attribute must be greater than 0}}
+  [[intel::num_simd_work_items(0)]]  // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
   [[intel::reqd_work_group_size(0)]] // expected-error{{'reqd_work_group_size' attribute must be greater than 0}}
   void operator()() const {}
 };
@@ -151,7 +151,7 @@ struct TRIFuncObjBad17 {
 };
 
 struct TRIFuncObjBad18 {
-  [[intel::num_simd_work_items(-1)]]  // expected-error{{'num_simd_work_items' attribute requires a non-negative integral compile time constant expression}}
+  [[intel::num_simd_work_items(-1)]]  // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
   [[intel::reqd_work_group_size(-1)]] // expected-warning{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
   void operator()() const {}
 };
@@ -372,10 +372,10 @@ int main() {
     [[intel::num_simd_work_items(0)]] int Var = 0; // expected-error{{'num_simd_work_items' attribute only applies to functions}}
 
     h.single_task<class test_kernel12>(
-        []() [[intel::num_simd_work_items(0)]]{}); // expected-error{{'num_simd_work_items' attribute must be greater than 0}}
+        []() [[intel::num_simd_work_items(0)]]{}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 
     h.single_task<class test_kernel13>(
-        []() [[intel::num_simd_work_items(-42)]]{}); // expected-error{{'num_simd_work_items' attribute requires a non-negative integral compile time constant expression}}
+        []() [[intel::num_simd_work_items(-42)]]{}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 
     h.single_task<class test_kernel14>(TRIFuncObjBad1());
 
