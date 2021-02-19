@@ -8,20 +8,12 @@
 #pragma once
 
 #include <CL/sycl/detail/defines_elementary.hpp>
+#include <CL/sycl/detail/sycl_fe_intrins.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/multi_ptr.hpp>
 
-#include <cstddef>
 #include <cstdint>
 #include <type_traits>
-
-// Requests a fixed-size allocation in local address space at kernel scope.
-// This function is not implementable in SYCL headers and is left without
-// definition. Calls to it will be resolved by SYCL device compiler.
-#ifdef __SYCL_DEVICE_ONLY__
-extern "C" SYCL_EXTERNAL __attribute__((opencl_local)) std::uint8_t *
-__sycl_allocate_local_memory(std::size_t Size, std::size_t Alignment);
-#endif
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -34,7 +26,7 @@ std::enable_if_t<std::is_trivially_destructible<T>::value &&
   (void)g;
 #ifdef __SYCL_DEVICE_ONLY__
   __attribute__((opencl_local)) std::uint8_t *AllocatedMem =
-      __sycl_allocate_local_memory(sizeof(T), alignof(T));
+      __sycl_allocateLocalMemory(sizeof(T), alignof(T));
   return reinterpret_cast<__attribute__((opencl_local)) T *>(AllocatedMem);
 #else
   throw feature_not_supported(
