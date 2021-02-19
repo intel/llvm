@@ -32,6 +32,7 @@ std::enable_if_t<std::is_trivially_destructible<T>::value &&
                  multi_ptr<T, access::address_space::local_space>>
     __SYCL_ALWAYS_INLINE group_local_memory_for_overwrite(Group g) {
 #ifdef __SYCL_DEVICE_ONLY__
+  (void)g;
   __attribute__((opencl_local)) std::uint8_t *AllocatedMem =
       __sycl_allocate_local_memory(sizeof(T), alignof(T));
   return reinterpret_cast<__attribute__((opencl_local)) T *>(AllocatedMem);
