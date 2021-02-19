@@ -18,7 +18,7 @@ on:
       - 'test/**' # tests
       - '**.md'   # README
       - '**.txt'  # CMakeLists.txt
-      - '**/check-**-build.xml' # Other workflows
+      - '**/check-**-build.yml' # Other workflows
 
 env:
   # We need compile command database in order to perform clang-tidy check. So,
