@@ -1992,12 +1992,18 @@ bool PragmaClangAttributeSupport::isAttributedSupported(
   return true;
 }
 
-static std::string GenerateTestExpression(ArrayRef<Record *> LangOpts) {
+static std::string GenerateTestExpression(ArrayRef<Record *> LangOpts,
+                                          bool *ShouldDiagnose = nullptr) {
   std::string Test;
 
   for (auto *E : LangOpts) {
     if (!Test.empty())
       Test += " || ";
+
+    // If any of the language options say "warn", then warn if any of the
+    // options fail.
+    if (ShouldDiagnose && E->getValueAsBit("Warn"))
+      *ShouldDiagnose = true;
 
     const StringRef Code = E->getValueAsString("CustomCode");
     if (!Code.empty()) {
@@ -3638,10 +3644,13 @@ static void GenerateLangOptRequirements(const Record &R,
   OS << "bool diagLangOpts(Sema &S, const ParsedAttr &Attr) ";
   OS << "const override {\n";
   OS << "  auto &LangOpts = S.LangOpts;\n";
-  OS << "  if (" << GenerateTestExpression(LangOpts) << ")\n";
+  bool Warn = false;
+  OS << "  if (" << GenerateTestExpression(LangOpts, &Warn) << ")\n";
   OS << "    return true;\n\n";
-  OS << "  S.Diag(Attr.getLoc(), diag::warn_attribute_ignored) ";
-  OS << "<< Attr;\n";
+  if (Warn) {
+    OS << "  S.Diag(Attr.getLoc(), diag::warn_attribute_ignored) ";
+    OS << "<< Attr;\n";
+  }
   OS << "  return false;\n";
   OS << "}\n\n";
 }
