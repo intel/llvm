@@ -1,5 +1,5 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_INTEL_vector_compute --spirv-allow-unknown-intrinsics
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_INTEL_vector_compute --spirv-allow-unknown-intrinsics=llvm.genx
 ; RUN: llvm-spirv %t.spv -o %t.spt --to-text
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis %t.bc -o %t.ll
