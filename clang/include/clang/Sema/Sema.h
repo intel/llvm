@@ -13085,8 +13085,7 @@ void Sema::addIntelSingleArgAttr(Decl *D, const AttributeCommonInfo &CI,
       return;
     E = ICE.get();
     int32_t ArgInt = ArgVal.getSExtValue();
-    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelNumSimdWorkItems ||
-        CI.getParsedKind() == ParsedAttr::AT_IntelReqdSubGroupSize ||
+    if (CI.getParsedKind() == ParsedAttr::AT_IntelReqdSubGroupSize ||
         CI.getParsedKind() == ParsedAttr::AT_IntelFPGAMaxReplicates) {
       if (ArgInt <= 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
@@ -13094,12 +13093,15 @@ void Sema::addIntelSingleArgAttr(Decl *D, const AttributeCommonInfo &CI,
         return;
       }
     }
-    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
+    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim ||
+        CI.getParsedKind() == ParsedAttr::AT_SYCLIntelNumSimdWorkItems) {
       if (ArgInt < 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
             << CI << /*non-negative*/ 1;
         return;
       }
+    }
+    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
       if (ArgInt > 3) {
         Diag(E->getBeginLoc(), diag::err_attribute_argument_out_of_range)
             << CI << 0 << 3 << E->getSourceRange();

@@ -2418,6 +2418,26 @@ device kernel, the attribute is not ignored and it is propagated to the kernel.
     [[intel::num_simd_work_items(N)]] void operator()() const {}
   };
 
+If the`` intel::reqd_work_group_size`` or ``cl::reqd_work_group_size``
+attribute is specified on a declaration along with a
+intel::num_simd_work_items attribute, the work group size attribute
+arguments must all be evenly divisible by the argument specified in
+the ``intel::num_simd_work_items`` attribute.
+
+.. code-block:: c++
+
+  struct func {
+    [[intel::num_simd_work_items(4)]]
+    [[intel::reqd_work_group_size(64, 64, 64)]]
+    void operator()() const {}
+  };
+
+  struct bar {
+    [[intel::reqd_work_group_size(64, 64, 64)]]
+    [[intel::num_simd_work_items(4)]]
+    void operator()() const {}
+  };
+
   }];
 }
 
