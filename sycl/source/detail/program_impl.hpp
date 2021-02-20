@@ -353,7 +353,7 @@ public:
 
     return Result;
   }
-  
+
   /// Returns the native plugin handle.
   pi_native_handle getNative() const;
 

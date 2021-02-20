@@ -122,13 +122,14 @@ public:
   ///
   /// \return the backend associated with this platform
   backend get_backend() const noexcept;
-  
+
   /// Gets the native handle of the SYCL event.
   ///
   /// \return a native handle, the type of which defined by the backend.
   template <backend BackendName>
   auto get_native() const -> typename interop<BackendName, event>::type {
-    return reinterpret_cast<typename interop<BackendName, event>::type>(getNative());
+    return reinterpret_cast<typename interop<BackendName, event>::type>(
+        getNative());
   }
 
 private:

@@ -17,7 +17,8 @@ namespace sycl {
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj) ->
     typename interop<BackendName, SyclObjectT>::type {
-  assert (Obj.get_backend() == BackendName && "Current and submitted backends are different");
+  assert(Obj.get_backend() == BackendName &&
+         "Current and submitted backends are different");
   return Obj.template get_native<BackendName>();
 }
 
