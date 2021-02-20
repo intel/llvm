@@ -100,7 +100,7 @@ if( NOT OpenCL_INCLUDE_DIRS )
   endif()
   ExternalProject_Add(ocl-headers
     GIT_REPOSITORY    https://github.com/KhronosGroup/OpenCL-Headers.git
-    GIT_TAG           origin/master
+    GIT_TAG           v2020.06.16
     UPDATE_DISCONNECTED ${SYCL_EP_OCL_HEADERS_SKIP_AUTO_UPDATE}
     SOURCE_DIR        ${OpenCL_INCLUDE_DIRS}
     CONFIGURE_COMMAND ""
