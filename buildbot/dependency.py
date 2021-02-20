@@ -49,7 +49,8 @@ def do_dependency(args):
     # fetch OpenCL headers
     ocl_header_dir = os.path.join(args.obj_dir, "OpenCL-Headers")
     if not os.path.isdir(ocl_header_dir):
-        clone_cmd = ["git", "clone", "https://github.com/KhronosGroup/OpenCL-Headers", "OpenCL-Headers"]
+        clone_cmd = ["git", "clone", "https://github.com/KhronosGroup/OpenCL-Headers",
+                     "OpenCL-Headers", "-b", "v2020.06.16"]
         subprocess.check_call(clone_cmd, cwd=args.obj_dir)
     else:
         fetch_cmd = ["git", "pull", "--ff", "--ff-only", "origin"]
