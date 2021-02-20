@@ -3130,28 +3130,54 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
       return;
   }
 
-  if (WorkGroupAttr *ExistingAttr = D->getAttr<WorkGroupAttr>()) {
-    ASTContext &Ctx = S.getASTContext();
-    Optional<llvm::APSInt> XDimVal = XDimExpr->getIntegerConstantExpr(Ctx);
-    Optional<llvm::APSInt> YDimVal = YDimExpr->getIntegerConstantExpr(Ctx);
-    Optional<llvm::APSInt> ZDimVal = ZDimExpr->getIntegerConstantExpr(Ctx);
-    Optional<llvm::APSInt> ExistingXDimVal = ExistingAttr->getXDimVal(Ctx);
-    Optional<llvm::APSInt> ExistingYDimVal = ExistingAttr->getYDimVal(Ctx);
-    Optional<llvm::APSInt> ExistingZDimVal = ExistingAttr->getZDimVal(Ctx);
+  ASTContext &Ctx = S.getASTContext();
 
-    // Compare attribute arguments value and warn for a mismatch.
-    if (ExistingXDimVal != XDimVal || ExistingYDimVal != YDimVal ||
-        ExistingZDimVal != ZDimVal) {
-      S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
-      S.Diag(ExistingAttr->getLocation(), diag::note_conflicting_attribute);
+  if (!XDimExpr->isValueDependent() && !YDimExpr->isValueDependent() &&
+      !ZDimExpr->isValueDependent()) {
+    llvm::APSInt XDimVal, YDimVal, ZDimVal;
+    ExprResult XDim = S.VerifyIntegerConstantExpression(XDimExpr, &XDimVal);
+    ExprResult YDim = S.VerifyIntegerConstantExpression(YDimExpr, &YDimVal);
+    ExprResult ZDim = S.VerifyIntegerConstantExpression(ZDimExpr, &ZDimVal);
+
+    if (XDim.isInvalid())
+      return;
+    XDimExpr = XDim.get();
+
+    if (YDim.isInvalid())
+      return;
+    YDimExpr = YDim.get();
+
+    if (ZDim.isInvalid())
+      return;
+    ZDimExpr = ZDim.get();
+
+    if (const auto *A = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
+      int64_t NumSimdWorkItems =
+          A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue();
+
+      if (!(XDimVal.getZExtValue() % NumSimdWorkItems == 0 ||
+            YDimVal.getZExtValue() % NumSimdWorkItems == 0 ||
+            ZDimVal.getZExtValue() % NumSimdWorkItems == 0)) {
+        S.Diag(A->getLocation(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
+            << A << AL;
+        S.Diag(AL.getLoc(), diag::note_conflicting_attribute);
+        return;
+      }
     }
+    if (const auto *ExistingAttr = D->getAttr<WorkGroupAttr>()) {
+      // Compare attribute arguments value and warn for a mismatch.
+      if (ExistingAttr->getXDimVal(Ctx) != XDimVal ||
+          ExistingAttr->getYDimVal(Ctx) != YDimVal ||
+          ExistingAttr->getZDimVal(Ctx) != ZDimVal) {
+        S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
+        S.Diag(ExistingAttr->getLocation(), diag::note_conflicting_attribute);
+      }
+    }
+    if (!checkWorkGroupSizeValues(S, D, AL))
+      return;
   }
 
-  if (!checkWorkGroupSizeValues(S, D, AL))
-    return;
-
-  S.addIntelSYCLTripleArgFunctionAttr<WorkGroupAttr>(D, AL, XDimExpr, YDimExpr,
-                                                     ZDimExpr);
+  S.addIntelTripleArgAttr<WorkGroupAttr>(D, AL, XDimExpr, YDimExpr, ZDimExpr);
 }
 
 // Handles work_group_size_hint.
@@ -3193,22 +3219,55 @@ static void handleSubGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (D->getAttr<IntelReqdSubGroupSizeAttr>())
     S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
 
-  S.addIntelSYCLSingleArgFunctionAttr<IntelReqdSubGroupSizeAttr>(D, AL, E);
+  S.addIntelSingleArgAttr<IntelReqdSubGroupSizeAttr>(D, AL, E);
 }
 
 // Handles num_simd_work_items.
-static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D, const ParsedAttr &A) {
+static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (D->isInvalidDecl())
     return;
 
-  Expr *E = A.getArgAsExpr(0);
+  Expr *E = AL.getArgAsExpr(0);
 
   if (D->getAttr<SYCLIntelNumSimdWorkItemsAttr>())
-    S.Diag(A.getLoc(), diag::warn_duplicate_attribute) << A;
+    S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
 
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
+  S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
-  S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelNumSimdWorkItemsAttr>(D, A, E);
+  if (!E->isValueDependent()) {
+    llvm::APSInt ArgVal;
+    ExprResult ICE = S.VerifyIntegerConstantExpression(E, &ArgVal);
+
+    if (ICE.isInvalid())
+      return;
+
+    E = ICE.get();
+    int64_t NumSimdWorkItems = ArgVal.getSExtValue();
+
+    if (NumSimdWorkItems == 0) {
+      S.Diag(E->getExprLoc(), diag::err_attribute_argument_is_zero)
+          << AL << E->getSourceRange();
+      return;
+    }
+
+    if (const auto *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
+      ASTContext &Ctx = S.getASTContext();
+      Optional<llvm::APSInt> XDimVal = A->getXDimVal(Ctx);
+      Optional<llvm::APSInt> YDimVal = A->getYDimVal(Ctx);
+      Optional<llvm::APSInt> ZDimVal = A->getZDimVal(Ctx);
+
+      if (!(XDimVal->getZExtValue() % NumSimdWorkItems == 0 ||
+            YDimVal->getZExtValue() % NumSimdWorkItems == 0 ||
+            ZDimVal->getZExtValue() % NumSimdWorkItems == 0)) {
+        S.Diag(AL.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
+            << AL << A;
+        S.Diag(A->getLocation(), diag::note_conflicting_attribute);
+        return;
+      }
+    }
+  }
+
+  S.addIntelSingleArgAttr<SYCLIntelNumSimdWorkItemsAttr>(D, AL, E);
 }
 
 // Handles use_stall_enable_clusters
@@ -3239,7 +3298,7 @@ static void handleSchedulerTargetFmaxMhzAttr(Sema &S, Decl *D,
 
   S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
-  S.AddOneConstantValueAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>(D, AL, E);
+  S.addIntelSingleArgAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>(D, AL, E);
 }
 
 // Handles max_global_work_dim.
@@ -3259,7 +3318,7 @@ static void handleMaxGlobalWorkDimAttr(Sema &S, Decl *D, const ParsedAttr &A) {
 
   S.CheckDeprecatedSYCLAttributeSpelling(A);
 
-  S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelMaxGlobalWorkDimAttr>(D, A, E);
+  S.addIntelSingleArgAttr<SYCLIntelMaxGlobalWorkDimAttr>(D, A, E);
 }
 
 SYCLIntelLoopFuseAttr *
@@ -3312,10 +3371,13 @@ static bool checkSYCLIntelLoopFuseArgument(Sema &S,
     return true;
   }
 
-  SYCLIntelLoopFuseAttr TmpAttr(S.Context, CI, E);
-  ExprResult ICE;
+  if (!ArgVal->isNonNegative()) {
+    S.Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+        << CI << /*non-negative*/ 1;
+    return true;
+  }
 
-  return S.checkRangedIntegralArgument<SYCLIntelLoopFuseAttr>(E, &TmpAttr, ICE);
+  return false;
 }
 
 void Sema::addSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
@@ -5583,7 +5645,7 @@ static void handleNoGlobalWorkOffsetAttr(Sema &S, Decl *D,
                 ? A.getArgAsExpr(0)
                 : IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
                                          S.Context.IntTy, A.getLoc());
-  S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelNoGlobalWorkOffsetAttr>(D, A, E);
+  S.addIntelSingleArgAttr<SYCLIntelNoGlobalWorkOffsetAttr>(D, A, E);
 }
 
 /// Handle the [[intelfpga::doublepump]] and [[intelfpga::singlepump]] attributes.
@@ -5716,9 +5778,7 @@ static void handleOneConstantPowerTwoValueAttr(Sema &S, Decl *D,
   if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, A))
     return;
 
-  if (A.getKind() == ParsedAttr::AT_IntelFPGABankWidth ||
-      A.getKind() == ParsedAttr::AT_IntelFPGANumBanks)
-    S.CheckDeprecatedSYCLAttributeSpelling(A);
+  S.CheckDeprecatedSYCLAttributeSpelling(A);
 
   S.AddOneConstantPowerTwoValueAttr<AttrType>(D, A, A.getArgAsExpr(0));
 }
@@ -5755,8 +5815,7 @@ static void handleIntelFPGAMaxReplicatesAttr(Sema &S, Decl *D,
 
   S.CheckDeprecatedSYCLAttributeSpelling(A);
 
-  S.AddOneConstantValueAttr<IntelFPGAMaxReplicatesAttr>(D, A,
-                                                        A.getArgAsExpr(0));
+  S.addIntelSingleArgAttr<IntelFPGAMaxReplicatesAttr>(D, A, A.getArgAsExpr(0));
 }
 
 /// Handle the merge attribute.
@@ -5833,11 +5892,14 @@ void Sema::AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
     Expr::EvalResult Result;
     ListIsValueDep = ListIsValueDep || E->isValueDependent();
     if (!E->isValueDependent()) {
-      ExprResult ICE;
-      if (checkRangedIntegralArgument<IntelFPGABankBitsAttr>(E, &TmpAttr, ICE))
+      ExprResult ICE = VerifyIntegerConstantExpression(E, &Value);
+      if (ICE.isInvalid())
         return;
-      if (E->EvaluateAsInt(Result, Context))
-        Value = Result.Val.getInt();
+      if (!Value.isNonNegative()) {
+        Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+            << CI << /*non-negative*/ 1;
+        return;
+      }
       E = ICE.get();
     }
     Args.push_back(E);
@@ -5893,8 +5955,7 @@ static void handleIntelFPGAPrivateCopiesAttr(Sema &S, Decl *D,
 
   S.CheckDeprecatedSYCLAttributeSpelling(A);
 
-  S.AddOneConstantValueAttr<IntelFPGAPrivateCopiesAttr>(D, A,
-                                                        A.getArgAsExpr(0));
+  S.addIntelSingleArgAttr<IntelFPGAPrivateCopiesAttr>(D, A, A.getArgAsExpr(0));
 }
 
 static void handleIntelFPGAForcePow2DepthAttr(Sema &S, Decl *D,
@@ -5966,14 +6027,13 @@ void Sema::addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &Attr,
     Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(getASTContext());
     if (!ArgVal) {
       Diag(E->getExprLoc(), diag::err_attribute_argument_type)
-          << Attr.getAttrName() << AANT_ArgumentIntegerConstant
-          << E->getSourceRange();
+          << Attr << AANT_ArgumentIntegerConstant << E->getSourceRange();
       return;
     }
     int32_t ArgInt = ArgVal->getSExtValue();
     if (ArgInt < 0) {
       Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << Attr.getAttrName() << /*non-negative*/ 1;
+          << Attr << /*non-negative*/ 1;
       return;
     }
   }

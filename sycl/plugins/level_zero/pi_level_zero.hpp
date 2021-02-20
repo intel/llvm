@@ -335,9 +335,24 @@ struct _pi_queue : _pi_object {
   pi_uint32 NumTimesClosedEarly = {0};
   pi_uint32 NumTimesClosedFull = {0};
 
+  // Structure describing the fence used to track command-list completion.
+  typedef struct {
+    // The Level-Zero fence that will be signalled at completion.
+    ze_fence_handle_t ZeFence;
+    // Record if the fence is in use by any command-list.
+    // This is needed to avoid leak of the tracked command-list if the fence
+    // was not yet signaled at the time all events in that list were already
+    // completed (we are polling the fence at events completion). The fence
+    // may be still "in-use" due to sporadic delay in HW.
+    //
+    bool InUse;
+  } command_list_fence_t;
+
   // Map of all Command lists created with their associated Fence used for
   // tracking when the command list is available for use again.
-  std::map<ze_command_list_handle_t, ze_fence_handle_t> ZeCommandListFenceMap;
+  typedef std::map<ze_command_list_handle_t, command_list_fence_t>
+      command_list_fence_map_t;
+  command_list_fence_map_t ZeCommandListFenceMap;
 
   // Returns true if any commands for this queue are allowed to
   // be batched together.
@@ -356,8 +371,8 @@ struct _pi_queue : _pi_object {
   // If the reset command list should be made available, then MakeAvailable
   // needs to be set to true. The caller must verify that this command list and
   // fence have been signalled.
-  pi_result resetCommandListFenceEntry(ze_command_list_handle_t ZeCommandList,
-                                       bool MakeAvailable);
+  pi_result resetCommandListFenceEntry(
+      command_list_fence_map_t::value_type &ZeCommandList, bool MakeAvailable);
 
   // Attach a command list to this queue, close, and execute it.
   // Note that this command list cannot be appended to after this.

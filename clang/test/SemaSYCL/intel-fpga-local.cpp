@@ -318,9 +318,9 @@ void diagnostics()
   //expected-note@+1 {{did you mean to use 'intel::max_replicates' instead?}}
   [[intelfpga::max_replicates(2)]] unsigned int max_replicates[64];
 
-  //expected-error@+1{{'max_replicates' attribute requires integer constant between 1 and 1048576 inclusive}}
+  //expected-error@+1{{'max_replicates' attribute requires a positive integral compile time constant expression}}
   [[intel::max_replicates(0)]] unsigned int maxrepl_zero[64];
-  //expected-error@+1{{'max_replicates' attribute requires integer constant between 1 and 1048576 inclusive}}
+  //expected-error@+1{{'max_replicates' attribute requires a positive integral compile time constant expression}}
   [[intel::max_replicates(-1)]] unsigned int maxrepl_negative[64];
 
   //expected-error@+3{{'max_replicates' and 'fpga_register' attributes are not compatible}}
@@ -360,7 +360,7 @@ void diagnostics()
   //expected-error@+1{{must be a constant power of two greater than zero}}
   [[intel::bankwidth(3)]] unsigned int bw_invalid_value[64];
 
-  //expected-error@+1{{requires integer constant between 1 and 1048576}}
+  //expected-error@+1{{requires a positive integral compile time constant expression}}
   [[intel::bankwidth(-4)]] unsigned int bw_negative[64];
 
   int i_bankwidth = 32; // expected-note {{declared here}}
@@ -372,7 +372,7 @@ void diagnostics()
   //expected-error@+1{{'bankwidth' attribute takes one argument}}
   [[intel::bankwidth(4, 8)]] unsigned int bw_two_args[64];
 
-  //expected-error@+1{{requires integer constant between 1 and 1048576}}
+  //expected-error@+1{{requires a positive integral compile time constant expression}}
   [[intel::bankwidth(0)]] unsigned int bw_zero[64];
 
   // private_copies_
@@ -405,7 +405,7 @@ void diagnostics()
   [[intel::private_copies(8)]]
   [[intel::private_copies(16)]] unsigned int pc_pc[64];
 
-  //expected-error@+1{{'private_copies' attribute requires integer constant between 0 and 1048576 inclusive}}
+  //expected-error@+1{{'private_copies' attribute requires a non-negative integral compile time constant expression}}
   [[intel::private_copies(-4)]] unsigned int pc_negative[64];
 
   int i_private_copies = 32; // expected-note {{declared here}}
@@ -450,7 +450,7 @@ void diagnostics()
   //expected-error@+1{{must be a constant power of two greater than zero}}
   [[intel::numbanks(15)]] unsigned int nb_invalid_arg[64];
 
-  //expected-error@+1{{requires integer constant between 1 and 1048576}}
+  //expected-error@+1{{requires a positive integral compile time constant expression}}
   [[intel::numbanks(-4)]] unsigned int nb_negative[64];
 
   int i_numbanks = 32; // expected-note {{declared here}}
@@ -462,7 +462,7 @@ void diagnostics()
   //expected-error@+1{{'numbanks' attribute takes one argument}}
   [[intel::numbanks(4, 8)]] unsigned int nb_two_args[64];
 
-  //expected-error@+1{{requires integer constant between 1 and 1048576}}
+  //expected-error@+1{{requires a positive integral compile time constant expression}}
   [[intel::numbanks(0)]] unsigned int nb_zero[64];
 
   // merge
@@ -558,7 +558,7 @@ void diagnostics()
   //expected-error@+1{{attribute takes at least 1 argument}}
   [[intel::bank_bits]] unsigned int bb_no_arg[4];
 
-  //expected-error@+1{{requires integer constant between 0 and 1048576}}
+  //expected-error@+1{{'bank_bits' attribute requires a non-negative integral compile time constant expression}}
   [[intel::bank_bits(-1)]] unsigned int bb_negative_arg[4];
 
   // force_pow2_depth
@@ -800,7 +800,7 @@ void check_template_parameters() {
   //expected-error@+1{{'numbanks' attribute takes one argument}}
   [[intel::numbanks(A, B)]] int numbanks_negative;
 
-  //expected-error@+1{{'max_replicates' attribute requires integer constant between 1 and 1048576}}
+  //expected-error@+1{{'max_replicates' attribute requires a positive integral compile time constant expression}}
   [[intel::max_replicates(D)]]
   [[intel::max_replicates(C)]]
   //expected-warning@-1{{attribute 'max_replicates' is already applied}}

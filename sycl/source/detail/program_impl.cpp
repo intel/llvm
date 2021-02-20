@@ -358,8 +358,15 @@ void program_impl::create_cl_program_with_source(const string_class &Source) {
   const char *Src = Source.c_str();
   size_t Size = Source.size();
   const detail::plugin &Plugin = getPlugin();
-  Plugin.call<PiApiKind::piclProgramCreateWithSource>(
-      MContext->getHandleRef(), 1, &Src, &Size, &MProgram);
+  RT::PiResult Err =
+      Plugin.call_nocheck<PiApiKind::piclProgramCreateWithSource>(
+          MContext->getHandleRef(), 1, &Src, &Size, &MProgram);
+
+  if (Err == PI_INVALID_OPERATION) {
+    throw feature_not_supported(
+        "program::compile_with_source is not supported by the selected backend",
+        PI_INVALID_OPERATION);
+  }
 }
 
 void program_impl::compile(const string_class &Options) {

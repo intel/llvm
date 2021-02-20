@@ -33,7 +33,7 @@
 // CHK-FPGA-LINK: llvm-link{{.*}} "[[OUTPUT1]]" "-o" "[[OUTPUT2_1:.+\.bc]]"
 // CHK-FPGA-LINK: sycl-post-link
 // CHK-FPGA-LINK-NOT: -split-esimd
-// CHK-FPGA-LINK: "-ir-output-only" "-spec-const=default" "-o" "[[OUTPUT2:.+\.bc]]" "[[OUTPUT2_1]]"
+// CHK-FPGA-LINK: "-ir-output-only" "-O2" "-spec-const=default" "-o" "[[OUTPUT2:.+\.bc]]" "[[OUTPUT2_1]]"
 // CHK-FPGA-LINK: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.spv]]" "-spirv-max-version=1.1" "-spirv-debug-info-version=legacy" "-spirv-allow-extra-diexpressions" "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes" "[[OUTPUT2]]"
 // CHK-FPGA-EARLY: aoc{{.*}} "-o" "[[OUTPUT4:.+\.aocr]]" "[[OUTPUT3]]" "-sycl" "-rtl"
 // CHK-FPGA-IMAGE: aoc{{.*}} "-o" "[[OUTPUT5:.+\.aocx]]" "[[OUTPUT3]]" "-sycl"
@@ -67,7 +67,7 @@
 // CHK-FPGA-LINK-WIN: llvm-link{{.*}} "[[OUTPUT1]]" "-o" "[[OUTPUT2_1:.+\.bc]]"
 // CHK-FPGA-LINK-WIN: sycl-post-link
 // CHK-FPGA-LINK-WIN-NOT: -split-esimd
-// CHK-FPGA-LINK-WIN: "-ir-output-only" "-spec-const=default" "-o" "[[OUTPUT2:.+\.bc]]" "[[OUTPUT2_1]]"
+// CHK-FPGA-LINK-WIN: "-ir-output-only" "-O2" "-spec-const=default" "-o" "[[OUTPUT2:.+\.bc]]" "[[OUTPUT2_1]]"
 // CHK-FPGA-LINK-WIN: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.spv]]" "-spirv-max-version=1.1" "-spirv-debug-info-version=legacy" "-spirv-allow-extra-diexpressions" "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes" "[[OUTPUT2]]"
 // CHK-FPGA-LINK-WIN: aoc{{.*}} "-o" "[[OUTPUT5:.+\.aocr]]" "[[OUTPUT3]]" "-sycl" "-rtl"
 // CHK-FPGA-LINK-WIN: clang-offload-wrapper{{.*}} "-o=[[WRAPOUT:.+\.bc]]" {{.*}} "-kind=sycl"
@@ -132,7 +132,7 @@
 // CHK-FPGA: llvm-link{{.*}} "[[OUTPUT1]]" "-o" "[[OUTPUT2_BC:.+\.bc]]"
 // CHK-FPGA: sycl-post-link
 // CHK-FPGA-NOT: -split-esimd
-// CHK-FPGA: "-ir-output-only" "-spec-const=default" "-o" "[[OUTPUT3_BC:.+\.bc]]" "[[OUTPUT2_BC]]"
+// CHK-FPGA: "-ir-output-only" "-O2" "-spec-const=default" "-o" "[[OUTPUT3_BC:.+\.bc]]" "[[OUTPUT2_BC]]"
 // CHK-FPGA: llvm-spirv{{.*}} "-o" "[[OUTPUT5:.+\.spv]]" "-spirv-max-version=1.1" "-spirv-debug-info-version=legacy" "-spirv-allow-extra-diexpressions" "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes" "[[OUTPUT3_BC]]"
 // CHK-FPGA: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-fpga_dep" {{.*}} "-outputs=[[DEPFILE:.+\.d]]" "-unbundle"
 // CHK-FPGA: aoc{{.*}} "-o" "[[OUTPUT6:.+\.aocx]]" "[[OUTPUT5]]" "-sycl" "-dep-files=[[DEPFILE]]"
@@ -186,7 +186,7 @@
 // CHK-FPGA-AOCX-SRC: llvm-link{{.*}} "[[DEVICEBC]]" "-o" "[[LLVMLINKOUT:.+\.bc]]" "--suppress-warnings"
 // CHK-FPGA-AOCX-SRC: sycl-post-link
 // CHK-FPGA-AOCX-SRC-NOT: -split-esimd
-// CHK-FPGA-AOCX-SRC: "-ir-output-only" "-spec-const=default" "-o" "[[POSTLINKOUT:.+\.bc]]" "[[LLVMLINKOUT]]
+// CHK-FPGA-AOCX-SRC: "-ir-output-only" "-O2" "-spec-const=default" "-o" "[[POSTLINKOUT:.+\.bc]]" "[[LLVMLINKOUT]]
 // CHK-FPGA-AOCX-SRC: llvm-spirv{{.*}} "-o" "[[LLVMSPVOUT:.+\.spv]]" {{.*}} "[[POSTLINKOUT]]"
 // CHK-FPGA-AOCX-SRC: aoc{{.*}} "-o" "[[AOCOUT:.+\.aocx]]" "[[LLVMSPVOUT]]" "-sycl"
 // CHK-FPGA-AOCX-SRC: clang-offload-wrapper{{.*}} "-o=[[WRAPOUTSRC:.+.bc]]" {{.*}} "-target=spir64_fpga" "-kind=sycl" "[[AOCOUT]]"
@@ -209,7 +209,7 @@
 // CHK-FPGA-AOCX-OBJ: llvm-link{{.*}} "[[DEVICEOBJ]]" "-o" "[[LLVMLINKOUT:.+\.bc]]" "--suppress-warnings"
 // CHK-FPGA-AOCX-OBJ: sycl-post-link
 // CHK-FPGA-AOCX-OBJ-NOT: -split-esimd
-// CHK-FPGA-AOCX-OBJ: "-ir-output-only" "-spec-const=default" "-o" "[[POSTLINKOUT:.+\.bc]]" "[[LLVMLINKOUT]]
+// CHK-FPGA-AOCX-OBJ: "-ir-output-only" "-O2" "-spec-const=default" "-o" "[[POSTLINKOUT:.+\.bc]]" "[[LLVMLINKOUT]]
 // CHK-FPGA-AOCX-OBJ: llvm-spirv{{.*}} "-o" "[[LLVMSPVOUT:.+\.spv]]" {{.*}} "[[POSTLINKOUT]]"
 // CHK-FPGA-AOCX-OBJ: aoc{{.*}} "-o" "[[AOCOUT:.+\.aocx]]" "[[LLVMSPVOUT]]" "-sycl"
 // CHK-FPGA-AOCX-OBJ: clang-offload-wrapper{{.*}} "-o=[[WRAPOUTSRC:.+.bc]]" {{.*}} "-target=spir64_fpga" "-kind=sycl" "[[AOCOUT]]"
