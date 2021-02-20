@@ -371,8 +371,8 @@ public:
       MHostTaskThreadPool->finishAndWait();
     }
   }
-  
-  /// Returns the backend associated with this queue. 
+
+  /// Returns the backend associated with this queue.
   ///
   /// \return the backend associated with this queue.
   backend get_backend() const noexcept {
