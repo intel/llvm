@@ -750,6 +750,11 @@ public:
   /// Equivalent to has_property<property::queue::in_order>()
   bool is_in_order() const;
 
+  /// Returns the backend associated with this queue.
+  ///
+  /// \return the backend associated with this queue.
+  backend get_backend() const noexcept;
+
   /// Gets the native handle of the SYCL queue.
   ///
   /// \return a native handle, the type of which defined by the backend.

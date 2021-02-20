@@ -136,6 +136,8 @@ device::get_info() const {
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
+backend device::get_backend() const noexcept { return impl->get_backend(); }
+
 pi_native_handle device::getNative() const { return impl->getNative(); }
 
 bool device::has(aspect Aspect) const { return impl->has(Aspect); }

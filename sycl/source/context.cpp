@@ -117,6 +117,8 @@ cl_context context::get() const { return impl->get(); }
 
 bool context::is_host() const { return impl->is_host(); }
 
+backend context::get_backend() const noexcept { return impl->get_backend(); }
+
 platform context::get_platform() const {
   return impl->get_info<info::context::platform>();
 }

@@ -138,6 +138,8 @@ bool queue::is_in_order() const {
   return impl->has_property<property::queue::in_order>();
 }
 
+backend queue::get_backend() const noexcept { return impl->get_backend(); }
+
 pi_native_handle queue::getNative() const { return impl->getNative(); }
 
 } // namespace sycl

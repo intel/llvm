@@ -371,6 +371,19 @@ public:
       MHostTaskThreadPool->finishAndWait();
     }
   }
+  /// Returns the backend associated with this queue. 
+  ///
+  /// \return the backend associated with this queue.
+  backend get_backend() const noexcept {
+    backend Result;
+    if (is_host())
+      Result = backend::host;
+    else {
+      Result = getPlugin().getBackend();
+    }
+
+    return Result;
+  }
 
   /// Gets the native handle of the SYCL queue.
   ///

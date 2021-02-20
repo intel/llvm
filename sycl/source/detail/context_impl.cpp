@@ -163,6 +163,8 @@ context_impl::hasDevice(shared_ptr_class<detail::device_impl> Device) const {
 
 pi_native_handle context_impl::getNative() const {
   auto Plugin = getPlugin();
+  if (Plugin.getBackend() == backend::opencl)
+    Plugin.call<PiApiKind::piContextRetain>(getHandleRef());
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextContextGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;

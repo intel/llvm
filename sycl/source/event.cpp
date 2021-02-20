@@ -85,6 +85,8 @@ event::event(shared_ptr_class<detail::event_impl> event_impl)
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
+backend event::get_backend() const noexcept { return impl->get_backend(); }
+
 pi_native_handle event::getNative() const { return impl->getNative(); }
 
 } // namespace sycl
