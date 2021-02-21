@@ -968,12 +968,9 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
   std::unique_ptr<llvm::ToolOutputFile> ThinLinkOS, DwoOS;
 
   // Eliminate dead arguments from SPIR kernels in SYCL environment.
-  // 1. Run DAE when LLVM optimizations are applied as well.
-  // 2. We cannot run DAE for ESIMD since the pointers to SPIR kernel
-  //    functions are saved in !genx.kernels metadata.
-  // 3. DAE pass temporary guarded under option.
+  // Run DAE when LLVM optimizations are applied as well.
   if (LangOpts.SYCLIsDevice && !CodeGenOpts.DisableLLVMPasses &&
-      !LangOpts.SYCLExplicitSIMD && LangOpts.EnableDAEInSpirKernels)
+      LangOpts.EnableDAEInSpirKernels)
     PerModulePasses.add(createDeadArgEliminationSYCLPass());
 
   if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD)

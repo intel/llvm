@@ -1,4 +1,3 @@
-//===- DeadArgumentElimination.cpp - Eliminate dead arguments -------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -570,11 +569,13 @@ void DeadArgumentEliminationPass::SurveyFunction(const Function &F) {
 
   // We can't modify arguments if the function is not local
   // but we can do so for SPIR kernel function in SYCL environment.
-  bool FuncIsSpirKernel =
+  // DAE is not currently supported for ESIMD kernels.
+  bool FuncIsNonEsimdSpirKernel =
       CheckSpirKernels &&
       StringRef(F.getParent()->getTargetTriple()).contains("sycldevice") &&
-      F.getCallingConv() == CallingConv::SPIR_KERNEL;
-  bool FuncIsLive = !F.hasLocalLinkage() && !FuncIsSpirKernel;
+      F.getCallingConv() == CallingConv::SPIR_KERNEL &&
+      !F.getMetadata("sycl_explicit_simd");
+  bool FuncIsLive = !F.hasLocalLinkage() && !FuncIsNonEsimdSpirKernel;
   if (FuncIsLive && (!ShouldHackArguments || F.isIntrinsic())) {
     MarkLive(F);
     return;
