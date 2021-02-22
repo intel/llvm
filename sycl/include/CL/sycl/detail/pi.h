@@ -34,9 +34,10 @@
 //   pi_device_binary_property_set PropertySetsBegin;
 //   pi_device_binary_property_set PropertySetsEnd;
 // 2. A number of types needed to define pi_device_binary_property_set added.
+// 3. Added new ownership argument to piextContextCreateWithNativeHandle.
 //
-#define _PI_H_VERSION_MAJOR 2
-#define _PI_H_VERSION_MINOR 3
+#define _PI_H_VERSION_MAJOR 3
+#define _PI_H_VERSION_MINOR 4
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
