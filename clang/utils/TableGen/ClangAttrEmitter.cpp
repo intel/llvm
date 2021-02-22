@@ -1993,17 +1993,16 @@ bool PragmaClangAttributeSupport::isAttributedSupported(
 }
 
 static std::string GenerateTestExpression(ArrayRef<Record *> LangOpts,
-                                          bool *ShouldDiagnose = nullptr) {
+                                          bool IsAttrAccepted) {
   std::string Test;
 
   for (auto *E : LangOpts) {
+    bool LangOptWantsWarning = E->getValueAsBit("Warn");
+    if (LangOptWantsWarning != IsAttrAccepted)
+      continue;
+
     if (!Test.empty())
       Test += " || ";
-
-    // If any of the language options say "warn", then warn if any of the
-    // options fail.
-    if (ShouldDiagnose && E->getValueAsBit("Warn"))
-      *ShouldDiagnose = true;
 
     const StringRef Code = E->getValueAsString("CustomCode");
     if (!Code.empty()) {
@@ -2016,6 +2015,8 @@ static std::string GenerateTestExpression(ArrayRef<Record *> LangOpts,
             "non-empty 'Name' field ignored because 'CustomCode' was supplied");
       }
     } else {
+      if (!IsAttrAccepted && !LangOptWantsWarning)
+        Test += "!";
       Test += "LangOpts.";
       Test += E->getValueAsString("Name");
     }
@@ -2049,7 +2050,7 @@ PragmaClangAttributeSupport::generateStrictConformsTo(const Record &Attr,
       // rules if the specific language options are specified.
       std::vector<Record *> LangOpts = Rule.getLangOpts();
       OS << "  MatchRules.push_back(std::make_pair(" << Rule.getEnumValue()
-         << ", /*IsSupported=*/" << GenerateTestExpression(LangOpts)
+         << ", /*IsSupported=*/" << GenerateTestExpression(LangOpts, true)
          << "));\n";
     }
   }
@@ -3641,16 +3642,13 @@ static void GenerateLangOptRequirements(const Record &R,
   if (LangOpts.empty())
     return;
 
-  OS << "bool diagLangOpts(Sema &S, const ParsedAttr &Attr) ";
+  OS << "bool diagLangOpts(Sema &S, const ParsedAttr &PA) ";
   OS << "const override {\n";
-  OS << "  auto &LangOpts = S.LangOpts;\n";
-  bool Warn = false;
-  OS << "  if (" << GenerateTestExpression(LangOpts, &Warn) << ")\n";
+  OS << "  const auto &LangOpts = S.LangOpts;\n";
+  OS << "  if (" << GenerateTestExpression(LangOpts, true) << ")\n";
   OS << "    return true;\n\n";
-  if (Warn) {
-    OS << "  S.Diag(Attr.getLoc(), diag::warn_attribute_ignored) ";
-    OS << "<< Attr;\n";
-  }
+  OS << "  if (" << GenerateTestExpression(LangOpts, false) << ")\n";
+  OS << "    S.Diag(PA.getLoc(), diag::warn_attribute_ignored) << PA;\n";
   OS << "  return false;\n";
   OS << "}\n\n";
 }

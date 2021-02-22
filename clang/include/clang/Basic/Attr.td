@@ -317,11 +317,12 @@ class SubjectList<list<AttrSubject> subjects, SubjectDiag diag = WarnDiag,
   string CustomDiag = customDiag;
 }
 
-class LangOpt<string name, bit warn = 1, code customCode = [{}]> {
+class LangOpt<string name, code customCode = [{}], bit warn = 1> {
   // The language option to test; ignored when custom code is supplied.
   string Name = name;
 
-  // If set to 1, diagnose the attribute as being ignored if the test fails.
+  // If set to 0, the attribute is accepted but is silently ignored. This is
+  // useful in multi-compilation situations like SYCL.
   bit Warn = warn;
 
   // A custom predicate, written as an expression evaluated in a context with
@@ -333,10 +334,11 @@ def Borland : LangOpt<"Borland">;
 def CUDA : LangOpt<"CUDA">;
 def HIP : LangOpt<"HIP">;
 def SYCL : LangOpt<"SYCL">;
-def SYCLIsDevice : LangOpt<"", 0, "(LangOpts.SYCL && LangOpts.SYCLIsDevice)">;
-def SYCLIsHost : LangOpt<"", 0, "(LangOpts.SYCL && LangOpts.SYCLIsHost)">;
+def SYCLIsDevice : LangOpt<"SYCLIsDevice">;
+def SYCLIsHost : LangOpt<"SYCLIsHost">;
+def SilentlyIgnoreSYCLIsHost : LangOpt<"SYCLIsHost", "", 0>;
 def SYCLExplicitSIMD : LangOpt<"SYCLExplicitSIMD">;
-def COnly : LangOpt<"", 1, "!LangOpts.CPlusPlus">;
+def COnly : LangOpt<"", "!LangOpts.CPlusPlus">;
 def CPlusPlus : LangOpt<"CPlusPlus">;
 def OpenCL : LangOpt<"OpenCL">;
 def RenderScript : LangOpt<"RenderScript">;
@@ -344,7 +346,7 @@ def ObjC : LangOpt<"ObjC">;
 def BlocksSupported : LangOpt<"Blocks">;
 def ObjCAutoRefCount : LangOpt<"ObjCAutoRefCount">;
 def ObjCNonFragileRuntime
-    : LangOpt<"", 1, "LangOpts.ObjCRuntime.allowsClassStubs()">;
+    : LangOpt<"", "LangOpts.ObjCRuntime.allowsClassStubs()">;
 
 // Language option for CMSE extensions
 def Cmse : LangOpt<"Cmse">;
@@ -1325,7 +1327,7 @@ def SYCLIntelNoGlobalWorkOffset : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","no_global_work_offset">,
                    CXX11<"intel","no_global_work_offset">];
   let Args = [ExprArgument<"Value", /*optional*/1>];
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelNoGlobalWorkOffsetAttrDocs];
 }
@@ -1334,7 +1336,7 @@ def SYCLIntelLoopFuse : InheritableAttr {
   let Spellings = [CXX11<"intel", "loop_fuse">,
                    CXX11<"intel", "loop_fuse_independent">];
   let Args = [ExprArgument<"Value", /*optional=*/ 1>];
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Accessors = [Accessor<"isIndependent",
                   [CXX11<"intel", "loop_fuse_independent">]>];
@@ -1398,7 +1400,7 @@ def IntelReqdSubGroupSize: InheritableAttr {
   let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[Function, CXXMethod], ErrorDiag>;
   let Documentation = [IntelReqdSubGroupSizeDocs];
-  let LangOpts = [OpenCL, SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [OpenCL, SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
 }
 
 // This attribute is both a type attribute, and a declaration attribute (for
@@ -1949,7 +1951,7 @@ def IntelFPGADoublePump : Attr {
                    CXX11<"intel", "doublepump">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalOrStaticVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGADoublePumpAttrDocs];
 }
 
@@ -1958,7 +1960,7 @@ def IntelFPGASinglePump : Attr {
                    CXX11<"intel", "singlepump">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalOrStaticVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGASinglePumpAttrDocs];
 }
 
@@ -1979,7 +1981,7 @@ def IntelFPGAMemory : Attr {
   }];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGAMemoryAttrDocs];
 }
 
@@ -1988,7 +1990,7 @@ def IntelFPGARegister : Attr {
                    CXX11<"intel", "fpga_register">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalOrStaticVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGARegisterAttrDocs];
 }
 
@@ -1999,7 +2001,7 @@ def IntelFPGABankWidth : Attr {
   let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGABankWidthAttrDocs];
 }
 
@@ -2009,7 +2011,7 @@ def IntelFPGANumBanks : Attr {
   let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGANumBanksAttrDocs];
 }
 
@@ -2017,7 +2019,7 @@ def IntelFPGAPrivateCopies : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","private_copies">,
                    CXX11<"intel","private_copies">];
   let Args = [ExprArgument<"Value">];
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[IntelFPGALocalNonConstVar, Field], ErrorDiag>;
   let Documentation = [IntelFPGAPrivateCopiesAttrDocs];
 }
@@ -2029,7 +2031,7 @@ def IntelFPGAMerge : Attr {
   let Args = [StringArgument<"Name">, StringArgument<"Direction">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalOrStaticVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGAMergeAttrDocs];
 }
 
@@ -2039,7 +2041,7 @@ def IntelFPGAMaxReplicates : Attr {
   let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGAMaxReplicatesAttrDocs];
 }
 
@@ -2048,7 +2050,7 @@ def IntelFPGASimpleDualPort : Attr {
                    CXX11<"intel","simple_dual_port">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGASimpleDualPortAttrDocs];
 }
 
@@ -2084,7 +2086,7 @@ def IntelFPGAForcePow2Depth : Attr {
   let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGAForcePow2DepthAttrDocs];
   let AdditionalMembers = [{
     static unsigned getMinValue() {

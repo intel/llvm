@@ -3211,14 +3211,6 @@ static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
 
 // Handles intel_reqd_sub_group_size.
 static void handleSubGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
-  // In SYCLIsHost mode, we want to ignore the attribute. In OpenCL or
-  // SYCLIsDevice mode, we want to process the attribute as normal. This cannot
-  // be handled in Attr.td unless ClangAttrEmitter.cpp gets smarter logic about
-  // when to suppress the "ignored attribute" warnings with a list of language
-  // options.
-  if (!S.LangOpts.SYCLIsDevice && !S.LangOpts.OpenCL)
-    return;
-
   Expr *E = AL.getArgAsExpr(0);
 
   if (D->getAttr<IntelReqdSubGroupSizeAttr>())
