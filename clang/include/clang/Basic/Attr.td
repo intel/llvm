@@ -317,13 +317,13 @@ class SubjectList<list<AttrSubject> subjects, SubjectDiag diag = WarnDiag,
   string CustomDiag = customDiag;
 }
 
-class LangOpt<string name, code customCode = [{}], bit warn = 1> {
+class LangOpt<string name, code customCode = [{}], bit silentlyIgnore = 0> {
   // The language option to test; ignored when custom code is supplied.
   string Name = name;
 
-  // If set to 0, the attribute is accepted but is silently ignored. This is
+  // If set to 1, the attribute is accepted but is silently ignored. This is
   // useful in multi-compilation situations like SYCL.
-  bit Warn = warn;
+  bit SilentlyIgnore = silentlyIgnore;
 
   // A custom predicate, written as an expression evaluated in a context with
   // "LangOpts" bound.
@@ -336,7 +336,7 @@ def HIP : LangOpt<"HIP">;
 def SYCL : LangOpt<"SYCL">;
 def SYCLIsDevice : LangOpt<"SYCLIsDevice">;
 def SYCLIsHost : LangOpt<"SYCLIsHost">;
-def SilentlyIgnoreSYCLIsHost : LangOpt<"SYCLIsHost", "", 0>;
+def SilentlyIgnoreSYCLIsHost : LangOpt<"SYCLIsHost", "", 1>;
 def SYCLExplicitSIMD : LangOpt<"SYCLExplicitSIMD">;
 def COnly : LangOpt<"", "!LangOpts.CPlusPlus">;
 def CPlusPlus : LangOpt<"CPlusPlus">;

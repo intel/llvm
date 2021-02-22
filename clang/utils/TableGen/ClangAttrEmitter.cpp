@@ -1997,8 +1997,8 @@ static std::string GenerateTestExpression(ArrayRef<Record *> LangOpts,
   std::string Test;
 
   for (auto *E : LangOpts) {
-    bool LangOptWantsWarning = E->getValueAsBit("Warn");
-    if (LangOptWantsWarning != IsAttrAccepted)
+    bool SilentlyIgnore = E->getValueAsBit("SilentlyIgnore");
+    if (SilentlyIgnore == IsAttrAccepted)
       continue;
 
     if (!Test.empty())
@@ -2015,7 +2015,7 @@ static std::string GenerateTestExpression(ArrayRef<Record *> LangOpts,
             "non-empty 'Name' field ignored because 'CustomCode' was supplied");
       }
     } else {
-      if (!IsAttrAccepted && !LangOptWantsWarning)
+      if (!IsAttrAccepted && SilentlyIgnore)
         Test += "!";
       Test += "LangOpts.";
       Test += E->getValueAsString("Name");
