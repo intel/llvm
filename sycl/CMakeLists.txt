@@ -225,22 +225,7 @@ endif()
 # Currently handles linking with libcxx support and gcc workaround
 function( add_common_options LIB_NAME)
   if (SYCL_USE_LIBCXX)
-    if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
-      (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
-      if ((NOT (DEFINED SYCL_LIBCXX_INCLUDE_PATH)) OR (NOT (DEFINED SYCL_LIBCXX_LIBRARY_PATH)))
-        message(FATAL_ERROR "When building with libc++ SYCL_LIBCXX_INCLUDE_PATHS and"
-                            "SYCL_LIBCXX_LIBRARY_PATH should be set")
-      endif()
-      target_link_libraries(${LIB_NAME} PRIVATE "-L${SYCL_LIBCXX_LIBRARY_PATH}" -Wl,-rpath,${SYCL_LIBCXX_LIBRARY_PATH} -nodefaultlibs -lc++ -lc++abi -lm -lc -lgcc_s -lgcc)
-      target_compile_options(${LIB_NAME} PRIVATE -nostdinc++)
-      target_include_directories(${LIB_NAME} PRIVATE "${SYCL_LIBCXX_INCLUDE_PATH}")
-      if (ARGC EQUAL 2)
-        target_compile_options(${ARGV1} PRIVATE -nostdinc++)
-        target_include_directories(${ARGV1} PRIVATE "${SYCL_LIBCXX_INCLUDE_PATH}")
-      endif()
-    else()
-      message(FATAL_ERROR "Build with libc++ is not yet supported for this compiler")
-    endif()
+    link_with_libcxx(${LIB_NAME})
   else()
     # Workaround for bug in GCC version 5 and higher.
     # More information https://bugs.launchpad.net/ubuntu/+source/gcc-5/+bug/1568899

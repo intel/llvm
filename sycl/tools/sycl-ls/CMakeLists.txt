@@ -8,3 +8,6 @@ target_link_libraries(sycl-ls
 )
 install(TARGETS sycl-ls
   RUNTIME DESTINATION "bin" COMPONENT sycl-ls)
+if (SYCL_USE_LIBCXX)
+  link_with_libcxx(sycl-ls)
+endif()
