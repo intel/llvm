@@ -55,7 +55,7 @@ namespace level_zero {
 // be explicit about the ownership of the native handles used in the
 // interop functions below.
 //
-enum ownership { transfer, keep };
+enum class ownership { transfer, keep };
 
 // Implementation of various "make" functions resides in libsycl.so and thus
 // their interface needs to be backend agnostic.
