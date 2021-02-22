@@ -2046,7 +2046,8 @@ pi_result piContextRelease(pi_context Context) {
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 
   if (--(Context->RefCount) == 0) {
-    auto ZeContext = Context->ZeContext;
+    ze_context_handle_t DestoryZeContext =
+        Context->OwnZeContext ? Context->ZeContext : nullptr;
 
     // Clean up any live memory associated with Context
     pi_result Result = Context->finalize();
@@ -2060,9 +2061,8 @@ pi_result piContextRelease(pi_context Context) {
     // and therefore it must be valid at that point.
     // Technically it should be placed to the destructor of pi_context
     // but this makes API error handling more complex.
-    if (Context->OwnZeContext) {
-      ZE_CALL(zeContextDestroy(ZeContext));
-    }
+    if (DestoryZeContext)
+      ZE_CALL(zeContextDestroy(DestoryZeContext));
 
     return Result;
   }
