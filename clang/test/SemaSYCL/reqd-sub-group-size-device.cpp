@@ -10,6 +10,12 @@ queue q;
 // expected-note@-1 {{conflicting attribute is here}}
 [[intel::reqd_sub_group_size(32)]] void baz() {} // expected-note {{conflicting attribute is here}}
 
+[[intel::reqd_sub_group_size(12)]] void bar();
+[[intel::reqd_sub_group_size(12)]] void bar() {} // OK
+
+[[intel::reqd_sub_group_size(12)]] void quux(); // expected-note {{previous attribute is here}}
+[[intel::reqd_sub_group_size(100)]] void quux(); // expected-warning {{attribute 'reqd_sub_group_size' is already applied with different parameters}}
+
 class Functor16 {
 public:
   [[intel::reqd_sub_group_size(16)]] void operator()() const {}
