@@ -11,6 +11,7 @@
 #include "CL/sycl/ONEAPI/accessor_property_list.hpp"
 #include <CL/sycl/ONEAPI/group_algorithm.hpp>
 #include <CL/sycl/accessor.hpp>
+#include <CL/sycl/atomic.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/kernel.hpp>
 
@@ -71,7 +72,8 @@ using IsReduBitAND =
 
 template <typename T, class BinaryOperation>
 using IsReduOptForFastAtomicFetch =
-    bool_constant<is_sgeninteger<T>::value && IsValidAtomicType<T>::value &&
+    bool_constant<is_sgeninteger<T>::value &&
+                  sycl::detail::IsValidAtomicType<T>::value &&
                   (IsReduPlus<T, BinaryOperation>::value ||
                    IsReduMinimum<T, BinaryOperation>::value ||
                    IsReduMaximum<T, BinaryOperation>::value ||
@@ -81,7 +83,9 @@ using IsReduOptForFastAtomicFetch =
 
 template <typename T, class BinaryOperation>
 using IsReduOptForFastReduce =
-    bool_constant<(is_sgeninteger<T>::value || is_sgenfloat<T>::value) &&
+    bool_constant<((is_sgeninteger<T>::value &&
+                    (sizeof(T) == 32 || sizeof(T) == 64)) ||
+                   is_sgenfloat<T>::value) &&
                   (IsReduPlus<T, BinaryOperation>::value ||
                    IsReduMinimum<T, BinaryOperation>::value ||
                    IsReduMaximum<T, BinaryOperation>::value)>;
@@ -322,7 +326,7 @@ public:
   /// Atomic ADD operation: *ReduVarPtr += MValue;
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
-              (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value) &&
+              IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
               IsReduPlus<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
@@ -332,7 +336,7 @@ public:
   /// Atomic BITWISE OR operation: *ReduVarPtr |= MValue;
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
-              (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value) &&
+              IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
               IsReduBitOR<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
@@ -342,7 +346,7 @@ public:
   /// Atomic BITWISE XOR operation: *ReduVarPtr ^= MValue;
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
-              (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value) &&
+              IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
               IsReduBitXOR<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
@@ -352,7 +356,7 @@ public:
   /// Atomic BITWISE AND operation: *ReduVarPtr &= MValue;
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
-              (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value) &&
+              IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
               IsReduBitAND<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
@@ -362,7 +366,7 @@ public:
   /// Atomic MIN operation: *ReduVarPtr = ONEAPI::minimum(*ReduVarPtr, MValue);
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
-              (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value) &&
+              IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
               IsReduMinimum<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
@@ -372,7 +376,7 @@ public:
   /// Atomic MAX operation: *ReduVarPtr = ONEAPI::maximum(*ReduVarPtr, MValue);
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
-              (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value) &&
+              IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
               IsReduMaximum<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
@@ -1619,10 +1623,8 @@ reduction(T *VarPtr, BinaryOperation) {
                                 access::mode::read_write>(VarPtr);
 }
 
-} // namespace ONEAPI
-
 template <typename BinaryOperation, typename AccumulatorT>
-struct has_known_identity : ONEAPI::detail::has_known_identity_impl<
+struct has_known_identity : detail::has_known_identity_impl<
                                 typename std::decay<BinaryOperation>::type,
                                 typename std::decay<AccumulatorT>::type> {};
 #if __cplusplus >= 201703L
@@ -1632,14 +1634,36 @@ inline constexpr bool has_known_identity_v =
 #endif
 
 template <typename BinaryOperation, typename AccumulatorT>
-struct known_identity : ONEAPI::detail::known_identity_impl<
-                            typename std::decay<BinaryOperation>::type,
-                            typename std::decay<AccumulatorT>::type> {};
+struct known_identity
+    : detail::known_identity_impl<typename std::decay<BinaryOperation>::type,
+                                  typename std::decay<AccumulatorT>::type> {};
 #if __cplusplus >= 201703L
 template <typename BinaryOperation, typename AccumulatorT>
 inline constexpr AccumulatorT known_identity_v =
     known_identity<BinaryOperation, AccumulatorT>::value;
 #endif
+} // namespace ONEAPI
+
+// Currently, the type traits defined below correspond to SYCL 1.2.1 ONEAPI
+// reduction extension. That may be changed later when SYCL 2020 reductions
+// are implemented.
+#if SYCL_LANGUAGE_VERSION >= 202001
+template <typename BinaryOperation, typename AccumulatorT>
+struct has_known_identity
+    : ONEAPI::has_known_identity<BinaryOperation, AccumulatorT> {};
+
+template <typename BinaryOperation, typename AccumulatorT>
+inline constexpr bool has_known_identity_v =
+    has_known_identity<BinaryOperation, AccumulatorT>::value;
+
+template <typename BinaryOperation, typename AccumulatorT>
+struct known_identity : ONEAPI::known_identity<BinaryOperation, AccumulatorT> {
+};
+
+template <typename BinaryOperation, typename AccumulatorT>
+inline constexpr AccumulatorT known_identity_v =
+    known_identity<BinaryOperation, AccumulatorT>::value;
+#endif // SYCL_LANGUAGE_VERSION >= 202001
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
