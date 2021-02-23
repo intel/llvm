@@ -10210,6 +10210,18 @@ public:
   template <typename AttrType>
   void addIntelTripleArgAttr(Decl *D, const AttributeCommonInfo &CI,
                              Expr *XDimExpr, Expr *YDimExpr, Expr *ZDimExpr);
+  void AddIntelFPGAPrivateCopiesAttr(Decl *D,
+                                     const AttributeCommonInfo &CI,
+                                     Expr *E);
+  IntelFPGAPrivateCopiesAttr *
+  MergeIntelFPGAPrivateCopiesAttr(Decl *D,
+                                  const IntelFPGAPrivateCopiesAttr &A);
+  void AddIntelFPGAMaxReplicatesAttr(Decl *D,
+                                     const AttributeCommonInfo &CI,
+                                     Expr *E);
+  IntelFPGAMaxReplicatesAttr *
+  MergeIntelFPGAMaxReplicatesAttr(Decl *D,
+                                  const IntelFPGAMaxReplicatesAttr &A);
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
                       bool IsPackExpansion);
@@ -13068,8 +13080,7 @@ void Sema::addIntelSingleArgAttr(Decl *D, const AttributeCommonInfo &CI,
       return;
     E = ICE.get();
     int32_t ArgInt = ArgVal.getSExtValue();
-    if (CI.getParsedKind() == ParsedAttr::AT_IntelReqdSubGroupSize ||
-        CI.getParsedKind() == ParsedAttr::AT_IntelFPGAMaxReplicates) {
+    if (CI.getParsedKind() == ParsedAttr::AT_IntelReqdSubGroupSize) {
       if (ArgInt <= 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
             << CI << /*positive*/ 0;
@@ -13091,20 +13102,13 @@ void Sema::addIntelSingleArgAttr(Decl *D, const AttributeCommonInfo &CI,
         return;
       }
     }
-    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelSchedulerTargetFmaxMhz ||
-        CI.getParsedKind() == ParsedAttr::AT_IntelFPGAPrivateCopies) {
+    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelSchedulerTargetFmaxMhz) {
       if (ArgInt < 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
             << CI << /*non-negative*/ 1;
         return;
       }
     }
-  }
-
-  if (CI.getParsedKind() == ParsedAttr::AT_IntelFPGAPrivateCopies) {
-    if (!D->hasAttr<IntelFPGAMemoryAttr>())
-      D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
-          Context, IntelFPGAMemoryAttr::Default));
   }
 
   D->addAttr(::new (Context) AttrType(Context, CI, E));

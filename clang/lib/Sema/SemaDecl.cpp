@@ -2618,6 +2618,10 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.mergeEnforceTCBAttr(D, *TCBA);
   else if (const auto *TCBLA = dyn_cast<EnforceTCBLeafAttr>(Attr))
     NewAttr = S.mergeEnforceTCBLeafAttr(D, *TCBLA);
+  else if (const auto *A = dyn_cast<IntelFPGAPrivateCopiesAttr>(Attr))
+    NewAttr = S.MergeIntelFPGAPrivateCopiesAttr(D, *A);
+  else if (const auto *A = dyn_cast<IntelFPGAMaxReplicatesAttr>(Attr))
+    NewAttr = S.MergeIntelFPGAMaxReplicatesAttr(D, *A);
   else if (Attr->shouldInheritEvenIfAlreadyPresent() || !DeclHasAttr(D, Attr))
     NewAttr = cast<InheritableAttr>(Attr->clone(S.Context));
 

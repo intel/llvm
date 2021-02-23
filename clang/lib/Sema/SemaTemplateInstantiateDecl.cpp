@@ -643,6 +643,26 @@ static void instantiateSYCLIntelLoopFuseAttr(
     S.addSYCLIntelLoopFuseAttr(New, *Attr, Result.getAs<Expr>());
 }
 
+static void instantiateIntelFPGAPrivateCopiesAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const IntelFPGAPrivateCopiesAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.AddIntelFPGAPrivateCopiesAttr(New, *A, Result.getAs<Expr>());
+}
+
+static void instantiateIntelFPGAMaxReplicatesAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const IntelFPGAMaxReplicatesAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.AddIntelFPGAMaxReplicatesAttr(New, *A, Result.getAs<Expr>());
+}
+
 template <typename AttrName>
 static void instantiateIntelSYCLFunctionAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
@@ -810,12 +830,12 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
     if (const auto *IntelFPGAPrivateCopies =
             dyn_cast<IntelFPGAPrivateCopiesAttr>(TmplAttr)) {
-      instantiateIntelSYCLFunctionAttr<IntelFPGAPrivateCopiesAttr>(
+      instantiateIntelFPGAPrivateCopiesAttr(
           *this, TemplateArgs, IntelFPGAPrivateCopies, New);
     }
     if (const auto *IntelFPGAMaxReplicates =
             dyn_cast<IntelFPGAMaxReplicatesAttr>(TmplAttr)) {
-      instantiateIntelSYCLFunctionAttr<IntelFPGAMaxReplicatesAttr>(
+      instantiateIntelFPGAMaxReplicatesAttr(
           *this, TemplateArgs, IntelFPGAMaxReplicates, New);
     }
     if (const auto *IntelFPGABankBits =
