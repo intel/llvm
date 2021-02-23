@@ -3766,6 +3766,20 @@ class OffloadingActionBuilder final {
         return SYCLDeviceOnly ? ABRT_Ignore_Host : ABRT_Success;
       }
 
+      if (CurPhase == phases::Preprocess) {
+        // Do not perform the host compilation when doing preprocessing only
+        // with -fsycl-device-only.
+        if (Args.hasArg(options::OPT_fsycl_device_only) &&
+            (Args.getLastArg(options::OPT__SLASH_EP, options::OPT__SLASH_P) ||
+             Args.getLastArg(options::OPT_E) ||
+             Args.getLastArg(options::OPT_M, options::OPT_MM))) {
+          for (Action *&A : SYCLDeviceActions)
+            A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
+                                                   AssociatedOffloadKind);
+          return ABRT_Ignore_Host;
+        }
+      }
+
       // Backend/Assemble actions are obsolete for the SYCL device side
       if (CurPhase == phases::Backend || CurPhase == phases::Assemble)
         return ABRT_Inactive;
