@@ -850,13 +850,13 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
     if (const auto *IntelFPGAPrivateCopies =
             dyn_cast<IntelFPGAPrivateCopiesAttr>(TmplAttr)) {
-      instantiateIntelFPGAPrivateCopiesAttr(
-          *this, TemplateArgs, IntelFPGAPrivateCopies, New);
+      instantiateIntelFPGAPrivateCopiesAttr(*this, TemplateArgs,
+                                            IntelFPGAPrivateCopies, New);
     }
     if (const auto *IntelFPGAMaxReplicates =
             dyn_cast<IntelFPGAMaxReplicatesAttr>(TmplAttr)) {
-      instantiateIntelFPGAMaxReplicatesAttr(
-          *this, TemplateArgs, IntelFPGAMaxReplicates, New);
+      instantiateIntelFPGAMaxReplicatesAttr(*this, TemplateArgs,
+                                            IntelFPGAMaxReplicates, New);
     }
     if (const auto *IntelFPGABankBits =
             dyn_cast<IntelFPGABankBitsAttr>(TmplAttr)) {

@@ -5886,8 +5886,7 @@ static void handleIntelFPGASimpleDualPortAttr(Sema &S, Decl *D,
                  IntelFPGASimpleDualPortAttr(S.Context, AL));
 }
 
-void Sema::AddIntelFPGAMaxReplicatesAttr(Decl *D,
-                                         const AttributeCommonInfo &CI,
+void Sema::AddIntelFPGAMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
                                          Expr *E) {
   if (LangOpts.SYCLIsHost)
     return;
@@ -5933,8 +5932,9 @@ void Sema::AddIntelFPGAMaxReplicatesAttr(Decl *D,
   D->addAttr(::new (Context) IntelFPGAMaxReplicatesAttr(Context, CI, E));
 }
 
-IntelFPGAMaxReplicatesAttr *Sema::MergeIntelFPGAMaxReplicatesAttr(
-    Decl *D, const IntelFPGAMaxReplicatesAttr &A) {
+IntelFPGAMaxReplicatesAttr *
+Sema::MergeIntelFPGAMaxReplicatesAttr(Decl *D,
+                                      const IntelFPGAMaxReplicatesAttr &A) {
   // Check to see if there's a duplicate attribute with different values
   // already applied to the declaration.
   if (const auto *DeclAttr = D->getAttr<IntelFPGAMaxReplicatesAttr>()) {
@@ -5947,8 +5947,7 @@ IntelFPGAMaxReplicatesAttr *Sema::MergeIntelFPGAMaxReplicatesAttr(
       return nullptr;
     }
   }
-  return ::new (Context)
-      IntelFPGAMaxReplicatesAttr(Context, A, A.getValue());
+  return ::new (Context) IntelFPGAMaxReplicatesAttr(Context, A, A.getValue());
 }
 
 static void handleIntelFPGAMaxReplicatesAttr(Sema &S, Decl *D,
@@ -6085,8 +6084,7 @@ void Sema::AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
                  IntelFPGABankBitsAttr(Context, CI, Args.data(), Args.size()));
 }
 
-void Sema::AddIntelFPGAPrivateCopiesAttr(Decl *D,
-                                         const AttributeCommonInfo &CI,
+void Sema::AddIntelFPGAPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
                                          Expr *E) {
   if (LangOpts.SYCLIsHost)
     return;
@@ -6137,8 +6135,9 @@ void Sema::AddIntelFPGAPrivateCopiesAttr(Decl *D,
   D->addAttr(::new (Context) IntelFPGAPrivateCopiesAttr(Context, CI, E));
 }
 
-IntelFPGAPrivateCopiesAttr *Sema::MergeIntelFPGAPrivateCopiesAttr(
-    Decl *D, const IntelFPGAPrivateCopiesAttr &A) {
+IntelFPGAPrivateCopiesAttr *
+Sema::MergeIntelFPGAPrivateCopiesAttr(Decl *D,
+                                      const IntelFPGAPrivateCopiesAttr &A) {
   // Check to see if there's a duplicate attribute with different values
   // already applied to the declaration.
   if (const auto *DeclAttr = D->getAttr<IntelFPGAPrivateCopiesAttr>()) {
@@ -6151,8 +6150,7 @@ IntelFPGAPrivateCopiesAttr *Sema::MergeIntelFPGAPrivateCopiesAttr(
       return nullptr;
     }
   }
-  return ::new (Context)
-      IntelFPGAPrivateCopiesAttr(Context, A, A.getValue());
+  return ::new (Context) IntelFPGAPrivateCopiesAttr(Context, A, A.getValue());
 }
 
 static void handleIntelFPGAPrivateCopiesAttr(Sema &S, Decl *D,
