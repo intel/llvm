@@ -10219,18 +10219,14 @@ public:
   SYCLIntelNumSimdWorkItemsAttr *
   MergeSYCLIntelNumSimdWorkItemsAttr(Decl *D,
                                      const SYCLIntelNumSimdWorkItemsAttr &A);
-  void AddIntelFPGAPrivateCopiesAttr(Decl *D,
-                                     const AttributeCommonInfo &CI,
+  void AddIntelFPGAPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
                                      Expr *E);
   IntelFPGAPrivateCopiesAttr *
-  MergeIntelFPGAPrivateCopiesAttr(Decl *D,
-                                  const IntelFPGAPrivateCopiesAttr &A);
-  void AddIntelFPGAMaxReplicatesAttr(Decl *D,
-                                     const AttributeCommonInfo &CI,
+  MergeIntelFPGAPrivateCopiesAttr(Decl *D, const IntelFPGAPrivateCopiesAttr &A);
+  void AddIntelFPGAMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
                                      Expr *E);
   IntelFPGAMaxReplicatesAttr *
-  MergeIntelFPGAMaxReplicatesAttr(Decl *D,
-                                  const IntelFPGAMaxReplicatesAttr &A);
+  MergeIntelFPGAMaxReplicatesAttr(Decl *D, const IntelFPGAMaxReplicatesAttr &A);
 
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
