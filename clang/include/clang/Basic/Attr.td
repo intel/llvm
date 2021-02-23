@@ -1398,7 +1398,7 @@ def IntelReqdSubGroupSize: InheritableAttr {
   let Spellings = [GNU<"intel_reqd_sub_group_size">,
                    CXX11<"intel", "reqd_sub_group_size">];
   let Args = [ExprArgument<"Value">];
-  let Subjects = SubjectList<[Function, CXXMethod], ErrorDiag>;
+  let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [IntelReqdSubGroupSizeDocs];
   let LangOpts = [OpenCL, SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
 }
