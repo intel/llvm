@@ -1647,23 +1647,25 @@ inline constexpr AccumulatorT known_identity_v =
 // Currently, the type traits defined below correspond to SYCL 1.2.1 ONEAPI
 // reduction extension. That may be changed later when SYCL 2020 reductions
 // are implemented.
-#if SYCL_LANGUAGE_VERSION >= 202001
 template <typename BinaryOperation, typename AccumulatorT>
 struct has_known_identity
     : ONEAPI::has_known_identity<BinaryOperation, AccumulatorT> {};
 
+#if __cplusplus >= 201703L
 template <typename BinaryOperation, typename AccumulatorT>
 inline constexpr bool has_known_identity_v =
     has_known_identity<BinaryOperation, AccumulatorT>::value;
+#endif
 
 template <typename BinaryOperation, typename AccumulatorT>
 struct known_identity : ONEAPI::known_identity<BinaryOperation, AccumulatorT> {
 };
 
+#if __cplusplus >= 201703L
 template <typename BinaryOperation, typename AccumulatorT>
 inline constexpr AccumulatorT known_identity_v =
     known_identity<BinaryOperation, AccumulatorT>::value;
-#endif // SYCL_LANGUAGE_VERSION >= 202001
+#endif
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
