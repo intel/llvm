@@ -2622,6 +2622,10 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.MergeIntelReqdSubGroupSizeAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelNumSimdWorkItemsAttr>(Attr))
     NewAttr = S.MergeSYCLIntelNumSimdWorkItemsAttr(D, *A);
+  else if (const auto *A = dyn_cast<IntelFPGAPrivateCopiesAttr>(Attr))
+    NewAttr = S.MergeIntelFPGAPrivateCopiesAttr(D, *A);
+  else if (const auto *A = dyn_cast<IntelFPGAMaxReplicatesAttr>(Attr))
+    NewAttr = S.MergeIntelFPGAMaxReplicatesAttr(D, *A);
   else if (Attr->shouldInheritEvenIfAlreadyPresent() || !DeclHasAttr(D, Attr))
     NewAttr = cast<InheritableAttr>(Attr->clone(S.Context));
 

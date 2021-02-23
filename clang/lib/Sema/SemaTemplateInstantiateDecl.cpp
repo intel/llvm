@@ -663,6 +663,26 @@ static void instantiateSYCLIntelNumSimdWorkItemsAttr(
     S.AddSYCLIntelNumSimdWorkItemsAttr(New, *A, Result.getAs<Expr>());
 }
 
+static void instantiateIntelFPGAPrivateCopiesAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const IntelFPGAPrivateCopiesAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.AddIntelFPGAPrivateCopiesAttr(New, *A, Result.getAs<Expr>());
+}
+
+static void instantiateIntelFPGAMaxReplicatesAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const IntelFPGAMaxReplicatesAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.AddIntelFPGAMaxReplicatesAttr(New, *A, Result.getAs<Expr>());
+}
+
 template <typename AttrName>
 static void instantiateIntelSYCLFunctionAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
