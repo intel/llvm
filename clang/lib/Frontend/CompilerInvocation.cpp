@@ -460,6 +460,28 @@ static void FixupInvocation(CompilerInvocation &Invocation,
     LangOpts.NewAlignOverride = 0;
   }
 
+  // Check whether the SYCL arguments are valid. -fsycl is only accepted in -cc1
+  // if it is passed in conjunction with -fsycl-is-device or -fsycl-is-host. If
+  // -fsycl is not passed but one of those two options is, automatically set it.
+  if (LangOpts.SYCL && !LangOpts.SYCLIsDevice && !LangOpts.SYCLIsHost)
+    Diags.Report(diag::err_drv_argument_only_allowed_with_str)
+        << "-fsycl"
+        << "'-fsycl-is-device' or '-fscyl-is-host'";
+  LangOpts.SYCL = LangOpts.SYCLIsDevice || LangOpts.SYCLIsHost;
+
+  // Prevent the user from specifying both -fsycl-is-device and -fsycl-is-host.
+  if (LangOpts.SYCLIsDevice && LangOpts.SYCLIsHost)
+    Diags.Report(diag::err_drv_argument_not_allowed_with) << "-fsycl-is-device"
+                                                          << "-fsycl-is-host";
+
+  // Prevent the user from passing -sycl-std= without enabling SYCLIsDevice or
+  // SYCLIsHost.
+  if (Args.hasArg(OPT_sycl_std_EQ) && !LangOpts.SYCL) {
+    Diags.Report(diag::err_drv_argument_only_allowed_with_str)
+        << "-sycl-std="
+        << "'-fsycl-is-device' or '-fscyl-is-host'";
+  }
+
   if (Args.hasArg(OPT_fgnu89_inline) && LangOpts.CPlusPlus)
     Diags.Report(diag::err_drv_argument_not_allowed_with)
         << "-fgnu89-inline" << GetInputKindName(IK);
@@ -2290,7 +2312,11 @@ void CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
       LangStd = OpenCLLangStd;
   }
 
-  if (Opts.SYCL) {
+  // Check for -fsycl-is-device or -fsycl-is-host because those imply -fsycl.
+  // This is fixed up later but needs to be checked here to properly set the
+  // version information.
+  if (Opts.SYCL || Args.hasArg(OPT_fsycl_is_device) ||
+      Args.hasArg(OPT_fsycl_is_host)) {
     // -sycl-std applies to any SYCL source, not only those containing kernels,
     // but also those using the SYCL API
     if (const Arg *A = Args.getLastArg(OPT_sycl_std_EQ)) {
