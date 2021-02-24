@@ -5,8 +5,9 @@
 // Test that checks wrong function template instantiation and ensures that the type
 // is checked properly when instantiating from the template definition.
 template <typename Ty>
-// expected-error@+2{{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
-// expected-error@+1{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+// expected-error@+3{{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
+// expected-error@+2{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+// expected-error@+1{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 [[intel::num_simd_work_items(Ty{})]] void func() {}
 
 struct S {};
@@ -15,6 +16,7 @@ void test() {
   func<S>();
   //expected-note@+1{{in instantiation of function template specialization 'func<float>' requested here}}
   func<float>();
+  //expected-note@+1{{in instantiation of function template specialization 'func<int>' requested here}}
   func<int>();
 }
 
@@ -33,7 +35,7 @@ constexpr int bar() { return 0; }
 template <int SIZE>
 class KernelFunctor {
 public:
-  // expected-error@+1{{'num_simd_work_items' attribute requires a non-negative integral compile time constant expression}}
+  // expected-error@+1{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
   [[intel::num_simd_work_items(SIZE)]] void operator()() {}
 };
 
@@ -55,14 +57,23 @@ int main() {
 
 // Test that checks template parameter support on function.
 template <int N>
-// expected-error@+1{{'num_simd_work_items' attribute requires a non-negative integral compile time constant expression}}
+// expected-error@+1{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 [[intel::num_simd_work_items(N)]] void func3() {}
+
+template <int N>
+[[intel::num_simd_work_items(4)]] void func4(); // expected-note {{previous attribute is here}}
+
+template <int N>
+[[intel::num_simd_work_items(N)]] void func4() {} // expected-warning {{attribute 'num_simd_work_items' is already applied with different parameters}}
 
 int check() {
   // no error expected
   func3<8>();
   //expected-note@+1{{in instantiation of function template specialization 'func3<-1>' requested here}}
   func3<-1>();
+
+  func4<6>(); //expected-note {{in instantiation of function template specialization 'func4<6>' requested here}}
+
   return 0;
 }
 
