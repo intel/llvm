@@ -113,9 +113,8 @@ public:
     backend Result;
     if (is_host())
       Result = backend::host;
-    else {
+    else
       Result = getPlugin().getBackend();
-    }
 
     return Result;
   }

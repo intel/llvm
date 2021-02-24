@@ -294,9 +294,8 @@ backend event_impl::get_backend() const noexcept {
   backend Result;
   if (is_host())
     Result = backend::host;
-  else {
+  else
     Result = getPlugin().getBackend();
-  }
 
   return Result;
 }
