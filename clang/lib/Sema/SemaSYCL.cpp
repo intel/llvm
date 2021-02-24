@@ -2962,10 +2962,10 @@ public:
     const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
     if (!RD) {
       if (T->isNullPtrType()) {
-        S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-            << KernelNameType;
-        S.Diag(KernelInvocationFuncLoc, diag::note_invalid_type_in_sycl_kernel)
-            << /* kernel name cannot be a type in the std namespace */ 2 << T;
+        S.Diag(KernelInvocationFuncLoc,
+               diag::err_invalid_std_type_in_sycl_kernel)
+            << KernelNameType << T;
+
         IsInvalid = true;
       }
       return;
@@ -2990,10 +2990,8 @@ public:
     const EnumDecl *ED = T->getDecl();
     if (!ED->isScoped() && !ED->isFixed()) {
       S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-          << KernelNameType;
-      S.Diag(KernelInvocationFuncLoc, diag::note_invalid_type_in_sycl_kernel)
-          << /* Unscoped enum requires fixed underlying type */ 1
-          << QualType(ED->getTypeForDecl(), 0);
+          << 1 << KernelNameType;
+
       IsInvalid = true;
     }
   }
@@ -3007,36 +3005,43 @@ public:
         S.getASTContext().getLangOpts().SYCLUnnamedLambda;
     const DeclContext *DeclCtx = Tag->getDeclContext();
     if (DeclCtx && !UnnamedLambdaEnabled) {
-      auto *NameSpace = dyn_cast_or_null<NamespaceDecl>(DeclCtx);
-      if (NameSpace && NameSpace->isStdNamespace()) {
-        S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-            << KernelNameType;
-        S.Diag(KernelInvocationFuncLoc, diag::note_invalid_type_in_sycl_kernel)
-            << /* kernel name cannot be a type in the std namespace */ 2
-            << QualType(Tag->getTypeForDecl(), 0);
-        IsInvalid = true;
-        return;
-      }
-      if (!DeclCtx->isTranslationUnit() && !isa<NamespaceDecl>(DeclCtx)) {
-        const bool KernelNameIsMissing = Tag->getName().empty();
-        if (KernelNameIsMissing) {
+
+      // Loop through Declaration Contexts to detect kernel names nested inside
+      // "std" and "anonymous" namespaces.
+      while (!DeclCtx->isTranslationUnit()) {
+        const auto *NSDecl = dyn_cast<NamespaceDecl>(DeclCtx);
+        if (NSDecl && NSDecl->isStdNamespace()) {
+          S.Diag(KernelInvocationFuncLoc,
+                 diag::err_invalid_std_type_in_sycl_kernel)
+              << KernelNameType << QualType(Tag->getTypeForDecl(), 0);
+          IsInvalid = true;
+          return;
+        }
+        if (NSDecl && NSDecl->isAnonymousNamespace()) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_sycl_kernel_incorrectly_named)
-              << KernelNameType;
+              << 0 << KernelNameType;
+          IsInvalid = true;
+          return;
+        }
+        DeclCtx = DeclCtx->getParent();
+      }
+
+      if (!DeclCtx->isTranslationUnit() && !isa<NamespaceDecl>(DeclCtx)) {
+        bool UnnamedTypeUsed = Tag->getName().empty();
+        if (UnnamedTypeUsed) {
           S.Diag(KernelInvocationFuncLoc,
-                 diag::note_invalid_type_in_sycl_kernel)
-              << /* unnamed type used in a SYCL kernel name */ 3;
+                 diag::err_sycl_kernel_incorrectly_named)
+              << 2;
+
           IsInvalid = true;
           return;
         }
         if (Tag->isCompleteDefinition()) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_sycl_kernel_incorrectly_named)
-              << KernelNameType;
-          S.Diag(KernelInvocationFuncLoc,
-                 diag::note_invalid_type_in_sycl_kernel)
-              << /* kernel name is not globally-visible */ 0
-              << QualType(Tag->getTypeForDecl(), 0);
+              << 0 << KernelNameType;
+
           IsInvalid = true;
         } else {
           S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
