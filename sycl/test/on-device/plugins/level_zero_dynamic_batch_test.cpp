@@ -1,5 +1,6 @@
 // REQUIRES: gpu, level_zero
 
+// XFAIL: *
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
 
 // Check that dynamic batching increases batch size
