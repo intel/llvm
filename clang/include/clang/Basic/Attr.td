@@ -1176,7 +1176,8 @@ def SYCLKernel : InheritableAttr {
 // e.g. because the function is already vectorized. Used to mark SYCL
 // explicit SIMD kernels and functions.
 def SYCLSimd : InheritableAttr {
-  let Spellings = [GNU<"sycl_explicit_simd">];
+  let Spellings = [GNU<"sycl_explicit_simd">,
+                   CXX11<"intel", "sycl_explicit_simd">];
   let Subjects = SubjectList<[Function]>;
   let LangOpts = [SYCLExplicitSIMD];
   let Documentation = [SYCLSimdDocs];
