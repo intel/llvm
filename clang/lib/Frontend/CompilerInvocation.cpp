@@ -465,15 +465,6 @@ static void FixupInvocation(CompilerInvocation &Invocation,
     Diags.Report(diag::err_drv_argument_not_allowed_with) << "-fsycl-is-device"
                                                           << "-fsycl-is-host";
 
-  // Prevent the user from passing -sycl-std= without enabling SYCLIsDevice or
-  // SYCLIsHost.
-  if (Args.hasArg(OPT_sycl_std_EQ) && !LangOpts.SYCLIsDevice &&
-      !LangOpts.SYCLIsHost) {
-    Diags.Report(diag::err_drv_argument_only_allowed_with_str)
-        << "-sycl-std="
-        << "'-fsycl-is-device' or '-fscyl-is-host'";
-  }
-
   if (Args.hasArg(OPT_fgnu89_inline) && LangOpts.CPlusPlus)
     Diags.Report(diag::err_drv_argument_not_allowed_with)
         << "-fgnu89-inline" << GetInputKindName(IK);

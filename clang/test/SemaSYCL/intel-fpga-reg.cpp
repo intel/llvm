@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -verify -pedantic -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl-is-device -sycl-std=2020 -verify -pedantic -fsyntax-only %s
 // RUN: %clang_cc1 -verify -pedantic -fsyntax-only %s
 
 class A {
@@ -57,7 +57,7 @@ void foo() {
 }
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
 }
 int main() {

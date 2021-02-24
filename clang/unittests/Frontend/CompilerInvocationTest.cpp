@@ -513,7 +513,8 @@ TEST_F(CommandLineTest, ConditionalParsingIfFalseFlagNotPresent) {
   CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
 
   ASSERT_FALSE(Diags->hasErrorOccurred());
-  ASSERT_FALSE(Invocation.getLangOpts()->SYCL);
+  ASSERT_FALSE(Invocation.getLangOpts()->SYCLIsDevice);
+  ASSERT_FALSE(Invocation.getLangOpts()->SYCLIsHost);
   ASSERT_EQ(Invocation.getLangOpts()->getSYCLVersion(), LangOptions::SYCL_None);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
@@ -528,7 +529,8 @@ TEST_F(CommandLineTest, ConditionalParsingIfFalseFlagPresent) {
   CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
 
   ASSERT_FALSE(Diags->hasErrorOccurred());
-  ASSERT_FALSE(Invocation.getLangOpts()->SYCL);
+  ASSERT_FALSE(Invocation.getLangOpts()->SYCLIsDevice);
+  ASSERT_FALSE(Invocation.getLangOpts()->SYCLIsHost);
   ASSERT_EQ(Invocation.getLangOpts()->getSYCLVersion(), LangOptions::SYCL_None);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
@@ -542,7 +544,7 @@ TEST_F(CommandLineTest, ConditionalParsingIfTrueFlagNotPresent) {
 
   CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
 
-  ASSERT_FALSE(Diags->hasErrorOccurred());
+  ASSERT_TRUE(Diags->hasErrorOccurred());
   ASSERT_EQ(Invocation.getLangOpts()->getSYCLVersion(), LangOptions::SYCL_None);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
@@ -556,7 +558,7 @@ TEST_F(CommandLineTest, ConditionalParsingIfTrueFlagPresent) {
 
   CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
 
-  ASSERT_FALSE(Diags->hasErrorOccurred());
+  ASSERT_TRUE(Diags->hasErrorOccurred());
   ASSERT_EQ(Invocation.getLangOpts()->getSYCLVersion(), LangOptions::SYCL_2017);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);

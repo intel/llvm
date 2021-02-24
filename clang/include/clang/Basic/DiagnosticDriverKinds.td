@@ -137,10 +137,6 @@ def err_drv_bad_fpga_device_count : Error<
 def err_drv_unsupported_opt_dpcpp : Error<"option '%0' unsupported with DPC++">;
 def err_drv_argument_only_allowed_with : Error<
   "invalid argument '%0' only allowed with '%1'">;
-// This diagnostic is useful when the argument is valid in combination with
-// more than one other option.
-def err_drv_argument_only_allowed_with_str : Error<
-  "invalid argument '%0' only allowed with %1">;
 def err_drv_argument_not_allowed_with : Error<
   "invalid argument '%0' not allowed with '%1'">;
 def err_drv_invalid_version_number : Error<
