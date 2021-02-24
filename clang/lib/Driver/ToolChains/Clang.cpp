@@ -4274,7 +4274,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (UseSYCLTriple) {
     // We want to compile sycl kernels.
-    CmdArgs.push_back("-fsycl");
     CmdArgs.push_back("-fsycl-is-device");
     CmdArgs.push_back("-fdeclare-spirv-builtins");
 
@@ -6530,7 +6529,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       }
       // Let the FE know we are doing a SYCL offload compilation, but we are
       // doing the host pass.
-      CmdArgs.push_back("-fsycl");
       CmdArgs.push_back("-fsycl-is-host");
 
       if (Args.hasFlag(options::OPT_fsycl_esimd, options::OPT_fno_sycl_esimd,

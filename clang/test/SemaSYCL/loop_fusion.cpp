@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -verify %s
+// RUN: %clang_cc1 -fsycl-is-device -verify %s
 
 [[intel::loop_fuse(5)]] int a; // expected-error{{'loop_fuse' attribute only applies to functions}}
 
