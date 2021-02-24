@@ -318,8 +318,8 @@
 // CHK-NO-ESIMD-SPLIT-NOT: sycl-post-link{{.*}} "-split-esimd"
 
 // Check lowering of ESIMD device code.
-// RUN:   %clang    -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-ESIMD-LOWER
-// RUN:   %clang_cl -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-ESIMD-LOWER
+// RUN:   %clang    -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
+// RUN:   %clang_cl -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
 // RUN:   %clang    -### -fsycl -fsycl-device-code-lower-esimd %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
 // RUN:   %clang_cl -### -fsycl -fsycl-device-code-lower-esimd %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
 // RUN:   %clang    -### -fsycl -fno-sycl-device-code-lower-esimd %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-ESIMD-LOWER

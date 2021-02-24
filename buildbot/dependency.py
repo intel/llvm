@@ -49,11 +49,17 @@ def do_dependency(args):
     # fetch OpenCL headers
     ocl_header_dir = os.path.join(args.obj_dir, "OpenCL-Headers")
     if not os.path.isdir(ocl_header_dir):
-        clone_cmd = ["git", "clone", "https://github.com/KhronosGroup/OpenCL-Headers", "OpenCL-Headers"]
+        clone_cmd = ["git", "clone", "https://github.com/KhronosGroup/OpenCL-Headers",
+                     "OpenCL-Headers", "-b", "v2020.06.16"]
         subprocess.check_call(clone_cmd, cwd=args.obj_dir)
     else:
         fetch_cmd = ["git", "pull", "--ff", "--ff-only", "origin"]
         subprocess.check_call(fetch_cmd, cwd=ocl_header_dir)
+
+    # Workaround to unblock CI until KhronosGroup/OpenCL-ICD-Loader/pull/124
+    # is submitted
+    checkout_cmd = ["git", "checkout", "d1b936b72b9610626ecab8a991cec18348fba047"]
+    subprocess.check_call(checkout_cmd, cwd=ocl_header_dir)
 
     # fetch and build OpenCL ICD loader
     icd_loader_dir = os.path.join(args.obj_dir, "OpenCL-ICD-Loader")

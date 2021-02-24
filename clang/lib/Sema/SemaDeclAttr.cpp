@@ -3130,25 +3130,52 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
       return;
   }
 
-  if (WorkGroupAttr *ExistingAttr = D->getAttr<WorkGroupAttr>()) {
-    ASTContext &Ctx = S.getASTContext();
-    Optional<llvm::APSInt> XDimVal = XDimExpr->getIntegerConstantExpr(Ctx);
-    Optional<llvm::APSInt> YDimVal = YDimExpr->getIntegerConstantExpr(Ctx);
-    Optional<llvm::APSInt> ZDimVal = ZDimExpr->getIntegerConstantExpr(Ctx);
-    Optional<llvm::APSInt> ExistingXDimVal = ExistingAttr->getXDimVal(Ctx);
-    Optional<llvm::APSInt> ExistingYDimVal = ExistingAttr->getYDimVal(Ctx);
-    Optional<llvm::APSInt> ExistingZDimVal = ExistingAttr->getZDimVal(Ctx);
+  ASTContext &Ctx = S.getASTContext();
 
-    // Compare attribute arguments value and warn for a mismatch.
-    if (ExistingXDimVal != XDimVal || ExistingYDimVal != YDimVal ||
-        ExistingZDimVal != ZDimVal) {
-      S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
-      S.Diag(ExistingAttr->getLocation(), diag::note_conflicting_attribute);
+  if (!XDimExpr->isValueDependent() && !YDimExpr->isValueDependent() &&
+      !ZDimExpr->isValueDependent()) {
+    llvm::APSInt XDimVal, YDimVal, ZDimVal;
+    ExprResult XDim = S.VerifyIntegerConstantExpression(XDimExpr, &XDimVal);
+    ExprResult YDim = S.VerifyIntegerConstantExpression(YDimExpr, &YDimVal);
+    ExprResult ZDim = S.VerifyIntegerConstantExpression(ZDimExpr, &ZDimVal);
+
+    if (XDim.isInvalid())
+      return;
+    XDimExpr = XDim.get();
+
+    if (YDim.isInvalid())
+      return;
+    YDimExpr = YDim.get();
+
+    if (ZDim.isInvalid())
+      return;
+    ZDimExpr = ZDim.get();
+
+    if (const auto *A = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
+      int64_t NumSimdWorkItems =
+          A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue();
+
+      if (!(XDimVal.getZExtValue() % NumSimdWorkItems == 0 ||
+            YDimVal.getZExtValue() % NumSimdWorkItems == 0 ||
+            ZDimVal.getZExtValue() % NumSimdWorkItems == 0)) {
+        S.Diag(A->getLocation(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
+            << A << AL;
+        S.Diag(AL.getLoc(), diag::note_conflicting_attribute);
+        return;
+      }
     }
+    if (const auto *ExistingAttr = D->getAttr<WorkGroupAttr>()) {
+      // Compare attribute arguments value and warn for a mismatch.
+      if (ExistingAttr->getXDimVal(Ctx) != XDimVal ||
+          ExistingAttr->getYDimVal(Ctx) != YDimVal ||
+          ExistingAttr->getZDimVal(Ctx) != ZDimVal) {
+        S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
+        S.Diag(ExistingAttr->getLocation(), diag::note_conflicting_attribute);
+      }
+    }
+    if (!checkWorkGroupSizeValues(S, D, AL))
+      return;
   }
-
-  if (!checkWorkGroupSizeValues(S, D, AL))
-    return;
 
   S.addIntelTripleArgAttr<WorkGroupAttr>(D, AL, XDimExpr, YDimExpr, ZDimExpr);
 }
@@ -3182,32 +3209,148 @@ static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
                                                      WGSize[1], WGSize[2]));
 }
 
-// Handles intel_reqd_sub_group_size.
-static void handleSubGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (S.LangOpts.SYCLIsHost)
+void Sema::AddIntelReqdSubGroupSize(Decl *D, const AttributeCommonInfo &CI,
+                                    Expr *E) {
+  if (LangOpts.SYCLIsHost)
     return;
 
-  Expr *E = AL.getArgAsExpr(0);
+  if (!E->isValueDependent()) {
+    // Validate that we have an integer constant expression and then store the
+    // converted constant expression into the semantic attribute so that we
+    // don't have to evaluate it again later.
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return;
+    E = Res.get();
 
-  if (D->getAttr<IntelReqdSubGroupSizeAttr>())
-    S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
+    // This attribute requires a strictly positive value.
+    if (ArgVal <= 0) {
+      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+          << CI << /*positive*/ 0;
+      return;
+    }
 
-  S.addIntelSingleArgAttr<IntelReqdSubGroupSizeAttr>(D, AL, E);
+    // Check to see if there's a duplicate attribute with different values
+    // already applied to the declaration.
+    if (const auto *DeclAttr = D->getAttr<IntelReqdSubGroupSizeAttr>()) {
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue());
+      if (DeclExpr && ArgVal != DeclExpr->getResultAsAPSInt()) {
+        Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+        Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        return;
+      }
+    }
+  }
+
+  D->addAttr(::new (Context) IntelReqdSubGroupSizeAttr(Context, CI, E));
 }
 
-// Handles num_simd_work_items.
-static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D, const ParsedAttr &A) {
-  if (D->isInvalidDecl())
-    return;
+IntelReqdSubGroupSizeAttr *
+Sema::MergeIntelReqdSubGroupSizeAttr(Decl *D,
+                                     const IntelReqdSubGroupSizeAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr = D->getAttr<IntelReqdSubGroupSizeAttr>()) {
+    const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue());
+    const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue());
+    if (DeclExpr && MergeExpr &&
+        DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+      Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+      Diag(A.getLoc(), diag::note_previous_attribute);
+      return nullptr;
+    }
+  }
+  return ::new (Context) IntelReqdSubGroupSizeAttr(Context, A, A.getValue());
+}
 
-  Expr *E = A.getArgAsExpr(0);
+static void handleIntelReqdSubGroupSize(Sema &S, Decl *D,
+                                        const ParsedAttr &AL) {
+  Expr *E = AL.getArgAsExpr(0);
+  S.AddIntelReqdSubGroupSize(D, AL, E);
+}
 
-  if (D->getAttr<SYCLIntelNumSimdWorkItemsAttr>())
-    S.Diag(A.getLoc(), diag::warn_duplicate_attribute) << A;
+void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
+                                            const AttributeCommonInfo &CI,
+                                            Expr *E) {
+  if (!E->isValueDependent()) {
+    // Validate that we have an integer constant expression and then store the
+    // converted constant expression into the semantic attribute so that we
+    // don't have to evaluate it again later.
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return;
+    E = Res.get();
 
+    // This attribute requires a strictly positive value.
+    if (ArgVal <= 0) {
+      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+          << CI << /*positive*/ 0;
+      return;
+    }
+
+    // Check to see if there's a duplicate attribute with different values
+    // already applied to the declaration.
+    if (const auto *DeclAttr = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue());
+      if (DeclExpr && ArgVal != DeclExpr->getResultAsAPSInt()) {
+        Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+        Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        return;
+      }
+    }
+
+    // If the declaration has an [[intel::reqd_work_group_size]] attribute,
+    // check to see if can be evenly divided by the num_simd_work_items attr.
+    if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
+      Optional<llvm::APSInt> XDimVal = DeclAttr->getXDimVal(Context);
+      Optional<llvm::APSInt> YDimVal = DeclAttr->getYDimVal(Context);
+      Optional<llvm::APSInt> ZDimVal = DeclAttr->getZDimVal(Context);
+
+      if (!(*XDimVal % ArgVal == 0 || *YDimVal % ArgVal == 0 ||
+            *ZDimVal % ArgVal == 0)) {
+        Diag(CI.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
+            << CI << DeclAttr;
+        Diag(DeclAttr->getLocation(), diag::note_conflicting_attribute);
+        return;
+      }
+    }
+  }
+
+  D->addAttr(::new (Context) SYCLIntelNumSimdWorkItemsAttr(Context, CI, E));
+}
+
+SYCLIntelNumSimdWorkItemsAttr *Sema::MergeSYCLIntelNumSimdWorkItemsAttr(
+    Decl *D, const SYCLIntelNumSimdWorkItemsAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
+    const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue());
+    const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue());
+    if (DeclExpr && MergeExpr &&
+        DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+      Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+      Diag(A.getLoc(), diag::note_previous_attribute);
+      return nullptr;
+    }
+  }
+  return ::new (Context)
+      SYCLIntelNumSimdWorkItemsAttr(Context, A, A.getValue());
+}
+
+static void handleSYCLIntelNumSimdWorkItemsAttr(Sema &S, Decl *D,
+                                                const ParsedAttr &A) {
   S.CheckDeprecatedSYCLAttributeSpelling(A);
 
-  S.addIntelSingleArgAttr<SYCLIntelNumSimdWorkItemsAttr>(D, A, E);
+  Expr *E = A.getArgAsExpr(0);
+  S.AddSYCLIntelNumSimdWorkItemsAttr(D, A, E);
 }
 
 // Handles use_stall_enable_clusters
@@ -5967,14 +6110,13 @@ void Sema::addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &Attr,
     Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(getASTContext());
     if (!ArgVal) {
       Diag(E->getExprLoc(), diag::err_attribute_argument_type)
-          << Attr.getAttrName() << AANT_ArgumentIntegerConstant
-          << E->getSourceRange();
+          << Attr << AANT_ArgumentIntegerConstant << E->getSourceRange();
       return;
     }
     int32_t ArgInt = ArgVal->getSExtValue();
     if (ArgInt < 0) {
       Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << Attr.getAttrName() << /*non-negative*/ 1;
+          << Attr << /*non-negative*/ 1;
       return;
     }
   }
@@ -8789,10 +8931,10 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handleWorkGroupSize<SYCLIntelMaxWorkGroupSizeAttr>(S, D, AL);
     break;
   case ParsedAttr::AT_IntelReqdSubGroupSize:
-    handleSubGroupSize(S, D, AL);
+    handleIntelReqdSubGroupSize(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLIntelNumSimdWorkItems:
-    handleNumSimdWorkItemsAttr(S, D, AL);
+    handleSYCLIntelNumSimdWorkItemsAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLIntelSchedulerTargetFmaxMhz:
     handleSchedulerTargetFmaxMhzAttr(S, D, AL);
