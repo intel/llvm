@@ -214,6 +214,7 @@ esimd_run_substitute = "true"
 gpu_run_substitute = "true"
 gpu_run_on_linux_substitute = "true "
 gpu_check_substitute = ""
+gpu_l0_check_substitute = ""
 gpu_check_on_linux_substitute = ""
 
 if 'gpu' in config.target_devices.split(','):
@@ -222,6 +223,9 @@ if 'gpu' in config.target_devices.split(','):
     gpu_run_substitute = " env SYCL_DEVICE_FILTER={SYCL_PLUGIN}:gpu ".format(SYCL_PLUGIN=config.sycl_be)
     gpu_check_substitute = "| FileCheck %s"
     config.available_features.add('gpu')
+
+    if config.sycl_be == "level_zero":
+        gpu_l0_check_substitute = "| FileCheck %s"
 
     if platform.system() == "Linux":
         gpu_run_on_linux_substitute = "env SYCL_DEVICE_FILTER={SYCL_PLUGIN}:gpu ".format(SYCL_PLUGIN=config.sycl_be)
@@ -233,6 +237,7 @@ else:
 config.substitutions.append( ('%GPU_RUN_PLACEHOLDER',  gpu_run_substitute) )
 config.substitutions.append( ('%GPU_RUN_ON_LINUX_PLACEHOLDER',  gpu_run_on_linux_substitute) )
 config.substitutions.append( ('%GPU_CHECK_PLACEHOLDER',  gpu_check_substitute) )
+config.substitutions.append( ('%GPU_L0_CHECK_PLACEHOLDER',  gpu_l0_check_substitute) )
 config.substitutions.append( ('%GPU_CHECK_ON_LINUX_PLACEHOLDER',  gpu_check_on_linux_substitute) )
 
 acc_run_substitute = "true"
