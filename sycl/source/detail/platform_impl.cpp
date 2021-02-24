@@ -92,11 +92,29 @@ static bool IsBannedPlatform(platform Platform) {
   return IsNVIDIAOpenCL(Platform);
 }
 
+static bool HasFilterDevice(platform Platform) {
+  detail::device_filter_list *FilterList =
+      detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
+
+  if (FilterList) {
+    for (const detail::device_filter &Filter : FilterList->get()) {
+      if (Platform.get_backend() == Filter.Backend) {
+        if (Filter.DeviceType == info::device_type::all)
+          return true;
+        if (Platform.get_devices(Filter.DeviceType).empty())
+          return false;
+      }
+    }
+  }
+  return true;
+}
+
 vector_class<platform> platform_impl::get_platforms() {
   vector_class<platform> Platforms;
   const vector_class<plugin> &Plugins = RT::initialize();
 
   info::device_type ForcedType = detail::get_forced_type();
+
   for (unsigned int i = 0; i < Plugins.size(); i++) {
 
     pi_uint32 NumPlatforms = 0;
@@ -112,7 +130,7 @@ vector_class<platform> platform_impl::get_platforms() {
             getOrMakePlatformImpl(PiPlatform, Plugins[i]));
         // Skip platforms which do not contain requested device types
         if (!Platform.get_devices(ForcedType).empty() &&
-            !IsBannedPlatform(Platform))
+            HasFilterDevice(Platform) && !IsBannedPlatform(Platform))
           Platforms.push_back(Platform);
       }
     }
