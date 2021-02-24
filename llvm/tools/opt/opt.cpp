@@ -465,6 +465,7 @@ struct TimeTracerRAII {
 // it exists.
 static bool shouldPinPassToLegacyPM(StringRef Pass) {
   std::vector<StringRef> PassNameExactToIgnore = {
+      "globaloffset",
       "nvvm-reflect",
       "nvvm-intr-range",
       "amdgpu-simplifylib",

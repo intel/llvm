@@ -73,7 +73,7 @@ void initializeNVPTXLowerArgsPass(PassRegistry &);
 void initializeNVPTXLowerAllocaPass(PassRegistry &);
 void initializeNVPTXProxyRegErasurePass(PassRegistry &);
 
-void initializeGlobalOffsetPass(PassRegistry &);
+void initializeGlobalOffsetLegacyPass(PassRegistry &);
 void initializeLocalAccessorToSharedMemoryPass(PassRegistry &);
 
 } // end namespace llvm
@@ -97,7 +97,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeNVPTXTarget() {
   initializeNVPTXProxyRegErasurePass(PR);
 
   // SYCL-specific passes, needed here to be available to `opt`.
-  initializeGlobalOffsetPass(PR);
+  initializeGlobalOffsetLegacyPass(PR);
   initializeLocalAccessorToSharedMemoryPass(PR);
 }
 
@@ -304,7 +304,7 @@ void NVPTXPassConfig::addIRPasses() {
 
   if (getTM<NVPTXTargetMachine>().getTargetTriple().getOS() == Triple::CUDA &&
       getTM<NVPTXTargetMachine>().getTargetTriple().getEnvironment() == Triple::SYCLDevice) {
-    addPass(createGlobalOffsetPass());
+    addPass(createGlobalOffsetLegacyPass());
     addPass(createLocalAccessorToSharedMemoryPass());
   }
 

@@ -15,11 +15,38 @@
 #ifndef LLVM_SYCL_GLOBALOFFSET_H
 #define LLVM_SYCL_GLOBALOFFSET_H
 
+#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 
 namespace llvm {
 
-ModulePass *createGlobalOffsetPass();
+class Function;
+class Value;
+class Type;
+class MDNode;
+
+ModulePass *createGlobalOffsetLegacyPass();
+
+class GlobalOffsetPass : public PassInfoMixin<GlobalOffsetPass> {
+public:
+  PreservedAnalyses run(Module &, ModuleAnalysisManager &);
+  static llvm::DenseMap<Function *, MDNode *> getEntryPointMetadata(Module &);
+
+private:
+  void processKernelEntryPoint(Module &, Function *);
+  void addImplicitParameterToCallers(Module &, Value *, Function *);
+  std::pair<Function *, Value *>
+  addOffsetArgumentToFunction(Module &, Function *,
+                              Type *ImplicitArgumentType = nullptr,
+                              bool KeepOriginal = false);
+
+  // Keep track of which functions have been processed to avoid processing twice
+  llvm::DenseMap<Function *, Value *> ProcessedFunctions;
+  // Keep a map of all entry point functions with metadata
+  llvm::DenseMap<Function *, MDNode *> EntryPointMetadata;
+  llvm::Type *KernelImplicitArgumentType;
+  llvm::Type *ImplicitOffsetPtrType;
+};
 
 } // end namespace llvm
 
