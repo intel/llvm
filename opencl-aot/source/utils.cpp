@@ -403,6 +403,11 @@ readBinaryFile(std::string FileName) {
   return std::make_tuple(FileContent, "", CL_SUCCESS);
 }
 
+bool isFileEndsWithGivenExtentionName(const std::string &FileName,
+                                      const char *Ext) {
+  return FileName.substr(FileName.find_last_of('.')) == Ext;
+}
+
 bool isFileStartsWithGivenMagicNumber(const std::vector<char> &BinaryData,
                                       const uint32_t ExpectedMagicNumber) {
   if (BinaryData.size() < sizeof(ExpectedMagicNumber))
@@ -410,6 +415,10 @@ bool isFileStartsWithGivenMagicNumber(const std::vector<char> &BinaryData,
   const auto &BinaryDataAsIntBuffer =
       reinterpret_cast<decltype(ExpectedMagicNumber) *>(BinaryData.data());
   return BinaryDataAsIntBuffer[0] == ExpectedMagicNumber;
+}
+
+bool isFileOCLSource(const std::string &FileName) {
+  return isFileEndsWithGivenExtentionName(FileName, ".cl");
 }
 
 bool isFileELF(const std::vector<char> &BinaryData) {
@@ -420,4 +429,9 @@ bool isFileELF(const std::vector<char> &BinaryData) {
 bool isFileSPIRV(const std::vector<char> &BinaryData) {
   const uint32_t SPIRVMagicNumber = 0x07230203;
   return isFileStartsWithGivenMagicNumber(BinaryData, SPIRVMagicNumber);
+}
+
+bool isFileLLVMIR(const std::vector<char> &BinaryData) {
+  const uint32_t LLVMIRMagicNumber = 0xdec04342;
+  return isFileStartsWithGivenMagicNumber(BinaryData, LLVMIRMagicNumber);
 }
