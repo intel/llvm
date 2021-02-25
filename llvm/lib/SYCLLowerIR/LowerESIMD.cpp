@@ -1233,6 +1233,11 @@ void SYCLLowerESIMDLegacyPass::collectGenXVolatileType(Module &M) {
 PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
                                           FunctionAnalysisManager &FAM,
                                           SmallPtrSet<Type *, 4> &GVTS) {
+  // Add 'alwaysinline' attribute to every function called from ESIMD kernel
+  if ((F.getCallingConv() != CallingConv::SPIR_KERNEL) &&
+      !F.hasFnAttribute(Attribute::AlwaysInline))
+    F.addFnAttr(Attribute::AlwaysInline);
+
   SmallVector<CallInst *, 32> ESIMDIntrCalls;
   SmallVector<Instruction *, 8> ESIMDToErases;
 
