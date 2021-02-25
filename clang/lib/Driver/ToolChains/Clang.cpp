@@ -5862,8 +5862,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Forward -cl options to -cc1
   RenderOpenCLOptions(Args, CmdArgs);
 
-  // Forward -sycl-std option to -cc1
-  Args.AddLastArg(CmdArgs, options::OPT_sycl_std_EQ);
+  // Forward -sycl-std option to -cc1 only if -fsycl is enabled.
+  if (Args.hasArg(options::OPT_fsycl))
+    Args.AddLastArg(CmdArgs, options::OPT_sycl_std_EQ);
 
   if (IsHIP) {
     if (Args.hasFlag(options::OPT_fhip_new_launch_api,

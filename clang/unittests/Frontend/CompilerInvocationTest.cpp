@@ -531,12 +531,19 @@ TEST_F(CommandLineTest, ConditionalParsingIfFalseFlagPresent) {
   ASSERT_FALSE(Diags->hasErrorOccurred());
   ASSERT_FALSE(Invocation.getLangOpts()->SYCLIsDevice);
   ASSERT_FALSE(Invocation.getLangOpts()->SYCLIsHost);
-  ASSERT_EQ(Invocation.getLangOpts()->getSYCLVersion(), LangOptions::SYCL_None);
+  ASSERT_EQ(Invocation.getLangOpts()->getSYCLVersion(), LangOptions::SYCL_2017);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
 
-  ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-fsycl"))));
-  ASSERT_THAT(GeneratedArgs, Not(Contains(HasSubstr("-sycl-std="))));
+  ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-fsycl-is-device"))));
+  ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-fsycl-is-host"))));
+
+  // FIXME: generateCC1CommandLine is only used by the unit test system and
+  // cannot handle this case. It passes along the -scyl-std because the option
+  // definition does not specify that it relies on -fsycl any longer (because
+  // there is no syntax I could find that would allow it). However, the option
+  // is handled properly on a real invocation. See: Clang::ConstructJob().
+  ASSERT_THAT(GeneratedArgs, Contains(HasSubstr("-sycl-std=")));
 }
 
 TEST_F(CommandLineTest, ConditionalParsingIfTrueFlagNotPresent) {
@@ -559,12 +566,12 @@ TEST_F(CommandLineTest, ConditionalParsingIfTrueFlagPresent) {
   CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
 
   ASSERT_TRUE(Diags->hasErrorOccurred());
-  ASSERT_EQ(Invocation.getLangOpts()->getSYCLVersion(), LangOptions::SYCL_None);
+  ASSERT_EQ(Invocation.getLangOpts()->getSYCLVersion(), LangOptions::SYCL_2017);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
 
   ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-fsycl"))));
-  ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-sycl-std=2017"))));
+  ASSERT_THAT(GeneratedArgs, Contains(StrEq("-sycl-std=2017")));
 }
 
 // Wide integer option.

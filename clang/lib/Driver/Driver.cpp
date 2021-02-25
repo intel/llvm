@@ -797,7 +797,8 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // If -fsycl is supplied without any of these we will assume SPIR-V.
   // Use of -fsycl-device-only overrides -fsycl.
   bool HasValidSYCLRuntime =
-      C.getInputArgs().hasArg(options::OPT_fsycl) ||
+      C.getInputArgs().hasFlag(options::OPT_fsycl, options::OPT_fno_sycl,
+                               false) ||
       C.getInputArgs().hasArg(options::OPT_fsycl_device_only);
 
   // A mechanism for retrieving SYCL-specific options, erroring out
@@ -2390,7 +2391,8 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
   // actually use it, so we warn about unused -x arguments.
   types::ID InputType = types::TY_Nothing;
   Arg *InputTypeArg = nullptr;
-  bool IsSYCL = Args.hasArg(options::OPT_fsycl) ||
+  bool IsSYCL =
+      Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) ||
                 Args.hasArg(options::OPT_fsycl_device_only);
 
   // The last /TC or /TP option sets the input type to C or C++ globally.
@@ -2777,7 +2779,7 @@ static bool IsSYCLDeviceLibObj(std::string ObjFilePath, bool isMSVCEnv) {
 bool Driver::checkForOffloadStaticLib(Compilation &C,
                                       DerivedArgList &Args) const {
   // Check only if enabled with -fsycl or -fopenmp-targets
-  if (!Args.hasArg(options::OPT_fsycl) &&
+  if (!Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) &&
       !Args.hasArg(options::OPT_fopenmp_targets_EQ))
     return false;
 
@@ -4391,7 +4393,8 @@ class OffloadingActionBuilder final {
       Arg *SYCLTargets =
               C.getInputArgs().getLastArg(options::OPT_fsycl_targets_EQ);
       Arg *SYCLAddTargets = Args.getLastArg(options::OPT_fsycl_add_targets_EQ);
-      bool HasValidSYCLRuntime = C.getInputArgs().hasArg(options::OPT_fsycl);
+      bool HasValidSYCLRuntime = C.getInputArgs().hasFlag(
+          options::OPT_fsycl, options::OPT_fno_sycl, false);
       bool SYCLfpgaTriple = false;
       if (SYCLTargets || SYCLAddTargets) {
         if (SYCLTargets) {
