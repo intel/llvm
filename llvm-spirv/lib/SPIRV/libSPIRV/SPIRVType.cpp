@@ -116,12 +116,12 @@ SPIRVType *SPIRVType::getVectorComponentType() const {
 
 SPIRVWord SPIRVType::getMatrixColumnCount() const {
   assert(OpCode == OpTypeMatrix && "Not matrix type");
-  return static_cast<const SPIRVTypeMatrix *const>(this)->getColumnCount();
+  return static_cast<const SPIRVTypeMatrix *>(this)->getColumnCount();
 }
 
 SPIRVType *SPIRVType::getMatrixColumnType() const {
   assert(OpCode == OpTypeMatrix && "Not matrix type");
-  return static_cast<const SPIRVTypeMatrix *const>(this)->getColumnType();
+  return static_cast<const SPIRVTypeMatrix *>(this)->getColumnType();
 }
 
 SPIRVType *SPIRVType::getScalarType() const {
