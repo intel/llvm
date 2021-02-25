@@ -73,7 +73,8 @@ def do_dependency(args):
         fetch_cmd = ["git", "pull", "--ff", "--ff-only", "origin"]
         subprocess.check_call(fetch_cmd, cwd=icd_loader_dir)
 
-    # Checkout fixed version to avoid unrelated CI failures
+    # Checkout fixed version to avoid unexpected issues coming from upstream
+    # Specific version can be uplifted as soon as such need arise
     checkout_cmd = ["git", "checkout", "5f8249691ec8c25775789498951f8e9eb62c201d"]
     subprocess.check_call(checkout_cmd, cwd=icd_loader_dir)
 
