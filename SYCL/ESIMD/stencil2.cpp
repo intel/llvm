@@ -11,6 +11,8 @@
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
+// #155 Disable unstable tests
+// REQUIRES: TEMPORARY_DISBLED
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
