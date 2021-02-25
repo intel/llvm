@@ -28,7 +28,7 @@ enum Errors : int8_t {
   OPENCL_AOT_FAILED_TO_CREATE_OPENCL_PROGRAM,
   OPENCL_AOT_FAILED_TO_CREATE_ELF,
   OPENCL_AOT_DEVICE_INFO_PARAMETER_IS_EMPTY,
-  OPENCL_AOT_LIST_OF_INPUT_BINARIES_IS_EMPTY,
+  OPENCL_AOT_LIST_OF_INPUT_FILES_IS_EMPTY,
   OPENCL_AOT_FAILED_TO_OPEN_FILE,
   OPENCL_AOT_FILE_IS_EMPTY,
   OPENCL_AOT_DEVICE_DOESNT_SUPPORT_SPIRV,
@@ -93,8 +93,12 @@ createProgramWithIL(std::vector<char> IL, cl_context Context,
 std::tuple<std::vector<char>, std::string, cl_int>
 readBinaryFile(std::string FileName);
 
+bool isFileOCLSource(const std::string &FileName);
+
 bool isFileELF(const std::vector<char> &BinaryData);
 
 bool isFileSPIRV(const std::vector<char> &BinaryData);
+
+bool isFileLLVMIR(const std::vector<char> &BinaryData);
 
 #endif /* AOT_COMP_TOOL_UTILS */

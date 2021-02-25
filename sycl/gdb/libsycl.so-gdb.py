@@ -176,7 +176,7 @@ class PrivateMemoryOpCall(gdb.xmethod.XMethodWorker):
         return self.result_type
 
     def __call__(self, obj, *args):
-        if obj['Val'].type.tag == self.result_type:
+        if obj['Val'].type.tag.endswith(self.result_type):
             # On device private_memory is a simple wrapper over actual value
             return obj['Val']
         else:
@@ -196,11 +196,10 @@ class PrivateMemoryMatcher(gdb.xmethod.XMethodMatcher):
         if method_name != 'operator()':
             return None
 
-        result = re.match('^cl::sycl::private_memory<(cl::sycl::id<.+>), (.+)>$', class_type.tag)
+        result = re.match('^cl::sycl::private_memory<((cl::)?(sycl::)?id<.+>), (.+)>$', class_type.tag)
         if result is None:
             return None
-
-        return PrivateMemoryOpCall(result[1], result[2])
+        return PrivateMemoryOpCall(result[1], result[4])
 
 
 
