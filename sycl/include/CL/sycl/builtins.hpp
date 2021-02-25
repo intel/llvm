@@ -1544,6 +1544,11 @@ detail::enable_if_t<detail::is_genfloatf<T>::value, T> tan(T x) __NOEXC {
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 #ifdef __SYCL_DEVICE_ONLY__
+extern "C" {
+extern SYCL_EXTERNAL div_t div(int x, int y);
+extern SYCL_EXTERNAL ldiv_t ldiv(long int x, long int y);
+extern SYCL_EXTERNAL lldiv_t lldiv(long long int x, long long int y);
+}
 #ifdef __GLIBC__
 extern "C" {
 extern SYCL_EXTERNAL void __assert_fail(const char *expr, const char *file,

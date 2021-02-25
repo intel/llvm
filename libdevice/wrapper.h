@@ -15,6 +15,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 // We need the following header to ensure the definition of all spirv variables
 // required by the wrapper libraries.
 #include "spirv_vars.h"
