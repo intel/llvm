@@ -54,7 +54,7 @@ set_target_properties(check-sycl-deploy PROPERTIES FOLDER "SYCL tests")
 add_lit_testsuite(check-sycl-spirv "Running device-agnostic SYCL regression tests for SPIR-V"
   ${CMAKE_CURRENT_BINARY_DIR}
   ARGS ${RT_TEST_ARGS}
-  PARAMS "SYCL_TRIPLE=spir64-unknown-linux-sycldevice"
+  PARAMS "SYCL_TRIPLE=spir64-unknown-unknown-sycldevice"
   DEPENDS ${SYCL_TEST_DEPS}
   EXCLUDE_FROM_CHECK_ALL
   )

@@ -40,7 +40,7 @@ struct StorageClass {
   enum Flag : uint32_t {
     UniformConstant = 0,
     Input = 1,
-    sUniform = 2,
+    Uniform = 2,
     Output = 3,
     Workgroup = 4,
     CrossWorkgroup = 5,
@@ -61,15 +61,15 @@ struct StorageClass {
     HitAttributeNV = 5339,
     IncomingRayPayloadKHR = 5342,
     IncomingRayPayloadNV = 5342,
-    RecordBufferKHR = 5343,
+    ShaderRecordBufferKHR = 5343,
     ShaderRecordBufferNV = 5343,
     PhysicalStorageBuffer = 5349,
     PhysicalStorageBufferEXT = 5349,
     CodeSectionINTEL = 5605,
+    CapabilityUSMStorageClassesINTEL = 5935,
     DeviceOnlyINTEL = 5936,
     HostOnlyINTEL = 5937,
     Max = 0x7fffffff,
-    CapabilityUSMStorageClassesINTEL = 5935,
   };
   constexpr StorageClass(Flag flag) : flag_value(flag) {}
   constexpr operator uint32_t() const { return flag_value; }
