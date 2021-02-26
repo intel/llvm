@@ -86,8 +86,7 @@ int main() {
       device d = hs.select_device();
       std::cout << "host_selector selected ";
       printDeviceType(d);
-      assert(d.is_host() &&
-             "The selected device is not the target device specified.");
+      assert(d.is_host() && "The selected device is not a host device.");
     }
   }
   return 0;
