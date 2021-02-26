@@ -41,7 +41,7 @@ int main() {
   const char *envVal = std::getenv("SYCL_DEVICE_FILTER");
   int deviceNum;
   std::cout << "SYCL_DEVICE_FILTER=" << envVal << std::endl;
-  deviceNum = *envVal - '0';
+  deviceNum = std::atoi(envVal);
 
   auto devices = device::get_devices();
   if (devices.size() >= deviceNum) {
