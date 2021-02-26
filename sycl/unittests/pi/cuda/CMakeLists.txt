@@ -13,10 +13,6 @@ add_sycl_unittest(PiCudaTests OBJECT
 
 add_dependencies(PiCudaTests sycl)
 
-target_link_libraries(PiCudaTests PRIVATE
-  LLVMTestingSupport
-  OpenCL-Headers)
-
 target_compile_definitions(PiCudaTests PRIVATE
   GTEST_HAS_COMBINE=1)
 

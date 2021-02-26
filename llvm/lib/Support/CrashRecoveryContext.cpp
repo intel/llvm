@@ -82,7 +82,7 @@ public:
     // this occurs when using SEH on Windows with MSVC or clang-cl.
   }
 };
-}
+} // namespace
 
 static ManagedStatic<std::mutex> gCrashRecoveryContextMutex;
 static bool gCrashRecoveryEnabled = false;
@@ -94,6 +94,13 @@ static void installExceptionOrSignalHandlers();
 static void uninstallExceptionOrSignalHandlers();
 
 CrashRecoveryContextCleanup::~CrashRecoveryContextCleanup() {}
+
+CrashRecoveryContext::CrashRecoveryContext() {
+  // On Windows, if abort() was previously triggered (and caught by a previous
+  // CrashRecoveryContext) the Windows CRT removes our installed signal handler,
+  // so we need to install it again.
+  sys::DisableSystemDialogsOnCrash();
+}
 
 CrashRecoveryContext::~CrashRecoveryContext() {
   // Reclaim registered resources.
@@ -368,9 +375,10 @@ static void CrashRecoverySignalHandler(int Signal) {
   sigaddset(&SigMask, Signal);
   sigprocmask(SIG_UNBLOCK, &SigMask, nullptr);
 
-  // As per convention, -2 indicates a crash or timeout as opposed to failure to
-  // execute (see llvm/include/llvm/Support/Program.h)
-  int RetCode = -2;
+  // Return the same error code as if the program crashed, as mentioned in the
+  // section "Exit Status for Commands":
+  // https://pubs.opengroup.org/onlinepubs/9699919799/xrat/V4_xcu_chap02.html
+  int RetCode = 128 + Signal;
 
   // Don't consider a broken pipe as a crash (see clang/lib/Driver/Driver.cpp)
   if (Signal == SIGPIPE)
@@ -434,6 +442,27 @@ void CrashRecoveryContext::HandleExit(int RetCode) {
   llvm_unreachable("Most likely setjmp wasn't called!");
 }
 
+bool CrashRecoveryContext::throwIfCrash(int RetCode) {
+#if defined(_WIN32)
+  // On Windows, the high bits are reserved for kernel return codes. Values
+  // starting with 0x80000000 are reserved for "warnings"; values of 0xC0000000
+  // and up are for "errors". In practice, both are interpreted as a
+  // non-continuable signal.
+  unsigned Code = ((unsigned)RetCode & 0xF0000000) >> 28;
+  if (Code != 0xC && Code != 8)
+    return false;
+  ::RaiseException(RetCode, 0, 0, NULL);
+#else
+  // On Unix, signals are represented by return codes of 128 or higher.
+  // Exit code 128 is a reserved value and should not be raised as a signal.
+  if (RetCode <= 128)
+    return false;
+  llvm::sys::unregisterHandlers();
+  raise(RetCode - 128);
+#endif
+  return true;
+}
+
 // FIXME: Portability.
 static void setThreadBackgroundPriority() {
 #ifdef __APPLE__
@@ -456,7 +485,7 @@ struct RunSafelyOnThreadInfo {
   bool UseBackgroundPriority;
   bool Result;
 };
-}
+} // namespace
 
 static void RunSafelyOnThread_Dispatch(void *UserData) {
   RunSafelyOnThreadInfo *Info =

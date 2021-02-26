@@ -118,6 +118,21 @@ private:
   int Data;
 };
 
+template <int dim> struct item {
+  template <typename... T>
+  item(T... args) {} // fake constructor
+private:
+  // Some fake field added to see using of item arguments in the
+  // kernel wrapper
+  int Data;
+};
+
+template <int Dims> item<Dims>
+this_item() { return item<Dims>{}; }
+
+template <int Dims> id<Dims>
+this_id() { return id<Dims>{}; }
+
 template <int dim>
 struct range {
   template <typename... T>
@@ -156,6 +171,7 @@ public:
 private:
   void __init(__attribute__((opencl_global)) dataT *Ptr, range<dimensions> AccessRange,
               range<dimensions> MemRange, id<dimensions> Offset) {}
+  void __init_esimd(__attribute__((opencl_global)) dataT *Ptr) {}
 };
 
 template <int dimensions, access::mode accessmode, access::target accesstarget>
@@ -281,6 +297,11 @@ ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc) {
   kernelFunc();
 }
 
+template <typename KernelName = auto_name, typename KernelType>
+ATTR_SYCL_KERNEL void kernel_single_task_2017(KernelType kernelFunc) {
+  kernelFunc();
+}
+
 template <typename KernelName, typename KernelType, int Dims>
 ATTR_SYCL_KERNEL void
 kernel_parallel_for(const KernelType &KernelFunc) {
@@ -321,6 +342,16 @@ public:
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_single_task<NameT>(kernelFunc);
+#else
+    kernelFunc();
+#endif
+  }
+
+  template <typename KernelName = auto_name, typename KernelType>
+  void single_task_2017(KernelType kernelFunc) {
+    using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
+#ifdef __SYCL_DEVICE_ONLY__
+    kernel_single_task_2017<NameT>(kernelFunc);
 #else
     kernelFunc();
 #endif

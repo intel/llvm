@@ -27,16 +27,17 @@
 #include "llvm/Analysis/MemorySSA.h"
 #include "llvm/Analysis/MemorySSAUpdater.h"
 #include "llvm/Analysis/MustExecute.h"
+#include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/Value.h"
 #include "llvm/InitializePasses.h"
@@ -50,6 +51,7 @@
 #include "llvm/Transforms/Scalar/SimpleLoopUnswitch.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include <algorithm>
@@ -690,11 +692,9 @@ static bool unswitchTrivialSwitch(Loop &L, SwitchInst &SI, DominatorTree &DT,
   // successor.
   BasicBlock *CommonSuccBB = nullptr;
   if (SI.getNumCases() > 0 &&
-      std::all_of(std::next(SI.case_begin()), SI.case_end(),
-                  [&SI](const SwitchInst::CaseHandle &Case) {
-                    return Case.getCaseSuccessor() ==
-                           SI.case_begin()->getCaseSuccessor();
-                  }))
+      all_of(drop_begin(SI.cases()), [&SI](const SwitchInst::CaseHandle &Case) {
+        return Case.getCaseSuccessor() == SI.case_begin()->getCaseSuccessor();
+      }))
     CommonSuccBB = SI.case_begin()->getCaseSuccessor();
   if (!DefaultExitBB) {
     // If we're not unswitching the default, we need it to match any cases to
@@ -853,12 +853,13 @@ static bool unswitchTrivialSwitch(Loop &L, SwitchInst &SI, DominatorTree &DT,
     DTUpdates.push_back({DT.Delete, ParentBB, SplitUnswitchedPair.first});
     DTUpdates.push_back({DT.Insert, OldPH, SplitUnswitchedPair.second});
   }
-  DT.applyUpdates(DTUpdates);
 
   if (MSSAU) {
-    MSSAU->applyUpdates(DTUpdates, DT);
+    MSSAU->applyUpdates(DTUpdates, DT, /*UpdateDT=*/true);
     if (VerifyMemorySSA)
       MSSAU->getMemorySSA()->verifyMemorySSA();
+  } else {
+    DT.applyUpdates(DTUpdates);
   }
 
   assert(DT.verify(DominatorTree::VerificationLevel::Fast));
@@ -1139,8 +1140,21 @@ static BasicBlock *buildClonedLoopBlocks(
   // Replace the cloned branch with an unconditional branch to the cloned
   // unswitched successor.
   auto *ClonedSuccBB = cast<BasicBlock>(VMap.lookup(UnswitchedSuccBB));
-  ClonedParentBB->getTerminator()->eraseFromParent();
+  Instruction *ClonedTerminator = ClonedParentBB->getTerminator();
+  // Trivial Simplification. If Terminator is a conditional branch and
+  // condition becomes dead - erase it.
+  Value *ClonedConditionToErase = nullptr;
+  if (auto *BI = dyn_cast<BranchInst>(ClonedTerminator))
+    ClonedConditionToErase = BI->getCondition();
+  else if (auto *SI = dyn_cast<SwitchInst>(ClonedTerminator))
+    ClonedConditionToErase = SI->getCondition();
+
+  ClonedTerminator->eraseFromParent();
   BranchInst::Create(ClonedSuccBB, ClonedParentBB);
+
+  if (ClonedConditionToErase)
+    RecursivelyDeleteTriviallyDeadInstructions(ClonedConditionToErase, nullptr,
+                                               MSSAU);
 
   // If there are duplicate entries in the PHI nodes because of multiple edges
   // to the unswitched successor, we need to nuke all but one as we replaced it
@@ -1200,7 +1214,7 @@ static Loop *cloneLoopNest(Loop &OrigRootL, Loop *RootParentL,
     LI.addTopLevelLoop(ClonedRootL);
   AddClonedBlocksToLoop(OrigRootL, *ClonedRootL);
 
-  if (OrigRootL.empty())
+  if (OrigRootL.isInnermost())
     return ClonedRootL;
 
   // If we have a nest, we can quickly clone the entire loop nest using an
@@ -2339,12 +2353,12 @@ static void unswitchNontrivialInvariants(
   for (Loop *UpdatedL :
        llvm::concat<Loop *>(NonChildClonedLoops, HoistedLoops)) {
     UpdateLoop(*UpdatedL);
-    if (!UpdatedL->getParentLoop())
+    if (UpdatedL->isOutermost())
       OuterExitL = nullptr;
   }
   if (IsStillLoop) {
     UpdateLoop(L);
-    if (!L.getParentLoop())
+    if (L.isOutermost())
       OuterExitL = nullptr;
   }
 
@@ -2888,6 +2902,10 @@ static bool unswitchLoop(Loop &L, DominatorTree &DT, LoopInfo &LI,
   // a parameter but also check a local flag that can be used for testing
   // a debugging.
   if (!NonTrivial && !EnableNonTrivialUnswitch)
+    return false;
+
+  // Skip non-trivial unswitching for optsize functions.
+  if (L.getHeader()->getParent()->hasOptSize())
     return false;
 
   // For non-trivial unswitching, because it often creates new loops, we rely on

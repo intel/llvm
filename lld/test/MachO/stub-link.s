@@ -3,7 +3,7 @@
 # RUN: mkdir -p %t
 #
 # RUN: llvm-mc -filetype obj -triple x86_64-apple-darwin %s -o %t/test.o
-# RUN: lld -flavor darwinnew -o %t/test -syslibroot %S/Inputs/MacOSX.sdk -lSystem -lc++ -framework CoreFoundation %t/test.o
+# RUN: %lld -o %t/test -lSystem -lc++ -framework CoreFoundation %t/test.o
 #
 # RUN: llvm-objdump --bind --no-show-raw-insn -d -r %t/test | FileCheck %s
 
@@ -16,7 +16,17 @@
 # CHECK-DAG: __DATA __data {{.*}} pointer 0 CoreFoundation _OBJC_METACLASS_$_NSObject
 # CHECK-DAG: __DATA __data {{.*}} pointer 0 CoreFoundation _OBJC_IVAR_$_NSConstantArray._count
 # CHECK-DAG: __DATA __data {{.*}} pointer 0 CoreFoundation _OBJC_EHTYPE_$_NSException
-# CHECK-DAG: __DATA __data {{.*}} pointer 0 libc++         ___gxx_personality_v0
+# CHECK-DAG: __DATA __data {{.*}} pointer 0 libc++abi      ___gxx_personality_v0
+
+# RUN: llvm-objdump --macho --all-headers %t/test | \
+# RUN:     FileCheck --check-prefix=LOAD %s
+
+# LOAD:          cmd LC_LOAD_DYLIB
+# LOAD-NEXT:               cmdsize
+# LOAD-NEXT:                  name /usr/lib/libSystem.B.dylib
+# LOAD-NEXT:            time stamp
+# LOAD-NEXT:       current version 1.1.1
+# LOAD-NEXT: compatibility version
 
 .section __TEXT,__text
 .global _main

@@ -182,9 +182,8 @@ define <vscale x 16 x i8> @test_lane0_undef_16xi8(i8 %a) {
 define <vscale x 16 x i8> @test_insert0_of_extract0_16xi8(<vscale x 16 x i8> %a, <vscale x 16 x i8> %b) {
 ; CHECK-LABEL: test_insert0_of_extract0_16xi8:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    mov z1.b, b1
-; CHECK-NEXT:    ptrue p0.b, vl1
 ; CHECK-NEXT:    fmov w8, s1
+; CHECK-NEXT:    ptrue p0.b, vl1
 ; CHECK-NEXT:    mov z0.b, p0/m, w8
 ; CHECK-NEXT:    ret
   %c = extractelement <vscale x 16 x i8> %b, i32 0
@@ -212,16 +211,69 @@ define <vscale x 16 x i8> @test_insert64_of_extract64_16xi8(<vscale x 16 x i8> %
 define <vscale x 16 x i8> @test_insert3_of_extract1_16xi8(<vscale x 16 x i8> %a, <vscale x 16 x i8> %b) {
 ; CHECK-LABEL: test_insert3_of_extract1_16xi8:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    mov z1.b, z1.b[1]
-; CHECK-NEXT:    mov w8, #3
-; CHECK-NEXT:    index z2.b, #0, #1
-; CHECK-NEXT:    fmov w9, s1
-; CHECK-NEXT:    mov z1.b, w8
+; CHECK-NEXT:    mov w9, #3
+; CHECK-NEXT:    umov w8, v1.b[1]
+; CHECK-NEXT:    index z1.b, #0, #1
+; CHECK-NEXT:    mov z2.b, w9
 ; CHECK-NEXT:    ptrue p0.b
-; CHECK-NEXT:    cmpeq p0.b, p0/z, z2.b, z1.b
-; CHECK-NEXT:    mov z0.b, p0/m, w9
+; CHECK-NEXT:    cmpeq p0.b, p0/z, z1.b, z2.b
+; CHECK-NEXT:    mov z0.b, p0/m, w8
 ; CHECK-NEXT:    ret
   %c = extractelement <vscale x 16 x i8> %b, i32 1
   %d = insertelement <vscale x 16 x i8> %a, i8 %c, i32 3
   ret <vscale x 16 x i8> %d
+}
+
+define <vscale x 8 x half> @test_insert_into_undef_nxv8f16(half %a) {
+; CHECK-LABEL: test_insert_into_undef_nxv8f16:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    // kill: def $h0 killed $h0 def $z0
+; CHECK-NEXT:    ret
+  %b = insertelement <vscale x 8 x half> undef, half %a, i32 0
+  ret <vscale x 8 x half> %b
+}
+
+define <vscale x 4 x half> @test_insert_into_undef_nxv4f16(half %a) {
+; CHECK-LABEL: test_insert_into_undef_nxv4f16:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    // kill: def $h0 killed $h0 def $z0
+; CHECK-NEXT:    ret
+  %b = insertelement <vscale x 4 x half> undef, half %a, i32 0
+  ret <vscale x 4 x half> %b
+}
+
+define <vscale x 2 x half> @test_insert_into_undef_nxv2f16(half %a) {
+; CHECK-LABEL: test_insert_into_undef_nxv2f16:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    // kill: def $h0 killed $h0 def $z0
+; CHECK-NEXT:    ret
+  %b = insertelement <vscale x 2 x half> undef, half %a, i32 0
+  ret <vscale x 2 x half> %b
+}
+
+define <vscale x 4 x float> @test_insert_into_undef_nxv4f32(float %a) {
+; CHECK-LABEL: test_insert_into_undef_nxv4f32:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    // kill: def $s0 killed $s0 def $z0
+; CHECK-NEXT:    ret
+  %b = insertelement <vscale x 4 x float> undef, float %a, i32 0
+  ret <vscale x 4 x float> %b
+}
+
+define <vscale x 2 x float> @test_insert_into_undef_nxv2f32(float %a) {
+; CHECK-LABEL: test_insert_into_undef_nxv2f32:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    // kill: def $s0 killed $s0 def $z0
+; CHECK-NEXT:    ret
+  %b = insertelement <vscale x 2 x float> undef, float %a, i32 0
+  ret <vscale x 2 x float> %b
+}
+
+define <vscale x 2 x double> @test_insert_into_undef_nxv2f64(double %a) {
+; CHECK-LABEL: test_insert_into_undef_nxv2f64:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    // kill: def $d0 killed $d0 def $z0
+; CHECK-NEXT:    ret
+  %b = insertelement <vscale x 2 x double> undef, double %a, i32 0
+  ret <vscale x 2 x double> %b
 }

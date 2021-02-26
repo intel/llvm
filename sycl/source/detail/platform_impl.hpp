@@ -20,8 +20,10 @@ namespace sycl {
 // Forward declaration
 class device_selector;
 class device;
+enum class aspect;
 
 namespace detail {
+class device_impl;
 
 // TODO: implement extension management for host device
 // TODO: implement parameters treatment for host device
@@ -74,10 +76,11 @@ public:
 
   /// \return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const {
-    if (is_host())
-      throw invalid_object_error("This instance of platform is a host instance",
-                                 PI_INVALID_PLATFORM);
-
+    if (is_host() || getPlugin().getBackend() != cl::sycl::backend::opencl) {
+      throw invalid_object_error(
+          "This instance of platform doesn't support OpenCL interoperability.",
+          PI_INVALID_PLATFORM);
+    }
     return pi::cast<cl_platform_id>(MPlatform);
   }
 
@@ -193,7 +196,7 @@ private:
   bool MHostPlatform = false;
   RT::PiPlatform MPlatform = 0;
   std::shared_ptr<plugin> MPlugin;
-  std::vector<std::shared_ptr<device_impl>> MDeviceCache;
+  std::vector<std::weak_ptr<device_impl>> MDeviceCache;
   std::mutex MDeviceMapMutex;
 };
 

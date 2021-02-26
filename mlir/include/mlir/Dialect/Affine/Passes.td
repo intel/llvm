@@ -71,6 +71,8 @@ def AffineLoopUnroll : FunctionPass<"affine-loop-unroll"> {
   let options = [
     Option<"unrollFactor", "unroll-factor", "unsigned", /*default=*/"4",
            "Use this unroll factor for all loops being unrolled">,
+    Option<"unrollUpToFactor", "unroll-up-to-factor", "bool",
+           /*default=*/"false", "Allow unrolling up to the factor specified">,
     Option<"unrollFull", "unroll-full", "bool", /*default=*/"false",
            "Fully unroll loops">,
     Option<"numRepetitions", "unroll-num-reps", "unsigned", /*default=*/"1",
@@ -116,12 +118,16 @@ def AffineVectorize : FunctionPass<"affine-super-vectorize"> {
 def AffineParallelize : FunctionPass<"affine-parallelize"> {
   let summary = "Convert affine.for ops into 1-D affine.parallel";
   let constructor = "mlir::createAffineParallelizePass()";
+  let options = [
+    Option<"maxNested", "max-nested", "unsigned", /*default=*/"-1u",
+           "Maximum number of nested parallel loops to produce. "
+           "Defaults to unlimited (UINT_MAX).">,
+  ];
 }
 
-def AffineParallelNormalize : FunctionPass<"affine-parallel-normalize"> {
-  let summary = "Normalize affine.parallel ops so that lower bounds are 0 and "
-                "steps are 1";
-  let constructor = "mlir::createAffineParallelNormalizePass()";
+def AffineLoopNormalize : FunctionPass<"affine-loop-normalize"> {
+  let summary = "Apply normalization transformations to affine loop-like ops";
+  let constructor = "mlir::createAffineLoopNormalizePass()";
 }
 
 def SimplifyAffineStructures : FunctionPass<"simplify-affine-structures"> {

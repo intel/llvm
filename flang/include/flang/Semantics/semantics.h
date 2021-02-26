@@ -16,6 +16,7 @@
 #include "flang/Evaluate/intrinsics.h"
 #include "flang/Parser/message.h"
 #include <iosfwd>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -170,6 +171,7 @@ public:
   void ActivateIndexVar(const parser::Name &, IndexVarKind);
   void DeactivateIndexVar(const parser::Name &);
   SymbolVector GetIndexVars(IndexVarKind);
+  SourceName SaveTempName(std::string &&);
   SourceName GetTempName(const Scope &);
 
 private:
@@ -198,16 +200,16 @@ private:
   };
   std::map<SymbolRef, const IndexVarInfo> activeIndexVars_;
   std::set<SymbolRef> errorSymbols_;
-  std::vector<std::string> tempNames_;
+  std::set<std::string> tempNames_;
 };
 
 class Semantics {
 public:
   explicit Semantics(SemanticsContext &context, parser::Program &program,
-      const parser::CookedSource &cooked, bool debugModuleWriter = false)
+      parser::CharBlock charBlock, bool debugModuleWriter = false)
       : context_{context}, program_{program} {
     context.set_debugModuleWriter(debugModuleWriter);
-    context.globalScope().AddSourceRange(parser::CharBlock{cooked.data()});
+    context.globalScope().AddSourceRange(charBlock);
   }
 
   SemanticsContext &context() const { return context_; }

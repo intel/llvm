@@ -292,6 +292,13 @@ Value *SimplifyFreezeInst(Value *Op, const SimplifyQuery &Q);
 Value *SimplifyInstruction(Instruction *I, const SimplifyQuery &Q,
                            OptimizationRemarkEmitter *ORE = nullptr);
 
+/// See if V simplifies when its operand Op is replaced with RepOp. If not,
+/// return null.
+/// AllowRefinement specifies whether the simplification can be a refinement,
+/// or whether it needs to be strictly identical.
+Value *SimplifyWithOpReplaced(Value *V, Value *Op, Value *RepOp,
+                              const SimplifyQuery &Q, bool AllowRefinement);
+
 /// Replace all uses of 'I' with 'SimpleV' and simplify the uses recursively.
 ///
 /// This first performs a normal RAUW of I with SimpleV. It then recursively
@@ -305,17 +312,6 @@ bool replaceAndRecursivelySimplify(
     Instruction *I, Value *SimpleV, const TargetLibraryInfo *TLI = nullptr,
     const DominatorTree *DT = nullptr, AssumptionCache *AC = nullptr,
     SmallSetVector<Instruction *, 8> *UnsimplifiedUsers = nullptr);
-
-/// Recursively attempt to simplify an instruction.
-///
-/// This routine uses SimplifyInstruction to simplify 'I', and if successful
-/// replaces uses of 'I' with the simplified value. It then recurses on each
-/// of the users impacted. It returns true if any simplifications were
-/// performed.
-bool recursivelySimplifyInstruction(Instruction *I,
-                                    const TargetLibraryInfo *TLI = nullptr,
-                                    const DominatorTree *DT = nullptr,
-                                    AssumptionCache *AC = nullptr);
 
 // These helper functions return a SimplifyQuery structure that contains as
 // many of the optional analysis we use as are currently valid.  This is the

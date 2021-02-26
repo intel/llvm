@@ -26,12 +26,14 @@
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/exception.hpp>
+#include <CL/sycl/feature_test.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/image.hpp>
 #include <CL/sycl/item.hpp>
 #include <CL/sycl/kernel.hpp>
+#include <CL/sycl/marray.hpp>
 #include <CL/sycl/multi_ptr.hpp>
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/nd_range.hpp>

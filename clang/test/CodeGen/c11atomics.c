@@ -25,10 +25,10 @@ struct elem {
 // CHECK-DAG: %struct.elem = type { %struct.ptr }
 
 struct ptr object;
-// CHECK-DAG: @object = global %struct.ptr zeroinitializer
+// CHECK-DAG: @object ={{.*}} global %struct.ptr zeroinitializer
 
-// CHECK-DAG: @testStructGlobal = global {{.*}} { i16 1, i16 2, i16 3, i16 4 }
-// CHECK-DAG: @testPromotedStructGlobal = global {{.*}} { %{{.*}} { i16 1, i16 2, i16 3 }, [2 x i8] zeroinitializer }
+// CHECK-DAG: @testStructGlobal ={{.*}} global {{.*}} { i16 1, i16 2, i16 3, i16 4 }
+// CHECK-DAG: @testPromotedStructGlobal ={{.*}} global {{.*}} { %{{.*}} { i16 1, i16 2, i16 3 }, [2 x i8] zeroinitializer }
 
 
 typedef int __attribute__((vector_size(16))) vector;
@@ -61,7 +61,7 @@ void testinc(void)
   // we have to generate an atomic add, which returns the old value, and then a
   // non-atomic add.
   // CHECK: atomicrmw add i32* @i, i32 1 seq_cst
-  // CHECK: add i32 
+  // CHECK: add i32
   ++i;
   // CHECK: atomicrmw add i64* @l, i64 1 seq_cst
   // CHECK: add i64
@@ -154,7 +154,7 @@ void testandeq(void)
   s &= 42;
 }
 
-// CHECK-LABEL: define arm_aapcscc void @testFloat(float*
+// CHECK-LABEL: define{{.*}} arm_aapcscc void @testFloat(float*
 void testFloat(_Atomic(float) *fp) {
 // CHECK:      [[FP:%.*]] = alloca float*
 // CHECK-NEXT: [[X:%.*]] = alloca float
@@ -189,7 +189,7 @@ void testFloat(_Atomic(float) *fp) {
 // CHECK-NEXT: ret void
 }
 
-// CHECK: define arm_aapcscc void @testComplexFloat([[CF:{ float, float }]]*
+// CHECK: define{{.*}} arm_aapcscc void @testComplexFloat([[CF:{ float, float }]]*
 void testComplexFloat(_Atomic(_Complex float) *fp) {
 // CHECK:      [[FP:%.*]] = alloca [[CF]]*, align 4
 // CHECK-NEXT: [[X:%.*]] = alloca [[CF]], align 8
@@ -244,7 +244,7 @@ void testComplexFloat(_Atomic(_Complex float) *fp) {
 
 typedef struct { short x, y, z, w; } S;
 _Atomic S testStructGlobal = (S){1, 2, 3, 4};
-// CHECK: define arm_aapcscc void @testStruct([[S:.*]]*
+// CHECK: define{{.*}} arm_aapcscc void @testStruct([[S:.*]]*
 void testStruct(_Atomic(S) *fp) {
 // CHECK:      [[FP:%.*]] = alloca [[S]]*, align 4
 // CHECK-NEXT: [[X:%.*]] = alloca [[S]], align 8
@@ -293,7 +293,7 @@ void testStruct(_Atomic(S) *fp) {
 
 typedef struct { short x, y, z; } PS;
 _Atomic PS testPromotedStructGlobal = (PS){1, 2, 3};
-// CHECK: define arm_aapcscc void @testPromotedStruct([[APS:.*]]*
+// CHECK: define{{.*}} arm_aapcscc void @testPromotedStruct([[APS:.*]]*
 void testPromotedStruct(_Atomic(PS) *fp) {
 // CHECK:      [[FP:%.*]] = alloca [[APS]]*, align 4
 // CHECK-NEXT: [[X:%.*]] = alloca [[APS]], align 8
@@ -368,7 +368,7 @@ void testPromotedStruct(_Atomic(PS) *fp) {
 }
 
 PS test_promoted_load(_Atomic(PS) *addr) {
-  // CHECK-LABEL: @test_promoted_load(%struct.PS* noalias sret align 2 %agg.result, { %struct.PS, [2 x i8] }* %addr)
+  // CHECK-LABEL: @test_promoted_load(%struct.PS* noalias sret(%struct.PS) align 2 %agg.result, { %struct.PS, [2 x i8] }* %addr)
   // CHECK:   [[ADDR_ARG:%.*]] = alloca { %struct.PS, [2 x i8] }*, align 4
   // CHECK:   [[ATOMIC_RES:%.*]] = alloca { %struct.PS, [2 x i8] }, align 8
   // CHECK:   store { %struct.PS, [2 x i8] }* %addr, { %struct.PS, [2 x i8] }** [[ADDR_ARG]], align 4
@@ -411,7 +411,7 @@ void test_promoted_store(_Atomic(PS) *addr, PS *val) {
 }
 
 PS test_promoted_exchange(_Atomic(PS) *addr, PS *val) {
-  // CHECK-LABEL: @test_promoted_exchange(%struct.PS* noalias sret align 2 %agg.result, { %struct.PS, [2 x i8] }* %addr, %struct.PS* %val)
+  // CHECK-LABEL: @test_promoted_exchange(%struct.PS* noalias sret(%struct.PS) align 2 %agg.result, { %struct.PS, [2 x i8] }* %addr, %struct.PS* %val)
   // CHECK:   [[ADDR_ARG:%.*]] = alloca { %struct.PS, [2 x i8] }*, align 4
   // CHECK:   [[VAL_ARG:%.*]] = alloca %struct.PS*, align 4
   // CHECK:   [[NONATOMIC_TMP:%.*]] = alloca %struct.PS, align 2

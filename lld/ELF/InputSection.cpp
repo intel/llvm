@@ -53,7 +53,7 @@ static ArrayRef<uint8_t> getSectionContents(ObjFile<ELFT> &file,
                                             const typename ELFT::Shdr &hdr) {
   if (hdr.sh_type == SHT_NOBITS)
     return makeArrayRef<uint8_t>(nullptr, hdr.sh_size);
-  return check(file.getObj().getSectionContents(&hdr));
+  return check(file.getObj().getSectionContents(hdr));
 }
 
 InputSectionBase::InputSectionBase(InputFile *file, uint64_t flags,
@@ -456,7 +456,7 @@ void InputSection::copyRelocations(uint8_t *buf, ArrayRef<RelTy> rels) {
           Elf_Shdr_Impl<ELFT> sec =
               CHECK(file->getObj().sections(), file)[secIdx];
           warn("relocation refers to a discarded section: " +
-               CHECK(file->getObj().getSectionName(&sec), file) +
+               CHECK(file->getObj().getSectionName(sec), file) +
                "\n>>> referenced by " + getObjMsg(p->r_offset));
         }
         p->setSymbolAndType(0, 0, false);
@@ -705,6 +705,8 @@ uint64_t InputSectionBase::getRelocTargetVA(const InputFile *file, RelType type,
   case R_AARCH64_GOT_PAGE_PC:
   case R_AARCH64_RELAX_TLS_GD_TO_IE_PAGE_PC:
     return getAArch64Page(sym.getGotVA() + a) - getAArch64Page(p);
+  case R_AARCH64_GOT_PAGE:
+    return sym.getGotVA() + a - getAArch64Page(in.got->getVA());
   case R_GOT_PC:
   case R_RELAX_TLS_GD_TO_IE:
     return sym.getGotVA() + a - p;
@@ -812,7 +814,7 @@ uint64_t InputSectionBase::getRelocTargetVA(const InputFile *file, RelType type,
   case R_RELAX_TLS_GD_TO_LE:
   case R_RELAX_TLS_IE_TO_LE:
   case R_RELAX_TLS_LD_TO_LE:
-  case R_TLS:
+  case R_TPREL:
     // It is not very clear what to return if the symbol is undefined. With
     // --noinhibit-exec, even a non-weak undefined reference may reach here.
     // Just return A, which matches R_ABS, and the behavior of some dynamic
@@ -821,7 +823,7 @@ uint64_t InputSectionBase::getRelocTargetVA(const InputFile *file, RelType type,
       return a;
     return getTlsTpOffset(sym) + a;
   case R_RELAX_TLS_GD_TO_LE_NEG:
-  case R_NEG_TLS:
+  case R_TPREL_NEG:
     if (sym.isUndefined())
       return a;
     return -getTlsTpOffset(sym) + a;

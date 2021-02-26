@@ -12,6 +12,7 @@
 
 #include "llvm/IR/Mangler.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/IR/DataLayout.h"
@@ -184,6 +185,25 @@ void Mangler::getNameWithPrefix(SmallVectorImpl<char> &OutName,
   getNameWithPrefix(OS, GV, CannotUsePrivateLabel);
 }
 
+// Check if the name needs quotes to be safe for the linker to interpret.
+static bool canBeUnquotedInDirective(char C) {
+  return isAlnum(C) || C == '_' || C == '$' || C == '.' || C == '@';
+}
+
+static bool canBeUnquotedInDirective(StringRef Name) {
+  if (Name.empty())
+    return false;
+
+  // If any of the characters in the string is an unacceptable character, force
+  // quotes.
+  for (char C : Name) {
+    if (!canBeUnquotedInDirective(C))
+      return false;
+  }
+
+  return true;
+}
+
 void llvm::emitLinkerFlagsForGlobalCOFF(raw_ostream &OS, const GlobalValue *GV,
                                         const Triple &TT, Mangler &Mangler) {
   if (!GV->hasDLLExportStorageClass() || GV->isDeclaration())
@@ -194,6 +214,9 @@ void llvm::emitLinkerFlagsForGlobalCOFF(raw_ostream &OS, const GlobalValue *GV,
   else
     OS << " -export:";
 
+  bool NeedQuotes = GV->hasName() && !canBeUnquotedInDirective(GV->getName());
+  if (NeedQuotes)
+    OS << "\"";
   if (TT.isWindowsGNUEnvironment() || TT.isWindowsCygwinEnvironment()) {
     std::string Flag;
     raw_string_ostream FlagOS(Flag);
@@ -206,6 +229,8 @@ void llvm::emitLinkerFlagsForGlobalCOFF(raw_ostream &OS, const GlobalValue *GV,
   } else {
     Mangler.getNameWithPrefix(OS, GV, false);
   }
+  if (NeedQuotes)
+    OS << "\"";
 
   if (!GV->getValueType()->isFunctionTy()) {
     if (TT.isWindowsMSVCEnvironment())
@@ -221,6 +246,11 @@ void llvm::emitLinkerFlagsForUsedCOFF(raw_ostream &OS, const GlobalValue *GV,
     return;
 
   OS << " /INCLUDE:";
+  bool NeedQuotes = GV->hasName() && !canBeUnquotedInDirective(GV->getName());
+  if (NeedQuotes)
+    OS << "\"";
   M.getNameWithPrefix(OS, GV, false);
+  if (NeedQuotes)
+    OS << "\"";
 }
 

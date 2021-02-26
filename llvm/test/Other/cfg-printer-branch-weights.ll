@@ -1,4 +1,4 @@
-;RUN: opt < %s -analyze -dot-cfg -cfg-weights -cfg-raw-weights -cfg-dot-filename-prefix=%t 2>/dev/null
+;RUN: opt < %s -dot-cfg -cfg-weights -cfg-raw-weights -cfg-dot-filename-prefix=%t 2>/dev/null
 ;RUN: FileCheck %s -input-file=%t.f.dot
 
 ;TODO: Investigate why this test doesn't work with dynamically linked libraries

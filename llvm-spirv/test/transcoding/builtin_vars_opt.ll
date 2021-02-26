@@ -3,7 +3,9 @@
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.spv -r -o %t.rev.bc
-; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefixes=CHECK-LLVM,CHECK-LLVM-OCL
+; RUN: llvm-spirv %t.spv -r --spirv-target-env=SPV-IR -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefixes=CHECK-LLVM,CHECK-LLVM-SPV
 
 ; The IR was generated from the following source:
 ; #include <CL/sycl.hpp>
@@ -37,6 +39,17 @@
 ; CHECK-SPIRV: Decorate [[#SG_MaxSize_BI:]] BuiltIn 37
 ; CHECK-SPIRV: Decorate [[#SG_MaxSize_BI:]] Constant
 ; CHECK-SPIRV: Decorate [[#SG_MaxSize_BI:]] LinkageAttributes "__spirv_BuiltInSubgroupMaxSize" Import
+;
+; CHECK-LLVM-OCL-NOT: @__spirv_BuiltInSubgroupMaxSize
+; CHECK-LLVM-NOT: addrspacecast i32 addrspace(1)* @__spirv_BuiltInSubgroupMaxSize to i32 addrspace(4)*
+; CHECK-LLVM-LABEL: if.then.i
+; CHECK-LLVM-NOT: load
+; CHECK-LLVM-OCL: call spir_func i32 @_Z22get_max_sub_group_sizev()
+; CHECK-LLVM-SPV: call spir_func i32 @_Z30__spirv_BuiltInSubgroupMaxSizev()
+; CHECK-LLVM-LABEL: cond.false.i:
+; CHECK-LLVM-NOT: load
+; CHECK-LLVM-OCL: call spir_func i32 @_Z22get_max_sub_group_sizev()
+; CHECK-LLVM-SPV: call spir_func i32 @_Z30__spirv_BuiltInSubgroupMaxSizev()
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-linux-sycldevice"
@@ -47,7 +60,6 @@ target triple = "spir64-unknown-linux-sycldevice"
 
 $_ZTS10sycl_subgrIiLi0EE = comdat any
 
-; CHECK-LLVM-NOT: @__spirv_BuiltInSubgroupMaxSize
 @__spirv_BuiltInSubgroupMaxSize = external dso_local local_unnamed_addr addrspace(1) constant i32, align 4
 
 
@@ -59,14 +71,10 @@ entry:
   %add.ptr.i = getelementptr inbounds i32, i32 addrspace(1)* %_arg_1, i64 %1
   %2 = and i32 %_arg_, 1
   %tobool.not.i = icmp eq i32 %2, 0
-; CHECK-LLVM-NOT: addrspacecast i32 addrspace(1)* @__spirv_BuiltInSubgroupMaxSize to i32 addrspace(4)*
   %3 = addrspacecast i32 addrspace(1)* @__spirv_BuiltInSubgroupMaxSize to i32 addrspace(4)*
   br i1 %tobool.not.i, label %if.end.i, label %if.then.i
 
 if.then.i:                                        ; preds = %entry
-; CHECK-LLVM: if.then.i
-; CHECK-LLVM-NOT: load
-; CHECK-LLVM: call spir_func i32 @_Z22get_max_sub_group_sizev()
   %4 = load i32, i32 addrspace(4)* %3, align 4, !noalias !8
   %ptridx.ascast.i14.i = addrspacecast i32 addrspace(1)* %add.ptr.i to i32 addrspace(4)*
   store i32 %4, i32 addrspace(4)* %ptridx.ascast.i14.i, align 4
@@ -78,9 +86,6 @@ if.end.i:                                         ; preds = %if.then.i, %entry
   br i1 %tobool4.not.i, label %cond.false.i, label %"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlNS1_7nd_itemILi1EEEE_clES5_.exit"
 
 cond.false.i:                                     ; preds = %if.end.i
-; CHECK-LLVM: cond.false.i:
-; CHECK-LLVM-NOT: load
-; CHECK-LLVM: call spir_func i32 @_Z22get_max_sub_group_sizev()
   %5 = load i32, i32 addrspace(4)* %3, align 4, !noalias !11
   br label %"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlNS1_7nd_itemILi1EEEE_clES5_.exit"
 

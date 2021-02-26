@@ -27,6 +27,7 @@
 #include "llvm/CodeGen/SwitchLoweringUtils.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/Support/Allocator.h"
+#include "llvm/Support/CodeGen.h"
 #include <memory>
 #include <utility>
 
@@ -37,6 +38,7 @@ class BasicBlock;
 class CallInst;
 class CallLowering;
 class Constant;
+class ConstrainedFPIntrinsic;
 class DataLayout;
 class Instruction;
 class MachineBasicBlock;
@@ -258,6 +260,19 @@ private:
   /// \pre \p U is a call instruction.
   bool translateCall(const User &U, MachineIRBuilder &MIRBuilder);
 
+  /// When an invoke or a cleanupret unwinds to the next EH pad, there are
+  /// many places it could ultimately go. In the IR, we have a single unwind
+  /// destination, but in the machine CFG, we enumerate all the possible blocks.
+  /// This function skips over imaginary basic blocks that hold catchswitch
+  /// instructions, and finds all the "real" machine
+  /// basic block destinations. As those destinations may not be successors of
+  /// EHPadBB, here we also calculate the edge probability to those
+  /// destinations. The passed-in Prob is the edge probability to EHPadBB.
+  bool findUnwindDestinations(
+      const BasicBlock *EHPadBB, BranchProbability Prob,
+      SmallVectorImpl<std::pair<MachineBasicBlock *, BranchProbability>>
+          &UnwindDests);
+
   bool translateInvoke(const User &U, MachineIRBuilder &MIRBuilder);
 
   bool translateCallBr(const User &U, MachineIRBuilder &MIRBuilder);
@@ -298,6 +313,27 @@ private:
   /// \pre \p U is a binary operation.
   bool translateBinaryOp(unsigned Opcode, const User &U,
                          MachineIRBuilder &MIRBuilder);
+
+  /// If the set of cases should be emitted as a series of branches, return
+  /// true. If we should emit this as a bunch of and/or'd together conditions,
+  /// return false.
+  bool shouldEmitAsBranches(const std::vector<SwitchCG::CaseBlock> &Cases);
+  /// Helper method for findMergedConditions.
+  /// This function emits a branch and is used at the leaves of an OR or an
+  /// AND operator tree.
+  void emitBranchForMergedCondition(const Value *Cond, MachineBasicBlock *TBB,
+                                    MachineBasicBlock *FBB,
+                                    MachineBasicBlock *CurBB,
+                                    MachineBasicBlock *SwitchBB,
+                                    BranchProbability TProb,
+                                    BranchProbability FProb, bool InvertCond);
+  /// Used during condbr translation to find trees of conditions that can be
+  /// optimized.
+  void findMergedConditions(const Value *Cond, MachineBasicBlock *TBB,
+                            MachineBasicBlock *FBB, MachineBasicBlock *CurBB,
+                            MachineBasicBlock *SwitchBB,
+                            Instruction::BinaryOps Opc, BranchProbability TProb,
+                            BranchProbability FProb, bool InvertCond);
 
   /// Translate branch (br) instruction.
   /// \pre \p U is a branch instruction.
@@ -535,6 +571,8 @@ private:
   /// Current target configuration. Controls how the pass handles errors.
   const TargetPassConfig *TPC;
 
+  CodeGenOpt::Level OptLevel;
+
   /// Current optimization remark emitter. Used to report failures.
   std::unique_ptr<OptimizationRemarkEmitter> ORE;
 
@@ -634,12 +672,12 @@ private:
   BranchProbability getEdgeProbability(const MachineBasicBlock *Src,
                                        const MachineBasicBlock *Dst) const;
 
-  void addSuccessorWithProb(MachineBasicBlock *Src, MachineBasicBlock *Dst,
-                            BranchProbability Prob);
+  void addSuccessorWithProb(
+      MachineBasicBlock *Src, MachineBasicBlock *Dst,
+      BranchProbability Prob = BranchProbability::getUnknown());
 
 public:
-  // Ctor, nothing fancy.
-  IRTranslator();
+  IRTranslator(CodeGenOpt::Level OptLevel = CodeGenOpt::None);
 
   StringRef getPassName() const override { return "IRTranslator"; }
 

@@ -22,6 +22,7 @@
 #include "llvm/Support/FormatVariadic.h"
 #include <cstdint>
 #include <list>
+#include <set>
 #include <tuple>
 #include <utility>
 
@@ -916,6 +917,12 @@ bool Pattern::parsePattern(StringRef PatternStr, StringRef Prefix,
     return false;
   }
 
+  // If literal check, set fixed string.
+  if (CheckTy.isLiteralMatch()) {
+    FixedStr = PatternStr;
+    return false;
+  }
+
   // Check to see if this is a fixed string, or if it has regex pieces.
   if (!MatchFullLinesHere &&
       (PatternStr.size() < 2 || (PatternStr.find("{{") == StringRef::npos &&
@@ -1003,7 +1010,7 @@ bool Pattern::parsePattern(StringRef PatternStr, StringRef Prefix,
 
       // Parse string variable or legacy @LINE expression.
       if (!IsNumBlock) {
-        size_t VarEndIdx = MatchStr.find(":");
+        size_t VarEndIdx = MatchStr.find(':');
         size_t SpacePos = MatchStr.substr(0, VarEndIdx).find_first_of(" \t");
         if (SpacePos != StringRef::npos) {
           SM.PrintMessage(SMLoc::getFromPointer(MatchStr.data() + SpacePos),
@@ -1379,12 +1386,11 @@ void Pattern::printVariableDefs(const SourceMgr &SM,
   }
   // Sort variable captures by the order in which they matched the input.
   // Ranges shouldn't be overlapping, so we can just compare the start.
-  std::sort(VarCaptures.begin(), VarCaptures.end(),
-            [](const VarCapture &A, const VarCapture &B) {
-              assert(A.Range.Start != B.Range.Start &&
-                     "unexpected overlapping variable captures");
-              return A.Range.Start.getPointer() < B.Range.Start.getPointer();
-            });
+  llvm::sort(VarCaptures, [](const VarCapture &A, const VarCapture &B) {
+    assert(A.Range.Start != B.Range.Start &&
+           "unexpected overlapping variable captures");
+    return A.Range.Start.getPointer() < B.Range.Start.getPointer();
+  });
   // Create notes for the sorted captures.
   for (const VarCapture &VC : VarCaptures) {
     SmallString<256> Msg;
@@ -1587,26 +1593,43 @@ Check::FileCheckType &Check::FileCheckType::setCount(int C) {
   return *this;
 }
 
+std::string Check::FileCheckType::getModifiersDescription() const {
+  if (Modifiers.none())
+    return "";
+  std::string Ret;
+  raw_string_ostream OS(Ret);
+  OS << '{';
+  if (isLiteralMatch())
+    OS << "LITERAL";
+  OS << '}';
+  return OS.str();
+}
+
 std::string Check::FileCheckType::getDescription(StringRef Prefix) const {
+  // Append directive modifiers.
+  auto WithModifiers = [this, Prefix](StringRef Str) -> std::string {
+    return (Prefix + Str + getModifiersDescription()).str();
+  };
+
   switch (Kind) {
   case Check::CheckNone:
     return "invalid";
   case Check::CheckPlain:
     if (Count > 1)
-      return Prefix.str() + "-COUNT";
-    return std::string(Prefix);
+      return WithModifiers("-COUNT");
+    return WithModifiers("");
   case Check::CheckNext:
-    return Prefix.str() + "-NEXT";
+    return WithModifiers("-NEXT");
   case Check::CheckSame:
-    return Prefix.str() + "-SAME";
+    return WithModifiers("-SAME");
   case Check::CheckNot:
-    return Prefix.str() + "-NOT";
+    return WithModifiers("-NOT");
   case Check::CheckDAG:
-    return Prefix.str() + "-DAG";
+    return WithModifiers("-DAG");
   case Check::CheckLabel:
-    return Prefix.str() + "-LABEL";
+    return WithModifiers("-LABEL");
   case Check::CheckEmpty:
-    return Prefix.str() + "-EMPTY";
+    return WithModifiers("-EMPTY");
   case Check::CheckComment:
     return std::string(Prefix);
   case Check::CheckEOF:
@@ -1624,23 +1647,45 @@ FindCheckType(const FileCheckRequest &Req, StringRef Buffer, StringRef Prefix) {
   if (Buffer.size() <= Prefix.size())
     return {Check::CheckNone, StringRef()};
 
-  char NextChar = Buffer[Prefix.size()];
-
-  StringRef Rest = Buffer.drop_front(Prefix.size() + 1);
-
+  StringRef Rest = Buffer.drop_front(Prefix.size());
   // Check for comment.
   if (llvm::is_contained(Req.CommentPrefixes, Prefix)) {
-    if (NextChar == ':')
+    if (Rest.consume_front(":"))
       return {Check::CheckComment, Rest};
     // Ignore a comment prefix if it has a suffix like "-NOT".
     return {Check::CheckNone, StringRef()};
   }
 
-  // Verify that the : is present after the prefix.
-  if (NextChar == ':')
-    return {Check::CheckPlain, Rest};
+  auto ConsumeModifiers = [&](Check::FileCheckType Ret)
+      -> std::pair<Check::FileCheckType, StringRef> {
+    if (Rest.consume_front(":"))
+      return {Ret, Rest};
+    if (!Rest.consume_front("{"))
+      return {Check::CheckNone, StringRef()};
 
-  if (NextChar != '-')
+    // Parse the modifiers, speparated by commas.
+    do {
+      // Allow whitespace in modifiers list.
+      Rest = Rest.ltrim();
+      if (Rest.consume_front("LITERAL"))
+        Ret.setLiteralMatch();
+      else
+        return {Check::CheckNone, Rest};
+      // Allow whitespace in modifiers list.
+      Rest = Rest.ltrim();
+    } while (Rest.consume_front(","));
+    if (!Rest.consume_front("}:"))
+      return {Check::CheckNone, Rest};
+    return {Ret, Rest};
+  };
+
+  // Verify that the prefix is followed by directive modifiers or a colon.
+  if (Rest.consume_front(":"))
+    return {Check::CheckPlain, Rest};
+  if (Rest.front() == '{')
+    return ConsumeModifiers(Check::CheckPlain);
+
+  if (!Rest.consume_front("-"))
     return {Check::CheckNone, StringRef()};
 
   if (Rest.consume_front("COUNT-")) {
@@ -1650,28 +1695,11 @@ FindCheckType(const FileCheckRequest &Req, StringRef Buffer, StringRef Prefix) {
       return {Check::CheckBadCount, Rest};
     if (Count <= 0 || Count > INT32_MAX)
       return {Check::CheckBadCount, Rest};
-    if (!Rest.consume_front(":"))
+    if (Rest.front() != ':' && Rest.front() != '{')
       return {Check::CheckBadCount, Rest};
-    return {Check::FileCheckType(Check::CheckPlain).setCount(Count), Rest};
+    return ConsumeModifiers(
+        Check::FileCheckType(Check::CheckPlain).setCount(Count));
   }
-
-  if (Rest.consume_front("NEXT:"))
-    return {Check::CheckNext, Rest};
-
-  if (Rest.consume_front("SAME:"))
-    return {Check::CheckSame, Rest};
-
-  if (Rest.consume_front("NOT:"))
-    return {Check::CheckNot, Rest};
-
-  if (Rest.consume_front("DAG:"))
-    return {Check::CheckDAG, Rest};
-
-  if (Rest.consume_front("LABEL:"))
-    return {Check::CheckLabel, Rest};
-
-  if (Rest.consume_front("EMPTY:"))
-    return {Check::CheckEmpty, Rest};
 
   // You can't combine -NOT with another suffix.
   if (Rest.startswith("DAG-NOT:") || Rest.startswith("NOT-DAG:") ||
@@ -1679,6 +1707,24 @@ FindCheckType(const FileCheckRequest &Req, StringRef Buffer, StringRef Prefix) {
       Rest.startswith("SAME-NOT:") || Rest.startswith("NOT-SAME:") ||
       Rest.startswith("EMPTY-NOT:") || Rest.startswith("NOT-EMPTY:"))
     return {Check::CheckBadNot, Rest};
+
+  if (Rest.consume_front("NEXT"))
+    return ConsumeModifiers(Check::CheckNext);
+
+  if (Rest.consume_front("SAME"))
+    return ConsumeModifiers(Check::CheckSame);
+
+  if (Rest.consume_front("NOT"))
+    return ConsumeModifiers(Check::CheckNot);
+
+  if (Rest.consume_front("DAG"))
+    return ConsumeModifiers(Check::CheckDAG);
+
+  if (Rest.consume_front("LABEL"))
+    return ConsumeModifiers(Check::CheckLabel);
+
+  if (Rest.consume_front("EMPTY"))
+    return ConsumeModifiers(Check::CheckEmpty);
 
   return {Check::CheckNone, Rest};
 }
@@ -1825,8 +1871,10 @@ bool FileCheck::readCheckFile(
   // found.
   unsigned LineNumber = 1;
 
-  bool FoundUsedCheckPrefix = false;
-  while (1) {
+  std::set<StringRef> PrefixesNotFound(Req.CheckPrefixes.begin(),
+                                       Req.CheckPrefixes.end());
+  const size_t DistinctPrefixes = PrefixesNotFound.size();
+  while (true) {
     Check::FileCheckType CheckTy;
 
     // See if a prefix occurs in the memory buffer.
@@ -1837,7 +1885,7 @@ bool FileCheck::readCheckFile(
     if (UsedPrefix.empty())
       break;
     if (CheckTy != Check::CheckComment)
-      FoundUsedCheckPrefix = true;
+      PrefixesNotFound.erase(UsedPrefix);
 
     assert(UsedPrefix.data() == Buffer.data() &&
            "Failed to move Buffer's start forward, or pointed prefix outside "
@@ -1930,14 +1978,19 @@ bool FileCheck::readCheckFile(
 
   // When there are no used prefixes we report an error except in the case that
   // no prefix is specified explicitly but -implicit-check-not is specified.
-  if (!FoundUsedCheckPrefix &&
+  const bool NoPrefixesFound = PrefixesNotFound.size() == DistinctPrefixes;
+  const bool SomePrefixesUnexpectedlyNotUsed =
+      !Req.AllowUnusedPrefixes && !PrefixesNotFound.empty();
+  if ((NoPrefixesFound || SomePrefixesUnexpectedlyNotUsed) &&
       (ImplicitNegativeChecks.empty() || !Req.IsDefaultCheckPrefix)) {
     errs() << "error: no check strings found with prefix"
-           << (Req.CheckPrefixes.size() > 1 ? "es " : " ");
-    for (size_t I = 0, E = Req.CheckPrefixes.size(); I != E; ++I) {
-      if (I != 0)
+           << (PrefixesNotFound.size() > 1 ? "es " : " ");
+    bool First = true;
+    for (StringRef MissingPrefix : PrefixesNotFound) {
+      if (!First)
         errs() << ", ";
-      errs() << "\'" << Req.CheckPrefixes[I] << ":'";
+      errs() << "\'" << MissingPrefix << ":'";
+      First = false;
     }
     errs() << '\n';
     return true;
@@ -2264,7 +2317,6 @@ bool FileCheckString::CheckNot(const SourceMgr &SM, StringRef Buffer,
     PrintMatch(false, SM, Prefix, Pat->getLoc(), *Pat, 1, Buffer, Pos, MatchLen,
                Req, Diags);
     DirectiveFail = true;
-    continue;
   }
 
   return DirectiveFail;

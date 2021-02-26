@@ -55,7 +55,7 @@ define float @test_fmaxf(float %x, float %y) {
 define float @test_fmaxf_minsize(float %x, float %y) minsize {
 ; CHECK-LABEL: test_fmaxf_minsize:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    jmp fmaxf # TAILCALL
+; CHECK-NEXT:    jmp fmaxf@PLT # TAILCALL
   %z = call float @fmaxf(float %x, float %y) readnone
   ret float %z
 }
@@ -606,6 +606,14 @@ define float @test_maxnum_const_op2(float %x) {
 ; AVX-NEXT:    vmaxss {{.*}}(%rip), %xmm0, %xmm0
 ; AVX-NEXT:    retq
   %r = call float @llvm.maxnum.f32(float %x, float 1.0)
+  ret float %r
+}
+
+define float @test_maxnum_const_nan(float %x) {
+; CHECK-LABEL: test_maxnum_const_nan:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    retq
+  %r = call float @llvm.maxnum.f32(float %x, float 0x7fff000000000000)
   ret float %r
 }
 

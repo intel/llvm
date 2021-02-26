@@ -998,4 +998,57 @@ llvm::json::Value CreateCompileUnit(lldb::SBCompileUnit unit) {
   return llvm::json::Value(std::move(object));
 }
 
+/// See
+/// https://microsoft.github.io/debug-adapter-protocol/specification#Reverse_Requests_RunInTerminal
+llvm::json::Object
+CreateRunInTerminalReverseRequest(const llvm::json::Object &launch_request,
+                                  llvm::StringRef debug_adaptor_path,
+                                  llvm::StringRef comm_file) {
+  llvm::json::Object reverse_request;
+  reverse_request.try_emplace("type", "request");
+  reverse_request.try_emplace("command", "runInTerminal");
+
+  llvm::json::Object run_in_terminal_args;
+  // This indicates the IDE to open an embedded terminal, instead of opening the
+  // terminal in a new window.
+  run_in_terminal_args.try_emplace("kind", "integrated");
+
+  auto launch_request_arguments = launch_request.getObject("arguments");
+  // The program path must be the first entry in the "args" field
+  std::vector<std::string> args = {
+      debug_adaptor_path.str(), "--comm-file", comm_file.str(),
+      "--launch-target", GetString(launch_request_arguments, "program").str()};
+  std::vector<std::string> target_args =
+      GetStrings(launch_request_arguments, "args");
+  args.insert(args.end(), target_args.begin(), target_args.end());
+  run_in_terminal_args.try_emplace("args", args);
+
+  const auto cwd = GetString(launch_request_arguments, "cwd");
+  if (!cwd.empty())
+    run_in_terminal_args.try_emplace("cwd", cwd);
+
+  // We need to convert the input list of environments variables into a
+  // dictionary
+  std::vector<std::string> envs = GetStrings(launch_request_arguments, "env");
+  llvm::json::Object environment;
+  for (const std::string &env : envs) {
+    size_t index = env.find('=');
+    environment.try_emplace(env.substr(0, index), env.substr(index + 1));
+  }
+  run_in_terminal_args.try_emplace("env",
+                                   llvm::json::Value(std::move(environment)));
+
+  reverse_request.try_emplace(
+      "arguments", llvm::json::Value(std::move(run_in_terminal_args)));
+  return reverse_request;
+}
+
+std::string JSONToString(const llvm::json::Value &json) {
+  std::string data;
+  llvm::raw_string_ostream os(data);
+  os << json;
+  os.flush();
+  return data;
+}
+
 } // namespace lldb_vscode

@@ -41,8 +41,6 @@
 
 #include "SPIRVInternal.h"
 #include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/SmallString.h"
-#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Path.h"
@@ -321,6 +319,7 @@ namespace kOCLVer {
 const unsigned CL12 = 102000;
 const unsigned CL20 = 200000;
 const unsigned CL21 = 201000;
+const unsigned CL30 = 300000;
 } // namespace kOCLVer
 
 namespace OclExt {
@@ -469,7 +468,7 @@ Instruction *mutateCallInstOCL(
     std::function<std::string(CallInst *, std::vector<Value *> &, Type *&RetTy)>
         ArgMutate,
     std::function<Instruction *(CallInst *)> RetMutate,
-    AttributeList *Attrs = nullptr);
+    AttributeList *Attrs = nullptr, bool TakeFuncName = false);
 
 /// Check if instruction is bitcast from spirv.ConstantSampler to spirv.Sampler
 bool isSamplerInitializer(Instruction *Inst);

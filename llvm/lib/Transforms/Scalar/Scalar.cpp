@@ -34,13 +34,14 @@ using namespace llvm;
 /// ScalarOpts library.
 void llvm::initializeScalarOpts(PassRegistry &Registry) {
   initializeADCELegacyPassPass(Registry);
+  initializeAnnotationRemarksLegacyPass(Registry);
   initializeBDCELegacyPassPass(Registry);
   initializeAlignmentFromAssumptionsPass(Registry);
   initializeCallSiteSplittingLegacyPassPass(Registry);
   initializeConstantHoistingLegacyPassPass(Registry);
+  initializeConstraintEliminationPass(Registry);
   initializeCorrelatedValuePropagationPass(Registry);
   initializeDCELegacyPassPass(Registry);
-  initializeDeadInstEliminationPass(Registry);
   initializeDivRemPairsLegacyPassPass(Registry);
   initializeScalarizerLegacyPassPass(Registry);
   initializeDSELegacyPassPass(Registry);
@@ -66,16 +67,17 @@ void llvm::initializeScalarOpts(PassRegistry &Registry) {
   initializeLoopDeletionLegacyPassPass(Registry);
   initializeLoopAccessLegacyAnalysisPass(Registry);
   initializeLoopInstSimplifyLegacyPassPass(Registry);
-  initializeLoopInterchangePass(Registry);
+  initializeLoopInterchangeLegacyPassPass(Registry);
+  initializeLoopFlattenLegacyPassPass(Registry);
   initializeLoopPredicationLegacyPassPass(Registry);
   initializeLoopRotateLegacyPassPass(Registry);
   initializeLoopStrengthReducePass(Registry);
-  initializeLoopRerollPass(Registry);
+  initializeLoopRerollLegacyPassPass(Registry);
   initializeLoopUnrollPass(Registry);
   initializeLoopUnrollAndJamPass(Registry);
   initializeLoopUnswitchPass(Registry);
   initializeWarnMissedTransformationsLegacyPass(Registry);
-  initializeLoopVersioningLICMPass(Registry);
+  initializeLoopVersioningLICMLegacyPassPass(Registry);
   initializeLoopIdiomRecognizeLegacyPassPass(Registry);
   initializeLowerAtomicLegacyPassPass(Registry);
   initializeLowerConstantIntrinsicsPass(Registry);
@@ -91,18 +93,19 @@ void llvm::initializeScalarOpts(PassRegistry &Registry) {
   initializePartiallyInlineLibCallsLegacyPassPass(Registry);
   initializeReassociateLegacyPassPass(Registry);
   initializeRedundantDbgInstEliminationPass(Registry);
-  initializeRegToMemPass(Registry);
+  initializeRegToMemLegacyPass(Registry);
   initializeRewriteStatepointsForGCLegacyPassPass(Registry);
+  initializeScalarizeMaskedMemIntrinLegacyPassPass(Registry);
   initializeSCCPLegacyPassPass(Registry);
   initializeSROALegacyPassPass(Registry);
   initializeCFGSimplifyPassPass(Registry);
-  initializeStructurizeCFGPass(Registry);
+  initializeStructurizeCFGLegacyPassPass(Registry);
   initializeSimpleLoopUnswitchLegacyPassPass(Registry);
   initializeSinkingLegacyPassPass(Registry);
   initializeTailCallElimPass(Registry);
-  initializeSeparateConstOffsetFromGEPPass(Registry);
+  initializeSeparateConstOffsetFromGEPLegacyPassPass(Registry);
   initializeSpeculativeExecutionLegacyPassPass(Registry);
-  initializeStraightLineStrengthReducePass(Registry);
+  initializeStraightLineStrengthReduceLegacyPassPass(Registry);
   initializePlaceBackedgeSafepointsImplPass(Registry);
   initializePlaceSafepointsPass(Registry);
   initializeFloat2IntLegacyPassPass(Registry);
@@ -184,6 +187,10 @@ void LLVMAddLICMPass(LLVMPassManagerRef PM) {
 
 void LLVMAddLoopDeletionPass(LLVMPassManagerRef PM) {
   unwrap(PM)->add(createLoopDeletionPass());
+}
+
+void LLVMAddLoopFlattenPass(LLVMPassManagerRef PM) {
+  unwrap(PM)->add(createLoopFlattenPass());
 }
 
 void LLVMAddLoopIdiomPass(LLVMPassManagerRef PM) {

@@ -8,11 +8,10 @@
 
 #pragma once
 
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/export.hpp> // for DLL_LOCAL used in int. header
+// This header file must not include any standard C++ header files.
 
-#include <cstddef>
+#include <CL/sycl/detail/defines_elementary.hpp>
+#include <CL/sycl/detail/export.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -24,10 +23,10 @@ namespace detail {
 
 // kernel parameter kinds
 enum class kernel_param_kind_t {
-  kind_accessor,
-  kind_std_layout, // standard layout object parameters
-  kind_sampler,
-  kind_pointer
+  kind_accessor = 0,
+  kind_std_layout = 1, // standard layout object parameters
+  kind_sampler = 2,
+  kind_pointer = 3
 };
 
 // describes a kernel parameter
@@ -57,6 +56,9 @@ template <class KernelNameType> struct KernelInfo {
     return Dummy;
   }
   static constexpr const char *getName() { return ""; }
+  static constexpr bool isESIMD() { return 0; }
+  static constexpr bool callsThisItem() { return false; }
+  static constexpr bool callsAnyThisFreeFunction() { return false; }
 };
 #else
 template <char...> struct KernelInfoData {
@@ -66,19 +68,24 @@ template <char...> struct KernelInfoData {
     return Dummy;
   }
   static constexpr const char *getName() { return ""; }
+  static constexpr bool isESIMD() { return 0; }
+  static constexpr bool callsThisItem() { return false; }
+  static constexpr bool callsAnyThisFreeFunction() { return false; }
 };
 
 // C++14 like index_sequence and make_index_sequence
 // not needed C++14 members (value_type, size) not implemented
 template <class T, T...> struct integer_sequence {};
-template <size_t... I> using index_sequence = integer_sequence<size_t, I...>;
-template <size_t N>
-using make_index_sequence = __make_integer_seq<integer_sequence, size_t, N>;
+template <unsigned long long... I>
+using index_sequence = integer_sequence<unsigned long long, I...>;
+template <unsigned long long N>
+using make_index_sequence =
+    __make_integer_seq<integer_sequence, unsigned long long, N>;
 
 template <typename T> struct KernelInfoImpl {
 private:
   static constexpr auto n = __builtin_unique_stable_name(T);
-  template <size_t... I>
+  template <unsigned long long... I>
   static KernelInfoData<n[I]...> impl(index_sequence<I...>) {
     return {};
   }

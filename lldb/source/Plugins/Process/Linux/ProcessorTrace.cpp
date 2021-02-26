@@ -17,6 +17,7 @@
 #include "ProcessorTrace.h"
 #include "lldb/Host/linux/Support.h"
 
+#include <sys/ioctl.h>
 #include <sys/syscall.h>
 
 using namespace lldb;
@@ -25,6 +26,8 @@ using namespace process_linux;
 using namespace llvm;
 
 lldb::user_id_t ProcessorTraceMonitor::m_trace_num = 1;
+const char *kOSEventIntelPTTypeFile =
+    "/sys/bus/event_source/devices/intel_pt/type";
 
 Status ProcessorTraceMonitor::GetTraceConfig(TraceOptions &config) const {
 #ifndef PERF_ATTR_SIZE_VER5
@@ -42,6 +45,27 @@ Status ProcessorTraceMonitor::GetTraceConfig(TraceOptions &config) const {
   return error;
 #endif
 }
+
+Expected<uint32_t> ProcessorTraceMonitor::GetOSEventType() {
+  auto intel_pt_type_text =
+      llvm::MemoryBuffer::getFileAsStream(kOSEventIntelPTTypeFile);
+
+  if (!intel_pt_type_text)
+    return createStringError(inconvertibleErrorCode(),
+                             "Can't open the file '%s'",
+                             kOSEventIntelPTTypeFile);
+
+  uint32_t intel_pt_type = 0;
+  StringRef buffer = intel_pt_type_text.get()->getBuffer();
+  if (buffer.trim().getAsInteger(10, intel_pt_type))
+    return createStringError(
+        inconvertibleErrorCode(),
+        "The file '%s' has a invalid value. It should be an unsigned int.",
+        kOSEventIntelPTTypeFile);
+  return intel_pt_type;
+}
+
+bool ProcessorTraceMonitor::IsSupported() { return (bool)GetOSEventType(); }
 
 Status ProcessorTraceMonitor::StartTrace(lldb::pid_t pid, lldb::tid_t tid,
                                          const TraceOptions &config) {
@@ -75,25 +99,15 @@ Status ProcessorTraceMonitor::StartTrace(lldb::pid_t pid, lldb::tid_t tid,
   attr.exclude_idle = 1;
   attr.mmap = 1;
 
-  int intel_pt_type = 0;
+  Expected<uint32_t> intel_pt_type = GetOSEventType();
 
-  auto ret = llvm::MemoryBuffer::getFileAsStream(
-      "/sys/bus/event_source/devices/intel_pt/type");
-  if (!ret) {
-    LLDB_LOG(log, "failed to open Config file");
-    return ret.getError();
-  }
-
-  StringRef rest = ret.get()->getBuffer();
-  if (rest.empty() || rest.trim().getAsInteger(10, intel_pt_type)) {
-    LLDB_LOG(log, "failed to read Config file");
-    error.SetErrorString("invalid file");
+  if (!intel_pt_type) {
+    error = intel_pt_type.takeError();
     return error;
   }
 
-  rest.trim().getAsInteger(10, intel_pt_type);
-  LLDB_LOG(log, "intel pt type {0}", intel_pt_type);
-  attr.type = intel_pt_type;
+  LLDB_LOG(log, "intel pt type {0}", *intel_pt_type);
+  attr.type = *intel_pt_type;
 
   LLDB_LOG(log, "meta buffer size {0}", metabufsize);
   LLDB_LOG(log, "buffer size {0} ", bufsize);
@@ -273,6 +287,23 @@ ProcessorTraceMonitor::ReadPerfTraceAux(llvm::MutableArrayRef<uint8_t> &buffer,
 #ifndef PERF_ATTR_SIZE_VER5
   llvm_unreachable("perf event not supported");
 #else
+  // Disable the perf event to force a flush out of the CPU's internal buffer.
+  // Besides, we can guarantee that the CPU won't override any data as we are
+  // reading the buffer.
+  //
+  // The Intel documentation says:
+  //
+  // Packets are first buffered internally and then written out asynchronously.
+  // To collect packet output for postprocessing, a collector needs first to
+  // ensure that all packet data has been flushed from internal buffers.
+  // Software can ensure this by stopping packet generation by clearing
+  // IA32_RTIT_CTL.TraceEn (see “Disabling Packet Generation” in
+  // Section 35.2.7.2).
+  //
+  // This is achieved by the PERF_EVENT_IOC_DISABLE ioctl request, as mentioned
+  // in the man page of perf_event_open.
+  ioctl(*m_fd, PERF_EVENT_IOC_DISABLE);
+
   Log *log(ProcessPOSIXLog::GetLogIfAllCategoriesSet(POSIX_LOG_PTRACE));
   Status error;
   uint64_t head = m_mmap_meta->aux_head;
@@ -293,6 +324,9 @@ ProcessorTraceMonitor::ReadPerfTraceAux(llvm::MutableArrayRef<uint8_t> &buffer,
 
   ReadCyclicBuffer(buffer, GetAuxBuffer(), static_cast<size_t>(head), offset);
   LLDB_LOG(log, "ReadCyclic BUffer Done");
+
+  // Reenable tracing now we have read the buffer
+  ioctl(*m_fd, PERF_EVENT_IOC_ENABLE);
   return error;
 #endif
 }

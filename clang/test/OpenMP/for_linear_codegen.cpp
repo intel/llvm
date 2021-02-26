@@ -113,8 +113,8 @@ struct SST {
 // CHECK: [[S_FLOAT_TY:%.+]] = type { float }
 // CHECK: [[S_INT_TY:%.+]] = type { i32 }
 // CHECK-DAG: [[IMPLICIT_BARRIER_LOC:@.+]] = private unnamed_addr constant %{{.+}} { i32 0, i32 66, i32 0, i32 0, i8*
-// CHECK-DAG: [[F:@.+]] = global float 0.0
-// CHECK-DAG: [[CNT:@.+]] = global i8 0
+// CHECK-DAG: [[F:@.+]] ={{.*}} global float 0.0
+// CHECK-DAG: [[CNT:@.+]] ={{.*}} global i8 0
 template <typename T>
 T tmain() {
   S<T> test;
@@ -133,7 +133,7 @@ int main() {
   static int sivar;
   SS ss(sivar);
 #ifdef LAMBDA
-  // LAMBDA: [[G:@.+]] = global i{{[0-9]+}} 1212,
+  // LAMBDA: [[G:@.+]] ={{.*}} global i{{[0-9]+}} 1212,
   // LAMBDA-LABEL: @main
   // LAMBDA: alloca [[SS_TY]],
   // LAMBDA: alloca [[CAP_TY:%.+]],
@@ -224,13 +224,13 @@ int main() {
     // LAMBDA: store i32 [[ADD]], i32* [[G_PRIVATE_ADDR]],
     // LAMBDA: [[G_PRIVATE_ADDR_REF:%.+]] = getelementptr inbounds %{{.+}}, %{{.+}}* [[ARG:%.+]], i{{[0-9]+}} 0, i{{[0-9]+}} 0
     // LAMBDA: store i{{[0-9]+}}* [[G_PRIVATE_ADDR]], i{{[0-9]+}}** [[G_PRIVATE_ADDR_REF]]
-    // LAMBDA: call void [[INNER_LAMBDA:@.+]](%{{.+}}* [[ARG]])
+    // LAMBDA: call void [[INNER_LAMBDA:@.+]](%{{.+}}* {{[^,]*}} [[ARG]])
     // LAMBDA: call void @__kmpc_for_static_fini(%{{.+}}* @{{.+}}, i32 [[GTID]])
     g += 5;
     g1 += 5;
     // LAMBDA: call void @__kmpc_barrier(%{{.+}}* @{{.+}}, i{{[0-9]+}} [[GTID]])
     [&]() {
-      // LAMBDA: define {{.+}} void [[INNER_LAMBDA]](%{{.+}}* [[ARG_PTR:%.+]])
+      // LAMBDA: define {{.+}} void [[INNER_LAMBDA]](%{{.+}}* {{[^,]*}} [[ARG_PTR:%.+]])
       // LAMBDA: store %{{.+}}* [[ARG_PTR]], %{{.+}}** [[ARG_PTR_REF:%.+]],
       g = 2;
       g1 = 2;
@@ -243,7 +243,7 @@ int main() {
   }();
   return 0;
 #elif defined(BLOCKS)
-  // BLOCKS: [[G:@.+]] = global i{{[0-9]+}} 1212,
+  // BLOCKS: [[G:@.+]] ={{.*}} global i{{[0-9]+}} 1212,
   // BLOCKS-LABEL: @main
   // BLOCKS: call
   // BLOCKS: call void {{%.+}}(i8
@@ -365,9 +365,9 @@ int main() {
 #endif
 }
 
-// CHECK: define i{{[0-9]+}} @main()
+// CHECK: define{{.*}} i{{[0-9]+}} @main()
 // CHECK: [[TEST:%.+]] = alloca [[S_FLOAT_TY]],
-// CHECK: call {{.*}} [[S_FLOAT_TY_DEF_CONSTR:@.+]]([[S_FLOAT_TY]]* [[TEST]])
+// CHECK: call {{.*}} [[S_FLOAT_TY_DEF_CONSTR:@.+]]([[S_FLOAT_TY]]* {{[^,]*}} [[TEST]])
 // CHECK: call void (%{{.+}}*, i{{[0-9]+}}, void (i{{[0-9]+}}*, i{{[0-9]+}}*, ...)*, ...) @__kmpc_fork_call(%{{.+}}* @{{.+}}, i{{[0-9]+}} 2, void (i{{[0-9]+}}*, i{{[0-9]+}}*, ...)* bitcast (void (i{{[0-9]+}}*, i{{[0-9]+}}*, float**, i64*)* [[MAIN_MICROTASK:@.+]] to void
 // CHECK: = call {{.+}} [[TMAIN_INT:@.+]]()
 // CHECK: call void [[S_FLOAT_TY_DESTR:@.+]]([[S_FLOAT_TY]]*
@@ -414,13 +414,14 @@ int main() {
 // CHECK: [[ADD:%.+]] = add nsw i64 [[LVAR_VAL]], 3
 // CHECK: store i64 [[ADD]], i64* [[LVAR_PRIV]],
 // CHECK: call void @__kmpc_for_static_fini(%{{.+}}* @{{.+}}, i32 %{{.+}})
+// CHECK: [[LVAR_VOID_PTR:%.+]] = bitcast i64* [[LVAR_PRIV]] to i8*
 // CHECK: call void @__kmpc_free(i32 [[GTID]], i8* [[LVAR_VOID_PTR]], i8* inttoptr (i64 5 to i8*))
 // CHECK: call void @__kmpc_barrier(%{{.+}}* [[IMPLICIT_BARRIER_LOC]], i{{[0-9]+}} [[GTID]])
 // CHECK: ret void
 
 // CHECK: define {{.*}} i{{[0-9]+}} [[TMAIN_INT]]()
 // CHECK: [[TEST:%.+]] = alloca [[S_INT_TY]],
-// CHECK: call {{.*}} [[S_INT_TY_DEF_CONSTR:@.+]]([[S_INT_TY]]* [[TEST]])
+// CHECK: call {{.*}} [[S_INT_TY_DEF_CONSTR:@.+]]([[S_INT_TY]]* {{[^,]*}} [[TEST]])
 // CHECK: call void (%{{.+}}*, i{{[0-9]+}}, void (i{{[0-9]+}}*, i{{[0-9]+}}*, ...)*, ...) @__kmpc_fork_call(%{{.+}}* @{{.+}}, i{{[0-9]+}} 2, void (i{{[0-9]+}}*, i{{[0-9]+}}*, ...)* bitcast (void (i{{[0-9]+}}*, i{{[0-9]+}}*, i32**, i32*)* [[TMAIN_MICROTASK:@.+]] to void
 // CHECK: call void [[S_INT_TY_DESTR:@.+]]([[S_INT_TY]]*
 // CHECK: ret

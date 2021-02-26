@@ -15,11 +15,12 @@
 
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Interfaces/VectorInterfaces.h"
+#include "mlir/Interfaces/ViewLikeInterface.h"
 
 namespace mlir {
 class MLIRContext;
@@ -125,16 +126,14 @@ namespace impl {
 /// Build the default minor identity map suitable for a vector transfer. This
 /// also handles the case memref<... x vector<...>> -> vector<...> in which the
 /// rank of the identity map must take the vector element type into account.
-AffineMap getTransferMinorIdentityMap(MemRefType memRefType,
+AffineMap getTransferMinorIdentityMap(ShapedType shapedType,
                                       VectorType vectorType);
 } // namespace impl
+} // end namespace vector
+} // end namespace mlir
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Vector/VectorOps.h.inc"
-
 #include "mlir/Dialect/Vector/VectorOpsDialect.h.inc"
-
-} // end namespace vector
-} // end namespace mlir
 
 #endif // MLIR_DIALECT_VECTOR_VECTOROPS_H

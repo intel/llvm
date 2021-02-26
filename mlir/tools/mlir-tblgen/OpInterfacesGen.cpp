@@ -82,6 +82,7 @@ protected:
 
   void emitConceptDecl(Interface &interface);
   void emitModelDecl(Interface &interface);
+  void emitModelMethodsDef(Interface &interface);
   void emitTraitDecl(Interface &interface, StringRef interfaceName,
                      StringRef interfaceTraitsName);
   void emitInterfaceDecl(Interface interface);
@@ -107,7 +108,7 @@ struct AttrInterfaceGenerator : public InterfaceGenerator {
       : InterfaceGenerator(records.getAllDerivedDefinitions("AttrInterface"),
                            os) {
     valueType = "::mlir::Attribute";
-    interfaceBaseType = "AttrInterface";
+    interfaceBaseType = "AttributeInterface";
     valueTemplate = "ConcreteAttr";
     StringRef castCode = "(tablegen_opaque_val.cast<ConcreteAttr>())";
     nonStaticMethodFmt.addSubst("_attr", castCode).withSelf(castCode);
@@ -189,17 +190,19 @@ bool InterfaceGenerator::emitInterfaceDefs() {
 //===----------------------------------------------------------------------===//
 
 void InterfaceGenerator::emitConceptDecl(Interface &interface) {
-  os << "  class Concept {\n"
-     << "  public:\n"
-     << "    virtual ~Concept() = default;\n";
+  os << "  struct Concept {\n";
 
   // Insert each of the pure virtual concept methods.
   for (auto &method : interface.getMethods()) {
-    os << "    virtual ";
+    os << "    ";
     emitCPPType(method.getReturnType(), os);
-    emitMethodNameAndArgs(method, os, valueType,
-                          /*addThisArg=*/!method.isStatic(), /*addConst=*/true);
-    os << " = 0;\n";
+    os << "(*" << method.getName() << ")(";
+    if (!method.isStatic())
+      emitCPPType(valueType, os) << (method.arg_empty() ? "" : ", ");
+    llvm::interleaveComma(
+        method.getArguments(), os,
+        [&](const InterfaceMethod::Argument &arg) { os << arg.type; });
+    os << ");\n";
   }
   os << "  };\n";
 }
@@ -207,13 +210,33 @@ void InterfaceGenerator::emitConceptDecl(Interface &interface) {
 void InterfaceGenerator::emitModelDecl(Interface &interface) {
   os << "  template<typename " << valueTemplate << ">\n";
   os << "  class Model : public Concept {\n  public:\n";
+  os << "    Model() : Concept{";
+  llvm::interleaveComma(
+      interface.getMethods(), os,
+      [&](const InterfaceMethod &method) { os << method.getName(); });
+  os << "} {}\n\n";
 
   // Insert each of the virtual method overrides.
   for (auto &method : interface.getMethods()) {
-    emitCPPType(method.getReturnType(), os << "    ");
+    emitCPPType(method.getReturnType(), os << "    static inline ");
     emitMethodNameAndArgs(method, os, valueType,
-                          /*addThisArg=*/!method.isStatic(), /*addConst=*/true);
-    os << " final {\n      ";
+                          /*addThisArg=*/!method.isStatic(),
+                          /*addConst=*/false);
+    os << ";\n";
+  }
+  os << "  };\n";
+}
+
+void InterfaceGenerator::emitModelMethodsDef(Interface &interface) {
+  for (auto &method : interface.getMethods()) {
+    os << "template<typename " << valueTemplate << ">\n";
+    emitCPPType(method.getReturnType(), os);
+    os << "detail::" << interface.getName() << "InterfaceTraits::Model<"
+       << valueTemplate << ">::";
+    emitMethodNameAndArgs(method, os, valueType,
+                          /*addThisArg=*/!method.isStatic(),
+                          /*addConst=*/false);
+    os << " {\n  ";
 
     // Check for a provided body to the function.
     if (Optional<StringRef> body = method.getBody()) {
@@ -221,7 +244,7 @@ void InterfaceGenerator::emitModelDecl(Interface &interface) {
         os << body->trim();
       else
         os << tblgen::tgfmt(body->trim(), &nonStaticMethodFmt);
-      os << "\n    }\n";
+      os << "\n}\n";
       continue;
     }
 
@@ -236,9 +259,8 @@ void InterfaceGenerator::emitModelDecl(Interface &interface) {
     llvm::interleaveComma(
         method.getArguments(), os,
         [&](const InterfaceMethod::Argument &arg) { os << arg.name; });
-    os << ");\n    }\n";
+    os << ");\n}\n";
   }
-  os << "  };\n";
 }
 
 void InterfaceGenerator::emitTraitDecl(Interface &interface,
@@ -300,6 +322,10 @@ void InterfaceGenerator::emitInterfaceDecl(Interface interface) {
   StringRef interfaceName = interface.getName();
   auto interfaceTraitsName = (interfaceName + "InterfaceTraits").str();
 
+  // Emit a forward declaration of the interface class so that it becomes usable
+  // in the signature of its methods.
+  os << "class " << interfaceName << ";\n";
+
   // Emit the traits struct containing the concept and model declarations.
   os << "namespace detail {\n"
      << "struct " << interfaceTraitsName << " {\n";
@@ -331,6 +357,8 @@ void InterfaceGenerator::emitInterfaceDecl(Interface interface) {
     os << *extraDecls << "\n";
 
   os << "};\n";
+
+  emitModelMethodsDef(interface);
 
   for (StringRef ns : llvm::reverse(namespaces))
     os << "} // namespace " << ns << "\n";

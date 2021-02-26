@@ -8,6 +8,7 @@
 
 #include "tests/scudo_unit_test.h"
 
+#include "allocator_config.h"
 #include "secondary.h"
 
 #include <stdio.h>
@@ -18,7 +19,9 @@
 #include <thread>
 #include <vector>
 
-template <class SecondaryT> static void testSecondaryBasic(void) {
+template <typename Config> static void testSecondaryBasic(void) {
+  using SecondaryT = scudo::MapAllocator<Config>;
+
   scudo::GlobalStats S;
   S.init();
   std::unique_ptr<SecondaryT> L(new SecondaryT);
@@ -54,14 +57,26 @@ template <class SecondaryT> static void testSecondaryBasic(void) {
   Str.output();
 }
 
+struct NoCacheConfig {
+  typedef scudo::MapAllocatorNoCache SecondaryCache;
+};
+
+struct TestConfig {
+  typedef scudo::MapAllocatorCache<TestConfig> SecondaryCache;
+  static const scudo::u32 SecondaryCacheEntriesArraySize = 128U;
+  static const scudo::u32 SecondaryCacheDefaultMaxEntriesCount = 64U;
+  static const scudo::uptr SecondaryCacheDefaultMaxEntrySize = 1UL << 20;
+  static const scudo::s32 SecondaryCacheMinReleaseToOsIntervalMs = INT32_MIN;
+  static const scudo::s32 SecondaryCacheMaxReleaseToOsIntervalMs = INT32_MAX;
+};
+
 TEST(ScudoSecondaryTest, SecondaryBasic) {
-  testSecondaryBasic<scudo::MapAllocator<scudo::MapAllocatorNoCache>>();
-  testSecondaryBasic<scudo::MapAllocator<scudo::MapAllocatorCache<>>>();
-  testSecondaryBasic<
-      scudo::MapAllocator<scudo::MapAllocatorCache<128U, 64U, 1UL << 20>>>();
+  testSecondaryBasic<NoCacheConfig>();
+  testSecondaryBasic<scudo::DefaultConfig>();
+  testSecondaryBasic<TestConfig>();
 }
 
-using LargeAllocator = scudo::MapAllocator<scudo::MapAllocatorCache<>>;
+using LargeAllocator = scudo::MapAllocator<scudo::DefaultConfig>;
 
 // This exercises a variety of combinations of size and alignment for the
 // MapAllocator. The size computation done here mimic the ones done by the

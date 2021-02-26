@@ -1,5 +1,11 @@
 // RUN: %check_clang_tidy %s cppcoreguidelines-prefer-member-initializer %t -- -- -fcxx-exceptions
 
+extern void __assert_fail (__const char *__assertion, __const char *__file,
+    unsigned int __line, __const char *__function)
+     __attribute__ ((__noreturn__));
+#define assert(expr) \
+  ((expr)  ? (void)(0)  : __assert_fail (#expr, __FILE__, __LINE__, __func__))
+
 class Simple1 {
   int n;
   double x;
@@ -401,6 +407,20 @@ public:
   ~Complex19() = default;
 };
 
+class Complex20 {
+  int n;
+  int m;
+
+public:
+  Complex20(int k) : n(0) {
+    assert(k > 0);
+    m = 1;
+    // NO-MESSAGES: initialization of 'm' follows an assertion
+  }
+
+  ~Complex20() = default;
+};
+
 class VeryComplex1 {
   int n1, n2, n3;
   double x1, x2, x3;
@@ -452,3 +472,19 @@ class VeryComplex1 {
     // CHECK-FIXES: {{^\ *$}}
   }
 };
+
+struct Outside {
+  int n;
+  double x;
+  Outside();
+};
+
+Outside::Outside() {
+    // CHECK-FIXES: Outside::Outside() : n(1), x(1.0) {
+  n = 1;
+    // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: 'n' should be initialized in a member initializer of the constructor [cppcoreguidelines-prefer-member-initializer]
+    // CHECK-FIXES: {{^\ *$}}
+  x = 1.0;
+    // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: 'x' should be initialized in a member initializer of the constructor [cppcoreguidelines-prefer-member-initializer]
+    // CHECK-FIXES: {{^\ *$}}
+}

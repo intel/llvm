@@ -34,7 +34,18 @@
   #else
     #define _LIBUNWIND_SUPPORT_DWARF_UNWIND 1
   #endif
+#elif defined(_LIBUNWIND_IS_BAREMETAL)
+  #if !defined(_LIBUNWIND_ARM_EHABI)
+    #define _LIBUNWIND_SUPPORT_DWARF_UNWIND 1
+    #define _LIBUNWIND_SUPPORT_DWARF_INDEX 1
+  #endif
+#elif defined(__BIONIC__) && defined(_LIBUNWIND_ARM_EHABI)
+  // For ARM EHABI, Bionic didn't implement dl_iterate_phdr until API 21. After
+  // API 21, dl_iterate_phdr exists, but dl_unwind_find_exidx is much faster.
+  #define _LIBUNWIND_USE_DL_UNWIND_FIND_EXIDX 1
 #else
+  // Assume an ELF system with a dl_iterate_phdr function.
+  #define _LIBUNWIND_USE_DL_ITERATE_PHDR 1
   #if !defined(_LIBUNWIND_ARM_EHABI)
     #define _LIBUNWIND_SUPPORT_DWARF_UNWIND 1
     #define _LIBUNWIND_SUPPORT_DWARF_INDEX 1
@@ -105,8 +116,27 @@
 #endif
 #endif
 
-#if defined(__powerpc64__) && defined(_ARCH_PWR8)
-#define PPC64_HAS_VMX
+#ifndef _LIBUNWIND_REMEMBER_HEAP_ALLOC
+#if defined(_LIBUNWIND_REMEMBER_STACK_ALLOC) || defined(__APPLE__) ||          \
+    defined(__linux__) || defined(__ANDROID__) || defined(__MINGW32__) ||      \
+    defined(_LIBUNWIND_IS_BAREMETAL)
+#define _LIBUNWIND_REMEMBER_ALLOC(_size) alloca(_size)
+#define _LIBUNWIND_REMEMBER_FREE(_ptr)                                         \
+  do {                                                                         \
+  } while (0)
+#elif defined(_WIN32)
+#define _LIBUNWIND_REMEMBER_ALLOC(_size) _malloca(_size)
+#define _LIBUNWIND_REMEMBER_FREE(_ptr) _freea(_ptr)
+#define _LIBUNWIND_REMEMBER_CLEANUP_NEEDED
+#else
+#define _LIBUNWIND_REMEMBER_ALLOC(_size) malloc(_size)
+#define _LIBUNWIND_REMEMBER_FREE(_ptr) free(_ptr)
+#define _LIBUNWIND_REMEMBER_CLEANUP_NEEDED
+#endif
+#else /* _LIBUNWIND_REMEMBER_HEAP_ALLOC */
+#define _LIBUNWIND_REMEMBER_ALLOC(_size) malloc(_size)
+#define _LIBUNWIND_REMEMBER_FREE(_ptr) free(_ptr)
+#define _LIBUNWIND_REMEMBER_CLEANUP_NEEDED
 #endif
 
 #if defined(NDEBUG) && defined(_LIBUNWIND_IS_BAREMETAL)

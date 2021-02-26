@@ -130,7 +130,18 @@ enum class device : cl_device_info {
   usm_host_allocations = PI_USM_HOST_SUPPORT,
   usm_shared_allocations = PI_USM_SINGLE_SHARED_SUPPORT,
   usm_restricted_shared_allocations = PI_USM_CROSS_SHARED_SUPPORT,
-  usm_system_allocator = PI_USM_SYSTEM_SHARED_SUPPORT
+  usm_system_allocator = PI_USM_SYSTEM_SHARED_SUPPORT,
+
+  // intel extensions
+  ext_intel_pci_address = PI_DEVICE_INFO_PCI_ADDRESS,
+  ext_intel_gpu_eu_count = PI_DEVICE_INFO_GPU_EU_COUNT,
+  ext_intel_gpu_eu_simd_width = PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH,
+  ext_intel_gpu_slices = PI_DEVICE_INFO_GPU_SLICES,
+  ext_intel_gpu_subslices_per_slice = PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE,
+  ext_intel_gpu_eu_count_per_subslice =
+      PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
+  ext_intel_max_mem_bandwidth = PI_DEVICE_INFO_MAX_MEM_BANDWIDTH,
+  ext_intel_mem_channel = PI_MEM_PROPERTIES_CHANNEL
 };
 
 enum class device_type : pi_uint64 {
@@ -214,6 +225,19 @@ enum class kernel_sub_group : cl_kernel_sub_group_info {
   compile_sub_group_size = CL_KERNEL_COMPILE_SUB_GROUP_SIZE_INTEL
 };
 
+enum class kernel_device_specific : cl_kernel_work_group_info {
+  global_work_size = CL_KERNEL_GLOBAL_WORK_SIZE,
+  work_group_size = CL_KERNEL_WORK_GROUP_SIZE,
+  compile_work_group_size = CL_KERNEL_COMPILE_WORK_GROUP_SIZE,
+  preferred_work_group_size_multiple =
+      CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,
+  private_mem_size = CL_KERNEL_PRIVATE_MEM_SIZE,
+  max_sub_group_size = CL_KERNEL_MAX_SUB_GROUP_SIZE_FOR_NDRANGE,
+  max_num_sub_groups = CL_KERNEL_MAX_NUM_SUB_GROUPS,
+  compile_num_sub_groups = CL_KERNEL_COMPILE_NUM_SUB_GROUPS,
+  compile_sub_group_size = CL_KERNEL_COMPILE_SUB_GROUP_SIZE_INTEL
+};
+
 // A.6 Program information desctiptors
 enum class program : cl_program_info {
   context = CL_PROGRAM_CONTEXT,
@@ -242,13 +266,16 @@ enum class event_profiling : cl_profiling_info {
 // Provide an alias to the return type for each of the info parameters
 template <typename T, T param> class param_traits {};
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+template <typename T, T param> struct compatibility_param_traits {};
+
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
   template <> class param_traits<param_type, param_type::param> {              \
   public:                                                                      \
     using return_type = ret_type;                                              \
   };
 
-#define PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type, in_type)     \
+#define __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type,       \
+                                            in_type)                           \
   template <> class param_traits<param_type, param_type::param> {              \
   public:                                                                      \
     using return_type = ret_type;                                              \
@@ -263,6 +290,7 @@ template <typename T, T param> class param_traits {};
 
 #include <CL/sycl/info/event_profiling_traits.def>
 
+#include <CL/sycl/info/kernel_device_specific_traits.def>
 #include <CL/sycl/info/kernel_sub_group_traits.def>
 #include <CL/sycl/info/kernel_traits.def>
 #include <CL/sycl/info/kernel_work_group_traits.def>
@@ -273,8 +301,27 @@ template <typename T, T param> class param_traits {};
 
 #include <CL/sycl/info/queue_traits.def>
 
-#undef PARAM_TRAITS_SPEC
-#undef PARAM_TRAITS_SPEC_WITH_INPUT
+#undef __SYCL_PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
+
+#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
+  template <>                                                                  \
+  struct compatibility_param_traits<param_type, param_type::param> {           \
+    static constexpr auto value = kernel_device_specific::param;               \
+  };
+
+#define __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type,       \
+                                            in_type)                           \
+  template <>                                                                  \
+  struct compatibility_param_traits<param_type, param_type::param> {           \
+    static constexpr auto value = kernel_device_specific::param;               \
+  };
+
+#include <CL/sycl/info/kernel_sub_group_traits.def>
+#include <CL/sycl/info/kernel_work_group_traits.def>
+
+#undef __SYCL_PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
 
 } // namespace info
 } // namespace sycl

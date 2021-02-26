@@ -15,10 +15,11 @@
 #define ASAN_ALLOCATOR_H
 
 #include "asan_flags.h"
-#include "asan_internal.h"
 #include "asan_interceptors.h"
+#include "asan_internal.h"
 #include "sanitizer_common/sanitizer_allocator.h"
 #include "sanitizer_common/sanitizer_list.h"
+#include "sanitizer_common/sanitizer_platform.h"
 
 namespace __asan {
 
@@ -28,7 +29,7 @@ enum AllocType {
   FROM_NEW_BR = 3   // Memory block came from operator new [ ]
 };
 
-struct AsanChunk;
+class AsanChunk;
 
 struct AllocatorOptions {
   u32 quarantine_size_mb;
@@ -132,6 +133,10 @@ typedef DefaultSizeClassMap SizeClassMap;
 const uptr kAllocatorSpace =  ~(uptr)0;
 const uptr kAllocatorSize  =  0x2000000000ULL;  // 128G.
 typedef VeryCompactSizeClassMap SizeClassMap;
+#elif SANITIZER_RISCV64
+const uptr kAllocatorSpace = ~(uptr)0;
+const uptr kAllocatorSize = 0x2000000000ULL;  // 128G.
+typedef VeryDenseSizeClassMap SizeClassMap;
 # elif defined(__aarch64__)
 // AArch64/SANITIZER_CAN_USE_ALLOCATOR64 is only for 42-bit VMA
 // so no need to different values for different VMA.

@@ -33,7 +33,7 @@ void ReplaceRandomShuffleCheck::registerMatchers(MatchFinder *Finder) {
   const auto RandomFunc = hasArgument(2, expr().bind("randomFunc"));
   Finder->addMatcher(
       traverse(
-          ast_type_traits::TK_AsIs,
+          TK_AsIs,
           callExpr(
               anyOf(allOf(Begin, End, argumentCountIs(2)),
                     allOf(Begin, End, RandomFunc, argumentCountIs(3))),
@@ -94,7 +94,7 @@ void ReplaceRandomShuffleCheck::check(const MatchFinder::MatchResult &Result) {
   Diag << IncludeInserter.createIncludeInsertion(
       Result.Context->getSourceManager().getFileID(
           MatchedCallExpr->getBeginLoc()),
-      "random", /*IsAngled=*/true);
+      "<random>");
 }
 
 } // namespace modernize

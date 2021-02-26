@@ -60,38 +60,25 @@ MCSymbol *MachineBasicBlock::getSymbol() const {
   if (!CachedMCSymbol) {
     const MachineFunction *MF = getParent();
     MCContext &Ctx = MF->getContext();
-    auto Prefix = Ctx.getAsmInfo()->getPrivateLabelPrefix();
 
-    assert(getNumber() >= 0 && "cannot get label for unreachable MBB");
-
-    // We emit a non-temporary symbol for every basic block if we have BBLabels
-    // or -- with basic block sections -- when a basic block begins a section.
-    // With basic block symbols, we use a unary encoding which can
-    // compress the symbol names significantly. For basic block sections where
-    // this block is the first in a cluster, we use a non-temp descriptive name.
-    // Otherwise we fall back to use temp label.
-    if (MF->hasBBLabels()) {
-      auto Iter = MF->getBBSectionsSymbolPrefix().begin();
-      if (getNumber() < 0 ||
-          getNumber() >= (int)MF->getBBSectionsSymbolPrefix().size())
-        report_fatal_error("Unreachable MBB: " + Twine(getNumber()));
-      // The basic blocks for function foo are named a.BB.foo, aa.BB.foo, and
-      // so on.
-      std::string Prefix(Iter + 1, Iter + getNumber() + 1);
-      std::reverse(Prefix.begin(), Prefix.end());
-      CachedMCSymbol =
-          Ctx.getOrCreateSymbol(Twine(Prefix) + ".BB." + Twine(MF->getName()));
-    } else if (MF->hasBBSections() && isBeginSection()) {
+    // We emit a non-temporary symbol -- with a descriptive name -- if it begins
+    // a section (with basic block sections). Otherwise we fall back to use temp
+    // label.
+    if (MF->hasBBSections() && isBeginSection()) {
       SmallString<5> Suffix;
       if (SectionID == MBBSectionID::ColdSectionID) {
         Suffix += ".cold";
       } else if (SectionID == MBBSectionID::ExceptionSectionID) {
         Suffix += ".eh";
       } else {
-        Suffix += "." + std::to_string(SectionID.Number);
+        // For symbols that represent basic block sections, we add ".__part." to
+        // allow tools like symbolizers to know that this represents a part of
+        // the original function.
+        Suffix = (Suffix + Twine(".__part.") + Twine(SectionID.Number)).str();
       }
       CachedMCSymbol = Ctx.getOrCreateSymbol(MF->getName() + Suffix);
     } else {
+      const StringRef Prefix = Ctx.getAsmInfo()->getPrivateLabelPrefix();
       CachedMCSymbol = Ctx.getOrCreateSymbol(Twine(Prefix) + "BB" +
                                              Twine(MF->getFunctionNumber()) +
                                              "_" + Twine(getNumber()));
@@ -282,6 +269,10 @@ bool MachineBasicBlock::hasEHPadSuccessor() const {
   return false;
 }
 
+bool MachineBasicBlock::isEntryBlock() const {
+  return getParent()->begin() == getIterator();
+}
+
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
 LLVM_DUMP_METHOD void MachineBasicBlock::dump() const {
   print(dbgs());
@@ -362,11 +353,9 @@ void MachineBasicBlock::print(raw_ostream &OS, ModuleSlotTracker &MST,
     if (Indexes) OS << '\t';
     // Don't indent(2), align with previous line attributes.
     OS << "; predecessors: ";
-    for (auto I = pred_begin(), E = pred_end(); I != E; ++I) {
-      if (I != pred_begin())
-        OS << ", ";
-      OS << printMBBReference(**I);
-    }
+    ListSeparator LS;
+    for (auto *Pred : predecessors())
+      OS << LS << printMBBReference(*Pred);
     OS << '\n';
     HasLineAttributes = true;
   }
@@ -375,10 +364,9 @@ void MachineBasicBlock::print(raw_ostream &OS, ModuleSlotTracker &MST,
     if (Indexes) OS << '\t';
     // Print the successors
     OS.indent(2) << "successors: ";
+    ListSeparator LS;
     for (auto I = succ_begin(), E = succ_end(); I != E; ++I) {
-      if (I != succ_begin())
-        OS << ", ";
-      OS << printMBBReference(**I);
+      OS << LS << printMBBReference(**I);
       if (!Probs.empty())
         OS << '('
            << format("0x%08" PRIx32, getSuccProbability(I).getNumerator())
@@ -387,11 +375,10 @@ void MachineBasicBlock::print(raw_ostream &OS, ModuleSlotTracker &MST,
     if (!Probs.empty() && IsStandalone) {
       // Print human readable probabilities as comments.
       OS << "; ";
+      ListSeparator LS;
       for (auto I = succ_begin(), E = succ_end(); I != E; ++I) {
         const BranchProbability &BP = getSuccProbability(I);
-        if (I != succ_begin())
-          OS << ", ";
-        OS << printMBBReference(**I) << '('
+        OS << LS << printMBBReference(**I) << '('
            << format("%.2f%%",
                      rint(((double)BP.getNumerator() / BP.getDenominator()) *
                           100.0 * 100.0) /
@@ -408,12 +395,9 @@ void MachineBasicBlock::print(raw_ostream &OS, ModuleSlotTracker &MST,
     if (Indexes) OS << '\t';
     OS.indent(2) << "liveins: ";
 
-    bool First = true;
+    ListSeparator LS;
     for (const auto &LI : liveins()) {
-      if (!First)
-        OS << ", ";
-      First = false;
-      OS << printReg(LI.PhysReg, TRI);
+      OS << LS << printReg(LI.PhysReg, TRI);
       if (!LI.LaneMask.all())
         OS << ":0x" << PrintLaneMask(LI.LaneMask);
     }
@@ -599,7 +583,7 @@ void MachineBasicBlock::sortUniqueLiveIns() {
 Register
 MachineBasicBlock::addLiveIn(MCRegister PhysReg, const TargetRegisterClass *RC) {
   assert(getParent() && "MBB must be inserted in function");
-  assert(PhysReg.isPhysical() && "Expected physreg");
+  assert(Register::isPhysicalRegister(PhysReg) && "Expected physreg");
   assert(RC && "Register class is required");
   assert((isEHPad() || this == &getParent()->front()) &&
          "Only the entry block and landing pads can have physreg live ins");
@@ -765,7 +749,7 @@ void MachineBasicBlock::splitSuccessor(MachineBasicBlock *Old,
                                        bool NormalizeSuccProbs) {
   succ_iterator OldI = llvm::find(successors(), Old);
   assert(OldI != succ_end() && "Old is not a successor of this block!");
-  assert(llvm::find(successors(), New) == succ_end() &&
+  assert(!llvm::is_contained(successors(), New) &&
          "New is already a successor of this block!");
 
   // Add a new successor with equal probability as the original one. Note
@@ -844,7 +828,7 @@ void MachineBasicBlock::replaceSuccessor(MachineBasicBlock *Old,
 
 void MachineBasicBlock::copySuccessor(MachineBasicBlock *Orig,
                                       succ_iterator I) {
-  if (Orig->Probs.empty())
+  if (!Orig->Probs.empty())
     addSuccessor(*I, Orig->getSuccProbability(I));
   else
     addSuccessorWithoutProb(*I);
@@ -958,6 +942,47 @@ MachineBasicBlock *MachineBasicBlock::getFallThrough() {
 
 bool MachineBasicBlock::canFallThrough() {
   return getFallThrough() != nullptr;
+}
+
+MachineBasicBlock *MachineBasicBlock::splitAt(MachineInstr &MI,
+                                              bool UpdateLiveIns,
+                                              LiveIntervals *LIS) {
+  MachineBasicBlock::iterator SplitPoint(&MI);
+  ++SplitPoint;
+
+  if (SplitPoint == end()) {
+    // Don't bother with a new block.
+    return this;
+  }
+
+  MachineFunction *MF = getParent();
+
+  LivePhysRegs LiveRegs;
+  if (UpdateLiveIns) {
+    // Make sure we add any physregs we define in the block as liveins to the
+    // new block.
+    MachineBasicBlock::iterator Prev(&MI);
+    LiveRegs.init(*MF->getSubtarget().getRegisterInfo());
+    LiveRegs.addLiveOuts(*this);
+    for (auto I = rbegin(), E = Prev.getReverse(); I != E; ++I)
+      LiveRegs.stepBackward(*I);
+  }
+
+  MachineBasicBlock *SplitBB = MF->CreateMachineBasicBlock(getBasicBlock());
+
+  MF->insert(++MachineFunction::iterator(this), SplitBB);
+  SplitBB->splice(SplitBB->begin(), this, SplitPoint, end());
+
+  SplitBB->transferSuccessorsAndUpdatePHIs(this);
+  addSuccessor(SplitBB);
+
+  if (UpdateLiveIns)
+    addLiveIns(*SplitBB, LiveRegs);
+
+  if (LIS)
+    LIS->insertMBBInMaps(SplitBB);
+
+  return SplitBB;
 }
 
 MachineBasicBlock *MachineBasicBlock::SplitCriticalEdge(

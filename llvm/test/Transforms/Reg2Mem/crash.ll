@@ -1,3 +1,4 @@
+; RUN: opt -passes=reg2mem -disable-output -enable-new-pm=1 < %s
 ; RUN: opt -reg2mem -disable-output < %s
 ; PR14782
 

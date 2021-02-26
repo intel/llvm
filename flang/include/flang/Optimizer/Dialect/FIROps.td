@@ -21,6 +21,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 
 def fir_Dialect : Dialect {
   let name = "fir";
+  let cppNamespace = "::fir";
 }
 
 // Types and predicates
@@ -139,37 +140,37 @@ class fir_SimpleOp<string mnemonic, list<OpTrait> traits>
 }
 
 // Base builder for allocate operations
-def fir_AllocateOpBuilder : OpBuilder<
-  "OpBuilder &builder, OperationState &result, Type inType,"
-  "ValueRange lenParams = {}, ValueRange sizes = {},"
-  "ArrayRef<NamedAttribute> attributes = {}",
+def fir_AllocateOpBuilder :
+  OpBuilderDAG<(ins "Type":$inType, CArg<"ValueRange", "{}">:$lenParams,
+    CArg<"ValueRange", "{}">:$sizes,
+    CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes),
   [{
-    result.addTypes(getRefTy(inType));
-    result.addAttribute("in_type", TypeAttr::get(inType));
-    result.addOperands(sizes);
-    result.addAttributes(attributes);
+    $_state.addTypes(getRefTy(inType));
+    $_state.addAttribute("in_type", TypeAttr::get(inType));
+    $_state.addOperands(sizes);
+    $_state.addAttributes(attributes);
   }]>;
 
-def fir_NamedAllocateOpBuilder : OpBuilder<
-  "OpBuilder &builder, OperationState &result, Type inType, StringRef name,"
-  "ValueRange lenParams = {}, ValueRange sizes = {},"
-  "ArrayRef<NamedAttribute> attributes = {}",
+def fir_NamedAllocateOpBuilder :
+  OpBuilderDAG<(ins "Type":$inType, "StringRef":$name,
+    CArg<"ValueRange", "{}">:$lenParams, CArg<"ValueRange", "{}">:$sizes,
+    CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes),
   [{
-    result.addTypes(getRefTy(inType));
-    result.addAttribute("in_type", TypeAttr::get(inType));
-    result.addAttribute("name", builder.getStringAttr(name));
-    result.addOperands(sizes);
-    result.addAttributes(attributes);
+    $_state.addTypes(getRefTy(inType));
+    $_state.addAttribute("in_type", TypeAttr::get(inType));
+    $_state.addAttribute("name", $_builder.getStringAttr(name));
+    $_state.addOperands(sizes);
+    $_state.addAttributes(attributes);
   }]>;
 
-def fir_OneResultOpBuilder : OpBuilder<
-  "OpBuilder &, OperationState &result, Type resultType,"
-  "ValueRange operands, ArrayRef<NamedAttribute> attributes = {}",
+def fir_OneResultOpBuilder :
+  OpBuilderDAG<(ins "Type":$resultType, "ValueRange":$operands,
+    CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes),
   [{
     if (resultType)
-      result.addTypes(resultType);
-    result.addOperands(operands);
-    result.addAttributes(attributes);
+      $_state.addTypes(resultType);
+    $_state.addOperands(operands);
+    $_state.addAttributes(attributes);
   }]>;
 
 // Base class of FIR operations that return 1 result
@@ -184,8 +185,8 @@ class fir_SimpleOneResultOp<string mnemonic, list<OpTrait> traits = []> :
   let builders = [fir_OneResultOpBuilder];
 }
 
-class fir_TwoBuilders<OpBuilder b1, OpBuilder b2> {
-  list<OpBuilder> builders = [b1, b2];
+class fir_TwoBuilders<OpBuilderDAG b1, OpBuilderDAG b2> {
+  list<OpBuilderDAG> builders = [b1, b2];
 }
 
 class fir_AllocatableBaseOp<string mnemonic, list<OpTrait> traits = []> :
@@ -248,7 +249,7 @@ class fir_AllocatableOp<string mnemonic, list<OpTrait> traits = []> :
   }];
 
   let printer = [{
-    p << getOperationName() << ' ' << getAttr(inType());
+    p << getOperationName() << ' ' << (*this)->getAttr(inType());
     if (hasLenParams()) {
       // print the LEN parameters to a derived type in parens
       p << '(' << getLenParams() << " : " << getLenParams().getTypes() << ')';
@@ -266,10 +267,10 @@ class fir_AllocatableOp<string mnemonic, list<OpTrait> traits = []> :
     static constexpr llvm::StringRef lenpName() { return "len_param_count"; }
     mlir::Type getAllocatedType();
     
-    bool hasLenParams() { return bool{getAttr(lenpName())}; }
+    bool hasLenParams() { return bool{(*this)->getAttr(lenpName())}; }
     
     unsigned numLenParams() {
-      if (auto val = getAttrOfType<mlir::IntegerAttr>(lenpName()))
+      if (auto val = (*this)->getAttrOfType<mlir::IntegerAttr>(lenpName()))
         return val.getInt();
       return 0;
     }
@@ -290,7 +291,7 @@ class fir_AllocatableOp<string mnemonic, list<OpTrait> traits = []> :
 
     /// Get the input type of the allocation
     mlir::Type getInType() {
-      return getAttrOfType<mlir::TypeAttr>(inType()).getValue();
+      return (*this)->getAttrOfType<mlir::TypeAttr>(inType()).getValue();
     }
   }];
 
@@ -369,18 +370,17 @@ def fir_LoadOp : fir_OneResultOp<"load", [MemoryEffects<[MemRead]>]> {
 
   let arguments = (ins AnyReferenceLike:$memref);
 
-  let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value refVal",
+  let builders = [
+    OpBuilderDAG<(ins "Value":$refVal),
     [{
       if (!refVal) {
-        mlir::emitError(result.location, "LoadOp has null argument");
+        mlir::emitError($_state.location, "LoadOp has null argument");
         return;
       }
       auto refTy = refVal.getType().cast<fir::ReferenceType>();
-      result.addOperands(refVal);
-      result.addTypes(refTy.getEleTy());
-    }]
-  >];
+      $_state.addOperands(refVal);
+      $_state.addTypes(refTy.getEleTy());
+    }]>];
 
   let parser = [{
     mlir::Type type;
@@ -567,7 +567,7 @@ class fir_SwitchTerminatorOp<string mnemonic, list<OpTrait> traits = []> :
 
     // The number of destination conditions that may be tested
     unsigned getNumConditions() {
-      return getAttrOfType<mlir::ArrayAttr>(getCasesAttr()).size();
+      return (*this)->getAttrOfType<mlir::ArrayAttr>(getCasesAttr()).size();
     }
 
     // The selector is the value being tested to determine the destination
@@ -577,7 +577,7 @@ class fir_SwitchTerminatorOp<string mnemonic, list<OpTrait> traits = []> :
     }
 
     // The number of blocks that may be branched to
-    unsigned getNumDest() { return getOperation()->getNumSuccessors(); }
+    unsigned getNumDest() { return (*this)->getNumSuccessors(); }
 
     llvm::Optional<mlir::OperandRange> getCompareOperands(unsigned cond);
     llvm::Optional<llvm::ArrayRef<mlir::Value>> getCompareOperands(
@@ -605,27 +605,27 @@ class fir_IntegralSwitchTerminatorOp<string mnemonic,
     list<OpTrait> traits = []> : fir_SwitchTerminatorOp<mnemonic, traits> {
 
   let skipDefaultBuilders = 1;
-  let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value selector,"
-    "ArrayRef<int64_t> compareOperands, ArrayRef<Block *> destinations,"
-    "ArrayRef<ValueRange> destOperands = {},"
-    "ArrayRef<NamedAttribute> attributes = {}",
+  let builders = [
+    OpBuilderDAG<(ins "Value":$selector, "ArrayRef<int64_t>":$compareOperands,
+      "ArrayRef<Block *>":$destinations,
+      CArg<"ArrayRef<ValueRange>", "{}">:$destOperands,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes),
     [{
-      result.addOperands(selector);
+      $_state.addOperands(selector);
       llvm::SmallVector<mlir::Attribute, 8> ivalues;
       for (auto iv : compareOperands)
-        ivalues.push_back(builder.getI64IntegerAttr(iv));
-      ivalues.push_back(builder.getUnitAttr());
-      result.addAttribute(getCasesAttr(), builder.getArrayAttr(ivalues));
+        ivalues.push_back($_builder.getI64IntegerAttr(iv));
+      ivalues.push_back($_builder.getUnitAttr());
+      $_state.addAttribute(getCasesAttr(), $_builder.getArrayAttr(ivalues));
       const auto count = destinations.size();
       for (auto d : destinations)
-        result.addSuccessors(d);
+        $_state.addSuccessors(d);
       const auto opCount = destOperands.size();
       llvm::SmallVector<int32_t, 8> argOffs;
       int32_t sumArgs = 0;
       for (std::remove_const_t<decltype(count)> i = 0; i != count; ++i) {
         if (i < opCount) {
-          result.addOperands(destOperands[i]);
+          $_state.addOperands(destOperands[i]);
           const auto argSz = destOperands[i].size();
           argOffs.push_back(argSz);
           sumArgs += argSz;
@@ -633,13 +633,12 @@ class fir_IntegralSwitchTerminatorOp<string mnemonic,
           argOffs.push_back(0);
         }
       }
-      result.addAttribute(getOperandSegmentSizeAttr(),
-                          builder.getI32VectorAttr({1, 0, sumArgs}));
-      result.addAttribute(getTargetOffsetAttr(),
-                          builder.getI32VectorAttr(argOffs));
-      result.addAttributes(attributes);
-    }]
-  >];
+      $_state.addAttribute(getOperandSegmentSizeAttr(),
+                          $_builder.getI32VectorAttr({1, 0, sumArgs}));
+      $_state.addAttribute(getTargetOffsetAttr(),
+                          $_builder.getI32VectorAttr(argOffs));
+      $_state.addAttributes(attributes);
+    }]>];
 
   let parser = [{
     mlir::OpAsmParser::OperandType selector;
@@ -689,7 +688,7 @@ class fir_IntegralSwitchTerminatorOp<string mnemonic,
     p << getOperationName() << ' ';
     p.printOperand(getSelector());
     p << " : " << getSelector().getType() << " [";
-    auto cases = getAttrOfType<mlir::ArrayAttr>(getCasesAttr()).getValue();
+    auto cases = (*this)->getAttrOfType<mlir::ArrayAttr>(getCasesAttr()).getValue();
     auto count = getNumConditions();
     for (decltype(count) i = 0; i != count; ++i) {
       if (i)
@@ -712,7 +711,7 @@ class fir_IntegralSwitchTerminatorOp<string mnemonic,
           getSelector().getType().isa<mlir::IndexType>() ||
           getSelector().getType().isa<fir::IntType>()))
       return emitOpError("must be an integer");
-    auto cases = getAttrOfType<mlir::ArrayAttr>(getCasesAttr()).getValue();
+    auto cases = (*this)->getAttrOfType<mlir::ArrayAttr>(getCasesAttr()).getValue();
     auto count = getNumDest();
     if (count == 0)
       return emitOpError("must have at least one successor");
@@ -794,14 +793,16 @@ def fir_SelectCaseOp : fir_SwitchTerminatorOp<"select_case"> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &result, Value selector,"
-    "ArrayRef<mlir::Attribute> compareAttrs, ArrayRef<ValueRange> cmpOperands,"
-    "ArrayRef<Block *> destinations, ArrayRef<ValueRange> destOperands = {},"
-    "ArrayRef<NamedAttribute> attributes = {}">,
-    OpBuilder<"OpBuilder &builder, OperationState &result, Value selector,"
-    "ArrayRef<mlir::Attribute> compareAttrs, ArrayRef<Value> cmpOpList,"
-    "ArrayRef<Block *> destinations, ArrayRef<ValueRange> destOperands = {},"
-    "ArrayRef<NamedAttribute> attributes = {}">];
+    OpBuilderDAG<(ins "Value":$selector,
+      "ArrayRef<mlir::Attribute>":$compareAttrs,
+      "ArrayRef<ValueRange>":$cmpOperands, "ArrayRef<Block *>":$destinations,
+      CArg<"ArrayRef<ValueRange>", "{}">:$destOperands,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>,
+    OpBuilderDAG<(ins "Value":$selector,
+      "ArrayRef<mlir::Attribute>":$compareAttrs, "ArrayRef<Value>":$cmpOpList,
+      "ArrayRef<Block *>":$destinations,
+      CArg<"ArrayRef<ValueRange>", "{}">:$destOperands,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>];
 
   let parser = "return parseSelectCase(parser, result);";
 
@@ -809,7 +810,7 @@ def fir_SelectCaseOp : fir_SwitchTerminatorOp<"select_case"> {
     p << getOperationName() << ' ';
     p.printOperand(getSelector());
     p << " : " << getSelector().getType() << " [";
-    auto cases = getAttrOfType<mlir::ArrayAttr>(getCasesAttr()).getValue();
+    auto cases = (*this)->getAttrOfType<mlir::ArrayAttr>(getCasesAttr()).getValue();
     auto count = getNumConditions();
     for (decltype(count) i = 0; i != count; ++i) {
       if (i)
@@ -838,7 +839,7 @@ def fir_SelectCaseOp : fir_SwitchTerminatorOp<"select_case"> {
           getSelector().getType().isa<fir::LogicalType>() ||
           getSelector().getType().isa<fir::CharacterType>()))
       return emitOpError("must be an integer, character, or logical");
-    auto cases = getAttrOfType<mlir::ArrayAttr>(getCasesAttr()).getValue();
+    auto cases = (*this)->getAttrOfType<mlir::ArrayAttr>(getCasesAttr()).getValue();
     auto count = getNumDest();
     if (count == 0)
       return emitOpError("must have at least one successor");
@@ -886,23 +887,24 @@ def fir_SelectTypeOp : fir_SwitchTerminatorOp<"select_type"> {
   }];
 
   let skipDefaultBuilders = 1;
-  let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value selector,"
-    "ArrayRef<mlir::Attribute> typeOperands,"
-    "ArrayRef<Block *> destinations, ArrayRef<ValueRange> destOperands = {},"
-    "ArrayRef<NamedAttribute> attributes = {}",
+  let builders = [
+    OpBuilderDAG<(ins "Value":$selector,
+      "ArrayRef<mlir::Attribute>":$typeOperands,
+      "ArrayRef<Block *>":$destinations,
+      CArg<"ArrayRef<ValueRange>", "{}">:$destOperands,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes),
     [{
-      result.addOperands(selector);
-      result.addAttribute(getCasesAttr(), builder.getArrayAttr(typeOperands));
+      $_state.addOperands(selector);
+      $_state.addAttribute(getCasesAttr(), $_builder.getArrayAttr(typeOperands));
       const auto count = destinations.size();
       for (auto d : destinations)
-        result.addSuccessors(d);
+        $_state.addSuccessors(d);
       const auto opCount = destOperands.size();
       llvm::SmallVector<int32_t, 8> argOffs;
       int32_t sumArgs = 0;
       for (std::remove_const_t<decltype(count)> i = 0; i != count; ++i) {
         if (i < opCount) {
-          result.addOperands(destOperands[i]);
+          $_state.addOperands(destOperands[i]);
           const auto argSz = destOperands[i].size();
           argOffs.push_back(argSz);
           sumArgs += argSz;
@@ -910,13 +912,12 @@ def fir_SelectTypeOp : fir_SwitchTerminatorOp<"select_type"> {
           argOffs.push_back(0);
         }
       }
-      result.addAttribute(getOperandSegmentSizeAttr(),
-                          builder.getI32VectorAttr({1, 0, sumArgs}));
-      result.addAttribute(getTargetOffsetAttr(),
-                          builder.getI32VectorAttr(argOffs));
-      result.addAttributes(attributes);
-    }]
-  >];
+      $_state.addAttribute(getOperandSegmentSizeAttr(),
+                          $_builder.getI32VectorAttr({1, 0, sumArgs}));
+      $_state.addAttribute(getTargetOffsetAttr(),
+                          $_builder.getI32VectorAttr(argOffs));
+      $_state.addAttributes(attributes);
+    }]>];
 
   let parser = "return parseSelectType(parser, result);";
 
@@ -924,7 +925,7 @@ def fir_SelectTypeOp : fir_SwitchTerminatorOp<"select_type"> {
     p << getOperationName() << ' ';
     p.printOperand(getSelector());
     p << " : " << getSelector().getType() << " [";
-    auto cases = getAttrOfType<mlir::ArrayAttr>(getCasesAttr()).getValue();
+    auto cases = (*this)->getAttrOfType<mlir::ArrayAttr>(getCasesAttr()).getValue();
     auto count = getNumConditions();
     for (decltype(count) i = 0; i != count; ++i) {
       if (i)
@@ -940,7 +941,7 @@ def fir_SelectTypeOp : fir_SwitchTerminatorOp<"select_type"> {
   let verifier = [{
     if (!(getSelector().getType().isa<fir::BoxType>()))
       return emitOpError("must be a boxed type");
-    auto cases = getAttrOfType<mlir::ArrayAttr>(getCasesAttr()).getValue();
+    auto cases = (*this)->getAttrOfType<mlir::ArrayAttr>(getCasesAttr()).getValue();
     auto count = getNumDest();
     if (count == 0)
       return emitOpError("must have at least one successor");
@@ -1055,7 +1056,7 @@ def fir_EmboxOp : fir_Op<"embox", [NoSideEffect]> {
     if (getNumOperands() == 2) {
       p << ", ";
       p.printOperands(dims());
-    } else if (auto map = getAttr(layoutName())) {
+    } else if (auto map = (*this)->getAttr(layoutName())) {
       p << " [" << map << ']';
     }
     p.printOptionalAttrDict(getAttrs(), {layoutName(), lenpName()});
@@ -1096,9 +1097,9 @@ def fir_EmboxOp : fir_Op<"embox", [NoSideEffect]> {
   let extraClassDeclaration = [{
     static constexpr llvm::StringRef layoutName() { return "layout_map"; }
     static constexpr llvm::StringRef lenpName() { return "len_param_count"; }
-    bool hasLenParams() { return bool{getAttr(lenpName())}; }
+    bool hasLenParams() { return bool{(*this)->getAttr(lenpName())}; }
     unsigned numLenParams() {
-      if (auto x = getAttrOfType<mlir::IntegerAttr>(lenpName()))
+      if (auto x = (*this)->getAttrOfType<mlir::IntegerAttr>(lenpName()))
         return x.getInt();
       return 0;
     }
@@ -1212,13 +1213,13 @@ def fir_EmboxProcOp : fir_Op<"emboxproc", [NoSideEffect]> {
   }];
 
   let printer = [{
-    p << getOperationName() << ' ' << getAttr("funcname");
+    p << getOperationName() << ' ' << (*this)->getAttr("funcname");
     auto h = host();
     if (h) {
       p << ", ";
       p.printOperand(h);
     }
-    p << " : (" << getAttr("functype");
+    p << " : (" << (*this)->getAttr("functype");
     if (h)
       p << ", " << h.getType();
     p << ") -> " << getType();
@@ -1560,11 +1561,11 @@ def fir_CoordinateOp : fir_Op<"coordinate_of", [NoSideEffect]> {
   let parser = "return parseCoordinateOp(parser, result);";
 
   let printer = [{
-    p << getOperationName() << ' ' << getOperation()->getOperands();
+    p << getOperationName() << ' ' << (*this)->getOperands();
     p.printOptionalAttrDict(getAttrs(), /*elidedAttrs=*/{baseType()});
     p << " : ";
-    p.printFunctionalType(getOperation()->getOperandTypes(),
-        getOperation()->getResultTypes());
+    p.printFunctionalType((*this)->getOperandTypes(),
+        (*this)->getResultTypes());
   }];
   
   let verifier = [{
@@ -1586,7 +1587,7 @@ def fir_CoordinateOp : fir_Op<"coordinate_of", [NoSideEffect]> {
         if (!ref().getType().dyn_cast<BoxType>())
           return emitOpError("len_param_index must be used on box type");
       }
-    if (auto attr = getAttr(CoordinateOp::baseType())) {
+    if (auto attr = (*this)->getAttr(CoordinateOp::baseType())) {
       if (!attr.isa<mlir::TypeAttr>())
         return emitOpError("improperly constructed");
     } else {
@@ -1597,12 +1598,10 @@ def fir_CoordinateOp : fir_Op<"coordinate_of", [NoSideEffect]> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<"mlir::OpBuilder &builder, OperationState &result,"
-              "Type type, Value ref, ValueRange coor,"
-	      "ArrayRef<NamedAttribute> attrs = {}">,
-    OpBuilder<"mlir::OpBuilder &builder, OperationState &result,"
-              "Type type, ValueRange operands,"
-	      "ArrayRef<NamedAttribute> attrs = {}">];
+    OpBuilderDAG<(ins "Type":$type, "Value":$ref, "ValueRange":$coor,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
+    OpBuilderDAG<(ins "Type":$type, "ValueRange":$operands,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>];
 	      
   let extraClassDeclaration = [{
     static constexpr llvm::StringRef baseType() { return "base_type"; }
@@ -1691,8 +1690,8 @@ def fir_FieldIndexOp : fir_OneResultOp<"field_index", [NoSideEffect]> {
 
   let printer = [{
     p << getOperationName() << ' '
-      << getAttrOfType<mlir::StringAttr>(fieldAttrName()).getValue() << ", "
-      << getAttr(typeAttrName());
+      << (*this)->getAttrOfType<mlir::StringAttr>(fieldAttrName()).getValue() 
+      << ", " << (*this)->getAttr(typeAttrName());
     if (getNumOperands()) {
       p << '(';
       p.printOperands(lenparams());
@@ -1708,15 +1707,14 @@ def fir_FieldIndexOp : fir_OneResultOp<"field_index", [NoSideEffect]> {
     }
   }];
 
-  let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, StringRef fieldName,"
-    "Type recTy, ValueRange operands = {}",
+  let builders = [
+    OpBuilderDAG<(ins "StringRef":$fieldName, "Type":$recTy,
+      CArg<"ValueRange", "{}">:$operands),
     [{
-      result.addAttribute(fieldAttrName(), builder.getStringAttr(fieldName));
-      result.addAttribute(typeAttrName(), TypeAttr::get(recTy));
-      result.addOperands(operands);
-    }]
-  >];
+      $_state.addAttribute(fieldAttrName(), $_builder.getStringAttr(fieldName));
+      $_state.addAttribute(typeAttrName(), TypeAttr::get(recTy));
+      $_state.addOperands(operands);
+    }]>];
 
   let extraClassDeclaration = [{
     static constexpr llvm::StringRef fieldAttrName() { return "field_id"; }
@@ -1828,23 +1826,22 @@ def fir_LenParamIndexOp : fir_OneResultOp<"len_param_index", [NoSideEffect]> {
 
   let printer = [{
     p << getOperationName() << ' '
-      << getAttrOfType<mlir::StringAttr>(fieldAttrName()).getValue() << ", "
-      << getAttr(typeAttrName());
+      << (*this)->getAttrOfType<mlir::StringAttr>(fieldAttrName()).getValue()
+      << ", " << (*this)->getAttr(typeAttrName());
   }];
 
-  let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, StringRef fieldName, Type recTy",
+  let builders = [
+    OpBuilderDAG<(ins "StringRef":$fieldName, "Type":$recTy),
     [{
-      result.addAttribute(fieldAttrName(), builder.getStringAttr(fieldName));
-      result.addAttribute(typeAttrName(), TypeAttr::get(recTy));
-    }]
-  >];
+      $_state.addAttribute(fieldAttrName(), $_builder.getStringAttr(fieldName));
+      $_state.addAttribute(typeAttrName(), TypeAttr::get(recTy));
+    }]>];
 
   let extraClassDeclaration = [{
     static constexpr llvm::StringRef fieldAttrName() { return "field_id"; }
     static constexpr llvm::StringRef typeAttrName() { return "on_type"; }
     mlir::Type getOnType() {
-      return getAttrOfType<TypeAttr>(typeAttrName()).getValue();
+      return (*this)->getAttrOfType<TypeAttr>(typeAttrName()).getValue();
     }
   }];
 }
@@ -1867,7 +1864,8 @@ def fir_ResultOp : fir_Op<"result",
 
   let arguments = (ins Variadic<AnyType>:$results);
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &result", "/* do nothing */">
+    OpBuilderDAG<(ins),
+    [{/* do nothing */}]>
   ];
 
   let assemblyFormat = "($results^ `:` type($results))? attr-dict";
@@ -1922,11 +1920,10 @@ def fir_LoopOp : region_Op<"do_loop",
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<"mlir::OpBuilder &builder, OperationState &result,"
-              "mlir::Value lowerBound, mlir::Value upperBound,"
-              "mlir::Value step, bool unordered = false,"
-              "ValueRange iterArgs = llvm::None,"
-              "ArrayRef<NamedAttribute> attributes = {}">
+    OpBuilderDAG<(ins "mlir::Value":$lowerBound, "mlir::Value":$upperBound,
+      "mlir::Value":$step, CArg<"bool", "false">:$unordered,
+      CArg<"ValueRange", "llvm::None">:$iterArgs,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>
   ];
 
   let extraClassDeclaration = [{
@@ -1943,9 +1940,9 @@ def fir_LoopOp : region_Op<"do_loop",
       return getOperands().drop_front(getNumControlOperands());
     }
 
-    void setLowerBound(Value bound) { getOperation()->setOperand(0, bound); }
-    void setUpperBound(Value bound) { getOperation()->setOperand(1, bound); }
-    void setStep(Value step) { getOperation()->setOperand(2, step); }
+    void setLowerBound(Value bound) { (*this)->setOperand(0, bound); }
+    void setUpperBound(Value bound) { (*this)->setOperand(1, bound); }
+    void setStep(Value step) { (*this)->setOperand(2, step); }
 
     /// Number of region arguments for loop-carried values
     unsigned getNumRegionIterArgs() {
@@ -1955,18 +1952,18 @@ def fir_LoopOp : region_Op<"do_loop",
     unsigned getNumControlOperands() { return 3; }
     /// Does the operation hold operands for loop-carried values
     bool hasIterOperands() {
-      return getOperation()->getNumOperands() > getNumControlOperands();
+      return (*this)->getNumOperands() > getNumControlOperands();
     }
     /// Get Number of loop-carried values
     unsigned getNumIterOperands() {
-      return getOperation()->getNumOperands() - getNumControlOperands();
+      return (*this)->getNumOperands() - getNumControlOperands();
     }
 
     /// Get the body of the loop
     mlir::Block *getBody() { return &region().front(); }
 
     void setUnordered() {
-      getOperation()->setAttr(unorderedAttrName(),
+      (*this)->setAttr(unorderedAttrName(),
                               mlir::UnitAttr::get(getContext()));
     }
   }];
@@ -1999,10 +1996,9 @@ def fir_WhereOp : region_Op<"if", [NoRegionArguments]> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &result, "
-              "Value cond, bool withOtherRegion">,
-    OpBuilder<"OpBuilder &builder, OperationState &result, "
-              "TypeRange resultTypes, Value cond, bool withOtherRegion">
+    OpBuilderDAG<(ins "Value":$cond, "bool":$withOtherRegion)>,
+    OpBuilderDAG<(ins "TypeRange":$resultTypes, "Value":$cond,
+      "bool":$withOtherRegion)>
   ];
 
   let extraClassDeclaration = [{
@@ -2046,11 +2042,10 @@ def fir_IterWhileOp : region_Op<"iterate_while",
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<"mlir::OpBuilder &builder, OperationState &result,"
-              "mlir::Value lowerBound, mlir::Value upperBound,"
-	      "mlir::Value step, mlir::Value iterate,"
-              "ValueRange iterArgs = llvm::None,"
-              "ArrayRef<NamedAttribute> attributes = {}">
+    OpBuilderDAG<(ins "mlir::Value":$lowerBound, "mlir::Value":$upperBound,
+      "mlir::Value":$step, "mlir::Value":$iterate,
+      CArg<"ValueRange", "llvm::None">:$iterArgs,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>
   ];
   
   let extraClassDeclaration = [{
@@ -2067,9 +2062,9 @@ def fir_IterWhileOp : region_Op<"iterate_while",
       return getOperands().drop_front(getNumControlOperands());
     }
 
-    void setLowerBound(Value bound) { getOperation()->setOperand(0, bound); }
-    void setUpperBound(Value bound) { getOperation()->setOperand(1, bound); }
-    void setStep(mlir::Value step) { getOperation()->setOperand(2, step); }
+    void setLowerBound(Value bound) { (*this)->setOperand(0, bound); }
+    void setUpperBound(Value bound) { (*this)->setOperand(1, bound); }
+    void setStep(mlir::Value step) { (*this)->setOperand(2, step); }
 
     /// Number of region arguments for loop-carried values
     unsigned getNumRegionIterArgs() {
@@ -2079,11 +2074,11 @@ def fir_IterWhileOp : region_Op<"iterate_while",
     unsigned getNumControlOperands() { return 3; }
     /// Does the operation hold operands for loop-carried values
     bool hasIterOperands() {
-      return getOperation()->getNumOperands() > getNumControlOperands();
+      return (*this)->getNumOperands() > getNumControlOperands();
     }
     /// Get Number of loop-carried values
     unsigned getNumIterOperands() {
-      return getOperation()->getNumOperands() - getNumControlOperands();
+      return (*this)->getNumOperands() - getNumControlOperands();
     }
   }];
 }
@@ -2171,7 +2166,7 @@ def fir_DispatchOp : fir_Op<"dispatch",
   }];
 
   let printer = [{
-    p << getOperationName() << ' ' << getAttr("method") << '(';
+    p << getOperationName() << ' ' << (*this)->getAttr("method") << '(';
     p.printOperand(object());
     if (arg_operand_begin() != arg_operand_end()) {
       p << ", ";
@@ -2181,7 +2176,7 @@ def fir_DispatchOp : fir_Op<"dispatch",
     p.printOptionalAttrDict(getAttrs(), {"fn_type", "method"});
     auto resTy{getResultTypes()};
     llvm::SmallVector<mlir::Type, 8> argTy(getOperandTypes());
-    p << " : " << mlir::FunctionType::get(argTy, resTy, getContext());
+    p << " : " << mlir::FunctionType::get(getContext(), argTy, resTy);
   }];
 
   let extraClassDeclaration = [{
@@ -2255,7 +2250,7 @@ def fir_StringLitOp : fir_Op<"string_lit", [NoSideEffect]> {
     auto eleTy = getType().cast<fir::SequenceType>().getEleTy();
     if (!eleTy.isa<fir::CharacterType>())
       return emitOpError("must have !fir.char type");
-    if (auto xl = getAttr(xlist())) {
+    if (auto xl = (*this)->getAttr(xlist())) {
       auto xList = xl.cast<mlir::ArrayAttr>();
       for (auto a : xList)
         if (!a.isa<mlir::IntegerAttr>())
@@ -2270,12 +2265,12 @@ def fir_StringLitOp : fir_Op<"string_lit", [NoSideEffect]> {
     static constexpr const char *xlist() { return "xlist"; }
 
     // Get the LEN attribute of this character constant
-    mlir::Attribute getSize() { return getAttr(size()); }
+    mlir::Attribute getSize() { return (*this)->getAttr(size()); }
     // Get the string value of this character constant
     mlir::Attribute getValue() {
-      if (auto attr = getAttr(value()))
+      if (auto attr = (*this)->getAttr(value()))
         return attr;
-      return getAttr(xlist());
+      return (*this)->getAttr(xlist());
     }
 
     /// Is this a wide character literal (1 character > 8 bits)
@@ -2369,10 +2364,10 @@ def fir_CmpfOp : fir_Op<"cmpf",
 
   let results = (outs AnyLogicalLike);
 
-  let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, CmpFPredicate predicate,"
-    "Value lhs, Value rhs", [{
-      buildCmpFOp(builder, result, predicate, lhs, rhs);
+  let builders = [
+    OpBuilderDAG<(ins "CmpFPredicate":$predicate, "Value":$lhs, "Value":$rhs),
+    [{
+      buildCmpFOp($_builder, $_state, predicate, lhs, rhs);
   }]>];
 
   let parser = [{ return parseCmpfOp(parser, result); }];
@@ -2386,7 +2381,7 @@ def fir_CmpfOp : fir_Op<"cmpf",
     static CmpFPredicate getPredicateByName(llvm::StringRef name);
 
     CmpFPredicate getPredicate() {
-      return (CmpFPredicate)getAttrOfType<mlir::IntegerAttr>(
+      return (CmpFPredicate)(*this)->getAttrOfType<mlir::IntegerAttr>(
           getPredicateAttrName()).getInt();
     }
   }];
@@ -2420,11 +2415,11 @@ def fir_ConstcOp : fir_Op<"constc", [NoSideEffect]> {
 
   let printer = [{
     p << getOperationName() << " (0x";
-    auto f1 = getAttr(realAttrName()).cast<mlir::FloatAttr>();
+    auto f1 = (*this)->getAttr(realAttrName()).cast<mlir::FloatAttr>();
     auto i1 = f1.getValue().bitcastToAPInt();
     p.getStream().write_hex(i1.getZExtValue());
     p << ", 0x";
-    auto f2 = getAttr(imagAttrName()).cast<mlir::FloatAttr>();
+    auto f2 = (*this)->getAttr(imagAttrName()).cast<mlir::FloatAttr>();
     auto i2 = f2.getValue().bitcastToAPInt();
     p.getStream().write_hex(i2.getZExtValue());
     p << ") : ";
@@ -2441,8 +2436,8 @@ def fir_ConstcOp : fir_Op<"constc", [NoSideEffect]> {
     static constexpr llvm::StringRef realAttrName() { return "real"; }
     static constexpr llvm::StringRef imagAttrName() { return "imaginary"; }
 
-    mlir::Attribute getReal() { return getAttr(realAttrName()); }
-    mlir::Attribute getImaginary() { return getAttr(imagAttrName()); }
+    mlir::Attribute getReal() { return (*this)->getAttr(realAttrName()); }
+    mlir::Attribute getImaginary() { return (*this)->getAttr(imagAttrName()); }
   }];
 }
 
@@ -2478,10 +2473,10 @@ def fir_CmpcOp : fir_Op<"cmpc",
 
   let printer = "printCmpcOp(p, *this);";
 
-  let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, CmpFPredicate predicate,"
-    "Value lhs, Value rhs", [{
-      buildCmpCOp(builder, result, predicate, lhs, rhs);
+  let builders = [
+    OpBuilderDAG<(ins "CmpFPredicate":$predicate, "Value":$lhs, "Value":$rhs),
+    [{
+      buildCmpCOp($_builder, $_state, predicate, lhs, rhs);
   }]>];
 
   let extraClassDeclaration = [{
@@ -2490,7 +2485,7 @@ def fir_CmpcOp : fir_Op<"cmpc",
     }
 
     CmpFPredicate getPredicate() {
-      return (CmpFPredicate)getAttrOfType<mlir::IntegerAttr>(
+      return (CmpFPredicate)(*this)->getAttrOfType<mlir::IntegerAttr>(
           getPredicateAttrName()).getInt();
     }
   }];
@@ -2606,12 +2601,12 @@ def fir_GenTypeDescOp : fir_OneResultOp<"gentypedesc", [NoSideEffect]> {
   }];
 
   let printer = [{
-    p << getOperationName() << ' ' << getAttr("in_type");
+    p << getOperationName() << ' ' << (*this)->getAttr("in_type");
     p.printOptionalAttrDict(getAttrs(), {"in_type"});
   }];
 
   let builders = [
-    OpBuilder<"OpBuilder &, OperationState &result, mlir::TypeAttr inty">
+    OpBuilderDAG<(ins "mlir::TypeAttr":$inty)>
   ];
 
   let verifier = [{
@@ -2628,7 +2623,7 @@ def fir_GenTypeDescOp : fir_OneResultOp<"gentypedesc", [NoSideEffect]> {
   let extraClassDeclaration = [{
     mlir::Type getInType() {
       // get the type that the type descriptor describes
-      return getAttrOfType<mlir::TypeAttr>("in_type").getValue();
+      return (*this)->getAttrOfType<mlir::TypeAttr>("in_type").getValue();
     }
   }];
 }
@@ -2702,40 +2697,36 @@ def fir_GlobalOp : fir_Op<"global", [IsolatedFromAbove, Symbol]> {
     if (linkName().hasValue())
       p << ' ' << linkName().getValue();
     p << ' ';
-    p.printAttributeWithoutType(getAttr(symbolAttrName()));
+    p.printAttributeWithoutType((*this)->getAttr(symbolAttrName()));
     if (auto val = getValueOrNull())
       p << '(' << val << ')';
-    if (getAttr(constantAttrName()))
+    if ((*this)->getAttr(constantAttrName()))
       p << " constant";
     p << " : ";
     p.printType(getType());
     if (hasInitializationBody())
-      p.printRegion(getOperation()->getRegion(0), /*printEntryBlockArgs=*/false,
+      p.printRegion((*this)->getRegion(0), /*printEntryBlockArgs=*/false,
                     /*printBlockTerminators=*/true);
   }];
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<"mlir::OpBuilder &builder, OperationState &result,"
-              "StringRef name, Type type, ArrayRef<NamedAttribute> attrs = {}">,
-    OpBuilder<"mlir::OpBuilder &builder, OperationState &result,"
-              "StringRef name, bool isConstant, Type type,"
-	      "ArrayRef<NamedAttribute> attrs = {}">,
-    OpBuilder<"mlir::OpBuilder &builder, OperationState &result,"
-              "StringRef name, Type type, StringAttr linkage = {},"
-	      "ArrayRef<NamedAttribute> attrs = {}">,
-    OpBuilder<"mlir::OpBuilder &builder, OperationState &result,"
-              "StringRef name, bool isConstant, Type type,"
-	      "StringAttr linkage = {},"
-	      "ArrayRef<NamedAttribute> attrs = {}">,
-    OpBuilder<"mlir::OpBuilder &builder, OperationState &result,"
-              "StringRef name, Type type, Attribute initVal,"
-	      "StringAttr linkage = {},"
-	      "ArrayRef<NamedAttribute> attrs = {}">,
-    OpBuilder<"mlir::OpBuilder &builder, OperationState &result,"
-              "StringRef name, bool isConstant, Type type,"
-	      "Attribute initVal, StringAttr linkage = {},"
-	      "ArrayRef<NamedAttribute> attrs = {}">,
+    OpBuilderDAG<(ins "StringRef":$name, "Type":$type,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
+    OpBuilderDAG<(ins "StringRef":$name, "bool":$isConstant, "Type":$type,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
+    OpBuilderDAG<(ins "StringRef":$name, "Type":$type,
+      CArg<"StringAttr", "{}">:$linkage,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
+    OpBuilderDAG<(ins "StringRef":$name, "bool":$isConstant, "Type":$type,
+      CArg<"StringAttr", "{}">:$linkage,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
+    OpBuilderDAG<(ins "StringRef":$name, "Type":$type, "Attribute":$initVal,
+      CArg<"StringAttr", "{}">:$linkage,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
+    OpBuilderDAG<(ins "StringRef":$name, "bool":$isConstant, "Type":$type,
+      "Attribute":$initVal, CArg<"StringAttr", "{}">:$linkage,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
   ];
 
   let extraClassDeclaration = [{
@@ -2747,7 +2738,7 @@ def fir_GlobalOp : fir_Op<"global", [IsolatedFromAbove, Symbol]> {
 
     /// The printable type of the global
     mlir::Type getType() {
-      return getAttrOfType<TypeAttr>(typeAttrName()).getValue();
+      return (*this)->getAttrOfType<TypeAttr>(typeAttrName()).getValue();
     }
 
     /// The semantic type of the global
@@ -2763,7 +2754,7 @@ def fir_GlobalOp : fir_Op<"global", [IsolatedFromAbove, Symbol]> {
     void appendInitialValue(mlir::Operation *op);
 
     /// A GlobalOp has one region.
-    mlir::Region &getRegion() { return getOperation()->getRegion(0); }
+    mlir::Region &getRegion() { return (*this)->getRegion(0); }
 
     /// A GlobalOp has one block.
     mlir::Block &getBlock() { return getRegion().front(); }
@@ -2772,13 +2763,14 @@ def fir_GlobalOp : fir_Op<"global", [IsolatedFromAbove, Symbol]> {
     static mlir::ParseResult verifyValidLinkage(StringRef linkage);
 
     bool hasInitializationBody() {
-      return (getOperation()->getNumRegions() == 1) && !getRegion().empty() &&
+      return ((*this)->getNumRegions() == 1) && !getRegion().empty() &&
         !isa<fir::FirEndOp>(getBlock().front());
     }
 
     mlir::FlatSymbolRefAttr getSymbol() {
-      return mlir::FlatSymbolRefAttr::get(getAttrOfType<mlir::StringAttr>(
-          mlir::SymbolTable::getSymbolAttrName()).getValue(), getContext());
+      return mlir::FlatSymbolRefAttr::get(
+          (*this)->getAttrOfType<mlir::StringAttr>(
+              mlir::SymbolTable::getSymbolAttrName()).getValue(), getContext());
     }
   }];
 }
@@ -2820,8 +2812,8 @@ def fir_GlobalLenOp : fir_Op<"global_len", []> {
   }];
 
   let printer = [{
-    p << getOperationName() << ' ' << getAttr(lenParamAttrName()) << ", "
-      << getAttr(intAttrName());
+    p << getOperationName() << ' ' << (*this)->getAttr(lenParamAttrName()) 
+      << ", " << (*this)->getAttr(intAttrName());
   }];
 
   let extraClassDeclaration = [{
@@ -2865,7 +2857,8 @@ def fir_DispatchTableOp : fir_Op<"dispatch_table",
 
     // Parse the optional table body.
     mlir::Region *body = result.addRegion();
-    if (parser.parseOptionalRegion(*body, llvm::None, llvm::None))
+    OptionalParseResult parseResult = parser.parseOptionalRegion(*body);
+    if (parseResult.hasValue() && failed(*parseResult))
       return mlir::failure();
 
     ensureTerminator(*body, parser.getBuilder(), result.location);
@@ -2873,11 +2866,11 @@ def fir_DispatchTableOp : fir_Op<"dispatch_table",
   }];
 
   let printer = [{
-    auto tableName = getAttrOfType<StringAttr>(
+    auto tableName = (*this)->getAttrOfType<StringAttr>(
       mlir::SymbolTable::getSymbolAttrName()).getValue();
     p << getOperationName() << " @" << tableName;
 
-    Region &body = getOperation()->getRegion(0);
+    Region &body = (*this)->getRegion(0);
     if (!body.empty())
       p.printRegion(body, /*printEntryBlockArgs=*/false,
                           /*printBlockTerminators=*/false);
@@ -2894,12 +2887,12 @@ def fir_DispatchTableOp : fir_Op<"dispatch_table",
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<"mlir::OpBuilder &builder, OperationState *result,"
-              "StringRef name, Type type, ArrayRef<NamedAttribute> attrs = {}",
+    OpBuilderDAG<(ins "StringRef":$name, "Type":$type,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
     [{
-      result->addAttribute(mlir::SymbolTable::getSymbolAttrName(),
-                           builder.getStringAttr(name));
-      result->addAttributes(attrs);
+      $_state.addAttribute(mlir::SymbolTable::getSymbolAttrName(),
+                           $_builder.getStringAttr(name));
+      $_state.addAttributes(attrs);
     }]>
   ];
 
@@ -2908,7 +2901,7 @@ def fir_DispatchTableOp : fir_Op<"dispatch_table",
     void appendTableEntry(mlir::Operation *op);
 
     mlir::Region &getRegion() {
-      return this->getOperation()->getRegion(0);
+      return (*this)->getRegion(0);
     }
 
     mlir::Block &getBlock() {
@@ -2954,8 +2947,8 @@ def fir_DTEntryOp : fir_Op<"dt_entry", []> {
   }];
 
   let printer = [{
-    p << getOperationName() << ' ' << getAttr(methodAttrName()) << ", "
-      << getAttr(procAttrName());
+    p << getOperationName() << ' ' << (*this)->getAttr(methodAttrName()) << ", "
+      << (*this)->getAttr(procAttrName());
   }];
 
   let extraClassDeclaration = [{

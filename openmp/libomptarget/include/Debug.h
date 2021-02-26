@@ -37,24 +37,42 @@
 #ifndef _OMPTARGET_DEBUG_H
 #define _OMPTARGET_DEBUG_H
 
-static inline int getInfoLevel() {
-  static int InfoLevel = -1;
-  if (InfoLevel >= 0)
-    return InfoLevel;
+#include <mutex>
 
-  if (char *EnvStr = getenv("LIBOMPTARGET_INFO"))
-    InfoLevel = std::stoi(EnvStr);
+/// 32-Bit field data attributes controlling information presented to the user.
+enum OpenMPInfoType : uint32_t {
+  // Print data arguments and attributes upon entering an OpenMP device kernel.
+  OMP_INFOTYPE_KERNEL_ARGS = 0x0001,
+  // Indicate when an address already exists in the device mapping table.
+  OMP_INFOTYPE_MAPPING_EXISTS = 0x0002,
+  // Dump the contents of the device pointer map at kernel exit or failure.
+  OMP_INFOTYPE_DUMP_TABLE = 0x0004,
+  // Print kernel information from target device plugins.
+  OMP_INFOTYPE_PLUGIN_KERNEL = 0x0010,
+  // Enable every flag.
+  OMP_INFOTYPE_ALL = 0xffffffff,
+};
+
+// Add __attribute__((used)) to work around a bug in gcc 5/6.
+static inline uint32_t __attribute__((used)) getInfoLevel() {
+  static uint32_t InfoLevel = 0;
+  static std::once_flag Flag{};
+  std::call_once(Flag, []() {
+    if (char *EnvStr = getenv("LIBOMPTARGET_INFO"))
+      InfoLevel = std::stoi(EnvStr);
+  });
 
   return InfoLevel;
 }
 
-static inline int getDebugLevel() {
-  static int DebugLevel = -1;
-  if (DebugLevel >= 0)
-    return DebugLevel;
-
-  if (char *EnvStr = getenv("LIBOMPTARGET_DEBUG"))
-    DebugLevel = std::stoi(EnvStr);
+// Add __attribute__((used)) to work around a bug in gcc 5/6.
+static inline uint32_t __attribute__((used)) getDebugLevel() {
+  static uint32_t DebugLevel = 0;
+  static std::once_flag Flag{};
+  std::call_once(Flag, []() {
+    if (char *EnvStr = getenv("LIBOMPTARGET_DEBUG"))
+      DebugLevel = std::stoi(EnvStr);
+  });
 
   return DebugLevel;
 }
@@ -70,23 +88,26 @@ static inline int getDebugLevel() {
 #define GETNAME2(name) #name
 #define GETNAME(name) GETNAME2(name)
 
-// Messaging interface
+/// Print a generic message string from libomptarget or a plugin RTL
 #define MESSAGE0(_str)                                                         \
   do {                                                                         \
     fprintf(stderr, GETNAME(TARGET_NAME) " message: %s\n", _str);              \
   } while (0)
 
+/// Print a printf formatting string message from libomptarget or a plugin RTL
 #define MESSAGE(_str, ...)                                                     \
   do {                                                                         \
     fprintf(stderr, GETNAME(TARGET_NAME) " message: " _str "\n", __VA_ARGS__); \
   } while (0)
 
+/// Print fatal error message with an error string and error identifier
 #define FATAL_MESSAGE0(_num, _str)                                             \
   do {                                                                         \
     fprintf(stderr, GETNAME(TARGET_NAME) " fatal error %d: %s\n", _num, _str); \
     abort();                                                                   \
   } while (0)
 
+/// Print fatal error message with a printf string and error identifier
 #define FATAL_MESSAGE(_num, _str, ...)                                         \
   do {                                                                         \
     fprintf(stderr, GETNAME(TARGET_NAME) " fatal error %d:" _str "\n", _num,   \
@@ -94,9 +115,17 @@ static inline int getDebugLevel() {
     abort();                                                                   \
   } while (0)
 
+/// Print a generic error string from libomptarget or a plugin RTL
 #define FAILURE_MESSAGE(...)                                                   \
   do {                                                                         \
     fprintf(stderr, GETNAME(TARGET_NAME) " error: ");                          \
+    fprintf(stderr, __VA_ARGS__);                                              \
+  } while (0)
+
+/// Print a generic information string used if LIBOMPTARGET_INFO=1
+#define INFO_MESSAGE(_num, ...)                                                \
+  do {                                                                         \
+    fprintf(stderr, GETNAME(TARGET_NAME) " device %d info: ", (int)_num);      \
     fprintf(stderr, __VA_ARGS__);                                              \
   } while (0)
 
@@ -110,6 +139,7 @@ static inline int getDebugLevel() {
     fprintf(stderr, __VA_ARGS__);                                              \
   }
 
+/// Emit a message for debugging
 #define DP(...)                                                                \
   do {                                                                         \
     if (getDebugLevel() > 0) {                                                 \
@@ -117,6 +147,7 @@ static inline int getDebugLevel() {
     }                                                                          \
   } while (false)
 
+/// Emit a message for debugging or failure if debugging is disabled
 #define REPORT(...)                                                            \
   do {                                                                         \
     if (getDebugLevel() > 0) {                                                 \
@@ -132,5 +163,15 @@ static inline int getDebugLevel() {
   {}
 #define REPORT(...) FAILURE_MESSAGE(__VA_ARGS__);
 #endif // OMPTARGET_DEBUG
+
+/// Emit a message giving the user extra information about the runtime if
+#define INFO(_flags, _id, ...)                                                 \
+  do {                                                                         \
+    if (getDebugLevel() > 0) {                                                 \
+      DEBUGP(DEBUG_PREFIX, __VA_ARGS__);                                       \
+    } else if (getInfoLevel() & _flags) {                                      \
+      INFO_MESSAGE(_id, __VA_ARGS__);                                          \
+    }                                                                          \
+  } while (false)
 
 #endif // _OMPTARGET_DEBUG_H

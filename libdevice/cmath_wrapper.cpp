@@ -181,6 +181,47 @@ short _FDtest(float *px) { // categorize *px
   return ret;
 }
 
+// Returns _FP_LT, _FP_GT or _FP_EQ based on the ordering
+// relationship between x and y. '0' means unordered.
+DEVICE_EXTERN_C
+int _fdpcomp(float x, float y) {
+  int res = 0;
+  if (_FDtest(&x) == _NANCODE || _FDtest(&y) == _NANCODE) {
+    // '0' means unordered.
+    return res;
+  }
+
+  if (x < y)
+    res |= _FP_LT;
+  else if (x > y)
+    res |= _FP_GT;
+  else
+    res |= _FP_EQ;
+
+  return res;
+}
+
+// Returns 0, if the sign bit is not set, and non-zero otherwise.
+DEVICE_EXTERN_C
+int _fdsign(float x) { return FSIGN(x); }
+
+// fpclassify() equivalent with a pointer argument.
+DEVICE_EXTERN_C
+short _fdtest(float *px) {
+  switch (_FDtest(px)) {
+  case _DENORM:
+    return FP_SUBNORMAL;
+  case _FINITE:
+    return FP_NORMAL;
+  case _INFCODE:
+    return FP_INFINITE;
+  case _NANCODE:
+    return FP_NAN;
+  }
+
+  return FP_ZERO;
+}
+
 DEVICE_EXTERN_C
 short _FDnorm(_Fval *ps) { // normalize float fraction
   short xchar;

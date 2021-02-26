@@ -22,12 +22,10 @@ class CreateAfterAttachTestCase(TestBase):
         self.break_2 = line_number('main.cpp', '// Set second breakpoint here')
         self.break_3 = line_number('main.cpp', '// Set third breakpoint here')
 
-    @skipIfFreeBSD  # Hangs.  May be the same as Linux issue llvm.org/pr16229 but
-    # not yet investigated.  Revisit once required functionality
-    # is implemented for FreeBSD.
     # Occasionally hangs on Windows, may be same as other issues.
     @skipIfWindows
     @skipIfiOSSimulator
+    @expectedFailureAll(oslist=["freebsd"], bugnumber="llvm.org/pr48376")
     @expectedFailureNetBSD
     def test_create_after_attach(self):
         """Test thread creation after process attach."""

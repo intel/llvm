@@ -843,6 +843,16 @@ void SCCPSolver::visitCastInst(CastInst &I) {
     auto &LV = getValueState(&I);
     ConstantRange OpRange = OpSt.getConstantRange();
     Type *DestTy = I.getDestTy();
+    // Vectors where all elements have the same known constant range are treated
+    // as a single constant range in the lattice. When bitcasting such vectors,
+    // there is a mis-match between the width of the lattice value (single
+    // constant range) and the original operands (vector). Go to overdefined in
+    // that case.
+    if (I.getOpcode() == Instruction::BitCast &&
+        I.getOperand(0)->getType()->isVectorTy() &&
+        OpRange.getBitWidth() < DL.getTypeSizeInBits(DestTy))
+      return (void)markOverdefined(&I);
+
     ConstantRange Res =
         OpRange.castOp(I.getOpcode(), DL.getTypeSizeInBits(DestTy));
     mergeInValue(LV, &I, ValueLatticeElement::getRange(Res));
@@ -1350,6 +1360,25 @@ void SCCPSolver::handleCallResult(CallBase &CB) {
 
       return (void)mergeInValue(IV, &CB, CopyOfVal);
     }
+
+    if (ConstantRange::isIntrinsicSupported(II->getIntrinsicID())) {
+      // Compute result range for intrinsics supported by ConstantRange.
+      // Do this even if we don't know a range for all operands, as we may
+      // still know something about the result range, e.g. of abs(x).
+      SmallVector<ConstantRange, 2> OpRanges;
+      for (Value *Op : II->args()) {
+        const ValueLatticeElement &State = getValueState(Op);
+        if (State.isConstantRange())
+          OpRanges.push_back(State.getConstantRange());
+        else
+          OpRanges.push_back(
+              ConstantRange::getFull(Op->getType()->getScalarSizeInBits()));
+      }
+
+      ConstantRange Result =
+          ConstantRange::intrinsic(II->getIntrinsicID(), OpRanges);
+      return (void)mergeInValue(II, ValueLatticeElement::getRange(Result));
+    }
   }
 
   // The common case is that we aren't tracking the callee, either because we
@@ -1419,8 +1448,7 @@ void SCCPSolver::Solve() {
 
     // Process the basic block work list.
     while (!BBWorkList.empty()) {
-      BasicBlock *BB = BBWorkList.back();
-      BBWorkList.pop_back();
+      BasicBlock *BB = BBWorkList.pop_back_val();
 
       LLVM_DEBUG(dbgs() << "\nPopped off BBWL: " << *BB << '\n');
 
@@ -1448,6 +1476,7 @@ void SCCPSolver::Solve() {
 /// This scan also checks for values that use undefs. It conservatively marks
 /// them as overdefined.
 bool SCCPSolver::ResolvedUndefsIn(Function &F) {
+  bool MadeChange = false;
   for (BasicBlock &BB : F) {
     if (!BBExecutable.count(&BB))
       continue;
@@ -1473,8 +1502,10 @@ bool SCCPSolver::ResolvedUndefsIn(Function &F) {
         // more precise than this but it isn't worth bothering.
         for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i) {
           ValueLatticeElement &LV = getStructValueState(&I, i);
-          if (LV.isUnknownOrUndef())
+          if (LV.isUnknownOrUndef()) {
             markOverdefined(LV, &I);
+            MadeChange = true;
+          }
         }
         continue;
       }
@@ -1501,7 +1532,7 @@ bool SCCPSolver::ResolvedUndefsIn(Function &F) {
       }
 
       markOverdefined(&I);
-      return true;
+      MadeChange = true;
     }
 
     // Check to see if we have a branch or switch on an undefined value.  If so
@@ -1518,7 +1549,8 @@ bool SCCPSolver::ResolvedUndefsIn(Function &F) {
       if (isa<UndefValue>(BI->getCondition())) {
         BI->setCondition(ConstantInt::getFalse(BI->getContext()));
         markEdgeExecutable(&BB, TI->getSuccessor(1));
-        return true;
+        MadeChange = true;
+        continue;
       }
 
       // Otherwise, it is a branch on a symbolic value which is currently
@@ -1527,7 +1559,7 @@ bool SCCPSolver::ResolvedUndefsIn(Function &F) {
       // FIXME: Distinguish between dead code and an LLVM "undef" value.
       BasicBlock *DefaultSuccessor = TI->getSuccessor(1);
       if (markEdgeExecutable(&BB, DefaultSuccessor))
-        return true;
+        MadeChange = true;
 
       continue;
     }
@@ -1546,7 +1578,8 @@ bool SCCPSolver::ResolvedUndefsIn(Function &F) {
       if (isa<UndefValue>(IBR->getAddress())) {
         IBR->setAddress(BlockAddress::get(IBR->getSuccessor(0)));
         markEdgeExecutable(&BB, IBR->getSuccessor(0));
-        return true;
+        MadeChange = true;
+        continue;
       }
 
       // Otherwise, it is a branch on a symbolic value which is currently
@@ -1556,7 +1589,7 @@ bool SCCPSolver::ResolvedUndefsIn(Function &F) {
       // we can assume the branch has undefined behavior instead.
       BasicBlock *DefaultSuccessor = IBR->getSuccessor(0);
       if (markEdgeExecutable(&BB, DefaultSuccessor))
-        return true;
+        MadeChange = true;
 
       continue;
     }
@@ -1571,7 +1604,8 @@ bool SCCPSolver::ResolvedUndefsIn(Function &F) {
       if (isa<UndefValue>(SI->getCondition())) {
         SI->setCondition(SI->case_begin()->getCaseValue());
         markEdgeExecutable(&BB, SI->case_begin()->getCaseSuccessor());
-        return true;
+        MadeChange = true;
+        continue;
       }
 
       // Otherwise, it is a branch on a symbolic value which is currently
@@ -1580,13 +1614,13 @@ bool SCCPSolver::ResolvedUndefsIn(Function &F) {
       // FIXME: Distinguish between dead code and an LLVM "undef" value.
       BasicBlock *DefaultSuccessor = SI->case_begin()->getCaseSuccessor();
       if (markEdgeExecutable(&BB, DefaultSuccessor))
-        return true;
+        MadeChange = true;
 
       continue;
     }
   }
 
-  return false;
+  return MadeChange;
 }
 
 static bool tryToReplaceWithConstant(SCCPSolver &Solver, Value *V) {
@@ -1944,13 +1978,12 @@ bool llvm::runIPSCCP(
   while (ResolvedUndefs) {
     LLVM_DEBUG(dbgs() << "RESOLVING UNDEFS\n");
     ResolvedUndefs = false;
-    for (Function &F : M)
-      if (Solver.ResolvedUndefsIn(F)) {
-        // We run Solve() after we resolved an undef in a function, because
-        // we might deduce a fact that eliminates an undef in another function.
-        Solver.Solve();
+    for (Function &F : M) {
+      if (Solver.ResolvedUndefsIn(F))
         ResolvedUndefs = true;
-      }
+    }
+    if (ResolvedUndefs)
+      Solver.Solve();
   }
 
   bool MadeChanges = false;
@@ -2081,7 +2114,7 @@ bool llvm::runIPSCCP(
         // poison nor undef. Poison will be outside any range and currently
         // values outside of the specified range cause immediate undefined
         // behavior.
-        if (!isGuaranteedNotToBeUndefOrPoison(CB, CB))
+        if (!isGuaranteedNotToBeUndefOrPoison(CB, nullptr, CB))
           continue;
 
         // Do not touch existing metadata for now.

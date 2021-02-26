@@ -82,8 +82,9 @@ public:
   /// elements.
   bool isFiniteNonZeroFP() const;
 
-  /// Return true if this is a normal (as opposed to denormal) floating-point
-  /// scalar constant or a vector constant with all normal elements.
+  /// Return true if this is a normal (as opposed to denormal, infinity, nan,
+  /// or zero) floating-point scalar constant or a vector constant with all
+  /// normal elements. See APFloat::isNormal.
   bool isNormalFP() const;
 
   /// Return true if this scalar has an exact multiplicative inverse or this
@@ -100,11 +101,15 @@ public:
   /// lane, the constants still match.
   bool isElementWiseEqual(Value *Y) const;
 
-  /// Return true if this is a vector constant that includes any undefined
-  /// elements. Since it is impossible to inspect a scalable vector element-
-  /// wise at compile time, this function returns true only if the entire
-  /// vector is undef
-  bool containsUndefElement() const;
+  /// Return true if this is a vector constant that includes any undef or
+  /// poison elements. Since it is impossible to inspect a scalable vector
+  /// element- wise at compile time, this function returns true only if the
+  /// entire vector is undef or poison.
+  bool containsUndefOrPoisonElement() const;
+
+  /// Return true if this is a vector constant that includes any poison
+  /// elements.
+  bool containsPoisonElement() const;
 
   /// Return true if this is a fixed width vector constant that includes
   /// any constant expressions.
@@ -203,6 +208,12 @@ public:
   /// Try to replace undefined constant C or undefined elements in C with
   /// Replacement. If no changes are made, the constant C is returned.
   static Constant *replaceUndefsWith(Constant *C, Constant *Replacement);
+
+  /// Merges undefs of a Constant with another Constant, along with the
+  /// undefs already present. Other doesn't have to be the same type as C, but
+  /// both must either be scalars or vectors with the same element count. If no
+  /// changes are made, the constant C is returned.
+  static Constant *mergeUndefsWith(Constant *C, Constant *Other);
 };
 
 } // end namespace llvm

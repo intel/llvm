@@ -12,10 +12,12 @@ add_mlir_dialect_library(MLIRShape
   MLIRShapeOpsIncGen
 
   LINK_LIBS PUBLIC
+  MLIRCastInterfaces
   MLIRControlFlowInterfaces
   MLIRDialect
   MLIRInferTypeOpInterface
   MLIRIR
   MLIRSideEffectInterfaces
-  MLIRStandardOps
+  MLIRStandard
+  MLIRTensor
   )

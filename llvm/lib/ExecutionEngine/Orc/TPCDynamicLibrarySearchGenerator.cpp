@@ -24,8 +24,8 @@ TPCDynamicLibrarySearchGenerator::Load(TargetProcessControl &TPC,
 }
 
 Error TPCDynamicLibrarySearchGenerator::tryToGenerate(
-    LookupKind K, JITDylib &JD, JITDylibLookupFlags JDLookupFlags,
-    const SymbolLookupSet &Symbols) {
+    LookupState &LS, LookupKind K, JITDylib &JD,
+    JITDylibLookupFlags JDLookupFlags, const SymbolLookupSet &Symbols) {
 
   if (Symbols.empty())
     return Error::success();
@@ -41,7 +41,7 @@ Error TPCDynamicLibrarySearchGenerator::tryToGenerate(
 
   SymbolMap NewSymbols;
 
-  TargetProcessControl::LookupRequestElement Request(H, LookupSymbols);
+  TargetProcessControl::LookupRequest Request(H, LookupSymbols);
   auto Result = TPC.lookupSymbols(Request);
   if (!Result)
     return Result.takeError();
@@ -50,12 +50,13 @@ Error TPCDynamicLibrarySearchGenerator::tryToGenerate(
   assert(Result->front().size() == LookupSymbols.size() &&
          "Result has incorrect number of elements");
 
-  SymbolNameVector MissingSymbols;
   auto ResultI = Result->front().begin();
-  for (auto &KV : LookupSymbols)
+  for (auto &KV : LookupSymbols) {
     if (*ResultI)
       NewSymbols[KV.first] =
-          JITEvaluatedSymbol(*ResultI++, JITSymbolFlags::Exported);
+          JITEvaluatedSymbol(*ResultI, JITSymbolFlags::Exported);
+    ++ResultI;
+  }
 
   // If there were no resolved symbols bail out.
   if (NewSymbols.empty())

@@ -58,6 +58,12 @@
 /* Define if dladdr() is available on this platform. */
 #cmakedefine HAVE_DLADDR ${HAVE_DLADDR}
 
+/* Define to 1 if we can register EH frames on this platform. */
+#cmakedefine HAVE_REGISTER_FRAME ${HAVE_REGISTER_FRAME}
+
+/* Define to 1 if we can deregister EH frames on this platform. */
+#cmakedefine HAVE_DEREGISTER_FRAME ${HAVE_DEREGISTER_FRAME}
+
 /* Define to 1 if you have the <errno.h> header file. */
 #cmakedefine HAVE_ERRNO_H ${HAVE_ERRNO_H}
 
@@ -208,9 +214,6 @@
 /* Define to 1 if you have the <sys/types.h> header file. */
 #cmakedefine HAVE_SYS_TYPES_H ${HAVE_SYS_TYPES_H}
 
-/* Define to 1 if you have the <sysexits.h> header file. */
-#cmakedefine HAVE_SYSEXITS_H ${HAVE_SYSEXITS_H}
-
 /* Define if the setupterm() function is supported this platform. */
 #cmakedefine LLVM_ENABLE_TERMINFO ${LLVM_ENABLE_TERMINFO}
 
@@ -306,7 +309,7 @@
 #cmakedefine01 LLVM_VERSION_PRINTER_SHOW_HOST_TARGET_INFO
 
 /* Define if libxml2 is supported on this platform. */
-#cmakedefine LLVM_LIBXML2_ENABLED ${LLVM_LIBXML2_ENABLED}
+#cmakedefine LLVM_ENABLE_LIBXML2 ${LLVM_ENABLE_LIBXML2}
 
 /* Define to the extension used for shared libraries, say, ".so". */
 #cmakedefine LTDL_SHLIB_EXT "${LTDL_SHLIB_EXT}"

@@ -142,7 +142,6 @@ func @affine_store_missing_l_square(%C: memref<4096x4096xf32>) {
 
 // -----
 
-// CHECK-LABEL: @affine_min
 func @affine_min(%arg0 : index, %arg1 : index, %arg2 : index) {
   // expected-error@+1 {{operand count and affine map dimension and symbol count must match}}
   %0 = affine.min affine_map<(d0) -> (d0)> (%arg0, %arg1)
@@ -152,7 +151,6 @@ func @affine_min(%arg0 : index, %arg1 : index, %arg2 : index) {
 
 // -----
 
-// CHECK-LABEL: @affine_min
 func @affine_min(%arg0 : index, %arg1 : index, %arg2 : index) {
   // expected-error@+1 {{operand count and affine map dimension and symbol count must match}}
   %0 = affine.min affine_map<()[s0] -> (s0)> (%arg0, %arg1)
@@ -162,7 +160,6 @@ func @affine_min(%arg0 : index, %arg1 : index, %arg2 : index) {
 
 // -----
 
-// CHECK-LABEL: @affine_min
 func @affine_min(%arg0 : index, %arg1 : index, %arg2 : index) {
   // expected-error@+1 {{operand count and affine map dimension and symbol count must match}}
   %0 = affine.min affine_map<(d0) -> (d0)> ()
@@ -172,7 +169,6 @@ func @affine_min(%arg0 : index, %arg1 : index, %arg2 : index) {
 
 // -----
 
-// CHECK-LABEL: @affine_max
 func @affine_max(%arg0 : index, %arg1 : index, %arg2 : index) {
   // expected-error@+1 {{operand count and affine map dimension and symbol count must match}}
   %0 = affine.max affine_map<(d0) -> (d0)> (%arg0, %arg1)
@@ -182,7 +178,6 @@ func @affine_max(%arg0 : index, %arg1 : index, %arg2 : index) {
 
 // -----
 
-// CHECK-LABEL: @affine_max
 func @affine_max(%arg0 : index, %arg1 : index, %arg2 : index) {
   // expected-error@+1 {{operand count and affine map dimension and symbol count must match}}
   %0 = affine.max affine_map<()[s0] -> (s0)> (%arg0, %arg1)
@@ -192,7 +187,6 @@ func @affine_max(%arg0 : index, %arg1 : index, %arg2 : index) {
 
 // -----
 
-// CHECK-LABEL: @affine_max
 func @affine_max(%arg0 : index, %arg1 : index, %arg2 : index) {
   // expected-error@+1 {{operand count and affine map dimension and symbol count must match}}
   %0 = affine.max affine_map<(d0) -> (d0)> ()
@@ -202,7 +196,6 @@ func @affine_max(%arg0 : index, %arg1 : index, %arg2 : index) {
 
 // -----
 
-// CHECK-LABEL: @affine_parallel
 func @affine_parallel(%arg0 : index, %arg1 : index, %arg2 : index) {
   // expected-error@+1 {{region argument count and num results of upper bounds, lower bounds, and steps must all match}}
   affine.parallel (%i) = (0, 0) to (100, 100) step (10, 10) {
@@ -211,7 +204,6 @@ func @affine_parallel(%arg0 : index, %arg1 : index, %arg2 : index) {
 
 // -----
 
-// CHECK-LABEL: @affine_parallel
 func @affine_parallel(%arg0 : index, %arg1 : index, %arg2 : index) {
   // expected-error@+1 {{region argument count and num results of upper bounds, lower bounds, and steps must all match}}
   affine.parallel (%i, %j) = (0) to (100, 100) step (10, 10) {
@@ -220,7 +212,6 @@ func @affine_parallel(%arg0 : index, %arg1 : index, %arg2 : index) {
 
 // -----
 
-// CHECK-LABEL: @affine_parallel
 func @affine_parallel(%arg0 : index, %arg1 : index, %arg2 : index) {
   // expected-error@+1 {{region argument count and num results of upper bounds, lower bounds, and steps must all match}}
   affine.parallel (%i, %j) = (0, 0) to (100) step (10, 10) {
@@ -229,7 +220,6 @@ func @affine_parallel(%arg0 : index, %arg1 : index, %arg2 : index) {
 
 // -----
 
-// CHECK-LABEL: @affine_parallel
 func @affine_parallel(%arg0 : index, %arg1 : index, %arg2 : index) {
   // expected-error@+1 {{region argument count and num results of upper bounds, lower bounds, and steps must all match}}
   affine.parallel (%i, %j) = (0, 0) to (100, 100) step (10) {
@@ -237,8 +227,6 @@ func @affine_parallel(%arg0 : index, %arg1 : index, %arg2 : index) {
 }
 
 // -----
-
-// CHECK-LABEL: @affine_parallel
 
 func @affine_parallel(%arg0 : index, %arg1 : index, %arg2 : index) {
   affine.for %x = 0 to 7 {
@@ -252,8 +240,6 @@ func @affine_parallel(%arg0 : index, %arg1 : index, %arg2 : index) {
 
 // -----
 
-// CHECK-LABEL: @affine_parallel
-
 func @affine_parallel(%arg0 : index, %arg1 : index, %arg2 : index) {
   affine.for %x = 0 to 7 {
     %y = addi %x, %x : index
@@ -265,8 +251,6 @@ func @affine_parallel(%arg0 : index, %arg1 : index, %arg2 : index) {
 }
 
 // -----
-
-// CHECK-LABEL: @affine_parallel
 
 func @affine_parallel(%arg0 : index, %arg1 : index, %arg2 : index) {
   %0 = alloc() : memref<100x100xf32>
@@ -280,8 +264,6 @@ func @affine_parallel(%arg0 : index, %arg1 : index, %arg2 : index) {
 
 // -----
 
-// CHECK-LABEL: @affine_parallel
-
 func @affine_parallel(%arg0 : index, %arg1 : index, %arg2 : index) {
   %0 = alloc() : memref<100x100xf32>
   //  expected-error@+1 {{invalid reduction value: "bad"}}
@@ -293,7 +275,6 @@ func @affine_parallel(%arg0 : index, %arg1 : index, %arg2 : index) {
 }
 
 // -----
-// CHECK-LABEL: @affine_parallel
 
 func @affine_parallel(%arg0 : index, %arg1 : index, %arg2 : index) {
   %0 = alloc() : memref<100x100xi32>
@@ -379,3 +360,14 @@ func @affine_if_with_else_region_args(%N: index) {
   return
 }
 
+// -----
+
+func @affine_for_iter_args_mismatch(%buffer: memref<1024xf32>) -> f32 {
+  %sum_0 = constant 0.0 : f32
+  // expected-error@+1 {{mismatch between the number of loop-carried values and results}}
+  %res = affine.for %i = 0 to 10 step 2 iter_args(%sum_iter = %sum_0) -> (f32, f32) {
+    %t = affine.load %buffer[%i] : memref<1024xf32>
+    affine.yield %t : f32
+  }
+  return %res : f32
+}

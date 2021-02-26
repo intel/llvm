@@ -1,16 +1,14 @@
 # REQUIRES: x86
-# RUN: split-file %s %t
+# RUN: rm -rf %t; split-file %s %t
 
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/has-objc-symbol.s -o %t/has-objc-symbol.o
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/has-objc-category.s -o %t/has-objc-category.o
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/has-swift.s -o %t/has-swift.o
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/no-objc.s -o %t/no-objc.o
-
-# RUN: rm -f %t/libHasSomeObjC.a
 # RUN: llvm-ar rcs %t/libHasSomeObjC.a %t/has-objc-symbol.o %t/has-objc-category.o %t/has-swift.o %t/no-objc.o
 
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/test.s -o %t/test.o
-# RUN: lld -flavor darwinnew -syslibroot %S/Inputs/MacOSX.sdk -lSystem %t/test.o -o %t/test \
+# RUN: %lld -lSystem %t/test.o -o %t/test \
 # RUN:   -L%t -lHasSomeObjC -ObjC
 # RUN: llvm-objdump --section-headers --syms %t/test | FileCheck %s --check-prefix=OBJC
 
@@ -24,7 +22,7 @@
 # OBJC-NEXT:  g     F __TEXT,__text _main
 # OBJC-NEXT:  g     F __TEXT,__text _OBJC_CLASS_$_MyObject
 
-# RUN: lld -flavor darwinnew -syslibroot %S/Inputs/MacOSX.sdk -lSystem %t/test.o -o %t/test \
+# RUN: %lld -lSystem %t/test.o -o %t/test \
 # RUN:   -L%t -lHasSomeObjC
 # RUN: llvm-objdump --section-headers --syms %t/test | FileCheck %s --check-prefix=NO-OBJC
 

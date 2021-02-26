@@ -99,6 +99,7 @@ void tools::gcc::Common::ConstructJob(Compilation &C, const JobAction &JA,
     break;
   case llvm::Triple::x86:
   case llvm::Triple::ppc:
+  case llvm::Triple::ppcle:
     CmdArgs.push_back("-m32");
     break;
   case llvm::Triple::x86_64:
@@ -171,8 +172,9 @@ void tools::gcc::Common::ConstructJob(Compilation &C, const JobAction &JA,
     GCCName = "gcc";
 
   const char *Exec = Args.MakeArgString(getToolChain().GetProgramPath(GCCName));
-  C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::AtFileCurCP(), Exec, CmdArgs, Inputs));
+  C.addCommand(std::make_unique<Command>(JA, *this,
+                                         ResponseFileSupport::AtFileCurCP(),
+                                         Exec, CmdArgs, Inputs, Output));
 }
 
 void tools::gcc::Preprocessor::RenderExtraToolArgs(
@@ -253,7 +255,13 @@ static const char *getLDMOption(const llvm::Triple &T, const ArgList &Args) {
   case llvm::Triple::thumbeb:
     return isArmBigEndian(T, Args) ? "armelfb_linux_eabi" : "armelf_linux_eabi";
   case llvm::Triple::ppc:
-    return "elf32ppclinux";
+    if (T.isOSLinux())
+      return "elf32ppclinux";
+    return "elf32ppc";
+  case llvm::Triple::ppcle:
+    if (T.isOSLinux())
+      return "elf32lppclinux";
+    return "elf32lppc";
   case llvm::Triple::ppc64:
     return "elf64ppc";
   case llvm::Triple::ppc64le:
@@ -396,8 +404,9 @@ void tools::gnutools::StaticLibTool::ConstructJob(
   }
 
   const char *Exec = Args.MakeArgString(getToolChain().GetStaticLibToolPath());
-  C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::AtFileCurCP(), Exec, CmdArgs, Inputs));
+  C.addCommand(std::make_unique<Command>(JA, *this,
+                                         ResponseFileSupport::AtFileCurCP(),
+                                         Exec, CmdArgs, Inputs, Output));
 }
 
 void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
@@ -594,6 +603,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   bool NeedsSanitizerDeps = addSanitizerRuntimes(ToolChain, Args, CmdArgs);
   bool NeedsXRayDeps = addXRayRuntime(ToolChain, Args, CmdArgs);
+  addLinkerCompressDebugSectionsOption(ToolChain, Args, CmdArgs);
   // When offloading, the input file(s) could be from unbundled partially
   // linked archives.  The unbundled information is a list of files and not
   // an actual object/archive.  Take that list and pass those to the linker
@@ -729,8 +739,9 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddAllArgs(CmdArgs, options::OPT_T);
 
   const char *Exec = Args.MakeArgString(ToolChain.GetLinkerPath());
-  C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::AtFileCurCP(), Exec, CmdArgs, Inputs));
+  C.addCommand(std::make_unique<Command>(JA, *this,
+                                         ResponseFileSupport::AtFileCurCP(),
+                                         Exec, CmdArgs, Inputs, Output));
 }
 
 void tools::gnutools::Assembler::ConstructJob(Compilation &C,
@@ -788,13 +799,23 @@ void tools::gnutools::Assembler::ConstructJob(Compilation &C,
   case llvm::Triple::ppc: {
     CmdArgs.push_back("-a32");
     CmdArgs.push_back("-mppc");
+    CmdArgs.push_back("-mbig-endian");
     CmdArgs.push_back(
       ppc::getPPCAsmModeForCPU(getCPUName(Args, getToolChain().getTriple())));
+    break;
+  }
+  case llvm::Triple::ppcle: {
+    CmdArgs.push_back("-a32");
+    CmdArgs.push_back("-mppc");
+    CmdArgs.push_back("-mlittle-endian");
+    CmdArgs.push_back(
+        ppc::getPPCAsmModeForCPU(getCPUName(Args, getToolChain().getTriple())));
     break;
   }
   case llvm::Triple::ppc64: {
     CmdArgs.push_back("-a64");
     CmdArgs.push_back("-mppc64");
+    CmdArgs.push_back("-mbig-endian");
     CmdArgs.push_back(
       ppc::getPPCAsmModeForCPU(getCPUName(Args, getToolChain().getTriple())));
     break;
@@ -997,8 +1018,9 @@ void tools::gnutools::Assembler::ConstructJob(Compilation &C,
 
   const char *Exec =
       Args.MakeArgString(getToolChain().GetProgramPath(DefaultAssembler));
-  C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::AtFileCurCP(), Exec, CmdArgs, Inputs));
+  C.addCommand(std::make_unique<Command>(JA, *this,
+                                         ResponseFileSupport::AtFileCurCP(),
+                                         Exec, CmdArgs, Inputs, Output));
 
   // Handle the debug info splitting at object creation time if we're
   // creating an object.
@@ -1006,7 +1028,7 @@ void tools::gnutools::Assembler::ConstructJob(Compilation &C,
   if (Args.hasArg(options::OPT_gsplit_dwarf) &&
       getToolChain().getTriple().isOSLinux())
     SplitDebugInfo(getToolChain(), C, *this, JA, Args, Output,
-                   SplitDebugName(Args, Inputs[0], Output));
+                   SplitDebugName(JA, Args, Inputs[0], Output));
 }
 
 namespace {
@@ -2006,27 +2028,36 @@ void Generic_GCC::GCCInstallationDetector::init(
   // installation available. GCC installs are ranked by version number.
   Version = GCCVersion::Parse("0.0.0");
   for (const std::string &Prefix : Prefixes) {
-    if (!D.getVFS().exists(Prefix))
+    auto &VFS = D.getVFS();
+    if (!VFS.exists(Prefix))
       continue;
     for (StringRef Suffix : CandidateLibDirs) {
       const std::string LibDir = Prefix + Suffix.str();
-      if (!D.getVFS().exists(LibDir))
+      if (!VFS.exists(LibDir))
         continue;
+      // Maybe filter out <libdir>/gcc and <libdir>/gcc-cross.
+      bool GCCDirExists = VFS.exists(LibDir + "/gcc");
+      bool GCCCrossDirExists = VFS.exists(LibDir + "/gcc-cross");
       // Try to match the exact target triple first.
-      ScanLibDirForGCCTriple(TargetTriple, Args, LibDir, TargetTriple.str());
+      ScanLibDirForGCCTriple(TargetTriple, Args, LibDir, TargetTriple.str(),
+                             false, GCCDirExists, GCCCrossDirExists);
       // Try rest of possible triples.
       for (StringRef Candidate : ExtraTripleAliases) // Try these first.
-        ScanLibDirForGCCTriple(TargetTriple, Args, LibDir, Candidate);
+        ScanLibDirForGCCTriple(TargetTriple, Args, LibDir, Candidate, false,
+                               GCCDirExists, GCCCrossDirExists);
       for (StringRef Candidate : CandidateTripleAliases)
-        ScanLibDirForGCCTriple(TargetTriple, Args, LibDir, Candidate);
+        ScanLibDirForGCCTriple(TargetTriple, Args, LibDir, Candidate, false,
+                               GCCDirExists, GCCCrossDirExists);
     }
     for (StringRef Suffix : CandidateBiarchLibDirs) {
       const std::string LibDir = Prefix + Suffix.str();
-      if (!D.getVFS().exists(LibDir))
+      if (!VFS.exists(LibDir))
         continue;
+      bool GCCDirExists = VFS.exists(LibDir + "/gcc");
+      bool GCCCrossDirExists = VFS.exists(LibDir + "/gcc-cross");
       for (StringRef Candidate : CandidateBiarchTripleAliases)
-        ScanLibDirForGCCTriple(TargetTriple, Args, LibDir, Candidate,
-                               /*NeedsBiarchSuffix=*/ true);
+        ScanLibDirForGCCTriple(TargetTriple, Args, LibDir, Candidate, true,
+                               GCCDirExists, GCCCrossDirExists);
     }
   }
 }
@@ -2088,6 +2119,7 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
   // Non-Solaris is much simpler - most systems just go with "/usr".
   if (SysRoot.empty() && TargetTriple.getOS() == llvm::Triple::Linux) {
     // Yet, still look for RHEL devtoolsets.
+    Prefixes.push_back("/opt/rh/devtoolset-10/root/usr");
     Prefixes.push_back("/opt/rh/devtoolset-9/root/usr");
     Prefixes.push_back("/opt/rh/devtoolset-8/root/usr");
     Prefixes.push_back("/opt/rh/devtoolset-7/root/usr");
@@ -2187,6 +2219,11 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
       // On 32-bit PowerPC systems running SUSE Linux, gcc is configured as a
       // 64-bit compiler which defaults to "-m32", hence "powerpc64-suse-linux".
       "powerpc64-suse-linux", "powerpc-montavista-linuxspe"};
+  static const char *const PPCLELibDirs[] = {"/lib32", "/lib"};
+  static const char *const PPCLETriples[] = {"powerpcle-linux-gnu",
+                                             "powerpcle-unknown-linux-gnu",
+                                             "powerpcle-linux-musl"};
+
   static const char *const PPC64LibDirs[] = {"/lib64", "/lib"};
   static const char *const PPC64Triples[] = {
       "powerpc64-linux-gnu", "powerpc64-unknown-linux-gnu",
@@ -2194,7 +2231,8 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
   static const char *const PPC64LELibDirs[] = {"/lib64", "/lib"};
   static const char *const PPC64LETriples[] = {
       "powerpc64le-linux-gnu", "powerpc64le-unknown-linux-gnu",
-      "powerpc64le-suse-linux", "ppc64le-redhat-linux"};
+      "powerpc64le-none-linux-gnu", "powerpc64le-suse-linux",
+      "ppc64le-redhat-linux"};
 
   static const char *const RISCV32LibDirs[] = {"/lib32", "/lib"};
   static const char *const RISCV32Triples[] = {"riscv32-unknown-linux-gnu",
@@ -2427,6 +2465,12 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
     BiarchLibDirs.append(begin(PPC64LibDirs), end(PPC64LibDirs));
     BiarchTripleAliases.append(begin(PPC64Triples), end(PPC64Triples));
     break;
+  case llvm::Triple::ppcle:
+    LibDirs.append(begin(PPCLELibDirs), end(PPCLELibDirs));
+    TripleAliases.append(begin(PPCLETriples), end(PPCLETriples));
+    BiarchLibDirs.append(begin(PPC64LELibDirs), end(PPC64LELibDirs));
+    BiarchTripleAliases.append(begin(PPC64LETriples), end(PPC64LETriples));
+    break;
   case llvm::Triple::ppc64:
     LibDirs.append(begin(PPC64LibDirs), end(PPC64LibDirs));
     TripleAliases.append(begin(PPC64Triples), end(PPC64Triples));
@@ -2436,6 +2480,8 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
   case llvm::Triple::ppc64le:
     LibDirs.append(begin(PPC64LELibDirs), end(PPC64LELibDirs));
     TripleAliases.append(begin(PPC64LETriples), end(PPC64LETriples));
+    BiarchLibDirs.append(begin(PPCLELibDirs), end(PPCLELibDirs));
+    BiarchTripleAliases.append(begin(PPCLETriples), end(PPCLETriples));
     break;
   case llvm::Triple::riscv32:
     LibDirs.append(begin(RISCV32LibDirs), end(RISCV32LibDirs));
@@ -2517,7 +2563,7 @@ bool Generic_GCC::GCCInstallationDetector::ScanGCCForMultilibs(
 void Generic_GCC::GCCInstallationDetector::ScanLibDirForGCCTriple(
     const llvm::Triple &TargetTriple, const ArgList &Args,
     const std::string &LibDir, StringRef CandidateTriple,
-    bool NeedsBiarchSuffix) {
+    bool NeedsBiarchSuffix, bool GCCDirExists, bool GCCCrossDirExists) {
   llvm::Triple::ArchType TargetArch = TargetTriple.getArch();
   // Locations relative to the system lib directory where GCC's triple-specific
   // directories might reside.
@@ -2531,11 +2577,10 @@ void Generic_GCC::GCCInstallationDetector::ScanLibDirForGCCTriple(
     bool Active;
   } Suffixes[] = {
       // This is the normal place.
-      {"gcc/" + CandidateTriple.str(), "../..", true},
+      {"gcc/" + CandidateTriple.str(), "../..", GCCDirExists},
 
       // Debian puts cross-compilers in gcc-cross.
-      {"gcc-cross/" + CandidateTriple.str(), "../..",
-       TargetTriple.getOS() != llvm::Triple::Solaris},
+      {"gcc-cross/" + CandidateTriple.str(), "../..", GCCCrossDirExists},
 
       // The Freescale PPC SDK has the gcc libraries in
       // <sysroot>/usr/lib/<triple>/x.y.z so have a look there as well. Only do
@@ -2602,6 +2647,9 @@ bool Generic_GCC::GCCInstallationDetector::ScanGentooConfigs(
     const llvm::Triple &TargetTriple, const ArgList &Args,
     const SmallVectorImpl<StringRef> &CandidateTriples,
     const SmallVectorImpl<StringRef> &CandidateBiarchTriples) {
+  if (!D.getVFS().exists(D.SysRoot + GentooConfigDir))
+    return false;
+
   for (StringRef CandidateTriple : CandidateTriples) {
     if (ScanGentooGccConfig(TargetTriple, Args, CandidateTriple))
       return true;
@@ -2618,7 +2666,7 @@ bool Generic_GCC::GCCInstallationDetector::ScanGentooGccConfig(
     const llvm::Triple &TargetTriple, const ArgList &Args,
     StringRef CandidateTriple, bool NeedsBiarchSuffix) {
   llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> File =
-      D.getVFS().getBufferForFile(D.SysRoot + "/etc/env.d/gcc/config-" +
+      D.getVFS().getBufferForFile(D.SysRoot + GentooConfigDir + "/config-" +
                                   CandidateTriple.str());
   if (File) {
     SmallVector<StringRef, 2> Lines;
@@ -2630,7 +2678,7 @@ bool Generic_GCC::GCCInstallationDetector::ScanGentooGccConfig(
         continue;
       // Process the config file pointed to by CURRENT.
       llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> ConfigFile =
-          D.getVFS().getBufferForFile(D.SysRoot + "/etc/env.d/gcc/" +
+          D.getVFS().getBufferForFile(D.SysRoot + GentooConfigDir + "/" +
                                       Line.str());
       std::pair<StringRef, StringRef> ActiveVersion = Line.rsplit('-');
       // List of paths to scan for libraries.
@@ -2724,7 +2772,17 @@ void Generic_GCC::printVerboseInfo(raw_ostream &OS) const {
 }
 
 bool Generic_GCC::IsUnwindTablesDefault(const ArgList &Args) const {
-  return getArch() == llvm::Triple::x86_64;
+  switch (getArch()) {
+  case llvm::Triple::aarch64:
+  case llvm::Triple::ppc:
+  case llvm::Triple::ppcle:
+  case llvm::Triple::ppc64:
+  case llvm::Triple::ppc64le:
+  case llvm::Triple::x86_64:
+    return true;
+  default:
+    return false;
+  }
 }
 
 bool Generic_GCC::isPICDefault() const {
@@ -2759,6 +2817,7 @@ bool Generic_GCC::IsIntegratedAssemblerDefault() const {
   case llvm::Triple::thumb:
   case llvm::Triple::thumbeb:
   case llvm::Triple::ppc:
+  case llvm::Triple::ppcle:
   case llvm::Triple::ppc64:
   case llvm::Triple::ppc64le:
   case llvm::Triple::riscv32:

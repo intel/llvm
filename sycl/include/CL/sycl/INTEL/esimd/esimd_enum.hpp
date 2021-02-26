@@ -42,8 +42,9 @@ using uint = unsigned int;
 
 // Mark a function being noinline
 #define ESIMD_NOINLINE __attribute__((noinline))
-// Mark a function to be inlined
-#define ESIMD_INLINE __attribute__((always_inline))
+// Force a function to be inlined. 'inline' is used to preserve ODR for
+// functions defined in a header.
+#define ESIMD_INLINE inline __attribute__((always_inline))
 
 // Enums
 enum { GENX_NOSAT = 0, GENX_SAT };
@@ -103,6 +104,14 @@ enum class CacheHint : uint8_t {
   Streaming = 4,
   ReadInvalidate = 5
 };
+
+enum class EsimdSbarrierType : uint8_t {
+  WAIT = 0,  // split barrier wait
+  SIGNAL = 1 // split barrier signal
+};
+
+#define ESIMD_SBARRIER_WAIT EsimdSbarrierType::WAIT
+#define ESIMD_SBARRIER_SIGNAL EsimdSbarrierType::SIGNAL
 
 } // namespace gpu
 

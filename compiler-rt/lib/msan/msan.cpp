@@ -109,7 +109,7 @@ void Flags::SetDefaults() {
 
 // keep_going is an old name for halt_on_error,
 // and it has inverse meaning.
-class FlagHandlerKeepGoing : public FlagHandlerBase {
+class FlagHandlerKeepGoing final : public FlagHandlerBase {
   bool *halt_on_error_;
 
  public:
@@ -151,7 +151,6 @@ static void InitializeFlags() {
     // FIXME: test and enable.
     cf.check_printf = false;
     cf.intercept_tls_get_addr = true;
-    cf.exitcode = 77;
     OverrideCommonFlags(cf);
   }
 
@@ -172,10 +171,9 @@ static void InitializeFlags() {
 #endif
 
   // Override from user-specified string.
-  if (__msan_default_options)
-    parser.ParseString(__msan_default_options());
+  parser.ParseString(__msan_default_options());
 #if MSAN_CONTAINS_UBSAN
-  const char *ubsan_default_options = __ubsan::MaybeCallUbsanDefaultOptions();
+  const char *ubsan_default_options = __ubsan_default_options();
   ubsan_parser.ParseString(ubsan_default_options);
 #endif
 
@@ -726,12 +724,9 @@ void __msan_finish_switch_fiber(const void **bottom_old, uptr *size_old) {
   }
 }
 
-#if !SANITIZER_SUPPORTS_WEAK_HOOKS
-extern "C" {
-SANITIZER_INTERFACE_ATTRIBUTE SANITIZER_WEAK_ATTRIBUTE
-const char* __msan_default_options() { return ""; }
-}  // extern "C"
-#endif
+SANITIZER_INTERFACE_WEAK_DEF(const char *, __msan_default_options, void) {
+  return "";
+}
 
 extern "C" {
 SANITIZER_INTERFACE_ATTRIBUTE

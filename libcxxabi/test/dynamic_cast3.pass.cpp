@@ -6,13 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+// XFAIL: gcc-7, gcc-8, gcc-9
+
 #include <cassert>
 #include "support/timer.h"
 
 // This test explicitly tests dynamic cast with types that have inaccessible
 // bases.
 #if defined(__clang__)
-#pragma clang diagnostic ignored "-Winaccessible-base"
+#   pragma clang diagnostic ignored "-Winaccessible-base"
+#elif defined(__GNUC__) && (__GNUC__ >= 10)
+#   pragma GCC diagnostic ignored "-Winaccessible-base"
 #endif
 
 /*
@@ -1443,7 +1447,7 @@ void test()
 A1 A1
 |  |
 A2 |
- \ |  
+ \ |
   A3
 
 */
@@ -1926,7 +1930,7 @@ void test()
 A1
 | \
 A2 \
- \ |  
+ \ |
   A3
 
 */
@@ -2412,7 +2416,7 @@ void test()
 
 }  // t41
 
-int main()
+int main(int, char**)
 {
     timer t;
     t1::test();
@@ -2456,4 +2460,6 @@ int main()
     t39::test();
     t40::test();
     t41::test();
+
+    return 0;
 }

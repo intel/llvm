@@ -13,9 +13,6 @@
 //
 // >> ---- link the full hetero app
 // RUN: %clangxx %t-same-kernel-a.o %t-same-kernel-b.o -o %t-same-kernel.exe -fsycl -fsycl-targets=%sycl_triple
-// RUN: %CPU_RUN_PLACEHOLDER %t-same-kernel.exe
-// RUN: %GPU_RUN_PLACEHOLDER %t-same-kernel.exe
-// RUN: %ACC_RUN_PLACEHOLDER %t-same-kernel.exe
 
 #include <CL/sycl.hpp>
 

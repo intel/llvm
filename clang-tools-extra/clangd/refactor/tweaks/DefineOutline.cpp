@@ -51,7 +51,7 @@ namespace {
 const FunctionDecl *getSelectedFunction(const SelectionTree::Node *SelNode) {
   if (!SelNode)
     return nullptr;
-  const ast_type_traits::DynTypedNode &AstNode = SelNode->ASTNode;
+  const DynTypedNode &AstNode = SelNode->ASTNode;
   if (const FunctionDecl *FD = AstNode.get<FunctionDecl>())
     return FD;
   if (AstNode.get<CompoundStmt>() &&
@@ -65,11 +65,10 @@ const FunctionDecl *getSelectedFunction(const SelectionTree::Node *SelNode) {
 llvm::Optional<Path> getSourceFile(llvm::StringRef FileName,
                                    const Tweak::Selection &Sel) {
   if (auto Source = getCorrespondingHeaderOrSource(
-          std::string(FileName),
+          FileName,
           &Sel.AST->getSourceManager().getFileManager().getVirtualFileSystem()))
     return *Source;
-  return getCorrespondingHeaderOrSource(std::string(FileName), *Sel.AST,
-                                        Sel.Index);
+  return getCorrespondingHeaderOrSource(FileName, *Sel.AST, Sel.Index);
 }
 
 // Synthesize a DeclContext for TargetNS from CurContext. TargetNS must be empty
@@ -120,8 +119,7 @@ getFunctionSourceAfterReplacements(const FunctionDecl *FD,
   auto OrigFuncRange = toHalfOpenFileRange(
       SM, FD->getASTContext().getLangOpts(), FD->getSourceRange());
   if (!OrigFuncRange)
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "Couldn't get range for function.");
+    return error("Couldn't get range for function.");
   assert(!FD->getDescribedFunctionTemplate() &&
          "Define out-of-line doesn't apply to function templates.");
 
@@ -151,9 +149,7 @@ getFunctionSourceCode(const FunctionDecl *FD, llvm::StringRef TargetNamespace,
   auto &SM = AST.getSourceManager();
   auto TargetContext = findContextForNS(TargetNamespace, FD->getDeclContext());
   if (!TargetContext)
-    return llvm::createStringError(
-        llvm::inconvertibleErrorCode(),
-        "define outline: couldn't find a context for target");
+    return error("define outline: couldn't find a context for target");
 
   llvm::Error Errors = llvm::Error::success();
   tooling::Replacements DeclarationCleanups;
@@ -219,12 +215,9 @@ getFunctionSourceCode(const FunctionDecl *FD, llvm::StringRef TargetNamespace,
     assert(A->getLocation().isValid());
     if (!AttrTokens || AttrTokens->empty()) {
       Errors = llvm::joinErrors(
-          std::move(Errors),
-          llvm::createStringError(
-              llvm::inconvertibleErrorCode(),
-              llvm::StringRef("define outline: Can't move out of line as "
-                              "function has a macro `") +
-                  A->getSpelling() + "` specifier."));
+          std::move(Errors), error("define outline: Can't move out of line as "
+                                   "function has a macro `{0}` specifier.",
+                                   A->getSpelling()));
       return;
     }
     CharSourceRange DelRange =
@@ -248,10 +241,8 @@ getFunctionSourceCode(const FunctionDecl *FD, llvm::StringRef TargetNamespace,
       if (!Spelling) {
         Errors = llvm::joinErrors(
             std::move(Errors),
-            llvm::createStringError(
-                llvm::inconvertibleErrorCode(),
-                llvm::formatv("define outline: couldn't remove `{0}` keyword.",
-                              tok::getKeywordSpelling(Kind))));
+            error("define outline: couldn't remove `{0}` keyword.",
+                  tok::getKeywordSpelling(Kind)));
         break;
       }
       CharSourceRange DelRange =
@@ -264,11 +255,8 @@ getFunctionSourceCode(const FunctionDecl *FD, llvm::StringRef TargetNamespace,
     if (!FoundAny) {
       Errors = llvm::joinErrors(
           std::move(Errors),
-          llvm::createStringError(
-              llvm::inconvertibleErrorCode(),
-              llvm::formatv(
-                  "define outline: couldn't find `{0}` keyword to remove.",
-                  tok::getKeywordSpelling(Kind))));
+          error("define outline: couldn't find `{0}` keyword to remove.",
+                tok::getKeywordSpelling(Kind)));
     }
   };
 
@@ -367,9 +355,11 @@ public:
   const char *id() const override;
 
   bool hidden() const override { return false; }
-  Intent intent() const override { return Intent::Refactor; }
+  llvm::StringLiteral kind() const override {
+    return CodeAction::REFACTOR_KIND;
+  }
   std::string title() const override {
-    return "Move function body to out-of-line.";
+    return "Move function body to out-of-line";
   }
 
   bool prepare(const Selection &Sel) override {
@@ -411,15 +401,11 @@ public:
     auto MainFileName =
         getCanonicalPath(SM.getFileEntryForID(SM.getMainFileID()), SM);
     if (!MainFileName)
-      return llvm::createStringError(
-          llvm::inconvertibleErrorCode(),
-          "Couldn't get absolute path for mainfile.");
+      return error("Couldn't get absolute path for main file.");
 
     auto CCFile = getSourceFile(*MainFileName, Sel);
     if (!CCFile)
-      return llvm::createStringError(
-          llvm::inconvertibleErrorCode(),
-          "Couldn't find a suitable implementation file.");
+      return error("Couldn't find a suitable implementation file.");
 
     auto &FS =
         Sel.AST->getSourceManager().getFileManager().getVirtualFileSystem();
@@ -427,8 +413,7 @@ public:
     // FIXME: Maybe we should consider creating the implementation file if it
     // doesn't exist?
     if (!Buffer)
-      return llvm::createStringError(Buffer.getError(),
-                                     Buffer.getError().message());
+      return llvm::errorCodeToError(Buffer.getError());
     auto Contents = Buffer->get()->getBuffer();
     auto InsertionPoint = getInsertionPoint(
         Contents, Source->getQualifiedNameAsString(), Sel.AST->getLangOpts());

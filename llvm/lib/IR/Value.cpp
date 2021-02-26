@@ -51,9 +51,9 @@ static inline Type *checkType(Type *Ty) {
 }
 
 Value::Value(Type *ty, unsigned scid)
-    : VTy(checkType(ty)), UseList(nullptr), SubclassID(scid),
-      HasValueHandle(0), SubclassOptionalData(0), SubclassData(0),
-      NumUserOperands(0), IsUsedByMD(false), HasName(false) {
+    : VTy(checkType(ty)), UseList(nullptr), SubclassID(scid), HasValueHandle(0),
+      SubclassOptionalData(0), SubclassData(0), NumUserOperands(0),
+      IsUsedByMD(false), HasName(false), HasMetadata(false) {
   static_assert(ConstantFirstVal == 0, "!(SubclassID < ConstantFirstVal)");
   // FIXME: Why isn't this in the subclass gunk??
   // Note, we cannot call isa<CallInst> before the CallInst has been
@@ -76,6 +76,10 @@ Value::~Value() {
     ValueHandleBase::ValueIsDeleted(this);
   if (isUsedByMetadata())
     ValueAsMetadata::handleDeletion(this);
+
+  // Remove associated metadata from context.
+  if (HasMetadata)
+    clearMetadata();
 
 #ifndef NDEBUG      // Only in -g mode...
   // Check to make sure that there are no uses of this value that are still
@@ -426,6 +430,18 @@ void Value::takeName(Value *V) {
     ST->reinsertValue(this);
 }
 
+#ifndef NDEBUG
+std::string Value::getNameOrAsOperand() const {
+  if (!getName().empty())
+    return std::string(getName());
+
+  std::string BBName;
+  raw_string_ostream OS(BBName);
+  printAsOperand(OS, false);
+  return OS.str();
+}
+#endif
+
 void Value::assertModuleIsMaterializedImpl() const {
 #ifndef NDEBUG
   const GlobalValue *GV = dyn_cast<GlobalValue>(this);
@@ -712,11 +728,16 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
   CanBeNull = false;
   if (const Argument *A = dyn_cast<Argument>(this)) {
     DerefBytes = A->getDereferenceableBytes();
-    if (DerefBytes == 0 && (A->hasByValAttr() || A->hasStructRetAttr())) {
-      Type *PT = cast<PointerType>(A->getType())->getElementType();
-      if (PT->isSized())
-        DerefBytes = DL.getTypeStoreSize(PT).getKnownMinSize();
+    if (DerefBytes == 0) {
+      // Handle byval/byref/inalloca/preallocated arguments
+      if (Type *ArgMemTy = A->getPointeeInMemoryValueType()) {
+        if (ArgMemTy->isSized()) {
+          // FIXME: Why isn't this the type alloc size?
+          DerefBytes = DL.getTypeStoreSize(ArgMemTy).getKnownMinSize();
+        }
+      }
     }
+
     if (DerefBytes == 0) {
       DerefBytes = A->getDereferenceableOrNullBytes();
       CanBeNull = true;
@@ -804,7 +825,7 @@ Align Value::getPointerAlignment(const DataLayout &DL) const {
     const MaybeAlign Alignment = A->getParamAlign();
     if (!Alignment && A->hasStructRetAttr()) {
       // An sret parameter has at least the ABI alignment of the return type.
-      Type *EltTy = cast<PointerType>(A->getType())->getElementType();
+      Type *EltTy = A->getParamStructRetType();
       if (EltTy->isSized())
         return DL.getABITypeAlign(EltTy);
     }

@@ -154,19 +154,7 @@ INSTR_PROF_RAW_HEADER(uint64_t, ValueKindLast, IPVK_Last)
 VALUE_PROF_FUNC_PARAM(uint64_t, TargetValue, Type::getInt64Ty(Ctx)) \
                       INSTR_PROF_COMMA
 VALUE_PROF_FUNC_PARAM(void *, Data, Type::getInt8PtrTy(Ctx)) INSTR_PROF_COMMA
-#ifndef VALUE_RANGE_PROF
 VALUE_PROF_FUNC_PARAM(uint32_t, CounterIndex, Type::getInt32Ty(Ctx))
-#else /* VALUE_RANGE_PROF */
-/* FIXME: This is to be removed after switching to the new memop value
- * profiling. */
-VALUE_PROF_FUNC_PARAM(uint32_t, CounterIndex, Type::getInt32Ty(Ctx)) \
-                      INSTR_PROF_COMMA
-VALUE_PROF_FUNC_PARAM(uint64_t, PreciseRangeStart, Type::getInt64Ty(Ctx)) \
-                      INSTR_PROF_COMMA
-VALUE_PROF_FUNC_PARAM(uint64_t, PreciseRangeLast, Type::getInt64Ty(Ctx)) \
-                      INSTR_PROF_COMMA
-VALUE_PROF_FUNC_PARAM(uint64_t, LargeValue, Type::getInt64Ty(Ctx))
-#endif /*VALUE_RANGE_PROF */
 #undef VALUE_PROF_FUNC_PARAM
 #undef INSTR_PROF_COMMA
 /* VALUE_PROF_FUNC_PARAM end */
@@ -659,9 +647,9 @@ serializeValueProfDataFrom(ValueProfRecordClosure *Closure,
 /* Raw profile format version (start from 1). */
 #define INSTR_PROF_RAW_VERSION 5
 /* Indexed profile format version (start from 1). */
-#define INSTR_PROF_INDEX_VERSION 6
+#define INSTR_PROF_INDEX_VERSION 7
 /* Coverage mapping format version (start from 0). */
-#define INSTR_PROF_COVMAP_VERSION 3
+#define INSTR_PROF_COVMAP_VERSION 4
 
 /* Profile version is always of type uint64_t. Reserve the upper 8 bits in the
  * version for other variants of profile. We set the lowest bit of the upper 8
@@ -756,11 +744,6 @@ serializeValueProfDataFrom(ValueProfRecordClosure *Closure,
 #define INSTR_PROF_VALUE_PROF_FUNC __llvm_profile_instrument_target
 #define INSTR_PROF_VALUE_PROF_FUNC_STR \
         INSTR_PROF_QUOTE(INSTR_PROF_VALUE_PROF_FUNC)
-/* FIXME: This is to be removed after switching to the new memop value
- * profiling. */
-#define INSTR_PROF_VALUE_RANGE_PROF_FUNC __llvm_profile_instrument_range
-#define INSTR_PROF_VALUE_RANGE_PROF_FUNC_STR \
-        INSTR_PROF_QUOTE(INSTR_PROF_VALUE_RANGE_PROF_FUNC)
 #define INSTR_PROF_VALUE_PROF_MEMOP_FUNC __llvm_profile_instrument_memop
 #define INSTR_PROF_VALUE_PROF_MEMOP_FUNC_STR                                   \
   INSTR_PROF_QUOTE(INSTR_PROF_VALUE_PROF_MEMOP_FUNC)

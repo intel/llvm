@@ -137,13 +137,17 @@ namespace dr305 { // dr305: no
 #endif
 }
 
-namespace dr306 { // dr306: no
-  // FIXME: dup 39
-  // FIXME: This should be accepted.
-  struct A { struct B {}; }; // expected-note 2{{member}}
-  struct C { typedef A::B B; }; // expected-note {{member}}
+namespace dr306 { // dr306: dup 39
+  struct A { struct B {}; };
+  struct C { typedef A::B B; };
   struct D : A, A::B, C {};
-  D::B b; // expected-error {{found in multiple base classes of different types}}
+  D::B b;
+
+  struct X {}; // expected-note {{member type 'dr306::X' found}}
+  template<typename T> struct Y { typedef T X; }; // expected-note {{member type 'const dr306::X' found}}
+  template<typename T> struct Z : X, Y<T> {};
+  Z<X>::X zx;
+  Z<const X>::X zcx; // expected-error {{member 'X' found in multiple base classes of different types}}
 }
 
 // dr307: na
@@ -898,16 +902,16 @@ namespace dr367 { // dr367: yes
   int c[true ? *new int : 4]; // expected-error 2{{variable length array}} expected-note {{read of uninitialized}}
   int d[true ? 4 : *new int];
 #if __cplusplus < 201103L
-  // expected-error@-4 {{variable length array}} expected-error@-4 {{constant expression}}
-  // expected-error@-3 {{variable length array}} expected-error@-3 {{constant expression}}
+  // expected-error@-4 2{{variable length array}}
+  // expected-error@-3 2{{variable length array}}
 #endif
 }
 
 namespace dr368 { // dr368: yes
   template<typename T, T> struct S {}; // expected-note {{here}}
   template<typename T> int f(S<T, T()> *); // expected-error {{function type}}
-  //template<typename T> int g(S<T, (T())> *); // FIXME: crashes clang
-  template<typename T> int g(S<T, true ? T() : T()> *); // expected-note {{cannot have type 'dr368::X'}}
+  template<typename T> int g(S<T, (T())> *); // expected-note {{type 'dr368::X'}}
+  template<typename T> int g(S<T, true ? T() : T()> *); // expected-note {{type 'dr368::X'}}
   struct X {};
   int n = g<X>(0); // expected-error {{no matching}}
 }
@@ -1105,9 +1109,9 @@ namespace dr385 { // dr385: yes
   void h(B b) { b.f(); }
 
   struct D { int n; }; // expected-note {{member}}
-  struct E : protected D {}; // expected-note 2{{protected}}
+  struct E : protected D {}; // expected-note {{protected}}
   struct F : E { friend int i(E); };
-  int i(E e) { return e.n; } // expected-error {{protected base}} expected-error {{protected member}}
+  int i(E e) { return e.n; } // expected-error {{protected member}}
 }
 
 namespace dr387 { // dr387: yes

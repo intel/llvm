@@ -142,25 +142,14 @@ lldb::addr_t AppleGetItemInfoHandler::SetupGetItemInfoFunction(
 
     if (!m_get_item_info_impl_code) {
       if (g_get_item_info_function_code != nullptr) {
-        Status error;
-        m_get_item_info_impl_code.reset(
-            exe_ctx.GetTargetRef().GetUtilityFunctionForLanguage(
-                g_get_item_info_function_code, eLanguageTypeObjC,
-                g_get_item_info_function_name, error));
-        if (error.Fail()) {
-          LLDB_LOGF(log, "Failed to get utility function: %s.",
-                    error.AsCString());
-          return args_addr;
+        auto utility_fn_or_error = exe_ctx.GetTargetRef().CreateUtilityFunction(
+            g_get_item_info_function_code, g_get_item_info_function_name,
+            eLanguageTypeObjC, exe_ctx);
+        if (!utility_fn_or_error) {
+          LLDB_LOG_ERROR(log, utility_fn_or_error.takeError(),
+                         "Failed to create utility function: {0}.");
         }
-
-        if (!m_get_item_info_impl_code->Install(diagnostics, exe_ctx)) {
-          if (log) {
-            LLDB_LOGF(log, "Failed to install get-item-info introspection.");
-            diagnostics.Dump(log);
-          }
-          m_get_item_info_impl_code.reset();
-          return args_addr;
-        }
+        m_get_item_info_impl_code = std::move(*utility_fn_or_error);
       } else {
         LLDB_LOGF(log, "No get-item-info introspection code found.");
         return LLDB_INVALID_ADDRESS;
@@ -227,7 +216,8 @@ AppleGetItemInfoHandler::GetItemInfo(Thread &thread, uint64_t item,
   lldb::StackFrameSP thread_cur_frame = thread.GetStackFrameAtIndex(0);
   ProcessSP process_sp(thread.CalculateProcess());
   TargetSP target_sp(thread.CalculateTarget());
-  TypeSystemClang *clang_ast_context = TypeSystemClang::GetScratch(*target_sp);
+  TypeSystemClang *clang_ast_context =
+      ScratchTypeSystemClang::GetForTarget(*target_sp);
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_SYSTEM_RUNTIME));
 
   GetItemInfoReturnInfo return_value;

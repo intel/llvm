@@ -25,18 +25,6 @@ JITLinkerBase::~JITLinkerBase() {}
 void JITLinkerBase::linkPhase1(std::unique_ptr<JITLinkerBase> Self) {
 
   LLVM_DEBUG({
-    dbgs() << "Building jitlink graph for new input "
-           << Ctx->getObjectBuffer().getBufferIdentifier() << "...\n";
-  });
-
-  // Build the link graph.
-  if (auto GraphOrErr = buildGraph(Ctx->getObjectBuffer()))
-    G = std::move(*GraphOrErr);
-  else
-    return Ctx->notifyFailed(GraphOrErr.takeError());
-  assert(G && "Graph should have been created by buildGraph above");
-
-  LLVM_DEBUG({
     dbgs() << "Starting link phase 1 for graph " << G->getName() << "\n";
   });
 
@@ -65,6 +53,16 @@ void JITLinkerBase::linkPhase1(std::unique_ptr<JITLinkerBase> Self) {
 
   // Allocate memory for segments.
   if (auto Err = allocateSegments(Layout))
+    return Ctx->notifyFailed(std::move(Err));
+
+  LLVM_DEBUG({
+    dbgs() << "Link graph \"" << G->getName()
+           << "\" before post-allocation passes:\n";
+    dumpGraph(dbgs());
+  });
+
+  // Run post-allocation passes.
+  if (auto Err = runPasses(Passes.PostAllocationPasses))
     return Ctx->notifyFailed(std::move(Err));
 
   // Notify client that the defined symbols have been assigned addresses.
@@ -122,11 +120,11 @@ void JITLinkerBase::linkPhase2(std::unique_ptr<JITLinkerBase> Self,
 
   LLVM_DEBUG({
     dbgs() << "Link graph \"" << G->getName()
-           << "\" before post-allocation passes:\n";
+           << "\" before pre-fixup passes:\n";
     dumpGraph(dbgs());
   });
 
-  if (auto Err = runPasses(Passes.PostAllocationPasses))
+  if (auto Err = runPasses(Passes.PreFixupPasses))
     return deallocateAndBailOut(std::move(Err));
 
   LLVM_DEBUG({
@@ -266,7 +264,8 @@ Error JITLinkerBase::allocateSegments(const SegmentLayoutMap &Layout) {
   }
   LLVM_DEBUG(dbgs() << " }\n");
 
-  if (auto AllocOrErr = Ctx->getMemoryManager().allocate(Segments))
+  if (auto AllocOrErr =
+          Ctx->getMemoryManager().allocate(Ctx->getJITLinkDylib(), Segments))
     Alloc = std::move(*AllocOrErr);
   else
     return AllocOrErr.takeError();

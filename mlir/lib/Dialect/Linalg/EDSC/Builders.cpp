@@ -23,37 +23,25 @@ using namespace mlir::scf;
 
 Operation *mlir::edsc::makeGenericLinalgOp(
     ArrayRef<IteratorType> iteratorTypes, ArrayRef<StructuredIndexed> inputs,
-    ArrayRef<StructuredIndexed> outputs,
+    ArrayRef<StructuredIndexed> outputs, TypeRange resultTensorTypes,
     function_ref<void(ValueRange)> regionBuilder, ArrayRef<Value> otherValues,
     ArrayRef<Attribute> otherAttributes) {
-  for (unsigned i = 0, e = outputs.size(); i + 1 < e; ++i)
-    assert(!(outputs[i].getType().isa<RankedTensorType>() &&
-             outputs[i + 1].getType().isa<MemRefType>()) &&
-           "output tensors must be passed after output buffers");
-  auto &builder = edsc::ScopedContext::getBuilderRef();
-  auto *ctx = builder.getContext();
-  unsigned nInputs = inputs.size();
-  unsigned nOutputs = outputs.size();
+  OpBuilder &builder = edsc::ScopedContext::getBuilderRef();
 
+  // Build maps
   SmallVector<SmallVector<AffineExpr, 4>, 4> exprsList;
-  exprsList.reserve(nInputs + nOutputs);
-  for (auto structuredIndexed : inputs)
-    exprsList.emplace_back(structuredIndexed.getExprs().begin(),
-                           structuredIndexed.getExprs().end());
-  for (auto structuredIndexed : outputs)
-    exprsList.emplace_back(structuredIndexed.getExprs().begin(),
-                           structuredIndexed.getExprs().end());
+  exprsList.reserve(inputs.size() + outputs.size());
+
+  for (auto container : {inputs, outputs})
+    for (const StructuredIndexed &s : container)
+      exprsList.emplace_back(s.getExprs().begin(), s.getExprs().end());
   auto maps = AffineMap::inferFromExprList(exprsList);
 
-  unsigned nViews = nInputs + nOutputs;
-  SmallVector<Value, 4> values;
-  values.reserve(nViews);
-  values.append(inputs.begin(), inputs.end());
-  std::copy_if(outputs.begin(), outputs.end(), std::back_inserter(values),
-               [](StructuredIndexed s) { return s.hasValue(); });
-  SmallVector<Type, 4> types;
-  std::copy_if(outputs.begin(), outputs.end(), std::back_inserter(types),
-               [](StructuredIndexed s) { return !s.hasValue(); });
+  SmallVector<Value, 4> inputValues, outputValues;
+  inputValues.reserve(inputs.size());
+  outputValues.reserve(outputs.size());
+  std::copy(inputs.begin(), inputs.end(), std::back_inserter(inputValues));
+  std::copy(outputs.begin(), outputs.end(), std::back_inserter(outputValues));
 
   auto iteratorStrTypes =
       llvm::to_vector<8>(llvm::map_range(iteratorTypes, toString));
@@ -62,15 +50,14 @@ Operation *mlir::edsc::makeGenericLinalgOp(
       edsc::ScopedContext::getBuilderRef()
           .create<linalg::GenericOp>(
               edsc::ScopedContext::getLocation(),
-              types,
-              values,
-              IntegerAttr::get(IntegerType::get(64, ctx), nInputs),
-              IntegerAttr::get(IntegerType::get(64, ctx), nOutputs),
+              resultTensorTypes,
+              inputValues,
+              outputValues,
               builder.getAffineMapArrayAttr(maps),
               builder.getStrArrayAttr(iteratorStrTypes),
               StringAttr() /*doc*/,
               StringAttr() /*library_call*/,
-              IntegerAttr() /*symbol_source*/
+              ArrayAttr() /*sparse*/
               /* TODO: other attributes in op */
               )
           .getOperation();
@@ -78,11 +65,10 @@ Operation *mlir::edsc::makeGenericLinalgOp(
 
   using namespace edsc;
   SmallVector<Type, 4> blockTypes;
-  blockTypes.reserve(values.size());
-  for (auto it : llvm::enumerate(values))
-    blockTypes.push_back((it.index() < nViews)
-                             ? getElementTypeOrSelf(it.value())
-                             : it.value().getType());
+  blockTypes.reserve(inputs.size() + outputs.size());
+  for (auto container : {inputs, outputs})
+    for (const StructuredIndexed &s : container)
+      blockTypes.push_back(getElementTypeOrSelf(s.getType()));
 
   assert(op->getNumRegions() == 1);
   assert(op->getRegion(0).empty());
@@ -113,20 +99,16 @@ Operation *mlir::edsc::ops::linalg_generic_pointwise(
     UnaryPointwiseOpBuilder unaryOp, StructuredIndexed I, StructuredIndexed O) {
   SmallVector<IteratorType, 4> iterTypes(O.getExprs().size(),
                                          IteratorType::Parallel);
-  if (O.getType().isa<RankedTensorType>()) {
-    auto fun = [&unaryOp](ValueRange args) {
-      assert(args.size() == 1 && "expected 1 block arguments");
-      Value a(args[0]);
-      linalg_yield(unaryOp(a));
-    };
-    return makeGenericLinalgOp(iterTypes, {I}, {O}, fun);
-  }
   auto fun = [&unaryOp](ValueRange args) {
-    assert(args.size() == 2 && "expected 2 block arguments");
+    assert(!args.empty() && "expected >= 1 block arguments");
     Value a(args[0]);
     linalg_yield(unaryOp(a));
   };
-  return makeGenericLinalgOp(iterTypes, {I}, {O}, fun);
+  if (O.getType().isa<RankedTensorType>())
+    return makeGenericLinalgOp(iterTypes, /*inputs=*/{I}, /*outputs=*/{O},
+                               /*resultTensorTypes=*/{O}, fun);
+  return makeGenericLinalgOp(iterTypes, /*inputs=*/{I}, /*outputs=*/{O},
+                             /*resultTensorTypes=*/{}, fun);
 }
 
 Operation *mlir::edsc::ops::linalg_generic_pointwise_tanh(StructuredIndexed I,
@@ -141,20 +123,16 @@ Operation *mlir::edsc::ops::linalg_generic_pointwise(
     StructuredIndexed I2, StructuredIndexed O) {
   SmallVector<IteratorType, 4> iterTypes(O.getExprs().size(),
                                          IteratorType::Parallel);
-  if (O.getType().isa<RankedTensorType>()) {
-    auto fun = [&binaryOp](ValueRange args) {
-      assert(args.size() == 2 && "expected 2 block arguments");
-      Value a(args[0]), b(args[1]);
-      linalg_yield(binaryOp(a, b));
-    };
-    return makeGenericLinalgOp(iterTypes, {I1, I2}, {O}, fun);
-  }
   auto fun = [&binaryOp](ValueRange args) {
-    assert(args.size() == 3 && "expected 3 block arguments");
+    assert(args.size() >= 2 && "expected >= 2 block arguments");
     Value a(args[0]), b(args[1]);
     linalg_yield(binaryOp(a, b));
   };
-  return makeGenericLinalgOp(iterTypes, {I1, I2}, {O}, fun);
+  if (O.getType().isa<RankedTensorType>())
+    return makeGenericLinalgOp(iterTypes, /*inputs=*/{I1, I2}, /*outputs=*/{O},
+                               /*resultTensorTypes=*/{O}, fun);
+  return makeGenericLinalgOp(iterTypes, /*inputs=*/{I1, I2},
+                             /*outputs=*/{O}, /*resultTensorTypes=*/{}, fun);
 }
 
 Operation *mlir::edsc::ops::linalg_generic_pointwise_add(StructuredIndexed I1,
@@ -185,23 +163,9 @@ mlir::edsc::ops::linalg_generic_matmul(Value vA, Value vB, Value vC,
   StructuredIndexed A(vA), B(vB), C(vC);
   return makeGenericLinalgOp(
     {IteratorType::Parallel, IteratorType::Parallel, IteratorType::Reduction},
-    {A({m, k}), B({k, n})},
-    {C({m, n})},
-    regionBuilder);
-  // clang-format on
-}
-
-Operation *
-mlir::edsc::ops::linalg_generic_matmul(Value vA, Value vB, RankedTensorType tC,
-                                       MatmulRegionBuilder regionBuilder) {
-  // clang-format off
-  AffineExpr m, n, k;
-  bindDims(ScopedContext::getContext(), m, n, k);
-  StructuredIndexed A(vA), B(vB), C(tC);
-  return makeGenericLinalgOp(
-    {IteratorType::Parallel, IteratorType::Parallel, IteratorType::Reduction},
-    {A({m, k}), B({k, n})},
-    {C({m, n})},
+    /*inputs=*/{A({m, k}), B({k, n})},
+    /*outputs=*/{C({m, n})},
+    /*resultTensorTypes=*/{},
     regionBuilder);
   // clang-format on
 }
@@ -216,8 +180,9 @@ mlir::edsc::ops::linalg_generic_matmul(Value vA, Value vB, Value vC,
   StructuredIndexed A(vA), B(vB), C(vC), D(tD);
   return makeGenericLinalgOp(
     {IteratorType::Parallel, IteratorType::Parallel, IteratorType::Reduction},
-    {A({m, k}), B({k, n}), C({m, n})},
-    {D({m, n})},
+    /*inputs=*/{A({m, k}), B({k, n})},
+    /*outputs=*/{C({m, n})},
+    /*resultTensorTypes=*/{D({m, n})},
     regionBuilder);
   // clang-format on
 }
@@ -243,15 +208,17 @@ Operation *mlir::edsc::ops::linalg_generic_conv_nhwc(Value vI, Value vW,
   StructuredIndexed I(vI), W(vW), O(vO);
   // clang-format off
   return makeGenericLinalgOp(
-    {par, par, par, par, red, red, red}, {
+    {par, par, par, par, red, red, red},
+    /*inputs=*/{
       I({b,
          // Roundtrip to flattened form to serve as canonicalization and ensure
          // consistent ordering of subexpressions.
          simplifyAffineExpr(s[0] * h + d[0] * kh, numDims, 0),
          simplifyAffineExpr(s[1] * w + d[1] * kw, numDims, 0),
          c}),
-      W({kh, kw, c, f})}, {
-      O({b, h, w, f})},
+      W({kh, kw, c, f}) },
+    /*outputs=*/{ O({b, h, w, f}) },
+    /*resultTensorTypes=*/{},
     macRegionBuilder);
   // clang-format on
 }
@@ -276,15 +243,18 @@ Operation *mlir::edsc::ops::linalg_generic_dilated_conv_nhwc(
   unsigned numDims = kw.cast<AffineDimExpr>().getPosition() + 1;
   StructuredIndexed I(vI), W(vW), O(vO);
   return makeGenericLinalgOp(
-    {par, par, par, par, par, red, red}, {
+    {par, par, par, par, par, red, red},
+    /*inputs=*/{
       I({b,
          // Roundtrip to flattened form to serve as canonicalization and ensure
          // consistent ordering of subexpressions.
          simplifyAffineExpr(s[0] * h + d[0] * kh, numDims, 0),
          simplifyAffineExpr(s[1] * w + d[1] * kw, numDims, 0),
          c}),
-      W({kh, kw, c, dm})}, {
+      W({kh, kw, c, dm})},
+    /*outputs=*/{
       O({b, h, w, simplifyAffineExpr(c * depth_multiplier + dm, numDims, 0)})},
+    /*resultTensorTypes=*/{},
     macRegionBuilder);
   // clang-format on
 }

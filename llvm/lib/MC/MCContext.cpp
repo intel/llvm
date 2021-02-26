@@ -232,11 +232,16 @@ MCSymbol *MCContext::createSymbol(StringRef Name, bool AlwaysAddSuffix,
   llvm_unreachable("Infinite loop");
 }
 
-MCSymbol *MCContext::createTempSymbol(const Twine &Name, bool AlwaysAddSuffix,
-                                      bool CanBeUnnamed) {
+MCSymbol *MCContext::createTempSymbol(const Twine &Name, bool AlwaysAddSuffix) {
   SmallString<128> NameSV;
   raw_svector_ostream(NameSV) << MAI->getPrivateGlobalPrefix() << Name;
-  return createSymbol(NameSV, AlwaysAddSuffix, CanBeUnnamed);
+  return createSymbol(NameSV, AlwaysAddSuffix, true);
+}
+
+MCSymbol *MCContext::createNamedTempSymbol(const Twine &Name) {
+  SmallString<128> NameSV;
+  raw_svector_ostream(NameSV) << MAI->getPrivateGlobalPrefix() << Name;
+  return createSymbol(NameSV, true, false);
 }
 
 MCSymbol *MCContext::createLinkerPrivateTempSymbol() {
@@ -245,8 +250,10 @@ MCSymbol *MCContext::createLinkerPrivateTempSymbol() {
   return createSymbol(NameSV, true, false);
 }
 
-MCSymbol *MCContext::createTempSymbol(bool CanBeUnnamed) {
-  return createTempSymbol("tmp", true, CanBeUnnamed);
+MCSymbol *MCContext::createTempSymbol() { return createTempSymbol("tmp"); }
+
+MCSymbol *MCContext::createNamedTempSymbol() {
+  return createNamedTempSymbol("tmp");
 }
 
 unsigned MCContext::NextInstance(unsigned LocalLabelVal) {
@@ -267,7 +274,7 @@ MCSymbol *MCContext::getOrCreateDirectionalLocalSymbol(unsigned LocalLabelVal,
                                                        unsigned Instance) {
   MCSymbol *&Sym = LocalSymbols[std::make_pair(LocalLabelVal, Instance)];
   if (!Sym)
-    Sym = createTempSymbol(false);
+    Sym = createNamedTempSymbol();
   return Sym;
 }
 
@@ -644,7 +651,7 @@ MCSectionWasm *MCContext::getWasmSection(const Twine &Section, SectionKind Kind,
 
   StringRef CachedName = Entry.first.SectionName;
 
-  MCSymbol *Begin = createSymbol(CachedName, false, false);
+  MCSymbol *Begin = createSymbol(CachedName, true, false);
   cast<MCSymbolWasm>(Begin)->setType(wasm::WASM_SYMBOL_TYPE_SECTION);
 
   MCSectionWasm *Result = new (WasmAllocator.Allocate())
@@ -659,17 +666,21 @@ MCSectionWasm *MCContext::getWasmSection(const Twine &Section, SectionKind Kind,
   return Result;
 }
 
-MCSectionXCOFF *MCContext::getXCOFFSection(StringRef Section,
-                                           XCOFF::StorageMappingClass SMC,
-                                           XCOFF::SymbolType Type,
-                                           SectionKind Kind,
-                                           const char *BeginSymName) {
+MCSectionXCOFF *
+MCContext::getXCOFFSection(StringRef Section, XCOFF::StorageMappingClass SMC,
+                           XCOFF::SymbolType Type, SectionKind Kind,
+                           bool MultiSymbolsAllowed, const char *BeginSymName) {
   // Do the lookup. If we have a hit, return it.
   auto IterBool = XCOFFUniquingMap.insert(
       std::make_pair(XCOFFSectionKey{Section.str(), SMC}, nullptr));
   auto &Entry = *IterBool.first;
-  if (!IterBool.second)
-    return Entry.second;
+  if (!IterBool.second) {
+    MCSectionXCOFF *ExistedEntry = Entry.second;
+    if (ExistedEntry->isMultiSymbolsAllowed() != MultiSymbolsAllowed)
+      report_fatal_error("section's multiply symbols policy does not match");
+
+    return ExistedEntry;
+  }
 
   // Otherwise, return a new section.
   StringRef CachedName = Entry.first.SectionName;
@@ -684,7 +695,7 @@ MCSectionXCOFF *MCContext::getXCOFFSection(StringRef Section,
   // CachedName contains invalid character(s) such as '$' for an XCOFF symbol.
   MCSectionXCOFF *Result = new (XCOFFAllocator.Allocate())
       MCSectionXCOFF(QualName->getUnqualifiedName(), SMC, Type, Kind, QualName,
-                     Begin, CachedName);
+                     Begin, CachedName, MultiSymbolsAllowed);
   Entry.second = Result;
 
   auto *F = new MCDataFragment();
@@ -821,13 +832,13 @@ void MCContext::reportError(SMLoc Loc, const Twine &Msg) {
 
   // If we have a source manager use it. Otherwise, try using the inline source
   // manager.
-  // If that fails, use the generic report_fatal_error().
+  // If that fails, construct a temporary SourceMgr.
   if (SrcMgr)
     SrcMgr->PrintMessage(Loc, SourceMgr::DK_Error, Msg);
   else if (InlineSrcMgr)
     InlineSrcMgr->PrintMessage(Loc, SourceMgr::DK_Error, Msg);
   else
-    report_fatal_error(Msg, false);
+    SourceMgr().PrintMessage(Loc, SourceMgr::DK_Error, Msg);
 }
 
 void MCContext::reportWarning(SMLoc Loc, const Twine &Msg) {

@@ -111,8 +111,7 @@ void SPIRVToOCL20::visitCallSPIRVMemoryBarrier(CallInst *CI) {
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
         Value *MemScope =
-            getInt32(M, rmap<OCLScopeKind>(static_cast<Scope>(
-                            cast<ConstantInt>(Args[0])->getZExtValue())));
+            SPIRV::transSPIRVMemoryScopeIntoOCLMemoryScope(Args[0], CI);
         Value *MemFenceFlags =
             SPIRV::transSPIRVMemorySemanticsIntoOCLMemFenceFlags(Args[1], CI);
         Value *MemOrder =

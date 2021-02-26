@@ -57,6 +57,8 @@ public:
   void writeRelocations(llvm::raw_ostream &os) const;
 
   ObjFile *file;
+  OutputSection *outputSec = nullptr;
+  // Offset withing the output section
   int32_t outputOffset = 0;
 
   // Signals that the section is part of the output.  The garbage collector,
@@ -72,6 +74,7 @@ protected:
       : file(f), live(!config->gcSections), discarded(false), sectionKind(k) {}
   virtual ~InputChunk() = default;
   virtual ArrayRef<uint8_t> data() const = 0;
+  virtual uint64_t getTombstone() const { return 0; }
 
   // Verifies the existing data at relocation targets matches our expectations.
   // This is performed only debug builds as an extra sanity check.
@@ -120,7 +123,10 @@ protected:
 class InputFunction : public InputChunk {
 public:
   InputFunction(const WasmSignature &s, const WasmFunction *func, ObjFile *f)
-      : InputChunk(f, InputChunk::Function), signature(s), function(func) {}
+      : InputChunk(f, InputChunk::Function), signature(s), function(func),
+        exportName(func && func->ExportName.hasValue()
+                       ? (*func->ExportName).str()
+                       : llvm::Optional<std::string>()) {}
 
   static bool classof(const InputChunk *c) {
     return c->kind() == InputChunk::Function ||
@@ -131,8 +137,10 @@ public:
   StringRef getName() const override { return function->SymbolName; }
   StringRef getDebugName() const override { return function->DebugName; }
   llvm::Optional<StringRef> getExportName() const {
-    return function ? function->ExportName : llvm::Optional<StringRef>();
+    return exportName.hasValue() ? llvm::Optional<StringRef>(*exportName)
+                                 : llvm::Optional<StringRef>();
   }
+  void setExportName(std::string exportName) { this->exportName = exportName; }
   uint32_t getComdat() const override { return function->Comdat; }
   uint32_t getFunctionInputOffset() const { return getInputSectionOffset(); }
   uint32_t getFunctionCodeOffset() const { return function->CodeOffset; }
@@ -170,6 +178,7 @@ protected:
   }
 
   const WasmFunction *function;
+  llvm::Optional<std::string> exportName;
   llvm::Optional<uint32_t> functionIndex;
   llvm::Optional<uint32_t> tableIndex;
   uint32_t compressedFuncSize = 0;
@@ -206,15 +215,13 @@ protected:
 class InputSection : public InputChunk {
 public:
   InputSection(const WasmSection &s, ObjFile *f)
-      : InputChunk(f, InputChunk::Section), section(s) {
+      : InputChunk(f, InputChunk::Section), section(s), tombstoneValue(getTombstoneForSection(s.Name)) {
     assert(section.Type == llvm::wasm::WASM_SEC_CUSTOM);
   }
 
   StringRef getName() const override { return section.Name; }
   StringRef getDebugName() const override { return StringRef(); }
-  uint32_t getComdat() const override { return UINT32_MAX; }
-
-  OutputSection *outputSec = nullptr;
+  uint32_t getComdat() const override { return section.Comdat; }
 
 protected:
   ArrayRef<uint8_t> data() const override { return section.Content; }
@@ -222,8 +229,11 @@ protected:
   // Offset within the input section.  This is only zero since this chunk
   // type represents an entire input section, not part of one.
   uint32_t getInputSectionOffset() const override { return 0; }
+  uint64_t getTombstone() const override { return tombstoneValue; }
+  static uint64_t getTombstoneForSection(StringRef name);
 
   const WasmSection &section;
+  const uint64_t tombstoneValue;
 };
 
 } // namespace wasm

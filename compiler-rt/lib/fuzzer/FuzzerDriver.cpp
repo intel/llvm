@@ -321,7 +321,12 @@ int RunOneTest(Fuzzer *F, const char *InputFilePath, size_t MaxLen) {
   if (MaxLen && MaxLen < U.size())
     U.resize(MaxLen);
   F->ExecuteCallback(U.data(), U.size());
-  F->TryDetectingAMemoryLeak(U.data(), U.size(), true);
+  if (Flags.print_full_coverage) {
+    // Leak detection is not needed when collecting full coverage data.
+    F->TPCUpdateObservedPCs();
+  } else {
+    F->TryDetectingAMemoryLeak(U.data(), U.size(), true);
+  }
   return 0;
 }
 
@@ -743,6 +748,7 @@ int FuzzerDriver(int *argc, char ***argv, UserCallback Callback) {
   Options.PrintFinalStats = Flags.print_final_stats;
   Options.PrintCorpusStats = Flags.print_corpus_stats;
   Options.PrintCoverage = Flags.print_coverage;
+  Options.PrintFullCoverage = Flags.print_full_coverage;
   if (Flags.exit_on_src_pos)
     Options.ExitOnSrcPos = Flags.exit_on_src_pos;
   if (Flags.exit_on_item)
@@ -755,6 +761,8 @@ int FuzzerDriver(int *argc, char ***argv, UserCallback Callback) {
     Options.FeaturesDir = Flags.features_dir;
     ValidateDirectoryExists(Options.FeaturesDir, Flags.create_missing_dirs);
   }
+  if (Flags.mutation_graph_file)
+    Options.MutationGraphFile = Flags.mutation_graph_file;
   if (Flags.collect_data_flow)
     Options.CollectDataFlow = Flags.collect_data_flow;
   if (Flags.stop_file)
@@ -765,16 +773,12 @@ int FuzzerDriver(int *argc, char ***argv, UserCallback Callback) {
   Options.EntropicNumberOfRarestFeatures =
       (size_t)Flags.entropic_number_of_rarest_features;
   Options.EntropicScalePerExecTime = Flags.entropic_scale_per_exec_time;
-  if (Options.Entropic) {
-    if (!Options.FocusFunction.empty()) {
-      Printf("ERROR: The parameters `--entropic` and `--focus_function` cannot "
-             "be used together.\n");
-      exit(1);
-    }
+  if (!Options.FocusFunction.empty())
+    Options.Entropic = false; // FocusFunction overrides entropic scheduling.
+  if (Options.Entropic)
     Printf("INFO: Running with entropic power schedule (0x%X, %d).\n",
            Options.EntropicFeatureFrequencyThreshold,
            Options.EntropicNumberOfRarestFeatures);
-  }
   struct EntropicOptions Entropic;
   Entropic.Enabled = Options.Entropic;
   Entropic.FeatureFrequencyThreshold =
@@ -825,6 +829,8 @@ int FuzzerDriver(int *argc, char ***argv, UserCallback Callback) {
   Options.HandleXfsz = Flags.handle_xfsz;
   Options.HandleUsr1 = Flags.handle_usr1;
   Options.HandleUsr2 = Flags.handle_usr2;
+  Options.HandleWinExcept = Flags.handle_winexcept;
+
   SetSignalHandler(Options);
 
   std::atexit(Fuzzer::StaticExitCallback);

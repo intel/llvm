@@ -17,7 +17,7 @@ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:2
 target triple = "spir-unknown-unknown"
 
 ; Function Attrs: convergent nounwind
-define spir_func void @foo({ float, float }* byval align 4 %f) #0 !dbg !7 {
+define spir_func void @foo({ float, float }* byval({ float, float }) align 4 %f) #0 !dbg !7 {
 entry:
   call void @llvm.dbg.declare(metadata { float, float }* %f, metadata !13, metadata !DIExpression()), !dbg !14
   ret void, !dbg !14

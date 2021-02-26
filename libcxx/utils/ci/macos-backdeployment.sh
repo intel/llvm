@@ -120,21 +120,15 @@ fi
 LIBCXX_ROOT_ON_DEPLOYMENT_TARGET="${PREVIOUS_DYLIBS_DIR}/macOS/libc++/${DEPLOYMENT_TARGET}"
 LIBCXXABI_ROOT_ON_DEPLOYMENT_TARGET="${PREVIOUS_DYLIBS_DIR}/macOS/libc++abi/${DEPLOYMENT_TARGET}"
 
-# Filesystem is supported on Apple platforms starting with macosx10.15.
-if [[ ${DEPLOYMENT_TARGET} =~ ^10.9|10.10|10.11|10.12|10.13|10.14$ ]]; then
-    ENABLE_FILESYSTEM="--param enable_filesystem=false"
-else
-    ENABLE_FILESYSTEM="--param enable_filesystem=true"
-fi
-
 # TODO: We need to also run the tests for libc++abi.
 echo "@@@ Running tests for libc++ @@@"
 "${LLVM_BUILD_DIR}/bin/llvm-lit" -sv "${MONOREPO_ROOT}/libcxx/test" \
                                  --param=enable_experimental=false \
+                                 --param=enable_debug_tests=false \
                                  ${ENABLE_FILESYSTEM} \
                                  --param=cxx_headers="${LLVM_INSTALL_DIR}/include/c++/v1" \
                                  --param=std="${STD}" \
-                                 --param=platform="macosx${DEPLOYMENT_TARGET}" \
+                                 --param=target_triple="x86_64-apple-macosx${DEPLOYMENT_TARGET}" \
                                  --param=cxx_library_root="${LLVM_INSTALL_DIR}/lib" \
                                  --param=cxx_runtime_root="${LIBCXX_ROOT_ON_DEPLOYMENT_TARGET}" \
                                  --param=abi_library_path="${LIBCXXABI_ROOT_ON_DEPLOYMENT_TARGET}" \

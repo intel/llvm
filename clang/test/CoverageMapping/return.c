@@ -1,7 +1,6 @@
-// RUN: %strip_comments > %t.stripped.c
-// RUN: %clang_cc1 -fprofile-instrument=clang -fcoverage-mapping -dump-coverage-mapping -emit-llvm-only -main-file-name return.c %t.stripped.c | FileCheck %s
+// RUN: %clang_cc1 -mllvm -emptyline-comment-coverage=false -fprofile-instrument=clang -fcoverage-mapping -dump-coverage-mapping -emit-llvm-only -main-file-name return.c %s | FileCheck %s
 
-                                // CHECK: func
+// CHECK: func
 void func() {                   // CHECK: File 0, [[@LINE]]:13 -> [[@LINE+3]]:2 = #0
   return;
   int i = 0;                    // CHECK-NEXT: File 0, [[@LINE]]:3 -> [[@LINE+1]]:2 = 0
@@ -9,7 +8,8 @@ void func() {                   // CHECK: File 0, [[@LINE]]:13 -> [[@LINE+3]]:2 
 
                                 // CHECK-NEXT: func2
 void func2() {                  // CHECK-NEXT: File 0, [[@LINE]]:14 -> {{[0-9]+}}:2 = #0
-                                // CHECK-NEXT: File 0, [[@LINE+2]]:18 -> [[@LINE+2]]:24 = ((#0 + #1) - #2)
+                                // CHECK-NEXT: File 0, [[@LINE+3]]:18 -> [[@LINE+3]]:24 = ((#0 + #1) - #2)
+                                // CHECK-NEXT: Branch,File 0, [[@LINE+2]]:18 -> [[@LINE+2]]:24 = #1, (#0 - #2)
                                 // CHECK-NEXT: File 0, [[@LINE+1]]:26 -> [[@LINE+1]]:29 = (#1 - #2)
   for(int i = 0; i < 10; ++i) { // CHECK: File 0, [[@LINE]]:31 -> {{[0-9]+}}:4 = #1
                                 // CHECK-NEXT: File 0, [[@LINE+1]]:8 -> [[@LINE+1]]:13 = #1

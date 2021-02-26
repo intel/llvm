@@ -1,23 +1,8 @@
+include(GetLibraryName)
+
 if(LLVM_ENABLE_ZLIB)
   set(imported_libs ZLIB::ZLIB)
 endif()
-
-function(get_system_libname libpath libname)
-  get_filename_component(libpath ${libpath} NAME)
-  set(prefixes ${CMAKE_FIND_LIBRARY_PREFIXES})
-  set(suffixes ${CMAKE_FIND_LIBRARY_SUFFIXES})
-  list(FILTER prefixes EXCLUDE REGEX "^\\s*$")
-  list(FILTER suffixes EXCLUDE REGEX "^\\s*$")
-  if( prefixes )
-    string(REPLACE ";" "|" prefixes "${prefixes}")
-    string(REGEX REPLACE "^(${prefixes})" "" libpath ${libpath})
-  endif()
-  if( suffixes )
-    string(REPLACE ";" "|" suffixes "${suffixes}")
-    string(REGEX REPLACE "(${suffixes})$" "" libpath ${libpath})
-  endif()
-  set(${libname} "${libpath}" PARENT_SCOPE)
-endfunction()
 
 if( MSVC OR MINGW )
   # libuuid required for FOLDERID_Profile usage in lib/Support/Windows/Path.inc.
@@ -51,6 +36,10 @@ elseif( CMAKE_HOST_UNIX )
   if( FUCHSIA )
     set(system_libs ${system_libs} zircon)
   endif()
+  if ( HAIKU )
+    add_definitions(-D_BSD_SOURCE)
+    set(system_libs ${system_libs} bsd)
+  endif()
 endif( MSVC OR MINGW )
 
 # Delay load shell32.dll if possible to speed up process startup.
@@ -80,7 +69,6 @@ if(LLVM_INTEGRATED_CRT_ALLOC)
     add_definitions(-DENABLE_OVERRIDE -DENABLE_PRELOAD)
     set(ALLOCATOR_FILES "${LLVM_INTEGRATED_CRT_ALLOC}/rpmalloc/rpmalloc.c")
   elseif(LLVM_INTEGRATED_CRT_ALLOC MATCHES "snmalloc$")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17" PARENT_SCOPE)
     set(ALLOCATOR_FILES "${LLVM_INTEGRATED_CRT_ALLOC}/src/override/malloc.cc" "${LLVM_INTEGRATED_CRT_ALLOC}/src/override/new.cc")
     set(system_libs ${system_libs} "mincore.lib" "-INCLUDE:malloc")
   elseif(LLVM_INTEGRATED_CRT_ALLOC MATCHES "mimalloc$")
@@ -145,6 +133,7 @@ add_llvm_component_library(LLVMSupport
   GraphWriter.cpp
   Hashing.cpp
   InitLLVM.cpp
+  InstructionCost.cpp
   IntEqClasses.cpp
   IntervalMap.cpp
   ItaniumManglingCanonicalizer.cpp
@@ -159,6 +148,7 @@ add_llvm_component_library(LLVMSupport
   MathExtras.cpp
   MemAlloc.cpp
   MemoryBuffer.cpp
+  MemoryBufferRef.cpp
   MD5.cpp
   NativeFormatting.cpp
   OptimizedStructLayout.cpp
@@ -240,11 +230,18 @@ add_llvm_component_library(LLVMSupport
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/ADT
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/Support
   ${Backtrace_INCLUDE_DIRS}
-  LINK_LIBS ${system_libs} ${imported_libs} ${delayload_flags}
+
+  LINK_LIBS
+  ${system_libs} ${imported_libs} ${delayload_flags}
+
+  LINK_COMPONENTS
+  Demangle
   )
 
 set(llvm_system_libs ${system_libs})
 
+# This block is only needed for llvm-config. When we deprecate llvm-config and
+# move to using CMake export, this block can be removed.
 if(LLVM_ENABLE_ZLIB)
   # CMAKE_BUILD_TYPE is only meaningful to single-configuration generators.
   if(CMAKE_BUILD_TYPE)
@@ -254,16 +251,28 @@ if(LLVM_ENABLE_ZLIB)
   if(NOT zlib_library)
     get_property(zlib_library TARGET ZLIB::ZLIB PROPERTY LOCATION)
   endif()
-  get_system_libname(${zlib_library} zlib_library)
+  get_library_name(${zlib_library} zlib_library)
   set(llvm_system_libs ${llvm_system_libs} "${zlib_library}")
 endif()
 
 if(LLVM_ENABLE_TERMINFO)
-  get_system_libname(${TERMINFO_LIB} terminfo_library)
+  get_library_name(${TERMINFO_LIB} terminfo_library)
   set(llvm_system_libs ${llvm_system_libs} "${terminfo_library}")
 endif()
 
 set_property(TARGET LLVMSupport PROPERTY LLVM_SYSTEM_LIBS "${llvm_system_libs}")
+
+
+if(LLVM_INTEGRATED_CRT_ALLOC)
+  if(LLVM_INTEGRATED_CRT_ALLOC MATCHES "snmalloc$")
+    set_property(TARGET LLVMSupport PROPERTY CXX_STANDARD 17)
+    add_definitions(-D_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING)
+    if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" AND
+        "${CMAKE_SYSTEM_PROCESSOR}" MATCHES "x86_64")
+      set_property(TARGET LLVMSupport PROPERTY COMPILE_FLAGS "-mcx16")
+    endif()
+  endif()
+endif()
 
 if(LLVM_WITH_Z3)
   target_include_directories(LLVMSupport SYSTEM

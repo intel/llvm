@@ -64,6 +64,16 @@ and from the command line.
  comment style. In that case, consider proposing a change to the default
  comment prefixes instead.
 
+.. option:: --allow-unused-prefixes
+
+ This option controls the behavior when using more than one prefix as specified
+ by :option:`--check-prefix` or :option:`--check-prefixes`, and some of these
+ prefixes are missing in the test file. If true, this is allowed, if false,
+ FileCheck will report an error, listing the missing prefixes.
+
+ It is currently, temporarily, true by default, and will be subsequently
+ switched to false.
+
 .. option:: --input-file filename
 
   File to check (defaults to stdin).
@@ -649,6 +659,30 @@ correspond to actual syntactic labels in a source or output language: they must
 simply uniquely match a single line in the file being verified.
 
 ``CHECK-LABEL:`` directives cannot contain variable definitions or uses.
+
+Directive modifiers
+~~~~~~~~~~~~~~~~~~~
+
+A directive modifier can be append to a directive by following the directive
+with ``{<modifier>}`` where the only supported value for ``<modifier>`` is
+``LITERAL``.
+
+The ``LITERAL`` directive modifier can be used to perform a literal match. The
+modifier results in the directive not recognizing any syntax to perform regex
+matching, variable capture or any substitutions. This is useful when the text
+to match would require excessive escaping otherwise. For example, the
+following will perform literal matches rather than considering these as
+regular expressions:
+
+.. code-block:: text
+
+   Input: [[[10, 20]], [[30, 40]]]
+   Output %r10: [[10, 20]]
+   Output %r10: [[30, 40]]
+
+   ; CHECK{LITERAL}: [[[10, 20]], [[30, 40]]]
+   ; CHECK-DAG{LITERAL}: [[30, 40]]
+   ; CHECK-DAG{LITERAL}: [[10, 20]]
 
 FileCheck Regex Matching Syntax
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

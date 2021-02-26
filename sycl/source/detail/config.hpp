@@ -13,6 +13,7 @@
 #include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/info/info_desc.hpp>
+#include <detail/global_handler.hpp>
 
 #include <algorithm>
 #include <array>
@@ -181,9 +182,21 @@ public:
 
     const char *ValStr = BaseT::getRawValue();
     if (ValStr) {
-      static device_filter_list DFL{ValStr};
-      FilterList = &DFL;
+      FilterList = &GlobalHandler::instance().getDeviceFilterList(ValStr);
     }
+
+    // TODO: remove the following code when we remove the support for legacy
+    // env vars.
+    // Emit the deprecation warning message if SYCL_BE or SYCL_DEVICE_TYPE is
+    // set.
+    if (SYCLConfig<SYCL_BE>::get() || getenv("SYCL_DEVICE_TYPE")) {
+      std::cerr << "\nWARNING: The legacy environment variables SYCL_BE and "
+                   "SYCL_DEVICE_TYPE are deprecated. Please use "
+                   "SYCL_DEVICE_FILTER instead. For details, please refer to "
+                   "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
+                   "EnvironmentVariables.md\n\n";
+    }
+
     // As mentioned above, configuration parameters are processed only once.
     // If multiple threads are checking this env var at the same time,
     // they will end up setting the configration to the same value.

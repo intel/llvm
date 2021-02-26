@@ -311,6 +311,14 @@
 // RUN: %clang_cl -c -fno-strict-aliasing -### -- %s 2>&1 | FileCheck -check-prefix=NOSTRICT %s
 // NOSTRICT: "-relaxed-aliasing"
 
+// We recognize -f[no-]delete-null-pointer-checks.
+// RUN: %clang_cl -c -### -- %s 2>&1 | FileCheck -check-prefix=DEFAULTNULL %s
+// DEFAULTNULL-NOT: "-fno-delete-null-pointer-checks"
+// RUN: %clang_cl -c -fdelete-null-pointer-checks -### -- %s 2>&1 | FileCheck -check-prefix=NULL %s
+// NULL-NOT: "-fno-delete-null-pointer-checks"
+// RUN: %clang_cl -c -fno-delete-null-pointer-checks -### -- %s 2>&1 | FileCheck -check-prefix=NONULL %s
+// NONULL: "-fno-delete-null-pointer-checks"
+
 // We recognize -f[no-]delayed-template-parsing.
 // /Zc:twoPhase[-] has the opposite meaning.
 // RUN: %clang_cl -c -### -- %s 2>&1 | FileCheck -check-prefix=DELAYEDDEFAULT %s
@@ -530,10 +538,6 @@
 // Z7: "-gcodeview"
 // Z7: "-debug-info-kind=limited"
 
-// RUN: %clang_cl /Zd /c -### -- %s 2>&1 | FileCheck -check-prefix=Z7GMLT %s
-// Z7GMLT: "-gcodeview"
-// Z7GMLT: "-debug-info-kind=line-tables-only"
-
 // RUN: %clang_cl -gline-tables-only /c -### -- %s 2>&1 | FileCheck -check-prefix=ZGMLT %s
 // ZGMLT: "-gcodeview"
 // ZGMLT: "-debug-info-kind=line-tables-only"
@@ -682,13 +686,26 @@
 // CLANG-NOT: "--dependent-lib=libcmt"
 // CLANG-NOT: "-vectorize-slp"
 
+// Cover PR42501: clang-cl /clang: pass-through causes read-after-free with aliased options.
+// RUN: %clang_cl /clang:-save-temps /clang:-Wl,test1,test2 -### -- %s 2>&1 | FileCheck -check-prefix=SAVETEMPS %s
+// SAVETEMPS: "-save-temps=cwd"
+// SAVETEMPS: "test1" "test2"
+
 // Validate that the default triple is used when run an empty tools dir is specified
 // RUN: %clang_cl -vctoolsdir "" -### -- %s 2>&1 | FileCheck %s --check-prefix VCTOOLSDIR
 // VCTOOLSDIR: "-triple" "{{[a-zA-Z0-9_-]*}}-pc-windows-msvc19.11.0"
 
 // Validate that built-in include paths are based on the supplied path
-// RUN: %clang_cl -vctoolsdir "/fake" -### -- %s 2>&1 | FileCheck %s --check-prefix FAKEDIR
+// RUN: %clang_cl --target=aarch64-pc-windows-msvc -vctoolsdir "/fake" -winsdkdir "/foo" -winsdkversion 10.0.12345.0 -### -- %s 2>&1 | FileCheck %s --check-prefix FAKEDIR
 // FAKEDIR: "-internal-isystem" "/fake{{/|\\\\}}include"
 // FAKEDIR: "-internal-isystem" "/fake{{/|\\\\}}atlmfc{{/|\\\\}}include"
+// FAKEDIR: "-internal-isystem" "/foo{{/|\\\\}}Include{{/|\\\\}}10.0.12345.0{{/|\\\\}}ucrt"
+// FAKEDIR: "-internal-isystem" "/foo{{/|\\\\}}Include{{/|\\\\}}10.0.12345.0{{/|\\\\}}shared"
+// FAKEDIR: "-internal-isystem" "/foo{{/|\\\\}}Include{{/|\\\\}}10.0.12345.0{{/|\\\\}}um"
+// FAKEDIR: "-internal-isystem" "/foo{{/|\\\\}}Include{{/|\\\\}}10.0.12345.0{{/|\\\\}}winrt"
+// FAKEDIR: "-libpath:/fake{{/|\\\\}}lib{{/|\\\\}}
+// FAKEDIR: "-libpath:/fake{{/|\\\\}}atlmfc{{/|\\\\}}lib{{/|\\\\}}
+// FAKEDIR: "-libpath:/foo{{/|\\\\}}Lib{{/|\\\\}}10.0.12345.0{{/|\\\\}}ucrt
+// FAKEDIR: "-libpath:/foo{{/|\\\\}}Lib{{/|\\\\}}10.0.12345.0{{/|\\\\}}um
 
 void f() { }

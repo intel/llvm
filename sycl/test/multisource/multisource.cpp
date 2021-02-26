@@ -10,21 +10,14 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -c -o %t.kernel.o %s -DINIT_KERNEL -DCALC_KERNEL
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -c -o %t.main.o %s -DMAIN_APP
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %t.kernel.o %t.main.o -o %t.fat
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.fat
-// RUN: %CPU_RUN_PLACEHOLDER %t.fat
-// RUN: %GPU_RUN_PLACEHOLDER %t.fat
-// RUN: %ACC_RUN_PLACEHOLDER %t.fat
+// RUN: %RUN_ON_HOST %t.fat
 
 // Multiple sources with kernel code
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -c -o %t.init.o %s -DINIT_KERNEL
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -c -o %t.calc.o %s -DCALC_KERNEL
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -c -o %t.main.o %s -DMAIN_APP
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %t.init.o %t.calc.o %t.main.o -o %t.fat
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.fat
-// RUN: %CPU_RUN_PLACEHOLDER %t.fat
-// RUN: %GPU_RUN_PLACEHOLDER %t.fat
-// RUN: %ACC_RUN_PLACEHOLDER %t.fat
-
+// RUN: %RUN_ON_HOST %t.fat
 
 #include <CL/sycl.hpp>
 
@@ -33,9 +26,9 @@
 using namespace cl::sycl;
 
 #ifdef MAIN_APP
-void init_buf(queue &q, buffer<int, 1> &b, range<1> &r, int i) ;
+void init_buf(queue &q, buffer<int, 1> &b, range<1> &r, int i);
 #elif INIT_KERNEL
-void init_buf(queue &q, buffer<int, 1> &b, range<1> &r, int i){
+void init_buf(queue &q, buffer<int, 1> &b, range<1> &r, int i) {
   q.submit([&](handler &cgh) {
     auto B = b.get_access<access::mode::write>(cgh);
     cgh.parallel_for<class init>(r, [=](id<1> index) { B[index] = i; });
@@ -44,11 +37,11 @@ void init_buf(queue &q, buffer<int, 1> &b, range<1> &r, int i){
 #endif
 
 #ifdef MAIN_APP
-void calc_buf(queue &q, buffer<int, 1> &a, buffer<int, 1> &b,
-              buffer<int, 1> &c, range<1> &r);
+void calc_buf(queue &q, buffer<int, 1> &a, buffer<int, 1> &b, buffer<int, 1> &c,
+              range<1> &r);
 #elif CALC_KERNEL
-void calc_buf(queue &q, buffer<int, 1> &a, buffer<int, 1> &b,
-              buffer<int, 1> &c, range<1> &r){
+void calc_buf(queue &q, buffer<int, 1> &a, buffer<int, 1> &b, buffer<int, 1> &c,
+              range<1> &r) {
   q.submit([&](handler &cgh) {
     auto A = a.get_access<access::mode::read>(cgh);
     auto B = b.get_access<access::mode::read>(cgh);
@@ -89,4 +82,3 @@ int main() {
   return 0;
 }
 #endif
-

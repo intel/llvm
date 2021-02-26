@@ -21,6 +21,12 @@ class LOCKABLE Mutex {
   void AssertReaderHeld() ASSERT_SHARED_LOCK();
 };
 
+class SCOPED_LOCKABLE MutexLock {
+public:
+  MutexLock(Mutex *mu) EXCLUSIVE_LOCK_FUNCTION(mu);
+  MutexLock(Mutex *mu, bool adopt) EXCLUSIVE_LOCKS_REQUIRED(mu);
+  ~MutexLock() UNLOCK_FUNCTION();
+};
 
 namespace SimpleTest {
 
@@ -77,6 +83,10 @@ public:
     mu.Unlock();
     baz();       // no warning -- !mu in set.
   }
+
+  void test4() {
+    MutexLock lock(&mu); // expected-warning {{acquiring mutex 'mu' requires negative capability '!mu'}}
+  }
 };
 
 }  // end namespace SimpleTest
@@ -106,6 +116,33 @@ void testNamespaceGlobals() EXCLUSIVE_LOCKS_REQUIRED(!globalMutex) {
   fq();
   ns::f();  // expected-warning {{calling function 'f' requires negative capability '!globalMutex'}}
   ns::fq(); // expected-warning {{calling function 'fq' requires negative capability '!globalMutex'}}
+}
+
+class StaticMembers {
+public:
+  void pub() EXCLUSIVE_LOCKS_REQUIRED(!publicMutex);
+  void prot() EXCLUSIVE_LOCKS_REQUIRED(!protectedMutex);
+  void priv() EXCLUSIVE_LOCKS_REQUIRED(!privateMutex);
+  void test() {
+    pub();
+    prot();
+    priv();
+  }
+
+  static Mutex publicMutex;
+
+protected:
+  static Mutex protectedMutex;
+
+private:
+  static Mutex privateMutex;
+};
+
+void testStaticMembers() {
+  StaticMembers x;
+  x.pub();
+  x.prot();
+  x.priv();
 }
 
 }  // end namespace ScopeTest

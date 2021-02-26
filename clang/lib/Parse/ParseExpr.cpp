@@ -1211,7 +1211,7 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
             DS.SetTypeSpecType(TST_typename, ILoc, PrevSpec, DiagID, Typ,
                                Actions.getASTContext().getPrintingPolicy());
 
-            Declarator DeclaratorInfo(DS, DeclaratorContext::TypeNameContext);
+            Declarator DeclaratorInfo(DS, DeclaratorContext::TypeName);
             TypeResult Ty = Actions.ActOnTypeName(getCurScope(),
                                                   DeclaratorInfo);
             if (Ty.isInvalid())
@@ -1487,7 +1487,7 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
                          PrevSpec, DiagID, Type,
                          Actions.getASTContext().getPrintingPolicy());
 
-      Declarator DeclaratorInfo(DS, DeclaratorContext::TypeNameContext);
+      Declarator DeclaratorInfo(DS, DeclaratorContext::TypeName);
       TypeResult Ty = Actions.ActOnTypeName(getCurScope(), DeclaratorInfo);
       if (Ty.isInvalid())
         break;
@@ -2263,15 +2263,20 @@ Parser::ParseExprAfterUnaryExprOrTypeTrait(const Token &OpTok,
       if (isTypeIdUnambiguously()) {
         DeclSpec DS(AttrFactory);
         ParseSpecifierQualifierList(DS);
-        Declarator DeclaratorInfo(DS, DeclaratorContext::TypeNameContext);
+        Declarator DeclaratorInfo(DS, DeclaratorContext::TypeName);
         ParseDeclarator(DeclaratorInfo);
 
         SourceLocation LParenLoc = PP.getLocForEndOfToken(OpTok.getLocation());
         SourceLocation RParenLoc = PP.getLocForEndOfToken(PrevTokLocation);
-        Diag(LParenLoc, diag::err_expected_parentheses_around_typename)
-          << OpTok.getName()
-          << FixItHint::CreateInsertion(LParenLoc, "(")
-          << FixItHint::CreateInsertion(RParenLoc, ")");
+        if (LParenLoc.isInvalid() || RParenLoc.isInvalid()) {
+          Diag(OpTok.getLocation(),
+               diag::err_expected_parentheses_around_typename)
+              << OpTok.getName();
+        } else {
+          Diag(LParenLoc, diag::err_expected_parentheses_around_typename)
+              << OpTok.getName() << FixItHint::CreateInsertion(LParenLoc, "(")
+              << FixItHint::CreateInsertion(RParenLoc, ")");
+        }
         isCastExpr = true;
         return ExprEmpty();
       }
@@ -2926,7 +2931,7 @@ Parser::ParseParenExpression(ParenParseOption &ExprType, bool stopIfCastExpr,
     // Parse the type declarator.
     DeclSpec DS(AttrFactory);
     ParseSpecifierQualifierList(DS);
-    Declarator DeclaratorInfo(DS, DeclaratorContext::TypeNameContext);
+    Declarator DeclaratorInfo(DS, DeclaratorContext::TypeName);
     ParseDeclarator(DeclaratorInfo);
 
     // If our type is followed by an identifier and either ':' or ']', then
@@ -3150,6 +3155,7 @@ Parser::ParseCompoundLiteralExpression(ParsedType Ty,
   assert(Tok.is(tok::l_brace) && "Not a compound literal!");
   if (!getLangOpts().C99)   // Compound literals don't exist in C90.
     Diag(LParenLoc, diag::ext_c99_compound_literal);
+  PreferredType.enterTypeCast(Tok.getLocation(), Ty.get());
   ExprResult Result = ParseInitializer();
   if (!Result.isInvalid() && Ty)
     return Actions.ActOnCompoundLiteral(LParenLoc, Ty, RParenLoc, Result.get());
@@ -3452,8 +3458,8 @@ void Parser::ParseBlockId(SourceLocation CaretLoc) {
   ParseSpecifierQualifierList(DS);
 
   // Parse the block-declarator.
-  Declarator DeclaratorInfo(DS, DeclaratorContext::BlockLiteralContext);
-  DeclaratorInfo.setFunctionDefinitionKind(FDK_Definition);
+  Declarator DeclaratorInfo(DS, DeclaratorContext::BlockLiteral);
+  DeclaratorInfo.setFunctionDefinitionKind(FunctionDefinitionKind::Definition);
   ParseDeclarator(DeclaratorInfo);
 
   MaybeParseGNUAttributes(DeclaratorInfo);
@@ -3491,8 +3497,8 @@ ExprResult Parser::ParseBlockLiteralExpression() {
 
   // Parse the return type if present.
   DeclSpec DS(AttrFactory);
-  Declarator ParamInfo(DS, DeclaratorContext::BlockLiteralContext);
-  ParamInfo.setFunctionDefinitionKind(FDK_Definition);
+  Declarator ParamInfo(DS, DeclaratorContext::BlockLiteral);
+  ParamInfo.setFunctionDefinitionKind(FunctionDefinitionKind::Definition);
   // FIXME: Since the return type isn't actually parsed, it can't be used to
   // fill ParamInfo with an initial valid range, so do it manually.
   ParamInfo.SetSourceRange(SourceRange(Tok.getLocation(), Tok.getLocation()));

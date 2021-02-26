@@ -143,4 +143,9 @@ double __devicelib_asinh(double x) { return __spirv_ocl_asinh(x); }
 
 DEVICE_EXTERN_C
 double __devicelib_atanh(double x) { return __spirv_ocl_atanh(x); }
+
+DEVICE_EXTERN_C
+double __devicelib_scalbn(double x, int exp) {
+  return __spirv_ocl_ldexp(x, exp);
+}
 #endif // __SPIR__

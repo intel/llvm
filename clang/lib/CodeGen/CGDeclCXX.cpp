@@ -251,6 +251,8 @@ llvm::Function *CodeGenFunction::createAtExitStub(const VarDecl &VD,
   CGF.StartFunction(GlobalDecl(&VD, DynamicInitKind::AtExit),
                     CGM.getContext().VoidTy, fn, FI, FunctionArgList(),
                     VD.getLocation(), VD.getInit()->getExprLoc());
+  // Emit an artificial location for this function.
+  auto AL = ApplyDebugLocation::CreateArtificial(CGF);
 
   llvm::CallInst *call = CGF.Builder.CreateCall(dtor, addr);
 
@@ -275,8 +277,10 @@ void CodeGenFunction::registerGlobalDtorWithAtExit(const VarDecl &VD,
 
 void CodeGenFunction::registerGlobalDtorWithAtExit(llvm::Constant *dtorStub) {
   // extern "C" int atexit(void (*f)(void));
-  assert(cast<llvm::Function>(dtorStub)->getFunctionType() ==
-             llvm::FunctionType::get(CGM.VoidTy, false) &&
+  assert(dtorStub->getType() ==
+             llvm::PointerType::get(
+                 llvm::FunctionType::get(CGM.VoidTy, false),
+                 dtorStub->getType()->getPointerAddressSpace()) &&
          "Argument to atexit has a wrong type.");
 
   llvm::FunctionType *atexitTy =
@@ -292,7 +296,7 @@ void CodeGenFunction::registerGlobalDtorWithAtExit(llvm::Constant *dtorStub) {
 }
 
 llvm::Value *
-CodeGenFunction::unregisterGlobalDtorWithUnAtExit(llvm::Function *dtorStub) {
+CodeGenFunction::unregisterGlobalDtorWithUnAtExit(llvm::Constant *dtorStub) {
   // The unatexit subroutine unregisters __dtor functions that were previously
   // registered by the atexit subroutine. If the referenced function is found,
   // it is removed from the list of functions that are called at normal program
@@ -300,8 +304,10 @@ CodeGenFunction::unregisterGlobalDtorWithUnAtExit(llvm::Function *dtorStub) {
   // value is returned.
   //
   // extern "C" int unatexit(void (*f)(void));
-  assert(dtorStub->getFunctionType() ==
-             llvm::FunctionType::get(CGM.VoidTy, false) &&
+  assert(dtorStub->getType() ==
+             llvm::PointerType::get(
+                 llvm::FunctionType::get(CGM.VoidTy, false),
+                 dtorStub->getType()->getPointerAddressSpace()) &&
          "Argument to unatexit has a wrong type.");
 
   llvm::FunctionType *unatexitTy =
@@ -424,22 +430,6 @@ llvm::Function *CodeGenModule::CreateGlobalInitOrCleanUpFunction(
   if (getLangOpts().Sanitize.has(SanitizerKind::ShadowCallStack) &&
       !isInSanitizerBlacklist(SanitizerKind::ShadowCallStack, Fn, Loc))
     Fn->addFnAttr(llvm::Attribute::ShadowCallStack);
-
-  auto RASignKind = getLangOpts().getSignReturnAddressScope();
-  if (RASignKind != LangOptions::SignReturnAddressScopeKind::None) {
-    Fn->addFnAttr("sign-return-address",
-                  RASignKind == LangOptions::SignReturnAddressScopeKind::All
-                      ? "all"
-                      : "non-leaf");
-    auto RASignKey = getLangOpts().getSignReturnAddressKey();
-    Fn->addFnAttr("sign-return-address-key",
-                  RASignKey == LangOptions::SignReturnAddressKeyKind::AKey
-                      ? "a_key"
-                      : "b_key");
-  }
-
-  if (getLangOpts().BranchTargetEnforcement)
-    Fn->addFnAttr("branch-target-enforcement");
 
   return Fn;
 }
@@ -692,8 +682,9 @@ void CodeGenFunction::GenerateCXXGlobalVarDeclInitFunc(llvm::Function *Fn,
 
   StartFunction(GlobalDecl(D, DynamicInitKind::Initializer),
                 getContext().VoidTy, Fn, getTypes().arrangeNullaryFunction(),
-                FunctionArgList(), D->getLocation(),
-                D->getInit()->getExprLoc());
+                FunctionArgList());
+  // Emit an artificial location for this function.
+  auto AL = ApplyDebugLocation::CreateArtificial(*this);
 
   // Use guarded initialization if the global variable is weak. This
   // occurs for, e.g., instantiated static data members and
@@ -827,7 +818,10 @@ llvm::Function *CodeGenFunction::generateDestroyHelper(
 
   CurEHLocation = VD->getBeginLoc();
 
-  StartFunction(VD, getContext().VoidTy, fn, FI, args);
+  StartFunction(GlobalDecl(VD, DynamicInitKind::GlobalArrayDestructor),
+                getContext().VoidTy, fn, FI, args);
+  // Emit an artificial location for this function.
+  auto AL = ApplyDebugLocation::CreateArtificial(*this);
 
   emitDestroy(addr, type, destroyer, useEHCleanupForArray);
 

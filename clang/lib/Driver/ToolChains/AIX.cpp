@@ -71,7 +71,7 @@ void aix::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
 
   const char *Exec = Args.MakeArgString(getToolChain().GetProgramPath("as"));
   C.addCommand(std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
-                                         Exec, CmdArgs, Inputs));
+                                         Exec, CmdArgs, Inputs, Output));
 }
 
 void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
@@ -91,6 +91,12 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // Force static linking when "-static" is present.
   if (Args.hasArg(options::OPT_static))
     CmdArgs.push_back("-bnso");
+
+  // Add options for shared libraries.
+  if (Args.hasArg(options::OPT_shared)) {
+    CmdArgs.push_back("-bM:SRE");
+    CmdArgs.push_back("-bnoentry");
+  }
 
   // Specify linker output file.
   assert((Output.isFilename() || Output.isNothing()) && "Invalid output.");
@@ -123,16 +129,20 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       return IsArch32Bit ? "crt0.o" : "crt0_64.o";
   };
 
-  if (!Args.hasArg(options::OPT_nostdlib)) {
+  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles,
+                   options::OPT_shared)) {
     CmdArgs.push_back(
         Args.MakeArgString(ToolChain.GetFilePath(getCrt0Basename())));
+
+    CmdArgs.push_back(Args.MakeArgString(
+        ToolChain.GetFilePath(IsArch32Bit ? "crti.o" : "crti_64.o")));
   }
 
-  // Collect all static constructor and destructor functions in CXX mode. This
-  // has to come before AddLinkerInputs as the implied option needs to precede
-  // any other '-bcdtors' settings or '-bnocdtors' that '-Wl' might forward.
-  if (D.CCCIsCXX())
-    CmdArgs.push_back("-bcdtors:all:0:s");
+  // Collect all static constructor and destructor functions in both C and CXX
+  // language link invocations. This has to come before AddLinkerInputs as the
+  // implied option needs to precede any other '-bcdtors' settings or
+  // '-bnocdtors' that '-Wl' might forward.
+  CmdArgs.push_back("-bcdtors:all:0:s");
 
   // Specify linker input file(s).
   AddLinkerInputs(ToolChain, Inputs, Args, CmdArgs, JA);
@@ -140,21 +150,27 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // Add directory to library search path.
   Args.AddAllArgs(CmdArgs, options::OPT_L);
   ToolChain.AddFilePathLibArgs(Args, CmdArgs);
+  ToolChain.addProfileRTLibs(Args, CmdArgs);
 
   if (getToolChain().ShouldLinkCXXStdlib(Args))
     getToolChain().AddCXXStdlibLibArgs(Args, CmdArgs);
 
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+    AddRunTimeLibs(ToolChain, D, CmdArgs, Args);
+
     // Support POSIX threads if "-pthreads" or "-pthread" is present.
     if (Args.hasArg(options::OPT_pthreads, options::OPT_pthread))
       CmdArgs.push_back("-lpthreads");
+
+    if (D.CCCIsCXX())
+      CmdArgs.push_back("-lm");
 
     CmdArgs.push_back("-lc");
   }
 
   const char *Exec = Args.MakeArgString(ToolChain.GetLinkerPath());
   C.addCommand(std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
-                                         Exec, CmdArgs, Inputs));
+                                         Exec, CmdArgs, Inputs, Output));
 }
 
 /// AIX - AIX tool chain which can call as(1) and ld(1) directly.
@@ -200,11 +216,11 @@ void AIX::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
   addSystemInclude(DriverArgs, CC1Args, UP.str());
 }
 
-void AIX::AddCXXStdlibLibArgs(const llvm::opt::ArgList &DriverArgs,
-                              llvm::opt::ArgStringList &CC1Args) const {
-  switch (GetCXXStdlibType(DriverArgs)) {
+void AIX::AddCXXStdlibLibArgs(const llvm::opt::ArgList &Args,
+                              llvm::opt::ArgStringList &CmdArgs) const {
+  switch (GetCXXStdlibType(Args)) {
   case ToolChain::CST_Libcxx:
-    CC1Args.push_back("-lc++");
+    CmdArgs.push_back("-lc++");
     return;
   case ToolChain::CST_Libstdcxx:
     llvm::report_fatal_error("linking libstdc++ unimplemented on AIX");
@@ -215,6 +231,10 @@ void AIX::AddCXXStdlibLibArgs(const llvm::opt::ArgList &DriverArgs,
 
 ToolChain::CXXStdlibType AIX::GetDefaultCXXStdlibType() const {
   return ToolChain::CST_Libcxx;
+}
+
+ToolChain::RuntimeLibType AIX::GetDefaultRuntimeLibType() const {
+  return ToolChain::RLT_CompilerRT;
 }
 
 auto AIX::buildAssembler() const -> Tool * { return new aix::Assembler(*this); }

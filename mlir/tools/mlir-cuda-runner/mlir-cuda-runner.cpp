@@ -24,8 +24,7 @@
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/ExecutionEngine/JitRunner.h"
 #include "mlir/ExecutionEngine/OptUtils.h"
-#include "mlir/IR/Function.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/InitAllDialects.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
@@ -125,7 +124,6 @@ static LogicalResult runMLIRPasses(ModuleOp m) {
 
 int main(int argc, char **argv) {
   registerPassManagerCLOptions();
-  mlir::registerAllDialects();
   llvm::InitLLVM y(argc, argv);
   llvm::InitializeNativeTarget();
   llvm::InitializeNativeTargetAsmPrinter();
@@ -137,5 +135,9 @@ int main(int argc, char **argv) {
   LLVMInitializeNVPTXAsmPrinter();
 
   mlir::initializeLLVMPasses();
-  return mlir::JitRunnerMain(argc, argv, &runMLIRPasses);
+
+  mlir::JitRunnerConfig jitRunnerConfig;
+  jitRunnerConfig.mlirTransformer = runMLIRPasses;
+
+  return mlir::JitRunnerMain(argc, argv, jitRunnerConfig);
 }

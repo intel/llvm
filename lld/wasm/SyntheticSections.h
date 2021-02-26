@@ -19,7 +19,7 @@
 
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringMap.h"
-#include "llvm/Object/WasmTraits.h"
+#include "llvm/BinaryFormat/WasmTraits.h"
 
 #define DEBUG_TYPE "lld"
 
@@ -117,15 +117,20 @@ public:
     assert(isSealed);
     return numImportedEvents;
   }
+  uint32_t getNumImportedTables() const {
+    assert(isSealed);
+    return numImportedTables;
+  }
 
   std::vector<const Symbol *> importedSymbols;
+  std::vector<const Symbol *> gotSymbols;
 
 protected:
   bool isSealed = false;
   unsigned numImportedGlobals = 0;
   unsigned numImportedFunctions = 0;
   unsigned numImportedEvents = 0;
-  std::vector<const Symbol *> gotSymbols;
+  unsigned numImportedTables = 0;
 };
 
 class FunctionSection : public SyntheticSection {
@@ -145,19 +150,11 @@ class TableSection : public SyntheticSection {
 public:
   TableSection() : SyntheticSection(llvm::wasm::WASM_SEC_TABLE) {}
 
-  bool isNeeded() const override {
-    // Always output a table section (or table import), even if there are no
-    // indirect calls.  There are two reasons for this:
-    //  1. For executables it is useful to have an empty table slot at 0
-    //     which can be filled with a null function call handler.
-    //  2. If we don't do this, any program that contains a call_indirect but
-    //     no address-taken function will fail at validation time since it is
-    //     a validation error to include a call_indirect instruction if there
-    //     is not table.
-    return !config->importTable;
-  }
-
+  bool isNeeded() const override { return inputTables.size() > 0; };
   void writeBody() override;
+  void addTable(InputTable *table);
+
+  std::vector<InputTable *> inputTables;
 };
 
 class MemorySection : public SyntheticSection {
@@ -197,21 +194,35 @@ public:
   uint32_t numGlobals() const {
     assert(isSealed);
     return inputGlobals.size() + dataAddressGlobals.size() +
-           staticGotSymbols.size();
+           internalGotSymbols.size();
   }
   bool isNeeded() const override { return numGlobals() > 0; }
   void assignIndexes() override;
   void writeBody() override;
   void addGlobal(InputGlobal *global);
-  void addDataAddressGlobal(DefinedData *global);
-  void addStaticGOTEntry(Symbol *sym);
+
+  // Add an internal GOT entry global that corresponds to the given symbol.
+  // Normally GOT entries are imported and assigned by the external dynamic
+  // linker.  However, when linking PIC code statically or when linking with
+  // -Bsymbolic we can internalize GOT entries by declaring globals the hold
+  // symbol addresses.
+  //
+  // For the static linking case these internal globals can be completely
+  // eliminated by a post-link optimizer such as wasm-opt.
+  //
+  // TODO(sbc): Another approach to optimizing these away could be to use
+  // specific relocation types combined with linker relaxation which could
+  // transform a `global.get` to an `i32.const`.
+  void addInternalGOTEntry(Symbol *sym);
+  bool needsRelocations() { return internalGotSymbols.size(); }
+  void generateRelocationCode(raw_ostream &os) const;
 
   std::vector<const DefinedData *> dataAddressGlobals;
+  std::vector<InputGlobal *> inputGlobals;
+  std::vector<Symbol *> internalGotSymbols;
 
 protected:
   bool isSealed = false;
-  std::vector<InputGlobal *> inputGlobals;
-  std::vector<Symbol *> staticGotSymbols;
 };
 
 class ExportSection : public SyntheticSection {
@@ -221,18 +232,14 @@ public:
   void writeBody() override;
 
   std::vector<llvm::wasm::WasmExport> exports;
+  std::vector<const Symbol *> exportedSymbols;
 };
 
 class StartSection : public SyntheticSection {
 public:
-  StartSection(bool hasInitializedSegments)
-      : SyntheticSection(llvm::wasm::WASM_SEC_START),
-        hasInitializedSegments(hasInitializedSegments) {}
+  StartSection() : SyntheticSection(llvm::wasm::WASM_SEC_START) {}
   bool isNeeded() const override;
   void writeBody() override;
-
-protected:
-  bool hasInitializedSegments;
 };
 
 class ElemSection : public SyntheticSection {
@@ -282,12 +289,20 @@ protected:
 // Create the custom "name" section containing debug symbol names.
 class NameSection : public SyntheticSection {
 public:
-  NameSection() : SyntheticSection(llvm::wasm::WASM_SEC_CUSTOM, "name") {}
+  NameSection(ArrayRef<OutputSegment *> segments)
+      : SyntheticSection(llvm::wasm::WASM_SEC_CUSTOM, "name"),
+        segments(segments) {}
   bool isNeeded() const override {
     return !config->stripDebug && !config->stripAll && numNames() > 0;
   }
   void writeBody() override;
-  unsigned numNames() const;
+  unsigned numNames() const { return numNamedGlobals() + numNamedFunctions(); }
+  unsigned numNamedGlobals() const;
+  unsigned numNamedFunctions() const;
+  unsigned numNamedDataSegments() const;
+
+protected:
+  ArrayRef<OutputSegment *> segments;
 };
 
 class ProducersSection : public SyntheticSection {

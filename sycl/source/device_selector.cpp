@@ -17,6 +17,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/filter_selector_impl.hpp>
 #include <detail/force_device.hpp>
+#include <detail/global_handler.hpp>
 // 4.6.1 Device selection class
 
 #include <algorithm>
@@ -154,6 +155,12 @@ int default_selector::operator()(const device &dev) const {
   if (dev.is_host())
     Score += 100;
 
+  // Since we deprecate SYCL_BE and SYCL_DEVICE_TYPE,
+  // we should not disallow accelerator to be chosen.
+  // But this device type gets the lowest heuristic point.
+  if (dev.is_accelerator())
+    Score += 75;
+
   return Score;
 }
 
@@ -244,9 +251,8 @@ int filter_selector::operator()(const device &Dev) const {
 void filter_selector::reset() const { impl->reset(); }
 
 device filter_selector::select_device() const {
-  static std::mutex FilterMutex;
-
-  std::lock_guard<std::mutex> Guard(FilterMutex);
+  std::lock_guard<std::mutex> Guard(
+      sycl::detail::GlobalHandler::instance().getFilterMutex());
 
   device Result = device_selector::select_device();
 

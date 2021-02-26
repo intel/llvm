@@ -40,6 +40,7 @@ namespace format {
   TYPE(ConflictAlternative)                                                    \
   TYPE(ConflictEnd)                                                            \
   TYPE(ConflictStart)                                                          \
+  TYPE(ConstraintJunctions)                                                    \
   TYPE(CtorInitializerColon)                                                   \
   TYPE(CtorInitializerComma)                                                   \
   TYPE(DesignatedInitializerLSquare)                                           \
@@ -68,6 +69,9 @@ namespace format {
   TYPE(JsTypeColon)                                                            \
   TYPE(JsTypeOperator)                                                         \
   TYPE(JsTypeOptionalQuestion)                                                 \
+  TYPE(JsAndAndEqual)                                                          \
+  TYPE(JsPipePipeEqual)                                                        \
+  TYPE(JsNullishCoalescingEqual)                                               \
   TYPE(LambdaArrow)                                                            \
   TYPE(LambdaLBrace)                                                           \
   TYPE(LambdaLSquare)                                                          \
@@ -92,6 +96,7 @@ namespace format {
   TYPE(RegexLiteral)                                                           \
   TYPE(SelectorName)                                                           \
   TYPE(StartOfName)                                                            \
+  TYPE(StatementAttributeLikeMacro)                                            \
   TYPE(StatementMacro)                                                         \
   TYPE(StructuredBindingLSquare)                                               \
   TYPE(TemplateCloser)                                                         \
@@ -118,7 +123,7 @@ namespace format {
 
 /// Determines the semantic type of a syntactic token, e.g. whether "<" is a
 /// template opener or binary operator.
-enum TokenType {
+enum TokenType : uint8_t {
 #define TYPE(X) TT_##X,
   LIST_TOKEN_TYPES
 #undef TYPE
@@ -136,6 +141,68 @@ enum ParameterPackingKind { PPK_BinPacked, PPK_OnePerLine, PPK_Inconclusive };
 
 enum FormatDecision { FD_Unformatted, FD_Continue, FD_Break };
 
+/// Roles a token can take in a configured macro expansion.
+enum MacroRole {
+  /// The token was expanded from a macro argument when formatting the expanded
+  /// token sequence.
+  MR_ExpandedArg,
+  /// The token is part of a macro argument that was previously formatted as
+  /// expansion when formatting the unexpanded macro call.
+  MR_UnexpandedArg,
+  /// The token was expanded from a macro definition, and is not visible as part
+  /// of the macro call.
+  MR_Hidden,
+};
+
+struct FormatToken;
+
+/// Contains information on the token's role in a macro expansion.
+///
+/// Given the following definitions:
+/// A(X) = [ X ]
+/// B(X) = < X >
+/// C(X) = X
+///
+/// Consider the macro call:
+/// A({B(C(C(x)))}) -> [{<x>}]
+///
+/// In this case, the tokens of the unexpanded macro call will have the
+/// following relevant entries in their macro context (note that formatting
+/// the unexpanded macro call happens *after* formatting the expanded macro
+/// call):
+///                   A( { B( C( C(x) ) ) } )
+/// Role:             NN U NN NN NNUN N N U N  (N=None, U=UnexpandedArg)
+///
+///                   [  { <       x    > } ]
+/// Role:             H  E H       E    H E H  (H=Hidden, E=ExpandedArg)
+/// ExpandedFrom[0]:  A  A A       A    A A A
+/// ExpandedFrom[1]:       B       B    B
+/// ExpandedFrom[2]:               C
+/// ExpandedFrom[3]:               C
+/// StartOfExpansion: 1  0 1       2    0 0 0
+/// EndOfExpansion:   0  0 0       2    1 0 1
+struct MacroExpansion {
+  MacroExpansion(MacroRole Role) : Role(Role) {}
+
+  /// The token's role in the macro expansion.
+  /// When formatting an expanded macro, all tokens that are part of macro
+  /// arguments will be MR_ExpandedArg, while all tokens that are not visible in
+  /// the macro call will be MR_Hidden.
+  /// When formatting an unexpanded macro call, all tokens that are part of
+  /// macro arguments will be MR_UnexpandedArg.
+  MacroRole Role;
+
+  /// The stack of macro call identifier tokens this token was expanded from.
+  llvm::SmallVector<FormatToken *, 1> ExpandedFrom;
+
+  /// The number of expansions of which this macro is the first entry.
+  unsigned StartOfExpansion = 0;
+
+  /// The number of currently open expansions in \c ExpandedFrom this macro is
+  /// the last token in.
+  unsigned EndOfExpansion = 0;
+};
+
 class TokenRole;
 class AnnotatedLine;
 
@@ -144,13 +211,12 @@ class AnnotatedLine;
 struct FormatToken {
   FormatToken()
       : HasUnescapedNewline(false), IsMultiline(false), IsFirst(false),
-        MustBreakBefore(false), MustBreakAlignBefore(false),
-        IsUnterminatedLiteral(false), CanBreakBefore(false),
-        ClosesTemplateDeclaration(false), StartsBinaryExpression(false),
-        EndsBinaryExpression(false), PartOfMultiVariableDeclStmt(false),
-        ContinuesLineCommentSection(false), Finalized(false),
-        BlockKind(BK_Unknown), Type(TT_Unknown), Decision(FD_Unformatted),
-        PackingKind(PPK_Inconclusive) {}
+        MustBreakBefore(false), IsUnterminatedLiteral(false),
+        CanBreakBefore(false), ClosesTemplateDeclaration(false),
+        StartsBinaryExpression(false), EndsBinaryExpression(false),
+        PartOfMultiVariableDeclStmt(false), ContinuesLineCommentSection(false),
+        Finalized(false), BlockKind(BK_Unknown), Decision(FD_Unformatted),
+        PackingKind(PPK_Inconclusive), Type(TT_Unknown) {}
 
   /// The \c Token.
   Token Tok;
@@ -163,7 +229,9 @@ struct FormatToken {
 
   /// A token can have a special role that can carry extra information
   /// about the token's formatting.
-  std::unique_ptr<TokenRole> Role;
+  /// FIXME: Make FormatToken for parsing and AnnotatedToken two different
+  /// classes and make this a unique_ptr in the AnnotatedToken class.
+  std::shared_ptr<TokenRole> Role;
 
   /// The range of the whitespace immediately preceding the \c Token.
   SourceRange WhitespaceRange;
@@ -183,12 +251,6 @@ struct FormatToken {
   /// This happens for example when a preprocessor directive ended directly
   /// before the token.
   unsigned MustBreakBefore : 1;
-
-  /// Whether to not align across this token
-  ///
-  /// This happens for example when a preprocessor directive ended directly
-  /// before the token, but very rarely otherwise.
-  unsigned MustBreakAlignBefore : 1;
 
   /// Set to \c true if this token is an unterminated literal.
   unsigned IsUnterminatedLiteral : 1;
@@ -234,18 +296,6 @@ public:
   }
 
 private:
-  unsigned Type : 8;
-
-public:
-  /// Returns the token's type, e.g. whether "<" is a template opener or
-  /// binary operator.
-  TokenType getType() const { return static_cast<TokenType>(Type); }
-  void setType(TokenType T) {
-    Type = T;
-    assert(getType() == T && "TokenType overflow!");
-  }
-
-private:
   /// Stores the formatting decision for the token once it was made.
   unsigned Decision : 2;
 
@@ -270,6 +320,15 @@ public:
     PackingKind = K;
     assert(getPackingKind() == K && "ParameterPackingKind overflow!");
   }
+
+private:
+  TokenType Type;
+
+public:
+  /// Returns the token's type, e.g. whether "<" is a template opener or
+  /// binary operator.
+  TokenType getType() const { return Type; }
+  void setType(TokenType T) { Type = T; }
 
   /// The number of newlines immediately before the \c Token.
   ///
@@ -377,6 +436,10 @@ public:
   /// If this token starts a block, this contains all the unwrapped lines
   /// in it.
   SmallVector<AnnotatedLine *, 1> Children;
+
+  // Contains all attributes related to how this token takes part
+  // in a configured macro expansion.
+  llvm::Optional<MacroExpansion> MacroCtx;
 
   bool is(tok::TokenKind Kind) const { return Tok.is(Kind); }
   bool is(TokenType TT) const { return getType() == TT; }
@@ -529,6 +592,7 @@ public:
     case tok::kw__Atomic:
     case tok::kw___attribute:
     case tok::kw___underlying_type:
+    case tok::kw_requires:
       return true;
     default:
       return false;
@@ -631,10 +695,12 @@ public:
                : nullptr;
   }
 
+  void copyFrom(const FormatToken &Tok) { *this = Tok; }
+
 private:
-  // Disallow copying.
+  // Only allow copying via the explicit copyFrom method.
   FormatToken(const FormatToken &) = delete;
-  void operator=(const FormatToken &) = delete;
+  FormatToken &operator=(const FormatToken &) = default;
 
   template <typename A, typename... Ts>
   bool startsSequenceInternal(A K1, Ts... Tokens) const {

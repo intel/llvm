@@ -14,9 +14,10 @@
 #ifndef MLIR_TUTORIAL_TOY_DIALECT_H_
 #define MLIR_TUTORIAL_TOY_DIALECT_H_
 
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
-#include "mlir/IR/Function.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/Interfaces/CastInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "toy/ShapeInferenceInterface.h"
 
@@ -50,6 +51,9 @@ public:
   static llvm::StringRef getDialectNamespace() { return "toy"; }
 };
 
+} // end namespace toy
+} // end namespace mlir
+
 //===----------------------------------------------------------------------===//
 // Toy Operations
 //===----------------------------------------------------------------------===//
@@ -58,6 +62,9 @@ public:
 /// toy operations.
 #define GET_OP_CLASSES
 #include "toy/Ops.h.inc"
+
+namespace mlir {
+namespace toy {
 
 //===----------------------------------------------------------------------===//
 // Toy Types

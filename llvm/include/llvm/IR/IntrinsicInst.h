@@ -967,6 +967,51 @@ public:
   }
 };
 
+class PseudoProbeInst : public IntrinsicInst {
+public:
+  static bool classof(const IntrinsicInst *I) {
+    return I->getIntrinsicID() == Intrinsic::pseudoprobe;
+  }
+
+  static bool classof(const Value *V) {
+    return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
+  }
+
+  ConstantInt *getFuncGuid() const {
+    return cast<ConstantInt>(const_cast<Value *>(getArgOperand(0)));
+  }
+
+  ConstantInt *getAttributes() const {
+    return cast<ConstantInt>(const_cast<Value *>(getArgOperand(2)));
+  }
+
+  ConstantInt *getIndex() const {
+    return cast<ConstantInt>(const_cast<Value *>(getArgOperand(1)));
+  }
+};
+
+class NoAliasScopeDeclInst : public IntrinsicInst {
+public:
+  static bool classof(const IntrinsicInst *I) {
+    return I->getIntrinsicID() == Intrinsic::experimental_noalias_scope_decl;
+  }
+
+  static bool classof(const Value *V) {
+    return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
+  }
+
+  MDNode *getScopeList() const {
+    auto *MV =
+        cast<MetadataAsValue>(getOperand(Intrinsic::NoAliasScopeDeclScopeArg));
+    return cast<MDNode>(MV->getMetadata());
+  }
+
+  void setScopeList(MDNode *ScopeList) {
+    setOperand(Intrinsic::NoAliasScopeDeclScopeArg,
+               MetadataAsValue::get(getContext(), ScopeList));
+  }
+};
+
 } // end namespace llvm
 
 #endif // LLVM_IR_INTRINSICINST_H

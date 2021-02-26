@@ -26,8 +26,8 @@ define void @f4(i8 inreg %0)
         ret void;
 }
 
-define void @f5(i8* sret %0)
-; CHECK: define void @f5(i8* sret %0)
+define void @f5(i8* sret(i8) %0)
+; CHECK: define void @f5(i8* sret(i8) %0)
 {
         ret void;
 }
@@ -44,7 +44,7 @@ define void @f7(i8* noalias %0)
         ret void;
 }
 
-define void @f8(i8* byval %0)
+define void @f8(i8* byval(i8) %0)
 ; CHECK: define void @f8(i8* byval(i8) %0)
 {
         ret void;
@@ -98,8 +98,8 @@ define void @f16() sspreq
         ret void;
 }
 
-define void @f17(i8 align 4 %0)
-; CHECK: define void @f17(i8 align 4 %0)
+define void @f17(i8* align 4 %0)
+; CHECK: define void @f17(i8* align 4 %0)
 {
         ret void;
 }
@@ -398,6 +398,30 @@ define void @f67(i32* byref(i32) %a)
   ret void
 }
 
+; CHECK: define void @f68() #41
+define void @f68() mustprogress
+{
+  ret void
+}
+
+; CHECK; define void @f69() #42
+define void @f69() nocallback
+{
+  ret void
+}
+
+; CHECK: define void @f70() #43
+define void @f70() cold
+{
+  ret void
+}
+
+; CHECK: define void @f71() #44
+define void @f71() hot
+{
+  ret void
+}
+
 ; CHECK: attributes #0 = { noreturn }
 ; CHECK: attributes #1 = { nounwind }
 ; CHECK: attributes #2 = { readnone }
@@ -439,4 +463,8 @@ define void @f67(i32* byref(i32) %a)
 ; CHECK: attributes #38 = { nosync }
 ; CHECK: attributes #39 = { sanitize_memtag }
 ; CHECK: attributes #40 = { null_pointer_is_valid }
+; CHECK: attributes #41 = { mustprogress }
+; CHECK: attributes #42 = { nocallback }
+; CHECK: attributes #43 = { cold }
+; CHECK: attributes #44 = { hot }
 ; CHECK: attributes #[[NOBUILTIN]] = { nobuiltin }

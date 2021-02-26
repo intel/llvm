@@ -12,13 +12,13 @@
 // TODO: Use values that won't overlap with others
 
 // Mem Object info: Retrieve the raw CUDA pointer from a cl_mem
-#define PI_CUDA_RAW_POINTER (0xFF01)
+#define __SYCL_PI_CUDA_RAW_POINTER (0xFF01)
 // Context creation: Use a primary CUDA context instead of a custom one by
 //                   providing a property value of PI_TRUE for the following
 //                   property ID.
-#define PI_CONTEXT_PROPERTIES_CUDA_PRIMARY (0xFF02)
+#define __SYCL_PI_CONTEXT_PROPERTIES_CUDA_PRIMARY (0xFF02)
 
 // PI Command Queue using Default stream
-#define PI_CUDA_USE_DEFAULT_STREAM (0xFF03)
+#define __SYCL_PI_CUDA_USE_DEFAULT_STREAM (0xFF03)
 // PI Command queue will sync with default stream
-#define PI_CUDA_SYNC_WITH_DEFAULT (0xFF04)
+#define __SYCL_PI_CUDA_SYNC_WITH_DEFAULT (0xFF04)

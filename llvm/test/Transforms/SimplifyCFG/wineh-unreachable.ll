@@ -1,4 +1,4 @@
-; RUN: opt -S -simplifycfg < %s | FileCheck %s
+; RUN: opt -S -simplifycfg -simplifycfg-require-and-preserve-domtree=1 < %s | FileCheck %s
 
 declare void @Personality()
 declare void @f()
@@ -13,7 +13,7 @@ exit:
   ret void
 unreachable.unwind:
   cleanuppad within none []
-  unreachable  
+  unreachable
 }
 
 ; CHECK-LABEL: define void @test2()

@@ -57,8 +57,8 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
   if (Platform.get_backend() == cl::sycl::backend::opencl) {
     string_class VersionString = DeviceImpl.get_info<info::device::version>();
     IsOpenCL = true;
-    IsOpenCLV1x = (VersionString.find("OpenCL 1.") == 0);
-    IsOpenCLV20 = (VersionString.find("OpenCL 2.0") == 0);
+    IsOpenCLV1x = (VersionString.find("1.") == 0);
+    IsOpenCLV20 = (VersionString.find("2.0") == 0);
   }
 
   size_t CompileWGSize[3] = {0};
@@ -83,8 +83,14 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
         NDRDesc.LocalSize[1] != CompileWGSize[1] ||
         NDRDesc.LocalSize[2] != CompileWGSize[2])
       throw sycl::nd_range_error(
-          "Specified local size doesn't match the required work-group size "
-          "specified in the program source",
+          "The specified local size {" + std::to_string(NDRDesc.LocalSize[0]) +
+              ", " + std::to_string(NDRDesc.LocalSize[1]) + ", " +
+              std::to_string(NDRDesc.LocalSize[2]) +
+              "} doesn't match the required work-group size specified "
+              "in the program source {" +
+              std::to_string(CompileWGSize[0]) + ", " +
+              std::to_string(CompileWGSize[1]) + ", " +
+              std::to_string(CompileWGSize[2]) + "}",
           PI_INVALID_WORK_GROUP_SIZE);
   }
   if (IsOpenCL) {
@@ -185,11 +191,22 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
               Opts.find("-cl-std=CL2.0") != string_class::npos;
           const bool RequiresUniformWGSize =
               Opts.find("-cl-uniform-work-group-size") != string_class::npos;
+          std::string LocalWGSize = std::to_string(NDRDesc.LocalSize[0]) +
+                                    ", " +
+                                    std::to_string(NDRDesc.LocalSize[1]) +
+                                    ", " + std::to_string(NDRDesc.LocalSize[2]);
+          std::string GlobalWGSize =
+              std::to_string(NDRDesc.GlobalSize[0]) + ", " +
+              std::to_string(NDRDesc.GlobalSize[1]) + ", " +
+              std::to_string(NDRDesc.GlobalSize[2]);
           std::string message =
               LocalExceedsGlobal
-                  ? "Local workgroup size greater than global range size. "
-                  : "Global_work_size not evenly divisible by "
-                    "local_work_size. ";
+                  ? "Local work-group size {" + LocalWGSize +
+                        "} is greater than global range size {" + GlobalWGSize +
+                        "}. "
+                  : "Global work size {" + GlobalWGSize +
+                        "} is not evenly divisible by local work-group size {" +
+                        LocalWGSize + "}. ";
           if (!HasStd20)
             throw sycl::nd_range_error(
                 message.append(

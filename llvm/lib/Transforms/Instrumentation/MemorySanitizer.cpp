@@ -338,8 +338,8 @@ static cl::opt<uint64_t> ClOriginBase("msan-origin-base",
                                       cl::desc("Define custom MSan OriginBase"),
                                       cl::Hidden, cl::init(0));
 
-static const char *const kMsanModuleCtorName = "msan.module_ctor";
-static const char *const kMsanInitName = "__msan_init";
+const char kMsanModuleCtorName[] = "msan.module_ctor";
+const char kMsanInitName[] = "__msan_init";
 
 namespace {
 
@@ -1737,6 +1737,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
           } else {
             setOrigin(A, getCleanOrigin());
           }
+
+          break;
         }
 
         if (!FArgEagerCheck)
@@ -2638,7 +2640,6 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       return false;
 
     unsigned NumArgOperands = I.getNumArgOperands();
-
     for (unsigned i = 0; i < NumArgOperands; ++i) {
       Type *Ty = I.getArgOperand(i)->getType();
       if (Ty != RetTy)
@@ -2733,14 +2734,16 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   // We copy the shadow of \p CopyOp[NumUsedElements:] to \p
   // Out[NumUsedElements:]. This means that intrinsics without \p CopyOp always
   // return a fully initialized value.
-  void handleVectorConvertIntrinsic(IntrinsicInst &I, int NumUsedElements) {
+  void handleVectorConvertIntrinsic(IntrinsicInst &I, int NumUsedElements,
+                                    bool HasRoundingMode = false) {
     IRBuilder<> IRB(&I);
     Value *CopyOp, *ConvertOp;
 
-    switch (I.getNumArgOperands()) {
-    case 3:
-      assert(isa<ConstantInt>(I.getArgOperand(2)) && "Invalid rounding mode");
-      LLVM_FALLTHROUGH;
+    assert((!HasRoundingMode ||
+            isa<ConstantInt>(I.getArgOperand(I.getNumArgOperands() - 1))) &&
+           "Invalid rounding mode");
+
+    switch (I.getNumArgOperands() - HasRoundingMode) {
     case 2:
       CopyOp = I.getArgOperand(0);
       ConvertOp = I.getArgOperand(1);
@@ -2996,7 +2999,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     setOrigin(&I, getOrigin(&I, 0));
   }
 
-  // Instrument experimental.vector.reduce.or intrinsic.
+  // Instrument vector.reduce.or intrinsic.
   // Valid (non-poisoned) set bits in the operand pull low the
   // corresponding shadow bits.
   void handleVectorReduceOrIntrinsic(IntrinsicInst &I) {
@@ -3014,7 +3017,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     setOrigin(&I, getOrigin(&I, 0));
   }
 
-  // Instrument experimental.vector.reduce.or intrinsic.
+  // Instrument vector.reduce.and intrinsic.
   // Valid (non-poisoned) unset bits in the operand pull down the
   // corresponding shadow bits.
   void handleVectorReduceAndIntrinsic(IntrinsicInst &I) {
@@ -3187,18 +3190,15 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   // and then apply the usual shadow combining logic.
   void handlePclmulIntrinsic(IntrinsicInst &I) {
     IRBuilder<> IRB(&I);
-    Type *ShadowTy = getShadowTy(&I);
     unsigned Width =
         cast<FixedVectorType>(I.getArgOperand(0)->getType())->getNumElements();
     assert(isa<ConstantInt>(I.getArgOperand(2)) &&
            "pclmul 3rd operand must be a constant");
     unsigned Imm = cast<ConstantInt>(I.getArgOperand(2))->getZExtValue();
-    Value *Shuf0 =
-        IRB.CreateShuffleVector(getShadow(&I, 0), UndefValue::get(ShadowTy),
-                                getPclmulMask(Width, Imm & 0x01));
-    Value *Shuf1 =
-        IRB.CreateShuffleVector(getShadow(&I, 1), UndefValue::get(ShadowTy),
-                                getPclmulMask(Width, Imm & 0x10));
+    Value *Shuf0 = IRB.CreateShuffleVector(getShadow(&I, 0),
+                                           getPclmulMask(Width, Imm & 0x01));
+    Value *Shuf1 = IRB.CreateShuffleVector(getShadow(&I, 1),
+                                           getPclmulMask(Width, Imm & 0x10));
     ShadowAndOriginCombiner SOC(this, IRB);
     SOC.Add(Shuf0, getOrigin(&I, 0));
     SOC.Add(Shuf1, getOrigin(&I, 1));
@@ -3231,8 +3231,24 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     setOriginForNaryOp(I);
   }
 
+  // Instrument abs intrinsic.
+  // handleUnknownIntrinsic can't handle it because of the last
+  // is_int_min_poison argument which does not match the result type.
+  void handleAbsIntrinsic(IntrinsicInst &I) {
+    assert(I.getType()->isIntOrIntVectorTy());
+    assert(I.getArgOperand(0)->getType() == I.getType());
+
+    // FIXME: Handle is_int_min_poison.
+    IRBuilder<> IRB(&I);
+    setShadow(&I, getShadow(&I, 0));
+    setOrigin(&I, getOrigin(&I, 0));
+  }
+
   void visitIntrinsicInst(IntrinsicInst &I) {
     switch (I.getIntrinsicID()) {
+    case Intrinsic::abs:
+      handleAbsIntrinsic(I);
+      break;
     case Intrinsic::lifetime_start:
       handleLifetimeStart(I);
       break;
@@ -3249,15 +3265,15 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     case Intrinsic::masked_load:
       handleMaskedLoad(I);
       break;
-    case Intrinsic::experimental_vector_reduce_and:
+    case Intrinsic::vector_reduce_and:
       handleVectorReduceAndIntrinsic(I);
       break;
-    case Intrinsic::experimental_vector_reduce_or:
+    case Intrinsic::vector_reduce_or:
       handleVectorReduceOrIntrinsic(I);
       break;
-    case Intrinsic::experimental_vector_reduce_add:
-    case Intrinsic::experimental_vector_reduce_xor:
-    case Intrinsic::experimental_vector_reduce_mul:
+    case Intrinsic::vector_reduce_add:
+    case Intrinsic::vector_reduce_xor:
+    case Intrinsic::vector_reduce_mul:
       handleVectorReduceIntrinsic(I);
       break;
     case Intrinsic::x86_sse_stmxcsr:
@@ -3277,6 +3293,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     case Intrinsic::x86_avx512_cvtusi2ss:
     case Intrinsic::x86_avx512_cvtusi642sd:
     case Intrinsic::x86_avx512_cvtusi642ss:
+      handleVectorConvertIntrinsic(I, 1, true);
+      break;
     case Intrinsic::x86_sse2_cvtsd2si64:
     case Intrinsic::x86_sse2_cvtsd2si:
     case Intrinsic::x86_sse2_cvtsd2ss:
@@ -3687,7 +3705,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       (void)Store;
       assert(Size != 0 && Store != nullptr);
       LLVM_DEBUG(dbgs() << "  Param:" << *Store << "\n");
-      ArgOffset += alignTo(Size, 8);
+      ArgOffset += alignTo(Size, kShadowTLSAlignment);
     }
     LLVM_DEBUG(dbgs() << "  done with call args\n");
 

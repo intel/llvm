@@ -131,3 +131,40 @@ class TypeAndTypeListTestCase(TestBase):
         # (lldb-enumerations.h).
         int_type = id_type.GetBasicType(lldb.eBasicTypeInt)
         self.assertTrue(id_type == int_type)
+
+        # Find 'myint_arr' and check the array element type.
+        myint_arr = frame0.FindVariable('myint_arr')
+        self.assertTrue(myint_arr, VALID_VARIABLE)
+        self.DebugSBValue(myint_arr)
+        myint_arr_type = myint_arr.GetType()
+        self.DebugSBType(myint_arr_type)
+        self.assertTrue(myint_arr_type.IsArrayType())
+        myint_arr_element_type = myint_arr_type.GetArrayElementType()
+        self.DebugSBType(myint_arr_element_type)
+        myint_type = target.FindFirstType('myint')
+        self.DebugSBType(myint_type)
+        self.assertTrue(myint_arr_element_type == myint_type)
+
+        # Test enum methods. Requires DW_AT_enum_class which was added in Dwarf 4.
+        if configuration.dwarf_version >= 4:
+            enum_type = target.FindFirstType('EnumType')
+            self.assertTrue(enum_type)
+            self.DebugSBType(enum_type)
+            self.assertFalse(enum_type.IsScopedEnumerationType())
+
+            scoped_enum_type = target.FindFirstType('ScopedEnumType')
+            self.assertTrue(scoped_enum_type)
+            self.DebugSBType(scoped_enum_type)
+            self.assertTrue(scoped_enum_type.IsScopedEnumerationType())
+            int_scoped_enum_type = scoped_enum_type.GetEnumerationIntegerType()
+            self.assertTrue(int_scoped_enum_type)
+            self.DebugSBType(int_scoped_enum_type)
+            self.assertEquals(int_scoped_enum_type.GetName(), 'int')
+
+            enum_uchar = target.FindFirstType('EnumUChar')
+            self.assertTrue(enum_uchar)
+            self.DebugSBType(enum_uchar)
+            int_enum_uchar = enum_uchar.GetEnumerationIntegerType()
+            self.assertTrue(int_enum_uchar)
+            self.DebugSBType(int_enum_uchar)
+            self.assertEquals(int_enum_uchar.GetName(), 'unsigned char')

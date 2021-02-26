@@ -375,6 +375,21 @@ class DwarfDebug : public DebugHandlerBase {
   /// Emit a .debug_macro section instead of .debug_macinfo.
   bool UseDebugMacroSection;
 
+  /// Avoid using DW_OP_convert due to consumer incompatibilities.
+  bool EnableOpConvert;
+
+public:
+  enum class MinimizeAddrInV5 {
+    Default,
+    Disabled,
+    Ranges,
+    Expressions,
+  };
+
+private:
+  /// Force the use of DW_AT_ranges even for single-entry range lists.
+  MinimizeAddrInV5 MinimizeAddr = MinimizeAddrInV5::Disabled;
+
   /// DWARF5 Experimental Options
   /// @{
   AccelTableKind TheAccelTableKind;
@@ -450,9 +465,6 @@ class DwarfDebug : public DebugHandlerBase {
 
   /// Construct a DIE for this abstract scope.
   void constructAbstractSubprogramScopeDIE(DwarfCompileUnit &SrcCU, LexicalScope *Scope);
-
-  /// Construct a DIE for the subprogram definition \p SP and return it.
-  DIE &constructSubprogramDefinitionDIE(const DISubprogram *SP);
 
   /// Construct DIEs for call site entries describing the calls in \p MF.
   void constructCallSiteEntryDIEs(const DISubprogram &SP, DwarfCompileUnit &CU,
@@ -621,13 +633,13 @@ public:
   //===--------------------------------------------------------------------===//
   // Main entry points.
   //
-  DwarfDebug(AsmPrinter *A, Module *M);
+  DwarfDebug(AsmPrinter *A);
 
   ~DwarfDebug() override;
 
   /// Emit all Dwarf sections that should come prior to the
   /// content.
-  void beginModule();
+  void beginModule(Module *M) override;
 
   /// Emit all Dwarf sections that should come after the content.
   void endModule() override;
@@ -686,6 +698,18 @@ public:
   /// Returns whether ranges section should be emitted.
   bool useRangesSection() const { return UseRangesSection; }
 
+  /// Returns whether range encodings should be used for single entry range
+  /// lists.
+  bool alwaysUseRanges() const {
+    return MinimizeAddr == MinimizeAddrInV5::Ranges;
+  }
+
+  // Returns whether novel exprloc addrx+offset encodings should be used to
+  // reduce debug_addr size.
+  bool useAddrOffsetExpressions() const {
+    return MinimizeAddr == MinimizeAddrInV5::Expressions;
+  }
+
   /// Returns whether to use sections as labels rather than temp symbols.
   bool useSectionsAsReferences() const {
     return UseSectionsAsReferences;
@@ -724,10 +748,23 @@ public:
     return EmitDebugEntryValues;
   }
 
+  bool useOpConvert() const {
+    return EnableOpConvert;
+  }
+
   bool shareAcrossDWOCUs() const;
 
   /// Returns the Dwarf Version.
   uint16_t getDwarfVersion() const;
+
+  /// Returns a suitable DWARF form to represent a section offset, i.e.
+  /// * DW_FORM_sec_offset for DWARF version >= 4;
+  /// * DW_FORM_data8 for 64-bit DWARFv3;
+  /// * DW_FORM_data4 for 32-bit DWARFv3 and DWARFv2.
+  dwarf::Form getDwarfSectionOffsetForm() const;
+
+  /// Construct a DIE for the subprogram definition \p SP and return it.
+  DIE &constructSubprogramDefinitionDIE(const DISubprogram *SP);
 
   /// Returns the previous CU that was being updated
   const DwarfCompileUnit *getPrevCU() const { return PrevCU; }
@@ -774,8 +811,7 @@ public:
   }
 
   unsigned getStringTypeLoc(const DIStringType *ST) const {
-    auto I = StringTypeLocMap.find(ST);
-    return I != StringTypeLocMap.end() ? I->second : 0;
+    return StringTypeLocMap.lookup(ST);
   }
 
   void addStringTypeLoc(const DIStringType *ST, unsigned Loc) {
@@ -793,7 +829,6 @@ public:
   bool tuneForSCE() const { return DebuggerTuning == DebuggerKind::SCE; }
   /// @}
 
-  void addSectionLabel(const MCSymbol *Sym);
   const MCSymbol *getSectionLabel(const MCSection *S);
   void insertSectionLabel(const MCSymbol *S);
 

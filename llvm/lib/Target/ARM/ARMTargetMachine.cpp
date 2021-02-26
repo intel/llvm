@@ -99,7 +99,9 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeARMTarget() {
   initializeMVEVPTOptimisationsPass(Registry);
   initializeMVETailPredicationPass(Registry);
   initializeARMLowOverheadLoopsPass(Registry);
+  initializeARMBlockPlacementPass(Registry);
   initializeMVEGatherScatterLoweringPass(Registry);
+  initializeARMSLSHardeningPass(Registry);
 }
 
 static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
@@ -407,7 +409,8 @@ void ARMPassConfig::addIRPasses() {
   // ldrex/strex loops to simplify this, but it needs tidying up.
   if (TM->getOptLevel() != CodeGenOpt::None && EnableAtomicTidy)
     addPass(createCFGSimplificationPass(
-        SimplifyCFGOptions().sinkCommonInsts(true), [this](const Function &F) {
+        SimplifyCFGOptions().hoistCommonInsts(true).sinkCommonInsts(true),
+        [this](const Function &F) {
           const auto &ST = this->TM->getSubtarget<ARMSubtarget>(F);
           return ST.hasAnyDataBarrier() && !ST.isThumb1Only();
         }));
@@ -469,7 +472,7 @@ bool ARMPassConfig::addInstSelector() {
 }
 
 bool ARMPassConfig::addIRTranslator() {
-  addPass(new IRTranslator());
+  addPass(new IRTranslator(getOptLevel()));
   return false;
 }
 
@@ -537,6 +540,9 @@ void ARMPassConfig::addPreSched2() {
     addPass(&PostMachineSchedulerID);
     addPass(&PostRASchedulerID);
   }
+
+  addPass(createARMIndirectThunks());
+  addPass(createARMSLSHardeningPass());
 }
 
 void ARMPassConfig::addPreEmitPass() {
@@ -547,9 +553,11 @@ void ARMPassConfig::addPreEmitPass() {
     return MF.getSubtarget<ARMSubtarget>().isThumb2();
   }));
 
-  // Don't optimize barriers at -O0.
-  if (getOptLevel() != CodeGenOpt::None)
+  // Don't optimize barriers or block placement at -O0.
+  if (getOptLevel() != CodeGenOpt::None) {
+    addPass(createARMBlockPlacementPass());
     addPass(createARMOptimizeBarriersPass());
+  }
 }
 
 void ARMPassConfig::addPreEmitPass2() {

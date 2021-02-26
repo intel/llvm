@@ -53,6 +53,7 @@ static_library("Basic") {
     "DiagnosticIDs.cpp",
     "DiagnosticOptions.cpp",
     "ExpressionTraits.cpp",
+    "FileEntry.cpp",
     "FileManager.cpp",
     "FileSystemStatCache.cpp",
     "IdentifierTable.cpp",
@@ -60,8 +61,10 @@ static_library("Basic") {
     "LangStandards.cpp",
     "Module.cpp",
     "ObjCRuntime.cpp",
+    "OpenCLOptions.cpp",
     "OpenMPKinds.cpp",
     "OperatorPrecedence.cpp",
+    "ProfileList.cpp",
     "SanitizerBlacklist.cpp",
     "SanitizerSpecialCaseList.cpp",
     "Sanitizers.cpp",
@@ -102,5 +105,4 @@ static_library("Basic") {
     "XRayInstr.cpp",
     "XRayLists.cpp",
   ]
-  defines = [ "HAVE_VCS_VERSION_INC" ]  # For Version.cpp
 }

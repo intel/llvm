@@ -133,28 +133,38 @@ interesting areas to contribute to lldb.
    use/python
    use/python-reference
    use/remote
+   use/qemu-testing
    use/troubleshooting
+   use/links
 
 .. toctree::
    :hidden:
    :maxdepth: 1
    :caption: Development
 
-   resources/architecture
    resources/contributing
    resources/build
    resources/test
    resources/bots
-   resources/reproducers
-   resources/sbapi
    resources/caveats
+
+
+.. toctree::
+   :hidden:
+   :maxdepth: 1
+   :caption: Design
+
+   design/overview
+   design/reproducers
+   design/structureddataplugins
+   design/sbapi
 
 .. toctree::
    :hidden:
    :maxdepth: 1
    :caption: Reference
 
-   Public Python API <https://lldb.llvm.org/python_reference/index.html>
+   Public Python API <python_api>
    Public C++ API <https://lldb.llvm.org/cpp_reference/namespacelldb.html>
    Private C++ API <https://lldb.llvm.org/cpp_reference/index.html>
    Man Page <man/lldb>

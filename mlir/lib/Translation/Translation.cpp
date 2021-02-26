@@ -12,7 +12,7 @@
 
 #include "mlir/Translation.h"
 #include "mlir/IR/AsmState.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Parser.h"
 #include "mlir/Support/FileUtilities.h"
@@ -157,7 +157,7 @@ LogicalResult mlir::mlirTranslateMain(int argc, char **argv,
                            llvm::cl::Required);
   registerAsmPrinterCLOptions();
   registerMLIRContextCLOptions();
-  llvm::cl::ParseCommandLineOptions(argc, argv, "MLIR translation driver\n");
+  llvm::cl::ParseCommandLineOptions(argc, argv, toolName);
 
   std::string errorMessage;
   auto input = openInputFile(inputFilename, &errorMessage);
@@ -175,7 +175,7 @@ LogicalResult mlir::mlirTranslateMain(int argc, char **argv,
   // Processes the memory buffer with a new MLIRContext.
   auto processBuffer = [&](std::unique_ptr<llvm::MemoryBuffer> ownedBuffer,
                            raw_ostream &os) {
-    MLIRContext context(false);
+    MLIRContext context;
     context.printOpOnDiagnostic(!verifyDiagnostics);
     llvm::SourceMgr sourceMgr;
     sourceMgr.AddNewSourceBuffer(std::move(ownedBuffer), llvm::SMLoc());

@@ -298,14 +298,6 @@ void IoChecker::Enter(const parser::InputItem &spec) {
     return;
   }
   CheckForDefinableVariable(*var, "Input");
-  const auto &name{GetLastName(*var)};
-  const auto *expr{GetExpr(*var)};
-  if (name.symbol && IsAssumedSizeArray(*name.symbol) && expr &&
-      !evaluate::IsArrayElement(*GetExpr(*var))) {
-    context_.Say(name.source,
-        "Whole assumed size array '%s' may not be an input item"_err_en_US,
-        name.source); // C1231
-  }
 }
 
 void IoChecker::Enter(const parser::InquireSpec &spec) {
@@ -936,9 +928,12 @@ void IoChecker::CheckForDefinableVariable(
     const A &var, const std::string &s) const {
   const Symbol *sym{
       GetFirstName(*parser::Unwrap<parser::Variable>(var)).symbol};
-  if (WhyNotModifiable(*sym, context_.FindScope(*context_.location()))) {
-    context_.Say(parser::FindSourceLocation(var),
-        "%s variable '%s' must be definable"_err_en_US, s, sym->name());
+  if (auto whyNot{
+          WhyNotModifiable(*sym, context_.FindScope(*context_.location()))}) {
+    auto at{parser::FindSourceLocation(var)};
+    context_
+        .Say(at, "%s variable '%s' must be definable"_err_en_US, s, sym->name())
+        .Attach(at, std::move(*whyNot), sym->name());
   }
 }
 

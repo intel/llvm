@@ -28,3 +28,10 @@
 // RUN:   | FileCheck -check-prefix=CHECK-SYCL-AUX-TRIPLE %s
 // TODO: %clang -### -fsycl -fsycl-device-only -target aarch64-linux-gnu
 // CHECK-SYCL-AUX-TRIPLE: clang{{.*}} "-aux-triple" "aarch64-unknown-linux-gnu"
+
+/// Verify output files are properly specified given -o
+// RUN: %clang -### -fsycl -fsycl-device-only -o dummy.out %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHECK-OUTPUT-FILE %s
+// RUN: %clang_cl -### -fsycl -fsycl-device-only -o dummy.out %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHECK-OUTPUT-FILE %s
+// CHECK-OUTPUT-FILE: clang{{.*}} "-o" "dummy.out"

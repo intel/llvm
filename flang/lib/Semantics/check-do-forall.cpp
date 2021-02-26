@@ -72,21 +72,8 @@ static const parser::Name &GetDoVariable(
   return bounds.name.thing;
 }
 
-// Return the (possibly null)  name of the construct
-template <typename A>
-static const parser::Name *MaybeGetConstructName(const A &a) {
-  return common::GetPtrFromOptional(std::get<0>(std::get<0>(a.t).statement.t));
-}
-
 static parser::MessageFixedText GetEnclosingDoMsg() {
   return "Enclosing DO CONCURRENT statement"_en_US;
-}
-
-static const parser::Name *MaybeGetConstructName(
-    const parser::BlockConstruct &blockConstruct) {
-  return common::GetPtrFromOptional(
-      std::get<parser::Statement<parser::BlockStmt>>(blockConstruct.t)
-          .statement.v);
 }
 
 static void SayWithDo(SemanticsContext &context, parser::CharBlock stmtLocation,
@@ -128,10 +115,10 @@ public:
   //
 
   // Only to be called for symbols with ObjectEntityDetails
-  static bool HasImpureFinal(const Symbol &symbol) {
-    if (const Symbol * root{GetAssociationRoot(symbol)}) {
-      CHECK(root->has<ObjectEntityDetails>());
-      if (const DeclTypeSpec * symType{root->GetType()}) {
+  static bool HasImpureFinal(const Symbol &original) {
+    const Symbol &symbol{ResolveAssociations(original)};
+    if (symbol.has<ObjectEntityDetails>()) {
+      if (const DeclTypeSpec * symType{symbol.GetType()}) {
         if (const DerivedTypeSpec * derived{symType->AsDerived()}) {
           return semantics::HasImpureFinal(*derived);
         }
@@ -155,22 +142,21 @@ public:
 
   // Is it possible that we will we deallocate a polymorphic entity or one
   // of its components?
-  static bool MightDeallocatePolymorphic(const Symbol &entity,
+  static bool MightDeallocatePolymorphic(const Symbol &original,
       const std::function<bool(const Symbol &)> &WillDeallocate) {
-    if (const Symbol * root{GetAssociationRoot(entity)}) {
-      // Check the entity itself, no coarray exception here
-      if (IsPolymorphicAllocatable(*root)) {
-        return true;
-      }
-      // Check the components
-      if (const auto *details{root->detailsIf<ObjectEntityDetails>()}) {
-        if (const DeclTypeSpec * entityType{details->type()}) {
-          if (const DerivedTypeSpec * derivedType{entityType->AsDerived()}) {
-            UltimateComponentIterator ultimates{*derivedType};
-            for (const auto &ultimate : ultimates) {
-              if (WillDeallocatePolymorphic(ultimate, WillDeallocate)) {
-                return true;
-              }
+    const Symbol &symbol{ResolveAssociations(original)};
+    // Check the entity itself, no coarray exception here
+    if (IsPolymorphicAllocatable(symbol)) {
+      return true;
+    }
+    // Check the components
+    if (const auto *details{symbol.detailsIf<ObjectEntityDetails>()}) {
+      if (const DeclTypeSpec * entityType{details->type()}) {
+        if (const DerivedTypeSpec * derivedType{entityType->AsDerived()}) {
+          UltimateComponentIterator ultimates{*derivedType};
+          for (const auto &ultimate : ultimates) {
+            if (WillDeallocatePolymorphic(ultimate, WillDeallocate)) {
+              return true;
             }
           }
         }
@@ -329,12 +315,6 @@ public:
   }
 
 private:
-  // Return the (possibly null) name of the statement
-  template <typename A>
-  static const parser::Name *MaybeGetStmtName(const A &a) {
-    return common::GetPtrFromOptional(std::get<0>(a.t));
-  }
-
   bool fromScope(const Symbol &symbol, const std::string &moduleName) {
     if (symbol.GetUltimate().owner().IsModule() &&
         symbol.GetUltimate().owner().GetName().value().ToString() ==
@@ -580,9 +560,7 @@ private:
         // symbols
         for (const parser::Name &name : names->v) {
           if (const Symbol * symbol{parentScope.FindSymbol(name.source)}) {
-            if (const Symbol * root{GetAssociationRoot(*symbol)}) {
-              symbols.insert(*root);
-            }
+            symbols.insert(ResolveAssociations(*symbol));
           }
         }
       }
@@ -594,9 +572,7 @@ private:
     SymbolSet result;
     if (const auto *expr{GetExpr(expression)}) {
       for (const Symbol &symbol : evaluate::CollectSymbols(*expr)) {
-        if (const Symbol * root{GetAssociationRoot(symbol)}) {
-          result.insert(*root);
-        }
+        result.insert(ResolveAssociations(symbol));
       }
     }
     return result;
@@ -746,8 +722,7 @@ private:
   }
 
   template <typename T> void CheckForImpureCall(const T &x) {
-    const auto &intrinsics{context_.foldingContext().intrinsics()};
-    if (auto bad{FindImpureCall(intrinsics, x)}) {
+    if (auto bad{FindImpureCall(context_.foldingContext(), x)}) {
       context_.Say(
           "Impure procedure '%s' may not be referenced in a %s"_err_en_US, *bad,
           LoopKindName());
@@ -845,12 +820,6 @@ void DoForallChecker::Leave(const parser::ForallAssignmentStmt &stmt) {
   doContext.Check(stmt);
 }
 
-// Return the (possibly null) name of the ConstructNode
-static const parser::Name *MaybeGetNodeName(const ConstructNode &construct) {
-  return std::visit(
-      [&](const auto &x) { return MaybeGetConstructName(*x); }, construct);
-}
-
 template <typename A>
 static parser::CharBlock GetConstructPosition(const A &a) {
   return std::get<0>(a.t).source;
@@ -910,7 +879,7 @@ void DoForallChecker::CheckForBadLeave(
 }
 
 static bool StmtMatchesConstruct(const parser::Name *stmtName,
-    StmtType stmtType, const parser::Name *constructName,
+    StmtType stmtType, const std::optional<parser::Name> &constructName,
     const ConstructNode &construct) {
   bool inDoConstruct{MaybeGetDoConstruct(construct) != nullptr};
   if (!stmtName) {
@@ -939,7 +908,8 @@ void DoForallChecker::CheckNesting(
   const ConstructStack &stack{context_.constructStack()};
   for (auto iter{stack.cend()}; iter-- != stack.cbegin();) {
     const ConstructNode &construct{*iter};
-    const parser::Name *constructName{MaybeGetNodeName(construct)};
+    const std::optional<parser::Name> &constructName{
+        MaybeGetNodeName(construct)};
     if (StmtMatchesConstruct(stmtName, stmtType, constructName, construct)) {
       CheckDoConcurrentExit(stmtType, construct);
       return; // We got a match, so we're finished checking

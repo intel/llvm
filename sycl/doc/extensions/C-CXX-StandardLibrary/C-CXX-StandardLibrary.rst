@@ -10,27 +10,7 @@ explicitly included in user code.
 
 Implementation requires a special device library to be linked with a
 SYCL program. The library should match the C or C++ standard library
-used to compile the program:
-
-For example, on Linux with GNU glibc:
-.. code:
-   clang++ -fsycl -c main.cpp -o main.o
-   clang++ -fsycl main.o $(SYCL_INSTALL)/lib/libsycl-glibc.o -o a.out
-
-or, in case of Windows:
-.. code:
-   clang++ -fsycl -c main.cpp -o main.obj
-   clang++ -fsycl main.obj %SYCL_INSTALL%/lib/libsycl-msvc.o -o a.exe
-
-For Ahead-Of-Time compilation (AOT), fallback libraries (object files)
-must be linked as well:
-
-.. code:
-   clang++ -fsycl -c  -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice \
-       main.cpp -o main.o
-   clang++ -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice \
-       main.o $(SYCL_INSTALL)/lib/libsycl-glibc.o                         \
-              $(SYCL_INSTALL)/lib/libsycl-fallback-cassert.o -o a.out
+used to compile the program.
 
 List of supported functions from C standard library:
   - assert macro          (from <assert.h> or <cassert>)
@@ -120,11 +100,23 @@ following math functions are not supported now:
  - lrintf, lrint
  - nexttowardf, nexttoward
  - nanf, nan
+
 Device libraries can't support both single and double precision as some
 underlying device may not support double precision.
 'ldexpf' and 'frexpf' from MSVC <math.h> are implemented using corresponding
 double precision version, they can be used only when double precision is
 supported by underlying device.
+
+All device libraries are linked by default. For example, no options need to be
+added to use `assert` or math functions:
+.. code:
+   clang++ -fsycl main.cpp -o main.o
+
+For Ahead-Of-Time compilation (AOT), the steps to use device libraries is
+same, no options need to be added to use `assert` or math functions:
+.. code:
+   clang++ -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice \
+       main.cpp -o main.o
 
 Example of usage
 ================
@@ -212,11 +204,7 @@ wrapper libraries are provided with the SYCL compiler that "lower"
 libc implementation-specific functions into a stable set of functions,
 that can be later handled by a device compiler.
 
-.. code:
-   clang++ -fsycl -c main.cpp -o main.o
-   clang++ -fsycl main.o $(SYCL_INSTALL)/lib/libsycl-glibc.o -o a.out
-
-This `libsycl-glibc.o` is one of these wrapper libraries: it provides
+This `libsycl-crt.o` is one of these wrapper libraries: it provides
 definitions for glibc specific library function, and these definitions
 call the corresponding functions from `__devicelib_*` set of
 functions.
@@ -237,11 +225,7 @@ For example, `__assert_fail` from IR above gets transformed into:
       unreachable
 
 A single wrapper object provides function wrappers for *all* supported
-library functions. Every supported C library implementation (MSVC or
-glibc) has its own wrapper library object:
-
-  - libsycl-glibc.o
-  - libsycl-msvc.o
+library functions.
 
 SPIR-V
 ======
@@ -283,4 +267,5 @@ extension is provided as `libsycl-fallback-cassert.spv`
 For AOT compilation, fallback libraries are provided as object files
 (e.g. `libsycl-fallback-cassert.o`) which contain device code in LLVM
 IR format. Device code in these object files is equivalent to device
-code in the `*.spv` files.
+code in the `*.spv` files. Those object files are located in compiler
+package's 'lib/' folder.

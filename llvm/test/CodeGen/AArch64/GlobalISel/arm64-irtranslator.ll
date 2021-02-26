@@ -2388,6 +2388,20 @@ define void @test_assume(i1 %x) {
   ret void
 }
 
+declare void @llvm.experimental.noalias.scope.decl(metadata)
+define void @test.llvm.noalias.scope.decl(i8* %P, i8* %Q) nounwind ssp {
+  tail call void @llvm.experimental.noalias.scope.decl(metadata !3)
+  ; CHECK-LABEL: name: test.llvm.noalias.scope.decl
+  ; CHECK-NOT: llvm.experimental.noalias.scope.decl
+  ; CHECK: RET_ReallyLR
+  ret void
+}
+
+!3 = !{ !4 }
+!4 = distinct !{ !4, !5, !"test1: var" }
+!5 = distinct !{ !5, !"test1" }
+
+
 declare void @llvm.sideeffect()
 define void @test_sideeffect() {
   ; CHECK-LABEL: name:            test_sideeffect
@@ -2397,12 +2411,12 @@ define void @test_sideeffect() {
   ret void
 }
 
-declare void @llvm.var.annotation(i8*, i8*, i8*, i32)
+declare void @llvm.var.annotation(i8*, i8*, i8*, i32, i8*)
 define void @test_var_annotation(i8*, i8*, i8*, i32) {
   ; CHECK-LABEL: name:            test_var_annotation
   ; CHECK-NOT: llvm.var.annotation
   ; CHECK: RET_ReallyLR
-  call void @llvm.var.annotation(i8* %0, i8* %1, i8* %2, i32 %3)
+  call void @llvm.var.annotation(i8* %0, i8* %1, i8* %2, i32 %3, i8* null)
   ret void
 }
 

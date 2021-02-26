@@ -79,7 +79,7 @@ computeReferencedDecls(const clang::Expr *Expr) {
     }
   };
   FindDeclRefsVisitor Visitor;
-  Visitor.TraverseStmt(const_cast<Stmt *>(dyn_cast<Stmt>(Expr)));
+  Visitor.TraverseStmt(const_cast<Stmt *>(cast<Stmt>(Expr)));
   return Visitor.ReferencedDecls;
 }
 
@@ -202,7 +202,7 @@ ExtractionContext::insertDeclaration(llvm::StringRef VarName,
 struct ParsedBinaryOperator {
   BinaryOperatorKind Kind;
   SourceLocation ExprLoc;
-  llvm::SmallVector<const SelectionTree::Node*, 8> SelectedOperands;
+  llvm::SmallVector<const SelectionTree::Node *> SelectedOperands;
 
   // If N is a binary operator, populate this and return true.
   bool parse(const SelectionTree::Node &N) {
@@ -382,17 +382,27 @@ bool eligibleForExtraction(const SelectionTree::Node *N) {
   if (BinOp.parse(*N) && BinaryOperator::isAssignmentOp(BinOp.Kind))
     return false;
 
+  const SelectionTree::Node &OuterImplicit = N->outerImplicit();
+  const auto *Parent = OuterImplicit.Parent;
+  if (!Parent)
+    return false;
   // We don't want to extract expressions used as statements, that would leave
   // a `dummy;` around that has no effect.
   // Unfortunately because the AST doesn't have ExprStmt, we have to check in
   // this roundabout way.
-  const SelectionTree::Node &OuterImplicit = N->outerImplicit();
-  if (!OuterImplicit.Parent ||
-      childExprIsStmt(OuterImplicit.Parent->ASTNode.get<Stmt>(),
+  if (childExprIsStmt(Parent->ASTNode.get<Stmt>(),
                       OuterImplicit.ASTNode.get<Expr>()))
     return false;
 
-  // FIXME: ban extracting the RHS of an assignment: `a = [[foo()]]`
+  // Disable extraction of full RHS on assignment operations, e.g:
+  // auto x = [[RHS_EXPR]];
+  // This would just result in duplicating the code.
+  if (const auto *BO = Parent->ASTNode.get<BinaryOperator>()) {
+    if (BO->isAssignmentOp() &&
+        BO->getRHS() == OuterImplicit.ASTNode.get<Expr>())
+      return false;
+  }
+
   return true;
 }
 
@@ -438,7 +448,9 @@ public:
   std::string title() const override {
     return "Extract subexpression to variable";
   }
-  Intent intent() const override { return Refactor; }
+  llvm::StringLiteral kind() const override {
+    return CodeAction::REFACTOR_KIND;
+  }
 
 private:
   // the expression to extract

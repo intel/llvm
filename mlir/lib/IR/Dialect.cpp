@@ -22,27 +22,6 @@ using namespace detail;
 
 DialectAsmParser::~DialectAsmParser() {}
 
-//===----------------------------------------------------------------------===//
-// Dialect Registration (DEPRECATED)
-//===----------------------------------------------------------------------===//
-
-/// Registry for all dialect allocation functions.
-static llvm::ManagedStatic<DialectRegistry> dialectRegistry;
-DialectRegistry &mlir::getGlobalDialectRegistry() { return *dialectRegistry; }
-
-// Note: deprecated, will be removed soon.
-static bool isGlobalDialectRegistryEnabledFlag = false;
-void mlir::enableGlobalDialectRegistry(bool enable) {
-  isGlobalDialectRegistryEnabledFlag = enable;
-}
-bool mlir::isGlobalDialectRegistryEnabled() {
-  return isGlobalDialectRegistryEnabledFlag;
-}
-
-void mlir::registerAllDialects(MLIRContext *context) {
-  dialectRegistry->appendTo(context->getDialectRegistry());
-}
-
 Dialect *DialectRegistry::loadByName(StringRef name, MLIRContext *context) {
   auto it = registry.find(name.str());
   if (it == registry.end())
@@ -103,7 +82,7 @@ Type Dialect::parseType(DialectAsmParser &parser) const {
   // If this dialect allows unknown types, then represent this with OpaqueType.
   if (allowsUnknownTypes()) {
     auto ns = Identifier::get(getNamespace(), getContext());
-    return OpaqueType::get(ns, parser.getFullSymbolSpec(), getContext());
+    return OpaqueType::get(getContext(), ns, parser.getFullSymbolSpec());
   }
 
   parser.emitError(parser.getNameLoc())

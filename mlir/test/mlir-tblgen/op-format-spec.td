@@ -230,8 +230,66 @@ def DirectiveTypeZOperandInvalidH : TestFormat_Op<"type_operand_invalid_h", [{
 def DirectiveTypeZOperandInvalidI : TestFormat_Op<"type_operand_invalid_i", [{
   type($result) type($result)
 }]>, Results<(outs I64:$result)>;
+
+//===----------------------------------------------------------------------===//
+// type_ref
+
+// CHECK: error: 'type_ref' of 'operand' is not bound by a prior 'type' directive
+def DirectiveTypeZZTypeRefOperandInvalidC : TestFormat_Op<"type_ref_operand_invalid_c", [{
+  type_ref($operand) type(operands)
+}]>, Arguments<(ins I64:$operand)>;
+// CHECK: error: 'operands' 'type_ref' is not bound by a prior 'type' directive
+def DirectiveTypeZZTypeRefOperandInvalidD : TestFormat_Op<"type_ref_operand_invalid_d", [{
+  type_ref(operands) type($operand)
+}]>, Arguments<(ins I64:$operand)>;
+// CHECK: error: 'type_ref' of 'operand' is not bound by a prior 'type' directive
+def DirectiveTypeZZTypeRefOperandInvalidE : TestFormat_Op<"type_ref_operand_invalid_e", [{
+  type_ref($operand) type($operand)
+}]>, Arguments<(ins I64:$operand)>;
+// CHECK: error: 'type_ref' of 'result' is not bound by a prior 'type' directive
+def DirectiveTypeZZTypeRefOperandInvalidG : TestFormat_Op<"type_ref_operand_invalid_g", [{
+  type_ref($result) type(results)
+}]>, Results<(outs I64:$result)>;
+// CHECK: error: 'results' 'type_ref' is not bound by a prior 'type' directive
+def DirectiveTypeZZTypeRefOperandInvalidH : TestFormat_Op<"type_ref_operand_invalid_h", [{
+  type_ref(results) type($result)
+}]>, Results<(outs I64:$result)>;
+// CHECK: error: 'type_ref' of 'result' is not bound by a prior 'type' directive
+def DirectiveTypeZZTypeRefOperandInvalidI : TestFormat_Op<"type_ref_operand_invalid_i", [{
+  type_ref($result) type($result)
+}]>, Results<(outs I64:$result)>;
+
+// CHECK-NOT: error
+def DirectiveTypeZZTypeRefOperandB : TestFormat_Op<"type_ref_operand_valid_b", [{
+  type_ref(operands) attr-dict
+}]>;
+// CHECK-NOT: error
+def DirectiveTypeZZTypeRefOperandD : TestFormat_Op<"type_ref_operand_valid_d", [{
+  type(operands) type_ref($operand) attr-dict
+}]>, Arguments<(ins I64:$operand)>;
+// CHECK-NOT: error
+def DirectiveTypeZZTypeRefOperandE : TestFormat_Op<"type_ref_operand_valid_e", [{
+  type($operand) type_ref($operand) attr-dict
+}]>, Arguments<(ins I64:$operand)>;
+// CHECK-NOT: error
+def DirectiveTypeZZTypeRefOperandF : TestFormat_Op<"type_ref_operand_valid_f", [{
+  type(results) type_ref(results) attr-dict
+}]>;
+// CHECK-NOT: error
+def DirectiveTypeZZTypeRefOperandG : TestFormat_Op<"type_ref_operand_valid_g", [{
+  type($result) type_ref(results) attr-dict
+}]>, Results<(outs I64:$result)>;
+// CHECK-NOT: error
+def DirectiveTypeZZTypeRefOperandH : TestFormat_Op<"type_ref_operand_valid_h", [{
+  type(results) type_ref($result) attr-dict
+}]>, Results<(outs I64:$result)>;
+// CHECK-NOT: error
+def DirectiveTypeZZTypeRefOperandI : TestFormat_Op<"type_ref_operand_valid_i", [{
+  type($result) type_ref($result) attr-dict
+}]>, Results<(outs I64:$result)>;
+
 // CHECK-NOT: error:
-def DirectiveTypeZOperandValid : TestFormat_Op<"type_operand_valid", [{
+def DirectiveTypeZZZOperandValid : TestFormat_Op<"type_operand_valid", [{
   type(operands) type(results) attr-dict
 }]>;
 
@@ -251,7 +309,7 @@ def LiteralInvalidB : TestFormat_Op<"literal_invalid_b", [{
 }]>;
 // CHECK-NOT: error
 def LiteralValid : TestFormat_Op<"literal_valid", [{
-  `_` `:` `,` `=` `<` `>` `(` `)` `[` `]` `->` `abc$._`
+  `_` `:` `,` `=` `<` `>` `(` `)` `[` `]` `?` `+` `*` ` ` `` `->` `\n` `abc$._`
   attr-dict
 }]>;
 
@@ -271,11 +329,11 @@ def OptionalInvalidB : TestFormat_Op<"optional_invalid_b", [{
 def OptionalInvalidC : TestFormat_Op<"optional_invalid_c", [{
   ($attr)? attr-dict
 }]>, Arguments<(ins OptionalAttr<I64Attr>:$attr)>;
-// CHECK: error: first element of an operand group must be an attribute, literal, operand, or region
+// CHECK: error: first parsable element of an operand group must be an attribute, literal, operand, or region
 def OptionalInvalidD : TestFormat_Op<"optional_invalid_d", [{
   (type($operand) $operand^)? attr-dict
 }]>, Arguments<(ins Optional<I64>:$operand)>;
-// CHECK: error: type directive can only refer to variables within the optional group
+// CHECK: error: only literals, types, and variables can be used within an optional group
 def OptionalInvalidE : TestFormat_Op<"optional_invalid_e", [{
   (`,` $attr^ type(operands))? attr-dict
 }]>, Arguments<(ins OptionalAttr<I64Attr>:$attr)>;
@@ -291,9 +349,9 @@ def OptionalInvalidG : TestFormat_Op<"optional_invalid_g", [{
 def OptionalInvalidH : TestFormat_Op<"optional_invalid_h", [{
   ($arg^) attr-dict
 }]>, Arguments<(ins I64:$arg)>;
-// CHECK: error: only variables can be used to anchor an optional group
+// CHECK: error: only literals, types, and variables can be used within an optional group
 def OptionalInvalidI : TestFormat_Op<"optional_invalid_i", [{
-  ($arg type($arg)^) attr-dict
+  (functional-type($arg, results)^)? attr-dict
 }]>, Arguments<(ins Variadic<I64>:$arg)>;
 // CHECK: error: only literals, types, and variables can be used within an optional group
 def OptionalInvalidJ : TestFormat_Op<"optional_invalid_j", [{
@@ -303,10 +361,19 @@ def OptionalInvalidJ : TestFormat_Op<"optional_invalid_j", [{
 def OptionalInvalidK : TestFormat_Op<"optional_invalid_k", [{
   ($arg^)
 }]>, Arguments<(ins Variadic<I64>:$arg)>;
-// CHECK: error: only variables can be used to anchor an optional group
+// CHECK: error: only variables and types can be used to anchor an optional group
 def OptionalInvalidL : TestFormat_Op<"optional_invalid_l", [{
   (custom<MyDirective>($arg)^)?
 }]>, Arguments<(ins I64:$arg)>;
+// CHECK: error: only variables and types can be used to anchor an optional group
+def OptionalInvalidM : TestFormat_Op<"optional_invalid_m", [{
+  (` `^)?
+}]>, Arguments<(ins)>;
+
+// CHECK-NOT: error
+def OptionalValidA : TestFormat_Op<"optional_valid_a", [{
+  (` ` `` $arg^)?
+}]>;
 
 //===----------------------------------------------------------------------===//
 // Variables
@@ -352,26 +419,30 @@ def VariableInvalidH : TestFormat_Op<"variable_invalid_h", [{
 def VariableInvalidI : TestFormat_Op<"variable_invalid_i", [{
   (`foo` $attr^)? `:` attr-dict
 }]>, Arguments<(ins OptionalAttr<ElementsAttr>:$attr)>;
-// CHECK: error: region 'region' is already bound
+// CHECK: error: format ambiguity caused by `:` literal found after attribute `attr` which does not have a buildable type
 def VariableInvalidJ : TestFormat_Op<"variable_invalid_j", [{
+  $attr ` ` `:` attr-dict
+}]>, Arguments<(ins ElementsAttr:$attr)>;
+// CHECK: error: region 'region' is already bound
+def VariableInvalidK : TestFormat_Op<"variable_invalid_k", [{
   $region $region attr-dict
 }]> {
   let regions = (region AnyRegion:$region);
 }
 // CHECK: error: region 'region' is already bound
-def VariableInvalidK : TestFormat_Op<"variable_invalid_K", [{
+def VariableInvalidL : TestFormat_Op<"variable_invalid_l", [{
   regions $region attr-dict
 }]> {
   let regions = (region AnyRegion:$region);
 }
 // CHECK: error: regions can only be used at the top level
-def VariableInvalidL : TestFormat_Op<"variable_invalid_l", [{
+def VariableInvalidM : TestFormat_Op<"variable_invalid_m", [{
   type($region)
 }]> {
   let regions = (region AnyRegion:$region);
 }
 // CHECK: error: region #0, named 'region', not found
-def VariableInvalidM : TestFormat_Op<"variable_invalid_m", [{
+def VariableInvalidN : TestFormat_Op<"variable_invalid_n", [{
   attr-dict
 }]> {
   let regions = (region AnyRegion:$region);

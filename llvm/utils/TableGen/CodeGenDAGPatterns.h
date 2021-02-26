@@ -436,8 +436,6 @@ public:
   unsigned getScope() const { return Scope; }
   const std::string &getIdentifier() const { return Identifier; }
 
-  std::string getFullName() const;
-
   bool operator==(const ScopedName &o) const;
   bool operator!=(const ScopedName &o) const;
 };
@@ -1178,7 +1176,7 @@ public:
   const CodeGenTarget &getTargetInfo() const { return Target; }
   const TypeSetByHwMode &getLegalTypes() const { return LegalVTS; }
 
-  Record *getSDNodeNamed(const std::string &Name) const;
+  Record *getSDNodeNamed(StringRef Name) const;
 
   const SDNodeInfo &getSDNodeInfo(Record *R) const {
     auto F = SDNodes.find(R);

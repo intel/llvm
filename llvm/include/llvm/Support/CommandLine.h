@@ -672,7 +672,7 @@ public:
       : Values(Options) {}
 
   template <class Opt> void apply(Opt &O) const {
-    for (auto Value : Values)
+    for (const auto &Value : Values)
       O.getParser().addLiteralOption(Value.Name, Value.Value,
                                      Value.Description);
   }
@@ -1481,7 +1481,7 @@ public:
 
   template <class... Mods>
   explicit opt(const Mods &... Ms)
-      : Option(Optional, NotHidden), Parser(*this) {
+      : Option(llvm::cl::Optional, NotHidden), Parser(*this) {
     apply(this, Ms...);
     done();
   }

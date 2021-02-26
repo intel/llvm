@@ -1,7 +1,7 @@
+// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-device-only -S %s -o - \
+// RUN: | FileCheck %s --check-prefix=CHECK-LLVM
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %RUN_ON_HOST %t.out
 
 #include <CL/sycl.hpp>
 #include <algorithm>
@@ -54,12 +54,31 @@ int main() {
   }
 
   constexpr int N = 32;
+  // CHECK-LLVM: declare dso_local spir_func i32
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicExchange
+  // CHECK-LLVM-SAME: (i32 addrspace(1)*, i32, i32, i32)
   exchange_test<int>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i32
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicExchange
+  // CHECK-LLVM-SAME: (i32 addrspace(1)*, i32, i32, i32)
   exchange_test<unsigned int>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i[[long:(32)|(64)]]
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicExchange
+  // CHECK-LLVM-SAME: (i[[long]] addrspace(1)*, i32, i32, i[[long]])
   exchange_test<long>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i[[long]]
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicExchange
+  // CHECK-LLVM-SAME: (i[[long]] addrspace(1)*, i32, i32, i[[long]])
   exchange_test<unsigned long>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i64
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicExchange
+  // CHECK-LLVM-SAME: (i64 addrspace(1)*, i32, i32, i64)
   exchange_test<long long>(q, N);
+  // CHECK-LLVM: declare dso_local spir_func i64
+  // CHECK-LLVM-SAME: @_Z{{[0-9]+}}__spirv_AtomicExchange
+  // CHECK-LLVM-SAME: (i64 addrspace(1)*, i32, i32, i64)
   exchange_test<unsigned long long>(q, N);
+  // The remaining functions use the already-declared ones on the IR level
   exchange_test<float>(q, N);
   exchange_test<double>(q, N);
   exchange_test<char *>(q, N);

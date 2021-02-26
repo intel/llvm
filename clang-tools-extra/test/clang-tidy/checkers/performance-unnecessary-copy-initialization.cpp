@@ -23,6 +23,9 @@ struct WeirdCopyCtorType {
 ExpensiveToCopyType global_expensive_to_copy_type;
 
 const ExpensiveToCopyType &ExpensiveTypeReference();
+const ExpensiveToCopyType &freeFunctionWithArg(const ExpensiveToCopyType &);
+const ExpensiveToCopyType &freeFunctionWithDefaultArg(
+    const ExpensiveToCopyType *arg = nullptr);
 const TrivialToCopyType &TrivialTypeReference();
 
 void mutate(ExpensiveToCopyType &);
@@ -386,4 +389,122 @@ public:
 void implicitVarFalsePositive() {
   for (const Element &E : Container()) {
   }
+}
+
+// This should not trigger the check as the argument could introduce an alias.
+void negativeInitializedFromFreeFunctionWithArg() {
+  ExpensiveToCopyType Orig;
+  const ExpensiveToCopyType Copy = freeFunctionWithArg(Orig);
+}
+
+void negativeInitializedFromFreeFunctionWithDefaultArg() {
+  const ExpensiveToCopyType Copy = freeFunctionWithDefaultArg();
+}
+
+void negativeInitialzedFromFreeFunctionWithNonDefaultArg() {
+  ExpensiveToCopyType Orig;
+  const ExpensiveToCopyType Copy = freeFunctionWithDefaultArg(&Orig);
+}
+
+namespace std {
+inline namespace __1 {
+
+template <class>
+class function;
+template <class R, class... ArgTypes>
+class function<R(ArgTypes...)> {
+public:
+  function();
+  function(const function &Other);
+  R operator()(ArgTypes... Args) const;
+};
+
+} // namespace __1
+} // namespace std
+
+void negativeStdFunction() {
+  std::function<int()> Orig;
+  std::function<int()> Copy = Orig;
+  int i = Orig();
+}
+
+using Functor = std::function<int()>;
+
+void negativeAliasedStdFunction() {
+  Functor Orig;
+  Functor Copy = Orig;
+  int i = Orig();
+}
+
+typedef std::function<int()> TypedefFunc;
+
+void negativeTypedefedStdFunction() {
+  TypedefFunc Orig;
+  TypedefFunc Copy = Orig;
+  int i = Orig();
+}
+
+namespace fake {
+namespace std {
+template <class R, class... Args>
+struct function {
+  // Custom copy constructor makes it expensive to copy;
+  function(const function &);
+};
+} // namespace std
+
+void positiveFakeStdFunction(std::function<void(int)> F) {
+  auto Copy = F;
+  // CHECK-MESSAGES: [[@LINE-1]]:8: warning: local copy 'Copy' of the variable 'F' is never modified;
+  // CHECK-FIXES: const auto& Copy = F;
+}
+
+} // namespace fake
+
+void positiveInvokedOnStdFunction(
+    std::function<void(const ExpensiveToCopyType &)> Update,
+    const ExpensiveToCopyType Orig) {
+  auto Copy = Orig.reference();
+  // CHECK-MESSAGES: [[@LINE-1]]:8: warning: the variable 'Copy' is copy-constructed from a const reference
+  // CHECK-FIXES: const auto& Copy = Orig.reference();
+  Update(Copy);
+}
+
+void negativeInvokedOnStdFunction(
+    std::function<void(ExpensiveToCopyType &)> Update,
+    const ExpensiveToCopyType Orig) {
+  auto Copy = Orig.reference();
+  Update(Copy);
+}
+
+void negativeCopiedFromReferenceToModifiedVar() {
+  ExpensiveToCopyType Orig;
+  const auto &Ref = Orig;
+  const auto NecessaryCopy = Ref;
+  Orig.nonConstMethod();
+}
+
+void positiveCopiedFromReferenceToConstVar() {
+  ExpensiveToCopyType Orig;
+  const auto &Ref = Orig;
+  const auto UnnecessaryCopy = Ref;
+  // CHECK-MESSAGES: [[@LINE-1]]:14: warning: local copy 'UnnecessaryCopy' of
+  // CHECK-FIXES: const auto& UnnecessaryCopy = Ref;
+  Orig.constMethod();
+}
+
+void negativeCopiedFromGetterOfReferenceToModifiedVar() {
+  ExpensiveToCopyType Orig;
+  const auto &Ref = Orig.reference();
+  const auto NecessaryCopy = Ref.reference();
+  Orig.nonConstMethod();
+}
+
+void positiveCopiedFromGetterOfReferenceToConstVar() {
+  ExpensiveToCopyType Orig;
+  const auto &Ref = Orig.reference();
+  auto UnnecessaryCopy = Ref.reference();
+  // CHECK-MESSAGES: [[@LINE-1]]:8: warning: the variable 'UnnecessaryCopy' is
+  // CHECK-FIXES: const auto& UnnecessaryCopy = Ref.reference();
+  Orig.constMethod();
 }

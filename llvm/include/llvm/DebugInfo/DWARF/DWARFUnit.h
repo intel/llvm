@@ -113,6 +113,8 @@ public:
 const DWARFUnitIndex &getDWARFUnitIndex(DWARFContext &Context,
                                         DWARFSectionKind Kind);
 
+bool isCompileUnit(const std::unique_ptr<DWARFUnit> &U);
+
 /// Describe a collection of units. Intended to hold all units either from
 /// .debug_info and .debug_types, or from .debug_info.dwo and .debug_types.dwo.
 class DWARFUnitVector final : public SmallVector<std::unique_ptr<DWARFUnit>, 1> {
@@ -126,6 +128,9 @@ public:
   using UnitVector = SmallVectorImpl<std::unique_ptr<DWARFUnit>>;
   using iterator = typename UnitVector::iterator;
   using iterator_range = llvm::iterator_range<typename UnitVector::iterator>;
+
+  using compile_unit_range =
+      decltype(make_filter_range(std::declval<iterator_range>(), isCompileUnit));
 
   DWARFUnit *getUnitForOffset(uint64_t Offset) const;
   DWARFUnit *getUnitForIndexEntry(const DWARFUnitIndex::Entry &E);
@@ -204,7 +209,6 @@ class DWARFUnit {
   const DWARFDebugAbbrev *Abbrev;
   const DWARFSection *RangeSection;
   uint64_t RangeSectionBase;
-  const DWARFSection *LocSection;
   uint64_t LocSectionBase;
 
   /// Location table of this unit.
@@ -222,10 +226,6 @@ class DWARFUnit {
   /// Start, length, and DWARF format of the unit's contribution to the string
   /// offsets table (DWARF v5).
   Optional<StrOffsetsContributionDescriptor> StringOffsetsTableContribution;
-
-  /// A table of range lists (DWARF v5 and later).
-  Optional<DWARFDebugRnglistTable> RngListTable;
-  Optional<DWARFListTableHeader> LoclistTableHeader;
 
   mutable const DWARFAbbreviationDeclarationSet *Abbrevs;
   llvm::Optional<object::SectionedAddress> BaseAddr;
@@ -313,10 +313,6 @@ public:
   void setRangesSection(const DWARFSection *RS, uint64_t Base) {
     RangeSection = RS;
     RangeSectionBase = Base;
-  }
-  void setLocSection(const DWARFSection *LS, uint64_t Base) {
-    LocSection = LS;
-    LocSectionBase = Base;
   }
 
   uint64_t getLocSectionBase() const {
@@ -414,14 +410,8 @@ public:
   /// DW_FORM_rnglistx.
   Optional<uint64_t> getRnglistOffset(uint32_t Index);
 
-  Optional<uint64_t> getLoclistOffset(uint32_t Index) {
-    if (!LoclistTableHeader)
-      return None;
-    if (Optional<uint64_t> Off =
-            LoclistTableHeader->getOffsetEntry(LocTable->getData(), Index))
-      return *Off + getLocSectionBase();
-    return None;
-  }
+  Optional<uint64_t> getLoclistOffset(uint32_t Index);
+
   Expected<DWARFAddressRangesVector> collectAddressRanges();
 
   Expected<DWARFLocationExpressionsVector>
@@ -523,6 +513,10 @@ private:
   /// it was actually constructed.
   bool parseDWO();
 };
+
+inline bool isCompileUnit(const std::unique_ptr<DWARFUnit> &U) {
+  return !U->isTypeUnit();
+}
 
 } // end namespace llvm
 

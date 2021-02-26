@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "../utils/TypeTraits.h"
 #include "MakeSharedCheck.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/Lexer.h"
@@ -19,7 +20,6 @@ namespace modernize {
 
 namespace {
 
-constexpr char StdMemoryHeader[] = "memory";
 constexpr char ConstructorCall[] = "constructorCall";
 constexpr char ResetCall[] = "resetCall";
 constexpr char NewExpression[] = "newExpression";
@@ -47,16 +47,20 @@ MakeSmartPtrCheck::MakeSmartPtrCheck(StringRef Name, ClangTidyContext *Context,
       Inserter(Options.getLocalOrGlobal("IncludeStyle",
                                         utils::IncludeSorter::IS_LLVM)),
       MakeSmartPtrFunctionHeader(
-          Options.get("MakeSmartPtrFunctionHeader", StdMemoryHeader)),
+          Options.get("MakeSmartPtrFunctionHeader", "<memory>")),
       MakeSmartPtrFunctionName(
           Options.get("MakeSmartPtrFunction", MakeSmartPtrFunctionName)),
-      IgnoreMacros(Options.getLocalOrGlobal("IgnoreMacros", true)) {}
+      IgnoreMacros(Options.getLocalOrGlobal("IgnoreMacros", true)),
+      IgnoreDefaultInitialization(
+          Options.get("IgnoreDefaultInitialization", true)) {}
 
 void MakeSmartPtrCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "IncludeStyle", Inserter.getStyle());
   Options.store(Opts, "MakeSmartPtrFunctionHeader", MakeSmartPtrFunctionHeader);
   Options.store(Opts, "MakeSmartPtrFunction", MakeSmartPtrFunctionName);
   Options.store(Opts, "IgnoreMacros", IgnoreMacros);
+  Options.store(Opts, "IgnoreDefaultInitialization",
+                IgnoreDefaultInitialization);
 }
 
 bool MakeSmartPtrCheck::isLanguageVersionSupported(
@@ -80,7 +84,7 @@ void MakeSmartPtrCheck::registerMatchers(ast_matchers::MatchFinder *Finder) {
 
   Finder->addMatcher(
       traverse(
-          ast_type_traits::TK_AsIs,
+          TK_AsIs,
           cxxBindTemporaryExpr(has(ignoringParenImpCasts(
               cxxConstructExpr(
                   hasType(getSmartPointerTypeMatcher()), argumentCountIs(1),
@@ -94,7 +98,7 @@ void MakeSmartPtrCheck::registerMatchers(ast_matchers::MatchFinder *Finder) {
       this);
 
   Finder->addMatcher(
-      traverse(ast_type_traits::TK_AsIs,
+      traverse(TK_AsIs,
                cxxMemberCallExpr(
                    thisPointerType(getSmartPointerTypeMatcher()),
                    callee(cxxMethodDecl(hasName("reset"))),
@@ -121,14 +125,18 @@ void MakeSmartPtrCheck::check(const MatchFinder::MatchResult &Result) {
   if (New->getType()->getPointeeType()->getContainedAutoType())
     return;
 
-  // Be conservative for cases where we construct an array without any
-  // initialization.
+  // Be conservative for cases where we construct and default initialize.
+  //
   // For example,
+  //    P.reset(new int)    // check fix: P = std::make_unique<int>()
   //    P.reset(new int[5]) // check fix: P = std::make_unique<int []>(5)
   //
-  // The fix of the check has side effect, it introduces default initialization
+  // The fix of the check has side effect, it introduces value initialization
   // which maybe unexpected and cause performance regression.
-  if (New->isArray() && !New->hasInitializer())
+  bool Initializes = New->hasInitializer() ||
+                     !utils::type_traits::isTriviallyDefaultConstructible(
+                         New->getAllocatedType(), *Result.Context);
+  if (!Initializes && IgnoreDefaultInitialization)
     return;
   if (Construct)
     checkConstruct(SM, Result.Context, Construct, Type, New);
@@ -168,7 +176,7 @@ void MakeSmartPtrCheck::checkConstruct(SourceManager &SM, ASTContext *Ctx,
   }
 
   // Find the location of the template's left angle.
-  size_t LAngle = ExprStr.find("<");
+  size_t LAngle = ExprStr.find('<');
   SourceLocation ConstructCallEnd;
   if (LAngle == StringRef::npos) {
     // If the template argument is missing (because it is part of the alias)
@@ -253,7 +261,7 @@ bool MakeSmartPtrCheck::replaceNew(DiagnosticBuilder &Diag,
                                    const CXXNewExpr *New, SourceManager &SM,
                                    ASTContext *Ctx) {
   auto SkipParensParents = [&](const Expr *E) {
-    TraversalKindScope RAII(*Ctx, ast_type_traits::TK_AsIs);
+    TraversalKindScope RAII(*Ctx, TK_AsIs);
 
     for (const Expr *OldE = nullptr; E != OldE;) {
       OldE = E;
@@ -430,9 +438,7 @@ void MakeSmartPtrCheck::insertHeader(DiagnosticBuilder &Diag, FileID FD) {
   if (MakeSmartPtrFunctionHeader.empty()) {
     return;
   }
-  Diag << Inserter.createIncludeInsertion(
-      FD, MakeSmartPtrFunctionHeader,
-      /*IsAngled=*/MakeSmartPtrFunctionHeader == StdMemoryHeader);
+  Diag << Inserter.createIncludeInsertion(FD, MakeSmartPtrFunctionHeader);
 }
 
 } // namespace modernize

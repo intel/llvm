@@ -43,7 +43,7 @@
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/Pass.h"
 
-#include <cstring>
+#include <string>
 
 namespace SPIRV {
 class SPIRVToOCL : public ModulePass, public InstVisitor<SPIRVToOCL> {
@@ -150,7 +150,7 @@ private:
   std::string getNonUniformArithmeticBuiltinName(CallInst *CI, Op OC);
   /// Transform ballot bit count opcode to corresponding OpenCL function name,
   /// example: GroupNonUniformBallotBitCount(Reduce) =>
-  /// group_ballot_bit_count_iadd => sub_​group_​ballot_​bit_​count
+  /// group_ballot_bit_count_iadd => sub_group_ballot_bit_count
   std::string getBallotBuiltinName(CallInst *CI, Op OC);
   /// Transform group opcode to corresponding OpenCL function name
   std::string groupOCToOCLBuiltinName(CallInst *CI, Op OC);

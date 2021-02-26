@@ -39,13 +39,13 @@ public:
 
   id<dimensions> get_global_id() const { return globalItem.get_id(); }
 
-  size_t ALWAYS_INLINE get_global_id(int dimension) const {
+  size_t __SYCL_ALWAYS_INLINE get_global_id(int dimension) const {
     size_t Id = globalItem.get_id(dimension);
     __SYCL_ASSUME_INT(Id);
     return Id;
   }
 
-  size_t ALWAYS_INLINE get_global_linear_id() const {
+  size_t __SYCL_ALWAYS_INLINE get_global_linear_id() const {
     size_t Id = globalItem.get_linear_id();
     __SYCL_ASSUME_INT(Id);
     return Id;
@@ -53,7 +53,7 @@ public:
 
   id<dimensions> get_local_id() const { return localItem.get_id(); }
 
-  size_t ALWAYS_INLINE get_local_id(int dimension) const {
+  size_t __SYCL_ALWAYS_INLINE get_local_id(int dimension) const {
     size_t Id = localItem.get_id(dimension);
     __SYCL_ASSUME_INT(Id);
     return Id;
@@ -69,13 +69,13 @@ public:
 
   ONEAPI::sub_group get_sub_group() const { return ONEAPI::sub_group(); }
 
-  size_t ALWAYS_INLINE get_group(int dimension) const {
+  size_t __SYCL_ALWAYS_INLINE get_group(int dimension) const {
     size_t Size = Group[dimension];
     __SYCL_ASSUME_INT(Size);
     return Size;
   }
 
-  size_t ALWAYS_INLINE get_group_linear_id() const {
+  size_t __SYCL_ALWAYS_INLINE get_group_linear_id() const {
     size_t Id = Group.get_linear_id();
     __SYCL_ASSUME_INT(Id);
     return Id;
@@ -85,7 +85,7 @@ public:
     return Group.get_global_range() / Group.get_local_range();
   }
 
-  size_t ALWAYS_INLINE get_group_range(int dimension) const {
+  size_t __SYCL_ALWAYS_INLINE get_group_range(int dimension) const {
     size_t Range =
         Group.get_global_range(dimension) / Group.get_local_range(dimension);
     __SYCL_ASSUME_INT(Range);
@@ -121,12 +121,12 @@ public:
   /// Executes a work-group mem-fence with memory ordering on the local address
   /// space, global address space or both based on the value of \p accessSpace.
   template <access::mode accessMode = access::mode::read_write>
-  void
-  mem_fence(typename std::enable_if<accessMode == access::mode::read ||
-                                        accessMode == access::mode::write ||
-                                        accessMode == access::mode::read_write,
-                                    access::fence_space>::type accessSpace =
-                access::fence_space::global_and_local) const {
+  void mem_fence(
+      typename detail::enable_if_t<accessMode == access::mode::read ||
+                                       accessMode == access::mode::write ||
+                                       accessMode == access::mode::read_write,
+                                   access::fence_space>
+          accessSpace = access::fence_space::global_and_local) const {
     (void)accessSpace;
     Group.mem_fence();
   }

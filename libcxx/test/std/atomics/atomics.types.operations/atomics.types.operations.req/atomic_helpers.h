@@ -23,6 +23,51 @@ struct UserAtomicType
     { return x.i == y.i; }
 };
 
+/*
+
+Enable these once we have P0528 
+
+struct WeirdUserAtomicType
+{
+    char i, j, k; // the 3 chars of doom
+
+    explicit WeirdUserAtomicType(int d = 0) TEST_NOEXCEPT : i(d) {}
+
+    friend bool operator==(const WeirdUserAtomicType& x, const WeirdUserAtomicType& y)
+    { return x.i == y.i; }
+};
+
+struct PaddedUserAtomicType
+{
+    char i; int j; // probably lock-free?
+
+    explicit PaddedUserAtomicType(int d = 0) TEST_NOEXCEPT : i(d) {}
+
+    friend bool operator==(const PaddedUserAtomicType& x, const PaddedUserAtomicType& y)
+    { return x.i == y.i; }
+};
+
+*/
+
+struct LargeUserAtomicType
+{
+    int a[128];  /* decidedly not lock-free */
+
+    LargeUserAtomicType(int d = 0) TEST_NOEXCEPT
+    {
+        for (auto && e : a)
+            e = d++;
+    }
+
+    friend bool operator==(LargeUserAtomicType const& x, LargeUserAtomicType const& y) TEST_NOEXCEPT
+    {
+        for (int i = 0; i < 128; ++i)
+            if (x.a[i] != y.a[i])
+                return false;
+        return true;
+    }
+};
+
 template < template <class TestArg> class TestFunctor >
 struct TestEachIntegralType {
     void operator()() const {
@@ -38,6 +83,9 @@ struct TestEachIntegralType {
         TestFunctor<long long>()();
         TestFunctor<unsigned long long>()();
         TestFunctor<wchar_t>();
+#if TEST_STD_VER > 17 && defined(__cpp_char8_t)
+        TestFunctor<char8_t>()();
+#endif
 #ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
         TestFunctor<char16_t>()();
         TestFunctor<char32_t>()();
@@ -58,8 +106,24 @@ struct TestEachAtomicType {
     void operator()() const {
         TestEachIntegralType<TestFunctor>()();
         TestFunctor<UserAtomicType>()();
+        /*
+            Note: These aren't going to be lock-free,
+            so some libatomic.a is necessary. To handle
+            the case where the support functions are
+            missing, all tests that use this file should add:
+            XFAIL: !non-lockfree-atomics
+        */
+        TestFunctor<LargeUserAtomicType>()();
+/*
+    Enable these once we have P0528 
+    
+        TestFunctor<PaddedUserAtomicType>()();
+        TestFunctor<WeirdUserAtomicType>()();
+*/
         TestFunctor<int*>()();
         TestFunctor<const int*>()();
+        TestFunctor<float>()();
+        TestFunctor<double>()();
     }
 };
 

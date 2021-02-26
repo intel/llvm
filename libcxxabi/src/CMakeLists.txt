@@ -165,9 +165,6 @@ endif()
 # Build the shared library.
 if (LIBCXXABI_ENABLE_SHARED)
   add_library(cxxabi_shared SHARED ${LIBCXXABI_SOURCES} ${LIBCXXABI_HEADERS})
-  if(COMMAND llvm_setup_rpath)
-    llvm_setup_rpath(cxxabi_shared)
-  endif()
   target_link_libraries(cxxabi_shared PRIVATE ${LIBCXXABI_SHARED_LIBRARIES} ${LIBCXXABI_LIBRARIES})
   if (TARGET pstl::ParallelSTL)
     target_link_libraries(cxxabi_shared PUBLIC pstl::ParallelSTL)
@@ -177,9 +174,9 @@ if (LIBCXXABI_ENABLE_SHARED)
                           CXX_EXTENSIONS
                             OFF
                           CXX_STANDARD
-                            17
+                            20
                           CXX_STANDARD_REQUIRED
-                            ON
+                            OFF
                           COMPILE_FLAGS
                             "${LIBCXXABI_COMPILE_FLAGS}"
                           LINK_FLAGS
@@ -202,21 +199,31 @@ if (LIBCXXABI_ENABLE_SHARED)
     list(APPEND LIBCXXABI_INSTALL_TARGETS "cxxabi_shared")
   endif()
 
+  add_library(cxxabi-reexports INTERFACE)
+
   # -exported_symbols_list is only available on Apple platforms
   if (APPLE)
-    target_link_libraries(cxxabi_shared PRIVATE "-Wl,-exported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/../lib/itanium-base.exp")
+    function(export_symbols file)
+      target_link_libraries(cxxabi_shared PRIVATE "-Wl,-exported_symbols_list,${file}")
+    endfunction()
+    function(reexport_symbols file)
+      export_symbols("${file}")
+      target_link_libraries(cxxabi-reexports INTERFACE "-Wl,-reexported_symbols_list,${file}")
+    endfunction()
+
+    export_symbols("${CMAKE_CURRENT_SOURCE_DIR}/../lib/itanium-base.exp")
 
     if (LIBCXXABI_ENABLE_NEW_DELETE_DEFINITIONS)
-      target_link_libraries(cxxabi_shared PRIVATE "-Wl,-exported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/../lib/new-delete.exp")
+      reexport_symbols("${CMAKE_CURRENT_SOURCE_DIR}/../lib/new-delete.exp")
     endif()
 
     if (LIBCXXABI_ENABLE_EXCEPTIONS)
-      target_link_libraries(cxxabi_shared PRIVATE "-Wl,-exported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/../lib/exceptions.exp")
+      reexport_symbols("${CMAKE_CURRENT_SOURCE_DIR}/../lib/exceptions.exp")
 
       if ("${CMAKE_OSX_ARCHITECTURES}" MATCHES "^(armv6|armv7|armv7s)$")
-        target_link_libraries(cxxabi_shared PRIVATE "-Wl,-exported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/../lib/personality-sjlj.exp")
+        reexport_symbols("${CMAKE_CURRENT_SOURCE_DIR}/../lib/personality-sjlj.exp")
       else()
-        target_link_libraries(cxxabi_shared PRIVATE "-Wl,-exported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/../lib/personality-v0.exp")
+        reexport_symbols("${CMAKE_CURRENT_SOURCE_DIR}/../lib/personality-v0.exp")
       endif()
     endif()
   endif()
@@ -234,9 +241,9 @@ if (LIBCXXABI_ENABLE_STATIC)
                           CXX_EXTENSIONS
                             OFF
                           CXX_STANDARD
-                            17
+                            20
                           CXX_STANDARD_REQUIRED
-                            ON
+                            OFF
                           COMPILE_FLAGS
                             "${LIBCXXABI_COMPILE_FLAGS}"
                           LINK_FLAGS
@@ -275,7 +282,7 @@ if (LIBCXXABI_ENABLE_STATIC)
   # Merge the libc++abi.a and libunwind.a into one.
   if(LIBCXXABI_USE_LLVM_UNWINDER AND LIBCXXABI_STATICALLY_LINK_UNWINDER_IN_STATIC_LIBRARY)
     add_custom_command(TARGET cxxabi_static POST_BUILD
-      COMMAND ${PYTHON_EXECUTABLE} ${LIBCXXABI_LIBCXX_PATH}/utils/merge_archives.py
+      COMMAND ${Python3_EXECUTABLE} ${LIBCXXABI_LIBCXX_PATH}/utils/merge_archives.py
       ARGS
         -o "$<TARGET_LINKER_FILE:cxxabi_static>"
         --ar "${CMAKE_AR}"

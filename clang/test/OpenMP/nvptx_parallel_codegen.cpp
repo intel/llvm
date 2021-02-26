@@ -76,8 +76,8 @@ int bar(int n){
 }
 
 // SEQ: [[MEM_TY:%.+]] = type { [128 x i8] }
-// SEQ-DAG: [[SHARED_GLOBAL_RD:@.+]] = common addrspace(3) global [[MEM_TY]] zeroinitializer
-// SEQ-DAG: [[KERNEL_PTR:@.+]] = internal addrspace(3) global i8* null
+// SEQ-DAG: [[SHARED_GLOBAL_RD:@.+]] = weak addrspace(3) global [[MEM_TY]] undef
+// SEQ-DAG: [[KERNEL_PTR:@.+]] = internal addrspace(3) global i8* undef
 // SEQ-DAG: [[KERNEL_SIZE:@.+]] = internal unnamed_addr constant i{{64|32}} 4
 // SEQ-DAG: [[KERNEL_SHARED:@.+]] = internal unnamed_addr constant i16 1
 
@@ -91,7 +91,7 @@ int bar(int n){
 // CHECK: br label {{%?}}[[AWAIT_WORK:.+]]
 //
 // CHECK: [[AWAIT_WORK]]
-// CHECK: call void @__kmpc_barrier_simple_spmd(%struct.ident_t* null, i32 0) #[[#CONVERGENT:]]
+// CHECK: call void @__kmpc_barrier_simple_spmd(%struct.ident_t* null, i32 0)
 // CHECK: [[KPR:%.+]] = call i1 @__kmpc_kernel_parallel(i8** [[OMP_WORK_FN]])
 // CHECK: [[KPRB:%.+]] = zext i1 [[KPR]] to i8
 // store i8 [[KPRB]], i8* [[OMP_EXEC_STATUS]], align 1
@@ -321,10 +321,10 @@ int bar(int n){
 // CHECK: define internal void [[PARALLEL_FN4]](
 // CHECK: [[A:%.+]] = alloca i[[SZ:32|64]],
 // CHECK: store i[[SZ]] 45, i[[SZ]]* %a,
-// CHECK: call void @__kmpc_barrier(%struct.ident_t* @{{.+}}, i32 %{{.+}}) #[[#CONVERGENT:]]
+// CHECK: call void @__kmpc_barrier(%struct.ident_t* @{{.+}}, i32 %{{.+}})
 // CHECK: ret void
 
-// CHECK: declare void @__kmpc_barrier(%struct.ident_t*, i32) #[[#CONVERGENT]]
+// CHECK: declare void @__kmpc_barrier(%struct.ident_t*, i32) #[[#CONVERGENT:]]
 
 // CHECK-LABEL: define {{.*}}void {{@__omp_offloading_.+template.+l58}}_worker()
 // CHECK-LABEL: define {{.*}}void {{@__omp_offloading_.+template.+l58}}(
@@ -377,6 +377,6 @@ int bar(int n){
 // CHECK: declare i32 @__kmpc_warp_active_thread_mask() #[[#CONVERGENT:]]
 // CHECK: declare void @__kmpc_syncwarp(i32) #[[#CONVERGENT:]]
 
-// CHECK: attributes #[[#CONVERGENT]] = {{.*}} convergent {{.*}}
+// CHECK: attributes #[[#CONVERGENT:]] = {{.*}} convergent {{.*}}
 
 #endif

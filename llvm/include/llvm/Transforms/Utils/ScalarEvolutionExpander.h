@@ -199,6 +199,8 @@ public:
     ChainedPhis.clear();
   }
 
+  ScalarEvolution *getSE() { return &SE; }
+
   /// Return a vector containing all instructions inserted during expansion.
   SmallVector<Instruction *, 32> getAllInsertedInstructions() const {
     SmallVector<Instruction *, 32> Result;
@@ -246,12 +248,6 @@ public:
     assert(BudgetRemaining >= 0 && "Should have returned from inner loop.");
     return false;
   }
-
-  /// This method returns the canonical induction variable of the specified
-  /// type for the specified loop (inserting one if there is none).  A
-  /// canonical induction variable starts at zero and steps by one on each
-  /// iteration.
-  PHINode *getOrInsertCanonicalInductionVariable(const Loop *L, Type *Ty);
 
   /// Return the induction variable increment's IV operand.
   Instruction *getIVIncOperand(Instruction *IncV, Instruction *InsertPos,
@@ -352,7 +348,7 @@ public:
   }
 
   /// Get location information used by debugging information.
-  const DebugLoc &getCurrentDebugLocation() const {
+  DebugLoc getCurrentDebugLocation() const {
     return Builder.getCurrentDebugLocation();
   }
 
@@ -364,10 +360,6 @@ public:
   }
 
   void setChainedPhi(PHINode *PN) { ChainedPhis.insert(PN); }
-
-  /// Try to find existing LLVM IR value for S available at the point At.
-  Value *getExactExistingExpansion(const SCEV *S, const Instruction *At,
-                                   Loop *L);
 
   /// Try to find the ValueOffsetPair for S. The function is mainly used to
   /// check whether S can be expanded cheaply.  If this returns a non-None
@@ -445,6 +437,8 @@ private:
   const Loop *getRelevantLoop(const SCEV *);
 
   Value *visitConstant(const SCEVConstant *S) { return S->getValue(); }
+
+  Value *visitPtrToIntExpr(const SCEVPtrToIntExpr *S);
 
   Value *visitTruncateExpr(const SCEVTruncateExpr *S);
 

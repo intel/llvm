@@ -74,13 +74,6 @@ inline StringRef getInstrProfValueProfFuncName() {
   return INSTR_PROF_VALUE_PROF_FUNC_STR;
 }
 
-/// Return the name profile runtime entry point to do value range profiling.
-// FIXME: This is to be removed after switching to the new memop value
-// profiling.
-inline StringRef getInstrProfValueRangeProfFuncName() {
-  return INSTR_PROF_VALUE_RANGE_PROF_FUNC_STR;
-}
-
 /// Return the name profile runtime entry point to do memop size value
 /// profiling.
 inline StringRef getInstrProfValueProfMemOpFuncName() {
@@ -569,10 +562,9 @@ StringRef InstrProfSymtab::getFuncNameOrExternalSymbol(uint64_t FuncMD5Hash) {
 
 StringRef InstrProfSymtab::getFuncName(uint64_t FuncMD5Hash) {
   finalizeSymtab();
-  auto Result =
-      std::lower_bound(MD5NameMap.begin(), MD5NameMap.end(), FuncMD5Hash,
-                       [](const std::pair<uint64_t, StringRef> &LHS,
-                          uint64_t RHS) { return LHS.first < RHS; });
+  auto Result = llvm::lower_bound(MD5NameMap, FuncMD5Hash,
+                                  [](const std::pair<uint64_t, StringRef> &LHS,
+                                     uint64_t RHS) { return LHS.first < RHS; });
   if (Result != MD5NameMap.end() && Result->first == FuncMD5Hash)
     return Result->second;
   return StringRef();
@@ -580,10 +572,9 @@ StringRef InstrProfSymtab::getFuncName(uint64_t FuncMD5Hash) {
 
 Function* InstrProfSymtab::getFunction(uint64_t FuncMD5Hash) {
   finalizeSymtab();
-  auto Result =
-      std::lower_bound(MD5FuncMap.begin(), MD5FuncMap.end(), FuncMD5Hash,
-                       [](const std::pair<uint64_t, Function*> &LHS,
-                          uint64_t RHS) { return LHS.first < RHS; });
+  auto Result = llvm::lower_bound(MD5FuncMap, FuncMD5Hash,
+                                  [](const std::pair<uint64_t, Function *> &LHS,
+                                     uint64_t RHS) { return LHS.first < RHS; });
   if (Result != MD5FuncMap.end() && Result->first == FuncMD5Hash)
     return Result->second;
   return nullptr;
@@ -990,7 +981,9 @@ enum ProfVersion {
   // In this version, the frontend PGO stable hash algorithm got fixed and
   // may produce hashes different from Version5.
   Version6 = 6,
-  // The current version is 5.
+  // An additional counter is added around logical operators.
+  Version7 = 7,
+  // The current version is 7.
   CurrentVersion = INSTR_PROF_INDEX_VERSION
 };
 const uint64_t Version = ProfVersion::CurrentVersion;

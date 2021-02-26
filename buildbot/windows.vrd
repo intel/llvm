@@ -21,3 +21,6 @@
 :eadb PATH={COMP_ROOT}/lib
 :eadb PATH={COMP_ROOT}/install/bin
 :eadb PATH={COMP_ROOT}/install/lib
+
+# For OCLOC
+:eade PATH={OCLOCROOT}/{OCLOCVER}

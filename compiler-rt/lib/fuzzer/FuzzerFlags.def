@@ -88,6 +88,11 @@ FUZZER_FLAG_STRING(features_dir, "internal flag. Used to dump feature sets on di
   "Every time a new input is added to the corpus, a corresponding file in the features_dir"
   " is created containing the unique features of that input."
   " Features are stored in binary format.")
+FUZZER_FLAG_STRING(mutation_graph_file, "Saves a graph (in DOT format) to"
+  " mutation_graph_file. The graph contains a vertex for each input that has"
+  " unique coverage; directed edges are provided between parents and children"
+  " where the child has unique coverage, and are recorded with the type of"
+  " mutation that caused the child.")
 FUZZER_FLAG_INT(use_counters, 1, "Use coverage counters")
 FUZZER_FLAG_INT(use_memmem, 1,
                 "Use hints from intercepting memmem, strstr, etc")
@@ -127,6 +132,8 @@ FUZZER_FLAG_INT(print_corpus_stats, 0,
   "If 1, print statistics on corpus elements at exit.")
 FUZZER_FLAG_INT(print_coverage, 0, "If 1, print coverage information as text"
                                    " at exit.")
+FUZZER_FLAG_INT(print_full_coverage, 0, "If 1, print full coverage information "
+                                        "(all branches) as text at exit.")
 FUZZER_FLAG_INT(dump_coverage, 0, "Deprecated.")
 FUZZER_FLAG_INT(handle_segv, 1, "If 1, try to intercept SIGSEGV.")
 FUZZER_FLAG_INT(handle_bus, 1, "If 1, try to intercept SIGBUS.")
@@ -138,6 +145,8 @@ FUZZER_FLAG_INT(handle_term, 1, "If 1, try to intercept SIGTERM.")
 FUZZER_FLAG_INT(handle_xfsz, 1, "If 1, try to intercept SIGXFSZ.")
 FUZZER_FLAG_INT(handle_usr1, 1, "If 1, try to intercept SIGUSR1.")
 FUZZER_FLAG_INT(handle_usr2, 1, "If 1, try to intercept SIGUSR2.")
+FUZZER_FLAG_INT(handle_winexcept, 1, "If 1, try to intercept uncaught Windows "
+    "Visual C++ Exceptions.")
 FUZZER_FLAG_INT(close_fd_mask, 0, "If 1, close stdout at startup; "
     "if 2, close stderr; if 3, close both. "
     "Be careful, this will also close e.g. stderr of asan.")
@@ -166,8 +175,9 @@ FUZZER_FLAG_INT(ignore_remaining_args, 0, "If 1, ignore all arguments passed "
 FUZZER_FLAG_STRING(focus_function, "Experimental. "
      "Fuzzing will focus on inputs that trigger calls to this function. "
      "If -focus_function=auto and -data_flow_trace is used, libFuzzer "
-     "will choose the focus functions automatically.")
-FUZZER_FLAG_INT(entropic, 0, "Experimental. Enables entropic power schedule.")
+     "will choose the focus functions automatically. Disables -entropic when "
+     "specified.")
+FUZZER_FLAG_INT(entropic, 1, "Enables entropic power schedule.")
 FUZZER_FLAG_INT(entropic_feature_frequency_threshold, 0xFF, "Experimental. If "
      "entropic is enabled, all features which are observed less often than "
      "the specified value are considered as rare.")

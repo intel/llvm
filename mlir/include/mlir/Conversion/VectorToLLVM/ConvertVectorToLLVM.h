@@ -21,8 +21,10 @@ class OperationPass;
 /// This should kept in sync with VectorToLLVM options defined for the
 /// ConvertVectorToLLVM pass in include/mlir/Conversion/Passes.td
 struct LowerVectorToLLVMOptions {
-  bool reassociateFPReductions = false;
-  bool enableIndexOptimizations = false;
+  LowerVectorToLLVMOptions()
+      : reassociateFPReductions(false), enableIndexOptimizations(true),
+        enableArmNeon(false), enableArmSVE(false), enableAVX512(false) {}
+
   LowerVectorToLLVMOptions &setReassociateFPReductions(bool b) {
     reassociateFPReductions = b;
     return *this;
@@ -31,6 +33,24 @@ struct LowerVectorToLLVMOptions {
     enableIndexOptimizations = b;
     return *this;
   }
+  LowerVectorToLLVMOptions &setEnableArmNeon(bool b) {
+    enableArmNeon = b;
+    return *this;
+  }
+  LowerVectorToLLVMOptions &setEnableArmSVE(bool b) {
+    enableArmSVE = b;
+    return *this;
+  }
+  LowerVectorToLLVMOptions &setEnableAVX512(bool b) {
+    enableAVX512 = b;
+    return *this;
+  }
+
+  bool reassociateFPReductions;
+  bool enableIndexOptimizations;
+  bool enableArmNeon;
+  bool enableArmSVE;
+  bool enableAVX512;
 };
 
 /// Collect a set of patterns to convert from Vector contractions to LLVM Matrix
@@ -42,8 +62,7 @@ void populateVectorToLLVMMatrixConversionPatterns(
 /// Collect a set of patterns to convert from the Vector dialect to LLVM.
 void populateVectorToLLVMConversionPatterns(
     LLVMTypeConverter &converter, OwningRewritePatternList &patterns,
-    bool reassociateFPReductions = false,
-    bool enableIndexOptimizations = false);
+    bool reassociateFPReductions = false, bool enableIndexOptimizations = true);
 
 /// Create a pass to convert vector operations to the LLVMIR dialect.
 std::unique_ptr<OperationPass<ModuleOp>> createConvertVectorToLLVMPass(

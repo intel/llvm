@@ -56,7 +56,7 @@ bool PPCTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasP10Vector = true;
     } else if (Feature == "+pcrelative-memops") {
       HasPCRelativeMemops = true;
-    } else if (Feature == "+spe") {
+    } else if (Feature == "+spe" || Feature == "+efpu2") {
       HasSPE = true;
       LongDoubleWidth = LongDoubleAlign = 64;
       LongDoubleFormat = &llvm::APFloat::IEEEdouble();
@@ -92,7 +92,8 @@ void PPCTargetInfo::getTargetDefines(const LangOptions &Opts,
   }
 
   // Target properties.
-  if (getTriple().getArch() == llvm::Triple::ppc64le) {
+  if (getTriple().getArch() == llvm::Triple::ppc64le ||
+      getTriple().getArch() == llvm::Triple::ppcle) {
     Builder.defineMacro("_LITTLE_ENDIAN");
   } else {
     if (!getTriple().isOSNetBSD() &&
@@ -122,6 +123,10 @@ void PPCTargetInfo::getTargetDefines(const LangOptions &Opts,
   if (LongDoubleWidth == 128) {
     Builder.defineMacro("__LONG_DOUBLE_128__");
     Builder.defineMacro("__LONGDOUBLE128");
+    if (Opts.PPCIEEELongDouble)
+      Builder.defineMacro("__LONG_DOUBLE_IEEE128__");
+    else
+      Builder.defineMacro("__LONG_DOUBLE_IBM128__");
   }
 
   // Define this for elfv2 (64-bit only) or 64-bit darwin.
@@ -313,6 +318,9 @@ bool PPCTargetInfo::initFeatureMap(
                         .Case("pwr9", true)
                         .Case("pwr8", true)
                         .Default(false);
+  Features["float128"] = llvm::StringSwitch<bool>(CPU)
+                        .Case("pwr9", true)
+                        .Default(false);
 
   Features["spe"] = llvm::StringSwitch<bool>(CPU)
                         .Case("8548", true)
@@ -340,6 +348,13 @@ bool PPCTargetInfo::initFeatureMap(
       llvm::find(FeaturesVec, "+float128") != FeaturesVec.end()) {
     // We have __float128 on PPC but not power 9 and above.
     Diags.Report(diag::err_opt_not_valid_with_opt) << "-mfloat128" << CPU;
+    return false;
+  }
+
+  if (!(ArchDefs & ArchDefinePwr10) &&
+      llvm::find(FeaturesVec, "+mma") != FeaturesVec.end()) {
+    // We have MMA on PPC but not power 10 and above.
+    Diags.Report(diag::err_opt_not_valid_with_opt) << "-mmma" << CPU;
     return false;
   }
 
@@ -387,6 +402,8 @@ bool PPCTargetInfo::hasFeature(StringRef Feature) const {
 void PPCTargetInfo::setFeatureEnabled(llvm::StringMap<bool> &Features,
                                       StringRef Name, bool Enabled) const {
   if (Enabled) {
+    if (Name == "efpu2")
+      Features["spe"] = true;
     // If we're enabling any of the vsx based features then enable vsx and
     // altivec. We'll diagnose any problems later.
     bool FeatureHasVSX = llvm::StringSwitch<bool>(Name)
@@ -410,6 +427,8 @@ void PPCTargetInfo::setFeatureEnabled(llvm::StringMap<bool> &Features,
     else
       Features[Name] = true;
   } else {
+    if (Name == "spe")
+      Features["efpu2"] = false;
     // If we're disabling altivec or vsx go ahead and disable all of the vsx
     // features.
     if ((Name == "altivec") || (Name == "vsx"))

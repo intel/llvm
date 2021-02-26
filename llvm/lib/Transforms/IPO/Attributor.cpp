@@ -32,6 +32,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/DebugCounter.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/raw_ostream.h"
@@ -46,12 +47,15 @@ using namespace llvm;
 
 #define DEBUG_TYPE "attributor"
 
+DEBUG_COUNTER(ManifestDBGCounter, "attributor-manifest",
+              "Determine what attributes are manifested in the IR");
+
 STATISTIC(NumFnDeleted, "Number of function deleted");
 STATISTIC(NumFnWithExactDefinition,
           "Number of functions with exact definitions");
 STATISTIC(NumFnWithoutExactDefinition,
           "Number of functions without exact definitions");
-STATISTIC(NumFnShallowWrapperCreated, "Number of shallow wrappers created");
+STATISTIC(NumFnShallowWrappersCreated, "Number of shallow wrappers created");
 STATISTIC(NumAttributesTimedOut,
           "Number of abstract attributes timed out before fixpoint");
 STATISTIC(NumAttributesValidFixpoint,
@@ -73,6 +77,14 @@ static cl::opt<unsigned>
     MaxFixpointIterations("attributor-max-iterations", cl::Hidden,
                           cl::desc("Maximal number of fixpoint iterations."),
                           cl::init(32));
+
+static cl::opt<unsigned, true> MaxInitializationChainLengthX(
+    "attributor-max-initialization-chain-length", cl::Hidden,
+    cl::desc(
+        "Maximal number of chained initializations (to avoid stack overflows)"),
+    cl::location(MaxInitializationChainLength), cl::init(1024));
+unsigned llvm::MaxInitializationChainLength;
+
 static cl::opt<bool> VerifyMaxFixpointIterations(
     "attributor-max-iterations-verify", cl::Hidden,
     cl::desc("Verify that max-iterations is a tight bound for a fixpoint"),
@@ -132,11 +144,11 @@ static cl::opt<bool> PrintDependencies("attributor-print-dep", cl::Hidden,
 /// Logic operators for the change status enum class.
 ///
 ///{
-ChangeStatus llvm::operator|(ChangeStatus l, ChangeStatus r) {
-  return l == ChangeStatus::CHANGED ? l : r;
+ChangeStatus llvm::operator|(ChangeStatus L, ChangeStatus R) {
+  return L == ChangeStatus::CHANGED ? L : R;
 }
-ChangeStatus llvm::operator&(ChangeStatus l, ChangeStatus r) {
-  return l == ChangeStatus::UNCHANGED ? l : r;
+ChangeStatus llvm::operator&(ChangeStatus L, ChangeStatus R) {
+  return L == ChangeStatus::UNCHANGED ? L : R;
 }
 ///}
 
@@ -189,7 +201,7 @@ Argument *IRPosition::getAssociatedArgument() const {
 
   // Not an Argument and no argument number means this is not a call site
   // argument, thus we cannot find a callback argument to return.
-  int ArgNo = getArgNo();
+  int ArgNo = getCallSiteArgNo();
   if (ArgNo < 0)
     return nullptr;
 
@@ -317,6 +329,13 @@ const IRPosition
 SubsumingPositionIterator::SubsumingPositionIterator(const IRPosition &IRP) {
   IRPositions.emplace_back(IRP);
 
+  // Helper to determine if operand bundles on a call site are benin or
+  // potentially problematic. We handle only llvm.assume for now.
+  auto CanIgnoreOperandBundles = [](const CallBase &CB) {
+    return (isa<IntrinsicInst>(CB) &&
+            cast<IntrinsicInst>(CB).getIntrinsicID() == Intrinsic ::assume);
+  };
+
   const auto *CB = dyn_cast<CallBase>(&IRP.getAnchorValue());
   switch (IRP.getPositionKind()) {
   case IRPosition::IRP_INVALID:
@@ -331,7 +350,7 @@ SubsumingPositionIterator::SubsumingPositionIterator(const IRPosition &IRP) {
     assert(CB && "Expected call site!");
     // TODO: We need to look at the operand bundles similar to the redirection
     //       in CallBase.
-    if (!CB->hasOperandBundles())
+    if (!CB->hasOperandBundles() || CanIgnoreOperandBundles(*CB))
       if (const Function *Callee = CB->getCalledFunction())
         IRPositions.emplace_back(IRPosition::function(*Callee));
     return;
@@ -339,7 +358,7 @@ SubsumingPositionIterator::SubsumingPositionIterator(const IRPosition &IRP) {
     assert(CB && "Expected call site!");
     // TODO: We need to look at the operand bundles similar to the redirection
     //       in CallBase.
-    if (!CB->hasOperandBundles()) {
+    if (!CB->hasOperandBundles() || CanIgnoreOperandBundles(*CB)) {
       if (const Function *Callee = CB->getCalledFunction()) {
         IRPositions.emplace_back(IRPosition::returned(*Callee));
         IRPositions.emplace_back(IRPosition::function(*Callee));
@@ -356,16 +375,16 @@ SubsumingPositionIterator::SubsumingPositionIterator(const IRPosition &IRP) {
     IRPositions.emplace_back(IRPosition::callsite_function(*CB));
     return;
   case IRPosition::IRP_CALL_SITE_ARGUMENT: {
-    int ArgNo = IRP.getArgNo();
-    assert(CB && ArgNo >= 0 && "Expected call site!");
+    assert(CB && "Expected call site!");
     // TODO: We need to look at the operand bundles similar to the redirection
     //       in CallBase.
-    if (!CB->hasOperandBundles()) {
+    if (!CB->hasOperandBundles() || CanIgnoreOperandBundles(*CB)) {
       const Function *Callee = CB->getCalledFunction();
-      if (Callee && Callee->arg_size() > unsigned(ArgNo))
-        IRPositions.emplace_back(IRPosition::argument(*Callee->getArg(ArgNo)));
-      if (Callee)
+      if (Callee) {
+        if (Argument *Arg = IRP.getAssociatedArgument())
+          IRPositions.emplace_back(IRPosition::argument(*Arg));
         IRPositions.emplace_back(IRPosition::function(*Callee));
+      }
     }
     IRPositions.emplace_back(IRPosition::value(IRP.getAssociatedValue()));
     return;
@@ -503,7 +522,7 @@ void IRPosition::verify() {
            "Expected call base argument operand for a 'call site argument' "
            "position");
     assert(cast<CallBase>(U->getUser())->getArgOperandNo(U) ==
-               unsigned(getArgNo()) &&
+               unsigned(getCallSiteArgNo()) &&
            "Argument number mismatch!");
     assert(U->get() == &getAssociatedValue() && "Associated value mismatch!");
     return;
@@ -1112,6 +1131,10 @@ ChangeStatus Attributor::manifestAttributes() {
     // Skip dead code.
     if (isAssumedDead(*AA, nullptr, /* CheckBBLivenessOnly */ true))
       continue;
+    // Check if the manifest debug counter that allows skipping manifestation of
+    // AAs
+    if (!DebugCounter::shouldExecute(ManifestDBGCounter))
+      continue;
     // Manifest the state and record if we changed the IR.
     ChangeStatus LocalChange = AA->manifest(*this);
     if (LocalChange == ChangeStatus::CHANGED && AreStatisticsEnabled())
@@ -1148,6 +1171,48 @@ ChangeStatus Attributor::manifestAttributes() {
                      "remain unchanged!");
   }
   return ManifestChange;
+}
+
+void Attributor::identifyDeadInternalFunctions() {
+  // Identify dead internal functions and delete them. This happens outside
+  // the other fixpoint analysis as we might treat potentially dead functions
+  // as live to lower the number of iterations. If they happen to be dead, the
+  // below fixpoint loop will identify and eliminate them.
+  SmallVector<Function *, 8> InternalFns;
+  for (Function *F : Functions)
+    if (F->hasLocalLinkage())
+      InternalFns.push_back(F);
+
+  SmallPtrSet<Function *, 8> LiveInternalFns;
+  bool FoundLiveInternal = true;
+  while (FoundLiveInternal) {
+    FoundLiveInternal = false;
+    for (unsigned u = 0, e = InternalFns.size(); u < e; ++u) {
+      Function *F = InternalFns[u];
+      if (!F)
+        continue;
+
+      bool AllCallSitesKnown;
+      if (checkForAllCallSites(
+              [&](AbstractCallSite ACS) {
+                Function *Callee = ACS.getInstruction()->getFunction();
+                return ToBeDeletedFunctions.count(Callee) ||
+                       (Functions.count(Callee) && Callee->hasLocalLinkage() &&
+                        !LiveInternalFns.count(Callee));
+              },
+              *F, true, nullptr, AllCallSitesKnown)) {
+        continue;
+      }
+
+      LiveInternalFns.insert(F);
+      InternalFns[u] = nullptr;
+      FoundLiveInternal = true;
+    }
+  }
+
+  for (unsigned u = 0, e = InternalFns.size(); u < e; ++u)
+    if (Function *F = InternalFns[u])
+      ToBeDeletedFunctions.insert(F);
 }
 
 ChangeStatus Attributor::cleanupIR() {
@@ -1262,43 +1327,14 @@ ChangeStatus Attributor::cleanupIR() {
     DetatchDeadBlocks(ToBeDeletedBBs, nullptr);
   }
 
-  // Identify dead internal functions and delete them. This happens outside
-  // the other fixpoint analysis as we might treat potentially dead functions
-  // as live to lower the number of iterations. If they happen to be dead, the
-  // below fixpoint loop will identify and eliminate them.
-  SmallVector<Function *, 8> InternalFns;
-  for (Function *F : Functions)
-    if (F->hasLocalLinkage())
-      InternalFns.push_back(F);
-
-  bool FoundDeadFn = true;
-  while (FoundDeadFn) {
-    FoundDeadFn = false;
-    for (unsigned u = 0, e = InternalFns.size(); u < e; ++u) {
-      Function *F = InternalFns[u];
-      if (!F)
-        continue;
-
-      bool AllCallSitesKnown;
-      if (!checkForAllCallSites(
-              [this](AbstractCallSite ACS) {
-                return ToBeDeletedFunctions.count(
-                    ACS.getInstruction()->getFunction());
-              },
-              *F, true, nullptr, AllCallSitesKnown))
-        continue;
-
-      ToBeDeletedFunctions.insert(F);
-      InternalFns[u] = nullptr;
-      FoundDeadFn = true;
-    }
-  }
+  identifyDeadInternalFunctions();
 
   // Rewrite the functions as requested during manifest.
   ChangeStatus ManifestChange = rewriteFunctionSignatures(CGModifiedFunctions);
 
   for (Function *Fn : CGModifiedFunctions)
-    CGUpdater.reanalyzeFunction(*Fn);
+    if (!ToBeDeletedFunctions.count(Fn))
+      CGUpdater.reanalyzeFunction(*Fn);
 
   for (Function *Fn : ToBeDeletedFunctions) {
     if (!Functions.count(Fn))
@@ -1306,12 +1342,30 @@ ChangeStatus Attributor::cleanupIR() {
     CGUpdater.removeFunction(*Fn);
   }
 
+  if (!ToBeChangedUses.empty())
+    ManifestChange = ChangeStatus::CHANGED;
+
+  if (!ToBeChangedToUnreachableInsts.empty())
+    ManifestChange = ChangeStatus::CHANGED;
+
   if (!ToBeDeletedFunctions.empty())
+    ManifestChange = ChangeStatus::CHANGED;
+
+  if (!ToBeDeletedBlocks.empty())
+    ManifestChange = ChangeStatus::CHANGED;
+
+  if (!ToBeDeletedInsts.empty())
+    ManifestChange = ChangeStatus::CHANGED;
+
+  if (!InvokeWithDeadSuccessor.empty())
+    ManifestChange = ChangeStatus::CHANGED;
+
+  if (!DeadInsts.empty())
     ManifestChange = ChangeStatus::CHANGED;
 
   NumFnDeleted += ToBeDeletedFunctions.size();
 
-  LLVM_DEBUG(dbgs() << "[Attributor] Deleted " << NumFnDeleted
+  LLVM_DEBUG(dbgs() << "[Attributor] Deleted " << ToBeDeletedFunctions.size()
                     << " functions after manifest.\n");
 
 #ifdef EXPENSIVE_CHECKS
@@ -1351,7 +1405,9 @@ ChangeStatus Attributor::run() {
 }
 
 ChangeStatus Attributor::updateAA(AbstractAttribute &AA) {
-  TimeTraceScope TimeScope(AA.getName() + "::updateAA");
+  TimeTraceScope TimeScope(
+      AA.getName() + std::to_string(AA.getIRPosition().getPositionKind()) +
+      "::updateAA");
   assert(Phase == AttributorPhase::UPDATE &&
          "We can update AA only in the update stage!");
 
@@ -1382,23 +1438,7 @@ ChangeStatus Attributor::updateAA(AbstractAttribute &AA) {
   return CS;
 }
 
-/// Create a shallow wrapper for \p F such that \p F has internal linkage
-/// afterwards. It also sets the original \p F 's name to anonymous
-///
-/// A wrapper is a function with the same type (and attributes) as \p F
-/// that will only call \p F and return the result, if any.
-///
-/// Assuming the declaration of looks like:
-///   rty F(aty0 arg0, ..., atyN argN);
-///
-/// The wrapper will then look as follows:
-///   rty wrapper(aty0 arg0, ..., atyN argN) {
-///     return F(arg0, ..., argN);
-///   }
-///
-static void createShallowWrapper(Function &F) {
-  assert(AllowShallowWrappers &&
-         "Cannot create a wrapper if it is not allowed!");
+void Attributor::createShallowWrapper(Function &F) {
   assert(!F.isDeclaration() && "Cannot create a wrapper around a declaration!");
 
   Module &M = *F.getParent();
@@ -1431,7 +1471,7 @@ static void createShallowWrapper(Function &F) {
   BasicBlock *EntryBB = BasicBlock::Create(Ctx, "entry", Wrapper);
 
   SmallVector<Value *, 8> Args;
-  auto FArgIt = F.arg_begin();
+  Argument *FArgIt = F.arg_begin();
   for (Argument &Arg : Wrapper->args()) {
     Args.push_back(&Arg);
     Arg.setName((FArgIt++)->getName());
@@ -1442,7 +1482,7 @@ static void createShallowWrapper(Function &F) {
   CI->addAttribute(AttributeList::FunctionIndex, Attribute::NoInline);
   ReturnInst::Create(Ctx, CI->getType()->isVoidTy() ? nullptr : CI, EntryBB);
 
-  NumFnShallowWrapperCreated++;
+  NumFnShallowWrappersCreated++;
 }
 
 /// Make another copy of the function \p F such that the copied version has
@@ -1463,9 +1503,8 @@ static Function *internalizeFunction(Function &F) {
   FunctionType *FnTy = F.getFunctionType();
 
   // create a copy of the current function
-  Function *Copied =
-      Function::Create(FnTy, GlobalValue::PrivateLinkage, F.getAddressSpace(),
-                       F.getName() + ".internalized");
+  Function *Copied = Function::Create(FnTy, F.getLinkage(), F.getAddressSpace(),
+                                      F.getName() + ".internalized");
   ValueToValueMapTy VMap;
   auto *NewFArgIt = Copied->arg_begin();
   for (auto &Arg : F.args()) {
@@ -1477,6 +1516,11 @@ static Function *internalizeFunction(Function &F) {
 
   // Copy the body of the original function to the new one
   CloneFunctionInto(Copied, &F, VMap, /* ModuleLevelChanges */ false, Returns);
+
+  // Set the linakage and visibility late as CloneFunctionInto has some implicit
+  // requirements.
+  Copied->setVisibility(GlobalValue::DefaultVisibility);
+  Copied->setLinkage(GlobalValue::PrivateLinkage);
 
   // Copy metadata
   SmallVector<std::pair<unsigned, MDNode *>, 1> MDs;
@@ -1755,8 +1799,8 @@ ChangeStatus Attributor::rewriteFunctionSignatures(
     assert(Success && "Assumed call site replacement to succeed!");
 
     // Rewire the arguments.
-    auto OldFnArgIt = OldFn->arg_begin();
-    auto NewFnArgIt = NewFn->arg_begin();
+    Argument *OldFnArgIt = OldFn->arg_begin();
+    Argument *NewFnArgIt = NewFn->arg_begin();
     for (unsigned OldArgNum = 0; OldArgNum < ARIs.size();
          ++OldArgNum, ++OldFnArgIt) {
       if (const std::unique_ptr<ArgumentReplacementInfo> &ARI =
@@ -1863,6 +1907,10 @@ void InformationCache::initializeInformationCache(const Function &CF,
   if (F.hasFnAttribute(Attribute::AlwaysInline) &&
       isInlineViable(F).isSuccess())
     InlineableFunctions.insert(&F);
+}
+
+AAResults *InformationCache::getAAResultsForFunction(const Function &F) {
+  return AG.getAnalysis<AAManager>(F);
 }
 
 InformationCache::FunctionInfo::~FunctionInfo() {
@@ -2152,7 +2200,8 @@ raw_ostream &llvm::operator<<(raw_ostream &OS, IRPosition::Kind AP) {
 raw_ostream &llvm::operator<<(raw_ostream &OS, const IRPosition &Pos) {
   const Value &AV = Pos.getAssociatedValue();
   return OS << "{" << Pos.getPositionKind() << ":" << AV.getName() << " ["
-            << Pos.getAnchorValue().getName() << "@" << Pos.getArgNo() << "]}";
+            << Pos.getAnchorValue().getName() << "@" << Pos.getCallSiteArgNo()
+            << "]}";
 }
 
 raw_ostream &llvm::operator<<(raw_ostream &OS, const IntegerRangeState &S) {
@@ -2241,7 +2290,7 @@ static bool runAttributorOnFunctions(InformationCache &InfoCache,
   if (AllowShallowWrappers)
     for (Function *F : Functions)
       if (!A.isFunctionIPOAmendable(*F))
-        createShallowWrapper(*F);
+        Attributor::createShallowWrapper(*F);
 
   // Internalize non-exact functions
   // TODO: for now we eagerly internalize functions without calculating the
@@ -2410,7 +2459,7 @@ template <> struct DOTGraphTraits<AADepGraph *> : public DefaultDOTGraphTraits {
 
   static std::string getNodeLabel(const AADepGraphNode *Node,
                                   const AADepGraph *DG) {
-    std::string AAString = "";
+    std::string AAString;
     raw_string_ostream O(AAString);
     Node->print(O);
     return AAString;
@@ -2450,7 +2499,6 @@ struct AttributorLegacyPass : public ModulePass {
 };
 
 struct AttributorCGSCCLegacyPass : public CallGraphSCCPass {
-  CallGraphUpdater CGUpdater;
   static char ID;
 
   AttributorCGSCCLegacyPass() : CallGraphSCCPass(ID) {
@@ -2472,14 +2520,13 @@ struct AttributorCGSCCLegacyPass : public CallGraphSCCPass {
 
     AnalysisGetter AG;
     CallGraph &CG = const_cast<CallGraph &>(SCC.getCallGraph());
+    CallGraphUpdater CGUpdater;
     CGUpdater.initialize(CG, SCC);
     Module &M = *Functions.back()->getParent();
     BumpPtrAllocator Allocator;
     InformationCache InfoCache(M, AG, Allocator, /* CGSCC */ &Functions);
     return runAttributorOnFunctions(InfoCache, Functions, AG, CGUpdater);
   }
-
-  bool doFinalization(CallGraph &CG) override { return CGUpdater.finalize(); }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     // FIXME: Think about passes we will preserve and add them here.

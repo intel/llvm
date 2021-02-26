@@ -3,7 +3,7 @@
 
 // Shared code for SYCL tests
 
-namespace cl {
+inline namespace cl {
 namespace sycl {
 namespace access {
 

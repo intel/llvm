@@ -28,6 +28,7 @@
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/StmtObjC.h"
 #include "clang/AST/StmtOpenMP.h"
+#include "clang/Basic/DiagnosticParse.h"
 #include "clang/Basic/OpenMPKinds.h"
 #include "clang/Sema/Designator.h"
 #include "clang/Sema/Lookup.h"
@@ -732,10 +733,11 @@ public:
 #define ABSTRACT_STMT(Stmt)
 #include "clang/AST/StmtNodes.inc"
 
-#define OMP_CLAUSE_CLASS(Enum, Str, Class)                                           \
-  LLVM_ATTRIBUTE_NOINLINE \
-  OMPClause *Transform ## Class(Class *S);
-#include "llvm/Frontend/OpenMP/OMPKinds.def"
+#define GEN_CLANG_CLAUSE_CLASS
+#define CLAUSE_CLASS(Enum, Str, Class)                                         \
+  LLVM_ATTRIBUTE_NOINLINE                                                      \
+  OMPClause *Transform##Class(Class *S);
+#include "llvm/Frontend/OpenMP/OMP.inc"
 
   /// Build a new qualified type given its unqualified type and type location.
   ///
@@ -1306,7 +1308,7 @@ public:
     return SemaRef.ActOnLabelStmt(IdentLoc, L, ColonLoc, SubStmt);
   }
 
-  /// Build a new label statement.
+  /// Build a new attributed statement.
   ///
   /// By default, performs semantic analysis to build the new statement.
   /// Subclasses may override this routine to provide different behavior.
@@ -3549,12 +3551,12 @@ public:
     }
 
     case TemplateArgument::Template:
-      return TemplateArgumentLoc(TemplateArgument(
-                                          Pattern.getArgument().getAsTemplate(),
-                                                  NumExpansions),
-                                 Pattern.getTemplateQualifierLoc(),
-                                 Pattern.getTemplateNameLoc(),
-                                 EllipsisLoc);
+      return TemplateArgumentLoc(
+          SemaRef.Context,
+          TemplateArgument(Pattern.getArgument().getAsTemplate(),
+                           NumExpansions),
+          Pattern.getTemplateQualifierLoc(), Pattern.getTemplateNameLoc(),
+          EllipsisLoc);
 
     case TemplateArgument::Null:
     case TemplateArgument::Integral:
@@ -3694,10 +3696,11 @@ OMPClause *TreeTransform<Derived>::TransformOMPClause(OMPClause *S) {
   switch (S->getClauseKind()) {
   default: break;
   // Transform individual clause nodes
-#define OMP_CLAUSE_CLASS(Enum, Str, Class) \
+#define GEN_CLANG_CLAUSE_CLASS
+#define CLAUSE_CLASS(Enum, Str, Class)                                         \
   case Enum:                                                                   \
-    return getDerived().Transform ## Class(cast<Class>(S));
-#include "llvm/Frontend/OpenMP/OMPKinds.def"
+    return getDerived().Transform##Class(cast<Class>(S));
+#include "llvm/Frontend/OpenMP/OMP.inc"
   }
 
   return S;
@@ -4292,8 +4295,8 @@ bool TreeTransform<Derived>::TransformTemplateArgument(
     if (Template.isNull())
       return true;
 
-    Output = TemplateArgumentLoc(TemplateArgument(Template), QualifierLoc,
-                                 Input.getTemplateNameLoc());
+    Output = TemplateArgumentLoc(SemaRef.Context, TemplateArgument(Template),
+                                 QualifierLoc, Input.getTemplateNameLoc());
     return false;
   }
 
@@ -5179,7 +5182,7 @@ template <typename Derived>
 QualType TreeTransform<Derived>::TransformDependentVectorType(
     TypeLocBuilder &TLB, DependentVectorTypeLoc TL) {
   const DependentVectorType *T = TL.getTypePtr();
-  QualType ElementType = getDerived().TransformType(T->getElementType());
+  QualType ElementType = getDerived().TransformType(TLB, TL.getElementLoc());
   if (ElementType.isNull())
     return QualType();
 
@@ -5220,7 +5223,7 @@ QualType TreeTransform<Derived>::TransformDependentSizedExtVectorType(
   const DependentSizedExtVectorType *T = TL.getTypePtr();
 
   // FIXME: ext vector locs should be nested
-  QualType ElementType = getDerived().TransformType(T->getElementType());
+  QualType ElementType = getDerived().TransformType(TLB, TL.getElementLoc());
   if (ElementType.isNull())
     return QualType();
 
@@ -5387,7 +5390,7 @@ template <typename Derived>
 QualType TreeTransform<Derived>::TransformVectorType(TypeLocBuilder &TLB,
                                                      VectorTypeLoc TL) {
   const VectorType *T = TL.getTypePtr();
-  QualType ElementType = getDerived().TransformType(T->getElementType());
+  QualType ElementType = getDerived().TransformType(TLB, TL.getElementLoc());
   if (ElementType.isNull())
     return QualType();
 
@@ -5410,7 +5413,7 @@ template<typename Derived>
 QualType TreeTransform<Derived>::TransformExtVectorType(TypeLocBuilder &TLB,
                                                         ExtVectorTypeLoc TL) {
   const VectorType *T = TL.getTypePtr();
-  QualType ElementType = getDerived().TransformType(T->getElementType());
+  QualType ElementType = getDerived().TransformType(TLB, TL.getElementLoc());
   if (ElementType.isNull())
     return QualType();
 
@@ -5482,6 +5485,7 @@ ParmVarDecl *TreeTransform<Derived>::TransformFunctionTypeParam(
                                              /* DefArg */ nullptr);
   newParm->setScopeInfo(OldParm->getFunctionScopeDepth(),
                         OldParm->getFunctionScopeIndex() + indexAdjustment);
+  transformedLocalDecl(OldParm, {newParm});
   return newParm;
 }
 
@@ -12750,12 +12754,12 @@ TreeTransform<Derived>::TransformCXXUnresolvedConstructExpr(
 
   bool ArgumentChanged = false;
   SmallVector<Expr*, 8> Args;
-  Args.reserve(E->arg_size());
+  Args.reserve(E->getNumArgs());
   {
     EnterExpressionEvaluationContext Context(
         getSema(), EnterExpressionEvaluationContext::InitList,
         E->isListInitialization());
-    if (getDerived().TransformExprs(E->arg_begin(), E->arg_size(), true, Args,
+    if (getDerived().TransformExprs(E->arg_begin(), E->getNumArgs(), true, Args,
                                     &ArgumentChanged))
       return ExprError();
   }
@@ -13198,6 +13202,18 @@ TreeTransform<Derived>::TransformCXXFoldExpr(CXXFoldExpr *E) {
     return getDerived().RebuildCXXFoldExpr(
         Callee, E->getBeginLoc(), LHS.get(), E->getOperator(),
         E->getEllipsisLoc(), RHS.get(), E->getEndLoc(), NumExpansions);
+  }
+
+  // Formally a fold expression expands to nested parenthesized expressions.
+  // Enforce this limit to avoid creating trees so deep we can't safely traverse
+  // them.
+  if (NumExpansions && SemaRef.getLangOpts().BracketDepth < NumExpansions) {
+    SemaRef.Diag(E->getEllipsisLoc(),
+                 clang::diag::err_fold_expression_limit_exceeded)
+        << *NumExpansions << SemaRef.getLangOpts().BracketDepth
+        << E->getSourceRange();
+    SemaRef.Diag(E->getEllipsisLoc(), diag::note_bracket_depth);
+    return ExprError();
   }
 
   // The transform has determined that we should perform an elementwise
@@ -14325,11 +14341,9 @@ TreeTransform<Derived>::RebuildCXXOperatorCallExpr(OverloadedOperatorKind Op,
     SourceLocation RBrace;
 
     if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(Callee)) {
-        DeclarationNameLoc NameLoc = DRE->getNameInfo().getInfo();
-        LBrace = SourceLocation::getFromRawEncoding(
-                    NameLoc.CXXOperatorName.BeginOpNameLoc);
-        RBrace = SourceLocation::getFromRawEncoding(
-                    NameLoc.CXXOperatorName.EndOpNameLoc);
+      DeclarationNameLoc NameLoc = DRE->getNameInfo().getInfo();
+      LBrace = NameLoc.getCXXOperatorNameBeginLoc();
+      RBrace = NameLoc.getCXXOperatorNameEndLoc();
     } else {
       LBrace = Callee->getBeginLoc();
       RBrace = OpLoc;

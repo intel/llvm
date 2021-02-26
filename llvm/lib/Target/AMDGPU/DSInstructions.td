@@ -53,7 +53,7 @@ class DS_Pseudo <string opName, dag outs, dag ins, string asmOps, list<dag> patt
 }
 
 class DS_Real <DS_Pseudo ds> :
-  InstSI <ds.OutOperandList, ds.InOperandList, ds.Mnemonic # " " # ds.AsmOperands, []>,
+  InstSI <ds.OutOperandList, ds.InOperandList, ds.Mnemonic # ds.AsmOperands, []>,
   Enc64 {
 
   let isPseudo = 0;
@@ -87,7 +87,7 @@ class DS_0A1D_NORET<string opName, RegisterClass rc = VGPR_32>
 : DS_Pseudo<opName,
   (outs),
   (ins rc:$data0, offset:$offset, gds:$gds),
-  "$data0$offset$gds"> {
+  " $data0$offset$gds"> {
 
   let has_addr = 0;
   let has_data1 = 0;
@@ -98,7 +98,7 @@ class DS_1A1D_NORET<string opName, RegisterClass rc = VGPR_32>
 : DS_Pseudo<opName,
   (outs),
   (ins VGPR_32:$addr, rc:$data0, offset:$offset, gds:$gds),
-  "$addr, $data0$offset$gds"> {
+  " $addr, $data0$offset$gds"> {
 
   let has_data1 = 0;
   let has_vdst = 0;
@@ -118,7 +118,7 @@ class DS_1A2D_NORET<string opName, RegisterClass rc = VGPR_32>
 : DS_Pseudo<opName,
   (outs),
   (ins VGPR_32:$addr, rc:$data0, rc:$data1, offset:$offset, gds:$gds),
-  "$addr, $data0, $data1"#"$offset"#"$gds"> {
+  " $addr, $data0, $data1$offset$gds"> {
 
   let has_vdst = 0;
 }
@@ -138,7 +138,7 @@ class DS_1A2D_Off8_NORET <string opName, RegisterClass rc = VGPR_32>
   (outs),
   (ins VGPR_32:$addr, rc:$data0, rc:$data1,
        offset0:$offset0, offset1:$offset1, gds:$gds),
-  "$addr, $data0, $data1$offset0$offset1$gds"> {
+  " $addr, $data0, $data1$offset0$offset1$gds"> {
 
   let has_vdst = 0;
   let has_offset = 0;
@@ -157,7 +157,7 @@ class DS_1A1D_RET <string opName, RegisterClass rc = VGPR_32>
 : DS_Pseudo<opName,
   (outs rc:$vdst),
   (ins VGPR_32:$addr, rc:$data0, offset:$offset, gds:$gds),
-  "$vdst, $addr, $data0$offset$gds"> {
+  " $vdst, $addr, $data0$offset$gds"> {
 
   let hasPostISelHook = 1;
   let has_data1 = 0;
@@ -166,12 +166,12 @@ class DS_1A1D_RET <string opName, RegisterClass rc = VGPR_32>
 multiclass DS_1A1D_RET_mc <string opName, RegisterClass rc = VGPR_32,
                            string NoRetOp = ""> {
   def "" : DS_1A1D_RET<opName, rc>,
-    AtomicNoRet<NoRetOp, !if(!eq(NoRetOp, ""), 0, 1)>;
+    AtomicNoRet<NoRetOp, !ne(NoRetOp, "")>;
 
   let has_m0_read = 0 in {
     def _gfx9 : DS_1A1D_RET<opName, rc>,
       AtomicNoRet<!if(!eq(NoRetOp, ""), "", NoRetOp#"_gfx9"),
-                  !if(!eq(NoRetOp, ""), 0, 1)>;
+                  !ne(NoRetOp, "")>;
   }
 }
 
@@ -181,7 +181,7 @@ class DS_1A2D_RET<string opName,
 : DS_Pseudo<opName,
   (outs rc:$vdst),
   (ins VGPR_32:$addr, src:$data0, src:$data1, offset:$offset, gds:$gds),
-  "$vdst, $addr, $data0, $data1$offset$gds"> {
+  " $vdst, $addr, $data0, $data1$offset$gds"> {
 
   let hasPostISelHook = 1;
 }
@@ -191,11 +191,11 @@ multiclass DS_1A2D_RET_mc<string opName,
                           string NoRetOp = "",
                           RegisterClass src = rc> {
   def "" : DS_1A2D_RET<opName, rc, src>,
-    AtomicNoRet<NoRetOp, !if(!eq(NoRetOp, ""), 0, 1)>;
+    AtomicNoRet<NoRetOp, !ne(NoRetOp, "")>;
 
   let has_m0_read = 0 in {
     def _gfx9 : DS_1A2D_RET<opName, rc, src>,
-      AtomicNoRet<NoRetOp#"_gfx9", !if(!eq(NoRetOp, ""), 0, 1)>;
+      AtomicNoRet<NoRetOp#"_gfx9", !ne(NoRetOp, "")>;
   }
 }
 
@@ -205,7 +205,7 @@ class DS_1A2D_Off8_RET<string opName,
 : DS_Pseudo<opName,
   (outs rc:$vdst),
   (ins VGPR_32:$addr, src:$data0, src:$data1, offset0:$offset0, offset1:$offset1, gds:$gds),
-  "$vdst, $addr, $data0, $data1$offset0$offset1$gds"> {
+  " $vdst, $addr, $data0, $data1$offset0$offset1$gds"> {
 
   let has_offset = 0;
   let AsmMatchConverter = "cvtDSOffset01";
@@ -230,7 +230,7 @@ class DS_1A_RET<string opName, RegisterClass rc = VGPR_32, bit HasTiedOutput = 0
   !if(HasTiedOutput,
     (ins VGPR_32:$addr, ofs:$offset, gds:$gds, rc:$vdst_in),
     (ins VGPR_32:$addr, ofs:$offset, gds:$gds)),
-  "$vdst, $addr$offset$gds"> {
+  " $vdst, $addr$offset$gds"> {
   let Constraints = !if(HasTiedOutput, "$vdst = $vdst_in", "");
   let DisableEncoding = !if(HasTiedOutput, "$vdst_in", "");
   let has_data0 = 0;
@@ -252,7 +252,7 @@ class DS_1A_Off8_RET <string opName, RegisterClass rc = VGPR_32>
 : DS_Pseudo<opName,
   (outs rc:$vdst),
   (ins VGPR_32:$addr, offset0:$offset0, offset1:$offset1, gds:$gds),
-  "$vdst, $addr$offset0$offset1$gds"> {
+  " $vdst, $addr$offset0$offset1$gds"> {
 
   let has_offset = 0;
   let has_data0 = 0;
@@ -271,7 +271,7 @@ multiclass DS_1A_Off8_RET_mc <string opName, RegisterClass rc = VGPR_32> {
 class DS_1A_RET_GDS <string opName> : DS_Pseudo<opName,
   (outs VGPR_32:$vdst),
   (ins VGPR_32:$addr, offset:$offset),
-  "$vdst, $addr$offset gds"> {
+  " $vdst, $addr$offset gds"> {
 
   let has_data0 = 0;
   let has_data1 = 0;
@@ -283,7 +283,7 @@ class DS_1A_RET_GDS <string opName> : DS_Pseudo<opName,
 class DS_0A_RET <string opName> : DS_Pseudo<opName,
   (outs VGPR_32:$vdst),
   (ins offset:$offset, gds:$gds),
-  "$vdst$offset$gds"> {
+  " $vdst$offset$gds"> {
 
   let mayLoad = 1;
   let mayStore = 1;
@@ -296,7 +296,7 @@ class DS_0A_RET <string opName> : DS_Pseudo<opName,
 class DS_1A <string opName> : DS_Pseudo<opName,
   (outs),
   (ins VGPR_32:$addr, offset:$offset, gds:$gds),
-  "$addr$offset$gds"> {
+  " $addr$offset$gds"> {
 
   let mayLoad = 1;
   let mayStore = 1;
@@ -330,13 +330,13 @@ class DS_GWS <string opName, dag ins, string asmOps>
 
 class DS_GWS_0D <string opName>
 : DS_GWS<opName,
-  (ins offset:$offset, gds:$gds), "$offset gds"> {
+  (ins offset:$offset), "$offset gds"> {
   let hasSideEffects = 1;
 }
 
 class DS_GWS_1D <string opName>
 : DS_GWS<opName,
-  (ins VGPR_32:$data0, offset:$offset, gds:$gds), "$data0$offset gds"> {
+  (ins VGPR_32:$data0, offset:$offset), " $data0$offset gds"> {
 
   let has_gws_data0 = 1;
   let hasSideEffects = 1;
@@ -364,7 +364,7 @@ class DS_1A1D_PERMUTE <string opName, SDPatternOperator node = null_frag>
 : DS_Pseudo<opName,
   (outs VGPR_32:$vdst),
   (ins VGPR_32:$addr, VGPR_32:$data0, offset:$offset),
-  "$vdst, $addr, $data0$offset",
+  " $vdst, $addr, $data0$offset",
   [(set i32:$vdst,
    (node (DS1Addr1Offset i32:$addr, i16:$offset), i32:$data0))] > {
 
@@ -680,7 +680,7 @@ foreach vt = VReg_64.RegTypes in {
 defm : DSReadPat_mc <DS_READ_B64, vt, "load_align8_local">;
 }
 
-let SubtargetPredicate = isGFX7GFX8 in {
+let SubtargetPredicate = isGFX7Plus in {
 
 foreach vt = VReg_96.RegTypes in {
 defm : DSReadPat_mc <DS_READ_B96, vt, "load_align16_local">;
@@ -690,9 +690,7 @@ foreach vt = VReg_128.RegTypes in {
 defm : DSReadPat_mc <DS_READ_B128, vt, "load_align16_local">;
 }
 
-}
-
-let SubtargetPredicate = isGFX9Plus in {
+let SubtargetPredicate = HasUnalignedAccessMode in {
 
 foreach vt = VReg_96.RegTypes in {
 defm : DSReadPat_mc <DS_READ_B96, vt, "load_local">;
@@ -702,7 +700,9 @@ foreach vt = VReg_128.RegTypes in {
 defm : DSReadPat_mc <DS_READ_B128, vt, "load_local">;
 }
 
-}
+} // End SubtargetPredicate = HasUnalignedAccessMode
+
+} // End SubtargetPredicate = isGFX7Plus
 
 } // End AddedComplexity = 100
 
@@ -835,7 +835,7 @@ foreach vt = VReg_64.RegTypes in {
 defm : DSWritePat_mc <DS_WRITE_B64, vt, "store_align8_local">;
 }
 
-let SubtargetPredicate = isGFX7GFX8 in {
+let SubtargetPredicate = isGFX7Plus in {
 
 foreach vt = VReg_96.RegTypes in {
 defm : DSWritePat_mc <DS_WRITE_B96, vt, "store_align16_local">;
@@ -845,9 +845,7 @@ foreach vt = VReg_128.RegTypes in {
 defm : DSWritePat_mc <DS_WRITE_B128, vt, "store_align16_local">;
 }
 
-}
-
-let SubtargetPredicate = isGFX9Plus in {
+let SubtargetPredicate = HasUnalignedAccessMode in {
 
 foreach vt = VReg_96.RegTypes in {
 defm : DSWritePat_mc <DS_WRITE_B96, vt, "store_local">;
@@ -857,9 +855,12 @@ foreach vt = VReg_128.RegTypes in {
 defm : DSWritePat_mc <DS_WRITE_B128, vt, "store_local">;
 }
 
-}
+} // End SubtargetPredicate = HasUnalignedAccessMode
+
+} // End SubtargetPredicate = isGFX7Plus
 
 } // End AddedComplexity = 100
+
 class DSAtomicRetPat<DS_Pseudo inst, ValueType vt, PatFrag frag, bit gds=0> : GCNPat <
   (frag (DS1Addr1Offset i32:$ptr, i16:$offset), vt:$value),
   (inst $ptr, getVregSrcForVT<vt>.ret:$value, offset:$offset, (i1 gds))

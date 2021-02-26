@@ -304,7 +304,7 @@ typedef unsigned ID;
 /// the incoming type is void, we return void. If the EC represents a
 /// scalar, we return the scalar type.
 inline Type *ToVectorTy(Type *Scalar, ElementCount EC) {
-  if (Scalar->isVoidTy() || EC.isScalar())
+  if (Scalar->isVoidTy() || Scalar->isMetadataTy() || EC.isScalar())
     return Scalar;
   return VectorType::get(Scalar, EC);
 }
@@ -544,20 +544,20 @@ createSequentialMask(unsigned Start, unsigned NumInts, unsigned NumUndefs);
 /// elements, it will be padded with undefs.
 Value *concatenateVectors(IRBuilderBase &Builder, ArrayRef<Value *> Vecs);
 
-/// Given a mask vector of the form <Y x i1>, Return true if all of the
-/// elements of this predicate mask are false or undef.  That is, return true
-/// if all lanes can be assumed inactive. 
+/// Given a mask vector of i1, Return true if all of the elements of this
+/// predicate mask are known to be false or undef.  That is, return true if all
+/// lanes can be assumed inactive.
 bool maskIsAllZeroOrUndef(Value *Mask);
 
-/// Given a mask vector of the form <Y x i1>, Return true if all of the
-/// elements of this predicate mask are true or undef.  That is, return true
-/// if all lanes can be assumed active. 
+/// Given a mask vector of i1, Return true if all of the elements of this
+/// predicate mask are known to be true or undef.  That is, return true if all
+/// lanes can be assumed active.
 bool maskIsAllOneOrUndef(Value *Mask);
 
 /// Given a mask vector of the form <Y x i1>, return an APInt (of bitwidth Y)
 /// for each lane which may be active.
 APInt possiblyDemandedEltsInMask(Value *Mask);
-  
+
 /// The group of interleaved loads/stores sharing the same stride and
 /// close to each other.
 ///
@@ -620,6 +620,11 @@ public:
       return false;
     int32_t Key = *MaybeKey;
 
+    // Skip if the key is used for either the tombstone or empty special values.
+    if (DenseMapInfo<int32_t>::getTombstoneKey() == Key ||
+        DenseMapInfo<int32_t>::getEmptyKey() == Key)
+      return false;
+
     // Skip if there is already a member with the same index.
     if (Members.find(Key) != Members.end())
       return false;
@@ -655,11 +660,7 @@ public:
   /// \returns nullptr if contains no such member.
   InstTy *getMember(uint32_t Index) const {
     int32_t Key = SmallestKey + Index;
-    auto Member = Members.find(Key);
-    if (Member == Members.end())
-      return nullptr;
-
-    return Member->second;
+    return Members.lookup(Key);
   }
 
   /// Get the index for the given member. Unlike the key in the member
@@ -777,9 +778,7 @@ public:
   /// \returns nullptr if doesn't have such group.
   InterleaveGroup<Instruction> *
   getInterleaveGroup(const Instruction *Instr) const {
-    if (InterleaveGroupMap.count(Instr))
-      return InterleaveGroupMap.find(Instr)->second;
-    return nullptr;
+    return InterleaveGroupMap.lookup(Instr);
   }
 
   iterator_range<SmallPtrSetIterator<llvm::InterleaveGroup<Instruction> *>>

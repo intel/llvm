@@ -32,6 +32,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/InstructionCost.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/ScopedPrinter.h"
@@ -220,6 +221,13 @@ DiagnosticInfoOptimizationBase::Argument::Argument(StringRef Key,
   EC.print(OS);
 }
 
+DiagnosticInfoOptimizationBase::Argument::Argument(StringRef Key,
+                                                   InstructionCost C)
+    : Key(std::string(Key)) {
+  raw_string_ostream OS(Val);
+  C.print(OS);
+}
+
 DiagnosticInfoOptimizationBase::Argument::Argument(StringRef Key, DebugLoc Loc)
     : Key(std::string(Key)), Loc(Loc) {
   if (Loc) {
@@ -373,17 +381,6 @@ std::string DiagnosticInfoOptimizationBase::getMsg() const {
                                     : Args.begin() + FirstExtraArgIndex))
     OS << Arg.Val;
   return OS.str();
-}
-
-DiagnosticInfoMisExpect::DiagnosticInfoMisExpect(const Instruction *Inst,
-                                                 Twine &Msg)
-    : DiagnosticInfoWithLocationBase(DK_MisExpect, DS_Warning,
-                                     *Inst->getParent()->getParent(),
-                                     Inst->getDebugLoc()),
-      Msg(Msg) {}
-
-void DiagnosticInfoMisExpect::print(DiagnosticPrinter &DP) const {
-  DP << getLocationStr() << ": " << getMsg();
 }
 
 void OptimizationRemarkAnalysisFPCommute::anchor() {}

@@ -39,28 +39,24 @@
 //===----------------------------------------------------------------------===//
 #define DEBUG_TYPE "spv-lower-llvm_sadd_with_overflow"
 
-#include "LLVMSPIRVLib.h"
 #include "LLVMSaddWithOverflow.h"
+
+#include "LLVMSPIRVLib.h"
 #include "SPIRVError.h"
+#include "libSPIRV/SPIRVDebug.h"
+
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/Verifier.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Debug.h"
+#include "llvm/Support/SourceMgr.h"
 
 using namespace llvm;
 using namespace SPIRV;
 
 namespace SPIRV {
-cl::opt<bool> SPIRVLowerSaddWithOverflowValidate(
-    "spv-lower-saddwithoverflow-validate",
-    cl::desc("Validate module after lowering llvm.sadd.with.overflow.*"
-             "intrinsics"));
-
 class SPIRVLowerSaddWithOverflow
     : public ModulePass,
       public InstVisitor<SPIRVLowerSaddWithOverflow> {
@@ -125,15 +121,7 @@ public:
     Mod = &M;
     visit(M);
 
-    if (SPIRVLowerSaddWithOverflowValidate) {
-      LLVM_DEBUG(dbgs() << "After SPIRVLowerSaddWithOverflow:\n" << M);
-      std::string Err;
-      raw_string_ostream ErrorOS(Err);
-      if (verifyModule(M, &ErrorOS)) {
-        Err = std::string("Fails to verify module: ") + Err;
-        report_fatal_error(Err.c_str(), false);
-      }
-    }
+    verifyRegularizationPass(M, "SPIRVLowerSaddWithOverflow");
     return TheModuleIsModified;
   }
 

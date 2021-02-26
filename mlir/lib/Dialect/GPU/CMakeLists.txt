@@ -1,6 +1,7 @@
 add_mlir_dialect_library(MLIRGPU
   IR/GPUDialect.cpp
   Transforms/AllReduceLowering.cpp
+  Transforms/AsyncRegionRewriter.cpp
   Transforms/KernelOutlining.cpp
   Transforms/MemoryPromotion.cpp
   Transforms/ParallelLoopMapper.cpp
@@ -10,18 +11,20 @@ add_mlir_dialect_library(MLIRGPU
 
   DEPENDS
   MLIRGPUOpsIncGen
+  MLIRGPUOpInterfacesIncGen
   MLIRGPUPassIncGen
   MLIRParallelLoopMapperAttrGen
   MLIRParallelLoopMapperEnumsGen
 
   LINK_LIBS PUBLIC
+  MLIRAsync
   MLIREDSC
   MLIRIR
   MLIRLLVMIR
   MLIRSCF
   MLIRPass
   MLIRSideEffectInterfaces
-  MLIRStandardOps
+  MLIRStandard
   MLIRSupport
   MLIRTransformUtils
   )

@@ -1,13 +1,13 @@
 ; XFAIL: *
 
-; RUN: opt -S -basic-aa -dse -enable-dse-memoryssa < %s | FileCheck %s
+; RUN: opt -S -basic-aa -dse < %s | FileCheck %s
 
 ; We DSE stack alloc'ed and byval locations, in the presence of fences.
 ; Fence does not make an otherwise thread local store visible.
 ; Right now the DSE in presence of fence is only done in end blocks (with no successors),
 ; but the same logic applies to other basic blocks as well.
 ; The store to %addr.i can be removed since it is a byval attribute
-define void @test3(i32* byval %addr.i) {
+define void @test3(i32* byval(i32) %addr.i) {
 ; CHECK-LABEL: @test3
 ; CHECK-NOT: store
 ; CHECK: fence

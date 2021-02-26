@@ -66,7 +66,8 @@ TEST_F(CudaTestMemObj, piMemBufferCreateSimple) {
   const size_t memSize = 1024u;
   pi_mem memObj;
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemBufferCreate>(
-                context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj)),
+                context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj,
+                nullptr)),
             PI_SUCCESS);
 
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemRelease>(memObj)),
@@ -78,7 +79,7 @@ TEST_F(CudaTestMemObj, piMemBufferAllocHost) {
   pi_mem memObj;
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemBufferCreate>(
                 context_, PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_ALLOC,
-                memSize, nullptr, &memObj)),
+                memSize, nullptr, &memObj, nullptr)),
             PI_SUCCESS);
 
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemRelease>(memObj)),
@@ -106,7 +107,8 @@ TEST_F(CudaTestMemObj, piMemBufferCreateNoActiveContext) {
   // to allocate the memory object
   pi_mem memObj;
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemBufferCreate>(
-                context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj)),
+                context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj,
+                nullptr)),
             PI_SUCCESS);
   ASSERT_NE(memObj, nullptr);
 
@@ -128,7 +130,7 @@ TEST_F(CudaTestMemObj, piMemBufferPinnedMappedRead) {
   pi_mem memObj;
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemBufferCreate>(
                 context_, PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_ALLOC,
-                memSize, nullptr, &memObj)),
+                memSize, nullptr, &memObj, nullptr)),
             PI_SUCCESS);
 
   ASSERT_EQ(
@@ -138,7 +140,7 @@ TEST_F(CudaTestMemObj, piMemBufferPinnedMappedRead) {
 
   int *host_ptr = nullptr;
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferMap>(
-                queue, memObj, true, CL_MAP_READ, 0, sizeof(int), 0, nullptr,
+                queue, memObj, true, PI_MAP_READ, 0, sizeof(int), 0, nullptr,
                 nullptr, (void **)&host_ptr)),
             PI_SUCCESS);
 
@@ -167,12 +169,12 @@ TEST_F(CudaTestMemObj, piMemBufferPinnedMappedWrite) {
   pi_mem memObj;
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemBufferCreate>(
                 context_, PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_ALLOC,
-                memSize, nullptr, &memObj)),
+                memSize, nullptr, &memObj, nullptr)),
             PI_SUCCESS);
 
   int *host_ptr = nullptr;
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferMap>(
-                queue, memObj, true, CL_MAP_WRITE, 0, sizeof(int), 0, nullptr,
+                queue, memObj, true, PI_MAP_WRITE, 0, sizeof(int), 0, nullptr,
                 nullptr, (void **)&host_ptr)),
             PI_SUCCESS);
 

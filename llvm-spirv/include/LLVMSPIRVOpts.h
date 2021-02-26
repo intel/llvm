@@ -148,9 +148,25 @@ public:
     SPIRVAllowUnknownIntrinsics = AllowUnknownIntrinsics;
   }
 
+  bool allowExtraDIExpressions() const noexcept {
+    return AllowExtraDIExpressions;
+  }
+
+  void setAllowExtraDIExpressionsEnabled(bool Allow) noexcept {
+    AllowExtraDIExpressions = Allow;
+  }
+
   DebugInfoEIS getDebugInfoEIS() const { return DebugInfoVersion; }
 
   void setDebugInfoEIS(DebugInfoEIS EIS) { DebugInfoVersion = EIS; }
+
+  bool shouldReplaceLLVMFmulAddWithOpenCLMad() const noexcept {
+    return ReplaceLLVMFmulAddWithOpenCLMad;
+  }
+
+  void setReplaceLLVMFmulAddWithOpenCLMad(bool Value) noexcept {
+    ReplaceLLVMFmulAddWithOpenCLMad = Value;
+  }
 
 private:
   // Common translation options
@@ -179,7 +195,15 @@ private:
   // SPIR-V
   bool SPIRVAllowUnknownIntrinsics = false;
 
+  // Enable support for extra DIExpression opcodes not listed in the SPIR-V
+  // DebugInfo specification.
+  bool AllowExtraDIExpressions = false;
+
   DebugInfoEIS DebugInfoVersion = DebugInfoEIS::OpenCL_DebugInfo_100;
+
+  // Controls whether llvm.fmuladd.* should be replaced with mad from OpenCL
+  // extended instruction set or with a simple fmul + fadd
+  bool ReplaceLLVMFmulAddWithOpenCLMad = true;
 };
 
 } // namespace SPIRV

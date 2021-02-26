@@ -128,11 +128,6 @@ struct fn_list {
 struct fn_list writeout_fn_list;
 
 /*
- *  A list of flush functions that our __gcov_flush() function should call, shared between all dynamic objects.
- */
-struct fn_list flush_fn_list;
-
-/*
  *  A list of reset functions, shared between all dynamic objects.
  */
 struct fn_list reset_fn_list;
@@ -308,16 +303,11 @@ static void unmap_file() {
 
   mmap_handle = NULL;
 #else
-  if (msync(write_buffer, file_size, MS_SYNC) == -1) {
+  if (munmap(write_buffer, file_size) == -1) {
     int errnum = errno;
-    fprintf(stderr, "profiling: %s: cannot msync: %s\n", filename,
+    fprintf(stderr, "profiling: %s: cannot munmap: %s\n", filename,
             strerror(errnum));
   }
-
-  /* We explicitly ignore errors from unmapping because at this point the data
-   * is written and we don't care.
-   */
-  (void)munmap(write_buffer, file_size);
 #endif
 
   write_buffer = NULL;
@@ -403,32 +393,6 @@ void llvm_gcda_start_file(const char *orig_filename, uint32_t version,
 
 #ifdef DEBUG_GCDAPROFILING
   fprintf(stderr, "llvmgcda: [%s]\n", orig_filename);
-#endif
-}
-
-/* Given an array of pointers to counters (counters), increment the n-th one,
- * where we're also given a pointer to n (predecessor).
- */
-COMPILER_RT_VISIBILITY
-void llvm_gcda_increment_indirect_counter(uint32_t *predecessor,
-                                          uint64_t **counters) {
-  uint64_t *counter;
-  uint32_t pred;
-
-  pred = *predecessor;
-  if (pred == 0xffffffff)
-    return;
-  counter = counters[pred];
-
-  /* Don't crash if the pred# is out of sync. This can happen due to threads,
-     or because of a TODO in GCOVProfiling.cpp buildEdgeLookupTable(). */
-  if (counter)
-    ++*counter;
-#ifdef DEBUG_GCDAPROFILING
-  else
-    fprintf(stderr,
-            "llvmgcda: increment_indirect_counter counters=%08llx, pred=%u\n",
-            *counter, *predecessor);
 #endif
 }
 

@@ -81,24 +81,18 @@ test0:
     # TODO: enable once instruction has been added.
     #i32x4.trunc_sat_f32x4_s
     i32.trunc_f32_s
-    try         exnref
+    try
     i32.atomic.load 0
-    atomic.notify 0
+    memory.atomic.notify 0
 .LBB0_3:
-    catch
+    catch       __cpp_exception
     local.set   0
-    block       i32
-    local.get   0
-    br_on_exn   0, __cpp_exception
-    rethrow
-.LBB0_4:
-    end_block
     end_try
     i32.const   .L.str
     i32.load8_u .L.str+2
     i32.load16_u .L.str:p2align=0
     throw 0
-.LBB0_5:
+.LBB0_4:
     #i32.trunc_sat_f32_s
     global.get  __stack_pointer
     end_function
@@ -121,6 +115,13 @@ test0:
     .ident      "clang version 9.0.0 (trunk 364502) (llvm/trunk 364571)"
     .globaltype __stack_pointer, i32
 
+.tabletype empty_eref_table, externref
+empty_eref_table:       
+
+.tabletype empty_fref_table, funcref
+empty_fref_table:       
+
+        
 # CHECK:           .text
 # CHECK-LABEL: empty_func:
 # CHECK-NEXT:      .functype	empty_func () -> ()
@@ -192,24 +193,18 @@ test0:
 # CHECK-NEXT:      end_if
 # CHECK-NEXT:      f32x4.add
 # CHECK-NEXT:      i32.trunc_f32_s
-# CHECK-NEXT:      try         exnref
+# CHECK-NEXT:      try
 # CHECK-NEXT:      i32.atomic.load 0
-# CHECK-NEXT:      atomic.notify 0
+# CHECK-NEXT:      memory.atomic.notify 0
 # CHECK-NEXT:  .LBB0_3:
-# CHECK-NEXT:      catch
+# CHECK-NEXT:      catch       __cpp_exception
 # CHECK-NEXT:      local.set   0
-# CHECK-NEXT:      block       i32
-# CHECK-NEXT:      local.get   0
-# CHECK-NEXT:      br_on_exn   0, __cpp_exception
-# CHECK-NEXT:      rethrow
-# CHECK-NEXT:  .LBB0_4:
-# CHECK-NEXT:      end_block
 # CHECK-NEXT:      end_try
 # CHECK-NEXT:      i32.const   .L.str
 # CHECK-NEXT:      i32.load8_u .L.str+2
 # CHECK-NEXT:      i32.load16_u .L.str:p2align=0
 # CHECK-NEXT:      throw       0
-# CHECK-NEXT:  .LBB0_5:
+# CHECK-NEXT:  .LBB0_4:
 # CHECK-NEXT:      global.get  __stack_pointer
 # CHECK-NEXT:      end_function
 
@@ -228,3 +223,9 @@ test0:
 # CHECK-NEXT:      .int32      test0
 
 # CHECK:           .globaltype __stack_pointer, i32
+
+# CHECK:           .tabletype empty_eref_table, externref
+# CHECK-NEXT: empty_eref_table:
+        
+# CHECK:           .tabletype empty_fref_table, funcref
+# CHECK-NEXT: empty_fref_table:

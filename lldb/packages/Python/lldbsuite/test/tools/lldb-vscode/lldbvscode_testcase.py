@@ -282,7 +282,8 @@ class VSCodeTestCaseBase(TestBase):
                trace=False, initCommands=None, preRunCommands=None,
                stopCommands=None, exitCommands=None, terminateCommands=None,
                sourcePath=None, debuggerRoot=None, launchCommands=None,
-               sourceMap=None, disconnectAutomatically=True):
+               sourceMap=None, disconnectAutomatically=True, runInTerminal=False,
+               expectFailure=False):
         '''Sending launch request to vscode
         '''
 
@@ -316,10 +317,22 @@ class VSCodeTestCaseBase(TestBase):
             sourcePath=sourcePath,
             debuggerRoot=debuggerRoot,
             launchCommands=launchCommands,
-            sourceMap=sourceMap)
+            sourceMap=sourceMap,
+            runInTerminal=runInTerminal,
+            expectFailure=expectFailure)
+
+        if expectFailure:
+            return response
+
         if not (response and response['success']):
             self.assertTrue(response['success'],
                             'launch failed (%s)' % (response['message']))
+        # We need to trigger a request_configurationDone after we've successfully
+        # attached a runInTerminal process to finish initialization.
+        if runInTerminal:
+            self.vscode.request_configurationDone()
+        return response
+
 
     def build_and_launch(self, program, args=None, cwd=None, env=None,
                          stopOnEntry=False, disableASLR=True,
@@ -327,14 +340,14 @@ class VSCodeTestCaseBase(TestBase):
                          trace=False, initCommands=None, preRunCommands=None,
                          stopCommands=None, exitCommands=None,
                          terminateCommands=None, sourcePath=None,
-                         debuggerRoot=None):
+                         debuggerRoot=None, runInTerminal=False):
         '''Build the default Makefile target, create the VSCode debug adaptor,
            and launch the process.
         '''
         self.build_and_create_debug_adaptor()
         self.assertTrue(os.path.exists(program), 'executable must exist')
 
-        self.launch(program, args, cwd, env, stopOnEntry, disableASLR,
+        return self.launch(program, args, cwd, env, stopOnEntry, disableASLR,
                     disableSTDIO, shellExpandArguments, trace,
                     initCommands, preRunCommands, stopCommands, exitCommands,
-                    terminateCommands, sourcePath, debuggerRoot)
+                    terminateCommands, sourcePath, debuggerRoot, runInTerminal=runInTerminal)

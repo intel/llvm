@@ -342,6 +342,8 @@ void MemorySSAUpdater::insertDef(MemoryDef *MD, bool RenameUses) {
 
   SmallVector<WeakVH, 8> FixupList(InsertedPHIs.begin(), InsertedPHIs.end());
 
+  SmallSet<WeakVH, 8> ExistingPhis;
+
   // Remember the index where we may insert new phis.
   unsigned NewPhiIndex = InsertedPHIs.size();
   if (!DefBeforeSameBlock) {
@@ -382,6 +384,8 @@ void MemorySSAUpdater::insertDef(MemoryDef *MD, bool RenameUses) {
       if (!MPhi) {
         MPhi = MSSA->createMemoryPhi(BBIDF);
         NewInsertedPHIs.push_back(MPhi);
+      } else {
+        ExistingPhis.insert(MPhi);
       }
       // Add the phis created into the IDF blocks to NonOptPhis, so they are not
       // optimized out as trivial by the call to getPreviousDefFromEnd below.
@@ -427,10 +431,11 @@ void MemorySSAUpdater::insertDef(MemoryDef *MD, bool RenameUses) {
   if (NewPhiSize)
     tryRemoveTrivialPhis(ArrayRef<WeakVH>(&InsertedPHIs[NewPhiIndex], NewPhiSize));
 
-  // Now that all fixups are done, rename all uses if we are asked.
-  if (RenameUses) {
+  // Now that all fixups are done, rename all uses if we are asked. Skip
+  // renaming for defs in unreachable blocks.
+  BasicBlock *StartBlock = MD->getBlock();
+  if (RenameUses && MSSA->getDomTree().getNode(StartBlock)) {
     SmallPtrSet<BasicBlock *, 16> Visited;
-    BasicBlock *StartBlock = MD->getBlock();
     // We are guaranteed there is a def in the block, because we just got it
     // handed to us in this function.
     MemoryAccess *FirstDef = &*MSSA->getWritableBlockDefs(StartBlock)->begin();
@@ -443,6 +448,13 @@ void MemorySSAUpdater::insertDef(MemoryDef *MD, bool RenameUses) {
     // We just inserted a phi into this block, so the incoming value will become
     // the phi anyway, so it does not matter what we pass.
     for (auto &MP : InsertedPHIs) {
+      MemoryPhi *Phi = dyn_cast_or_null<MemoryPhi>(MP);
+      if (Phi)
+        MSSA->renamePass(Phi->getBlock(), nullptr, Visited);
+    }
+    // Existing Phi blocks may need renaming too, if an access was previously
+    // optimized and the inserted Defs "covers" the Optimized value.
+    for (auto &MP : ExistingPhis) {
       MemoryPhi *Phi = dyn_cast_or_null<MemoryPhi>(MP);
       if (Phi)
         MSSA->renamePass(Phi->getBlock(), nullptr, Visited);
@@ -799,7 +811,7 @@ void MemorySSAUpdater::updateExitBlocksForClonedLoop(
 }
 
 void MemorySSAUpdater::applyUpdates(ArrayRef<CFGUpdate> Updates,
-                                    DominatorTree &DT) {
+                                    DominatorTree &DT, bool UpdateDT) {
   SmallVector<CFGUpdate, 4> DeleteUpdates;
   SmallVector<CFGUpdate, 4> RevDeleteUpdates;
   SmallVector<CFGUpdate, 4> InsertUpdates;
@@ -813,10 +825,15 @@ void MemorySSAUpdater::applyUpdates(ArrayRef<CFGUpdate> Updates,
   }
 
   if (!DeleteUpdates.empty()) {
-    SmallVector<CFGUpdate, 0> Empty;
-    // Deletes are reversed applied, because this CFGView is pretending the
-    // deletes did not happen yet, hence the edges still exist.
-    DT.applyUpdates(Empty, RevDeleteUpdates);
+    if (!UpdateDT) {
+      SmallVector<CFGUpdate, 0> Empty;
+      // Deletes are reversed applied, because this CFGView is pretending the
+      // deletes did not happen yet, hence the edges still exist.
+      DT.applyUpdates(Empty, RevDeleteUpdates);
+    } else {
+      // Apply all updates, with the RevDeleteUpdates as PostCFGView.
+      DT.applyUpdates(Updates, RevDeleteUpdates);
+    }
 
     // Note: the MSSA update below doesn't distinguish between a GD with
     // (RevDelete,false) and (Delete, true), but this matters for the DT
@@ -828,6 +845,8 @@ void MemorySSAUpdater::applyUpdates(ArrayRef<CFGUpdate> Updates,
     // the standard update without a postview of the CFG.
     DT.applyUpdates(DeleteUpdates);
   } else {
+    if (UpdateDT)
+      DT.applyUpdates(Updates);
     GraphDiff<BasicBlock *> GD;
     applyInsertUpdates(InsertUpdates, DT, &GD);
   }
@@ -1322,6 +1341,7 @@ void MemorySSAUpdater::removeMemoryAccess(MemoryAccess *MA, bool OptimizePhis) {
     // Note: We assume MemorySSA is not used in metadata since it's not really
     // part of the IR.
 
+    assert(NewDefTarget != MA && "Going into an infinite loop");
     while (!MA->use_empty()) {
       Use &U = *MA->use_begin();
       if (auto *MUD = dyn_cast<MemoryUseOrDef>(U.getUser()))

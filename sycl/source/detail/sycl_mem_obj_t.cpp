@@ -99,6 +99,35 @@ size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
       sizeof(size_t), &BufSize, nullptr);
   return BufSize;
 }
+
+void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
+                                   bool InitFromUserData, void *&HostPtr,
+                                   bool &HostPtrReadOnly) {
+  // The data for the allocation can be provided via either the user pointer
+  // (InitFromUserData, can be read-only) or a runtime-allocated read-write
+  // HostPtr. We can have one of these scenarios:
+  // 1. The allocation is the first one and on host. InitFromUserData == true.
+  // 2. The allocation is the first one and isn't on host. InitFromUserData
+  // varies based on unified host memory support and whether or not the data can
+  // be discarded.
+  // 3. The allocation is not the first one and is on host. InitFromUserData ==
+  // false, HostPtr == nullptr. This can only happen if the allocation command
+  // is not linked since it would be a no-op otherwise. Attempt to reuse the
+  // user pointer if it's read-write, but do not copy its contents if it's not.
+  // 4. The allocation is not the first one and not on host. InitFromUserData ==
+  // false, HostPtr is provided if the command is linked. The host pointer is
+  // guaranteed to be reused in this case.
+  if (Context->is_host() && !MOpenCLInterop && !MHostPtrReadOnly)
+    InitFromUserData = true;
+
+  if (InitFromUserData) {
+    assert(!HostPtr && "Cannot init from user data and reuse host ptr provided "
+                       "simultaneously");
+    HostPtr = getUserPtr();
+    HostPtrReadOnly = MHostPtrReadOnly;
+  } else
+    HostPtrReadOnly = false;
+}
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

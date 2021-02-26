@@ -16,6 +16,7 @@
 
 #include "Opts.inc"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Config/config.h"
 #include "llvm/DebugInfo/Symbolize/DIPrinter.h"
 #include "llvm/DebugInfo/Symbolize/Symbolize.h"
 #include "llvm/Option/Arg.h"
@@ -288,7 +289,13 @@ int main(int argc, char **argv) {
   Opts.RelativeAddresses = Args.hasArg(OPT_relative_address);
   Opts.UntagAddresses =
       Args.hasFlag(OPT_untag_addresses, OPT_no_untag_addresses, !IsAddr2Line);
-  Opts.UseNativePDBReader = Args.hasArg(OPT_use_native_pdb_reader);
+  Opts.UseDIA = Args.hasArg(OPT_use_dia);
+#if !defined(LLVM_ENABLE_DIA_SDK)
+  if (Opts.UseDIA) {
+    WithColor::warning() << "DIA not available; using native PDB reader\n";
+    Opts.UseDIA = false;
+  }
+#endif
   Opts.UseSymbolTable = true;
 
   for (const opt::Arg *A : Args.filtered(OPT_dsym_hint_EQ)) {
@@ -322,10 +329,8 @@ int main(int argc, char **argv) {
     while (fgets(InputString, sizeof(InputString), stdin)) {
       // Strip newline characters.
       std::string StrippedInputString(InputString);
-      StrippedInputString.erase(
-          std::remove_if(StrippedInputString.begin(), StrippedInputString.end(),
-                         [](char c) { return c == '\r' || c == '\n'; }),
-          StrippedInputString.end());
+      llvm::erase_if(StrippedInputString,
+                     [](char c) { return c == '\r' || c == '\n'; });
       symbolizeInput(Args, AdjustVMA, IsAddr2Line, OutputStyle,
                      StrippedInputString, Symbolizer, Printer);
       outs().flush();

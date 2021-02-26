@@ -126,13 +126,13 @@ public:
 
   /// \return an OpenCL interoperability queue handle.
   cl_command_queue get() {
-    if (!MHostQueue) {
-      getPlugin().call<PiApiKind::piQueueRetain>(MQueues[0]);
-      return pi::cast<cl_command_queue>(MQueues[0]);
+    if (MHostQueue || getPlugin().getBackend() != cl::sycl::backend::opencl) {
+      throw invalid_object_error(
+          "This instance of queue doesn't support OpenCL interoperability",
+          PI_INVALID_QUEUE);
     }
-    throw invalid_object_error(
-        "This instance of queue doesn't support OpenCL interoperability",
-        PI_INVALID_QUEUE);
+    getPlugin().call<PiApiKind::piQueueRetain>(MQueues[0]);
+    return pi::cast<cl_command_queue>(MQueues[0]);
   }
 
   /// \return an associated SYCL context.
@@ -142,7 +142,7 @@ public:
 
   const plugin &getPlugin() const { return MContext->getPlugin(); }
 
-  ContextImplPtr getContextImplPtr() const { return MContext; }
+  const ContextImplPtr &getContextImplPtr() const { return MContext; }
 
   /// \return an associated SYCL device.
   device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
@@ -226,7 +226,7 @@ public:
     exception_list Exceptions;
     {
       std::lock_guard<mutex_class> Lock(MMutex);
-      Exceptions = std::move(MExceptions);
+      std::swap(Exceptions, MExceptions);
     }
     // Unlock the mutex before calling user-provided handler to avoid
     // potential deadlock if the same queue is somehow referenced in the
@@ -366,6 +366,12 @@ public:
     return *MHostTaskThreadPool;
   }
 
+  void stopThreadPool() {
+    if (MHostTaskThreadPool) {
+      MHostTaskThreadPool->finishAndWait();
+    }
+  }
+
   /// Gets the native handle of the SYCL queue.
   ///
   /// \return a native handle.
@@ -400,10 +406,12 @@ private:
 
   void initHostTaskAndEventCallbackThreadPool();
 
-  /// Stores a USM operation event that should be associated with the queue
+  /// queue_impl.addEvent tracks events with weak pointers
+  /// but some events have no other owners. addSharedEvent()
+  /// follows events with a shared pointer.
   ///
   /// \param Event is the event to be stored
-  void addUSMEvent(const event &Event);
+  void addSharedEvent(const event &Event);
 
   /// Stores an event that should be associated with the queue
   ///
@@ -415,10 +423,14 @@ private:
 
   DeviceImplPtr MDevice;
   const ContextImplPtr MContext;
-  vector_class<std::weak_ptr<event_impl>> MEvents;
-  // USM operations are not added to the scheduler command graph,
-  // queue is the only owner on the runtime side.
-  vector_class<event> MUSMEvents;
+
+  /// These events are tracked, but not owned, by the queue.
+  vector_class<std::weak_ptr<event_impl>> MEventsWeak;
+
+  /// Events without data dependencies (such as USM) need an owner,
+  /// additionally, USM operations are not added to the scheduler command graph,
+  /// queue is the only owner on the runtime side.
+  vector_class<event> MEventsShared;
   exception_list MExceptions;
   const async_handler MAsyncHandler;
   const property_list MPropList;

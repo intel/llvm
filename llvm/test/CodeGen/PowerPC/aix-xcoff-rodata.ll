@@ -1,13 +1,15 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc-ibm-aix-xcoff  < %s | FileCheck --check-prefixes=CHECK,CHECK32 %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc64-ibm-aix-xcoff < %s | FileCheck --check-prefixes=CHECK,CHECK64 %s
+; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc-ibm-aix-xcoff -data-sections=false < %s | \
+; RUN:   FileCheck --check-prefixes=CHECK,CHECK32 %s
+; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc64-ibm-aix-xcoff -data-sections=false < %s | \
+; RUN:   FileCheck --check-prefixes=CHECK,CHECK64 %s
 
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc-ibm-aix-xcoff -filetype=obj -o %t.o < %s
+; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc-ibm-aix-xcoff -data-sections=false -filetype=obj -o %t.o < %s
 ; RUN: llvm-readobj --section-headers --file-header %t.o | \
 ; RUN: FileCheck --check-prefix=OBJ %s
 ; RUN: llvm-readobj --syms %t.o | FileCheck --check-prefix=SYMS %s
 ; RUN: llvm-objdump -D %t.o | FileCheck --check-prefix=DIS %s
 
-; RUN: not --crash llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc64-ibm-aix-xcoff -filetype=obj < %s 2>&1 | \
+; RUN: not --crash llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc64-ibm-aix-xcoff -data-sections=false -filetype=obj < %s 2>&1 | \
 ; RUN: FileCheck --check-prefix=XCOFF64 %s
 ; XCOFF64: LLVM ERROR: 64-bit XCOFF object files are not supported yet.
 
@@ -53,10 +55,7 @@
 ; CHECK64-NEXT:        .vbyte	8, 0x408c200000000000
 ; CHECK-NEXT:          .globl  const_chrarray
 ; CHECK-NEXT:  const_chrarray:
-; CHECK-NEXT:          .byte   97
-; CHECK-NEXT:          .byte   98
-; CHECK-NEXT:          .byte   99
-; CHECK-NEXT:          .byte   100
+; CHECK-NEXT:          .byte   'a,'b,'c,'d
 ; CHECK-NEXT:          .globl  const_dblarr
 ; CHECK-NEXT:          .align  3
 ; CHECK-NEXT:  const_dblarr:

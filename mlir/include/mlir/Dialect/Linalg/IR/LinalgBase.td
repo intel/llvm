@@ -31,6 +31,10 @@ def Linalg_Dialect : Dialect {
     are also available and should be read first before going in the details of
     the op semantics.
   }];
+  let cppNamespace = "::mlir::linalg";
+  let dependentDialects = [
+    "AffineDialect", "StandardOpsDialect", "tensor::TensorDialect"
+  ];
 }
 
 // Whether a type is a RangeType.

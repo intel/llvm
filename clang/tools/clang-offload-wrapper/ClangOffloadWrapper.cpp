@@ -218,9 +218,9 @@ static StringRef offloadKindToString(OffloadKind Kind) {
     return "hip";
   case OffloadKind::SYCL:
     return "sycl";
-  default:
-    llvm_unreachable("bad offload kind");
   }
+  llvm_unreachable("bad offload kind");
+
   return "<ERROR>";
 }
 
@@ -234,9 +234,9 @@ static StringRef formatToString(BinaryImageFormat Fmt) {
     return "llvmbc";
   case BinaryImageFormat::native:
     return "native";
-  default:
-    llvm_unreachable("bad format");
   }
+  llvm_unreachable("bad format");
+
   return "<ERROR>";
 }
 
@@ -625,19 +625,6 @@ private:
   std::pair<Constant *, Constant *>
   addDeviceImageToModule(ArrayRef<char> Buf, const Twine &Name,
                          OffloadKind Kind, StringRef TargetTriple) {
-    // Do not bother adding 'size' section if target triple was not provided
-    // since we anyway won't be able to construct what bundler expects to see in
-    // the fat object.
-    if (!TargetTriple.empty()) {
-      // Create global data object for the image size.
-      size_t BufSize = Buf.size();
-      addGlobalArrayVariable(
-          Name + ".size",
-          makeArrayRef(reinterpret_cast<char *>(&BufSize), sizeof(BufSize)),
-          "__CLANG_OFFLOAD_BUNDLE_SIZE__" + offloadKindToString(Kind) + "-" +
-              TargetTriple);
-    }
-
     // Create global variable for the image data.
     return addArrayToModule(Buf, Name,
                             TargetTriple.empty()

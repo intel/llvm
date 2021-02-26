@@ -71,7 +71,7 @@ void StructEmit() {
 }
 
 void BitfieldAssignment() {
-  // LIN: define void @_Z18BitfieldAssignmentv
+  // LIN: define{{.*}} void @_Z18BitfieldAssignmentv
   // WIN: define dso_local void  @"?BitfieldAssignment@@YAXXZ"
   BitFieldsByte B;
   B.A = 3;
@@ -98,7 +98,7 @@ enum AsEnumUnderlyingType : _ExtInt(9) {
 };
 
 void UnderlyingTypeUsage(AsEnumUnderlyingType Param) {
-  // LIN: define void @_Z19UnderlyingTypeUsage20AsEnumUnderlyingType(i9 signext %
+  // LIN: define{{.*}} void @_Z19UnderlyingTypeUsage20AsEnumUnderlyingType(i9 signext %
   // WIN: define dso_local void @"?UnderlyingTypeUsage@@YAXW4AsEnumUnderlyingType@@@Z"(i9 %
   AsEnumUnderlyingType Var;
   // CHECK: alloca i9, align 2
@@ -106,13 +106,13 @@ void UnderlyingTypeUsage(AsEnumUnderlyingType Param) {
 }
 
 unsigned _ExtInt(33) ManglingTestRetParam(unsigned _ExtInt(33) Param) {
-// LIN: define i64 @_Z20ManglingTestRetParamU7_ExtIntILi33EEj(i64 %
+// LIN: define{{.*}} i64 @_Z20ManglingTestRetParamU7_ExtIntILi33EEj(i64 %
 // WIN: define dso_local i33 @"?ManglingTestRetParam@@YAU?$_UExtInt@$0CB@@__clang@@U12@@Z"(i33
   return 0;
 }
 
 _ExtInt(33) ManglingTestRetParam(_ExtInt(33) Param) {
-// LIN: define i64 @_Z20ManglingTestRetParamU7_ExtIntILi33EEi(i64 %
+// LIN: define{{.*}} i64 @_Z20ManglingTestRetParamU7_ExtIntILi33EEi(i64 %
 // WIN: define dso_local i33 @"?ManglingTestRetParam@@YAU?$_ExtInt@$0CB@@__clang@@U12@@Z"(i33
   return 0;
 }
@@ -123,7 +123,7 @@ template<_ExtInt(99) T>
 void ManglingTestNTTP();
 
 void ManglingInstantiator() {
-  // LIN: define void @_Z20ManglingInstantiatorv()
+  // LIN: define{{.*}} void @_Z20ManglingInstantiatorv()
   // WIN: define dso_local void @"?ManglingInstantiator@@YAXXZ"()
   _ExtInt(93) A;
   ManglingTestTemplateParam(A);
@@ -139,7 +139,7 @@ void ManglingInstantiator() {
 }
 
 void TakesVarargs(int i, ...) {
-  // LIN: define void @_Z12TakesVarargsiz(i32 %i, ...)
+  // LIN: define{{.*}} void @_Z12TakesVarargsiz(i32 %i, ...)
   // WIN: define dso_local void @"?TakesVarargs@@YAXHZZ"(i32 %i, ...)
 
   __builtin_va_list args;
@@ -246,34 +246,34 @@ void TakesVarargs(int i, ...) {
   // WIN: call void @llvm.va_end(i8* %[[ARGSEND]])
 }
 void typeid_tests() {
-  // LIN: define void @_Z12typeid_testsv()
+  // LIN: define{{.*}} void @_Z12typeid_testsv()
   // WIN: define dso_local void @"?typeid_tests@@YAXXZ"()
   unsigned _ExtInt(33) U33_1, U33_2;
   _ExtInt(33) S33_1, S33_2;
   _ExtInt(32) S32_1, S32_2;
 
  auto A = typeid(U33_1);
- // LIN: call void @_ZNSt9type_infoC1ERKS_(%"class.std::type_info"* %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast ({ i8*, i8* }* @_ZTIU7_ExtIntILi33EEj to %"class.std::type_info"*))
- // WIN: call %"class.std::type_info"* @"??0type_info@std@@QEAA@AEBV01@@Z"(%"class.std::type_info"* %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast (%rtti.TypeDescriptor28* @"??_R0U?$_UExtInt@$0CB@@__clang@@@8" to %"class.std::type_info"*))
+ // LIN: call void @_ZNSt9type_infoC1ERKS_(%"class.std::type_info"* {{[^,]*}} %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast ({ i8*, i8* }* @_ZTIU7_ExtIntILi33EEj to %"class.std::type_info"*))
+ // WIN: call %"class.std::type_info"* @"??0type_info@std@@QEAA@AEBV01@@Z"(%"class.std::type_info"* {{[^,]*}} %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast (%rtti.TypeDescriptor28* @"??_R0U?$_UExtInt@$0CB@@__clang@@@8" to %"class.std::type_info"*))
  auto B = typeid(U33_2);
- // LIN: call void @_ZNSt9type_infoC1ERKS_(%"class.std::type_info"* %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast ({ i8*, i8* }* @_ZTIU7_ExtIntILi33EEj to %"class.std::type_info"*))
- // WIN:  call %"class.std::type_info"* @"??0type_info@std@@QEAA@AEBV01@@Z"(%"class.std::type_info"* %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast (%rtti.TypeDescriptor28* @"??_R0U?$_UExtInt@$0CB@@__clang@@@8" to %"class.std::type_info"*))
+ // LIN: call void @_ZNSt9type_infoC1ERKS_(%"class.std::type_info"* {{[^,]*}} %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast ({ i8*, i8* }* @_ZTIU7_ExtIntILi33EEj to %"class.std::type_info"*))
+ // WIN:  call %"class.std::type_info"* @"??0type_info@std@@QEAA@AEBV01@@Z"(%"class.std::type_info"* {{[^,]*}} %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast (%rtti.TypeDescriptor28* @"??_R0U?$_UExtInt@$0CB@@__clang@@@8" to %"class.std::type_info"*))
  auto C = typeid(S33_1);
- // LIN: call void @_ZNSt9type_infoC1ERKS_(%"class.std::type_info"* %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast ({ i8*, i8* }* @_ZTIU7_ExtIntILi33EEi to %"class.std::type_info"*))
- // WIN:  call %"class.std::type_info"* @"??0type_info@std@@QEAA@AEBV01@@Z"(%"class.std::type_info"* %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast (%rtti.TypeDescriptor27* @"??_R0U?$_ExtInt@$0CB@@__clang@@@8" to %"class.std::type_info"*))
+ // LIN: call void @_ZNSt9type_infoC1ERKS_(%"class.std::type_info"* {{[^,]*}} %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast ({ i8*, i8* }* @_ZTIU7_ExtIntILi33EEi to %"class.std::type_info"*))
+ // WIN:  call %"class.std::type_info"* @"??0type_info@std@@QEAA@AEBV01@@Z"(%"class.std::type_info"* {{[^,]*}} %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast (%rtti.TypeDescriptor27* @"??_R0U?$_ExtInt@$0CB@@__clang@@@8" to %"class.std::type_info"*))
  auto D = typeid(S33_2);
- // LIN: call void @_ZNSt9type_infoC1ERKS_(%"class.std::type_info"* %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast ({ i8*, i8* }* @_ZTIU7_ExtIntILi33EEi to %"class.std::type_info"*))
- // WIN:  call %"class.std::type_info"* @"??0type_info@std@@QEAA@AEBV01@@Z"(%"class.std::type_info"* %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast (%rtti.TypeDescriptor27* @"??_R0U?$_ExtInt@$0CB@@__clang@@@8" to %"class.std::type_info"*))
+ // LIN: call void @_ZNSt9type_infoC1ERKS_(%"class.std::type_info"* {{[^,]*}} %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast ({ i8*, i8* }* @_ZTIU7_ExtIntILi33EEi to %"class.std::type_info"*))
+ // WIN:  call %"class.std::type_info"* @"??0type_info@std@@QEAA@AEBV01@@Z"(%"class.std::type_info"* {{[^,]*}} %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast (%rtti.TypeDescriptor27* @"??_R0U?$_ExtInt@$0CB@@__clang@@@8" to %"class.std::type_info"*))
  auto E = typeid(S32_1);
- // LIN: call void @_ZNSt9type_infoC1ERKS_(%"class.std::type_info"* %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast ({ i8*, i8* }* @_ZTIU7_ExtIntILi32EEi to %"class.std::type_info"*))
- // WIN:  call %"class.std::type_info"* @"??0type_info@std@@QEAA@AEBV01@@Z"(%"class.std::type_info"* %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast (%rtti.TypeDescriptor27* @"??_R0U?$_ExtInt@$0CA@@__clang@@@8" to %"class.std::type_info"*))
+ // LIN: call void @_ZNSt9type_infoC1ERKS_(%"class.std::type_info"* {{[^,]*}} %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast ({ i8*, i8* }* @_ZTIU7_ExtIntILi32EEi to %"class.std::type_info"*))
+ // WIN:  call %"class.std::type_info"* @"??0type_info@std@@QEAA@AEBV01@@Z"(%"class.std::type_info"* {{[^,]*}} %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast (%rtti.TypeDescriptor27* @"??_R0U?$_ExtInt@$0CA@@__clang@@@8" to %"class.std::type_info"*))
  auto F = typeid(S32_2);
- // LIN: call void @_ZNSt9type_infoC1ERKS_(%"class.std::type_info"* %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast ({ i8*, i8* }* @_ZTIU7_ExtIntILi32EEi to %"class.std::type_info"*))
- // WIN:  call %"class.std::type_info"* @"??0type_info@std@@QEAA@AEBV01@@Z"(%"class.std::type_info"* %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast (%rtti.TypeDescriptor27* @"??_R0U?$_ExtInt@$0CA@@__clang@@@8" to %"class.std::type_info"*))
+ // LIN: call void @_ZNSt9type_infoC1ERKS_(%"class.std::type_info"* {{[^,]*}} %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast ({ i8*, i8* }* @_ZTIU7_ExtIntILi32EEi to %"class.std::type_info"*))
+ // WIN:  call %"class.std::type_info"* @"??0type_info@std@@QEAA@AEBV01@@Z"(%"class.std::type_info"* {{[^,]*}} %{{.+}}, %"class.std::type_info"* nonnull align 8 dereferenceable(16) bitcast (%rtti.TypeDescriptor27* @"??_R0U?$_ExtInt@$0CA@@__clang@@@8" to %"class.std::type_info"*))
 }
 
 void ExplicitCasts() {
-  // LIN: define void @_Z13ExplicitCastsv()
+  // LIN: define{{.*}} void @_Z13ExplicitCastsv()
   // WIN: define dso_local void @"?ExplicitCasts@@YAXXZ"()
 
   _ExtInt(33) a;
@@ -297,7 +297,7 @@ struct S {
 };
 
 void OffsetOfTest() {
-  // LIN: define void @_Z12OffsetOfTestv()
+  // LIN: define{{.*}} void @_Z12OffsetOfTestv()
   // WIN: define dso_local void @"?OffsetOfTest@@YAXXZ"()
 
   auto A = __builtin_offsetof(S,A);
@@ -310,7 +310,7 @@ void OffsetOfTest() {
 
 
 void ShiftExtIntByConstant(_ExtInt(28) Ext) {
-// LIN: define void @_Z21ShiftExtIntByConstantU7_ExtIntILi28EEi
+// LIN: define{{.*}} void @_Z21ShiftExtIntByConstantU7_ExtIntILi28EEi
 // WIN: define dso_local void @"?ShiftExtIntByConstant@@YAXU?$_ExtInt@$0BM@@__clang@@@Z"
   Ext << 7;
   // CHECK: shl i28 %{{.+}}, 7
@@ -329,7 +329,7 @@ void ShiftExtIntByConstant(_ExtInt(28) Ext) {
 }
 
 void ConstantShiftByExtInt(_ExtInt(28) Ext, _ExtInt(65) LargeExt) {
-  // LIN: define void @_Z21ConstantShiftByExtIntU7_ExtIntILi28EEiU7_ExtIntILi65EEi
+  // LIN: define{{.*}} void @_Z21ConstantShiftByExtIntU7_ExtIntILi28EEiU7_ExtIntILi65EEi
   // WIN: define dso_local void @"?ConstantShiftByExtInt@@YAXU?$_ExtInt@$0BM@@__clang@@U?$_ExtInt@$0EB@@2@@Z"
   10 << Ext;
   // CHECK: %[[PROMO:.+]] = zext i28 %{{.+}} to i32
@@ -346,7 +346,7 @@ void ConstantShiftByExtInt(_ExtInt(28) Ext, _ExtInt(65) LargeExt) {
 }
 
 void Shift(_ExtInt(28) Ext, _ExtInt(65) LargeExt, int i) {
-  // LIN: define void @_Z5ShiftU7_ExtIntILi28EEiU7_ExtIntILi65EEii
+  // LIN: define{{.*}} void @_Z5ShiftU7_ExtIntILi28EEiU7_ExtIntILi65EEii
   // WIN: define dso_local void @"?Shift@@YAXU?$_ExtInt@$0BM@@__clang@@U?$_ExtInt@$0EB@@2@H@Z"
   i << Ext;
   // CHECK: %[[PROMO:.+]] = zext i28 %{{.+}} to i32
@@ -393,7 +393,7 @@ void Shift(_ExtInt(28) Ext, _ExtInt(65) LargeExt, int i) {
 
 void ComplexTest(_Complex _ExtInt(12) first,
                                  _Complex _ExtInt(33) second) {
-  // LIN: define void @_Z11ComplexTestCU7_ExtIntILi12EEiCU7_ExtIntILi33EEi
+  // LIN: define{{.*}} void @_Z11ComplexTestCU7_ExtIntILi12EEiCU7_ExtIntILi33EEi
   // WIN: define dso_local void  @"?ComplexTest@@YAXU?$_Complex@U?$_ExtInt@$0M@@__clang@@@__clang@@U?$_Complex@U?$_ExtInt@$0CB@@__clang@@@2@@Z"
   first + second;
   // CHECK: %[[FIRST_REALP:.+]] = getelementptr inbounds { i12, i12 }, { i12, i12 }* %{{.+}}, i32 0, i32 0

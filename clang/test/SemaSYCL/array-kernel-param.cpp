@@ -1,16 +1,13 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -ast-dump -sycl-std=2020 %s | FileCheck %s
 
 // This test checks that compiler generates correct kernel arguments for
 // arrays, Accessor arrays, and structs containing Accessors.
 
-#include "Inputs/sycl.hpp"
+#include "sycl.hpp"
 
-using namespace cl::sycl;
+sycl::queue myQueue;
 
-template <typename name, typename Func>
-__attribute__((sycl_kernel)) void a_kernel(const Func &kernelFunc) {
-  kernelFunc();
-}
+using namespace sycl;
 
 template <typename T>
 struct S {
@@ -20,108 +17,166 @@ struct S {
 int main() {
 
   using Accessor =
-      accessor<int, 1, access::mode::read_write, access::target::global_buffer>;
+      sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer>;
 
-  Accessor acc[2];
-  int a[2];
-  struct struct_acc_t {
+  Accessor ReadWriteAccessor[2];
+  int Array[2];
+  int *ArrayOfPointers[2];
+
+  struct StructWithAccessors {
     Accessor member_acc[2];
-  } struct_acc;
+  } StructAccArrayObj;
+
   S<int> s;
 
-  struct foo_inner {
-    int foo_inner_x;
-    int foo_inner_y;
-    int foo_inner_z[2];
+  struct StructWithPointers {
+    int x;
+    int y;
+    int *ArrayOfPtrs[2];
   };
 
-  struct foo {
-    int foo_a;
-    foo_inner foo_b[2];
-    int foo_2D[2][1];
-    int foo_c;
+  struct DecomposedStruct {
+    int a;
+    StructWithPointers SWPtrsMem[2];
+    int *Array_2D_Ptrs[2][1];
+    int c;
   };
 
-  foo struct_array[2];
+  // Not decomposed.
+  struct NonDecomposedStruct {
+    int a;
+    int Array_2D[2][1];
+    int c;
+  };
+
+  DecomposedStruct DecompStructArray[2];
+  NonDecomposedStruct NonDecompStructArray[2];
 
   int array_2D[2][3];
 
-  a_kernel<class kernel_A>(
-      [=]() {
-        acc[1].use();
-      });
+  myQueue.submit([&](sycl::handler &h) {
+    h.single_task<class Kernel_Accessor>(
+        [=] {
+          ReadWriteAccessor[1].use();
+        });
+  });
 
-  a_kernel<class kernel_B>(
-      [=]() {
-        int local = a[1];
-      });
+  myQueue.submit([&](sycl::handler &h) {
+    h.single_task<class Kernel_Array>(
+        [=] {
+          int local = Array[1];
+        });
+  });
 
-  a_kernel<class kernel_C>(
-      [=]() {
-        struct_acc.member_acc[2].use();
-      });
+  myQueue.submit([&](sycl::handler &h) {
+    h.single_task<class Kernel_Array_Ptrs>(
+        [=] {
+          int local = *ArrayOfPointers[1];
+        });
+  });
 
-  a_kernel<class kernel_D>(
-      [=]() {
-        foo local = struct_array[1];
-      });
+  myQueue.submit([&](sycl::handler &h) {
+    h.single_task<class Kernel_StructAccArray>(
+        [=] {
+          StructAccArrayObj.member_acc[2].use();
+        });
+  });
 
-  a_kernel<class kernel_E>(
-      [=]() {
-        int local = s.a[2];
-      });
+  myQueue.submit([&](sycl::handler &h) {
+    h.single_task<class Kernel_DecomposedStruct>(
+        [=] {
+          DecomposedStruct local = DecompStructArray[1];
+        });
+  });
 
-  a_kernel<class kernel_F>(
-      [=]() {
-        int local = array_2D[1][1];
-      });
+  myQueue.submit([&](sycl::handler &h) {
+    h.single_task<class Kernel_TemplatedStructArray>(
+        [=] {
+          int local = s.a[2];
+        });
+  });
+
+  myQueue.submit([&](sycl::handler &h) {
+    h.single_task<class Kernel_Array_2D>(
+        [=] {
+          int local = array_2D[1][1];
+        });
+  });
+
+  myQueue.submit([&](sycl::handler &h) {
+    h.single_task<class Kernel_NonDecomposedStruct>(
+        [=] {
+          NonDecomposedStruct local = NonDecompStructArray[0];
+        });
+  });
 }
 
-// Check kernel_A parameters
-// CHECK: FunctionDecl {{.*}}kernel_A{{.*}} 'void (__global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
+// Check Kernel_Accessor parameters
+// CHECK: FunctionDecl {{.*}}Kernel_Accessor{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ '__global int *'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'cl::sycl::range<1>'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'cl::sycl::range<1>'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'cl::sycl::id<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'sycl::id<1>'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ '__global int *'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'cl::sycl::range<1>'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'cl::sycl::range<1>'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'cl::sycl::id<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'sycl::id<1>'
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}}__init
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}}__init
 
-// Check kernel_B parameters
-// CHECK: FunctionDecl {{.*}}kernel_B{{.*}} 'void (int, int)'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'int'
-// Check kernel_B inits
+// Check Kernel_Array parameters
+// CHECK: FunctionDecl {{.*}}Kernel_Array{{.*}} 'void (__wrapper_class)'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ '__wrapper_class'
+// Check Kernel_Array inits
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
 // CHECK-NEXT: VarDecl {{.*}} cinit
 // CHECK-NEXT: InitListExpr
-// CHECK-NEXT: InitListExpr {{.*}} 'int [2]'
-// CHECK: ImplicitCastExpr
-// CHECK: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_' 'int'
-// CHECK: ImplicitCastExpr
-// CHECK: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_' 'int'
+// CHECK-NEXT: ArrayInitLoopExpr {{.*}} 'int [2]'
+// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int [2]' lvalue
+// CHECK-NEXT: MemberExpr {{.*}} 'int [2]' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_' '__wrapper_class'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
+// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'int' lvalue
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <ArrayToPointerDecay>
+// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int [2]' lvalue
+// CHECK-NEXT: MemberExpr {{.*}} 'int [2]' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_' '__wrapper_class'
 
-// Check kernel_C parameters
-// CHECK: FunctionDecl {{.*}}kernel_C{{.*}} 'void (__global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
+// Check Kernel_Array_Ptrs parameters
+// CHECK: FunctionDecl {{.*}}Kernel_Array_Ptrs{{.*}} 'void (__global int *, __global int *)'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ '__global int *'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ '__global int *'
+// Check Kernel_Array_Ptrs inits
+// CHECK-NEXT: CompoundStmt
+// CHECK-NEXT: DeclStmt
+// CHECK-NEXT: VarDecl {{.*}} cinit
+// CHECK-NEXT: InitListExpr
+// CHECK-NEXT: InitListExpr {{.*}} 'int *[2]'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_' '__global int *'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_' '__global int *'
+
+// Check Kernel_StructAccArray parameters
+// CHECK: FunctionDecl {{.*}}Kernel_StructAccArray{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::id<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'sycl::id<1>'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::id<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'sycl::id<1>'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
 // CHECK-NEXT: VarDecl {{.*}} used '(lambda at {{.*}}array-kernel-param.cpp{{.*}})' cinit
 // CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp{{.*}})'
-// CHECK-NEXT: InitListExpr {{.*}} 'struct_acc_t'
+// CHECK-NEXT: InitListExpr {{.*}} 'StructWithAccessors'
 // CHECK-NEXT: InitListExpr {{.*}} 'Accessor [2]'
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'Accessor'
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'Accessor'
@@ -132,156 +187,200 @@ int main() {
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}}__init
 
-// Check kernel_D parameters
-// CHECK: FunctionDecl {{.*}}kernel_D{{.*}} 'void (int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int)'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_a 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_x 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_y 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_x 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_y 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_2D 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_2D 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_c 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_a 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_x 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_y 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_x 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_y 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_2D 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_2D 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_c 'int'
+// Check Kernel_DecomposedStruct parameters
+// CHECK: FunctionDecl {{.*}}Kernel_DecomposedStruct{{.*}} 'void (int, int, int, __wrapper_class, __wrapper_class, int, int, __wrapper_class, __wrapper_class, __wrapper_class, __wrapper_class, int, int, int, int, __wrapper_class, __wrapper_class, int, int, __wrapper_class, __wrapper_class, __wrapper_class, __wrapper_class, int)'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_a 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_x 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_y 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ArrayOfPtrs '__wrapper_class'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ArrayOfPtrs '__wrapper_class'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_x 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_y 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ArrayOfPtrs '__wrapper_class'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ArrayOfPtrs '__wrapper_class'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_Array_2D_Ptrs '__wrapper_class'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_Array_2D_Ptrs '__wrapper_class'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_c 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_a 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_x 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_y 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ArrayOfPtrs '__wrapper_class'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ArrayOfPtrs '__wrapper_class'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_x 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_y 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ArrayOfPtrs '__wrapper_class'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ArrayOfPtrs '__wrapper_class'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_Array_2D_Ptrs '__wrapper_class'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_Array_2D_Ptrs '__wrapper_class'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_c 'int'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
 // CHECK-NEXT: VarDecl {{.*}} used '(lambda at {{.*}}array-kernel-param.cpp{{.*}})' cinit
 // CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp{{.*}})'
 
-// Initializer for struct array i.e. foo struct_array[2]
-// CHECK-NEXT: InitListExpr {{.*}} 'foo [2]'
+// Initializer for struct array i.e. DecomposedStruct DecompStructArray[2]
+// CHECK-NEXT: InitListExpr {{.*}} 'DecomposedStruct [2]'
 
-// Initializer for first element of struct_array
-// CHECK-NEXT: InitListExpr {{.*}} 'foo'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_a' 'int'
-// Initializer for struct array inside foo i.e. foo_inner foo_b[2]
-// CHECK-NEXT: InitListExpr {{.*}} 'foo_inner [2]'
+// Initializer for first element of DecompStructArray
+// CHECK-NEXT: InitListExpr {{.*}} 'DecomposedStruct'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_a' 'int'
+
+// Initializer for struct array inside DecomposedStruct i.e. StructWithPointers SWPtrsMem[2]
+// CHECK-NEXT: InitListExpr {{.*}} 'StructWithPointers [2]'
 // Initializer for first element of inner struct array
-// CHECK-NEXT: InitListExpr {{.*}} 'foo_inner'
+// CHECK-NEXT: InitListExpr {{.*}} 'StructWithPointers'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_x' 'int'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_y' 'int'
+// CHECK-NEXT: InitListExpr {{.*}} 'int *[2]'
 // CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_x' 'int'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// CHECK-NEXT: MemberExpr {{.*}} '__global int *' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPtrs' '__wrapper_class'
 // CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_y' 'int'
-// CHECK-NEXT: InitListExpr {{.*}} 'int [2]'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// CHECK-NEXT: MemberExpr {{.*}} '__global int *' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPtrs' '__wrapper_class'
 // Initializer for second element of inner struct array
-// CHECK-NEXT: InitListExpr {{.*}} 'foo_inner'
+// CHECK-NEXT: InitListExpr {{.*}} 'StructWithPointers'
 // CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_x' 'int'
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_x' 'int'
 // CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_y' 'int'
-// CHECK-NEXT: InitListExpr {{.*}} 'int [2]'
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_y' 'int'
+// CHECK-NEXT: InitListExpr {{.*}} 'int *[2]'
 // CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// CHECK-NEXT: MemberExpr {{.*}} '__global int *' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPtrs' '__wrapper_class'
 // CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
-// CHECK-NEXT: InitListExpr {{.*}} 'int [2][1]'
-// CHECK-NEXT: InitListExpr {{.*}} 'int [1]'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// CHECK-NEXT: MemberExpr {{.*}} '__global int *' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPtrs' '__wrapper_class'
+// CHECK-NEXT: InitListExpr {{.*}} 'int *[2][1]'
+// CHECK-NEXT: InitListExpr {{.*}} 'int *[1]'
 // CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_2D' 'int'
-// CHECK-NEXT: InitListExpr {{.*}} 'int [1]'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *'
+// CHECK-NEXT: MemberExpr {{.*}} '__global int *' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_Array_2D_Ptrs' '__wrapper_class'
+// CHECK-NEXT: InitListExpr {{.*}} 'int *[1]'
 // CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_2D' 'int'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *'
+// CHECK-NEXT: MemberExpr {{.*}} '__global int *' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_Array_2D_Ptrs' '__wrapper_class'
 // CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_c' 'int'
+// CHECK-NEXT: DeclRefExpr{{.*}} 'int' lvalue ParmVar {{.*}} '_arg_c' 'int'
 
-// Initializer for second element of struct_array
-// CHECK-NEXT: InitListExpr {{.*}} 'foo'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_a' 'int'
-// CHECK-NEXT: InitListExpr {{.*}} 'foo_inner [2]'
-// CHECK-NEXT: InitListExpr {{.*}} 'foo_inner'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_x' 'int'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_y' 'int'
-// CHECK-NEXT: InitListExpr {{.*}} 'int [2]'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
-// CHECK-NEXT: InitListExpr {{.*}} 'foo_inner'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_x' 'int'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_y' 'int'
-// CHECK-NEXT: InitListExpr {{.*}} 'int [2]'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
-// CHECK-NEXT: InitListExpr {{.*}} 'int [2][1]'
-// CHECK-NEXT: InitListExpr {{.*}} 'int [1]'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_2D' 'int'
-// CHECK-NEXT: InitListExpr {{.*}} 'int [1]'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_2D' 'int'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_c' 'int'
+// Initializer for second element of DecompStructArray
+// CHECK-NEXT: InitListExpr {{.*}} 'DecomposedStruct'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_a' 'int'
 
-// Check kernel_E parameters
-// CHECK: FunctionDecl {{.*}}kernel_E{{.*}} 'void (int, int, int)'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_a 'int':'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_a 'int':'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_a 'int':'int'
+// Initializer for struct array inside DecomposedStruct i.e. StructWithPointers SWPtrsMem[2]
+// CHECK-NEXT: InitListExpr {{.*}} 'StructWithPointers [2]'
+// Initializer for first element of inner struct array
+// CHECK-NEXT: InitListExpr {{.*}} 'StructWithPointers'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_x' 'int'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_y' 'int'
+// CHECK-NEXT: InitListExpr {{.*}} 'int *[2]'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// CHECK-NEXT: MemberExpr {{.*}} '__global int *' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPtrs' '__wrapper_class'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// CHECK-NEXT: MemberExpr {{.*}} '__global int *' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPtrs' '__wrapper_class'
+// Initializer for second element of inner struct array
+// CHECK-NEXT: InitListExpr {{.*}} 'StructWithPointers'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_x' 'int'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_y' 'int'
+// CHECK-NEXT: InitListExpr {{.*}} 'int *[2]'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// CHECK-NEXT: MemberExpr {{.*}} '__global int *' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPtrs' '__wrapper_class'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// CHECK-NEXT: MemberExpr {{.*}} '__global int *' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPtrs' '__wrapper_class'
+// CHECK-NEXT: InitListExpr {{.*}} 'int *[2][1]'
+// CHECK-NEXT: InitListExpr {{.*}} 'int *[1]'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *'
+// CHECK-NEXT: MemberExpr {{.*}} '__global int *' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_Array_2D_Ptrs' '__wrapper_class'
+// CHECK-NEXT: InitListExpr {{.*}} 'int *[1]'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *'
+// CHECK-NEXT: MemberExpr {{.*}} '__global int *' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_Array_2D_Ptrs' '__wrapper_class'
+
+// Check Kernel_TemplatedStructArray parameters
+// CHECK: FunctionDecl {{.*}}Kernel_TemplatedStructArray{{.*}} 'void (S<int>)'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'S<int>':'S<int>'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
 // CHECK-NEXT: VarDecl {{.*}} used '(lambda at {{.*}}array-kernel-param.cpp{{.*}})' cinit
 // CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp{{.*}})'
-// CHECK-NEXT: InitListExpr {{.*}} 'S<int>'
-// CHECK-NEXT: InitListExpr {{.*}} 'int [3]'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int':'int'
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int':'int'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int':'int'
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int':'int'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int':'int'
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int':'int'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'S<int>':'S<int>' 'void (const S<int> &) noexcept'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'S<int>':'S<int>' lvalue ParmVar {{.*}} '_arg_' 'S<int>':'S<int>'
 
-// Check kernel_F parameters
-// CHECK: FunctionDecl {{.*}}kernel_F{{.*}} 'void (int, int, int, int, int, int)'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'int'
-// Check kernel_F inits
+// Check Kernel_Array_2D parameters
+// CHECK: FunctionDecl {{.*}}Kernel_Array_2D{{.*}} 'void (__wrapper_class)'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ '__wrapper_class'
+// Check Kernel_Array_2D inits
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
 // CHECK-NEXT: VarDecl {{.*}} cinit
 // CHECK-NEXT: InitListExpr
-// CHECK-NEXT: InitListExpr {{.*}} 'int [2][3]'
-// CHECK-NEXT: InitListExpr {{.*}} 'int [3]'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_' 'int'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_' 'int'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_' 'int'
-// CHECK-NEXT: InitListExpr {{.*}} 'int [3]'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_' 'int'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_' 'int'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_' 'int'
+// CHECK-NEXT: ArrayInitLoopExpr {{.*}} 'int [2][3]'
+// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int [2][3]' lvalue
+// CHECK-NEXT: MemberExpr {{.*}} 'int [2][3]' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_' '__wrapper_class'
+// CHECK-NEXT: ArrayInitLoopExpr {{.*}} 'int [3]'
+// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int [3]' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'int [3]' lvalue
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int (*)[3]' <ArrayToPointerDecay>
+// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int [2][3]' lvalue
+// CHECK-NEXT: MemberExpr {{.*}} 'int [2][3]' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_' '__wrapper_class'
+// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
+// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'int' lvalue
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <ArrayToPointerDecay>
+// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int [3]' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'int [3]' lvalue
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int (*)[3]' <ArrayToPointerDecay>
+// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int [2][3]' lvalue
+// CHECK-NEXT: MemberExpr {{.*}} 'int [2][3]' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_' '__wrapper_class'
+// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned
+// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned
+
+// Check Kernel_NonDecomposedStruct parameters.
+// CHECK: FunctionDecl {{.*}}Kernel_NonDecomposedStruct{{.*}} 'void (__wrapper_class)'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ '__wrapper_class'
+// Check Kernel_NonDecomposedStruct inits
+// CHECK-NEXT: CompoundStmt
+// CHECK-NEXT: DeclStmt
+// CHECK-NEXT: VarDecl {{.*}} cinit
+// CHECK-NEXT: InitListExpr
+// CHECK-NEXT: ArrayInitLoopExpr {{.*}} 'NonDecomposedStruct [2]'
+// CHECK-NEXT: OpaqueValueExpr {{.*}} 'NonDecomposedStruct [2]' lvalue
+// CHECK-NEXT: MemberExpr {{.*}} 'NonDecomposedStruct [2]' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_' '__wrapper_class'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'NonDecomposedStruct' 'void (const NonDecomposedStruct &) noexcept'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const NonDecomposedStruct' lvalue <NoOp>
+// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'NonDecomposedStruct' lvalue
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'NonDecomposedStruct *' <ArrayToPointerDecay>
+// CHECK-NEXT: OpaqueValueExpr {{.*}} 'NonDecomposedStruct [2]' lvalue
+// CHECK-NEXT: MemberExpr {{.*}} 'NonDecomposedStruct [2]' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_' '__wrapper_class'
+// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned

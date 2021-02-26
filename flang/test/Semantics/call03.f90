@@ -29,7 +29,7 @@ module m01
     class(tbp), intent(in) :: this
   end subroutine
   subroutine subr02(this)
-    class(final), intent(in) :: this
+    type(final), intent(inout) :: this
   end subroutine
 
   subroutine poly(x)
@@ -113,7 +113,7 @@ module m01
 
   subroutine test05 ! 15.5.2.4(2)
     type(final) :: x
-    !ERROR: Actual argument associated with TYPE(*) dummy argument 'x=' may not have FINAL subroutine 'subr02'
+    !ERROR: Actual argument associated with TYPE(*) dummy argument 'x=' may not have derived type 'final' with FINAL subroutine 'subr02'
     call typestar(x)
   end subroutine
 
@@ -189,6 +189,8 @@ module m01
     call intentout(x) ! ok
     !ERROR: Actual argument associated with INTENT(OUT) dummy argument 'x=' must be definable
     call intentout((x))
+    !ERROR: Actual argument associated with INTENT(OUT) dummy argument 'count=' must be definable
+    call system_clock(count=2)
     !ERROR: Actual argument associated with INTENT(IN OUT) dummy argument 'x=' must be definable
     call intentinout(in)
     !ERROR: Actual argument associated with INTENT(IN OUT) dummy argument 'x=' must be definable
@@ -198,6 +200,8 @@ module m01
     call intentinout(x) ! ok
     !ERROR: Actual argument associated with INTENT(IN OUT) dummy argument 'x=' must be definable
     call intentinout((x))
+    !ERROR: Actual argument associated with INTENT(IN OUT) dummy argument 'exitstat=' must be definable
+    call execute_command_line(command="echo hello", exitstat=0)
   end subroutine
 
   subroutine test12 ! 15.5.2.4(21)

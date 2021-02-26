@@ -1,11 +1,11 @@
-// RUN: not llvm-mc -arch=amdgcn -show-encoding %s | FileCheck --check-prefix=GCN --check-prefix=SICI %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti -show-encoding %s | FileCheck --check-prefix=GCN --check-prefix=SICI %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=fiji -show-encoding %s | FileCheck --check-prefix=GCN --check-prefix=VI %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx1010 -show-encoding %s | FileCheck --check-prefix=GCN --check-prefix=GFX10 %s
+// RUN: not llvm-mc -arch=amdgcn -show-encoding %s | FileCheck --check-prefixes=GCN,SICI %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti -show-encoding %s | FileCheck --check-prefixes=GCN,SICI %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=fiji -show-encoding %s | FileCheck --check-prefixes=GCN,VI %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx1010 -show-encoding %s | FileCheck --check-prefixes=GCN,GFX10 %s
 
-// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti %s 2>&1 | FileCheck --check-prefix=NOSICI --check-prefix=NOSICIVI --implicit-check-not=error: %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=fiji %s 2>&1 | FileCheck --check-prefix=NOGCN --check-prefix=NOVI --implicit-check-not=error: %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx1010 %s 2>&1 | FileCheck --check-prefix=NOGCN --check-prefix=NOGFX10 --implicit-check-not=error: %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=tahiti %s 2>&1 | FileCheck --check-prefixes=NOSICI,NOSICIVI --implicit-check-not=error: %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=fiji %s 2>&1 | FileCheck --check-prefix=NOVI --implicit-check-not=error: %s
+// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx1010 %s 2>&1 | FileCheck --check-prefix=NOGFX10 --implicit-check-not=error: %s
 
 s_mov_b32 [ttmp5], [ttmp3]
 // SICI: s_mov_b32 ttmp5, ttmp3          ; encoding: [0x73,0x03,0xf5,0xbe]
@@ -38,9 +38,9 @@ s_mov_b64 [exec_lo,exec_hi], s[2:3]
 // GFX10: s_mov_b64 exec, s[2:3]         ; encoding: [0x02,0x04,0xfe,0xbe]
 
 s_mov_b64 [flat_scratch_lo,flat_scratch_hi], s[2:3]
-// NOSICI: error: not a valid operand.
+// NOSICI: error: register not available on this GPU
 // VI:   s_mov_b64 flat_scratch, s[2:3]  ; encoding: [0x02,0x01,0xe6,0xbe]
-// NOGFX10: error: not a valid operand.
+// NOGFX10: error: register not available on this GPU
 
 s_mov_b64 [vcc_lo,vcc_hi], s[2:3]
 // SICI: s_mov_b64 vcc, s[2:3]           ; encoding: [0x02,0x04,0xea,0xbe]
@@ -50,12 +50,12 @@ s_mov_b64 [vcc_lo,vcc_hi], s[2:3]
 s_mov_b64 [tba_lo,tba_hi], s[2:3]
 // SICI:  s_mov_b64 tba, s[2:3]           ; encoding: [0x02,0x04,0xec,0xbe]
 // VI:    s_mov_b64 tba, s[2:3]           ; encoding: [0x02,0x01,0xec,0xbe]
-// NOGFX10: error: not a valid operand.
+// NOGFX10: error: register not available on this GPU
 
 s_mov_b64 [tma_lo,tma_hi], s[2:3]
 // SICI:  s_mov_b64 tma, s[2:3]           ; encoding: [0x02,0x04,0xee,0xbe]
 // VI:    s_mov_b64 tma, s[2:3]           ; encoding: [0x02,0x01,0xee,0xbe]
-// NOGFX10: error: not a valid operand.
+// NOGFX10: error: register not available on this GPU
 
 v_mov_b32_e32 [v1], [v2]
 // GCN:  v_mov_b32_e32 v1, v2 ; encoding: [0x02,0x03,0x02,0x7e]
@@ -151,21 +151,21 @@ flat_load_dwordx4   [v[8/2+4],v9,v[10],v[11/2+6]], v[2:3]
 // NOSICI: error: instruction not supported on this GPU
 
 v_mul_f32 v0, null, v2
-// NOSICIVI: error: not a valid operand.
+// NOSICIVI: error: 'null' operand is not supported on this GPU
 // GFX10: v_mul_f32_e32 v0, null, v2 ; encoding: [0x7d,0x04,0x00,0x10]
-// NOVI: error: not a valid operand.
+// NOVI: error: 'null' operand is not supported on this GPU
 
 v_mul_f64 v[0:1], null, null
-// NOSICIVI: error: not a valid operand.
+// NOSICIVI: error: 'null' operand is not supported on this GPU
 // GFX10: v_mul_f64 v[0:1], null, null ; encoding: [0x00,0x00,0x65,0xd5,0x7d,0xfa,0x00,0x00]
-// NOVI: error: not a valid operand.
+// NOVI: error: 'null' operand is not supported on this GPU
 
 s_add_u32 null, null, null
-// NOSICIVI: error: not a valid operand.
+// NOSICIVI: error: 'null' operand is not supported on this GPU
 // GFX10: s_add_u32 null, null, null ; encoding: [0x7d,0x7d,0x7d,0x80]
-// NOVI: error: not a valid operand.
+// NOVI: error: 'null' operand is not supported on this GPU
 
 s_not_b64 s[2:3], null
-// NOSICIVI: error: not a valid operand.
+// NOSICIVI: error: 'null' operand is not supported on this GPU
 // GFX10: s_not_b64 s[2:3], null ; encoding: [0x7d,0x08,0x82,0xbe]
-// NOVI: error: not a valid operand.
+// NOVI: error: 'null' operand is not supported on this GPU

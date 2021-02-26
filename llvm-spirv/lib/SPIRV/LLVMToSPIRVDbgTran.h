@@ -43,8 +43,6 @@
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/Module.h"
 
-#include <memory>
-
 using namespace llvm;
 
 namespace SPIRV {

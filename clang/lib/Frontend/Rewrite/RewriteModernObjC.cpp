@@ -586,7 +586,8 @@ namespace {
                                              CastKind Kind, Expr *E) {
       TypeSourceInfo *TInfo = Ctx->getTrivialTypeSourceInfo(Ty, SourceLocation());
       return CStyleCastExpr::Create(*Ctx, Ty, VK_RValue, Kind, E, nullptr,
-                                    TInfo, SourceLocation(), SourceLocation());
+                                    FPOptionsOverride(), TInfo,
+                                    SourceLocation(), SourceLocation());
     }
 
     bool ImplementationIsNonLazy(const ObjCImplDecl *OD) const {
@@ -701,9 +702,9 @@ void RewriteModernObjC::InitializeCommon(ASTContext &context) {
 
   // Get the ID and start/end of the main file.
   MainFileID = SM->getMainFileID();
-  const llvm::MemoryBuffer *MainBuf = SM->getBuffer(MainFileID);
-  MainFileStart = MainBuf->getBufferStart();
-  MainFileEnd = MainBuf->getBufferEnd();
+  llvm::MemoryBufferRef MainBuf = SM->getBufferOrFake(MainFileID);
+  MainFileStart = MainBuf.getBufferStart();
+  MainFileEnd = MainBuf.getBufferEnd();
 
   Rewrite.setSourceMgr(Context->getSourceManager(), Context->getLangOpts());
 }
@@ -2105,8 +2106,8 @@ RewriteModernObjC::SynthesizeCallToFunctionDecl(FunctionDecl *FD,
   // Now, we cast the reference to a pointer to the objc_msgSend type.
   QualType pToFunc = Context->getPointerType(msgSendType);
   ImplicitCastExpr *ICE =
-    ImplicitCastExpr::Create(*Context, pToFunc, CK_FunctionToPointerDecay,
-                             DRE, nullptr, VK_RValue);
+      ImplicitCastExpr::Create(*Context, pToFunc, CK_FunctionToPointerDecay,
+                               DRE, nullptr, VK_RValue, FPOptionsOverride());
 
   const auto *FT = msgSendType->castAs<FunctionType>();
   CallExpr *Exp =

@@ -87,8 +87,11 @@ void CodeSection::finalizeContents() {
   bodySize = codeSectionHeader.size();
 
   for (InputFunction *func : functions) {
+    func->outputSec = this;
     func->outputOffset = bodySize;
     func->calculateSize();
+    // All functions should have a non-empty body at this point
+    assert(func->getSize());
     bodySize += func->getSize();
   }
 
@@ -132,21 +135,28 @@ void DataSection::finalizeContents() {
       std::count_if(segments.begin(), segments.end(),
                     [](OutputSegment *segment) { return !segment->isBss; });
 
+#ifndef NDEBUG
+  unsigned activeCount = std::count_if(
+      segments.begin(), segments.end(), [](OutputSegment *segment) {
+        return (segment->initFlags & WASM_DATA_SEGMENT_IS_PASSIVE) == 0;
+      });
+#endif
+
+  assert((!config->isPic || activeCount <= 1) &&
+         "Currenly only a single data segment is supported in PIC mode");
+
   writeUleb128(os, segmentCount, "data segment count");
   os.flush();
   bodySize = dataSectionHeader.size();
-
-  assert((!config->isPic || segments.size() <= 1) &&
-         "Currenly only a single data segment is supported in PIC mode");
 
   for (OutputSegment *segment : segments) {
     if (segment->isBss)
       continue;
     raw_string_ostream os(segment->header);
     writeUleb128(os, segment->initFlags, "init flags");
-    if (segment->initFlags & WASM_SEGMENT_HAS_MEMINDEX)
+    if (segment->initFlags & WASM_DATA_SEGMENT_HAS_MEMINDEX)
       writeUleb128(os, 0, "memory index");
-    if ((segment->initFlags & WASM_SEGMENT_IS_PASSIVE) == 0) {
+    if ((segment->initFlags & WASM_DATA_SEGMENT_IS_PASSIVE) == 0) {
       WasmInitExpr initExpr;
       if (config->isPic) {
         initExpr.Opcode = WASM_OPCODE_GLOBAL_GET;
@@ -166,9 +176,11 @@ void DataSection::finalizeContents() {
     log("Data segment: size=" + Twine(segment->size) + ", startVA=" +
         Twine::utohexstr(segment->startVA) + ", name=" + segment->name);
 
-    for (InputSegment *inputSeg : segment->inputSegments)
+    for (InputSegment *inputSeg : segment->inputSegments) {
+      inputSeg->outputSec = this;
       inputSeg->outputOffset = segment->sectionOffset + segment->header.size() +
                                inputSeg->outputSegmentOffset;
+    }
   }
 
   createHeader(bodySize);
@@ -227,8 +239,9 @@ void CustomSection::finalizeContents() {
   os.flush();
 
   for (InputSection *section : inputSections) {
-    section->outputOffset = payloadSize;
+    assert(!section->discarded);
     section->outputSec = this;
+    section->outputOffset = payloadSize;
     payloadSize += section->getSize();
   }
 

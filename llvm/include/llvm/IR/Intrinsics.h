@@ -34,6 +34,9 @@ class AttributeList;
 /// function known by LLVM. The enum values are returned by
 /// Function::getIntrinsicID().
 namespace Intrinsic {
+  // Abstraction for the arguments of the noalias intrinsics
+  static const int NoAliasScopeDeclScopeArg = 0;
+
   // Intrinsic ID type. This is an opaque typedef to facilitate splitting up
   // the enum into target-specific enums.
   typedef unsigned ID;
@@ -125,7 +128,8 @@ namespace Intrinsic {
       VecElementArgument,
       Subdivide2Argument,
       Subdivide4Argument,
-      VecOfBitcastsToInt
+      VecOfBitcastsToInt,
+      AMX
     } Kind;
 
     union {
@@ -188,8 +192,7 @@ namespace Intrinsic {
     }
 
     static IITDescriptor getVector(unsigned Width, bool IsScalable) {
-      IITDescriptor Result;
-      Result.Kind = Vector;
+      IITDescriptor Result = {Vector, {0}};
       Result.Vector_Width = ElementCount::get(Width, IsScalable);
       return Result;
     }

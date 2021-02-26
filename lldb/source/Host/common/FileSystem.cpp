@@ -49,7 +49,7 @@ void FileSystem::Initialize() {
   InstanceImpl().emplace();
 }
 
-void FileSystem::Initialize(std::shared_ptr<FileCollector> collector) {
+void FileSystem::Initialize(std::shared_ptr<FileCollectorBase> collector) {
   lldbassert(!InstanceImpl() && "Already initialized.");
   InstanceImpl().emplace(collector);
 }
@@ -479,7 +479,7 @@ ErrorOr<std::string> FileSystem::GetExternalPath(const llvm::Twine &path) {
 
   // If VFS mapped we know the underlying FS is a RedirectingFileSystem.
   ErrorOr<vfs::RedirectingFileSystem::Entry *> E =
-      static_cast<vfs::RedirectingFileSystem &>(*m_fs).lookupPath(path);
+      static_cast<vfs::RedirectingFileSystem &>(*m_fs).lookupPath(path.str());
   if (!E) {
     if (E.getError() == llvm::errc::no_such_file_or_directory) {
       return path.str();

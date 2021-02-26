@@ -9,14 +9,18 @@
 #ifndef MLIR_DIALECT_LINALG_LINALGTYPES_H_
 #define MLIR_DIALECT_LINALG_LINALGTYPES_H_
 
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/Types.h"
+
+#include "mlir/Dialect/Linalg/IR/LinalgOpsDialect.h.inc"
 
 namespace mlir {
 class MLIRContext;
 
 namespace linalg {
-#include "mlir/Dialect/Linalg/IR/LinalgOpsDialect.h.inc"
 
 /// A RangeType represents a minimal range abstraction (min, max, step).
 /// It is constructed by calling the linalg.range op with three values index of

@@ -183,6 +183,12 @@ cl::opt<bool> SPIRVAllowUnknownIntrinsics(
     cl::desc("Unknown LLVM intrinsics will be translated as external function "
              "calls in SPIR-V"));
 
+static cl::opt<bool> SPIRVAllowExtraDIExpressions(
+    "spirv-allow-extra-diexpressions", cl::init(false),
+    cl::desc("Allow DWARF operations not listed in the OpenCL.DebugInfo.100 "
+             "specification (experimental, may produce incompatible SPIR-V "
+             "module)"));
+
 static cl::opt<SPIRV::DebugInfoEIS> DebugEIS(
     "spirv-debug-info-version", cl::desc("Set SPIR-V debug info version:"),
     cl::init(SPIRV::DebugInfoEIS::OpenCL_DebugInfo_100),
@@ -195,6 +201,12 @@ static cl::opt<SPIRV::DebugInfoEIS> DebugEIS(
                    "Emit debug info compliant with the OpenCL.DebugInfo.100 "
                    "extended instruction set. This version of SPIR-V debug "
                    "info format is compatible with the SPIRV-Tools")));
+
+static cl::opt<bool> SPIRVReplaceLLVMFmulAddWithOpenCLMad(
+    "spirv-replace-fmuladd-with-ocl-mad",
+    cl::desc("Allow replacement of llvm.fmuladd.* intrinsic with OpenCL mad "
+             "instruction from OpenCL extended instruction set"),
+    cl::init(true));
 
 static std::string removeExt(const std::string &FileName) {
   size_t Pos = FileName.find_last_of(".");
@@ -579,6 +591,20 @@ int main(int Ac, char **Av) {
     } else {
       Opts.setSPIRVAllowUnknownIntrinsicsEnabled(SPIRVAllowUnknownIntrinsics);
     }
+  }
+
+  if (SPIRVReplaceLLVMFmulAddWithOpenCLMad.getNumOccurrences() != 0) {
+    if (IsReverse) {
+      errs() << "Note: --spirv-replace-fmuladd-with-ocl-mad option ignored as "
+                "it only affects translation from LLVM IR to SPIR-V";
+    } else {
+      Opts.setReplaceLLVMFmulAddWithOpenCLMad(
+          SPIRVReplaceLLVMFmulAddWithOpenCLMad);
+    }
+  }
+
+  if (SPIRVAllowExtraDIExpressions.getNumOccurrences() != 0) {
+    Opts.setAllowExtraDIExpressionsEnabled(SPIRVAllowExtraDIExpressions);
   }
 
   if (DebugEIS.getNumOccurrences() != 0) {

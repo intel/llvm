@@ -12,7 +12,7 @@
 # components of libomptarget. These are the dependencies we have:
 #
 # libelf : required by some targets to handle the ELF files at runtime.
-# libffi : required to launch target kernels given function and argument 
+# libffi : required to launch target kernels given function and argument
 #          pointers.
 # CUDA : required to control offloading to NVIDIA GPUs.
 # VEOS : required to control offloading to NEC Aurora.
@@ -47,18 +47,18 @@ find_library (
     /sw/lib
     ENV LIBRARY_PATH
     ENV LD_LIBRARY_PATH)
-    
+
 set(LIBOMPTARGET_DEP_LIBELF_INCLUDE_DIRS ${LIBOMPTARGET_DEP_LIBELF_INCLUDE_DIR})
 find_package_handle_standard_args(
-  LIBOMPTARGET_DEP_LIBELF 
+  LIBOMPTARGET_DEP_LIBELF
   DEFAULT_MSG
   LIBOMPTARGET_DEP_LIBELF_LIBRARIES
   LIBOMPTARGET_DEP_LIBELF_INCLUDE_DIRS)
 
 mark_as_advanced(
-  LIBOMPTARGET_DEP_LIBELF_INCLUDE_DIRS 
+  LIBOMPTARGET_DEP_LIBELF_INCLUDE_DIRS
   LIBOMPTARGET_DEP_LIBELF_LIBRARIES)
-  
+
 ################################################################################
 # Looking for libffi...
 ################################################################################
@@ -100,15 +100,15 @@ endif()
 
 set(LIBOMPTARGET_DEP_LIBFFI_INCLUDE_DIRS ${LIBOMPTARGET_DEP_LIBFFI_INCLUDE_DIR})
 find_package_handle_standard_args(
-  LIBOMPTARGET_DEP_LIBFFI 
+  LIBOMPTARGET_DEP_LIBFFI
   DEFAULT_MSG
   LIBOMPTARGET_DEP_LIBFFI_LIBRARIES
   LIBOMPTARGET_DEP_LIBFFI_INCLUDE_DIRS)
 
 mark_as_advanced(
-  LIBOMPTARGET_DEP_LIBFFI_INCLUDE_DIRS 
+  LIBOMPTARGET_DEP_LIBFFI_INCLUDE_DIRS
   LIBOMPTARGET_DEP_LIBFFI_LIBRARIES)
-  
+
 ################################################################################
 # Looking for CUDA...
 ################################################################################
@@ -117,11 +117,25 @@ if (CUDA_TOOLKIT_ROOT_DIR)
 endif()
 find_package(CUDA QUIET)
 
+# Try to get the highest Nvidia GPU architecture the system supports
+set(LIBOMPTARGET_NVPTX_AUTODETECT_COMPUTE_CAPABILITY TRUE CACHE BOOL
+  "Auto detect CUDA Compute Capability if CUDA is detected.")
+if (CUDA_FOUND AND LIBOMPTARGET_NVPTX_AUTODETECT_COMPUTE_CAPABILITY)
+  cuda_select_nvcc_arch_flags(CUDA_ARCH_FLAGS)
+  string(REGEX MATCH "sm_([0-9]+)" CUDA_ARCH_MATCH_OUTPUT ${CUDA_ARCH_FLAGS})
+  if (NOT DEFINED CUDA_ARCH_MATCH_OUTPUT OR "${CMAKE_MATCH_1}" LESS 35)
+    libomptarget_warning_say("Setting Nvidia GPU architecture support for OpenMP target runtime library to sm_35 by default")
+    set(LIBOMPTARGET_DEP_CUDA_ARCH "35")
+  else()
+    set(LIBOMPTARGET_DEP_CUDA_ARCH "${CMAKE_MATCH_1}")
+  endif()
+endif()
+
 set(LIBOMPTARGET_DEP_CUDA_FOUND ${CUDA_FOUND})
 set(LIBOMPTARGET_DEP_CUDA_INCLUDE_DIRS ${CUDA_INCLUDE_DIRS})
 
 mark_as_advanced(
-  LIBOMPTARGET_DEP_CUDA_FOUND 
+  LIBOMPTARGET_DEP_CUDA_FOUND
   LIBOMPTARGET_DEP_CUDA_INCLUDE_DIRS)
 
 ################################################################################
@@ -137,17 +151,8 @@ find_library (
 
 # There is a libcuda.so in lib64/stubs that can be used for linking.
 if (NOT LIBOMPTARGET_DEP_CUDA_DRIVER_LIBRARIES AND CUDA_FOUND)
-  # Since CMake 3.3 FindCUDA.cmake defaults to using static libraries. In this
-  # case CUDA_LIBRARIES contains additional linker arguments which breaks
-  # get_filename_component below. Fortunately, since that change the module
-  # exports CUDA_cudart_static_LIBRARY which points to a single file in the
-  # right directory.
-  set(cuda_library ${CUDA_LIBRARIES})
-  if (DEFINED CUDA_cudart_static_LIBRARY)
-    set(cuda_library ${CUDA_cudart_static_LIBRARY})
-  endif()
-  get_filename_component(CUDA_LIBDIR ${cuda_library} DIRECTORY)
-  find_library (
+  get_filename_component(CUDA_LIBDIR "${CUDA_cudart_static_LIBRARY}" DIRECTORY)
+  find_library(
       LIBOMPTARGET_DEP_CUDA_DRIVER_LIBRARIES
     NAMES
       cuda
@@ -245,4 +250,29 @@ if (NOT LIBOMPTARGET_CUDA_TOOLKIT_ROOT_DIR_PRESET AND
           "Toolkit location." FORCE)
     endif()
   endif()
+endif()
+
+if (OPENMP_STANDALONE_BUILD)
+  # This duplicates code from llvm/cmake/config-ix.cmake
+  if( WIN32 AND NOT CYGWIN )
+    # We consider Cygwin as another Unix
+    set(PURE_WINDOWS 1)
+  endif()
+
+  # library checks
+  if( NOT PURE_WINDOWS )
+    check_library_exists(pthread pthread_create "" HAVE_LIBPTHREAD)
+  endif()
+
+  if(HAVE_LIBPTHREAD)
+    # We want to find pthreads library and at the moment we do want to
+    # have it reported as '-l<lib>' instead of '-pthread'.
+    # TODO: switch to -pthread once the rest of the build system can deal with it.
+    set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+    set(THREADS_HAVE_PTHREAD_ARG Off)
+    find_package(Threads REQUIRED)
+    set(OPENMP_PTHREAD_LIB ${CMAKE_THREAD_LIBS_INIT})
+  endif()
+else()
+  set(OPENMP_PTHREAD_LIB ${LLVM_PTHREAD_LIB})
 endif()

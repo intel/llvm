@@ -10,6 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+// Enable optimizations to work around MSVC debug mode bug in 32-bit:
+// https://developercommunity.visualstudio.com/content/problem/1179643/msvc-copies-overaligned-non-trivially-copyable-par.html
+// FIXME: Remove this when the issue is closed.
+#if defined(_MSC_VER) && !defined(__clang__) && defined(_M_IX86)
+// We have to disable runtime checks in order to enable optimizations. This is
+// done for the entire file because the problem is actually observed in STL
+// template functions.
+#pragma runtime_checks("", off)
+#pragma optimize("gs", on)
+#endif
+
 #include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
 
 using namespace llvm;
@@ -46,11 +57,10 @@ LegalityPredicate LegalityPredicates::typePairAndMemDescInSet(
     TypePairAndMemDesc Match = {Query.Types[TypeIdx0], Query.Types[TypeIdx1],
                                 Query.MMODescrs[MMOIdx].SizeInBits,
                                 Query.MMODescrs[MMOIdx].AlignInBits};
-    return std::find_if(
-      TypesAndMemDesc.begin(), TypesAndMemDesc.end(),
-      [=](const TypePairAndMemDesc &Entry) ->bool {
-        return Match.isCompatible(Entry);
-      }) != TypesAndMemDesc.end();
+    return llvm::any_of(TypesAndMemDesc,
+                        [=](const TypePairAndMemDesc &Entry) -> bool {
+                          return Match.isCompatible(Entry);
+                        });
   };
 }
 

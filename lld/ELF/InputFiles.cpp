@@ -105,6 +105,8 @@ InputFile::InputFile(Kind k, MemoryBufferRef m)
 }
 
 Optional<MemoryBufferRef> elf::readFile(StringRef path) {
+  llvm::TimeTraceScope timeScope("Load input files", path);
+
   // The --chroot option changes our virtual root directory.
   // This is useful when you are dealing with files created by --reproduce.
   if (!config->chroot.empty() && path.startswith("/"))
@@ -274,6 +276,16 @@ std::string InputFile::getSrcMsg(const Symbol &sym, InputSectionBase &sec,
   }
 }
 
+StringRef InputFile::getNameForScript() const {
+  if (archiveName.empty())
+    return getName();
+
+  if (nameForScriptCache.empty())
+    nameForScriptCache = (archiveName + Twine(':') + getName()).str();
+
+  return nameForScriptCache;
+}
+
 template <class ELFT> DWARFCache *ObjFile<ELFT>::getDwarf() {
   llvm::call_once(initDwarf, [this]() {
     dwarf = std::make_unique<DWARFCache>(std::make_unique<DWARFContext>(
@@ -348,9 +360,9 @@ template <class ELFT> void ELFFileBase::init() {
 
   // Initialize trivial attributes.
   const ELFFile<ELFT> &obj = getObj<ELFT>();
-  emachine = obj.getHeader()->e_machine;
-  osabi = obj.getHeader()->e_ident[llvm::ELF::EI_OSABI];
-  abiVersion = obj.getHeader()->e_ident[llvm::ELF::EI_ABIVERSION];
+  emachine = obj.getHeader().e_machine;
+  osabi = obj.getHeader().e_ident[llvm::ELF::EI_OSABI];
+  abiVersion = obj.getHeader().e_ident[llvm::ELF::EI_ABIVERSION];
 
   ArrayRef<Elf_Shdr> sections = CHECK(obj.sections(), this);
 
@@ -378,7 +390,7 @@ template <class ELFT> void ELFFileBase::init() {
 template <class ELFT>
 uint32_t ObjFile<ELFT>::getSectionIndex(const Elf_Sym &sym) const {
   return CHECK(
-      this->getObj().getSectionIndex(&sym, getELFSyms<ELFT>(), shndxTable),
+      this->getObj().getSectionIndex(sym, getELFSyms<ELFT>(), shndxTable),
       this);
 }
 
@@ -566,7 +578,7 @@ void ObjFile<ELFT>::initializeSections(bool ignoreComdats) {
 
     if (sec.sh_type == ELF::SHT_LLVM_CALL_GRAPH_PROFILE)
       cgProfile =
-          check(obj.template getSectionContentsAsArray<Elf_CGProfile>(&sec));
+          check(obj.template getSectionContentsAsArray<Elf_CGProfile>(sec));
 
     // SHF_EXCLUDE'ed sections are discarded by the linker. However,
     // if -r is given, we'll let the final link discard such sections.
@@ -595,7 +607,7 @@ void ObjFile<ELFT>::initializeSections(bool ignoreComdats) {
 
 
       ArrayRef<Elf_Word> entries =
-          CHECK(obj.template getSectionContentsAsArray<Elf_Word>(&sec), this);
+          CHECK(obj.template getSectionContentsAsArray<Elf_Word>(sec), this);
       if (entries.empty())
         fatal(toString(this) + ": empty SHT_GROUP");
 
@@ -870,7 +882,7 @@ InputSectionBase *ObjFile<ELFT>::createInputSection(const Elf_Shdr &sec) {
 
   if (config->emachine == EM_ARM && sec.sh_type == SHT_ARM_ATTRIBUTES) {
     ARMAttributeParser attributes;
-    ArrayRef<uint8_t> contents = check(this->getObj().getSectionContents(&sec));
+    ArrayRef<uint8_t> contents = check(this->getObj().getSectionContents(sec));
     if (Error e = attributes.parse(contents, config->ekind == ELF32LEKind
                                                  ? support::little
                                                  : support::big)) {
@@ -894,7 +906,7 @@ InputSectionBase *ObjFile<ELFT>::createInputSection(const Elf_Shdr &sec) {
 
   if (config->emachine == EM_RISCV && sec.sh_type == SHT_RISCV_ATTRIBUTES) {
     RISCVAttributeParser attributes;
-    ArrayRef<uint8_t> contents = check(this->getObj().getSectionContents(&sec));
+    ArrayRef<uint8_t> contents = check(this->getObj().getSectionContents(sec));
     if (Error e = attributes.parse(contents, support::little)) {
       auto *isec = make<InputSection>(*this, sec, name);
       warn(toString(isec) + ": " + llvm::toString(std::move(e)));
@@ -919,7 +931,7 @@ InputSectionBase *ObjFile<ELFT>::createInputSection(const Elf_Shdr &sec) {
     if (config->relocatable)
       break;
     ArrayRef<char> data =
-        CHECK(this->getObj().template getSectionContentsAsArray<char>(&sec), this);
+        CHECK(this->getObj().template getSectionContentsAsArray<char>(sec), this);
     if (!data.empty() && data.back() != '\0') {
       error(toString(this) +
             ": corrupted dependent libraries section (unterminated string): " +
@@ -959,12 +971,12 @@ InputSectionBase *ObjFile<ELFT>::createInputSection(const Elf_Shdr &sec) {
             ": multiple relocation sections to one section are not supported");
 
     if (sec.sh_type == SHT_RELA) {
-      ArrayRef<Elf_Rela> rels = CHECK(getObj().relas(&sec), this);
+      ArrayRef<Elf_Rela> rels = CHECK(getObj().relas(sec), this);
       target->firstRelocation = rels.begin();
       target->numRelocations = rels.size();
       target->areRelocsRela = true;
     } else {
-      ArrayRef<Elf_Rel> rels = CHECK(getObj().rels(&sec), this);
+      ArrayRef<Elf_Rel> rels = CHECK(getObj().rels(sec), this);
       target->firstRelocation = rels.begin();
       target->numRelocations = rels.size();
       target->areRelocsRela = false;
@@ -1065,7 +1077,7 @@ InputSectionBase *ObjFile<ELFT>::createInputSection(const Elf_Shdr &sec) {
 
 template <class ELFT>
 StringRef ObjFile<ELFT>::getSectionName(const Elf_Shdr &sec) {
-  return CHECK(getObj().getSectionName(&sec, sectionStringTable), this);
+  return CHECK(getObj().getSectionName(sec, sectionStringTable), this);
 }
 
 // Initialize this->Symbols. this->Symbols is a parallel array as
@@ -1225,6 +1237,88 @@ void ArchiveFile::fetch(const Archive::Symbol &sym) {
   parseFile(file);
 }
 
+// The handling of tentative definitions (COMMON symbols) in archives is murky.
+// A tentative defintion will be promoted to a global definition if there are no
+// non-tentative definitions to dominate it. When we hold a tentative definition
+// to a symbol and are inspecting archive memebers for inclusion there are 2
+// ways we can proceed:
+//
+// 1) Consider the tentative definition a 'real' definition (ie promotion from
+//    tentative to real definition has already happened) and not inspect
+//    archive members for Global/Weak definitions to replace the tentative
+//    definition. An archive member would only be included if it satisfies some
+//    other undefined symbol. This is the behavior Gold uses.
+//
+// 2) Consider the tentative definition as still undefined (ie the promotion to
+//    a real definiton happens only after all symbol resolution is done).
+//    The linker searches archive memebers for global or weak definitions to
+//    replace the tentative definition with. This is the behavior used by
+//    GNU ld.
+//
+//  The second behavior is inherited from SysVR4, which based it on the FORTRAN
+//  COMMON BLOCK model. This behavior is needed for proper initalizations in old
+//  (pre F90) FORTRAN code that is packaged into an archive.
+//
+//  The following functions search archive members for defintions to replace
+//  tentative defintions (implementing behavior 2).
+static bool isBitcodeNonCommonDef(MemoryBufferRef mb, StringRef symName,
+                                  StringRef archiveName) {
+  IRSymtabFile symtabFile = check(readIRSymtab(mb));
+  for (const irsymtab::Reader::SymbolRef &sym :
+       symtabFile.TheReader.symbols()) {
+    if (sym.isGlobal() && sym.getName() == symName)
+      return !sym.isUndefined() && !sym.isCommon();
+  }
+  return false;
+}
+
+template <class ELFT>
+static bool isNonCommonDef(MemoryBufferRef mb, StringRef symName,
+                           StringRef archiveName) {
+  ObjFile<ELFT> *obj = make<ObjFile<ELFT>>(mb, archiveName);
+  StringRef stringtable = obj->getStringTable();
+
+  for (auto sym : obj->template getGlobalELFSyms<ELFT>()) {
+    Expected<StringRef> name = sym.getName(stringtable);
+    if (name && name.get() == symName)
+      return sym.isDefined() && !sym.isCommon();
+  }
+  return false;
+}
+
+static bool isNonCommonDef(MemoryBufferRef mb, StringRef symName,
+                           StringRef archiveName) {
+  switch (getELFKind(mb, archiveName)) {
+  case ELF32LEKind:
+    return isNonCommonDef<ELF32LE>(mb, symName, archiveName);
+  case ELF32BEKind:
+    return isNonCommonDef<ELF32BE>(mb, symName, archiveName);
+  case ELF64LEKind:
+    return isNonCommonDef<ELF64LE>(mb, symName, archiveName);
+  case ELF64BEKind:
+    return isNonCommonDef<ELF64BE>(mb, symName, archiveName);
+  default:
+    llvm_unreachable("getELFKind");
+  }
+}
+
+bool ArchiveFile::shouldFetchForCommon(const Archive::Symbol &sym) {
+  Archive::Child c =
+      CHECK(sym.getMember(), toString(this) +
+                                 ": could not get the member for symbol " +
+                                 toELFString(sym));
+  MemoryBufferRef mb =
+      CHECK(c.getMemoryBufferRef(),
+            toString(this) +
+                ": could not get the buffer for the member defining symbol " +
+                toELFString(sym));
+
+  if (isBitcode(mb))
+    return isBitcodeNonCommonDef(mb, sym.getName(), getName());
+
+  return isNonCommonDef(mb, sym.getName(), getName());
+}
+
 size_t ArchiveFile::getMemberCount() const {
   size_t count = 0;
   Error err = Error::success();
@@ -1279,7 +1373,7 @@ std::vector<uint32_t> SharedFile::parseVerneed(const ELFFile<ELFT> &obj,
   if (!sec)
     return {};
   std::vector<uint32_t> verneeds;
-  ArrayRef<uint8_t> data = CHECK(obj.getSectionContents(sec), this);
+  ArrayRef<uint8_t> data = CHECK(obj.getSectionContents(*sec), this);
   const uint8_t *verneedBuf = data.begin();
   for (unsigned i = 0; i != sec->sh_info; ++i) {
     if (verneedBuf + sizeof(typename ELFT::Verneed) > data.end())
@@ -1355,7 +1449,7 @@ template <class ELFT> void SharedFile::parse() {
       continue;
     case SHT_DYNAMIC:
       dynamicTags =
-          CHECK(obj.template getSectionContentsAsArray<Elf_Dyn>(&sec), this);
+          CHECK(obj.template getSectionContentsAsArray<Elf_Dyn>(sec), this);
       break;
     case SHT_GNU_versym:
       versymSec = &sec;
@@ -1414,7 +1508,7 @@ template <class ELFT> void SharedFile::parse() {
   std::vector<uint16_t> versyms(size, VER_NDX_GLOBAL);
   if (versymSec) {
     ArrayRef<Elf_Versym> versym =
-        CHECK(obj.template getSectionContentsAsArray<Elf_Versym>(versymSec),
+        CHECK(obj.template getSectionContentsAsArray<Elf_Versym>(*versymSec),
               this)
             .slice(firstGlobal);
     for (size_t i = 0; i < size; ++i)
@@ -1507,7 +1601,7 @@ static ELFKind getBitcodeELFKind(const Triple &t) {
   return t.isArch64Bit() ? ELF64BEKind : ELF32BEKind;
 }
 
-static uint8_t getBitcodeMachineKind(StringRef path, const Triple &t) {
+static uint16_t getBitcodeMachineKind(StringRef path, const Triple &t) {
   switch (t.getArch()) {
   case Triple::aarch64:
     return EM_AARCH64;
@@ -1527,6 +1621,7 @@ static uint8_t getBitcodeMachineKind(StringRef path, const Triple &t) {
   case Triple::msp430:
     return EM_MSP430;
   case Triple::ppc:
+  case Triple::ppcle:
     return EM_PPC;
   case Triple::ppc64:
   case Triple::ppc64le:
@@ -1542,6 +1637,19 @@ static uint8_t getBitcodeMachineKind(StringRef path, const Triple &t) {
     error(path + ": could not infer e_machine from bitcode target triple " +
           t.str());
     return EM_NONE;
+  }
+}
+
+static uint8_t getOsAbi(const Triple &t) {
+  switch (t.getOS()) {
+  case Triple::AMDHSA:
+    return ELF::ELFOSABI_AMDGPU_HSA;
+  case Triple::AMDPAL:
+    return ELF::ELFOSABI_AMDGPU_PAL;
+  case Triple::Mesa3D:
+    return ELF::ELFOSABI_AMDGPU_MESA3D;
+  default:
+    return ELF::ELFOSABI_NONE;
   }
 }
 
@@ -1572,6 +1680,7 @@ BitcodeFile::BitcodeFile(MemoryBufferRef mb, StringRef archiveName,
   Triple t(obj->getTargetTriple());
   ekind = getBitcodeELFKind(t);
   emachine = getBitcodeMachineKind(mb.getBufferIdentifier(), t);
+  osabi = getOsAbi(t);
 }
 
 static uint8_t mapVisibility(GlobalValue::VisibilityTypes gvVisibility) {
@@ -1743,6 +1852,13 @@ template <class ELFT> void LazyObjFile::parse() {
     }
     return;
   }
+}
+
+bool LazyObjFile::shouldFetchForCommon(const StringRef &name) {
+  if (isBitcode(mb))
+    return isBitcodeNonCommonDef(mb, name, archiveName);
+
+  return isNonCommonDef(mb, name, archiveName);
 }
 
 std::string elf::replaceThinLTOSuffix(StringRef path) {

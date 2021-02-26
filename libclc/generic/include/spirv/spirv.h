@@ -37,13 +37,18 @@
 #include <macros.h>
 
 /* 6.11.1 Work-Item Functions */
-#include <spirv/workitem/get_global_size.h>
 #include <spirv/workitem/get_global_id.h>
-#include <spirv/workitem/get_local_size.h>
-#include <spirv/workitem/get_local_id.h>
-#include <spirv/workitem/get_num_groups.h>
-#include <spirv/workitem/get_group_id.h>
 #include <spirv/workitem/get_global_offset.h>
+#include <spirv/workitem/get_global_size.h>
+#include <spirv/workitem/get_group_id.h>
+#include <spirv/workitem/get_local_id.h>
+#include <spirv/workitem/get_local_size.h>
+#include <spirv/workitem/get_max_sub_group_size.h>
+#include <spirv/workitem/get_num_groups.h>
+#include <spirv/workitem/get_num_sub_groups.h>
+#include <spirv/workitem/get_sub_group_id.h>
+#include <spirv/workitem/get_sub_group_local_id.h>
+#include <spirv/workitem/get_sub_group_size.h>
 #include <spirv/workitem/get_work_dim.h>
 
 /* 6.11.2.1 Floating-point macros */

@@ -228,12 +228,29 @@ def POSIX : StandardSpec<"POSIX"> {
         FunctionSpec<
             "strtok_r",
             RetValSpec<CharPtr>,
-            [ArgSpec<ConstRestrictedCharPtr>, ArgSpec<CharRestrictedDoublePtr>]
+            [ArgSpec<RestrictedCharPtr>,
+             ArgSpec<ConstRestrictedCharPtr>,
+             ArgSpec<CharRestrictedDoublePtr>]
+        >,
+    ]
+  >;
+
+  HeaderSpec CType = HeaderSpec<
+    "ctype.h",
+    [], // Macros
+    [], // Types
+    [], // Enumerations
+    [
+        FunctionSpec<
+            "isascii",
+            RetValSpec<IntType>,
+            [ArgSpec<IntType>]
         >,
     ]
   >;
 
   let Headers = [
+    CType,
     Errno,
     SysMMan,
     Signal,

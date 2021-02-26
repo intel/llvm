@@ -121,9 +121,9 @@ define i64 @fcvt_l_s(float %a) nounwind {
 ; RV32IF-LABEL: fcvt_l_s:
 ; RV32IF:       # %bb.0:
 ; RV32IF-NEXT:    addi sp, sp, -16
-; RV32IF-NEXT:    sw ra, 12(sp)
-; RV32IF-NEXT:    call __fixsfdi
-; RV32IF-NEXT:    lw ra, 12(sp)
+; RV32IF-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
+; RV32IF-NEXT:    call __fixsfdi@plt
+; RV32IF-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32IF-NEXT:    addi sp, sp, 16
 ; RV32IF-NEXT:    ret
 ;
@@ -140,9 +140,9 @@ define i64 @fcvt_lu_s(float %a) nounwind {
 ; RV32IF-LABEL: fcvt_lu_s:
 ; RV32IF:       # %bb.0:
 ; RV32IF-NEXT:    addi sp, sp, -16
-; RV32IF-NEXT:    sw ra, 12(sp)
-; RV32IF-NEXT:    call __fixunssfdi
-; RV32IF-NEXT:    lw ra, 12(sp)
+; RV32IF-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
+; RV32IF-NEXT:    call __fixunssfdi@plt
+; RV32IF-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32IF-NEXT:    addi sp, sp, 16
 ; RV32IF-NEXT:    ret
 ;
@@ -159,9 +159,9 @@ define float @fcvt_s_l(i64 %a) nounwind {
 ; RV32IF-LABEL: fcvt_s_l:
 ; RV32IF:       # %bb.0:
 ; RV32IF-NEXT:    addi sp, sp, -16
-; RV32IF-NEXT:    sw ra, 12(sp)
-; RV32IF-NEXT:    call __floatdisf
-; RV32IF-NEXT:    lw ra, 12(sp)
+; RV32IF-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
+; RV32IF-NEXT:    call __floatdisf@plt
+; RV32IF-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32IF-NEXT:    addi sp, sp, 16
 ; RV32IF-NEXT:    ret
 ;
@@ -178,9 +178,9 @@ define float @fcvt_s_lu(i64 %a) nounwind {
 ; RV32IF-LABEL: fcvt_s_lu:
 ; RV32IF:       # %bb.0:
 ; RV32IF-NEXT:    addi sp, sp, -16
-; RV32IF-NEXT:    sw ra, 12(sp)
-; RV32IF-NEXT:    call __floatundisf
-; RV32IF-NEXT:    lw ra, 12(sp)
+; RV32IF-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
+; RV32IF-NEXT:    call __floatundisf@plt
+; RV32IF-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32IF-NEXT:    addi sp, sp, 16
 ; RV32IF-NEXT:    ret
 ;
@@ -190,5 +190,69 @@ define float @fcvt_s_lu(i64 %a) nounwind {
 ; RV64IF-NEXT:    fmv.x.w a0, ft0
 ; RV64IF-NEXT:    ret
   %1 = uitofp i64 %a to float
+  ret float %1
+}
+
+define float @fcvt_s_w_i8(i8 signext %a) nounwind {
+; RV32IF-LABEL: fcvt_s_w_i8:
+; RV32IF:       # %bb.0:
+; RV32IF-NEXT:    fcvt.s.w ft0, a0
+; RV32IF-NEXT:    fmv.x.w a0, ft0
+; RV32IF-NEXT:    ret
+;
+; RV64IF-LABEL: fcvt_s_w_i8:
+; RV64IF:       # %bb.0:
+; RV64IF-NEXT:    fcvt.s.w ft0, a0
+; RV64IF-NEXT:    fmv.x.w a0, ft0
+; RV64IF-NEXT:    ret
+  %1 = sitofp i8 %a to float
+  ret float %1
+}
+
+define float @fcvt_s_wu_i8(i8 zeroext %a) nounwind {
+; RV32IF-LABEL: fcvt_s_wu_i8:
+; RV32IF:       # %bb.0:
+; RV32IF-NEXT:    fcvt.s.wu ft0, a0
+; RV32IF-NEXT:    fmv.x.w a0, ft0
+; RV32IF-NEXT:    ret
+;
+; RV64IF-LABEL: fcvt_s_wu_i8:
+; RV64IF:       # %bb.0:
+; RV64IF-NEXT:    fcvt.s.wu ft0, a0
+; RV64IF-NEXT:    fmv.x.w a0, ft0
+; RV64IF-NEXT:    ret
+  %1 = uitofp i8 %a to float
+  ret float %1
+}
+
+define float @fcvt_s_w_i16(i16 signext %a) nounwind {
+; RV32IF-LABEL: fcvt_s_w_i16:
+; RV32IF:       # %bb.0:
+; RV32IF-NEXT:    fcvt.s.w ft0, a0
+; RV32IF-NEXT:    fmv.x.w a0, ft0
+; RV32IF-NEXT:    ret
+;
+; RV64IF-LABEL: fcvt_s_w_i16:
+; RV64IF:       # %bb.0:
+; RV64IF-NEXT:    fcvt.s.w ft0, a0
+; RV64IF-NEXT:    fmv.x.w a0, ft0
+; RV64IF-NEXT:    ret
+  %1 = sitofp i16 %a to float
+  ret float %1
+}
+
+define float @fcvt_s_wu_i16(i16 zeroext %a) nounwind {
+; RV32IF-LABEL: fcvt_s_wu_i16:
+; RV32IF:       # %bb.0:
+; RV32IF-NEXT:    fcvt.s.wu ft0, a0
+; RV32IF-NEXT:    fmv.x.w a0, ft0
+; RV32IF-NEXT:    ret
+;
+; RV64IF-LABEL: fcvt_s_wu_i16:
+; RV64IF:       # %bb.0:
+; RV64IF-NEXT:    fcvt.s.wu ft0, a0
+; RV64IF-NEXT:    fmv.x.w a0, ft0
+; RV64IF-NEXT:    ret
+  %1 = uitofp i16 %a to float
   ret float %1
 }

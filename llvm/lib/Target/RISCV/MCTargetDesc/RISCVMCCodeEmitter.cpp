@@ -10,12 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "MCTargetDesc/RISCVBaseInfo.h"
 #include "MCTargetDesc/RISCVFixupKinds.h"
 #include "MCTargetDesc/RISCVMCExpr.h"
 #include "MCTargetDesc/RISCVMCTargetDesc.h"
-#include "Utils/RISCVBaseInfo.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/CodeGen/Register.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCContext.h"
@@ -112,7 +111,7 @@ void RISCVMCCodeEmitter::expandFunctionCall(const MCInst &MI, raw_ostream &OS,
                                             const MCSubtargetInfo &STI) const {
   MCInst TmpInst;
   MCOperand Func;
-  Register Ra;
+  MCRegister Ra;
   if (MI.getOpcode() == RISCV::PseudoTAIL) {
     Func = MI.getOperand(0);
     Ra = RISCV::X6;

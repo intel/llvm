@@ -38,12 +38,12 @@ TEST_CASE(basic_test)
     const fs::path cwd = fs::current_path();
     const struct {
       std::string input;
-      std::string expect;
+      fs::path expect;
     } TestCases [] = {
         {"", cwd / ""},
         {"foo", cwd / "foo"},
-        {"foo/", cwd / "foo/"},
-        {"/already_absolute", "/already_absolute"}
+        {"foo/", cwd / "foo" / ""},
+        {"/already_absolute", cwd.root_path() / "already_absolute"}
     };
     for (auto& TC : TestCases) {
         std::error_code ec = GetTestEC();

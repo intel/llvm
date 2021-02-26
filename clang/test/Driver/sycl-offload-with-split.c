@@ -14,23 +14,23 @@
 /// The same phase graph will be used with -fsycl-use-bitcode
 // RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64-unknown-unknown-sycldevice %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-DEFAULT-MODE %s
-// RUN:   %clang_cl -ccc-print-phases -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split=per_source -fsycl-targets=spir64-unknown-unknown-sycldevice %s 2>&1 \
+// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split=per_source -fsycl-targets=spir64-unknown-unknown-sycldevice %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-CL-MODE %s
 // RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split=per_source -fno-sycl-use-bitcode %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-DEFAULT-MODE %s
-// RUN:   %clang_cl -ccc-print-phases -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split=per_source -fno-sycl-use-bitcode %s 2>&1 \
+// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split=per_source -fno-sycl-use-bitcode %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-CL-MODE %s
 // RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split=per_source -fsycl-use-bitcode %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-DEFAULT-MODE %s
-// RUN:   %clang_cl -ccc-print-phases -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split=per_source -fsycl-use-bitcode %s 2>&1 \
+// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split=per_source -fsycl-use-bitcode %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-CL-MODE %s
-// CHK-PHASES: 0: input, "[[INPUT:.+\.c]]", c, (host-sycl)
-// CHK-PHASES: 1: preprocessor, {0}, cpp-output, (host-sycl)
-// CHK-PHASES: 2: input, "[[INPUT]]", c, (device-sycl)
-// CHK-PHASES: 3: preprocessor, {2}, cpp-output, (device-sycl)
+// CHK-PHASES: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
+// CHK-PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
+// CHK-PHASES: 2: input, "[[INPUT]]", c++, (device-sycl)
+// CHK-PHASES: 3: preprocessor, {2}, c++-cpp-output, (device-sycl)
 // CHK-PHASES: 4: compiler, {3}, sycl-header, (device-sycl)
-// CHK-PHASES-DEFAULT-MODE: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64-unknown-unknown-sycldevice)" {4}, cpp-output
-// CHK-PHASES-CL-MODE: 5: offload, "host-sycl (x86_64-pc-windows-msvc)" {1}, "device-sycl (spir64-unknown-unknown-sycldevice)" {4}, cpp-output
+// CHK-PHASES-DEFAULT-MODE: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64-unknown-unknown-sycldevice)" {4}, c++-cpp-output
+// CHK-PHASES-CL-MODE: 5: offload, "host-sycl (x86_64-pc-windows-msvc)" {1}, "device-sycl (spir64-unknown-unknown-sycldevice)" {4}, c++-cpp-output
 // CHK-PHASES: 6: compiler, {5}, ir, (host-sycl)
 // CHK-PHASES: 7: backend, {6}, assembler, (host-sycl)
 // CHK-PHASES: 8: assembler, {7}, object, (host-sycl)
@@ -52,12 +52,12 @@
 // RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -lsomelib -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64-unknown-unknown-sycldevice %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASES-LIB %s
 // CHK-PHASES-LIB: 0: input, "somelib", object, (host-sycl)
-// CHK-PHASES-LIB: 1: input, "[[INPUT:.+\.c]]", c, (host-sycl)
-// CHK-PHASES-LIB: 2: preprocessor, {1}, cpp-output, (host-sycl)
-// CHK-PHASES-LIB: 3: input, "[[INPUT]]", c, (device-sycl)
-// CHK-PHASES-LIB: 4: preprocessor, {3}, cpp-output, (device-sycl)
+// CHK-PHASES-LIB: 1: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
+// CHK-PHASES-LIB: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
+// CHK-PHASES-LIB: 3: input, "[[INPUT]]", c++, (device-sycl)
+// CHK-PHASES-LIB: 4: preprocessor, {3}, c++-cpp-output, (device-sycl)
 // CHK-PHASES-LIB: 5: compiler, {4}, sycl-header, (device-sycl)
-// CHK-PHASES-LIB: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (spir64-unknown-unknown-sycldevice)" {5}, cpp-output
+// CHK-PHASES-LIB: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (spir64-unknown-unknown-sycldevice)" {5}, c++-cpp-output
 // CHK-PHASES-LIB: 7: compiler, {6}, ir, (host-sycl)
 // CHK-PHASES-LIB: 8: backend, {7}, assembler, (host-sycl)
 // CHK-PHASES-LIB: 9: assembler, {8}, object, (host-sycl)
@@ -79,21 +79,21 @@
 // RUN:   | FileCheck -check-prefix=CHK-PHASES-FILES %s
 
 // CHK-PHASES-FILES: 0: input, "somelib", object, (host-sycl)
-// CHK-PHASES-FILES: 1: input, "[[INPUT1:.+\.c]]", c, (host-sycl)
-// CHK-PHASES-FILES: 2: preprocessor, {1}, cpp-output, (host-sycl)
-// CHK-PHASES-FILES: 3: input, "[[INPUT1]]", c, (device-sycl)
-// CHK-PHASES-FILES: 4: preprocessor, {3}, cpp-output, (device-sycl)
+// CHK-PHASES-FILES: 1: input, "[[INPUT1:.+\.c]]", c++, (host-sycl)
+// CHK-PHASES-FILES: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
+// CHK-PHASES-FILES: 3: input, "[[INPUT1]]", c++, (device-sycl)
+// CHK-PHASES-FILES: 4: preprocessor, {3}, c++-cpp-output, (device-sycl)
 // CHK-PHASES-FILES: 5: compiler, {4}, sycl-header, (device-sycl)
-// CHK-PHASES-FILES: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (spir64-unknown-unknown-sycldevice)" {5}, cpp-output
+// CHK-PHASES-FILES: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (spir64-unknown-unknown-sycldevice)" {5}, c++-cpp-output
 // CHK-PHASES-FILES: 7: compiler, {6}, ir, (host-sycl)
 // CHK-PHASES-FILES: 8: backend, {7}, assembler, (host-sycl)
 // CHK-PHASES-FILES: 9: assembler, {8}, object, (host-sycl)
-// CHK-PHASES-FILES: 10: input, "[[INPUT2:.+\.c]]", c, (host-sycl)
-// CHK-PHASES-FILES: 11: preprocessor, {10}, cpp-output, (host-sycl)
-// CHK-PHASES-FILES: 12: input, "[[INPUT2]]", c, (device-sycl)
-// CHK-PHASES-FILES: 13: preprocessor, {12}, cpp-output, (device-sycl)
+// CHK-PHASES-FILES: 10: input, "[[INPUT2:.+\.c]]", c++, (host-sycl)
+// CHK-PHASES-FILES: 11: preprocessor, {10}, c++-cpp-output, (host-sycl)
+// CHK-PHASES-FILES: 12: input, "[[INPUT2]]", c++, (device-sycl)
+// CHK-PHASES-FILES: 13: preprocessor, {12}, c++-cpp-output, (device-sycl)
 // CHK-PHASES-FILES: 14: compiler, {13}, sycl-header, (device-sycl)
-// CHK-PHASES-FILES: 15: offload, "host-sycl (x86_64-unknown-linux-gnu)" {11}, "device-sycl (spir64-unknown-unknown-sycldevice)" {14}, cpp-output
+// CHK-PHASES-FILES: 15: offload, "host-sycl (x86_64-unknown-linux-gnu)" {11}, "device-sycl (spir64-unknown-unknown-sycldevice)" {14}, c++-cpp-output
 // CHK-PHASES-FILES: 16: compiler, {15}, ir, (host-sycl)
 // CHK-PHASES-FILES: 17: backend, {16}, assembler, (host-sycl)
 // CHK-PHASES-FILES: 18: assembler, {17}, object, (host-sycl)
@@ -139,12 +139,12 @@
 // CHK-UBUACTIONS: 0: input, "somelib", object, (host-sycl)
 // CHK-UBUACTIONS: 1: input, "[[INPUT1:.+\.o]]", object, (host-sycl)
 // CHK-UBUACTIONS: 2: clang-offload-unbundler, {1}, object, (host-sycl)
-// CHK-UBUACTIONS: 3: input, "[[INPUT2:.+\.c]]", c, (host-sycl)
-// CHK-UBUACTIONS: 4: preprocessor, {3}, cpp-output, (host-sycl)
-// CHK-UBUACTIONS: 5: input, "[[INPUT2]]", c, (device-sycl)
-// CHK-UBUACTIONS: 6: preprocessor, {5}, cpp-output, (device-sycl)
+// CHK-UBUACTIONS: 3: input, "[[INPUT2:.+\.c]]", c++, (host-sycl)
+// CHK-UBUACTIONS: 4: preprocessor, {3}, c++-cpp-output, (host-sycl)
+// CHK-UBUACTIONS: 5: input, "[[INPUT2]]", c++, (device-sycl)
+// CHK-UBUACTIONS: 6: preprocessor, {5}, c++-cpp-output, (device-sycl)
 // CHK-UBUACTIONS: 7: compiler, {6}, sycl-header, (device-sycl)
-// CHK-UBUACTIONS: 8: offload, "host-sycl (x86_64-unknown-linux-gnu)" {4}, "device-sycl (spir64-unknown-unknown-sycldevice)" {7}, cpp-output
+// CHK-UBUACTIONS: 8: offload, "host-sycl (x86_64-unknown-linux-gnu)" {4}, "device-sycl (spir64-unknown-unknown-sycldevice)" {7}, c++-cpp-output
 // CHK-UBUACTIONS: 9: compiler, {8}, ir, (host-sycl)
 // CHK-UBUACTIONS: 10: backend, {9}, assembler, (host-sycl)
 // CHK-UBUACTIONS: 11: assembler, {10}, object, (host-sycl)
@@ -167,14 +167,14 @@
 // RUN:    | FileCheck %s -check-prefixes=CHK-PHASES-AOT,CHK-PHASES-GEN
 // RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-PHASES-AOT,CHK-PHASES-CPU
-// CHK-PHASES-AOT: 0: input, "[[INPUT:.+\.c]]", c, (host-sycl)
-// CHK-PHASES-AOT: 1: preprocessor, {0}, cpp-output, (host-sycl)
-// CHK-PHASES-AOT: 2: input, "[[INPUT]]", c, (device-sycl)
-// CHK-PHASES-AOT: 3: preprocessor, {2}, cpp-output, (device-sycl)
+// CHK-PHASES-AOT: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
+// CHK-PHASES-AOT: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
+// CHK-PHASES-AOT: 2: input, "[[INPUT]]", c++, (device-sycl)
+// CHK-PHASES-AOT: 3: preprocessor, {2}, c++-cpp-output, (device-sycl)
 // CHK-PHASES-AOT: 4: compiler, {3}, sycl-header, (device-sycl)
-// CHK-PHASES-FPGA: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {4}, cpp-output
-// CHK-PHASES-GEN: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_gen-unknown-unknown-sycldevice)" {4}, cpp-output
-// CHK-PHASES-CPU: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_x86_64-unknown-unknown-sycldevice)" {4}, cpp-output
+// CHK-PHASES-FPGA: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {4}, c++-cpp-output
+// CHK-PHASES-GEN: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_gen-unknown-unknown-sycldevice)" {4}, c++-cpp-output
+// CHK-PHASES-CPU: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_x86_64-unknown-unknown-sycldevice)" {4}, c++-cpp-output
 // CHK-PHASES-AOT: 6: compiler, {5}, ir, (host-sycl)
 // CHK-PHASES-AOT: 7: backend, {6}, assembler, (host-sycl)
 // CHK-PHASES-AOT: 8: assembler, {7}, object, (host-sycl)
@@ -206,7 +206,7 @@
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-CPU
 // CHK-TOOLS-AOT: clang{{.*}} "-fsycl-is-device" {{.*}} "-o" "[[OUTPUT1:.+\.bc]]"
 // CHK-TOOLS-AOT: llvm-link{{.*}} "[[OUTPUT1]]" "-o" "[[OUTPUT2:.+\.bc]]"
-// CHK-TOOLS-AOT: sycl-post-link{{.*}} "-spec-const=default" "-o" "[[OUTPUT3:.+\.table]]" "[[OUTPUT2]]"
+// CHK-TOOLS-AOT: sycl-post-link{{.*}} "-split=auto" {{.*}} "-spec-const=default" "-o" "[[OUTPUT3:.+\.table]]" "[[OUTPUT2]]"
 // CHK-TOOLS-AOT: file-table-tform{{.*}} "-o" "[[OUTPUT4:.+\.txt]]" "[[OUTPUT3]]"
 // CHK-TOOLS-AOT: llvm-foreach{{.*}} "--in-file-list=[[OUTPUT4]]" "--in-replace=[[OUTPUT4]]" "--out-ext=spv" "--out-file-list=[[OUTPUT5:.+\.txt]]" "--out-replace=[[OUTPUT5]]" "--" "{{.*}}llvm-spirv{{.*}}" "-o" "[[OUTPUT5]]" {{.*}} "[[OUTPUT4]]"
 // CHK-TOOLS-FPGA: llvm-foreach{{.*}} "--out-file-list=[[OUTPUT6:.+\.txt]]{{.*}} "--" "{{.*}}aoc{{.*}} "-o" "[[OUTPUT6]]" "[[OUTPUT5]]"
@@ -228,20 +228,20 @@
 /// offload with multiple targets, including AOT
 // RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64-unknown-unknown-sycldevice,spir64_fpga-unknown-unknown-sycldevice,spir64_gen-unknown-unknown-sycldevice -###  -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG %s
-// CHK-PHASE-MULTI-TARG: 0: input, "[[INPUT:.+\.c]]", c, (host-sycl)
-// CHK-PHASE-MULTI-TARG: 1: preprocessor, {0}, cpp-output, (host-sycl)
+// CHK-PHASE-MULTI-TARG: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
+// CHK-PHASE-MULTI-TARG: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
 
-// CHK-PHASE-MULTI-TARG: 2: input, "[[INPUT]]", c, (device-sycl)
-// CHK-PHASE-MULTI-TARG: 3: preprocessor, {2}, cpp-output, (device-sycl)
+// CHK-PHASE-MULTI-TARG: 2: input, "[[INPUT]]", c++, (device-sycl)
+// CHK-PHASE-MULTI-TARG: 3: preprocessor, {2}, c++-cpp-output, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 4: compiler, {3}, sycl-header, (device-sycl)
-// CHK-PHASE-MULTI-TARG: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64-unknown-unknown-sycldevice)" {4}, cpp-output
+// CHK-PHASE-MULTI-TARG: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64-unknown-unknown-sycldevice)" {4}, c++-cpp-output
 // CHK-PHASE-MULTI-TARG: 6: compiler, {5}, ir, (host-sycl)
 // CHK-PHASE-MULTI-TARG: 7: backend, {6}, assembler, (host-sycl)
 // CHK-PHASE-MULTI-TARG: 8: assembler, {7}, object, (host-sycl)
 // CHK-PHASE-MULTI-TARG: 9: linker, {8}, image, (host-sycl)
 
-// CHK-PHASE-MULTI-TARG: 10: input, "[[INPUT]]", c, (device-sycl)
-// CHK-PHASE-MULTI-TARG: 11: preprocessor, {10}, cpp-output, (device-sycl)
+// CHK-PHASE-MULTI-TARG: 10: input, "[[INPUT]]", c++, (device-sycl)
+// CHK-PHASE-MULTI-TARG: 11: preprocessor, {10}, c++-cpp-output, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 12: compiler, {11}, ir, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 13: linker, {12}, ir, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 14: sycl-post-link, {13}, tempfiletable, (device-sycl)
@@ -250,8 +250,8 @@
 // CHK-PHASE-MULTI-TARG: 17: file-table-tform, {14, 16}, tempfiletable, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 18: clang-offload-wrapper, {17}, object, (device-sycl)
 
-// CHK-PHASE-MULTI-TARG: 19: input, "[[INPUT]]", c, (device-sycl)
-// CHK-PHASE-MULTI-TARG: 20: preprocessor, {19}, cpp-output, (device-sycl)
+// CHK-PHASE-MULTI-TARG: 19: input, "[[INPUT]]", c++, (device-sycl)
+// CHK-PHASE-MULTI-TARG: 20: preprocessor, {19}, c++-cpp-output, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 21: compiler, {20}, ir, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 22: linker, {21}, ir, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 23: sycl-post-link, {22}, tempfiletable, (device-sycl)
@@ -271,12 +271,32 @@
 // CHK-PHASE-MULTI-TARG: 36: clang-offload-wrapper, {35}, object, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 37: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (spir64-unknown-unknown-sycldevice)" {18}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {28}, "device-sycl (spir64_gen-unknown-unknown-sycldevice)" {36}, image
 
-// Check -fsycl-one-kernel-per-module option passing.
+// Check -fsycl-device-code-split=per_kernel option passing.
 // RUN:   %clang -### -fsycl -fsycl-device-code-split=per_kernel %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-ONE-KERNEL
 // RUN:   %clang_cl -### -fsycl -fsycl-device-code-split=per_kernel %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-ONE-KERNEL
 // CHK-ONE-KERNEL: sycl-post-link{{.*}} "-split=kernel"{{.*}} "-o"{{.*}}
+
+// Check -fsycl-device-code-split=per_source option passing.
+// RUN:   %clang -### -fsycl -fsycl-device-code-split=per_source %s 2>&1 \
+// RUN:    | FileCheck %s -check-prefixes=CHK-PER-SOURCE
+// RUN:   %clang_cl -### -fsycl -fsycl-device-code-split=per_source %s 2>&1 \
+// RUN:    | FileCheck %s -check-prefixes=CHK-PER-SOURCE
+// CHK-PER-SOURCE: sycl-post-link{{.*}} "-split=source"{{.*}} "-o"{{.*}}
+
+// Check -fsycl-device-code-split option passing.
+// RUN:   %clang -### -fsycl -fsycl-device-code-split %s 2>&1 \
+// RUN:    | FileCheck %s -check-prefixes=CHK-AUTO
+// RUN:   %clang_cl -### -fsycl -fsycl-device-code-split %s 2>&1 \
+// RUN:    | FileCheck %s -check-prefixes=CHK-AUTO
+// RUN:   %clang -### -fsycl -fsycl-device-code-split=auto %s 2>&1 \
+// RUN:    | FileCheck %s -check-prefixes=CHK-AUTO
+// RUN:   %clang_cl -### -fsycl -fsycl-device-code-split=auto %s 2>&1 \
+// RUN:    | FileCheck %s -check-prefixes=CHK-AUTO
+// RUN:   %clang -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHK-AUTO
+// RUN:   %clang_cl -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHK-AUTO
+// CHK-AUTO: sycl-post-link{{.*}} "-split=auto"{{.*}} "-o"{{.*}}
 
 // Check no device code split mode.
 // RUN:   %clang -### -fsycl -fsycl-device-code-split -fsycl-device-code-split=off %s 2>&1 \
@@ -285,5 +305,26 @@
 // RUN:    | FileCheck %s -check-prefixes=CHK-NO-SPLIT
 // CHK-NO-SPLIT-NOT: sycl-post-link{{.*}} -split{{.*}}
 
-// TODO: SYCL specific fail - analyze and enable
-// XFAIL: windows-msvc
+// Check ESIMD device code split.
+// RUN:   %clang    -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
+// RUN:   %clang_cl -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
+// RUN:   %clang    -### -fsycl -fsycl-device-code-split-esimd %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
+// RUN:   %clang_cl -### -fsycl -fsycl-device-code-split-esimd %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
+// RUN:   %clang    -### -fsycl -fno-sycl-device-code-split-esimd %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-ESIMD-SPLIT
+// RUN:   %clang_cl -### -fsycl -fno-sycl-device-code-split-esimd %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-ESIMD-SPLIT
+// RUN:   %clang    -### -fsycl -fintelfpga %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-ESIMD-SPLIT
+// RUN:   %clang_cl -### -fsycl -fintelfpga %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-ESIMD-SPLIT
+// CHK-ESIMD-SPLIT: sycl-post-link{{.*}} "-split-esimd"
+// CHK-NO-ESIMD-SPLIT-NOT: sycl-post-link{{.*}} "-split-esimd"
+
+// Check lowering of ESIMD device code.
+// RUN:   %clang    -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
+// RUN:   %clang_cl -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
+// RUN:   %clang    -### -fsycl -fsycl-device-code-lower-esimd %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
+// RUN:   %clang_cl -### -fsycl -fsycl-device-code-lower-esimd %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
+// RUN:   %clang    -### -fsycl -fno-sycl-device-code-lower-esimd %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-ESIMD-LOWER
+// RUN:   %clang_cl -### -fsycl -fno-sycl-device-code-lower-esimd %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-ESIMD-LOWER
+// RUN:   %clang    -### -fsycl -fintelfpga %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-ESIMD-LOWER
+// RUN:   %clang_cl -### -fsycl -fintelfpga %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-ESIMD-LOWER
+// CHK-ESIMD-LOWER: sycl-post-link{{.*}} "-lower-esimd"
+// CHK-NO-ESIMD-LOWER-NOT: sycl-post-link{{.*}} "-lower-esimd"

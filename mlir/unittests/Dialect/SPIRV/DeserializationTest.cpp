@@ -12,21 +12,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/SPIRV/SPIRVBinaryUtils.h"
-#include "mlir/Dialect/SPIRV/SPIRVDialect.h"
-#include "mlir/Dialect/SPIRV/SPIRVModule.h"
-#include "mlir/Dialect/SPIRV/SPIRVOps.h"
-#include "mlir/Dialect/SPIRV/Serialization.h"
+#include "mlir/Target/SPIRV/Deserialization.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVModule.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/Target/SPIRV/SPIRVBinaryUtils.h"
 #include "gmock/gmock.h"
 
 #include <memory>
 
 using namespace mlir;
-
-/// Load the SPIRV dialect.
-static DialectRegistration<spirv::SPIRVDialect> SPIRVRegistration;
 
 using ::testing::StrEq;
 
@@ -38,7 +35,7 @@ using ::testing::StrEq;
 /// diagnostic checking utilities.
 class DeserializationTest : public ::testing::Test {
 protected:
-  DeserializationTest() : context(/*loadAllDialects=*/false) {
+  DeserializationTest() {
     context.getOrLoadDialect<mlir::spirv::SPIRVDialect>();
     // Register a diagnostic handler to capture the diagnostic so that we can
     // check it later.

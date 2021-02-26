@@ -68,10 +68,16 @@ private:
 std::vector<Fix> IncludeFixer::fix(DiagnosticsEngine::Level DiagLevel,
                                    const clang::Diagnostic &Info) const {
   switch (Info.getID()) {
-  case diag::err_incomplete_type:
-  case diag::err_incomplete_member_access:
-  case diag::err_incomplete_base_class:
   case diag::err_incomplete_nested_name_spec:
+  case diag::err_incomplete_base_class:
+  case diag::err_incomplete_member_access:
+  case diag::err_incomplete_type:
+  case diag::err_typecheck_decl_incomplete_type:
+  case diag::err_typecheck_incomplete_tag:
+  case diag::err_invalid_incomplete_type_use:
+  case diag::err_sizeof_alignof_incomplete_or_sizeless_type:
+  case diag::err_for_range_incomplete_type:
+  case diag::err_func_def_incomplete_result:
     // Incomplete type diagnostics should have a QualType argument for the
     // incomplete type.
     for (unsigned Idx = 0; Idx < Info.getNumArgs(); ++Idx) {
@@ -94,6 +100,8 @@ std::vector<Fix> IncludeFixer::fix(DiagnosticsEngine::Level DiagLevel,
   case diag::err_undeclared_var_use_suggest:
   case diag::err_no_member: // Could be no member in namespace.
   case diag::err_no_member_suggest:
+  case diag::err_no_member_template:
+  case diag::err_no_member_template_suggest:
     if (LastUnresolvedName) {
       // Try to fix unresolved name caused by missing declaration.
       // E.g.
@@ -127,7 +135,7 @@ std::vector<Fix> IncludeFixer::fixIncompleteType(const Type &T) const {
   auto ID = getSymbolID(TD);
   if (!ID)
     return {};
-  llvm::Optional<const SymbolSlab *> Symbols = lookupCached(*ID);
+  llvm::Optional<const SymbolSlab *> Symbols = lookupCached(ID);
   if (!Symbols)
     return {};
   const SymbolSlab &Syms = **Symbols;
@@ -153,8 +161,7 @@ std::vector<Fix> IncludeFixer::fixesForSymbols(const SymbolSlab &Syms) const {
       return ResolvedInserted.takeError();
     auto Spelled = Inserter->calculateIncludePath(*ResolvedInserted, File);
     if (!Spelled)
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "Header not on include path");
+      return error("Header not on include path");
     return std::make_pair(
         std::move(*Spelled),
         Inserter->shouldInsertInclude(*ResolvedDeclaring, *ResolvedInserted));

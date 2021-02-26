@@ -13,10 +13,10 @@
 #define TYPEDETAIL_H_
 
 #include "mlir/IR/AffineMap.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Identifier.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OperationSupport.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/TypeRange.h"
 #include "llvm/ADT/bit.h"
 #include "llvm/Support/TrailingObjects.h"
@@ -26,31 +26,6 @@ namespace mlir {
 class MLIRContext;
 
 namespace detail {
-
-/// Opaque Type Storage and Uniquing.
-struct OpaqueTypeStorage : public TypeStorage {
-  OpaqueTypeStorage(Identifier dialectNamespace, StringRef typeData)
-      : dialectNamespace(dialectNamespace), typeData(typeData) {}
-
-  /// The hash key used for uniquing.
-  using KeyTy = std::pair<Identifier, StringRef>;
-  bool operator==(const KeyTy &key) const {
-    return key == KeyTy(dialectNamespace, typeData);
-  }
-
-  static OpaqueTypeStorage *construct(TypeStorageAllocator &allocator,
-                                      const KeyTy &key) {
-    StringRef tyData = allocator.copyInto(key.second);
-    return new (allocator.allocate<OpaqueTypeStorage>())
-        OpaqueTypeStorage(key.first, tyData);
-  }
-
-  // The dialect namespace.
-  Identifier dialectNamespace;
-
-  // The parser type data for this opaque type.
-  StringRef typeData;
-};
 
 /// Integer Type Storage and Uniquing.
 struct IntegerTypeStorage : public TypeStorage {
@@ -207,13 +182,21 @@ struct UnrankedTensorTypeStorage : public ShapedTypeStorage {
   }
 };
 
-struct MemRefTypeStorage : public ShapedTypeStorage {
+struct BaseMemRefTypeStorage : public ShapedTypeStorage {
+  BaseMemRefTypeStorage(Type elementType, unsigned memorySpace)
+      : ShapedTypeStorage(elementType), memorySpace(memorySpace) {}
+
+  /// Memory space in which data referenced by memref resides.
+  const unsigned memorySpace;
+};
+
+struct MemRefTypeStorage : public BaseMemRefTypeStorage {
   MemRefTypeStorage(unsigned shapeSize, Type elementType,
                     const int64_t *shapeElements, const unsigned numAffineMaps,
                     AffineMap const *affineMapList, const unsigned memorySpace)
-      : ShapedTypeStorage(elementType), shapeElements(shapeElements),
-        shapeSize(shapeSize), numAffineMaps(numAffineMaps),
-        affineMapList(affineMapList), memorySpace(memorySpace) {}
+      : BaseMemRefTypeStorage(elementType, memorySpace),
+        shapeElements(shapeElements), shapeSize(shapeSize),
+        numAffineMaps(numAffineMaps), affineMapList(affineMapList) {}
 
   /// The hash key used for uniquing.
   // MemRefs are uniqued based on their shape, element type, affine map
@@ -257,16 +240,14 @@ struct MemRefTypeStorage : public ShapedTypeStorage {
   const unsigned numAffineMaps;
   /// List of affine maps in the memref's layout/index map composition.
   AffineMap const *affineMapList;
-  /// Memory space in which data referenced by memref resides.
-  const unsigned memorySpace;
 };
 
 /// Unranked MemRef is a MemRef with unknown rank.
 /// Only element type and memory space are known
-struct UnrankedMemRefTypeStorage : public ShapedTypeStorage {
+struct UnrankedMemRefTypeStorage : public BaseMemRefTypeStorage {
 
   UnrankedMemRefTypeStorage(Type elementTy, const unsigned memorySpace)
-      : ShapedTypeStorage(elementTy), memorySpace(memorySpace) {}
+      : BaseMemRefTypeStorage(elementTy, memorySpace) {}
 
   /// The hash key used for uniquing.
   using KeyTy = std::tuple<Type, unsigned>;
@@ -282,26 +263,6 @@ struct UnrankedMemRefTypeStorage : public ShapedTypeStorage {
     return new (allocator.allocate<UnrankedMemRefTypeStorage>())
         UnrankedMemRefTypeStorage(std::get<0>(key), std::get<1>(key));
   }
-  /// Memory space in which data referenced by memref resides.
-  const unsigned memorySpace;
-};
-
-/// Complex Type Storage.
-struct ComplexTypeStorage : public TypeStorage {
-  ComplexTypeStorage(Type elementType) : elementType(elementType) {}
-
-  /// The hash key used for uniquing.
-  using KeyTy = Type;
-  bool operator==(const KeyTy &key) const { return key == elementType; }
-
-  /// Construction.
-  static ComplexTypeStorage *construct(TypeStorageAllocator &allocator,
-                                       Type elementType) {
-    return new (allocator.allocate<ComplexTypeStorage>())
-        ComplexTypeStorage(elementType);
-  }
-
-  Type elementType;
 };
 
 /// A type representing a collection of other types.

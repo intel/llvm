@@ -472,13 +472,21 @@ bool CodeGenPrepare::runOnFunction(Function &F) {
   PSI = &getAnalysis<ProfileSummaryInfoWrapperPass>().getPSI();
   OptSize = F.hasOptSize();
   if (ProfileGuidedSectionPrefix) {
-    if (PSI->isFunctionHotInCallGraph(&F, *BFI))
-      F.setSectionPrefix(".hot");
-    else if (PSI->isFunctionColdInCallGraph(&F, *BFI))
-      F.setSectionPrefix(".unlikely");
+    // The hot attribute overwrites profile count based hotness while profile
+    // counts based hotness overwrite the cold attribute.
+    // This is a conservative behabvior.
+    if (F.hasFnAttribute(Attribute::Hot) ||
+        PSI->isFunctionHotInCallGraph(&F, *BFI))
+      F.setSectionPrefix("hot");
+    // If PSI shows this function is not hot, we will placed the function
+    // into unlikely section if (1) PSI shows this is a cold function, or
+    // (2) the function has a attribute of cold.
+    else if (PSI->isFunctionColdInCallGraph(&F, *BFI) ||
+             F.hasFnAttribute(Attribute::Cold))
+      F.setSectionPrefix("unlikely");
     else if (ProfileUnknownInSpecialSection && PSI->hasPartialSampleProfile() &&
              PSI->isFunctionHotnessUnknown(F))
-      F.setSectionPrefix(".unknown");
+      F.setSectionPrefix("unknown");
   }
 
   /// This optimization identifies DIV instructions that can be
@@ -544,6 +552,7 @@ bool CodeGenPrepare::runOnFunction(Function &F) {
     LargeOffsetGEPID.clear();
   }
 
+  NewGEPBases.clear();
   SunkAddrs.clear();
 
   if (!DisableBranchOpts) {
@@ -553,13 +562,13 @@ bool CodeGenPrepare::runOnFunction(Function &F) {
     // are removed.
     SmallSetVector<BasicBlock*, 8> WorkList;
     for (BasicBlock &BB : F) {
-      SmallVector<BasicBlock *, 2> Successors(succ_begin(&BB), succ_end(&BB));
+      SmallVector<BasicBlock *, 2> Successors(successors(&BB));
       MadeChange |= ConstantFoldTerminator(&BB, true);
       if (!MadeChange) continue;
 
       for (SmallVectorImpl<BasicBlock*>::iterator
              II = Successors.begin(), IE = Successors.end(); II != IE; ++II)
-        if (pred_begin(*II) == pred_end(*II))
+        if (pred_empty(*II))
           WorkList.insert(*II);
     }
 
@@ -567,13 +576,13 @@ bool CodeGenPrepare::runOnFunction(Function &F) {
     MadeChange |= !WorkList.empty();
     while (!WorkList.empty()) {
       BasicBlock *BB = WorkList.pop_back_val();
-      SmallVector<BasicBlock*, 2> Successors(succ_begin(BB), succ_end(BB));
+      SmallVector<BasicBlock*, 2> Successors(successors(BB));
 
       DeleteDeadBlock(BB);
 
       for (SmallVectorImpl<BasicBlock*>::iterator
              II = Successors.begin(), IE = Successors.end(); II != IE; ++II)
-        if (pred_begin(*II) == pred_end(*II))
+        if (pred_empty(*II))
           WorkList.insert(*II);
     }
 
@@ -624,8 +633,8 @@ void CodeGenPrepare::removeAllAssertingVHReferences(Value *V) {
     return;
 
   auto &GEPVector = VecI->second;
-  const auto &I = std::find_if(GEPVector.begin(), GEPVector.end(),
-                               [=](auto &Elt) { return Elt.first == GEP; });
+  const auto &I =
+      llvm::find_if(GEPVector, [=](auto &Elt) { return Elt.first == GEP; });
   if (I == GEPVector.end())
     return;
 
@@ -652,9 +661,10 @@ bool CodeGenPrepare::eliminateFallThrough(Function &F) {
   // Use a temporary array to avoid iterator being invalidated when
   // deleting blocks.
   SmallVector<WeakTrackingVH, 16> Blocks;
-  for (auto &Block : llvm::make_range(std::next(F.begin()), F.end()))
+  for (auto &Block : llvm::drop_begin(F))
     Blocks.push_back(&Block);
 
+  SmallSet<WeakTrackingVH, 16> Preds;
   for (auto &Block : Blocks) {
     auto *BB = cast_or_null<BasicBlock>(Block);
     if (!BB)
@@ -673,8 +683,16 @@ bool CodeGenPrepare::eliminateFallThrough(Function &F) {
 
       // Merge BB into SinglePred and delete it.
       MergeBlockIntoPredecessor(BB);
+      Preds.insert(SinglePred);
     }
   }
+
+  // (Repeatedly) merging blocks into their predecessors can create redundant
+  // debug intrinsics.
+  for (auto &Pred : Preds)
+    if (auto *BB = cast_or_null<BasicBlock>(Pred))
+      RemoveRedundantDbgInstrs(BB);
+
   return Changed;
 }
 
@@ -719,7 +737,7 @@ bool CodeGenPrepare::eliminateMostlyEmptyBlocks(Function &F) {
   SmallVector<Loop *, 16> LoopList(LI->begin(), LI->end());
   while (!LoopList.empty()) {
     Loop *L = LoopList.pop_back_val();
-    LoopList.insert(LoopList.end(), L->begin(), L->end());
+    llvm::append_range(LoopList, *L);
     if (BasicBlock *Preheader = L->getLoopPreheader())
       Preheaders.insert(Preheader);
   }
@@ -729,7 +747,7 @@ bool CodeGenPrepare::eliminateMostlyEmptyBlocks(Function &F) {
   // as we remove them.
   // Note that this intentionally skips the entry block.
   SmallVector<WeakTrackingVH, 16> Blocks;
-  for (auto &Block : llvm::make_range(std::next(F.begin()), F.end()))
+  for (auto &Block : llvm::drop_begin(F))
     Blocks.push_back(&Block);
 
   for (auto &Block : Blocks) {
@@ -2047,9 +2065,11 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool &ModifiedDT) {
       Value *Operand = II->getOperand(0);
       II->eraseFromParent();
       // Prune the operand, it's most likely dead.
-      RecursivelyDeleteTriviallyDeadInstructions(
-          Operand, TLInfo, nullptr,
-          [&](Value *V) { removeAllAssertingVHReferences(V); });
+      resetIteratorIfInvalidatedWhileCalling(BB, [&]() {
+        RecursivelyDeleteTriviallyDeadInstructions(
+            Operand, TLInfo, nullptr,
+            [&](Value *V) { removeAllAssertingVHReferences(V); });
+      });
       return true;
     }
 
@@ -2210,8 +2230,7 @@ bool CodeGenPrepare::dupRetToEnableTailCallOpts(BasicBlock *BB, bool &ModifiedDT
     EVI = dyn_cast<ExtractValueInst>(V);
     if (EVI) {
       V = EVI->getOperand(0);
-      if (!std::all_of(EVI->idx_begin(), EVI->idx_end(),
-                       [](unsigned idx) { return idx == 0; }))
+      if (!llvm::all_of(EVI->indices(), [](unsigned idx) { return idx == 0; }))
         return false;
     }
 
@@ -2230,13 +2249,12 @@ bool CodeGenPrepare::dupRetToEnableTailCallOpts(BasicBlock *BB, bool &ModifiedDT
     // Skip over debug and the bitcast.
     do {
       ++BI;
-    } while (isa<DbgInfoIntrinsic>(BI) || &*BI == BCI || &*BI == EVI);
+    } while (isa<DbgInfoIntrinsic>(BI) || &*BI == BCI || &*BI == EVI ||
+             isa<PseudoProbeInst>(BI));
     if (&*BI != RetI)
       return false;
   } else {
-    BasicBlock::iterator BI = BB->begin();
-    while (isa<DbgInfoIntrinsic>(BI)) ++BI;
-    if (&*BI != RetI)
+    if (BB->getFirstNonPHIOrDbg(true) != RetI)
       return false;
   }
 
@@ -2261,18 +2279,12 @@ bool CodeGenPrepare::dupRetToEnableTailCallOpts(BasicBlock *BB, bool &ModifiedDT
     for (pred_iterator PI = pred_begin(BB), PE = pred_end(BB); PI != PE; ++PI) {
       if (!VisitedBBs.insert(*PI).second)
         continue;
-
-      BasicBlock::InstListType &InstList = (*PI)->getInstList();
-      BasicBlock::InstListType::reverse_iterator RI = InstList.rbegin();
-      BasicBlock::InstListType::reverse_iterator RE = InstList.rend();
-      do { ++RI; } while (RI != RE && isa<DbgInfoIntrinsic>(&*RI));
-      if (RI == RE)
-        continue;
-
-      CallInst *CI = dyn_cast<CallInst>(&*RI);
-      if (CI && CI->use_empty() && TLI->mayBeEmittedAsTailCall(CI) &&
-          attributesPermitTailCall(F, CI, RetI, *TLI))
-        TailCallBBs.push_back(*PI);
+      if (Instruction *I = (*PI)->rbegin()->getPrevNonDebugInstruction(true)) {
+        CallInst *CI = dyn_cast<CallInst>(I);
+        if (CI && CI->use_empty() && TLI->mayBeEmittedAsTailCall(CI) &&
+            attributesPermitTailCall(F, CI, RetI, *TLI))
+          TailCallBBs.push_back(*PI);
+      }
     }
   }
 
@@ -2296,7 +2308,7 @@ bool CodeGenPrepare::dupRetToEnableTailCallOpts(BasicBlock *BB, bool &ModifiedDT
   }
 
   // If we eliminated all predecessors of the block, delete the block now.
-  if (Changed && !BB->hasAddressTaken() && pred_begin(BB) == pred_end(BB))
+  if (Changed && !BB->hasAddressTaken() && pred_empty(BB))
     BB->eraseFromParent();
 
   return Changed;
@@ -3147,9 +3159,7 @@ public:
   /// \returns whether the element is actually removed, i.e. was in the
   /// collection before the operation.
   bool erase(PHINode *Ptr) {
-    auto it = NodeMap.find(Ptr);
-    if (it != NodeMap.end()) {
-      NodeMap.erase(Ptr);
+    if (NodeMap.erase(Ptr)) {
       SkipRemovedElements(FirstValidElement);
       return true;
     }
@@ -3704,8 +3714,7 @@ private:
             PHINode::Create(CommonType, PredCount, "sunk_phi", CurrentPhi);
         Map[Current] = PHI;
         ST.insertNewPhi(PHI);
-        for (Value *P : CurrentPhi->incoming_values())
-          Worklist.push_back(P);
+        append_range(Worklist, CurrentPhi->incoming_values());
       }
     }
   }
@@ -4959,8 +4968,7 @@ bool CodeGenPrepare::optimizeMemoryInst(Instruction *MemoryInst, Value *Addr,
 
     // For a PHI node, push all of its incoming values.
     if (PHINode *P = dyn_cast<PHINode>(V)) {
-      for (Value *IncValue : P->incoming_values())
-        worklist.push_back(IncValue);
+      append_range(worklist, P->incoming_values());
       PhiOrSelectSeen = true;
       continue;
     }
@@ -5274,22 +5282,11 @@ bool CodeGenPrepare::optimizeMemoryInst(Instruction *MemoryInst, Value *Addr,
   // If we have no uses, recursively delete the value and all dead instructions
   // using it.
   if (Repl->use_empty()) {
-    // This can cause recursive deletion, which can invalidate our iterator.
-    // Use a WeakTrackingVH to hold onto it in case this happens.
-    Value *CurValue = &*CurInstIterator;
-    WeakTrackingVH IterHandle(CurValue);
-    BasicBlock *BB = CurInstIterator->getParent();
-
-    RecursivelyDeleteTriviallyDeadInstructions(
-        Repl, TLInfo, nullptr,
-        [&](Value *V) { removeAllAssertingVHReferences(V); });
-
-    if (IterHandle != CurValue) {
-      // If the iterator instruction was recursively deleted, start over at the
-      // start of the block.
-      CurInstIterator = BB->begin();
-      SunkAddrs.clear();
-    }
+    resetIteratorIfInvalidatedWhileCalling(CurInstIterator->getParent(), [&]() {
+      RecursivelyDeleteTriviallyDeadInstructions(
+          Repl, TLInfo, nullptr,
+          [&](Value *V) { removeAllAssertingVHReferences(V); });
+    });
   }
   ++NumMemoryInsts;
   return true;
@@ -5310,14 +5307,10 @@ bool CodeGenPrepare::optimizeMemoryInst(Instruction *MemoryInst, Value *Addr,
 ///
 /// If the final index isn't a vector or is a splat, we can emit a scalar GEP
 /// followed by a GEP with an all zeroes vector index. This will enable
-/// SelectionDAGBuilder to use a the scalar GEP as the uniform base and have a
+/// SelectionDAGBuilder to use the scalar GEP as the uniform base and have a
 /// zero index.
 bool CodeGenPrepare::optimizeGatherScatterInst(Instruction *MemoryInst,
                                                Value *Ptr) {
-  // FIXME: Support scalable vectors.
-  if (isa<ScalableVectorType>(Ptr->getType()))
-    return false;
-
   Value *NewAddr;
 
   if (const auto *GEP = dyn_cast<GetElementPtrInst>(Ptr)) {
@@ -5330,7 +5323,7 @@ bool CodeGenPrepare::optimizeGatherScatterInst(Instruction *MemoryInst,
     if (MemoryInst->getParent() != GEP->getParent())
       return false;
 
-    SmallVector<Value *, 2> Ops(GEP->op_begin(), GEP->op_end());
+    SmallVector<Value *, 2> Ops(GEP->operands());
 
     bool RewriteGEP = false;
 
@@ -5376,7 +5369,7 @@ bool CodeGenPrepare::optimizeGatherScatterInst(Instruction *MemoryInst,
     if (!RewriteGEP && Ops.size() == 2)
       return false;
 
-    unsigned NumElts = cast<FixedVectorType>(Ptr->getType())->getNumElements();
+    auto NumElts = cast<VectorType>(Ptr->getType())->getElementCount();
 
     IRBuilder<> Builder(MemoryInst);
 
@@ -5386,7 +5379,7 @@ bool CodeGenPrepare::optimizeGatherScatterInst(Instruction *MemoryInst,
     // and a vector GEP with all zeroes final index.
     if (!Ops[FinalIndex]->getType()->isVectorTy()) {
       NewAddr = Builder.CreateGEP(Ops[0], makeArrayRef(Ops).drop_front());
-      auto *IndexTy = FixedVectorType::get(ScalarIndexTy, NumElts);
+      auto *IndexTy = VectorType::get(ScalarIndexTy, NumElts);
       NewAddr = Builder.CreateGEP(NewAddr, Constant::getNullValue(IndexTy));
     } else {
       Value *Base = Ops[0];
@@ -5409,13 +5402,13 @@ bool CodeGenPrepare::optimizeGatherScatterInst(Instruction *MemoryInst,
     if (!V)
       return false;
 
-    unsigned NumElts = cast<FixedVectorType>(Ptr->getType())->getNumElements();
+    auto NumElts = cast<VectorType>(Ptr->getType())->getElementCount();
 
     IRBuilder<> Builder(MemoryInst);
 
     // Emit a vector GEP with a scalar pointer and all 0s vector index.
     Type *ScalarIndexTy = DL->getIndexType(V->getType()->getScalarType());
-    auto *IndexTy = FixedVectorType::get(ScalarIndexTy, NumElts);
+    auto *IndexTy = VectorType::get(ScalarIndexTy, NumElts);
     NewAddr = Builder.CreateGEP(V, Constant::getNullValue(IndexTy));
   } else {
     // Constant, SelectionDAGBuilder knows to check if its a splat.
@@ -5818,6 +5811,12 @@ bool CodeGenPrepare::optimizePhiType(
   Visited.insert(I);
   SmallPtrSet<Instruction *, 4> Defs;
   SmallPtrSet<Instruction *, 4> Uses;
+  // This works by adding extra bitcasts between load/stores and removing
+  // existing bicasts. If we have a phi(bitcast(load)) or a store(bitcast(phi))
+  // we can get in the situation where we remove a bitcast in one iteration
+  // just to add it again in the next. We need to ensure that at least one
+  // bitcast we remove are anchored to something that will not change back.
+  bool AnyAnchored = false;
 
   while (!Worklist.empty()) {
     Instruction *II = Worklist.pop_back_val();
@@ -5834,6 +5833,8 @@ bool CodeGenPrepare::optimizePhiType(
             Worklist.push_back(OpPhi);
           }
         } else if (auto *OpLoad = dyn_cast<LoadInst>(V)) {
+          if (!OpLoad->isSimple())
+            return false;
           if (!Defs.count(OpLoad)) {
             Defs.insert(OpLoad);
             Worklist.push_back(OpLoad);
@@ -5851,9 +5852,12 @@ bool CodeGenPrepare::optimizePhiType(
           if (!Defs.count(OpBC)) {
             Defs.insert(OpBC);
             Worklist.push_back(OpBC);
+            AnyAnchored |= !isa<LoadInst>(OpBC->getOperand(0)) &&
+                           !isa<ExtractElementInst>(OpBC->getOperand(0));
           }
-        } else if (!isa<UndefValue>(V))
+        } else if (!isa<UndefValue>(V)) {
           return false;
+        }
       }
     }
 
@@ -5868,7 +5872,7 @@ bool CodeGenPrepare::optimizePhiType(
           Worklist.push_back(OpPhi);
         }
       } else if (auto *OpStore = dyn_cast<StoreInst>(V)) {
-        if (OpStore->getOperand(0) != II)
+        if (!OpStore->isSimple() || OpStore->getOperand(0) != II)
           return false;
         Uses.insert(OpStore);
       } else if (auto *OpBC = dyn_cast<BitCastInst>(V)) {
@@ -5877,12 +5881,15 @@ bool CodeGenPrepare::optimizePhiType(
         if (OpBC->getType() != ConvertTy)
           return false;
         Uses.insert(OpBC);
-      } else
+        AnyAnchored |=
+            any_of(OpBC->users(), [](User *U) { return !isa<StoreInst>(U); });
+      } else {
         return false;
+      }
     }
   }
 
-  if (!ConvertTy || !TLI->shouldConvertPhiType(PhiTy, ConvertTy))
+  if (!ConvertTy || !AnyAnchored || !TLI->shouldConvertPhiType(PhiTy, ConvertTy))
     return false;
 
   LLVM_DEBUG(dbgs() << "Converting " << *I << "\n  and connected nodes to "
@@ -5893,11 +5900,13 @@ bool CodeGenPrepare::optimizePhiType(
   ValueToValueMap ValMap;
   ValMap[UndefValue::get(PhiTy)] = UndefValue::get(ConvertTy);
   for (Instruction *D : Defs) {
-    if (isa<BitCastInst>(D))
+    if (isa<BitCastInst>(D)) {
       ValMap[D] = D->getOperand(0);
-    else
+      DeletedInstrs.insert(D);
+    } else {
       ValMap[D] =
           new BitCastInst(D, ConvertTy, D->getName() + ".bc", D->getNextNode());
+    }
   }
   for (PHINode *Phi : PhiNodes)
     ValMap[Phi] = PHINode::Create(ConvertTy, Phi->getNumIncomingValues(),
@@ -5908,15 +5917,17 @@ bool CodeGenPrepare::optimizePhiType(
     for (int i = 0, e = Phi->getNumIncomingValues(); i < e; i++)
       NewPhi->addIncoming(ValMap[Phi->getIncomingValue(i)],
                           Phi->getIncomingBlock(i));
+    Visited.insert(NewPhi);
   }
   // And finally pipe up the stores and bitcasts
   for (Instruction *U : Uses) {
     if (isa<BitCastInst>(U)) {
       DeletedInstrs.insert(U);
       U->replaceAllUsesWith(ValMap[U->getOperand(0)]);
-    } else
+    } else {
       U->setOperand(0,
                     new BitCastInst(ValMap[U->getOperand(0)], PhiTy, "bc", U));
+    }
   }
 
   // Save the removed phis to be deleted later.
@@ -6686,6 +6697,7 @@ bool CodeGenPrepare::optimizeSelectInst(SelectInst *SI) {
 /// in MVE takes a GPR (integer) register, and the instruction that incorporate
 /// a VDUP (such as a VADD qd, qm, rm) also require a gpr register.
 bool CodeGenPrepare::optimizeShuffleVectorInst(ShuffleVectorInst *SVI) {
+  // Accept shuf(insertelem(undef/poison, val, 0), undef/poison, <0,0,..>) only
   if (!match(SVI, m_Shuffle(m_InsertElt(m_Undef(), m_Value(), m_ZeroInt()),
                             m_Undef(), m_ZeroMask())))
     return false;
@@ -6705,10 +6717,7 @@ bool CodeGenPrepare::optimizeShuffleVectorInst(ShuffleVectorInst *SVI) {
   Builder.SetInsertPoint(SVI);
   Value *BC1 = Builder.CreateBitCast(
       cast<Instruction>(SVI->getOperand(0))->getOperand(1), NewType);
-  Value *Insert = Builder.CreateInsertElement(UndefValue::get(NewVecType), BC1,
-                                              (uint64_t)0);
-  Value *Shuffle = Builder.CreateShuffleVector(
-      Insert, UndefValue::get(NewVecType), SVI->getShuffleMask());
+  Value *Shuffle = Builder.CreateVectorSplat(NewVecType->getNumElements(), BC1);
   Value *BC2 = Builder.CreateBitCast(Shuffle, SVIVecType);
 
   SVI->replaceAllUsesWith(BC2);
@@ -7823,9 +7832,10 @@ bool CodeGenPrepare::splitBranchCondition(Function &F, bool &ModifiedDT) {
     //   %cond2 = icmp|fcmp|binary instruction ...
     //   %cond.or = or|and i1 %cond1, cond2
     //   br i1 %cond.or label %dest1, label %dest2"
-    BinaryOperator *LogicOp;
+    Instruction *LogicOp;
     BasicBlock *TBB, *FBB;
-    if (!match(BB.getTerminator(), m_Br(m_OneUse(m_BinOp(LogicOp)), TBB, FBB)))
+    if (!match(BB.getTerminator(),
+               m_Br(m_OneUse(m_Instruction(LogicOp)), TBB, FBB)))
       continue;
 
     auto *Br1 = cast<BranchInst>(BB.getTerminator());
@@ -7838,17 +7848,22 @@ bool CodeGenPrepare::splitBranchCondition(Function &F, bool &ModifiedDT) {
 
     unsigned Opc;
     Value *Cond1, *Cond2;
-    if (match(LogicOp, m_And(m_OneUse(m_Value(Cond1)),
-                             m_OneUse(m_Value(Cond2)))))
+    if (match(LogicOp,
+              m_LogicalAnd(m_OneUse(m_Value(Cond1)), m_OneUse(m_Value(Cond2)))))
       Opc = Instruction::And;
-    else if (match(LogicOp, m_Or(m_OneUse(m_Value(Cond1)),
-                                 m_OneUse(m_Value(Cond2)))))
+    else if (match(LogicOp, m_LogicalOr(m_OneUse(m_Value(Cond1)),
+                                        m_OneUse(m_Value(Cond2)))))
       Opc = Instruction::Or;
     else
       continue;
 
-    if (!match(Cond1, m_CombineOr(m_Cmp(), m_BinOp())) ||
-        !match(Cond2, m_CombineOr(m_Cmp(), m_BinOp()))   )
+    auto IsGoodCond = [](Value *Cond) {
+      return match(
+          Cond,
+          m_CombineOr(m_Cmp(), m_CombineOr(m_LogicalAnd(m_Value(), m_Value()),
+                                           m_LogicalOr(m_Value(), m_Value()))));
+    };
+    if (!IsGoodCond(Cond1) || !IsGoodCond(Cond2))
       continue;
 
     LLVM_DEBUG(dbgs() << "Before branch condition splitting\n"; BB.dump());

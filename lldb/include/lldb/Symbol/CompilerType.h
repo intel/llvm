@@ -20,7 +20,7 @@ namespace lldb_private {
 
 class DataExtractor;
 
-/// Represents a generic type in a programming language.
+/// Generic representation of a type in a programming language.
 ///
 /// This class serves as an abstraction for a type inside one of the TypeSystems
 /// implemented by the language plugins. It does not have any actual logic in it
@@ -82,6 +82,8 @@ public:
 
   bool IsAnonymousType() const;
 
+  bool IsScopedEnumerationType() const;
+
   bool IsBeingDefined() const;
 
   bool IsCharType() const;
@@ -96,7 +98,7 @@ public:
 
   bool IsFloatingPointType(uint32_t &count, bool &is_complex) const;
 
-  bool IsFunctionType(bool *is_variadic_ptr = nullptr) const;
+  bool IsFunctionType() const;
 
   uint32_t IsHomogeneousAggregate(CompilerType *base_type_ptr) const;
 
@@ -184,6 +186,8 @@ public:
   CompilerType GetCanonicalType() const;
 
   CompilerType GetFullyUnqualifiedType() const;
+
+  CompilerType GetEnumerationIntegerType() const;
 
   /// Returns -1 if this isn't a function of if the function doesn't
   /// have a prototype Returns a value >= 0 if there is a prototype.

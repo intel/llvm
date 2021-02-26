@@ -347,7 +347,7 @@ static CCValAssign::LocInfo determineLocInfo(const MVT RegisterVT, const EVT VT,
                                              const ISD::ArgFlagsTy &Flags) {
   // > does not mean loss of information as type RegisterVT can't hold type VT,
   // it means that type VT is split into multiple registers of type RegisterVT
-  if (VT.getSizeInBits() >= RegisterVT.getSizeInBits())
+  if (VT.getFixedSizeInBits() >= RegisterVT.getFixedSizeInBits())
     return CCValAssign::LocInfo::Full;
   if (Flags.isSExt())
     return CCValAssign::LocInfo::SExt;
@@ -374,8 +374,8 @@ static void setLocInfo(SmallVectorImpl<CCValAssign> &ArgLocs,
 }
 
 bool MipsCallLowering::lowerReturn(MachineIRBuilder &MIRBuilder,
-                                   const Value *Val,
-                                   ArrayRef<Register> VRegs) const {
+                                   const Value *Val, ArrayRef<Register> VRegs,
+                                   FunctionLoweringInfo &FLI) const {
 
   MachineInstrBuilder Ret = MIRBuilder.buildInstrNoInsert(Mips::RetRA);
 
@@ -413,9 +413,10 @@ bool MipsCallLowering::lowerReturn(MachineIRBuilder &MIRBuilder,
   return true;
 }
 
-bool MipsCallLowering::lowerFormalArguments(
-    MachineIRBuilder &MIRBuilder, const Function &F,
-    ArrayRef<ArrayRef<Register>> VRegs) const {
+bool MipsCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
+                                            const Function &F,
+                                            ArrayRef<ArrayRef<Register>> VRegs,
+                                            FunctionLoweringInfo &FLI) const {
 
   // Quick exit if there aren't any args.
   if (F.arg_empty())

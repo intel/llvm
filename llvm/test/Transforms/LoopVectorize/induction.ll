@@ -427,7 +427,7 @@ for.end:
 ; UNROLL:   %[[i1:.+]] = or i64 %index, 1
 ; UNROLL:   %[[i2:.+]] = or i64 %index, 2
 ; UNROLL:   %[[i3:.+]] = or i64 %index, 3
-; UNROLL:   %[[add:.+]]= add <2 x i32> %[[splat:.+]], <i32 2, i32 undef>
+; UNROLL:   %[[add:.+]]= add <2 x i32> %[[splat:.+]], <i32 2, i32 poison>
 ; UNROLL:   getelementptr inbounds %pair.i16, %pair.i16* %p, i64 %index, i32 1
 ; UNROLL:   getelementptr inbounds %pair.i16, %pair.i16* %p, i64 %[[i1]], i32 1
 ; UNROLL:   getelementptr inbounds %pair.i16, %pair.i16* %p, i64 %[[i2]], i32 1
@@ -702,8 +702,8 @@ exit:
 
 ; CHECK-LABEL: @nonprimary(
 ; CHECK: vector.ph:
-; CHECK:   %[[INSERT:.*]] = insertelement <2 x i32> undef, i32 %i, i32 0
-; CHECK:   %[[SPLAT:.*]] = shufflevector <2 x i32> %[[INSERT]], <2 x i32> undef, <2 x i32> zeroinitializer
+; CHECK:   %[[INSERT:.*]] = insertelement <2 x i32> poison, i32 %i, i32 0
+; CHECK:   %[[SPLAT:.*]] = shufflevector <2 x i32> %[[INSERT]], <2 x i32> poison, <2 x i32> zeroinitializer
 ; CHECK:   %[[START:.*]] = add <2 x i32> %[[SPLAT]], <i32 0, i32 1>
 ; CHECK: vector.body:
 ; CHECK:   %index = phi i32 [ 0, %vector.ph ], [ %index.next, %vector.body ]
@@ -721,8 +721,8 @@ exit:
 ;
 ; IND-LABEL: @nonprimary(
 ; IND: vector.ph:
-; IND:   %[[INSERT:.*]] = insertelement <2 x i32> undef, i32 %i, i32 0
-; IND:   %[[SPLAT:.*]] = shufflevector <2 x i32> %[[INSERT]], <2 x i32> undef, <2 x i32> zeroinitializer
+; IND:   %[[INSERT:.*]] = insertelement <2 x i32> poison, i32 %i, i32 0
+; IND:   %[[SPLAT:.*]] = shufflevector <2 x i32> %[[INSERT]], <2 x i32> poison, <2 x i32> zeroinitializer
 ; IND:   %[[START:.*]] = add <2 x i32> %[[SPLAT]], <i32 0, i32 1>
 ; IND: vector.body:
 ; IND:   %index = phi i32 [ 0, %vector.ph ], [ %index.next, %vector.body ]
@@ -739,8 +739,8 @@ exit:
 ;
 ; UNROLL-LABEL: @nonprimary(
 ; UNROLL: vector.ph:
-; UNROLL:   %[[INSERT:.*]] = insertelement <2 x i32> undef, i32 %i, i32 0
-; UNROLL:   %[[SPLAT:.*]] = shufflevector <2 x i32> %[[INSERT]], <2 x i32> undef, <2 x i32> zeroinitializer
+; UNROLL:   %[[INSERT:.*]] = insertelement <2 x i32> poison, i32 %i, i32 0
+; UNROLL:   %[[SPLAT:.*]] = shufflevector <2 x i32> %[[INSERT]], <2 x i32> poison, <2 x i32> zeroinitializer
 ; UNROLL:   %[[START:.*]] = add <2 x i32> %[[SPLAT]], <i32 0, i32 1>
 ; UNROLL: vector.body:
 ; UNROLL:   %index = phi i32 [ 0, %vector.ph ], [ %index.next, %vector.body ]
@@ -860,7 +860,7 @@ define i64 @trunc_with_first_order_recurrence() {
 ; CHECK-NEXT:    %vec.phi = phi <2 x i64>
 ; CHECK-NEXT:    %vec.ind = phi <2 x i64> [ <i64 1, i64 2>, %vector.ph ], [ %vec.ind.next, %vector.body ]
 ; CHECK-NEXT:    %vec.ind2 = phi <2 x i32> [ <i32 1, i32 2>, %vector.ph ], [ %vec.ind.next3, %vector.body ]
-; CHECK-NEXT:    %vector.recur = phi <2 x i32> [ <i32 undef, i32 42>, %vector.ph ], [ %vec.ind5, %vector.body ]
+; CHECK-NEXT:    %vector.recur = phi <2 x i32> [ <i32 poison, i32 42>, %vector.ph ], [ %vec.ind5, %vector.body ]
 ; CHECK-NEXT:    %vec.ind5 = phi <2 x i32> [ <i32 1, i32 2>, %vector.ph ], [ %vec.ind.next6, %vector.body ]
 ; CHECK-NEXT:    %vec.ind7 = phi <2 x i32> [ <i32 1, i32 2>, %vector.ph ], [ %vec.ind.next8, %vector.body ]
 ; CHECK-NEXT:    shufflevector <2 x i32> %vector.recur, <2 x i32> %vec.ind5, <2 x i32> <i32 1, i32 2>

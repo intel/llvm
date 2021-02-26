@@ -49,7 +49,8 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
     const bool UseCUDAPrimaryContext =
         MPropList.has_property<property::context::cuda::use_primary_context>();
     const pi_context_properties Props[] = {
-        static_cast<pi_context_properties>(PI_CONTEXT_PROPERTIES_CUDA_PRIMARY),
+        static_cast<pi_context_properties>(
+            __SYCL_PI_CONTEXT_PROPERTIES_CUDA_PRIMARY),
         static_cast<pi_context_properties>(UseCUDAPrimaryContext), 0};
 
     getPlugin().call<PiApiKind::piContextCreate>(
@@ -100,14 +101,14 @@ context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
 }
 
 cl_context context_impl::get() const {
-  if (!MHostContext) {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin().call<PiApiKind::piContextRetain>(MContext);
-    return pi::cast<cl_context>(MContext);
+  if (MHostContext || getPlugin().getBackend() != cl::sycl::backend::opencl) {
+    throw invalid_object_error(
+        "This instance of context doesn't support OpenCL interoperability.",
+        PI_INVALID_CONTEXT);
   }
-  throw invalid_object_error(
-      "This instance of context doesn't support OpenCL interoperability.",
-      PI_INVALID_CONTEXT);
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  getPlugin().call<PiApiKind::piContextRetain>(MContext);
+  return pi::cast<cl_context>(MContext);
 }
 
 bool context_impl::is_host() const { return MHostContext; }

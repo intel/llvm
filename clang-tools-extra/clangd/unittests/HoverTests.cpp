@@ -239,7 +239,7 @@ class Foo {})cpp";
          HI.Name = "c";
          HI.Kind = index::SymbolKind::Variable;
          HI.Definition = "auto *c = &b";
-         HI.Type = "class (lambda) **";
+         HI.Type = "(lambda) **";
          HI.ReturnType = "bool";
          HI.Parameters = {
              {std::string("int"), std::string("T"), llvm::None},
@@ -379,6 +379,30 @@ class Foo {})cpp";
          HI.Definition = "class X {}";
        }},
 
+      // auto on structured bindings
+      {R"cpp(
+        void foo() {
+          struct S { int x; float y; };
+          [[au^to]] [x, y] = S();
+        }
+        )cpp",
+       [](HoverInfo &HI) {
+         HI.Name = "auto";
+         HI.Kind = index::SymbolKind::TypeAlias;
+         HI.Definition = "struct S";
+       }},
+      // undeduced auto
+      {R"cpp(
+        template<typename T>
+        void foo() {
+          [[au^to]] x = T{};
+        }
+        )cpp",
+       [](HoverInfo &HI) {
+         HI.Name = "auto";
+         HI.Kind = index::SymbolKind::TypeAlias;
+         HI.Definition = "/* not deduced */";
+       }},
       // auto on lambda
       {R"cpp(
         void foo() {
@@ -386,8 +410,9 @@ class Foo {})cpp";
         }
         )cpp",
        [](HoverInfo &HI) {
-         HI.Name = "(lambda)";
-         HI.Kind = index::SymbolKind::Class;
+         HI.Name = "auto";
+         HI.Kind = index::SymbolKind::TypeAlias;
+         HI.Definition = "class(lambda)";
        }},
       // auto on template instantiation
       {R"cpp(
@@ -397,8 +422,9 @@ class Foo {})cpp";
         }
         )cpp",
        [](HoverInfo &HI) {
-         HI.Name = "Foo<int>";
-         HI.Kind = index::SymbolKind::Class;
+         HI.Name = "auto";
+         HI.Kind = index::SymbolKind::TypeAlias;
+         HI.Definition = "class Foo<int>";
        }},
       // auto on specialized template
       {R"cpp(
@@ -409,8 +435,9 @@ class Foo {})cpp";
         }
         )cpp",
        [](HoverInfo &HI) {
-         HI.Name = "Foo<int>";
-         HI.Kind = index::SymbolKind::Class;
+         HI.Name = "auto";
+         HI.Kind = index::SymbolKind::TypeAlias;
+         HI.Definition = "class Foo<int>";
        }},
 
       // macro
@@ -582,8 +609,9 @@ class Foo {})cpp";
           }
           )cpp",
           [](HoverInfo &HI) {
-            HI.Name = "Foo<X>";
-            HI.Kind = index::SymbolKind::Class;
+            HI.Name = "auto";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "class Foo<X>";
           }},
       {// Falls back to primary template, when the type is not instantiated.
        R"cpp(
@@ -690,8 +718,28 @@ class Foo {})cpp";
          HI.Definition = "X &setY(float v)";
          HI.LocalScope = "X::";
          HI.Documentation = "Trivial setter for `Y`.";
-         HI.Type = "struct X &(float)";
-         HI.ReturnType = "struct X &";
+         HI.Type = "X &(float)";
+         HI.ReturnType = "X &";
+         HI.Parameters.emplace();
+         HI.Parameters->emplace_back();
+         HI.Parameters->back().Type = "float";
+         HI.Parameters->back().Name = "v";
+         HI.AccessSpecifier = "public";
+       }},
+      {// Setter (move)
+       R"cpp(
+          namespace std { template<typename T> T&& move(T&& t); }
+          struct X { int Y; void [[^setY]](float v) { Y = std::move(v); } };
+          )cpp",
+       [](HoverInfo &HI) {
+         HI.Name = "setY";
+         HI.Kind = index::SymbolKind::InstanceMethod;
+         HI.NamespaceScope = "";
+         HI.Definition = "void setY(float v)";
+         HI.LocalScope = "X::";
+         HI.Documentation = "Trivial setter for `Y`.";
+         HI.Type = "void (float)";
+         HI.ReturnType = "void";
          HI.Parameters.emplace();
          HI.Parameters->emplace_back();
          HI.Parameters->back().Type = "float";
@@ -802,8 +850,8 @@ class Foo {})cpp";
          HI.Type = "int";
          HI.AccessSpecifier = "public";
        }},
-       {// No crash on InitListExpr.
-        R"cpp(
+      {// No crash on InitListExpr.
+       R"cpp(
           struct Foo {
             int a[10];
           };
@@ -935,20 +983,11 @@ TEST(Hover, NoHover) {
   llvm::StringRef Tests[] = {
       "^int main() {}",
       "void foo() {^}",
-      R"cpp(// structured binding. Not supported yet
-            struct Bar {};
-            void foo() {
-              Bar a[2];
-              ^auto [x,y] = a;
-            }
-          )cpp",
-      R"cpp(// Template auto parameter. Nothing (Not useful).
-            template<a^uto T>
-            void func() {
-            }
-            void foo() {
-               func<1>();
-            }
+      // FIXME: "decltype(auto)" should be a single hover
+      "decltype(au^to) x = 0;",
+      // FIXME: not supported yet
+      R"cpp(// Lambda auto parameter
+            auto lamb = [](a^uto){};
           )cpp",
       R"cpp(// non-named decls don't get hover. Don't crash!
             ^static_assert(1, "");
@@ -1525,9 +1564,9 @@ TEST(Hover, All) {
             }
           )cpp",
           [](HoverInfo &HI) {
-            HI.Name = "int";
-            // FIXME: Should be Builtin/Integral.
-            HI.Kind = index::SymbolKind::Unknown;
+            HI.Name = "auto";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "int";
           }},
       {
           R"cpp(// Simple initialization with const auto
@@ -1535,14 +1574,22 @@ TEST(Hover, All) {
               const ^[[auto]] i = 1;
             }
           )cpp",
-          [](HoverInfo &HI) { HI.Name = "int"; }},
+          [](HoverInfo &HI) {
+            HI.Name = "auto";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "int";
+          }},
       {
           R"cpp(// Simple initialization with const auto&
             void foo() {
               const ^[[auto]]& i = 1;
             }
           )cpp",
-          [](HoverInfo &HI) { HI.Name = "int"; }},
+          [](HoverInfo &HI) {
+            HI.Name = "auto";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "int";
+          }},
       {
           R"cpp(// Simple initialization with auto&
             void foo() {
@@ -1550,7 +1597,11 @@ TEST(Hover, All) {
               ^[[auto]]& i = x;
             }
           )cpp",
-          [](HoverInfo &HI) { HI.Name = "int"; }},
+          [](HoverInfo &HI) {
+            HI.Name = "auto";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "int";
+          }},
       {
           R"cpp(// Simple initialization with auto*
             void foo() {
@@ -1558,7 +1609,23 @@ TEST(Hover, All) {
               ^[[auto]]* i = &a;
             }
           )cpp",
-          [](HoverInfo &HI) { HI.Name = "int"; }},
+          [](HoverInfo &HI) {
+            HI.Name = "auto";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "int";
+          }},
+      {
+          R"cpp(// Simple initialization with auto from pointer
+            void foo() {
+              int a = 1;
+              ^[[auto]] i = &a;
+            }
+          )cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "auto";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "int *";
+          }},
       {
           R"cpp(// Auto with initializer list.
             namespace std
@@ -1571,8 +1638,9 @@ TEST(Hover, All) {
             }
           )cpp",
           [](HoverInfo &HI) {
-            HI.Name = "initializer_list<int>";
-            HI.Kind = index::SymbolKind::Class;
+            HI.Name = "auto";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "class std::initializer_list<int>";
           }},
       {
           R"cpp(// User defined conversion to auto
@@ -1580,14 +1648,22 @@ TEST(Hover, All) {
               operator ^[[auto]]() const { return 10; }
             };
           )cpp",
-          [](HoverInfo &HI) { HI.Name = "int"; }},
+          [](HoverInfo &HI) {
+            HI.Name = "auto";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "int";
+          }},
       {
           R"cpp(// Simple initialization with decltype(auto)
             void foo() {
               ^[[decltype]](auto) i = 1;
             }
           )cpp",
-          [](HoverInfo &HI) { HI.Name = "int"; }},
+          [](HoverInfo &HI) {
+            HI.Name = "decltype";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "int";
+          }},
       {
           R"cpp(// Simple initialization with const decltype(auto)
             void foo() {
@@ -1595,7 +1671,11 @@ TEST(Hover, All) {
               ^[[decltype]](auto) i = j;
             }
           )cpp",
-          [](HoverInfo &HI) { HI.Name = "const int"; }},
+          [](HoverInfo &HI) {
+            HI.Name = "decltype";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "const int";
+          }},
       {
           R"cpp(// Simple initialization with const& decltype(auto)
             void foo() {
@@ -1604,7 +1684,11 @@ TEST(Hover, All) {
               ^[[decltype]](auto) i = j;
             }
           )cpp",
-          [](HoverInfo &HI) { HI.Name = "const int &"; }},
+          [](HoverInfo &HI) {
+            HI.Name = "decltype";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "const int &";
+          }},
       {
           R"cpp(// Simple initialization with & decltype(auto)
             void foo() {
@@ -1613,14 +1697,22 @@ TEST(Hover, All) {
               ^[[decltype]](auto) i = j;
             }
           )cpp",
-          [](HoverInfo &HI) { HI.Name = "int &"; }},
+          [](HoverInfo &HI) {
+            HI.Name = "decltype";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "int &";
+          }},
       {
           R"cpp(// simple trailing return type
             ^[[auto]] main() -> int {
               return 0;
             }
           )cpp",
-          [](HoverInfo &HI) { HI.Name = "int"; }},
+          [](HoverInfo &HI) {
+            HI.Name = "auto";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "int";
+          }},
       {
           R"cpp(// auto function return with trailing type
             struct Bar {};
@@ -1629,8 +1721,9 @@ TEST(Hover, All) {
             }
           )cpp",
           [](HoverInfo &HI) {
-            HI.Name = "Bar";
-            HI.Kind = index::SymbolKind::Struct;
+            HI.Name = "auto";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "struct Bar";
             HI.Documentation = "auto function return with trailing type";
           }},
       {
@@ -1641,8 +1734,9 @@ TEST(Hover, All) {
             }
           )cpp",
           [](HoverInfo &HI) {
-            HI.Name = "Bar";
-            HI.Kind = index::SymbolKind::Struct;
+            HI.Name = "decltype";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "struct Bar";
             HI.Documentation = "trailing return type";
           }},
       {
@@ -1653,8 +1747,9 @@ TEST(Hover, All) {
             }
           )cpp",
           [](HoverInfo &HI) {
-            HI.Name = "Bar";
-            HI.Kind = index::SymbolKind::Struct;
+            HI.Name = "auto";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "struct Bar";
             HI.Documentation = "auto in function return";
           }},
       {
@@ -1666,8 +1761,9 @@ TEST(Hover, All) {
             }
           )cpp",
           [](HoverInfo &HI) {
-            HI.Name = "Bar";
-            HI.Kind = index::SymbolKind::Struct;
+            HI.Name = "auto";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "struct Bar";
             HI.Documentation = "auto& in function return";
           }},
       {
@@ -1679,8 +1775,9 @@ TEST(Hover, All) {
             }
           )cpp",
           [](HoverInfo &HI) {
-            HI.Name = "Bar";
-            HI.Kind = index::SymbolKind::Struct;
+            HI.Name = "auto";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "struct Bar";
             HI.Documentation = "auto* in function return";
           }},
       {
@@ -1692,8 +1789,9 @@ TEST(Hover, All) {
             }
           )cpp",
           [](HoverInfo &HI) {
-            HI.Name = "Bar";
-            HI.Kind = index::SymbolKind::Struct;
+            HI.Name = "auto";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "struct Bar";
             HI.Documentation = "const auto& in function return";
           }},
       {
@@ -1704,8 +1802,9 @@ TEST(Hover, All) {
             }
           )cpp",
           [](HoverInfo &HI) {
-            HI.Name = "Bar";
-            HI.Kind = index::SymbolKind::Struct;
+            HI.Name = "decltype";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "struct Bar";
             HI.Documentation = "decltype(auto) in function return";
           }},
       {
@@ -1715,7 +1814,11 @@ TEST(Hover, All) {
               return (a);
             }
           )cpp",
-          [](HoverInfo &HI) { HI.Name = "int &"; }},
+          [](HoverInfo &HI) {
+            HI.Name = "decltype";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "int &";
+          }},
       {
           R"cpp(// decltype lvalue reference
             void foo() {
@@ -1723,7 +1826,11 @@ TEST(Hover, All) {
               ^[[decltype]](I) J = I;
             }
           )cpp",
-          [](HoverInfo &HI) { HI.Name = "int"; }},
+          [](HoverInfo &HI) {
+            HI.Name = "decltype";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "int";
+          }},
       {
           R"cpp(// decltype lvalue reference
             void foo() {
@@ -1732,7 +1839,11 @@ TEST(Hover, All) {
               ^[[decltype]](K) J = I;
             }
           )cpp",
-          [](HoverInfo &HI) { HI.Name = "int &"; }},
+          [](HoverInfo &HI) {
+            HI.Name = "decltype";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "int &";
+          }},
       {
           R"cpp(// decltype lvalue reference parenthesis
             void foo() {
@@ -1740,7 +1851,11 @@ TEST(Hover, All) {
               ^[[decltype]]((I)) J = I;
             }
           )cpp",
-          [](HoverInfo &HI) { HI.Name = "int &"; }},
+          [](HoverInfo &HI) {
+            HI.Name = "decltype";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "int &";
+          }},
       {
           R"cpp(// decltype rvalue reference
             void foo() {
@@ -1748,7 +1863,11 @@ TEST(Hover, All) {
               ^[[decltype]](static_cast<int&&>(I)) J = static_cast<int&&>(I);
             }
           )cpp",
-          [](HoverInfo &HI) { HI.Name = "int &&"; }},
+          [](HoverInfo &HI) {
+            HI.Name = "decltype";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "int &&";
+          }},
       {
           R"cpp(// decltype rvalue reference function call
             int && bar();
@@ -1757,7 +1876,11 @@ TEST(Hover, All) {
               ^[[decltype]](bar()) J = bar();
             }
           )cpp",
-          [](HoverInfo &HI) { HI.Name = "int &&"; }},
+          [](HoverInfo &HI) {
+            HI.Name = "decltype";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "int &&";
+          }},
       {
           R"cpp(// decltype of function with trailing return type.
             struct Bar {};
@@ -1769,8 +1892,9 @@ TEST(Hover, All) {
             }
           )cpp",
           [](HoverInfo &HI) {
-            HI.Name = "Bar";
-            HI.Kind = index::SymbolKind::Struct;
+            HI.Name = "decltype";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "struct Bar";
             HI.Documentation =
                 "decltype of function with trailing return type.";
           }},
@@ -1782,13 +1906,33 @@ TEST(Hover, All) {
               ^[[decltype]](J) K = J;
             }
           )cpp",
-          [](HoverInfo &HI) { HI.Name = "int"; }},
+          [](HoverInfo &HI) {
+            HI.Name = "decltype";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "int";
+          }},
+      {
+          R"cpp(// decltype of dependent type
+            template <typename T>
+            struct X {
+              using Y = ^[[decltype]](T::Z);
+            };
+          )cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "decltype";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "<dependent type>";
+          }},
       {
           R"cpp(// More complicated structured types.
             int bar();
             ^[[auto]] (*foo)() = bar;
           )cpp",
-          [](HoverInfo &HI) { HI.Name = "int"; }},
+          [](HoverInfo &HI) {
+            HI.Name = "auto";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "int";
+          }},
       {
           R"cpp(// Should not crash when evaluating the initializer.
             struct Test {};
@@ -1799,7 +1943,7 @@ TEST(Hover, All) {
             HI.Kind = index::SymbolKind::Variable;
             HI.NamespaceScope = "";
             HI.LocalScope = "test::";
-            HI.Type = "struct Test &&";
+            HI.Type = "Test &&";
             HI.Definition = "Test &&test = {}";
           }},
       {
@@ -1807,7 +1951,11 @@ TEST(Hover, All) {
           typedef int int_type;
           ^[[auto]] x = int_type();
           )cpp",
-          [](HoverInfo &HI) { HI.Name = "int"; }},
+          [](HoverInfo &HI) {
+            HI.Name = "auto";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "int";
+          }},
       {
           R"cpp(// auto on alias
           struct cls {};
@@ -1815,8 +1963,9 @@ TEST(Hover, All) {
           ^[[auto]] y = cls_type();
           )cpp",
           [](HoverInfo &HI) {
-            HI.Name = "cls";
-            HI.Kind = index::SymbolKind::Struct;
+            HI.Name = "auto";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "struct cls";
             HI.Documentation = "auto on alias";
           }},
       {
@@ -1826,9 +1975,59 @@ TEST(Hover, All) {
           ^[[auto]] z = templ<int>();
           )cpp",
           [](HoverInfo &HI) {
-            HI.Name = "templ<int>";
-            HI.Kind = index::SymbolKind::Struct;
+            HI.Name = "auto";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "struct templ<int>";
             HI.Documentation = "auto on alias";
+          }},
+      {
+          R"cpp(// Undeduced auto declaration
+            template<typename T>
+            void foo() {
+              ^[[auto]] x = T();
+            }
+          )cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "auto";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "/* not deduced */";
+          }},
+      {
+          R"cpp(// Undeduced auto return type
+            template<typename T>
+            ^[[auto]] foo() {
+              return T();
+            }
+          )cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "auto";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "/* not deduced */";
+          }},
+      {
+          R"cpp(// Template auto parameter
+            template<[[a^uto]] T>
+              void func() {
+            }
+          )cpp",
+          [](HoverInfo &HI) {
+            // FIXME: not sure this is what we want, but this
+            // is what we currently get with getDeducedType
+            HI.Name = "auto";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "/* not deduced */";
+          }},
+      {
+          R"cpp(// Undeduced decltype(auto) return type
+            template<typename T>
+            ^[[decltype]](auto) foo() {
+              return T();
+            }
+          )cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "decltype";
+            HI.Kind = index::SymbolKind::TypeAlias;
+            HI.Definition = "/* not deduced */";
           }},
       {
           R"cpp(// should not crash.
@@ -1971,6 +2170,96 @@ TEST(Hover, All) {
             HI.NamespaceScope = "ObjC::"; // FIXME: fix it
             HI.Definition = "char data";
           }},
+      {
+          R"cpp(
+          @interface MYObject
+          @end
+          @interface Interface
+          @property(retain) [[MYOb^ject]] *x;
+          @end
+          )cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "MYObject";
+            HI.Kind = index::SymbolKind::Class;
+            HI.NamespaceScope = "";
+            HI.Definition = "@interface MYObject\n@end";
+          }},
+      {
+          R"cpp(
+          @interface MYObject
+          @end
+          @interface Interface
+          - (void)doWith:([[MYOb^ject]] *)object;
+          @end
+          )cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "MYObject";
+            HI.Kind = index::SymbolKind::Class;
+            HI.NamespaceScope = "";
+            HI.Definition = "@interface MYObject\n@end";
+          }},
+      {
+          R"cpp(// this expr
+          // comment
+          namespace ns {
+            class Foo {
+              Foo* bar() {
+                return [[t^his]];
+              }
+            };
+          }
+          )cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "this";
+            HI.Definition = "ns::Foo *";
+          }},
+      {
+          R"cpp(// this expr for template class
+          namespace ns {
+            template <typename T>
+            class Foo {
+              Foo* bar() const {
+                return [[t^his]];
+              }
+            };
+          }
+          )cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "this";
+            HI.Definition = "const Foo<T> *";
+          }},
+      {
+          R"cpp(// this expr for specialization class
+          namespace ns {
+            template <typename T> class Foo {};
+            template <>
+            struct Foo<int> {
+              Foo* bar() {
+                return [[thi^s]];
+              }
+            };
+          }
+          )cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "this";
+            HI.Definition = "Foo<int> *";
+          }},
+      {
+          R"cpp(// this expr for partial specialization struct
+          namespace ns {
+            template <typename T, typename F> struct Foo {};
+            template <typename F>
+            struct Foo<int, F> {
+              Foo* bar() const {
+                return [[thi^s]];
+              }
+            };
+          }
+          )cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "this";
+            HI.Definition = "const Foo<int, F> *";
+          }},
   };
 
   // Create a tiny index, so tests above can verify documentation is fetched.
@@ -2021,7 +2310,7 @@ TEST(Hover, DocsFromIndex) {
   Annotations T(R"cpp(
   template <typename T> class X {};
   void foo() {
-    au^to t = X<int>();
+    auto t = X<int>();
     X^<int> w;
     (void)w;
   })cpp");
@@ -2029,7 +2318,7 @@ TEST(Hover, DocsFromIndex) {
   TestTU TU = TestTU::withCode(T.code());
   auto AST = TU.build();
   Symbol IndexSym;
-  IndexSym.ID = *getSymbolID(&findDecl(AST, "X"));
+  IndexSym.ID = getSymbolID(&findDecl(AST, "X"));
   IndexSym.Documentation = "comment from index";
   SymbolSlab::Builder Symbols;
   Symbols.insert(IndexSym);
@@ -2152,17 +2441,17 @@ template <typename T, typename C = bool> class Foo {})",
             HI.NamespaceScope = "ns::";
             HI.Definition = "ret_type foo(params) {}";
           },
-          R"(function foo
-
-→ ret_type
-Parameters:
-- 
-- type
-- type foo
-- type foo = default
-
-// In namespace ns
-ret_type foo(params) {})",
+          "function foo\n"
+          "\n"
+          "→ ret_type\n"
+          "Parameters:\n"
+          "- \n"
+          "- type\n"
+          "- type foo\n"
+          "- type foo = default\n"
+          "\n"
+          "// In namespace ns\n"
+          "ret_type foo(params) {}",
       },
       {
           [](HoverInfo &HI) {
@@ -2442,15 +2731,16 @@ TEST(Hover, PresentRulers) {
   HI.Value = "val";
   HI.Definition = "def";
 
-  llvm::StringRef ExpectedMarkdown = R"md(### variable `foo`  
-
----
-Value = `val`  
-
----
-```cpp
-def
-```)md";
+  llvm::StringRef ExpectedMarkdown = //
+      "### variable `foo`  \n"
+      "\n"
+      "---\n"
+      "Value = `val`  \n"
+      "\n"
+      "---\n"
+      "```cpp\n"
+      "def\n"
+      "```";
   EXPECT_EQ(HI.present().asMarkdown(), ExpectedMarkdown);
 
   llvm::StringRef ExpectedPlaintext = R"pt(variable foo

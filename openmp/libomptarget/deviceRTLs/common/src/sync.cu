@@ -9,6 +9,7 @@
 // Include all synchronization.
 //
 //===----------------------------------------------------------------------===//
+#pragma omp declare target
 
 #include "common/omptarget.h"
 #include "target_impl.h"
@@ -60,8 +61,7 @@ EXTERN void __kmpc_barrier(kmp_Ident *loc_ref, int32_t tid) {
         PRINT(LD_SYNC,
               "call kmpc_barrier with %d omp threads, sync parameter %d\n",
               (int)numberOfActiveOMPThreads, (int)threads);
-        // Barrier #1 is for synchronization among active threads.
-        __kmpc_impl_named_sync(L1_BARRIER, threads);
+        __kmpc_impl_named_sync(threads);
       }
     } else {
       // Still need to flush the memory per the standard.
@@ -136,3 +136,5 @@ EXTERN void __kmpc_syncwarp(__kmpc_impl_lanemask_t Mask) {
   PRINT0(LD_IO, "call __kmpc_syncwarp\n");
   __kmpc_impl_syncwarp(Mask);
 }
+
+#pragma omp end declare target

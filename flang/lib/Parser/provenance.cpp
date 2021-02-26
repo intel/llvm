@@ -156,20 +156,28 @@ const char &AllSources::operator[](Provenance at) const {
   return origin[origin.covers.MemberOffset(at)];
 }
 
-void AllSources::PushSearchPathDirectory(std::string directory) {
+void AllSources::AppendSearchPathDirectory(std::string directory) {
   // gfortran and ifort append to current path, PGI prepends
   searchPath_.push_back(directory);
 }
 
-std::string AllSources::PopSearchPathDirectory() {
-  std::string directory{searchPath_.back()};
-  searchPath_.pop_back();
-  return directory;
-}
-
-const SourceFile *AllSources::Open(std::string path, llvm::raw_ostream &error) {
+const SourceFile *AllSources::Open(std::string path, llvm::raw_ostream &error,
+    std::optional<std::string> &&prependPath) {
   std::unique_ptr<SourceFile> source{std::make_unique<SourceFile>(encoding_)};
-  if (source->Open(LocateSourceFile(path, searchPath_), error)) {
+  if (prependPath) {
+    // Set to "." for the initial source file; set to the directory name
+    // of the including file for #include "quoted-file" directives &
+    // INCLUDE statements.
+    searchPath_.emplace_front(std::move(*prependPath));
+  }
+  std::optional<std::string> found{LocateSourceFile(path, searchPath_)};
+  if (prependPath) {
+    searchPath_.pop_front();
+  }
+  if (!found) {
+    error << "Source file '" << path << "' was not found";
+    return nullptr;
+  } else if (source->Open(*found, error)) {
     return ownedSourceFiles_.emplace_back(std::move(source)).get();
   } else {
     return nullptr;
@@ -301,6 +309,14 @@ const SourceFile *AllSources::GetSourceFile(
       origin.u);
 }
 
+const char *AllSources::GetSource(ProvenanceRange range) const {
+  Provenance start{range.start()};
+  const Origin &origin{MapToOrigin(start)};
+  return origin.covers.Contains(range)
+      ? &origin[origin.covers.MemberOffset(start)]
+      : nullptr;
+}
+
 std::optional<SourcePosition> AllSources::GetSourcePosition(
     Provenance prov) const {
   const Origin &origin{MapToOrigin(prov)};
@@ -402,7 +418,7 @@ const AllSources::Origin &AllSources::MapToOrigin(Provenance at) const {
 
 std::optional<ProvenanceRange> CookedSource::GetProvenanceRange(
     CharBlock cookedRange) const {
-  if (!Contains(cookedRange)) {
+  if (!AsCharBlock().Contains(cookedRange)) {
     return std::nullopt;
   }
   ProvenanceRange first{provenanceMap_.Map(cookedRange.begin() - &data_[0])};

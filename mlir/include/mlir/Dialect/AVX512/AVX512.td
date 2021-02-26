@@ -21,7 +21,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 
 def AVX512_Dialect : Dialect {
   let name = "avx512";
-  let cppNamespace = "avx512";
+  let cppNamespace = "::mlir::avx512";
 }
 
 //===----------------------------------------------------------------------===//
@@ -35,8 +35,8 @@ def MaskRndScaleOp : AVX512_Op<"mask.rndscale", [NoSideEffect,
   AllTypesMatch<["src", "a", "dst"]>,
   TypesMatchWith<"imm has the same number of bits as elements in dst",
                  "dst", "imm",
-                 "IntegerType::get(($_self.cast<VectorType>().getShape()[0]),"
-                 "  $_self.getContext())">]> {
+                 "IntegerType::get($_self.getContext(), "
+                 "($_self.cast<VectorType>().getShape()[0]))">]> {
   let summary = "Masked roundscale op";
   let description = [{
     The mask.rndscale op is an AVX512 specific op that can lower to the proper
@@ -44,8 +44,8 @@ def MaskRndScaleOp : AVX512_Op<"mask.rndscale", [NoSideEffect,
     `llvm.mask.rndscale.pd.512` instruction depending on the type of vectors it
     is applied to.
 
-    From the Intel Intrinsics Guide:
-    ================================
+    #### From the Intel Intrinsics Guide:
+
     Round packed floating-point elements in `a` to the number of fraction bits
     specified by `imm`, and store the results in `dst` using writemask `k`
     (elements are copied from src when the corresponding mask bit is not set).
@@ -67,8 +67,8 @@ def MaskScaleFOp : AVX512_Op<"mask.scalef", [NoSideEffect,
   AllTypesMatch<["src", "a", "b", "dst"]>,
   TypesMatchWith<"k has the same number of bits as elements in dst",
                  "dst", "k",
-                 "IntegerType::get(($_self.cast<VectorType>().getShape()[0]),"
-                 "  $_self.getContext())">]> {
+                 "IntegerType::get($_self.getContext(), "
+                 "($_self.cast<VectorType>().getShape()[0]))">]> {
   let summary = "ScaleF op";
   let description = [{
     The `mask.scalef` op is an AVX512 specific op that can lower to the proper
@@ -76,8 +76,8 @@ def MaskScaleFOp : AVX512_Op<"mask.scalef", [NoSideEffect,
     `llvm.mask.scalef.pd.512` depending on the type of MLIR vectors it is
     applied to.
 
-    From the Intel Intrinsics Guide:
-    ================================
+    #### From the Intel Intrinsics Guide:
+
     Scale the packed floating-point elements in `a` using values from `b`, and
     store the results in `dst` using writemask `k` (elements are copied from src
     when the corresponding mask bit is not set).
@@ -94,6 +94,43 @@ def MaskScaleFOp : AVX512_Op<"mask.scalef", [NoSideEffect,
   // Fully specified by traits.
   let assemblyFormat =
     "$src `,` $a `,` $b `,` $k `,` $rounding attr-dict `:` type($dst)";
+}
+
+def Vp2IntersectOp : AVX512_Op<"vp2intersect", [NoSideEffect,
+  AllTypesMatch<["a", "b"]>,
+  TypesMatchWith<"k1 has the same number of bits as elements in a",
+                 "a", "k1",
+                 "IntegerType::get($_self.getContext(), "
+                 "($_self.cast<VectorType>().getShape()[0]))">,
+  TypesMatchWith<"k2 has the same number of bits as elements in b",
+                 // Should use `b` instead of `a`, but that would require
+                 // adding `type($b)` to assemblyFormat.
+                 "a", "k2",
+                 "IntegerType::get($_self.getContext(), "
+                 "($_self.cast<VectorType>().getShape()[0]))">]> {
+  let summary = "Vp2Intersect op";
+  let description = [{
+    The `vp2intersect` op is an AVX512 specific op that can lower to the proper
+    LLVMAVX512 operation: `llvm.vp2intersect.d.512` or
+    `llvm.vp2intersect.q.512` depending on the type of MLIR vectors it is
+    applied to.
+
+    #### From the Intel Intrinsics Guide:
+
+    Compute intersection of packed integer vectors `a` and `b`, and store
+    indication of match in the corresponding bit of two mask registers
+    specified by `k1` and `k2`. A match in corresponding elements of `a` and
+    `b` is indicated by a set bit in the corresponding bit of the mask
+    registers.
+  }];
+  let arguments = (ins VectorOfLengthAndType<[16, 8], [I32, I64]>:$a,
+                   VectorOfLengthAndType<[16, 8], [I32, I64]>:$b
+                   );
+  let results = (outs AnyTypeOf<[I16, I8]>:$k1,
+                 AnyTypeOf<[I16, I8]>:$k2
+                 );
+  let assemblyFormat =
+    "$a `,` $b attr-dict `:` type($a)";
 }
 
 #endif // AVX512_OPS

@@ -1,5 +1,5 @@
 ====================================================
-Extra Clang Tools 12.0.0 (In-Progress) Release Notes
+Extra Clang Tools 13.0.0 (In-Progress) Release Notes
 ====================================================
 
 .. contents::
@@ -10,7 +10,7 @@ Written by the `LLVM Team <https://llvm.org/>`_
 
 .. warning::
 
-   These are in-progress notes for the upcoming Extra Clang Tools 12 release.
+   These are in-progress notes for the upcoming Extra Clang Tools 13 release.
    Release notes for previous releases can be found on
    `the Download Page <https://releases.llvm.org/download.html>`_.
 
@@ -18,7 +18,7 @@ Introduction
 ============
 
 This document contains the release notes for the Extra Clang Tools, part of the
-Clang release 12.0.0. Here we describe the status of the Extra Clang Tools in
+Clang release 13.0.0. Here we describe the status of the Extra Clang Tools in
 some detail, including major improvements from the previous release and new
 feature work. All LLVM releases may be downloaded from the `LLVM releases web
 site <https://llvm.org/releases/>`_.
@@ -32,7 +32,7 @@ main Clang web page, this document applies to the *next* release, not
 the current one. To see the release notes for a specific release, please
 see the `releases page <https://llvm.org/releases/>`_.
 
-What's New in Extra Clang Tools 12.0.0?
+What's New in Extra Clang Tools 13.0.0?
 =======================================
 
 Some of the major new features and improvements to Extra Clang Tools are listed
@@ -67,26 +67,7 @@ The improvements are...
 Improvements to clang-tidy
 --------------------------
 
-- New :doc:`bugprone-redundant-branch-condition
-  <clang-tidy/checks/bugprone-redundant-branch-condition>` check.
-
-  Finds condition variables in nested ``if`` statements that were also checked
-  in the outer ``if`` statement and were not changed.
-
-- New :doc:`cppcoreguidelines-prefer-member-initializer
-  <clang-tidy/checks/cppcoreguidelines-prefer-member-initializer>` check.
-
-  Finds member initializations in the constructor body which can be placed into
-  the initialization list instead.
-
-Changes in existing checks
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-- Improved :doc:`readability-identifier-naming
-  <clang-tidy/checks/readability-identifier-naming>` check.
-
-  Added an option `GetConfigPerFile` to support including files which use
-  different naming styles.
+The improvements are...
 
 Improvements to include-fixer
 -----------------------------

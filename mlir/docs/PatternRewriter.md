@@ -174,10 +174,10 @@ Each driver is responsible for defining its own operation visitation order as
 well as pattern cost model, but the final application is performed via a
 `PatternApplicator` class. This class takes as input the
 `OwningRewritePatternList` and transforms the patterns based upon a provided
-cost model. This cost model computes a final benefit for a given rewrite
-pattern, using whatever driver specific information necessary. After a cost
-model has been computed, the driver may begin to match patterns against
-operations using `PatternApplicator::matchAndRewrite`.
+cost model. This cost model computes a final benefit for a given pattern, using
+whatever driver specific information necessary. After a cost model has been
+computed, the driver may begin to match patterns against operations using
+`PatternApplicator::matchAndRewrite`.
 
 An example is shown below:
 
@@ -209,7 +209,7 @@ void applyMyPatternDriver(Operation *op,
 
   // Create the applicator and apply our cost model.
   PatternApplicator applicator(patterns);
-  applicator.applyCostModel([](const RewritePattern &pattern) {
+  applicator.applyCostModel([](const Pattern &pattern) {
     // Apply a default cost model.
     // Note: This is just for demonstration, if the default cost model is truly
     //       desired `applicator.applyDefaultCostModel()` should be used
@@ -238,7 +238,7 @@ between, and within dialects using a concept of "legality". This framework
 allows for transforming illegal operations to those supported by a provided
 conversion target, via a set of pattern-based operation rewriting patterns. This
 framework also provides support for type conversions. More information on this
-driver can be found [here](DialectConversion.nd).
+driver can be found [here](DialectConversion.md).
 
 ### Greedy Pattern Rewrite Driver
 

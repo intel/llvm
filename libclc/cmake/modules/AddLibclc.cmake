@@ -214,16 +214,17 @@ function(add_libclc_sycl_binding OUT_LIST)
     file( TO_CMAKE_PATH ${LIBCLC_ROOT_DIR}/${file} SYCLDEVICE_BINDING )
     if( EXISTS ${SYCLDEVICE_BINDING} )
       set( SYCLDEVICE_BINDING_OUT ${CMAKE_CURRENT_BINARY_DIR}/sycldevice-binding-${ARG_TRIPLE}/sycldevice-binding.bc )
+      string( REGEX REPLACE "SHELL:" "" SYLCDEVICE_OPT ${ARG_COMPILE_OPT} )
       add_custom_command( OUTPUT ${SYCLDEVICE_BINDING_OUT}
                          COMMAND ${CMAKE_COMMAND} -E make_directory
                          ${CMAKE_CURRENT_BINARY_DIR}/sycldevice-binding-${ARG_TRIPLE}
                          COMMAND ${LLVM_CLANG}
-                         -target ${ARG_TRIPLE}-sycldevice
+                         -fsycl-targets=${ARG_TRIPLE}-sycldevice
                          -fsycl
                          -fsycl-device-only
                          -Dcl_khr_fp64
                          -I${LIBCLC_ROOT_DIR}/generic/include
-                         ${ARG_COMPILE_OPT}
+                         ${SYCLDEVICE_OPT}
                          ${SYCLDEVICE_BINDING}
                          -o ${SYCLDEVICE_BINDING_OUT}
                      MAIN_DEPENDENCY ${SYCLDEVICE_BINDING}

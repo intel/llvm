@@ -709,7 +709,7 @@ def err_ms_property_expected_accessor_name : Error<
 def err_ms_property_expected_comma_or_rparen : Error<
   "expected ',' or ')' at end of property accessor list">;
 def err_ms_property_initializer : Error<
-  "property declaration cannot have an in-class initializer">;
+  "property declaration cannot have a default member initializer">;
 
 def warn_cxx20_compat_explicit_bool : Warning<
   "this expression will be parsed as explicit(bool) in C++20">,
@@ -859,21 +859,23 @@ def warn_cxx98_compat_defaulted_deleted_function : Warning<
   "%select{defaulted|deleted}0 function definitions are incompatible with C++98">,
   InGroup<CXX98Compat>, DefaultIgnore;
 
-// C++11 in-class member initialization
+// C++11 default member initialization
 def ext_nonstatic_member_init : ExtWarn<
-  "in-class initialization of non-static data member is a C++11 extension">,
-  InGroup<CXX11>;
+  "default member initializer for non-static data member is a C++11 "
+  "extension">, InGroup<CXX11>;
 def warn_cxx98_compat_nonstatic_member_init : Warning<
-  "in-class initialization of non-static data members is incompatible with C++98">,
-  InGroup<CXX98Compat>, DefaultIgnore;
+  "default member initializer for non-static data members is incompatible with "
+  "C++98">, InGroup<CXX98Compat>, DefaultIgnore;
 def ext_bitfield_member_init: ExtWarn<
   "default member initializer for bit-field is a C++20 extension">,
   InGroup<CXX20>;
 def warn_cxx17_compat_bitfield_member_init: Warning<
   "default member initializer for bit-field is incompatible with "
   "C++ standards before C++20">, InGroup<CXXPre20Compat>, DefaultIgnore;
+def err_anon_bitfield_member_init : Error<
+  "anonymous bit-field cannot have a default member initializer">;
 def err_incomplete_array_member_init: Error<
-  "array bound cannot be deduced from an in-class initializer">;
+  "array bound cannot be deduced from a default member initializer">;
 
 // C++11 alias-declaration
 def ext_alias_declaration : ExtWarn<
@@ -1133,14 +1135,20 @@ def err_pragma_file_or_compound_scope : Error<
 // - #pragma stdc unknown
 def ext_stdc_pragma_ignored : ExtWarn<"unknown pragma in STDC namespace">,
    InGroup<UnknownPragmas>;
-def warn_stdc_fenv_access_not_supported :
-   Warning<"pragma STDC FENV_ACCESS ON is not supported, ignoring pragma">,
-   InGroup<UnknownPragmas>;
+// The C standard 7.6.1p2 says "The [FENV_ACCESS] pragma shall occur either
+// outside external declarations or preceding all explicit declarations and
+// statements inside a compound statement.
+def err_pragma_stdc_fenv_access_scope : Error<
+  "'#pragma STDC FENV_ACCESS' can only appear at file scope or at the start of"
+  " a compound statement">;
 def warn_stdc_fenv_round_not_supported :
    Warning<"pragma STDC FENV_ROUND is not supported">,
    InGroup<UnknownPragmas>;
 def warn_stdc_unknown_rounding_mode : Warning<
   "invalid or unsupported rounding mode in '#pragma STDC FENV_ROUND' - ignored">,
+  InGroup<IgnoredPragmas>;
+def warn_pragma_fp_ignored : Warning<
+  "'#pragma %0' is not supported on this target - ignored">,
   InGroup<IgnoredPragmas>;
 // - #pragma comment
 def err_pragma_comment_malformed : Error<
@@ -1283,6 +1291,16 @@ def err_expected_end_declare_target_or_variant : Error<
 def err_expected_begin_declare_variant
     : Error<"'#pragma omp end declare variant' with no matching '#pragma omp "
             "begin declare variant'">;
+def err_expected_begin_assumes
+    : Error<"'#pragma omp end assumes' with no matching '#pragma omp begin assumes'">;
+def warn_omp_unknown_assumption_clause_missing_id
+    : Warning<"valid %0 clauses start with %1; %select{token|tokens}2 will be ignored">,
+      InGroup<OpenMPClauses>;
+def warn_omp_unknown_assumption_clause_without_args
+    : Warning<"%0 clause should not be followed by arguments; tokens will be ignored">,
+      InGroup<OpenMPClauses>;
+def note_omp_assumption_clause_continue_here
+    : Note<"the ignored tokens spans until here">;
 def err_omp_declare_target_unexpected_clause: Error<
   "unexpected '%0' clause, only %select{'to' or 'link'|'to', 'link' or 'device_type'}1 clauses expected">;
 def err_omp_expected_clause: Error<
@@ -1293,6 +1311,11 @@ def err_omp_mapper_expected_declarator : Error<
   "expected declarator on 'omp declare mapper' directive">;
 def err_omp_declare_variant_wrong_clause : Error<
   "expected '%0' clause on 'omp declare variant' directive">;
+def err_omp_declare_variant_duplicate_nested_trait : Error<
+  "nested OpenMP context selector contains duplicated trait '%0'"
+  " in selector '%1' and set '%2' with different score">;
+def err_omp_declare_variant_nested_user_condition : Error<
+  "nested user conditions in OpenMP context selector not supported (yet)">;
 def warn_omp_declare_variant_string_literal_or_identifier
     : Warning<"expected identifier or string literal describing a context "
               "%select{set|selector|property}0; "
@@ -1373,14 +1396,21 @@ def err_pragma_loop_invalid_option : Error<
   "%select{invalid|missing}0 option%select{ %1|}0; expected vectorize, "
   "vectorize_width, interleave, interleave_count, unroll, unroll_count, "
   "pipeline, pipeline_initiation_interval, vectorize_predicate, or distribute">;
+def err_pragma_loop_invalid_vectorize_option : Error<
+  "vectorize_width loop hint malformed; use vectorize_width(X, fixed) or "
+  "vectorize_width(X, scalable) where X is an integer, or vectorize_width('fixed' or 'scalable')">;
+def note_pragma_loop_invalid_vectorize_option : Note<
+  "vectorize_width loop hint malformed; use vectorize_width(X, fixed) or "
+  "vectorize_width(X, scalable) where X is an integer, or vectorize_width('fixed' or 'scalable')">;
 
 def err_pragma_fp_invalid_option : Error<
-  "%select{invalid|missing}0 option%select{ %1|}0; expected 'contract' or 'reassociate'">;
+  "%select{invalid|missing}0 option%select{ %1|}0; expected 'contract', 'reassociate' or 'exceptions'">;
 def err_pragma_fp_invalid_argument : Error<
-  "unexpected argument '%0' to '#pragma clang fp %1'; "
+  "unexpected argument '%0' to '#pragma clang fp %1'; expected "
   "%select{"
-  "expected 'fast' or 'on' or 'off'|"
-  "expected 'on' or 'off'}2">;
+  "'fast' or 'on' or 'off'|"
+  "'on' or 'off'|"
+  "'ignore', 'maytrap' or 'strict'}2">;
 
 def err_pragma_invalid_keyword : Error<
   "invalid argument; expected 'enable'%select{|, 'full'}0%select{|, 'assume_safety'}1 or 'disable'">;
@@ -1402,12 +1432,6 @@ def err_pragma_cannot_end_force_cuda_host_device : Error<
   "force_cuda_host_device end pragma without matching "
   "force_cuda_host_device begin">;
 } // end of Parse Issue category.
-
-// SYCL loop pragmas and attributes support
-// * Intel FPGA attribute ivdep, ii, max_concurrency support
-// * clang::loop_unroll attribute support
-def err_loop_attr_on_non_loop : Error<
-  "%select{clang|intelfpga}0 loop attributes must be applied to for, while, or do statements">;
 
 let CategoryName = "Modules Issue" in {
 def err_unexpected_module_decl : Error<

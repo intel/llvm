@@ -126,6 +126,9 @@ def FunctionTmpl
                                  FunctionDecl::TK_FunctionTemplate}],
                     "function templates">;
 
+def ClassTmpl : SubsetSubject<CXXRecord, [{S->getDescribedClassTemplate()}],
+                              "class templates">;
+
 // FIXME: this hack is needed because DeclNodes.td defines the base Decl node
 // type to be a class, not a definition. This makes it impossible to create an
 // attribute subject which accepts a Decl. Normally, this is not a problem,
@@ -314,9 +317,13 @@ class SubjectList<list<AttrSubject> subjects, SubjectDiag diag = WarnDiag,
   string CustomDiag = customDiag;
 }
 
-class LangOpt<string name, code customCode = [{}]> {
+class LangOpt<string name, code customCode = [{}], bit silentlyIgnore = 0> {
   // The language option to test; ignored when custom code is supplied.
   string Name = name;
+
+  // If set to 1, the attribute is accepted but is silently ignored. This is
+  // useful in multi-compilation situations like SYCL.
+  bit SilentlyIgnore = silentlyIgnore;
 
   // A custom predicate, written as an expression evaluated in a context with
   // "LangOpts" bound.
@@ -325,11 +332,12 @@ class LangOpt<string name, code customCode = [{}]> {
 def MicrosoftExt : LangOpt<"MicrosoftExt">;
 def Borland : LangOpt<"Borland">;
 def CUDA : LangOpt<"CUDA">;
-def SYCLIsDevice : LangOpt<"SYCLIsDevice">;
-def SYCL : LangOpt<"SYCLIsDevice">;
-def SYCLIsHost : LangOpt<"SYCLIsHost">;
-def SYCLExplicitSIMD : LangOpt<"SYCLExplicitSIMD">;
 def HIP : LangOpt<"HIP">;
+def SYCL : LangOpt<"SYCL">;
+def SYCLIsDevice : LangOpt<"SYCLIsDevice">;
+def SYCLIsHost : LangOpt<"SYCLIsHost">;
+def SilentlyIgnoreSYCLIsHost : LangOpt<"SYCLIsHost", "", 1>;
+def SYCLExplicitSIMD : LangOpt<"SYCLExplicitSIMD">;
 def COnly : LangOpt<"", "!LangOpts.CPlusPlus">;
 def CPlusPlus : LangOpt<"CPlusPlus">;
 def OpenCL : LangOpt<"OpenCL">;
@@ -376,8 +384,8 @@ def TargetRISCV : TargetArch<["riscv32", "riscv64"]>;
 def TargetX86 : TargetArch<["x86"]>;
 def TargetAnyX86 : TargetArch<["x86", "x86_64"]>;
 def TargetWebAssembly : TargetArch<["wasm32", "wasm64"]>;
-def TargetWindows : TargetArch<["x86", "x86_64", "arm", "thumb", "aarch64"]> {
-  let OSes = ["Win32"];
+def TargetHasDLLImportExport : TargetSpec {
+  let CustomCode = [{ Target.getTriple().hasDLLImportExport() }];
 }
 def TargetItaniumCXXABI : TargetSpec {
   let CustomCode = [{ Target.getCXXABI().isItaniumFamily() }];
@@ -389,6 +397,9 @@ def TargetELF : TargetSpec {
   let ObjectFormats = ["ELF"];
 }
 
+def TargetSupportsInitPriority : TargetSpec {
+  let CustomCode = [{ !Target.getTriple().isOSzOS() }];
+}
 // Attribute subject match rules that are used for #pragma clang attribute.
 //
 // A instance of AttrSubjectMatcherRule represents an individual match rule.
@@ -575,6 +586,9 @@ class InheritableAttr : Attr {
 /// attributes, but have historically been written on declarations.
 class DeclOrTypeAttr : InheritableAttr;
 
+/// A attribute is either a declaration attribute or a statement attribute.
+class DeclOrStmtAttr : InheritableAttr;
+
 /// A target-specific attribute.  This class is meant to be used as a mixin
 /// with InheritableAttr or Attr depending on the attribute's needs.
 class TargetSpecificAttr<TargetSpec target> {
@@ -683,10 +697,17 @@ def AlignMac68k : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+def AlignNatural : InheritableAttr {
+  // This attribute has no spellings as it is only ever created implicitly.
+  let Spellings = [];
+  let SemaHandler = 0;
+  let Documentation = [Undocumented];
+}
+
 def AlwaysInline : InheritableAttr {
   let Spellings = [GCC<"always_inline">, Keyword<"__forceinline">];
   let Subjects = SubjectList<[Function]>;
-  let Documentation = [Undocumented];
+  let Documentation = [AlwaysInlineDocs];
 }
 
 def Artificial : InheritableAttr {
@@ -748,9 +769,19 @@ def AnalyzerNoReturn : InheritableAttr {
 
 def Annotate : InheritableParamAttr {
   let Spellings = [Clang<"annotate">];
-  let Args = [StringArgument<"Annotation">];
+  let Args = [StringArgument<"Annotation">, VariadicExprArgument<"Args">];
   // Ensure that the annotate attribute can be used with
   // '#pragma clang attribute' even though it has no subject list.
+  let AdditionalMembers = [{
+  static AnnotateAttr *Create(ASTContext &Ctx, llvm::StringRef Annotation, \
+              const AttributeCommonInfo &CommonInfo) {
+    return AnnotateAttr::Create(Ctx, Annotation, nullptr, 0, CommonInfo);
+  }
+  static AnnotateAttr *CreateImplicit(ASTContext &Ctx, llvm::StringRef Annotation, \
+              const AttributeCommonInfo &CommonInfo = {SourceRange{}}) {
+    return AnnotateAttr::CreateImplicit(Ctx, Annotation, nullptr, 0, CommonInfo);
+  }
+  }];
   let PragmaAttributeSupport = 1;
   let Documentation = [Undocumented];
 }
@@ -836,6 +867,7 @@ static llvm::StringRef getPlatformNameSourceSpelling(llvm::StringRef Platform) {
              .Case("macos_app_extension", "macOSApplicationExtension")
              .Case("tvos_app_extension", "tvOSApplicationExtension")
              .Case("watchos_app_extension", "watchOSApplicationExtension")
+             .Case("zos", "z/OS")
              .Default(Platform);
 }
 static llvm::StringRef canonicalizePlatformName(llvm::StringRef Platform) {
@@ -1073,6 +1105,7 @@ def CUDADeviceBuiltinSurfaceType : InheritableAttr {
   let LangOpts = [CUDA];
   let Subjects = SubjectList<[CXXRecord]>;
   let Documentation = [CUDADeviceBuiltinSurfaceTypeDocs];
+  let MeaningfulToClassTemplateDefinition = 1;
 }
 
 def CUDADeviceBuiltinTextureType : InheritableAttr {
@@ -1081,6 +1114,7 @@ def CUDADeviceBuiltinTextureType : InheritableAttr {
   let LangOpts = [CUDA];
   let Subjects = SubjectList<[CXXRecord]>;
   let Documentation = [CUDADeviceBuiltinTextureTypeDocs];
+  let MeaningfulToClassTemplateDefinition = 1;
 }
 
 def CUDAGlobal : InheritableAttr {
@@ -1095,6 +1129,13 @@ def CUDAHost : InheritableAttr {
   let Subjects = SubjectList<[Function]>;
   let LangOpts = [CUDA];
   let Documentation = [Undocumented];
+}
+
+def HIPManaged : InheritableAttr {
+  let Spellings = [GNU<"managed">, Declspec<"__managed__">];
+  let Subjects = SubjectList<[Var]>;
+  let LangOpts = [HIP];
+  let Documentation = [HIPManagedAttrDocs];
 }
 
 def CUDAInvalidTarget : InheritableAttr {
@@ -1127,7 +1168,6 @@ def SYCLDevice : InheritableAttr {
   let Subjects = SubjectList<[Function]>;
   let LangOpts = [SYCLIsDevice];
   let Documentation = [SYCLDeviceDocs];
-  let PragmaAttributeSupport = 0;
 }
 
 def SYCLKernel : InheritableAttr {
@@ -1141,11 +1181,11 @@ def SYCLKernel : InheritableAttr {
 // e.g. because the function is already vectorized. Used to mark SYCL
 // explicit SIMD kernels and functions.
 def SYCLSimd : InheritableAttr {
-  let Spellings = [GNU<"sycl_explicit_simd">];
+  let Spellings = [GNU<"sycl_explicit_simd">,
+                   CXX11<"intel", "sycl_explicit_simd">];
   let Subjects = SubjectList<[Function]>;
   let LangOpts = [SYCLExplicitSIMD];
   let Documentation = [SYCLSimdDocs];
-  let PragmaAttributeSupport = 0;
 }
 
 // Available in SYCL explicit SIMD extension. Binds a file scope private
@@ -1158,7 +1198,19 @@ def SYCLRegisterNum : InheritableAttr {
   // for the host device as well
   let LangOpts = [SYCLExplicitSIMD];
   let Documentation = [SYCLRegisterNumDocs];
-  let PragmaAttributeSupport = 0;
+}
+
+// Used by FE to mark ESIMD kernel pointer parameters which correspond to the
+// original lambda's captured accessors. FE turns the attribute to some metadata
+// required by the ESIMD Back-End.
+// Not supposed to be used directly in the source - SYCL device compiler FE
+// automatically adds it for ESIMD kernels, hence undocumented.
+def SYCLSimdAccessorPtr : InheritableAttr {
+  // No spelling, as this attribute can't be created in the source code.
+  let Spellings = [];
+  let Subjects = SubjectList<[ParmVar]>;
+  let LangOpts = [SYCLExplicitSIMD];
+  let Documentation = [Undocumented];
 }
 
 def SYCLScope : Attr {
@@ -1187,7 +1239,6 @@ def SYCLDeviceIndirectlyCallable : InheritableAttr {
   let Subjects = SubjectList<[Function]>;
   let LangOpts = [SYCLIsDevice];
   let Documentation = [SYCLDeviceIndirectlyCallableDocs];
-  let PragmaAttributeSupport = 0;
 }
 
 def SYCLIntelBufferLocation : InheritableAttr {
@@ -1198,51 +1249,99 @@ def SYCLIntelBufferLocation : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+def SYCLRequiresDecomposition : InheritableAttr {
+  // No spellings, as this is for internal use.
+  let Spellings = [];
+  let Subjects = SubjectList<[Named]>;
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Documentation = [Undocumented];
+}
+
 def SYCLIntelKernelArgsRestrict : InheritableAttr {
   let Spellings = [ CXX11<"intel", "kernel_args_restrict"> ];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let LangOpts = [ SYCLIsDevice, SYCLIsHost ];
   let Documentation = [ SYCLIntelKernelArgsRestrictDocs ];
   let SimpleHandler = 1;
-  let PragmaAttributeSupport = 0;
 }
 
 def SYCLIntelNumSimdWorkItems : InheritableAttr {
-  let Spellings = [CXX11<"intelfpga","num_simd_work_items">];
-  let Args = [UnsignedArgument<"Number">];
+  let Spellings = [CXX11<"intelfpga","num_simd_work_items">,
+                   CXX11<"intel","num_simd_work_items">];
+  let Args = [ExprArgument<"Value">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelNumSimdWorkItemsAttrDocs];
-  let PragmaAttributeSupport = 0;
+}
+
+def SYCLIntelUseStallEnableClusters : InheritableAttr {
+  let Spellings = [CXX11<"intel","use_stall_enable_clusters">];
+  let LangOpts = [SYCLIsHost, SYCLIsDevice];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [SYCLIntelUseStallEnableClustersAttrDocs];
+}
+
+def SYCLIntelSchedulerTargetFmaxMhz : InheritableAttr {
+  let Spellings = [CXX11<"intelfpga","scheduler_target_fmax_mhz">,
+                   CXX11<"intel","scheduler_target_fmax_mhz">];
+  let Args = [ExprArgument<"Value">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [SYCLIntelSchedulerTargetFmaxMhzAttrDocs];
 }
 
 def SYCLIntelMaxWorkGroupSize : InheritableAttr {
-  let Spellings = [CXX11<"intelfpga","max_work_group_size">];
-  let Args = [UnsignedArgument<"XDim">,
-              UnsignedArgument<"YDim">,
-              UnsignedArgument<"ZDim">];
+  let Spellings = [CXX11<"intelfpga","max_work_group_size">,
+                   CXX11<"intel","max_work_group_size">];
+  let Args = [ExprArgument<"XDim">,
+              ExprArgument<"YDim">,
+              ExprArgument<"ZDim">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
+  let AdditionalMembers = [{
+    ArrayRef<const Expr *> dimensions() const {
+      return {getXDim(), getYDim(), getZDim()};
+    }
+    Optional<llvm::APSInt> getXDimVal(ASTContext &Ctx) const {
+      return getXDim()->getIntegerConstantExpr(Ctx);
+    }
+    Optional<llvm::APSInt> getYDimVal(ASTContext &Ctx) const {
+      return getYDim()->getIntegerConstantExpr(Ctx);
+    }
+    Optional<llvm::APSInt> getZDimVal(ASTContext &Ctx) const {
+      return getZDim()->getIntegerConstantExpr(Ctx);
+    }
+  }];
   let Documentation = [SYCLIntelMaxWorkGroupSizeAttrDocs];
-  let PragmaAttributeSupport = 0;
 }
 
 def SYCLIntelMaxGlobalWorkDim : InheritableAttr {
-  let Spellings = [CXX11<"intelfpga","max_global_work_dim">];
-  let Args = [UnsignedArgument<"Number">];
+  let Spellings = [CXX11<"intelfpga","max_global_work_dim">,
+                   CXX11<"intel","max_global_work_dim">];
+  let Args = [ExprArgument<"Value">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelMaxGlobalWorkDimAttrDocs];
-  let PragmaAttributeSupport = 0;
 }
 
 def SYCLIntelNoGlobalWorkOffset : InheritableAttr {
-  let Spellings = [CXX11<"intelfpga","no_global_work_offset">];
-  let Args = [BoolArgument<"Enabled", 1>];
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Spellings = [CXX11<"intelfpga","no_global_work_offset">,
+                   CXX11<"intel","no_global_work_offset">];
+  let Args = [ExprArgument<"Value", /*optional*/1>];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelNoGlobalWorkOffsetAttrDocs];
-  let PragmaAttributeSupport = 0;
+}
+
+def SYCLIntelLoopFuse : InheritableAttr {
+  let Spellings = [CXX11<"intel", "loop_fuse">,
+                   CXX11<"intel", "loop_fuse_independent">];
+  let Args = [ExprArgument<"Value", /*optional=*/ 1>];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Accessors = [Accessor<"isIndependent",
+                  [CXX11<"intel", "loop_fuse_independent">]>];
+  let Documentation = [SYCLIntelLoopFuseDocs];
 }
 
 def C11NoReturn : InheritableAttr {
@@ -1274,15 +1373,14 @@ def OpenCLUnrollHint : InheritableAttr {
   let Documentation = [OpenCLUnrollHintDocs];
 }
 
-def LoopUnrollHint : InheritableAttr {
+def LoopUnrollHint : StmtAttr {
   let Spellings = [CXX11<"clang","loop_unroll">];
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
+                             ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [ExprArgument<"UnrollHintExpr">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let HasCustomTypeTransform = 1;
   let AdditionalMembers = [{
-    static const char *getName() {
-      return "loop_unroll";
-    }
     std::string getDiagnosticName(const PrintingPolicy &Policy) const {
       std::string ValueName;
       llvm::raw_string_ostream OS(ValueName);
@@ -1300,11 +1398,10 @@ def LoopUnrollHint : InheritableAttr {
 def IntelReqdSubGroupSize: InheritableAttr {
   let Spellings = [GNU<"intel_reqd_sub_group_size">,
                    CXX11<"intel", "reqd_sub_group_size">];
-  let Args = [ExprArgument<"SubGroupSize">];
-  let Subjects = SubjectList<[Function, CXXMethod], ErrorDiag>;
+  let Args = [ExprArgument<"Value">];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [IntelReqdSubGroupSizeDocs];
-  let LangOpts = [OpenCL, SYCLIsDevice, SYCLIsHost];
-  let PragmaAttributeSupport = 0;
+  let LangOpts = [OpenCL, SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
 }
 
 // This attribute is both a type attribute, and a declaration attribute (for
@@ -1441,9 +1538,22 @@ def FallThrough : StmtAttr {
   let Documentation = [FallthroughDocs];
 }
 
-def NoMerge : StmtAttr {
+def Likely : StmtAttr {
+  let Spellings = [CXX11<"", "likely", 201803>, C2x<"clang", "likely">];
+  let Documentation = [LikelihoodDocs];
+}
+
+def Unlikely : StmtAttr {
+  let Spellings = [CXX11<"", "unlikely", 201803>, C2x<"clang", "unlikely">];
+  let Documentation = [LikelihoodDocs];
+}
+
+def NoMerge : DeclOrStmtAttr {
   let Spellings = [Clang<"nomerge">];
   let Documentation = [NoMergeDocs];
+  let InheritEvenIfAlreadyPresent = 1;
+  let Subjects = SubjectList<[Function], ErrorDiag, "functions and statements">;
+  let SimpleHandler = 1;
 }
 
 def FastCall : DeclOrTypeAttr {
@@ -1572,6 +1682,13 @@ def LayoutVersion : InheritableAttr, TargetSpecificAttr<TargetMicrosoftCXXABI> {
   let Documentation = [LayoutVersionDocs];
 }
 
+def Leaf : InheritableAttr {
+  let Spellings = [GCC<"leaf">];
+  let Subjects = SubjectList<[Function]>;
+  let Documentation = [LeafDocs];
+  let SimpleHandler = 1;
+}
+
 def LifetimeBound : DeclOrTypeAttr {
   let Spellings = [Clang<"lifetimebound", 0>];
   let Subjects = SubjectList<[ParmVar, ImplicitObjectParameter], ErrorDiag>;
@@ -1677,8 +1794,11 @@ def Mode : Attr {
   let PragmaAttributeSupport = 0;
 }
 
-def SYCLIntelFPGAIVDep : Attr {
-  let Spellings = [CXX11<"intelfpga","ivdep">];
+def SYCLIntelFPGAIVDep : StmtAttr {
+  let Spellings = [CXX11<"intelfpga","ivdep">,
+                   CXX11<"intel","ivdep">];
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
+                             ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [
     ExprArgument<"SafelenExpr">, ExprArgument<"ArrayExpr">,
     UnsignedArgument<"SafelenValue">
@@ -1686,9 +1806,6 @@ def SYCLIntelFPGAIVDep : Attr {
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let HasCustomTypeTransform = 1;
   let AdditionalMembers = [{
-    static const char *getName() {
-      return "ivdep";
-    }
     bool isDependent() const {
       return (getSafelenExpr() &&
               getSafelenExpr()->isInstantiationDependent()) ||
@@ -1723,81 +1840,79 @@ def SYCLIntelFPGAIVDep : Attr {
   let Documentation = [SYCLIntelFPGAIVDepAttrDocs];
 }
 
-def SYCLIntelFPGAII : Attr {
-  let Spellings = [CXX11<"intelfpga","ii">];
+def SYCLIntelFPGAInitiationInterval : StmtAttr {
+  let Spellings = [CXX11<"intelfpga","ii">,
+                   CXX11<"intel","ii">,
+                   CXX11<"intel", "initiation_interval">];
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
+                             ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [ExprArgument<"IntervalExpr">];
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let HasCustomTypeTransform = 1;
-  let AdditionalMembers = [{
-    static const char *getName() {
-      return "ii";
-    }
-  }];
-  let Documentation = [SYCLIntelFPGAIIAttrDocs];
+  let Documentation = [SYCLIntelFPGAInitiationIntervalAttrDocs];
 }
 
-def SYCLIntelFPGAMaxConcurrency : Attr {
-  let Spellings = [CXX11<"intelfpga","max_concurrency">];
+def SYCLIntelFPGAMaxConcurrency : StmtAttr {
+  let Spellings = [CXX11<"intelfpga","max_concurrency">,
+                   CXX11<"intel","max_concurrency">];
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
+                             ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [ExprArgument<"NThreadsExpr">];
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let HasCustomTypeTransform = 1;
-  let AdditionalMembers = [{
-    static const char *getName() {
-      return "max_concurrency";
-    }
-  }];
   let Documentation = [SYCLIntelFPGAMaxConcurrencyAttrDocs];
 }
 
-def SYCLIntelFPGALoopCoalesce : Attr {
-  let Spellings = [CXX11<"intelfpga","loop_coalesce">];
+def SYCLIntelFPGALoopCoalesce : StmtAttr {
+  let Spellings = [CXX11<"intelfpga","loop_coalesce">,
+                   CXX11<"intel","loop_coalesce">];
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
+                             ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [ExprArgument<"NExpr">];
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let HasCustomTypeTransform = 1;
-  let AdditionalMembers = [{
-    static const char *getName() {
-      return "loop_coalesce";
-    }
-  }];
   let Documentation = [SYCLIntelFPGALoopCoalesceAttrDocs];
 }
 
-def SYCLIntelFPGADisableLoopPipelining : Attr {
-  let Spellings = [CXX11<"intelfpga","disable_loop_pipelining">];
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+def SYCLIntelFPGADisableLoopPipelining : StmtAttr {
+  let Spellings = [CXX11<"intelfpga","disable_loop_pipelining">,
+                   CXX11<"intel","disable_loop_pipelining">];
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
+                             ErrorDiag, "'for', 'while', and 'do' statements">;
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let HasCustomTypeTransform = 1;
-  let AdditionalMembers = [{
-    static const char *getName() {
-      return "disable_loop_pipelining";
-    }
-  }];
   let Documentation = [SYCLIntelFPGADisableLoopPipeliningAttrDocs];
 }
 
-def SYCLIntelFPGAMaxInterleaving : Attr {
-  let Spellings = [CXX11<"intelfpga","max_interleaving">];
+def SYCLIntelFPGAMaxInterleaving : StmtAttr {
+  let Spellings = [CXX11<"intelfpga","max_interleaving">,
+                   CXX11<"intel","max_interleaving">];
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
+                             ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [ExprArgument<"NExpr">];
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let HasCustomTypeTransform = 1;
-  let AdditionalMembers = [{
-    static const char *getName() {
-      return "max_interleaving";
-    }
-  }];
   let Documentation = [SYCLIntelFPGAMaxInterleavingAttrDocs];
 }
 
-def SYCLIntelFPGASpeculatedIterations : Attr {
-  let Spellings = [CXX11<"intelfpga","speculated_iterations">];
+def SYCLIntelFPGASpeculatedIterations : StmtAttr {
+  let Spellings = [CXX11<"intelfpga","speculated_iterations">,
+                   CXX11<"intel","speculated_iterations">];
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
+                             ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [ExprArgument<"NExpr">];
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let HasCustomTypeTransform = 1;
-  let AdditionalMembers = [{
-    static const char *getName() {
-      return "speculated_iterations";
-    }
-  }];
   let Documentation = [SYCLIntelFPGASpeculatedIterationsAttrDocs];
+}
+
+def SYCLIntelFPGANofusion : StmtAttr {
+  let Spellings = [CXX11<"intel","nofusion">];
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
+                             ErrorDiag, "'for', 'while', and 'do' statements">;
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let HasCustomTypeTransform = 1;
+  let Documentation = [SYCLIntelFPGANofusionAttrDocs];
 }
 
 def IntelFPGALocalNonConstVar : SubsetSubject<Var,
@@ -1833,23 +1948,26 @@ def IntelFPGALocalOrStaticVar : SubsetSubject<Var,
                               "local variables, static variables">;
 
 def IntelFPGADoublePump : Attr {
-  let Spellings = [CXX11<"intelfpga", "doublepump">];
+  let Spellings = [CXX11<"intelfpga", "doublepump">,
+                   CXX11<"intel", "doublepump">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalOrStaticVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGADoublePumpAttrDocs];
 }
 
 def IntelFPGASinglePump : Attr {
-  let Spellings = [CXX11<"intelfpga", "singlepump">];
+  let Spellings = [CXX11<"intelfpga", "singlepump">,
+                   CXX11<"intel", "singlepump">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalOrStaticVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGASinglePumpAttrDocs];
 }
 
 def IntelFPGAMemory : Attr {
-  let Spellings = [CXX11<"intelfpga", "memory">];
+  let Spellings = [CXX11<"intelfpga", "memory">,
+                   CXX11<"intel", "fpga_memory">];
   let Args = [EnumArgument<"Kind", "MemoryKind",
                            ["MLAB", "BLOCK_RAM", ""],
                            ["MLAB", "BlockRAM", "Default"], 1>];
@@ -1864,101 +1982,76 @@ def IntelFPGAMemory : Attr {
   }];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGAMemoryAttrDocs];
 }
 
 def IntelFPGARegister : Attr {
-  let Spellings = [CXX11<"intelfpga", "register">];
+  let Spellings = [CXX11<"intelfpga", "register">,
+                   CXX11<"intel", "fpga_register">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalOrStaticVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGARegisterAttrDocs];
 }
 
 // One integral argument.
 def IntelFPGABankWidth : Attr {
-  let Spellings = [CXX11<"intelfpga","bankwidth">];
+  let Spellings = [CXX11<"intelfpga","bankwidth">,
+                   CXX11<"intel","bankwidth">];
   let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGABankWidthAttrDocs];
-  let AdditionalMembers = [{
-    static unsigned getMinValue() {
-      return 1;
-    }
-    static unsigned getMaxValue() {
-      return 1024*1024;
-    }
-  }];
 }
 
 def IntelFPGANumBanks : Attr {
-  let Spellings = [CXX11<"intelfpga","numbanks">];
+  let Spellings = [CXX11<"intelfpga","numbanks">,
+                   CXX11<"intel","numbanks">];
   let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGANumBanksAttrDocs];
-  let AdditionalMembers = [{
-    static unsigned getMinValue() {
-      return 1;
-    }
-    static unsigned getMaxValue() {
-      return 1024*1024;
-    }
-  }];
 }
 
 def IntelFPGAPrivateCopies : InheritableAttr {
-  let Spellings = [CXX11<"intelfpga","private_copies">];
+  let Spellings = [CXX11<"intelfpga","private_copies">,
+                   CXX11<"intel","private_copies">];
   let Args = [ExprArgument<"Value">];
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[IntelFPGALocalNonConstVar, Field], ErrorDiag>;
   let Documentation = [IntelFPGAPrivateCopiesAttrDocs];
-  let AdditionalMembers = [{
-    static unsigned getMinValue() {
-      return 0;
-    }
-    static unsigned getMaxValue() {
-      return 1024*1024;
-    }
-  }];
 }
 
 // Two string arguments.
 def IntelFPGAMerge : Attr {
-  let Spellings = [CXX11<"intelfpga","merge">];
+  let Spellings = [CXX11<"intelfpga","merge">,
+                   CXX11<"intel","merge">];
   let Args = [StringArgument<"Name">, StringArgument<"Direction">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalOrStaticVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGAMergeAttrDocs];
 }
 
 def IntelFPGAMaxReplicates : Attr {
-  let Spellings = [CXX11<"intelfpga","max_replicates">];
+  let Spellings = [CXX11<"intelfpga","max_replicates">,
+                   CXX11<"intel","max_replicates">];
   let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGAMaxReplicatesAttrDocs];
-  let AdditionalMembers = [{
-    static unsigned getMinValue() {
-      return 1;
-    }
-    static unsigned getMaxValue() {
-      return 1024*1024;
-    }
-  }];
 }
 
 def IntelFPGASimpleDualPort : Attr {
-  let Spellings = [CXX11<"intelfpga","simple_dual_port">];
+  let Spellings = [CXX11<"intelfpga","simple_dual_port">,
+                   CXX11<"intel","simple_dual_port">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGASimpleDualPortAttrDocs];
 }
 
@@ -1975,33 +2068,26 @@ def SYCLIntelPipeIO : Attr {
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Var]>;
   let Documentation = [SYCLIntelPipeIOAttrDocs];
-  let PragmaAttributeSupport = 0;
 }
 
 // Variadic integral arguments.
 def IntelFPGABankBits : Attr {
-  let Spellings = [CXX11<"intelfpga", "bank_bits">];
+  let Spellings = [CXX11<"intelfpga", "bank_bits">,
+                   CXX11<"intel", "bank_bits">];
   let Args = [VariadicExprArgument<"Args">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Documentation = [IntelFPGABankBitsDocs];
-  let AdditionalMembers = [{
-    static unsigned getMinValue() {
-      return 0;
-    }
-    static unsigned getMaxValue() {
-      return 1024*1024;
-    }
-  }];
 }
 
 def IntelFPGAForcePow2Depth : Attr {
-  let Spellings = [CXX11<"intelfpga","force_pow2_depth">];
+  let Spellings = [CXX11<"intelfpga","force_pow2_depth">,
+                   CXX11<"intel","force_pow2_depth">];
   let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [IntelFPGAForcePow2DepthAttrDocs];
   let AdditionalMembers = [{
     static unsigned getMinValue() {
@@ -2245,6 +2331,13 @@ def ReturnsNonNull : InheritableAttr {
   let Documentation = [ReturnsNonNullDocs];
 }
 
+def CalledOnce : Attr {
+  let Spellings = [Clang<"called_once">];
+  let Subjects = SubjectList<[ParmVar]>;
+  let LangOpts = [ObjC];
+  let Documentation = [CalledOnceDocs];
+}
+
 // pass_object_size(N) indicates that the parameter should have
 // __builtin_object_size with Type=N evaluated on the parameter at the callsite.
 def PassObjectSize : InheritableParamAttr {
@@ -2265,6 +2358,11 @@ def TypeNonNull : TypeAttr {
 def TypeNullable : TypeAttr {
   let Spellings = [Keyword<"_Nullable">];
   let Documentation = [TypeNullableDocs];
+}
+
+def TypeNullableResult : TypeAttr {
+  let Spellings = [Keyword<"_Nullable_result">];
+  let Documentation = [TypeNullableResultDocs];
 }
 
 def TypeNullUnspecified : TypeAttr {
@@ -2500,6 +2598,13 @@ def ObjCDirectMembers : Attr {
   let Documentation = [ObjCDirectMembersDocs];
 }
 
+def ObjCNonRuntimeProtocol : Attr {
+  let Spellings = [Clang<"objc_non_runtime_protocol">];
+  let Subjects = SubjectList<[ObjCProtocol], ErrorDiag>;
+  let LangOpts = [ObjC];
+  let Documentation = [ObjCNonRuntimeProtocolDocs];
+}
+
 def ObjCRuntimeName : Attr {
   let Spellings = [Clang<"objc_runtime_name">];
   let Subjects = SubjectList<[ObjCInterface, ObjCProtocol], ErrorDiag>;
@@ -2607,6 +2712,70 @@ def Regparm : TypeAttr {
   let ASTNode = 0;
 }
 
+def SwiftAsyncName : InheritableAttr {
+  let Spellings = [GNU<"swift_async_name">];
+  let Args = [StringArgument<"Name">];
+  let Subjects = SubjectList<[ObjCMethod, Function], ErrorDiag>;
+  let Documentation = [SwiftAsyncNameDocs];
+}
+
+def SwiftAttr : InheritableAttr {
+  let Spellings = [GNU<"swift_attr">];
+  let Args = [StringArgument<"Attribute">];
+  let Documentation = [SwiftAttrDocs];
+}
+
+def SwiftBridge : InheritableAttr {
+  let Spellings = [GNU<"swift_bridge">];
+  let Args = [StringArgument<"SwiftType">];
+  let Subjects = SubjectList<[Tag, TypedefName, ObjCInterface, ObjCProtocol],
+                             ErrorDiag>;
+  let Documentation = [SwiftBridgeDocs];
+}
+
+def SwiftBridgedTypedef : InheritableAttr {
+  let Spellings = [GNU<"swift_bridged_typedef">];
+  let Subjects = SubjectList<[TypedefName], ErrorDiag>;
+  let Documentation = [SwiftBridgedTypedefDocs];
+}
+
+def SwiftObjCMembers : Attr {
+  let Spellings = [GNU<"swift_objc_members">];
+  let Subjects = SubjectList<[ObjCInterface], ErrorDiag>;
+  let Documentation = [SwiftObjCMembersDocs];
+}
+
+def SwiftError : InheritableAttr {
+  let Spellings = [GNU<"swift_error">];
+  let Args = [
+      EnumArgument<"Convention", "ConventionKind",
+                   ["none", "nonnull_error", "null_result", "zero_result", "nonzero_result"],
+                   ["None", "NonNullError", "NullResult", "ZeroResult", "NonZeroResult"]>
+  ];
+  let Subjects = SubjectList<[Function, ObjCMethod], ErrorDiag>;
+  let Documentation = [SwiftErrorDocs];
+}
+
+def SwiftName : InheritableAttr {
+  let Spellings = [GNU<"swift_name">];
+  let Args = [StringArgument<"Name">];
+  let Documentation = [SwiftNameDocs];
+}
+
+def SwiftNewType : InheritableAttr {
+  let Spellings = [GNU<"swift_newtype">, GNU<"swift_wrapper">];
+  let Args = [EnumArgument<"NewtypeKind", "NewtypeKind",
+                           ["struct", "enum"], ["NK_Struct", "NK_Enum"]>];
+  let Subjects = SubjectList<[TypedefName], ErrorDiag>;
+  let Documentation = [SwiftNewTypeDocs];
+  let HasCustomParsing = 1;
+}
+
+def SwiftPrivate : InheritableAttr {
+  let Spellings = [GNU<"swift_private">];
+  let Documentation = [SwiftPrivateDocs];
+}
+
 def NoDeref : TypeAttr {
   let Spellings = [Clang<"noderef">];
   let Documentation = [NoDerefDocs];
@@ -2618,9 +2787,24 @@ def ReqdWorkGroupSize : InheritableAttr {
   let Spellings = [GNU<"reqd_work_group_size">,
                    CXX11<"intel","reqd_work_group_size">,
                    CXX11<"cl","reqd_work_group_size">];
-  let Args = [UnsignedArgument<"XDim">, DefaultUnsignedArgument<"YDim", 1>,
-              DefaultUnsignedArgument<"ZDim", 1>];
+  let Args = [ExprArgument<"XDim">,
+              ExprArgument<"YDim", /*optional*/1>,
+              ExprArgument<"ZDim", /*optional*/1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
+  let AdditionalMembers = [{
+    ArrayRef<const Expr *> dimensions() const {
+      return {getXDim(), getYDim(), getZDim()};
+    }
+    Optional<llvm::APSInt> getXDimVal(ASTContext &Ctx) const {
+      return getXDim()->getIntegerConstantExpr(Ctx);
+    }
+    Optional<llvm::APSInt> getYDimVal(ASTContext &Ctx) const {
+      return getYDim()->getIntegerConstantExpr(Ctx);
+    }
+    Optional<llvm::APSInt> getZDimVal(ASTContext &Ctx) const {
+      return getZDim()->getIntegerConstantExpr(Ctx);
+    }
+  }];
   let Documentation = [ReqdWorkGroupSizeAttrDocs];
 }
 
@@ -2634,11 +2818,11 @@ def WorkGroupSizeHint :  InheritableAttr {
   let Documentation = [Undocumented];
 }
 
-def InitPriority : InheritableAttr {
+def InitPriority : InheritableAttr, TargetSpecificAttr<TargetSupportsInitPriority> {
   let Spellings = [GCC<"init_priority", /*AllowInC*/0>];
   let Args = [UnsignedArgument<"Priority">];
   let Subjects = SubjectList<[Var], ErrorDiag>;
-  let Documentation = [Undocumented];
+  let Documentation = [InitPriorityDocs];
 }
 
 def Section : InheritableAttr {
@@ -2690,6 +2874,14 @@ def PragmaClangRelroSection : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+def StrictFP : InheritableAttr {
+  // This attribute has no spellings as it is only ever created implicitly.
+  // Function uses strict floating point operations.
+  let Spellings = [];
+  let Subjects = SubjectList<[Function]>;
+  let Documentation = [Undocumented];
+}
+
 def PragmaClangTextSection : InheritableAttr {
   // This attribute has no spellings as it is only ever created implicitly.
   let Spellings = [];
@@ -2733,6 +2925,16 @@ def SwiftIndirectResult : ParameterABIAttr {
   let Documentation = [SwiftIndirectResultDocs];
 }
 
+def SwiftAsync : InheritableAttr {
+  let Spellings = [Clang<"swift_async">];
+  let Subjects = SubjectList<[Function, ObjCMethod]>;
+  let Args = [EnumArgument<"Kind", "Kind",
+                ["none", "swift_private", "not_swift_private"],
+                ["None", "SwiftPrivate", "NotSwiftPrivate"]>,
+              ParamIdxArgument<"CompletionHandlerIndex", /*opt=*/1>];
+  let Documentation = [SwiftAsyncDocs];
+}
+
 def Suppress : StmtAttr {
   let Spellings = [CXX11<"gsl", "suppress">];
   let Args = [VariadicStringArgument<"DiagnosticIdentifiers">];
@@ -2763,6 +2965,16 @@ def Pascal : DeclOrTypeAttr {
   let Spellings = [Clang<"pascal">, Keyword<"__pascal">, Keyword<"_pascal">];
 //  let Subjects = [Function, ObjCMethod];
   let Documentation = [Undocumented];
+}
+
+def PreferredName : InheritableAttr {
+  let Spellings = [Clang<"preferred_name", /*AllowInC*/0>];
+  let Subjects = SubjectList<[ClassTmpl]>;
+  let Args = [TypeArgument<"TypedefType">];
+  let Documentation = [PreferredNameDocs];
+  let InheritEvenIfAlreadyPresent = 1;
+  let MeaningfulToClassTemplateDefinition = 1;
+  let TemplateDependent = 1;
 }
 
 def PreserveMost : DeclOrTypeAttr {
@@ -3559,24 +3771,24 @@ def MSStruct : InheritableAttr {
   let SimpleHandler = 1;
 }
 
-def DLLExport : InheritableAttr, TargetSpecificAttr<TargetWindows> {
+def DLLExport : InheritableAttr, TargetSpecificAttr<TargetHasDLLImportExport> {
   let Spellings = [Declspec<"dllexport">, GCC<"dllexport">];
   let Subjects = SubjectList<[Function, Var, CXXRecord, ObjCInterface]>;
   let Documentation = [DLLExportDocs];
 }
 
-def DLLExportStaticLocal : InheritableAttr, TargetSpecificAttr<TargetWindows> {
+def DLLExportStaticLocal : InheritableAttr, TargetSpecificAttr<TargetHasDLLImportExport> {
   // This attribute is used internally only when -fno-dllexport-inlines is
-  // passed. This attribute is added to inline function of class having
-  // dllexport attribute. And if the function has static local variables, this
-  // attribute is used to whether the variables are exported or not. Also if
-  // function has local static variables, the function is dllexported too.
+  // passed. This attribute is added to inline functions of a class having the
+  // dllexport attribute. If the function has static local variables, this
+  // attribute is used to determine whether the variables are exported or not. If
+  // the function has local static variables, the function is dllexported too.
   let Spellings = [];
   let Subjects = SubjectList<[Function]>;
   let Documentation = [Undocumented];
 }
 
-def DLLImport : InheritableAttr, TargetSpecificAttr<TargetWindows> {
+def DLLImport : InheritableAttr, TargetSpecificAttr<TargetHasDLLImportExport> {
   let Spellings = [Declspec<"dllimport">, GCC<"dllimport">];
   let Subjects = SubjectList<[Function, Var, CXXRecord, ObjCInterface]>;
   let Documentation = [DLLImportDocs];
@@ -3592,11 +3804,11 @@ public:
   }];
 }
 
-def DLLImportStaticLocal : InheritableAttr, TargetSpecificAttr<TargetWindows> {
+def DLLImportStaticLocal : InheritableAttr, TargetSpecificAttr<TargetHasDLLImportExport> {
   // This attribute is used internally only when -fno-dllexport-inlines is
-  // passed. This attribute is added to inline function of class having
-  // dllimport attribute. And if the function has static local variables, this
-  // attribute is used to whether the variables are imported or not.
+  // passed. This attribute is added to inline functions of a class having the
+  // dllimport attribute. If the function has static local variables, this
+  // attribute is used to determine whether the variables are imported or not.
   let Spellings = [];
   let Subjects = SubjectList<[Function]>;
   let Documentation = [Undocumented];
@@ -3714,8 +3926,10 @@ def LoopHint : Attr {
                            "PipelineDisabled", "PipelineInitiationInterval", "Distribute",
                            "VectorizePredicate"]>,
               EnumArgument<"State", "LoopHintState",
-                           ["enable", "disable", "numeric", "assume_safety", "full"],
-                           ["Enable", "Disable", "Numeric", "AssumeSafety", "Full"]>,
+                           ["enable", "disable", "numeric", "fixed_width",
+                            "scalable_width", "assume_safety", "full"],
+                           ["Enable", "Disable", "Numeric", "FixedWidth",
+                            "ScalableWidth", "AssumeSafety", "Full"]>,
               ExprArgument<"Value">];
 
   let AdditionalMembers = [{
@@ -3879,6 +4093,14 @@ def OMPDeclareVariant : InheritableAttr {
   }];
 }
 
+def Assumption : InheritableAttr {
+  let Spellings = [Clang<"assume">];
+  let Subjects = SubjectList<[Function, ObjCMethod]>;
+  let InheritEvenIfAlreadyPresent = 1;
+  let Documentation = [AssumptionDocs];
+  let Args = [StringArgument<"Assumption">];
+}
+
 def InternalLinkage : InheritableAttr {
   let Spellings = [Clang<"internal_linkage">];
   let Subjects = SubjectList<[Var, Function, CXXRecord]>;
@@ -3973,4 +4195,28 @@ def ReleaseHandle : InheritableParamAttr {
   let Args = [StringArgument<"HandleType">];
   let Subjects = SubjectList<[ParmVar]>;
   let Documentation = [ReleaseHandleDocs];
+}
+
+def Builtin : InheritableAttr {
+  let Spellings = [];
+  let Args = [UnsignedArgument<"ID">];
+  let Subjects = SubjectList<[Function]>;
+  let SemaHandler = 0;
+  let Documentation = [Undocumented];
+}
+
+def EnforceTCB : InheritableAttr {
+  let Spellings = [Clang<"enforce_tcb">];
+  let Subjects = SubjectList<[Function]>;
+  let Args = [StringArgument<"TCBName">];
+  let Documentation = [EnforceTCBDocs];
+  bit InheritEvenIfAlreadyPresent = 1;
+}
+
+def EnforceTCBLeaf : InheritableAttr {
+  let Spellings = [Clang<"enforce_tcb_leaf">];
+  let Subjects = SubjectList<[Function]>;
+  let Args = [StringArgument<"TCBName">];
+  let Documentation = [EnforceTCBLeafDocs];
+  bit InheritEvenIfAlreadyPresent = 1;
 }

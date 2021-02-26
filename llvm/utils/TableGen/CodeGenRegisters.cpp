@@ -196,7 +196,7 @@ void CodeGenRegister::buildObjectGraph(CodeGenRegBank &RegBank) {
   }
 }
 
-const StringRef CodeGenRegister::getName() const {
+StringRef CodeGenRegister::getName() const {
   assert(TheDef && "no def");
   return TheDef->getName();
 }
@@ -496,11 +496,10 @@ void CodeGenRegister::computeSecondarySubRegs(CodeGenRegBank &RegBank) {
       assert(getSubRegIndex(SubReg) == SubRegIdx && "LeadingSuperRegs correct");
       for (CodeGenRegister *SubReg : Cand->ExplicitSubRegs) {
         if (CodeGenSubRegIndex *SubRegIdx = getSubRegIndex(SubReg)) {
-          if (SubRegIdx->ConcatenationOf.empty()) {
+          if (SubRegIdx->ConcatenationOf.empty())
             Parts.push_back(SubRegIdx);
-          } else
-            for (CodeGenSubRegIndex *SubIdx : SubRegIdx->ConcatenationOf)
-              Parts.push_back(SubIdx);
+          else
+            append_range(Parts, SubRegIdx->ConcatenationOf);
         } else {
           // Sub-register doesn't exist.
           Parts.clear();
@@ -999,6 +998,8 @@ CodeGenRegisterClass::getMatchingSubClassWithSubRegs(
                       const CodeGenRegisterClass *B) {
     // If there are multiple, identical register classes, prefer the original
     // register class.
+    if (A == B)
+      return false;
     if (A->getMembers().size() == B->getMembers().size())
       return A == this;
     return A->getMembers().size() > B->getMembers().size();
@@ -1236,8 +1237,7 @@ CodeGenSubRegIndex *CodeGenRegBank::getSubRegIdx(Record *Def) {
 
 const CodeGenSubRegIndex *
 CodeGenRegBank::findSubRegIdx(const Record* Def) const {
-  auto I = Def2SubRegIdx.find(Def);
-  return (I == Def2SubRegIdx.end()) ? nullptr : I->second;
+  return Def2SubRegIdx.lookup(Def);
 }
 
 CodeGenRegister *CodeGenRegBank::getReg(Record *Def) {
@@ -2009,7 +2009,7 @@ void CodeGenRegBank::computeRegUnitSets() {
     if (RCRegUnits.empty())
       continue;
 
-    LLVM_DEBUG(dbgs() << "RC " << RC.getName() << " Units: \n";
+    LLVM_DEBUG(dbgs() << "RC " << RC.getName() << " Units:\n";
                for (auto U
                     : RCRegUnits) printRegUnitName(U);
                dbgs() << "\n  UnitSetIDs:");

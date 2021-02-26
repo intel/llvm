@@ -18,8 +18,8 @@ typedef cl::sycl::accessor<int, 1, cl::sycl::access::mode::read> dummy;
 
 // CHECK: CXXRecordDecl {{.*}} class AccessorBaseHost definition
 // CHECK-NOT: CXXRecordDecl {{.*}} definition
-// CHECK: FieldDecl {{.*}} referenced impl {{.*}}:'std::shared_ptr<cl::sycl::detail::AccessorImplHost>'
+// CHECK: FieldDecl {{.*}} referenced impl {{.*}}:'std::shared_ptr<sycl::detail::AccessorImplHost>'
 // CHECK: CXXRecordDecl {{.*}} class accessor definition
 // CHECK-NOT: CXXRecordDecl {{.*}} definition
-// CHECK: public {{.*}}:'cl::sycl::detail::AccessorBaseHost'
+// CHECK: public {{.*}}:'sycl::detail::AccessorBaseHost'
 

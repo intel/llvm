@@ -20,15 +20,18 @@ namespace {
 struct TestCallGraphPass
     : public PassWrapper<TestCallGraphPass, OperationPass<ModuleOp>> {
   void runOnOperation() override {
-    llvm::errs() << "Testing : " << getOperation().getAttr("test.name") << "\n";
+    llvm::errs() << "Testing : " << getOperation()->getAttr("test.name")
+                 << "\n";
     getAnalysis<CallGraph>().print(llvm::errs());
   }
 };
 } // end anonymous namespace
 
 namespace mlir {
+namespace test {
 void registerTestCallGraphPass() {
   PassRegistration<TestCallGraphPass> pass(
       "test-print-callgraph", "Print the contents of a constructed callgraph.");
 }
+} // namespace test
 } // namespace mlir
