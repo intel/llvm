@@ -594,9 +594,10 @@
 // CHECK-LINK-SYCL-DEBUG: "--dependent-lib=sycld"
 // CHECK-LINK-SYCL-DEBUG-NOT: "-defaultlib:sycld.lib"
 
-/// Check "-spirv-allow-unknown-intrinsics" option is emitted for llvm-spirv tool for esimd mode
-// RUN: %clangxx %s -fsycl -fsycl-explicit-simd -### 2>&1 | FileCheck %s --check-prefix=CHK-FSYCL-ESIMD
-// CHK-FSYCL-ESIMD: llvm-spirv{{.*}}-spirv-allow-unknown-intrinsics
+/// Check "-spirv-allow-unknown-intrinsics=llvm.genx." option is emitted for llvm-spirv tool
+// RUN: %clangxx %s -fsycl -### 2>&1 | FileCheck %s --check-prefix=CHK-ALLOW-INTRIN
+// RUN: %clangxx %s -fsycl -fsycl-explicit-simd -### 2>&1 | FileCheck %s --check-prefix=CHK-ALLOW-INTRIN
+// CHK-ALLOW-INTRIN: llvm-spirv{{.*}}-spirv-allow-unknown-intrinsics=llvm.genx.
 
 /// ###########################################################################
 
