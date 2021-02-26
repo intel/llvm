@@ -5,6 +5,10 @@
 // RUNx: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 // RUNx: %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER
 
+// Assertion is not raised on CUDA because fallback mechanism is used.
+// UNSUPORTED: cuda
+// Assertion information is not displayed properly on windows
+// XFAIL: windows
 #include <CL/sycl.hpp>
 #include <cassert>
 #include <cstdint>
