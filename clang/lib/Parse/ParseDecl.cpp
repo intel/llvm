@@ -4772,7 +4772,6 @@ void Parser::ParseEnumBody(SourceLocation StartLoc, Decl *EnumDecl) {
     // If attributes exist after the enumerator, parse them.
     ParsedAttributesWithRange attrs(AttrFactory);
     MaybeParseGNUAttributes(attrs);
-    ProhibitAttributes(attrs); // GNU-style attributes are prohibited.
     if (standardAttributesAllowed() && isCXX11AttributeSpecifier()) {
       if (getLangOpts().CPlusPlus)
         Diag(Tok.getLocation(), getLangOpts().CPlusPlus17

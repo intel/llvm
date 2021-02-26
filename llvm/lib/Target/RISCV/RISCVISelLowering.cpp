@@ -464,6 +464,9 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
       setOperationAction(ISD::VECREDUCE_SMIN, VT, Custom);
       setOperationAction(ISD::VECREDUCE_UMAX, VT, Custom);
       setOperationAction(ISD::VECREDUCE_UMIN, VT, Custom);
+
+      setOperationAction(ISD::INSERT_SUBVECTOR, VT, Custom);
+      setOperationAction(ISD::EXTRACT_SUBVECTOR, VT, Custom);
     }
 
     // Expand various CCs to best match the RVV ISA, which natively supports UNE
@@ -498,6 +501,9 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
       setOperationAction(ISD::VECREDUCE_FADD, VT, Custom);
       setOperationAction(ISD::VECREDUCE_SEQ_FADD, VT, Custom);
       setOperationAction(ISD::FCOPYSIGN, VT, Legal);
+
+      setOperationAction(ISD::INSERT_SUBVECTOR, VT, Custom);
+      setOperationAction(ISD::EXTRACT_SUBVECTOR, VT, Custom);
     };
 
     if (Subtarget.hasStdExtZfh())
@@ -567,6 +573,8 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
         setOperationAction(ISD::ANY_EXTEND, VT, Custom);
         setOperationAction(ISD::SIGN_EXTEND, VT, Custom);
         setOperationAction(ISD::ZERO_EXTEND, VT, Custom);
+
+        setOperationAction(ISD::BITCAST, VT, Custom);
       }
 
       for (MVT VT : MVT::fp_fixedlen_vector_valuetypes()) {
@@ -598,6 +606,8 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
           setCondCodeAction(CC, VT, Expand);
 
         setOperationAction(ISD::VSELECT, VT, Custom);
+
+        setOperationAction(ISD::BITCAST, VT, Custom);
       }
     }
   }
@@ -800,6 +810,112 @@ static unsigned getBranchOpcodeForIntCondCode(ISD::CondCode CC) {
   }
 }
 
+RISCVVLMUL RISCVTargetLowering::getLMUL(MVT VT) {
+  unsigned KnownSize = VT.getSizeInBits().getKnownMinValue();
+  if (VT.getVectorElementType() == MVT::i1)
+    KnownSize *= 8;
+
+  switch (KnownSize) {
+  default:
+    llvm_unreachable("Invalid LMUL.");
+  case 8:
+    return RISCVVLMUL::LMUL_F8;
+  case 16:
+    return RISCVVLMUL::LMUL_F4;
+  case 32:
+    return RISCVVLMUL::LMUL_F2;
+  case 64:
+    return RISCVVLMUL::LMUL_1;
+  case 128:
+    return RISCVVLMUL::LMUL_2;
+  case 256:
+    return RISCVVLMUL::LMUL_4;
+  case 512:
+    return RISCVVLMUL::LMUL_8;
+  }
+}
+
+unsigned RISCVTargetLowering::getRegClassIDForLMUL(RISCVVLMUL LMul) {
+  switch (LMul) {
+  default:
+    llvm_unreachable("Invalid LMUL.");
+  case RISCVVLMUL::LMUL_F8:
+  case RISCVVLMUL::LMUL_F4:
+  case RISCVVLMUL::LMUL_F2:
+  case RISCVVLMUL::LMUL_1:
+    return RISCV::VRRegClassID;
+  case RISCVVLMUL::LMUL_2:
+    return RISCV::VRM2RegClassID;
+  case RISCVVLMUL::LMUL_4:
+    return RISCV::VRM4RegClassID;
+  case RISCVVLMUL::LMUL_8:
+    return RISCV::VRM8RegClassID;
+  }
+}
+
+unsigned RISCVTargetLowering::getSubregIndexByMVT(MVT VT, unsigned Index) {
+  RISCVVLMUL LMUL = getLMUL(VT);
+  if (LMUL == RISCVVLMUL::LMUL_F8 || LMUL == RISCVVLMUL::LMUL_F4 ||
+      LMUL == RISCVVLMUL::LMUL_F2 || LMUL == RISCVVLMUL::LMUL_1) {
+    static_assert(RISCV::sub_vrm1_7 == RISCV::sub_vrm1_0 + 7,
+                  "Unexpected subreg numbering");
+    return RISCV::sub_vrm1_0 + Index;
+  }
+  if (LMUL == RISCVVLMUL::LMUL_2) {
+    static_assert(RISCV::sub_vrm2_3 == RISCV::sub_vrm2_0 + 3,
+                  "Unexpected subreg numbering");
+    return RISCV::sub_vrm2_0 + Index;
+  }
+  if (LMUL == RISCVVLMUL::LMUL_4) {
+    static_assert(RISCV::sub_vrm4_1 == RISCV::sub_vrm4_0 + 1,
+                  "Unexpected subreg numbering");
+    return RISCV::sub_vrm4_0 + Index;
+  }
+  llvm_unreachable("Invalid vector type.");
+}
+
+unsigned RISCVTargetLowering::getRegClassIDForVecVT(MVT VT) {
+  if (VT.getVectorElementType() == MVT::i1)
+    return RISCV::VRRegClassID;
+  return getRegClassIDForLMUL(getLMUL(VT));
+}
+
+// Attempt to decompose a subvector insert/extract between VecVT and
+// SubVecVT via subregister indices. Returns the subregister index that
+// can perform the subvector insert/extract with the given element index, as
+// well as the index corresponding to any leftover subvectors that must be
+// further inserted/extracted within the register class for SubVecVT.
+std::pair<unsigned, unsigned>
+RISCVTargetLowering::decomposeSubvectorInsertExtractToSubRegs(
+    MVT VecVT, MVT SubVecVT, unsigned InsertExtractIdx,
+    const RISCVRegisterInfo *TRI) {
+  static_assert((RISCV::VRM8RegClassID > RISCV::VRM4RegClassID &&
+                 RISCV::VRM4RegClassID > RISCV::VRM2RegClassID &&
+                 RISCV::VRM2RegClassID > RISCV::VRRegClassID),
+                "Register classes not ordered");
+  unsigned VecRegClassID = getRegClassIDForVecVT(VecVT);
+  unsigned SubRegClassID = getRegClassIDForVecVT(SubVecVT);
+  // Try to compose a subregister index that takes us from the incoming
+  // LMUL>1 register class down to the outgoing one. At each step we half
+  // the LMUL:
+  //   nxv16i32@12 -> nxv2i32: sub_vrm4_1_then_sub_vrm2_1_then_sub_vrm1_0
+  // Note that this is not guaranteed to find a subregister index, such as
+  // when we are extracting from one VR type to another.
+  unsigned SubRegIdx = RISCV::NoSubRegister;
+  for (const unsigned RCID :
+       {RISCV::VRM4RegClassID, RISCV::VRM2RegClassID, RISCV::VRRegClassID})
+    if (VecRegClassID > RCID && SubRegClassID <= RCID) {
+      VecVT = VecVT.getHalfNumVectorElementsVT();
+      bool IsHi =
+          InsertExtractIdx >= VecVT.getVectorElementCount().getKnownMinValue();
+      SubRegIdx = TRI->composeSubRegIndices(SubRegIdx,
+                                            getSubregIndexByMVT(VecVT, IsHi));
+      if (IsHi)
+        InsertExtractIdx -= VecVT.getVectorElementCount().getKnownMinValue();
+    }
+  return {SubRegIdx, InsertExtractIdx};
+}
+
 // Return the largest legal scalable vector type that matches VT's element type.
 static MVT getContainerForFixedLengthVector(SelectionDAG &DAG, MVT VT,
                                             const RISCVSubtarget &Subtarget) {
@@ -989,11 +1105,18 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
   case ISD::SRL_PARTS:
     return lowerShiftRightParts(Op, DAG, false);
   case ISD::BITCAST: {
+    SDValue Op0 = Op.getOperand(0);
+    // We can handle fixed length vector bitcasts with a simple replacement
+    // in isel.
+    if (Op.getValueType().isFixedLengthVector()) {
+      if (Op0.getValueType().isFixedLengthVector())
+        return Op;
+      return SDValue();
+    }
     assert(((Subtarget.is64Bit() && Subtarget.hasStdExtF()) ||
             Subtarget.hasStdExtZfh()) &&
            "Unexpected custom legalisation");
     SDLoc DL(Op);
-    SDValue Op0 = Op.getOperand(0);
     if (Op.getValueType() == MVT::f16 && Subtarget.hasStdExtZfh()) {
       if (Op0.getValueType() != MVT::i16)
         return SDValue();
@@ -1206,6 +1329,10 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
   case ISD::VECREDUCE_FADD:
   case ISD::VECREDUCE_SEQ_FADD:
     return lowerFPVECREDUCE(Op, DAG);
+  case ISD::INSERT_SUBVECTOR:
+    return lowerINSERT_SUBVECTOR(Op, DAG);
+  case ISD::EXTRACT_SUBVECTOR:
+    return lowerEXTRACT_SUBVECTOR(Op, DAG);
   case ISD::BUILD_VECTOR:
     return lowerBUILD_VECTOR(Op, DAG, Subtarget);
   case ISD::VECTOR_SHUFFLE:
@@ -2008,33 +2135,7 @@ SDValue RISCVTargetLowering::LowerINTRINSIC_W_CHAIN(SDValue Op,
     }
   }
 
-  switch (IntNo) {
-  default:
-    return SDValue(); // Don't custom lower most intrinsics.
-  case Intrinsic::riscv_vleff: {
-    SDLoc DL(Op);
-    SDVTList VTs = DAG.getVTList(Op.getValueType(), MVT::Other, MVT::Glue);
-    SDValue Load = DAG.getNode(RISCVISD::VLEFF, DL, VTs, Op.getOperand(0),
-                               Op.getOperand(2), Op.getOperand(3));
-    SDValue ReadVL =
-        SDValue(DAG.getMachineNode(RISCV::PseudoReadVL, DL, Op->getValueType(1),
-                                   Load.getValue(2)),
-                0);
-    return DAG.getMergeValues({Load, ReadVL, Load.getValue(1)}, DL);
-  }
-  case Intrinsic::riscv_vleff_mask: {
-    SDLoc DL(Op);
-    SDVTList VTs = DAG.getVTList(Op.getValueType(), MVT::Other, MVT::Glue);
-    SDValue Load = DAG.getNode(RISCVISD::VLEFF_MASK, DL, VTs, Op.getOperand(0),
-                               Op.getOperand(2), Op.getOperand(3),
-                               Op.getOperand(4), Op.getOperand(5));
-    SDValue ReadVL =
-        SDValue(DAG.getMachineNode(RISCV::PseudoReadVL, DL, Op->getValueType(1),
-                                   Load.getValue(2)),
-                0);
-    return DAG.getMergeValues({Load, ReadVL, Load.getValue(1)}, DL);
-  }
-  }
+  return SDValue(); // Don't custom lower most intrinsics.
 }
 
 static std::pair<unsigned, uint64_t>
@@ -2127,6 +2228,151 @@ SDValue RISCVTargetLowering::lowerFPVECREDUCE(SDValue Op,
   SDValue Reduction = DAG.getNode(RVVOpcode, DL, M1VT, VectorVal, ScalarSplat);
   return DAG.getNode(ISD::EXTRACT_VECTOR_ELT, DL, VecEltVT, Reduction,
                      DAG.getConstant(0, DL, Subtarget.getXLenVT()));
+}
+
+static MVT getLMUL1VT(MVT VT) {
+  assert(VT.getVectorElementType().getSizeInBits() <= 64 &&
+         "Unexpected vector MVT");
+  return MVT::getScalableVectorVT(
+      VT.getVectorElementType(),
+      RISCV::RVVBitsPerBlock / VT.getVectorElementType().getSizeInBits());
+}
+
+SDValue RISCVTargetLowering::lowerINSERT_SUBVECTOR(SDValue Op,
+                                                   SelectionDAG &DAG) const {
+  SDValue Vec = Op.getOperand(0);
+  SDValue SubVec = Op.getOperand(1);
+  MVT VecVT = Vec.getSimpleValueType();
+  MVT SubVecVT = SubVec.getSimpleValueType();
+
+  // TODO: Only handle scalable->scalable inserts for now, and revisit this for
+  // fixed-length vectors later.
+  if (!SubVecVT.isScalableVector() || !VecVT.isScalableVector())
+    return Op;
+
+  SDLoc DL(Op);
+  unsigned OrigIdx = Op.getConstantOperandVal(2);
+  const RISCVRegisterInfo *TRI = Subtarget.getRegisterInfo();
+
+  unsigned SubRegIdx, RemIdx;
+  std::tie(SubRegIdx, RemIdx) =
+      RISCVTargetLowering::decomposeSubvectorInsertExtractToSubRegs(
+          VecVT, SubVecVT, OrigIdx, TRI);
+
+  RISCVVLMUL SubVecLMUL = RISCVTargetLowering::getLMUL(SubVecVT);
+  bool IsSubVecPartReg = SubVecLMUL == RISCVVLMUL::LMUL_F2 ||
+                         SubVecLMUL == RISCVVLMUL::LMUL_F4 ||
+                         SubVecLMUL == RISCVVLMUL::LMUL_F8;
+
+  // If the Idx has been completely eliminated and this subvector's size is a
+  // vector register or a multiple thereof, or the surrounding elements are
+  // undef, then this is a subvector insert which naturally aligns to a vector
+  // register. These can easily be handled using subregister manipulation.
+  // If the subvector is smaller than a vector register, then the insertion
+  // must preserve the undisturbed elements of the register. We do this by
+  // lowering to an EXTRACT_SUBVECTOR grabbing the nearest LMUL=1 vector type
+  // (which resolves to a subregister copy), performing a VSLIDEUP to place the
+  // subvector within the vector register, and an INSERT_SUBVECTOR of that
+  // LMUL=1 type back into the larger vector (resolving to another subregister
+  // operation). See below for how our VSLIDEUP works. We go via a LMUL=1 type
+  // to avoid allocating a large register group to hold our subvector.
+  if (RemIdx == 0 && (!IsSubVecPartReg || Vec.isUndef()))
+    return Op;
+
+  // VSLIDEUP works by leaving elements 0<i<OFFSET undisturbed, elements
+  // OFFSET<=i<VL set to the "subvector" and vl<=i<VLMAX set to the tail policy
+  // (in our case undisturbed). This means we can set up a subvector insertion
+  // where OFFSET is the insertion offset, and the VL is the OFFSET plus the
+  // size of the subvector.
+  MVT XLenVT = Subtarget.getXLenVT();
+  MVT InterSubVT = getLMUL1VT(VecVT);
+
+  // Extract a subvector equal to the nearest full vector register type. This
+  // should resolve to a EXTRACT_SUBREG instruction.
+  unsigned AlignedIdx = OrigIdx - RemIdx;
+  SDValue AlignedExtract =
+      DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, InterSubVT, Vec,
+                  DAG.getConstant(AlignedIdx, DL, XLenVT));
+
+  SDValue SlideupAmt = DAG.getConstant(RemIdx, DL, XLenVT);
+  // For scalable vectors this must be further multiplied by vscale.
+  SlideupAmt = DAG.getNode(ISD::VSCALE, DL, XLenVT, SlideupAmt);
+
+  SDValue Mask, VL;
+  std::tie(Mask, VL) = getDefaultScalableVLOps(VecVT, DL, DAG, Subtarget);
+
+  // Construct the vector length corresponding to RemIdx + length(SubVecVT).
+  VL = DAG.getConstant(SubVecVT.getVectorMinNumElements(), DL, XLenVT);
+  VL = DAG.getNode(ISD::VSCALE, DL, XLenVT, VL);
+  VL = DAG.getNode(ISD::ADD, DL, XLenVT, SlideupAmt, VL);
+
+  SubVec = DAG.getNode(ISD::INSERT_SUBVECTOR, DL, InterSubVT,
+                       DAG.getUNDEF(InterSubVT), SubVec,
+                       DAG.getConstant(0, DL, XLenVT));
+
+  SDValue Slideup = DAG.getNode(RISCVISD::VSLIDEUP_VL, DL, InterSubVT,
+                                AlignedExtract, SubVec, SlideupAmt, Mask, VL);
+
+  // Insert this subvector into the correct vector register. This should
+  // resolve to an INSERT_SUBREG instruction.
+  return DAG.getNode(ISD::INSERT_SUBVECTOR, DL, VecVT, Vec, Slideup,
+                     DAG.getConstant(AlignedIdx, DL, XLenVT));
+}
+
+SDValue RISCVTargetLowering::lowerEXTRACT_SUBVECTOR(SDValue Op,
+                                                    SelectionDAG &DAG) const {
+  SDValue Vec = Op.getOperand(0);
+  MVT SubVecVT = Op.getSimpleValueType();
+  MVT VecVT = Vec.getSimpleValueType();
+
+  // TODO: Only handle scalable->scalable extracts for now, and revisit this
+  // for fixed-length vectors later.
+  if (!SubVecVT.isScalableVector() || !VecVT.isScalableVector())
+    return Op;
+
+  SDLoc DL(Op);
+  unsigned OrigIdx = Op.getConstantOperandVal(1);
+  const RISCVRegisterInfo *TRI = Subtarget.getRegisterInfo();
+
+  unsigned SubRegIdx, RemIdx;
+  std::tie(SubRegIdx, RemIdx) =
+      RISCVTargetLowering::decomposeSubvectorInsertExtractToSubRegs(
+          VecVT, SubVecVT, OrigIdx, TRI);
+
+  // If the Idx has been completely eliminated then this is a subvector extract
+  // which naturally aligns to a vector register. These can easily be handled
+  // using subregister manipulation.
+  if (RemIdx == 0)
+    return Op;
+
+  // Else we must shift our vector register directly to extract the subvector.
+  // Do this using VSLIDEDOWN.
+  MVT XLenVT = Subtarget.getXLenVT();
+
+  // Extract a subvector equal to the nearest full vector register type. This
+  // should resolve to a EXTRACT_SUBREG instruction.
+  unsigned AlignedIdx = OrigIdx - RemIdx;
+  MVT InterSubVT = getLMUL1VT(VecVT);
+  SDValue AlignedExtract =
+      DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, InterSubVT, Vec,
+                  DAG.getConstant(AlignedIdx, DL, XLenVT));
+
+  // Slide this vector register down by the desired number of elements in order
+  // to place the desired subvector starting at element 0.
+  SDValue SlidedownAmt = DAG.getConstant(RemIdx, DL, XLenVT);
+  // For scalable vectors this must be further multiplied by vscale.
+  SlidedownAmt = DAG.getNode(ISD::VSCALE, DL, XLenVT, SlidedownAmt);
+
+  SDValue Mask, VL;
+  std::tie(Mask, VL) = getDefaultScalableVLOps(InterSubVT, DL, DAG, Subtarget);
+  SDValue Slidedown = DAG.getNode(RISCVISD::VSLIDEDOWN_VL, DL, InterSubVT,
+                                  DAG.getUNDEF(InterSubVT), AlignedExtract,
+                                  SlidedownAmt, Mask, VL);
+
+  // Now the vector is in the right position, extract our final subvector. This
+  // should resolve to a COPY.
+  return DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, SubVecVT, Slidedown,
+                     DAG.getConstant(0, DL, XLenVT));
 }
 
 SDValue
@@ -5080,8 +5326,6 @@ const char *RISCVTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(SPLAT_VECTOR_I64)
   NODE_NAME_CASE(READ_VLENB)
   NODE_NAME_CASE(TRUNCATE_VECTOR)
-  NODE_NAME_CASE(VLEFF)
-  NODE_NAME_CASE(VLEFF_MASK)
   NODE_NAME_CASE(VSLIDEUP_VL)
   NODE_NAME_CASE(VSLIDEDOWN_VL)
   NODE_NAME_CASE(VID_VL)

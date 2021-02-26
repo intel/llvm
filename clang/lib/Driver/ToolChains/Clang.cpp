@@ -380,6 +380,7 @@ static void getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
     break;
   case llvm::Triple::ve:
     ve::getVETargetFeatures(D, Args, Features);
+    break;
   }
 
   for (auto Feature : unifyTargetFeatures(Features)) {
@@ -3241,7 +3242,8 @@ static void RenderTrivialAutoVarInitOptions(const Driver &D,
   }
 }
 
-static void RenderOpenCLOptions(const ArgList &Args, ArgStringList &CmdArgs) {
+static void RenderOpenCLOptions(const ArgList &Args, ArgStringList &CmdArgs,
+                                types::ID InputType) {
   // cl-denorms-are-zero is not forwarded. It is translated into a generic flag
   // for denormal flushing handling based on the target.
   const unsigned ForwardedArguments[] = {
@@ -3266,6 +3268,13 @@ static void RenderOpenCLOptions(const ArgList &Args, ArgStringList &CmdArgs) {
   for (const auto &Arg : ForwardedArguments)
     if (const auto *A = Args.getLastArg(Arg))
       CmdArgs.push_back(Args.MakeArgString(A->getOption().getPrefixedName()));
+
+  // Only add the default headers if we are compiling OpenCL sources.
+  if ((types::isOpenCL(InputType) || Args.hasArg(options::OPT_cl_std_EQ)) &&
+      !Args.hasArg(options::OPT_cl_no_stdinc)) {
+    CmdArgs.push_back("-finclude-default-header");
+    CmdArgs.push_back("-fdeclare-opencl-builtins");
+  }
 }
 
 static void RenderARCMigrateToolOptions(const Driver &D, const ArgList &Args,
@@ -4419,6 +4428,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // the given target.  These come before user provided warning options
   // are provided.
   TC.addClangWarningOptions(CmdArgs);
+
+  // FIXME: Subclass ToolChain for SPIR and move this to addClangWarningOptions.
+  if (Triple.isSPIR())
+    CmdArgs.push_back("-Wspir-compat");
 
   // Select the appropriate action.
   RewriteKind rewriteKind = RK_None;
@@ -5902,7 +5915,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   // Forward -cl options to -cc1
-  RenderOpenCLOptions(Args, CmdArgs);
+  RenderOpenCLOptions(Args, CmdArgs, InputType);
 
   // Forward -sycl-std option to -cc1
   Args.AddLastArg(CmdArgs, options::OPT_sycl_std_EQ);

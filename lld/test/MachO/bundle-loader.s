@@ -13,8 +13,8 @@
 # BUNDLE: (undefined) external _main (from executable)
 # BUNDLE: (undefined) external my_func (from executable)
 # RUN: llvm-objdump  --macho --lazy-bind %t/bundle.bundle | FileCheck %s --check-prefix BUNDLE-OBJ
-# BUNDLE-OBJ: segment  section             address     dylib             symbol
-# BUNDLE-OBJ: __DATA   __la_symbol_ptr     0x{{.*}}                      my_fun
+# BUNDLE-OBJ: segment  section             address            dylib                 symbol
+# BUNDLE-OBJ: __DATA   __la_symbol_ptr     0x{{[0-9a-f]*}}    main-executable       my_fun
 
 
 # RUN: %lld -lSystem -bundle -bundle_loader %t/main -o %t/bundle2.bundle %t/3.o %t/2.o
@@ -31,7 +31,7 @@
 #--- 2.s
 # my_lib: This contains the exported function
 .globl my_func
-my_func:           
+my_func:
   retq
 
 #--- 3.s

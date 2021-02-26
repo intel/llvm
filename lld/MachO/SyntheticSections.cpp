@@ -53,11 +53,23 @@ uint64_t MachHeaderSection::getSize() const {
   return sizeof(MachO::mach_header_64) + sizeOfCmds + config->headerPad;
 }
 
+static uint32_t cpuSubtype() {
+  uint32_t subtype = target->cpuSubtype;
+
+  if (config->outputType == MachO::MH_EXECUTE && !config->staticLink &&
+      target->cpuSubtype == MachO::CPU_SUBTYPE_X86_64_ALL &&
+      config->platform.kind == MachO::PlatformKind::macOS &&
+      config->platform.minimum >= VersionTuple(10, 5))
+    subtype |= MachO::CPU_SUBTYPE_LIB64;
+
+  return subtype;
+}
+
 void MachHeaderSection::writeTo(uint8_t *buf) const {
   auto *hdr = reinterpret_cast<MachO::mach_header_64 *>(buf);
   hdr->magic = MachO::MH_MAGIC_64;
   hdr->cputype = target->cpuType;
-  hdr->cpusubtype = target->cpuSubtype | MachO::CPU_SUBTYPE_LIB64;
+  hdr->cpusubtype = cpuSubtype();
   hdr->filetype = config->outputType;
   hdr->ncmds = loadCommands.size();
   hdr->sizeofcmds = sizeOfCmds;
@@ -188,7 +200,7 @@ void RebaseSection::writeTo(uint8_t *buf) const {
 NonLazyPointerSectionBase::NonLazyPointerSectionBase(const char *segname,
                                                      const char *name)
     : SyntheticSection(segname, name) {
-  align = WordSize; // vector of pointers / mimic ld64
+  align = WordSize;
   flags = MachO::S_NON_LAZY_SYMBOL_POINTERS;
 }
 
@@ -399,7 +411,9 @@ StubsSection::StubsSection()
     : SyntheticSection(segment_names::text, "__stubs") {
   flags = MachO::S_SYMBOL_STUBS | MachO::S_ATTR_SOME_INSTRUCTIONS |
           MachO::S_ATTR_PURE_INSTRUCTIONS;
-  align = 4; // machine instructions / mimic ld64
+  // The stubs section comprises machine instructions, which are aligned to
+  // 4 bytes on the archs we care about.
+  align = 4;
   reserved2 = target->stubSize;
 }
 
@@ -425,7 +439,7 @@ bool StubsSection::addEntry(Symbol *sym) {
 StubHelperSection::StubHelperSection()
     : SyntheticSection(segment_names::text, "__stub_helper") {
   flags = MachO::S_ATTR_SOME_INSTRUCTIONS | MachO::S_ATTR_PURE_INSTRUCTIONS;
-  align = 4; // machine instructions / mimic ld64
+  align = 4; // This section comprises machine instructions
 }
 
 uint64_t StubHelperSection::getSize() const {
@@ -466,12 +480,12 @@ ImageLoaderCacheSection::ImageLoaderCacheSection() {
   uint8_t *arr = bAlloc.Allocate<uint8_t>(WordSize);
   memset(arr, 0, WordSize);
   data = {arr, WordSize};
-  align = WordSize; // pointer / mimic ld64
+  align = WordSize;
 }
 
 LazyPointerSection::LazyPointerSection()
     : SyntheticSection(segment_names::data, "__la_symbol_ptr") {
-  align = WordSize; // vector of pointers / mimic ld64
+  align = WordSize;
   flags = MachO::S_LAZY_SYMBOL_POINTERS;
 }
 

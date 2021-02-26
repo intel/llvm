@@ -500,10 +500,15 @@ void Writer::createLoadCommands() {
   int64_t dylibOrdinal = 1;
   for (InputFile *file : inputFiles) {
     if (auto *dylibFile = dyn_cast<DylibFile>(file)) {
-      if (dylibFile->isBundleLoader)
+      if (dylibFile->isBundleLoader) {
         dylibFile->ordinal = MachO::BIND_SPECIAL_DYLIB_MAIN_EXECUTABLE;
-      else
-        dylibFile->ordinal = dylibOrdinal++;
+        // Shortcut since bundle-loader does not re-export the symbols.
+
+        dylibFile->reexport = false;
+        continue;
+      }
+
+      dylibFile->ordinal = dylibOrdinal++;
       LoadCommandType lcType =
           dylibFile->forceWeakImport || dylibFile->refState == RefState::Weak
               ? LC_LOAD_WEAK_DYLIB

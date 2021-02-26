@@ -838,6 +838,8 @@ def cl_fp32_correctly_rounded_divide_sqrt : Flag<["-"], "cl-fp32-correctly-round
 def cl_uniform_work_group_size : Flag<["-"], "cl-uniform-work-group-size">, Group<opencl_Group>, Flags<[CC1Option]>,
   HelpText<"OpenCL only. Defines that the global work-size be a multiple of the work-group size specified to clEnqueueNDRangeKernel">,
   MarshallingInfoFlag<CodeGenOpts<"UniformWGSize">>;
+def cl_no_stdinc : Flag<["-"], "cl-no-stdinc">, Group<opencl_Group>,
+  HelpText<"OpenCL only. Disables all standard includes containing non-native compiler types and functions.">;
 def client__name : JoinedOrSeparate<["-"], "client_name">;
 def combine : Flag<["-", "--"], "combine">, Flags<[NoXarchOption, Unsupported]>;
 def compatibility__version : JoinedOrSeparate<["-"], "compatibility_version">;
@@ -4327,11 +4329,17 @@ def fno_sycl_device_lib_EQ : CommaJoined<["-"], "fno-sycl-device-lib=">, Group<s
   "are libc, libm-fp32, libm-fp64, all">;
 
 //===----------------------------------------------------------------------===//
+// FLangOption + CoreOption + NoXarchOption
+//===----------------------------------------------------------------------===//
+let Flags = [FlangOption, FlangOnlyOption, NoXarchOption, CoreOption] in {
+def Xflang : Separate<["-"], "Xflang">,
+  HelpText<"Pass <arg> to the flang compiler">, MetaVarName<"<arg>">,
+  Flags<[NoXarchOption, CoreOption]>, Group<CompileOnly_Group>;
+}
+
+//===----------------------------------------------------------------------===//
 // FlangOption and FC1 Options
 //===----------------------------------------------------------------------===//
-def test_io : Flag<["-"], "test-io">, Flags<[HelpHidden, FlangOption, FC1Option, FlangOnlyOption]>, Group<Action_Group>,
-  HelpText<"Run the InputOuputTest action. Use for development and testing only.">;
-
 let Flags = [FC1Option, FlangOption, FlangOnlyOption] in {
 
 def ffixed_form : Flag<["-"], "ffixed-form">, Group<f_Group>,
@@ -4361,7 +4369,6 @@ def fimplicit_none : Flag<["-"], "fimplicit-none">, Group<f_Group>,
 def fno_implicit_none : Flag<["-"], "fno-implicit-none">, Group<f_Group>;
 def falternative_parameter_statement : Flag<["-"], "falternative-parameter-statement">, Group<f_Group>,
   HelpText<"Enable the old style PARAMETER statement">;
-
 }
 
 //===----------------------------------------------------------------------===//
@@ -4369,6 +4376,8 @@ def falternative_parameter_statement : Flag<["-"], "falternative-parameter-state
 //===----------------------------------------------------------------------===//
 let Flags = [FC1Option, FlangOnlyOption] in {
 
+def test_io : Flag<["-"], "test-io">, Group<Action_Group>,
+  HelpText<"Run the InputOuputTest action. Use for development and testing only.">;
 def fdebug_unparse : Flag<["-"], "fdebug-unparse">, Group<Action_Group>,
   HelpText<"Unparse and stop.">;
 def fdebug_unparse_with_symbols : Flag<["-"], "fdebug-unparse-with-symbols">, Group<Action_Group>,
