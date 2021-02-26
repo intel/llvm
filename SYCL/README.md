@@ -94,6 +94,12 @@ to be linked with. Make sure OpenCL ICD loader library is available in the
 system or library with full path passed to CMake configuration using the
 variable.
 
+***LEVEL_ZERO_HEADERS*** - directory containing Level_Zero native headers,
+   can be also set by LIT parameter level_zero_headers.
+
+***LEVEL_ZERO_LIBS_DIR*** - directory containing Level_Zero native libraries,
+   can be also set by LIT parameter level_zero_libs_dir.
+
 It is asssumed that all required dependencies (OpenCL runtimes, CUDA SDK, AOT
 compilers, etc) are available in the system.
 
@@ -147,6 +153,10 @@ ninja check
  * **extra_environment** - comma-separated list of variables with values to be
    added to test environment. Can be also set by LIT_EXTRA_ENVIRONMENT variable
    in cmake.
+ * **level_zero_headers** - directory containing Level_Zero native headers,
+   can be also set by CMake variable LEVEL_ZERO_HEADERS.
+ * **level_zero_libs_dir** - directory containing Level_Zero native libraries,
+   can be also set by CMake variable LEVEL_ZERO_LIBS_DIR.
 
 # LIT features which can be used to configure test execution:
  * **windows**, **linux** - host OS;
@@ -158,7 +168,7 @@ ninja check
    OpenCL interoperability tests;
  * **aot_tool** - Ahead-of-time compilation tools are available, enables
    corresponding tests;
- * **level_zero_headers** - Level_Zero headers are available, the headers are
+ * **level_zero_dev_kit** - Level_Zero headers and library are available,
    needed for Level_Zero interoperability tests;
  * **gpu-intel-dg1** - Intel GPU DG1 is available for testing;
  * **dump_ir**: is set to true if compiler supports dumping IR. Can be also

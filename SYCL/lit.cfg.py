@@ -61,12 +61,12 @@ llvm_config.with_environment('PATH', config.lit_tools_dir, append_path=True)
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
 if platform.system() == "Linux":
     config.available_features.add('linux')
-    llvm_config.with_system_environment('LD_LIBRARY_PATH')
+    llvm_config.with_system_environment(['LD_LIBRARY_PATH','LIBRARY_PATH','CPATH'])
     llvm_config.with_environment('LD_LIBRARY_PATH', config.sycl_libs_dir, append_path=True)
 
 elif platform.system() == "Windows":
     config.available_features.add('windows')
-    llvm_config.with_system_environment('LIB')
+    llvm_config.with_system_environment(['LIB','CPATH','INCLUDE'])
     llvm_config.with_environment('LIB', config.sycl_libs_dir, append_path=True)
     llvm_config.with_environment('PATH', config.sycl_libs_dir, append_path=True)
     llvm_config.with_environment('LIB', os.path.join(config.dpcpp_root_dir, 'lib'), append_path=True)
@@ -106,11 +106,24 @@ if sp[0] == 0:
 
 check_l0_file='l0_include.cpp'
 with open(check_l0_file, 'w') as fp:
-    fp.write("#include<level_zero/ze_api.h>")
+    fp.write('#include<level_zero/ze_api.h>\n')
+    fp.write('int main() { uint32_t t; zeDriverGet(&t,nullptr); return t; }')
 
-sp = subprocess.getstatusoutput(config.dpcpp_compiler+' -fsycl -c '+check_l0_file)
+config.level_zero_libs_dir=lit_config.params.get("level_zero_libs_dir", config.level_zero_libs_dir)
+config.level_zero_include=lit_config.params.get("level_zero_include", (config.level_zero_include if config.level_zero_include else os.path.join(config.sycl_include, '..')))
+
+level_zero_options=level_zero_options = (' -L'+config.level_zero_libs_dir if config.level_zero_libs_dir else '')+' -lze_loader '+' -I'+config.level_zero_include
+if cl_options:
+    level_zero_options = ' '+( config.level_zero_libs_dir+'/ze_loader.lib ' if config.level_zero_libs_dir else 'ze_loader.lib')+' /I'+config.level_zero_include
+
+config.substitutions.append( ('%level_zero_options', level_zero_options) )
+
+sp = subprocess.getstatusoutput(config.dpcpp_compiler+' -fsycl  ' + check_l0_file + level_zero_options)
 if sp[0] == 0:
-    config.available_features.add('level_zero_headers')
+    config.available_features.add('level_zero_dev_kit')
+    config.substitutions.append( ('%level_zero_options', level_zero_options) )
+else:
+    config.substitutions.append( ('%level_zero_options', '') )
 
 if config.opencl_libs_dir:
     if cl_options:
@@ -119,6 +132,17 @@ if config.opencl_libs_dir:
         config.substitutions.append( ('%opencl_lib',  '-L'+config.opencl_libs_dir+' -lOpenCL') )
     config.available_features.add('opencl_icd')
 config.substitutions.append( ('%opencl_include_dir',  config.opencl_include_dir) )
+
+if cl_options:
+    config.substitutions.append( ('%sycl_options',  ' sycl.lib /I'+config.sycl_include ) )
+    config.substitutions.append( ('%include_option',  '/FI' ) )
+    config.substitutions.append( ('%debug_option',  '/DEBUG' ) )
+    config.substitutions.append( ('%cxx_std_option',  '/std:' ) )
+else:
+    config.substitutions.append( ('%sycl_options', ' -lsycl -I'+config.sycl_include ) )
+    config.substitutions.append( ('%include_option',  '-include' ) )
+    config.substitutions.append( ('%debug_option',  '-g' ) )
+    config.substitutions.append( ('%cxx_std_option',  '-std=' ) )
 
 llvm_config.add_tool_substitutions(['llvm-spirv'], [config.sycl_tools_dir])
 

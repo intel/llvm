@@ -1,8 +1,7 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -I %sycl_include/.. -lze_loader %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// REQUIRES: level_zero
-// UNSUPPORTED: cl_options
+// REQUIRES: level_zero, level_zero_dev_kit
 
 #include <algorithm>
 #include <level_zero/ze_api.h>

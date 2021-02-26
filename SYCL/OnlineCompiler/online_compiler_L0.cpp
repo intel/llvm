@@ -1,10 +1,9 @@
-// REQUIRES: level_zero, level_zero_headers
-// UNSUPPORTED: cl_options
+// REQUIRES: level_zero, level_zero_dev_kit
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DRUN_KERNELS -lze_loader %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DRUN_KERNELS %level_zero_options %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -lze_loader %s -o %th.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %th.out
 // RUN: %HOST_RUN_PLACEHOLDER %th.out
 
 // This test checks INTEL feature class online_compiler for Level-Zero.

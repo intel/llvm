@@ -1,16 +1,16 @@
 // NOTE A temporary test before this compilation flow is enabled by default in
 // driver
-// UNSUPPORTED: cuda,cl_options
+// UNSUPPORTED: cuda
 // CUDA does not support SPIR-V.
-// RUN: %clangxx -fsycl-device-only -Xclang -fenable-sycl-dae -Xclang -fsycl-int-header=int_header.h %s -c -o device_code.bc -I %sycl_include -Wno-sycl-strict
-// RUN: %clangxx -include int_header.h -g -c %s -o host_code.o -I %sycl_include -Wno-sycl-strict
+// RUN: %clangxx -fsycl-device-only -Xclang -fenable-sycl-dae -Xclang -fsycl-int-header=int_header.h %s -c -o device_code.bc -Wno-sycl-strict
+// RUN: %clangxx %include_option int_header.h %debug_option -c %s -o host_code.o %sycl_options -Wno-sycl-strict
 // RUN: llvm-link -o=linked_device_code.bc device_code.bc
 // RUN: sycl-post-link -emit-param-info linked_device_code.bc
 // RUN: llvm-spirv -o linked_device_code.spv linked_device_code.bc
 // RUN: echo -e -n "[Code|Properties]\nlinked_device_code.spv|linked_device_code_0.prop" > table.txt
 // RUN: clang-offload-wrapper -o wrapper.bc -host=x86_64 -kind=sycl -target=spir64 -batch table.txt
 // RUN: %clangxx -c wrapper.bc -o wrapper.o
-// RUN: %clangxx wrapper.o host_code.o -o app.exe -lsycl
+// RUN: %clangxx wrapper.o host_code.o -o app.exe %sycl_options
 // RUN: %BE_RUN_PLACEHOLDER ./app.exe
 
 //==---------device_code_dae.cpp - dead argument elimination test ----------==//

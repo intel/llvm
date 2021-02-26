@@ -18,6 +18,8 @@ config.target_triple = "x86_64-unknown-unknown-gnu"
 config.host_triple = "x86_64-unknown-unknown-gnu" 
 
 config.opencl_libs_dir = (os.path.dirname("@OpenCL_LIBRARY@") if "@OpenCL_LIBRARY@" else "")
+config.level_zero_libs_dir = "@LEVEL_ZERO_LIBS_DIR@"
+config.level_zero_include = "@LEVEL_ZERO_INCLUDE@"
 
 config.opencl_include_dir = config.sycl_include
 config.target_devices = lit_config.params.get("target_devices", "@SYCL_TARGET_DEVICES@")

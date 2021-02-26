@@ -1,8 +1,8 @@
-// UNSUPPORTED: cuda,cl_options
+// UNSUPPORTED: cuda
 // CUDA does not support SPIR-V.
 
 // RUN: %clangxx -fsycl-device-only -fno-sycl-use-bitcode -Xclang -fsycl-int-header=%t.h -c %s -o %t.spv -I %sycl_include -Xclang -verify-ignore-unexpected=note,warning -Wno-sycl-strict
-// RUN: %clangxx -include %t.h %s -o %t.out -lsycl -I %sycl_include -Xclang -verify-ignore-unexpected=note,warning
+// RUN: %clangxx %include_option %t.h %s -o %t.out %sycl_options -Xclang -verify-ignore-unexpected=note,warning
 // RUN: %BE_RUN_PLACEHOLDER env SYCL_USE_KERNEL_SPV=%t.spv %t.out | FileCheck %s
 // CHECK: Passed
 

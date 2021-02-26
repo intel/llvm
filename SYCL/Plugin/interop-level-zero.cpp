@@ -1,5 +1,5 @@
-// REQUIRES: level_zero,level_zero_headers
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -I %sycl_source_dir %s -o %t.out -lze_loader
+// REQUIRES: level_zero, level_zero_dev_kit
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
 // RUN: env SYCL_BE=PI_LEVEL_ZERO %GPU_RUN_PLACEHOLDER %t.out
 
 // Test for Level Zero interop API

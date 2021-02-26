@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %clangxx -g -O0 -fsycl %s -o %t.out
+// RUN: %clangxx %debug_option -O0 -fsycl %s -o %t.out
 // RUN: echo "SYCL_PRINT_EXECUTION_GRAPH=always" > %t.cfg
 // RUN: env SYCL_CONFIG_FILE_NAME=%t.cfg %t.out
 // RUN: ls | grep dot

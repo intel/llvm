@@ -1,6 +1,6 @@
 // REQUIRES: aoc, accelerator
 
-// RUN: %clangxx -fsycl -fintelfpga -std=c++17 %s -o %t.out
+// RUN: %clangxx -fsycl -fintelfpga %s -o %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 #include <CL/sycl.hpp>
