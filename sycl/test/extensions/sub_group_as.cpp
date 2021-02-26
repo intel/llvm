@@ -61,7 +61,7 @@ int main(int argc, char *argv[]) {
             // CHECK: call spir_func i8 addrspace(1)* @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPKvN5__spv12StorageClass4FlagE(i8 addrspace(4)*
             // CHECK: call spir_func i32 @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)*
             // CHECK: call spir_func i8* @_Z42__spirv_GenericCastToPtrExplicit_ToPrivatePKvN5__spv12StorageClass4FlagE(i8 addrspace(4)*
-            // CHECK: call spir_func void @__assert_fail
+            // CHECK: call spir_func void {{.*}}assert
             // CHECK: call spir_func i8 addrspace(4)* @_Z24__spirv_PtrCastToGenericPKv(i8 addrspace(4)*
             // CHECK: call spir_func i32 @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)*
             // Global address space
@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
             // CHECK: call spir_func i8 addrspace(1)* @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPKvN5__spv12StorageClass4FlagE(i8 addrspace(4)*
             // CHECK: call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELIjEvPU3AS1jT_(i32 addrspace(1)*
             // CHECK: call spir_func i8* @_Z42__spirv_GenericCastToPtrExplicit_ToPrivatePKvN5__spv12StorageClass4FlagE(i8 addrspace(4)*
-            // CHECK: call spir_func void @__assert_fail
+            // CHECK: call spir_func void {{.*}}assert
             // CHECK: call spir_func i8 addrspace(4)* @_Z24__spirv_PtrCastToGenericPKv(i8 addrspace(4)*
             // CHECK: call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELIjEvPU3AS1jT_(i32 addrspace(1)*
             sg.store(&global[i], x + y + z);

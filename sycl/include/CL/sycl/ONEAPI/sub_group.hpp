@@ -241,6 +241,9 @@ struct sub_group {
       std::is_same<typename detail::remove_AS<T>::type, T>::value, T>
   load(T *src) const {
 
+#ifdef __NVPTX__
+    return src[get_local_id()[0]];
+#else // __NVPTX__
     auto l = __spirv_GenericCastToPtrExplicit_ToLocal<T>(
         src, __spv::StorageClass::Workgroup);
     if (l)
@@ -258,6 +261,7 @@ struct sub_group {
 
     // Fallback for other address spaces to be mapped to global
     return load(__spirv_PtrCastToGeneric<T>(src));
+#endif // __NVPTX__
   }
 #else  //__SYCL_DEVICE_ONLY__
   template <typename T> T load(T *src) const {
@@ -375,6 +379,9 @@ struct sub_group {
       std::is_same<typename detail::remove_AS<T>::type, T>::value>
   store(T *dst, const typename detail::remove_AS<T>::type &x) const {
 
+#ifdef __NVPTX__
+    dst[get_local_id()[0]] = x;
+#else // __NVPTX__
     auto l = __spirv_GenericCastToPtrExplicit_ToLocal<T>(
         dst, __spv::StorageClass::Workgroup);
     if (l) {
@@ -396,6 +403,7 @@ struct sub_group {
 
     // Fallback for other address spaces to be mapped to global
     store(__spirv_PtrCastToGeneric<T>(dst), x);
+#endif // __NVPTX__
   }
 #else  //__SYCL_DEVICE_ONLY__
   template <typename T> void store(T *dst, const T &x) const {
