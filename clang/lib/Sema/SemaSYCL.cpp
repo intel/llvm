@@ -2964,7 +2964,7 @@ public:
       if (T->isNullPtrType()) {
         S.Diag(KernelInvocationFuncLoc,
                diag::err_invalid_std_type_in_sycl_kernel)
-            << KernelNameType << T;
+            << KernelNameType << T->getAsTagDecl();
 
         IsInvalid = true;
       }
@@ -3008,12 +3008,12 @@ public:
 
       // Loop through Declaration Contexts to detect kernel names nested inside
       // "std" and "anonymous" namespaces.
-      while (!DeclCtx->isTranslationUnit()) {
+      while (!DeclCtx->isTranslationUnit() && isa<NamespaceDecl>(DeclCtx)) {
         const auto *NSDecl = dyn_cast<NamespaceDecl>(DeclCtx);
         if (NSDecl && NSDecl->isStdNamespace()) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_invalid_std_type_in_sycl_kernel)
-              << KernelNameType << QualType(Tag->getTypeForDecl(), 0);
+              << KernelNameType << Tag;
           IsInvalid = true;
           return;
         }

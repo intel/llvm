@@ -11150,7 +11150,7 @@ def err_ext_int_max_size : Error<"%select{signed|unsigned}0 _ExtInt of bit "
 def err_esimd_glob_cant_init : Error<
   "SYCL explicit SIMD does not permit private global variable to have an initializer">;
 
-def err_invalid_std_type_in_sycl_kernel : Error<"%0 is an invalid kernel name,type %1 cannot be in the \'std\' namespace ">;
+def err_invalid_std_type_in_sycl_kernel : Error<"%0 is an invalid kernel name, %q1 is declared in the \'std\' namespace ">;
 
 def err_sycl_kernel_incorrectly_named : Error<
   "%select{%1 should be globally-visible"
