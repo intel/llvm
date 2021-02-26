@@ -1489,7 +1489,7 @@ SPIRVInstruction *SPIRVModuleImpl::addArbFloatPointIntelInst(
     Op OC, SPIRVType *ResTy, SPIRVValue *InA, SPIRVValue *InB,
     const std::vector<SPIRVWord> &Ops, SPIRVBasicBlock *BB) {
   // SPIR-V format:
-  //   A<id> [Literal MA] [B<id>] [Literal MB] [Literal Mout]
+  //   A<id> [Literal MA] [B<id>] [Literal MB] [Literal Mout] [Literal Sign]
   //   [Literal EnableSubnormals Literal RoundingMode Literal RoundingAccuracy]
   auto OpsItr = Ops.begin();
   std::vector<SPIRVWord> TheOps = getVec(InA->getId(), *OpsItr++);

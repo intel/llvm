@@ -2773,21 +2773,23 @@ CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
 
   // Format of instruction CastFromInt:
   //   LLVM arbitrary floating point functions return value: iN
-  //   Arguments: A(iN), Mout(i32), EnableSubnormals(i32),
+  //   Arguments: A(iN), Mout(i32), FromSign(bool), EnableSubnormals(i32),
   //              RoundingMode(i32), RoundingAccuracy(i32)
   //   where A and return values are of arbitrary precision integer type.
   //   SPIR-V arbitrary floating point instruction layout:
-  //   <id>ResTy Res<id> A<id> Literal Mout Literal EnableSubnormals
-  //       Literal RoundingMode Literal RoundingAccuracy
+  //   <id>ResTy Res<id> A<id> Literal Mout Literal FromSign
+  //       Literal EnableSubnormals Literal RoundingMode
+  //       Literal RoundingAccuracy
 
   // Format of instruction CastToInt:
   //   LLVM arbitrary floating point functions return value: iN
-  //   Arguments: A(iN), MA(i32), EnableSubnormals(i32), RoundingMode(i32),
-  //              RoundingAccuracy(i32)
+  //   Arguments: A(iN), MA(i32), ToSign(bool), EnableSubnormals(i32),
+  //              RoundingMode(i32), RoundingAccuracy(i32)
   //   where A and return values are of arbitrary precision integer type.
   //   SPIR-V arbitrary floating point instruction layout:
-  //   <id>ResTy Res<id> A<id> Literal MA Literal EnableSubnormals
-  //       Literal RoundingMode Literal RoundingAccuracy
+  //   <id>ResTy Res<id> A<id> Literal MA Literal ToSign
+  //       Literal EnableSubnormals Literal RoundingMode
+  //       Literal RoundingAccuracy
 
   // Format of other instructions:
   //   LLVM arbitrary floating point functions return value: iN
@@ -2799,7 +2801,7 @@ CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
   //       Literal RoundingMode Literal RoundingAccuracy
 
   Type *RetTy = transType(BI->getType());
-  IntegerType *Int32Ty = IntegerType::get(*Context, 32);
+  IntegerType *Int32Ty = Type::getInt32Ty(*Context);
 
   auto Inst = static_cast<SPIRVArbFloatIntelInst *>(BI);
 
@@ -2807,7 +2809,7 @@ CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
   Type *BTy = nullptr;
 
   // Words contain:
-  // A<id> [Literal MA] [B<id>] [Literal MB] [Literal Mout]
+  // A<id> [Literal MA] [B<id>] [Literal MB] [Literal Mout] [Literal Sign]
   //   [Literal EnableSubnormals Literal RoundingMode Literal RoundingAccuracy]
   const std::vector<SPIRVWord> Words = Inst->getOpWords();
   auto WordsItr = Words.begin() + 1; /* Skip word for A input id */
@@ -2816,6 +2818,14 @@ CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
   std::vector<Value *> Args = {
       transValue(Inst->getOperand(0), BB->getParent(), BB) /* A - input */,
       ConstantInt::get(Int32Ty, *WordsItr++) /* MA/Mout - width of mantissa */};
+
+  Op OC = Inst->getOpCode();
+  if (OC == OpArbitraryFloatCastFromIntINTEL ||
+      OC == OpArbitraryFloatCastToIntINTEL) {
+    IntegerType *Int1Ty = Type::getInt1Ty(*Context);
+    ArgTys.push_back(Int1Ty);
+    Args.push_back(ConstantInt::get(Int1Ty, *WordsItr++)); /* ToSign/FromSign */
+  }
 
   if (IsBinaryInst) {
     /* B - input */
@@ -2832,8 +2842,8 @@ CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
                  });
 
   FunctionType *FT = FunctionType::get(RetTy, ArgTys, false);
-  std::string FuncName = SPIRVArbFloatIntelMap::rmap(Inst->getOpCode()) +
-                         getFuncAPIntSuffix(RetTy, ATy, BTy);
+  std::string FuncName =
+      SPIRVArbFloatIntelMap::rmap(OC) + getFuncAPIntSuffix(RetTy, ATy, BTy);
   FunctionCallee FCallee = M->getOrInsertFunction(FuncName, FT);
 
   auto *Func = cast<Function>(FCallee.getCallee());
