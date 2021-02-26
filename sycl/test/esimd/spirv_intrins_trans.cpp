@@ -1,6 +1,9 @@
-// RUN: %clangxx -fsycl -fsycl-explicit-simd -fsycl-device-only -O0 -S -emit-llvm -x c++ %s -o - | FileCheck %s
+// RUN: %clangxx -fsycl -fsycl-explicit-simd -fsycl-device-only -O0 -S -emit-llvm -x c++ %s -o %t
+// RUN: sycl-post-link -split-esimd -lower-esimd -O2 -S %t -o %t.table
+// RUN: FileCheck %s -input-file=%t_esimd_0.ll
+
 // This test checks that all SPIR-V intrinsics are correctly
-// translated into GenX counterparts (implemented in LowerCM.cpp)
+// translated into GenX counterparts (implemented in LowerESIMD.cpp)
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/INTEL/esimd.hpp>
