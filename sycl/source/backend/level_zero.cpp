@@ -50,19 +50,7 @@ __SYCL_EXPORT device make_device(const platform &Platform,
 // TODO: remove this version (without ownership) when allowed to break ABI.
 __SYCL_EXPORT context make_context(const vector_class<device> &DeviceList,
                                    pi_native_handle NativeHandle) {
-  const auto &Plugin = pi::getPlugin<backend::level_zero>();
-  // Create PI context first.
-  pi_context PiContext;
-  vector_class<pi_device> DeviceHandles;
-  for (auto Dev : DeviceList) {
-    DeviceHandles.push_back(detail::getSyclObjImpl(Dev)->getHandleRef());
-  }
-  Plugin.call<PiApiKind::piextContextCreateWithNativeHandle>(
-      NativeHandle, DeviceHandles.size(), DeviceHandles.data(), false,
-      &PiContext);
-  // Construct the SYCL context from PI context.
-  return detail::createSyclObjFromImpl<context>(
-      std::make_shared<context_impl>(PiContext, async_handler{}, Plugin));
+  return make_context(DeviceList, NativeHandle, false);
 }
 
 __SYCL_EXPORT context make_context(const vector_class<device> &DeviceList,
