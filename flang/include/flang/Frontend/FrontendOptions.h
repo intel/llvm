@@ -41,6 +41,22 @@ enum ActionKind {
   /// Fortran source file
   DebugUnparseWithSymbols,
 
+  /// Parse, run semantics and then output symbols from semantics
+  DebugDumpSymbols,
+
+  /// Parse, run semantics and then output the parse tree
+  DebugDumpParseTree,
+
+  /// Dump provenance
+  DebugDumpProvenance,
+
+  /// Parse then output the number of objects in the parse tree and the overall
+  /// size
+  DebugMeasureParseTree,
+
+  /// Parse, run semantics and then output the pre-FIR tree
+  DebugPreFIRTree
+
   /// TODO: RunPreprocessor, EmitLLVM, EmitLLVMOnly,
   /// EmitCodeGenOnly, EmitAssembly, (...)
 };

@@ -605,95 +605,6 @@ Type InitTensorOp::inferResultType(ArrayRef<int64_t> staticSizes,
   return RankedTensorType::get(staticSizes, elementType);
 }
 
-static Value getCollapsedInitTensor(OpBuilder &builder,
-                                    TensorReshapeOp reshapeOp) {
-  Location loc = reshapeOp.getLoc();
-  SmallVector<Value, 4> dynamicShapes;
-  SmallVector<int64_t, 4> staticShapes;
-  auto reassociation = reshapeOp.getReassociationMaps();
-  Value src = reshapeOp.src();
-  RankedTensorType srcType = reshapeOp.getSrcType();
-  ArrayRef<int64_t> srcShape = srcType.getShape();
-  for (auto map : reassociation) {
-    Value linearizedDynamicDim = nullptr;
-    int64_t linearizedStaticDim = 1;
-    for (unsigned i : llvm::map_range(map.getResults(), [](AffineExpr e) {
-           return e.cast<AffineDimExpr>().getPosition();
-         })) {
-      if (ShapedType::isDynamic(srcShape[i])) {
-        Value shapeVal = builder.create<DimOp>(loc, src, i);
-        if (linearizedDynamicDim) {
-          linearizedDynamicDim =
-              builder.create<MulIOp>(loc, linearizedDynamicDim, shapeVal);
-        } else {
-          linearizedDynamicDim = shapeVal;
-        }
-      } else {
-        linearizedStaticDim *= srcShape[i];
-      }
-    }
-    if (linearizedDynamicDim) {
-      if (linearizedStaticDim != 1) {
-        linearizedDynamicDim = builder.create<MulIOp>(
-            loc, linearizedDynamicDim,
-            builder.create<ConstantIndexOp>(loc, linearizedStaticDim));
-      }
-      dynamicShapes.push_back(linearizedDynamicDim);
-      staticShapes.push_back(ShapedType::kDynamicSize);
-    } else {
-      staticShapes.push_back(linearizedStaticDim);
-    }
-  }
-  return builder.create<InitTensorOp>(loc, dynamicShapes, staticShapes,
-                                      srcType.getElementType());
-}
-
-static Value getExpandedInitTensor(OpBuilder &builder,
-                                   TensorReshapeOp reshapeOp) {
-  SmallVector<Value, 4> dynamicShapes;
-  SmallVector<int64_t, 4> staticShapes;
-  auto reassociation = reshapeOp.getReassociationMaps();
-  Value src = reshapeOp.src();
-  RankedTensorType srcType = reshapeOp.getSrcType();
-  ArrayRef<int64_t> srcShape = srcType.getShape();
-  ArrayRef<int64_t> dstShape = reshapeOp.getResultType().getShape();
-  Location loc = reshapeOp.getLoc();
-  for (auto map : enumerate(reassociation)) {
-    int64_t linearizedStaticDim = 1;
-    bool hasDynamic = false;
-    for (unsigned i :
-         llvm::map_range(map.value().getResults(), [](AffineExpr e) {
-           return e.cast<AffineDimExpr>().getPosition();
-         })) {
-      if (ShapedType::isDynamic(dstShape[i])) {
-        // Only one of the dimensions of the expanded shape should be dynamic.
-        if (hasDynamic)
-          return nullptr;
-        hasDynamic = true;
-        staticShapes.push_back(ShapedType::kDynamicSize);
-        continue;
-      }
-      staticShapes.push_back(dstShape[i]);
-      linearizedStaticDim *= dstShape[i];
-    }
-    if (hasDynamic) {
-      // If the expanded dimensions has a dynamic shape, the src shape must be
-      // dynamic as well.
-      if (!ShapedType::isDynamic(srcShape[map.index()]))
-        return nullptr;
-      Value dynamicDim = builder.create<DimOp>(loc, src, map.index());
-      if (linearizedStaticDim != 1) {
-        dynamicDim = builder.create<UnsignedDivIOp>(
-            loc, dynamicDim,
-            builder.create<ConstantIndexOp>(loc, linearizedStaticDim));
-      }
-      dynamicShapes.push_back(dynamicDim);
-    }
-  }
-  return builder.create<InitTensorOp>(loc, dynamicShapes, staticShapes,
-                                      srcType.getElementType());
-}
-
 namespace {
 /// Change the type of the result of a `linalg.init_tensor` by making the result
 /// type statically sized along dimension that in the original operation where
@@ -1704,8 +1615,156 @@ static LogicalResult verify(linalg::YieldOp op) {
     return success();
   }
 
+  if (auto tiledLoopOp = dyn_cast<linalg::TiledLoopOp>(parentOp)) {
+    return success();
+  }
   return op.emitOpError("expected parent op with LinalgOp interface");
 }
+
+//===----------------------------------------------------------------------===//
+// TiledLoopOp
+//===----------------------------------------------------------------------===//
+
+static void print(OpAsmPrinter &p, TiledLoopOp op) {
+  p << op.getOperationName() << " (" << op.getBody()->getArguments() << ") = ("
+    << op.lowerBound() << ") to (" << op.upperBound() << ") step (" << op.step()
+    << ")";
+
+  if (!op.inputs().empty())
+    p << " ins (" << op.inputs() << ")";
+  if (!op.outputs().empty())
+    p << " outs (" << op.outputs() << ")";
+
+  if (llvm::any_of(op.iterator_types(), [](Attribute attr) {
+        return attr.cast<StringAttr>().getValue() !=
+               getParallelIteratorTypeName();
+      })) {
+    p << " iterators(" << op.iterator_types() << ")";
+  }
+
+  p.printRegion(op.region(), /*printEntryBlockArgs=*/false);
+  p.printOptionalAttrDict(
+      op.getAttrs(), /*elidedAttrs=*/{TiledLoopOp::getOperandSegmentSizeAttr(),
+                                      getIteratorTypesAttrName()});
+}
+
+static ParseResult parseTiledLoopOp(OpAsmParser &parser,
+                                    OperationState &result) {
+  auto &builder = parser.getBuilder();
+  // Parse an opening `(` followed by induction variables followed by `)`
+  SmallVector<OpAsmParser::OperandType, 4> ivs;
+  if (parser.parseRegionArgumentList(ivs, /*requiredOperandCount=*/-1,
+                                     OpAsmParser::Delimiter::Paren))
+    return failure();
+
+  // Parse loop bounds.
+  SmallVector<OpAsmParser::OperandType, 4> lower;
+  if (parser.parseEqual() ||
+      parser.parseOperandList(lower, ivs.size(),
+                              OpAsmParser::Delimiter::Paren) ||
+      parser.resolveOperands(lower, builder.getIndexType(), result.operands))
+    return failure();
+
+  SmallVector<OpAsmParser::OperandType, 4> upper;
+  if (parser.parseKeyword("to") ||
+      parser.parseOperandList(upper, ivs.size(),
+                              OpAsmParser::Delimiter::Paren) ||
+      parser.resolveOperands(upper, builder.getIndexType(), result.operands))
+    return failure();
+
+  // Parse step values.
+  SmallVector<OpAsmParser::OperandType, 4> steps;
+  if (parser.parseKeyword("step") ||
+      parser.parseOperandList(steps, ivs.size(),
+                              OpAsmParser::Delimiter::Paren) ||
+      parser.resolveOperands(steps, builder.getIndexType(), result.operands))
+    return failure();
+
+  // Parse input tensors.
+  SmallVector<OpAsmParser::OperandType, 4> inputs;
+  if (succeeded(parser.parseOptionalKeyword("ins"))) {
+    SmallVector<Type, 4> inputTypes;
+    llvm::SMLoc inputsOperandsLoc = parser.getCurrentLocation();
+
+    if (parser.parseLParen() || parser.parseOperandList(inputs) ||
+        parser.parseColonTypeList(inputTypes) || parser.parseRParen())
+      return failure();
+
+    if (parser.resolveOperands(inputs, inputTypes, inputsOperandsLoc,
+                               result.operands))
+      return failure();
+  }
+
+  // Parse output tensors.
+  SmallVector<OpAsmParser::OperandType, 4> outputs;
+  if (succeeded(parser.parseOptionalKeyword("outs"))) {
+    SmallVector<Type, 4> outputTypes;
+    llvm::SMLoc outputsOperandsLoc = parser.getCurrentLocation();
+
+    if (parser.parseLParen() || parser.parseOperandList(outputs) ||
+        parser.parseColonTypeList(outputTypes) || parser.parseRParen())
+      return failure();
+
+    if (parser.resolveOperands(outputs, outputTypes, outputsOperandsLoc,
+                               result.operands))
+      return failure();
+    result.addTypes(outputTypes);
+  }
+
+  // Parse attributes.
+  SmallVector<Attribute, 4> iterTypes;
+  if (succeeded(parser.parseOptionalKeyword("iterators"))) {
+    StringAttr iterType;
+
+    if (parser.parseLParen() || parser.parseAttribute(iterType))
+      return failure();
+    iterTypes.push_back(iterType);
+    for (int i = 1, e = ivs.size(); i < e; ++i) {
+      if (parser.parseComma() || parser.parseAttribute(iterType))
+        return failure();
+      iterTypes.push_back(iterType);
+    }
+    if (parser.parseRParen())
+      return failure();
+  } else {
+    auto parallelIter = builder.getStringAttr(getParallelIteratorTypeName());
+    iterTypes = SmallVector<Attribute, 4>(ivs.size(), parallelIter);
+  }
+  result.addAttribute(getIteratorTypesAttrName(),
+                      builder.getArrayAttr(iterTypes));
+  result.addAttribute(
+      TiledLoopOp::getOperandSegmentSizeAttr(),
+      builder.getI32VectorAttr({static_cast<int32_t>(lower.size()),
+                                static_cast<int32_t>(upper.size()),
+                                static_cast<int32_t>(steps.size()),
+                                static_cast<int32_t>(inputs.size()),
+                                static_cast<int32_t>(outputs.size())}));
+
+  // Parse the body.
+  Region *body = result.addRegion();
+  SmallVector<Type, 4> types(ivs.size(), builder.getIndexType());
+  if (parser.parseRegion(*body, ivs, types))
+    return failure();
+
+  // Parse optional attributes.
+  parser.parseOptionalAttrDict(result.attributes);
+
+  return success();
+}
+
+Region &TiledLoopOp::getLoopBody() { return region(); }
+
+LogicalResult TiledLoopOp::moveOutOfLoop(ArrayRef<Operation *> ops) {
+  for (auto *op : ops)
+    op->moveBefore(*this);
+  return success();
+}
+
+bool TiledLoopOp::isDefinedOutsideOfLoop(Value value) {
+  return !region().isAncestor(value.getParentRegion());
+}
+
+static LogicalResult verify(TiledLoopOp op) { return success(); }
 
 /////// Operations corresponding to library calls defined with Tablegen ////////
 

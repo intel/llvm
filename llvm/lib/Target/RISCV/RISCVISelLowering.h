@@ -88,6 +88,7 @@ enum NodeType : unsigned {
   GREVIW,
   GORCI,
   GORCIW,
+  SHFLI,
   // Vector Extension
   // VMV_V_X_VL matches the semantics of vmv.v.x but includes an extra operand
   // for the VL value to be used for the operation.
@@ -170,6 +171,8 @@ enum NodeType : unsigned {
   SMAX_VL,
   UMIN_VL,
   UMAX_VL,
+  MULHS_VL,
+  MULHU_VL,
 
   // Vector compare producing a mask. Fourth operand is input mask. Fifth
   // operand is VL.

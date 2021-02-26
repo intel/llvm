@@ -693,6 +693,7 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::PREFETCH, MVT::Other, Custom);
 
   setOperationAction(ISD::FLT_ROUNDS_, MVT::i32, Custom);
+  setOperationAction(ISD::SET_ROUNDING, MVT::Other, Custom);
 
   setOperationAction(ISD::ATOMIC_CMP_SWAP, MVT::i128, Custom);
   setOperationAction(ISD::ATOMIC_LOAD_SUB, MVT::i32, Custom);
@@ -1124,6 +1125,11 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
       setOperationAction(ISD::VECREDUCE_UMAX, VT, Custom);
       setOperationAction(ISD::VECREDUCE_SMIN, VT, Custom);
       setOperationAction(ISD::VECREDUCE_SMAX, VT, Custom);
+
+      setOperationAction(ISD::MULHU, VT, Expand);
+      setOperationAction(ISD::MULHS, VT, Expand);
+      setOperationAction(ISD::UMUL_LOHI, VT, Expand);
+      setOperationAction(ISD::SMUL_LOHI, VT, Expand);
     }
 
     // Illegal unpacked integer vector types.
@@ -3450,6 +3456,50 @@ SDValue AArch64TargetLowering::LowerFLT_ROUNDS_(SDValue Op,
   return DAG.getMergeValues({AND, Chain}, dl);
 }
 
+SDValue AArch64TargetLowering::LowerSET_ROUNDING(SDValue Op,
+                                                 SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  SDValue Chain = Op->getOperand(0);
+  SDValue RMValue = Op->getOperand(1);
+
+  // The rounding mode is in bits 23:22 of the FPCR.
+  // The llvm.set.rounding argument value to the rounding mode in FPCR mapping
+  // is 0->3, 1->0, 2->1, 3->2. The formula we use to implement this is
+  // ((arg - 1) & 3) << 22).
+  //
+  // The argument of llvm.set.rounding must be within the segment [0, 3], so
+  // NearestTiesToAway (4) is not handled here. It is responsibility of the code
+  // generated llvm.set.rounding to ensure this condition.
+
+  // Calculate new value of FPCR[23:22].
+  RMValue = DAG.getNode(ISD::SUB, DL, MVT::i32, RMValue,
+                        DAG.getConstant(1, DL, MVT::i32));
+  RMValue = DAG.getNode(ISD::AND, DL, MVT::i32, RMValue,
+                        DAG.getConstant(0x3, DL, MVT::i32));
+  RMValue =
+      DAG.getNode(ISD::SHL, DL, MVT::i32, RMValue,
+                  DAG.getConstant(AArch64::RoundingBitsPos, DL, MVT::i32));
+  RMValue = DAG.getNode(ISD::ZERO_EXTEND, DL, MVT::i64, RMValue);
+
+  // Get current value of FPCR.
+  SDValue Ops[] = {
+      Chain, DAG.getTargetConstant(Intrinsic::aarch64_get_fpcr, DL, MVT::i64)};
+  SDValue FPCR =
+      DAG.getNode(ISD::INTRINSIC_W_CHAIN, DL, {MVT::i64, MVT::Other}, Ops);
+  Chain = FPCR.getValue(1);
+  FPCR = FPCR.getValue(0);
+
+  // Put new rounding mode into FPSCR[23:22].
+  const int RMMask = ~(AArch64::Rounding::rmMask << AArch64::RoundingBitsPos);
+  FPCR = DAG.getNode(ISD::AND, DL, MVT::i64, FPCR,
+                     DAG.getConstant(RMMask, DL, MVT::i64));
+  FPCR = DAG.getNode(ISD::OR, DL, MVT::i64, FPCR, RMValue);
+  SDValue Ops2[] = {
+      Chain, DAG.getTargetConstant(Intrinsic::aarch64_set_fpcr, DL, MVT::i64),
+      FPCR};
+  return DAG.getNode(ISD::INTRINSIC_VOID, DL, MVT::Other, Ops2);
+}
+
 SDValue AArch64TargetLowering::LowerMUL(SDValue Op, SelectionDAG &DAG) const {
   EVT VT = Op.getValueType();
 
@@ -4373,6 +4423,8 @@ SDValue AArch64TargetLowering::LowerOperation(SDValue Op,
     return LowerFSINCOS(Op, DAG);
   case ISD::FLT_ROUNDS_:
     return LowerFLT_ROUNDS_(Op, DAG);
+  case ISD::SET_ROUNDING:
+    return LowerSET_ROUNDING(Op, DAG);
   case ISD::MUL:
     return LowerMUL(Op, DAG);
   case ISD::INTRINSIC_WO_CHAIN:
@@ -11564,6 +11616,8 @@ bool AArch64TargetLowering::isFMAFasterThanFMulAndFAdd(
     return false;
 
   switch (VT.getSimpleVT().SimpleTy) {
+  case MVT::f16:
+    return Subtarget->hasFullFP16();
   case MVT::f32:
   case MVT::f64:
     return true;
@@ -11583,6 +11637,11 @@ bool AArch64TargetLowering::isFMAFasterThanFMulAndFAdd(const Function &F,
   default:
     return false;
   }
+}
+
+bool AArch64TargetLowering::generateFMAsInMachineCombiner(
+    EVT VT, CodeGenOpt::Level OptLevel) const {
+  return (OptLevel >= CodeGenOpt::Aggressive) && !VT.isScalableVector();
 }
 
 const MCPhysReg *
