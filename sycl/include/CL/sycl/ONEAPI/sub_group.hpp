@@ -243,7 +243,7 @@ struct sub_group {
 
 #ifdef __NVPTX__
     return src[get_local_id()[0]];
-#else // __NVPTX__
+#else  // __NVPTX__
     auto l = __spirv_GenericCastToPtrExplicit_ToLocal<T>(
         src, __spv::StorageClass::Workgroup);
     if (l)
@@ -381,7 +381,7 @@ struct sub_group {
 
 #ifdef __NVPTX__
     dst[get_local_id()[0]] = x;
-#else // __NVPTX__
+#else  // __NVPTX__
     auto l = __spirv_GenericCastToPtrExplicit_ToLocal<T>(
         dst, __spv::StorageClass::Workgroup);
     if (l) {
