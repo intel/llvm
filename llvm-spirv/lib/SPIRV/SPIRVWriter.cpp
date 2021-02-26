@@ -3685,21 +3685,23 @@ LLVMToSPIRV::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     // Format of instruction CastFromInt:
     //   LLVM arbitrary floating point functions return value type:
     //       iN (arbitrary precision integer of N bits length)
-    //   Arguments: A(iN), Mout(i32), EnableSubnormals(i32), RoundingMode(i32),
-    //              RoundingAccuracy(i32)
+    //   Arguments: A(iN), Mout(i32), FromSign(bool), EnableSubnormals(i32),
+    //              RoundingMode(i32), RoundingAccuracy(i32)
     //   where A and return values are of arbitrary precision integer type.
     //   SPIR-V arbitrary floating point instruction layout:
-    //   <id>ResTy Res<id> A<id> Literal Mout Literal EnableSubnormals
-    //       Literal RoundingMode Literal RoundingAccuracy
+    //   <id>ResTy Res<id> A<id> Literal Mout Literal FromSign
+    //       Literal EnableSubnormals Literal RoundingMode
+    //       Literal RoundingAccuracy
 
     // Format of instruction CastToInt:
     //   LLVM arbitrary floating point functions return value: iN
-    //   Arguments: A(iN), MA(i32), EnableSubnormals(i32), RoundingMode(i32),
-    //              RoundingAccuracy(i32)
+    //   Arguments: A(iN), MA(i32), ToSign(bool), EnableSubnormals(i32),
+    //              RoundingMode(i32), RoundingAccuracy(i32)
     //   where A and return values are of arbitrary precision integer type.
     //   SPIR-V arbitrary floating point instruction layout:
-    //   <id>ResTy Res<id> A<id> Literal MA Literal EnableSubnormals
-    //       Literal RoundingMode Literal RoundingAccuracy
+    //   <id>ResTy Res<id> A<id> Literal MA Literal ToSign
+    //       Literal EnableSubnormals Literal RoundingMode
+    //       Literal RoundingAccuracy
 
     // Format of other instructions:
     //   LLVM arbitrary floating point functions return value: iN

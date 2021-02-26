@@ -2677,8 +2677,8 @@ protected:
                             OpArbitraryFloat##x##INTEL, __VA_ARGS__>           \
       SPIRVArbitraryFloat##x##INTEL;
 _SPIRV_OP(Cast, true, 9)
-_SPIRV_OP(CastFromInt, true, 8)
-_SPIRV_OP(CastToInt, true, 8)
+_SPIRV_OP(CastFromInt, true, 9)
+_SPIRV_OP(CastToInt, true, 9)
 _SPIRV_OP(Add, true, 11)
 _SPIRV_OP(Sub, true, 11)
 _SPIRV_OP(Mul, true, 11)
