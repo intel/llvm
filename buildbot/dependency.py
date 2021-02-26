@@ -49,7 +49,7 @@ def do_dependency(args):
     # fetch OpenCL headers
     ocl_header_dir = os.path.join(args.obj_dir, "OpenCL-Headers")
     if not os.path.isdir(ocl_header_dir):
-        clone_cmd = ["git", "clone", "https://github.com/KhronosGroup/OpenCL-Headers", "OpenCL-Headers",
+        clone_cmd = ["git", "clone", "https://github.com/KhronosGroup/OpenCL-Headers",
                      "OpenCL-Headers", "-b", "master"]
         subprocess.check_call(clone_cmd, cwd=args.obj_dir)
     else:
@@ -124,4 +124,3 @@ if __name__ == "__main__":
     ret = main()
     exit_code = 0 if ret else 1
     sys.exit(exit_code)
-

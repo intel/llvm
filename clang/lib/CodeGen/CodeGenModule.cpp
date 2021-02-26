@@ -1630,7 +1630,9 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
             CGF->Builder.getInt1(parm->hasAttr<SYCLSimdAccessorPtrAttr>())));
     }
 
-  if (LangOpts.SYCLIsDevice && !LangOpts.SYCLExplicitSIMD)
+  bool IsEsimdFunction = FD && FD->hasAttr<SYCLSimdAttr>();
+
+  if (LangOpts.SYCLIsDevice && !IsEsimdFunction)
     Fn->setMetadata("kernel_arg_buffer_location",
                     llvm::MDNode::get(VMContext, argSYCLBufferLocationAttr));
   else {
@@ -1644,7 +1646,7 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
                     llvm::MDNode::get(VMContext, argBaseTypeNames));
     Fn->setMetadata("kernel_arg_type_qual",
                     llvm::MDNode::get(VMContext, argTypeQuals));
-    if (FD && FD->hasAttr<SYCLSimdAttr>())
+    if (IsEsimdFunction)
       Fn->setMetadata("kernel_arg_accessor_ptr",
                       llvm::MDNode::get(VMContext, argESIMDAccPtrs));
     if (getCodeGenOpts().EmitOpenCLArgMetadata)
