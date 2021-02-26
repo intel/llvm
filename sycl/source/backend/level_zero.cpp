@@ -47,12 +47,6 @@ __SYCL_EXPORT device make_device(const platform &Platform,
 
 //----------------------------------------------------------------------------
 // Implementation of level_zero::make<context>
-// TODO: remove this version (without ownership) when allowed to break ABI.
-__SYCL_EXPORT context make_context(const vector_class<device> &DeviceList,
-                                   pi_native_handle NativeHandle) {
-  return make_context(DeviceList, NativeHandle, false);
-}
-
 __SYCL_EXPORT context make_context(const vector_class<device> &DeviceList,
                                    pi_native_handle NativeHandle,
                                    bool KeepOwnership) {
@@ -69,6 +63,12 @@ __SYCL_EXPORT context make_context(const vector_class<device> &DeviceList,
   // Construct the SYCL context from PI context.
   return detail::createSyclObjFromImpl<context>(
       std::make_shared<context_impl>(PiContext, async_handler{}, Plugin));
+}
+
+// TODO: remove this version (without ownership) when allowed to break ABI.
+__SYCL_EXPORT context make_context(const vector_class<device> &DeviceList,
+                                   pi_native_handle NativeHandle) {
+  return make_context(DeviceList, NativeHandle, false);
 }
 
 //----------------------------------------------------------------------------
