@@ -13139,7 +13139,7 @@ void Sema::addIntelSingleArgAttr(Decl *D, const AttributeCommonInfo &CI,
   D->addAttr(::new (Context) AttrType(Context, CI, E));
 }
 
-static Expr *checkMaxWorkSizeAttrExpr(Sema &S, const AttributeCommonInfo &CI,
+static Expr *Sema::checkMaxWorkSizeAttrExpr(Sema &S, const AttributeCommonInfo &CI,
                                       Expr *E) {
   assert(E && "Attribute must have an argument.");
 
