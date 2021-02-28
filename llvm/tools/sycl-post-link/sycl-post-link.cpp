@@ -13,6 +13,7 @@
 // - specialization constant intrinsic transformation
 //===----------------------------------------------------------------------===//
 
+#include "InstrumentalAnnotations.h"
 #include "SPIRKernelParamOptInfo.h"
 #include "SpecConstants.h"
 
@@ -107,6 +108,10 @@ static cl::opt<bool> SplitEsimd{"split-esimd",
 
 static cl::opt<bool> LowerEsimd{
     "lower-esimd", cl::desc("Lower ESIMD constructs"), cl::cat(PostLinkCat)};
+
+static cl::opt<bool> AddInstrumentationCalls{
+    "add-instrumentation-calls", cl::desc("Add instrumentation calls"),
+    cl::cat(PostLinkCat)};
 
 static cl::opt<bool>
     OptLevelO0("O0", cl::desc("Optimization level 0. Similar to clang -O0"),
@@ -732,6 +737,18 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   if (IsEsimd && LowerEsimd)
     LowerEsimdConstructs(*M);
 
+  bool InstrumentalAnnotationsMet = false;
+  if (AddInstrumentationCalls) {
+    ModulePassManager RunInstrumentalAnnotations;
+    ModuleAnalysisManager MAM;
+    InstrumentalAnnotationsPass IAP;
+    // Register required analysis
+    MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+    RunInstrumentalAnnotations.addPass(IAP);
+    PreservedAnalyses Res = RunInstrumentalAnnotations.run(*M, MAM);
+    InstrumentalAnnotationsMet = !Res.areAllPreserved();
+  }
+
   std::map<StringRef, std::vector<Function *>> GlobalsSet;
 
   bool DoSplit = SplitMode.getNumOccurrences() > 0;
@@ -788,7 +805,8 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     // no spec constants and no splitting.
     // We cannot reuse input module for ESIMD code since it was transformed.
     bool CanReuseInputModule = !SpecConstsMet && (ResultModules.size() == 1) &&
-                               !SyclAndEsimdKernels && !IsEsimd;
+                               !SyclAndEsimdKernels && !IsEsimd &&
+                               !InstrumentalAnnotationsMet;
     string_vector Files =
         CanReuseInputModule
             ? string_vector{InputFilename}
