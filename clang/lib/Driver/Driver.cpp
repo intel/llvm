@@ -6331,13 +6331,7 @@ InputInfo Driver::BuildJobsForActionNoCache(
         A->getOffloadingDeviceKind(), TC->getTriple().normalize(),
         /*CreatePrefixForHost=*/!!A->getOffloadingHostActiveKinds() &&
             !AtTopLevel);
-<<<<<<< HEAD
-      if (isa<OffloadWrapperJobAction>(JA)) {
-        OffloadingPrefix += "-wrapper";
-        if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
-          BaseInput = FinalOutput->getValue();
-      }
-=======
+    }
     if (isa<OffloadWrapperJobAction>(JA)) {
       if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
         BaseInput = FinalOutput->getValue();
@@ -6345,7 +6339,6 @@ InputInfo Driver::BuildJobsForActionNoCache(
         BaseInput = getDefaultImageName();
       BaseInput =
           C.getArgs().MakeArgString(std::string(BaseInput) + "-wrapper");
->>>>>>> 99951aa68da3c85ba03edf977cd9b22458aae6ca
     }
     Result = InputInfo(A, GetNamedOutputPath(C, *JA, BaseInput, BoundArch,
                                              AtTopLevel, MultipleArchs,
