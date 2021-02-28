@@ -4293,8 +4293,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-sycl-opt");
     }
     // Turn on Dead Parameter Elimination Optimization with early optimizations
-    if (!RawTriple.isNVPTX() &&
-        !Args.hasArg(options::OPT_fsycl_link_EQ) &&
+    if (!RawTriple.isNVPTX() && !Args.hasArg(options::OPT_fsycl_link_EQ) &&
         Args.hasFlag(options::OPT_fsycl_dead_args_optimization,
                      options::OPT_fno_sycl_dead_args_optimization, true))
       CmdArgs.push_back("-fenable-sycl-dae");
