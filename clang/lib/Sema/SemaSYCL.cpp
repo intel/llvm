@@ -2960,6 +2960,7 @@ public:
     if (T.isNull())
       return;
     const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
+
     if (!RD) {
       if (T->isNullPtrType()) {
         S.Diag(KernelInvocationFuncLoc,
@@ -2970,6 +2971,10 @@ public:
       }
       return;
     }
+    // if (!RD && T->isTypedefNameType()) {
+    //   const auto *TDefType = T->getAs<TypedefType>();
+    //    VisitTypedefType(TDefType);
+    // }
     // If KernelNameType has template args visit each template arg via
     // ConstTemplateArgumentVisitor
     if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
@@ -2985,22 +2990,29 @@ public:
       return;
     InnerTemplArgVisitor::Visit(TA);
   }
+  /*
+    void VisitTypedefType(const TypedefType *TT) {
+      if (TT->isNullPtrType()) {
+          S.Diag(KernelInvocationFuncLoc,
+                 diag::err_invalid_std_type_in_sycl_kernel)
+              << KernelNameType << TT->getAsTagDecl();
 
-  void VisitEnumType(const EnumType *T) {
-    const EnumDecl *ED = T->getDecl();
-    if (!ED->isScoped() && !ED->isFixed()) {
-      S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-          << 1 << KernelNameType;
-
-      IsInvalid = true;
+          IsInvalid = true;
+        }
     }
-  }
+    */
 
-  void VisitRecordType(const RecordType *T) {
-    return VisitTagDecl(T->getDecl());
-  }
+  void VisitTagType(const TagType *TT) { return VisitTagDecl(TT->getDecl()); }
 
   void VisitTagDecl(const TagDecl *Tag) {
+    if (const auto *ED = dyn_cast<EnumDecl>(Tag)) {
+      if (!ED->isScoped() && !ED->isFixed()) {
+        S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
+            << 1 << KernelNameType;
+        IsInvalid = true;
+      }
+    }
+
     bool UnnamedLambdaEnabled =
         S.getASTContext().getLangOpts().SYCLUnnamedLambda;
     const DeclContext *DeclCtx = Tag->getDeclContext();
