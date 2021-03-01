@@ -2447,7 +2447,7 @@ def fsycl_device_code_lower_esimd : Flag<["-"], "fsycl-device-code-lower-esimd">
   Flags<[CC1Option, CoreOption]>, HelpText<"Lower ESIMD-specific constructs">;
 def fno_sycl_device_code_lower_esimd : Flag<["-"], "fno-sycl-device-code-lower-esimd">,
   Flags<[CC1Option, CoreOption]>, HelpText<"Do not lower ESIMD-specific constructs">;
-defm sycl_id_queries_fit_in_int: OptInFFlag<"sycl-id-queries-fit-in-int", "Assume", "Do not assume", " that SYCL ID queries fit within MAX_INT.", [CC1Option,CoreOption], LangOpts<"SYCLValueFitInMaxInt">>;
+defm sycl_id_queries_fit_in_int: OptInFFlag<"sycl-id-queries-fit-in-int", "Assume", "Do not assume", " that SYCL ID queries fit within MAX_INT.", [CC1Option,CoreOption]>;
 def fsycl_use_bitcode : Flag<["-"], "fsycl-use-bitcode">,
   Flags<[CC1Option, CoreOption]>, HelpText<"Use LLVM bitcode instead of SPIR-V in fat objects">;
 def fno_sycl_use_bitcode : Flag<["-"], "fno-sycl-use-bitcode">,
@@ -4335,7 +4335,7 @@ def sycl_std_EQ : Joined<["-"], "sycl-std=">, Group<sycl_Group>, Flags<[CC1Optio
   HelpText<"SYCL language standard to compile for.">, Values<"2020,2017,121,1.2.1,sycl-1.2.1">,
   NormalizedValues<["SYCL_2020", "SYCL_2017", "SYCL_2017", "SYCL_2017", "SYCL_2017"]>, NormalizedValuesScope<"LangOptions">,
   MarshallingInfoEnum<LangOpts<"SYCLVersion">, "SYCL_None">, ShouldParseIf<fsycl.KeyPath>;
-defm sycl_esimd: OptInFFlag<"sycl-explicit-simd", "Enable", "Disable", " SYCL explicit SIMD extension.", [CC1Option,CoreOption], LangOpts<"SYCLExplicitSIMD">>;
+defm sycl_esimd: OptInFFlag<"sycl-explicit-simd", "Enable", "Disable", " SYCL explicit SIMD extension.", [CC1Option,CoreOption]>;
 defm sycl_early_optimizations : OptOutFFlag<"sycl-early-optimizations", "Enable", "Disable", " standard optimization pipeline for SYCL device compiler", [CoreOption]>;
 def fsycl_dead_args_optimization : Flag<["-"], "fsycl-dead-args-optimization">,
   Group<sycl_Group>, Flags<[NoArgumentUnused, CoreOption]>, HelpText<"Enables "
@@ -5604,7 +5604,7 @@ def fsycl_int_header_EQ : Joined<["-"], "fsycl-int-header=">,
 def fsycl_std_layout_kernel_params: Flag<["-"], "fsycl-std-layout-kernel-params">,
   HelpText<"Enable standard layout requirement for SYCL kernel parameters.">,
   MarshallingInfoFlag<LangOpts<"SYCLStdLayoutKernelParams">>;
-defm sycl_allow_func_ptr: OptInFFlag<"sycl-allow-func-ptr", "Allow", "Disallow", " function pointers in SYCL device.", [CC1Option,CoreOption], LangOpts<"SYCLAllowFuncPtr">>;
+defm sycl_allow_func_ptr: OptInFFlag<"sycl-allow-func-ptr", "Allow", "Disallow", " function pointers in SYCL device.", [CC1Option,CoreOption]>;
 def fenable_sycl_dae : Flag<["-"], "fenable-sycl-dae">,
   HelpText<"Enable Dead Argument Elimination in SPIR kernels">,
   MarshallingInfoFlag<LangOpts<"EnableDAEInSpirKernels">>;
