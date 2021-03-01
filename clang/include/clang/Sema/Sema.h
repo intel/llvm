@@ -10210,6 +10210,18 @@ public:
   template <typename AttrType>
   void addIntelTripleArgAttr(Decl *D, const AttributeCommonInfo &CI,
                              Expr *XDimExpr, Expr *YDimExpr, Expr *ZDimExpr);
+  void AddSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
+		                              const AttributeCommonInfo &CI,
+                                              Expr *E);
+  SYCLIntelSchedulerTargetFmaxMhzAttr *
+  MergeSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
+		                           const SYCLIntelSchedulerTargetFmaxMhzAttr &A);
+  void AddSYCLIntelNoGlobalWorkOffsetAttr(Decl *D,
+                                          const AttributeCommonInfo &CI,
+                                          Expr *E);
+  SYCLIntelNoGlobalWorkOffsetAttr *
+  MergeSYCLIntelNoGlobalWorkOffsetAttr(Decl *D,
+                                       const SYCLIntelNoGlobalWorkOffsetAttr &A);
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
                       bool IsPackExpansion);
@@ -13089,8 +13101,7 @@ void Sema::addIntelSingleArgAttr(Decl *D, const AttributeCommonInfo &CI,
         return;
       }
     }
-    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelSchedulerTargetFmaxMhz ||
-        CI.getParsedKind() == ParsedAttr::AT_IntelFPGAPrivateCopies) {
+    if (CI.getParsedKind() == ParsedAttr::AT_IntelFPGAPrivateCopies) {
       if (ArgInt < 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
             << CI << /*non-negative*/ 1;
