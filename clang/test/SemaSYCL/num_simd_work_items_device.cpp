@@ -41,7 +41,7 @@ struct FuncObj {
 
 #ifdef TRIGGER_ERROR
 struct TRIFuncObjBad1 {
-  [[intel::num_simd_work_items(3)]]        // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+  [[intel::num_simd_work_items(3)]]        // expected-error{{'num_simd_work_items' attribute must evenly divide X argument of 'reqd_work_group_size' attribute}}
   [[intel::reqd_work_group_size(5, 5, 5)]] //expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
@@ -49,21 +49,21 @@ struct TRIFuncObjBad1 {
 
 struct TRIFuncObjBad2 {
   [[intel::reqd_work_group_size(5, 5, 5)]] // expected-note{{conflicting attribute is here}}
-  [[intel::num_simd_work_items(3)]]        // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+  [[intel::num_simd_work_items(3)]]        // expected-error{{'num_simd_work_items' attribute must evenly divide X argument of 'reqd_work_group_size' attribute}}
   void
   operator()() const {}
 };
 
 struct TRIFuncObjBad3 {
-  [[intel::num_simd_work_items(3)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-  [[cl::reqd_work_group_size(5, 5, 5)]] //expected-note{{conflicting attribute is here}}
+  [[intel::num_simd_work_items(3)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide X argument of 'reqd_work_group_size' attribute}}
+  [[cl::reqd_work_group_size(5, 5, 5)]] // expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
 };
 
 struct TRIFuncObjBad4 {
   [[cl::reqd_work_group_size(5, 5, 5)]] // expected-note{{conflicting attribute is here}}
-  [[intel::num_simd_work_items(3)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+  [[intel::num_simd_work_items(3)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide X argument of 'reqd_work_group_size' attribute}}
   void
   operator()() const {}
 };
@@ -75,7 +75,7 @@ struct TRIFuncObjBad5 {
 };
 
 struct TRIFuncObjBad6 {
-  [[intel::num_simd_work_items(3)]]  // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+  [[intel::num_simd_work_items(3)]]  // expected-error{{'num_simd_work_items' attribute must evenly divide X argument of 'reqd_work_group_size' attribute}}
   [[intel::reqd_work_group_size(5)]] //expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
@@ -83,21 +83,21 @@ struct TRIFuncObjBad6 {
 
 struct TRIFuncObjBad7 {
   [[intel::reqd_work_group_size(5)]] // expected-note{{conflicting attribute is here}}
-  [[intel::num_simd_work_items(3)]]  // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+  [[intel::num_simd_work_items(3)]]  // expected-error{{'num_simd_work_items' attribute must evenly divide X argument of 'reqd_work_group_size' attribute}}
   void
   operator()() const {}
 };
 
 struct TRIFuncObjBad8 {
-  [[intel::num_simd_work_items(3)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-  [[intel::reqd_work_group_size(5, 5)]] // expected-note{{conflicting attribute is here}}
+  [[intel::num_simd_work_items(4)]]      // expected-error{{'num_simd_work_items' attribute must evenly divide X argument of 'reqd_work_group_size' attribute}}
+  [[intel::reqd_work_group_size(3, 64)]] // expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
 };
 
 struct TRIFuncObjBad9 {
-  [[intel::reqd_work_group_size(5, 5)]] // expected-note{{conflicting attribute is here}}
-  [[intel::num_simd_work_items(3)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+  [[intel::reqd_work_group_size(3, 64)]] // expected-note{{conflicting attribute is here}}
+  [[intel::num_simd_work_items(4)]]      // expected-error{{'num_simd_work_items' attribute must evenly divide X argument of 'reqd_work_group_size' attribute}}
   void
   operator()() const {}
 };
@@ -155,6 +155,13 @@ struct TRIFuncObjBad18 {
   [[intel::reqd_work_group_size(-1)]] // expected-warning{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
   void operator()() const {}
 };
+
+struct TRIFuncObjBad19 {
+  [[intel::reqd_work_group_size(5, 64, 64)]] // expected-note{{conflicting attribute is here}}
+  [[intel::num_simd_work_items(4)]]          // expected-error{{'num_simd_work_items' attribute must evenly divide X argument of 'reqd_work_group_size' attribute}}
+  void operator()() const {}
+};
+
 #endif // TRIGGER_ERROR
 
 struct TRIFuncObjGood1 {
@@ -413,7 +420,9 @@ int main() {
 
     h.single_task<class test_kernel31>(TRIFuncObjBad18());
 
-    h.single_task<class test_kernel32>(
+    h.single_task<class test_kernel32>(TRIFuncObjBad19());
+
+    h.single_task<class test_kernel33>(
         []() [[intel::num_simd_work_items(1), intel::num_simd_work_items(2)]]{}); // expected-warning{{attribute 'num_simd_work_items' is already applied with different parameters}} \
                                                                                   // expected-note {{previous attribute is here}}
 #endif // TRIGGER_ERROR
