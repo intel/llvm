@@ -56,7 +56,8 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
     getPlugin().call<PiApiKind::piContextCreate>(
         Props, DeviceIds.size(), DeviceIds.data(), nullptr, nullptr, &MContext);
 #else
-    cl::sycl::detail::pi::die("CUDA support was not enabled at compilation time");
+    cl::sycl::detail::pi::die(
+        "CUDA support was not enabled at compilation time");
 #endif
   } else {
     getPlugin().call<PiApiKind::piContextCreate>(nullptr, DeviceIds.size(),
@@ -115,7 +116,8 @@ bool context_impl::is_host() const { return MHostContext; }
 
 context_impl::~context_impl() {
   for (auto LibProg : MCachedLibPrograms) {
-    assert(LibProg.second.first && "Null program must not be kept in the cache");
+    assert(LibProg.second.first &&
+           "Null program must not be kept in the cache");
     getPlugin().call<PiApiKind::piProgramRelease>(LibProg.second.first);
   }
   if (!MHostContext) {
@@ -153,8 +155,8 @@ KernelProgramCache &context_impl::getKernelProgramCache() const {
   return MKernelProgramCache;
 }
 
-bool
-context_impl::hasDevice(shared_ptr_class<detail::device_impl> Device) const {
+bool context_impl::hasDevice(
+    shared_ptr_class<detail::device_impl> Device) const {
   for (auto D : MDevices)
     if (getSyclObjImpl(D) == Device)
       return true;
