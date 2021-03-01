@@ -5863,7 +5863,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   RenderOpenCLOptions(Args, CmdArgs);
 
   // Forward -sycl-std option to -cc1 only if -fsycl is enabled.
-  if (Args.hasArg(options::OPT_fsycl))
+  if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
     Args.AddLastArg(CmdArgs, options::OPT_sycl_std_EQ);
 
   if (IsHIP) {
