@@ -10224,7 +10224,6 @@ public:
                                               Expr *E);
   SYCLIntelSchedulerTargetFmaxMhzAttr *MergeSYCLIntelSchedulerTargetFmaxMhzAttr(
       Decl *D, const SYCLIntelSchedulerTargetFmaxMhzAttr &A);
-
   void AddSYCLIntelNoGlobalWorkOffsetAttr(Decl *D,
                                           const AttributeCommonInfo &CI,
                                           Expr *E);

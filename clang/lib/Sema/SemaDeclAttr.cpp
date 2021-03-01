@@ -3369,9 +3369,6 @@ static void handleUseStallEnableClustersAttr(Sema &S, Decl *D,
 void Sema::AddSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
                                                   const AttributeCommonInfo &CI,
                                                   Expr *E) {
-  if (LangOpts.SYCLIsHost)
-    return;
-
   if (!E->isValueDependent()) {
     // Validate that we have an integer constant expression and then store the
     // converted constant expression into the semantic attribute so that we
@@ -3408,8 +3405,10 @@ void Sema::AddSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
                  SYCLIntelSchedulerTargetFmaxMhzAttr(Context, CI, E));
 }
 
+SYCLIntelSchedulerTargetFmaxMhzAttr *
 Sema::MergeSYCLIntelSchedulerTargetFmaxMhzAttr(
-    Decl *D, const SYCLIntelSchedulerTargetFmaxMhzAttr &A) {
+		Decl *D,
+		                               const SYCLIntelSchedulerTargetFmaxMhzAttr &A) {
   // Check to see if there's a duplicate attribute with different values
   // already applied to the declaration.
   if (const auto *DeclAttr =
