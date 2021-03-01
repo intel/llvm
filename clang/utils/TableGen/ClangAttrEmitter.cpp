@@ -1992,10 +1992,15 @@ bool PragmaClangAttributeSupport::isAttributedSupported(
   return true;
 }
 
-static std::string GenerateTestExpression(ArrayRef<Record *> LangOpts) {
+static std::string GenerateTestExpression(ArrayRef<Record *> LangOpts,
+                                          bool IsAttrAccepted) {
   std::string Test;
 
   for (auto *E : LangOpts) {
+    bool SilentlyIgnore = E->getValueAsBit("SilentlyIgnore");
+    if (SilentlyIgnore == IsAttrAccepted)
+      continue;
+
     if (!Test.empty())
       Test += " || ";
 
@@ -2010,6 +2015,8 @@ static std::string GenerateTestExpression(ArrayRef<Record *> LangOpts) {
             "non-empty 'Name' field ignored because 'CustomCode' was supplied");
       }
     } else {
+      if (!IsAttrAccepted && SilentlyIgnore)
+        Test += "!";
       Test += "LangOpts.";
       Test += E->getValueAsString("Name");
     }
@@ -2043,7 +2050,7 @@ PragmaClangAttributeSupport::generateStrictConformsTo(const Record &Attr,
       // rules if the specific language options are specified.
       std::vector<Record *> LangOpts = Rule.getLangOpts();
       OS << "  MatchRules.push_back(std::make_pair(" << Rule.getEnumValue()
-         << ", /*IsSupported=*/" << GenerateTestExpression(LangOpts)
+         << ", /*IsSupported=*/" << GenerateTestExpression(LangOpts, true)
          << "));\n";
     }
   }
@@ -3635,13 +3642,13 @@ static void GenerateLangOptRequirements(const Record &R,
   if (LangOpts.empty())
     return;
 
-  OS << "bool diagLangOpts(Sema &S, const ParsedAttr &Attr) ";
+  OS << "bool diagLangOpts(Sema &S, const ParsedAttr &PA) ";
   OS << "const override {\n";
-  OS << "  auto &LangOpts = S.LangOpts;\n";
-  OS << "  if (" << GenerateTestExpression(LangOpts) << ")\n";
+  OS << "  const auto &LangOpts = S.LangOpts;\n";
+  OS << "  if (" << GenerateTestExpression(LangOpts, true) << ")\n";
   OS << "    return true;\n\n";
-  OS << "  S.Diag(Attr.getLoc(), diag::warn_attribute_ignored) ";
-  OS << "<< Attr;\n";
+  OS << "  if (" << GenerateTestExpression(LangOpts, false) << ")\n";
+  OS << "    S.Diag(PA.getLoc(), diag::warn_attribute_ignored) << PA;\n";
   OS << "  return false;\n";
   OS << "}\n\n";
 }
