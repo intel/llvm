@@ -1122,10 +1122,12 @@ def fdebug_compilation_dir_EQ : Joined<["-"], "fdebug-compilation-dir=">,
 def fdebug_compilation_dir : Separate<["-"], "fdebug-compilation-dir">,
     Group<f_Group>, Flags<[CC1Option, CC1AsOption, CoreOption]>,
     Alias<fdebug_compilation_dir_EQ>;
-def fprofile_compilation_dir_EQ : Joined<["-"], "fprofile-compilation-dir=">,
+def fcoverage_compilation_dir_EQ : Joined<["-"], "fcoverage-compilation-dir=">,
     Group<f_Group>, Flags<[CC1Option, CC1AsOption, CoreOption]>,
     HelpText<"The compilation directory to embed in the coverage mapping.">,
-    MarshallingInfoString<CodeGenOpts<"ProfileCompilationDir">>;
+    MarshallingInfoString<CodeGenOpts<"CoverageCompilationDir">>;
+def ffile_compilation_dir_EQ : Joined<["-"], "ffile-compilation-dir=">, Group<f_Group>,
+    HelpText<"The compilation directory to embed in the debug info and coverage mapping.">;
 defm debug_info_for_profiling : BoolFOption<"debug-info-for-profiling",
   CodeGenOpts<"DebugInfoForProfiling">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option], "Emit extra debug info to make sample profile more accurate">,
@@ -1520,6 +1522,16 @@ defm sanitize_address_use_odr_indicator : BoolOption<"f", "sanitize-address-use-
             " reports in partially sanitized programs at the cost of an increase in binary size">,
   NegFlag<SetFalse, [], "Disable ODR indicator globals">>,
   Group<f_clang_Group>;
+def sanitize_address_destructor_kind_EQ
+    : Joined<["-"], "fsanitize-address-destructor-kind=">,
+      MetaVarName<"<kind>">,
+      Flags<[CC1Option]>,
+      HelpText<"Set destructor type used in ASan instrumentation">,
+      Group<f_clang_Group>,
+      Values<"none,global">,
+      NormalizedValuesScope<"llvm::AsanDtorKind">,
+      NormalizedValues<["None", "Global"]>,
+      MarshallingInfoEnum<CodeGenOpts<"SanitizeAddressDtorKind">, "Global">;
 // Note: This flag was introduced when it was necessary to distinguish between
 //       ABI for correct codegen.  This is no longer needed, but the flag is
 //       not removed since targeting either ABI will behave the same.
@@ -2724,10 +2736,10 @@ def fdebug_prefix_map_EQ
   : Joined<["-"], "fdebug-prefix-map=">, Group<f_Group>,
     Flags<[CC1Option,CC1AsOption]>,
     HelpText<"remap file source paths in debug info">;
-def fprofile_prefix_map_EQ
-  : Joined<["-"], "fprofile-prefix-map=">, Group<f_Group>,
+def fcoverage_prefix_map_EQ
+  : Joined<["-"], "fcoverage-prefix-map=">, Group<f_Group>,
     Flags<[CC1Option]>,
-    HelpText<"remap file source paths in coverage info">;
+    HelpText<"remap file source paths in coverage mapping">;
 def ffile_prefix_map_EQ
   : Joined<["-"], "ffile-prefix-map=">, Group<f_Group>,
     HelpText<"remap file source paths in debug info and predefined preprocessor macros">;
