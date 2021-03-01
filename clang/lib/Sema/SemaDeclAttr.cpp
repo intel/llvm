@@ -3407,8 +3407,7 @@ void Sema::AddSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
 
 SYCLIntelSchedulerTargetFmaxMhzAttr *
 Sema::MergeSYCLIntelSchedulerTargetFmaxMhzAttr(
-		Decl *D,
-		                               const SYCLIntelSchedulerTargetFmaxMhzAttr &A) {
+    Decl *D, const SYCLIntelSchedulerTargetFmaxMhzAttr &A) {
   // Check to see if there's a duplicate attribute with different values
   // already applied to the declaration.
   if (const auto *DeclAttr =
