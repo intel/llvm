@@ -152,7 +152,8 @@ public:
   /// more details.
   ///
   /// \returns a map with device library programs.
-  std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram> &
+  std::map<std::pair<DeviceLibExt, RT::PiDevice>,
+           std::pair<RT::PiProgram, string_class>> &
   getCachedLibPrograms() {
     return MCachedLibPrograms;
   }
@@ -174,7 +175,8 @@ private:
   PlatformImplPtr MPlatform;
   property_list MPropList;
   bool MHostContext;
-  std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
+  std::map<std::pair<DeviceLibExt, RT::PiDevice>,
+           std::pair<RT::PiProgram, string_class>>
       MCachedLibPrograms;
   mutable KernelProgramCache MKernelProgramCache;
 };

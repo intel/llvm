@@ -115,8 +115,8 @@ bool context_impl::is_host() const { return MHostContext; }
 
 context_impl::~context_impl() {
   for (auto LibProg : MCachedLibPrograms) {
-    assert(LibProg.second && "Null program must not be kept in the cache");
-    getPlugin().call<PiApiKind::piProgramRelease>(LibProg.second);
+    assert(LibProg.second.first && "Null program must not be kept in the cache");
+    getPlugin().call<PiApiKind::piProgramRelease>(LibProg.second.first);
   }
   if (!MHostContext) {
     // TODO catch an exception and put it to list of asynchronous exceptions
