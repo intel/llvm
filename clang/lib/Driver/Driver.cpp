@@ -3728,6 +3728,20 @@ class OffloadingActionBuilder final {
     getDeviceDependences(OffloadAction::DeviceDependences &DA,
                          phases::ID CurPhase, phases::ID FinalPhase,
                          PhasesTy &Phases) override {
+      if (CurPhase == phases::Preprocess) {
+        // Do not perform the host compilation when doing preprocessing only
+        // with -fsycl-device-only.
+        bool IsPreprocessOnly =
+            Args.getLastArg(options::OPT_E) ||
+            Args.getLastArg(options::OPT__SLASH_EP, options::OPT__SLASH_P) ||
+            Args.getLastArg(options::OPT_M, options::OPT_MM);
+        if (Args.hasArg(options::OPT_fsycl_device_only) && IsPreprocessOnly) {
+          for (Action *&A : SYCLDeviceActions)
+            A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
+                                                   AssociatedOffloadKind);
+          return ABRT_Ignore_Host;
+        }
+      }
 
       // FIXME: This adds the integration header generation pass before the
       // Host compilation pass so the Host can use the header generated.  This
