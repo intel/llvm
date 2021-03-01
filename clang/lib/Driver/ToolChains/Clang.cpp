@@ -8153,7 +8153,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   TranslatorArgs.push_back("-o");
   TranslatorArgs.push_back(Output.getFilename());
   if (getToolChain().getTriple().isSYCLDeviceEnvironment()) {
-    TranslatorArgs.push_back("-spirv-max-version=1.1");
+    TranslatorArgs.push_back("-spirv-max-version=1.3");
     TranslatorArgs.push_back("-spirv-debug-info-version=legacy");
     // Prevent crash in the translator if input IR contains DIExpression
     // operations which don't have mapping to OpenCL.DebugInfo.100 spec.
@@ -8348,7 +8348,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
                        options::OPT_fno_sycl_device_code_split_esimd, true))
       addArgs(CmdArgs, TCArgs, {"-split-esimd"});
     if (TCArgs.hasFlag(options::OPT_fsycl_device_code_lower_esimd,
-                       options::OPT_fno_sycl_device_code_lower_esimd, false))
+                       options::OPT_fno_sycl_device_code_lower_esimd, true))
       addArgs(CmdArgs, TCArgs, {"-lower-esimd"});
   }
   addArgs(CmdArgs, TCArgs,

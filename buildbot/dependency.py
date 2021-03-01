@@ -49,23 +49,34 @@ def do_dependency(args):
     # fetch OpenCL headers
     ocl_header_dir = os.path.join(args.obj_dir, "OpenCL-Headers")
     if not os.path.isdir(ocl_header_dir):
-        clone_cmd = ["git", "clone", "https://github.com/KhronosGroup/OpenCL-Headers", "OpenCL-Headers"]
+        clone_cmd = ["git", "clone", "https://github.com/KhronosGroup/OpenCL-Headers",
+                     "OpenCL-Headers", "-b", "master"]
         subprocess.check_call(clone_cmd, cwd=args.obj_dir)
     else:
         fetch_cmd = ["git", "pull", "--ff", "--ff-only", "origin"]
         subprocess.check_call(fetch_cmd, cwd=ocl_header_dir)
+
+    # Checkout fixed version to avoid unexpected issues coming from upstream
+    # Specific version can be uplifted as soon as such need arise
+    checkout_cmd = ["git", "checkout", "23710f1b99186065c1768fc3098ba681adc0f253"]
+    subprocess.check_call(checkout_cmd, cwd=ocl_header_dir)
 
     # fetch and build OpenCL ICD loader
     icd_loader_dir = os.path.join(args.obj_dir, "OpenCL-ICD-Loader")
     if not os.path.isdir(icd_loader_dir):
         clone_cmd = ["git", "clone",
                      "https://github.com/KhronosGroup/OpenCL-ICD-Loader",
-                     "OpenCL-ICD-Loader", "-b", "v2020.06.16"]
+                     "OpenCL-ICD-Loader", "-b", "master"]
 
         subprocess.check_call(clone_cmd, cwd=args.obj_dir)
     else:
         fetch_cmd = ["git", "pull", "--ff", "--ff-only", "origin"]
         subprocess.check_call(fetch_cmd, cwd=icd_loader_dir)
+
+    # Checkout fixed version to avoid unexpected issues coming from upstream
+    # Specific version can be uplifted as soon as such need arise
+    checkout_cmd = ["git", "checkout", "5f8249691ec8c25775789498951f8e9eb62c201d"]
+    subprocess.check_call(checkout_cmd, cwd=icd_loader_dir)
 
     icd_build_dir = os.path.join(icd_loader_dir, "build")
     if os.path.isdir(icd_build_dir):
@@ -113,4 +124,3 @@ if __name__ == "__main__":
     ret = main()
     exit_code = 0 if ret else 1
     sys.exit(exit_code)
-
