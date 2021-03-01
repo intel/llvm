@@ -10222,15 +10222,14 @@ public:
   void AddSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
                                               const AttributeCommonInfo &CI,
                                               Expr *E);
-  SYCLIntelSchedulerTargetFmaxMhzAttr *
-  MergeSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
-                                           const SYCLIntelSchedulerTargetFmaxMhzAttr &A);
+  SYCLIntelSchedulerTargetFmaxMhzAttr *MergeSYCLIntelSchedulerTargetFmaxMhzAttr(
+      Decl *D, const SYCLIntelSchedulerTargetFmaxMhzAttr &A);
+
   void AddSYCLIntelNoGlobalWorkOffsetAttr(Decl *D,
                                           const AttributeCommonInfo &CI,
                                           Expr *E);
-  SYCLIntelNoGlobalWorkOffsetAttr *
-  MergeSYCLIntelNoGlobalWorkOffsetAttr(Decl *D,
-                                       const SYCLIntelNoGlobalWorkOffsetAttr &A);
+  SYCLIntelNoGlobalWorkOffsetAttr *MergeSYCLIntelNoGlobalWorkOffsetAttr(
+      Decl *D, const SYCLIntelNoGlobalWorkOffsetAttr &A);
 
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,

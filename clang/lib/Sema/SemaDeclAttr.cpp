@@ -3367,7 +3367,7 @@ static void handleUseStallEnableClustersAttr(Sema &S, Decl *D,
 
 // Handle scheduler_target_fmax_mhz
 void Sema::AddSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
-		                                  const AttributeCommonInfo &CI,
+                                                  const AttributeCommonInfo &CI,
                                                   Expr *E) {
   if (LangOpts.SYCLIsHost)
     return;
@@ -3390,7 +3390,8 @@ void Sema::AddSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
     }
     // Check to see if there's a duplicate attribute with different values
     // already applied to the declaration.
-    if (const auto *DeclAttr = D->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>()) {
+    if (const auto *DeclAttr =
+            D->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>()) {
       // If the other attribute argument is instantiation dependent, we won't
       // have converted it to a constant expression yet and thus we test
       // whether this is a null pointer.
@@ -3404,15 +3405,15 @@ void Sema::AddSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
   }
 
   D->addAttr(::new (Context)
-		 SYCLIntelSchedulerTargetFmaxMhzAttr(Context, CI, E));
+                 SYCLIntelSchedulerTargetFmaxMhzAttr(Context, CI, E));
 }
 
-SYCLIntelSchedulerTargetFmaxMhzAttr *
-Sema::MergeSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
-                                     const SYCLIntelSchedulerTargetFmaxMhzAttr &A) {
+Sema::MergeSYCLIntelSchedulerTargetFmaxMhzAttr(
+    Decl *D, const SYCLIntelSchedulerTargetFmaxMhzAttr &A) {
   // Check to see if there's a duplicate attribute with different values
   // already applied to the declaration.
-  if (const auto *DeclAttr = D->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>()) {
+  if (const auto *DeclAttr =
+          D->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>()) {
     const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue());
     const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue());
     if (DeclExpr && MergeExpr &&
@@ -3422,7 +3423,8 @@ Sema::MergeSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
       return nullptr;
     }
   }
-  return ::new (Context) SYCLIntelSchedulerTargetFmaxMhzAttr(Context, A, A.getValue());
+  return ::new (Context)
+      SYCLIntelSchedulerTargetFmaxMhzAttr(Context, A, A.getValue());
 }
 
 static void handleSYCLIntelSchedulerTargetFmaxMhzAttr(Sema &S, Decl *D,
@@ -9004,7 +9006,7 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handleMaxGlobalWorkDimAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLIntelNoGlobalWorkOffset:
-     handleSYCLIntelNoGlobalWorkOffsetAttr(S, D, AL);
+    handleSYCLIntelNoGlobalWorkOffsetAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLIntelUseStallEnableClusters:
     handleUseStallEnableClustersAttr(S, D, AL);
