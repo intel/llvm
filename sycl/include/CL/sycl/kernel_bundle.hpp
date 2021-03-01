@@ -50,7 +50,6 @@ private:
   template <typename KernelName> friend kernel_id get_kernel_id();
 };
 
-
 namespace detail {
 class device_image_impl;
 using DeviceImageImplPtr = std::shared_ptr<device_image_impl>;
@@ -82,7 +81,6 @@ protected:
   detail::DeviceImageImplPtr impl;
 };
 } // namespace detail
-
 
 // Objects of the class represents an instance of an image in a specific state.
 template <sycl::bundle_state State>
@@ -259,7 +257,6 @@ private:
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
-
 
 /////////////////////////
 // get_kernel_id API
