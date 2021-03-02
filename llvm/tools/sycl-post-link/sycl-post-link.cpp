@@ -689,6 +689,11 @@ static void LowerEsimdConstructs(Module &M) {
     MPM.add(createEarlyCSEPass(true));
     MPM.add(createInstructionCombiningPass());
     MPM.add(createDeadCodeEliminationPass());
+    // TODO: maybe remove some passes below that don't affect code quality
+    MPM.add(createSROAPass());
+    MPM.add(createEarlyCSEPass(true));
+    MPM.add(createInstructionCombiningPass());
+    MPM.add(createDeadCodeEliminationPass());
   }
   MPM.add(createGenXSPIRVWriterAdaptorPass());
   MPM.run(M);
