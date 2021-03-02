@@ -2651,7 +2651,10 @@ static bool isValidBPFPreserveEnumValueArg(Expr *Arg) {
     return false;
 
   const auto *CE = dyn_cast<CStyleCastExpr>(UO->getSubExpr());
-  if (!CE || CE->getCastKind() != CK_IntegralToPointer)
+  if (!CE)
+    return false;
+  if (CE->getCastKind() != CK_IntegralToPointer &&
+      CE->getCastKind() != CK_NullToPointer)
     return false;
 
   // The integer must be from an EnumConstantDecl.
@@ -10459,7 +10462,7 @@ void CheckFreeArgumentsCast(Sema &S, const std::string &CalleeName,
   case clang::CK_BitCast:
     if (!Cast->getSubExpr()->getType()->isFunctionPointerType())
       return;
-    [[clang::fallthrough]];
+    LLVM_FALLTHROUGH;
   case clang::CK_IntegralToPointer:
   case clang::CK_FunctionToPointerDecay:
     OS << '\'';

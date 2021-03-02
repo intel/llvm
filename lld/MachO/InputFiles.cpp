@@ -91,7 +91,8 @@ std::unique_ptr<TarWriter> macho::tar;
 int InputFile::idCount = 0;
 
 // Open a given file path and return it as a memory-mapped file.
-Optional<MemoryBufferRef> macho::readFile(StringRef path) {
+// Perform no sanity checks--just open, map & return.
+Optional<MemoryBufferRef> macho::readRawFile(StringRef path) {
   // Open a file.
   auto mbOrErr = MemoryBuffer::getFile(path);
   if (auto ec = mbOrErr.getError()) {
@@ -102,6 +103,27 @@ Optional<MemoryBufferRef> macho::readFile(StringRef path) {
   std::unique_ptr<MemoryBuffer> &mb = *mbOrErr;
   MemoryBufferRef mbref = mb->getMemBufferRef();
   make<std::unique_ptr<MemoryBuffer>>(std::move(mb)); // take mb ownership
+  return mbref;
+}
+
+// Open a given file path and return it as a memory-mapped file.
+// Assume the file has one of a variety of linkable formats and
+// perform some basic sanity checks, notably minimum length.
+Optional<MemoryBufferRef> macho::readLinkableFile(StringRef path) {
+  Optional<MemoryBufferRef> maybeMbref = readRawFile(path);
+  if (!maybeMbref) {
+    return None;
+  }
+  MemoryBufferRef mbref = *maybeMbref;
+
+  // LD64 hard-codes 20 as minimum header size, which is presumably
+  // the smallest header among the the various linkable input formats
+  // LLD are less demanding. We insist on having only enough data for
+  // a magic number.
+  if (mbref.getBufferSize() < sizeof(uint32_t)) {
+    error("file is too small to contain a magic number: " + path);
+    return None;
+  }
 
   // If this is a regular non-fat file, return it.
   const char *buf = mbref.getBufferStart();
@@ -278,16 +300,20 @@ void ObjFile::parseRelocations(const section_64 &sec,
       continue;
     if (relInfo.r_address & R_SCATTERED)
       fatal("TODO: Scattered relocations not supported");
-    uint64_t embeddedAddend = target->getEmbeddedAddend(mb, sec, relInfo);
-    assert(!(embeddedAddend && pairedAddend));
-    uint64_t totalAddend = pairedAddend + embeddedAddend;
 
     Reloc p;
     if (target->hasAttr(relInfo.r_type, RelocAttrBits::SUBTRAHEND)) {
       p.type = relInfo.r_type;
       p.referent = symbols[relInfo.r_symbolnum];
       relInfo = relInfos[++i];
+      // SUBTRACTOR relocations should always be followed by an UNSIGNED one
+      // indicating the minuend symbol.
+      assert(target->hasAttr(relInfo.r_type, RelocAttrBits::UNSIGNED) &&
+             relInfo.r_extern);
     }
+    uint64_t embeddedAddend = target->getEmbeddedAddend(mb, sec, relInfo);
+    assert(!(embeddedAddend && pairedAddend));
+    uint64_t totalAddend = pairedAddend + embeddedAddend;
     Reloc r;
     r.type = relInfo.r_type;
     r.pcrel = relInfo.r_pcrel;
@@ -304,8 +330,7 @@ void ObjFile::parseRelocations(const section_64 &sec,
         // The implicit addend for pcrel section relocations is the pcrel offset
         // in terms of the addresses in the input file. Here we adjust it so
         // that it describes the offset from the start of the referent section.
-        // TODO: The offset of 4 is probably not right for ARM64, nor for
-        //       relocations with r_length != 2.
+        assert(target->hasAttr(r.type, RelocAttrBits::BYTE4));
         referentOffset =
             sec.addr + relInfo.r_address + 4 + totalAddend - referentSec.addr;
       } else {
@@ -317,8 +342,7 @@ void ObjFile::parseRelocations(const section_64 &sec,
     }
 
     InputSection *subsec = findContainingSubsection(subsecMap, &r.offset);
-    if (p.type != GENERIC_RELOC_INVALID &&
-        target->hasAttr(p.type, RelocAttrBits::SUBTRAHEND))
+    if (p.type != GENERIC_RELOC_INVALID)
       subsec->relocs.push_back(p);
     subsec->relocs.push_back(r);
   }
@@ -541,7 +565,7 @@ void ObjFile::parseDebugInfo() {
 
 // The path can point to either a dylib or a .tbd file.
 static Optional<DylibFile *> loadDylib(StringRef path, DylibFile *umbrella) {
-  Optional<MemoryBufferRef> mbref = readFile(path);
+  Optional<MemoryBufferRef> mbref = readLinkableFile(path);
   if (!mbref) {
     error("could not read dylib file at " + path);
     return {};
@@ -563,15 +587,14 @@ const InterfaceFile *currentTopLevelTapi = nullptr;
 
 // Re-exports can either refer to on-disk files, or to documents within .tbd
 // files.
-static Optional<DylibFile *> loadReexportHelper(StringRef path,
-                                                DylibFile *umbrella) {
+static Optional<DylibFile *> findDylib(StringRef path, DylibFile *umbrella) {
   if (path::is_absolute(path, path::Style::posix))
     for (StringRef root : config->systemLibraryRoots)
       if (Optional<std::string> dylibPath =
               resolveDylibPath((root + path).str()))
         return loadDylib(*dylibPath, umbrella);
 
-  // TODO: Expand @loader_path, @executable_path etc
+  // TODO: Expand @loader_path, @executable_path, @rpath etc, handle -dylib_path
 
   if (currentTopLevelTapi) {
     for (InterfaceFile &child :
@@ -585,7 +608,6 @@ static Optional<DylibFile *> loadReexportHelper(StringRef path,
   if (Optional<std::string> dylibPath = resolveDylibPath(path))
     return loadDylib(*dylibPath, umbrella);
 
-  error("unable to locate re-export with install name " + path);
   return {};
 }
 
@@ -610,8 +632,10 @@ static bool isImplicitlyLinked(StringRef path) {
 }
 
 void loadReexport(StringRef path, DylibFile *umbrella) {
-  Optional<DylibFile *> reexport = loadReexportHelper(path, umbrella);
-  if (reexport && isImplicitlyLinked(path))
+  Optional<DylibFile *> reexport = findDylib(path, umbrella);
+  if (!reexport)
+    error("unable to locate re-export with install name " + path);
+  else if (isImplicitlyLinked(path))
     inputFiles.insert(*reexport);
 }
 
@@ -655,21 +679,33 @@ DylibFile::DylibFile(MemoryBufferRef mb, DylibFile *umbrella,
     return;
   }
 
-  if (hdr->flags & MH_NO_REEXPORTED_DYLIBS)
-    return;
-
   const uint8_t *p =
       reinterpret_cast<const uint8_t *>(hdr) + sizeof(mach_header_64);
   for (uint32_t i = 0, n = hdr->ncmds; i < n; ++i) {
     auto *cmd = reinterpret_cast<const load_command *>(p);
     p += cmd->cmdsize;
-    if (cmd->cmd != LC_REEXPORT_DYLIB)
-      continue;
 
-    auto *c = reinterpret_cast<const dylib_command *>(cmd);
-    StringRef reexportPath =
-        reinterpret_cast<const char *>(c) + read32le(&c->dylib.name);
-    loadReexport(reexportPath, umbrella);
+    if (!(hdr->flags & MH_NO_REEXPORTED_DYLIBS) &&
+        cmd->cmd == LC_REEXPORT_DYLIB) {
+      const auto *c = reinterpret_cast<const dylib_command *>(cmd);
+      StringRef reexportPath =
+          reinterpret_cast<const char *>(c) + read32le(&c->dylib.name);
+      loadReexport(reexportPath, umbrella);
+    }
+
+    // FIXME: What about LC_LOAD_UPWARD_DYLIB, LC_LAZY_LOAD_DYLIB,
+    // LC_LOAD_WEAK_DYLIB, LC_REEXPORT_DYLIB (..are reexports from dylibs with
+    // MH_NO_REEXPORTED_DYLIBS loaded for -flat_namespace)?
+    if (config->namespaceKind == NamespaceKind::flat &&
+        cmd->cmd == LC_LOAD_DYLIB) {
+      const auto *c = reinterpret_cast<const dylib_command *>(cmd);
+      StringRef dylibPath =
+          reinterpret_cast<const char *>(c) + read32le(&c->dylib.name);
+      Optional<DylibFile *> dylib = findDylib(dylibPath, umbrella);
+      if (!dylib)
+        error(Twine("unable to locate library '") + dylibPath +
+              "' loaded from '" + toString(this) + "' for -flat_namespace");
+    }
   }
 }
 

@@ -1892,13 +1892,13 @@ void CodeGenModule::SetCommonAttributes(GlobalDecl GD, llvm::GlobalValue *GV) {
     GV->setVisibility(llvm::GlobalValue::DefaultVisibility);
 
   if (D && D->hasAttr<UsedAttr>())
-    addUsedGlobal(GV);
+    addUsedOrCompilerUsedGlobal(GV);
 
   if (CodeGenOpts.KeepStaticConsts && D && isa<VarDecl>(D)) {
     const auto *VD = cast<VarDecl>(D);
     if (VD->getType().isConstQualified() &&
         VD->getStorageDuration() == SD_Static)
-      addUsedGlobal(GV);
+      addUsedOrCompilerUsedGlobal(GV);
   }
 }
 
@@ -1968,6 +1968,8 @@ void CodeGenModule::setNonAliasAttributes(GlobalDecl GD,
 
   if (D) {
     if (auto *GV = dyn_cast<llvm::GlobalVariable>(GO)) {
+      if (D->hasAttr<RetainAttr>())
+        addUsedGlobal(GV);
       if (auto *SA = D->getAttr<PragmaClangBSSSectionAttr>())
         GV->addAttribute("bss-section", SA->getName());
       if (auto *SA = D->getAttr<PragmaClangDataSectionAttr>())
@@ -1979,6 +1981,8 @@ void CodeGenModule::setNonAliasAttributes(GlobalDecl GD,
     }
 
     if (auto *F = dyn_cast<llvm::Function>(GO)) {
+      if (D->hasAttr<RetainAttr>())
+        addUsedGlobal(F);
       if (auto *SA = D->getAttr<PragmaClangTextSectionAttr>())
         if (!D->getAttr<SectionAttr>())
           F->addFnAttr("implicit-section-name", SA->getName());
@@ -2157,6 +2161,15 @@ void CodeGenModule::addCompilerUsedGlobal(llvm::GlobalValue *GV) {
   assert(!GV->isDeclaration() &&
          "Only globals with definition can force usage.");
   LLVMCompilerUsed.emplace_back(GV);
+}
+
+void CodeGenModule::addUsedOrCompilerUsedGlobal(llvm::GlobalValue *GV) {
+  assert((isa<llvm::Function>(GV) || !GV->isDeclaration()) &&
+         "Only globals with definition can force usage.");
+  if (getTriple().isOSBinFormatELF())
+    LLVMCompilerUsed.emplace_back(GV);
+  else
+    LLVMUsed.emplace_back(GV);
 }
 
 static void emitUsed(CodeGenModule &CGM, StringRef Name,
@@ -3686,9 +3699,19 @@ llvm::Constant *CodeGenModule::GetAddrOfFunction(GlobalDecl GD,
   }
 
   StringRef MangledName = getMangledName(GD);
-  return GetOrCreateLLVMFunction(MangledName, Ty, GD, ForVTable, DontDefer,
-                                 /*IsThunk=*/false, llvm::AttributeList(),
-                                 IsForDefinition);
+  auto *F = GetOrCreateLLVMFunction(MangledName, Ty, GD, ForVTable, DontDefer,
+                                    /*IsThunk=*/false, llvm::AttributeList(),
+                                    IsForDefinition);
+  // Returns kernel handle for HIP kernel stub function.
+  if (LangOpts.CUDA && !LangOpts.CUDAIsDevice &&
+      cast<FunctionDecl>(GD.getDecl())->hasAttr<CUDAGlobalAttr>()) {
+    auto *Handle = getCUDARuntime().getKernelHandle(
+        cast<llvm::Function>(F->stripPointerCasts()), GD);
+    if (IsForDefinition)
+      return F;
+    return llvm::ConstantExpr::getBitCast(Handle, Ty->getPointerTo());
+  }
+  return F;
 }
 
 static const FunctionDecl *
@@ -5594,8 +5617,21 @@ ConstantAddress CodeGenModule::GetAddrOfGlobalTemporary(
 
   CharUnits Align = getContext().getTypeAlignInChars(MaterializedType);
 
-  if (llvm::Constant *Slot = MaterializedGlobalTemporaryMap[E])
-    return ConstantAddress(Slot, Align);
+  auto InsertResult = MaterializedGlobalTemporaryMap.insert({E, nullptr});
+  if (!InsertResult.second) {
+    // We've seen this before: either we already created it or we're in the
+    // process of doing so.
+    if (!InsertResult.first->second) {
+      // We recursively re-entered this function, probably during emission of
+      // the initializer. Create a placeholder. We'll clean this up in the
+      // outer call, at the end of this function.
+      llvm::Type *Type = getTypes().ConvertTypeForMem(MaterializedType);
+      InsertResult.first->second = new llvm::GlobalVariable(
+          getModule(), Type, false, llvm::GlobalVariable::InternalLinkage,
+          nullptr);
+    }
+    return ConstantAddress(InsertResult.first->second, Align);
+  }
 
   // FIXME: If an externally-visible declaration extends multiple temporaries,
   // we need to give each temporary the same name in every translation unit (and
@@ -5674,7 +5710,17 @@ ConstantAddress CodeGenModule::GetAddrOfGlobalTemporary(
         *this, GV, AddrSpace, LangAS::Default,
         Type->getPointerTo(
             getContext().getTargetAddressSpace(LangAS::Default)));
-  MaterializedGlobalTemporaryMap[E] = CV;
+
+  // Update the map with the new temporary. If we created a placeholder above,
+  // replace it with the new global now.
+  llvm::Constant *&Entry = MaterializedGlobalTemporaryMap[E];
+  if (Entry) {
+    Entry->replaceAllUsesWith(
+        llvm::ConstantExpr::getBitCast(CV, Entry->getType()));
+    llvm::cast<llvm::GlobalVariable>(Entry)->eraseFromParent();
+  }
+  Entry = CV;
+
   return ConstantAddress(CV, Align);
 }
 
@@ -6204,7 +6250,7 @@ void CodeGenModule::EmitStaticExternCAliases() {
     IdentifierInfo *Name = I.first;
     llvm::GlobalValue *Val = I.second;
     if (Val && !getModule().getNamedValue(Name->getName()))
-      addUsedGlobal(llvm::GlobalAlias::create(Name->getName(), Val));
+      addCompilerUsedGlobal(llvm::GlobalAlias::create(Name->getName(), Val));
   }
 }
 

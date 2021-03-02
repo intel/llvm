@@ -701,7 +701,7 @@ void GPUFuncOp::setType(FunctionType newType) {
 
   SmallVector<char, 16> nameBuf;
   for (int i = newType.getNumInputs(), e = oldType.getNumInputs(); i < e; i++)
-    removeAttr(getArgAttrName(i, nameBuf));
+    (*this)->removeAttr(getArgAttrName(i, nameBuf));
 
   (*this)->setAttr(getTypeAttrName(), TypeAttr::get(newType));
 }
@@ -727,7 +727,7 @@ static LogicalResult verifyAttributions(Operation *op,
     if (!type)
       return op->emitOpError() << "expected memref type in attribution";
 
-    if (type.getMemorySpace() != memorySpace) {
+    if (type.getMemorySpaceAsInt() != memorySpace) {
       return op->emitOpError()
              << "expected memory space " << memorySpace << " in attribution";
     }

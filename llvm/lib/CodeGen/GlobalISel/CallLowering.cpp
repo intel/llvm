@@ -187,29 +187,41 @@ CallLowering::setArgFlags<CallBase>(CallLowering::ArgInfo &Arg, unsigned OpIdx,
                                     const DataLayout &DL,
                                     const CallBase &FuncInfo) const;
 
-Register CallLowering::packRegs(ArrayRef<Register> SrcRegs, Type *PackedTy,
-                                MachineIRBuilder &MIRBuilder) const {
-  assert(SrcRegs.size() > 1 && "Nothing to pack");
+void CallLowering::splitToValueTypes(const ArgInfo &OrigArg,
+                                     SmallVectorImpl<ArgInfo> &SplitArgs,
+                                     const DataLayout &DL,
+                                     CallingConv::ID CallConv) const {
+  LLVMContext &Ctx = OrigArg.Ty->getContext();
 
-  const DataLayout &DL = MIRBuilder.getMF().getDataLayout();
-  MachineRegisterInfo *MRI = MIRBuilder.getMRI();
+  SmallVector<EVT, 4> SplitVTs;
+  SmallVector<uint64_t, 4> Offsets;
+  ComputeValueVTs(*TLI, DL, OrigArg.Ty, SplitVTs, &Offsets, 0);
 
-  LLT PackedLLT = getLLTForType(*PackedTy, DL);
+  if (SplitVTs.size() == 0)
+    return;
 
-  SmallVector<LLT, 8> LLTs;
-  SmallVector<uint64_t, 8> Offsets;
-  computeValueLLTs(DL, *PackedTy, LLTs, &Offsets);
-  assert(LLTs.size() == SrcRegs.size() && "Regs / types mismatch");
-
-  Register Dst = MRI->createGenericVirtualRegister(PackedLLT);
-  MIRBuilder.buildUndef(Dst);
-  for (unsigned i = 0; i < SrcRegs.size(); ++i) {
-    Register NewDst = MRI->createGenericVirtualRegister(PackedLLT);
-    MIRBuilder.buildInsert(NewDst, Dst, SrcRegs[i], Offsets[i]);
-    Dst = NewDst;
+  if (SplitVTs.size() == 1) {
+    // No splitting to do, but we want to replace the original type (e.g. [1 x
+    // double] -> double).
+    SplitArgs.emplace_back(OrigArg.Regs[0], SplitVTs[0].getTypeForEVT(Ctx),
+                           OrigArg.Flags[0], OrigArg.IsFixed);
+    return;
   }
 
-  return Dst;
+  // Create one ArgInfo for each virtual register in the original ArgInfo.
+  assert(OrigArg.Regs.size() == SplitVTs.size() && "Regs / types mismatch");
+
+  bool NeedsRegBlock = TLI->functionArgumentNeedsConsecutiveRegisters(
+      OrigArg.Ty, CallConv, false);
+  for (unsigned i = 0, e = SplitVTs.size(); i < e; ++i) {
+    Type *SplitTy = SplitVTs[i].getTypeForEVT(Ctx);
+    SplitArgs.emplace_back(OrigArg.Regs[i], SplitTy, OrigArg.Flags[0],
+                           OrigArg.IsFixed);
+    if (NeedsRegBlock)
+      SplitArgs.back().Flags[0].setInConsecutiveRegs();
+  }
+
+  SplitArgs.back().Flags[0].setInConsecutiveRegsLast();
 }
 
 void CallLowering::unpackRegs(ArrayRef<Register> DstRegs, Register SrcReg,

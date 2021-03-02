@@ -2771,14 +2771,16 @@ void MaskedStoreOp::getCanonicalizationPatterns(
 //===----------------------------------------------------------------------===//
 
 static LogicalResult verify(GatherOp op) {
-  VectorType indicesVType = op.getIndicesVectorType();
+  VectorType indVType = op.getIndexVectorType();
   VectorType maskVType = op.getMaskVectorType();
   VectorType resVType = op.getVectorType();
   MemRefType memType = op.getMemRefType();
 
   if (resVType.getElementType() != memType.getElementType())
     return op.emitOpError("base and result element type should match");
-  if (resVType.getDimSize(0) != indicesVType.getDimSize(0))
+  if (llvm::size(op.indices()) != memType.getRank())
+    return op.emitOpError("requires ") << memType.getRank() << " indices";
+  if (resVType.getDimSize(0) != indVType.getDimSize(0))
     return op.emitOpError("expected result dim to match indices dim");
   if (resVType.getDimSize(0) != maskVType.getDimSize(0))
     return op.emitOpError("expected result dim to match mask dim");
@@ -2817,14 +2819,16 @@ void GatherOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 //===----------------------------------------------------------------------===//
 
 static LogicalResult verify(ScatterOp op) {
-  VectorType indicesVType = op.getIndicesVectorType();
+  VectorType indVType = op.getIndexVectorType();
   VectorType maskVType = op.getMaskVectorType();
   VectorType valueVType = op.getVectorType();
   MemRefType memType = op.getMemRefType();
 
   if (valueVType.getElementType() != memType.getElementType())
     return op.emitOpError("base and valueToStore element type should match");
-  if (valueVType.getDimSize(0) != indicesVType.getDimSize(0))
+  if (llvm::size(op.indices()) != memType.getRank())
+    return op.emitOpError("requires ") << memType.getRank() << " indices";
+  if (valueVType.getDimSize(0) != indVType.getDimSize(0))
     return op.emitOpError("expected valueToStore dim to match indices dim");
   if (valueVType.getDimSize(0) != maskVType.getDimSize(0))
     return op.emitOpError("expected valueToStore dim to match mask dim");
@@ -3170,7 +3174,7 @@ void TypeCastOp::build(OpBuilder &builder, OperationState &result,
       VectorType::get(extractShape(memRefType),
                       getElementTypeOrSelf(getElementTypeOrSelf(memRefType)));
   result.addTypes(
-      MemRefType::get({}, vectorType, {}, memRefType.getMemorySpace()));
+      MemRefType::get({}, vectorType, {}, memRefType.getMemorySpaceAsInt()));
 }
 
 static LogicalResult verify(TypeCastOp op) {
@@ -3179,8 +3183,8 @@ static LogicalResult verify(TypeCastOp op) {
     return op.emitOpError("expects operand to be a memref with no layout");
   if (!op.getResultMemRefType().getAffineMaps().empty())
     return op.emitOpError("expects result to be a memref with no layout");
-  if (op.getResultMemRefType().getMemorySpace() !=
-      op.getMemRefType().getMemorySpace())
+  if (op.getResultMemRefType().getMemorySpaceAsInt() !=
+      op.getMemRefType().getMemorySpaceAsInt())
     return op.emitOpError("expects result in same memory space");
 
   auto sourceType = op.getMemRefType();
