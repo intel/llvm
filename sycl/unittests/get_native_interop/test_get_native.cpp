@@ -1,4 +1,5 @@
-//==----------- test_get_native.cpp --- get_native interop unit test -------------==//
+//==----------- test_get_native.cpp --- get_native interop unit test 
+//-------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -77,9 +78,7 @@ pi_result redefinedEventGetInfo(pi_event event, pi_event_info param_name,
   return PI_SUCCESS;
 }
 
-pi_result redefinedEventRelease(pi_event event) {
-  return PI_SUCCESS;
-}
+pi_result redefinedEventRelease(pi_event event) { return PI_SUCCESS; }
 
 TEST(GetNativeTest, GetNativeHandle) {
   platform Plt{default_selector()};
@@ -106,9 +105,9 @@ TEST(GetNativeTest, GetNativeHandle) {
   Mock.redefine<detail::PiApiKind::piEventRetain>(redefinedEventRetain);
 
   default_selector Selector;
-  context Context(Plt); 
+  context Context(Plt);
   queue Queue(Context, Selector);
-  
+
   program Program{Context};
   Program.build_with_source("");
 
@@ -116,14 +115,14 @@ TEST(GetNativeTest, GetNativeHandle) {
 
   unsigned char *HostAlloc = (unsigned char *)malloc_host(1, Context);
   auto Event = Queue.memset(HostAlloc, 42, 1);
-  
-  auto c_g = get_native<backend::opencl>(Context); 
+
+  auto c_g = get_native<backend::opencl>(Context);
   auto q_g = get_native<backend::opencl>(Queue);
   auto p_g = get_native<backend::opencl>(Program);
   auto d_g = get_native<backend::opencl>(Device);
   auto e_g = get_native<backend::opencl>(Event);
 
-  // When creating a context, the piDeviceRetain is called so here is the 6 retain calls
-  ASSERT_EQ(TestCounter, 6)
-      << "Not all the retain methods was called";
+  // When creating a context, the piDeviceRetain is called so here is the 6
+  // retain calls
+  ASSERT_EQ(TestCounter, 6) << "Not all the retain methods was called";
 }
