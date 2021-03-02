@@ -347,6 +347,13 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
   return Res;
 }
 
+std::unordered_map<
+    KernelSetId,
+    std::unique_ptr<std::vector<ProgramManager::RTDeviceBinaryImageUPtr>>> &
+ProgramManager::GetDeviceImages() {
+  return m_DeviceImages;
+}
+
 RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
                                                 const context &Context,
                                                 const device &Device,
