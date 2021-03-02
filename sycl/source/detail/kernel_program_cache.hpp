@@ -33,7 +33,9 @@ public:
     std::string Msg;
     pi_int32 Code;
 
-    bool isFilledIn() const { return !Msg.empty(); }
+    bool isFilledIn() const {
+      return !Msg.empty();
+    }
   };
 
   /// Denotes pointer to some entity with its general state and build error.
@@ -59,7 +61,7 @@ public:
     /// A mutex to be employed along with MBuildCV.
     std::mutex MBuildResultMutex;
 
-    BuildResult(T *P, int S) : Ptr{P}, State{S}, Error{"", 0} {}
+    BuildResult(T* P, int S) : Ptr{P}, State{S}, Error{"", 0} {}
   };
 
   using PiProgramT = std::remove_pointer<RT::PiProgram>::type;

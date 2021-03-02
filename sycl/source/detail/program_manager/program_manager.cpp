@@ -346,10 +346,12 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
   return Res;
 }
 
-RT::PiProgram ProgramManager::getBuiltPIProgram(
-    OSModuleHandle M, const context &Context, const device &Device,
-    const string_class &KernelName, const program_impl *Prg,
-    bool JITCompilationIsRequired) {
+RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
+                                                const context &Context,
+                                                const device &Device,
+                                                const string_class &KernelName,
+                                                const program_impl *Prg,
+                                                bool JITCompilationIsRequired) {
   KernelSetId KSId = getKernelSetId(M, KernelName);
 
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
