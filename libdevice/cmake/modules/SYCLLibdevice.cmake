@@ -236,7 +236,7 @@ install(FILES ${devicelib-obj-file}
               ${devicelib-obj-cmath}
               ${obj_binary_dir}/libsycl-fallback-cmath.${lib-suffix}
               ${devicelib-obj-cmath-fp64}
-	      ${obj_binary_dir}/libsycl-fallback-cmath-fp64.${lib-suffix}
+              ${obj_binary_dir}/libsycl-fallback-cmath-fp64.${lib-suffix}
               ${devicelib-obj-itt-files}
         DESTINATION ${install_dest_lib}
         COMPONENT libsycldevice)
