@@ -10,6 +10,7 @@
 
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/kernel.hpp>
 
@@ -31,13 +32,20 @@ class kernel_id_impl;
 /// \ingroup sycl_api
 class __SYCL_EXPORT kernel_id {
 public:
-  /// Returns a null-terminated string which contains the kernel name
-  const char *get_name() const;
+  kernel_id() = delete;
+
+  /// \returns a null-terminated string which contains the kernel name
+  const char *get_name() const noexcept;
+
+  bool operator==(const kernel_id &RHS) const { return impl == RHS.impl; }
+
+  bool operator!=(const kernel_id &RHS) const { return !(*this == RHS); }
 
 private:
   kernel_id(const char *Name);
 
-  kernel_id(const std::shared_ptr<detail::kernel_id_impl> &Impl);
+  kernel_id(const std::shared_ptr<detail::kernel_id_impl> &Impl)
+      : impl(std::move(Impl)) {}
 
   std::shared_ptr<detail::kernel_id_impl> impl;
 
@@ -69,26 +77,38 @@ public:
     return !(*this == RHS);
   }
 
-  // Returns true if the device_image contains the kernel identified by the
-  // KernelID
   bool has_kernel(const kernel_id &KernelID) const noexcept;
 
-  // Returns true if the device_image contains the kernel identified by the
-  // KernelID and is compatible with the passed Dev
   bool has_kernel(const kernel_id &KernelID, const device &Dev) const noexcept;
 
 protected:
   detail::DeviceImageImplPtr impl;
+
+  template <class Obj>
+  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+
+  template <class T>
+  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 } // namespace detail
 
-// Objects of the class represents an instance of an image in a specific state.
+/// Objects of the class represents an instance of an image in a specific state.
 template <sycl::bundle_state State>
 class device_image : public detail::device_image_plain {
 public:
   device_image() = delete;
 
-  // required methods come from the base class
+  /// \returns true if the device_image contains the kernel identified by the
+  /// KernelID
+  bool has_kernel(const kernel_id &KernelID) const noexcept {
+    return device_image_plain::has_kernel(KernelID);
+  }
+
+  /// \returns true if the device_image contains the kernel identified by the
+  /// KernelID and is compatible with the passed Dev
+  bool has_kernel(const kernel_id &KernelID, const device &Dev) const noexcept {
+    return device_image_plain::has_kernel(KernelID, Dev);
+  }
 
 private:
   device_image(detail::DeviceImageImplPtr Impl)
@@ -119,61 +139,47 @@ public:
     return !(*this == RHS);
   }
 
-  /// Returns true if the kernel_bundles contains no device images
   bool empty() const noexcept;
 
-  /// Returns the backend associated with the kernel bundle
   backend get_backend() const noexcept;
 
-  /// Returns the context associated with the kernel_bundle
   context get_context() const noexcept;
 
-  /// Returns devices associated with the kernel_bundle
   std::vector<device> get_devices() const noexcept;
 
-  /// Returns true if the kernel_bundle contains the kernel identified by
-  /// kernel_id passed
   bool has_kernel(const kernel_id &KernelID) const noexcept;
 
-  /// Returns true if the kernel_bundle contains the kernel identified by
-  /// kernel_id passed and if this kernel is compatible with the device
-  /// specified
   bool has_kernel(const kernel_id &KernelID, const device &Dev) const noexcept;
 
-  /// Returns a vector of kernel_id's that contained in the kernel_bundle
   std::vector<kernel_id> get_kernel_ids() const;
 
-  /// Returns true if the kernel_bundle contains at least one device image which
-  /// uses specialization constants
   bool contains_specialization_constants() const noexcept;
 
-  /// Returns true if all specialization constants which are used in the
-  /// kernel_bundle are "native specialization constants in all device images
   bool native_specialization_constant() const noexcept;
 
 protected:
-  // Returns true if the kernel_bundle has the specialization constant with
+  // \returns true if the kernel_bundle has the specialization constant with
   // specified ID
   bool has_specialization_constant(unsigned int SpecID) const noexcept;
 
   // Sets the specialization constant with specified ID to the value pointed by
   // Value + ValueSize
-  void set_specialization_constant(unsigned int SpecID, void *Value,
+  void set_specialization_constant(unsigned int SpecID, const void *Value,
                                    size_t ValueSize);
 
-  // Returns pointer to the value of the specialization constant with specified
+  // \returns pointer to the value of the specialization constant with specified
   // ID
-  void *get_specialization_constant(unsigned int SpecID) const;
+  const void *get_specialization_constant(unsigned int SpecID) const;
 
-  // Returns a kernel object which represents the kernel identified by
+  // \returns a kernel object which represents the kernel identified by
   // kernel_id passed
   kernel get_kernel(const kernel_id &KernelID) const;
 
-  // Returns an iterator to the first device image kernel_bundle contains
-  kernel_bundle_plain *begin() const;
+  // \returns an iterator to the first device image kernel_bundle contains
+  const device_image_plain *begin() const;
 
-  // Returns an iterator to the last device image kernel_bundle contains
-  kernel_bundle_plain *end() const;
+  // \returns an iterator to the last device image kernel_bundle contains
+  const device_image_plain *end() const;
 
   detail::KernelBundleImplPtr impl;
 };
@@ -187,13 +193,59 @@ protected:
 template <bundle_state State>
 class kernel_bundle : public detail::kernel_bundle_plain {
 public:
-  using device_image_iterator = device_image<State> *;
+  using device_image_iterator = const device_image<State> *;
 
   kernel_bundle() = delete;
 
-  // some required methods come from the base class
+  /// \returns true if the kernel_bundles contains no device images
+  bool empty() const noexcept { return kernel_bundle_plain::empty(); }
 
-  /// Returns a kernel object which represents the kernel identified by
+  /// \returns the backend associated with the kernel bundle
+  backend get_backend() const noexcept {
+    return kernel_bundle_plain::get_backend();
+  }
+
+  /// \returns the context associated with the kernel_bundle
+  context get_context() const noexcept {
+    return kernel_bundle_plain::get_context();
+  }
+
+  /// \returns devices associated with the kernel_bundle
+  std::vector<device> get_devices() const noexcept {
+    return kernel_bundle_plain::get_devices();
+  }
+
+  /// \returns true if the kernel_bundle contains the kernel identified by
+  /// kernel_id passed
+  bool has_kernel(const kernel_id &KernelID) const noexcept {
+    return kernel_bundle_plain::has_kernel(KernelID);
+  }
+
+  /// \returns true if the kernel_bundle contains the kernel identified by
+  /// kernel_id passed and if this kernel is compatible with the device
+  /// specified
+  bool has_kernel(const kernel_id &KernelID, const device &Dev) const noexcept {
+    return kernel_bundle_plain::has_kernel(KernelID, Dev);
+  }
+
+  /// \returns a vector of kernel_id's that contained in the kernel_bundle
+  std::vector<kernel_id> get_kernel_ids() const {
+    return kernel_bundle_plain::get_kernel_ids();
+  }
+
+  /// \returns true if the kernel_bundle contains at least one device image
+  /// which uses specialization constants
+  bool contains_specialization_constants() const noexcept {
+    return kernel_bundle_plain::contains_specialization_constants();
+  }
+
+  /// \returns true if all specialization constants which are used in the
+  /// kernel_bundle are "native specialization constants in all device images
+  bool native_specialization_constant() const noexcept {
+    return kernel_bundle_plain::native_specialization_constant();
+  }
+
+  /// \returns a kernel object which represents the kernel identified by
   /// kernel_id passed
   template <bundle_state _State = State,
             typename = detail::enable_if_t<_State == bundle_state::executable>>
@@ -201,8 +253,11 @@ public:
     return detail::kernel_bundle_plain::get_kernel(KernelID);
   }
 
+  // This guard is needed because the libsycl.so can compiled with C++ <=14
+  // while the code requires C++17. This code is not supposed to be used by the
+  // libsycl.so so it should not be a problem.
 #if __cplusplus > 201402L
-  /// Returns true if any device image in the kernel_bundle uses specialization
+  /// \returns true if any device image in the kernel_bundle uses specialization
   /// constant whose address is SpecName
   template <auto &SpecName> bool has_specialization_constant() const noexcept {
     assert(false && "has_specialization_constant is not implemented yet");
@@ -236,13 +291,13 @@ public:
   }
 #endif
 
-  /// Returns an iterator to the first device image kernel_bundle contains
+  /// \returns an iterator to the first device image kernel_bundle contains
   device_image_iterator begin() const {
     return reinterpret_cast<device_image_iterator>(
         kernel_bundle_plain::begin());
   }
 
-  /// Returns an iterator to the last device image kernel_bundle contains
+  /// \returns an iterator to the last device image kernel_bundle contains
   device_image_iterator end() const {
     return reinterpret_cast<device_image_iterator>(kernel_bundle_plain::end());
   }
@@ -262,13 +317,13 @@ private:
 // get_kernel_id API
 /////////////////////////
 
-/// Returns the kernel_id associated with the KernelName
+/// \returns the kernel_id associated with the KernelName
 template <typename KernelName> kernel_id get_kernel_id() {
   using KI = sycl::detail::KernelInfo<KernelName>;
   return sycl::kernel_id(KI::getName());
 }
 
-/// Returns a vector with all kernel_id's defined in the application
+/// \returns a vector with all kernel_id's defined in the application
 std::vector<kernel_id> get_kernel_ids();
 
 /////////////////////////
@@ -311,7 +366,7 @@ get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        bundle_state State);
 } // namespace detail
 
-/// Returns a kernel bundle in state State which contains all of the device
+/// \returns a kernel bundle in state State which contains all of the device
 /// images that are compatible with at least one of the devices in Devs, further
 /// filtered to contain only those device images that contain kernels with the
 /// given identifiers. These identifiers may represent kernels that are defined
@@ -397,7 +452,7 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                             bundle_state State);
 } // namespace detail
 
-/// Returns true if the following is true:
+/// \returns true if the following is true:
 /// The application defines at least one kernel that is compatible with at
 /// least one of the devices in Devs, and that kernel can be represented in a
 /// device image of state State.
@@ -442,7 +497,7 @@ bool has_kernel_bundle(const context &Ctx, const std::vector<device> &Devs) {
 // is_compatible API
 /////////////////////////
 
-/// Returns true if all of the kernels identified by KernelIDs are compatible
+/// \returns true if all of the kernels identified by KernelIDs are compatible
 /// with the device Dev.
 bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev);
 
@@ -461,13 +516,12 @@ join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles);
 
 }
 
-/// Returns a new kernel bundle that represents the union of all the device
+/// \returns a new kernel bundle that represents the union of all the device
 /// images in the input bundles with duplicates removed.
 template <sycl::bundle_state State>
 sycl::kernel_bundle<State>
 join(const std::vector<sycl::kernel_bundle<State>> &Bundles) {
   std::vector<detail::KernelBundleImplPtr> KernelBundleImpls;
-  // TODO: Can we just reinterpret?
   KernelBundleImpls.reserve(Bundles.size());
   for (sycl::kernel_bundle<State> &Bundle : Bundles)
     KernelBundleImpls.push_back(detail::getSyclObjImpl(Bundle));
@@ -488,7 +542,7 @@ compile_impl(const kernel_bundle<bundle_state::input> &InputBundle,
              const std::vector<device> &Devs, const property_list &PropList);
 }
 
-/// Returns a new kernel_bundle which contains the device images from
+/// \returns a new kernel_bundle which contains the device images from
 /// InputBundle that are translated into one or more new device images of state
 /// bundle_state::object. The new bundle represents all of the kernels in
 /// InputBundles that are compatible with at least one of the devices in Devs.
@@ -516,7 +570,7 @@ std::vector<sycl::device> find_device_intersection(
     const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles);
 }
 
-/// Returns a new kernel_bundle which contains the device images from the
+/// \returns a new kernel_bundle which contains the device images from the
 /// ObjectBundles that are translated into one or more new device images of
 /// state bundle_state::executable The new bundle represents all of the kernels
 /// in ObjectBundles that are compatible with at least one of the devices in
@@ -551,10 +605,10 @@ link(const kernel_bundle<bundle_state::object> &ObjectBundle,
 // build API
 /////////////////////////
 
-/// Returns a new kernel_bundle which contains device images that are translated
-/// into one ore more new device images of state bundle_state::executable.
-/// The new bundle represents all of the kernels in InputBundle that are
-/// compatible with at least one of the devices in Devs.
+/// \returns a new kernel_bundle which contains device images that are
+/// translated into one ore more new device images of state
+/// bundle_state::executable. The new bundle represents all of the kernels in
+/// InputBundle that are compatible with at least one of the devices in Devs.
 kernel_bundle<bundle_state::executable>
 build(const kernel_bundle<bundle_state::input> &InputBundle,
       const std::vector<device> &Devs, const property_list &PropList = {});
