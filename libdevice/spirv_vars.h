@@ -16,27 +16,31 @@
 #include <cstddef>
 #include <cstdint>
 
+#define __SPIRV_VAR_QUALIFIERS EXTERN_C const
 typedef size_t size_t_vec __attribute__((ext_vector_type(3)));
-extern "C" const size_t_vec __spirv_BuiltInGlobalInvocationId;
-extern "C" const size_t_vec __spirv_BuiltInLocalInvocationId;
+__SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInGlobalInvocationId;
+__SPIRV_VAR_QUALIFIERS size_t __spirv_BuiltInGlobalLinearId;
+__SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInLocalInvocationId;
+__SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInWorkgroupId;
+__SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInWorkgroupSize;
 
-DEVICE_EXTERNAL inline size_t __spirv_GlobalInvocationId_x() {
+static inline size_t __spirv_GlobalInvocationId_x() {
   return __spirv_BuiltInGlobalInvocationId.x;
 }
-DEVICE_EXTERNAL inline size_t __spirv_GlobalInvocationId_y() {
+static inline size_t __spirv_GlobalInvocationId_y() {
   return __spirv_BuiltInGlobalInvocationId.y;
 }
-DEVICE_EXTERNAL inline size_t __spirv_GlobalInvocationId_z() {
+static inline size_t __spirv_GlobalInvocationId_z() {
   return __spirv_BuiltInGlobalInvocationId.z;
 }
 
-DEVICE_EXTERNAL inline size_t __spirv_LocalInvocationId_x() {
+static inline size_t __spirv_LocalInvocationId_x() {
   return __spirv_BuiltInLocalInvocationId.x;
 }
-DEVICE_EXTERNAL inline size_t __spirv_LocalInvocationId_y() {
+static inline size_t __spirv_LocalInvocationId_y() {
   return __spirv_BuiltInLocalInvocationId.y;
 }
-DEVICE_EXTERNAL inline size_t __spirv_LocalInvocationId_z() {
+static inline size_t __spirv_LocalInvocationId_z() {
   return __spirv_BuiltInLocalInvocationId.z;
 }
 
