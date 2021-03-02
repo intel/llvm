@@ -254,9 +254,10 @@ void program_impl::build_with_kernel_name(string_class KernelName,
   MProgramModuleHandle = Module;
   if (!is_host()) {
     MProgramAndKernelCachingAllowed = true;
+    MBuildOptions = BuildOptions;
     MProgram = ProgramManager::getInstance().getBuiltPIProgram(
         Module, get_context(), get_devices()[0], KernelName, this,
-        /*JITCompilationIsRequired=*/(!BuildOptions.empty()), BuildOptions);
+        /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
     const detail::plugin &Plugin = getPlugin();
     Plugin.call<PiApiKind::piProgramRetain>(MProgram);
   }

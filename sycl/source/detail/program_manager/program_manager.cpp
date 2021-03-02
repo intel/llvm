@@ -349,7 +349,7 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
 RT::PiProgram ProgramManager::getBuiltPIProgram(
     OSModuleHandle M, const context &Context, const device &Device,
     const string_class &KernelName, const program_impl *Prg,
-    bool JITCompilationIsRequired, const string_class &BuildOptions) {
+    bool JITCompilationIsRequired) {
   KernelSetId KSId = getKernelSetId(M, KernelName);
 
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
@@ -365,7 +365,9 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
   auto GetF = [](const Locked<ProgramCacheT> &LockedCache) -> ProgramCacheT & {
     return LockedCache.get();
   };
-
+  string_class BuildOptions;
+  if (Prg)
+    BuildOptions = Prg->get_build_options();
   const RTDeviceBinaryImage &Img =
       getDeviceImage(M, KSId, Context, Device, JITCompilationIsRequired);
   std::string CompileOpts = Img.getCompileOptions();

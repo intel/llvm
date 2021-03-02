@@ -89,8 +89,7 @@ public:
                                   const device &Device,
                                   const string_class &KernelName,
                                   const program_impl *Prg = nullptr,
-                                  bool JITCompilationIsRequired = false,
-                                  const string_class &BuildOptions = "");
+                                  bool JITCompilationIsRequired = false);
   std::pair<RT::PiKernel, std::mutex *>
   getOrCreateKernel(OSModuleHandle M, const context &Context,
                     const device &Device, const string_class &KernelName,
