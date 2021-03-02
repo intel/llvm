@@ -1,9 +1,8 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -std=c++17 -sycl-std=2020 -fsycl -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -internal-isystem %S/Inputs -std=c++17 -sycl-std=2020 -fsycl -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 
-template <typename KernelName, typename KernelType>
-[[clang::sycl_kernel]] void kernel_single_task(const KernelType &kernelFunc) {
-  kernelFunc();
-}
+#include <sycl.hpp>
+
+using namespace cl::sycl;
 
 struct A {
   int a = 0;
