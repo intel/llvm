@@ -44,7 +44,7 @@ int main() {
   deviceNum = std::atoi(envVal);
 
   auto devices = device::get_devices();
-  if (devices.size() >= deviceNum) {
+  if (devices.size() > deviceNum) {
     device targetDevice = devices[deviceNum];
     std::cout << "Target Device: ";
     printDeviceType(targetDevice);
