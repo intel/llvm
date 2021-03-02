@@ -36,6 +36,18 @@ int main() {
   KernelFunctor<1>();
 }
 
+[[intel::no_global_work_offset]] void func3 ();
+[[intel::no_global_work_offset(1)]] void func3() {} // OK
+
+[[intel::no_global_work_offset(0)]] void func4(); // expected-note {{previous attribute is here}}
+[[intel::no_global_work_offset]] void func4();    // expected-warning{{attribute 'no_global_work_offset' is already applied with different parameters}}
+
+[[intel::no_global_work_offset(1)]] void func5();
+[[intel::no_global_work_offset(1)]] void func5() {} // OK
+
+[[intel::no_global_work_offset(0)]] void func6(); // expected-note {{previous attribute is here}}
+[[intel::no_global_work_offset(1)]] void func6(); // expected-warning{{attribute 'no_global_work_offset' is already applied with different parameters}}
+
 // CHECK: ClassTemplateDecl {{.*}} {{.*}} KernelFunctor
 // CHECK: ClassTemplateSpecializationDecl {{.*}} {{.*}} class KernelFunctor definition
 // CHECK: CXXRecordDecl {{.*}} {{.*}} implicit class KernelFunctor
@@ -48,14 +60,20 @@ int main() {
 
 // Test that checks template parameter suppport on function.
 template <int N>
-[[intel::no_global_work_offset(N)]] void func3() {}
+[[intel::no_global_work_offset(N)]] void func6() {}
+
+template <int N>
+[[intel::no_global_work_offset(0)]] void func7();   // expected-note {{previous attribute is here}}
+template <int N>
+[[intel::no_global_work_offset(N)]] void func7() {} // expected-warning {{attribute 'no_global_work_offset' is already applied with different parameters}}
 
 int check() {
-  func3<1>();
+  func6<1>();
+  func7<1>(); //expected-note {{in instantiation of function template specialization 'func7<1>' requested here}}
   return 0;
 }
 
-// CHECK: FunctionDecl {{.*}} {{.*}} func3 'void ()'
+// CHECK: FunctionDecl {{.*}} {{.*}} func6 'void ()'
 // CHECK: TemplateArgument integral 1
 // CHECK: SYCLIntelNoGlobalWorkOffsetAttr {{.*}}
 // CHECK-NEXT: ConstantExpr {{.*}} 'int'
