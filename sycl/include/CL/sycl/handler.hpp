@@ -739,11 +739,29 @@ private:
     !defined(DPCPP_HOST_DEVICE_OPENMP) &&                                      \
     !defined(DPCPP_HOST_DEVICE_PERF_NATIVE) && SYCL_LANGUAGE_VERSION >= 202001
     // Range should be a multiple of this for reasonable performance.
-    constexpr size_t MinFactorX = 16;
+    size_t MinFactorX = 16;
     // Range should be a multiple of this for improved performance.
-    constexpr size_t GoodFactorX = 32;
+    size_t GoodFactorX = 32;
     // Range should be at least this to make rounding worthwhile.
-    constexpr size_t MinRangeX = 1024;
+    size_t MinRangeX = 1024;
+
+    // Parse optional parameters of this form:
+    // MinRound:PreferredRound:MinRange
+    char *RoundParams = getenv("SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS");
+    if (RoundParams != nullptr) {
+      std::string Params(RoundParams);
+      size_t Pos = Params.find(':');
+      if (Pos != std::string::npos) {
+        MinFactorX = std::stoi(Params.substr(0, Pos));
+        Params.erase(0, Pos + 1);
+        Pos = Params.find(':');
+        if (Pos != std::string::npos) {
+          GoodFactorX = std::stoi(Params.substr(0, Pos));
+          Params.erase(0, Pos + 1);
+          MinRangeX = std::stoi(Params);
+        }
+      }
+    }
 
     // Disable the rounding-up optimizations under these conditions:
     // 1. The env var SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING is set.
@@ -776,7 +794,7 @@ private:
     // Perform range rounding if rounding-up is enabled
     // and there are sufficient work-items to need rounding
     // and the user-specified range is not a multiple of a "good" value.
-    if (!DisableRounding && (NumWorkItems[0] > MinRangeX) &&
+    if (!DisableRounding && (NumWorkItems[0] >= MinRangeX) &&
         (NumWorkItems[0] % MinFactorX != 0)) {
       // It is sufficient to round up just the first dimension.
       // Multiplying the rounded-up value of the first dimension
