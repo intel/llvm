@@ -18,6 +18,7 @@
 #include <CL/sycl/stl.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
+#include <detail/device_image_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/program_impl.hpp>
@@ -344,6 +345,13 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
               << "; image format: " << getFormatStr(Format) << "\n";
 
   return Res;
+}
+
+std::unordered_map<
+    KernelSetId,
+    std::unique_ptr<std::vector<ProgramManager::RTDeviceBinaryImageUPtr>>> &
+ProgramManager::GetDeviceImages() {
+  return m_DeviceImages;
 }
 
 RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
@@ -1116,6 +1124,100 @@ ProgramManager::KernelArgMask ProgramManager::getEliminatedKernelArgMask(
   if (MapIt != m_EliminatedKernelArgMasks.end())
     return MapIt->second[KernelName];
   return {};
+}
+
+static bundle_state getBinImageState(RTDeviceBinaryImage *BinImage) {
+  auto IsAOTBinary = [](const char *Format) {
+    if ((strcmp(Format, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
+        (strcmp(Format, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
+        (strcmp(Format, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0))
+      return true;
+    return false;
+  };
+
+  // There are only two initial states so far - SPIRV which needs to be compiled
+  // and linked and fully compiled(AOTed) binary
+
+  const bool IsAOT = IsAOTBinary(BinImage->getRawData().DeviceTargetSpec);
+
+  return IsAOT ? sycl::bundle_state::executable : sycl::bundle_state::input;
+}
+
+static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
+                                const device &Dev) {
+  const std::shared_ptr<detail::device_impl> &DeviceImpl =
+      detail::getSyclObjImpl(Dev);
+  auto &Plugin = DeviceImpl->getPlugin();
+
+  const RT::PiDevice &PIDeviceHandle = DeviceImpl->getHandleRef();
+
+  // Call piextDeviceSelectBinary with only one image to check if an image is
+  // compatible with implementation. The function returns invalid index if no
+  // device images are compatible.
+  pi_uint32 SuitableImageID = 42;
+  pi_device_binary DevBin =
+      const_cast<pi_device_binary>(&BinImage->getRawData());
+  Plugin.call<PiApiKind::piextDeviceSelectBinary>(PIDeviceHandle, &DevBin,
+                                                  /*Image size = */ (cl_uint)1,
+                                                  &SuitableImageID);
+  const bool Compatible = (0 == SuitableImageID);
+
+  return Compatible;
+}
+
+std::vector<device_image_plain>
+ProgramManager::getSYCLDeviceImages(const context &Ctx,
+                                    const std::vector<device> &Devs,
+                                    bundle_state TargetState) {
+
+  // Collect raw device images
+  std::vector<RTDeviceBinaryImage *> BinImages;
+  {
+    std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
+    for (auto &ImagesSets : m_DeviceImages) {
+      auto &ImagesUPtrs = *ImagesSets.second.get();
+      for (auto &ImageUPtr : ImagesUPtrs)
+        BinImages.push_back(ImageUPtr.get());
+    }
+  }
+
+  // Create SYCL device image from those that have compatible with state and at
+  // least one device
+  std::vector<device_image_plain> SYCLDeviceImages;
+  for (RTDeviceBinaryImage *BinImage : BinImages) {
+    const bundle_state ImgState = getBinImageState(BinImage);
+    // Ignore images with incompatible state - image is in "executable" state
+    // while kernel_bundle needs to be in "input" state
+    if (ImgState > TargetState)
+      continue;
+
+    for (const sycl::device &Dev : Devs)
+      if (compatibleWithDevice(BinImage, Dev)) {
+        DeviceImageImplPtr Impl = std::make_shared<detail::device_image_impl>(
+            BinImage, Ctx, Devs, ImgState);
+
+        SYCLDeviceImages.push_back(
+            createSyclObjFromImpl<device_image_plain>(Impl));
+        break;
+      }
+  }
+
+  // Make so SYCL device images have required state by compiling or linking
+  // them if needed
+  switch (TargetState) {
+  case bundle_state::input:
+    // Do nothing as the check above should make sure that resulting images are
+    // in input state already
+    break;
+  case bundle_state::object:
+    assert(false && "Not implemented yet");
+    break;
+  case bundle_state::executable:
+    assert(false && "Not implemented yet");
+    break;
+  }
+
+  return SYCLDeviceImages;
 }
 
 } // namespace detail
