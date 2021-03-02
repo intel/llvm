@@ -22,7 +22,7 @@ __SPIRV_VAR_QUALIFIERS size_t __spirv_BuiltInGlobalLinearId;
 __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInWorkgroupId;
 __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInWorkgroupSize;
 
-#define ITT_STUB_ATTRIBUTES __attribute__((noinline,optnone))
+#define ITT_STUB_ATTRIBUTES __attribute__((noinline, optnone))
 
 // FIXME: must be enabled via -fdeclare-spirv-builtins
 DEVICE_EXTERN_C char __spirv_SpecConstant(int, char);
@@ -45,16 +45,14 @@ void __itt_spirv_wi_resume_wrapper();
 
 // Non-inlinable and non-optimizable APIs that are recognized
 // by profiling tools.
-DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES
-void __itt_spirv_wi_start_stub(
-    size_t *group_id, size_t wi_id, uint32_t wg_size);
-DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES
-void __itt_spirv_wi_finish_stub(
-    size_t *group_id, size_t wi_id);
-DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES
-void __itt_spirv_wg_barrier_stub(uintptr_t barrier_id);
-DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES
-void __itt_spirv_wi_resume_stub(size_t* group_id, size_t wi_id);
+DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES void
+__itt_spirv_wi_start_stub(size_t *group_id, size_t wi_id, uint32_t wg_size);
+DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES void
+__itt_spirv_wi_finish_stub(size_t *group_id, size_t wi_id);
+DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES void
+__itt_spirv_wg_barrier_stub(uintptr_t barrier_id);
+DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES void
+__itt_spirv_wi_resume_stub(size_t *group_id, size_t wi_id);
 
 #endif // __SPIR__
 #endif // __LIBDEVICE_DEVICE_ITT_H__

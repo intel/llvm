@@ -20,7 +20,8 @@ void __itt_spirv_wi_start_wrapper() {
                        __spirv_BuiltInWorkgroupId.z};
   size_t WIID = __spirv_BuiltInGlobalLinearId;
   uint32_t WGSize = static_cast<uint32_t>(__spirv_BuiltInWorkgroupSize.x *
-      __spirv_BuiltInWorkgroupSize.y * __spirv_BuiltInWorkgroupSize.z);
+                                          __spirv_BuiltInWorkgroupSize.y *
+                                          __spirv_BuiltInWorkgroupSize.z);
   __itt_spirv_wi_start_stub(GroupID, WIID, WGSize);
 }
 

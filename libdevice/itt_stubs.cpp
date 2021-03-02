@@ -10,18 +10,16 @@
 
 #ifdef __SPIR__
 
-DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES
-void __itt_spirv_wi_start_stub(
-    size_t *group_id, size_t wi_id, uint32_t wg_size) {}
+DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES void
+__itt_spirv_wi_start_stub(size_t *group_id, size_t wi_id, uint32_t wg_size) {}
 
-DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES
-void __itt_spirv_wi_finish_stub(
-    size_t *group_id, size_t wi_id) {}
+DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES void
+__itt_spirv_wi_finish_stub(size_t *group_id, size_t wi_id) {}
 
-DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES
-void __itt_spirv_wg_barrier_stub(uintptr_t barrier_id) {}
+DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES void
+__itt_spirv_wg_barrier_stub(uintptr_t barrier_id) {}
 
-DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES
-void __itt_spirv_wi_resume_stub(size_t* group_id, size_t wi_id) {}
+DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES void
+__itt_spirv_wi_resume_stub(size_t *group_id, size_t wi_id) {}
 
 #endif // __SPIR__
