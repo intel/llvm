@@ -119,7 +119,8 @@ SPIRVToLLVMDbgTran::transCompileUnit(const SPIRVExtInst *DebugInst) {
   SPIRVId FileId = Source->getArguments()[SPIRVDebug::Operand::Source::FileIdx];
   std::string File = getString(FileId);
   unsigned SourceLang = Ops[LanguageIdx];
-  CU = Builder.createCompileUnit(SourceLang, getDIFile(File), "spirv", false,
+  auto Producer = findModuleProducer();
+  CU = Builder.createCompileUnit(SourceLang, getDIFile(File), Producer, false,
                                  "", 0);
   return CU;
 }
@@ -998,6 +999,16 @@ SPIRVToLLVMDbgTran::SplitFileName::SplitFileName(const string &FileName) {
     BaseName = FileName;
     Path = ".";
   }
+}
+
+std::string SPIRVToLLVMDbgTran::findModuleProducer() {
+  for (const auto &I : BM->getModuleProcessedVec()) {
+    if (I->getProcessStr().find(SPIRVDebug::ProducerPrefix) !=
+        std::string::npos) {
+      return I->getProcessStr().substr(SPIRVDebug::ProducerPrefix.size());
+    }
+  }
+  return "spirv";
 }
 
 } // namespace SPIRV

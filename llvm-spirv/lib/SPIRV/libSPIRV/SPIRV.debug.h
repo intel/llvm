@@ -6,6 +6,7 @@
 namespace SPIRVDebug {
 
 const unsigned int DebugInfoVersion = 0x00010000;
+static const std::string ProducerPrefix = {"Debug info producer: "};
 
 // clang-format off
 
