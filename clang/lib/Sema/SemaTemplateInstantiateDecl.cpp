@@ -640,7 +640,7 @@ static void instantiateSYCLIntelLoopFuseAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.addSYCLIntelLoopFuseAttr(New, *Attr, Result.getAs<Expr>());
+    S.AddSYCLIntelLoopFuseAttr(New, *Attr, Result.getAs<Expr>());
 }
 
 static void instantiateIntelReqdSubGroupSize(

@@ -983,10 +983,14 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
 
   if (getLangOpts().SYCLIsDevice && D) {
     if (const auto *A = D->getAttr<SYCLIntelLoopFuseAttr>()) {
-      Expr *E = A->getValue();
+      const Expr *Arg = A->getValue();
+      assert(Arg && "Got an unexpected null argument");
+      const auto *CE = dyn_cast<ConstantExpr>(Arg);
+      assert(CE && "Not an integer constant expression");
+      Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
       llvm::Metadata *AttrMDArgs[] = {
-          llvm::ConstantAsMetadata::get(Builder.getInt32(
-              E->getIntegerConstantExpr(D->getASTContext())->getZExtValue())),
+	  llvm::ConstantAsMetadata::get(
+              Builder.getInt32(ArgVal->getZExtValue())),
           llvm::ConstantAsMetadata::get(
               A->isIndependent() ? Builder.getInt32(1) : Builder.getInt32(0))};
       Fn->setMetadata("loop_fuse",
