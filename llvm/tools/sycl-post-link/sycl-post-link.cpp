@@ -802,7 +802,7 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
 
   {
     // Reuse input module with only regular SYCL kernels if there were
-    // no spec constants and no splitting.
+    // no spec constants, no splitting and no instrumentation calls.
     // We cannot reuse input module for ESIMD code since it was transformed.
     bool CanReuseInputModule = !SpecConstsMet && (ResultModules.size() == 1) &&
                                !SyclAndEsimdKernels && !IsEsimd &&

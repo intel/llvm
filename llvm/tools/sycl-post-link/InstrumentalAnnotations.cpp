@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // A transformation pass which adds instrumental calls to annotate SYCL
-// synchronization instrucations. This can be used for kernel profiling.
+// synchronization instructions. This can be used for kernel profiling.
 //===----------------------------------------------------------------------===//
 
 #include "InstrumentalAnnotations.h"
