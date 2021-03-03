@@ -603,7 +603,7 @@ MDNode *SPIRVToLLVMDbgTran::transGlobalVariable(const SPIRVExtInst *DebugInst) {
     // replaceAllUsesWith call makes VarDecl non-temp.
     // Otherwise DIBuilder will crash at finalization.
     llvm::TempMDNode TMP(VarDecl);
-    Builder.replaceTemporary(std::move(TMP), VarDecl);
+    VarDecl = Builder.replaceTemporary(std::move(TMP), VarDecl);
   }
   // If the variable has no initializer Ops[VariableIdx] is OpDebugInfoNone.
   // Otherwise Ops[VariableIdx] may be a global variable or a constant(C++
