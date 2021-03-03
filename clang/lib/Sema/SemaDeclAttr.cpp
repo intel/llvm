@@ -3501,8 +3501,8 @@ void Sema::AddSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
   D->addAttr(::new (Context) SYCLIntelLoopFuseAttr(Context, CI, E));
 }
 
-SYCLIntelLoopFuseAttr *Sema::MergeSYCLIntelLoopFuseAttr(
-    Decl *D, const SYCLIntelLoopFuseAttr &A) {
+SYCLIntelLoopFuseAttr *
+Sema::MergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &A) {
   // Check to see if there's a duplicate attribute with different values
   // already applied to the declaration.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelLoopFuseAttr>()) {
@@ -3527,12 +3527,10 @@ SYCLIntelLoopFuseAttr *Sema::MergeSYCLIntelLoopFuseAttr(
     }
   }
 
-  return ::new (Context)
-      SYCLIntelLoopFuseAttr(Context, A, A.getValue());
+  return ::new (Context) SYCLIntelLoopFuseAttr(Context, A, A.getValue());
 }
 
-static void handleSYCLIntelLoopFuseAttr(Sema &S, Decl *D,
-                                                  const ParsedAttr &A) {
+static void handleSYCLIntelLoopFuseAttr(Sema &S, Decl *D, const ParsedAttr &A) {
   S.CheckDeprecatedSYCLAttributeSpelling(A);
 
   // If no attribute argument is specified, set to default value '1'.

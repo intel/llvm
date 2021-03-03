@@ -10231,9 +10231,9 @@ public:
   SYCLIntelNoGlobalWorkOffsetAttr *MergeSYCLIntelNoGlobalWorkOffsetAttr(
       Decl *D, const SYCLIntelNoGlobalWorkOffsetAttr &A);
   void AddSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
-		                Expr *E);
-  SYCLIntelLoopFuseAttr *MergeSYCLIntelLoopFuseAttr(
-      Decl *D, const SYCLIntelLoopFuseAttr &A);
+                                Expr *E);
+  SYCLIntelLoopFuseAttr *
+  MergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &A);
 
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,

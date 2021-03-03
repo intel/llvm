@@ -989,7 +989,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       assert(CE && "Not an integer constant expression");
       Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
       llvm::Metadata *AttrMDArgs[] = {
-	  llvm::ConstantAsMetadata::get(
+          llvm::ConstantAsMetadata::get(
               Builder.getInt32(ArgVal->getZExtValue())),
           llvm::ConstantAsMetadata::get(
               A->isIndependent() ? Builder.getInt32(1) : Builder.getInt32(0))};
