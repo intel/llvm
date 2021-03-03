@@ -1248,7 +1248,7 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
   if ((F.getCallingConv() != CallingConv::SPIR_KERNEL) &&
       !F.hasFnAttribute(Attribute::AlwaysInline))
     F.addFnAttr(Attribute::AlwaysInline);
-  
+
   SmallVector<CallInst *, 32> ESIMDIntrCalls;
   SmallVector<Instruction *, 8> ESIMDToErases;
 
