@@ -42,8 +42,11 @@ enum InternalOp {
 };
 
 enum InternalCapability {
-  ICapOptimizationHintsINTEL = 5629
+  ICapOptimizationHintsINTEL = 5629,
+  ICapOptNoneINTEL = 6094
 };
+
+enum InternalFunctionControlMask { IFunctionControlOptNoneINTELMask = 0x10000 };
 
 constexpr LinkageType LinkageTypeInternal =
     static_cast<LinkageType>(ILTInternal);
@@ -54,6 +57,11 @@ constexpr Op OpExpectINTEL = static_cast<Op>(IOpExpectINTEL);
 
 constexpr Capability CapabilityOptimizationHintsINTEL =
     static_cast<Capability>(ICapOptimizationHintsINTEL);
+constexpr Capability CapabilityOptNoneINTEL =
+    static_cast<Capability>(ICapOptNoneINTEL);
+
+constexpr FunctionControlMask FunctionControlOptNoneINTELMask =
+    static_cast<FunctionControlMask>(IFunctionControlOptNoneINTELMask);
 
 } // namespace internal
 } // namespace spv

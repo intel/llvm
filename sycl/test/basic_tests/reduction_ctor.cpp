@@ -10,6 +10,10 @@
 
 using namespace cl::sycl;
 
+bool toBool(bool V) { return V; }
+bool toBool(vec<int, 2> V) { return V.x() && V.y(); }
+bool toBool(vec<int, 4> V) { return V.x() && V.y() && V.z() && V.w(); }
+
 template <typename T, typename Reduction>
 void test_reducer(Reduction &Redu, T A, T B) {
   typename Reduction::reducer_type Reducer;
@@ -29,7 +33,7 @@ void test_reducer(Reduction &Redu, T Identity, BinaryOperation BOp, T A, T B) {
   Reducer.combine(B);
 
   T ExpectedValue = BOp(A, B);
-  assert(ExpectedValue == Reducer.MValue &&
+  assert(toBool(ExpectedValue == Reducer.MValue) &&
          "Wrong result of binary operation.");
 }
 
@@ -40,6 +44,7 @@ template <typename SpecializationKernelName, typename T, int Dim,
 void testKnown(T Identity, BinaryOperation BOp, T A, T B) {
   buffer<T, 1> ReduBuf(1);
 
+  static_assert(has_known_identity<BinaryOperation, T>::value);
   queue Q;
   Q.submit([&](handler &CGH) {
     // Reduction needs a global_buffer accessor as a parameter.
@@ -47,7 +52,9 @@ void testKnown(T Identity, BinaryOperation BOp, T A, T B) {
     accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
         ReduAcc(ReduBuf, CGH);
     auto Redu = ONEAPI::reduction(ReduAcc, BOp);
-    assert(Redu.getIdentity() == Identity && "Failed getIdentity() check().");
+    assert(toBool(Redu.getIdentity() == Identity) &&
+           toBool(known_identity<BinaryOperation, T>::value == Identity) &&
+           "Failed getIdentity() check().");
     test_reducer(Redu, A, B);
     test_reducer(Redu, Identity, BOp, A, B);
 
@@ -67,7 +74,8 @@ void testUnknown(T Identity, BinaryOperation BOp, T A, T B) {
     accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
         ReduAcc(ReduBuf, CGH);
     auto Redu = ONEAPI::reduction(ReduAcc, Identity, BOp);
-    assert(Redu.getIdentity() == Identity && "Failed getIdentity() check().");
+    bool IsCorrectVal = toBool(Redu.getIdentity() == Identity);
+    assert(IsCorrectVal && "Failed getIdentity() check().");
     test_reducer(Redu, Identity, BOp, A, B);
 
     // Command group must have at least one task in it. Use an empty one.
@@ -123,6 +131,16 @@ int main() {
 
   testUnknown<class KernelName_zhF, int, 0>(
       0, [](auto a, auto b) { return a | b; }, 1, 8);
+
+  int2 IdentityI2 = {0, 0};
+  int2 AI2 = {1, 2};
+  int2 BI2 = {7, 13};
+  testUnknown<class KNI2, int2, 0>(IdentityI2, ONEAPI::plus<int2>(), AI2, BI2);
+
+  float4 IdentityF4 = {0, 0, 0, 0};
+  float4 AF4 = {1, 2, -1, -34};
+  float4 BF4 = {7, 13, 0, 35};
+  testUnknown<class KNF4, float4, 0>(IdentityF4, ONEAPI::plus<>(), AF4, BF4);
 
   std::cout << "Test passed\n";
   return 0;

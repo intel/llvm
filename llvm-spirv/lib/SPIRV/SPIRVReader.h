@@ -122,8 +122,7 @@ public:
   Instruction *transBuiltinFromInst(const std::string &FuncName,
                                     SPIRVInstruction *BI, BasicBlock *BB);
   Instruction *transOCLBuiltinFromInst(SPIRVInstruction *BI, BasicBlock *BB);
-  Instruction *transSPIRVBuiltinFromInst(SPIRVInstruction *BI, BasicBlock *BB,
-                                         bool AddRetTypePostfix = false);
+  Instruction *transSPIRVBuiltinFromInst(SPIRVInstruction *BI, BasicBlock *BB);
   void transOCLVectorLoadStore(std::string &UnmangledName,
                                std::vector<SPIRVWord> &BArgs);
 

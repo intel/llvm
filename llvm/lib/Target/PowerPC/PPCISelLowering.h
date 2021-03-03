@@ -961,7 +961,7 @@ namespace llvm {
     /// Is unaligned memory access allowed for the given type, and is it fast
     /// relative to software emulation.
     bool allowsMisalignedMemoryAccesses(
-        EVT VT, unsigned AddrSpace, unsigned Align = 1,
+        EVT VT, unsigned AddrSpace, Align Alignment = Align(1),
         MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
         bool *Fast = nullptr) const override;
 
@@ -986,6 +986,9 @@ namespace llvm {
     bool
     shouldExpandBuildVectorWithShuffles(EVT VT,
                                         unsigned DefinedValues) const override;
+
+    // Keep the zero-extensions for arguments to libcalls.
+    bool shouldKeepZExtForFP16Conv() const override { return true; }
 
     /// createFastISel - This method returns a target-specific FastISel object,
     /// or null if the target does not support "fast" instruction selection.

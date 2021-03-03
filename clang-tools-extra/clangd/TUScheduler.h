@@ -151,11 +151,11 @@ public:
   /// in this callback (obtained via ParsedAST::getLocalTopLevelDecls) to obtain
   /// optimal performance.
   ///
-  /// When information about the file (diagnostics, syntax highlighting) is
+  /// When information about the file (e.g. diagnostics) is
   /// published to clients, this should be wrapped in Publish, e.g.
   ///   void onMainAST(...) {
-  ///     Highlights = computeHighlights();
-  ///     Publish([&] { notifyHighlights(Path, Highlights); });
+  ///     Diags = renderDiagnostics();
+  ///     Publish([&] { notifyDiagnostics(Path, Diags); });
   ///   }
   /// This guarantees that clients will see results in the correct sequence if
   /// the file is concurrently closed and/or reopened. (The lambda passed to
@@ -195,10 +195,6 @@ public:
 
     /// Determines when to keep idle ASTs in memory for future use.
     ASTRetentionPolicy RetentionPolicy;
-
-    /// Whether to run PreamblePeer asynchronously.
-    /// No-op if AsyncThreadsCount is 0.
-    bool AsyncPreambleBuilds = true;
 
     /// Used to create a context that wraps each single operation.
     /// Typically to inject per-file configuration.

@@ -11,6 +11,7 @@
 #include "CL/sycl/ONEAPI/accessor_property_list.hpp"
 #include <CL/sycl/ONEAPI/group_algorithm.hpp>
 #include <CL/sycl/accessor.hpp>
+#include <CL/sycl/atomic.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/kernel.hpp>
 
@@ -22,121 +23,103 @@ namespace ONEAPI {
 
 namespace detail {
 
+using cl::sycl::detail::bool_constant;
+using cl::sycl::detail::enable_if_t;
+using cl::sycl::detail::is_sgenfloat;
+using cl::sycl::detail::is_sgeninteger;
 using cl::sycl::detail::queue_impl;
+using cl::sycl::detail::remove_AS;
 
 __SYCL_EXPORT size_t reduGetMaxWGSize(shared_ptr_class<queue_impl> Queue,
                                       size_t LocalMemBytesPerWorkItem);
 __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
                                        size_t &NWorkGroups);
 
-using cl::sycl::detail::bool_constant;
-using cl::sycl::detail::enable_if_t;
-using cl::sycl::detail::is_geninteger16bit;
-using cl::sycl::detail::is_geninteger32bit;
-using cl::sycl::detail::is_geninteger64bit;
-using cl::sycl::detail::is_geninteger8bit;
-using cl::sycl::detail::remove_AS;
+template <typename T, class BinaryOperation>
+using IsReduPlus =
+    bool_constant<std::is_same<BinaryOperation, ONEAPI::plus<T>>::value ||
+                  std::is_same<BinaryOperation, ONEAPI::plus<void>>::value>;
 
 template <typename T, class BinaryOperation>
-using IsReduPlus = detail::bool_constant<
-    std::is_same<BinaryOperation, ONEAPI::plus<T>>::value ||
-    std::is_same<BinaryOperation, ONEAPI::plus<void>>::value>;
+using IsReduMultiplies =
+    bool_constant<std::is_same<BinaryOperation, std::multiplies<T>>::value ||
+                  std::is_same<BinaryOperation, std::multiplies<void>>::value>;
 
 template <typename T, class BinaryOperation>
-using IsReduMultiplies = detail::bool_constant<
-    std::is_same<BinaryOperation, std::multiplies<T>>::value ||
-    std::is_same<BinaryOperation, std::multiplies<void>>::value>;
+using IsReduMinimum =
+    bool_constant<std::is_same<BinaryOperation, ONEAPI::minimum<T>>::value ||
+                  std::is_same<BinaryOperation, ONEAPI::minimum<void>>::value>;
 
 template <typename T, class BinaryOperation>
-using IsReduMinimum = detail::bool_constant<
-    std::is_same<BinaryOperation, ONEAPI::minimum<T>>::value ||
-    std::is_same<BinaryOperation, ONEAPI::minimum<void>>::value>;
+using IsReduMaximum =
+    bool_constant<std::is_same<BinaryOperation, ONEAPI::maximum<T>>::value ||
+                  std::is_same<BinaryOperation, ONEAPI::maximum<void>>::value>;
 
 template <typename T, class BinaryOperation>
-using IsReduMaximum = detail::bool_constant<
-    std::is_same<BinaryOperation, ONEAPI::maximum<T>>::value ||
-    std::is_same<BinaryOperation, ONEAPI::maximum<void>>::value>;
+using IsReduBitOR =
+    bool_constant<std::is_same<BinaryOperation, ONEAPI::bit_or<T>>::value ||
+                  std::is_same<BinaryOperation, ONEAPI::bit_or<void>>::value>;
 
 template <typename T, class BinaryOperation>
-using IsReduBitOR = detail::bool_constant<
-    std::is_same<BinaryOperation, ONEAPI::bit_or<T>>::value ||
-    std::is_same<BinaryOperation, ONEAPI::bit_or<void>>::value>;
+using IsReduBitXOR =
+    bool_constant<std::is_same<BinaryOperation, ONEAPI::bit_xor<T>>::value ||
+                  std::is_same<BinaryOperation, ONEAPI::bit_xor<void>>::value>;
 
 template <typename T, class BinaryOperation>
-using IsReduBitXOR = detail::bool_constant<
-    std::is_same<BinaryOperation, ONEAPI::bit_xor<T>>::value ||
-    std::is_same<BinaryOperation, ONEAPI::bit_xor<void>>::value>;
-
-template <typename T, class BinaryOperation>
-using IsReduBitAND = detail::bool_constant<
-    std::is_same<BinaryOperation, ONEAPI::bit_and<T>>::value ||
-    std::is_same<BinaryOperation, ONEAPI::bit_and<void>>::value>;
+using IsReduBitAND =
+    bool_constant<std::is_same<BinaryOperation, ONEAPI::bit_and<T>>::value ||
+                  std::is_same<BinaryOperation, ONEAPI::bit_and<void>>::value>;
 
 template <typename T, class BinaryOperation>
 using IsReduOptForFastAtomicFetch =
-    detail::bool_constant<(is_geninteger32bit<T>::value ||
-                           is_geninteger64bit<T>::value) &&
-                          (IsReduPlus<T, BinaryOperation>::value ||
-                           IsReduMinimum<T, BinaryOperation>::value ||
-                           IsReduMaximum<T, BinaryOperation>::value ||
-                           IsReduBitOR<T, BinaryOperation>::value ||
-                           IsReduBitXOR<T, BinaryOperation>::value ||
-                           IsReduBitAND<T, BinaryOperation>::value)>;
+    bool_constant<is_sgeninteger<T>::value &&
+                  sycl::detail::IsValidAtomicType<T>::value &&
+                  (IsReduPlus<T, BinaryOperation>::value ||
+                   IsReduMinimum<T, BinaryOperation>::value ||
+                   IsReduMaximum<T, BinaryOperation>::value ||
+                   IsReduBitOR<T, BinaryOperation>::value ||
+                   IsReduBitXOR<T, BinaryOperation>::value ||
+                   IsReduBitAND<T, BinaryOperation>::value)>;
 
 template <typename T, class BinaryOperation>
-using IsReduOptForFastReduce = detail::bool_constant<
-    (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value ||
-     std::is_same<T, half>::value || std::is_same<T, float>::value ||
-     std::is_same<T, double>::value) &&
-    (IsReduPlus<T, BinaryOperation>::value ||
-     IsReduMinimum<T, BinaryOperation>::value ||
-     IsReduMaximum<T, BinaryOperation>::value)>;
+using IsReduOptForFastReduce =
+    bool_constant<((is_sgeninteger<T>::value &&
+                    (sizeof(T) == 32 || sizeof(T) == 64)) ||
+                   is_sgenfloat<T>::value) &&
+                  (IsReduPlus<T, BinaryOperation>::value ||
+                   IsReduMinimum<T, BinaryOperation>::value ||
+                   IsReduMaximum<T, BinaryOperation>::value)>;
 
 // Identity = 0
 template <typename T, class BinaryOperation>
 using IsZeroIdentityOp = bool_constant<
-    ((is_geninteger8bit<T>::value || is_geninteger16bit<T>::value ||
-      is_geninteger32bit<T>::value || is_geninteger64bit<T>::value) &&
-     (IsReduPlus<T, BinaryOperation>::value ||
-      IsReduBitOR<T, BinaryOperation>::value ||
-      IsReduBitXOR<T, BinaryOperation>::value)) ||
-    ((std::is_same<T, half>::value || std::is_same<T, float>::value ||
-      std::is_same<T, double>::value) &&
-     IsReduPlus<T, BinaryOperation>::value)>;
+    (is_sgeninteger<T>::value && (IsReduPlus<T, BinaryOperation>::value ||
+                                  IsReduBitOR<T, BinaryOperation>::value ||
+                                  IsReduBitXOR<T, BinaryOperation>::value)) ||
+    (is_sgenfloat<T>::value && IsReduPlus<T, BinaryOperation>::value)>;
 
 // Identity = 1
 template <typename T, class BinaryOperation>
-using IsOneIdentityOp = bool_constant<
-    (is_geninteger8bit<T>::value || is_geninteger16bit<T>::value ||
-     is_geninteger32bit<T>::value || is_geninteger64bit<T>::value ||
-     std::is_same<T, half>::value || std::is_same<T, float>::value ||
-     std::is_same<T, double>::value) &&
-    IsReduMultiplies<T, BinaryOperation>::value>;
+using IsOneIdentityOp =
+    bool_constant<(is_sgeninteger<T>::value || is_sgenfloat<T>::value) &&
+                  IsReduMultiplies<T, BinaryOperation>::value>;
 
 // Identity = ~0
 template <typename T, class BinaryOperation>
-using IsOnesIdentityOp = bool_constant<
-    (is_geninteger8bit<T>::value || is_geninteger16bit<T>::value ||
-     is_geninteger32bit<T>::value || is_geninteger64bit<T>::value) &&
-    IsReduBitAND<T, BinaryOperation>::value>;
+using IsOnesIdentityOp = bool_constant<is_sgeninteger<T>::value &&
+                                       IsReduBitAND<T, BinaryOperation>::value>;
 
 // Identity = <max possible value>
 template <typename T, class BinaryOperation>
-using IsMinimumIdentityOp = bool_constant<
-    (is_geninteger8bit<T>::value || is_geninteger16bit<T>::value ||
-     is_geninteger32bit<T>::value || is_geninteger64bit<T>::value ||
-     std::is_same<T, half>::value || std::is_same<T, float>::value ||
-     std::is_same<T, double>::value) &&
-    IsReduMinimum<T, BinaryOperation>::value>;
+using IsMinimumIdentityOp =
+    bool_constant<(is_sgeninteger<T>::value || is_sgenfloat<T>::value) &&
+                  IsReduMinimum<T, BinaryOperation>::value>;
 
 // Identity = <min possible value>
 template <typename T, class BinaryOperation>
-using IsMaximumIdentityOp = bool_constant<
-    (is_geninteger8bit<T>::value || is_geninteger16bit<T>::value ||
-     is_geninteger32bit<T>::value || is_geninteger64bit<T>::value ||
-     std::is_same<T, half>::value || std::is_same<T, float>::value ||
-     std::is_same<T, double>::value) &&
-    IsReduMaximum<T, BinaryOperation>::value>;
+using IsMaximumIdentityOp =
+    bool_constant<(is_sgeninteger<T>::value || is_sgenfloat<T>::value) &&
+                  IsReduMaximum<T, BinaryOperation>::value>;
 
 template <typename T, class BinaryOperation>
 using IsKnownIdentityOp =
@@ -343,7 +326,7 @@ public:
   /// Atomic ADD operation: *ReduVarPtr += MValue;
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
-              (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value) &&
+              IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
               IsReduPlus<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
@@ -353,7 +336,7 @@ public:
   /// Atomic BITWISE OR operation: *ReduVarPtr |= MValue;
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
-              (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value) &&
+              IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
               IsReduBitOR<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
@@ -363,7 +346,7 @@ public:
   /// Atomic BITWISE XOR operation: *ReduVarPtr ^= MValue;
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
-              (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value) &&
+              IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
               IsReduBitXOR<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
@@ -373,7 +356,7 @@ public:
   /// Atomic BITWISE AND operation: *ReduVarPtr &= MValue;
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
-              (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value) &&
+              IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
               IsReduBitAND<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
@@ -383,7 +366,7 @@ public:
   /// Atomic MIN operation: *ReduVarPtr = ONEAPI::minimum(*ReduVarPtr, MValue);
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
-              (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value) &&
+              IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
               IsReduMinimum<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
@@ -393,7 +376,7 @@ public:
   /// Atomic MAX operation: *ReduVarPtr = ONEAPI::maximum(*ReduVarPtr, MValue);
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
-              (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value) &&
+              IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
               IsReduMaximum<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic<T, access::address_space::global_space>(global_ptr<T>(ReduVarPtr))
@@ -1604,7 +1587,7 @@ reduction(accessor<T, Dims, AccMode, access::target::global_buffer, IsPH> &Acc,
 /// The identity value is not passed to this version as it is statically known.
 template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
           access::placeholder IsPH>
-detail::enable_if_t<
+std::enable_if_t<
     detail::IsKnownIdentityOp<T, BinaryOperation>::value,
     detail::reduction_impl<T, BinaryOperation, Dims, false, AccMode, IsPH>>
 reduction(accessor<T, Dims, AccMode, access::target::global_buffer, IsPH> &Acc,
@@ -1632,9 +1615,9 @@ reduction(T *VarPtr, const T &Identity, BinaryOperation BOp) {
 /// operation used in the reduction.
 /// The identity value is not passed to this version as it is statically known.
 template <typename T, class BinaryOperation>
-detail::enable_if_t<detail::IsKnownIdentityOp<T, BinaryOperation>::value,
-                    detail::reduction_impl<T, BinaryOperation, 0, true,
-                                           access::mode::read_write>>
+std::enable_if_t<detail::IsKnownIdentityOp<T, BinaryOperation>::value,
+                 detail::reduction_impl<T, BinaryOperation, 0, true,
+                                        access::mode::read_write>>
 reduction(T *VarPtr, BinaryOperation) {
   return detail::reduction_impl<T, BinaryOperation, 0, true,
                                 access::mode::read_write>(VarPtr);
@@ -1659,7 +1642,30 @@ template <typename BinaryOperation, typename AccumulatorT>
 inline constexpr AccumulatorT known_identity_v =
     known_identity<BinaryOperation, AccumulatorT>::value;
 #endif
-
 } // namespace ONEAPI
+
+// Currently, the type traits defined below correspond to SYCL 1.2.1 ONEAPI
+// reduction extension. That may be changed later when SYCL 2020 reductions
+// are implemented.
+template <typename BinaryOperation, typename AccumulatorT>
+struct has_known_identity
+    : ONEAPI::has_known_identity<BinaryOperation, AccumulatorT> {};
+
+#if __cplusplus >= 201703L
+template <typename BinaryOperation, typename AccumulatorT>
+inline constexpr bool has_known_identity_v =
+    has_known_identity<BinaryOperation, AccumulatorT>::value;
+#endif
+
+template <typename BinaryOperation, typename AccumulatorT>
+struct known_identity : ONEAPI::known_identity<BinaryOperation, AccumulatorT> {
+};
+
+#if __cplusplus >= 201703L
+template <typename BinaryOperation, typename AccumulatorT>
+inline constexpr AccumulatorT known_identity_v =
+    known_identity<BinaryOperation, AccumulatorT>::value;
+#endif
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
