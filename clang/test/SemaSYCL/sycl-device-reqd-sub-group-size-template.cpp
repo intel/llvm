@@ -64,7 +64,7 @@ template <int N>
 [[intel::reqd_sub_group_size(4)]] void func4(); // expected-note {{previous attribute is here}}
 
 template <int N>
-[[intel::reqd_sub_group_size(N)]] void func4() {} // expected-warning {{attribute 'reqd_sub_group_size' is already applied with different parameters}}
+[[intel::reqd_sub_group_size(N)]] void func4() {} // expected-warning {{attribute 'reqd_sub_group_size' is already applied with different arguments}}
 
 int check() {
   // no error expected

@@ -66,14 +66,49 @@ using namespace llvm::opt;
 static bool getSystemRegistryString(const char *keyPath, const char *valueName,
                                     std::string &value, std::string *phValue);
 
+static std::string getHighestNumericTupleInDirectory(StringRef Directory) {
+  std::string Highest;
+  llvm::VersionTuple HighestTuple;
+
+  std::error_code EC;
+  for (llvm::sys::fs::directory_iterator DirIt(Directory, EC), DirEnd;
+       !EC && DirIt != DirEnd; DirIt.increment(EC)) {
+    if (!llvm::sys::fs::is_directory(DirIt->path()))
+      continue;
+    StringRef CandidateName = llvm::sys::path::filename(DirIt->path());
+    llvm::VersionTuple Tuple;
+    if (Tuple.tryParse(CandidateName)) // tryParse() returns true on error.
+      continue;
+    if (Tuple > HighestTuple) {
+      HighestTuple = Tuple;
+      Highest = CandidateName.str();
+    }
+  }
+
+  return Highest;
+}
+
 // Check command line arguments to try and find a toolchain.
 static bool
 findVCToolChainViaCommandLine(const ArgList &Args, std::string &Path,
                               MSVCToolChain::ToolsetLayout &VSLayout) {
   // Don't validate the input; trust the value supplied by the user.
   // The primary motivation is to prevent unnecessary file and registry access.
-  if (Arg *A = Args.getLastArg(options::OPT__SLASH_vctoolsdir)) {
-    Path = A->getValue();
+  if (Arg *A = Args.getLastArg(options::OPT__SLASH_vctoolsdir,
+                               options::OPT__SLASH_winsysroot)) {
+    if (A->getOption().getID() == options::OPT__SLASH_winsysroot) {
+      llvm::SmallString<128> ToolsPath(A->getValue());
+      llvm::sys::path::append(ToolsPath, "VC", "Tools", "MSVC");
+      std::string VCToolsVersion;
+      if (Arg *A = Args.getLastArg(options::OPT__SLASH_vctoolsversion))
+        VCToolsVersion = A->getValue();
+      else
+        VCToolsVersion = getHighestNumericTupleInDirectory(ToolsPath);
+      llvm::sys::path::append(ToolsPath, VCToolsVersion);
+      Path = std::string(ToolsPath.str());
+    } else {
+      Path = A->getValue();
+    }
     VSLayout = MSVCToolChain::ToolsetLayout::VS2017OrNewer;
     return true;
   }
@@ -400,7 +435,8 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // they're doing. If the user passes /vctoolsdir or /winsdkdir, trust that
   // over env vars.
   if (!llvm::sys::Process::GetEnv("LIB") ||
-      Args.getLastArg(options::OPT__SLASH_vctoolsdir)) {
+      Args.getLastArg(options::OPT__SLASH_vctoolsdir,
+                      options::OPT__SLASH_winsysroot)) {
     CmdArgs.push_back(Args.MakeArgString(
         Twine("-libpath:") +
         TC.getSubDirectoryPath(
@@ -411,7 +447,8 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                "atlmfc")));
   }
   if (!llvm::sys::Process::GetEnv("LIB") ||
-      Args.getLastArg(options::OPT__SLASH_winsdkdir)) {
+      Args.getLastArg(options::OPT__SLASH_winsdkdir,
+                      options::OPT__SLASH_winsysroot)) {
     if (TC.useUniversalCRT()) {
       std::string UniversalCRTLibPath;
       if (TC.getUniversalCRTLibraryPath(Args, UniversalCRTLibPath))
@@ -678,145 +715,6 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   if (!Environment.empty())
     LinkCmd->setEnvironment(Environment);
   C.addCommand(std::move(LinkCmd));
-}
-
-void visualstudio::Compiler::ConstructJob(Compilation &C, const JobAction &JA,
-                                          const InputInfo &Output,
-                                          const InputInfoList &Inputs,
-                                          const ArgList &Args,
-                                          const char *LinkingOutput) const {
-  C.addCommand(GetCommand(C, JA, Output, Inputs, Args, LinkingOutput));
-}
-
-std::unique_ptr<Command> visualstudio::Compiler::GetCommand(
-    Compilation &C, const JobAction &JA, const InputInfo &Output,
-    const InputInfoList &Inputs, const ArgList &Args,
-    const char *LinkingOutput) const {
-  ArgStringList CmdArgs;
-  CmdArgs.push_back("/nologo");
-  CmdArgs.push_back("/c");  // Compile only.
-  CmdArgs.push_back("/W0"); // No warnings.
-
-  // The goal is to be able to invoke this tool correctly based on
-  // any flag accepted by clang-cl.
-
-  // These are spelled the same way in clang and cl.exe,.
-  Args.AddAllArgs(CmdArgs, {options::OPT_D, options::OPT_U, options::OPT_I});
-
-  // Optimization level.
-  if (Arg *A = Args.getLastArg(options::OPT_fbuiltin, options::OPT_fno_builtin))
-    CmdArgs.push_back(A->getOption().getID() == options::OPT_fbuiltin ? "/Oi"
-                                                                      : "/Oi-");
-  if (Arg *A = Args.getLastArg(options::OPT_O, options::OPT_O0)) {
-    if (A->getOption().getID() == options::OPT_O0) {
-      CmdArgs.push_back("/Od");
-    } else {
-      CmdArgs.push_back("/Og");
-
-      StringRef OptLevel = A->getValue();
-      if (OptLevel == "s" || OptLevel == "z")
-        CmdArgs.push_back("/Os");
-      else
-        CmdArgs.push_back("/Ot");
-
-      CmdArgs.push_back("/Ob2");
-    }
-  }
-  if (Arg *A = Args.getLastArg(options::OPT_fomit_frame_pointer,
-                               options::OPT_fno_omit_frame_pointer))
-    CmdArgs.push_back(A->getOption().getID() == options::OPT_fomit_frame_pointer
-                          ? "/Oy"
-                          : "/Oy-");
-  if (!Args.hasArg(options::OPT_fwritable_strings))
-    CmdArgs.push_back("/GF");
-
-  // Flags for which clang-cl has an alias.
-  // FIXME: How can we ensure this stays in sync with relevant clang-cl options?
-
-  if (Args.hasFlag(options::OPT__SLASH_GR_, options::OPT__SLASH_GR,
-                   /*Default=*/false))
-    CmdArgs.push_back("/GR-");
-
-  if (Args.hasFlag(options::OPT__SLASH_GS_, options::OPT__SLASH_GS,
-                   /*Default=*/false))
-    CmdArgs.push_back("/GS-");
-
-  if (Arg *A = Args.getLastArg(options::OPT_ffunction_sections,
-                               options::OPT_fno_function_sections))
-    CmdArgs.push_back(A->getOption().getID() == options::OPT_ffunction_sections
-                          ? "/Gy"
-                          : "/Gy-");
-  if (Arg *A = Args.getLastArg(options::OPT_fdata_sections,
-                               options::OPT_fno_data_sections))
-    CmdArgs.push_back(
-        A->getOption().getID() == options::OPT_fdata_sections ? "/Gw" : "/Gw-");
-  if (Args.hasArg(options::OPT_fsyntax_only))
-    CmdArgs.push_back("/Zs");
-  if (Args.hasArg(options::OPT_g_Flag, options::OPT_gline_tables_only,
-                  options::OPT__SLASH_Z7))
-    CmdArgs.push_back("/Z7");
-
-  std::vector<std::string> Includes =
-      Args.getAllArgValues(options::OPT_include);
-  for (const auto &Include : Includes)
-    CmdArgs.push_back(Args.MakeArgString(std::string("/FI") + Include));
-
-  // Flags that can simply be passed through.
-  Args.AddAllArgs(CmdArgs, options::OPT__SLASH_LD);
-  Args.AddAllArgs(CmdArgs, options::OPT__SLASH_LDd);
-  Args.AddAllArgs(CmdArgs, options::OPT__SLASH_GX);
-  Args.AddAllArgs(CmdArgs, options::OPT__SLASH_GX_);
-  Args.AddAllArgs(CmdArgs, options::OPT__SLASH_EH);
-  Args.AddAllArgs(CmdArgs, options::OPT__SLASH_Zl);
-
-  // The order of these flags is relevant, so pick the last one.
-  if (Arg *A = Args.getLastArg(options::OPT__SLASH_MD, options::OPT__SLASH_MDd,
-                               options::OPT__SLASH_MT, options::OPT__SLASH_MTd))
-    A->render(Args, CmdArgs);
-
-  // Use MSVC's default threadsafe statics behaviour unless there was a flag.
-  if (Arg *A = Args.getLastArg(options::OPT_fthreadsafe_statics,
-                               options::OPT_fno_threadsafe_statics)) {
-    CmdArgs.push_back(A->getOption().getID() == options::OPT_fthreadsafe_statics
-                          ? "/Zc:threadSafeInit"
-                          : "/Zc:threadSafeInit-");
-  }
-
-  // Control Flow Guard checks
-  if (Arg *A = Args.getLastArg(options::OPT__SLASH_guard)) {
-    StringRef GuardArgs = A->getValue();
-    if (GuardArgs.equals_lower("cf") || GuardArgs.equals_lower("cf,nochecks")) {
-      // MSVC doesn't yet support the "nochecks" modifier.
-      CmdArgs.push_back("/guard:cf");
-    } else if (GuardArgs.equals_lower("cf-")) {
-      CmdArgs.push_back("/guard:cf-");
-    }
-  }
-
-  // Pass through all unknown arguments so that the fallback command can see
-  // them too.
-  Args.AddAllArgs(CmdArgs, options::OPT_UNKNOWN);
-
-  // Input filename.
-  assert(Inputs.size() == 1);
-  const InputInfo &II = Inputs[0];
-  assert(II.getType() == types::TY_C || II.getType() == types::TY_CXX);
-  CmdArgs.push_back(II.getType() == types::TY_C ? "/Tc" : "/Tp");
-  if (II.isFilename())
-    CmdArgs.push_back(II.getFilename());
-  else
-    II.getInputArg().renderAsInput(Args, CmdArgs);
-
-  // Output filename.
-  assert(Output.getType() == types::TY_Object);
-  const char *Fo =
-      Args.MakeArgString(std::string("/Fo") + Output.getFilename());
-  CmdArgs.push_back(Fo);
-
-  std::string Exec = FindVisualStudioExecutable(getToolChain(), "cl.exe");
-  return std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::AtFileUTF16(), Args.MakeArgString(Exec),
-      CmdArgs, Inputs, Output);
 }
 
 MSVCToolChain::MSVCToolChain(const Driver &D, const llvm::Triple &Triple,
@@ -1131,42 +1029,38 @@ static bool getSystemRegistryString(const char *keyPath, const char *valueName,
 // So we compare entry names lexicographically to find the greatest one.
 static bool getWindows10SDKVersionFromPath(const std::string &SDKPath,
                                            std::string &SDKVersion) {
-  SDKVersion.clear();
-
-  std::error_code EC;
   llvm::SmallString<128> IncludePath(SDKPath);
   llvm::sys::path::append(IncludePath, "Include");
-  for (llvm::sys::fs::directory_iterator DirIt(IncludePath, EC), DirEnd;
-       DirIt != DirEnd && !EC; DirIt.increment(EC)) {
-    if (!llvm::sys::fs::is_directory(DirIt->path()))
-      continue;
-    StringRef CandidateName = llvm::sys::path::filename(DirIt->path());
-    // If WDK is installed, there could be subfolders like "wdf" in the
-    // "Include" directory.
-    // Allow only directories which names start with "10.".
-    if (!CandidateName.startswith("10."))
-      continue;
-    if (CandidateName > SDKVersion)
-      SDKVersion = std::string(CandidateName);
-  }
-
+  SDKVersion = getHighestNumericTupleInDirectory(IncludePath);
   return !SDKVersion.empty();
 }
 
 static bool getWindowsSDKDirViaCommandLine(const ArgList &Args,
                                            std::string &Path, int &Major,
                                            std::string &Version) {
-  if (Arg *A = Args.getLastArg(options::OPT__SLASH_winsdkdir)) {
+  if (Arg *A = Args.getLastArg(options::OPT__SLASH_winsdkdir,
+                               options::OPT__SLASH_winsysroot)) {
     // Don't validate the input; trust the value supplied by the user.
     // The motivation is to prevent unnecessary file and registry access.
-    Path = A->getValue();
-    if (Arg *A = Args.getLastArg(options::OPT__SLASH_winsdkversion)) {
-      StringRef WinSdkVersion = A->getValue();
-      Version = WinSdkVersion.str();
-      if (WinSdkVersion.consumeInteger(10, Major))
-        return false;
-      if (!(WinSdkVersion.empty() || WinSdkVersion.startswith(".")))
-        return false;
+    llvm::VersionTuple SDKVersion;
+    if (Arg *A = Args.getLastArg(options::OPT__SLASH_winsdkversion))
+      SDKVersion.tryParse(A->getValue());
+
+    if (A->getOption().getID() == options::OPT__SLASH_winsysroot) {
+      llvm::SmallString<128> SDKPath(A->getValue());
+      llvm::sys::path::append(SDKPath, "Windows Kits");
+      if (!SDKVersion.empty())
+        llvm::sys::path::append(SDKPath, Twine(SDKVersion.getMajor()));
+      else
+        llvm::sys::path::append(SDKPath, getHighestNumericTupleInDirectory(SDKPath));
+      Path = std::string(SDKPath.str());
+    } else {
+      Path = A->getValue();
+    }
+
+    if (!SDKVersion.empty()) {
+      Major = SDKVersion.getMajor();
+      Version = SDKVersion.getAsString();
     } else if (getWindows10SDKVersionFromPath(Path, Version)) {
       Major = 10;
     }
@@ -1388,7 +1282,8 @@ void MSVCToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
 
   // Honor %INCLUDE%. It should know essential search paths with vcvarsall.bat.
   // Skip if the user expressly set a vctoolsdir
-  if (!DriverArgs.getLastArg(options::OPT__SLASH_vctoolsdir)) {
+  if (!DriverArgs.getLastArg(options::OPT__SLASH_vctoolsdir,
+                             options::OPT__SLASH_winsysroot)) {
     if (llvm::Optional<std::string> cl_include_dir =
             llvm::sys::Process::GetEnv("INCLUDE")) {
       SmallVector<StringRef, 8> Dirs;

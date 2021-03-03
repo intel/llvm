@@ -64,7 +64,7 @@ template <int N>
 [[intel::num_simd_work_items(4)]] void func4(); // expected-note {{previous attribute is here}}
 
 template <int N>
-[[intel::num_simd_work_items(N)]] void func4() {} // expected-warning {{attribute 'num_simd_work_items' is already applied with different parameters}}
+[[intel::num_simd_work_items(N)]] void func4() {} // expected-warning {{attribute 'num_simd_work_items' is already applied with different arguments}}
 
 int check() {
   // no error expected

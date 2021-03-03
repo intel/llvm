@@ -8,8 +8,10 @@
 
 #include "ProfiledBinary.h"
 #include "ErrorHandling.h"
+#include "ProfileGenerator.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Demangle/Demangle.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/TargetRegistry.h"
@@ -20,16 +22,15 @@
 using namespace llvm;
 using namespace sampleprof;
 
-static cl::opt<bool> ShowDisassembly("show-disassembly", cl::ReallyHidden,
-                                     cl::init(false), cl::ZeroOrMore,
-                                     cl::desc("Print disassembled code."));
+cl::opt<bool> ShowDisassemblyOnly("show-disassembly-only", cl::ReallyHidden,
+                                  cl::init(false), cl::ZeroOrMore,
+                                  cl::desc("Print disassembled code."));
 
-static cl::opt<bool> ShowSourceLocations("show-source-locations",
-                                         cl::ReallyHidden, cl::init(false),
-                                         cl::ZeroOrMore,
-                                         cl::desc("Print source locations."));
+cl::opt<bool> ShowSourceLocations("show-source-locations", cl::ReallyHidden,
+                                  cl::init(false), cl::ZeroOrMore,
+                                  cl::desc("Print source locations."));
 
-static cl::opt<bool> ShowPseudoProbe(
+cl::opt<bool> ShowPseudoProbe(
     "show-pseudo-probe", cl::ReallyHidden, cl::init(false), cl::ZeroOrMore,
     cl::desc("Print pseudo probe section and disassembled info."));
 
@@ -118,42 +119,48 @@ bool ProfiledBinary::inlineContextEqual(uint64_t Address1,
   const FrameLocationStack &Context2 = getFrameLocationStack(Offset2);
   if (Context1.size() != Context2.size())
     return false;
-
+  if (Context1.empty())
+    return false;
   // The leaf frame contains location within the leaf, and it
   // needs to be remove that as it's not part of the calling context
   return std::equal(Context1.begin(), Context1.begin() + Context1.size() - 1,
                     Context2.begin(), Context2.begin() + Context2.size() - 1);
 }
 
-std::string
-ProfiledBinary::getExpandedContextStr(const std::list<uint64_t> &Stack) const {
+std::string ProfiledBinary::getExpandedContextStr(
+    const SmallVectorImpl<uint64_t> &Stack) const {
   std::string ContextStr;
-  SmallVector<std::string, 8> ContextVec;
+  SmallVector<std::string, 16> ContextVec;
   // Process from frame root to leaf
-  for (auto Iter = Stack.rbegin(); Iter != Stack.rend(); Iter++) {
-    uint64_t Offset = virtualAddrToOffset(*Iter);
+  for (auto Address : Stack) {
+    uint64_t Offset = virtualAddrToOffset(Address);
     const FrameLocationStack &ExpandedContext = getFrameLocationStack(Offset);
+    // An instruction without a valid debug line will be ignored by sample
+    // processing
+    if (ExpandedContext.empty())
+      return std::string();
     for (const auto &Loc : ExpandedContext) {
       ContextVec.push_back(getCallSite(Loc));
     }
   }
 
   assert(ContextVec.size() && "Context length should be at least 1");
+  // Compress the context string except for the leaf frame
+  std::string LeafFrame = ContextVec.back();
+  ContextVec.pop_back();
+  CSProfileGenerator::compressRecursionContext<std::string>(ContextVec);
 
   std::ostringstream OContextStr;
   for (uint32_t I = 0; I < (uint32_t)ContextVec.size(); I++) {
     if (OContextStr.str().size()) {
       OContextStr << " @ ";
     }
-
-    if (I == ContextVec.size() - 1) {
-      // Only keep the function name for the leaf frame
-      StringRef Ref(ContextVec[I]);
-      OContextStr << Ref.split(":").first.str();
-    } else {
-      OContextStr << ContextVec[I];
-    }
+    OContextStr << ContextVec[I];
   }
+  // Only keep the function name for the leaf frame
+  if (OContextStr.str().size())
+    OContextStr << " @ ";
+  OContextStr << StringRef(LeafFrame).split(":").first.str();
   return OContextStr.str();
 }
 
@@ -196,7 +203,6 @@ void ProfiledBinary::decodePseudoProbe(const ELFObjectFileBase *Obj) {
 bool ProfiledBinary::dissassembleSymbol(std::size_t SI, ArrayRef<uint8_t> Bytes,
                                         SectionSymbolsTy &Symbols,
                                         const SectionRef &Section) {
-
   std::size_t SE = Symbols.size();
   uint64_t SectionOffset = Section.getAddress() - PreferredBaseAddress;
   uint64_t SectSize = Section.getSize();
@@ -208,7 +214,7 @@ bool ProfiledBinary::dissassembleSymbol(std::size_t SI, ArrayRef<uint8_t> Bytes,
     return true;
 
   std::string &&SymbolName = Symbols[SI].Name.str();
-  if (ShowDisassembly)
+  if (ShowDisassemblyOnly)
     outs() << '<' << SymbolName << ">:\n";
 
   uint64_t Offset = StartOffset;
@@ -220,7 +226,7 @@ bool ProfiledBinary::dissassembleSymbol(std::size_t SI, ArrayRef<uint8_t> Bytes,
                                 Offset + PreferredBaseAddress, nulls()))
       return false;
 
-    if (ShowDisassembly) {
+    if (ShowDisassemblyOnly) {
       if (ShowPseudoProbe) {
         ProbeDecoder.printProbeForAddress(outs(),
                                           Offset + PreferredBaseAddress);
@@ -241,9 +247,14 @@ bool ProfiledBinary::dissassembleSymbol(std::size_t SI, ArrayRef<uint8_t> Bytes,
     const MCInstrDesc &MCDesc = MII->get(Inst.getOpcode());
 
     // Populate a vector of the symbolized callsite at this location
-    InstructionPointer IP(this, Offset);
-    Offset2LocStackMap[Offset] = symbolize(IP, true);
-
+    // We don't need symbolized info for probe-based profile, just use an empty
+    // stack as an entry to indicate a valid binary offset
+    FrameLocationStack SymbolizedCallStack;
+    if (!UsePseudoProbes) {
+      InstructionPointer IP(this, Offset);
+      SymbolizedCallStack = symbolize(IP, true);
+    }
+    Offset2LocStackMap[Offset] = SymbolizedCallStack;
     // Populate address maps.
     CodeAddrs.push_back(Offset);
     if (MCDesc.isCall())
@@ -254,7 +265,7 @@ bool ProfiledBinary::dissassembleSymbol(std::size_t SI, ArrayRef<uint8_t> Bytes,
     Offset += Size;
   }
 
-  if (ShowDisassembly)
+  if (ShowDisassemblyOnly)
     outs() << "\n";
 
   FuncStartAddrMap[StartOffset] = Symbols[SI].Name.str();
@@ -320,7 +331,7 @@ void ProfiledBinary::disassemble(const ELFObjectFileBase *Obj) {
   for (std::pair<const SectionRef, SectionSymbolsTy> &SecSyms : AllSymbols)
     stable_sort(SecSyms.second);
 
-  if (ShowDisassembly)
+  if (ShowDisassemblyOnly)
     outs() << "\nDisassembly of " << FileName << ":\n";
 
   // Dissassemble a text section.
@@ -339,7 +350,7 @@ void ProfiledBinary::disassemble(const ELFObjectFileBase *Obj) {
     // Register the text section.
     TextSections.insert({SectionOffset, SectSize});
 
-    if (ShowDisassembly) {
+    if (ShowDisassemblyOnly) {
       StringRef SectionName = unwrapOrError(Section.getName(), FileName);
       outs() << "\nDisassembly of section " << SectionName;
       outs() << " [" << format("0x%" PRIx64, SectionOffset) << ", "
@@ -391,7 +402,8 @@ FrameLocationStack ProfiledBinary::symbolize(const InstructionPointer &IP,
     if (UseCanonicalFnName)
       FunctionName = FunctionSamples::getCanonicalFnName(FunctionName);
     LineLocation Line(CallerFrame.Line - CallerFrame.StartLine,
-                      CallerFrame.Discriminator);
+                      DILocation::getBaseDiscriminatorFromDiscriminator(
+                          CallerFrame.Discriminator));
     FrameLocation Callsite(FunctionName.str(), Line);
     CallStack.push_back(Callsite);
   }
