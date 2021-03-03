@@ -306,36 +306,6 @@ static int64_t getIntExprValue(const Expr *E, ASTContext &Ctx) {
   return E->getIntegerConstantExpr(Ctx)->getSExtValue();
 }
 
-// Collect function attributes related to SYCL
-static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
-                                  llvm::SmallVector<Attr *, 4> &Attrs,
-                                  bool DirectlyCalled = true) {
-  if (!FD->hasAttrs())
-    return;
-
-  llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
-    return isa<IntelReqdSubGroupSizeAttr, ReqdWorkGroupSizeAttr,
-               SYCLIntelKernelArgsRestrictAttr, SYCLIntelNumSimdWorkItemsAttr,
-               SYCLIntelSchedulerTargetFmaxMhzAttr,
-               SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
-               SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
-  });
-
-  // Allow the kernel attribute "use_stall_enable_clusters" only on lambda
-  // functions and function objects called directly from a kernel.
-  // For all other cases, emit a warning and ignore.
-  if (auto *A = FD->getAttr<SYCLIntelUseStallEnableClustersAttr>()) {
-    if (DirectlyCalled) {
-      Attrs.push_back(A);
-    } else {
-      S.Diag(A->getLocation(),
-             diag::warn_attribute_on_direct_kernel_callee_only)
-          << A;
-      FD->dropAttr<SYCLIntelUseStallEnableClustersAttr>();
-    }
-  }
-}
-
 class MarkDeviceFunction : public RecursiveASTVisitor<MarkDeviceFunction> {
   // Used to keep track of the constexpr depth, so we know whether to skip
   // diagnostics.
@@ -507,7 +477,7 @@ public:
   // Returns the kernel body function found during traversal.
   FunctionDecl *
   CollectPossibleKernelAttributes(FunctionDecl *SYCLKernel,
-                                  llvm::SmallVector<Attr *, 4> &Attrs) {
+                                  llvm::SmallPtrSet<Attr *, 4> &Attrs) {
     typedef std::pair<FunctionDecl *, FunctionDecl *> ChildParentPair;
     llvm::SmallPtrSet<FunctionDecl *, 16> Visited;
     llvm::SmallVector<ChildParentPair, 16> WorkList;
@@ -538,23 +508,55 @@ public:
                               "function can be called");
         KernelBody = FD;
       }
-
       WorkList.pop_back();
       if (!Visited.insert(FD).second)
         continue; // We've already seen this Decl
 
-      // Gather all attributes of FD that are SYCL related.
-      // Some attributes are allowed only on lambda functions and function
-      // objects called directly from a kernel (i.e. the one passed to the
-      // single_task or parallel_for functions).
-      bool DirectlyCalled = (ParentFD == SYCLKernel);
-      collectSYCLAttributes(SemaRef, FD, Attrs, DirectlyCalled);
+      if (auto *A = FD->getAttr<IntelReqdSubGroupSizeAttr>())
+        Attrs.insert(A);
+
+      if (auto *A = FD->getAttr<ReqdWorkGroupSizeAttr>())
+        Attrs.insert(A);
+
+      if (auto *A = FD->getAttr<SYCLIntelKernelArgsRestrictAttr>())
+        Attrs.insert(A);
+
+      if (auto *A = FD->getAttr<SYCLIntelNumSimdWorkItemsAttr>())
+        Attrs.insert(A);
+
+      if (auto *A = FD->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>())
+        Attrs.insert(A);
+
+      if (auto *A = FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>())
+        Attrs.insert(A);
+
+      if (auto *A = FD->getAttr<SYCLIntelMaxGlobalWorkDimAttr>())
+        Attrs.insert(A);
+
+      if (auto *A = FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>())
+        Attrs.insert(A);
+
+      if (auto *A = FD->getAttr<SYCLSimdAttr>())
+        Attrs.insert(A);
+
+      // Allow the kernel attribute "use_stall_enable_clusters" only on lambda
+      // functions and function objects that are called directly from a kernel
+      // (i.e. the one passed to the single_task or parallel_for functions).
+      // For all other cases, emit a warning and ignore.
+      if (auto *A = FD->getAttr<SYCLIntelUseStallEnableClustersAttr>()) {
+        if (ParentFD == SYCLKernel) {
+          Attrs.insert(A);
+        } else {
+          SemaRef.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
+          FD->dropAttr<SYCLIntelUseStallEnableClustersAttr>();
+        }
+      }
 
       // Attribute "loop_fuse" can be applied explicitly on kernel function.
       // Attribute should not be propagated from device functions to kernel.
       if (auto *A = FD->getAttr<SYCLIntelLoopFuseAttr>()) {
         if (ParentFD == SYCLKernel) {
-          Attrs.push_back(A);
+          Attrs.insert(A);
         }
       }
 
@@ -2056,8 +2058,8 @@ public:
   using SyclKernelFieldHandler::handleSyclHalfType;
 };
 
-static CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
-  for (auto *MD : Rec->methods()) {
+static const CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
+  for (const auto *MD : Rec->methods()) {
     if (MD->getOverloadedOperator() == OO_Call)
       return MD;
   }
@@ -3147,56 +3149,6 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
     KernelFunc->setInvalidDecl();
 }
 
-// For a wrapped parallel_for, copy attributes from original
-// kernel to wrapped kernel.
-void Sema::copySYCLKernelAttrs(const CXXRecordDecl *KernelObj) {
-  // Get the operator() function of the wrapper
-  CXXMethodDecl *OpParens = getOperatorParens(KernelObj);
-  assert(OpParens && "invalid kernel object");
-
-  typedef std::pair<FunctionDecl *, FunctionDecl *> ChildParentPair;
-  llvm::SmallPtrSet<FunctionDecl *, 16> Visited;
-  llvm::SmallVector<ChildParentPair, 16> WorkList;
-  WorkList.push_back({OpParens, nullptr});
-  FunctionDecl *KernelBody = nullptr;
-
-  CallGraph SYCLCG;
-  SYCLCG.addToCallGraph(getASTContext().getTranslationUnitDecl());
-  while (!WorkList.empty()) {
-    FunctionDecl *FD = WorkList.back().first;
-    FunctionDecl *ParentFD = WorkList.back().second;
-
-    if ((ParentFD == OpParens) && isSYCLKernelBodyFunction(FD)) {
-      KernelBody = FD;
-      break;
-    }
-
-    WorkList.pop_back();
-    if (!Visited.insert(FD).second)
-      continue; // We've already seen this Decl
-
-    CallGraphNode *N = SYCLCG.getNode(FD);
-    if (!N)
-      continue;
-
-    for (const CallGraphNode *CI : *N) {
-      if (auto *Callee = dyn_cast<FunctionDecl>(CI->getDecl())) {
-        Callee = Callee->getMostRecentDecl();
-        if (!Visited.count(Callee))
-          WorkList.push_back({Callee, FD});
-      }
-    }
-  }
-
-  assert(KernelBody && "improper parallel_for wrap");
-  if (KernelBody) {
-    llvm::SmallVector<Attr *, 4> Attrs;
-    collectSYCLAttributes(*this, KernelBody, Attrs);
-    if (!Attrs.empty())
-      llvm::for_each(Attrs, [OpParens](Attr *A) { OpParens->addAttr(A); });
-  }
-}
-
 // Generates the OpenCL kernel using KernelCallerFunc (kernel caller
 // function) defined is SYCL headers.
 // Generated OpenCL kernel contains the body of the kernel caller function,
@@ -3229,20 +3181,14 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   if (KernelObj->isInvalidDecl())
     return;
 
+  bool IsSIMDKernel = isESIMDKernelType(KernelObj);
+
   // Calculate both names, since Integration headers need both.
   std::string CalculatedName, StableName;
   std::tie(CalculatedName, StableName) =
       constructKernelName(*this, KernelCallerFunc, MC);
   StringRef KernelName(getLangOpts().SYCLUnnamedLambda ? StableName
                                                        : CalculatedName);
-
-  // Attributes of a user-written SYCL kernel must be copied to the internally
-  // generated alternative kernel, identified by a known string in its name.
-  if (StableName.find("__pf_kernel_wrapper") != std::string::npos)
-    copySYCLKernelAttrs(KernelObj);
-
-  bool IsSIMDKernel = isESIMDKernelType(KernelObj);
-
   SyclKernelDeclCreator kernel_decl(*this, KernelName, KernelObj->getLocation(),
                                     KernelCallerFunc->isInlined(),
                                     IsSIMDKernel);
@@ -3280,7 +3226,7 @@ void Sema::MarkDevice(void) {
       Marker.CollectKernelSet(SYCLKernel, SYCLKernel, VisitedSet);
 
       // Let's propagate attributes from device functions to a SYCL kernels
-      llvm::SmallVector<Attr *, 4> Attrs;
+      llvm::SmallPtrSet<Attr *, 4> Attrs;
       // This function collects all kernel attributes which might be applied to
       // a device functions, but need to be propagated down to callers, i.e.
       // SYCL kernels
