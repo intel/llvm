@@ -634,6 +634,33 @@ static void __kmp_stg_print_thread_limit(kmp_str_buf_t *buffer,
 } // __kmp_stg_print_thread_limit
 
 // -----------------------------------------------------------------------------
+// OMP_NUM_TEAMS
+static void __kmp_stg_parse_nteams(char const *name, char const *value,
+                                   void *data) {
+  __kmp_stg_parse_int(name, value, 1, __kmp_sys_max_nth, &__kmp_nteams);
+  K_DIAG(1, ("__kmp_nteams == %d\n", __kmp_nteams));
+} // __kmp_stg_parse_nteams
+
+static void __kmp_stg_print_nteams(kmp_str_buf_t *buffer, char const *name,
+                                   void *data) {
+  __kmp_stg_print_int(buffer, name, __kmp_nteams);
+} // __kmp_stg_print_nteams
+
+// -----------------------------------------------------------------------------
+// OMP_TEAMS_THREAD_LIMIT
+static void __kmp_stg_parse_teams_th_limit(char const *name, char const *value,
+                                           void *data) {
+  __kmp_stg_parse_int(name, value, 1, __kmp_sys_max_nth,
+                      &__kmp_teams_thread_limit);
+  K_DIAG(1, ("__kmp_teams_thread_limit == %d\n", __kmp_teams_thread_limit));
+} // __kmp_stg_parse_teams_th_limit
+
+static void __kmp_stg_print_teams_th_limit(kmp_str_buf_t *buffer,
+                                           char const *name, void *data) {
+  __kmp_stg_print_int(buffer, name, __kmp_teams_thread_limit);
+} // __kmp_stg_print_teams_th_limit
+
+// -----------------------------------------------------------------------------
 // KMP_TEAMS_THREAD_LIMIT
 static void __kmp_stg_parse_teams_thread_limit(char const *name,
                                                char const *value, void *data) {
@@ -3377,7 +3404,8 @@ static void __kmp_stg_parse_allocator(char const *name, char const *value,
         ntraits++;
     }
   }
-  omp_alloctrait_t traits[ntraits];
+  omp_alloctrait_t *traits =
+      (omp_alloctrait_t *)KMP_ALLOCA(ntraits * sizeof(omp_alloctrait_t));
 
 // Helper macros
 #define IS_POWER_OF_TWO(n) (((n) & ((n)-1)) == 0)
@@ -4134,6 +4162,18 @@ static void __kmp_stg_print_kmp_hand_thread(kmp_str_buf_t *buffer,
   __kmp_stg_print_bool(buffer, name, __kmp_dispatch_hand_threading);
 } // __kmp_stg_print_kmp_hand_thread
 #endif
+
+// -----------------------------------------------------------------------------
+// KMP_FORCE_MONOTONIC_DYNAMIC_SCHEDULE
+static void __kmp_stg_parse_kmp_force_monotonic(char const *name,
+                                                char const *value, void *data) {
+  __kmp_stg_parse_bool(name, value, &(__kmp_force_monotonic));
+} // __kmp_stg_parse_kmp_force_monotonic
+
+static void __kmp_stg_print_kmp_force_monotonic(kmp_str_buf_t *buffer,
+                                                char const *name, void *data) {
+  __kmp_stg_print_bool(buffer, name, __kmp_force_monotonic);
+} // __kmp_stg_print_kmp_force_monotonic
 
 // -----------------------------------------------------------------------------
 // KMP_ATOMIC_MODE
@@ -5101,6 +5141,10 @@ static kmp_setting_t __kmp_stg_table[] = {
      __kmp_stg_print_thread_limit, NULL, 0, 0},
     {"KMP_TEAMS_THREAD_LIMIT", __kmp_stg_parse_teams_thread_limit,
      __kmp_stg_print_teams_thread_limit, NULL, 0, 0},
+    {"OMP_NUM_TEAMS", __kmp_stg_parse_nteams, __kmp_stg_print_nteams, NULL, 0,
+     0},
+    {"OMP_TEAMS_THREAD_LIMIT", __kmp_stg_parse_teams_th_limit,
+     __kmp_stg_print_teams_th_limit, NULL, 0, 0},
     {"OMP_WAIT_POLICY", __kmp_stg_parse_wait_policy,
      __kmp_stg_print_wait_policy, NULL, 0, 0},
     {"KMP_DISP_NUM_BUFFERS", __kmp_stg_parse_disp_buffers,
@@ -5223,6 +5267,9 @@ static kmp_setting_t __kmp_stg_table[] = {
     {"KMP_DISP_HAND_THREAD", __kmp_stg_parse_kmp_hand_thread,
      __kmp_stg_print_kmp_hand_thread, NULL, 0, 0},
 #endif
+    {"KMP_FORCE_MONOTONIC_DYNAMIC_SCHEDULE",
+     __kmp_stg_parse_kmp_force_monotonic, __kmp_stg_print_kmp_force_monotonic,
+     NULL, 0, 0},
     {"KMP_ATOMIC_MODE", __kmp_stg_parse_atomic_mode,
      __kmp_stg_print_atomic_mode, NULL, 0, 0},
     {"KMP_CONSISTENCY_CHECK", __kmp_stg_parse_consistency_check,
