@@ -2773,6 +2773,25 @@ public:
   }
 };
 
+class SPIRVAtomicFMinMaxEXTBase : public SPIRVAtomicInstBase {
+public:
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_EXT_shader_atomic_float_min_max;
+  }
+
+  SPIRVCapVec getRequiredCapability() const override {
+    assert(hasType());
+    if (getType()->isTypeFloat(16))
+      return {CapabilityAtomicFloat16MinMaxEXT};
+    if (getType()->isTypeFloat(32))
+      return {CapabilityAtomicFloat32MinMaxEXT};
+    if (getType()->isTypeFloat(64))
+      return {CapabilityAtomicFloat64MinMaxEXT};
+    llvm_unreachable(
+        "AtomicF(Min|Max)EXT can only be generated for f16, f32, f64 types");
+  }
+};
+
 #define _SPIRV_OP(x, ...)                                                      \
   typedef SPIRVInstTemplate<SPIRVAtomicInstBase, Op##x, __VA_ARGS__> SPIRV##x;
 // Atomic builtins
@@ -2800,6 +2819,8 @@ _SPIRV_OP(MemoryBarrier, false, 3)
 // Specialized atomic builtins
 _SPIRV_OP(AtomicStore, AtomicStoreInst, false, 5)
 _SPIRV_OP(AtomicFAddEXT, AtomicFAddEXTInst, true, 7)
+_SPIRV_OP(AtomicFMinEXT, AtomicFMinMaxEXTBase, true, 7)
+_SPIRV_OP(AtomicFMaxEXT, AtomicFMinMaxEXTBase, true, 7)
 #undef _SPIRV_OP
 
 class SPIRVImageInstBase : public SPIRVInstTemplateBase {

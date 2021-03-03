@@ -14,8 +14,8 @@
 //
 //===--------------------------------------------------------------------===//
 
-#ifndef LLVM_CODEGEN_GLOBALISEL_COMBINER_HELPER_H
-#define LLVM_CODEGEN_GLOBALISEL_COMBINER_HELPER_H
+#ifndef LLVM_CODEGEN_GLOBALISEL_COMBINERHELPER_H
+#define LLVM_CODEGEN_GLOBALISEL_COMBINERHELPER_H
 
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/DenseMap.h"
@@ -485,6 +485,9 @@ public:
                           std::function<void(MachineIRBuilder &)> &MatchInfo);
   bool applyLoadOrCombine(MachineInstr &MI,
                           std::function<void(MachineIRBuilder &)> &MatchInfo);
+
+  bool matchExtendThroughPhis(MachineInstr &MI, MachineInstr *&ExtMI);
+  bool applyExtendThroughPhis(MachineInstr &MI, MachineInstr *&ExtMI);
 
   /// Try to transform \p MI by using all of the above
   /// combine functions. Returns true if changed.

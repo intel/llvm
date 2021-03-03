@@ -2750,9 +2750,16 @@ ASTReader::ReadControlBlock(ModuleFile &F,
       }
 
       bool hasErrors = Record[6];
-      if (hasErrors && !DisableValidation && !AllowASTWithCompilerErrors) {
-        Diag(diag::err_pch_with_compiler_errors);
-        return HadErrors;
+      if (hasErrors && !DisableValidation) {
+        // If requested by the caller, mark modules on error as out-of-date.
+        if (F.Kind == MK_ImplicitModule &&
+            (ClientLoadCapabilities & ARR_TreatModuleWithErrorsAsOutOfDate))
+          return OutOfDate;
+
+        if (!AllowASTWithCompilerErrors) {
+          Diag(diag::err_pch_with_compiler_errors);
+          return HadErrors;
+        }
       }
       if (hasErrors) {
         Diags.ErrorOccurred = true;

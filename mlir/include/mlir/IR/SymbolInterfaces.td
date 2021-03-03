@@ -44,7 +44,7 @@ def Symbol : OpInterface<"SymbolOpInterface"> {
       /*defaultImplementation=*/[{
         this->getOperation()->setAttr(
             mlir::SymbolTable::getSymbolAttrName(),
-            StringAttr::get(name, this->getOperation()->getContext()));
+            StringAttr::get(this->getOperation()->getContext(), name));
       }]
     >,
     InterfaceMethod<"Gets the visibility of this symbol.",
@@ -206,7 +206,7 @@ def SymbolUserOpInterface : OpInterface<"SymbolUserOpInterface"> {
 
   let methods = [
     InterfaceMethod<"Verify the symbol uses held by this operation.",
-      "LogicalResult", "verifySymbolUses",
+      "::mlir::LogicalResult", "verifySymbolUses",
       (ins "::mlir::SymbolTableCollection &":$symbolTable)
     >,
   ];

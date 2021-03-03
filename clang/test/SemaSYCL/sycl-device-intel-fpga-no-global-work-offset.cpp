@@ -40,13 +40,13 @@ int main() {
 [[intel::no_global_work_offset(1)]] void func3() {} // OK
 
 [[intel::no_global_work_offset(0)]] void func4(); // expected-note {{previous attribute is here}}
-[[intel::no_global_work_offset]] void func4();    // expected-warning{{attribute 'no_global_work_offset' is already applied with different parameters}}
+[[intel::no_global_work_offset]] void func4();    // expected-warning{{attribute 'no_global_work_offset' is already applied with different arguments}}
 
 [[intel::no_global_work_offset(1)]] void func5();
 [[intel::no_global_work_offset(1)]] void func5() {} // OK
 
 [[intel::no_global_work_offset(0)]] void func6(); // expected-note {{previous attribute is here}}
-[[intel::no_global_work_offset(1)]] void func6(); // expected-warning{{attribute 'no_global_work_offset' is already applied with different parameters}}
+[[intel::no_global_work_offset(1)]] void func6(); // expected-warning{{attribute 'no_global_work_offset' is already applied with different arguments}}
 
 // CHECK: ClassTemplateDecl {{.*}} {{.*}} KernelFunctor
 // CHECK: ClassTemplateSpecializationDecl {{.*}} {{.*}} class KernelFunctor definition
@@ -65,7 +65,7 @@ template <int N>
 template <int N>
 [[intel::no_global_work_offset(0)]] void func7();   // expected-note {{previous attribute is here}}
 template <int N>
-[[intel::no_global_work_offset(N)]] void func7() {} // expected-warning {{attribute 'no_global_work_offset' is already applied with different parameters}}
+[[intel::no_global_work_offset(N)]] void func7() {} // expected-warning {{attribute 'no_global_work_offset' is already applied with different arguments}}
 
 int check() {
   func6<1>();

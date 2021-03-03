@@ -292,7 +292,6 @@ enum NodeType : unsigned {
   CLASTB_N,
   LASTA,
   LASTB,
-  REV,
   TBL,
 
   // Floating-point reductions.
@@ -488,7 +487,7 @@ public:
   /// Returns true if the target allows unaligned memory accesses of the
   /// specified type.
   bool allowsMisalignedMemoryAccesses(
-      EVT VT, unsigned AddrSpace = 0, unsigned Align = 1,
+      EVT VT, unsigned AddrSpace = 0, Align Alignment = Align(1),
       MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
       bool *Fast = nullptr) const override;
   /// LLT variant.
@@ -996,6 +995,7 @@ private:
     return TargetLowering::getInlineAsmMemConstraint(ConstraintCode);
   }
 
+  bool shouldExtendGSIndex(EVT VT, EVT &EltTy) const override;
   bool shouldRemoveExtendFromGSIndex(EVT VT) const override;
   bool isVectorLoadExtDesirable(SDValue ExtVal) const override;
   bool isUsedByReturnOnly(SDNode *N, SDValue &Chain) const override;
