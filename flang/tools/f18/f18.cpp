@@ -526,10 +526,12 @@ int main(int argc, char *const argv[]) {
       options.needProvenanceRangeToCharBlockMappings = true;
     } else if (arg == "-fdebug-dump-parse-tree") {
       driver.dumpParseTree = true;
+      driver.syntaxOnly = true;
     } else if (arg == "-fdebug-pre-fir-tree") {
       driver.dumpPreFirTree = true;
     } else if (arg == "-fdebug-dump-symbols") {
       driver.dumpSymbols = true;
+      driver.syntaxOnly = true;
     } else if (arg == "-fdebug-module-writer") {
       driver.debugModuleWriter = true;
     } else if (arg == "-fdebug-measure-parse-tree") {
@@ -538,9 +540,10 @@ int main(int argc, char *const argv[]) {
       options.instrumentedParse = true;
     } else if (arg == "-fdebug-no-semantics") {
       driver.debugNoSemantics = true;
-    } else if (arg == "-funparse") {
+    } else if (arg == "-funparse" || arg == "-fdebug-unparse") {
       driver.dumpUnparse = true;
-    } else if (arg == "-funparse-with-symbols") {
+    } else if (arg == "-funparse-with-symbols" ||
+        arg == "-fdebug-unparse-with-symbols") {
       driver.dumpUnparseWithSymbols = true;
     } else if (arg == "-funparse-typed-exprs-to-f18-fc") {
       driver.unparseTypedExprsToF18_FC = true;
@@ -579,6 +582,10 @@ int main(int argc, char *const argv[]) {
       defaultKinds.set_sizeIntegerKind(4);
     } else if (arg == "-module") {
       driver.moduleDirectory = args.front();
+      args.pop_front();
+    } else if (arg == "-module-dir") {
+      driver.moduleDirectory = args.front();
+      driver.searchDirectories.push_back(driver.moduleDirectory);
       args.pop_front();
     } else if (arg == "-module-suffix") {
       driver.moduleFileSuffix = args.front();
@@ -651,7 +658,8 @@ int main(int argc, char *const argv[]) {
           << "  -module dir          module output directory (default .)\n"
           << "  -flatin              interpret source as Latin-1 (ISO 8859-1) "
              "rather than UTF-8\n"
-          << "  -fsyntax-only        parsing and semantics only, no output except messages\n"
+          << "  -fsyntax-only        parsing and semantics only, no output "
+             "except messages\n"
           << "  -funparse            parse & reformat only, no code "
              "generation\n"
           << "  -funparse-with-symbols  parse, resolve symbols, and unparse\n"
@@ -688,6 +696,14 @@ int main(int argc, char *const argv[]) {
         args.pop_front();
       } else if (arg.substr(0, 2) == "-I") {
         driver.searchDirectories.push_back(arg.substr(2));
+      } else if (arg == "-J") {
+        driver.F18_FCArgs.push_back(args.front());
+        driver.moduleDirectory = args.front();
+        driver.searchDirectories.push_back(driver.moduleDirectory);
+        args.pop_front();
+      } else if (arg.substr(0, 2) == "-J") {
+        driver.moduleDirectory = arg.substr(2);
+        driver.searchDirectories.push_back(driver.moduleDirectory);
       }
     }
   }

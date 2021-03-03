@@ -25,7 +25,7 @@
 #include "clang/Basic/ABI.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/Module.h"
-#include "clang/Basic/SanitizerBlacklist.h"
+#include "clang/Basic/NoSanitizeList.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/XRayLists.h"
 #include "llvm/ADT/DenseMap.h"
@@ -1072,6 +1072,9 @@ public:
   /// Add a global to a list to be added to the llvm.compiler.used metadata.
   void addCompilerUsedGlobal(llvm::GlobalValue *GV);
 
+  /// Add a global to a list to be added to the llvm.compiler.used metadata.
+  void addUsedOrCompilerUsedGlobal(llvm::GlobalValue *GV);
+
   /// Add a destructor and object to add to the C++ global destructor function.
   void AddCXXDtorEntry(llvm::FunctionCallee DtorFn, llvm::Constant *Object) {
     CXXGlobalDtorsOrStermFinalizers.emplace_back(DtorFn.getFunctionType(),
@@ -1285,12 +1288,11 @@ public:
   /// annotations are emitted during finalization of the LLVM code.
   void AddGlobalAnnotations(const ValueDecl *D, llvm::GlobalValue *GV);
 
-  bool isInSanitizerBlacklist(SanitizerMask Kind, llvm::Function *Fn,
-                              SourceLocation Loc) const;
+  bool isInNoSanitizeList(SanitizerMask Kind, llvm::Function *Fn,
+                          SourceLocation Loc) const;
 
-  bool isInSanitizerBlacklist(llvm::GlobalVariable *GV, SourceLocation Loc,
-                              QualType Ty,
-                              StringRef Category = StringRef()) const;
+  bool isInNoSanitizeList(llvm::GlobalVariable *GV, SourceLocation Loc,
+                          QualType Ty, StringRef Category = StringRef()) const;
 
   /// Imbue XRay attributes to a function, applying the always/never attribute
   /// lists in the process. Returns true if we did imbue attributes this way,
@@ -1440,6 +1442,10 @@ public:
                                            LValueBaseInfo *BaseInfo = nullptr,
                                            TBAAAccessInfo *TBAAInfo = nullptr);
   bool stopAutoInit();
+
+  /// Print the postfix for externalized static variable for single source
+  /// offloading languages CUDA and HIP.
+  void printPostfixForExternalizedStaticVar(llvm::raw_ostream &OS) const;
 
 private:
   llvm::Constant *GetOrCreateLLVMFunction(

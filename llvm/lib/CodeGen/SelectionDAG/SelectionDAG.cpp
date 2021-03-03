@@ -3869,6 +3869,12 @@ unsigned SelectionDAG::ComputeNumSignBits(SDValue Op, const APInt &DemandedElts,
         (VTBits - SignBitsOp0 + 1) + (VTBits - SignBitsOp1 + 1);
     return OutValidBits > VTBits ? 1 : VTBits - OutValidBits + 1;
   }
+  case ISD::SREM:
+    // The sign bit is the LHS's sign bit, except when the result of the
+    // remainder is zero. The magnitude of the result should be less than or
+    // equal to the magnitude of the LHS. Therefore, the result should have
+    // at least as many sign bits as the left hand side.
+    return ComputeNumSignBits(Op.getOperand(0), DemandedElts, Depth + 1);
   case ISD::TRUNCATE: {
     // Check if the sign bits of source go down as far as the truncated value.
     unsigned NumSrcBits = Op.getOperand(0).getScalarValueSizeInBits();
@@ -5309,14 +5315,19 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
     // it's worth handling here.
     if (N2C && N2C->isNullValue())
       return N1;
+    if ((Opcode == ISD::ADD || Opcode == ISD::SUB) && VT.isVector() &&
+        VT.getVectorElementType() == MVT::i1)
+      return getNode(ISD::XOR, DL, VT, N1, N2);
     break;
   case ISD::MUL:
     assert(VT.isInteger() && "This operator does not apply to FP types!");
     assert(N1.getValueType() == N2.getValueType() &&
            N1.getValueType() == VT && "Binary operator types must match!");
+    if (VT.isVector() && VT.getVectorElementType() == MVT::i1)
+      return getNode(ISD::AND, DL, VT, N1, N2);
     if (N2C && (N1.getOpcode() == ISD::VSCALE) && Flags.hasNoSignedWrap()) {
-      APInt MulImm = cast<ConstantSDNode>(N1->getOperand(0))->getAPIntValue();
-      APInt N2CImm = N2C->getAPIntValue();
+      const APInt &MulImm = N1->getConstantOperandAPInt(0);
+      const APInt &N2CImm = N2C->getAPIntValue();
       return getVScale(DL, VT, MulImm * N2CImm);
     }
     break;
@@ -5333,6 +5344,14 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
     assert(VT.isInteger() && "This operator does not apply to FP types!");
     assert(N1.getValueType() == N2.getValueType() &&
            N1.getValueType() == VT && "Binary operator types must match!");
+    if (VT.isVector() && VT.getVectorElementType() == MVT::i1) {
+      // fold (add_sat x, y) -> (or x, y) for bool types.
+      if (Opcode == ISD::SADDSAT || Opcode == ISD::UADDSAT)
+        return getNode(ISD::OR, DL, VT, N1, N2);
+      // fold (sub_sat x, y) -> (and x, ~y) for bool types.
+      if (Opcode == ISD::SSUBSAT || Opcode == ISD::USUBSAT)
+        return getNode(ISD::AND, DL, VT, N1, getNOT(DL, N2, VT));
+    }
     break;
   case ISD::SMIN:
   case ISD::UMAX:
@@ -5369,8 +5388,8 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
     break;
   case ISD::SHL:
     if (N2C && (N1.getOpcode() == ISD::VSCALE) && Flags.hasNoSignedWrap()) {
-      APInt MulImm = cast<ConstantSDNode>(N1->getOperand(0))->getAPIntValue();
-      APInt ShiftImm = N2C->getAPIntValue();
+      const APInt &MulImm = N1->getConstantOperandAPInt(0);
+      const APInt &ShiftImm = N2C->getAPIntValue();
       return getVScale(DL, VT, MulImm << ShiftImm);
     }
     LLVM_FALLTHROUGH;
@@ -5568,8 +5587,8 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
     if (N1C) {
       unsigned ElementSize = VT.getSizeInBits();
       unsigned Shift = ElementSize * N2C->getZExtValue();
-      APInt ShiftedVal = N1C->getAPIntValue().lshr(Shift);
-      return getConstant(ShiftedVal.trunc(ElementSize), DL, VT);
+      const APInt &Val = N1C->getAPIntValue();
+      return getConstant(Val.extractBits(ElementSize, Shift), DL, VT);
     }
     break;
   case ISD::EXTRACT_SUBVECTOR:
@@ -5589,9 +5608,7 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
                 N1VT.getVectorMinNumElements()) &&
            "Extract subvector overflow!");
     assert(N2C->getAPIntValue().getBitWidth() ==
-               TLI->getVectorIdxTy(getDataLayout())
-                   .getSizeInBits()
-                   .getFixedSize() &&
+               TLI->getVectorIdxTy(getDataLayout()).getFixedSizeInBits() &&
            "Constant index for EXTRACT_SUBVECTOR has an invalid size");
 
     // Trivial extraction.
@@ -5811,6 +5828,9 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
              cast<ConstantSDNode>(N3)->getZExtValue()) <=
                 VT.getVectorMinNumElements()) &&
            "Insert subvector overflow!");
+    assert(cast<ConstantSDNode>(N3)->getAPIntValue().getBitWidth() ==
+               TLI->getVectorIdxTy(getDataLayout()).getFixedSizeInBits() &&
+           "Constant index for INSERT_SUBVECTOR has an invalid size");
 
     // Trivial insertion.
     if (VT == N2VT)

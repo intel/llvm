@@ -420,13 +420,8 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
     return true;
   }
 
-  if (auto *CB = dyn_cast<CallBase>(I)) {
-    // Treat calls that may not return as alive.
-    // TODO: Remove the intrinsic escape hatch once all intrinsics set
-    // willreturn properly.
-    if (!CB->willReturn() && !isa<IntrinsicInst>(I))
-      return false;
-  }
+  if (!I->willReturn())
+    return false;
 
   if (!I->mayHaveSideEffects())
     return true;
@@ -923,6 +918,7 @@ static void gatherIncomingValuesToPhi(PHINode *PN,
 /// \param IncomingValues A map from block to value.
 static void replaceUndefValuesInPhi(PHINode *PN,
                                     const IncomingValueMap &IncomingValues) {
+  SmallVector<unsigned> TrueUndefOps;
   for (unsigned i = 0, e = PN->getNumIncomingValues(); i != e; ++i) {
     Value *V = PN->getIncomingValue(i);
 
@@ -930,9 +926,30 @@ static void replaceUndefValuesInPhi(PHINode *PN,
 
     BasicBlock *BB = PN->getIncomingBlock(i);
     IncomingValueMap::const_iterator It = IncomingValues.find(BB);
-    if (It == IncomingValues.end()) continue;
 
+    // Keep track of undef/poison incoming values. Those must match, so we fix
+    // them up below if needed.
+    // Note: this is conservatively correct, but we could try harder and group
+    // the undef values per incoming basic block.
+    if (It == IncomingValues.end()) {
+      TrueUndefOps.push_back(i);
+      continue;
+    }
+
+    // There is a defined value for this incoming block, so map this undef
+    // incoming value to the defined value.
     PN->setIncomingValue(i, It->second);
+  }
+
+  // If there are both undef and poison values incoming, then convert those
+  // values to undef. It is invalid to have different values for the same
+  // incoming block.
+  unsigned PoisonCount = count_if(TrueUndefOps, [&](unsigned i) {
+    return isa<PoisonValue>(PN->getIncomingValue(i));
+  });
+  if (PoisonCount != 0 && PoisonCount != TrueUndefOps.size()) {
+    for (unsigned i : TrueUndefOps)
+      PN->setIncomingValue(i, UndefValue::get(PN->getType()));
   }
 }
 
@@ -1707,11 +1724,9 @@ void llvm::replaceDbgValueForAlloca(AllocaInst *AI, Value *NewAllocaAddress,
                                     DIBuilder &Builder, int Offset) {
   if (auto *L = LocalAsMetadata::getIfExists(AI))
     if (auto *MDV = MetadataAsValue::getIfExists(AI->getContext(), L))
-      for (auto UI = MDV->use_begin(), UE = MDV->use_end(); UI != UE;) {
-        Use &U = *UI++;
+      for (Use &U : llvm::make_early_inc_range(MDV->uses()))
         if (auto *DVI = dyn_cast<DbgValueInst>(U.getUser()))
           replaceOneDbgValueForAlloca(DVI, NewAllocaAddress, Builder, Offset);
-      }
 }
 
 /// Wrap \p V in a ValueAsMetadata instance.
@@ -2856,6 +2871,10 @@ collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
   auto &Result = BPS[V] = None;
   auto BitWidth = V->getType()->getScalarSizeInBits();
 
+  // Can't do integer/elements > 128 bits.
+  if (BitWidth > 128)
+    return Result;
+
   // Prevent stack overflow by limiting the recursion depth
   if (Depth == BitPartRecursionMaxDepth) {
     LLVM_DEBUG(dbgs() << "collectBitParts max recursion depth reached.\n");
@@ -2959,6 +2978,19 @@ collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
         Result->Provenance[BitIdx] = Res->Provenance[BitIdx];
       for (unsigned BitIdx = NarrowBitWidth; BitIdx < BitWidth; ++BitIdx)
         Result->Provenance[BitIdx] = BitPart::Unset;
+      return Result;
+    }
+
+    // If this is a truncate instruction, extract the lower bits.
+    if (match(V, m_Trunc(m_Value(X)))) {
+      const auto &Res =
+          collectBitParts(X, MatchBSwaps, MatchBitReversals, BPS, Depth + 1);
+      if (!Res)
+        return Result;
+
+      Result = BitPart(Res->Provider, BitWidth);
+      for (unsigned BitIdx = 0; BitIdx < BitWidth; ++BitIdx)
+        Result->Provenance[BitIdx] = Res->Provenance[BitIdx];
       return Result;
     }
 

@@ -27,6 +27,15 @@ declare void @my_other_async_function(i8* %async.ctxt)
      to i32),
      i32 128    ; Initial async context size without space for frame
 }>
+@my_async_function_pa_fp = constant <{ i32, i32 }>
+  <{ i32 trunc (
+       i64 sub (
+         i64 ptrtoint (void (i8*, %async.task*, %async.actor*)* @my_async_function_pa to i64),
+         i64 ptrtoint (i32* getelementptr inbounds (<{ i32, i32 }>, <{ i32, i32 }>* @my_async_function_pa_fp, i32 0, i32 1) to i64)
+       )
+     to i32),
+     i32 8
+}>
 
 ; Function that implements the dispatch to the callee function.
 define swiftcc void @my_async_function.my_other_async_function_fp.apply(i8* %fnPtr, i8* %async.ctxt, %async.task* %task, %async.actor* %actor) {
@@ -99,8 +108,15 @@ entry:
   unreachable
 }
 
+define void @my_async_function_pa(i8* %ctxt, %async.task* %task, %async.actor* %actor) {
+  call void @llvm.coro.async.size.replace(i8* bitcast (<{i32, i32}>* @my_async_function_pa_fp to i8*), i8* bitcast (<{i32, i32}>* @my_async_function_fp to i8*))
+  call swiftcc void @my_async_function(i8* %ctxt, %async.task* %task, %async.actor* %actor)
+  ret void
+}
+
 ; Make sure we update the async function pointer
 ; CHECK: @my_async_function_fp = constant <{ i32, i32 }> <{ {{.*}}, i32 176 }
+; CHECK: @my_async_function_pa_fp = constant <{ i32, i32 }> <{ {{.*}}, i32 176 }
 ; CHECK: @my_async_function2_fp = constant <{ i32, i32 }> <{ {{.*}}, i32 176 }
 
 ; CHECK-LABEL: define swiftcc void @my_async_function(i8* %async.ctxt, %async.task* %task, %async.actor* %actor) {
@@ -445,6 +461,60 @@ entry:
 ; CHECK: bitcast i8* %3 to %async.task*
 ; CHECK: }
 
+@no_coro_suspend_fp = constant <{ i32, i32 }>
+  <{ i32 trunc ( ; Relative pointer to async function
+       i64 sub (
+         i64 ptrtoint (void (i8*)* @no_coro_suspend to i64),
+         i64 ptrtoint (i32* getelementptr inbounds (<{ i32, i32 }>, <{ i32, i32 }>* @no_coro_suspend_fp, i32 0, i32 1) to i64)
+       )
+     to i32),
+     i32 128    ; Initial async context size without space for frame
+}>
+
+define swiftcc void @no_coro_suspend(i8* %async.ctx) {
+entry:
+  %some_alloca = alloca i64
+  %id = call token @llvm.coro.id.async(i32 128, i32 16, i32 0,
+          i8* bitcast (<{i32, i32}>* @no_coro_suspend_fp to i8*))
+  %hdl = call i8* @llvm.coro.begin(token %id, i8* null)
+  call void @some_may_write(i64* %some_alloca)
+  call i1 (i8*, i1, ...) @llvm.coro.end.async(i8* %hdl, i1 0)
+  unreachable
+}
+
+; CHECK-LABEL: define swiftcc void @no_coro_suspend
+; CHECK:   [[ALLOCA:%.*]] = alloca i64
+; CHECK:   call void @some_may_write(i64* {{.*}}[[ALLOCA]])
+
+@no_coro_suspend_swifterror_fp = constant <{ i32, i32 }>
+  <{ i32 trunc ( ; Relative pointer to async function
+       i64 sub (
+         i64 ptrtoint (void (i8*)* @no_coro_suspend_swifterror to i64),
+         i64 ptrtoint (i32* getelementptr inbounds (<{ i32, i32 }>, <{ i32, i32 }>* @no_coro_suspend_swifterror_fp, i32 0, i32 1) to i64)
+       )
+     to i32),
+     i32 128    ; Initial async context size without space for frame
+}>
+
+declare void @do_with_swifterror(i64** swifterror)
+
+define swiftcc void @no_coro_suspend_swifterror(i8* %async.ctx) {
+entry:
+  %some_alloca = alloca swifterror i64*
+  %id = call token @llvm.coro.id.async(i32 128, i32 16, i32 0,
+          i8* bitcast (<{i32, i32}>* @no_coro_suspend_swifterror_fp to i8*))
+  %hdl = call i8* @llvm.coro.begin(token %id, i8* null)
+  store i64* null, i64** %some_alloca, align 8
+  call void @do_with_swifterror(i64** swifterror %some_alloca)
+  call i1 (i8*, i1, ...) @llvm.coro.end.async(i8* %hdl, i1 0)
+  unreachable
+}
+
+ ; CHECK-LABEL: define swiftcc void @no_coro_suspend_swifterror
+ ; CHECK:  [[ALLOCA:%.*]] = alloca swifterror i64*
+ ; CHECK:   store i64* null, i64** [[ALLOCA]]
+ ; CHECK:   call void @do_with_swifterror(i64** {{.*}}swifterror{{.*}} [[ALLOCA]])
+
 declare { i8*, i8*, i8*, i8* } @llvm.coro.suspend.async.sl_p0i8p0i8p0i8p0i8s(i8*, i8*, ...)
 declare i8* @llvm.coro.prepare.async(i8*)
 declare token @llvm.coro.id.async(i32, i32, i32, i8*)
@@ -457,3 +527,4 @@ declare void @llvm.coro.async.context.dealloc(i8*)
 declare swiftcc void @asyncReturn(i8*, %async.task*, %async.actor*)
 declare swiftcc void @asyncSuspend(i8*, %async.task*, %async.actor*)
 declare i8* @llvm.coro.async.resume()
+declare void @llvm.coro.async.size.replace(i8*, i8*)

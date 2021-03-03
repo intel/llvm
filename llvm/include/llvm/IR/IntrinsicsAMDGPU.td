@@ -1029,6 +1029,10 @@ def int_amdgcn_raw_buffer_atomic_cmpswap : Intrinsic<
 // gfx908 intrinsic
 def int_amdgcn_raw_buffer_atomic_fadd : AMDGPURawBufferAtomic<llvm_anyfloat_ty>;
 
+// gfx90a intrinsics
+def int_amdgcn_raw_buffer_atomic_fmin : AMDGPURawBufferAtomic<llvm_anyfloat_ty>;
+def int_amdgcn_raw_buffer_atomic_fmax : AMDGPURawBufferAtomic<llvm_anyfloat_ty>;
+
 class AMDGPUStructBufferAtomic<LLVMType data_ty = llvm_any_ty, bit NoRtn = false> : Intrinsic <
   !if(NoRtn, [], [data_ty]),
   [!if(NoRtn, data_ty, LLVMMatchType<0>),  // vdata(VGPR)
@@ -1065,6 +1069,10 @@ def int_amdgcn_struct_buffer_atomic_cmpswap : Intrinsic<
 
 // gfx908 intrinsic
 def int_amdgcn_struct_buffer_atomic_fadd : AMDGPUStructBufferAtomic<llvm_anyfloat_ty>;
+
+// gfx90a intrinsics
+def int_amdgcn_struct_buffer_atomic_fmin : AMDGPUStructBufferAtomic<llvm_anyfloat_ty>;
+def int_amdgcn_struct_buffer_atomic_fmax : AMDGPUStructBufferAtomic<llvm_anyfloat_ty>;
 
 
 // Obsolescent tbuffer intrinsics.
@@ -1275,6 +1283,10 @@ def int_amdgcn_s_decperflevel :
                                 IntrHasSideEffects, IntrWillReturn]> {
 }
 
+def int_amdgcn_s_sethalt :
+  Intrinsic<[], [llvm_i32_ty], [ImmArg<ArgIndex<0>>, IntrNoMem,
+                                IntrHasSideEffects, IntrWillReturn]>;
+
 def int_amdgcn_s_getreg :
   GCCBuiltin<"__builtin_amdgcn_s_getreg">,
   Intrinsic<[llvm_i32_ty], [llvm_i32_ty],
@@ -1358,7 +1370,7 @@ def int_amdgcn_ps_live : Intrinsic <
 // Query currently live lanes.
 // Returns true if lane is live (and not a helper lane).
 def int_amdgcn_live_mask : Intrinsic <[llvm_i1_ty],
-  [], [IntrReadMem, IntrInaccessibleMemOnly]
+  [], [IntrReadMem, IntrInaccessibleMemOnly, IntrWillReturn]
 >;
 
 def int_amdgcn_mbcnt_lo :
@@ -1991,6 +2003,65 @@ def int_amdgcn_mfma_f32_32x32x4bf16 : GCCBuiltin<"__builtin_amdgcn_mfma_f32_32x3
 def int_amdgcn_mfma_f32_16x16x8bf16 : GCCBuiltin<"__builtin_amdgcn_mfma_f32_16x16x8bf16">,
   Intrinsic<[llvm_v4f32_ty],
             [llvm_v2i16_ty, llvm_v2i16_ty, llvm_v4f32_ty,
+            llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
+            [IntrConvergent, IntrNoMem, IntrWillReturn,
+             ImmArg<ArgIndex<3>>, ImmArg<ArgIndex<4>>, ImmArg<ArgIndex<5>>]>;
+
+//===----------------------------------------------------------------------===//
+// gfx90a intrinsics
+// ===----------------------------------------------------------------------===//
+
+def int_amdgcn_global_atomic_fmin : AMDGPUGlobalAtomicRtn<llvm_anyfloat_ty>;
+def int_amdgcn_global_atomic_fmax : AMDGPUGlobalAtomicRtn<llvm_anyfloat_ty>;
+def int_amdgcn_flat_atomic_fadd   : AMDGPUGlobalAtomicRtn<llvm_anyfloat_ty>;
+def int_amdgcn_flat_atomic_fmin   : AMDGPUGlobalAtomicRtn<llvm_anyfloat_ty>;
+def int_amdgcn_flat_atomic_fmax   : AMDGPUGlobalAtomicRtn<llvm_anyfloat_ty>;
+
+def int_amdgcn_mfma_f32_32x32x4bf16_1k : GCCBuiltin<"__builtin_amdgcn_mfma_f32_32x32x4bf16_1k">,
+  Intrinsic<[llvm_v32f32_ty],
+            [llvm_v4i16_ty, llvm_v4i16_ty, llvm_v32f32_ty,
+            llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
+            [IntrConvergent, IntrNoMem, IntrWillReturn,
+             ImmArg<ArgIndex<3>>, ImmArg<ArgIndex<4>>, ImmArg<ArgIndex<5>>]>;
+
+def int_amdgcn_mfma_f32_16x16x4bf16_1k : GCCBuiltin<"__builtin_amdgcn_mfma_f32_16x16x4bf16_1k">,
+  Intrinsic<[llvm_v16f32_ty],
+            [llvm_v4i16_ty, llvm_v4i16_ty, llvm_v16f32_ty,
+            llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
+            [IntrConvergent, IntrNoMem, IntrWillReturn,
+             ImmArg<ArgIndex<3>>, ImmArg<ArgIndex<4>>, ImmArg<ArgIndex<5>>]>;
+
+def int_amdgcn_mfma_f32_4x4x4bf16_1k : GCCBuiltin<"__builtin_amdgcn_mfma_f32_4x4x4bf16_1k">,
+  Intrinsic<[llvm_v4f32_ty],
+            [llvm_v4i16_ty, llvm_v4i16_ty, llvm_v4f32_ty,
+            llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
+            [IntrConvergent, IntrNoMem, IntrWillReturn,
+             ImmArg<ArgIndex<3>>, ImmArg<ArgIndex<4>>, ImmArg<ArgIndex<5>>]>;
+
+def int_amdgcn_mfma_f32_32x32x8bf16_1k : GCCBuiltin<"__builtin_amdgcn_mfma_f32_32x32x8bf16_1k">,
+  Intrinsic<[llvm_v16f32_ty],
+            [llvm_v4i16_ty, llvm_v4i16_ty, llvm_v16f32_ty,
+            llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
+            [IntrConvergent, IntrNoMem, IntrWillReturn,
+             ImmArg<ArgIndex<3>>, ImmArg<ArgIndex<4>>, ImmArg<ArgIndex<5>>]>;
+
+def int_amdgcn_mfma_f32_16x16x16bf16_1k : GCCBuiltin<"__builtin_amdgcn_mfma_f32_16x16x16bf16_1k">,
+  Intrinsic<[llvm_v4f32_ty],
+            [llvm_v4i16_ty, llvm_v4i16_ty, llvm_v4f32_ty,
+            llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
+            [IntrConvergent, IntrNoMem, IntrWillReturn,
+             ImmArg<ArgIndex<3>>, ImmArg<ArgIndex<4>>, ImmArg<ArgIndex<5>>]>;
+
+def int_amdgcn_mfma_f64_16x16x4f64 : GCCBuiltin<"__builtin_amdgcn_mfma_f64_16x16x4f64">,
+  Intrinsic<[llvm_v4f64_ty],
+            [llvm_double_ty, llvm_double_ty, llvm_v4f64_ty,
+            llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
+            [IntrConvergent, IntrNoMem, IntrWillReturn,
+             ImmArg<ArgIndex<3>>, ImmArg<ArgIndex<4>>, ImmArg<ArgIndex<5>>]>;
+
+def int_amdgcn_mfma_f64_4x4x4f64 : GCCBuiltin<"__builtin_amdgcn_mfma_f64_4x4x4f64">,
+  Intrinsic<[llvm_double_ty],
+            [llvm_double_ty, llvm_double_ty, llvm_double_ty,
             llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
             [IntrConvergent, IntrNoMem, IntrWillReturn,
              ImmArg<ArgIndex<3>>, ImmArg<ArgIndex<4>>, ImmArg<ArgIndex<5>>]>;

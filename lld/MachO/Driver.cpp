@@ -261,8 +261,9 @@ static std::vector<ArchiveMember> getArchiveMembers(MemoryBufferRef mb) {
   return v;
 }
 
-static InputFile *addFile(StringRef path, bool forceLoadArchive) {
-  Optional<MemoryBufferRef> buffer = readFile(path);
+static InputFile *addFile(StringRef path, bool forceLoadArchive,
+                          bool isBundleLoader = false) {
+  Optional<MemoryBufferRef> buffer = readLinkableFile(path);
   if (!buffer)
     return nullptr;
   MemoryBufferRef mbref = *buffer;
@@ -278,7 +279,7 @@ static InputFile *addFile(StringRef path, bool forceLoadArchive) {
       error(path + ": archive has no index; run ranlib to add one");
 
     if (config->allLoad || forceLoadArchive) {
-      if (Optional<MemoryBufferRef> buffer = readFile(path)) {
+      if (Optional<MemoryBufferRef> buffer = readLinkableFile(path)) {
         for (const ArchiveMember &member : getArchiveMembers(*buffer)) {
           if (Optional<InputFile *> file = loadArchiveMember(
                   member.mbref, member.modTime, path, /*objCOnly=*/false)) {
@@ -299,7 +300,7 @@ static InputFile *addFile(StringRef path, bool forceLoadArchive) {
       // we already found that it contains an ObjC symbol. We should also
       // consider creating a LazyObjFile class in order to avoid double-loading
       // these files here and below (as part of the ArchiveFile).
-      if (Optional<MemoryBufferRef> buffer = readFile(path)) {
+      if (Optional<MemoryBufferRef> buffer = readLinkableFile(path)) {
         for (const ArchiveMember &member : getArchiveMembers(*buffer)) {
           if (Optional<InputFile *> file = loadArchiveMember(
                   member.mbref, member.modTime, path, /*objCOnly=*/true)) {
@@ -324,6 +325,16 @@ static InputFile *addFile(StringRef path, bool forceLoadArchive) {
     break;
   case file_magic::bitcode:
     newFile = make<BitcodeFile>(mbref);
+    break;
+  case file_magic::macho_executable:
+  case file_magic::macho_bundle:
+    // We only allow executable and bundle type here if it is used
+    // as a bundle loader.
+    if (!isBundleLoader)
+      error(path + ": unhandled file type");
+    if (Optional<DylibFile *> dylibFile =
+            loadDylib(mbref, nullptr, isBundleLoader))
+      newFile = *dylibFile;
     break;
   default:
     error(path + ": unhandled file type");
@@ -392,7 +403,7 @@ void macho::parseLCLinkerOption(InputFile* f, unsigned argc, StringRef data) {
 }
 
 static void addFileList(StringRef path) {
-  Optional<MemoryBufferRef> buffer = readFile(path);
+  Optional<MemoryBufferRef> buffer = readRawFile(path);
   if (!buffer)
     return;
   MemoryBufferRef mbref = *buffer;
@@ -415,7 +426,7 @@ static void addFileList(StringRef path) {
 //
 // The file can also have line comments that start with '#'.
 static void parseOrderFile(StringRef path) {
-  Optional<MemoryBufferRef> buffer = readFile(path);
+  Optional<MemoryBufferRef> buffer = readRawFile(path);
   if (!buffer) {
     error("Could not read order file at " + path);
     return;
@@ -582,18 +593,27 @@ static void handlePlatformVersion(const opt::Arg *arg) {
 
 static void handleUndefined(const opt::Arg *arg) {
   StringRef treatmentStr = arg->getValue(0);
-  config->undefinedSymbolTreatment =
+  auto treatment =
       StringSwitch<UndefinedSymbolTreatment>(treatmentStr)
           .Case("error", UndefinedSymbolTreatment::error)
           .Case("warning", UndefinedSymbolTreatment::warning)
           .Case("suppress", UndefinedSymbolTreatment::suppress)
           .Case("dynamic_lookup", UndefinedSymbolTreatment::dynamic_lookup)
           .Default(UndefinedSymbolTreatment::unknown);
-  if (config->undefinedSymbolTreatment == UndefinedSymbolTreatment::unknown) {
+  if (treatment == UndefinedSymbolTreatment::unknown) {
     warn(Twine("unknown -undefined TREATMENT '") + treatmentStr +
          "', defaulting to 'error'");
-    config->undefinedSymbolTreatment = UndefinedSymbolTreatment::error;
+    treatment = UndefinedSymbolTreatment::error;
+  } else if (config->namespaceKind == NamespaceKind::twolevel &&
+             (treatment == UndefinedSymbolTreatment::warning ||
+              treatment == UndefinedSymbolTreatment::suppress)) {
+    if (treatment == UndefinedSymbolTreatment::warning)
+      error("'-undefined warning' only valid with '-flat_namespace'");
+    else
+      error("'-undefined suppress' only valid with '-flat_namespace'");
+    treatment = UndefinedSymbolTreatment::error;
   }
+  config->undefinedSymbolTreatment = treatment;
 }
 
 static void warnIfDeprecatedOption(const opt::Option &opt) {
@@ -692,10 +712,12 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   lld::stdoutOS = &stdoutOS;
   lld::stderrOS = &stderrOS;
 
+  errorHandler().cleanupCallback = []() { freeArena(); };
+
+  errorHandler().logName = args::getFilenameWithoutExe(argsArr[0]);
   stderrOS.enable_colors(stderrOS.has_colors());
   // TODO: Set up error handler properly, e.g. the errorLimitExceededMsg
 
-  errorHandler().cleanupCallback = []() { freeArena(); };
 
   MachOOptTable parser;
   opt::InputArgList args = parser.parse(argsArr.slice(1));
@@ -738,6 +760,10 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
     config->explicitUndefineds.push_back(symtab->addUndefined(
         arg->getValue(), /*file=*/nullptr, /*isWeakRef=*/false));
   }
+
+  for (auto *arg : args.filtered(OPT_U))
+    symtab->addDynamicLookup(arg->getValue());
+
   config->outputFile = args.getLastArgValue(OPT_o, "a.out");
   config->installName =
       args.getLastArgValue(OPT_install_name, config->outputFile);
@@ -747,6 +773,11 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   config->printEachFile = args.hasArg(OPT_t);
   config->printWhyLoad = args.hasArg(OPT_why_load);
   config->outputType = getOutputType(args);
+  if (const opt::Arg *arg = args.getLastArg(OPT_bundle_loader)) {
+    if (config->outputType != MH_BUNDLE)
+      error("-bundle_loader can only be used with MachO bundle output");
+    addFile(arg->getValue(), false, true);
+  }
   config->ltoObjPath = args.getLastArgValue(OPT_object_path_lto);
   config->ltoNewPassManager =
       args.hasFlag(OPT_no_lto_legacy_pass_manager, OPT_lto_legacy_pass_manager,
@@ -759,6 +790,13 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
 
   if (const opt::Arg *arg = args.getLastArg(OPT_static, OPT_dynamic))
     config->staticLink = (arg->getOption().getID() == OPT_static);
+
+  if (const opt::Arg *arg =
+          args.getLastArg(OPT_flat_namespace, OPT_twolevel_namespace)) {
+    config->namespaceKind = arg->getOption().getID() == OPT_twolevel_namespace
+                                ? NamespaceKind::twolevel
+                                : NamespaceKind::flat;
+  }
 
   config->systemLibraryRoots = getSystemLibraryRoots(args);
   config->librarySearchPaths =
@@ -774,6 +812,24 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
       parseDylibVersion(args, OPT_compatibility_version);
   config->dylibCurrentVersion = parseDylibVersion(args, OPT_current_version);
 
+  // Reject every special character except '.' and '$'
+  // TODO(gkm): verify that this is the proper set of invalid chars
+  StringRef invalidNameChars("!\"#%&'()*+,-/:;<=>?@[\\]^`{|}~");
+  auto validName = [invalidNameChars](StringRef s) {
+    if (s.find_first_of(invalidNameChars) != StringRef::npos)
+      error("invalid name for segment or section: " + s);
+    return s;
+  };
+  for (opt::Arg *arg : args.filtered(OPT_rename_section)) {
+    config->sectionRenameMap[{validName(arg->getValue(0)),
+                              validName(arg->getValue(1))}] = {
+        validName(arg->getValue(2)), validName(arg->getValue(3))};
+  }
+  for (opt::Arg *arg : args.filtered(OPT_rename_segment)) {
+    config->segmentRenameMap[validName(arg->getValue(0))] =
+        validName(arg->getValue(1));
+  }
+
   config->saveTemps = args.hasArg(OPT_save_temps);
 
   if (args.hasArg(OPT_v)) {
@@ -786,8 +842,6 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
             (config->frameworkSearchPaths.size()
                  ? "\n\t" + join(config->frameworkSearchPaths, "\n\t")
                  : ""));
-    freeArena();
-    return !errorCount();
   }
 
   initLLVM(); // must be run before any call to addFile()
@@ -796,6 +850,7 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
     const auto &opt = arg->getOption();
     warnIfDeprecatedOption(opt);
     warnIfUnimplementedOption(opt);
+
     // TODO: are any of these better handled via filtered() or getLastArg()?
     switch (opt.getID()) {
     case OPT_INPUT:
@@ -885,7 +940,7 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
     StringRef segName = arg->getValue(0);
     StringRef sectName = arg->getValue(1);
     StringRef fileName = arg->getValue(2);
-    Optional<MemoryBufferRef> buffer = readFile(fileName);
+    Optional<MemoryBufferRef> buffer = readRawFile(fileName);
     if (buffer)
       inputFiles.insert(make<OpaqueFile>(*buffer, segName, sectName));
   }

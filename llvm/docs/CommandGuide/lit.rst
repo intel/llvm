@@ -154,6 +154,15 @@ EXECUTION OPTIONS
  suite take the most time to execute.  Note that this option is most useful
  with ``-j 1``.
 
+.. option:: --ignore-fail
+
+ Exit with status zero even if some tests fail.
+
+.. option:: --no-indirectly-run-check
+
+ Do not error if a test would not be run if the user had specified the
+ containing directory instead of naming the test directly.
+
 .. _selection-options:
 
 SELECTION OPTIONS
@@ -208,6 +217,21 @@ SELECTION OPTIONS
   ``REGEXP``. The environment variable ``LIT_FILTER`` can be also used in place
   of this option, which is especially useful in environments where the call
   to ``lit`` is issued indirectly.
+
+.. option:: --filter-out=REGEXP
+
+  Filter out those tests whose name matches the regular expression specified in
+  ``REGEXP``. The environment variable ``LIT_FILTER_OUT`` can be also used in
+  place of this option, which is especially useful in environments where the
+  call to ``lit`` is issued indirectly.
+
+.. option:: --xfail=LIST
+
+  Treat those tests whose name is in the semicolon separated list ``LIST`` as
+  ``XFAIL``. This can be helpful when one does not want to modify the test
+  suite. The environment variable ``LIT_XFAIL`` can be also used in place of
+  this option, which is especially useful in environments where the call to
+  ``lit`` is issued indirectly.
 
 ADDITIONAL OPTIONS
 ------------------
@@ -372,6 +396,11 @@ executed, two important global variables are predefined:
  **environment** A dictionary representing the environment to use when executing
  tests in the suite.
 
+ **standalone_tests** When true, mark a directory with tests expected to be run
+ standalone. Test discovery is disabled for that directory and
+ *--no-indirectly-run-check* is in effect. *lit.suffixes* and *lit.excludes*
+ must be empty when this variable is true.
+
  **suffixes** For **lit** test formats which scan directories for tests, this
  variable is a list of suffixes to identify test files.  Used by: *ShTest*.
 
@@ -386,6 +415,13 @@ executed, two important global variables are predefined:
 
  **root** The root configuration.  This is the top-most :program:`lit` configuration in
  the project.
+
+ **is_early** Whether the test suite as a whole should be given a head start
+ before other test suites run.
+
+ **early_tests** An explicit set of '/' separated test paths that should be
+ given a head start before other tests run. For example, the top five or so
+ slowest tests. See also: `--time-tests`
 
  **pipefail** Normally a test using a shell pipe fails if any of the commands
  on the pipe fail. If this is not desired, setting this variable to false

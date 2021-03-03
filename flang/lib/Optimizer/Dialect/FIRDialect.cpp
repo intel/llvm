@@ -22,9 +22,9 @@ fir::FIROpsDialect::FIROpsDialect(mlir::MLIRContext *ctx)
   addTypes<BoxType, BoxCharType, BoxProcType, CharacterType, fir::ComplexType,
            FieldType, HeapType, fir::IntegerType, LenType, LogicalType,
            PointerType, RealType, RecordType, ReferenceType, SequenceType,
-           ShapeType, ShapeShiftType, SliceType, TypeDescType,
+           ShapeType, ShapeShiftType, ShiftType, SliceType, TypeDescType,
            fir::VectorType>();
-  addAttributes<ClosedIntervalAttr, ExactTypeAttr, LowerBoundAttr, OpaqueAttr,
+  addAttributes<ClosedIntervalAttr, ExactTypeAttr, LowerBoundAttr,
                 PointIntervalAttr, RealAttr, SubclassAttr, UpperBoundAttr>();
   addOperations<
 #define GET_OP_LIST

@@ -251,6 +251,15 @@ AArch64TTIImpl::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
       return LT.first * Instrs;
     break;
   }
+  case Intrinsic::abs: {
+    static const auto ValidAbsTys = {MVT::v8i8,  MVT::v16i8, MVT::v4i16,
+                                     MVT::v8i16, MVT::v2i32, MVT::v4i32,
+                                     MVT::v2i64};
+    auto LT = TLI->getTypeLegalizationCost(DL, RetTy);
+    if (any_of(ValidAbsTys, [&LT](MVT M) { return M == LT.second; }))
+      return LT.first;
+    break;
+  }
   default:
     break;
   }
@@ -1087,6 +1096,33 @@ bool AArch64TTIImpl::shouldConsiderAddressTypePromotion(
     }
   }
   return Considerable;
+}
+
+bool AArch64TTIImpl::isLegalToVectorizeReduction(RecurrenceDescriptor RdxDesc,
+                                                 ElementCount VF) const {
+  if (!VF.isScalable())
+    return true;
+
+  Type *Ty = RdxDesc.getRecurrenceType();
+  if (Ty->isBFloatTy() || !isLegalElementTypeForSVE(Ty))
+    return false;
+
+  switch (RdxDesc.getRecurrenceKind()) {
+  case RecurKind::Add:
+  case RecurKind::FAdd:
+  case RecurKind::And:
+  case RecurKind::Or:
+  case RecurKind::Xor:
+  case RecurKind::SMin:
+  case RecurKind::SMax:
+  case RecurKind::UMin:
+  case RecurKind::UMax:
+  case RecurKind::FMin:
+  case RecurKind::FMax:
+    return true;
+  default:
+    return false;
+  }
 }
 
 int AArch64TTIImpl::getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,

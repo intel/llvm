@@ -870,6 +870,17 @@ Enable use-after-scope detection in AddressSanitizer
 
 Enable ODR indicator globals to avoid false ODR violation reports in partially sanitized programs at the cost of an increase in binary size
 
+.. option:: -fsanitize-address-destructor-kind=<arg>
+
+Set the kind of module destructors emitted by AddressSanitizer instrumentation.
+These destructors are emitted to unregister instrumented global variables when
+code is unloaded (e.g. via `dlclose()`).
+
+Valid options are:
+
+* ``global`` - Emit module destructors that are called via a platform specific array (see `llvm.global_dtors`).
+* ``none`` - Do not emit module destructors.
+
 .. option:: -fsanitize-blacklist=<arg>
 
 Path to blacklist file for sanitizers
@@ -2981,6 +2992,10 @@ Specify CU (-mcumode) or WGP (-mno-cumode) wavefront execution mode (AMDGPU only
 .. option:: -msram-ecc, -mno-sram-ecc
 
 Specify SRAM ECC mode (AMDGPU only)
+
+.. option:: -mtgsplit, -mno-tgsplit
+
+Enable threadgroup split execution mode (AMDGPU only)
 
 .. option:: -mxnack, -mno-xnack
 

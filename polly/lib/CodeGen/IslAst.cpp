@@ -181,7 +181,7 @@ static isl_printer *cbPrintFor(__isl_take isl_printer *Printer,
   if (DD)
     Printer = printLine(Printer, DepDisPragmaStr, DD);
 
-  if (IslAstInfo::isInnermostParallel(Node))
+  if (IslAstInfo::isInnermostParallel(isl::manage_copy(Node)))
     Printer = printLine(Printer, SimdPragmaStr + BrokenReductionsStr);
 
   if (IslAstInfo::isExecutedInParallel(Node))
@@ -481,7 +481,7 @@ static void walkAstForStatistics(__isl_keep isl_ast_node *Ast) {
           NumForLoops++;
           if (IslAstInfo::isParallel(Node))
             NumParallel++;
-          if (IslAstInfo::isInnermostParallel(Node))
+          if (IslAstInfo::isInnermostParallel(isl::manage_copy(Node)))
             NumInnermostParallel++;
           if (IslAstInfo::isOutermostParallel(Node))
             NumOutermostParallel++;
@@ -587,37 +587,36 @@ __isl_give isl_ast_expr *IslAstInfo::getRunCondition() {
   return Ast.getRunCondition();
 }
 
-IslAstUserPayload *IslAstInfo::getNodePayload(__isl_keep isl_ast_node *Node) {
-  isl_id *Id = isl_ast_node_get_annotation(Node);
+IslAstUserPayload *IslAstInfo::getNodePayload(const isl::ast_node &Node) {
+  isl::id Id = Node.get_annotation();
   if (!Id)
     return nullptr;
-  IslAstUserPayload *Payload = (IslAstUserPayload *)isl_id_get_user(Id);
-  isl_id_free(Id);
+  IslAstUserPayload *Payload = (IslAstUserPayload *)Id.get_user();
   return Payload;
 }
 
 bool IslAstInfo::isInnermost(__isl_keep isl_ast_node *Node) {
-  IslAstUserPayload *Payload = getNodePayload(Node);
+  IslAstUserPayload *Payload = getNodePayload(isl::manage_copy(Node));
   return Payload && Payload->IsInnermost;
 }
 
 bool IslAstInfo::isParallel(__isl_keep isl_ast_node *Node) {
-  return IslAstInfo::isInnermostParallel(Node) ||
+  return IslAstInfo::isInnermostParallel(isl::manage_copy(Node)) ||
          IslAstInfo::isOutermostParallel(Node);
 }
 
-bool IslAstInfo::isInnermostParallel(__isl_keep isl_ast_node *Node) {
+bool IslAstInfo::isInnermostParallel(const isl::ast_node &Node) {
   IslAstUserPayload *Payload = getNodePayload(Node);
   return Payload && Payload->IsInnermostParallel;
 }
 
 bool IslAstInfo::isOutermostParallel(__isl_keep isl_ast_node *Node) {
-  IslAstUserPayload *Payload = getNodePayload(Node);
+  IslAstUserPayload *Payload = getNodePayload(isl::manage_copy(Node));
   return Payload && Payload->IsOutermostParallel;
 }
 
 bool IslAstInfo::isReductionParallel(__isl_keep isl_ast_node *Node) {
-  IslAstUserPayload *Payload = getNodePayload(Node);
+  IslAstUserPayload *Payload = getNodePayload(isl::manage_copy(Node));
   return Payload && Payload->IsReductionParallel;
 }
 
@@ -642,24 +641,24 @@ bool IslAstInfo::isExecutedInParallel(__isl_keep isl_ast_node *Node) {
 
 __isl_give isl_union_map *
 IslAstInfo::getSchedule(__isl_keep isl_ast_node *Node) {
-  IslAstUserPayload *Payload = getNodePayload(Node);
+  IslAstUserPayload *Payload = getNodePayload(isl::manage_copy(Node));
   return Payload ? isl_ast_build_get_schedule(Payload->Build) : nullptr;
 }
 
 __isl_give isl_pw_aff *
 IslAstInfo::getMinimalDependenceDistance(__isl_keep isl_ast_node *Node) {
-  IslAstUserPayload *Payload = getNodePayload(Node);
+  IslAstUserPayload *Payload = getNodePayload(isl::manage_copy(Node));
   return Payload ? Payload->MinimalDependenceDistance.copy() : nullptr;
 }
 
 IslAstInfo::MemoryAccessSet *
 IslAstInfo::getBrokenReductions(__isl_keep isl_ast_node *Node) {
-  IslAstUserPayload *Payload = getNodePayload(Node);
+  IslAstUserPayload *Payload = getNodePayload(isl::manage_copy(Node));
   return Payload ? &Payload->BrokenReductions : nullptr;
 }
 
 isl_ast_build *IslAstInfo::getBuild(__isl_keep isl_ast_node *Node) {
-  IslAstUserPayload *Payload = getNodePayload(Node);
+  IslAstUserPayload *Payload = getNodePayload(isl::manage_copy(Node));
   return Payload ? Payload->Build : nullptr;
 }
 

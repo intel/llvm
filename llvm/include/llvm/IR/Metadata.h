@@ -67,10 +67,8 @@ protected:
 
   /// Storage flag for non-uniqued, otherwise unowned, metadata.
   unsigned char Storage : 7;
-  // TODO: expose remaining bits to subclasses.
 
-  unsigned char ImplicitCode : 1;
-
+  unsigned char SubclassData1 : 1;
   unsigned short SubclassData16 = 0;
   unsigned SubclassData32 = 0;
 
@@ -82,7 +80,7 @@ public:
 
 protected:
   Metadata(unsigned ID, StorageType Storage)
-      : SubclassID(ID), Storage(Storage), ImplicitCode(false) {
+      : SubclassID(ID), Storage(Storage), SubclassData1(false) {
     static_assert(sizeof(*this) == 8, "Metadata fields poorly packed");
   }
 
@@ -667,6 +665,12 @@ struct AAMDNodes {
   /// The tag specifying the noalias scope.
   MDNode *NoAlias = nullptr;
 
+  // Shift tbaa Metadata node to start off bytes later
+  static MDNode *ShiftTBAA(MDNode *M, size_t off);
+
+  // Shift tbaa.struct Metadata node to start off bytes later
+  static MDNode *ShiftTBAAStruct(MDNode *M, size_t off);
+
   /// Given two sets of AAMDNodes that apply to the same pointer,
   /// give the best AAMDNodes that are compatible with both (i.e. a set of
   /// nodes whose allowable aliasing conclusions are a subset of those
@@ -678,6 +682,18 @@ struct AAMDNodes {
     Result.TBAAStruct = Other.TBAAStruct == TBAAStruct ? TBAAStruct : nullptr;
     Result.Scope = Other.Scope == Scope ? Scope : nullptr;
     Result.NoAlias = Other.NoAlias == NoAlias ? NoAlias : nullptr;
+    return Result;
+  }
+
+  /// Create a new AAMDNode that describes this AAMDNode after applying a
+  /// constant offset to the start of the pointer
+  AAMDNodes shift(size_t Offset) {
+    AAMDNodes Result;
+    Result.TBAA = TBAA ? ShiftTBAA(TBAA, Offset) : nullptr;
+    Result.TBAAStruct =
+        TBAAStruct ? ShiftTBAAStruct(TBAAStruct, Offset) : nullptr;
+    Result.Scope = Scope;
+    Result.NoAlias = NoAlias;
     return Result;
   }
 };

@@ -48,7 +48,7 @@
 //    Find out whether a string matches an existing builtin function
 //    name and return an index into BuiltinTable and the number of overloads.
 //
-//  * void Bultin2Qual(ASTContext&, ProgModelTypeStruct, std::vector<QualType>&)
+//  * void Bultin2Qual(Sema&, ProgModelTypeStruct, std::vector<QualType>&)
 //    Convert an ProgModelTypeStruct type to a list of QualType instances.
 //    One ProgModelTypeStruct can represent multiple types, primarily when using
 //    GenTypes.
@@ -60,8 +60,8 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
@@ -69,7 +69,6 @@
 #include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/StringMatcher.h"
 #include "llvm/TableGen/TableGenBackend.h"
-#include <set>
 
 using namespace llvm;
 
@@ -366,7 +365,7 @@ static const unsigned short SignatureTable[];
 static const BuiltinStruct BuiltinTable[];
 
 static std::pair<unsigned, unsigned> isBuiltin(llvm::StringRef Name);
-static void Bultin2Qual(ASTContext &Context, const ProgModelTypeStruct &Ty,
+static void Bultin2Qual(Sema &Sema, const ProgModelTypeStruct &Ty,
                         llvm::SmallVectorImpl<QualType> &QT);
 
 )";
@@ -658,6 +657,10 @@ void BuiltinNameEmitter::EmitQualTypeFinder() {
   OS << R"(
 
 // Convert an ProgModelTypeStruct type to a list of QualTypes.
+static QualType getOpenCLEnumType(Sema &S, llvm::StringRef Name);
+static QualType getOpenCLTypedefType(Sema &S, llvm::StringRef Name);
+
+// Convert an ProgModelTypeStruct type to a list of QualTypes.
 // Generic types represent multiple types and vector sizes, thus a vector
 // is returned. The conversion is done in two steps:
 // Step 1: A switch statement fills a vector with scalar base types for the
@@ -668,10 +671,11 @@ void BuiltinNameEmitter::EmitQualTypeFinder() {
 )";
 
   OS << "void " << ClassName
-     << "::Bultin2Qual(ASTContext &Context, const ProgModelTypeStruct &Ty, "
+     << "::Bultin2Qual(Sema &S, const ProgModelTypeStruct &Ty, "
         "llvm::SmallVectorImpl<QualType> &QT) {\n";
 
   OS << R"(
+  ASTContext &Context = S.Context;
   // Number of scalar types in the GenType.
   unsigned GenTypeNumTypes;
   // Pointer to the list of vector sizes for the GenType.
@@ -697,7 +701,7 @@ void BuiltinNameEmitter::EmitQualTypeFinder() {
       Records.getAllDerivedDefinitions("ImageType");
 
   // Map an image type name to its 3 access-qualified types (RO, WO, RW).
-  std::map<StringRef, SmallVector<Record *, 3>> ImageTypesMap;
+  StringMap<SmallVector<Record *, 3>> ImageTypesMap;
   for (auto *IT : ImageTypes) {
     auto Entry = ImageTypesMap.find(IT->getValueAsString("Name"));
     if (Entry == ImageTypesMap.end()) {
@@ -715,11 +719,11 @@ void BuiltinNameEmitter::EmitQualTypeFinder() {
   // tells which one is needed.  Emit a switch statement that puts the
   // corresponding QualType into "QT".
   for (const auto &ITE : ImageTypesMap) {
-    OS << "    case TID_" << ITE.first.str() << ":\n"
+    OS << "    case TID_" << ITE.getKey() << ":\n"
        << "      switch (Ty.AccessQualifier) {\n"
        << "        case AQ_None:\n"
        << "          llvm_unreachable(\"Image without access qualifier\");\n";
-    for (const auto &Image : ITE.second) {
+    for (const auto &Image : ITE.getValue()) {
       OS << StringSwitch<const char *>(
                 Image->getValueAsString("AccessQualifier"))
                 .Case("RO", "        case AQ_ReadOnly:\n")

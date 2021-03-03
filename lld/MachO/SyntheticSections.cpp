@@ -24,6 +24,11 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/SHA256.h"
+
+#if defined(__APPLE__)
+#include <sys/mman.h>
+#endif
 
 using namespace llvm;
 using namespace llvm::support;
@@ -53,15 +58,30 @@ uint64_t MachHeaderSection::getSize() const {
   return sizeof(MachO::mach_header_64) + sizeOfCmds + config->headerPad;
 }
 
+static uint32_t cpuSubtype() {
+  uint32_t subtype = target->cpuSubtype;
+
+  if (config->outputType == MachO::MH_EXECUTE && !config->staticLink &&
+      target->cpuSubtype == MachO::CPU_SUBTYPE_X86_64_ALL &&
+      config->platform.kind == MachO::PlatformKind::macOS &&
+      config->platform.minimum >= VersionTuple(10, 5))
+    subtype |= MachO::CPU_SUBTYPE_LIB64;
+
+  return subtype;
+}
+
 void MachHeaderSection::writeTo(uint8_t *buf) const {
   auto *hdr = reinterpret_cast<MachO::mach_header_64 *>(buf);
   hdr->magic = MachO::MH_MAGIC_64;
   hdr->cputype = target->cpuType;
-  hdr->cpusubtype = target->cpuSubtype | MachO::CPU_SUBTYPE_LIB64;
+  hdr->cpusubtype = cpuSubtype();
   hdr->filetype = config->outputType;
   hdr->ncmds = loadCommands.size();
   hdr->sizeofcmds = sizeOfCmds;
-  hdr->flags = MachO::MH_NOUNDEFS | MachO::MH_DYLDLINK | MachO::MH_TWOLEVEL;
+  hdr->flags = MachO::MH_DYLDLINK;
+
+  if (config->namespaceKind == NamespaceKind::twolevel)
+    hdr->flags |= MachO::MH_NOUNDEFS | MachO::MH_TWOLEVEL;
 
   if (config->outputType == MachO::MH_DYLIB && !config->hasReexports)
     hdr->flags |= MachO::MH_NO_REEXPORTED_DYLIBS;
@@ -188,7 +208,7 @@ void RebaseSection::writeTo(uint8_t *buf) const {
 NonLazyPointerSectionBase::NonLazyPointerSectionBase(const char *segname,
                                                      const char *name)
     : SyntheticSection(segname, name) {
-  align = WordSize; // vector of pointers / mimic ld64
+  align = WordSize;
   flags = MachO::S_NON_LAZY_SYMBOL_POINTERS;
 }
 
@@ -215,7 +235,7 @@ struct Binding {
   OutputSegment *segment = nullptr;
   uint64_t offset = 0;
   int64_t addend = 0;
-  uint8_t ordinal = 0;
+  int16_t ordinal = 0;
 };
 } // namespace
 
@@ -262,18 +282,22 @@ static void encodeBinding(const Symbol *sym, const OutputSection *osec,
 }
 
 // Non-weak bindings need to have their dylib ordinal encoded as well.
-static void encodeDylibOrdinal(const DylibSymbol *dysym, Binding &lastBinding,
-                               raw_svector_ostream &os) {
+static int16_t ordinalForDylibSymbol(const DylibSymbol &dysym) {
+  return config->namespaceKind == NamespaceKind::flat || dysym.isDynamicLookup()
+             ? MachO::BIND_SPECIAL_DYLIB_FLAT_LOOKUP
+             : dysym.getFile()->ordinal;
+}
+
+static void encodeDylibOrdinal(int16_t ordinal, raw_svector_ostream &os) {
   using namespace llvm::MachO;
-  if (lastBinding.ordinal != dysym->getFile()->ordinal) {
-    if (dysym->getFile()->ordinal <= BIND_IMMEDIATE_MASK) {
-      os << static_cast<uint8_t>(BIND_OPCODE_SET_DYLIB_ORDINAL_IMM |
-                                 dysym->getFile()->ordinal);
-    } else {
-      os << static_cast<uint8_t>(BIND_OPCODE_SET_DYLIB_ORDINAL_ULEB);
-      encodeULEB128(dysym->getFile()->ordinal, os);
-    }
-    lastBinding.ordinal = dysym->getFile()->ordinal;
+  if (ordinal <= 0) {
+    os << static_cast<uint8_t>(BIND_OPCODE_SET_DYLIB_SPECIAL_IMM |
+                               (ordinal & BIND_IMMEDIATE_MASK));
+  } else if (ordinal <= BIND_IMMEDIATE_MASK) {
+    os << static_cast<uint8_t>(BIND_OPCODE_SET_DYLIB_ORDINAL_IMM | ordinal);
+  } else {
+    os << static_cast<uint8_t>(BIND_OPCODE_SET_DYLIB_ORDINAL_ULEB);
+    encodeULEB128(ordinal, os);
   }
 }
 
@@ -309,7 +333,11 @@ void BindingSection::finalizeContents() {
     return a.target.getVA() < b.target.getVA();
   });
   for (const BindingEntry &b : bindings) {
-    encodeDylibOrdinal(b.dysym, lastBinding, os);
+    int16_t ordinal = ordinalForDylibSymbol(*b.dysym);
+    if (ordinal != lastBinding.ordinal) {
+      encodeDylibOrdinal(ordinal, os);
+      lastBinding.ordinal = ordinal;
+    }
     if (auto *isec = b.target.section.dyn_cast<const InputSection *>()) {
       encodeBinding(b.dysym, isec->parent, isec->outSecOff + b.target.offset,
                     b.addend, /*isWeakBinding=*/false, lastBinding, os);
@@ -393,7 +421,9 @@ StubsSection::StubsSection()
     : SyntheticSection(segment_names::text, "__stubs") {
   flags = MachO::S_SYMBOL_STUBS | MachO::S_ATTR_SOME_INSTRUCTIONS |
           MachO::S_ATTR_PURE_INSTRUCTIONS;
-  align = 4; // machine instructions / mimic ld64
+  // The stubs section comprises machine instructions, which are aligned to
+  // 4 bytes on the archs we care about.
+  align = 4;
   reserved2 = target->stubSize;
 }
 
@@ -419,7 +449,7 @@ bool StubsSection::addEntry(Symbol *sym) {
 StubHelperSection::StubHelperSection()
     : SyntheticSection(segment_names::text, "__stub_helper") {
   flags = MachO::S_ATTR_SOME_INSTRUCTIONS | MachO::S_ATTR_PURE_INSTRUCTIONS;
-  align = 4; // machine instructions / mimic ld64
+  align = 4; // This section comprises machine instructions
 }
 
 uint64_t StubHelperSection::getSize() const {
@@ -460,12 +490,12 @@ ImageLoaderCacheSection::ImageLoaderCacheSection() {
   uint8_t *arr = bAlloc.Allocate<uint8_t>(WordSize);
   memset(arr, 0, WordSize);
   data = {arr, WordSize};
-  align = WordSize; // pointer / mimic ld64
+  align = WordSize;
 }
 
 LazyPointerSection::LazyPointerSection()
     : SyntheticSection(segment_names::data, "__la_symbol_ptr") {
-  align = WordSize; // vector of pointers / mimic ld64
+  align = WordSize;
   flags = MachO::S_LAZY_SYMBOL_POINTERS;
 }
 
@@ -529,13 +559,7 @@ uint32_t LazyBindingSection::encode(const DylibSymbol &sym) {
   uint64_t offset = in.lazyPointers->addr - dataSeg->firstSection()->addr +
                     sym.stubsIndex * WordSize;
   encodeULEB128(offset, os);
-  if (sym.getFile()->ordinal <= MachO::BIND_IMMEDIATE_MASK) {
-    os << static_cast<uint8_t>(MachO::BIND_OPCODE_SET_DYLIB_ORDINAL_IMM |
-                               sym.getFile()->ordinal);
-  } else {
-    os << static_cast<uint8_t>(MachO::BIND_OPCODE_SET_DYLIB_ORDINAL_ULEB);
-    encodeULEB128(sym.getFile()->ordinal, os);
-  }
+  encodeDylibOrdinal(ordinalForDylibSymbol(sym), os);
 
   uint8_t flags = MachO::BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM;
   if (sym.isWeakRef())
@@ -796,8 +820,18 @@ void SymtabSection::writeTo(uint8_t *buf) const {
       nList->n_desc |= defined->isExternalWeakDef() ? MachO::N_WEAK_DEF : 0;
     } else if (auto *dysym = dyn_cast<DylibSymbol>(entry.sym)) {
       uint16_t n_desc = nList->n_desc;
-      MachO::SET_LIBRARY_ORDINAL(n_desc, dysym->getFile()->ordinal);
+      int16_t ordinal = ordinalForDylibSymbol(*dysym);
+      if (ordinal == MachO::BIND_SPECIAL_DYLIB_FLAT_LOOKUP)
+        MachO::SET_LIBRARY_ORDINAL(n_desc, MachO::DYNAMIC_LOOKUP_ORDINAL);
+      else if (ordinal == MachO::BIND_SPECIAL_DYLIB_MAIN_EXECUTABLE)
+        MachO::SET_LIBRARY_ORDINAL(n_desc, MachO::EXECUTABLE_ORDINAL);
+      else {
+        assert(ordinal > 0);
+        MachO::SET_LIBRARY_ORDINAL(n_desc, static_cast<uint8_t>(ordinal));
+      }
+
       nList->n_type = MachO::N_EXT;
+      n_desc |= dysym->isWeakDef() ? MachO::N_WEAK_DEF : 0;
       n_desc |= dysym->isWeakRef() ? MachO::N_WEAK_REF : 0;
       nList->n_desc = n_desc;
     }
@@ -867,4 +901,94 @@ void StringTableSection::writeTo(uint8_t *buf) const {
     memcpy(buf + off, str.data(), str.size());
     off += str.size() + 1; // account for null terminator
   }
+}
+
+CodeSignatureSection::CodeSignatureSection()
+    : LinkEditSection(segment_names::linkEdit, section_names::codeSignature) {
+  align = 16; // required by libstuff
+  fileName = config->outputFile;
+  size_t slashIndex = fileName.rfind("/");
+  if (slashIndex != std::string::npos)
+    fileName = fileName.drop_front(slashIndex + 1);
+  allHeadersSize = alignTo<16>(fixedHeadersSize + fileName.size() + 1);
+  fileNamePad = allHeadersSize - fixedHeadersSize - fileName.size();
+}
+
+uint32_t CodeSignatureSection::getBlockCount() const {
+  return (fileOff + blockSize - 1) / blockSize;
+}
+
+uint64_t CodeSignatureSection::getRawSize() const {
+  return allHeadersSize + getBlockCount() * hashSize;
+}
+
+void CodeSignatureSection::writeHashes(uint8_t *buf) const {
+  uint8_t *code = buf;
+  uint8_t *codeEnd = buf + fileOff;
+  uint8_t *hashes = codeEnd + allHeadersSize;
+  while (code < codeEnd) {
+    StringRef block(reinterpret_cast<char *>(code),
+                    std::min(codeEnd - code, static_cast<ssize_t>(blockSize)));
+    SHA256 hasher;
+    hasher.update(block);
+    StringRef hash = hasher.final();
+    assert(hash.size() == hashSize);
+    memcpy(hashes, hash.data(), hashSize);
+    code += blockSize;
+    hashes += hashSize;
+  }
+#if defined(__APPLE__)
+  // This is macOS-specific work-around and makes no sense for any
+  // other host OS. See https://openradar.appspot.com/FB8914231
+  //
+  // The macOS kernel maintains a signature-verification cache to
+  // quickly validate applications at time of execve(2).  The trouble
+  // is that for the kernel creates the cache entry at the time of the
+  // mmap(2) call, before we have a chance to write either the code to
+  // sign or the signature header+hashes.  The fix is to invalidate
+  // all cached data associated with the output file, thus discarding
+  // the bogus prematurely-cached signature.
+  msync(buf, fileOff + getSize(), MS_INVALIDATE);
+#endif
+}
+
+void CodeSignatureSection::writeTo(uint8_t *buf) const {
+  using namespace llvm::MachO;
+  uint32_t signatureSize = static_cast<uint32_t>(getSize());
+  auto *superBlob = reinterpret_cast<CS_SuperBlob *>(buf);
+  write32be(&superBlob->magic, CSMAGIC_EMBEDDED_SIGNATURE);
+  write32be(&superBlob->length, signatureSize);
+  write32be(&superBlob->count, 1);
+  auto *blobIndex = reinterpret_cast<CS_BlobIndex *>(&superBlob[1]);
+  write32be(&blobIndex->type, CSSLOT_CODEDIRECTORY);
+  write32be(&blobIndex->offset, blobHeadersSize);
+  auto *codeDirectory =
+      reinterpret_cast<CS_CodeDirectory *>(buf + blobHeadersSize);
+  write32be(&codeDirectory->magic, CSMAGIC_CODEDIRECTORY);
+  write32be(&codeDirectory->length, signatureSize - blobHeadersSize);
+  write32be(&codeDirectory->version, CS_SUPPORTSEXECSEG);
+  write32be(&codeDirectory->flags, CS_ADHOC | CS_LINKER_SIGNED);
+  write32be(&codeDirectory->hashOffset,
+            sizeof(CS_CodeDirectory) + fileName.size() + fileNamePad);
+  write32be(&codeDirectory->identOffset, sizeof(CS_CodeDirectory));
+  codeDirectory->nSpecialSlots = 0;
+  write32be(&codeDirectory->nCodeSlots, getBlockCount());
+  write32be(&codeDirectory->codeLimit, fileOff);
+  codeDirectory->hashSize = static_cast<uint8_t>(hashSize);
+  codeDirectory->hashType = kSecCodeSignatureHashSHA256;
+  codeDirectory->platform = 0;
+  codeDirectory->pageSize = blockSizeShift;
+  codeDirectory->spare2 = 0;
+  codeDirectory->scatterOffset = 0;
+  codeDirectory->teamOffset = 0;
+  codeDirectory->spare3 = 0;
+  codeDirectory->codeLimit64 = 0;
+  OutputSegment *textSeg = getOrCreateOutputSegment(segment_names::text);
+  write64be(&codeDirectory->execSegBase, textSeg->fileOff);
+  write64be(&codeDirectory->execSegLimit, textSeg->fileSize);
+  write64be(&codeDirectory->execSegFlags,
+            config->outputType == MH_EXECUTE ? CS_EXECSEG_MAIN_BINARY : 0);
+  auto *id = reinterpret_cast<char *>(&codeDirectory[1]);
+  memcpy(id, fileName.begin(), fileName.size());
+  memset(id + fileName.size(), 0, fileNamePad);
 }

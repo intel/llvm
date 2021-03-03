@@ -52,6 +52,7 @@ public:
   void openFile();
   void writeSections();
   void writeUuid();
+  void writeCodeSignature();
 
   void run();
 
@@ -62,6 +63,7 @@ public:
   StringTableSection *stringTableSection = nullptr;
   SymtabSection *symtabSection = nullptr;
   IndirectSymtabSection *indirectSymtabSection = nullptr;
+  CodeSignatureSection *codeSignatureSection = nullptr;
   UnwindInfoSection *unwindInfoSection = nullptr;
   LCUuid *uuidCommand = nullptr;
 };
@@ -400,6 +402,23 @@ public:
   mutable uint8_t *uuidBuf;
 };
 
+class LCCodeSignature : public LoadCommand {
+public:
+  LCCodeSignature(CodeSignatureSection *section) : section(section) {}
+
+  uint32_t getSize() const override { return sizeof(linkedit_data_command); }
+
+  void writeTo(uint8_t *buf) const override {
+    auto *c = reinterpret_cast<linkedit_data_command *>(buf);
+    c->cmd = LC_CODE_SIGNATURE;
+    c->cmdsize = getSize();
+    c->dataoff = static_cast<uint32_t>(section->fileOff);
+    c->datasize = section->getSize();
+  }
+
+  CodeSignatureSection *section;
+};
+
 } // namespace
 
 static void prepareSymbolRelocation(lld::macho::Symbol *sym,
@@ -408,15 +427,13 @@ static void prepareSymbolRelocation(lld::macho::Symbol *sym,
 
   if (relocAttrs.hasAttr(RelocAttrBits::BRANCH)) {
     prepareBranchTarget(sym);
-  } else if (relocAttrs.hasAttr(RelocAttrBits::GOT | RelocAttrBits::LOAD)) {
-    if (needsBinding(sym))
-      in.got->addEntry(sym);
   } else if (relocAttrs.hasAttr(RelocAttrBits::GOT)) {
-    in.got->addEntry(sym);
-  } else if (relocAttrs.hasAttr(RelocAttrBits::TLV | RelocAttrBits::LOAD)) {
+    if (relocAttrs.hasAttr(RelocAttrBits::POINTER) || needsBinding(sym))
+      in.got->addEntry(sym);
+  } else if (relocAttrs.hasAttr(RelocAttrBits::TLV)) {
     if (needsBinding(sym))
       in.tlvPointers->addEntry(sym);
-  } else if (relocAttrs.hasAttr(RelocAttrBits::TLV)) {
+  } else if (relocAttrs.hasAttr(RelocAttrBits::UNSIGNED)) {
     // References from thread-local variable sections are treated as offsets
     // relative to the start of the referent section, and therefore have no
     // need of rebase opcodes.
@@ -432,13 +449,22 @@ void Writer::scanRelocations() {
       continue;
     }
 
-    for (Reloc &r : isec->relocs) {
-      if (target->hasAttr(r.type, RelocAttrBits::SUBTRAHEND))
+    for (auto it = isec->relocs.begin(); it != isec->relocs.end(); ++it) {
+      Reloc &r = *it;
+      if (target->hasAttr(r.type, RelocAttrBits::SUBTRAHEND)) {
+        // Skip over the following UNSIGNED relocation -- it's just there as the
+        // minuend, and doesn't have the usual UNSIGNED semantics. We don't want
+        // to emit rebase opcodes for it.
+        it = std::next(it);
+        assert(isa<Defined>(it->referent.dyn_cast<lld::macho::Symbol *>()));
         continue;
+      }
       if (auto *sym = r.referent.dyn_cast<lld::macho::Symbol *>()) {
         if (auto *undefined = dyn_cast<Undefined>(sym))
           treatUndefinedSymbol(*undefined);
-        else if (target->validateSymbolRelocation(sym, isec, r))
+        // treatUndefinedSymbol() can replace sym with a DylibSymbol; re-check.
+        if (!isa<Undefined>(sym) &&
+            target->validateSymbolRelocation(sym, isec, r))
           prepareSymbolRelocation(sym, isec, r);
       } else {
         assert(r.referent.is<InputSection *>());
@@ -455,6 +481,8 @@ void Writer::scanSymbols() {
       if (defined->overridesWeakDef)
         in.weakBinding->addNonWeakDefinition(defined);
     } else if (const auto *dysym = dyn_cast<DylibSymbol>(sym)) {
+      if (dysym->isDynamicLookup())
+        continue;
       dysym->getFile()->refState =
           std::max(dysym->getFile()->refState, dysym->refState);
     }
@@ -497,9 +525,18 @@ void Writer::createLoadCommands() {
 
   in.header->addLoadCommand(make<LCBuildVersion>(config->platform));
 
-  uint64_t dylibOrdinal = 1;
+  int64_t dylibOrdinal = 1;
   for (InputFile *file : inputFiles) {
     if (auto *dylibFile = dyn_cast<DylibFile>(file)) {
+      if (dylibFile->isBundleLoader) {
+        dylibFile->ordinal = MachO::BIND_SPECIAL_DYLIB_MAIN_EXECUTABLE;
+        // Shortcut since bundle-loader does not re-export the symbols.
+
+        dylibFile->reexport = false;
+        continue;
+      }
+
+      dylibFile->ordinal = dylibOrdinal++;
       LoadCommandType lcType =
           dylibFile->forceWeakImport || dylibFile->refState == RefState::Weak
               ? LC_LOAD_WEAK_DYLIB
@@ -507,13 +544,15 @@ void Writer::createLoadCommands() {
       in.header->addLoadCommand(make<LCDylib>(lcType, dylibFile->dylibName,
                                               dylibFile->compatibilityVersion,
                                               dylibFile->currentVersion));
-      dylibFile->ordinal = dylibOrdinal++;
 
       if (dylibFile->reexport)
         in.header->addLoadCommand(
             make<LCDylib>(LC_REEXPORT_DYLIB, dylibFile->dylibName));
     }
   }
+
+  if (codeSignatureSection)
+    in.header->addLoadCommand(make<LCCodeSignature>(codeSignatureSection));
 
   const uint32_t MACOS_MAXPATHLEN = 1024;
   config->headerPad = std::max(
@@ -618,6 +657,7 @@ static int sectionOrder(OutputSection *osec) {
         .Case(section_names::symbolTable, -3)
         .Case(section_names::indirectSymbolTable, -2)
         .Case(section_names::stringTable, -1)
+        .Case(section_names::codeSignature, std::numeric_limits<int>::max())
         .Default(0);
   }
   // ZeroFill sections must always be the at the end of their segments,
@@ -666,12 +706,25 @@ static void sortSegmentsAndSections() {
   }
 }
 
+static NamePair maybeRenameSection(NamePair key) {
+  auto newNames = config->sectionRenameMap.find(key);
+  if (newNames != config->sectionRenameMap.end())
+    return newNames->second;
+  auto newName = config->segmentRenameMap.find(key.first);
+  if (newName != config->segmentRenameMap.end())
+    return std::make_pair(newName->second, key.second);
+  return key;
+}
+
 void Writer::createOutputSections() {
   // First, create hidden sections
   stringTableSection = make<StringTableSection>();
   unwindInfoSection = make<UnwindInfoSection>(); // TODO(gkm): only when no -r
   symtabSection = make<SymtabSection>(*stringTableSection);
   indirectSymtabSection = make<IndirectSymtabSection>();
+  if (config->outputType == MH_EXECUTE &&
+      (config->arch == AK_arm64 || config->arch == AK_arm64e))
+    codeSignatureSection = make<CodeSignatureSection>();
 
   switch (config->outputType) {
   case MH_EXECUTE:
@@ -685,13 +738,12 @@ void Writer::createOutputSections() {
   }
 
   // Then merge input sections into output sections.
-  MapVector<std::pair<StringRef, StringRef>, MergedOutputSection *>
-      mergedOutputSections;
+  MapVector<NamePair, MergedOutputSection *> mergedOutputSections;
   for (InputSection *isec : inputSections) {
-    MergedOutputSection *&osec =
-        mergedOutputSections[{isec->segname, isec->name}];
+    NamePair names = maybeRenameSection({isec->segname, isec->name});
+    MergedOutputSection *&osec = mergedOutputSections[names];
     if (osec == nullptr)
-      osec = make<MergedOutputSection>(isec->name);
+      osec = make<MergedOutputSection>(names.second);
     osec->mergeInput(isec);
   }
 
@@ -737,6 +789,7 @@ void Writer::assignAddresses(OutputSegment *seg) {
     addr += osec->getSize();
     fileOff += osec->getFileSize();
   }
+  seg->fileSize = fileOff - seg->fileOff;
 }
 
 void Writer::openFile() {
@@ -762,6 +815,11 @@ void Writer::writeUuid() {
   uint64_t digest =
       xxHash64({buffer->getBufferStart(), buffer->getBufferEnd()});
   uuidCommand->writeUuid(digest);
+}
+
+void Writer::writeCodeSignature() {
+  if (codeSignatureSection)
+    codeSignatureSection->writeHashes(buffer->getBufferStart());
 }
 
 void Writer::run() {
@@ -811,6 +869,7 @@ void Writer::run() {
 
   writeSections();
   writeUuid();
+  writeCodeSignature();
 
   if (auto e = buffer->commit())
     error("failed to write to the output file: " + toString(std::move(e)));

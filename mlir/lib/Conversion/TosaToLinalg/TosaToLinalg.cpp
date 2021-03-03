@@ -15,13 +15,39 @@
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+
+#include <numeric>
 
 using namespace mlir;
 
 static SmallVector<StringRef> getNParallelLoopsAttrs(unsigned nParallelLoops) {
   return SmallVector<StringRef>(nParallelLoops, getParallelIteratorTypeName());
+}
+
+template <typename T>
+static mlir::ConstantOp
+createConstFromIntAttribute(Operation *op, std::string attrName,
+                            Type requiredAttrType, PatternRewriter &rewriter) {
+  auto castedN = static_cast<T>(
+      op->getAttr(attrName).cast<IntegerAttr>().getValue().getSExtValue());
+  return rewriter.create<mlir::ConstantOp>(
+      op->getLoc(), IntegerAttr::get(requiredAttrType, castedN));
+}
+
+template <typename T, typename P>
+static mlir::SelectOp clampHelper(Operation *op, ValueRange args,
+                                  mlir::ConstantOp min, mlir::ConstantOp max,
+                                  P pred, PatternRewriter &rewriter) {
+  Location loc = op->getLoc();
+  auto smallerThanMin = rewriter.create<T>(loc, pred, args[0], min);
+  auto minOrArg =
+      rewriter.create<mlir::SelectOp>(loc, smallerThanMin, min, args[0]);
+  auto largerThanMax = rewriter.create<T>(loc, pred, max, args[0]);
+  return rewriter.create<mlir::SelectOp>(loc, largerThanMax, max, minOrArg);
 }
 
 static Value
@@ -42,6 +68,42 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
 
   if (isa<tosa::AddOp>(op) && elementTy.isa<IntegerType>())
     return rewriter.create<mlir::AddIOp>(loc, resultTypes, args);
+
+  // tosa::SubOp
+  if (isa<tosa::SubOp>(op) && elementTy.isa<FloatType>())
+    return rewriter.create<mlir::SubFOp>(loc, resultTypes, args);
+
+  if (isa<tosa::SubOp>(op) && elementTy.isa<IntegerType>())
+    return rewriter.create<mlir::SubIOp>(loc, resultTypes, args);
+
+  // tosa::MulOp
+  if (isa<tosa::MulOp>(op) && elementTy.isa<FloatType>()) {
+    if (dyn_cast<tosa::MulOp>(op).shift() != 0) {
+      (void)rewriter.notifyMatchFailure(op,
+                                        "Cannot have shift value for float");
+      return nullptr;
+    }
+    return rewriter.create<mlir::MulFOp>(loc, resultTypes, args);
+  }
+
+  if (isa<tosa::MulOp>(op) && elementTy.isa<IntegerType>()) {
+    auto mul =
+        rewriter.create<mlir::MulIOp>(loc, resultTypes, args[0], args[1]);
+    auto constant =
+        rewriter.create<mlir::ConstantOp>(loc, elementTy, op->getAttr("shift"));
+    return rewriter.create<mlir::SignedShiftRightOp>(loc, resultTypes, mul,
+                                                     constant);
+  }
+
+  // tosa::NegateOp
+  if (isa<tosa::NegateOp>(op) && elementTy.isa<IntegerType>()) {
+    auto constant =
+        rewriter.create<mlir::ConstantOp>(loc, IntegerAttr::get(elementTy, -1));
+    return rewriter.create<mlir::MulIOp>(loc, resultTypes, args[0], constant);
+  }
+
+  if (isa<tosa::NegateOp>(op) && elementTy.isa<FloatType>())
+    return rewriter.create<mlir::NegFOp>(loc, resultTypes, args);
 
   // tosa::BitwiseAndOp
   if (isa<tosa::BitwiseAndOp>(op) && elementTy.isa<IntegerType>())
@@ -67,6 +129,10 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
   if (isa<tosa::PowOp>(op) && elementTy.isa<FloatType>())
     return rewriter.create<mlir::math::PowFOp>(loc, resultTypes, args);
 
+  // tosa::RsqrtOp
+  if (isa<tosa::RsqrtOp>(op) && elementTy.isa<FloatType>())
+    return rewriter.create<mlir::math::RsqrtOp>(loc, resultTypes, args);
+
   // tosa::LogOp
   if (isa<tosa::LogOp>(op) && elementTy.isa<FloatType>())
     return rewriter.create<mlir::math::LogOp>(loc, resultTypes, args);
@@ -74,13 +140,6 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
   // tosa::ExpOp
   if (isa<tosa::ExpOp>(op) && elementTy.isa<FloatType>())
     return rewriter.create<mlir::math::ExpOp>(loc, resultTypes, args);
-
-  // tosa::SubOp
-  if (isa<tosa::SubOp>(op) && elementTy.isa<FloatType>())
-    return rewriter.create<mlir::SubFOp>(loc, resultTypes, args);
-
-  if (isa<tosa::SubOp>(op) && elementTy.isa<IntegerType>())
-    return rewriter.create<mlir::SubIOp>(loc, resultTypes, args);
 
   // tosa::TanhOp
   if (isa<tosa::TanhOp>(op) && elementTy.isa<FloatType>())
@@ -103,6 +162,13 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
   if (isa<tosa::GreaterEqualOp>(op) && elementTy.isSignlessInteger())
     return rewriter.create<mlir::CmpIOp>(loc, CmpIPredicate::sge, args[0],
                                          args[1]);
+
+  // tosa::SelectOp
+  if (isa<tosa::SelectOp>(op)) {
+    elementTy = op->getOperand(1).getType().cast<ShapedType>().getElementType();
+    if (elementTy.isa<FloatType>() || elementTy.isa<IntegerType>())
+      return rewriter.create<mlir::SelectOp>(loc, args[0], args[1], args[2]);
+  }
 
   // tosa::MaximumOp
   if (isa<tosa::MaximumOp>(op) && elementTy.isa<FloatType>()) {
@@ -137,6 +203,44 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
   // tosa::FloorOp
   if (isa<tosa::FloorOp>(op) && elementTy.isa<FloatType>())
     return rewriter.create<mlir::FloorFOp>(loc, resultTypes, args);
+
+  // tosa::ClampOp
+  if (isa<tosa::ClampOp>(op) && elementTy.isa<FloatType>()) {
+    auto min = rewriter.create<mlir::ConstantOp>(loc, elementTy,
+                                                 op->getAttr("min_fp"));
+    auto max = rewriter.create<mlir::ConstantOp>(loc, elementTy,
+                                                 op->getAttr("max_fp"));
+    return clampHelper<mlir::CmpFOp>(op, args, min, max, CmpFPredicate::OLT,
+                                     rewriter);
+  }
+
+  if (isa<tosa::ClampOp>(op) && elementTy.isa<IntegerType>()) {
+    auto min = createConstFromIntAttribute<int32_t>(op, "min_int", elementTy,
+                                                    rewriter);
+    auto max = createConstFromIntAttribute<int32_t>(op, "max_int", elementTy,
+                                                    rewriter);
+    return clampHelper<mlir::CmpIOp>(op, args, min, max, CmpIPredicate::slt,
+                                     rewriter);
+  }
+
+  // tosa::ReluNOp
+  if (isa<tosa::ReluNOp>(op) && elementTy.isa<FloatType>()) {
+    auto zero =
+        rewriter.create<mlir::ConstantOp>(loc, FloatAttr::get(elementTy, 0));
+    auto n = rewriter.create<mlir::ConstantOp>(loc, elementTy,
+                                               op->getAttr("max_fp"));
+    return clampHelper<mlir::CmpFOp>(op, args, zero, n, CmpFPredicate::OLT,
+                                     rewriter);
+  }
+
+  if (isa<tosa::ReluNOp>(op) && elementTy.isa<IntegerType>()) {
+    auto zero =
+        rewriter.create<mlir::ConstantOp>(loc, IntegerAttr::get(elementTy, 0));
+    auto n = createConstFromIntAttribute<int32_t>(op, "max_int", elementTy,
+                                                  rewriter);
+    return clampHelper<mlir::CmpIOp>(op, args, zero, n, CmpIPredicate::slt,
+                                     rewriter);
+  }
 
   (void)rewriter.notifyMatchFailure(
       op, "unhandled op for linalg body calculation for elementwise op");
@@ -239,22 +343,184 @@ public:
   }
 };
 
+class ReshapeOpConverter : public OpConversionPattern<tosa::ReshapeOp> {
+public:
+  using OpConversionPattern<tosa::ReshapeOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(tosa::ReshapeOp reshape, ArrayRef<Value> args,
+                  ConversionPatternRewriter &rewriter) const final {
+    typename tosa::ReshapeOp::Adaptor operands(args);
+
+    ShapedType operandTy = operands.input1().getType().cast<ShapedType>();
+    ShapedType resultTy = reshape.getType().template cast<ShapedType>();
+
+    if (!operandTy.hasStaticShape() || !resultTy.hasStaticShape())
+      return failure();
+
+    // Compute the reassociation maps for the linalg operation.
+    ArrayRef<int64_t> expandedShape =
+        (operandTy.getRank() > resultTy.getRank() ? operandTy.getShape()
+                                                  : resultTy.getShape());
+    ArrayRef<int64_t> collapsedShape =
+        (operandTy.getRank() > resultTy.getRank() ? resultTy.getShape()
+                                                  : operandTy.getShape());
+    unsigned currSrcDim = 0, currDstDim = 0;
+    SmallVector<linalg::ReassociationExprs, 4> reassociationMap(
+        collapsedShape.size());
+
+    // First scan all dimensions in the source shapes to see whether we have a
+    // perfect case where consecutive dimensions in source are collapsed. For
+    // such case we can just generate one single linalg.reshape.
+    bool isCollapsingSource = true;
+    while (currSrcDim < expandedShape.size() &&
+           currDstDim < collapsedShape.size()) {
+      int64_t dstSize = collapsedShape[currDstDim];
+      int64_t srcSize = expandedShape[currSrcDim];
+      while (srcSize < dstSize && currSrcDim < expandedShape.size()) {
+        reassociationMap[currDstDim].push_back(
+            rewriter.getAffineDimExpr(currSrcDim++));
+        srcSize *= expandedShape[currSrcDim];
+      }
+      if (srcSize == dstSize) {
+        reassociationMap[currDstDim].push_back(
+            rewriter.getAffineDimExpr(currSrcDim++));
+        // If the next dim in collapsedShape is not 1, treat subsequent dims in
+        // expandedShape which are 1 to be collapsed.
+        if (currDstDim == collapsedShape.size() - 1 ||
+            collapsedShape[currDstDim + 1] != 1) {
+          while (currSrcDim < expandedShape.size() &&
+                 expandedShape[currSrcDim] == 1) {
+            reassociationMap[currDstDim].push_back(
+                rewriter.getAffineDimExpr(currSrcDim++));
+          }
+        }
+      } else {
+        isCollapsingSource = false;
+        break;
+      }
+      currDstDim++;
+    }
+    if (currSrcDim != expandedShape.size() ||
+        currDstDim != collapsedShape.size())
+      isCollapsingSource = false;
+
+    // Otherwise, we need to first reduce all source dimensions into one and
+    // then expand to the destination dimensions.
+    if (!isCollapsingSource) {
+      auto getIdentityExprs = [&rewriter](int n) {
+        SmallVector<AffineExpr, 4> exprs;
+        for (int i = 0; i < n; ++i)
+          exprs.push_back(rewriter.getAffineDimExpr(i));
+        return exprs;
+      };
+      Location loc = reshape.getLoc();
+      int64_t totalElems =
+          std::accumulate(expandedShape.begin(), expandedShape.end(), 1,
+                          std::multiplies<int64_t>());
+      auto elemTy = operandTy.getElementType();
+      SmallVector<linalg::ReassociationExprs, 4> collapsingMap = {
+          // Use operandTy here because we need to collapse all operands
+          // dimensions.
+          getIdentityExprs(operandTy.getShape().size())};
+      SmallVector<linalg::ReassociationExprs, 4> expandingMap = {
+          // Use resultTy here because we need to expand to all result
+          // dimensions.
+          getIdentityExprs(resultTy.getShape().size())};
+
+      auto collapsedTy = RankedTensorType::get({totalElems}, elemTy);
+      Value collapsedOp = rewriter.create<linalg::TensorReshapeOp>(
+          loc, collapsedTy, args[0], collapsingMap);
+      rewriter.replaceOpWithNewOp<linalg::TensorReshapeOp>(
+          reshape, resultTy, collapsedOp, expandingMap);
+
+      return success();
+    }
+
+    rewriter.replaceOpWithNewOp<linalg::TensorReshapeOp>(
+        reshape, resultTy, args[0], reassociationMap);
+
+    return success();
+  }
+};
+
+class TransposeConverter : public OpRewritePattern<tosa::TransposeOp> {
+public:
+  using OpRewritePattern<tosa::TransposeOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(tosa::TransposeOp op,
+                                PatternRewriter &rewriter) const final {
+    DenseIntElementsAttr perms;
+    if (!matchPattern(op.perms(), m_Constant(&perms))) {
+      return failure();
+    }
+
+    auto resultTy = op.getType().cast<ShapedType>();
+    if (!resultTy.hasStaticShape())
+      return failure();
+
+    SmallVector<AffineExpr, 2> inputExprs;
+    inputExprs.resize(resultTy.getRank());
+    for (auto permutation : llvm::enumerate(perms.getIntValues())) {
+      inputExprs[permutation.value().getZExtValue()] =
+          rewriter.getAffineDimExpr(permutation.index());
+    }
+
+    auto initTensor = rewriter.create<linalg::InitTensorOp>(
+        op.getLoc(), ArrayRef<Value>({}), resultTy.getShape(),
+        resultTy.getElementType());
+
+    SmallVector<AffineMap, 2> affineMaps = {
+        AffineMap::get(resultTy.getRank(), /*symbolCount=*/0, inputExprs,
+                       rewriter.getContext()),
+        rewriter.getMultiDimIdentityMap(resultTy.getRank())};
+
+    rewriter.replaceOpWithNewOp<linalg::GenericOp>(
+        op, resultTy, op.input1(), ValueRange{initTensor}, affineMaps,
+        getNParallelLoopsAttrs(resultTy.getRank()),
+        [&](OpBuilder &nestedBuilder, Location nestedLoc, ValueRange args) {
+          nestedBuilder.create<linalg::YieldOp>(op.getLoc(), *args.begin());
+        });
+    return success();
+  }
+};
+
+// At the codegen level any identity operations should be removed. Any cases
+// where identity is load-bearing (e.g. cross device computation) should be
+// handled before lowering to codegen.
+template <typename SrcOp>
+class IdentityNConverter : public OpRewritePattern<SrcOp> {
+public:
+  using OpRewritePattern<SrcOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SrcOp op,
+                                PatternRewriter &rewriter) const final {
+    rewriter.replaceOp(op, op.getOperation()->getOperands());
+    return success();
+  }
+};
+
 } // namespace
 
 void mlir::tosa::populateTosaToLinalgOnTensorsConversionPatterns(
     MLIRContext *context, OwningRewritePatternList *patterns) {
   patterns->insert<
       PointwiseConverter<tosa::AddOp>, PointwiseConverter<tosa::SubOp>,
-      PointwiseConverter<tosa::PowOp>, PointwiseConverter<tosa::LogOp>,
-      PointwiseConverter<tosa::ExpOp>, PointwiseConverter<tosa::AbsOp>,
-      PointwiseConverter<tosa::TanhOp>, PointwiseConverter<tosa::BitwiseAndOp>,
+      PointwiseConverter<tosa::MulOp>, PointwiseConverter<tosa::NegateOp>,
+      PointwiseConverter<tosa::PowOp>, PointwiseConverter<tosa::RsqrtOp>,
+      PointwiseConverter<tosa::LogOp>, PointwiseConverter<tosa::ExpOp>,
+      PointwiseConverter<tosa::AbsOp>, PointwiseConverter<tosa::TanhOp>,
+      PointwiseConverter<tosa::BitwiseAndOp>,
       PointwiseConverter<tosa::BitwiseOrOp>,
       PointwiseConverter<tosa::BitwiseXorOp>,
       PointwiseConverter<tosa::LogicalLeftShiftOp>,
       PointwiseConverter<tosa::LogicalRightShiftOp>,
-      PointwiseConverter<tosa::GreaterOp>,
+      PointwiseConverter<tosa::SelectOp>, PointwiseConverter<tosa::GreaterOp>,
       PointwiseConverter<tosa::GreaterEqualOp>,
       PointwiseConverter<tosa::MaximumOp>, PointwiseConverter<tosa::MinimumOp>,
-      PointwiseConverter<tosa::CeilOp>, PointwiseConverter<tosa::FloorOp>>(
-      context);
+      PointwiseConverter<tosa::CeilOp>, PointwiseConverter<tosa::FloorOp>,
+      PointwiseConverter<tosa::ClampOp>, PointwiseConverter<tosa::ReluNOp>,
+      IdentityNConverter<tosa::IdentityOp>,
+      IdentityNConverter<tosa::IdentityNOp>,
+      ReshapeOpConverter, TransposeConverter>(context);
 }

@@ -14,7 +14,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Support/FileUtilities.h"
-#include "mlir/Target/LLVMIR.h"
+#include "mlir/Target/LLVMIR/Export.h"
 
 #include "llvm/ExecutionEngine/JITEventListener.h"
 #include "llvm/ExecutionEngine/ObjectCache.h"
@@ -254,6 +254,15 @@ Expected<std::unique_ptr<ExecutionEngine>> ExecutionEngine::create(
       objectLayer->registerJITEventListener(*engine->gdbListener);
     if (engine->perfListener)
       objectLayer->registerJITEventListener(*engine->perfListener);
+
+    // COFF format binaries (Windows) need special handling to deal with
+    // exported symbol visibility.
+    // cf llvm/lib/ExecutionEngine/Orc/LLJIT.cpp LLJIT::createObjectLinkingLayer
+    llvm::Triple targetTriple(llvm::Twine(llvmModule->getTargetTriple()));
+    if (targetTriple.isOSBinFormatCOFF()) {
+      objectLayer->setOverrideObjectFlagsWithResponsibilityFlags(true);
+      objectLayer->setAutoClaimResponsibilityForObjectSymbols(true);
+    }
 
     // Resolve symbols from shared libraries.
     for (auto libPath : sharedLibPaths) {

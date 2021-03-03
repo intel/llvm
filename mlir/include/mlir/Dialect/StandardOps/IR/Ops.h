@@ -177,10 +177,10 @@ public:
     return getDstMemRef().getType().cast<MemRefType>().getRank();
   }
   unsigned getSrcMemorySpace() {
-    return getSrcMemRef().getType().cast<MemRefType>().getMemorySpace();
+    return getSrcMemRef().getType().cast<MemRefType>().getMemorySpaceAsInt();
   }
   unsigned getDstMemorySpace() {
-    return getDstMemRef().getType().cast<MemRefType>().getMemorySpace();
+    return getDstMemRef().getType().cast<MemRefType>().getMemorySpaceAsInt();
   }
 
   // Returns the destination memref indices for this DMA operation.
@@ -364,6 +364,12 @@ bool applyCmpPredicate(CmpIPredicate predicate, const APInt &lhs,
 /// comparison predicates.
 bool applyCmpPredicate(CmpFPredicate predicate, const APFloat &lhs,
                        const APFloat &rhs);
+
+/// Return true if ofr1 and ofr2 are the same integer constant attribute values
+/// or the same SSA value.
+/// Ignore integer bitwitdh and type mismatch that come from the fact there is
+/// no IndexAttr and that IndexType have no bitwidth.
+bool isEqualConstantIntOrValue(OpFoldResult ofr1, OpFoldResult ofr2);
 } // end namespace mlir
 
 #endif // MLIR_DIALECT_IR_STANDARDOPS_IR_OPS_H

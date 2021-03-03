@@ -26,6 +26,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Target/LLVMIR.h"
+#include "mlir/Target/LLVMIR/Export.h"
 #include "mlir/Transforms/Passes.h"
 
 #include "llvm/ADT/StringRef.h"
@@ -239,7 +240,7 @@ int runJit(mlir::ModuleOp module) {
   auto &engine = maybeEngine.get();
 
   // Invoke the JIT-compiled function.
-  auto invocationResult = engine->invoke("main");
+  auto invocationResult = engine->invokePacked("main");
   if (invocationResult) {
     llvm::errs() << "JIT invocation failed\n";
     return -1;

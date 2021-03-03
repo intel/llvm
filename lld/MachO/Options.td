@@ -396,7 +396,6 @@ def grp_bundle : OptionGroup<"bundle">, HelpText<"CREATING A BUNDLE">;
 def bundle_loader : Separate<["-"], "bundle_loader">,
      MetaVarName<"<executable>">,
      HelpText<"Resolve undefined symbols from <executable>">,
-     Flags<[HelpHidden]>,
      Group<grp_bundle>;
 
 def grp_object : OptionGroup<"object">, HelpText<"CREATING AN OBJECT FILE">;
@@ -448,8 +447,10 @@ def alias_list : Separate<["-"], "alias_list">,
      Flags<[HelpHidden]>,
      Group<grp_resolve>;
 def flat_namespace : Flag<["-"], "flat_namespace">,
-     HelpText<"Resolve symbols from all dylibs, both direct & transitive. Do not record source libraries: dyld must re-search at runtime and use the first definition found">,
-     Flags<[HelpHidden]>,
+     HelpText<"Resolve symbols from all dylibs, both direct and transitive. Do not record source libraries: dyld must re-search at runtime and use the first definition found">,
+     Group<grp_resolve>;
+def twolevel_namespace : Flag<["-"], "twolevel_namespace">,
+     HelpText<"Make dyld look up symbols by (dylib,name) pairs (default)">,
      Group<grp_resolve>;
 def u : Separate<["-"], "u">,
      MetaVarName<"<symbol>">,
@@ -458,7 +459,6 @@ def u : Separate<["-"], "u">,
 def U : Separate<["-"], "U">,
      MetaVarName<"<symbol>">,
      HelpText<"Allow <symbol> to have no definition">,
-     Flags<[HelpHidden]>,
      Group<grp_resolve>;
 def undefined : Separate<["-"], "undefined">,
      MetaVarName<"<treatment>">,
@@ -563,7 +563,7 @@ def bitcode_symbol_map : Separate<["-"], "bitcode_symbol_map">,
 def grp_rare : OptionGroup<"rare">, HelpText<"RARELY USED">;
 
 def v : Flag<["-"], "v">,
-     HelpText<"Print the linker version and search paths and exit">,
+     HelpText<"Print the linker version and search paths in addition to linking">,
      Group<grp_rare>;
 def adhoc_codesign : Flag<["-"], "adhoc_codesign">,
      HelpText<"Write an ad-hoc code signature to the output file.">,
@@ -628,12 +628,10 @@ def move_to_ro_segment : MultiArg<["-"], "move_to_ro_segment", 2>,
 def rename_section : MultiArg<["-"], "rename_section", 4>,
      MetaVarName<"<from_segment> <from_section> <to_segment> <to_section>">,
      HelpText<"Rename <from_segment>/<from_section> as <to_segment>/<to_section>">,
-     Flags<[HelpHidden]>,
      Group<grp_rare>;
 def rename_segment : MultiArg<["-"], "rename_segment", 2>,
      MetaVarName<"<from_segment> <to_segment>">,
      HelpText<"Rename <from_segment> as <to_segment>">,
-     Flags<[HelpHidden]>,
      Group<grp_rare>;
 def trace_symbol_layout : Flag<["-"], "trace_symbol_layout">,
      HelpText<"Show where and why symbols move, as specified by -move_to_ro_segment, -move_to_rw_segment, -rename_section, and -rename_segment">,
@@ -1299,10 +1297,6 @@ def text_exec : Flag<["-"], "text_exec">,
      Flags<[HelpHidden]>,
      Group<grp_undocumented>;
 def threaded_starts_section : Flag<["-"], "threaded_starts_section">,
-     HelpText<"This option is undocumented in ld64">,
-     Flags<[HelpHidden]>,
-     Group<grp_undocumented>;
-def twolevel_namespace : Flag<["-"], "twolevel_namespace">,
      HelpText<"This option is undocumented in ld64">,
      Flags<[HelpHidden]>,
      Group<grp_undocumented>;

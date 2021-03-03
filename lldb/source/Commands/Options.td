@@ -125,7 +125,7 @@ let Command = "breakpoint set" in {
   def breakpoint_set_address : Option<"address", "a">, Group<2>,
     Arg<"AddressOrExpression">, Required,
     Desc<"Set the breakpoint at the specified address.  If the address maps "
-    "uniquely toa particular binary, then the address will be converted to "
+    "uniquely to a particular binary, then the address will be converted to "
     "a \"file\"address, so that the breakpoint will track that binary+offset "
     "no matter where the binary eventually loads.  Alternately, if you also "
     "specify the module - with the -s option - then the address will be "
@@ -655,7 +655,7 @@ let Command = "process launch" in {
     Desc<"Set the current working directory to <path> when running the inferior.">;
   def process_launch_arch : Option<"arch", "a">, Arg<"Architecture">,
     Desc<"Set the architecture for the process to launch when ambiguous.">;
-  def process_launch_environment : Option<"environment", "v">,
+  def process_launch_environment : Option<"environment", "E">,
     Arg<"None">, Desc<"Specify an environment variable name/value string "
     "(--environment NAME=VALUE). Can be specified multiple times for subsequent "
     "environment entries.">;

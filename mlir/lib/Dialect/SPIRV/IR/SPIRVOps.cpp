@@ -2556,7 +2556,7 @@ static void print(spirv::ModuleOp moduleOp, OpAsmPrinter &printer) {
     elidedAttrs.push_back(spirv::ModuleOp::getVCETripleAttrName());
   }
 
-  printer.printOptionalAttrDictWithKeyword(moduleOp.getAttrs(), elidedAttrs);
+  printer.printOptionalAttrDictWithKeyword(moduleOp->getAttrs(), elidedAttrs);
   printer.printRegion(moduleOp.body(), /*printEntryBlockArgs=*/false,
                       /*printBlockTerminators=*/false);
 }
@@ -3530,6 +3530,81 @@ static LogicalResult verify(spirv::SpecConstantOperationOp constOp) {
              spirv::SpecConstantOperationOp>(operand.getDefiningOp()))
       return constOp.emitOpError(
           "invalid operand, must be defined by a constant operation");
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// spv.GLSL.FrexpStruct
+//===----------------------------------------------------------------------===//
+static LogicalResult
+verifyGLSLFrexpStructOp(spirv::GLSLFrexpStructOp frexpStructOp) {
+  spirv::StructType structTy =
+      frexpStructOp.result().getType().dyn_cast<spirv::StructType>();
+
+  if (structTy.getNumElements() != 2)
+    return frexpStructOp.emitError("result type must be a struct  type "
+                                   "with two memebers");
+
+  Type significandTy = structTy.getElementType(0);
+  Type exponentTy = structTy.getElementType(1);
+  VectorType exponentVecTy = exponentTy.dyn_cast<VectorType>();
+  IntegerType exponentIntTy = exponentTy.dyn_cast<IntegerType>();
+
+  Type operandTy = frexpStructOp.operand().getType();
+  VectorType operandVecTy = operandTy.dyn_cast<VectorType>();
+  FloatType operandFTy = operandTy.dyn_cast<FloatType>();
+
+  if (significandTy != operandTy)
+    return frexpStructOp.emitError("member zero of the resulting struct type "
+                                   "must be the same type as the operand");
+
+  if (exponentVecTy) {
+    IntegerType componentIntTy =
+        exponentVecTy.getElementType().dyn_cast<IntegerType>();
+    if (!(componentIntTy && componentIntTy.getWidth() == 32))
+      return frexpStructOp.emitError(
+          "member one of the resulting struct type must"
+          "be a scalar or vector of 32 bit integer type");
+  } else if (!(exponentIntTy && exponentIntTy.getWidth() == 32)) {
+    return frexpStructOp.emitError(
+        "member one of the resulting struct type "
+        "must be a scalar or vector of 32 bit integer type");
+  }
+
+  // Check that the two member types have the same number of components
+  if (operandVecTy && exponentVecTy &&
+      (exponentVecTy.getNumElements() == operandVecTy.getNumElements()))
+    return success();
+
+  if (operandFTy && exponentIntTy)
+    return success();
+
+  return frexpStructOp.emitError(
+      "member one of the resulting struct type "
+      "must have the same number of components as the operand type");
+}
+
+//===----------------------------------------------------------------------===//
+// spv.GLSL.Ldexp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(spirv::GLSLLdexpOp ldexpOp) {
+  Type significandType = ldexpOp.x().getType();
+  Type exponentType = ldexpOp.exp().getType();
+
+  if (significandType.isa<FloatType>() != exponentType.isa<IntegerType>())
+    return ldexpOp.emitOpError("operands must both be scalars or vectors");
+
+  auto getNumElements = [](Type type) -> unsigned {
+    if (auto vectorType = type.dyn_cast<VectorType>())
+      return vectorType.getNumElements();
+    return 1;
+  };
+
+  if (getNumElements(significandType) != getNumElements(exponentType))
+    return ldexpOp.emitOpError(
+        "operands must have the same number of elements");
 
   return success();
 }

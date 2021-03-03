@@ -1466,6 +1466,7 @@ static const EnumEntry<unsigned> ElfHeaderAMDGPUFlags[] = {
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX906),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX908),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX909),
+  LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX90A),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX90C),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1010),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1011),
@@ -3934,21 +3935,17 @@ template <class ELFT> void GNUELFDumper<ELFT>::printSectionDetails() {
 
     uint64_t Flags = S.sh_flags;
     uint64_t UnknownFlags = 0;
-    bool NeedsComma = false;
+    ListSeparator LS;
     while (Flags) {
       // Take the least significant bit as a flag.
       uint64_t Flag = Flags & -Flags;
       Flags -= Flag;
 
       auto It = FlagToName.find(Flag);
-      if (It != FlagToName.end()) {
-        if (NeedsComma)
-          OS << ", ";
-        NeedsComma = true;
-        OS << It->second;
-      } else {
+      if (It != FlagToName.end())
+        OS << LS << It->second;
+      else
         UnknownFlags |= Flag;
-      }
     }
 
     auto PrintUnknownFlags = [&](uint64_t Mask, StringRef Name) {
@@ -3956,12 +3953,9 @@ template <class ELFT> void GNUELFDumper<ELFT>::printSectionDetails() {
       if (!FlagsToPrint)
         return;
 
-      if (NeedsComma)
-        OS << ", ";
-      OS << Name << " ("
+      OS << LS << Name << " ("
          << to_string(format_hex_no_prefix(FlagsToPrint, AddrSize)) << ")";
       UnknownFlags &= ~Mask;
-      NeedsComma = true;
     };
 
     PrintUnknownFlags(SHF_MASKOS, "OS");

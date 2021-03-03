@@ -21,9 +21,16 @@ using namespace llvm::opt;
 
 void Flang::AddFortranDialectOptions(const ArgList &Args,
                                      ArgStringList &CmdArgs) const {
-  Args.AddAllArgs(CmdArgs, {options::OPT_ffixed_form, options::OPT_ffree_form,
-                            options::OPT_ffixed_line_length_EQ,
-                            options::OPT_fopenmp, options::OPT_fopenacc});
+  Args.AddAllArgs(CmdArgs,
+                  {options::OPT_ffixed_form, options::OPT_ffree_form,
+                   options::OPT_ffixed_line_length_EQ, options::OPT_fopenmp,
+                   options::OPT_fopenacc, options::OPT_finput_charset_EQ,
+                   options::OPT_fimplicit_none, options::OPT_fno_implicit_none,
+                   options::OPT_fbackslash, options::OPT_fno_backslash,
+                   options::OPT_flogical_abbreviations,
+                   options::OPT_fno_logical_abbreviations,
+                   options::OPT_fxor_operator, options::OPT_fno_xor_operator,
+                   options::OPT_falternative_parameter_statement});
 }
 
 void Flang::AddPreprocessingOptions(const ArgList &Args,
@@ -56,9 +63,6 @@ void Flang::ConstructJob(Compilation &C, const JobAction &JA,
   // CmdArgs.push_back(Args.MakeArgString(TripleStr));
 
   if (isa<PreprocessJobAction>(JA)) {
-    if (C.getArgs().hasArg(options::OPT_test_io))
-      CmdArgs.push_back("-test-io");
-    else
       CmdArgs.push_back("-E");
   } else if (isa<CompileJobAction>(JA) || isa<BackendJobAction>(JA)) {
     if (JA.getType() == types::TY_Nothing) {
@@ -94,6 +98,9 @@ void Flang::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Add other compile options
   AddOtherOptions(Args, CmdArgs);
+
+  // Forward -Xflang arguments to -fc1
+  Args.AddAllArgValues(CmdArgs, options::OPT_Xflang);
 
   if (Output.isFilename()) {
     CmdArgs.push_back("-o");

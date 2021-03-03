@@ -392,10 +392,11 @@ DwarfDebug::DwarfDebug(AsmPrinter *A)
   DwarfVersion =
       TT.isNVPTX() ? 2 : (DwarfVersion ? DwarfVersion : dwarf::DWARF_VERSION);
 
-  bool Dwarf64 = Asm->TM.Options.MCOptions.Dwarf64 &&
-                 DwarfVersion >= 3 &&   // DWARF64 was introduced in DWARFv3.
-                 TT.isArch64Bit() &&    // DWARF64 requires 64-bit relocations.
-                 TT.isOSBinFormatELF(); // Support only ELF for now.
+  bool Dwarf64 =
+      (Asm->TM.Options.MCOptions.Dwarf64 || MMI->getModule()->isDwarf64()) &&
+      DwarfVersion >= 3 &&   // DWARF64 was introduced in DWARFv3.
+      TT.isArch64Bit() &&    // DWARF64 requires 64-bit relocations.
+      TT.isOSBinFormatELF(); // Support only ELF for now.
 
   UseRangesSection = !NoDwarfRangesSection && !TT.isNVPTX();
 
@@ -2373,12 +2374,8 @@ void DwarfDebug::emitDebugPubSection(bool GnuStyle, StringRef Name,
     TheU = Skeleton;
 
   // Emit the header.
-  MCSymbol *BeginLabel = Asm->createTempSymbol("pub" + Name + "_begin");
-  MCSymbol *EndLabel = Asm->createTempSymbol("pub" + Name + "_end");
-  Asm->emitDwarfUnitLength(EndLabel, BeginLabel,
-                           "Length of Public " + Name + " Info");
-
-  Asm->OutStreamer->emitLabel(BeginLabel);
+  MCSymbol *EndLabel = Asm->emitDwarfUnitLength(
+      "pub" + Name, "Length of Public " + Name + " Info");
 
   Asm->OutStreamer->AddComment("DWARF Version");
   Asm->emitInt16(dwarf::DW_PUBNAMES_VERSION);

@@ -13,10 +13,12 @@
 
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
 #include "mlir/Dialect/Vector/VectorUtils.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
+#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectImplementation.h"
@@ -374,7 +376,7 @@ static void print(OpAsmPrinter &p, ContractionOp op) {
   llvm::StringSet<> traitAttrsSet;
   traitAttrsSet.insert(attrNames.begin(), attrNames.end());
   SmallVector<NamedAttribute, 8> attrs;
-  for (auto attr : op.getAttrs())
+  for (auto attr : op->getAttrs())
     if (traitAttrsSet.count(attr.first.strref()) > 0)
       attrs.push_back(attr);
 
@@ -384,7 +386,7 @@ static void print(OpAsmPrinter &p, ContractionOp op) {
   if (op.masks().size() == 2)
     p << ", " << op.masks();
 
-  p.printOptionalAttrDict(op.getAttrs(), attrNames);
+  p.printOptionalAttrDict(op->getAttrs(), attrNames);
   p << " : " << op.lhs().getType() << ", " << op.rhs().getType() << " into "
     << op.getResultType();
 }
@@ -658,6 +660,66 @@ Optional<SmallVector<int64_t, 4>> ContractionOp::getShapeForUnroll() {
   return shape;
 }
 
+/// Return a fused vector::ContractionOp which represents a patterns such as:
+///
+/// ```mlir
+///    %c0 = vector.constant 0: ...
+///    %c = vector.contract %a, %b, %c0: ...
+///    %e = add %c, %d: ...
+/// ```
+///
+/// by:
+///
+/// ```mlir
+///    %e = vector.contract %a, %b, %d: ...
+/// ```
+///
+/// Return null if the canonicalization does not apply.
+// TODO: This should be a folding of Add into Contract in core but while they
+// live in different dialects, it is not possible without unnatural
+// dependencies.
+template <typename AddOpType>
+struct CanonicalizeContractAdd : public OpRewritePattern<AddOpType> {
+  using OpRewritePattern<AddOpType>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AddOpType addOp,
+                                PatternRewriter &rewriter) const override {
+    auto canonicalize = [&](Value maybeContraction,
+                            Value otherOperand) -> vector::ContractionOp {
+      vector::ContractionOp contractionOp =
+          dyn_cast_or_null<vector::ContractionOp>(
+              maybeContraction.getDefiningOp());
+      if (!contractionOp)
+        return vector::ContractionOp();
+      if (auto maybeZero = dyn_cast_or_null<ConstantOp>(
+              contractionOp.acc().getDefiningOp())) {
+        if (maybeZero.value() ==
+            rewriter.getZeroAttr(contractionOp.acc().getType())) {
+          BlockAndValueMapping bvm;
+          bvm.map(contractionOp.acc(), otherOperand);
+          auto newContraction =
+              cast<vector::ContractionOp>(rewriter.clone(*contractionOp, bvm));
+          rewriter.replaceOp(addOp, newContraction.getResult());
+          return newContraction;
+        }
+      }
+      return vector::ContractionOp();
+    };
+
+    Value a = addOp->getOperand(0), b = addOp->getOperand(1);
+    vector::ContractionOp contract = canonicalize(a, b);
+    contract = contract ? contract : canonicalize(b, a);
+    return success();
+  }
+};
+
+void ContractionOp::getCanonicalizationPatterns(
+    OwningRewritePatternList &results, MLIRContext *context) {
+  results
+      .insert<CanonicalizeContractAdd<AddIOp>, CanonicalizeContractAdd<AddFOp>>(
+          context);
+}
+
 //===----------------------------------------------------------------------===//
 // ExtractElementOp
 //===----------------------------------------------------------------------===//
@@ -714,7 +776,7 @@ void vector::ExtractOp::build(OpBuilder &builder, OperationState &result,
 
 static void print(OpAsmPrinter &p, vector::ExtractOp op) {
   p << op.getOperationName() << " " << op.vector() << op.position();
-  p.printOptionalAttrDict(op.getAttrs(), {"position"});
+  p.printOptionalAttrDict(op->getAttrs(), {"position"});
   p << " : " << op.vector().getType();
 }
 
@@ -1198,6 +1260,14 @@ AffineMap calculateImplicitMap(MapOp op) {
 AffineMap ExtractMapOp::map() { return calculateImplicitMap(*this); }
 
 //===----------------------------------------------------------------------===//
+// FmaOp
+//===----------------------------------------------------------------------===//
+
+Optional<SmallVector<int64_t, 4>> FMAOp::getShapeForUnroll() {
+  return llvm::to_vector<4>(getVectorType().getShape());
+}
+
+//===----------------------------------------------------------------------===//
 // BroadcastOp
 //===----------------------------------------------------------------------===//
 
@@ -1281,7 +1351,7 @@ void ShuffleOp::build(OpBuilder &builder, OperationState &result, Value v1,
 static void print(OpAsmPrinter &p, ShuffleOp op) {
   p << op.getOperationName() << " " << op.v1() << ", " << op.v2() << " "
     << op.mask();
-  p.printOptionalAttrDict(op.getAttrs(), {ShuffleOp::getMaskAttrName()});
+  p.printOptionalAttrDict(op->getAttrs(), {ShuffleOp::getMaskAttrName()});
   p << " : " << op.v1().getType() << ", " << op.v2().getType();
 }
 
@@ -1638,7 +1708,7 @@ static void print(OpAsmPrinter &p, OuterProductOp op) {
   p << op.getOperationName() << " " << op.lhs() << ", " << op.rhs();
   if (!op.acc().empty()) {
     p << ", " << op.acc();
-    p.printOptionalAttrDict(op.getAttrs());
+    p.printOptionalAttrDict(op->getAttrs());
   }
   p << " : " << op.lhs().getType() << ", " << op.rhs().getType();
 }
@@ -2237,7 +2307,7 @@ static void printTransferAttrs(OpAsmPrinter &p, VectorTransferOpInterface op) {
   }
   if (elideMasked)
     elidedAttrs.push_back(op.getMaskedAttrName());
-  p.printOptionalAttrDict(op.getAttrs(), elidedAttrs);
+  p.printOptionalAttrDict(op->getAttrs(), elidedAttrs);
 }
 
 static void print(OpAsmPrinter &p, TransferReadOp op) {
@@ -2339,6 +2409,18 @@ static LogicalResult foldMemRefCast(Operation *op) {
   return success(folded);
 }
 
+static LogicalResult foldTensorCast(Operation *op) {
+  bool folded = false;
+  for (OpOperand &operand : op->getOpOperands()) {
+    auto castOp = operand.get().getDefiningOp<tensor::CastOp>();
+    if (castOp && tensor::canFoldIntoConsumerOp(castOp)) {
+      operand.set(castOp.getOperand());
+      folded = true;
+    }
+  }
+  return success(folded);
+}
+
 template <typename TransferOp>
 static bool isInBounds(TransferOp op, int64_t resultIdx, int64_t indicesIdx) {
   // TODO: support more aggressive createOrFold on:
@@ -2391,12 +2473,13 @@ OpFoldResult TransferReadOp::fold(ArrayRef<Attribute>) {
     return getResult();
   if (succeeded(foldMemRefCast(*this)))
     return getResult();
+  if (succeeded(foldTensorCast(*this)))
+    return getResult();
   return OpFoldResult();
 }
 
 Optional<SmallVector<int64_t, 4>> TransferReadOp::getShapeForUnroll() {
-  auto s = getVectorType().getShape();
-  return SmallVector<int64_t, 4>{s.begin(), s.end()};
+  return llvm::to_vector<4>(getVectorType().getShape());
 }
 
 void TransferReadOp::getEffects(
@@ -2688,14 +2771,16 @@ void MaskedStoreOp::getCanonicalizationPatterns(
 //===----------------------------------------------------------------------===//
 
 static LogicalResult verify(GatherOp op) {
-  VectorType indicesVType = op.getIndicesVectorType();
+  VectorType indVType = op.getIndexVectorType();
   VectorType maskVType = op.getMaskVectorType();
   VectorType resVType = op.getVectorType();
   MemRefType memType = op.getMemRefType();
 
   if (resVType.getElementType() != memType.getElementType())
     return op.emitOpError("base and result element type should match");
-  if (resVType.getDimSize(0) != indicesVType.getDimSize(0))
+  if (llvm::size(op.indices()) != memType.getRank())
+    return op.emitOpError("requires ") << memType.getRank() << " indices";
+  if (resVType.getDimSize(0) != indVType.getDimSize(0))
     return op.emitOpError("expected result dim to match indices dim");
   if (resVType.getDimSize(0) != maskVType.getDimSize(0))
     return op.emitOpError("expected result dim to match mask dim");
@@ -2734,14 +2819,16 @@ void GatherOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 //===----------------------------------------------------------------------===//
 
 static LogicalResult verify(ScatterOp op) {
-  VectorType indicesVType = op.getIndicesVectorType();
+  VectorType indVType = op.getIndexVectorType();
   VectorType maskVType = op.getMaskVectorType();
   VectorType valueVType = op.getVectorType();
   MemRefType memType = op.getMemRefType();
 
   if (valueVType.getElementType() != memType.getElementType())
     return op.emitOpError("base and valueToStore element type should match");
-  if (valueVType.getDimSize(0) != indicesVType.getDimSize(0))
+  if (llvm::size(op.indices()) != memType.getRank())
+    return op.emitOpError("requires ") << memType.getRank() << " indices";
+  if (valueVType.getDimSize(0) != indVType.getDimSize(0))
     return op.emitOpError("expected valueToStore dim to match indices dim");
   if (valueVType.getDimSize(0) != maskVType.getDimSize(0))
     return op.emitOpError("expected valueToStore dim to match mask dim");
@@ -3087,7 +3174,7 @@ void TypeCastOp::build(OpBuilder &builder, OperationState &result,
       VectorType::get(extractShape(memRefType),
                       getElementTypeOrSelf(getElementTypeOrSelf(memRefType)));
   result.addTypes(
-      MemRefType::get({}, vectorType, {}, memRefType.getMemorySpace()));
+      MemRefType::get({}, vectorType, {}, memRefType.getMemorySpaceAsInt()));
 }
 
 static LogicalResult verify(TypeCastOp op) {
@@ -3096,8 +3183,8 @@ static LogicalResult verify(TypeCastOp op) {
     return op.emitOpError("expects operand to be a memref with no layout");
   if (!op.getResultMemRefType().getAffineMaps().empty())
     return op.emitOpError("expects result to be a memref with no layout");
-  if (op.getResultMemRefType().getMemorySpace() !=
-      op.getMemRefType().getMemorySpace())
+  if (op.getResultMemRefType().getMemorySpaceAsInt() !=
+      op.getMemRefType().getMemorySpaceAsInt())
     return op.emitOpError("expects result in same memory space");
 
   auto sourceType = op.getMemRefType();
@@ -3134,7 +3221,7 @@ static ParseResult parseTupleOp(OpAsmParser &parser, OperationState &result) {
 static void print(OpAsmPrinter &p, TupleOp op) {
   p << op.getOperationName() << ' ';
   p.printOperands(op.getOperands());
-  p.printOptionalAttrDict(op.getAttrs());
+  p.printOptionalAttrDict(op->getAttrs());
   p << " : ";
   llvm::interleaveComma(op->getOperandTypes(), p);
 }
@@ -3279,7 +3366,7 @@ static ParseResult parseTupleGetOp(OpAsmParser &parser,
 
 static void print(OpAsmPrinter &p, TupleGetOp op) {
   p << op.getOperationName() << ' ' << op.getOperand() << ", " << op.index();
-  p.printOptionalAttrDict(op.getAttrs(),
+  p.printOptionalAttrDict(op->getAttrs(),
                           /*elidedAttrs=*/{TupleGetOp::getIndexAttrName()});
   p << " : " << op.getOperand().getType();
 }

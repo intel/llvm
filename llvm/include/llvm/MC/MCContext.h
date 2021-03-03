@@ -35,6 +35,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <string>
@@ -59,6 +60,8 @@ namespace llvm {
   class MCSymbolELF;
   class MCSymbolWasm;
   class MCSymbolXCOFF;
+  class MDNode;
+  class SMDiagnostic;
   class SMLoc;
   class SourceMgr;
 
@@ -68,13 +71,19 @@ namespace llvm {
   class MCContext {
   public:
     using SymbolTable = StringMap<MCSymbol *, BumpPtrAllocator &>;
+    using DiagHandlerTy =
+        std::function<void(const SMDiagnostic &, bool, const SourceMgr &,
+                           std::vector<const MDNode *> &)>;
 
   private:
     /// The SourceMgr for this object, if any.
     const SourceMgr *SrcMgr;
 
     /// The SourceMgr for inline assembly, if any.
-    SourceMgr *InlineSrcMgr;
+    std::unique_ptr<SourceMgr> InlineSrcMgr;
+    std::vector<const MDNode *> LocInfos;
+
+    DiagHandlerTy DiagHandler;
 
     /// The MCAsmInfo for this target.
     const MCAsmInfo *MAI;
@@ -299,6 +308,9 @@ namespace llvm {
 
     bool HadError = false;
 
+    void reportCommon(SMLoc Loc,
+                      std::function<void(SMDiagnostic &, const SourceMgr *)>);
+
     MCSymbol *createSymbolImpl(const StringMapEntry<bool> *Name,
                                bool CanBeUnnamed);
     MCSymbol *createSymbol(StringRef Name, bool AlwaysAddSuffix,
@@ -310,7 +322,7 @@ namespace llvm {
     MCSectionELF *createELFSectionImpl(StringRef Section, unsigned Type,
                                        unsigned Flags, SectionKind K,
                                        unsigned EntrySize,
-                                       const MCSymbolELF *Group,
+                                       const MCSymbolELF *Group, bool IsComdat,
                                        unsigned UniqueID,
                                        const MCSymbolELF *LinkedToSym);
 
@@ -363,7 +375,15 @@ namespace llvm {
 
     const SourceMgr *getSourceManager() const { return SrcMgr; }
 
-    void setInlineSourceManager(SourceMgr *SM) { InlineSrcMgr = SM; }
+    void initInlineSourceManager();
+    SourceMgr *getInlineSourceManager() {
+      assert(InlineSrcMgr);
+      return InlineSrcMgr.get();
+    }
+    std::vector<const MDNode *> &getLocInfos() { return LocInfos; }
+    void setDiagnosticHandler(DiagHandlerTy DiagHandler) {
+      this->DiagHandler = DiagHandler;
+    }
 
     const MCAsmInfo *getAsmInfo() const { return MAI; }
 
@@ -482,24 +502,32 @@ namespace llvm {
 
     MCSectionELF *getELFSection(const Twine &Section, unsigned Type,
                                 unsigned Flags) {
-      return getELFSection(Section, Type, Flags, 0, "");
+      return getELFSection(Section, Type, Flags, 0, "", false);
     }
 
     MCSectionELF *getELFSection(const Twine &Section, unsigned Type,
-                                unsigned Flags, unsigned EntrySize,
-                                const Twine &Group) {
-      return getELFSection(Section, Type, Flags, EntrySize, Group,
+                                unsigned Flags, unsigned EntrySize) {
+      return getELFSection(Section, Type, Flags, EntrySize, "", false,
                            MCSection::NonUniqueID, nullptr);
     }
 
     MCSectionELF *getELFSection(const Twine &Section, unsigned Type,
                                 unsigned Flags, unsigned EntrySize,
-                                const Twine &Group, unsigned UniqueID,
+                                const Twine &Group, bool IsComdat) {
+      return getELFSection(Section, Type, Flags, EntrySize, Group, IsComdat,
+                           MCSection::NonUniqueID, nullptr);
+    }
+
+    MCSectionELF *getELFSection(const Twine &Section, unsigned Type,
+                                unsigned Flags, unsigned EntrySize,
+                                const Twine &Group, bool IsComdat,
+                                unsigned UniqueID,
                                 const MCSymbolELF *LinkedToSym);
 
     MCSectionELF *getELFSection(const Twine &Section, unsigned Type,
                                 unsigned Flags, unsigned EntrySize,
-                                const MCSymbolELF *Group, unsigned UniqueID,
+                                const MCSymbolELF *Group, bool IsComdat,
+                                unsigned UniqueID,
                                 const MCSymbolELF *LinkedToSym);
 
     /// Get a section with the provided group identifier. This section is
@@ -517,7 +545,8 @@ namespace llvm {
 
     void renameELFSection(MCSectionELF *Section, StringRef Name);
 
-    MCSectionELF *createELFGroupSection(const MCSymbolELF *Group);
+    MCSectionELF *createELFGroupSection(const MCSymbolELF *Group,
+                                        bool IsComdat);
 
     void recordELFMergeableSectionInfo(StringRef SectionName, unsigned Flags,
                                        unsigned UniqueID, unsigned EntrySize);
@@ -570,11 +599,11 @@ namespace llvm {
                                   const MCSymbolWasm *Group, unsigned UniqueID,
                                   const char *BeginSymName);
 
-    MCSectionXCOFF *getXCOFFSection(StringRef Section,
-                                    XCOFF::StorageMappingClass MappingClass,
-                                    XCOFF::SymbolType CSectType, SectionKind K,
-                                    bool MultiSymbolsAllowed = false,
-                                    const char *BeginSymName = nullptr);
+    MCSectionXCOFF *
+    getXCOFFSection(StringRef Section, SectionKind K,
+                    Optional<XCOFF::CsectProperties> CsectProp = None,
+                    bool MultiSymbolsAllowed = false,
+                    const char *BeginSymName = nullptr);
 
     // Create and save a copy of STI and return a reference to the copy.
     MCSubtargetInfo &getSubtargetCopy(const MCSubtargetInfo &STI);
@@ -739,13 +768,13 @@ namespace llvm {
     void deallocate(void *Ptr) {}
 
     bool hadError() { return HadError; }
+    void diagnose(const SMDiagnostic &SMD);
     void reportError(SMLoc L, const Twine &Msg);
     void reportWarning(SMLoc L, const Twine &Msg);
     // Unrecoverable error has occurred. Display the best diagnostic we can
     // and bail via exit(1). For now, most MC backend errors are unrecoverable.
     // FIXME: We should really do something about that.
-    LLVM_ATTRIBUTE_NORETURN void reportFatalError(SMLoc L,
-                                                  const Twine &Msg);
+    LLVM_ATTRIBUTE_NORETURN void reportFatalError(SMLoc L, const Twine &Msg);
 
     const MCAsmMacro *lookupMacro(StringRef Name) {
       StringMap<MCAsmMacro>::iterator I = MacroMap.find(Name);

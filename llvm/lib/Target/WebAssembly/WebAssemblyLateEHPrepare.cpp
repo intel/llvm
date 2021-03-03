@@ -212,11 +212,12 @@ bool WebAssemblyLateEHPrepare::addCatchAlls(MachineFunction &MF) {
     while (InsertPos != MBB.end() && InsertPos->isEHLabel())
       InsertPos++;
     // This runs after hoistCatches(), so we assume that if there is a catch,
-    // that should be the non-EH label first instruction in an EH pad.
+    // that should be the first non-EH-label instruction in an EH pad.
     if (InsertPos == MBB.end() ||
         !WebAssembly::isCatch(InsertPos->getOpcode())) {
       Changed = true;
-      BuildMI(MBB, InsertPos, InsertPos->getDebugLoc(),
+      BuildMI(MBB, InsertPos,
+              InsertPos == MBB.end() ? DebugLoc() : InsertPos->getDebugLoc(),
               TII.get(WebAssembly::CATCH_ALL));
     }
   }
@@ -383,10 +384,13 @@ bool WebAssemblyLateEHPrepare::restoreStackPointer(MachineFunction &MF) {
     // with leaf functions, and we don't restore __stack_pointer in leaf
     // functions anyway.
     auto InsertPos = MBB.begin();
-    if (InsertPos->isEHLabel()) // EH pad starts with an EH label
-      ++InsertPos;
-    if (WebAssembly::isCatch(InsertPos->getOpcode()))
-      ++InsertPos;
+    // Skip EH_LABELs in the beginning of an EH pad if present.
+    while (InsertPos != MBB.end() && InsertPos->isEHLabel())
+      InsertPos++;
+    assert(InsertPos != MBB.end() &&
+           WebAssembly::isCatch(InsertPos->getOpcode()) &&
+           "catch/catch_all should be present in every EH pad at this point");
+    ++InsertPos; // Skip the catch instruction
     FrameLowering->writeSPToGlobal(FrameLowering->getSPReg(MF), MF, MBB,
                                    InsertPos, MBB.begin()->getDebugLoc());
   }

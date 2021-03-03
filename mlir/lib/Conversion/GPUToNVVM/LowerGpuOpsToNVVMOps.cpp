@@ -118,7 +118,8 @@ struct LowerGpuOpsToNVVMOpsPass
     /// converter drops the private memory space to support the use case above.
     LLVMTypeConverter converter(m.getContext(), options);
     converter.addConversion([&](MemRefType type) -> Optional<Type> {
-      if (type.getMemorySpace() != gpu::GPUDialect::getPrivateAddressSpace())
+      if (type.getMemorySpaceAsInt() !=
+          gpu::GPUDialect::getPrivateAddressSpace())
         return llvm::None;
       return converter.convertType(MemRefType::Builder(type).setMemorySpace(0));
     });
@@ -189,6 +190,8 @@ void mlir::populateGpuToNVVMConversionPatterns(
                                                      "__nv_cos");
   patterns.insert<OpToFuncCallLowering<math::ExpOp>>(converter, "__nv_expf",
                                                      "__nv_exp");
+  patterns.insert<OpToFuncCallLowering<math::ExpM1Op>>(converter, "__nv_expm1f",
+                                                       "__nv_expm1");
   patterns.insert<OpToFuncCallLowering<FloorFOp>>(converter, "__nv_floorf",
                                                   "__nv_floor");
   patterns.insert<OpToFuncCallLowering<math::LogOp>>(converter, "__nv_logf",

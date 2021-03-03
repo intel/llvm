@@ -1466,8 +1466,7 @@ namespace {
 /// CRTP base class for Python MLIR values that subclass Value and should be
 /// castable from it. The value hierarchy is one level deep and is not supposed
 /// to accommodate other levels unless core MLIR changes.
-template <typename DerivedTy>
-class PyConcreteValue : public PyValue {
+template <typename DerivedTy> class PyConcreteValue : public PyValue {
 public:
   // Derived classes must define statics for:
   //   IsAFunctionTy isaFunction
@@ -1763,6 +1762,23 @@ public:
   static void bindDerived(ClassTy &m) {}
 };
 
+class PyAffineMapAttribute : public PyConcreteAttribute<PyAffineMapAttribute> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirAttributeIsAAffineMap;
+  static constexpr const char *pyClassName = "AffineMapAttr";
+  using PyConcreteAttribute::PyConcreteAttribute;
+
+  static void bindDerived(ClassTy &c) {
+    c.def_static(
+        "get",
+        [](PyAffineMap &affineMap) {
+          MlirAttribute attr = mlirAffineMapAttrGet(affineMap.get());
+          return PyAffineMapAttribute(affineMap.getContext(), attr);
+        },
+        py::arg("affine_map"), "Gets an attribute wrapping an AffineMap.");
+  }
+};
+
 class PyArrayAttribute : public PyConcreteAttribute<PyArrayAttribute> {
 public:
   static constexpr IsAFunctionTy isaFunction = mlirAttributeIsAArray;
@@ -1851,7 +1867,7 @@ public:
     c.def_static(
         "get",
         [](PyType &type, double value, DefaultingPyLocation loc) {
-          MlirAttribute attr = mlirFloatAttrDoubleGetChecked(type, value, loc);
+          MlirAttribute attr = mlirFloatAttrDoubleGetChecked(loc, type, value);
           // TODO: Rework error reporting once diagnostic engine is exposed
           // in C API.
           if (mlirAttributeIsNull(attr)) {
@@ -2748,8 +2764,8 @@ public:
         "get",
         [](std::vector<int64_t> shape, PyType &elementType,
            DefaultingPyLocation loc) {
-          MlirType t = mlirVectorTypeGetChecked(shape.size(), shape.data(),
-                                                elementType, loc);
+          MlirType t = mlirVectorTypeGetChecked(loc, shape.size(), shape.data(),
+                                                elementType);
           // TODO: Rework error reporting once diagnostic engine is exposed
           // in C API.
           if (mlirTypeIsNull(t)) {
@@ -2780,7 +2796,7 @@ public:
         [](std::vector<int64_t> shape, PyType &elementType,
            DefaultingPyLocation loc) {
           MlirType t = mlirRankedTensorTypeGetChecked(
-              shape.size(), shape.data(), elementType, loc);
+              loc, shape.size(), shape.data(), elementType);
           // TODO: Rework error reporting once diagnostic engine is exposed
           // in C API.
           if (mlirTypeIsNull(t)) {
@@ -2811,7 +2827,7 @@ public:
     c.def_static(
         "get",
         [](PyType &elementType, DefaultingPyLocation loc) {
-          MlirType t = mlirUnrankedTensorTypeGetChecked(elementType, loc);
+          MlirType t = mlirUnrankedTensorTypeGetChecked(loc, elementType);
           // TODO: Rework error reporting once diagnostic engine is exposed
           // in C API.
           if (mlirTypeIsNull(t)) {
@@ -2852,9 +2868,9 @@ public:
            for (PyAffineMap &map : layout)
              maps.push_back(map);
 
-           MlirType t = mlirMemRefTypeGetChecked(elementType, shape.size(),
+           MlirType t = mlirMemRefTypeGetChecked(loc, elementType, shape.size(),
                                                  shape.data(), maps.size(),
-                                                 maps.data(), memorySpace, loc);
+                                                 maps.data(), memorySpace);
            // TODO: Rework error reporting once diagnostic engine is exposed
            // in C API.
            if (mlirTypeIsNull(t)) {
@@ -2931,7 +2947,7 @@ public:
          [](PyType &elementType, unsigned memorySpace,
             DefaultingPyLocation loc) {
            MlirType t =
-               mlirUnrankedMemRefTypeGetChecked(elementType, memorySpace, loc);
+               mlirUnrankedMemRefTypeGetChecked(loc, elementType, memorySpace);
            // TODO: Rework error reporting once diagnostic engine is exposed
            // in C API.
            if (mlirTypeIsNull(t)) {
@@ -3994,17 +4010,18 @@ void mlir::python::populateIRSubmodule(py::module &m) {
           "The underlying generic attribute of the NamedAttribute binding");
 
   // Builtin attribute bindings.
-  PyFloatAttribute::bind(m);
+  PyAffineMapAttribute::bind(m);
   PyArrayAttribute::bind(m);
   PyArrayAttribute::PyArrayAttributeIterator::bind(m);
-  PyIntegerAttribute::bind(m);
   PyBoolAttribute::bind(m);
-  PyFlatSymbolRefAttribute::bind(m);
-  PyStringAttribute::bind(m);
   PyDenseElementsAttribute::bind(m);
-  PyDenseIntElementsAttribute::bind(m);
   PyDenseFPElementsAttribute::bind(m);
+  PyDenseIntElementsAttribute::bind(m);
   PyDictAttribute::bind(m);
+  PyFlatSymbolRefAttribute::bind(m);
+  PyFloatAttribute::bind(m);
+  PyIntegerAttribute::bind(m);
+  PyStringAttribute::bind(m);
   PyTypeAttribute::bind(m);
   PyUnitAttribute::bind(m);
 

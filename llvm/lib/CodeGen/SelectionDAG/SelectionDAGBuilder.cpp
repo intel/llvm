@@ -1459,9 +1459,8 @@ SDValue SelectionDAGBuilder::getValueImpl(const Value *V) {
 
     if (isa<ConstantStruct>(C) || isa<ConstantArray>(C)) {
       SmallVector<SDValue, 4> Constants;
-      for (User::const_op_iterator OI = C->op_begin(), OE = C->op_end();
-           OI != OE; ++OI) {
-        SDNode *Val = getValue(*OI).getNode();
+      for (const Use &U : C->operands()) {
+        SDNode *Val = getValue(U).getNode();
         // If the operand is an empty aggregate, there are no values.
         if (!Val) continue;
         // Add each leaf value from the operand to the Constants list
@@ -7010,6 +7009,14 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
     SDValue Vec = getValue(I.getOperand(0));
     SDValue SubVec = getValue(I.getOperand(1));
     SDValue Index = getValue(I.getOperand(2));
+
+    // The intrinsic's index type is i64, but the SDNode requires an index type
+    // suitable for the target. Convert the index as required.
+    MVT VectorIdxTy = TLI.getVectorIdxTy(DAG.getDataLayout());
+    if (Index.getValueType() != VectorIdxTy)
+      Index = DAG.getVectorIdxConstant(
+          cast<ConstantSDNode>(Index)->getZExtValue(), DL);
+
     EVT ResultVT = TLI.getValueType(DAG.getDataLayout(), I.getType());
     setValue(&I, DAG.getNode(ISD::INSERT_SUBVECTOR, DL, ResultVT, Vec, SubVec,
                              Index));
@@ -7021,6 +7028,13 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
     SDValue Vec = getValue(I.getOperand(0));
     SDValue Index = getValue(I.getOperand(1));
     EVT ResultVT = TLI.getValueType(DAG.getDataLayout(), I.getType());
+
+    // The intrinsic's index type is i64, but the SDNode requires an index type
+    // suitable for the target. Convert the index as required.
+    MVT VectorIdxTy = TLI.getVectorIdxTy(DAG.getDataLayout());
+    if (Index.getValueType() != VectorIdxTy)
+      Index = DAG.getVectorIdxConstant(
+          cast<ConstantSDNode>(Index)->getZExtValue(), DL);
 
     setValue(&I, DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, ResultVT, Vec, Index));
     return;

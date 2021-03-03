@@ -1079,6 +1079,19 @@ public:
   void Finish(SMLoc EndLoc = SMLoc());
 
   virtual bool mayHaveInstructions(MCSection &Sec) const { return true; }
+
+  /// Emit a special value of 0xffffffff if producing 64-bit debugging info.
+  void maybeEmitDwarf64Mark();
+
+  /// Emit a unit length field. The actual format, DWARF32 or DWARF64, is chosen
+  /// according to the settings.
+  virtual void emitDwarfUnitLength(uint64_t Length, const Twine &Comment);
+
+  /// Emit a unit length field. The actual format, DWARF32 or DWARF64, is chosen
+  /// according to the settings.
+  /// Return the end symbol generated inside, the caller needs to emit it.
+  virtual MCSymbol *emitDwarfUnitLength(const Twine &Prefix,
+                                        const Twine &Comment);
 };
 
 /// Create a dummy machine code streamer, which does nothing. This is useful for

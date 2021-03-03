@@ -19,7 +19,7 @@ template<class SizeClassAllocator> struct SizeClassAllocator64LocalCache;
 // The template parameter Params is a class containing the actual parameters.
 //
 // Space: a portion of address space of kSpaceSize bytes starting at SpaceBeg.
-// If kSpaceBeg is ~0 then SpaceBeg is chosen dynamically my mmap.
+// If kSpaceBeg is ~0 then SpaceBeg is chosen dynamically by mmap.
 // Otherwise SpaceBeg=kSpaceBeg (fixed address).
 // kSpaceSize is a power of two.
 // At the beginning the entire space is mprotect-ed, then small parts of it
@@ -371,8 +371,7 @@ class SizeClassAllocator64 {
     }
     ~PackedCounterArray() {
       if (buffer) {
-        memory_mapper->UnmapPackedCounterArrayBuffer(
-            reinterpret_cast<uptr>(buffer), buffer_size);
+        memory_mapper->UnmapPackedCounterArrayBuffer(buffer, buffer_size);
       }
     }
 
@@ -803,17 +802,16 @@ class SizeClassAllocator64 {
       return released_bytes;
     }
 
-    uptr MapPackedCounterArrayBuffer(uptr buffer_size) {
+    void *MapPackedCounterArrayBuffer(uptr buffer_size) {
       // TODO(alekseyshl): The idea to explore is to check if we have enough
       // space between num_freed_chunks*sizeof(CompactPtrT) and
       // mapped_free_array to fit buffer_size bytes and use that space instead
       // of mapping a temporary one.
-      return reinterpret_cast<uptr>(
-          MmapOrDieOnFatalError(buffer_size, "ReleaseToOSPageCounters"));
+      return MmapOrDieOnFatalError(buffer_size, "ReleaseToOSPageCounters");
     }
 
-    void UnmapPackedCounterArrayBuffer(uptr buffer, uptr buffer_size) {
-      UnmapOrDie(reinterpret_cast<void *>(buffer), buffer_size);
+    void UnmapPackedCounterArrayBuffer(void *buffer, uptr buffer_size) {
+      UnmapOrDie(buffer, buffer_size);
     }
 
     // Releases [from, to) range of pages back to OS.

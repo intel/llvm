@@ -472,8 +472,16 @@ std::string ToolChain::getCompilerRTPath() const {
 }
 
 std::string ToolChain::getCompilerRTBasename(const ArgList &Args,
-                                             StringRef Component, FileType Type,
-                                             bool AddArch) const {
+                                             StringRef Component,
+                                             FileType Type) const {
+  std::string CRTAbsolutePath = getCompilerRT(Args, Component, Type);
+  return llvm::sys::path::filename(CRTAbsolutePath).str();
+}
+
+std::string ToolChain::buildCompilerRTBasename(const llvm::opt::ArgList &Args,
+                                               StringRef Component,
+                                               FileType Type,
+                                               bool AddArch) const {
   const llvm::Triple &TT = getTriple();
   bool IsITANMSVCWindows =
       TT.isWindowsMSVCEnvironment() || TT.isWindowsItaniumEnvironment();
@@ -489,8 +497,8 @@ std::string ToolChain::getCompilerRTBasename(const ArgList &Args,
     Suffix = IsITANMSVCWindows ? ".lib" : ".a";
     break;
   case ToolChain::FT_Shared:
-    Suffix = Triple.isOSWindows()
-                 ? (Triple.isWindowsGNUEnvironment() ? ".dll.a" : ".lib")
+    Suffix = TT.isOSWindows()
+                 ? (TT.isWindowsGNUEnvironment() ? ".dll.a" : ".lib")
                  : ".so";
     break;
   }
@@ -508,7 +516,7 @@ std::string ToolChain::getCompilerRT(const ArgList &Args, StringRef Component,
                                      FileType Type) const {
   // Check for runtime files in the new layout without the architecture first.
   std::string CRTBasename =
-      getCompilerRTBasename(Args, Component, Type, /*AddArch=*/false);
+      buildCompilerRTBasename(Args, Component, Type, /*AddArch=*/false);
   for (const auto &LibPath : getLibraryPaths()) {
     SmallString<128> P(LibPath);
     llvm::sys::path::append(P, CRTBasename);
@@ -518,7 +526,8 @@ std::string ToolChain::getCompilerRT(const ArgList &Args, StringRef Component,
 
   // Fall back to the old expected compiler-rt name if the new one does not
   // exist.
-  CRTBasename = getCompilerRTBasename(Args, Component, Type, /*AddArch=*/true);
+  CRTBasename =
+      buildCompilerRTBasename(Args, Component, Type, /*AddArch=*/true);
   SmallString<128> Path(getCompilerRTPath());
   llvm::sys::path::append(Path, CRTBasename);
   return std::string(Path.str());
@@ -978,9 +987,12 @@ ToolChain::UnwindLibType ToolChain::GetUnwindLibType(
     unwindLibType = ToolChain::UNW_None;
   else if (LibName == "platform" || LibName == "") {
     ToolChain::RuntimeLibType RtLibType = GetRuntimeLibType(Args);
-    if (RtLibType == ToolChain::RLT_CompilerRT)
-      unwindLibType = ToolChain::UNW_None;
-    else if (RtLibType == ToolChain::RLT_Libgcc)
+    if (RtLibType == ToolChain::RLT_CompilerRT) {
+      if (getTriple().isAndroid())
+        unwindLibType = ToolChain::UNW_CompilerRT;
+      else
+        unwindLibType = ToolChain::UNW_None;
+    } else if (RtLibType == ToolChain::RLT_Libgcc)
       unwindLibType = ToolChain::UNW_Libgcc;
   } else if (LibName == "libunwind") {
     if (GetRuntimeLibType(Args) == RLT_Libgcc)
@@ -1184,6 +1196,11 @@ void ToolChain::AddCudaIncludeArgs(const ArgList &DriverArgs,
 
 void ToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
                                   ArgStringList &CC1Args) const {}
+
+llvm::SmallVector<std::string, 12>
+ToolChain::getHIPDeviceLibs(const ArgList &DriverArgs) const {
+  return {};
+}
 
 void ToolChain::AddIAMCUIncludeArgs(const ArgList &DriverArgs,
                                     ArgStringList &CC1Args) const {}

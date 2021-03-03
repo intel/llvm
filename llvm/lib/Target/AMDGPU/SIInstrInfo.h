@@ -96,7 +96,8 @@ private:
                           unsigned Opcode) const;
 
   void splitScalar64BitUnaryOp(SetVectorType &Worklist,
-                               MachineInstr &Inst, unsigned Opcode) const;
+                               MachineInstr &Inst, unsigned Opcode,
+                               bool Swap = false) const;
 
   void splitScalar64BitAddSub(SetVectorType &Worklist, MachineInstr &Inst,
                               MachineDominatorTree *MDT = nullptr) const;
@@ -169,6 +170,10 @@ public:
 
   const SIRegisterInfo &getRegisterInfo() const {
     return RI;
+  }
+
+  const GCNSubtarget &getSubtarget() const {
+    return ST;
   }
 
   bool isReallyTriviallyReMaterializable(const MachineInstr &MI,
@@ -1085,11 +1090,7 @@ public:
   const TargetRegisterClass *getRegClass(const MCInstrDesc &TID, unsigned OpNum,
                                          const TargetRegisterInfo *TRI,
                                          const MachineFunction &MF)
-    const override {
-    if (OpNum >= TID.getNumOperands())
-      return nullptr;
-    return RI.getRegClass(TID.OpInfo[OpNum].RegClass);
-  }
+    const override;
 
   void fixImplicitOperands(MachineInstr &MI) const;
 

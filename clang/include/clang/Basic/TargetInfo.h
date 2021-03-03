@@ -32,6 +32,7 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/Frontend/OpenMP/OMPGridValues.h"
 #include "llvm/Support/DataTypes.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/VersionTuple.h"
 #include <cassert>
 #include <string>
@@ -217,6 +218,8 @@ protected:
   unsigned IsRenderScriptTarget : 1;
 
   unsigned HasAArch64SVETypes : 1;
+
+  unsigned HasRISCVVTypes : 1;
 
   unsigned AllowAMDGPUUnsafeFPAtomics : 1;
 
@@ -859,6 +862,10 @@ public:
   /// available on this target.
   bool hasAArch64SVETypes() const { return HasAArch64SVETypes; }
 
+  /// Returns whether or not the RISC-V V built-in types are
+  /// available on this target.
+  bool hasRISCVVTypes() const { return HasRISCVVTypes; }
+
   /// Returns whether or not the AMDGPU unsafe floating point atomics are
   /// allowed.
   bool allowAMDGPUUnsafeFPAtomics() const { return AllowAMDGPUUnsafeFPAtomics; }
@@ -1109,15 +1116,15 @@ public:
   /// checking on attribute((section("foo"))) specifiers.
   ///
   /// In this case, "foo" is passed in to be checked.  If the section
-  /// specifier is invalid, the backend should return a non-empty string
-  /// that indicates the problem.
+  /// specifier is invalid, the backend should return an Error that indicates
+  /// the problem.
   ///
   /// This hook is a simple quality of implementation feature to catch errors
   /// and give good diagnostics in cases when the assembler or code generator
   /// would otherwise reject the section specifier.
   ///
-  virtual std::string isValidSectionSpecifier(StringRef SR) const {
-    return "";
+  virtual llvm::Error isValidSectionSpecifier(StringRef SR) const {
+    return llvm::Error::success();
   }
 
   /// Set forced language options.

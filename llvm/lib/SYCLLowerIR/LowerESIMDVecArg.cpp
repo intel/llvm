@@ -159,7 +159,8 @@ Function *ESIMDLowerVecArgPass::rewriteFunc(Function &F) {
     VMap.insert(std::make_pair(Arg, NF->getArg(I)));
   }
 
-  llvm::CloneFunctionInto(NF, &F, VMap, F.getSubprogram() != nullptr, Returns);
+  llvm::CloneFunctionInto(NF, &F, VMap,
+                          CloneFunctionChangeType::LocalChangesOnly, Returns);
 
   // insert bitcasts in new function only if its a definition
   for (auto &B : BitCasts) {

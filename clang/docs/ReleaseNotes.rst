@@ -71,13 +71,17 @@ Deprecated Compiler Flags
 Modified Compiler Flags
 -----------------------
 
-- ...
+- -Wshadow now also checks for shadowed structured bindings
 
 Removed Compiler Flags
 -------------------------
 
 - The clang-cl ``/fallback`` flag, which made clang-cl invoke Microsoft Visual
   C++ on files it couldn't compile itself, has been removed.
+
+- ``-Wreturn-std-move-in-c++11``, which checked whether an entity is affected by
+  `CWG1579 <https://wg21.link/CWG1579>`_ to become implicitly movable, has been
+  removed.
 
 New Pragmas in Clang
 --------------------
@@ -147,6 +151,10 @@ Build System Changes
 These are major changes to the build system that have happened since the 12.0.0
 release of Clang. Users of the build system should adjust accordingly.
 
+- The option ``LIBCLANG_INCLUDE_CLANG_TOOLS_EXTRA`` no longer exists. There were
+  two releases with that flag forced off, and no uses were added that forced it
+  on. The recommended replacement is clangd.
+
 - ...
 
 AST Matchers
@@ -191,6 +199,12 @@ clang-format
 
 - ``BasedOnStyle: InheritParentConfig`` allows to use the ``.clang-format`` of
   the parent directories to overwrite only parts of it.
+
+- Option ``IndentAccessModifiers`` has been added to be able to give access
+  modifiers their own indentation level inside records.
+
+- Option ``ShortNamespaceLines`` has been added to give better control
+  over ``FixNamespaceComments`` when determining a namespace length.
 
 libclang
 --------
