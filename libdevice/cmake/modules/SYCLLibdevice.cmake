@@ -173,21 +173,31 @@ add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-itt-stubs.${lib-suffix}
                            ${CMAKE_CURRENT_SOURCE_DIR}/itt_stubs.cpp
                            -o ${obj_binary_dir}/libsycl-itt-stubs.${lib-suffix}
                    MAIN_DEPENDENCY itt_stubs.cpp
-                   DEPENDS device_itt.h device.h clang clang-offload-bundler
+                   DEPENDS device_itt.h spirv_vars.h device.h clang clang-offload-bundler
                    VERBATIM)
 
-add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-itt-wrappers.${lib-suffix}
+add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-itt-compiler-wrappers.${lib-suffix}
                    COMMAND ${clang} -fsycl -c
                            ${compile_opts} ${sycl_targets_opt}
                            ${CMAKE_CURRENT_SOURCE_DIR}/itt_compiler_wrappers.cpp
                            -o ${obj_binary_dir}/libsycl-itt-compiler-wrappers.${lib-suffix}
                    MAIN_DEPENDENCY itt_compiler_wrappers.cpp
-                   DEPENDS device_itt.h device.h clang clang-offload-bundler
+                   DEPENDS device_itt.h spirv_vars.h device.h clang clang-offload-bundler
+                   VERBATIM)
+
+add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-itt-user-wrappers.${lib-suffix}
+                   COMMAND ${clang} -fsycl -c
+                           ${compile_opts} ${sycl_targets_opt}
+                           ${CMAKE_CURRENT_SOURCE_DIR}/itt_user_wrappers.cpp
+                           -o ${obj_binary_dir}/libsycl-itt-user-wrappers.${lib-suffix}
+                   MAIN_DEPENDENCY itt_user_wrappers.cpp
+                   DEPENDS device_itt.h spirv_vars.h device.h clang clang-offload-bundler
                    VERBATIM)
 
 set(devicelib-obj-itt-files
   ${obj_binary_dir}/libsycl-itt-stubs.${lib-suffix}
   ${obj_binary_dir}/libsycl-itt-compiler-wrappers.${lib-suffix}
+  ${obj_binary_dir}/libsycl-itt-user-wrappers.${lib-suffix}
   )
 
 add_custom_target(libsycldevice-obj DEPENDS

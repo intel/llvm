@@ -11,7 +11,7 @@
 #ifdef __SPIR__
 
 DEVICE_EXTERN_C
-void __itt_spirv_wi_start_wrapper() {
+void __itt_offload_wi_start_wrapper() {
   if (!isITTEnabled())
     return;
 
@@ -22,11 +22,11 @@ void __itt_spirv_wi_start_wrapper() {
   uint32_t WGSize = static_cast<uint32_t>(__spirv_BuiltInWorkgroupSize.x *
                                           __spirv_BuiltInWorkgroupSize.y *
                                           __spirv_BuiltInWorkgroupSize.z);
-  __itt_spirv_wi_start_stub(GroupID, WIID, WGSize);
+  __itt_offload_wi_start_stub(GroupID, WIID, WGSize);
 }
 
 DEVICE_EXTERN_C
-void __itt_spirv_wi_finish_wrapper() {
+void __itt_offload_wi_finish_wrapper() {
   if (!isITTEnabled())
     return;
 
@@ -34,19 +34,19 @@ void __itt_spirv_wi_finish_wrapper() {
                        __spirv_BuiltInWorkgroupId.y,
                        __spirv_BuiltInWorkgroupId.z};
   size_t WIID = __spirv_BuiltInGlobalLinearId;
-  __itt_spirv_wi_finish_stub(GroupID, WIID);
+  __itt_offload_wi_finish_stub(GroupID, WIID);
 }
 
 DEVICE_EXTERN_C
-void __itt_spirv_wg_barrier_wrapper() {
+void __itt_offload_wg_barrier_wrapper() {
   if (!isITTEnabled())
     return;
 
-  __itt_spirv_wg_barrier_stub(0);
+  __itt_offload_wg_barrier_stub(0);
 }
 
 DEVICE_EXTERN_C
-void __itt_spirv_wi_resume_wrapper() {
+void __itt_offload_wi_resume_wrapper() {
   if (!isITTEnabled())
     return;
 
@@ -54,7 +54,7 @@ void __itt_spirv_wi_resume_wrapper() {
                        __spirv_BuiltInWorkgroupId.y,
                        __spirv_BuiltInWorkgroupId.z};
   size_t WIID = __spirv_BuiltInGlobalLinearId;
-  __itt_spirv_wi_resume_stub(GroupID, WIID);
+  __itt_offload_wi_resume_stub(GroupID, WIID);
 }
 
 #endif // __SPIR__
