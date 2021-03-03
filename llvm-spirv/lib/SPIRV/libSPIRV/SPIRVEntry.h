@@ -950,6 +950,27 @@ template <> struct InstToContinued<OpSpecConstantComposite> {
   constexpr static spv::Op OpCode = OpSpecConstantCompositeContinuedINTEL;
 };
 
+class SPIRVModuleProcessed : public SPIRVEntryNoId<OpModuleProcessed> {
+public:
+  SPIRVModuleProcessed(SPIRVModule *M, const std::string &Process)
+      : SPIRVEntryNoId(M, FixedWC + getSizeInWords(Process)),
+        ProcessStr(Process) {
+    updateModuleVersion();
+  }
+  SPIRVModuleProcessed() { updateModuleVersion(); }
+  _SPIRV_DCL_ENCDEC
+  void validate() const override;
+  SPIRVWord getRequiredSPIRVVersion() const override {
+    return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_1);
+  }
+
+  std::string getProcessStr();
+
+private:
+  std::string ProcessStr;
+  static const SPIRVWord FixedWC = 1;
+};
+
 // ToDo: The following typedef's are place holders for SPIRV entity classes
 // to be implemented.
 // Each time a new class is implemented, remove the corresponding typedef.
