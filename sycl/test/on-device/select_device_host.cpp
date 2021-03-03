@@ -26,7 +26,7 @@ int main() {
       gpu_selector gs;
       try {
         device d = gs.select_device();
-        cerr << "CPU device is found in error: " << d.is_cpu() << std::endl;
+        cerr << "GPU device is found in error: " << d.is_gpu() << std::endl;
         return -1;
       } catch (...) {
         cout << "Expectedly, gpu device is not found." << std::endl;
