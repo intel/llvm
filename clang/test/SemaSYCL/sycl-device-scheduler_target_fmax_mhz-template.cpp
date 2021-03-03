@@ -63,7 +63,7 @@ template <int N>
 [[intel::scheduler_target_fmax_mhz(4)]] void func4(); // expected-note {{previous attribute is here}}
 
 template <int N>
-[[intel::scheduler_target_fmax_mhz(N)]] void func4() {} // expected-warning {{attribute 'scheduler_target_fmax_mhz' is already applied with different parameters}}
+[[intel::scheduler_target_fmax_mhz(N)]] void func4() {} // expected-warning {{attribute 'scheduler_target_fmax_mhz' is already applied with different arguments}}
 
 int check() {
   // no error expected

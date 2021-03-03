@@ -442,6 +442,9 @@ public:
   void enterCondition(Sema &S, SourceLocation Tok);
   void enterReturn(Sema &S, SourceLocation Tok);
   void enterVariableInit(SourceLocation Tok, Decl *D);
+  /// Handles e.g. BaseType{ .D = Tok...
+  void enterDesignatedInitializer(SourceLocation Tok, QualType BaseType,
+                                  const Designation &D);
   /// Computing a type for the function argument may require running
   /// overloading, so we postpone its computation until it is actually needed.
   ///
@@ -6725,7 +6728,7 @@ public:
   /// Number lambda for linkage purposes if necessary.
   void handleLambdaNumbering(
       CXXRecordDecl *Class, CXXMethodDecl *Method,
-      Optional<std::tuple<unsigned, bool, Decl *>> Mangling = None);
+      Optional<std::tuple<bool, unsigned, unsigned, Decl *>> Mangling = None);
 
   /// Endow the lambda scope info with the relevant properties.
   void buildLambdaScope(sema::LambdaScopeInfo *LSI,
@@ -12158,8 +12161,8 @@ public:
   ///  if (diagIfOpenMPDeviceCode(Loc, diag::err_vla_unsupported))
   ///    return ExprError();
   ///  // Otherwise, continue parsing as normal.
-  SemaDiagnosticBuilder diagIfOpenMPDeviceCode(SourceLocation Loc,
-                                               unsigned DiagID);
+  SemaDiagnosticBuilder
+  diagIfOpenMPDeviceCode(SourceLocation Loc, unsigned DiagID, FunctionDecl *FD);
 
   /// Creates a SemaDiagnosticBuilder that emits the diagnostic if the current
   /// context is "used as host code".
@@ -12175,17 +12178,19 @@ public:
   ///    return ExprError();
   ///  // Otherwise, continue parsing as normal.
   SemaDiagnosticBuilder diagIfOpenMPHostCode(SourceLocation Loc,
-                                             unsigned DiagID);
+                                             unsigned DiagID, FunctionDecl *FD);
 
-  SemaDiagnosticBuilder targetDiag(SourceLocation Loc, unsigned DiagID);
+  SemaDiagnosticBuilder targetDiag(SourceLocation Loc, unsigned DiagID,
+                                   FunctionDecl *FD = nullptr);
   SemaDiagnosticBuilder targetDiag(SourceLocation Loc,
-                                   const PartialDiagnostic &PD) {
-    return targetDiag(Loc, PD.getDiagID()) << PD;
+                                   const PartialDiagnostic &PD,
+                                   FunctionDecl *FD = nullptr) {
+    return targetDiag(Loc, PD.getDiagID(), FD) << PD;
   }
 
   /// Check if the expression is allowed to be used in expressions for the
   /// offloading devices.
-  void checkDeviceDecl(const ValueDecl *D, SourceLocation Loc);
+  void checkDeviceDecl(ValueDecl *D, SourceLocation Loc);
 
   enum CUDAFunctionTarget {
     CFT_Device,

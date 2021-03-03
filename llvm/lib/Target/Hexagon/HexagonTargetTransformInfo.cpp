@@ -80,8 +80,10 @@ void HexagonTTIImpl::getPeelingPreferences(Loop *L, ScalarEvolution &SE,
   }
 }
 
-bool HexagonTTIImpl::shouldFavorPostInc() const {
-  return true;
+TTI::AddressingModeKind
+HexagonTTIImpl::getPreferredAddressingMode(const Loop *L,
+                                           ScalarEvolution *SE) const {
+  return TTI::AMK_PostIndexed;
 }
 
 /// --- Vector TTI begin ---
@@ -104,8 +106,10 @@ unsigned HexagonTTIImpl::getMinVectorRegisterBitWidth() const {
   return useHVX() ? ST.getVectorLength()*8 : 32;
 }
 
-unsigned HexagonTTIImpl::getMinimumVF(unsigned ElemWidth) const {
-  return (8 * ST.getVectorLength()) / ElemWidth;
+ElementCount HexagonTTIImpl::getMinimumVF(unsigned ElemWidth,
+                                          bool IsScalable) const {
+  assert(!IsScalable && "Scalable VFs are not supported for Hexagon");
+  return ElementCount::getFixed((8 * ST.getVectorLength()) / ElemWidth);
 }
 
 unsigned HexagonTTIImpl::getScalarizationOverhead(VectorType *Ty,

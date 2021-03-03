@@ -52,7 +52,7 @@ int main() {
 
     h.single_task<class test_kernel7>(
         []() [[intel::no_global_work_offset(0),      // expected-note {{previous attribute is here}}
-	       intel::no_global_work_offset(1)]]{});  // expected-warning{{attribute 'no_global_work_offset' is already applied with different parameters}}
+	       intel::no_global_work_offset(1)]]{});  // expected-warning{{attribute 'no_global_work_offset' is already applied with different arguments}}
   });
   return 0;
 }

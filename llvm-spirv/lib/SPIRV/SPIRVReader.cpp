@@ -2386,13 +2386,6 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
                                           BV->getName(), BB));
   }
 
-  case OpImageQuerySize:
-  case OpImageQuerySizeLod: {
-    return mapValue(
-        BV, transSPIRVBuiltinFromInst(static_cast<SPIRVInstruction *>(BV), BB,
-                                      /*AddRetTypePostfix=*/true));
-  }
-
   case OpBitReverse: {
     auto *BR = static_cast<SPIRVUnary *>(BV);
     auto Ty = transType(BV->getType());
@@ -2671,7 +2664,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       auto BI = static_cast<SPIRVInstruction *>(BV);
       Value *Inst = nullptr;
       if (BI->hasFPRoundingMode() || BI->isSaturatedConversion())
-        Inst = transOCLBuiltinFromInst(BI, BB);
+        Inst = transSPIRVBuiltinFromInst(BI, BB);
       else
         Inst = transConvertInst(BV, F, BB);
       return mapValue(BV, Inst);
@@ -3253,10 +3246,16 @@ Instruction *SPIRVToLLVM::transBuiltinFromInst(const std::string &FuncName,
       HasFuncPtrArg = true;
     }
   }
-  if (!HasFuncPtrArg)
-    mangleOpenClBuiltin(FuncName, ArgTys, MangledName);
-  else
+  if (!HasFuncPtrArg) {
+    if (BM->getDesiredBIsRepresentation() != BIsRepresentation::SPIRVFriendlyIR)
+      mangleOpenClBuiltin(FuncName, ArgTys, MangledName);
+    else
+      MangledName =
+          getSPIRVFriendlyIRFunctionName(FuncName, BI->getOpCode(), ArgTys);
+
+  } else {
     MangledName = decorateSPIRVFunction(FuncName);
+  }
   Function *Func = M->getFunction(MangledName);
   FunctionType *FT = FunctionType::get(RetTy, ArgTys, false);
   // ToDo: Some intermediate functions have duplicate names with
@@ -3400,22 +3399,42 @@ std::string getSPIRVFuncSuffix(SPIRVInstruction *BI) {
       break;
     }
   }
+  if (BI->hasDecorate(DecorationSaturatedConversion)) {
+    Suffix += kSPIRVPostfix::Divider;
+    Suffix += kSPIRVPostfix::Sat;
+  }
+  SPIRVFPRoundingModeKind Kind;
+  if (BI->hasFPRoundingMode(&Kind)) {
+    Suffix += kSPIRVPostfix::Divider;
+    Suffix += SPIRSPIRVFPRoundingModeMap::rmap(Kind);
+  }
   return Suffix;
 }
 
 Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
-                                                    BasicBlock *BB,
-                                                    bool AddRetTypePostfix) {
+                                                    BasicBlock *BB) {
   assert(BB && "Invalid BB");
+  const auto OC = BI->getOpCode();
+  bool AddRetTypePostfix = false;
+  if (OC == OpImageQuerySizeLod || OC == OpImageQuerySize)
+    AddRetTypePostfix = true;
+
+  bool IsRetSigned = false;
+  if (isCvtOpCode(OC)) {
+    AddRetTypePostfix = true;
+    if (OC == OpConvertUToF || OC == OpSatConvertUToS)
+      IsRetSigned = true;
+  }
+
   if (AddRetTypePostfix) {
     const Type *RetTy =
         BI->hasType() ? transType(BI->getType()) : Type::getVoidTy(*Context);
-    return transBuiltinFromInst(getSPIRVFuncName(BI->getOpCode(), RetTy) +
+    return transBuiltinFromInst(getSPIRVFuncName(OC, RetTy, IsRetSigned) +
                                     getSPIRVFuncSuffix(BI),
                                 BI, BB);
   }
-  return transBuiltinFromInst(
-      getSPIRVFuncName(BI->getOpCode(), getSPIRVFuncSuffix(BI)), BI, BB);
+  return transBuiltinFromInst(getSPIRVFuncName(OC, getSPIRVFuncSuffix(BI)), BI,
+                              BB);
 }
 
 bool SPIRVToLLVM::translate() {

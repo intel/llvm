@@ -604,11 +604,13 @@ class TensorOf<list<Type> allowedTypes> :
   ShapedContainerType<allowedTypes, IsTensorTypePred, "tensor",
                       "::mlir::TensorType">;
 
+class RankedTensorOf<list<Type> allowedTypes> :
+  ShapedContainerType<allowedTypes, And<[IsTensorTypePred, HasRankPred]>,
+  "ranked tensor", "::mlir::TensorType">;
+
 def AnyTensor : TensorOf<[AnyType]>;
 
-def AnyRankedTensor :
-  ShapedContainerType<[AnyType], And<[IsTensorTypePred, HasRankPred]>,
-  "ranked tensor", "::mlir::TensorType">;
+def AnyRankedTensor : RankedTensorOf<[AnyType]>;
 
 // TODO: Have an easy way to add another constraint to a type.
 class StaticShapeTensorOf<list<Type> allowedTypes>
@@ -675,11 +677,13 @@ def F64MemRef  : MemRefOf<[F64]>;
 class MemRefRankOf<list<Type> allowedTypes, list<int> ranks> :
     Type<And<[MemRefOf<allowedTypes>.predicate, HasAnyRankOfPred<ranks>]>,
          !interleave(!foreach(rank, ranks, rank # "D"), "/") # " " #
-         MemRefOf<allowedTypes>.summary>;
+         MemRefOf<allowedTypes>.summary,
+         "::mlir::MemRefType">;
 
 class StaticShapeMemRefOf<list<Type> allowedTypes>
     : Type<And<[MemRefOf<allowedTypes>.predicate, HasStaticShapePred]>,
-           "statically shaped " # MemRefOf<allowedTypes>.summary>;
+           "statically shaped " # MemRefOf<allowedTypes>.summary,
+           "::mlir::MemRefType">;
 
 def AnyStaticShapeMemRef : StaticShapeMemRefOf<[AnyType]>;
 
@@ -1127,9 +1131,9 @@ class I64EnumAttrCase<string sym, int val, string str = sym>
 // A bit enum case stored with 32-bit IntegerAttr. `val` here is *not* the
 // ordinal number of the bit that is set. It is the 32-bit integer with only
 // one bit set.
-class BitEnumAttrCase<string sym, int val> :
-    EnumAttrCaseInfo<sym, val, sym>,
-    SignlessIntegerAttrBase<I32, "case " # sym> {
+class BitEnumAttrCase<string sym, int val, string str = sym> :
+    EnumAttrCaseInfo<sym, val, str>,
+    SignlessIntegerAttrBase<I32, "case " # str> {
   let predicate = CPred<
     "$_self.cast<::mlir::IntegerAttr>().getValue().getZExtValue() & "
     # val # "u">;
@@ -1714,8 +1718,9 @@ class OpTrait;
 // NativeOpTrait corresponds to the MLIR C++ OpTrait mechanism. The
 // purpose to wrap around C++ symbol string with this class is to make
 // traits specified for ops in TableGen less alien and more integrated.
-class NativeOpTrait<string prop> : OpTrait {
-  string trait = "::mlir::OpTrait::" # prop;
+class NativeOpTrait<string name> : OpTrait {
+  string trait = name;
+  string cppNamespace = "::mlir::OpTrait";
 }
 
 // ParamNativeOpTrait corresponds to the template-parameterized traits in the
@@ -1848,6 +1853,7 @@ class CArg<string ty, string value = ""> {
 class OpInterfaceTrait<string name, code verifyBody = [{}]>
           : NativeOpTrait<""> {
   let trait = name # "::Trait";
+  let cppNamespace = "";
 
   // Specify the body of the verification function. `$_op` will be replaced with
   // the operation being verified.
