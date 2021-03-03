@@ -17,19 +17,17 @@
 #define ITT_STUB_ATTRIBUTES __attribute__((noinline, optnone))
 
 /// Atomic operation type
-enum __itt_atomic_mem_op_t
-{
-    __itt_mem_load = 0,
-    __itt_mem_store = 1,
-    __itt_mem_update = 2
+enum __itt_atomic_mem_op_t {
+  __itt_mem_load = 0,
+  __itt_mem_store = 1,
+  __itt_mem_update = 2
 };
 
 /// Memory operation ordering semantic type
-enum __itt_atomic_mem_order_t
-{
-    __itt_mem_order_relaxed = 0,
-    __itt_mem_order_acquire = 1,
-    __itt_mem_order_release = 2
+enum __itt_atomic_mem_order_t {
+  __itt_mem_order_relaxed = 0,
+  __itt_mem_order_acquire = 1,
+  __itt_mem_order_release = 2
 };
 
 // FIXME: must be enabled via -fdeclare-spirv-builtins
@@ -75,39 +73,29 @@ __itt_offload_sync_acquired_stub(uintptr_t sync_id);
 DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES void
 __itt_offload_sync_releasing_stub(uintptr_t sync_id);
 DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES void
-__itt_offload_wg_local_range_stub(void* ptr, size_t size);
+__itt_offload_wg_local_range_stub(void *ptr, size_t size);
 DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES void
-__itt_offload_atomic_op_start_stub(void* object,
-                                   __itt_atomic_mem_op_t op_type,
+__itt_offload_atomic_op_start_stub(void *object, __itt_atomic_mem_op_t op_type,
                                    __itt_atomic_mem_order_t mem_order);
 DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES void
-__itt_offload_atomic_op_finish_stub(void* object,
-                                    __itt_atomic_mem_op_t op_type,
+__itt_offload_atomic_op_finish_stub(void *object, __itt_atomic_mem_op_t op_type,
                                     __itt_atomic_mem_order_t mem_order);
 
 // User visible APIs. These may called both from user code and from
 // compiler generated code.
+DEVICE_EXTERN_C void __itt_offload_wi_start(size_t *group_id, size_t wi_id,
+                                            uint32_t wg_size);
+DEVICE_EXTERN_C void __itt_offload_wi_finish(size_t *group_id, size_t wi_id);
+DEVICE_EXTERN_C void __itt_offload_wg_barrier(uintptr_t barrier_id);
+DEVICE_EXTERN_C void __itt_offload_wi_resume(size_t *group_id, size_t wi_id);
+DEVICE_EXTERN_C void __itt_offload_sync_acquired(uintptr_t sync_id);
+DEVICE_EXTERN_C void __itt_offload_sync_releasing(uintptr_t sync_id);
+DEVICE_EXTERN_C void __itt_offload_wg_local_range(void *ptr, size_t size);
 DEVICE_EXTERN_C void
-__itt_offload_wi_start(size_t *group_id, size_t wi_id, uint32_t wg_size);
-DEVICE_EXTERN_C void
-__itt_offload_wi_finish(size_t *group_id, size_t wi_id);
-DEVICE_EXTERN_C void
-__itt_offload_wg_barrier(uintptr_t barrier_id);
-DEVICE_EXTERN_C void
-__itt_offload_wi_resume(size_t *group_id, size_t wi_id);
-DEVICE_EXTERN_C void
-__itt_offload_sync_acquired(uintptr_t sync_id);
-DEVICE_EXTERN_C void
-__itt_offload_sync_releasing(uintptr_t sync_id);
-DEVICE_EXTERN_C void
-__itt_offload_wg_local_range(void* ptr, size_t size);
-DEVICE_EXTERN_C void
-__itt_offload_atomic_op_start(void* object,
-                              __itt_atomic_mem_op_t op_type,
+__itt_offload_atomic_op_start(void *object, __itt_atomic_mem_op_t op_type,
                               __itt_atomic_mem_order_t mem_order);
 DEVICE_EXTERN_C void
-__itt_offload_atomic_op_finish(void* object,
-                               __itt_atomic_mem_op_t op_type,
+__itt_offload_atomic_op_finish(void *object, __itt_atomic_mem_op_t op_type,
                                __itt_atomic_mem_order_t mem_order);
 
 #endif // __SPIR__

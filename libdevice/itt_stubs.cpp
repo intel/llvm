@@ -27,12 +27,12 @@ __itt_offload_sync_acquired_stub(uintptr_t sync_id) {}
 DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES void
 __itt_offload_sync_releasing_stub(uintptr_t sync_id) {}
 DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES void
-__itt_offload_wg_local_range_stub(void* ptr, size_t size) {}
+__itt_offload_wg_local_range_stub(void *ptr, size_t size) {}
 DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES void
-__itt_offload_atomic_op_start_stub(void* object, __itt_atomic_mem_op_t op_type,
+__itt_offload_atomic_op_start_stub(void *object, __itt_atomic_mem_op_t op_type,
                                    __itt_atomic_mem_order_t mem_order) {}
 DEVICE_EXTERN_C ITT_STUB_ATTRIBUTES void
-__itt_offload_atomic_op_finish_stub(void* object, __itt_atomic_mem_op_t op_type,
+__itt_offload_atomic_op_finish_stub(void *object, __itt_atomic_mem_op_t op_type,
                                     __itt_atomic_mem_order_t mem_order) {}
 
 #endif // __SPIR__
