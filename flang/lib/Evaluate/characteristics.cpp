@@ -344,9 +344,13 @@ bool DummyProcedure::operator==(const DummyProcedure &that) const {
 }
 
 static std::string GetSeenProcs(const semantics::SymbolSet &seenProcs) {
+  // Sort the symbols so that they appear in the same order on all platforms
+  std::vector<SymbolRef> sorter{seenProcs.begin(), seenProcs.end()};
+  std::sort(sorter.begin(), sorter.end());
+
   std::string result;
   llvm::interleave(
-      seenProcs,
+      sorter,
       [&](const SymbolRef p) { result += '\'' + p->name().ToString() + '\''; },
       [&]() { result += ", "; });
   return result;
