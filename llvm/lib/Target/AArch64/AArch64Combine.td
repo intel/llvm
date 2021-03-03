@@ -17,9 +17,27 @@ def fconstant_to_constant : GICombineRule<
          [{ return matchFConstantToConstant(*${root}, MRI); }]),
   (apply [{ applyFConstantToConstant(*${root}); }])>;
 
+def icmp_redundant_trunc_matchdata : GIDefMatchData<"Register">;
+def icmp_redundant_trunc : GICombineRule<
+  (defs root:$root, icmp_redundant_trunc_matchdata:$matchinfo),
+  (match (wip_match_opcode G_ICMP):$root,
+         [{ return matchICmpRedundantTrunc(*${root}, MRI, Helper.getKnownBits(), ${matchinfo}); }]),
+  (apply [{ applyICmpRedundantTrunc(*${root}, MRI, B, Observer, ${matchinfo}); }])>;
+
+// AArch64-specific offset folding for G_GLOBAL_VALUE.
+def fold_global_offset_matchdata : GIDefMatchData<"std::pair<uint64_t, uint64_t>">;
+def fold_global_offset : GICombineRule<
+  (defs root:$root, fold_global_offset_matchdata:$matchinfo),
+  (match (wip_match_opcode G_GLOBAL_VALUE):$root,
+          [{ return matchFoldGlobalOffset(*${root}, MRI, ${matchinfo}); }]),
+  (apply [{  return applyFoldGlobalOffset(*${root}, MRI, B, Observer, ${matchinfo});}])
+>;
+
 def AArch64PreLegalizerCombinerHelper: GICombinerHelper<
   "AArch64GenPreLegalizerCombinerHelper", [all_combines,
-                                           fconstant_to_constant]> {
+                                           fconstant_to_constant,
+                                           icmp_redundant_trunc,
+                                           fold_global_offset]> {
   let DisableRuleOption = "aarch64prelegalizercombiner-disable-rule";
   let StateClass = "AArch64PreLegalizerCombinerHelperState";
   let AdditionalArguments = [];

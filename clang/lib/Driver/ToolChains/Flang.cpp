@@ -19,9 +19,20 @@ using namespace clang::driver::tools;
 using namespace clang;
 using namespace llvm::opt;
 
+void Flang::AddFortranDialectOptions(const ArgList &Args,
+                                     ArgStringList &CmdArgs) const {
+  Args.AddAllArgs(CmdArgs, {options::OPT_ffixed_form, options::OPT_ffree_form,
+                            options::OPT_ffixed_line_length_EQ,
+                            options::OPT_fopenmp, options::OPT_fopenacc});
+}
+
 void Flang::AddPreprocessingOptions(const ArgList &Args,
                                     ArgStringList &CmdArgs) const {
   Args.AddAllArgs(CmdArgs, {options::OPT_D, options::OPT_U, options::OPT_I});
+}
+
+void Flang::AddOtherOptions(const ArgList &Args, ArgStringList &CmdArgs) const {
+  Args.AddAllArgs(CmdArgs, options::OPT_module_dir);
 }
 
 void Flang::ConstructJob(Compilation &C, const JobAction &JA,
@@ -78,6 +89,11 @@ void Flang::ConstructJob(Compilation &C, const JobAction &JA,
   // preprocessor (i.e. skip when dealing with e.g. binary files).
   if (types::getPreprocessedType(InputType) != types::TY_INVALID)
     AddPreprocessingOptions(Args, CmdArgs);
+
+  AddFortranDialectOptions(Args, CmdArgs);
+
+  // Add other compile options
+  AddOtherOptions(Args, CmdArgs);
 
   if (Output.isFilename()) {
     CmdArgs.push_back("-o");
