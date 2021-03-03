@@ -14,7 +14,7 @@ queue q;
 [[intel::reqd_sub_group_size(12)]] void bar() {} // OK
 
 [[intel::reqd_sub_group_size(12)]] void quux(); // expected-note {{previous attribute is here}}
-[[intel::reqd_sub_group_size(100)]] void quux(); // expected-warning {{attribute 'reqd_sub_group_size' is already applied with different parameters}}
+[[intel::reqd_sub_group_size(100)]] void quux(); // expected-warning {{attribute 'reqd_sub_group_size' is already applied with different arguments}}
 
 class Functor16 {
 public:

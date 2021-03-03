@@ -1460,6 +1460,11 @@ static ExprResult TransformUniqueStableName(TemplateInstantiator &TI,
     if (SubExpr.isInvalid())
       return ExprError();
 
+    SubExpr = TI.getSema().CheckPlaceholderExpr(SubExpr.get());
+
+    if (SubExpr.isInvalid())
+      return ExprError();
+
     if (!TI.getDerived().AlwaysRebuild() && SubExpr.get() == E->getExpr())
       return E;
 

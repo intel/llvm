@@ -688,7 +688,7 @@ else()
 endif()
 option(LLVM_ENABLE_PLUGINS "Enable plugin support" ${LLVM_ENABLE_PLUGINS_default})
 
-set(ENABLE_EXPERIMENTAL_NEW_PASS_MANAGER TRUE CACHE BOOL
+set(ENABLE_EXPERIMENTAL_NEW_PASS_MANAGER FALSE CACHE BOOL
   "Enable the new pass manager by default.")
 
 include(HandleLLVMOptions)
