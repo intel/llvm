@@ -423,7 +423,7 @@ int main() {
     h.single_task<class test_kernel32>(TRIFuncObjBad19());
 
     h.single_task<class test_kernel33>(
-        []() [[intel::num_simd_work_items(1), intel::num_simd_work_items(2)]]{}); // expected-warning{{attribute 'num_simd_work_items' is already applied with different parameters}} \
+        []() [[intel::num_simd_work_items(1), intel::num_simd_work_items(2)]]{}); // expected-warning{{attribute 'num_simd_work_items' is already applied with different arguments}} \
                                                                                   // expected-note {{previous attribute is here}}
 #endif // TRIGGER_ERROR
   });
