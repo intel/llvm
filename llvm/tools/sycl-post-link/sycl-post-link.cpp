@@ -676,9 +676,7 @@ static void LowerEsimdConstructs(Module &M) {
   legacy::PassManager MPM;
   MPM.add(createSYCLLowerESIMDPass());
   if (!OptLevelO0) {
-    // LowerESIMD pass sets 'alwaysinline' attribute to all the functions
-    // in the call graph for every ESIMD kernel, which is later consumed
-    // by AlwaysInliner pass.
+    // Force-inline all functions marked 'alwaysinline' by the LowerESIMD pass.
     MPM.add(createAlwaysInlinerLegacyPass());
     MPM.add(createSROAPass());
   }
