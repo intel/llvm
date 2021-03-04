@@ -984,8 +984,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   if (getLangOpts().SYCLIsDevice && D) {
     if (const auto *A = D->getAttr<SYCLIntelLoopFuseAttr>()) {
       const Expr *Arg = A->getValue();
-      assert(Arg && "Got an unexpected null argument");
-      const auto *CE = dyn_cast<ConstantExpr>(Arg);
+      const auto *CE = cast<ConstantExpr>(Arg);
       assert(CE && "Not an integer constant expression");
       Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
       llvm::Metadata *AttrMDArgs[] = {
