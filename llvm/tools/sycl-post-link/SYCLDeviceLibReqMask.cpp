@@ -15,13 +15,15 @@
 //===----------------------------------------------------------------------===//
 
 #include "SYCLDeviceLibReqMask.h"
+#include "llvm/ADT/Triple.h"
+#include "llvm/IR/Module.h"
 
 static constexpr char DEVICELIB_FUNC_PREFIX[] = "__devicelib_";
 
-char SYCLDeviceLibReqMaskPass::ID = 0;
+namespace {
 // Please update SDLMap if any item is added to or removed from
 // fallback device libraries in libdevice.
-SYCLDeviceLibFuncMap SYCLDeviceLibReqMaskPass::SDLMap = {
+SYCLDeviceLibFuncMap SDLMap = {
     {"__devicelib_acosf", DeviceLibExt::cl_intel_devicelib_math},
     {"__devicelib_acoshf", DeviceLibExt::cl_intel_devicelib_math},
     {"__devicelib_asinf", DeviceLibExt::cl_intel_devicelib_math},
@@ -161,8 +163,7 @@ SYCLDeviceLibFuncMap SYCLDeviceLibReqMaskPass::SDLMap = {
 // fallback-cmath-fp64:   0x4
 // fallback-complex:      0x8
 // fallback-complex-fp64: 0x10
-uint32_t
-SYCLDeviceLibReqMaskPass::getDeviceLibBits(const std::string &FuncName) {
+uint32_t getDeviceLibBits(const std::string &FuncName) {
   auto DeviceLibFuncIter = SDLMap.find(FuncName);
   return ((DeviceLibFuncIter == SDLMap.end())
               ? 0
@@ -175,7 +176,7 @@ SYCLDeviceLibReqMaskPass::getDeviceLibBits(const std::string &FuncName) {
 // 1. The function name has prefix "__devicelib_"
 // 2. The function is declaration which means it doesn't have function body
 // And we don't expect non-spirv functions with "__devicelib_" prefix.
-uint32_t SYCLDeviceLibReqMaskPass::getModuleDeviceLibReqMask(const Module &M) {
+uint32_t getModuleDeviceLibReqMask(const Module &M) {
   // Device libraries will be enabled only for spir-v module.
   if (!llvm::Triple(M.getTargetTriple()).isSPIR())
     return 0;
@@ -193,6 +194,9 @@ uint32_t SYCLDeviceLibReqMaskPass::getModuleDeviceLibReqMask(const Module &M) {
   }
   return ReqMask;
 }
+} // namespace
+
+char SYCLDeviceLibReqMaskPass::ID = 0;
 bool SYCLDeviceLibReqMaskPass::runOnModule(Module &M) {
   MReqMask = getModuleDeviceLibReqMask(M);
   return false;

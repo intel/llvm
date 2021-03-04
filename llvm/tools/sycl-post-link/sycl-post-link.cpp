@@ -397,13 +397,14 @@ static string_vector saveDeviceImageProperty(
     const ImagePropSaveInfo &ImgPSInfo) {
   string_vector Res;
   legacy::PassManager GetSYCLDeviceLibReqMask;
-  SYCLDeviceLibReqMaskPass *SDLReqMaskPass = new SYCLDeviceLibReqMaskPass();
-  GetSYCLDeviceLibReqMask.add(SDLReqMaskPass);
+  SYCLDeviceLibReqMaskPass *SDLReqMaskLegacyPass =
+      new SYCLDeviceLibReqMaskPass();
+  GetSYCLDeviceLibReqMask.add(SDLReqMaskLegacyPass);
   for (size_t I = 0; I < ResultModules.size(); ++I) {
     llvm::util::PropertySetRegistry PropSet;
     if (ImgPSInfo.NeedDeviceLibReqMask) {
       GetSYCLDeviceLibReqMask.run(*ResultModules[I]);
-      uint32_t MRMask = SDLReqMaskPass->getSYCLDeviceLibReqMask();
+      uint32_t MRMask = SDLReqMaskLegacyPass->getSYCLDeviceLibReqMask();
       std::map<StringRef, uint32_t> RMEntry = {{"DeviceLibReqMask", MRMask}};
       PropSet.add(llvm::util::PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK,
                   RMEntry);

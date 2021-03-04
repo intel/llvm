@@ -16,9 +16,6 @@
 
 #pragma onece
 
-#include "llvm/ADT/Triple.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include <unordered_map>
 using namespace llvm;
@@ -44,7 +41,4 @@ public:
 
 private:
   uint32_t MReqMask;
-  static SYCLDeviceLibFuncMap SDLMap;
-  static uint32_t getDeviceLibBits(const std::string &FuncName);
-  static uint32_t getModuleDeviceLibReqMask(const Module &M);
 };
