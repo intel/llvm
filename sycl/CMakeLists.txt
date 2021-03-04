@@ -209,7 +209,7 @@ configure_file("${version_header}.in" "${version_header}")
 
 # Copy SYCL headers
 add_custom_target(sycl-headers ALL
-COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/CL
+COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir} ${SYCL_INCLUDE_BUILD_DIR}
 COMMENT "Copying SYCL headers ...")
 
 # Configure SYCL headers
