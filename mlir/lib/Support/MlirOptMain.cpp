@@ -95,10 +95,9 @@ static LogicalResult processBuffer(raw_ostream &os,
   sourceMgr.AddNewSourceBuffer(std::move(ownedBuffer), SMLoc());
 
   // Parse the input file.
-  MLIRContext context;
-  registry.appendTo(context.getDialectRegistry());
+  MLIRContext context(registry);
   if (preloadDialectsInContext)
-    registry.loadAll(&context);
+    context.loadAllAvailableDialects();
   context.allowUnregisteredDialects(allowUnregisteredDialects);
   context.printOpOnDiagnostic(!verifyDiagnostics);
 
@@ -115,8 +114,8 @@ static LogicalResult processBuffer(raw_ostream &os,
   // Do any processing requested by command line flags.  We don't care whether
   // these actions succeed or fail, we only care what diagnostics they produce
   // and whether they match our expectations.
-  performActions(os, verifyDiagnostics, verifyPasses, sourceMgr, &context,
-                 passPipeline);
+  (void)performActions(os, verifyDiagnostics, verifyPasses, sourceMgr, &context,
+                       passPipeline);
 
   // Verify the diagnostic handler to make sure that each of the diagnostics
   // matched.
@@ -201,10 +200,8 @@ LogicalResult mlir::MlirOptMain(int argc, char **argv, llvm::StringRef toolName,
   {
     llvm::raw_string_ostream os(helpHeader);
     MLIRContext context;
-    interleaveComma(registry, os, [&](auto &registryEntry) {
-      StringRef name = registryEntry.first;
-      os << name;
-    });
+    interleaveComma(registry.getDialectNames(), os,
+                    [&](auto name) { os << name; });
   }
   // Parse pass names in main to ensure static initialization completed.
   cl::ParseCommandLineOptions(argc, argv, helpHeader);
@@ -212,8 +209,8 @@ LogicalResult mlir::MlirOptMain(int argc, char **argv, llvm::StringRef toolName,
   if (showDialects) {
     llvm::outs() << "Available Dialects:\n";
     interleave(
-        registry, llvm::outs(),
-        [](auto &registryEntry) { llvm::outs() << registryEntry.first; }, "\n");
+        registry.getDialectNames(), llvm::outs(),
+        [](auto name) { llvm::outs() << name; }, "\n");
     return success();
   }
 

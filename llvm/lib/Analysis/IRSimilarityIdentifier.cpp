@@ -835,8 +835,8 @@ void IRSimilarityIdentifier::findCandidates(
   // Iterate over the subsequences found by the Suffix Tree to create
   // IRSimilarityCandidates for each repeated subsequence and determine which
   // instances are structurally similar to one another.
-  for (auto It = ST.begin(), Et = ST.end(); It != Et; ++It) {
-    createCandidatesFromSuffixTree(Mapper, InstrList, IntegerMapping, *It,
+  for (SuffixTree::RepeatedSubstring &RS : ST) {
+    createCandidatesFromSuffixTree(Mapper, InstrList, IntegerMapping, RS,
                                    CandsForRepSubstring);
 
     if (CandsForRepSubstring.size() < 2)
@@ -923,11 +923,16 @@ IRSimilarityAnalysisPrinterPass::run(Module &M, ModuleAnalysisManager &AM) {
        << CandVec.begin()->getLength() << ".  Found in: \n";
     for (IRSimilarityCandidate &Cand : CandVec) {
       OS << "  Function: " << Cand.front()->Inst->getFunction()->getName().str()
-         << ",  Basic Block: ";
+         << ", Basic Block: ";
       if (Cand.front()->Inst->getParent()->getName().str() == "")
-        OS << "(unnamed)\n";
+        OS << "(unnamed)";
       else
-        OS << Cand.front()->Inst->getParent()->getName().str() << "\n";
+        OS << Cand.front()->Inst->getParent()->getName().str();
+      OS << "\n    Start Instruction: ";
+      Cand.frontInstruction()->print(OS);
+      OS << "\n      End Instruction: ";
+      Cand.backInstruction()->print(OS);
+      OS << "\n";
     }
   }
 

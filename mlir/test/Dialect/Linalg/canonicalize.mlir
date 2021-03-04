@@ -9,15 +9,11 @@ func @memref_cast(%a: index, %b: index) -> memref<?x?xf32> {
   %1 = alloc (%b) : memref<?xi8>
   %2 = view %1[%c0][] : memref<?xi8> to memref<16x16xf32>
   %3 = memref_cast %2 : memref<16x16xf32> to memref<?x?xf32>
-  %r0 = linalg.range %c0:%c8:%c1 : !linalg.range
-
-  // CHECK:  linalg.slice {{.*}} : memref<16x16xf32>, !linalg.range, !linalg.range, memref<?x?xf32>
-  %4 = linalg.slice %3[%r0, %r0] : memref<?x?xf32>, !linalg.range, !linalg.range, memref<?x?xf32>
 
   // CHECK:  linalg.matmul ins({{.*}}memref<16x16xf32>, memref<16x16xf32>) outs({{.*}}memref<16x16xf32>)
   linalg.matmul ins(%3, %3: memref<?x?xf32>, memref<?x?xf32>)
                outs(%3: memref<?x?xf32>)
-  return %4: memref<?x?xf32>
+  return %3: memref<?x?xf32>
 }
 
 // -----
@@ -684,3 +680,39 @@ func @fold_init_tensor_with_subtensor
 // CHECK-SAME:   %[[ARG1:[a-zA-Z0-9_]+]]: index
 //      CHECK:   %[[T0:.+]] = linalg.init_tensor [5, %[[ARG1]], 20]
 //      CHECK:   return %[[T0]]
+
+// -----
+
+#accesses = [
+  affine_map<(i, j) -> (i, j)>
+]
+
+#trait = {
+  indexing_maps = #accesses,
+  iterator_types = ["parallel", "parallel"]
+}
+
+// CHECK-LABEL: func @dead_linalg_tensor
+//   CHECK-NOT:   linalg.fill
+//   CHECK-NOT:   linalg.matmul
+//   CHECK-NOT:   linalg.generic
+//   CHECK-NOT:   linalg.pad_tensor
+//       CHECK:   return
+func @dead_linalg_tensor(%arg0 : tensor<7x7xi32>, %arg1 : tensor<7x7xf32>,
+                         %arg2: tensor<?x?xf32>, %high : index) {
+  %c0_i32 = constant 0 : i32
+  %c0 = constant 0 : index
+  %cst = constant 0.000000e+00 : f32
+  %0 = linalg.fill(%arg0, %c0_i32) : tensor<7x7xi32>, i32 -> tensor<7x7xi32>
+  %1 = linalg.matmul ins(%arg1, %arg1: tensor<7x7xf32>, tensor<7x7xf32>)
+                     outs(%arg1: tensor<7x7xf32>) -> tensor<7x7xf32>
+  %2 = linalg.generic #trait outs(%arg0 : tensor<7x7xi32>) {
+  ^bb(%3: i32) :
+    linalg.yield %3 : i32
+  } -> tensor<7x7xi32>
+  %3 = linalg.pad_tensor %arg2 low[%c0, %c0] high[%high, %high] {
+        ^bb0(%arg9: index, %arg10: index):  // no predecessors
+          linalg.yield %cst : f32
+  } : tensor<?x?xf32> to tensor<2x4xf32>
+  return
+}

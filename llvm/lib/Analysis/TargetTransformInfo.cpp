@@ -82,7 +82,6 @@ IntrinsicCostAttributes::IntrinsicCostAttributes(Intrinsic::ID Id,
                                                  ElementCount Factor)
     : RetTy(CI.getType()), IID(Id), VF(Factor) {
 
-  assert(!Factor.isScalable() && "Scalable vectors are not yet supported");
   if (auto *FPMO = dyn_cast<FPMathOperator>(&CI))
     FMF = FPMO->getFastMathFlags();
 
@@ -410,12 +409,10 @@ bool TargetTransformInfo::canSaveCmp(Loop *L, BranchInst **BI,
   return TTIImpl->canSaveCmp(L, BI, SE, LI, DT, AC, LibInfo);
 }
 
-bool TargetTransformInfo::shouldFavorPostInc() const {
-  return TTIImpl->shouldFavorPostInc();
-}
-
-bool TargetTransformInfo::shouldFavorBackedgeIndex(const Loop *L) const {
-  return TTIImpl->shouldFavorBackedgeIndex(L);
+TTI::AddressingModeKind
+TargetTransformInfo::getPreferredAddressingMode(const Loop *L,
+                                                ScalarEvolution *SE) const {
+  return TTIImpl->getPreferredAddressingMode(L, SE);
 }
 
 bool TargetTransformInfo::isLegalMaskedStore(Type *DataType,
@@ -553,7 +550,7 @@ bool TargetTransformInfo::isFPVectorizationPotentiallyUnsafe() const {
 bool TargetTransformInfo::allowsMisalignedMemoryAccesses(LLVMContext &Context,
                                                          unsigned BitWidth,
                                                          unsigned AddressSpace,
-                                                         unsigned Alignment,
+                                                         Align Alignment,
                                                          bool *Fast) const {
   return TTIImpl->allowsMisalignedMemoryAccesses(Context, BitWidth,
                                                  AddressSpace, Alignment, Fast);
@@ -640,8 +637,9 @@ bool TargetTransformInfo::shouldMaximizeVectorBandwidth(bool OptSize) const {
   return TTIImpl->shouldMaximizeVectorBandwidth(OptSize);
 }
 
-unsigned TargetTransformInfo::getMinimumVF(unsigned ElemWidth) const {
-  return TTIImpl->getMinimumVF(ElemWidth);
+ElementCount TargetTransformInfo::getMinimumVF(unsigned ElemWidth,
+                                               bool IsScalable) const {
+  return TTIImpl->getMinimumVF(ElemWidth, IsScalable);
 }
 
 unsigned TargetTransformInfo::getMaximumVF(unsigned ElemWidth,
@@ -1047,11 +1045,6 @@ unsigned TargetTransformInfo::getStoreVectorFactor(unsigned VF,
                                                    unsigned ChainSizeInBytes,
                                                    VectorType *VecTy) const {
   return TTIImpl->getStoreVectorFactor(VF, StoreSize, ChainSizeInBytes, VecTy);
-}
-
-bool TargetTransformInfo::useReductionIntrinsic(unsigned Opcode, Type *Ty,
-                                                ReductionFlags Flags) const {
-  return TTIImpl->useReductionIntrinsic(Opcode, Ty, Flags);
 }
 
 bool TargetTransformInfo::preferInLoopReduction(unsigned Opcode, Type *Ty,

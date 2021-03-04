@@ -274,6 +274,7 @@ spirv-type ::= array-type
              | image-type
              | pointer-type
              | runtime-array-type
+             | sampled-image-type
              | struct-type
 ```
 
@@ -362,6 +363,22 @@ For example,
 !spv.rtarray<i32>
 !spv.rtarray<i32, stride=4>
 !spv.rtarray<vector<4 x f32>>
+```
+### Sampled image type
+
+This corresponds to SPIR-V [sampled image type][SampledImageType]. Its syntax is
+
+```
+sampled-image-type ::= `!spv.sampled_image<!spv.image<` element-type `,` dim `,` depth-info `,`
+                                                        arrayed-info `,` sampling-info `,`
+                                                        sampler-use-info `,` format `>>`
+```
+
+For example,
+
+```mlir
+!spv.sampled_image<!spv.image<f32, Dim1D, NoDepth, NonArrayed, SingleSampled, NoSampler, Unknown>>
+!spv.sampled_image<!spv.image<i32, Rect, DepthUnknown, Arrayed, MultiSampled, NeedSampler, R8ui>>
 ```
 
 ### Struct type
@@ -1382,12 +1399,13 @@ dialect.
 [ImageType]: https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#OpTypeImage
 [PointerType]: https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#OpTypePointer
 [RuntimeArrayType]: https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#OpTypeRuntimeArray
+[SampledImageType]: https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#OpTypeSampledImage
 [MlirDialectConversion]: ../DialectConversion.md
 [StructType]: https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#Structure
 [SpirvTools]: https://github.com/KhronosGroup/SPIRV-Tools
 [Rationale]: ../Rationale/#block-arguments-vs-phi-nodes
 [ODS]: ../OpDefinitions.md
-[GreedyPatternRewriter]: https://github.com/llvm/llvm-project/blob/master/mlir/lib/Transforms/Utils/GreedyPatternRewriteDriver.cpp
+[GreedyPatternRewriter]: https://github.com/llvm/llvm-project/blob/main/mlir/lib/Transforms/Utils/GreedyPatternRewriteDriver.cpp
 [MlirDialectConversionTypeConversion]: ../DialectConversion.md#type-converter
 [MlirDialectConversionRewritePattern]: ../DialectConversion.md#conversion-patterns
 [MlirDialectConversionSignatureConversion]: ../DialectConversion.md#region-signature-conversion
@@ -1399,26 +1417,26 @@ dialect.
 [MlirIndexType]: ../LangRef.md#index-type
 [MlirGpuDialect]: ../Dialects/GPU.md
 [MlirStandardDialect]: ../Dialects/Standard.md
-[MlirSpirvHeaders]: https://github.com/llvm/llvm-project/tree/master/mlir/include/mlir/Dialect/SPIRV
-[MlirSpirvLibs]: https://github.com/llvm/llvm-project/tree/master/mlir/lib/Dialect/SPIRV
-[MlirSpirvTests]: https://github.com/llvm/llvm-project/tree/master/mlir/test/Dialect/SPIRV
-[MlirSpirvUnittests]: https://github.com/llvm/llvm-project/tree/master/mlir/unittests/Dialect/SPIRV
-[MlirGpuToSpirvHeaders]: https://github.com/llvm/llvm-project/tree/master/mlir/include/mlir/Conversion/GPUToSPIRV
-[MlirGpuToSpirvLibs]: https://github.com/llvm/llvm-project/tree/master/mlir/lib/Conversion/GPUToSPIRV
-[MlirStdToSpirvHeaders]: https://github.com/llvm/llvm-project/tree/master/mlir/include/mlir/Conversion/StandardToSPIRV
-[MlirStdToSpirvLibs]: https://github.com/llvm/llvm-project/tree/master/mlir/lib/Conversion/StandardToSPIRV
-[MlirSpirvDialect]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVDialect.h
-[MlirSpirvTypes]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVTypes.h
-[MlirSpirvOpsH]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVOps.h
-[MlirSpirvSerialization]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Target/SPIRV/Serialization.h
-[MlirSpirvBase]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVBase.td
-[MlirSpirvPasses]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/SPIRV/Transforms/Passes.h
-[MlirSpirvConversion]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h
-[MlirSpirvAbi]: https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/SPIRV/IR/TargetAndABI.h
-[MlirSpirvOpsCpp]: https://github.com/llvm/llvm-project/blob/master/mlir/lib/Dialect/SPIRV/IR/SPIRVOps.cpp
+[MlirSpirvHeaders]: https://github.com/llvm/llvm-project/tree/main/mlir/include/mlir/Dialect/SPIRV
+[MlirSpirvLibs]: https://github.com/llvm/llvm-project/tree/main/mlir/lib/Dialect/SPIRV
+[MlirSpirvTests]: https://github.com/llvm/llvm-project/tree/main/mlir/test/Dialect/SPIRV
+[MlirSpirvUnittests]: https://github.com/llvm/llvm-project/tree/main/mlir/unittests/Dialect/SPIRV
+[MlirGpuToSpirvHeaders]: https://github.com/llvm/llvm-project/tree/main/mlir/include/mlir/Conversion/GPUToSPIRV
+[MlirGpuToSpirvLibs]: https://github.com/llvm/llvm-project/tree/main/mlir/lib/Conversion/GPUToSPIRV
+[MlirStdToSpirvHeaders]: https://github.com/llvm/llvm-project/tree/main/mlir/include/mlir/Conversion/StandardToSPIRV
+[MlirStdToSpirvLibs]: https://github.com/llvm/llvm-project/tree/main/mlir/lib/Conversion/StandardToSPIRV
+[MlirSpirvDialect]: https://github.com/llvm/llvm-project/blob/main/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVDialect.h
+[MlirSpirvTypes]: https://github.com/llvm/llvm-project/blob/main/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVTypes.h
+[MlirSpirvOpsH]: https://github.com/llvm/llvm-project/blob/main/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVOps.h
+[MlirSpirvSerialization]: https://github.com/llvm/llvm-project/blob/main/mlir/include/mlir/Target/SPIRV/Serialization.h
+[MlirSpirvBase]: https://github.com/llvm/llvm-project/blob/main/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVBase.td
+[MlirSpirvPasses]: https://github.com/llvm/llvm-project/blob/main/mlir/include/mlir/Dialect/SPIRV/Transforms/Passes.h
+[MlirSpirvConversion]: https://github.com/llvm/llvm-project/blob/main/mlir/include/mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h
+[MlirSpirvAbi]: https://github.com/llvm/llvm-project/blob/main/mlir/include/mlir/Dialect/SPIRV/IR/TargetAndABI.h
+[MlirSpirvOpsCpp]: https://github.com/llvm/llvm-project/blob/main/mlir/lib/Dialect/SPIRV/IR/SPIRVOps.cpp
 [GitHubDialectTracking]: https://github.com/tensorflow/mlir/issues/302
 [GitHubLoweringTracking]: https://github.com/tensorflow/mlir/issues/303
-[GenSpirvUtilsPy]: https://github.com/llvm/llvm-project/blob/master/mlir/utils/spirv/gen_spirv_dialect.py
+[GenSpirvUtilsPy]: https://github.com/llvm/llvm-project/blob/main/mlir/utils/spirv/gen_spirv_dialect.py
 [CustomTypeAttrTutorial]: ../Tutorials/DefiningAttributesAndTypes.md
 [VulkanExtensionPhysicalStorageBuffer]: https://github.com/KhronosGroup/SPIRV-Registry/blob/master/extensions/KHR/SPV_KHR_physical_storage_buffer.html
 [VulkanExtensionVariablePointers]: https://github.com/KhronosGroup/SPIRV-Registry/blob/master/extensions/KHR/SPV_KHR_variable_pointers.html

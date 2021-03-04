@@ -663,6 +663,37 @@ static void instantiateSYCLIntelNumSimdWorkItemsAttr(
     S.AddSYCLIntelNumSimdWorkItemsAttr(New, *A, Result.getAs<Expr>());
 }
 
+static void instantiateSYCLIntelSchedulerTargetFmaxMhzAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLIntelSchedulerTargetFmaxMhzAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.AddSYCLIntelSchedulerTargetFmaxMhzAttr(New, *A, Result.getAs<Expr>());
+}
+
+static void instantiateSYCLIntelNoGlobalWorkOffsetAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLIntelNoGlobalWorkOffsetAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.AddSYCLIntelNoGlobalWorkOffsetAttr(New, *A, Result.getAs<Expr>());
+}
+
+template <typename AttrName>
+static void instantiateIntelSYCLFunctionAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const AttrName *Attr, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.addIntelSingleArgAttr<AttrName>(New, *Attr, Result.getAs<Expr>());
+}
+
 static void instantiateIntelFPGAPrivateCopiesAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const IntelFPGAPrivateCopiesAttr *A, Decl *New) {
@@ -681,17 +712,6 @@ static void instantiateIntelFPGAMaxReplicatesAttr(
   ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
   if (!Result.isInvalid())
     S.AddIntelFPGAMaxReplicatesAttr(New, *A, Result.getAs<Expr>());
-}
-
-template <typename AttrName>
-static void instantiateIntelSYCLFunctionAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const AttrName *Attr, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
-  if (!Result.isInvalid())
-    S.addIntelSingleArgAttr<AttrName>(New, *Attr, Result.getAs<Expr>());
 }
 
 /// Determine whether the attribute A might be relevent to the declaration D.
@@ -886,7 +906,7 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
     if (const auto *SYCLIntelSchedulerTargetFmaxMhz =
             dyn_cast<SYCLIntelSchedulerTargetFmaxMhzAttr>(TmplAttr)) {
-      instantiateIntelSYCLFunctionAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>(
+      instantiateSYCLIntelSchedulerTargetFmaxMhzAttr(
           *this, TemplateArgs, SYCLIntelSchedulerTargetFmaxMhz, New);
       continue;
     }
@@ -904,7 +924,7 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
     if (const auto *SYCLIntelNoGlobalWorkOffset =
             dyn_cast<SYCLIntelNoGlobalWorkOffsetAttr>(TmplAttr)) {
-      instantiateIntelSYCLFunctionAttr<SYCLIntelNoGlobalWorkOffsetAttr>(
+      instantiateSYCLIntelNoGlobalWorkOffsetAttr(
           *this, TemplateArgs, SYCLIntelNoGlobalWorkOffset, New);
       continue;
     }

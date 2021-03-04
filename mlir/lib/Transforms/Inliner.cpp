@@ -414,7 +414,7 @@ struct Inliner : public InlinerInterface {
 static bool shouldInline(ResolvedCall &resolvedCall) {
   // Don't allow inlining terminator calls. We currently don't support this
   // case.
-  if (resolvedCall.call->isKnownTerminator())
+  if (resolvedCall.call->hasTrait<OpTrait::IsTerminator>())
     return false;
 
   // Don't allow inlining if the target is an ancestor of the call. This
@@ -654,7 +654,7 @@ LogicalResult InlinerPass::optimizeSCC(CallGraph &cg, CGUseList &useList,
     // We also won't apply simplifications to nodes that can't have passes
     // scheduled on them.
     auto *region = node->getCallableRegion();
-    if (!region->getParentOp()->isKnownIsolatedFromAbove())
+    if (!region->getParentOp()->hasTrait<OpTrait::IsIsolatedFromAbove>())
       continue;
     nodesToVisit.push_back(node);
   }
@@ -755,7 +755,7 @@ LogicalResult InlinerPass::initializeOptions(StringRef options) {
   if (!defaultPipelineStr.empty()) {
     std::string defaultPipelineCopy = defaultPipelineStr;
     defaultPipeline = [=](OpPassManager &pm) {
-      parsePassPipeline(defaultPipelineCopy, pm);
+      (void)parsePassPipeline(defaultPipelineCopy, pm);
     };
   } else if (defaultPipelineStr.getNumOccurrences()) {
     defaultPipeline = nullptr;

@@ -3367,19 +3367,71 @@ static void handleUseStallEnableClustersAttr(Sema &S, Decl *D,
 }
 
 // Handle scheduler_target_fmax_mhz
-static void handleSchedulerTargetFmaxMhzAttr(Sema &S, Decl *D,
-                                             const ParsedAttr &AL) {
-  if (D->isInvalidDecl())
-    return;
+void Sema::AddSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
+                                                  const AttributeCommonInfo &CI,
+                                                  Expr *E) {
+  if (!E->isValueDependent()) {
+    // Validate that we have an integer constant expression and then store the
+    // converted constant expression into the semantic attribute so that we
+    // don't have to evaluate it again later.
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return;
+    E = Res.get();
 
-  Expr *E = AL.getArgAsExpr(0);
+    // This attribute requires a non-negative value.
+    if (ArgVal < 0) {
+      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+          << CI << /*non-negative*/ 1;
+      return;
+    }
+    // Check to see if there's a duplicate attribute with different values
+    // already applied to the declaration.
+    if (const auto *DeclAttr =
+            D->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>()) {
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue());
+      if (DeclExpr && ArgVal != DeclExpr->getResultAsAPSInt()) {
+        Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+        Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        return;
+      }
+    }
+  }
 
-  if (D->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>())
-    S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
+  D->addAttr(::new (Context)
+                 SYCLIntelSchedulerTargetFmaxMhzAttr(Context, CI, E));
+}
 
+SYCLIntelSchedulerTargetFmaxMhzAttr *
+Sema::MergeSYCLIntelSchedulerTargetFmaxMhzAttr(
+    Decl *D, const SYCLIntelSchedulerTargetFmaxMhzAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr =
+          D->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>()) {
+    const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue());
+    const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue());
+    if (DeclExpr && MergeExpr &&
+        DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+      Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+      Diag(A.getLoc(), diag::note_previous_attribute);
+      return nullptr;
+    }
+  }
+  return ::new (Context)
+      SYCLIntelSchedulerTargetFmaxMhzAttr(Context, A, A.getValue());
+}
+
+static void handleSYCLIntelSchedulerTargetFmaxMhzAttr(Sema &S, Decl *D,
+                                                      const ParsedAttr &AL) {
   S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
-  S.addIntelSingleArgAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>(D, AL, E);
+  Expr *E = AL.getArgAsExpr(0);
+  S.AddSYCLIntelSchedulerTargetFmaxMhzAttr(D, AL, E);
 }
 
 // Handles max_global_work_dim.
@@ -5709,9 +5761,57 @@ static bool checkForDuplicateAttribute(Sema &S, Decl *D,
   return false;
 }
 
-static void handleNoGlobalWorkOffsetAttr(Sema &S, Decl *D,
-                                         const ParsedAttr &A) {
-  checkForDuplicateAttribute<SYCLIntelNoGlobalWorkOffsetAttr>(S, D, A);
+void Sema::AddSYCLIntelNoGlobalWorkOffsetAttr(Decl *D,
+                                              const AttributeCommonInfo &CI,
+                                              Expr *E) {
+  if (!E->isValueDependent()) {
+    // Validate that we have an integer constant expression and then store the
+    // converted constant expression into the semantic attribute so that we
+    // don't have to evaluate it again later.
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return;
+    E = Res.get();
+
+    // Check to see if there's a duplicate attribute with different values
+    // already applied to the declaration.
+    if (const auto *DeclAttr = D->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue());
+      if (DeclExpr && ArgVal != DeclExpr->getResultAsAPSInt()) {
+        Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+        Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        return;
+      }
+    }
+  }
+
+  D->addAttr(::new (Context) SYCLIntelNoGlobalWorkOffsetAttr(Context, CI, E));
+}
+
+SYCLIntelNoGlobalWorkOffsetAttr *Sema::MergeSYCLIntelNoGlobalWorkOffsetAttr(
+    Decl *D, const SYCLIntelNoGlobalWorkOffsetAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr = D->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {
+    const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue());
+    const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue());
+    if (DeclExpr && MergeExpr &&
+        DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+      Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+      Diag(A.getLoc(), diag::note_previous_attribute);
+      return nullptr;
+    }
+  }
+  return ::new (Context)
+      SYCLIntelNoGlobalWorkOffsetAttr(Context, A, A.getValue());
+}
+
+static void handleSYCLIntelNoGlobalWorkOffsetAttr(Sema &S, Decl *D,
+                                                  const ParsedAttr &A) {
   S.CheckDeprecatedSYCLAttributeSpelling(A);
 
   // If no attribute argument is specified, set to default value '1'.
@@ -5719,7 +5819,8 @@ static void handleNoGlobalWorkOffsetAttr(Sema &S, Decl *D,
                 ? A.getArgAsExpr(0)
                 : IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
                                          S.Context.IntTy, A.getLoc());
-  S.addIntelSingleArgAttr<SYCLIntelNoGlobalWorkOffsetAttr>(D, A, E);
+
+  S.AddSYCLIntelNoGlobalWorkOffsetAttr(D, A, E);
 }
 
 /// Handle the [[intelfpga::doublepump]] and [[intelfpga::singlepump]] attributes.
@@ -6766,9 +6867,11 @@ static void handleSwiftBridge(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!S.checkStringLiteralArgumentAttr(AL, 0, BT))
     return;
 
-  // Don't duplicate annotations that are already set.
-  if (D->hasAttr<SwiftBridgeAttr>()) {
-    S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
+  // Warn about duplicate attributes if they have different arguments, but drop
+  // any duplicate attributes regardless.
+  if (const auto *Other = D->getAttr<SwiftBridgeAttr>()) {
+    if (Other->getSwiftType() != BT)
+      S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
     return;
   }
 
@@ -6869,6 +6972,125 @@ static void handleSwiftError(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   D->addAttr(::new (S.Context) SwiftErrorAttr(S.Context, AL, Convention));
+}
+
+static void checkSwiftAsyncErrorBlock(Sema &S, Decl *D,
+                                      const SwiftAsyncErrorAttr *ErrorAttr,
+                                      const SwiftAsyncAttr *AsyncAttr) {
+  if (AsyncAttr->getKind() == SwiftAsyncAttr::None) {
+    if (ErrorAttr->getConvention() != SwiftAsyncErrorAttr::None) {
+      S.Diag(AsyncAttr->getLocation(),
+             diag::err_swift_async_error_without_swift_async)
+          << AsyncAttr << isa<ObjCMethodDecl>(D);
+    }
+    return;
+  }
+
+  const ParmVarDecl *HandlerParam = getFunctionOrMethodParam(
+      D, AsyncAttr->getCompletionHandlerIndex().getASTIndex());
+  // handleSwiftAsyncAttr already verified the type is correct, so no need to
+  // double-check it here.
+  const auto *FuncTy = HandlerParam->getType()
+                           ->getAs<BlockPointerType>()
+                           ->getPointeeType()
+                           ->getAs<FunctionProtoType>();
+  ArrayRef<QualType> BlockParams;
+  if (FuncTy)
+    BlockParams = FuncTy->getParamTypes();
+
+  switch (ErrorAttr->getConvention()) {
+  case SwiftAsyncErrorAttr::ZeroArgument:
+  case SwiftAsyncErrorAttr::NonZeroArgument: {
+    uint32_t ParamIdx = ErrorAttr->getHandlerParamIdx();
+    if (ParamIdx == 0 || ParamIdx > BlockParams.size()) {
+      S.Diag(ErrorAttr->getLocation(),
+             diag::err_attribute_argument_out_of_bounds) << ErrorAttr << 2;
+      return;
+    }
+    QualType ErrorParam = BlockParams[ParamIdx - 1];
+    if (!ErrorParam->isIntegralType(S.Context)) {
+      StringRef ConvStr =
+          ErrorAttr->getConvention() == SwiftAsyncErrorAttr::ZeroArgument
+              ? "zero_argument"
+              : "nonzero_argument";
+      S.Diag(ErrorAttr->getLocation(), diag::err_swift_async_error_non_integral)
+          << ErrorAttr << ConvStr << ParamIdx << ErrorParam;
+      return;
+    }
+    break;
+  }
+  case SwiftAsyncErrorAttr::NonNullError: {
+    bool AnyErrorParams = false;
+    for (QualType Param : BlockParams) {
+      // Check for NSError *.
+      if (const auto *ObjCPtrTy = Param->getAs<ObjCObjectPointerType>()) {
+        if (const auto *ID = ObjCPtrTy->getInterfaceDecl()) {
+          if (ID->getIdentifier() == S.getNSErrorIdent()) {
+            AnyErrorParams = true;
+            break;
+          }
+        }
+      }
+      // Check for CFError *.
+      if (const auto *PtrTy = Param->getAs<PointerType>()) {
+        if (const auto *RT = PtrTy->getPointeeType()->getAs<RecordType>()) {
+          if (S.isCFError(RT->getDecl())) {
+            AnyErrorParams = true;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!AnyErrorParams) {
+      S.Diag(ErrorAttr->getLocation(),
+             diag::err_swift_async_error_no_error_parameter)
+          << ErrorAttr << isa<ObjCMethodDecl>(D);
+      return;
+    }
+    break;
+  }
+  case SwiftAsyncErrorAttr::None:
+    break;
+  }
+}
+
+static void handleSwiftAsyncError(Sema &S, Decl *D, const ParsedAttr &AL) {
+  IdentifierLoc *IDLoc = AL.getArgAsIdent(0);
+  SwiftAsyncErrorAttr::ConventionKind ConvKind;
+  if (!SwiftAsyncErrorAttr::ConvertStrToConventionKind(IDLoc->Ident->getName(),
+                                                       ConvKind)) {
+    S.Diag(AL.getLoc(), diag::warn_attribute_type_not_supported)
+        << AL << IDLoc->Ident;
+    return;
+  }
+
+  uint32_t ParamIdx = 0;
+  switch (ConvKind) {
+  case SwiftAsyncErrorAttr::ZeroArgument:
+  case SwiftAsyncErrorAttr::NonZeroArgument: {
+    if (!checkAttributeNumArgs(S, AL, 2))
+      return;
+
+    Expr *IdxExpr = AL.getArgAsExpr(1);
+    if (!checkUInt32Argument(S, AL, IdxExpr, ParamIdx))
+      return;
+    break;
+  }
+  case SwiftAsyncErrorAttr::NonNullError:
+  case SwiftAsyncErrorAttr::None: {
+    if (!checkAttributeNumArgs(S, AL, 1))
+      return;
+    break;
+  }
+  }
+
+  auto *ErrorAttr =
+      ::new (S.Context) SwiftAsyncErrorAttr(S.Context, AL, ConvKind, ParamIdx);
+  D->addAttr(ErrorAttr);
+
+  if (auto *AsyncAttr = D->getAttr<SwiftAsyncAttr>())
+    checkSwiftAsyncErrorBlock(S, D, ErrorAttr, AsyncAttr);
 }
 
 // For a function, this will validate a compound Swift name, e.g.
@@ -7255,7 +7477,12 @@ static void handleSwiftAsyncAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     }
   }
 
-  D->addAttr(::new (S.Context) SwiftAsyncAttr(S.Context, AL, Kind, Idx));
+  auto *AsyncAttr =
+      ::new (S.Context) SwiftAsyncAttr(S.Context, AL, Kind, Idx);
+  D->addAttr(AsyncAttr);
+
+  if (auto *ErrorAttr = D->getAttr<SwiftAsyncErrorAttr>())
+    checkSwiftAsyncErrorBlock(S, D, ErrorAttr, AsyncAttr);
 }
 
 //===----------------------------------------------------------------------===//
@@ -9016,13 +9243,13 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handleSYCLIntelNumSimdWorkItemsAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLIntelSchedulerTargetFmaxMhz:
-    handleSchedulerTargetFmaxMhzAttr(S, D, AL);
+    handleSYCLIntelSchedulerTargetFmaxMhzAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim:
     handleMaxGlobalWorkDimAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLIntelNoGlobalWorkOffset:
-    handleNoGlobalWorkOffsetAttr(S, D, AL);
+    handleSYCLIntelNoGlobalWorkOffsetAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLIntelUseStallEnableClusters:
     handleUseStallEnableClustersAttr(S, D, AL);
@@ -9370,6 +9597,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_SwiftAsync:
     handleSwiftAsyncAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SwiftAsyncError:
+    handleSwiftAsyncError(S, D, AL);
     break;
 
   // XRay attributes.
