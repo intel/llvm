@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl %s -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
-// RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
+// RUN: env SYCL_HOST_UNIFIED_MEMORY=1 SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
+// RUN: env SYCL_HOST_UNIFIED_MEMORY=1 SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
 // XFAIL: cuda
 #include <CL/sycl.hpp>
 #include <cassert>
@@ -16,9 +16,6 @@ class Bar;
 // read-write.
 int main() {
   queue Q;
-  // Mapping is not used for devices without host unified memory support.
-  if (!Q.get_device().get_info<info::device::host_unified_memory>())
-    return 0;
 
   std::size_t Size = 64;
   range<1> Range{Size};
