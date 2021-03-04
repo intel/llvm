@@ -27,6 +27,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   amdgcn/lib/SOURCES;
   amdgcn-mesa3d/lib/SOURCES;
   amdgpu/lib/SOURCES;
+  clspv/lib/SOURCES;
   generic/lib/SOURCES;
   ptx/lib/SOURCES;
   ptx-nvidiacl/lib/SOURCES;
@@ -41,6 +42,7 @@ include( AddLibclc )
 set( LIBCLC_TARGETS_ALL
   amdgcn--
   amdgcn--amdhsa
+  clspv--
   r600--
   nvptx--
   nvptx64--
@@ -152,6 +154,7 @@ set( r600--_devices cedar cypress barts cayman )
 set( amdgcn--_devices tahiti )
 set( amdgcn-mesa-mesa3d_devices ${amdgcn--_devices} )
 set( amdgcn--amdhsa_devices none )
+set( clspv--_devices none )
 set( nvptx--_devices none )
 set( nvptx64--_devices none )
 set( nvptx--nvidiacl_devices none )
@@ -232,7 +235,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 
 	set( dirs )
 
-	if ( NOT ${ARCH} STREQUAL spirv AND NOT ${ARCH} STREQUAL spirv64 )
+	if ( NOT ${ARCH} STREQUAL spirv AND NOT ${ARCH} STREQUAL spirv64 AND NOT ${ARCH} STREQUAL clspv )
 		LIST( APPEND dirs generic )
 	endif()
 
@@ -257,6 +260,51 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 		LIB_DIR libspirv
 		DIRS ${dirs} ${DARCH} ${DARCH}-${OS} ${DARCH}-${VENDOR}-${OS}
 		DEPS convert-spirv.cl convert-core.cl)
+	# Enumerate SOURCES* files
+	set( source_list )
+	foreach( l ${dirs} ${DARCH} ${DARCH}-${OS} ${DARCH}-${VENDOR}-${OS} )
+		foreach( s "SOURCES" "SOURCES_${LLVM_MAJOR}.${LLVM_MINOR}" )
+			file( TO_CMAKE_PATH ${l}/lib/${s} file_loc )
+			file( TO_CMAKE_PATH ${CMAKE_SOURCE_DIR}/${file_loc} loc )
+			# Prepend the location to give higher priority to
+			# specialized implementation
+			if( EXISTS ${loc} )
+				set( source_list ${file_loc} ${source_list} )
+			endif()
+		endforeach()
+	endforeach()
+
+	# Add the generated convert.cl here to prevent adding
+	# the one listed in SOURCES
+	if( NOT ${ARCH} STREQUAL "spirv" AND NOT ${ARCH} STREQUAL "spirv64" AND NOT ${ARCH} STREQUAL "clspv" )
+		set( rel_files convert.cl )
+		set( objects convert.cl )
+		if( NOT ENABLE_RUNTIME_SUBNORMAL )
+			list( APPEND rel_files generic/lib/subnormal_use_default.ll )
+		endif()
+	else()
+		set( rel_files )
+		set( objects )
+	endif()
+
+	foreach( l ${source_list} )
+		file( READ ${l} file_list )
+		string( REPLACE "\n" ";" file_list ${file_list} )
+		get_filename_component( dir ${l} DIRECTORY )
+		foreach( f ${file_list} )
+			list( FIND objects ${f} found )
+			if( found EQUAL  -1 )
+				list( APPEND objects ${f} )
+				list( APPEND rel_files ${dir}/${f} )
+				# FIXME: This should really go away
+				file( TO_CMAKE_PATH ${CMAKE_SOURCE_DIR}/${dir}/${f} src_loc )
+				get_filename_component( fdir ${src_loc} DIRECTORY )
+
+				set_source_files_properties( ${dir}/${f}
+					PROPERTIES COMPILE_FLAGS "-I ${fdir}" )
+			endif()
+		endforeach()
+	endforeach()
 
 	foreach( d ${${t}_devices} )
 		# Some targets don't have a specific GPU to target
@@ -281,6 +329,23 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 				TRIPLE ${t}
 				COMPILE_OPT ${flags}
 				FILES generic/libspirv/sycldevice-binding.cpp)
+
+		if ( ${ARCH} STREQUAL "spirv" OR ${ARCH} STREQUAL "spirv64" )
+			if( ${ARCH} STREQUAL "spirv" )
+				set( t "spir--" )
+			else()
+				set( t "spir64--" )
+			endif()
+			set( build_flags -O0 -finline-hint-functions )
+			set( opt_flags )
+			set( spvflags --spirv-max-version=1.1 )
+		elseif( ${ARCH} STREQUAL "clspv" )
+			set( t "spir--" )
+			set( build_flags )
+			set( opt_flags -O3 )
+		else()
+			set( build_flags )
+			set( opt_flags -O3 )
 		endif()
 
 		add_libclc_builtin_set(libspirv-${arch_suffix}
