@@ -219,7 +219,7 @@ TEST_F(KernelAndProgramCacheTest, ProgramBuildPositive) {
   EXPECT_EQ(Cache.size(), 1) << "Expect non-empty cache for programs";
 }
 
-// Check that programs built with options are not cached.
+// Check that programs built with options are cached.
 TEST_F(KernelAndProgramCacheTest, ProgramBuildPositiveBuildOpts) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
@@ -302,7 +302,7 @@ TEST_F(KernelAndProgramCacheTest, KernelPositive) {
   EXPECT_EQ(Cache.size(), 1) << "Expect non-empty cache for kernels";
 }
 
-// Check that kernels built with options are not cached.
+// Check that kernels built with options are cached.
 TEST_F(KernelAndProgramCacheTest, KernelPositiveBuildOpts) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;

@@ -603,16 +603,15 @@ static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
 static RT::PiProgram loadDeviceLibFallback(
     const ContextImplPtr Context, DeviceLibExt Extension,
     const RT::PiDevice &Device,
-    std::map<std::pair<DeviceLibExt, RT::PiDevice>,
-             std::pair<RT::PiProgram, string_class>> &CachedLibPrograms) {
+    std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
+        &CachedLibPrograms) {
 
   const char *LibFileName = getDeviceLibFilename(Extension);
-  // TODO: Get build options
-  auto CacheResult = CachedLibPrograms.emplace(std::make_pair(
-      std::make_pair(Extension, Device), std::make_pair(nullptr, "")));
+  auto CacheResult = CachedLibPrograms.emplace(
+      std::make_pair(std::make_pair(Extension, Device), nullptr));
   bool Cached = !CacheResult.second;
   auto LibProgIt = CacheResult.first;
-  RT::PiProgram &LibProg = LibProgIt->second.first;
+  RT::PiProgram &LibProg = LibProgIt->second;
 
   if (Cached)
     return LibProg;
@@ -750,8 +749,8 @@ static bool isDeviceLibRequired(DeviceLibExt Ext, uint32_t DeviceLibReqMask) {
 
 static std::vector<RT::PiProgram> getDeviceLibPrograms(
     const ContextImplPtr Context, const RT::PiDevice &Device,
-    std::map<std::pair<DeviceLibExt, RT::PiDevice>,
-             std::pair<RT::PiProgram, string_class>> &CachedLibPrograms,
+    std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
+        &CachedLibPrograms,
     uint32_t DeviceLibReqMask) {
   std::vector<RT::PiProgram> Programs;
 
@@ -811,8 +810,8 @@ ProgramManager::ProgramPtr ProgramManager::build(
     ProgramPtr Program, const ContextImplPtr Context,
     const string_class &CompileOptions, const string_class &LinkOptions,
     const RT::PiDevice &Device,
-    std::map<std::pair<DeviceLibExt, RT::PiDevice>,
-             std::pair<RT::PiProgram, string_class>> &CachedLibPrograms,
+    std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
+        &CachedLibPrograms,
     uint32_t DeviceLibReqMask) {
 
   if (DbgProgMgr > 0) {
@@ -822,11 +821,11 @@ ProgramManager::ProgramPtr ProgramManager::build(
   }
 
   bool LinkDeviceLibs = (DeviceLibReqMask != 0);
-  const char *CompileOpts = SYCLConfig<SYCL_PROGRAM_COMPILE_OPTIONS>::get();
+  const char *CompileOpts = std::getenv("SYCL_PROGRAM_COMPILE_OPTIONS");
   if (!CompileOpts) {
     CompileOpts = CompileOptions.c_str();
   }
-  const char *LinkOpts = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
+  const char *LinkOpts = std::getenv("SYCL_PROGRAM_LINK_OPTIONS");
   if (!LinkOpts) {
     LinkOpts = LinkOptions.c_str();
   }
