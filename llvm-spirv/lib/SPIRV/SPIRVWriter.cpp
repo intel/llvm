@@ -3353,7 +3353,6 @@ bool LLVMToSPIRVBase::translate() {
     return false;
 
   BM->resolveUnknownStructFields();
-  BM->createForwardPointers();
   DbgTran->transDebugMetadata();
   return true;
 }

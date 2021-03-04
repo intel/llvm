@@ -13,15 +13,15 @@ target triple = "spir-unknown-unknown"
 %struct.B = type { i32, %struct.A addrspace(4)* }
 %struct.Node = type { %struct.Node addrspace(1)*, i32 }
 
-; CHECK-SPIRV: 3 TypeForwardPointer [[AFwdPtr:[0-9]+]] [[ASC:[0-9]+]]
-; CHECK-SPIRV: 3 TypeForwardPointer [[NodeFwdPtr:[0-9]+]] [[NodeSC:[0-9]+]]
+; CHECK-SPIRV-DAG: 3 TypeForwardPointer [[NodeFwdPtr:[0-9]+]] 5
+; CHECK-SPIRV-DAG: 3 TypeForwardPointer [[AFwdPtr:[0-9]+]] 8
 ; CHECK-SPIRV: 4 TypeInt [[IntID:[0-9]+]] 32 0
 ; CHECK-SPIRV: 4 TypeStruct [[BID:[0-9]+]] {{[0-9]+}} [[AFwdPtr]]
 ; CHECK-SPIRV: 4 TypeStruct [[CID:[0-9]+]] {{[0-9]+}} [[BID]]
 ; CHECK-SPIRV: 4 TypeStruct [[AID:[0-9]+]] {{[0-9]+}} [[CID]]
-; CHECK-SPIRV: 4 TypePointer [[AFwdPtr]] [[ASC]] [[AID:[0-9]+]]
+; CHECK-SPIRV: 4 TypePointer [[AFwdPtr]] 8 [[AID:[0-9]+]]
 ; CHECK-SPIRV: 4 TypeStruct [[NodeID:[0-9]+]] [[NodeFwdPtr]]
-; CHECK-SPIRV: 4 TypePointer [[NodeFwdPtr]] [[NodeSC]] [[NodeID]]
+; CHECK-SPIRV: 4 TypePointer [[NodeFwdPtr]] 5 [[NodeID]]
 
 ; CHECK-LLVM: %struct.A = type { i32, %struct.C }
 ; CHECK-LLVM: %struct.C = type { i32, %struct.B }

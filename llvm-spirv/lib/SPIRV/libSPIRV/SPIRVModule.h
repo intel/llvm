@@ -250,7 +250,6 @@ public:
   virtual SPIRVTypeVmeImageINTEL *addVmeImageINTELType(SPIRVTypeImage *) = 0;
   virtual SPIRVTypeBufferSurfaceINTEL *
   addBufferSurfaceINTELType(SPIRVAccessQualifierKind Access) = 0;
-  virtual void createForwardPointers() = 0;
 
   // Constants creation functions
   virtual SPIRVValue *
