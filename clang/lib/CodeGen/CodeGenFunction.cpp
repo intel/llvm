@@ -983,8 +983,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
 
   if (getLangOpts().SYCLIsDevice && D) {
     if (const auto *A = D->getAttr<SYCLIntelLoopFuseAttr>()) {
-      const Expr *Arg = A->getValue();
-      const auto *CE = cast<ConstantExpr>(Arg);
+      const auto *CE = cast<ConstantExpr>(A->getValue());
       assert(CE && "Not an integer constant expression");
       Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
       llvm::Metadata *AttrMDArgs[] = {
