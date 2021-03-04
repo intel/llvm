@@ -240,11 +240,6 @@ private:
 
   /// True iff a SPIR-V file has been specified with an environment variable
   bool m_UseSpvFile = false;
-
-public:
-  std::unordered_map<KernelSetId,
-                     std::unique_ptr<std::vector<RTDeviceBinaryImageUPtr>>> &
-  GetDeviceImages();
 };
 } // namespace detail
 } // namespace sycl
