@@ -2352,6 +2352,17 @@ void Clang::DumpCompilationDatabaseFragmentToDir(
   DumpCompilationDatabase(C, "", Target, Output, Input, Args);
 }
 
+static bool AddARMImplicitITArgs(const ArgList &Args, ArgStringList &CmdArgs,
+                                 StringRef Value) {
+  if (Value == "always" || Value == "never" || Value == "arm" ||
+      Value == "thumb") {
+    CmdArgs.push_back("-mllvm");
+    CmdArgs.push_back(Args.MakeArgString("-arm-implicit-it=" + Value));
+    return true;
+  }
+  return false;
+}
+
 static void CollectArgsForIntegratedAssembler(Compilation &C,
                                               const ArgList &Args,
                                               ArgStringList &CmdArgs,
@@ -2375,14 +2386,9 @@ static void CollectArgsForIntegratedAssembler(Compilation &C,
   case llvm::Triple::thumbeb:
     if (Arg *A = Args.getLastArg(options::OPT_mimplicit_it_EQ)) {
       StringRef Value = A->getValue();
-      if (Value == "always" || Value == "never" || Value == "arm" ||
-          Value == "thumb") {
-        CmdArgs.push_back("-mllvm");
-        CmdArgs.push_back(Args.MakeArgString("-arm-implicit-it=" + Value));
-      } else {
+      if (!AddARMImplicitITArgs(Args, CmdArgs, Value))
         D.Diag(diag::err_drv_unsupported_option_argument)
             << A->getOption().getName() << Value;
-      }
     }
     break;
   default:
@@ -2424,6 +2430,9 @@ static void CollectArgsForIntegratedAssembler(Compilation &C,
       case llvm::Triple::thumbeb:
       case llvm::Triple::arm:
       case llvm::Triple::armeb:
+        if (Value.startswith("-mimplicit-it=") &&
+            AddARMImplicitITArgs(Args, CmdArgs, Value.split("=").second))
+          continue;
         if (Value == "-mthumb")
           // -mthumb has already been processed in ComputeLLVMTriple()
           // recognize but skip over here.
@@ -3794,6 +3803,12 @@ static void renderDebugOptions(const ToolChain &TC, const Driver &D,
                                ArgStringList &CmdArgs,
                                codegenoptions::DebugInfoKind &DebugInfoKind,
                                DwarfFissionKind &DwarfFission) {
+  // These two forms of profiling info can't be used together.
+  if (const Arg *A1 = Args.getLastArg(options::OPT_fpseudo_probe_for_profiling))
+    if (const Arg *A2 = Args.getLastArg(options::OPT_fdebug_info_for_profiling))
+      D.Diag(diag::err_drv_argument_not_allowed_with)
+          << A1->getAsString(Args) << A2->getAsString(Args);
+
   if (Args.hasFlag(options::OPT_fdebug_info_for_profiling,
                    options::OPT_fno_debug_info_for_profiling, false) &&
       checkDebugInfoOption(
@@ -4829,20 +4844,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  if (Triple.isOSAIX() && Args.hasArg(options::OPT_maltivec)) {
-    if (Args.getLastArg(options::OPT_mabi_EQ_vec_extabi)) {
-      CmdArgs.push_back("-mabi=vec-extabi");
-    } else {
-      D.Diag(diag::err_aix_default_altivec_abi);
-    }
-  }
-
   if (Arg *A = Args.getLastArg(options::OPT_mabi_EQ_vec_extabi,
                                options::OPT_mabi_EQ_vec_default)) {
     if (!Triple.isOSAIX())
       D.Diag(diag::err_drv_unsupported_opt_for_target)
           << A->getSpelling() << RawTriple.str();
-    if (A->getOption().getID() == options::OPT_mabi_EQ_vec_default)
+    if (A->getOption().getID() == options::OPT_mabi_EQ_vec_extabi)
+      CmdArgs.push_back("-mabi=vec-extabi");
+    else
       D.Diag(diag::err_aix_default_altivec_abi);
   }
 
@@ -5369,6 +5378,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   //
   // If a std is supplied, only add -trigraphs if it follows the
   // option.
+  bool ImplyVCPPCVer = false;
   bool ImplyVCPPCXXVer = false;
   const Arg *Std = Args.getLastArg(options::OPT_std_EQ, options::OPT_ansi);
   if (Std) {
@@ -5402,9 +5412,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // doesn't match. For the time being just ignore this for C++ inputs;
     // eventually we want to do all the standard defaulting here instead of
     // splitting it between the driver and clang -cc1.
-    if (!types::isCXX(InputType))
-      Args.AddAllArgsTranslated(CmdArgs, options::OPT_std_default_EQ, "-std=",
-                                /*Joined=*/true);
+    if (!types::isCXX(InputType)) {
+      if (!Args.hasArg(options::OPT__SLASH_std)) {
+        Args.AddAllArgsTranslated(CmdArgs, options::OPT_std_default_EQ, "-std=",
+                                  /*Joined=*/true);
+      } else
+        ImplyVCPPCVer = true;
+    }
     else if (IsWindowsMSVC)
       ImplyVCPPCXXVer = true;
 
@@ -5806,6 +5820,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (A->getOption().matches(options::OPT_freroll_loops))
       CmdArgs.push_back("-freroll-loops");
 
+  Args.AddLastArg(CmdArgs, options::OPT_ffinite_loops,
+                  options::OPT_fno_finite_loops);
+
   Args.AddLastArg(CmdArgs, options::OPT_fwritable_strings);
   Args.AddLastArg(CmdArgs, options::OPT_funroll_loops,
                   options::OPT_fno_unroll_loops);
@@ -5876,6 +5893,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   if (IsCuda || IsHIP) {
+    if (Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, false))
+      CmdArgs.push_back("-fgpu-rdc");
     if (Args.hasFlag(options::OPT_fgpu_defer_diag,
                      options::OPT_fno_gpu_defer_diag, false))
       CmdArgs.push_back("-fgpu-defer-diag");
@@ -6031,6 +6050,20 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         Args.MakeArgString("-fms-compatibility-version=" + MSVT.getAsString()));
 
   bool IsMSVC2015Compatible = MSVT.getMajor() >= 19;
+  if (ImplyVCPPCVer) {
+    StringRef LanguageStandard;
+    if (const Arg *StdArg = Args.getLastArg(options::OPT__SLASH_std)) {
+      Std = StdArg;
+      LanguageStandard = llvm::StringSwitch<StringRef>(StdArg->getValue())
+                             .Case("c11", "-std=c11")
+                             .Case("c17", "-std=c17")
+                             .Default("");
+      if (LanguageStandard.empty())
+        D.Diag(clang::diag::warn_drv_unused_argument)
+            << StdArg->getAsString(Args);
+    }
+    CmdArgs.push_back(LanguageStandard.data());
+  }
   if (ImplyVCPPCXXVer) {
     StringRef LanguageStandard;
     if (const Arg *StdArg = Args.getLastArg(options::OPT__SLASH_std)) {
@@ -6564,6 +6597,18 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-D__ENABLE_USM_ADDR_SPACE__");
   }
 
+  if (IsCuda || IsHIP) {
+    // Determine the original source input.
+    const Action *SourceAction = &JA;
+    while (SourceAction->getKind() != Action::InputClass) {
+      assert(!SourceAction->getInputs().empty() && "unexpected root action!");
+      SourceAction = SourceAction->getInputs()[0];
+    }
+    auto CUID = cast<InputAction>(SourceAction)->getId();
+    if (!CUID.empty())
+      CmdArgs.push_back(Args.MakeArgString(Twine("-cuid=") + Twine(CUID)));
+  }
+
   if (IsHIP)
     CmdArgs.push_back("-fcuda-allow-variadic-functions");
 
@@ -6748,6 +6793,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-target-feature");
       CmdArgs.push_back("-outline-atomics");
     }
+  } else if (Triple.isAArch64() &&
+             getToolChain().IsAArch64OutlineAtomicsDefault(Args)) {
+    CmdArgs.push_back("-target-feature");
+    CmdArgs.push_back("+outline-atomics");
   }
 
   if (Args.hasFlag(options::OPT_faddrsig, options::OPT_fno_addrsig,
@@ -6801,23 +6850,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       Input.getInputArg().renderAsInput(Args, CmdArgs);
   }
 
-  // Finally add the compile command to the compilation.
-  if (Args.hasArg(options::OPT__SLASH_fallback) &&
-      Output.getType() == types::TY_Object &&
-      (InputType == types::TY_C || InputType == types::TY_CXX)) {
-    auto CLCommand =
-        getCLFallback()->GetCommand(C, JA, Output, Inputs, Args, LinkingOutput);
-    C.addCommand(std::make_unique<FallbackCommand>(
-        JA, *this, ResponseFileSupport::AtFileUTF8(), Exec, CmdArgs, Inputs,
-        Output, std::move(CLCommand)));
-  } else if (Args.hasArg(options::OPT__SLASH_fallback) &&
-             isa<PrecompileJobAction>(JA)) {
-    // In /fallback builds, run the main compilation even if the pch generation
-    // fails, so that the main compilation's fallback to cl.exe runs.
-    C.addCommand(std::make_unique<ForceSuccessCommand>(
-        JA, *this, ResponseFileSupport::AtFileUTF8(), Exec, CmdArgs, Inputs,
-        Output));
-  } else if (D.CC1Main && !D.CCGenDiagnostics) {
+  if (D.CC1Main && !D.CCGenDiagnostics) {
     // Invoke the CC1 directly in this process
     C.addCommand(std::make_unique<CC1Command>(JA, *this,
                                               ResponseFileSupport::AtFileUTF8(),
@@ -7208,11 +7241,7 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
  if (Args.hasFlag(options::OPT__SLASH_Zc_dllexportInlines_,
                   options::OPT__SLASH_Zc_dllexportInlines,
                   false)) {
-   if (Args.hasArg(options::OPT__SLASH_fallback)) {
-     D.Diag(clang::diag::err_drv_dllexport_inlines_and_fallback);
-   } else {
-    CmdArgs.push_back("-fno-dllexport-inlines");
-   }
+  CmdArgs.push_back("-fno-dllexport-inlines");
  }
 
   Arg *MostGeneralArg = Args.getLastArg(options::OPT__SLASH_vmg);
@@ -7281,10 +7310,7 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
 
   if (!Args.hasArg(options::OPT_fdiagnostics_format_EQ)) {
     CmdArgs.push_back("-fdiagnostics-format");
-    if (Args.hasArg(options::OPT__SLASH_fallback))
-      CmdArgs.push_back("msvc-fallback");
-    else
-      CmdArgs.push_back("msvc");
+    CmdArgs.push_back("msvc");
   }
 
   if (Arg *A = Args.getLastArg(options::OPT__SLASH_guard)) {
@@ -7303,13 +7329,6 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
     }
   }
 }
-
-visualstudio::Compiler *Clang::getCLFallback() const {
-  if (!CLFallback)
-    CLFallback.reset(new visualstudio::Compiler(getToolChain()));
-  return CLFallback.get();
-}
-
 
 const char *Clang::getBaseInputName(const ArgList &Args,
                                     const InputInfo &Input) {
@@ -8179,6 +8198,8 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         }
       }
     }
+    // Temporary disable SPV_INTEL_optnone until some targets support it.
+    ExtArg += ",-SPV_INTEL_optnone";
     TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
   }
   for (auto I : Inputs) {

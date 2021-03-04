@@ -12,7 +12,6 @@ define i32 @vaddv(i32* nocapture readonly %data, i32 %N) {
 ; CHECK-NEXT:    cmp r1, #1
 ; CHECK-NEXT:    blt .LBB0_4
 ; CHECK-NEXT:  @ %bb.1: @ %for.body.preheader
-; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:    mov r1, r0
 ; CHECK-NEXT:    movs r0, #0
 ; CHECK-NEXT:  .LBB0_2: @ %for.body
@@ -285,7 +284,6 @@ define void @fma8(float* noalias nocapture readonly %A, float* noalias nocapture
 ; CHECK-NEXT:    mov r4, r0
 ; CHECK-NEXT:    add.w lr, r5, r6, lsr #3
 ; CHECK-NEXT:    mov r5, r1
-; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:    mov r6, r2
 ; CHECK-NEXT:  .LBB2_4: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
@@ -309,17 +307,13 @@ define void @fma8(float* noalias nocapture readonly %A, float* noalias nocapture
 ; CHECK-NEXT:    add.w r0, r0, r12, lsl #2
 ; CHECK-NEXT:    add.w r1, r1, r12, lsl #2
 ; CHECK-NEXT:    add.w r2, r2, r12, lsl #2
-; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB2_7: @ %for.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    vldr s0, [r0]
-; CHECK-NEXT:    adds r0, #4
-; CHECK-NEXT:    vldr s2, [r1]
-; CHECK-NEXT:    adds r1, #4
+; CHECK-NEXT:    vldmia r0!, {s0}
+; CHECK-NEXT:    vldmia r1!, {s2}
 ; CHECK-NEXT:    vldr s4, [r2]
 ; CHECK-NEXT:    vfma.f32 s4, s2, s0
-; CHECK-NEXT:    vstr s4, [r2]
-; CHECK-NEXT:    adds r2, #4
+; CHECK-NEXT:    vstmia r2!, {s4}
 ; CHECK-NEXT:    le lr, .LBB2_7
 ; CHECK-NEXT:  .LBB2_8: @ %for.cond.cleanup
 ; CHECK-NEXT:    pop {r4, r5, r6, pc}

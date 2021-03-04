@@ -50,11 +50,11 @@ public:
     return Def->getValueAsBit("enableBitmaskEnumInNamespace");
   }
 
-  const std::vector<Record *> getDirectives() const {
+  std::vector<Record *> getDirectives() const {
     return Records.getAllDerivedDefinitions("Directive");
   }
 
-  const std::vector<Record *> getClauses() const {
+  std::vector<Record *> getClauses() const {
     return Records.getAllDerivedDefinitions("Clause");
   }
 
@@ -64,7 +64,7 @@ private:
   const llvm::Record *Def;
   const llvm::RecordKeeper &Records;
 
-  const std::vector<Record *> getDirectiveLanguages() const {
+  std::vector<Record *> getDirectiveLanguages() const {
     return Records.getAllDerivedDefinitions("DirectiveLanguage");
   }
 };
@@ -93,7 +93,7 @@ public:
   bool isDefault() const { return Def->getValueAsBit("isDefault"); }
 
   // Returns the record name.
-  const StringRef getRecordName() const { return Def->getName(); }
+  StringRef getRecordName() const { return Def->getName(); }
 
 protected:
   const llvm::Record *Def;

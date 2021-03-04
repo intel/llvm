@@ -207,7 +207,7 @@ void llvm::computeLTOCacheKey(
     AddUnsigned(GS->isLive());
     AddUnsigned(GS->canAutoHide());
     for (const ValueInfo &VI : GS->refs()) {
-      AddUnsigned(VI.isDSOLocal());
+      AddUnsigned(VI.isDSOLocal(Index.withDSOLocalPropagation()));
       AddUsedCfiGlobal(VI.getGUID());
     }
     if (auto *GVS = dyn_cast<GlobalVarSummary>(GS)) {
@@ -226,7 +226,7 @@ void llvm::computeLTOCacheKey(
       for (auto &TT : FS->type_checked_load_const_vcalls())
         UsedTypeIds.insert(TT.VFunc.GUID);
       for (auto &ET : FS->calls()) {
-        AddUnsigned(ET.first.isDSOLocal());
+        AddUnsigned(ET.first.isDSOLocal(Index.withDSOLocalPropagation()));
         AddUsedCfiGlobal(ET.first.getGUID());
       }
     }
@@ -1101,9 +1101,9 @@ Error LTO::runRegularLTO(AddStreamFn AddStream) {
   }
 
   if (!RegularLTO.EmptyCombinedModule || Conf.AlwaysEmitRegularLTOObj) {
-    if (Error Err = backend(
-            Conf, AddStream, RegularLTO.ParallelCodeGenParallelismLevel,
-            std::move(RegularLTO.CombinedModule), ThinLTO.CombinedIndex))
+    if (Error Err =
+            backend(Conf, AddStream, RegularLTO.ParallelCodeGenParallelismLevel,
+                    *RegularLTO.CombinedModule, ThinLTO.CombinedIndex))
       return Err;
   }
 

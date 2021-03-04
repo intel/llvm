@@ -21,7 +21,7 @@ namespace llvm {
 /// execution model semantics - this code must be executed once per work group.
 class SYCLLowerWGScopePass : public PassInfoMixin<SYCLLowerWGScopePass> {
 public:
-  PreservedAnalyses run(Function &F, const Triple &TT, FunctionAnalysisManager &);
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &);
 };
 
 FunctionPass *createSYCLLowerWGScopePass();

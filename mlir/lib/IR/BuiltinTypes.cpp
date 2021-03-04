@@ -197,6 +197,75 @@ LogicalResult OpaqueType::verifyConstructionInvariants(Location loc,
 constexpr int64_t ShapedType::kDynamicSize;
 constexpr int64_t ShapedType::kDynamicStrideOrOffset;
 
+ShapedType ShapedType::clone(ArrayRef<int64_t> shape, Type elementType) {
+  if (auto other = dyn_cast<MemRefType>()) {
+    MemRefType::Builder b(other);
+    b.setShape(shape);
+    b.setElementType(elementType);
+    return b;
+  }
+
+  if (auto other = dyn_cast<UnrankedMemRefType>()) {
+    MemRefType::Builder b(shape, elementType);
+    b.setMemorySpace(other.getMemorySpace());
+    return b;
+  }
+
+  if (isa<TensorType>())
+    return RankedTensorType::get(shape, elementType);
+
+  if (isa<VectorType>())
+    return VectorType::get(shape, elementType);
+
+  llvm_unreachable("Unhandled ShapedType clone case");
+}
+
+ShapedType ShapedType::clone(ArrayRef<int64_t> shape) {
+  if (auto other = dyn_cast<MemRefType>()) {
+    MemRefType::Builder b(other);
+    b.setShape(shape);
+    return b;
+  }
+
+  if (auto other = dyn_cast<UnrankedMemRefType>()) {
+    MemRefType::Builder b(shape, other.getElementType());
+    b.setShape(shape);
+    b.setMemorySpace(other.getMemorySpace());
+    return b;
+  }
+
+  if (isa<TensorType>())
+    return RankedTensorType::get(shape, getElementType());
+
+  if (isa<VectorType>())
+    return VectorType::get(shape, getElementType());
+
+  llvm_unreachable("Unhandled ShapedType clone case");
+}
+
+ShapedType ShapedType::clone(Type elementType) {
+  if (auto other = dyn_cast<MemRefType>()) {
+    MemRefType::Builder b(other);
+    b.setElementType(elementType);
+    return b;
+  }
+
+  if (auto other = dyn_cast<UnrankedMemRefType>()) {
+    return UnrankedMemRefType::get(elementType, other.getMemorySpace());
+  }
+
+  if (isa<TensorType>()) {
+    if (hasRank())
+      return RankedTensorType::get(getShape(), elementType);
+    return UnrankedTensorType::get(elementType);
+  }
+
+  if (isa<VectorType>())
+    return VectorType::get(getShape(), elementType);
+
+  llvm_unreachable("Unhandled ShapedType clone hit");
+}
+
 Type ShapedType::getElementType() const {
   return static_cast<ImplType *>(impl)->elementType;
 }
@@ -209,8 +278,10 @@ int64_t ShapedType::getNumElements() const {
   assert(hasStaticShape() && "cannot get element count of dynamic shaped type");
   auto shape = getShape();
   int64_t num = 1;
-  for (auto dim : shape)
+  for (auto dim : shape) {
     num *= dim;
+    assert(num >= 0 && "integer overflow in element count computation");
+  }
   return num;
 }
 
@@ -445,13 +516,14 @@ MemRefType MemRefType::getImpl(ArrayRef<int64_t> shape, Type elementType,
   auto *context = elementType.getContext();
 
   if (!BaseMemRefType::isValidElementType(elementType))
-    return emitOptionalError(location, "invalid memref element type"),
+    return (void)emitOptionalError(location, "invalid memref element type"),
            MemRefType();
 
   for (int64_t s : shape) {
     // Negative sizes are not allowed except for `-1` that means dynamic size.
     if (s < -1)
-      return emitOptionalError(location, "invalid memref size"), MemRefType();
+      return (void)emitOptionalError(location, "invalid memref size"),
+             MemRefType();
   }
 
   // Check that the structure of the composition is valid, i.e. that each
@@ -745,12 +817,26 @@ MemRefType mlir::canonicalizeStridedLayout(MemRefType t) {
   if (affineMaps.size() > 1 || affineMaps[0].getNumResults() > 1)
     return t;
 
+  // Corner-case for 0-D affine maps.
+  auto m = affineMaps[0];
+  if (m.getNumDims() == 0 && m.getNumSymbols() == 0) {
+    if (auto cst = m.getResult(0).dyn_cast<AffineConstantExpr>())
+      if (cst.getValue() == 0)
+        return MemRefType::Builder(t).setAffineMaps({});
+    return t;
+  }
+
+  // 0-D corner case for empty shape that still have an affine map. Example:
+  // `memref<f32, affine_map<()[s0] -> (s0)>>`. This is a 1 element memref whose
+  // offset needs to remain, just return t.
+  if (t.getShape().empty())
+    return t;
+
   // If the canonical strided layout for the sizes of `t` is equal to the
   // simplified layout of `t` we can just return an empty layout. Otherwise,
   // just simplify the existing layout.
   AffineExpr expr =
       makeCanonicalStridedLayoutExpr(t.getShape(), t.getContext());
-  auto m = affineMaps[0];
   auto simplifiedLayoutExpr =
       simplifyAffineExpr(m.getResult(0), m.getNumDims(), m.getNumSymbols());
   if (expr != simplifiedLayoutExpr)
@@ -762,6 +848,9 @@ MemRefType mlir::canonicalizeStridedLayout(MemRefType t) {
 AffineExpr mlir::makeCanonicalStridedLayoutExpr(ArrayRef<int64_t> sizes,
                                                 ArrayRef<AffineExpr> exprs,
                                                 MLIRContext *context) {
+  assert(!sizes.empty() && !exprs.empty() &&
+         "expected non-empty sizes and exprs");
+
   // Size 0 corner case is useful for canonicalizations.
   if (llvm::is_contained(sizes, 0))
     return getAffineConstantExpr(0, context);
@@ -783,10 +872,12 @@ AffineExpr mlir::makeCanonicalStridedLayoutExpr(ArrayRef<int64_t> sizes,
                             ? getAffineSymbolExpr(nSymbols++, context)
                             : getAffineConstantExpr(runningSize, context);
     expr = expr ? expr + dimExpr * stride : dimExpr * stride;
-    if (size > 0)
+    if (size > 0) {
       runningSize *= size;
-    else
+      assert(runningSize > 0 && "integer overflow in size computation");
+    } else {
       dynamicPoisonBit = true;
+    }
   }
   return simplifyAffineExpr(expr, numDims, nSymbols);
 }
@@ -811,7 +902,17 @@ AffineExpr mlir::makeCanonicalStridedLayoutExpr(ArrayRef<int64_t> sizes,
 /// Return true if the layout for `t` is compatible with strided semantics.
 bool mlir::isStrided(MemRefType t) {
   int64_t offset;
-  SmallVector<int64_t, 4> stridesAndOffset;
-  auto res = getStridesAndOffset(t, stridesAndOffset, offset);
+  SmallVector<int64_t, 4> strides;
+  auto res = getStridesAndOffset(t, strides, offset);
   return succeeded(res);
+}
+
+/// Return the layout map in strided linear layout AffineMap form.
+/// Return null if the layout is not compatible with a strided layout.
+AffineMap mlir::getStridedLinearLayoutMap(MemRefType t) {
+  int64_t offset;
+  SmallVector<int64_t, 4> strides;
+  if (failed(getStridesAndOffset(t, strides, offset)))
+    return AffineMap();
+  return makeStridedLinearLayoutMap(strides, offset, t.getContext());
 }

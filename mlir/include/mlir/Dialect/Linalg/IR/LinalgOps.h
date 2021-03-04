@@ -42,10 +42,6 @@ class PoolingSumOp;
 using LoopRangeBuilder =
     std::function<SmallVector<Range, 4>(OpBuilder &, Location)>;
 
-/// Returns the values obtained by applying `map` to the list of values.
-SmallVector<Value, 4> applyMapToValues(OpBuilder &b, Location loc,
-                                       AffineMap map, ValueRange values);
-
 /// Provide a very simple inference procedure to build the loop ranges from the
 /// op and its operands. This only works with permutation affine maps and
 /// patterns of the form `(m, n)[s] -> (m + n - s floordiv 2)`.
@@ -122,12 +118,15 @@ namespace linalg {
 class IndexedGenericOp;
 } // namespace linalg
 } // namespace mlir
-#include "mlir/Dialect/Linalg/IR/LinalgStructuredOpsInterfaces.h.inc"
+#include "mlir/Dialect/Linalg/IR/LinalgInterfaces.h"
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h.inc"
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Linalg/IR/LinalgStructuredOps.h.inc"
+
+#define GET_OP_CLASSES
+#include "mlir/Dialect/Linalg/IR/LinalgSparseOps.h.inc"
 
 #endif // MLIR_DIALECT_LINALG_LINALGOPS_H_

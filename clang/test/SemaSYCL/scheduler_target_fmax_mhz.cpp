@@ -10,7 +10,7 @@ func() {}
 [[intel::scheduler_target_fmax_mhz(12)]] void bar() {} // OK
 
 [[intel::scheduler_target_fmax_mhz(12)]] void baz();  // expected-note {{previous attribute is here}}
-[[intel::scheduler_target_fmax_mhz(100)]] void baz(); // expected-warning {{attribute 'scheduler_target_fmax_mhz' is already applied with different parameters}}
+[[intel::scheduler_target_fmax_mhz(100)]] void baz(); // expected-warning {{attribute 'scheduler_target_fmax_mhz' is already applied with different arguments}}
 
 template <int N>
 [[intel::scheduler_target_fmax_mhz(N)]] void zoo() {}
@@ -54,5 +54,5 @@ int main() {
 
   cl::sycl::kernel_single_task<class test_kernel6>(
       []() [[intel::scheduler_target_fmax_mhz(1),      // expected-note {{previous attribute is here}}
-             intel::scheduler_target_fmax_mhz(2)]]{}); // expected-warning{{attribute 'scheduler_target_fmax_mhz' is already applied with different parameters}}
+             intel::scheduler_target_fmax_mhz(2)]]{}); // expected-warning{{attribute 'scheduler_target_fmax_mhz' is already applied with different arguments}}
 }
