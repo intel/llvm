@@ -27,7 +27,15 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-// The class is impl counterpart for sycl::image_impl
+// Used for sorting vector of kernel_id's
+struct LessByNameComp {
+  bool operator()(const sycl::kernel_id &LHS, const sycl::kernel_id &RHS) {
+    return strcmp(LHS.get_name(), RHS.get_name()) < 0;
+  }
+};
+
+
+// The class is impl counterpart for sycl::device_image
 // It can represent a program in different states, kernel_id's it has and state
 // of specialization constants for it
 class device_image_impl {
@@ -45,17 +53,20 @@ public:
 
       std::shared_ptr<detail::kernel_id_impl> KernleIDImpl =
           std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
-      MKernelIDs.emplace_back(
-          detail::createSyclObjFromImpl<sycl::kernel_id>(KernleIDImpl));
+
+      sycl::kernel_id KernelID =
+          detail::createSyclObjFromImpl<sycl::kernel_id>(KernleIDImpl);
+
+      // Insert new element keeping MKernelIDs sorted.
+      auto It = std::lower_bound(MKernelIDs.begin(), MKernelIDs.end(), KernelID,
+                                 LessByNameComp{});
+      MKernelIDs.insert(It, std::move(KernelID));
     }
   }
 
   bool has_kernel(const kernel_id &KernelIDCand) const noexcept {
-    return std::any_of(MKernelIDs.begin(), MKernelIDs.end(),
-                       [&KernelIDCand](const kernel_id &KernelID) {
-                         return strcmp(KernelID.get_name(),
-                                       KernelIDCand.get_name()) == 0;
-                       });
+    return std::binary_search(MKernelIDs.begin(), MKernelIDs.end(),
+                              KernelIDCand, LessByNameComp{});
   }
 
   bool has_kernel(const kernel_id &KernelIDCand,
@@ -112,16 +123,17 @@ public:
     return nullptr;
   }
 
-  bundle_state getState() const noexcept { return MState; }
+  bundle_state get_state() const noexcept { return MState; }
 
-  void setState(bundle_state NewState) noexcept { MState = NewState; }
+  void set_state(bundle_state NewState) noexcept { MState = NewState; }
 
 private:
   RTDeviceBinaryImage *MBinImage = nullptr;
   context MContext;
   std::vector<device> MDevices;
   bundle_state MState;
-  // List of kernel ids available in this image
+  // List of kernel ids available in this image, elements should be sorted
+  // according to LessByNameComp
   std::vector<kernel_id> MKernelIDs;
 
   // Binary blob which can have values of all specialization constants in the

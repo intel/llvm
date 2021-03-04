@@ -26,8 +26,9 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-// The class is an impl counterpart of the sycl::kernel_bundle
-// It provides an access and utilities to manage set of device_images
+// The class is an impl counterpart of the sycl::kernel_bundle.
+// It provides an access and utilities to manage set of sycl::device_images
+// objects.
 class kernel_bundle_impl {
 
 public:

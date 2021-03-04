@@ -1,5 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %t.out
+//
+// -fsycl-device-code-split is not supported for cuda
+// UNSUPPORTED: cuda
 
 #include <CL/sycl.hpp>
 
