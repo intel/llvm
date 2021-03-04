@@ -98,13 +98,13 @@ bool kernel_bundle_plain::has_kernel(const kernel_id &KernelID,
   return impl->has_kernel(KernelID, Dev);
 }
 
-__SYCL_EXPORT detail::KernelBundleImplPtr
+detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        bundle_state State) {
   return std::make_shared<detail::kernel_bundle_impl>(Ctx, Devs, State);
 }
 
-__SYCL_EXPORT detail::KernelBundleImplPtr
+detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        const std::vector<kernel_id> &KernelIDs,
                        bundle_state State) {
@@ -112,7 +112,7 @@ get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                                                       State);
 }
 
-__SYCL_EXPORT detail::KernelBundleImplPtr
+detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        bundle_state State, const DevImgSelectorImpl &Selector) {
 
