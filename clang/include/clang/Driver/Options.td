@@ -5526,8 +5526,8 @@ def fsycl_std_layout_kernel_params: Flag<["-"], "fsycl-std-layout-kernel-params"
   MarshallingInfoFlag<LangOpts<"SYCLStdLayoutKernelParams">>;
 defm sycl_allow_func_ptr: BoolFOption<"sycl-allow-func-ptr",
   LangOpts<"SYCLAllowFuncPtr">, DefaultFalse,
-  PosFlag<SetTrue, [CC1Option], "Allow">,
-  NegFlag<SetFalse, [CC1Option], "Disallow">,
+  PosFlag<SetTrue, [], "Allow">,
+  NegFlag<SetFalse, [], "Disallow">,
   BothFlags<[CC1Option, CoreOption], " function pointers in SYCL device.">>;
 def fenable_sycl_dae : Flag<["-"], "fenable-sycl-dae">,
   HelpText<"Enable Dead Argument Elimination in SPIR kernels">,
