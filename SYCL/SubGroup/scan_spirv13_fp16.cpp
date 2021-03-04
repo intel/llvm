@@ -1,9 +1,12 @@
+// UNSUPPORTED: cuda
+
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// This test verifies the correct work of the sub-group algorithm reduce().
+// This test verifies the correct work of SPIR-V 1.3 exclusive_scan() and
+// inclusive_scan() algoriths used with the MUL operation.
 
-#include "reduce.hpp"
+#include "scan.hpp"
 
 int main() {
   queue Queue;
@@ -12,7 +15,7 @@ int main() {
     std::cout << "Skipping test\n";
     return 0;
   }
-  check<class KernelName_oMg, cl::sycl::half>(Queue);
+  check_mul<class MulHalf, cl::sycl::half>(Queue);
   std::cout << "Test passed." << std::endl;
   return 0;
 }

@@ -154,7 +154,7 @@ void exit_if_not_equal_vec(vec<T, N> val, vec<T, N> ref, const char *name) {
 }
 
 bool core_sg_supported(const device &Device) {
-  return (Device.has_extension("cl_khr_subgroups") ||
-          Device.get_info<info::device::version>().find(" 2.1") !=
-              string_class::npos);
+  if (Device.has_extension("cl_khr_subgroups"))
+    return true;
+  return Device.get_info<info::device::version>() >= "2.1";
 }

@@ -1,19 +1,15 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-//==---------- scan_fp16.cpp - SYCL sub_group scan test --------*- C++ -*---==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
+// This test verifies the correct work of the sub-group algorithms
+// exclusive_scan() and inclusive_scan().
 
 #include "scan.hpp"
 
 int main() {
   queue Queue;
-  if (!core_sg_supported(Queue.get_device())) {
+  if (!core_sg_supported(Queue.get_device()) ||
+      !Queue.get_device().has_extension("cl_khr_fp16")) {
     std::cout << "Skipping test\n";
     return 0;
   }
