@@ -1136,7 +1136,7 @@ static bundle_state getBinImageState(RTDeviceBinaryImage *BinImage) {
 }
 
 static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
-                                const device &Dev) {
+                                 const device &Dev) {
   const std::shared_ptr<detail::device_impl> &DeviceImpl =
       detail::getSyclObjImpl(Dev);
   auto &Plugin = DeviceImpl->getPlugin();
