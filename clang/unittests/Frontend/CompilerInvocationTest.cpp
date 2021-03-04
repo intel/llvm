@@ -539,7 +539,7 @@ TEST_F(CommandLineTest, ConditionalParsingIfFalseFlagPresent) {
   ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-fsycl-is-host"))));
 
   // FIXME: generateCC1CommandLine is only used by the unit test system and
-  // cannot handle this case. It passes along the -scyl-std because the option
+  // cannot handle this case. It passes along the -sycl-std because the option
   // definition does not specify that it relies on -fsycl any longer (because
   // there is no syntax I could find that would allow it). However, the option
   // is handled properly on a real invocation. See: Clang::ConstructJob().
