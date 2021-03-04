@@ -335,7 +335,7 @@ namespace detail {
 
 // Internal non-template versions of get_kernel_bundle API which is used by
 // public onces
-detail::KernelBundleImplPtr
+__SYCL_EXPORT detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        bundle_state State);
 } // namespace detail
@@ -361,7 +361,7 @@ namespace detail {
 
 // Internal non-template versions of get_kernel_bundle API which is used by
 // public onces
-detail::KernelBundleImplPtr
+__SYCL_EXPORT detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        const std::vector<kernel_id> &KernelIDs,
                        bundle_state State);
@@ -410,7 +410,7 @@ using DevImgSelectorImpl =
 
 // Internal non-template versions of get_kernel_bundle API which is used by
 // public onces
-detail::KernelBundleImplPtr
+__SYCL_EXPORT detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        bundle_state State, const DevImgSelectorImpl &Selector);
 } // namespace detail
