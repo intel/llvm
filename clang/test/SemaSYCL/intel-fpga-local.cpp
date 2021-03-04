@@ -447,6 +447,12 @@ void diagnostics()
   //expected-error@+1{{'private_copies' attribute takes one argument}}
   [[intel::private_copies(4, 8)]] unsigned int pc_two_arg[64];
 
+  // Merging of different arg values.
+  //expected-warning@+2{{attribute 'private_copies' is already applied with different parameters}}
+  [[intel::private_copies(12)]] extern const int var_private_copies;
+  [[intel::private_copies(14)]] const int var_private_copies = 0; // diagnose
+  //expected-note@-2{{previous attribute is here}}
+
   // numbanks
   //CHECK: VarDecl{{.*}}numbanks
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
@@ -847,6 +853,12 @@ void check_template_parameters() {
   [[intel::fpga_register]]
   //expected-note@-1 {{conflicting attribute is here}}
   [[intel::max_replicates(C)]] unsigned int maxrepl_reg;
+
+  // Merging of different arg values.
+  //expected-warning@+2{{attribute 'private_copies' is already applied with different parameters}}
+  [[intel::max_replicates(12)]] extern const int var_max_replicates;
+  [[intel::max_replicates(14)]] const int var_max_replicates = 0;
+  //expected-note@-2{{previous attribute is here}}
 
   //expected-error@+1{{'force_pow2_depth' attribute requires integer constant between 0 and 1 inclusive}}
   [[intel::force_pow2_depth(A)]] unsigned int force_p2d_below_min[64];

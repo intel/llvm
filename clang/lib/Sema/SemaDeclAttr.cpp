@@ -300,7 +300,8 @@ static bool checkPositiveIntArgument(Sema &S, const AttrInfo &AI, const Expr *Ex
 /// Diagnose mutually exclusive attributes when present on a given
 /// declaration. Returns true if diagnosed.
 template <typename AttrTy>
-static bool checkAttrMutualExclusion(Sema &S, Decl *D, const ParsedAttr &AL) {
+static bool checkAttrMutualExclusion(Sema &S, Decl *D,
+		                     const AttributeCommonInfo &AL) {
   if (const auto *A = D->getAttr<AttrTy>()) {
     S.Diag(AL.getLoc(), diag::err_attributes_are_not_compatible) << AL << A;
     S.Diag(A->getLocation(), diag::note_conflicting_attribute);
@@ -5890,12 +5891,8 @@ void Sema::AddIntelFPGAMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
     }
     // [[intel::fpga_register]] and [[intel::max_replicates()]]
     // attributes are incompatible.
-    if (const auto *DeclAttr = D->getAttr<IntelFPGARegisterAttr>()) {
-      Diag(CI.getLoc(), diag::err_attributes_are_not_compatible)
-          << CI << DeclAttr;
-      Diag(DeclAttr->getLocation(), diag::note_conflicting_attribute);
+    if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(*this, D, CI))
       return;
-    }
   }
 
   D->addAttr(::new (Context) IntelFPGAMaxReplicatesAttr(Context, CI, E));
@@ -6082,12 +6079,9 @@ void Sema::AddIntelFPGAPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
     }
     // [[intel::fpga_register]] and [[intel::private_copies()]]
     // attributes are incompatible.
-    if (const auto *DeclAttr = D->getAttr<IntelFPGARegisterAttr>()) {
-      Diag(CI.getLoc(), diag::err_attributes_are_not_compatible)
-          << CI << DeclAttr;
-      Diag(DeclAttr->getLocation(), diag::note_conflicting_attribute);
+    if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(*this, D, CI))
       return;
-    }
+
     // If the declaration does not have [[intel::memory]]
     // attribute, this creates default implicit memory.
     if (!D->hasAttr<IntelFPGAMemoryAttr>())
@@ -6113,6 +6107,11 @@ Sema::MergeIntelFPGAPrivateCopiesAttr(Decl *D,
       return nullptr;
     }
   }
+  // [[intel::fpga_register]] and [[intel::private_copies()]]
+  // attributes are incompatible.
+  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(*this, D, A))
+    return nullptr;
+
   return ::new (Context) IntelFPGAPrivateCopiesAttr(Context, A, A.getValue());
 }
 
