@@ -27,6 +27,9 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+// The class is impl counterpart for sycl::image_impl
+// It can represent a program in different states, kernel_id's it has and state
+// of specialization constants for it
 class device_image_impl {
 public:
   device_image_impl(RTDeviceBinaryImage *BinImage, context Context,
@@ -64,11 +67,15 @@ public:
     return false;
   }
 
-  const std::vector<kernel_id> &getKernelIDs() const { return MKernelIDs; }
+  const std::vector<kernel_id> &get_kernel_ids() const noexcept {
+    return MKernelIDs;
+  }
 
-  bool hasSpecConsts() const { return !MSpecConstsBlob.empty(); }
+  bool has_specialization_constants() const noexcept {
+    return !MSpecConstsBlob.empty();
+  }
 
-  bool allSpecConstNative() const {
+  bool all_specialization_constant_native() const noexcept {
     assert(false && "Not implemented");
     return false;
   }
@@ -80,14 +87,15 @@ public:
     unsigned int Offset = 0;
   };
 
-  bool hasSpecConst(unsigned int SpecID) const noexcept {
+  bool has_specialization_constant(unsigned int SpecID) const noexcept {
     return std::any_of(
         MSpecConstOffsets.begin(), MSpecConstOffsets.end(),
         [SpecID](const SpecConstIDOffset &Pair) { return Pair.ID == SpecID; });
   }
 
-  void set_specialization_constant(unsigned int SpecID, const void *Value,
-                                   size_t ValueSize) {
+  void set_specialization_constant_raw_value(unsigned int SpecID,
+                                             const void *Value,
+                                             size_t ValueSize) noexcept {
     for (const SpecConstIDOffset &Pair : MSpecConstOffsets)
       if (Pair.ID == SpecID) {
         memcpy(MSpecConstsBlob.data() + Pair.Offset, Value, ValueSize);
@@ -95,7 +103,8 @@ public:
       }
   }
 
-  const void *get_specialization_constant(unsigned int SpecID) const {
+  const void *
+  get_specialization_constant_raw_value(unsigned int SpecID) const noexcept {
     for (const SpecConstIDOffset &Pair : MSpecConstOffsets)
       if (Pair.ID == SpecID)
         return MSpecConstsBlob.data() + Pair.Offset;
@@ -103,9 +112,9 @@ public:
     return nullptr;
   }
 
-  bundle_state getState() const { return MState; }
+  bundle_state getState() const noexcept { return MState; }
 
-  void setState(bundle_state NewState) { MState = NewState; }
+  void setState(bundle_state NewState) noexcept { MState = NewState; }
 
 private:
   RTDeviceBinaryImage *MBinImage = nullptr;

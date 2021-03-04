@@ -141,14 +141,6 @@ public:
   getSYCLDeviceImages(const context &Ctx, const std::vector<device> &Devs,
                       bundle_state State);
 
-  std::vector<device_image_plain>
-  getDeviceImages(const context &Ctx, const std::vector<device> &Devs,
-                  const std::vector<kernel_id> &KernelIDs, bundle_state State);
-
-  std::vector<device_image_plain>
-  getDeviceImages(const context &Ctx, const std::vector<device> &Devs,
-                  const DevImgSelectorImpl &Selector, bundle_state State);
-
   device_image_plain compile(const device_image_plain &DeviceImage,
                              property_list PropList);
 
@@ -248,11 +240,6 @@ private:
 
   /// True iff a SPIR-V file has been specified with an environment variable
   bool m_UseSpvFile = false;
-
-public:
-  std::unordered_map<KernelSetId,
-                     std::unique_ptr<std::vector<RTDeviceBinaryImageUPtr>>> &
-  GetDeviceImages();
 };
 } // namespace detail
 } // namespace sycl

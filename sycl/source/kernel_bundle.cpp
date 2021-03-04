@@ -67,15 +67,14 @@ bool kernel_bundle_plain::has_specialization_constant(
   return impl->has_specialization_constant(SpecID);
 }
 
-void kernel_bundle_plain::set_specialization_constant(unsigned int SpecID,
-                                                      const void *Value,
-                                                      size_t ValueSize) {
-  impl->set_specialization_constant(SpecID, Value, ValueSize);
+void kernel_bundle_plain::set_specialization_constant_raw_value(
+    unsigned int SpecID, const void *Value, size_t ValueSize) {
+  impl->set_specialization_constant_raw_value(SpecID, Value, ValueSize);
 }
 
-const void *
-kernel_bundle_plain::get_specialization_constant(unsigned int SpecID) const {
-  return impl->get_specialization_constant(SpecID);
+const void *kernel_bundle_plain::get_specialization_constant_raw_value(
+    unsigned int SpecID) const {
+  return impl->get_specialization_constant_raw_value(SpecID);
 }
 
 kernel kernel_bundle_plain::get_kernel(const kernel_id &KernelID) const {

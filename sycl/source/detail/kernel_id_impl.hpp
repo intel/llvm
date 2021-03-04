@@ -12,6 +12,8 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+// The class is impl counterpart for sycl::kernel_id which represent a kernel
+// identificator
 class kernel_id_impl {
 public:
   kernel_id_impl(std::string Name) : MName(std::move(Name)) {}

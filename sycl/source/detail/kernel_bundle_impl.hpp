@@ -26,6 +26,8 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+// The class is an impl counterpart of the sycl::kernel_bundle
+// It provides an access and utilities to manage set of device_images
 class kernel_bundle_impl {
 
 public:
@@ -45,14 +47,11 @@ public:
     // Filter out images that have no kernel_ids specified
     auto It = std::remove_if(MDeviceImages.begin(), MDeviceImages.end(),
                              [&KernelIDs](const device_image_plain &Image) {
-                               const auto It = std::find_if(
+                               return std::none_of(
                                    KernelIDs.begin(), KernelIDs.end(),
                                    [&Image](const sycl::kernel_id &KernelID) {
                                      return Image.has_kernel(KernelID);
                                    });
-                               const bool ContainsKernels =
-                                   (It != KernelIDs.end());
-                               return !ContainsKernels;
                              });
     MDeviceImages.erase(It, MDeviceImages.end());
   }
@@ -85,7 +84,7 @@ public:
     std::vector<kernel_id> Result;
     for (const device_image_plain &DeviceImage : MDeviceImages) {
       const std::vector<kernel_id> &KernelIDs =
-          getSyclObjImpl(DeviceImage)->getKernelIDs();
+          getSyclObjImpl(DeviceImage)->get_kernel_ids();
 
       Result.insert(Result.end(), KernelIDs.begin(), KernelIDs.end());
     }
@@ -119,39 +118,42 @@ public:
   }
 
   bool contains_specialization_constants() const noexcept {
-    return std::any_of(MDeviceImages.begin(), MDeviceImages.end(),
-                       [](const device_image_plain &DeviceImage) {
-                         return getSyclObjImpl(DeviceImage)->hasSpecConsts();
-                       });
+    return std::any_of(
+        MDeviceImages.begin(), MDeviceImages.end(),
+        [](const device_image_plain &DeviceImage) {
+          return getSyclObjImpl(DeviceImage)->has_specialization_constants();
+        });
   }
 
   bool native_specialization_constant() const noexcept {
-    return std::all_of(
-        MDeviceImages.begin(), MDeviceImages.end(),
-        [](const device_image_plain &DeviceImage) {
-          return getSyclObjImpl(DeviceImage)->allSpecConstNative();
-        });
+    return std::all_of(MDeviceImages.begin(), MDeviceImages.end(),
+                       [](const device_image_plain &DeviceImage) {
+                         return getSyclObjImpl(DeviceImage)
+                             ->all_specialization_constant_native();
+                       });
   }
 
   bool has_specialization_constant(unsigned int SpecID) const noexcept {
-    return std::any_of(
-        MDeviceImages.begin(), MDeviceImages.end(),
-        [SpecID](const device_image_plain &DeviceImage) {
-          return getSyclObjImpl(DeviceImage)->hasSpecConst(SpecID);
-        });
+    return std::any_of(MDeviceImages.begin(), MDeviceImages.end(),
+                       [SpecID](const device_image_plain &DeviceImage) {
+                         return getSyclObjImpl(DeviceImage)
+                             ->has_specialization_constant(SpecID);
+                       });
   }
 
-  void set_specialization_constant(unsigned int SpecID, const void *Value,
-                                   size_t ValueSize) {
+  void set_specialization_constant_raw_value(unsigned int SpecID,
+                                             const void *Value,
+                                             size_t ValueSize) {
     for (const device_image_plain &DeviceImage : MDeviceImages)
       getSyclObjImpl(DeviceImage)
-          ->set_specialization_constant(SpecID, Value, ValueSize);
+          ->set_specialization_constant_raw_value(SpecID, Value, ValueSize);
   }
 
-  const void *get_specialization_constant(unsigned int SpecID) const {
+  const void *get_specialization_constant_raw_value(unsigned int SpecID) const {
     for (const device_image_plain &DeviceImage : MDeviceImages)
       if (const void *Value =
-              getSyclObjImpl(DeviceImage)->get_specialization_constant(SpecID))
+              getSyclObjImpl(DeviceImage)
+                  ->get_specialization_constant_raw_value(SpecID))
         return Value;
 
     return nullptr;

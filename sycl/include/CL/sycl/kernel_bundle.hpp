@@ -164,12 +164,13 @@ protected:
 
   // Sets the specialization constant with specified ID to the value pointed by
   // Value + ValueSize
-  void set_specialization_constant(unsigned int SpecID, const void *Value,
-                                   size_t ValueSize);
+  void set_specialization_constant_raw_value(unsigned int SpecID,
+                                             const void *Value,
+                                             size_t ValueSize);
 
   // \returns pointer to the value of the specialization constant with specified
   // ID
-  const void *get_specialization_constant(unsigned int SpecID) const;
+  const void *get_specialization_constant_raw_value(unsigned int SpecID) const;
 
   // \returns a kernel object which represents the kernel identified by
   // kernel_id passed
@@ -274,8 +275,8 @@ public:
       typename std::remove_reference_t<decltype(SpecName)>::type Value) {
     assert(false && "set_specialization_constant is not implemented yet");
     unsigned int SpecID = 0; // TODO: Convert SpecName to a numeric ID
-    return kernel_bundle_plain::set_specialization_constant(SpecID, &Value,
-                                                            sizeof(Value));
+    return kernel_bundle_plain::set_specialization_constant_raw_value(
+        SpecID, &Value, sizeof(Value));
   }
 
   /// The value of the specialization constant whose address is SpecName for
@@ -286,7 +287,7 @@ public:
     assert(false && "get_specialization_constant is not implemented yet");
     unsigned int SpecID = 0; // TODO: Convert SpecName to a numeric ID
     typename std::remove_reference_t<decltype(SpecName)>::type *ValuePtr =
-        kernel_bundle_plain::get_specialization_constant(SpecID);
+        kernel_bundle_plain::get_specialization_constant_raw_value(SpecID);
     return *ValuePtr;
   }
 #endif

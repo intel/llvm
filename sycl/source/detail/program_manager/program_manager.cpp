@@ -347,13 +347,6 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
   return Res;
 }
 
-std::unordered_map<
-    KernelSetId,
-    std::unique_ptr<std::vector<ProgramManager::RTDeviceBinaryImageUPtr>>> &
-ProgramManager::GetDeviceImages() {
-  return m_DeviceImages;
-}
-
 RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
                                                 const context &Context,
                                                 const device &Device,
@@ -1128,11 +1121,10 @@ ProgramManager::KernelArgMask ProgramManager::getEliminatedKernelArgMask(
 
 static bundle_state getBinImageState(RTDeviceBinaryImage *BinImage) {
   auto IsAOTBinary = [](const char *Format) {
-    if ((strcmp(Format, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
+    return (
+        (strcmp(Format, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
         (strcmp(Format, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
-        (strcmp(Format, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0))
-      return true;
-    return false;
+        (strcmp(Format, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0));
   };
 
   // There are only two initial states so far - SPIRV which needs to be compiled
@@ -1181,8 +1173,8 @@ ProgramManager::getSYCLDeviceImages(const context &Ctx,
     }
   }
 
-  // Create SYCL device image from those that have compatible with state and at
-  // least one device
+  // Create SYCL device image from those that have compatible state and at least
+  // one device
   std::vector<device_image_plain> SYCLDeviceImages;
   for (RTDeviceBinaryImage *BinImage : BinImages) {
     const bundle_state ImgState = getBinImageState(BinImage);
@@ -1202,8 +1194,8 @@ ProgramManager::getSYCLDeviceImages(const context &Ctx,
       }
   }
 
-  // Make so SYCL device images have required state by compiling or linking
-  // them if needed
+  // Make it so that SYCL device images have required state by compiling or
+  // linking them if needed
   switch (TargetState) {
   case bundle_state::input:
     // Do nothing as the check above should make sure that resulting images are
