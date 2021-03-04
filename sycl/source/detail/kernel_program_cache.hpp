@@ -68,7 +68,7 @@ public:
   using PiProgramPtrT = std::atomic<PiProgramT *>;
   using ProgramWithBuildStateT = BuildResult<PiProgramT>;
   using ProgramCacheKeyT = std::pair<std::pair<SerializedObj, KernelSetId>,
-                                     std::pair<RT::PiDevice, string_class>>;
+                                     std::pair<RT::PiDevice, std::string>>;
   using ProgramCacheT = std::map<ProgramCacheKeyT, ProgramWithBuildStateT>;
   using ContextPtr = context_impl *;
 

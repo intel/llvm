@@ -367,7 +367,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
   auto GetF = [](const Locked<ProgramCacheT> &LockedCache) -> ProgramCacheT & {
     return LockedCache.get();
   };
-  string_class BuildOptions;
+  std::string BuildOptions;
   if (Prg)
     BuildOptions = Prg->get_build_options();
   const RTDeviceBinaryImage &Img =
