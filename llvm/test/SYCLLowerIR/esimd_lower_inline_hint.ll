@@ -1,7 +1,7 @@
 ; RUN: opt -LowerESIMD -S < %s | FileCheck %s
 
 ; This test checks that LowerESIMD pass sets the 'alwaysinline'
-; attribute for all the functions called from ESIMD kernels.
+; attribute for all non-kernel functions.
 
 define spir_kernel void @EsimdKernel1() {
 ; CHECK: @EsimdKernel1(
