@@ -10,8 +10,8 @@
 #define __LIBDEVICE_DEVICE_MATH_H__
 
 #include "device.h"
-#include <cstdlib>
 #ifdef __SPIR__
+#include <cstdlib>
 
 DEVICE_EXTERN_C
 div_t __devicelib_div(int x, int y);
