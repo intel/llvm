@@ -1,4 +1,4 @@
-// RUN: mlir-translate -mlir-to-nvvmir %s | FileCheck %s
+// RUN: mlir-translate -mlir-to-llvmir %s | FileCheck %s
 
 llvm.func @nvvm_special_regs() -> i32 {
   // CHECK: %1 = call i32 @llvm.nvvm.read.ptx.sreg.tid.x()
@@ -75,7 +75,7 @@ llvm.func @nvvm_mma(%a0 : vector<2xf16>, %a1 : vector<2xf16>,
 
 // This function has the "kernel" attribute attached and should appear in the
 // NVVM annotations after conversion.
-llvm.func @kernel_func() attributes {gpu.kernel} {
+llvm.func @kernel_func() attributes {nvvm.kernel} {
   llvm.return
 }
 

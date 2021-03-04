@@ -224,9 +224,41 @@ private:
 using chrono::duration;
 using chrono::duration_cast;
 
+#if defined(_LIBCPP_WIN32API)
+// Various C runtime versions (UCRT, or the legacy msvcrt.dll used by
+// some mingw toolchains) provide different stat function implementations,
+// with a number of limitations with respect to what we want from the
+// stat function. Instead provide our own (in the anonymous detail namespace
+// in posix_compat.h) which does exactly what we want, along with our own
+// stat structure and flag macros.
+
+struct TimeSpec {
+  int64_t tv_sec;
+  int64_t tv_nsec;
+};
+struct StatT {
+  unsigned st_mode;
+  TimeSpec st_atim;
+  TimeSpec st_mtim;
+  uint64_t st_dev; // FILE_ID_INFO::VolumeSerialNumber
+  struct FileIdStruct {
+    unsigned char id[16]; // FILE_ID_INFO::FileId
+    bool operator==(const FileIdStruct &other) const {
+      for (int i = 0; i < 16; i++)
+        if (id[i] != other.id[i])
+          return false;
+      return true;
+    }
+  } st_ino;
+  uint32_t st_nlink;
+  uintmax_t st_size;
+};
+
+#else
 using TimeSpec = struct timespec;
 using TimeVal = struct timeval;
 using StatT = struct stat;
+#endif
 
 template <class FileTimeT, class TimeT,
           bool IsFloat = is_floating_point<typename FileTimeT::rep>::value>
@@ -255,8 +287,7 @@ struct time_util_base {
           .count();
 
 private:
-#if _LIBCPP_STD_VER > 11 && !defined(_LIBCPP_HAS_NO_CXX14_CONSTEXPR)
-  static constexpr fs_duration get_min_nsecs() {
+  static _LIBCPP_CONSTEXPR_AFTER_CXX11 fs_duration get_min_nsecs() {
     return duration_cast<fs_duration>(
         fs_nanoseconds(min_nsec_timespec) -
         duration_cast<fs_nanoseconds>(fs_seconds(1)));
@@ -266,7 +297,7 @@ private:
                     FileTimeT::duration::min(),
                 "value doesn't roundtrip");
 
-  static constexpr bool check_range() {
+  static _LIBCPP_CONSTEXPR_AFTER_CXX11 bool check_range() {
     // This kinda sucks, but it's what happens when we don't have __int128_t.
     if (sizeof(TimeT) == sizeof(rep)) {
       typedef duration<long long, ratio<3600 * 24 * 365> > Years;
@@ -277,7 +308,6 @@ private:
            min_seconds <= numeric_limits<TimeT>::min();
   }
   static_assert(check_range(), "the representable range is unacceptable small");
-#endif
 };
 
 template <class FileTimeT, class TimeT>
@@ -405,7 +435,11 @@ public:
   }
 };
 
+#if defined(_LIBCPP_WIN32API)
+using fs_time = time_util<file_time_type, int64_t, TimeSpec>;
+#else
 using fs_time = time_util<file_time_type, time_t, TimeSpec>;
+#endif
 
 #if defined(__APPLE__)
 inline TimeSpec extract_mtime(StatT const& st) { return st.st_mtimespec; }
@@ -424,6 +458,7 @@ inline TimeSpec extract_mtime(StatT const& st) { return st.st_mtim; }
 inline TimeSpec extract_atime(StatT const& st) { return st.st_atim; }
 #endif
 
+#if !defined(_LIBCPP_WIN32API)
 inline TimeVal make_timeval(TimeSpec const& ts) {
   using namespace chrono;
   auto Convert = [](long nsec) {
@@ -466,6 +501,7 @@ bool set_file_times(const path& p, std::array<TimeSpec, 2> const& TS,
   return posix_utimensat(p, TS, ec);
 #endif
 }
+#endif /* !_LIBCPP_WIN32API */
 
 } // namespace
 } // end namespace detail

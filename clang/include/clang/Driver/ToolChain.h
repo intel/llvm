@@ -178,6 +178,10 @@ private:
     EffectiveTriple = std::move(ET);
   }
 
+  mutable llvm::Optional<CXXStdlibType> cxxStdlibType;
+  mutable llvm::Optional<RuntimeLibType> runtimeLibType;
+  mutable llvm::Optional<UnwindLibType> unwindLibType;
+
 protected:
   MultilibSet Multilibs;
   Multilib SelectedMultilib;
@@ -470,6 +474,12 @@ public:
   /// IsUnwindTablesDefault - Does this tool chain use -funwind-tables
   /// by default.
   virtual bool IsUnwindTablesDefault(const llvm::opt::ArgList &Args) const;
+
+  /// Test whether this toolchain supports outline atomics by default.
+  virtual bool
+  IsAArch64OutlineAtomicsDefault(const llvm::opt::ArgList &Args) const {
+    return false;
+  }
 
   /// Test whether this toolchain defaults to PIC.
   virtual bool isPICDefault() const = 0;

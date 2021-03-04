@@ -73,7 +73,7 @@ void mlir::linalg::hoistViewAllocOps(FuncOp func) {
 
       // Move AllocOp before the loop.
       if (isa<AllocOp, AllocaOp>(op))
-        loop.moveOutOfLoop({op});
+        (void)loop.moveOutOfLoop({op});
       else // Move DeallocOp outside of the loop.
         op->moveAfter(loop);
       changed = true;
@@ -337,7 +337,7 @@ void mlir::linalg::hoistRedundantVectorTransfers(FuncOp func) {
 
 /// Ensure prerequisites that guarantee pad op hoisting can occur.
 /// Return failure in the cases when we cannot perform hoisting; i.e. if either:
-///   1. There exists a use of `simplePadOp` that is not a linalg input operand.
+///   1. There exists a use of `padTensorOp` that is not a linalg input operand.
 ///   2. There isn't an enclosing `outermostEnclosingForOp` loop.
 ///   3. There exists an op with a region that is dominated by
 ///   `outermostEnclosingForOp` and that isn't a LoopLikeInterface or a
@@ -353,12 +353,12 @@ void mlir::linalg::hoistRedundantVectorTransfers(FuncOp func) {
 ///   remain in `backwardSlice` but that are not in `packingLoops` are
 ///   dimensions of reuse.
 static LogicalResult
-hoistPaddingOnTensorsPrerequisites(linalg::SimplePadOp simplePadOp, int nLevels,
+hoistPaddingOnTensorsPrerequisites(linalg::PadTensorOp padTensorOp, int nLevels,
                                    llvm::SetVector<Operation *> &backwardSlice,
                                    llvm::SetVector<Operation *> &packingLoops) {
   // Bail on any use that isn't an input of a Linalg op.
   // Hoisting of inplace updates happens after vectorization.
-  for (OpOperand &use : simplePadOp.result().getUses()) {
+  for (OpOperand &use : padTensorOp.result().getUses()) {
     auto linalgUser = dyn_cast<linalg::LinalgOp>(use.getOwner());
     if (!linalgUser || !linalgUser.isInputTensor(&use))
       return failure();
@@ -368,7 +368,7 @@ hoistPaddingOnTensorsPrerequisites(linalg::SimplePadOp simplePadOp, int nLevels,
   SmallVector<LoopLikeOpInterface> reverseEnclosingLoops;
   Operation *outermostEnclosingForOp = nullptr,
             *nextEnclosingForOp =
-                simplePadOp->getParentOfType<LoopLikeOpInterface>();
+                padTensorOp->getParentOfType<LoopLikeOpInterface>();
   while (nLevels-- > 0 && nextEnclosingForOp) {
     outermostEnclosingForOp = nextEnclosingForOp;
     reverseEnclosingLoops.push_back(outermostEnclosingForOp);
@@ -378,27 +378,12 @@ hoistPaddingOnTensorsPrerequisites(linalg::SimplePadOp simplePadOp, int nLevels,
   if (!outermostEnclosingForOp)
     return failure();
 
-  // Get the backwards slice from `simplePadOp` that is dominated by the
+  // Get the backwards slice from `padTensorOp` that is dominated by the
   // outermost enclosing loop.
   DominanceInfo domInfo(outermostEnclosingForOp);
-  getBackwardSlice(simplePadOp, &backwardSlice, [&](Operation *op) {
+  getBackwardSlice(padTensorOp, &backwardSlice, [&](Operation *op) {
     return domInfo.dominates(outermostEnclosingForOp, op);
   });
-
-  #if 0
-
-  // Bail on any op with a region that is not a LoopLikeInterface or a LinalgOp.
-  // Bail on any op with side effects that is not a LoopLikeInterface.
-  if (llvm::any_of(backwardSlice, [](Operation *op) {
-        if (isa<LoopLikeOpInterface>(op))
-          return false;
-        if (!MemoryEffectOpInterface::hasNoEffect(op))
-          return true;
-        return op->getNumRegions() > 0 && !isa<LinalgOp>(op);
-      }))
-    return failure();
-
-  #else
 
   // Bail on any op with a region that is not a LoopLikeInterface or a LinalgOp.
   if (llvm::any_of(backwardSlice, [](Operation *op) {
@@ -406,8 +391,6 @@ hoistPaddingOnTensorsPrerequisites(linalg::SimplePadOp simplePadOp, int nLevels,
                !isa<LinalgOp>(op);
       }))
     return failure();
-
-  #endif
 
   // Filter out the loops whose induction variable is not used to compute the
   // padded result. As a first approximation, just look for IVs that have no use
@@ -434,64 +417,40 @@ hoistPaddingOnTensorsPrerequisites(linalg::SimplePadOp simplePadOp, int nLevels,
   return success();
 }
 
-static Value buildLoopTripCount(OpBuilder &b, Operation *op) {
-  MLIRContext *ctx = op->getContext();
-  AffineExpr lb, ub, step = getAffineSymbolExpr(0, ctx);
+/// Return the number of iterations in the loop (ub - lb).ceilDiv(step).
+static Value buildLoopTripCount(OpBuilder &b, scf::ForOp forOp) {
+  MLIRContext *ctx = forOp->getContext();
+  AffineExpr lb, ub, step;
   bindDims(ctx, lb, ub);
-  scf::ForOp forOp = cast<scf::ForOp>(op);
+  bindSymbols(ctx, step);
   return b.create<AffineApplyOp>(
-      op->getLoc(), AffineMap::get(2, 1, {(ub - lb).ceilDiv(step)}, ctx),
+      forOp->getLoc(), AffineMap::get(2, 1, {(ub - lb).ceilDiv(step)}, ctx),
       ValueRange{forOp.lowerBound(), forOp.upperBound(), forOp.step()});
 }
 
-/// Mechanically hoist padding operations on tensors by at most `nLoops` into a
-/// new, generally larger tensor. This achieves packing of multiple padding ops
-/// into a larger tensor. On success, `simplePadOp` is replaced by the cloned
-/// version in the packing loop so the caller can continue reasoning about the
-/// padding operation.
-///
-/// Example in pseudo-mlir:
-/// =======================
-///
-/// If hoistPaddingOnTensors is called with `nLoops` = 2 on the following IR.
-/// ```
-///    scf.for (%i, %j, %k)
-///      %st0 = subtensor f(%i, %k) : ... to tensor<?x?xf32>
-///      %0 = linalg.simple_pad %st0 pad %pad :
-///             tensor<?x?xf32> to tensor<4x8xf32>
-///      compute(%0)
-/// ```
-///
-/// IR resembling the following is produced:
-///
-/// ```
-///    scf.for (%i) {
-///      %packed_init = linalg.init_tensor range(%j) : tensor<?x4x8xf32>
-///      %packed = scf.for (%k) iter_args(%p : %packed_init)
-///        %st0 = subtensor f(%i, %k) : ... to tensor<?x?xf32>
-///        %0 = linalg.simple_pad %st0 pad %pad :
-///               tensor<?x?xf32> to tensor<4x8xf32>
-///        scf.yield %1: tensor<?x4x8xf32>
-///      } -> tensor<?x4x8xf32>
-///      scf.for (%j, %k) {
-///        %st0 = subtensor %packed [%k, 0, 0][1, 4, 8][1, 1, 1] :
-///                 tensor<?x4x8xf32> to tensor<4x8xf32>
-///        compute(%st0)
-///      }
-///    }
-/// ```
-LogicalResult mlir::linalg::hoistPaddingOnTensors(SimplePadOp &simplePadOp,
+/// Return the current iteration number in the loop (iv - lb).ceilDiv(step).
+static Value buildLoopIterationCount(OpBuilder &b, scf::ForOp forOp) {
+  MLIRContext *ctx = forOp->getContext();
+  AffineExpr iv, lb, step;
+  bindDims(ctx, iv, lb);
+  bindSymbols(ctx, step);
+  return b.create<AffineApplyOp>(
+      forOp->getLoc(), AffineMap::get(2, 1, {(iv - lb).ceilDiv(step)}, ctx),
+      ValueRange{forOp.getInductionVar(), forOp.lowerBound(), forOp.step()});
+}
+
+LogicalResult mlir::linalg::hoistPaddingOnTensors(PadTensorOp &padTensorOp,
                                                   unsigned nLoops) {
   llvm::SetVector<Operation *> backwardSlice, packingLoops;
-  if (failed(hoistPaddingOnTensorsPrerequisites(simplePadOp, nLoops,
+  if (failed(hoistPaddingOnTensorsPrerequisites(padTensorOp, nLoops,
                                                 backwardSlice, packingLoops)))
     return failure();
 
   // Update actual number of loops, which may be smaller.
   nLoops = packingLoops.size();
 
-  Location loc = simplePadOp->getLoc();
-  RankedTensorType paddedTensorType = simplePadOp.getResultType();
+  Location loc = padTensorOp->getLoc();
+  RankedTensorType paddedTensorType = padTensorOp.getResultType();
   unsigned paddedRank = paddedTensorType.getRank();
 
   // Backward slice is a topologically sorted list of ops starting at
@@ -503,13 +462,15 @@ LogicalResult mlir::linalg::hoistPaddingOnTensors(SimplePadOp &simplePadOp,
   // Create the packed tensor<?x?x..?xpadded_shape> into which we amortize
   // padding.
   SmallVector<int64_t> packedShape(nLoops, ShapedType::kDynamicSize);
-  // TODO: go grab dims when necessary, for now SimplePadOp returns a static
+  // TODO: go grab dims when necessary, for now PadTensorOp returns a static
   // tensor.
   llvm::append_range(packedShape, paddedTensorType.getShape());
   auto packedTensorType =
       RankedTensorType::get(packedShape, paddedTensorType.getElementType());
-  auto dynamicSizes = llvm::to_vector<4>(llvm::map_range(
-      packingLoops, [&](Operation *op) { return buildLoopTripCount(b, op); }));
+  auto dynamicSizes =
+      llvm::to_vector<4>(llvm::map_range(packingLoops, [&](Operation *op) {
+        return buildLoopTripCount(b, cast<scf::ForOp>(op));
+      }));
   Value packedTensor = b.create<linalg::InitTensorOp>(
       loc, dynamicSizes, packedTensorType.getShape(),
       packedTensorType.getElementType());
@@ -522,14 +483,15 @@ LogicalResult mlir::linalg::hoistPaddingOnTensors(SimplePadOp &simplePadOp,
   //   2. Create a SubTensorInsert at the top of the stack.
   //   3. Iteratively pop and yield the result of the SubTensorInsertOp across
   //     the cloned loops.
-  SmallVector<Value> clonedLoopIvs;
+  SmallVector<Value> clonedLoopIvs, leadingPackedTensorIndexings;
   clonedLoopIvs.reserve(nLoops);
+  leadingPackedTensorIndexings.reserve(nLoops);
   BlockAndValueMapping bvm;
   // Stack step 1. iteratively clone loops and push `packedTensor`.
-  // Insert `simplePadOp` into the backwardSlice so we clone it too.
-  backwardSlice.insert(simplePadOp);
+  // Insert `padTensorOp` into the backwardSlice so we clone it too.
+  backwardSlice.insert(padTensorOp);
   for (Operation *op : backwardSlice) {
-    if (op->getNumRegions() == 0) {
+    if (op->getNumRegions() == 0 || isa<linalg::PadTensorOp>(op)) {
       b.clone(*op, bvm);
       continue;
     }
@@ -545,18 +507,21 @@ LogicalResult mlir::linalg::hoistPaddingOnTensors(SimplePadOp &simplePadOp,
     assert(clonedForOp->getNumRegions() == 1);
     clonedLoopIvs.push_back(clonedForOp.getInductionVar());
     b.setInsertionPointToStart(&clonedForOp->getRegion(0).front());
+    leadingPackedTensorIndexings.push_back(
+        buildLoopIterationCount(b, clonedForOp));
     bvm.map(forOp.getInductionVar(), clonedLoopIvs.back());
     packedTensor = clonedForOp.getRegionIterArgs().front();
   }
 
   // Stack step 2. create SubTensorInsertOp at the top of the stack.
   // offsets = [clonedLoopIvs, 0 .. 0].
-  SmallVector<OpFoldResult> offsets(clonedLoopIvs.begin(), clonedLoopIvs.end());
+  SmallVector<OpFoldResult> offsets(leadingPackedTensorIndexings.begin(),
+                                    leadingPackedTensorIndexings.end());
   offsets.append(paddedRank, b.getIndexAttr(0));
   // sizes = [1 .. 1, paddedShape].
   SmallVector<OpFoldResult> sizes(nLoops, b.getIndexAttr(1));
   for (int64_t sz : paddedTensorType.getShape()) {
-    // TODO: go grab dims when necessary, for now SimplePadOp returns a static
+    // TODO: go grab dims when necessary, for now PadTensorOp returns a static
     // tensor.
     assert(!ShapedType::isDynamic(sz) && "padded tensor needs static sizes");
     sizes.push_back(b.getIndexAttr(sz));
@@ -565,7 +530,7 @@ LogicalResult mlir::linalg::hoistPaddingOnTensors(SimplePadOp &simplePadOp,
   SmallVector<OpFoldResult> strides(nLoops + paddedRank, b.getIndexAttr(1));
 
   Value inserted =
-      b.create<SubTensorInsertOp>(loc, bvm.lookup(simplePadOp.result()),
+      b.create<SubTensorInsertOp>(loc, bvm.lookup(padTensorOp.result()),
                                   packedTensor, offsets, sizes, strides);
 
   // Stack step 3. iteratively pop the stack and propagate the yield.
@@ -579,28 +544,28 @@ LogicalResult mlir::linalg::hoistPaddingOnTensors(SimplePadOp &simplePadOp,
 
   // Now the packed tensor is ready, replace the original padding op by a
   // 1x..x1 SubTensor [originalLoopIvs, 0 .. 0][1 .. 1, paddedShape][1 .. 1].
-  b.setInsertionPoint(simplePadOp);
-  SmallVector<Value> originalLoopIvs =
-      llvm::to_vector<4>(llvm::map_range(packingLoops, [](Operation *loop) {
-        return cast<scf::ForOp>(loop).getInductionVar();
+  b.setInsertionPoint(padTensorOp);
+  SmallVector<Value> loopIterationCounts =
+      llvm::to_vector<4>(llvm::map_range(packingLoops, [&](Operation *loop) {
+        return buildLoopIterationCount(b, cast<scf::ForOp>(loop));
       }));
   // offsets = [originalLoopIvs, 0 .. 0].
-  offsets.assign(originalLoopIvs.begin(), originalLoopIvs.end());
+  offsets.assign(loopIterationCounts.begin(), loopIterationCounts.end());
   offsets.append(paddedRank, b.getIndexAttr(0));
   // sizes = [1 .. 1, paddedShape] (definedabove).
   // strides = [1 .. 1] (defined above)
   packedTensor =
       scf::getForInductionVarOwner(clonedLoopIvs.front())->getResult(0);
-  simplePadOp.replaceAllUsesWith(
-      b.create<SubTensorOp>(loc, simplePadOp.getResultType(), packedTensor,
+  padTensorOp.replaceAllUsesWith(
+      b.create<SubTensorOp>(loc, padTensorOp.getResultType(), packedTensor,
                             offsets, sizes, strides)
           ->getResult(0));
 
-  Operation *toErase = simplePadOp;
+  Operation *toErase = padTensorOp;
 
-  // Make the newly cloned `simplePadOp` available to the caller.
-  simplePadOp =
-      cast<SimplePadOp>(bvm.lookup(simplePadOp.result()).getDefiningOp());
+  // Make the newly cloned `padTensorOp` available to the caller.
+  padTensorOp =
+      cast<PadTensorOp>(bvm.lookup(padTensorOp.result()).getDefiningOp());
 
   toErase->erase();
 

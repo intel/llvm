@@ -67,7 +67,8 @@ public:
                              TTI::PeelingPreferences &PP);
 
   /// Bias LSR towards creating post-increment opportunities.
-  bool shouldFavorPostInc() const;
+  TTI::AddressingModeKind
+    getPreferredAddressingMode(const Loop *L, ScalarEvolution *SE) const;
 
   // L1 cache prefetch.
   unsigned getPrefetchDistance() const override;
@@ -82,7 +83,7 @@ public:
   unsigned getMaxInterleaveFactor(unsigned VF);
   unsigned getRegisterBitWidth(bool Vector) const;
   unsigned getMinVectorRegisterBitWidth() const;
-  unsigned getMinimumVF(unsigned ElemWidth) const;
+  ElementCount getMinimumVF(unsigned ElemWidth, bool IsScalable) const;
 
   bool shouldMaximizeVectorBandwidth(bool OptSize) const {
     return true;

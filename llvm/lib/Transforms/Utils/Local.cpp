@@ -743,11 +743,11 @@ void llvm::MergeBasicBlockIntoOnlyPred(BasicBlock *DestBB,
   SmallVector<DominatorTree::UpdateType, 32> Updates;
 
   if (DTU) {
-    for (auto I = pred_begin(PredBB), E = pred_end(PredBB); I != E; ++I) {
+    for (BasicBlock *PredPredBB : predecessors(PredBB)) {
       // This predecessor of PredBB may already have DestBB as a successor.
-      if (!llvm::is_contained(successors(*I), DestBB))
-        Updates.push_back({DominatorTree::Insert, *I, DestBB});
-      Updates.push_back({DominatorTree::Delete, *I, PredBB});
+      if (!llvm::is_contained(successors(PredPredBB), DestBB))
+        Updates.push_back({DominatorTree::Insert, PredPredBB, DestBB});
+      Updates.push_back({DominatorTree::Delete, PredPredBB, PredBB});
     }
     Updates.push_back({DominatorTree::Delete, PredBB, DestBB});
   }
@@ -1040,8 +1040,8 @@ bool llvm::TryToSimplifyUncondBranchFromEmptyBlock(BasicBlock *BB,
 
   // We cannot fold the block if it's a branch to an already present callbr
   // successor because that creates duplicate successors.
-  for (auto I = pred_begin(BB), E = pred_end(BB); I != E; ++I) {
-    if (auto *CBI = dyn_cast<CallBrInst>((*I)->getTerminator())) {
+  for (BasicBlock *PredBB : predecessors(BB)) {
+    if (auto *CBI = dyn_cast<CallBrInst>(PredBB->getTerminator())) {
       if (Succ == CBI->getDefaultDest())
         return false;
       for (unsigned i = 0, e = CBI->getNumIndirectDests(); i != e; ++i)
@@ -1102,10 +1102,8 @@ bool llvm::TryToSimplifyUncondBranchFromEmptyBlock(BasicBlock *BB,
   Instruction *TI = BB->getTerminator();
   if (TI)
     if (MDNode *LoopMD = TI->getMetadata(LoopMDKind))
-      for (pred_iterator PI = pred_begin(BB), E = pred_end(BB); PI != E; ++PI) {
-        BasicBlock *Pred = *PI;
+      for (BasicBlock *Pred : predecessors(BB))
         Pred->getTerminator()->setMetadata(LoopMDKind, LoopMD);
-      }
 
   // Everything that jumped to BB now goes to Succ.
   BB->replaceAllUsesWith(Succ);
@@ -2122,15 +2120,16 @@ void llvm::changeToCall(InvokeInst *II, DomTreeUpdater *DTU) {
 }
 
 BasicBlock *llvm::changeToInvokeAndSplitBasicBlock(CallInst *CI,
-                                                   BasicBlock *UnwindEdge) {
+                                                   BasicBlock *UnwindEdge,
+                                                   DomTreeUpdater *DTU) {
   BasicBlock *BB = CI->getParent();
 
   // Convert this function call into an invoke instruction.  First, split the
   // basic block.
-  BasicBlock *Split =
-      BB->splitBasicBlock(CI->getIterator(), CI->getName() + ".noexc");
+  BasicBlock *Split = SplitBlock(BB, CI, DTU, /*LI=*/nullptr, /*MSSAU*/ nullptr,
+                                 CI->getName() + ".noexc");
 
-  // Delete the unconditional branch inserted by splitBasicBlock
+  // Delete the unconditional branch inserted by SplitBlock
   BB->getInstList().pop_back();
 
   // Create the new invoke instruction.
@@ -2149,6 +2148,9 @@ BasicBlock *llvm::changeToInvokeAndSplitBasicBlock(CallInst *CI,
   II->setDebugLoc(CI->getDebugLoc());
   II->setCallingConv(CI->getCallingConv());
   II->setAttributes(CI->getAttributes());
+
+  if (DTU)
+    DTU->applyUpdates({{DominatorTree::Insert, BB, UnwindEdge}});
 
   // Make sure that anything using the call now uses the invoke!  This also
   // updates the CallGraph if present, because it uses a WeakTrackingVH.
