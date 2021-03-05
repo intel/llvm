@@ -36,7 +36,8 @@ device::device(cl_device_id deviceId) {
 
   // The implementation constructor takes ownership of the native handle so we
   // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
-  if (device_impls.count(deviceId))
+  if (device_impls.count(deviceId) &&
+      !device_impls.expired())
     impl = device_impls[deviceId].lock();
   else {
     impl = std::make_shared<detail::device_impl>(
