@@ -1,5 +1,6 @@
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
 
+// Tests for AST of Intel FPGA loop fusion function attributes
 #include "sycl.hpp"
 
 using namespace cl::sycl;
