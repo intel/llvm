@@ -301,7 +301,7 @@ static bool checkPositiveIntArgument(Sema &S, const AttrInfo &AI, const Expr *Ex
 /// declaration. Returns true if diagnosed.
 template <typename AttrTy>
 static bool checkAttrMutualExclusion(Sema &S, Decl *D,
-		                     const AttributeCommonInfo &AL) {
+                                     const AttributeCommonInfo &AL) {
   if (const auto *A = D->getAttr<AttrTy>()) {
     S.Diag(AL.getLoc(), diag::err_attributes_are_not_compatible) << AL << A;
     S.Diag(A->getLocation(), diag::note_conflicting_attribute);
