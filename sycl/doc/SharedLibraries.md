@@ -77,14 +77,14 @@ Next sections describe details of changes in each component.
 
 ### DPC++ front-end changes
 
-DPC++ front-end generates `module-id` attribute on each `SYCL_EXTERNAL` function.
+DPC++ front-end generates `sycl-module-id` attribute on each `SYCL_EXTERNAL` function.
 It was generated only on kernels earlier. There are two reasons to start
 generating this attribute on `SYCL_EXTERNAL` functions:
 
 - Later in pipeline, this attribute will be used by `sycl-post-link` tool to
   separate `SYCL_EXTERNAL` functions from non-`SYCL_EXTERNAL` functions with
   external linkage.
-- `module-id` attribute also contains information about source file where the
+- `sycl-module-id` attribute also contains information about source file where the
   function comes from. This information will be used to perform device code
   split on device images that contain only exported functions.
 
@@ -122,10 +122,10 @@ Besides separating `SYCL_EXTERNAL` functions from kernels, `sycl-post-link`
 can also distribute those functions into separate device images if device code
 split is requested. This is done by grouping them using `module-id` attribute.
 Non-`SYCL_EXTERNAL` functions used by `SYCL_EXTERNAL` functions with different
-`module-id` attributes are copied to device images corresponding to those
+`sycl-module-id` attributes are copied to device images corresponding to those
 `SYCL_EXTERNAL` functions to make them self-contained.
 In case one `SYCL_EXTERNAL` function uses another `SYCL_EXTERNAL` function
-with different `module-id` attribute, the second one is not copied to the
+with different `sycl-module-id` attribute, the second one is not copied to the
 device image with the first function, but dependency between those device images
 is recorder instead.
 
@@ -169,7 +169,7 @@ struct pi_device_binary_struct {
 };
 
 ```
-Each property set is represent by the following struct:
+Each property set is represented by the following struct:
 ```
 // Named array of properties.
 struct _pi_device_binary_property_set_struct {
