@@ -2015,7 +2015,7 @@ def successor;
 // type. For example, the following signature specification
 //
 // ```
-// OpBuilderDAG<(ins "int":$integerArg, CArg<"float", "3.0f">:$floatArg)>
+// OpBuilder<(ins "int":$integerArg, CArg<"float", "3.0f">:$floatArg)>
 // ```
 //
 // has an integer parameter and a float parameter with a default value.
@@ -2023,7 +2023,7 @@ def successor;
 // If an empty string is passed in for `body`, then *only* the builder
 // declaration will be generated; this provides a way to define complicated
 // builders entirely in C++.
-class OpBuilderDAG<dag p, code b = ""> {
+class OpBuilder<dag p, code b = ""> {
   dag dagParams = p;
   code body = b;
 }
@@ -2103,7 +2103,7 @@ class Op<Dialect dialect, string mnemonic, list<OpTrait> props = []> {
   //                   ValueRange operands,
   //                   ArrayRef<NamedAttribute> attributes);
   // ```
-  list<OpBuilderDAG> builders = ?;
+  list<OpBuilder> builders = ?;
 
   // Avoid generating default build functions.  Custom builders must be
   // provided.
@@ -2639,6 +2639,14 @@ class AttrDef<Dialect dialect, string name,
   // The name of the C++ Attribute class.
   string cppClassName = name # "Attr";
 
+  // A code block used to build the value 'Type' of an Attribute when
+  // initializing its storage instance. This field is optional, and if not
+  // present the attribute will have its value type set to `NoneType`. This code
+  // block may reference any of the attributes parameters via
+  // `$_<parameter-name`. If one of the parameters of the attribute is of type
+  // `AttributeSelfTypeParameter`, this field is ignored.
+  code typeBuilder = ?;
+
   // The predicate for when this def is used as a constraint.
   let predicate = CPred<"$_self.isa<" # dialect.cppNamespace #
                                  "::" # cppClassName # ">()">;
@@ -2703,5 +2711,11 @@ class ArrayRefOfSelfAllocationParameter<string arrayOf, string desc> :
     $_dst = $_allocator.copyInto(ArrayRef<}] # arrayOf # [{>(tmpFields));
   }];
 }
+
+// This is a special parameter used for AttrDefs that represents a `mlir::Type`
+// that is also used as the value `Type` of the attribute. Only one parameter
+// of the attribute may be of this type.
+class AttributeSelfTypeParameter<string desc> :
+    AttrOrTypeParameter<"::mlir::Type", desc> {}
 
 #endif // OP_BASE
