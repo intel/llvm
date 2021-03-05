@@ -24,23 +24,30 @@ __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInLocalInvocationId;
 __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInWorkgroupId;
 __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInWorkgroupSize;
 
-static inline size_t __spirv_GlobalInvocationId_x() {
+// FIXME: change DEVICE_EXTERNAL to static and rename the functions,
+//        when #3311 is fixed.
+//        These are just internal functions used within libdevice.
+//        We must not intrude the __spirv "namespace", so we'd better
+//        use names like getGlobalInvocationIdX.
+//        Libdevice must not export these APIs either, but it currently
+//        exports them due to DEVICE_EXTERNAL.
+DEVICE_EXTERNAL inline size_t __spirv_GlobalInvocationId_x() {
   return __spirv_BuiltInGlobalInvocationId.x;
 }
-static inline size_t __spirv_GlobalInvocationId_y() {
+DEVICE_EXTERNAL inline size_t __spirv_GlobalInvocationId_y() {
   return __spirv_BuiltInGlobalInvocationId.y;
 }
-static inline size_t __spirv_GlobalInvocationId_z() {
+DEVICE_EXTERNAL inline size_t __spirv_GlobalInvocationId_z() {
   return __spirv_BuiltInGlobalInvocationId.z;
 }
 
-static inline size_t __spirv_LocalInvocationId_x() {
+DEVICE_EXTERNAL inline size_t __spirv_LocalInvocationId_x() {
   return __spirv_BuiltInLocalInvocationId.x;
 }
-static inline size_t __spirv_LocalInvocationId_y() {
+DEVICE_EXTERNAL inline size_t __spirv_LocalInvocationId_y() {
   return __spirv_BuiltInLocalInvocationId.y;
 }
-static inline size_t __spirv_LocalInvocationId_z() {
+DEVICE_EXTERNAL inline size_t __spirv_LocalInvocationId_z() {
   return __spirv_BuiltInLocalInvocationId.z;
 }
 
