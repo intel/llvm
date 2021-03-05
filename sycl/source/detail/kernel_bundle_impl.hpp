@@ -100,7 +100,7 @@ public:
   }
 
   kernel get_kernel(const kernel_id &KernelID) const {
-    assert(false && "Not implemented");
+    throw sycl::runtime_error("Not implemented", PI_INVALID_OPERATION);
   }
 
   bool has_kernel(const kernel_id &KernelID) const noexcept {
