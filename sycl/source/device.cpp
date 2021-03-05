@@ -29,12 +29,21 @@ void force_type(info::device_type &t, const info::device_type &ft) {
 
 device::device() : impl(detail::device_impl::getHostDeviceImpl()) {}
 
-device::device(cl_device_id deviceId)
-    : impl(std::make_shared<detail::device_impl>(
+device::device(cl_device_id deviceId) {
+    /*: impl(std::make_shared<detail::device_impl>(
           detail::pi::cast<pi_native_handle>(deviceId),
-          RT::getPlugin<backend::opencl>())) {
+          RT::getPlugin<backend::opencl>())) {*/
+
   // The implementation constructor takes ownership of the native handle so we
   // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
+  if (device_impls.count(deviceId))
+    impl = device_impls[deviceId].lock();
+  else {
+    impl = std::make_shared<detail::device_impl>(
+      detail::pi::cast<pi_native_handle>(deviceId),
+      RT::getPlugin<backend::opencl>()));
+    device_impls[deviceId] = impl;
+  }
   clRetainDevice(deviceId);
 }
 

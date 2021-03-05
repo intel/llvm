@@ -177,7 +177,10 @@ public:
   /// \return a native handle, the type of which defined by the backend.
   template <backend BackendName>
   auto get_native() const -> typename interop<BackendName, device>::type {
-    return (typename interop<BackendName, device>::type)getNative();
+    auto cl_device = (typename interop<BackendName, device>::type)getNative();
+    std::lock_guard<std::mutex> lock(device_mutex);
+    device_impls[cl_device] = impl;
+    return n_handle;
   }
 
   /// Indicates if the SYCL device has the given feature.
@@ -191,6 +194,10 @@ public:
 private:
   shared_ptr_class<detail::device_impl> impl;
   device(shared_ptr_class<detail::device_impl> impl) : impl(impl) {}
+
+  static std::unordered_map<cl_device_id,
+                            std::weak_ptr<detail::device_impl>> device_impls;
+  std::mutex device_mutex;
 
   pi_native_handle getNative() const;
 
