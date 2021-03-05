@@ -1826,18 +1826,21 @@ pi_result piDevicePartition(pi_device Device,
   }
 
   try {
+    pi_platform Platform = Device->Platform;
     auto ZeSubdevices = new ze_device_handle_t[Count];
     ZE_CALL(zeDeviceGetSubDevices(Device->ZeDevice, &Count, ZeSubdevices));
 
     // Wrap the Level Zero sub-devices into PI sub-devices, and write them out.
     for (uint32_t I = 0; I < Count; ++I) {
-      OutDevices[I] = new _pi_device(ZeSubdevices[I], Device->Platform,
-                                     true /* isSubDevice */);
-      pi_result Result = OutDevices[I]->initialize();
+      std::unique_ptr<_pi_device> PiSubDevice(
+          new _pi_device(ZeSubdevices[I], Platform));
+      pi_result Result = PiSubDevice->initialize();
       if (Result != PI_SUCCESS) {
         delete[] ZeSubdevices;
         return Result;
       }
+      OutDevices[I] = PiSubDevice.get();
+      Platform->PiDevicesCache.push_back(std::move(PiSubDevice));
     }
     delete[] ZeSubdevices;
   } catch (const std::bad_alloc &) {
@@ -1926,15 +1929,11 @@ pi_result piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
   // Level Zero devices when we initialized the device cache, so the
   // "NativeHandle" must already be in the cache. If it is not, this must not be
   // a valid Level Zero device.
-  for (const std::unique_ptr<_pi_device> &CachedDevice :
-       Platform->PiDevicesCache) {
-    if (CachedDevice->ZeDevice == ZeDevice) {
-      *Device = CachedDevice.get();
-      return PI_SUCCESS;
-    }
-  }
-
-  return PI_INVALID_VALUE;
+  pi_device Dev = Platform->getDeviceFromNativeHandle(ZeDevice);
+  if (Dev == nullptr)
+    return PI_INVALID_VALUE;
+  *Device = Dev;
+  return PI_SUCCESS;
 }
 
 pi_result piContextCreate(const pi_context_properties *Properties,
@@ -4798,8 +4797,8 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
     if (Result != PI_SUCCESS)
       return Result;
 
-      // TODO: Level Zero does not support row_pitch/slice_pitch for images yet.
-      // Check that SYCL RT did not want pitch larger than default.
+    // TODO: Level Zero does not support row_pitch/slice_pitch for images yet.
+    // Check that SYCL RT did not want pitch larger than default.
     (void)RowPitch;
     (void)SlicePitch;
 #ifndef NDEBUG
