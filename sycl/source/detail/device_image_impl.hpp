@@ -34,7 +34,6 @@ struct LessByNameComp {
   }
 };
 
-
 // The class is impl counterpart for sycl::device_image
 // It can represent a program in different states, kernel_id's it has and state
 // of specialization constants for it
