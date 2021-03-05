@@ -3303,7 +3303,7 @@ void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
     }
 
     // If the declaration has an [[intel::reqd_work_group_size]] attribute,
-    // check to see if the X argument can be evenly divided by the
+    // check to see if the first argument can be evenly divided by the
     // num_simd_work_items attribute.
     if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
       Optional<llvm::APSInt> XDimVal = DeclAttr->getXDimVal(Context);
