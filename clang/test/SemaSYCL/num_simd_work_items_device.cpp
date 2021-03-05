@@ -100,7 +100,7 @@ struct TRIFuncObjBad8 {
   operator()() const {}
 };
 
-// Tests for incorrect argument values for Intel FPGA num_simd_work_items function attribute
+// Tests for incorrect argument values for Intel FPGA num_simd_work_items and reqd_work_group_size function attributes
 struct TRIFuncObjBad9 {
   [[intel::reqd_work_group_size(5, 5, 5)]]
   [[intel::num_simd_work_items(0)]] // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
