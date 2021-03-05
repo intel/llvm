@@ -48,7 +48,8 @@ public:
 
   lsu() = delete;
 
-  template <typename _T,access::address_space _space > static _T load(sycl::multi_ptr<_T,_space> Ptr) {
+  template <typename _T,access::address_space _space > static _T load(
+          sycl::multi_ptr<_T,_space> Ptr) {
     check_space<_space>();
     check_load();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
@@ -61,7 +62,8 @@ public:
 #endif
   }
 
-  template <typename _T,access::address_space _space> static void store(sycl::multi_ptr<_T,_space> Ptr, _T Val) {
+  template <typename _T,access::address_space _space> static void store(
+          sycl::multi_ptr<_T,_space> Ptr, _T Val) {
     check_space<_space>();
     check_store();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
