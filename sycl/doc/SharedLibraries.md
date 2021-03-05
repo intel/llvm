@@ -1,9 +1,11 @@
-# Shared DPC++ libraries
+# Dynamic linking of device code
 
-This document describes purpose and design of Shared DPC++ libraries feature.
+This document describes purpose and design of dynamic linking of device code
+feature.
 
 ## Background
-Sometimes users want to provide *device* functions via shared libraries.
+Sometimes users want to link device code dynamically at run time. One possible
+use case for such linkage - providing device functions via shared libraries.
 Simple source example:
 ```
 // App:
@@ -23,30 +25,50 @@ library, then use `link` SYCL API to get a single program and launch kernels
 using it. But it is not user-friendly and it is very different from regular
 C/C++ workflow.
 
+Another possible scenario - use functions defined in pre-compiled device image
+provided by user. Example:
+```
+// a.cpp
+SYCL_EXTERNAL void foo();
+...
+parallel_for([]() { foo(); });
+
+// b.cpp
+/*no SYCL_EXTERNAL*/ void foo() { ... }
+```
+We have a `SYCL_EXTERNAL` function `foo` called from a kernel, but the
+application defined only host version of this function. Then user adds device
+image with definition of `foo` to the fat object via special option.
+
 The main purpose of this feature is to provide a mechanism which allows to
-provide *device* functions via shared libraries and works as close as possible
-to regular shared libraries.
+link device code dynamically at runtime.
 
 ## Requrements:
-User's code is compiled into a shared library which consists of some host API,
-device code and device API (`SYCL_EXTERNAL` functions). The library is linked to
-a user's application which also contains some device code and performs
-computations using DPC++/SYCL.
+User's device code that consists of some device API (`SYCL_EXTERNAL` functions),
+is compiled into some form and it is not linked statically with device code of
+application. It can be a shared library that contains some device code or a
+separate device image supplied with property information. This code is linked
+dynamically at run time with device code of a user's application in order to
+resolve dependencies.
 For this combination the following statements must be true:
 
-- `SYCL_EXTERNAL` functions from library can be called (directly or indirectly)
-  from device code of the application.
-- Function pointers taken in application should work inside the library.
+- `SYCL_EXTERNAL` functions defined in dynamically linked code can be called
+  (directly or indirectly) from device code of the application.
+- Function pointers taken in application ashould work inside the dynamically
+  linked code.
 - Specific code changes are not required, i.e. the mechanism of linking works
   as close as possible to regular shared libraries.
 
 ## Design
-The overall idea is simple:
+The overall idea:
 
-- Each device image is supplied with an information about exported and imported
-  symbols using device image properties
-- DPC++ RT performs *device images collection* task by grouping all device
-  images required to execute a kernel based on the list of exports/imports
+- Each device image is supplied with a list of imported symbol names
+  through device image properties mechanism
+- `SYCL_EXTERNAL` functions are arranged into separate device images supplied
+  with a list of exported symbol names
+- Before compiling a device image DPC++ RT will check if device image has a list
+  of imported symbols and if it has, then RT will search for device images which
+  define required symbols using lists of exported symbols.
   - Besides symbol names, additional attributes are taken into account (like
     device image format: SPIR-V or device asm)
 - Actual linking is performed by underlying backend (OpenCL/L0/etc.)
@@ -108,7 +130,8 @@ device image with the first function, but dependency between those device images
 is recorder instead.
 
 After `SYCL_EXTERNAL` functions are arranged into a separate device image(s),
-all non-`SYCL_EXTERNAL` functions are internalized to avoid multiple definition
+all non-`SYCL_EXTERNAL` functions and `SYCL_EXTERNAL` functions left in device
+images with kernels marked with internal linkage to avoid multiple definition
 errors during runtime linking.
 Device images with `SYCL_EXTERNAL` functions will also get a list of names
 of exported functions attached to them through device image properties
@@ -167,11 +190,11 @@ struct _pi_device_binary_property_struct {
 ```
 
 List of imported symbols is represented as a single property set with name
-`ImportedSymbols` recorded in the `Name` field of property set.
+`SYCL/imported symbols` recorded in the `Name` field of property set.
 Each property in this set holds name of the particular imported symbol recorded
 in the `Name` field of the property.
 List of exported symbols is represented in the same way, except the
-corresponding set has the name `ExportedSymbols`.
+corresponding set has the name `SYCL/exported symbols`.
 
 ### DPC++ runtime changes
 
@@ -179,9 +202,87 @@ DPC++ RT performs *device images collection* task by grouping all device
 images required to execute a kernel based on the list of exports/imports and
 links them together using PI API.
 
-Given that all exports will be arranged to a separate device images without
-kernels it is reasonable to store device images with exports in a separate data
-structure.
+#### Device images collection
+
+DPC++ Runtime class named ProgramManager stores device images using following
+data structure:
+```
+/// Keeps all available device executable images added via \ref addImages.
+/// Organizes the images as a map from a kernel set id to the vector of images
+/// containing kernels from that set.
+/// Access must be guarded by the \ref Sync::getGlobalLock()
+std::unordered_map<SymbolSetId,
+                   std::unique_ptr<std::vector<RTDeviceBinaryImageUPtr>>>
+    m_DeviceImages;
+
+using StrToKSIdMap = std::unordered_map<string_class, SymbolSetId>;
+/// Maps names of kernels from a specific OS module (.exe .dll) to their set
+/// id (the sets are disjoint).
+std::unordered_map<OSModuleHandle, SymbolSetId> m_SymbolSets;
+```
+Assume each device image represents some combination of symbols and different
+device images may contain only exactly the same or not overlapping combination
+of symbols. If it is not so, there can be two cases:
+  - Symbols are the same. In this case it doesn't matter which device image is
+  taken to use duplicated symbol
+  - Symbols are not the same. In this case ODR violation takes place, such
+  situation leads to undefined behaviour. For more details refer to
+  [ODR violations](#ODR-violations) section.
+
+Each combination of symbols is assigned with an Id number - symbol set Id.
+A combination of symbols can exist in different formats (i.e. SPIR-V/AOT
+compiled binary and etc).
+`m_DeviceImages` maps an Id number to an array with device images which represent
+the same combination of symbols in different formats.
+`m_SymbolSets` contains mapping from symbol name to symbol set Id for each OS
+module (.exe/.so/.dll).
+`std::unordered_map` allows to search and access its elements with constant-time
+complexity.
+
+Before compilation of device image to execute a kernel RT checks if the image
+contains any import information in its properies and if it does, then RT
+performs device images collection in order to resolve dependencies.
+
+Ids of all needed symbol sets are found. This is done by iterating through
+`m_SymbolSets` map, i.e. iterating through all available OS modules without
+predefined order and searching for first unresolved symbol in list of imports
+set of target device image. Once device image that contains first symbol is
+met, remaining exported symbols are checked in found image and if
+they match some imported symbols then these matched symbols will be marked as
+resolved. The procedure repeats until all imported symbols are resolved.
+For each found symbol set Id program cache is checked in case if
+necessary set of `SYCL_EXTERNAL` functions has been compiled and if it is true,
+then compiled device image will be re-used for linking.
+Otherwise device image containing required symbols set will be compiled and
+stored in cache.
+
+#### Program caching
+
+Existing support for device code caching is re-used to cache programs created
+from device images with SYCL external functions and linked device images with
+imports information.
+
+##### In-memory cache
+
+Programs that contain only `SYCL_EXTERNAL` functions will be cached only in
+compiled state, so they can be linked with other programs during dependency
+resolution.
+
+The existing mechanism of caching is not changed for programs with
+imports information. They are stored in cache after they compiled and linked
+with programs that provide their dependencies. To identify linked programs
+Id of "main" set of symbols (i.e. the one which actually contain kernels) will
+be used.
+
+##### Persistent cache
+
+The documented approach to persistent cache needs to be expanded in presence
+of dynamic linking support. One of the identifiers for built image hash is
+hash made out of device image used as input for the JIT compilation.
+In case when "main" image have imports information, device image hash should be
+created from all device images that are necessary to build it, i.e. hash out
+of "main" device image and set of 'SYCL_EXTERNAL'-only images that define all
+symbols imported by "main device image.
 
 ## Corner cases and limitations
 
