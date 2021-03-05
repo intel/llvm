@@ -2626,10 +2626,6 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.MergeSYCLIntelSchedulerTargetFmaxMhzAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelNoGlobalWorkOffsetAttr>(Attr))
     NewAttr = S.MergeSYCLIntelNoGlobalWorkOffsetAttr(D, *A);
-  else if (const auto *A = dyn_cast<IntelFPGAPrivateCopiesAttr>(Attr))
-    NewAttr = S.MergeIntelFPGAPrivateCopiesAttr(D, *A);
-  else if (const auto *A = dyn_cast<IntelFPGAMaxReplicatesAttr>(Attr))
-    NewAttr = S.MergeIntelFPGAMaxReplicatesAttr(D, *A);
   else if (Attr->shouldInheritEvenIfAlreadyPresent() || !DeclHasAttr(D, Attr))
     NewAttr = cast<InheritableAttr>(Attr->clone(S.Context));
 

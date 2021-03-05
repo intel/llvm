@@ -5999,24 +5999,6 @@ void Sema::AddIntelFPGAMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
   D->addAttr(::new (Context) IntelFPGAMaxReplicatesAttr(Context, CI, E));
 }
 
-IntelFPGAMaxReplicatesAttr *
-Sema::MergeIntelFPGAMaxReplicatesAttr(Decl *D,
-                                      const IntelFPGAMaxReplicatesAttr &A) {
-  // Check to see if there's a duplicate attribute with different values
-  // already applied to the declaration.
-  if (const auto *DeclAttr = D->getAttr<IntelFPGAMaxReplicatesAttr>()) {
-    const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue());
-    const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue());
-    if (DeclExpr && MergeExpr &&
-        DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
-      Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
-      Diag(A.getLoc(), diag::note_previous_attribute);
-      return nullptr;
-    }
-  }
-  return ::new (Context) IntelFPGAMaxReplicatesAttr(Context, A, A.getValue());
-}
-
 static void handleIntelFPGAMaxReplicatesAttr(Sema &S, Decl *D,
                                              const ParsedAttr &A) {
   S.CheckDeprecatedSYCLAttributeSpelling(A);
@@ -6182,7 +6164,6 @@ void Sema::AddIntelFPGAPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
     // attributes are incompatible.
     if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(*this, D, CI))
       return;
-
     // If the declaration does not have [[intel::memory]]
     // attribute, this creates default implicit memory.
     if (!D->hasAttr<IntelFPGAMemoryAttr>())
@@ -6191,29 +6172,6 @@ void Sema::AddIntelFPGAPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
   }
 
   D->addAttr(::new (Context) IntelFPGAPrivateCopiesAttr(Context, CI, E));
-}
-
-IntelFPGAPrivateCopiesAttr *
-Sema::MergeIntelFPGAPrivateCopiesAttr(Decl *D,
-                                      const IntelFPGAPrivateCopiesAttr &A) {
-  // Check to see if there's a duplicate attribute with different values
-  // already applied to the declaration.
-  if (const auto *DeclAttr = D->getAttr<IntelFPGAPrivateCopiesAttr>()) {
-    const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue());
-    const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue());
-    if (DeclExpr && MergeExpr &&
-        DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
-      Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
-      Diag(A.getLoc(), diag::note_previous_attribute);
-      return nullptr;
-    }
-  }
-  // [[intel::fpga_register]] and [[intel::private_copies()]]
-  // attributes are incompatible.
-  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(*this, D, A))
-    return nullptr;
-
-  return ::new (Context) IntelFPGAPrivateCopiesAttr(Context, A, A.getValue());
 }
 
 static void handleIntelFPGAPrivateCopiesAttr(Sema &S, Decl *D,
