@@ -335,7 +335,16 @@ bool SPIRVRegularizeLLVM::regularize() {
           }
         }
         if (auto Cmpxchg = dyn_cast<AtomicCmpXchgInst>(&II)) {
-          Value *Ptr = Cmpxchg->getPointerOperand();
+          // Transform:
+          // %1 = cmpxchg i32* %ptr, i32 %comparator, i32 %0 seq_cst acquire
+          // To:
+          // %cmpxchg.res = call spir_func
+          //   i32 @_Z29__spirv_AtomicCompareExchangePiiiiii(
+          //   i32* %ptr, i32 1, i32 16, i32 2, i32 %0, i32 %comparator)
+          // %cmpxchg.success = icmp eq i32 %cmpxchg.res, %comparator
+          // %1 = insertvalue { i32, i1 } undef, i32 %cmpxchg.res, 0
+          // %2 = insertvalue { i32, i1 } %1, i1 %cmpxchg.success, 1
+
           // To get memory scope argument we might use Cmpxchg->getSyncScopeID()
           // but LLVM's cmpxchg instruction is not aware of OpenCL(or SPIR-V)
           // memory scope enumeration. And assuming the produced SPIR-V module
@@ -343,6 +352,17 @@ bool SPIRVRegularizeLLVM::regularize() {
           // memory scope as OpenCL atomic functions that do not have
           // memory_scope argument, i.e. memory_scope_device. See the OpenCL C
           // specification p6.13.11. Atomic Functions
+
+          // cmpxchg LLVM instruction returns a pair {i32, i1}: the original
+          // value and a flag indicating success (true) or failure (false).
+          // OpAtomicCompareExchange SPIR-V instruction returns only the
+          // original value. To keep the return type({i32, i1}) we construct
+          // a composite. The first element of the composite holds result of
+          // OpAtomicCompareExchange, i.e. the original value. The second
+          // element holds result of comparison of the returned value and the
+          // comparator, which matches with semantics of the flag returned by
+          // cmpxchg.
+          Value *Ptr = Cmpxchg->getPointerOperand();
           Value *MemoryScope = getInt32(M, spv::ScopeDevice);
           auto SuccessOrder = static_cast<OCLMemOrderKind>(
               llvm::toCABI(Cmpxchg->getSuccessOrdering()));
@@ -358,45 +378,13 @@ bool SPIRVRegularizeLLVM::regularize() {
           auto *Res = addCallInstSPIRV(M, "__spirv_AtomicCompareExchange",
                                        Cmpxchg->getCompareOperand()->getType(),
                                        Args, nullptr, &II, "cmpxchg.res");
-          // cmpxchg LLVM instruction returns a pair: the original value and
-          // a flag indicating success (true) or failure (false).
-          // OpAtomicCompareExchange SPIR-V instruction returns only the
-          // original value. So we replace all uses of the original value
-          // extracted from the pair with the result of OpAtomicCompareExchange
-          // instruction. And we replace all uses of the flag with result of an
-          // OpIEqual instruction. The OpIEqual instruction returns true if the
-          // original value equals to the comparator which matches with
-          // semantics of cmpxchg.
-          // In case the original value was stored as is without extraction, we
-          // create a composite type manually from OpAtomicCompareExchange and
-          // OpIEqual instructions, and replace the original value usage in
-          // Store insruction with the new composite type.
-          for (User *U : Cmpxchg->users()) {
-            if (auto *Extract = dyn_cast<ExtractValueInst>(U)) {
-              if (Extract->getIndices()[0] == 0) {
-                Extract->replaceAllUsesWith(Res);
-              } else if (Extract->getIndices()[0] == 1) {
-                auto *Cmp = new ICmpInst(Extract, CmpInst::ICMP_EQ, Res,
-                                         Comparator, "cmpxchg.success");
-                Extract->replaceAllUsesWith(Cmp);
-              } else {
-                llvm_unreachable("Unxpected cmpxchg pattern");
-              }
-              assert(Extract->user_empty());
-              Extract->dropAllReferences();
-              ToErase.push_back(Extract);
-            } else if (auto *Store = dyn_cast<StoreInst>(U)) {
-              auto *Cmp = new ICmpInst(Store, CmpInst::ICMP_EQ, Res, Comparator,
-                                       "cmpxchg.success");
-              auto *Agg = InsertValueInst::Create(
-                  UndefValue::get(Cmpxchg->getType()), Res, 0, "agg0", Store);
-              auto *AggStruct =
-                  InsertValueInst::Create(Agg, Cmp, 1, "agg1", Store);
-              Store->getValueOperand()->replaceAllUsesWith(AggStruct);
-            }
-          }
-          if (Cmpxchg->user_empty())
-            ToErase.push_back(Cmpxchg);
+          IRBuilder<> Builder(Cmpxchg);
+          auto *Cmp = Builder.CreateICmpEQ(Res, Comparator, "cmpxchg.success");
+          auto *V1 = Builder.CreateInsertValue(
+              UndefValue::get(Cmpxchg->getType()), Res, 0);
+          auto *V2 = Builder.CreateInsertValue(V1, Cmp, 1, Cmpxchg->getName());
+          Cmpxchg->replaceAllUsesWith(V2);
+          ToErase.push_back(Cmpxchg);
         }
       }
     }

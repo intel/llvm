@@ -11,10 +11,11 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#ifndef FIR_DIALECT_FIR_OPS
-#define FIR_DIALECT_FIR_OPS
+#ifndef FORTRAN_DIALECT_FIR_OPS
+#define FORTRAN_DIALECT_FIR_OPS
 
 include "mlir/IR/SymbolInterfaces.td"
+include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/LoopLikeInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
@@ -24,6 +25,8 @@ def fir_Dialect : Dialect {
   let cppNamespace = "::fir";
 }
 
+include "flang/Optimizer/Dialect/FIRTypes.td"
+
 // Types and predicates
 
 def fir_Type : Type<CPred<"fir::isa_fir_or_std_type($_self)">,
@@ -32,14 +35,16 @@ def fir_Type : Type<CPred<"fir::isa_fir_or_std_type($_self)">,
 // Fortran intrinsic types
 def fir_CharacterType : Type<CPred<"$_self.isa<fir::CharacterType>()">,
     "FIR character type">;
-def fir_ComplexType : Type<CPred<"$_self.isa<fir::CplxType>()">,
+def fir_ComplexType : Type<CPred<"$_self.isa<fir::ComplexType>()">,
     "FIR complex type">;
-def fir_IntegerType : Type<CPred<"$_self.isa<fir::IntType>()">,
+def fir_IntegerType : Type<CPred<"$_self.isa<fir::IntegerType>()">,
     "FIR integer type">;
 def fir_LogicalType : Type<CPred<"$_self.isa<fir::LogicalType>()">,
     "FIR logical type">;
 def fir_RealType : Type<CPred<"$_self.isa<fir::RealType>()">,
     "FIR real type">;
+def fir_VectorType : Type<CPred<"$_self.isa<fir::VectorType>()">,
+    "FIR vector type">;
 
 // Generalized FIR and standard dialect types representing intrinsic types
 def AnyIntegerLike : TypeConstraint<Or<[SignlessIntegerLike.predicate,
@@ -61,7 +66,7 @@ def fir_SequenceType : Type<CPred<"$_self.isa<fir::SequenceType>()">,
 // Composable types
 def AnyCompositeLike : TypeConstraint<Or<[fir_RecordType.predicate,
     fir_SequenceType.predicate, fir_ComplexType.predicate,
-    IsTupleTypePred]>, "any composite">;
+    fir_VectorType.predicate, IsTupleTypePred]>, "any composite">;
 
 // Reference to an entity type
 def fir_ReferenceType : Type<CPred<"$_self.isa<fir::ReferenceType>()">,
@@ -79,9 +84,6 @@ def fir_PointerType : Type<CPred<"$_self.isa<fir::PointerType>()">,
 def AnyReferenceLike : TypeConstraint<Or<[fir_ReferenceType.predicate,
     fir_HeapType.predicate, fir_PointerType.predicate]>, "any reference">;
 
-// A descriptor tuple (captures a reference to an entity and other information)
-def fir_BoxType : Type<CPred<"$_self.isa<fir::BoxType>()">, "box type">;
-
 // CHARACTER type descriptor. A pair of a data reference and a LEN value.
 def fir_BoxCharType : Type<CPred<"$_self.isa<fir::BoxCharType>()">,
     "box character type">;
@@ -90,26 +92,26 @@ def fir_BoxCharType : Type<CPred<"$_self.isa<fir::BoxCharType>()">,
 def fir_BoxProcType : Type<CPred<"$_self.isa<fir::BoxProcType>()">,
     "box procedure type">;
 
-def AnyBoxLike : TypeConstraint<Or<[fir_BoxType.predicate,
+def AnyBoxLike : TypeConstraint<Or<[BoxType.predicate,
     fir_BoxCharType.predicate, fir_BoxProcType.predicate]>, "any box">;
 
 def AnyRefOrBox : TypeConstraint<Or<[fir_ReferenceType.predicate,
-    fir_HeapType.predicate, fir_PointerType.predicate, fir_BoxType.predicate]>,
+    fir_HeapType.predicate, fir_PointerType.predicate, BoxType.predicate]>,
     "any reference or box">;
 
-// A vector of Fortran triple notation describing a multidimensional array
-def fir_DimsType : Type<CPred<"$_self.isa<fir::DimsType>()">, "dim type">;
+def AnyShapeLike : TypeConstraint<Or<[ShapeType.predicate,
+    ShapeShiftType.predicate]>, "any legal shape type">;
+def AnyShapeType : Type<AnyShapeLike.predicate, "any legal shape type">;
+def fir_SliceType : Type<CPred<"$_self.isa<fir::SliceType>()">, "slice type">;
+
 def AnyEmboxLike : TypeConstraint<Or<[AnySignlessInteger.predicate,
-    Index.predicate, fir_IntegerType.predicate, fir_DimsType.predicate]>,
+    Index.predicate, fir_IntegerType.predicate]>,
     "any legal embox argument type">;
 def AnyEmboxArg : Type<AnyEmboxLike.predicate, "embox argument type">;
 
 // A type descriptor's type
 def fir_TypeDescType : Type<CPred<"$_self.isa<fir::TypeDescType>()">,
     "type desc type">;
-
-// A field (in a RecordType) argument's type
-def fir_FieldType : Type<CPred<"$_self.isa<fir::FieldType>()">, "field type">;
 
 // A LEN parameter (in a RecordType) argument's type
 def fir_LenType : Type<CPred<"$_self.isa<fir::LenType>()">,
@@ -140,10 +142,11 @@ class fir_SimpleOp<string mnemonic, list<OpTrait> traits>
 }
 
 // Base builder for allocate operations
-def fir_AllocateOpBuilder :
-  OpBuilderDAG<(ins "Type":$inType, CArg<"ValueRange", "{}">:$lenParams,
-    CArg<"ValueRange", "{}">:$sizes,
-    CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes),
+def fir_AllocateOpBuilder : OpBuilderDAG<(ins
+    "mlir::Type":$inType,
+    CArg<"mlir::ValueRange", "{}">:$lenParams,
+    CArg<"mlir::ValueRange", "{}">:$sizes,
+    CArg<"llvm::ArrayRef<mlir::NamedAttribute>", "{}">:$attributes),
   [{
     $_state.addTypes(getRefTy(inType));
     $_state.addAttribute("in_type", TypeAttr::get(inType));
@@ -151,9 +154,11 @@ def fir_AllocateOpBuilder :
     $_state.addAttributes(attributes);
   }]>;
 
-def fir_NamedAllocateOpBuilder :
-  OpBuilderDAG<(ins "Type":$inType, "StringRef":$name,
-    CArg<"ValueRange", "{}">:$lenParams, CArg<"ValueRange", "{}">:$sizes,
+def fir_NamedAllocateOpBuilder : OpBuilderDAG<(ins
+    "Type":$inType,
+    "StringRef":$name,
+    CArg<"ValueRange", "{}">:$lenParams,
+    CArg<"ValueRange", "{}">:$sizes,
     CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes),
   [{
     $_state.addTypes(getRefTy(inType));
@@ -163,8 +168,9 @@ def fir_NamedAllocateOpBuilder :
     $_state.addAttributes(attributes);
   }]>;
 
-def fir_OneResultOpBuilder :
-  OpBuilderDAG<(ins "Type":$resultType, "ValueRange":$operands,
+def fir_OneResultOpBuilder : OpBuilderDAG<(ins
+    "Type":$resultType,
+    "ValueRange":$operands,
     CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes),
   [{
     if (resultType)
@@ -266,27 +272,27 @@ class fir_AllocatableOp<string mnemonic, list<OpTrait> traits = []> :
     static constexpr llvm::StringRef inType() { return "in_type"; }
     static constexpr llvm::StringRef lenpName() { return "len_param_count"; }
     mlir::Type getAllocatedType();
-    
+
     bool hasLenParams() { return bool{(*this)->getAttr(lenpName())}; }
-    
+
     unsigned numLenParams() {
       if (auto val = (*this)->getAttrOfType<mlir::IntegerAttr>(lenpName()))
         return val.getInt();
       return 0;
     }
-    
+
     operand_range getLenParams() {
       return {operand_begin(), operand_begin() + numLenParams()};
     }
-    
+
     unsigned numShapeOperands() {
       return operand_end() - operand_begin() + numLenParams();
     }
-    
+
     operand_range getShapeOperands() {
       return {operand_begin() + numLenParams(), operand_end()};
     }
-    
+
     static mlir::Type getRefTy(mlir::Type ty);
 
     /// Get the input type of the allocation
@@ -336,6 +342,39 @@ def fir_AllocaOp : fir_AllocatableOp<"alloca"> {
     (`len1`, `len2`) to the type `PT`.
 
     Finally, the operation is undefined if the ssa-value `%c` is negative.
+
+    Fortran Semantics:
+    There is no language mechanism in Fortran to allocate space on the stack
+    like C's `alloca()` function. Therefore fir.alloca is not control-flow
+    dependent. However, the lifetime of a stack allocation is often limited to
+    a small region and a legal implementation may reuse stack storage in other
+    regions when there is no conflict. For example, take the following code
+    fragment.
+
+    ```fortran
+      CALL foo(1)
+      CALL foo(2)
+      CALL foo(3)
+    ```
+
+    A legal implementation can allocate a stack slot and initialize it with the
+    constant `1`, then pass that by reference to foo. Likewise for the second
+    and third calls to foo, each stack slot being initialized accordingly. It is
+    also a conforming implementation to reuse the same stack slot for all three
+    calls, just initializing each in turn. This is possible  as the lifetime of
+    the copy of each constant need not exceed that of the CALL statement.
+    Indeed, a user would likely expect a good Fortran compiler to perform such
+    an optimization.
+
+    Until Fortran 2018, procedures defaulted to non-recursive. A legal
+    implementation could therefore convert stack allocations to global
+    allocations. Such a conversion effectively adds the SAVE attribute to all
+    variables.
+
+    Some temporary entities (large arrays) probably should not be stack
+    allocated as stack space can often be limited. A legal implementation can
+    convert these large stack allocations to heap allocations regardless of
+    whether the procedure is recursive or not.
   }];
 
   let results = (outs fir_ReferenceType);
@@ -709,7 +748,7 @@ class fir_IntegralSwitchTerminatorOp<string mnemonic,
   let verifier = [{
     if (!(getSelector().getType().isa<mlir::IntegerType>() ||
           getSelector().getType().isa<mlir::IndexType>() ||
-          getSelector().getType().isa<fir::IntType>()))
+          getSelector().getType().isa<fir::IntegerType>()))
       return emitOpError("must be an integer");
     auto cases = (*this)->getAttrOfType<mlir::ArrayAttr>(getCasesAttr()).getValue();
     auto count = getNumDest();
@@ -835,7 +874,7 @@ def fir_SelectCaseOp : fir_SwitchTerminatorOp<"select_case"> {
   let verifier = [{
     if (!(getSelector().getType().isa<mlir::IntegerType>() ||
           getSelector().getType().isa<mlir::IndexType>() ||
-          getSelector().getType().isa<fir::IntType>() ||
+          getSelector().getType().isa<fir::IntegerType>() ||
           getSelector().getType().isa<fir::LogicalType>() ||
           getSelector().getType().isa<fir::CharacterType>()))
       return emitOpError("must be an integer, character, or logical");
@@ -1041,7 +1080,7 @@ def fir_EmboxOp : fir_Op<"embox", [NoSideEffect]> {
 
   let arguments = (ins AnyReferenceLike:$memref, Variadic<AnyEmboxArg>:$args);
 
-  let results = (outs fir_BoxType);
+  let results = (outs BoxType);
 
   let parser = "return parseEmboxOp(parser, result);";
 
@@ -1077,17 +1116,12 @@ def fir_EmboxOp : fir_Op<"embox", [NoSideEffect]> {
       } else {
         return emitOpError("LEN parameters require !fir.type type");
       }
-      for (auto lp : getLenParams())
-        if (lp.getType().isa<fir::DimsType>())
-          return emitOpError("LEN parameters must be integral type");
     }
     if (dims().size() == 0) {
       // Ok. If there is no dims and no layout map, then emboxing a scalar.
       // TODO: Should the type be enforced? It already must agree.
     } else if (dims().size() == 1) {
-      auto d = *dims().begin();
-      if (!d.getType().isa<fir::DimsType>())
-        return emitOpError("dimension argument must have !fir.dims type");
+      //auto d = *dims().begin();
     } else {
       return emitOpError("embox can only have one !fir.dim argument");
     }
@@ -1135,7 +1169,7 @@ def fir_EmboxCharOp : fir_Op<"emboxchar", [NoSideEffect]> {
   }];
 
   let arguments = (ins AnyReferenceLike:$memref, AnyIntegerLike:$len);
-  
+
   let results = (outs fir_BoxCharType);
 
   let assemblyFormat = [{
@@ -1255,7 +1289,7 @@ def fir_UnboxOp : fir_SimpleOp<"unbox", [NoSideEffect]> {
     ```
   }];
 
-  let arguments = (ins fir_BoxType:$box);
+  let arguments = (ins BoxType:$box);
 
   let results = (outs
     fir_ReferenceType,  // pointer to data
@@ -1263,7 +1297,7 @@ def fir_UnboxOp : fir_SimpleOp<"unbox", [NoSideEffect]> {
     AnyIntegerLike,     // rank of data
     fir_TypeDescType,   // abstract type descriptor
     AnyIntegerLike,     // attribute flags (bitfields)
-    fir_DimsType        // dimension information (if any)
+    fir_SequenceType    // dimension information (if any)
   );
 }
 
@@ -1326,7 +1360,7 @@ def fir_BoxAddrOp : fir_SimpleOneResultOp<"box_addr", [NoSideEffect]> {
     ```
   }];
 
-  let arguments = (ins fir_BoxType:$val);
+  let arguments = (ins BoxType:$val);
 
   let results = (outs AnyReferenceLike);
 
@@ -1370,7 +1404,7 @@ def fir_BoxDimsOp : fir_Op<"box_dims", [NoSideEffect]> {
     the box. The triple will be the lower bound, upper bound, and stride.
   }];
 
-  let arguments = (ins fir_BoxType:$val, AnyIntegerLike:$dim);
+  let arguments = (ins BoxType:$val, AnyIntegerLike:$dim);
 
   let results = (outs AnyIntegerLike, AnyIntegerLike, AnyIntegerLike);
 
@@ -1399,7 +1433,7 @@ def fir_BoxEleSizeOp : fir_SimpleOneResultOp<"box_elesize", [NoSideEffect]> {
     must box an array of REAL values (with dynamic rank and extent).
   }];
 
-  let arguments = (ins fir_BoxType:$val);
+  let arguments = (ins BoxType:$val);
 
   let results = (outs AnyIntegerLike);
 }
@@ -1422,7 +1456,7 @@ def fir_BoxIsAllocOp : fir_SimpleOp<"box_isalloc", [NoSideEffect]> {
     variable is an `ALLOCATABLE`.
   }];
 
-  let arguments = (ins fir_BoxType:$val);
+  let arguments = (ins BoxType:$val);
 
   let results = (outs BoolLike);
 }
@@ -1443,7 +1477,7 @@ def fir_BoxIsArrayOp : fir_SimpleOp<"box_isarray", [NoSideEffect]> {
     ```
   }];
 
-  let arguments = (ins fir_BoxType:$val);
+  let arguments = (ins BoxType:$val);
 
   let results = (outs BoolLike);
 }
@@ -1461,7 +1495,7 @@ def fir_BoxIsPtrOp : fir_SimpleOp<"box_isptr", [NoSideEffect]> {
     ```
   }];
 
-  let arguments = (ins fir_BoxType:$val);
+  let arguments = (ins BoxType:$val);
 
   let results = (outs BoolLike);
 }
@@ -1505,7 +1539,7 @@ def fir_BoxRankOp : fir_SimpleOneResultOp<"box_rank", [NoSideEffect]> {
     descriptor may be either an array or a scalar, so the value is nonnegative.
   }];
 
-  let arguments = (ins fir_BoxType:$val);
+  let arguments = (ins BoxType:$val);
 
   let results = (outs AnyIntegerType);
 }
@@ -1523,7 +1557,7 @@ def fir_BoxTypeDescOp : fir_SimpleOneResultOp<"box_tdesc", [NoSideEffect]> {
     ```
   }];
 
-  let arguments = (ins fir_BoxType:$val);
+  let arguments = (ins BoxType:$val);
 
   let results = (outs fir_TypeDescType);
 }
@@ -1567,7 +1601,7 @@ def fir_CoordinateOp : fir_Op<"coordinate_of", [NoSideEffect]> {
     p.printFunctionalType((*this)->getOperandTypes(),
         (*this)->getResultTypes());
   }];
-  
+
   let verifier = [{
     auto refTy = ref().getType();
     if (fir::isa_ref_type(refTy)) {
@@ -1602,7 +1636,7 @@ def fir_CoordinateOp : fir_Op<"coordinate_of", [NoSideEffect]> {
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
     OpBuilderDAG<(ins "Type":$type, "ValueRange":$operands,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>];
-	      
+
   let extraClassDeclaration = [{
     static constexpr llvm::StringRef baseType() { return "base_type"; }
     mlir::Type getBaseType();
@@ -1690,7 +1724,7 @@ def fir_FieldIndexOp : fir_OneResultOp<"field_index", [NoSideEffect]> {
 
   let printer = [{
     p << getOperationName() << ' '
-      << (*this)->getAttrOfType<mlir::StringAttr>(fieldAttrName()).getValue() 
+      << (*this)->getAttrOfType<mlir::StringAttr>(fieldAttrName()).getValue()
       << ", " << (*this)->getAttr(typeAttrName());
     if (getNumOperands()) {
       p << '(';
@@ -1719,42 +1753,6 @@ def fir_FieldIndexOp : fir_OneResultOp<"field_index", [NoSideEffect]> {
   let extraClassDeclaration = [{
     static constexpr llvm::StringRef fieldAttrName() { return "field_id"; }
     static constexpr llvm::StringRef typeAttrName() { return "on_type"; }
-  }];
-}
-
-def fir_GenDimsOp : fir_OneResultOp<"gendims", [NoSideEffect]> {
-
-  let summary = "generate a value of type `!fir.dims`";
-
-  let description = [{
-    The arguments are an ordered list of integral type values that is a
-    multiple of 3 in length.  Each such triple is defined as: the lower
-    index, the extent, and the stride for that dimension. The dimension
-    information is given in the same row-to-column order as Fortran. This
-    abstract dimension value must describe a reified object, so all dimension
-    information must be specified.  The extent must be nonnegative and the
-    stride must not be zero.
-
-    ```mlir
-      %d = fir.gendims %lo, %ext, %str : (index, index, index) -> !fir.dims<1>
-    ```
-  }];
-
-  let arguments = (ins Variadic<AnyIntegerType>:$triples);
-
-  let results = (outs fir_DimsType);
-
-  let assemblyFormat = [{
-    operands attr-dict `:` functional-type(operands, results)
-  }];
-
-  let verifier = [{
-    auto size = triples().size();
-    if (size < 1 || size > 16 * 3)
-      return emitOpError("incorrect number of args");
-    if (size % 3 != 0)
-      return emitOpError("requires a multiple of 3 args");
-    return mlir::success();
   }];
 }
 
@@ -1852,7 +1850,7 @@ def fir_LenParamIndexOp : fir_OneResultOp<"len_param_index", [NoSideEffect]> {
 
 def fir_ResultOp : fir_Op<"result",
     [NoSideEffect, ReturnLike, Terminator,
-     ParentOneOf<["WhereOp", "LoopOp", "IterWhileOp"]>]> {
+     ParentOneOf<["IfOp", "DoLoopOp", "IterWhileOp"]>]> {
   let summary = "special terminator for use in fir region operations";
 
   let description = [{
@@ -1883,7 +1881,7 @@ class region_Op<string mnemonic, list<OpTrait> traits = []> :
   let parser = [{ return ::parse$cppClass(parser, result); }];
 }
 
-def fir_LoopOp : region_Op<"do_loop",
+def fir_DoLoopOp : region_Op<"do_loop",
     [DeclareOpInterfaceMethods<LoopLikeOpInterface>]> {
   let summary = "generalized loop operation";
   let description = [{
@@ -1969,7 +1967,7 @@ def fir_LoopOp : region_Op<"do_loop",
   }];
 }
 
-def fir_WhereOp : region_Op<"if", [NoRegionArguments]> {
+def fir_IfOp : region_Op<"if", [NoRegionArguments]> {
   let summary = "if-then-else conditional operation";
   let description = [{
     Used to conditionally execute operations. This operation is the FIR
@@ -2020,7 +2018,7 @@ def fir_IterWhileOp : region_Op<"iterate_while",
   let summary = "DO loop with early exit condition";
   let description = [{
     This construct is useful for lowering implied-DO loops. It is very similar
-    to `fir::LoopOp` with the addition that it requires a single loop-carried
+    to `fir::DoLoopOp` with the addition that it requires a single loop-carried
     bool value that signals an early exit condition to the operation. A `true`
     disposition means the next loop iteration should proceed. A `false`
     indicates that the `fir.iterate_while` operation should terminate and
@@ -2047,7 +2045,7 @@ def fir_IterWhileOp : region_Op<"iterate_while",
       CArg<"ValueRange", "llvm::None">:$iterArgs,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>
   ];
-  
+
   let extraClassDeclaration = [{
     mlir::Block *getBody() { return &region().front(); }
     mlir::Value getIterateVar() { return getBody()->getArgument(1); }
@@ -2134,7 +2132,7 @@ def fir_DispatchOp : fir_Op<"dispatch",
 
   let arguments = (ins
     StrAttr:$method,
-    fir_BoxType:$object,
+    BoxType:$object,
     Variadic<AnyType>:$args
   );
 
@@ -2316,11 +2314,11 @@ def fir_ConstfOp : fir_Op<"constf", [NoSideEffect]> {
   }];
 
   let arguments = (ins FirRealAttr:$constant);
-  
+
   let results = (outs fir_RealType:$res);
 
   let assemblyFormat = "`(` $constant `)` attr-dict `:` type($res)";
-  
+
   let verifier = [{
     if (!getType().isa<fir::RealType>())
       return emitOpError("must be a !fir.real type");
@@ -2397,7 +2395,7 @@ def fir_ConstcOp : fir_Op<"constc", [NoSideEffect]> {
   }];
 
   let results = (outs fir_ComplexType);
-  
+
   let parser = [{
     fir::RealAttr realp;
     fir::RealAttr imagp;
@@ -2427,7 +2425,7 @@ def fir_ConstcOp : fir_Op<"constc", [NoSideEffect]> {
   }];
 
   let verifier = [{
-    if (!getType().isa<fir::CplxType>())
+    if (!getType().isa<fir::ComplexType>())
       return emitOpError("must be a !fir.complex type");
     return mlir::success();
   }];
@@ -2495,7 +2493,7 @@ def fir_CmpcOp : fir_Op<"cmpc",
 
 def fir_AddrOfOp : fir_OneResultOp<"address_of", [NoSideEffect]> {
   let summary = "convert a symbol to an SSA value";
-  
+
   let description = [{
     Convert a symbol (a function or global reference) to an SSA-value to be
     used in other Operations.
@@ -2514,7 +2512,7 @@ def fir_AddrOfOp : fir_OneResultOp<"address_of", [NoSideEffect]> {
 
 def fir_ConvertOp : fir_OneResultOp<"convert", [NoSideEffect]> {
   let summary = "encapsulates all Fortran scalar type conversions";
-  
+
   let description = [{
     Generalized type conversion. Convert the ssa value from type T to type U.
     Not all pairs of types have conversions. When types T and U are the same
@@ -2563,8 +2561,8 @@ def fir_ConvertOp : fir_OneResultOp<"convert", [NoSideEffect]> {
 
 def FortranTypeAttr : Attr<And<[CPred<"$_self.isa<TypeAttr>()">,
     Or<[CPred<"$_self.cast<TypeAttr>().getValue().isa<fir::CharacterType>()">,
-        CPred<"$_self.cast<TypeAttr>().getValue().isa<fir::CplxType>()">,
-        CPred<"$_self.cast<TypeAttr>().getValue().isa<fir::IntType>()">,
+        CPred<"$_self.cast<TypeAttr>().getValue().isa<fir::ComplexType>()">,
+        CPred<"$_self.cast<TypeAttr>().getValue().isa<fir::IntegerType>()">,
         CPred<"$_self.cast<TypeAttr>().getValue().isa<fir::LogicalType>()">,
         CPred<"$_self.cast<TypeAttr>().getValue().isa<fir::RealType>()">,
         CPred<"$_self.cast<TypeAttr>().getValue().isa<fir::RecordType>()">]>]>,
@@ -2745,7 +2743,7 @@ def fir_GlobalOp : fir_Op<"global", [IsolatedFromAbove, Symbol]> {
     mlir::Type resultType() {
       return fir::AllocaOp::wrapResultType(getType());
     }
-    
+
     /// Return the initializer attribute if it exists, or a null attribute.
     Attribute getValueOrNull() { return initVal().getValueOr(Attribute()); }
 
@@ -2768,9 +2766,9 @@ def fir_GlobalOp : fir_Op<"global", [IsolatedFromAbove, Symbol]> {
     }
 
     mlir::FlatSymbolRefAttr getSymbol() {
-      return mlir::FlatSymbolRefAttr::get(
+      return mlir::FlatSymbolRefAttr::get(getContext(),
           (*this)->getAttrOfType<mlir::StringAttr>(
-              mlir::SymbolTable::getSymbolAttrName()).getValue(), getContext());
+              mlir::SymbolTable::getSymbolAttrName()).getValue());
     }
   }];
 }
@@ -2812,7 +2810,7 @@ def fir_GlobalLenOp : fir_Op<"global_len", []> {
   }];
 
   let printer = [{
-    p << getOperationName() << ' ' << (*this)->getAttr(lenParamAttrName()) 
+    p << getOperationName() << ' ' << (*this)->getAttr(lenParamAttrName())
       << ", " << (*this)->getAttr(intAttrName());
   }];
 

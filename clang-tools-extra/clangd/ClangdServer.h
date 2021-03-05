@@ -14,6 +14,7 @@
 #include "ConfigProvider.h"
 #include "GlobalCompilationDatabase.h"
 #include "Hover.h"
+#include "Module.h"
 #include "Protocol.h"
 #include "SemanticHighlighting.h"
 #include "TUScheduler.h"
@@ -34,7 +35,6 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include <functional>
-#include <future>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -69,12 +69,6 @@ public:
     /// May be called concurrently for separate files, not for a single file.
     virtual void onFileUpdated(PathRef File, const TUStatus &Status) {}
 
-    /// Called by ClangdServer when some \p Highlightings for \p File are ready.
-    /// May be called concurrently for separate files, not for a single file.
-    virtual void
-    onHighlightingsReady(PathRef File, llvm::StringRef Version,
-                         std::vector<HighlightingToken> Highlightings) {}
-
     /// Called when background indexing tasks are enqueued/started/completed.
     /// Not called concurrently.
     virtual void
@@ -98,21 +92,13 @@ public:
 
     /// Cached preambles are potentially large. If false, store them on disk.
     bool StorePreamblesInMemory = true;
-    /// Reuse even stale preambles, and rebuild them in the background.
-    /// This improves latency at the cost of accuracy.
-    bool AsyncPreambleBuilds = true;
 
     /// If true, ClangdServer builds a dynamic in-memory index for symbols in
     /// opened files and uses the index to augment code completion results.
     bool BuildDynamicSymbolIndex = false;
-    /// Use a heavier and faster in-memory index implementation.
-    bool HeavyweightDynamicSymbolIndex = true;
     /// If true, ClangdServer automatically indexes files in the current project
     /// on background threads. The index is stored in the project root.
     bool BackgroundIndex = false;
-
-    /// Store refs to main-file symbols in the index.
-    bool CollectMainFileRefs = true;
 
     /// If set, use this index to augment code completion results.
     SymbolIndex *StaticIndex = nullptr;
@@ -154,11 +140,10 @@ public:
     /// fetch system include path.
     std::vector<std::string> QueryDriverGlobs;
 
-    /// Enable notification-based semantic highlighting.
-    bool TheiaSemanticHighlighting = false;
-
     /// Enable preview of FoldingRanges feature.
     bool FoldingRanges = false;
+
+    ModuleSet *Modules = nullptr;
 
     explicit operator TUScheduler::Options() const;
   };
@@ -194,13 +179,8 @@ public:
   void removeDocument(PathRef File);
 
   /// Run code completion for \p File at \p Pos.
-  /// Request is processed asynchronously.
   ///
-  /// This method should only be called for currently tracked files. However, it
-  /// is safe to call removeDocument for \p File after this method returns, even
-  /// while returned future is not yet ready.
-  /// A version of `codeComplete` that runs \p Callback on the processing thread
-  /// when codeComplete results become available.
+  /// This method should only be called for currently tracked files.
   void codeComplete(PathRef File, Position Pos,
                     const clangd::CodeCompleteOptions &Opts,
                     Callback<CodeCompleteResult> CB);

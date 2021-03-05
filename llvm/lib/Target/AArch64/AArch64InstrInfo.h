@@ -299,6 +299,11 @@ public:
   Optional<ParamLoadedValue> describeLoadedValue(const MachineInstr &MI,
                                                  Register Reg) const override;
 
+  unsigned int getTailDuplicateSize(CodeGenOpt::Level OptLevel) const override;
+
+  bool isExtendLikelyToBeFolded(MachineInstr &ExtMI,
+                                MachineRegisterInfo &MRI) const override;
+
   static void decomposeStackOffsetForFrameOffsets(const StackOffset &Offset,
                                                   int64_t &NumBytes,
                                                   int64_t &NumPredicateVectors,

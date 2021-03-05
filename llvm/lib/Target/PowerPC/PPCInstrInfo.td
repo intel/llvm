@@ -398,6 +398,14 @@ def getFPAs32BitInt : SDNodeXForm<fpimm, [{
                                    SDLoc(N), MVT::i32);
 }]>;
 
+def imm34 : PatLeaf<(imm), [{
+  return isInt<34>(N->getSExtValue());
+}]>;
+
+def getImmAs64BitInt : SDNodeXForm<imm, [{
+  return getI64Imm(N->getSExtValue(), SDLoc(N));
+}]>;
+
 def SHL32 : SDNodeXForm<imm, [{
   // Transformation function: 31 - imm
   return getI32Imm(31 - N->getZExtValue(), SDLoc(N));
@@ -3995,7 +4003,7 @@ defm : CRNotPat<(i1 (setcc i64:$s1, i64:$s2, SETNE)),
                 (EXTRACT_SUBREG (CMPD $s1, $s2), sub_eq)>;
 }
 
-multiclass FSetCCPat<SDNode SetCC, ValueType Ty, PatLeaf FCmp> {
+multiclass FSetCCPat<SDPatternOperator SetCC, ValueType Ty, I FCmp> {
   defm : CRNotPat<(i1 (SetCC Ty:$s1, Ty:$s2, SETUGE)),
                   (EXTRACT_SUBREG (FCmp $s1, $s2), sub_lt)>;
   defm : CRNotPat<(i1 (SetCC Ty:$s1, Ty:$s2, SETGE)),

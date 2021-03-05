@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_TARGET_TARGETINSTRINFO_H
-#define LLVM_TARGET_TARGETINSTRINFO_H
+#ifndef LLVM_CODEGEN_TARGETINSTRINFO_H
+#define LLVM_CODEGEN_TARGETINSTRINFO_H
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
@@ -1929,12 +1929,27 @@ public:
   virtual Optional<ParamLoadedValue> describeLoadedValue(const MachineInstr &MI,
                                                          Register Reg) const;
 
+  /// Given the generic extension instruction \p ExtMI, returns true if this
+  /// extension is a likely candidate for being folded into an another
+  /// instruction.
+  virtual bool isExtendLikelyToBeFolded(MachineInstr &ExtMI,
+                                        MachineRegisterInfo &MRI) const {
+    return false;
+  }
+
   /// Return MIR formatter to format/parse MIR operands.  Target can override
   /// this virtual function and return target specific MIR formatter.
   virtual const MIRFormatter *getMIRFormatter() const {
     if (!Formatter.get())
       Formatter = std::make_unique<MIRFormatter>();
     return Formatter.get();
+  }
+
+  /// Returns the target-specific default value for tail duplication.
+  /// This value will be used if the tail-dup-placement-threshold argument is
+  /// not provided.
+  virtual unsigned getTailDuplicateSize(CodeGenOpt::Level OptLevel) const {
+    return OptLevel >= CodeGenOpt::Aggressive ? 4 : 2;
   }
 
 private:
@@ -1974,4 +1989,4 @@ template <> struct DenseMapInfo<TargetInstrInfo::RegSubRegPair> {
 
 } // end namespace llvm
 
-#endif // LLVM_TARGET_TARGETINSTRINFO_H
+#endif // LLVM_CODEGEN_TARGETINSTRINFO_H
