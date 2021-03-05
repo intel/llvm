@@ -82,6 +82,8 @@ pi_result redefinedEventRelease(pi_event event) { return PI_SUCCESS; }
 
 TEST(GetNativeTest, GetNativeHandle) {
   platform Plt{default_selector()};
+  if (Plt.get_backend() == backend::cuda)
+    return;
   if (Plt.is_host()) {
     std::cout << "Not run on host - no PI events created in that case"
               << std::endl;
