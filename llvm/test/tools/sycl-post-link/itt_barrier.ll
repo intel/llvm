@@ -1,3 +1,6 @@
+;; The test serves a purpose to check if barrier instruction is being annotated
+;; during sycl-post-link
+;;
 ;; Compiled from https://github.com/intel/llvm-test-suite/blob/intel/SYCL/KernelAndProgram/kernel-and-program.cpp
 ;; with following commands:
 ;; clang++ -fsycl -fsycl-device-only kernel-and-program.cpp -o kernel_and_program_optimized.bc

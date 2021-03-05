@@ -56,6 +56,8 @@
  * Purpose of this pass is to add wrapper calls to these instructions.
  */
 
+using namespace llvm;
+
 namespace {
 constexpr char SPIRV_CONTROL_BARRIER[] = "__spirv_ControlBarrier";
 constexpr char SPIRV_GROUP_ALL[] = "__spirv_GroupAll";
@@ -78,9 +80,6 @@ constexpr char ITT_ANNOTATION_WI_FINISH[] = "__itt_spirv_wi_finish_wrapper";
 constexpr char ITT_ANNOTATION_WG_BARRIER[] = "__itt_spirv_wg_barrier_wrapper";
 constexpr char ITT_ANNOTATION_ATOMIC_START[] = "__itt_sync_atomic_op_start";
 constexpr char ITT_ANNOTATION_ATOMIC_FINISH[] = "__itt_sync_atomic_op_finish";
-} // namespace
-
-namespace llvm {
 
 // TODO: move to a separate header
 // Check for calling convention of a function. If it's spir_kernel - consider
@@ -144,8 +143,8 @@ bool insertAtomicInstrumentationCall(Module &M, StringRef Name,
   else
     AtomicOp = ConstantInt::get(Int32Ty, 2);
   // TODO: Third parameter of Atomic Start/Finish annotation is an ordering
-  // semanticof the instruction, encoded into a value of enum, defined like this
-  // on user's/profiler's side:
+  // semantic of the instruction, encoded into a value of enum, defined like
+  // this on user's/profiler's side:
   // enum __itt_atomic_mem_order_t
   // {
   //   __itt_mem_order_relaxed = 0,
@@ -154,12 +153,14 @@ bool insertAtomicInstrumentationCall(Module &M, StringRef Name,
   // }
   // which isn't 1:1 mapped on SPIR-V memory ordering mask, need to align it.
   ConstantInt *MemSemantic = dyn_cast<ConstantInt>(AtomicFun->getArgOperand(2));
-  ArrayRef<Value *> Args = {Ptr, AtomicOp, MemSemantic};
+  Value *Args[] = {Ptr, AtomicOp, MemSemantic};
   Instruction *InstrumentationCall =
       emitCall(M, VoidTy, Name, Args, Position);
   assert(InstrumentationCall && "Instrumentation call creation failed");
   return true;
 }
+
+} // namespace
 
 PreservedAnalyses InstrumentalAnnotationsPass::run(Module &M,
                                                    ModuleAnalysisManager &MAM) {
@@ -186,28 +187,30 @@ PreservedAnalyses InstrumentalAnnotationsPass::run(Module &M,
         IRModified |=
             insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WI_FINISH, RI);
       for (Instruction &I : BB) {
-        if (CallInst *CI = dyn_cast<CallInst>(&I)) {
-          if (Function *Callee = CI->getCalledFunction()) {
-            StringRef CalleeName = Callee->getName();
-            // Annotate barrier and other cross WG calls
-            if (std::any_of(SPIRVCrossWGInstuctions.begin(),
-                            SPIRVCrossWGInstuctions.end(),
-                            [&CalleeName](StringRef Name) {
-                              return CalleeName.contains(Name);
-                            })) {
-              Instruction *InstAfterBarrier = CI->getNextNode();
-              IRModified |= insertSimpleInstrumentationCall(
-                  M, ITT_ANNOTATION_WG_BARRIER, CI);
-              IRModified |= insertSimpleInstrumentationCall(
-                  M, ITT_ANNOTATION_WI_RESUME, InstAfterBarrier);
-            } else if (CalleeName.contains(SPIRV_ATOMIC_INST)) {
-              Instruction *InstAfterAtomic = CI->getNextNode();
-              IRModified |= insertAtomicInstrumentationCall(
-                  M, ITT_ANNOTATION_ATOMIC_START, CI, CI);
-              IRModified |= insertAtomicInstrumentationCall(
-                  M, ITT_ANNOTATION_ATOMIC_FINISH, CI, InstAfterAtomic);
-            }
-          }
+        CallInst *CI = dyn_cast<CallInst>(&I);
+        if (!CI)
+          continue;
+        Function *Callee = CI->getCalledFunction();
+        if (!Callee)
+          continue;
+        StringRef CalleeName = Callee->getName();
+        // Annotate barrier and other cross WG calls
+        if (std::any_of(SPIRVCrossWGInstuctions.begin(),
+                        SPIRVCrossWGInstuctions.end(),
+                        [&CalleeName](StringRef Name) {
+                          return CalleeName.contains(Name);
+                        })) {
+          Instruction *InstAfterBarrier = CI->getNextNode();
+          IRModified |= insertSimpleInstrumentationCall(
+              M, ITT_ANNOTATION_WG_BARRIER, CI);
+          IRModified |= insertSimpleInstrumentationCall(
+              M, ITT_ANNOTATION_WI_RESUME, InstAfterBarrier);
+        } else if (CalleeName.contains(SPIRV_ATOMIC_INST)) {
+          Instruction *InstAfterAtomic = CI->getNextNode();
+          IRModified |= insertAtomicInstrumentationCall(
+              M, ITT_ANNOTATION_ATOMIC_START, CI, CI);
+          IRModified |= insertAtomicInstrumentationCall(
+              M, ITT_ANNOTATION_ATOMIC_FINISH, CI, InstAfterAtomic);
         }
       }
     }
@@ -215,5 +218,3 @@ PreservedAnalyses InstrumentalAnnotationsPass::run(Module &M,
 
   return IRModified ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
-
-} // namespace llvm
