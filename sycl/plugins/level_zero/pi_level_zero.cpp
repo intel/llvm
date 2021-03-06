@@ -911,7 +911,6 @@ zeModuleGetPropertiesMock(ze_module_handle_t hModule,
 
 static bool isOnlineLinkEnabled();
 // End forward declarations for mock Level Zero APIs
-std::once_flag OnceFlag;
 
 // This function will ensure compatibility with both Linux and Windowns for
 // setting environment variables.
@@ -2547,9 +2546,8 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
 }
 
 pi_result piextMemGetNativeHandle(pi_mem Mem, pi_native_handle *NativeHandle) {
-  (void)Mem;
-  (void)NativeHandle;
-  die("piextMemGetNativeHandle: not supported");
+  PI_ASSERT(Mem, PI_INVALID_MEM_OBJECT);
+  *NativeHandle = pi_cast<pi_native_handle>(Mem->getZeHandle());
   return PI_SUCCESS;
 }
 
@@ -4106,13 +4104,52 @@ pi_result piSamplerRelease(pi_sampler Sampler) {
 //
 pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
                               const pi_event *EventWaitList, pi_event *Event) {
-  (void)Queue;
-  (void)NumEventsInWaitList;
-  (void)EventWaitList;
-  (void)Event;
 
-  die("piEnqueueEventsWait: not implemented");
-  return {};
+  PI_ASSERT(Queue, PI_INVALID_QUEUE);
+  PI_ASSERT(Event, PI_INVALID_EVENT);
+
+  _pi_ze_event_list_t TmpWaitList;
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
+                                                          EventWaitList, Queue))
+    return Res;
+
+  // Lock automatically releases when this goes out of scope.
+  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+
+  // Get a new command list to be used on this call
+  ze_command_list_handle_t ZeCommandList = nullptr;
+  ze_fence_handle_t ZeFence = nullptr;
+  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
+                                                         &ZeFence))
+    return Res;
+
+  ze_event_handle_t ZeEvent = nullptr;
+  auto Res = createEventAndAssociateQueue(Queue, Event, PI_COMMAND_TYPE_USER,
+                                          ZeCommandList);
+  if (Res != PI_SUCCESS)
+    return Res;
+  ZeEvent = (*Event)->ZeEvent;
+  (*Event)->WaitList = TmpWaitList;
+
+  const auto &WaitList = (*Event)->WaitList;
+  if (WaitList.Length) {
+    ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, WaitList.Length,
+                                            WaitList.ZeEventList));
+
+    ZE_CALL(zeCommandListAppendSignalEvent(ZeCommandList, ZeEvent));
+
+    // Execute command list asynchronously as the event will be used
+    // to track down its completion.
+    return Queue->executeCommandList(ZeCommandList, ZeFence);
+  } else {
+    // If wait-list is empty, then this particular command should wait until
+    // all previous enqueued commands to the command-queue have completed.
+    //
+    // TODO: find a way to do that without blocking the host.
+    ZE_CALL(zeCommandQueueSynchronize(Queue->ZeCommandQueue, UINT64_MAX));
+    ZE_CALL(zeEventHostSignal(ZeEvent));
+    return PI_SUCCESS;
+  }
 }
 
 pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
