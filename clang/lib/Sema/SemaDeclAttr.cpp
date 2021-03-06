@@ -5999,8 +5999,9 @@ void Sema::AddIntelFPGAMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
   D->addAttr(::new (Context) IntelFPGAMaxReplicatesAttr(Context, CI, E));
 }
 
-IntelFPGAMaxReplicatesAttr *Sema::MergeIntelFPGAMaxReplicatesAttr(
-    Decl *D, const IntelFPGAMaxReplicatesAttr &A) {
+IntelFPGAMaxReplicatesAttr *
+Sema::MergeIntelFPGAMaxReplicatesAttr(Decl *D,
+                                      const IntelFPGAMaxReplicatesAttr &A) {
   // Check to see if there's a duplicate attribute with different values
   // already applied to the declaration.
   if (const auto *DeclAttr = D->getAttr<IntelFPGAMaxReplicatesAttr>()) {
@@ -6017,13 +6018,12 @@ IntelFPGAMaxReplicatesAttr *Sema::MergeIntelFPGAMaxReplicatesAttr(
   // attributes are incompatible.
   if (const auto *DeclAttr = D->getAttr<IntelFPGARegisterAttr>()) {
     Diag(DeclAttr->getLoc(), diag::err_attributes_are_not_compatible)
-	<< &A << DeclAttr;
+        << &A << DeclAttr;
     Diag(A.getLoc(), diag::note_conflicting_attribute);
     return nullptr;
   }
 
-  return ::new (Context)
-      IntelFPGAMaxReplicatesAttr(Context, A, A.getValue());
+  return ::new (Context) IntelFPGAMaxReplicatesAttr(Context, A, A.getValue());
 }
 
 static void handleIntelFPGAMaxReplicatesAttr(Sema &S, Decl *D,
