@@ -1914,13 +1914,13 @@ pi_result piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(Device, PI_INVALID_DEVICE);
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
   PI_ASSERT(Platform, PI_INVALID_PLATFORM);
-
-  std::lock_guard<std::mutex> Lock(Platform->PiDevicesCacheMutex);
-  pi_result Res = populateDeviceCacheIfNeeded(Platform);
-  if (Res != PI_SUCCESS) {
-    return Res;
+  {
+    std::lock_guard<std::mutex> Lock(Platform->PiDevicesCacheMutex);
+    pi_result Res = populateDeviceCacheIfNeeded(Platform);
+    if (Res != PI_SUCCESS) {
+      return Res;
+    }
   }
-
   auto ZeDevice = pi_cast<ze_device_handle_t>(NativeHandle);
 
   // The SYCL spec requires that the set of devices must remain fixed for the
