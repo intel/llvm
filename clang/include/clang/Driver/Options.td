@@ -924,6 +924,8 @@ defm cuda_short_ptr : BoolFOption<"cuda-short-ptr",
   NegFlag<SetFalse>>;
 def rocm_path_EQ : Joined<["--"], "rocm-path=">, Group<i_Group>,
   HelpText<"ROCm installation path, used for finding and automatically linking required bitcode libraries.">;
+def hip_path_EQ : Joined<["--"], "hip-path=">, Group<i_Group>,
+  HelpText<"HIP runtime installation path, used for finding HIP version and adding HIP include path.">;
 def rocm_device_lib_path_EQ : Joined<["--"], "rocm-device-lib-path=">, Group<Link_Group>,
   HelpText<"ROCm device library path. Alternative to rocm-path.">;
 def : Joined<["--"], "hip-device-lib-path=">, Alias<rocm_device_lib_path_EQ>;
@@ -3633,6 +3635,8 @@ def print_search_dirs : Flag<["-", "--"], "print-search-dirs">,
   HelpText<"Print the paths used for finding libraries and programs">;
 def print_targets : Flag<["-", "--"], "print-targets">,
   HelpText<"Print the registered targets">;
+def print_rocm_search_dirs : Flag<["-", "--"], "print-rocm-search-dirs">,
+  HelpText<"Print the paths used for finding ROCm installation">;
 def private__bundle : Flag<["-"], "private_bundle">;
 def pthreads : Flag<["-"], "pthreads">;
 defm pthread : BoolOption<"", "pthread",
@@ -5416,7 +5420,9 @@ def stack_protector_buffer_size : Separate<["-"], "stack-protector-buffer-size">
   MarshallingInfoInt<CodeGenOpts<"SSPBufferSize">, "8">;
 def fvisibility : Separate<["-"], "fvisibility">,
   HelpText<"Default type and symbol visibility">,
-  MarshallingInfoVisibility<LangOpts<"ValueVisibilityMode">, "DefaultVisibility">;
+  MarshallingInfoVisibility<LangOpts<"ValueVisibilityMode">, "DefaultVisibility">,
+  // Always emitting because of the relation to `-mignore-xcoff-visibility`.
+  AlwaysEmit;
 def ftype_visibility : Separate<["-"], "ftype-visibility">,
   HelpText<"Default type visibility">,
   MarshallingInfoVisibility<LangOpts<"TypeVisibilityMode">, fvisibility.KeyPath>;
