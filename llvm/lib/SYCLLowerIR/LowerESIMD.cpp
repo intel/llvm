@@ -843,11 +843,11 @@ static Instruction *generateGenXForSpirv(ExtractElementInst *EEI,
 
 // This function translates one occurence of SPIRV builtin use into GenX
 // intrinsic.
-static Value *translateSpirvIntrinsic(ExtractElementInst *EEI,
+static Value *translateSpirvGlobalUse(ExtractElementInst *EEI,
                                       StringRef SpirvGlobalName) {
   Value *IndexV = EEI->getIndexOperand();
-  if (!isa<ConstantInt>(IndexV))
-    return nullptr;
+  assert(isa<ConstantInt>(IndexV) &&
+         "Extract element index should be a constant");
 
   // Get the suffix based on the index of extractelement instruction
   ConstantInt *IndexC = cast<ConstantInt>(IndexV);
@@ -859,7 +859,7 @@ static Value *translateSpirvIntrinsic(ExtractElementInst *EEI,
   else if (IndexC->equalsInt(2))
     Suff = 'z';
   else
-    return nullptr;
+    assert(false && "Extract element index should be either 0, 1, or 2");
 
   // Translate SPIRV into GenX intrinsic.
   if (SpirvGlobalName == "WorkgroupSize") {
@@ -1358,29 +1358,29 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
         SpirvGlobal = LoadPtrOp;
       }
 
-      if (isa<GlobalVariable>(SpirvGlobal) &&
-          SpirvGlobal->getName().startswith(SPIRV_INTRIN_PREF)) {
-        auto PrefLen = StringRef(SPIRV_INTRIN_PREF).size();
+      if (!isa<GlobalVariable>(SpirvGlobal) ||
+          !SpirvGlobal->getName().startswith(SPIRV_INTRIN_PREF))
+        continue;
 
-        // Go through all the uses of the load instruction from SPIRV builtin
-        // globals, which are required to be extractelement instructions.
-        // Translate each of them.
-        for (auto *LU : LI->users()) {
-          auto *EEI = dyn_cast<ExtractElementInst>(LU);
-          assert(EEI && "User of load from global SPIRV builtin is not an "
-                        "extractelement instruction");
-          Value *TranslatedVal = translateSpirvIntrinsic(
-              EEI, SpirvGlobal->getName().drop_front(PrefLen));
+      auto PrefLen = StringRef(SPIRV_INTRIN_PREF).size();
 
-          if (TranslatedVal) {
-            EEI->replaceAllUsesWith(TranslatedVal);
-            ESIMDToErases.push_back(EEI);
-          }
-        }
-        // After all users of load were translated, we get rid of the load
-        // itself.
-        ESIMDToErases.push_back(LI);
+      // Go through all the uses of the load instruction from SPIRV builtin
+      // globals, which are required to be extractelement instructions.
+      // Translate each of them.
+      for (auto *LU : LI->users()) {
+        auto *EEI = dyn_cast<ExtractElementInst>(LU);
+        assert(EEI && "User of load from global SPIRV builtin is not an "
+                      "extractelement instruction");
+        Value *TranslatedVal = translateSpirvGlobalUse(
+            EEI, SpirvGlobal->getName().drop_front(PrefLen));
+        assert(TranslatedVal &&
+               "Load from global SPIRV builtin was not translated");
+        EEI->replaceAllUsesWith(TranslatedVal);
+        ESIMDToErases.push_back(EEI);
       }
+      // After all users of load were translated, we get rid of the load
+      // itself.
+      ESIMDToErases.push_back(LI);
     }
   }
   // Now demangle and translate found ESIMD intrinsic calls
