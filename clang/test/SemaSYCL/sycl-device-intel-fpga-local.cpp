@@ -14,7 +14,7 @@
 [[intel::max_replicates(14)]] const int var_max_replicates = 0;
 //expected-note@-2{{previous attribute is here}}
 
-// Merging of incompatible args 
+// Merging of incompatible attributes
 //expected-error@+3{{'max_replicates' and 'fpga_register' attributes are not compatible}}
 //expected-note@+1 {{conflicting attribute is here}}
 [[intel::max_replicates(12)]] extern const int var_max_replicates_2;
