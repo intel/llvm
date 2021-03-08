@@ -395,8 +395,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
     LinkOpts = LinkOptsEnv;
   }
 
-  auto BuildF = [this, &M, &KSId, &Context, &Device, Prg, &Img,
-                 &JITCompilationIsRequired, &CompileOpts, &LinkOpts] {
+  auto BuildF = [this, &Context, &Device, Prg, &Img, &CompileOpts, &LinkOpts] {
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
     const detail::plugin &Plugin = ContextImpl->getPlugin();
     RT::PiProgram NativePrg = createPIProgram(Img, Context, Device);
