@@ -6028,8 +6028,7 @@ static void handleIntelFPGAMaxReplicatesAttr(Sema &S, Decl *D,
                                              const ParsedAttr &A) {
   S.CheckDeprecatedSYCLAttributeSpelling(A);
 
-  Expr *E = A.getArgAsExpr(0);
-  S.AddIntelFPGAMaxReplicatesAttr(D, A, E);
+  S.AddIntelFPGAMaxReplicatesAttr(D, A, A.getArgAsExpr(0));
 }
 
 /// Handle the merge attribute.
@@ -6203,8 +6202,7 @@ static void handleIntelFPGAPrivateCopiesAttr(Sema &S, Decl *D,
                                              const ParsedAttr &A) {
   S.CheckDeprecatedSYCLAttributeSpelling(A);
 
-  Expr *E = A.getArgAsExpr(0);
-  S.AddIntelFPGAPrivateCopiesAttr(D, A, E);
+  S.AddIntelFPGAPrivateCopiesAttr(D, A, A.getArgAsExpr(0));
 }
 
 static void handleIntelFPGAForcePow2DepthAttr(Sema &S, Decl *D,
