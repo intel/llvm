@@ -673,7 +673,7 @@ public:
   }
 
   /// Constructs a new temporary buffer to hold partial sums and returns
-  /// the accessor that that buffer. Non-placeholder case.
+  /// the accessor for that buffer. Non-placeholder case.
   template <bool IsOneWG, access::placeholder _IsPlaceholder = IsPlaceholder>
   std::enable_if_t<!IsOneWG && _IsPlaceholder == access::placeholder::false_t,
                    accessor_type>
@@ -684,7 +684,7 @@ public:
   }
 
   /// Constructs a new temporary buffer to hold partial sums and returns
-  /// the accessor that that buffer. Placeholder case.
+  /// the accessor for that buffer. Placeholder case.
   template <bool IsOneWG, access::placeholder _IsPlaceholder = IsPlaceholder>
   std::enable_if_t<!IsOneWG && _IsPlaceholder == access::placeholder::true_t,
                    accessor_type>

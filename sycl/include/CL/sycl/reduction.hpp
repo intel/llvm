@@ -43,7 +43,7 @@ std::enable_if_t<has_known_identity<BinaryOperation, T>::value,
                  ONEAPI::detail::reduction_impl<T, BinaryOperation, 1, false,
                                                 access::mode::read_write,
                                                 access::placeholder::true_t>>
-reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, BinaryOperation Combiner,
+reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, BinaryOperation,
           const property_list &PropList = {}) {
   // TODO: need to handle 'PropList'.
   if (PropList.has_property<property::reduction::initialize_to_identity>())
