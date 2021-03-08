@@ -254,13 +254,8 @@ struct sub_group {
     if (g)
       return load(g);
 
-    auto p = __spirv_GenericCastToPtrExplicit_ToPrivate<T>(
-        src, __spv::StorageClass::Function);
-    assert((p == nullptr) &&
-           "Sub-group load() is not supported for private pointers.");
-
-    // Fallback for other address spaces to be mapped to global
-    return load(__spirv_PtrCastToGeneric<T>(src));
+    assert(!"Sub-group load() is supported for local or global pointers only.");
+    return 0;
 #endif // __NVPTX__
   }
 #else  //__SYCL_DEVICE_ONLY__
@@ -396,13 +391,9 @@ struct sub_group {
       return;
     }
 
-    auto p = __spirv_GenericCastToPtrExplicit_ToPrivate<T>(
-        dst, __spv::StorageClass::Function);
-    assert((p == nullptr) &&
-           "Sub-group store() is not supported for private pointers.");
-
-    // Fallback for other address spaces to be mapped to global
-    store(__spirv_PtrCastToGeneric<T>(dst), x);
+    assert(
+        !"Sub-group store() is supported for local or global pointers only.");
+    return;
 #endif // __NVPTX__
   }
 #else  //__SYCL_DEVICE_ONLY__

@@ -29,13 +29,6 @@ int main(int argc, char *argv[]) {
                      sycl::access::target::local>
           local(N, cgh);
 
-      // Check that load/store functions for raw pointer was called
-      //
-      // CHECK: spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE4test"
-      // CHECK-COUNT-3: call spir_func i32
-      // {{.*}}loadIiEENSt9enable_ifIXsr3std7is_sameINS0_6detail9remove_ASIT_E4typeES7_EE5valueES7_E4typeEPS7_{{.*}}i32
-      // addrspace(4)*
-      // CHECK: call spir_func void {{.*}}storeIiEENSt9enable_ifIXsr3std7is_sameINS0_6detail9remove_ASIT_E4typeES7_EE5valueEvE4typeEPS7_RKS9_({{.*}} addrspace(4)*{{.*}},
       cgh.parallel_for<class test>(
           cl::sycl::nd_range<1>(N, 32), [=](cl::sycl::nd_item<1> it) {
             int v[N] = {0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12,
@@ -50,37 +43,42 @@ int main(int argc, char *argv[]) {
                 local[i] = i;
               }
             }
+	    // CHECK:  call void @_Z22__spirv_ControlBarrierjjj
             it.barrier();
 
             int i = (it.get_global_id(0) / sg.get_max_local_range()[0]) *
                     sg.get_max_local_range()[0];
 
-            // CHECK: spir_func i32{{.*}}loadIiEENSt9enable_ifIXsr3std7is_sameINS0_6detail9remove_ASIT_E4typeES7_EE5valueES7_E4typeEPS7_
+            // load for global address space
             // CHECK: call spir_func i8 addrspace(3)* @_Z40__spirv_GenericCastToPtrExplicit_ToLocalPKvN5__spv12StorageClass4FlagE(i8 addrspace(4)*
-            // CHECK:  call spir_func i32 @_Z33__spirv_SubgroupLocalInvocationIdv
+            // CHECK: call spir_func i32 @_Z33__spirv_SubgroupLocalInvocationIdv()
             // CHECK: call spir_func i8 addrspace(1)* @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPKvN5__spv12StorageClass4FlagE(i8 addrspace(4)*
             // CHECK: call spir_func i32 @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)*
-            // CHECK: call spir_func i8* @_Z42__spirv_GenericCastToPtrExplicit_ToPrivatePKvN5__spv12StorageClass4FlagE(i8 addrspace(4)*
             // CHECK: call spir_func void {{.*}}assert
-            // CHECK: call spir_func i8 addrspace(4)* @_Z24__spirv_PtrCastToGenericPKv(i8 addrspace(4)*
-            // CHECK: call spir_func i32 @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)*
-            // Global address space
             auto x = sg.load(&global[i]);
 
-            // Local address space
+            // load() for local address space
+            // CHECK: call spir_func i8 addrspace(3)* @_Z40__spirv_GenericCastToPtrExplicit_ToLocalPKvN5__spv12StorageClass4FlagE(i8 addrspace(4)*
+            // CHECK: call spir_func i32 @_Z33__spirv_SubgroupLocalInvocationIdv()
+            // CHECK: call spir_func i8 addrspace(1)* @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPKvN5__spv12StorageClass4FlagE(i8 addrspace(4)*
+            // CHECK: call spir_func i32 @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)*
+            // CHECK: call spir_func void {{.*}}assert
             auto y = sg.load(&local[i]);
 
+            // load() for private address space
+            // CHECK: call spir_func i8 addrspace(3)* @_Z40__spirv_GenericCastToPtrExplicit_ToLocalPKvN5__spv12StorageClass4FlagE(i8 addrspace(4)*
+            // CHECK: call spir_func i32 @_Z33__spirv_SubgroupLocalInvocationIdv()
+            // CHECK: call spir_func i8 addrspace(1)* @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPKvN5__spv12StorageClass4FlagE(i8 addrspace(4)*
+            // CHECK: call spir_func i32 @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)*
+            // CHECK: call spir_func void {{.*}}assert
             auto z = sg.load(v + i);
 
-            // CHECK: spir_func void {{.*}}storeIiEENSt9enable_ifIXsr3std7is_sameINS0_6detail9remove_ASIT_E4typeES7_EE5valueEvE4typeEPS7_RKS9_
+            // store() for global address space
             // CHECK: call spir_func i8 addrspace(3)* @_Z40__spirv_GenericCastToPtrExplicit_ToLocalPKvN5__spv12StorageClass4FlagE(i8 addrspace(4)*
-            // CHECK: call spir_func i32 @_Z33__spirv_SubgroupLocalInvocationIdv
+            // CHECK: call spir_func i32 @_Z33__spirv_SubgroupLocalInvocationIdv() #7, !noalias !29
             // CHECK: call spir_func i8 addrspace(1)* @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPKvN5__spv12StorageClass4FlagE(i8 addrspace(4)*
             // CHECK: call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELIjEvPU3AS1jT_(i32 addrspace(1)*
-            // CHECK: call spir_func i8* @_Z42__spirv_GenericCastToPtrExplicit_ToPrivatePKvN5__spv12StorageClass4FlagE(i8 addrspace(4)*
             // CHECK: call spir_func void {{.*}}assert
-            // CHECK: call spir_func i8 addrspace(4)* @_Z24__spirv_PtrCastToGenericPKv(i8 addrspace(4)*
-            // CHECK: call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELIjEvPU3AS1jT_(i32 addrspace(1)*
             sg.store(&global[i], x + y + z);
           });
     });

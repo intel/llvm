@@ -115,7 +115,6 @@ constexpr bool modeWritesNewData(access::mode m) {
 #define __OPENCL_LOCAL_AS__ __attribute__((opencl_local))
 #define __OPENCL_CONSTANT_AS__ __attribute__((opencl_constant))
 #define __OPENCL_PRIVATE_AS__ __attribute__((opencl_private))
-#define __OPENCL_GENERIC_AS__ __attribute__((opencl_generic))
 #else
 #define __OPENCL_GLOBAL_AS__
 #define __OPENCL_GLOBAL_DEVICE_AS__
@@ -123,7 +122,6 @@ constexpr bool modeWritesNewData(access::mode m) {
 #define __OPENCL_LOCAL_AS__
 #define __OPENCL_CONSTANT_AS__
 #define __OPENCL_PRIVATE_AS__
-#define __OPENCL_GENERIC_AS__
 #endif
 
 template <access::target accessTarget> struct TargetToAS {
@@ -229,10 +227,6 @@ template <class T> struct remove_AS<__OPENCL_CONSTANT_AS__ T> {
   typedef T type;
 };
 
-template <class T> struct remove_AS<__OPENCL_GENERIC_AS__ T> {
-  typedef T type;
-};
-
 template <class T> struct deduce_AS<__OPENCL_PRIVATE_AS__ T> {
   static const access::address_space value =
       access::address_space::private_space;
@@ -245,11 +239,6 @@ template <class T> struct deduce_AS<__OPENCL_LOCAL_AS__ T> {
 template <class T> struct deduce_AS<__OPENCL_CONSTANT_AS__ T> {
   static const access::address_space value =
       access::address_space::constant_space;
-};
-
-template <class T> struct deduce_AS<__OPENCL_GENERIC_AS__ T> {
-  static const access::address_space value =
-      access::address_space::global_space;
 };
 #endif
 

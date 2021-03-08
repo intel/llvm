@@ -62,7 +62,7 @@ int main(int argc, char *argv[]) {
             // Local address space
             auto y = sg.load(&local[i]);
 
-            // CHECK: Sub-group load() is not supported for private pointers.
+            // CHECK: Sub-group load() is supported for local or global pointers only
             auto z = sg.load(v + i);
 
             sg.store(&global[i], x + y);
