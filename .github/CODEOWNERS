@@ -13,7 +13,7 @@ llvm-spirv/ @AlexeySotkin @AlexeySachkov
 opencl-aot/ @dm-vodopyanov @AlexeySachkov @romanovvlad
 
 # Device library
-libdevice/ @vzakhari
+libdevice/ @vzakhari @jinge90
 
 # DPC++ runtime library
 sycl/ @intel/llvm-reviewers-runtime
