@@ -16,8 +16,8 @@
 
 // Merging of incompatible attributes
 // FIXME: Diagnostic order isn't correct, this isn't what we'd want here but
-// this is an upstream issue and checkAttrMutualExclusion() needs to be fixed
-// there for the correct order.
+// this is an upstream issue. Merge function is calling checkAttrMutualExclusion()
+// function that has backwards diagnostic behavior. This should be fixed into upstream.
 //expected-error@+2{{'max_replicates' and 'fpga_register' attributes are not compatible}}
 //expected-note@+2{{conflicting attribute is here}}
 [[intel::max_replicates(12)]] extern const int var_max_replicates_2;
