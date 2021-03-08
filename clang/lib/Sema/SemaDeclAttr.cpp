@@ -6016,14 +6016,10 @@ Sema::MergeIntelFPGAMaxReplicatesAttr(Decl *D,
       return nullptr;
     }
   }
-  // [[intel::max_replicates()]] and [[intel::fpga_register]]
+  // [[intel::fpga_register]] and [[intel::max_replicates()]]
   // attributes are incompatible.
-  if (const auto *DeclAttr = D->getAttr<IntelFPGARegisterAttr>()) {
-    Diag(DeclAttr->getLoc(), diag::err_attributes_are_not_compatible)
-        << &A << DeclAttr;
-    Diag(A.getLoc(), diag::note_conflicting_attribute);
+  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(*this, D, A))
     return nullptr;
-  }
 
   return ::new (Context) IntelFPGAMaxReplicatesAttr(Context, A, A.getValue());
 }
