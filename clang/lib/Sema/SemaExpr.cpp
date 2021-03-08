@@ -215,17 +215,22 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
   if (getLangOpts().SYCLIsDevice) {
     if (auto VD = dyn_cast<VarDecl>(D)) {
       bool IsConst = VD->getType().isConstant(Context);
-      if (!IsConst && VD->getStorageClass() == SC_Static)
+      bool IsRuntimeEvaluated =
+          ExprEvalContexts.empty() ||
+          (!ExprEvalContexts.back().isUnevaluated() &&
+           !ExprEvalContexts.back().isConstantEvaluated());
+      if (IsRuntimeEvaluated && !IsConst && VD->getStorageClass() == SC_Static)
         SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
             << Sema::KernelNonConstStaticDataVariable;
       // Non-const globals are allowed for SYCL explicit SIMD.
-      else if (!isSYCLEsimdPrivateGlobal(VD) && !IsConst &&
-               VD->hasGlobalStorage() && !isa<ParmVarDecl>(VD))
+      else if (IsRuntimeEvaluated && !isSYCLEsimdPrivateGlobal(VD) &&
+               !IsConst && VD->hasGlobalStorage() && !isa<ParmVarDecl>(VD))
         SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
             << Sema::KernelGlobalVariable;
       // Disallow const statics and globals that are not zero-initialized
       // or constant-initialized.
-      else if (IsConst && VD->hasGlobalStorage() && !VD->isConstexpr() &&
+      else if (IsRuntimeEvaluated && IsConst && VD->hasGlobalStorage() &&
+               !VD->isConstexpr() &&
                !checkAllowedSYCLInitializer(VD, /*CheckValueDependent =*/true))
         SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
             << Sema::KernelConstStaticVariable;

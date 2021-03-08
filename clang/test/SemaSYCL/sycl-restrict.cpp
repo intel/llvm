@@ -384,6 +384,10 @@ int moar_globals = 5;
 }
 }
 
+template<const auto &T>
+int uses_global(){}
+
+
 int addInt(int n, int m) {
   return n + m;
 }
@@ -400,6 +404,9 @@ int use2(a_type ab, a_type *abp) {
     return 0;
   if (ab.fm()) // expected-note {{called by 'use2'}}
     return 0;
+
+  // No error, as this is not in an evaluated context.
+  (void)(uses_global<another_global>() + uses_global<ns::glob>());
 
   return another_global; // expected-error {{SYCL kernel cannot use a non-const global variable}}
 
