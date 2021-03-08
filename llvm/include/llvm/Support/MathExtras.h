@@ -399,6 +399,7 @@ constexpr inline std::enable_if_t<(N < 64), bool> isUInt(uint64_t X) {
 }
 template <unsigned N>
 constexpr inline std::enable_if_t<N >= 64, bool> isUInt(uint64_t X) {
+  (void)X;
   return true;
 }
 

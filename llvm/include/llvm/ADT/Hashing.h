@@ -657,6 +657,7 @@ namespace detail {
 template <typename... Ts, std::size_t... Indices>
 hash_code hash_value_tuple_helper(const std::tuple<Ts...> &arg,
                                   std::index_sequence<Indices...> indices) {
+  (void)indices;
   return hash_combine(std::get<Indices>(arg)...);
 }
 

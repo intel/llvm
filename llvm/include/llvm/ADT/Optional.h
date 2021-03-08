@@ -382,6 +382,7 @@ constexpr bool operator!=(NoneType, const Optional<T> &X) {
 }
 
 template <typename T> constexpr bool operator<(const Optional<T> &X, NoneType) {
+  (void)X;
   return false;
 }
 
