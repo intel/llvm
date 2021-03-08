@@ -98,6 +98,10 @@ bool kernel_bundle_plain::has_kernel(const kernel_id &KernelID,
   return impl->has_kernel(KernelID, Dev);
 }
 
+////////////////////////////
+///// free functions 
+///////////////////////////
+
 detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        bundle_state State) {
@@ -120,6 +124,60 @@ get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                                                       State);
 }
 
+std::shared_ptr<detail::kernel_bundle_impl>
+join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles) {
+  return std::make_shared<detail::kernel_bundle_impl>(Bundles);
+}
+
+bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
+                            bundle_state State) {
+  // Just create a kernel_bundle and check if it has any device_images inside.
+  detail::kernel_bundle_impl KernelBundleImpl(Ctx, Devs, State);
+  return KernelBundleImpl.size();
+}
+
+bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
+                            const std::vector<kernel_id> &KernelIds,
+                            bundle_state State) {
+  // Just create a kernel_bundle and check if it has any device_images inside.
+  detail::kernel_bundle_impl KernelBundleImpl(Ctx, Devs, KernelIds, State);
+  return KernelBundleImpl.size();
+}
+
+std::shared_ptr<detail::kernel_bundle_impl>
+compile_impl(const kernel_bundle<bundle_state::input> &InputBundle,
+             const std::vector<device> &Devs, const property_list &PropList) {
+
+  detail::getSyclObjImpl(InputBundle)->compile(Devs, PropList);
+}
+
 } // namespace detail
+
+__SYCL_EXPORT kernel_bundle<bundle_state::executable>
+link(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
+     const std::vector<device> &Devs, const property_list &PropList = {}) {
+
+  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpl =
+      std::make_shared<detail::kernel_bundle_impl>(Bundles);
+}
+
+__SYCL_EXPORT bool is_compatible(const std::vector<kernel_id> &KernelIDs,
+                                 const device &Dev) {
+  // TODO: Something like this should be implemented once aspects are supported.
+  // std::unordered_set<aspect> KernelsRequiredAspects;
+  // for(const kernel_id &KernelID: KernelIDs) {
+  //  const auto &RequiredAspects = KernelID.get_required_aspects();
+  //
+  //  KernelsRequiredAspects.insert(RequiredAspects.begin(),
+  //                                RequiredAspects.end());
+  // }
+  // return std::any_of(KernelsRequiredAspects.begin(),
+  //                    KernelsRequiredAspects.end(),
+  //                    [] (aspect Aspect) {
+  //                      return !Dev.has(Aspect);
+  //                    });
+  //
+}
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

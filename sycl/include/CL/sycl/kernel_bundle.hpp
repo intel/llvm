@@ -448,12 +448,14 @@ kernel_bundle<State> get_kernel_bundle(const context &Ctx, SelectorT Selector) {
 
 namespace detail {
 
-bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
-                            bundle_state State);
+__SYCL_EXPORT bool has_kernel_bundle_impl(const context &Ctx,
+                                          const std::vector<device> &Devs,
+                                          bundle_state State);
 
-bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
-                            const std::vector<kernel_id> &kernelIds,
-                            bundle_state State);
+__SYCL_EXPORT bool
+has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
+                       const std::vector<kernel_id> &kernelIds,
+                       bundle_state State);
 } // namespace detail
 
 /// \returns true if the following is true:
@@ -503,7 +505,8 @@ bool has_kernel_bundle(const context &Ctx, const std::vector<device> &Devs) {
 
 /// \returns true if all of the kernels identified by KernelIDs are compatible
 /// with the device Dev.
-bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev);
+__SYCL_EXPORT bool is_compatible(const std::vector<kernel_id> &KernelIDs,
+                                 const device &Dev);
 
 template <typename KernelName> bool is_compatible(const device &Dev) {
   return is_compatible({get_kernel_id<KernelName>()}, Dev);
@@ -541,7 +544,7 @@ join(const std::vector<sycl::kernel_bundle<State>> &Bundles) {
 
 namespace detail {
 
-std::shared_ptr<detail::kernel_bundle_impl>
+__SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
 compile_impl(const kernel_bundle<bundle_state::input> &InputBundle,
              const std::vector<device> &Devs, const property_list &PropList);
 }
@@ -579,7 +582,7 @@ std::vector<sycl::device> find_device_intersection(
 /// state bundle_state::executable The new bundle represents all of the kernels
 /// in ObjectBundles that are compatible with at least one of the devices in
 /// Devs.
-kernel_bundle<bundle_state::executable>
+__SYCL_EXPORT kernel_bundle<bundle_state::executable>
 link(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
      const std::vector<device> &Devs, const property_list &PropList = {});
 

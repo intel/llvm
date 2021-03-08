@@ -68,6 +68,36 @@ public:
     MDeviceImages.erase(It, MDeviceImages.end());
   }
 
+  // C'tor matches sycl::join API
+  kernel_bundle_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles) {
+    MContext = Bundles[0]->MContext;
+    for (const detail::KernelBundleImplPtr &Bundle : Bundles) {
+
+      // Insert devices from a bundle keeping MDevices sorted.
+      const size_t DevCurSize = MDevices.size();
+      MDevices.insert(MDevices.end(), Bundle->MDevices.begin(),
+                      Bundle->MDevices.end());
+      std::inplace_merge(MDevices.begin(), MDevices.begin() + DevCurSize,
+                         MDevices.end(), LessByHash<device>{});
+
+      // Insert devices from a bundle keeping MDeviceImages sorted.
+      const size_t ImgCurSize = MDeviceImages.size();
+      MDeviceImages.insert(MDeviceImages.end(), Bundle->MDeviceImages.begin(),
+                           Bundle->MDeviceImages.end());
+
+      std::inplace_merge(MDeviceImages.begin(),
+                         MDeviceImages.begin() + ImgCurSize,
+                         MDeviceImages.end(), LessByHash<device_image_plain>{});
+    }
+
+    const auto DevIt = std::unique(MDevices.begin(), MDevices.end());
+    MDevices.erase(DevIt, MDevices.end());
+
+    const auto DevImgIt =
+        std::unique(MDeviceImages.begin(), MDeviceImages.end());
+    MDeviceImages.erase(DevImgIt, MDeviceImages.end());
+  }
+
   bool empty() const noexcept { return MDeviceImages.empty(); }
 
   backend get_backend() const noexcept {
@@ -88,12 +118,18 @@ public:
 
       Result.insert(Result.end(), KernelIDs.begin(), KernelIDs.end());
     }
-    std::sort(Result.begin(), Result.end(),
-              [](const kernel_id &LHS, const kernel_id &RHS) {
-                return detail::getSyclObjImpl(LHS) <
-                       detail::getSyclObjImpl(RHS);
-              });
-    std::unique(Result.begin(), Result.end());
+    std::sort(Result.begin(), Result.end(), LessByNameComp{});
+
+    auto NewIt =
+        std::unique(Result.begin(), Result.end(),
+                    [](const sycl::kernel_id &LHS, const sycl::kernel_id &RHS) {
+                      return strcmp(LHS.get_name(), RHS.get_name()) == 0;
+                    }
+
+        );
+
+    //std::sort(Result.begin(), Result.end(), LessByHash<kernel_id>{});
+    Result.erase(NewIt, Result.end());
 
     return Result;
   }
@@ -165,6 +201,8 @@ public:
   const device_image_plain *begin() const { return &MDeviceImages.front(); }
 
   const device_image_plain *end() const { return &MDeviceImages.back() + 1; }
+
+  size_t size() const { return MDeviceImages.size(); }
 
 private:
   context MContext;

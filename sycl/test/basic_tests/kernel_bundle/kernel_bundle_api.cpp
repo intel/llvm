@@ -90,7 +90,29 @@ int main() {
                                                            Selector);
     assert(!KernelBundle3.has_kernel(Kernel1ID));
     assert(KernelBundle3.has_kernel(Kernel2ID));
+
+    sycl::kernel_bundle KernelBundle4 =
+        sycl::join(std::vector<sycl::kernel_bundle<sycl::bundle_state::input>>{
+            KernelBundle2, KernelBundle3});
+
+    assert(KernelBundle4.has_kernel(Kernel1ID));
+    assert(KernelBundle4.has_kernel(Kernel2ID));
+
+    sycl::kernel_bundle KernelBundle12 =
+        sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
+                                                           {Kernel1ID});
+
+    sycl::kernel_bundle KernelBundle5 =
+        sycl::join(std::vector<sycl::kernel_bundle<sycl::bundle_state::input>>{
+            KernelBundle4, KernelBundle12});
+
+    std::vector<sycl::kernel_id> KernelBundle5KernelIDs =
+        KernelBundle5.get_kernel_ids();
+
+    assert(KernelBundle5KernelIDs.size() == 2);
   }
+
+  assert(sycl::has_kernel_bundle<sycl::bundle_state::object>(Ctx, {Dev}));
 
   return 0;
 }
