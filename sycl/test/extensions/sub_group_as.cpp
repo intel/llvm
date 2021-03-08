@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
 
             // store() for global address space
             // CHECK: call spir_func i8 addrspace(3)* @_Z40__spirv_GenericCastToPtrExplicit_ToLocalPKvN5__spv12StorageClass4FlagE(i8 addrspace(4)*
-            // CHECK: call spir_func i32 @_Z33__spirv_SubgroupLocalInvocationIdv() #7, !noalias !29
+            // CHECK: call spir_func i32 @_Z33__spirv_SubgroupLocalInvocationIdv()
             // CHECK: call spir_func i8 addrspace(1)* @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPKvN5__spv12StorageClass4FlagE(i8 addrspace(4)*
             // CHECK: call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELIjEvPU3AS1jT_(i32 addrspace(1)*
             // CHECK: call spir_func void {{.*}}assert
