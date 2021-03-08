@@ -215,10 +215,8 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
   if (getLangOpts().SYCLIsDevice) {
     if (auto VD = dyn_cast<VarDecl>(D)) {
       bool IsConst = VD->getType().isConstant(Context);
-      bool IsRuntimeEvaluated =
-          ExprEvalContexts.empty() ||
-          (!ExprEvalContexts.back().isUnevaluated() &&
-           !ExprEvalContexts.back().isConstantEvaluated());
+      bool IsRuntimeEvaluated = ExprEvalContexts.empty() ||
+                                isUnevaluatedContext() || isConstantEvaluated();
       if (IsRuntimeEvaluated && !IsConst && VD->getStorageClass() == SC_Static)
         SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
             << Sema::KernelNonConstStaticDataVariable;
