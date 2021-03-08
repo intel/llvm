@@ -367,11 +367,35 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
   auto GetF = [](const Locked<ProgramCacheT> &LockedCache) -> ProgramCacheT & {
     return LockedCache.get();
   };
-  auto BuildF = [this, &M, &KSId, &Context, &Device, Prg,
-                 &JITCompilationIsRequired] {
-    const RTDeviceBinaryImage &Img =
-        getDeviceImage(M, KSId, Context, Device, JITCompilationIsRequired);
+  std::string BuildOptions;
+  if (Prg)
+    BuildOptions = Prg->get_build_options();
+  const RTDeviceBinaryImage &Img =
+      getDeviceImage(M, KSId, Context, Device, JITCompilationIsRequired);
+  std::string CompileOpts = Img.getCompileOptions();
+  std::string LinkOpts = Img.getLinkOptions();
+  pi_device_binary_property isEsimdImage = Img.getProperty("isEsimdImage");
+  if (!BuildOptions.empty()) {
+    CompileOpts += " ";
+    CompileOpts += BuildOptions;
+  }
+  if (isEsimdImage && pi::DeviceBinaryProperty(isEsimdImage).asUint32()) {
+    if (!CompileOpts.empty())
+      CompileOpts += " ";
+    CompileOpts += "-vc-codegen";
+  }
 
+  // Build options are overridden if environment variables are present
+  const char *CompileOptsEnv = SYCLConfig<SYCL_PROGRAM_COMPILE_OPTIONS>::get();
+  if (CompileOptsEnv) {
+    CompileOpts = CompileOptsEnv;
+  }
+  const char *LinkOptsEnv = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
+  if (LinkOptsEnv) {
+    LinkOpts = LinkOptsEnv;
+  }
+
+  auto BuildF = [this, &Context, &Device, Prg, &Img, &CompileOpts, &LinkOpts] {
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
     const detail::plugin &Plugin = ContextImpl->getPlugin();
     RT::PiProgram NativePrg = createPIProgram(Img, Context, Device);
@@ -390,17 +414,9 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
         !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
-    std::string CompileOpts = Img.getCompileOptions();
-    pi_device_binary_property isEsimdImage = Img.getProperty("isEsimdImage");
-    if (isEsimdImage && pi::DeviceBinaryProperty(isEsimdImage).asUint32()) {
-      if (!CompileOpts.empty())
-        CompileOpts += " ";
-      CompileOpts += "-vc-codegen";
-    }
-
     ProgramPtr BuiltProgram =
-        build(std::move(ProgramManaged), ContextImpl, CompileOpts,
-              Img.getLinkOptions(), getRawSyclObjImpl(Device)->getHandleRef(),
+        build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
+              getRawSyclObjImpl(Device)->getHandleRef(),
               ContextImpl->getCachedLibPrograms(), DeviceLibReqMask);
 
     {
@@ -417,7 +433,8 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
   const RT::PiDevice PiDevice = getRawSyclObjImpl(Device)->getHandleRef();
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
       Cache,
-      std::make_pair(std::make_pair(std::move(SpecConsts), KSId), PiDevice),
+      std::make_pair(std::make_pair(std::move(SpecConsts), KSId),
+                     std::make_pair(PiDevice, CompileOpts + LinkOpts)),
       AcquireF, GetF, BuildF);
   return BuildResult->Ptr.load();
 }
@@ -465,9 +482,8 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
     return Result;
   };
 
-  const RT::PiDevice PiDevice = getRawSyclObjImpl(Device)->getHandleRef();
   auto BuildResult = getOrBuild<PiKernelT, invalid_object_error>(
-      Cache, std::make_pair(KernelName, PiDevice), AcquireF, GetF, BuildF);
+      Cache, KernelName, AcquireF, GetF, BuildF);
   return std::make_pair(BuildResult->Ptr.load(),
                         &(BuildResult->MBuildResultMutex));
 }
