@@ -3812,9 +3812,9 @@ class OffloadingActionBuilder final {
             ActionList FullSYCLLinkBinaryList;
             bool SYCLDeviceLibLinked = false;
             FullSYCLLinkBinaryList.push_back(DeviceLinkAction);
-            // If used without -fintelfpga, -fsycl-link is used to wrap device
-            // objects for future host link. Device libraries should be linked
-            // by default to resolve any undefined reference.
+            // If used without the FPGA target, -fsycl-link is used to wrap
+            // device objects for future host link. Device libraries should
+            // be linked by default to resolve any undefined reference.
             const auto *TC = ToolChains.front();
             if (TC->getTriple().getSubArch() !=
                 llvm::Triple::SPIRSubArch_fpga) {
@@ -3920,7 +3920,8 @@ class OffloadingActionBuilder final {
               return ABRT_Inactive;
             // For SYCL device libraries, don't need to add them to
             // FPGAObjectInputs as there is no FPGA dep files inside.
-            if (Args.hasArg(options::OPT_fintelfpga) &&
+            const auto *TC = ToolChains.front();
+            if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
                 !IsSYCLDeviceLibObj(FileName, C.getDefaultToolChain()
                                                   .getTriple()
                                                   .isWindowsMSVCEnvironment()))
@@ -4620,6 +4621,7 @@ public:
     // is a bundle or not and if the input is not a bundle it assumes it is a
     // host file. Therefore it is safe to create an unbundling action even if
     // the input is not a bundle.
+    bool HasFPGATarget = false;
     if (CanUseBundler && isa<InputAction>(HostAction) &&
         InputArg->getOption().getKind() == llvm::opt::Option::InputClass &&
         !InputArg->getOption().hasFlag(options::LinkerInput) &&
@@ -4633,9 +4635,9 @@ public:
           C.hasOffloadToolChain<Action::OFK_SYCL>()
               ? C.getSingleOffloadToolChain<Action::OFK_SYCL>()
               : C.getSingleOffloadToolChain<Action::OFK_Host>();
-      if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
-          !(HostAction->getType() == types::TY_Object &&
-            isObjectFile(InputName))) {
+      HasFPGATarget = TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga;
+      if (HasFPGATarget && !(HostAction->getType() == types::TY_Object &&
+          isObjectFile(InputName))) {
         // Type FPGA aoco is a special case for -foffload-static-lib.
         if (HostAction->getType() == types::TY_FPGA_AOCO) {
           if (!hasFPGABinary(C, InputName, types::TY_FPGA_AOCO))
@@ -4680,8 +4682,7 @@ public:
     // For unbundling of an FPGA AOCX binary, we want to link with the original
     // FPGA device archive.
     if ((OffloadKind == Action::OFK_None && CanUseBundler) ||
-        (Args.hasArg(options::OPT_fintelfpga) &&
-         ((Args.hasArg(options::OPT_fsycl_link_EQ) &&
+        (HasFPGATarget && ((Args.hasArg(options::OPT_fsycl_link_EQ) &&
           HostAction->getType() == types::TY_Object) ||
           HostAction->getType() == types::TY_FPGA_AOCX)))
       if (auto *UA = dyn_cast<OffloadUnbundlingJobAction>(HostAction))
@@ -6092,15 +6093,15 @@ InputInfo Driver::BuildJobsForActionNoCache(
       // cause a overwrite.
       InputInfo CurI;
       bool IsFPGAObjLink = (JA->getType() == types::TY_Object &&
-          C.getInputArgs().hasArg(options::OPT_fintelfpga) &&
+          EffectiveTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
           C.getInputArgs().hasArg(options::OPT_fsycl_link_EQ));
       if (C.getDriver().getOffloadStaticLibSeen() &&
           JA->getType() == types::TY_Archive) {
         // Host part of the unbundled static archive is not used.
         if (UI.DependentOffloadKind == Action::OFK_Host)
           continue;
-        // Host part of the unbundled object when -fintelfpga -fsycl-link is
-        // enabled is not used
+        // Host part of the unbundled object is not used when using the
+        // FPGA target and -fsycl-link is enabled.
         if (UI.DependentOffloadKind == Action::OFK_Host && IsFPGAObjLink)
           continue;
         std::string TmpFileName = C.getDriver().GetTemporaryPath(
@@ -6142,8 +6143,8 @@ InputInfo Driver::BuildJobsForActionNoCache(
                         C.addTempFile(C.getArgs().MakeArgString(TmpFileName));
         CurI = InputInfo(TI, TmpFile, TmpFile);
       } else {
-        // Host part of the unbundled object is not used  when -fintelfpga
-        // -fsycl-link is enabled
+        // Host part of the unbundled object is not used when -fsycl-link is
+        // enabled with FPGA target
         if (UI.DependentOffloadKind == Action::OFK_Host && IsFPGAObjLink)
           continue;
         std::string OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
