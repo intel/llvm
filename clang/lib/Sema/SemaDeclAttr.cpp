@@ -3468,12 +3468,10 @@ void Sema::AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
         return;
       }
     }
-    // Checks correctness of mutual usage of different work_group_size
-    // attributes: reqd_work_group_size, max_work_group_size and
-    // max_global_work_dim.
-    // In case the value of 'max_global_work_dim' attribute equals to 0
-    // we shall ensure that if max_work_group_size and reqd_work_group_size
-    // attributes exist, they hold equal values (1, 1, 1).
+    // If the declaration has a SYCLIntelMaxWorkGroupSizeAttr or
+    // ReqdWorkGroupSizeAttr, check to see if they hold equal values
+    // (1, 1, 1) in case the value of SYCLIntelMaxGlobalWorkDimAttr
+    // equals to 0.
     auto Check = [this, &CI](const auto *A) {
       Optional<llvm::APSInt> XDimVal = A->getXDimVal(Context);
       Optional<llvm::APSInt> YDimVal = A->getYDimVal(Context);
