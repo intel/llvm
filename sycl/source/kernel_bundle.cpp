@@ -72,9 +72,9 @@ void kernel_bundle_plain::set_specialization_constant_raw_value(
   impl->set_specialization_constant_raw_value(SpecID, Value, ValueSize);
 }
 
-const void *kernel_bundle_plain::get_specialization_constant_raw_value(
-    unsigned int SpecID) const {
-  return impl->get_specialization_constant_raw_value(SpecID);
+void kernel_bundle_plain::get_specialization_constant_raw_value(
+    unsigned int SpecID, void *ValueRet, size_t ValueSize) const {
+  impl->get_specialization_constant_raw_value(SpecID, ValueRet, ValueSize);
 }
 
 kernel kernel_bundle_plain::get_kernel(const kernel_id &KernelID) const {

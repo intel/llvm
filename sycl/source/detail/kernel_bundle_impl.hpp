@@ -32,12 +32,11 @@ namespace detail {
 class kernel_bundle_impl {
 
 public:
-  kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
-                     bundle_state State)
-      : MContext(Ctx), MDevices(Devs) {
+  kernel_bundle_impl(context Ctx, std::vector<device> Devs, bundle_state State)
+      : MContext(std::move(Ctx)), MDevices(std::move(Devs)) {
 
     MDeviceImages = detail::ProgramManager::getInstance().getSYCLDeviceImages(
-        Ctx, Devs, State);
+        MContext, MDevices, State);
   }
 
   kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
@@ -150,12 +149,15 @@ public:
           ->set_specialization_constant_raw_value(SpecID, Value, ValueSize);
   }
 
-  const void *get_specialization_constant_raw_value(unsigned int SpecID) const {
+  const void *get_specialization_constant_raw_value(unsigned int SpecID,
+                                                    void *ValueRet,
+                                                    size_t ValueSize) const {
     for (const device_image_plain &DeviceImage : MDeviceImages)
-      if (const void *Value =
-              getSyclObjImpl(DeviceImage)
-                  ->get_specialization_constant_raw_value(SpecID))
-        return Value;
+      if(getSyclObjImpl(DeviceImage)->has_specialization_constant(SpecID)) {
+        getSyclObjImpl(DeviceImage)
+            ->get_specialization_constant_raw_value(SpecID, ValueRet,
+                                                    ValueSize);
+      }
 
     return nullptr;
   }

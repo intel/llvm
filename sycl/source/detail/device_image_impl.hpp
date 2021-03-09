@@ -21,6 +21,7 @@
 #include <cassert>
 #include <cstring>
 #include <memory>
+#include <mutex>
 #include <vector>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -30,7 +31,7 @@ namespace detail {
 // Used for sorting vector of kernel_id's
 struct LessByNameComp {
   bool operator()(const sycl::kernel_id &LHS, const sycl::kernel_id &RHS) {
-    return strcmp(LHS.get_name(), RHS.get_name()) < 0;
+    return std::strcmp(LHS.get_name(), RHS.get_name()) < 0;
   }
 };
 
@@ -108,18 +109,21 @@ public:
                                              size_t ValueSize) noexcept {
     for (const SpecConstIDOffset &Pair : MSpecConstOffsets)
       if (Pair.ID == SpecID) {
-        memcpy(MSpecConstsBlob.data() + Pair.Offset, Value, ValueSize);
+        const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
+        std::memcpy(MSpecConstsBlob.data() + Pair.Offset, Value, ValueSize);
         return;
       }
   }
 
-  const void *
-  get_specialization_constant_raw_value(unsigned int SpecID) const noexcept {
+  void get_specialization_constant_raw_value(unsigned int SpecID,
+                                             void *ValueRet,
+                                             size_t ValueSize) const noexcept {
     for (const SpecConstIDOffset &Pair : MSpecConstOffsets)
-      if (Pair.ID == SpecID)
-        return MSpecConstsBlob.data() + Pair.Offset;
-
-    return nullptr;
+      if (Pair.ID == SpecID) {
+        const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
+        std::memcpy(ValueRet, MSpecConstsBlob.data() + Pair.Offset, ValueSize);
+        return;
+      }
   }
 
   bundle_state get_state() const noexcept { return MState; }
@@ -135,6 +139,7 @@ private:
   // according to LessByNameComp
   std::vector<kernel_id> MKernelIDs;
 
+  mutable std::mutex MSpecConstAccessMtx;
   // Binary blob which can have values of all specialization constants in the
   // image
   std::vector<unsigned char> MSpecConstsBlob;

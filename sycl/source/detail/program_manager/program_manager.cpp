@@ -1162,15 +1162,13 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   // Call piextDeviceSelectBinary with only one image to check if an image is
   // compatible with implementation. The function returns invalid index if no
   // device images are compatible.
-  pi_uint32 SuitableImageID = 42;
+  pi_uint32 SuitableImageID = std::numeric_limits<pi_uint32>::max();
   pi_device_binary DevBin =
       const_cast<pi_device_binary>(&BinImage->getRawData());
-  Plugin.call<PiApiKind::piextDeviceSelectBinary>(PIDeviceHandle, &DevBin,
-                                                  /*Image size = */ (cl_uint)1,
-                                                  &SuitableImageID);
-  const bool Compatible = (0 == SuitableImageID);
-
-  return Compatible;
+  Plugin.call<PiApiKind::piextDeviceSelectBinary>(
+      PIDeviceHandle, &DevBin,
+      /*num bin images = */ (cl_uint)1, &SuitableImageID);
+  return (0 == SuitableImageID);
 }
 
 std::vector<device_image_plain>
@@ -1194,8 +1192,15 @@ ProgramManager::getSYCLDeviceImages(const context &Ctx,
   std::vector<device_image_plain> SYCLDeviceImages;
   for (RTDeviceBinaryImage *BinImage : BinImages) {
     const bundle_state ImgState = getBinImageState(BinImage);
-    // Ignore images with incompatible state - image is in "executable" state
-    // while kernel_bundle needs to be in "input" state
+    // Ignore images with incompatible state. Image is considered compatible
+    // with a target state if an image is already in the target state or can be
+    // brought to target state by compiling/linking/building.
+    //
+    // Example: an image in "executable" state is not compatbile with "input"
+    // target state - there is no operation to convert the image it to "input"
+    // state.
+    // An image in "input" state is compatible with "executable" target state
+    // because it can be built to get into "executable" state.
     if (ImgState > TargetState)
       continue;
 
