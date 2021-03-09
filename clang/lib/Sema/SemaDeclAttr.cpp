@@ -3484,11 +3484,11 @@ void Sema::AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
       return true;
     };
     if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-      if ((ArgVal == 0) && !Check(DeclAttr))
+      if (ArgVal == 0 && !Check(DeclAttr))
         return;
     }
     if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-      if ((ArgVal == 0) && !Check(DeclAttr))
+      if (ArgVal == 0 && !Check(DeclAttr))
         return;
     }
   }
