@@ -3457,8 +3457,7 @@ void Sema::AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
     }
     // Check to see if there's a duplicate attribute with different values
     // already applied to the declaration.
-    if (const auto *DeclAttr =
-            D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
+    if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
       // If the other attribute argument is instantiation dependent, we won't
       // have converted it to a constant expression yet and thus we test
       // whether this is a null pointer.
@@ -3478,7 +3477,8 @@ void Sema::AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
       Optional<llvm::APSInt> YDimVal = DeclAttr->getYDimVal(Context);
       Optional<llvm::APSInt> ZDimVal = DeclAttr->getZDimVal(Context);
       if ((ArgVal == 0) && (*XDimVal != 1 || *YDimVal != 1 || *ZDimVal != 1)) {
-        Diag(DeclAttr->getLocation(), diag::err_sycl_x_y_z_arguments_must_be_one)
+        Diag(DeclAttr->getLocation(),
+             diag::err_sycl_x_y_z_arguments_must_be_one)
             << DeclAttr << CI;
         return;
       }
@@ -3491,23 +3491,22 @@ void Sema::AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
       Optional<llvm::APSInt> YDimVal = DeclAttr->getYDimVal(Context);
       Optional<llvm::APSInt> ZDimVal = DeclAttr->getZDimVal(Context);
       if ((ArgVal == 0) && (*XDimVal != 1 || *YDimVal != 1 || *ZDimVal != 1)) {
-        Diag(DeclAttr->getLocation(), diag::err_sycl_x_y_z_arguments_must_be_one)
+	Diag(DeclAttr->getLocation(),
+             diag::err_sycl_x_y_z_arguments_must_be_one)
             << DeclAttr << CI;
         return;
       }
     }
   }
 
-  D->addAttr(::new (Context)
-                 SYCLIntelMaxGlobalWorkDimAttr(Context, CI, E));
+  D->addAttr(::new (Context) SYCLIntelMaxGlobalWorkDimAttr(Context, CI, E));
 }
 
 SYCLIntelMaxGlobalWorkDimAttr *Sema::MergeSYCLIntelMaxGlobalWorkDimAttr(
     Decl *D, const SYCLIntelMaxGlobalWorkDimAttr &A) {
   // Check to see if there's a duplicate attribute with different values
   // already applied to the declaration.
-  if (const auto *DeclAttr =
-          D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
+  if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
     const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue());
     const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue());
     if (DeclExpr && MergeExpr &&
