@@ -189,12 +189,12 @@ struct DecoratedType<ElementType, access::address_space::local_space> {
 };
 template <class T> struct remove_AS { typedef T type; };
 
+#ifdef __SYCL_DEVICE_ONLY__
 template <class T> struct deduce_AS {
-  static const access::address_space value =
-      access::address_space::global_space;
+  static_assert(!std::is_same<typename detail::remove_AS<T>::type, T>::value,
+                "Only types with address space attributes are supported");
 };
 
-#ifdef __SYCL_DEVICE_ONLY__
 template <class T> struct remove_AS<__OPENCL_GLOBAL_AS__ T> { typedef T type; };
 
 #ifdef __ENABLE_USM_ADDR_SPACE__
@@ -227,6 +227,11 @@ template <class T> struct remove_AS<__OPENCL_CONSTANT_AS__ T> {
   typedef T type;
 };
 
+template <class T> struct deduce_AS<__OPENCL_GLOBAL_AS__ T> {
+  static const access::address_space value =
+      access::address_space::global_space;
+};
+
 template <class T> struct deduce_AS<__OPENCL_PRIVATE_AS__ T> {
   static const access::address_space value =
       access::address_space::private_space;
@@ -248,7 +253,6 @@ template <class T> struct deduce_AS<__OPENCL_CONSTANT_AS__ T> {
 #undef __OPENCL_LOCAL_AS__
 #undef __OPENCL_CONSTANT_AS__
 #undef __OPENCL_PRIVATE_AS__
-#undef __OPENCL_GENERIC_AS__
 } // namespace detail
 
 } // namespace sycl

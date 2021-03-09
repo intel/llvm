@@ -255,7 +255,7 @@ struct sub_group {
       return load(g);
 
     assert(!"Sub-group load() is supported for local or global pointers only.");
-    return 0;
+    return {};
 #endif // __NVPTX__
   }
 #else  //__SYCL_DEVICE_ONLY__
