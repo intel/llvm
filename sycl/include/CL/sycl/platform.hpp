@@ -113,8 +113,9 @@ public:
   /// \return a native handle, the type of which defined by the backend.
   template <backend BackendName>
   auto get_native() const -> typename interop<BackendName, platform>::type {
-    auto cl_platform = reinterpret_cast<typename interop<BackendName, platform>::type>(
-        getNative());
+    auto cl_platform =
+        reinterpret_cast<typename interop<BackendName, platform>::type>(
+            getNative());
     std::lock_guard<std::mutex> lock(platform_mutex);
     platform_impls[cl_platform] = impl;
     return cl_platform;
@@ -137,7 +138,8 @@ private:
   platform(shared_ptr_class<detail::platform_impl> impl) : impl(impl) {}
 
   static std::unordered_map<cl_platform_id,
-                            std::weak_ptr<detail::platform_impl>> platform_impls;
+                            std::weak_ptr<detail::platform_impl>>
+      platform_impls;
   static std::mutex platform_mutex;
 
   template <class T>

@@ -195,8 +195,8 @@ private:
   shared_ptr_class<detail::device_impl> impl;
   device(shared_ptr_class<detail::device_impl> impl) : impl(impl) {}
 
-  static std::unordered_map<cl_device_id,
-                            std::weak_ptr<detail::device_impl>> device_impls;
+  static std::unordered_map<cl_device_id, std::weak_ptr<detail::device_impl>>
+      device_impls;
   static std::mutex device_mutex;
 
   pi_native_handle getNative() const;
