@@ -16,7 +16,7 @@
 #include <CL/sycl/platform.hpp>
 #include <CL/sycl/stl.hpp>
 
-#include <memory>
+#include <unordered_map>
 #include <utility>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -180,7 +180,7 @@ public:
     auto cl_device = (typename interop<BackendName, device>::type)getNative();
     std::lock_guard<std::mutex> lock(device_mutex);
     device_impls[cl_device] = impl;
-    return n_handle;
+    return cl_device;
   }
 
   /// Indicates if the SYCL device has the given feature.
@@ -197,7 +197,7 @@ private:
 
   static std::unordered_map<cl_device_id,
                             std::weak_ptr<detail::device_impl>> device_impls;
-  std::mutex device_mutex;
+  static std::mutex device_mutex;
 
   pi_native_handle getNative() const;
 

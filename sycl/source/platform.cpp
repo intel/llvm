@@ -18,10 +18,26 @@ namespace sycl {
 
 platform::platform() : impl(detail::platform_impl::getHostPlatformImpl()) {}
 
-platform::platform(cl_platform_id PlatformId)
-    : impl(std::make_shared<detail::platform_impl>(
-          detail::pi::cast<detail::RT::PiPlatform>(PlatformId),
-          RT::getPlugin<backend::opencl>())) {}
+std::unordered_map<cl_platform_id,
+                          std::weak_ptr<detail::platform_impl>> platform::platform_impls;
+std::mutex platform::platform_mutex;
+
+platform::platform(cl_platform_id PlatformId) {
+  std::lock_guard<std::mutex> lock(platform_mutex);
+  auto it = platform_impls.find(PlatformId);
+  if  (it != platform_impls.end() &&
+      !it->second.expired())
+    impl = it->second.lock();
+  else {
+    impl = std::make_shared<detail::platform_impl>(
+      detail::pi::cast<detail::RT::PiPlatform>(PlatformId),
+      RT::getPlugin<backend::opencl>());
+    if (it == platform_impls.end())
+      platform_impls[PlatformId] = impl;
+    else
+      it->second = impl;
+  }
+}
 
 platform::platform(const device_selector &dev_selector) {
   *this = dev_selector.select_device().get_platform();
