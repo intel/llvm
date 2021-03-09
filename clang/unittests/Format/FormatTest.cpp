@@ -15463,7 +15463,6 @@ TEST_F(FormatTest, ParsesConfigurationBools) {
   CHECK_PARSE_BOOL(ObjCSpaceBeforeProtocolList);
   CHECK_PARSE_BOOL(Cpp11BracedListStyle);
   CHECK_PARSE_BOOL(ReflowComments);
-  CHECK_PARSE_BOOL(SortIncludes);
   CHECK_PARSE_BOOL(SortUsingDeclarations);
   CHECK_PARSE_BOOL(SpacesInParentheses);
   CHECK_PARSE_BOOL(SpacesInSquareBrackets);
@@ -15959,6 +15958,16 @@ TEST_F(FormatTest, ParsesConfiguration) {
   CHECK_PARSE("IncludeIsMainSourceRegex: 'abc$'",
               IncludeStyle.IncludeIsMainSourceRegex, "abc$");
 
+  Style.SortIncludes = FormatStyle::SI_Never;
+  CHECK_PARSE("SortIncludes: true", SortIncludes,
+              FormatStyle::SI_CaseInsensitive);
+  CHECK_PARSE("SortIncludes: false", SortIncludes, FormatStyle::SI_Never);
+  CHECK_PARSE("SortIncludes: CaseInsensitive", SortIncludes,
+              FormatStyle::SI_CaseInsensitive);
+  CHECK_PARSE("SortIncludes: CaseSensitive", SortIncludes,
+              FormatStyle::SI_CaseSensitive);
+  CHECK_PARSE("SortIncludes: Never", SortIncludes, FormatStyle::SI_Never);
+
   Style.RawStringFormats.clear();
   std::vector<FormatStyle::RawStringFormat> ExpectedRawStringFormats = {
       {
@@ -15994,6 +16003,26 @@ TEST_F(FormatTest, ParsesConfiguration) {
               "      - 'CPPEVAL'\n"
               "    CanonicalDelimiter: 'cc'",
               RawStringFormats, ExpectedRawStringFormats);
+
+  CHECK_PARSE("SpacesInLineCommentPrefix:\n"
+              "  Minimum: 0\n"
+              "  Maximum: 0",
+              SpacesInLineCommentPrefix.Minimum, 0u);
+  EXPECT_EQ(Style.SpacesInLineCommentPrefix.Maximum, 0u);
+  Style.SpacesInLineCommentPrefix.Minimum = 1;
+  CHECK_PARSE("SpacesInLineCommentPrefix:\n"
+              "  Minimum: 2",
+              SpacesInLineCommentPrefix.Minimum, 0u);
+  CHECK_PARSE("SpacesInLineCommentPrefix:\n"
+              "  Maximum: -1",
+              SpacesInLineCommentPrefix.Maximum, -1u);
+  CHECK_PARSE("SpacesInLineCommentPrefix:\n"
+              "  Minimum: 2",
+              SpacesInLineCommentPrefix.Minimum, 2u);
+  CHECK_PARSE("SpacesInLineCommentPrefix:\n"
+              "  Maximum: 1",
+              SpacesInLineCommentPrefix.Maximum, 1u);
+  EXPECT_EQ(Style.SpacesInLineCommentPrefix.Minimum, 1u);
 }
 
 TEST_F(FormatTest, ParsesConfigurationWithLanguages) {
@@ -17894,6 +17923,111 @@ TEST(FormatStyle, GetStyleOfFile) {
   auto StyleTd = getStyle("file", "x.td", "llvm", "", &FS);
   ASSERT_TRUE((bool)StyleTd);
   ASSERT_EQ(*StyleTd, getLLVMStyle(FormatStyle::LK_TableGen));
+
+  // Test 9.1: overwriting a file style, when parent no file exists with no
+  // fallback style
+  ASSERT_TRUE(FS.addFile(
+      "/e/sub/.clang-format", 0,
+      llvm::MemoryBuffer::getMemBuffer("BasedOnStyle: InheritParentConfig\n"
+                                       "ColumnLimit: 20")));
+  ASSERT_TRUE(FS.addFile("/e/sub/code.cpp", 0,
+                         llvm::MemoryBuffer::getMemBuffer("int i;")));
+  auto Style9 = getStyle("file", "/e/sub/code.cpp", "none", "", &FS);
+  ASSERT_TRUE(static_cast<bool>(Style9));
+  ASSERT_EQ(*Style9, [] {
+    auto Style = getNoStyle();
+    Style.ColumnLimit = 20;
+    return Style;
+  }());
+
+  // Test 9.2: with LLVM fallback style
+  Style9 = getStyle("file", "/e/sub/code.cpp", "LLVM", "", &FS);
+  ASSERT_TRUE(static_cast<bool>(Style9));
+  ASSERT_EQ(*Style9, [] {
+    auto Style = getLLVMStyle();
+    Style.ColumnLimit = 20;
+    return Style;
+  }());
+
+  // Test 9.3: with a parent file
+  ASSERT_TRUE(
+      FS.addFile("/e/.clang-format", 0,
+                 llvm::MemoryBuffer::getMemBuffer("BasedOnStyle: Google\n"
+                                                  "UseTab: Always")));
+  Style9 = getStyle("file", "/e/sub/code.cpp", "none", "", &FS);
+  ASSERT_TRUE(static_cast<bool>(Style9));
+  ASSERT_EQ(*Style9, [] {
+    auto Style = getGoogleStyle();
+    Style.ColumnLimit = 20;
+    Style.UseTab = FormatStyle::UT_Always;
+    return Style;
+  }());
+
+  // Test 9.4: propagate more than one level
+  ASSERT_TRUE(FS.addFile("/e/sub/sub/code.cpp", 0,
+                         llvm::MemoryBuffer::getMemBuffer("int i;")));
+  ASSERT_TRUE(FS.addFile("/e/sub/sub/.clang-format", 0,
+                         llvm::MemoryBuffer::getMemBuffer(
+                             "BasedOnStyle: InheritParentConfig\n"
+                             "WhitespaceSensitiveMacros: ['FOO', 'BAR']")));
+  std::vector<std::string> NonDefaultWhiteSpaceMacros{"FOO", "BAR"};
+
+  const auto SubSubStyle = [&NonDefaultWhiteSpaceMacros] {
+    auto Style = getGoogleStyle();
+    Style.ColumnLimit = 20;
+    Style.UseTab = FormatStyle::UT_Always;
+    Style.WhitespaceSensitiveMacros = NonDefaultWhiteSpaceMacros;
+    return Style;
+  }();
+
+  ASSERT_NE(Style9->WhitespaceSensitiveMacros, NonDefaultWhiteSpaceMacros);
+  Style9 = getStyle("file", "/e/sub/sub/code.cpp", "none", "", &FS);
+  ASSERT_TRUE(static_cast<bool>(Style9));
+  ASSERT_EQ(*Style9, SubSubStyle);
+
+  // Test 9.5: use InheritParentConfig as style name
+  Style9 =
+      getStyle("inheritparentconfig", "/e/sub/sub/code.cpp", "none", "", &FS);
+  ASSERT_TRUE(static_cast<bool>(Style9));
+  ASSERT_EQ(*Style9, SubSubStyle);
+
+  // Test 9.6: use command line style with inheritance
+  Style9 = getStyle("{BasedOnStyle: InheritParentConfig}", "/e/sub/code.cpp",
+                    "none", "", &FS);
+  ASSERT_TRUE(static_cast<bool>(Style9));
+  ASSERT_EQ(*Style9, SubSubStyle);
+
+  // Test 9.7: use command line style with inheritance and own config
+  Style9 = getStyle("{BasedOnStyle: InheritParentConfig, "
+                    "WhitespaceSensitiveMacros: ['FOO', 'BAR']}",
+                    "/e/sub/code.cpp", "none", "", &FS);
+  ASSERT_TRUE(static_cast<bool>(Style9));
+  ASSERT_EQ(*Style9, SubSubStyle);
+
+  // Test 9.8: use inheritance from a file without BasedOnStyle
+  ASSERT_TRUE(FS.addFile("/e/withoutbase/.clang-format", 0,
+                         llvm::MemoryBuffer::getMemBuffer("ColumnLimit: 123")));
+  ASSERT_TRUE(
+      FS.addFile("/e/withoutbase/sub/.clang-format", 0,
+                 llvm::MemoryBuffer::getMemBuffer(
+                     "BasedOnStyle: InheritParentConfig\nIndentWidth: 7")));
+  // Make sure we do not use the fallback style
+  Style9 = getStyle("file", "/e/withoutbase/code.cpp", "google", "", &FS);
+  ASSERT_TRUE(static_cast<bool>(Style9));
+  ASSERT_EQ(*Style9, [] {
+    auto Style = getLLVMStyle();
+    Style.ColumnLimit = 123;
+    return Style;
+  }());
+
+  Style9 = getStyle("file", "/e/withoutbase/sub/code.cpp", "google", "", &FS);
+  ASSERT_TRUE(static_cast<bool>(Style9));
+  ASSERT_EQ(*Style9, [] {
+    auto Style = getLLVMStyle();
+    Style.ColumnLimit = 123;
+    Style.IndentWidth = 7;
+    return Style;
+  }());
 }
 
 TEST_F(ReplacementTest, FormatCodeAfterReplacements) {
@@ -17950,7 +18084,7 @@ TEST_F(ReplacementTest, SortIncludesAfterReplacement) {
                             "#include \"b.h\"\n")});
 
   format::FormatStyle Style = format::getLLVMStyle();
-  Style.SortIncludes = true;
+  Style.SortIncludes = FormatStyle::SI_CaseInsensitive;
   auto FormattedReplaces = formatReplacements(Code, Replaces, Style);
   EXPECT_TRUE(static_cast<bool>(FormattedReplaces))
       << llvm::toString(FormattedReplaces.takeError()) << "\n";
