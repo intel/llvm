@@ -306,7 +306,7 @@ static int64_t getIntExprValue(const Expr *E, ASTContext &Ctx) {
   return E->getIntegerConstantExpr(Ctx)->getSExtValue();
 }
 
-// Collect function attributes related to SYCL
+// Collect function attributes related to SYCL.
 static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
                                   llvm::SmallVector<Attr *, 4> &Attrs,
                                   bool DirectlyCalled = true) {
@@ -314,6 +314,7 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
     return;
 
   llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
+    // FIXME: Make this list self-adapt as new SYCL attributes are added.
     return isa<IntelReqdSubGroupSizeAttr, ReqdWorkGroupSizeAttr,
                SYCLIntelKernelArgsRestrictAttr, SYCLIntelNumSimdWorkItemsAttr,
                SYCLIntelSchedulerTargetFmaxMhzAttr,
@@ -3150,7 +3151,7 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
 // For a wrapped parallel_for, copy attributes from original
 // kernel to wrapped kernel.
 void Sema::copySYCLKernelAttrs(const CXXRecordDecl *KernelObj) {
-  // Get the operator() function of the wrapper
+  // Get the operator() function of the wrapper.
   CXXMethodDecl *OpParens = getOperatorParens(KernelObj);
   assert(OpParens && "invalid kernel object");
 
