@@ -2959,25 +2959,12 @@ public:
   void Visit(QualType T) {
     if (T.isNull())
       return;
+
     const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
-
-    if (!RD) {
-      if (T->isNullPtrType()) {
-        S.Diag(KernelInvocationFuncLoc,
-               diag::err_invalid_std_type_in_sycl_kernel)
-            << KernelNameType << T->getAsTagDecl();
-
-        IsInvalid = true;
-      }
-      return;
-    }
-    // if (!RD && T->isTypedefNameType()) {
-    //   const auto *TDefType = T->getAs<TypedefType>();
-    //    VisitTypedefType(TDefType);
-    // }
     // If KernelNameType has template args visit each template arg via
     // ConstTemplateArgumentVisitor
-    if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
+    if (const auto *TSD =
+            dyn_cast_or_null<ClassTemplateSpecializationDecl>(RD)) {
       ArrayRef<TemplateArgument> Args = TSD->getTemplateArgs().asArray();
       VisitTemplateArgs(Args);
     } else {
@@ -2990,42 +2977,59 @@ public:
       return;
     InnerTemplArgVisitor::Visit(TA);
   }
-  /*
-    void VisitTypedefType(const TypedefType *TT) {
-      if (TT->isNullPtrType()) {
-          S.Diag(KernelInvocationFuncLoc,
-                 diag::err_invalid_std_type_in_sycl_kernel)
-              << KernelNameType << TT->getAsTagDecl();
 
-          IsInvalid = true;
-        }
+  void VisitBuiltinType(const BuiltinType *TT) {
+    if (TT->isNullPtrType()) {
+      S.Diag(KernelInvocationFuncLoc, diag::err_nullptr_t_type_in_sycl_kernel);
+
+      IsInvalid = true;
     }
+    return;
+  }
+
+  void VisitTagType(const TagType *TT) {
+    return DiagnoseKernelNameType(TT->getDecl());
+  }
+
+  void DiagnoseKernelNameType(const NamedDecl *DeclNamed) {
+    /*
+    This is a helper function which helps diagnose if the given 'declaration'
+    is:
+      * declared within namespace 'std' (at any level)
+        e.g., namespace std { namespace literals { class Whatever; } }
+        h.single_task<std::literals::Whatever>([]() {});
+      * declared within an anonymous namespace (at any level)
+        e.g., namespace foo { namespace { class Whatever; } }
+        h.single_task<foo::Whatever>([]() {});
+      * declared within a function
+        e.g., void foo() { struct S { int i; };
+        h.single_task<S>([]() {}); }
+      * declared within another tag
+        e.g., struct S { struct T { int i } t; };
+        h.single_task<S::T>([]() {});
     */
 
-  void VisitTagType(const TagType *TT) { return VisitTagDecl(TT->getDecl()); }
-
-  void VisitTagDecl(const TagDecl *Tag) {
-    if (const auto *ED = dyn_cast<EnumDecl>(Tag)) {
+    if (const auto *ED = dyn_cast<EnumDecl>(DeclNamed)) {
       if (!ED->isScoped() && !ED->isFixed()) {
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-            << 1 << KernelNameType;
+            << 1 << DeclNamed;
         IsInvalid = true;
       }
     }
 
     bool UnnamedLambdaEnabled =
         S.getASTContext().getLangOpts().SYCLUnnamedLambda;
-    const DeclContext *DeclCtx = Tag->getDeclContext();
+    const DeclContext *DeclCtx = DeclNamed->getDeclContext();
     if (DeclCtx && !UnnamedLambdaEnabled) {
 
-      // Loop through Declaration Contexts to detect kernel names nested inside
-      // "std" and "anonymous" namespaces.
+      // Check if the declaration is declared within namespace
+      // "std" or "anonymous" namespace (at any level).
       while (!DeclCtx->isTranslationUnit() && isa<NamespaceDecl>(DeclCtx)) {
         const auto *NSDecl = dyn_cast<NamespaceDecl>(DeclCtx);
         if (NSDecl && NSDecl->isStdNamespace()) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_invalid_std_type_in_sycl_kernel)
-              << KernelNameType << Tag;
+              << KernelNameType << DeclNamed;
           IsInvalid = true;
           return;
         }
@@ -3040,7 +3044,7 @@ public:
       }
 
       if (!DeclCtx->isTranslationUnit() && !isa<NamespaceDecl>(DeclCtx)) {
-        bool UnnamedTypeUsed = Tag->getName().empty();
+        bool UnnamedTypeUsed = DeclNamed->getName().empty();
         if (UnnamedTypeUsed) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_sycl_kernel_incorrectly_named)
@@ -3049,7 +3053,10 @@ public:
           IsInvalid = true;
           return;
         }
-        if (Tag->isCompleteDefinition()) {
+        // Check if the declartion is declared/defined inside a function or
+        // method or within a struct/union/class.
+        if (!DeclNamed->isDefinedOutsideFunctionOrMethod() ||
+            isa<CXXRecordDecl>(DeclCtx)) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_sycl_kernel_incorrectly_named)
               << 0 << KernelNameType;
@@ -3057,8 +3064,9 @@ public:
           IsInvalid = true;
         } else {
           S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
-          S.Diag(Tag->getSourceRange().getBegin(), diag::note_previous_decl)
-              << Tag->getName();
+          S.Diag(DeclNamed->getSourceRange().getBegin(),
+                 diag::note_previous_decl)
+              << DeclNamed->getName();
         }
       }
     }
@@ -3147,7 +3155,7 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
 
   // Emit diagnostics for SYCL device kernels only
   if (LangOpts.SYCLIsDevice)
-    KernelNameTypeVisitor.Visit(KernelNameType);
+    KernelNameTypeVisitor.Visit(KernelNameType.getCanonicalType());
   Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker, DecompMarker);
   Visitor.VisitRecordFields(KernelObj, FieldChecker, UnionChecker,
                             DecompMarker);
