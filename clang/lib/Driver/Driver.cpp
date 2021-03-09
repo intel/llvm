@@ -3921,7 +3921,8 @@ class OffloadingActionBuilder final {
             // For SYCL device libraries, don't need to add them to
             // FPGAObjectInputs as there is no FPGA dep files inside.
             const auto *TC = ToolChains.front();
-            if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
+            if (TC->getTriple().getSubArch() ==
+                    llvm::Triple::SPIRSubArch_fpga &&
                 !IsSYCLDeviceLibObj(FileName, C.getDefaultToolChain()
                                                   .getTriple()
                                                   .isWindowsMSVCEnvironment()))
@@ -4635,9 +4636,10 @@ public:
           C.hasOffloadToolChain<Action::OFK_SYCL>()
               ? C.getSingleOffloadToolChain<Action::OFK_SYCL>()
               : C.getSingleOffloadToolChain<Action::OFK_Host>();
-      HasFPGATarget = TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga;
+      HasFPGATarget =
+          TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga;
       if (HasFPGATarget && !(HostAction->getType() == types::TY_Object &&
-          isObjectFile(InputName))) {
+                             isObjectFile(InputName))) {
         // Type FPGA aoco is a special case for -foffload-static-lib.
         if (HostAction->getType() == types::TY_FPGA_AOCO) {
           if (!hasFPGABinary(C, InputName, types::TY_FPGA_AOCO))
@@ -4683,8 +4685,8 @@ public:
     // FPGA device archive.
     if ((OffloadKind == Action::OFK_None && CanUseBundler) ||
         (HasFPGATarget && ((Args.hasArg(options::OPT_fsycl_link_EQ) &&
-          HostAction->getType() == types::TY_Object) ||
-          HostAction->getType() == types::TY_FPGA_AOCX)))
+                            HostAction->getType() == types::TY_Object) ||
+                           HostAction->getType() == types::TY_FPGA_AOCX)))
       if (auto *UA = dyn_cast<OffloadUnbundlingJobAction>(HostAction))
         HostAction = UA->getInputs().back();
 
@@ -6092,9 +6094,10 @@ InputInfo Driver::BuildJobsForActionNoCache(
       // unbundling action does not change the type of the output which can
       // cause a overwrite.
       InputInfo CurI;
-      bool IsFPGAObjLink = (JA->getType() == types::TY_Object &&
-          EffectiveTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
-          C.getInputArgs().hasArg(options::OPT_fsycl_link_EQ));
+      bool IsFPGAObjLink =
+          (JA->getType() == types::TY_Object &&
+           EffectiveTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
+           C.getInputArgs().hasArg(options::OPT_fsycl_link_EQ));
       if (C.getDriver().getOffloadStaticLibSeen() &&
           JA->getType() == types::TY_Archive) {
         // Host part of the unbundled static archive is not used.
