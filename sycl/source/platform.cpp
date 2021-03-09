@@ -25,7 +25,7 @@ std::mutex platform::platform_mutex;
 platform::platform(cl_platform_id PlatformId) {
   std::lock_guard<std::mutex> lock(platform_mutex);
   auto it = platform_impls.find(PlatformId);
-  if  (it != platform_impls.end() && !it->second.expired())
+  if (it != platform_impls.end() && !it->second.expired())
     impl = it->second.lock();
   else {
     impl = std::make_shared<detail::platform_impl>(

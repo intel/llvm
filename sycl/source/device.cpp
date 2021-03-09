@@ -39,7 +39,7 @@ device::device(cl_device_id deviceId) {
   {
     std::lock_guard<std::mutex> lock(device_mutex);
     auto it = device_impls.find(deviceId);
-    if  (it != device_impls.end() && !it->second.expired())
+    if (it != device_impls.end() && !it->second.expired())
       impl = it->second.lock();
     else {
       impl = std::make_shared<detail::device_impl>(
