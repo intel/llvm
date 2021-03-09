@@ -10234,6 +10234,10 @@ public:
                                 Expr *E);
   SYCLIntelLoopFuseAttr *
   MergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &A);
+  void AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D, const AttributeCommonInfo &CI,
+                                        Expr *E);
+  SYCLIntelMaxGlobalWorkDimAttr *MergeSYCLIntelMaxGlobalWorkDimAttr(
+      Decl *D, const SYCLIntelMaxGlobalWorkDimAttr &A);
 
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
@@ -13097,20 +13101,6 @@ void Sema::addIntelSingleArgAttr(Decl *D, const AttributeCommonInfo &CI,
       if (ArgInt <= 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
             << CI << /*positive*/ 0;
-        return;
-      }
-    }
-    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
-      if (ArgInt < 0) {
-        Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-            << CI << /*non-negative*/ 1;
-        return;
-      }
-    }
-    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
-      if (ArgInt > 3) {
-        Diag(E->getBeginLoc(), diag::err_attribute_argument_out_of_range)
-            << CI << 0 << 3 << E->getSourceRange();
         return;
       }
     }

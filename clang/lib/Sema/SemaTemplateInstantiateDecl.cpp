@@ -683,6 +683,16 @@ static void instantiateSYCLIntelNoGlobalWorkOffsetAttr(
     S.AddSYCLIntelNoGlobalWorkOffsetAttr(New, *A, Result.getAs<Expr>());
 }
 
+static void instantiateSYCLIntelMaxGlobalWorkDimAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLIntelMaxGlobalWorkDimAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.AddSYCLIntelMaxGlobalWorkDimAttr(New, *A, Result.getAs<Expr>());
+}
+
 template <typename AttrName>
 static void instantiateIntelSYCLFunctionAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
@@ -892,7 +902,7 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
     if (const auto *SYCLIntelMaxGlobalWorkDim =
             dyn_cast<SYCLIntelMaxGlobalWorkDimAttr>(TmplAttr)) {
-      instantiateIntelSYCLFunctionAttr<SYCLIntelMaxGlobalWorkDimAttr>(
+      instantiateSYCLIntelMaxGlobalWorkDimAttr(
           *this, TemplateArgs, SYCLIntelMaxGlobalWorkDim, New);
       continue;
     }

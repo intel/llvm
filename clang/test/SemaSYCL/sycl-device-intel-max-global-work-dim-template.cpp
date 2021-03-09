@@ -61,11 +61,20 @@ template <int N>
 // expected-error@+1{{'max_global_work_dim' attribute requires a non-negative integral compile time constant expression}}
 [[intel::max_global_work_dim(N)]] void func3() {}
 
+// Test that checks template instantiations for different argument values.
+template <int size>
+[[intel::max_global_work_dim(1)]] void func4(); // expected-note {{previous attribute is here}}
+
+template <int size>
+[[intel::max_global_work_dim(size)]] void func4() {} // expected-warning {{attribute 'max_global_work_dim' is already applied with different arguments}}
+
 int check() {
   // no error expected
   func3<3>();
   //expected-note@+1{{in instantiation of function template specialization 'func3<-1>' requested here}}
   func3<-1>();
+  //expected-note@+1 {{in instantiation of function template specialization 'func4<2>' requested here}}
+  func4<2>();
   return 0;
 }
 

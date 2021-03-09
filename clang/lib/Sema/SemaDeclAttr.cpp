@@ -3430,23 +3430,103 @@ static void handleSYCLIntelSchedulerTargetFmaxMhzAttr(Sema &S, Decl *D,
 }
 
 // Handles max_global_work_dim.
-static void handleMaxGlobalWorkDimAttr(Sema &S, Decl *D, const ParsedAttr &A) {
-  if (D->isInvalidDecl())
-    return;
+void Sema::AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
+                                            const AttributeCommonInfo &CI,
+                                            Expr *E) {
+  if (!E->isValueDependent()) {
+    // Validate that we have an integer constant expression and then store the
+    // converted constant expression into the semantic attribute so that we
+    // don't have to evaluate it again later.
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return;
+    E = Res.get();
 
-  Expr *E = A.getArgAsExpr(0);
-
-  if (!checkWorkGroupSizeValues(S, D, A)) {
-    D->setInvalidDecl();
-    return;
+    // This attribute requires a non-negative value.
+    if (ArgVal < 0) {
+      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+          << CI << /*non-negative*/ 1;
+      return;
+    }
+    // This attribute must be in the range [0, 3].
+    if (ArgVal > 3) {
+      Diag(E->getBeginLoc(), diag::err_attribute_argument_out_of_range)
+          << CI << 0 << 3 << E->getSourceRange();
+      return;
+    }
+    // Check to see if there's a duplicate attribute with different values
+    // already applied to the declaration.
+    if (const auto *DeclAttr =
+            D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue());
+      if (DeclExpr && ArgVal != DeclExpr->getResultAsAPSInt()) {
+        Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+        Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        return;
+      }
+    }
+    // If the declaration has an [[intel::reqd_work_group_size()]] or
+    // [[cl::reqd_work_group_size()]] attribute, check to see if they
+    // hold equal values (1, 1, 1) in case the value of
+    // [[intel::max_global_work_dim()]] attribute equals to 0.
+    if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
+      Optional<llvm::APSInt> XDimVal = DeclAttr->getXDimVal(Context);
+      Optional<llvm::APSInt> YDimVal = DeclAttr->getYDimVal(Context);
+      Optional<llvm::APSInt> ZDimVal = DeclAttr->getZDimVal(Context);
+      if ((ArgVal == 0) && (*XDimVal != 1 || *YDimVal != 1 || *ZDimVal != 1)) {
+        Diag(DeclAttr->getLocation(), diag::err_sycl_x_y_z_arguments_must_be_one)
+            << DeclAttr << CI;
+        return;
+      }
+    }
+    // If the declaration has an [[intel::max_work_group_size()]]
+    // attribute, check to see if it holds equal values (1, 1, 1) in
+    // case the value of [[intel::max_global_work_dim()]] attribute equals to 0.
+    if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
+      Optional<llvm::APSInt> XDimVal = DeclAttr->getXDimVal(Context);
+      Optional<llvm::APSInt> YDimVal = DeclAttr->getYDimVal(Context);
+      Optional<llvm::APSInt> ZDimVal = DeclAttr->getZDimVal(Context);
+      if ((ArgVal == 0) && (*XDimVal != 1 || *YDimVal != 1 || *ZDimVal != 1)) {
+        Diag(DeclAttr->getLocation(), diag::err_sycl_x_y_z_arguments_must_be_one)
+            << DeclAttr << CI;
+        return;
+      }
+    }
   }
 
-  if (D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>())
-    S.Diag(A.getLoc(), diag::warn_duplicate_attribute) << A;
+  D->addAttr(::new (Context)
+                 SYCLIntelMaxGlobalWorkDimAttr(Context, CI, E));
+}
 
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
+SYCLIntelMaxGlobalWorkDimAttr *Sema::MergeSYCLIntelMaxGlobalWorkDimAttr(
+    Decl *D, const SYCLIntelMaxGlobalWorkDimAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr =
+          D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
+    const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue());
+    const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue());
+    if (DeclExpr && MergeExpr &&
+        DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+      Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+      Diag(A.getLoc(), diag::note_previous_attribute);
+      return nullptr;
+    }
+  }
+  return ::new (Context)
+      SYCLIntelMaxGlobalWorkDimAttr(Context, A, A.getValue());
+}
 
-  S.addIntelSingleArgAttr<SYCLIntelMaxGlobalWorkDimAttr>(D, A, E);
+static void handleSYCLIntelMaxGlobalWorkDimAttr(Sema &S, Decl *D,
+                                                const ParsedAttr &AL) {
+  S.CheckDeprecatedSYCLAttributeSpelling(AL);
+
+  Expr *E = AL.getArgAsExpr(0);
+  S.AddSYCLIntelMaxGlobalWorkDimAttr(D, AL, E);
 }
 
 // Handles [[intel::loop_fuse]] and [[intel::loop_fuse_independent]].
@@ -9129,7 +9209,7 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handleSYCLIntelSchedulerTargetFmaxMhzAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim:
-    handleMaxGlobalWorkDimAttr(S, D, AL);
+    handleSYCLIntelMaxGlobalWorkDimAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLIntelNoGlobalWorkOffset:
     handleSYCLIntelNoGlobalWorkOffsetAttr(S, D, AL);
