@@ -109,6 +109,9 @@ public:
                                              size_t ValueSize) noexcept {
     for (const SpecConstIDOffset &Pair : MSpecConstOffsets)
       if (Pair.ID == SpecID) {
+        // Lock the mutex to prevent when one thread in the middle of writing a
+        // new value while another thread is reading the value to pass it to
+        // JIT compiler.
         const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
         std::memcpy(MSpecConstsBlob.data() + Pair.Offset, Value, ValueSize);
         return;
@@ -120,6 +123,9 @@ public:
                                              size_t ValueSize) const noexcept {
     for (const SpecConstIDOffset &Pair : MSpecConstOffsets)
       if (Pair.ID == SpecID) {
+        // Lock the mutex to prevent when one thread in the middle of writing a
+        // new value while another thread is reading the value to pass it to
+        // JIT compiler.
         const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
         std::memcpy(ValueRet, MSpecConstsBlob.data() + Pair.Offset, ValueSize);
         return;
@@ -139,6 +145,8 @@ private:
   // according to LessByNameComp
   std::vector<kernel_id> MKernelIDs;
 
+  // A mutex for sycnhronizing access to spec constants blob. Mutable because
+  // needs to be locked in the const method for getting spec constant value.
   mutable std::mutex MSpecConstAccessMtx;
   // Binary blob which can have values of all specialization constants in the
   // image
