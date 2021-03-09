@@ -351,6 +351,54 @@ public:
         impl, reinterpretRange, OffsetInBytes, IsSubBuffer);
   }
 
+  // reinterpret() with no arguments. Can be specialized with one or two
+  // template arguments. four possible combinations two template specializers:
+  // R is same size as T. RD is same as dimensions.
+  // RD is one. To avoid ambiguity, R size is different or previous dimension is
+  // not same.
+
+  // single template specializers
+  // R is same size as T.  RD is assumed to be same as previous.
+  // R is not same as T  previous dimensions were 1.
+
+  template <typename ReinterpretT, int ReinterpretDim>
+  typename std::enable_if<
+      (sizeof(ReinterpretT) == sizeof(T)) && (dimensions == ReinterpretDim),
+      buffer<ReinterpretT, ReinterpretDim, AllocatorT>>::type
+  reinterpret() const {
+    return buffer<ReinterpretT, ReinterpretDim, AllocatorT>(
+        impl, get_range(), OffsetInBytes, IsSubBuffer);
+  }
+
+  template <typename ReinterpretT, int ReinterpretDim>
+  typename std::enable_if<
+      (ReinterpretDim == 1) && ((dimensions != ReinterpretDim) ||
+                                (sizeof(ReinterpretT) != sizeof(T))),
+      buffer<ReinterpretT, ReinterpretDim, AllocatorT>>::type
+  reinterpret() const {
+    long sz = get_size(); // TODO: switch to byte_size() once implemented
+    return buffer<ReinterpretT, ReinterpretDim, AllocatorT>(
+        impl, range<1>{sz / sizeof(ReinterpretT)}, OffsetInBytes, IsSubBuffer);
+  }
+
+  template <typename ReinterpretT>
+  typename std::enable_if<sizeof(ReinterpretT) == sizeof(T),
+                          buffer<ReinterpretT, dimensions, AllocatorT>>::type
+  reinterpret() const {
+    return buffer<ReinterpretT, dimensions, AllocatorT>(
+        impl, get_range(), OffsetInBytes, IsSubBuffer);
+  }
+
+  template <typename ReinterpretT>
+  typename std::enable_if<(sizeof(ReinterpretT) != sizeof(T)) &&
+                              (dimensions == 1),
+                          buffer<ReinterpretT, 1, AllocatorT>>::type
+  reinterpret() const {
+    long sz = get_size(); // TODO: switch to byte_size() once implemented
+    return buffer<ReinterpretT, dimensions, AllocatorT>(
+        impl, range<1>{sz / sizeof(ReinterpretT)}, OffsetInBytes, IsSubBuffer);
+  }
+
   template <typename propertyT> bool has_property() const {
     return impl->template has_property<propertyT>();
   }
