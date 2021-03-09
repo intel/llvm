@@ -3468,34 +3468,30 @@ void Sema::AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
         return;
       }
     }
-    // If the declaration has an [[intel::reqd_work_group_size()]] or
-    // [[cl::reqd_work_group_size()]] attribute, check to see if they
-    // hold equal values (1, 1, 1) in case the value of
-    // [[intel::max_global_work_dim()]] attribute equals to 0.
-    if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-      Optional<llvm::APSInt> XDimVal = DeclAttr->getXDimVal(Context);
-      Optional<llvm::APSInt> YDimVal = DeclAttr->getYDimVal(Context);
-      Optional<llvm::APSInt> ZDimVal = DeclAttr->getZDimVal(Context);
-      if ((ArgVal == 0) && (*XDimVal != 1 || *YDimVal != 1 || *ZDimVal != 1)) {
-        Diag(DeclAttr->getLocation(),
-             diag::err_sycl_x_y_z_arguments_must_be_one)
-            << DeclAttr << CI;
-        return;
+    // Checks correctness of mutual usage of different work_group_size
+    // attributes: reqd_work_group_size, max_work_group_size and
+    // max_global_work_dim.
+    // In case the value of 'max_global_work_dim' attribute equals to 0
+    // we shall ensure that if max_work_group_size and reqd_work_group_size
+    // attributes exist, they hold equal values (1, 1, 1).
+    auto Check = [this, &CI](const auto *A) {
+      Optional<llvm::APSInt> XDimVal = A->getXDimVal(Context);
+      Optional<llvm::APSInt> YDimVal = A->getYDimVal(Context);
+      Optional<llvm::APSInt> ZDimVal = A->getZDimVal(Context);
+      if (*XDimVal != 1 || *YDimVal != 1 || *ZDimVal != 1) {
+        Diag(A->getLocation(), diag::err_sycl_x_y_z_arguments_must_be_one)
+            << A << CI;
+        return false;
       }
-    }
-    // If the declaration has an [[intel::max_work_group_size()]]
-    // attribute, check to see if it holds equal values (1, 1, 1) in
-    // case the value of [[intel::max_global_work_dim()]] attribute equals to 0.
+      return true;
+    };
     if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-      Optional<llvm::APSInt> XDimVal = DeclAttr->getXDimVal(Context);
-      Optional<llvm::APSInt> YDimVal = DeclAttr->getYDimVal(Context);
-      Optional<llvm::APSInt> ZDimVal = DeclAttr->getZDimVal(Context);
-      if ((ArgVal == 0) && (*XDimVal != 1 || *YDimVal != 1 || *ZDimVal != 1)) {
-        Diag(DeclAttr->getLocation(),
-             diag::err_sycl_x_y_z_arguments_must_be_one)
-            << DeclAttr << CI;
+      if ((ArgVal == 0) && !Check(DeclAttr))
         return;
-      }
+    }
+    if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
+      if ((ArgVal == 0) && !Check(DeclAttr))
+        return;
     }
   }
 

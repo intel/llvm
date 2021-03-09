@@ -33,11 +33,11 @@ struct Func {
   [[intelfpga::max_global_work_dim(2)]] void operator()() const {}
 };
 
-//Checking of duplicate argument values
+// Checking of duplicate argument values.
 [[intel::max_global_work_dim(2)]] void bar();
 [[intel::max_global_work_dim(2)]] void bar() {} // OK
 
-//Checking of different argument values
+// Checking of different argument values.
 [[intel::max_global_work_dim(2)]] void baz();  // expected-note {{previous attribute is here}}
 [[intel::max_global_work_dim(1)]] void baz();  // expected-warning {{attribute 'max_global_work_dim' is already applied with different arguments}}
 
@@ -62,7 +62,7 @@ struct TRIFuncObjGood2 {
 };
 
 struct TRIFuncObjGood3 {
-  [[intel::reqd_work_group_size(1, 1, 1)]]
+  [[intel::reqd_work_group_size(1)]]
   [[intel::max_global_work_dim(0)]] void
   operator()() const {}
 };
@@ -125,7 +125,7 @@ struct TRIFuncObjBad2 {
 };
 
 struct TRIFuncObjBad3 {
-  [[intel::reqd_work_group_size(4, 4, 4)]]   // expected-error{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
+  [[intel::reqd_work_group_size(4)]]   // expected-error{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
   [[intel::max_global_work_dim(0)]] void
   operator()() const {}
 };
@@ -136,7 +136,7 @@ struct TRIFuncObjBad3 {
 struct TRIFuncObjBad4 {
   // expected-error@+2{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
   // expected-warning@+1{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
-  [[intel::reqd_work_group_size(4, 4, -4)]]
+  [[intel::reqd_work_group_size(-4, 1)]]
   [[intel::max_global_work_dim(0)]] void
   operator()() const {}
 };
@@ -154,7 +154,7 @@ struct TRIFuncObjBad6 {
 };
 
 struct TRIFuncObjBad7 {
-  [[intel::reqd_work_group_size(4, 4, 4)]]
+  [[intel::reqd_work_group_size(4)]]
   [[intel::max_global_work_dim(-2)]] // expected-error{{'max_global_work_dim' attribute requires a non-negative integral compile time constant expression}}
   void operator()() const {}
 };
