@@ -3491,7 +3491,7 @@ void Sema::AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
       Optional<llvm::APSInt> YDimVal = DeclAttr->getYDimVal(Context);
       Optional<llvm::APSInt> ZDimVal = DeclAttr->getZDimVal(Context);
       if ((ArgVal == 0) && (*XDimVal != 1 || *YDimVal != 1 || *ZDimVal != 1)) {
-	Diag(DeclAttr->getLocation(),
+        Diag(DeclAttr->getLocation(),
              diag::err_sycl_x_y_z_arguments_must_be_one)
             << DeclAttr << CI;
         return;
