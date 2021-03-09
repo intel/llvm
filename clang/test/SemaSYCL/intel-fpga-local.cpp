@@ -146,7 +146,7 @@ void check_ast()
   [[intel::force_pow2_depth(1)]] int var_force_p2d;
   [[intel::force_pow2_depth(1)]] const int const_force_p2d[64] = {0, 1};
 
-  //Checking of duplicate argument values
+  // Checking of duplicate argument values.
   //CHECK: VarDecl{{.*}}var_max_replicates
   //CHECK: IntelFPGAMaxReplicatesAttr
   //CHECK-NEXT: ConstantExpr
@@ -159,7 +159,7 @@ void check_ast()
   [[intel::max_replicates(12)]]
   [[intel::max_replicates(12)]] int var_max_replicates; // OK
 
-  //Checking of duplicate argument values
+  // Checking of duplicate argument values.
   //CHECK: VarDecl{{.*}}var_private_copies
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAPrivateCopiesAttr
@@ -345,12 +345,7 @@ void diagnostics()
   //expected-note@+1 {{did you mean to use 'intel::max_replicates' instead?}}
   [[intelfpga::max_replicates(2)]] unsigned int max_replicates[64];
 
-  //Checking of different argument values
-  //CHECK: VarDecl{{.*}}max_repl
-  //CHECK: IntelFPGAMaxReplicatesAttr
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}8
-  //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
+  // Checking of different argument values.
   //expected-warning@+2{{attribute 'max_replicates' is already applied with different arguments}}
   [[intel::max_replicates(8)]] //expected-note{{previous attribute is here}}
   [[intel::max_replicates(16)]] unsigned int max_repl[64];
@@ -360,7 +355,7 @@ void diagnostics()
   //expected-error@+1{{'max_replicates' attribute requires a positive integral compile time constant expression}}
   [[intel::max_replicates(-1)]] unsigned int maxrepl_negative[64];
 
-  //Chcking of incompatible attributes
+  // Checking of incompatible attributes.
   //expected-error@+3{{'max_replicates' and 'fpga_register' attributes are not compatible}}
   [[intel::fpga_register]]
   //expected-note@-1 {{conflicting attribute is here}}
@@ -424,19 +419,14 @@ void diagnostics()
   //expected-note@+1 {{did you mean to use 'intel::private_copies' instead?}}
   [[intelfpga::private_copies(8)]] unsigned int private_copies[64];
 
-  //Checking of incompatible attributes
+  // Checking of incompatible attributes.
   //expected-error@+2{{attributes are not compatible}}
   [[intel::private_copies(16)]]
   [[intel::fpga_register]]
   //expected-note@-2 {{conflicting attribute is here}}
   unsigned int pc_reg[64];
 
-  //Checking of different argument values
-  //CHECK: VarDecl{{.*}}pc_pc
-  //CHECK: IntelFPGAPrivateCopiesAttr
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}8
-  //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
+  // Checking of different argument values.
   //expected-warning@+2{{attribute 'private_copies' is already applied with different arguments}}
   [[intel::private_copies(8)]] //expected-note{{previous attribute is here}}
   [[intel::private_copies(16)]] unsigned int pc_pc[64];
@@ -841,12 +831,12 @@ void check_template_parameters() {
   [[intel::max_replicates(C)]]
   unsigned int max_replicates_duplicate;
 
-  // Test that checks template instantiations for different arg values
+  // Test that checks template instantiations for different arg values.
   [[intel::max_replicates(4)]] // expected-note {{previous attribute is here}}
   // expected-warning@+1 {{attribute 'max_replicates' is already applied with different arguments}}
   [[intel::max_replicates(C)]] unsigned int max_repl_duplicate[64];
 
-  // Test that checks template instantiations for different arg values
+  // Test that checks template instantiations for different arg values.
   [[intel::private_copies(4)]] // expected-note {{previous attribute is here}}
   // expected-warning@+1 {{attribute 'private_copies' is already applied with different arguments}}
   [[intel::private_copies(C)]] unsigned int var_private_copies;

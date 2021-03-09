@@ -3,7 +3,7 @@
 // Test that checks global constant variable (which allows the redeclaration) since
 // IntelFPGAConstVar is one of the subjects listed for [[intel::max_replicates()]] attribute.
 
-// Merging of different arg values
+// Merging of different arg values.
 //CHECK: VarDecl{{.*}}var_max_replicates
 //CHECK: IntelFPGAMaxReplicatesAttr
 //CHECK-NEXT: ConstantExpr
@@ -14,7 +14,7 @@
 [[intel::max_replicates(14)]] const int var_max_replicates = 0;
 //expected-note@-2{{previous attribute is here}}
 
-// Merging of incompatible attributes
+// Merging of incompatible attributes.
 // FIXME: Diagnostic order isn't correct, this isn't what we'd want here but
 // this is an upstream issue. Merge function is calling checkAttrMutualExclusion()
 // function that has backwards diagnostic behavior. This should be fixed into upstream.
