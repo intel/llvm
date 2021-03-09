@@ -4402,22 +4402,22 @@ Instruction *SPIRVToLLVM::transOCLBuiltinFromExtInst(SPIRVExtInst *BC,
 void SPIRVToLLVM::transSourceLanguage() {
   SPIRVWord Ver = 0;
   SourceLanguage Lang = BM->getSourceLanguage(&Ver);
-  if (Lang == SourceLanguageUnknown || // Allow unknown for debug info test
-      Lang == SourceLanguageOpenCL_C || Lang == SourceLanguageOpenCL_CPP) {
-    unsigned short Major = 0;
-    unsigned char Minor = 0;
-    unsigned char Rev = 0;
-    std::tie(Major, Minor, Rev) = decodeOCLVer(Ver);
-    SPIRVMDBuilder Builder(*M);
-    Builder.addNamedMD(kSPIRVMD::Source).addOp().add(Lang).add(Ver).done();
-    // ToDo: Phasing out usage of old SPIR metadata
-    if (Ver <= kOCLVer::CL12)
-      addOCLVersionMetadata(Context, M, kSPIR2MD::SPIRVer, 1, 2);
-    else
-      addOCLVersionMetadata(Context, M, kSPIR2MD::SPIRVer, 2, 0);
+  if (Lang != SourceLanguageUnknown && // Allow unknown for debug info test
+      Lang != SourceLanguageOpenCL_C && Lang != SourceLanguageOpenCL_CPP)
+    return;
+  unsigned short Major = 0;
+  unsigned char Minor = 0;
+  unsigned char Rev = 0;
+  std::tie(Major, Minor, Rev) = decodeOCLVer(Ver);
+  SPIRVMDBuilder Builder(*M);
+  Builder.addNamedMD(kSPIRVMD::Source).addOp().add(Lang).add(Ver).done();
+  // ToDo: Phasing out usage of old SPIR metadata
+  if (Ver <= kOCLVer::CL12)
+    addOCLVersionMetadata(Context, M, kSPIR2MD::SPIRVer, 1, 2);
+  else
+    addOCLVersionMetadata(Context, M, kSPIR2MD::SPIRVer, 2, 0);
 
-    addOCLVersionMetadata(Context, M, kSPIR2MD::OCLVer, Major, Minor);
-  }
+  addOCLVersionMetadata(Context, M, kSPIR2MD::OCLVer, Major, Minor);
 }
 
 bool SPIRVToLLVM::transSourceExtension() {
