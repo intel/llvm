@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-explicit-simd -fsyntax-only -verify -pedantic %s
+// RUN: %clang_cc1 -fsycl-is-device -fsycl-explicit-simd -fsyntax-only -verify -pedantic %s
 
 // no error expected
 __attribute__((opencl_private)) __attribute__((register_num(17))) int privGlob;
