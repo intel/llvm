@@ -21,11 +21,12 @@
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-linux-sycldevice"
 
-declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
+@__spirv_BuiltInGlobalInvocationId = external dso_local local_unnamed_addr addrspace(1) constant <3 x i64>, align 32
 
 define dso_local spir_kernel void @ESIMD_kernel() #0 !sycl_explicit_simd !3 {
 entry:
-  %call = tail call spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
+  %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*), align 32
+  %1 = extractelement <3 x i64> %0, i64 0
   ret void
 }
 
@@ -41,15 +42,14 @@ attributes #0 = { "sycl-module-id"="a.cpp" }
 !3 = !{}
 
 ; By default, no lowering is performed
-; CHECK-NO-LOWERING: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
 ; CHECK-NO-LOWERING: define dso_local spir_kernel void @ESIMD_kernel()
 ; CHECK-NO-LOWERING: entry:
-; CHECK-NO-LOWERING:   %call = tail call spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
+; CHECK-NO-LOWERING:   %0 = load <3 x i64>, {{.*}} addrspacecast {{.*}} @__spirv_BuiltInGlobalInvocationId
+; CHECK-NO-LOWERING:   %1 = extractelement <3 x i64> %0, i64 0
 ; CHECK-NO-LOWERING:   ret void
 ; CHECK-NO-LOWERING: }
 
 ; With -O0, we only lower ESIMD code, but no other optimizations
-; CHECK-O0: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
 ; CHECK-O0: define dso_local spir_kernel void @ESIMD_kernel() #1 !sycl_explicit_simd !3 !intel_reqd_sub_group_size !4 {
 ; CHECK-O0: entry:
 ; CHECK-O0:   call <3 x i32> @llvm.genx.local.id.v3i32()
@@ -59,7 +59,6 @@ attributes #0 = { "sycl-module-id"="a.cpp" }
 ; CHECK-O0: }
 
 ; With -O2, unused call was optimized away
-; CHECK-O2: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
 ; CHECK-O2: define dso_local spir_kernel void @ESIMD_kernel()
 ; CHECK-O2: entry:
 ; CHECK-O2:   ret void

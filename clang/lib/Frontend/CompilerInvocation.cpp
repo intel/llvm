@@ -464,6 +464,11 @@ static void FixupInvocation(CompilerInvocation &Invocation,
     LangOpts.NewAlignOverride = 0;
   }
 
+  // Prevent the user from specifying both -fsycl-is-device and -fsycl-is-host.
+  if (LangOpts.SYCLIsDevice && LangOpts.SYCLIsHost)
+    Diags.Report(diag::err_drv_argument_not_allowed_with) << "-fsycl-is-device"
+                                                          << "-fsycl-is-host";
+
   if (Args.hasArg(OPT_fgnu89_inline) && LangOpts.CPlusPlus)
     Diags.Report(diag::err_drv_argument_not_allowed_with)
         << "-fgnu89-inline" << GetInputKindName(IK);
@@ -3706,7 +3711,7 @@ bool CompilerInvocation::ParseLangArgsImpl(LangOptions &Opts, ArgList &Args,
       LangStd = OpenCLLangStd;
   }
 
-  if (Opts.SYCL) {
+  if (Args.hasArg(OPT_fsycl_is_device) || Args.hasArg(OPT_fsycl_is_host)) {
     // -sycl-std applies to any SYCL source, not only those containing kernels,
     // but also those using the SYCL API
     if (const Arg *A = Args.getLastArg(OPT_sycl_std_EQ)) {
