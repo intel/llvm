@@ -766,7 +766,8 @@ static void GetProgModelBuiltinFctOverloads(
     ASTContext &Context, unsigned GenTypeMaxCnt,
     std::vector<QualType> &FunctionList, SmallVector<QualType, 1> &RetTypes,
     SmallVector<SmallVector<QualType, 1>, 5> &ArgTypes, bool IsVariadic) {
-  FunctionProtoType::ExtProtoInfo PI;
+  FunctionProtoType::ExtProtoInfo PI(
+      Context.getDefaultCallingConvention(false, false, true));
   PI.Variadic = IsVariadic;
 
   // Create FunctionTypes for each (gen)type.
