@@ -342,8 +342,10 @@ public:
         continue;
 
       // Get a pointer to the entry point function from the metadata.
-      auto FuncConstant =
-          dyn_cast<ConstantAsMetadata>(MetadataNode->getOperand(0));
+      const auto &FuncOperand = MetadataNode->getOperand(0);
+      if (!FuncOperand)
+        continue;
+      auto FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand);
       if (!FuncConstant)
         continue;
       auto Func = dyn_cast<Function>(FuncConstant->getValue());

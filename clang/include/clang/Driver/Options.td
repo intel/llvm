@@ -4349,18 +4349,18 @@ defm whole_file : BooleanFFlag<"whole-file">, Group<gfortran_Group>;
 def reuse_exe_EQ : Joined<["-"], "reuse-exe=">, Flags<[CoreOption]>,
   HelpText<"Speed up FPGA aoc compile if the device code in <exe> is unchanged.">,
   MetaVarName<"<exe>">;
-defm sycl : BoolOption<"f", "sycl",
-  LangOpts<"SYCL">, DefaultFalse,
-  PosFlag<SetTrue, [CC1Option], "Enable">, NegFlag<SetFalse, [], "Disable">,
-  BothFlags<[CoreOption], " SYCL kernels compilation for device">>,
-  Group<sycl_Group>;
+def fsycl : Flag<["-"], "fsycl">, Flags<[NoXarchOption, CoreOption]>, Group<sycl_Group>,
+  HelpText<"Enables SYCL kernels compilation for device">;
+def fno_sycl : Flag<["-"], "fno-sycl">, Flags<[NoXarchOption, CoreOption]>, Group<sycl_Group>,
+  HelpText<"Disables SYCL kernels compilation for device">;
 def sycl_std_EQ : Joined<["-"], "sycl-std=">, Group<sycl_Group>, Flags<[CC1Option, NoArgumentUnused, CoreOption]>,
   HelpText<"SYCL language standard to compile for.">, Values<"2020,2017,121,1.2.1,sycl-1.2.1">,
   NormalizedValues<["SYCL_2020", "SYCL_2017", "SYCL_2017", "SYCL_2017", "SYCL_2017"]>, NormalizedValuesScope<"LangOptions">,
-  MarshallingInfoEnum<LangOpts<"SYCLVersion">, "SYCL_None">, ShouldParseIf<fsycl.KeyPath>;
-defm sycl_esimd: BoolFOption<"sycl-explicit-simd", LangOpts<"SYCLExplicitSIMD">, DefaultFalse,
-  PosFlag<SetTrue, [], "Enable">, NegFlag<SetFalse, [], "Disable">,
-  BothFlags<[CC1Option,CoreOption], " SYCL explicit SIMD extension.">>;
+  MarshallingInfoEnum<LangOpts<"SYCLVersion">, "SYCL_None">;
+defm sycl_esimd: BoolFOption<"sycl-explicit-simd",
+  LangOpts<"SYCLExplicitSIMD">, DefaultFalse,
+  PosFlag<SetTrue, [CC1Option], "Enable">, NegFlag<SetFalse, [], "Disable">,
+  BothFlags<[NoArgumentUnused, CoreOption], "SYCL explicit SIMD extension.">>;
 defm sycl_early_optimizations : OptOutFFlag<"sycl-early-optimizations", "Enable", "Disable", " standard optimization pipeline for SYCL device compiler", [CoreOption]>;
 def fsycl_dead_args_optimization : Flag<["-"], "fsycl-dead-args-optimization">,
   Group<sycl_Group>, Flags<[NoArgumentUnused, CoreOption]>, HelpText<"Enables "
@@ -5616,8 +5616,7 @@ def fopenmp_host_ir_file_path : Separate<["-"], "fopenmp-host-ir-file-path">,
 
 def fsycl_is_device : Flag<["-"], "fsycl-is-device">,
   HelpText<"Generate code for SYCL device.">,
-  MarshallingInfoFlag<LangOpts<"SYCLIsDevice">>,
-  ShouldParseIf<fsycl.KeyPath>;
+  MarshallingInfoFlag<LangOpts<"SYCLIsDevice">>;
 def fsycl_is_host : Flag<["-"], "fsycl-is-host">,
   HelpText<"SYCL host compilation">,
   MarshallingInfoFlag<LangOpts<"SYCLIsHost">>;
