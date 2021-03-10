@@ -5673,6 +5673,7 @@ pi_result piTearDown(void *PluginParameter) {
   delete PiPlatformsCacheMutex;
 
   // Print the balance of various create/destroy native calls.
+  // The idea is to verify if the number of create(+) and destroy(-) calls are matched.
   if (ZeDebug & ZE_DEBUG_CALL_COUNT) {
     // clang-format off
     //
