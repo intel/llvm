@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-windows-sycldevice -aux-triple x86_64-pc-windows-msvc  -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-windows-sycldevice -aux-triple x86_64-pc-windows-msvc  -fsyntax-only -verify %s
 // expected-no-diagnostics
 
 void foo(__builtin_va_list bvl) {

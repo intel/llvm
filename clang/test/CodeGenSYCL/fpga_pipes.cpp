@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device %s -emit-llvm -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device %s -emit-llvm -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -o - | FileCheck %s
 // CHECK: %opencl.pipe_wo_t
 // CHECK: %opencl.pipe_ro_t
 
