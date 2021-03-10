@@ -1802,18 +1802,23 @@ pi_result piDevicePartition(pi_device Device,
 
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
+  // Check if Device was already partitioned into the same or bigger size
+  // before. If so, we can return immediately without searching the global
+  // device cache. Note that L0 driver always return the same handles in the
+  // same order for the given number of sub-devices.
+  if (OutDevices && NumDevices <= Device->SubDevices.size()) {
+    for (uint32_t I = 0; I < NumDevices; I++) {
+      OutDevices[I] = Device->SubDevices[I];
+    }
+    if (OutNumDevices)
+      *OutNumDevices = NumDevices;
+    return PI_SUCCESS;
+  }
+
   // Get the number of subdevices available.
   // TODO: maybe add interface to create the specified # of subdevices.
   uint32_t Count = 0;
   ZE_CALL(zeDeviceGetSubDevices(Device->ZeDevice, &Count, nullptr));
-
-  // Check that the requested/allocated # of sub-devices is the same
-  // as was reported by the above call.
-  // TODO: we may want to support smaller/larger # devices too.
-  if (Count != NumDevices) {
-    zePrint("piDevicePartition: unsupported # of sub-devices requested\n");
-    return PI_INVALID_OPERATION;
-  }
 
   if (OutNumDevices) {
     *OutNumDevices = Count;
@@ -1831,15 +1836,22 @@ pi_result piDevicePartition(pi_device Device,
 
     // Wrap the Level Zero sub-devices into PI sub-devices, and write them out.
     for (uint32_t I = 0; I < Count; ++I) {
-      std::unique_ptr<_pi_device> PiSubDevice(
-          new _pi_device(ZeSubdevices[I], Platform));
-      pi_result Result = PiSubDevice->initialize();
-      if (Result != PI_SUCCESS) {
-        delete[] ZeSubdevices;
-        return Result;
+      pi_device Dev = Platform->getDeviceFromNativeHandle(ZeSubdevices[I]);
+      if (Dev) {
+        OutDevices[I] = Dev;
+      } else {
+        std::unique_ptr<_pi_device> PiSubDevice(
+            new _pi_device(ZeSubdevices[I], Platform));
+        pi_result Result = PiSubDevice->initialize();
+        if (Result != PI_SUCCESS) {
+          delete[] ZeSubdevices;
+          return Result;
+        }
+        OutDevices[I] = PiSubDevice.get();
+        Platform->PiDevicesCache.push_back(std::move(PiSubDevice));
+        // save pointers to sub-devices for quick retrieval in the future.
+        Device->SubDevices.push_back(Dev);
       }
-      OutDevices[I] = PiSubDevice.get();
-      Platform->PiDevicesCache.push_back(std::move(PiSubDevice));
     }
     delete[] ZeSubdevices;
   } catch (const std::bad_alloc &) {

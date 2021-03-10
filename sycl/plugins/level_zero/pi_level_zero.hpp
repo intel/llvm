@@ -156,6 +156,9 @@ struct _pi_device : _pi_object {
   // Level Zero device handle.
   ze_device_handle_t ZeDevice;
 
+  // Keep the subdevices that are partitioned from this pi_device for reuse
+  std::vector<pi_device> SubDevices;
+
   // PI platform to which this device belongs.
   pi_platform Platform;
 
