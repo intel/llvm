@@ -4632,12 +4632,10 @@ public:
       ActionList HostActionList;
       Action *A(HostAction);
       // Only check for FPGA device information when using fpga SubArch.
-      const ToolChain *TC =
-          C.hasOffloadToolChain<Action::OFK_SYCL>()
-              ? C.getSingleOffloadToolChain<Action::OFK_SYCL>()
-              : C.getSingleOffloadToolChain<Action::OFK_Host>();
-      HasFPGATarget =
-          TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga;
+      auto SYCLTCRange = C.getOffloadToolChains<Action::OFK_SYCL>();
+      for (auto TI = SYCLTCRange.first, TE = SYCLTCRange.second; TI != TE; ++TI)
+        HasFPGATarget |= TI->second->getTriple().getSubArch() ==
+                         llvm::Triple::SPIRSubArch_fpga;
       if (HasFPGATarget && !(HostAction->getType() == types::TY_Object &&
                              isObjectFile(InputName))) {
         // Type FPGA aoco is a special case for -foffload-static-lib.
