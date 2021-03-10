@@ -1809,6 +1809,8 @@ pi_result piDevicePartition(pi_device Device,
   if (OutDevices && NumDevices <= Device->SubDevices.size()) {
     for (uint32_t I = 0; I < NumDevices; I++) {
       OutDevices[I] = Device->SubDevices[I];
+      // reusing the same pi_device needs to increment the reference count
+      piDeviceRetain(OutDevices[I]);
     }
     if (OutNumDevices)
       *OutNumDevices = NumDevices;
