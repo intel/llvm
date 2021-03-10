@@ -1994,6 +1994,8 @@ static bool ParseDependencyOutputArgs(DependencyOutputOptions &Opts,
                                       ArgList &Args, DiagnosticsEngine &Diags,
                                       frontend::ActionKind Action,
                                       bool ShowLineMarkers) {
+  Opts.DependencyFilter = std::string(Args.getLastArgValue(OPT_dependency_filter));
+  Opts.Targets = Args.getAllArgValues(OPT_MT);
   unsigned NumErrorsBefore = Diags.getNumErrors();
   bool Success = true;
 
