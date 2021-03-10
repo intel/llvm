@@ -693,17 +693,6 @@ static void instantiateSYCLIntelMaxGlobalWorkDimAttr(
     S.AddSYCLIntelMaxGlobalWorkDimAttr(New, *A, Result.getAs<Expr>());
 }
 
-template <typename AttrName>
-static void instantiateIntelSYCLFunctionAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const AttrName *Attr, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
-  if (!Result.isInvalid())
-    S.addIntelSingleArgAttr<AttrName>(New, *Attr, Result.getAs<Expr>());
-}
-
 static void instantiateIntelFPGAPrivateCopiesAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const IntelFPGAPrivateCopiesAttr *A, Decl *New) {
