@@ -75,12 +75,13 @@ constexpr char SPIRV_GROUP_SMAX[] = "__spirv_GroupSMax";
 constexpr char SPIRV_ATOMIC_INST[] = "__spirv_Atomic";
 constexpr char SPIRV_ATOMIC_LOAD[] = "__spirv_AtomicLoad";
 constexpr char SPIRV_ATOMIC_STORE[] = "__spirv_AtomicSTORE";
-constexpr char ITT_ANNOTATION_WI_START[] = "__itt_spirv_wi_start_wrapper";
-constexpr char ITT_ANNOTATION_WI_RESUME[] = "__itt_spirv_wi_resume_wrapper";
-constexpr char ITT_ANNOTATION_WI_FINISH[] = "__itt_spirv_wi_finish_wrapper";
-constexpr char ITT_ANNOTATION_WG_BARRIER[] = "__itt_spirv_wg_barrier_wrapper";
-constexpr char ITT_ANNOTATION_ATOMIC_START[] = "__itt_sync_atomic_op_start";
-constexpr char ITT_ANNOTATION_ATOMIC_FINISH[] = "__itt_sync_atomic_op_finish";
+constexpr char ITT_ANNOTATION_WI_START[] = "__itt_offload_wi_start_wrapper";
+constexpr char ITT_ANNOTATION_WI_RESUME[] = "__itt_offload_wi_resume_wrapper";
+constexpr char ITT_ANNOTATION_WI_FINISH[] = "__itt_offload_wi_finish_wrapper";
+constexpr char ITT_ANNOTATION_WG_BARRIER[] = "__itt_offload_wg_barrier_wrapper";
+constexpr char ITT_ANNOTATION_ATOMIC_START[] = "__itt_offload_atomic_op_start";
+constexpr char ITT_ANNOTATION_ATOMIC_FINISH[] =
+    "__itt_offload_atomic_op_finish";
 
 // Wrapper for the pass to make it working with the old pass manager
 class SYCLITTAnnotationsLegacyPass : public ModulePass {

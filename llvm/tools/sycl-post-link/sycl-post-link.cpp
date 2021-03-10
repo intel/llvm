@@ -108,10 +108,6 @@ static cl::opt<bool> SplitEsimd{"split-esimd",
 static cl::opt<bool> LowerEsimd{
     "lower-esimd", cl::desc("Lower ESIMD constructs"), cl::cat(PostLinkCat)};
 
-static cl::opt<bool> AddInstrumentationCalls{
-    "add-instrumentation-calls", cl::desc("Add instrumentation calls"),
-    cl::cat(PostLinkCat)};
-
 static cl::opt<bool>
     OptLevelO0("O0", cl::desc("Optimization level 0. Similar to clang -O0"),
                cl::cat(PostLinkCat));
@@ -789,7 +785,7 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
 
   {
     // Reuse input module with only regular SYCL kernels if there were
-    // no spec constants, no splitting and no instrumentation calls.
+    // no spec constants, no splitting.
     // We cannot reuse input module for ESIMD code since it was transformed.
     bool CanReuseInputModule = !SpecConstsMet && (ResultModules.size() == 1) &&
                                !SyclAndEsimdKernels && !IsEsimd;

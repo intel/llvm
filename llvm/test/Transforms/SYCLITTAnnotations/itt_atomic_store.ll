@@ -4,10 +4,8 @@
 ;; Compiled from https://github.com/intel/llvm-test-suite/blob/intel/SYCL/AtomicRef/load.cpp
 ;; with following commands:
 ;; clang++ -fsycl -fsycl-device-only load.cpp -o load.bc
-;; llvm-link load.bc -o load_link.bc --suppress-warnings
 
-; RUN: sycl-post-link -add-instrumentation-calls -split=auto --ir-output-only %s -S -o %t.ll
-; RUN: FileCheck %s -input-file=%t.ll
+; RUN: opt < %s --SYCLITTAnnotations -S | FileCheck %s
 
 ; ModuleID = 'store.bc'
 source_filename = "/localdisk2/sidorovd/SYCLTest/llvm-test-suite/SYCL/AtomicRef/store.cpp"
@@ -29,7 +27,7 @@ define weak_odr dso_local spir_kernel void @_ZTSN2cl4sycl6detail19__pf_kernel_wr
 entry:
 ; CHECK-LABEL: _ZTSN2cl4sycl6detail19__pf_kernel_wrapperI12store_kernelIiEEE(
 ; CHECK-NEXT: entry:
-; CHECK-NEXT: call void @__itt_spirv_wi_start_wrapper()
+; CHECK-NEXT: call void @__itt_offload_wi_start_wrapper()
   %0 = getelementptr inbounds %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range", %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* %_arg_, i64 0, i32 0, i32 0, i64 0
   %1 = addrspacecast i64* %0 to i64 addrspace(4)*
   %2 = load i64, i64 addrspace(4)* %1, align 8
@@ -44,14 +42,14 @@ if.end.i:                                         ; preds = %entry
   %7 = load i64, i64 addrspace(4)* %6, align 8
   %add.ptr.i = getelementptr inbounds i32, i32 addrspace(1)* %_arg_1, i64 %7
   %conv.i.i = trunc i64 %4 to i32
-; CHECK: call void @__itt_sync_atomic_op_start(i32 addrspace(1)* %[[ATOMIC_ARG_1:[0-9a-zA-Z._]+]], i32 1, i32 [[MEM_ORDER_1:[0-9]+]])
+; CHECK: call void @__itt_offload_atomic_op_start(i32 addrspace(1)* %[[ATOMIC_ARG_1:[0-9a-zA-Z._]+]], i32 1, i32 [[MEM_ORDER_1:[0-9]+]])
 ; CHECK-NEXT: {{.*}}__spirv_AtomicStore{{.*}}(i32 addrspace(1)* %[[ATOMIC_ARG_1]],{{.*}}, i32 [[MEM_ORDER_1]]
-; CHECK-NEXT: call void @__itt_sync_atomic_op_finish(i32 addrspace(1)* %[[ATOMIC_ARG_1]], i32 1, i32 [[MEM_ORDER_1]])
+; CHECK-NEXT: call void @__itt_offload_atomic_op_finish(i32 addrspace(1)* %[[ATOMIC_ARG_1]], i32 1, i32 [[MEM_ORDER_1]])
   tail call spir_func void @_Z19__spirv_AtomicStorePU3AS1iN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEi(i32 addrspace(1)* %add.ptr.i, i32 1, i32 896, i32 %conv.i.i) #2
   br label %_ZZN2cl4sycl7handler24parallel_for_lambda_implI12store_kernelIiEZZ10store_testIiEvNS0_5queueEmENKUlRS1_E_clES7_EUlNS0_4itemILi1ELb1EEEE_Li1EEEvNS0_5rangeIXT1_EEET0_ENKUlSA_E_clESA_.exit
 
 _ZZN2cl4sycl7handler24parallel_for_lambda_implI12store_kernelIiEZZ10store_testIiEvNS0_5queueEmENKUlRS1_E_clES7_EUlNS0_4itemILi1ELb1EEEE_Li1EEEvNS0_5rangeIXT1_EEET0_ENKUlSA_E_clESA_.exit: ; preds = %entry, %if.end.i
-; CHECK: call void @__itt_spirv_wi_finish_wrapper()
+; CHECK: call void @__itt_offload_wi_finish_wrapper()
 ; CHECK-NEXT: ret void
   ret void
 }
@@ -64,7 +62,7 @@ define weak_odr dso_local spir_kernel void @_ZTS12store_kernelIiE(i32 addrspace(
 entry:
 ; CHECK-LABEL: _ZTS12store_kernelIiE(
 ; CHECK-NEXT: entry:
-; CHECK-NEXT: call void @__itt_spirv_wi_start_wrapper()
+; CHECK-NEXT: call void @__itt_offload_wi_start_wrapper()
   %0 = getelementptr inbounds %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id", %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id"* %_arg_3, i64 0, i32 0, i32 0, i64 0
   %1 = addrspacecast i64* %0 to i64 addrspace(4)*
   %2 = load i64, i64 addrspace(4)* %1, align 8
@@ -72,19 +70,19 @@ entry:
   %3 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*), align 32, !noalias !15
   %4 = extractelement <3 x i64> %3, i64 0
   %conv.i = trunc i64 %4 to i32
-; CHECK: call void @__itt_sync_atomic_op_start(i32 addrspace(1)* %[[ATOMIC_ARG_2:[0-9a-zA-Z._]+]], i32 1, i32 [[MEM_ORDER_2:[0-9]+]])
+; CHECK: call void @__itt_offload_atomic_op_start(i32 addrspace(1)* %[[ATOMIC_ARG_2:[0-9a-zA-Z._]+]], i32 1, i32 [[MEM_ORDER_2:[0-9]+]])
 ; CHECK-NEXT: {{.*}}__spirv_AtomicStore{{.*}}(i32 addrspace(1)* %[[ATOMIC_ARG_2]],{{.*}}, i32 [[MEM_ORDER_2]]
-; CHECK-NEXT: call void @__itt_sync_atomic_op_finish(i32 addrspace(1)* %[[ATOMIC_ARG_2]], i32 1, i32 [[MEM_ORDER_2]])
+; CHECK-NEXT: call void @__itt_offload_atomic_op_finish(i32 addrspace(1)* %[[ATOMIC_ARG_2]], i32 1, i32 [[MEM_ORDER_2]])
   tail call spir_func void @_Z19__spirv_AtomicStorePU3AS1iN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEi(i32 addrspace(1)* %add.ptr.i, i32 1, i32 896, i32 %conv.i) #2
-; CHECK: call void @__itt_spirv_wi_finish_wrapper()
+; CHECK: call void @__itt_offload_wi_finish_wrapper()
 ; CHECK-NEXT: ret void
   ret void
 }
 
-; CHECK: declare void @__itt_spirv_wi_start_wrapper()
-; CHECK: declare void @__itt_sync_atomic_op_start(i32 addrspace(1)*, i32, i32)
-; CHECK: declare void @__itt_sync_atomic_op_finish(i32 addrspace(1)*, i32, i32)
-; CHECK: declare void @__itt_spirv_wi_finish_wrapper()
+; CHECK: declare void @__itt_offload_wi_start_wrapper()
+; CHECK: declare void @__itt_offload_atomic_op_start(i32 addrspace(1)*, i32, i32)
+; CHECK: declare void @__itt_offload_atomic_op_finish(i32 addrspace(1)*, i32, i32)
+; CHECK: declare void @__itt_offload_wi_finish_wrapper()
 
 attributes #0 = { convergent norecurse "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="/localdisk2/sidorovd/SYCLTest/llvm-test-suite/SYCL/AtomicRef/store.cpp" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { convergent "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
