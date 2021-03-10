@@ -8285,7 +8285,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   ArgStringList CmdArgs;
 
   // See if device code instrumentation is requested
-  if (TCArgs.hasArg(options::OPT_fsycl_device_code_add_instrumentation_calls))
+  if (TCArgs.hasArg(options::OPT_fsycl_instrument_device_code))
     addArgs(CmdArgs, TCArgs, {"-add-instrumentation-calls"});
 
   // See if device code splitting is requested

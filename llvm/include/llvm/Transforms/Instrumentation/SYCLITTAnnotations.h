@@ -1,4 +1,4 @@
-//===--- InstrumentalAnnotations.h - SYCL Instrumental Annotations Pass ---===//
+//===----- SYCLITTAnnotations.h - SYCL Instrumental Annotations Pass ------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -17,10 +17,11 @@
 
 namespace llvm {
 
-class InstrumentalAnnotationsPass : public PassInfoMixin<InstrumentalAnnotationsPass> {
+class SYCLITTAnnotationsPass : public PassInfoMixin<SYCLITTAnnotationsPass> {
 public:
-  InstrumentalAnnotationsPass() = default;
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };
+
+ModulePass *createSYCLITTAnnotationsPass();
 
 } // namespace llvm

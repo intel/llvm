@@ -75,6 +75,7 @@
 #include "llvm/Transforms/Instrumentation/MemProfiler.h"
 #include "llvm/Transforms/Instrumentation/MemorySanitizer.h"
 #include "llvm/Transforms/Instrumentation/SanitizerCoverage.h"
+#include "llvm/Transforms/Instrumentation/SYCLITTAnnotations.h"
 #include "llvm/Transforms/Instrumentation/ThreadSanitizer.h"
 #include "llvm/Transforms/ObjCARC.h"
 #include "llvm/Transforms/Scalar.h"
@@ -839,7 +840,6 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
 
   PMBuilder.populateFunctionPassManager(FPM);
   PMBuilder.populateModulePassManager(MPM);
-
   // Customize the tail of the module passes list for the ESIMD extension.
   if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD &&
       CodeGenOpts.OptimizationLevel != 0) {
@@ -953,7 +953,6 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
   legacy::FunctionPassManager PerFunctionPasses(TheModule);
   PerFunctionPasses.add(
       createTargetTransformInfoWrapperPass(getTargetIRAnalysis()));
-
   // ESIMD extension always requires lowering of certain IR constructs, such as
   // ESIMD C++ intrinsics, as the last FE step.
   if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD)
@@ -978,6 +977,9 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
 
   if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD)
     PerModulePasses.add(createGenXSPIRVWriterAdaptorPass());
+
+  if (llvm::Triple(TheModule->getTargetTriple()).isSPIR())
+    PerModulePasses.add(createSYCLITTAnnotationsPass());
 
   switch (Action) {
   case Backend_EmitNothing:

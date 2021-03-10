@@ -13,7 +13,6 @@
 // - specialization constant intrinsic transformation
 //===----------------------------------------------------------------------===//
 
-#include "InstrumentalAnnotations.h"
 #include "SPIRKernelParamOptInfo.h"
 #include "SpecConstants.h"
 
@@ -737,18 +736,6 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   if (IsEsimd && LowerEsimd)
     LowerEsimdConstructs(*M);
 
-  bool InstrumentalAnnotationsMet = false;
-  if (AddInstrumentationCalls) {
-    ModulePassManager RunInstrumentalAnnotations;
-    ModuleAnalysisManager MAM;
-    InstrumentalAnnotationsPass IAP;
-    // Register required analysis
-    MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
-    RunInstrumentalAnnotations.addPass(IAP);
-    PreservedAnalyses Res = RunInstrumentalAnnotations.run(*M, MAM);
-    InstrumentalAnnotationsMet = !Res.areAllPreserved();
-  }
-
   std::map<StringRef, std::vector<Function *>> GlobalsSet;
 
   bool DoSplit = SplitMode.getNumOccurrences() > 0;
@@ -805,8 +792,7 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     // no spec constants, no splitting and no instrumentation calls.
     // We cannot reuse input module for ESIMD code since it was transformed.
     bool CanReuseInputModule = !SpecConstsMet && (ResultModules.size() == 1) &&
-                               !SyclAndEsimdKernels && !IsEsimd &&
-                               !InstrumentalAnnotationsMet;
+                               !SyclAndEsimdKernels && !IsEsimd;
     string_vector Files =
         CanReuseInputModule
             ? string_vector{InputFilename}

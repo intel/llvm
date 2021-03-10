@@ -48,6 +48,7 @@
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Instrumentation/BoundsChecking.h"
+#include "llvm/Transforms/Instrumentation/SYCLITTAnnotations.h"
 #include "llvm/Transforms/ObjCARC.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/GVN.h"
@@ -200,10 +201,11 @@ namespace {
       (void) llvm::createMergeFunctionsPass();
       (void) llvm::createMergeICmpsLegacyPass();
       (void) llvm::createExpandMemCmpPass();
-      (void)llvm::createSYCLLowerWGScopePass();
-      (void)llvm::createSYCLLowerESIMDPass();
-      (void)llvm::createESIMDLowerLoadStorePass();
-      (void)llvm::createESIMDLowerVecArgPass();
+      (void) llvm::createSYCLLowerWGScopePass();
+      (void) llvm::createSYCLLowerESIMDPass();
+      (void) llvm::createESIMDLowerLoadStorePass();
+      (void) llvm::createESIMDLowerVecArgPass();
+      (void) llvm::createSYCLITTAnnotationsPass();
       std::string buf;
       llvm::raw_string_ostream os(buf);
       (void) llvm::createPrintModulePass(os);

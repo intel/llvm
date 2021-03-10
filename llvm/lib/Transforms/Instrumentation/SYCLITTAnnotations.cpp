@@ -1,4 +1,4 @@
-//===-- InstrumentalAnnotations.cpp - SYCL Instrumental Annotations Pass --===//
+//===---- SYCLITTAnnotations.cpp - SYCL Instrumental Annotations Pass -----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,8 +10,9 @@
 // synchronization instructions. This can be used for kernel profiling.
 //===----------------------------------------------------------------------===//
 
-#include "InstrumentalAnnotations.h"
+#include "llvm/Transforms/Instrumentation/SYCLITTAnnotations.h"
 
+#include "llvm/InitializePasses.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -81,14 +82,45 @@ constexpr char ITT_ANNOTATION_WG_BARRIER[] = "__itt_spirv_wg_barrier_wrapper";
 constexpr char ITT_ANNOTATION_ATOMIC_START[] = "__itt_sync_atomic_op_start";
 constexpr char ITT_ANNOTATION_ATOMIC_FINISH[] = "__itt_sync_atomic_op_finish";
 
-// TODO: move to a separate header
+// Wrapper for the pass to make it working with the old pass manager
+class SYCLITTAnnotationsLegacyPass : public ModulePass {
+public:
+  static char ID;
+  SYCLITTAnnotationsLegacyPass() : ModulePass(ID) {
+    initializeSYCLITTAnnotationsLegacyPassPass(
+        *PassRegistry::getPassRegistry());
+  }
+
+  // run the SYCLITTAnnotations pass on the specified module
+  bool runOnModule(Module &M) override {
+    ModuleAnalysisManager MAM;
+    auto PA = Impl.run(M, MAM);
+    return !PA.areAllPreserved();
+  }
+
+private:
+  SYCLITTAnnotationsPass Impl;
+};
+
+} // namespace
+
+char SYCLITTAnnotationsLegacyPass::ID = 0;
+INITIALIZE_PASS(SYCLITTAnnotationsLegacyPass, "SYCLITTAnnotations",
+                "Insert ITT annotations in SYCL code", false, false)
+
+// Public interface to the SYCLITTAnnotationsPass.
+ModulePass *llvm::createSYCLITTAnnotationsPass() {
+  return new SYCLITTAnnotationsLegacyPass();
+}
+
+namespace {
+
 // Check for calling convention of a function. If it's spir_kernel - consider
 // the function to be a SYCL kernel.
 bool isSyclKernel(Function &F) {
   return F.getCallingConv() == CallingConv::SPIR_KERNEL;
 }
 
-// TODO: move to a separate header
 Instruction *emitCall(Module &M, Type *RetTy, StringRef FunctionName,
                       ArrayRef<Value *> Args, Instruction *InsertBefore) {
   SmallVector<Type *, 8> ArgTys(Args.size());
@@ -162,8 +194,8 @@ bool insertAtomicInstrumentationCall(Module &M, StringRef Name,
 
 } // namespace
 
-PreservedAnalyses InstrumentalAnnotationsPass::run(Module &M,
-                                                   ModuleAnalysisManager &MAM) {
+PreservedAnalyses SYCLITTAnnotationsPass::run(Module &M,
+                                              ModuleAnalysisManager &MAM) {
   bool IRModified = false;
   std::vector<StringRef> SPIRVCrossWGInstuctions = {
       SPIRV_CONTROL_BARRIER, SPIRV_GROUP_ALL, SPIRV_GROUP_ANY,
