@@ -9,7 +9,7 @@
 #include <CL/sycl/program.hpp>
 #include <CL/sycl/properties/all_properties.hpp>
 #include <CL/sycl/property_list.hpp>
-#include <detail/get_backend.hpp>
+#include <detail/backend_impl.hpp>
 #include <detail/program_impl.hpp>
 
 #include <vector>

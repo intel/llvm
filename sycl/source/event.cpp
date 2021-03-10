@@ -12,8 +12,8 @@
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/backend_impl.hpp>
 #include <detail/event_impl.hpp>
-#include <detail/get_backend.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
 #include <memory>

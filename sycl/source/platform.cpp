@@ -10,8 +10,8 @@
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
+#include <detail/backend_impl.hpp>
 #include <detail/force_device.hpp>
-#include <detail/get_backend.hpp>
 #include <detail/platform_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {

@@ -11,7 +11,7 @@
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/queue.hpp>
 #include <CL/sycl/stl.hpp>
-#include <detail/get_backend.hpp>
+#include <detail/backend_impl.hpp>
 #include <detail/queue_impl.hpp>
 
 #include <algorithm>

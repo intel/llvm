@@ -10,10 +10,10 @@
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/info/info_desc.hpp>
+#include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/force_device.hpp>
-#include <detail/get_backend.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
