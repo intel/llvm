@@ -42,17 +42,17 @@ struct FuncObj {
 #ifdef TRIGGER_ERROR
 // If the declaration has an [[intel::reqd_work_group_size]] or
 // [[cl::reqd_work_group_size]] attribute, tests that check if
-// the work group size attribute argument (the first argument)
+// the work group size attribute argument (the last argument)
 // can be evenly divided by the num_simd_work_items attribute.
 struct TRIFuncObjBad1 {
   [[intel::num_simd_work_items(3)]]        // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-  [[intel::reqd_work_group_size(5, 3, 3)]] // expected-note{{conflicting attribute is here}}
+  [[intel::reqd_work_group_size(5, 3, 5)]] // expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
 };
 
 struct TRIFuncObjBad2 {
-  [[intel::reqd_work_group_size(5, 3, 3)]] // expected-note{{conflicting attribute is here}}
+  [[intel::reqd_work_group_size(5, 3, 5)]] // expected-note{{conflicting attribute is here}}
   [[intel::num_simd_work_items(3)]]        // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   void
   operator()() const {}
@@ -60,13 +60,13 @@ struct TRIFuncObjBad2 {
 
 struct TRIFuncObjBad3 {
   [[intel::num_simd_work_items(3)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-  [[cl::reqd_work_group_size(5, 3, 3)]] // expected-note{{conflicting attribute is here}}
+  [[cl::reqd_work_group_size(5, 3, 5)]] // expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
 };
 
 struct TRIFuncObjBad4 {
-  [[cl::reqd_work_group_size(5, 3, 3)]] // expected-note{{conflicting attribute is here}}
+  [[cl::reqd_work_group_size(5, 3, 5)]] // expected-note{{conflicting attribute is here}}
   [[intel::num_simd_work_items(3)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   void
   operator()() const {}
@@ -74,13 +74,13 @@ struct TRIFuncObjBad4 {
 
 struct TRIFuncObjBad5 {
   [[intel::num_simd_work_items(3)]]  // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-  [[intel::reqd_work_group_size(5)]] //expected-note{{conflicting attribute is here}}
+  [[intel::reqd_work_group_size(3)]] //expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
 };
 
 struct TRIFuncObjBad6 {
-  [[intel::reqd_work_group_size(5)]] // expected-note{{conflicting attribute is here}}
+  [[intel::reqd_work_group_size(3)]] // expected-note{{conflicting attribute is here}}
   [[intel::num_simd_work_items(3)]]  // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   void
   operator()() const {}
@@ -168,48 +168,48 @@ struct TRIFuncObjBad18 {
 // can be evenly divided by the num_simd_work_items attribute.
 struct TRIFuncObjGood1 {
   [[intel::num_simd_work_items(4)]]
-  [[intel::reqd_work_group_size(64, 64, 5)]] void
+  [[intel::reqd_work_group_size(64, 64, 64)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood2 {
-  [[intel::reqd_work_group_size(64, 64, 5)]]
+  [[intel::reqd_work_group_size(64, 64, 64)]]
   [[intel::num_simd_work_items(4)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood3 {
   [[intel::num_simd_work_items(4)]]
-  [[cl::reqd_work_group_size(64, 64, 5)]] void
+  [[cl::reqd_work_group_size(64, 64, 64)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood4 {
-  [[cl::reqd_work_group_size(64, 64, 5)]]
+  [[cl::reqd_work_group_size(64, 64, 64)]]
   [[intel::num_simd_work_items(4)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood5 {
   [[intel::num_simd_work_items(4)]]
-  [[intel::reqd_work_group_size(64)]] void
+  [[intel::reqd_work_group_size(6, 6, 4)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood6 {
-  [[intel::reqd_work_group_size(64)]]
+  [[intel::reqd_work_group_size(6, 6, 4)]]
   [[intel::num_simd_work_items(4)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood7 {
   [[intel::num_simd_work_items(4)]]
-  [[intel::reqd_work_group_size(64, 5)]] void
+  [[intel::reqd_work_group_size(5, 5, 4)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood8 {
-  [[intel::reqd_work_group_size(64, 5)]]
+  [[intel::reqd_work_group_size(5, 5, 4)]]
   [[intel::num_simd_work_items(4)]] void
   operator()() const {}
 };
@@ -251,8 +251,8 @@ int main() {
     // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 5
-    // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
+    // CHECK-NEXT:  value: Int 64
+    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 4
@@ -268,8 +268,8 @@ int main() {
     // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 5
-    // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
+    // CHECK-NEXT:  value: Int 64
+    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 4
@@ -285,8 +285,8 @@ int main() {
     // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 5
-    // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
+    // CHECK-NEXT:  value: Int 64
+    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 4
@@ -302,8 +302,8 @@ int main() {
     // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 5
-    // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
+    // CHECK-NEXT:  value: Int 64
+    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 4
@@ -313,14 +313,14 @@ int main() {
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel8
     // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 64
-    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  value: Int 6
+    // CHECK-NEXT:  IntegerLiteral{{.*}}6{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  value: Int 6
+    // CHECK-NEXT:  IntegerLiteral{{.*}}6{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 4
@@ -330,14 +330,14 @@ int main() {
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel9
     // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 64
-    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  value: Int 6
+    // CHECK-NEXT:  IntegerLiteral{{.*}}6{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  value: Int 6
+    // CHECK-NEXT:  IntegerLiteral{{.*}}6{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 4
@@ -347,14 +347,14 @@ int main() {
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel10
     // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 64
-    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  value: Int 5
+    // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 5
     // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 4
@@ -364,14 +364,14 @@ int main() {
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel11
     // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 64
-    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  value: Int 5
+    // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 5
     // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 4
