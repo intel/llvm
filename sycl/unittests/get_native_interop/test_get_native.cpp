@@ -1,5 +1,5 @@
 //==----------- test_get_native.cpp --- get_native interop unit test only for
-//opencl
+// opencl
 //-------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
