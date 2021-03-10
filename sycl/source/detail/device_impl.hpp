@@ -204,20 +204,6 @@ public:
   bool
   is_affinity_supported(info::partition_affinity_domain AffinityDomain) const;
 
-  /// Returns the backend associated with this device.
-  ///
-  // \return the Backend associated with this device.
- // backend getBackend() const noexcept {
-  //  return getPlugin().getBackend(); }
-    /*backend Result;
-    if (is_host())
-      Result = backend::host;
-    else
-      Result = getPlugin().getBackend();
-
-    return Result;
-  }*/
-
   /// Gets the native handle of the SYCL device.
   ///
   /// \return a native handle.

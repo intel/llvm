@@ -150,12 +150,6 @@ public:
   /// @return a pointer to HostProfilingInfo instance.
   HostProfilingInfo *getHostProfilingInfo() { return MHostProfilingInfo.get(); }
 
-  /// Returns the backend associated with this event.
-  ///
-  /// \return the backend associated with this event.
-  //backend getBackend() const noexcept {
- //   return getPlugin().getBackend();
-  //}
   /// Gets the native handle of the SYCL event.
   ///
   /// \return a native handle.

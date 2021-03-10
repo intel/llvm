@@ -98,20 +98,6 @@ public:
   /// \return true if this context is a host context.
   bool is_host() const;
 
-  /// Returns the backend associated with this context.
-  ///
-  /// \return the backend associated with this context.
-  //backend getBackend() const noexcept {
-  //  return getPlugin().getBackend(); }
-   /* backend Result;
-    if (is_host())
-      Result = backend::host;
-    else
-      Result = getPlugin().getBackend();
-
-    return Result;
-  }*/
-
   /// Gets asynchronous exception handler.
   ///
   /// \return an instance of SYCL async_handler.

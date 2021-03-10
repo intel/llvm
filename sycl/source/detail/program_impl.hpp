@@ -340,20 +340,6 @@ public:
   /// \return true if caching is allowed for this program.
   bool is_cacheable() const { return MProgramAndKernelCachingAllowed; }
 
-  /// Returns the backend associated with this context.
-  ///
-  /// \return the backend associated with this context.
- // backend getBackend() const noexcept {
- //   return getPlugin().getBackend(); }
-    /*backend Result;
-    if (is_host())
-      Result = backend::host;
-    else
-      Result = getPlugin().getBackend();
-
-    return Result;
-  }*/
-
   /// Returns the native plugin handle.
   pi_native_handle getNative() const;
 
