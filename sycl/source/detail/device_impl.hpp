@@ -206,16 +206,17 @@ public:
 
   /// Returns the backend associated with this device.
   ///
-  // \return the Backend associated with this platform.
-  backend get_backend() const noexcept {
-    backend Result;
+  // \return the Backend associated with this device.
+ // backend getBackend() const noexcept {
+  //  return getPlugin().getBackend(); }
+    /*backend Result;
     if (is_host())
       Result = backend::host;
     else
       Result = getPlugin().getBackend();
 
     return Result;
-  }
+  }*/
 
   /// Gets the native handle of the SYCL device.
   ///

@@ -13,6 +13,7 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/get_backend.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
 #include <memory>
@@ -85,7 +86,9 @@ event::event(shared_ptr_class<detail::event_impl> event_impl)
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-backend event::get_backend() const noexcept { return impl->get_backend(); }
+backend event::get_backend() const noexcept { 
+  return getImplBackend(impl);
+}
 
 pi_native_handle event::getNative() const { return impl->getNative(); }
 

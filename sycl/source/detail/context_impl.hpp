@@ -101,15 +101,16 @@ public:
   /// Returns the backend associated with this context.
   ///
   /// \return the backend associated with this context.
-  backend get_backend() const noexcept {
-    backend Result;
+  //backend getBackend() const noexcept {
+  //  return getPlugin().getBackend(); }
+   /* backend Result;
     if (is_host())
       Result = backend::host;
     else
       Result = getPlugin().getBackend();
 
     return Result;
-  }
+  }*/
 
   /// Gets asynchronous exception handler.
   ///

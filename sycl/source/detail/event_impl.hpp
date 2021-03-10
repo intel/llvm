@@ -13,6 +13,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/plugin.hpp>
 
 #include <atomic>
 #include <cassert>
@@ -152,7 +153,9 @@ public:
   /// Returns the backend associated with this event.
   ///
   /// \return the backend associated with this event.
-  backend get_backend() const noexcept;
+  //backend getBackend() const noexcept {
+ //   return getPlugin().getBackend();
+  //}
   /// Gets the native handle of the SYCL event.
   ///
   /// \return a native handle.

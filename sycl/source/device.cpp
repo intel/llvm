@@ -13,6 +13,7 @@
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/force_device.hpp>
+#include <detail/get_backend.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -136,7 +137,9 @@ device::get_info() const {
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-backend device::get_backend() const noexcept { return impl->get_backend(); }
+backend device::get_backend() const noexcept { 
+  return getImplBackend(impl);
+}
 
 pi_native_handle device::getNative() const { return impl->getNative(); }
 

@@ -9,6 +9,7 @@
 #include <CL/sycl/program.hpp>
 #include <CL/sycl/properties/all_properties.hpp>
 #include <CL/sycl/property_list.hpp>
+#include <detail/get_backend.hpp>
 #include <detail/program_impl.hpp>
 
 #include <vector>
@@ -47,7 +48,9 @@ program::program(const context &context, cl_program clProgram)
   clRetainProgram(clProgram);
 }
 
-backend program::get_backend() const noexcept { return impl->get_backend(); }
+backend program::get_backend() const noexcept {
+  return getImplBackend(impl);
+}
 
 pi_native_handle program::getNative() const { return impl->getNative(); }
 

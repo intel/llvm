@@ -11,6 +11,7 @@
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/queue.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/get_backend.hpp>
 #include <detail/queue_impl.hpp>
 
 #include <algorithm>
@@ -138,7 +139,9 @@ bool queue::is_in_order() const {
   return impl->has_property<property::queue::in_order>();
 }
 
-backend queue::get_backend() const noexcept { return impl->get_backend(); }
+backend queue::get_backend() const noexcept {
+  return getImplBackend(impl);
+}
 
 pi_native_handle queue::getNative() const { return impl->getNative(); }
 

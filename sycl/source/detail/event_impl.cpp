@@ -290,7 +290,7 @@ void HostProfilingInfo::start() { StartTime = getTimestamp(); }
 
 void HostProfilingInfo::end() { EndTime = getTimestamp(); }
 
-backend event_impl::get_backend() const noexcept {
+/*backend event_impl::get_backend() const noexcept {
   backend Result;
   if (is_host())
     Result = backend::host;
@@ -298,7 +298,7 @@ backend event_impl::get_backend() const noexcept {
     Result = getPlugin().getBackend();
 
   return Result;
-}
+}*/
 
 pi_native_handle event_impl::getNative() const {
   auto Plugin = getPlugin();
