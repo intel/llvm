@@ -164,7 +164,7 @@ struct TRIFuncObjBad18 {
 #endif // TRIGGER_ERROR
 // If the declaration has an [[intel::reqd_work_group_size]] or
 // [[cl::reqd_work_group_size]] attribute, tests that check if
-// the work group size attribute argument (the first argument)
+// the work group size attribute argument (the last argument)
 // can be evenly divided by the num_simd_work_items attribute.
 struct TRIFuncObjGood1 {
   [[intel::num_simd_work_items(4)]]
