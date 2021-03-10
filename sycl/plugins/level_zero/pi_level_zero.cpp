@@ -1804,7 +1804,7 @@ pi_result piDevicePartition(pi_device Device,
 
   // Check if Device was already partitioned into the same or bigger size
   // before. If so, we can return immediately without searching the global
-  // device cache. Note that L0 driver always return the same handles in the
+  // device cache. Note that L0 driver always returns the same handles in the
   // same order for the given number of sub-devices.
   if (OutDevices && NumDevices <= Device->SubDevices.size()) {
     for (uint32_t I = 0; I < NumDevices; I++) {
