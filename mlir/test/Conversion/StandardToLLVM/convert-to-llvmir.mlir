@@ -490,9 +490,9 @@ func @ops(f32, f32, i32, i32, f64) -> (f32, i32) {
 // CHECK-NEXT: %12 = llvm.xor %arg2, %arg3 : i32
   %12 = xor %arg2, %arg3 : i32
 // CHECK-NEXT: %13 = "llvm.intr.exp"(%arg0) : (f32) -> f32
-  %13 = std.exp %arg0 : f32
+  %13 = math.exp %arg0 : f32
 // CHECK-NEXT: %14 = "llvm.intr.exp2"(%arg0) : (f32) -> f32
-  %14 = std.exp2 %arg0 : f32
+  %14 = math.exp2 %arg0 : f32
 // CHECK-NEXT: %15 = llvm.mlir.constant(7.900000e-01 : f64) : f64
   %15 = constant 7.9e-01 : f64
 // CHECK-NEXT: %16 = llvm.shl %arg2, %arg3 : i32
@@ -502,9 +502,9 @@ func @ops(f32, f32, i32, i32, f64) -> (f32, i32) {
 // CHECK-NEXT: %18 = llvm.lshr %arg2, %arg3 : i32
   %18 = shift_right_unsigned %arg2, %arg3 : i32
 // CHECK-NEXT: %{{[0-9]+}} = "llvm.intr.sqrt"(%arg0) : (f32) -> f32
-  %19 = std.sqrt %arg0 : f32
+  %19 = math.sqrt %arg0 : f32
 // CHECK-NEXT: %{{[0-9]+}} = "llvm.intr.sqrt"(%arg4) : (f64) -> f64
-  %20 = std.sqrt %arg4 : f64
+  %20 = math.sqrt %arg4 : f64
   return %0, %4 : f32, i32
 }
 
@@ -764,31 +764,6 @@ func @fcmp(f32, f32) -> () {
   %14 = cmpf uno, %arg0, %arg1 : f32
 
   return
-}
-
-// CHECK-LABEL: @vec_bin
-func @vec_bin(%arg0: vector<2x2x2xf32>) -> vector<2x2x2xf32> {
-  %0 = addf %arg0, %arg0 : vector<2x2x2xf32>
-  return %0 : vector<2x2x2xf32>
-
-//  CHECK-NEXT: llvm.mlir.undef : !llvm.array<2 x array<2 x vector<2xf32>>>
-
-// This block appears 2x2 times
-//  CHECK-NEXT: llvm.extractvalue %{{.*}}[0, 0] : !llvm.array<2 x array<2 x vector<2xf32>>>
-//  CHECK-NEXT: llvm.extractvalue %{{.*}}[0, 0] : !llvm.array<2 x array<2 x vector<2xf32>>>
-//  CHECK-NEXT: llvm.fadd %{{.*}} : vector<2xf32>
-//  CHECK-NEXT: llvm.insertvalue %{{.*}}[0, 0] : !llvm.array<2 x array<2 x vector<2xf32>>>
-
-// We check the proper indexing of extract/insert in the remaining 3 positions.
-//       CHECK: llvm.extractvalue %{{.*}}[0, 1] : !llvm.array<2 x array<2 x vector<2xf32>>>
-//       CHECK: llvm.insertvalue %{{.*}}[0, 1] : !llvm.array<2 x array<2 x vector<2xf32>>>
-//       CHECK: llvm.extractvalue %{{.*}}[1, 0] : !llvm.array<2 x array<2 x vector<2xf32>>>
-//       CHECK: llvm.insertvalue %{{.*}}[1, 0] : !llvm.array<2 x array<2 x vector<2xf32>>>
-//       CHECK: llvm.extractvalue %{{.*}}[1, 1] : !llvm.array<2 x array<2 x vector<2xf32>>>
-//       CHECK: llvm.insertvalue %{{.*}}[1, 1] : !llvm.array<2 x array<2 x vector<2xf32>>>
-
-// And we're done
-//   CHECK-NEXT: return
 }
 
 // CHECK-LABEL: @splat

@@ -472,6 +472,9 @@ Optional<TiledLinalgOp> static tileLinalgOpImpl(
   b.setInsertionPoint(op);
   ScopedContext scope(b, op.getLoc());
 
+  if (!options.tileSizeComputationFunction)
+    return llvm::None;
+  
   // Enforce the convention that "tiling by zero" skips tiling a particular
   // dimension. This convention is significantly simpler to handle instead of
   // adjusting affine maps to account for missing dimensions.
@@ -536,7 +539,9 @@ public:
   static void insert(OwningRewritePatternList &patterns,
                      const LinalgTilingOptions &options, MLIRContext *ctx) {
     patterns.insert<LinalgTilingPattern<OpTy>>(
-        ctx, options, LinalgMarker({}, Identifier::get("tiled", ctx)));
+        ctx, options,
+        LinalgTransformationFilter(ArrayRef<Identifier>{},
+                                   Identifier::get("tiled", ctx)));
     RewritePatternList<OpTypes...>::insert(patterns, options, ctx);
   }
 };
@@ -586,9 +591,9 @@ static void applyTilingToLoopPatterns(LinalgTilingLoopType loopType,
   MLIRContext *ctx = funcOp.getContext();
   OwningRewritePatternList patterns;
   insertTilingPatterns(patterns, options, ctx);
-  applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
-  applyPatternsAndFoldGreedily(funcOp,
-                               getLinalgTilingCanonicalizationPatterns(ctx));
+  (void)applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
+  (void)applyPatternsAndFoldGreedily(
+      funcOp, getLinalgTilingCanonicalizationPatterns(ctx));
   // Drop the marker.
   funcOp.walk([](LinalgOp op) {
     op.removeAttr(LinalgTransforms::kLinalgTransformMarker);

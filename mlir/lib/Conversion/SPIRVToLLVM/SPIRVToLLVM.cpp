@@ -687,8 +687,8 @@ public:
         rewriter.create<LLVM::ConstantOp>(loc, llvmI32Type, executionModeAttr);
     structValue = rewriter.create<LLVM::InsertValueOp>(
         loc, structType, structValue, executionMode,
-        ArrayAttr::get({rewriter.getIntegerAttr(rewriter.getI32Type(), 0)},
-                       context));
+        ArrayAttr::get(context,
+                       {rewriter.getIntegerAttr(rewriter.getI32Type(), 0)}));
 
     // Insert extra operands if they exist into execution mode info struct.
     for (unsigned i = 0, e = values.size(); i < e; ++i) {
@@ -696,9 +696,9 @@ public:
       Value entry = rewriter.create<LLVM::ConstantOp>(loc, llvmI32Type, attr);
       structValue = rewriter.create<LLVM::InsertValueOp>(
           loc, structType, structValue, entry,
-          ArrayAttr::get({rewriter.getIntegerAttr(rewriter.getI32Type(), 1),
-                          rewriter.getIntegerAttr(rewriter.getI32Type(), i)},
-                         context));
+          ArrayAttr::get(context,
+                         {rewriter.getIntegerAttr(rewriter.getI32Type(), 1),
+                          rewriter.getIntegerAttr(rewriter.getI32Type(), i)}));
     }
     rewriter.create<LLVM::ReturnOp>(loc, ArrayRef<Value>({structValue}));
     rewriter.eraseOp(op);
@@ -888,9 +888,9 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
 
     if (!op.memory_access().hasValue()) {
-      replaceWithLoadOrStore(op, rewriter, this->typeConverter, /*alignment=*/0,
-                             /*isVolatile=*/false, /*isNonTemporal=*/false);
-      return success();
+      return replaceWithLoadOrStore(
+          op, rewriter, this->typeConverter, /*alignment=*/0,
+          /*isVolatile=*/false, /*isNonTemporal=*/false);
     }
     auto memoryAccess = op.memory_access().getValue();
     switch (memoryAccess) {
@@ -902,9 +902,8 @@ public:
           memoryAccess == spirv::MemoryAccess::Aligned ? *op.alignment() : 0;
       bool isNonTemporal = memoryAccess == spirv::MemoryAccess::Nontemporal;
       bool isVolatile = memoryAccess == spirv::MemoryAccess::Volatile;
-      replaceWithLoadOrStore(op, rewriter, this->typeConverter, alignment,
-                             isVolatile, isNonTemporal);
-      return success();
+      return replaceWithLoadOrStore(op, rewriter, this->typeConverter,
+                                    alignment, isVolatile, isNonTemporal);
     }
     default:
       // There is no support of other memory access attributes.
@@ -1298,17 +1297,17 @@ public:
     switch (funcOp.function_control()) {
 #define DISPATCH(functionControl, llvmAttr)                                    \
   case functionControl:                                                        \
-    newFuncOp->setAttr("passthrough", ArrayAttr::get({llvmAttr}, context));    \
+    newFuncOp->setAttr("passthrough", ArrayAttr::get(context, {llvmAttr}));    \
     break;
 
       DISPATCH(spirv::FunctionControl::Inline,
-               StringAttr::get("alwaysinline", context));
+               StringAttr::get(context, "alwaysinline"));
       DISPATCH(spirv::FunctionControl::DontInline,
-               StringAttr::get("noinline", context));
+               StringAttr::get(context, "noinline"));
       DISPATCH(spirv::FunctionControl::Pure,
-               StringAttr::get("readonly", context));
+               StringAttr::get(context, "readonly"));
       DISPATCH(spirv::FunctionControl::Const,
-               StringAttr::get("readnone", context));
+               StringAttr::get(context, "readnone"));
 
 #undef DISPATCH
 

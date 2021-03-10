@@ -911,7 +911,6 @@ zeModuleGetPropertiesMock(ze_module_handle_t hModule,
 
 static bool isOnlineLinkEnabled();
 // End forward declarations for mock Level Zero APIs
-std::once_flag OnceFlag;
 
 // This function will ensure compatibility with both Linux and Windowns for
 // setting environment variables.
@@ -1954,7 +1953,7 @@ pi_result piContextCreate(const pi_context_properties *Properties,
   ZE_CALL(zeContextCreate((*Devices)->Platform->ZeDriver, &ContextDesc,
                           &ZeContext));
   try {
-    *RetContext = new _pi_context(ZeContext, NumDevices, Devices);
+    *RetContext = new _pi_context(ZeContext, NumDevices, Devices, true);
     (*RetContext)->initialize();
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
@@ -2013,6 +2012,7 @@ pi_result piextContextGetNativeHandle(pi_context Context,
 pi_result piextContextCreateWithNativeHandle(pi_native_handle NativeHandle,
                                              pi_uint32 NumDevices,
                                              const pi_device *Devices,
+                                             bool OwnNativeHandle,
                                              pi_context *RetContext) {
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
   PI_ASSERT(Devices, PI_INVALID_DEVICE);
@@ -2021,7 +2021,7 @@ pi_result piextContextCreateWithNativeHandle(pi_native_handle NativeHandle,
 
   try {
     *RetContext = new _pi_context(pi_cast<ze_context_handle_t>(NativeHandle),
-                                  NumDevices, Devices);
+                                  NumDevices, Devices, OwnNativeHandle);
     (*RetContext)->initialize();
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
@@ -2045,7 +2045,8 @@ pi_result piContextRelease(pi_context Context) {
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 
   if (--(Context->RefCount) == 0) {
-    auto ZeContext = Context->ZeContext;
+    ze_context_handle_t DestoryZeContext =
+        Context->OwnZeContext ? Context->ZeContext : nullptr;
 
     // Clean up any live memory associated with Context
     pi_result Result = Context->finalize();
@@ -2059,7 +2060,8 @@ pi_result piContextRelease(pi_context Context) {
     // and therefore it must be valid at that point.
     // Technically it should be placed to the destructor of pi_context
     // but this makes API error handling more complex.
-    ZE_CALL(zeContextDestroy(ZeContext));
+    if (DestoryZeContext)
+      ZE_CALL(zeContextDestroy(DestoryZeContext));
 
     return Result;
   }
@@ -2545,9 +2547,8 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
 }
 
 pi_result piextMemGetNativeHandle(pi_mem Mem, pi_native_handle *NativeHandle) {
-  (void)Mem;
-  (void)NativeHandle;
-  die("piextMemGetNativeHandle: not supported");
+  PI_ASSERT(Mem, PI_INVALID_MEM_OBJECT);
+  *NativeHandle = pi_cast<pi_native_handle>(Mem->getZeHandle());
   return PI_SUCCESS;
 }
 
@@ -4104,13 +4105,52 @@ pi_result piSamplerRelease(pi_sampler Sampler) {
 //
 pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
                               const pi_event *EventWaitList, pi_event *Event) {
-  (void)Queue;
-  (void)NumEventsInWaitList;
-  (void)EventWaitList;
-  (void)Event;
 
-  die("piEnqueueEventsWait: not implemented");
-  return {};
+  PI_ASSERT(Queue, PI_INVALID_QUEUE);
+  PI_ASSERT(Event, PI_INVALID_EVENT);
+
+  _pi_ze_event_list_t TmpWaitList;
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
+                                                          EventWaitList, Queue))
+    return Res;
+
+  // Lock automatically releases when this goes out of scope.
+  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+
+  // Get a new command list to be used on this call
+  ze_command_list_handle_t ZeCommandList = nullptr;
+  ze_fence_handle_t ZeFence = nullptr;
+  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
+                                                         &ZeFence))
+    return Res;
+
+  ze_event_handle_t ZeEvent = nullptr;
+  auto Res = createEventAndAssociateQueue(Queue, Event, PI_COMMAND_TYPE_USER,
+                                          ZeCommandList);
+  if (Res != PI_SUCCESS)
+    return Res;
+  ZeEvent = (*Event)->ZeEvent;
+  (*Event)->WaitList = TmpWaitList;
+
+  const auto &WaitList = (*Event)->WaitList;
+  if (WaitList.Length) {
+    ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, WaitList.Length,
+                                            WaitList.ZeEventList));
+
+    ZE_CALL(zeCommandListAppendSignalEvent(ZeCommandList, ZeEvent));
+
+    // Execute command list asynchronously as the event will be used
+    // to track down its completion.
+    return Queue->executeCommandList(ZeCommandList, ZeFence);
+  } else {
+    // If wait-list is empty, then this particular command should wait until
+    // all previous enqueued commands to the command-queue have completed.
+    //
+    // TODO: find a way to do that without blocking the host.
+    ZE_CALL(zeCommandQueueSynchronize(Queue->ZeCommandQueue, UINT64_MAX));
+    ZE_CALL(zeEventHostSignal(ZeEvent));
+    return PI_SUCCESS;
+  }
 }
 
 pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
@@ -4795,8 +4835,10 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
     if (Result != PI_SUCCESS)
       return Result;
 
-      // TODO: Level Zero does not support row_pitch/slice_pitch for images yet.
-      // Check that SYCL RT did not want pitch larger than default.
+    // TODO: Level Zero does not support row_pitch/slice_pitch for images yet.
+    // Check that SYCL RT did not want pitch larger than default.
+    (void)RowPitch;
+    (void)SlicePitch;
 #ifndef NDEBUG
     PI_ASSERT(SrcMem->isImage(), PI_INVALID_MEM_OBJECT);
 

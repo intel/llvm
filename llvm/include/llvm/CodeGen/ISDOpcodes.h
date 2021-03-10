@@ -540,6 +540,11 @@ enum NodeType {
   /// vector, but not the other way around.
   EXTRACT_SUBVECTOR,
 
+  /// VECTOR_REVERSE(VECTOR) - Returns a vector, of the same type as VECTOR,
+  /// whose elements are shuffled using the following algorithm:
+  ///   RESULT[i] = VECTOR[VECTOR.ElementCount - 1 - i]
+  VECTOR_REVERSE,
+
   /// VECTOR_SHUFFLE(VEC1, VEC2) - Returns a vector, of the same type as
   /// VEC1/VEC2.  A VECTOR_SHUFFLE node also contains an array of constant int
   /// values that indicate which value (or undef) each result element will
@@ -762,14 +767,21 @@ enum NodeType {
   /// FP_EXTEND(FP_ROUND(X,0)) because the extra bits aren't removed.
   FP_ROUND,
 
-  /// FLT_ROUNDS_ - Returns current rounding mode:
+  /// Returns current rounding mode:
   /// -1 Undefined
   ///  0 Round to 0
-  ///  1 Round to nearest
+  ///  1 Round to nearest, ties to even
   ///  2 Round to +inf
   ///  3 Round to -inf
+  ///  4 Round to nearest, ties to zero
   /// Result is rounding mode and chain. Input is a chain.
+  /// TODO: Rename this node to GET_ROUNDING.
   FLT_ROUNDS_,
+
+  /// Set rounding mode.
+  /// The first operand is a chain pointer. The second specifies the required
+  /// rounding mode, encoded in the same way as used in '``FLT_ROUNDS_``'.
+  SET_ROUNDING,
 
   /// X = FP_EXTEND(Y) - Extend a smaller FP type into a larger FP type.
   FP_EXTEND,

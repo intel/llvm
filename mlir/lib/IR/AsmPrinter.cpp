@@ -633,10 +633,10 @@ LogicalResult AliasInitializer::generateAlias(
     T symbol, llvm::MapVector<StringRef, std::vector<T>> &aliasToSymbol) {
   SmallString<16> tempBuffer;
   for (const auto &interface : interfaces) {
-    interface.getAlias(symbol, aliasOS);
-    StringRef name = aliasOS.str();
-    if (name.empty())
+    if (failed(interface.getAlias(symbol, aliasOS)))
       continue;
+    StringRef name = aliasOS.str();
+    assert(!name.empty() && "expected valid alias name");
     name = sanitizeIdentifier(name, tempBuffer, /*allowedPunctChars=*/"$_-",
                               /*allowTrailingDigit=*/false);
     name = name.copy(aliasAllocator);
@@ -731,7 +731,7 @@ void AliasState::printAliases(raw_ostream &os, NewLineCounter &newLine,
   }
   for (const auto &it : llvm::make_filter_range(typeToAlias, filterFn)) {
     it.second.print(os << '!');
-    os << " = " << it.first << newLine;
+    os << " = type " << it.first << newLine;
   }
 }
 
@@ -878,7 +878,7 @@ void SSANameState::shadowRegionArgs(Region &region, ValueRange namesToUse) {
   assert(!region.empty() && "cannot shadow arguments of an empty region");
   assert(region.getNumArguments() == namesToUse.size() &&
          "incorrect number of names passed in");
-  assert(region.getParentOp()->isKnownIsolatedFromAbove() &&
+  assert(region.getParentOp()->hasTrait<OpTrait::IsIsolatedFromAbove>() &&
          "only KnownIsolatedFromAbove ops can shadow names");
 
   SmallVector<char, 16> nameStr;
@@ -2646,22 +2646,22 @@ void Operation::print(raw_ostream &os, OpPrintingFlags flags) {
   }
 
   // Find the operation to number from based upon the provided flags.
-  Operation *printedOp = this;
+  Operation *op = this;
   bool shouldUseLocalScope = flags.shouldUseLocalScope();
   do {
     // If we are printing local scope, stop at the first operation that is
     // isolated from above.
-    if (shouldUseLocalScope && printedOp->isKnownIsolatedFromAbove())
+    if (shouldUseLocalScope && op->hasTrait<OpTrait::IsIsolatedFromAbove>())
       break;
 
     // Otherwise, traverse up to the next parent.
-    Operation *parentOp = printedOp->getParentOp();
+    Operation *parentOp = op->getParentOp();
     if (!parentOp)
       break;
-    printedOp = parentOp;
+    op = parentOp;
   } while (true);
 
-  AsmState state(printedOp);
+  AsmState state(op);
   print(os, state, flags);
 }
 void Operation::print(raw_ostream &os, AsmState &state, OpPrintingFlags flags) {

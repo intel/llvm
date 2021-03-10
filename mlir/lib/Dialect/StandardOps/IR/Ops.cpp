@@ -844,7 +844,7 @@ OpFoldResult CmpIOp::fold(ArrayRef<Attribute> operands) {
 
   if (lhs() == rhs()) {
     auto val = applyCmpPredicateToEqualOperands(getPredicate());
-    return BoolAttr::get(val, getContext());
+    return BoolAttr::get(getContext(), val);
   }
 
   auto lhs = operands.front().dyn_cast_or_null<IntegerAttr>();
@@ -853,7 +853,7 @@ OpFoldResult CmpIOp::fold(ArrayRef<Attribute> operands) {
     return {};
 
   auto val = applyCmpPredicate(getPredicate(), lhs.getValue(), rhs.getValue());
-  return BoolAttr::get(val, getContext());
+  return BoolAttr::get(getContext(), val);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2148,67 +2148,6 @@ void mlir::MemRefReinterpretCastOp::build(OpBuilder &b, OperationState &result,
   build(b, result, resultType, source, offset, sizeValues, strideValues, attrs);
 }
 
-/// Print a memref_reinterpret_cast op of the form:
-/// ```
-///   `memref_reinterpret_cast` ssa-name to
-///       offset: `[` offset `]`
-///       sizes: `[` size-list `]`
-///       strides:`[` stride-list `]`
-///   `:` any-memref-type to strided-memref-type
-/// ```
-static void print(OpAsmPrinter &p, MemRefReinterpretCastOp op) {
-  int stdDotLen = StandardOpsDialect::getDialectNamespace().size() + 1;
-  p << op->getName().getStringRef().drop_front(stdDotLen) << ' ';
-  p << op.source() << " ";
-  printOffsetsSizesAndStrides(
-      p, op, /*offsetPrefix=*/"to offset: ", /*sizePrefix=*/", sizes: ",
-      /*stridePrefix=*/", strides: ");
-  p << ": " << op.source().getType() << " to " << op.getType();
-}
-
-/// Parse a memref_reinterpret_cast op of the form:
-/// ```
-///   `memref_reinterpret_cast` ssa-name to
-///       offset: `[` offset `]`
-///       sizes: `[` size-list `]`
-///       strides:`[` stride-list `]`
-///   `:` any-memref-type to strided-memref-type
-/// ```
-static ParseResult parseMemRefReinterpretCastOp(OpAsmParser &parser,
-                                                OperationState &result) {
-  // Parse `operand`
-  OpAsmParser::OperandType srcInfo;
-  if (parser.parseOperand(srcInfo))
-    return failure();
-
-  auto parseOffsetPrefix = [](OpAsmParser &parser) {
-    return failure(parser.parseKeyword("to") || parser.parseKeyword("offset") ||
-                   parser.parseColon());
-  };
-  auto parseSizePrefix = [](OpAsmParser &parser) {
-    return failure(parser.parseComma() || parser.parseKeyword("sizes") ||
-                   parser.parseColon());
-  };
-  auto parseStridePrefix = [](OpAsmParser &parser) {
-    return failure(parser.parseComma() || parser.parseKeyword("strides") ||
-                   parser.parseColon());
-  };
-
-  Type srcType, dstType;
-  auto preResolutionFn = [&](OpAsmParser &parser, OperationState &result) {
-    return failure(parser.parseOptionalAttrDict(result.attributes) ||
-                   parser.parseColonType(srcType) ||
-                   parser.parseKeywordType("to", dstType) ||
-                   parser.resolveOperand(srcInfo, srcType, result.operands));
-  };
-  if (failed(parseOffsetsSizesAndStrides(parser, result,
-                                         /*segmentSizes=*/{1}, // source memref
-                                         preResolutionFn, parseOffsetPrefix,
-                                         parseSizePrefix, parseStridePrefix)))
-    return failure();
-  return parser.addTypeToList(dstType, result.types);
-}
-
 // TODO: ponder whether we want to allow missing trailing sizes/strides that are
 // completed automatically, like we have for subview and subtensor.
 static LogicalResult verify(MemRefReinterpretCastOp op) {
@@ -2892,43 +2831,21 @@ Type SubViewOp::inferResultType(MemRefType sourceMemRefType,
       sourceMemRefType.getMemorySpace());
 }
 
-/// Print a subview op of the form:
-/// ```
-///   `subview` ssa-name
-///     `[` offset-list `]` `[` size-list `]` `[` stride-list `]`
-///     `:` strided-memref-type `to` strided-memref-type
-/// ```
-static void print(OpAsmPrinter &p, SubViewOp op) {
-  int stdDotLen = StandardOpsDialect::getDialectNamespace().size() + 1;
-  p << op->getName().getStringRef().drop_front(stdDotLen) << ' ';
-  p << op.source();
-  printOffsetsSizesAndStrides(p, op);
-  p << " : " << op.source().getType() << " to " << op.getType();
-}
-
-/// Parse a subview op of the form:
-/// ```
-///   `subview` ssa-name
-///     `[` offset-list `]` `[` size-list `]` `[` stride-list `]`
-///     `:` strided-memref-type `to` strided-memref-type
-/// ```
-static ParseResult parseSubViewOp(OpAsmParser &parser, OperationState &result) {
-  OpAsmParser::OperandType srcInfo;
-  if (parser.parseOperand(srcInfo))
-    return failure();
-  Type srcType, dstType;
-  auto preResolutionFn = [&](OpAsmParser &parser, OperationState &result) {
-    return failure(parser.parseOptionalAttrDict(result.attributes) ||
-                   parser.parseColonType(srcType) ||
-                   parser.parseKeywordType("to", dstType) ||
-                   parser.resolveOperand(srcInfo, srcType, result.operands));
-  };
-
-  if (failed(parseOffsetsSizesAndStrides(parser, result,
-                                         /*segmentSizes=*/{1}, // source memref
-                                         preResolutionFn)))
-    return failure();
-  return parser.addTypeToList(dstType, result.types);
+Type SubViewOp::inferResultType(MemRefType sourceMemRefType,
+                                ArrayRef<OpFoldResult> leadingStaticOffsets,
+                                ArrayRef<OpFoldResult> leadingStaticSizes,
+                                ArrayRef<OpFoldResult> leadingStaticStrides) {
+  SmallVector<int64_t> staticOffsets, staticSizes, staticStrides;
+  SmallVector<Value> dynamicOffsets, dynamicSizes, dynamicStrides;
+  dispatchIndexOpFoldResults(leadingStaticOffsets, dynamicOffsets,
+                             staticOffsets, ShapedType::kDynamicStrideOrOffset);
+  dispatchIndexOpFoldResults(leadingStaticSizes, dynamicSizes, staticSizes,
+                             ShapedType::kDynamicSize);
+  dispatchIndexOpFoldResults(leadingStaticStrides, dynamicStrides,
+                             staticStrides, ShapedType::kDynamicStrideOrOffset);
+  return SubViewOp::inferResultType(sourceMemRefType, staticOffsets,
+                                    staticSizes, staticStrides)
+      .cast<MemRefType>();
 }
 
 // Build a SubViewOp with mixed static and dynamic entries and custom result
@@ -3040,35 +2957,44 @@ void mlir::SubViewOp::build(OpBuilder &b, OperationState &result, Value source,
 /// For ViewLikeOpInterface.
 Value SubViewOp::getViewSource() { return source(); }
 
-llvm::Optional<SmallVector<bool, 4>>
+/// Given an `originalShape` and a `reducedShape` assumed to be a subset of
+/// `originalShape` with some `1` entries erased, return the set of indices
+/// that specifies which of the entries of `originalShape` are dropped to obtain
+/// `reducedShape`. The returned mask can be applied as a projection to
+/// `originalShape` to obtain the `reducedShape`. This mask is useful to track
+/// which dimensions must be kept when e.g. compute MemRef strides under
+/// rank-reducing operations. Return None if reducedShape cannot be obtained
+/// by dropping only `1` entries in `originalShape`.
+llvm::Optional<llvm::SmallDenseSet<unsigned>>
 mlir::computeRankReductionMask(ArrayRef<int64_t> originalShape,
                                ArrayRef<int64_t> reducedShape) {
   size_t originalRank = originalShape.size(), reducedRank = reducedShape.size();
-  SmallVector<bool, 4> mask(originalRank);
+  llvm::SmallDenseSet<unsigned> unusedDims;
   unsigned reducedIdx = 0;
   for (unsigned originalIdx = 0; originalIdx < originalRank; ++originalIdx) {
-    // Skip matching dims greedily.
-    mask[originalIdx] =
-        (reducedIdx < reducedRank) &&
-        (originalShape[originalIdx] == reducedShape[reducedIdx]);
-    if (mask[originalIdx])
+    // Greedily insert `originalIdx` if no match.
+    if (reducedIdx < reducedRank &&
+        originalShape[originalIdx] == reducedShape[reducedIdx]) {
       reducedIdx++;
-    // 1 is the only non-matching allowed.
-    else if (originalShape[originalIdx] != 1)
-      return {};
+      continue;
+    }
+
+    unusedDims.insert(originalIdx);
+    // If no match on `originalIdx`, the `originalShape` at this dimension
+    // must be 1, otherwise we bail.
+    if (originalShape[originalIdx] != 1)
+      return llvm::None;
   }
-
+  // The whole reducedShape must be scanned, otherwise we bail.
   if (reducedIdx != reducedRank)
-    return {};
-
-  return mask;
+    return llvm::None;
+  return unusedDims;
 }
 
 enum SubViewVerificationResult {
   Success,
   RankTooLarge,
   SizeMismatch,
-  StrideMismatch,
   ElemTypeMismatch,
   MemSpaceMismatch,
   AffineMapMismatch
@@ -3077,34 +3003,42 @@ enum SubViewVerificationResult {
 /// Checks if `original` Type type can be rank reduced to `reduced` type.
 /// This function is slight variant of `is subsequence` algorithm where
 /// not matching dimension must be 1.
-static SubViewVerificationResult isRankReducedType(Type originalType,
-                                                   Type reducedType) {
-  if (originalType == reducedType)
+static SubViewVerificationResult
+isRankReducedType(Type originalType, Type candidateReducedType,
+                  std::string *errMsg = nullptr) {
+  if (originalType == candidateReducedType)
     return SubViewVerificationResult::Success;
   if (!originalType.isa<RankedTensorType>() && !originalType.isa<MemRefType>())
     return SubViewVerificationResult::Success;
   if (originalType.isa<RankedTensorType>() &&
-      !reducedType.isa<RankedTensorType>())
+      !candidateReducedType.isa<RankedTensorType>())
     return SubViewVerificationResult::Success;
-  if (originalType.isa<MemRefType>() && !reducedType.isa<MemRefType>())
+  if (originalType.isa<MemRefType>() && !candidateReducedType.isa<MemRefType>())
     return SubViewVerificationResult::Success;
 
   ShapedType originalShapedType = originalType.cast<ShapedType>();
-  ShapedType reducedShapedType = reducedType.cast<ShapedType>();
+  ShapedType candidateReducedShapedType =
+      candidateReducedType.cast<ShapedType>();
 
   // Rank and size logic is valid for all ShapedTypes.
   ArrayRef<int64_t> originalShape = originalShapedType.getShape();
-  ArrayRef<int64_t> reducedShape = reducedShapedType.getShape();
+  ArrayRef<int64_t> candidateReducedShape =
+      candidateReducedShapedType.getShape();
   unsigned originalRank = originalShape.size(),
-           reducedRank = reducedShape.size();
-  if (reducedRank > originalRank)
+           candidateReducedRank = candidateReducedShape.size();
+  if (candidateReducedRank > originalRank)
     return SubViewVerificationResult::RankTooLarge;
 
-  auto optionalMask = computeRankReductionMask(originalShape, reducedShape);
+  auto optionalUnusedDimsMask =
+      computeRankReductionMask(originalShape, candidateReducedShape);
 
   // Sizes cannot be matched in case empty vector is returned.
-  if (!optionalMask.hasValue())
+  if (!optionalUnusedDimsMask.hasValue())
     return SubViewVerificationResult::SizeMismatch;
+
+  if (originalShapedType.getElementType() !=
+      candidateReducedShapedType.getElementType())
+    return SubViewVerificationResult::ElemTypeMismatch;
 
   // We are done for the tensor case.
   if (originalType.isa<RankedTensorType>())
@@ -3112,66 +3046,55 @@ static SubViewVerificationResult isRankReducedType(Type originalType,
 
   // Strided layout logic is relevant for MemRefType only.
   MemRefType original = originalType.cast<MemRefType>();
-  MemRefType reduced = reducedType.cast<MemRefType>();
-  MLIRContext *c = original.getContext();
-  int64_t originalOffset, reducedOffset;
-  SmallVector<int64_t, 4> originalStrides, reducedStrides, keepStrides;
-  SmallVector<bool, 4> keepMask = optionalMask.getValue();
-  getStridesAndOffset(original, originalStrides, originalOffset);
-  getStridesAndOffset(reduced, reducedStrides, reducedOffset);
-
-  // Filter strides based on the mask and check that they are the same
-  // as reduced ones.
-  unsigned reducedIdx = 0;
-  for (unsigned originalIdx = 0; originalIdx < originalRank; ++originalIdx) {
-    if (keepMask[originalIdx]) {
-      if (originalStrides[originalIdx] != reducedStrides[reducedIdx++])
-        return SubViewVerificationResult::StrideMismatch;
-      keepStrides.push_back(originalStrides[originalIdx]);
-    }
-  }
-
-  if (original.getElementType() != reduced.getElementType())
-    return SubViewVerificationResult::ElemTypeMismatch;
-
-  if (original.getMemorySpace() != reduced.getMemorySpace())
+  MemRefType candidateReduced = candidateReducedType.cast<MemRefType>();
+  if (original.getMemorySpace() != candidateReduced.getMemorySpace())
     return SubViewVerificationResult::MemSpaceMismatch;
 
-  auto reducedMap = makeStridedLinearLayoutMap(keepStrides, originalOffset, c);
-  if (!reduced.getAffineMaps().empty() &&
-      reducedMap != reduced.getAffineMaps().front())
+  llvm::SmallDenseSet<unsigned> unusedDims = optionalUnusedDimsMask.getValue();
+  auto inferredType =
+      getProjectedMap(getStridedLinearLayoutMap(original), unusedDims);
+  AffineMap candidateLayout;
+  if (candidateReduced.getAffineMaps().empty())
+    candidateLayout = getStridedLinearLayoutMap(candidateReduced);
+  else
+    candidateLayout = candidateReduced.getAffineMaps().front();
+  if (inferredType != candidateLayout) {
+    if (errMsg) {
+      llvm::raw_string_ostream os(*errMsg);
+      os << "inferred type: " << inferredType;
+    }
     return SubViewVerificationResult::AffineMapMismatch;
-
+  }
   return SubViewVerificationResult::Success;
 }
 
 template <typename OpTy>
 static LogicalResult produceSubViewErrorMsg(SubViewVerificationResult result,
-                                            OpTy op, Type expectedType) {
+                                            OpTy op, Type expectedType,
+                                            StringRef errMsg = "") {
   auto memrefType = expectedType.cast<ShapedType>();
   switch (result) {
   case SubViewVerificationResult::Success:
     return success();
   case SubViewVerificationResult::RankTooLarge:
     return op.emitError("expected result rank to be smaller or equal to ")
-           << "the source rank.";
+           << "the source rank. " << errMsg;
   case SubViewVerificationResult::SizeMismatch:
     return op.emitError("expected result type to be ")
            << expectedType
-           << " or a rank-reduced version. (mismatch of result sizes)";
-  case SubViewVerificationResult::StrideMismatch:
-    return op.emitError("expected result type to be ")
-           << expectedType
-           << " or a rank-reduced version. (mismatch of result strides)";
+           << " or a rank-reduced version. (mismatch of result sizes) "
+           << errMsg;
   case SubViewVerificationResult::ElemTypeMismatch:
     return op.emitError("expected result element type to be ")
-           << memrefType.getElementType();
+           << memrefType.getElementType() << errMsg;
   case SubViewVerificationResult::MemSpaceMismatch:
-    return op.emitError("expected result and source memory spaces to match.");
+    return op.emitError("expected result and source memory spaces to match.")
+           << errMsg;
   case SubViewVerificationResult::AffineMapMismatch:
     return op.emitError("expected result type to be ")
            << expectedType
-           << " or a rank-reduced version. (mismatch of result affine map)";
+           << " or a rank-reduced version. (mismatch of result affine map) "
+           << errMsg;
   }
   llvm_unreachable("unexpected subview verification result");
 }
@@ -3197,8 +3120,9 @@ static LogicalResult verify(SubViewOp op) {
       extractFromI64ArrayAttr(op.static_sizes()),
       extractFromI64ArrayAttr(op.static_strides()));
 
-  auto result = isRankReducedType(expectedType, subViewType);
-  return produceSubViewErrorMsg(result, op, expectedType);
+  std::string errMsg;
+  auto result = isRankReducedType(expectedType, subViewType, &errMsg);
+  return produceSubViewErrorMsg(result, op, expectedType, errMsg);
 }
 
 raw_ostream &mlir::operator<<(raw_ostream &os, Range &range) {
@@ -3454,46 +3378,6 @@ OpFoldResult SubViewOp::fold(ArrayRef<Attribute> operands) {
 // SubTensorOp
 //===----------------------------------------------------------------------===//
 
-/// Print a subtensor op of the form:
-/// ```
-///   `subtensor` ssa-name
-///     `[` offset-list `]` `[` size-list `]` `[` stride-list `]`
-///     `:` ranked-tensor-type `to` ranked-tensor-type
-/// ```
-static void print(OpAsmPrinter &p, SubTensorOp op) {
-  int stdDotLen = StandardOpsDialect::getDialectNamespace().size() + 1;
-  p << op->getName().getStringRef().drop_front(stdDotLen) << ' ';
-  p << op.source();
-  printOffsetsSizesAndStrides(p, op);
-  p << " : " << op.getSourceType() << " to " << op.getType();
-}
-
-/// Parse a subtensor op of the form:
-/// ```
-///   `subtensor` ssa-name
-///     `[` offset-list `]` `[` size-list `]` `[` stride-list `]`
-///     `:` ranked-tensor-type `to` ranked-tensor-type
-/// ```
-static ParseResult parseSubTensorOp(OpAsmParser &parser,
-                                    OperationState &result) {
-  OpAsmParser::OperandType srcInfo;
-  if (parser.parseOperand(srcInfo))
-    return failure();
-  Type srcType, dstType;
-  auto preResolutionFn = [&](OpAsmParser &parser, OperationState &result) {
-    return failure(parser.parseOptionalAttrDict(result.attributes) ||
-                   parser.parseColonType(srcType) ||
-                   parser.parseKeywordType("to", dstType) ||
-                   parser.resolveOperand(srcInfo, srcType, result.operands));
-  };
-
-  if (failed(parseOffsetsSizesAndStrides(parser, result,
-                                         /*segmentSizes=*/{1}, // source tensor
-                                         preResolutionFn)))
-    return failure();
-  return parser.addTypeToList(dstType, result.types);
-}
-
 /// A subtensor result type can be fully inferred from the source type and the
 /// static representation of offsets, sizes and strides. Special sentinels
 /// encode the dynamic case.
@@ -3512,6 +3396,23 @@ Type SubTensorOp::inferResultType(RankedTensorType sourceRankedTensorType,
                                       numTrailingSizes));
   return RankedTensorType::get(staticSizes,
                                sourceRankedTensorType.getElementType());
+}
+
+Type SubTensorOp::inferResultType(RankedTensorType sourceRankedTensorType,
+                                  ArrayRef<OpFoldResult> leadingStaticOffsets,
+                                  ArrayRef<OpFoldResult> leadingStaticSizes,
+                                  ArrayRef<OpFoldResult> leadingStaticStrides) {
+  SmallVector<int64_t> staticOffsets, staticSizes, staticStrides;
+  SmallVector<Value> dynamicOffsets, dynamicSizes, dynamicStrides;
+  dispatchIndexOpFoldResults(leadingStaticOffsets, dynamicOffsets,
+                             staticOffsets, ShapedType::kDynamicStrideOrOffset);
+  dispatchIndexOpFoldResults(leadingStaticSizes, dynamicSizes, staticSizes,
+                             ShapedType::kDynamicSize);
+  dispatchIndexOpFoldResults(leadingStaticStrides, dynamicStrides,
+                             staticStrides, ShapedType::kDynamicStrideOrOffset);
+  return SubTensorOp::inferResultType(sourceRankedTensorType, staticOffsets,
+                                      staticSizes, staticStrides)
+      .cast<RankedTensorType>();
 }
 
 // Build a SubTensorOp with mixed static and dynamic entries and custom result
@@ -3600,49 +3501,6 @@ void SubTensorOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 // SubTensorInsertOp
 //===----------------------------------------------------------------------===//
 
-/// Print a subtensor_insert op of the form:
-/// ```
-///   `subtensor_insert` ssa-name `into` ssa-name
-///     `[` offset-list `]` `[` size-list `]` `[` stride-list `]`
-///     `:` ranked-tensor-type `into` ranked-tensor-type
-/// ```
-static void print(OpAsmPrinter &p, SubTensorInsertOp op) {
-  int stdDotLen = StandardOpsDialect::getDialectNamespace().size() + 1;
-  p << op->getName().getStringRef().drop_front(stdDotLen) << ' ';
-  p << op.source() << " into " << op.dest();
-  printOffsetsSizesAndStrides(p, op);
-  p << " : " << op.getSourceType() << " into " << op.getType();
-}
-
-/// Parse a subtensor_insert op of the form:
-/// ```
-///   `subtensor_insert` ssa-name `into` ssa-name
-///     `[` offset-list `]` `[` size-list `]` `[` stride-list `]`
-///     `:` ranked-tensor-type `into` ranked-tensor-type
-/// ```
-static ParseResult parseSubTensorInsertOp(OpAsmParser &parser,
-                                          OperationState &result) {
-  OpAsmParser::OperandType srcInfo, dstInfo;
-  if (parser.parseOperand(srcInfo) || parser.parseKeyword("into") ||
-      parser.parseOperand(dstInfo))
-    return failure();
-  Type srcType, dstType;
-  auto preResolutionFn = [&](OpAsmParser &parser, OperationState &result) {
-    return failure(parser.parseOptionalAttrDict(result.attributes) ||
-                   parser.parseColonType(srcType) ||
-                   parser.parseKeywordType("into", dstType) ||
-                   parser.resolveOperand(srcInfo, srcType, result.operands) ||
-                   parser.resolveOperand(dstInfo, dstType, result.operands));
-  };
-
-  if (failed(parseOffsetsSizesAndStrides(
-          parser, result,
-          /*segmentSizes=*/{1, 1}, // source tensor, destination tensor
-          preResolutionFn)))
-    return failure();
-  return parser.addTypeToList(dstType, result.types);
-}
-
 // Build a SubTensorInsertOp with mixed static and dynamic entries.
 void mlir::SubTensorInsertOp::build(OpBuilder &b, OperationState &result,
                                     Value source, Value dest,
@@ -3677,13 +3535,6 @@ void mlir::SubTensorInsertOp::build(OpBuilder &b, OperationState &result,
   SmallVector<OpFoldResult> strideValues = llvm::to_vector<4>(
       llvm::map_range(strides, [](Value v) -> OpFoldResult { return v; }));
   build(b, result, source, dest, offsetValues, sizeValues, strideValues);
-}
-
-/// Verifier for SubViewOp.
-static LogicalResult verify(SubTensorInsertOp op) {
-  if (op.getType() != op.dest().getType())
-    return op.emitError("expected result type to be ") << op.dest().getType();
-  return success();
 }
 
 //===----------------------------------------------------------------------===//

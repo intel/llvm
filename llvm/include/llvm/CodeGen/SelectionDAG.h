@@ -351,7 +351,7 @@ public:
     FlagInserter &operator=(const FlagInserter &) = delete;
     ~FlagInserter() { DAG.setFlagInserter(LastInserter); }
 
-    const SDNodeFlags getFlags() const { return Flags; }
+    SDNodeFlags getFlags() const { return Flags; }
   };
 
   /// When true, additional steps are taken to
@@ -487,7 +487,7 @@ public:
 
   /// Get graph attributes for a node. (eg. "color=red".)
   /// Used from getNodeAttributes.
-  const std::string getGraphAttrs(const SDNode *N) const;
+  std::string getGraphAttrs(const SDNode *N) const;
 
   /// Convenience for setting node color attribute.
   void setGraphColor(const SDNode *N, const char *Color);

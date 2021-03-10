@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -internal-isystem %S/Inputs -Wno-return-type -Wno-sycl-2017-compat -fcxx-exceptions -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-return-type -Wno-sycl-2017-compat -fcxx-exceptions -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
 
 #include "sycl.hpp"
 
@@ -50,9 +50,9 @@ int main() {
       [[intel::no_global_work_offset(1)]] int a;
     });
 
-    // expected-warning@+2{{attribute 'no_global_work_offset' is already applied}}
     h.single_task<class test_kernel7>(
-        []() [[intel::no_global_work_offset(0), intel::no_global_work_offset(1)]]{});
+        []() [[intel::no_global_work_offset(0),      // expected-note {{previous attribute is here}}
+	       intel::no_global_work_offset(1)]]{});  // expected-warning{{attribute 'no_global_work_offset' is already applied with different arguments}}
   });
   return 0;
 }

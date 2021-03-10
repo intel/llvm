@@ -19,7 +19,15 @@ typedef cl::sycl::accessor<int, 1, cl::sycl::access::mode::read> dummy;
 // CHECK: CXXRecordDecl {{.*}} class AccessorBaseHost definition
 // CHECK-NOT: CXXRecordDecl {{.*}} definition
 // CHECK: FieldDecl {{.*}} referenced impl {{.*}}:'std::shared_ptr<sycl::detail::AccessorImplHost>'
+
+// LocalAccessorImplHost must have MSize and MMem fields
+
+// CHECK: CXXRecordDecl {{.*}} class LocalAccessorImplHost definition
+// CHECK-NOT: CXXRecordDecl {{.*}} definition
+// CHECK: FieldDecl {{.*}} referenced MSize
+// CHECK-NOT: CXXRecordDecl {{.*}} definition
+// CHECK: FieldDecl {{.*}} referenced MMem
+
 // CHECK: CXXRecordDecl {{.*}} class accessor definition
 // CHECK-NOT: CXXRecordDecl {{.*}} definition
 // CHECK: public {{.*}}:'sycl::detail::AccessorBaseHost'
-

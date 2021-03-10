@@ -20,6 +20,10 @@
 
 #include "dfsan/dfsan.h"
 
+#include "dfsan/dfsan_chained_origin_depot.h"
+#include "dfsan/dfsan_flags.h"
+#include "dfsan/dfsan_origin.h"
+#include "dfsan/dfsan_thread.h"
 #include "sanitizer_common/sanitizer_atomic.h"
 #include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_file.h"
@@ -61,9 +65,11 @@ SANITIZER_INTERFACE_ATTRIBUTE uptr __dfsan_shadow_ptr_mask;
 // |                    |
 // |       unused       |
 // |                    |
-// +--------------------+ 0x200200000000 (kUnusedAddr)
+// +--------------------+ 0x300200000000 (kUnusedAddr)
 // |    union table     |
-// +--------------------+ 0x200000000000 (kUnionTableAddr)
+// +--------------------+ 0x300000000000 (kUnionTableAddr)
+// |       origin       |
+// +--------------------+ 0x200000000000 (kOriginAddr)
 // |   shadow memory    |
 // +--------------------+ 0x000000010000 (kShadowAddr)
 // | reserved by kernel |
@@ -281,6 +287,48 @@ dfsan_label dfsan_create_label(const char *desc, void *userdata) {
   return label;
 }
 
+// For platforms which support slow unwinder only, we need to restrict the store
+// context size to 1, basically only storing the current pc, because the slow
+// unwinder which is based on libunwind is not async signal safe and causes
+// random freezes in forking applications as well as in signal handlers.
+// DFSan supports only Linux. So we do not restrict the store context size.
+#define GET_STORE_STACK_TRACE_PC_BP(pc, bp) \
+  BufferedStackTrace stack;                 \
+  stack.Unwind(pc, bp, nullptr, true, flags().store_context_size);
+
+#define PRINT_CALLER_STACK_TRACE        \
+  {                                     \
+    GET_CALLER_PC_BP_SP;                \
+    (void)sp;                           \
+    GET_STORE_STACK_TRACE_PC_BP(pc, bp) \
+    stack.Print();                      \
+  }
+
+/*
+static u32 ChainOrigin(u32 id, StackTrace *stack, bool from_init = false) {
+  // StackDepot is not async signal safe. Do not create new chains in a signal
+  // handler.
+  DFsanThread *t = GetCurrentThread();
+  if (t && t->InSignalHandler())
+    return id;
+
+  // As an optimization the origin of an application byte is updated only when
+  // its shadow is non-zero. Because we are only interested in the origins of
+  // taint labels, it does not matter what origin a zero label has. This reduces
+  // memory write cost. MSan does similar optimization. The following invariant
+  // may not hold because of some bugs. We check the invariant to help debug.
+  if (!from_init && id == 0 && flags().check_origin_invariant) {
+    Printf("  DFSan found invalid origin invariant\n");
+    PRINT_CALLER_STACK_TRACE
+  }
+
+  Origin o = Origin::FromRawId(id);
+  stack->tag = StackTrace::TAG_UNKNOWN;
+  Origin chained = Origin::CreateChainedOrigin(o, stack);
+  return chained.raw_id();
+}
+*/
+
 static void WriteShadowIfDifferent(dfsan_label label, uptr shadow_addr,
                                    uptr size) {
   dfsan_label *labelp = (dfsan_label *)shadow_addr;
@@ -422,7 +470,12 @@ void __sanitizer::BufferedStackTrace::UnwindImpl(uptr pc, uptr bp,
                                                  void *context,
                                                  bool request_fast,
                                                  u32 max_depth) {
-  Unwind(max_depth, pc, bp, context, 0, 0, false);
+  using namespace __dfsan;
+  DFsanThread *t = GetCurrentThread();
+  if (!t || !StackTrace::WillUseFastUnwind(request_fast)) {
+    return Unwind(max_depth, pc, bp, context, 0, 0, false);
+  }
+  Unwind(max_depth, pc, bp, nullptr, t->stack_top(), t->stack_bottom(), true);
 }
 
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE void __sanitizer_print_stack_trace() {
@@ -454,6 +507,17 @@ static void InitializeFlags() {
   InitializeCommonFlags();
   if (Verbosity()) ReportUnrecognizedFlags();
   if (common_flags()->help) parser.PrintFlagDescriptions();
+}
+
+SANITIZER_INTERFACE_ATTRIBUTE
+void dfsan_clear_arg_tls(uptr offset, uptr size) {
+  internal_memset((void *)((uptr)__dfsan_arg_tls + offset), 0, size);
+}
+
+SANITIZER_INTERFACE_ATTRIBUTE
+void dfsan_clear_thread_local_state() {
+  internal_memset(__dfsan_arg_tls, 0, sizeof(__dfsan_arg_tls));
+  internal_memset(__dfsan_retval_tls, 0, sizeof(__dfsan_retval_tls));
 }
 
 static void InitializePlatformEarly() {
@@ -489,7 +553,7 @@ static void dfsan_fini() {
 }
 
 extern "C" void dfsan_flush() {
-  if (!MmapFixedNoReserve(ShadowAddr(), UnusedAddr() - ShadowAddr()))
+  if (!MmapFixedSuperNoReserve(ShadowAddr(), UnusedAddr() - ShadowAddr()))
     Die();
 }
 
@@ -498,8 +562,7 @@ static void dfsan_init(int argc, char **argv, char **envp) {
 
   ::InitializePlatformEarly();
 
-  if (!MmapFixedSuperNoReserve(ShadowAddr(), UnusedAddr() - ShadowAddr()))
-    Die();
+  dfsan_flush();
   if (common_flags()->use_madv_dontdump)
     DontDumpShadowMemory(ShadowAddr(), UnusedAddr() - ShadowAddr());
 
@@ -518,6 +581,12 @@ static void dfsan_init(int argc, char **argv, char **envp) {
   // or it is killed by the runtime.
   Atexit(dfsan_fini);
   AddDieCallback(dfsan_fini);
+
+  // Set up threads
+  DFsanTSDInit(DFsanTSDDtor);
+  DFsanThread *main_thread = DFsanThread::Create(nullptr, nullptr, nullptr);
+  SetCurrentThread(main_thread);
+  main_thread->ThreadStart();
 
   __dfsan_label_info[kInitializingLabel].desc = "<init label>";
 }

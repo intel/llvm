@@ -34,6 +34,7 @@
 #include <CL/sycl/image.hpp>
 #include <CL/sycl/item.hpp>
 #include <CL/sycl/kernel.hpp>
+#include <CL/sycl/kernel_bundle.hpp>
 #include <CL/sycl/marray.hpp>
 #include <CL/sycl/multi_ptr.hpp>
 #include <CL/sycl/nd_item.hpp>
