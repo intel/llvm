@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o %t.ll
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o %t.ll
 // RUN: FileCheck < %t.ll --enable-var-scope %s
 //
 // CHECK: define {{.*}}spir_kernel void @"{{.*}}StreamTester"(%"{{.*}}cl::sycl::stream"* byval(%"{{.*}}cl::sycl::stream") {{.*}}){{.*}}

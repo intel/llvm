@@ -253,20 +253,13 @@ void program_impl::build_with_kernel_name(string_class KernelName,
   throw_if_state_is_not(program_state::none);
   MProgramModuleHandle = Module;
   if (!is_host()) {
-    // If there are no build options, program can be safely cached
-    if (is_cacheable_with_options(BuildOptions)) {
-      MProgramAndKernelCachingAllowed = true;
-      MProgram = ProgramManager::getInstance().getBuiltPIProgram(
-          Module, get_context(), get_devices()[0], KernelName, this,
-          /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
-      const detail::plugin &Plugin = getPlugin();
-      Plugin.call<PiApiKind::piProgramRetain>(MProgram);
-    } else {
-      create_pi_program_with_kernel_name(
-          Module, KernelName,
-          /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
-      build(BuildOptions);
-    }
+    MProgramAndKernelCachingAllowed = true;
+    MBuildOptions = BuildOptions;
+    MProgram = ProgramManager::getInstance().getBuiltPIProgram(
+        Module, get_context(), get_devices()[0], KernelName, this,
+        /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
+    const detail::plugin &Plugin = getPlugin();
+    Plugin.call<PiApiKind::piProgramRetain>(MProgram);
   }
   MState = program_state::linked;
 }
