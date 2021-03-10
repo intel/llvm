@@ -18,7 +18,7 @@ namespace sycl {
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj) ->
     typename interop<BackendName, SyclObjectT>::type {
- // TODO use SYCL 2020 exception when implemented
+  // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != BackendName)
     throw runtime_error("Backends mismatch", PI_INVALID_OPERATION);
   return Obj.template get_native<BackendName>();

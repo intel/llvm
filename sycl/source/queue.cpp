@@ -139,9 +139,7 @@ bool queue::is_in_order() const {
   return impl->has_property<property::queue::in_order>();
 }
 
-backend queue::get_backend() const noexcept {
-  return getImplBackend(impl);
-}
+backend queue::get_backend() const noexcept { return getImplBackend(impl); }
 
 pi_native_handle queue::getNative() const { return impl->getNative(); }
 

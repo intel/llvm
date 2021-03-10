@@ -86,9 +86,7 @@ event::event(shared_ptr_class<detail::event_impl> event_impl)
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-backend event::get_backend() const noexcept { 
-  return getImplBackend(impl);
-}
+backend event::get_backend() const noexcept { return getImplBackend(impl); }
 
 pi_native_handle event::getNative() const { return impl->getNative(); }
 

@@ -137,9 +137,7 @@ device::get_info() const {
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-backend device::get_backend() const noexcept { 
-  return getImplBackend(impl);
-}
+backend device::get_backend() const noexcept { return getImplBackend(impl); }
 
 pi_native_handle device::getNative() const { return impl->getNative(); }
 

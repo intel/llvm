@@ -48,9 +48,7 @@ program::program(const context &context, cl_program clProgram)
   clRetainProgram(clProgram);
 }
 
-backend program::get_backend() const noexcept {
-  return getImplBackend(impl);
-}
+backend program::get_backend() const noexcept { return getImplBackend(impl); }
 
 pi_native_handle program::getNative() const { return impl->getNative(); }
 
