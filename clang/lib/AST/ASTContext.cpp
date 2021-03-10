@@ -2105,7 +2105,7 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
       Align = Target->getDoubleAlign();
       break;
     case BuiltinType::LongDouble:
-      if (((getLangOpts().SYCL && getLangOpts().SYCLIsDevice) ||
+      if ((getLangOpts().SYCLIsDevice ||
            (getLangOpts().OpenMP && getLangOpts().OpenMPIsDevice)) &&
           AuxTarget != nullptr &&
           (Target->getLongDoubleWidth() != AuxTarget->getLongDoubleWidth() ||

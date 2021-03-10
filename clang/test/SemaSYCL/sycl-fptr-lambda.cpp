@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -std=c++14 -verify -Wno-sycl-2017-compat -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl-is-device -std=c++14 -verify -Wno-sycl-2017-compat -fsyntax-only %s
 // expected-no-diagnostics
 
 template <typename name, typename Func>

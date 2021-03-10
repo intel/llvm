@@ -1,7 +1,7 @@
-// RUN: %clang_cc1  -fsycl -internal-isystem %S/Inputs -sycl-std=2020 -triple spir64 -fsycl-is-device \
+// RUN: %clang_cc1  -internal-isystem %S/Inputs -sycl-std=2020 -triple spir64 -fsycl-is-device \
 // RUN:  -aux-triple x86_64-unknown-linux-gnu \
 // RUN:  -verify -fsyntax-only  %s
-// RUN: %clang_cc1  -fsycl -internal-isystem %S/Inputs -sycl-std=2020 -triple spir64 -fsycl-is-device \
+// RUN: %clang_cc1  -internal-isystem %S/Inputs -sycl-std=2020 -triple spir64 -fsycl-is-device \
 // RUN:  -aux-triple x86_64-pc-windows-msvc   \
 // RUN:  -verify -fsyntax-only  %s
 //

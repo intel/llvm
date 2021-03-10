@@ -813,9 +813,9 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // If -fsycl is supplied without any of these we will assume SPIR-V.
   // Use of -fsycl-device-only overrides -fsycl.
   bool HasValidSYCLRuntime =
-      (C.getInputArgs().hasFlag(options::OPT_fsycl, options::OPT_fno_sycl,
-                                false) ||
-       C.getInputArgs().hasArg(options::OPT_fsycl_device_only));
+      C.getInputArgs().hasFlag(options::OPT_fsycl, options::OPT_fno_sycl,
+                               false) ||
+      C.getInputArgs().hasArg(options::OPT_fsycl_device_only);
 
   // A mechanism for retrieving SYCL-specific options, erroring out
   // if SYCL offloading wasn't enabled prior to that
