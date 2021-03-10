@@ -1534,6 +1534,17 @@ public:
       MLastEvent = *CopyEvent;
   }
 
+  // TODO: make it private!!!!!!!!
+  template <typename KernelName, typename RangeT, typename... Ts, size_t... Is>
+  inline void parallel_for(RangeT &Range, std::tuple<Ts...> Args, std::index_sequence<Is...>) {
+    parallel_for<KernelName>(Range, std::get<Is>(Args)...);
+  }
+  template <typename KernelName, typename RangeT, typename... Ts>
+  inline void parallel_for(RangeT &Range, std::tuple<Ts...> Args) {
+    constexpr auto Indices = std::make_index_sequence<sizeof...(Ts)>();
+    parallel_for<KernelName>(Range, Args, Indices);
+  }
+
   /// Hierarchical kernel invocation method of a kernel defined as a lambda
   /// encoding the body of each work-group to launch.
   ///

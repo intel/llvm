@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/sycl/ONEAPI/reduction.hpp>
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
@@ -629,15 +630,17 @@ public:
   /// kernel
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType,
-            int Dims>
-  event parallel_for(nd_range<Dims> ExecutionRange,
-                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
-    _CODELOCARG(&CodeLoc);
+  template <typename KernelName = detail::auto_name, int Dims, typename... RestT>
+  event parallel_for(nd_range<Dims> ExecutionRange, RestT&&... Args) {
+    constexpr size_t NumArgs = sizeof...(RestT);
+    std::tuple<RestT...> ArgsTuple(Args...);
+    auto CodeLoc = getCodeLocation(ArgsTuple);
+    auto ArgsWithoutCodeLocation =
+        getParallelForArgsWithoutCodeLocation(ArgsTuple);
     return submit(
         [&](handler &CGH) {
-          CGH.template parallel_for<KernelName, KernelType>(ExecutionRange,
-                                                            KernelFunc);
+          CGH.template parallel_for<KernelName, nd_range<Dims>>(
+              ExecutionRange, ArgsWithoutCodeLocation);
         },
         CodeLoc);
   }
@@ -684,27 +687,6 @@ public:
           CGH.depends_on(DepEvents);
           CGH.template parallel_for<KernelName, KernelType>(ExecutionRange,
                                                             KernelFunc);
-        },
-        CodeLoc);
-  }
-
-  /// parallel_for version with a kernel represented as a lambda + nd_range that
-  /// specifies global, local sizes and offset.
-  ///
-  /// \param ExecutionRange is a range that specifies the work space of the
-  /// kernel
-  /// \param Redu is a reduction operation
-  /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType,
-            int Dims, typename Reduction>
-  event parallel_for(nd_range<Dims> ExecutionRange, Reduction Redu,
-                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
-    _CODELOCARG(&CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.template parallel_for<KernelName, KernelType, Dims, Reduction>(
-              ExecutionRange, Redu, KernelFunc);
         },
         CodeLoc);
   }
@@ -814,6 +796,42 @@ private:
                                                             KernelFunc);
         },
         CodeLoc);
+  }
+
+  /// Either extracts and returns the last element from the given tuple if it is
+  /// a code location, or creates and returns an empty code location.
+  ///
+  /// \param Args is a tuple containing the arguments of parallel_for()
+  /// the optional reduction objects, required lambda/functor function, and
+  /// optional code location argument.
+  template <typename... Ts>
+  static const detail::code_location &getCodeLocation(std::tuple<Ts...> &Args) {
+    static_assert(sizeof...(Ts) > 0, "Unexpected argumnets of parallel_for()");
+    using LastArgT = std::tuple_element_t<sizeof...(Ts) - 1, std::tuple<Ts...>>;
+    if constexpr (std::is_same_v<std::decay_t<LastArgT>, detail::code_location>)
+      return std::get<sizeof...(Ts) - 1>(Args);
+    else
+      return {};
+  }
+
+  /// Either extracts and returns the last element from the given tuple if it is
+  /// a code location, or creates and returns an empty code location.
+  ///
+  /// \param Args is a tuple containing the arguments of parallel_for()
+  /// the optional reduction objects, required lambda/functor function, and
+  /// optional code location argument.
+  template <typename... Ts>
+  static auto getParallelForArgsWithoutCodeLocation(std::tuple<Ts...> &Args) {
+    constexpr size_t NumArgs = sizeof...(Ts);
+    static_assert(NumArgs > 0, "Unexpected argumnets of parallel_for()");
+    using LastArgT = std::tuple_element_t<NumArgs - 1, std::tuple<Ts...>>;
+    if constexpr (std::is_same_v<std::decay_t<LastArgT>,
+                                 detail::code_location>) {
+      auto ArgsIndices = std::make_index_sequence<NumArgs - 1>();
+      return ONEAPI::detail::tuple_select_elements(Args, ArgsIndices);
+    } else {
+      return Args;
+    }
   }
 };
 
