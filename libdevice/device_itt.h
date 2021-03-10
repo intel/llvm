@@ -27,7 +27,8 @@ enum __itt_atomic_mem_op_t {
 enum __itt_atomic_mem_order_t {
   __itt_mem_order_relaxed = 0,
   __itt_mem_order_acquire = 1,
-  __itt_mem_order_release = 2
+  __itt_mem_order_release = 2,
+  __itt_mem_order_acquire_release = 3
 };
 
 // FIXME: must be enabled via -fdeclare-spirv-builtins
