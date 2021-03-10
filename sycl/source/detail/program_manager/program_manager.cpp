@@ -41,7 +41,7 @@ namespace detail {
 
 using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 
-static constexpr int DbgProgMgr = 0;
+static constexpr int DbgProgMgr = 1;
 
 enum BuildState { BS_InProgress, BS_Done, BS_Failed };
 
