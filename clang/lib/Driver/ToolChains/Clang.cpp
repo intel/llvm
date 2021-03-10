@@ -8284,10 +8284,6 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   assert(isa<SYCLPostLinkJobAction>(JA) && "Expecting SYCL post link job!");
   ArgStringList CmdArgs;
 
-  // See if device code instrumentation is requested
-  if (TCArgs.hasArg(options::OPT_fsycl_instrument_device_code))
-    addArgs(CmdArgs, TCArgs, {"-add-instrumentation-calls"});
-
   // See if device code splitting is requested
   if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_device_code_split_EQ)) {
     if (StringRef(A->getValue()) == "per_kernel")

@@ -1,4 +1,4 @@
-/// Check that instrumentation is disabled by default:
+/// Check that SYCL ITT instrumentation is disabled by default:
 // RUN: %clang -fsycl -### %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHECK-DEFAULT %s
 // CHECK-DEFAULT-NOT: "-add-instrumentation-calls"
@@ -7,4 +7,4 @@
 /// link tool:
 // RUN: %clang -fsycl -### -fsycl-instrument-device-code %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHECK-ENABLED %s
-// CHECK-ENABLED: sycl-post-link{{.*}}"-add-instrumentation-calls"
+// CHECK-ENABLED: "-add-instrumentation-calls"

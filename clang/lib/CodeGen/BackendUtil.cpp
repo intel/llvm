@@ -978,7 +978,8 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
   if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD)
     PerModulePasses.add(createGenXSPIRVWriterAdaptorPass());
 
-  if (llvm::Triple(TheModule->getTargetTriple()).isSPIR())
+  if (llvm::Triple(TheModule->getTargetTriple()).isSPIR() &&
+      CodeGenOpts.SYCLITTAnnotations)
     PerModulePasses.add(createSYCLITTAnnotationsPass());
 
   switch (Action) {
