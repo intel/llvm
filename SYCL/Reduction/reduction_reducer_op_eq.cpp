@@ -11,7 +11,6 @@
 #include <iostream>
 
 using namespace sycl;
-using namespace sycl::ONEAPI;
 
 struct XY {
   constexpr XY() : X(0), Y(0) {}
@@ -94,7 +93,7 @@ int test(T Identity) {
   }
 
   *Res = Identity;
-  auto Red = reduction(Res, Identity, BOp);
+  auto Red = ONEAPI::reduction(Res, Identity, BOp);
   nd_range<1> NDR{N, L};
   if constexpr (OpEq == PlusEq) {
     auto Lambda = [=](nd_item<1> ID, auto &Sum) {
