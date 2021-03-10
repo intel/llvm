@@ -3007,6 +3007,10 @@ public:
       * declared within another tag
         e.g., struct S { struct T { int i } t; };
         h.single_task<S::T>([]() {});
+      * declared within template specialization
+        template<typename T >
+        struct SomethingElse{};
+        void bar() {Kernel<SomethingElse<struct Foo>>}
     */
 
     if (const auto *ED = dyn_cast<EnumDecl>(DeclNamed)) {
