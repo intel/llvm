@@ -10234,6 +10234,12 @@ public:
                                 Expr *E);
   SYCLIntelLoopFuseAttr *
   MergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &A);
+  void AddIntelFPGAPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
+                                     Expr *E);
+  void AddIntelFPGAMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
+                                     Expr *E);
+  IntelFPGAMaxReplicatesAttr *
+  MergeIntelFPGAMaxReplicatesAttr(Decl *D, const IntelFPGAMaxReplicatesAttr &A);
   void AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D, const AttributeCommonInfo &CI,
                                         Expr *E);
   SYCLIntelMaxGlobalWorkDimAttr *
@@ -13085,43 +13091,6 @@ public:
            (VDecl->getType().getAddressSpace() == LangAS::opencl_private);
   }
 };
-
-template <typename AttrType>
-void Sema::addIntelSingleArgAttr(Decl *D, const AttributeCommonInfo &CI,
-                                 Expr *E) {
-  assert(E && "Attribute must have an argument.");
-
-  if (!E->isInstantiationDependent()) {
-    llvm::APSInt ArgVal;
-    ExprResult ICE = VerifyIntegerConstantExpression(E, &ArgVal);
-    if (ICE.isInvalid())
-      return;
-    E = ICE.get();
-    int32_t ArgInt = ArgVal.getSExtValue();
-    if (CI.getParsedKind() == ParsedAttr::AT_IntelFPGAMaxReplicates) {
-      if (ArgInt <= 0) {
-        Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-            << CI << /*positive*/ 0;
-        return;
-      }
-    }
-    if (CI.getParsedKind() == ParsedAttr::AT_IntelFPGAPrivateCopies) {
-      if (ArgInt < 0) {
-        Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-            << CI << /*non-negative*/ 1;
-        return;
-      }
-    }
-  }
-
-  if (CI.getParsedKind() == ParsedAttr::AT_IntelFPGAPrivateCopies) {
-    if (!D->hasAttr<IntelFPGAMemoryAttr>())
-      D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
-          Context, IntelFPGAMemoryAttr::Default));
-  }
-
-  D->addAttr(::new (Context) AttrType(Context, CI, E));
-}
 
 static Expr *checkMaxWorkSizeAttrExpr(Sema &S, const AttributeCommonInfo &CI,
                                       Expr *E) {
