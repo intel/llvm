@@ -3449,7 +3449,7 @@ void Sema::AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
       // whether this is a null pointer.
       if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
         if (ArgVal != DeclExpr->getResultAsAPSInt()) {
-	  Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
           Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
         }
         // If there is no mismatch, silently ignore duplicate attribute.
@@ -3490,7 +3490,7 @@ SYCLIntelMaxGlobalWorkDimAttr *Sema::MergeSYCLIntelMaxGlobalWorkDimAttr(
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
     if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
       if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue())) {
-	if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+        if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
           Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
           Diag(A.getLoc(), diag::note_previous_attribute);
         }
