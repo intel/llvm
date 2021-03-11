@@ -1841,6 +1841,8 @@ pi_result piDevicePartition(pi_device Device,
       pi_device Dev = Platform->getDeviceFromNativeHandle(ZeSubdevices[I]);
       if (Dev) {
         OutDevices[I] = Dev;
+        // reusing the same pi_device needs to increment the reference count
+        piDeviceRetain(OutDevices[I]);
       } else {
         std::unique_ptr<_pi_device> PiSubDevice(
             new _pi_device(ZeSubdevices[I], Platform));
