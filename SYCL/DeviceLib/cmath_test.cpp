@@ -35,7 +35,7 @@ template <class T> void device_cmath_test_1(s::queue &deviceQueue) {
     s::buffer<T, 1> buffer1(result, numOfItems);
     s::buffer<T, 1> buffer2(&iptr, s::range<1>{1});
     s::buffer<int, 1> buffer3(&quo, s::range<1>{1});
-    deviceQueue.submit([&](cl::sycl::handler &cgh) {
+    deviceQueue.submit([&](s::handler &cgh) {
       auto res_access = buffer1.template get_access<sycl_write>(cgh);
       auto iptr_access = buffer2.template get_access<sycl_write>(cgh);
       auto quo_access = buffer3.template get_access<sycl_write>(cgh);
@@ -166,7 +166,7 @@ template <class T> void device_cmath_test_2(s::queue &deviceQueue) {
   {
     s::buffer<T, 1> buffer1(result, numOfItems);
     s::buffer<int, 1> buffer2(&exponent, s::range<1>{1});
-    deviceQueue.submit([&](cl::sycl::handler &cgh) {
+    deviceQueue.submit([&](s::handler &cgh) {
       auto res_access = buffer1.template get_access<sycl_write>(cgh);
       auto exp_access = buffer2.template get_access<sycl_write>(cgh);
       cgh.single_task<class DeviceMathTest2>([=]() {
@@ -187,12 +187,39 @@ template <class T> void device_cmath_test_2(s::queue &deviceQueue) {
 }
 #endif
 
+void device_integer_math_test(s::queue &deviceQueue) {
+  div_t result_i[1];
+  ldiv_t result_l[1];
+  lldiv_t result_ll[1];
+
+  {
+    s::buffer<div_t, 1> buffer1(result_i, s::range<1>{1});
+    s::buffer<ldiv_t, 1> buffer2(result_l, s::range<1>{1});
+    s::buffer<lldiv_t, 1> buffer3(result_ll, s::range<1>{1});
+    deviceQueue.submit([&](s::handler &cgh) {
+      auto res_i_access = buffer1.get_access<sycl_write>(cgh);
+      auto res_l_access = buffer2.get_access<sycl_write>(cgh);
+      auto res_ll_access = buffer3.get_access<sycl_write>(cgh);
+      cgh.single_task<class DeviceIntMathTest>([=]() {
+        res_i_access[0] = std::div(99, 4);
+        res_l_access[0] = std::ldiv(10000, 23);
+        res_ll_access[0] = std::lldiv(200000000, 47);
+      });
+    });
+  }
+
+  assert(result_i[0].quot == 24 && result_i[0].rem == 3);
+  assert(result_l[0].quot == 434 && result_l[0].rem == 18);
+  assert(result_ll[0].quot == 4255319 && result_ll[0].rem == 7);
+}
+
 int main() {
   s::queue deviceQueue;
   device_cmath_test_1<float>(deviceQueue);
 #ifndef _WIN32
   device_cmath_test_2<float>(deviceQueue);
 #endif
+  device_integer_math_test(deviceQueue);
   std::cout << "Pass" << std::endl;
   return 0;
 }
