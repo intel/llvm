@@ -12,7 +12,6 @@
 #include <CL/sycl/stl.hpp>
 
 // 4.6.2 Platform class
-#include <unordered_map>
 #include <utility>
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -113,12 +112,8 @@ public:
   /// \return a native handle, the type of which defined by the backend.
   template <backend BackendName>
   auto get_native() const -> typename interop<BackendName, platform>::type {
-    auto cl_platform =
-        reinterpret_cast<typename interop<BackendName, platform>::type>(
-            getNative());
-    std::lock_guard<std::mutex> lock(platform_mutex);
-    platform_impls[cl_platform] = impl;
-    return cl_platform;
+    return reinterpret_cast<typename interop<BackendName, platform>::type>(
+        getNative());
   }
 
   /// Indicates if all of the SYCL devices on this platform have the
@@ -136,11 +131,6 @@ private:
 
   shared_ptr_class<detail::platform_impl> impl;
   platform(shared_ptr_class<detail::platform_impl> impl) : impl(impl) {}
-
-  static std::unordered_map<cl_platform_id,
-                            std::weak_ptr<detail::platform_impl>>
-      platform_impls;
-  static std::mutex platform_mutex;
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);

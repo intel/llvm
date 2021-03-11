@@ -16,7 +16,6 @@
 #include <CL/sycl/platform.hpp>
 #include <CL/sycl/stl.hpp>
 
-#include <unordered_map>
 #include <utility>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -177,10 +176,7 @@ public:
   /// \return a native handle, the type of which defined by the backend.
   template <backend BackendName>
   auto get_native() const -> typename interop<BackendName, device>::type {
-    auto cl_device = (typename interop<BackendName, device>::type)getNative();
-    std::lock_guard<std::mutex> lock(device_mutex);
-    device_impls[cl_device] = impl;
-    return cl_device;
+    return (typename interop<BackendName, device>::type)getNative();
   }
 
   /// Indicates if the SYCL device has the given feature.
@@ -194,10 +190,6 @@ public:
 private:
   shared_ptr_class<detail::device_impl> impl;
   device(shared_ptr_class<detail::device_impl> impl) : impl(impl) {}
-
-  static std::unordered_map<cl_device_id, std::weak_ptr<detail::device_impl>>
-      device_impls;
-  static std::mutex device_mutex;
 
   pi_native_handle getNative() const;
 
