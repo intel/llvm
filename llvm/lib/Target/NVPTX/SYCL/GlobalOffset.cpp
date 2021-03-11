@@ -321,8 +321,11 @@ public:
     assert(NvvmMetadata && "IR compiled to PTX must have nvvm.annotations");
 
     SmallPtrSet<GlobalValue *, 8u> Used;
-    collectUsedGlobalVariables(M, Used, /*CompilerUsed=*/false);
-    collectUsedGlobalVariables(M, Used, /*CompilerUsed=*/true);
+    SmallVector<GlobalValue *, 4> Vec;
+    collectUsedGlobalVariables(M, Vec, /*CompilerUsed=*/false);
+    collectUsedGlobalVariables(M, Vec, /*CompilerUsed=*/true);
+    Used = {Vec.begin(), Vec.end()};
+
     auto HasUseOtherThanLLVMUsed = [&Used](GlobalValue *GV) {
       if (GV->use_empty())
         return false;
