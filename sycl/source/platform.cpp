@@ -19,9 +19,9 @@ namespace sycl {
 platform::platform() : impl(detail::platform_impl::getHostPlatformImpl()) {}
 
 platform::platform(cl_platform_id PlatformId) {
-    impl = detail::platform_impl::getOrMakePlatformImpl(
-        detail::pi::cast<detail::RT::PiPlatform>(PlatformId),
-    detail::RT::getPlugin<backend::opencl>());
+  impl = detail::platform_impl::getOrMakePlatformImpl(
+      detail::pi::cast<detail::RT::PiPlatform>(PlatformId),
+      detail::RT::getPlugin<backend::opencl>());
 }
 
 platform::platform(const device_selector &dev_selector) {

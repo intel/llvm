@@ -36,8 +36,8 @@ device::device(cl_device_id DeviceId) {
   auto Plugin = detail::RT::getPlugin<backend::opencl>();
   Plugin.call<detail::PiApiKind::piextDeviceCreateWithNativeHandle>(
       detail::pi::cast<pi_native_handle>(DeviceId), nullptr, &Device);
-  auto Platform = detail::platform_impl::getPlatformFromPiDevice(
-      Device, Plugin);
+  auto Platform =
+      detail::platform_impl::getPlatformFromPiDevice(Device, Plugin);
   impl = Platform->getOrMakeDeviceImpl(Device, Platform);
   clRetainDevice(DeviceId);
 }
