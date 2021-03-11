@@ -2,8 +2,9 @@
 
 // ----------- Negative tests
 
-__attribute__((sycl_explicit_simd)) // expected-warning {{'sycl_explicit_simd' attribute only applies to functions}}
-int N;
+void foo(
+__attribute__((sycl_explicit_simd)) // expected-warning {{'sycl_explicit_simd' attribute only applies to functions and global variables}}
+int N);
 
 __attribute__((sycl_explicit_simd(3))) // expected-error {{'sycl_explicit_simd' attribute takes no arguments}}
 void
@@ -103,3 +104,7 @@ template <typename ID, typename F>
 void test5() {
   kernel5<class Kernel5>([=]() [[intel::sycl_explicit_simd]] { g5(); });
 }
+
+// -- Globals.
+
+__attribute__((sycl_explicit_simd)) int N;

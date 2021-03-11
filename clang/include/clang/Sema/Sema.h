@@ -13081,7 +13081,7 @@ public:
   /// Tells whether given variable is a SYCL explicit SIMD extension's "private
   /// global" variable - global variable in the private address space.
   bool isSYCLEsimdPrivateGlobal(VarDecl *VDecl) {
-    return getLangOpts().SYCLIsDevice && getLangOpts().SYCLExplicitSIMD &&
+    return getLangOpts().SYCLIsDevice && VDecl->hasAttr<SYCLSimdAttr>() &&
            VDecl->hasGlobalStorage() &&
            (VDecl->getType().getAddressSpace() == LangAS::opencl_private);
   }
