@@ -5868,7 +5868,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Forward -fsycl-instrument-device-code option to cc1
   if (Args.hasArg(options::OPT_fsycl_instrument_device_code))
-    CmdArgs.push_back("-fsycl-instrument-device-code");
+    Args.AddLastArg(CmdArgs, options::OPT_sycl_std_EQ);
+//    CmdArgs.push_back("-fsycl-instrument-device-code");
 
   if (IsHIP) {
     if (Args.hasFlag(options::OPT_fhip_new_launch_api,

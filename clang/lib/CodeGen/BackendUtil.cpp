@@ -840,6 +840,7 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
 
   PMBuilder.populateFunctionPassManager(FPM);
   PMBuilder.populateModulePassManager(MPM);
+
   // Customize the tail of the module passes list for the ESIMD extension.
   if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD &&
       CodeGenOpts.OptimizationLevel != 0) {
@@ -953,6 +954,7 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
   legacy::FunctionPassManager PerFunctionPasses(TheModule);
   PerFunctionPasses.add(
       createTargetTransformInfoWrapperPass(getTargetIRAnalysis()));
+
   // ESIMD extension always requires lowering of certain IR constructs, such as
   // ESIMD C++ intrinsics, as the last FE step.
   if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD)
