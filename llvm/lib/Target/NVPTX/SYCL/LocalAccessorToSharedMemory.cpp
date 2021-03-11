@@ -65,6 +65,8 @@ public:
 
       // Get a pointer to the entry point function from the metadata.
       const MDOperand &FuncOperand = MetadataNode->getOperand(0);
+      if (!FuncOperand)
+        continue;
       auto FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand);
       if (!FuncConstant)
         continue;
