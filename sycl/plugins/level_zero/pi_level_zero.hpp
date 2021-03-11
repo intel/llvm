@@ -156,6 +156,12 @@ struct _pi_device : _pi_object {
   // Level Zero device handle.
   ze_device_handle_t ZeDevice;
 
+  // Keep the subdevices that are partitioned from this pi_device for reuse
+  // The order of sub-devices in this vector is repeated from the
+  // ze_device_handle_t array that are returned from zeDeviceGetSubDevices()
+  // call, which will always return sub-devices in the fixed same order.
+  std::vector<pi_device> SubDevices;
+
   // PI platform to which this device belongs.
   pi_platform Platform;
 
