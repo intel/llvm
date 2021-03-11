@@ -13,6 +13,11 @@ class Kernel2Name;
 
 int main() {
   sycl::queue Q;
+
+  // No support for host device so far.
+  if (Q.is_host())
+    return 0;
+
   const sycl::context Ctx = Q.get_context();
   const sycl::device Dev = Q.get_device();
 
