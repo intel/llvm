@@ -60,21 +60,22 @@
 using namespace llvm;
 
 namespace {
-constexpr char SPIRV_CONTROL_BARRIER[] = "__spirv_ControlBarrier";
-constexpr char SPIRV_GROUP_ALL[] = "__spirv_GroupAll";
-constexpr char SPIRV_GROUP_ANY[] = "__spirv_GroupAny";
-constexpr char SPIRV_GROUP_BROADCAST[] = "__spirv_GroupBroadcast";
-constexpr char SPIRV_GROUP_IADD[] = "__spirv_GroupIAdd";
-constexpr char SPIRV_GROUP_FADD[] = "__spirv_GroupFAdd";
-constexpr char SPIRV_GROUP_FMIN[] = "__spirv_GroupFMin";
-constexpr char SPIRV_GROUP_UMIN[] = "__spirv_GroupUMin";
-constexpr char SPIRV_GROUP_SMIN[] = "__spirv_GroupSMin";
-constexpr char SPIRV_GROUP_FMAX[] = "__spirv_GroupFMax";
-constexpr char SPIRV_GROUP_UMAX[] = "__spirv_GroupUMax";
-constexpr char SPIRV_GROUP_SMAX[] = "__spirv_GroupSMax";
-constexpr char SPIRV_ATOMIC_INST[] = "__spirv_Atomic";
-constexpr char SPIRV_ATOMIC_LOAD[] = "__spirv_AtomicLoad";
-constexpr char SPIRV_ATOMIC_STORE[] = "__spirv_AtomicSTORE";
+constexpr char SPIRV_PREFIX[] = "__spirv_";
+constexpr char SPIRV_CONTROL_BARRIER[] = "ControlBarrier";
+constexpr char SPIRV_GROUP_ALL[] = "GroupAll";
+constexpr char SPIRV_GROUP_ANY[] = "GroupAny";
+constexpr char SPIRV_GROUP_BROADCAST[] = "GroupBroadcast";
+constexpr char SPIRV_GROUP_IADD[] = "GroupIAdd";
+constexpr char SPIRV_GROUP_FADD[] = "GroupFAdd";
+constexpr char SPIRV_GROUP_FMIN[] = "GroupFMin";
+constexpr char SPIRV_GROUP_UMIN[] = "GroupUMin";
+constexpr char SPIRV_GROUP_SMIN[] = "GroupSMin";
+constexpr char SPIRV_GROUP_FMAX[] = "GroupFMax";
+constexpr char SPIRV_GROUP_UMAX[] = "GroupUMax";
+constexpr char SPIRV_GROUP_SMAX[] = "GroupSMax";
+constexpr char SPIRV_ATOMIC_INST[] = "Atomic";
+constexpr char SPIRV_ATOMIC_LOAD[] = "AtomicLoad";
+constexpr char SPIRV_ATOMIC_STORE[] = "AtomicStore";
 constexpr char ITT_ANNOTATION_WI_START[] = "__itt_offload_wi_start_wrapper";
 constexpr char ITT_ANNOTATION_WI_RESUME[] = "__itt_offload_wi_resume_wrapper";
 constexpr char ITT_ANNOTATION_WI_FINISH[] = "__itt_offload_wi_finish_wrapper";
@@ -158,7 +159,7 @@ bool insertAtomicInstrumentationCall(Module &M, StringRef Name,
   // annotation instructions we need Pointer and Memory Semantic arguments
   // taken from the original Atomic instruction.
   Value *Ptr = dyn_cast<Value>(AtomicFun->getArgOperand(0));
-  StringRef AtomicName = AtomicFun->getName();
+  StringRef AtomicName = AtomicFun->getCalledFunction()->getName();
   Value *AtomicOp;
   // Second parameter of Atomic Start/Finish annotation is an Op code of
   // the instruction, encoded into a value of enum, defined like this on user's/
@@ -175,18 +176,33 @@ bool insertAtomicInstrumentationCall(Module &M, StringRef Name,
     AtomicOp = ConstantInt::get(Int32Ty, 1);
   else
     AtomicOp = ConstantInt::get(Int32Ty, 2);
-  // TODO: Third parameter of Atomic Start/Finish annotation is an ordering
+  // Third parameter of Atomic Start/Finish annotation is an ordering
   // semantic of the instruction, encoded into a value of enum, defined like
   // this on user's/profiler's side:
   // enum __itt_atomic_mem_order_t
   // {
-  //   __itt_mem_order_relaxed = 0,
-  //   __itt_mem_order_acquire = 1,
-  //   __itt_mem_order_release = 2
+  //   __itt_mem_order_relaxed = 0,        // SPIR-V 0x0
+  //   __itt_mem_order_acquire = 1,        // SPIR-V 0x2
+  //   __itt_mem_order_release = 2,        // SPIR-V 0x4
+  //   __itt_mem_order_acquire_release = 3 // SPIR-V 0x8
   // }
-  // which isn't 1:1 mapped on SPIR-V memory ordering mask, need to align it.
-  ConstantInt *MemSemantic = dyn_cast<ConstantInt>(AtomicFun->getArgOperand(2));
-  Value *Args[] = {Ptr, AtomicOp, MemSemantic};
+  // which isn't 1:1 mapped on SPIR-V memory ordering mask (aside of a
+  // differencies in values between SYCL mem order and SPIR-V mem order, SYCL RT
+  // also applies Memory Semantic mask, like WorkgroupMemory (0x100)), need to
+  // align it.
+  uint64_t MemFlag = dyn_cast<ConstantInt>(
+      AtomicFun->getArgOperand(2))->getValue().getZExtValue();
+  uint64_t Order;
+  if (MemFlag & 0x2)
+    Order = 1;
+  else if (MemFlag & 0x4)
+    Order = 2;
+  else if (MemFlag & 0x8)
+    Order = 3;
+  else
+    Order = 0;
+  Value *MemOrder = ConstantInt::get(Int32Ty, Order);
+  Value *Args[] = {Ptr, AtomicOp, MemOrder};
   Instruction *InstrumentationCall =
       emitCall(M, VoidTy, Name, Args, Position);
   assert(InstrumentationCall && "Instrumentation call creation failed");
@@ -227,18 +243,24 @@ PreservedAnalyses SYCLITTAnnotationsPass::run(Module &M,
         if (!Callee)
           continue;
         StringRef CalleeName = Callee->getName();
+        // Process only calls to functions which names starts with __spirv_
+        size_t PrefixPosFound = CalleeName.find(SPIRV_PREFIX);
+        if (PrefixPosFound == StringRef::npos)
+          continue;
+        CalleeName = CalleeName.drop_front(
+            PrefixPosFound + /*len of SPIR-V prefix*/ 8);
         // Annotate barrier and other cross WG calls
         if (std::any_of(SPIRVCrossWGInstuctions.begin(),
                         SPIRVCrossWGInstuctions.end(),
                         [&CalleeName](StringRef Name) {
-                          return CalleeName.contains(Name);
+                          return CalleeName.startswith(Name);
                         })) {
           Instruction *InstAfterBarrier = CI->getNextNode();
           IRModified |= insertSimpleInstrumentationCall(
               M, ITT_ANNOTATION_WG_BARRIER, CI);
           IRModified |= insertSimpleInstrumentationCall(
               M, ITT_ANNOTATION_WI_RESUME, InstAfterBarrier);
-        } else if (CalleeName.contains(SPIRV_ATOMIC_INST)) {
+        } else if (CalleeName.startswith(SPIRV_ATOMIC_INST)) {
           Instruction *InstAfterAtomic = CI->getNextNode();
           IRModified |= insertAtomicInstrumentationCall(
               M, ITT_ANNOTATION_ATOMIC_START, CI, CI);

@@ -1050,6 +1050,8 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
       (Args.hasArg(OPT_fsycl_is_device) && T.isSPIR() &&
        Args.hasArg(OPT_fno_sycl_early_optimizations));
 
+  Opts.SYCLITTAnnotations = Args.hasArg(OPT_fsycl_instrument_device_code);
+
   const llvm::Triple::ArchType DebugEntryValueArchs[] = {
       llvm::Triple::x86, llvm::Triple::x86_64, llvm::Triple::aarch64,
       llvm::Triple::arm, llvm::Triple::armeb, llvm::Triple::mips,
@@ -1082,6 +1084,9 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
 
   if (!Opts.ProfileInstrumentUsePath.empty())
     setPGOUseInstrumentor(Opts, Opts.ProfileInstrumentUsePath);
+
+  // Insert ITT annotations under the flag
+  Opts.SYCLITTAnnotations = Args.hasArg(OPT_fsycl_instrument_device_code);
 
   if (const Arg *A = Args.getLastArg(OPT_ftime_report, OPT_ftime_report_EQ)) {
     Opts.TimePasses = true;

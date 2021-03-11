@@ -1,5 +1,5 @@
 ;; The test serves a purpose to check if Atomic load instruction is being
-;; annotated during sycl-post-link
+;; annotated by SYCLITTAnnotations pass
 ;;
 ;; Compiled from https://github.com/intel/llvm-test-suite/blob/intel/SYCL/AtomicRef/load.cpp
 ;; with following commands:
@@ -45,9 +45,9 @@ if.end.i:                                         ; preds = %entry
   %9 = addrspacecast i64* %8 to i64 addrspace(4)*
   %10 = load i64, i64 addrspace(4)* %9, align 8
   %add.ptr.i34 = getelementptr inbounds i32, i32 addrspace(1)* %_arg_1, i64 %10
-; CHECK: call void @__itt_offload_atomic_op_start(i32 addrspace(1)* %[[ATOMIC_ARG_1:[0-9a-zA-Z._]+]], i32 0, i32 [[MEM_ORDER_1:[0-9]+]])
-; CHECK-NEXT: {{.*}}__spirv_AtomicLoad{{.*}}(i32 addrspace(1)* %[[ATOMIC_ARG_1]],{{.*}}, i32 [[MEM_ORDER_1]])
-; CHECK-NEXT: call void @__itt_offload_atomic_op_finish(i32 addrspace(1)* %[[ATOMIC_ARG_1]], i32 0, i32 [[MEM_ORDER_1]])
+; CHECK: call void @__itt_offload_atomic_op_start(i32 addrspace(1)* %[[ATOMIC_ARG_1:[0-9a-zA-Z._]+]], i32 0, i32 0)
+; CHECK-NEXT: {{.*}}__spirv_AtomicLoad{{.*}}(i32 addrspace(1)* %[[ATOMIC_ARG_1]],{{.*}}, i32 896
+; CHECK-NEXT: call void @__itt_offload_atomic_op_finish(i32 addrspace(1)* %[[ATOMIC_ARG_1]], i32 0, i32 0)
   %call3.i.i.i.i = tail call spir_func i32 @_Z18__spirv_AtomicLoadPU3AS1KiN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(i32 addrspace(1)* %add.ptr.i34, i32 1, i32 896) #2
   %ptridx.i.i.i = getelementptr inbounds i32, i32 addrspace(1)* %add.ptr.i, i64 %4
   %ptridx.ascast.i.i.i = addrspacecast i32 addrspace(1)* %ptridx.i.i.i to i32 addrspace(4)*
@@ -79,9 +79,9 @@ entry:
   %add.ptr.i = getelementptr inbounds i32, i32 addrspace(1)* %_arg_4, i64 %5
   %6 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*), align 32, !noalias !19
   %7 = extractelement <3 x i64> %6, i64 0
-; CHECK: call void @__itt_offload_atomic_op_start(i32 addrspace(1)* %[[ATOMIC_ARG_2:[0-9a-zA-Z._]+]], i32 0, i32 [[MEM_ORDER_2:[0-9]+]])
-; CHECK-NEXT: {{.*}}__spirv_AtomicLoad{{.*}}(i32 addrspace(1)* %[[ATOMIC_ARG_2]],{{.*}}, i32 [[MEM_ORDER_2]])
-; CHECK-NEXT: call void @__itt_offload_atomic_op_finish(i32 addrspace(1)* %[[ATOMIC_ARG_2]], i32 0, i32 [[MEM_ORDER_2]])
+; CHECK: call void @__itt_offload_atomic_op_start(i32 addrspace(1)* %[[ATOMIC_ARG_2:[0-9a-zA-Z._]+]], i32 0, i32 0)
+; CHECK-NEXT: {{.*}}__spirv_AtomicLoad{{.*}}(i32 addrspace(1)* %[[ATOMIC_ARG_2]],{{.*}}, i32 896)
+; CHECK-NEXT: call void @__itt_offload_atomic_op_finish(i32 addrspace(1)* %[[ATOMIC_ARG_2]], i32 0, i32 0)
   %call3.i.i.i = tail call spir_func i32 @_Z18__spirv_AtomicLoadPU3AS1KiN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(i32 addrspace(1)* %add.ptr.i32, i32 1, i32 896) #2
   %ptridx.i.i = getelementptr inbounds i32, i32 addrspace(1)* %add.ptr.i, i64 %7
   %ptridx.ascast.i.i = addrspacecast i32 addrspace(1)* %ptridx.i.i to i32 addrspace(4)*

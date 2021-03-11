@@ -1,5 +1,5 @@
 ;; The test serves a purpose to check if barrier instruction is being annotated
-;; during sycl-post-link
+;; by SYCLITTAnnotations pass
 ;;
 ;; Compiled from https://github.com/intel/llvm-test-suite/blob/intel/SYCL/KernelAndProgram/kernel-and-program.cpp
 ;; with following commands:

@@ -1,5 +1,5 @@
 ;; The test serves a purpose to check if Atomic store instruction is being
-;; annotated during sycl-post-link
+;; annotated by SYCLITTAnnotations pass
 ;;
 ;; Compiled from https://github.com/intel/llvm-test-suite/blob/intel/SYCL/AtomicRef/load.cpp
 ;; with following commands:
@@ -42,9 +42,9 @@ if.end.i:                                         ; preds = %entry
   %7 = load i64, i64 addrspace(4)* %6, align 8
   %add.ptr.i = getelementptr inbounds i32, i32 addrspace(1)* %_arg_1, i64 %7
   %conv.i.i = trunc i64 %4 to i32
-; CHECK: call void @__itt_offload_atomic_op_start(i32 addrspace(1)* %[[ATOMIC_ARG_1:[0-9a-zA-Z._]+]], i32 1, i32 [[MEM_ORDER_1:[0-9]+]])
-; CHECK-NEXT: {{.*}}__spirv_AtomicStore{{.*}}(i32 addrspace(1)* %[[ATOMIC_ARG_1]],{{.*}}, i32 [[MEM_ORDER_1]]
-; CHECK-NEXT: call void @__itt_offload_atomic_op_finish(i32 addrspace(1)* %[[ATOMIC_ARG_1]], i32 1, i32 [[MEM_ORDER_1]])
+; CHECK: call void @__itt_offload_atomic_op_start(i32 addrspace(1)* %[[ATOMIC_ARG_1:[0-9a-zA-Z._]+]], i32 1, i32 0
+; CHECK-NEXT: {{.*}}__spirv_AtomicStore{{.*}}(i32 addrspace(1)* %[[ATOMIC_ARG_1]],{{.*}}, i32 896
+; CHECK-NEXT: call void @__itt_offload_atomic_op_finish(i32 addrspace(1)* %[[ATOMIC_ARG_1]], i32 1, i32 0
   tail call spir_func void @_Z19__spirv_AtomicStorePU3AS1iN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEi(i32 addrspace(1)* %add.ptr.i, i32 1, i32 896, i32 %conv.i.i) #2
   br label %_ZZN2cl4sycl7handler24parallel_for_lambda_implI12store_kernelIiEZZ10store_testIiEvNS0_5queueEmENKUlRS1_E_clES7_EUlNS0_4itemILi1ELb1EEEE_Li1EEEvNS0_5rangeIXT1_EEET0_ENKUlSA_E_clESA_.exit
 
@@ -70,9 +70,9 @@ entry:
   %3 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*), align 32, !noalias !15
   %4 = extractelement <3 x i64> %3, i64 0
   %conv.i = trunc i64 %4 to i32
-; CHECK: call void @__itt_offload_atomic_op_start(i32 addrspace(1)* %[[ATOMIC_ARG_2:[0-9a-zA-Z._]+]], i32 1, i32 [[MEM_ORDER_2:[0-9]+]])
-; CHECK-NEXT: {{.*}}__spirv_AtomicStore{{.*}}(i32 addrspace(1)* %[[ATOMIC_ARG_2]],{{.*}}, i32 [[MEM_ORDER_2]]
-; CHECK-NEXT: call void @__itt_offload_atomic_op_finish(i32 addrspace(1)* %[[ATOMIC_ARG_2]], i32 1, i32 [[MEM_ORDER_2]])
+; CHECK: call void @__itt_offload_atomic_op_start(i32 addrspace(1)* %[[ATOMIC_ARG_2:[0-9a-zA-Z._]+]], i32 1, i32 0)
+; CHECK-NEXT: {{.*}}__spirv_AtomicStore{{.*}}(i32 addrspace(1)* %[[ATOMIC_ARG_2]],{{.*}}, i32 896
+; CHECK-NEXT: call void @__itt_offload_atomic_op_finish(i32 addrspace(1)* %[[ATOMIC_ARG_2]], i32 1, i32 0)
   tail call spir_func void @_Z19__spirv_AtomicStorePU3AS1iN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEi(i32 addrspace(1)* %add.ptr.i, i32 1, i32 896, i32 %conv.i) #2
 ; CHECK: call void @__itt_offload_wi_finish_wrapper()
 ; CHECK-NEXT: ret void
