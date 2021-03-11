@@ -33,9 +33,9 @@ struct Func {
   [[intelfpga::max_global_work_dim(2)]] void operator()() const {}
 };
 
-// Checking of duplicate argument values.
+// No diagnostic is thrown since arguments match. Duplicate attribute is silently ignored.
 [[intel::max_global_work_dim(2)]] void bar();
-[[intel::max_global_work_dim(2)]] void bar() {} // OK
+[[intel::max_global_work_dim(2)]] void bar() {}
 
 // Checking of different argument values.
 [[intel::max_global_work_dim(2)]] void baz();  // expected-note {{previous attribute is here}}
