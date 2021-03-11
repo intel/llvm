@@ -3462,6 +3462,7 @@ void Sema::AddSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
     if (Res.isInvalid())
       return;
     E = Res.get();
+
     // This attribute requires a non-negative value.
     if (ArgVal < 0) {
       Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
@@ -3496,12 +3497,6 @@ void Sema::AddSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
 
   D->addAttr(::new (Context) SYCLIntelLoopFuseAttr(Context, CI, E));
 }
-<<<<<<< HEAD
-SYCLIntelLoopFuseAttr *
-Sema::mergeSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
-                                 Expr *E) {
-=======
->>>>>>> sycl
 
 SYCLIntelLoopFuseAttr *
 Sema::MergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &A) {
