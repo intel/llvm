@@ -56,9 +56,9 @@ enum KernelInvocationKind {
   InvokeParallelForWorkGroup
 };
 
-const static std::string InitMethodName = "__init";
-const static std::string InitESIMDMethodName = "__init_esimd";
-const static std::string FinalizeMethodName = "__finalize";
+static constexpr llvm::StringLiteral InitMethodName = "__init";
+static constexpr llvm::StringLiteral InitESIMDMethodName = "__init_esimd";
+static constexpr llvm::StringLiteral FinalizeMethodName = "__finalize";
 constexpr unsigned MaxKernelArgsSize = 2048;
 
 namespace {
@@ -1713,7 +1713,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
                          bool isAccessorType = false) {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
-    const std::string &MethodName =
+    llvm::StringLiteral MethodName =
         KernelDecl->hasAttr<SYCLSimdAttr>() && isAccessorType
             ? InitESIMDMethodName
             : InitMethodName;
@@ -1827,9 +1827,9 @@ public:
                               QualType FieldTy) final {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
-    const std::string MethodName = KernelDecl->hasAttr<SYCLSimdAttr>()
-                                       ? InitESIMDMethodName
-                                       : InitMethodName;
+    llvm::StringLiteral MethodName = KernelDecl->hasAttr<SYCLSimdAttr>()
+                                         ? InitESIMDMethodName
+                                         : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The accessor/sampler must have the __init method");
 
@@ -1972,7 +1972,7 @@ class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
   bool handleSpecialType(QualType FieldTy) {
     const CXXRecordDecl *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
-    const std::string &MethodName =
+    llvm::StringLiteral MethodName =
         IsSIMD ? InitESIMDMethodName : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The accessor/sampler must have the __init method");
@@ -2386,7 +2386,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     return VD;
   }
 
-  const std::string &getInitMethodName() const {
+  const llvm::StringLiteral getInitMethodName() const {
     bool IsSIMDKernel = isESIMDKernelType(KernelObj);
     return IsSIMDKernel ? InitESIMDMethodName : InitMethodName;
   }
