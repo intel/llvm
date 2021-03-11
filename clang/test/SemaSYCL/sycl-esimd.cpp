@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-explicit-simd -fsyntax-only -Wno-sycl-2017-compat -verify %s
+// RUN: %clang_cc1 -fsycl-is-device -fsycl-explicit-simd -fsyntax-only -Wno-sycl-2017-compat -verify %s
 
 // ----------- Negative tests
 
@@ -74,4 +74,32 @@ struct Kernel3 {
 
 void bar3() {
   kernel3(Kernel3{});
+}
+
+// -- Clang-style [[sycl_explicit_simd]] attribute for functor object kernel.
+
+template <typename F, typename ID = F>
+[[clang::sycl_kernel]] void kernel4(const F &f) {
+  f();
+}
+
+struct Kernel4 {
+  [[intel::sycl_explicit_simd]] void operator()() const {}
+};
+
+void bar4() {
+  kernel4(Kernel4{});
+}
+
+// -- Clang-style [[sycl_explicit_simd]] attribute for lambda and free function.
+
+template <typename ID, typename F>
+[[clang::sycl_kernel]] void kernel5(const F &f) {
+  f();
+}
+
+[[intel::sycl_explicit_simd]] void g5() {}
+
+void test5() {
+  kernel5<class Kernel5>([=]() [[intel::sycl_explicit_simd]] { g5(); });
 }

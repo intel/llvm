@@ -442,6 +442,9 @@ public:
   void enterCondition(Sema &S, SourceLocation Tok);
   void enterReturn(Sema &S, SourceLocation Tok);
   void enterVariableInit(SourceLocation Tok, Decl *D);
+  /// Handles e.g. BaseType{ .D = Tok...
+  void enterDesignatedInitializer(SourceLocation Tok, QualType BaseType,
+                                  const Designation &D);
   /// Computing a type for the function argument may require running
   /// overloading, so we postpone its computation until it is actually needed.
   ///
@@ -3468,8 +3471,6 @@ public:
   EnforceTCBLeafAttr *mergeEnforceTCBLeafAttr(Decl *D,
                                               const EnforceTCBLeafAttr &AL);
 
-  SYCLIntelLoopFuseAttr *
-  mergeSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E);
   void mergeDeclAttributes(NamedDecl *New, Decl *Old,
                            AvailabilityMergeKind AMK = AMK_Redeclaration);
   void MergeTypedefNameDecl(Scope *S, TypedefNameDecl *New,
@@ -6725,7 +6726,7 @@ public:
   /// Number lambda for linkage purposes if necessary.
   void handleLambdaNumbering(
       CXXRecordDecl *Class, CXXMethodDecl *Method,
-      Optional<std::tuple<unsigned, bool, Decl *>> Mangling = None);
+      Optional<std::tuple<bool, unsigned, unsigned, Decl *>> Mangling = None);
 
   /// Endow the lambda scope info with the relevant properties.
   void buildLambdaScope(sema::LambdaScopeInfo *LSI,
@@ -10206,12 +10207,40 @@ public:
   void AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
                                 Expr **Exprs, unsigned Size);
   template <typename AttrType>
-  void addIntelSYCLSingleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
-                                         Expr *E);
+  void addIntelSingleArgAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E);
   template <typename AttrType>
-  void addIntelSYCLTripleArgFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
-                                         Expr *XDimExpr, Expr *YDimExpr,
-                                         Expr *ZDimExpr);
+  void addIntelTripleArgAttr(Decl *D, const AttributeCommonInfo &CI,
+                             Expr *XDimExpr, Expr *YDimExpr, Expr *ZDimExpr);
+  void AddIntelReqdSubGroupSize(Decl *D, const AttributeCommonInfo &CI,
+                                Expr *E);
+  IntelReqdSubGroupSizeAttr *
+  MergeIntelReqdSubGroupSizeAttr(Decl *D, const IntelReqdSubGroupSizeAttr &A);
+  void AddSYCLIntelNumSimdWorkItemsAttr(Decl *D, const AttributeCommonInfo &CI,
+                                        Expr *E);
+  SYCLIntelNumSimdWorkItemsAttr *
+  MergeSYCLIntelNumSimdWorkItemsAttr(Decl *D,
+                                     const SYCLIntelNumSimdWorkItemsAttr &A);
+  void AddSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
+                                              const AttributeCommonInfo &CI,
+                                              Expr *E);
+  SYCLIntelSchedulerTargetFmaxMhzAttr *MergeSYCLIntelSchedulerTargetFmaxMhzAttr(
+      Decl *D, const SYCLIntelSchedulerTargetFmaxMhzAttr &A);
+  void AddSYCLIntelNoGlobalWorkOffsetAttr(Decl *D,
+                                          const AttributeCommonInfo &CI,
+                                          Expr *E);
+  SYCLIntelNoGlobalWorkOffsetAttr *MergeSYCLIntelNoGlobalWorkOffsetAttr(
+      Decl *D, const SYCLIntelNoGlobalWorkOffsetAttr &A);
+  void AddSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
+                                Expr *E);
+  SYCLIntelLoopFuseAttr *
+  MergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &A);
+  void AddIntelFPGAPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
+                                     Expr *E);
+  void AddIntelFPGAMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
+                                     Expr *E);
+  IntelFPGAMaxReplicatesAttr *
+  MergeIntelFPGAMaxReplicatesAttr(Decl *D, const IntelFPGAMaxReplicatesAttr &A);
+
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
                       bool IsPackExpansion);
@@ -10265,8 +10294,6 @@ public:
   /// addSYCLIntelPipeIOAttr - Adds a pipe I/O attribute to a particular
   /// declaration.
   void addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &CI, Expr *ID);
-  void addSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
-                                Expr *E);
 
   bool checkNSReturnsRetainedReturnType(SourceLocation loc, QualType type);
   bool checkAllowedSYCLInitializer(VarDecl *VD,
@@ -12140,8 +12167,8 @@ public:
   ///  if (diagIfOpenMPDeviceCode(Loc, diag::err_vla_unsupported))
   ///    return ExprError();
   ///  // Otherwise, continue parsing as normal.
-  SemaDiagnosticBuilder diagIfOpenMPDeviceCode(SourceLocation Loc,
-                                               unsigned DiagID);
+  SemaDiagnosticBuilder
+  diagIfOpenMPDeviceCode(SourceLocation Loc, unsigned DiagID, FunctionDecl *FD);
 
   /// Creates a SemaDiagnosticBuilder that emits the diagnostic if the current
   /// context is "used as host code".
@@ -12157,17 +12184,19 @@ public:
   ///    return ExprError();
   ///  // Otherwise, continue parsing as normal.
   SemaDiagnosticBuilder diagIfOpenMPHostCode(SourceLocation Loc,
-                                             unsigned DiagID);
+                                             unsigned DiagID, FunctionDecl *FD);
 
-  SemaDiagnosticBuilder targetDiag(SourceLocation Loc, unsigned DiagID);
+  SemaDiagnosticBuilder targetDiag(SourceLocation Loc, unsigned DiagID,
+                                   FunctionDecl *FD = nullptr);
   SemaDiagnosticBuilder targetDiag(SourceLocation Loc,
-                                   const PartialDiagnostic &PD) {
-    return targetDiag(Loc, PD.getDiagID()) << PD;
+                                   const PartialDiagnostic &PD,
+                                   FunctionDecl *FD = nullptr) {
+    return targetDiag(Loc, PD.getDiagID(), FD) << PD;
   }
 
   /// Check if the expression is allowed to be used in expressions for the
   /// offloading devices.
-  void checkDeviceDecl(const ValueDecl *D, SourceLocation Loc);
+  void checkDeviceDecl(ValueDecl *D, SourceLocation Loc);
 
   enum CUDAFunctionTarget {
     CFT_Device,
@@ -13059,9 +13088,8 @@ public:
 };
 
 template <typename AttrType>
-void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
-                                             const AttributeCommonInfo &CI,
-                                             Expr *E) {
+void Sema::addIntelSingleArgAttr(Decl *D, const AttributeCommonInfo &CI,
+                                 Expr *E) {
   assert(E && "Attribute must have an argument.");
 
   if (!E->isInstantiationDependent()) {
@@ -13071,23 +13099,17 @@ void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
       return;
     E = ICE.get();
     int32_t ArgInt = ArgVal.getSExtValue();
-    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelNumSimdWorkItems ||
-        CI.getParsedKind() == ParsedAttr::AT_IntelReqdSubGroupSize) {
-      if (ArgInt <= 0) {
+    if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
+      if (ArgInt < 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-            << CI.getAttrName() << /*positive*/ 0;
+            << CI << /*non-negative*/ 1;
         return;
       }
     }
     if (CI.getParsedKind() == ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim) {
-      if (ArgInt < 0) {
-        Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-            << CI.getAttrName() << /*non-negative*/ 1;
-        return;
-      }
       if (ArgInt > 3) {
         Diag(E->getBeginLoc(), diag::err_attribute_argument_out_of_range)
-            << CI.getAttrName() << 0 << 3 << E->getSourceRange();
+            << CI << 0 << 3 << E->getSourceRange();
         return;
       }
     }
@@ -13128,10 +13150,9 @@ static Expr *checkMaxWorkSizeAttrExpr(Sema &S, const AttributeCommonInfo &CI,
 }
 
 template <typename WorkGroupAttrType>
-void Sema::addIntelSYCLTripleArgFunctionAttr(Decl *D,
-                                             const AttributeCommonInfo &CI,
-                                             Expr *XDimExpr, Expr *YDimExpr,
-                                             Expr *ZDimExpr) {
+void Sema::addIntelTripleArgAttr(Decl *D, const AttributeCommonInfo &CI,
+                                 Expr *XDimExpr, Expr *YDimExpr,
+                                 Expr *ZDimExpr) {
 
   assert((XDimExpr && YDimExpr && ZDimExpr) &&
          "argument has unexpected null value");
@@ -13164,13 +13185,6 @@ void Sema::AddOneConstantValueAttr(Decl *D, const AttributeCommonInfo &CI,
       return;
     E = ICE.get();
   }
-
-  if (IntelFPGAPrivateCopiesAttr::classof(&TmpAttr)) {
-    if (!D->hasAttr<IntelFPGAMemoryAttr>())
-      D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
-          Context, IntelFPGAMemoryAttr::Default));
-  }
-
   D->addAttr(::new (Context) AttrType(Context, CI, E));
 }
 
@@ -13181,12 +13195,15 @@ void Sema::AddOneConstantPowerTwoValueAttr(Decl *D,
   AttrType TmpAttr(Context, CI, E);
 
   if (!E->isValueDependent()) {
-    ExprResult ICE;
-    if (checkRangedIntegralArgument<AttrType>(E, &TmpAttr, ICE))
+    llvm::APSInt Value;
+    ExprResult ICE = VerifyIntegerConstantExpression(E, &Value);
+    if (ICE.isInvalid())
       return;
-    Expr::EvalResult Result;
-    E->EvaluateAsInt(Result, Context);
-    llvm::APSInt Value = Result.Val.getInt();
+    if (!Value.isStrictlyPositive()) {
+      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+          << CI << /*positive*/ 0;
+      return;
+    }
     if (!Value.isPowerOf2()) {
       Diag(CI.getLoc(), diag::err_attribute_argument_not_power_of_two)
           << &TmpAttr;

@@ -360,6 +360,7 @@ kmpc_set_defaults                           224
         __kmpc_team_static_init_4u          256
         __kmpc_team_static_init_8           257
         __kmpc_team_static_init_8u          258
+        __kmpc_push_num_teams_51            284
 %endif
 
 %ifndef stub
@@ -537,6 +538,10 @@ kmp_set_disp_num_buffers                    890
     omp_pause_resource_all                  757
     omp_get_supported_active_levels         758
     omp_fulfill_event                       759
+    omp_set_num_teams                       802
+    omp_get_max_teams                       803
+    omp_set_teams_thread_limit              804
+    omp_get_teams_thread_limit              805
     omp_display_env                         733
     omp_calloc                              776
     omp_realloc                             777

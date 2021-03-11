@@ -26,6 +26,8 @@
 #include "clang/Basic/TargetBuiltins.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
+#include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Analysis/ValueTracking.h"
@@ -2985,10 +2987,32 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   }
   case Builtin::BI__builtin_isnan: {
     CodeGenFunction::CGFPOptionsRAII FPOptsRAII(*this, E);
-    // FIXME: for strictfp/IEEE-754 we need to not trap on SNaN here.
     Value *V = EmitScalarExpr(E->getArg(0));
-    V = Builder.CreateFCmpUNO(V, V, "cmp");
-    return RValue::get(Builder.CreateZExt(V, ConvertType(E->getType())));
+    llvm::Type *Ty = V->getType();
+    const llvm::fltSemantics &Semantics = Ty->getFltSemantics();
+    if (!Builder.getIsFPConstrained() ||
+        Builder.getDefaultConstrainedExcept() == fp::ebIgnore ||
+        !Ty->isIEEE()) {
+      V = Builder.CreateFCmpUNO(V, V, "cmp");
+      return RValue::get(Builder.CreateZExt(V, ConvertType(E->getType())));
+    }
+
+    // NaN has all exp bits set and a non zero significand. Therefore:
+    // isnan(V) == ((exp mask - (abs(V) & exp mask)) < 0)
+    unsigned bitsize = Ty->getScalarSizeInBits();
+    llvm::IntegerType *IntTy = Builder.getIntNTy(bitsize);
+    Value *IntV = Builder.CreateBitCast(V, IntTy);
+    APInt AndMask = APInt::getSignedMaxValue(bitsize);
+    Value *AbsV =
+        Builder.CreateAnd(IntV, llvm::ConstantInt::get(IntTy, AndMask));
+    APInt ExpMask = APFloat::getInf(Semantics).bitcastToAPInt();
+    Value *Sub =
+        Builder.CreateSub(llvm::ConstantInt::get(IntTy, ExpMask), AbsV);
+    // V = sign bit (Sub) <=> V = (Sub < 0)
+    V = Builder.CreateLShr(Sub, llvm::ConstantInt::get(IntTy, bitsize - 1));
+    if (bitsize > 32)
+      V = Builder.CreateTrunc(V, ConvertType(E->getType()));
+    return RValue::get(V);
   }
 
   case Builtin::BI__builtin_matrix_transpose: {
@@ -5814,6 +5838,15 @@ static const ARMVectorIntrinsicInfo AArch64SIMDIntrinsicMap[] = {
   NEONMAP0(vshr_n_v),
   NEONMAP0(vshrn_n_v),
   NEONMAP0(vshrq_n_v),
+  NEONMAP1(vsm3partw1q_v, aarch64_crypto_sm3partw1, 0),
+  NEONMAP1(vsm3partw2q_v, aarch64_crypto_sm3partw2, 0),
+  NEONMAP1(vsm3ss1q_v, aarch64_crypto_sm3ss1, 0),
+  NEONMAP1(vsm3tt1aq_v, aarch64_crypto_sm3tt1a, 0),
+  NEONMAP1(vsm3tt1bq_v, aarch64_crypto_sm3tt1b, 0),
+  NEONMAP1(vsm3tt2aq_v, aarch64_crypto_sm3tt2a, 0),
+  NEONMAP1(vsm3tt2bq_v, aarch64_crypto_sm3tt2b, 0),
+  NEONMAP1(vsm4ekeyq_v, aarch64_crypto_sm4ekey, 0),
+  NEONMAP1(vsm4eq_v, aarch64_crypto_sm4e, 0),
   NEONMAP1(vst1_x2_v, aarch64_neon_st1x2, 0),
   NEONMAP1(vst1_x3_v, aarch64_neon_st1x3, 0),
   NEONMAP1(vst1_x4_v, aarch64_neon_st1x4, 0),
@@ -6691,6 +6724,22 @@ Value *CodeGenFunction::EmitCommonNeonBuiltinExpr(
     llvm::Type *Tys[] = {Int8PtrTy, Ty};
     Ops.push_back(getAlignmentValue32(PtrOp0));
     return EmitNeonCall(CGM.getIntrinsic(Int, Tys), Ops, "");
+  }
+  case NEON::BI__builtin_neon_vsm3partw1q_v:
+  case NEON::BI__builtin_neon_vsm3partw2q_v:
+  case NEON::BI__builtin_neon_vsm3ss1q_v:
+  case NEON::BI__builtin_neon_vsm4ekeyq_v:
+  case NEON::BI__builtin_neon_vsm4eq_v: {
+    Function *F = CGM.getIntrinsic(Int);
+    return EmitNeonCall(F, Ops, "");
+  }
+  case NEON::BI__builtin_neon_vsm3tt1aq_v:
+  case NEON::BI__builtin_neon_vsm3tt1bq_v:
+  case NEON::BI__builtin_neon_vsm3tt2aq_v:
+  case NEON::BI__builtin_neon_vsm3tt2bq_v: {
+    Function *F = CGM.getIntrinsic(Int);
+    Ops[3] = Builder.CreateZExt(Ops[3], Int64Ty);
+    return EmitNeonCall(F, Ops, "");
   }
   case NEON::BI__builtin_neon_vst1_x2_v:
   case NEON::BI__builtin_neon_vst1q_x2_v:
@@ -11670,7 +11719,7 @@ static Value *EmitX86ConvertToMask(CodeGenFunction &CGF, Value *In) {
   return EmitX86MaskedCompare(CGF, 1, true, { In, Zero });
 }
 
-static Value *EmitX86ConvertIntToFp(CodeGenFunction &CGF,
+static Value *EmitX86ConvertIntToFp(CodeGenFunction &CGF, const CallExpr *E,
                                     ArrayRef<Value *> Ops, bool IsSigned) {
   unsigned Rnd = cast<llvm::ConstantInt>(Ops[3])->getZExtValue();
   llvm::Type *Ty = Ops[1]->getType();
@@ -11682,6 +11731,7 @@ static Value *EmitX86ConvertIntToFp(CodeGenFunction &CGF,
     Function *F = CGF.CGM.getIntrinsic(IID, { Ty, Ops[0]->getType() });
     Res = CGF.Builder.CreateCall(F, { Ops[0], Ops[3] });
   } else {
+    CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, E);
     Res = IsSigned ? CGF.Builder.CreateSIToFP(Ops[0], Ty)
                    : CGF.Builder.CreateUIToFP(Ops[0], Ty);
   }
@@ -11690,8 +11740,9 @@ static Value *EmitX86ConvertIntToFp(CodeGenFunction &CGF,
 }
 
 // Lowers X86 FMA intrinsics to IR.
-static Value *EmitX86FMAExpr(CodeGenFunction &CGF, ArrayRef<Value *> Ops,
-                             unsigned BuiltinID, bool IsAddSub) {
+static Value *EmitX86FMAExpr(CodeGenFunction &CGF, const CallExpr *E,
+                             ArrayRef<Value *> Ops, unsigned BuiltinID,
+                             bool IsAddSub) {
 
   bool Subtract = false;
   Intrinsic::ID IID = Intrinsic::not_intrinsic;
@@ -11748,6 +11799,7 @@ static Value *EmitX86FMAExpr(CodeGenFunction &CGF, ArrayRef<Value *> Ops,
     llvm::Type *Ty = A->getType();
     Function *FMA;
     if (CGF.Builder.getIsFPConstrained()) {
+      CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, E);
       FMA = CGF.CGM.getIntrinsic(Intrinsic::experimental_constrained_fma, Ty);
       Res = CGF.Builder.CreateConstrainedFPCall(FMA, {A, B, C});
     } else {
@@ -11789,10 +11841,10 @@ static Value *EmitX86FMAExpr(CodeGenFunction &CGF, ArrayRef<Value *> Ops,
   return Res;
 }
 
-static Value *
-EmitScalarFMAExpr(CodeGenFunction &CGF, MutableArrayRef<Value *> Ops,
-                  Value *Upper, bool ZeroMask = false, unsigned PTIdx = 0,
-                  bool NegAcc = false) {
+static Value *EmitScalarFMAExpr(CodeGenFunction &CGF, const CallExpr *E,
+                                MutableArrayRef<Value *> Ops, Value *Upper,
+                                bool ZeroMask = false, unsigned PTIdx = 0,
+                                bool NegAcc = false) {
   unsigned Rnd = 4;
   if (Ops.size() > 4)
     Rnd = cast<llvm::ConstantInt>(Ops[4])->getZExtValue();
@@ -11811,6 +11863,7 @@ EmitScalarFMAExpr(CodeGenFunction &CGF, MutableArrayRef<Value *> Ops,
     Res = CGF.Builder.CreateCall(CGF.CGM.getIntrinsic(IID),
                                  {Ops[0], Ops[1], Ops[2], Ops[4]});
   } else if (CGF.Builder.getIsFPConstrained()) {
+    CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, E);
     Function *FMA = CGF.CGM.getIntrinsic(
         Intrinsic::experimental_constrained_fma, Ops[0]->getType());
     Res = CGF.Builder.CreateConstrainedFPCall(FMA, Ops.slice(0, 3));
@@ -12148,8 +12201,9 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
   // TODO: The builtins could be removed if the SSE header files used vector
   // extension comparisons directly (vector ordered/unordered may need
   // additional support via __builtin_isnan()).
-  auto getVectorFCmpIR = [this, &Ops](CmpInst::Predicate Pred,
-                                      bool IsSignaling) {
+  auto getVectorFCmpIR = [this, &Ops, E](CmpInst::Predicate Pred,
+                                         bool IsSignaling) {
+    CodeGenFunction::CGFPOptionsRAII FPOptsRAII(*this, E);
     Value *Cmp;
     if (IsSignaling)
       Cmp = Builder.CreateFCmpS(Pred, Ops[0], Ops[1]);
@@ -12391,31 +12445,31 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
   case X86::BI__builtin_ia32_cvtdq2ps512_mask:
   case X86::BI__builtin_ia32_cvtqq2ps512_mask:
   case X86::BI__builtin_ia32_cvtqq2pd512_mask:
-    return EmitX86ConvertIntToFp(*this, Ops, /*IsSigned*/true);
+    return EmitX86ConvertIntToFp(*this, E, Ops, /*IsSigned*/ true);
   case X86::BI__builtin_ia32_cvtudq2ps512_mask:
   case X86::BI__builtin_ia32_cvtuqq2ps512_mask:
   case X86::BI__builtin_ia32_cvtuqq2pd512_mask:
-    return EmitX86ConvertIntToFp(*this, Ops, /*IsSigned*/false);
+    return EmitX86ConvertIntToFp(*this, E, Ops, /*IsSigned*/ false);
 
   case X86::BI__builtin_ia32_vfmaddss3:
   case X86::BI__builtin_ia32_vfmaddsd3:
   case X86::BI__builtin_ia32_vfmaddss3_mask:
   case X86::BI__builtin_ia32_vfmaddsd3_mask:
-    return EmitScalarFMAExpr(*this, Ops, Ops[0]);
+    return EmitScalarFMAExpr(*this, E, Ops, Ops[0]);
   case X86::BI__builtin_ia32_vfmaddss:
   case X86::BI__builtin_ia32_vfmaddsd:
-    return EmitScalarFMAExpr(*this, Ops,
+    return EmitScalarFMAExpr(*this, E, Ops,
                              Constant::getNullValue(Ops[0]->getType()));
   case X86::BI__builtin_ia32_vfmaddss3_maskz:
   case X86::BI__builtin_ia32_vfmaddsd3_maskz:
-    return EmitScalarFMAExpr(*this, Ops, Ops[0], /*ZeroMask*/true);
+    return EmitScalarFMAExpr(*this, E, Ops, Ops[0], /*ZeroMask*/ true);
   case X86::BI__builtin_ia32_vfmaddss3_mask3:
   case X86::BI__builtin_ia32_vfmaddsd3_mask3:
-    return EmitScalarFMAExpr(*this, Ops, Ops[2], /*ZeroMask*/false, 2);
+    return EmitScalarFMAExpr(*this, E, Ops, Ops[2], /*ZeroMask*/ false, 2);
   case X86::BI__builtin_ia32_vfmsubss3_mask3:
   case X86::BI__builtin_ia32_vfmsubsd3_mask3:
-    return EmitScalarFMAExpr(*this, Ops, Ops[2], /*ZeroMask*/false, 2,
-                             /*NegAcc*/true);
+    return EmitScalarFMAExpr(*this, E, Ops, Ops[2], /*ZeroMask*/ false, 2,
+                             /*NegAcc*/ true);
   case X86::BI__builtin_ia32_vfmaddps:
   case X86::BI__builtin_ia32_vfmaddpd:
   case X86::BI__builtin_ia32_vfmaddps256:
@@ -12428,7 +12482,7 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
   case X86::BI__builtin_ia32_vfmaddpd512_maskz:
   case X86::BI__builtin_ia32_vfmaddpd512_mask3:
   case X86::BI__builtin_ia32_vfmsubpd512_mask3:
-    return EmitX86FMAExpr(*this, Ops, BuiltinID, /*IsAddSub*/false);
+    return EmitX86FMAExpr(*this, E, Ops, BuiltinID, /*IsAddSub*/ false);
   case X86::BI__builtin_ia32_vfmaddsubps512_mask:
   case X86::BI__builtin_ia32_vfmaddsubps512_maskz:
   case X86::BI__builtin_ia32_vfmaddsubps512_mask3:
@@ -12437,7 +12491,7 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
   case X86::BI__builtin_ia32_vfmaddsubpd512_maskz:
   case X86::BI__builtin_ia32_vfmaddsubpd512_mask3:
   case X86::BI__builtin_ia32_vfmsubaddpd512_mask3:
-    return EmitX86FMAExpr(*this, Ops, BuiltinID, /*IsAddSub*/true);
+    return EmitX86FMAExpr(*this, E, Ops, BuiltinID, /*IsAddSub*/ true);
 
   case X86::BI__builtin_ia32_movdqa32store128_mask:
   case X86::BI__builtin_ia32_movdqa64store128_mask:
@@ -13583,6 +13637,7 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
     Value *A = Builder.CreateExtractElement(Ops[0], (uint64_t)0);
     Function *F;
     if (Builder.getIsFPConstrained()) {
+      CodeGenFunction::CGFPOptionsRAII FPOptsRAII(*this, E);
       F = CGM.getIntrinsic(Intrinsic::experimental_constrained_sqrt,
                            A->getType());
       A = Builder.CreateConstrainedFPCall(F, {A});
@@ -13606,6 +13661,7 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
     Value *A = Builder.CreateExtractElement(Ops[1], (uint64_t)0);
     Function *F;
     if (Builder.getIsFPConstrained()) {
+      CodeGenFunction::CGFPOptionsRAII FPOptsRAII(*this, E);
       F = CGM.getIntrinsic(Intrinsic::experimental_constrained_sqrt,
                            A->getType());
       A = Builder.CreateConstrainedFPCall(F, A);
@@ -13635,6 +13691,7 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
       }
     }
     if (Builder.getIsFPConstrained()) {
+      CodeGenFunction::CGFPOptionsRAII FPOptsRAII(*this, E);
       Function *F = CGM.getIntrinsic(Intrinsic::experimental_constrained_sqrt,
                                      Ops[0]->getType());
       return Builder.CreateConstrainedFPCall(F, Ops[0]);
@@ -13800,13 +13857,29 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
   case X86::BI__builtin_ia32_reduce_fadd_ps512: {
     Function *F =
         CGM.getIntrinsic(Intrinsic::vector_reduce_fadd, Ops[1]->getType());
+    Builder.getFastMathFlags().setAllowReassoc();
     return Builder.CreateCall(F, {Ops[0], Ops[1]});
   }
   case X86::BI__builtin_ia32_reduce_fmul_pd512:
   case X86::BI__builtin_ia32_reduce_fmul_ps512: {
     Function *F =
         CGM.getIntrinsic(Intrinsic::vector_reduce_fmul, Ops[1]->getType());
+    Builder.getFastMathFlags().setAllowReassoc();
     return Builder.CreateCall(F, {Ops[0], Ops[1]});
+  }
+  case X86::BI__builtin_ia32_reduce_fmax_pd512:
+  case X86::BI__builtin_ia32_reduce_fmax_ps512: {
+    Function *F =
+        CGM.getIntrinsic(Intrinsic::vector_reduce_fmax, Ops[0]->getType());
+    Builder.getFastMathFlags().setNoNaNs();
+    return Builder.CreateCall(F, {Ops[0]});
+  }
+  case X86::BI__builtin_ia32_reduce_fmin_pd512:
+  case X86::BI__builtin_ia32_reduce_fmin_ps512: {
+    Function *F =
+        CGM.getIntrinsic(Intrinsic::vector_reduce_fmin, Ops[0]->getType());
+    Builder.getFastMathFlags().setNoNaNs();
+    return Builder.CreateCall(F, {Ops[0]});
   }
   case X86::BI__builtin_ia32_reduce_mul_d512:
   case X86::BI__builtin_ia32_reduce_mul_q512: {
@@ -14179,6 +14252,8 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
     if (IsMaskFCmp) {
       // We ignore SAE if strict FP is disabled. We only keep precise
       // exception behavior under strict FP.
+      // NOTE: If strict FP does ever go through here a CGFPOptionsRAII
+      // object will be required.
       unsigned NumElts =
           cast<llvm::FixedVectorType>(Ops[0]->getType())->getNumElements();
       Value *Cmp;
@@ -14231,8 +14306,10 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
   case X86::BI__builtin_ia32_vcvtph2ps256:
   case X86::BI__builtin_ia32_vcvtph2ps_mask:
   case X86::BI__builtin_ia32_vcvtph2ps256_mask:
-  case X86::BI__builtin_ia32_vcvtph2ps512_mask:
+  case X86::BI__builtin_ia32_vcvtph2ps512_mask: {
+    CodeGenFunction::CGFPOptionsRAII FPOptsRAII(*this, E);
     return EmitX86CvtF16ToFloatExpr(*this, Ops, ConvertType(E->getType()));
+  }
 
 // AVX512 bf16 intrinsics
   case X86::BI__builtin_ia32_cvtneps2bf16_128_mask: {
@@ -17225,6 +17302,24 @@ Value *CodeGenFunction::EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
     }
     Function *Callee = CGM.getIntrinsic(IntNo);
     return Builder.CreateCall(Callee, Vec);
+  }
+  case WebAssembly::BI__builtin_wasm_widen_s_i8x16_i32x4:
+  case WebAssembly::BI__builtin_wasm_widen_u_i8x16_i32x4: {
+    Value *Vec = EmitScalarExpr(E->getArg(0));
+    llvm::APSInt SubVecConst =
+        *E->getArg(1)->getIntegerConstantExpr(getContext());
+    Value *SubVec = llvm::ConstantInt::get(getLLVMContext(), SubVecConst);
+    unsigned IntNo;
+    switch (BuiltinID) {
+    case WebAssembly::BI__builtin_wasm_widen_s_i8x16_i32x4:
+      IntNo = Intrinsic::wasm_widen_signed;
+      break;
+    case WebAssembly::BI__builtin_wasm_widen_u_i8x16_i32x4:
+      IntNo = Intrinsic::wasm_widen_unsigned;
+      break;
+    }
+    Function *Callee = CGM.getIntrinsic(IntNo);
+    return Builder.CreateCall(Callee, {Vec, SubVec});
   }
   case WebAssembly::BI__builtin_wasm_convert_low_s_i32x4_f64x2:
   case WebAssembly::BI__builtin_wasm_convert_low_u_i32x4_f64x2: {

@@ -247,6 +247,9 @@ def ext_designated_init_reordered : ExtWarn<
   SFINAEFailure;
 def note_previous_field_init : Note<
   "previous initialization for field %0 is here">;
+def ext_designated_init_brace_elision : ExtWarn<
+  "brace elision for designated initializer is a C99 extension">,
+  InGroup<C99Designator>, SFINAEFailure;
 
 // Declarations.
 def ext_plain_complex : ExtWarn<
@@ -4142,6 +4145,17 @@ def err_swift_async_no_access : Error<
 def err_swift_async_bad_block_type : Error<
   "'swift_async' completion handler parameter must have block type returning"
   " 'void', type here is %0">;
+
+def err_swift_async_error_without_swift_async : Error<
+  "%0 attribute must be applied to a %select{function|method}1 annotated "
+  "with non-'none' attribute 'swift_async'">;
+def err_swift_async_error_no_error_parameter : Error<
+  "%0 attribute with 'nonnull_error' convention can only be applied to a "
+  "%select{function|method}1 with a completion handler with an error "
+  "parameter">;
+def err_swift_async_error_non_integral : Error<
+  "%0 attribute with '%1' convention must have an integral-typed parameter "
+  "in completion handler at index %2, type here is %3">;
 
 def warn_ignored_objc_externally_retained : Warning<
   "'objc_externally_retained' can only be applied to local variables "
@@ -8588,7 +8602,7 @@ def err_invalid_conversion_between_vector_and_integer : Error<
   "of different size">;
 
 def err_opencl_function_pointer : Error<
-  "pointers to functions are not allowed">;
+  "%select{pointers|references}0 to functions are not allowed">;
 
 def err_opencl_taking_address_capture : Error<
   "taking address of a capture is not allowed">;
@@ -9659,7 +9673,7 @@ def warn_duplicate_attribute_exact : Warning<
   "attribute %0 is already applied">, InGroup<IgnoredAttributes>;
 
 def warn_duplicate_attribute : Warning<
-  "attribute %0 is already applied with different parameters">,
+  "attribute %0 is already applied with different arguments">,
   InGroup<IgnoredAttributes>;
 
 def warn_sync_fetch_and_nand_semantics_change : Warning<
@@ -11212,6 +11226,9 @@ def err_sycl_invalid_accessor_property_list_template_param : Error<
   "%select{accessor_property_list|accessor_property_list pack argument|buffer_location}0 "
   "template parameter must be a "
   "%select{parameter pack|type|non-negative integer}1">;
+def err_sycl_num_kernel_wrong_reqd_wg_size : Error<
+  "%0 attribute must evenly divide the work-group size for the %1 attribute">;
+
 def warn_sycl_pass_by_value_deprecated 
     : Warning<"Passing kernel functions by value is deprecated in SYCL 2020">,
       InGroup<Sycl2020Compat>, ShowInSystemHeader;

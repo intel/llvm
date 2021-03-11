@@ -49,25 +49,24 @@ if(MLIR_ROCM_RUNNER_ENABLED)
   # Set HIP compile-time flags.
   add_definitions(-D__HIP_PLATFORM_HCC__)
 
-  add_llvm_library(rocm-runtime-wrappers SHARED
+  add_mlir_library(rocm-runtime-wrappers
+    SHARED
     rocm-runtime-wrappers.cpp
+
+    EXCLUDE_FROM_LIBMLIR
   )
   target_include_directories(rocm-runtime-wrappers
     PRIVATE
     "${HIP_PATH}/../include"
     "${HIP_PATH}/include"
-    LLVMSupport
   )
   target_link_libraries(rocm-runtime-wrappers
-    PUBLIC
-    LLVMSupport
+    PRIVATE
     ${ROCM_RUNTIME_LIBRARY}
   )
 
-  get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
   get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
   set(LIBS
-    ${dialect_libs}
     ${conversion_libs}
     lldCommon
     lldDriver
@@ -76,12 +75,15 @@ if(MLIR_ROCM_RUNNER_ENABLED)
     MLIRAnalysis
     MLIREDSC
     MLIRExecutionEngine
+    MLIRGPU
     MLIRIR
+    MLIRLLVMIR
     MLIRParser
     MLIRROCDLIR
+    MLIRStandard
     MLIRSupport
     MLIRTargetLLVMIR
-    MLIRTargetROCDLIR
+    MLIRROCDLToLLVMIRTranslation
     MLIRTransforms
     MLIRTranslation
     ${ROCM_RUNTIME_LIBRARY}

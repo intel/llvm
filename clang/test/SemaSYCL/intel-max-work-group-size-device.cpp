@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 %s -fsyntax-only -fsycl -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -triple spir64 -DTRIGGER_ERROR -verify
-// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -triple spir64 | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -triple spir64 -DTRIGGER_ERROR -verify
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -triple spir64 | FileCheck %s
 
 #include "sycl.hpp"
 
@@ -130,7 +130,7 @@ int main() {
 
     h.single_task<class test_kernel8>(
         []() [[intel::max_work_group_size(16, 16, 16),   // expected-note{{conflicting attribute is here}}
-               intel::max_work_group_size(2, 2, 2)]]{}); // expected-warning{{attribute 'max_work_group_size' is already applied with different parameters}}
+               intel::max_work_group_size(2, 2, 2)]]{}); // expected-warning{{attribute 'max_work_group_size' is already applied with different arguments}}
 
     h.single_task<class test_kernel9>(
         DAFuncObj());

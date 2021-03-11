@@ -129,7 +129,28 @@ public:
             allocator));
   }
 
+  buffer(const shared_ptr_class<T[]> &hostData,
+         const range<dimensions> &bufferRange, AllocatorT allocator,
+         const property_list &propList = {})
+      : Range(bufferRange) {
+    impl = std::make_shared<detail::buffer_impl>(
+        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        propList,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
+            allocator));
+  }
+
   buffer(const shared_ptr_class<T> &hostData,
+         const range<dimensions> &bufferRange,
+         const property_list &propList = {})
+      : Range(bufferRange) {
+    impl = std::make_shared<detail::buffer_impl>(
+        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        propList,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
+  }
+
+  buffer(const shared_ptr_class<T[]> &hostData,
          const range<dimensions> &bufferRange,
          const property_list &propList = {})
       : Range(bufferRange) {

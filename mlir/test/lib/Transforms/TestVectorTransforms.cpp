@@ -45,7 +45,9 @@ struct TestVectorToVectorConversion
     }
     populateVectorToVectorCanonicalizationPatterns(patterns, ctx);
     populateVectorToVectorTransformationPatterns(patterns, ctx);
-    applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
+    populateBubbleVectorBitCastOpPatterns(patterns, ctx);
+    populateCastAwayVectorLeadingOneDimPatterns(patterns, ctx);
+    (void)applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
   }
 
 private:
@@ -68,7 +70,7 @@ struct TestVectorSlicesConversion
   void runOnFunction() override {
     OwningRewritePatternList patterns;
     populateVectorSlicesLoweringPatterns(patterns, &getContext());
-    applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
+    (void)applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
   }
 };
 
@@ -105,7 +107,7 @@ struct TestVectorContractionConversion
       VectorTransformsOptions options{lowering};
       patterns.insert<ContractionOpToOuterProductOpLowering>(options,
                                                              &getContext());
-      applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
+      (void)applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
       return;
     }
 
@@ -121,7 +123,7 @@ struct TestVectorContractionConversion
               return failure();
             return success();
           });
-      applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
+      (void)applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
       return;
     }
 
@@ -135,7 +137,7 @@ struct TestVectorContractionConversion
       transposeLowering = VectorTransposeLowering::Flat;
     VectorTransformsOptions options{contractLowering, transposeLowering};
     populateVectorContractLoweringPatterns(patterns, &getContext(), options);
-    applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
+    (void)applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
   }
 };
 
@@ -182,7 +184,7 @@ struct TestVectorUnrollingPatterns
     }
     populateVectorToVectorCanonicalizationPatterns(patterns, ctx);
     populateVectorToVectorTransformationPatterns(patterns, ctx);
-    applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
+    (void)applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
   }
 
   Option<bool> unrollBasedOnType{
@@ -237,7 +239,7 @@ struct TestVectorDistributePatterns
     });
     patterns.insert<PointwiseExtractPattern>(ctx);
     populateVectorToVectorTransformationPatterns(patterns, ctx);
-    applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
+    (void)applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
   }
 };
 
@@ -297,7 +299,7 @@ struct TestVectorToLoopPatterns
     });
     patterns.insert<PointwiseExtractPattern>(ctx);
     populateVectorToVectorTransformationPatterns(patterns, ctx);
-    applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
+    (void)applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
   }
 };
 
@@ -319,7 +321,7 @@ struct TestVectorTransferUnrollingPatterns
             }));
     populateVectorToVectorCanonicalizationPatterns(patterns, ctx);
     populateVectorToVectorTransformationPatterns(patterns, ctx);
-    applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
+    (void)applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
   }
 };
 
@@ -348,7 +350,7 @@ struct TestVectorTransferFullPartialSplitPatterns
     else
       options.setVectorTransferSplit(VectorTransferSplit::VectorTransfer);
     patterns.insert<VectorTransferFullPartialRewriter>(ctx, options);
-    applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
+    (void)applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
   }
 };
 
