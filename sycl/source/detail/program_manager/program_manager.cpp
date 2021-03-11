@@ -368,35 +368,50 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
   auto GetF = [](const Locked<ProgramCacheT> &LockedCache) -> ProgramCacheT & {
     return LockedCache.get();
   };
-  std::string BuildOptions;
-  if (Prg)
-    BuildOptions = Prg->get_build_options();
-  const RTDeviceBinaryImage &Img =
-      getDeviceImage(M, KSId, Context, Device, JITCompilationIsRequired);
-  std::string CompileOpts = Img.getCompileOptions();
-  std::string LinkOpts = Img.getLinkOptions();
-  pi_device_binary_property isEsimdImage = Img.getProperty("isEsimdImage");
-  if (!BuildOptions.empty()) {
-    CompileOpts += " ";
-    CompileOpts += BuildOptions;
-  }
-  if (isEsimdImage && pi::DeviceBinaryProperty(isEsimdImage).asUint32()) {
-    if (!CompileOpts.empty())
-      CompileOpts += " ";
-    CompileOpts += "-vc-codegen";
-  }
 
-  // Build options are overridden if environment variables are present
-  const char *CompileOptsEnv = SYCLConfig<SYCL_PROGRAM_COMPILE_OPTIONS>::get();
+  std::string CompileOpts;
+  std::string LinkOpts;
+  // Build options are overridden if environment variables are present.
+  // Environment variables are not changed during program lifecycle so it
+  // is reasonable to use static here to read them only once.
+  static const char *CompileOptsEnv =
+      SYCLConfig<SYCL_PROGRAM_COMPILE_OPTIONS>::get();
   if (CompileOptsEnv) {
     CompileOpts = CompileOptsEnv;
+  } else { // Use build options only when the environment variable is missed
+    if (Prg) {
+      std::string BuildOptions = Prg->get_build_options();
+      if (!BuildOptions.empty()) {
+        CompileOpts += " ";
+        CompileOpts += BuildOptions;
+      }
+    }
   }
-  const char *LinkOptsEnv = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
+  static const char *LinkOptsEnv = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
   if (LinkOptsEnv) {
     LinkOpts = LinkOptsEnv;
   }
 
-  auto BuildF = [this, &Context, &Device, Prg, &Img, &CompileOpts, &LinkOpts] {
+  auto BuildF = [this, &M, &KSId, &Context, &Device, Prg, &CompileOpts,
+                 &LinkOpts, &JITCompilationIsRequired] {
+    const RTDeviceBinaryImage &Img =
+        getDeviceImage(M, KSId, Context, Device, JITCompilationIsRequired);
+    // Update only if compile options are not overwritten by environment
+    // variable
+    if (!CompileOptsEnv) {
+      CompileOpts += Img.getCompileOptions();
+      pi_device_binary_property isEsimdImage = Img.getProperty("isEsimdImage");
+
+      if (isEsimdImage && pi::DeviceBinaryProperty(isEsimdImage).asUint32()) {
+        if (!CompileOpts.empty())
+          CompileOpts += " ";
+        CompileOpts += "-vc-codegen";
+      }
+    }
+
+    // Update only if link options are not overwritten by environment variable
+    if (!LinkOptsEnv)
+      LinkOpts += Img.getLinkOptions();
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
     const detail::plugin &Plugin = ContextImpl->getPlugin();
     RT::PiProgram NativePrg = createPIProgram(Img, Context, Device);
@@ -821,14 +836,6 @@ ProgramManager::ProgramPtr ProgramManager::build(
   }
 
   bool LinkDeviceLibs = (DeviceLibReqMask != 0);
-  const char *CompileOpts = std::getenv("SYCL_PROGRAM_COMPILE_OPTIONS");
-  if (!CompileOpts) {
-    CompileOpts = CompileOptions.c_str();
-  }
-  const char *LinkOpts = std::getenv("SYCL_PROGRAM_LINK_OPTIONS");
-  if (!LinkOpts) {
-    LinkOpts = LinkOptions.c_str();
-  }
 
   // TODO: Currently, online linking isn't implemented yet on Level Zero.
   // To enable device libraries and unify the behaviors on all backends,
@@ -840,9 +847,8 @@ ProgramManager::ProgramPtr ProgramManager::build(
   // TODO: this is a temporary workaround for GPU tests for ESIMD compiler.
   // We do not link with other device libraries, because it may fail
   // due to unrecognized SPIR-V format of those libraries.
-  if (std::string(CompileOpts).find(std::string("-cmc")) != std::string::npos ||
-      std::string(CompileOpts).find(std::string("-vc-codegen")) !=
-          std::string::npos)
+  if (CompileOptions.find(std::string("-cmc")) != std::string::npos ||
+      CompileOptions.find(std::string("-vc-codegen")) != std::string::npos)
     LinkDeviceLibs = false;
 
   std::vector<RT::PiProgram> LinkPrograms;
@@ -853,11 +859,9 @@ ProgramManager::ProgramPtr ProgramManager::build(
 
   const detail::plugin &Plugin = Context->getPlugin();
   if (LinkPrograms.empty()) {
-    std::string Opts(CompileOpts);
-
     RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
-        Program.get(), /*num devices =*/1, &Device, Opts.c_str(), nullptr,
-        nullptr);
+        Program.get(), /*num devices =*/1, &Device, CompileOptions.c_str(),
+        nullptr, nullptr);
     if (Error != PI_SUCCESS)
       throw compile_program_error(getProgramBuildLog(Program.get(), Context),
                                   Error);
@@ -866,13 +870,13 @@ ProgramManager::ProgramPtr ProgramManager::build(
 
   // Include the main program and compile/link everything together
   Plugin.call<PiApiKind::piProgramCompile>(Program.get(), /*num devices =*/1,
-                                           &Device, CompileOpts, 0, nullptr,
-                                           nullptr, nullptr, nullptr);
+                                           &Device, CompileOptions.c_str(), 0,
+                                           nullptr, nullptr, nullptr, nullptr);
   LinkPrograms.push_back(Program.get());
 
   RT::PiProgram LinkedProg = nullptr;
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramLink>(
-      Context->getHandleRef(), /*num devices =*/1, &Device, LinkOpts,
+      Context->getHandleRef(), /*num devices =*/1, &Device, LinkOptions.c_str(),
       LinkPrograms.size(), LinkPrograms.data(), nullptr, nullptr, &LinkedProg);
 
   // Link program call returns a new program object if all parameters are valid,
