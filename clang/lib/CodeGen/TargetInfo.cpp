@@ -9999,7 +9999,7 @@ LangAS SPIRTargetCodeGenInfo::getGlobalVarAddressSpace(CodeGenModule &CGM,
   LangAS AddrSpace = D->getType().getAddressSpace();
   assert(AddrSpace == LangAS::Default || isTargetAddressSpace(AddrSpace) ||
          // allow applying clang AST address spaces in SYCL mode
-         (CGM.getLangOpts().SYCL && CGM.getLangOpts().SYCLIsDevice));
+         CGM.getLangOpts().SYCLIsDevice);
   if (AddrSpace != LangAS::Default)
     return AddrSpace;
 

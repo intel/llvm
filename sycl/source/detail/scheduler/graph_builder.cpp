@@ -16,6 +16,7 @@
 #include <detail/scheduler/scheduler.hpp>
 
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <map>
 #include <memory>
@@ -597,6 +598,12 @@ Scheduler::GraphBuilder::findAllocaForReq(MemObjRecord *Record,
 }
 
 static bool checkHostUnifiedMemory(const ContextImplPtr &Ctx) {
+  if (const char *HUMConfig = SYCLConfig<SYCL_HOST_UNIFIED_MEMORY>::get()) {
+    if (std::strcmp(HUMConfig, "0") == 0)
+      return Ctx->is_host();
+    if (std::strcmp(HUMConfig, "1") == 0)
+      return true;
+  }
   for (const device &Device : Ctx->getDevices()) {
     if (!Device.get_info<info::device::host_unified_memory>())
       return false;
