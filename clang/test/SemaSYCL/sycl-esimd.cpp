@@ -3,8 +3,8 @@
 // ----------- Negative tests
 
 void foo(
-__attribute__((sycl_explicit_simd)) // expected-warning {{'sycl_explicit_simd' attribute only applies to functions and global variables}}
-int N);
+    __attribute__((sycl_explicit_simd)) // expected-warning {{'sycl_explicit_simd' attribute only applies to functions and global variables}}
+    int N);
 
 __attribute__((sycl_explicit_simd(3))) // expected-error {{'sycl_explicit_simd' attribute takes no arguments}}
 void
