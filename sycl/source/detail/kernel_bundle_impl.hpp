@@ -26,6 +26,12 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+template <class T> struct LessByHash {
+  bool operator()(const T &LHS, const T &RHS) {
+    return getSyclObjImpl(LHS) < getSyclObjImpl(RHS);
+  }
+};
+
 // The class is an impl counterpart of the sycl::kernel_bundle.
 // It provides an access and utilities to manage set of sycl::device_images
 // objects.
@@ -37,6 +43,33 @@ public:
 
     MDeviceImages = detail::ProgramManager::getInstance().getSYCLDeviceImages(
         MContext, MDevices, State);
+  }
+
+  // Matches sycl::compile
+  kernel_bundle_impl(const std::shared_ptr<kernel_bundle_impl> &InputBundleImpl,
+                     const std::vector<device> Devs,
+                     const property_list &PropList)
+      : MContext(InputBundleImpl->MContext), MDevices(std::move(Devs)) {
+
+    for (const device_image_plain &DeviceImage : *InputBundleImpl) {
+      if (std::none_of(
+              MDevices.begin(), MDevices.end(),
+              [&DeviceImage](const device &Dev) {
+                return getSyclObjImpl(DeviceImage)->compatible_with_device(Dev);
+              }))
+        continue;
+
+      MDeviceImages.push_back(
+          detail::ProgramManager::getInstance().compile(DeviceImage, PropList));
+    }
+  }
+
+  kernel_bundle_impl(
+      const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
+      std::vector<device> Devs, const property_list &PropList) {
+
+
+
   }
 
   kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
