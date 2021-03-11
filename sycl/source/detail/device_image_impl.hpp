@@ -40,6 +40,11 @@ struct LessByNameComp {
 // of specialization constants for it
 class device_image_impl {
 public:
+  device_image_impl(context Context, std::vector<device> Devices,
+                    bundle_state State)
+      : MBinImage(nullptr), MContext(std::move(Context)),
+        MDevices(std::move(Devices)), MState(State) {}
+
   device_image_impl(RTDeviceBinaryImage *BinImage, context Context,
                     std::vector<device> Devices, bundle_state State)
       : MBinImage(BinImage), MContext(std::move(Context)),
@@ -146,11 +151,21 @@ public:
         [&Dev](const device &DevCand) { return Dev == DevCand; });
   }
 
+  // TODO: snake_case:
+  RT::PiProgram &get_program_ref() { return MProgram; }
+
+  RTDeviceBinaryImage *&get_bin_image_ref() { return MBinImage; }
+
+  const context &get_context() { return MContext; }
+
+  std::vector<kernel_id> &get_kernel_ids_ref() { return MKernelIDs; }
+
 private:
   RTDeviceBinaryImage *MBinImage = nullptr;
   context MContext;
   std::vector<device> MDevices;
   bundle_state MState;
+  RT::PiProgram MProgram = nullptr;
   // List of kernel ids available in this image, elements should be sorted
   // according to LessByNameComp
   std::vector<kernel_id> MKernelIDs;

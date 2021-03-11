@@ -142,12 +142,15 @@ public:
                       bundle_state State);
 
   device_image_plain compile(const device_image_plain &DeviceImage,
+                             const std::vector<device> &Devs,
                              property_list PropList);
 
-  device_image_plain link(const std::vector<device_image_plain> &DeviceImage,
+  device_image_plain link(const std::vector<device_image_plain> &DeviceImages,
+                          const std::vector<device> &Devs,
                           property_list PropList);
 
   device_image_plain build(const device_image_plain &DeviceImage,
+                           const std::vector<device> &Devs,
                            property_list PropList);
 
   ProgramManager();

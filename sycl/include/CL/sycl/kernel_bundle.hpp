@@ -518,7 +518,8 @@ template <typename KernelName> bool is_compatible(const device &Dev) {
 
 namespace detail {
 
-std::shared_ptr<detail::kernel_bundle_impl>
+// TODO: Use impl everywhere in the interfaces.
+__SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
 join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles);
 
 }
@@ -530,7 +531,7 @@ sycl::kernel_bundle<State>
 join(const std::vector<sycl::kernel_bundle<State>> &Bundles) {
   std::vector<detail::KernelBundleImplPtr> KernelBundleImpls;
   KernelBundleImpls.reserve(Bundles.size());
-  for (sycl::kernel_bundle<State> &Bundle : Bundles)
+  for (const sycl::kernel_bundle<State> &Bundle : Bundles)
     KernelBundleImpls.push_back(detail::getSyclObjImpl(Bundle));
 
   std::shared_ptr<detail::kernel_bundle_impl> Impl =
@@ -575,6 +576,10 @@ compile(const kernel_bundle<bundle_state::input> &InputBundle,
 namespace detail {
 std::vector<sycl::device> find_device_intersection(
     const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles);
+
+__SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
+link_impl(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
+          const std::vector<device> &Devs, const property_list &PropList);
 }
 
 /// \returns a new kernel_bundle which contains the device images from the
@@ -582,9 +587,14 @@ std::vector<sycl::device> find_device_intersection(
 /// state bundle_state::executable The new bundle represents all of the kernels
 /// in ObjectBundles that are compatible with at least one of the devices in
 /// Devs.
-__SYCL_EXPORT kernel_bundle<bundle_state::executable>
+inline kernel_bundle<bundle_state::executable>
 link(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
-     const std::vector<device> &Devs, const property_list &PropList = {});
+     const std::vector<device> &Devs, const property_list &PropList = {}) {
+  detail::KernelBundleImplPtr Impl =
+      detail::link_impl(ObjectBundles, Devs, PropList);
+  return detail::createSyclObjFromImpl<
+      kernel_bundle<sycl::bundle_state::executable>>(Impl);
+}
 
 inline kernel_bundle<bundle_state::executable>
 link(const kernel_bundle<bundle_state::object> &ObjectBundle,

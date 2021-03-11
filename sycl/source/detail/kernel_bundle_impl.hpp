@@ -46,6 +46,7 @@ public:
   }
 
   // Matches sycl::compile
+  // TODO: Replace kernel_bunlde_impl with kernel_bundle_plain
   kernel_bundle_impl(const std::shared_ptr<kernel_bundle_impl> &InputBundleImpl,
                      const std::vector<device> Devs,
                      const property_list &PropList)
@@ -59,16 +60,43 @@ public:
               }))
         continue;
 
-      MDeviceImages.push_back(
-          detail::ProgramManager::getInstance().compile(DeviceImage, PropList));
+      MDeviceImages.push_back(detail::ProgramManager::getInstance().compile(
+          DeviceImage, Devs, PropList));
     }
   }
 
+  // Matches sycl::link
   kernel_bundle_impl(
       const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
       std::vector<device> Devs, const property_list &PropList) {
 
 
+    for(const device &Dev: Devs) {
+      for(const kernel_bundle<bundle_state::object> &ObjectBundle: ObjectBundles) {
+        const std::vector<device> &BundleDevices =
+            getSyclObjImpl(ObjectBundle)->MDevices;
+
+        if (std::none_of(
+                BundleDevices.begin(), BundleDevices.end(),
+                [&Dev](const device &DevCand) { return Dev == DevCand; }))
+          throw "laga";
+      }
+    }
+
+    //for(const kernel_bundle<bundle_state::object> &ObjectBundle: ObjectBundles) {
+      //const std::vector<device> BundleDevices = ObjectBundle.get_devices();
+
+
+      //if (std::none_of(Devs.begin(), Devs.end(),
+                       //[](const device &DevCand) { 
+
+
+                       //return DevCand == 0;
+
+
+                       //})) {
+      //}
+    //}
 
   }
 
@@ -139,7 +167,7 @@ public:
 
   context get_context() const noexcept { return MContext; }
 
-  std::vector<device> get_devices() const noexcept { return MDevices; }
+  const std::vector<device> &get_devices() const noexcept { return MDevices; }
 
   std::vector<kernel_id> get_kernel_ids() const {
     // Collect kernel ids from all device images, then remove duplicates

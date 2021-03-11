@@ -153,11 +153,11 @@ compile_impl(const kernel_bundle<bundle_state::input> &InputBundle,
 
 } // namespace detail
 
-__SYCL_EXPORT kernel_bundle<bundle_state::executable>
-link(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
-     const std::vector<device> &Devs, const property_list &PropList) {
-
-  //return std::make_shared<detail::kernel_bundle_impl>(Bundles);
+std::shared_ptr<detail::kernel_bundle_impl>
+link_impl(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
+          const std::vector<device> &Devs, const property_list &PropList) {
+  return std::make_shared<detail::kernel_bundle_impl>(ObjectBundles, Devs,
+                                                      PropList);
 }
 
 __SYCL_EXPORT bool is_compatible(const std::vector<kernel_id> &KernelIDs,
@@ -176,6 +176,8 @@ __SYCL_EXPORT bool is_compatible(const std::vector<kernel_id> &KernelIDs,
   //                      return !Dev.has(Aspect);
   //                    });
   //
+  assert(!"Not supported");
+  return false;
 }
 
 } // namespace sycl

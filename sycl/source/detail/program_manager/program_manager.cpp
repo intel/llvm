@@ -1233,6 +1233,107 @@ ProgramManager::getSYCLDeviceImages(const context &Ctx,
   return SYCLDeviceImages;
 }
 
+device_image_plain ProgramManager::compile(
+    const device_image_plain &DeviceImage,
+    const std::vector<device> &Devs, property_list PropList) {
+
+  const std::shared_ptr<device_image_impl> &InputImpl =
+      getSyclObjImpl(DeviceImage);
+
+  
+  // TODO: Devs should be compatible with device image
+  // TODO: DeviceImage state should be input
+
+  DeviceImageImplPtr ObjectImpl = std::make_shared<detail::device_image_impl>(
+      InputImpl->get_bin_image_ref(), InputImpl->get_context(), Devs,
+      bundle_state::object);
+
+  const detail::plugin &Plugin =
+      getSyclObjImpl(InputImpl->get_context())->getPlugin();
+  (void)Plugin; (void)ObjectImpl;
+
+  // TODO: Get rid of one device limitation
+  ObjectImpl->get_program_ref() = createPIProgram(
+      *InputImpl->get_bin_image_ref(), InputImpl->get_context(), Devs[0]);
+
+  std::vector<pi_device> PIDevices;
+  PIDevices.reserve(Devs.size());
+  for (const device &Dev : Devs)
+    PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
+
+  // set spec constatns here.
+
+  // TODO: Handle zero sized Device list.
+  Plugin.call<PiApiKind::piProgramCompile>(
+      ObjectImpl->get_program_ref(), /*num devices=*/Devs.size(), PIDevices.data(),
+      /*options=*/nullptr,
+      /*num_input_headers=*/0, /*input_headers=*/nullptr,
+      /*header_include_names=*/nullptr,
+      /*pfn_notify=*/nullptr, /*user_data*/ nullptr);
+
+  return createSyclObjFromImpl<device_image_plain>(ObjectImpl);
+}
+
+device_image_plain
+ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
+                     const std::vector<device> &Devs, property_list PropList) {
+
+  std::vector<pi_program> PIPrograms;
+  PIPrograms.reserve(DeviceImages.size());
+  for (const device_image_plain &DeviceImage : DeviceImages) {
+    PIPrograms.push_back(getSyclObjImpl(DeviceImage)->get_program_ref());
+  }
+
+  std::vector<pi_device> PIDevices;
+  PIDevices.reserve(Devs.size());
+  for (const device &Dev : Devs)
+    PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
+
+  // TODO: Check > 0
+  const context &Context = getSyclObjImpl(DeviceImages[0])->get_context();
+
+  const detail::plugin &Plugin = getSyclObjImpl(Context)->getPlugin();
+  // TODO: Handle zero devices
+  RT::PiProgram LinkedProg = nullptr;
+  RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramLink>(
+      getSyclObjImpl(Context)->getHandleRef(), PIDevices.size(),
+      PIDevices.data(),
+      /*options=*/nullptr, PIPrograms.size(), PIPrograms.data(),
+      /*pfn_notify=*/nullptr,
+      /*user_data=*/nullptr, &LinkedProg);
+
+
+  assert(PI_SUCCESS == Error);
+
+  DeviceImageImplPtr ExecutableImpl =
+      std::make_shared<detail::device_image_impl>(Context, Devs,
+                                                  bundle_state::object);
+
+  ExecutableImpl->get_program_ref() = LinkedProg;
+
+  std::vector<kernel_id> KernelIDs;
+  for (const device_image_plain &DeviceImage : DeviceImages) {
+    // Duplicates are not expected here, otherwise piProgramLink should fail
+    KernelIDs.insert(KernelIDs.end(),
+                     getSyclObjImpl(DeviceImage)->get_kernel_ids().begin(),
+                     getSyclObjImpl(DeviceImage)->get_kernel_ids().end());
+  }
+
+  ExecutableImpl->get_kernel_ids_ref() = KernelIDs;
+
+  return createSyclObjFromImpl<device_image_plain>(ExecutableImpl);
+}
+
+device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
+                                         const std::vector<device> &Devs,
+                                         property_list PropList) {
+
+  // set spec constatns here.
+
+  assert(!"Not implemented");
+  return DeviceImage;
+}
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
