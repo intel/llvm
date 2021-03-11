@@ -45,6 +45,7 @@
 #include <CL/sycl/properties/all_properties.hpp>
 #include <CL/sycl/queue.hpp>
 #include <CL/sycl/range.hpp>
+#include <CL/sycl/reduction.hpp>
 #include <CL/sycl/sampler.hpp>
 #include <CL/sycl/stream.hpp>
 #include <CL/sycl/types.hpp>
