@@ -76,7 +76,7 @@ public:
 
   /// \return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const {
-    if (is_host() || getPlugin().getBackend() != cl::sycl::backend::opencl) {
+    if (is_host()) {
       throw invalid_object_error(
           "This instance of platform doesn't support OpenCL interoperability.",
           PI_INVALID_PLATFORM);
