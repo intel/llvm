@@ -134,11 +134,17 @@ The load and store sub-group functions enable developers to assert that all work
 |===
 |Function|Description
 
+|+template <typename T> T load(sub_group sg, const T *src)+
+|Load contiguous data from _src_.  Returns one element per work-item, corresponding to the memory location at _src_ + +get_local_id()+. The value of _src_ must be the same for all work-items in the sub-group. The address space information is deduced automatically. Only pointers to global and local address spaces are valid. Passing a pointer to other address spaces will cause the run time assertion.
+
 |+template <typename T, access::address_space Space> T load(sub_group sg, const multi_ptr<T,Space> src)+
 |Load contiguous data from _src_.  Returns one element per work-item, corresponding to the memory location at _src_ + +get_local_id()+. The value of _src_ must be the same for all work-items in the sub-group.  _Space_ must be +access::address_space::global_space+ or +access::address_space::local_space+.
 
 |+template <int N, typename T, access::address_space Space> vec<T,N> load(sub_group sg, const multi_ptr<T,Space> src)+
 |Load contiguous data from _src_.  Returns _N_ elements per work-item, corresponding to the _N_ memory locations at _src_ + +i+ * +get_max_local_range()+ + +get_local_id()+ for +i+ between 0 and _N_. The value of _src_ must be the same for all work-items in the sub-group.  _Space_ must be +access::address_space::global_space+ or +access::address_space::local_space+.
+
+|+template <typename T> void store(sub_group sg, T *dst, const T& x)+
+|Store contiguous data to _dst_.  The value of _x_ from each work-item is written to the memory location at _dst_ + +get_local_id()+. The value of _dst_ must be the same for all work-items in the sub-group. The address space information is deduced automatically. Only pointers to global and local address spaces are valid. Passing a pointer to other address spaces will cause the run time assertion.
 
 |+template <typename T, access::address_space Space> void store(sub_group sg, multi_ptr<T,Space> dst, const T& x)+
 |Store contiguous data to _dst_.  The value of _x_ from each work-item is written to the memory location at _dst_ + +get_local_id()+. The value of _dst_ must be the same for all work-items in the sub-group.  _Space_ must be +access::address_space::global_space+ or +access::address_space::local_space+.
@@ -165,6 +171,7 @@ None.
 |========================================
 |Rev|Date|Author|Changes
 |1|2020-03-16|John Pennycook|*Initial public working draft*
+|2|2021-02-26|Vladimir Lazarev|*Add load/store method for raw pointers*
 |========================================
 
 //************************************************************************
