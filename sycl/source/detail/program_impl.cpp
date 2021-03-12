@@ -583,6 +583,8 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
 
 pi_native_handle program_impl::getNative() const {
   const auto &Plugin = getPlugin();
+  if (Plugin.getBackend() == backend::opencl)
+    Plugin.call<PiApiKind::piProgramRetain>(MProgram);
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextProgramGetNativeHandle>(MProgram, &Handle);
   return Handle;
