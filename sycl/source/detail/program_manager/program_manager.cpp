@@ -353,6 +353,8 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
                                                 const string_class &KernelName,
                                                 const program_impl *Prg,
                                                 bool JITCompilationIsRequired) {
+  // TODO: Make sure that KSIds will be different for the case when the same
+  // kernel built with different options is present in the fat binary.
   KernelSetId KSId = getKernelSetId(M, KernelName);
 
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
