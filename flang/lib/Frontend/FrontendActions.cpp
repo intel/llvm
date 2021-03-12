@@ -126,7 +126,7 @@ bool PrescanAndSemaAction::BeginSourceFileAction(CompilerInstance &c1) {
   // Prepare semantics
   setSemantics(std::make_unique<Fortran::semantics::Semantics>(
       ci.invocation().semanticsContext(), parseTree,
-      ci.parsing().cooked().AsCharBlock()));
+      ci.parsing().cooked().AsCharBlock(), ci.invocation().debugModuleDir()));
   auto &semantics = this->semantics();
 
   // Run semantic checks
@@ -305,6 +305,13 @@ void DebugPreFIRTreeAction::ExecuteAction() {
         clang::DiagnosticsEngine::Error, "Pre FIR Tree is NULL.");
     ci.diagnostics().Report(diagID);
   }
+}
+
+void DebugDumpParsingLogAction::ExecuteAction() {
+  CompilerInstance &ci = this->instance();
+
+  ci.parsing().Parse(llvm::errs());
+  ci.parsing().DumpParsingLog(llvm::outs());
 }
 
 void EmitObjAction::ExecuteAction() {

@@ -75,14 +75,18 @@ struct Configuration {
   bool isPic = false;
   bool headerPadMaxInstallNames = false;
   bool ltoNewPassManager = LLVM_ENABLE_NEW_PASS_MANAGER;
+  bool markDeadStrippableDylib = false;
   bool printEachFile = false;
   bool printWhyLoad = false;
   bool searchDylibsFirst = false;
   bool saveTemps = false;
   bool adhocCodesign = false;
+  bool timeTraceEnabled = false;
   uint32_t headerPad;
   uint32_t dylibCompatibilityVersion = 0;
   uint32_t dylibCurrentVersion = 0;
+  uint32_t timeTraceGranularity;
+  std::string progName;
   llvm::StringRef installName;
   llvm::StringRef outputFile;
   llvm::StringRef ltoObjPath;

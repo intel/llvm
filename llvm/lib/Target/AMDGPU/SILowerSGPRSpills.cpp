@@ -262,13 +262,10 @@ static bool lowerShiftReservedVGPR(MachineFunction &MF,
   if (!LowestAvailableVGPR)
     LowestAvailableVGPR = PreReservedVGPR;
 
-  const MCPhysReg *CSRegs = MF.getRegInfo().getCalleeSavedRegs();
   MachineFrameInfo &FrameInfo = MF.getFrameInfo();
-  Optional<int> FI;
-  // Check if we are reserving a CSR. Create a stack object for a possible spill
-  // in the function prologue.
-  if (FuncInfo->isCalleeSavedReg(CSRegs, LowestAvailableVGPR))
-    FI = FrameInfo.CreateSpillStackObject(4, Align(4));
+  // Create a stack object for a possible spill in the function prologue.
+  // Note Non-CSR VGPR also need this as we may overwrite inactive lanes.
+  Optional<int> FI = FrameInfo.CreateSpillStackObject(4, Align(4));
 
   // Find saved info about the pre-reserved register.
   const auto *ReservedVGPRInfoItr =
@@ -307,14 +304,20 @@ bool SILowerSGPRSpills::runOnMachineFunction(MachineFunction &MF) {
   bool HasCSRs = spillCalleeSavedRegs(MF);
 
   MachineFrameInfo &MFI = MF.getFrameInfo();
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+  SIMachineFunctionInfo *FuncInfo = MF.getInfo<SIMachineFunctionInfo>();
+
   if (!MFI.hasStackObjects() && !HasCSRs) {
     SaveBlocks.clear();
     RestoreBlocks.clear();
+    if (FuncInfo->VGPRReservedForSGPRSpill) {
+      // Free the reserved VGPR for later possible use by frame lowering.
+      FuncInfo->removeVGPRForSGPRSpill(FuncInfo->VGPRReservedForSGPRSpill, MF);
+      MRI.freezeReservedRegs(MF);
+    }
     return false;
   }
 
-  MachineRegisterInfo &MRI = MF.getRegInfo();
-  SIMachineFunctionInfo *FuncInfo = MF.getInfo<SIMachineFunctionInfo>();
   const bool SpillVGPRToAGPR = ST.hasMAIInsts() && FuncInfo->hasSpilledVGPRs()
     && EnableSpillVGPRToAGPR;
 

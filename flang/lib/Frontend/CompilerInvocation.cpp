@@ -85,6 +85,15 @@ bool Fortran::frontend::ParseDiagnosticArgs(clang::DiagnosticOptions &opts,
   return true;
 }
 
+// Tweak the frontend configuration based on the frontend action
+static void setUpFrontendBasedOnAction(FrontendOptions &opts) {
+  assert(opts.programAction_ != Fortran::frontend::InvalidAction &&
+      "Fortran frontend action not set!");
+
+  if (opts.programAction_ == DebugDumpParsingLog)
+    opts.instrumentedParse_ = true;
+}
+
 static InputKind ParseFrontendArgs(FrontendOptions &opts,
     llvm::opt::ArgList &args, clang::DiagnosticsEngine &diags) {
 
@@ -124,6 +133,9 @@ static InputKind ParseFrontendArgs(FrontendOptions &opts,
       break;
     case clang::driver::options::OPT_fdebug_dump_provenance:
       opts.programAction_ = DebugDumpProvenance;
+      break;
+    case clang::driver::options::OPT_fdebug_dump_parsing_log:
+      opts.programAction_ = DebugDumpParsingLog;
       break;
     case clang::driver::options::OPT_fdebug_measure_parse_tree:
       opts.programAction_ = DebugMeasureParseTree;
@@ -264,6 +276,9 @@ static InputKind ParseFrontendArgs(FrontendOptions &opts,
           << arg->getAsString(args) << argValue;
     }
   }
+
+  setUpFrontendBasedOnAction(opts);
+
   return dashX;
 }
 
@@ -291,9 +306,10 @@ static void parsePreprocessorArgs(
 
 /// Parses all semantic related arguments and populates the variables
 /// options accordingly.
-static void parseSemaArgs(std::string &moduleDir, llvm::opt::ArgList &args,
+static void parseSemaArgs(CompilerInvocation &res, llvm::opt::ArgList &args,
     clang::DiagnosticsEngine &diags) {
 
+  // -J/module-dir option
   auto moduleDirList =
       args.getAllArgValues(clang::driver::options::OPT_module_dir);
   // User can only specify -J/-module-dir once
@@ -305,7 +321,12 @@ static void parseSemaArgs(std::string &moduleDir, llvm::opt::ArgList &args,
     diags.Report(diagID);
   }
   if (moduleDirList.size() == 1)
-    moduleDir = moduleDirList[0];
+    res.SetModuleDir(moduleDirList[0]);
+
+  // -fdebug-module-writer option
+  if (args.hasArg(clang::driver::options::OPT_fdebug_module_writer)) {
+    res.SetDebugModuleDir(true);
+  }
 }
 
 /// Parses all Dialect related arguments and populates the variables
@@ -380,7 +401,7 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &res,
   // Parse the preprocessor args
   parsePreprocessorArgs(res.preprocessorOpts(), args);
   // Parse semantic args
-  parseSemaArgs(res.moduleDir(), args, diags);
+  parseSemaArgs(res, args, diags);
   // Parse dialect arguments
   parseDialectArgs(res, args, diags);
 
@@ -484,6 +505,9 @@ void CompilerInvocation::setFortranOpts() {
   // directories
   if (moduleDirJ.compare(".") != 0)
     fortranOptions.searchDirectories.emplace_back(moduleDirJ);
+
+  if (frontendOptions.instrumentedParse_)
+    fortranOptions.instrumentedParse = true;
 }
 
 void CompilerInvocation::setSemanticsOpts(
@@ -493,7 +517,6 @@ void CompilerInvocation::setSemanticsOpts(
   semanticsContext_ = std::make_unique<semantics::SemanticsContext>(
       defaultKinds(), fortranOptions.features, allCookedSources);
 
-  auto &moduleDirJ = moduleDir();
-  semanticsContext_->set_moduleDirectory(moduleDirJ)
+  semanticsContext_->set_moduleDirectory(moduleDir())
       .set_searchDirectories(fortranOptions.searchDirectories);
 }
