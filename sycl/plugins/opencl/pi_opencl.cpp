@@ -540,6 +540,7 @@ pi_result piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
                                              pi_context *piContext) {
   (void)num_devices;
   (void)devices;
+  (void)ownNativeHandle;
   assert(piContext != nullptr);
   assert(ownNativeHandle == false);
   *piContext = reinterpret_cast<pi_context>(nativeHandle);
