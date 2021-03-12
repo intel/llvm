@@ -11,8 +11,6 @@
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// #155 Disable unstable tests
-// REQUIRES: TEMPORARY_DISBLED
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
@@ -24,7 +22,7 @@
 // test 8x16 block size
 //
 #define DIM_SIZE (1 << 13)
-#define SQUARE_SZ (DIM_SIZE * DIM_SIZE)
+#define SQUARE_SZ (DIM_SIZE * DIM_SIZE + 1)
 
 #define WIDTH 16
 #define HEIGHT 16
