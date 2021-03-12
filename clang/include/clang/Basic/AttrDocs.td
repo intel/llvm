@@ -361,7 +361,7 @@ def SYCLSimdDocs : Documentation {
   let Content = [{
     The ``__attribute__((sycl_explicit_simd))`` attribute is used by the device
     compiler front end to mark ESIMD kernels and functions. In this mode,
-    subgroup size is always equals to 1 and explicit SIMD extensions, such as
+    subgroup size is always equal to 1 and explicit SIMD extensions, such as
     manual vectorization using wide vector data types and operations can be used.
     Compiler may decide to compile such functions using different optimization
     and code generation pipeline. Also, this attribute is used to distinguish
