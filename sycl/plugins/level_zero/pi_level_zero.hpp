@@ -584,6 +584,12 @@ struct _pi_event : _pi_object {
   // enqueued, and must then be released when this event has signalled.
   // This list must be destroyed once the event has signalled.
   _pi_ze_event_list_t WaitList;
+
+  // Tracks if the needed cleanupAfterEvent was already performed for
+  // a completed event. This allows to control that some cleanup
+  // actions are performed only once.
+  //
+  bool CleanedUp = {false};
 };
 
 struct _pi_program : _pi_object {

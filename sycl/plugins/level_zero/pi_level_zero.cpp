@@ -3849,6 +3849,15 @@ static pi_result cleanupAfterEvent(pi_event Event) {
       PI_CALL(piKernelRelease(pi_cast<pi_kernel>(Event->CommandData)));
       Event->CommandData = nullptr;
     }
+
+    if (!Event->CleanedUp) {
+      Event->CleanedUp = true;
+      // Release this event since we explicitly retained it on creation.
+      // NOTE: that this needs to be done only once for an event so
+      // this is guarded with the CleanedUp flag.
+      //
+      PI_CALL(piEventRelease(Event));
+    }
   }
 
   // Make a list of all the dependent events that must have signalled
@@ -3872,9 +3881,6 @@ static pi_result cleanupAfterEvent(pi_event Event) {
         EventsToBeReleased);
     PI_CALL(piEventRelease(DepEvent));
   }
-
-  // Finally, release this event since we explicitly retained it on creation.
-  PI_CALL(piEventRelease(Event));
 
   return PI_SUCCESS;
 }
@@ -3937,6 +3943,9 @@ pi_result piEventRetain(pi_event Event) {
 
 pi_result piEventRelease(pi_event Event) {
   PI_ASSERT(Event, PI_INVALID_EVENT);
+  if (!Event->RefCount) {
+    die("piEventRelease: called on a destroyed event");
+  }
 
   if (--(Event->RefCount) == 0) {
     cleanupAfterEvent(Event);
