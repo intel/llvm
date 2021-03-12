@@ -441,14 +441,14 @@ public:
   // kernel set, this is used for error diagnostics.
   llvm::SmallPtrSet<FunctionDecl *, 10> RecursiveSet;
 
-  // This is an interface function for collecting sets of 
+  // This is an interface function for collecting sets of
   // functions called from an ESIMD kernel.
   void CollectSyclKernelSet(FunctionDecl *RootNode) {
     llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet;
     CollectKernelSet(RootNode, RootNode, VisitedSet, SYCLKernelSet);
   }
 
-  // This is an interface function for collecting sets of 
+  // This is an interface function for collecting sets of
   // functions called from a regular SYCL kernel.
   void CollectEsimdKernelSet(FunctionDecl *RootNode) {
     llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet;
@@ -462,7 +462,7 @@ private:
   // diagnostic notes on each function as the callstack is unwound.
   void CollectKernelSet(FunctionDecl *CalleeNode, FunctionDecl *FD,
                         llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet,
-                        llvm::SmallPtrSet<FunctionDecl *, 10>& KernelSet) {
+                        llvm::SmallPtrSet<FunctionDecl *, 10> &KernelSet) {
     // We're currently checking CalleeNode on a different
     // trace through the CallGraph, we avoid infinite recursion
     // by using KernelSet to keep track of this.
