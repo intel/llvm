@@ -220,6 +220,10 @@ if (MSVC)
   list(APPEND SYCL_RT_LIBS sycld)
 endif()
 
+function( link_with_libcxx LIB_NAME)
+  target_link_libraries(${LIB_NAME} PRIVATE "-L${SYCL_LIBCXX_LIBRARY_PATH}" -Wl,-rpath,${SYCL_LIBCXX_LIBRARY_PATH} -nodefaultlibs -lc++ -lc++abi -lm -lc -lgcc_s -lgcc)
+endfunction(link_with_libcxx)
+
 # This function allows building multiple libraries with the same options.
 # Currently used by sycl and plugins library.
 # Currently handles linking with libcxx support and gcc workaround

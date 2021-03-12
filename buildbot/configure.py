@@ -113,8 +113,10 @@ def do_configure(args):
       if not (args.libcxx_include and args.libcxx_library):
         sys.exit("Please specify include and library path of libc++ when building sycl "
                  "runtime with it")
+      cxx_flag_sycl_use_libcxx = "-nostdinc++ -I " + args.libcxx_include
       cmake_cmd.extend([
             "-DSYCL_USE_LIBCXX=ON",
+            "-DCMAKE_CXX_FLAGS={}".format(cxx_flag_sycl_use_libcxx),
             "-DSYCL_LIBCXX_INCLUDE_PATH={}".format(args.libcxx_include),
             "-DSYCL_LIBCXX_LIBRARY_PATH={}".format(args.libcxx_library)])
 

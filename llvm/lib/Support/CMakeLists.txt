@@ -241,7 +241,7 @@ add_llvm_component_library(LLVMSupport
 
 set(llvm_system_libs ${system_libs})
 if(SYCL_USE_LIBCXX)
-  link_with_libcxx(LLVMSupport)
+  target_link_libraries(LLVMSupport PRIVATE "-L${SYCL_LIBCXX_LIBRARY_PATH}" -lc++ -lc++abi -Wl,-rpath,${SYCL_LIBCXX_LIBRARY_PATH})
 endif()
 # This block is only needed for llvm-config. When we deprecate llvm-config and
 # move to using CMake export, this block can be removed.
