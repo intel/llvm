@@ -8,7 +8,7 @@
 ; RUN: opt < %s --SYCLITTAnnotations -S | FileCheck %s
 
 ; ModuleID = 'load.bc'
-source_filename = "/localdisk2/sidorovd/SYCLTest/llvm-test-suite/SYCL/AtomicRef/load.cpp"
+source_filename = "llvm-test-suite/SYCL/AtomicRef/load.cpp"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown-sycldevice"
 
@@ -96,7 +96,7 @@ entry:
 ; CHECK: declare void @__itt_offload_atomic_op_finish(i32 addrspace(1)*, i32, i32)
 ; CHECK: declare void @__itt_offload_wi_finish_wrapper()
 
-attributes #0 = { convergent norecurse "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="/localdisk2/sidorovd/SYCLTest/llvm-test-suite/SYCL/AtomicRef/load.cpp" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { convergent norecurse "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="llvm-test-suite/SYCL/AtomicRef/load.cpp" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { convergent "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #2 = { convergent nounwind }
 

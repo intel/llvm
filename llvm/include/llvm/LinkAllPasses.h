@@ -201,10 +201,10 @@ namespace {
       (void) llvm::createMergeFunctionsPass();
       (void) llvm::createMergeICmpsLegacyPass();
       (void) llvm::createExpandMemCmpPass();
-      (void) llvm::createSYCLLowerWGScopePass();
-      (void) llvm::createSYCLLowerESIMDPass();
-      (void) llvm::createESIMDLowerLoadStorePass();
-      (void) llvm::createESIMDLowerVecArgPass();
+      (void)llvm::createSYCLLowerWGScopePass();
+      (void)llvm::createSYCLLowerESIMDPass();
+      (void)llvm::createESIMDLowerLoadStorePass();
+      (void)llvm::createESIMDLowerVecArgPass();
       (void) llvm::createSYCLITTAnnotationsPass();
       std::string buf;
       llvm::raw_string_ostream os(buf);

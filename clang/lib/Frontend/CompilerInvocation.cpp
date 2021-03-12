@@ -1657,9 +1657,6 @@ bool CompilerInvocation::ParseCodeGenArgsImpl(CodeGenOptions &Opts,
   if (!Opts.ProfileInstrumentUsePath.empty())
     setPGOUseInstrumentor(Opts, Opts.ProfileInstrumentUsePath);
 
-  // Insert ITT annotations under the flag
-  Opts.SYCLITTAnnotations = Args.hasArg(OPT_fsycl_instrument_device_code);
-
   if (const Arg *A = Args.getLastArg(OPT_ftime_report, OPT_ftime_report_EQ)) {
     Opts.TimePasses = true;
 
