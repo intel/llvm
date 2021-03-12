@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include "CL/sycl/exception_list.hpp"
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/backend_traits.hpp>
@@ -110,11 +109,6 @@ typename std::enable_if<detail::InteropFeatureSupportMap<Backend>::MakeBuffer ==
 make_buffer(
     const interop<Backend, buffer<T, Dimensions, AllocatorT>> &BackendObject,
     const context &TargetContext, event AvailableEvent = {}) {
-  if (Backend != backend::opencl)
-    throw invalid_object_error{
-        "Buffer interop is only supported for OpenCL backend",
-        PI_INVALID_MEM_OBJECT};
-
   return buffer<T, Dimensions, AllocatorT>(
       reinterpret_cast<cl_mem>(BackendObject), TargetContext, AvailableEvent);
 }
