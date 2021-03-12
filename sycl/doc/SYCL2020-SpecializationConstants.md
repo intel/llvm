@@ -146,7 +146,7 @@ used as symbolic IDs of specialization constants.
 are declared in the headers but never defined. Calls to them are recognized by
 a special LLVM pass later and this is aforementioned special markup required for
 the compiler.
-Those intrinsics accept three parameters:
+Those functions accept three parameters:
 1. Symbolic ID of a specialization constant. Even though at SPIR-V level
    specialization constants are identified by numeric IDs, we can't use them
    here, because:
