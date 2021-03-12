@@ -3,6 +3,10 @@
 This is the list of SYCL specific options supported by compiler and some
 examples.
 
+Options marked as [DEPRECATED] are going to be removed in some future updates.
+Options marked as [EXPERIMENTAL] are expected to be used only in limitted cases
+and not recommended to use in production environment.
+
 ## Generic options
 
 **`-fsycl`**
@@ -15,7 +19,7 @@ examples.
 
     Tells the compiler to generate code for specified devices. T is a target
     triple device name. You can specify more than one target, comma separated.
-    The following triples are supported:
+    The following triples are supported by default:
     * spir64-unknown-unknown-sycldevice - this is the default generic SPIR-V
       target;
     * spir64_x86_64-unknown-unknown-sycldevice - generate code ahead of time
@@ -24,6 +28,7 @@ examples.
       Intel FPGA;
     * spir64_gen-unknown-unknown-sycldevice - generate code ahead of time for
       Intel Processor Graphics;
+    Available in special build configuration:
     * nvptx64-nvidia-cuda-sycldevice - generate code ahead of time for CUDA
       target;
 
@@ -193,7 +198,7 @@ examples.
 
 **`-fsycl-device-only`**
 
-    Compile only device part of the code and discard host part.
+    Compile only device part of the code and ignore host part.
 
 **`-fsycl-use-bitcode`** [DEPRECATED]
 
