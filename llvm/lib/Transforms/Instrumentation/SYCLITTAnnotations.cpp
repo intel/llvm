@@ -47,7 +47,7 @@
  *
  * void __itt_offload_wi_finish(size_t* group_id, size_t wi_id);
  * * * * * * * * * * *
- * Notify tools work-item has reached a barier
+ * Notify tools work-item has reached a barrier
  *
  * /param[in] barrier_id Unique barrier id. If multi-barriers are not supported.
  * Pass 0 for barrier_id. Notify tools work-item has reached a barier.
@@ -55,7 +55,28 @@
  * void __itt_offload_wg_barrier(uintptr_t barrier_id);
  * * * * * * * * * * *
  * Purpose of this pass is to add wrapper calls to these instructions.
- */
+ * Also this pass adds annotations to atomic instructions:
+ * * * * * * * * * * *
+ * Atomic operation markup
+ *
+ * /param[in] object Memory location which is used in atomic operation
+ * /param[in] op_type Operation type
+ * /param[in] mem_order Memory ordering semantic
+ *
+ * void __itt_offload_atomic_op_start(void* object,
+ *                                    __itt_atomic_mem_op_t op_type,
+ *                                    __itt_atomic_mem_order_t mem_order);
+ * * * * * * * * * * *
+ * Atomic operation markup
+ *
+ * /param[in] object Memory location which is used in atomic operation
+ * /param[in] op_type Operation type
+ * /param[in] mem_order Memory ordering semantic
+ *
+ * void __itt_offload_atomic_op_finish(void* object,
+ *                                     __itt_atomic_mem_op_t op_type,
+ *                                     __itt_atomic_mem_order_t mem_order);
+ **/
 
 using namespace llvm;
 
