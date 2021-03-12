@@ -21,4 +21,14 @@ SYCL_EXTERNAL T __sycl_getSpecConstantValue(const char *ID);
 template <typename T>
 SYCL_EXTERNAL T __sycl_getCompositeSpecConstantValue(const char *ID);
 
+template <typename T>
+SYCL_EXTERNAL T __sycl_getScalar2020SpecConstantValue(const char *SymbolicID,
+                                                      void *DefaultValue,
+                                                      void *RTBuffer);
+
+template <typename T>
+SYCL_EXTERNAL T __sycl_getComposite2020SpecConstantValue(const char *SymbolicID,
+                                                         void *DefaultValue,
+                                                         void *RTBuffer);
+
 #endif
