@@ -433,17 +433,36 @@ public:
 
   // The call graph for this translation unit.
   CallGraph SYCLCG;
-  // The set of functions called by a kernel function.
-  llvm::SmallPtrSet<FunctionDecl *, 10> KernelSet;
+  // The set of functions called by a regular SYCL kernel.
+  llvm::SmallPtrSet<FunctionDecl *, 10> SYCLKernelSet;
+  // The set of functions called by an ESIMD kernel.
+  llvm::SmallPtrSet<FunctionDecl *, 10> ESIMDKernelSet;
   // The set of recursive functions identified while building the
   // kernel set, this is used for error diagnostics.
   llvm::SmallPtrSet<FunctionDecl *, 10> RecursiveSet;
+
+  // This is an interface function for collecting sets of 
+  // functions called from an ESIMD kernel.
+  void CollectSyclKernelSet(FunctionDecl *RootNode) {
+    llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet;
+    CollectKernelSet(RootNode, RootNode, VisitedSet, SYCLKernelSet);
+  }
+
+  // This is an interface function for collecting sets of 
+  // functions called from a regular SYCL kernel.
+  void CollectEsimdKernelSet(FunctionDecl *RootNode) {
+    llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet;
+    CollectKernelSet(RootNode, RootNode, VisitedSet, ESIMDKernelSet);
+  }
+
+private:
   // Determines whether the function FD is recursive.
   // CalleeNode is a function which is called either directly
   // or indirectly from FD.  If recursion is detected then create
   // diagnostic notes on each function as the callstack is unwound.
   void CollectKernelSet(FunctionDecl *CalleeNode, FunctionDecl *FD,
-                        llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet) {
+                        llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet,
+                        llvm::SmallPtrSet<FunctionDecl *, 10>& KernelSet) {
     // We're currently checking CalleeNode on a different
     // trace through the CallGraph, we avoid infinite recursion
     // by using KernelSet to keep track of this.
@@ -461,7 +480,7 @@ public:
             RecursiveSet.insert(CalleeNode);
           } else {
             VisitedSet.insert(Callee);
-            CollectKernelSet(Callee, FD, VisitedSet);
+            CollectKernelSet(Callee, FD, VisitedSet, KernelSet);
             VisitedSet.erase(Callee);
           }
         }
@@ -469,6 +488,7 @@ public:
     }
   }
 
+public:
   // Traverses over CallGraph to collect list of attributes applied to
   // functions called by SYCLKernel (either directly and indirectly) which needs
   // to be propagated down to callers and applied to SYCL kernels.
@@ -3222,8 +3242,11 @@ void Sema::MarkDevice(void) {
 
   for (Decl *D : syclDeviceDecls()) {
     if (auto SYCLKernel = dyn_cast<FunctionDecl>(D)) {
-      llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet;
-      Marker.CollectKernelSet(SYCLKernel, SYCLKernel, VisitedSet);
+
+      if (SYCLKernel->hasAttr<SYCLSimdAttr>())
+        Marker.CollectEsimdKernelSet(SYCLKernel);
+      else
+        Marker.CollectSyclKernelSet(SYCLKernel);
 
       // Let's propagate attributes from device functions to a SYCL kernels
       llvm::SmallPtrSet<Attr *, 4> Attrs;
@@ -3339,7 +3362,11 @@ void Sema::MarkDevice(void) {
       }
     }
   }
-  for (const auto &elt : Marker.KernelSet) {
+  for (const auto &elt : Marker.SYCLKernelSet) {
+    if (FunctionDecl *Def = elt->getDefinition())
+      Marker.TraverseStmt(Def->getBody());
+  }
+  for (const auto &elt : Marker.ESIMDKernelSet) {
     if (FunctionDecl *Def = elt->getDefinition())
       Marker.TraverseStmt(Def->getBody());
   }
