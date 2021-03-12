@@ -48,6 +48,7 @@
 #include "SPIRVFunction.h"
 #include "SPIRVInstruction.h"
 #include "SPIRVInternal.h"
+#include "SPIRVLLVMUtil.h"
 #include "SPIRVMDWalker.h"
 #include "SPIRVModule.h"
 #include "SPIRVType.h"
@@ -660,6 +661,7 @@ void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
   if (Attrs.hasAttribute(AttributeList::ReturnIndex,
                          kVCMetadata::VCSingleElementVector)) {
     auto *RT = BF->getType();
+    (void)RT;
     assert((RT->isTypeBool() || RT->isTypeFloat() || RT->isTypeInt() ||
             RT->isTypePointer()) &&
            "This decoration is valid only for Scalar or Pointer types");
@@ -679,6 +681,7 @@ void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
     }
     if (Attrs.hasAttribute(ArgNo + 1, kVCMetadata::VCSingleElementVector)) {
       auto *AT = BA->getType();
+      (void)AT;
       assert((AT->isTypeBool() || AT->isTypeFloat() || AT->isTypeInt() ||
               AT->isTypePointer()) &&
              "This decoration is valid only for Scalar or Pointer types");
@@ -2529,12 +2532,14 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     MemSetInst *MSI = cast<MemSetInst>(II);
     Value *Val = MSI->getValue();
     if (!isa<Constant>(Val)) {
-      assert(!"Can't translate llvm.memset with non-const `value` argument");
+      assert(false &&
+             "Can't translate llvm.memset with non-const `value` argument");
       return nullptr;
     }
     Value *Len = MSI->getLength();
     if (!isa<ConstantInt>(Len)) {
-      assert(!"Can't translate llvm.memset with non-const `length` argument");
+      assert(false &&
+             "Can't translate llvm.memset with non-const `length` argument");
       return nullptr;
     }
     uint64_t NumElements = static_cast<ConstantInt *>(Len)->getZExtValue();
@@ -2757,6 +2762,13 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     // llvm.trap intrinsic is not implemented. But for now don't crash. This
     // change is pending the trap/abort intrinsic implementation.
     return nullptr;
+  case Intrinsic::is_constant: {
+    auto *CO = dyn_cast<Constant>(II->getOperand(0));
+    if (CO && isManifestConstant(CO))
+      return transValue(ConstantInt::getTrue(II->getType()), BB, false);
+    else
+      return transValue(ConstantInt::getFalse(II->getType()), BB, false);
+  }
   default:
     if (BM->isSPIRVAllowUnknownIntrinsicsEnabled())
       return BM->addCallInst(
@@ -2927,8 +2939,15 @@ SPIRVWord LLVMToSPIRV::transFunctionControlMask(Function *F) {
   SPIRVWord FCM = 0;
   SPIRSPIRVFuncCtlMaskMap::foreach (
       [&](Attribute::AttrKind Attr, SPIRVFunctionControlMaskKind Mask) {
-        if (F->hasFnAttribute(Attr))
+        if (F->hasFnAttribute(Attr)) {
+          if (Attr == Attribute::OptimizeNone) {
+            if (!BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_optnone))
+              return;
+            BM->addExtension(ExtensionID::SPV_INTEL_optnone);
+            BM->addCapability(internal::CapabilityOptNoneINTEL);
+          }
           FCM |= Mask;
+        }
       });
   return FCM;
 }

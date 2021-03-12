@@ -172,6 +172,11 @@ public:
   static vector_class<device>
   get_devices(info::device_type deviceType = info::device_type::all);
 
+  /// Returns the backend associated with this device.
+  ///
+  /// \return the backend associated with this device.
+  backend get_backend() const noexcept;
+
   /// Gets the native handle of the SYCL device.
   ///
   /// \return a native handle, the type of which defined by the backend.

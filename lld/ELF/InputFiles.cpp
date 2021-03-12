@@ -592,8 +592,12 @@ void ObjFile<ELFT>::initializeSections(bool ignoreComdats) {
         if (sec.sh_link != 0)
           this->addrsigSec = &sec;
         else if (config->icf == ICFLevel::Safe)
-          warn(toString(this) + ": --icf=safe is incompatible with object "
-                                "files created using objcopy or ld -r");
+          warn(toString(this) +
+               ": --icf=safe conservatively ignores "
+               "SHT_LLVM_ADDRSIG [index " +
+               Twine(i) +
+               "] with sh_link=0 "
+               "(likely created using objcopy or ld -r)");
       }
       this->sections[i] = &InputSection::discarded;
       continue;
@@ -1134,6 +1138,7 @@ template <class ELFT> void ObjFile<ELFT>::initializeSymbols() {
   }
 
   // Symbol resolution of non-local symbols.
+  SmallVector<unsigned, 32> unds;
   for (size_t i = firstGlobal, end = eSyms.size(); i != end; ++i) {
     const Elf_Sym &eSym = eSyms[i];
     uint8_t binding = eSym.getBinding();
@@ -1150,8 +1155,7 @@ template <class ELFT> void ObjFile<ELFT>::initializeSymbols() {
 
     // Handle global undefined symbols.
     if (eSym.st_shndx == SHN_UNDEF) {
-      this->symbols[i]->resolve(Undefined{this, name, binding, stOther, type});
-      this->symbols[i]->referenced = true;
+      unds.push_back(i);
       continue;
     }
 
@@ -1197,6 +1201,20 @@ template <class ELFT> void ObjFile<ELFT>::initializeSymbols() {
     }
 
     fatal(toString(this) + ": unexpected binding: " + Twine((int)binding));
+  }
+
+  // Undefined symbols (excluding those defined relative to non-prevailing
+  // sections) can trigger recursive fetch. Process defined symbols first so
+  // that the relative order between a defined symbol and an undefined symbol
+  // does not change the symbol resolution behavior. In addition, a set of
+  // interconnected symbols will all be resolved to the same file, instead of
+  // being resolved to different files.
+  for (unsigned i : unds) {
+    const Elf_Sym &eSym = eSyms[i];
+    StringRefZ name = this->stringTable.data() + eSym.st_name;
+    this->symbols[i]->resolve(Undefined{this, name, eSym.getBinding(),
+                                        eSym.st_other, eSym.getType()});
+    this->symbols[i]->referenced = true;
   }
 }
 
@@ -1604,6 +1622,7 @@ static ELFKind getBitcodeELFKind(const Triple &t) {
 static uint16_t getBitcodeMachineKind(StringRef path, const Triple &t) {
   switch (t.getArch()) {
   case Triple::aarch64:
+  case Triple::aarch64_be:
     return EM_AARCH64;
   case Triple::amdgcn:
   case Triple::r600:

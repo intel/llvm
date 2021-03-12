@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -Xclang -fsycl-is-host -fsycl-id-queries-fit-in-int -O1 -c -S -emit-llvm -o %t.ll %s
+// RUN: %clangxx -fsycl -fsycl-id-queries-fit-in-int -O0 -c -S -emit-llvm -o %t.ll %s
 // RUN: FileCheck %s --input-file %t.ll
 
 #include <CL/sycl.hpp>

@@ -156,6 +156,12 @@ struct _pi_device : _pi_object {
   // Level Zero device handle.
   ze_device_handle_t ZeDevice;
 
+  // Keep the subdevices that are partitioned from this pi_device for reuse
+  // The order of sub-devices in this vector is repeated from the
+  // ze_device_handle_t array that are returned from zeDeviceGetSubDevices()
+  // call, which will always return sub-devices in the fixed same order.
+  std::vector<pi_device> SubDevices;
+
   // PI platform to which this device belongs.
   pi_platform Platform;
 
@@ -171,8 +177,9 @@ struct _pi_device : _pi_object {
 
 struct _pi_context : _pi_object {
   _pi_context(ze_context_handle_t ZeContext, pi_uint32 NumDevices,
-              const pi_device *Devs)
-      : ZeContext{ZeContext}, Devices{Devs, Devs + NumDevices},
+              const pi_device *Devs, bool OwnZeContext)
+      : ZeContext{ZeContext},
+        OwnZeContext{OwnZeContext}, Devices{Devs, Devs + NumDevices},
         ZeCommandListInit{nullptr}, ZeEventPool{nullptr},
         NumEventsAvailableInEventPool{}, NumEventsLiveInEventPool{} {
     // Create USM allocator context for each pair (device, context).
@@ -200,6 +207,10 @@ struct _pi_context : _pi_object {
   // A L0 context handle is primarily used during creation and management of
   // resources that may be used by multiple devices.
   ze_context_handle_t ZeContext;
+
+  // Indicates if we own the ZeContext or it came from interop that
+  // asked to not transfer the ownership to SYCL RT.
+  bool OwnZeContext;
 
   // Keep the PI devices this PI context was created for.
   std::vector<pi_device> Devices;

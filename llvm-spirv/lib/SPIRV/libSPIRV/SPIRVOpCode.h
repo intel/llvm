@@ -115,6 +115,10 @@ inline bool isCvtFromUnsignedOpCode(Op OpCode) {
          OpCode == OpSatConvertUToS;
 }
 
+inline bool isSatCvtOpCode(Op OpCode) {
+  return OpCode == OpSatConvertUToS || OpCode == OpSatConvertSToU;
+}
+
 inline bool isOpaqueGenericTypeOpCode(Op OpCode) {
   return ((unsigned)OpCode >= OpTypeEvent && (unsigned)OpCode <= OpTypeQueue) ||
          OpCode == OpTypeSampler;

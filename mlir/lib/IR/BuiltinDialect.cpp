@@ -46,6 +46,16 @@ struct BuiltinOpAsmDialectInterface : public OpAsmDialectInterface {
     }
     return failure();
   }
+
+  LogicalResult getAlias(Type type, raw_ostream &os) const final {
+    if (auto tupleType = type.dyn_cast<TupleType>()) {
+      if (tupleType.size() > 16) {
+        os << "tuple";
+        return success();
+      }
+    }
+    return failure();
+  }
 };
 } // end anonymous namespace.
 
@@ -156,7 +166,7 @@ void FuncOp::cloneInto(FuncOp dest, BlockAndValueMapping &mapper) {
     newAttrs.insert(attr);
   for (auto &attr : getAttrs())
     newAttrs.insert(attr);
-  dest->setAttrs(DictionaryAttr::get(newAttrs.takeVector(), getContext()));
+  dest->setAttrs(DictionaryAttr::get(getContext(), newAttrs.takeVector()));
 
   // Clone the body.
   getBody().cloneInto(&dest.getBody(), mapper);
