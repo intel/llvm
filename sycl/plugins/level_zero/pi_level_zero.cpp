@@ -2286,20 +2286,16 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                             Context->Devices[0]->ZeDeviceProperties.flags &
                                 ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
 
-  // Having PI_MEM_FLAGS_HOST_PTR_ALLOC for buffer requires allocation of
-  // pinned host memory which then becomes automatically accessible from
-  // discrete devices through PCI. This property ensures that the memory
-  // map/unmap operations are free of cost and the buffer is optimized for
-  // frequent accesses from the host giving improved performance.
-  // see:
-  // https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/UsePinnedMemoryProperty/UsePinnedMemoryPropery.adoc
-  bool AllocHostPtr = Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC;
-
-  if (AllocHostPtr) {
-    PI_ASSERT(HostPtr == nullptr, PI_INVALID_VALUE);
+  if (Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) {
+    // Having PI_MEM_FLAGS_HOST_PTR_ALLOC for buffer requires allocation of
+    // pinned host memory, see:
+    // https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/UsePinnedMemoryProperty/UsePinnedMemoryPropery.adoc
+    // We are however missing such functionality in Level Zero, so we just
+    // ignore the flag for now.
+    //
   }
 
-  if (AllocHostPtr || DeviceIsIntegrated) {
+  if (DeviceIsIntegrated) {
     ze_host_mem_alloc_desc_t ZeDesc = {};
     ZeDesc.flags = 0;
 
@@ -2341,7 +2337,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     *RetMem = new _pi_buffer(
         Context, pi_cast<char *>(Ptr) /* Level Zero Memory Handle */,
         HostPtrOrNull, nullptr, 0, 0,
-        AllocHostPtr || DeviceIsIntegrated /* allocation in host memory */);
+        DeviceIsIntegrated /* allocation in host memory */);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
