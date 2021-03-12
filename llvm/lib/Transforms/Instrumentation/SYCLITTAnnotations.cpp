@@ -12,12 +12,12 @@
 
 #include "llvm/Transforms/Instrumentation/SYCLITTAnnotations.h"
 
-#include "llvm/InitializePasses.h"
+#include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Type.h"
-#include "llvm/IR/Function.h"
+#include "llvm/InitializePasses.h"
 
 /** Following instrumentations will be linked from libdevice:
  * * * * * * * * * * *
@@ -141,8 +141,7 @@ bool insertSimpleInstrumentationCall(Module &M, StringRef Name,
                                      Instruction *Position) {
   Type *VoidTy = Type::getVoidTy(M.getContext());
   ArrayRef<Value *> Args;
-  Instruction *InstrumentationCall =
-      emitCall(M, VoidTy, Name, Args, Position);
+  Instruction *InstrumentationCall = emitCall(M, VoidTy, Name, Args, Position);
   assert(InstrumentationCall && "Instrumentation call creation failed");
   return true;
 }
@@ -190,8 +189,9 @@ bool insertAtomicInstrumentationCall(Module &M, StringRef Name,
   // differencies in values between SYCL mem order and SPIR-V mem order, SYCL RT
   // also applies Memory Semantic mask, like WorkgroupMemory (0x100)), need to
   // align it.
-  uint64_t MemFlag = dyn_cast<ConstantInt>(
-      AtomicFun->getArgOperand(2))->getValue().getZExtValue();
+  uint64_t MemFlag = dyn_cast<ConstantInt>(AtomicFun->getArgOperand(2))
+                         ->getValue()
+                         .getZExtValue();
   uint64_t Order;
   if (MemFlag & 0x2)
     Order = 1;
@@ -203,8 +203,7 @@ bool insertAtomicInstrumentationCall(Module &M, StringRef Name,
     Order = 0;
   Value *MemOrder = ConstantInt::get(Int32Ty, Order);
   Value *Args[] = {Ptr, AtomicOp, MemOrder};
-  Instruction *InstrumentationCall =
-      emitCall(M, VoidTy, Name, Args, Position);
+  Instruction *InstrumentationCall = emitCall(M, VoidTy, Name, Args, Position);
   assert(InstrumentationCall && "Instrumentation call creation failed");
   return true;
 }
@@ -215,10 +214,10 @@ PreservedAnalyses SYCLITTAnnotationsPass::run(Module &M,
                                               ModuleAnalysisManager &MAM) {
   bool IRModified = false;
   std::vector<StringRef> SPIRVCrossWGInstuctions = {
-      SPIRV_CONTROL_BARRIER, SPIRV_GROUP_ALL, SPIRV_GROUP_ANY,
+      SPIRV_CONTROL_BARRIER, SPIRV_GROUP_ALL,  SPIRV_GROUP_ANY,
       SPIRV_GROUP_BROADCAST, SPIRV_GROUP_IADD, SPIRV_GROUP_FADD,
-      SPIRV_GROUP_FMIN, SPIRV_GROUP_UMIN, SPIRV_GROUP_SMIN, SPIRV_GROUP_FMAX,
-      SPIRV_GROUP_UMAX, SPIRV_GROUP_SMAX };
+      SPIRV_GROUP_FMIN,      SPIRV_GROUP_UMIN, SPIRV_GROUP_SMIN,
+      SPIRV_GROUP_FMAX,      SPIRV_GROUP_UMAX, SPIRV_GROUP_SMAX};
 
   for (Function &F : M) {
     // Annotate only SYCL kernels
@@ -247,8 +246,8 @@ PreservedAnalyses SYCLITTAnnotationsPass::run(Module &M,
         size_t PrefixPosFound = CalleeName.find(SPIRV_PREFIX);
         if (PrefixPosFound == StringRef::npos)
           continue;
-        CalleeName = CalleeName.drop_front(
-            PrefixPosFound + /*len of SPIR-V prefix*/ 8);
+        CalleeName =
+            CalleeName.drop_front(PrefixPosFound + /*len of SPIR-V prefix*/ 8);
         // Annotate barrier and other cross WG calls
         if (std::any_of(SPIRVCrossWGInstuctions.begin(),
                         SPIRVCrossWGInstuctions.end(),
@@ -256,8 +255,8 @@ PreservedAnalyses SYCLITTAnnotationsPass::run(Module &M,
                           return CalleeName.startswith(Name);
                         })) {
           Instruction *InstAfterBarrier = CI->getNextNode();
-          IRModified |= insertSimpleInstrumentationCall(
-              M, ITT_ANNOTATION_WG_BARRIER, CI);
+          IRModified |=
+              insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WG_BARRIER, CI);
           IRModified |= insertSimpleInstrumentationCall(
               M, ITT_ANNOTATION_WI_RESUME, InstAfterBarrier);
         } else if (CalleeName.startswith(SPIRV_ATOMIC_INST)) {
