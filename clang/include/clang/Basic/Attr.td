@@ -2051,7 +2051,7 @@ def IntelFPGAMerge : Attr {
   let Documentation = [IntelFPGAMergeAttrDocs];
 }
 
-def IntelFPGAMaxReplicates : Attr {
+def IntelFPGAMaxReplicates : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","max_replicates">,
                    CXX11<"intel","max_replicates">];
   let Args = [ExprArgument<"Value">];

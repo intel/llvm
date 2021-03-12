@@ -222,6 +222,20 @@ public:
   T getIdentity() const { return MIdentity; }
 
   template <typename _T = T>
+  enable_if_t<IsReduPlus<_T, BinaryOperation>::value &&
+              sycl::detail::is_geninteger<_T>::value>
+  operator++() {
+    combine(static_cast<T>(1));
+  }
+
+  template <typename _T = T>
+  enable_if_t<IsReduPlus<_T, BinaryOperation>::value &&
+              sycl::detail::is_geninteger<_T>::value>
+  operator++(int) {
+    combine(static_cast<T>(1));
+  }
+
+  template <typename _T = T>
   enable_if_t<IsReduPlus<_T, BinaryOperation>::value>
   operator+=(const _T &Partial) {
     combine(Partial);
@@ -291,6 +305,20 @@ public:
   static enable_if_t<has_known_identity_impl<_BinaryOperation, _T>::value, _T>
   getIdentity() {
     return known_identity_impl<_BinaryOperation, _T>::value;
+  }
+
+  template <typename _T = T>
+  enable_if_t<IsReduPlus<_T, BinaryOperation>::value &&
+              sycl::detail::is_geninteger<_T>::value>
+  operator++() {
+    combine(static_cast<T>(1));
+  }
+
+  template <typename _T = T>
+  enable_if_t<IsReduPlus<_T, BinaryOperation>::value &&
+              sycl::detail::is_geninteger<_T>::value>
+  operator++(int) {
+    combine(static_cast<T>(1));
   }
 
   template <typename _T = T>
@@ -419,7 +447,7 @@ public:
                ONEAPI::accessor_property_list<>>;
   using rw_accessor_type =
       accessor<T, Dims, access::mode::read_write, access::target::global_buffer,
-               IsPlaceholder, ONEAPI::accessor_property_list<>>;
+               access::placeholder::false_t, ONEAPI::accessor_property_list<>>;
   static constexpr access::mode accessor_mode = AccMode;
   static constexpr int accessor_dim = Dims;
   static constexpr int buffer_dim = (Dims == 0) ? 1 : Dims;
@@ -455,6 +483,20 @@ public:
     return MIdentity;
   }
 
+  /// SYCL-2020.
+  /// Constructs reduction_impl when the identity value is statically known.
+  template <typename _T, typename AllocatorT,
+            std::enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * =
+                nullptr>
+  reduction_impl(buffer<_T, 1, AllocatorT> Buffer, handler &CGH)
+      : MAcc(std::make_shared<accessor_type>(Buffer)),
+        MIdentity(getIdentity()) {
+    associateWithHandler(CGH);
+    if (Buffer.get_count() != 1)
+      throw runtime_error("Reduction variable must be a scalar.",
+                          PI_INVALID_VALUE);
+  }
+
   /// Constructs reduction_impl when the identity value is statically known.
   // Note that aliasing constructor was used to initialize MAcc to avoid
   // destruction of the object referenced by the parameter Acc.
@@ -465,24 +507,25 @@ public:
       : MAcc(shared_ptr_class<accessor_type>(shared_ptr_class<accessor_type>{},
                                              &Acc)),
         MIdentity(getIdentity()) {
-    assert(Acc.get_count() == 1 &&
-           "Only scalar/1-element reductions are supported now.");
+    if (Acc.get_count() != 1)
+      throw runtime_error("Reduction variable must be a scalar.",
+                          PI_INVALID_VALUE);
   }
 
+  /// SYCL-2020.
   /// Constructs reduction_impl when the identity value is statically known,
   /// and user still passed the identity value.
-  // Note that aliasing constructor was used to initialize MAcc to avoid
-  // destruction of the object referenced by the parameter Acc.
   template <
-      typename _T = T, class _BinaryOperation = BinaryOperation,
-      enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
-  reduction_impl(accessor_type &Acc, const T &Identity, BinaryOperation)
-      : MAcc(shared_ptr_class<accessor_type>(shared_ptr_class<accessor_type>{},
-                                             &Acc)),
+      typename _T, typename AllocatorT,
+      enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
+  reduction_impl(buffer<_T, 1, AllocatorT> Buffer, handler &CGH,
+                 const T & /*Identity*/, BinaryOperation)
+      : MAcc(std::make_shared<accessor_type>(Buffer)),
         MIdentity(getIdentity()) {
-    (void)Identity;
-    assert(Acc.get_count() == 1 &&
-           "Only scalar/1-element reductions are supported now.");
+    associateWithHandler(CGH);
+    if (Buffer.get_count() != 1)
+      throw runtime_error("Reduction variable must be a scalar.",
+                          PI_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
     // The SPEC could prohibit passing identity parameter to operations with
@@ -496,6 +539,48 @@ public:
     // list of known operations does not break the existing programs.
   }
 
+  /// Constructs reduction_impl when the identity value is statically known,
+  /// and user still passed the identity value.
+  // Note that aliasing constructor was used to initialize MAcc to avoid
+  // destruction of the object referenced by the parameter Acc.
+  template <
+      typename _T = T, class _BinaryOperation = BinaryOperation,
+      enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
+  reduction_impl(accessor_type &Acc, const T & /*Identity*/, BinaryOperation)
+      : MAcc(shared_ptr_class<accessor_type>(shared_ptr_class<accessor_type>{},
+                                             &Acc)),
+        MIdentity(getIdentity()) {
+    if (Acc.get_count() != 1)
+      throw runtime_error("Reduction variable must be a scalar.",
+                          PI_INVALID_VALUE);
+    // For now the implementation ignores the identity value given by user
+    // when the implementation knows the identity.
+    // The SPEC could prohibit passing identity parameter to operations with
+    // known identity, but that could have some bad consequences too.
+    // For example, at some moment the implementation may NOT know the identity
+    // for COMPLEX-PLUS reduction. User may create a program that would pass
+    // COMPLEX value (0,0) as identity for PLUS reduction. At some later moment
+    // when the implementation starts handling COMPLEX-PLUS as known operation
+    // the existing user's program remains compilable and working correctly.
+    // I.e. with this constructor here, adding more reduction operations to the
+    // list of known operations does not break the existing programs.
+  }
+
+  /// SYCL-2020.
+  /// Constructs reduction_impl when the identity value is NOT known statically.
+  template <
+      typename _T, typename AllocatorT,
+      enable_if_t<!IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
+  reduction_impl(buffer<_T, 1, AllocatorT> Buffer, handler &CGH,
+                 const T &Identity, BinaryOperation BOp)
+      : MAcc(std::make_shared<accessor_type>(Buffer)), MIdentity(Identity),
+        MBinaryOp(BOp) {
+    associateWithHandler(CGH);
+    if (Buffer.get_count() != 1)
+      throw runtime_error("Reduction variable must be a scalar.",
+                          PI_INVALID_VALUE);
+  }
+
   /// Constructs reduction_impl when the identity value is unknown.
   // Note that aliasing constructor was used to initialize MAcc to avoid
   // destruction of the object referenced by the parameter Acc.
@@ -506,8 +591,9 @@ public:
       : MAcc(shared_ptr_class<accessor_type>(shared_ptr_class<accessor_type>{},
                                              &Acc)),
         MIdentity(Identity), MBinaryOp(BOp) {
-    assert(Acc.get_count() == 1 &&
-           "Only scalar/1-element reductions are supported now.");
+    if (Acc.get_count() != 1)
+      throw runtime_error("Reduction variable must be a scalar.",
+                          PI_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is statically known.
@@ -587,13 +673,27 @@ public:
   }
 
   /// Constructs a new temporary buffer to hold partial sums and returns
-  /// the accessor that that buffer.
-  template <bool IsOneWG>
-  std::enable_if_t<!IsOneWG, accessor_type>
+  /// the accessor for that buffer. Non-placeholder case.
+  template <bool IsOneWG, access::placeholder _IsPlaceholder = IsPlaceholder>
+  std::enable_if_t<!IsOneWG && _IsPlaceholder == access::placeholder::false_t,
+                   accessor_type>
   getWriteMemForPartialReds(size_t Size, handler &CGH) {
     MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
     CGH.addReduction(MOutBufPtr);
     return accessor_type(*MOutBufPtr, CGH);
+  }
+
+  /// Constructs a new temporary buffer to hold partial sums and returns
+  /// the accessor for that buffer. Placeholder case.
+  template <bool IsOneWG, access::placeholder _IsPlaceholder = IsPlaceholder>
+  std::enable_if_t<!IsOneWG && _IsPlaceholder == access::placeholder::true_t,
+                   accessor_type>
+  getWriteMemForPartialReds(size_t Size, handler &CGH) {
+    MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
+    CGH.addReduction(MOutBufPtr);
+    accessor_type Acc(*MOutBufPtr);
+    CGH.require(Acc);
+    return Acc;
   }
 
   template <access::placeholder _IsPlaceholder = IsPlaceholder>
@@ -624,8 +724,7 @@ public:
 
   /// Creates 1-element global buffer initialized with identity value and
   /// returns an accessor to that buffer.
-  accessor<T, Dims, access::mode::read_write, access::target::global_buffer>
-  getReadWriteScalarAcc(handler &CGH) const {
+  rw_accessor_type getReadWriteScalarAcc(handler &CGH) const {
     auto RWReduVal = std::make_shared<T>(MIdentity);
     CGH.addReduction(RWReduVal);
     auto RWReduBuf =
@@ -1576,7 +1675,6 @@ template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
 detail::reduction_impl<T, BinaryOperation, Dims, false, AccMode, IsPH>
 reduction(accessor<T, Dims, AccMode, access::target::global_buffer, IsPH> &Acc,
           const T &Identity, BinaryOperation BOp) {
-  // The Combiner argument was needed only to define the BinaryOperation param.
   return detail::reduction_impl<T, BinaryOperation, Dims, false, AccMode, IsPH>(
       Acc, Identity, BOp);
 }
@@ -1592,7 +1690,6 @@ std::enable_if_t<
     detail::reduction_impl<T, BinaryOperation, Dims, false, AccMode, IsPH>>
 reduction(accessor<T, Dims, AccMode, access::target::global_buffer, IsPH> &Acc,
           BinaryOperation) {
-  // The Combiner argument was needed only to define the BinaryOperation param.
   return detail::reduction_impl<T, BinaryOperation, Dims, false, AccMode, IsPH>(
       Acc);
 }
@@ -1643,29 +1740,5 @@ inline constexpr AccumulatorT known_identity_v =
     known_identity<BinaryOperation, AccumulatorT>::value;
 #endif
 } // namespace ONEAPI
-
-// Currently, the type traits defined below correspond to SYCL 1.2.1 ONEAPI
-// reduction extension. That may be changed later when SYCL 2020 reductions
-// are implemented.
-template <typename BinaryOperation, typename AccumulatorT>
-struct has_known_identity
-    : ONEAPI::has_known_identity<BinaryOperation, AccumulatorT> {};
-
-#if __cplusplus >= 201703L
-template <typename BinaryOperation, typename AccumulatorT>
-inline constexpr bool has_known_identity_v =
-    has_known_identity<BinaryOperation, AccumulatorT>::value;
-#endif
-
-template <typename BinaryOperation, typename AccumulatorT>
-struct known_identity : ONEAPI::known_identity<BinaryOperation, AccumulatorT> {
-};
-
-#if __cplusplus >= 201703L
-template <typename BinaryOperation, typename AccumulatorT>
-inline constexpr AccumulatorT known_identity_v =
-    known_identity<BinaryOperation, AccumulatorT>::value;
-#endif
-
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

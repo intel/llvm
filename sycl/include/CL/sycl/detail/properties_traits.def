@@ -8,3 +8,4 @@ __SYCL_PARAM_TRAITS_SPEC(sycl::ext::oneapi::property::buffer::use_pinned_host_me
 __SYCL_PARAM_TRAITS_SPEC(sycl::property::noinit)
 __SYCL_PARAM_TRAITS_SPEC(sycl::property::context::cuda::use_primary_context)
 __SYCL_PARAM_TRAITS_SPEC(sycl::property::queue::in_order)
+__SYCL_PARAM_TRAITS_SPEC(sycl::property::reduction::initialize_to_identity)

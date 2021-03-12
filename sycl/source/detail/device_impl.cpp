@@ -209,6 +209,8 @@ vector_class<device> device_impl::create_sub_devices(
 
 pi_native_handle device_impl::getNative() const {
   auto Plugin = getPlugin();
+  if (Plugin.getBackend() == backend::opencl)
+    Plugin.call<PiApiKind::piDeviceRetain>(getHandleRef());
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextDeviceGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;

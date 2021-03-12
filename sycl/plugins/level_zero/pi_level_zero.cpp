@@ -1802,18 +1802,25 @@ pi_result piDevicePartition(pi_device Device,
 
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
+  // Check if Device was already partitioned into the same or bigger size
+  // before. If so, we can return immediately without searching the global
+  // device cache. Note that L0 driver always returns the same handles in the
+  // same order for the given number of sub-devices.
+  if (OutDevices && NumDevices <= Device->SubDevices.size()) {
+    for (uint32_t I = 0; I < NumDevices; I++) {
+      OutDevices[I] = Device->SubDevices[I];
+      // reusing the same pi_device needs to increment the reference count
+      piDeviceRetain(OutDevices[I]);
+    }
+    if (OutNumDevices)
+      *OutNumDevices = NumDevices;
+    return PI_SUCCESS;
+  }
+
   // Get the number of subdevices available.
   // TODO: maybe add interface to create the specified # of subdevices.
   uint32_t Count = 0;
   ZE_CALL(zeDeviceGetSubDevices(Device->ZeDevice, &Count, nullptr));
-
-  // Check that the requested/allocated # of sub-devices is the same
-  // as was reported by the above call.
-  // TODO: we may want to support smaller/larger # devices too.
-  if (Count != NumDevices) {
-    zePrint("piDevicePartition: unsupported # of sub-devices requested\n");
-    return PI_INVALID_OPERATION;
-  }
 
   if (OutNumDevices) {
     *OutNumDevices = Count;
@@ -1825,17 +1832,29 @@ pi_result piDevicePartition(pi_device Device,
   }
 
   try {
+    pi_platform Platform = Device->Platform;
     auto ZeSubdevices = new ze_device_handle_t[Count];
     ZE_CALL(zeDeviceGetSubDevices(Device->ZeDevice, &Count, ZeSubdevices));
 
     // Wrap the Level Zero sub-devices into PI sub-devices, and write them out.
     for (uint32_t I = 0; I < Count; ++I) {
-      OutDevices[I] = new _pi_device(ZeSubdevices[I], Device->Platform,
-                                     true /* isSubDevice */);
-      pi_result Result = OutDevices[I]->initialize();
-      if (Result != PI_SUCCESS) {
-        delete[] ZeSubdevices;
-        return Result;
+      pi_device Dev = Platform->getDeviceFromNativeHandle(ZeSubdevices[I]);
+      if (Dev) {
+        OutDevices[I] = Dev;
+        // reusing the same pi_device needs to increment the reference count
+        piDeviceRetain(OutDevices[I]);
+      } else {
+        std::unique_ptr<_pi_device> PiSubDevice(
+            new _pi_device(ZeSubdevices[I], Platform));
+        pi_result Result = PiSubDevice->initialize();
+        if (Result != PI_SUCCESS) {
+          delete[] ZeSubdevices;
+          return Result;
+        }
+        OutDevices[I] = PiSubDevice.get();
+        Platform->PiDevicesCache.push_back(std::move(PiSubDevice));
+        // save pointers to sub-devices for quick retrieval in the future.
+        Device->SubDevices.push_back(Dev);
       }
     }
     delete[] ZeSubdevices;
@@ -1911,13 +1930,13 @@ pi_result piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(Device, PI_INVALID_DEVICE);
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
   PI_ASSERT(Platform, PI_INVALID_PLATFORM);
-
-  std::lock_guard<std::mutex> Lock(Platform->PiDevicesCacheMutex);
-  pi_result Res = populateDeviceCacheIfNeeded(Platform);
-  if (Res != PI_SUCCESS) {
-    return Res;
+  {
+    std::lock_guard<std::mutex> Lock(Platform->PiDevicesCacheMutex);
+    pi_result Res = populateDeviceCacheIfNeeded(Platform);
+    if (Res != PI_SUCCESS) {
+      return Res;
+    }
   }
-
   auto ZeDevice = pi_cast<ze_device_handle_t>(NativeHandle);
 
   // The SYCL spec requires that the set of devices must remain fixed for the
@@ -1925,15 +1944,11 @@ pi_result piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
   // Level Zero devices when we initialized the device cache, so the
   // "NativeHandle" must already be in the cache. If it is not, this must not be
   // a valid Level Zero device.
-  for (const std::unique_ptr<_pi_device> &CachedDevice :
-       Platform->PiDevicesCache) {
-    if (CachedDevice->ZeDevice == ZeDevice) {
-      *Device = CachedDevice.get();
-      return PI_SUCCESS;
-    }
-  }
-
-  return PI_INVALID_VALUE;
+  pi_device Dev = Platform->getDeviceFromNativeHandle(ZeDevice);
+  if (Dev == nullptr)
+    return PI_INVALID_VALUE;
+  *Device = Dev;
+  return PI_SUCCESS;
 }
 
 pi_result piContextCreate(const pi_context_properties *Properties,
