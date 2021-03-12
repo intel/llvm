@@ -68,8 +68,8 @@ public:
   // Matches sycl::link
   kernel_bundle_impl(
       const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
-      std::vector<device> Devs, const property_list &PropList) {
-
+      std::vector<device> Devs, const property_list &PropList)
+      : MContext(ObjectBundles[0].get_context()), MDevices(std::move(Devs)) {
 
     for(const device &Dev: Devs) {
       for(const kernel_bundle<bundle_state::object> &ObjectBundle: ObjectBundles) {
@@ -83,21 +83,15 @@ public:
       }
     }
 
-    //for(const kernel_bundle<bundle_state::object> &ObjectBundle: ObjectBundles) {
-      //const std::vector<device> BundleDevices = ObjectBundle.get_devices();
+    std::vector<device_image_plain> DeviceImages;
+    for (const kernel_bundle<bundle_state::object> &ObjectBundle :
+         ObjectBundles) {
+      DeviceImages.insert(DeviceImages.end(), ObjectBundle.begin(),
+                          ObjectBundle.end());
+    }
 
-
-      //if (std::none_of(Devs.begin(), Devs.end(),
-                       //[](const device &DevCand) { 
-
-
-                       //return DevCand == 0;
-
-
-                       //})) {
-      //}
-    //}
-
+    MDeviceImages = detail::ProgramManager::getInstance().link(DeviceImages,
+                                                               Devs, PropList);
   }
 
   kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,

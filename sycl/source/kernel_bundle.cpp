@@ -151,12 +151,20 @@ compile_impl(const kernel_bundle<bundle_state::input> &InputBundle,
       detail::getSyclObjImpl(InputBundle), Devs, PropList);
 }
 
-} // namespace detail
-
 std::shared_ptr<detail::kernel_bundle_impl>
 link_impl(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
           const std::vector<device> &Devs, const property_list &PropList) {
   return std::make_shared<detail::kernel_bundle_impl>(ObjectBundles, Devs,
+                                                      PropList);
+}
+
+} // namespace detail
+
+
+kernel_bundle<bundle_state::executable>
+build(const kernel_bundle<bundle_state::input> &InputBundle,
+      const std::vector<device> &Devs, const property_list &PropList = {}) {
+  return std::make_shared<detail::kernel_bundle_impl>(InputBundle, Devs,
                                                       PropList);
 }
 

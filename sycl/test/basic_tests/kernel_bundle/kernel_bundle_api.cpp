@@ -146,6 +146,22 @@ int main() {
 
     sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundle7Linked =
         sycl::link({KernelBundle6Compiled}, KernelBundle6.get_devices());
+
+    std::cout << "KernelBundle7Linked programs after link:" << std::endl;
+    for (const sycl::device_image<sycl::bundle_state::executable> &DevImage :
+         KernelBundle7Linked) {
+      auto Impl = sycl::detail::getSyclObjImpl(DevImage);
+      std::cout << "\tProgram ptr = " << Impl->get_program_ref() << std::endl;
+    }
+
+    sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundle6Built =
+        sycl::build(KernelBundle6, KernelBundle6.get_devices());
+    std::cout << "KernelBundle7Linked programs after build:" << std::endl;
+    for (const sycl::device_image<sycl::bundle_state::executable> &DevImage :
+         KernelBundle6Built) {
+      auto Impl = sycl::detail::getSyclObjImpl(DevImage);
+      std::cout << "\tProgram ptr = " << Impl->get_program_ref() << std::endl;
+    }
   }
 
 

@@ -1235,7 +1235,7 @@ ProgramManager::getSYCLDeviceImages(const context &Ctx,
 
 device_image_plain ProgramManager::compile(
     const device_image_plain &DeviceImage,
-    const std::vector<device> &Devs, property_list PropList) {
+    const std::vector<device> &Devs, const property_list &PropList) {
 
   const std::shared_ptr<device_image_impl> &InputImpl =
       getSyclObjImpl(DeviceImage);
@@ -1274,9 +1274,10 @@ device_image_plain ProgramManager::compile(
   return createSyclObjFromImpl<device_image_plain>(ObjectImpl);
 }
 
-device_image_plain
+std::vector<device_image_plain>
 ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
-                     const std::vector<device> &Devs, property_list PropList) {
+                     const std::vector<device> &Devs,
+                     const property_list &PropList) {
 
   std::vector<pi_program> PIPrograms;
   PIPrograms.reserve(DeviceImages.size());
@@ -1302,7 +1303,6 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
       /*pfn_notify=*/nullptr,
       /*user_data=*/nullptr, &LinkedProg);
 
-
   assert(PI_SUCCESS == Error);
 
   DeviceImageImplPtr ExecutableImpl =
@@ -1321,17 +1321,46 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
 
   ExecutableImpl->get_kernel_ids_ref() = KernelIDs;
 
-  return createSyclObjFromImpl<device_image_plain>(ExecutableImpl);
+  return {createSyclObjFromImpl<device_image_plain>(ExecutableImpl)};
 }
 
 device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
                                          const std::vector<device> &Devs,
-                                         property_list PropList) {
+                                         const property_list &PropList) {
 
-  // set spec constatns here.
+  const std::shared_ptr<device_image_impl> &InputImpl =
+      getSyclObjImpl(DeviceImage);
 
-  assert(!"Not implemented");
-  return DeviceImage;
+  // TODO: assert state
+  // TODO: Devs should be compatible with device image
+  // TODO: DeviceImage state should be input
+
+  DeviceImageImplPtr ExecImpl = std::make_shared<detail::device_image_impl>(
+      InputImpl->get_bin_image_ref(), InputImpl->get_context(), Devs,
+      bundle_state::executable);
+
+  const detail::plugin &Plugin =
+      getSyclObjImpl(InputImpl->get_context())->getPlugin();
+
+  // TODO: Get rid of one device limitation
+  ExecImpl->get_program_ref() = createPIProgram(
+      *InputImpl->get_bin_image_ref(), InputImpl->get_context(), Devs[0]);
+
+  std::vector<pi_device> PIDevices;
+  PIDevices.reserve(Devs.size());
+  for (const device &Dev : Devs)
+    PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
+
+  // set spec constants here.
+
+  // TODO: Handle zero sized Device list.
+  Plugin.call<PiApiKind::piProgramBuild>(
+      ExecImpl->get_program_ref(), /*num devices=*/Devs.size(),
+      PIDevices.data(),
+      /*options=*/nullptr,
+      /*pfn_notify=*/nullptr, /*user_data*/ nullptr);
+
+  return createSyclObjFromImpl<device_image_plain>(ExecImpl);
 }
 
 } // namespace detail

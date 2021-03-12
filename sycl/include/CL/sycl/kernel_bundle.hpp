@@ -626,7 +626,7 @@ link(const kernel_bundle<bundle_state::object> &ObjectBundle,
 /// translated into one ore more new device images of state
 /// bundle_state::executable. The new bundle represents all of the kernels in
 /// InputBundle that are compatible with at least one of the devices in Devs.
-kernel_bundle<bundle_state::executable>
+__SYCL_EXPORT kernel_bundle<bundle_state::executable>
 build(const kernel_bundle<bundle_state::input> &InputBundle,
       const std::vector<device> &Devs, const property_list &PropList = {});
 
