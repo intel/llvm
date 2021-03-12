@@ -4576,18 +4576,17 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
 
   // TODO: Level Zero is missing the memory "mapping" capabilities, so we are
   // left to doing new memory allocation and a copy (read) on discrete devices.
-  // For pinned host memory and integrated devices, we have allocated the
-  // buffer in host memory so no actions are needed here except for
-  // synchronizing on incoming events. A host-to-host copy is done if a host
-  // pointer had been supplied during buffer creation on integrated devices.
+  // For integrated devices, we have allocated the buffer in host memory so no
+  // actions are needed here except for synchronizing on incoming events.
+  // A host-to-host copy is done if a host pointer had been supplied during
+  // buffer creation on integrated devices.
   //
   // TODO: for discrete, check if the input buffer is already allocated
   // in shared memory and thus is accessible from the host as is.
   // Can we get SYCL RT to predict/allocate in shared memory
   // from the beginning?
 
-  // For pinned host memory and integrated devices the buffer has been
-  // allocated in host memory.
+  // For integrated devices the buffer has been allocated in host memory.
   if (Buffer->OnHost) {
     // Wait on incoming events before doing the copy
     PI_CALL(piEventsWait(NumEventsInWaitList, EventWaitList));
@@ -4691,8 +4690,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
     (*Event)->CommandData =
         (MemObj->OnHost ? nullptr : (MemObj->MapHostPtr ? nullptr : MappedPtr));
 
-  // For pinned host memory and integrated devices the buffer is allocated
-  // in host memory.
+  // For integrated devices the buffer is allocated in host memory.
   if (MemObj->OnHost) {
     // Wait on incoming events before doing the copy
     PI_CALL(piEventsWait(NumEventsInWaitList, EventWaitList));
