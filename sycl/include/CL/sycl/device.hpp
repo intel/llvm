@@ -16,6 +16,7 @@
 #include <CL/sycl/platform.hpp>
 #include <CL/sycl/stl.hpp>
 
+#include <memory>
 #include <utility>
 
 __SYCL_INLINE_NAMESPACE(cl) {
