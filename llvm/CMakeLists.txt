@@ -920,23 +920,6 @@ if( MINGW AND NOT "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" )
   llvm_replace_compiler_option(CMAKE_CXX_FLAGS_RELEASE "-O3" "-O2")
 endif()
 
-if( SYCL_USE_LIBCXX)
-  if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
-      (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
-      if ((NOT (DEFINED SYCL_LIBCXX_INCLUDE_PATH)) OR (NOT (DEFINED SYCL_LIBCXX_LIBRARY_PATH)))
-        message(FATAL_ERROR "When building with libc++ SYCL_LIBCXX_INCLUDE_PATHS and"
-                            "SYCL_LIBCXX_LIBRARY_PATH should be set")
-      endif()
-  else()
-    message(FATAL_ERROR "Build with libc++ is not yet supported for this compiler")
-  endif()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -nostdinc++ -I ${SYCL_LIBCXX_INCLUDE_PATH}")
-endif()
-
-function( link_with_libcxx LIB_NAME)
-  target_link_libraries(${LIB_NAME} PRIVATE "-L${SYCL_LIBCXX_LIBRARY_PATH}" -Wl,-rpath,${SYCL_LIBCXX_LIBRARY_PATH} -nodefaultlibs -lc++ -lc++abi -lm -lc -lgcc_s -lgcc)
-endfunction(link_with_libcxx)
-
 # Put this before tblgen. Else we have a circular dependence.
 add_subdirectory(lib/Demangle)
 add_subdirectory(lib/Support)
