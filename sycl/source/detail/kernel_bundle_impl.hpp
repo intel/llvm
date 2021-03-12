@@ -99,6 +99,7 @@ public:
   }
 
   kernel get_kernel(const kernel_id &KernelID) const {
+    (void)KernelID;
     throw sycl::runtime_error("Not implemented", PI_INVALID_OPERATION);
   }
 
