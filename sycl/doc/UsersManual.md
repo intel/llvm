@@ -48,7 +48,7 @@ and not recommended to use in production environment.
 **`-f[no-]sycl-unnamed-lambda`**
 
     Enables/Disables unnamed SYCL lambda kernels support.
-    Enabled by default.
+    Disabled by default.
 
 ## Optimization options
 
@@ -82,12 +82,10 @@ and not recommended to use in production environment.
     Pass "options" to the backend of target device compiler, specified by
     triple T. The backend of device compiler generates target machine code from
     intermediate representation. This option can be used to tune code
-    generation for a specific target. The options are used during offline compilation
-    and are also saved in a fat binary when used for online compilation to be used
-    at runtime compilation.
+    generation for a specific target. The "options" are used during offline
+    compilation and are also saved in a fat binary for online compilation.
     -Xs is a shortcut to pass "options" to all backends specified via the
-    '-fsycl-targets' option (or default
-    one).
+    '-fsycl-targets' option (or default one).
 
 **`-Xsycl-target-frontend=<T> "options"`**
 
@@ -201,14 +199,11 @@ and not recommended to use in production environment.
 
     Compile only device part of the code and ignore host part.
 
-**`-fsycl-use-bitcode`** [DEPRECATED]
+**`-f[no-]sycl-use-bitcode`**
 
     Emit SYCL device code in LLVM-IR bitcode format. When disabled, SPIR-V is
-    emitted. Default is true.
-
-**`-fno-sycl-use-bitcode`** [DEPRECATED]
-
-    Use SPIR-V instead of LLVM bitcode in fat objects.
+    emitted.
+    Enabled by default.
 
 **`-fsycl-help[=backend]`**
 
