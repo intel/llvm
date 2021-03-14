@@ -3163,13 +3163,13 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
       int64_t NumSimdWorkItems =
           A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue();
 
-      bool usesOpenCLArgOrdering =
+      bool UsesOpenCLArgOrdering =
           ((AL.getSyntax() == AttributeCommonInfo::AS_CXX11 ||
             AL.getSyntax() == AttributeCommonInfo::AS_C2x) &&
            AL.hasScope() && AL.getScopeName()->isStr("cl")) ||
           AL.getSyntax() == AttributeCommonInfo::AS_GNU;
 
-      unsigned WorkGroupSize = usesOpenCLArgOrdering ? XDimVal.getZExtValue()
+      unsigned WorkGroupSize = UsesOpenCLArgOrdering ? XDimVal.getZExtValue()
                                                      : ZDimVal.getZExtValue();
 
       if (WorkGroupSize % NumSimdWorkItems != 0) {
