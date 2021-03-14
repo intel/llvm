@@ -85,7 +85,8 @@ and not recommended to use in production environment.
     generation for a specific target. For offline compilation it happens during
     compilation. For online compilation options are saved in a fat binary to be
     used later, during runtime compilation.
-    -Xs is a shortcut to pass options to all backends specified (or default
+    -Xs is a shortcut to pass "options" to all backends specified via the
+    '-fsycl-targets' option (or default
     one).
 
 **`-Xsycl-target-frontend=<T> "options"`**
