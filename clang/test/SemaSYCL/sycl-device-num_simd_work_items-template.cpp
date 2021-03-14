@@ -66,14 +66,35 @@ template <int N>
 template <int N>
 [[intel::num_simd_work_items(N)]] void func4() {} // expected-warning {{attribute 'num_simd_work_items' is already applied with different arguments}}
 
+// Tests for num_simd_work_items and reqd_work_group_size arguments check.
+template <int N>
+__attribute__((reqd_work_group_size(3, 4, 4))) void func5(); // expected-note{{conflicting attribute is here}}
+template <int N>
+[[intel::num_simd_work_items(N)]] void func5(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+
+template <int N>
+[[cl::reqd_work_group_size(4, 3, 3)]] void func6(); // expected-note{{conflicting attribute is here}}
+template <int N>
+[[intel::num_simd_work_items(N)]] void func6(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+
+template <int N>
+[[intel::reqd_work_group_size(8, 4, 5)]] void func7(); // expected-note{{conflicting attribute is here}}
+template <int N>
+[[intel::num_simd_work_items(N)]] void func7(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+
 int check() {
   // no error expected
   func3<8>();
   //expected-note@+1{{in instantiation of function template specialization 'func3<-1>' requested here}}
   func3<-1>();
-
-  func4<6>(); //expected-note {{in instantiation of function template specialization 'func4<6>' requested here}}
-
+  //expected-note@+1{{in instantiation of function template specialization 'func4<6>' requested here}}
+  func4<6>();
+  //expected-note@+1{{in instantiation of function template specialization 'func5<2>' requested here}}
+  func5<2>();
+  //expected-note@+1{{in instantiation of function template specialization 'func6<3>' requested here}}
+  func6<3>();
+  //expected-note@+1{{in instantiation of function template specialization 'func7<4>' requested here}}
+  func7<4>();
   return 0;
 }
 

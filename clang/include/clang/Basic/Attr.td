@@ -2793,6 +2793,9 @@ def ReqdWorkGroupSize : InheritableAttr {
               ExprArgument<"YDim", /*optional*/1>,
               ExprArgument<"ZDim", /*optional*/1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Accessors = [Accessor<"usesOpenCLArgOrdering",
+                   [GNU<"reqd_work_group_size">,
+                    CXX11<"cl","reqd_work_group_size">]>];
   let AdditionalMembers = [{
     ArrayRef<const Expr *> dimensions() const {
       return {getXDim(), getYDim(), getZDim()};

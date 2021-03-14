@@ -2418,25 +2418,43 @@ device kernel, the attribute is not ignored and it is propagated to the kernel.
     [[intel::num_simd_work_items(N)]] void operator()() const {}
   };
 
-If the`` intel::reqd_work_group_size`` or ``cl::reqd_work_group_size``
-attribute is specified on a declaration along with a
-intel::num_simd_work_items attribute, the work group size attribute
-argument (the last argument) must be evenly divisible by the argument specified
+If the ``intel::reqd_work_group_size`` attribute is specified on a declaration
+along with a ``intel::num_simd_work_items`` attribute, the work group size
+(the last argument) must be evenly divisible by the argument specified
 in the ``intel::num_simd_work_items`` attribute.
 
 .. code-block:: c++
 
   struct func {
     [[intel::num_simd_work_items(4)]]
-    [[intel::reqd_work_group_size(64, 64, 64)]]
+    [[intel::reqd_work_group_size(5, 5, 64)]]
     void operator()() const {}
   };
 
   struct bar {
-    [[intel::reqd_work_group_size(64, 64, 64)]]
+    [[intel::reqd_work_group_size(5, 5, 64)]]
     [[intel::num_simd_work_items(4)]]
     void operator()() const {}
   };
+
+If the ``cl::reqd_work_group_size`` or ``__attribute__((reqd_work_group_size()))``
+attribute is specified on a declaration along with a ``intel::num_simd_work_items``
+attribute, the work group size (the first argument) must be evenly divisible by
+the argument specified in the ``intel::num_simd_work_items`` attribute.
+GNU and ``cl::reqd_work_group_size`` spelling of ReqdWorkGroupSizeAttr maps to
+the OpenCL semantic. The first and last argument are only swapped for the Intel
+attributes in SYCL and not the OpenCL ones.
+
+.. code-block:: c++
+
+  struct func1 {
+    [[intel::num_simd_work_items(4)]]
+    [[cl::reqd_work_group_size(4, 5, 5)]]
+    void operator()() const {}
+  };
+
+  [[intel::num_simd_work_items(2)]]
+  __attribute__((reqd_work_group_size(4,3,3))) void bar();
 
   }];
 }
