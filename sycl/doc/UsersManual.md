@@ -82,9 +82,9 @@ and not recommended to use in production environment.
     Pass "options" to the backend of target device compiler, specified by
     triple T. The backend of device compiler generates target machine code from
     intermediate representation. This option can be used to tune code
-    generation for a specific target. For offline compilation it happens during
-    compilation. For online compilation options are saved in a fat binary to be
-    used later, during runtime compilation.
+    generation for a specific target. The options are used during offline compilation
+    and are also saved in a fat binary when used for online compilation to be used
+    at runtime compilation.
     -Xs is a shortcut to pass "options" to all backends specified via the
     '-fsycl-targets' option (or default
     one).
