@@ -3164,14 +3164,13 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
           A->getValue()->getIntegerConstantExpr(Ctx)->getSExtValue();
 
       bool usesOpenCLArgOrdering =
-	   ((AL.getSyntax() == AttributeCommonInfo::AS_CXX11 ||
-             AL.getSyntax() == AttributeCommonInfo::AS_C2x) &&
-            AL.hasScope() && AL.getScopeName()->isStr("cl")) ||
-	    AL.getSyntax() == AttributeCommonInfo::AS_GNU;
+          ((AL.getSyntax() == AttributeCommonInfo::AS_CXX11 ||
+            AL.getSyntax() == AttributeCommonInfo::AS_C2x) &&
+           AL.hasScope() && AL.getScopeName()->isStr("cl")) ||
+          AL.getSyntax() == AttributeCommonInfo::AS_GNU;
 
-      unsigned WorkGroupSize = usesOpenCLArgOrdering
-                               ? XDimVal.getZExtValue()
-                               : ZDimVal.getZExtValue();
+      unsigned WorkGroupSize = usesOpenCLArgOrdering ? XDimVal.getZExtValue()
+                                                     : ZDimVal.getZExtValue();
 
       if (WorkGroupSize % NumSimdWorkItems != 0) {
         S.Diag(A->getLocation(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
@@ -3377,9 +3376,9 @@ SYCLIntelNumSimdWorkItemsAttr *Sema::MergeSYCLIntelNumSimdWorkItemsAttr(
     const auto *DeclXExpr = dyn_cast<ConstantExpr>(DeclAttr->getXDim());
     const auto *DeclZExpr = dyn_cast<ConstantExpr>(DeclAttr->getZDim());
 
-    llvm::APSInt WorkGroupSize =
-        DeclAttr->usesOpenCLArgOrdering() ? DeclXExpr->getResultAsAPSInt()
-	                                  : DeclZExpr->getResultAsAPSInt();
+    llvm::APSInt WorkGroupSize = DeclAttr->usesOpenCLArgOrdering()
+                                     ? DeclXExpr->getResultAsAPSInt()
+                                     : DeclZExpr->getResultAsAPSInt();
 
     if (WorkGroupSize % MergeExpr->getResultAsAPSInt() != 0) {
       Diag(A.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
