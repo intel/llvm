@@ -10,6 +10,7 @@
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
+#include <detail/backend_impl.hpp>
 #include <detail/force_device.hpp>
 #include <detail/platform_impl.hpp>
 
@@ -43,7 +44,7 @@ vector_class<platform> platform::get_platforms() {
   return detail::platform_impl::get_platforms();
 }
 
-backend platform::get_backend() const noexcept { return impl->get_backend(); }
+backend platform::get_backend() const noexcept { return getImplBackend(impl); }
 
 template <info::platform param>
 typename info::param_traits<info::platform, param>::return_type
