@@ -10,6 +10,7 @@
 
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/backend_types.hpp>
+#include <CL/sycl/exception.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -17,6 +18,9 @@ namespace sycl {
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj) ->
     typename interop<BackendName, SyclObjectT>::type {
+  // TODO use SYCL 2020 exception when implemented
+  if (Obj.get_backend() != BackendName)
+    throw runtime_error("Backends mismatch", PI_INVALID_OPERATION);
   return Obj.template get_native<BackendName>();
 }
 
