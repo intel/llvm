@@ -449,7 +449,7 @@ public:
   }
 
   // This is an interface function for collecting sets of
-  // functions called from a regular SYCL kernel.
+  // functions in an ESIMD call graph.
   void collectEsimdCallGraphNodes(FunctionDecl *RootNode) {
     llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet;
     collectCallGraphNodes(RootNode, RootNode, VisitedSet, EsimdCallGraphNodes);
