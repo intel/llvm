@@ -160,10 +160,9 @@ link_impl(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
 
 } // namespace detail
 
-
 kernel_bundle<bundle_state::executable>
 build(const kernel_bundle<bundle_state::input> &InputBundle,
-      const std::vector<device> &Devs, const property_list &PropList = {}) {
+      const std::vector<device> &Devs, const property_list &PropList) {
   return std::make_shared<detail::kernel_bundle_impl>(InputBundle, Devs,
                                                       PropList);
 }
