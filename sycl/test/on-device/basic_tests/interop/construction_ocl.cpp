@@ -1,6 +1,6 @@
 // REQUIRES: opencl
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -lOpenCL %s -o %t.ocl.out
-// RUN: %t.ocl.out
+// RUN: env SYCL_DEVICE_FILTER="opencl" %t.ocl.out
 
 #include <CL/sycl/backend/opencl.hpp>
 #include <sycl/sycl.hpp>

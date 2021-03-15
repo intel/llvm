@@ -16,6 +16,8 @@
 #include <CL/sycl/detail/pi.h>
 #include <CL/sycl/exception_list.hpp>
 
+#include <stdexcept>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -27,7 +29,7 @@ static const plugin &getPlugin(backend Backend) {
   case backend::level_zero:
     return pi::getPlugin<backend::level_zero>();
   default:
-    assert(false && "Unsupported backend type");
+    throw std::runtime_error{"Unsupported backend"};
   }
 }
 

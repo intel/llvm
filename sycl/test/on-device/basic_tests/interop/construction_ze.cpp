@@ -1,6 +1,6 @@
 // REQUIRES: level_zero
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.ze.out
-// RUN: %t.ze.out
+// RUN: env SYCL_DEVICE_FILTER="level_zero" %t.ze.out
 
 #include <level_zero/ze_api.h>
 
