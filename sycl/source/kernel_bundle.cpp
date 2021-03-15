@@ -163,12 +163,17 @@ link_impl(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
 kernel_bundle<bundle_state::executable>
 build(const kernel_bundle<bundle_state::input> &InputBundle,
       const std::vector<device> &Devs, const property_list &PropList) {
-  return std::make_shared<detail::kernel_bundle_impl>(InputBundle, Devs,
-                                                      PropList);
+  auto Impl =
+      std::make_shared<detail::kernel_bundle_impl>(InputBundle, Devs, PropList);
+
+  return detail::createSyclObjFromImpl<
+      kernel_bundle<sycl::bundle_state::executable>>(Impl);
 }
 
 __SYCL_EXPORT bool is_compatible(const std::vector<kernel_id> &KernelIDs,
                                  const device &Dev) {
+  (void)KernelIDs;
+  (void)Dev;
   // TODO: Something like this should be implemented once aspects are supported.
   // std::unordered_set<aspect> KernelsRequiredAspects;
   // for(const kernel_id &KernelID: KernelIDs) {

@@ -1242,6 +1242,7 @@ ProgramManager::getSYCLDeviceImages(const context &Ctx,
 device_image_plain ProgramManager::compile(
     const device_image_plain &DeviceImage,
     const std::vector<device> &Devs, const property_list &PropList) {
+  (void)PropList;
 
   const std::shared_ptr<device_image_impl> &InputImpl =
       getSyclObjImpl(DeviceImage);
@@ -1284,6 +1285,7 @@ std::vector<device_image_plain>
 ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
                      const std::vector<device> &Devs,
                      const property_list &PropList) {
+  (void)PropList;
 
   std::vector<pi_program> PIPrograms;
   PIPrograms.reserve(DeviceImages.size());
@@ -1309,7 +1311,8 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
       /*pfn_notify=*/nullptr,
       /*user_data=*/nullptr, &LinkedProg);
 
-  assert(PI_SUCCESS == Error);
+  if(PI_SUCCESS != Error)
+    throw "Build fail";
 
   DeviceImageImplPtr ExecutableImpl =
       std::make_shared<detail::device_image_impl>(Context, Devs,
@@ -1333,6 +1336,7 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
 device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
                                          const std::vector<device> &Devs,
                                          const property_list &PropList) {
+  (void)PropList;
 
   const std::shared_ptr<device_image_impl> &InputImpl =
       getSyclObjImpl(DeviceImage);

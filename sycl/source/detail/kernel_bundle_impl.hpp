@@ -45,6 +45,19 @@ public:
         MContext, MDevices, State);
   }
 
+  // Matches sycl::build
+  kernel_bundle_impl(const kernel_bundle<bundle_state::input> &InputBundle,
+                     const std::vector<device> &Devs,
+                     const property_list &PropList) {
+
+    // TODO: Add checks here
+
+    for (const device_image_plain &DeviceImage : InputBundle) {
+      MDeviceImages.push_back(detail::ProgramManager::getInstance().build(
+          DeviceImage, Devs, PropList));
+    }
+  }
+
   // Matches sycl::compile
   // TODO: Replace kernel_bunlde_impl with kernel_bundle_plain
   kernel_bundle_impl(const std::shared_ptr<kernel_bundle_impl> &InputBundleImpl,
