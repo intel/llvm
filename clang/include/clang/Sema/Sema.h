@@ -10295,6 +10295,11 @@ public:
   /// declaration.
   void addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &CI, Expr *ID);
 
+  /// AddSYCLIntelFPGAMaxConcurrencyAttr - Adds a max_component attribute to a
+  /// particular declaration.
+  void AddSYCLIntelFPGAMaxConcurrencyAttr(Decl *D,
+                                          const AttributeCommonInfo &CI,
+                                          Expr *E);
   bool checkNSReturnsRetainedReturnType(SourceLocation loc, QualType type);
   bool checkAllowedSYCLInitializer(VarDecl *VD,
                                    bool CheckValueDependent = false);

@@ -167,7 +167,9 @@ public:
         ParsedAttr == AT_SYCLIntelMaxGlobalWorkDim ||
         ParsedAttr == AT_SYCLIntelNoGlobalWorkOffset ||
         ParsedAttr == AT_SYCLIntelUseStallEnableClusters ||
-        ParsedAttr == AT_SYCLIntelLoopFuse || ParsedAttr == AT_SYCLSimd)
+        ParsedAttr == AT_SYCLIntelLoopFuse ||
+        ParsedAttr == AT_SYCLSimd ||
+        ParsedAttr == AT_SYCLIntelFPGAMaxConcurrency)
       return true;
 
     return false;

@@ -1854,10 +1854,10 @@ def SYCLIntelFPGAInitiationInterval : StmtAttr {
   let Documentation = [SYCLIntelFPGAInitiationIntervalAttrDocs];
 }
 
-def SYCLIntelFPGAMaxConcurrency : StmtAttr {
+def SYCLIntelFPGAMaxConcurrency : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","max_concurrency">,
                    CXX11<"intel","max_concurrency">];
-  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt, Function],
                              ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [ExprArgument<"NThreadsExpr">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];

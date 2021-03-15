@@ -3,8 +3,6 @@
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_DLP:[0-9]+]]
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_II:[0-9]+]]
 // CHECK: br label %for.cond2,  !llvm.loop ![[MD_II_2:[0-9]+]]
-// CHECK: br label %for.cond,   !llvm.loop ![[MD_MC:[0-9]+]]
-// CHECK: br label %for.cond2,  !llvm.loop ![[MD_MC_2:[0-9]+]]
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_LC:[0-9]+]]
 // CHECK: br label %for.cond2,  !llvm.loop ![[MD_LC_2:[0-9]+]]
 // CHECK: br label %for.cond13, !llvm.loop ![[MD_LC_3:[0-9]+]]
@@ -32,19 +30,6 @@ void ii() {
   // CHECK: ![[MD_II_2]] = distinct !{![[MD_II_2]], ![[MP]], ![[MD_ii_count_2:[0-9]+]]}
   // CHECK-NEXT: ![[MD_ii_count_2]] = !{!"llvm.loop.ii.count", i32 8}
   [[intel::ii(8)]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
-}
-
-template <int A>
-void max_concurrency() {
-  int a[10];
-  // CHECK: ![[MD_MC]] = distinct !{![[MD_MC]], ![[MP]], ![[MD_max_concurrency:[0-9]+]]}
-  // CHECK-NEXT: ![[MD_max_concurrency]] = !{!"llvm.loop.max_concurrency.count", i32 0}
-  [[intel::max_concurrency(A)]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
-  // CHECK: ![[MD_MC_2]] = distinct !{![[MD_MC_2]], ![[MP]], ![[MD_max_concurrency_2:[0-9]+]]}
-  // CHECK-NEXT: ![[MD_max_concurrency_2]] = !{!"llvm.loop.max_concurrency.count", i32 4}
-  [[intel::max_concurrency(4)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
 
@@ -100,7 +85,6 @@ int main() {
   kernel_single_task<class kernel_function>([]() {
     disable_loop_pipelining();
     ii<4>();
-    max_concurrency<0>();
     loop_coalesce<2>();
     max_interleaving<3>();
     speculated_iterations<4>();

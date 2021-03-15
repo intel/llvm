@@ -6294,6 +6294,45 @@ static void handleSYCLIntelPipeIOAttr(Sema &S, Decl *D,
   S.addSYCLIntelPipeIOAttr(D, Attr, E);
 }
 
+void Sema::AddSYCLIntelFPGAMaxConcurrencyAttr(Decl *D,
+                                              const AttributeCommonInfo &CI,
+                                              Expr *E) {
+  if (!E->isValueDependent()) {
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return;
+    E = Res.get();
+
+    // This attribute requires a strictly positive value.
+    if (ArgVal <= 0) {
+      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+          << CI << /*positive*/ 0;
+      return;
+    }
+
+    if (const auto *DeclAttr = D->getAttr<SYCLIntelFPGAMaxConcurrencyAttr>()) {
+      const auto *DeclExpr =
+          dyn_cast<ConstantExpr>(DeclAttr->getNThreadsExpr());
+      if (DeclExpr && ArgVal != DeclExpr->getResultAsAPSInt()) {
+        Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+        Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        return;
+      }
+    }
+  }
+
+   D->addAttr(::new (Context) SYCLIntelFPGAMaxConcurrencyAttr(Context, CI, E));
+}
+
+static void handleSYCLIntelFPGAMaxConcurrencyAttr(Sema &S, Decl *D,
+                                                  const ParsedAttr &A) {
+  S.CheckDeprecatedSYCLAttributeSpelling(A);
+
+  Expr *E = A.getArgAsExpr(0);
+  S.AddSYCLIntelFPGAMaxConcurrencyAttr(D, A, E);
+}
+
 namespace {
 struct IntrinToName {
   uint32_t Id;
@@ -9546,6 +9585,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_SYCLIntelPipeIO:
     handleSYCLIntelPipeIOAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency:
+    handleSYCLIntelFPGAMaxConcurrencyAttr(S, D, AL);
     break;
 
   // Swift attributes.
