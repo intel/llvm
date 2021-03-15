@@ -1,3 +1,6 @@
+/// Check if start/finish ITT annotations are being added during compilation of
+/// SYCL device code
+
 // RUN: %clang_cc1 -fsycl-is-device -fsycl-instrument-device-code -triple spir64-unknown-unknown-sycldevice -emit-llvm %s -o - | FileCheck %s
 
 // CHECK: kernel_function

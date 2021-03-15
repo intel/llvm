@@ -951,7 +951,7 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
 
   // Add SPIRITTAnnotations pass to the pass manager if
   // -fsycl-instrument-device-code option was passed. This option can be
-  // used only with spir tripple.
+  // used only with spir triple.
   if (CodeGenOpts.SPIRITTAnnotations) {
     if (!llvm::Triple(TheModule->getTargetTriple()).isSPIR())
       llvm::report_fatal_error(
