@@ -462,6 +462,15 @@ createEventAndAssociateQueue(pi_queue Queue, pi_event *Event,
   // In piEventRelease, the reference counter of the Queue is decremented
   // to release it.
   piQueueRetainNoLock(Queue);
+
+  // SYCL RT does not track completion of the events, so it could
+  // release a PI event as soon as that's not being waited in the app.
+  // But we have to ensure that the event is not destroyed before
+  // it is really signalled, so retain it explicitly here and
+  // release in cleanupAfterEvent.
+  //
+  PI_CALL(piEventRetain(*Event));
+
   return PI_SUCCESS;
 }
 
@@ -3848,6 +3857,15 @@ static pi_result cleanupAfterEvent(pi_event Event) {
       PI_CALL(piKernelRelease(pi_cast<pi_kernel>(Event->CommandData)));
       Event->CommandData = nullptr;
     }
+
+    if (!Event->CleanedUp) {
+      Event->CleanedUp = true;
+      // Release this event since we explicitly retained it on creation.
+      // NOTE: that this needs to be done only once for an event so
+      // this is guarded with the CleanedUp flag.
+      //
+      PI_CALL(piEventRelease(Event));
+    }
   }
 
   // Make a list of all the dependent events that must have signalled
@@ -3871,6 +3889,7 @@ static pi_result cleanupAfterEvent(pi_event Event) {
         EventsToBeReleased);
     PI_CALL(piEventRelease(DepEvent));
   }
+
   return PI_SUCCESS;
 }
 
@@ -3932,6 +3951,9 @@ pi_result piEventRetain(pi_event Event) {
 
 pi_result piEventRelease(pi_event Event) {
   PI_ASSERT(Event, PI_INVALID_EVENT);
+  if (!Event->RefCount) {
+    die("piEventRelease: called on a destroyed event");
+  }
 
   if (--(Event->RefCount) == 0) {
     cleanupAfterEvent(Event);
