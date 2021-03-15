@@ -28,9 +28,34 @@ event handler::finalize() {
     return MLastEvent;
   MIsFinalized = true;
 
+  if (getCGTypeVersion(MCGType) > detail::CG::CG_VERSION::V0) {
+    // TODO: Move to handler c'tor?
+    if (MSharedPtrStorage.empty()) {
+      // Need to create extended members
+      std::shared_ptr<std::vector<detail::ExtendedMember>> ExendedMembersVec =
+          std::make_shared<std::vector<detail::ExtendedMember>>();
+      MSharedPtrStorage.push_back(ExendedMembersVec);
+    }
+
+    assert(!MSharedPtrStorage.empty());
+    std::shared_ptr<std::vector<detail::ExtendedMember>> ExendedMembersVec =
+        detail::convertToExtendedMembers(MSharedPtrStorage[0]);
+
+    kernel_bundle<bundle_state::executable> KernelBundle =
+        sycl::get_kernel_bundle<sycl::bundle_state::executable>(
+            MQueue->get_context());
+
+    detail::ExtendedMember EMember = {
+        detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE,
+        detail::getSyclObjImpl(KernelBundle)};
+
+    ExendedMembersVec->push_back(EMember);
+  }
+
   unique_ptr_class<detail::CG> CommandGroup;
   switch (MCGType) {
   case detail::CG::KERNEL:
+  case detail::CG::KERNEL_V2:
   case detail::CG::RUN_ON_HOST_INTEL: {
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
@@ -110,7 +135,7 @@ event handler::finalize() {
 
   MLastEvent = detail::createSyclObjFromImpl<event>(Event);
   return MLastEvent;
-}
+  }
 
 void handler::associateWithHandler(detail::AccessorBaseHost *AccBase,
                                    access::target AccTarget) {

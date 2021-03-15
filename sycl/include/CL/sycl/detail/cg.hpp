@@ -36,18 +36,48 @@ namespace sycl {
 
 // Forward declarations
 class queue;
-namespace detail {
-class queue_impl;
-} // namespace detail
 
 namespace detail {
+
+enum class ExtendedMembersType: unsigned int {
+  HANDLER_KERNEL_BUNDLE = 0,
+};
+
+struct ExtendedMember {
+  ExtendedMembersType MType;
+  std::shared_ptr<void> MData;
+};
+
+static std::shared_ptr<std::vector<ExtendedMember>>
+convertToExtendedMembers(const std::shared_ptr<const void> &SPtr) {
+  return std::const_pointer_cast<std::vector<ExtendedMember>>(
+      std::static_pointer_cast<const std::vector<ExtendedMember>>(SPtr));
+}
 
 class stream_impl;
+class queue_impl;
+class kernel_bundle_impl;
+
+constexpr static unsigned int getVersionedCGType(unsigned int Type,
+                                                 unsigned char Version) {
+  return Type | ((unsigned int)Version << 24);
+}
+
+constexpr static unsigned char getCGTypeVersion(unsigned int Type) {
+  return Type >> 24;
+}
+
 /// Base class for all types of command groups.
 class CG {
 public:
+
+  enum CG_VERSION: unsigned char {
+    V0 = 0,
+    V1 = 1,
+  };
+
   /// Type of the command group.
-  enum CGTYPE {
+  enum CGTYPE : unsigned int {
     NONE = 0,
     KERNEL = 1,
     COPY_ACC_TO_PTR = 2,
@@ -62,7 +92,8 @@ public:
     FILL_USM = 11,
     PREFETCH_USM = 12,
     CODEPLAY_INTEROP_TASK = 13,
-    CODEPLAY_HOST_TASK = 14
+    CODEPLAY_HOST_TASK = 14,
+    KERNEL_V2 = getVersionedCGType(KERNEL, CG_VERSION::V1),
   };
 
   CG(CGTYPE Type, vector_class<vector_class<char>> ArgsStorage,
@@ -88,6 +119,13 @@ public:
   CG(CG &&CommandGroup) = default;
 
   CGTYPE getType() { return MType; }
+
+  std::shared_ptr<std::vector<ExtendedMember>> getExtendedMembers() {
+    if (getCGTypeVersion(MType) == CG_VERSION::V0 || MSharedPtrStorage.empty())
+      return nullptr;
+
+    return convertToExtendedMembers(MSharedPtrStorage[0]);
+  }
 
   virtual ~CG() = default;
 
@@ -155,6 +193,19 @@ public:
   vector_class<shared_ptr_class<detail::stream_impl>> getStreams() const {
     return MStreams;
   }
+
+  std::shared_ptr<detail::kernel_bundle_impl> getKernelBundle() {
+    const std::shared_ptr<std::vector<ExtendedMember>> &ExtendedMembers =
+        getExtendedMembers();
+    if (!ExtendedMembers)
+      return nullptr;
+    for (const ExtendedMember &EMember : *ExtendedMembers)
+      if (ExtendedMembersType::HANDLER_KERNEL_BUNDLE == EMember.MType)
+        return std::static_pointer_cast<detail::kernel_bundle_impl>(
+            EMember.MData);
+    return nullptr;
+  }
+
   void clearStreams() { MStreams.clear(); }
 };
 

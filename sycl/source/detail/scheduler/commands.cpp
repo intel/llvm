@@ -18,6 +18,7 @@
 #include <CL/sycl/sampler.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/kernel_info.hpp>
 #include <detail/program_impl.hpp>
@@ -1880,7 +1881,8 @@ cl_int ExecCGCommand::enqueueImp() {
           "Enqueueing run_on_host_intel task has failed.", Error);
     }
   }
-  case CG::CGTYPE::KERNEL: {
+  case CG::CGTYPE::KERNEL:
+  case CG::CGTYPE::KERNEL_V2: {
     CGExecKernel *ExecKernel = (CGExecKernel *)MCommandGroup.get();
 
     NDRDescT &NDRDesc = ExecKernel->MNDRDesc;
@@ -1902,6 +1904,19 @@ cl_int ExecCGCommand::enqueueImp() {
 
       return CL_SUCCESS;
     }
+
+    CG::CG_VERSION CGVer =
+        (CG::CG_VERSION)getCGTypeVersion(MCommandGroup->getType());
+
+    std::cout << "CGVer = " << (int)CGVer << std::endl;
+
+    const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr =
+        ExecKernel->getKernelBundle();
+    (void)KernelBundleImplPtr;
+
+    auto KernelIDs = KernelBundleImplPtr->get_kernel_ids();
+    assert(!KernelIDs.empty());
+    std::cout << "KernelIDs = " << KernelIDs[0].get_name() << std::endl;
 
     // Run OpenCL kernel
     sycl::context Context = MQueue->get_context();

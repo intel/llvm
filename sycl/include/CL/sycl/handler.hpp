@@ -822,7 +822,7 @@ private:
       MNDRDesc.set(std::move(AdjustedRange));
       StoreLambda<NameWT, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
-      MCGType = detail::CG::KERNEL;
+      MCGType = detail::CG::KERNEL_V2;
 #endif
     } else
 #endif // !__SYCL_EXPLICIT_SIMD__ && !SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING
@@ -836,7 +836,7 @@ private:
       MNDRDesc.set(std::move(NumWorkItems));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
           std::move(KernelFunc));
-      MCGType = detail::CG::KERNEL;
+      MCGType = detail::CG::KERNEL_V2;
 #endif
     }
   }
@@ -855,7 +855,7 @@ private:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V2;
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -1013,7 +1013,7 @@ public:
     MNDRDesc.set(range<1>{1});
 
     StoreLambda<NameT, KernelType, /*Dims*/ 0, void>(KernelFunc);
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V2;
 #endif
   }
 
@@ -1125,7 +1125,7 @@ public:
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V2;
 #endif
   }
 
@@ -1157,7 +1157,7 @@ public:
     detail::checkValueRange<Dims>(ExecutionRange);
     MNDRDesc.set(std::move(ExecutionRange));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V2;
 #endif
   }
 
@@ -1378,7 +1378,7 @@ public:
     detail::checkValueRange<Dims>(NumWorkGroups);
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V2;
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -1414,7 +1414,7 @@ public:
     detail::checkValueRange<Dims>(ExecRange);
     MNDRDesc.set(std::move(ExecRange));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V2;
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -1431,7 +1431,7 @@ public:
     // known constant
     MNDRDesc.set(range<1>{1});
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V2;
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -1464,7 +1464,7 @@ public:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V2;
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -1483,7 +1483,7 @@ public:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
     MNDRDesc.set(std::move(NDRange));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V2;
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -1507,7 +1507,7 @@ public:
     // known constant
     MNDRDesc.set(range<1>{1});
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V2;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -1548,7 +1548,7 @@ public:
     detail::checkValueRange<Dims>(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V2;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -1584,7 +1584,7 @@ public:
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V2;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -1620,7 +1620,7 @@ public:
     detail::checkValueRange<Dims>(NDRange);
     MNDRDesc.set(std::move(NDRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V2;
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -1661,7 +1661,7 @@ public:
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V2;
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -1702,7 +1702,7 @@ public:
     MNDRDesc.set(std::move(ExecRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    MCGType = detail::CG::KERNEL;
+    MCGType = detail::CG::KERNEL_V2;
 #endif // __SYCL_DEVICE_ONLY__
   }
 
