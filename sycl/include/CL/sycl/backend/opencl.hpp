@@ -53,8 +53,13 @@ struct interop<backend::opencl, accessor<DataT, Dimensions, AccessMode,
   using type = cl_mem;
 };
 
+template <typename DataT, int Dimensions, typename AllocatorT>
+struct interop<backend::opencl, buffer<DataT, Dimensions, AllocatorT>> {
+  using type = cl_mem;
+};
+
 namespace detail {
-template <> class InteropFeatureSupportMap<backend::opencl> {
+template <> struct InteropFeatureSupportMap<backend::opencl> {
   static constexpr bool MakePlatform = true;
   static constexpr bool MakeDevice = true;
   static constexpr bool MakeContext = true;

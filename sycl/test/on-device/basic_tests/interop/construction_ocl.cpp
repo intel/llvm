@@ -2,8 +2,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -lOpenCL %s -o %t.ocl.out
 // RUN: %t.ocl.out
 
+#include <CL/sycl/backend/opencl.hpp>
 #include <sycl/sycl.hpp>
-#include <sycl/backend/opencl.hpp>
 
 constexpr auto BE = sycl::backend::opencl;
 
@@ -12,7 +12,8 @@ int main() {
   auto NativeDev = Dev.get_native<BE>();
 
   sycl::device NewDev = sycl::make_device<BE>(NativeDev);
-  assert(NewDev == Dev);
+  assert(NewDev.get_info<sycl::info::device::name>() ==
+         Dev.get_info<sycl::info::device::name>());
 
   sycl::platform Plt = Dev.get_platform();
   auto NativePlt = Plt.get_native<BE>();
@@ -24,19 +25,19 @@ int main() {
   auto NativeCtx = Ctx.get_native<BE>();
 
   sycl::context NewCtx = sycl::make_context<BE>(NativeCtx);
-  assert(NewCtx == NativeCtx);
+  assert(NewCtx.get_native<BE>() == NativeCtx);
 
   sycl::queue Q{Ctx, Dev};
   auto NativeQ = Q.get_native<BE>();
 
   sycl::queue NewQ = sycl::make_queue<BE>(NativeQ, Ctx);
-  assert(Q == NewQ);
+  assert(NativeQ == NewQ.get_native<BE>());
 
   sycl::event Evt = Q.single_task<class Tst>([]{});
   auto NativeEvt = Evt.get_native<BE>();
 
   sycl::event NewEvt = sycl::make_event<BE>(NativeEvt, Ctx);
-  assert(NewEvt == Evt);
+  assert(NativeEvt == NewEvt.get_native<BE>());
 
   cl_mem NativeBuf =
       clCreateBuffer(NativeCtx, CL_MEM_READ_WRITE, 128, nullptr, nullptr);

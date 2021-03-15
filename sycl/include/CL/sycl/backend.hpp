@@ -47,11 +47,11 @@ __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle,
 __SYCL_EXPORT device make_device(pi_native_handle NativeHandle,
                                  backend Backend);
 __SYCL_EXPORT context make_context(pi_native_handle NativeHandle,
-                                   const async_handler Handler,
+                                   const async_handler &Handler,
                                    backend Backend);
 __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
                                const context &TargetContext,
-                               const async_handler Handler, backend Backend);
+                               const async_handler &Handler, backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
                                const context &TargetContext, backend Backend);
 } // namespace detail
@@ -68,7 +68,7 @@ make_platform(const typename interop<Backend, platform>::type &BackendObject) {
 template <backend Backend>
 typename std::enable_if<
     detail::InteropFeatureSupportMap<Backend>::MakeDevice == true, device>::type
-make_device(const typename interop<Backend, platform>::type &BackendObject) {
+make_device(const typename interop<Backend, device>::type &BackendObject) {
   return detail::make_device(detail::pi::cast<pi_native_handle>(BackendObject),
                              Backend);
 }
@@ -77,7 +77,7 @@ template <backend Backend>
 typename std::enable_if<
     detail::InteropFeatureSupportMap<Backend>::MakeContext == true,
     context>::type
-make_context(const typename interop<Backend, platform>::type &BackendObject,
+make_context(const typename interop<Backend, context>::type &BackendObject,
              const async_handler &Handler = {}) {
   return detail::make_context(detail::pi::cast<pi_native_handle>(BackendObject),
                               Handler, Backend);
@@ -86,7 +86,7 @@ make_context(const typename interop<Backend, platform>::type &BackendObject,
 template <backend Backend>
 typename std::enable_if<
     detail::InteropFeatureSupportMap<Backend>::MakeQueue == true, queue>::type
-make_queue(const typename interop<Backend, platform>::type &BackendObject,
+make_queue(const typename interop<Backend, queue>::type &BackendObject,
            const context &TargetContext, const async_handler Handler = {}) {
   return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
                             TargetContext, Handler, Backend);
@@ -95,7 +95,7 @@ make_queue(const typename interop<Backend, platform>::type &BackendObject,
 template <backend Backend>
 typename std::enable_if<
     detail::InteropFeatureSupportMap<Backend>::MakeEvent == true, event>::type
-make_event(const typename interop<Backend, platform>::type &BackendObject,
+make_event(const typename interop<Backend, event>::type &BackendObject,
            const context &TargetContext) {
   return detail::make_event(detail::pi::cast<pi_native_handle>(BackendObject),
                             TargetContext, Backend);
@@ -107,7 +107,8 @@ typename std::enable_if<detail::InteropFeatureSupportMap<Backend>::MakeBuffer ==
                             true,
                         buffer<T, Dimensions, AllocatorT>>::type
 make_buffer(
-    const interop<Backend, buffer<T, Dimensions, AllocatorT>> &BackendObject,
+    const typename interop<Backend, buffer<T, Dimensions, AllocatorT>>::type
+        &BackendObject,
     const context &TargetContext, event AvailableEvent = {}) {
   return buffer<T, Dimensions, AllocatorT>(
       reinterpret_cast<cl_mem>(BackendObject), TargetContext, AvailableEvent);

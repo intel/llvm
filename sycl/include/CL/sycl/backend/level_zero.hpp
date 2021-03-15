@@ -50,7 +50,7 @@ struct interop<backend::level_zero, accessor<DataT, Dimensions, AccessMode,
 };
 
 namespace detail {
-template <> class InteropFeatureSupportMap<backend::opencl> {
+template <> struct InteropFeatureSupportMap<backend::level_zero> {
   static constexpr bool MakePlatform = true;
   static constexpr bool MakeDevice = false;
   static constexpr bool MakeContext = false;

@@ -11,7 +11,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-template <backend Backend> class InteropFeatureSupportMap {
+template <backend Backend> struct InteropFeatureSupportMap {
   static constexpr bool MakePlatform = false;
   static constexpr bool MakeDevice = false;
   static constexpr bool MakeContext = false;
