@@ -29,14 +29,6 @@ event handler::finalize() {
   MIsFinalized = true;
 
   if (getCGTypeVersion(MCGType) > detail::CG::CG_VERSION::V0) {
-    // TODO: Move to handler c'tor?
-    if (MSharedPtrStorage.empty()) {
-      // Need to create extended members
-      std::shared_ptr<std::vector<detail::ExtendedMember>> ExendedMembersVec =
-          std::make_shared<std::vector<detail::ExtendedMember>>();
-      MSharedPtrStorage.push_back(ExendedMembersVec);
-    }
-
     assert(!MSharedPtrStorage.empty());
     std::shared_ptr<std::vector<detail::ExtendedMember>> ExendedMembersVec =
         detail::convertToExtendedMembers(MSharedPtrStorage[0]);
