@@ -351,6 +351,32 @@ public:
         impl, reinterpretRange, OffsetInBytes, IsSubBuffer);
   }
 
+  template <typename ReinterpretT, int ReinterpretDim = dimensions>
+  typename std::enable_if<
+      (sizeof(ReinterpretT) == sizeof(T)) && (dimensions == ReinterpretDim),
+      buffer<ReinterpretT, ReinterpretDim, AllocatorT>>::type
+  reinterpret() const {
+    return buffer<ReinterpretT, ReinterpretDim, AllocatorT>(
+        impl, get_range(), OffsetInBytes, IsSubBuffer);
+  }
+
+  template <typename ReinterpretT, int ReinterpretDim = dimensions>
+  typename std::enable_if<
+      (ReinterpretDim == 1) && ((dimensions != ReinterpretDim) ||
+                                (sizeof(ReinterpretT) != sizeof(T))),
+      buffer<ReinterpretT, ReinterpretDim, AllocatorT>>::type
+  reinterpret() const {
+    long sz = get_size(); // TODO: switch to byte_size() once implemented
+    if (sz % sizeof(ReinterpretT) != 0)
+      throw cl::sycl::invalid_object_error(
+          "Total byte size of buffer is not evenly divisible by the size of "
+          "the reinterpreted type",
+          PI_INVALID_VALUE);
+
+    return buffer<ReinterpretT, ReinterpretDim, AllocatorT>(
+        impl, range<1>{sz / sizeof(ReinterpretT)}, OffsetInBytes, IsSubBuffer);
+  }
+
   template <typename propertyT> bool has_property() const {
     return impl->template has_property<propertyT>();
   }
