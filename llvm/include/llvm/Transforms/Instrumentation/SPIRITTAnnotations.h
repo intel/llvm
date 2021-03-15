@@ -1,4 +1,4 @@
-//===----- SPIRITTAnnotations.h - SYCL Instrumental Annotations Pass ------===//
+//===----- SPIRITTAnnotations.h - SPIR Instrumental Annotations Pass ------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// A transformation pass which adds instrumental calls to annotate SYCL
+// A transformation pass which adds instrumental calls to annotate SPIR
 // synchronization instructions. This can be used for kernel profiling.
 //===----------------------------------------------------------------------===//
 

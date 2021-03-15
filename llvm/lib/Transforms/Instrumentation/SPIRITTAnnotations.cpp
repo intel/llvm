@@ -1,4 +1,4 @@
-//===---- SPIRITTAnnotations.cpp - SYCL Instrumental Annotations Pass -----===//
+//===---- SPIRITTAnnotations.cpp - SPIR Instrumental Annotations Pass -----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// A transformation pass which adds instrumental calls to annotate SYCL
+// A transformation pass which adds instrumental calls to annotate SPIR
 // synchronization instructions. This can be used for kernel profiling.
 //===----------------------------------------------------------------------===//
 
@@ -129,7 +129,7 @@ private:
 
 char SPIRITTAnnotationsLegacyPass::ID = 0;
 INITIALIZE_PASS(SPIRITTAnnotationsLegacyPass, "SPIRITTAnnotations",
-                "Insert ITT annotations in SYCL code", false, false)
+                "Insert ITT annotations in SPIR code", false, false)
 
 // Public interface to the SPIRITTAnnotationsPass.
 ModulePass *llvm::createSPIRITTAnnotationsPass() {
@@ -138,8 +138,7 @@ ModulePass *llvm::createSPIRITTAnnotationsPass() {
 
 namespace {
 
-// Check for calling convention of a function. If it's spir_kernel - consider
-// the function to be a SYCL kernel.
+// Check for calling convention of a function.
 bool isSPIRKernel(Function &F) {
   return F.getCallingConv() == CallingConv::SPIR_KERNEL;
 }
@@ -241,7 +240,7 @@ PreservedAnalyses SPIRITTAnnotationsPass::run(Module &M,
       SPIRV_GROUP_FMAX,      SPIRV_GROUP_UMAX, SPIRV_GROUP_SMAX};
 
   for (Function &F : M) {
-    // Annotate only SYCL kernels
+    // Annotate only SPIR kernels
     if (F.isDeclaration() || !isSPIRKernel(F))
       continue;
 
