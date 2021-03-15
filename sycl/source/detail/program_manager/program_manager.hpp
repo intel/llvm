@@ -91,10 +91,22 @@ public:
                                   const string_class &KernelName,
                                   const program_impl *Prg = nullptr,
                                   bool JITCompilationIsRequired = false);
+
+  RT::PiProgram getBuiltPIProgram(OSModuleHandle M, const context &Context,
+                                  const device &Device,
+                                  const string_class &KernelName,
+                                  const property_list &PropList,//const program_impl *Prg = nullptr,
+                                  bool JITCompilationIsRequired = false);
+
   std::pair<RT::PiKernel, std::mutex *>
   getOrCreateKernel(OSModuleHandle M, const context &Context,
                     const device &Device, const string_class &KernelName,
                     const program_impl *Prg);
+
+  std::pair<RT::PiKernel, std::mutex *>
+  getOrCreateKernel(OSModuleHandle M, const context &Context,
+                    const device &Device, const string_class &KernelName,
+                    const property_list &PropList);//const program_impl *Prg);
   RT::PiProgram getPiProgramFromPiKernel(RT::PiKernel Kernel,
                                          const ContextImplPtr Context);
 

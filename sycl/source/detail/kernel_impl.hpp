@@ -25,9 +25,11 @@ namespace sycl {
 namespace detail {
 // Forward declaration
 class program_impl;
+class kernel_bundle_impl;
 
 using ContextImplPtr = std::shared_ptr<context_impl>;
 using ProgramImplPtr = std::shared_ptr<program_impl>;
+using KernelBundleImplPtr = std::shared_ptr<kernel_bundle_impl>;
 class kernel_impl {
 public:
   /// Constructs a SYCL kernel instance from a PiKernel
@@ -54,6 +56,9 @@ public:
   /// is created from source code
   kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
               ProgramImplPtr ProgramImpl, bool IsCreatedFromSource);
+
+  // TODO: Add desc
+  kernel_impl(RT::PiKernel Kernel, const KernelBundleImplPtr &KernelBundleImpl);
 
   /// Constructs a SYCL kernel for host device
   ///
@@ -175,6 +180,7 @@ private:
   RT::PiKernel MKernel;
   const ContextImplPtr MContext;
   const ProgramImplPtr MProgramImpl;
+  const KernelBundleImplPtr MKernelBundleImpl;
   bool MCreatedFromSource = true;
 };
 

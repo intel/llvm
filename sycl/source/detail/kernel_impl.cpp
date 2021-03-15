@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/context_impl.hpp>
+#include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/program_impl.hpp>
 
@@ -47,6 +48,12 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
         "Input context must be the same as the context of cl_kernel",
         PI_INVALID_CONTEXT);
 }
+
+kernel_impl::kernel_impl(RT::PiKernel Kernel,
+                         const KernelBundleImplPtr &KernelBundleImpl)
+    : MKernel(Kernel),
+      MContext(detail::getSyclObjImpl(KernelBundleImpl->get_context())),
+      MProgramImpl(nullptr), MCreatedFromSource(false) {}
 
 kernel_impl::kernel_impl(ContextImplPtr Context,
                          ProgramImplPtr ProgramImpl)
