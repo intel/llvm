@@ -202,6 +202,10 @@ SPIRVToLLVMDbgTran::transTypeArray(const SPIRVExtInst *DebugInst) {
   size_t TotalCount = 1;
   SmallVector<llvm::Metadata *, 8> Subscripts;
   for (size_t I = ComponentCountIdx, E = Ops.size(); I < E; ++I) {
+    if (getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[I])) {
+      Subscripts.push_back(Builder.getOrCreateSubrange(1, nullptr));
+      continue;
+    }
     SPIRVConstant *C = BM->get<SPIRVConstant>(Ops[I]);
     int64_t Count = static_cast<int64_t>(C->getZExtIntValue());
     Subscripts.push_back(Builder.getOrCreateSubrange(0, Count));
