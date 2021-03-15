@@ -45,7 +45,6 @@ template <bool _B> using statically_coalesce = statically_coalesce_impl<_B>;
 
 template <class... _mem_access_params> class lsu final {
 public:
-
   lsu() = delete;
 
   template <typename _T, access::address_space _space>
