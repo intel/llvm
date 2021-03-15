@@ -1,4 +1,4 @@
-/// Check that SYCL ITT instrumentation is disabled by default:
+/// Check that SPIR ITT instrumentation is disabled by default:
 // RUN: %clang -### %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHECK-DEFAULT %s
 // CHECK-DEFAULT-NOT: "-fsycl-instrument-device-code"

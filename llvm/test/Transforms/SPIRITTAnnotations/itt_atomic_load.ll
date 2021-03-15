@@ -1,11 +1,11 @@
 ;; The test serves a purpose to check if Atomic load instruction is being
-;; annotated by SYCLITTAnnotations pass
+;; annotated by SPIRITTAnnotations pass
 ;;
 ;; Compiled from https://github.com/intel/llvm-test-suite/blob/intel/SYCL/AtomicRef/load.cpp
 ;; with following commands:
 ;; clang++ -fsycl -fsycl-device-only load.cpp -o load.bc
 
-; RUN: opt < %s --SYCLITTAnnotations -S | FileCheck %s
+; RUN: opt < %s --SPIRITTAnnotations -S | FileCheck %s
 
 ; ModuleID = 'load.bc'
 source_filename = "llvm-test-suite/SYCL/AtomicRef/load.cpp"

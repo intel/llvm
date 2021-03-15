@@ -72,7 +72,7 @@
 #include "llvm/Transforms/Instrumentation/InstrProfiling.h"
 #include "llvm/Transforms/Instrumentation/MemProfiler.h"
 #include "llvm/Transforms/Instrumentation/MemorySanitizer.h"
-#include "llvm/Transforms/Instrumentation/SYCLITTAnnotations.h"
+#include "llvm/Transforms/Instrumentation/SPIRITTAnnotations.h"
 #include "llvm/Transforms/Instrumentation/SanitizerCoverage.h"
 #include "llvm/Transforms/Instrumentation/ThreadSanitizer.h"
 #include "llvm/Transforms/ObjCARC.h"
@@ -949,14 +949,14 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
       LangOpts.EnableDAEInSpirKernels)
     PerModulePasses.add(createDeadArgEliminationSYCLPass());
 
-  // Add SYCLITTAnnotations pass to the pass manager if
+  // Add SPIRITTAnnotations pass to the pass manager if
   // -fsycl-instrument-device-code option was passed. This option can be
   // used only with spir tripple.
-  if (CodeGenOpts.SYCLITTAnnotations) {
+  if (CodeGenOpts.SPIRITTAnnotations) {
     if (!llvm::Triple(TheModule->getTargetTriple()).isSPIR())
       llvm::report_fatal_error(
           "ITT annotations can only by added to a module with spir target");
-    PerModulePasses.add(createSYCLITTAnnotationsPass());
+    PerModulePasses.add(createSPIRITTAnnotationsPass());
   }
 
   switch (Action) {

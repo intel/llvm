@@ -15,7 +15,7 @@ add_llvm_component_library(LLVMInstrumentation
   PGOMemOPSizeOpt.cpp
   PoisonChecking.cpp
   SanitizerCoverage.cpp
-  SYCLITTAnnotations.cpp
+  SPIRITTAnnotations.cpp
   ValueProfileCollector.cpp
   ThreadSanitizer.cpp
   HWAddressSanitizer.cpp

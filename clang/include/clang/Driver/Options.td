@@ -2421,7 +2421,7 @@ def fno_sycl_device_code_lower_esimd : Flag<["-"], "fno-sycl-device-code-lower-e
 def fsycl_instrument_device_code : Flag<["-"], "fsycl-instrument-device-code">,
   Group<f_Group>, Flags<[CC1Option, CoreOption]>,
   HelpText<"Add ITT instrumentation intrinsics calls">,
-  MarshallingInfoFlag<CodeGenOpts<"SYCLITTAnnotations">>;
+  MarshallingInfoFlag<CodeGenOpts<"SPIRITTAnnotations">>;
 defm sycl_id_queries_fit_in_int: OptInFFlag<"sycl-id-queries-fit-in-int", "Assume", "Do not assume", " that SYCL ID queries fit within MAX_INT.", [CC1Option,CoreOption], LangOpts<"SYCLValueFitInMaxInt">>;
 def fsycl_use_bitcode : Flag<["-"], "fsycl-use-bitcode">,
   Flags<[CC1Option, CoreOption]>, HelpText<"Use LLVM bitcode instead of SPIR-V in fat objects">;

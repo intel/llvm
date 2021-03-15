@@ -1,4 +1,4 @@
-//===----- SYCLITTAnnotations.h - SYCL Instrumental Annotations Pass ------===//
+//===----- SPIRITTAnnotations.h - SYCL Instrumental Annotations Pass ------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // A transformation pass which adds instrumental calls to annotate SYCL
-// synchronization instrucations. This can be used for kernel profiling.
+// synchronization instructions. This can be used for kernel profiling.
 //===----------------------------------------------------------------------===//
 
 #pragma once
@@ -17,11 +17,11 @@
 
 namespace llvm {
 
-class SYCLITTAnnotationsPass : public PassInfoMixin<SYCLITTAnnotationsPass> {
+class SPIRITTAnnotationsPass : public PassInfoMixin<SPIRITTAnnotationsPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };
 
-ModulePass *createSYCLITTAnnotationsPass();
+ModulePass *createSPIRITTAnnotationsPass();
 
 } // namespace llvm

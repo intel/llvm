@@ -1,7 +1,7 @@
 ;; The test serves a purpose to check if work item start/finish annotations
-;; are being added by SYCLITTAnnotations pass
+;; are being added by SPIRITTAnnotations pass
 
-; RUN: opt < %s --SYCLITTAnnotations -S | FileCheck %s
+; RUN: opt < %s --SPIRITTAnnotations -S | FileCheck %s
 
 ; ModuleID = 'synthetic.bc'
 source_filename = "synthetic.cpp"

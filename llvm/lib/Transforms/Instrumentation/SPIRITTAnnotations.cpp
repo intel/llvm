@@ -1,4 +1,4 @@
-//===---- SYCLITTAnnotations.cpp - SYCL Instrumental Annotations Pass -----===//
+//===---- SPIRITTAnnotations.cpp - SYCL Instrumental Annotations Pass -----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,7 +10,7 @@
 // synchronization instructions. This can be used for kernel profiling.
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Transforms/Instrumentation/SYCLITTAnnotations.h"
+#include "llvm/Transforms/Instrumentation/SPIRITTAnnotations.h"
 
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
@@ -19,7 +19,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/InitializePasses.h"
 
-/** Following instrumentations will be linked from libdevice:
+/** Following functions are used for ITT instrumentation:
  * * * * * * * * * * *
  * Notify tools work-item execution has started
  *
@@ -106,15 +106,15 @@ constexpr char ITT_ANNOTATION_ATOMIC_FINISH[] =
     "__itt_offload_atomic_op_finish";
 
 // Wrapper for the pass to make it working with the old pass manager
-class SYCLITTAnnotationsLegacyPass : public ModulePass {
+class SPIRITTAnnotationsLegacyPass : public ModulePass {
 public:
   static char ID;
-  SYCLITTAnnotationsLegacyPass() : ModulePass(ID) {
-    initializeSYCLITTAnnotationsLegacyPassPass(
+  SPIRITTAnnotationsLegacyPass() : ModulePass(ID) {
+    initializeSPIRITTAnnotationsLegacyPassPass(
         *PassRegistry::getPassRegistry());
   }
 
-  // run the SYCLITTAnnotations pass on the specified module
+  // run the SPIRITTAnnotations pass on the specified module
   bool runOnModule(Module &M) override {
     ModuleAnalysisManager MAM;
     auto PA = Impl.run(M, MAM);
@@ -122,25 +122,25 @@ public:
   }
 
 private:
-  SYCLITTAnnotationsPass Impl;
+  SPIRITTAnnotationsPass Impl;
 };
 
 } // namespace
 
-char SYCLITTAnnotationsLegacyPass::ID = 0;
-INITIALIZE_PASS(SYCLITTAnnotationsLegacyPass, "SYCLITTAnnotations",
+char SPIRITTAnnotationsLegacyPass::ID = 0;
+INITIALIZE_PASS(SPIRITTAnnotationsLegacyPass, "SPIRITTAnnotations",
                 "Insert ITT annotations in SYCL code", false, false)
 
-// Public interface to the SYCLITTAnnotationsPass.
-ModulePass *llvm::createSYCLITTAnnotationsPass() {
-  return new SYCLITTAnnotationsLegacyPass();
+// Public interface to the SPIRITTAnnotationsPass.
+ModulePass *llvm::createSPIRITTAnnotationsPass() {
+  return new SPIRITTAnnotationsLegacyPass();
 }
 
 namespace {
 
 // Check for calling convention of a function. If it's spir_kernel - consider
 // the function to be a SYCL kernel.
-bool isSyclKernel(Function &F) {
+bool isSPIRKernel(Function &F) {
   return F.getCallingConv() == CallingConv::SPIR_KERNEL;
 }
 
@@ -231,7 +231,7 @@ bool insertAtomicInstrumentationCall(Module &M, StringRef Name,
 
 } // namespace
 
-PreservedAnalyses SYCLITTAnnotationsPass::run(Module &M,
+PreservedAnalyses SPIRITTAnnotationsPass::run(Module &M,
                                               ModuleAnalysisManager &MAM) {
   bool IRModified = false;
   std::vector<StringRef> SPIRVCrossWGInstuctions = {
@@ -242,7 +242,7 @@ PreservedAnalyses SYCLITTAnnotationsPass::run(Module &M,
 
   for (Function &F : M) {
     // Annotate only SYCL kernels
-    if (F.isDeclaration() || !isSyclKernel(F))
+    if (F.isDeclaration() || !isSPIRKernel(F))
       continue;
 
     // At the beggining of a kernel insert work item start annotation
