@@ -280,7 +280,7 @@ config.substitutions.append( ('%ACC_CHECK_PLACEHOLDER',  acc_check_substitute) )
 if config.sycl_be == 'cuda':
     config.substitutions.append( ('%sycl_triple',  "nvptx64-nvidia-cuda-sycldevice" ) )
 else:
-    config.substitutions.append( ('%sycl_triple',  "spir64-unknown-linux-sycldevice" ) )
+    config.substitutions.append( ('%sycl_triple',  "spir64-unknown-unknown-sycldevice" ) )
 
 if find_executable('sycl-ls'):
     config.available_features.add('sycl-ls')
