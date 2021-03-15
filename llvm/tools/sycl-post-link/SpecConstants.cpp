@@ -57,7 +57,7 @@ StringRef getStringLiteralArg(const CallInst *CI, unsigned ArgNo,
     // @.str = private unnamed_addr constant[10 x i8] c"SpecConst\00", align 1
     // ...
     // %TName = alloca i8 addrspace(4)*, align 8
-    // %TName.ascast = addrspacecast i8 addrspace(4)** %TName to 
+    // %TName.ascast = addrspacecast i8 addrspace(4)** %TName to
     //                               i8 addrspace(4)* addrspace(4)*
     // ...
     // store i8 addrspace(4)* getelementptr inbounds ([19 x i8], [19 x i8]
