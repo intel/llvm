@@ -599,19 +599,22 @@ them and turn into entry points of device code.
 
 #### DPC++ FE
 
-When we compile code for target which doesn't support native specialization
-constants, DPC++ FE should look for `kernel_handler` argument in functions
-marked as `sycl_kernel`. If such argument is present, it means that this kernel
-can access specialization constants and therefore we need to:
-- generate one more kernel argument for passing a buffer with specialization
-  constants values.
+DPC++ FE should look for `kernel_handler` argument in a function marked with
+`sycl_kernel" attribute. If such argument is present, it means that this kernel
+can access specialization constants and therefore FE needs to do the following:
+
+If native specialization constants are supported:
 - create `kernel_handler` object
-  
-  **TODO**: this item should be done for native specialization constants as
-  well, probably need to refactor the document to outline common parts into a
-  separate section.
+- use default constructor to initialize it
+- pass that `kernel_handler` object to user-provided SYCL kernel function
+
+If native specialization constants are not supported:
+- generate one more kernel argument for passing a buffer with specialization
+  constants values
+- create `kernel_handler` object
 - initialize that `kernel_handler` object with newly created kernel argument
 - pass that `kernel_handler` object to user-provided SYCL kernel function
+- Provide information about new kernel argument through the integration header
 
 So, having the following as the input:
 ```
@@ -621,7 +624,8 @@ kernel_single_task(const KernelType &KernelFunc, kernel_handler kh) {
   KernelFunc(kh);
 }
 ```
-DPC++ FE shoud tranform it into something like:
+For the target which has native support for specialization constatns DPC++ FE
+shoud tranform it into something like:
 
 ```
 __kernel void KernelName(args_for_lambda_init, ..., char *specialization_constants_buffer) {
@@ -634,9 +638,6 @@ __kernel void KernelName(args_for_lambda_init, ..., char *specialization_constan
   }
 }
 ```
-
-Besides that transformation, DPC++ FE should also provide information about that
-new kernel argument through integration header
 
 The new kernel argument `specialization_constants_buffer` should have
 corresponding entry in the `kernel_signatures` structure in the integration
