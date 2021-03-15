@@ -442,7 +442,7 @@ public:
   llvm::SmallPtrSet<FunctionDecl *, 10> RecursiveSet;
 
   // This is an interface function for collecting sets of
-  // functions called from an ESIMD kernel.
+  // functions in a SYCL call graph.
   void collectSyclCallGraphNodes(FunctionDecl *RootNode) {
     llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet;
     collectCallGraphNodes(RootNode, RootNode, VisitedSet, SyclCallGraphNodes);
