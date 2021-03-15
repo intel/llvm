@@ -35,7 +35,7 @@
 // CHK-FPGA-AOCO-PHASES: 17: sycl-post-link, {16}, ir, (device-sycl)
 // CHK-FPGA-AOCO-PHASES: 18: llvm-spirv, {17}, spirv, (device-sycl)
 // CHK-FPGA-AOCO-PHASES: 19: input, "[[INPUTA]]", archive
-// CHK-FPGA-AOCO-PHASES: 20: clang-offload-unbundler, {19}, fpga_dependencies_list
+// CHK-FPGA-AOCO-PHASES: 20: clang-offload-unbundler, {19}, fpga_dep_list
 // CHK-FPGA-AOCO-PHASES: 21: input, "[[INPUTA]]", fpga_aoco
 // CHK-FPGA-AOCO-PHASES: 22: clang-offload-unbundler, {21}, fpga_aoco
 // CHK-FPGA-AOCO-PHASES: 23: backend-compiler, {18, 20, 22}, fpga_aocx, (device-sycl)
@@ -65,7 +65,7 @@
 // CHK-FPGA-AOCO-PHASES-WIN: 17: sycl-post-link, {16}, ir, (device-sycl)
 // CHK-FPGA-AOCO-PHASES-WIN: 18: llvm-spirv, {17}, spirv, (device-sycl)
 // CHK-FPGA-AOCO-PHASES-WIN: 19: input, "[[INPUTA]]", archive
-// CHK-FPGA-AOCO-PHASES-WIN: 20: clang-offload-unbundler, {19}, fpga_dependencies_list
+// CHK-FPGA-AOCO-PHASES-WIN: 20: clang-offload-unbundler, {19}, fpga_dep_list
 // CHK-FPGA-AOCO-PHASES-WIN: 21: input, "[[INPUTA]]", fpga_aoco
 // CHK-FPGA-AOCO-PHASES-WIN: 22: clang-offload-unbundler, {21}, fpga_aoco
 // CHK-FPGA-AOCO-PHASES-WIN: 23: backend-compiler, {18, 20, 22}, fpga_aocx, (device-sycl)

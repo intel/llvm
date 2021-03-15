@@ -134,13 +134,19 @@
 // CHK-FPGA: sycl-post-link
 // CHK-FPGA-NOT: -split-esimd
 // CHK-FPGA: "-ir-output-only" "-O2" "-spec-const=default" "-o" "[[OUTPUT3_BC:.+\.bc]]" "[[OUTPUT2_BC]]"
-// CHK-FPGA: llvm-spirv{{.*}} "-o" "[[OUTPUT5:.+\.spv]]" "-spirv-max-version=1.3" "-spirv-debug-info-version=legacy" "-spirv-allow-extra-diexpressions" "-spirv-ext=+all,-SPF_INTEL_optnone" "[[OUTPUT3_BC]]"
+// CHK-FPGA: llvm-spirv{{.*}} "-o" "[[OUTPUT5:.+\.spv]]" "-spirv-max-version=1.3" "-spirv-debug-info-version=legacy" "-spirv-allow-extra-diexpressions" "-spirv-ext=+all,-SPV_INTEL_optnone" "[[OUTPUT3_BC]]"
 // CHK-FPGA: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-fpga_dep" {{.*}} "-outputs=[[DEPFILE:.+\.d]]" "-unbundle"
 // CHK-FPGA: aoc{{.*}} "-o" "[[OUTPUT6:.+\.aocx]]" "[[OUTPUT5]]" "-sycl" "-dep-files=[[DEPFILE]]"
 // CHK-FPGA: clang-offload-wrapper{{.*}} "-o=[[OUTPUT7:.+\.bc]]" "-host=x86_64-unknown-linux-gnu" "-target=spir64_fpga" "-kind=sycl" "[[OUTPUT6]]"
 // CHK-FPGA: llc{{.*}} "-filetype=obj" "-o" "[[FINALLINK3:.+\.o]]" "[[OUTPUT7]]"
 // CHK-FPGA: clang-offload-bundler{{.*}} "-type=aoo" "-targets=host-x86_64-unknown-linux-gnu" {{.*}} "-outputs=[[FINALLINK4:.+\.txt]]" "-unbundle"
 // CHK-FPGA: {{link|ld}}{{.*}} "@[[FINALLINK4]]" "[[FINALLINK2]]" "[[FINALLINK]]" "[[FINALLINK3]]"
+
+/// Check the warning's emission for conflicting emulation/hardware (AOCR)
+// RUN: touch %t-aocr.a
+// RUN: %clangxx -fsycl -fintelfpga -fsycl-link=image -target x86_64-unknown-linux-gnu %t-aocr.a %s -### 2>&1 \
+// RUN:  | FileCheck %s --check-prefix=CHK-FPGA-LINK-WARN-AOCR
+// CHK-FPGA-LINK-WARN-AOCR: warning: FPGA archive '{{.*}}-aocr.a' does not contain matching emulation/hardware expectancy
 
 /// -fintelfpga with AOCX library
 // Create the dummy archive
@@ -150,9 +156,9 @@
 // RUN:  clang-offload-wrapper -o %t-aocx.bc -host=x86_64-unknown-linux-gnu -kind=sycl -target=fpga_aocx-intel-unknown-sycldevice %t.aocx
 // RUN:  llc -filetype=obj -o %t-aocx.o %t-aocx.bc
 // RUN:  llvm-ar crv %t_aocx.a %t.o %t-aocx.o
-// RUN:  %clangxx -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %t_aocx.a -ccc-print-phases 2>&1 \
+// RUN:  %clangxx -target x86_64-unknown-linux-gnu -Xshardware -fsycl -fintelfpga %t_aocx.a -ccc-print-phases 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCX-PHASES %s
-// RUN:  %clang_cl -fsycl -fintelfpga %t_aocx.a -ccc-print-phases 2>&1 \
+// RUN:  %clang_cl -Xshardware -fsycl -fintelfpga %t_aocx.a -ccc-print-phases 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCX-PHASES %s
 // CHK-FPGA-AOCX-PHASES: 0: input, "{{.*}}", fpga_aocx, (host-sycl)
 // CHK-FPGA-AOCX-PHASES: 1: linker, {0}, image, (host-sycl)
@@ -161,9 +167,9 @@
 // CHK-FPGA-AOCX-PHASES: 4: clang-offload-wrapper, {3}, object, (device-sycl)
 // CHK-FPGA-AOCX-PHASES: 5: offload, "host-sycl ({{.*}}x86_64{{.*}})" {1}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {4}, image
 
-// RUN:  %clangxx -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %t_aocx.a -### 2>&1 \
+// RUN:  %clangxx -target x86_64-unknown-linux-gnu -fsycl -fintelfpga -Xshardware %t_aocx.a -### 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCX,CHK-FPGA-AOCX-LIN %s
-// RUN:  %clang_cl -fsycl -fintelfpga %t_aocx.a -### 2>&1 \
+// RUN:  %clang_cl -fsycl -fintelfpga -Xshardware %t_aocx.a -### 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCX,CHK-FPGA-AOCX-WIN %s
 // CHK-FPGA-AOCX: clang-offload-bundler{{.*}} "-type=aocx" "-targets=sycl-fpga_aocx-intel-unknown-sycldevice" "-inputs=[[LIBINPUT:.+\.a]]" "-outputs=[[BUNDLEOUT:.+\.aocx]]" "-unbundle"
 // CHK-FPGA-AOCX: file-table-tform{{.*}} "-rename=0,Code" "-o" "[[TABLEOUT:.+\.txt]]" "[[BUNDLEOUT]]"
@@ -241,7 +247,7 @@
 // CHK-FPGA-LINK-SRC: 14: linker, {13}, ir, (device-sycl)
 // CHK-FPGA-LINK-SRC: 15: sycl-post-link, {14}, ir, (device-sycl)
 // CHK-FPGA-LINK-SRC: 16: llvm-spirv, {15}, spirv, (device-sycl)
-// CHK-FPGA-LINK-SRC: 17: backend-compiler, {16}, fpga_aocr, (device-sycl)
+// CHK-FPGA-LINK-SRC: 17: backend-compiler, {16}, fpga_aocr_emu, (device-sycl)
 // CHK-FPGA-LINK-SRC: 18: clang-offload-wrapper, {17}, object, (device-sycl)
 // CHK-FPGA-LINK-SRC: 19: offload, "host-sycl (x86_64-unknown-linux-gnu)" {12}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {18}, archive
 
@@ -325,7 +331,7 @@
 // CHK-FPGA-DEP-FILES-OBJ-PHASES: 3: linker, {1}, ir, (device-sycl)
 // CHK-FPGA-DEP-FILES-OBJ-PHASES: 4: sycl-post-link, {3}, ir, (device-sycl)
 // CHK-FPGA-DEP-FILES-OBJ-PHASES: 5: llvm-spirv, {4}, spirv, (device-sycl)
-// CHK-FPGA-DEP-FILES-OBJ-PHASES: 6: clang-offload-unbundler, {0}, fpga_dependencies
+// CHK-FPGA-DEP-FILES-OBJ-PHASES: 6: clang-offload-unbundler, {0}, fpga_dep
 // CHK-FPGA-DEP-FILES-OBJ-PHASES: 7: backend-compiler, {5, 6}, fpga_aocx, (device-sycl)
 // CHK-FPGA-DEP-FILES-OBJ-PHASES: 8: clang-offload-wrapper, {7}, object, (device-sycl)
 // CHK-FPGA-DEP-FILES-OBJ-PHASES: 9: offload, "host-sycl (x86_64-{{unknown-linux-gnu|pc-windows-msvc}})" {2}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {8}, image
@@ -381,3 +387,9 @@
 // RUN:   %clang_cl -### -fsycl -fintelfpga -Zi -Od -Xs "-DFOO1 -DFOO2" -Xshardware %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS %s
 // CHK-TOOLS-IMPLIED-OPTS: aoc{{.*}} "-g" "-cl-opt-disable" "-DFOO1" "-DFOO2"
+
+/// Check the warning's emission for conflicting emulation/hardware (AOCX)
+// RUN: touch %t_aocx.a
+// RUN: %clangxx -fsycl -fintelfpga -fsycl-link=image -target x86_64-unknown-linux-gnu %t_aocx.a %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHK-FPGA-LINK-WARN-AOCX
+// CHK-FPGA-LINK-WARN-AOCX: warning: FPGA archive '{{.*}}_aocx.a' does not contain matching emulation/hardware expectancy

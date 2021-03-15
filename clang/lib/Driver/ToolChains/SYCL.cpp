@@ -324,6 +324,12 @@ void SYCL::fpga::BackendCompiler::constructOpenCLAOTCommand(
   }
   CmdArgs.push_back(
       C.getArgs().MakeArgString("-ir=" + Twine(Output.getFilename())));
+
+  StringRef ForeachExt = "aocx";
+  if (Arg *A = Args.getLastArg(options::OPT_fsycl_link_EQ))
+    if (A->getValue() == StringRef("early"))
+      ForeachExt = "aocr";
+
   // Add any implied arguments before user defined arguments.
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
@@ -340,7 +346,7 @@ void SYCL::fpga::BackendCompiler::constructOpenCLAOTCommand(
                                        Exec, CmdArgs, None);
   if (!ForeachInputs.empty())
     constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
-                                this, "aocx");
+                                this, ForeachExt);
   else
     C.addCommand(std::move(Cmd));
 }
@@ -360,16 +366,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
   TC.TranslateBackendTargetArgs(Args, TargetArgs);
 
   // When performing emulation compilations for FPGA AOT, we want to use
-  // opencl-aot instead of aoc.  Now that the -Xsycl* options have been
-  // parsed, we will scan the current TargetArgs for -hardware or -simulation
-  // to determine what tool we should be calling.
-  bool FPGAEmulation = true;
-  for (StringRef ArgString : TargetArgs) {
-    if (ArgString.equals("-hardware") || ArgString.equals("-simulation"))
-      FPGAEmulation = false;
-  }
-
-  if (FPGAEmulation) {
+  // opencl-aot instead of aoc.
+  if (C.getDriver().isFPGAEmulationMode()) {
     constructOpenCLAOTCommand(C, JA, Output, Inputs, Args);
     return;
   }
@@ -710,6 +708,9 @@ void SYCLToolChain::AddImpliedTargetArgs(
   CmdArgs.push_back(Args.MakeArgString(BeOpt));
 }
 
+// TODO: There are 'customization' uses of this that will need to be
+// adjusted before we can remove and use the added equivalent function
+// in ToolChain.cpp.
 void SYCLToolChain::TranslateBackendTargetArgs(
     const llvm::opt::ArgList &Args, llvm::opt::ArgStringList &CmdArgs) const {
   // Handle -Xs flags.
