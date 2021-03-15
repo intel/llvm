@@ -41,6 +41,7 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Passes/StandardInstrumentations.h"
+#include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -958,6 +959,10 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
           "ITT annotations can only by added to a module with spir target");
     PerModulePasses.add(createSPIRITTAnnotationsPass());
   }
+
+  // This pass should be always called for SYCL device code.
+  if (LangOpts.SYCLIsDevice)
+    PerModulePasses.add(createSYCLLowerWGLocalMemoryPass());
 
   switch (Action) {
   case Backend_EmitNothing:
