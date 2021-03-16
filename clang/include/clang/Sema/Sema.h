@@ -13046,6 +13046,7 @@ public:
 
   bool isKnownGoodSYCLDecl(const Decl *D);
   void checkSYCLDeviceVarDecl(VarDecl *Var);
+  void copySYCLKernelAttrs(const CXXRecordDecl *KernelObj);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void MarkDevice();
 

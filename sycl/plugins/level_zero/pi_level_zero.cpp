@@ -462,6 +462,15 @@ createEventAndAssociateQueue(pi_queue Queue, pi_event *Event,
   // In piEventRelease, the reference counter of the Queue is decremented
   // to release it.
   piQueueRetainNoLock(Queue);
+
+  // SYCL RT does not track completion of the events, so it could
+  // release a PI event as soon as that's not being waited in the app.
+  // But we have to ensure that the event is not destroyed before
+  // it is really signalled, so retain it explicitly here and
+  // release in cleanupAfterEvent.
+  //
+  PI_CALL(piEventRetain(*Event));
+
   return PI_SUCCESS;
 }
 
@@ -2295,20 +2304,16 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                             Context->Devices[0]->ZeDeviceProperties.flags &
                                 ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
 
-  // Having PI_MEM_FLAGS_HOST_PTR_ALLOC for buffer requires allocation of
-  // pinned host memory which then becomes automatically accessible from
-  // discrete devices through PCI. This property ensures that the memory
-  // map/unmap operations are free of cost and the buffer is optimized for
-  // frequent accesses from the host giving improved performance.
-  // see:
-  // https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/UsePinnedMemoryProperty/UsePinnedMemoryPropery.adoc
-  bool AllocHostPtr = Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC;
-
-  if (AllocHostPtr) {
-    PI_ASSERT(HostPtr == nullptr, PI_INVALID_VALUE);
+  if (Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) {
+    // Having PI_MEM_FLAGS_HOST_PTR_ALLOC for buffer requires allocation of
+    // pinned host memory, see:
+    // https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/UsePinnedMemoryProperty/UsePinnedMemoryPropery.adoc
+    // We are however missing such functionality in Level Zero, so we just
+    // ignore the flag for now.
+    //
   }
 
-  if (AllocHostPtr || DeviceIsIntegrated) {
+  if (DeviceIsIntegrated) {
     ze_host_mem_alloc_desc_t ZeDesc = {};
     ZeDesc.flags = 0;
 
@@ -2350,7 +2355,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     *RetMem = new _pi_buffer(
         Context, pi_cast<char *>(Ptr) /* Level Zero Memory Handle */,
         HostPtrOrNull, nullptr, 0, 0,
-        AllocHostPtr || DeviceIsIntegrated /* allocation in host memory */);
+        DeviceIsIntegrated /* allocation in host memory */);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -3852,6 +3857,15 @@ static pi_result cleanupAfterEvent(pi_event Event) {
       PI_CALL(piKernelRelease(pi_cast<pi_kernel>(Event->CommandData)));
       Event->CommandData = nullptr;
     }
+
+    if (!Event->CleanedUp) {
+      Event->CleanedUp = true;
+      // Release this event since we explicitly retained it on creation.
+      // NOTE: that this needs to be done only once for an event so
+      // this is guarded with the CleanedUp flag.
+      //
+      PI_CALL(piEventRelease(Event));
+    }
   }
 
   // Make a list of all the dependent events that must have signalled
@@ -3875,6 +3889,7 @@ static pi_result cleanupAfterEvent(pi_event Event) {
         EventsToBeReleased);
     PI_CALL(piEventRelease(DepEvent));
   }
+
   return PI_SUCCESS;
 }
 
@@ -3936,6 +3951,9 @@ pi_result piEventRetain(pi_event Event) {
 
 pi_result piEventRelease(pi_event Event) {
   PI_ASSERT(Event, PI_INVALID_EVENT);
+  if (!Event->RefCount) {
+    die("piEventRelease: called on a destroyed event");
+  }
 
   if (--(Event->RefCount) == 0) {
     cleanupAfterEvent(Event);
@@ -4602,18 +4620,17 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
 
   // TODO: Level Zero is missing the memory "mapping" capabilities, so we are
   // left to doing new memory allocation and a copy (read) on discrete devices.
-  // For pinned host memory and integrated devices, we have allocated the
-  // buffer in host memory so no actions are needed here except for
-  // synchronizing on incoming events. A host-to-host copy is done if a host
-  // pointer had been supplied during buffer creation on integrated devices.
+  // For integrated devices, we have allocated the buffer in host memory so no
+  // actions are needed here except for synchronizing on incoming events.
+  // A host-to-host copy is done if a host pointer had been supplied during
+  // buffer creation on integrated devices.
   //
   // TODO: for discrete, check if the input buffer is already allocated
   // in shared memory and thus is accessible from the host as is.
   // Can we get SYCL RT to predict/allocate in shared memory
   // from the beginning?
 
-  // For pinned host memory and integrated devices the buffer has been
-  // allocated in host memory.
+  // For integrated devices the buffer has been allocated in host memory.
   if (Buffer->OnHost) {
     // Wait on incoming events before doing the copy
     PI_CALL(piEventsWait(NumEventsInWaitList, EventWaitList));
@@ -4718,8 +4735,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
     (*Event)->CommandData =
         (MemObj->OnHost ? nullptr : (MemObj->MapHostPtr ? nullptr : MappedPtr));
 
-  // For pinned host memory and integrated devices the buffer is allocated
-  // in host memory.
+  // For integrated devices the buffer is allocated in host memory.
   if (MemObj->OnHost) {
     // Wait on incoming events before doing the copy
     PI_CALL(piEventsWait(NumEventsInWaitList, EventWaitList));

@@ -1134,6 +1134,7 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
                                     const InputInfo &Output,
                                     const InputInfoList &Inputs) const {
   const bool IsIAMCU = getToolChain().getTriple().isOSIAMCU();
+  const bool IsIntelFPGA = Args.hasArg(options::OPT_fintelfpga);
 
   CheckPreprocessingOptions(D, Args);
 
@@ -1172,16 +1173,14 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
       C.addFailureResultFile(DepFile, &JA);
       // Populate the named dependency file to be used in the bundle
       // or passed to the offline compilation.
-      if (Args.hasArg(options::OPT_fintelfpga) &&
-          JA.isDeviceOffloading(Action::OFK_SYCL))
+      if (IsIntelFPGA && JA.isDeviceOffloading(Action::OFK_SYCL))
         C.getDriver().addFPGATempDepFile(
             DepFile, Clang::getBaseInputName(Args, Inputs[0]));
     } else if (Output.getType() == types::TY_Dependencies) {
       DepFile = Output.getFilename();
     } else if (!ArgMD) {
       DepFile = "-";
-    } else if (Args.hasArg(options::OPT_fintelfpga) &&
-               JA.isDeviceOffloading(Action::OFK_SYCL)) {
+    } else if (IsIntelFPGA && JA.isDeviceOffloading(Action::OFK_SYCL)) {
       createFPGATempDepFile(DepFile);
     } else {
       DepFile = getDependencyFileName(Args, Inputs);
@@ -1237,8 +1236,7 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-module-file-deps");
   }
 
-  if (!ArgM && Args.hasArg(options::OPT_fintelfpga) &&
-      JA.isDeviceOffloading(Action::OFK_SYCL)) {
+  if (!ArgM && IsIntelFPGA && JA.isDeviceOffloading(Action::OFK_SYCL)) {
     // No dep generation option was provided, add all of the needed options
     // to ensure a successful dep generation.
     const char *DepFile;
@@ -7757,9 +7755,12 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       Triples += CurDep->getOffloadingArch();
     }
   }
-  bool IsFPGADepBundle = (TCArgs.hasArg(options::OPT_fintelfpga) &&
-                          Output.getType() == types::TY_Object);
-  // For -fintelfpga, when bundling objects we also want to bundle up the
+  // If we see we are bundling for FPGA using -fintelfpga, add the
+  // dependency bundle
+  bool IsFPGADepBundle = TCArgs.hasArg(options::OPT_fintelfpga) &&
+                         Output.getType() == types::TY_Object;
+
+  // For spir64_fpga target, when bundling objects we also want to bundle up the
   // named dependency file.
   // TODO - We are currently using the target triple inputs to slot a location
   // of the dependency information into the bundle.  It would be good to
