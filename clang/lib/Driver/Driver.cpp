@@ -6193,7 +6193,8 @@ InputInfo Driver::BuildJobsForActionNoCache(
             TI = types::TY_Tempfilelist;
         } else if (EffectiveTriple.getSubArch() !=
                    llvm::Triple::SPIRSubArch_fpga) {
-          if (UI.DependentOffloadKind == Action::OFK_SYCL) {
+          if (UI.DependentOffloadKind == Action::OFK_SYCL &&
+              JA->getType() != types::TY_FPGA_AOCO) {
             // Do not add the current info for device with FPGA device.  The
             // device side isn't used
             continue;
