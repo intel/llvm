@@ -2,13 +2,14 @@
 // RUN: %HOST_RUN_PLACEHOLDER %t.out %HOST_CHECK_PLACEHOLDER
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
-// XFAIL: gpu
-// XFAIL: cpu
+// XFAIL: cuda
+// XFAIL: level_zero && windows
 
-// GPU does not correctly interpolate when using clamp.  Waiting on fix.
-// Both OCL and LevelZero have this issue.
-// CPU failing all linear interpolation at moment. Waiting on fix.
-// CUDA failing all linear interpolation at moment. Waiting on fix.
+// CUDA works with image_channel_type::fp32, but not with any 8-bit per channel
+// type (such as unorm_int8)
+
+// On Windows, LevelZero returns wrong result for outside right pixel when using
+// unorm_int8 data.
 
 /*
     This file sets up an image, initializes it with data,
@@ -22,11 +23,11 @@
 using namespace cl::sycl;
 
 // pixel data-type for RGBA operations (which is the minimum image type)
-using pixelT = sycl::uint4;
+using pixelT = sycl::float4;
 
 // will output a pixel as {r,g,b,a}.  provide override if a different pixelT is
 // defined.
-void outputPixel(sycl::uint4 somePixel) {
+void outputPixel(sycl::float4 somePixel) {
   std::cout << "{" << somePixel[0] << "," << somePixel[1] << "," << somePixel[2]
             << "," << somePixel[3] << "} ";
 }
@@ -46,10 +47,12 @@ void test_unnormalized_clamp_linear_sampler(image_channel_order ChanOrder,
 
   // we'll use these four pixels for our image. Makes it easy to measure
   // interpolation and spot "off-by-one" probs.
-  pixelT leftEdge{1, 2, 3, 4};
-  pixelT body{49, 48, 47, 46};
-  pixelT bony{59, 58, 57, 56};
-  pixelT rightEdge{11, 12, 13, 14};
+  // These values will work consistently with different levels of float
+  // precision (like unorm_int8 vs. fp32)
+  pixelT leftEdge{0.2f, 0.4f, 0.6f, 0.8f};
+  pixelT body{0.6f, 0.4f, 0.2f, 0.0f};
+  pixelT bony{0.2f, 0.4f, 0.6f, 0.8f};
+  pixelT rightEdge{0.6f, 0.4f, 0.2f, 0.0f};
 
   queue Q;
   const sycl::range<1> ImgRange_1D(width);
@@ -88,25 +91,23 @@ void test_unnormalized_clamp_linear_sampler(image_channel_order ChanOrder,
         // Clamp + Linear
         test_acc[i++] =
             image_acc.read(-1.0f, UnNorm_Clamp_Linear_sampler); // {0,0,0,0}
-        test_acc[i++] =
-            image_acc.read(0.0f, UnNorm_Clamp_Linear_sampler); // {0,1,2,2}
-        test_acc[i++] =
-            image_acc.read(1.0f, UnNorm_Clamp_Linear_sampler); // {25,25,25,25}
-        test_acc[i++] =
-            image_acc.read(2.0f, UnNorm_Clamp_Linear_sampler); // {54,53,52,51}
-        test_acc[i++] =
-            image_acc.read(3.0f, UnNorm_Clamp_Linear_sampler); // {35,35,35,35}
         test_acc[i++] = image_acc.read(
-            4.0f, UnNorm_Clamp_Linear_sampler); // {6,6,6,7}  // interpolated?
+            0.0f, UnNorm_Clamp_Linear_sampler); // {0.1,0.2,0.3,0.4}
+        test_acc[i++] = image_acc.read(
+            1.0f, UnNorm_Clamp_Linear_sampler); // {0.4,0.4,0.4,0.4}
+        test_acc[i++] = image_acc.read(
+            2.0f, UnNorm_Clamp_Linear_sampler); // {0.4,0.4,0.4,0.4}
+        test_acc[i++] = image_acc.read(
+            3.0f, UnNorm_Clamp_Linear_sampler); // {0.4,0.4,0.4,0.4}
+        test_acc[i++] = image_acc.read(
+            4.0f,
+            UnNorm_Clamp_Linear_sampler); // {0.3,0.2,0.1,0}  // interpolated?
 
         // 6-7 read two pixels on either side of first pixel. float coordinates.
-        // CLAMP
-        //  on GPU CLAMP is apparently stopping the interpolation. ( values on
-        //  right are expected value)
         test_acc[i++] = image_acc.read(
-            0.9999f, UnNorm_Clamp_Linear_sampler); // {25,25,25,25}
+            0.9999999f, UnNorm_Clamp_Linear_sampler); // {0.4,0.4,0.4,0.4}
         test_acc[i++] = image_acc.read(
-            1.0001f, UnNorm_Clamp_Linear_sampler); // {25,25,25,25}
+            1.0000001f, UnNorm_Clamp_Linear_sampler); // {0.4,0.4,0.4,0.4}
       });
     });
     E_Test.wait();
@@ -148,10 +149,14 @@ int main() {
     // RGBA) the _int16/fp16 channels are two bytes per channel, or eight bytes
     // per pixel (for RGBA) the _int32/fp32  channels are four bytes per
     // channel, or sixteen bytes per pixel (for RGBA).
-    // CUDA has limited support for image_channel_type, so the tests use
-    // unsigned_int32
+
+    std::cout << "fp32 -------------" << std::endl;
     test_unnormalized_clamp_linear_sampler(image_channel_order::rgba,
-                                           image_channel_type::unsigned_int32);
+                                           image_channel_type::fp32);
+
+    std::cout << "unorm_int8 -------" << std::endl;
+    test_unnormalized_clamp_linear_sampler(image_channel_order::rgba,
+                                           image_channel_type::unorm_int8);
   } else {
     std::cout << "device does not support image operations" << std::endl;
   }
@@ -160,14 +165,26 @@ int main() {
 }
 
 // clang-format off
-// CHECK: read six pixels, float coordinates,   sample:   NonNormalized + Clamp + Linear
-// CHECK-NEXT: 0 -- -1: {0,0,0,0}
-// CHECK-NEXT: 1 -- 0: {0,1,2,2}
-// CHECK-NEXT: 2 -- 1: {25,25,25,25}
-// CHECK-NEXT: 3 -- 2: {54,53,52,51}
-// CHECK-NEXT: 4 -- 3: {35,35,35,35}
-// CHECK-NEXT: 5 -- 4: {6,6,6,7}
+// CHECK: fp32 -------------
+// CHECK-NEXT: read six pixels, float coordinates,   sample:   NonNormalized + Clamp + Linear
+// CHECK-NEXT: 0 -- -1: {0,0,0,0} 
+// CHECK-NEXT: 1 -- 0: {0.1,0.2,0.3,0.4} 
+// CHECK-NEXT: 2 -- 1: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 3 -- 2: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 4 -- 3: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 5 -- 4: {0.3,0.2,0.1,0} 
 // CHECK-NEXT: read two pixels on either side of 1. float coordinates. NonNormalized + Clamp + Linear
-// CHECK-NEXT: 6 -- 1: {25,25,25,25}
-// CHECK-NEXT: 7 -- 1: {25,25,25,25}
+// CHECK-NEXT: 6 -- 1: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 7 -- 1: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: unorm_int8 -------
+// CHECK-NEXT: read six pixels, float coordinates,   sample:   NonNormalized + Clamp + Linear
+// CHECK-NEXT: 0 -- -1: {0,0,0,0} 
+// CHECK-NEXT: 1 -- 0: {0.1,0.2,0.3,0.4} 
+// CHECK-NEXT: 2 -- 1: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 3 -- 2: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 4 -- 3: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 5 -- 4: {0.3,0.2,0.1,0} 
+// CHECK-NEXT: read two pixels on either side of 1. float coordinates. NonNormalized + Clamp + Linear
+// CHECK-NEXT: 6 -- 1: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 7 -- 1: {0.4,0.4,0.4,0.4}
 // clang-format on

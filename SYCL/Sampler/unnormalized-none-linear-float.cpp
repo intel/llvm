@@ -2,11 +2,11 @@
 // RUN: %HOST_RUN_PLACEHOLDER %t.out %HOST_CHECK_PLACEHOLDER
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
-// XFAIL: cpu
+
 // XFAIL: cuda
 
-// CPU failing at moment. Waiting on fix.
-// CUDA failing all linear interpolation at moment. Waiting on fix.
+// CUDA works with image_channel_type::fp32, but not with any 8-bit per channel
+// type (such as unorm_int8)
 
 /*
     This file sets up an image, initializes it with data,
@@ -19,12 +19,11 @@
 
 using namespace cl::sycl;
 
-// pixel data-type for RGBA operations (which is the minimum image type)
-using pixelT = sycl::uint4;
+using pixelT = sycl::float4;
 
 // will output a pixel as {r,g,b,a}.  provide override if a different pixelT is
 // defined.
-void outputPixel(sycl::uint4 somePixel) {
+void outputPixel(sycl::float4 somePixel) {
   std::cout << "{" << somePixel[0] << "," << somePixel[1] << "," << somePixel[2]
             << "," << somePixel[3] << "} ";
 }
@@ -40,15 +39,17 @@ constexpr auto linear = filtering_mode::linear;
 
 void test_unnormalized_none_linear_sampler(image_channel_order ChanOrder,
                                            image_channel_type ChanType) {
-  int numTests = 11; // drives the size of the testResults buffer, and the
+  int numTests = 15; // drives the size of the testResults buffer, and the
                      // number of report iterations. Kludge.
 
   // we'll use these four pixels for our image. Makes it easy to measure
   // interpolation and spot "off-by-one" probs.
-  pixelT leftEdge{1, 2, 3, 4};
-  pixelT body{49, 48, 47, 46};
-  pixelT bony{59, 58, 57, 56};
-  pixelT rightEdge{11, 12, 13, 14};
+  // These values will work consistently with different levels of float
+  // precision (like unorm_int8 vs. fp32)
+  pixelT leftEdge{0.2f, 0.4f, 0.6f, 0.8f};
+  pixelT body{0.6f, 0.4f, 0.2f, 0.0f};
+  pixelT bony{0.2f, 0.4f, 0.6f, 0.8f};
+  pixelT rightEdge{0.6f, 0.4f, 0.2f, 0.0f};
 
   queue Q;
   const sycl::range<1> ImgRange_1D(width);
@@ -82,38 +83,46 @@ void test_unnormalized_none_linear_sampler(image_channel_order ChanOrder,
         // UnNormalized Pixel Locations when using Linear Interpolation
         // (0 -------- ](1 ---------- ](2 ----------- ](3---------- ](4)
 
-        // 0-2 read three pixels at inner boundary locations, float coordinates,
+        // verify our four pixels were set up correctly.
+        // 0-3 read four pixels. no sampler
+        // depending on device, and 8 vs 16 bit, answers here may vary slightly.
+        test_acc[i++] = image_acc.read(0); // {0.2,0.4,0.6,0.8}
+        test_acc[i++] = image_acc.read(1); // {0.6,0.4,0.2,0}
+        test_acc[i++] = image_acc.read(2); // {0.2,0.4,0.6,0.8}
+        test_acc[i++] = image_acc.read(3); // {0.6,0.4,0.2,0}
+
+        // 4-6 read three pixels at inner boundary locations, float coordinates,
         // sample:   UnNormalized +  None  + Linear
-        test_acc[i++] =
-            image_acc.read(1.0f, UnNorm_None_Linear_sampler); // {25,25,25,25}
-        test_acc[i++] =
-            image_acc.read(2.0f, UnNorm_None_Linear_sampler); // {54,53,52,51}
-        test_acc[i++] =
-            image_acc.read(3.0f, UnNorm_None_Linear_sampler); // {35,35,35,35}
+        test_acc[i++] = image_acc.read(
+            1.0f, UnNorm_None_Linear_sampler); // {0.4,0.4,0.4,0.4}
+        test_acc[i++] = image_acc.read(
+            2.0f, UnNorm_None_Linear_sampler); // {0.4,0.4,0.4,0.4}
+        test_acc[i++] = image_acc.read(
+            3.0f, UnNorm_None_Linear_sampler); // {0.4,0.4,0.4,0.4}
 
-        // 3-6 read four pixels at exact center locations, float,  sample:
-        // Unnormalized +  None  + Linear
-        test_acc[i++] =
-            image_acc.read(0.5f, UnNorm_None_Linear_sampler); // {1,2,3,4}
-        test_acc[i++] =
-            image_acc.read(1.5f, UnNorm_None_Linear_sampler); // {49,48,47,46}
-        test_acc[i++] =
-            image_acc.read(2.5f, UnNorm_None_Linear_sampler); // {59,58,57,56}
-        test_acc[i++] =
-            image_acc.read(3.5f, UnNorm_None_Linear_sampler); // {11,12,13,14}
-
-        // 7-10 read four pixels at inexact upper boundary, float coord, sample:
+        // 7-10 read four pixels at exact center locations, float,  sample:
         // Unnormalized +  None  + Linear
         test_acc[i++] = image_acc.read(
-            0.9999f, UnNorm_None_Linear_sampler); // {25,25,25,25}
+            0.5f, UnNorm_None_Linear_sampler); // {0.2,0.4,0.6,0.8}
+        test_acc[i++] =
+            image_acc.read(1.5f, UnNorm_None_Linear_sampler); // {0.6,0.4,0.2,0}
         test_acc[i++] = image_acc.read(
-            1.9999f, UnNorm_None_Linear_sampler); // {54,53,52,51}
+            2.5f, UnNorm_None_Linear_sampler); // {0.2,0.4,0.6,0.8}
+        test_acc[i++] =
+            image_acc.read(3.5f, UnNorm_None_Linear_sampler); // {0.6,0.4,0.2,0}
+
+        // 11-14 read four pixels at inexact upper boundary, float coord,
+        // sample: Unnormalized +  None  + Linear
         test_acc[i++] = image_acc.read(
-            2.9999f, UnNorm_None_Linear_sampler); // {35,35,35,35}
+            0.9999999f, UnNorm_None_Linear_sampler); // {0.4,0.4,0.4,0.4}
         test_acc[i++] = image_acc.read(
-            3.9999f,
-            UnNorm_None_Linear_sampler); // {6,6,7,7}  // <<--- should it be
-                                         // interpolating with the bg color?
+            1.9999999f, UnNorm_None_Linear_sampler); // {0.4,0.4,0.4,0.4}
+        test_acc[i++] = image_acc.read(
+            2.9999999f, UnNorm_None_Linear_sampler); // {0.4,0.4,0.4,0.4}
+        test_acc[i++] = image_acc.read(
+            3.9999999f,
+            UnNorm_None_Linear_sampler); // {0.3,0.2,0.1,0}  // <<--- should it
+                                         // be interpolating with the bg color?
                                          // That doesn't seem right. But it is
                                          // what it is. No longer verifying
                                          // this value in FILECHECK, pending
@@ -126,18 +135,22 @@ void test_unnormalized_none_linear_sampler(image_channel_order ChanOrder,
     auto test_acc = testResults.get_access<access::mode::read>();
     for (int i = 0, idx = 0; i < numTests; i++, idx++) {
       if (i == 0) {
+        idx = 0;
+        std::cout << "read four pixels. no sampler" << std::endl;
+      }
+      if (i == 4) {
         idx = 1;
         std::cout << "read three pixels at inner boundary locations, float "
                      "coordinates,  sample:   UnNormalized +  None  + Linear"
                   << std::endl;
       }
-      if (i == 3) {
+      if (i == 7) {
         idx = 0;
         std::cout << "read four pixels at exact center locations, float,  "
                      "sample:   Unnormalized +  None  + Linear"
                   << std::endl;
       }
-      if (i == 7) {
+      if (i == 11) {
         idx = 0;
         std::cout << "read four pixels at inexact upper boundary, float coord, "
                      " sample:   Unnormalized +  None  + Linear"
@@ -162,10 +175,14 @@ int main() {
     // RGBA) the _int16/fp16 channels are two bytes per channel, or eight bytes
     // per pixel (for RGBA) the _int32/fp32  channels are four bytes per
     // channel, or sixteen bytes per pixel (for RGBA).
-    // CUDA has limited support for image_channel_type, so the tests use
-    // unsigned_int32
+
+    std::cout << "fp32 -------------" << std::endl;
     test_unnormalized_none_linear_sampler(image_channel_order::rgba,
-                                          image_channel_type::unsigned_int32);
+                                          image_channel_type::fp32);
+
+    std::cout << "unorm_int8 -------" << std::endl;
+    test_unnormalized_none_linear_sampler(image_channel_order::rgba,
+                                          image_channel_type::unorm_int8);
   } else {
     std::cout << "device does not support image operations" << std::endl;
   }
@@ -173,17 +190,44 @@ int main() {
   return 0;
 }
 // clang-format off
-// CHECK: read three pixels at inner boundary locations, float coordinates,  sample:   UnNormalized +  None  + Linear
-// CHECK-NEXT: 0 -- 1: {25,25,25,25}
-// CHECK-NEXT: 1 -- 2: {54,53,52,51}
-// CHECK-NEXT: 2 -- 3: {35,35,35,35}
+// CHECK: fp32 -------------
+// CHECK-NEXT: read four pixels. no sampler
+// CHECK-NEXT: 0 -- 0: {0.2,0.4,0.6,0.8} 
+// CHECK-NEXT: 1 -- 1: {0.6,0.4,0.2,0} 
+// CHECK-NEXT: 2 -- 2: {0.2,0.4,0.6,0.8} 
+// CHECK-NEXT: 3 -- 3: {0.6,0.4,0.2,0} 
+// CHECK-NEXT: read three pixels at inner boundary locations, float coordinates,  sample:   UnNormalized +  None  + Linear
+// CHECK-NEXT: 4 -- 1: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 5 -- 2: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 6 -- 3: {0.4,0.4,0.4,0.4} 
 // CHECK-NEXT: read four pixels at exact center locations, float,  sample:   Unnormalized +  None  + Linear
-// CHECK-NEXT: 3 -- 0: {1,2,3,4}
-// CHECK-NEXT: 4 -- 1: {49,48,47,46}
-// CHECK-NEXT: 5 -- 2: {59,58,57,56}
-// CHECK-NEXT: 6 -- 3: {11,12,13,14}
+// CHECK-NEXT: 7 -- 0: {0.2,0.4,0.6,0.8} 
+// CHECK-NEXT: 8 -- 1: {0.6,0.4,0.2,0} 
+// CHECK-NEXT: 9 -- 2: {0.2,0.4,0.6,0.8} 
+// CHECK-NEXT: 10 -- 3: {0.6,0.4,0.2,0} 
 // CHECK-NEXT: read four pixels at inexact upper boundary, float coord,  sample:   Unnormalized +  None  + Linear
-// CHECK-NEXT: 7 -- 0: {25,25,25,25}
-// CHECK-NEXT: 8 -- 1: {54,53,52,51}
-// CHECK-NEXT: 9 -- 2: {35,35,35,35}
+// CHECK-NEXT: 11 -- 0: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 12 -- 1: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 13 -- 2: {0.4,0.4,0.4,0.4} 
+// skip        14 -- 3: {0.3,0.2,0.1,0} 
+// CHECK: unorm_int8 -------
+// CHECK-NEXT: read four pixels. no sampler
+// CHECK-NEXT: 0 -- 0: {0.2,0.4,0.6,0.8} 
+// CHECK-NEXT: 1 -- 1: {0.6,0.4,0.2,0} 
+// CHECK-NEXT: 2 -- 2: {0.2,0.4,0.6,0.8} 
+// CHECK-NEXT: 3 -- 3: {0.6,0.4,0.2,0} 
+// CHECK-NEXT: read three pixels at inner boundary locations, float coordinates,  sample:   UnNormalized +  None  + Linear
+// CHECK-NEXT: 4 -- 1: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 5 -- 2: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 6 -- 3: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: read four pixels at exact center locations, float,  sample:   Unnormalized +  None  + Linear
+// CHECK-NEXT: 7 -- 0: {0.2,0.4,0.6,0.8} 
+// CHECK-NEXT: 8 -- 1: {0.6,0.4,0.2,0} 
+// CHECK-NEXT: 9 -- 2: {0.2,0.4,0.6,0.8} 
+// CHECK-NEXT: 10 -- 3: {0.6,0.4,0.2,0} 
+// CHECK-NEXT: read four pixels at inexact upper boundary, float coord,  sample:   Unnormalized +  None  + Linear
+// CHECK-NEXT: 11 -- 0: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 12 -- 1: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 13 -- 2: {0.4,0.4,0.4,0.4} 
+// skip        14 -- 3: {0.3,0.2,0.1,0}
 // clang-format on

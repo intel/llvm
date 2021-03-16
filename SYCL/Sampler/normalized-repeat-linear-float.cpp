@@ -2,12 +2,13 @@
 // RUN: %HOST_RUN_PLACEHOLDER %t.out %HOST_CHECK_PLACEHOLDER
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
-// XFAIL: cpu
+
 // XFAIL: cuda
 // UNSUPPORTED: level_zero && windows
 
-// CPU failing all linear interpolation at moment. Waiting on fix.
-// CUDA failing all linear interpolation at moment. Waiting on fix.
+// CUDA works with image_channel_type::fp32, but not with any 8-bit per channel
+// type (such as unorm_int8)
+
 // LevelZero on Windows hangs with normalized coordinates. Waiting on fix.
 
 /*
@@ -22,12 +23,11 @@
 
 using namespace cl::sycl;
 
-// pixel data-type for RGBA operations (which is the minimum image type)
-using pixelT = sycl::uint4;
+using pixelT = sycl::float4;
 
 // will output a pixel as {r,g,b,a}.  provide override if a different pixelT is
 // defined.
-void outputPixel(sycl::uint4 somePixel) {
+void outputPixel(sycl::float4 somePixel) {
   std::cout << "{" << somePixel[0] << "," << somePixel[1] << "," << somePixel[2]
             << "," << somePixel[3] << "} ";
 }
@@ -48,10 +48,12 @@ void test_normalized_repeat_linear_sampler(image_channel_order ChanOrder,
 
   // we'll use these four pixels for our image. Makes it easy to measure
   // interpolation and spot "off-by-one" probs.
-  pixelT leftEdge{1, 2, 3, 4};
-  pixelT body{49, 48, 47, 46};
-  pixelT bony{59, 58, 57, 56};
-  pixelT rightEdge{11, 12, 13, 14};
+  // These values will work consistently with different levels of float
+  // precision (like unorm_int8 vs. fp32)
+  pixelT leftEdge{0.2f, 0.4f, 0.6f, 0.8f};
+  pixelT body{0.6f, 0.4f, 0.2f, 0.0f};
+  pixelT bony{0.2f, 0.4f, 0.6f, 0.8f};
+  pixelT rightEdge{0.6f, 0.4f, 0.2f, 0.0f};
 
   queue Q;
   const sycl::range<1> ImgRange_1D(width);
@@ -92,33 +94,33 @@ void test_normalized_repeat_linear_sampler(image_channel_order ChanOrder,
 
         // 0-2 read three pixels at inner boundary locations,  sample:
         // Normalized +  Repeat  + Linear
-        test_acc[i++] =
-            image_acc.read(0.25f, Norm_Repeat_Linear_sampler); // {25,25,25,25}
-        test_acc[i++] =
-            image_acc.read(0.50f, Norm_Repeat_Linear_sampler); // {54,53,52,51}
-        test_acc[i++] =
-            image_acc.read(0.75f, Norm_Repeat_Linear_sampler); // {35,35,35,35}
+        test_acc[i++] = image_acc.read(
+            0.25f, Norm_Repeat_Linear_sampler); // {0.4,0.4,0.4,0.4}
+        test_acc[i++] = image_acc.read(
+            0.50f, Norm_Repeat_Linear_sampler); // {0.4,0.4,0.4,0.4}
+        test_acc[i++] = image_acc.read(
+            0.75f, Norm_Repeat_Linear_sampler); // {0.4,0.4,0.4,0.4}
 
         // 3-6 read four pixels above right bound,   sample: Normalized + Repeat
         // + Linear
-        test_acc[i++] =
-            image_acc.read(1.0f, Norm_Repeat_Linear_sampler); // {6,7,8,9}
-        test_acc[i++] =
-            image_acc.read(1.25f, Norm_Repeat_Linear_sampler); // {25,25,25,25}
-        test_acc[i++] =
-            image_acc.read(1.5f, Norm_Repeat_Linear_sampler); // {54,53,52,51}
-        test_acc[i++] =
-            image_acc.read(1.75f, Norm_Repeat_Linear_sampler); // {35,35,35,35}
+        test_acc[i++] = image_acc.read(
+            1.0f, Norm_Repeat_Linear_sampler); // {0.4,0.4,0.4,0.4}
+        test_acc[i++] = image_acc.read(
+            1.25f, Norm_Repeat_Linear_sampler); // {0.4,0.4,0.4,0.4}
+        test_acc[i++] = image_acc.read(
+            1.5f, Norm_Repeat_Linear_sampler); // {0.4,0.4,0.4,0.4}
+        test_acc[i++] = image_acc.read(
+            1.75f, Norm_Repeat_Linear_sampler); // {0.4,0.4,0.4,0.4}
         // 7-10 read four pixels below left bound. sample: Normalized + Repeat +
         // Linear
-        test_acc[i++] =
-            image_acc.read(-0.75f, Norm_Repeat_Linear_sampler); // {25,25,25,25}
-        test_acc[i++] =
-            image_acc.read(-0.5f, Norm_Repeat_Linear_sampler); // {54,53,52,51}
-        test_acc[i++] =
-            image_acc.read(-0.25f, Norm_Repeat_Linear_sampler); // {35,35,35,35}
-        test_acc[i++] =
-            image_acc.read(0.0f, Norm_Repeat_Linear_sampler); // {6,7,8,9}
+        test_acc[i++] = image_acc.read(
+            -0.75f, Norm_Repeat_Linear_sampler); // {0.4,0.4,0.4,0.4}
+        test_acc[i++] = image_acc.read(
+            -0.5f, Norm_Repeat_Linear_sampler); // {0.4,0.4,0.4,0.4}
+        test_acc[i++] = image_acc.read(
+            -0.25f, Norm_Repeat_Linear_sampler); // {0.4,0.4,0.4,0.4}
+        test_acc[i++] = image_acc.read(
+            0.0f, Norm_Repeat_Linear_sampler); // {0.4,0.4,0.4,0.4}
       });
     });
     E_Test.wait();
@@ -163,9 +165,14 @@ int main() {
     // per pixel (for RGBA) the _int32/fp32  channels are four bytes per
     // channel, or sixteen bytes per pixel (for RGBA).
     // CUDA has limited support for image_channel_type, so the tests use
-    // unsigned_int32
+
+    std::cout << "fp32 -------------" << std::endl;
     test_normalized_repeat_linear_sampler(image_channel_order::rgba,
-                                          image_channel_type::unsigned_int32);
+                                          image_channel_type::fp32);
+
+    std::cout << "unorm_int8 -------" << std::endl;
+    test_normalized_repeat_linear_sampler(image_channel_order::rgba,
+                                          image_channel_type::unorm_int8);
   } else {
     std::cout << "device does not support image operations" << std::endl;
   }
@@ -174,18 +181,34 @@ int main() {
 }
 
 // clang-format off
-// CHECK: read three pixels at inner boundary locations,  sample:   Normalized +  Repeat  + Linear
-// CHECK-NEXT: 0 -- 1: {25,25,25,25}
-// CHECK-NEXT: 1 -- 2: {54,53,52,51}
-// CHECK-NEXT: 2 -- 3: {35,35,35,35}
+// CHECK: fp32 -------------
+// CHECK-NEXT: read three pixels at inner boundary locations,  sample:   Normalized +  Repeat  + Linear
+// CHECK-NEXT: 0 -- 1: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 1 -- 2: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 2 -- 3: {0.4,0.4,0.4,0.4} 
 // CHECK-NEXT: read four pixels above right bound,   sample: Normalized + Repeat + Linear
-// CHECK-NEXT: 3 -- 0: {6,7,8,9}
-// CHECK-NEXT: 4 -- 1: {25,25,25,25}
-// CHECK-NEXT: 5 -- 2: {54,53,52,51}
-// CHECK-NEXT: 6 -- 3: {35,35,35,35}
+// CHECK-NEXT: 3 -- 0: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 4 -- 1: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 5 -- 2: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 6 -- 3: {0.4,0.4,0.4,0.4} 
 // CHECK-NEXT: read four pixels below left bound. sample: Normalized + Repeat + Linear
-// CHECK-NEXT: 7 -- 0: {25,25,25,25}
-// CHECK-NEXT: 8 -- 1: {54,53,52,51}
-// CHECK-NEXT: 9 -- 2: {35,35,35,35}
-// CHECK-NEXT: 10 -- 3: {6,7,8,9}
+// CHECK-NEXT: 7 -- 0: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 8 -- 1: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 9 -- 2: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 10 -- 3: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: unorm_int8 -------
+// CHECK-NEXT: read three pixels at inner boundary locations,  sample:   Normalized +  Repeat  + Linear
+// CHECK-NEXT: 0 -- 1: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 1 -- 2: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 2 -- 3: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: read four pixels above right bound,   sample: Normalized + Repeat + Linear
+// CHECK-NEXT: 3 -- 0: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 4 -- 1: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 5 -- 2: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 6 -- 3: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: read four pixels below left bound. sample: Normalized + Repeat + Linear
+// CHECK-NEXT: 7 -- 0: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 8 -- 1: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 9 -- 2: {0.4,0.4,0.4,0.4} 
+// CHECK-NEXT: 10 -- 3: {0.4,0.4,0.4,0.4}
 // clang-format on
