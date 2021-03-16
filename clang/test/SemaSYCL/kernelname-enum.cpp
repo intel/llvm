@@ -69,13 +69,13 @@ int main() {
   });
 
   q.submit([&](cl::sycl::handler &cgh) {
-    // expected-error@Inputs/sycl.hpp:220 {{unscoped enum 'dummy_functor_2<val_3>' requires fixed underlying type}}
+    // expected-error@Inputs/sycl.hpp:220 {{unscoped enum 'unscoped_enum_no_type_set' requires fixed underlying type}}
     // expected-note@+1{{in instantiation of function template specialization}}
     cgh.single_task(f2);
   });
 
   q.submit([&](cl::sycl::handler &cgh) {
-    // expected-error@Inputs/sycl.hpp:220 {{unscoped enum 'templated_functor<dummy_functor_2>' requires fixed underlying type}}
+    // expected-error@Inputs/sycl.hpp:220 {{unscoped enum 'unscoped_enum_no_type_set' requires fixed underlying type}}
     // expected-note@+1{{in instantiation of function template specialization}}
     cgh.single_task(f5);
   });

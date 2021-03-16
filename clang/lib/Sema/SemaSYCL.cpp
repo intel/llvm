@@ -2942,6 +2942,7 @@ class SYCLKernelNameTypeVisitor
   using InnerTemplArgVisitor =
       ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor>;
   bool IsInvalid = false;
+  bool isTagNested = false;
 
   void VisitTemplateArgs(ArrayRef<TemplateArgument> Args) {
     for (auto &A : Args)
@@ -2966,6 +2967,7 @@ public:
     if (const auto *TSD =
             dyn_cast_or_null<ClassTemplateSpecializationDecl>(RD)) {
       ArrayRef<TemplateArgument> Args = TSD->getTemplateArgs().asArray();
+
       VisitTemplateArgs(Args);
     } else {
       InnerTypeVisitor::Visit(T.getTypePtr());
@@ -3057,10 +3059,12 @@ public:
           IsInvalid = true;
           return;
         }
-        // Check if the declartion is declared/defined inside a function or
-        // method or within a struct/union/class.
-        if (!DeclNamed->isDefinedOutsideFunctionOrMethod() ||
-            isa<CXXRecordDecl>(DeclCtx)) {
+        // Check if the declartion is completely defined inside a function or
+        // a method or within a struct/union/class.
+        const auto *Tag = dyn_cast<TagDecl>(DeclNamed);
+        if ((isTagNested && !Tag->isCompleteDefinition()) ||
+            (Tag->isCompleteDefinition() &&
+             (isa<FunctionDecl>(DeclCtx) || isa<CXXRecordDecl>(DeclCtx)))) {
           S.Diag(KernelInvocationFuncLoc,
                  diag::err_sycl_kernel_incorrectly_named)
               << 0 << KernelNameType;
@@ -3077,6 +3081,7 @@ public:
   }
 
   void VisitTypeTemplateArgument(const TemplateArgument &TA) {
+    isTagNested = true;
     QualType T = TA.getAsType();
     if (const auto *ET = T->getAs<EnumType>())
       VisitEnumType(ET);
