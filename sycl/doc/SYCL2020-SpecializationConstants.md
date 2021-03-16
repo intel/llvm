@@ -624,8 +624,8 @@ kernel_single_task(const KernelType &KernelFunc, kernel_handler kh) {
   KernelFunc(kh);
 }
 ```
-For the target which has native support for specialization constatns DPC++ FE
-shoud tranform it into something like:
+For the target which doesn't have native support for specialization constatns
+DPC++ FE shoud tranform it into something like:
 
 ```
 __kernel void KernelName(args_for_lambda_init, ..., char *specialization_constants_buffer) {
@@ -639,7 +639,7 @@ __kernel void KernelName(args_for_lambda_init, ..., char *specialization_constan
 }
 ```
 
-The new kernel argument `specialization_constants_buffer` should have
+Also the new kernel argument `specialization_constants_buffer` should have
 corresponding entry in the `kernel_signatures` structure in the integration
 header. The param kind for this argument should be
 `kernel_param_kind_t:specialization_constants_buffer`.
