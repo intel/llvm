@@ -210,7 +210,7 @@ program_impl::~program_impl() {
 
 cl_program program_impl::get() const {
   throw_if_state_is(program_state::none);
-  if (is_host() || getPlugin().getBackend() != cl::sycl::backend::opencl) {
+  if (is_host()) {
     throw invalid_object_error(
         "This instance of program doesn't support OpenCL interoperability.",
         PI_INVALID_PROGRAM);
@@ -253,20 +253,13 @@ void program_impl::build_with_kernel_name(string_class KernelName,
   throw_if_state_is_not(program_state::none);
   MProgramModuleHandle = Module;
   if (!is_host()) {
-    // If there are no build options, program can be safely cached
-    if (is_cacheable_with_options(BuildOptions)) {
-      MProgramAndKernelCachingAllowed = true;
-      MProgram = ProgramManager::getInstance().getBuiltPIProgram(
-          Module, get_context(), get_devices()[0], KernelName, this,
-          /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
-      const detail::plugin &Plugin = getPlugin();
-      Plugin.call<PiApiKind::piProgramRetain>(MProgram);
-    } else {
-      create_pi_program_with_kernel_name(
-          Module, KernelName,
-          /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
-      build(BuildOptions);
-    }
+    MProgramAndKernelCachingAllowed = true;
+    MBuildOptions = BuildOptions;
+    MProgram = ProgramManager::getInstance().getBuiltPIProgram(
+        Module, get_context(), get_devices()[0], KernelName, this,
+        /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
+    const detail::plugin &Plugin = getPlugin();
+    Plugin.call<PiApiKind::piProgramRetain>(MProgram);
   }
   MState = program_state::linked;
 }
@@ -590,6 +583,8 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
 
 pi_native_handle program_impl::getNative() const {
   const auto &Plugin = getPlugin();
+  if (Plugin.getBackend() == backend::opencl)
+    Plugin.call<PiApiKind::piProgramRetain>(MProgram);
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextProgramGetNativeHandle>(MProgram, &Handle);
   return Handle;

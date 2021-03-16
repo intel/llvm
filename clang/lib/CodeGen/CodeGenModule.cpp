@@ -1525,6 +1525,39 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
       QualType ty = parm->getType();
       std::string typeQuals;
 
+      // Get image and pipe access qualifier:
+      if (ty->isImageType() || ty->isPipeType()) {
+        const Decl *PDecl = parm;
+        if (auto *TD = dyn_cast<TypedefType>(ty))
+          PDecl = TD->getDecl();
+        const OpenCLAccessAttr *A = PDecl->getAttr<OpenCLAccessAttr>();
+        if (A && A->isWriteOnly())
+          accessQuals.push_back(llvm::MDString::get(VMContext, "write_only"));
+        else if (A && A->isReadWrite())
+          accessQuals.push_back(llvm::MDString::get(VMContext, "read_write"));
+        else
+          accessQuals.push_back(llvm::MDString::get(VMContext, "read_only"));
+      } else
+        accessQuals.push_back(llvm::MDString::get(VMContext, "none"));
+
+      // Get argument name.
+      argNames.push_back(llvm::MDString::get(VMContext, parm->getName()));
+
+      auto getTypeSpelling = [&](QualType Ty) {
+        auto typeName = Ty.getUnqualifiedType().getAsString(Policy);
+
+        if (Ty.isCanonical()) {
+          StringRef typeNameRef = typeName;
+          // Turn "unsigned type" to "utype"
+          if (typeNameRef.consume_front("unsigned "))
+            return std::string("u") + typeNameRef.str();
+          if (typeNameRef.consume_front("signed "))
+            return typeNameRef.str();
+        }
+
+        return typeName;
+      };
+
       if (ty->isPointerType()) {
         QualType pointeeTy = ty->getPointeeType();
 
@@ -1534,26 +1567,10 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
                 ArgInfoAddressSpace(pointeeTy.getAddressSpace()))));
 
         // Get argument type name.
-        std::string typeName =
-            pointeeTy.getUnqualifiedType().getAsString(Policy) + "*";
-
-        // Turn "unsigned type" to "utype"
-        std::string::size_type pos = typeName.find("unsigned");
-        if (pointeeTy.isCanonical() && pos != std::string::npos)
-          typeName.erase(pos + 1, 8);
-
-        argTypeNames.push_back(llvm::MDString::get(VMContext, typeName));
-
+        std::string typeName = getTypeSpelling(pointeeTy) + "*";
         std::string baseTypeName =
-            pointeeTy.getUnqualifiedType().getCanonicalType().getAsString(
-                Policy) +
-            "*";
-
-        // Turn "unsigned type" to "utype"
-        pos = baseTypeName.find("unsigned");
-        if (pos != std::string::npos)
-          baseTypeName.erase(pos + 1, 8);
-
+            getTypeSpelling(pointeeTy.getCanonicalType()) + "*";
+        argTypeNames.push_back(llvm::MDString::get(VMContext, typeName));
         argBaseTypeNames.push_back(
             llvm::MDString::get(VMContext, baseTypeName));
 
@@ -1575,30 +1592,9 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
             llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(AddrSpc)));
 
         // Get argument type name.
-        std::string typeName;
-        if (isPipe)
-          typeName = ty.getCanonicalType()
-                         ->castAs<PipeType>()
-                         ->getElementType()
-                         .getAsString(Policy);
-        else
-          typeName = ty.getUnqualifiedType().getAsString(Policy);
-
-        // Turn "unsigned type" to "utype"
-        std::string::size_type pos = typeName.find("unsigned");
-        if (ty.isCanonical() && pos != std::string::npos)
-          typeName.erase(pos + 1, 8);
-
-        std::string baseTypeName;
-        if (isPipe)
-          baseTypeName = ty.getCanonicalType()
-                             ->castAs<PipeType>()
-                             ->getElementType()
-                             .getCanonicalType()
-                             .getAsString(Policy);
-        else
-          baseTypeName =
-              ty.getUnqualifiedType().getCanonicalType().getAsString(Policy);
+        ty = isPipe ? ty->castAs<PipeType>()->getElementType() : ty;
+        std::string typeName = getTypeSpelling(ty);
+        std::string baseTypeName = getTypeSpelling(ty.getCanonicalType());
 
         // Remove access qualifiers on images
         // (as they are inseparable from type in clang implementation,
@@ -1610,38 +1606,13 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
         }
 
         argTypeNames.push_back(llvm::MDString::get(VMContext, typeName));
-
-        // Turn "unsigned type" to "utype"
-        pos = baseTypeName.find("unsigned");
-        if (pos != std::string::npos)
-          baseTypeName.erase(pos + 1, 8);
-
         argBaseTypeNames.push_back(
             llvm::MDString::get(VMContext, baseTypeName));
 
         if (isPipe)
           typeQuals = "pipe";
       }
-
       argTypeQuals.push_back(llvm::MDString::get(VMContext, typeQuals));
-
-      // Get image and pipe access qualifier:
-      if (ty->isImageType() || ty->isPipeType()) {
-        const Decl *PDecl = parm;
-        if (auto *TD = dyn_cast<TypedefType>(ty))
-          PDecl = TD->getDecl();
-        const OpenCLAccessAttr *A = PDecl->getAttr<OpenCLAccessAttr>();
-        if (A && A->isWriteOnly())
-          accessQuals.push_back(llvm::MDString::get(VMContext, "write_only"));
-        else if (A && A->isReadWrite())
-          accessQuals.push_back(llvm::MDString::get(VMContext, "read_write"));
-        else
-          accessQuals.push_back(llvm::MDString::get(VMContext, "read_only"));
-      } else
-        accessQuals.push_back(llvm::MDString::get(VMContext, "none"));
-
-      // Get argument name.
-      argNames.push_back(llvm::MDString::get(VMContext, parm->getName()));
 
       auto *SYCLBufferLocationAttr =
           parm->getAttr<SYCLIntelBufferLocationAttr>();
@@ -1656,7 +1627,9 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
             CGF->Builder.getInt1(parm->hasAttr<SYCLSimdAccessorPtrAttr>())));
     }
 
-  if (LangOpts.SYCLIsDevice && !LangOpts.SYCLExplicitSIMD)
+  bool IsEsimdFunction = FD && FD->hasAttr<SYCLSimdAttr>();
+
+  if (LangOpts.SYCLIsDevice && !IsEsimdFunction)
     Fn->setMetadata("kernel_arg_buffer_location",
                     llvm::MDNode::get(VMContext, argSYCLBufferLocationAttr));
   else {
@@ -1670,7 +1643,7 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
                     llvm::MDNode::get(VMContext, argBaseTypeNames));
     Fn->setMetadata("kernel_arg_type_qual",
                     llvm::MDNode::get(VMContext, argTypeQuals));
-    if (FD && FD->hasAttr<SYCLSimdAttr>())
+    if (IsEsimdFunction)
       Fn->setMetadata("kernel_arg_accessor_ptr",
                       llvm::MDNode::get(VMContext, argESIMDAccPtrs));
     if (getCodeGenOpts().EmitOpenCLArgMetadata)
@@ -3157,7 +3130,7 @@ bool CodeGenModule::shouldEmitFunction(GlobalDecl GD) {
   if (CodeGenOpts.OptimizationLevel == 0 && !F->hasAttr<AlwaysInlineAttr>())
     return false;
 
-  if (F->hasAttr<DLLImportAttr>()) {
+  if (F->hasAttr<DLLImportAttr>() && !F->hasAttr<AlwaysInlineAttr>()) {
     // Check whether it would be safe to inline this dllimport function.
     DLLImportFunctionVisitor Visitor;
     Visitor.TraverseFunctionDecl(const_cast<FunctionDecl*>(F));
@@ -4435,8 +4408,12 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
   bool NeedsGlobalDtor =
       D->needsDestruction(getContext()) == QualType::DK_cxx_destructor;
 
+  bool IsHIPManagedVarOnDevice =
+      getLangOpts().CUDAIsDevice && D->hasAttr<HIPManagedAttr>();
+
   const VarDecl *InitDecl;
-  const Expr *InitExpr = D->getAnyInitializer(InitDecl);
+  const Expr *InitExpr =
+      IsHIPManagedVarOnDevice ? nullptr : D->getAnyInitializer(InitDecl);
 
   Optional<ConstantEmitter> emitter;
 
@@ -4456,8 +4433,6 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
       (D->getType()->isCUDADeviceBuiltinSurfaceType() ||
        D->getType()->isCUDADeviceBuiltinTextureType() ||
        D->hasAttr<HIPManagedAttr>());
-  // HIP pinned shadow of initialized host-side global variables are also
-  // left undefined.
   if (getLangOpts().CUDA &&
       (IsCUDASharedVar || IsCUDAShadowVar || IsCUDADeviceShadowVar))
     Init = llvm::UndefValue::get(getTypes().ConvertType(ASTTy));
@@ -4578,63 +4553,15 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
           (D->hasAttr<CUDADeviceAttr>() || D->hasAttr<CUDAConstantAttr>()))
         GV->setExternallyInitialized(true);
     } else {
-      // Host-side shadows of external declarations of device-side
-      // global variables become internal definitions. These have to
-      // be internal in order to prevent name conflicts with global
-      // host variables with the same name in a different TUs.
-      if (D->hasAttr<CUDADeviceAttr>() || D->hasAttr<CUDAConstantAttr>()) {
-        Linkage = llvm::GlobalValue::InternalLinkage;
-        // Shadow variables and their properties must be registered with CUDA
-        // runtime. Skip Extern global variables, which will be registered in
-        // the TU where they are defined.
-        //
-        // Don't register a C++17 inline variable. The local symbol can be
-        // discarded and referencing a discarded local symbol from outside the
-        // comdat (__cuda_register_globals) is disallowed by the ELF spec.
-        // TODO: Reject __device__ constexpr and __device__ inline in Sema.
-        if (!D->hasExternalStorage() && !D->isInline())
-          getCUDARuntime().registerDeviceVar(D, *GV, !D->hasDefinition(),
-                                             D->hasAttr<CUDAConstantAttr>());
-      } else if (D->hasAttr<CUDASharedAttr>()) {
-        // __shared__ variables are odd. Shadows do get created, but
-        // they are not registered with the CUDA runtime, so they
-        // can't really be used to access their device-side
-        // counterparts. It's not clear yet whether it's nvcc's bug or
-        // a feature, but we've got to do the same for compatibility.
-        Linkage = llvm::GlobalValue::InternalLinkage;
-      } else if (D->getType()->isCUDADeviceBuiltinSurfaceType() ||
-                 D->getType()->isCUDADeviceBuiltinTextureType()) {
-        // Builtin surfaces and textures and their template arguments are
-        // also registered with CUDA runtime.
-        Linkage = llvm::GlobalValue::InternalLinkage;
-        const ClassTemplateSpecializationDecl *TD =
-            cast<ClassTemplateSpecializationDecl>(
-                D->getType()->getAs<RecordType>()->getDecl());
-        const TemplateArgumentList &Args = TD->getTemplateArgs();
-        if (TD->hasAttr<CUDADeviceBuiltinSurfaceTypeAttr>()) {
-          assert(Args.size() == 2 &&
-                 "Unexpected number of template arguments of CUDA device "
-                 "builtin surface type.");
-          auto SurfType = Args[1].getAsIntegral();
-          if (!D->hasExternalStorage())
-            getCUDARuntime().registerDeviceSurf(D, *GV, !D->hasDefinition(),
-                                                SurfType.getSExtValue());
-        } else {
-          assert(Args.size() == 3 &&
-                 "Unexpected number of template arguments of CUDA device "
-                 "builtin texture type.");
-          auto TexType = Args[1].getAsIntegral();
-          auto Normalized = Args[2].getAsIntegral();
-          if (!D->hasExternalStorage())
-            getCUDARuntime().registerDeviceTex(D, *GV, !D->hasDefinition(),
-                                               TexType.getSExtValue(),
-                                               Normalized.getZExtValue());
-        }
-      }
+      getCUDARuntime().internalizeDeviceSideVar(D, Linkage);
+      getCUDARuntime().handleVarRegistration(D, *GV);
     }
   }
 
-  GV->setInitializer(Init);
+  // HIP managed variables need to be emitted as declarations in device
+  // compilation.
+  if (!IsHIPManagedVarOnDevice)
+    GV->setInitializer(Init);
   if (emitter)
     emitter->finalize(GV);
 
@@ -4898,7 +4825,6 @@ static void replaceUsesOfNonProtoConstant(llvm::Constant *old,
 
   llvm::Type *newRetTy = newFn->getReturnType();
   SmallVector<llvm::Value*, 4> newArgs;
-  SmallVector<llvm::OperandBundleDef, 1> newBundles;
 
   for (llvm::Value::use_iterator ui = old->use_begin(), ue = old->use_end();
          ui != ue; ) {
@@ -4955,6 +4881,7 @@ static void replaceUsesOfNonProtoConstant(llvm::Constant *old,
     newArgs.append(callSite->arg_begin(), callSite->arg_begin() + argNo);
 
     // Copy over any operand bundles.
+    SmallVector<llvm::OperandBundleDef, 1> newBundles;
     callSite->getOperandBundlesAsDefs(newBundles);
 
     llvm::CallBase *newCall;

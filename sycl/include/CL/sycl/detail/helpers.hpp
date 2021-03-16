@@ -46,7 +46,11 @@ inline void memcpy(void *Dst, const void *Src, size_t Size) {
 }
 
 template <typename To, typename From>
-constexpr To bit_cast(const From &from) noexcept {
+#if __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
+constexpr
+#endif
+    To
+    bit_cast(const From &from) noexcept {
   static_assert(sizeof(To) == sizeof(From),
                 "Sizes of To and From must be equal");
   static_assert(std::is_trivially_copyable<From>::value,

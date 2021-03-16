@@ -500,79 +500,6 @@ def AssumeAlignmentOp : Std_Op<"assume_alignment"> {
 }
 
 //===----------------------------------------------------------------------===//
-// AtanOp
-//===----------------------------------------------------------------------===//
-
-def AtanOp : FloatUnaryOp<"atan", []>{
-  let summary = "arcus tangent of the given value";
-  let description = [{
-    Syntax:
-
-    ```
-    operation ::= ssa-id `=` `std.atan` ssa-use `:` type
-    ```
-
-    The `atan` operation computes the arcus tangent of a given value.  It takes
-    one operand and returns one result of the same type.  This type may be a
-    float scalar type, a vector whose element type is float, or a tensor of
-    floats.  It has no standard attributes.
-
-    Example:
-
-    ```mlir
-    // Arcus tangent of scalar value.
-    %a = atan %b : f64
-
-    // SIMD vector element-wise arcus tangent.
-    %f = atan %g : vector<4xf32>
-
-    // Tensor element-wise arcus tangent.
-    %x = atan %y : tensor<4x?xf8>
-    ```
-  }];
-}
-
-//===----------------------------------------------------------------------===//
-// Atan2Op
-//===----------------------------------------------------------------------===//
-
-def Atan2Op : FloatArithmeticOp<"atan2">{
-  let summary = "2-argument arcus tangent of the given values";
-  let description = [{
-    Syntax:
-
-    ```
-    operation ::= ssa-id `=` `std.atan2` ssa-use `,` ssa-use `:` type
-    ```
-
-    The `atan2` operation takes two operands and returns one result, all of
-    which must be of the same type.  This type may be a floating point scalar
-    type, a vector whose element type is a floating point type, or a floating
-    point tensor.
-
-    The 2-argument arcus tangent `atan2(y, x)` returns the angle in the
-    Euclidian plane between the positive x-axis and the ray through the point
-    (x, y).  It is a generalization of the 1-argument arcus tangent which
-    returns the angle on the basis of the ratio y/x.
-
-    See also https://en.wikipedia.org/wiki/Atan2
-
-    Example:
-
-    ```mlir
-    // Scalar variant.
-    %a = atan2 %b, %c : f32
-
-    // SIMD vector variant.
-    %f = atan2 %g, %h : vector<4xf32>
-
-    // Tensor variant.
-    %x = atan2 %y, %z : tensor<4x?xf32>
-    ```
-  }];
-}
-
-//===----------------------------------------------------------------------===//
 // AtomicRMWOp
 //===----------------------------------------------------------------------===//
 
@@ -1348,7 +1275,7 @@ def CopySignOp : FloatArithmeticOp<"copysign"> {
     Syntax:
 
     ```
-    operation ::= ssa-id `=` `std.copysign` ssa-use `:` type
+    operation ::= ssa-id `=` `std.copysign` ssa-use `,` ssa-use `:` type
     ```
 
     The `copysign` returns a value with the magnitude of the first operand and
@@ -1361,79 +1288,13 @@ def CopySignOp : FloatArithmeticOp<"copysign"> {
 
     ```mlir
     // Scalar copysign value.
-    %a = copysign %b %c : f64
+    %a = copysign %b, %c : f64
 
     // SIMD vector element-wise copysign value.
-    %f = copysign %g %h : vector<4xf32>
+    %f = copysign %g, %h : vector<4xf32>
 
     // Tensor element-wise copysign value.
-    %x = copysign %y %z : tensor<4x?xf8>
-    ```
-  }];
-}
-
-//===----------------------------------------------------------------------===//
-// CosOp
-//===----------------------------------------------------------------------===//
-
-def CosOp : FloatUnaryOp<"cos"> {
-  let summary = "cosine of the specified value";
-  let description = [{
-    Syntax:
-
-    ```
-    operation ::= ssa-id `=` `std.cos` ssa-use `:` type
-    ```
-
-    The `cos` operation computes the cosine of a given value. It takes one
-    operand and returns one result of the same type. This type may be a float
-    scalar type, a vector whose element type is float, or a tensor of floats.
-    It has no standard attributes.
-
-    Example:
-
-    ```mlir
-    // Scalar cosine value.
-    %a = cos %b : f64
-
-    // SIMD vector element-wise cosine value.
-    %f = cos %g : vector<4xf32>
-
-    // Tensor element-wise cosine value.
-    %x = cos %y : tensor<4x?xf8>
-    ```
-  }];
-}
-
-//===----------------------------------------------------------------------===//
-// SinOp
-//===----------------------------------------------------------------------===//
-
-def SinOp : FloatUnaryOp<"sin"> {
-  let summary = "sine of the specified value";
-  let description = [{
-    Syntax:
-
-    ```
-    operation ::= ssa-id `=` `std.sin` ssa-use `:` type
-    ```
-
-    The `sin` operation computes the sine of a given value. It takes one
-    operand and returns one result of the same type. This type may be a float
-    scalar type, a vector whose element type is float, or a tensor of floats.
-    It has no standard attributes.
-
-    Example:
-
-    ```mlir
-    // Scalar sine value.
-    %a = sin %b : f64
-
-    // SIMD vector element-wise sine value.
-    %f = sin %g : vector<4xf32>
-
-    // Tensor element-wise sine value.
-    %x = sin %y : tensor<4x?xf8>
+    %x = copysign %y, %z : tensor<4x?xf8>
     ```
   }];
 }
@@ -1526,46 +1387,6 @@ def DimOp : Std_Op<"dim", [NoSideEffect]> {
 def DivFOp : FloatArithmeticOp<"divf"> {
   let summary = "floating point division operation";
   let hasFolder = 1;
-}
-
-//===----------------------------------------------------------------------===//
-// ExpOp
-//===----------------------------------------------------------------------===//
-
-def ExpOp : FloatUnaryOp<"exp"> {
-  let summary = "base-e exponential of the specified value";
-  let description = [{
-    Syntax:
-
-    ```
-    operation ::= ssa-id `=` `std.exp` ssa-use `:` type
-    ```
-
-    The `exp` operation takes one operand and returns one result of the same
-    type. This type may be a float scalar type, a vector whose element type is
-    float, or a tensor of floats. It has no standard attributes.
-
-    Example:
-
-    ```mlir
-    // Scalar natural exponential.
-    %a = exp %b : f64
-
-    // SIMD vector element-wise natural exponential.
-    %f = exp %g : vector<4xf32>
-
-    // Tensor element-wise natural exponential.
-    %x = exp %y : tensor<4x?xf8>
-    ```
-  }];
-}
-
-//===----------------------------------------------------------------------===//
-// ExpOp
-//===----------------------------------------------------------------------===//
-
-def Exp2Op : FloatUnaryOp<"exp2"> {
-  let summary = "base-2 exponential of the specified value";
 }
 
 //===----------------------------------------------------------------------===//
@@ -1803,51 +1624,6 @@ def LoadOp : Std_Op<"load",
 }
 
 //===----------------------------------------------------------------------===//
-// LogOp
-//===----------------------------------------------------------------------===//
-
-def LogOp : FloatUnaryOp<"log"> {
-  let summary = "base-e logarithm of the specified value";
-}
-
-//===----------------------------------------------------------------------===//
-// Log10Op
-//===----------------------------------------------------------------------===//
-
-def Log10Op : FloatUnaryOp<"log10"> {
-  let summary = "base-10 logarithm of the specified value";
-}
-
-//===----------------------------------------------------------------------===//
-// Log1pOp
-//===----------------------------------------------------------------------===//
-
-def Log1pOp : FloatUnaryOp<"log1p"> {
-  let summary = "Computes the natural logarithm of one plus the given value";
-
-  let description = [{
-    Computes the base-e logarithm of one plus the given value. It takes one
-    operand and returns one result of the same type.
-
-    log1p(x) := log(1 + x)
-
-    Example:
-
-    ```mlir
-    %y = log1p %x : f64
-    ```
-  }];
-}
-
-//===----------------------------------------------------------------------===//
-// Log2Op
-//===----------------------------------------------------------------------===//
-
-def Log2Op : FloatUnaryOp<"log2"> {
-  let summary = "base-2 logarithm of the specified value";
-}
-
-//===----------------------------------------------------------------------===//
 // MemRefCastOp
 //===----------------------------------------------------------------------===//
 
@@ -1955,6 +1731,19 @@ def MemRefReinterpretCastOp:
     I64ArrayAttr:$static_strides
   );
   let results = (outs AnyMemRef:$result);
+
+  let assemblyFormat = [{
+    $source `to` `offset` `` `:`
+    custom<OperandsOrIntegersOffsetsOrStridesList>($offsets, $static_offsets)
+    `` `,` `sizes` `` `:`
+    custom<OperandsOrIntegersSizesList>($sizes, $static_sizes) `` `,` `strides`
+    `` `:`
+    custom<OperandsOrIntegersOffsetsOrStridesList>($strides, $static_strides)
+    attr-dict `:` type($source) `to` type($result)
+  }];
+
+  let parser=?;
+  let printer=?;
 
   let builders = [
     // Build a ReinterpretCastOp with mixed static and dynamic entries.
@@ -2175,39 +1964,6 @@ def OrOp : IntArithmeticOp<"or", [Commutative]> {
 }
 
 //===----------------------------------------------------------------------===//
-// PowFOp
-//===----------------------------------------------------------------------===//
-
-def PowFOp : FloatArithmeticOp<"powf"> {
-  let summary = "floating point raised to the power of operation";
-  let description = [{
-    Syntax:
-
-    ```
-    operation ::= ssa-id `=` `std.powf` ssa-use `,` ssa-use `:` type
-    ```
-
-    The `powf` operation takes two operands and returns one result, each of
-    these is required to be the same type. This type may be a floating point
-    scalar type, a vector whose element type is a floating point type, or a
-    floating point tensor.
-
-    Example:
-
-    ```mlir
-    // Scalar exponentiation.
-    %a = powf %b, %c : f64
-
-    // SIMD pointwise vector exponentiation
-    %f = powf %g, %h : vector<4xf32>
-
-    // Tensor pointwise exponentiation.
-    %x = powf %y, %z : tensor<4x?xbf16>
-    ```
-  }];
-}
-
-//===----------------------------------------------------------------------===//
 // PrefetchOp
 //===----------------------------------------------------------------------===//
 
@@ -2318,20 +2074,6 @@ def ReturnOp : Std_Op<"return", [NoSideEffect, HasParent<"FuncOp">,
     [{ build($_builder, $_state, llvm::None); }]>];
 
   let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
-}
-
-//===----------------------------------------------------------------------===//
-// RsqrtOp
-//===----------------------------------------------------------------------===//
-
-def RsqrtOp : FloatUnaryOp<"rsqrt"> {
-  let summary = "reciprocal of sqrt (1 / sqrt of the specified value)";
-  let description = [{
-    The `rsqrt` operation computes the reciprocal of the square root. It takes
-    one operand and returns one result of the same type. This type may be a
-    float scalar type, a vector whose element type is float, or a tensor of
-    floats. It has no standard attributes.
-  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -2672,31 +2414,6 @@ def SplatOp : Std_Op<"splat", [NoSideEffect,
 }
 
 //===----------------------------------------------------------------------===//
-// SqrtOp
-//===----------------------------------------------------------------------===//
-
-def SqrtOp : FloatUnaryOp<"sqrt"> {
-  let summary = "sqrt of the specified value";
-  let description = [{
-    The `sqrt` operation computes the square root. It takes one operand and
-    returns one result of the same type. This type may be a float scalar type, a
-    vector whose element type is float, or a tensor of floats. It has no standard
-    attributes.
-
-    Example:
-
-    ```mlir
-    // Scalar square root value.
-    %a = sqrt %b : f64
-    // SIMD vector element-wise square root value.
-    %f = sqrt %g : vector<4xf32>
-    // Tensor element-wise square root value.
-    %x = sqrt %y : tensor<4x?xf32>
-    ```
-  }];
-}
-
-//===----------------------------------------------------------------------===//
 // StoreOp
 //===----------------------------------------------------------------------===//
 
@@ -2931,6 +2648,14 @@ def SubViewOp : BaseOpWithOffsetSizesAndStrides<
   );
   let results = (outs AnyMemRef:$result);
 
+  let assemblyFormat = [{
+    $source ``
+    custom<OperandsOrIntegersOffsetsOrStridesList>($offsets, $static_offsets)
+    custom<OperandsOrIntegersSizesList>($sizes, $static_sizes)
+    custom<OperandsOrIntegersOffsetsOrStridesList>($strides, $static_strides)
+    attr-dict `:` type($source) `to` type($result)
+  }];
+
   let builders = [
     // Build a SubViewOp with mixed static and dynamic entries and custom
     // result type. If the type passed is nullptr, it is inferred.
@@ -2980,6 +2705,10 @@ def SubViewOp : BaseOpWithOffsetSizesAndStrides<
                                 ArrayRef<int64_t> staticOffsets,
                                 ArrayRef<int64_t> staticSizes,
                                 ArrayRef<int64_t> staticStrides);
+    static Type inferResultType(MemRefType sourceMemRefType,
+                                ArrayRef<OpFoldResult> staticOffsets,
+                                ArrayRef<OpFoldResult> staticSizes,
+                                ArrayRef<OpFoldResult> staticStrides);
 
     /// Return the expected rank of each of the`static_offsets`, `static_sizes`
     /// and `static_strides` attributes.
@@ -3053,6 +2782,14 @@ def SubTensorOp : BaseOpWithOffsetSizesAndStrides<
   );
   let results = (outs AnyRankedTensor:$result);
 
+  let assemblyFormat = [{
+    $source ``
+    custom<OperandsOrIntegersOffsetsOrStridesList>($offsets, $static_offsets)
+    custom<OperandsOrIntegersSizesList>($sizes, $static_sizes)
+    custom<OperandsOrIntegersOffsetsOrStridesList>($strides, $static_strides)
+    attr-dict `:` type($source) `to` type($result)
+  }];
+
   let builders = [
     // Build a SubTensorOp with mixed static and dynamic entries and inferred
     // result type.
@@ -3094,6 +2831,10 @@ def SubTensorOp : BaseOpWithOffsetSizesAndStrides<
                                 ArrayRef<int64_t> staticOffsets,
                                 ArrayRef<int64_t> staticSizes,
                                 ArrayRef<int64_t> staticStrides);
+    static Type inferResultType(RankedTensorType sourceRankedTensorType,
+                                ArrayRef<OpFoldResult> staticOffsets,
+                                ArrayRef<OpFoldResult> staticSizes,
+                                ArrayRef<OpFoldResult> staticStrides);
 
     /// Return the expected rank of each of the`static_offsets`, `static_sizes`
     /// and `static_strides` attributes.
@@ -3115,7 +2856,10 @@ def SubTensorOp : BaseOpWithOffsetSizesAndStrides<
 //===----------------------------------------------------------------------===//
 
 def SubTensorInsertOp : BaseOpWithOffsetSizesAndStrides<
-    "subtensor_insert", [OffsetSizeAndStrideOpInterface]> {
+    "subtensor_insert",
+    [OffsetSizeAndStrideOpInterface,
+     TypesMatchWith<"expected result type to match dest type",
+                    "dest", "result", "$_self">]> {
   let summary = "subtensor_insert operation";
   let description = [{
     The "subtensor_insert" operation insert a tensor `source` into another
@@ -3159,6 +2903,16 @@ def SubTensorInsertOp : BaseOpWithOffsetSizesAndStrides<
   );
   let results = (outs AnyRankedTensor:$result);
 
+  let assemblyFormat = [{
+    $source `into` $dest ``
+    custom<OperandsOrIntegersOffsetsOrStridesList>($offsets, $static_offsets)
+    custom<OperandsOrIntegersSizesList>($sizes, $static_sizes)
+    custom<OperandsOrIntegersOffsetsOrStridesList>($strides, $static_strides)
+    attr-dict `:` type($source) `into` type($dest)
+  }];
+
+  let verifier = ?;
+
   let builders = [
     // Build a SubTensorInsertOp with mixed static and dynamic entries.
     OpBuilderDAG<(ins "Value":$source, "Value":$dest,
@@ -3192,39 +2946,6 @@ def SubTensorInsertOp : BaseOpWithOffsetSizesAndStrides<
     /// Return the number of leading operands before the `offsets`, `sizes` and
     /// and `strides` operands.
     static unsigned getOffsetSizeAndStrideStartOperandIndex() { return 2; }
-  }];
-}
-
-//===----------------------------------------------------------------------===//
-// TanhOp
-//===----------------------------------------------------------------------===//
-
-def TanhOp : FloatUnaryOp<"tanh"> {
-  let summary = "hyperbolic tangent of the specified value";
-  let description = [{
-    Syntax:
-
-    ```
-    operation ::= ssa-id `=` `std.tanh` ssa-use `:` type
-    ```
-
-    The `tanh` operation computes the hyperbolic tangent. It takes one operand
-    and returns one result of the same type. This type may be a float scalar
-    type, a vector whose element type is float, or a tensor of floats. It has
-    no standard attributes.
-
-    Example:
-
-    ```mlir
-    // Scalar hyperbolic tangent value.
-    %a = tanh %b : f64
-
-    // SIMD vector element-wise hyperbolic tangent value.
-    %f = tanh %g : vector<4xf32>
-
-    // Tensor element-wise hyperbolic tangent value.
-    %x = tanh %y : tensor<4x?xf8>
-    ```
   }];
 }
 

@@ -56,6 +56,23 @@ class HostAccessor(Accessor):
     def data(self):
         return self.payload()['MData']
 
+class HostAccessorLocal(HostAccessor):
+    """For Host device memory layout"""
+
+    def index(self, arg):
+        if arg.type.code == gdb.TYPE_CODE_INT:
+            return int(arg)
+        # https://github.com/intel/llvm/blob/97272b7ebd569bfa13811913a31e30f926559217/sycl/include/CL/sycl/accessor.hpp#L1049-L1053
+        result = 0;
+        for dim in range(self.depth):
+            result = result * \
+                self.payload()['MSize']['common_array'][dim] + \
+                arg['common_array'][dim];
+        return result;
+
+    def data(self):
+        return self.payload()['MMem']
+
 class DeviceAccessor(Accessor):
     """For CPU/GPU memory layout"""
 
@@ -88,7 +105,8 @@ class AccessorOpIndex(gdb.xmethod.XMethodWorker):
         # try all accessor implementations until one of them works:
         accessors = [
             DeviceAccessor(obj, self.result_type, self.depth),
-            HostAccessor(obj, self.result_type, self.depth)
+            HostAccessor(obj, self.result_type, self.depth),
+            HostAccessorLocal(obj, self.result_type, self.depth)
         ]
         for accessor in accessors:
             try:
@@ -176,7 +194,7 @@ class PrivateMemoryOpCall(gdb.xmethod.XMethodWorker):
         return self.result_type
 
     def __call__(self, obj, *args):
-        if obj['Val'].type.tag == self.result_type:
+        if obj['Val'].type.tag.endswith(self.result_type):
             # On device private_memory is a simple wrapper over actual value
             return obj['Val']
         else:
@@ -196,11 +214,10 @@ class PrivateMemoryMatcher(gdb.xmethod.XMethodMatcher):
         if method_name != 'operator()':
             return None
 
-        result = re.match('^cl::sycl::private_memory<(cl::sycl::id<.+>), (.+)>$', class_type.tag)
+        result = re.match('^cl::sycl::private_memory<((cl::)?(sycl::)?id<.+>), (.+)>$', class_type.tag)
         if result is None:
             return None
-
-        return PrivateMemoryOpCall(result[1], result[2])
+        return PrivateMemoryOpCall(result[1], result[4])
 
 
 

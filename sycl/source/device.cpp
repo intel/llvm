@@ -10,6 +10,7 @@
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/info/info_desc.hpp>
+#include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/force_device.hpp>
@@ -29,13 +30,17 @@ void force_type(info::device_type &t, const info::device_type &ft) {
 
 device::device() : impl(detail::device_impl::getHostDeviceImpl()) {}
 
-device::device(cl_device_id deviceId)
-    : impl(std::make_shared<detail::device_impl>(
-          detail::pi::cast<pi_native_handle>(deviceId),
-          RT::getPlugin<backend::opencl>())) {
+device::device(cl_device_id DeviceId) {
   // The implementation constructor takes ownership of the native handle so we
   // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
-  clRetainDevice(deviceId);
+  detail::RT::PiDevice Device;
+  auto Plugin = detail::RT::getPlugin<backend::opencl>();
+  Plugin.call<detail::PiApiKind::piextDeviceCreateWithNativeHandle>(
+      detail::pi::cast<pi_native_handle>(DeviceId), nullptr, &Device);
+  auto Platform =
+      detail::platform_impl::getPlatformFromPiDevice(Device, Plugin);
+  impl = Platform->getOrMakeDeviceImpl(Device, Platform);
+  clRetainDevice(DeviceId);
 }
 
 device::device(const device_selector &deviceSelector) {
@@ -135,6 +140,8 @@ device::get_info() const {
 #include <CL/sycl/info/device_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
+
+backend device::get_backend() const noexcept { return getImplBackend(impl); }
 
 pi_native_handle device::getNative() const { return impl->getNative(); }
 

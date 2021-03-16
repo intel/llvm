@@ -112,6 +112,8 @@ void *MemoryManager::allocateInteropMemObject(
     ContextImplPtr TargetContext, void *UserPtr,
     const EventImplPtr &InteropEvent, const ContextImplPtr &InteropContext,
     const sycl::property_list &, RT::PiEvent &OutEventToWait) {
+  (void)TargetContext;
+  (void)InteropContext;
   // If memory object is created with interop c'tor return cl_mem as is.
   assert(TargetContext == InteropContext && "Expected matching contexts");
   OutEventToWait = InteropEvent->getHandleRef();

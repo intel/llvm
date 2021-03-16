@@ -725,8 +725,9 @@ void BuiltinNameEmitter::EmitQualTypeFinder() {
                 .Case("RO", "        case AQ_ReadOnly:\n")
                 .Case("WO", "        case AQ_WriteOnly:\n")
                 .Case("RW", "        case AQ_ReadWrite:\n")
-         << "          QT.push_back(Context."
-         << Image->getValueAsDef("QTName")->getValueAsString("Name") << ");\n"
+         << "          QT.push_back("
+         << Image->getValueAsDef("QTExpr")->getValueAsString("TypeExpr")
+         << ");\n"
          << "          break;\n";
     }
     OS << "      }\n"
@@ -747,12 +748,12 @@ void BuiltinNameEmitter::EmitQualTypeFinder() {
          I++) {
       for (const auto *T :
            GenType->getValueAsDef("TypeList")->getValueAsListOfDefs("List")) {
-        if (T->getValueAsDef("QTName")->isSubClassOf("QualTypeFromFunction"))
-          OS << T->getValueAsDef("QTName")->getValueAsString("Name")
+        if (T->getValueAsDef("QTExpr")->isSubClassOf("QualTypeFromFunction"))
+          OS << T->getValueAsDef("QTExpr")->getValueAsString("TypeExpr")
              << "(Context), ";
         else
-          OS << "Context."
-             << T->getValueAsDef("QTName")->getValueAsString("Name") << ", ";
+          OS << T->getValueAsDef("QTExpr")->getValueAsString("TypeExpr")
+             << ", ";
       }
     }
     OS << "});\n";
@@ -786,16 +787,16 @@ void BuiltinNameEmitter::EmitQualTypeFinder() {
     TypesSeen.insert(std::make_pair(T->getValueAsString("Name"), true));
 
     // Check the Type does not have an "abstract" QualType
-    auto QT = T->getValueAsDef("QTName");
+    auto QT = T->getValueAsDef("QTExpr");
     if (QT->getValueAsBit("IsAbstract") == 1)
       continue;
     // Emit the cases for non generic, non image types.
     OS << "    case TID_" << T->getValueAsString("Name") << ":\n";
     if (QT->isSubClassOf("QualTypeFromFunction"))
-      OS << "      QT.push_back(" << QT->getValueAsString("Name")
+      OS << "      QT.push_back(" << QT->getValueAsString("TypeExpr")
          << "(Context));\n";
     else
-      OS << "      QT.push_back(Context." << QT->getValueAsString("Name")
+      OS << "      QT.push_back(" << QT->getValueAsString("TypeExpr")
          << ");\n";
     OS << "      break;\n";
   }

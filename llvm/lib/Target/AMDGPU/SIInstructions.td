@@ -145,6 +145,7 @@ def EXIT_WWM : SPseudoInstSI <(outs SReg_1:$sdst), (ins SReg_1:$src0)> {
 
 // Invert the exec mask and overwrite the inactive lanes of dst with inactive,
 // restoring it after we're done.
+let Defs = [SCC] in {
 def V_SET_INACTIVE_B32 : VPseudoInstSI <(outs VGPR_32:$vdst),
   (ins VGPR_32: $src, VSrc_b32:$inactive),
   [(set i32:$vdst, (int_amdgcn_set_inactive i32:$src, i32:$inactive))]> {
@@ -156,6 +157,7 @@ def V_SET_INACTIVE_B64 : VPseudoInstSI <(outs VReg_64:$vdst),
   [(set i64:$vdst, (int_amdgcn_set_inactive i64:$src, i64:$inactive))]> {
   let Constraints = "$src = $vdst";
 }
+} // End Defs = [SCC]
 
 let usesCustomInserter = 1, Defs = [VCC, EXEC] in {
 def V_ADD_U64_PSEUDO : VPseudoInstSI <
@@ -230,6 +232,7 @@ def S_MOV_B64_term : WrapTerminatorInst<S_MOV_B64>;
 def S_XOR_B64_term : WrapTerminatorInst<S_XOR_B64>;
 def S_OR_B64_term : WrapTerminatorInst<S_OR_B64>;
 def S_ANDN2_B64_term : WrapTerminatorInst<S_ANDN2_B64>;
+def S_AND_B64_term : WrapTerminatorInst<S_AND_B64>;
 }
 
 let WaveSizePredicate = isWave32 in {
@@ -237,6 +240,7 @@ def S_MOV_B32_term : WrapTerminatorInst<S_MOV_B32>;
 def S_XOR_B32_term : WrapTerminatorInst<S_XOR_B32>;
 def S_OR_B32_term : WrapTerminatorInst<S_OR_B32>;
 def S_ANDN2_B32_term : WrapTerminatorInst<S_ANDN2_B32>;
+def S_AND_B32_term : WrapTerminatorInst<S_AND_B32>;
 }
 
 
@@ -337,23 +341,21 @@ multiclass PseudoInstKill <dag ins> {
   // required in degenerate cases (when V_CMPX cannot be used due to constant
   // bus limitations) and because it allows us to avoid having to track SCC
   // liveness across basic blocks.
-  let Defs = [EXEC,VCC,SCC] in
+  let Defs = [EXEC,SCC] in
   def _PSEUDO : PseudoInstSI <(outs), ins> {
     let isConvergent = 1;
     let usesCustomInserter = 1;
   }
 
-  let Defs = [EXEC,VCC,SCC] in
+  let Defs = [EXEC,SCC] in
   def _TERMINATOR : SPseudoInstSI <(outs), ins> {
     let isTerminator = 1;
   }
 }
 
 defm SI_KILL_I1 : PseudoInstKill <(ins SCSrc_i1:$src, i1imm:$killvalue)>;
+let Defs = [VCC] in
 defm SI_KILL_F32_COND_IMM : PseudoInstKill <(ins VSrc_b32:$src0, i32imm:$src1, i32imm:$cond)>;
-
-let Defs = [EXEC] in
-def SI_KILL_CLEANUP : SPseudoInstSI <(outs), (ins)>;
 
 let Defs = [EXEC,VCC] in
 def SI_ILLEGAL_COPY : SPseudoInstSI <
@@ -375,6 +377,18 @@ def SI_PS_LIVE : PseudoInstSI <
   [(set i1:$dst, (int_amdgcn_ps_live))]> {
   let SALU = 1;
 }
+
+let Uses = [EXEC] in {
+def SI_LIVE_MASK : PseudoInstSI <
+  (outs SReg_1:$dst), (ins),
+  [(set i1:$dst, (int_amdgcn_live_mask))]> {
+  let SALU = 1;
+}
+let Defs = [EXEC,SCC] in {
+// Demote: Turn a pixel shader thread into a helper lane.
+def SI_DEMOTE_I1 : SPseudoInstSI <(outs), (ins SCSrc_i1:$src, i1imm:$killvalue)>;
+} // End Defs = [EXEC,SCC]
+} // End Uses = [EXEC]
 
 def SI_MASKED_UNREACHABLE : SPseudoInstSI <(outs), (ins),
   [(int_amdgcn_unreachable)],
@@ -747,6 +761,16 @@ def : Pat <
 def : Pat <
   (int_amdgcn_kill (i1 (setcc f32:$src, InlineImmFP32:$imm, cond:$cond))),
   (SI_KILL_F32_COND_IMM_PSEUDO VSrc_b32:$src, (bitcast_fpimm_to_i32 $imm), (cond_as_i32imm $cond))
+>;
+
+def : Pat <
+  (int_amdgcn_wqm_demote i1:$src),
+  (SI_DEMOTE_I1 SCSrc_i1:$src, 0)
+>;
+
+def : Pat <
+  (int_amdgcn_wqm_demote (i1 (not i1:$src))),
+  (SI_DEMOTE_I1 SCSrc_i1:$src, -1)
 >;
 
   // TODO: we could add more variants for other types of conditionals
@@ -1793,6 +1817,8 @@ class FPToI1Pat<Instruction Inst, int KOne, ValueType kone_type, ValueType vt, S
   (i1 (Inst 0, (kone_type KOne), $src0_modifiers, $src0, DSTCLAMP.NONE))
 >;
 
+def : FPToI1Pat<V_CMP_EQ_F16_e64, CONST.FP16_ONE, i16, f16, fp_to_uint>;
+def : FPToI1Pat<V_CMP_EQ_F16_e64, CONST.FP16_NEG_ONE, i16, f16, fp_to_sint>;
 def : FPToI1Pat<V_CMP_EQ_F32_e64, CONST.FP32_ONE, i32, f32, fp_to_uint>;
 def : FPToI1Pat<V_CMP_EQ_F32_e64, CONST.FP32_NEG_ONE, i32, f32, fp_to_sint>;
 def : FPToI1Pat<V_CMP_EQ_F64_e64, CONST.FP64_ONE, i64, f64, fp_to_uint>;
@@ -2571,6 +2597,18 @@ def G_AMDGPU_CVT_F32_UBYTE#N : AMDGPUGenericInstruction {
   let InOperandList = (ins type0:$src0);
   let hasSideEffects = 0;
 }
+}
+
+def G_AMDGPU_CVT_PK_I16_I32 : AMDGPUGenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins type0:$src0, type0:$src1);
+  let hasSideEffects = 0;
+}
+
+def G_AMDGPU_MED3 : AMDGPUGenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins type0:$src0, type0:$src1, type0:$src2);
+  let hasSideEffects = 0;
 }
 
 // Atomic cmpxchg. $cmpval ad $newval are packed in a single vector

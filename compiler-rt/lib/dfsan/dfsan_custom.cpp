@@ -37,6 +37,7 @@
 #include <unistd.h>
 
 #include "dfsan/dfsan.h"
+#include "dfsan/dfsan_thread.h"
 #include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_internal_defs.h"
 #include "sanitizer_common/sanitizer_linux.h"
@@ -50,6 +51,30 @@ using namespace __dfsan;
   } while (false)
 #define DECLARE_WEAK_INTERCEPTOR_HOOK(f, ...) \
 SANITIZER_INTERFACE_ATTRIBUTE SANITIZER_WEAK_ATTRIBUTE void f(__VA_ARGS__);
+
+// Async-safe, non-reentrant spin lock.
+class SignalSpinLocker {
+ public:
+  SignalSpinLocker() {
+    sigset_t all_set;
+    sigfillset(&all_set);
+    pthread_sigmask(SIG_SETMASK, &all_set, &saved_thread_mask_);
+    sigactions_mu.Lock();
+  }
+  ~SignalSpinLocker() {
+    sigactions_mu.Unlock();
+    pthread_sigmask(SIG_SETMASK, &saved_thread_mask_, nullptr);
+  }
+
+ private:
+  static StaticSpinMutex sigactions_mu;
+  sigset_t saved_thread_mask_;
+
+  SignalSpinLocker(const SignalSpinLocker &) = delete;
+  SignalSpinLocker &operator=(const SignalSpinLocker &) = delete;
+};
+
+StaticSpinMutex SignalSpinLocker::sigactions_mu;
 
 extern "C" {
 SANITIZER_INTERFACE_ATTRIBUTE int
@@ -285,6 +310,12 @@ __dfsw_strlen(const char *s, dfsan_label s_label, dfsan_label *ret_label) {
   return ret;
 }
 
+static void *dfsan_memmove(void *dest, const void *src, size_t n) {
+  dfsan_label *sdest = shadow_for(dest);
+  const dfsan_label *ssrc = shadow_for(src);
+  internal_memmove((void *)sdest, (const void *)ssrc, n * sizeof(dfsan_label));
+  return internal_memmove(dest, src, n);
+}
 
 static void *dfsan_memcpy(void *dest, const void *src, size_t n) {
   dfsan_label *sdest = shadow_for(dest);
@@ -307,12 +338,34 @@ void *__dfsw_memcpy(void *dest, const void *src, size_t n,
 }
 
 SANITIZER_INTERFACE_ATTRIBUTE
+void *__dfsw_memmove(void *dest, const void *src, size_t n,
+                     dfsan_label dest_label, dfsan_label src_label,
+                     dfsan_label n_label, dfsan_label *ret_label) {
+  *ret_label = dest_label;
+  return dfsan_memmove(dest, src, n);
+}
+
+SANITIZER_INTERFACE_ATTRIBUTE
 void *__dfsw_memset(void *s, int c, size_t n,
                     dfsan_label s_label, dfsan_label c_label,
                     dfsan_label n_label, dfsan_label *ret_label) {
   dfsan_memset(s, c, c_label, n);
   *ret_label = s_label;
   return s;
+}
+
+SANITIZER_INTERFACE_ATTRIBUTE char *__dfsw_strcat(char *dest, const char *src,
+                                                  dfsan_label dest_label,
+                                                  dfsan_label src_label,
+                                                  dfsan_label *ret_label) {
+  size_t dest_len = strlen(dest);
+  char *ret = strcat(dest, src);
+  dfsan_label *sdest = shadow_for(dest + dest_len);
+  const dfsan_label *ssrc = shadow_for(src);
+  internal_memcpy((void *)sdest, (const void *)ssrc,
+                  strlen(src) * sizeof(dfsan_label));
+  *ret_label = dest_label;
+  return ret;
 }
 
 SANITIZER_INTERFACE_ATTRIBUTE char *
@@ -394,18 +447,33 @@ __dfsw_dlopen(const char *filename, int flag, dfsan_label filename_label,
   return handle;
 }
 
-struct pthread_create_info {
-  void *(*start_routine_trampoline)(void *, void *, dfsan_label, dfsan_label *);
-  void *start_routine;
-  void *arg;
-};
+static void *DFsanThreadStartFunc(void *arg) {
+  DFsanThread *t = (DFsanThread *)arg;
+  SetCurrentThread(t);
+  return t->ThreadStart();
+}
 
-static void *pthread_create_cb(void *p) {
-  pthread_create_info pci(*(pthread_create_info *)p);
-  free(p);
-  dfsan_label ret_label;
-  return pci.start_routine_trampoline(pci.start_routine, pci.arg, 0,
-                                      &ret_label);
+static int dfsan_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
+                                void *start_routine_trampoline,
+                                void *start_routine, void *arg,
+                                dfsan_label *ret_label) {
+  pthread_attr_t myattr;
+  if (!attr) {
+    pthread_attr_init(&myattr);
+    attr = &myattr;
+  }
+
+  // Ensure that the thread stack is large enough to hold all TLS data.
+  AdjustStackSize((void *)(const_cast<pthread_attr_t *>(attr)));
+
+  DFsanThread *t = DFsanThread::Create(start_routine_trampoline,
+                                       (thread_callback_t)start_routine, arg);
+  int res = pthread_create(thread, attr, DFsanThreadStartFunc, t);
+
+  if (attr == &myattr)
+    pthread_attr_destroy(&myattr);
+  *ret_label = 0;
+  return res;
 }
 
 SANITIZER_INTERFACE_ATTRIBUTE int __dfsw_pthread_create(
@@ -415,16 +483,8 @@ SANITIZER_INTERFACE_ATTRIBUTE int __dfsw_pthread_create(
     void *start_routine, void *arg, dfsan_label thread_label,
     dfsan_label attr_label, dfsan_label start_routine_label,
     dfsan_label arg_label, dfsan_label *ret_label) {
-  pthread_create_info *pci =
-      (pthread_create_info *)malloc(sizeof(pthread_create_info));
-  pci->start_routine_trampoline = start_routine_trampoline;
-  pci->start_routine = start_routine;
-  pci->arg = arg;
-  int rv = pthread_create(thread, attr, pthread_create_cb, (void *)pci);
-  if (rv != 0)
-    free(pci);
-  *ret_label = 0;
-  return rv;
+  return dfsan_pthread_create(thread, attr, (void *)start_routine_trampoline,
+                              start_routine, arg, ret_label);
 }
 
 SANITIZER_INTERFACE_ATTRIBUTE int __dfsw_pthread_join(pthread_t thread,
@@ -812,15 +872,140 @@ int __dfsw_sigemptyset(sigset_t *set, dfsan_label set_label,
   return ret;
 }
 
+class SignalHandlerScope {
+ public:
+  SignalHandlerScope() {
+    if (DFsanThread *t = GetCurrentThread())
+      t->EnterSignalHandler();
+  }
+  ~SignalHandlerScope() {
+    if (DFsanThread *t = GetCurrentThread())
+      t->LeaveSignalHandler();
+  }
+};
+
+// Clear DFSan runtime TLS state at the end of a scope.
+//
+// Implementation must be async-signal-safe and use small data size, because
+// instances of this class may live on the signal handler stack.
+//
+// DFSan uses TLS to pass metadata of arguments and return values. When an
+// instrumented function accesses the TLS, if a signal callback happens, and the
+// callback calls other instrumented functions with updating the same TLS, the
+// TLS is in an inconsistent state after the callback ends. This may cause
+// either under-tainting or over-tainting.
+//
+// The current implementation simply resets TLS at restore. This prevents from
+// over-tainting. Although under-tainting may still happen, a taint flow can be
+// found eventually if we run a DFSan-instrumented program multiple times. The
+// alternative option is saving the entire TLS. However the TLS storage takes
+// 2k bytes, and signal calls could be nested. So it does not seem worth.
+class ScopedClearThreadLocalState {
+ public:
+  ScopedClearThreadLocalState() {}
+  ~ScopedClearThreadLocalState() { dfsan_clear_thread_local_state(); }
+};
+
+// SignalSpinLocker::sigactions_mu guarantees atomicity of sigaction() calls.
+const int kMaxSignals = 1024;
+static atomic_uintptr_t sigactions[kMaxSignals];
+
+static void SignalHandler(int signo) {
+  SignalHandlerScope signal_handler_scope;
+  ScopedClearThreadLocalState scoped_clear_tls;
+
+  // Clear shadows for all inputs provided by system. This is why DFSan
+  // instrumentation generates a trampoline function to each function pointer,
+  // and uses the trampoline to clear shadows. However sigaction does not use
+  // a function pointer directly, so we have to do this manually.
+  dfsan_clear_arg_tls(0, sizeof(dfsan_label));
+
+  typedef void (*signal_cb)(int x);
+  signal_cb cb =
+      (signal_cb)atomic_load(&sigactions[signo], memory_order_relaxed);
+  cb(signo);
+}
+
+static void SignalAction(int signo, siginfo_t *si, void *uc) {
+  SignalHandlerScope signal_handler_scope;
+  ScopedClearThreadLocalState scoped_clear_tls;
+
+  // Clear shadows for all inputs provided by system. Similar to SignalHandler.
+  dfsan_clear_arg_tls(0, 3 * sizeof(dfsan_label));
+  dfsan_set_label(0, si, sizeof(*si));
+  dfsan_set_label(0, uc, sizeof(ucontext_t));
+
+  typedef void (*sigaction_cb)(int, siginfo_t *, void *);
+  sigaction_cb cb =
+      (sigaction_cb)atomic_load(&sigactions[signo], memory_order_relaxed);
+  cb(signo, si, uc);
+}
+
 SANITIZER_INTERFACE_ATTRIBUTE
 int __dfsw_sigaction(int signum, const struct sigaction *act,
                      struct sigaction *oldact, dfsan_label signum_label,
                      dfsan_label act_label, dfsan_label oldact_label,
                      dfsan_label *ret_label) {
-  int ret = sigaction(signum, act, oldact);
+  CHECK_LT(signum, kMaxSignals);
+  SignalSpinLocker lock;
+  uptr old_cb = atomic_load(&sigactions[signum], memory_order_relaxed);
+  struct sigaction new_act;
+  struct sigaction *pnew_act = act ? &new_act : nullptr;
+  if (act) {
+    internal_memcpy(pnew_act, act, sizeof(struct sigaction));
+    if (pnew_act->sa_flags & SA_SIGINFO) {
+      uptr cb = (uptr)(pnew_act->sa_sigaction);
+      if (cb != (uptr)SIG_IGN && cb != (uptr)SIG_DFL) {
+        atomic_store(&sigactions[signum], cb, memory_order_relaxed);
+        pnew_act->sa_sigaction = SignalAction;
+      }
+    } else {
+      uptr cb = (uptr)(pnew_act->sa_handler);
+      if (cb != (uptr)SIG_IGN && cb != (uptr)SIG_DFL) {
+        atomic_store(&sigactions[signum], cb, memory_order_relaxed);
+        pnew_act->sa_handler = SignalHandler;
+      }
+    }
+  }
+
+  int ret = sigaction(signum, pnew_act, oldact);
+
+  if (ret == 0 && oldact) {
+    if (oldact->sa_flags & SA_SIGINFO) {
+      if (oldact->sa_sigaction == SignalAction)
+        oldact->sa_sigaction = (decltype(oldact->sa_sigaction))old_cb;
+    } else {
+      if (oldact->sa_handler == SignalHandler)
+        oldact->sa_handler = (decltype(oldact->sa_handler))old_cb;
+    }
+  }
+
   if (oldact) {
     dfsan_set_label(0, oldact, sizeof(struct sigaction));
   }
+  *ret_label = 0;
+  return ret;
+}
+
+SANITIZER_INTERFACE_ATTRIBUTE
+sighandler_t __dfsw_signal(int signum,
+                           void *(*handler_trampoline)(void *, int, dfsan_label,
+                                                       dfsan_label *),
+                           sighandler_t handler, dfsan_label signum_label,
+                           dfsan_label handler_label, dfsan_label *ret_label) {
+  CHECK_LT(signum, kMaxSignals);
+  SignalSpinLocker lock;
+  uptr old_cb = atomic_load(&sigactions[signum], memory_order_relaxed);
+  if (handler != SIG_IGN && handler != SIG_DFL) {
+    atomic_store(&sigactions[signum], (uptr)handler, memory_order_relaxed);
+    handler = &SignalHandler;
+  }
+
+  sighandler_t ret = signal(signum, handler);
+
+  if (ret == SignalHandler)
+    ret = (sighandler_t)old_cb;
+
   *ret_label = 0;
   return ret;
 }

@@ -201,36 +201,51 @@ TEST_F(KernelAndProgramCacheTest, ProgramSourceNegativeCompileAndLinkWithOpts) {
   EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for source programs";
 }
 
-// Check that probrams built without options are cached.
+// Check that programs built without options are cached.
 TEST_F(KernelAndProgramCacheTest, ProgramBuildPositive) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
   }
 
   context Ctx{Plt};
-  program Prg{Ctx};
+  program Prg1{Ctx};
+  program Prg2{Ctx};
 
-  Prg.build_with_kernel_type<TestKernel>();
+  Prg1.build_with_kernel_type<TestKernel>();
+  Prg2.build_with_kernel_type<TestKernel>();
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
   EXPECT_EQ(Cache.size(), 1) << "Expect non-empty cache for programs";
 }
 
-// Check that probrams built with options are not cached.
-TEST_F(KernelAndProgramCacheTest, ProgramBuildNegativeBuildOpts) {
+// Check that programs built with options are cached.
+TEST_F(KernelAndProgramCacheTest, ProgramBuildPositiveBuildOpts) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
   }
 
   context Ctx{Plt};
-  program Prg{Ctx};
+  program Prg1{Ctx};
+  program Prg2{Ctx};
+  program Prg3{Ctx};
+  program Prg4{Ctx};
+  program Prg5{Ctx};
 
-  Prg.build_with_kernel_type<TestKernel>("-g");
+  /* Build 5 instances of the same program. It is expected that there will be 3
+   * instances of the program in the cache because Build of Prg1 is equal to
+   * build of Prg5 and build of Prg2 is equal to build of Prg3.
+   * */
+  Prg1.build_with_kernel_type<TestKernel>("-a");
+  Prg2.build_with_kernel_type<TestKernel>("-b");
+  Prg3.build_with_kernel_type<TestKernel>("-b");
+  Prg4.build_with_kernel_type<TestKernel>();
+  Prg5.build_with_kernel_type<TestKernel2>("-a");
+
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   detail::KernelProgramCache::ProgramCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
-  EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for programs";
+  EXPECT_EQ(Cache.size(), 3) << "Expect non-empty cache for programs";
 }
 
 // Check that programs built with compile options are not cached.
@@ -287,8 +302,8 @@ TEST_F(KernelAndProgramCacheTest, KernelPositive) {
   EXPECT_EQ(Cache.size(), 1) << "Expect non-empty cache for kernels";
 }
 
-// Check that kernels built with options are not cached.
-TEST_F(KernelAndProgramCacheTest, KernelNegativeBuildOpts) {
+// Check that kernels built with options are cached.
+TEST_F(KernelAndProgramCacheTest, KernelPositiveBuildOpts) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
   }
@@ -301,10 +316,11 @@ TEST_F(KernelAndProgramCacheTest, KernelNegativeBuildOpts) {
   program Prg{Ctx};
 
   Prg.build_with_kernel_type<TestKernel>("-g");
+
   kernel Ker = Prg.get_kernel<TestKernel>();
   detail::KernelProgramCache::KernelCacheT &Cache =
       CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
-  EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for kernels";
+  EXPECT_EQ(Cache.size(), 1) << "Expect non-empty cache for kernels";
 }
 
 // Check that kernels built with compile options are not cached.

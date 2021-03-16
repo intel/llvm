@@ -100,7 +100,7 @@ if( NOT OpenCL_INCLUDE_DIRS )
   endif()
   ExternalProject_Add(ocl-headers
     GIT_REPOSITORY    https://github.com/KhronosGroup/OpenCL-Headers.git
-    GIT_TAG           d1b936b72b9610626ecab8a991cec18348fba047
+    GIT_TAG           23710f1b99186065c1768fc3098ba681adc0f253
     UPDATE_DISCONNECTED ${SYCL_EP_OCL_HEADERS_SKIP_AUTO_UPDATE}
     SOURCE_DIR        ${OpenCL_INCLUDE_DIRS}
     CONFIGURE_COMMAND ""
@@ -144,7 +144,7 @@ if( NOT OpenCL_LIBRARIES )
   endif()
   ExternalProject_Add(ocl-icd
     GIT_REPOSITORY    https://github.com/KhronosGroup/OpenCL-ICD-Loader.git
-    GIT_TAG           v2020.06.16
+    GIT_TAG           5f8249691ec8c25775789498951f8e9eb62c201d
     UPDATE_DISCONNECTED ${SYCL_EP_OCL_ICD_SKIP_AUTO_UPDATE}
     SOURCE_DIR        ${OpenCL_ICD_LOADER_SOURCE_DIR}
     BINARY_DIR        "${CMAKE_CURRENT_BINARY_DIR}/icd_build"
@@ -209,7 +209,7 @@ configure_file("${version_header}.in" "${version_header}")
 
 # Copy SYCL headers
 add_custom_target(sycl-headers ALL
-COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/CL
+COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir} ${SYCL_INCLUDE_BUILD_DIR}
 COMMENT "Copying SYCL headers ...")
 
 # Configure SYCL headers

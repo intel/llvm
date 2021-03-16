@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 %s -fsycl -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -fsyntax-only -Wno-sycl-2017-compat -DTRIGGER_ERROR -verify
-// RUN: %clang_cc1 %s -fsycl -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -fsyntax-only -Wno-sycl-2017-compat -ast-dump | FileCheck %s
+// RUN: %clang_cc1 %s -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -fsyntax-only -Wno-sycl-2017-compat -DTRIGGER_ERROR -verify
+// RUN: %clang_cc1 %s -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -fsyntax-only -Wno-sycl-2017-compat -ast-dump | FileCheck %s
 
 #include "sycl.hpp"
 
@@ -8,7 +8,7 @@ queue q;
 
 #ifndef __SYCL_DEVICE_ONLY__
 struct FuncObj {
-  [[intel::num_simd_work_items(42)]] // expected-no-diagnostics
+  [[intel::num_simd_work_items(42)]]
   void
   operator()() const {}
 };
@@ -26,6 +26,12 @@ void foo() {
   });
 }
 
+[[intel::num_simd_work_items(12)]] void bar();
+[[intel::num_simd_work_items(12)]] void bar() {} // OK
+
+[[intel::num_simd_work_items(12)]] void baz();  // expected-note {{previous attribute is here}}
+[[intel::num_simd_work_items(100)]] void baz(); // expected-warning {{attribute 'num_simd_work_items' is already applied with different parameters}}
+
 #else // __SYCL_DEVICE_ONLY__
 [[intel::num_simd_work_items(2)]] void func_do_not_ignore() {}
 
@@ -34,15 +40,19 @@ struct FuncObj {
 };
 
 #ifdef TRIGGER_ERROR
+// If the declaration has an [[intel::reqd_work_group_size]] or
+// [[cl::reqd_work_group_size]] attribute, tests that check if
+// the work group size attribute argument (the first argument)
+// can be evenly divided by the num_simd_work_items attribute.
 struct TRIFuncObjBad1 {
   [[intel::num_simd_work_items(3)]]        // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-  [[intel::reqd_work_group_size(5, 5, 5)]] //expected-note{{conflicting attribute is here}}
+  [[intel::reqd_work_group_size(5, 3, 3)]] // expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
 };
 
 struct TRIFuncObjBad2 {
-  [[intel::reqd_work_group_size(5, 5, 5)]] // expected-note{{conflicting attribute is here}}
+  [[intel::reqd_work_group_size(5, 3, 3)]] // expected-note{{conflicting attribute is here}}
   [[intel::num_simd_work_items(3)]]        // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   void
   operator()() const {}
@@ -50,56 +60,57 @@ struct TRIFuncObjBad2 {
 
 struct TRIFuncObjBad3 {
   [[intel::num_simd_work_items(3)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-  [[cl::reqd_work_group_size(5, 5, 5)]] //expected-note{{conflicting attribute is here}}
+  [[cl::reqd_work_group_size(5, 3, 3)]] // expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
 };
 
 struct TRIFuncObjBad4 {
-  [[cl::reqd_work_group_size(5, 5, 5)]] // expected-note{{conflicting attribute is here}}
+  [[cl::reqd_work_group_size(5, 3, 3)]] // expected-note{{conflicting attribute is here}}
   [[intel::num_simd_work_items(3)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   void
   operator()() const {}
 };
 
 struct TRIFuncObjBad5 {
-  [[intel::num_simd_work_items(0)]] // expected-error{{'num_simd_work_items' attribute must be greater than 0}}
-  [[intel::reqd_work_group_size(5, 5, 5)]] void
-  operator()() const {}
-};
-
-struct TRIFuncObjBad6 {
   [[intel::num_simd_work_items(3)]]  // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   [[intel::reqd_work_group_size(5)]] //expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
 };
 
-struct TRIFuncObjBad7 {
+struct TRIFuncObjBad6 {
   [[intel::reqd_work_group_size(5)]] // expected-note{{conflicting attribute is here}}
   [[intel::num_simd_work_items(3)]]  // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   void
   operator()() const {}
 };
 
-struct TRIFuncObjBad8 {
-  [[intel::num_simd_work_items(3)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-  [[intel::reqd_work_group_size(5, 5)]] // expected-note{{conflicting attribute is here}}
+struct TRIFuncObjBad7 {
+  [[intel::num_simd_work_items(4)]]      // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+  [[intel::reqd_work_group_size(3, 64)]] // expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
 };
 
-struct TRIFuncObjBad9 {
-  [[intel::reqd_work_group_size(5, 5)]] // expected-note{{conflicting attribute is here}}
-  [[intel::num_simd_work_items(3)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+struct TRIFuncObjBad8 {
+  [[intel::reqd_work_group_size(3, 64)]] // expected-note{{conflicting attribute is here}}
+  [[intel::num_simd_work_items(4)]]      // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   void
   operator()() const {}
+};
+
+// Tests for incorrect argument values for Intel FPGA num_simd_work_items and reqd_work_group_size function attributes
+struct TRIFuncObjBad9 {
+  [[intel::reqd_work_group_size(5, 5, 5)]]
+  [[intel::num_simd_work_items(0)]] // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+  void operator()() const {}
 };
 
 struct TRIFuncObjBad10 {
-  [[intel::reqd_work_group_size(5, 5, 5)]]
-  [[intel::num_simd_work_items(0)]] // expected-error{{'num_simd_work_items' attribute must be greater than 0}}
-  void operator()() const {}
+  [[intel::num_simd_work_items(0)]] // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+  [[intel::reqd_work_group_size(5, 5, 5)]] void
+  operator()() const {}
 };
 
 struct TRIFuncObjBad11 {
@@ -116,12 +127,12 @@ struct TRIFuncObjBad12 {
 
 struct TRIFuncObjBad13 {
   [[intel::reqd_work_group_size(0)]] // expected-error{{'reqd_work_group_size' attribute must be greater than 0}}
-  [[intel::num_simd_work_items(0)]]  // expected-error{{'num_simd_work_items' attribute must be greater than 0}}
+  [[intel::num_simd_work_items(0)]]  // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
   void operator()() const {}
 };
 
 struct TRIFuncObjBad14 {
-  [[intel::num_simd_work_items(0)]]  // expected-error{{'num_simd_work_items' attribute must be greater than 0}}
+  [[intel::num_simd_work_items(0)]]  // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
   [[intel::reqd_work_group_size(0)]] // expected-error{{'reqd_work_group_size' attribute must be greater than 0}}
   void operator()() const {}
 };
@@ -145,32 +156,36 @@ struct TRIFuncObjBad17 {
 };
 
 struct TRIFuncObjBad18 {
-  [[intel::num_simd_work_items(-1)]]  // expected-error{{'num_simd_work_items' attribute requires a non-negative integral compile time constant expression}}
+  [[intel::num_simd_work_items(-1)]]  // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
   [[intel::reqd_work_group_size(-1)]] // expected-warning{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
   void operator()() const {}
 };
-#endif // TRIGGER_ERROR
 
+#endif // TRIGGER_ERROR
+// If the declaration has an [[intel::reqd_work_group_size]] or
+// [[cl::reqd_work_group_size]] attribute, tests that check if
+// the work group size attribute argument (the first argument)
+// can be evenly divided by the num_simd_work_items attribute.
 struct TRIFuncObjGood1 {
   [[intel::num_simd_work_items(4)]]
-  [[intel::reqd_work_group_size(64, 64, 64)]] void
+  [[intel::reqd_work_group_size(64, 64, 5)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood2 {
-  [[intel::reqd_work_group_size(64, 64, 64)]]
+  [[intel::reqd_work_group_size(64, 64, 5)]]
   [[intel::num_simd_work_items(4)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood3 {
   [[intel::num_simd_work_items(4)]]
-  [[cl::reqd_work_group_size(64, 64, 64)]] void
+  [[cl::reqd_work_group_size(64, 64, 5)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood4 {
-  [[cl::reqd_work_group_size(64, 64, 64)]]
+  [[cl::reqd_work_group_size(64, 64, 5)]]
   [[intel::num_simd_work_items(4)]] void
   operator()() const {}
 };
@@ -189,12 +204,12 @@ struct TRIFuncObjGood6 {
 
 struct TRIFuncObjGood7 {
   [[intel::num_simd_work_items(4)]]
-  [[intel::reqd_work_group_size(64, 64)]] void
+  [[intel::reqd_work_group_size(64, 5)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood8 {
-  [[intel::reqd_work_group_size(64, 64)]]
+  [[intel::reqd_work_group_size(64, 5)]]
   [[intel::num_simd_work_items(4)]] void
   operator()() const {}
 };
@@ -236,8 +251,8 @@ int main() {
     // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 64
-    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  value: Int 5
+    // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 4
@@ -253,8 +268,8 @@ int main() {
     // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 64
-    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  value: Int 5
+    // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 4
@@ -270,8 +285,8 @@ int main() {
     // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 64
-    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  value: Int 5
+    // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 4
@@ -287,8 +302,8 @@ int main() {
     // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 64
-    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  value: Int 5
+    // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 4
@@ -335,8 +350,8 @@ int main() {
     // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 64
-    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  value: Int 5
+    // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
@@ -352,8 +367,8 @@ int main() {
     // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 64
-    // CHECK-NEXT:  IntegerLiteral{{.*}}64{{$}}
+    // CHECK-NEXT:  value: Int 5
+    // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
@@ -366,10 +381,10 @@ int main() {
     [[intel::num_simd_work_items(0)]] int Var = 0; // expected-error{{'num_simd_work_items' attribute only applies to functions}}
 
     h.single_task<class test_kernel12>(
-        []() [[intel::num_simd_work_items(0)]]{}); // expected-error{{'num_simd_work_items' attribute must be greater than 0}}
+        []() [[intel::num_simd_work_items(0)]]{}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 
     h.single_task<class test_kernel13>(
-        []() [[intel::num_simd_work_items(-42)]]{}); // expected-error{{'num_simd_work_items' attribute requires a non-negative integral compile time constant expression}}
+        []() [[intel::num_simd_work_items(-42)]]{}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 
     h.single_task<class test_kernel14>(TRIFuncObjBad1());
 
@@ -408,7 +423,8 @@ int main() {
     h.single_task<class test_kernel31>(TRIFuncObjBad18());
 
     h.single_task<class test_kernel32>(
-        []() [[intel::num_simd_work_items(1), intel::num_simd_work_items(2)]]{}); // expected-warning{{attribute 'num_simd_work_items' is already applied with different parameters}}
+        []() [[intel::num_simd_work_items(1), intel::num_simd_work_items(2)]]{}); // expected-warning{{attribute 'num_simd_work_items' is already applied with different arguments}} \
+                                                                                  // expected-note {{previous attribute is here}}
 #endif // TRIGGER_ERROR
   });
   return 0;

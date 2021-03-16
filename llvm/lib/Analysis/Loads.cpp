@@ -12,11 +12,13 @@
 
 #include "llvm/Analysis/Loads.h"
 #include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/Analysis/AssumeBundleQueries.h"
 #include "llvm/Analysis/CaptureTracking.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/GlobalAlias.h"
@@ -42,7 +44,8 @@ static bool isAligned(const Value *Base, const APInt &Offset, Align Alignment,
 static bool isDereferenceableAndAlignedPointer(
     const Value *V, Align Alignment, const APInt &Size, const DataLayout &DL,
     const Instruction *CtxI, const DominatorTree *DT,
-    SmallPtrSetImpl<const Value *> &Visited, unsigned MaxDepth) {
+    const TargetLibraryInfo *TLI, SmallPtrSetImpl<const Value *> &Visited,
+    unsigned MaxDepth) {
   assert(V->getType()->isPointerTy() && "Base must be pointer");
 
   // Recursion limit.
@@ -60,7 +63,8 @@ static bool isDereferenceableAndAlignedPointer(
   if (const BitCastOperator *BC = dyn_cast<BitCastOperator>(V)) {
     if (BC->getSrcTy()->isPointerTy())
       return isDereferenceableAndAlignedPointer(
-          BC->getOperand(0), Alignment, Size, DL, CtxI, DT, Visited, MaxDepth);
+          BC->getOperand(0), Alignment, Size, DL, CtxI, DT, TLI,
+          Visited, MaxDepth);
   }
 
   bool CheckForNonNull = false;
@@ -76,6 +80,31 @@ static bool isDereferenceableAndAlignedPointer(
       APInt Offset(DL.getTypeStoreSizeInBits(Ty), 0);
       return isAligned(V, Offset, Alignment, DL);
     }
+
+  if (CtxI) {
+    /// Look through assumes to see if both dereferencability and alignment can
+    /// be provent by an assume
+    RetainedKnowledge AlignRK;
+    RetainedKnowledge DerefRK;
+    if (getKnowledgeForValue(
+            V, {Attribute::Dereferenceable, Attribute::Alignment}, nullptr,
+            [&](RetainedKnowledge RK, Instruction *Assume, auto) {
+              if (!isValidAssumeForContext(Assume, CtxI))
+                return false;
+              if (RK.AttrKind == Attribute::Alignment)
+                AlignRK = std::max(AlignRK, RK);
+              if (RK.AttrKind == Attribute::Dereferenceable)
+                DerefRK = std::max(DerefRK, RK);
+              if (AlignRK && DerefRK && AlignRK.ArgValue >= Alignment.value() &&
+                  DerefRK.ArgValue >= Size.getZExtValue())
+                return true; // We have found what we needed so we stop looking
+              return false;  // Other assumes may have better information. so
+                             // keep looking
+            }))
+      return true;
+  }
+  /// TODO refactor this function to be able to search independently for
+  /// Dereferencability and Alignment requirements.
 
   // For GEPs, determine if the indexing lands within the allocated object.
   if (const GEPOperator *GEP = dyn_cast<GEPOperator>(V)) {
@@ -97,22 +126,24 @@ static bool isDereferenceableAndAlignedPointer(
     // addrspacecast, so we can't do arithmetic directly on the APInt values.
     return isDereferenceableAndAlignedPointer(
         Base, Alignment, Offset + Size.sextOrTrunc(Offset.getBitWidth()), DL,
-        CtxI, DT, Visited, MaxDepth);
+        CtxI, DT, TLI, Visited, MaxDepth);
   }
 
   // For gc.relocate, look through relocations
   if (const GCRelocateInst *RelocateInst = dyn_cast<GCRelocateInst>(V))
-    return isDereferenceableAndAlignedPointer(
-      RelocateInst->getDerivedPtr(), Alignment, Size, DL, CtxI, DT, Visited, MaxDepth);
+    return isDereferenceableAndAlignedPointer(RelocateInst->getDerivedPtr(),
+                                              Alignment, Size, DL, CtxI, DT,
+                                              TLI, Visited, MaxDepth);
 
   if (const AddrSpaceCastInst *ASC = dyn_cast<AddrSpaceCastInst>(V))
     return isDereferenceableAndAlignedPointer(ASC->getOperand(0), Alignment,
-                                              Size, DL, CtxI, DT, Visited, MaxDepth);
+                                              Size, DL, CtxI, DT, TLI,
+                                              Visited, MaxDepth);
 
   if (const auto *Call = dyn_cast<CallBase>(V)) {
     if (auto *RP = getArgumentAliasingToReturnedPointer(Call, true))
       return isDereferenceableAndAlignedPointer(RP, Alignment, Size, DL, CtxI,
-                                                DT, Visited, MaxDepth);
+                                                DT, TLI, Visited, MaxDepth);
 
     // If we have a call we can't recurse through, check to see if this is an
     // allocation function for which we can establish an minimum object size.
@@ -161,7 +192,8 @@ bool llvm::isDereferenceableAndAlignedPointer(const Value *V, Align Alignment,
                                               const APInt &Size,
                                               const DataLayout &DL,
                                               const Instruction *CtxI,
-                                              const DominatorTree *DT) {
+                                              const DominatorTree *DT,
+                                              const TargetLibraryInfo *TLI) {
   // Note: At the moment, Size can be zero.  This ends up being interpreted as
   // a query of whether [Base, V] is dereferenceable and V is aligned (since
   // that's what the implementation happened to do).  It's unclear if this is
@@ -169,14 +201,15 @@ bool llvm::isDereferenceableAndAlignedPointer(const Value *V, Align Alignment,
 
   SmallPtrSet<const Value *, 32> Visited;
   return ::isDereferenceableAndAlignedPointer(V, Alignment, Size, DL, CtxI, DT,
-                                              Visited, 16);
+                                              TLI, Visited, 16);
 }
 
 bool llvm::isDereferenceableAndAlignedPointer(const Value *V, Type *Ty,
                                               MaybeAlign MA,
                                               const DataLayout &DL,
                                               const Instruction *CtxI,
-                                              const DominatorTree *DT) {
+                                              const DominatorTree *DT,
+                                              const TargetLibraryInfo *TLI) {
   // For unsized types or scalable vectors we don't know exactly how many bytes
   // are dereferenced, so bail out.
   if (!Ty->isSized() || isa<ScalableVectorType>(Ty))
@@ -192,14 +225,15 @@ bool llvm::isDereferenceableAndAlignedPointer(const Value *V, Type *Ty,
   APInt AccessSize(DL.getPointerTypeSizeInBits(V->getType()),
                    DL.getTypeStoreSize(Ty));
   return isDereferenceableAndAlignedPointer(V, Alignment, AccessSize, DL, CtxI,
-                                            DT);
+                                            DT, TLI);
 }
 
 bool llvm::isDereferenceablePointer(const Value *V, Type *Ty,
                                     const DataLayout &DL,
                                     const Instruction *CtxI,
-                                    const DominatorTree *DT) {
-  return isDereferenceableAndAlignedPointer(V, Ty, Align(1), DL, CtxI, DT);
+                                    const DominatorTree *DT,
+                                    const TargetLibraryInfo *TLI) {
+  return isDereferenceableAndAlignedPointer(V, Ty, Align(1), DL, CtxI, DT, TLI);
 }
 
 /// Test if A and B will obviously have the same value.
@@ -298,10 +332,11 @@ bool llvm::isDereferenceableAndAlignedInLoop(LoadInst *LI, Loop *L,
 bool llvm::isSafeToLoadUnconditionally(Value *V, Align Alignment, APInt &Size,
                                        const DataLayout &DL,
                                        Instruction *ScanFrom,
-                                       const DominatorTree *DT) {
+                                       const DominatorTree *DT,
+                                       const TargetLibraryInfo *TLI) {
   // If DT is not specified we can't make context-sensitive query
   const Instruction* CtxI = DT ? ScanFrom : nullptr;
-  if (isDereferenceableAndAlignedPointer(V, Alignment, Size, DL, CtxI, DT))
+  if (isDereferenceableAndAlignedPointer(V, Alignment, Size, DL, CtxI, DT, TLI))
     return true;
 
   if (!ScanFrom)
@@ -372,9 +407,10 @@ bool llvm::isSafeToLoadUnconditionally(Value *V, Align Alignment, APInt &Size,
 bool llvm::isSafeToLoadUnconditionally(Value *V, Type *Ty, Align Alignment,
                                        const DataLayout &DL,
                                        Instruction *ScanFrom,
-                                       const DominatorTree *DT) {
+                                       const DominatorTree *DT,
+                                       const TargetLibraryInfo *TLI) {
   APInt Size(DL.getIndexTypeSizeInBits(V->getType()), DL.getTypeStoreSize(Ty));
-  return isSafeToLoadUnconditionally(V, Alignment, Size, DL, ScanFrom, DT);
+  return isSafeToLoadUnconditionally(V, Alignment, Size, DL, ScanFrom, DT, TLI);
 }
 
   /// DefMaxInstsToScan - the default number of maximum instructions
