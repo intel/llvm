@@ -14,6 +14,7 @@
 #ifndef MLIR_INITALLDIALECTS_H_
 #define MLIR_INITALLDIALECTS_H_
 
+#include "mlir/Dialect/AMX/AMXDialect.h"
 #include "mlir/Dialect/AVX512/AVX512Dialect.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/ArmNeon/ArmNeonDialect.h"
@@ -28,6 +29,7 @@
 #include "mlir/Dialect/LLVMIR/ROCDLDialect.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenACC/OpenACC.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/PDL/IR/PDL.h"
@@ -50,6 +52,7 @@ inline void registerAllDialects(DialectRegistry &registry) {
   // clang-format off
   registry.insert<acc::OpenACCDialect,
                   AffineDialect,
+                  amx::AMXDialect,
                   arm_neon::ArmNeonDialect,
                   async::AsyncDialect,
                   avx512::AVX512Dialect,
@@ -60,6 +63,7 @@ inline void registerAllDialects(DialectRegistry &registry) {
                   LLVM::LLVMArmSVEDialect,
                   linalg::LinalgDialect,
                   math::MathDialect,
+                  memref::MemRefDialect,
                   scf::SCFDialect,
                   omp::OpenMPDialect,
                   pdl::PDLDialect,

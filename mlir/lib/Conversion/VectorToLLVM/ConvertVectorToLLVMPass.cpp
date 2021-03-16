@@ -13,12 +13,15 @@
 #include "mlir/Conversion/ArmSVEToLLVM/ArmSVEToLLVM.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
+#include "mlir/Dialect/AMX/AMXDialect.h"
+#include "mlir/Dialect/AMX/Transforms.h"
 #include "mlir/Dialect/AVX512/AVX512Dialect.h"
 #include "mlir/Dialect/AVX512/Transforms.h"
 #include "mlir/Dialect/ArmNeon/ArmNeonDialect.h"
 #include "mlir/Dialect/ArmSVE/ArmSVEDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMArmSVEDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -34,15 +37,19 @@ struct LowerVectorToLLVMPass
     this->enableIndexOptimizations = options.enableIndexOptimizations;
     this->enableArmNeon = options.enableArmNeon;
     this->enableArmSVE = options.enableArmSVE;
+    this->enableAMX = options.enableAMX;
     this->enableAVX512 = options.enableAVX512;
   }
   // Override explicitly to allow conditional dialect dependence.
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<LLVM::LLVMDialect>();
+    registry.insert<memref::MemRefDialect>();
     if (enableArmNeon)
       registry.insert<arm_neon::ArmNeonDialect>();
     if (enableArmSVE)
       registry.insert<LLVM::LLVMArmSVEDialect>();
+    if (enableAMX)
+      registry.insert<amx::AMXDialect>();
     if (enableAVX512)
       registry.insert<avx512::AVX512Dialect>();
   }
@@ -72,6 +79,7 @@ void LowerVectorToLLVMPass::runOnOperation() {
   // Architecture specific augmentations.
   LLVMConversionTarget target(getContext());
   target.addLegalOp<LLVM::DialectCastOp>();
+  target.addLegalDialect<memref::MemRefDialect>();
   target.addLegalDialect<StandardOpsDialect>();
   target.addLegalOp<UnrealizedConversionCastOp>();
   if (enableArmNeon) {
@@ -101,6 +109,10 @@ void LowerVectorToLLVMPass::runOnOperation() {
                  !hasScalableVectorType(op->getResultTypes());
         });
     populateArmSVEToLLVMConversionPatterns(converter, patterns);
+  }
+  if (enableAMX) {
+    configureAMXLegalizeForExportTarget(target);
+    populateAMXLegalizeForLLVMExportPatterns(converter, patterns);
   }
   if (enableAVX512) {
     configureAVX512LegalizeForExportTarget(target);

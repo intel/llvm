@@ -489,7 +489,7 @@ if(MINGW)
     arm/aeabi_uldivmod.S
     arm/chkstk.S
     mingw_fixfloat.c
-    ${GENERIC_SOURCES}
+    ${arm_SOURCES}
   )
 elseif(NOT WIN32)
   # TODO the EABI sources should only be added to EABI targets
@@ -627,7 +627,12 @@ if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "AIX")
 endif()
 set(powerpc64le_SOURCES ${powerpc64_SOURCES})
 
-set(riscv_SOURCES ${GENERIC_SOURCES} ${GENERIC_TF_SOURCES})
+set(riscv_SOURCES
+  riscv/save.S
+  riscv/restore.S
+  ${GENERIC_SOURCES}
+  ${GENERIC_TF_SOURCES}
+)
 set(riscv32_SOURCES
   riscv/mulsi3.S
   ${riscv_SOURCES}
