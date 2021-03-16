@@ -4462,9 +4462,9 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
       event_ptr->start();
     }
 
-    result = PI_CHECK_ERROR(cuMemAdvise(
-      (CUdeviceptr)ptr, length, (CUmem_advise)advice,
-        queue->get_context()->get_device()->get()));
+    result = PI_CHECK_ERROR(
+        cuMemAdvise((CUdeviceptr)ptr, length, (CUmem_advise)advice,
+                    queue->get_context()->get_device()->get()));
     if (event) {
       result = event_ptr->record();
       *event = event_ptr.release();
