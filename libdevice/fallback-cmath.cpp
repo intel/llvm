@@ -20,12 +20,10 @@ DEVICE_EXTERN_C
 int __devicelib_abs(int x) { return x < 0 ? -x : x; }
 
 DEVICE_EXTERN_C
-long int __devicelib_labs(long int x) { return x  < 0 ? -x : x; }
+long int __devicelib_labs(long int x) { return x < 0 ? -x : x; }
 
 DEVICE_EXTERN_C
-long long int __devicelib_llabs(long long int x) {
-  return x  < 0 ? -x : x;
-}
+long long int __devicelib_llabs(long long int x) { return x < 0 ? -x : x; }
 
 DEVICE_EXTERN_C
 div_t __devicelib_div(int x, int y) { return {x / y, x % y}; }
