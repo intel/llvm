@@ -441,18 +441,15 @@ public:
   // kernel set, this is used for error diagnostics.
   llvm::SmallPtrSet<FunctionDecl *, 10> RecursiveSet;
 
-  // This is an interface function for collecting sets of
-  // functions in a SYCL call graph.
-  void collectSyclCallGraphNodes(FunctionDecl *RootNode) {
+  // This is an interface function for collecting sets of functions
+  // in SYCL and ESIMD call graphs.
+  void collectCallGraphNodes(FunctionDecl *RootNode) {
     llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet;
-    collectCallGraphNodes(RootNode, RootNode, VisitedSet, SyclCallGraphNodes);
-  }
-
-  // This is an interface function for collecting sets of
-  // functions in an ESIMD call graph.
-  void collectEsimdCallGraphNodes(FunctionDecl *RootNode) {
-    llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet;
-    collectCallGraphNodes(RootNode, RootNode, VisitedSet, EsimdCallGraphNodes);
+    if (RootNode->hasAttr<SYCLSimdAttr>())
+      collectCallGraphNodes(RootNode, RootNode, VisitedSet,
+                            EsimdCallGraphNodes);
+    else
+      collectCallGraphNodes(RootNode, RootNode, VisitedSet, SyclCallGraphNodes);
   }
 
 private:
@@ -3242,11 +3239,7 @@ void Sema::MarkDevice(void) {
 
   for (Decl *D : syclDeviceDecls()) {
     if (auto SYCLKernel = dyn_cast<FunctionDecl>(D)) {
-
-      if (SYCLKernel->hasAttr<SYCLSimdAttr>())
-        Marker.collectEsimdCallGraphNodes(SYCLKernel);
-      else
-        Marker.collectSyclCallGraphNodes(SYCLKernel);
+      Marker.collectCallGraphNodes(SYCLKernel);
 
       // Let's propagate attributes from device functions to a SYCL kernels
       llvm::SmallPtrSet<Attr *, 4> Attrs;
