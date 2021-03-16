@@ -204,6 +204,22 @@ public:
 
   kernel get_kernel(const kernel_id &KernelID) const {
     (void)KernelID;
+    //auto It = std::find_if(MDeviceImages.begin(), MDeviceImages.end(),
+                           //[&KernelID](const device_image_plain &DeviceImage) {
+                             //return DeviceImage.has_kernel(KernelID);
+                           //});
+    //const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl =
+        //detail::getSyclObjImpl(*It);
+    //const device &Dev = DeviceImageImpl->get_devices()[0];
+    //RT::PiKernel Kernel =
+        //detail::ProgramManager::getInstance().getOrCreateKernel(
+            //(-1), MContext, Dev, KernelID.get_name(), {});
+
+    //std::shared_ptr<kernel_impl> KernelImpl =
+        //std::make_shared<kernel_impl>(Kernel, Self);
+
+    //return detail::createSyclObjFromImpl(KernelImpl);
+
     throw sycl::runtime_error("Not implemented", PI_INVALID_OPERATION);
   }
 
