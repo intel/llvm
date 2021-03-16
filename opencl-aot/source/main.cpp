@@ -26,6 +26,7 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -56,27 +57,41 @@ auto ContextDeleter = [](cl_context CLCon) {
   }
 };
 
-using CLContextUPtr = std::unique_ptr<
-    _cl_context, decltype(ContextDeleter)>; // decltype(CLContextUPtr.get()) is
-                                            // same as cl_context, should
-                                            // initialized with ContextDeleter
+using CLContextSPtr =
+    std::shared_ptr<_cl_context>; // decltype(CLContextSPtr.get()) is
+                                  // same as cl_context, should
+                                  // initialized with ContextDeleter
 
 /*! \brief Generate OpenCL program from OpenCL program binary (in ELF format) or
- * SPIR-V binary file
+ * SPIR-V binary file or LLVM IR (bitcode file) or OpenCL source file
  * \param FileNames (const std::vector<std::string>).
  * \param PlatformId (cl_platform_id).
  * \param DeviceId (cl_device_id).
+ * \param ContextSPtr (CLContextSPtr).
  * \return a tuple of vector of unique pointers to programs, error message and
  * return code.
  */
 std::tuple<std::vector<CLProgramUPtr>, std::string, cl_int>
-generateProgramsFromBinaries(const std::vector<std::string> &FileNames,
-                             cl_platform_id PlatformId, cl_device_id DeviceId) {
+generateProgramsFromInput(const std::vector<std::string> &FileNames,
+                          cl_platform_id PlatformId, cl_device_id DeviceId,
+                          CLContextSPtr ContextSPtr) {
   // step 0: define internal types
 
-  enum SupportedTypes : int8_t { BEGIN, ELF = BEGIN, SPIRV, UNKNOWN, END };
+  enum SupportedTypes : int8_t {
+    BEGIN,
+    ELF = BEGIN,
+    SPIRV,
+    LLVMIR,
+    SOURCE,
+    UNKNOWN,
+    END
+  };
   static std::map<SupportedTypes, const std::string> SupportedTypesToNames{
-      {ELF, "OpenCL program binary"}, {SPIRV, "SPIR-V"}, {UNKNOWN, "UNKNOWN"}};
+      {ELF, "OpenCL program binary"},
+      {SPIRV, "SPIR-V"},
+      {LLVMIR, "LLVM IR bitcode"},
+      {SOURCE, "OpenCL source"},
+      {UNKNOWN, "UNKNOWN"}};
   assert(SupportedTypesToNames.size() == SupportedTypes::END &&
          "unexpected name"); // to prevent incorrect refactoring
 
@@ -92,7 +107,7 @@ generateProgramsFromBinaries(const std::vector<std::string> &FileNames,
     return std::make_tuple(
         std::vector<CLProgramUPtr>(),
         "List of input binaries is empty or contains empty filename\n",
-        OPENCL_AOT_LIST_OF_INPUT_BINARIES_IS_EMPTY);
+        OPENCL_AOT_LIST_OF_INPUT_FILES_IS_EMPTY);
   }
 
   assert(PlatformId != nullptr && "Platform must not be empty");
@@ -127,10 +142,14 @@ generateProgramsFromBinaries(const std::vector<std::string> &FileNames,
     const auto &BinaryData = std::get<DATA>(FileContent);
     const auto &FileName = std::get<FNAME>(Value);
 
-    if (isFileELF(BinaryData)) {
+    if (isFileOCLSource(FileName)) {
+      FileType = SOURCE;
+    } else if (isFileELF(BinaryData)) {
       FileType = ELF;
     } else if (isFileSPIRV(BinaryData)) {
       FileType = SPIRV;
+    } else if (isFileLLVMIR(BinaryData)) {
+      FileType = LLVMIR;
     } else {
       FileType = UNKNOWN;
       return std::make_tuple(
@@ -141,19 +160,10 @@ generateProgramsFromBinaries(const std::vector<std::string> &FileNames,
     }
   }
 
-  // step 4: create OpenCL program from binary file (unique for each type)
+  // step 4: create OpenCL program from input files (unique for each type)
 
   std::vector<cl_program> Programs;
   Programs.reserve(FileNames.size());
-
-  cl_context Context =
-      clCreateContext(nullptr, 1, &DeviceId, nullptr, nullptr, &CLErr);
-  CLContextUPtr ContextUPtr(Context, ContextDeleter);
-  if (clFailed(CLErr)) {
-    return std::make_tuple(std::vector<CLProgramUPtr>(),
-                           formatCLError("Failed to create context", CLErr),
-                           CLErr);
-  }
 
   for (const auto &Value : FileNameToContentMap) {
     const Content &FileContent = std::get<CONTENT>(Value);
@@ -166,27 +176,35 @@ generateProgramsFromBinaries(const std::vector<std::string> &FileNames,
     cl_int BinaryStatus(CL_SUCCESS);
 
     switch (FileType) {
+    case LLVMIR:
     case ELF: {
       const size_t BinarySize = BinaryData.size();
       const auto *BinaryDataRaw =
           reinterpret_cast<const unsigned char *>(BinaryData.data());
       Program = clCreateProgramWithBinary(
-          ContextUPtr.get(), /* Number of devices = */ 1, &DeviceId,
+          ContextSPtr.get(), /* Number of devices = */ 1, &DeviceId,
           &BinarySize, &BinaryDataRaw, &BinaryStatus, &CLErr);
       break;
     }
     case SPIRV: {
       std::tie(Program, ErrorMessage, CLErr) = createProgramWithIL(
-          BinaryData, ContextUPtr.get(), PlatformId, DeviceId);
+          BinaryData, ContextSPtr.get(), PlatformId, DeviceId);
       if (clFailed(CLErr)) {
         return std::make_tuple(std::vector<CLProgramUPtr>(), ErrorMessage,
                                CLErr);
       }
       break;
     }
+    case SOURCE: {
+      const size_t SourceSize = BinaryData.size();
+      const auto *Source = reinterpret_cast<const char *>(BinaryData.data());
+      Program = clCreateProgramWithSource(ContextSPtr.get(), 1, &Source,
+                                          &SourceSize, &CLErr);
+      break;
+    }
     default:
       assert(FileType != UNKNOWN &&
-             "Unable to identify the format of input binary file");
+             "Unable to identify the format of input file");
     }
 
     if (clFailed(CLErr) || clFailed(BinaryStatus) || Program == nullptr) {
@@ -253,10 +271,19 @@ getCompilerBuildLog(const CLProgramUPtr &ProgramUPtr, cl_device_id Device) {
 
 int main(int Argc, char *Argv[]) {
   // step 0: set command line options
-  cl::opt<std::string> OptInputBinary(
-      cl::Positional, cl::Required,
-      cl::desc("<input SPIR-V or OpenCL program binary>"),
+  cl::list<std::string> OptInputFileList(
+      cl::Positional, cl::ZeroOrMore,
+      cl::desc(
+          "<input file(s)>\n\n"
+          "Supported type of input file:\n"
+          "* SOURCE: OpenCL C source (.cl)\n"
+          "* BINARY: SPIR-V, LLVM IR bitcode, OpenCL compiled object(ELF)"),
       cl::value_desc("filename"));
+  cl::opt<std::string> OptOutputElf(
+      "o", cl::init("aot-output"),
+      cl::desc("Specify the output OpenCL program object or binary filename"),
+      cl::value_desc("filename"));
+
   cl::opt<DeviceType> OptDevice(
       "device", cl::Required, cl::desc("Set target device type:"),
       cl::values(
@@ -264,6 +291,29 @@ int main(int Argc, char *Argv[]) {
           clEnumVal(gpu, "Intel(R) Processor Graphics device"),
           clEnumVal(fpga_fast_emu,
                     "Intel(R) FPGA Emulation Platform for OpenCL(TM) device")));
+
+  enum Commands : int8_t { build, compile, link };
+  cl::opt<Commands> OptCommand(
+      "cmd", cl::desc("Command"), cl::init(build),
+      cl::values(
+          clEnumVal(build,
+                    "Build (compile and link) OpenCL program binary from SPIRV "
+                    "or OpenCL program object or OpenCL C source"),
+          clEnumVal(compile,
+                    "Compile OpenCL C source to OpenCL program object"),
+          clEnumVal(link, "Link OpenCL compiled program objects and creates "
+                          "OpenCL program binary")));
+
+  // TODO: These options are only needed for compatibility with old tool.
+  // Delete these options once transition is done.
+  cl::alias OptInput("input", cl::aliasopt(OptInputFileList),
+                     cl::desc("Input OpenCL C source file"));
+  cl::alias OptSPIRV("spv", cl::aliasopt(OptInputFileList),
+                     cl::desc("Input SPIR-V file"));
+  cl::alias OptBinaries("binary", cl::aliasopt(OptInputFileList),
+                        cl::desc("Input OpenCL program binary files"));
+  cl::alias OptIR("ir", cl::aliasopt(OptOutputElf), cl::desc("Output file"));
+
   enum ArchType : int8_t { sse42 = 0, avx, avx2, avx512 };
   cl::opt<ArchType> OptMArch(
       "march",
@@ -295,23 +345,62 @@ int main(int Argc, char *Argv[]) {
               "and Text Processing Instructions, Intel(R) SSE4 Vectorizing "
               "Compiler and Media Accelerator, Intel(R) SSE3, Intel(R) SSE2, "
               "Intel(R) SSE, and SSSE3 instructions")));
-  cl::opt<std::string> OptOutputElf(
-      "o", cl::init("output.bin"),
-      cl::desc("Specify the output OpenCL program binary filename"),
-      cl::value_desc("filename"));
   cl::list<std::string> OptBuildOptions("bo", cl::ZeroOrMore,
                                         cl::desc("Set OpenCL build options"),
                                         cl::value_desc("build options"));
 
-  cl::ParseCommandLineOptions(Argc, Argv,
-                              "OpenCL ahead-of-time (AOT) compilation tool");
+  cl::ParseCommandLineOptions(
+      Argc, Argv,
+      "OpenCL ahead-of-time (AOT) compilation tool\n\n"
+      "This program is a OpenCL kernel build tool, which accepts OpenCL C "
+      "source, LLVM IR bitcode, OpenCL compiled object or SPIR-V as input. "
+      "In addition, separated building (compiling and linking) is optional.\n");
 
   // step 1: perform checks for command line options
-  bool IsFileExists = false;
-  sys::fs::is_regular_file(OptInputBinary, IsFileExists);
-  if (!IsFileExists) {
-    std::cerr << "File " << OptInputBinary << " does not exist!" << '\n';
-    return OPENCL_AOT_FILE_NOT_EXIST;
+
+  std::map<Commands, std::pair<std::string, std::string>> CmdToCmdInfoMap = {
+      {Commands::build, {"build", "binary"}},
+      {Commands::compile, {"compile", "object"}},
+      {Commands::link, {"link", "binary"}}};
+
+  std::vector<std::string> InputFileNames;
+  for (const auto &FN : OptInputFileList) {
+    std::stringstream SS(FN);
+    std::string Item;
+    // --binary accepts comma-separated binary file list.
+    while (std::getline(SS, Item, ',')) {
+      bool IsFileExists = false;
+      sys::fs::is_regular_file(Item, IsFileExists);
+      if (!IsFileExists) {
+        std::cerr << "File " << Item << " does not exist!" << '\n';
+        return OPENCL_AOT_FILE_NOT_EXIST;
+      }
+
+      // If not a link command, we only handle one input file each time.
+      if (OptCommand != Commands::link && InputFileNames.size() >= 1) {
+        std::cout << "WARNING: Can " << CmdToCmdInfoMap[OptCommand].first
+                  << " only 1 file each time. Extra file(s) will be ignored!\n";
+        break;
+      }
+      InputFileNames.push_back(Item);
+    }
+  }
+
+  if (InputFileNames.empty()) {
+    std::cerr << "no input file.\n";
+    return OPENCL_AOT_LIST_OF_INPUT_FILES_IS_EMPTY;
+  }
+
+  std::string OutputFileName(OptOutputElf);
+  if (!OptOutputElf.getNumOccurrences()) {
+    // Copy input file name without extension to output file name if there is
+    // only one input file and -o is not specified.
+    if (InputFileNames.size() == 1)
+      OutputFileName = InputFileNames[0].substr(0, InputFileNames[0].find('.'));
+    // Append extension to output file name.
+    OutputFileName += OptCommand == Commands::compile
+                          ? ".obj"
+                          : OptDevice == fpga_fast_emu ? ".aocx" : ".bin";
   }
 
   if (OptMArch.getNumOccurrences() &&
@@ -401,10 +490,19 @@ int main(int Argc, char *Argv[]) {
               << ArchTypeToArchTypeName[OptMArch] << '\n';
   }
 
-  // step 6: generate OpenCL programs from input binaries
+  // step 6: generate OpenCL programs from input files
+
+  // Create context
+  cl_context Context =
+      clCreateContext(nullptr, 1, &DeviceId, nullptr, nullptr, &CLErr);
+  CLContextSPtr ContextSPtr(Context, ContextDeleter);
+  if (clFailed(CLErr)) {
+    std::cerr << formatCLError("Failed to create context", CLErr) << '\n';
+  }
+
   std::vector<CLProgramUPtr> Progs;
-  std::tie(Progs, ErrorMessage, CLErr) = generateProgramsFromBinaries(
-      {OptInputBinary.c_str()}, PlatformId, DeviceId);
+  std::tie(Progs, ErrorMessage, CLErr) = generateProgramsFromInput(
+      InputFileNames, PlatformId, DeviceId, ContextSPtr);
 
   if (clFailed(CLErr)) {
     std::cerr << ErrorMessage;
@@ -420,15 +518,39 @@ int main(int Argc, char *Argv[]) {
       BuildOptions += BO + ' ';
   }
 
-  auto ParentDir = sys::path::parent_path(OptInputBinary);
-  if (!ParentDir.empty()) {
-    BuildOptions += " -I \"" + std::string(ParentDir) + '\"';
+  // clLinkProgram doesn't accept -I option
+  if (OptCommand != Commands::link) {
+    assert(!InputFileNames.empty() && "Input file list can't be empty!");
+    auto ParentDir = sys::path::parent_path(InputFileNames[0]);
+    if (!ParentDir.empty()) {
+      BuildOptions += " -I \"" + std::string(ParentDir) + '\"';
+    }
+    std::cout << "Using build options: " << BuildOptions << '\n';
   }
-  std::cout << "Using build options: " << BuildOptions << '\n';
 
-  // step 8: build OpenCL program
-  CLErr = clBuildProgram(ProgramUPtr.get(), 1, &DeviceId, BuildOptions.c_str(),
-                         nullptr, nullptr);
+  // step 8: compile | build | link OpenCL program
+  switch (OptCommand) {
+  case Commands::compile:
+    CLErr =
+        clCompileProgram(ProgramUPtr.get(), 1, &DeviceId, BuildOptions.c_str(),
+                         0, nullptr, nullptr, nullptr, nullptr);
+    break;
+  case Commands::link: {
+    std::vector<cl_program> InputPrograms{ProgramUPtr.get()};
+    for (size_t I = 1; I < Progs.size(); ++I)
+      InputPrograms.push_back(Progs[I].get());
+
+    cl_program Program = clLinkProgram(
+        ContextSPtr.get(), 1, &DeviceId, BuildOptions.c_str(),
+        InputPrograms.size(), InputPrograms.data(), nullptr, nullptr, &CLErr);
+    ProgramUPtr.reset(Program);
+    break;
+  }
+  default: // Commands::build
+    CLErr = clBuildProgram(ProgramUPtr.get(), 1, &DeviceId,
+                           BuildOptions.c_str(), nullptr, nullptr);
+    break;
+  }
 
   std::string CompilerBuildLog;
   std::tie(CompilerBuildLog, ErrorMessage, std::ignore) =
@@ -441,11 +563,15 @@ int main(int Argc, char *Argv[]) {
   }
 
   if (!CompilerBuildLog.empty()) {
-    std::cout << CompilerBuildLog << '\n';
+    std::cout << "\n"
+              << CmdToCmdInfoMap[OptCommand].first << " log:\n"
+              << CompilerBuildLog << '\n';
   }
 
   if (clFailed(CLErr)) {
-    std::cerr << formatCLError("Failed to build a program:", CLErr) << '\n';
+    std::string ErrMsg =
+        "Failed to " + CmdToCmdInfoMap[OptCommand].first + ": ";
+    std::cerr << formatCLError(ErrMsg, CLErr) << '\n';
     return CLErr;
   }
 
@@ -473,18 +599,19 @@ int main(int Argc, char *Argv[]) {
   }
 
   // step 10: write program binary (in ELF format) to the file
-  std::ofstream OutputELF(OptOutputElf, std::ofstream::binary);
+  std::ofstream OutputELF(OutputFileName, std::ofstream::binary);
 
   for (const auto &Chunk : ProgramBinaries) {
     OutputELF << Chunk;
   }
 
   if (!OutputELF.good()) {
-    std::cerr << "Failed to create OpenCL program binary file" << '\n';
+    std::cerr << "Failed to create OpenCL program "
+              << CmdToCmdInfoMap[OptCommand].second << " file" << '\n';
     return OPENCL_AOT_FAILED_TO_CREATE_ELF;
   }
-  std::cout << "OpenCL program binary file was successfully created: "
-            << OptOutputElf << '\n';
+  std::cout << "OpenCL program " << CmdToCmdInfoMap[OptCommand].second
+            << " file was successfully created: " << OutputFileName << '\n';
 
   return CL_SUCCESS;
 }

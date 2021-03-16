@@ -936,6 +936,32 @@ def SM3PARTW1 : CryptoRRRTied_4S<0b1, 0b00, "sm3partw1">;
 def SM3PARTW2 : CryptoRRRTied_4S<0b1, 0b01, "sm3partw2">;
 def SM4ENCKEY : CryptoRRR_4S<0b1, 0b10, "sm4ekey">;
 def SM4E      : CryptoRRTied_4S<0b0, 0b01, "sm4e">;
+
+def : Pat<(v4i32 (int_aarch64_crypto_sm3ss1 (v4i32 V128:$Vn), (v4i32 V128:$Vm), (v4i32 V128:$Va))),
+          (SM3SS1 (v4i32 V128:$Vn), (v4i32 V128:$Vm), (v4i32 V128:$Va))>;
+
+class SM3PARTW_pattern<Instruction INST, Intrinsic OpNode>
+  : Pat<(v4i32 (OpNode (v4i32 V128:$Vd), (v4i32 V128:$Vn), (v4i32 V128:$Vm))),
+        (INST (v4i32 V128:$Vd), (v4i32 V128:$Vn), (v4i32 V128:$Vm))>;
+
+class SM3TT_pattern<Instruction INST, Intrinsic OpNode>
+  : Pat<(v4i32 (OpNode (v4i32 V128:$Vd), (v4i32 V128:$Vn), (v4i32 V128:$Vm), (i64 VectorIndexS_timm:$imm) )),
+        (INST (v4i32 V128:$Vd), (v4i32 V128:$Vn), (v4i32 V128:$Vm), (VectorIndexS_timm:$imm))>;
+
+class SM4_pattern<Instruction INST, Intrinsic OpNode>
+  : Pat<(v4i32 (OpNode (v4i32 V128:$Vn), (v4i32 V128:$Vm))),
+        (INST (v4i32 V128:$Vn), (v4i32 V128:$Vm))>;
+
+def : SM3PARTW_pattern<SM3PARTW1, int_aarch64_crypto_sm3partw1>;
+def : SM3PARTW_pattern<SM3PARTW2, int_aarch64_crypto_sm3partw2>;
+
+def : SM3TT_pattern<SM3TT1A, int_aarch64_crypto_sm3tt1a>;
+def : SM3TT_pattern<SM3TT1B, int_aarch64_crypto_sm3tt1b>;
+def : SM3TT_pattern<SM3TT2A, int_aarch64_crypto_sm3tt2a>;
+def : SM3TT_pattern<SM3TT2B, int_aarch64_crypto_sm3tt2b>;
+
+def : SM4_pattern<SM4ENCKEY, int_aarch64_crypto_sm4ekey>;
+def : SM4_pattern<SM4E, int_aarch64_crypto_sm4e>;
 } // HasSM4
 
 let Predicates = [HasRCPC] in {
@@ -979,7 +1005,7 @@ let Predicates = [HasComplxNum, HasNEON] in {
   }
 }
 
-multiclass FCMLA_PATS<ValueType ty, RegisterClass Reg> {
+multiclass FCMLA_PATS<ValueType ty, DAGOperand Reg> {
   def : Pat<(ty (int_aarch64_neon_vcmla_rot0 (ty Reg:$Rd), (ty Reg:$Rn), (ty Reg:$Rm))),
             (!cast<Instruction>("FCMLA" # ty) $Rd, $Rn, $Rm, 0)>;
   def : Pat<(ty (int_aarch64_neon_vcmla_rot90 (ty Reg:$Rd), (ty Reg:$Rn), (ty Reg:$Rm))),
@@ -990,7 +1016,7 @@ multiclass FCMLA_PATS<ValueType ty, RegisterClass Reg> {
             (!cast<Instruction>("FCMLA" # ty) $Rd, $Rn, $Rm, 3)>;
 }
 
-multiclass FCMLA_LANE_PATS<ValueType ty, RegisterClass Reg, dag RHSDup> {
+multiclass FCMLA_LANE_PATS<ValueType ty, DAGOperand Reg, dag RHSDup> {
   def : Pat<(ty (int_aarch64_neon_vcmla_rot0 (ty Reg:$Rd), (ty Reg:$Rn), RHSDup)),
             (!cast<Instruction>("FCMLA" # ty # "_indexed") $Rd, $Rn, $Rm, VectorIndexS:$idx, 0)>;
   def : Pat<(ty (int_aarch64_neon_vcmla_rot90 (ty Reg:$Rd), (ty Reg:$Rn), RHSDup)),
@@ -3237,7 +3263,7 @@ def : Pat<(truncstorei8 GPR64:$Rt, (am_indexed8 GPR64sp:$Rn, uimm12s1:$offset)),
 } // AddedComplexity = 10
 
 // Match stores from lane 0 to the appropriate subreg's store.
-multiclass VecStoreLane0Pat<Operand UIAddrMode, SDPatternOperator storeop,
+multiclass VecStoreLane0Pat<ComplexPattern UIAddrMode, SDPatternOperator storeop,
                             ValueType VTy, ValueType STy,
                             SubRegIndex SubRegIdx, Operand IndexType,
                             Instruction STR> {
@@ -3894,6 +3920,14 @@ let isTerminator = 1, hasSideEffects = 1, isBarrier = 1, hasCtrlDep = 1,
    let usesCustomInserter = 1 in
      def CATCHRET : Pseudo<(outs), (ins am_brcond:$dst, am_brcond:$src), [(catchret bb:$dst, bb:$src)]>,
                     Sched<[]>;
+}
+
+// Pseudo instructions for homogeneous prolog/epilog
+let isPseudo = 1 in {
+  // Save CSRs in order, {FPOffset}
+  def HOM_Prolog : Pseudo<(outs), (ins variable_ops), []>, Sched<[]>;
+  // Restore CSRs in order
+  def HOM_Epilog : Pseudo<(outs), (ins variable_ops), []>, Sched<[]>;
 }
 
 //===----------------------------------------------------------------------===//

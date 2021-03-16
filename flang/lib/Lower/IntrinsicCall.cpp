@@ -439,7 +439,7 @@ private:
     // - or use evaluate/type.h
     if (auto r{t.dyn_cast<fir::RealType>()})
       return r.getFKind() * 4;
-    if (auto cplx{t.dyn_cast<fir::CplxType>()})
+    if (auto cplx{t.dyn_cast<fir::ComplexType>()})
       return cplx.getFKind() * 4;
     llvm_unreachable("not a floating-point type");
   }
@@ -459,8 +459,8 @@ private:
                  ? Conversion::Narrow
                  : Conversion::Extend;
     }
-    if (auto fromCplxTy{from.dyn_cast<fir::CplxType>()}) {
-      if (auto toCplxTy{to.dyn_cast<fir::CplxType>()}) {
+    if (auto fromCplxTy{from.dyn_cast<fir::ComplexType>()}) {
+      if (auto toCplxTy{to.dyn_cast<fir::ComplexType>()}) {
         return getFloatingPointWidth(fromCplxTy) >
                        getFloatingPointWidth(toCplxTy)
                    ? Conversion::Narrow
@@ -1085,7 +1085,7 @@ mlir::Value IntrinsicLibrary::genIchar(mlir::Type resultType,
   Fortran::lower::CharacterExprHelper helper{builder, loc};
   auto dataAndLen = helper.createUnboxChar(arg);
   auto charType = fir::CharacterType::get(
-      builder.getContext(), helper.getCharacterKind(arg.getType()));
+      builder.getContext(), helper.getCharacterKind(arg.getType()), 1);
   auto refType = builder.getRefType(charType);
   auto charAddr = builder.createConvert(loc, refType, dataAndLen.first);
   auto charVal = builder.create<fir::LoadOp>(loc, charType, charAddr);

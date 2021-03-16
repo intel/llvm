@@ -1884,8 +1884,7 @@ void Sema::popOpenMPFunctionRegion(const FunctionScopeInfo *OldFSI) {
 static bool isOpenMPDeviceDelayedContext(Sema &S) {
   assert(S.LangOpts.OpenMP && S.LangOpts.OpenMPIsDevice &&
          "Expected OpenMP device compilation.");
-  return !S.isInOpenMPTargetExecutionDirective() &&
-         !S.isInOpenMPDeclareTargetContext();
+  return !S.isInOpenMPTargetExecutionDirective();
 }
 
 namespace {
@@ -1898,11 +1897,11 @@ enum class FunctionEmissionStatus {
 } // anonymous namespace
 
 Sema::SemaDiagnosticBuilder Sema::diagIfOpenMPDeviceCode(SourceLocation Loc,
-                                                         unsigned DiagID) {
+                                                         unsigned DiagID,
+                                                         FunctionDecl *FD) {
   assert(LangOpts.OpenMP && LangOpts.OpenMPIsDevice &&
          "Expected OpenMP device compilation.");
 
-  FunctionDecl *FD = getCurFunctionDecl();
   SemaDiagnosticBuilder::Kind Kind = SemaDiagnosticBuilder::K_Nop;
   if (FD) {
     FunctionEmissionStatus FES = getEmissionStatus(FD);
@@ -1911,6 +1910,13 @@ Sema::SemaDiagnosticBuilder Sema::diagIfOpenMPDeviceCode(SourceLocation Loc,
       Kind = SemaDiagnosticBuilder::K_Immediate;
       break;
     case FunctionEmissionStatus::Unknown:
+      // TODO: We should always delay diagnostics here in case a target
+      //       region is in a function we do not emit. However, as the
+      //       current diagnostics are associated with the function containing
+      //       the target region and we do not emit that one, we would miss out
+      //       on diagnostics for the target region itself. We need to anchor
+      //       the diagnostics with the new generated function *or* ensure we
+      //       emit diagnostics associated with the surrounding function.
       Kind = isOpenMPDeviceDelayedContext(*this)
                  ? SemaDiagnosticBuilder::K_Deferred
                  : SemaDiagnosticBuilder::K_Immediate;
@@ -1925,14 +1931,15 @@ Sema::SemaDiagnosticBuilder Sema::diagIfOpenMPDeviceCode(SourceLocation Loc,
     }
   }
 
-  return SemaDiagnosticBuilder(Kind, Loc, DiagID, getCurFunctionDecl(), *this);
+  return SemaDiagnosticBuilder(Kind, Loc, DiagID, FD, *this);
 }
 
 Sema::SemaDiagnosticBuilder Sema::diagIfOpenMPHostCode(SourceLocation Loc,
-                                                       unsigned DiagID) {
+                                                       unsigned DiagID,
+                                                       FunctionDecl *FD) {
   assert(LangOpts.OpenMP && !LangOpts.OpenMPIsDevice &&
          "Expected OpenMP host compilation.");
-  FunctionEmissionStatus FES = getEmissionStatus(getCurFunctionDecl());
+  FunctionEmissionStatus FES = getEmissionStatus(FD);
   SemaDiagnosticBuilder::Kind Kind = SemaDiagnosticBuilder::K_Nop;
   switch (FES) {
   case FunctionEmissionStatus::Emitted:
@@ -1948,7 +1955,7 @@ Sema::SemaDiagnosticBuilder Sema::diagIfOpenMPHostCode(SourceLocation Loc,
     break;
   }
 
-  return SemaDiagnosticBuilder(Kind, Loc, DiagID, getCurFunctionDecl(), *this);
+  return SemaDiagnosticBuilder(Kind, Loc, DiagID, FD, *this);
 }
 
 static OpenMPDefaultmapClauseKind
@@ -7413,10 +7420,7 @@ Expr *OpenMPIterationSpaceChecker::buildNumIterations(
   // LB = TestIsLessOp.getValue() ? min(LB(MinVal), LB(MaxVal)) :
   // max(LB(MinVal), LB(MaxVal))
   if (InitDependOnLC) {
-    const LoopIterationSpace &IS =
-        ResultIterSpaces[ResultIterSpaces.size() - 1 -
-                         InitDependOnLC.getValueOr(
-                             CondDependOnLC.getValueOr(0))];
+    const LoopIterationSpace &IS = ResultIterSpaces[*InitDependOnLC - 1];
     if (!IS.MinValue || !IS.MaxValue)
       return nullptr;
     // OuterVar = Min
@@ -7493,10 +7497,7 @@ Expr *OpenMPIterationSpaceChecker::buildNumIterations(
   // UB = TestIsLessOp.getValue() ? max(UB(MinVal), UB(MaxVal)) :
   // min(UB(MinVal), UB(MaxVal))
   if (CondDependOnLC) {
-    const LoopIterationSpace &IS =
-        ResultIterSpaces[ResultIterSpaces.size() - 1 -
-                         InitDependOnLC.getValueOr(
-                             CondDependOnLC.getValueOr(0))];
+    const LoopIterationSpace &IS = ResultIterSpaces[*CondDependOnLC - 1];
     if (!IS.MinValue || !IS.MaxValue)
       return nullptr;
     // OuterVar = Min
@@ -12484,7 +12485,7 @@ static OpenMPDirectiveKind getOpenMPCaptureRegionForClause(
     case OMPD_distribute_parallel_for_simd:
     case OMPD_distribute:
     case OMPD_distribute_simd:
-      // Do not capture thread_limit-clause expressions.
+      // Do not capture dist_schedule-clause expressions.
       break;
     case OMPD_parallel_for:
     case OMPD_parallel_for_simd:
@@ -12539,7 +12540,7 @@ static OpenMPDirectiveKind getOpenMPCaptureRegionForClause(
     case OMPD_atomic:
     case OMPD_target_teams:
     case OMPD_requires:
-      llvm_unreachable("Unexpected OpenMP directive with schedule clause");
+      llvm_unreachable("Unexpected OpenMP directive with dist_schedule clause");
     case OMPD_unknown:
     default:
       llvm_unreachable("Unknown OpenMP directive");
@@ -12616,7 +12617,7 @@ static OpenMPDirectiveKind getOpenMPCaptureRegionForClause(
     case OMPD_atomic:
     case OMPD_distribute_simd:
     case OMPD_requires:
-      llvm_unreachable("Unexpected OpenMP directive with num_teams-clause");
+      llvm_unreachable("Unexpected OpenMP directive with device-clause");
     case OMPD_unknown:
     default:
       llvm_unreachable("Unknown OpenMP directive");

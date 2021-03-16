@@ -402,20 +402,44 @@ public:
 
 } // namespace
 
+static void prepareSymbolRelocation(lld::macho::Symbol *sym,
+                                    const InputSection *isec, const Reloc &r) {
+  const TargetInfo::RelocAttrs &relocAttrs = target->getRelocAttrs(r.type);
+
+  if (relocAttrs.hasAttr(RelocAttrBits::BRANCH)) {
+    prepareBranchTarget(sym);
+  } else if (relocAttrs.hasAttr(RelocAttrBits::GOT | RelocAttrBits::LOAD)) {
+    if (needsBinding(sym))
+      in.got->addEntry(sym);
+  } else if (relocAttrs.hasAttr(RelocAttrBits::GOT)) {
+    in.got->addEntry(sym);
+  } else if (relocAttrs.hasAttr(RelocAttrBits::TLV | RelocAttrBits::LOAD)) {
+    if (needsBinding(sym))
+      in.tlvPointers->addEntry(sym);
+  } else if (relocAttrs.hasAttr(RelocAttrBits::TLV)) {
+    // References from thread-local variable sections are treated as offsets
+    // relative to the start of the referent section, and therefore have no
+    // need of rebase opcodes.
+    if (!(isThreadLocalVariables(isec->flags) && isa<Defined>(sym)))
+      addNonLazyBindingEntries(sym, isec, r.offset, r.addend);
+  }
+}
+
 void Writer::scanRelocations() {
   for (InputSection *isec : inputSections) {
-    // We do not wish to add rebase opcodes for __LD,__compact_unwind, because
-    // it doesn't actually end up in the final binary. TODO: filtering it out
-    // before Writer runs might be cleaner...
-    if (isec->segname == segment_names::ld)
+    if (isec->segname == segment_names::ld) {
+      prepareCompactUnwind(isec);
       continue;
+    }
 
     for (Reloc &r : isec->relocs) {
-      if (auto *s = r.referent.dyn_cast<lld::macho::Symbol *>()) {
-        if (isa<Undefined>(s))
-          treatUndefinedSymbol(toString(*s), toString(isec->file));
-        else
-          target->prepareSymbolRelocation(s, isec, r);
+      if (target->hasAttr(r.type, RelocAttrBits::SUBTRAHEND))
+        continue;
+      if (auto *sym = r.referent.dyn_cast<lld::macho::Symbol *>()) {
+        if (auto *undefined = dyn_cast<Undefined>(sym))
+          treatUndefinedSymbol(*undefined);
+        else if (target->validateSymbolRelocation(sym, isec, r))
+          prepareSymbolRelocation(sym, isec, r);
       } else {
         assert(r.referent.is<InputSection *>());
         if (!r.pcrel)
@@ -431,12 +455,19 @@ void Writer::scanSymbols() {
       if (defined->overridesWeakDef)
         in.weakBinding->addNonWeakDefinition(defined);
     } else if (const auto *dysym = dyn_cast<DylibSymbol>(sym)) {
-      dysym->file->refState = std::max(dysym->file->refState, dysym->refState);
+      dysym->getFile()->refState =
+          std::max(dysym->getFile()->refState, dysym->refState);
     }
   }
 }
 
 void Writer::createLoadCommands() {
+  uint8_t segIndex = 0;
+  for (OutputSegment *seg : outputSegments) {
+    in.header->addLoadCommand(make<LCSegment>(seg->name, seg));
+    seg->index = segIndex++;
+  }
+
   in.header->addLoadCommand(make<LCDyldInfo>(
       in.rebase, in.binding, in.weakBinding, in.lazyBinding, in.exports));
   in.header->addLoadCommand(make<LCSymtab>(symtabSection, stringTableSection));
@@ -447,8 +478,8 @@ void Writer::createLoadCommands() {
 
   switch (config->outputType) {
   case MH_EXECUTE:
-    in.header->addLoadCommand(make<LCMain>());
     in.header->addLoadCommand(make<LCLoadDylinker>());
+    in.header->addLoadCommand(make<LCMain>());
     break;
   case MH_DYLIB:
     in.header->addLoadCommand(make<LCDylib>(LC_ID_DYLIB, config->installName,
@@ -461,16 +492,10 @@ void Writer::createLoadCommands() {
     llvm_unreachable("unhandled output file type");
   }
 
-  in.header->addLoadCommand(make<LCBuildVersion>(config->platform));
-
   uuidCommand = make<LCUuid>();
   in.header->addLoadCommand(uuidCommand);
 
-  uint8_t segIndex = 0;
-  for (OutputSegment *seg : outputSegments) {
-    in.header->addLoadCommand(make<LCSegment>(seg->name, seg));
-    seg->index = segIndex++;
-  }
+  in.header->addLoadCommand(make<LCBuildVersion>(config->platform));
 
   uint64_t dylibOrdinal = 1;
   for (InputFile *file : inputFiles) {
@@ -540,8 +565,10 @@ static DenseMap<const InputSection *, size_t> buildInputSectionPriorities() {
 
 static int segmentOrder(OutputSegment *seg) {
   return StringSwitch<int>(seg->name)
-      .Case(segment_names::pageZero, -2)
-      .Case(segment_names::text, -1)
+      .Case(segment_names::pageZero, -4)
+      .Case(segment_names::text, -3)
+      .Case(segment_names::dataConst, -2)
+      .Case(segment_names::data, -1)
       // Make sure __LINKEDIT is the last segment (i.e. all its hidden
       // sections must be ordered after other sections).
       .Case(segment_names::linkEdit, std::numeric_limits<int>::max())
@@ -553,12 +580,14 @@ static int sectionOrder(OutputSection *osec) {
   // Sections are uniquely identified by their segment + section name.
   if (segname == segment_names::text) {
     return StringSwitch<int>(osec->name)
-        .Case(section_names::header, -1)
+        .Case(section_names::header, -4)
+        .Case(section_names::text, -3)
+        .Case(section_names::stubs, -2)
+        .Case(section_names::stubHelper, -1)
         .Case(section_names::unwindInfo, std::numeric_limits<int>::max() - 1)
         .Case(section_names::ehFrame, std::numeric_limits<int>::max())
         .Default(0);
-  }
-  if (segname == segment_names::data) {
+  } else if (segname == segment_names::data) {
     // For each thread spawned, dyld will initialize its TLVs by copying the
     // address range from the start of the first thread-local data section to
     // the end of the last one. We therefore arrange these sections contiguously
@@ -574,10 +603,12 @@ static int sectionOrder(OutputSection *osec) {
     case S_ZEROFILL:
       return std::numeric_limits<int>::max();
     default:
-      return 0;
+      return StringSwitch<int>(osec->name)
+          .Case(section_names::laSymbolPtr, -2)
+          .Case(section_names::data, -1)
+          .Default(0);
     }
-  }
-  if (segname == segment_names::linkEdit) {
+  } else if (segname == segment_names::linkEdit) {
     return StringSwitch<int>(osec->name)
         .Case(section_names::rebase, -8)
         .Case(section_names::binding, -7)
@@ -614,7 +645,7 @@ static void sortSegmentsAndSections() {
   uint32_t sectionIndex = 0;
   for (OutputSegment *seg : outputSegments) {
     seg->sortOutputSections(compareByOrder<OutputSection *>(sectionOrder));
-    for (auto *osec : seg->getSections()) {
+    for (OutputSection *osec : seg->getSections()) {
       // Now that the output sections are sorted, assign the final
       // output section indices.
       if (!osec->isHidden())
@@ -689,11 +720,12 @@ void Writer::createOutputSections() {
 }
 
 void Writer::assignAddresses(OutputSegment *seg) {
-  addr = alignTo(addr, PageSize);
-  fileOff = alignTo(fileOff, PageSize);
+  uint64_t pageSize = target->getPageSize();
+  addr = alignTo(addr, pageSize);
+  fileOff = alignTo(fileOff, pageSize);
   seg->fileOff = fileOff;
 
-  for (auto *osec : seg->getSections()) {
+  for (OutputSection *osec : seg->getSections()) {
     if (!osec->isNeeded())
       continue;
     addr = alignTo(addr, osec->align);

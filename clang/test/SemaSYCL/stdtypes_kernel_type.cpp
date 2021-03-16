@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -sycl-std=2020 -DCHECK_ERROR -verify %s
+// RUN: %clang_cc1 -fsycl-is-device -sycl-std=2020 -DCHECK_ERROR -verify %s
 
 #include "Inputs/sycl.hpp"
 

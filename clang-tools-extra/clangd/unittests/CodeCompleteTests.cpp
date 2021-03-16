@@ -1098,6 +1098,20 @@ template <template <class> class TT> int foo() {
   EXPECT_THAT(Completions, Contains(Named("TT")));
 }
 
+TEST(CompletionTest, NestedTemplateHeuristics) {
+  auto Completions = completions(R"cpp(
+struct Plain { int xxx; };
+template <typename T> class Templ { Plain ppp; };
+template <typename T> void foo(Templ<T> &t) {
+  // Formally ppp has DependentTy, because Templ may be specialized.
+  // However we sholud be able to see into it using the primary template.
+  t.ppp.^
+}
+)cpp")
+                         .Completions;
+  EXPECT_THAT(Completions, Contains(Named("xxx")));
+}
+
 TEST(CompletionTest, RecordCCResultCallback) {
   std::vector<CodeCompletion> RecordedCompletions;
   CodeCompleteOptions Opts;
@@ -1390,9 +1404,9 @@ public:
                  llvm::function_ref<void(const SymbolID &, const Symbol &)>)
       const override {}
 
-  llvm::unique_function<bool(llvm::StringRef) const>
+  llvm::unique_function<IndexContents(llvm::StringRef) const>
   indexedFiles() const override {
-    return [](llvm::StringRef) { return false; };
+    return [](llvm::StringRef) { return IndexContents::None; };
   }
 
   // This is incorrect, but IndexRequestCollector is not an actual index and it
