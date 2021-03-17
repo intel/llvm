@@ -80,7 +80,7 @@ public:
   ///
   /// \return a valid cl_kernel instance
   cl_kernel get() const {
-    if (is_host() || getPlugin().getBackend() != cl::sycl::backend::opencl) {
+    if (is_host()) {
       throw invalid_object_error(
           "This instance of kernel doesn't support OpenCL interoperability.",
           PI_INVALID_KERNEL);

@@ -167,12 +167,46 @@ add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-cmath-fp64.${lib-su
                    DEPENDS device_math.h device.h clang clang-offload-bundler
                    VERBATIM)
 
+add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-itt-stubs.${lib-suffix}
+                   COMMAND ${clang} -fsycl -c
+                           ${compile_opts} ${sycl_targets_opt}
+                           ${CMAKE_CURRENT_SOURCE_DIR}/itt_stubs.cpp
+                           -o ${obj_binary_dir}/libsycl-itt-stubs.${lib-suffix}
+                   MAIN_DEPENDENCY itt_stubs.cpp
+                   DEPENDS device_itt.h spirv_vars.h device.h clang clang-offload-bundler
+                   VERBATIM)
+
+add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-itt-compiler-wrappers.${lib-suffix}
+                   COMMAND ${clang} -fsycl -c
+                           ${compile_opts} ${sycl_targets_opt}
+                           ${CMAKE_CURRENT_SOURCE_DIR}/itt_compiler_wrappers.cpp
+                           -o ${obj_binary_dir}/libsycl-itt-compiler-wrappers.${lib-suffix}
+                   MAIN_DEPENDENCY itt_compiler_wrappers.cpp
+                   DEPENDS device_itt.h spirv_vars.h device.h clang clang-offload-bundler
+                   VERBATIM)
+
+add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-itt-user-wrappers.${lib-suffix}
+                   COMMAND ${clang} -fsycl -c
+                           ${compile_opts} ${sycl_targets_opt}
+                           ${CMAKE_CURRENT_SOURCE_DIR}/itt_user_wrappers.cpp
+                           -o ${obj_binary_dir}/libsycl-itt-user-wrappers.${lib-suffix}
+                   MAIN_DEPENDENCY itt_user_wrappers.cpp
+                   DEPENDS device_itt.h spirv_vars.h device.h clang clang-offload-bundler
+                   VERBATIM)
+
+set(devicelib-obj-itt-files
+  ${obj_binary_dir}/libsycl-itt-stubs.${lib-suffix}
+  ${obj_binary_dir}/libsycl-itt-compiler-wrappers.${lib-suffix}
+  ${obj_binary_dir}/libsycl-itt-user-wrappers.${lib-suffix}
+  )
+
 add_custom_target(libsycldevice-obj DEPENDS
   ${devicelib-obj-file}
   ${devicelib-obj-complex}
   ${devicelib-obj-complex-fp64}
   ${devicelib-obj-cmath}
   ${devicelib-obj-cmath-fp64}
+  ${devicelib-obj-itt-files}
 )
 add_custom_target(libsycldevice-spv DEPENDS
   ${spv_binary_dir}/libsycl-fallback-cassert.spv
@@ -212,7 +246,8 @@ install(FILES ${devicelib-obj-file}
               ${devicelib-obj-cmath}
               ${obj_binary_dir}/libsycl-fallback-cmath.${lib-suffix}
               ${devicelib-obj-cmath-fp64}
-	      ${obj_binary_dir}/libsycl-fallback-cmath-fp64.${lib-suffix}
+              ${obj_binary_dir}/libsycl-fallback-cmath-fp64.${lib-suffix}
+              ${devicelib-obj-itt-files}
         DESTINATION ${install_dest_lib}
         COMPONENT libsycldevice)
 

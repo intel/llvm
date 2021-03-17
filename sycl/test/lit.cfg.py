@@ -84,7 +84,7 @@ config.substitutions.append( ('%RUN_ON_HOST', "env SYCL_DEVICE_FILTER=host ") )
 
 # Every SYCL implementation provides a host implementation.
 config.available_features.add('host')
-triple=lit_config.params.get('SYCL_TRIPLE', 'spir64-unknown-linux-sycldevice')
+triple=lit_config.params.get('SYCL_TRIPLE', 'spir64-unknown-unknown-sycldevice')
 lit_config.note("Triple: {}".format(triple))
 config.substitutions.append( ('%sycl_triple',  triple ) )
 
