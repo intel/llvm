@@ -3316,25 +3316,6 @@ void Sema::MarkDevice(void) {
           }
           break;
         }
-        case attr::Kind::SYCLIntelFPGAMaxConcurrency: {
-          auto *SIMCA = cast<SYCLIntelFPGAMaxConcurrencyAttr>(A);
-          if (auto *Existing =
-                  SYCLKernel->getAttr<SYCLIntelFPGAMaxConcurrencyAttr>()) {
-            ASTContext &Ctx = getASTContext();
-            if (Existing->getNThreadsExpr() > SIMCA->getNThreadsExpr()) {
-              Diag(SYCLKernel->getLocation(),
-                   diag::err_conflicting_sycl_kernel_attributes);
-              Diag(Existing->getLocation(), diag::note_conflicting_attribute);
-              Diag(SIMCA->getLocation(), diag::note_conflicting_attribute);
-              SYCLKernel->setInvalidDecl();
-            } else {
-              SYCLKernel->addAttr(A);
-            }
-          } else {
-            SYCLKernel->addAttr(A);
-          }
-          break;
-        }
         case attr::Kind::SYCLIntelKernelArgsRestrict:
         case attr::Kind::SYCLIntelNumSimdWorkItems:
         case attr::Kind::SYCLIntelSchedulerTargetFmaxMhz:
@@ -3342,7 +3323,8 @@ void Sema::MarkDevice(void) {
         case attr::Kind::SYCLIntelNoGlobalWorkOffset:
         case attr::Kind::SYCLIntelUseStallEnableClusters:
         case attr::Kind::SYCLIntelLoopFuse:
-        case attr::Kind::SYCLSimd: {
+        case attr::Kind::SYCLSimd:
+        case attr::Kind::SYCLIntelFPGAMaxConcurrency: {
           if ((A->getKind() == attr::Kind::SYCLSimd) && KernelBody &&
               !KernelBody->getAttr<SYCLSimdAttr>()) {
             // Usual kernel can't call ESIMD functions.

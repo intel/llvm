@@ -627,8 +627,8 @@ CheckForDuplicationSYCLLoopAttribute(Sema &S,
   for (const auto *I : Attrs) {
     if (LoopAttr && isa<LoopAttrT>(I)) {
       // Cannot specify same type of attribute twice.
-      S.Diag(I->getLocation(), diag::err_sycl_loop_attr_duplication)
-          << isIntelFPGAAttr << LoopAttr;
+      S.Diag(I->getLocation(), diag::err_sycl_attr_duplication)
+          << isIntelFPGAAttr << 0 << LoopAttr;
     }
     if (isa<LoopAttrT>(I))
       LoopAttr = cast<LoopAttrT>(I);

@@ -48,15 +48,12 @@ public:
 
 // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char [16]'}}
 [[intel::max_concurrency("numberofthreads")]] void zoo() {}
-class Functor6 {
-public:
-  void operator() () const {
-    zoo();
-  }
-};
 
 template <int NT>
 [[intel::max_concurrency(NT)]] void func() {}
+
+[[intel::max_concurrency(8)]] void dup();
+[[intel::max_concurrency(9)]] void dup() {} // expected-error {{duplicate Intel FPGA function attribute 'max_concurrency'}}
 
 int main() {
   queue q;
@@ -81,6 +78,36 @@ int main() {
   });
 }
 
+// CHECK: CXXMethodDecl {{.*}}used operator() {{.*}}
+// CHECK: SYCLIntelFPGAMaxConcurrencyAttr {{.*}}
+// CHECK: ConstantExpr {{.*}} 'int'
+// CHECK: value: Int 4
+// CHECK: IntegerLiteral {{.*}}4{{$}}
+// CHECK: CXXMethodDecl {{.*}}operator() {{.*}}
+// CHECK: SYCLIntelFPGAMaxConcurrencyAttr {{.*}}
+// CHECK: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'NT' 'int'
+// CHECK: CXXMethodDecl {{.*}}{{.*}}used operator() {{.*}}
+// CHECK: SYCLIntelFPGAMaxConcurrencyAttr {{.*}}
+// CHECK: ConstantExpr {{.*}} 'int'
+// CHECK: value: Int 4
+// CHECK: IntegerLiteral {{.*}}4{{$}}
+// CHECK: FunctionDecl {{.*}}{{.*}}func {{.*}}
+// CHECK: SYCLIntelFPGAMaxConcurrencyAttr {{.*}}
+// CHECK: FunctionDecl {{.*}}{{.*}}used func 'void ()'
+// CHECK: SYCLIntelFPGAMaxConcurrencyAttr {{.*}}
+// CHECK: ConstantExpr {{.*}} 'int'
+// CHECK: value: Int 5
+// CHECK: IntegerLiteral {{.*}}5{{$}}
+// CHECK: FunctionDecl {{.*}}{{.*}}dup {{.*}}
+// CHECK: SYCLIntelFPGAMaxConcurrencyAttr {{.*}}
+// CHECK: ConstantExpr {{.*}} 'int'
+// CHECK: value: Int 8
+// CHECK: IntegerLiteral {{.*}}8{{$}}
+// CHECK: FunctionDecl {{.*}}{{.*}}dup {{.*}}
+// CHECK: SYCLIntelFPGAMaxConcurrencyAttr {{.*}}
+// CHECK: ConstantExpr {{.*}} 'int'
+// CHECK: value: Int 9
+// CHECK: IntegerLiteral {{.*}}9{{$}}
 // CHECK: FunctionDecl {{.*}}{{.*}}kernel_name1{{.*}}
 // CHECK: SYCLIntelFPGAMaxConcurrencyAttr {{.*}}
 // CHECK: ConstantExpr {{.*}} 'int'
