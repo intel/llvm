@@ -17,8 +17,11 @@ and not recommended to use in production environment.
 
 **`-fsycl-targets=<T1>[,...,<Tn>]`**
 
-    Tells the compiler to generate code for specified devices. T is a target
-    triple device name. You can specify more than one target, comma separated.
+    Enables ahead of time (AOT) compilation for specified device targets. T is
+    a compiler target triple string, representing a target device architecture.
+    You can specify more than one target, comma separated. Default just in time
+    (JIT) compilation target can be added to the list to produce a combination
+    of AOT and JIT code in the resulting fat binary.
     The following triples are supported by default:
     * spir64-unknown-unknown-sycldevice - this is the default generic SPIR-V
       target;
@@ -63,6 +66,7 @@ and not recommended to use in production environment.
 
     Enables (or disables) LLVM IR dead argument elimination pass to remove
     unused arguments for the kernel functions before translation to SPIR-V.
+    Currently has effect only on spir64\* targets.
     Disabled by default.
 
 **`-f[no-]sycl-id-queries-fit-in-int`**
@@ -82,8 +86,9 @@ and not recommended to use in production environment.
     Pass "options" to the backend of target device compiler, specified by
     triple T. The backend of device compiler generates target machine code from
     intermediate representation. This option can be used to tune code
-    generation for a specific target. The "options" are used during offline
-    compilation and are also saved in a fat binary for online compilation.
+    generation for a specific target. The "options" are used during AOT
+    compilation. For JIT compilation "options" are saved in a fat binary and
+    used when code is JITed during runtime.
     -Xs is a shortcut to pass "options" to all backends specified via the
     '-fsycl-targets' option (or default one).
 
@@ -199,7 +204,7 @@ and not recommended to use in production environment.
 
     Compile only device part of the code and ignore host part.
 
-**`-f[no-]sycl-use-bitcode`**
+**`-f[no-]sycl-use-bitcode`** [EXPERIMENTAL]
 
     Emit SYCL device code in LLVM-IR bitcode format. When disabled, SPIR-V is
     emitted.
