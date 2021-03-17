@@ -500,6 +500,24 @@ pi_result _pi_device::initialize() {
   }
   this->ZeComputeQueueGroupIndex = ComputeGroupIndex;
 
+  int CopyGroupIndex = -1;
+  const char *CopyEngine = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
+  bool UseCopyEngine = (!CopyEngine || (std::stoi(CopyEngine) != 0));
+  if (UseCopyEngine) {
+    for (uint32_t i = 0; i < numQueueGroups; i++) {
+      if (((queueProperties[i].flags &
+            ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) == 0) &&
+          (queueProperties[i].flags &
+           ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COPY)) {
+        CopyGroupIndex = i;
+        break;
+      }
+    }
+  }
+  if (CopyGroupIndex >= 0)
+    zePrint("NOTE: blitter/copy engine is available\n");
+  this->ZeCopyQueueGroupIndex = CopyGroupIndex;
+
   // Cache device properties
   ZeDeviceProperties = {};
   ZE_CALL(zeDeviceGetProperties, (ZeDevice, &ZeDeviceProperties));
@@ -535,7 +553,11 @@ pi_result _pi_context::finalize() {
   ZE_CALL(zeCommandListDestroy, (ZeCommandListInit));
 
   std::lock_guard<std::mutex> Lock(ZeCommandListCacheMutex);
-  for (ze_command_list_handle_t &ZeCommandList : ZeCommandListCache) {
+  for (ze_command_list_handle_t &ZeCommandList : ZeComputeCommandListCache) {
+    if (ZeCommandList)
+      ZE_CALL(zeCommandListDestroy, (ZeCommandList));
+  }
+  for (ze_command_list_handle_t &ZeCommandList : ZeCopyCommandListCache) {
     if (ZeCommandList)
       ZE_CALL(zeCommandListDestroy, (ZeCommandList));
   }
@@ -545,6 +567,11 @@ pi_result _pi_context::finalize() {
 pi_result _pi_queue::resetCommandListFenceEntry(
     _pi_queue::command_list_fence_map_t::value_type &MapEntry,
     bool MakeAvailable) {
+  bool UseCopyEngine = MapEntry.second.IsCopyCommandList;
+  auto &ZeCommandListCache = (UseCopyEngine)
+                                 ? this->Context->ZeCopyCommandListCache
+                                 : this->Context->ZeComputeCommandListCache;
+
   // Fence had been signalled meaning the associated command-list completed.
   // Reset the fence and put the command list into a cache for reuse in PI
   // calls.
@@ -554,7 +581,7 @@ pi_result _pi_queue::resetCommandListFenceEntry(
 
   if (MakeAvailable) {
     std::lock_guard<std::mutex> lock(this->Context->ZeCommandListCacheMutex);
-    this->Context->ZeCommandListCache.push_back(MapEntry.first);
+    ZeCommandListCache.push_back(MapEntry.first);
   }
 
   return PI_SUCCESS;
@@ -576,15 +603,24 @@ static const pi_uint32 ZeCommandListBatchSize = [] {
   return BatchSizeVal;
 }();
 
+bool _pi_queue::getZeCommandListIsCopyList(
+    ze_command_list_handle_t ZeCommandList) {
+  auto it = this->ZeCommandListFenceMap.find(ZeCommandList);
+  if (it == this->ZeCommandListFenceMap.end()) {
+    die("Missing command-list fence map entry");
+  }
+  return it->second.IsCopyCommandList;
+}
+
 // Retrieve an available command list to be used in a PI call
 // Caller must hold a lock on the Queue passed in.
 pi_result _pi_context::getAvailableCommandList(
     pi_queue Queue, ze_command_list_handle_t *ZeCommandList,
-    ze_fence_handle_t *ZeFence, bool AllowBatching) {
+    ze_fence_handle_t *ZeFence, bool IsCopyCommand, bool AllowBatching) {
   // First see if there is an command-list open for batching commands
   // for this queue.
   if (Queue->ZeOpenCommandList) {
-    if (AllowBatching) {
+    if (AllowBatching && !IsCopyCommand) {
       *ZeCommandList = Queue->ZeOpenCommandList;
       *ZeFence = Queue->ZeOpenCommandListFence;
       return PI_SUCCESS;
@@ -598,6 +634,8 @@ pi_result _pi_context::getAvailableCommandList(
       return Res;
   }
 
+  bool UseCopyEngine = IsCopyCommand && Queue->Device->HasCopyEngine();
+
   // Create/Reuse the command list, because in Level Zero commands are added to
   // the command lists, and later are then added to the command queue.
   // Each command list is paired with an associated fence to track when the
@@ -608,6 +646,15 @@ pi_result _pi_context::getAvailableCommandList(
   ze_fence_desc_t ZeFenceDesc = {};
   ZeFenceDesc.stype = ZE_STRUCTURE_TYPE_FENCE_DESC;
 
+  ZeCommandListDesc.commandQueueGroupOrdinal =
+      (UseCopyEngine) ? Queue->Device->ZeCopyQueueGroupIndex
+                      : Queue->Device->ZeComputeQueueGroupIndex;
+  auto &ZeCommandListCache = (UseCopyEngine)
+                                 ? Queue->Context->ZeCopyCommandListCache
+                                 : Queue->Context->ZeComputeCommandListCache;
+  auto &ZeCommandQueue = (UseCopyEngine) ? Queue->ZeCopyCommandQueue
+                                         : Queue->ZeComputeCommandQueue;
+
   // Initally, we need to check if a command list has already been created
   // on this device that is available for use. If so, then reuse that
   // Level-Zero Command List and Fence for this PI call.
@@ -616,8 +663,8 @@ pi_result _pi_context::getAvailableCommandList(
     // will be a race condition.
     std::lock_guard<std::mutex> lock(Queue->Context->ZeCommandListCacheMutex);
 
-    if (Queue->Context->ZeCommandListCache.size() > 0) {
-      *ZeCommandList = Queue->Context->ZeCommandListCache.front();
+    if (ZeCommandListCache.size() > 0) {
+      *ZeCommandList = ZeCommandListCache.front();
       auto it = Queue->ZeCommandListFenceMap.find(*ZeCommandList);
       if (it != Queue->ZeCommandListFenceMap.end()) {
         *ZeFence = it->second.ZeFence;
@@ -627,10 +674,11 @@ pi_result _pi_context::getAvailableCommandList(
         // fence yet associated, then we must create a fence/list
         // reference for this Queue. This can happen if two Queues reuse
         // a device which did not have the resources freed.
-        ZE_CALL(zeFenceCreate, (Queue->ZeCommandQueue, &ZeFenceDesc, ZeFence));
-        Queue->ZeCommandListFenceMap[*ZeCommandList] = {*ZeFence, true};
+        ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, ZeFence));
+        Queue->ZeCommandListFenceMap[*ZeCommandList] = {*ZeFence, true,
+                                                        UseCopyEngine};
       }
-      Queue->Context->ZeCommandListCache.pop_front();
+      ZeCommandListCache.pop_front();
       return PI_SUCCESS;
     }
   }
@@ -642,6 +690,10 @@ pi_result _pi_context::getAvailableCommandList(
   // reuse. If a command list is found to have been signalled, then the
   // command list & fence are reset and we return.
   for (auto &MapEntry : Queue->ZeCommandListFenceMap) {
+    // Make sure this is the command list type needed.
+    if (UseCopyEngine != MapEntry.second.IsCopyCommandList)
+      continue;
+
     ze_result_t ZeResult =
         ZE_CALL_NOCHECK(zeFenceQueryStatus, (MapEntry.second.ZeFence));
     if (ZeResult == ZE_RESULT_SUCCESS) {
@@ -666,10 +718,10 @@ pi_result _pi_context::getAvailableCommandList(
              &ZeCommandListDesc, ZeCommandList));
     // Increments the total number of command lists created on this platform.
     Queue->Device->Platform->ZeGlobalCommandListCount++;
-    ZE_CALL(zeFenceCreate, (Queue->ZeCommandQueue, &ZeFenceDesc, ZeFence));
+    ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, ZeFence));
     Queue->ZeCommandListFenceMap.insert(
         std::pair<ze_command_list_handle_t, _pi_queue::command_list_fence_t>(
-            *ZeCommandList, {*ZeFence, false}));
+            *ZeCommandList, {*ZeFence, false, UseCopyEngine}));
     pi_result = PI_SUCCESS;
   }
 
@@ -750,6 +802,11 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
     this->ZeOpenCommandListSize = 0;
   }
 
+  bool UseCopyEngine = getZeCommandListIsCopyList(ZeCommandList);
+  if (UseCopyEngine)
+    zePrint("Command list to be executed on copy engine\n");
+  auto &ZeCommandQueue =
+      (UseCopyEngine) ? ZeCopyCommandQueue : ZeComputeCommandQueue;
   // Close the command list and have it ready for dispatch.
   ZE_CALL(zeCommandListClose, (ZeCommandList));
   // Offload command list to the GPU for asynchronous execution
@@ -2111,7 +2168,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
             PI_INVALID_VALUE);
 
   ze_device_handle_t ZeDevice;
-  ze_command_queue_handle_t ZeCommandQueue;
+  ze_command_queue_handle_t ZeComputeCommandQueue;
 
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 
@@ -2131,13 +2188,22 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
   ZE_CALL(zeCommandQueueCreate,
           (Context->ZeContext, ZeDevice,
            &ZeCommandQueueDesc, // TODO: translate properties
-           &ZeCommandQueue));
+           &ZeComputeCommandQueue));
 
+  // Create second queue to copy engine
+  ze_command_queue_handle_t ZeCopyCommandQueue = nullptr;
+  if (Device->HasCopyEngine()) {
+    ZeCommandQueueDesc.ordinal = Device->ZeCopyQueueGroupIndex;
+    ZE_CALL(zeCommandQueueCreate,
+            (Context->ZeContext, ZeDevice,
+             &ZeCommandQueueDesc, // TODO: translate properties
+             &ZeCopyCommandQueue));
+  }
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
   try {
-    *Queue =
-        new _pi_queue(ZeCommandQueue, Context, Device, ZeCommandListBatchSize);
+    *Queue = new _pi_queue(ZeComputeCommandQueue, ZeCopyCommandQueue, Context,
+                           Device, ZeCommandListBatchSize);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -2206,7 +2272,9 @@ pi_result piQueueRelease(pi_queue Queue) {
         return Res;
 
       // Make sure all commands get executed.
-      zeCommandQueueSynchronize(Queue->ZeCommandQueue, UINT64_MAX);
+      zeCommandQueueSynchronize(Queue->ZeComputeCommandQueue, UINT64_MAX);
+      if (Queue->ZeCopyCommandQueue)
+        zeCommandQueueSynchronize(Queue->ZeCopyCommandQueue, UINT64_MAX);
 
       // Destroy all the fences created associated with this queue.
       for (auto &MapEntry : Queue->ZeCommandListFenceMap) {
@@ -2218,8 +2286,12 @@ pi_result piQueueRelease(pi_queue Queue) {
         ZE_CALL(zeFenceDestroy, (MapEntry.second.ZeFence));
       }
       Queue->ZeCommandListFenceMap.clear();
-      ZE_CALL(zeCommandQueueDestroy, (Queue->ZeCommandQueue));
-      Queue->ZeCommandQueue = nullptr;
+      ZE_CALL(zeCommandQueueDestroy, (Queue->ZeComputeCommandQueue));
+      Queue->ZeComputeCommandQueue = nullptr;
+      if (Queue->ZeCopyCommandQueue) {
+        ZE_CALL(zeCommandQueueDestroy, (Queue->ZeCopyCommandQueue));
+        Queue->ZeCopyCommandQueue = nullptr;
+      }
 
       zePrint("piQueueRelease NumTimesClosedFull %d, NumTimesClosedEarly %d\n",
               Queue->NumTimesClosedFull, Queue->NumTimesClosedEarly);
@@ -2242,7 +2314,9 @@ pi_result piQueueFinish(pi_queue Queue) {
   if (auto Res = Queue->executeOpenCommandList())
     return Res;
 
-  ZE_CALL(zeCommandQueueSynchronize, (Queue->ZeCommandQueue, UINT32_MAX));
+  ZE_CALL(zeCommandQueueSynchronize,
+          (Queue->ZeComputeCommandQueue, UINT32_MAX));
+  ZE_CALL(zeCommandQueueSynchronize, (Queue->ZeCopyCommandQueue, UINT32_MAX));
   return PI_SUCCESS;
 }
 
@@ -2256,7 +2330,8 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
 
   auto ZeQueue = pi_cast<ze_command_queue_handle_t *>(NativeHandle);
   // Extract the Level Zero queue handle from the given PI queue
-  *ZeQueue = Queue->ZeCommandQueue;
+  *ZeQueue = Queue->ZeComputeCommandQueue; // TODO: Can we try to return copy
+                                           // command queue here?
   return PI_SUCCESS;
 }
 
@@ -2272,7 +2347,10 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   // Attach the queue to the "0" device.
   // TODO: see if we need to let user choose the device.
   pi_device Device = Context->Devices[0];
-  *Queue = new _pi_queue(ZeQueue, Context, Device, ZeCommandListBatchSize);
+  // TODO: see what we can do to correctly initialize PI queue for
+  // compute vs. copy Level-Zero queue.
+  *Queue =
+      new _pi_queue(ZeQueue, nullptr, Context, Device, ZeCommandListBatchSize);
   return PI_SUCCESS;
 }
 
@@ -3643,8 +3721,9 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
-                                                         &ZeFence, true))
+  if (auto Res = Queue->Context->getAvailableCommandList(
+          Queue, &ZeCommandList, &ZeFence, false /* IsCopyCommand */,
+          true /* AllowBatching */))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4201,7 +4280,9 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
   if (Res != PI_SUCCESS)
     return Res;
 
-  ZE_CALL(zeCommandQueueSynchronize, (Queue->ZeCommandQueue, UINT64_MAX));
+  ZE_CALL(zeCommandQueueSynchronize,
+          (Queue->ZeComputeCommandQueue, UINT64_MAX));
+  ZE_CALL(zeCommandQueueSynchronize, (Queue->ZeCopyCommandQueue, UINT64_MAX));
   ZE_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
   return PI_SUCCESS;
 }
@@ -4280,6 +4361,14 @@ pi_result piEnqueueMemBufferReadRect(
 
 } // extern "C"
 
+static bool isDeviceLocalCopy(const void *Src, void *Dst) {
+  pi_mem SrcMem = pi_cast<pi_mem>(const_cast<void *>(Src));
+  pi_mem DstMem = pi_cast<pi_mem>(Dst);
+  if (!SrcMem || !DstMem)
+    return false;
+  return (!(SrcMem->OnHost) && !(DstMem->OnHost));
+}
+
 // Shared by all memory read/write/copy PI interfaces.
 // PI interfaces must not have queue's mutex locked on entry.
 static pi_result
@@ -4301,8 +4390,9 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
-                                                         &ZeFence, true))
+  if (auto Res = Queue->Context->getAvailableCommandList(
+          Queue, &ZeCommandList, &ZeFence,
+          !isDeviceLocalCopy(Src, Dst) /* IsCopyCommand */))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4327,8 +4417,8 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
           pi_cast<std::uintptr_t>(ZeEvent));
   printZeEventList(WaitList);
 
-  if (auto Res = Queue->executeCommandList(ZeCommandList, ZeFence,
-                                           BlockingWrite, true))
+  if (auto Res =
+          Queue->executeCommandList(ZeCommandList, ZeFence, BlockingWrite))
     return Res;
 
   return PI_SUCCESS;
@@ -4354,12 +4444,12 @@ static pi_result enqueueMemCopyRectHelper(
 
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
-                                                         &ZeFence))
+  if (auto Res = Queue->Context->getAvailableCommandList(
+          Queue, &ZeCommandList, &ZeFence,
+          !isDeviceLocalCopy(SrcBuffer, DstBuffer) /* IsCopyCommand */))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4526,8 +4616,8 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
-                                                         &ZeFence))
+  if (auto Res = Queue->Context->getAvailableCommandList(
+          Queue, &ZeCommandList, &ZeFence, true /* IsCopyCommand */))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4865,8 +4955,9 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
-                                                         &ZeFence))
+  if (auto Res = Queue->Context->getAvailableCommandList(
+          Queue, &ZeCommandList, &ZeFence,
+          !isDeviceLocalCopy(Src, Dst) /* IsCopyCommand */))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -5477,8 +5568,10 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
-                                                         &ZeFence))
+  // TODO: Change IsCopyCommand argument to 'true' once L0 backend support is
+  // added
+  if (auto Res = Queue->Context->getAvailableCommandList(
+          Queue, &ZeCommandList, &ZeFence, false /* IsCopyCommand */))
     return Res;
 
   // TODO: do we need to create a unique command type for this?
@@ -5533,8 +5626,8 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
   ze_fence_handle_t ZeFence = nullptr;
-  if (auto Res = Queue->Context->getAvailableCommandList(Queue, &ZeCommandList,
-                                                         &ZeFence))
+  if (auto Res = Queue->Context->getAvailableCommandList(
+          Queue, &ZeCommandList, &ZeFence, false /* IsCopyCommand */))
     return Res;
 
   // TODO: do we need to create a unique command type for this?

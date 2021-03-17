@@ -144,11 +144,12 @@ struct _pi_device : _pi_object {
   }
 
   // Keep the ordinal of a "compute" commands group, where we send all
-  // commands currently.
-  // TODO[1.0]: discover "copy" command group as well to use for memory
-  // copying operations exclusively.
-  //
-  uint32_t ZeComputeQueueGroupIndex;
+  // compute commands and some copy commands, and the ordinal of the
+  // "copy" commands group, where we can send only copy commands.
+  int32_t ZeComputeQueueGroupIndex;
+  int32_t ZeCopyQueueGroupIndex;
+
+  bool HasCopyEngine() { return (ZeCopyQueueGroupIndex >= 0); }
 
   // Initialize the entire PI device.
   pi_result initialize();
@@ -227,9 +228,10 @@ struct _pi_context : _pi_object {
 
   // Mutex Lock for the Command List Cache
   std::mutex ZeCommandListCacheMutex;
-
   // Cache of all currently Available Command Lists for use by PI APIs
-  std::list<ze_command_list_handle_t> ZeCommandListCache;
+  std::list<ze_command_list_handle_t> ZeComputeCommandListCache;
+  // Cache of all currently Available Copy Command Lists for use by PI APIs
+  std::list<ze_command_list_handle_t> ZeCopyCommandListCache;
 
   // Retrieves a command list for executing on this device along with
   // a fence to be used in tracking the execution of this command list.
@@ -246,6 +248,7 @@ struct _pi_context : _pi_object {
   pi_result getAvailableCommandList(pi_queue Queue,
                                     ze_command_list_handle_t *ZeCommandList,
                                     ze_fence_handle_t *ZeFence,
+                                    bool IsCopyCommand = false,
                                     bool AllowBatching = false);
 
   // Get index of the free slot in the available pool. If there is no avialble
@@ -295,15 +298,17 @@ private:
 const pi_uint32 DynamicBatchStartSize = 4;
 
 struct _pi_queue : _pi_object {
-  _pi_queue(ze_command_queue_handle_t Queue, pi_context Context,
+  _pi_queue(ze_command_queue_handle_t Queue,
+            ze_command_queue_handle_t CopyQueue, pi_context Context,
             pi_device Device, pi_uint32 BatchSize)
-      : ZeCommandQueue{Queue}, Context{Context}, Device{Device},
+      : ZeComputeCommandQueue{Queue},
+        ZeCopyCommandQueue{CopyQueue}, Context{Context}, Device{Device},
         QueueBatchSize{BatchSize > 0 ? BatchSize : DynamicBatchStartSize},
         UseDynamicBatching{BatchSize == 0} {}
 
   // Level Zero command queue handle.
-  ze_command_queue_handle_t ZeCommandQueue;
-
+  ze_command_queue_handle_t ZeComputeCommandQueue;
+  ze_command_queue_handle_t ZeCopyCommandQueue;
   // Keeps the PI context to which this queue belongs.
   // This field is only set at _pi_queue creation time, and cannot change.
   // Therefore it can be accessed without holding a lock on this _pi_queue.
@@ -357,6 +362,7 @@ struct _pi_queue : _pi_object {
     // may be still "in-use" due to sporadic delay in HW.
     //
     bool InUse;
+    bool IsCopyCommandList;
   } command_list_fence_t;
 
   // Map of all Command lists created with their associated Fence used for
@@ -364,6 +370,9 @@ struct _pi_queue : _pi_object {
   typedef std::map<ze_command_list_handle_t, command_list_fence_t>
       command_list_fence_map_t;
   command_list_fence_map_t ZeCommandListFenceMap;
+
+  // return 'true' if a command list is a "copy" command list
+  bool getZeCommandListIsCopyList(ze_command_list_handle_t ZeCommandList);
 
   // Returns true if any commands for this queue are allowed to
   // be batched together.
