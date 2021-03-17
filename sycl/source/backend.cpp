@@ -16,8 +16,6 @@
 #include <CL/sycl/detail/pi.h>
 #include <CL/sycl/exception_list.hpp>
 
-#include <stdexcept>
-
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -29,15 +27,15 @@ static const plugin &getPlugin(backend Backend) {
   case backend::level_zero:
     return pi::getPlugin<backend::level_zero>();
   default:
-    throw std::runtime_error{"Unsupported backend"};
+    throw sycl::runtime_error{"Unsupported backend", PI_INVALID_OPERATION};
   }
 }
 
-__SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle,
-                                     backend Backend) {
+platform make_platform(pi_native_handle NativeHandle, backend Backend) {
   const auto &Plugin = getPlugin(Backend);
 
-  pi::PiPlatform PiPlatform;
+  // Create PI platform first.
+  pi::PiPlatform PiPlatform = nullptr;
   Plugin.call<PiApiKind::piextPlatformCreateWithNativeHandle>(NativeHandle,
                                                               &PiPlatform);
 
@@ -49,7 +47,7 @@ __SYCL_EXPORT device make_device(pi_native_handle NativeHandle,
                                  backend Backend) {
   const auto &Plugin = getPlugin(Backend);
 
-  pi::PiDevice PiDevice;
+  pi::PiDevice PiDevice = nullptr;
   Plugin.call<PiApiKind::piextDeviceCreateWithNativeHandle>(NativeHandle,
                                                             nullptr, &PiDevice);
   // Construct the SYCL device from PI device.
@@ -62,7 +60,7 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle,
                                    backend Backend) {
   const auto &Plugin = getPlugin(Backend);
 
-  pi::PiContext PiContext;
+  pi::PiContext PiContext = nullptr;
   Plugin.call<PiApiKind::piextContextCreateWithNativeHandle>(
       NativeHandle, 0, nullptr, false, &PiContext);
   // Construct the SYCL context from PI context.
@@ -76,7 +74,7 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
   const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(Context);
   // Create PI queue first.
-  pi::PiQueue PiQueue;
+  pi::PiQueue PiQueue = nullptr;
   Plugin.call<PiApiKind::piextQueueCreateWithNativeHandle>(
       NativeHandle, ContextImpl->getHandleRef(), &PiQueue);
   // Construct the SYCL queue from PI queue.
@@ -88,7 +86,7 @@ __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
                                const context &Context, backend Backend) {
   const auto &Plugin = getPlugin(Backend);
 
-  pi::PiEvent PiEvent;
+  pi::PiEvent PiEvent = nullptr;
   Plugin.call<PiApiKind::piextEventCreateWithNativeHandle>(NativeHandle,
                                                            &PiEvent);
 

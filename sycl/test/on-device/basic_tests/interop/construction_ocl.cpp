@@ -2,7 +2,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -lOpenCL %s -o %t.ocl.out
 // RUN: env SYCL_DEVICE_FILTER="opencl" %t.ocl.out
 
+#include <CL/cl.h>
 #include <CL/sycl/backend/opencl.hpp>
+
 #include <sycl/sycl.hpp>
 
 constexpr auto BE = sycl::backend::opencl;
